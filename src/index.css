@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: #ffffff;
+  color: #111111;
+  font-family: 'Inter', '"Noto Sans SC"', sans-serif;
+  overflow: hidden;
+}
+
+* { box-sizing: border-box; }
