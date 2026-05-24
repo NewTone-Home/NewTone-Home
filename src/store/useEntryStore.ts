@@ -1,41 +1,16 @@
 import { create } from "zustand"
-import {
-  readEntryStorage,
-  writeEntryStorage,
-} from "../lib/entryStorage"
-import {
-  computeEntryDestination,
-  destinationForFirstChoice,
-} from "../lib/entryStateMachine"
-import type { EntryChoice, EntryDestination } from "../types/entry"
+import { createInitAction } from "./actions/init"
+import { createChooseFirstEntryAction } from "./actions/chooseEntry"
+import { createGoToAction } from "./actions/goTo"
+import { createResetAction } from "./actions/reset"
+import type { EntryStore } from "./types"
 
-interface EntryStore {
-  destination: EntryDestination
-  init: () => void
-  chooseFirstEntry: (choice: EntryChoice) => void
-  goTo: (dest: EntryDestination) => void
-  resetStorage: () => void
-}
-
+// 入口状态 store —— 薄壳，所有逻辑委托给 actions/
+// 这个文件以后永远不应该超过 20 行
 export const useEntryStore = create<EntryStore>((set) => ({
-  destination: { kind: "logo_full" },
-
-  init: () => {
-    const state = readEntryStorage()
-    const dest = computeEntryDestination(state)
-    set({ destination: dest })
-  },
-
-  chooseFirstEntry: (choice) => {
-    writeEntryStorage({ entryChoice: choice })
-    const dest = destinationForFirstChoice(choice)
-    set({ destination: dest })
-  },
-
-  goTo: (dest) => set({ destination: dest }),
-
-  resetStorage: () => {
-    localStorage.clear()
-    set({ destination: { kind: "logo_full" } })
-  },
+  destination: null,
+  init: createInitAction(set),
+  chooseFirstEntry: createChooseFirstEntryAction(set),
+  goTo: createGoToAction(set),
+  resetStorage: createResetAction(),
 }))

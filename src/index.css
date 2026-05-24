@@ -1,14 +1,33 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "./theme/tokens.css";
 
-html, body, #root {
-  height: 100%;
+* {
+  box-sizing: border-box;
   margin: 0;
-  background: #ffffff;
-  color: #111111;
-  font-family: 'Inter', '"Noto Sans SC"', sans-serif;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
   overflow: hidden;
 }
 
-* { box-sizing: border-box; }
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-serif-sc);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--color-fg);
+  color: var(--color-bg);
+}
