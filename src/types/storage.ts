@@ -6,6 +6,7 @@ export type DeepestLayer = "multiverse" | "world_hall" | "chapter"
 export type ReaderPreferences = {
   fontSize?: "small" | "medium" | "large"
   theme?: "light" | "dark" | "sepia"
+	language?: "zh" | "en"
 }
 
 export type WorldProgress = {

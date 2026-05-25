@@ -7,16 +7,12 @@ const LANG_CYCLE: Lang[] = ["zh", "en"]
 
 function persistLang(lang: Lang): void {
 	const state = readStorage()
-	// NOTE: ReaderPreferences 还没加 language 字段, Step D 补类型后移除 cast
-	const prefs = (state.preferences ?? {}) as Record<string, unknown>
-	const nextPrefs = { ...prefs, language: lang } as typeof state.preferences
+	const nextPrefs = { ...(state.preferences ?? {}), language: lang }
 	writeStorage({ ...state, preferences: nextPrefs })
 }
 
 function readInitialLang(): Lang {
-	const prefs = readStorage().preferences
-	if (!prefs) return "zh"
-	const lang = (prefs as Record<string, unknown>).language
+	const lang = readStorage().preferences?.language
 	if (lang === "en" || lang === "zh") return lang
 	return "zh"
 }

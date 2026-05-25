@@ -1,0 +1,16 @@
+{
+	"entry": {
+		"anyKeyHint": "Press any key to start",
+		"startFromBeginning": "Start from the beginning",
+		"iveBeenHere": "I've been here before"
+	},
+	"placeholder": {
+		"worldHall": "Placeholder · World Hall",
+		"worldHallHintTemplate": "World ID: {worldId} (Frame 2 TBD)",
+		"multiverse": "Placeholder · Multiverse Map",
+		"multiverseHint": "(Frame 3 TBD)"
+	},
+	"dev": {
+		"resetLocalStorage": "🔧 dev: reset localStorage"
+	}
+}

@@ -1,7 +1,7 @@
 import { motion } from "framer-motion"
 import type { MouseEvent } from "react"
 import { useEntryStore } from "../../../store"
-import { t } from "../../../i18n"
+import { useT } from "../../../i18n"
 import { buttonsRowStyle, buttonStyle } from "../styles/buttons"
 import { buttonsInitial, buttonsAnimate, buttonsExit } from "../motion/buttonsVariants"
 
@@ -18,6 +18,7 @@ function handleHoverLeave(e: MouseEvent<HTMLButtonElement>) {
 // 两按钮：从头开始 / 我已来过
 export function EntryButtons() {
   const chooseFirstEntry = useEntryStore((s) => s.chooseFirstEntry)
+	const tr = useT()
 
   function onLinear(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
@@ -43,7 +44,7 @@ export function EntryButtons() {
         onMouseEnter={handleHoverEnter}
         onMouseLeave={handleHoverLeave}
       >
-        {t().entry.startFromBeginning}
+        {tr.entry.startFromBeginning}
       </button>
       <button
         onClick={onFreeExplore}
@@ -51,7 +52,7 @@ export function EntryButtons() {
         onMouseEnter={handleHoverEnter}
         onMouseLeave={handleHoverLeave}
       >
-        {t().entry.iveBeenHere}
+        {tr.entry.iveBeenHere}
       </button>
     </motion.div>
   )

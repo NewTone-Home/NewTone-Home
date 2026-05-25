@@ -1,14 +1,16 @@
 {
-  "entry": {
-    "anyKeyHint": "按任意键开始探索",
-    "startFromBeginning": "从头开始",
-    "iveBeenHere": "我已来过"
-  },
-  "placeholder": {
-    "worldHall": "占位 · 世界门厅",
-    "multiverse": "占位 · 多元宇宙大地图"
-  },
-  "dev": {
-    "resetLocalStorage": "🔧 dev: reset localStorage"
-  }
+	"entry": {
+		"anyKeyHint": "按任意键开始探索",
+		"startFromBeginning": "从头开始",
+		"iveBeenHere": "我已来过"
+	},
+	"placeholder": {
+		"worldHall": "占位 · 世界门厅",
+		"worldHallHintTemplate": "世界 ID：{worldId}（Frame 2 待实装）",
+		"multiverse": "占位 · 多元宇宙大地图",
+		"multiverseHint": "（Frame 3 待实装）"
+	},
+	"dev": {
+		"resetLocalStorage": "🔧 dev: reset localStorage"
+	}
 }
