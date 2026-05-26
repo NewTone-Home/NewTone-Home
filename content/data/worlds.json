@@ -2,8 +2,13 @@
   {
     "id": "chumo",
     "novelId": "newtone-1",
-    "name": { "zh": "初墨" },
-    "tagline": { "zh": "中枢院 × 民间占卜" },
+    "name": {
+      "zh": "初墨"
+    },
+    "tagline": {
+      "zh": "一墨之始，两脉之分",
+      "en": "One Ink at the Start, Two Streams Apart"
+    },
     "createdAt": "2026-05-23T00:00:00Z",
     "updatedAt": "2026-05-23T00:00:00Z",
     "publishedAt": "2026-05-23T00:00:00Z"

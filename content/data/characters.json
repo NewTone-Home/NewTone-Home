@@ -2,36 +2,52 @@
   {
     "id": "jixiu-jie-zha",
     "novelId": "newtone-1",
-    "name": { "zh": "姬修杰·札" },
+    "name": {
+      "zh": "姬修杰"
+    },
     "guaSymbol": "☰",
-    "bio": { "zh": "中枢院主推线主角" },
+    "bio": {
+      "zh": "中枢院主推线主角"
+    },
     "createdAt": "2026-05-23T00:00:00Z",
     "updatedAt": "2026-05-23T00:00:00Z"
   },
   {
     "id": "sun-ruoyu-shi",
     "novelId": "newtone-1",
-    "name": { "zh": "孙若雨·筮" },
+    "name": {
+      "zh": "孙若雨"
+    },
     "guaSymbol": "☱",
-    "bio": { "zh": "民间占卜师" },
+    "bio": {
+      "zh": "民间占卜师"
+    },
     "createdAt": "2026-05-23T00:00:00Z",
     "updatedAt": "2026-05-23T00:00:00Z"
   },
   {
     "id": "ji-yunling-jian",
     "novelId": "newtone-1",
-    "name": { "zh": "姬云灵·笺" },
+    "name": {
+      "zh": "姬云灵"
+    },
     "guaSymbol": "☲",
-    "bio": { "zh": "待定" },
+    "bio": {
+      "zh": "待定"
+    },
     "createdAt": "2026-05-23T00:00:00Z",
     "updatedAt": "2026-05-23T00:00:00Z"
   },
   {
     "id": "ji-chengyuan-cang",
     "novelId": "newtone-1",
-    "name": { "zh": "姬承渊·藏" },
+    "name": {
+      "zh": "姬承渊"
+    },
     "guaSymbol": "☶",
-    "bio": { "zh": "待定" },
+    "bio": {
+      "zh": "待定"
+    },
     "createdAt": "2026-05-23T00:00:00Z",
     "updatedAt": "2026-05-23T00:00:00Z"
   }
