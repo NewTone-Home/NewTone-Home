@@ -31,3 +31,7 @@ button {
   background: var(--color-fg);
   color: var(--color-bg);
 }
+
+/* 隐藏滚动条但保留滚动能力 — 给章节阅读器等沉浸场景用 */
+.scroll-invisible { scrollbar-width: none; }
+.scroll-invisible::-webkit-scrollbar { display: none; }

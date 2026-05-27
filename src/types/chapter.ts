@@ -1,10 +1,29 @@
-import type { AssetRef, LocalizedString, Publishable, SoftDeletable, Taggable, Timestamped } from "./common"
+import type {
+  LocalizedString,
+  Timestamped,
+  SoftDeletable,
+  Publishable,
+  Taggable,
+} from "./common"
 
-export type AccessLevel = "public" | "members" | "paid"
+// Frame 3 段落语义类型 — 决定字号节奏与焦点淡入行为
+// open     开场大字独占
+// narrate  叙述小字窄栏左对齐
+// key      关键句大字独占
+// thought  内心斜体小字
+// dialogue 对话中字开间距
+// pause    静默加宽字距
+export type ChapterParagraphType =
+  | "open"
+  | "narrate"
+  | "key"
+  | "thought"
+  | "dialogue"
+  | "pause"
 
-export type EventRef = {
-  eventId: string
-  significance?: "minor" | "major" | "key"
+export type ChapterParagraph = {
+  type: ChapterParagraphType
+  text: LocalizedString
 }
 
 export type Chapter = {
@@ -12,9 +31,9 @@ export type Chapter = {
   arcId: string
   order: number
   title: LocalizedString
-  body: LocalizedString            // Markdown 文本
-  characterIds?: string[]          // 出场角色
-  coverAsset?: AssetRef
-  events?: EventRef[]              // 主线事件链钩子（预留）
-  accessLevel?: AccessLevel        // 默认 public
+  paragraphs?: ChapterParagraph[]
+  body?: LocalizedString
+  characterIds?: string[]
+  events?: string[]
+  accessLevel?: "public" | "broken_seal"
 } & Timestamped & SoftDeletable & Publishable & Taggable

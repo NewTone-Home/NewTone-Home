@@ -4,9 +4,11 @@ import { useT } from "../i18n"
 import { ErrorBoundary } from "./ErrorBoundary"
 import { Frame1Logo } from "../frames/Frame1Logo"
 import { Frame2WorldHall } from "../frames/Frame2WorldHall"
+import { Frame3Chapter } from "../frames/Frame3Chapter"
 import { Placeholder } from "../frames/Placeholder"
 import { HeartbeatDot } from "./HeartbeatDot"
 import { DevResetButton } from "./DevResetButton"
+import { DevChapterButton } from "./DevChapterButton"
 
 export function AppShell() {
 	const init = useEntryStore((s) => s.init)
@@ -37,8 +39,12 @@ export function AppShell() {
 					hint={tr.placeholder.multiverseHint}
 				/>
 			)}
+      {destination.kind === "chapter" && (
+        <Frame3Chapter chapterId={destination.chapterId} />
+      )}
 			<HeartbeatDot />
 			<DevResetButton />
+      <DevChapterButton />
 		</ErrorBoundary>
 	)
 }

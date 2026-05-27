@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "id": "chumo-arc1",
+    "worldId": "chumo",
+    "order": 1,
+    "title": { "zh": "中枢院的影子", "en": "Shadows of the Bureau" },
+    "description": { "zh": "修杰的视角。一场关于「被抹除」的开始。" },
+    "createdAt": "2026-05-26T17:14:00-07:00",
+    "updatedAt": "2026-05-26T17:14:00-07:00"
+  }
+]
