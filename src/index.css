@@ -35,3 +35,30 @@ button {
 /* 隐藏滚动条但保留滚动能力 — 给章节阅读器等沉浸场景用 */
 .scroll-invisible { scrollbar-width: none; }
 .scroll-invisible::-webkit-scrollbar { display: none; }
+
+/* ─── 乾爻镁条燃烧动画(900ms) ─── */
+@keyframes yao-burn {
+  0%   { transform: scaleX(0.2); box-shadow: 0 0 0 0 rgba(196, 229, 234, 0); }
+  30%  { transform: scaleX(1);   box-shadow: 0 0 10px 2px rgba(196, 229, 234, 0.7); }
+  100% { transform: scaleX(1);   box-shadow: 0 0 0 0 rgba(196, 229, 234, 0); }
+}
+.yao-line.yao-lit {
+  animation: yao-burn 900ms ease-out;
+  transform-origin: center;
+}
+
+/* ─── 乾爻镁条燃烧动画(900ms) ─── */
+@keyframes yao-burn {
+  0%   { transform: scaleX(0.2); box-shadow: 0 0 0 0 rgba(196, 229, 234, 0); }
+  30%  { transform: scaleX(1);   box-shadow: 0 0 10px 2px rgba(196, 229, 234, 0.7); }
+  100% { transform: scaleX(1);   box-shadow: 0 0 0 0 rgba(196, 229, 234, 0); }
+}
+.yao-line.yao-lit {
+  animation: yao-burn 900ms ease-out;
+  transform-origin: center;
+}
+
+/* 角色主题色 - 乾(姬修杰) */
+:root { --char-color-qian: #5A8B95; }
+[data-theme="dark"] { --char-color-qian: #C4E5EA; }
+[data-theme="sepia"] { --char-color-qian: #8A6A40; }

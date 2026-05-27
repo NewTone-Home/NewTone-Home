@@ -1,112 +1,162 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react"
-import type { CSSProperties } from "react"
+import { useEffect, useRef, useState, CSSProperties } from "react"
 import { defaultAdapter } from "../../content"
-import { useLanguageStore } from "../../store/useLanguageStore"
-import type {
-  ChapterParagraph,
-  ChapterParagraphType,
-} from "../../types/chapter"
+import type { ChapterParagraph } from "../../types/chapter"
 
 const FOCUS_RANGE = 0.55
 const MIN_OPACITY = 0.04
 const MAX_TRANSLATE = 24
+const TRIGRAM = "☰"
+const ROMAN = "I"
+const CHAR_COLOR = "var(--char-color-qian)"
 
-const PARA_STYLE: Record<ChapterParagraphType, CSSProperties> = {
-  open:     { fontSize: 26, lineHeight: 1.5, marginBottom: "28vh", textAlign: "center" },
-  narrate:  { fontSize: 18, lineHeight: 1.9, marginBottom: "1.5em", maxWidth: 480, textAlign: "left", marginLeft: "auto", marginRight: "auto" },
-  key:      { fontSize: 22, lineHeight: 1.5, marginBottom: "22vh", textAlign: "center" },
-  thought:  { fontSize: 18, lineHeight: 1.8, marginBottom: "14vh", fontStyle: "italic", textAlign: "center", opacity: 0.85 },
-  dialogue: { fontSize: 22, lineHeight: 1.7, marginBottom: "14vh", textAlign: "center" },
-  pause:    { fontSize: 22, lineHeight: 1.5, marginBottom: "25vh", letterSpacing: "0.18em", fontStyle: "italic", textAlign: "center", opacity: 0.6 },
+type ParaType = ChapterParagraph["type"]
+
+const PARA_OPEN: CSSProperties = { fontSize: 26, marginBottom: "28vh", textAlign: "center" }
+const PARA_NARRATE: CSSProperties = { fontSize: 18, marginBottom: "1.5em" }
+const PARA_KEY: CSSProperties = { fontSize: 22, marginBottom: "22vh", fontStyle: "italic" }
+const PARA_THOUGHT: CSSProperties = { fontSize: 18, marginBottom: "14vh", color: "var(--color-muted)" }
+const PARA_DIALOGUE: CSSProperties = { fontSize: 22, marginBottom: "14vh" }
+const PARA_PAUSE: CSSProperties = { fontSize: 22, marginBottom: "25vh", textAlign: "center", color: "var(--color-muted)" }
+
+function paraBase(type: ParaType): CSSProperties {
+  if (type === "open") return PARA_OPEN
+  if (type === "narrate") return PARA_NARRATE
+  if (type === "key") return PARA_KEY
+  if (type === "thought") return PARA_THOUGHT
+  if (type === "dialogue") return PARA_DIALOGUE
+  return PARA_PAUSE
 }
 
-const CONTAINER: CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  overflowY: "auto",
-  background: "var(--color-bg)",
-  color: "var(--color-fg)",
-  fontFamily: '"Source Han Serif SC", "Noto Serif SC", "Songti SC", serif',
-  zIndex: 0,
+function paraStyle(type: ParaType, o: number, t: number): CSSProperties {
+  return Object.assign({}, paraBase(type), {
+    opacity: o,
+    transform: "translateY(" + t + "px)",
+    transition: "opacity 120ms linear, transform 120ms linear",
+  })
 }
 
-const SPACE: CSSProperties = {
-  maxWidth: 580,
-  margin: "0 auto",
-  padding: "40vh 24px 25vh",
+const CONTAINER: CSSProperties = { position: "fixed", inset: 0, overflowY: "auto", background: "var(--color-bg)", color: "var(--color-fg)" }
+const SPACE: CSSProperties = { maxWidth: 580, margin: "0 auto", padding: "40vh 24px 25vh", fontFamily: '"Source Han Serif SC", "Noto Serif SC", "Songti SC", serif', lineHeight: 1.85 }
+const SIDEBAR: CSSProperties = { position: "fixed", top: 0, left: 0, bottom: 0, width: 60, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 32, paddingBottom: 32, zIndex: 10, pointerEvents: "none" }
+
+const HEADER_OUTER: CSSProperties = { textAlign: "center", marginBottom: "18vh", opacity: 0.85 }
+const HEADER_ROMAN: CSSProperties = { fontSize: 14, letterSpacing: "0.4em", opacity: 0.4, marginBottom: 24 }
+const HEADER_TITLE: CSSProperties = { fontSize: 32, letterSpacing: "0.15em", fontWeight: 400, marginBottom: 28 }
+const HEADER_RULE_ROW: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 12, opacity: 0.4 }
+const HEADER_RULE_LINE: CSSProperties = { display: "inline-block", width: 40, height: 1, background: "currentColor" }
+const HEADER_RULE_TRIGRAM: CSSProperties = { fontSize: 18 }
+
+const FOOTER_OUTER: CSSProperties = { textAlign: "center", marginTop: "20vh", opacity: 0.85 }
+const FOOTER_ROMAN: CSSProperties = { fontSize: 12, opacity: 0.4, letterSpacing: "0.3em", marginBottom: 12 }
+const FOOTER_HINT: CSSProperties = { fontSize: 12, opacity: 0.3 }
+
+function footerHexagram(lit: number): CSSProperties {
+  return {
+    fontSize: 64,
+    color: CHAR_COLOR,
+    opacity: lit >= 3 ? 0.7 : 0.15,
+    transition: "opacity 1.4s ease-out",
+    marginBottom: 16,
+  }
 }
 
-type Props = { chapterId: string }
+const SIDEBAR_BACK: CSSProperties = { background: "none", border: "none", color: "var(--color-fg)", fontSize: 22, cursor: "pointer", opacity: 0.15, transition: "opacity 200ms", pointerEvents: "auto", padding: 0 }
+const SIDEBAR_ROMAN: CSSProperties = { marginTop: 96, fontSize: 14, letterSpacing: "0.5em", color: "var(--color-fg)", opacity: 0.2 }
+const SIDEBAR_YAO_BOX: CSSProperties = { marginTop: "auto", marginBottom: "auto", display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }
+const SIDEBAR_BOTTOM_PAD: CSSProperties = { marginBottom: 16 }
 
-export function Frame3Chapter({ chapterId }: Props) {
-  const lang = useLanguageStore((s) => s.lang)
-  const chapter = useMemo(
-    () => defaultAdapter.getChapterById(chapterId),
-    [chapterId],
-  )
+function yaoLine(i: number, lit: number): CSSProperties {
+  return {
+    width: 24,
+    height: 2,
+    background: lit > i ? CHAR_COLOR : "var(--color-fg)",
+    opacity: lit > i ? 0.65 : 0.15,
+    transition: "opacity 600ms ease-out, background 600ms",
+  }
+}
 
-  const paraRefs = useRef<Array<HTMLParagraphElement | null>>([])
-  const [styles, setStyles] = useState<Array<{ opacity: number; ty: number }>>([])
+export function Frame3Chapter() {
+  const chapterId = "chumo-arc1-ch3"
+  const chapter = defaultAdapter.getChapterById(chapterId, "zh")
+  const paragraphs = chapter?.paragraphs ?? []
 
-  useLayoutEffect(() => {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const paraRefs = useRef<Array<HTMLDivElement | null>>([])
+  const [styles, setStyles] = useState<Array<{ o: number; t: number }>>([])
+  const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
     let raf = 0
     const tick = () => {
-      const vh = window.innerHeight
-      const center = vh / 2
-      const range = vh * FOCUS_RANGE
-      const next = paraRefs.current.map((el) => {
-        if (!el) return { opacity: MIN_OPACITY, ty: 0 }
-        const rect = el.getBoundingClientRect()
-        const elCenter = rect.top + rect.height / 2
-        const dist = Math.abs(elCenter - center)
-        const t = Math.min(1, dist / range)
-        const opacity = MIN_OPACITY + (1 - MIN_OPACITY) * (1 - t * t)
-        const ty = t * MAX_TRANSLATE * Math.sign(elCenter - center)
-        return { opacity, ty }
-      })
-      setStyles(next)
+      const el = containerRef.current
+      if (el) {
+        const vc = window.innerHeight / 2
+        const next = paraRefs.current.map(n => {
+          if (!n) return { o: MIN_OPACITY, t: 0 }
+          const r = n.getBoundingClientRect()
+          const pc = r.top + r.height / 2
+          const d = Math.abs(pc - vc)
+          const k = Math.min(1, d / (window.innerHeight * FOCUS_RANGE))
+          const o = MIN_OPACITY + (1 - MIN_OPACITY) * (1 - k * k)
+          const t = (pc < vc ? -1 : 1) * MAX_TRANSLATE * (1 - o)
+          return { o, t }
+        })
+        setStyles(next)
+        const max = el.scrollHeight - el.clientHeight
+        setProgress(max > 0 ? el.scrollTop / max : 0)
+      }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [chapter?.id])
+  }, [paragraphs.length])
 
-  if (!chapter) {
-    return (
-      <div style={CONTAINER} className="scroll-invisible">
-        <div style={SPACE}>章节不存在: {chapterId}</div>
-      </div>
-    )
-  }
-
-  const paragraphs: ChapterParagraph[] = chapter.paragraphs ?? []
+  if (!chapter) return null
+  const lit = progress >= 0.98 ? 3 : progress >= 0.65 ? 2 : progress >= 0.32 ? 1 : 0
 
   return (
-    <div style={CONTAINER} className="scroll-invisible">
-      <div style={SPACE}>
-        {paragraphs.map((p, i) => {
-          const s = styles[i] ?? { opacity: MIN_OPACITY, ty: 0 }
-          const baseStyle = PARA_STYLE[p.type]
-          const baseOpacity = (baseStyle.opacity as number | undefined) ?? 1
-          const text = p.text[lang] ?? p.text.zh
-          return (
-            <p
-              key={i}
-              ref={(el) => {
-                paraRefs.current[i] = el
-              }}
-              style={{
-                ...baseStyle,
-                opacity: s.opacity * baseOpacity,
-                transform: `translateY(${s.ty}px)`,
-                transition: "opacity 0.18s linear, transform 0.18s linear",
-              }}
-            >
-              {text}
-            </p>
-          )
-        })}
+    <>
+      <div ref={containerRef} style={CONTAINER} className="scroll-invisible">
+        <div style={SPACE}>
+          <div style={HEADER_OUTER}>
+            <div style={HEADER_ROMAN}>{ROMAN}</div>
+            <div style={HEADER_TITLE}>{chapter.title.zh}</div>
+            <div style={HEADER_RULE_ROW}>
+              <span style={HEADER_RULE_LINE} />
+              <span style={HEADER_RULE_TRIGRAM}>{TRIGRAM}</span>
+              <span style={HEADER_RULE_LINE} />
+            </div>
+          </div>
+          {paragraphs.map((p, i) => {
+            const s = styles[i] ?? { o: 1, t: 0 }
+            const setRef = (el: HTMLDivElement | null) => { paraRefs.current[i] = el }
+            return (
+              <div key={p.id ?? i} ref={setRef} style={paraStyle(p.type, s.o, s.t)}>{p.text.zh}</div>
+            )
+          })}
+          <div style={FOOTER_OUTER}>
+            <div style={FOOTER_ROMAN}>{ROMAN}</div>
+            <div style={FOOTER_HINT}>(未完)</div>
+          </div>
+        </div>
       </div>
-    </div>
+
+      <div style={SIDEBAR}>
+        <button
+          onClick={() => { /* TODO: navigation store back to worldHall */ }}
+          style={SIDEBAR_BACK}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.15")}
+          aria-label="back"
+        >←</button>
+        <div style={SIDEBAR_ROMAN}>{ROMAN}</div>
+        <div style={SIDEBAR_YAO_BOX}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className={lit > i ? "yao-line yao-lit" : "yao-line"} style={yaoLine(i, lit)} />
+          ))}
+        </div>
+        <div style={SIDEBAR_BOTTOM_PAD} />
+      </div>
+    </>
   )
 }
