@@ -3,3 +3,5 @@ export { t, useT } from "./t"
 export { localized } from "./localized"
 export { getCurrentUILang } from "./currentLang"
 export type { UILang, UIStrings } from "./types"
+
+export { useLocalized } from "./useLocalized"

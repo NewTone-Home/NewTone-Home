@@ -62,3 +62,34 @@ button {
 :root { --char-color-qian: #5A8B95; }
 [data-theme="dark"] { --char-color-qian: #C4E5EA; }
 [data-theme="sepia"] { --char-color-qian: #8A6A40; }
+
+
+
+
+/* === v0.5.0 · Frame 3 乾爻 D'' 真水雾 === */
+@keyframes humidifier-puff {
+	0% {
+		opacity: 0;
+		filter: blur(3px);
+		transform: translateX(0) translateY(0) scale(0.5);
+	}
+	35% {
+		opacity: 0.55;
+		filter: blur(5px);
+		transform: translateX(calc(var(--puff-sway, 0px) * 0.5)) translateY(-10px) scale(1.1);
+	}
+	100% {
+		opacity: 0;
+		filter: blur(9px);
+		transform: translateX(var(--puff-sway, 0px)) translateY(-42px) scale(2);
+	}
+}
+.yao-humidifier-puff {
+	width: 24px;
+	height: 24px;
+	background: radial-gradient(circle, var(--char-color-qian) 0%, var(--char-color-qian) 35%, transparent 75%);
+	border-radius: 50%;
+	pointer-events: none;
+	position: absolute;
+	animation: humidifier-puff 1400ms infinite;
+}
