@@ -22,6 +22,7 @@ export type ChapterParagraphType =
   | "pause"
 
 export type ChapterParagraph = {
+  id?: string
   type: ChapterParagraphType
   text: LocalizedString
 }

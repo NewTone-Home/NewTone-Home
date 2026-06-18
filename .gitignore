@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
+.npm-cache/
+.__codex_pkg_extract/
+*.tgz
 
 # Editor directories and files
 .vscode/*

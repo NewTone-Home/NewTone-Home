@@ -1,5 +1,3 @@
-import type { EntryDestination } from "../../types/destination"
-
 export type HeartbeatVariant = "ink_bloom" | "deep_space"
 
 /**

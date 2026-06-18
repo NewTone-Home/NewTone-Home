@@ -12,7 +12,7 @@ export type {
 export type { Novel } from "./novel"
 export type { World } from "./world"
 export type { Arc } from "./arc"
-export type { Chapter, EventRef, AccessLevel } from "./chapter"
+export type { Chapter } from "./chapter"
 export type { Character } from "./character"
 export type { Asset, AssetType } from "./asset"
 
