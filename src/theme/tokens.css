@@ -1,24 +1,22 @@
-/* CSS Variables · 主题层
- * 切换主题靠改 <html data-theme="..."> 属性，所有组件用 var(--xxx) 即可自动跟随
- */
-
 :root,
 [data-theme="light"] {
-  /* 颜色 */
-  --color-bg: #ffffff;
-  --color-fg: #111111;
-  --color-fg-muted: #888888;
-  --color-fg-subtle: #666666;
-  --color-border: #111111;
-  --color-overlay: rgba(0, 0, 0, 0.05);
-  --color-overlay-strong: rgba(0, 0, 0, 0.3);
+  --color-bg: #f8f6f0;
+  --color-fg: #171512;
+  --color-fg-muted: #7a7469;
+  --color-fg-subtle: #5d574d;
+  --color-border: #2b2822;
+  --color-line: rgba(43, 40, 34, 0.28);
+  --color-muted: #7a7469;
+  --color-overlay: rgba(43, 40, 34, 0.05);
+  --color-overlay-strong: rgba(43, 40, 34, 0.3);
+  --color-paper-grain: rgba(92, 78, 55, 0.035);
+  --char-color-qian: #5a8b95;
+  --char-smoke-soft: rgba(90, 139, 149, 0.28);
 
-  /* 字体 */
   --font-serif-latin: "Cormorant Garamond", serif;
   --font-serif-sc: "Noto Serif SC", serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 
-  /* 间距 */
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 16px;
@@ -27,7 +25,6 @@
   --space-2xl: 48px;
   --space-3xl: 80px;
 
-  /* 字号 */
   --font-size-xs: 11px;
   --font-size-sm: 14px;
   --font-size-md: 16px;
@@ -36,22 +33,31 @@
 }
 
 [data-theme="dark"] {
-  --color-bg: #0a0a0a;
-  --color-fg: #f5f5f5;
-  --color-fg-muted: #777777;
-  --color-fg-subtle: #999999;
-  --color-border: #f5f5f5;
-  --color-overlay: rgba(255, 255, 255, 0.05);
-  --color-overlay-strong: rgba(255, 255, 255, 0.3);
+  --color-bg: #090b0d;
+  --color-fg: #edf4f1;
+  --color-fg-muted: #7f8d8a;
+  --color-fg-subtle: #a5b2ae;
+  --color-border: #d8e5e1;
+  --color-line: rgba(216, 229, 225, 0.25);
+  --color-muted: #7f8d8a;
+  --color-overlay: rgba(237, 244, 241, 0.05);
+  --color-overlay-strong: rgba(237, 244, 241, 0.3);
+  --color-paper-grain: rgba(196, 229, 234, 0.025);
+  --char-color-qian: #c4e5ea;
+  --char-smoke-soft: rgba(196, 229, 234, 0.32);
 }
 
 [data-theme="sepia"] {
-  /* 米黄护眼纸 · 长时间阅读友好 */
-  --color-bg: #f5ecd9;
-  --color-fg: #3c2e1e;
-  --color-fg-muted: #8a7458;
-  --color-fg-subtle: #6b5942;
-  --color-border: #3c2e1e;
-  --color-overlay: rgba(60, 46, 30, 0.05);
-  --color-overlay-strong: rgba(60, 46, 30, 0.3);
+  --color-bg: #f1e6d0;
+  --color-fg: #382c1d;
+  --color-fg-muted: #856f52;
+  --color-fg-subtle: #675137;
+  --color-border: #4b3924;
+  --color-line: rgba(75, 57, 36, 0.26);
+  --color-muted: #856f52;
+  --color-overlay: rgba(75, 57, 36, 0.05);
+  --color-overlay-strong: rgba(75, 57, 36, 0.28);
+  --color-paper-grain: rgba(111, 82, 43, 0.045);
+  --char-color-qian: #8a6a40;
+  --char-smoke-soft: rgba(138, 106, 64, 0.24);
 }

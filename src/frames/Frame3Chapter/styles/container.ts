@@ -4,7 +4,9 @@ export const CONTAINER: CSSProperties = {
 	position: "fixed",
 	inset: 0,
 	overflowY: "auto",
-	background: "var(--color-bg)",
+	background:
+		"linear-gradient(90deg, var(--color-paper-grain) 1px, transparent 1px), linear-gradient(0deg, var(--color-paper-grain) 1px, transparent 1px), var(--color-bg)",
+	backgroundSize: "32px 32px, 32px 32px, auto",
 	color: "var(--color-fg)",
 }
 

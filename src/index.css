@@ -22,6 +22,18 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(90deg, var(--color-paper-grain) 1px, transparent 1px),
+    linear-gradient(0deg, var(--color-paper-grain) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.42;
+}
+
 button {
   font-family: inherit;
   color: inherit;
@@ -32,64 +44,60 @@ button {
   color: var(--color-bg);
 }
 
-/* 隐藏滚动条但保留滚动能力 — 给章节阅读器等沉浸场景用 */
-.scroll-invisible { scrollbar-width: none; }
-.scroll-invisible::-webkit-scrollbar { display: none; }
-
-/* ─── 乾爻镁条燃烧动画(900ms) ─── */
-@keyframes yao-burn {
-  0%   { transform: scaleX(0.2); box-shadow: 0 0 0 0 rgba(196, 229, 234, 0); }
-  30%  { transform: scaleX(1);   box-shadow: 0 0 10px 2px rgba(196, 229, 234, 0.7); }
-  100% { transform: scaleX(1);   box-shadow: 0 0 0 0 rgba(196, 229, 234, 0); }
+.scroll-invisible {
+  scrollbar-width: none;
 }
+
+.scroll-invisible::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes yao-burn {
+  0% {
+    transform: scaleX(0.2);
+    box-shadow: 0 0 0 0 rgba(196, 229, 234, 0);
+  }
+  30% {
+    transform: scaleX(1);
+    box-shadow: 0 0 10px 2px rgba(196, 229, 234, 0.7);
+  }
+  100% {
+    transform: scaleX(1);
+    box-shadow: 0 0 0 0 rgba(196, 229, 234, 0);
+  }
+}
+
 .yao-line.yao-lit {
   animation: yao-burn 900ms ease-out;
   transform-origin: center;
 }
 
-/* ─── 乾爻镁条燃烧动画(900ms) ─── */
-@keyframes yao-burn {
-  0%   { transform: scaleX(0.2); box-shadow: 0 0 0 0 rgba(196, 229, 234, 0); }
-  30%  { transform: scaleX(1);   box-shadow: 0 0 10px 2px rgba(196, 229, 234, 0.7); }
-  100% { transform: scaleX(1);   box-shadow: 0 0 0 0 rgba(196, 229, 234, 0); }
-}
-.yao-line.yao-lit {
-  animation: yao-burn 900ms ease-out;
-  transform-origin: center;
-}
-
-/* 角色主题色 - 乾(姬修杰) */
-:root { --char-color-qian: #5A8B95; }
-[data-theme="dark"] { --char-color-qian: #C4E5EA; }
-[data-theme="sepia"] { --char-color-qian: #8A6A40; }
-
-
-
-
-/* === v0.5.0 · Frame 3 乾爻 D'' 真水雾 === */
 @keyframes humidifier-puff {
-	0% {
-		opacity: 0;
-		filter: blur(3px);
-		transform: translateX(0) translateY(0) scale(0.5);
-	}
-	35% {
-		opacity: 0.55;
-		filter: blur(5px);
-		transform: translateX(calc(var(--puff-sway, 0px) * 0.5)) translateY(-10px) scale(1.1);
-	}
-	100% {
-		opacity: 0;
-		filter: blur(9px);
-		transform: translateX(var(--puff-sway, 0px)) translateY(-42px) scale(2);
-	}
+  0% {
+    opacity: 0;
+    filter: blur(5px);
+    transform: translateX(0) translateY(0) rotate(var(--puff-rotate, 0deg)) scale(0.45, 0.25);
+  }
+  35% {
+    opacity: var(--puff-opacity, 0.48);
+    filter: blur(7px);
+    transform: translateX(calc(var(--puff-sway, 0px) * 0.42)) translateY(-13px) rotate(calc(var(--puff-rotate, 0deg) + 8deg)) scale(1.15, 0.72);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(12px);
+    transform: translateX(var(--puff-sway, 0px)) translateY(-52px) rotate(calc(var(--puff-rotate, 0deg) + 18deg)) scale(2.35, 1.1);
+  }
 }
+
 .yao-humidifier-puff {
-	width: 24px;
-	height: 24px;
-	background: radial-gradient(circle, var(--char-color-qian) 0%, var(--char-color-qian) 35%, transparent 75%);
-	border-radius: 50%;
-	pointer-events: none;
-	position: absolute;
-	animation: humidifier-puff 1400ms infinite;
+  width: var(--puff-size, 26px);
+  height: calc(var(--puff-size, 26px) * var(--puff-stretch, 1.55));
+  background:
+    radial-gradient(ellipse at 45% 35%, var(--char-smoke-soft) 0%, var(--char-color-qian) 22%, transparent 68%),
+    radial-gradient(ellipse at 62% 66%, var(--char-smoke-soft) 0%, transparent 58%);
+  border-radius: 50%;
+  pointer-events: none;
+  position: absolute;
+  animation: humidifier-puff 1900ms infinite ease-out;
 }
