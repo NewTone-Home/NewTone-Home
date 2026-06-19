@@ -72,32 +72,35 @@ button {
   transform-origin: center;
 }
 
-@keyframes humidifier-puff {
+@keyframes smoke-wisp-rise {
   0% {
     opacity: 0;
-    filter: blur(5px);
-    transform: translateX(0) translateY(0) rotate(var(--puff-rotate, 0deg)) scale(0.45, 0.25);
+    stroke-dashoffset: 92;
+    transform: translateX(0) translateY(12px) scale(0.78, 0.72);
   }
-  35% {
-    opacity: var(--puff-opacity, 0.48);
-    filter: blur(7px);
-    transform: translateX(calc(var(--puff-sway, 0px) * 0.42)) translateY(-13px) rotate(calc(var(--puff-rotate, 0deg) + 8deg)) scale(1.15, 0.72);
+  38% {
+    opacity: 0.56;
+    stroke-dashoffset: 34;
+    transform: translateX(calc(var(--smoke-sway, 0px) * 0.42)) translateY(-10px) scale(1, 1);
   }
   100% {
     opacity: 0;
-    filter: blur(12px);
-    transform: translateX(var(--puff-sway, 0px)) translateY(-52px) rotate(calc(var(--puff-rotate, 0deg) + 18deg)) scale(2.35, 1.1);
+    stroke-dashoffset: -18;
+    transform: translateX(var(--smoke-sway, 0px)) translateY(-42px) scale(1.22, 1.08);
   }
 }
 
-.yao-humidifier-puff {
-  width: var(--puff-size, 26px);
-  height: calc(var(--puff-size, 26px) * var(--puff-stretch, 1.55));
-  background:
-    radial-gradient(ellipse at 45% 35%, var(--char-smoke-soft) 0%, var(--char-color-qian) 22%, transparent 68%),
-    radial-gradient(ellipse at 62% 66%, var(--char-smoke-soft) 0%, transparent 58%);
-  border-radius: 50%;
+.yao-smoke-wisp {
+  animation: smoke-wisp-rise var(--smoke-duration, 3200ms) infinite ease-out;
+  animation-delay: var(--smoke-delay, 0ms);
+  fill: none;
+  stroke: var(--char-color-qian);
+  stroke-dasharray: 58 92;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.4;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  vector-effect: non-scaling-stroke;
   pointer-events: none;
-  position: absolute;
-  animation: humidifier-puff 1900ms infinite ease-out;
 }

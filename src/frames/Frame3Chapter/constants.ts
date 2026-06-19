@@ -10,5 +10,3 @@ export const FALLBACK_CHAPTER_ID = "chumo-arc1-ch3"
 export const FALLBACK_WORLD_ID = "chumo"
 
 export const FLARE_DURATION_MS = 600
-export const PUFF_SWAYS_PX = [-8, 5, -4, 7, -3]
-export const PUFF_DELAYS_MS = [0, 280, 560, 840, 1120]
