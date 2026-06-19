@@ -75,32 +75,39 @@ button {
 @keyframes smoke-wisp-rise {
   0% {
     opacity: 0;
-    stroke-dashoffset: 92;
-    transform: translateX(0) translateY(12px) scale(0.78, 0.72);
+    stroke-dashoffset: 118;
+    transform: translateX(0) translateY(18px) scale(0.7, 0.68);
   }
-  38% {
-    opacity: 0.56;
+  42% {
+    opacity: 0.42;
     stroke-dashoffset: 34;
-    transform: translateX(calc(var(--smoke-sway, 0px) * 0.42)) translateY(-10px) scale(1, 1);
+    transform: translateX(calc(var(--smoke-sway, 0px) * 0.48)) translateY(-18px) scale(1, 1);
   }
   100% {
     opacity: 0;
-    stroke-dashoffset: -18;
-    transform: translateX(var(--smoke-sway, 0px)) translateY(-42px) scale(1.22, 1.08);
+    stroke-dashoffset: -30;
+    transform: translateX(var(--smoke-sway, 0px)) translateY(-70px) scale(1.34, 1.12);
   }
 }
 
 .yao-smoke-wisp {
-  animation: smoke-wisp-rise var(--smoke-duration, 3200ms) infinite ease-out;
+  animation: smoke-wisp-rise var(--smoke-duration, 4200ms) infinite ease-out;
   animation-delay: var(--smoke-delay, 0ms);
   fill: none;
-  stroke: var(--char-color-qian);
-  stroke-dasharray: 58 92;
+  stroke-dasharray: 68 118;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 2.4;
+  stroke-width: var(--smoke-width, 1.5);
   transform-box: fill-box;
   transform-origin: center bottom;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yao-smoke-wisp {
+    animation: none;
+    opacity: 0.18;
+    stroke-dashoffset: 28;
+  }
 }
