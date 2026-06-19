@@ -84,10 +84,10 @@ export function useHoverExpand(disabled: boolean) {
 
 	useEffect(() => clearAll, [clearAll])
 	useEffect(() => {
-		if (disabled) {
-			clearAll()
-			setPhase("breathing")
-		}
+		if (!disabled) return
+		clearAll()
+		const resetTimer = window.setTimeout(() => setPhase("breathing"), 0)
+		return () => window.clearTimeout(resetTimer)
 	}, [disabled, clearAll])
 
 	return { phase, onMouseEnter, onMouseLeave }

@@ -39,12 +39,12 @@ export function AppShell() {
 					hint={tr.placeholder.multiverseHint}
 				/>
 			)}
-      {destination.kind === "chapter" && (
-        <Frame3Chapter chapterId={destination.chapterId} />
-      )}
+			{destination.kind === "chapter" && (
+				<Frame3Chapter chapterId={destination.chapterId} />
+			)}
 			<HeartbeatDot />
 			<DevResetButton />
-      <DevChapterButton />
+			<DevChapterButton />
 		</ErrorBoundary>
 	)
 }
