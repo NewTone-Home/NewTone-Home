@@ -15,6 +15,9 @@ export function createGoToAction(set: Setter) {
       patch.lastWorldId = destination.worldId
     } else if (destination.kind === "multiverse") {
       patch.deepestLayer = "multiverse"
+    } else if (destination.kind === "chapter") {
+      patch.deepestLayer = "chapter"
+      patch.lastChapterId = destination.chapterId
     }
 
     writeStorage({ ...current, ...patch })

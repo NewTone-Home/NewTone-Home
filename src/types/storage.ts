@@ -1,26 +1,31 @@
-// localStorage 里持久化的状态形状
-
 export type EntryChoice = "linear" | "free_explore"
 export type DeepestLayer = "multiverse" | "world_hall" | "chapter"
 
 export type ReaderPreferences = {
   fontSize?: "small" | "medium" | "large"
   theme?: "light" | "dark" | "sepia"
-	language?: "zh" | "en"
+  language?: "zh" | "en"
 }
 
 export type WorldProgress = {
   worldId: string
-  // 未来扩展：到达的 Arc、Chapter 等
+}
+
+export type ChapterProgress = {
+  chapterId: string
+  scrollTop: number
+  progress: number
+  updatedAt: string
 }
 
 export type EntryStorageState = {
-  version: number                  // schema 版本，当前 = 1
+  version: number
   entryChoice?: EntryChoice
   worldProgress?: Record<string, WorldProgress>
+  chapterProgress?: Record<string, ChapterProgress>
   deepestLayer?: DeepestLayer
   lastWorldId?: string
-  lastChapterId?: string           // 阅读进度预留
+  lastChapterId?: string
   preferences?: ReaderPreferences
 }
 

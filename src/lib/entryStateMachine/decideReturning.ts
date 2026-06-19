@@ -14,5 +14,9 @@ export function decideReturningDestination(state: EntryStorageState): EntryDesti
     return { kind: "world_hall", worldId: state.lastWorldId }
   }
 
+  if (state.deepestLayer === "chapter" && state.lastChapterId) {
+    return { kind: "chapter", chapterId: state.lastChapterId }
+  }
+
   return { kind: "multiverse" }
 }

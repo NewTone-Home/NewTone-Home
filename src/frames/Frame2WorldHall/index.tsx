@@ -1,8 +1,10 @@
 import { useCallback } from "react"
+import { useEntryStore } from "../../store/useEntryStore"
 import { CONTAINER_STYLE } from "./styles/container"
 import { WorldTitle } from "./parts/WorldTitle"
 import { CharacterEntries } from "./parts/CharacterEntries"
 import { useWorldHallData } from "./hooks/useWorldHallData"
+import { chapterIdForCharacter } from "./utils/chapterRoute"
 import type { Frame2WorldHallProps } from "./types"
 
 /**
@@ -14,11 +16,11 @@ import type { Frame2WorldHallProps } from "./types"
  */
 export function Frame2WorldHall({ worldId }: Frame2WorldHallProps) {
 	const data = useWorldHallData(worldId)
+	const goTo = useEntryStore((s) => s.goTo)
 
 	const handleSelect = useCallback((characterId: string) => {
-		// TODO v0.5: useEntryStore.goTo({ kind: "chapter", characterId, chapterId: ... })
-		console.log("[world_hall] selected character:", characterId)
-	}, [])
+		goTo({ kind: "chapter", chapterId: chapterIdForCharacter(characterId) })
+	}, [goTo])
 
 	if (!data) return null
 
