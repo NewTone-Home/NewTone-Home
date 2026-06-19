@@ -36,12 +36,21 @@ export function Frame3Chapter({ chapterId: propChapterId }: Frame3ChapterProps) 
 		if (!el) return
 		el.scrollTo({ top: 0, behavior: "smooth" })
 	}
+	const mobileProgressFillStyle = {
+		transform: "scaleX(" + progress + ")",
+	}
 	const setParagraphRef = (index: number, el: HTMLDivElement | null) => {
 		paraRefs.current[index] = el
 	}
 
 	return (
 		<>
+			<div className="chapter-mobile-progress" aria-hidden="true">
+				<div
+					className="chapter-mobile-progress-fill"
+					style={mobileProgressFillStyle}
+				/>
+			</div>
 			<div ref={containerRef} style={CONTAINER} className="scroll-invisible">
 				<div style={SPACE}>
 					<ChapterHeader title={tr(chapter.title)} />

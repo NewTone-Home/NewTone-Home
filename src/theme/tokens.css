@@ -13,6 +13,8 @@
   --color-paper-grain: rgba(92, 78, 55, 0.035);
   --char-color-qian: #5a8b95;
   --char-smoke-soft: rgba(90, 139, 149, 0.28);
+  --char-ash-core: #496f76;
+  --char-ash-glow: rgba(73, 111, 118, 0.42);
 
   --font-serif-latin: "Cormorant Garamond", serif;
   --font-serif-sc: "Noto Serif SC", serif;
@@ -47,6 +49,8 @@
   --color-paper-grain: rgba(196, 229, 234, 0.025);
   --char-color-qian: #c4e5ea;
   --char-smoke-soft: rgba(196, 229, 234, 0.32);
+  --char-ash-core: #e1f7fa;
+  --char-ash-glow: rgba(196, 229, 234, 0.62);
 }
 
 [data-theme="sepia"] {
@@ -63,4 +67,6 @@
   --color-paper-grain: rgba(111, 82, 43, 0.045);
   --char-color-qian: #8a6a40;
   --char-smoke-soft: rgba(138, 106, 64, 0.24);
+  --char-ash-core: #7c745f;
+  --char-ash-glow: rgba(124, 116, 95, 0.42);
 }

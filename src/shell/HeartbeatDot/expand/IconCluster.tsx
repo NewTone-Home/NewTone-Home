@@ -25,16 +25,6 @@ export function IconCluster({ phase }: Props) {
 	const cycleTheme = useThemeStore((s) => s.cycleTheme)
 	const tabIndex = phase === "bloomed" ? 0 : -1
 
-	const handleLang = () => {
-		cycleLang()
-		console.log("[language] cycled to:", useLanguageStore.getState().lang)
-	}
-
-	const handleTheme = () => {
-		cycleTheme()
-		console.log("[theme] cycled to:", useThemeStore.getState().theme)
-	}
-
 	return (
 		<motion.div
 			style={STYLES.wrap}
@@ -53,20 +43,20 @@ export function IconCluster({ phase }: Props) {
 				style={STYLES.icon}
 				variants={iconVariants}
 				tabIndex={tabIndex}
-				aria-label="切换语言"
-				onClick={handleLang}
+				aria-label="Switch language"
+				onClick={cycleLang}
 			>
-				文
+				{"\u6587"}
 			</motion.button>
 			<motion.button
 				type="button"
 				style={STYLES.icon}
 				variants={iconVariants}
 				tabIndex={tabIndex}
-				aria-label="切换主题"
-				onClick={handleTheme}
+				aria-label="Switch theme"
+				onClick={cycleTheme}
 			>
-				◐
+				{"\u25d0"}
 			</motion.button>
 		</motion.div>
 	)

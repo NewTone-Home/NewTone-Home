@@ -29,14 +29,23 @@ type Props = {
 	interactive: boolean
 	onMouseEnter?: () => void
 	onMouseLeave?: () => void
+	onClick?: () => void
 }
 
-export function HitArea({ children, interactive, onMouseEnter, onMouseLeave }: Props) {
+export function HitArea({
+	children,
+	interactive,
+	onMouseEnter,
+	onMouseLeave,
+	onClick,
+}: Props) {
 	return (
 		<div
+			className="heartbeat-hit-area"
 			style={interactive ? HIT_AREA_INTERACTIVE : HIT_AREA_NON_INTERACTIVE}
 			onMouseEnter={interactive ? onMouseEnter : undefined}
 			onMouseLeave={interactive ? onMouseLeave : undefined}
+			onClick={interactive ? onClick : undefined}
 		>
 			{children}
 		</div>

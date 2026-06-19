@@ -1,28 +1,35 @@
 import type { CSSProperties } from "react"
 
-const SMOKE_SWAYS_PX = [-10, 8, -5, 4]
-const SMOKE_STROKE_WIDTHS = [1.9, 1.55, 1.25, 1]
+const WISP_LIFTS_PX = [-3, 2]
+const WISP_WIDTHS_PX = [10, 7]
+const ASH_LIFTS_PX = [-6, -2, -8, 1]
+const ASH_DRIFTS_PX = [9, 13, 11, 7]
+const ASH_SIZES_PX = [3.5, 2.8, 3.2, 2.6]
 
-export function smokeColumnStyle(q: number): CSSProperties {
+export function smokeColumnStyle(): CSSProperties {
 	return {
 		position: "absolute",
-		left: "50%",
-		bottom: -18,
-		width: 88,
-		height: 148,
-		opacity: Math.min(0.72, q * 0.78),
-		overflow: "visible",
+		left: 22,
+		top: -8,
+		width: 24,
+		height: 18,
 		pointerEvents: "none",
-		transform: "translateX(-50%)",
-		transition: "opacity 1100ms ease-out",
 	}
 }
 
 export function smokeWispStyle(index: number): CSSProperties {
 	return {
-		"--smoke-delay": index * 520 + "ms",
-		"--smoke-duration": 4200 + index * 420 + "ms",
-		"--smoke-sway": SMOKE_SWAYS_PX[index] + "px",
-		"--smoke-width": SMOKE_STROKE_WIDTHS[index],
+		"--wisp-delay": index * 520 + "ms",
+		"--wisp-width": WISP_WIDTHS_PX[index] + "px",
+		"--wisp-lift": WISP_LIFTS_PX[index] + "px",
+	} as CSSProperties
+}
+
+export function smokeAshStyle(index: number): CSSProperties {
+	return {
+		"--ash-delay": 160 + index * 430 + "ms",
+		"--ash-drift": ASH_DRIFTS_PX[index] + "px",
+		"--ash-lift": ASH_LIFTS_PX[index] + "px",
+		"--ash-size": ASH_SIZES_PX[index] + "px",
 	} as CSSProperties
 }

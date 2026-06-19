@@ -16,20 +16,28 @@ import {
  */
 export function useHoverExpand(disabled: boolean) {
 	const [phase, setPhase] = useState<HoverPhase>("breathing")
+	const [hasHover, setHasHover] = useState(() =>
+		typeof window === "undefined"
+			? true
+			: window.matchMedia("(hover: hover) and (pointer: fine)").matches,
+	)
 	const enterTimer = useRef<number | null>(null)
 	const igniteTimer = useRef<number | null>(null)
 	const graceTimer = useRef<number | null>(null)
 	const collapseTimer = useRef<number | null>(null)
+	const tapTimer = useRef<number | null>(null)
 
 	const clearAll = useCallback(() => {
 		if (enterTimer.current) window.clearTimeout(enterTimer.current)
 		if (igniteTimer.current) window.clearTimeout(igniteTimer.current)
 		if (graceTimer.current) window.clearTimeout(graceTimer.current)
 		if (collapseTimer.current) window.clearTimeout(collapseTimer.current)
+		if (tapTimer.current) window.clearTimeout(tapTimer.current)
 		enterTimer.current = null
 		igniteTimer.current = null
 		graceTimer.current = null
 		collapseTimer.current = null
+		tapTimer.current = null
 	}, [])
 
 	const onMouseEnter = useCallback(() => {
@@ -82,7 +90,27 @@ export function useHoverExpand(disabled: boolean) {
 		}
 	}, [disabled, phase])
 
+	const onClick = useCallback(() => {
+		if (disabled || hasHover) return
+		clearAll()
+		setPhase("bloomed")
+		tapTimer.current = window.setTimeout(() => {
+			tapTimer.current = null
+			setPhase("collapsing")
+			collapseTimer.current = window.setTimeout(() => {
+				collapseTimer.current = null
+				setPhase("breathing")
+			}, COLLAPSE_DURATION_MS)
+		}, 3000)
+	}, [disabled, hasHover, clearAll])
+
 	useEffect(() => clearAll, [clearAll])
+	useEffect(() => {
+		const query = window.matchMedia("(hover: hover) and (pointer: fine)")
+		const sync = (event: MediaQueryListEvent) => setHasHover(event.matches)
+		query.addEventListener("change", sync)
+		return () => query.removeEventListener("change", sync)
+	}, [])
 	useEffect(() => {
 		if (!disabled) return
 		clearAll()
@@ -90,5 +118,5 @@ export function useHoverExpand(disabled: boolean) {
 		return () => window.clearTimeout(resetTimer)
 	}, [disabled, clearAll])
 
-	return { phase, onMouseEnter, onMouseLeave }
+	return { phase, onMouseEnter, onMouseLeave, onClick }
 }

@@ -17,7 +17,7 @@ type ChapterSidebarProps = {
 
 export function ChapterSidebar({ progress, flares, onBack }: ChapterSidebarProps) {
 	return (
-		<div style={SIDEBAR}>
+		<div className="chapter-sidebar" style={SIDEBAR}>
 			<button
 				onClick={onBack}
 				style={SIDEBAR_BACK}
@@ -25,7 +25,7 @@ export function ChapterSidebar({ progress, flares, onBack }: ChapterSidebarProps
 				onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.15")}
 				aria-label="back"
 			>
-				←
+				{"\u2190"}
 			</button>
 			<div style={SIDEBAR_ROMAN}>{ROMAN}</div>
 			<div style={SIDEBAR_YAO_BOX}>

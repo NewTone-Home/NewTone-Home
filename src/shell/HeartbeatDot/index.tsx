@@ -20,7 +20,8 @@ export function HeartbeatDot() {
 	const isInteractive =
 		destination !== null && destination.kind !== "transient_logo"
 
-	const { phase, onMouseEnter, onMouseLeave } = useHoverExpand(!isInteractive)
+	const { phase, onMouseEnter, onMouseLeave, onClick } =
+		useHoverExpand(!isInteractive)
 
 	if (destination === null) return null
 
@@ -29,6 +30,7 @@ export function HeartbeatDot() {
 			interactive={isInteractive}
 			onMouseEnter={onMouseEnter}
 			onMouseLeave={onMouseLeave}
+			onClick={onClick}
 		>
 			{variant === "deep_space" ? (
 				<DeepSpaceDot phase={phase} />

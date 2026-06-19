@@ -1,6 +1,6 @@
 import { YAO_LINE_WRAP } from "../styles/sidebar"
 import type { FlareEvent } from "../types"
-import { lineProgress, yaoLineStyle } from "../utils/progress"
+import { lineProgress, yaoLineFillStyle, yaoLineTrackStyle } from "../utils/progress"
 import { YaoSmokeWisps } from "./YaoSmokeWisps"
 
 type YaoProgressRailProps = {
@@ -16,7 +16,9 @@ export function YaoProgressRail({ progress, flares }: YaoProgressRailProps) {
 				const flare = flares.find((f) => f.lineIndex === index)
 				return (
 					<div key={index} style={YAO_LINE_WRAP}>
-						<div style={yaoLineStyle(q, !!flare)} />
+						<div style={yaoLineTrackStyle()}>
+							<div style={yaoLineFillStyle(q, !!flare)} />
+						</div>
 						<YaoSmokeWisps q={q} />
 					</div>
 				)
