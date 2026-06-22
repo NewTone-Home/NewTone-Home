@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import type { RefObject } from "react"
+import { worldIdForChapter } from "../../../lib/entryStateMachine/chapterWorld"
 import { readStorage, writeStorage } from "../../../lib/storage"
 
 const SAVE_DELAY_MS = 180
@@ -20,6 +21,7 @@ export function useChapterScrollMemory(
 				...current,
 				deepestLayer: "chapter",
 				lastChapterId: chapterId,
+				lastWorldId: worldIdForChapter(chapterId),
 				chapterProgress: {
 					...(current.chapterProgress ?? {}),
 					[chapterId]: {

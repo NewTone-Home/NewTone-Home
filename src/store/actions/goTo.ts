@@ -1,4 +1,5 @@
 import { readStorage, writeStorage } from "../../lib/storage"
+import { worldIdForChapter } from "../../lib/entryStateMachine/chapterWorld"
 import type { EntryDestination, EntryStorageState } from "../../types"
 import type { Setter } from "../types"
 
@@ -18,6 +19,7 @@ export function createGoToAction(set: Setter) {
     } else if (destination.kind === "chapter") {
       patch.deepestLayer = "chapter"
       patch.lastChapterId = destination.chapterId
+      patch.lastWorldId = worldIdForChapter(destination.chapterId)
     }
 
     writeStorage({ ...current, ...patch })

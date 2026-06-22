@@ -1,4 +1,5 @@
 import type { EntryDestination, EntryStorageState } from "../../types"
+import { FEATURED_WORLD_ID } from "../../config/featured"
 
 // 老用户该跳到哪一屏（已知非首次访问）
 // 规则：跳到上次到达的最深层
@@ -15,7 +16,10 @@ export function decideReturningDestination(state: EntryStorageState): EntryDesti
   }
 
   if (state.deepestLayer === "chapter" && state.lastChapterId) {
-    return { kind: "chapter", chapterId: state.lastChapterId }
+    return {
+      kind: "world_hall",
+      worldId: state.lastWorldId ?? FEATURED_WORLD_ID,
+    }
   }
 
   return { kind: "multiverse" }

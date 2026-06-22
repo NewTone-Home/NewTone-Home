@@ -3,6 +3,7 @@ import { useEntryStore } from "../../store/useEntryStore"
 import { CONTAINER_STYLE } from "./styles/container"
 import { WorldTitle } from "./parts/WorldTitle"
 import { CharacterEntries } from "./parts/CharacterEntries"
+import { ContinueReading } from "./parts/ContinueReading"
 import { useWorldHallData } from "./hooks/useWorldHallData"
 import { chapterIdForCharacter } from "./utils/chapterRoute"
 import type { Frame2WorldHallProps } from "./types"
@@ -22,6 +23,10 @@ export function Frame2WorldHall({ worldId }: Frame2WorldHallProps) {
 		goTo({ kind: "chapter", chapterId: chapterIdForCharacter(characterId) })
 	}, [goTo])
 
+	const handleContinue = useCallback((chapterId: string) => {
+		goTo({ kind: "chapter", chapterId })
+	}, [goTo])
+
 	if (!data) return null
 
 	return (
@@ -31,6 +36,7 @@ export function Frame2WorldHall({ worldId }: Frame2WorldHallProps) {
 				entries={data.entries}
 				onSelect={handleSelect}
 			/>
+			<ContinueReading onContinue={handleContinue} />
 		</div>
 	)
 }
