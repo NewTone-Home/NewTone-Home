@@ -4,9 +4,10 @@
 
 Read these first:
 
-1. `docs/codex/PROJECT_STATE.md`
-2. The checklist relevant to the current task.
-3. The code files named by the task brief.
+1. `docs/codex/WEBSITE_PLAN.md`
+2. `docs/codex/PROJECT_STATE.md`
+3. The checklist relevant to the current task.
+4. The code files named by the task brief.
 
 ## Default Limits
 

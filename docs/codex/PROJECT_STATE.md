@@ -2,15 +2,17 @@
 
 ## Current Version
 
-v0.8.1 ready for local commit and tag.
+v0.8.1 released.
 
 Current git truth at last update:
 
-- `HEAD`: `5e5b9bd`, `Align v0.8.0 Canon entry flow and add Code X project docs`
+- `HEAD`: `b8efd5d`, `Add v0.8.1 World Hall chapter list skeleton`
 - Local tag: `v0.8.0`
-- `origin/main`: `5e5b9bd`
-- Push status: user confirmed `main` and `v0.8.0` tag were pushed.
-- Working tree includes v0.8.1 World Hall chapter-list skeleton changes ready for commit.
+- Local tag: `v0.8.1`
+- `origin/main`: `b8efd5d`
+- Push status: user confirmed `main` and `v0.8.1` tag were pushed.
+- Working tree now contains a pre-v0.8.2 local patch for World Hall chapter-list density testing.
+- Patch is not committed and not pushed yet.
 
 ## Current Phase
 
@@ -21,11 +23,16 @@ Reader-side website skeleton construction. The current focus is Canon entry flow
 - v0.7.3 Frame 3 reading progress ember closure.
 - v0.8.0 Canon entry-flow correction.
 - v0.8.0 Code X project docs added.
-- v0.8.1 World Hall chapter-list skeleton, if the current local changes are present.
+- v0.8.1 World Hall chapter-list skeleton.
+- v0.8.1 mobile World Hall entry spacing fix.
+- v0.8.1 Code X workflow hard rule update.
+- Pre-v0.8.2 local patch: added two placeholder chapters and adjusted World Hall chapter-list visual recognition/spacing.
 
 ## Next Suggested Step
 
-- Push `main` and `v0.8.1` after the local v0.8.1 commit and tag are created.
+- Decide whether to keep and commit the pre-v0.8.2 World Hall chapter-list density patch.
+- If keeping it, commit/push manually when ready.
+- Do not enter progress overview, multiverse map, Notion runtime fetch, admin, or official body upload unless the user explicitly asks.
 - This is guidance only. Do not execute it unless the user explicitly asks for that task.
 
 ## Current Prohibitions
@@ -43,3 +50,4 @@ Reader-side website skeleton construction. The current focus is Canon entry flow
 - Code truth: local repo / GitHub.
 - Product Canon: Notion Canon.
 - Code X working cache: `docs/codex`.
+- Short website plan: `docs/codex/WEBSITE_PLAN.md`.

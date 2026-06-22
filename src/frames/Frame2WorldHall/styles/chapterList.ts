@@ -3,28 +3,29 @@ import type { CSSProperties } from "react"
 export const CHAPTER_LIST_WRAP_STYLE: CSSProperties = {
 	position: "absolute",
 	left: "clamp(24px, 7vw, 96px)",
-	bottom: "clamp(112px, 18vh, 172px)",
+	bottom: "clamp(84px, calc(180px - 9vw), 140px)",
 	display: "flex",
 	flexDirection: "column",
-	gap: 10,
-	minWidth: 220,
-	maxWidth: 320,
+	gap: 8,
+	width: "min(320px, calc(100vw - 48px))",
 	color: "var(--color-text)",
+	borderLeft: "1px solid color-mix(in srgb, var(--color-text) 18%, transparent)",
+	paddingLeft: 14,
 }
 
 export const CHAPTER_LIST_LABEL_STYLE: CSSProperties = {
 	margin: 0,
 	fontSize: 11,
 	fontWeight: 300,
-	letterSpacing: 1.4,
+	letterSpacing: 0,
 	textTransform: "uppercase",
-	opacity: 0.38,
+	opacity: 0.46,
 }
 
 export const CHAPTER_LIST_STYLE: CSSProperties = {
 	display: "flex",
 	flexDirection: "column",
-	gap: 6,
+	gap: 2,
 	margin: 0,
 	padding: 0,
 	listStyle: "none",
@@ -36,21 +37,22 @@ export const CHAPTER_BUTTON_STYLE: CSSProperties = {
 	alignItems: "center",
 	gap: 10,
 	width: "100%",
-	border: 0,
-	background: "transparent",
+	border: "1px solid transparent",
+	borderRadius: 4,
+	background: "color-mix(in srgb, var(--color-bg) 88%, transparent)",
 	color: "inherit",
 	fontFamily: "inherit",
 	textAlign: "left",
 	cursor: "pointer",
-	padding: "6px 0",
-	opacity: 0.5,
+	padding: "7px 8px",
+	opacity: 0.58,
 }
 
 export const CHAPTER_ORDER_STYLE: CSSProperties = {
 	fontSize: 11,
 	fontWeight: 300,
-	letterSpacing: 1,
-	opacity: 0.68,
+	letterSpacing: 0,
+	opacity: 0.74,
 }
 
 export const CHAPTER_TITLE_STYLE: CSSProperties = {
@@ -60,5 +62,5 @@ export const CHAPTER_TITLE_STYLE: CSSProperties = {
 	whiteSpace: "nowrap",
 	fontSize: 13,
 	fontWeight: 300,
-	letterSpacing: 0.8,
+	letterSpacing: 0,
 }
