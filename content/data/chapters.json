@@ -1,5 +1,33 @@
 [
   {
+    "id": "chumo-arc1-ch1",
+    "arcId": "chumo-arc1",
+    "order": 1,
+    "title": { "zh": "测试章节：门厅回声", "en": "Test Chapter: Hall Echo" },
+    "characterIds": ["xiu-jie"],
+    "accessLevel": "public",
+    "paragraphs": [
+      { "type": "open", "text": { "zh": "这是用于本地验证章节列表密度的占位章节。", "en": "Placeholder chapter for local chapter-list density testing." } },
+      { "type": "narrate", "text": { "zh": "不含正式正文。", "en": "No official story body is included." } }
+    ],
+    "createdAt": "2026-06-22T00:00:00-07:00",
+    "updatedAt": "2026-06-22T00:00:00-07:00"
+  },
+  {
+    "id": "chumo-arc1-ch2",
+    "arcId": "chumo-arc1",
+    "order": 2,
+    "title": { "zh": "测试章节：封存编号", "en": "Test Chapter: Sealed Number" },
+    "characterIds": ["xiu-jie"],
+    "accessLevel": "public",
+    "paragraphs": [
+      { "type": "open", "text": { "zh": "这是第二个本地测试章节，用来观察列表节奏。", "en": "Second local test chapter for checking list rhythm." } },
+      { "type": "pause", "text": { "zh": "正式正文仍未接入。", "en": "Official body text remains disconnected." } }
+    ],
+    "createdAt": "2026-06-22T00:00:00-07:00",
+    "updatedAt": "2026-06-22T00:00:00-07:00"
+  },
+  {
     "id": "chumo-arc1-ch3",
     "arcId": "chumo-arc1",
     "order": 3,
