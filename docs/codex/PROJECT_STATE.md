@@ -6,13 +6,13 @@ v0.8.1 released.
 
 Current git truth at last update:
 
-- `HEAD`: `b8efd5d`, `Add v0.8.1 World Hall chapter list skeleton`
+- `HEAD`: `c75d673`, `Add pre-v0.8.2 World Hall chapter list patch`
 - Local tag: `v0.8.0`
 - Local tag: `v0.8.1`
-- `origin/main`: `b8efd5d`
-- Push status: user confirmed `main` and `v0.8.1` tag were pushed.
-- Working tree now contains a pre-v0.8.2 local patch for World Hall chapter-list density testing.
-- Patch is not committed and not pushed yet.
+- `origin/main`: `c75d673`
+- Push status: user confirmed `main` was pushed through `c75d673`; tag `v0.8.1` remains at `b8efd5d`.
+- Working tree clean after pre-v0.8.2 World Hall chapter-list density patch.
+- No new tag was created; this is still not `v0.8.2`.
 
 ## Current Phase
 
@@ -26,12 +26,12 @@ Reader-side website skeleton construction. The current focus is Canon entry flow
 - v0.8.1 World Hall chapter-list skeleton.
 - v0.8.1 mobile World Hall entry spacing fix.
 - v0.8.1 Code X workflow hard rule update.
-- Pre-v0.8.2 local patch: added two placeholder chapters and adjusted World Hall chapter-list visual recognition/spacing.
+- Pre-v0.8.2 patch: added two placeholder chapters and adjusted World Hall chapter-list visual recognition/spacing.
 
 ## Next Suggested Step
 
-- Decide whether to keep and commit the pre-v0.8.2 World Hall chapter-list density patch.
-- If keeping it, commit/push manually when ready.
+- Next task should be explicitly chosen by the user.
+- If starting a versioned phase, define the boundary before calling it `v0.8.2`.
 - Do not enter progress overview, multiverse map, Notion runtime fetch, admin, or official body upload unless the user explicitly asks.
 - This is guidance only. Do not execute it unless the user explicitly asks for that task.
 

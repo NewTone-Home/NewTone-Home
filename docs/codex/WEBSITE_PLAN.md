@@ -10,10 +10,10 @@ This file is the short local entry point for website work. Read it before openin
 - Local path: workspace root `E:\小说`, repo folder `NewTone-Home-main`
 - Branch: `main`
 - Current version: `v0.8.1`
-- Current commit: `b8efd5d`, `Add v0.8.1 World Hall chapter list skeleton`
+- Current commit: `c75d673`, `Add pre-v0.8.2 World Hall chapter list patch`
 - Current tag: `v0.8.1`
-- GitHub status: user confirmed `main` and `v0.8.1` were pushed.
-- Working tree at last check: contains a pre-v0.8.2 local World Hall chapter-list density patch, not committed and not pushed.
+- GitHub status: user confirmed `main` was pushed through `c75d673`; tag `v0.8.1` remains at `b8efd5d`.
+- Working tree at last check: clean after the pre-v0.8.2 World Hall chapter-list density patch.
 
 ## Product Boundary
 
@@ -37,7 +37,7 @@ This file is the short local entry point for website work. Read it before openin
 - Canon entry-flow correction.
 - Code X workflow docs and hard rule: next suggested step is not an automatic command.
 - `v0.8.1` World Hall chapter-list skeleton.
-- Pre-v0.8.2 local patch: two placeholder chapters added for density testing, with chapter-list visual/spacing adjustment.
+- Pre-v0.8.2 patch: two placeholder chapters added for density testing, with chapter-list visual/spacing adjustment.
 
 ## Current Known Caveat
 
@@ -49,7 +49,7 @@ This file is the short local entry point for website work. Read it before openin
 
 These are options only. Do not execute unless the user explicitly asks.
 
-1. Decide whether to keep and commit the pre-v0.8.2 chapter-list density patch.
+1. Define the next explicit task before doing more development.
 2. If needed, lightly retune chapter-list opacity/position/label.
 3. Build World Hall progress overview only if explicitly requested.
 4. Define `v0.8.2` boundary before entering multiverse map.
