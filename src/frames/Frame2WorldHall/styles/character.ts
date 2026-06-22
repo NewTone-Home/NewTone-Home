@@ -16,7 +16,7 @@ export const ENTRY_TRIGGER_STYLE: CSSProperties = {
 	flexDirection: "column",
 	alignItems: "center",
 	gap: 18,
-	padding: "60px 80px",
+	padding: "clamp(36px, 8vw, 60px) clamp(36px, 9vw, 80px)",
 	background: "none",
 	border: "none",
 	cursor: "pointer",

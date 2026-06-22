@@ -13,6 +13,12 @@ Read these first:
 - Do not read Notion by default.
 - Do not search the entire repo by default.
 - Do not implement multiple versions in one task.
+- Treat `PROJECT_STATE.md` "Next Suggested Step" as guidance only, not an automatic execution command.
+- Do not start development just because `PROJECT_STATE.md` names a next suggested step.
+- Execute only the user's current explicit task.
+- If the user's current task differs from the next suggested step, follow the user's current task.
+- If the user asks only for git closure, checks, or commit work, do not enter the next development phase.
+- After completing the current task, stop and report. Wait for user confirmation before continuing to another version or phase.
 - If the current brief conflicts with `PROJECT_STATE.md`, stop and report before changing files.
 - If the task needs a boundary change, ask the user first.
 

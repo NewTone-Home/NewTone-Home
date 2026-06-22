@@ -2,12 +2,15 @@
 
 ## Current Version
 
-v0.8.0 pending local commit.
+v0.8.1 ready for local commit and tag.
 
 Current git truth at last update:
 
-- `HEAD`: v0.7.3, `Refine v0.7.3 chapter progress embers`
-- Local working tree includes v0.8.0 Canon entry-flow changes pending commit.
+- `HEAD`: `5e5b9bd`, `Align v0.8.0 Canon entry flow and add Code X project docs`
+- Local tag: `v0.8.0`
+- `origin/main`: `5e5b9bd`
+- Push status: user confirmed `main` and `v0.8.0` tag were pushed.
+- Working tree includes v0.8.1 World Hall chapter-list skeleton changes ready for commit.
 
 ## Current Phase
 
@@ -16,11 +19,14 @@ Reader-side website skeleton construction. The current focus is Canon entry flow
 ## Completed
 
 - v0.7.3 Frame 3 reading progress ember closure.
-- v0.8.0 Canon entry-flow correction, if the current local changes are present.
+- v0.8.0 Canon entry-flow correction.
+- v0.8.0 Code X project docs added.
+- v0.8.1 World Hall chapter-list skeleton, if the current local changes are present.
 
 ## Next Suggested Step
 
-- v0.8.1 World Hall chapter-list skeleton.
+- Push `main` and `v0.8.1` after the local v0.8.1 commit and tag are created.
+- This is guidance only. Do not execute it unless the user explicitly asks for that task.
 
 ## Current Prohibitions
 
@@ -30,7 +36,7 @@ Reader-side website skeleton construction. The current focus is Canon entry flow
 - Do not add official new body text.
 - Do not build the multiverse map unless explicitly entering v0.8.2.
 - Do not do large refactors.
-- Do not push.
+- Do not push unless the user explicitly asks for it and the tool is available.
 
 ## Sources Of Truth
 

@@ -4,6 +4,7 @@ import { CONTAINER_STYLE } from "./styles/container"
 import { WorldTitle } from "./parts/WorldTitle"
 import { CharacterEntries } from "./parts/CharacterEntries"
 import { ContinueReading } from "./parts/ContinueReading"
+import { ChapterList } from "./parts/ChapterList"
 import { useWorldHallData } from "./hooks/useWorldHallData"
 import { chapterIdForCharacter } from "./utils/chapterRoute"
 import type { Frame2WorldHallProps } from "./types"
@@ -36,6 +37,7 @@ export function Frame2WorldHall({ worldId }: Frame2WorldHallProps) {
 				entries={data.entries}
 				onSelect={handleSelect}
 			/>
+			<ChapterList chapters={data.chapters} onSelect={handleContinue} />
 			<ContinueReading onContinue={handleContinue} />
 		</div>
 	)

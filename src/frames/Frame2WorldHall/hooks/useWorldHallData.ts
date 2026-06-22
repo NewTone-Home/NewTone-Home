@@ -36,6 +36,13 @@ export function useWorldHallData(worldId: string): WorldHallData | null {
 		const world = defaultAdapter.getWorldById(worldId)
 		if (!world) return null
 		const characters = defaultAdapter.getCharactersByNovelId(world.novelId)
+		const arcs = defaultAdapter
+			.getArcsByWorldId(world.id)
+			.slice()
+			.sort((a, b) => a.order - b.order)
+		const chapters = arcs
+			.flatMap((arc) => defaultAdapter.getChaptersByArcId(arc.id))
+			.sort((a, b) => a.order - b.order)
 		const entries: WorldEntry[] = []
 		for (let i = 0; i < W1_ENTRIES.length; i++) {
 			const cfg = W1_ENTRIES[i]
@@ -55,6 +62,7 @@ export function useWorldHallData(worldId: string): WorldHallData | null {
 			worldName: world.name,
 			worldTagline: world.tagline,
 			entries,
+			chapters,
 		}
 	}, [worldId])
 }
