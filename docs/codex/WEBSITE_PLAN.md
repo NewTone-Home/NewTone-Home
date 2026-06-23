@@ -9,21 +9,21 @@ This file is the short local entry point for website work. Read it before openin
 - Repo: `NewTone-Home/NewTone-Home`
 - Local path: workspace root `E:\小说`, repo folder `NewTone-Home-main`
 - Branch: `main`
-- Current version: `v0.8.1`
-- Current commit: `c75d673`, `Add pre-v0.8.2 World Hall chapter list patch`
+- Current version: `v0.8.2 local changes pending review`
+- Current commit: `ed79ed5`, `Update project status after pre-v0.8.2 patch push`
 - Current tag: `v0.8.1`
-- GitHub status: user confirmed `main` was pushed through `c75d673`; tag `v0.8.1` remains at `b8efd5d`.
-- Working tree at last check: clean after the pre-v0.8.2 World Hall chapter-list density patch.
+- GitHub status: `main` is at `ed79ed5`; tag `v0.8.1` remains at `b8efd5d`.
+- Working tree at last check: local v0.8.2 Multiverse Map changes pending review.
 
 ## Product Boundary
 
 - Build the reader-side website skeleton first.
-- Current focus: Canon entry flow, World Hall structure, and Chapter Reader closure.
+- Current focus: Canon entry flow, Multiverse Map placeholder, World Hall structure, and Chapter Reader closure.
 - Do not enter full body/content system yet.
 - Do not connect Notion runtime fetch yet.
 - Do not build admin backend yet.
 - Do not upload official body text yet.
-- Do not build multiverse map unless user explicitly enters `v0.8.2`.
+- Do not expand the multiverse map beyond the explicit `v0.8.2` placeholder boundary.
 
 ## Completed
 
@@ -38,6 +38,7 @@ This file is the short local entry point for website work. Read it before openin
 - Code X workflow docs and hard rule: next suggested step is not an automatic command.
 - `v0.8.1` World Hall chapter-list skeleton.
 - Pre-v0.8.2 patch: two placeholder chapters added for density testing, with chapter-list visual/spacing adjustment.
+- `v0.8.2` local draft: minimal Multiverse Map frame connects W1 Chumo to World Hall and shows locked coming-soon world slots.
 
 ## Current Known Caveat
 

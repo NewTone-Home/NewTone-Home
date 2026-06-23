@@ -2,21 +2,21 @@
 
 ## Current Version
 
-v0.8.1 released.
+v0.8.2 local changes pending review.
 
 Current git truth at last update:
 
-- `HEAD`: `c75d673`, `Add pre-v0.8.2 World Hall chapter list patch`
+- `HEAD`: `ed79ed5`, `Update project status after pre-v0.8.2 patch push`
 - Local tag: `v0.8.0`
 - Local tag: `v0.8.1`
-- `origin/main`: `c75d673`
-- Push status: user confirmed `main` was pushed through `c75d673`; tag `v0.8.1` remains at `b8efd5d`.
-- Working tree clean after pre-v0.8.2 World Hall chapter-list density patch.
+- `origin/main`: `ed79ed5`
+- Push status: user confirmed `main` is at `ed79ed5`; tag `v0.8.1` remains at `b8efd5d`.
+- Working tree has local v0.8.2 Multiverse Map changes pending review.
 - No new tag was created; this is still not `v0.8.2`.
 
 ## Current Phase
 
-Reader-side website skeleton construction. The current focus is Canon entry flow and World Hall structure. Do not enter the full body/content system yet.
+Reader-side website skeleton construction. The current focus is closing the Logo -> Multiverse Map -> World Hall -> Chapter Reader skeleton. Do not enter the full body/content system yet.
 
 ## Completed
 
@@ -27,12 +27,13 @@ Reader-side website skeleton construction. The current focus is Canon entry flow
 - v0.8.1 mobile World Hall entry spacing fix.
 - v0.8.1 Code X workflow hard rule update.
 - Pre-v0.8.2 patch: added two placeholder chapters and adjusted World Hall chapter-list visual recognition/spacing.
+- v0.8.2 local draft: replaced the multiverse placeholder with a minimal Multiverse Map frame, including W1 Chumo entry and locked coming-soon world slots.
 
 ## Next Suggested Step
 
 - Next task should be explicitly chosen by the user.
 - If starting a versioned phase, define the boundary before calling it `v0.8.2`.
-- Do not enter progress overview, multiverse map, Notion runtime fetch, admin, or official body upload unless the user explicitly asks.
+- Do not enter progress overview, Notion runtime fetch, admin, or official body upload unless the user explicitly asks.
 - This is guidance only. Do not execute it unless the user explicitly asks for that task.
 
 ## Current Prohibitions
@@ -41,7 +42,7 @@ Reader-side website skeleton construction. The current focus is Canon entry flow
 - Do not do real body upload.
 - Do not build an admin backend.
 - Do not add official new body text.
-- Do not build the multiverse map unless explicitly entering v0.8.2.
+- Do not expand the multiverse map beyond the v0.8.2 placeholder boundary unless explicitly requested.
 - Do not do large refactors.
 - Do not push unless the user explicitly asks for it and the tool is available.
 
