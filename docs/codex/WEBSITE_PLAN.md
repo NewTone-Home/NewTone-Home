@@ -9,11 +9,12 @@ This file is the short local entry point for website work. Read it before openin
 - Repo: `NewTone-Home/NewTone-Home`
 - Local path: workspace root `E:\小说`, repo folder `NewTone-Home-main`
 - Branch: `main`
-- Current version: `pre-v0.8.2 Station Hub prototype pending final review`
-- Current commit: `36c7396`, `Add v0.8.2 Multiverse Map placeholder`
+- Current version: `pre-v0.8.2 Station Hub prototype committed locally, pending final review`
+- Current commit: `f704659`, `Replace Multiverse card scaffold with Station Hub prototype`
+- Current Station Hub prototype commit: `f704659`
 - Current tag: `v0.8.1`
 - GitHub status: `main` is at `ed79ed5`; tag `v0.8.1` remains at `b8efd5d`.
-- Working tree at last check: local asset-backed Station Hub prototype changes pending final review.
+- Working tree at last check: clean after local Station Hub prototype commit, before the current keyboard-boarding polish.
 
 ## Product Boundary
 
@@ -79,3 +80,4 @@ These are options only. Do not execute unless the user explicitly asks.
 ## Operating Rule
 
 After finishing the current user task, stop and report. Do not continue to the next candidate automatically.
+Do not start `v0.8.3` automatically.

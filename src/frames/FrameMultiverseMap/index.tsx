@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { useCallback, useEffect } from "react"
 import { defaultAdapter } from "../../content"
 import { useLocalized } from "../../i18n/useLocalized"
 import { useLanguageStore } from "../../store/useLanguageStore"
@@ -43,6 +43,27 @@ export function FrameMultiverseMap() {
 	const handleBoardChumo = useCallback(() => {
 		goTo({ kind: "world_hall", worldId: "chumo" })
 	}, [goTo])
+
+	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent) => {
+			const target = event.target as HTMLElement | null
+			const tagName = target?.tagName.toLowerCase()
+			const isEditable =
+				tagName === "input" ||
+				tagName === "textarea" ||
+				tagName === "select" ||
+				target?.isContentEditable
+
+			if (event.defaultPrevented || event.isComposing || isEditable) return
+			if (event.key !== "Enter" && event.key.toLowerCase() !== "e") return
+
+			event.preventDefault()
+			handleBoardChumo()
+		}
+
+		window.addEventListener("keydown", handleKeyDown)
+		return () => window.removeEventListener("keydown", handleKeyDown)
+	}, [handleBoardChumo])
 
 	return (
 		<main style={CONTAINER_STYLE}>
