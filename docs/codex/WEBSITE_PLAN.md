@@ -9,21 +9,21 @@ This file is the short local entry point for website work. Read it before openin
 - Repo: `NewTone-Home/NewTone-Home`
 - Local path: workspace root `E:\小说`, repo folder `NewTone-Home-main`
 - Branch: `main`
-- Current version: `v0.8.2 local changes pending review`
-- Current commit: `ed79ed5`, `Update project status after pre-v0.8.2 patch push`
+- Current version: `pre-v0.8.2 Station Hub prototype pending final review`
+- Current commit: `36c7396`, `Add v0.8.2 Multiverse Map placeholder`
 - Current tag: `v0.8.1`
 - GitHub status: `main` is at `ed79ed5`; tag `v0.8.1` remains at `b8efd5d`.
-- Working tree at last check: local v0.8.2 Multiverse Map changes pending review.
+- Working tree at last check: local asset-backed Station Hub prototype changes pending final review.
 
 ## Product Boundary
 
 - Build the reader-side website skeleton first.
-- Current focus: Canon entry flow, Multiverse Map placeholder, World Hall structure, and Chapter Reader closure.
+- Current focus: Canon entry flow, asset-backed Station Hub / Multiverse Transit placeholder, World Hall structure, and Chapter Reader closure.
 - Do not enter full body/content system yet.
 - Do not connect Notion runtime fetch yet.
 - Do not build admin backend yet.
 - Do not upload official body text yet.
-- Do not expand the multiverse map beyond the explicit `v0.8.2` placeholder boundary.
+- Do not expand the multiverse map beyond the explicit asset-backed `v0.8.2` placeholder boundary.
 
 ## Completed
 
@@ -38,7 +38,9 @@ This file is the short local entry point for website work. Read it before openin
 - Code X workflow docs and hard rule: next suggested step is not an automatic command.
 - `v0.8.1` World Hall chapter-list skeleton.
 - Pre-v0.8.2 patch: two placeholder chapters added for density testing, with chapter-list visual/spacing adjustment.
-- `v0.8.2` local draft: minimal Multiverse Map frame connects W1 Chumo to World Hall and shows locked coming-soon world slots.
+- `v0.8.2` local draft: card-grid Multiverse scaffold connected W1 Chumo to World Hall and showed locked coming-soon world slots.
+- Current local Station Hub prototype replaces card-based world selection with Station Hub / Multiverse Transit.
+- Current local Station Hub prototype uses `/assets/multiverse/station-hub-bg.png` as the scene background and keeps route labels/status as HTML overlay.
 
 ## Current Known Caveat
 

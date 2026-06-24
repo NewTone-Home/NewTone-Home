@@ -2,16 +2,16 @@
 
 ## Current Version
 
-v0.8.2 local changes pending review.
+pre-v0.8.2 Station Hub prototype pending final review.
 
 Current git truth at last update:
 
-- `HEAD`: `ed79ed5`, `Update project status after pre-v0.8.2 patch push`
+- `HEAD`: `36c7396`, `Add v0.8.2 Multiverse Map placeholder`
 - Local tag: `v0.8.0`
 - Local tag: `v0.8.1`
 - `origin/main`: `ed79ed5`
 - Push status: user confirmed `main` is at `ed79ed5`; tag `v0.8.1` remains at `b8efd5d`.
-- Working tree has local v0.8.2 Multiverse Map changes pending review.
+- Working tree has local asset-backed Station Hub prototype changes pending final review.
 - No new tag was created; this is still not `v0.8.2`.
 
 ## Current Phase
@@ -27,12 +27,17 @@ Reader-side website skeleton construction. The current focus is closing the Logo
 - v0.8.1 mobile World Hall entry spacing fix.
 - v0.8.1 Code X workflow hard rule update.
 - Pre-v0.8.2 patch: added two placeholder chapters and adjusted World Hall chapter-list visual recognition/spacing.
-- v0.8.2 local draft: replaced the multiverse placeholder with a minimal Multiverse Map frame, including W1 Chumo entry and locked coming-soon world slots.
+- v0.8.2 local draft: replaced the card-grid Multiverse scaffold with an asset-backed Station Hub prototype.
+- The earlier card-grid Multiverse scaffold was a temporary routing/data validation step and is no longer the accepted visual direction.
+- Pure CSS Station Hub visual pass was abandoned and stashed as `abandoned pure-css station hub visual pass`.
+- Current accepted direction: asset-backed Station Hub / Transit Scene. Background image lives at `public/assets/multiverse/station-hub-bg.png` and is referenced as `/assets/multiverse/station-hub-bg.png`.
+- Station Hub background asset owns the platform/track/fog/lighting space; HTML overlay owns interactive labels and route state.
 
 ## Next Suggested Step
 
 - Next task should be explicitly chosen by the user.
 - If starting a versioned phase, define the boundary before calling it `v0.8.2`.
+- Review the pre-v0.8.2 Station Hub prototype before any commit, tag, push, or v0.8.3 planning.
 - Do not enter progress overview, Notion runtime fetch, admin, or official body upload unless the user explicitly asks.
 - This is guidance only. Do not execute it unless the user explicitly asks for that task.
 
@@ -42,7 +47,7 @@ Reader-side website skeleton construction. The current focus is closing the Logo
 - Do not do real body upload.
 - Do not build an admin backend.
 - Do not add official new body text.
-- Do not expand the multiverse map beyond the v0.8.2 placeholder boundary unless explicitly requested.
+- Do not expand the multiverse map beyond the asset-backed Station Hub placeholder boundary unless explicitly requested.
 - Do not do large refactors.
 - Do not push unless the user explicitly asks for it and the tool is available.
 
