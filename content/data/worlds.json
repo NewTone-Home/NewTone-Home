@@ -1,9 +1,221 @@
 [
   {
+    "id": "first-world",
+    "novelId": "newtone-1",
+    "status": "active-entry",
+    "name": {
+      "zh": "第一世界",
+      "en": "First World"
+    },
+    "tagline": {
+      "zh": "表世界与里世界的双层入口",
+      "en": "A dual-layer entry into the first world"
+    },
+    "description": {
+      "zh": "当前只开放中枢环区。旧街口的异常会在里世界显现为鬼市。",
+      "en": "Only Central Ring is open. Old Crossing reveals Ghost Market on the underside."
+    },
+    "regions": [
+      {
+        "id": "central-ring",
+        "title": {
+          "zh": "第一世界：中枢环区",
+          "en": "First World: Central Ring"
+        },
+        "subtitle": {
+          "zh": "当前连接区域",
+          "en": "Currently connected region"
+        },
+        "description": {
+          "zh": "中枢环区的表层记录仍在运行；旧街口出现了可进入暗层的异常。",
+          "en": "Central Ring surface records are still running; Old Crossing contains an anomaly into the underside."
+        },
+        "layers": [
+          {
+            "id": "surface",
+            "label": {
+              "zh": "表世界",
+              "en": "Surface"
+            },
+            "description": {
+              "zh": "中枢环区表层。主线信号未接入，旧街口记录异常。",
+              "en": "Central Ring surface. Mainline signal is not connected; Old Crossing is anomalous."
+            },
+            "visualState": "central-ring-surface",
+            "assetSlots": {
+              "base": {
+                "src": "/assets/maps/first-world/central-ring-temp-map-mock.png",
+                "placeholder": "central-ring-surface-temp-map"
+              },
+              "detail": {
+                "placeholder": "surface-detail-lines"
+              },
+              "atmosphere": {
+                "placeholder": "surface-atmosphere-fog"
+              },
+              "interactionOverlay": {
+                "placeholder": "surface-interaction-signals"
+              }
+            }
+          },
+          {
+            "id": "underside",
+            "label": {
+              "zh": "里世界",
+              "en": "Underside"
+            },
+            "description": {
+              "zh": "同一坐标的暗层显现。旧街口在这里变成鬼市。",
+              "en": "The dark layer of the same coordinates. Old Crossing manifests as Ghost Market here."
+            },
+            "visualState": "central-ring-underside",
+            "assetSlots": {
+              "base": {
+                "src": "/assets/maps/first-world/central-ring-temp-map-mock.png",
+                "placeholder": "central-ring-underside-temp-map"
+              },
+              "detail": {
+                "placeholder": "underside-detail-fracture"
+              },
+              "atmosphere": {
+                "placeholder": "underside-atmosphere-noise"
+              },
+              "interactionOverlay": {
+                "placeholder": "underside-interaction-glow"
+              }
+            }
+          }
+        ],
+        "mapAnchors": [
+          {
+            "id": "central-court",
+            "position": { "x": 50, "y": 50 },
+            "manifestations": {
+              "surface": {
+                "id": "central-court-surface",
+                "layerId": "surface",
+                "title": {
+                  "zh": "中枢院",
+                  "en": "Central Court"
+                },
+                "subtitle": {
+                  "zh": "主线信号未接入 / 信号不稳定",
+                  "en": "Mainline signal disconnected / unstable"
+                },
+                "type": "main-hub",
+                "status": "unstable",
+                "description": {
+                  "zh": "主线信号未接入 / 信号不稳定。",
+                  "en": "Mainline signal is not connected / signal unstable."
+                },
+                "eventIds": [],
+                "action": "none"
+              },
+              "underside": {
+                "id": "central-court-underside",
+                "layerId": "underside",
+                "title": {
+                  "zh": "中枢院·暗层",
+                  "en": "Central Court · Underside"
+                },
+                "subtitle": {
+                  "zh": "不稳定 / 未开放",
+                  "en": "Unstable / locked"
+                },
+                "type": "main-hub",
+                "status": "unstable",
+                "description": {
+                  "zh": "同一座中枢院在暗层里偏移。入口尚未稳定。",
+                  "en": "The same Central Court is offset in the underside. Entry is not stable yet."
+                },
+                "eventIds": [],
+                "action": "none"
+              }
+            }
+          },
+          {
+            "id": "old-crossing",
+            "position": { "x": 76, "y": 68 },
+            "manifestations": {
+              "surface": {
+                "id": "old-crossing-surface",
+                "layerId": "surface",
+                "title": {
+                  "zh": "旧街口",
+                  "en": "Old Crossing"
+                },
+                "subtitle": {
+                  "zh": "异常 / 可查看另一面",
+                  "en": "Anomaly / reveal underside"
+                },
+                "type": "anomaly",
+                "status": "available",
+                "description": {
+                  "zh": "这里没有市场。至少记录里没有。",
+                  "en": "There is no market here. At least, not in the records."
+                },
+                "eventIds": [],
+                "action": "switchLayer",
+                "targetLayerId": "underside"
+              },
+              "underside": {
+                "id": "ghost-market",
+                "layerId": "underside",
+                "title": {
+                  "zh": "鬼市",
+                  "en": "Ghost Market"
+                },
+                "subtitle": {
+                  "zh": "番外事件 / 已开放",
+                  "en": "Extra event / open"
+                },
+                "type": "extra",
+                "status": "available",
+                "description": {
+                  "zh": "旧街口的另一面浮现出来。灯影贴着裂纹，摊位只在暗层里成立。",
+                  "en": "The other side of Old Crossing appears. Lights cling to cracks; the stalls exist only in the underside."
+                },
+                "eventIds": ["ghost-market-extra-001"],
+                "action": "enterEvent"
+              }
+            }
+          }
+        ],
+        "events": [
+          {
+            "id": "ghost-market-extra-001",
+            "anchorId": "old-crossing",
+            "manifestationId": "ghost-market",
+            "type": "extra",
+            "status": "available",
+            "title": {
+              "zh": "鬼市",
+              "en": "Ghost Market"
+            },
+            "subtitle": {
+              "zh": "当前开放：鬼市",
+              "en": "Open now: Ghost Market"
+            },
+            "entryLabel": {
+              "zh": "进入事件",
+              "en": "Enter event"
+            },
+            "readerTarget": "ghost-market-extra-001-reader",
+            "order": 1,
+            "recommended": true
+          }
+        ]
+      }
+    ],
+    "createdAt": "2026-06-25T00:00:00-07:00",
+    "updatedAt": "2026-06-25T00:00:00-07:00"
+  },
+  {
     "id": "chumo",
     "novelId": "newtone-1",
     "name": {
-      "zh": "初墨"
+      "zh": "初墨",
+      "en": "Chumo"
     },
     "tagline": {
       "zh": "一墨之始，两脉之分",

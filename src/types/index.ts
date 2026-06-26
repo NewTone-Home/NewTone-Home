@@ -15,6 +15,20 @@ export type { Arc } from "./arc"
 export type { Chapter } from "./chapter"
 export type { Character } from "./character"
 export type { Asset, AssetType } from "./asset"
+export type {
+	MapAnchor,
+	MapAssetSlot,
+	MapAssetSlots,
+	ManifestationStatus,
+	ManifestationType,
+	WorldManifestation,
+	WorldEvent,
+	WorldEventStatus,
+	WorldEventType,
+	WorldLayer,
+	WorldLayerId,
+	WorldRegion,
+} from "./map"
 
 export type {
   EntryChoice,

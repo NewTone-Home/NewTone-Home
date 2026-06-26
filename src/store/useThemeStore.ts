@@ -20,7 +20,7 @@ function persistTheme(theme: Theme): void {
 }
 
 function readInitialTheme(): Theme {
-	return readStorage().preferences?.theme ?? "light"
+	return readStorage().preferences?.theme ?? "dark"
 }
 
 const initialTheme = readInitialTheme()

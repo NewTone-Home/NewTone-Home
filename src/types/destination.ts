@@ -1,8 +1,18 @@
-// 运行时路由:现在该显示哪一屏
-
 export type EntryDestination =
-  | { kind: "full_logo" }
-  | { kind: "transient_logo"; next: EntryDestination }
-  | { kind: "world_hall"; worldId: string }
-  | { kind: "multiverse" }
-  | { kind: "chapter"; chapterId: string }
+	| { kind: "full_logo" }
+	| { kind: "transient_logo"; next: EntryDestination }
+	| { kind: "world_hall"; worldId: string }
+	| {
+			kind: "multiverse"
+			worldId?: string
+			regionId?: string
+			layerId?: string
+			selectedAnchorId?: string
+			selectedLocationId?: string
+	  }
+	| {
+			kind: "chapter"
+			chapterId: string
+			eventId?: string
+			returnTo?: EntryDestination
+	  }

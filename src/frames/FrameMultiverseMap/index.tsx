@@ -1,132 +1,194 @@
-import { useCallback, useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { defaultAdapter } from "../../content"
 import { useLocalized } from "../../i18n/useLocalized"
-import { useLanguageStore } from "../../store/useLanguageStore"
 import { useEntryStore } from "../../store/useEntryStore"
+import type { WorldLayer } from "../../types"
+import { LocationPanel } from "./LocationPanel"
+import { MapScene } from "./MapScene"
 import {
-	ARRIVAL_BODY_STYLE,
-	ARRIVAL_GUIDE_STYLE,
-	ARRIVAL_KICKER_STYLE,
-	ARRIVAL_TITLE_STYLE,
-	BACKGROUND_STYLE,
-	BOARD_ACTION_STYLE,
-	BOARD_META_STYLE,
-	CHUMO_CODE_STYLE,
 	CONTAINER_STYLE,
-	INACTIVE_LINE_DEPTH_STYLE,
-	INACTIVE_LINE_LABEL_STYLE,
-	INACTIVE_LINE_NUMBER_STYLE,
-	INACTIVE_LINE_STYLE,
-	INACTIVE_LINES_STYLE,
-	PLATFORM_NAME_STYLE,
-	PLATFORM_SIGN_STYLE,
-	PLATFORM_STATUS_STYLE,
-	PLATFORM_WRAP_STYLE,
-	SCENE_OVERLAY_STYLE,
-	SCREEN_VEIL_STYLE,
-	SIGN_LABEL_STYLE,
+	HEADER_STYLE,
+	KICKER_STYLE,
+	OBJECTIVE_LINE_STYLE,
+	OBJECTIVE_STYLE,
+	SHELL_STYLE,
+	SUBTITLE_STYLE,
+	TITLE_STYLE,
 } from "./styles"
+import type { VisibleAnchor } from "./types"
 
-const INACTIVE_LINES = [
-	{ id: "02", depth: "far" },
-	{ id: "03", depth: "mid" },
-	{ id: "04", depth: "near" },
-] as const
+type FrameMultiverseMapProps = {
+	worldId?: string
+	regionId?: string
+	initialLayerId?: string
+	initialAnchorId?: string
+}
 
-export function FrameMultiverseMap() {
-	const lang = useLanguageStore((s) => s.lang)
-	const localize = useLocalized()
+function layerHudCopy(layerId: string) {
+	if (layerId === "underside") {
+		return {
+			subtitle: "里层显现中；鬼市已开放。",
+			objective: "显现坐标：鬼市",
+			action: "当前事件：已开放",
+		}
+	}
+
+	return {
+		subtitle: "表层记录运行中；旧街口出现可进入暗层的异常。",
+		objective: "异常坐标：旧街口",
+		action: "暗层显现：可读取",
+	}
+}
+
+export function FrameMultiverseMap({
+	worldId = "first-world",
+	regionId = "central-ring",
+	initialLayerId = "surface",
+	initialAnchorId,
+}: FrameMultiverseMapProps) {
+	const tr = useLocalized()
 	const goTo = useEntryStore((s) => s.goTo)
-	const chumo = defaultAdapter.getWorldById("chumo")
-	const chumoName = chumo ? localize(chumo.name) : "初墨"
-
-	const handleBoardChumo = useCallback(() => {
-		goTo({ kind: "world_hall", worldId: "chumo" })
-	}, [goTo])
+	const world = defaultAdapter.getWorldById(worldId)
+	const region =
+		world?.regions?.find((item) => item.id === regionId) ??
+		(world
+			? {
+					id: regionId,
+					title: world.name,
+					description: world.description,
+					layers: world.layers ?? [],
+					mapAnchors: world.mapAnchors ?? [],
+					events: world.events ?? [],
+				}
+			: undefined)
+	const layers = region?.layers ?? []
+	const events = region?.events ?? []
+	const anchors = region?.mapAnchors ?? []
+	const [activeLayerId, setActiveLayerId] = useState(initialLayerId)
+	const activeLayer =
+		layers.find((layer) => layer.id === activeLayerId) ?? layers[0]
+	const initialAnchor =
+		anchors.find((anchor) => anchor.id === initialAnchorId) ??
+		anchors.find((anchor) =>
+			Object.values(anchor.manifestations).some(
+				(manifestation) => manifestation?.id === initialAnchorId,
+			),
+		) ??
+		anchors.find((anchor) => anchor.id === "central-court") ??
+		anchors[0]
+	const [selectedAnchorId, setSelectedAnchorId] = useState<string | undefined>(
+		initialAnchor?.id,
+	)
+	const [isLayerRevealing, setIsLayerRevealing] = useState(false)
+	const revealTimerRef = useRef<number | undefined>(undefined)
 
 	useEffect(() => {
-		const handleKeyDown = (event: KeyboardEvent) => {
-			const target = event.target as HTMLElement | null
-			const tagName = target?.tagName.toLowerCase()
-			const isEditable =
-				tagName === "input" ||
-				tagName === "textarea" ||
-				tagName === "select" ||
-				target?.isContentEditable
+		return () => {
+			if (revealTimerRef.current) window.clearTimeout(revealTimerRef.current)
+		}
+	}, [])
 
-			if (event.defaultPrevented || event.isComposing || isEditable) return
-			if (event.key !== "Enter" && event.key.toLowerCase() !== "e") return
+	if (!world || !region || !activeLayer) return null
 
-			event.preventDefault()
-			handleBoardChumo()
+	const activeWorldId = world.id
+	const activeRegionId = region.id
+	const hudCopy = layerHudCopy(activeLayer.id)
+
+	const visibleAnchors: VisibleAnchor[] = []
+	for (const anchor of anchors) {
+		const manifestation = anchor.manifestations[activeLayer.id]
+		if (!manifestation || manifestation.status === "hidden") continue
+		visibleAnchors.push({ anchor, manifestation })
+	}
+
+	const selected =
+		visibleAnchors.find(
+			(item) => item.anchor.id === selectedAnchorId,
+		) ??
+		visibleAnchors.find((item) => item.manifestation.status === "available") ??
+		visibleAnchors[0]
+	const selectedEvents = selected
+		? events
+				.filter((event) => selected.manifestation.eventIds.includes(event.id))
+				.sort((a, b) => a.order - b.order)
+		: []
+
+	function switchLayer(layer: WorldLayer, keepAnchorId?: string) {
+		const isChangingLayer = layer.id !== activeLayerId
+		if (isChangingLayer) {
+			if (revealTimerRef.current) window.clearTimeout(revealTimerRef.current)
+			setIsLayerRevealing(true)
+			revealTimerRef.current = window.setTimeout(() => {
+				setIsLayerRevealing(false)
+			}, 680)
+		}
+		setActiveLayerId(layer.id)
+		const nextAnchor =
+			anchors.find((anchor) => anchor.id === keepAnchorId) ??
+			anchors.find(
+				(anchor) => anchor.manifestations[layer.id]?.status === "available",
+			) ??
+			anchors[0]
+		setSelectedAnchorId(nextAnchor?.id)
+	}
+
+	function handlePrimaryAction() {
+		if (!selected) return
+		const { anchor, manifestation } = selected
+		if (manifestation.action === "switchLayer" && manifestation.targetLayerId) {
+			const nextLayer = layers.find(
+				(layer) => layer.id === manifestation.targetLayerId,
+			)
+			if (nextLayer) switchLayer(nextLayer, anchor.id)
+			return
 		}
 
-		window.addEventListener("keydown", handleKeyDown)
-		return () => window.removeEventListener("keydown", handleKeyDown)
-	}, [handleBoardChumo])
+		const event = selectedEvents.find((item) => item.status === "available")
+		if (!event) return
+		goTo({
+			kind: "chapter",
+			chapterId: event.readerTarget,
+			eventId: event.id,
+			returnTo: {
+				kind: "multiverse",
+				worldId: activeWorldId,
+				regionId: activeRegionId,
+				layerId: activeLayer.id,
+				selectedAnchorId: anchor.id,
+			},
+		})
+	}
 
 	return (
 		<main style={CONTAINER_STYLE}>
-			<div style={BACKGROUND_STYLE} aria-hidden="true" />
-			<div style={SCREEN_VEIL_STYLE} aria-hidden="true" />
-
-			<section style={SCENE_OVERLAY_STYLE} aria-labelledby="multiverse-title">
-				<aside style={ARRIVAL_GUIDE_STYLE}>
-					<p style={ARRIVAL_KICKER_STYLE}>
-						{lang === "en" ? "NEWTONE TRANSIT" : "NEWTONE TRANSIT"}
-					</p>
-					<h1 id="multiverse-title" style={ARRIVAL_TITLE_STYLE}>
-						{lang === "en" ? "Multiverse Transit" : "多元宇宙枢纽"}
-					</h1>
-					<p style={ARRIVAL_BODY_STYLE}>
-						{lang === "en"
-							? "A quiet transfer station between worlds."
-							: "世界之间的安静换乘站。"}
-					</p>
-					<p style={ARRIVAL_BODY_STYLE}>
-						{lang === "en"
-							? "From here, depart for the worlds ahead."
-							: "从这里，前往诸世界。"}
-					</p>
-				</aside>
-
-				<div style={PLATFORM_WRAP_STYLE}>
-					<button
-						type="button"
-						style={PLATFORM_SIGN_STYLE}
-						onClick={handleBoardChumo}
-					>
-						<span style={SIGN_LABEL_STYLE}>PLATFORM 01</span>
-						<span style={PLATFORM_NAME_STYLE}>{chumoName}</span>
-						<span style={CHUMO_CODE_STYLE}>CHUMO</span>
-						<span style={BOARD_META_STYLE}>
-							{lang === "en" ? "Boarding available" : "当前线路 · 可登车"}
-						</span>
-						<span style={BOARD_ACTION_STYLE}>
-							{lang === "en" ? "[E] Board" : "[E] 登车 / 前往世界"}
-						</span>
-						<span style={PLATFORM_STATUS_STYLE} aria-hidden="true" />
-					</button>
-				</div>
-
-				<div style={INACTIVE_LINES_STYLE} aria-label="Inactive transit lines">
-					{INACTIVE_LINES.map((line) => (
-						<div
-							key={line.id}
-							style={{
-								...INACTIVE_LINE_STYLE,
-								...INACTIVE_LINE_DEPTH_STYLE[line.depth],
-							}}
-							aria-disabled="true"
-						>
-							<span style={INACTIVE_LINE_NUMBER_STYLE}>{line.id}</span>
-							<span style={INACTIVE_LINE_LABEL_STYLE}>
-								{lang === "en" ? "Line closed" : "未开放"}
-							</span>
-						</div>
-					))}
-				</div>
-			</section>
+			<div className="world-map-shell" style={SHELL_STYLE}>
+				<header style={HEADER_STYLE}>
+					<p style={KICKER_STYLE}>NEWTONE MAP SCENE</p>
+					<h1 style={TITLE_STYLE}>{tr(region.title)}</h1>
+					<p style={SUBTITLE_STYLE}>{hudCopy.subtitle}</p>
+					<div style={OBJECTIVE_STYLE} aria-label="当前目标">
+						<span style={OBJECTIVE_LINE_STYLE}>{hudCopy.objective}</span>
+						<span style={OBJECTIVE_LINE_STYLE}>{hudCopy.action}</span>
+					</div>
+				</header>
+				<MapScene
+					layer={activeLayer}
+					layers={layers}
+					visibleAnchors={visibleAnchors}
+					selectedId={selected?.anchor.id}
+					localize={tr}
+					onSelect={setSelectedAnchorId}
+					onLayerSelect={(layer) => switchLayer(layer)}
+					isLayerRevealing={isLayerRevealing}
+				/>
+				<LocationPanel
+					layer={activeLayer}
+					selected={selected}
+					events={selectedEvents}
+					localize={tr}
+					onPrimaryAction={handlePrimaryAction}
+				/>
+			</div>
 		</main>
 	)
 }

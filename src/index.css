@@ -12,6 +12,9 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
+  transition:
+    background-color 220ms ease,
+    color 220ms ease;
 }
 
 body {
@@ -20,6 +23,9 @@ body {
   font-family: var(--font-serif-sc);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition:
+    background-color 220ms ease,
+    color 220ms ease;
 }
 
 body::before {
@@ -109,6 +115,349 @@ button {
   mix-blend-mode: normal;
 }
 
+.heartbeat-rift-line {
+  animation: heartbeat-rift-breath 7200ms ease-in-out infinite;
+}
+
+.heartbeat-signal-button:focus {
+  outline: none;
+}
+
+.heartbeat-signal-button:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--char-color-qian) 58%, transparent);
+  outline-offset: 4px;
+}
+
+@keyframes map-layer-enter {
+  0% {
+    filter: blur(4px) saturate(0.8);
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(1.015);
+  }
+
+  100% {
+    filter: blur(0) saturate(1);
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.map-layer-transition {
+  animation: map-layer-enter 520ms ease both;
+}
+
+.world-map-canvas--surface .map-asset-base-image {
+  filter: brightness(0.98) saturate(0.78) contrast(1.03) hue-rotate(2deg);
+}
+
+.world-map-canvas--underside .map-asset-base-image {
+  filter: brightness(0.52) saturate(0.7) contrast(0.9) hue-rotate(248deg);
+}
+
+.world-map-canvas--underside .map-asset-detail {
+  mix-blend-mode: screen;
+}
+
+.world-map-canvas--underside .map-asset-atmosphere {
+  mix-blend-mode: soft-light;
+}
+
+.world-map-canvas--revealing::before {
+  animation: layer-reveal-dim 680ms ease both;
+  background:
+    radial-gradient(circle at 67% 61%, rgba(165, 137, 207, 0.18), transparent 12%),
+    radial-gradient(circle at 50% 50%, transparent 0 48%, rgba(5, 7, 12, 0.2) 62%, rgba(2, 4, 7, 0.64) 100%);
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 12;
+}
+
+.map-anchor-node {
+  outline: none;
+}
+
+.map-anchor-node:focus-visible {
+  outline: 1px solid rgba(190, 232, 245, 0.48);
+  outline-offset: 10px;
+}
+
+.map-anchor-node--selected span:first-child {
+  animation: selected-node-pulse 260ms ease-out both;
+}
+
+.world-map-canvas--revealing .map-anchor-node--selected span:first-child {
+  animation: layer-coordinate-disturbance 680ms ease-out both;
+}
+
+.map-anchor-connector {
+  background: linear-gradient(90deg, rgba(191, 229, 238, 0.46), rgba(191, 229, 238, 0));
+  height: 1px;
+  left: 14px;
+  opacity: 0.48;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+}
+
+.map-anchor-node--hub .map-anchor-connector,
+.map-anchor-node--main-hub .map-anchor-connector {
+  left: 28px;
+  opacity: 0.38;
+}
+
+.map-anchor-node--anomaly .map-anchor-connector,
+.map-anchor-node--extra .map-anchor-connector {
+  background: linear-gradient(90deg, rgba(218, 244, 255, 0.64), rgba(156, 216, 255, 0));
+  opacity: 0.66;
+}
+
+.map-anchor-node--ghost-market .map-anchor-connector {
+  background: linear-gradient(90deg, rgba(190, 161, 226, 0.72), rgba(112, 84, 158, 0));
+  opacity: 0.74;
+}
+
+.map-anchor-action {
+  color: rgba(224, 246, 255, 0.92);
+  display: block;
+  font-size: 10px;
+  font-weight: 300;
+  letter-spacing: 0;
+  margin-top: 6px;
+  opacity: 0;
+  text-shadow: 0 0 14px rgba(142, 218, 255, 0.42);
+  transform: translateY(-2px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+  white-space: nowrap;
+}
+
+.map-anchor-node--old-crossing span:first-child::before,
+.map-anchor-node--old-crossing span:first-child::after {
+  border: 1px solid rgba(190, 233, 255, 0.26);
+  border-radius: 999px;
+  content: "";
+  inset: -12px;
+  opacity: 0;
+  position: absolute;
+}
+
+.map-anchor-node--ghost-market span:first-child::before,
+.map-anchor-node--ghost-market span:first-child::after {
+  border-radius: 999px;
+  content: "";
+  position: absolute;
+}
+
+.map-anchor-node--ghost-market span:first-child::before {
+  background: radial-gradient(circle, rgba(157, 105, 190, 0.2), transparent 66%);
+  inset: -16px;
+  opacity: 0.76;
+  filter: blur(1px);
+  animation: ghost-market-breathe 3400ms ease-in-out infinite;
+}
+
+.map-anchor-node--ghost-market span:first-child::after {
+  border: 1px solid rgba(163, 126, 210, 0.22);
+  inset: -10px;
+  opacity: 0.55;
+  animation: ghost-market-ring 3600ms ease-out infinite;
+}
+
+.map-anchor-node--old-crossing span:first-child::before {
+  animation: old-crossing-ripple 2600ms ease-out infinite;
+}
+
+.map-anchor-node--old-crossing span:first-child::after {
+  animation: old-crossing-ripple 2600ms 900ms ease-out infinite;
+}
+
+.map-anchor-node--old-crossing:hover .map-anchor-action,
+.map-anchor-node--old-crossing:focus-visible .map-anchor-action,
+.map-anchor-node--old-crossing[aria-pressed="true"] .map-anchor-action {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.map-anchor-node--selected .world-map-node-label,
+.map-anchor-node:hover .world-map-node-label,
+.map-anchor-node:focus-visible .world-map-node-label {
+  color: rgba(242, 250, 252, 0.96);
+}
+
+.map-anchor-node--selected::after {
+  background: linear-gradient(90deg, rgba(188, 226, 236, 0.24), rgba(127, 167, 190, 0.08), transparent);
+  content: "";
+  height: 1px;
+  left: 18px;
+  opacity: 0.48;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(28vw, 420px);
+  z-index: -1;
+}
+
+.map-anchor-node--ghost-market.map-anchor-node--selected::after {
+  background: linear-gradient(90deg, rgba(178, 149, 218, 0.28), rgba(105, 92, 166, 0.1), transparent);
+}
+
+.location-hud-panel::before {
+  background: linear-gradient(180deg, rgba(186, 224, 235, 0.2), transparent 72%);
+  content: "";
+  inset: 12px auto 12px -1px;
+  opacity: 0.72;
+  pointer-events: none;
+  position: absolute;
+  width: 1px;
+}
+
+.location-hud-panel::after {
+  background:
+    linear-gradient(90deg, rgba(185, 222, 234, 0.12), transparent 54%),
+    linear-gradient(180deg, rgba(185, 222, 234, 0.12), transparent 42%);
+  content: "";
+  inset: 0;
+  opacity: 0.54;
+  pointer-events: none;
+  position: absolute;
+}
+
+.location-panel-readout {
+  position: relative;
+  z-index: 1;
+}
+
+.world-map-layer-toggle:hover,
+.world-map-layer-toggle:focus-within {
+  opacity: 1 !important;
+}
+
+@keyframes old-crossing-ripple {
+  0% {
+    opacity: 0.38;
+    transform: scale(0.42);
+  }
+  78% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+@keyframes selected-node-pulse {
+  0% {
+    transform: scale(0.82);
+    filter: brightness(1);
+  }
+  54% {
+    transform: scale(1.18);
+    filter: brightness(1.22);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes layer-reveal-dim {
+  0% {
+    opacity: 0;
+  }
+  28% {
+    opacity: 0.82;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes layer-coordinate-disturbance {
+  0% {
+    filter: brightness(1) blur(0);
+    transform: scale(0.9);
+  }
+  24% {
+    filter: brightness(1.35) blur(0.2px);
+    transform: scale(1.26);
+  }
+  58% {
+    filter: brightness(1.12) blur(0);
+    transform: scale(1.08);
+  }
+  100% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+}
+
+@keyframes ghost-market-breathe {
+  0%,
+  100% {
+    opacity: 0.48;
+    transform: scale(0.92);
+  }
+  48% {
+    opacity: 0.82;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes ghost-market-ring {
+  0% {
+    opacity: 0.42;
+    transform: scale(0.72);
+  }
+  72% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .map-anchor-node:hover span:first-child {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes heartbeat-rift-breath {
+  0%,
+  100% {
+    filter: blur(0);
+  }
+  48% {
+    filter: blur(0.18px);
+  }
+}
+
+@keyframes heartbeat-panel-rift-open {
+  0% {
+    opacity: 0;
+    clip-path: polygon(100% 100%, 100% 100%, 100% 100%, 100% 100%);
+    transform: translate(10px, 10px) scale(0.82);
+  }
+  58% {
+    opacity: 0.92;
+    clip-path: polygon(16% 0, 100% 0, 100% 100%, 0 100%);
+  }
+  100% {
+    opacity: 1;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+    transform: translate(0, 0) scale(1);
+  }
+}
+
 .yao-short-wisp {
   animation: short-wisp-drift 3200ms infinite ease-out;
   animation-delay: var(--wisp-delay, 0ms);
@@ -149,9 +498,94 @@ button {
   .yao-ash-particle {
     opacity: 0;
   }
+
+  .heartbeat-rift-line {
+    animation: none;
+  }
 }
 
 @media (hover: none), (pointer: coarse), (max-width: 768px) {
+  .entry-buttons-row {
+    width: min(100%, 320px);
+  }
+
+  .entry-buttons-row button {
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  .world-map-shell {
+    width: 100vw !important;
+    min-height: 100vh !important;
+    padding: 0 !important;
+  }
+
+  .world-map-shell header {
+    left: 16px !important;
+    top: 14px !important;
+    width: calc(100vw - 124px) !important;
+  }
+
+  .world-map-stage {
+    inset: 0 !important;
+    width: 100vw !important;
+    min-height: 100vh !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+  }
+
+  .world-map-atmosphere {
+    opacity: 0.48 !important;
+  }
+
+  .world-map-atmosphere img {
+    filter: blur(20px) brightness(0.34) saturate(0.52) !important;
+  }
+
+  .world-map-canvas {
+    width: calc(100vh * 1.5) !important;
+    height: 100vh !important;
+    max-width: none !important;
+  }
+
+  .map-layer-transition {
+    animation-duration: 260ms;
+  }
+
+  .world-map-node-label {
+    left: 22px !important;
+    min-width: 112px !important;
+    max-width: 138px !important;
+  }
+
+  .map-anchor-node--selected::after {
+    width: min(34vw, 180px);
+  }
+
+  .map-anchor-connector {
+    width: 20px;
+  }
+
+  .map-anchor-node--hub .map-anchor-connector,
+  .map-anchor-node--main-hub .map-anchor-connector {
+    left: 28px;
+  }
+
+  .location-hud-panel {
+    bottom: 14px !important;
+    left: 14px !important;
+    right: 14px !important;
+    top: auto !important;
+    width: auto !important;
+    max-height: 36vh !important;
+    overflow: auto !important;
+  }
+
+  .world-map-layer-toggle {
+    right: 14px !important;
+    top: 14px !important;
+  }
+
   .chapter-sidebar {
     display: none !important;
   }

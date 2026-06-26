@@ -5,6 +5,6 @@ export const logoStyle: CSSProperties = {
   fontSize: "var(--font-size-xl)",
   fontWeight: 300,
   letterSpacing: "0.08em",
-  color: "var(--color-fg)",
+  color: "#eef8f8",
   marginBottom: 80,
 }

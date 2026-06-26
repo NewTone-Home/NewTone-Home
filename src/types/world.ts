@@ -1,11 +1,27 @@
-import type { AssetRef, LocalizedString, Publishable, SoftDeletable, Taggable, Timestamped } from "./common"
+import type {
+	AssetRef,
+	LocalizedString,
+	Publishable,
+	SoftDeletable,
+	Taggable,
+	Timestamped,
+} from "./common"
+import type { MapAnchor, WorldEvent, WorldLayer, WorldRegion } from "./map"
 
 export type World = {
-  id: string                       // slug，例如 "chumo"
-  novelId: string                  // 主属（Phase 1）
-  sharedWithNovelIds?: string[]    // Phase 2 跨小说预留
-  name: LocalizedString
-  tagline?: LocalizedString
-  description?: LocalizedString
-  coverAsset?: AssetRef
-} & Timestamped & SoftDeletable & Publishable & Taggable
+	id: string
+	novelId: string
+	sharedWithNovelIds?: string[]
+	name: LocalizedString
+	tagline?: LocalizedString
+	description?: LocalizedString
+	coverAsset?: AssetRef
+	status?: string
+	regions?: WorldRegion[]
+	layers?: WorldLayer[]
+	mapAnchors?: MapAnchor[]
+	events?: WorldEvent[]
+} & Timestamped &
+	SoftDeletable &
+	Publishable &
+	Taggable

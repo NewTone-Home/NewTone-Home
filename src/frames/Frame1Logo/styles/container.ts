@@ -7,7 +7,9 @@ export const containerStyle: CSSProperties = {
   flexDirection: "column",
   alignItems: "center",
   justifyContent: "center",
-  background: "var(--color-bg)",
+  background:
+    "radial-gradient(circle at 50% 42%, rgba(43, 72, 86, 0.28), transparent 34%), linear-gradient(145deg, #070a0f 0%, #0b1118 52%, #07070a 100%)",
+  color: "#eef8f8",
   position: "relative",
 }
 

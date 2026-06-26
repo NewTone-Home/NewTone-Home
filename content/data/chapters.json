@@ -1,5 +1,38 @@
 [
   {
+    "id": "ghost-market-extra-001-reader",
+    "arcId": "chumo-arc1",
+    "order": 0,
+    "title": { "zh": "鬼市番外：入口记录", "en": "Ghost Market Extra: Entry Record" },
+    "characterIds": [],
+    "accessLevel": "public",
+    "paragraphs": [
+      {
+        "type": "open",
+        "text": {
+          "zh": "你站在里世界的边缘。鬼市的灯从巷口一盏盏亮起，像某种被允许短暂出现的注脚。",
+          "en": "You stand at the edge of the underside. The Ghost Market lights wake one by one, like a footnote briefly permitted to appear."
+        }
+      },
+      {
+        "type": "narrate",
+        "text": {
+          "zh": "这不是主线入口，也不是世界中心。它只是当前已开放的番外事件，用来确认这张地图可以被游玩、进入、返回。",
+          "en": "This is not the mainline entrance or the center of the world. It is the currently available extra event, here to prove the map can be played, entered, and returned from."
+        }
+      },
+      {
+        "type": "pause",
+        "text": {
+          "zh": "后续事件将在地图数据中继续开放。",
+          "en": "Future events will open through the map data."
+        }
+      }
+    ],
+    "createdAt": "2026-06-25T00:00:00-07:00",
+    "updatedAt": "2026-06-25T00:00:00-07:00"
+  },
+  {
     "id": "chumo-arc1-ch1",
     "arcId": "chumo-arc1",
     "order": 1,

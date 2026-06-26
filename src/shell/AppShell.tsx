@@ -31,7 +31,16 @@ export function AppShell() {
 			{destination.kind === "world_hall" && (
 				<Frame2WorldHall worldId={destination.worldId} />
 			)}
-			{destination.kind === "multiverse" && <FrameMultiverseMap />}
+			{destination.kind === "multiverse" && (
+				<FrameMultiverseMap
+					worldId={destination.worldId}
+					regionId={destination.regionId}
+					initialLayerId={destination.layerId}
+					initialAnchorId={
+						destination.selectedAnchorId ?? destination.selectedLocationId
+					}
+				/>
+			)}
 			{destination.kind === "chapter" && (
 				<Frame3Chapter chapterId={destination.chapterId} />
 			)}
