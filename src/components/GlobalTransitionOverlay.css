@@ -1,0 +1,65 @@
+.global-transition-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: rgb(3, 7, 10);
+  opacity: 0;
+}
+
+@keyframes gt-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes gt-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes gt-label-in {
+  from { opacity: 0; }
+  to { opacity: 0.45; }
+}
+
+@keyframes gt-label-out {
+  from { opacity: 0.55; }
+  to { opacity: 0; }
+}
+
+.global-transition-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  color: rgba(190, 205, 210, 0.58);
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+}
+
+.global-transition-overlay.phase-leaving .global-transition-label {
+  animation: gt-label-in 200ms ease-out forwards;
+}
+
+.global-transition-overlay.phase-covered .global-transition-label {
+  opacity: 0.55;
+}
+
+.global-transition-overlay.phase-entering .global-transition-label {
+  animation: gt-label-out 200ms ease-in forwards;
+}
+
+.global-transition-overlay.phase-leaving {
+  animation: gt-fade-in var(--gt-cover-duration, 220ms) ease-out forwards;
+}
+
+.global-transition-overlay.phase-covered {
+  opacity: 1;
+}
+
+.global-transition-overlay.phase-entering {
+  animation: gt-fade-out var(--gt-enter-duration, 360ms) ease-out forwards;
+}

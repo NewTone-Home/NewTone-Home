@@ -1,0 +1,437 @@
+.landing-sketch-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.landing-sketch-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ===== Guide Lines ===== */
+
+.sketch-guide-h {
+  fill: none;
+  stroke: var(--line-faint, #baada0);
+  stroke-width: 0.5;
+  stroke-dasharray: 3,5;
+  opacity: 0.2;
+}
+
+.sketch-guide-v {
+  fill: none;
+  stroke: var(--line-faint, #baada0);
+  stroke-width: 0.4;
+  stroke-dasharray: 2,6;
+  opacity: 0.12;
+}
+
+.sketch-guide-v--offset {
+  stroke-dasharray: 3,8;
+  opacity: 0.08;
+}
+
+/* ===== Archway ===== */
+
+.sketch-arch-pillar {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  opacity: 0.35;
+}
+
+.sketch-arch-pillar-faint {
+  fill: none;
+  stroke: var(--ink-muted, #8a7a6b);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+  opacity: 0.15;
+}
+
+.sketch-arch-top {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  opacity: 0.35;
+}
+
+.sketch-arch-top-faint {
+  fill: none;
+  stroke: var(--ink-muted, #8a7a6b);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+  opacity: 0.12;
+}
+
+.sketch-arch-base {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 1;
+  stroke-linecap: round;
+  opacity: 0.3;
+}
+
+.sketch-arch-base-faint {
+  fill: none;
+  stroke: var(--ink-muted, #8a7a6b);
+  stroke-width: 0.6;
+  stroke-linecap: round;
+  opacity: 0.1;
+}
+
+/* ===== Archway Phase 1 (prompts visible) ===== */
+
+.sketch-arch-construction {
+  fill: none;
+  stroke: var(--line-faint, #baada0);
+  stroke-width: 0.5;
+  stroke-dasharray: 2,4;
+  stroke-linecap: round;
+  opacity: 0.15;
+}
+
+.sketch-arch-diagonal {
+  fill: none;
+  stroke: var(--line-faint, #baada0);
+  stroke-width: 0.4;
+  stroke-dasharray: 3,5;
+  stroke-linecap: round;
+  opacity: 0.1;
+}
+
+/* ===== Archway Phase 2 (scroll triggered) ===== */
+
+.sketch-arch-top-complete {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 1;
+  stroke-linecap: round;
+  opacity: 0.3;
+}
+
+.sketch-arch-keystone {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 0.6;
+  stroke-linecap: round;
+  opacity: 0.2;
+}
+
+.sketch-arch-ground {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+  opacity: 0.2;
+  stroke-dasharray: 5,3;
+}
+
+.sketch-tick {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 0.6;
+  stroke-linecap: round;
+  opacity: 0.18;
+}
+
+/* ===== Title Circle ===== */
+
+.sketch-title-circle {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+  opacity: 0.12;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  transition: opacity 0.6s ease;
+}
+
+.sketch-title-circle-faint {
+  fill: none;
+  stroke: var(--ink-muted, #8a7a6b);
+  stroke-width: 0.5;
+  stroke-linecap: round;
+  opacity: 0.06;
+}
+
+.sketch-title-circle-echo {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 0.6;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0.25;
+  animation: echo-trace 0.8s ease-out forwards;
+}
+
+@keyframes echo-trace {
+  0% {
+    stroke-dashoffset: 1;
+    opacity: 0.3;
+  }
+  50% {
+    stroke-dashoffset: 0;
+    opacity: 0.18;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+.sketch-crosshair {
+  fill: none;
+  stroke: var(--line-faint, #baada0);
+  stroke-width: 0.3;
+  stroke-dasharray: 2,4;
+  opacity: 0.08;
+}
+
+.sketch--activated .sketch-title-circle {
+  opacity: 0.2;
+}
+
+.sketch--activated .sketch-title-circle-faint {
+  opacity: 0.1;
+}
+
+/* ===== Down Arrow ===== */
+
+.sketch-down-shaft {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  opacity: 0.4;
+}
+
+.sketch-down-shaft-faint {
+  fill: none;
+  stroke: var(--ink-muted, #8a7a6b);
+  stroke-width: 0.7;
+  stroke-linecap: round;
+  opacity: 0.18;
+}
+
+.sketch-down-head {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.4;
+}
+
+/* Down arrow ink breathe (prompts revealed) */
+.sketch-down-breathe {
+  animation: arrow-ink-breathe var(--pulse-duration, 1.8s) var(--pulse-easing, ease-in-out) infinite;
+}
+
+@keyframes arrow-ink-breathe {
+  0%, 100% {
+    opacity: 0.42;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+.sketch-down-breathe .sketch-down-shaft {
+  animation: shaft-breathe var(--pulse-duration, 1.8s) var(--pulse-easing, ease-in-out) infinite;
+}
+
+@keyframes shaft-breathe {
+  0%, 100% {
+    stroke-width: 2;
+  }
+  50% {
+    stroke-width: 2.6;
+  }
+}
+
+/* ===== Up Arrow (unlocked) ===== */
+
+.sketch-up-shaft {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  opacity: 0.5;
+}
+
+.sketch-up-shaft-faint {
+  fill: none;
+  stroke: var(--ink-muted, #8a7a6b);
+  stroke-width: 0.7;
+  stroke-linecap: round;
+  opacity: 0.2;
+}
+
+.sketch-up-head {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.5;
+}
+
+/* Up arrow breathe (prompts revealed) */
+.sketch-up-breathe {
+  animation: arrow-ink-breathe var(--pulse-duration, 1.8s) var(--pulse-easing, ease-in-out) infinite;
+}
+
+.sketch-up-breathe .sketch-up-shaft {
+  animation: shaft-breathe var(--pulse-duration, 1.8s) var(--pulse-easing, ease-in-out) infinite;
+}
+
+/* ===== Eraser Marks ===== */
+
+.sketch-eraser {
+  fill: none;
+  stroke: #f0ebe2;
+  stroke-width: 10;
+  stroke-linecap: round;
+  opacity: 0.25;
+  filter: blur(1.5px);
+}
+
+.sketch-eraser-blotch {
+  fill: #f0ebe2;
+  opacity: 0.12;
+  filter: blur(3px);
+}
+
+/* ===== Margin Bracket ===== */
+
+.sketch-bracket {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+  opacity: 0.22;
+}
+
+.sketch-bracket-faint {
+  fill: none;
+  stroke: var(--ink-muted, #8a7a6b);
+  stroke-width: 0.5;
+  stroke-linecap: round;
+  opacity: 0.1;
+}
+
+.sketch-squiggle {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 0.6;
+  stroke-linecap: round;
+  opacity: 0.15;
+}
+
+/* Phase 2 elements animate faster */
+.sketch--arch-complete .sketch-arch-top-complete,
+.sketch--arch-complete .sketch-arch-keystone,
+.sketch--arch-complete .sketch-arch-ground {
+  animation-duration: 0.6s;
+}
+
+/* ===== Reduced Motion (Landing-specific overrides) ===== */
+
+@media (prefers-reduced-motion: reduce) {
+  .sketch-title-circle-echo {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+
+  .sketch-down-breathe,
+  .sketch-up-breathe,
+  .sketch-down-breathe .sketch-down-shaft,
+  .sketch-up-breathe .sketch-up-shaft {
+    animation: none !important;
+  }
+
+  .sketch-down-breathe,
+  .sketch-up-breathe {
+    opacity: 1 !important;
+  }
+
+  .sketch-up-shaft,
+  .sketch-up-head {
+    stroke: var(--ink-medium, #5a4d40) !important;
+  }
+
+  .sketch-guide-h,
+  .sketch-guide-v,
+  .sketch-tick,
+  .sketch-crosshair {
+    stroke-dasharray: none !important;
+  }
+}
+
+/* ===== Responsive ===== */
+
+@media (max-width: 768px) {
+  .sketch-arch-pillar,
+  .sketch-arch-top,
+  .sketch-arch-base,
+  .sketch-arch-pillar-faint,
+  .sketch-arch-top-faint,
+  .sketch-arch-base-faint,
+  .sketch-tick,
+  .sketch-arch-construction,
+  .sketch-arch-diagonal,
+  .sketch-arch-top-complete,
+  .sketch-arch-keystone,
+  .sketch-arch-ground {
+    opacity: 0.15;
+  }
+
+  .sketch-title-circle {
+    opacity: 0.08;
+  }
+
+  .sketch-bracket,
+  .sketch-bracket-faint,
+  .sketch-squiggle {
+    display: none;
+  }
+
+  .sketch-eraser,
+  .sketch-eraser-blotch {
+    opacity: 0.12;
+  }
+
+  .sketch-down-shaft,
+  .sketch-down-head {
+    opacity: 0.3;
+  }
+
+  .sketch-up-shaft,
+  .sketch-up-head {
+    opacity: 0.35;
+  }
+
+  .sketch-guide-h,
+  .sketch-guide-v {
+    opacity: 0.1;
+  }
+}
+
+@media (max-width: 480px) {
+  .sketch-archway-layer {
+    display: none;
+  }
+
+  .sketch-guide-h:nth-child(2),
+  .sketch-guide-h:nth-child(4) {
+    display: none;
+  }
+}

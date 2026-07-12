@@ -1,0 +1,32 @@
+:root {
+  --bg-root: #0b0f12;
+  --bg-surface: #11171c;
+  --bg-elevated: #192228;
+
+  --text-primary: #b0bec5;
+  --text-secondary: #7a8a99;
+  --text-muted: #4d5f6e;
+  --text-dim: #31404d;
+
+  --accent: #6b8fa3;
+  --accent-hover: #8aafc3;
+
+  --font-body: -apple-system, 'Noto Sans SC', 'PingFang SC', sans-serif;
+  --font-title-handwritten: "Segoe Script", "Bradley Hand", "Comic Sans MS", cursive;
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-base: 15px;
+  --font-size-lg: 22px;
+  --font-size-xl: 28px;
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  --border-subtle: 1px solid rgba(255, 255, 255, 0.04);
+  --opacity-dim: 0.4;
+}
