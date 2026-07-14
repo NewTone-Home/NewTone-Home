@@ -1,0 +1,157 @@
+.page-shell {
+  min-height: 100vh;
+  width: 100%;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+.page-shell.phase-idle {
+  opacity: 1;
+  transform: none;
+}
+
+.page-shell.phase-covered.preset-fade-cover {
+  opacity: 0.92;
+  transform: none;
+}
+
+.page-shell.phase-covered.preset-surface-to-core {
+  opacity: 0.88;
+  transform: scale(0.995);
+}
+
+.page-shell.phase-covered.preset-reader-to-core {
+  opacity: 0.88;
+  transform: scale(0.995);
+}
+
+.page-shell.phase-covered.preset-core-to-surface {
+  opacity: 0.86;
+  transform: none;
+}
+
+.page-shell.phase-covered.preset-core-to-reader {
+  opacity: 0.86;
+  transform: none;
+}
+
+.page-shell.phase-covered.preset-reader-to-surface {
+  opacity: 0.86;
+  transform: none;
+}
+
+/* === fade-cover === */
+.page-shell.phase-leaving.preset-fade-cover {
+  animation: ps-fc-leave var(--ps-leave-duration, 220ms) ease-out forwards;
+}
+
+.page-shell.phase-entering.preset-fade-cover {
+  animation: ps-fc-enter var(--ps-enter-duration, 360ms) ease-out forwards;
+}
+
+/* === surface-to-core === */
+.page-shell.phase-leaving.preset-surface-to-core {
+  animation: ps-stc-leave var(--ps-leave-duration, 300ms) ease-out forwards;
+}
+
+.page-shell.phase-entering.preset-surface-to-core {
+  animation: ps-stc-enter var(--ps-enter-duration, 420ms) ease-out forwards;
+}
+
+/* === reader-to-core === */
+.page-shell.phase-leaving.preset-reader-to-core {
+  animation: ps-rtc-leave var(--ps-leave-duration, 420ms) ease-out forwards;
+}
+
+.page-shell.phase-entering.preset-reader-to-core {
+  animation: ps-rtc-enter var(--ps-enter-duration, 400ms) ease-out forwards;
+}
+
+/* === core-to-surface === */
+.page-shell.phase-leaving.preset-core-to-surface {
+  animation: ps-cts-leave var(--ps-leave-duration, 280ms) ease-out forwards;
+}
+
+.page-shell.phase-entering.preset-core-to-surface {
+  animation: ps-cts-enter var(--ps-enter-duration, 460ms) ease-out forwards;
+}
+
+/* === core-to-reader === */
+.page-shell.phase-leaving.preset-core-to-reader {
+  animation: ps-ctr-leave var(--ps-leave-duration, 260ms) ease-out forwards;
+}
+
+.page-shell.phase-entering.preset-core-to-reader {
+  animation: ps-ctr-enter var(--ps-enter-duration, 420ms) ease-out forwards;
+}
+
+/* === reader-to-surface === */
+.page-shell.phase-leaving.preset-reader-to-surface {
+  animation: ps-rts-leave var(--ps-leave-duration, 380ms) ease-out forwards;
+}
+
+.page-shell.phase-entering.preset-reader-to-surface {
+  animation: ps-rts-enter var(--ps-enter-duration, 400ms) ease-out forwards;
+}
+
+/* ===== keyframes ===== */
+
+@keyframes ps-fc-leave {
+  from { opacity: 1; }
+  to   { opacity: 0.92; }
+}
+
+@keyframes ps-fc-enter {
+  from { opacity: 0.92; }
+  to   { opacity: 1; }
+}
+
+@keyframes ps-stc-leave {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0.82; transform: scale(0.985); }
+}
+
+@keyframes ps-stc-enter {
+  from { opacity: 0.88; transform: scale(0.995); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes ps-rtc-leave {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0.62; transform: scale(0.94); }
+}
+
+@keyframes ps-rtc-enter {
+  from { opacity: 0.88; transform: scale(0.995); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes ps-cts-leave {
+  from { opacity: 1; }
+  to   { opacity: 0.88; }
+}
+
+@keyframes ps-cts-enter {
+  from { opacity: 0.86; }
+  to   { opacity: 1; }
+}
+
+@keyframes ps-ctr-leave {
+  from { opacity: 1; }
+  to   { opacity: 0.88; }
+}
+
+@keyframes ps-ctr-enter {
+  from { opacity: 0.86; }
+  to   { opacity: 1; }
+}
+
+@keyframes ps-rts-leave {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0.72; transform: scale(0.96); }
+}
+
+@keyframes ps-rts-enter {
+  from { opacity: 0.86; }
+  to   { opacity: 1; }
+}

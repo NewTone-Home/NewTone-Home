@@ -1,0 +1,113 @@
+/* ===== Generic Sketch Line ===== */
+.sketch-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--stroke-main, 1.2);
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.sketch-line--faint {
+  stroke-width: var(--stroke-faint, 0.7);
+  opacity: var(--opacity-stroke-faint, 0.15);
+}
+
+/* ===== Sketch Arrow ===== */
+.sketch-arrow-shaft {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--stroke-main, 1.2);
+  stroke-linecap: round;
+}
+
+.sketch-arrow-shaft--faint {
+  stroke-width: var(--stroke-faint, 0.7);
+  opacity: var(--opacity-duplicate, 0.12);
+}
+
+.sketch-arrow-head {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--stroke-main, 1.2);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ===== Sketch Circle ===== */
+.sketch-circle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--stroke-faint, 0.7);
+  stroke-linecap: round;
+}
+
+/* ===== Glow ===== */
+.sketch-glow {
+  transition: text-shadow 0.4s ease, color 0.4s ease;
+}
+
+/* ===== Pulse Animation ===== */
+.sketch-pulse {
+  animation: sketch-pulse-oscillate var(--pulse-duration, 1.8s) var(--pulse-easing, ease-in-out) infinite;
+}
+
+@keyframes sketch-pulse-oscillate {
+  0%, 100% { opacity: 0.42; }
+  50% { opacity: 0.95; }
+}
+
+/* ===== Prompt Pulse ===== */
+.sketch-prompt-pulse {
+  animation: sketch-prompt-pulse-oscillate var(--pulse-duration, 1.8s) var(--pulse-easing, ease-in-out) infinite;
+}
+
+@keyframes sketch-prompt-pulse-oscillate {
+  0%, 100% {
+    color: var(--ink-medium, #5a4d40);
+    opacity: var(--prompt-opacity-min, 0.38);
+  }
+  50% {
+    color: var(--ink-dark, #3a322a);
+    opacity: var(--prompt-opacity-max, 0.9);
+  }
+}
+
+/* ===== Draw-in Animation ===== */
+.sketch-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: sketch-draw-in var(--pulse-duration, 1.8s) ease-out forwards;
+}
+
+@keyframes sketch-draw-in {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  60% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ===== Reduced Motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  .sketch-pulse,
+  .sketch-prompt-pulse {
+    animation: none !important;
+  }
+
+  .sketch-pulse {
+    opacity: 1 !important;
+  }
+
+  .sketch-prompt-pulse {
+    opacity: var(--prompt-opacity-max, 0.9) !important;
+  }
+
+  .sketch-draw {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+}

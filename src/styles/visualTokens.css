@@ -1,0 +1,52 @@
+:root {
+  /* ===== Paper Colors ===== */
+  --paper-base: #f4efe6;
+  --paper-warm: #f2ede4;
+
+  /* ===== Ink Colors ===== */
+  --ink-dark: #3a322a;
+  --ink-medium: #5a4d40;
+  --ink-muted: #8a7a6b;
+  --line-faint: #baada0;
+
+  /* ===== Accent Colors ===== */
+  --accent-amber: #c49450;
+  --accent-amber-soft: #d4a860;
+
+  /* ===== Animation Tokens ===== */
+  --pulse-duration: 1.8s;
+  --pulse-easing: ease-in-out;
+  --prompt-opacity-min: 0.38;
+  --prompt-opacity-max: 0.9;
+
+  /* ===== Stroke Tokens ===== */
+  --stroke-main: 1.2;
+  --stroke-faint: 0.7;
+  --opacity-stroke-faint: 0.15;
+  --opacity-duplicate: 0.12;
+}
+
+.paper-surface {
+  background-color: var(--paper-base);
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 1px,
+      rgba(0,0,0,0.004) 1px,
+      rgba(0,0,0,0.004) 1.5px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent 2.5px,
+      rgba(0,0,0,0.003) 2.5px,
+      rgba(0,0,0,0.003) 2.8px
+    ),
+    radial-gradient(
+      ellipse at 50% 50%,
+      transparent 40%,
+      rgba(220,210,195,0.12) 100%
+    );
+  color: var(--ink-dark);
+}
