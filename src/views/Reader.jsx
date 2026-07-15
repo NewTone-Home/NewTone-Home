@@ -3,6 +3,12 @@ import { readingBlocks } from '../data/novel'
 import { useProgressStore } from '../stores/progressStore'
 import { useTransitionStore } from '../stores/transitionStore'
 import { copy } from '../i18n/copy'
+import {
+  LEGACY_READER_END_TOLERANCE_PX,
+  canCompleteLegacyReader,
+  isAtLegacyReaderDocumentEnd,
+  isLegacyReaderDownwardScrollIntent,
+} from '../reader/legacyReaderCompletion'
 import './Reader.css'
 import ReaderProgress from '../components/ReaderProgress'
 
@@ -31,6 +37,15 @@ function Reader({ onReaderReady }) {
   const restoringRef = useRef(true)
   const scrollPersistenceReadyRef = useRef(false)
   const restorePlanRef = useRef(null)
+  const readerReadyStateRef = useRef(false)
+  const userScrolledDownAfterReadyRef = useRef(false)
+  const pendingUserDownIntentRef = useRef(false)
+  const completionCommittedRef = useRef(false)
+  const sentinelIntersectingRef = useRef(false)
+  const lastStableScrollYRef = useRef(0)
+  const touchStartYRef = useRef(null)
+  const ignoreScrollIntentRef = useRef(true)
+  const resizeFrameRef = useRef(null)
 
   if (restorePlanRef.current === null) {
     const state = useProgressStore.getState()
@@ -47,6 +62,105 @@ function Reader({ onReaderReady }) {
       blockRefs.current[idx].scrollIntoView({ behavior: 'auto', block: 'start' })
     }
   }, [])
+
+  const attemptLegacyCompletion = useCallback(() => {
+    const state = useProgressStore.getState()
+    const sentinelRect = sentinelRef.current?.getBoundingClientRect()
+    const isSentinelAtEnd = sentinelIntersectingRef.current
+      || Boolean(sentinelRect && sentinelRect.top <= window.innerHeight + LEGACY_READER_END_TOLERANCE_PX)
+    const isAtDocumentEnd = isAtLegacyReaderDocumentEnd({
+      scrollHeight: document.documentElement.scrollHeight,
+      innerHeight: window.innerHeight,
+      scrollY: window.scrollY,
+    })
+
+    const canComplete = canCompleteLegacyReader({
+      isReaderReady: readerReadyStateRef.current,
+      isRestoring: restoringRef.current,
+      currentPhase: state.currentReadingPhase,
+      hasUserScrolledDownAfterReady: userScrolledDownAfterReadyRef.current,
+      isAtDocumentEnd,
+      isSentinelAtEnd,
+      readerCompleted: state.readerCompleted,
+      centerUnlocked: state.centerUnlocked,
+      completionCommitted: completionCommittedRef.current,
+    })
+
+    if (!canComplete) return false
+
+    completionCommittedRef.current = true
+    state.completeM4()
+    return true
+  }, [])
+
+  const markUserDownIntent = useCallback(() => {
+    if (!readerReadyStateRef.current || restoringRef.current) return
+    userScrolledDownAfterReadyRef.current = true
+    pendingUserDownIntentRef.current = true
+    attemptLegacyCompletion()
+  }, [attemptLegacyCompletion])
+
+  useEffect(() => {
+    const handleWheel = (event) => {
+      if (event.isTrusted && event.deltaY > 0) markUserDownIntent()
+    }
+
+    const handleKeyDown = (event) => {
+      if (!event.isTrusted) return
+      const target = event.target
+      if (target instanceof HTMLElement && target.closest('button, input, select, textarea, [contenteditable="true"]')) return
+
+      const isDownKey = event.key === 'ArrowDown'
+        || event.key === 'PageDown'
+        || (event.key === ' ' && !event.shiftKey)
+      if (isDownKey) markUserDownIntent()
+    }
+
+    const handleTouchStart = (event) => {
+      if (!event.isTrusted) return
+      touchStartYRef.current = event.touches[0]?.clientY ?? null
+    }
+
+    const handleTouchMove = (event) => {
+      if (!event.isTrusted || touchStartYRef.current === null) return
+      const currentY = event.touches[0]?.clientY
+      if (typeof currentY === 'number' && touchStartYRef.current - currentY > 12) {
+        touchStartYRef.current = currentY
+        markUserDownIntent()
+      }
+    }
+
+    const handleResize = () => {
+      pendingUserDownIntentRef.current = false
+      ignoreScrollIntentRef.current = true
+      if (resizeFrameRef.current !== null) cancelAnimationFrame(resizeFrameRef.current)
+      resizeFrameRef.current = requestAnimationFrame(() => {
+        lastStableScrollYRef.current = window.scrollY
+        ignoreScrollIntentRef.current = false
+        resizeFrameRef.current = null
+      })
+    }
+
+    window.addEventListener('wheel', handleWheel, { passive: true })
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('touchstart', handleTouchStart, { passive: true })
+    window.addEventListener('touchmove', handleTouchMove, { passive: true })
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('wheel', handleWheel)
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('touchstart', handleTouchStart)
+      window.removeEventListener('touchmove', handleTouchMove)
+      window.removeEventListener('resize', handleResize)
+      if (resizeFrameRef.current !== null) {
+        cancelAnimationFrame(resizeFrameRef.current)
+        resizeFrameRef.current = null
+      }
+      touchStartYRef.current = null
+      pendingUserDownIntentRef.current = false
+    }
+  }, [markUserDownIntent])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -66,7 +180,22 @@ function Reader({ onReaderReady }) {
           if (latestState.currentView !== 'reader') return
           if (document.documentElement.scrollHeight <= window.innerHeight + 20) return
 
-          setLastScrollY(window.scrollY)
+          const currentScrollY = window.scrollY
+          const movedDown = isLegacyReaderDownwardScrollIntent({
+            isReaderReady: readerReadyStateRef.current,
+            isRestoring: restoringRef.current,
+            ignoreScrollIntent: ignoreScrollIntentRef.current,
+            previousScrollY: lastStableScrollYRef.current,
+            currentScrollY,
+          })
+          lastStableScrollYRef.current = currentScrollY
+          setLastScrollY(currentScrollY)
+
+          if (movedDown) {
+            userScrolledDownAfterReadyRef.current = true
+            attemptLegacyCompletion()
+            pendingUserDownIntentRef.current = false
+          }
         })
       }
     }
@@ -86,8 +215,10 @@ function Reader({ onReaderReady }) {
       }
 
       scrollPersistenceReadyRef.current = false
+      readerReadyStateRef.current = false
+      ignoreScrollIntentRef.current = true
     }
-  }, [setLastScrollY])
+  }, [attemptLegacyCompletion, setLastScrollY])
 
   useEffect(() => {
     phaseObserverRef.current = new IntersectionObserver((entries) => {
@@ -139,10 +270,9 @@ function Reader({ onReaderReady }) {
   useEffect(() => {
     sentinelObserverRef.current = new IntersectionObserver((entries) => {
       for (const entry of entries) {
-        if (entry.isIntersecting) {
-          const state = useProgressStore.getState()
-          state.setPhase('M4')
-          state.completeM4()
+        sentinelIntersectingRef.current = entry.isIntersecting
+        if (entry.isIntersecting && readerReadyStateRef.current && !restoringRef.current) {
+          useProgressStore.getState().setPhase('M4')
         }
       }
     }, { threshold: 0 })
@@ -153,6 +283,7 @@ function Reader({ onReaderReady }) {
 
     return () => {
       sentinelObserverRef.current?.disconnect()
+      sentinelIntersectingRef.current = false
     }
   }, [])
 
@@ -162,7 +293,10 @@ function Reader({ onReaderReady }) {
     const plan = restorePlanRef.current
 
     restoringRef.current = true
+    readerReadyStateRef.current = false
     scrollPersistenceReadyRef.current = false
+    pendingUserDownIntentRef.current = false
+    ignoreScrollIntentRef.current = true
 
     const scheduleFrame = (callback) => {
       const id = requestAnimationFrame(() => {
@@ -174,6 +308,9 @@ function Reader({ onReaderReady }) {
     const finishRestore = () => {
       if (cancelled) return
       restoringRef.current = false
+      readerReadyStateRef.current = true
+      lastStableScrollYRef.current = window.scrollY
+      ignoreScrollIntentRef.current = false
       readerReadyRef.current?.()
       scrollPersistenceReadyRef.current = true
     }
@@ -200,7 +337,10 @@ function Reader({ onReaderReady }) {
       cancelled = true
       for (const id of frameIds) cancelAnimationFrame(id)
       restoringRef.current = true
+      readerReadyStateRef.current = false
       scrollPersistenceReadyRef.current = false
+      pendingUserDownIntentRef.current = false
+      ignoreScrollIntentRef.current = true
     }
   }, [scrollToPhase])
 
