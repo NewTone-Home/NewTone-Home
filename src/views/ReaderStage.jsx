@@ -15,10 +15,15 @@ function ReaderStage({
   onForward,
   onLanguage,
   onFocusMotionEnd,
+  transitionKind,
 }) {
   return (
     <main className="reader-stage-page paper-surface">
-      <section className="reader-stage" aria-label={`${phaseId} ${page.scene.label}`}>
+      <section
+        className={`reader-stage${transitionKind ? ` reader-stage--${transitionKind}` : ''}`}
+        aria-label={`${phaseId} ${page.scene.label}`}
+        data-transition-kind={transitionKind || 'idle'}
+      >
         <ReaderTools language={language} onLanguage={onLanguage} />
         <ReaderSceneLabel phaseId={phaseId} scene={page.scene} />
         <ReaderBeatStack

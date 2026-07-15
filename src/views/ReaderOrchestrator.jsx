@@ -1,14 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { readerContent } from '../data/readerContent'
 import { useReaderInput } from '../hooks/useReaderInput'
+import { useReaderNavigation } from '../hooks/useReaderNavigation'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { READER_INTENTS } from '../reader/readerInput'
-import {
-  getOverallProgress,
-  nextPosition,
-  previousPosition,
-  readerContentIndex,
-} from '../reader/readerPosition'
+import { getOverallProgress } from '../reader/readerPosition'
 import { useProgressStore } from '../stores/progressStore'
 import LegacyReader from './Reader'
 import ReaderStage from './ReaderStage'
@@ -22,10 +18,15 @@ function getPage(location) {
 function InteractiveReaderPreview({ onReaderReady }) {
   const language = useProgressStore(state => state.language)
   const toggleLanguage = useProgressStore(state => state.toggleLanguage)
+  const committedLocation = useProgressStore(state => state.committedLocation)
+  const commitLocation = useProgressStore(state => state.commitLocation)
   const reducedMotion = useReducedMotion()
-  const [displayLocation, setDisplayLocation] = useState(readerContentIndex.entries[0])
-  const displayLocationRef = useRef(displayLocation)
-  const [animationLocked, setAnimationLocked] = useState(false)
+  const navigation = useReaderNavigation({
+    initialLocation: committedLocation,
+    reducedMotion,
+    commitLocation,
+  })
+  const { displayLocation, animationLocked } = navigation
   const page = useMemo(() => getPage(displayLocation), [displayLocation])
 
   useEffect(() => {
@@ -33,23 +34,12 @@ function InteractiveReaderPreview({ onReaderReady }) {
     return () => cancelAnimationFrame(frame)
   }, [onReaderReady])
 
-  const move = useCallback((intent) => {
-    const target = intent === READER_INTENTS.FORWARD
-      ? nextPosition(displayLocationRef.current)
-      : previousPosition(displayLocationRef.current)
-    if (!target) return false
-    displayLocationRef.current = target
-    setDisplayLocation(target)
-    if (!reducedMotion) setAnimationLocked(true)
-    return !reducedMotion
-  }, [reducedMotion])
-
-  const dispatchIntent = useReaderInput({ animationLocked, onIntent: move })
+  const dispatchIntent = useReaderInput({ animationLocked, onIntent: navigation.navigate })
 
   const finishFocusMotion = useCallback((event) => {
     if (event.target !== event.currentTarget) return
-    setAnimationLocked(false)
-  }, [])
+    navigation.finishTransition()
+  }, [navigation])
 
   return (
     <ReaderStage
@@ -62,6 +52,7 @@ function InteractiveReaderPreview({ onReaderReady }) {
       onForward={() => dispatchIntent(READER_INTENTS.FORWARD)}
       onLanguage={toggleLanguage}
       onFocusMotionEnd={finishFocusMotion}
+      transitionKind={navigation.transitionKind}
     />
   )
 }

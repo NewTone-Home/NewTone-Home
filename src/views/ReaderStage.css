@@ -85,6 +85,14 @@
   animation: reader-stage-focus-in 220ms ease-out;
 }
 
+.reader-stage--page .reader-scene-label {
+  animation: reader-stage-page-in 220ms ease-out;
+}
+
+.reader-stage--phase .reader-scene-label {
+  animation: reader-stage-phase-in 260ms ease-out;
+}
+
 .reader-stage-beat--near {
   z-index: 2;
   opacity: 0.28;
@@ -164,4 +172,14 @@
 @keyframes reader-stage-focus-in {
   from { opacity: 0.72; }
   to { opacity: 1; }
+}
+
+@keyframes reader-stage-page-in {
+  from { opacity: 0.35; transform: translateX(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes reader-stage-phase-in {
+  from { opacity: 0.2; letter-spacing: 0.22em; }
+  to { opacity: 1; letter-spacing: 0.12em; }
 }
