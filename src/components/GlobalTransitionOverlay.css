@@ -63,3 +63,19 @@
 .global-transition-overlay.phase-entering {
   animation: gt-fade-out var(--gt-enter-duration, 360ms) ease-out forwards;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .global-transition-overlay,
+  .global-transition-label {
+    animation: none !important;
+  }
+
+  .global-transition-overlay.phase-leaving,
+  .global-transition-overlay.phase-covered {
+    opacity: 1;
+  }
+
+  .global-transition-overlay.phase-entering {
+    opacity: 0;
+  }
+}

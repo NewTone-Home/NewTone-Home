@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { isValidPhase, isAfter } from '../constants/phases'
 import { comparePosition, resolvePosition } from '../reader/readerPosition'
 import {
   clearProgressStorage,
@@ -26,12 +25,11 @@ function persistedLocation(location) {
 
 export const useProgressStore = create((set, get) => ({
   ...initialState,
-  ...(persisted || {}),
+  ...persisted,
 
   startReading: () => {
     set({
       currentView: 'reader',
-      currentReadingPhase: null,
       readerStarted: true,
       resumeRequested: false,
     })
@@ -69,30 +67,6 @@ export const useProgressStore = create((set, get) => ({
     set({ exitTutorialSeen: true })
   },
 
-  setPhase: (phase) => {
-    if (!isValidPhase(phase)) return
-    const state = get()
-    if (phase === state.currentReadingPhase) return
-    const updates = { currentReadingPhase: phase, lastReadPhase: phase }
-    if (isAfter(phase, state.maxReadPhase)) {
-      updates.maxReadPhase = phase
-    }
-    set(updates)
-  },
-
-  completeM4: () => {
-    const state = get()
-    if (state.readerCompleted === true || state.centerUnlocked === true) return false
-    set({
-      currentReadingPhase: 'M4',
-      maxReadPhase: 'M4',
-      lastReadPhase: 'M4',
-      readerCompleted: true,
-      centerUnlocked: true,
-    })
-    return true
-  },
-
   completeReader: () => {
     const state = get()
     if (state.readerCompleted === true) return false
@@ -125,14 +99,6 @@ export const useProgressStore = create((set, get) => ({
       return
     }
     set({ currentView: view })
-  },
-
-  setLastScrollY: (y) => {
-    if (typeof y !== 'number' || !Number.isFinite(y)) return
-    const clamped = Math.max(y, 0)
-    const current = get().lastScrollY
-    if (Math.abs(clamped - current) < 2) return
-    set({ lastScrollY: clamped, legacyLastScrollY: clamped })
   },
 
   setCenterMode: (mode) => {

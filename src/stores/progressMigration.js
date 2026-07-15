@@ -62,10 +62,8 @@ function sanitizeSharedFields(data, centerUnlocked) {
 export function createInitialProgressState() {
   return {
     currentView: 'landing',
-    currentReadingPhase: null,
     maxReadPhase: null,
     lastReadPhase: null,
-    lastScrollY: 0,
     committedLocation: { ...READER_START_LOCATION },
     furthestLocation: { ...READER_START_LOCATION },
     readerStarted: false,
@@ -99,7 +97,6 @@ export function migrateV1ToV2(data) {
     ...shared,
     maxReadPhase,
     lastReadPhase,
-    lastScrollY: legacyLastScrollY,
     committedLocation,
     furthestLocation: { ...committedLocation },
     readerStarted,
@@ -135,7 +132,6 @@ export function sanitizeV2Progress(data) {
     ...shared,
     maxReadPhase,
     lastReadPhase,
-    lastScrollY: legacyLastScrollY,
     committedLocation,
     furthestLocation,
     readerStarted: Boolean(source.readerStarted),
@@ -149,8 +145,7 @@ export function sanitizeV2Progress(data) {
 
 export function serializeProgressV2(state) {
   const clean = sanitizeV2Progress(state)
-  const { currentReadingPhase: _currentReadingPhase, ...persisted } = clean
-  return { _version: PROGRESS_VERSION, ...persisted }
+  return { _version: PROGRESS_VERSION, ...clean }
 }
 
 function parseStorageValue(storage, key) {

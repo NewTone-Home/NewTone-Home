@@ -186,12 +186,15 @@ function LanguageInit({ language, onProceed, exiting }) {
 
   useEffect(() => {
     if (titleStable && !titleReady) {
+      let frameTimer = null
       const t = setTimeout(() => {
         setTitleReady(true)
-        const t2 = setTimeout(() => setShowFrames(true), 600)
-        return () => clearTimeout(t2)
+        frameTimer = setTimeout(() => setShowFrames(true), 600)
       }, 300)
-      return () => clearTimeout(t)
+      return () => {
+        clearTimeout(t)
+        clearTimeout(frameTimer)
+      }
     }
   }, [titleStable, titleReady])
 
@@ -225,6 +228,21 @@ function LanguageInit({ language, onProceed, exiting }) {
     return () => {
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
     }
+  }, [])
+
+  const transientTimersRef = useRef(new Set())
+  const scheduleTransient = useCallback((callback, delay) => {
+    const id = setTimeout(() => {
+      transientTimersRef.current.delete(id)
+      callback()
+    }, delay)
+    transientTimersRef.current.add(id)
+    return id
+  }, [])
+
+  useEffect(() => () => {
+    transientTimersRef.current.forEach(clearTimeout)
+    transientTimersRef.current.clear()
   }, [])
 
   useEffect(() => {
@@ -277,7 +295,7 @@ function LanguageInit({ language, onProceed, exiting }) {
 
     setLabelVisible(false)
 
-    setTimeout(() => {
+    scheduleTransient(() => {
       setLanguage(newLang)
       setLabelText(LANG_LABELS[newLang])
       setLabelVisible(true)
@@ -292,11 +310,11 @@ function LanguageInit({ language, onProceed, exiting }) {
         })
       }
 
-      setTimeout(() => {
+      scheduleTransient(() => {
         isSwitchingRef.current = false
       }, 500)
     }, 450)
-  }, [language, setLanguage, languageSlots])
+  }, [language, scheduleTransient, setLanguage, languageSlots])
 
   const row1 = languageSlots.slice(0, 2)
   const row2 = languageSlots.slice(2, 5)
@@ -326,7 +344,7 @@ function LanguageInit({ language, onProceed, exiting }) {
                   onMouseEnter={handleEnter}
                   onMouseLeave={handleLeave}
                   onTouchStart={() => { touchInProgress.current = true }}
-                  onTouchEnd={() => { setTimeout(() => { touchInProgress.current = false }, 300) }}
+                  onTouchEnd={() => { scheduleTransient(() => { touchInProgress.current = false }, 300) }}
                   disabled={exiting}
                 >
                   <span className={`lang-btn-curtain${langExpandHover ? ' lang-btn-curtain--raised' : ''}`} />

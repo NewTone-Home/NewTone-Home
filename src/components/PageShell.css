@@ -155,3 +155,13 @@
   from { opacity: 0.86; }
   to   { opacity: 1; }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-shell {
+    will-change: auto;
+  }
+
+  .page-shell[class*="phase-"] {
+    animation: none;
+  }
+}

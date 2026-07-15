@@ -38,6 +38,11 @@
   cursor: pointer;
 }
 
+.reader-stage-tools button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .reader-stage-tools button:focus-visible,
 .reader-stage-exits button:focus-visible {
   outline: 1px solid var(--accent-amber);

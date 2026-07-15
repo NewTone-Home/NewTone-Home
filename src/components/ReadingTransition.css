@@ -322,3 +322,11 @@
 .lang-item--scrambling {
   color: var(--accent);
 }
+@media (prefers-reduced-motion: reduce) {
+  .reading-transition,
+  .reading-transition * {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
