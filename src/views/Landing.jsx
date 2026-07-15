@@ -4,7 +4,6 @@ import { useTransitionStore } from '../stores/transitionStore'
 import { copy } from '../i18n/copy'
 import ScrambleText from '../components/ScrambleText'
 import LandingSketchLayer from '../components/landing/LandingSketchLayer'
-import '../styles/visualTokens.css'
 import '../styles/sketchPrimitives.css'
 import './Landing.css'
 
