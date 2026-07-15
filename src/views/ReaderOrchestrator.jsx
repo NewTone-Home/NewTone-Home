@@ -4,6 +4,7 @@ import { useReaderInput } from '../hooks/useReaderInput'
 import { useReaderNavigation } from '../hooks/useReaderNavigation'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useReaderRestore } from '../hooks/useReaderRestore'
+import { canCompleteReader, isReaderFinalLocation } from '../reader/readerCompletion'
 import { READER_INTENTS } from '../reader/readerInput'
 import { getOverallProgress } from '../reader/readerPosition'
 import { hasReaderSceneChanged } from '../reader/readerPresentation'
@@ -25,6 +26,8 @@ function ReaderOrchestrator({ onReaderReady }) {
   const exitTutorialSeen = useProgressStore(state => state.exitTutorialSeen)
   const setExitTutorialSeen = useProgressStore(state => state.setExitTutorialSeen)
   const clearResumeRequest = useProgressStore(state => state.clearResumeRequest)
+  const readerCompleted = useProgressStore(state => state.readerCompleted)
+  const completeReader = useProgressStore(state => state.completeReader)
   const transitionTo = useTransitionStore(state => state.transitionTo)
   const reducedMotion = useReducedMotion()
   const rootRef = useRef(null)
@@ -46,6 +49,12 @@ function ReaderOrchestrator({ onReaderReady }) {
   useReaderRestore({ rootRef, focusRef, clearResumeRequest, onReaderReady })
 
   const dispatchIntent = useReaderInput({ animationLocked, onIntent: navigation.navigate })
+  const completionAvailable = canCompleteReader({
+    location: displayLocation,
+    forwardExit: page.exits.forward,
+    readerCompleted,
+  })
+  const hasForwardPosition = !isReaderFinalLocation(displayLocation)
 
   const handleBackward = useCallback(() => {
     const isReaderExit = displayLocation.beatIndex === 0
@@ -56,6 +65,18 @@ function ReaderOrchestrator({ onReaderReady }) {
     }
     dispatchIntent(READER_INTENTS.BACKWARD)
   }, [dispatchIntent, displayLocation.beatIndex, page.exits.backward.action, transitionTo])
+
+  const handleForward = useCallback(() => {
+    if (completionAvailable) {
+      completeReader()
+      return
+    }
+    dispatchIntent(READER_INTENTS.FORWARD)
+  }, [completeReader, completionAvailable, dispatchIntent])
+
+  const handleEnterCenter = useCallback(() => {
+    transitionTo('center', { preset: 'reader-to-core' })
+  }, [transitionTo])
 
   const finishFocusMotion = useCallback((event) => {
     if (event.target !== event.currentTarget) return
@@ -70,7 +91,7 @@ function ReaderOrchestrator({ onReaderReady }) {
       progress={getOverallProgress(displayLocation)}
       language={language}
       onBackward={handleBackward}
-      onForward={() => dispatchIntent(READER_INTENTS.FORWARD)}
+      onForward={handleForward}
       onLanguage={toggleLanguage}
       onFocusMotionEnd={finishFocusMotion}
       transitionKind={navigation.transitionKind}
@@ -79,6 +100,10 @@ function ReaderOrchestrator({ onReaderReady }) {
       onTutorialDismiss={setExitTutorialSeen}
       rootRef={rootRef}
       focusRef={focusRef}
+      hasForwardPosition={hasForwardPosition}
+      canComplete={completionAvailable}
+      readerCompleted={readerCompleted}
+      onEnterCenter={handleEnterCenter}
     />
   )
 }

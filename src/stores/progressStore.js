@@ -93,6 +93,16 @@ export const useProgressStore = create((set, get) => ({
     return true
   },
 
+  completeReader: () => {
+    const state = get()
+    if (state.readerCompleted === true) return false
+    set({
+      readerCompleted: true,
+      centerUnlocked: true,
+    })
+    return true
+  },
+
   enterCenter: () => {
     const state = get()
     if (state.centerUnlocked !== true) return

@@ -22,6 +22,10 @@ function ReaderStage({
   onTutorialDismiss,
   rootRef,
   focusRef,
+  hasForwardPosition,
+  canComplete,
+  readerCompleted,
+  onEnterCenter,
 }) {
   return (
     <main className="reader-stage-page paper-surface">
@@ -41,7 +45,15 @@ function ReaderStage({
         />
         <ReaderTraceProgress progress={progress} />
         <ReaderExitTutorial visible={tutorialVisible} onDismiss={onTutorialDismiss} />
-        <ReaderPageExit exits={page.exits} onBackward={onBackward} onForward={onForward} />
+        <ReaderPageExit
+          exits={page.exits}
+          onBackward={onBackward}
+          onForward={onForward}
+          hasForwardPosition={hasForwardPosition}
+          canComplete={canComplete}
+          readerCompleted={readerCompleted}
+          onEnterCenter={onEnterCenter}
+        />
       </section>
     </main>
   )
