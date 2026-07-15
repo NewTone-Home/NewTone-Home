@@ -1,4 +1,5 @@
 import ReaderBeatStack from '../components/reader/ReaderBeatStack'
+import ReaderExitTutorial from '../components/reader/ReaderExitTutorial'
 import ReaderPageExit from '../components/reader/ReaderPageExit'
 import ReaderSceneLabel from '../components/reader/ReaderSceneLabel'
 import ReaderTools from '../components/reader/ReaderTools'
@@ -16,11 +17,14 @@ function ReaderStage({
   onLanguage,
   onFocusMotionEnd,
   transitionKind,
+  sceneTransitionKind,
+  tutorialVisible,
+  onTutorialDismiss,
 }) {
   return (
     <main className="reader-stage-page paper-surface">
       <section
-        className={`reader-stage${transitionKind ? ` reader-stage--${transitionKind}` : ''}`}
+        className={`reader-stage${sceneTransitionKind ? ` reader-stage--scene-${sceneTransitionKind}` : ''}`}
         aria-label={`${phaseId} ${page.scene.label}`}
         data-transition-kind={transitionKind || 'idle'}
       >
@@ -32,6 +36,7 @@ function ReaderStage({
           onFocusMotionEnd={onFocusMotionEnd}
         />
         <ReaderTraceProgress progress={progress} />
+        <ReaderExitTutorial visible={tutorialVisible} onDismiss={onTutorialDismiss} />
         <ReaderPageExit exits={page.exits} onBackward={onBackward} onForward={onForward} />
       </section>
     </main>

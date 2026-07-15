@@ -18,7 +18,7 @@
   min-height: 0;
   margin: 0 auto;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
   gap: clamp(10px, 2vh, 22px);
   color: var(--ink-dark);
   font-family: var(--font-body);
@@ -85,11 +85,11 @@
   animation: reader-stage-focus-in 220ms ease-out;
 }
 
-.reader-stage--page .reader-scene-label {
+.reader-stage--scene-page .reader-scene-label {
   animation: reader-stage-page-in 220ms ease-out;
 }
 
-.reader-stage--phase .reader-scene-label {
+.reader-stage--scene-phase .reader-scene-label {
   animation: reader-stage-phase-in 260ms ease-out;
 }
 
@@ -136,6 +136,37 @@
   gap: var(--space-lg);
 }
 
+.reader-exit-tutorial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.reader-exit-tutorial p {
+  margin: 0;
+}
+
+.reader-exit-tutorial button {
+  flex: none;
+  min-height: 32px;
+  border: 1px solid var(--line-faint);
+  border-radius: 999px;
+  padding: 0 var(--space-sm);
+  background: color-mix(in srgb, var(--paper-warm) 82%, transparent);
+  color: var(--ink-medium);
+  font: inherit;
+  cursor: pointer;
+}
+
+.reader-exit-tutorial button:focus-visible {
+  outline: 1px solid var(--accent-amber);
+  outline-offset: 3px;
+}
+
 .reader-stage-exits button {
   display: inline-flex;
   align-items: center;
@@ -154,6 +185,10 @@
     gap: 6px;
   }
 
+  .reader-exit-tutorial {
+    font-size: 0.68rem;
+  }
+
   .reader-stage-beat {
     max-height: 72%;
   }
@@ -165,6 +200,11 @@
   }
 
   .reader-stage-beat--focus {
+    animation: none;
+  }
+
+  .reader-stage--scene-page .reader-scene-label,
+  .reader-stage--scene-phase .reader-scene-label {
     animation: none;
   }
 }

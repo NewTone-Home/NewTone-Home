@@ -32,10 +32,12 @@ describe('Reader transition layers', () => {
 
     expect(started.committedLocation.linearIndex).toBe(0)
     expect(started.displayLocation.linearIndex).toBe(1)
+    expect(started.transitionFrom.linearIndex).toBe(0)
     expect(started.transitionTarget.linearIndex).toBe(1)
 
     const finished = finishReaderNavigation(started)
     expect(finished.committedLocation.linearIndex).toBe(1)
+    expect(finished.transitionFrom).toBeNull()
     expect(finished.transitionTarget).toBeNull()
   })
 

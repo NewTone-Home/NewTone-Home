@@ -18,6 +18,7 @@ export function createReaderNavigationState(location) {
   return {
     committedLocation: resolved,
     displayLocation: resolved,
+    transitionFrom: null,
     transitionTarget: null,
     transitionKind: null,
   }
@@ -35,6 +36,7 @@ export function beginReaderNavigation(state, intent, { reducedMotion = false } =
     return {
       committedLocation: target,
       displayLocation: target,
+      transitionFrom: null,
       transitionTarget: null,
       transitionKind,
     }
@@ -43,6 +45,7 @@ export function beginReaderNavigation(state, intent, { reducedMotion = false } =
   return {
     ...state,
     displayLocation: target,
+    transitionFrom: state.displayLocation,
     transitionTarget: target,
     transitionKind,
   }
@@ -53,6 +56,7 @@ export function finishReaderNavigation(state) {
   return {
     committedLocation: state.transitionTarget,
     displayLocation: state.transitionTarget,
+    transitionFrom: null,
     transitionTarget: null,
     transitionKind: null,
   }

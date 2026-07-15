@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 function ReaderSceneLabel({ phaseId, scene }) {
   return (
     <div className="reader-scene-label" aria-label={`当前阶段 ${phaseId}`}>
@@ -8,4 +10,8 @@ function ReaderSceneLabel({ phaseId, scene }) {
   )
 }
 
-export default ReaderSceneLabel
+export default memo(ReaderSceneLabel, (previous, next) => (
+  previous.phaseId === next.phaseId
+  && previous.scene.id === next.scene.id
+  && previous.scene.label === next.scene.label
+))

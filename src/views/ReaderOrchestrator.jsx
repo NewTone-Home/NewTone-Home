@@ -5,6 +5,7 @@ import { useReaderNavigation } from '../hooks/useReaderNavigation'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { READER_INTENTS } from '../reader/readerInput'
 import { getOverallProgress } from '../reader/readerPosition'
+import { hasReaderSceneChanged } from '../reader/readerPresentation'
 import { useProgressStore } from '../stores/progressStore'
 import LegacyReader from './Reader'
 import ReaderStage from './ReaderStage'
@@ -20,6 +21,8 @@ function InteractiveReaderPreview({ onReaderReady }) {
   const toggleLanguage = useProgressStore(state => state.toggleLanguage)
   const committedLocation = useProgressStore(state => state.committedLocation)
   const commitLocation = useProgressStore(state => state.commitLocation)
+  const exitTutorialSeen = useProgressStore(state => state.exitTutorialSeen)
+  const setExitTutorialSeen = useProgressStore(state => state.setExitTutorialSeen)
   const reducedMotion = useReducedMotion()
   const navigation = useReaderNavigation({
     initialLocation: committedLocation,
@@ -28,6 +31,12 @@ function InteractiveReaderPreview({ onReaderReady }) {
   })
   const { displayLocation, animationLocked } = navigation
   const page = useMemo(() => getPage(displayLocation), [displayLocation])
+  const previousScene = navigation.transitionFrom
+    ? getPage(navigation.transitionFrom).scene
+    : page.scene
+  const sceneTransitionKind = hasReaderSceneChanged(previousScene, page.scene)
+    ? navigation.transitionKind
+    : null
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => onReaderReady?.())
@@ -53,6 +62,9 @@ function InteractiveReaderPreview({ onReaderReady }) {
       onLanguage={toggleLanguage}
       onFocusMotionEnd={finishFocusMotion}
       transitionKind={navigation.transitionKind}
+      sceneTransitionKind={sceneTransitionKind}
+      tutorialVisible={!exitTutorialSeen}
+      onTutorialDismiss={setExitTutorialSeen}
     />
   )
 }
