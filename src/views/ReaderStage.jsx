@@ -20,10 +20,13 @@ function ReaderStage({
   sceneTransitionKind,
   tutorialVisible,
   onTutorialDismiss,
+  rootRef,
+  focusRef,
 }) {
   return (
     <main className="reader-stage-page paper-surface">
       <section
+        ref={rootRef}
         className={`reader-stage${sceneTransitionKind ? ` reader-stage--scene-${sceneTransitionKind}` : ''}`}
         aria-label={`${phaseId} ${page.scene.label}`}
         data-transition-kind={transitionKind || 'idle'}
@@ -34,6 +37,7 @@ function ReaderStage({
           beats={page.beats}
           focusBeatIndex={focusBeatIndex}
           onFocusMotionEnd={onFocusMotionEnd}
+          focusRef={focusRef}
         />
         <ReaderTraceProgress progress={progress} />
         <ReaderExitTutorial visible={tutorialVisible} onDismiss={onTutorialDismiss} />

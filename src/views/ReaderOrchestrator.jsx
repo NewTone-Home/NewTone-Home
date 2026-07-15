@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { readerContent } from '../data/readerContent'
 import { useReaderInput } from '../hooks/useReaderInput'
 import { useReaderNavigation } from '../hooks/useReaderNavigation'
 import { useReducedMotion } from '../hooks/useReducedMotion'
+import { useReaderRestore } from '../hooks/useReaderRestore'
 import { READER_INTENTS } from '../reader/readerInput'
 import { getOverallProgress } from '../reader/readerPosition'
 import { hasReaderSceneChanged } from '../reader/readerPresentation'
 import { useProgressStore } from '../stores/progressStore'
-import LegacyReader from './Reader'
+import { useTransitionStore } from '../stores/transitionStore'
 import ReaderStage from './ReaderStage'
 
 function getPage(location) {
@@ -16,14 +17,18 @@ function getPage(location) {
     .pages.find(page => page.id === location.pageId)
 }
 
-function InteractiveReaderPreview({ onReaderReady }) {
+function ReaderOrchestrator({ onReaderReady }) {
   const language = useProgressStore(state => state.language)
   const toggleLanguage = useProgressStore(state => state.toggleLanguage)
   const committedLocation = useProgressStore(state => state.committedLocation)
   const commitLocation = useProgressStore(state => state.commitLocation)
   const exitTutorialSeen = useProgressStore(state => state.exitTutorialSeen)
   const setExitTutorialSeen = useProgressStore(state => state.setExitTutorialSeen)
+  const clearResumeRequest = useProgressStore(state => state.clearResumeRequest)
+  const transitionTo = useTransitionStore(state => state.transitionTo)
   const reducedMotion = useReducedMotion()
+  const rootRef = useRef(null)
+  const focusRef = useRef(null)
   const navigation = useReaderNavigation({
     initialLocation: committedLocation,
     reducedMotion,
@@ -38,12 +43,19 @@ function InteractiveReaderPreview({ onReaderReady }) {
     ? navigation.transitionKind
     : null
 
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => onReaderReady?.())
-    return () => cancelAnimationFrame(frame)
-  }, [onReaderReady])
+  useReaderRestore({ rootRef, focusRef, clearResumeRequest, onReaderReady })
 
   const dispatchIntent = useReaderInput({ animationLocked, onIntent: navigation.navigate })
+
+  const handleBackward = useCallback(() => {
+    const isReaderExit = displayLocation.beatIndex === 0
+      && page.exits.backward.action === 'leave-reader'
+    if (isReaderExit) {
+      transitionTo('landing', { preset: 'reader-to-surface' })
+      return
+    }
+    dispatchIntent(READER_INTENTS.BACKWARD)
+  }, [dispatchIntent, displayLocation.beatIndex, page.exits.backward.action, transitionTo])
 
   const finishFocusMotion = useCallback((event) => {
     if (event.target !== event.currentTarget) return
@@ -57,7 +69,7 @@ function InteractiveReaderPreview({ onReaderReady }) {
       focusBeatIndex={displayLocation.beatIndex}
       progress={getOverallProgress(displayLocation)}
       language={language}
-      onBackward={() => dispatchIntent(READER_INTENTS.BACKWARD)}
+      onBackward={handleBackward}
       onForward={() => dispatchIntent(READER_INTENTS.FORWARD)}
       onLanguage={toggleLanguage}
       onFocusMotionEnd={finishFocusMotion}
@@ -65,15 +77,10 @@ function InteractiveReaderPreview({ onReaderReady }) {
       sceneTransitionKind={sceneTransitionKind}
       tutorialVisible={!exitTutorialSeen}
       onTutorialDismiss={setExitTutorialSeen}
+      rootRef={rootRef}
+      focusRef={focusRef}
     />
   )
-}
-
-function ReaderOrchestrator(props) {
-  const previewEnabled = new URLSearchParams(window.location.search).get('readerStage') === '1'
-  return previewEnabled
-    ? <InteractiveReaderPreview {...props} />
-    : <LegacyReader {...props} />
 }
 
 export default ReaderOrchestrator

@@ -107,7 +107,6 @@ export const useProgressStore = create((set, get) => ({
     if (!['landing', 'reader', 'center'].includes(view)) view = 'landing'
     const state = get()
     if (view === 'center' && state.centerUnlocked !== true) {
-      window.history.replaceState({ newtoneView: 'landing' }, '')
       set({ currentView: 'landing' })
       return
     }

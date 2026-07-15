@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useProgressStore } from '../stores/progressStore'
 import { useTransitionStore } from '../stores/transitionStore'
 import { copy } from '../i18n/copy'
+import { getReaderEntryIntent, hasStableReaderProgress } from '../reader/readerEntry'
 import ScrambleText from '../components/ScrambleText'
 import LandingSketchLayer from '../components/landing/LandingSketchLayer'
 import '../styles/sketchPrimitives.css'
@@ -52,9 +53,8 @@ function Landing({ onEnter, leaving, leavingMs }) {
   const transitionTo = useTransitionStore(s => s.transitionTo)
   const reset = useProgressStore(s => s.reset)
   const toggleLanguage = useProgressStore(s => s.toggleLanguage)
-  const lastReadPhase = useProgressStore(s => s.lastReadPhase)
-  const maxReadPhase = useProgressStore(s => s.maxReadPhase)
-  const lastScrollY = useProgressStore(s => s.lastScrollY)
+  const readerStarted = useProgressStore(s => s.readerStarted)
+  const readerCompleted = useProgressStore(s => s.readerCompleted)
   const centerUnlocked = useProgressStore(s => s.centerUnlocked)
 
   const [isLandingAwake, setIsLandingAwake] = useState(false)
@@ -76,12 +76,7 @@ function Landing({ onEnter, leaving, leavingMs }) {
       if (triggeredRef.current) return
       triggeredRef.current = true
       const state = useProgressStore.getState()
-      const hasProgress = state.lastScrollY > 0 || (state.lastReadPhase ?? state.maxReadPhase) !== null
-      if (hasProgress) {
-        onEnter('continue')
-      } else {
-        onEnter('start')
-      }
+      onEnter(getReaderEntryIntent(state))
     }
 
     const detectCenter = () => {
@@ -130,7 +125,7 @@ function Landing({ onEnter, leaving, leavingMs }) {
     }
   }, [onEnter, centerUnlocked, transitionTo])
 
-  const hasProgress = lastScrollY > 0 || (lastReadPhase ?? maxReadPhase) !== null
+  const hasProgress = hasStableReaderProgress({ readerStarted, readerCompleted })
   const promptText = hasProgress
     ? copy[language].landingPromptResume
     : copy[language].landingPromptInitial
