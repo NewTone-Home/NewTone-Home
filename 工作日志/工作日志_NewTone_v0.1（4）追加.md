@@ -1588,3 +1588,78 @@ B 功能封口
 → 移动端验收
 → C 正式内容
 ```
+
+---
+
+# NewTone Reader 阶段 0–9 连续重构完成日志
+
+- 日期：2026-07-14（America/Vancouver）
+- 项目版本：NewTone V0.1
+- 验收状态：阶段 0–9 全部通过
+- 稳定基线：`5e51a4d`
+- 对应 Git commits：`4ee36dd`、`a45f479`、`ca72029`、`9fd0d6d`、`7b8e90c`、`b503a1d`、`34d7619`、`bd8b7e6`、`90ded4a`、`5e51a4d`
+
+## 1. 上次日志总结
+
+上一稳定版本仍使用长页 Reader、`lastScrollY`、phase observer、sentinel 与滚动进度。M4 恢复曾可能因 sentinel 相交而误解锁，短页 `phase → page → beat` 模型尚未接管正式入口。
+
+## 2. 本次操作
+
+- 建立本地 Git 唯一基线与 Vitest 闸门；未配置 remote、未推送。
+- 新增 M1–M4 短页内容模型、稳定位置索引、v1→v2 迁移与持久化。
+- 新增 ReaderStage、统一 wheel/touch/keyboard/click 输入、转场提交、场景/进度/教程状态。
+- 用 v2 已提交位置接管首次进入、继续阅读、刷新、history 与 Center/Landing 往返。
+- 新增显式最终 forward exit 完成动作，并将完成与进入 Center 分离。
+- 删除旧长页 Reader、observer、sentinel、旧 ReaderProgress、滚动恢复、B3/phase tag CSS、占位长页数据和无调用 helper。
+- 补齐 reduced-motion、ARIA、focus-visible、44px 点击区、timer/listener/rAF 清理。
+
+## 3. 本次完成
+
+- Reader 正式模型为 `phase → page → beat`，前后导航、跨 page 与跨 phase 均稳定。
+- 动画只在完成后提交持久化位置；刷新只恢复已提交位置。
+- v1 未开始、M2、M4 未完成与已解锁四类迁移保持正确且幂等。
+- 到达 M4、最终页或最终 beat 均不解锁；只有明确点击“完成阅读”才永久解锁 Center。
+- 完成后仍停留 Reader，可继续前后阅读，并通过独立“进入中枢”入口离开。
+- Landing 开始/继续只依据 v2 状态；浏览器 history 只管理顶层 view。
+- production preview、桌面、390×844、短视口、横屏、键盘全程、连续刷新与 Center 往返均通过。
+- 最终自动检查：10 个测试文件、58 项测试通过；lint 0 warning；build 与 `git diff --check` 通过；浏览器控制台 0 error/0 warning。
+
+## 4. 本轮发现的问题
+
+旧 Reader 的 sentinel 把恢复或布局相交误当作真实完成；修复阶段进一步发现，完成资格不能只依赖 observer，也不能用 M4 或最远位置推导。后续迁移证明，显示位置、已提交位置、最远位置、正式完成与永久解锁必须保持独立。
+
+## 5. 偏差原因
+
+- 旧架构把文档滚动、阶段识别、恢复、完成与解锁耦合在同一长页生命周期。
+- sentinel 相交只表示几何关系，无法证明 ready 后的真实用户完成意图。
+- `lastScrollY` 是像素证据，不是稳定内容位置，连续刷新与布局变化会放大漂移风险。
+
+## 6. 修正方向
+
+- 内容顺序只由稳定索引定义，不从 DOM 或 CSS 推导。
+- 永久状态只在稳定转场完成后提交；临时展示与输入队列留在 Reader 本地。
+- 恢复必须依次完成位置解析、首屏测量、焦点定位，再发出 ready。
+- 完成必须由最终 beat 的显式 forward exit 触发，并使用幂等 store action。
+
+## 7. 新增效率禁区
+
+1. 禁止用 observer、sentinel、滚动百分比或 `maxReadPhase` 推导 Reader 完成。
+2. 禁止在动画开始时提前提交下一位置。
+3. 禁止让 beat/page/phase 导航写入浏览器 history。
+4. 禁止为迁移伪造精确 page/beat 或自动回滚运行时错误写入。
+5. 禁止在新恢复链未完成全场景回归前删除旧恢复职责。
+
+## 8. 待解决事项
+
+- 当前内容仍为短页结构示例，正式小说内容接入需保持现有 ID、顺序和迁移契约。
+- in-app browser 不提供原生触摸事件注入；touch 手势由纯输入测试覆盖，390×844 现场覆盖布局、点击区和完整可操作性，后续真机发布前仍建议补一次物理设备手势复核。
+
+## 9. 当前状态与下一步规划
+
+### 9.1 当前状态
+
+Reader 阶段 0–9 已完成并形成稳定本地基线。正式运行链中不存在旧长页 observer、sentinel 或 scroll progress。工作区未配置 remote，未推送 GitHub。
+
+### 9.2 下一步规划
+
+下一步应单独规划正式内容接入与真机发布验收。开始前先冻结当前位置 ID 与 v2 迁移契约；不得重新引入长页恢复、隐式完成或基于 M4 的自动解锁。
