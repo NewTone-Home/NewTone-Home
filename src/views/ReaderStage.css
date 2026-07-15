@@ -82,6 +82,7 @@
   z-index: 3;
   opacity: 1;
   filter: none;
+  animation: reader-stage-focus-in 220ms ease-out;
 }
 
 .reader-stage-beat--near {
@@ -154,4 +155,13 @@
   .reader-stage-beat {
     transition: none;
   }
+
+  .reader-stage-beat--focus {
+    animation: none;
+  }
+}
+
+@keyframes reader-stage-focus-in {
+  from { opacity: 0.72; }
+  to { opacity: 1; }
 }

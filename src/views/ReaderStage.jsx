@@ -14,13 +14,18 @@ function ReaderStage({
   onBackward,
   onForward,
   onLanguage,
+  onFocusMotionEnd,
 }) {
   return (
     <main className="reader-stage-page paper-surface">
       <section className="reader-stage" aria-label={`${phaseId} ${page.scene.label}`}>
         <ReaderTools language={language} onLanguage={onLanguage} />
         <ReaderSceneLabel phaseId={phaseId} scene={page.scene} />
-        <ReaderBeatStack beats={page.beats} focusBeatIndex={focusBeatIndex} />
+        <ReaderBeatStack
+          beats={page.beats}
+          focusBeatIndex={focusBeatIndex}
+          onFocusMotionEnd={onFocusMotionEnd}
+        />
         <ReaderTraceProgress progress={progress} />
         <ReaderPageExit exits={page.exits} onBackward={onBackward} onForward={onForward} />
       </section>
