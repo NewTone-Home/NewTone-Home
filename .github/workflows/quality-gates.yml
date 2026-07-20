@@ -1,0 +1,109 @@
+name: NewTone quality gates
+
+on:
+  push:
+    branches:
+      - local-latest
+      - automation-checks
+  pull_request:
+    branches:
+      - local-latest
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: newtone-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Tests, lint, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Upload production bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: newtone-dist-${{ github.sha }}
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
+
+  browser-smoke:
+    name: Browser interaction and screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Install temporary Playwright runner
+        run: npm install --no-save --package-lock=false @playwright/test@1.55.0
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start Vite server
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/newtone-vite.log 2>&1 &
+          echo $! > /tmp/newtone-vite.pid
+
+      - name: Wait for website
+        run: |
+          for i in {1..40}; do
+            if curl --fail --silent http://127.0.0.1:5173 > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/newtone-vite.log
+          exit 1
+
+      - name: Run browser interaction checks
+        run: npx playwright test tests/e2e/newtone.smoke.spec.js --reporter=line,html
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newtone-browser-evidence-${{ github.sha }}
+          path: |
+            playwright-report
+            test-results
+            /tmp/newtone-vite.log
+          if-no-files-found: warn
+          retention-days: 14
