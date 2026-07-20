@@ -1,13 +1,12 @@
-import { useCallback, useMemo, useRef } from 'react'
-import { readerContent } from '../data/readerContent'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { readerContent, READER_TRANSITION_TYPES } from '../data/readerContent'
 import { useReaderInput } from '../hooks/useReaderInput'
 import { useReaderNavigation } from '../hooks/useReaderNavigation'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useReaderRestore } from '../hooks/useReaderRestore'
-import { canCompleteReader, isReaderFinalLocation } from '../reader/readerCompletion'
-import { READER_INTENTS } from '../reader/readerInput'
-import { getOverallProgress } from '../reader/readerPosition'
+import { READER_STEP_ACTIONS, resolveReaderStep } from '../reader/readerAdvance'
 import { hasReaderSceneChanged } from '../reader/readerPresentation'
+import { getOverallProgress } from '../reader/readerPosition'
 import { useProgressStore } from '../stores/progressStore'
 import { useTransitionStore } from '../stores/transitionStore'
 import ReaderStage from './ReaderStage'
@@ -20,90 +19,144 @@ function getPage(location) {
 
 function ReaderOrchestrator({ onReaderReady }) {
   const language = useProgressStore(state => state.language)
-  const toggleLanguage = useProgressStore(state => state.toggleLanguage)
+  const setLanguage = useProgressStore(state => state.setLanguage)
   const committedLocation = useProgressStore(state => state.committedLocation)
   const commitLocation = useProgressStore(state => state.commitLocation)
-  const exitTutorialSeen = useProgressStore(state => state.exitTutorialSeen)
-  const setExitTutorialSeen = useProgressStore(state => state.setExitTutorialSeen)
+  const readerExitGestureLearned = useProgressStore(state => state.readerExitGestureLearned)
+  const setReaderExitGestureLearned = useProgressStore(state => state.setReaderExitGestureLearned)
+  const isFirstReaderSession = useProgressStore(state => state.isFirstReaderSession)
   const clearResumeRequest = useProgressStore(state => state.clearResumeRequest)
-  const readerCompleted = useProgressStore(state => state.readerCompleted)
+  const chapterTrialEnded = useProgressStore(state => state.chapterTrialEnded)
+  const endChapterTrial = useProgressStore(state => state.endChapterTrial)
   const completeReader = useProgressStore(state => state.completeReader)
+  const readingMode = useProgressStore(state => state.readingMode)
+  const standardTheme = useProgressStore(state => state.standardTheme)
+  const themePosition = useProgressStore(state => state.themePosition)
+  const motionMode = useProgressStore(state => state.motionMode)
+  const toggleReadingMode = useProgressStore(state => state.toggleReadingMode)
+  const setStandardTheme = useProgressStore(state => state.setStandardTheme)
+  const setThemePosition = useProgressStore(state => state.setThemePosition)
+  const toggleMotionMode = useProgressStore(state => state.toggleMotionMode)
   const transitionTo = useTransitionStore(state => state.transitionTo)
   const reducedMotion = useReducedMotion()
   const rootRef = useRef(null)
   const focusRef = useRef(null)
-  const navigation = useReaderNavigation({
-    initialLocation: committedLocation,
-    reducedMotion,
-    commitLocation,
-  })
-  const { displayLocation, animationLocked } = navigation
+  const [pageMotion, setPageMotion] = useState('idle')
+  const [autoVisual, setAutoVisual] = useState(null)
+  const pageMotionTimerRef = useRef(null)
+  const blockedGestureRef = useRef(null)
+  const pageTransitionBusyRef = useRef(false)
+  const navigation = useReaderNavigation({ initialLocation: committedLocation, reducedMotion, commitLocation })
+  const { displayLocation, navigateTo, finishTransition } = navigation
   const page = useMemo(() => getPage(displayLocation), [displayLocation])
-  const previousScene = navigation.transitionFrom
-    ? getPage(navigation.transitionFrom).scene
-    : page.scene
-  const sceneTransitionKind = hasReaderSceneChanged(previousScene, page.scene)
-    ? navigation.transitionKind
-    : null
+  const scene = page.scene
+
+  const previousScene = navigation.transitionFrom ? getPage(navigation.transitionFrom).scene : scene
+  const sceneTransitionKind = hasReaderSceneChanged(previousScene, scene) ? navigation.transitionKind : null
 
   useReaderRestore({ rootRef, focusRef, clearResumeRequest, onReaderReady })
 
-  const dispatchIntent = useReaderInput({ animationLocked, onIntent: navigation.navigate })
-  const completionAvailable = canCompleteReader({
-    location: displayLocation,
-    forwardExit: page.exits.forward,
-    readerCompleted,
+  const navigatePage = useCallback((target, gestureId) => {
+    blockedGestureRef.current = gestureId
+    pageTransitionBusyRef.current = true
+    if (reducedMotion) {
+      navigateTo(target)
+      pageTransitionBusyRef.current = false
+      return
+    }
+    setPageMotion('leaving')
+    window.clearTimeout(pageMotionTimerRef.current)
+    pageMotionTimerRef.current = window.setTimeout(() => {
+      navigateTo(target)
+      setPageMotion('entering')
+      pageMotionTimerRef.current = window.setTimeout(() => {
+        setPageMotion('idle')
+        pageTransitionBusyRef.current = false
+      }, 360)
+    }, 220)
+  }, [navigateTo, reducedMotion])
+
+  useEffect(() => {
+    if (autoVisual !== 'white') return undefined
+    const timer = window.setTimeout(() => setAutoVisual(null), reducedMotion ? 180 : 980)
+    return () => window.clearTimeout(timer)
+  }, [autoVisual, reducedMotion])
+
+  const handleReadingSteps = useCallback((steps, meta = {}) => {
+    if (pageTransitionBusyRef.current) return
+    if (!readerExitGestureLearned) setReaderExitGestureLearned()
+    const gestureId = meta.gestureId ?? `direct-${Date.now()}`
+    if (blockedGestureRef.current === gestureId) return
+    blockedGestureRef.current = null
+
+    const action = resolveReaderStep({ page, location: displayLocation, steps, chapterTrialEnded })
+    if (action.type === READER_STEP_ACTIONS.NONE) return
+
+    if (action.type === READER_STEP_ACTIONS.BEAT) {
+      navigateTo(action.location)
+      if (action.reachedBoundary) {
+        blockedGestureRef.current = gestureId
+        clearInputAccumulatorRef.current?.()
+      }
+      return
+    }
+
+    clearInputAccumulatorRef.current?.()
+    if (action.type === READER_STEP_ACTIONS.PAGE) {
+      if (action.boundaryVisual === 'white-flash') setAutoVisual('white')
+      navigatePage(action.location, gestureId)
+      return
+    }
+
+    blockedGestureRef.current = gestureId
+    endChapterTrial()
+    completeReader()
+  }, [chapterTrialEnded, completeReader, displayLocation, endChapterTrial, navigatePage, navigateTo, page, readerExitGestureLearned, setReaderExitGestureLearned])
+
+  const clearInputAccumulatorRef = useRef(null)
+  const { clearInputAccumulator } = useReaderInput({
+    onSteps: handleReadingSteps,
   })
-  const hasForwardPosition = !isReaderFinalLocation(displayLocation)
+  clearInputAccumulatorRef.current = clearInputAccumulator
 
-  const handleBackward = useCallback(() => {
-    const isReaderExit = displayLocation.beatIndex === 0
-      && page.exits.backward.action === 'leave-reader'
-    if (isReaderExit) {
-      transitionTo('landing', { preset: 'reader-to-surface' })
-      return
-    }
-    dispatchIntent(READER_INTENTS.BACKWARD)
-  }, [dispatchIntent, displayLocation.beatIndex, page.exits.backward.action, transitionTo])
+  useEffect(() => () => window.clearTimeout(pageMotionTimerRef.current), [])
 
-  const handleForward = useCallback(() => {
-    if (completionAvailable) {
-      completeReader()
-      return
-    }
-    dispatchIntent(READER_INTENTS.FORWARD)
-  }, [completeReader, completionAvailable, dispatchIntent])
-
-  const handleEnterCenter = useCallback(() => {
+  const handleReturnCenter = useCallback(() => {
+    clearInputAccumulator()
+    setReaderExitGestureLearned()
     transitionTo('center', { preset: 'reader-to-core' })
-  }, [transitionTo])
+  }, [clearInputAccumulator, setReaderExitGestureLearned, transitionTo])
 
   const finishFocusMotion = useCallback((event) => {
-    if (event.target !== event.currentTarget) return
-    navigation.finishTransition()
-  }, [navigation])
+    if (event.target === event.currentTarget) finishTransition()
+  }, [finishTransition])
 
   return (
     <ReaderStage
-      phaseId={displayLocation.phaseId}
-      page={page}
+      page={{ ...page, scene }}
+      beats={page.beats}
       focusBeatIndex={displayLocation.beatIndex}
-      progress={getOverallProgress(displayLocation)}
+      progress={page.beats.length === 1 ? 1 : displayLocation.beatIndex / (page.beats.length - 1)}
+      overallProgress={getOverallProgress(displayLocation)}
       language={language}
-      onBackward={handleBackward}
-      onForward={handleForward}
-      onLanguage={toggleLanguage}
+      onLanguage={setLanguage}
+      readingMode={readingMode}
+      standardTheme={standardTheme}
+      themePosition={themePosition}
+      motionMode={motionMode}
+      onReadingMode={toggleReadingMode}
+      onStandardTheme={setStandardTheme}
+      onThemePosition={setThemePosition}
+      onMotionMode={toggleMotionMode}
       onFocusMotionEnd={finishFocusMotion}
-      transitionKind={navigation.transitionKind}
+      transitionKind={pageMotion === 'idle' ? navigation.transitionKind : `page-${pageMotion}`}
       sceneTransitionKind={sceneTransitionKind}
-      tutorialVisible={!exitTutorialSeen}
-      onTutorialDismiss={setExitTutorialSeen}
+      autoVisual={autoVisual}
+      tutorialVisible={isFirstReaderSession && !readerExitGestureLearned}
       rootRef={rootRef}
       focusRef={focusRef}
-      hasForwardPosition={hasForwardPosition}
-      canComplete={completionAvailable}
-      readerCompleted={readerCompleted}
-      onEnterCenter={handleEnterCenter}
+      chapterTrialEnded={chapterTrialEnded && page.transitionType === READER_TRANSITION_TYPES.CHAPTER_END && displayLocation.beatIndex === page.beats.length - 1}
+      onReturnCenter={handleReturnCenter}
     />
   )
 }

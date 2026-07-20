@@ -2,7 +2,7 @@ import { useTransitionStore } from '../stores/transitionStore'
 import { getDefinition, hasDefinition } from '../transitions/transitionDefinitions'
 import './PageShell.css'
 
-function PageShell({ children }) {
+function PageShell({ children, motionMode = 'full' }) {
   const phase = useTransitionStore(s => s.phase)
   const preset = useTransitionStore(s => s.preset)
   const style = {}
@@ -14,7 +14,11 @@ function PageShell({ children }) {
   }
 
   return (
-    <div className={`page-shell phase-${phase} preset-${preset}`} style={style}>
+    <div
+      className={`page-shell phase-${phase} preset-${preset}`}
+      style={style}
+      data-motion-mode={motionMode}
+    >
       {children}
     </div>
   )

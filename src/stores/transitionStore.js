@@ -37,7 +37,8 @@ export const useTransitionStore = create((set, get) => ({
 
       const progress = useProgressStore.getState()
       if (targetView === 'center') {
-        progress.enterCenter()
+        if (preset === 'reader-to-core') progress.returnToCenter()
+        else progress.enterCenter()
       } else if (targetView === 'landing') {
         progress.goLanding()
       } else if (targetView === 'reader') {

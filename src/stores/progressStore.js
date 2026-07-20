@@ -6,9 +6,11 @@ import {
   loadProgressState,
   saveProgressState,
 } from './progressMigration'
+import { getNextReaderLanguage, READER_LANGUAGE_CODES } from '../i18n/languages'
+import { clampThemePosition, legacyThemeName, migrateThemePosition } from '../reader/readerTheme'
 
 const VALID_CENTER_MODES = ['home', 'records', 'perspectives', 'fragments']
-const VALID_LANGUAGES = ['zh', 'en', 'ja', 'ko', 'fr', 'es', 'id']
+const VALID_LANGUAGES = READER_LANGUAGE_CODES
 
 const initialState = createInitialProgressState()
 const storage = typeof localStorage === 'undefined' ? null : localStorage
@@ -26,17 +28,25 @@ function persistedLocation(location) {
 export const useProgressStore = create((set, get) => ({
   ...initialState,
   ...persisted,
+  isFirstReaderSession: false,
 
   startReading: () => {
+    const state = get()
     set({
       currentView: 'reader',
       readerStarted: true,
       resumeRequested: false,
+      isFirstReaderSession: state.readerStarted !== true,
     })
   },
 
   continueReading: () => {
-    set({ currentView: 'reader', readerStarted: true, resumeRequested: true })
+    set({
+      currentView: 'reader',
+      readerStarted: true,
+      resumeRequested: true,
+      isFirstReaderSession: false,
+    })
   },
 
   clearResumeRequest: () => {
@@ -55,6 +65,9 @@ export const useProgressStore = create((set, get) => ({
     const updates = {
       committedLocation,
       readerStarted: true,
+      currentChapter: 'chapter-1',
+      currentPage: committedLocation.pageId,
+      currentBeat: committedLocation.beatIndex,
     }
     if (comparePosition(committedLocation, state.furthestLocation) > 0) {
       updates.furthestLocation = { ...committedLocation }
@@ -63,9 +76,11 @@ export const useProgressStore = create((set, get) => ({
     return true
   },
 
-  setExitTutorialSeen: () => {
-    set({ exitTutorialSeen: true })
+  setReaderExitGestureLearned: () => {
+    set({ readerExitGestureLearned: true })
   },
+
+  endChapterTrial: () => set({ chapterTrialEnded: true }),
 
   completeReader: () => {
     const state = get()
@@ -80,6 +95,10 @@ export const useProgressStore = create((set, get) => ({
   enterCenter: () => {
     const state = get()
     if (state.centerUnlocked !== true) return
+    set({ currentView: 'center', centerMode: 'home' })
+  },
+
+  returnToCenter: () => {
     set({ currentView: 'center', centerMode: 'home' })
   },
 
@@ -113,16 +132,48 @@ export const useProgressStore = create((set, get) => ({
 
   toggleLanguage: () => {
     const state = get()
-    set({ language: state.language === 'zh' ? 'en' : 'zh' })
+    set({ language: getNextReaderLanguage(state.language).code })
   },
 
   setInitializedLanguage: () => {
     set({ hasInitializedLanguage: true })
   },
 
+  selectReadingMode: (readingMode) => {
+    if (!['immersive', 'standard'].includes(readingMode)) return false
+    set({
+      readingMode,
+      hasInitializedReadingMode: true,
+      themePosition: migrateThemePosition(get().themePosition, get().standardTheme),
+      standardTheme: legacyThemeName(migrateThemePosition(get().themePosition, get().standardTheme)),
+    })
+    return true
+  },
+
+  toggleReadingMode: () => {
+    set({ readingMode: get().readingMode === 'immersive' ? 'standard' : 'immersive' })
+  },
+
+  setStandardTheme: (standardTheme) => {
+    if (!['soft', 'light', 'dark'].includes(standardTheme)) return false
+    const themePosition = migrateThemePosition(standardTheme)
+    set({ themePosition, standardTheme })
+    return true
+  },
+
+  setThemePosition: (value) => {
+    const themePosition = clampThemePosition(value)
+    set({ themePosition, standardTheme: legacyThemeName(themePosition) })
+    return true
+  },
+
+  toggleMotionMode: () => {
+    set({ motionMode: get().motionMode === 'full' ? 'reduced' : 'full' })
+  },
+
   reset: () => {
     clearProgressStorage(storage)
-    set(createInitialProgressState())
+    set({ ...createInitialProgressState(), isFirstReaderSession: false })
   },
 }))
 

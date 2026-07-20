@@ -25,7 +25,7 @@ describe('v1 to v2 progress migration', () => {
 
     expect(migrated.committedLocation).toEqual({
       phaseId: 'M1',
-      pageId: 'm1-arrival',
+      pageId: 'ancestral-home',
       beatIndex: 0,
     })
     expect(migrated.readerStarted).toBe(false)
@@ -33,12 +33,12 @@ describe('v1 to v2 progress migration', () => {
     expect(migrated.centerUnlocked).toBe(false)
   })
 
-  it('maps M2 only to its default page start and preserves scroll as legacy evidence', () => {
+  it('maps retired phase progress to the first chapter start and preserves scroll as legacy evidence', () => {
     const migrated = migrateV1ToV2(progressV1Fixtures.midwayM2)
 
     expect(migrated.committedLocation).toEqual({
-      phaseId: 'M2',
-      pageId: 'm2-platform',
+      phaseId: 'M1',
+      pageId: 'ancestral-home',
       beatIndex: 0,
     })
     expect(migrated.legacyLastScrollY).toBe(954)
@@ -46,12 +46,12 @@ describe('v1 to v2 progress migration', () => {
     expect(migrated.centerUnlocked).toBe(false)
   })
 
-  it('does not treat entering M4 as completion or Center unlock', () => {
+  it('does not treat a retired late phase as completion or Center unlock', () => {
     const migrated = migrateV1ToV2(progressV1Fixtures.enteredM4NotCompleted)
 
     expect(migrated.committedLocation).toEqual({
-      phaseId: 'M4',
-      pageId: 'm4-descent',
+      phaseId: 'M1',
+      pageId: 'ancestral-home',
       beatIndex: 0,
     })
     expect(migrated.maxReadPhase).toBe('M4')
@@ -77,8 +77,8 @@ describe('v1 to v2 progress migration', () => {
 describe('v2 sanitize and storage boundaries', () => {
   it('repairs invalid positions and prevents furthest progress from trailing committed progress', () => {
     const sanitized = sanitizeV2Progress({
-      committedLocation: { phaseId: 'M3', pageId: 'm3-corridor', beatIndex: 2 },
-      furthestLocation: { phaseId: 'M1', pageId: 'm1-arrival', beatIndex: 0 },
+      committedLocation: { phaseId: 'M1', pageId: 'commercial-street', beatIndex: 2 },
+      furthestLocation: { phaseId: 'M1', pageId: 'ancestral-home', beatIndex: 0 },
       readerStarted: true,
     })
 
@@ -90,8 +90,29 @@ describe('v2 sanitize and storage boundaries', () => {
     })
     expect(invalid.committedLocation).toEqual({
       phaseId: 'M1',
-      pageId: 'm1-arrival',
+      pageId: 'ancestral-home',
       beatIndex: 0,
+    })
+  })
+
+  it('persists reading mode, standard theme, motion mode, and explicit page/beat aliases', () => {
+    const sanitized = sanitizeV2Progress({
+      hasInitializedLanguage: true,
+      hasInitializedReadingMode: true,
+      readingMode: 'standard',
+      standardTheme: 'dark',
+      motionMode: 'reduced',
+      committedLocation: { phaseId: 'M1', pageId: 'commercial-street', beatIndex: 4 },
+    })
+    expect(sanitized).toMatchObject({
+      hasInitializedReadingMode: true,
+      readingMode: 'standard',
+      standardTheme: 'dark',
+      themePosition: 1,
+      motionMode: 'reduced',
+      currentChapter: 'chapter-1',
+      currentPage: 'commercial-street',
+      currentBeat: 4,
     })
   })
 

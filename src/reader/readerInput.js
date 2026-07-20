@@ -5,39 +5,30 @@ export const READER_INTENTS = Object.freeze({
 
 export const WHEEL_INTENT_THRESHOLD = 80
 export const TOUCH_INTENT_THRESHOLD = 36
-export const INPUT_QUEUE_LIMIT = 2
 
-export function oppositeIntent(intent) {
-  return intent === READER_INTENTS.FORWARD
-    ? READER_INTENTS.BACKWARD
-    : READER_INTENTS.FORWARD
+export function normalizeWheelDelta(deltaY, deltaMode = 0, viewportHeight = 800) {
+  if (!Number.isFinite(deltaY)) return 0
+  if (deltaMode === 1) return deltaY * 16
+  if (deltaMode === 2) return deltaY * Math.max(1, viewportHeight)
+  return deltaY
 }
 
-export function enqueueReaderIntent(queue, intent, limit = INPUT_QUEUE_LIMIT) {
-  const next = [...queue]
-  if (next.at(-1) === oppositeIntent(intent)) {
-    next.pop()
-    return next
-  }
-  if (next.length < limit) next.push(intent)
-  return next
-}
-
-export function consumeReaderIntent(queue) {
-  if (queue.length === 0) return { intent: null, queue }
-  return { intent: queue[0], queue: queue.slice(1) }
-}
-
-export function accumulateWheelIntent(accumulated, deltaY) {
-  if (!Number.isFinite(deltaY)) return { accumulated, intent: null }
+export function accumulateWheelSteps(accumulated, deltaY, threshold = WHEEL_INTENT_THRESHOLD) {
+  if (!Number.isFinite(deltaY)) return { accumulated, steps: 0 }
+  const safeThreshold = Number.isFinite(threshold) && threshold > 0 ? threshold : WHEEL_INTENT_THRESHOLD
   const next = accumulated + deltaY
-  if (Math.abs(next) < WHEEL_INTENT_THRESHOLD) {
-    return { accumulated: next, intent: null }
-  }
+  const rawSteps = Math.trunc(next / safeThreshold)
+  const steps = rawSteps === 0 ? 0 : Math.sign(rawSteps)
   return {
-    accumulated: 0,
-    intent: next > 0 ? READER_INTENTS.FORWARD : READER_INTENTS.BACKWARD,
+    accumulated: steps === 0 ? next : 0,
+    steps,
   }
+}
+
+export function intentToReaderSteps(intent) {
+  if (intent === READER_INTENTS.FORWARD) return 1
+  if (intent === READER_INTENTS.BACKWARD) return -1
+  return 0
 }
 
 export function keyToReaderIntent({ key, shiftKey = false }) {

@@ -1,42 +1,36 @@
 import { describe, expect, it } from 'vitest'
 import {
-  INPUT_QUEUE_LIMIT,
   READER_INTENTS,
-  accumulateWheelIntent,
-  consumeReaderIntent,
-  enqueueReaderIntent,
+  accumulateWheelSteps,
+  intentToReaderSteps,
   keyToReaderIntent,
+  normalizeWheelDelta,
   touchToReaderIntent,
 } from '../src/reader/readerInput'
 
 describe('Reader input normalization', () => {
-  it('accumulates wheel deltas to exactly one intent', () => {
-    const partial = accumulateWheelIntent(0, 40)
-    const complete = accumulateWheelIntent(partial.accumulated, 40)
+  it('accumulates wheel deltas into immediate signed steps', () => {
+    const partial = accumulateWheelSteps(0, 40)
+    const complete = accumulateWheelSteps(partial.accumulated, 40)
 
-    expect(partial.intent).toBeNull()
-    expect(complete).toEqual({ accumulated: 0, intent: READER_INTENTS.FORWARD })
+    expect(partial).toEqual({ accumulated: 40, steps: 0 })
+    expect(complete).toEqual({ accumulated: 0, steps: 1 })
   })
 
-  it('caps queued input and cancels opposite directions', () => {
-    let queue = []
-    queue = enqueueReaderIntent(queue, READER_INTENTS.FORWARD)
-    queue = enqueueReaderIntent(queue, READER_INTENTS.FORWARD)
-    queue = enqueueReaderIntent(queue, READER_INTENTS.FORWARD)
-    expect(queue).toHaveLength(INPUT_QUEUE_LIMIT)
-
-    queue = enqueueReaderIntent(queue, READER_INTENTS.BACKWARD)
-    expect(queue).toEqual([READER_INTENTS.FORWARD])
+  it('emits at most one step for each wheel event', () => {
+    expect(accumulateWheelSteps(0, 245)).toEqual({ accumulated: 0, steps: 1 })
+    expect(accumulateWheelSteps(0, -245)).toEqual({ accumulated: 0, steps: -1 })
   })
 
-  it('consumes at most one queued intent', () => {
-    expect(consumeReaderIntent([
-      READER_INTENTS.FORWARD,
-      READER_INTENTS.BACKWARD,
-    ])).toEqual({
-      intent: READER_INTENTS.FORWARD,
-      queue: [READER_INTENTS.BACKWARD],
-    })
+  it('lets reverse input cancel the retained remainder immediately', () => {
+    expect(accumulateWheelSteps(55, -100)).toEqual({ accumulated: -45, steps: 0 })
+    expect(accumulateWheelSteps(55, -140)).toEqual({ accumulated: 0, steps: -1 })
+  })
+
+  it('normalizes pixel, line, and page wheel delta modes', () => {
+    expect(normalizeWheelDelta(12, 0, 900)).toBe(12)
+    expect(normalizeWheelDelta(3, 1, 900)).toBe(48)
+    expect(normalizeWheelDelta(1, 2, 900)).toBe(900)
   })
 
   it('maps Arrow, Page, Space, and Shift+Space keys', () => {
@@ -52,5 +46,11 @@ describe('Reader input normalization', () => {
     expect(touchToReaderIntent(400, 340)).toBe(READER_INTENTS.FORWARD)
     expect(touchToReaderIntent(340, 400)).toBe(READER_INTENTS.BACKWARD)
     expect(touchToReaderIntent(400, 390)).toBeNull()
+  })
+
+  it('maps normalized intents to signed target steps', () => {
+    expect(intentToReaderSteps(READER_INTENTS.FORWARD)).toBe(1)
+    expect(intentToReaderSteps(READER_INTENTS.BACKWARD)).toBe(-1)
+    expect(intentToReaderSteps(null)).toBe(0)
   })
 })

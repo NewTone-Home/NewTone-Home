@@ -1,49 +1,41 @@
 import { useCallback, useEffect, useRef } from 'react'
 import {
-  accumulateWheelIntent,
-  consumeReaderIntent,
-  enqueueReaderIntent,
+  accumulateWheelSteps,
+  intentToReaderSteps,
   isReaderInputControl,
   keyToReaderIntent,
+  normalizeWheelDelta,
   touchToReaderIntent,
 } from '../reader/readerInput'
 
-export function useReaderInput({ animationLocked, onIntent }) {
+export function useReaderInput({ onSteps, wheelThreshold }) {
   const wheelRef = useRef(0)
-  const queueRef = useRef([])
   const touchStartRef = useRef(null)
-  const lockedRef = useRef(animationLocked)
-  const onIntentRef = useRef(onIntent)
-  lockedRef.current = animationLocked
-  onIntentRef.current = onIntent
+  const onStepsRef = useRef(onSteps)
+  const gestureRef = useRef({ id: 0, lastWheelAt: 0 })
+  const touchGestureRef = useRef(0)
+  onStepsRef.current = onSteps
 
-  const dispatchIntent = useCallback((intent) => {
-    if (!intent) return
-    if (lockedRef.current) {
-      queueRef.current = enqueueReaderIntent(queueRef.current, intent)
-      return
-    }
-    const shouldLock = onIntentRef.current(intent)
-    if (shouldLock) lockedRef.current = true
+  const dispatchSteps = useCallback((steps, meta = {}) => {
+    if (!Number.isInteger(steps) || steps === 0) return
+    onStepsRef.current(steps, meta)
   }, [])
 
-  useEffect(() => {
-    if (animationLocked) return
-    const next = consumeReaderIntent(queueRef.current)
-    queueRef.current = next.queue
-    if (next.intent) {
-      const shouldLock = onIntentRef.current(next.intent)
-      if (shouldLock) lockedRef.current = true
-    }
-  }, [animationLocked])
+  const clearInputAccumulator = useCallback(() => {
+    wheelRef.current = 0
+  }, [])
 
   useEffect(() => {
     const handleWheel = (event) => {
       if (isReaderInputControl(event.target)) return
       event.preventDefault()
-      const next = accumulateWheelIntent(wheelRef.current, event.deltaY)
+      const now = performance.now()
+      if (now - gestureRef.current.lastWheelAt > 140) gestureRef.current.id += 1
+      gestureRef.current.lastWheelAt = now
+      const normalizedDelta = normalizeWheelDelta(event.deltaY, event.deltaMode, window.innerHeight)
+      const next = accumulateWheelSteps(wheelRef.current, normalizedDelta, wheelThreshold)
       wheelRef.current = next.accumulated
-      dispatchIntent(next.intent)
+      dispatchSteps(next.steps, { source: 'wheel', gestureId: gestureRef.current.id })
     }
 
     const handleKeyDown = (event) => {
@@ -51,12 +43,14 @@ export function useReaderInput({ animationLocked, onIntent }) {
       const intent = keyToReaderIntent(event)
       if (!intent) return
       event.preventDefault()
-      dispatchIntent(intent)
+      gestureRef.current.id += 1
+      dispatchSteps(intentToReaderSteps(intent), { source: 'keyboard', gestureId: gestureRef.current.id })
     }
 
     const handleTouchStart = (event) => {
       if (isReaderInputControl(event.target)) return
       touchStartRef.current = event.touches[0]?.clientY ?? null
+      touchGestureRef.current += 1
     }
 
     const handleTouchMove = (event) => {
@@ -66,7 +60,7 @@ export function useReaderInput({ animationLocked, onIntent }) {
       if (!intent) return
       event.preventDefault()
       touchStartRef.current = currentY
-      dispatchIntent(intent)
+      dispatchSteps(intentToReaderSteps(intent), { source: 'touch', gestureId: `touch-${touchGestureRef.current}` })
     }
 
     const clearTouch = () => {
@@ -87,11 +81,10 @@ export function useReaderInput({ animationLocked, onIntent }) {
       window.removeEventListener('touchmove', handleTouchMove)
       window.removeEventListener('touchend', clearTouch)
       window.removeEventListener('touchcancel', clearTouch)
-      queueRef.current = []
       wheelRef.current = 0
       touchStartRef.current = null
     }
-  }, [dispatchIntent])
+  }, [dispatchSteps, wheelThreshold])
 
-  return dispatchIntent
+  return { dispatchSteps, clearInputAccumulator }
 }

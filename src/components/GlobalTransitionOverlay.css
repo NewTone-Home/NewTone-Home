@@ -1,81 +1,358 @@
 .global-transition-overlay {
+  --gt-charcoal: rgb(24, 25, 23);
+  --gt-charcoal-warm: rgb(38, 35, 30);
+  --gt-surface-paper: var(--paper-base);
+  --gt-reader-paper: var(--reader-paper, var(--paper-warm));
+  --gt-reader-ink: var(--reader-ink, var(--ink-dark));
+  --gt-reader-muted: var(--reader-muted, var(--ink-muted));
   position: fixed;
   inset: 0;
   z-index: 9999;
+  overflow: hidden;
+  isolation: isolate;
   pointer-events: none;
-  background: rgb(3, 7, 10);
+  color: var(--ink-medium);
+  font-family: ui-serif, "Songti SC", "Noto Serif CJK SC", serif;
+}
+
+.global-transition-field,
+.global-transition-overlay::before,
+.global-transition-overlay::after,
+.global-transition-traces {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.global-transition-field {
+  z-index: 0;
   opacity: 0;
+  background-color: var(--gt-charcoal);
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(238, 224, 201, 0.012) 2px 3px),
+    repeating-linear-gradient(90deg, transparent 0 3px, rgba(238, 224, 201, 0.009) 3px 4px),
+    radial-gradient(ellipse at 50% 48%, rgba(117, 96, 67, 0.12), transparent 68%);
 }
 
-@keyframes gt-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.global-transition-overlay::before,
+.global-transition-overlay::after {
+  z-index: 1;
+  content: "";
 }
 
-@keyframes gt-fade-out {
-  from { opacity: 1; }
-  to { opacity: 0; }
+.global-transition-overlay::before {
+  left: 50%;
+  right: auto;
+  width: min(72vw, 840px);
+  border-left: 1px solid rgba(178, 155, 123, 0.18);
+  border-right: 1px solid rgba(178, 155, 123, 0.12);
+  opacity: 0;
+  transform: translateX(-50%) skewX(-0.4deg);
 }
 
-@keyframes gt-label-in {
-  from { opacity: 0; }
-  to { opacity: 0.45; }
+.global-transition-overlay::after {
+  top: 50%;
+  bottom: auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(178, 155, 123, 0.28), transparent);
+  opacity: 0;
+  transform: rotate(-0.3deg) scaleX(0.28);
 }
 
-@keyframes gt-label-out {
-  from { opacity: 0.55; }
-  to { opacity: 0; }
+.global-transition-traces {
+  z-index: 2;
+}
+
+.global-transition-trace {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: block;
+  width: min(66vw, 720px);
+  height: min(34vh, 250px);
+  border: 1px solid rgba(175, 151, 118, 0.2);
+  border-radius: 48% 52% 47% 54%;
+  opacity: 0;
+  transform: translate(-50%, -50%) rotate(-0.7deg);
+}
+
+.global-transition-trace--b {
+  width: min(54vw, 590px);
+  height: min(24vh, 180px);
+  transform: translate(-50%, -50%) rotate(0.8deg);
+}
+
+.global-transition-trace--c {
+  width: min(38vw, 420px);
+  height: min(15vh, 110px);
+  transform: translate(-50%, -50%) rotate(-1.2deg);
 }
 
 .global-transition-label {
   position: absolute;
+  z-index: 3;
   left: 50%;
   top: 50%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   transform: translate(-50%, -50%);
-  font-size: 0.78rem;
-  letter-spacing: 0.18em;
-  color: rgba(190, 205, 210, 0.58);
+  font-size: 0.76rem;
+  letter-spacing: 0.2em;
+  color: rgba(224, 210, 188, 0.62);
   pointer-events: none;
   user-select: none;
   opacity: 0;
+  white-space: nowrap;
+  text-shadow: 0.4px 0.4px 0 rgba(31, 26, 21, 0.28);
+}
+
+.global-transition-label-mark {
+  width: 22px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.5;
+  transform: rotate(-2deg);
+}
+
+/* Surface -> core: the pale world is gathered into a vertical ink seam. */
+.preset-surface-to-core .global-transition-field {
+  background-color: var(--gt-charcoal-warm);
+  clip-path: inset(0 50% 0 50%);
+}
+
+.preset-surface-to-core.phase-leaving .global-transition-field {
+  animation: gt-surface-core-cover var(--gt-cover-duration) cubic-bezier(.55,.05,.2,1) forwards;
+}
+
+.preset-surface-to-core.phase-entering .global-transition-field {
+  animation: gt-field-release var(--gt-enter-duration) ease-out forwards;
+}
+
+.preset-surface-to-core.phase-leaving::before,
+.preset-surface-to-core.phase-covered::before {
+  animation: gt-seam-gather var(--gt-cover-duration) ease-out forwards;
+}
+
+/* Reader -> core: graphite rises from the return edge of the reading field. */
+.preset-reader-to-core {
+  color: var(--gt-reader-ink);
+}
+
+.preset-reader-to-core .global-transition-field {
+  background-color: var(--gt-charcoal);
+  background-image:
+    linear-gradient(0deg, rgba(24, 25, 23, 0.98), rgba(36, 34, 30, 0.94) 58%, rgba(65, 58, 49, 0.78)),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(238, 224, 201, 0.012) 2px 3px);
+  clip-path: circle(0 at 50% 88%);
+}
+
+.preset-reader-to-core.phase-leaving .global-transition-field {
+  animation: gt-reader-core-cover var(--gt-cover-duration) cubic-bezier(.46,.08,.18,1) forwards;
+}
+
+.preset-reader-to-core.phase-entering .global-transition-field {
+  animation: gt-field-release var(--gt-enter-duration) ease-out forwards;
+}
+
+.preset-reader-to-core.phase-leaving::after,
+.preset-reader-to-core.phase-covered::after {
+  animation: gt-horizon-rise var(--gt-cover-duration) ease-out forwards;
+}
+
+/* Core -> surface: warm paper unfolds outward from a hand-drawn horizon. */
+.preset-core-to-surface {
+  color: var(--ink-medium);
+}
+
+.preset-core-to-surface .global-transition-field {
+  background-color: var(--gt-surface-paper);
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(72, 58, 42, 0.012) 2px 3px),
+    radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.24), rgba(128, 96, 62, 0.07));
+  clip-path: inset(50% 0 50% 0);
+}
+
+.preset-core-to-surface.phase-leaving .global-transition-field {
+  animation: gt-core-surface-cover var(--gt-cover-duration) cubic-bezier(.35,.1,.18,1) forwards;
+}
+
+.preset-core-to-surface.phase-entering .global-transition-field {
+  animation: gt-paper-release var(--gt-enter-duration) ease-out forwards;
+}
+
+.preset-core-to-surface .global-transition-label,
+.preset-core-to-reader .global-transition-label {
+  color: rgba(67, 58, 49, 0.58);
+  text-shadow: none;
+}
+
+.preset-core-to-surface.phase-leaving::after,
+.preset-core-to-surface.phase-covered::after {
+  animation: gt-horizon-open var(--gt-cover-duration) ease-out forwards;
+}
+
+/* Core -> reader: the current reading paper opens as an uneven oval aperture. */
+.preset-core-to-reader {
+  color: var(--gt-reader-ink);
+}
+
+.preset-core-to-reader .global-transition-field {
+  background-color: var(--gt-reader-paper);
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(72, 58, 42, 0.01) 2px 3px),
+    radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.16), rgba(98, 77, 54, 0.07));
+  clip-path: ellipse(0 7% at 50% 50%);
+}
+
+.preset-core-to-reader.phase-leaving .global-transition-field {
+  animation: gt-core-reader-cover var(--gt-cover-duration) cubic-bezier(.36,.08,.16,1) forwards;
+}
+
+.preset-core-to-reader.phase-entering .global-transition-field {
+  animation: gt-paper-release var(--gt-enter-duration) ease-out forwards;
+}
+
+.preset-core-to-reader.phase-leaving .global-transition-trace,
+.preset-core-to-reader.phase-covered .global-transition-trace {
+  animation: gt-reader-rings var(--gt-cover-duration) ease-out forwards;
+}
+
+.preset-core-to-reader .global-transition-trace--b { animation-delay: 35ms !important; }
+.preset-core-to-reader .global-transition-trace--c { animation-delay: 70ms !important; }
+
+.global-transition-overlay.phase-covered .global-transition-field {
+  opacity: 1;
+  clip-path: inset(0);
+}
+
+.global-transition-overlay.phase-entering .global-transition-field {
+  clip-path: inset(0);
 }
 
 .global-transition-overlay.phase-leaving .global-transition-label {
-  animation: gt-label-in 200ms ease-out forwards;
+  animation: gt-label-in min(220ms, var(--gt-cover-duration)) ease-out forwards;
 }
 
 .global-transition-overlay.phase-covered .global-transition-label {
-  opacity: 0.55;
+  opacity: 0.58;
 }
 
 .global-transition-overlay.phase-entering .global-transition-label {
-  animation: gt-label-out 200ms ease-in forwards;
+  animation: gt-label-out min(220ms, var(--gt-enter-duration)) ease-in forwards;
 }
 
-.global-transition-overlay.phase-leaving {
-  animation: gt-fade-in var(--gt-cover-duration, 220ms) ease-out forwards;
+@keyframes gt-surface-core-cover {
+  0% { opacity: 0; clip-path: inset(0 50% 0 50%); }
+  28% { opacity: .38; }
+  100% { opacity: 1; clip-path: inset(0); }
 }
 
-.global-transition-overlay.phase-covered {
+@keyframes gt-reader-core-cover {
+  0% { opacity: 0; clip-path: circle(0 at 50% 88%); }
+  100% { opacity: 1; clip-path: circle(145% at 50% 88%); }
+}
+
+@keyframes gt-core-surface-cover {
+  0% { opacity: 0; clip-path: inset(50% 0 50% 0); }
+  100% { opacity: 1; clip-path: inset(0); }
+}
+
+@keyframes gt-core-reader-cover {
+  0% { opacity: 0; clip-path: ellipse(0 7% at 50% 50%); }
+  100% { opacity: 1; clip-path: ellipse(82% 92% at 50% 50%); }
+}
+
+@keyframes gt-field-release {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes gt-paper-release {
+  from { opacity: 1; filter: brightness(.98); }
+  to { opacity: 0; filter: brightness(1.02); }
+}
+
+@keyframes gt-label-in {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 4px)); }
+  to { opacity: .58; transform: translate(-50%, -50%); }
+}
+
+@keyframes gt-label-out {
+  from { opacity: .58; transform: translate(-50%, -50%); }
+  to { opacity: 0; transform: translate(-50%, calc(-50% - 3px)); }
+}
+
+@keyframes gt-seam-gather {
+  from { opacity: 0; width: min(88vw, 980px); }
+  to { opacity: .52; width: min(18vw, 210px); }
+}
+
+@keyframes gt-horizon-rise {
+  from { opacity: 0; transform: translateY(38vh) rotate(-.3deg) scaleX(.28); }
+  to { opacity: .46; transform: translateY(0) rotate(-.3deg) scaleX(1); }
+}
+
+@keyframes gt-horizon-open {
+  from { opacity: 0; transform: rotate(-.3deg) scaleX(.18); }
+  to { opacity: .38; transform: rotate(-.3deg) scaleX(1); }
+}
+
+@keyframes gt-reader-rings {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(-.7deg); }
+  to { opacity: .38; transform: translate(-50%, -50%) scale(1) rotate(-.7deg); }
+}
+
+.global-transition-overlay.motion-reduced *,
+.global-transition-overlay.motion-reduced::before,
+.global-transition-overlay.motion-reduced::after {
+  animation: none !important;
+}
+
+.global-transition-overlay.motion-reduced .global-transition-field,
+.global-transition-overlay.motion-reduced.phase-leaving .global-transition-field,
+.global-transition-overlay.motion-reduced.phase-covered .global-transition-field {
   opacity: 1;
+  clip-path: inset(0);
 }
 
-.global-transition-overlay.phase-entering {
-  animation: gt-fade-out var(--gt-enter-duration, 360ms) ease-out forwards;
+.global-transition-overlay.motion-reduced.phase-entering .global-transition-field {
+  opacity: 0;
+}
+
+.global-transition-overlay.motion-reduced.phase-leaving .global-transition-label,
+.global-transition-overlay.motion-reduced.phase-covered .global-transition-label {
+  opacity: .58;
+}
+
+.global-transition-overlay.motion-reduced.phase-entering .global-transition-label {
+  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .global-transition-overlay,
-  .global-transition-label {
+  .global-transition-overlay *,
+  .global-transition-overlay::before,
+  .global-transition-overlay::after {
     animation: none !important;
   }
 
-  .global-transition-overlay.phase-leaving,
-  .global-transition-overlay.phase-covered {
+  .global-transition-overlay .global-transition-field,
+  .global-transition-overlay.phase-leaving .global-transition-field,
+  .global-transition-overlay.phase-covered .global-transition-field {
     opacity: 1;
+    clip-path: inset(0);
   }
 
-  .global-transition-overlay.phase-entering {
+  .global-transition-overlay.phase-entering .global-transition-field {
+    opacity: 0;
+  }
+
+  .global-transition-overlay.phase-leaving .global-transition-label,
+  .global-transition-overlay.phase-covered .global-transition-label {
+    opacity: .58;
+  }
+
+  .global-transition-overlay.phase-entering .global-transition-label {
     opacity: 0;
   }
 }

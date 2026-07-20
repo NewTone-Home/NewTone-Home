@@ -10,22 +10,24 @@ const ENTRIES = [
 
 function CenterNav() {
   const language = useProgressStore(s => s.language)
+  const centerMode = useProgressStore(s => s.centerMode)
   const setCenterMode = useProgressStore(s => s.setCenterMode)
 
   const t = copy[language]
 
   return (
-    <div className="center-nav">
+    <nav className="center-nav" aria-label={t.center}>
       {ENTRIES.map(entry => (
         <button
           key={entry.mode}
-          className="center-nav-entry"
+          className={`center-nav-entry ${centerMode === entry.mode ? 'is-active' : ''}`}
+          aria-current={centerMode === entry.mode ? 'page' : undefined}
           onClick={() => setCenterMode(entry.mode)}
         >
-          {t[entry.copyKey]}
+          <span>{t[entry.copyKey]}</span>
         </button>
       ))}
-    </div>
+    </nav>
   )
 }
 

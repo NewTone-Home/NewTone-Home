@@ -14,7 +14,7 @@ describe('ReaderStage static model', () => {
     const view = createStaticStageView(readerContent[0])
 
     expect(view.phaseId).toBe('M1')
-    expect(view.page.id).toBe('m1-arrival')
+    expect(view.page.id).toBe('ancestral-home')
     expect(view.focusBeatIndex).toBe(1)
     expect(view.progress).toBe(0)
   })

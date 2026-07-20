@@ -19,42 +19,59 @@ function Center() {
   const t = copy[language]
 
   return (
-    <div className="center">
-      <div className="center-top-actions">
-        <button className="center-text-link" onClick={() => transitionTo('reader', { preset: 'core-to-reader', payload: { mode: 'continue' } })}>
-          {t.continueReading}
-        </button>
-        <button className="center-text-link" onClick={() => transitionTo('landing', { preset: 'core-to-surface' })}>
-          {t.backToLanding}
-        </button>
+    <main className="center" data-center-mode={centerMode}>
+      <div className="center-atmosphere" aria-hidden="true">
+        <span className="center-atmosphere-mark center-atmosphere-mark--one" />
+        <span className="center-atmosphere-mark center-atmosphere-mark--two" />
+        <span className="center-atmosphere-mark center-atmosphere-mark--three" />
       </div>
 
-      <h1>{t.center}</h1>
-      <CenterNav />
+      <div className="center-frame">
+        <header className="center-header">
+          <h1>{t.center}</h1>
+          <CenterNav />
+        </header>
 
-      <div className="center-mode-content" key={centerMode}>
-        {centerMode === 'home' && (
-          <p className="center-home-text">{t.welcomeCenter}</p>
-        )}
+        <div className="center-mode-content" key={centerMode}>
+          {centerMode === 'home' && (
+            <section className="center-home" aria-labelledby="center-home-heading">
+              <p id="center-home-heading" className="center-home-text">{t.welcomeCenter}</p>
+            </section>
+          )}
 
-        {centerMode !== 'home' && items && (
-          <div className="center-content">
-            <button
-              className="center-text-link center-back-link"
-              onClick={() => setCenterMode('home')}
-            >
-              ← {t.backToHome}
-            </button>
-            {items.map(item => (
-              <div key={item.id} className="center-item">
-                {item.title && <h3 className="center-item-title">{item.title}</h3>}
-                <p className="center-item-text">{item.text}</p>
+          {centerMode !== 'home' && items && (
+            <section className="center-content" aria-label={t[centerMode]}>
+              <button
+                className="center-text-link center-back-link"
+                onClick={() => setCenterMode('home')}
+              >
+                <span aria-hidden="true">←</span> {t.backToHome}
+              </button>
+              <div className="center-item-list">
+                {items.map((item, index) => (
+                  <article key={item.id} className="center-item" data-item-index={index}>
+                    {item.label && <p className="center-item-label">{item.label}</p>}
+                    {item.title && <h2 className="center-item-title">{item.title}</h2>}
+                    <p className="center-item-text">{item.text}</p>
+                  </article>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            </section>
+          )}
+        </div>
+
+        <nav className="center-directions" aria-label={t.center}>
+          <button className="center-direction center-direction--reader" onClick={() => transitionTo('reader', { preset: 'core-to-reader', payload: { mode: 'continue' } })}>
+            <span className="center-direction-line" aria-hidden="true" />
+            {t.continueReading}
+          </button>
+          <button className="center-direction center-direction--landing" onClick={() => transitionTo('landing', { preset: 'core-to-surface' })}>
+            {t.backToLanding}
+            <span className="center-direction-line" aria-hidden="true" />
+          </button>
+        </nav>
       </div>
-    </div>
+    </main>
   )
 }
 

@@ -13,6 +13,9 @@ function App() {
   const currentView = useProgressStore(s => s.currentView)
   const language = useProgressStore(s => s.language)
   const hasInitializedLanguage = useProgressStore(s => s.hasInitializedLanguage)
+  const readingMode = useProgressStore(s => s.readingMode)
+  const themePosition = useProgressStore(s => s.themePosition)
+  const motionMode = useProgressStore(s => s.motionMode)
 
   const readingEntry = useReadingEntry()
   const isGlobalTransitioning = useTransitionStore(s => s.phase !== 'idle')
@@ -42,6 +45,8 @@ function App() {
         'landing-empty-hold',
         'language-active',
         'language-leaving',
+        'mode-active',
+        'mode-leaving',
       ].includes(ctrl.phase)
 
       if (isFirstInitHistoryLocked) {
@@ -112,7 +117,7 @@ function App() {
 
   return (
     <>
-      <PageShell>
+      <PageShell motionMode={motionMode}>
         {showReader && <Reader onReaderReady={readingEntry.isActive ? readingEntry.handleReaderReady : undefined} />}
         {showLanding && <Landing onEnter={handleEnter} leaving={readingEntryLandingLeaving} leavingMs={landingLeaveMs} />}
         {showCenter && <Center />}
@@ -121,7 +126,11 @@ function App() {
         phase={readingEntry.phase}
         intent={readingEntry.intent}
         language={language}
+        readingMode={readingMode}
+        themePosition={themePosition}
+        motionMode={motionMode}
         onProceed={readingEntry.proceedFromLanguage}
+        onModeSelect={readingEntry.proceedFromMode}
       />
       {isGlobalTransitioning && <GlobalTransitionOverlay />}
     </>

@@ -3,6 +3,8 @@ import {
   beginReaderNavigation,
   createReaderNavigationState,
   finishReaderNavigation,
+  retargetReaderNavigation,
+  targetReaderNavigation,
 } from '../reader/readerNavigation'
 
 export function useReaderNavigation({ initialLocation, reducedMotion, commitLocation }) {
@@ -14,8 +16,26 @@ export function useReaderNavigation({ initialLocation, reducedMotion, commitLoca
     if (next === navigationRef.current) return false
     navigationRef.current = next
     setNavigation(next)
-    if (reducedMotion) commitLocation(next.committedLocation)
+    commitLocation(next.displayLocation)
     return !reducedMotion
+  }, [commitLocation, reducedMotion])
+
+  const navigateSteps = useCallback((steps) => {
+    const next = retargetReaderNavigation(navigationRef.current, steps, { reducedMotion })
+    if (next === navigationRef.current) return false
+    navigationRef.current = next
+    setNavigation(next)
+    commitLocation(next.displayLocation)
+    return true
+  }, [commitLocation, reducedMotion])
+
+  const navigateTo = useCallback((location) => {
+    const next = targetReaderNavigation(navigationRef.current, location, { reducedMotion })
+    if (next === navigationRef.current) return false
+    navigationRef.current = next
+    setNavigation(next)
+    commitLocation(next.displayLocation)
+    return true
   }, [commitLocation, reducedMotion])
 
   const finishTransition = useCallback(() => {
@@ -29,8 +49,9 @@ export function useReaderNavigation({ initialLocation, reducedMotion, commitLoca
 
   return {
     ...navigation,
-    animationLocked: navigation.transitionTarget !== null,
     navigate,
+    navigateSteps,
+    navigateTo,
     finishTransition,
   }
 }

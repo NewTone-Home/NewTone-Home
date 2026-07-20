@@ -1,5 +1,7 @@
 import { isValidPhase } from '../constants/phases'
 import { readerContentIndex, comparePosition, resolvePosition } from '../reader/readerPosition'
+import { READER_LANGUAGE_CODES } from '../i18n/languages'
+import { legacyThemeName, migrateThemePosition } from '../reader/readerTheme'
 
 export const PROGRESS_STORAGE_KEYS = Object.freeze({
   V1: 'newtone-progress-v1',
@@ -11,7 +13,9 @@ export const PROGRESS_VERSION = 2
 
 const VALID_VIEWS = ['landing', 'reader', 'center']
 const VALID_CENTER_MODES = ['home', 'records', 'perspectives', 'fragments']
-const VALID_LANGUAGES = ['zh', 'en', 'ja', 'ko', 'fr', 'es', 'id']
+const VALID_LANGUAGES = READER_LANGUAGE_CODES
+const VALID_READING_MODES = ['immersive', 'standard']
+const VALID_MOTION_MODES = ['full', 'reduced']
 
 export const READER_START_LOCATION = toPersistedLocation(readerContentIndex.entries[0])
 
@@ -71,10 +75,19 @@ export function createInitialProgressState() {
     centerUnlocked: false,
     centerMode: 'home',
     resumeRequested: false,
-    exitTutorialSeen: false,
+    readerExitGestureLearned: false,
+    chapterTrialEnded: false,
     legacyLastScrollY: 0,
     language: 'zh',
     hasInitializedLanguage: false,
+    hasInitializedReadingMode: false,
+    readingMode: 'immersive',
+    themePosition: 0.5,
+    standardTheme: 'soft',
+    motionMode: 'full',
+    currentChapter: 'chapter-1',
+    currentPage: READER_START_LOCATION.pageId,
+    currentBeat: READER_START_LOCATION.beatIndex,
   }
 }
 
@@ -103,8 +116,17 @@ export function migrateV1ToV2(data) {
     readerCompleted: false,
     centerUnlocked,
     resumeRequested: shared.currentView === 'reader',
-    exitTutorialSeen: false,
+    readerExitGestureLearned: false,
+    chapterTrialEnded: false,
     legacyLastScrollY,
+    hasInitializedReadingMode: Boolean(source.hasInitializedReadingMode ?? source.hasInitializedLanguage),
+    readingMode: VALID_READING_MODES.includes(source.readingMode) ? source.readingMode : 'immersive',
+    themePosition: migrateThemePosition(source.themePosition, source.standardTheme),
+    standardTheme: legacyThemeName(migrateThemePosition(source.themePosition, source.standardTheme)),
+    motionMode: VALID_MOTION_MODES.includes(source.motionMode) ? source.motionMode : 'full',
+    currentChapter: 'chapter-1',
+    currentPage: committedLocation.pageId,
+    currentBeat: committedLocation.beatIndex,
   }
 }
 
@@ -138,8 +160,19 @@ export function sanitizeV2Progress(data) {
     readerCompleted,
     centerUnlocked,
     resumeRequested: shared.currentView === 'reader' || Boolean(source.resumeRequested),
-    exitTutorialSeen: Boolean(source.exitTutorialSeen),
+    readerExitGestureLearned: Boolean(
+      source.readerExitGestureLearned ?? source.exitTutorialSeen,
+    ),
+    chapterTrialEnded: source.chapterTrialEnded === true,
     legacyLastScrollY,
+    hasInitializedReadingMode: Boolean(source.hasInitializedReadingMode ?? source.hasInitializedLanguage),
+    readingMode: VALID_READING_MODES.includes(source.readingMode) ? source.readingMode : 'immersive',
+    themePosition: migrateThemePosition(source.themePosition, source.standardTheme),
+    standardTheme: legacyThemeName(migrateThemePosition(source.themePosition, source.standardTheme)),
+    motionMode: VALID_MOTION_MODES.includes(source.motionMode) ? source.motionMode : 'full',
+    currentChapter: 'chapter-1',
+    currentPage: committedLocation.pageId,
+    currentBeat: committedLocation.beatIndex,
   }
 }
 

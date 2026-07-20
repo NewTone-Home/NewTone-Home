@@ -25,11 +25,21 @@ export function createReaderNavigationState(location) {
 }
 
 export function beginReaderNavigation(state, intent, { reducedMotion = false } = {}) {
-  if (state.transitionTarget) return state
-  const target = intent === READER_INTENTS.FORWARD
-    ? nextPosition(state.displayLocation)
-    : previousPosition(state.displayLocation)
+  const steps = intent === READER_INTENTS.FORWARD ? 1 : -1
+  return retargetReaderNavigation(state, steps, { reducedMotion })
+}
+
+export function retargetReaderNavigation(state, steps, { reducedMotion = false } = {}) {
+  if (!Number.isInteger(steps) || steps === 0) return state
+  let target = state.displayLocation
+  const getNext = steps > 0 ? nextPosition : previousPosition
+  for (let count = 0; count < Math.abs(steps); count += 1) {
+    const candidate = getNext(target)
+    if (!candidate) break
+    target = candidate
+  }
   if (!target) return state
+  if (target.linearIndex === state.displayLocation.linearIndex) return state
 
   const transitionKind = getReaderTransitionKind(state.displayLocation, target)
   if (reducedMotion) {
@@ -42,6 +52,28 @@ export function beginReaderNavigation(state, intent, { reducedMotion = false } =
     }
   }
 
+  return {
+    ...state,
+    displayLocation: target,
+    transitionFrom: state.displayLocation,
+    transitionTarget: target,
+    transitionKind,
+  }
+}
+
+export function targetReaderNavigation(state, location, { reducedMotion = false } = {}) {
+  const target = resolvePosition(location)
+  if (target.linearIndex === state.displayLocation.linearIndex) return state
+  const transitionKind = getReaderTransitionKind(state.displayLocation, target)
+  if (reducedMotion) {
+    return {
+      committedLocation: target,
+      displayLocation: target,
+      transitionFrom: null,
+      transitionTarget: null,
+      transitionKind,
+    }
+  }
   return {
     ...state,
     displayLocation: target,

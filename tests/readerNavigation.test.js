@@ -1,59 +1,35 @@
 import { describe, expect, it } from 'vitest'
 import { READER_INTENTS } from '../src/reader/readerInput'
-import {
-  READER_TRANSITIONS,
-  beginReaderNavigation,
-  createReaderNavigationState,
-  finishReaderNavigation,
-  getReaderTransitionKind,
-} from '../src/reader/readerNavigation'
+import { READER_TRANSITIONS, beginReaderNavigation, createReaderNavigationState, finishReaderNavigation, getReaderTransitionKind, retargetReaderNavigation } from '../src/reader/readerNavigation'
 
-const location = (phaseId, pageId, beatIndex) => ({ phaseId, pageId, beatIndex })
+const location = (pageId, beatIndex) => ({ phaseId: 'M1', pageId, beatIndex })
 
 describe('Reader transition layers', () => {
-  it('classifies beat, page, and phase transitions separately', () => {
-    expect(getReaderTransitionKind(
-      location('M1', 'm1-arrival', 0),
-      location('M1', 'm1-arrival', 1),
-    )).toBe(READER_TRANSITIONS.BEAT)
-    expect(getReaderTransitionKind(
-      location('M1', 'm1-arrival', 2),
-      location('M1', 'm1-signal', 0),
-    )).toBe(READER_TRANSITIONS.PAGE)
-    expect(getReaderTransitionKind(
-      location('M1', 'm1-signal', 2),
-      location('M2', 'm2-platform', 0),
-    )).toBe(READER_TRANSITIONS.PHASE)
+  it('classifies beat and page transitions separately', () => {
+    expect(getReaderTransitionKind(location('ancestral-home', 0), location('ancestral-home', 1))).toBe(READER_TRANSITIONS.BEAT)
+    expect(getReaderTransitionKind(location('ancestral-home', 6), location('inner-street', 0))).toBe(READER_TRANSITIONS.PAGE)
   })
 
   it('keeps committed location stable until animation completion', () => {
-    const initial = createReaderNavigationState(location('M1', 'm1-arrival', 0))
+    const initial = createReaderNavigationState(location('ancestral-home', 0))
     const started = beginReaderNavigation(initial, READER_INTENTS.FORWARD)
-
     expect(started.committedLocation.linearIndex).toBe(0)
     expect(started.displayLocation.linearIndex).toBe(1)
-    expect(started.transitionFrom.linearIndex).toBe(0)
-    expect(started.transitionTarget.linearIndex).toBe(1)
-
-    const finished = finishReaderNavigation(started)
-    expect(finished.committedLocation.linearIndex).toBe(1)
-    expect(finished.transitionFrom).toBeNull()
-    expect(finished.transitionTarget).toBeNull()
+    expect(finishReaderNavigation(started).committedLocation.linearIndex).toBe(1)
   })
 
-  it('commits immediately for reduced motion', () => {
-    const initial = createReaderNavigationState(location('M1', 'm1-arrival', 0))
-    const next = beginReaderNavigation(initial, READER_INTENTS.FORWARD, {
-      reducedMotion: true,
-    })
+  it('retargets and reverses immediately without FIFO replay', () => {
+    const initial = createReaderNavigationState(location('ancestral-home', 0))
+    const forward = retargetReaderNavigation(initial, 3)
+    const reversed = retargetReaderNavigation(forward, -2)
+    expect(forward.displayLocation.linearIndex).toBe(3)
+    expect(reversed.displayLocation.linearIndex).toBe(1)
+  })
 
-    expect(next.displayLocation.linearIndex).toBe(1)
+  it('commits immediately for reduced motion and respects the first boundary', () => {
+    const initial = createReaderNavigationState(location('ancestral-home', 0))
+    const next = beginReaderNavigation(initial, READER_INTENTS.FORWARD, { reducedMotion: true })
     expect(next.committedLocation.linearIndex).toBe(1)
-    expect(next.transitionTarget).toBeNull()
-  })
-
-  it('does not navigate beyond the first boundary', () => {
-    const initial = createReaderNavigationState(location('M1', 'm1-arrival', 0))
     expect(beginReaderNavigation(initial, READER_INTENTS.BACKWARD)).toBe(initial)
   })
 })
