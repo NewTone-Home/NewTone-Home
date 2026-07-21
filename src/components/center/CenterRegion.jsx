@@ -37,9 +37,10 @@ function CenterRegion({
             onOpenDetail(node.id)
           }}
         >
+          <span className="center-region-annotation-stroke" aria-hidden="true" />
           <span className="center-region-annotation-title">{node.title}</span>
-          <span>{node.annotation ?? node.description}</span>
-          <span className="center-region-annotation-action">下滑进入 · 点击查看</span>
+          <span className="center-region-annotation-copy">{node.annotation ?? node.description}</span>
+          <span className="center-region-annotation-hint">点击细看</span>
         </button>
       )}
     </div>
