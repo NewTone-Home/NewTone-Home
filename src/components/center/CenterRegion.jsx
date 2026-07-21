@@ -1,6 +1,7 @@
 function CenterRegion({
   node,
   focused,
+  annotationLeaving,
   onHoverStart,
   onHoverEnd,
   onKeepFocus,
@@ -15,7 +16,7 @@ function CenterRegion({
 
   return (
     <div
-      className={`center-region center-region--${node.type}${focused ? ' is-focused' : ''}`}
+      className={`center-region center-region--${node.type}${focused ? ' is-focused' : ''}${annotationLeaving ? ' is-annotation-leaving' : ''}`}
       style={style}
       data-world={node.world}
       data-center-node-id={node.id}
@@ -31,7 +32,6 @@ function CenterRegion({
           className="center-region-annotation"
           data-center-annotation
           onMouseEnter={onKeepFocus}
-          onMouseLeave={onHoverEnd}
           onClick={(event) => {
             event.stopPropagation()
             onOpenDetail(node.id)
