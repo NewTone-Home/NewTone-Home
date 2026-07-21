@@ -53,9 +53,12 @@ function CenterViewport({ navigation }) {
     '--inner-opacity': Math.max(0, (layerSeparation - 0.05) / 0.3),
   }
 
-  const cameraStyle = {
+  const panStyle = {
     '--camera-x': `${camera.x}px`,
     '--camera-y': `${camera.y}px`,
+  }
+
+  const zoomStyle = {
     '--map-zoom': zoom,
   }
 
@@ -85,31 +88,33 @@ function CenterViewport({ navigation }) {
       onClick={cancelFocus}
     >
       <div className="center-world-stage" style={stageStyle}>
-        <div className="center-world-camera" style={cameraStyle}>
-          {isOverview ? (
-            <div className="center-world-model center-world-model--section" aria-label="表里世界分层图谱">
-              <div
-                className={`center-map-layer center-map-layer--inner${innerActive ? ' is-interactive' : ''}`}
-                aria-hidden={!innerActive}
-              >
-                <span className="center-map-layer-label">里世界</span>
-                <div className="center-map-surface" aria-hidden="true" />
-                <div className="center-layer-nodes">{innerNodes.map(renderNode)}</div>
-              </div>
+        <div className="center-world-camera-pan" style={panStyle}>
+          <div className="center-world-camera-zoom" style={zoomStyle}>
+            {isOverview ? (
+              <div className="center-world-model center-world-model--section" aria-label="表里世界分层图谱">
+                <div
+                  className={`center-map-layer center-map-layer--inner${innerActive ? ' is-interactive' : ''}`}
+                  aria-hidden={!innerActive}
+                >
+                  <span className="center-map-layer-label">里世界</span>
+                  <div className="center-map-surface" aria-hidden="true" />
+                  <div className="center-layer-nodes">{innerNodes.map(renderNode)}</div>
+                </div>
 
-              <div className="center-map-layer center-map-layer--surface is-interactive">
-                <span className="center-map-layer-label">表世界</span>
-                <div className="center-map-surface" aria-hidden="true" />
-                <div className="center-layer-nodes">{surfaceNodes.map(renderNode)}</div>
+                <div className="center-map-layer center-map-layer--surface is-interactive">
+                  <span className="center-map-layer-label">表世界</span>
+                  <div className="center-map-surface" aria-hidden="true" />
+                  <div className="center-layer-nodes">{surfaceNodes.map(renderNode)}</div>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="center-map-layer center-map-layer--current is-interactive">
-              <span className="center-map-layer-label">{currentNode.world === 'surface' ? '表世界' : '里世界'}</span>
-              <div className="center-map-surface" aria-hidden="true" />
-              <div className="center-layer-nodes">{children.map(renderNode)}</div>
-            </div>
-          )}
+            ) : (
+              <div className="center-map-layer center-map-layer--current is-interactive">
+                <span className="center-map-layer-label">{currentNode.world === 'surface' ? '表世界' : '里世界'}</span>
+                <div className="center-map-surface" aria-hidden="true" />
+                <div className="center-layer-nodes">{children.map(renderNode)}</div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
