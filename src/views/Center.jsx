@@ -8,8 +8,13 @@ import './Center.css'
 function Center() {
   const language = useProgressStore(s => s.language)
   const transitionTo = useTransitionStore(s => s.transitionTo)
-  const navigation = useCenterNavigation()
   const t = copy[language]
+  const continueReader = () => transitionTo('reader', { preset: 'core-to-reader', payload: { mode: 'continue' } })
+  const navigation = useCenterNavigation({
+    onExitTop: () => transitionTo('landing', { preset: 'core-to-surface' }),
+    onExitBottom: continueReader,
+    onOpenContent: continueReader,
+  })
 
   return (
     <main className="center">
@@ -25,21 +30,6 @@ function Center() {
       </header>
 
       <CenterViewport navigation={navigation} />
-
-      <nav className="center-directions" aria-label={t.center}>
-        <button
-          className="center-direction center-direction--landing"
-          onClick={() => transitionTo('landing', { preset: 'core-to-surface' })}
-        >
-          {t.backToLanding}
-        </button>
-        <button
-          className="center-direction center-direction--reader"
-          onClick={() => transitionTo('reader', { preset: 'core-to-reader', payload: { mode: 'continue' } })}
-        >
-          {t.continueReading}
-        </button>
-      </nav>
     </main>
   )
 }
