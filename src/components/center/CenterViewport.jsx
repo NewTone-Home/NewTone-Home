@@ -35,7 +35,9 @@ function CenterViewport({ navigation }) {
   const worldStyle = {
     '--camera-x': `${camera.x}px`,
     '--camera-y': `${camera.y}px`,
-    '--layer-separation': layerSeparation,
+    '--world-tilt': `${56 - layerSeparation * 22}deg`,
+    '--surface-z': `${18 + layerSeparation * 155}px`,
+    '--inner-z': `${-22 - layerSeparation * 130}px`,
   }
 
   const renderNode = node => (
