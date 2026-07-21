@@ -1,12 +1,9 @@
 .center-world-stage {
   position: absolute;
   left: 50%;
-  top: 52%;
-  right: auto;
-  bottom: auto;
+  top: 50%;
   width: min(82vw, 1420px);
   height: min(74vh, 780px);
-  inset: auto;
   transform: translate(-50%, -50%);
   transform-origin: center center;
 }
@@ -19,12 +16,10 @@
   transition: transform 180ms cubic-bezier(0.22, 0.7, 0.24, 1);
 }
 
-/* Overview uses a stable 2D sectional layout. No CSS 3D hit testing. */
+/* Single 2D geometry system for the overview. */
 .center-world-model--section {
   position: absolute;
   inset: 0;
-  transform: none;
-  transform-style: flat;
 }
 
 .center-world-model--section .center-map-layer {
@@ -32,9 +27,7 @@
   left: 50%;
   width: min(66vw, 1080px);
   height: min(34vh, 350px);
-  inset: auto;
   transform-origin: center center;
-  transform-style: flat;
   pointer-events: none;
   transition:
     top 320ms cubic-bezier(0.22, 0.7, 0.24, 1),
@@ -65,15 +58,8 @@
   pointer-events: none;
 }
 
-.center-world-model--section .center-layer-nodes {
-  position: absolute;
-  inset: 0;
-  z-index: 8;
-}
-
 .center-world-model--section .center-region {
   pointer-events: auto;
-  transform: translate(-50%, -50%);
 }
 
 .center-world-model--section .center-map-surface {
@@ -92,7 +78,15 @@
     rgba(177, 174, 157, 0.96);
 }
 
+/* Non-overview levels use the same centered coordinate system. */
 .center-map-layer--current {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(66vw, 1080px);
+  height: min(34vh, 350px);
+  transform: translate(-50%, -50%);
+  transform-origin: center center;
   pointer-events: none;
 }
 
@@ -261,7 +255,8 @@
     height: min(76vh, 650px);
   }
 
-  .center-world-model--section .center-map-layer {
+  .center-world-model--section .center-map-layer,
+  .center-map-layer--current {
     width: min(62vw, 920px);
     height: min(31vh, 290px);
   }
@@ -271,6 +266,11 @@
   .center-world-stage {
     width: calc(100vw - 40px);
     height: calc(100vh - 200px);
+  }
+
+  .center-world-model--section .center-map-layer,
+  .center-map-layer--current {
+    width: calc(100vw - 64px);
   }
 }
 
