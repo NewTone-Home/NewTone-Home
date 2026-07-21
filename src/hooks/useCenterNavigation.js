@@ -4,7 +4,7 @@ import { CENTER_ROOT_ID, getCenterChildren, getCenterNode } from '../data/center
 const HOVER_FOCUS_MS = 760
 const MOVE_TOLERANCE_PX = 9
 const MOVE_COOLDOWN_MS = 220
-const HOVER_CLEAR_GRACE_MS = 220
+const ANNOTATION_FADE_MS = 220
 const WHEEL_THRESHOLD = 34
 const EDGE_RATIO = 0.13
 const MIN_ZOOM = 0.85
@@ -19,11 +19,13 @@ function clamp(value, min, max) {
 export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } = {}) {
   const [currentNodeId, setCurrentNodeId] = useState(CENTER_ROOT_ID)
   const [focusedNodeId, setFocusedNodeId] = useState(null)
+  const [annotationLeaving, setAnnotationLeaving] = useState(false)
   const [hoveringNodeId, setHoveringNodeId] = useState(null)
   const [hoverProgress, setHoverProgress] = useState(0)
   const [cursor, setCursor] = useState({ x: 0, y: 0, visible: false })
   const [edgeIntent, setEdgeIntent] = useState(null)
   const [detailNodeId, setDetailNodeId] = useState(null)
+  const [detailClosing, setDetailClosing] = useState(false)
   const [selectedContentId, setSelectedContentId] = useState(null)
   const [camera, setCamera] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
@@ -32,7 +34,8 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
   const historyRef = useRef([])
   const hoverFrameRef = useRef(0)
   const resumeTimerRef = useRef(0)
-  const clearTimerRef = useRef(0)
+  const annotationTimerRef = useRef(0)
+  const detailTimerRef = useRef(0)
   const zoomNoticeTimerRef = useRef(0)
   const hoverNodeRef = useRef(null)
   const lastMotionRef = useRef(null)
@@ -67,6 +70,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       setHoverProgress(progress)
       if (progress >= 1) {
         setFocusedNodeId(nodeId)
+        setAnnotationLeaving(false)
         setHoveringNodeId(null)
         hoverFrameRef.current = 0
         return
@@ -89,14 +93,25 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
   }, [beginProgress, focusedNodeId, stopHoverProgress])
 
   const beginHover = useCallback((nodeId, event) => {
-    window.clearTimeout(clearTimerRef.current)
+    window.clearTimeout(annotationTimerRef.current)
     window.clearTimeout(resumeTimerRef.current)
     hoverNodeRef.current = nodeId
     lastMotionRef.current = { x: event.clientX, y: event.clientY }
-    setCursor({ x: event.clientX, y: event.clientY + 16, visible: true })
+    setAnnotationLeaving(false)
+    setCursor({ x: event.clientX, y: event.clientY + 16, visible: focusedNodeId !== nodeId })
     setEdgeIntent(null)
     if (focusedNodeId !== nodeId) beginProgress(nodeId)
   }, [beginProgress, focusedNodeId])
+
+  const fadeFocusedAnnotation = useCallback(() => {
+    if (!focusedNodeId) return
+    window.clearTimeout(annotationTimerRef.current)
+    setAnnotationLeaving(true)
+    annotationTimerRef.current = window.setTimeout(() => {
+      setFocusedNodeId(null)
+      setAnnotationLeaving(false)
+    }, ANNOTATION_FADE_MS)
+  }, [focusedNodeId])
 
   const endHover = useCallback(() => {
     hoverNodeRef.current = null
@@ -104,51 +119,66 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     window.clearTimeout(resumeTimerRef.current)
     stopHoverProgress()
     setCursor(previous => ({ ...previous, visible: false }))
-    window.clearTimeout(clearTimerRef.current)
-    clearTimerRef.current = window.setTimeout(() => {
-      if (!detailNodeId) setFocusedNodeId(null)
-    }, HOVER_CLEAR_GRACE_MS)
-  }, [detailNodeId, stopHoverProgress])
+    fadeFocusedAnnotation()
+  }, [fadeFocusedAnnotation, stopHoverProgress])
 
   const keepFocus = useCallback(() => {
-    window.clearTimeout(clearTimerRef.current)
+    window.clearTimeout(annotationTimerRef.current)
+    setAnnotationLeaving(false)
   }, [])
 
-  const clearFocusedAnnotation = useCallback(() => {
-    if (!detailNodeId) setFocusedNodeId(null)
-  }, [detailNodeId])
-
   const cancelFocus = useCallback(() => {
-    window.clearTimeout(clearTimerRef.current)
+    window.clearTimeout(annotationTimerRef.current)
     window.clearTimeout(resumeTimerRef.current)
     stopHoverProgress()
+    setAnnotationLeaving(false)
     setFocusedNodeId(null)
-    setDetailNodeId(null)
-    setSelectedContentId(null)
-  }, [stopHoverProgress])
+    if (detailNodeId) {
+      setDetailClosing(true)
+      window.clearTimeout(detailTimerRef.current)
+      detailTimerRef.current = window.setTimeout(() => {
+        setDetailNodeId(null)
+        setDetailClosing(false)
+        setSelectedContentId(null)
+      }, ANNOTATION_FADE_MS)
+    }
+  }, [detailNodeId, stopHoverProgress])
 
   const openDetail = useCallback((nodeId) => {
     const node = getCenterNode(nodeId)
-    window.clearTimeout(clearTimerRef.current)
+    window.clearTimeout(annotationTimerRef.current)
     window.clearTimeout(resumeTimerRef.current)
     stopHoverProgress()
     setCursor(previous => ({ ...previous, visible: false }))
-    setFocusedNodeId(null)
+    setAnnotationLeaving(true)
+    setDetailClosing(false)
     setDetailNodeId(nodeId)
     setEdgeIntent(null)
     setSelectedContentId(node.contentOptions?.find(option => !option.locked)?.id ?? null)
+    annotationTimerRef.current = window.setTimeout(() => {
+      setFocusedNodeId(null)
+      setAnnotationLeaving(false)
+    }, ANNOTATION_FADE_MS)
   }, [stopHoverProgress])
 
   const closeDetail = useCallback(() => {
-    setDetailNodeId(null)
-    setSelectedContentId(null)
+    if (!detailNodeId || detailClosing) return
+    setDetailClosing(true)
+    window.clearTimeout(detailTimerRef.current)
+    detailTimerRef.current = window.setTimeout(() => {
+      setDetailNodeId(null)
+      setDetailClosing(false)
+      setSelectedContentId(null)
+    }, ANNOTATION_FADE_MS)
+  }, [detailClosing, detailNodeId])
+
+  const resetViewForLayer = useCallback(() => {
+    setCamera({ x: 0, y: 0 })
+    setZoom(1)
+    setZoomNoticeVisible(false)
   }, [])
 
   const recenterCamera = useCallback(() => {
-    setCamera({ x: 0, y: 0 })
-  }, [])
-
-  const resetViewForLayer = useCallback(() => {
     setCamera({ x: 0, y: 0 })
     setZoom(1)
     setZoomNoticeVisible(false)
@@ -160,7 +190,9 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       historyRef.current = [...historyRef.current, currentNodeId]
       setCurrentNodeId(node.id)
       setFocusedNodeId(null)
+      setAnnotationLeaving(false)
       setDetailNodeId(null)
+      setDetailClosing(false)
       setEdgeIntent(null)
       resetViewForLayer()
       wheelAccumulatorRef.current = 0
@@ -184,14 +216,15 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     historyRef.current = historyRef.current.slice(0, -1)
     setCurrentNodeId(previous)
     setFocusedNodeId(null)
+    setAnnotationLeaving(false)
     setEdgeIntent(null)
     resetViewForLayer()
     wheelAccumulatorRef.current = 0
     return true
   }, [closeDetail, detailNodeId, resetViewForLayer])
 
-  const applyZoomAtPointer = useCallback((event, direction) => {
-    const nextZoom = clamp(Number((zoom + direction * ZOOM_STEP).toFixed(2)), MIN_ZOOM, MAX_ZOOM)
+  const applyZoomAtPointer = useCallback((event, zoomDirection) => {
+    const nextZoom = clamp(Number((zoom + zoomDirection * ZOOM_STEP).toFixed(2)), MIN_ZOOM, MAX_ZOOM)
     if (nextZoom === zoom) return
 
     const bounds = event.currentTarget.getBoundingClientRect()
@@ -234,17 +267,14 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     }
 
     if (focusedNode) {
-      if (direction > 0) {
-        enterNode(focusedNode)
-      } else {
-        clearFocusedAnnotation()
-        if (hoverNodeRef.current) scheduleResume(hoverNodeRef.current)
-      }
+      if (direction > 0) enterNode(focusedNode)
+      else fadeFocusedAnnotation()
       return
     }
 
-    applyZoomAtPointer(event, direction > 0 ? 1 : -1)
-  }, [applyZoomAtPointer, clearFocusedAnnotation, closeDetail, currentNodeId, detailNode, edgeIntent, enterNode, focusedNode, onExitBottom, onExitTop, onOpenContent, scheduleResume, selectedContentId])
+    // Natural map zoom: wheel up enlarges, wheel down shrinks.
+    applyZoomAtPointer(event, direction < 0 ? 1 : -1)
+  }, [applyZoomAtPointer, closeDetail, currentNodeId, detailNode, edgeIntent, enterNode, fadeFocusedAnnotation, focusedNode, onExitBottom, onExitTop, onOpenContent, selectedContentId])
 
   const onPointerMove = useCallback((event) => {
     const atRoot = currentNodeId === CENTER_ROOT_ID && !focusedNodeId && !detailNodeId
@@ -258,12 +288,12 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       visible: Boolean(hoverNodeRef.current) && hoveringNodeId !== null,
     })
 
-    if (hoverNodeRef.current && event.pointerType === 'mouse') {
+    if (hoverNodeRef.current && event.pointerType === 'mouse' && !focusedNodeId) {
       const previous = lastMotionRef.current
       const moved = previous ? Math.hypot(event.clientX - previous.x, event.clientY - previous.y) : 0
       if (moved > MOVE_TOLERANCE_PX) {
         lastMotionRef.current = { x: event.clientX, y: event.clientY }
-        if (focusedNodeId !== hoverNodeRef.current) scheduleResume(hoverNodeRef.current)
+        scheduleResume(hoverNodeRef.current)
       }
     }
 
@@ -306,7 +336,8 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
   useEffect(() => () => {
     cancelAnimationFrame(hoverFrameRef.current)
     window.clearTimeout(resumeTimerRef.current)
-    window.clearTimeout(clearTimerRef.current)
+    window.clearTimeout(annotationTimerRef.current)
+    window.clearTimeout(detailTimerRef.current)
     window.clearTimeout(zoomNoticeTimerRef.current)
   }, [])
 
@@ -315,7 +346,9 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     currentNodeId,
     children,
     focusedNode,
+    annotationLeaving,
     detailNode,
+    detailClosing,
     selectedContentId,
     hoveringNodeId,
     hoverProgress,
@@ -331,6 +364,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     openDetail,
     closeDetail,
     recenterCamera,
+    resetViewForLayer,
     setSelectedContentId,
     enterNode,
     goBack,
