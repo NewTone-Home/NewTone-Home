@@ -35,7 +35,18 @@ function CenterViewport({ navigation }) {
   const worldStyle = {
     '--camera-x': `${camera.x}px`,
     '--camera-y': `${camera.y}px`,
-    '--layer-separation': layerSeparation,
+    '--world-angle': `${54 - layerSeparation * 17}deg`,
+    '--surface-x': `${layerSeparation * -17}%`,
+    '--surface-y': `${layerSeparation * -17}%`,
+    '--surface-z': `${36 + layerSeparation * 115}px`,
+    '--surface-scale': 1 - layerSeparation * 0.08,
+    '--inner-x': `${layerSeparation * 15}%`,
+    '--inner-y': `${layerSeparation * 15}%`,
+    '--inner-z': `${-34 - layerSeparation * 78}px`,
+    '--inner-scale': 0.96 + layerSeparation * 0.06,
+    '--inner-saturation': 0.72 + layerSeparation * 0.28,
+    '--inner-contrast': 0.93 + layerSeparation * 0.08,
+    '--link-opacity': 0.18 + layerSeparation * 0.82,
   }
 
   const renderNode = node => (
