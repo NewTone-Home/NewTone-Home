@@ -1,3 +1,8 @@
+.center-world-stage {
+  transform: translate3d(var(--camera-x), var(--camera-y), 0) scale(var(--map-zoom));
+  transform-origin: center center;
+}
+
 .center-world-model {
   transform: rotateX(var(--world-angle)) rotateZ(-2deg);
 }
@@ -21,6 +26,25 @@
   pointer-events: none;
 }
 
+.center-zoom-notice {
+  position: absolute;
+  z-index: 30;
+  right: clamp(28px, 4.5vw, 76px);
+  bottom: clamp(84px, 11vh, 132px);
+  color: var(--center-ink-soft);
+  font-size: clamp(12px, 1.25vmin, 17px);
+  letter-spacing: 0.12em;
+  opacity: 0;
+  transform: translateY(5px);
+  transition: opacity 160ms ease, transform 160ms ease;
+  pointer-events: none;
+}
+
+.center-zoom-notice.is-visible {
+  opacity: 0.72;
+  transform: translateY(0);
+}
+
 .center-viewport.has-edge-top::before,
 .center-viewport.has-edge-bottom::after {
   opacity: 1;
@@ -37,4 +61,10 @@
 .center-viewport.has-detail .center-edge {
   opacity: 0;
   color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .center-zoom-notice {
+    transition-duration: 0.01ms;
+  }
 }
