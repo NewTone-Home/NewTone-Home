@@ -3,21 +3,110 @@
   transform-origin: center center;
 }
 
-.center-world-model {
-  transform: rotateX(var(--world-angle)) rotateZ(-2deg);
+/* Overview uses a stable 2D sectional layout. No CSS 3D hit testing. */
+.center-world-model--section {
+  position: absolute;
+  inset: 0;
+  transform: none;
+  transform-style: flat;
 }
 
-.center-map-layer--surface {
-  transform: translate3d(var(--surface-x), var(--surface-y), var(--surface-z)) scale(var(--surface-scale));
+.center-world-model--section .center-map-layer {
+  position: absolute;
+  left: 50%;
+  width: min(72vw, 1180px);
+  height: min(38vh, 390px);
+  inset: auto;
+  transform-origin: center center;
+  transform-style: flat;
+  pointer-events: none;
+  transition:
+    top 320ms cubic-bezier(0.22, 0.7, 0.24, 1),
+    transform 320ms cubic-bezier(0.22, 0.7, 0.24, 1),
+    opacity 240ms ease,
+    filter 240ms ease;
 }
 
-.center-map-layer--inner {
-  transform: translate3d(var(--inner-x), var(--inner-y), var(--inner-z)) scale(var(--inner-scale));
-  filter: saturate(var(--inner-saturation)) contrast(var(--inner-contrast));
+.center-world-model--section .center-map-layer--surface {
+  z-index: 3;
+  top: var(--surface-top);
+  transform: translate(-50%, -50%) scale(var(--surface-scale));
 }
 
-.center-world-link {
+.center-world-model--section .center-map-layer--inner {
+  z-index: 1;
+  top: var(--inner-top);
+  opacity: var(--inner-opacity);
+  transform: translate(-50%, -50%) scale(var(--inner-scale));
+  filter: saturate(0.82) contrast(1.04);
+}
+
+.center-world-model--section .center-map-layer.is-interactive .center-layer-nodes {
+  pointer-events: auto;
+}
+
+.center-world-model--section .center-map-layer:not(.is-interactive) .center-layer-nodes {
+  pointer-events: none;
+}
+
+.center-world-model--section .center-layer-nodes {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+}
+
+.center-world-model--section .center-region {
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+}
+
+.center-world-model--section .center-map-surface {
+  border-radius: 46% 54% 48% 52% / 52% 46% 54% 48%;
+}
+
+.center-world-model--section .center-map-layer--surface .center-map-surface {
+  background:
+    repeating-linear-gradient(11deg, rgba(72, 58, 43, 0.038) 0 1px, transparent 1px 15px),
+    rgba(235, 227, 211, 0.96);
+}
+
+.center-world-model--section .center-map-layer--inner .center-map-surface {
+  background:
+    repeating-linear-gradient(11deg, rgba(58, 51, 44, 0.07) 0 1px, transparent 1px 15px),
+    rgba(177, 174, 157, 0.96);
+}
+
+.center-world-model--section .center-world-link {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: calc(var(--layer-separation) * 20vh);
   opacity: var(--link-opacity);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.center-world-model--section .center-world-link span {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-left: 2px dashed rgba(143, 94, 66, 0.58);
+  border-radius: 0;
+  transform: none;
+}
+
+.center-map-layer--current {
+  pointer-events: none;
+}
+
+.center-map-layer--current.is-interactive .center-layer-nodes {
+  pointer-events: auto;
+}
+
+.center-map-layer--current .center-region {
+  pointer-events: auto;
 }
 
 .center-map-surface,
@@ -63,7 +152,15 @@
   color: transparent;
 }
 
+@media (max-height: 760px) {
+  .center-world-model--section .center-map-layer {
+    width: min(66vw, 980px);
+    height: min(34vh, 310px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .center-world-model--section .center-map-layer,
   .center-zoom-notice {
     transition-duration: 0.01ms;
   }
