@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CENTER_ROOT_ID, getCenterChildren, getCenterNode } from '../data/center/centerWorld'
 
-const STILL_DELAY_MS = 140
 const HOVER_FOCUS_MS = 760
-const MOVE_TOLERANCE_PX = 7
+const MOVE_TOLERANCE_PX = 9
+const MOVE_COOLDOWN_MS = 220
 const HOVER_CLEAR_GRACE_MS = 180
 const WHEEL_THRESHOLD = 34
 const EDGE_RATIO = 0.13
@@ -21,7 +21,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
 
   const historyRef = useRef([])
   const hoverFrameRef = useRef(0)
-  const stillTimerRef = useRef(0)
+  const resumeTimerRef = useRef(0)
   const clearTimerRef = useRef(0)
   const hoverNodeRef = useRef(null)
   const lastMotionRef = useRef(null)
@@ -34,17 +34,15 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
   const focusedNode = focusedNodeId ? getCenterNode(focusedNodeId) : null
   const detailNode = detailNodeId ? getCenterNode(detailNodeId) : null
 
-  const stopHover = useCallback(() => {
+  const stopHoverProgress = useCallback(() => {
     cancelAnimationFrame(hoverFrameRef.current)
-    window.clearTimeout(stillTimerRef.current)
     hoverFrameRef.current = 0
-    stillTimerRef.current = 0
     setHoveringNodeId(null)
     setHoverProgress(0)
   }, [])
 
   const beginProgress = useCallback((nodeId) => {
-    stopHover()
+    stopHoverProgress()
     setHoveringNodeId(nodeId)
     const startedAt = performance.now()
     const animate = now => {
@@ -59,32 +57,41 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       hoverFrameRef.current = requestAnimationFrame(animate)
     }
     hoverFrameRef.current = requestAnimationFrame(animate)
-  }, [stopHover])
+  }, [stopHoverProgress])
 
-  const scheduleStationaryHover = useCallback((nodeId) => {
-    stopHover()
-    stillTimerRef.current = window.setTimeout(() => beginProgress(nodeId), STILL_DELAY_MS)
-  }, [beginProgress, stopHover])
+  const scheduleResume = useCallback((nodeId) => {
+    window.clearTimeout(resumeTimerRef.current)
+    stopHoverProgress()
+    setCursor(previous => ({ ...previous, visible: false }))
+    resumeTimerRef.current = window.setTimeout(() => {
+      if (hoverNodeRef.current === nodeId && focusedNodeId !== nodeId) {
+        setCursor(previous => ({ ...previous, visible: true }))
+        beginProgress(nodeId)
+      }
+    }, MOVE_COOLDOWN_MS)
+  }, [beginProgress, focusedNodeId, stopHoverProgress])
 
   const beginHover = useCallback((nodeId, event) => {
     window.clearTimeout(clearTimerRef.current)
+    window.clearTimeout(resumeTimerRef.current)
     hoverNodeRef.current = nodeId
     lastMotionRef.current = { x: event.clientX, y: event.clientY }
     setCursor({ x: event.clientX, y: event.clientY, visible: true })
     setEdgeIntent(null)
-    if (focusedNodeId !== nodeId) scheduleStationaryHover(nodeId)
-  }, [focusedNodeId, scheduleStationaryHover])
+    if (focusedNodeId !== nodeId) beginProgress(nodeId)
+  }, [beginProgress, focusedNodeId])
 
   const endHover = useCallback(() => {
     hoverNodeRef.current = null
     lastMotionRef.current = null
-    stopHover()
+    window.clearTimeout(resumeTimerRef.current)
+    stopHoverProgress()
     setCursor(previous => ({ ...previous, visible: false }))
     window.clearTimeout(clearTimerRef.current)
     clearTimerRef.current = window.setTimeout(() => {
       if (!detailNodeId) setFocusedNodeId(null)
     }, HOVER_CLEAR_GRACE_MS)
-  }, [detailNodeId, stopHover])
+  }, [detailNodeId, stopHoverProgress])
 
   const keepFocus = useCallback(() => {
     window.clearTimeout(clearTimerRef.current)
@@ -92,11 +99,12 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
 
   const cancelFocus = useCallback(() => {
     window.clearTimeout(clearTimerRef.current)
-    stopHover()
+    window.clearTimeout(resumeTimerRef.current)
+    stopHoverProgress()
     setFocusedNodeId(null)
     setDetailNodeId(null)
     setSelectedContentId(null)
-  }, [stopHover])
+  }, [stopHoverProgress])
 
   const openDetail = useCallback((nodeId) => {
     const node = getCenterNode(nodeId)
@@ -112,7 +120,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
   }, [])
 
   const enterNode = useCallback((node) => {
-    if (!node) return false
+    if (!node || node.type === 'locked') return false
     if (node.nodes.length > 0) {
       historyRef.current = [...historyRef.current, currentNodeId]
       setCurrentNodeId(node.id)
@@ -123,12 +131,13 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       wheelAccumulatorRef.current = 0
       return true
     }
-    if (node.contentOptions?.length) {
-      openDetail(node.id)
+    const firstContent = node.contentOptions?.find(option => !option.locked)
+    if (firstContent) {
+      onOpenContent?.(node, firstContent.id)
       return true
     }
     return false
-  }, [currentNodeId, openDetail])
+  }, [currentNodeId, onOpenContent])
 
   const goBack = useCallback(() => {
     if (detailNodeId) {
@@ -180,14 +189,18 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     else if (atRoot && event.clientY >= window.innerHeight * (1 - EDGE_RATIO)) setEdgeIntent('bottom')
     else setEdgeIntent(null)
 
-    setCursor({ x: event.clientX, y: event.clientY, visible: Boolean(hoverNodeRef.current) })
+    setCursor({
+      x: event.clientX,
+      y: event.clientY + 16,
+      visible: Boolean(hoverNodeRef.current) && hoveringNodeId !== null,
+    })
 
     if (hoverNodeRef.current && event.pointerType === 'mouse') {
       const previous = lastMotionRef.current
       const moved = previous ? Math.hypot(event.clientX - previous.x, event.clientY - previous.y) : 0
       if (moved > MOVE_TOLERANCE_PX) {
         lastMotionRef.current = { x: event.clientX, y: event.clientY }
-        scheduleStationaryHover(hoverNodeRef.current)
+        scheduleResume(hoverNodeRef.current)
       }
     }
 
@@ -206,7 +219,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       x: dragRef.current.cameraX + event.clientX - dragRef.current.x,
       y: dragRef.current.cameraY + event.clientY - dragRef.current.y,
     })
-  }, [currentNodeId, detailNodeId, focusedNodeId, scheduleStationaryHover])
+  }, [currentNodeId, detailNodeId, focusedNodeId, hoveringNodeId, scheduleResume])
 
   const onPointerDown = useCallback((event) => {
     if (event.pointerType === 'touch') {
@@ -229,7 +242,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
 
   useEffect(() => () => {
     cancelAnimationFrame(hoverFrameRef.current)
-    window.clearTimeout(stillTimerRef.current)
+    window.clearTimeout(resumeTimerRef.current)
     window.clearTimeout(clearTimerRef.current)
   }, [])
 
