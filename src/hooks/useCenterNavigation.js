@@ -14,6 +14,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
   const [hoveringNodeId, setHoveringNodeId] = useState(null)
   const [hoverProgress, setHoverProgress] = useState(0)
   const [cursor, setCursor] = useState({ x: 0, y: 0, visible: false })
+  const [edgeIntent, setEdgeIntent] = useState(null)
   const [detailNodeId, setDetailNodeId] = useState(null)
   const [selectedContentId, setSelectedContentId] = useState(null)
   const [camera, setCamera] = useState({ x: 0, y: 0 })
@@ -70,6 +71,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     hoverNodeRef.current = nodeId
     lastMotionRef.current = { x: event.clientX, y: event.clientY }
     setCursor({ x: event.clientX, y: event.clientY, visible: true })
+    setEdgeIntent(null)
     if (focusedNodeId !== nodeId) scheduleStationaryHover(nodeId)
   }, [focusedNodeId, scheduleStationaryHover])
 
@@ -100,6 +102,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     const node = getCenterNode(nodeId)
     setFocusedNodeId(nodeId)
     setDetailNodeId(nodeId)
+    setEdgeIntent(null)
     setSelectedContentId(node.contentOptions?.find(option => !option.locked)?.id ?? null)
   }, [])
 
@@ -115,6 +118,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       setCurrentNodeId(node.id)
       setFocusedNodeId(null)
       setDetailNodeId(null)
+      setEdgeIntent(null)
       setCamera({ x: 0, y: 0 })
       wheelAccumulatorRef.current = 0
       return true
@@ -136,6 +140,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     historyRef.current = historyRef.current.slice(0, -1)
     setCurrentNodeId(previous)
     setFocusedNodeId(null)
+    setEdgeIntent(null)
     setCamera({ x: 0, y: 0 })
     wheelAccumulatorRef.current = 0
     return true
@@ -157,7 +162,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
 
     if (direction < 0) {
       if (goBack()) return
-      if (!focusedNode && event.clientY <= window.innerHeight * EDGE_RATIO) onExitTop?.()
+      if (!focusedNode && edgeIntent === 'top') onExitTop?.()
       return
     }
 
@@ -166,12 +171,15 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       enterNode(focusedNode)
       return
     }
-    if (!focusedNode && currentNodeId === CENTER_ROOT_ID && event.clientY >= window.innerHeight * (1 - EDGE_RATIO)) {
-      onExitBottom?.()
-    }
-  }, [closeDetail, currentNodeId, detailNode, enterNode, focusedNode, goBack, onExitBottom, onExitTop, onOpenContent, selectedContentId])
+    if (!focusedNode && currentNodeId === CENTER_ROOT_ID && edgeIntent === 'bottom') onExitBottom?.()
+  }, [closeDetail, currentNodeId, detailNode, edgeIntent, enterNode, focusedNode, goBack, onExitBottom, onExitTop, onOpenContent, selectedContentId])
 
   const onPointerMove = useCallback((event) => {
+    const atRoot = currentNodeId === CENTER_ROOT_ID && !focusedNodeId && !detailNodeId
+    if (atRoot && event.clientY <= window.innerHeight * EDGE_RATIO) setEdgeIntent('top')
+    else if (atRoot && event.clientY >= window.innerHeight * (1 - EDGE_RATIO)) setEdgeIntent('bottom')
+    else setEdgeIntent(null)
+
     setCursor({ x: event.clientX, y: event.clientY, visible: Boolean(hoverNodeRef.current) })
 
     if (hoverNodeRef.current && event.pointerType === 'mouse') {
@@ -198,7 +206,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       x: dragRef.current.cameraX + event.clientX - dragRef.current.x,
       y: dragRef.current.cameraY + event.clientY - dragRef.current.y,
     })
-  }, [scheduleStationaryHover])
+  }, [currentNodeId, detailNodeId, focusedNodeId, scheduleStationaryHover])
 
   const onPointerDown = useCallback((event) => {
     if (event.pointerType === 'touch') {
@@ -235,6 +243,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     hoveringNodeId,
     hoverProgress,
     cursor,
+    edgeIntent,
     camera,
     beginHover,
     endHover,
