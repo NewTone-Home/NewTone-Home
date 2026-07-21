@@ -1,3 +1,15 @@
+.center-world-model {
+  transform: rotateX(var(--world-tilt)) rotateZ(-2deg);
+}
+
+.center-map-layer--inner {
+  transform: translateZ(var(--inner-z));
+}
+
+.center-map-layer--surface {
+  transform: translateZ(var(--surface-z));
+}
+
 .center-viewport.has-edge-top::before,
 .center-viewport.has-edge-bottom::after {
   opacity: 1;
