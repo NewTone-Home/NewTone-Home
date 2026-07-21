@@ -8,12 +8,22 @@
   transform-origin: center center;
 }
 
-.center-world-camera {
+.center-world-camera-pan,
+.center-world-camera-zoom {
   position: absolute;
   inset: 0;
-  transform: translate3d(var(--camera-x), var(--camera-y), 0) scale(var(--map-zoom));
   transform-origin: center center;
+}
+
+.center-world-camera-pan {
+  transform: translate3d(var(--camera-x), var(--camera-y), 0);
+  will-change: transform;
+}
+
+.center-world-camera-zoom {
+  transform: scale(var(--map-zoom));
   transition: transform 180ms cubic-bezier(0.22, 0.7, 0.24, 1);
+  will-change: transform;
 }
 
 /* Single 2D geometry system for the overview. */
@@ -275,7 +285,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .center-world-camera,
+  .center-world-camera-zoom,
   .center-world-model--section .center-map-layer,
   .center-region-annotation,
   .center-region-annotation-target,
