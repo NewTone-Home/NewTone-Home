@@ -15,6 +15,8 @@ function CenterViewport({ navigation }) {
     cursor,
     edgeIntent,
     camera,
+    zoom,
+    zoomNoticeVisible,
     beginHover,
     endHover,
     keepFocus,
@@ -35,6 +37,7 @@ function CenterViewport({ navigation }) {
   const worldStyle = {
     '--camera-x': `${camera.x}px`,
     '--camera-y': `${camera.y}px`,
+    '--map-zoom': zoom,
     '--world-angle': `${54 - layerSeparation * 17}deg`,
     '--surface-x': `${layerSeparation * -17}%`,
     '--surface-y': `${layerSeparation * -17}%`,
@@ -130,6 +133,10 @@ function CenterViewport({ navigation }) {
         </div>
       )}
 
+      <div className={`center-zoom-notice${zoomNoticeVisible ? ' is-visible' : ''}`} aria-live="polite">
+        {Math.round(zoom * 100)}%
+      </div>
+
       {detailNode && (
         <aside
           className="center-detail-panel"
@@ -179,7 +186,7 @@ function CenterViewport({ navigation }) {
 
       <div className="center-gesture-hint" aria-hidden="true">
         <span>右键拖动查看周围</span>
-        <span>悬停批注 · 下滑直达 · 点击细看</span>
+        <span>未聚焦滚轮缩放 · 批注出现后下滑进入</span>
       </div>
     </section>
   )
