@@ -1,0 +1,16 @@
+.center-viewport.has-edge-top::before,
+.center-viewport.has-edge-bottom::after {
+  opacity: 1;
+}
+
+.center-viewport.has-edge-top .center-edge--top,
+.center-viewport.has-edge-bottom .center-edge--bottom {
+  color: var(--center-ink-soft);
+}
+
+.center-viewport.has-detail::before,
+.center-viewport.has-detail::after,
+.center-viewport.has-detail .center-edge {
+  opacity: 0;
+  color: transparent;
+}
