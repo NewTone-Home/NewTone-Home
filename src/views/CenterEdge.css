@@ -1,17 +1,6 @@
-.center-world-model {
-  transform: rotateX(var(--world-tilt)) rotateZ(-2deg);
-}
-
-.center-map-layer--inner {
-  transform: translateZ(var(--inner-z));
-}
-
-.center-map-layer--surface {
-  transform: translateZ(var(--surface-z));
-}
-
 .center-map-surface,
-.center-map-layer-label {
+.center-map-layer-label,
+.center-world-link {
   pointer-events: none;
 }
 
@@ -23,6 +12,7 @@
 .center-viewport.has-edge-top .center-edge--top,
 .center-viewport.has-edge-bottom .center-edge--bottom {
   color: var(--center-ink-soft);
+  opacity: 1;
 }
 
 .center-viewport.has-detail::before,
