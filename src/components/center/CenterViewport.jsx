@@ -35,9 +35,7 @@ function CenterViewport({ navigation }) {
   const worldStyle = {
     '--camera-x': `${camera.x}px`,
     '--camera-y': `${camera.y}px`,
-    '--world-tilt': `${56 - layerSeparation * 22}deg`,
-    '--surface-z': `${18 + layerSeparation * 155}px`,
-    '--inner-z': `${-22 - layerSeparation * 130}px`,
+    '--layer-separation': layerSeparation,
   }
 
   const renderNode = node => (
@@ -45,8 +43,6 @@ function CenterViewport({ navigation }) {
       key={node.id}
       node={node}
       focused={focusedNode?.id === node.id}
-      hovering={hoveringNodeId === node.id}
-      hoverProgress={hoverProgress}
       onHoverStart={beginHover}
       onHoverEnd={endHover}
       onKeepFocus={keepFocus}
@@ -71,27 +67,32 @@ function CenterViewport({ navigation }) {
           <div className="center-world-model" aria-label="表里世界重叠图谱">
             <div className="center-map-layer center-map-layer--inner">
               <span className="center-map-layer-label">里世界</span>
-              <div className="center-map-surface" />
-              {innerNodes.map(renderNode)}
+              <div className="center-map-surface" aria-hidden="true" />
+              <div className="center-layer-nodes">{innerNodes.map(renderNode)}</div>
             </div>
+
+            <div className="center-world-link" aria-hidden="true">
+              <span />
+            </div>
+
             <div className="center-map-layer center-map-layer--surface">
               <span className="center-map-layer-label">表世界</span>
-              <div className="center-map-surface" />
-              {surfaceNodes.map(renderNode)}
+              <div className="center-map-surface" aria-hidden="true" />
+              <div className="center-layer-nodes">{surfaceNodes.map(renderNode)}</div>
             </div>
           </div>
         ) : (
           <div className="center-map-layer center-map-layer--current">
             <span className="center-map-layer-label">{currentNode.world === 'surface' ? '表世界' : '里世界'}</span>
-            <div className="center-map-surface" />
-            {children.map(renderNode)}
+            <div className="center-map-surface" aria-hidden="true" />
+            <div className="center-layer-nodes">{children.map(renderNode)}</div>
           </div>
         )}
       </div>
 
       {isOverview && (
         <label className="center-layer-control" onClick={event => event.stopPropagation()}>
-          <span>展开层级</span>
+          <span>{layerSeparation > 0.55 ? '收拢层级' : '展开层级'}</span>
           <input
             type="range"
             min="0"
@@ -167,7 +168,7 @@ function CenterViewport({ navigation }) {
 
       <div className="center-gesture-hint" aria-hidden="true">
         <span>右键拖动查看周围</span>
-        <span>静止悬停 · 下滑进入 · 上滑返回</span>
+        <span>悬停批注 · 下滑直达 · 点击细看</span>
       </div>
     </section>
   )
