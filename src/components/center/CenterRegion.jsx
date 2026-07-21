@@ -27,21 +27,22 @@ function CenterRegion({
       <span className="center-region-title">{node.title}</span>
 
       {focused && (
-        <button
-          type="button"
-          className="center-region-annotation"
-          data-center-annotation
-          onMouseEnter={onKeepFocus}
-          onClick={(event) => {
-            event.stopPropagation()
-            onOpenDetail(node.id)
-          }}
-        >
+        <div className="center-region-annotation" data-center-annotation>
           <span className="center-region-annotation-stroke" aria-hidden="true" />
-          <span className="center-region-annotation-title">{node.title}</span>
-          <span className="center-region-annotation-copy">{node.annotation ?? node.description}</span>
-          <span className="center-region-annotation-hint">点击细看</span>
-        </button>
+          <button
+            type="button"
+            className="center-region-annotation-target"
+            onMouseEnter={onKeepFocus}
+            onClick={(event) => {
+              event.stopPropagation()
+              onOpenDetail(node.id)
+            }}
+          >
+            <span className="center-region-annotation-title">{node.title}</span>
+            <span className="center-region-annotation-copy">{node.annotation ?? node.description}</span>
+            <span className="center-region-annotation-hint">点击细看</span>
+          </button>
+        </div>
       )}
     </div>
   )
