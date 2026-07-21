@@ -8,13 +8,37 @@ const ANNOTATION_FADE_MS = 220
 const DETAIL_FADE_MS = 240
 const WHEEL_THRESHOLD = 34
 const EDGE_RATIO = 0.13
-const MIN_ZOOM = 0.85
+const MIN_ZOOM = 1
 const MAX_ZOOM = 1.65
 const ZOOM_STEP = 0.1
 const ZOOM_NOTICE_MS = 900
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
+}
+
+function getPanBounds(viewport, zoom) {
+  if (!viewport || zoom <= MIN_ZOOM) return { maxX: 0, maxY: 0 }
+
+  const stage = viewport.querySelector('.center-world-stage')
+  if (!stage) return { maxX: 0, maxY: 0 }
+
+  const viewportWidth = viewport.clientWidth
+  const viewportHeight = viewport.clientHeight
+  const scaledWidth = stage.offsetWidth * zoom
+  const scaledHeight = stage.offsetHeight * zoom
+
+  return {
+    maxX: Math.max(0, (scaledWidth - viewportWidth) / 2),
+    maxY: Math.max(0, (scaledHeight - viewportHeight) / 2),
+  }
+}
+
+function clampCamera(camera, bounds) {
+  return {
+    x: clamp(camera.x, -bounds.maxX, bounds.maxX),
+    y: clamp(camera.y, -bounds.maxY, bounds.maxY),
+  }
 }
 
 export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } = {}) {
@@ -171,6 +195,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     setZoom(1)
     setZoomNoticeVisible(false)
     wheelAccumulatorRef.current = 0
+    dragRef.current = null
   }, [])
 
   const recenterCamera = resetViewForLayer
@@ -215,25 +240,17 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     return true
   }, [closeDetail, detailNodeId, resetViewForLayer])
 
-  const applyZoomAtPointer = useCallback((event, zoomDirection) => {
+  const applyCenteredZoom = useCallback((event, zoomDirection) => {
     const nextZoom = clamp(Number((zoom + zoomDirection * ZOOM_STEP).toFixed(2)), MIN_ZOOM, MAX_ZOOM)
     if (nextZoom === zoom) return
 
-    const bounds = event.currentTarget.getBoundingClientRect()
-    const pointerX = event.clientX - bounds.left
-    const pointerY = event.clientY - bounds.top
-    const centerX = bounds.width / 2
-    const centerY = bounds.height / 2
-    const localX = (pointerX - centerX - camera.x) / zoom
-    const localY = (pointerY - centerY - camera.y) / zoom
-
-    setCamera({
-      x: pointerX - centerX - localX * nextZoom,
-      y: pointerY - centerY - localY * nextZoom,
-    })
+    const bounds = getPanBounds(event.currentTarget, nextZoom)
+    setCamera(previous => nextZoom === MIN_ZOOM
+      ? { x: 0, y: 0 }
+      : clampCamera(previous, bounds))
     setZoom(nextZoom)
     showZoomNotice()
-  }, [camera, showZoomNotice, zoom])
+  }, [showZoomNotice, zoom])
 
   const onWheel = useCallback((event) => {
     event.preventDefault()
@@ -264,9 +281,8 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       return
     }
 
-    // Wheel up enlarges; wheel down shrinks.
-    applyZoomAtPointer(event, direction < 0 ? 1 : -1)
-  }, [applyZoomAtPointer, closeDetail, currentNodeId, detailNode, edgeIntent, enterNode, fadeFocusedAnnotation, focusedNode, onExitBottom, onExitTop, onOpenContent, selectedContentId])
+    applyCenteredZoom(event, direction < 0 ? 1 : -1)
+  }, [applyCenteredZoom, closeDetail, currentNodeId, detailNode, edgeIntent, enterNode, fadeFocusedAnnotation, focusedNode, onExitBottom, onExitTop, onOpenContent, selectedContentId])
 
   const onPointerMove = useCallback((event) => {
     const atRoot = currentNodeId === CENTER_ROOT_ID && !focusedNodeId && !detailNodeId
@@ -290,31 +306,39 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     }
 
     if (event.pointerType === 'touch' && touchRef.current) {
+      if (zoom <= MIN_ZOOM) return
+
       const dx = event.clientX - touchRef.current.x
       const dy = event.clientY - touchRef.current.y
-      setCamera(previous => ({ x: previous.x + dx, y: previous.y + dy }))
+      const bounds = getPanBounds(event.currentTarget, zoom)
+      setCamera(previous => clampCamera({ x: previous.x + dx, y: previous.y + dy }, bounds))
       touchRef.current.x = event.clientX
       touchRef.current.y = event.clientY
       touchRef.current.moved = true
       return
     }
 
-    if (!dragRef.current) return
-    setCamera({
+    if (!dragRef.current || zoom <= MIN_ZOOM) return
+    const bounds = getPanBounds(event.currentTarget, zoom)
+    setCamera(clampCamera({
       x: dragRef.current.cameraX + event.clientX - dragRef.current.x,
       y: dragRef.current.cameraY + event.clientY - dragRef.current.y,
-    })
-  }, [currentNodeId, detailNodeId, focusedNodeId, hoveringNodeId, scheduleResume])
+    }, bounds))
+  }, [currentNodeId, detailNodeId, focusedNodeId, hoveringNodeId, scheduleResume, zoom])
 
   const onPointerDown = useCallback((event) => {
     if (event.pointerType === 'touch') {
       touchRef.current = { x: event.clientX, y: event.clientY, moved: false }
       return
     }
-    if (event.button !== 2) return
+
+    if (event.button !== 2 || zoom <= MIN_ZOOM) return
+    const bounds = getPanBounds(event.currentTarget, zoom)
+    if (bounds.maxX === 0 && bounds.maxY === 0) return
+
     dragRef.current = { x: event.clientX, y: event.clientY, cameraX: camera.x, cameraY: camera.y }
     event.currentTarget.setPointerCapture?.(event.pointerId)
-  }, [camera])
+  }, [camera, zoom])
 
   const onPointerUp = useCallback((event) => {
     if (event.pointerType === 'touch' && touchRef.current) {
