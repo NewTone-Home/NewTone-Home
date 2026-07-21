@@ -10,6 +10,11 @@
   transform: translateZ(var(--surface-z));
 }
 
+.center-map-surface,
+.center-map-layer-label {
+  pointer-events: none;
+}
+
 .center-viewport.has-edge-top::before,
 .center-viewport.has-edge-bottom::after {
   opacity: 1;
