@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import CenterRegion from './CenterRegion'
 
 function CenterViewport({ navigation }) {
@@ -23,6 +23,7 @@ function CenterViewport({ navigation }) {
     cancelFocus,
     openDetail,
     closeDetail,
+    recenterCamera,
     setSelectedContentId,
     goBack,
     onWheel,
@@ -36,6 +37,11 @@ function CenterViewport({ navigation }) {
   const innerNodes = isOverview ? children.filter(node => node.world === 'inner') : children
   const innerActive = layerSeparation >= 0.12
   const splitComplete = layerSeparation >= 0.92
+
+  useEffect(() => {
+    if (isOverview) recenterCamera()
+  }, [isOverview, recenterCamera])
+
   const worldStyle = {
     '--camera-x': `${camera.x}px`,
     '--camera-y': `${camera.y}px`,
@@ -111,7 +117,10 @@ function CenterViewport({ navigation }) {
             max="1"
             step="0.01"
             value={layerSeparation}
-            onChange={event => setLayerSeparation(Number(event.target.value))}
+            onChange={event => {
+              setLayerSeparation(Number(event.target.value))
+              recenterCamera()
+            }}
             aria-label="拉开表里世界层级"
           />
         </label>
