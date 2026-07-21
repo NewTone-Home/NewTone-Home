@@ -315,15 +315,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       touchRef.current.x = event.clientX
       touchRef.current.y = event.clientY
       touchRef.current.moved = true
-      return
     }
-
-    if (!dragRef.current || zoom <= MIN_ZOOM) return
-    const bounds = getPanBounds(event.currentTarget, zoom)
-    setCamera(clampCamera({
-      x: dragRef.current.cameraX + event.clientX - dragRef.current.x,
-      y: dragRef.current.cameraY + event.clientY - dragRef.current.y,
-    }, bounds))
   }, [currentNodeId, detailNodeId, focusedNodeId, hoveringNodeId, scheduleResume, zoom])
 
   const onPointerDown = useCallback((event) => {
@@ -336,18 +328,54 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     const bounds = getPanBounds(event.currentTarget, zoom)
     if (bounds.maxX === 0 && bounds.maxY === 0) return
 
-    dragRef.current = { x: event.clientX, y: event.clientY, cameraX: camera.x, cameraY: camera.y }
-    event.currentTarget.setPointerCapture?.(event.pointerId)
+    event.preventDefault()
+    dragRef.current = {
+      viewport: event.currentTarget,
+      x: event.clientX,
+      y: event.clientY,
+      cameraX: camera.x,
+      cameraY: camera.y,
+    }
   }, [camera, zoom])
 
   const onPointerUp = useCallback((event) => {
     if (event.pointerType === 'touch' && touchRef.current) {
       touchRef.current = null
-      return
     }
-    dragRef.current = null
-    event.currentTarget.releasePointerCapture?.(event.pointerId)
   }, [])
+
+  useEffect(() => {
+    const handleWindowPointerMove = event => {
+      const drag = dragRef.current
+      if (!drag) return
+
+      if ((event.buttons & 2) === 0) {
+        dragRef.current = null
+        return
+      }
+
+      event.preventDefault()
+      const bounds = getPanBounds(drag.viewport, zoom)
+      setCamera(clampCamera({
+        x: drag.cameraX + event.clientX - drag.x,
+        y: drag.cameraY + event.clientY - drag.y,
+      }, bounds))
+    }
+
+    const stopWindowDrag = () => {
+      dragRef.current = null
+    }
+
+    window.addEventListener('pointermove', handleWindowPointerMove, { passive: false })
+    window.addEventListener('pointerup', stopWindowDrag)
+    window.addEventListener('blur', stopWindowDrag)
+
+    return () => {
+      window.removeEventListener('pointermove', handleWindowPointerMove)
+      window.removeEventListener('pointerup', stopWindowDrag)
+      window.removeEventListener('blur', stopWindowDrag)
+    }
+  }, [zoom])
 
   useEffect(() => () => {
     cancelAnimationFrame(hoverFrameRef.current)
@@ -355,6 +383,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     window.clearTimeout(annotationTimerRef.current)
     window.clearTimeout(detailTimerRef.current)
     window.clearTimeout(zoomNoticeTimerRef.current)
+    dragRef.current = null
   }, [])
 
   return {
