@@ -4,7 +4,7 @@ import { CENTER_ROOT_ID, getCenterChildren, getCenterNode } from '../data/center
 const HOVER_FOCUS_MS = 760
 const MOVE_TOLERANCE_PX = 9
 const MOVE_COOLDOWN_MS = 220
-const HOVER_CLEAR_GRACE_MS = 180
+const HOVER_CLEAR_GRACE_MS = 220
 const WHEEL_THRESHOLD = 34
 const EDGE_RATIO = 0.13
 const MIN_ZOOM = 0.85
@@ -81,12 +81,12 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     stopHoverProgress()
     setCursor(previous => ({ ...previous, visible: false }))
     resumeTimerRef.current = window.setTimeout(() => {
-      if (hoverNodeRef.current === nodeId) {
+      if (hoverNodeRef.current === nodeId && focusedNodeId !== nodeId) {
         setCursor(previous => ({ ...previous, visible: true }))
         beginProgress(nodeId)
       }
     }, MOVE_COOLDOWN_MS)
-  }, [beginProgress, stopHoverProgress])
+  }, [beginProgress, focusedNodeId, stopHoverProgress])
 
   const beginHover = useCallback((nodeId, event) => {
     window.clearTimeout(clearTimerRef.current)
@@ -129,15 +129,23 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
 
   const openDetail = useCallback((nodeId) => {
     const node = getCenterNode(nodeId)
-    setFocusedNodeId(nodeId)
+    window.clearTimeout(clearTimerRef.current)
+    window.clearTimeout(resumeTimerRef.current)
+    stopHoverProgress()
+    setCursor(previous => ({ ...previous, visible: false }))
+    setFocusedNodeId(null)
     setDetailNodeId(nodeId)
     setEdgeIntent(null)
     setSelectedContentId(node.contentOptions?.find(option => !option.locked)?.id ?? null)
-  }, [])
+  }, [stopHoverProgress])
 
   const closeDetail = useCallback(() => {
     setDetailNodeId(null)
     setSelectedContentId(null)
+  }, [])
+
+  const recenterCamera = useCallback(() => {
+    setCamera({ x: 0, y: 0 })
   }, [])
 
   const resetViewForLayer = useCallback(() => {
@@ -255,8 +263,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       const moved = previous ? Math.hypot(event.clientX - previous.x, event.clientY - previous.y) : 0
       if (moved > MOVE_TOLERANCE_PX) {
         lastMotionRef.current = { x: event.clientX, y: event.clientY }
-        if (focusedNodeId === hoverNodeRef.current) clearFocusedAnnotation()
-        scheduleResume(hoverNodeRef.current)
+        if (focusedNodeId !== hoverNodeRef.current) scheduleResume(hoverNodeRef.current)
       }
     }
 
@@ -275,7 +282,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       x: dragRef.current.cameraX + event.clientX - dragRef.current.x,
       y: dragRef.current.cameraY + event.clientY - dragRef.current.y,
     })
-  }, [clearFocusedAnnotation, currentNodeId, detailNodeId, focusedNodeId, hoveringNodeId, scheduleResume])
+  }, [currentNodeId, detailNodeId, focusedNodeId, hoveringNodeId, scheduleResume])
 
   const onPointerDown = useCallback((event) => {
     if (event.pointerType === 'touch') {
@@ -323,6 +330,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     cancelFocus,
     openDetail,
     closeDetail,
+    recenterCamera,
     setSelectedContentId,
     enterNode,
     goBack,
