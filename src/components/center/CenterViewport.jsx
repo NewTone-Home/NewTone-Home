@@ -8,7 +8,9 @@ function CenterViewport({ navigation }) {
     currentNodeId,
     children,
     focusedNode,
+    annotationLeaving,
     detailNode,
+    detailClosing,
     selectedContentId,
     hoveringNodeId,
     hoverProgress,
@@ -23,7 +25,7 @@ function CenterViewport({ navigation }) {
     cancelFocus,
     openDetail,
     closeDetail,
-    recenterCamera,
+    resetViewForLayer,
     setSelectedContentId,
     goBack,
     onWheel,
@@ -39,8 +41,8 @@ function CenterViewport({ navigation }) {
   const splitComplete = layerSeparation >= 0.92
 
   useEffect(() => {
-    if (isOverview) recenterCamera()
-  }, [isOverview, recenterCamera])
+    resetViewForLayer()
+  }, [currentNodeId, resetViewForLayer])
 
   const worldStyle = {
     '--camera-x': `${camera.x}px`,
@@ -60,6 +62,7 @@ function CenterViewport({ navigation }) {
       key={node.id}
       node={node}
       focused={focusedNode?.id === node.id}
+      annotationLeaving={focusedNode?.id === node.id && annotationLeaving}
       onHoverStart={beginHover}
       onHoverEnd={endHover}
       onKeepFocus={keepFocus}
@@ -69,7 +72,7 @@ function CenterViewport({ navigation }) {
 
   return (
     <section
-      className={`center-viewport${detailNode ? ' has-detail' : ''}${edgeIntent ? ` has-edge-${edgeIntent}` : ''}${splitComplete ? ' is-split-complete' : ''}`}
+      className={`center-viewport${detailNode ? ' has-detail' : ''}${detailClosing ? ' is-detail-closing' : ''}${edgeIntent ? ` has-edge-${edgeIntent}` : ''}${splitComplete ? ' is-split-complete' : ''}`}
       aria-label={currentNode.title}
       onWheel={onWheel}
       onPointerDown={onPointerDown}
@@ -119,7 +122,7 @@ function CenterViewport({ navigation }) {
             value={layerSeparation}
             onChange={event => {
               setLayerSeparation(Number(event.target.value))
-              recenterCamera()
+              resetViewForLayer()
             }}
             aria-label="拉开表里世界层级"
           />
@@ -140,7 +143,7 @@ function CenterViewport({ navigation }) {
 
       {detailNode && (
         <aside
-          className="center-detail-panel"
+          className={`center-detail-panel${detailClosing ? ' is-closing' : ''}`}
           data-center-annotation
           onClick={event => event.stopPropagation()}
           onMouseEnter={keepFocus}
@@ -180,7 +183,7 @@ function CenterViewport({ navigation }) {
 
       <div className="center-gesture-hint" aria-hidden="true">
         <span>右键拖动查看周围</span>
-        <span>未聚焦滚轮缩放 · 批注出现后下滑进入</span>
+        <span>上滚放大 · 下滚缩小 · 批注出现后下滑进入</span>
       </div>
     </section>
   )
