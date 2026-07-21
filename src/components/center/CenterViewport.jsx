@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import CenterRegion from './CenterRegion'
 
 function CenterViewport({ navigation }) {
   const [layerSeparation, setLayerSeparation] = useState(0)
+  const viewportRef = useRef(null)
   const {
     currentNode,
     currentNodeId,
@@ -44,6 +45,17 @@ function CenterViewport({ navigation }) {
     resetViewForLayer()
   }, [currentNodeId, resetViewForLayer])
 
+  useEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport) return undefined
+
+    viewport.addEventListener('wheel', onWheel, { passive: false })
+
+    return () => {
+      viewport.removeEventListener('wheel', onWheel)
+    }
+  }, [onWheel])
+
   const stageStyle = {
     '--layer-separation': layerSeparation,
     '--surface-top': `${50 - layerSeparation * 20}%`,
@@ -77,9 +89,9 @@ function CenterViewport({ navigation }) {
 
   return (
     <section
+      ref={viewportRef}
       className={`center-viewport${detailNode ? ' has-detail' : ''}${detailClosing ? ' is-detail-closing' : ''}${edgeIntent ? ` has-edge-${edgeIntent}` : ''}${splitComplete ? ' is-split-complete' : ''}`}
       aria-label={currentNode.title}
-      onWheel={onWheel}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
