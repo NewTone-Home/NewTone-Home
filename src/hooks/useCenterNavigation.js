@@ -23,14 +23,11 @@ function getPanBounds(viewport, zoom) {
   const stage = viewport.querySelector('.center-world-stage')
   if (!stage) return { maxX: 0, maxY: 0 }
 
-  const viewportWidth = viewport.clientWidth
-  const viewportHeight = viewport.clientHeight
-  const scaledWidth = stage.offsetWidth * zoom
-  const scaledHeight = stage.offsetHeight * zoom
+  const overflowScale = zoom - MIN_ZOOM
 
   return {
-    maxX: Math.max(0, (scaledWidth - viewportWidth) / 2),
-    maxY: Math.max(0, (scaledHeight - viewportHeight) / 2),
+    maxX: stage.offsetWidth * overflowScale / 2,
+    maxY: stage.offsetHeight * overflowScale / 2,
   }
 }
 
@@ -354,7 +351,6 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
         return
       }
 
-      event.preventDefault()
       const bounds = getPanBounds(drag.viewport, zoom)
       setCamera(clampCamera({
         x: drag.cameraX + event.clientX - drag.x,
@@ -366,7 +362,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       dragRef.current = null
     }
 
-    window.addEventListener('pointermove', handleWindowPointerMove, { passive: false })
+    window.addEventListener('pointermove', handleWindowPointerMove)
     window.addEventListener('pointerup', stopWindowDrag)
     window.addEventListener('blur', stopWindowDrag)
 
