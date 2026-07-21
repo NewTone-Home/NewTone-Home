@@ -4,6 +4,7 @@ import { CENTER_ROOT_ID, getCenterChildren, getCenterNode } from '../data/center
 const HOVER_FOCUS_MS = 900
 const WHEEL_THRESHOLD = 34
 const TOUCH_SWIPE_THRESHOLD = 52
+const TOUCH_MOVE_THRESHOLD = 10
 
 export function useCenterNavigation() {
   const [currentNodeId, setCurrentNodeId] = useState(CENTER_ROOT_ID)
@@ -86,10 +87,21 @@ export function useCenterNavigation() {
 
   const onPointerDown = useCallback((event) => {
     if (event.pointerType === 'mouse' && event.button !== 2) return
+
     if (event.pointerType === 'touch') {
-      touchRef.current = { x: event.clientX, y: event.clientY, moved: false }
+      touchRef.current = {
+        originX: event.clientX,
+        originY: event.clientY,
+        lastX: event.clientX,
+        lastY: event.clientY,
+        cameraX: camera.x,
+        cameraY: camera.y,
+        moved: false,
+      }
+      event.currentTarget.setPointerCapture?.(event.pointerId)
       return
     }
+
     dragRef.current = {
       x: event.clientX,
       y: event.clientY,
@@ -101,14 +113,19 @@ export function useCenterNavigation() {
 
   const onPointerMove = useCallback((event) => {
     if (event.pointerType === 'touch' && touchRef.current) {
-      const dx = event.clientX - touchRef.current.x
-      const dy = event.clientY - touchRef.current.y
-      if (Math.abs(dx) + Math.abs(dy) > 8) touchRef.current.moved = true
-      setCamera(previous => ({ x: previous.x + dx * 0.35, y: previous.y + dy * 0.35 }))
-      touchRef.current.x = event.clientX
-      touchRef.current.y = event.clientY
+      const touch = touchRef.current
+      const totalDx = event.clientX - touch.originX
+      const totalDy = event.clientY - touch.originY
+      if (Math.abs(totalDx) + Math.abs(totalDy) > TOUCH_MOVE_THRESHOLD) touch.moved = true
+      touch.lastX = event.clientX
+      touch.lastY = event.clientY
+      setCamera({
+        x: touch.cameraX + totalDx,
+        y: touch.cameraY + totalDy,
+      })
       return
     }
+
     if (!dragRef.current) return
     setCamera({
       x: dragRef.current.cameraX + event.clientX - dragRef.current.x,
@@ -118,17 +135,17 @@ export function useCenterNavigation() {
 
   const onPointerUp = useCallback((event) => {
     if (event.pointerType === 'touch' && touchRef.current) {
-      const start = touchRef.current
-      const dy = event.clientY - start.y
-      if (!start.moved) {
-        touchRef.current = null
-        return
+      const touch = touchRef.current
+      const totalDy = event.clientY - touch.originY
+      if (touch.moved) {
+        if (totalDy <= -TOUCH_SWIPE_THRESHOLD) enterFocused()
+        if (totalDy >= TOUCH_SWIPE_THRESHOLD) goBack()
       }
-      if (dy <= -TOUCH_SWIPE_THRESHOLD) enterFocused()
-      if (dy >= TOUCH_SWIPE_THRESHOLD) goBack()
       touchRef.current = null
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
       return
     }
+
     dragRef.current = null
     event.currentTarget.releasePointerCapture?.(event.pointerId)
   }, [enterFocused, goBack])
