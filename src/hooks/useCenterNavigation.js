@@ -1,232 +1,253 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CENTER_ROOT_ID, getCenterChildren, getCenterNode } from '../data/center/centerWorld'
 
-const HOVER_FOCUS_MS = 900
+const STILL_DELAY_MS = 140
+const HOVER_FOCUS_MS = 760
+const MOVE_TOLERANCE_PX = 7
 const HOVER_CLEAR_GRACE_MS = 180
 const WHEEL_THRESHOLD = 34
-const TOUCH_SWIPE_THRESHOLD = 52
+const EDGE_RATIO = 0.13
 
-export function useCenterNavigation() {
+export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } = {}) {
   const [currentNodeId, setCurrentNodeId] = useState(CENTER_ROOT_ID)
   const [focusedNodeId, setFocusedNodeId] = useState(null)
-  const [focusPinned, setFocusPinned] = useState(false)
   const [hoveringNodeId, setHoveringNodeId] = useState(null)
   const [hoverProgress, setHoverProgress] = useState(0)
+  const [cursor, setCursor] = useState({ x: 0, y: 0, visible: false })
+  const [detailNodeId, setDetailNodeId] = useState(null)
+  const [selectedContentId, setSelectedContentId] = useState(null)
   const [camera, setCamera] = useState({ x: 0, y: 0 })
+
   const historyRef = useRef([])
   const hoverFrameRef = useRef(0)
-  const hoverStartedAtRef = useRef(0)
-  const hoverClearTimerRef = useRef(0)
+  const stillTimerRef = useRef(0)
+  const clearTimerRef = useRef(0)
+  const hoverNodeRef = useRef(null)
+  const lastMotionRef = useRef(null)
+  const wheelAccumulatorRef = useRef(0)
   const dragRef = useRef(null)
   const touchRef = useRef(null)
-  const wheelAccumulatorRef = useRef(0)
-  const lastPointerRef = useRef(null)
 
   const currentNode = getCenterNode(currentNodeId)
   const children = useMemo(() => getCenterChildren(currentNodeId), [currentNodeId])
   const focusedNode = focusedNodeId ? getCenterNode(focusedNodeId) : null
+  const detailNode = detailNodeId ? getCenterNode(detailNodeId) : null
 
-  const stopHoverProgress = useCallback(() => {
+  const stopHover = useCallback(() => {
     cancelAnimationFrame(hoverFrameRef.current)
+    window.clearTimeout(stillTimerRef.current)
     hoverFrameRef.current = 0
-    hoverStartedAtRef.current = 0
+    stillTimerRef.current = 0
     setHoveringNodeId(null)
     setHoverProgress(0)
   }, [])
 
-  const cancelPendingClear = useCallback(() => {
-    window.clearTimeout(hoverClearTimerRef.current)
-    hoverClearTimerRef.current = 0
-  }, [])
-
-  const clearTransientFocus = useCallback(() => {
-    cancelPendingClear()
-    stopHoverProgress()
-    if (!focusPinned) setFocusedNodeId(null)
-  }, [cancelPendingClear, focusPinned, stopHoverProgress])
-
-  const beginHover = useCallback((nodeId) => {
-    cancelPendingClear()
-    if (focusPinned && focusedNodeId === nodeId) return
-    if (hoveringNodeId === nodeId) return
-
-    stopHoverProgress()
+  const beginProgress = useCallback((nodeId) => {
+    stopHover()
     setHoveringNodeId(nodeId)
-    hoverStartedAtRef.current = performance.now()
-
+    const startedAt = performance.now()
     const animate = now => {
-      const progress = Math.min(1, (now - hoverStartedAtRef.current) / HOVER_FOCUS_MS)
+      const progress = Math.min(1, (now - startedAt) / HOVER_FOCUS_MS)
       setHoverProgress(progress)
       if (progress >= 1) {
         setFocusedNodeId(nodeId)
-        setFocusPinned(false)
         setHoveringNodeId(null)
         hoverFrameRef.current = 0
         return
       }
       hoverFrameRef.current = requestAnimationFrame(animate)
     }
-
     hoverFrameRef.current = requestAnimationFrame(animate)
-  }, [cancelPendingClear, focusPinned, focusedNodeId, hoveringNodeId, stopHoverProgress])
+  }, [stopHover])
+
+  const scheduleStationaryHover = useCallback((nodeId) => {
+    stopHover()
+    stillTimerRef.current = window.setTimeout(() => beginProgress(nodeId), STILL_DELAY_MS)
+  }, [beginProgress, stopHover])
+
+  const beginHover = useCallback((nodeId, event) => {
+    window.clearTimeout(clearTimerRef.current)
+    hoverNodeRef.current = nodeId
+    lastMotionRef.current = { x: event.clientX, y: event.clientY }
+    setCursor({ x: event.clientX, y: event.clientY, visible: true })
+    if (focusedNodeId !== nodeId) scheduleStationaryHover(nodeId)
+  }, [focusedNodeId, scheduleStationaryHover])
 
   const endHover = useCallback(() => {
-    stopHoverProgress()
-    if (focusPinned) return
-    cancelPendingClear()
-    hoverClearTimerRef.current = window.setTimeout(() => {
-      setFocusedNodeId(null)
-      hoverClearTimerRef.current = 0
+    hoverNodeRef.current = null
+    lastMotionRef.current = null
+    stopHover()
+    setCursor(previous => ({ ...previous, visible: false }))
+    window.clearTimeout(clearTimerRef.current)
+    clearTimerRef.current = window.setTimeout(() => {
+      if (!detailNodeId) setFocusedNodeId(null)
     }, HOVER_CLEAR_GRACE_MS)
-  }, [cancelPendingClear, focusPinned, stopHoverProgress])
+  }, [detailNodeId, stopHover])
 
-  const keepTransientFocus = useCallback(() => {
-    cancelPendingClear()
-  }, [cancelPendingClear])
+  const keepFocus = useCallback(() => {
+    window.clearTimeout(clearTimerRef.current)
+  }, [])
 
   const cancelFocus = useCallback(() => {
-    cancelPendingClear()
-    stopHoverProgress()
+    window.clearTimeout(clearTimerRef.current)
+    stopHover()
     setFocusedNodeId(null)
-    setFocusPinned(false)
-  }, [cancelPendingClear, stopHoverProgress])
+    setDetailNodeId(null)
+    setSelectedContentId(null)
+  }, [stopHover])
 
-  const focusNode = useCallback((nodeId, pinned = true) => {
-    cancelPendingClear()
-    stopHoverProgress()
+  const openDetail = useCallback((nodeId) => {
+    const node = getCenterNode(nodeId)
     setFocusedNodeId(nodeId)
-    setFocusPinned(pinned)
-  }, [cancelPendingClear, stopHoverProgress])
+    setDetailNodeId(nodeId)
+    setSelectedContentId(node.contentOptions?.find(option => !option.locked)?.id ?? null)
+  }, [])
 
-  const detectNodeUnderPointer = useCallback(() => {
-    const point = lastPointerRef.current
-    if (!point || point.pointerType !== 'mouse') return
-    const target = document.elementFromPoint(point.x, point.y)
-    const region = target?.closest?.('[data-center-node-id]')
-    if (region?.dataset.centerNodeId) beginHover(region.dataset.centerNodeId)
-  }, [beginHover])
+  const closeDetail = useCallback(() => {
+    setDetailNodeId(null)
+    setSelectedContentId(null)
+  }, [])
 
-  const enterFocused = useCallback(() => {
-    if (!focusedNode || focusedNode.type === 'locked' || focusedNode.nodes.length === 0) return false
-    historyRef.current = [...historyRef.current, currentNodeId]
-    setCurrentNodeId(focusedNode.id)
-    setFocusedNodeId(null)
-    setFocusPinned(false)
-    stopHoverProgress()
-    setCamera({ x: 0, y: 0 })
-    wheelAccumulatorRef.current = 0
-    requestAnimationFrame(() => requestAnimationFrame(detectNodeUnderPointer))
-    return true
-  }, [currentNodeId, detectNodeUnderPointer, focusedNode, stopHoverProgress])
+  const enterNode = useCallback((node) => {
+    if (!node) return false
+    if (node.nodes.length > 0) {
+      historyRef.current = [...historyRef.current, currentNodeId]
+      setCurrentNodeId(node.id)
+      setFocusedNodeId(null)
+      setDetailNodeId(null)
+      setCamera({ x: 0, y: 0 })
+      wheelAccumulatorRef.current = 0
+      return true
+    }
+    if (node.contentOptions?.length) {
+      openDetail(node.id)
+      return true
+    }
+    return false
+  }, [currentNodeId, openDetail])
 
   const goBack = useCallback(() => {
-    const history = historyRef.current
-    if (history.length === 0) return false
-    const previous = history[history.length - 1]
-    historyRef.current = history.slice(0, -1)
+    if (detailNodeId) {
+      closeDetail()
+      return true
+    }
+    if (historyRef.current.length === 0) return false
+    const previous = historyRef.current.at(-1)
+    historyRef.current = historyRef.current.slice(0, -1)
     setCurrentNodeId(previous)
     setFocusedNodeId(null)
-    setFocusPinned(false)
-    stopHoverProgress()
     setCamera({ x: 0, y: 0 })
     wheelAccumulatorRef.current = 0
-    requestAnimationFrame(() => requestAnimationFrame(detectNodeUnderPointer))
     return true
-  }, [detectNodeUnderPointer, stopHoverProgress])
+  }, [closeDetail, detailNodeId])
 
   const onWheel = useCallback((event) => {
     event.preventDefault()
     wheelAccumulatorRef.current += event.deltaY
+    if (Math.abs(wheelAccumulatorRef.current) < WHEEL_THRESHOLD) return
 
-    if (wheelAccumulatorRef.current <= -WHEEL_THRESHOLD) {
-      goBack()
-      wheelAccumulatorRef.current = 0
-      return
-    }
-
-    if (wheelAccumulatorRef.current < WHEEL_THRESHOLD) return
-
-    const region = event.target.closest?.('[data-center-node-id]')
-    const note = event.target.closest?.('[data-center-focus-note]')
-    const targetsFocusedNode = region?.dataset.centerNodeId === focusedNodeId || Boolean(note)
-    if (targetsFocusedNode) enterFocused()
+    const direction = Math.sign(wheelAccumulatorRef.current)
     wheelAccumulatorRef.current = 0
-  }, [enterFocused, focusedNodeId, goBack])
 
-  const onPointerDown = useCallback((event) => {
-    lastPointerRef.current = { x: event.clientX, y: event.clientY, pointerType: event.pointerType }
-    if (event.pointerType === 'mouse' && event.button !== 2) return
-    if (event.pointerType === 'touch') {
-      touchRef.current = { startX: event.clientX, startY: event.clientY, x: event.clientX, y: event.clientY, moved: false }
+    if (detailNode) {
+      if (direction < 0) closeDetail()
+      else if (selectedContentId) onOpenContent?.(detailNode, selectedContentId)
       return
     }
-    dragRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-      cameraX: camera.x,
-      cameraY: camera.y,
+
+    if (direction < 0) {
+      if (goBack()) return
+      if (!focusedNode && event.clientY <= window.innerHeight * EDGE_RATIO) onExitTop?.()
+      return
     }
-    event.currentTarget.setPointerCapture?.(event.pointerId)
-  }, [camera])
+
+    const interactiveTarget = event.target.closest?.('[data-center-node-id], [data-center-annotation]')
+    if (focusedNode && interactiveTarget) {
+      enterNode(focusedNode)
+      return
+    }
+    if (!focusedNode && currentNodeId === CENTER_ROOT_ID && event.clientY >= window.innerHeight * (1 - EDGE_RATIO)) {
+      onExitBottom?.()
+    }
+  }, [closeDetail, currentNodeId, detailNode, enterNode, focusedNode, goBack, onExitBottom, onExitTop, onOpenContent, selectedContentId])
 
   const onPointerMove = useCallback((event) => {
-    lastPointerRef.current = { x: event.clientX, y: event.clientY, pointerType: event.pointerType }
+    setCursor({ x: event.clientX, y: event.clientY, visible: Boolean(hoverNodeRef.current) })
+
+    if (hoverNodeRef.current && event.pointerType === 'mouse') {
+      const previous = lastMotionRef.current
+      const moved = previous ? Math.hypot(event.clientX - previous.x, event.clientY - previous.y) : 0
+      if (moved > MOVE_TOLERANCE_PX) {
+        lastMotionRef.current = { x: event.clientX, y: event.clientY }
+        scheduleStationaryHover(hoverNodeRef.current)
+      }
+    }
+
     if (event.pointerType === 'touch' && touchRef.current) {
       const dx = event.clientX - touchRef.current.x
       const dy = event.clientY - touchRef.current.y
-      if (Math.abs(event.clientX - touchRef.current.startX) + Math.abs(event.clientY - touchRef.current.startY) > 8) {
-        touchRef.current.moved = true
-      }
       setCamera(previous => ({ x: previous.x + dx, y: previous.y + dy }))
       touchRef.current.x = event.clientX
       touchRef.current.y = event.clientY
+      touchRef.current.moved = true
       return
     }
+
     if (!dragRef.current) return
     setCamera({
       x: dragRef.current.cameraX + event.clientX - dragRef.current.x,
       y: dragRef.current.cameraY + event.clientY - dragRef.current.y,
     })
-  }, [])
+  }, [scheduleStationaryHover])
+
+  const onPointerDown = useCallback((event) => {
+    if (event.pointerType === 'touch') {
+      touchRef.current = { x: event.clientX, y: event.clientY, moved: false }
+      return
+    }
+    if (event.button !== 2) return
+    dragRef.current = { x: event.clientX, y: event.clientY, cameraX: camera.x, cameraY: camera.y }
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+  }, [camera])
 
   const onPointerUp = useCallback((event) => {
     if (event.pointerType === 'touch' && touchRef.current) {
-      const gesture = touchRef.current
-      const totalDy = event.clientY - gesture.startY
-      if (gesture.moved) {
-        if (totalDy <= -TOUCH_SWIPE_THRESHOLD) enterFocused()
-        if (totalDy >= TOUCH_SWIPE_THRESHOLD) goBack()
-      }
       touchRef.current = null
       return
     }
     dragRef.current = null
     event.currentTarget.releasePointerCapture?.(event.pointerId)
-  }, [enterFocused, goBack])
+  }, [])
 
   useEffect(() => () => {
     cancelAnimationFrame(hoverFrameRef.current)
-    window.clearTimeout(hoverClearTimerRef.current)
+    window.clearTimeout(stillTimerRef.current)
+    window.clearTimeout(clearTimerRef.current)
   }, [])
 
   return {
     currentNode,
+    currentNodeId,
     children,
     focusedNode,
-    focusPinned,
+    detailNode,
+    selectedContentId,
     hoveringNodeId,
     hoverProgress,
+    cursor,
     camera,
     beginHover,
     endHover,
-    keepTransientFocus,
-    focusNode,
+    keepFocus,
     cancelFocus,
-    enterFocused,
+    openDetail,
+    closeDetail,
+    setSelectedContentId,
+    enterNode,
     goBack,
     onWheel,
-    onPointerDown,
     onPointerMove,
+    onPointerDown,
     onPointerUp,
   }
 }
