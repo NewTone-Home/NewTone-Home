@@ -34,22 +34,19 @@ function CenterViewport({ navigation }) {
   const isOverview = currentNodeId === 'known-country'
   const surfaceNodes = isOverview ? children.filter(node => node.world === 'surface') : []
   const innerNodes = isOverview ? children.filter(node => node.world === 'inner') : children
+  const innerActive = layerSeparation >= 0.12
+  const splitComplete = layerSeparation >= 0.92
   const worldStyle = {
     '--camera-x': `${camera.x}px`,
     '--camera-y': `${camera.y}px`,
     '--map-zoom': zoom,
-    '--world-angle': `${54 - layerSeparation * 17}deg`,
-    '--surface-x': `${layerSeparation * -17}%`,
-    '--surface-y': `${layerSeparation * -17}%`,
-    '--surface-z': `${36 + layerSeparation * 115}px`,
-    '--surface-scale': 1 - layerSeparation * 0.08,
-    '--inner-x': `${layerSeparation * 15}%`,
-    '--inner-y': `${layerSeparation * 15}%`,
-    '--inner-z': `${-34 - layerSeparation * 78}px`,
-    '--inner-scale': 0.96 + layerSeparation * 0.06,
-    '--inner-saturation': 0.72 + layerSeparation * 0.28,
-    '--inner-contrast': 0.93 + layerSeparation * 0.08,
-    '--link-opacity': 0.18 + layerSeparation * 0.82,
+    '--layer-separation': layerSeparation,
+    '--surface-top': `${50 - layerSeparation * 24}%`,
+    '--inner-top': `${58 + layerSeparation * 20}%`,
+    '--surface-scale': 1 - layerSeparation * 0.23,
+    '--inner-scale': 0.82 + layerSeparation * 0.03,
+    '--inner-opacity': Math.max(0, (layerSeparation - 0.05) / 0.3),
+    '--link-opacity': Math.max(0, (layerSeparation - 0.2) / 0.5),
   }
 
   const renderNode = node => (
@@ -66,7 +63,7 @@ function CenterViewport({ navigation }) {
 
   return (
     <section
-      className={`center-viewport${detailNode ? ' has-detail' : ''}${edgeIntent ? ` has-edge-${edgeIntent}` : ''}`}
+      className={`center-viewport${detailNode ? ' has-detail' : ''}${edgeIntent ? ` has-edge-${edgeIntent}` : ''}${splitComplete ? ' is-split-complete' : ''}`}
       aria-label={currentNode.title}
       onWheel={onWheel}
       onPointerDown={onPointerDown}
@@ -78,25 +75,26 @@ function CenterViewport({ navigation }) {
     >
       <div className="center-world-stage" style={worldStyle}>
         {isOverview ? (
-          <div className="center-world-model" aria-label="表里世界重叠图谱">
-            <div className="center-map-layer center-map-layer--inner">
+          <div className="center-world-model center-world-model--section" aria-label="表里世界分层图谱">
+            <div
+              className={`center-map-layer center-map-layer--inner${innerActive ? ' is-interactive' : ''}`}
+              aria-hidden={!innerActive}
+            >
               <span className="center-map-layer-label">里世界</span>
               <div className="center-map-surface" aria-hidden="true" />
               <div className="center-layer-nodes">{innerNodes.map(renderNode)}</div>
             </div>
 
-            <div className="center-world-link" aria-hidden="true">
-              <span />
-            </div>
+            <div className="center-world-link" aria-hidden="true"><span /></div>
 
-            <div className="center-map-layer center-map-layer--surface">
+            <div className="center-map-layer center-map-layer--surface is-interactive">
               <span className="center-map-layer-label">表世界</span>
               <div className="center-map-surface" aria-hidden="true" />
               <div className="center-layer-nodes">{surfaceNodes.map(renderNode)}</div>
             </div>
           </div>
         ) : (
-          <div className="center-map-layer center-map-layer--current">
+          <div className="center-map-layer center-map-layer--current is-interactive">
             <span className="center-map-layer-label">{currentNode.world === 'surface' ? '表世界' : '里世界'}</span>
             <div className="center-map-surface" aria-hidden="true" />
             <div className="center-layer-nodes">{children.map(renderNode)}</div>
@@ -122,15 +120,9 @@ function CenterViewport({ navigation }) {
       {cursor.visible && hoveringNodeId && (
         <div
           className="center-cursor-progress"
-          style={{
-            left: `${cursor.x}px`,
-            top: `${cursor.y}px`,
-            '--hover-progress': hoverProgress,
-          }}
+          style={{ left: `${cursor.x}px`, top: `${cursor.y}px`, '--hover-progress': hoverProgress }}
           aria-hidden="true"
-        >
-          <span />
-        </div>
+        ><span /></div>
       )}
 
       <div className={`center-zoom-notice${zoomNoticeVisible ? ' is-visible' : ''}`} aria-live="polite">
@@ -148,7 +140,6 @@ function CenterViewport({ navigation }) {
           <p className="center-detail-world">{detailNode.world === 'surface' ? '表世界' : '里世界'}</p>
           <h2>{detailNode.title}</h2>
           <p className="center-detail-description">{detailNode.description}</p>
-
           <div className="center-detail-options" role="list">
             {detailNode.contentOptions?.map(option => (
               <button
@@ -168,19 +159,13 @@ function CenterViewport({ navigation }) {
         </aside>
       )}
 
-      <div className="center-edge center-edge--top" aria-hidden="true">
-        <span>向上滑动 · 返回入口</span>
-      </div>
-      <div className="center-edge center-edge--bottom" aria-hidden="true">
-        <span>向下滑动 · 继续阅读</span>
-      </div>
+      <div className="center-edge center-edge--top" aria-hidden="true"><span>向上滑动 · 返回入口</span></div>
+      <div className="center-edge center-edge--bottom" aria-hidden="true"><span>向下滑动 · 继续阅读</span></div>
 
       <div className="center-layer-caption" aria-live="polite">
         <span>{currentNode.title}</span>
         {!isOverview && (
-          <button type="button" onClick={(event) => { event.stopPropagation(); goBack() }}>
-            返回上一层
-          </button>
+          <button type="button" onClick={(event) => { event.stopPropagation(); goBack() }}>返回上一层</button>
         )}
       </div>
 
