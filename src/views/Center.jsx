@@ -4,6 +4,7 @@ import CenterViewport from '../components/center/CenterViewport'
 import { useCenterNavigation } from '../hooks/useCenterNavigation'
 import { copy } from '../i18n/copy'
 import './Center.css'
+import './CenterEdge.css'
 
 function Center() {
   const language = useProgressStore(s => s.language)
