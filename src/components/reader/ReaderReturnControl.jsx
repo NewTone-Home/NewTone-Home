@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { isReaderReturnActivationKey } from './readerReturnKeyboard'
 
 function ReaderReturnControl({ onComplete }) {
   const [progress, setProgress] = useState(0)
@@ -45,6 +46,17 @@ function ReaderReturnControl({ onComplete }) {
     targetRef.current = 0
   }
 
+  const activateFromKeyboard = event => {
+    if (!isReaderReturnActivationKey(event.key) || completedRef.current) return
+    event.preventDefault()
+    completedRef.current = true
+    targetRef.current = 1
+    progressRef.current = 1
+    setProgress(1)
+    setCompleting(true)
+    window.setTimeout(onComplete, 680)
+  }
+
   return (
     <button
       type="button"
@@ -55,8 +67,9 @@ function ReaderReturnControl({ onComplete }) {
       onPointerDown={begin}
       onPointerUp={cancel}
       onPointerCancel={cancel}
+      onKeyDown={activateFromKeyboard}
       onContextMenu={event => event.preventDefault()}
-      aria-label="长按或悬停返回中枢"
+      aria-label="长按、悬停或按 Enter / Space 返回中枢"
     >
       <span>返回中枢</span>
       <span className="reader-return-track" aria-hidden="true"><span /></span>
