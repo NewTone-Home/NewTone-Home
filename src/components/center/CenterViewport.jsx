@@ -46,12 +46,11 @@ function CenterViewport({ navigation }) {
 
   const stageStyle = {
     '--layer-separation': layerSeparation,
-    '--surface-top': `${50 - layerSeparation * 24}%`,
-    '--inner-top': `${58 + layerSeparation * 20}%`,
-    '--surface-scale': 1 - layerSeparation * 0.23,
-    '--inner-scale': 0.82 + layerSeparation * 0.03,
+    '--surface-top': `${50 - layerSeparation * 20}%`,
+    '--inner-top': `${50 + layerSeparation * 20}%`,
+    '--surface-scale': 0.88 - layerSeparation * 0.14,
+    '--inner-scale': 0.74,
     '--inner-opacity': Math.max(0, (layerSeparation - 0.05) / 0.3),
-    '--link-opacity': Math.max(0, (layerSeparation - 0.2) / 0.5),
   }
 
   const cameraStyle = {
@@ -98,8 +97,6 @@ function CenterViewport({ navigation }) {
                 <div className="center-layer-nodes">{innerNodes.map(renderNode)}</div>
               </div>
 
-              <div className="center-world-link" aria-hidden="true"><span /></div>
-
               <div className="center-map-layer center-map-layer--surface is-interactive">
                 <span className="center-map-layer-label">表世界</span>
                 <div className="center-map-surface" aria-hidden="true" />
@@ -125,10 +122,7 @@ function CenterViewport({ navigation }) {
             max="1"
             step="0.01"
             value={layerSeparation}
-            onChange={event => {
-              setLayerSeparation(Number(event.target.value))
-              resetViewForLayer()
-            }}
+            onChange={event => setLayerSeparation(Number(event.target.value))}
             aria-label="拉开表里世界层级"
           />
         </label>
