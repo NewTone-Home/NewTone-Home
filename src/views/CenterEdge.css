@@ -1,11 +1,11 @@
 .center-world-stage {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 52%;
   right: auto;
   bottom: auto;
-  width: min(84vw, 1500px);
-  height: min(76vh, 820px);
+  width: min(82vw, 1420px);
+  height: min(74vh, 780px);
   inset: auto;
   transform: translate(-50%, -50%);
   transform-origin: center center;
@@ -30,8 +30,8 @@
 .center-world-model--section .center-map-layer {
   position: absolute;
   left: 50%;
-  width: min(72vw, 1180px);
-  height: min(38vh, 390px);
+  width: min(66vw, 1080px);
+  height: min(34vh, 350px);
   inset: auto;
   transform-origin: center center;
   transform-style: flat;
@@ -92,27 +92,6 @@
     rgba(177, 174, 157, 0.96);
 }
 
-.center-world-model--section .center-world-link {
-  position: absolute;
-  z-index: 2;
-  left: 50%;
-  top: 50%;
-  width: 2px;
-  height: calc(var(--layer-separation) * 20vh);
-  opacity: var(--link-opacity);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.center-world-model--section .center-world-link span {
-  position: absolute;
-  inset: 0;
-  border: 0;
-  border-left: 2px dashed rgba(143, 94, 66, 0.58);
-  border-radius: 0;
-  transform: none;
-}
-
 .center-map-layer--current {
   pointer-events: none;
 }
@@ -126,8 +105,7 @@
 }
 
 .center-map-surface,
-.center-map-layer-label,
-.center-world-link {
+.center-map-layer-label {
   pointer-events: none;
 }
 
@@ -279,13 +257,13 @@
 
 @media (max-height: 760px) {
   .center-world-stage {
-    width: min(88vw, 1200px);
-    height: min(78vh, 680px);
+    width: min(86vw, 1160px);
+    height: min(76vh, 650px);
   }
 
   .center-world-model--section .center-map-layer {
-    width: min(66vw, 980px);
-    height: min(34vh, 310px);
+    width: min(62vw, 920px);
+    height: min(31vh, 290px);
   }
 }
 
