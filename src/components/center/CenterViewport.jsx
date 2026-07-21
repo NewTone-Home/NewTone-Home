@@ -13,6 +13,7 @@ function CenterViewport({ navigation }) {
     hoveringNodeId,
     hoverProgress,
     cursor,
+    edgeIntent,
     camera,
     beginHover,
     endHover,
@@ -53,7 +54,7 @@ function CenterViewport({ navigation }) {
 
   return (
     <section
-      className={`center-viewport${detailNode ? ' has-detail' : ''}`}
+      className={`center-viewport${detailNode ? ' has-detail' : ''}${edgeIntent ? ` has-edge-${edgeIntent}` : ''}`}
       aria-label={currentNode.title}
       onWheel={onWheel}
       onPointerDown={onPointerDown}
