@@ -17,9 +17,9 @@ const SURFACE_OVERVIEW_HIT_AREAS = {
 
 const SURFACE_OVERVIEW_OUTLINES = {
   'surface-council': [
-    { x: 6.32, y: 30.352 },
-    { x: 52.09, y: 13.685 },
-    { x: 90.367, y: 66.667 },
+    { x: 6.63, y: 30.065 },
+    { x: 53.141, y: 11.386 },
+    { x: 89.776, y: 68.292 },
     { x: 38.532, y: 90.596 },
   ],
   'surface-estate': [
@@ -41,6 +41,22 @@ const DEFAULT_GLOW_SETTINGS = {
   saturation: 92,
   lightness: 72,
   fadeMs: 520,
+}
+
+const SURFACE_GLOW_SETTINGS = {
+  'surface-council': {
+    coreWidth: 1.1,
+    middleWidth: 4.5,
+    outerWidth: 11,
+    middleBlur: 6.6,
+    outerBlur: 1.5,
+    intensity: 3,
+    hue: 38,
+    saturation: 100,
+    lightness: 40,
+    fadeMs: 700,
+  },
+  'surface-estate': DEFAULT_GLOW_SETTINGS,
 }
 
 function rectangleToPoints() {
@@ -115,7 +131,7 @@ function SurfaceGlowPolygons({ nodeId, pointString, settings, preview = false })
 
 function SurfaceLandmarkOutline({ nodeId, points, visible }) {
   const pointString = pointsToString(points)
-  const settings = DEFAULT_GLOW_SETTINGS
+  const settings = SURFACE_GLOW_SETTINGS[nodeId] ?? DEFAULT_GLOW_SETTINGS
 
   return (
     <svg
@@ -160,10 +176,16 @@ function CalibrationSlider({ label, value, min, max, step, onChange, suffix = ''
   )
 }
 
-function SurfaceCalibrationOverlay({ nodeId, initialPoints }) {
+function SurfaceCalibrationOverlay({ nodeId, initialPoints, initialSettings }) {
   const [points, setPoints] = useState(() => initialPoints ?? rectangleToPoints())
   const [draggingIndex, setDraggingIndex] = useState(null)
-  const [settings, setSettings] = useState(DEFAULT_GLOW_SETTINGS)
+  const [settings, setSettings] = useState(() => initialSettings ?? DEFAULT_GLOW_SETTINGS)
+  const [collapsed, setCollapsed] = useState(nodeId === 'surface-council')
+  const [panelDrag, setPanelDrag] = useState(null)
+  const [panelPosition, setPanelPosition] = useState(() => ({
+    x: Math.max(12, (typeof window !== 'undefined' ? window.innerWidth : 1440) - 366),
+    y: nodeId === 'surface-estate' ? 24 : 82,
+  }))
 
   const pointString = useMemo(() => pointsToString(points), [points])
 
@@ -202,6 +224,22 @@ function SurfaceCalibrationOverlay({ nodeId, initialPoints }) {
     if (draggingIndex === null) return
     event.currentTarget.releasePointerCapture?.(event.pointerId)
     setDraggingIndex(null)
+  }
+
+  const movePanel = event => {
+    if (!panelDrag) return
+    const width = collapsed ? 240 : 342
+    const height = collapsed ? 48 : Math.min(window.innerHeight - 24, 660)
+    setPanelPosition({
+      x: clamp(event.clientX - panelDrag.offsetX, 8, window.innerWidth - width - 8),
+      y: clamp(event.clientY - panelDrag.offsetY, 8, window.innerHeight - height - 8),
+    })
+  }
+
+  const stopPanelDrag = event => {
+    if (!panelDrag) return
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    setPanelDrag(null)
   }
 
   return (
@@ -265,62 +303,103 @@ function SurfaceCalibrationOverlay({ nodeId, initialPoints }) {
       <div
         style={{
           position: 'fixed',
-          right: nodeId === 'surface-estate' ? 24 : 390,
-          top: 24,
-          width: 342,
-          maxHeight: 'calc(100vh - 48px)',
-          overflowY: 'auto',
-          padding: '12px 14px',
+          left: panelPosition.x,
+          top: panelPosition.y,
+          width: collapsed ? 240 : 342,
+          maxHeight: collapsed ? 48 : 'calc(100vh - 24px)',
+          overflow: 'hidden',
           borderRadius: 8,
           background: 'rgba(27, 24, 22, 0.94)',
           color: '#f5eee4',
           font: '12px/1.45 monospace',
           pointerEvents: 'auto',
           boxShadow: '0 10px 32px rgba(0,0,0,0.38)',
+          zIndex: nodeId === 'surface-estate' ? 32 : 31,
         }}
       >
-        <strong style={{ display: 'block', marginBottom: 8 }}>{nodeId}</strong>
-        <div style={{ display: 'grid', gap: 7 }}>
-          <CalibrationSlider label="核心亮线" value={settings.coreWidth} min={0.4} max={5} step={0.1} onChange={value => setSetting('coreWidth', value)} />
-          <CalibrationSlider label="中层光宽" value={settings.middleWidth} min={1} max={18} step={0.5} onChange={value => setSetting('middleWidth', value)} />
-          <CalibrationSlider label="外层光宽" value={settings.outerWidth} min={3} max={32} step={0.5} onChange={value => setSetting('outerWidth', value)} />
-          <CalibrationSlider label="中层模糊" value={settings.middleBlur} min={0} max={10} step={0.2} onChange={value => setSetting('middleBlur', value)} />
-          <CalibrationSlider label="外层模糊" value={settings.outerBlur} min={0} max={18} step={0.5} onChange={value => setSetting('outerBlur', value)} />
-          <CalibrationSlider label="光强" value={settings.intensity} min={0.4} max={3} step={0.05} onChange={value => setSetting('intensity', value)} />
-          <CalibrationSlider label="色相" value={settings.hue} min={0} max={70} step={1} onChange={value => setSetting('hue', value)} suffix="°" />
-          <CalibrationSlider label="饱和度" value={settings.saturation} min={0} max={100} step={1} onChange={value => setSetting('saturation', value)} suffix="%" />
-          <CalibrationSlider label="亮度" value={settings.lightness} min={40} max={95} step={1} onChange={value => setSetting('lightness', value)} suffix="%" />
-          <CalibrationSlider label="余辉淡出" value={settings.fadeMs} min={100} max={1800} step={50} onChange={value => setSetting('fadeMs', value)} suffix="ms" />
+        <div
+          onPointerDown={event => {
+            if (event.target.closest('button')) return
+            const rect = event.currentTarget.parentElement.getBoundingClientRect()
+            event.currentTarget.setPointerCapture(event.pointerId)
+            setPanelDrag({
+              offsetX: event.clientX - rect.left,
+              offsetY: event.clientY - rect.top,
+            })
+          }}
+          onPointerMove={movePanel}
+          onPointerUp={stopPanelDrag}
+          onPointerCancel={stopPanelDrag}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            minHeight: 44,
+            padding: '0 10px 0 14px',
+            cursor: panelDrag ? 'grabbing' : 'grab',
+            userSelect: 'none',
+            borderBottom: collapsed ? 'none' : '1px solid rgba(255,255,255,0.14)',
+          }}
+        >
+          <strong>{nodeId}</strong>
+          <button
+            type="button"
+            onClick={event => {
+              event.stopPropagation()
+              setCollapsed(current => !current)
+            }}
+            style={{ cursor: 'pointer', minWidth: 54 }}
+          >
+            {collapsed ? '展开' : '收起'}
+          </button>
         </div>
 
-        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.16)' }}>
-          <div style={{ marginBottom: 4 }}>四点坐标</div>
-          <code style={{ display: 'block', wordBreak: 'break-all' }}>{coordinateText}</code>
-          <div style={{ margin: '8px 0 4px' }}>光效参数</div>
-          <code style={{ display: 'block', wordBreak: 'break-all' }}>{settingsText}</code>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button
-              type="button"
-              onClick={async event => {
-                event.stopPropagation()
-                await navigator.clipboard?.writeText(`${nodeId}: ${coordinateText}`)
-              }}
-              style={{ cursor: 'pointer' }}
-            >
-              复制坐标
-            </button>
-            <button
-              type="button"
-              onClick={async event => {
-                event.stopPropagation()
-                await navigator.clipboard?.writeText(`${nodeId} glow: ${settingsText}`)
-              }}
-              style={{ cursor: 'pointer' }}
-            >
-              复制光效
-            </button>
+        {!collapsed && (
+          <div style={{ maxHeight: 'calc(100vh - 78px)', overflowY: 'auto', padding: '12px 14px' }}>
+            <div style={{ display: 'grid', gap: 7 }}>
+              <CalibrationSlider label="核心亮线" value={settings.coreWidth} min={0.4} max={5} step={0.1} onChange={value => setSetting('coreWidth', value)} />
+              <CalibrationSlider label="中层光宽" value={settings.middleWidth} min={1} max={18} step={0.5} onChange={value => setSetting('middleWidth', value)} />
+              <CalibrationSlider label="外层光宽" value={settings.outerWidth} min={3} max={32} step={0.5} onChange={value => setSetting('outerWidth', value)} />
+              <CalibrationSlider label="中层模糊" value={settings.middleBlur} min={0} max={10} step={0.2} onChange={value => setSetting('middleBlur', value)} />
+              <CalibrationSlider label="外层模糊" value={settings.outerBlur} min={0} max={18} step={0.5} onChange={value => setSetting('outerBlur', value)} />
+              <CalibrationSlider label="光强" value={settings.intensity} min={0.4} max={3} step={0.05} onChange={value => setSetting('intensity', value)} />
+              <CalibrationSlider label="色相" value={settings.hue} min={0} max={70} step={1} onChange={value => setSetting('hue', value)} suffix="°" />
+              <CalibrationSlider label="饱和度" value={settings.saturation} min={0} max={100} step={1} onChange={value => setSetting('saturation', value)} suffix="%" />
+              <CalibrationSlider label="亮度" value={settings.lightness} min={40} max={95} step={1} onChange={value => setSetting('lightness', value)} suffix="%" />
+              <CalibrationSlider label="余辉淡出" value={settings.fadeMs} min={100} max={1800} step={50} onChange={value => setSetting('fadeMs', value)} suffix="ms" />
+            </div>
+
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.16)' }}>
+              <div style={{ marginBottom: 4 }}>四点坐标</div>
+              <code style={{ display: 'block', wordBreak: 'break-all' }}>{coordinateText}</code>
+              <div style={{ margin: '8px 0 4px' }}>光效参数</div>
+              <code style={{ display: 'block', wordBreak: 'break-all' }}>{settingsText}</code>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={async event => {
+                    event.stopPropagation()
+                    await navigator.clipboard?.writeText(`${nodeId}: ${coordinateText}`)
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  复制坐标
+                </button>
+                <button
+                  type="button"
+                  onClick={async event => {
+                    event.stopPropagation()
+                    await navigator.clipboard?.writeText(`${nodeId} glow: ${settingsText}`)
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  复制光效
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )
@@ -343,6 +422,7 @@ function CenterRegion({
   const isSurfaceOverviewNode = className.includes('center-region--surface-dot')
   const hitArea = isSurfaceOverviewNode ? SURFACE_OVERVIEW_HIT_AREAS[node.id] : null
   const outlinePoints = isSurfaceOverviewNode ? SURFACE_OVERVIEW_OUTLINES[node.id] : null
+  const glowSettings = isSurfaceOverviewNode ? SURFACE_GLOW_SETTINGS[node.id] : null
   const calibrationEnabled = isSurfaceOverviewNode
     && typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).get('centerCalibrate') === '1'
@@ -407,7 +487,11 @@ function CenterRegion({
       )}
 
       {calibrationEnabled && hitArea && (
-        <SurfaceCalibrationOverlay nodeId={node.id} initialPoints={outlinePoints} />
+        <SurfaceCalibrationOverlay
+          nodeId={node.id}
+          initialPoints={outlinePoints}
+          initialSettings={glowSettings}
+        />
       )}
 
       {focused && !calibrationEnabled && (
