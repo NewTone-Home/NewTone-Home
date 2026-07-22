@@ -30,7 +30,20 @@ const SURFACE_OVERVIEW_OUTLINES = {
   ],
 }
 
-function rectangleToPoints(area) {
+const DEFAULT_GLOW_SETTINGS = {
+  coreWidth: 1.4,
+  middleWidth: 5.5,
+  outerWidth: 12,
+  middleBlur: 2.4,
+  outerBlur: 6.5,
+  intensity: 1.35,
+  hue: 42,
+  saturation: 92,
+  lightness: 72,
+  fadeMs: 520,
+}
+
+function rectangleToPoints() {
   return [
     { x: 0, y: 0 },
     { x: 100, y: 0 },
@@ -47,9 +60,62 @@ function pointsToString(points) {
   return points.map(point => `${point.x.toFixed(3)},${point.y.toFixed(3)}`).join(' ')
 }
 
+function glowColor(settings, alpha = 1) {
+  return `hsla(${settings.hue}, ${settings.saturation}%, ${settings.lightness}%, ${alpha})`
+}
+
+function SurfaceGlowPolygons({ nodeId, pointString, settings, preview = false }) {
+  const outerFilterId = `${preview ? 'preview-' : ''}surface-glow-outer-${nodeId}`
+  const middleFilterId = `${preview ? 'preview-' : ''}surface-glow-middle-${nodeId}`
+  const intensity = settings.intensity
+
+  return (
+    <>
+      <defs>
+        <filter id={outerFilterId} x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation={settings.outerBlur} />
+        </filter>
+        <filter id={middleFilterId} x="-55%" y="-55%" width="210%" height="210%">
+          <feGaussianBlur stdDeviation={settings.middleBlur} />
+        </filter>
+      </defs>
+
+      <polygon
+        points={pointString}
+        fill="none"
+        stroke={glowColor(settings, Math.min(0.9, 0.32 * intensity))}
+        strokeWidth={settings.outerWidth}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+        filter={`url(#${outerFilterId})`}
+      />
+      <polygon
+        points={pointString}
+        fill="none"
+        stroke={glowColor(settings, Math.min(1, 0.72 * intensity))}
+        strokeWidth={settings.middleWidth}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+        filter={`url(#${middleFilterId})`}
+      />
+      <polygon
+        points={pointString}
+        fill="none"
+        stroke="rgba(255, 252, 236, 0.98)"
+        strokeWidth={settings.coreWidth}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </>
+  )
+}
+
 function SurfaceLandmarkOutline({ nodeId, points, visible }) {
-  const filterId = `surface-outline-${nodeId}`
   const pointString = pointsToString(points)
+  const settings = DEFAULT_GLOW_SETTINGS
 
   return (
     <svg
@@ -64,46 +130,40 @@ function SurfaceLandmarkOutline({ nodeId, points, visible }) {
         overflow: 'visible',
         pointerEvents: 'none',
         opacity: visible ? 1 : 0,
-        transition: 'opacity 420ms ease',
+        transition: `opacity ${settings.fadeMs}ms ease`,
         zIndex: 1,
       }}
     >
-      <defs>
-        <filter id={filterId} x="-30%" y="-30%" width="160%" height="160%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.018 0.035" numOctaves="2" seed={nodeId === 'surface-estate' ? 11 : 17} result="noise" />
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.75" result="rough" />
-          <feGaussianBlur in="rough" stdDeviation="0.7" result="glow" />
-          <feMerge>
-            <feMergeNode in="glow" />
-            <feMergeNode in="rough" />
-          </feMerge>
-        </filter>
-      </defs>
-
-      <polygon
-        points={pointString}
-        fill="rgba(247, 224, 188, 0.07)"
-        stroke="rgba(161, 102, 61, 0.38)"
-        strokeWidth="1.9"
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
-        filter={`url(#${filterId})`}
-      />
-      <polygon
-        points={pointString}
-        fill="none"
-        stroke="rgba(246, 230, 203, 0.88)"
-        strokeWidth="0.72"
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
+      <SurfaceGlowPolygons
+        nodeId={nodeId}
+        pointString={pointString}
+        settings={settings}
       />
     </svg>
+  )
+}
+
+function CalibrationSlider({ label, value, min, max, step, onChange, suffix = '' }) {
+  return (
+    <label style={{ display: 'grid', gridTemplateColumns: '96px 1fr 54px', gap: 8, alignItems: 'center' }}>
+      <span>{label}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={event => onChange(Number(event.target.value))}
+      />
+      <output style={{ textAlign: 'right' }}>{value}{suffix}</output>
+    </label>
   )
 }
 
 function SurfaceCalibrationOverlay({ nodeId, initialPoints }) {
   const [points, setPoints] = useState(() => initialPoints ?? rectangleToPoints())
   const [draggingIndex, setDraggingIndex] = useState(null)
+  const [settings, setSettings] = useState(DEFAULT_GLOW_SETTINGS)
 
   const pointString = useMemo(() => pointsToString(points), [points])
 
@@ -114,6 +174,17 @@ function SurfaceCalibrationOverlay({ nodeId, initialPoints }) {
     }))),
     [points],
   )
+
+  const settingsText = useMemo(
+    () => JSON.stringify(Object.fromEntries(
+      Object.entries(settings).map(([key, value]) => [key, Number(value.toFixed?.(2) ?? value)]),
+    )),
+    [settings],
+  )
+
+  const setSetting = (key, value) => {
+    setSettings(current => ({ ...current, [key]: value }))
+  }
 
   const movePoint = event => {
     if (draggingIndex === null) return
@@ -154,12 +225,11 @@ function SurfaceCalibrationOverlay({ nodeId, initialPoints }) {
         aria-hidden="true"
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }}
       >
-        <polygon
-          points={pointString}
-          fill="rgba(188, 115, 61, 0.12)"
-          stroke="rgba(146, 75, 35, 0.95)"
-          strokeWidth="0.25"
-          vectorEffect="non-scaling-stroke"
+        <SurfaceGlowPolygons
+          nodeId={nodeId}
+          pointString={pointString}
+          settings={settings}
+          preview
         />
       </svg>
 
@@ -194,33 +264,63 @@ function SurfaceCalibrationOverlay({ nodeId, initialPoints }) {
 
       <div
         style={{
-          position: 'absolute',
-          left: `${points[0].x}%`,
-          top: `${Math.max(1, points[0].y - 2)}%`,
-          transform: 'translateY(-100%)',
-          width: 310,
-          maxWidth: '45vw',
-          padding: '8px 10px',
-          borderRadius: 6,
-          background: 'rgba(31, 27, 24, 0.9)',
+          position: 'fixed',
+          right: nodeId === 'surface-estate' ? 24 : 390,
+          top: 24,
+          width: 342,
+          maxHeight: 'calc(100vh - 48px)',
+          overflowY: 'auto',
+          padding: '12px 14px',
+          borderRadius: 8,
+          background: 'rgba(27, 24, 22, 0.94)',
           color: '#f5eee4',
           font: '12px/1.45 monospace',
           pointerEvents: 'auto',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+          boxShadow: '0 10px 32px rgba(0,0,0,0.38)',
         }}
       >
-        <strong style={{ display: 'block', marginBottom: 4 }}>{nodeId}</strong>
-        <code style={{ wordBreak: 'break-all' }}>{coordinateText}</code>
-        <button
-          type="button"
-          onClick={async event => {
-            event.stopPropagation()
-            await navigator.clipboard?.writeText(`${nodeId}: ${coordinateText}`)
-          }}
-          style={{ marginTop: 6, cursor: 'pointer' }}
-        >
-          复制坐标
-        </button>
+        <strong style={{ display: 'block', marginBottom: 8 }}>{nodeId}</strong>
+        <div style={{ display: 'grid', gap: 7 }}>
+          <CalibrationSlider label="核心亮线" value={settings.coreWidth} min={0.4} max={5} step={0.1} onChange={value => setSetting('coreWidth', value)} />
+          <CalibrationSlider label="中层光宽" value={settings.middleWidth} min={1} max={18} step={0.5} onChange={value => setSetting('middleWidth', value)} />
+          <CalibrationSlider label="外层光宽" value={settings.outerWidth} min={3} max={32} step={0.5} onChange={value => setSetting('outerWidth', value)} />
+          <CalibrationSlider label="中层模糊" value={settings.middleBlur} min={0} max={10} step={0.2} onChange={value => setSetting('middleBlur', value)} />
+          <CalibrationSlider label="外层模糊" value={settings.outerBlur} min={0} max={18} step={0.5} onChange={value => setSetting('outerBlur', value)} />
+          <CalibrationSlider label="光强" value={settings.intensity} min={0.4} max={3} step={0.05} onChange={value => setSetting('intensity', value)} />
+          <CalibrationSlider label="色相" value={settings.hue} min={0} max={70} step={1} onChange={value => setSetting('hue', value)} suffix="°" />
+          <CalibrationSlider label="饱和度" value={settings.saturation} min={0} max={100} step={1} onChange={value => setSetting('saturation', value)} suffix="%" />
+          <CalibrationSlider label="亮度" value={settings.lightness} min={40} max={95} step={1} onChange={value => setSetting('lightness', value)} suffix="%" />
+          <CalibrationSlider label="余辉淡出" value={settings.fadeMs} min={100} max={1800} step={50} onChange={value => setSetting('fadeMs', value)} suffix="ms" />
+        </div>
+
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.16)' }}>
+          <div style={{ marginBottom: 4 }}>四点坐标</div>
+          <code style={{ display: 'block', wordBreak: 'break-all' }}>{coordinateText}</code>
+          <div style={{ margin: '8px 0 4px' }}>光效参数</div>
+          <code style={{ display: 'block', wordBreak: 'break-all' }}>{settingsText}</code>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button
+              type="button"
+              onClick={async event => {
+                event.stopPropagation()
+                await navigator.clipboard?.writeText(`${nodeId}: ${coordinateText}`)
+              }}
+              style={{ cursor: 'pointer' }}
+            >
+              复制坐标
+            </button>
+            <button
+              type="button"
+              onClick={async event => {
+                event.stopPropagation()
+                await navigator.clipboard?.writeText(`${nodeId} glow: ${settingsText}`)
+              }}
+              style={{ cursor: 'pointer' }}
+            >
+              复制光效
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
