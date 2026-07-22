@@ -2,7 +2,7 @@ function SurfaceRegionLayer() {
   return (
     <svg
       className="surface-region-layer"
-      viewBox="0 0 1000 1000"
+      viewBox="0 0 1000 500"
       preserveAspectRatio="none"
       aria-hidden="true"
       style={{
@@ -15,67 +15,30 @@ function SurfaceRegionLayer() {
       }}
     >
       <defs>
-        <linearGradient id="surface-estate-wash" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="rgba(116, 125, 96, 0.13)" />
-          <stop offset="1" stopColor="rgba(168, 151, 119, 0.035)" />
-        </linearGradient>
-        <radialGradient id="surface-council-wash" cx="50%" cy="48%" r="65%">
-          <stop offset="0" stopColor="rgba(155, 139, 112, 0.12)" />
-          <stop offset="1" stopColor="rgba(155, 139, 112, 0.025)" />
-        </radialGradient>
+        <filter id="surface-soften" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="12" />
+        </filter>
       </defs>
 
-      <g className="surface-region surface-region--estate">
+      <g className="surface-region surface-region--estate" filter="url(#surface-soften)">
         <path
-          d="M 66 110 C 108 72 185 66 244 88 C 302 109 352 151 356 208 C 360 264 322 315 258 337 C 198 357 126 341 86 299 C 50 261 38 205 48 162 C 52 141 58 123 66 110 Z"
-          fill="url(#surface-estate-wash)"
-          stroke="rgba(76, 78, 64, 0.46)"
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
+          d="M 64 72 C 115 34 206 30 272 56 C 324 77 347 113 334 149 C 319 190 263 214 194 211 C 126 208 72 184 53 148 C 36 116 42 88 64 72 Z"
+          fill="rgba(118, 128, 96, 0.11)"
         />
         <path
-          d="M 92 132 C 137 103 198 98 246 114 C 292 130 323 161 326 205 C 329 245 302 281 256 300 C 208 320 151 310 116 282"
-          fill="none"
-          stroke="rgba(82, 85, 69, 0.20)"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
-        <path
-          d="M 72 247 C 119 226 162 225 205 238 C 248 251 282 247 323 222"
-          fill="none"
-          stroke="rgba(96, 88, 70, 0.18)"
-          strokeWidth="1"
-          strokeDasharray="7 8"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
+          d="M 92 92 C 136 64 204 61 257 78 C 293 90 311 111 303 134 C 293 161 251 177 198 174 C 150 171 112 154 98 132 C 88 116 85 102 92 92 Z"
+          fill="rgba(176, 158, 124, 0.06)"
         />
       </g>
 
-      <g className="surface-region surface-region--council">
+      <g className="surface-region surface-region--council" filter="url(#surface-soften)">
         <path
-          d="M 405 394 C 452 343 526 326 597 347 C 665 367 717 418 728 480 C 740 548 706 613 644 650 C 583 686 504 688 445 651 C 389 616 357 558 365 498 C 371 452 383 418 405 394 Z"
-          fill="url(#surface-council-wash)"
-          stroke="rgba(82, 73, 61, 0.43)"
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
+          d="M 398 188 C 451 156 533 151 601 170 C 665 188 706 224 704 265 C 701 308 653 341 584 350 C 516 359 446 342 405 310 C 366 279 354 232 374 207 C 381 198 389 192 398 188 Z"
+          fill="rgba(155, 139, 112, 0.10)"
         />
         <path
-          d="M 440 415 C 480 380 536 366 590 379 C 641 391 682 426 696 472 C 710 518 691 566 651 597 C 609 630 548 642 496 624"
-          fill="none"
-          stroke="rgba(91, 80, 65, 0.19)"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
-        <path
-          d="M 394 532 C 445 506 493 500 542 511 C 591 523 643 515 700 482"
-          fill="none"
-          stroke="rgba(103, 89, 69, 0.17)"
-          strokeWidth="1"
-          strokeDasharray="7 8"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
+          d="M 431 207 C 474 183 534 179 585 192 C 628 203 654 226 650 252 C 646 279 613 301 566 307 C 516 314 466 302 437 280 C 410 260 401 230 415 216 C 420 212 425 209 431 207 Z"
+          fill="rgba(196, 178, 143, 0.055)"
         />
       </g>
     </svg>
