@@ -35,7 +35,18 @@ const DEFAULT_GLOW_SETTINGS = {
 }
 
 const SURFACE_GLOW_SETTINGS = {
-  'surface-council': { ...DEFAULT_GLOW_SETTINGS },
+  'surface-council': {
+    coreWidth: 1.4,
+    middleWidth: 6.5,
+    outerWidth: 14,
+    middleBlur: 1.6,
+    outerBlur: 5,
+    intensity: 2.2,
+    hue: 42,
+    saturation: 100,
+    lightness: 66,
+    fadeMs: 1000,
+  },
   'surface-estate': { ...DEFAULT_GLOW_SETTINGS },
 }
 
@@ -301,6 +312,10 @@ function SurfaceCalibrationOverlay({ nodeId, initialPoints, initialSettings }) {
     x: Math.max(12, (typeof window !== 'undefined' ? window.innerWidth : 1440) - 366),
     y: nodeId === 'surface-estate' ? 24 : 82,
   }))
+
+  useEffect(() => {
+    setSettings(initialSettings ?? DEFAULT_GLOW_SETTINGS)
+  }, [initialSettings])
 
   const movePoint = event => {
     if (draggingIndex === null) return
