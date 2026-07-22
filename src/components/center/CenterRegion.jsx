@@ -1,3 +1,18 @@
+const SURFACE_OVERVIEW_HIT_AREAS = {
+  'surface-estate': {
+    x: 13.4,
+    y: 15.6,
+    width: 17.5,
+    height: 17.2,
+  },
+  'surface-council': {
+    x: 57.5,
+    y: 42.5,
+    width: 16.0,
+    height: 17.6,
+  },
+}
+
 function CenterRegion({
   node,
   focused,
@@ -10,11 +25,13 @@ function CenterRegion({
 }) {
   const nodeState = node.state ?? 'sensed'
   const revealState = node.reveal ?? 'sensed'
+  const isSurfaceOverviewNode = className.includes('center-region--surface-dot')
+  const hitArea = isSurfaceOverviewNode ? SURFACE_OVERVIEW_HIT_AREAS[node.id] : null
   const style = {
-    '--node-x': `${node.x}%`,
-    '--node-y': `${node.y}%`,
-    '--node-width': `${node.width}%`,
-    '--node-height': `${node.height}%`,
+    '--node-x': `${hitArea?.x ?? node.x}%`,
+    '--node-y': `${hitArea?.y ?? node.y}%`,
+    '--node-width': `${hitArea?.width ?? node.width}%`,
+    '--node-height': `${hitArea?.height ?? node.height}%`,
   }
 
   return (
