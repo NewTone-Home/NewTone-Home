@@ -31,23 +31,12 @@ const DEFAULT_GLOW_SETTINGS = {
   hue: 42,
   saturation: 92,
   lightness: 72,
-  fadeMs: 520,
+  fadeMs: 1000,
 }
 
 const SURFACE_GLOW_SETTINGS = {
-  'surface-council': {
-    coreWidth: 1.1,
-    middleWidth: 4.5,
-    outerWidth: 11,
-    middleBlur: 6.6,
-    outerBlur: 1.5,
-    intensity: 3,
-    hue: 38,
-    saturation: 100,
-    lightness: 40,
-    fadeMs: 700,
-  },
-  'surface-estate': DEFAULT_GLOW_SETTINGS,
+  'surface-council': { ...DEFAULT_GLOW_SETTINGS },
+  'surface-estate': { ...DEFAULT_GLOW_SETTINGS },
 }
 
 function clamp(value, min, max) {
