@@ -15,30 +15,55 @@ function SurfaceRegionLayer() {
       }}
     >
       <defs>
-        <filter id="surface-soften" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="12" />
+        <pattern id="pencil-hatch" width="13" height="13" patternUnits="userSpaceOnUse" patternTransform="rotate(9)">
+          <path d="M 0 2 L 13 2" stroke="rgba(67, 60, 50, 0.07)" strokeWidth="0.7" />
+          <path d="M 1 8 L 10 8" stroke="rgba(67, 60, 50, 0.045)" strokeWidth="0.6" />
+        </pattern>
+        <filter id="pencil-wobble" x="-10%" y="-10%" width="120%" height="120%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.008 0.025" numOctaves="2" seed="17" result="noise" />
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.6" xChannelSelector="R" yChannelSelector="G" />
         </filter>
       </defs>
 
-      <g className="surface-region surface-region--estate" filter="url(#surface-soften)">
+      <g filter="url(#pencil-wobble)">
         <path
-          d="M 64 72 C 115 34 206 30 272 56 C 324 77 347 113 334 149 C 319 190 263 214 194 211 C 126 208 72 184 53 148 C 36 116 42 88 64 72 Z"
-          fill="rgba(118, 128, 96, 0.11)"
+          d="M 43 57 C 101 22 192 18 267 45 C 330 68 365 110 354 154 C 343 200 287 230 214 231 C 142 233 77 207 51 169 C 24 131 22 86 43 57 Z"
+          fill="rgba(123, 126, 103, 0.055)"
+          stroke="rgba(69, 64, 54, 0.23)"
+          strokeWidth="1.1"
+          vectorEffect="non-scaling-stroke"
         />
         <path
-          d="M 92 92 C 136 64 204 61 257 78 C 293 90 311 111 303 134 C 293 161 251 177 198 174 C 150 171 112 154 98 132 C 88 116 85 102 92 92 Z"
-          fill="rgba(176, 158, 124, 0.06)"
+          d="M 55 70 C 110 39 192 35 257 57 C 309 74 337 105 330 140 C 322 177 276 202 213 203 C 151 205 96 184 71 155"
+          fill="none"
+          stroke="rgba(69, 64, 54, 0.11)"
+          strokeWidth="0.8"
+          vectorEffect="non-scaling-stroke"
         />
-      </g>
+        <path
+          d="M 43 57 C 101 22 192 18 267 45 C 330 68 365 110 354 154 C 343 200 287 230 214 231 C 142 233 77 207 51 169 C 24 131 22 86 43 57 Z"
+          fill="url(#pencil-hatch)"
+          opacity="0.45"
+        />
 
-      <g className="surface-region surface-region--council" filter="url(#surface-soften)">
         <path
-          d="M 398 188 C 451 156 533 151 601 170 C 665 188 706 224 704 265 C 701 308 653 341 584 350 C 516 359 446 342 405 310 C 366 279 354 232 374 207 C 381 198 389 192 398 188 Z"
-          fill="rgba(155, 139, 112, 0.10)"
+          d="M 374 174 C 436 139 528 132 606 153 C 681 173 732 216 735 264 C 739 315 687 358 611 373 C 535 388 450 370 399 333 C 352 298 332 244 349 208 C 355 194 363 183 374 174 Z"
+          fill="rgba(146, 132, 108, 0.05)"
+          stroke="rgba(69, 64, 54, 0.22)"
+          strokeWidth="1.1"
+          vectorEffect="non-scaling-stroke"
         />
         <path
-          d="M 431 207 C 474 183 534 179 585 192 C 628 203 654 226 650 252 C 646 279 613 301 566 307 C 516 314 466 302 437 280 C 410 260 401 230 415 216 C 420 212 425 209 431 207 Z"
-          fill="rgba(196, 178, 143, 0.055)"
+          d="M 400 193 C 454 163 530 158 595 174 C 657 190 697 223 699 261 C 701 301 660 334 601 346 C 541 358 476 345 433 317"
+          fill="none"
+          stroke="rgba(69, 64, 54, 0.10)"
+          strokeWidth="0.8"
+          vectorEffect="non-scaling-stroke"
+        />
+        <path
+          d="M 374 174 C 436 139 528 132 606 153 C 681 173 732 216 735 264 C 739 315 687 358 611 373 C 535 388 450 370 399 333 C 352 298 332 244 349 208 C 355 194 363 183 374 174 Z"
+          fill="url(#pencil-hatch)"
+          opacity="0.42"
         />
       </g>
     </svg>
