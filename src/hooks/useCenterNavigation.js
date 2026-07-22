@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CENTER_ROOT_ID, getCenterChildren, getCenterNode } from '../data/center/centerWorld'
+import { CENTER_ROOT_ID, centerMiniLandmarks, getCenterChildren, getCenterNode } from '../data/center/centerWorld'
+import { sharedWorldGeometry } from '../data/center/sharedWorldGeometry'
 
 const HOVER_FOCUS_MS = 760
 const MOVE_TOLERANCE_PX = 9
@@ -17,17 +18,12 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
 }
 
-function getPanBounds(viewport, zoom) {
-  if (!viewport || zoom <= MIN_ZOOM) return { maxX: 0, maxY: 0 }
-
-  const stage = viewport.querySelector('.center-world-stage')
-  if (!stage) return { maxX: 0, maxY: 0 }
-
+function getPanBounds(vpW, vpH, zoom) {
+  if (zoom <= MIN_ZOOM) return { maxX: 0, maxY: 0 }
   const overflowScale = zoom - MIN_ZOOM
-
   return {
-    maxX: stage.offsetWidth * overflowScale / 2,
-    maxY: stage.offsetHeight * overflowScale / 2,
+    maxX: vpW * overflowScale / 2,
+    maxY: vpH * overflowScale / 2,
   }
 }
 
@@ -38,7 +34,48 @@ function clampCamera(camera, bounds) {
   }
 }
 
-export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } = {}) {
+export function capturePreviewCamera(camera, zoom) {
+  return { camera: { ...camera }, zoom }
+}
+
+export function restorePreviewCamera(snapshot) {
+  return snapshot
+    ? { camera: { ...snapshot.camera }, zoom: snapshot.zoom }
+    : { camera: { x: 0, y: 0 }, zoom: MIN_ZOOM }
+}
+
+export function calculatePreviewCamera({
+  anchor,
+  layerHeight,
+  layerScale,
+  layerTopRatio,
+  layerWidth,
+  stageHeight,
+  stageWidth,
+  targetViewportXRatio = 0.34,
+  targetZoom,
+  viewportWidth,
+}) {
+  const [, , viewBoxWidth, viewBoxHeight] = sharedWorldGeometry.viewBox.split(' ').map(Number)
+  const pointX = (anchor.x / viewBoxWidth - 0.5) * layerWidth * layerScale
+  const pointY = (layerTopRatio - 0.5) * stageHeight
+    + (anchor.y / viewBoxHeight - 0.5) * layerHeight * layerScale
+  const desiredX = (targetViewportXRatio - 0.5) * viewportWidth
+  const bounds = {
+    maxX: stageWidth * (targetZoom - MIN_ZOOM) / 2,
+    maxY: stageHeight * (targetZoom - MIN_ZOOM) / 2,
+  }
+
+  return {
+    camera: clampCamera({
+      x: desiredX - pointX * targetZoom,
+      y: -pointY * targetZoom,
+    }, bounds),
+    zoom: targetZoom,
+  }
+}
+
+export function useCenterNavigation({ viewportWidth = 0, viewportHeight = 0, onExitTop, onExitBottom, onOpenContent } = {}) {
   const [currentNodeId, setCurrentNodeId] = useState(CENTER_ROOT_ID)
   const [focusedNodeId, setFocusedNodeId] = useState(null)
   const [annotationLeaving, setAnnotationLeaving] = useState(false)
@@ -52,6 +89,8 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
   const [camera, setCamera] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [zoomNoticeVisible, setZoomNoticeVisible] = useState(false)
+  const [previewNodeId, setPreviewNodeId] = useState(null)
+  const [previewClosing, setPreviewClosing] = useState(false)
 
   const historyRef = useRef([])
   const hoverFrameRef = useRef(0)
@@ -64,11 +103,14 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
   const wheelAccumulatorRef = useRef(0)
   const dragRef = useRef(null)
   const touchRef = useRef(null)
+  const previewCameraSnapshotRef = useRef(null)
 
   const currentNode = getCenterNode(currentNodeId)
   const children = useMemo(() => getCenterChildren(currentNodeId), [currentNodeId])
   const focusedNode = focusedNodeId ? getCenterNode(focusedNodeId) : null
   const detailNode = detailNodeId ? getCenterNode(detailNodeId) : null
+
+  const viewportDimensions = useMemo(() => ({ w: viewportWidth, h: viewportHeight }), [viewportWidth, viewportHeight])
 
   const showZoomNotice = useCallback(() => {
     window.clearTimeout(zoomNoticeTimerRef.current)
@@ -151,16 +193,27 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     setAnnotationLeaving(false)
   }, [])
 
+  const restorePreviewView = useCallback(() => {
+    const restored = restorePreviewCamera(previewCameraSnapshotRef.current)
+    setCamera(restored.camera)
+    setZoom(restored.zoom)
+    setPreviewClosing(true)
+  }, [])
+
   const closeDetail = useCallback(() => {
     if (!detailNodeId || detailClosing) return
     setDetailClosing(true)
+    if (previewNodeId) restorePreviewView()
     window.clearTimeout(detailTimerRef.current)
     detailTimerRef.current = window.setTimeout(() => {
       setDetailNodeId(null)
       setDetailClosing(false)
       setSelectedContentId(null)
+      setPreviewNodeId(null)
+      setPreviewClosing(false)
+      previewCameraSnapshotRef.current = null
     }, DETAIL_FADE_MS)
-  }, [detailClosing, detailNodeId])
+  }, [detailClosing, detailNodeId, previewNodeId, restorePreviewView])
 
   const cancelFocus = useCallback(() => {
     window.clearTimeout(resumeTimerRef.current)
@@ -170,8 +223,9 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     if (detailNodeId) closeDetail()
   }, [closeDetail, detailNodeId, fadeFocusedAnnotation, focusedNodeId, stopHoverProgress])
 
-  const openDetail = useCallback((nodeId) => {
+  const openDetail = useCallback((nodeId, viewport) => {
     const node = getCenterNode(nodeId)
+    const previewConfig = centerMiniLandmarks[nodeId]
     window.clearTimeout(annotationTimerRef.current)
     window.clearTimeout(resumeTimerRef.current)
     stopHoverProgress()
@@ -179,13 +233,43 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     setAnnotationLeaving(true)
     setDetailClosing(false)
     setDetailNodeId(nodeId)
+    setPreviewClosing(false)
     setEdgeIntent(null)
     setSelectedContentId(node.contentOptions?.find(option => !option.locked)?.id ?? null)
+
+    if (previewConfig && viewport) {
+      const stage = viewport.querySelector('.center-world-stage')
+      const layer = viewport.querySelector(`.center-map-layer--${previewConfig.world}`)
+      const anchor = sharedWorldGeometry.anchors[previewConfig.anchorId]
+
+      if (stage && layer && anchor) {
+        if (!previewCameraSnapshotRef.current) {
+          previewCameraSnapshotRef.current = capturePreviewCamera(camera, zoom)
+        }
+        const layerTop = Number.parseFloat(getComputedStyle(layer).top) / stage.offsetHeight
+        const layerScale = Number.parseFloat(getComputedStyle(stage).getPropertyValue(`--${previewConfig.world}-scale`)) || 1
+        const target = calculatePreviewCamera({
+          anchor,
+          layerHeight: layer.offsetHeight,
+          layerScale,
+          layerTopRatio: layerTop,
+          layerWidth: layer.offsetWidth,
+          stageHeight: stage.offsetHeight,
+          stageWidth: stage.offsetWidth,
+          targetZoom: previewConfig.targetZoom,
+          viewportWidth: viewport.clientWidth,
+        })
+        setPreviewNodeId(nodeId)
+        setCamera(target.camera)
+        setZoom(target.zoom)
+      }
+    }
+
     annotationTimerRef.current = window.setTimeout(() => {
       setFocusedNodeId(null)
       setAnnotationLeaving(false)
     }, ANNOTATION_FADE_MS)
-  }, [stopHoverProgress])
+  }, [camera, stopHoverProgress, zoom])
 
   const resetViewForLayer = useCallback(() => {
     setCamera({ x: 0, y: 0 })
@@ -193,6 +277,9 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     setZoomNoticeVisible(false)
     wheelAccumulatorRef.current = 0
     dragRef.current = null
+    setPreviewNodeId(null)
+    setPreviewClosing(false)
+    previewCameraSnapshotRef.current = null
   }, [])
 
   const recenterCamera = resetViewForLayer
@@ -207,6 +294,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       setAnnotationLeaving(false)
       setDetailNodeId(null)
       setDetailClosing(false)
+      setSelectedContentId(null)
       setEdgeIntent(null)
       resetViewForLayer()
       return true
@@ -237,17 +325,17 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     return true
   }, [closeDetail, detailNodeId, resetViewForLayer])
 
-  const applyCenteredZoom = useCallback((event, zoomDirection) => {
+  const applyCenteredZoom = useCallback((zoomDirection) => {
     const nextZoom = clamp(Number((zoom + zoomDirection * ZOOM_STEP).toFixed(2)), MIN_ZOOM, MAX_ZOOM)
     if (nextZoom === zoom) return
 
-    const bounds = getPanBounds(event.currentTarget, nextZoom)
+    const bounds = getPanBounds(viewportDimensions.w, viewportDimensions.h, nextZoom)
     setCamera(previous => nextZoom === MIN_ZOOM
       ? { x: 0, y: 0 }
       : clampCamera(previous, bounds))
     setZoom(nextZoom)
     showZoomNotice()
-  }, [showZoomNotice, zoom])
+  }, [showZoomNotice, viewportDimensions, zoom])
 
   const onWheel = useCallback((event) => {
     event.preventDefault()
@@ -278,7 +366,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       return
     }
 
-    applyCenteredZoom(event, direction < 0 ? 1 : -1)
+    applyCenteredZoom(direction < 0 ? 1 : -1)
   }, [applyCenteredZoom, closeDetail, currentNodeId, detailNode, edgeIntent, enterNode, fadeFocusedAnnotation, focusedNode, onExitBottom, onExitTop, onOpenContent, selectedContentId])
 
   const onPointerMove = useCallback((event) => {
@@ -307,13 +395,13 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
 
       const dx = event.clientX - touchRef.current.x
       const dy = event.clientY - touchRef.current.y
-      const bounds = getPanBounds(event.currentTarget, zoom)
+      const bounds = getPanBounds(viewportDimensions.w, viewportDimensions.h, zoom)
       setCamera(previous => clampCamera({ x: previous.x + dx, y: previous.y + dy }, bounds))
       touchRef.current.x = event.clientX
       touchRef.current.y = event.clientY
       touchRef.current.moved = true
     }
-  }, [currentNodeId, detailNodeId, focusedNodeId, hoveringNodeId, scheduleResume, zoom])
+  }, [currentNodeId, detailNodeId, focusedNodeId, hoveringNodeId, scheduleResume, viewportDimensions, zoom])
 
   const onPointerDown = useCallback((event) => {
     if (event.pointerType === 'touch') {
@@ -322,18 +410,17 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     }
 
     if (event.button !== 2 || zoom <= MIN_ZOOM) return
-    const bounds = getPanBounds(event.currentTarget, zoom)
+    const bounds = getPanBounds(viewportDimensions.w, viewportDimensions.h, zoom)
     if (bounds.maxX === 0 && bounds.maxY === 0) return
 
     event.preventDefault()
     dragRef.current = {
-      viewport: event.currentTarget,
       x: event.clientX,
       y: event.clientY,
       cameraX: camera.x,
       cameraY: camera.y,
     }
-  }, [camera, zoom])
+  }, [camera, viewportDimensions, zoom])
 
   const onPointerUp = useCallback((event) => {
     if (event.pointerType === 'touch' && touchRef.current) {
@@ -351,7 +438,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
         return
       }
 
-      const bounds = getPanBounds(drag.viewport, zoom)
+      const bounds = getPanBounds(viewportDimensions.w, viewportDimensions.h, zoom)
       setCamera(clampCamera({
         x: drag.cameraX + event.clientX - drag.x,
         y: drag.cameraY + event.clientY - drag.y,
@@ -371,7 +458,7 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
       window.removeEventListener('pointerup', stopWindowDrag)
       window.removeEventListener('blur', stopWindowDrag)
     }
-  }, [zoom])
+  }, [viewportDimensions, zoom])
 
   useEffect(() => () => {
     cancelAnimationFrame(hoverFrameRef.current)
@@ -398,6 +485,8 @@ export function useCenterNavigation({ onExitTop, onExitBottom, onOpenContent } =
     camera,
     zoom,
     zoomNoticeVisible,
+    previewNodeId,
+    previewClosing,
     beginHover,
     endHover,
     keepFocus,

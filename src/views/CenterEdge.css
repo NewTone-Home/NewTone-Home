@@ -2,8 +2,8 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: min(82vw, 1420px);
-  height: min(74vh, 780px);
+  width: var(--stage-width);
+  height: var(--stage-height);
   transform: translate(-50%, -50%);
   transform-origin: center center;
 }
@@ -26,6 +26,13 @@
   will-change: transform;
 }
 
+.center-viewport.has-landmark-preview .center-world-camera-pan,
+.center-viewport.has-landmark-preview .center-world-camera-zoom,
+.center-viewport.is-landmark-preview-closing .center-world-camera-pan,
+.center-viewport.is-landmark-preview-closing .center-world-camera-zoom {
+  transition: transform 280ms cubic-bezier(0.22, 0.7, 0.24, 1);
+}
+
 /* Single 2D geometry system for the overview. */
 .center-world-model--section {
   position: absolute;
@@ -35,8 +42,10 @@
 .center-world-model--section .center-map-layer {
   position: absolute;
   left: 50%;
-  width: min(66vw, 1080px);
-  height: min(34vh, 350px);
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%);
   transform-origin: center center;
   pointer-events: none;
   transition:
@@ -60,6 +69,81 @@
   filter: saturate(0.82) contrast(1.04);
 }
 
+.center-shared-world {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Map-system geometry. Keep positions and dimensions here so the visual CSS
+   can be replaced without changing the atlas coordinate system. */
+.center-world-atmosphere,
+.center-world-regions,
+.center-world-traces,
+.center-world-annotations {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.center-world-atmosphere { z-index: 1; }
+.center-world-regions { z-index: 2; }
+.center-world-traces { z-index: 4; width: 100%; height: 100%; }
+.center-world-annotations { z-index: 7; }
+
+.center-world-wash,
+.center-surface-neighborhood,
+.center-surface-estate-prototype,
+.center-surface-estate-wing,
+.center-surface-courtyard,
+.center-surface-passage,
+.center-region-fade,
+.center-surface-wall,
+.center-surface-pole,
+.center-surface-tree,
+.center-surface-utility-line,
+.center-inner-location-trace,
+.center-map-annotation,
+.center-map-annotation-line {
+  position: absolute;
+}
+
+.center-world-wash--surface-one { left: 8%; top: 12%; width: 46%; height: 58%; }
+.center-world-wash--surface-two { right: 5%; bottom: 8%; width: 38%; height: 52%; }
+.center-world-wash--inner-one { left: 3%; top: 6%; width: 55%; height: 78%; }
+.center-world-wash--inner-two { right: 2%; top: 10%; width: 48%; height: 82%; }
+
+.center-surface-neighborhood--west { left: 4%; top: 16%; width: 31%; height: 55%; }
+.center-surface-neighborhood--east { right: 4%; top: 18%; width: 29%; height: 49%; }
+.center-surface-estate-prototype { left: 36%; top: 18%; width: 31%; height: 54%; }
+.center-surface-estate-wing--main { left: 8%; top: 9%; width: 62%; height: 42%; }
+.center-surface-estate-wing--side { right: 3%; bottom: 9%; width: 42%; height: 35%; }
+.center-surface-courtyard { left: 20%; bottom: 3%; width: 43%; height: 36%; }
+.center-surface-passage { right: 10%; top: 32%; width: 36%; height: 17%; }
+.center-region-fade--surface { right: -2%; top: 5%; width: 25%; height: 88%; }
+
+.center-surface-wall { left: 29%; top: 72%; width: 38%; height: 1px; }
+.center-surface-pole--one { left: 21%; top: 25%; width: 1px; height: 38%; }
+.center-surface-pole--two { right: 18%; top: 23%; width: 1px; height: 36%; }
+.center-surface-tree--one { left: 32%; top: 23%; width: 4.8%; aspect-ratio: 1; }
+.center-surface-tree--two { right: 29%; top: 49%; width: 4%; aspect-ratio: 1; }
+.center-surface-utility-line { left: 20%; top: 24%; width: 63%; height: 36%; }
+
+.center-inner-location-trace--cafe { left: 7%; top: 23%; }
+.center-inner-location-trace--diner { right: 4%; top: 33%; }
+.center-inner-location-trace--alley { right: 0; bottom: 12%; }
+.center-inner-location-trace--distant { left: 42%; top: 4%; }
+
+.center-map-annotation { max-width: 25%; }
+.center-map-annotation--estate { left: 55%; top: 10%; transform: rotate(-2.4deg); }
+.center-map-annotation--city { left: 17%; top: 7%; transform: rotate(-1.8deg); }
+.center-map-annotation--mine { right: 13%; top: 16%; transform: rotate(1.6deg); }
+.center-map-annotation--alley { right: 1%; bottom: 2%; transform: rotate(-3deg); }
+.center-map-annotation-line { right: calc(100% + 8px); top: 58%; width: clamp(24px, 4.2vmin, 62px); height: 1px; transform-origin: right center; }
+
 .center-world-model--section .center-map-layer.is-interactive .center-layer-nodes {
   pointer-events: auto;
 }
@@ -73,7 +157,7 @@
 }
 
 .center-world-model--section .center-map-surface {
-  border-radius: 46% 54% 48% 52% / 52% 46% 54% 48%;
+  border-radius: 2px;
 }
 
 .center-world-model--section .center-map-layer--surface .center-map-surface {
@@ -88,13 +172,13 @@
     rgba(177, 174, 157, 0.96);
 }
 
-/* Non-overview levels use the same centered coordinate system. */
+/* Non-overview levels fill the stage with the same coordinate system. */
 .center-map-layer--current {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: min(66vw, 1080px);
-  height: min(34vh, 350px);
+  width: 100%;
+  height: 100%;
   transform: translate(-50%, -50%);
   transform-origin: center center;
   pointer-events: none;
@@ -106,6 +190,17 @@
 
 .center-map-layer--current .center-region {
   pointer-events: auto;
+}
+
+/* Region-layer full landmark art. Larger local map shown only after entering a
+   region node. Geometry only; visual treatment lives in Center.css. */
+.center-region-art {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 74%;
+  height: 84%;
+  transform: translate(-50%, -50%);
 }
 
 .center-map-surface,
@@ -204,7 +299,7 @@
   right: clamp(28px, 4.5vw, 76px);
   bottom: clamp(84px, 11vh, 132px);
   color: var(--center-ink-soft);
-  font-size: clamp(12px, 1.25vmin, 17px);
+  font-size: clamp(14px, 1.5vmin, 20px);
   letter-spacing: 0.12em;
   opacity: 0;
   transform: translateY(5px);
@@ -259,32 +354,15 @@
   }
 }
 
-@media (max-height: 760px) {
-  .center-world-stage {
-    width: min(86vw, 1160px);
-    height: min(76vh, 650px);
-  }
-
-  .center-world-model--section .center-map-layer,
-  .center-map-layer--current {
-    width: min(62vw, 920px);
-    height: min(31vh, 290px);
-  }
-}
-
 @media (max-width: 760px) {
-  .center-world-stage {
-    width: calc(100vw - 40px);
-    height: calc(100vh - 200px);
-  }
-
   .center-world-model--section .center-map-layer,
   .center-map-layer--current {
-    width: calc(100vw - 64px);
+    height: calc(100vh - 160px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .center-world-camera-pan,
   .center-world-camera-zoom,
   .center-world-model--section .center-map-layer,
   .center-region-annotation,
@@ -294,4 +372,9 @@
     transition-duration: 0.01ms;
     animation-duration: 0.01ms;
   }
+}
+
+.page-shell[data-motion-mode="reduced"] .center-world-camera-pan,
+.page-shell[data-motion-mode="reduced"] .center-world-camera-zoom {
+  transition-duration: 0.01ms;
 }

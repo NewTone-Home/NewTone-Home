@@ -6,7 +6,10 @@ function CenterRegion({
   onHoverEnd,
   onKeepFocus,
   onOpenDetail,
+  className = '',
 }) {
+  const nodeState = node.state ?? 'sensed'
+  const revealState = node.reveal ?? 'sensed'
   const style = {
     '--node-x': `${node.x}%`,
     '--node-y': `${node.y}%`,
@@ -16,9 +19,11 @@ function CenterRegion({
 
   return (
     <div
-      className={`center-region center-region--${node.type}${focused ? ' is-focused' : ''}${annotationLeaving ? ' is-annotation-leaving' : ''}`}
+      className={`center-region center-region--${node.type} center-region--state-${nodeState}${focused ? ' is-focused' : ''}${annotationLeaving ? ' is-annotation-leaving' : ''} ${className}`}
       style={style}
       data-world={node.world}
+      data-state={nodeState}
+      data-reveal={revealState}
       data-center-node-id={node.id}
       onMouseEnter={event => onHoverStart(node.id, event)}
       onMouseLeave={onHoverEnd}

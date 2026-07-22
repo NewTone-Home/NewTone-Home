@@ -1,9 +1,59 @@
 import { useEffect, useRef, useState } from 'react'
 import CenterRegion from './CenterRegion'
+import SharedWorldMap from './SharedWorldMap'
+import { centerMiniLandmarks } from '../../data/center/centerWorld'
+import { sharedWorldGeometry } from '../../data/center/sharedWorldGeometry'
+import SurfaceTextureLayer from './surface/SurfaceTextureLayer'
+import SurfaceRegionLayer from './surface/SurfaceRegionLayer'
+import SurfaceRoadLayer from './surface/SurfaceRoadLayer'
+import SurfaceEnvironmentLayer from './surface/SurfaceEnvironmentLayer'
+import SurfaceDebugOverlay from './surface/SurfaceDebugOverlay'
+import mainCityArt from '../../assets/center/inner/main-city-v1.png'
+import mineOutskirtsArt from '../../assets/center/inner/mine-outskirts-v2.png'
+import councilInnerArt from '../../assets/center/inner/central-council-inner-v1.png'
+import jijiaResidenceArt from '../../assets/center/surface/jijia-residence-courtyard-v1.png'
+import councilSurfaceArt from '../../assets/center/surface/central-council-surface-v2.png'
 
-function CenterViewport({ navigation }) {
+const REGION_ART = {
+  'surface-estate': jijiaResidenceArt,
+  'inner-main-city': mainCityArt,
+  'inner-mining-outskirts': mineOutskirtsArt,
+  'surface-council': councilSurfaceArt,
+  'inner-council': councilInnerArt,
+}
+
+const [, , VB_W, VB_H] = sharedWorldGeometry.viewBox.split(' ').map(Number)
+
+const NEW_SURFACE_POSITIONS = {
+  'surface-estate': { x: 0.20, y: 0.20 },
+  'surface-council': { x: 0.56, y: 0.50 },
+}
+
+function bindNewSurfacePosition(node) {
+  const pos = NEW_SURFACE_POSITIONS[node.id]
+  if (!pos) return node
+  return { ...node, x: pos.x * 100, y: pos.y * 100, width: 12, height: 8 }
+}
+
+function bindOverviewNodeToSharedAnchor(node) {
+  const anchorId = centerMiniLandmarks[node.id]?.anchorId
+  const anchor = anchorId ? sharedWorldGeometry.anchors[anchorId] : null
+  if (!anchor) return node
+  return {
+    ...node,
+    x: anchor.x / VB_W * 100,
+    y: anchor.y / VB_H * 100,
+  }
+}
+
+function InnerWorldLayers({ previewNodeId }) {
+  return <SharedWorldMap world="inner" previewNodeId={previewNodeId} />
+}
+
+function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
   const [layerSeparation, setLayerSeparation] = useState(0)
   const viewportRef = useRef(null)
+
   const {
     currentNode,
     currentNodeId,
@@ -20,6 +70,8 @@ function CenterViewport({ navigation }) {
     camera,
     zoom,
     zoomNoticeVisible,
+    previewNodeId,
+    previewClosing,
     beginHover,
     endHover,
     keepFocus,
@@ -48,20 +100,24 @@ function CenterViewport({ navigation }) {
   useEffect(() => {
     const viewport = viewportRef.current
     if (!viewport) return undefined
-
     viewport.addEventListener('wheel', onWheel, { passive: false })
-
     return () => {
       viewport.removeEventListener('wheel', onWheel)
     }
   }, [onWheel])
 
+  useEffect(() => {
+    resetViewForLayer()
+  }, [viewportWidth, viewportHeight, resetViewForLayer])
+
   const stageStyle = {
+    '--stage-width': `${viewportWidth}px`,
+    '--stage-height': `${viewportHeight}px`,
     '--layer-separation': layerSeparation,
     '--surface-top': `${50 - layerSeparation * 20}%`,
     '--inner-top': `${50 + layerSeparation * 20}%`,
-    '--surface-scale': 0.88 - layerSeparation * 0.14,
-    '--inner-scale': 0.74,
+    '--surface-scale': 1,
+    '--inner-scale': 1,
     '--inner-opacity': Math.max(0, (layerSeparation - 0.05) / 0.3),
   }
 
@@ -74,23 +130,43 @@ function CenterViewport({ navigation }) {
     '--map-zoom': zoom,
   }
 
-  const renderNode = node => (
+  const renderNode = node => {
+    const positionedNode = isOverview ? bindOverviewNodeToSharedAnchor(node) : node
+    return (
     <CenterRegion
       key={node.id}
-      node={node}
+      node={positionedNode}
       focused={focusedNode?.id === node.id}
       annotationLeaving={focusedNode?.id === node.id && annotationLeaving}
       onHoverStart={beginHover}
       onHoverEnd={endHover}
       onKeepFocus={keepFocus}
-      onOpenDetail={openDetail}
+      onOpenDetail={nodeId => openDetail(nodeId, viewportRef.current)}
     />
-  )
+    )
+  }
+
+  const renderSurfaceNode = node => {
+    const positionedNode = bindNewSurfacePosition(node)
+    return (
+    <CenterRegion
+      key={node.id}
+      node={positionedNode}
+      className="center-region--surface-dot"
+      focused={focusedNode?.id === node.id}
+      annotationLeaving={focusedNode?.id === node.id && annotationLeaving}
+      onHoverStart={beginHover}
+      onHoverEnd={endHover}
+      onKeepFocus={keepFocus}
+      onOpenDetail={nodeId => openDetail(nodeId, viewportRef.current)}
+    />
+    )
+  }
 
   return (
     <section
       ref={viewportRef}
-      className={`center-viewport${detailNode ? ' has-detail' : ''}${detailClosing ? ' is-detail-closing' : ''}${edgeIntent ? ` has-edge-${edgeIntent}` : ''}${splitComplete ? ' is-split-complete' : ''}`}
+      className={`center-viewport${detailNode ? ' has-detail' : ''}${detailClosing ? ' is-detail-closing' : ''}${previewNodeId ? ' has-landmark-preview' : ''}${previewClosing ? ' is-landmark-preview-closing' : ''}${edgeIntent ? ` has-edge-${edgeIntent}` : ''}${splitComplete ? ' is-split-complete' : ''}`}
       aria-label={currentNode.title}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -110,19 +186,31 @@ function CenterViewport({ navigation }) {
                 >
                   <span className="center-map-layer-label">里世界</span>
                   <div className="center-map-surface" aria-hidden="true" />
+                  <InnerWorldLayers previewNodeId={previewNodeId} />
                   <div className="center-layer-nodes">{innerNodes.map(renderNode)}</div>
                 </div>
 
                 <div className="center-map-layer center-map-layer--surface is-interactive">
                   <span className="center-map-layer-label">表世界</span>
-                  <div className="center-map-surface" aria-hidden="true" />
-                  <div className="center-layer-nodes">{surfaceNodes.map(renderNode)}</div>
+                  <SurfaceTextureLayer />
+                  <SurfaceRegionLayer />
+                  <SurfaceRoadLayer />
+                  <SurfaceEnvironmentLayer />
+                  <div className="center-layer-nodes">{surfaceNodes.map(renderSurfaceNode)}</div>
                 </div>
               </div>
             ) : (
               <div className="center-map-layer center-map-layer--current is-interactive">
                 <span className="center-map-layer-label">{currentNode.world === 'surface' ? '表世界' : '里世界'}</span>
                 <div className="center-map-surface" aria-hidden="true" />
+                {REGION_ART[currentNodeId] && (
+                  <img
+                    className="center-region-art"
+                    src={REGION_ART[currentNodeId]}
+                    alt=""
+                    aria-hidden="true"
+                  />
+                )}
                 <div className="center-layer-nodes">{children.map(renderNode)}</div>
               </div>
             )}
@@ -201,6 +289,14 @@ function CenterViewport({ navigation }) {
         <span>右键拖动查看周围</span>
         <span>上滚放大 · 下滚缩小 · 批注出现后下滑进入</span>
       </div>
+
+      <SurfaceDebugOverlay
+        viewportWidth={viewportWidth}
+        viewportHeight={viewportHeight}
+        cameraZoom={zoom}
+        panX={camera.x}
+        panY={camera.y}
+      />
     </section>
   )
 }

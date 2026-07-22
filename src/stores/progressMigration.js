@@ -191,6 +191,10 @@ function parseStorageValue(storage, key) {
 }
 
 export function loadProgressState(storage) {
+  if (typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('center')) {
+    return { centerUnlocked: true, currentView: 'center' }
+  }
+
   const v2 = parseStorageValue(storage, PROGRESS_STORAGE_KEYS.V2)
   if (v2?._version === PROGRESS_VERSION) {
     return sanitizeV2Progress(v2)

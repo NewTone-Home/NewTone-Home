@@ -5,25 +5,31 @@
   --center-ink-soft: #554b40;
   --center-ink-faint: #80715f;
   --center-rust: #8f5e42;
+  --center-pencil: rgba(47, 42, 37, 0.74);
+  --center-pencil-soft: rgba(74, 66, 57, 0.34);
+  --center-watercolor: rgba(151, 145, 126, 0.18);
+  --center-anomaly: rgba(122, 67, 48, 0.72);
+  --center-trace: rgba(74, 70, 62, 0.48);
+  --center-region-faded: rgba(106, 101, 89, 0.12);
+  --center-region-active: rgba(236, 228, 211, 0.42);
   position: relative;
+  width: 100%;
+  height: 100%;
   min-height: 100vh;
   overflow: hidden;
   isolation: isolate;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  max-width: none;
   color: var(--center-ink);
   background:
     radial-gradient(circle at 50% 38%, rgba(250, 246, 235, 0.72), transparent 65%),
     linear-gradient(176deg, var(--center-paper), var(--center-paper-deep));
   font-family: var(--font-body);
   user-select: none;
-}
-
-.center::before {
-  content: '';
-  position: absolute;
-  inset: clamp(10px, 1.2vmin, 20px);
-  z-index: -1;
-  border: 1px solid rgba(73, 61, 47, 0.14);
-  pointer-events: none;
 }
 
 .center-header {
@@ -37,7 +43,7 @@
 .center-header h1 {
   margin: 0;
   font-family: var(--font-title-handwritten);
-  font-size: clamp(30px, 3.4vmin, 50px);
+  font-size: clamp(32px, 4.2vmin, 56px);
   font-weight: 400;
   letter-spacing: 0.2em;
 }
@@ -45,7 +51,7 @@
 .center-header p {
   margin: 0.9em 0 0;
   color: var(--center-ink-faint);
-  font-size: clamp(13px, 1.3vmin, 18px);
+  font-size: clamp(14px, 1.6vmin, 22px);
   letter-spacing: 0.14em;
 }
 
@@ -81,6 +87,614 @@
     inset 0 -0.55vmin 0 rgba(44, 40, 35, 0.18);
 }
 
+/* Inner-disk weakening experiment: retire the solid "platform tray" so the
+   inner world reads as a faint hand-drawn carrying trace, not a game board.
+   Extra class (.center-map-layer--inner.center-map-layer) raises specificity
+   above the overview fill in CenterEdge.css. Only touches the inner surface;
+   surface world and sibling nodes/routes/landmarks are unaffected. */
+.center-world-model--section .center-map-layer--inner.center-map-layer .center-map-surface {
+  background:
+    repeating-linear-gradient(11deg, rgba(58, 51, 44, 0.07) 0 1px, transparent 1px 15px),
+    transparent;
+  border-color: transparent;
+  box-shadow: none;
+  opacity: 0.22;
+}
+
+.center-world-model--section .center-map-layer--surface.center-map-layer .center-map-surface {
+  background:
+    repeating-linear-gradient(11deg, rgba(72, 58, 43, 0.032) 0 1px, transparent 1px 15px),
+    rgba(236, 229, 214, 0.26);
+  border-color: transparent;
+  box-shadow: none;
+  opacity: 0.56;
+}
+
+/* One coordinate system, rendered twice. Surface keeps the complete drawing;
+   inner only changes stroke treatment and adds small echoes of the same paths. */
+.center-shared-world {
+  pointer-events: none;
+  user-select: none;
+}
+
+.center-shared-path,
+.center-shared-echo {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.center-shared-districts .center-shared-path {
+  stroke: rgba(71, 65, 56, 0.36);
+  stroke-width: 1.15;
+  fill: rgba(151, 145, 126, 0.035);
+}
+
+.center-shared-path--block,
+.center-shared-path--precinct {
+  stroke: rgba(61, 54, 46, 0.48);
+  fill: rgba(205, 195, 175, 0.08);
+}
+
+.center-shared-path--blank {
+  stroke: rgba(83, 76, 66, 0.24);
+  stroke-dasharray: 5 7;
+  fill: rgba(223, 215, 198, 0.08);
+}
+
+.center-shared-roads .center-shared-path {
+  stroke: rgba(67, 61, 53, 0.46);
+  stroke-width: 1.15;
+}
+
+.center-shared-path--arterial {
+  stroke: rgba(55, 50, 44, 0.66) !important;
+  stroke-width: 2.35 !important;
+}
+
+.center-shared-path--secondary {
+  stroke-width: 0.9 !important;
+}
+
+.center-shared-path--axis,
+.center-shared-path--axis-secondary {
+  stroke: rgba(126, 77, 55, 0.54) !important;
+  stroke-width: 1.45 !important;
+}
+
+.center-shared-path--axis { stroke-dasharray: 2 3; }
+
+.center-shared-infrastructure .center-shared-path {
+  stroke: rgba(62, 69, 68, 0.4);
+  stroke-width: 1.1;
+}
+
+.center-shared-path--overpass {
+  stroke-width: 2.7 !important;
+  stroke-dasharray: 46 4 9 4;
+}
+
+.center-shared-path--drainage {
+  stroke-dasharray: 8 5;
+}
+
+.center-shared-path--pipeline {
+  stroke-width: 1.8 !important;
+  stroke-dasharray: 30 5 4 5;
+}
+
+.center-shared-path--direction {
+  stroke: rgba(126, 77, 55, 0.52) !important;
+}
+
+/* Presentation-only 2.5D fabric. All positions are emitted inside the shared
+   SVG from shared anchors; these classes only own ink, material and depth. */
+.center-shared-fabric {
+  color: var(--center-ink-soft);
+  pointer-events: none;
+}
+
+.center-fabric-asset *,
+.center-mini-landmark * {
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.center-fabric-ground-shadow {
+  fill: rgba(58, 50, 42, 0.12);
+  transform: translate(8px, 8px);
+}
+
+.center-fabric-council-plaza,
+.center-fabric-estate-yard {
+  fill: rgba(204, 193, 171, 0.22);
+  stroke: rgba(91, 75, 59, 0.34);
+  stroke-width: 1;
+}
+
+.center-fabric-council-plinth,
+.center-fabric-council-main-roof,
+.center-fabric-council-annex,
+.center-fabric-council-walk,
+.center-fabric-estate-main-roof,
+.center-fabric-estate-wing-roof {
+  fill: rgba(218, 207, 187, 0.88);
+  stroke: rgba(55, 49, 43, 0.62);
+  stroke-width: 1.1;
+}
+
+.center-fabric-council-plinth-face,
+.center-fabric-council-main-face,
+.center-fabric-council-annex-face,
+.center-fabric-estate-main-face,
+.center-fabric-estate-wing-face,
+.center-fabric-estate-wall-face {
+  fill: rgba(80, 71, 61, 0.32);
+  stroke: rgba(58, 51, 44, 0.42);
+  stroke-width: 0.85;
+}
+
+.center-fabric-council-axis {
+  fill: none;
+  stroke: rgba(126, 77, 55, 0.58);
+  stroke-width: 1.3;
+  stroke-dasharray: 4 3;
+}
+
+.center-fabric-estate-wall {
+  fill: none;
+  stroke: rgba(63, 56, 48, 0.58);
+  stroke-width: 1.5;
+}
+
+.center-fabric-estate-courtyard {
+  fill: rgba(234, 225, 207, 0.34);
+  stroke: rgba(105, 87, 66, 0.34);
+  stroke-width: 0.9;
+}
+
+.center-fabric-trees circle {
+  fill: rgba(113, 124, 98, 0.46);
+  stroke: rgba(61, 70, 55, 0.42);
+  stroke-width: 0.8;
+}
+
+.center-fabric-estate-road-occlusion {
+  fill: rgba(233, 225, 209, 0.95);
+  stroke: rgba(82, 68, 54, 0.38);
+  stroke-width: 0.8;
+}
+
+.center-shared-infrastructure--elevated {
+  filter: drop-shadow(3px 4px 1px rgba(59, 52, 45, 0.12));
+}
+
+.center-shared-infrastructure--buried {
+  opacity: 0.58;
+}
+
+/* The mini landmark is a higher-detail state of the fabric at the same anchor,
+   never a bitmap thumbnail or a separate map layer. */
+.center-mini-landmark {
+  opacity: 0;
+  transform: translateY(7px) scale(0.965);
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: center-mini-landmark-in 210ms cubic-bezier(0.22, 0.7, 0.24, 1) forwards;
+  pointer-events: none;
+}
+
+.center-mini-landmark-shadow {
+  fill: rgba(56, 48, 40, 0.2);
+}
+
+.center-mini-ground-shadow {
+  fill: rgba(49, 42, 35, 0.2);
+  transform: translate(10px, 10px);
+}
+
+.center-mini-council-plaza,
+.center-mini-estate-yard {
+  fill: rgba(201, 190, 168, 0.24);
+  stroke: rgba(87, 70, 55, 0.48);
+  stroke-width: 1.1;
+}
+
+.center-mini-council-axis {
+  fill: none;
+  stroke: rgba(126, 71, 50, 0.72);
+  stroke-width: 1.8;
+  stroke-dasharray: 5 3;
+}
+
+.center-mini-council-ring,
+.center-mini-council-main-roof,
+.center-mini-council-crown,
+.center-mini-council-annex,
+.center-mini-council-walk,
+.center-mini-council-entry,
+.center-mini-estate-main-roof,
+.center-mini-estate-left-roof,
+.center-mini-estate-right-roof,
+.center-mini-estate-gate {
+  fill: rgba(194, 181, 159, 0.78);
+  stroke: rgba(60, 53, 46, 0.62);
+  stroke-width: 1.25;
+}
+
+.center-mini-council-ring-face,
+.center-mini-council-main-face,
+.center-mini-council-crown-face,
+.center-mini-council-annex-face,
+.center-mini-council-walk-face,
+.center-mini-council-entry-face,
+.center-mini-estate-main-face,
+.center-mini-estate-left-face,
+.center-mini-estate-right-face,
+.center-mini-estate-gate-face,
+.center-mini-estate-wall-face {
+  fill: rgba(82, 72, 61, 0.46);
+  stroke: rgba(55, 49, 43, 0.58);
+  stroke-width: 1;
+}
+
+.center-mini-council-main-roof,
+.center-mini-estate-main-roof {
+  fill: rgba(219, 208, 187, 0.94);
+  stroke: rgba(50, 44, 39, 0.72);
+  stroke-width: 1.5;
+}
+
+.center-mini-council-ring-cut {
+  fill: rgba(231, 222, 205, 0.86);
+  stroke: rgba(87, 67, 52, 0.56);
+  stroke-width: 1;
+}
+
+.center-mini-council-ring-lines,
+.center-mini-estate-roof-ribs,
+.center-mini-estate-courtyard-lines {
+  fill: none;
+  stroke: rgba(83, 67, 52, 0.38);
+  stroke-width: 0.85;
+}
+
+.center-mini-estate-wall {
+  fill: none;
+  stroke: rgba(57, 50, 43, 0.7);
+  stroke-width: 1.65;
+}
+
+.center-mini-estate-courtyard {
+  fill: rgba(235, 226, 208, 0.52);
+  stroke: rgba(96, 78, 59, 0.45);
+  stroke-width: 1;
+}
+
+.center-mini-estate-trees circle {
+  fill: rgba(104, 117, 91, 0.62);
+  stroke: rgba(54, 65, 50, 0.62);
+  stroke-width: 1;
+}
+
+.center-mini-estate-entry-path {
+  fill: none;
+  stroke: rgba(126, 71, 50, 0.72);
+  stroke-width: 1.8;
+  stroke-dasharray: 5 3;
+}
+
+.center-viewport.is-landmark-preview-closing .center-mini-landmark {
+  animation: center-mini-landmark-out 220ms ease forwards;
+}
+
+.center-shared-landmark {
+  opacity: 0.88;
+  filter: saturate(0.9) contrast(1.02);
+}
+
+/* Region-layer full landmark art: sits above the map surface, below the nodes
+   (z-index 8), and never intercepts pointer events. Geometry is in CenterEdge.css. */
+.center-region-art {
+  z-index: 1;
+  display: block;
+  object-fit: contain;
+  opacity: 0.94;
+  filter: saturate(0.96) contrast(1.02);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.center-shared-world--inner .center-shared-path {
+  stroke-dasharray: 28 5 7 4;
+  stroke-dashoffset: 9;
+  opacity: 0.74;
+}
+
+.center-shared-world--inner .center-shared-districts .center-shared-path {
+  stroke-dasharray: 52 8 19 6;
+  fill: rgba(92, 89, 80, 0.035);
+}
+
+.center-shared-world--inner .center-shared-path--axis {
+  stroke-dasharray: 7 4 2 11;
+  stroke-dashoffset: 5;
+}
+
+.center-shared-world--inner .center-shared-path--arterial {
+  stroke-dasharray: 64 6 18 9;
+  stroke-dashoffset: 13;
+}
+
+.center-shared-world--inner .center-shared-landmark {
+  opacity: 0.76;
+  filter: saturate(0.7) contrast(1.08) hue-rotate(-8deg);
+}
+
+.center-shared-echo {
+  stroke: rgba(119, 68, 51, 0.44);
+  stroke-width: 1.1;
+  stroke-dasharray: 19 7 4 13;
+}
+
+.center-shared-echo--road { transform: translate(4px, -3px) rotate(0.28deg); transform-origin: 520px 220px; }
+.center-shared-echo--axis { transform: translate(-3px, 2px) rotate(-0.45deg); transform-origin: 520px 182px; }
+.center-shared-echo--district { transform: translate(5px, 2px) rotate(0.65deg); transform-origin: 520px 190px; }
+.center-shared-echo--pipeline { transform: translate(-4px, 3px); }
+
+/* Overview node shapes remain hit targets but no longer draw independent
+   closed ellipses over the shared district boundaries. */
+.center-world-model--section .center-region-shape {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+
+.center-world-model--section .center-region-shape::after {
+  display: none;
+}
+
+/* Temporary crop prototype; replace each landmark with an independent transparent PNG. */
+.center-world-art-group,
+.center-world-landmark,
+.center-world-routes {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.center-world-landmark {
+  background-image: var(--center-inner-preview);
+  background-repeat: no-repeat;
+  opacity: 0.82;
+  filter: saturate(0.9) contrast(1.02);
+}
+
+/* First-batch standalone landmark art. Geometry (position/size) lives in
+   CenterEdge.css; this rule owns only non-geometry treatment. pointer-events
+   / user-select are inherited from the `.center-world-regions *` reset. */
+.center-world-landmark-art {
+  display: block;
+  object-fit: contain;
+  opacity: 0.9;
+  filter: saturate(0.94) contrast(1.02);
+}
+
+.center-world-routes {
+  overflow: visible;
+}
+
+.center-world-route {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.center-world-route--pipe {
+  stroke: rgba(66, 67, 64, 0.58);
+  stroke-width: 2.2;
+  stroke-dasharray: 48 8 31 5;
+}
+
+.center-world-route--pipe-echo {
+  stroke: rgba(84, 91, 94, 0.28);
+  stroke-width: 1.1;
+  stroke-dasharray: 17 5 44 9;
+}
+
+.center-world-route--fracture {
+  stroke: var(--center-anomaly);
+  stroke-width: 1.7;
+  stroke-dasharray: 13 4 26 7;
+}
+
+/* Every decorative atlas layer is non-interactive. Geometry lives in
+   CenterEdge.css; this file owns only ink, paper, reveal and state treatment. */
+.center-world-atmosphere,
+.center-world-regions,
+.center-world-routes,
+.center-world-traces,
+.center-world-annotations,
+.center-world-atmosphere *,
+.center-world-regions *,
+.center-world-routes *,
+.center-world-traces *,
+.center-world-annotations * {
+  pointer-events: none;
+  user-select: none;
+}
+
+.center-world-wash {
+  border-radius: 48% 52% 41% 59% / 56% 43% 57% 44%;
+  background: var(--center-watercolor);
+  filter: blur(8px);
+}
+
+.center-world-wash--surface-one { background: rgba(178, 167, 140, 0.1); }
+.center-world-wash--surface-two { background: rgba(137, 151, 143, 0.09); }
+.center-world-wash--inner-one { background: rgba(75, 79, 75, 0.15); }
+.center-world-wash--inner-two { background: rgba(120, 76, 58, 0.1); }
+
+.center-surface-neighborhood {
+  opacity: 0.5;
+  background:
+    linear-gradient(90deg, transparent 0 8%, var(--center-pencil-soft) 8% 8.5%, transparent 8.5% 31%, var(--center-pencil-soft) 31% 31.6%, transparent 31.6%),
+    repeating-linear-gradient(0deg, transparent 0 16%, rgba(76, 69, 60, 0.18) 16% 17%, transparent 17% 31%);
+  border: 1px solid var(--center-pencil-soft);
+  clip-path: polygon(3% 12%, 31% 4%, 49% 15%, 69% 3%, 96% 18%, 91% 86%, 65% 92%, 43% 83%, 19% 96%, 6% 78%);
+}
+
+.center-surface-neighborhood--east {
+  opacity: 0.26;
+  transform: rotate(1.2deg);
+}
+
+.center-surface-estate-prototype {
+  opacity: 0.82;
+  border: 1px solid rgba(58, 51, 44, 0.38);
+  border-radius: 44% 56% 48% 52% / 53% 46% 54% 47%;
+  background: rgba(241, 234, 219, 0.18);
+}
+
+.center-surface-estate-wing {
+  border: 1px solid var(--center-pencil);
+  border-radius: 8% 5% 10% 4%;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 14%, rgba(58, 51, 44, 0.12) 14% 15%, transparent 15% 28%),
+    rgba(222, 214, 196, 0.2);
+  transform: rotate(-1.1deg);
+}
+
+.center-surface-estate-wing--side { transform: rotate(1.4deg); opacity: 0.76; }
+
+.center-surface-courtyard {
+  border: 1px dashed var(--center-pencil-soft);
+  border-radius: 46% 54% 43% 57%;
+  background: rgba(235, 228, 211, 0.12);
+  transform: rotate(0.8deg);
+}
+
+.center-surface-passage {
+  border-top: 1px solid var(--center-pencil-soft);
+  border-bottom: 1px solid rgba(74, 66, 57, 0.2);
+  transform: rotate(-8deg);
+}
+
+/* Estate/courtyard/passage prototype fill retired in favour of jijia residence
+   art. DOM is kept (geometry/anchor structure); only the visual fill is hidden. */
+.center-surface-estate-prototype.is-art-replaced,
+.center-surface-estate-prototype.is-art-replaced > * {
+  border-color: transparent;
+  background: none;
+}
+
+.center-region-fade {
+  background: linear-gradient(90deg, rgba(220, 213, 198, 0), rgba(220, 213, 198, 0.84));
+  filter: blur(3px);
+}
+
+.center-surface-wall { border-top: 2px double var(--center-pencil-soft); transform: rotate(-1.7deg); }
+.center-surface-pole { background: var(--center-pencil-soft); transform: rotate(1.4deg); }
+.center-surface-pole::after {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 9%;
+  width: 15px;
+  border-top: 1px solid var(--center-pencil-soft);
+}
+.center-surface-tree {
+  border: 1px solid var(--center-pencil-soft);
+  border-radius: 47% 53% 42% 58%;
+  background: rgba(118, 129, 108, 0.1);
+  transform: rotate(-9deg);
+}
+.center-surface-utility-line {
+  border-top: 1px solid rgba(74, 66, 57, 0.25);
+  border-radius: 50%;
+  transform: rotate(2.5deg);
+}
+
+.center-world-route--street,
+.center-world-route--street-echo,
+.center-world-route--passage,
+.center-world-route--cafe,
+.center-world-route--diner,
+.center-world-route--locked,
+.center-world-route--drain {
+  stroke: var(--center-trace);
+  stroke-width: 1.5;
+  stroke-dasharray: 34 6 19 4;
+}
+
+.center-world-route--street { stroke-width: 2; stroke: rgba(72, 66, 57, 0.42); }
+.center-world-route--street-echo { stroke-width: 0.8; stroke: rgba(72, 66, 57, 0.2); stroke-dasharray: 12 5 29 7; }
+.center-world-route--passage { stroke: rgba(88, 71, 56, 0.38); stroke-dasharray: 22 4 8 3; }
+.center-world-route--cafe { stroke-dasharray: 26 7 9 5; }
+.center-world-route--diner { stroke-dasharray: 17 4 31 8; }
+.center-world-route--locked { stroke: var(--center-anomaly); stroke-dasharray: 11 5 4 13; }
+.center-world-route--drain { stroke: rgba(58, 66, 67, 0.52); stroke-width: 2.2; stroke-dasharray: 48 7 13 4; }
+
+.center-inner-trace {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  stroke: rgba(60, 62, 59, 0.32);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.center-inner-trace--overpass-echo { stroke-width: 0.9; stroke-dasharray: 35 8; opacity: 0.62; }
+.center-inner-trace--pipeline { stroke: rgba(64, 70, 68, 0.42); stroke-width: 3; stroke-dasharray: 40 5 9 3; }
+.center-inner-trace--hatch { stroke: var(--center-anomaly); stroke-width: 1; opacity: 0.64; }
+
+.center-inner-location-trace {
+  color: rgba(49, 46, 41, 0.58);
+  font-family: var(--font-title-handwritten), var(--font-body);
+  font-size: clamp(10px, 1.12vmin, 15px);
+  letter-spacing: 0.08em;
+  transform: rotate(-2deg);
+  text-shadow: 1px 0 rgba(71, 64, 56, 0.14);
+}
+
+.center-inner-location-trace::before,
+.center-inner-location-trace::after {
+  content: '';
+  position: absolute;
+  inset: -0.55em -0.8em;
+  border: 1px solid var(--center-pencil-soft);
+  border-radius: 48% 52% 43% 57%;
+}
+.center-inner-location-trace::after { inset: -0.38em -0.62em -0.7em -0.95em; opacity: 0.42; transform: rotate(3deg); }
+.center-inner-location-trace[data-state="locked"] { color: var(--center-anomaly); text-decoration: line-through; text-decoration-thickness: 1px; }
+.center-inner-location-trace[data-state="locked"]::before { border-style: dashed; border-color: var(--center-anomaly); clip-path: polygon(0 0, 47% 0, 47% 100%, 0 100%); }
+.center-inner-location-trace[data-state="unknown"] { opacity: 0.22; filter: blur(0.8px); }
+
+.center-map-annotation {
+  display: block;
+  color: rgba(94, 57, 43, 0.78);
+  font-family: var(--font-title-handwritten), var(--font-body);
+  font-size: clamp(11px, 1.4vmin, 18px);
+  line-height: 1.45;
+  letter-spacing: 0.035em;
+  text-shadow: 0.4px 0 rgba(122, 67, 48, 0.18);
+}
+.center-map-annotation-line { border-top: 1px solid rgba(122, 67, 48, 0.44); transform: rotate(-8deg); }
+
+[data-reveal] {
+  transition: opacity 260ms ease, filter 260ms ease;
+}
+[data-reveal="hidden"] { opacity: 0.14; filter: blur(0.6px); }
+[data-reveal="sensed"] { opacity: 0.62; }
+[data-reveal="explored"] { opacity: 1; }
+.center-world-routes[data-reveal="hidden"] .center-world-route { stroke-dashoffset: 90; opacity: 0.08; }
+.center-world-routes[data-reveal="sensed"] .center-world-route { stroke-dashoffset: 28; }
+.center-world-routes[data-reveal="explored"] .center-world-route { stroke-dashoffset: 0; }
+
 .center-layer-nodes {
   position: absolute;
   inset: 0;
@@ -95,7 +709,7 @@
   top: 8%;
   color: rgba(47, 42, 37, 0.68);
   font-family: var(--font-title-handwritten);
-  font-size: clamp(14px, 1.5vmin, 21px);
+  font-size: clamp(15px, 1.8vmin, 24px);
   letter-spacing: 0.16em;
   pointer-events: none;
 }
@@ -110,7 +724,7 @@
   gap: 0.9em;
   transform: translateY(-50%);
   color: var(--center-ink-soft);
-  font-size: clamp(12px, 1.2vmin, 16px);
+  font-size: clamp(14px, 1.5vmin, 20px);
   letter-spacing: 0.12em;
 }
 
@@ -150,10 +764,87 @@
   transform: translate(-50%, -50%);
   white-space: nowrap;
   color: var(--center-ink-soft);
-  font-size: clamp(15px, 1.65vmin, 23px);
+  font-size: clamp(16px, 1.9vmin, 26px);
   letter-spacing: 0.12em;
   opacity: 0.9;
   pointer-events: none;
+}
+
+.center-region--state-unknown {
+  opacity: 0.2;
+}
+
+.center-region--state-unknown .center-region-title {
+  opacity: 0;
+  filter: blur(2px);
+}
+
+.center-region--state-unknown .center-region-shape {
+  border-color: var(--center-region-faded);
+  border-style: dashed;
+}
+
+.center-region--state-sensed .center-region-shape {
+  border-color: var(--center-pencil-soft);
+  border-style: dashed;
+  clip-path: polygon(0 0, 86% 0, 86% 33%, 100% 33%, 100% 100%, 0 100%);
+}
+
+.center-region--state-sensed .center-region-shape::after,
+.center-region--state-current .center-region-shape::after,
+.center-region--state-anomaly .center-region-shape::after {
+  content: '';
+  position: absolute;
+  inset: 4% -3% -5% 3%;
+  border: 1px solid rgba(75, 66, 57, 0.22);
+  border-radius: 52% 48% 56% 44% / 45% 56% 44% 55%;
+  transform: rotate(1.5deg);
+}
+
+.center-region--state-explored .center-region-shape {
+  border-color: var(--center-pencil);
+  background: var(--center-region-active);
+}
+
+.center-region--state-current .center-region-shape {
+  border: 2px solid rgba(70, 58, 46, 0.66);
+  background: rgba(236, 228, 211, 0.3);
+  box-shadow: inset 0 0 0 5px rgba(78, 63, 49, 0.08);
+  animation: center-current-arrive 720ms ease-out both;
+}
+
+.center-region--state-current .center-region-shape::after {
+  inset: -7% 3% 5% -5%;
+  border-color: rgba(95, 70, 52, 0.42);
+}
+
+.center-region--state-locked .center-region-shape {
+  border-color: var(--center-anomaly);
+  border-style: dashed;
+  clip-path: polygon(0 0, 44% 0, 44% 42%, 57% 42%, 57% 0, 100% 0, 100% 100%, 0 100%);
+}
+
+.center-region--state-locked .center-region-title {
+  color: var(--center-anomaly);
+  text-decoration: line-through;
+}
+
+.center-region--state-anomaly .center-region-shape {
+  border-color: var(--center-anomaly);
+  border-radius: 54% 46% 42% 58% / 47% 58% 42% 53%;
+  background: rgba(122, 67, 48, 0.08);
+}
+
+.center-region--state-anomaly .center-region-shape::after {
+  inset: -3% 4% 5% -4%;
+  border-color: rgba(122, 67, 48, 0.5);
+  transform: rotate(-3deg) scaleX(-1);
+}
+
+.center-region--state-anomaly .center-region-title {
+  color: rgba(101, 54, 40, 0.82);
+  text-shadow: 1.5px 0 rgba(122, 67, 48, 0.2);
+  transform: translate(calc(-50% + 1px), calc(-50% - 1px));
 }
 
 .center-region.is-focused .center-region-shape {
@@ -196,7 +887,7 @@
 }
 
 .center-region-annotation-title {
-  font-size: clamp(19px, 2.05vmin, 30px);
+  font-size: clamp(20px, 2.5vmin, 34px);
   letter-spacing: 0.08em;
   text-shadow: 0 0 0.7vmin rgba(143, 94, 66, 0.26);
 }
@@ -204,7 +895,7 @@
 .center-region-annotation-copy {
   margin-top: 0.22em;
   font-family: var(--font-body);
-  font-size: clamp(13px, 1.35vmin, 19px);
+  font-size: clamp(14px, 1.6vmin, 21px);
   line-height: 1.55;
   letter-spacing: 0.05em;
 }
@@ -213,7 +904,7 @@
   margin-top: 0.42em;
   color: rgba(105, 67, 49, 0.72);
   font-family: var(--font-body);
-  font-size: clamp(10px, 1.05vmin, 14px);
+  font-size: clamp(11px, 1.3vmin, 16px);
   letter-spacing: 0.12em;
 }
 
@@ -238,12 +929,39 @@
 .center-detail-panel {
   position: absolute;
   z-index: 35;
-  inset: 0 0 0 auto;
-  width: min(48vw, 780px);
+  inset: clamp(74px, 10vh, 116px) clamp(24px, 3vw, 52px) clamp(64px, 9vh, 104px) auto;
+  width: min(44vw, 720px);
   box-sizing: border-box;
-  padding: clamp(110px, 15vh, 170px) clamp(42px, 5.4vw, 90px) clamp(70px, 9vh, 110px);
-  background: linear-gradient(270deg, rgba(203, 193, 173, 0.98) 0%, rgba(214, 204, 184, 0.93) 64%, rgba(217, 208, 189, 0) 100%);
+  padding: clamp(46px, 7vh, 78px) clamp(38px, 4.8vw, 74px) clamp(42px, 6vh, 70px);
+  border: 1px solid rgba(77, 64, 50, 0.2);
+  background:
+    repeating-linear-gradient(8deg, rgba(75, 64, 51, 0.025) 0 1px, transparent 1px 17px),
+    rgba(220, 211, 193, 0.88);
+  box-shadow: 0 10px 28px rgba(61, 50, 39, 0.08);
+  clip-path: polygon(2% 3%, 96% 0, 100% 13%, 98% 88%, 91% 100%, 8% 97%, 0 83%, 1% 20%);
   animation: center-panel-in 290ms cubic-bezier(0.22, 0.7, 0.24, 1) both;
+}
+
+.center-detail-panel::before,
+.center-detail-panel::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+
+.center-detail-panel::before {
+  right: 100%;
+  top: 52%;
+  width: clamp(38px, 7vw, 118px);
+  border-top: 1px solid rgba(122, 67, 48, 0.42);
+  transform: rotate(-4deg);
+  transform-origin: right center;
+}
+
+.center-detail-panel::after {
+  inset: 10px 8px 13px 11px;
+  border: 1px solid rgba(77, 64, 50, 0.09);
+  clip-path: polygon(0 7%, 96% 0, 100% 92%, 8% 100%);
 }
 
 .center-detail-close {
@@ -252,7 +970,7 @@
   color: var(--center-rust);
   background: transparent;
   font: inherit;
-  font-size: clamp(12px, 1.15vmin, 16px);
+  font-size: clamp(13px, 1.4vmin, 18px);
   letter-spacing: 0.12em;
   cursor: pointer;
 }
@@ -260,13 +978,13 @@
 .center-detail-world {
   margin: 2.8em 0 0.7em;
   color: var(--center-rust);
-  font-size: clamp(12px, 1.2vmin, 16px);
+  font-size: clamp(13px, 1.5vmin, 19px);
   letter-spacing: 0.16em;
 }
 
 .center-detail-panel h2 {
   margin: 0;
-  font-size: clamp(30px, 3.5vmin, 50px);
+  font-size: clamp(32px, 4.0vmin, 54px);
   font-weight: 450;
   letter-spacing: 0.12em;
 }
@@ -275,7 +993,7 @@
   max-width: 34em;
   margin: 1.5em 0 2.4em;
   color: var(--center-ink-soft);
-  font-size: clamp(15px, 1.42vmin, 20px);
+  font-size: clamp(16px, 1.6vmin, 22px);
   line-height: 1.85;
 }
 
@@ -309,19 +1027,19 @@
 }
 
 .center-detail-option span {
-  font-size: clamp(17px, 1.75vmin, 25px);
+  font-size: clamp(18px, 2.0vmin, 28px);
   letter-spacing: 0.08em;
 }
 
 .center-detail-option small {
-  font-size: clamp(13px, 1.25vmin, 18px);
+  font-size: clamp(14px, 1.4vmin, 20px);
   line-height: 1.6;
 }
 
 .center-detail-option em,
 .center-detail-action {
   color: var(--center-rust);
-  font-size: clamp(11px, 1.08vmin, 15px);
+  font-size: clamp(12px, 1.3vmin, 17px);
   letter-spacing: 0.1em;
 }
 
@@ -338,7 +1056,7 @@
   align-items: center;
   gap: 20px;
   color: var(--center-ink-faint);
-  font-size: clamp(12px, 1.18vmin, 16px);
+  font-size: clamp(14px, 1.5vmin, 20px);
   letter-spacing: 0.12em;
 }
 
@@ -360,7 +1078,7 @@
   justify-items: end;
   gap: 5px;
   color: rgba(55, 48, 41, 0.58);
-  font-size: clamp(10px, 1.02vmin, 14px);
+  font-size: clamp(12px, 1.3vmin, 17px);
   letter-spacing: 0.08em;
   pointer-events: none;
 }
@@ -371,7 +1089,7 @@
   left: 50%;
   transform: translateX(-50%);
   color: transparent;
-  font-size: clamp(15px, 1.6vmin, 22px);
+  font-size: clamp(16px, 1.9vmin, 26px);
   letter-spacing: 0.16em;
   opacity: 0;
   transition: opacity 180ms ease, color 180ms ease;
@@ -431,13 +1149,182 @@
   to { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes center-current-arrive {
+  from { opacity: 0.7; transform: scale(0.975); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes center-mini-landmark-in {
+  from { opacity: 0; transform: translateY(7px) scale(0.965); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes center-mini-landmark-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(5px) scale(0.98); }
+}
+
+/* ---- Estate–Council route scene (batch-1 PNG road) ------------------------
+   Real road tiles + environment assets along the estate-link → main-arterial
+   corridor. All positions derived from sharedWorldGeometry.viewBox (0 0 1000 360).
+   Layers stack inside .center-surface-skin via z-index. */
+.center-route-scene {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.center-route-asset {
+  position: absolute;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  filter: saturate(0.95) contrast(1.02);
+}
+
+.center-route-asset.route-ground {
+  filter: saturate(0.92) contrast(1.01);
+}
+
+.center-route-asset.route-shadow {
+  filter: none;
+}
+
+.center-route-asset.route-road {
+  filter: saturate(0.96) contrast(1.04);
+}
+
+.center-route-asset.route-tree-rear {
+  filter: saturate(0.88) contrast(1.01);
+}
+
+.center-route-asset.route-tree-fore {
+  filter: saturate(0.92) contrast(1.03);
+}
+
+.center-route-asset.route-wall {
+  filter: saturate(0.9) contrast(1.02);
+}
+
+/* ---- Surface-world 2.5D art skin (batch 1) -------------------------------
+   Real PNG art layered above the shared SVG skeleton (z 3) and below the
+   interactive nodes / labels (z 8). The skin lives only inside the surface
+   layer, so it never reaches the inner world. Positions are emitted by
+   SurfaceWorldSkin from the shared 1000x360 coordinate space. */
+.center-surface-skin {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.center-skin-asset,
+.center-skin-mini {
+  position: absolute;
+  height: auto;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  /* One warm-neutral grade so the batch reads as a single art set on ivory. */
+  filter: saturate(0.94) contrast(1.02);
+}
+
+.center-skin-asset--shadow {
+  opacity: 0.55;
+  mix-blend-mode: multiply;
+  filter: none;
+}
+
+.center-skin-asset--road {
+  opacity: 0.88;
+  mix-blend-mode: multiply;
+}
+
+.center-skin-asset--landmark {
+  filter: saturate(0.96) contrast(1.03) drop-shadow(3px 5px 3px rgba(56, 48, 40, 0.16));
+  transition: opacity 220ms ease;
+}
+
+.center-skin-mini {
+  z-index: 7;
+  filter: saturate(1) contrast(1.05) drop-shadow(4px 7px 5px rgba(52, 44, 37, 0.22));
+  animation: center-skin-mini-in 240ms cubic-bezier(0.22, 0.7, 0.24, 1) forwards;
+}
+
+.center-viewport.is-landmark-preview-closing .center-skin-mini {
+  animation: center-skin-mini-out 220ms ease forwards;
+}
+
+/* On council focus, let the mini own the frame: fade the persistent council
+   scene beneath it and dim surrounding surface labels so it reads as the main
+   visual. */
+.center-viewport.has-landmark-preview .center-council-scene {
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.center-viewport.has-landmark-preview .center-map-layer--surface .center-region-title {
+  opacity: 0.42;
+  transition: opacity 220ms ease;
+}
+
+/* Retire the SVG massing to a faint geometry aid now that real landmark art
+   sits on top, so the landmarks no longer show a double outline. The shared
+   road / district / infrastructure skeleton is kept. */
+.center-map-layer--surface .center-shared-fabric {
+  opacity: 0.16;
+}
+
+@keyframes center-skin-mini-in {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)) scale(0.965); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes center-skin-mini-out {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to { opacity: 0; transform: translate(-50%, calc(-50% + 6px)) scale(0.98); }
+}
+
+/* ---- 姬家祖宅 layered scene unit ----------------------------------------
+   Assembled from batch-1 parts. The container binds to anchors.jijia; each
+   child is placed in the container's OWN box (percent), and z-index stacks the
+   layers into a back-to-front occlusion order. transform on the container makes
+   it a stacking context, so the layer z-indexes stay scoped to the scene. */
+.center-estate-scene,
+.center-council-scene {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  transform-origin: center center;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  /* one warm-neutral grade so the assembled parts read as a single art set */
+  filter: saturate(0.95) contrast(1.02);
+}
+
+.center-scene-layer {
+  position: absolute;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 @media (max-width: 760px) {
   .center-layer-control { right: 14px; }
   .center-detail-panel {
-    width: 100%;
-    padding: 110px 26px 80px;
-    background: rgba(211, 201, 181, 0.96);
+    inset: 76px 14px 64px;
+    width: auto;
+    padding: 42px 26px 54px;
+    background: rgba(218, 208, 189, 0.95);
   }
+  .center-detail-panel::before { display: none; }
   .center-region-annotation {
     left: 56%;
     max-width: 68vw;
@@ -445,9 +1332,48 @@
   .center-gesture-hint { display: none; }
 }
 
+/* ---- Surface world location nodes ---------------------------------------- */
+.center-region--surface-dot .center-region-shape {
+  width: clamp(20px, 1.5vw, 30px);
+  height: clamp(20px, 1.5vw, 30px);
+  border-radius: 50%;
+  border: 1px solid rgba(74, 66, 57, 0.55);
+  background: rgba(229, 220, 204, 0.88);
+  box-shadow: 0 2px 8px rgba(72, 62, 49, 0.14);
+}
+
+.center-region--surface-dot .center-region-title {
+  display: block;
+  margin-top: 8px;
+  font-size: clamp(13px, 0.95vw, 17px);
+  line-height: 1.2;
+  color: rgba(66, 59, 51, 0.86);
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.center-region--surface-dot.center-region--state-sensed .center-region-shape {
+  border-color: rgba(55, 49, 43, 0.55);
+  background: rgba(215, 204, 186, 0.60);
+  clip-path: none;
+}
+
+.center-region--surface-dot.center-region--state-sensed .center-region-shape::after {
+  display: none;
+}
+
+.center-region--surface-dot.is-focused .center-region-shape {
+  border-color: rgba(143, 94, 66, 0.75);
+  background: rgba(215, 204, 186, 0.60);
+  filter: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .center-map-surface,
+  .center-mini-landmark,
+  .center-skin-mini,
   .center-region-shape,
+  [data-reveal],
   .center-detail-panel,
   .center-edge,
   .center-viewport::before,
@@ -458,11 +1384,32 @@
 }
 
 .page-shell[data-motion-mode="reduced"] .center-map-surface,
+.page-shell[data-motion-mode="reduced"] .center-mini-landmark,
+.page-shell[data-motion-mode="reduced"] .center-skin-mini,
 .page-shell[data-motion-mode="reduced"] .center-region-shape,
+.page-shell[data-motion-mode="reduced"] [data-reveal],
 .page-shell[data-motion-mode="reduced"] .center-detail-panel,
 .page-shell[data-motion-mode="reduced"] .center-edge,
 .page-shell[data-motion-mode="reduced"] .center-viewport::before,
 .page-shell[data-motion-mode="reduced"] .center-viewport::after {
   transition-duration: 0.01ms;
   animation: none;
+}
+
+/* ---- Route composite preview layer (temporary) ---------------------------
+   Low-opacity overlay of the continuous estate–council PNG for alignment
+   tuning. 1536×1024 native, cropped with object-fit to fill the 1000×360
+   viewBox. Remove when the batch-1 road scene is finalised. */
+.center-route-preview {
+  position: absolute;
+  z-index: 5;
+  opacity: 0.22;
+  object-fit: cover;
+  object-position: center 38%;
+  transform: translate(-50%, -50%);
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  image-rendering: auto;
 }
