@@ -10,7 +10,7 @@ import mineOutskirtsArt from '../../assets/center/inner/mine-outskirts-v2.png'
 import councilInnerArt from '../../assets/center/inner/central-council-inner-v1.png'
 import jijiaResidenceArt from '../../assets/center/surface/jijia-residence-courtyard-v1.png'
 import councilSurfaceArt from '../../assets/center/surface/central-council-surface-v2.png'
-import surfaceWorldMapArt from '../../assets/center/surface/surface-world-map.png'
+import surfaceWorldMapArt from '../../assets/center/surface/surface-world-map-v2.png'
 
 const REGION_ART = {
   'surface-estate': jijiaResidenceArt,
