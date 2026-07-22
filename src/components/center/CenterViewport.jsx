@@ -21,7 +21,6 @@ const REGION_ART = {
 }
 
 const [, , VB_W, VB_H] = sharedWorldGeometry.viewBox.split(' ').map(Number)
-const SURFACE_MAP_RATIO = 3 / 2
 
 const NEW_SURFACE_POSITIONS = {
   'surface-estate': { x: 0.145, y: 0.13 },
@@ -129,23 +128,6 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
     '--map-zoom': isOverview ? 1 : zoom,
   }
 
-  const viewportRatio = viewportHeight > 0 ? viewportWidth / viewportHeight : SURFACE_MAP_RATIO
-  const surfaceArtboardStyle = viewportRatio >= SURFACE_MAP_RATIO
-    ? {
-        width: `${viewportHeight * SURFACE_MAP_RATIO}px`,
-        height: `${viewportHeight}px`,
-        left: '50%',
-        top: 0,
-        transform: 'translateX(-50%)',
-      }
-    : {
-        width: `${viewportWidth}px`,
-        height: `${viewportWidth / SURFACE_MAP_RATIO}px`,
-        left: 0,
-        top: '50%',
-        transform: 'translateY(-50%)',
-      }
-
   const renderNode = node => {
     const positionedNode = isOverview ? bindOverviewNodeToSharedAnchor(node) : node
     return (
@@ -213,8 +195,10 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
                     className="surface-world-artboard"
                     style={{
                       position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
                       overflow: 'hidden',
-                      ...surfaceArtboardStyle,
                     }}
                   >
                     <img
@@ -227,7 +211,8 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
                         inset: 0,
                         width: '100%',
                         height: '100%',
-                        objectFit: 'contain',
+                        objectFit: 'cover',
+                        objectPosition: 'center',
                         display: 'block',
                         userSelect: 'none',
                         pointerEvents: 'none',
@@ -327,7 +312,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
 
       <div className="center-gesture-hint" aria-hidden="true">
         {isOverview ? (
-          <span>表世界总览将自动适配当前窗口</span>
+          <span>表世界总览铺满当前窗口 · 地标位置可在校准模式中调整</span>
         ) : (
           <>
             <span>右键拖动查看周围</span>
