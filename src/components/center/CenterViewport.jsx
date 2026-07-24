@@ -150,7 +150,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
       className={`center-viewport${detailNode ? ' has-detail' : ''}${detailClosing ? ' is-detail-closing' : ''}${previewNodeId ? ' has-landmark-preview' : ''}${previewClosing ? ' is-landmark-preview-closing' : ''}${edgeIntent ? ` has-edge-${edgeIntent}` : ''}${splitComplete ? ' is-split-complete' : ''}`}
       aria-label={currentNode.title}
       onPointerDown={isOverview ? undefined : onPointerDown}
-      onPointerMove={onPointerMove}
+      onPointerMove={isOverview ? undefined : onPointerMove}
       onPointerUp={isOverview ? undefined : onPointerUp}
       onPointerCancel={isOverview ? undefined : onPointerUp}
       onContextMenu={event => event.preventDefault()}
