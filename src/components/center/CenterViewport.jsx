@@ -79,6 +79,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
   const innerNodes = isOverview ? children.filter(node => node.world === 'inner') : children
   const innerActive = layerSeparation >= 0.12
   const splitComplete = layerSeparation >= 0.92
+  const surfaceFocusedNode = isOverview && focusedNode?.world === 'surface' ? focusedNode : null
 
   useEffect(() => {
     resetViewForLayer()
@@ -106,6 +107,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
     '--surface-scale': 1,
     '--inner-scale': 1,
     '--inner-opacity': Math.max(0, (layerSeparation - 0.05) / 0.3),
+    pointerEvents: isOverview ? 'none' : undefined,
   }
 
   const panStyle = {
@@ -133,6 +135,15 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
     )
   }
 
+  const annotationLeft = Math.min(
+    Math.max(24, cursor.x + 28),
+    Math.max(24, viewportWidth - 360),
+  )
+  const annotationTop = Math.min(
+    Math.max(72, cursor.y - 26),
+    Math.max(72, viewportHeight - 220),
+  )
+
   return (
     <section
       ref={viewportRef}
@@ -145,6 +156,16 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
       onContextMenu={event => event.preventDefault()}
       onClick={cancelFocus}
     >
+      {isOverview && (
+        <SurfaceWorldPhaser
+          nodes={surfaceNodes}
+          onHoverStart={beginHover}
+          onHoverEnd={endHover}
+          onOpenDetail={nodeId => openDetail(nodeId, null)}
+          onBlankClick={cancelFocus}
+        />
+      )}
+
       <div className="center-world-stage" style={stageStyle}>
         <div className="center-world-camera-pan" style={panStyle}>
           <div className="center-world-camera-zoom" style={zoomStyle}>
@@ -160,16 +181,9 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
                   <div className="center-layer-nodes">{innerNodes.map(renderNode)}</div>
                 </div>
 
-                <div className="center-map-layer center-map-layer--surface is-interactive">
+                <div className="center-map-layer center-map-layer--surface">
                   <span className="center-map-layer-label">表世界</span>
                   <SurfaceTextureLayer />
-                  <SurfaceWorldPhaser
-                    nodes={surfaceNodes}
-                    onHoverStart={beginHover}
-                    onHoverEnd={endHover}
-                    onOpenDetail={nodeId => openDetail(nodeId, null)}
-                    onBlankClick={cancelFocus}
-                  />
                 </div>
               </div>
             ) : (
@@ -217,6 +231,37 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
           }}
           aria-hidden="true"
         ><span /></div>
+      )}
+
+      {surfaceFocusedNode && !detailNode && (
+        <div
+          data-center-annotation
+          style={{
+            position: 'fixed',
+            left: annotationLeft,
+            top: annotationTop,
+            zIndex: 35,
+            pointerEvents: 'auto',
+          }}
+          onMouseEnter={keepFocus}
+          onPointerDown={event => event.stopPropagation()}
+          onClick={event => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="center-region-annotation-target"
+            onClick={event => {
+              event.stopPropagation()
+              openDetail(surfaceFocusedNode.id, null)
+            }}
+          >
+            <span className="center-region-annotation-title">{surfaceFocusedNode.title}</span>
+            <span className="center-region-annotation-copy">
+              {surfaceFocusedNode.annotation ?? surfaceFocusedNode.description}
+            </span>
+            <span className="center-region-annotation-hint">点击细看</span>
+          </button>
+        </div>
       )}
 
       {!isOverview && (
