@@ -27,6 +27,13 @@ const SURFACE_WORLD = {
   height: 1728,
 }
 
+const SURFACE_CAMERA = {
+  minZoom: 1.25,
+  maxZoom: 3.2,
+  legacyMinZoom: 1,
+  legacyMaxZoom: 1.65,
+}
+
 const NEW_SURFACE_POSITIONS = {
   'surface-estate': { x: 0.145, y: 0.13 },
   'surface-council': { x: 0.555, y: 0.45 },
@@ -95,8 +102,32 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
   const innerNodes = isOverview ? children.filter(node => node.world === 'inner') : children
   const innerActive = layerSeparation >= 0.12
   const splitComplete = layerSeparation >= 0.92
-  const surfaceWorldScale = viewportHeight / SURFACE_WORLD.height
-  const surfaceCameraScale = surfaceWorldScale * zoom
+  const surfaceCoverScale = Math.max(
+    viewportWidth / SURFACE_WORLD.width,
+    viewportHeight / SURFACE_WORLD.height,
+  )
+  const legacyZoomProgress = (zoom - SURFACE_CAMERA.legacyMinZoom)
+    / (SURFACE_CAMERA.legacyMaxZoom - SURFACE_CAMERA.legacyMinZoom)
+  const surfaceZoom = SURFACE_CAMERA.minZoom
+    + Math.max(0, Math.min(1, legacyZoomProgress))
+      * (SURFACE_CAMERA.maxZoom - SURFACE_CAMERA.minZoom)
+  const surfaceCameraScale = surfaceCoverScale * surfaceZoom
+  const legacyMaxPanX = viewportWidth * Math.max(0, zoom - 1) / 2
+  const legacyMaxPanY = viewportHeight * Math.max(0, zoom - 1) / 2
+  const surfaceMaxPanX = Math.max(
+    0,
+    (SURFACE_WORLD.width * surfaceCameraScale - viewportWidth) / 2,
+  )
+  const surfaceMaxPanY = Math.max(
+    0,
+    (SURFACE_WORLD.height * surfaceCameraScale - viewportHeight) / 2,
+  )
+  const surfacePanX = legacyMaxPanX > 0
+    ? camera.x * surfaceMaxPanX / legacyMaxPanX
+    : 0
+  const surfacePanY = legacyMaxPanY > 0
+    ? camera.y * surfaceMaxPanY / legacyMaxPanY
+    : 0
 
   useEffect(() => {
     resetViewForLayer()
@@ -207,7 +238,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
                       width: `${SURFACE_WORLD.width}px`,
                       height: `${SURFACE_WORLD.height}px`,
                       overflow: 'hidden',
-                      transform: `translate(calc(-50% + ${camera.x}px), calc(-50% + ${camera.y}px)) scale(${surfaceCameraScale})`,
+                      transform: `translate(calc(-50% + ${surfacePanX}px), calc(-50% + ${surfacePanY}px)) scale(${surfaceCameraScale})`,
                       transformOrigin: 'center',
                     }}
                   >
@@ -274,7 +305,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
       )}
 
       <div className={`center-zoom-notice${zoomNoticeVisible ? ' is-visible' : ''}`} aria-live="polite">
-        {Math.round(zoom * 100)}%
+        {Math.round((isOverview ? surfaceZoom : zoom) * 100)}%
       </div>
 
       {detailNode && (
@@ -320,8 +351,8 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
       <div className="center-gesture-hint" aria-hidden="true">
         {isOverview ? (
           <>
-            <span>右键拖动查看固定世界</span>
-            <span>上滚放大 · 下滚缩小 · 地标位置可在校准模式中调整</span>
+            <span>右键拖动探索固定世界</span>
+            <span>上滚深入街区 · 下滚返回总览 · 地标位置可在校准模式中调整</span>
           </>
         ) : (
           <>
@@ -335,8 +366,8 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
         viewportWidth={viewportWidth}
         viewportHeight={viewportHeight}
         cameraZoom={isOverview ? surfaceCameraScale : zoom}
-        panX={camera.x}
-        panY={camera.y}
+        panX={isOverview ? surfacePanX : camera.x}
+        panY={isOverview ? surfacePanY : camera.y}
       />
     </section>
   )
