@@ -39,6 +39,7 @@ function InnerWorldLayers({ previewNodeId }) {
 
 function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
   const [layerSeparation, setLayerSeparation] = useState(0)
+  const [surfaceAnchors, setSurfaceAnchors] = useState({})
   const viewportRef = useRef(null)
 
   const {
@@ -80,6 +81,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
   const innerActive = layerSeparation >= 0.12
   const splitComplete = layerSeparation >= 0.92
   const surfaceFocusedNode = isOverview && focusedNode?.world === 'surface' ? focusedNode : null
+  const surfaceAnchor = surfaceFocusedNode ? surfaceAnchors[surfaceFocusedNode.id] : null
 
   useEffect(() => {
     resetViewForLayer()
@@ -135,14 +137,20 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
     )
   }
 
-  const annotationLeft = Math.min(
-    Math.max(24, cursor.x + 28),
-    Math.max(24, viewportWidth - 360),
-  )
-  const annotationTop = Math.min(
-    Math.max(72, cursor.y - 26),
-    Math.max(72, viewportHeight - 220),
-  )
+  const annotationWidth = 330
+  const annotationHeight = 190
+  const annotationLeft = surfaceAnchor
+    ? Math.min(
+        Math.max(24, surfaceAnchor.x + 36),
+        Math.max(24, viewportWidth - annotationWidth - 24),
+      )
+    : 24
+  const annotationTop = surfaceAnchor
+    ? Math.min(
+        Math.max(72, surfaceAnchor.y - annotationHeight / 2),
+        Math.max(72, viewportHeight - annotationHeight - 24),
+      )
+    : 72
 
   return (
     <section
@@ -155,14 +163,17 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
       onPointerCancel={isOverview ? undefined : onPointerUp}
       onContextMenu={event => event.preventDefault()}
       onClick={cancelFocus}
+      style={{ position: 'relative', overflow: 'hidden' }}
     >
       {isOverview && (
         <SurfaceWorldPhaser
           nodes={surfaceNodes}
+          heldNodeId={surfaceFocusedNode?.id ?? null}
           onHoverStart={beginHover}
           onHoverEnd={endHover}
           onOpenDetail={nodeId => openDetail(nodeId, null)}
           onBlankClick={cancelFocus}
+          onAnchorsChange={setSurfaceAnchors}
         />
       )}
 
@@ -233,17 +244,19 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
         ><span /></div>
       )}
 
-      {surfaceFocusedNode && !detailNode && (
+      {surfaceFocusedNode && surfaceAnchor && !detailNode && (
         <div
           data-center-annotation
           style={{
-            position: 'fixed',
+            position: 'absolute',
             left: annotationLeft,
             top: annotationTop,
+            width: annotationWidth,
             zIndex: 35,
             pointerEvents: 'auto',
           }}
           onMouseEnter={keepFocus}
+          onPointerEnter={keepFocus}
           onPointerDown={event => event.stopPropagation()}
           onClick={event => event.stopPropagation()}
         >
