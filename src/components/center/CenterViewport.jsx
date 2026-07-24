@@ -96,6 +96,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
   const innerActive = layerSeparation >= 0.12
   const splitComplete = layerSeparation >= 0.92
   const surfaceWorldScale = viewportHeight / SURFACE_WORLD.height
+  const surfaceCameraScale = surfaceWorldScale * zoom
 
   useEffect(() => {
     resetViewForLayer()
@@ -126,12 +127,12 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
   }
 
   const panStyle = {
-    '--camera-x': `${camera.x}px`,
-    '--camera-y': `${camera.y}px`,
+    '--camera-x': `${isOverview ? 0 : camera.x}px`,
+    '--camera-y': `${isOverview ? 0 : camera.y}px`,
   }
 
   const zoomStyle = {
-    '--map-zoom': zoom,
+    '--map-zoom': isOverview ? 1 : zoom,
   }
 
   const renderNode = node => {
@@ -206,7 +207,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
                       width: `${SURFACE_WORLD.width}px`,
                       height: `${SURFACE_WORLD.height}px`,
                       overflow: 'hidden',
-                      transform: `translate(-50%, -50%) scale(${surfaceWorldScale})`,
+                      transform: `translate(calc(-50% + ${camera.x}px), calc(-50% + ${camera.y}px)) scale(${surfaceCameraScale})`,
                       transformOrigin: 'center',
                     }}
                   >
@@ -333,7 +334,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
       <SurfaceDebugOverlay
         viewportWidth={viewportWidth}
         viewportHeight={viewportHeight}
-        cameraZoom={isOverview ? surfaceWorldScale * zoom : zoom}
+        cameraZoom={isOverview ? surfaceCameraScale : zoom}
         panX={camera.x}
         panY={camera.y}
       />
