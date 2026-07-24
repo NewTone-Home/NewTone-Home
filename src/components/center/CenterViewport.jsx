@@ -22,6 +22,11 @@ const REGION_ART = {
 
 const [, , VB_W, VB_H] = sharedWorldGeometry.viewBox.split(' ').map(Number)
 
+const SURFACE_WORLD = {
+  width: 3072,
+  height: 1728,
+}
+
 const NEW_SURFACE_POSITIONS = {
   'surface-estate': { x: 0.145, y: 0.13 },
   'surface-council': { x: 0.555, y: 0.45 },
@@ -90,6 +95,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
   const innerNodes = isOverview ? children.filter(node => node.world === 'inner') : children
   const innerActive = layerSeparation >= 0.12
   const splitComplete = layerSeparation >= 0.92
+  const surfaceWorldScale = viewportHeight / SURFACE_WORLD.height
 
   useEffect(() => {
     resetViewForLayer()
@@ -195,10 +201,13 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
                     className="surface-world-artboard"
                     style={{
                       position: 'absolute',
-                      inset: 0,
-                      width: '100%',
-                      height: '100%',
+                      left: '50%',
+                      top: '50%',
+                      width: `${SURFACE_WORLD.width}px`,
+                      height: `${SURFACE_WORLD.height}px`,
                       overflow: 'hidden',
+                      transform: `translate(-50%, -50%) scale(${surfaceWorldScale})`,
+                      transformOrigin: 'center',
                     }}
                   >
                     <img
@@ -211,8 +220,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
                         inset: 0,
                         width: '100%',
                         height: '100%',
-                        objectFit: 'cover',
-                        objectPosition: 'center',
+                        objectFit: 'fill',
                         display: 'block',
                         userSelect: 'none',
                         pointerEvents: 'none',
@@ -312,7 +320,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
 
       <div className="center-gesture-hint" aria-hidden="true">
         {isOverview ? (
-          <span>表世界总览铺满当前窗口 · 地标位置可在校准模式中调整</span>
+          <span>表世界总览使用固定世界坐标 · 地标位置可在校准模式中调整</span>
         ) : (
           <>
             <span>右键拖动查看周围</span>
@@ -324,7 +332,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
       <SurfaceDebugOverlay
         viewportWidth={viewportWidth}
         viewportHeight={viewportHeight}
-        cameraZoom={isOverview ? 1 : zoom}
+        cameraZoom={isOverview ? surfaceWorldScale : zoom}
         panX={camera.x}
         panY={camera.y}
       />
