@@ -103,12 +103,12 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
 
   useEffect(() => {
     const viewport = viewportRef.current
-    if (!viewport || isOverview) return undefined
+    if (!viewport) return undefined
     viewport.addEventListener('wheel', onWheel, { passive: false })
     return () => {
       viewport.removeEventListener('wheel', onWheel)
     }
-  }, [isOverview, onWheel])
+  }, [onWheel])
 
   useEffect(() => {
     resetViewForLayer()
@@ -131,7 +131,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
   }
 
   const zoomStyle = {
-    '--map-zoom': isOverview ? 1 : zoom,
+    '--map-zoom': zoom,
   }
 
   const renderNode = node => {
@@ -162,7 +162,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
         onHoverStart={beginHover}
         onHoverEnd={endHover}
         onKeepFocus={keepFocus}
-        onOpenDetail={nodeId => openDetail(nodeId, viewportRef.current)}
+        onOpenDetail={nodeId => openDetail(nodeId, null)}
       />
     )
   }
@@ -272,11 +272,9 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
         ><span /></div>
       )}
 
-      {!isOverview && (
-        <div className={`center-zoom-notice${zoomNoticeVisible ? ' is-visible' : ''}`} aria-live="polite">
-          {Math.round(zoom * 100)}%
-        </div>
-      )}
+      <div className={`center-zoom-notice${zoomNoticeVisible ? ' is-visible' : ''}`} aria-live="polite">
+        {Math.round(zoom * 100)}%
+      </div>
 
       {detailNode && (
         <aside
@@ -320,7 +318,10 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
 
       <div className="center-gesture-hint" aria-hidden="true">
         {isOverview ? (
-          <span>表世界总览使用固定世界坐标 · 地标位置可在校准模式中调整</span>
+          <>
+            <span>右键拖动查看固定世界</span>
+            <span>上滚放大 · 下滚缩小 · 地标位置可在校准模式中调整</span>
+          </>
         ) : (
           <>
             <span>右键拖动查看周围</span>
@@ -332,7 +333,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
       <SurfaceDebugOverlay
         viewportWidth={viewportWidth}
         viewportHeight={viewportHeight}
-        cameraZoom={isOverview ? surfaceWorldScale : zoom}
+        cameraZoom={isOverview ? surfaceWorldScale * zoom : zoom}
         panX={camera.x}
         panY={camera.y}
       />
