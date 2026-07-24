@@ -199,10 +199,6 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
                       width: '100%',
                       height: '100%',
                       overflow: 'hidden',
-                      backgroundImage: `url(${surfaceWorldMapArt})`,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                      backgroundRepeat: 'no-repeat',
                     }}
                   >
                     <img
@@ -217,22 +213,12 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
                         height: '100%',
                         objectFit: 'cover',
                         objectPosition: 'center',
-                        transform: 'translate(2%, 3%) scale(0.94)',
-                        transformOrigin: 'center',
                         display: 'block',
                         userSelect: 'none',
                         pointerEvents: 'none',
                       }}
                     />
-                    <div
-                      className="center-layer-nodes"
-                      style={{
-                        transform: 'translate(2%, 3%) scale(0.94)',
-                        transformOrigin: 'center',
-                      }}
-                    >
-                      {surfaceNodes.map(renderSurfaceNode)}
-                    </div>
+                    <div className="center-layer-nodes">{surfaceNodes.map(renderSurfaceNode)}</div>
                   </div>
                 </div>
               </div>
