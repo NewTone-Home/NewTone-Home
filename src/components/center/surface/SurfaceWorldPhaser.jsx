@@ -16,7 +16,12 @@ const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
 function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
   const hostRef = useRef(null)
+  const nodesRef = useRef(nodes)
   const callbacksRef = useRef({ onHoverStart, onHoverEnd, onOpenDetail })
+
+  useEffect(() => {
+    nodesRef.current = nodes
+  }, [nodes])
 
   useEffect(() => {
     callbacksRef.current = { onHoverStart, onHoverEnd, onOpenDetail }
@@ -52,7 +57,7 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
         camera.setBounds(0, 0, WORLD.width, WORLD.height)
         this.resetZoomRange(true)
 
-        nodes.forEach(node => {
+        nodesRef.current.forEach(node => {
           const landmark = LANDMARKS[node.id]
           if (!landmark) return
 
@@ -220,13 +225,15 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
     return () => {
       game?.destroy(true)
     }
-  }, [nodes])
+  }, [])
 
   return (
     <div
       ref={hostRef}
       className="surface-world-phaser"
       aria-label="表世界固定坐标地图"
+      onClick={event => event.stopPropagation()}
+      onContextMenu={event => event.preventDefault()}
       style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}
     />
   )
