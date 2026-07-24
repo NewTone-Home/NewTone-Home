@@ -5,12 +5,12 @@ import { centerMiniLandmarks } from '../../data/center/centerWorld'
 import { sharedWorldGeometry } from '../../data/center/sharedWorldGeometry'
 import SurfaceTextureLayer from './surface/SurfaceTextureLayer'
 import SurfaceDebugOverlay from './surface/SurfaceDebugOverlay'
+import SurfaceWorldPhaser from './surface/SurfaceWorldPhaser'
 import mainCityArt from '../../assets/center/inner/main-city-v1.png'
 import mineOutskirtsArt from '../../assets/center/inner/mine-outskirts-v2.png'
 import councilInnerArt from '../../assets/center/inner/central-council-inner-v1.png'
 import jijiaResidenceArt from '../../assets/center/surface/jijia-residence-courtyard-v1.png'
 import councilSurfaceArt from '../../assets/center/surface/central-council-surface-v2.png'
-import surfaceWorldMapArt from '../../assets/center/surface/surface-world-map-v2.png'
 
 const REGION_ART = {
   'surface-estate': jijiaResidenceArt,
@@ -21,29 +21,6 @@ const REGION_ART = {
 }
 
 const [, , VB_W, VB_H] = sharedWorldGeometry.viewBox.split(' ').map(Number)
-
-const SURFACE_WORLD = {
-  width: 3072,
-  height: 1728,
-}
-
-const SURFACE_CAMERA = {
-  minZoom: 1.25,
-  maxZoom: 2.35,
-  legacyMinZoom: 1,
-  legacyMaxZoom: 1.65,
-}
-
-const NEW_SURFACE_POSITIONS = {
-  'surface-estate': { x: 0.145, y: 0.13 },
-  'surface-council': { x: 0.555, y: 0.45 },
-}
-
-function bindNewSurfacePosition(node) {
-  const pos = NEW_SURFACE_POSITIONS[node.id]
-  if (!pos) return node
-  return { ...node, x: pos.x * 100, y: pos.y * 100, width: 12, height: 9 }
-}
 
 function bindOverviewNodeToSharedAnchor(node) {
   const anchorId = centerMiniLandmarks[node.id]?.anchorId
@@ -102,32 +79,6 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
   const innerNodes = isOverview ? children.filter(node => node.world === 'inner') : children
   const innerActive = layerSeparation >= 0.12
   const splitComplete = layerSeparation >= 0.92
-  const surfaceCoverScale = Math.max(
-    viewportWidth / SURFACE_WORLD.width,
-    viewportHeight / SURFACE_WORLD.height,
-  )
-  const legacyZoomProgress = (zoom - SURFACE_CAMERA.legacyMinZoom)
-    / (SURFACE_CAMERA.legacyMaxZoom - SURFACE_CAMERA.legacyMinZoom)
-  const surfaceZoom = SURFACE_CAMERA.minZoom
-    + Math.max(0, Math.min(1, legacyZoomProgress))
-      * (SURFACE_CAMERA.maxZoom - SURFACE_CAMERA.minZoom)
-  const surfaceCameraScale = surfaceCoverScale * surfaceZoom
-  const legacyMaxPanX = viewportWidth * Math.max(0, zoom - 1) / 2
-  const legacyMaxPanY = viewportHeight * Math.max(0, zoom - 1) / 2
-  const surfaceMaxPanX = Math.max(
-    0,
-    (SURFACE_WORLD.width * surfaceCameraScale - viewportWidth) / 2,
-  )
-  const surfaceMaxPanY = Math.max(
-    0,
-    (SURFACE_WORLD.height * surfaceCameraScale - viewportHeight) / 2,
-  )
-  const surfacePanX = legacyMaxPanX > 0
-    ? camera.x * surfaceMaxPanX / legacyMaxPanX
-    : 0
-  const surfacePanY = legacyMaxPanY > 0
-    ? camera.y * surfaceMaxPanY / legacyMaxPanY
-    : 0
 
   useEffect(() => {
     resetViewForLayer()
@@ -135,12 +86,12 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
 
   useEffect(() => {
     const viewport = viewportRef.current
-    if (!viewport) return undefined
+    if (!viewport || isOverview) return undefined
     viewport.addEventListener('wheel', onWheel, { passive: false })
     return () => {
       viewport.removeEventListener('wheel', onWheel)
     }
-  }, [onWheel])
+  }, [isOverview, onWheel])
 
   useEffect(() => {
     resetViewForLayer()
@@ -182,32 +133,15 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
     )
   }
 
-  const renderSurfaceNode = node => {
-    const positionedNode = bindNewSurfacePosition(node)
-    return (
-      <CenterRegion
-        key={node.id}
-        node={positionedNode}
-        className="center-region--surface-dot"
-        focused={focusedNode?.id === node.id}
-        annotationLeaving={focusedNode?.id === node.id && annotationLeaving}
-        onHoverStart={beginHover}
-        onHoverEnd={endHover}
-        onKeepFocus={keepFocus}
-        onOpenDetail={nodeId => openDetail(nodeId, null)}
-      />
-    )
-  }
-
   return (
     <section
       ref={viewportRef}
       className={`center-viewport${detailNode ? ' has-detail' : ''}${detailClosing ? ' is-detail-closing' : ''}${previewNodeId ? ' has-landmark-preview' : ''}${previewClosing ? ' is-landmark-preview-closing' : ''}${edgeIntent ? ` has-edge-${edgeIntent}` : ''}${splitComplete ? ' is-split-complete' : ''}`}
       aria-label={currentNode.title}
-      onPointerDown={onPointerDown}
+      onPointerDown={isOverview ? undefined : onPointerDown}
       onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      onPointerUp={isOverview ? undefined : onPointerUp}
+      onPointerCancel={isOverview ? undefined : onPointerUp}
       onContextMenu={event => event.preventDefault()}
       onClick={cancelFocus}
     >
@@ -229,39 +163,12 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
                 <div className="center-map-layer center-map-layer--surface is-interactive">
                   <span className="center-map-layer-label">表世界</span>
                   <SurfaceTextureLayer />
-                  <div
-                    className="surface-world-artboard"
-                    style={{
-                      position: 'absolute',
-                      left: '50%',
-                      top: '50%',
-                      width: `${SURFACE_WORLD.width}px`,
-                      height: `${SURFACE_WORLD.height}px`,
-                      overflow: 'hidden',
-                      transform: `translate(calc(-50% + ${surfacePanX}px), calc(-50% + ${surfacePanY}px)) scale(${surfaceCameraScale})`,
-                      transformOrigin: 'center',
-                      transition: 'transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1)',
-                      willChange: 'transform',
-                    }}
-                  >
-                    <img
-                      src={surfaceWorldMapArt}
-                      alt=""
-                      aria-hidden="true"
-                      draggable="false"
-                      style={{
-                        position: 'absolute',
-                        inset: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'fill',
-                        display: 'block',
-                        userSelect: 'none',
-                        pointerEvents: 'none',
-                      }}
-                    />
-                    <div className="center-layer-nodes">{surfaceNodes.map(renderSurfaceNode)}</div>
-                  </div>
+                  <SurfaceWorldPhaser
+                    nodes={surfaceNodes}
+                    onHoverStart={beginHover}
+                    onHoverEnd={endHover}
+                    onOpenDetail={nodeId => openDetail(nodeId, null)}
+                  />
                 </div>
               </div>
             ) : (
@@ -306,9 +213,11 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
         ><span /></div>
       )}
 
-      <div className={`center-zoom-notice${zoomNoticeVisible ? ' is-visible' : ''}`} aria-live="polite">
-        {Math.round((isOverview ? surfaceZoom : zoom) * 100)}%
-      </div>
+      {!isOverview && (
+        <div className={`center-zoom-notice${zoomNoticeVisible ? ' is-visible' : ''}`} aria-live="polite">
+          {Math.round(zoom * 100)}%
+        </div>
+      )}
 
       {detailNode && (
         <aside
@@ -354,7 +263,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
         {isOverview ? (
           <>
             <span>右键拖动探索固定世界</span>
-            <span>上滚深入街区 · 下滚返回总览 · 地标位置可在校准模式中调整</span>
+            <span>滚轮连续缩放 · 缩放锚点保持在当前查看位置</span>
           </>
         ) : (
           <>
@@ -364,13 +273,15 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
         )}
       </div>
 
-      <SurfaceDebugOverlay
-        viewportWidth={viewportWidth}
-        viewportHeight={viewportHeight}
-        cameraZoom={isOverview ? surfaceCameraScale : zoom}
-        panX={isOverview ? surfacePanX : camera.x}
-        panY={isOverview ? surfacePanY : camera.y}
-      />
+      {!isOverview && (
+        <SurfaceDebugOverlay
+          viewportWidth={viewportWidth}
+          viewportHeight={viewportHeight}
+          cameraZoom={zoom}
+          panX={camera.x}
+          panY={camera.y}
+        />
+      )}
     </section>
   )
 }
