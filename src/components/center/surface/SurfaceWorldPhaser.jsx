@@ -32,6 +32,7 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
     if (!parent) return undefined
 
     let game
+    let sceneRef = null
 
     class SurfaceWorldScene extends Phaser.Scene {
       constructor() {
@@ -41,6 +42,8 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
         this.maxZoom = 2
         this.zoomAnchor = null
         this.drag = null
+        this.hoveredNodeId = null
+        this.landmarkViews = new Map()
       }
 
       preload() {
@@ -48,6 +51,8 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
       }
 
       create() {
+        sceneRef = this
+
         this.add
           .image(0, 0, 'surface-world-map')
           .setOrigin(0)
@@ -57,92 +62,129 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
         camera.setBounds(0, 0, WORLD.width, WORLD.height)
         this.resetZoomRange(true)
 
-        nodesRef.current.forEach(node => {
-          const landmark = LANDMARKS[node.id]
-          if (!landmark) return
-
+        Object.entries(LANDMARKS).forEach(([nodeId, landmark]) => {
           const x = landmark.x * WORLD.width
           const y = landmark.y * WORLD.height
           const width = landmark.width * WORLD.width
           const height = landmark.height * WORLD.height
 
           const outline = this.add.graphics()
-          outline.lineStyle(5, 0xd9a441, 0.82)
+          outline.lineStyle(5, 0xd9a441, 0.88)
           outline.strokeRoundedRect(x, y, width, height, 22)
           outline.setAlpha(0)
+          outline.setDepth(10)
 
-          const zone = this.add
-            .zone(x + width / 2, y + height / 2, width, height)
-            .setInteractive({ useHandCursor: true })
-
-          zone.on('pointerover', pointer => {
-            outline.setAlpha(1)
-            callbacksRef.current.onHoverStart?.(node.id, {
-              clientX: pointer.event?.clientX ?? pointer.x,
-              clientY: pointer.event?.clientY ?? pointer.y,
-            })
-          })
-
-          zone.on('pointerout', () => {
-            outline.setAlpha(0)
-            callbacksRef.current.onHoverEnd?.(node.id)
-          })
-
-          zone.on('pointerup', pointer => {
-            if (pointer.leftButtonReleased()) {
-              callbacksRef.current.onOpenDetail?.(node.id)
-            }
-          })
+          this.landmarkViews.set(nodeId, { x, y, width, height, outline })
         })
+      }
 
-        this.input.on('wheel', (pointer, _objects, _deltaX, deltaY) => {
-          const cameraNow = this.cameras.main
-          const worldPoint = cameraNow.getWorldPoint(pointer.x, pointer.y)
-          const zoomFactor = Math.exp(-deltaY * 0.0015)
+      getLocalPointer(event) {
+        const rect = parent.getBoundingClientRect()
+        return {
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+        }
+      }
 
-          this.targetZoom = clamp(
-            this.targetZoom * zoomFactor,
-            this.minZoom,
-            this.maxZoom,
-          )
-          this.zoomAnchor = {
-            screenX: pointer.x,
-            screenY: pointer.y,
-            worldX: worldPoint.x,
-            worldY: worldPoint.y,
+      findLandmarkAt(worldX, worldY) {
+        for (const [nodeId, view] of this.landmarkViews.entries()) {
+          if (
+            worldX >= view.x
+            && worldX <= view.x + view.width
+            && worldY >= view.y
+            && worldY <= view.y + view.height
+          ) {
+            return nodeId
           }
-        })
+        }
+        return null
+      }
 
-        this.input.on('pointerdown', pointer => {
-          if (!pointer.rightButtonDown()) return
-          this.drag = {
-            pointerX: pointer.x,
-            pointerY: pointer.y,
-            scrollX: camera.scrollX,
-            scrollY: camera.scrollY,
-          }
-        })
+      setHoveredNode(nodeId, event) {
+        if (nodeId === this.hoveredNodeId) return
 
-        this.input.on('pointermove', pointer => {
-          if (!this.drag || !pointer.rightButtonDown()) return
+        if (this.hoveredNodeId) {
+          this.landmarkViews.get(this.hoveredNodeId)?.outline.setAlpha(0)
+          callbacksRef.current.onHoverEnd?.(this.hoveredNodeId)
+        }
+
+        this.hoveredNodeId = nodeId
+
+        if (nodeId) {
+          this.landmarkViews.get(nodeId)?.outline.setAlpha(1)
+          callbacksRef.current.onHoverStart?.(nodeId, {
+            clientX: event.clientX,
+            clientY: event.clientY,
+            pointerType: event.pointerType || 'mouse',
+          })
+        }
+      }
+
+      handleWheel(event) {
+        event.preventDefault()
+        const pointer = this.getLocalPointer(event)
+        const camera = this.cameras.main
+        const worldPoint = camera.getWorldPoint(pointer.x, pointer.y)
+        const zoomFactor = Math.exp(-event.deltaY * 0.0015)
+
+        this.targetZoom = clamp(
+          this.targetZoom * zoomFactor,
+          this.minZoom,
+          this.maxZoom,
+        )
+
+        this.zoomAnchor = {
+          screenX: pointer.x,
+          screenY: pointer.y,
+          worldX: worldPoint.x,
+          worldY: worldPoint.y,
+        }
+      }
+
+      handlePointerMove(event) {
+        const pointer = this.getLocalPointer(event)
+        const camera = this.cameras.main
+
+        if (this.drag && (event.buttons & 2) !== 0) {
           camera.scrollX = this.drag.scrollX - (pointer.x - this.drag.pointerX) / camera.zoom
           camera.scrollY = this.drag.scrollY - (pointer.y - this.drag.pointerY) / camera.zoom
           this.clampCamera()
           this.zoomAnchor = null
-        })
+          this.setHoveredNode(null, event)
+          return
+        }
 
-        this.input.on('pointerup', () => {
-          this.drag = null
-        })
+        const worldPoint = camera.getWorldPoint(pointer.x, pointer.y)
+        this.setHoveredNode(this.findLandmarkAt(worldPoint.x, worldPoint.y), event)
+      }
 
-        this.scale.on('resize', gameSize => {
-          const center = camera.getWorldPoint(camera.width / 2, camera.height / 2)
-          camera.setSize(gameSize.width, gameSize.height)
-          this.resetZoomRange(false)
-          camera.scrollX = center.x - camera.width / (2 * camera.zoom)
-          camera.scrollY = center.y - camera.height / (2 * camera.zoom)
-          this.clampCamera()
-        })
+      handlePointerDown(event) {
+        if (event.button !== 2) return
+        event.preventDefault()
+        const pointer = this.getLocalPointer(event)
+        const camera = this.cameras.main
+        this.drag = {
+          pointerX: pointer.x,
+          pointerY: pointer.y,
+          scrollX: camera.scrollX,
+          scrollY: camera.scrollY,
+        }
+      }
+
+      handlePointerUp(event) {
+        const wasDragging = this.drag
+        this.drag = null
+
+        if (event.button !== 0 || wasDragging) return
+        const pointer = this.getLocalPointer(event)
+        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+        const nodeId = this.findLandmarkAt(worldPoint.x, worldPoint.y)
+        if (nodeId) callbacksRef.current.onOpenDetail?.(nodeId)
+      }
+
+      handlePointerLeave(event) {
+        this.drag = null
+        this.setHoveredNode(null, event)
       }
 
       resetZoomRange(resetCamera) {
@@ -215,14 +257,31 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
         pixelArt: false,
         roundPixels: false,
       },
-      input: {
-        mouse: {
-          preventDefaultWheel: true,
-        },
-      },
     })
 
+    const forward = method => event => sceneRef?.[method]?.(event)
+    const handleWheel = forward('handleWheel')
+    const handlePointerMove = forward('handlePointerMove')
+    const handlePointerDown = forward('handlePointerDown')
+    const handlePointerUp = forward('handlePointerUp')
+    const handlePointerLeave = forward('handlePointerLeave')
+    const handleContextMenu = event => event.preventDefault()
+
+    parent.addEventListener('wheel', handleWheel, { passive: false })
+    parent.addEventListener('pointermove', handlePointerMove)
+    parent.addEventListener('pointerdown', handlePointerDown)
+    parent.addEventListener('pointerup', handlePointerUp)
+    parent.addEventListener('pointerleave', handlePointerLeave)
+    parent.addEventListener('contextmenu', handleContextMenu)
+
     return () => {
+      parent.removeEventListener('wheel', handleWheel)
+      parent.removeEventListener('pointermove', handlePointerMove)
+      parent.removeEventListener('pointerdown', handlePointerDown)
+      parent.removeEventListener('pointerup', handlePointerUp)
+      parent.removeEventListener('pointerleave', handlePointerLeave)
+      parent.removeEventListener('contextmenu', handleContextMenu)
+      sceneRef = null
       game?.destroy(true)
     }
   }, [])
@@ -233,8 +292,14 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
       className="surface-world-phaser"
       aria-label="表世界固定坐标地图"
       onClick={event => event.stopPropagation()}
-      onContextMenu={event => event.preventDefault()}
-      style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 4,
+        overflow: 'hidden',
+        pointerEvents: 'auto',
+        touchAction: 'none',
+      }}
     />
   )
 }
