@@ -38,18 +38,35 @@ const LANDMARKS = {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
-function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail, onBlankClick }) {
+function SurfaceWorldPhaser({
+  nodes,
+  heldNodeId,
+  onHoverStart,
+  onHoverEnd,
+  onOpenDetail,
+  onBlankClick,
+  onAnchorsChange,
+}) {
   const hostRef = useRef(null)
-  const nodesRef = useRef(nodes)
-  const callbacksRef = useRef({ onHoverStart, onHoverEnd, onOpenDetail, onBlankClick })
+  const callbacksRef = useRef({
+    heldNodeId,
+    onHoverStart,
+    onHoverEnd,
+    onOpenDetail,
+    onBlankClick,
+    onAnchorsChange,
+  })
 
   useEffect(() => {
-    nodesRef.current = nodes
-  }, [nodes])
-
-  useEffect(() => {
-    callbacksRef.current = { onHoverStart, onHoverEnd, onOpenDetail, onBlankClick }
-  }, [onHoverStart, onHoverEnd, onOpenDetail, onBlankClick])
+    callbacksRef.current = {
+      heldNodeId,
+      onHoverStart,
+      onHoverEnd,
+      onOpenDetail,
+      onBlankClick,
+      onAnchorsChange,
+    }
+  }, [heldNodeId, onHoverStart, onHoverEnd, onOpenDetail, onBlankClick, onAnchorsChange])
 
   useEffect(() => {
     const parent = hostRef.current
@@ -63,11 +80,10 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail, onB
         super('surface-world')
         this.minZoom = 1
         this.maxZoom = 2
-        this.targetZoom = 1
-        this.targetCenterX = WORLD.width / 2
-        this.targetCenterY = WORLD.height / 2
         this.drag = null
         this.hoveredNodeId = null
+        this.hoverExitTimer = null
+        this.zoomTween = null
         this.landmarkViews = new Map()
       }
 
@@ -83,7 +99,11 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail, onB
           .setOrigin(0)
           .setDisplaySize(WORLD.width, WORLD.height)
 
+        const enabledNodeIds = new Set(nodes.map(node => node.id))
+
         Object.entries(LANDMARKS).forEach(([nodeId, landmark]) => {
+          if (!enabledNodeIds.has(nodeId)) return
+
           const x = landmark.x * WORLD.width
           const y = landmark.y * WORLD.height
           const width = landmark.width * WORLD.width
@@ -115,59 +135,60 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail, onB
           this.landmarkViews.set(nodeId, { polygon, centroid, outline })
         })
 
-        this.handleResize(parent.clientWidth, parent.clientHeight, true)
+        this.resizeCamera(parent.clientWidth, parent.clientHeight, true)
+        this.emitAnchors()
       }
 
-      getLocalPointer(event) {
+      getCanvasPoint(event) {
         const rect = game?.canvas?.getBoundingClientRect()
-        if (!rect || rect.width <= 0 || rect.height <= 0) return { x: 0, y: 0 }
+        const camera = this.cameras.main
+        if (!rect || rect.width <= 0 || rect.height <= 0) return null
 
         return {
-          x: (event.clientX - rect.left) * this.cameras.main.width / rect.width,
-          y: (event.clientY - rect.top) * this.cameras.main.height / rect.height,
+          x: (event.clientX - rect.left) * camera.width / rect.width,
+          y: (event.clientY - rect.top) * camera.height / rect.height,
         }
       }
 
-      worldPointForTarget(screenX, screenY) {
+      getCameraBounds(zoom = this.cameras.main.zoom) {
         const camera = this.cameras.main
         return {
-          x: this.targetCenterX + (screenX - camera.width / 2) / this.targetZoom,
-          y: this.targetCenterY + (screenY - camera.height / 2) / this.targetZoom,
+          maxX: Math.max(0, WORLD.width - camera.width / zoom),
+          maxY: Math.max(0, WORLD.height - camera.height / zoom),
         }
       }
 
-      renderedWorldPoint(screenX, screenY) {
-        return this.cameras.main.getWorldPoint(screenX, screenY)
-      }
-
-      clampTargetCenter() {
+      clampCamera() {
         const camera = this.cameras.main
-        const halfWidth = camera.width / (2 * this.targetZoom)
-        const halfHeight = camera.height / (2 * this.targetZoom)
-        this.targetCenterX = clamp(this.targetCenterX, halfWidth, WORLD.width - halfWidth)
-        this.targetCenterY = clamp(this.targetCenterY, halfHeight, WORLD.height - halfHeight)
+        const bounds = this.getCameraBounds()
+        camera.scrollX = clamp(camera.scrollX, 0, bounds.maxX)
+        camera.scrollY = clamp(camera.scrollY, 0, bounds.maxY)
       }
 
-      findLandmarkAt(worldX, worldY) {
+      resizeCamera(width, height, reset = false) {
+        if (width <= 0 || height <= 0) return
+
+        const camera = this.cameras.main
+        const center = reset
+          ? { x: WORLD.width / 2, y: WORLD.height / 2 }
+          : { x: camera.midPoint.x, y: camera.midPoint.y }
+
+        camera.setSize(width, height)
+
+        const coverZoom = Math.max(width / WORLD.width, height / WORLD.height)
+        this.minZoom = coverZoom * 1.02
+        this.maxZoom = this.minZoom * 2.2
+        camera.setZoom(reset ? this.minZoom : clamp(camera.zoom, this.minZoom, this.maxZoom))
+        camera.centerOn(center.x, center.y)
+        this.clampCamera()
+        this.emitAnchors()
+      }
+
+      findLandmarkAt(worldPoint) {
         for (const [nodeId, view] of this.landmarkViews.entries()) {
-          if (Phaser.Geom.Polygon.Contains(view.polygon, worldX, worldY)) return nodeId
+          if (Phaser.Geom.Polygon.Contains(view.polygon, worldPoint.x, worldPoint.y)) return nodeId
         }
         return null
-      }
-
-      getLandmarkClientAnchor(nodeId) {
-        const view = this.landmarkViews.get(nodeId)
-        const camera = this.cameras.main
-        const rect = game?.canvas?.getBoundingClientRect()
-        if (!view || !rect || camera.width <= 0 || camera.height <= 0) return null
-
-        const screenX = (view.centroid.x - camera.midPoint.x) * camera.zoom + camera.width / 2
-        const screenY = (view.centroid.y - camera.midPoint.y) * camera.zoom + camera.height / 2
-
-        return {
-          clientX: rect.left + screenX * rect.width / camera.width,
-          clientY: rect.top + screenY * rect.height / camera.height,
-        }
       }
 
       setOutlineVisible(nodeId, visible) {
@@ -177,12 +198,19 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail, onB
         this.tweens.add({
           targets: outline,
           alpha: visible ? 1 : 0,
-          duration: visible ? 160 : 520,
+          duration: visible ? 160 : 420,
           ease: 'Sine.easeOut',
         })
       }
 
-      setHoveredNode(nodeId, event) {
+      clearHoverExitTimer() {
+        if (!this.hoverExitTimer) return
+        window.clearTimeout(this.hoverExitTimer)
+        this.hoverExitTimer = null
+      }
+
+      commitHoveredNode(nodeId, event) {
+        this.clearHoverExitTimer()
         if (nodeId === this.hoveredNodeId) return
 
         if (this.hoveredNodeId) {
@@ -194,88 +222,142 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail, onB
 
         if (nodeId) {
           this.setOutlineVisible(nodeId, true)
-          const anchor = this.getLandmarkClientAnchor(nodeId)
           callbacksRef.current.onHoverStart?.(nodeId, {
-            clientX: anchor?.clientX ?? event.clientX,
-            clientY: anchor?.clientY ?? event.clientY,
+            clientX: event.clientX,
+            clientY: event.clientY,
             pointerType: event.pointerType || 'mouse',
           })
         }
       }
 
-      handleResize(width, height, resetCamera = false) {
-        if (width <= 0 || height <= 0) return
-
-        const camera = this.cameras.main
-        camera.setSize(width, height)
-
-        const coverZoom = Math.max(width / WORLD.width, height / WORLD.height)
-        this.minZoom = coverZoom * 1.04
-        this.maxZoom = this.minZoom * 2.15
-        this.targetZoom = resetCamera
-          ? this.minZoom
-          : clamp(this.targetZoom, this.minZoom, this.maxZoom)
-
-        if (resetCamera) {
-          this.targetCenterX = WORLD.width / 2
-          this.targetCenterY = WORLD.height / 2
+      requestHoveredNode(nodeId, event) {
+        if (nodeId) {
+          this.commitHoveredNode(nodeId, event)
+          return
         }
 
-        this.clampTargetCenter()
-        camera.setZoom(this.targetZoom)
-        camera.centerOn(this.targetCenterX, this.targetCenterY)
+        if (!this.hoveredNodeId) return
+        if (callbacksRef.current.heldNodeId === this.hoveredNodeId) return
+
+        this.clearHoverExitTimer()
+        this.hoverExitTimer = window.setTimeout(() => {
+          this.commitHoveredNode(null, event)
+        }, 260)
+      }
+
+      emitAnchors() {
+        const camera = this.cameras.main
+        const rect = game?.canvas?.getBoundingClientRect()
+        if (!rect || camera.width <= 0 || camera.height <= 0) return
+
+        const scaleX = rect.width / camera.width
+        const scaleY = rect.height / camera.height
+        const anchors = {}
+
+        this.landmarkViews.forEach((view, nodeId) => {
+          anchors[nodeId] = {
+            x: (view.centroid.x - camera.scrollX) * camera.zoom * scaleX,
+            y: (view.centroid.y - camera.scrollY) * camera.zoom * scaleY,
+          }
+        })
+
+        callbacksRef.current.onAnchorsChange?.(anchors)
       }
 
       handleWheel(event) {
         event.preventDefault()
-        const pointer = this.getLocalPointer(event)
-        const anchor = this.worldPointForTarget(pointer.x, pointer.y)
-        const zoomFactor = Math.exp(-event.deltaY * 0.0012)
-        const nextZoom = clamp(this.targetZoom * zoomFactor, this.minZoom, this.maxZoom)
-        const camera = this.cameras.main
+        const point = this.getCanvasPoint(event)
+        if (!point) return
 
-        this.targetZoom = nextZoom
-        this.targetCenterX = anchor.x - (pointer.x - camera.width / 2) / nextZoom
-        this.targetCenterY = anchor.y - (pointer.y - camera.height / 2) / nextZoom
-        this.clampTargetCenter()
+        const camera = this.cameras.main
+        const anchor = camera.getWorldPoint(point.x, point.y)
+        const normalizedDelta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY
+        const nextZoom = clamp(
+          camera.zoom * Math.exp(-normalizedDelta * 0.00135),
+          this.minZoom,
+          this.maxZoom,
+        )
+
+        if (Math.abs(nextZoom - camera.zoom) < 0.000001) return
+
+        this.zoomTween?.stop()
+        const proxy = { zoom: camera.zoom }
+        const startZoom = camera.zoom
+
+        this.zoomTween = this.tweens.add({
+          targets: proxy,
+          zoom: nextZoom,
+          duration: 90,
+          ease: 'Sine.easeOut',
+          onUpdate: () => {
+            const currentPoint = camera.getWorldPoint(point.x, point.y)
+            camera.setZoom(proxy.zoom)
+            const movedPoint = camera.getWorldPoint(point.x, point.y)
+            camera.scrollX += currentPoint.x - movedPoint.x
+            camera.scrollY += currentPoint.y - movedPoint.y
+
+            if (Math.abs(proxy.zoom - startZoom) > 0.000001) {
+              const correctionPoint = camera.getWorldPoint(point.x, point.y)
+              camera.scrollX += anchor.x - correctionPoint.x
+              camera.scrollY += anchor.y - correctionPoint.y
+            }
+
+            this.clampCamera()
+            this.emitAnchors()
+          },
+          onComplete: () => {
+            this.zoomTween = null
+            this.emitAnchors()
+          },
+        })
       }
 
       handlePointerMove(event) {
-        const pointer = this.getLocalPointer(event)
+        const point = this.getCanvasPoint(event)
+        if (!point) return
+
+        const camera = this.cameras.main
 
         if (this.drag && (event.buttons & 2) !== 0) {
-          this.targetCenterX = this.drag.centerX - (pointer.x - this.drag.pointerX) / this.targetZoom
-          this.targetCenterY = this.drag.centerY - (pointer.y - this.drag.pointerY) / this.targetZoom
-          this.clampTargetCenter()
-          this.cameras.main.centerOn(this.targetCenterX, this.targetCenterY)
-          this.setHoveredNode(null, event)
+          camera.scrollX = this.drag.scrollX - (point.x - this.drag.pointerX) / camera.zoom
+          camera.scrollY = this.drag.scrollY - (point.y - this.drag.pointerY) / camera.zoom
+          this.clampCamera()
+          this.requestHoveredNode(null, event)
+          this.emitAnchors()
           return
         }
 
-        const worldPoint = this.renderedWorldPoint(pointer.x, pointer.y)
-        this.setHoveredNode(this.findLandmarkAt(worldPoint.x, worldPoint.y), event)
+        const worldPoint = camera.getWorldPoint(point.x, point.y)
+        this.requestHoveredNode(this.findLandmarkAt(worldPoint), event)
       }
 
       handlePointerDown(event) {
         if (event.button !== 2) return
         event.preventDefault()
-        const pointer = this.getLocalPointer(event)
+        const point = this.getCanvasPoint(event)
+        if (!point) return
+
+        const camera = this.cameras.main
+        this.zoomTween?.stop()
+        this.zoomTween = null
         this.drag = {
-          pointerX: pointer.x,
-          pointerY: pointer.y,
-          centerX: this.targetCenterX,
-          centerY: this.targetCenterY,
+          pointerX: point.x,
+          pointerY: point.y,
+          scrollX: camera.scrollX,
+          scrollY: camera.scrollY,
         }
       }
 
       handlePointerUp(event) {
-        const wasDragging = this.drag
+        const wasDragging = Boolean(this.drag)
         this.drag = null
 
         if (event.button !== 0 || wasDragging) return
-        const pointer = this.getLocalPointer(event)
-        const worldPoint = this.renderedWorldPoint(pointer.x, pointer.y)
-        const nodeId = this.findLandmarkAt(worldPoint.x, worldPoint.y)
+        const point = this.getCanvasPoint(event)
+        if (!point) return
+
+        const worldPoint = this.cameras.main.getWorldPoint(point.x, point.y)
+        const nodeId = this.findLandmarkAt(worldPoint)
 
         if (nodeId) callbacksRef.current.onOpenDetail?.(nodeId)
         else callbacksRef.current.onBlankClick?.()
@@ -283,22 +365,12 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail, onB
 
       handlePointerLeave(event) {
         this.drag = null
-        this.setHoveredNode(null, event)
+        this.requestHoveredNode(null, event)
       }
 
-      update(_time, delta) {
-        const camera = this.cameras.main
-        const smoothing = 1 - Math.exp(-delta * 0.024)
-        const renderedCenter = camera.midPoint
-        const nextZoom = Phaser.Math.Linear(camera.zoom, this.targetZoom, smoothing)
-        const nextCenterX = Phaser.Math.Linear(renderedCenter.x, this.targetCenterX, smoothing)
-        const nextCenterY = Phaser.Math.Linear(renderedCenter.y, this.targetCenterY, smoothing)
-
-        camera.setZoom(Math.abs(nextZoom - this.targetZoom) < 0.00002 ? this.targetZoom : nextZoom)
-        camera.centerOn(
-          Math.abs(nextCenterX - this.targetCenterX) < 0.02 ? this.targetCenterX : nextCenterX,
-          Math.abs(nextCenterY - this.targetCenterY) < 0.02 ? this.targetCenterY : nextCenterY,
-        )
+      shutdown() {
+        this.clearHoverExitTimer()
+        this.zoomTween?.stop()
       }
     }
 
@@ -327,7 +399,7 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail, onB
       const width = Math.max(1, Math.round(entry.contentRect.width))
       const height = Math.max(1, Math.round(entry.contentRect.height))
       game.scale.resize(width, height)
-      sceneRef?.handleResize(width, height, false)
+      sceneRef?.resizeCamera(width, height, false)
     })
     resizeObserver.observe(parent)
 
@@ -354,10 +426,11 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail, onB
       parent.removeEventListener('pointerup', handlePointerUp)
       parent.removeEventListener('pointerleave', handlePointerLeave)
       parent.removeEventListener('contextmenu', handleContextMenu)
+      sceneRef?.shutdown()
       sceneRef = null
       game?.destroy(true)
     }
-  }, [])
+  }, [nodes])
 
   return (
     <div
