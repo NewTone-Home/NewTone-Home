@@ -168,6 +168,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
                     onHoverStart={beginHover}
                     onHoverEnd={endHover}
                     onOpenDetail={nodeId => openDetail(nodeId, null)}
+                    onBlankClick={cancelFocus}
                   />
                 </div>
               </div>
@@ -208,7 +209,12 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
       {cursor.visible && hoveringNodeId && (
         <div
           className="center-cursor-progress"
-          style={{ left: `${cursor.x}px`, top: `${cursor.y}px`, '--hover-progress': hoverProgress }}
+          style={{
+            left: `${cursor.x}px`,
+            top: `${cursor.y}px`,
+            '--hover-progress': hoverProgress,
+            zIndex: 30,
+          }}
           aria-hidden="true"
         ><span /></div>
       )}
@@ -225,6 +231,7 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
           data-center-annotation
           onClick={event => event.stopPropagation()}
           onMouseEnter={keepFocus}
+          style={{ zIndex: 40 }}
         >
           <button type="button" className="center-detail-close" onClick={closeDetail}>收起</button>
           <p className="center-detail-world">{detailNode.world === 'surface' ? '表世界' : '里世界'}</p>
