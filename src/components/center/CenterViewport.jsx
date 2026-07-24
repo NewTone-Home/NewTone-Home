@@ -29,7 +29,7 @@ const SURFACE_WORLD = {
 
 const SURFACE_CAMERA = {
   minZoom: 1.25,
-  maxZoom: 3.2,
+  maxZoom: 2.35,
   legacyMinZoom: 1,
   legacyMaxZoom: 1.65,
 }
@@ -240,6 +240,8 @@ function CenterViewport({ navigation, viewportWidth, viewportHeight }) {
                       overflow: 'hidden',
                       transform: `translate(calc(-50% + ${surfacePanX}px), calc(-50% + ${surfacePanY}px)) scale(${surfaceCameraScale})`,
                       transformOrigin: 'center',
+                      transition: 'transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+                      willChange: 'transform',
                     }}
                   >
                     <img
