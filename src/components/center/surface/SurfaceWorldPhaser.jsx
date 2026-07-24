@@ -8,24 +8,48 @@ const WORLD = {
 }
 
 const LANDMARKS = {
-  'surface-estate': { x: 0.145, y: 0.13, width: 0.12, height: 0.09 },
-  'surface-council': { x: 0.555, y: 0.45, width: 0.12, height: 0.09 },
+  'surface-estate': {
+    x: 0.145,
+    y: 0.13,
+    width: 0.12,
+    height: 0.09,
+    points: [
+      { x: 0, y: 31.498 },
+      { x: 55.657, y: 16.514 },
+      { x: 87.87, y: 77.905 },
+      { x: 27.625, y: 98.089 },
+    ],
+    glow: { outerWidth: 12, middleWidth: 5.5, coreWidth: 1.4, intensity: 1.35 },
+  },
+  'surface-council': {
+    x: 0.555,
+    y: 0.45,
+    width: 0.12,
+    height: 0.09,
+    points: [
+      { x: 6.63, y: 30.065 },
+      { x: 53.141, y: 11.386 },
+      { x: 89.776, y: 68.292 },
+      { x: 38.532, y: 90.596 },
+    ],
+    glow: { outerWidth: 14, middleWidth: 6.5, coreWidth: 1.4, intensity: 2.2 },
+  },
 }
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
-function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
+function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail, onBlankClick }) {
   const hostRef = useRef(null)
   const nodesRef = useRef(nodes)
-  const callbacksRef = useRef({ onHoverStart, onHoverEnd, onOpenDetail })
+  const callbacksRef = useRef({ onHoverStart, onHoverEnd, onOpenDetail, onBlankClick })
 
   useEffect(() => {
     nodesRef.current = nodes
   }, [nodes])
 
   useEffect(() => {
-    callbacksRef.current = { onHoverStart, onHoverEnd, onOpenDetail }
-  }, [onHoverStart, onHoverEnd, onOpenDetail])
+    callbacksRef.current = { onHoverStart, onHoverEnd, onOpenDetail, onBlankClick }
+  }, [onHoverStart, onHoverEnd, onOpenDetail, onBlankClick])
 
   useEffect(() => {
     const parent = hostRef.current
@@ -58,8 +82,6 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
           .setOrigin(0)
           .setDisplaySize(WORLD.width, WORLD.height)
 
-        const camera = this.cameras.main
-        camera.setBounds(0, 0, WORLD.width, WORLD.height)
         this.resetZoomRange(true)
 
         Object.entries(LANDMARKS).forEach(([nodeId, landmark]) => {
@@ -67,22 +89,45 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
           const y = landmark.y * WORLD.height
           const width = landmark.width * WORLD.width
           const height = landmark.height * WORLD.height
+          const polygonPoints = landmark.points.map(point => new Phaser.Math.Vector2(
+            x + width * point.x / 100,
+            y + height * point.y / 100,
+          ))
 
-          const outline = this.add.graphics()
-          outline.lineStyle(5, 0xd9a441, 0.88)
-          outline.strokeRoundedRect(x, y, width, height, 22)
-          outline.setAlpha(0)
-          outline.setDepth(10)
+          const outline = this.add.graphics().setAlpha(0).setDepth(10)
+          const glowColor = 0xffbf47
+          const coreColor = 0xfffced
+          const { outerWidth, middleWidth, coreWidth, intensity } = landmark.glow
+
+          outline.lineStyle(outerWidth, glowColor, Math.min(0.55, 0.18 * intensity))
+          outline.strokePoints(polygonPoints, true, true)
+          outline.lineStyle(middleWidth, glowColor, Math.min(0.95, 0.48 * intensity))
+          outline.strokePoints(polygonPoints, true, true)
+          outline.lineStyle(coreWidth, coreColor, 0.98)
+          outline.strokePoints(polygonPoints, true, true)
 
           this.landmarkViews.set(nodeId, { x, y, width, height, outline })
         })
       }
 
       getLocalPointer(event) {
-        const rect = parent.getBoundingClientRect()
+        const canvas = parent.querySelector('canvas')
+        const rect = (canvas ?? parent).getBoundingClientRect()
+        const camera = this.cameras.main
+        const scaleX = rect.width > 0 ? camera.width / rect.width : 1
+        const scaleY = rect.height > 0 ? camera.height / rect.height : 1
+
         return {
-          x: event.clientX - rect.left,
-          y: event.clientY - rect.top,
+          x: (event.clientX - rect.left) * scaleX,
+          y: (event.clientY - rect.top) * scaleY,
+        }
+      }
+
+      getWorldPointAt(screenX, screenY) {
+        const camera = this.cameras.main
+        return {
+          x: camera.scrollX + screenX / camera.zoom,
+          y: camera.scrollY + screenY / camera.zoom,
         }
       }
 
@@ -100,18 +145,30 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
         return null
       }
 
+      setOutlineVisible(nodeId, visible) {
+        const outline = this.landmarkViews.get(nodeId)?.outline
+        if (!outline) return
+        this.tweens.killTweensOf(outline)
+        this.tweens.add({
+          targets: outline,
+          alpha: visible ? 1 : 0,
+          duration: visible ? 160 : 520,
+          ease: 'Sine.easeOut',
+        })
+      }
+
       setHoveredNode(nodeId, event) {
         if (nodeId === this.hoveredNodeId) return
 
         if (this.hoveredNodeId) {
-          this.landmarkViews.get(this.hoveredNodeId)?.outline.setAlpha(0)
+          this.setOutlineVisible(this.hoveredNodeId, false)
           callbacksRef.current.onHoverEnd?.(this.hoveredNodeId)
         }
 
         this.hoveredNodeId = nodeId
 
         if (nodeId) {
-          this.landmarkViews.get(nodeId)?.outline.setAlpha(1)
+          this.setOutlineVisible(nodeId, true)
           callbacksRef.current.onHoverStart?.(nodeId, {
             clientX: event.clientX,
             clientY: event.clientY,
@@ -123,9 +180,8 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
       handleWheel(event) {
         event.preventDefault()
         const pointer = this.getLocalPointer(event)
-        const camera = this.cameras.main
-        const worldPoint = camera.getWorldPoint(pointer.x, pointer.y)
-        const zoomFactor = Math.exp(-event.deltaY * 0.0015)
+        const worldPoint = this.getWorldPointAt(pointer.x, pointer.y)
+        const zoomFactor = Math.exp(-event.deltaY * 0.0012)
 
         this.targetZoom = clamp(
           this.targetZoom * zoomFactor,
@@ -154,7 +210,7 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
           return
         }
 
-        const worldPoint = camera.getWorldPoint(pointer.x, pointer.y)
+        const worldPoint = this.getWorldPointAt(pointer.x, pointer.y)
         this.setHoveredNode(this.findLandmarkAt(worldPoint.x, worldPoint.y), event)
       }
 
@@ -177,9 +233,11 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
 
         if (event.button !== 0 || wasDragging) return
         const pointer = this.getLocalPointer(event)
-        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+        const worldPoint = this.getWorldPointAt(pointer.x, pointer.y)
         const nodeId = this.findLandmarkAt(worldPoint.x, worldPoint.y)
+
         if (nodeId) callbacksRef.current.onOpenDetail?.(nodeId)
+        else callbacksRef.current.onBlankClick?.()
       }
 
       handlePointerLeave(event) {
@@ -204,7 +262,8 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
 
         if (resetCamera) {
           camera.setZoom(this.targetZoom)
-          camera.centerOn(WORLD.width / 2, WORLD.height / 2)
+          camera.scrollX = WORLD.width / 2 - camera.width / (2 * camera.zoom)
+          camera.scrollY = WORLD.height / 2 - camera.height / (2 * camera.zoom)
           this.clampCamera()
         }
       }
@@ -219,11 +278,16 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
 
       update(_time, delta) {
         const camera = this.cameras.main
-        const smoothing = 1 - Math.exp(-delta * 0.018)
+        const smoothing = 1 - Math.exp(-delta * 0.022)
         const nextZoom = Phaser.Math.Linear(camera.zoom, this.targetZoom, smoothing)
 
-        if (Math.abs(nextZoom - camera.zoom) < 0.00005) {
+        if (Math.abs(nextZoom - camera.zoom) < 0.00002) {
           camera.setZoom(this.targetZoom)
+          if (this.zoomAnchor) {
+            camera.scrollX = this.zoomAnchor.worldX - this.zoomAnchor.screenX / this.targetZoom
+            camera.scrollY = this.zoomAnchor.worldY - this.zoomAnchor.screenY / this.targetZoom
+            this.clampCamera()
+          }
           return
         }
 
@@ -295,7 +359,7 @@ function SurfaceWorldPhaser({ nodes, onHoverStart, onHoverEnd, onOpenDetail }) {
       style={{
         position: 'absolute',
         inset: 0,
-        zIndex: 4,
+        zIndex: 2,
         overflow: 'hidden',
         pointerEvents: 'auto',
         touchAction: 'none',
