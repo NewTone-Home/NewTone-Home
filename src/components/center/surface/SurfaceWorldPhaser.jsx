@@ -48,6 +48,7 @@ function SurfaceWorldPhaser({
   onAnchorsChange,
 }) {
   const hostRef = useRef(null)
+  const nodesRef = useRef(nodes)
   const callbacksRef = useRef({
     heldNodeId,
     onHoverStart,
@@ -56,6 +57,10 @@ function SurfaceWorldPhaser({
     onBlankClick,
     onAnchorsChange,
   })
+
+  useEffect(() => {
+    nodesRef.current = nodes
+  }, [nodes])
 
   useEffect(() => {
     callbacksRef.current = {
@@ -72,7 +77,7 @@ function SurfaceWorldPhaser({
     const parent = hostRef.current
     if (!parent) return undefined
 
-    let game
+    let game = null
     let sceneRef = null
 
     class SurfaceWorldScene extends Phaser.Scene {
@@ -99,7 +104,7 @@ function SurfaceWorldPhaser({
           .setOrigin(0)
           .setDisplaySize(WORLD.width, WORLD.height)
 
-        const enabledNodeIds = new Set(nodes.map(node => node.id))
+        const enabledNodeIds = new Set(nodesRef.current.map(node => node.id))
 
         Object.entries(LANDMARKS).forEach(([nodeId, landmark]) => {
           if (!enabledNodeIds.has(nodeId)) return
@@ -282,7 +287,6 @@ function SurfaceWorldPhaser({
 
         this.zoomTween?.stop()
         const proxy = { zoom: camera.zoom }
-        const startZoom = camera.zoom
 
         this.zoomTween = this.tweens.add({
           targets: proxy,
@@ -290,18 +294,10 @@ function SurfaceWorldPhaser({
           duration: 90,
           ease: 'Sine.easeOut',
           onUpdate: () => {
-            const currentPoint = camera.getWorldPoint(point.x, point.y)
             camera.setZoom(proxy.zoom)
-            const movedPoint = camera.getWorldPoint(point.x, point.y)
-            camera.scrollX += currentPoint.x - movedPoint.x
-            camera.scrollY += currentPoint.y - movedPoint.y
-
-            if (Math.abs(proxy.zoom - startZoom) > 0.000001) {
-              const correctionPoint = camera.getWorldPoint(point.x, point.y)
-              camera.scrollX += anchor.x - correctionPoint.x
-              camera.scrollY += anchor.y - correctionPoint.y
-            }
-
+            const correctionPoint = camera.getWorldPoint(point.x, point.y)
+            camera.scrollX += anchor.x - correctionPoint.x
+            camera.scrollY += anchor.y - correctionPoint.y
             this.clampCamera()
             this.emitAnchors()
           },
@@ -430,7 +426,7 @@ function SurfaceWorldPhaser({
       sceneRef = null
       game?.destroy(true)
     }
-  }, [nodes])
+  }, [])
 
   return (
     <div
