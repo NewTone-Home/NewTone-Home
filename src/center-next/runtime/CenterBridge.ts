@@ -10,9 +10,11 @@ export class CenterBridge implements CenterRuntimePort {
   private worldListeners = new Set<(snapshot: CenterWorldSnapshot) => void>()
   private viewListeners = new Set<(snapshot: CenterViewSnapshot) => void>()
   private initialState: CenterRuntimeInitialState | null = null
+  private lifecycleEvent: Extract<CenterRuntimeEvent, { type: 'runtime/ready' | 'runtime/error' }> | null = null
 
   start(initialState: CenterRuntimeInitialState): void {
     this.initialState = initialState
+    this.lifecycleEvent = null
   }
 
   getInitialState(): CenterRuntimeInitialState {
@@ -21,6 +23,9 @@ export class CenterBridge implements CenterRuntimePort {
   }
 
   emit(event: CenterRuntimeEvent): void {
+    if (event.type === 'runtime/ready' || event.type === 'runtime/error') {
+      this.lifecycleEvent = event
+    }
     this.eventListeners.forEach(listener => listener(event))
   }
 
@@ -34,6 +39,7 @@ export class CenterBridge implements CenterRuntimePort {
 
   subscribe(listener: (event: CenterRuntimeEvent) => void): () => void {
     this.eventListeners.add(listener)
+    if (this.lifecycleEvent) listener(this.lifecycleEvent)
     return () => this.eventListeners.delete(listener)
   }
 
@@ -49,6 +55,7 @@ export class CenterBridge implements CenterRuntimePort {
 
   destroy(): void {
     this.initialState = null
+    this.lifecycleEvent = null
     this.eventListeners.clear()
     this.worldListeners.clear()
     this.viewListeners.clear()
