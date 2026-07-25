@@ -5,43 +5,70 @@ import type {
   CenterViewSnapshot,
   CenterWorldSnapshot,
 } from '../domain/contracts'
-import { clampCenterExpansion, normalizeCenterViewSnapshot } from '../domain/invariants'
-import type { CenterBridge } from './CenterBridge'
-import { clampCameraScroll, fitCameraSnapshot, projectWorldPoint } from './cameraMath'
+import {
+  clampCenterExpansion,
+  clampCenterZoom,
+  normalizeCenterViewSnapshot,
+} from '../domain/invariants'
+import {
+  clampCameraScroll,
+  fitCameraSnapshot,
+  projectWorldPoint,
+  shouldAdoptCamera,
+  shouldCommitCamera,
+} from './cameraMath'
 import { LandmarkRenderer } from './LandmarkRenderer'
 import { LayerRenderer } from './LayerRenderer'
+import type {
+  CenterRuntimeEvent,
+  CenterSceneHandle,
+  CenterSceneOwner,
+  CenterSceneStatus,
+} from './types'
 
-interface SceneData {
-  bridge: CenterBridge
+export const CENTER_SCENE_KEY = 'newtone-center-world'
+
+export interface CenterSceneData {
+  owner: CenterSceneOwner
+  generation: number
   definition: CenterDefinition
-  initialWorld: CenterWorldSnapshot
-  initialView: CenterViewSnapshot
   assetUrls: Record<string, string>
 }
 
-export class CenterScene extends Phaser.Scene {
-  private bridge!: CenterBridge
+/**
+ * Scene 是被动的：它不订阅 Bridge，也不持有 React 的任何东西。
+ * 快照只能由 CenterRuntimeSession 通过 applyWorld / applyView 交付，
+ * 出站事件全部经过 owner 并带上 generation。
+ */
+export class CenterScene extends Phaser.Scene implements CenterSceneHandle {
+  private owner!: CenterSceneOwner
+  private generation = -1
+  private lifecycle: CenterSceneStatus = 'booting'
   private definition!: CenterDefinition
   private world!: CenterWorldSnapshot
   private view!: CenterViewSnapshot
   private assetUrls: Record<string, string> = {}
   private layers!: LayerRenderer
   private landmarks!: LandmarkRenderer
-  private cleanup: Array<() => void> = []
   private pointerDown: { x: number; y: number; scrollX: number; scrollY: number } | null = null
   private dragging = false
   private hoveredLandmarkId: string | null = null
   private cameraCommitTimer: number | null = null
+  private requestedCamera: CenterCameraSnapshot | null = null
+  private committedCamera: CenterCameraSnapshot | null = null
 
   constructor() {
-    super('newtone-center-world')
+    super(CENTER_SCENE_KEY)
   }
 
-  init(data: SceneData): void {
-    this.bridge = data.bridge
+  get status(): CenterSceneStatus {
+    return this.lifecycle
+  }
+
+  init(data: CenterSceneData): void {
+    this.owner = data.owner
+    this.generation = data.generation
     this.definition = data.definition
-    this.world = data.initialWorld
-    this.view = normalizeCenterViewSnapshot(data.initialView)
     this.assetUrls = data.assetUrls
   }
 
@@ -53,40 +80,51 @@ export class CenterScene extends Phaser.Scene {
 
   create(): void {
     try {
+      // 资源加载是异步的，快照要在这里向 Session 现取，不能用挂载时捕获的旧值。
+      this.world = this.owner.currentWorld()
+      this.view = normalizeCenterViewSnapshot(this.owner.currentView())
+
       const { width, height } = this.definition.worldSize
-      this.cameras.main.setBounds(0, 0, width, height)
-      this.cameras.main.setBackgroundColor('#151b19')
+      const camera = this.cameras.main
+      camera.setBounds(0, 0, width, height)
+      camera.setBackgroundColor('#151b19')
+
       this.layers = new LayerRenderer(this, this.definition)
       this.landmarks = new LandmarkRenderer(this, this.definition, {
         surface: this.layers.surfaceContainer,
         inner: this.layers.innerContainer,
       })
+
       this.restoreCamera()
-      this.applySnapshots()
       this.bindInput()
-      this.cleanup.push(this.bridge.subscribeWorld(snapshot => {
-        this.world = snapshot
-        this.applySnapshots()
-      }))
-      this.cleanup.push(this.bridge.subscribeView(snapshot => {
-        const previousCamera = this.view.camera
-        this.view = normalizeCenterViewSnapshot(snapshot)
-        if (this.view.camera && this.view.camera !== previousCamera) this.applyCameraSnapshot(this.view.camera)
-        this.applySnapshots()
-      }))
       this.scale.on('resize', this.handleResize, this)
-      this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.dispose, this)
-      this.bridge.emit({ type: 'runtime/ready' })
-      this.emitProjection()
+
+      // game.destroy() 只 emit DESTROY，scene.remove() 只 emit SHUTDOWN：两条路都要接。
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleTeardown, this)
+      this.events.once(Phaser.Scenes.Events.DESTROY, this.handleTeardown, this)
+
+      this.lifecycle = 'live'
+      this.owner.attachScene(this.generation, this)
+      this.renderSnapshots()
+      this.publish({ type: 'runtime/ready' })
     } catch (error) {
-      this.bridge.emit({
-        type: 'runtime/error',
-        message: error instanceof Error ? error.message : 'Center runtime failed to start',
-      })
+      this.lifecycle = 'dead'
+      this.owner.reportSceneFailure(this.generation, error)
     }
   }
 
-  private applySnapshots(): void {
+  applyWorld(snapshot: CenterWorldSnapshot): void {
+    this.world = snapshot
+    this.renderSnapshots()
+  }
+
+  applyView(snapshot: CenterViewSnapshot): void {
+    this.view = normalizeCenterViewSnapshot(snapshot)
+    if (this.view.camera) this.adoptCamera(this.view.camera)
+    this.renderSnapshots()
+  }
+
+  private renderSnapshots(): void {
     this.layers.apply(this.world, this.view.expansion, this.view.activeLayer)
     this.landmarks.setHovered(this.hoveredLandmarkId)
     this.landmarks.apply(this.world, this.view)
@@ -105,9 +143,21 @@ export class CenterScene extends Phaser.Scene {
     ))
   }
 
+  private adoptCamera(incoming: CenterCameraSnapshot): void {
+    const adopt = shouldAdoptCamera(incoming, {
+      current: this.currentCameraSnapshot(),
+      requested: this.requestedCamera,
+      committed: this.committedCamera,
+    })
+    if (!adopt) return
+    this.applyCameraSnapshot(incoming)
+  }
+
   private applyCameraSnapshot(snapshot: CenterCameraSnapshot): void {
+    // 记录 clamp 之前的原始请求：store 里存的就是这一份，下一次推回来时要能识别出是同一份。
+    this.requestedCamera = snapshot
     const camera = this.cameras.main
-    camera.setZoom(snapshot.zoom)
+    camera.setZoom(clampCenterZoom(snapshot.zoom))
     const clamped = clampCameraScroll(snapshot.scrollX, snapshot.scrollY, {
       scrollX: camera.scrollX,
       scrollY: camera.scrollY,
@@ -176,7 +226,7 @@ export class CenterScene extends Phaser.Scene {
         this.world,
         this.view,
       )
-      if (landmark) this.bridge.emit({ type: 'landmark/open', landmarkId: landmark.id })
+      if (landmark) this.publish({ type: 'landmark/open', landmarkId: landmark.id })
     })
 
     this.input.on('pointerout', () => this.setHovered(null))
@@ -189,15 +239,22 @@ export class CenterScene extends Phaser.Scene {
     ) => {
       const camera = this.cameras.main
       const before = camera.getWorldPoint(pointer.x, pointer.y)
-      camera.setZoom(Phaser.Math.Clamp(camera.zoom * Math.exp(-deltaY * 0.0014), 0.35, 3.5))
+      camera.setZoom(clampCenterZoom(camera.zoom * Math.exp(-deltaY * 0.0014)))
       const after = camera.getWorldPoint(pointer.x, pointer.y)
       this.setCameraScroll(
         camera.scrollX + before.x - after.x,
         camera.scrollY + before.y - after.y,
       )
-      if (this.cameraCommitTimer) window.clearTimeout(this.cameraCommitTimer)
-      this.cameraCommitTimer = window.setTimeout(() => this.commitCamera(), 180)
+      this.scheduleCameraCommit()
     })
+  }
+
+  private scheduleCameraCommit(): void {
+    if (this.cameraCommitTimer !== null) window.clearTimeout(this.cameraCommitTimer)
+    this.cameraCommitTimer = window.setTimeout(() => {
+      this.cameraCommitTimer = null
+      this.commitCamera()
+    }, 180)
   }
 
   private setHovered(landmarkId: string | null): void {
@@ -205,7 +262,7 @@ export class CenterScene extends Phaser.Scene {
     this.hoveredLandmarkId = landmarkId
     this.landmarks.setHovered(landmarkId)
     this.landmarks.apply(this.world, this.view)
-    this.bridge.emit({ type: 'landmark/hover', landmarkId })
+    this.publish({ type: 'landmark/hover', landmarkId })
   }
 
   private setCameraScroll(scrollX: number, scrollY: number): void {
@@ -222,11 +279,14 @@ export class CenterScene extends Phaser.Scene {
   }
 
   private commitCamera(): void {
-    this.bridge.emit({ type: 'camera/commit', camera: this.currentCameraSnapshot() })
+    const snapshot = this.currentCameraSnapshot()
+    if (!shouldCommitCamera(snapshot, this.committedCamera)) return
+    this.committedCamera = snapshot
+    this.requestedCamera = snapshot
+    this.publish({ type: 'camera/commit', camera: snapshot })
   }
 
   private emitProjection(): void {
-    if (!this.landmarks || !this.cameras?.main) return
     const camera = this.currentCameraSnapshot()
     const anchors = Object.fromEntries(this.definition.landmarks.map(landmark => [
       landmark.id,
@@ -235,23 +295,39 @@ export class CenterScene extends Phaser.Scene {
         camera,
       ),
     ]))
-    this.bridge.emit({ type: 'projection/update', anchors })
+    this.publish({ type: 'projection/update', anchors })
   }
 
   private handleResize(gameSize: Phaser.Structs.Size): void {
+    if (this.lifecycle !== 'live') return
+    // 销毁那一帧画布已经脱离 DOM，会收到一次 0×0，不能让它写坏相机。
+    if (gameSize.width <= 0 || gameSize.height <= 0) return
     this.cameras.main.setSize(gameSize.width, gameSize.height)
-    const snapshot = this.view.camera ?? fitCameraSnapshot(
+    this.applyCameraSnapshot(this.requestedCamera ?? this.view.camera ?? fitCameraSnapshot(
       { width: gameSize.width, height: gameSize.height },
       this.definition.worldSize,
-    )
-    this.applyCameraSnapshot(snapshot)
+    ))
     this.emitProjection()
   }
 
-  private dispose(): void {
-    if (this.cameraCommitTimer) window.clearTimeout(this.cameraCommitTimer)
+  private publish(event: CenterRuntimeEvent): void {
+    if (this.lifecycle === 'dead') return
+    this.owner.emitFromScene(this.generation, event)
+  }
+
+  /**
+   * SHUTDOWN 与 DESTROY 都会走到这里，重复调用无副作用。
+   * 注意：CameraManager 的 DESTROY 处理器注册得更早，此刻 cameras.main 可能已经消失，
+   * 所以这里绝对不能触碰相机。
+   */
+  private handleTeardown(): void {
+    if (this.lifecycle === 'dead') return
+    this.lifecycle = 'dead'
+    if (this.cameraCommitTimer !== null) {
+      window.clearTimeout(this.cameraCommitTimer)
+      this.cameraCommitTimer = null
+    }
     this.scale.off('resize', this.handleResize, this)
-    this.cleanup.forEach(cleanup => cleanup())
-    this.cleanup = []
+    this.owner.releaseScene(this)
   }
 }

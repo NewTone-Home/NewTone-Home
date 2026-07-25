@@ -26,15 +26,16 @@ export class CenterBridge implements CenterRuntimePort {
     if (event.type === 'runtime/ready' || event.type === 'runtime/error') {
       this.lifecycleEvent = event
     }
-    this.eventListeners.forEach(listener => listener(event))
+    // 遍历副本：派发过程中退订不会漏掉后面的监听者。
+    for (const listener of [...this.eventListeners]) listener(event)
   }
 
   pushWorld(snapshot: CenterWorldSnapshot): void {
-    this.worldListeners.forEach(listener => listener(snapshot))
+    for (const listener of [...this.worldListeners]) listener(snapshot)
   }
 
   pushView(snapshot: CenterViewSnapshot): void {
-    this.viewListeners.forEach(listener => listener(snapshot))
+    for (const listener of [...this.viewListeners]) listener(snapshot)
   }
 
   subscribe(listener: (event: CenterRuntimeEvent) => void): () => void {
