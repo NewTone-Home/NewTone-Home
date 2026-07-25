@@ -4,6 +4,7 @@ import type {
   CenterProjectionMap,
   CenterViewSnapshot,
   CenterWorldSnapshot,
+  WorldLayer,
 } from '../domain/contracts'
 
 export type CenterRuntimeEvent =
@@ -13,21 +14,25 @@ export type CenterRuntimeEvent =
   | { type: 'landmark/open'; landmarkId: string }
   | { type: 'projection/update'; anchors: CenterProjectionMap }
   | { type: 'camera/commit'; camera: CenterCameraSnapshot }
+  | { type: 'view/commit'; view: Partial<Pick<CenterViewSnapshot, 'expansion' | 'activeLayer' | 'selectedLandmarkId'>> }
 
 export interface CenterRuntimeInitialState {
   definition: CenterDefinition
   world: CenterWorldSnapshot
   view: CenterViewSnapshot
+  assetUrls: Record<string, string>
 }
 
-/**
- * Framework-neutral contract between React and the future Phaser runtime.
- * It deliberately excludes routing, persistence and product progress actions.
- */
 export interface CenterRuntimePort {
   start(initialState: CenterRuntimeInitialState): void
   pushWorld(snapshot: CenterWorldSnapshot): void
   pushView(snapshot: CenterViewSnapshot): void
   subscribe(listener: (event: CenterRuntimeEvent) => void): () => void
   destroy(): void
+}
+
+export interface CenterRuntimeControls {
+  setExpansion(value: number): void
+  setActiveLayer(layer: WorldLayer | null): void
+  resetCamera(): void
 }
