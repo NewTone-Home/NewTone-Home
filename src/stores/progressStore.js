@@ -8,6 +8,14 @@ import {
 } from './progressMigration'
 import { getNextReaderLanguage, READER_LANGUAGE_CODES } from '../i18n/languages'
 import { clampThemePosition, legacyThemeName, migrateThemePosition } from '../reader/readerTheme'
+import { getActiveCenterDefinition } from '../center-next/domain/definitionRegistry'
+import { resolveCenterWorld } from '../center-next/domain/worldResolver'
+import {
+  createDefaultCenterViewSnapshot,
+  normalizeCenterCamera,
+  normalizeCenterViewSnapshot,
+  normalizeCenterWorldSnapshot,
+} from '../center-next/domain/invariants'
 
 const VALID_CENTER_MODES = ['home', 'records', 'perspectives', 'fragments']
 const VALID_LANGUAGES = READER_LANGUAGE_CODES
@@ -22,6 +30,19 @@ function persistedLocation(location) {
     phaseId: resolved.phaseId,
     pageId: resolved.pageId,
     beatIndex: resolved.beatIndex,
+  }
+}
+
+function resolveWorldForState(state, committedLocation, furthestLocation) {
+  try {
+    return resolveCenterWorld({
+      definition: getActiveCenterDefinition(),
+      committedLocation,
+      furthestLocation,
+      visitedLandmarkIds: state.centerWorldSnapshot?.visitedLandmarkIds,
+    })
+  } catch {
+    return state.centerWorldSnapshot
   }
 }
 
@@ -49,9 +70,7 @@ export const useProgressStore = create((set, get) => ({
     })
   },
 
-  clearResumeRequest: () => {
-    set({ resumeRequested: false })
-  },
+  clearResumeRequest: () => set({ resumeRequested: false }),
 
   commitLocation: (location) => {
     let committedLocation
@@ -62,24 +81,24 @@ export const useProgressStore = create((set, get) => ({
     }
 
     const state = get()
-    const updates = {
+    const furthestLocation = comparePosition(committedLocation, state.furthestLocation) > 0
+      ? { ...committedLocation }
+      : state.furthestLocation
+    const centerWorldSnapshot = resolveWorldForState(state, committedLocation, furthestLocation)
+
+    set({
       committedLocation,
+      furthestLocation,
+      centerWorldSnapshot,
       readerStarted: true,
       currentChapter: 'chapter-1',
       currentPage: committedLocation.pageId,
       currentBeat: committedLocation.beatIndex,
-    }
-    if (comparePosition(committedLocation, state.furthestLocation) > 0) {
-      updates.furthestLocation = { ...committedLocation }
-    }
-    set(updates)
+    })
     return true
   },
 
-  setReaderExitGestureLearned: () => {
-    set({ readerExitGestureLearned: true })
-  },
-
+  setReaderExitGestureLearned: () => set({ readerExitGestureLearned: true }),
   endChapterTrial: () => set({ chapterTrialEnded: true }),
 
   completeReader: () => {
@@ -88,23 +107,30 @@ export const useProgressStore = create((set, get) => ({
     set({
       readerCompleted: true,
       centerUnlocked: true,
+      centerWorldSnapshot: resolveWorldForState(
+        state,
+        state.committedLocation,
+        state.furthestLocation,
+      ),
     })
     return true
   },
 
   enterCenter: () => {
     const state = get()
-    if (state.centerUnlocked !== true) return
+    if (state.centerUnlocked !== true) return false
     set({ currentView: 'center', centerMode: 'home' })
+    return true
   },
 
   returnToCenter: () => {
+    const state = get()
+    if (state.centerUnlocked !== true) return false
     set({ currentView: 'center', centerMode: 'home' })
+    return true
   },
 
-  goLanding: () => {
-    set({ currentView: 'landing' })
-  },
+  goLanding: () => set({ currentView: 'landing' }),
 
   setViewFromHistory: (view) => {
     if (!['landing', 'reader', 'center'].includes(view)) view = 'landing'
@@ -125,6 +151,85 @@ export const useProgressStore = create((set, get) => ({
     set({ centerMode: mode })
   },
 
+  setCenterContentPackage: (centerContentPackageId) => {
+    if (typeof centerContentPackageId !== 'string' || centerContentPackageId.length === 0) return false
+    set({
+      centerContentPackageId,
+      centerWorldSnapshot: null,
+      centerViewSnapshot: createDefaultCenterViewSnapshot(),
+    })
+    return true
+  },
+
+  setCenterWorldSnapshot: (snapshot) => {
+    const centerWorldSnapshot = normalizeCenterWorldSnapshot(snapshot)
+    if (!centerWorldSnapshot) return false
+    set({ centerWorldSnapshot })
+    return true
+  },
+
+  refreshCenterWorld: () => {
+    const state = get()
+    const centerWorldSnapshot = resolveWorldForState(
+      state,
+      state.committedLocation,
+      state.furthestLocation,
+    )
+    if (!centerWorldSnapshot) return false
+    set({ centerWorldSnapshot })
+    return true
+  },
+
+  visitCenterLandmark: (landmarkId) => {
+    if (typeof landmarkId !== 'string' || landmarkId.length === 0) return false
+    const state = get()
+    const world = state.centerWorldSnapshot
+    if (!world || !world.unlockedLandmarkIds.includes(landmarkId)) return false
+    if (world.visitedLandmarkIds.includes(landmarkId)) return true
+    set({
+      centerWorldSnapshot: {
+        ...world,
+        visitedLandmarkIds: [...world.visitedLandmarkIds, landmarkId],
+      },
+    })
+    return true
+  },
+
+  updateCenterView: (partial) => {
+    const state = get()
+    set({
+      centerViewSnapshot: normalizeCenterViewSnapshot({
+        ...state.centerViewSnapshot,
+        ...partial,
+      }),
+    })
+  },
+
+  commitCenterCamera: (camera) => {
+    const normalized = normalizeCenterCamera(camera)
+    if (!normalized) return false
+    const state = get()
+    set({
+      centerViewSnapshot: normalizeCenterViewSnapshot({
+        ...state.centerViewSnapshot,
+        camera: normalized,
+      }),
+    })
+    return true
+  },
+
+  selectCenterLandmark: (selectedLandmarkId) => {
+    const state = get()
+    set({
+      centerViewSnapshot: normalizeCenterViewSnapshot({
+        ...state.centerViewSnapshot,
+        selectedLandmarkId: typeof selectedLandmarkId === 'string' ? selectedLandmarkId : null,
+      }),
+    })
+  },
+
+  resetCenterView: () => set({ centerViewSnapshot: createDefaultCenterViewSnapshot() }),
+
   setLanguage: (lang) => {
     if (!VALID_LANGUAGES.includes(lang)) return
     set({ language: lang })
@@ -135,9 +240,7 @@ export const useProgressStore = create((set, get) => ({
     set({ language: getNextReaderLanguage(state.language).code })
   },
 
-  setInitializedLanguage: () => {
-    set({ hasInitializedLanguage: true })
-  },
+  setInitializedLanguage: () => set({ hasInitializedLanguage: true }),
 
   selectReadingMode: (readingMode) => {
     if (!['immersive', 'standard'].includes(readingMode)) return false
@@ -178,7 +281,5 @@ export const useProgressStore = create((set, get) => ({
 }))
 
 useProgressStore.subscribe((state, previousState) => {
-  if (state !== previousState) {
-    saveProgressState(storage, state)
-  }
+  if (state !== previousState) saveProgressState(storage, state)
 })
