@@ -16,7 +16,7 @@ import { CenterDeveloperTools } from './CenterDeveloperTools'
 import './CenterExperience.css'
 
 function CenterExperience() {
-  const language = useProgressStore((state: any) => state.language)
+  const language = useProgressStore((state: any) => state.language) as keyof typeof copy
   const packageId = useProgressStore((state: any) => state.centerContentPackageId)
   const committedLocation = useProgressStore((state: any) => state.committedLocation)
   const furthestLocation = useProgressStore((state: any) => state.furthestLocation)
