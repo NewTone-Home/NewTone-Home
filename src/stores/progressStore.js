@@ -35,8 +35,10 @@ function persistedLocation(location) {
 
 function resolveWorldForState(state, committedLocation, furthestLocation) {
   try {
+    const definition = getActiveCenterDefinition()
+    if (definition.id !== state.centerContentPackageId) return state.centerWorldSnapshot
     return resolveCenterWorld({
-      definition: getActiveCenterDefinition(),
+      definition,
       committedLocation,
       furthestLocation,
       visitedLandmarkIds: state.centerWorldSnapshot?.visitedLandmarkIds,
