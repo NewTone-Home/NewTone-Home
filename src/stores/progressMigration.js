@@ -2,14 +2,21 @@ import { isValidPhase } from '../constants/phases'
 import { readerContentIndex, comparePosition, resolvePosition } from '../reader/readerPosition'
 import { READER_LANGUAGE_CODES } from '../i18n/languages'
 import { legacyThemeName, migrateThemePosition } from '../reader/readerTheme'
+import {
+  createDefaultCenterViewSnapshot,
+  normalizeCenterViewSnapshot,
+  normalizeCenterWorldSnapshot,
+} from '../center-next/domain/invariants'
+import { DEFAULT_CENTER_PACKAGE_ID } from '../center-next/content/defaultCenterDefinition'
 
 export const PROGRESS_STORAGE_KEYS = Object.freeze({
   V1: 'newtone-progress-v1',
   V2: 'newtone-progress-v2',
+  V3: 'newtone-progress-v3',
   EXIT_TUTORIAL: 'newtone-reader-exit-tutorial-v1',
 })
 
-export const PROGRESS_VERSION = 2
+export const PROGRESS_VERSION = 3
 
 const VALID_VIEWS = ['landing', 'reader', 'center']
 const VALID_CENTER_MODES = ['home', 'records', 'perspectives', 'fragments']
@@ -74,6 +81,9 @@ export function createInitialProgressState() {
     readerCompleted: false,
     centerUnlocked: false,
     centerMode: 'home',
+    centerContentPackageId: DEFAULT_CENTER_PACKAGE_ID,
+    centerWorldSnapshot: null,
+    centerViewSnapshot: createDefaultCenterViewSnapshot(),
     resumeRequested: false,
     readerExitGestureLearned: false,
     chapterTrialEnded: false,
@@ -116,15 +126,12 @@ export function migrateV1ToV2(data) {
     readerCompleted: false,
     centerUnlocked,
     resumeRequested: shared.currentView === 'reader',
-    readerExitGestureLearned: false,
-    chapterTrialEnded: false,
     legacyLastScrollY,
     hasInitializedReadingMode: Boolean(source.hasInitializedReadingMode ?? source.hasInitializedLanguage),
     readingMode: VALID_READING_MODES.includes(source.readingMode) ? source.readingMode : 'immersive',
     themePosition: migrateThemePosition(source.themePosition, source.standardTheme),
     standardTheme: legacyThemeName(migrateThemePosition(source.themePosition, source.standardTheme)),
     motionMode: VALID_MOTION_MODES.includes(source.motionMode) ? source.motionMode : 'full',
-    currentChapter: 'chapter-1',
     currentPage: committedLocation.pageId,
     currentBeat: committedLocation.beatIndex,
   }
@@ -142,11 +149,8 @@ export function sanitizeV2Progress(data) {
   }
 
   const shared = sanitizeSharedFields(source, centerUnlocked)
-  const legacyLastScrollY = sanitizeNumber(
-    source.legacyLastScrollY ?? source.lastScrollY,
-  )
-  const derivedPhase = committedLocation.phaseId
-  const lastReadPhase = sanitizeLegacyPhase(source.lastReadPhase) ?? derivedPhase
+  const legacyLastScrollY = sanitizeNumber(source.legacyLastScrollY ?? source.lastScrollY)
+  const lastReadPhase = sanitizeLegacyPhase(source.lastReadPhase) ?? committedLocation.phaseId
   const maxReadPhase = sanitizeLegacyPhase(source.maxReadPhase) ?? furthestLocation.phaseId
 
   return {
@@ -160,9 +164,7 @@ export function sanitizeV2Progress(data) {
     readerCompleted,
     centerUnlocked,
     resumeRequested: shared.currentView === 'reader' || Boolean(source.resumeRequested),
-    readerExitGestureLearned: Boolean(
-      source.readerExitGestureLearned ?? source.exitTutorialSeen,
-    ),
+    readerExitGestureLearned: Boolean(source.readerExitGestureLearned ?? source.exitTutorialSeen),
     chapterTrialEnded: source.chapterTrialEnded === true,
     legacyLastScrollY,
     hasInitializedReadingMode: Boolean(source.hasInitializedReadingMode ?? source.hasInitializedLanguage),
@@ -170,14 +172,30 @@ export function sanitizeV2Progress(data) {
     themePosition: migrateThemePosition(source.themePosition, source.standardTheme),
     standardTheme: legacyThemeName(migrateThemePosition(source.themePosition, source.standardTheme)),
     motionMode: VALID_MOTION_MODES.includes(source.motionMode) ? source.motionMode : 'full',
-    currentChapter: 'chapter-1',
     currentPage: committedLocation.pageId,
     currentBeat: committedLocation.beatIndex,
   }
 }
 
-export function serializeProgressV2(state) {
-  const clean = sanitizeV2Progress(state)
+export function sanitizeV3Progress(data) {
+  const clean = sanitizeV2Progress(data)
+  const source = data && typeof data === 'object' ? data : {}
+  return {
+    ...clean,
+    centerContentPackageId: typeof source.centerContentPackageId === 'string' && source.centerContentPackageId.length > 0
+      ? source.centerContentPackageId
+      : DEFAULT_CENTER_PACKAGE_ID,
+    centerWorldSnapshot: normalizeCenterWorldSnapshot(source.centerWorldSnapshot),
+    centerViewSnapshot: normalizeCenterViewSnapshot(source.centerViewSnapshot),
+  }
+}
+
+export function migrateV2ToV3(data) {
+  return sanitizeV3Progress(data)
+}
+
+export function serializeProgressV3(state) {
+  const clean = sanitizeV3Progress(state)
   return { _version: PROGRESS_VERSION, ...clean }
 }
 
@@ -190,34 +208,37 @@ function parseStorageValue(storage, key) {
   }
 }
 
+function persistMigrated(storage, state) {
+  storage?.setItem(
+    PROGRESS_STORAGE_KEYS.V3,
+    JSON.stringify(serializeProgressV3(state)),
+  )
+  return state
+}
+
 export function loadProgressState(storage) {
+  const v3 = parseStorageValue(storage, PROGRESS_STORAGE_KEYS.V3)
+  if (v3?._version === PROGRESS_VERSION) return sanitizeV3Progress(v3)
+
   const v2 = parseStorageValue(storage, PROGRESS_STORAGE_KEYS.V2)
-  if (v2?._version === PROGRESS_VERSION) {
-    return sanitizeV2Progress(v2)
-  }
+  if (v2?._version === 2) return persistMigrated(storage, migrateV2ToV3(v2))
 
   const v1 = parseStorageValue(storage, PROGRESS_STORAGE_KEYS.V1)
-  if (v1?._version !== 1) {
-    return null
-  }
+  if (v1?._version === 1) return persistMigrated(storage, migrateV1ToV2(v1))
 
-  const migrated = migrateV1ToV2(v1)
-  storage?.setItem(
-    PROGRESS_STORAGE_KEYS.V2,
-    JSON.stringify(serializeProgressV2(migrated)),
-  )
-  return migrated
+  return null
 }
 
 export function saveProgressState(storage, state) {
   storage?.setItem(
-    PROGRESS_STORAGE_KEYS.V2,
-    JSON.stringify(serializeProgressV2(state)),
+    PROGRESS_STORAGE_KEYS.V3,
+    JSON.stringify(serializeProgressV3(state)),
   )
 }
 
 export function clearProgressStorage(storage) {
   storage?.removeItem(PROGRESS_STORAGE_KEYS.V1)
   storage?.removeItem(PROGRESS_STORAGE_KEYS.V2)
+  storage?.removeItem(PROGRESS_STORAGE_KEYS.V3)
   storage?.removeItem(PROGRESS_STORAGE_KEYS.EXIT_TUTORIAL)
 }
