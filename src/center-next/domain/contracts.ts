@@ -3,10 +3,7 @@ export const CENTER_LANGUAGE_CODES = ['zh', 'en', 'ja', 'ko', 'fr'] as const
 export type CenterLanguageCode = typeof CENTER_LANGUAGE_CODES[number]
 export type WorldLayer = 'surface' | 'inner'
 
-/**
- * Stable Reader position owned by the existing V0.0 Reader protocol.
- * Center must consume this shape instead of introducing chapter/block ratios.
- */
+/** Stable Reader position owned by the existing V0.0 Reader protocol. */
 export interface ReaderPosition {
   phaseId: string
   pageId: string
@@ -25,7 +22,12 @@ export interface CenterWorldSize {
 
 export interface CenterLayerVariantDefinition {
   id: string
-  assetId: string
+  assetId: string | null
+  fallbackPalette: {
+    background: number
+    line: number
+    accent: number
+  }
 }
 
 export interface CenterLayerDefinition {
@@ -50,10 +52,7 @@ export interface LandmarkDefinition {
   }
 }
 
-/**
- * A deterministic world checkpoint. Resolution will later compare startsAt
- * against V0.0 readerContentIndex.linearIndex.
- */
+/** Deterministic checkpoint resolved against V0.0 reader linear positions. */
 export interface CenterProgressDefinition {
   key: string
   startsAt: ReaderPosition
@@ -65,6 +64,8 @@ export interface CenterProgressDefinition {
 
 export interface CenterDefinition {
   schemaVersion: 1
+  id: string
+  title: CenterLocalizedText
   worldSize: CenterWorldSize
   layers: {
     surface: CenterLayerDefinition
@@ -76,11 +77,13 @@ export interface CenterDefinition {
 
 /** Stable world facts that survive leaving Center and reloading the app. */
 export interface CenterWorldSnapshot {
+  definitionId: string
   progressKey: string
   surfaceVariant: string
   innerVariant: string
   unlockedLandmarkIds: string[]
   visitedLandmarkIds: string[]
+  contextualLandmarkIds: string[]
 }
 
 /** Stable camera values expressed in Phaser world coordinates. */
@@ -90,9 +93,9 @@ export interface CenterCameraSnapshot {
   zoom: number
 }
 
-/** Stable Center presentation state. Hover, pointer and tween state are excluded. */
+/** Stable presentation state. Hover, pointer, projection and tween state are excluded. */
 export interface CenterViewSnapshot {
-  camera: CenterCameraSnapshot
+  camera: CenterCameraSnapshot | null
   expansion: number
   activeLayer: WorldLayer | null
   selectedLandmarkId: string | null
@@ -105,4 +108,25 @@ export interface CenterPersistentSnapshot {
 
 export interface CenterProjectionMap {
   [landmarkId: string]: WorldPoint
+}
+
+export interface CenterAssetDescriptor {
+  id: string
+  path: string
+  mimeType: string
+}
+
+export interface CenterPackageManifest {
+  schemaVersion: 1
+  id: string
+  version: string
+  title: CenterLocalizedText
+  centerDefinitionPath: string
+  assets: CenterAssetDescriptor[]
+}
+
+export interface StoredCenterPackage {
+  manifest: CenterPackageManifest
+  definition: CenterDefinition
+  importedAt: string
 }
