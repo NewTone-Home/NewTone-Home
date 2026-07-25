@@ -4,7 +4,7 @@ import { readerContentIndex } from '../reader/readerPosition'
 import {
   createInitialProgressState,
   sanitizeV2Progress,
-} from '../state/progressMigration'
+} from '../stores/progressMigration'
 import { getDefinition } from '../transitions/transitionDefinitions'
 
 function persistedLocation(entry) {
