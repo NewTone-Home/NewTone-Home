@@ -1,14 +1,12 @@
-# NewTone 真正的 V0.1：阶段 0–2 基线
+# NewTone 真正的 V0.1：0.0 产品母体 + 新 Center 底层
 
 ## 产品母体
 
 本分支 `integration/real-v0.1` 基于 `local-latest` 创建。
 
-`local-latest` 继续作为 V0.0 产品基线，不在该分支上直接施工。真正的 V0.1 必须由 V0.0 的产品协议自然升级而来，而不是继续旧 V0.1 的重建路线。
+`local-latest` 是 V0.0 产品基线。真正的 V0.1 继续使用它已经成立的 Landing、Reader、入口仪式和页面转场，不采用旧 V0.1 从零重建产品页面的路线。
 
-## 阶段 0：冻结的产品协议
-
-以下行为在 Center 底层迁移期间不得回归：
+## 不得回归的产品协议
 
 1. Landing 首次进入时执行语言与阅读模式仪式。
 2. 已完成初始化后再次进入 Reader 时跳过仪式。
@@ -26,64 +24,139 @@
 - `src/views/Landing.jsx`
 - `src/views/Reader.jsx` 及 Reader 编排链
 - `src/transitions/readingEntryController.js`
-- `src/stores/transitionStore.js`
-- `src/stores/progressStore.js` 的产品语义与迁移入口
+- 页面切换的 preset 和产品语义
 
-### 从旧 V0.1 吸收的技术概念
+### 从旧 V0.1 吸收并重写的技术能力
 
 - React 与 Phaser 的显式 Bridge
-- Phaser Game Host 的生命周期边界
-- 摄像机纯函数
+- Phaser Game Host 生命周期
+- 摄像机纯函数、拖动、缩放和恢复
 - Center domain contracts
-- 内容端口、存档端口与 schema 校验思想
+- 世界进度解析思想
+- ZIP 内容包、Zod 校验和 IndexedDB 资产存储
 
-### 不迁入旧 V0.1 的产品实现
+### 没有迁入的旧 V0.1 产品实现
 
 - App 路由和 appStore
 - EntryFlow、Landing、Reader、ReadingTransition
-- 旧 CenterPage 和 center.css
-- EdgeGuides
-- 旧 WorldResolver 的模糊 progressRatio 规则
-- 硬编码 Center 资产解析
+- 旧 CenterPage、EdgeGuides 和 center.css
+- 模糊的 progressRatio 世界解析
+- 硬编码单张地图的资产入口
 
-## 阶段 1：增量工程策略
+## 当前架构
 
-V0.0 保持 JavaScript 可运行；新的 Center 基础设施从 `src/center-next` 开始使用 TypeScript。Vite/Vitest 原生处理 `.ts` 文件，因此本阶段不修改现有运行时和锁文件。
+```text
+V0.0 App / Landing / Reader
+            │
+            ├── progressStore V3
+            │   ├── Reader 稳定位置
+            │   ├── Center 世界快照
+            │   └── Center 镜头与视图快照
+            │
+            ├── transitionStore
+            │   └── 等待 Center runtime ready 后揭开遮罩
+            │
+            └── CenterExperience
+                ├── CenterContentService
+                ├── WorldResolver
+                ├── CenterBridge
+                ├── CenterGameHost
+                └── CenterScene
+                    ├── LayerRenderer
+                    └── LandmarkRenderer
+```
 
-Phaser 依赖在真正迁入 Game Host 的阶段再加入，避免阶段 0–2 引入未使用依赖、破坏 lockfile 或影响现有构建。当前阶段只定义运行时边界，不挂载 Phaser。
+## Progress V3
 
-## 阶段 2：状态边界
+持久化的产品事实：
 
-### 持久化产品事实
-
-- onboarding：语言/模式是否确认
-- preferences：语言、阅读模式、主题、动态模式
+- onboarding：语言和模式是否确认
+- preferences：语言、阅读模式、主题和动态模式
 - reader：committedLocation、furthestLocation、started、completed
-- center world：进度阶段、图层 variant、解锁/访问地标
+- center world：进度阶段、表里世界 variant、解锁/访问地标
 - center view：摄像机、展开度、活动图层、选中地标
 - currentView
 
-### 模块临时状态
+不会持久化：
 
-以下状态不得写入产品存档：
+- Landing 粒子、唤醒动画和手势锁
+- Reader 输入累计、展示转场和焦点测量
+- Center hover、屏幕投影、pointer、dragging、tween 和 runtime ready
 
-- Landing 粒子、唤醒动画、手势锁
-- Reader 输入累计、展示转场、焦点测量
-- Center hover、投影锚点、pointer、dragging、tween、runtime ready
+V1 和 V2 存档由统一 migration 入口升级到 V3；V1 原始存档仍保留，迁移时同时留下 V2 兼容快照。
 
-## Center 接线原则
+## 世界解析
 
-1. ReaderPosition 沿用 V0.0 的 `{ phaseId, pageId, beatIndex }`。
-2. Center 不得直接修改 App route；正式接入时必须调用 V0.0 navigation/transition 协议。
-3. Phaser 只接收世界快照与视图快照，只发出业务事件和稳定视图变化。
-4. React 不读取 Phaser 每帧内部状态。
-5. Center runtime 必须提供 ready/error 握手，转场揭幕前完成恢复。
-6. 摄像机属于可恢复的 Center view snapshot；hover、投影和 tween 不属于存档。
+世界事实使用 `furthestLocation`，因此用户回看旧段落不会重新锁住已经解锁的世界。
 
-## 当前阶段完成定义
+当前语境使用 `committedLocation`，因此 Center 可以提示用户正在回看的相关地标。
 
-- 已建立独立施工分支。
-- 已补充产品协议回归测试。
-- 已建立混合 JS/TS 配置。
-- 已定义 Center domain contracts、运行时端口和基础不变量。
-- 未修改 Landing、Reader、Center 或现有 store 的运行行为。
+所有边界都使用 V0.0 的 `{ phaseId, pageId, beatIndex }` 和 Reader linear index，不使用百分比猜测。
+
+## Center runtime
+
+- 表世界和里世界是独立图层容器。
+- 图层 variant 会实际替换渲染内容，而不只是写进状态。
+- 地标根据阅读进度解锁，并支持 hover、点击、访问记录和返回对应 Reader 位置。
+- 摄像机拖动、缩放及最终位置会保存。
+- Phaser 只接收稳定快照，只发出明确业务事件。
+- Center 通过 lazy import 加载，Phaser 不进入 Landing/Reader 的首屏包。
+- 转场遮罩等待 runtime ready/error；超时后自动解除，避免永久黑屏。
+
+## 内容包
+
+Center 内容包包含：
+
+- `manifest.json`
+- Center 世界定义
+- 可选地图及其他二进制资产
+
+导入流程：
+
+```text
+ZIP
+→ Zod 校验
+→ Reader 位置合法性校验
+→ IndexedDB
+→ Object URL
+→ Phaser texture
+```
+
+内置世界没有正式地图素材时使用结构化 fallback renderer，不依赖旧 V0.1 的硬编码图片。
+
+开发验收入口可在 URL 后加入：
+
+```text
+?center-tools=1
+```
+
+它只显示内容包导入工具，不改变普通用户界面。
+
+## 已删除的废弃代码
+
+- 旧 `CenterNav`
+- 旧 Center CSS
+- 旧 Center 列表页面
+- 无实际内容价值的 records / perspectives / fragments 占位数据
+
+## 验证
+
+CI 使用锁定依赖执行：
+
+```text
+npm ci
+npm test
+npm run build
+```
+
+测试覆盖：
+
+- V0.0 产品协议
+- V1 / V2 → V3 存档迁移
+- WorldResolver 精确边界
+- Bridge 生命周期
+- 摄像机计算
+- 内容包解析
+- Center ready 握手
+
+GitHub Pages 预览工作流从 `integration/real-v0.1` 构建，并使用仓库子路径作为 Vite base。
