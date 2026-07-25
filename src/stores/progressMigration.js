@@ -177,6 +177,10 @@ export function sanitizeV2Progress(data) {
   }
 }
 
+export function serializeProgressV2(state) {
+  return { _version: 2, ...sanitizeV2Progress(state) }
+}
+
 export function sanitizeV3Progress(data) {
   const clean = sanitizeV2Progress(data)
   const source = data && typeof data === 'object' ? data : {}
@@ -195,8 +199,7 @@ export function migrateV2ToV3(data) {
 }
 
 export function serializeProgressV3(state) {
-  const clean = sanitizeV3Progress(state)
-  return { _version: PROGRESS_VERSION, ...clean }
+  return { _version: PROGRESS_VERSION, ...sanitizeV3Progress(state) }
 }
 
 function parseStorageValue(storage, key) {
@@ -208,7 +211,7 @@ function parseStorageValue(storage, key) {
   }
 }
 
-function persistMigrated(storage, state) {
+function persistCurrentVersion(storage, state) {
   storage?.setItem(
     PROGRESS_STORAGE_KEYS.V3,
     JSON.stringify(serializeProgressV3(state)),
@@ -216,15 +219,23 @@ function persistMigrated(storage, state) {
   return state
 }
 
+function persistV1Migration(storage, state) {
+  storage?.setItem(
+    PROGRESS_STORAGE_KEYS.V2,
+    JSON.stringify(serializeProgressV2(state)),
+  )
+  return persistCurrentVersion(storage, state)
+}
+
 export function loadProgressState(storage) {
   const v3 = parseStorageValue(storage, PROGRESS_STORAGE_KEYS.V3)
   if (v3?._version === PROGRESS_VERSION) return sanitizeV3Progress(v3)
 
   const v2 = parseStorageValue(storage, PROGRESS_STORAGE_KEYS.V2)
-  if (v2?._version === 2) return persistMigrated(storage, migrateV2ToV3(v2))
+  if (v2?._version === 2) return persistCurrentVersion(storage, migrateV2ToV3(v2))
 
   const v1 = parseStorageValue(storage, PROGRESS_STORAGE_KEYS.V1)
-  if (v1?._version === 1) return persistMigrated(storage, migrateV1ToV2(v1))
+  if (v1?._version === 1) return persistV1Migration(storage, migrateV1ToV2(v1))
 
   return null
 }
