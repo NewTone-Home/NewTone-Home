@@ -7,6 +7,8 @@ import type {
   WorldPoint,
 } from '../domain/contracts'
 
+type LayerObject = Phaser.GameObjects.Image | Phaser.GameObjects.Graphics
+
 export function getLayerTransform(
   definition: CenterDefinition,
   expansion: number,
@@ -31,7 +33,7 @@ export class LayerRenderer {
   readonly surfaceContainer: Phaser.GameObjects.Container
   readonly innerContainer: Phaser.GameObjects.Container
 
-  private variants = new Map<string, Phaser.GameObjects.GameObject>()
+  private variants = new Map<string, LayerObject>()
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -57,7 +59,7 @@ export class LayerRenderer {
   private createVariant(
     layer: WorldLayer,
     variant: CenterLayerVariantDefinition,
-  ): Phaser.GameObjects.GameObject {
+  ): LayerObject {
     const assetKey = variant.assetId ? `center-asset:${variant.assetId}` : null
     if (assetKey && this.scene.textures.exists(assetKey)) {
       return this.scene.add.image(0, 0, assetKey)
@@ -106,7 +108,9 @@ export class LayerRenderer {
 
   apply(world: CenterWorldSnapshot, expansion: number, activeLayer: WorldLayer | null): void {
     for (const [key, object] of this.variants) {
-      const [layer, variantId] = key.split(':') as [WorldLayer, string]
+      const separator = key.indexOf(':')
+      const layer = key.slice(0, separator) as WorldLayer
+      const variantId = key.slice(separator + 1)
       const activeVariant = layer === 'surface' ? world.surfaceVariant : world.innerVariant
       object.setVisible(variantId === activeVariant)
     }
