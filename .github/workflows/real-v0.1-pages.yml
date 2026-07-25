@@ -10,7 +10,6 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  pull-requests: write
 
 concurrency:
   group: github-pages
@@ -51,16 +50,3 @@ jobs:
       - name: Deploy Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-      - name: Report preview result
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          DEPLOY_OUTCOME: ${{ steps.deployment.outcome }}
-          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
-        run: |
-          if [ -n "${PAGE_URL}" ]; then
-            gh pr comment 3 --body "Pages preview deployment: ${DEPLOY_OUTCOME}. ${PAGE_URL}"
-          else
-            gh pr comment 3 --body "Pages preview deployment: ${DEPLOY_OUTCOME}. No Pages URL was produced; check repository Settings → Pages and the workflow run."
-          fi
