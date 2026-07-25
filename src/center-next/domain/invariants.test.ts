@@ -5,6 +5,7 @@ import {
   isReaderPosition,
   normalizeCenterCamera,
   normalizeCenterViewSnapshot,
+  normalizeCenterWorldSnapshot,
 } from './invariants'
 
 describe('Center domain invariants', () => {
@@ -16,16 +17,16 @@ describe('Center domain invariants', () => {
   })
 
   it('normalizes camera values without storing transient runtime state', () => {
+    expect(normalizeCenterCamera(null)).toBeNull()
     expect(normalizeCenterCamera({ scrollX: 120, scrollY: 80, zoom: 1.5 })).toEqual({
       scrollX: 120,
       scrollY: 80,
       zoom: 1.5,
     })
-
     expect(normalizeCenterCamera({ scrollX: Number.NaN, scrollY: Infinity, zoom: 20 })).toEqual({
       scrollX: 0,
       scrollY: 0,
-      zoom: 4,
+      zoom: 3.5,
     })
   })
 
@@ -37,12 +38,11 @@ describe('Center domain invariants', () => {
 
   it('creates and sanitizes a serializable Center view snapshot', () => {
     expect(createDefaultCenterViewSnapshot()).toEqual({
-      camera: { scrollX: 0, scrollY: 0, zoom: 1 },
-      expansion: 0,
+      camera: null,
+      expansion: 0.42,
       activeLayer: null,
       selectedLandmarkId: null,
     })
-
     expect(normalizeCenterViewSnapshot({
       camera: { scrollX: 20, scrollY: 30, zoom: 2 },
       expansion: 1.4,
@@ -53,6 +53,27 @@ describe('Center domain invariants', () => {
       expansion: 1,
       activeLayer: 'surface',
       selectedLandmarkId: 'station',
+    })
+  })
+
+  it('rejects incomplete world snapshots and deduplicates stable facts', () => {
+    expect(normalizeCenterWorldSnapshot({ progressKey: 'opening' })).toBeNull()
+    expect(normalizeCenterWorldSnapshot({
+      definitionId: 'world',
+      progressKey: 'opening',
+      surfaceVariant: 'surface',
+      innerVariant: 'inner',
+      unlockedLandmarkIds: ['a', 'a'],
+      visitedLandmarkIds: ['a', 'a'],
+      contextualLandmarkIds: ['a'],
+    })).toEqual({
+      definitionId: 'world',
+      progressKey: 'opening',
+      surfaceVariant: 'surface',
+      innerVariant: 'inner',
+      unlockedLandmarkIds: ['a'],
+      visitedLandmarkIds: ['a'],
+      contextualLandmarkIds: ['a'],
     })
   })
 })
