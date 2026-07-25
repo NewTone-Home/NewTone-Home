@@ -1,18 +1,23 @@
 {
   "name": "newtone-v0-1",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && vite build",
     "lint": "oxlint",
     "test": "vitest run",
     "preview": "vite preview"
   },
   "dependencies": {
+    "idb": "^8.0.3",
+    "jszip": "^3.10.1",
+    "phaser": "^3.90.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "zod": "^4.1.5",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
@@ -20,6 +25,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "oxlint": "^1.71.0",
+    "typescript": "~5.8.3",
     "vite": "^8.1.1",
     "vitest": "^4.1.10"
   }
