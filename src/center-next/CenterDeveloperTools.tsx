@@ -4,7 +4,7 @@ import { centerContentService } from './content/CenterContentService'
 
 export function CenterDeveloperTools() {
   const enabled = new URLSearchParams(window.location.search).get('center-tools') === '1'
-  const setCenterContentPackage = useProgressStore(state => state.setCenterContentPackage)
+  const setCenterContentPackage = useProgressStore((state: any) => state.setCenterContentPackage)
   const [status, setStatus] = useState('')
 
   if (!enabled) return null
