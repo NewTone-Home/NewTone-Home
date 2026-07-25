@@ -16,20 +16,20 @@ import { CenterDeveloperTools } from './CenterDeveloperTools'
 import './CenterExperience.css'
 
 function CenterExperience() {
-  const language = useProgressStore(state => state.language)
-  const packageId = useProgressStore(state => state.centerContentPackageId)
-  const committedLocation = useProgressStore(state => state.committedLocation)
-  const furthestLocation = useProgressStore(state => state.furthestLocation)
-  const world = useProgressStore(state => state.centerWorldSnapshot)
-  const view = useProgressStore(state => state.centerViewSnapshot)
-  const setWorld = useProgressStore(state => state.setCenterWorldSnapshot)
-  const updateView = useProgressStore(state => state.updateCenterView)
-  const commitCamera = useProgressStore(state => state.commitCenterCamera)
-  const visitLandmark = useProgressStore(state => state.visitCenterLandmark)
-  const selectLandmark = useProgressStore(state => state.selectCenterLandmark)
-  const commitLocation = useProgressStore(state => state.commitLocation)
-  const transitionTo = useTransitionStore(state => state.transitionTo)
-  const notifyTargetReady = useTransitionStore(state => state.notifyTargetReady)
+  const language = useProgressStore((state: any) => state.language)
+  const packageId = useProgressStore((state: any) => state.centerContentPackageId)
+  const committedLocation = useProgressStore((state: any) => state.committedLocation)
+  const furthestLocation = useProgressStore((state: any) => state.furthestLocation)
+  const world = useProgressStore((state: any) => state.centerWorldSnapshot)
+  const view = useProgressStore((state: any) => state.centerViewSnapshot)
+  const setWorld = useProgressStore((state: any) => state.setCenterWorldSnapshot)
+  const updateView = useProgressStore((state: any) => state.updateCenterView)
+  const commitCamera = useProgressStore((state: any) => state.commitCenterCamera)
+  const visitLandmark = useProgressStore((state: any) => state.visitCenterLandmark)
+  const selectLandmark = useProgressStore((state: any) => state.selectCenterLandmark)
+  const commitLocation = useProgressStore((state: any) => state.commitLocation)
+  const transitionTo = useTransitionStore((state: any) => state.transitionTo)
+  const notifyTargetReady = useTransitionStore((state: any) => state.notifyTargetReady)
 
   const bridge = useMemo(() => new CenterBridge(), [])
   const [definition, setDefinition] = useState<CenterDefinition | null>(null)
@@ -54,13 +54,13 @@ function CenterExperience() {
     void centerContentService.loadDefinition(packageId)
       .then(async nextDefinition => {
         if (cancelled) return
-        const nextWorld = resolveCenterWorld({
+        const progress = useProgressStore.getState()
+        setWorld(resolveCenterWorld({
           definition: nextDefinition,
-          committedLocation,
-          furthestLocation,
-          visitedLandmarkIds: world?.visitedLandmarkIds,
-        })
-        setWorld(nextWorld)
+          committedLocation: progress.committedLocation,
+          furthestLocation: progress.furthestLocation,
+          visitedLandmarkIds: progress.centerWorldSnapshot?.visitedLandmarkIds,
+        }))
         const nextAssets = await centerContentService.resolveAssetUrls(packageId, nextDefinition)
         if (cancelled) {
           nextAssets.release()
@@ -81,17 +81,18 @@ function CenterExperience() {
       assetSetRef.current?.release()
       assetSetRef.current = null
     }
-  }, [packageId])
+  }, [notifyTargetReady, packageId, setWorld])
 
   useEffect(() => {
     if (!definition) return
+    const progress = useProgressStore.getState()
     setWorld(resolveCenterWorld({
       definition,
       committedLocation,
       furthestLocation,
-      visitedLandmarkIds: world?.visitedLandmarkIds,
+      visitedLandmarkIds: progress.centerWorldSnapshot?.visitedLandmarkIds,
     }))
-  }, [definition, committedLocation, furthestLocation])
+  }, [committedLocation, definition, furthestLocation, setWorld])
 
   useEffect(() => bridge.subscribe(event => {
     if (event.type === 'runtime/ready') {
