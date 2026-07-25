@@ -9,12 +9,17 @@ on:
       - main
       - local-latest
 
+permissions:
+  contents: write
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref_name || github.event.pull_request.head.sha }}
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -25,11 +30,17 @@ jobs:
       - name: Install dependencies
         run: npm install --silent
 
-      - name: Upload resolved dependency lock
-        uses: actions/upload-artifact@v4
-        with:
-          name: resolved-package-lock
-          path: package-lock.json
+      - name: Synchronize dependency lock
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "build: synchronize dependency lock"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
 
       - name: Run tests
         shell: bash
