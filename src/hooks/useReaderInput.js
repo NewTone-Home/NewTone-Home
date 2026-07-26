@@ -5,12 +5,24 @@ import {
   isReaderInputControl,
   keyToReaderIntent,
   normalizeWheelDelta,
-  touchToReaderIntent,
 } from '../reader/readerInput'
+
+const MOBILE_SWIPE_STEP_PX = 86
+const MOBILE_SWIPE_MAX_STEPS = 4
+const MOBILE_SWIPE_MIN_PX = 28
+
+function swipeDistanceToSteps(distance) {
+  if (!Number.isFinite(distance) || Math.abs(distance) < MOBILE_SWIPE_MIN_PX) return 0
+  const magnitude = Math.min(
+    MOBILE_SWIPE_MAX_STEPS,
+    Math.max(1, Math.round(Math.abs(distance) / MOBILE_SWIPE_STEP_PX)),
+  )
+  return Math.sign(distance) * magnitude
+}
 
 export function useReaderInput({ onSteps, wheelThreshold }) {
   const wheelRef = useRef(0)
-  const touchStartRef = useRef(null)
+  const touchRef = useRef(null)
   const onStepsRef = useRef(onSteps)
   const gestureRef = useRef({ id: 0, lastWheelAt: 0 })
   const touchGestureRef = useRef(0)
@@ -23,6 +35,7 @@ export function useReaderInput({ onSteps, wheelThreshold }) {
 
   const clearInputAccumulator = useCallback(() => {
     wheelRef.current = 0
+    touchRef.current = null
   }, [])
 
   useEffect(() => {
@@ -49,40 +62,48 @@ export function useReaderInput({ onSteps, wheelThreshold }) {
 
     const handleTouchStart = (event) => {
       if (isReaderInputControl(event.target)) return
-      touchStartRef.current = event.touches[0]?.clientY ?? null
+      const startY = event.touches[0]?.clientY
+      if (!Number.isFinite(startY)) return
       touchGestureRef.current += 1
+      touchRef.current = { startY, currentY: startY }
     }
 
     const handleTouchMove = (event) => {
-      if (touchStartRef.current === null || isReaderInputControl(event.target)) return
+      if (!touchRef.current || isReaderInputControl(event.target)) return
       const currentY = event.touches[0]?.clientY
-      const intent = touchToReaderIntent(touchStartRef.current, currentY)
-      if (!intent) return
+      if (!Number.isFinite(currentY)) return
+      touchRef.current.currentY = currentY
       event.preventDefault()
-      touchStartRef.current = currentY
-      dispatchSteps(intentToReaderSteps(intent), { source: 'touch', gestureId: `touch-${touchGestureRef.current}` })
     }
 
-    const clearTouch = () => {
-      touchStartRef.current = null
+    const finishTouch = () => {
+      const touch = touchRef.current
+      touchRef.current = null
+      if (!touch) return
+      const steps = swipeDistanceToSteps(touch.startY - touch.currentY)
+      dispatchSteps(steps, { source: 'touch', gestureId: `touch-${touchGestureRef.current}` })
+    }
+
+    const cancelTouch = () => {
+      touchRef.current = null
     }
 
     window.addEventListener('wheel', handleWheel, { passive: false })
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('touchstart', handleTouchStart, { passive: true })
     window.addEventListener('touchmove', handleTouchMove, { passive: false })
-    window.addEventListener('touchend', clearTouch)
-    window.addEventListener('touchcancel', clearTouch)
+    window.addEventListener('touchend', finishTouch)
+    window.addEventListener('touchcancel', cancelTouch)
 
     return () => {
       window.removeEventListener('wheel', handleWheel)
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('touchstart', handleTouchStart)
       window.removeEventListener('touchmove', handleTouchMove)
-      window.removeEventListener('touchend', clearTouch)
-      window.removeEventListener('touchcancel', clearTouch)
+      window.removeEventListener('touchend', finishTouch)
+      window.removeEventListener('touchcancel', cancelTouch)
       wheelRef.current = 0
-      touchStartRef.current = null
+      touchRef.current = null
     }
   }, [dispatchSteps, wheelThreshold])
 
