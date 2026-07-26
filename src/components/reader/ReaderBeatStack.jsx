@@ -15,6 +15,7 @@ function ReaderBeatStack({
   const beatsRef = useRef(beats)
   const frameRef = useRef(0)
   const lastReportedIndexRef = useRef(focusBeatIndex)
+  const nativeScrollInitializedRef = useRef(false)
   const [offset, setOffset] = useState(0)
   const [nativeScroll, setNativeScroll] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia(NATIVE_SCROLL_QUERY).matches
@@ -39,12 +40,16 @@ function ReaderBeatStack({
     lastReportedIndexRef.current = focusBeatIndex
 
     if (nativeScroll) {
-      if (pageChanged || Math.abs(focused.getBoundingClientRect().top - viewport.getBoundingClientRect().top) > viewport.clientHeight) {
+      const needsInitialPosition = !nativeScrollInitializedRef.current || pageChanged
+      nativeScrollInitializedRef.current = true
+      if (needsInitialPosition) {
         const targetTop = focused.offsetTop - (viewport.clientHeight - focused.offsetHeight) / 2
         viewport.scrollTo({ top: Math.max(0, targetTop), behavior: 'auto' })
       }
       return undefined
     }
+
+    nativeScrollInitializedRef.current = false
 
     const centerFocusedBeat = () => {
       const viewportRect = viewport.getBoundingClientRect()
