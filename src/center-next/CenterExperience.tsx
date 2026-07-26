@@ -5,7 +5,7 @@ import { useTransitionStore } from '../stores/transitionStore'
 import type { CenterDefinition } from './domain/contracts'
 import { resolveCenterWorld } from './domain/worldResolver'
 import { getLocalizedCenterText } from './content/defaultCenterDefinition'
-import { centerContentService, type CenterAssetUrlSet } from './content/CenterContentService'
+import { centerContentService } from './content/CenterContentService'
 import { CenterDeveloperTools } from './CenterDeveloperTools'
 import './CenterExperience.css'
 
@@ -73,7 +73,6 @@ function CenterExperience() {
   const [enteredRegionId, setEnteredRegionId] = useState<string | null>(null)
   const [pointer, setPointer] = useState({ x: 0, y: 0 })
   const hoverTimerRef = useRef<number | null>(null)
-  const assetSetRef = useRef<CenterAssetUrlSet | null>(null)
 
   const mapUrl = `${import.meta.env.BASE_URL}assets/center/center-city-map-lineart-v1.webp`
   const t = copy[language]
@@ -82,11 +81,9 @@ function CenterExperience() {
     let cancelled = false
     setDefinition(null)
     setLoadError('')
-    assetSetRef.current?.release()
-    assetSetRef.current = null
 
     void centerContentService.loadDefinition(packageId)
-      .then(async nextDefinition => {
+      .then(nextDefinition => {
         if (cancelled) return
         const progress = useProgressStore.getState()
         setWorld(resolveCenterWorld({
@@ -95,13 +92,8 @@ function CenterExperience() {
           furthestLocation: progress.furthestLocation,
           visitedLandmarkIds: progress.centerWorldSnapshot?.visitedLandmarkIds,
         }))
-        const nextAssets = await centerContentService.resolveAssetUrls(packageId, nextDefinition)
-        if (cancelled) {
-          nextAssets.release()
-          return
-        }
-        assetSetRef.current = nextAssets
         setDefinition(nextDefinition)
+        notifyTargetReady('center')
       })
       .catch(error => {
         if (cancelled) return
@@ -111,14 +103,8 @@ function CenterExperience() {
 
     return () => {
       cancelled = true
-      assetSetRef.current?.release()
-      assetSetRef.current = null
     }
   }, [committedLocation, furthestLocation, notifyTargetReady, packageId, setWorld])
-
-  useEffect(() => {
-    if (definition && imageReady) notifyTargetReady('center')
-  }, [definition, imageReady, notifyTargetReady])
 
   useEffect(() => () => {
     if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current)
@@ -220,7 +206,8 @@ function CenterExperience() {
   return (
     <main
       className="center-next center-next--static-map"
-      data-runtime-ready={imageReady ? 'true' : 'false'}
+      data-runtime-ready="true"
+      data-map-image-ready={imageReady ? 'true' : 'false'}
       data-hovered-region={hoveredRegionId ?? ''}
       onWheel={handleWheel}
     >
@@ -246,6 +233,7 @@ function CenterExperience() {
           src={mapUrl}
           alt="NewTone 城市手绘地图"
           onLoad={() => setImageReady(true)}
+          onError={() => setImageReady(true)}
           draggable={false}
         />
         <svg
@@ -266,7 +254,8 @@ function CenterExperience() {
               aria-label={region.name}
               onPointerEnter={() => beginRegionHover(region.id)}
               onPointerLeave={() => endRegionHover(region.id)}
-              onPointerDown={event => {
+              onPointerDown={event => event.stopPropagation()}
+              onClick={event => {
                 event.stopPropagation()
                 selectRegion(region.id)
               }}
