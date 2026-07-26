@@ -4,35 +4,14 @@
   height: 100%;
   min-height: 100dvh;
   overflow: hidden;
-  background: #151b19;
-  color: #eee4d1;
+  background: #eee9df;
+  color: #2f2b26;
   isolation: isolate;
-}
-
-.center-next-canvas {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-
-.center-next-canvas canvas {
-  display: block;
-}
-
-.center-next::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 50% 45%, transparent 40%, rgba(8, 12, 11, 0.24) 100%),
-    linear-gradient(180deg, rgba(8, 12, 11, 0.35), transparent 18%, transparent 82%, rgba(8, 12, 11, 0.38));
 }
 
 .center-next-header {
   position: absolute;
-  z-index: 4;
+  z-index: 8;
   top: 0;
   left: 0;
   right: 0;
@@ -40,8 +19,9 @@
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 1rem;
-  padding: 1.1rem clamp(1rem, 3vw, 2.5rem);
+  padding: 1.05rem clamp(1rem, 3vw, 2.5rem);
   pointer-events: none;
+  background: linear-gradient(180deg, rgba(245, 240, 231, 0.92), rgba(245, 240, 231, 0));
 }
 
 .center-next-header p {
@@ -49,13 +29,14 @@
   font: 500 0.68rem/1.2 var(--nt-sans, system-ui, sans-serif);
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: rgba(239, 228, 207, 0.62);
+  color: rgba(54, 49, 43, 0.56);
 }
 
 .center-next-header button,
-.center-next-layer-control button,
 .center-next-detail button,
-.center-next--error button {
+.center-next--error button,
+.center-region-placeholder button,
+.center-map-preview {
   border: 0;
   background: transparent;
   color: inherit;
@@ -67,7 +48,7 @@
   justify-self: start;
   padding: 0.45rem 0;
   font: 0.82rem/1.2 var(--nt-serif, Georgia, serif);
-  color: rgba(239, 228, 207, 0.72);
+  color: rgba(48, 43, 37, 0.72);
   border-bottom: 1px solid transparent;
   transition: color 180ms ease, border-color 180ms ease;
 }
@@ -78,105 +59,182 @@
 
 .center-next-header button:hover,
 .center-next-header button:focus-visible {
-  color: #f4e8d0;
-  border-color: rgba(244, 232, 208, 0.55);
+  color: #211e1a;
+  border-color: rgba(48, 43, 37, 0.48);
 }
 
-.center-next-layer-control {
-  position: absolute;
-  z-index: 4;
-  left: 50%;
-  bottom: clamp(1rem, 3vw, 2.2rem);
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.35rem;
-  border: 1px solid rgba(232, 220, 198, 0.16);
-  border-radius: 999px;
-  background: rgba(18, 24, 22, 0.55);
-  backdrop-filter: blur(10px);
-}
-
-.center-next-layer-control button {
-  width: 2.1rem;
-  height: 2.1rem;
-  border-radius: 50%;
-  font: 500 0.72rem var(--nt-serif, Georgia, serif);
-  color: rgba(232, 220, 198, 0.55);
-  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
-}
-
-.center-next-layer-control button:hover,
-.center-next-layer-control button:focus-visible,
-.center-next-layer-control button[data-active='true'] {
-  color: #f3e5c9;
-  background: rgba(220, 185, 119, 0.15);
-  transform: translateY(-1px);
-}
-
-.center-next-annotation {
-  position: absolute;
-  z-index: 5;
+.center-next--static-map {
   display: grid;
-  gap: 0.25rem;
-  width: min(18rem, 34vw);
-  transform: translate(1rem, -50%) rotate(-1deg);
-  pointer-events: none;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
-  animation: center-next-note-in 240ms ease-out both;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.88), transparent 64%),
+    #eee9df;
 }
 
-.center-next-annotation::before {
+.center-map-stage {
+  position: relative;
+  width: min(100vw, calc(100dvh * 4 / 3));
+  aspect-ratio: 4 / 3;
+  max-height: 100dvh;
+  overflow: hidden;
+  user-select: none;
+  touch-action: manipulation;
+  filter: contrast(1.02);
+}
+
+.center-map-stage::after {
   content: '';
   position: absolute;
-  right: calc(100% + 0.5rem);
-  top: 0.85rem;
-  width: 2.4rem;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(222, 183, 112, 0.82));
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(238, 233, 223, 0.24), transparent 14%, transparent 86%, rgba(238, 233, 223, 0.42)),
+    radial-gradient(circle at center, transparent 66%, rgba(232, 226, 216, 0.35));
 }
 
-.center-next-annotation strong {
-  font: 400 clamp(1rem, 1.7vw, 1.45rem)/1.1 var(--font-title-handwritten, var(--nt-serif, Georgia, serif));
-  color: #f1dfbd;
+.center-map-image,
+.center-map-regions {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.center-next-annotation span {
-  font: 0.78rem/1.55 var(--nt-serif, Georgia, serif);
-  color: rgba(235, 221, 194, 0.72);
+.center-map-image {
+  display: block;
+  object-fit: contain;
+  -webkit-user-drag: none;
+}
+
+.center-map-regions {
+  z-index: 2;
+  overflow: visible;
+}
+
+.center-map-region {
+  fill: rgba(72, 66, 58, 0);
+  stroke: rgba(60, 54, 47, 0);
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+  outline: none;
+  transition: fill 180ms ease, stroke 180ms ease, filter 180ms ease;
+}
+
+.center-map-region:hover,
+.center-map-region:focus-visible,
+.center-map-region[data-active='true'] {
+  fill: rgba(83, 75, 64, 0.055);
+  stroke: rgba(68, 60, 51, 0.42);
+  stroke-dasharray: 3 7;
+  filter: drop-shadow(0 2px 2px rgba(50, 44, 37, 0.08));
+}
+
+.center-map-hover-progress {
+  position: fixed;
+  z-index: 10;
+  width: 4.6rem;
+  height: 0.28rem;
+  margin: 0.85rem 0 0 0.85rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(62, 56, 48, 0.16);
+  pointer-events: none;
+  transform: rotate(-1deg);
+}
+
+.center-map-hover-progress span {
+  display: block;
+  height: 100%;
+  background: #3b352d;
+  transform-origin: left;
+  animation: center-map-progress 720ms linear both;
+}
+
+.center-map-preview {
+  position: absolute;
+  z-index: 7;
+  left: clamp(1rem, 6vw, 6rem);
+  bottom: clamp(1.2rem, 5vw, 4.5rem);
+  display: grid;
+  gap: 0.38rem;
+  width: min(25rem, calc(100vw - 2rem));
+  padding: 1.1rem 1.25rem 1rem;
+  text-align: left;
+  color: #342f28;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 25px, rgba(71, 62, 50, 0.035) 25px 26px),
+    rgba(246, 239, 225, 0.95);
+  border: 1px solid rgba(59, 51, 41, 0.26);
+  border-radius: 2px;
+  box-shadow: 0 18px 45px rgba(60, 52, 42, 0.18);
+  transform: rotate(-0.5deg);
+  animation: center-next-note-in 220ms ease-out both;
+}
+
+.center-map-preview::before {
+  content: '';
+  position: absolute;
+  inset: 0.35rem;
+  border: 1px solid rgba(68, 58, 46, 0.08);
+  pointer-events: none;
+}
+
+.center-map-preview strong {
+  font: 500 clamp(1.2rem, 2vw, 1.7rem)/1.1 var(--font-title-handwritten, var(--nt-serif, Georgia, serif));
+}
+
+.center-map-preview span {
+  font: 0.88rem/1.6 var(--nt-serif, Georgia, serif);
+  color: rgba(56, 49, 40, 0.76);
+}
+
+.center-map-preview small {
+  margin-top: 0.15rem;
+  font: 0.68rem/1.4 var(--nt-sans, system-ui, sans-serif);
+  letter-spacing: 0.12em;
+  color: rgba(80, 68, 54, 0.54);
 }
 
 .center-next-detail {
   position: absolute;
   inset: 0;
-  z-index: 6;
+  z-index: 9;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   padding: clamp(1.2rem, 5vw, 5rem);
-  background: linear-gradient(90deg, transparent 35%, rgba(9, 12, 11, 0.38));
+  background: linear-gradient(90deg, rgba(238, 233, 223, 0.08) 18%, rgba(63, 56, 47, 0.24));
   perspective: 1200px;
 }
 
 .center-next-detail-sheet {
-  width: min(27rem, 88vw);
-  padding: clamp(1.4rem, 3vw, 2.6rem);
-  color: #2f2921;
+  position: relative;
+  width: min(28rem, 88vw);
+  padding: clamp(1.5rem, 3vw, 2.7rem);
+  color: #302a22;
   background:
     repeating-linear-gradient(0deg, transparent 0 27px, rgba(75, 60, 40, 0.045) 27px 28px),
-    linear-gradient(155deg, #f4ead7, #e5d7bd);
-  border: 1px solid rgba(61, 50, 37, 0.24);
-  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.54);
+    linear-gradient(155deg, #f7eedc, #e8dcc5);
+  border: 1px solid rgba(61, 50, 37, 0.25);
+  box-shadow: 0 30px 90px rgba(43, 37, 29, 0.32);
   transform-origin: top right;
   animation: center-next-sheet-in 300ms cubic-bezier(0.22, 0.72, 0.24, 1) both;
+}
+
+.center-next-detail-sheet::after {
+  content: '';
+  position: absolute;
+  inset: 0.55rem;
+  border: 1px solid rgba(61, 50, 37, 0.08);
+  pointer-events: none;
 }
 
 .center-next-detail-sheet > p {
   margin: 0 0 0.8rem;
   font: 600 0.62rem/1.2 var(--nt-sans, system-ui, sans-serif);
   letter-spacing: 0.18em;
-  color: #8a603d;
+  color: #85613e;
 }
 
 .center-next-detail h2 {
@@ -199,11 +257,69 @@
 }
 
 .center-next-detail button,
-.center-next--error button {
+.center-next--error button,
+.center-region-placeholder button {
   padding: 0.3rem 0;
   border-bottom: 1px solid currentColor;
   font: 0.82rem var(--nt-serif, Georgia, serif);
   color: #4a3b2a;
+}
+
+.center-region-placeholder {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  place-items: center;
+  padding: 5rem 1.5rem 2rem;
+  background:
+    linear-gradient(rgba(245, 239, 228, 0.95), rgba(238, 230, 215, 0.98)),
+    url('/assets/center/center-city-map-lineart-v1.webp') center / cover;
+  animation: center-region-enter 320ms ease-out both;
+}
+
+.center-region-placeholder > button {
+  position: absolute;
+  top: 1.4rem;
+  left: clamp(1rem, 3vw, 2.5rem);
+}
+
+.center-region-placeholder > div {
+  display: grid;
+  gap: 1rem;
+  width: min(42rem, 92vw);
+  padding: clamp(1.6rem, 4vw, 3.5rem);
+  background: rgba(248, 241, 228, 0.9);
+  border: 1px solid rgba(57, 49, 39, 0.18);
+  box-shadow: 0 24px 70px rgba(52, 44, 34, 0.14);
+  text-align: center;
+}
+
+.center-region-placeholder p,
+.center-region-placeholder h1,
+.center-region-placeholder span,
+.center-region-placeholder small {
+  margin: 0;
+}
+
+.center-region-placeholder p {
+  font: 600 0.68rem var(--nt-sans, system-ui, sans-serif);
+  letter-spacing: 0.18em;
+  color: #8a6848;
+}
+
+.center-region-placeholder h1 {
+  font: 400 clamp(2.4rem, 7vw, 5.2rem)/1 var(--nt-serif, Georgia, serif);
+}
+
+.center-region-placeholder span {
+  font: 1rem/1.8 var(--nt-serif, Georgia, serif);
+  color: rgba(49, 42, 33, 0.76);
+}
+
+.center-region-placeholder small {
+  font: 0.78rem/1.6 var(--nt-sans, system-ui, sans-serif);
+  color: rgba(73, 62, 49, 0.52);
 }
 
 .center-next--loading,
@@ -220,14 +336,9 @@
   margin: 0;
 }
 
-.center-next--error button {
-  justify-self: center;
-  color: #ead8b6;
-}
-
 .center-next-devtools {
   position: absolute;
-  z-index: 9;
+  z-index: 20;
   left: 1rem;
   bottom: 1rem;
   display: grid;
@@ -236,6 +347,7 @@
   padding: 0.8rem;
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(0, 0, 0, 0.75);
+  color: white;
   font: 0.72rem/1.4 monospace;
 }
 
@@ -244,14 +356,24 @@
   gap: 0.35rem;
 }
 
+@keyframes center-map-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
 @keyframes center-next-note-in {
-  from { opacity: 0; transform: translate(0.3rem, -50%) rotate(-1deg); filter: blur(1px); }
-  to { opacity: 1; transform: translate(1rem, -50%) rotate(-1deg); filter: none; }
+  from { opacity: 0; transform: translateY(0.4rem) rotate(-0.5deg); filter: blur(1px); }
+  to { opacity: 1; transform: translateY(0) rotate(-0.5deg); filter: none; }
 }
 
 @keyframes center-next-sheet-in {
-  from { opacity: 0; transform: rotateY(16deg) translateX(2rem); }
+  from { opacity: 0; transform: rotateY(14deg) translateX(2rem); }
   to { opacity: 1; transform: rotateY(0) translateX(0); }
+}
+
+@keyframes center-region-enter {
+  from { opacity: 0; transform: translateY(1.5rem); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (max-width: 720px) {
@@ -263,19 +385,27 @@
     display: none;
   }
 
-  .center-next-detail {
-    justify-content: center;
-    background: rgba(9, 12, 11, 0.28);
+  .center-map-stage {
+    width: 100vw;
+    max-height: none;
   }
 
-  .center-next-annotation {
-    width: min(14rem, 52vw);
+  .center-next-detail {
+    justify-content: center;
+    background: rgba(63, 56, 47, 0.18);
+  }
+
+  .center-map-preview {
+    left: 1rem;
+    bottom: 1.2rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .center-next-annotation,
-  .center-next-detail-sheet {
+  .center-map-hover-progress span,
+  .center-map-preview,
+  .center-next-detail-sheet,
+  .center-region-placeholder {
     animation-duration: 0.01ms;
   }
 }
