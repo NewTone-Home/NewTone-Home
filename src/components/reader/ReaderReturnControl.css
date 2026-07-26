@@ -1,12 +1,12 @@
 @media (hover: none), (pointer: coarse), (max-width: 720px) {
-  .reader-return-control {
-    bottom: max(92px, calc(env(safe-area-inset-bottom) + 76px));
+  .reader-stage .reader-return-control {
+    bottom: max(132px, calc(env(safe-area-inset-bottom) + 112px)) !important;
     width: min(184px, calc(100vw - 64px));
     padding: 12px 14px 10px;
-    opacity: 0.62;
+    opacity: 0.72;
   }
 
-  .reader-return-track {
+  .reader-stage .reader-return-track {
     height: 3px;
     margin-top: 10px;
   }
@@ -14,7 +14,7 @@
 
 @media (max-height: 620px) and (hover: none),
        (max-height: 620px) and (pointer: coarse) {
-  .reader-return-control {
-    bottom: max(72px, calc(env(safe-area-inset-bottom) + 58px));
+  .reader-stage .reader-return-control {
+    bottom: max(104px, calc(env(safe-area-inset-bottom) + 84px)) !important;
   }
 }
