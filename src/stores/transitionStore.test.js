@@ -37,6 +37,19 @@ describe('transition target readiness', () => {
     expect(useTransitionStore.getState().phase).toBe('idle')
   })
 
+  it('allows the explicit Reader return control to unlock and enter Center', () => {
+    const preset = 'reader-to-core'
+    const timings = getDefinition(preset).timings
+    useProgressStore.setState({ currentView: 'reader', centerUnlocked: false })
+
+    expect(useTransitionStore.getState().transitionTo('center', { preset })).toBe(true)
+    vi.advanceTimersByTime(timings.leaving)
+
+    expect(useProgressStore.getState().centerUnlocked).toBe(true)
+    expect(useProgressStore.getState().currentView).toBe('center')
+    expect(useTransitionStore.getState().phase).toBe('covered')
+  })
+
   it('does not wait for stable Reader and Landing transitions', () => {
     const preset = 'core-to-reader'
     const timings = getDefinition(preset).timings
