@@ -24,6 +24,7 @@ function ReaderStage({
   onThemePosition,
   onMotionMode,
   onFocusMotionEnd,
+  onNativeFocusChange,
   transitionKind,
   sceneTransitionKind,
   autoVisual,
@@ -83,6 +84,7 @@ function ReaderStage({
           beats={beats}
           focusBeatIndex={focusBeatIndex}
           onFocusMotionEnd={onFocusMotionEnd}
+          onNativeFocusChange={onNativeFocusChange}
           focusRef={focusRef}
         />
         <div className="reader-scene-atmosphere" aria-hidden="true" />
