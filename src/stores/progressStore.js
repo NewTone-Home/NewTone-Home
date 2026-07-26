@@ -127,8 +127,18 @@ export const useProgressStore = create((set, get) => ({
 
   returnToCenter: () => {
     const state = get()
-    if (state.centerUnlocked !== true) return false
-    set({ currentView: 'center', centerMode: 'home' })
+    const returningFromReader = state.currentView === 'reader'
+    if (!returningFromReader && state.centerUnlocked !== true) return false
+    set({
+      currentView: 'center',
+      centerMode: 'home',
+      centerUnlocked: true,
+      centerWorldSnapshot: state.centerWorldSnapshot ?? resolveWorldForState(
+        state,
+        state.committedLocation,
+        state.furthestLocation,
+      ),
+    })
     return true
   },
 
