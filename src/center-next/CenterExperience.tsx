@@ -2,52 +2,86 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { copy } from '../i18n/copy'
 import { useProgressStore } from '../stores/progressStore'
 import { useTransitionStore } from '../stores/transitionStore'
-import type {
-  CenterDefinition,
-  CenterProjectionMap,
-  LandmarkDefinition,
-} from './domain/contracts'
+import type { CenterDefinition } from './domain/contracts'
 import { resolveCenterWorld } from './domain/worldResolver'
 import { getLocalizedCenterText } from './content/defaultCenterDefinition'
 import { centerContentService, type CenterAssetUrlSet } from './content/CenterContentService'
-import { CenterBridge } from './runtime/CenterBridge'
-import { CenterGameHost } from './runtime/CenterGameHost'
 import { CenterDeveloperTools } from './CenterDeveloperTools'
 import './CenterExperience.css'
+
+type MapRegion = {
+  id: string
+  name: string
+  summary: string
+  detail: string
+  points: string
+}
+
+const MAP_REGIONS: MapRegion[] = [
+  {
+    id: 'old-town',
+    name: '老城区',
+    summary: '城市最早形成的区域，旧街、旧渠与近代生活层层叠合。',
+    detail: '这里保留着城市最深的时间纹理。姬家祖宅只是其中一个入口，未来还可以继续加入老街、学校、戏院与地下通道，而不需要改动第一层地图。',
+    points: '92,118 492,82 558,198 555,518 438,671 214,662 86,507',
+  },
+  {
+    id: 'central-core',
+    name: '中央核心区',
+    summary: '道路、广场与公共机构组成城市最有秩序的中心。',
+    detail: '这一层只说明中央核心区的位置与性格。中枢院及其他机构会在进入城区后的第二层出现。',
+    points: '505,98 899,96 932,202 908,618 799,704 514,660 462,518 488,214',
+  },
+  {
+    id: 'south-life',
+    name: '南部生活区',
+    summary: '住宅、学校与日常设施构成更舒缓的城市生活面。',
+    detail: '这里承载普通人的生活节奏。后续可以增加住宅街、学校、公园或其他故事入口。',
+    points: '226,620 491,569 803,635 845,741 744,913 357,902 211,792',
+  },
+  {
+    id: 'riverside-new',
+    name: '滨江新区',
+    summary: '高层建筑与新道路沿江展开，代表城市较新的生长方向。',
+    detail: '新区在第一层只保持整体轮廓。进入第二层后，才显示具体建筑、地点和事件。',
+    points: '927,167 1185,185 1257,302 1219,548 1092,589 930,510',
+  },
+  {
+    id: 'riverbank',
+    name: '江岸片区',
+    summary: '公园、步道和公共空间沿水岸形成开放的城市边缘。',
+    detail: '江岸片区更偏公共空间与日常活动。它可以持续增加新地点，而不必重新绘制总览地图。',
+    points: '927,520 1095,559 1219,548 1268,770 1150,920 857,926 846,746',
+  },
+]
 
 function CenterExperience() {
   const language = useProgressStore((state: any) => state.language) as keyof typeof copy
   const packageId = useProgressStore((state: any) => state.centerContentPackageId)
   const committedLocation = useProgressStore((state: any) => state.committedLocation)
   const furthestLocation = useProgressStore((state: any) => state.furthestLocation)
-  const world = useProgressStore((state: any) => state.centerWorldSnapshot)
-  const view = useProgressStore((state: any) => state.centerViewSnapshot)
   const setWorld = useProgressStore((state: any) => state.setCenterWorldSnapshot)
-  const updateView = useProgressStore((state: any) => state.updateCenterView)
-  const commitCamera = useProgressStore((state: any) => state.commitCenterCamera)
-  const visitLandmark = useProgressStore((state: any) => state.visitCenterLandmark)
-  const selectLandmark = useProgressStore((state: any) => state.selectCenterLandmark)
-  const commitLocation = useProgressStore((state: any) => state.commitLocation)
   const transitionTo = useTransitionStore((state: any) => state.transitionTo)
   const notifyTargetReady = useTransitionStore((state: any) => state.notifyTargetReady)
 
-  const bridge = useMemo(() => new CenterBridge(), [])
   const [definition, setDefinition] = useState<CenterDefinition | null>(null)
-  const [assetUrls, setAssetUrls] = useState<Record<string, string> | null>(null)
   const [loadError, setLoadError] = useState('')
-  const [runtimeReady, setRuntimeReady] = useState(false)
-  const [hoveredId, setHoveredId] = useState<string | null>(null)
-  const [focusedHoverId, setFocusedHoverId] = useState<string | null>(null)
-  const [projections, setProjections] = useState<CenterProjectionMap>({})
+  const [imageReady, setImageReady] = useState(false)
+  const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null)
+  const [previewRegionId, setPreviewRegionId] = useState<string | null>(null)
+  const [detailRegionId, setDetailRegionId] = useState<string | null>(null)
+  const [enteredRegionId, setEnteredRegionId] = useState<string | null>(null)
+  const [pointer, setPointer] = useState({ x: 0, y: 0 })
   const hoverTimerRef = useRef<number | null>(null)
   const assetSetRef = useRef<CenterAssetUrlSet | null>(null)
+
+  const mapUrl = `${import.meta.env.BASE_URL}assets/center/center-city-map-lineart-v1.webp`
+  const t = copy[language]
 
   useEffect(() => {
     let cancelled = false
     setDefinition(null)
-    setAssetUrls(null)
     setLoadError('')
-    setRuntimeReady(false)
     assetSetRef.current?.release()
     assetSetRef.current = null
 
@@ -68,7 +102,6 @@ function CenterExperience() {
         }
         assetSetRef.current = nextAssets
         setDefinition(nextDefinition)
-        setAssetUrls(nextAssets.urls)
       })
       .catch(error => {
         if (cancelled) return
@@ -81,84 +114,94 @@ function CenterExperience() {
       assetSetRef.current?.release()
       assetSetRef.current = null
     }
-  }, [notifyTargetReady, packageId, setWorld])
+  }, [committedLocation, furthestLocation, notifyTargetReady, packageId, setWorld])
 
   useEffect(() => {
-    if (!definition) return
-    const progress = useProgressStore.getState()
-    setWorld(resolveCenterWorld({
-      definition,
-      committedLocation,
-      furthestLocation,
-      visitedLandmarkIds: progress.centerWorldSnapshot?.visitedLandmarkIds,
-    }))
-  }, [committedLocation, definition, furthestLocation, setWorld])
-
-  useEffect(() => bridge.subscribe(event => {
-    if (event.type === 'runtime/ready') {
-      setRuntimeReady(true)
-      notifyTargetReady('center')
-      return
-    }
-    if (event.type === 'runtime/error') {
-      setLoadError(event.message)
-      notifyTargetReady('center')
-      return
-    }
-    if (event.type === 'projection/update') {
-      setProjections(event.anchors)
-      return
-    }
-    if (event.type === 'camera/commit') {
-      commitCamera(event.camera)
-      return
-    }
-    if (event.type === 'view/commit') {
-      updateView(event.view)
-      return
-    }
-    if (event.type === 'landmark/open') {
-      visitLandmark(event.landmarkId)
-      selectLandmark(event.landmarkId)
-      return
-    }
-    if (event.type === 'landmark/hover') {
-      setHoveredId(event.landmarkId)
-      if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current)
-      if (!event.landmarkId) {
-        setFocusedHoverId(null)
-        return
-      }
-      const id = event.landmarkId
-      hoverTimerRef.current = window.setTimeout(() => setFocusedHoverId(id), 520)
-    }
-  }), [bridge, commitCamera, notifyTargetReady, selectLandmark, updateView, visitLandmark])
+    if (definition && imageReady) notifyTargetReady('center')
+  }, [definition, imageReady, notifyTargetReady])
 
   useEffect(() => () => {
     if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current)
-    bridge.destroy()
-  }, [bridge])
+  }, [])
 
-  const selected = definition?.landmarks.find(item => item.id === view.selectedLandmarkId) ?? null
-  const annotation = !selected
-    ? definition?.landmarks.find(item => item.id === focusedHoverId) ?? null
-    : null
-  const t = copy[language]
+  const activePreview = useMemo(
+    () => MAP_REGIONS.find(region => region.id === previewRegionId) ?? null,
+    [previewRegionId],
+  )
+  const activeDetail = useMemo(
+    () => MAP_REGIONS.find(region => region.id === detailRegionId) ?? null,
+    [detailRegionId],
+  )
+  const enteredRegion = useMemo(
+    () => MAP_REGIONS.find(region => region.id === enteredRegionId) ?? null,
+    [enteredRegionId],
+  )
+
+  const clearHoverTimer = useCallback(() => {
+    if (!hoverTimerRef.current) return
+    window.clearTimeout(hoverTimerRef.current)
+    hoverTimerRef.current = null
+  }, [])
+
+  const beginRegionHover = useCallback((regionId: string) => {
+    clearHoverTimer()
+    setHoveredRegionId(regionId)
+    if (detailRegionId) return
+    hoverTimerRef.current = window.setTimeout(() => {
+      setPreviewRegionId(regionId)
+      hoverTimerRef.current = null
+    }, 720)
+  }, [clearHoverTimer, detailRegionId])
+
+  const endRegionHover = useCallback((regionId: string) => {
+    clearHoverTimer()
+    setHoveredRegionId(current => current === regionId ? null : current)
+  }, [clearHoverTimer])
+
+  const selectRegion = useCallback((regionId: string) => {
+    clearHoverTimer()
+    setHoveredRegionId(regionId)
+    setPreviewRegionId(regionId)
+  }, [clearHoverTimer])
+
+  const openDetail = useCallback((regionId: string) => {
+    setPreviewRegionId(regionId)
+    setDetailRegionId(regionId)
+  }, [])
+
+  const enterRegion = useCallback((regionId: string) => {
+    setEnteredRegionId(regionId)
+    setDetailRegionId(null)
+  }, [])
 
   const returnLanding = useCallback(() => {
-    selectLandmark(null)
     transitionTo('landing', { preset: 'core-to-surface' })
-  }, [selectLandmark, transitionTo])
+  }, [transitionTo])
 
   const continueReader = useCallback(() => {
-    selectLandmark(null)
     transitionTo('reader', { preset: 'core-to-reader', payload: { mode: 'continue' } })
-  }, [selectLandmark, transitionTo])
+  }, [transitionTo])
 
-  const openReaderTarget = useCallback((landmark: LandmarkDefinition) => {
-    if (landmark.contentTarget?.position) commitLocation(landmark.contentTarget.position)
-    continueReader()
-  }, [commitLocation, continueReader])
+  const closeDetail = useCallback(() => setDetailRegionId(null), [])
+
+  const handleWheel = useCallback((event: React.WheelEvent<HTMLElement>) => {
+    if (event.deltaY < 36) return
+    const regionId = detailRegionId ?? previewRegionId
+    if (!regionId) return
+    event.preventDefault()
+    enterRegion(regionId)
+  }, [detailRegionId, enterRegion, previewRegionId])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (enteredRegionId) setEnteredRegionId(null)
+      else if (detailRegionId) closeDetail()
+      else setPreviewRegionId(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [closeDetail, detailRegionId, enteredRegionId])
 
   if (loadError) {
     return (
@@ -170,78 +213,120 @@ function CenterExperience() {
     )
   }
 
-  if (!definition || !world || !assetUrls) {
-    return <main className="center-next center-next--loading">正在展开两层世界…</main>
+  if (!definition) {
+    return <main className="center-next center-next--loading">正在展开城市手稿…</main>
   }
 
   return (
     <main
-      className="center-next"
-      data-runtime-ready={runtimeReady ? 'true' : 'false'}
-      data-hovered-landmark={hoveredId ?? ''}
+      className="center-next center-next--static-map"
+      data-runtime-ready={imageReady ? 'true' : 'false'}
+      data-hovered-region={hoveredRegionId ?? ''}
+      onWheel={handleWheel}
     >
-      <CenterGameHost
-        bridge={bridge}
-        definition={definition}
-        world={world}
-        view={view}
-        assetUrls={assetUrls}
-      />
-
       <header className="center-next-header">
         <button type="button" onClick={returnLanding}>{t.backToLanding}</button>
         <p>{getLocalizedCenterText(definition.title, language)}</p>
         <button type="button" onClick={continueReader}>{t.continueReading}</button>
       </header>
 
-      <nav className="center-next-layer-control" aria-label="世界图层">
-        <button
-          type="button"
-          data-active={view.activeLayer === 'surface'}
-          onClick={() => updateView({ activeLayer: view.activeLayer === 'surface' ? null : 'surface' })}
-        >表</button>
-        <button
-          type="button"
-          data-active={view.activeLayer === null}
-          onClick={() => updateView({ activeLayer: null })}
-        >合</button>
-        <button
-          type="button"
-          data-active={view.activeLayer === 'inner'}
-          onClick={() => updateView({ activeLayer: view.activeLayer === 'inner' ? null : 'inner' })}
-        >里</button>
-        <button
-          type="button"
-          aria-label="切换世界展开程度"
-          onClick={() => updateView({ expansion: view.expansion > 0.5 ? 0.24 : 0.68 })}
-        >↕</button>
-      </nav>
-
-      {annotation && projections[annotation.id] && (
-        <aside
-          className="center-next-annotation"
-          style={{ left: projections[annotation.id].x, top: projections[annotation.id].y }}
-          aria-hidden="true"
+      <section
+        className="center-map-stage"
+        aria-label="城市分区地图"
+        onPointerMove={event => setPointer({ x: event.clientX, y: event.clientY })}
+        onPointerDown={event => {
+          if (event.target === event.currentTarget) {
+            setPreviewRegionId(null)
+            closeDetail()
+          }
+        }}
+      >
+        <img
+          className="center-map-image"
+          src={mapUrl}
+          alt="NewTone 城市手绘地图"
+          onLoad={() => setImageReady(true)}
+          draggable={false}
+        />
+        <svg
+          className="center-map-regions"
+          viewBox="0 0 1280 960"
+          preserveAspectRatio="xMidYMid meet"
+          role="group"
+          aria-label="城市分区"
         >
-          <strong>{getLocalizedCenterText(annotation.title, language)}</strong>
-          <span>{getLocalizedCenterText(annotation.annotation, language)}</span>
-        </aside>
+          {MAP_REGIONS.map(region => (
+            <polygon
+              key={region.id}
+              className="center-map-region"
+              data-active={previewRegionId === region.id || detailRegionId === region.id}
+              points={region.points}
+              tabIndex={0}
+              role="button"
+              aria-label={region.name}
+              onPointerEnter={() => beginRegionHover(region.id)}
+              onPointerLeave={() => endRegionHover(region.id)}
+              onPointerDown={event => {
+                event.stopPropagation()
+                selectRegion(region.id)
+              }}
+              onDoubleClick={() => openDetail(region.id)}
+              onFocus={() => selectRegion(region.id)}
+              onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  openDetail(region.id)
+                }
+              }}
+            />
+          ))}
+        </svg>
+      </section>
+
+      {hoveredRegionId && !previewRegionId && (
+        <div className="center-map-hover-progress" style={{ left: pointer.x, top: pointer.y }} aria-hidden="true">
+          <span />
+        </div>
       )}
 
-      {selected && (
-        <aside className="center-next-detail" aria-label={getLocalizedCenterText(selected.title, language)}>
+      {activePreview && !activeDetail && !enteredRegion && (
+        <button
+          type="button"
+          className="center-map-preview"
+          onClick={() => openDetail(activePreview.id)}
+        >
+          <strong>{activePreview.name}</strong>
+          <span>{activePreview.summary}</span>
+          <small>点击查看 · 向下进入</small>
+        </button>
+      )}
+
+      {activeDetail && !enteredRegion && (
+        <aside className="center-next-detail" aria-label={activeDetail.name} onPointerDown={event => {
+          if (event.target === event.currentTarget) closeDetail()
+        }}>
           <div className="center-next-detail-sheet">
-            <p>{selected.layer === 'surface' ? '表世界' : '里世界'}</p>
-            <h2>{getLocalizedCenterText(selected.title, language)}</h2>
-            <article>{getLocalizedCenterText(selected.annotation, language)}</article>
+            <p>城市分区</p>
+            <h2>{activeDetail.name}</h2>
+            <article>{activeDetail.detail}</article>
             <footer>
-              {selected.contentTarget?.position && (
-                <button type="button" onClick={() => openReaderTarget(selected)}>回到这一处</button>
-              )}
-              <button type="button" onClick={() => selectLandmark(null)}>收起</button>
+              <button type="button" onClick={() => enterRegion(activeDetail.id)}>进入这一层</button>
+              <button type="button" onClick={closeDetail}>收起</button>
             </footer>
           </div>
         </aside>
+      )}
+
+      {enteredRegion && (
+        <section className="center-region-placeholder" aria-label={`${enteredRegion.name}第二层`}>
+          <button type="button" onClick={() => setEnteredRegionId(null)}>返回城市地图</button>
+          <div>
+            <p>城区第二层 · 占位验收</p>
+            <h1>{enteredRegion.name}</h1>
+            <span>{enteredRegion.detail}</span>
+            <small>下一阶段在这里接入地点插图、地点入口与故事内容。</small>
+          </div>
+        </section>
       )}
 
       <CenterDeveloperTools />
