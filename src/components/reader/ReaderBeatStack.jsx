@@ -1,16 +1,50 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import './ReaderBeatStack.css'
 
-function ReaderBeatStack({ beats, focusBeatIndex, onFocusMotionEnd, focusRef }) {
+const NATIVE_SCROLL_QUERY = '(hover: none), (pointer: coarse), (max-width: 720px)'
+
+function ReaderBeatStack({
+  beats,
+  focusBeatIndex,
+  onFocusMotionEnd,
+  focusRef,
+  onNativeFocusChange,
+}) {
   const viewportRef = useRef(null)
   const flowRef = useRef(null)
   const beatsRef = useRef(beats)
+  const frameRef = useRef(0)
+  const lastReportedIndexRef = useRef(focusBeatIndex)
   const [offset, setOffset] = useState(0)
+  const [nativeScroll, setNativeScroll] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia(NATIVE_SCROLL_QUERY).matches
+  ))
+
+  useEffect(() => {
+    const media = window.matchMedia(NATIVE_SCROLL_QUERY)
+    const sync = () => setNativeScroll(media.matches)
+    sync()
+    media.addEventListener?.('change', sync)
+    return () => media.removeEventListener?.('change', sync)
+  }, [])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
     const flow = flowRef.current
     const focused = flow?.children[focusBeatIndex]
     if (!viewport || !flow || !focused) return undefined
+
+    const pageChanged = beatsRef.current !== beats
+    beatsRef.current = beats
+    lastReportedIndexRef.current = focusBeatIndex
+
+    if (nativeScroll) {
+      if (pageChanged || Math.abs(focused.getBoundingClientRect().top - viewport.getBoundingClientRect().top) > viewport.clientHeight) {
+        const targetTop = focused.offsetTop - (viewport.clientHeight - focused.offsetHeight) / 2
+        viewport.scrollTo({ top: Math.max(0, targetTop), behavior: 'auto' })
+      }
+      return undefined
+    }
 
     const centerFocusedBeat = () => {
       const viewportRect = viewport.getBoundingClientRect()
@@ -19,12 +53,8 @@ function ReaderBeatStack({ beats, focusBeatIndex, onFocusMotionEnd, focusRef }) 
       setOffset(nextOffset)
     }
 
-    const pageChanged = beatsRef.current !== beats
-    beatsRef.current = beats
     let restoreFrame = 0
     if (pageChanged) {
-      // Snap to the new page's position: the large cross-page offset must not
-      // animate as a flying text stack; the page reveal handles the entrance.
       flow.style.transition = 'none'
       centerFocusedBeat()
       restoreFrame = requestAnimationFrame(() => {
@@ -42,16 +72,58 @@ function ReaderBeatStack({ beats, focusBeatIndex, onFocusMotionEnd, focusRef }) 
       cancelAnimationFrame(restoreFrame)
       observer.disconnect()
     }
-  }, [beats, focusBeatIndex])
+  }, [beats, focusBeatIndex, nativeScroll, onFocusMotionEnd])
+
+  useEffect(() => {
+    if (!nativeScroll) return undefined
+    const viewport = viewportRef.current
+    const flow = flowRef.current
+    if (!viewport || !flow) return undefined
+
+    const updateFocusFromScroll = () => {
+      cancelAnimationFrame(frameRef.current)
+      frameRef.current = requestAnimationFrame(() => {
+        const viewportRect = viewport.getBoundingClientRect()
+        const centerY = viewportRect.top + viewportRect.height / 2
+        let nearestIndex = 0
+        let nearestDistance = Number.POSITIVE_INFINITY
+
+        Array.from(flow.children).forEach((element, index) => {
+          const rect = element.getBoundingClientRect()
+          const distance = Math.abs((rect.top + rect.height / 2) - centerY)
+          if (distance < nearestDistance) {
+            nearestDistance = distance
+            nearestIndex = index
+          }
+        })
+
+        if (nearestIndex === lastReportedIndexRef.current) return
+        lastReportedIndexRef.current = nearestIndex
+        onNativeFocusChange?.(nearestIndex)
+      })
+    }
+
+    viewport.addEventListener('scroll', updateFocusFromScroll, { passive: true })
+    updateFocusFromScroll()
+    return () => {
+      viewport.removeEventListener('scroll', updateFocusFromScroll)
+      cancelAnimationFrame(frameRef.current)
+    }
+  }, [beats, nativeScroll, onNativeFocusChange])
 
   return (
-    <div ref={viewportRef} className="reader-beat-stack" aria-live="polite">
+    <div
+      ref={viewportRef}
+      className="reader-beat-stack"
+      data-native-scroll={nativeScroll ? 'true' : 'false'}
+      aria-live="polite"
+    >
       <div
         ref={flowRef}
         className="reader-beat-flow"
-        style={{ transform: `translateY(${offset}px)` }}
+        style={{ transform: nativeScroll ? 'none' : `translateY(${offset}px)` }}
         onTransitionEnd={(event) => {
-          if (event.target === event.currentTarget && event.propertyName === 'transform') {
+          if (!nativeScroll && event.target === event.currentTarget && event.propertyName === 'transform') {
             onFocusMotionEnd(event)
           }
         }}
