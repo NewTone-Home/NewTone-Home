@@ -1,0 +1,25 @@
+@media (hover: none), (pointer: coarse), (max-width: 720px) {
+  .reader-beat-stack[data-native-scroll='true'] {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    scrollbar-width: none;
+  }
+
+  .reader-beat-stack[data-native-scroll='true']::-webkit-scrollbar {
+    display: none;
+  }
+
+  .reader-beat-stack[data-native-scroll='true'] .reader-beat-flow {
+    padding: 46vh 0 52vh;
+    transform: none !important;
+    transition: none !important;
+    will-change: auto;
+  }
+
+  .reader-beat-stack[data-native-scroll='true'] .reader-stage-beat {
+    scroll-margin-block: 42vh;
+  }
+}
