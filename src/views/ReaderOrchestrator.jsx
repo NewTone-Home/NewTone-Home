@@ -113,6 +113,13 @@ function ReaderOrchestrator({ onReaderReady }) {
     completeReader()
   }, [chapterTrialEnded, completeReader, displayLocation, endChapterTrial, navigatePage, navigateTo, page, readerExitGestureLearned, setReaderExitGestureLearned])
 
+  const handleNativeFocusChange = useCallback((beatIndex) => {
+    if (!Number.isInteger(beatIndex) || beatIndex === displayLocation.beatIndex) return
+    if (beatIndex < 0 || beatIndex >= page.beats.length) return
+    if (!readerExitGestureLearned) setReaderExitGestureLearned()
+    navigateTo({ ...displayLocation, beatIndex })
+  }, [displayLocation, navigateTo, page.beats.length, readerExitGestureLearned, setReaderExitGestureLearned])
+
   const clearInputAccumulatorRef = useRef(null)
   const { clearInputAccumulator } = useReaderInput({
     onSteps: handleReadingSteps,
@@ -149,6 +156,7 @@ function ReaderOrchestrator({ onReaderReady }) {
       onThemePosition={setThemePosition}
       onMotionMode={toggleMotionMode}
       onFocusMotionEnd={finishFocusMotion}
+      onNativeFocusChange={handleNativeFocusChange}
       transitionKind={pageMotion === 'idle' ? navigation.transitionKind : `page-${pageMotion}`}
       sceneTransitionKind={sceneTransitionKind}
       autoVisual={autoVisual}
