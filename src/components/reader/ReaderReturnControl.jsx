@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import './ReaderReturnControl.css'
 
 function ReaderReturnControl({ onComplete }) {
   const [progress, setProgress] = useState(0)
