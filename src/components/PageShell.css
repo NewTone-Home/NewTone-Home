@@ -1,6 +1,27 @@
-.page-shell {
-  min-height: 100vh;
+html,
+body,
+#root {
   width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-root, #0b0f12);
+}
+
+.page-shell {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
   transform-origin: center center;
   will-change: transform, opacity;
 }
