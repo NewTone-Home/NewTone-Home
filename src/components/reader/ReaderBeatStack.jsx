@@ -19,6 +19,7 @@ function ReaderBeatStack({
   const lastReportedIndexRef = useRef(focusBeatIndex)
   const nativeScrollInitializedRef = useRef(false)
   const boundaryLockRef = useRef(null)
+  const lastScrollTopRef = useRef(0)
   const [offset, setOffset] = useState(0)
   const [nativeScroll, setNativeScroll] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia(NATIVE_SCROLL_QUERY).matches
@@ -48,7 +49,9 @@ function ReaderBeatStack({
       if (pageChanged) boundaryLockRef.current = null
       if (needsInitialPosition) {
         const targetTop = focused.offsetTop - (viewport.clientHeight - focused.offsetHeight) / 2
-        viewport.scrollTo({ top: Math.max(0, targetTop), behavior: 'auto' })
+        const nextTop = Math.max(0, targetTop)
+        viewport.scrollTo({ top: nextTop, behavior: 'auto' })
+        lastScrollTopRef.current = nextTop
       }
       return undefined
     }
@@ -92,6 +95,10 @@ function ReaderBeatStack({
     const updateFromScroll = () => {
       cancelAnimationFrame(frameRef.current)
       frameRef.current = requestAnimationFrame(() => {
+        const currentScrollTop = viewport.scrollTop
+        const direction = Math.sign(currentScrollTop - lastScrollTopRef.current)
+        lastScrollTopRef.current = currentScrollTop
+
         const viewportRect = viewport.getBoundingClientRect()
         const centerY = viewportRect.top + viewportRect.height / 2
         let nearestIndex = 0
@@ -112,15 +119,15 @@ function ReaderBeatStack({
           onNativeFocusChange?.(nearestIndex)
         }
 
-        const atTop = viewport.scrollTop <= BOUNDARY_THRESHOLD_PX
-        const atBottom = viewport.scrollTop + viewport.clientHeight >= viewport.scrollHeight - BOUNDARY_THRESHOLD_PX
+        const atTop = currentScrollTop <= BOUNDARY_THRESHOLD_PX
+        const atBottom = currentScrollTop + viewport.clientHeight >= viewport.scrollHeight - BOUNDARY_THRESHOLD_PX
 
         if (!atTop && !atBottom) boundaryLockRef.current = null
 
-        if (atBottom && nearestIndex === beats.length - 1 && boundaryLockRef.current !== 'forward') {
+        if (direction > 0 && atBottom && nearestIndex === beats.length - 1 && boundaryLockRef.current !== 'forward') {
           boundaryLockRef.current = 'forward'
           onNativeBoundary?.('forward')
-        } else if (atTop && nearestIndex === 0 && boundaryLockRef.current !== 'backward') {
+        } else if (direction < 0 && atTop && nearestIndex === 0 && boundaryLockRef.current !== 'backward') {
           boundaryLockRef.current = 'backward'
           onNativeBoundary?.('backward')
         }
@@ -128,7 +135,6 @@ function ReaderBeatStack({
     }
 
     viewport.addEventListener('scroll', updateFromScroll, { passive: true })
-    updateFromScroll()
     return () => {
       viewport.removeEventListener('scroll', updateFromScroll)
       cancelAnimationFrame(frameRef.current)
