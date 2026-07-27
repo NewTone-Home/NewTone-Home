@@ -47,7 +47,7 @@ function ReaderOrchestrator({ onReaderReady }) {
   const blockedGestureRef = useRef(null)
   const pageTransitionBusyRef = useRef(false)
   const navigation = useReaderNavigation({ initialLocation: committedLocation, reducedMotion, commitLocation })
-  const { displayLocation, navigateTo, finishTransition } = navigation
+  const { displayLocation, navigateTo, syncTo, finishTransition } = navigation
   const page = useMemo(() => getPage(displayLocation), [displayLocation])
   const scene = page.scene
 
@@ -117,8 +117,16 @@ function ReaderOrchestrator({ onReaderReady }) {
     if (!Number.isInteger(beatIndex) || beatIndex === displayLocation.beatIndex) return
     if (beatIndex < 0 || beatIndex >= page.beats.length) return
     if (!readerExitGestureLearned) setReaderExitGestureLearned()
-    navigateTo({ ...displayLocation, beatIndex })
-  }, [displayLocation, navigateTo, page.beats.length, readerExitGestureLearned, setReaderExitGestureLearned])
+    syncTo({ ...displayLocation, beatIndex })
+  }, [displayLocation, page.beats.length, readerExitGestureLearned, setReaderExitGestureLearned, syncTo])
+
+  const handleNativeBoundary = useCallback((direction) => {
+    const steps = direction === 'backward' ? -1 : 1
+    handleReadingSteps(steps, {
+      source: 'native-boundary',
+      gestureId: `native-boundary-${direction}-${displayLocation.linearIndex}`,
+    })
+  }, [displayLocation.linearIndex, handleReadingSteps])
 
   const clearInputAccumulatorRef = useRef(null)
   const { clearInputAccumulator } = useReaderInput({
@@ -157,6 +165,7 @@ function ReaderOrchestrator({ onReaderReady }) {
       onMotionMode={toggleMotionMode}
       onFocusMotionEnd={finishFocusMotion}
       onNativeFocusChange={handleNativeFocusChange}
+      onNativeBoundary={handleNativeBoundary}
       transitionKind={pageMotion === 'idle' ? navigation.transitionKind : `page-${pageMotion}`}
       sceneTransitionKind={sceneTransitionKind}
       autoVisual={autoVisual}
