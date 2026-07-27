@@ -24,6 +24,18 @@ export function createReaderNavigationState(location) {
   }
 }
 
+export function syncReaderNavigation(state, location) {
+  const target = resolvePosition(location)
+  if (target.linearIndex === state.displayLocation.linearIndex && !state.transitionTarget) return state
+  return {
+    committedLocation: target,
+    displayLocation: target,
+    transitionFrom: null,
+    transitionTarget: null,
+    transitionKind: null,
+  }
+}
+
 export function beginReaderNavigation(state, intent, { reducedMotion = false } = {}) {
   const steps = intent === READER_INTENTS.FORWARD ? 1 : -1
   return retargetReaderNavigation(state, steps, { reducedMotion })
