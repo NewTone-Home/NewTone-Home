@@ -4,9 +4,13 @@ import { useProgressStore } from '../stores/progressStore'
 import { useTransitionStore } from '../stores/transitionStore'
 import type { CenterDefinition } from './domain/contracts'
 import { resolveCenterWorld } from './domain/worldResolver'
+import { resolveCenterReadState } from './domain/readState'
 import { getLocalizedCenterText } from './content/defaultCenterDefinition'
 import { centerContentService } from './content/CenterContentService'
 import { CenterDeveloperTools } from './CenterDeveloperTools'
+import { CenterReadRail } from './shell/CenterReadRail'
+import { CenterModuleRail } from './shell/CenterModuleRail'
+import { shellCopy, t as shellText } from './shell/shellCopy'
 import './CenterExperience.css'
 
 type MapRegion = {
@@ -60,6 +64,7 @@ function CenterExperience() {
   const packageId = useProgressStore((state: any) => state.centerContentPackageId)
   const committedLocation = useProgressStore((state: any) => state.committedLocation)
   const furthestLocation = useProgressStore((state: any) => state.furthestLocation)
+  const worldSnapshot = useProgressStore((state: any) => state.centerWorldSnapshot)
   const setWorld = useProgressStore((state: any) => state.setCenterWorldSnapshot)
   const transitionTo = useTransitionStore((state: any) => state.transitionTo)
   const notifyTargetReady = useTransitionStore((state: any) => state.notifyTargetReady)
@@ -121,6 +126,14 @@ function CenterExperience() {
   const enteredRegion = useMemo(
     () => MAP_REGIONS.find(region => region.id === enteredRegionId) ?? null,
     [enteredRegionId],
+  )
+
+  // Shell 左栏的只读状态。地名与段落位置全部由 domain 解析,Shell 不持有文本表。
+  const readState = useMemo(
+    () => definition
+      ? resolveCenterReadState({ definition, committedLocation, furthestLocation, snapshot: worldSnapshot })
+      : null,
+    [committedLocation, definition, furthestLocation, worldSnapshot],
   )
 
   const clearHoverTimer = useCallback(() => {
@@ -213,10 +226,18 @@ function CenterExperience() {
     >
       <header className="center-next-header">
         <button type="button" onClick={returnLanding}>{t.backToLanding}</button>
-        <p>{getLocalizedCenterText(definition.title, language)}</p>
+        <p>
+          {getLocalizedCenterText(definition.title, language)}
+          <span aria-hidden="true"> · </span>
+          <em>{shellText(shellCopy.breadcrumbMap, language)}</em>
+        </p>
         <button type="button" onClick={continueReader}>{t.continueReading}</button>
       </header>
 
+      {readState && <CenterReadRail readState={readState} language={language} />}
+
+      {/* 中央视口：Shell 的唯一动态区域。地图、后续的档案/图鉴/成就都发生在这里。 */}
+      <div className="center-shell-viewport">
       <section
         className="center-map-stage"
         aria-label="城市分区地图"
@@ -272,12 +293,6 @@ function CenterExperience() {
         </svg>
       </section>
 
-      {hoveredRegionId && !previewRegionId && (
-        <div className="center-map-hover-progress" style={{ left: pointer.x, top: pointer.y }} aria-hidden="true">
-          <span />
-        </div>
-      )}
-
       {activePreview && !activeDetail && !enteredRegion && (
         <button
           type="button"
@@ -316,6 +331,15 @@ function CenterExperience() {
             <small>下一阶段在这里接入地点插图、地点入口与故事内容。</small>
           </div>
         </section>
+      )}
+      </div>
+
+      <CenterModuleRail language={language} />
+
+      {hoveredRegionId && !previewRegionId && (
+        <div className="center-map-hover-progress" style={{ left: pointer.x, top: pointer.y }} aria-hidden="true">
+          <span />
+        </div>
       )}
 
       <CenterDeveloperTools />
