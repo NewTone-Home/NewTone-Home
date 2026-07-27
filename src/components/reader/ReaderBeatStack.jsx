@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './ReaderBeatStack.css'
 
 const NATIVE_SCROLL_QUERY = '(hover: none), (pointer: coarse), (max-width: 720px)'
+const BOUNDARY_THRESHOLD_PX = 12
 
 function ReaderBeatStack({
   beats,
@@ -9,6 +10,7 @@ function ReaderBeatStack({
   onFocusMotionEnd,
   focusRef,
   onNativeFocusChange,
+  onNativeBoundary,
 }) {
   const viewportRef = useRef(null)
   const flowRef = useRef(null)
@@ -16,6 +18,7 @@ function ReaderBeatStack({
   const frameRef = useRef(0)
   const lastReportedIndexRef = useRef(focusBeatIndex)
   const nativeScrollInitializedRef = useRef(false)
+  const boundaryLockRef = useRef(null)
   const [offset, setOffset] = useState(0)
   const [nativeScroll, setNativeScroll] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia(NATIVE_SCROLL_QUERY).matches
@@ -42,6 +45,7 @@ function ReaderBeatStack({
     if (nativeScroll) {
       const needsInitialPosition = !nativeScrollInitializedRef.current || pageChanged
       nativeScrollInitializedRef.current = true
+      if (pageChanged) boundaryLockRef.current = null
       if (needsInitialPosition) {
         const targetTop = focused.offsetTop - (viewport.clientHeight - focused.offsetHeight) / 2
         viewport.scrollTo({ top: Math.max(0, targetTop), behavior: 'auto' })
@@ -85,7 +89,7 @@ function ReaderBeatStack({
     const flow = flowRef.current
     if (!viewport || !flow) return undefined
 
-    const updateFocusFromScroll = () => {
+    const updateFromScroll = () => {
       cancelAnimationFrame(frameRef.current)
       frameRef.current = requestAnimationFrame(() => {
         const viewportRect = viewport.getBoundingClientRect()
@@ -94,6 +98,7 @@ function ReaderBeatStack({
         let nearestDistance = Number.POSITIVE_INFINITY
 
         Array.from(flow.children).forEach((element, index) => {
+          if (!(element instanceof HTMLElement) || !element.matches('.reader-stage-beat')) return
           const rect = element.getBoundingClientRect()
           const distance = Math.abs((rect.top + rect.height / 2) - centerY)
           if (distance < nearestDistance) {
@@ -102,19 +107,33 @@ function ReaderBeatStack({
           }
         })
 
-        if (nearestIndex === lastReportedIndexRef.current) return
-        lastReportedIndexRef.current = nearestIndex
-        onNativeFocusChange?.(nearestIndex)
+        if (nearestIndex !== lastReportedIndexRef.current) {
+          lastReportedIndexRef.current = nearestIndex
+          onNativeFocusChange?.(nearestIndex)
+        }
+
+        const atTop = viewport.scrollTop <= BOUNDARY_THRESHOLD_PX
+        const atBottom = viewport.scrollTop + viewport.clientHeight >= viewport.scrollHeight - BOUNDARY_THRESHOLD_PX
+
+        if (!atTop && !atBottom) boundaryLockRef.current = null
+
+        if (atBottom && nearestIndex === beats.length - 1 && boundaryLockRef.current !== 'forward') {
+          boundaryLockRef.current = 'forward'
+          onNativeBoundary?.('forward')
+        } else if (atTop && nearestIndex === 0 && boundaryLockRef.current !== 'backward') {
+          boundaryLockRef.current = 'backward'
+          onNativeBoundary?.('backward')
+        }
       })
     }
 
-    viewport.addEventListener('scroll', updateFocusFromScroll, { passive: true })
-    updateFocusFromScroll()
+    viewport.addEventListener('scroll', updateFromScroll, { passive: true })
+    updateFromScroll()
     return () => {
-      viewport.removeEventListener('scroll', updateFocusFromScroll)
+      viewport.removeEventListener('scroll', updateFromScroll)
       cancelAnimationFrame(frameRef.current)
     }
-  }, [beats, nativeScroll, onNativeFocusChange])
+  }, [beats, nativeScroll, onNativeBoundary, onNativeFocusChange])
 
   return (
     <div
