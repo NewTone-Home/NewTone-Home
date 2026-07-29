@@ -1,0 +1,777 @@
+/* Phase 0.5 分层地点纸景舞台。
+
+   这里不推导构图：地点的 scale / 位移 / z / 透明度 / veil / unfold / converge
+   全部由控制器经过渡策略写成 --pv-* 变量，CSS 只负责把它们变成像素。
+   要改 80/20 的读法，改 placeStageMath.ts 的两个预设，不要改这个文件。 */
+
+.plab {
+  --rail-left: clamp(10.5rem, 12.5vw, 19rem);
+  --rail-right: calc(var(--rail-left) * 1.15);
+  --shell-header-h: 3.6rem;
+  --shell-max-w: 2560px;
+  --gutter: max(0px, calc((100vw - var(--shell-max-w)) / 2));
+  --col-left: calc(var(--gutter) + var(--rail-left));
+  --col-right: calc(var(--gutter) + var(--rail-right));
+  --paper: 238, 231, 221;
+  --ink: 47, 43, 38;
+
+  /* 舞台就是页面。信息壳（页眉、两侧栏、HUD）浮在世界之上，
+     不再把舞台切成一个居中的展示框。 */
+  position: relative;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  isolation: isolate;
+  color: rgb(var(--ink));
+  font-family: var(--nt-sans, system-ui, sans-serif);
+  background: rgb(234, 225, 217);
+}
+
+/* 统一纸面颗粒 */
+.plab::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(51deg, rgba(118, 106, 88, 0.026) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(-37deg, rgba(118, 106, 88, 0.02) 0 1px, transparent 1px 4px);
+}
+
+.plab-header {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: var(--shell-header-h);
+  z-index: 8;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 calc(var(--gutter) + clamp(1rem, 3vw, 2.5rem));
+}
+
+.plab-header p {
+  margin: 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(54, 49, 43, 0.5);
+}
+
+.plab-header-note {
+  text-transform: none;
+  letter-spacing: 0.06em;
+}
+
+/* 两侧栏浮在世界之上，不再占据布局宽度、也不再挡住拖动。 */
+.plab-rail {
+  position: absolute;
+  top: var(--shell-header-h);
+  bottom: 0;
+  z-index: 3;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding-block: clamp(1.4rem, 3.4vh, 3rem);
+  overflow: hidden;
+}
+
+.plab-rail--read {
+  left: 0;
+  width: var(--col-left);
+  box-sizing: border-box;
+  padding-left: calc(var(--gutter) + clamp(0.9rem, 1.6vw, 2rem));
+  padding-right: clamp(0.9rem, 1.6vw, 2rem);
+}
+
+.plab-rail--modules {
+  right: 0;
+  width: var(--col-right);
+  box-sizing: border-box;
+  align-items: flex-end;
+  text-align: right;
+  padding-left: clamp(0.9rem, 1.6vw, 2rem);
+  padding-right: calc(var(--gutter) + clamp(0.9rem, 1.6vw, 2rem));
+}
+
+.plab-rail-heading {
+  margin: 0;
+  font-size: 0.58rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(62, 55, 45, 0.3);
+}
+
+.plab-rail-inert {
+  margin: 0;
+  font-size: 0.72rem;
+  color: rgba(62, 55, 45, 0.24);
+}
+
+/* 世界层。占满整个可视区域，舞台背景与页面融合。 */
+.plab-viewport {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   舞台
+   -------------------------------------------------------------------------- */
+
+.pstage {
+  --place-px: 0;
+  --place-py: 0;
+  /* 缺省母画布比例（宽 / 高）。写成纯数字，calc 才能用它算等比尺寸；
+     每个地点会用自己的 canvasAspectRatio 覆盖。 */
+  --place-canvas-ratio: 1.5;
+
+  /* 舞台不是展示框：它占满整个可视区域，地点因此站在世界空间里，
+     而不是嵌在页面里的一张图片。 */
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  overflow: visible;
+  cursor: grab;
+  user-select: none;
+  /* 横向归舞台，纵向留给页面；并挡住浏览器横向历史手势 */
+  touch-action: pan-y;
+  overscroll-behavior-x: contain;
+  isolation: isolate;
+}
+
+.pstage[data-phase='continuous'] {
+  cursor: grabbing;
+}
+
+.pstage[data-info-open='true'] {
+  cursor: default;
+}
+
+/* --------------------------------------------------------------------------
+   环境层已经搬去 src/center-next/environment/EnvironmentSystem.css。
+   天空、天体、天气、空气任何地点都复用同一套，不该住在这个 Lab 样式里。
+
+   留在这里的只有舞台自己的空间结构：世界边界的暗示。
+   它不跟着时间与天气走，因此不属于环境。
+
+   z 轴顺序（与 EnvironmentSystem.css 对齐）：
+     0 sky · 1 celestial · 2 weather · 3 rear-atmos
+     4 rear-silhouette · 5 places · 6 front-atmos
+   -------------------------------------------------------------------------- */
+
+.pstage-rear-silhouette {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.pstage-rear-shape {
+  position: absolute;
+  bottom: 22%;
+  background: rgba(var(--ink), 0.09);
+}
+
+.pstage-rear-shape[data-depth='far'] {
+  left: 4%;
+  width: 26%;
+  height: 16%;
+  clip-path: polygon(0% 100%, 12% 38%, 30% 52%, 48% 14%, 68% 46%, 88% 30%, 100% 100%);
+}
+
+.pstage-rear-shape[data-depth='mid'] {
+  right: 6%;
+  width: 30%;
+  height: 13%;
+  opacity: 0.7;
+  clip-path: polygon(0% 100%, 8% 48%, 26% 22%, 52% 56%, 74% 26%, 100% 62%, 100% 100%);
+}
+
+.pstage-places {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  isolation: isolate;
+  pointer-events: none;
+}
+
+/* 一个地点。Active 与 Neighbor 是同一个元素、同一份 DOM，
+   这一帧读成主体还是剪影由 --pv-prom / --pv-unfold 决定。 */
+.pstage-place,
+.pstage-boundary {
+  --pv-visible: 0;
+  --pv-prom: 0;
+  --pv-scale: 1;
+  --pv-x: 0;
+  --pv-y: 0;
+  --pv-z: 10;
+  --pv-opacity: 1;
+  --pv-veil: 0;
+  --pv-blur: 0;
+  --pv-unfold: 0;
+  --pv-converge: 0;
+  --pv-unfold-delay: 0;
+
+  position: absolute;
+  inset: 0;
+  z-index: var(--pv-z);
+  opacity: calc(var(--pv-opacity) * var(--pv-visible));
+  /* 从地面附近缩放：邻居读作「退到后面」，而不是「一张缩小的卡片」 */
+  transform-origin: 50% 82%;
+  /*
+    x = 构图位置 + 指针相机的整体位移。
+    指针项与背景消费同一个 --place-px（统一相机模型的指针分量），
+    深度系数按 prominence 插值：主体 ≈ 0.42、远处 ≈ 0.14 ——
+    始终大于背景 ground 带（0.11），近的东西动得多。
+  */
+  transform:
+    translate3d(
+      calc(
+        var(--pv-x) * 1%
+        + (0.14 + 0.28 * var(--pv-prom, 0)) * var(--place-px, 0) * -4.5vw
+      ),
+      calc(var(--pv-y) * 1%),
+      0
+    )
+    scale(var(--pv-scale));
+  filter: blur(calc(var(--pv-blur) * 1px));
+  will-change: transform, opacity;
+}
+
+.pstage-place {
+  pointer-events: none;
+}
+
+.pstage-place[data-visible='false'],
+.pstage-boundary[data-present='false'] {
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* 层开关：主体位与邻居位可以分别关掉 */
+.pstage-place[data-role='active'][data-active-hidden='true'],
+.pstage-place[data-role='neighbor'][data-neighbor-hidden='true'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 地点母画布。
+   舞台占满 viewport，地点却必须保持自身比例：这里做的就是 contain 的算术 ——
+   等比缩放到完整可见，绝不裁切关键建筑，绝不用 cover。
+   四组图层、剪影与褪色叠层全部住在这一个盒子里，因此共享同一坐标系：
+   同 scale、同 origin，彼此之间只差 parallax。 */
+.pstage-place-canvas {
+  /* 可用世界空间：先扣掉主体构图的水平偏移，再等比缩放。
+     偏移量由 PlaceStage 从 placeStageMath 的预设写进 --place-active-x-abs，
+     CSS 不自己猜这个数。 */
+  --fit-w: calc(100vw - 2 * var(--place-active-x-abs, 0) * 1vw);
+  --fit-h: 100dvh;
+}
+
+.pstage-place-canvas {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: min(var(--fit-w), calc(var(--fit-h) * var(--place-canvas-ratio)));
+  height: min(var(--fit-h), calc(var(--fit-w) / var(--place-canvas-ratio)));
+  translate: -50% 0;
+}
+
+/*
+  远景化：地点离开主体位时，饱和度与对比度随 --pv-prom 连续下降。
+  这是空气透视，不是 blur —— 远处的东西先失去彩度和对比，不是先失焦。
+*/
+.pstage-place-canvas {
+  filter:
+    saturate(calc(0.72 + var(--pv-prom, 1) * 0.28))
+    contrast(calc(0.88 + var(--pv-prom, 1) * 0.12));
+}
+
+/* 与地面的接触投影：贴着母画布底边的一小片软阴影。
+   越远投影越淡（空气把阴影洗浅），随画布一起缩放，透视因此自洽。 */
+.pstage-place-contact {
+  position: absolute;
+  left: 50%;
+  bottom: -1.4%;
+  width: 66%;
+  height: 6.5%;
+  translate: -50% 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    rgb(32 32 36 / 0.16),
+    rgb(32 32 36 / 0) 68%
+  );
+  opacity: calc(0.4 + var(--pv-prom, 1) * 0.6);
+}
+
+/*
+  层间地平线雾。z 介于邻居(10)与主体(30)之间：
+  邻居的底边被远处空气轻微覆盖，主体完全在雾前。
+  颜色与高度取自舞台根的环境变量 —— 与背景层同一套空间参数。
+*/
+.pstage-depth-fog {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--env-horizon-y, 62%) - 7%);
+  height: 27%;
+  z-index: 18;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--env-atmos, 230 226 216) / 0) 0%,
+    rgb(var(--env-atmos, 230 226 216) / calc(var(--env-haze, 0.2) * 0.6)) 46%,
+    rgb(var(--env-atmos, 230 226 216) / 0) 100%
+  );
+}
+
+/* 剪影表述与多层表述始终同时挂载，靠 unfold 交叉推进：
+   一个地点从 20% 走到 80% 的全程都不会卸载剪影再挂载主体。 */
+.pstage-place-silhouette,
+.pstage-place-layers {
+  position: absolute;
+  inset: 0;
+}
+
+.pstage-place-silhouette {
+  opacity: calc(1 - var(--pv-unfold));
+}
+
+.pstage-place-layers {
+  opacity: var(--pv-unfold);
+}
+
+.pstage-layer-group {
+  position: absolute;
+  inset: 0;
+}
+
+.pstage-layer {
+  --layer-plx: 0;
+  --layer-ply: 0;
+  --layer-depth: 0.5;
+  --layer-step: 0;
+  --layer-opacity: 1;
+  --layer-register-x: 0%;
+
+  position: absolute;
+  inset: 0;
+  opacity: var(--layer-opacity);
+  /* 母图注册与 pointer 视差是两条独立通道：
+     translate 只校准源图轴线，transform 只响应实时 parallax。 */
+  translate: var(--layer-register-x) 0;
+  /* 视差量 = 指针位置 × 本层自带的幅度 × 该地点当前的前后权重。
+     邻居几乎不视差，主体才有 —— 位移量本身很小，价值在遮挡关系变化。 */
+  transform:
+    translate3d(
+      calc(
+        var(--place-px) * var(--layer-plx) * var(--pv-prom) * 1px +
+        var(--stage-offset, 0) * var(--layer-depth) * 50px
+      ),
+      calc(var(--place-py) * var(--layer-ply) * var(--pv-prom) * 1px),
+      0
+    );
+  transform-origin: 0 0;
+  transition-delay: calc(var(--pv-unfold-delay) * var(--layer-step) * 1s);
+}
+
+/* 04_rear_hall 的 alpha 内容中心为 x=792.07，
+   gate / inner 的共同轴线约为 x=767.25；在共享 1536px 母画布内固定回正。 */
+.pstage-place[data-place-id='jijia-compound']
+  .pstage-layer[data-slot='rear'][data-kind='image'] {
+  --layer-register-x: -1.61%;
+}
+
+.pstage-layer-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* 母画布与资产同为 3:2；这里是一一坐标映射，不再逐层居中计算。 */
+  object-fit: fill;
+  object-position: 0 0;
+  pointer-events: none;
+}
+
+/* 抽象纸片。刻意不是地图：只有体量、位置与纸色深浅。 */
+.pstage-shape {
+  --shape-tone: 0.5;
+
+  position: absolute;
+  background: rgba(var(--ink), calc(0.1 + var(--shape-tone) * 0.52));
+}
+
+.pstage-shape[data-form='block'] {
+  clip-path: polygon(2% 6%, 98% 0%, 100% 100%, 0% 100%);
+}
+
+.pstage-shape[data-form='roof'] {
+  clip-path: polygon(0% 100%, 14% 8%, 86% 0%, 100% 100%);
+}
+
+/* 门洞真的是一个洞：背景层会从这里透出来。 */
+.pstage-shape[data-form='gate'] {
+  clip-path: polygon(
+    0% 4%, 100% 0%, 100% 100%,
+    64% 100%, 64% 44%, 36% 44%, 36% 100%,
+    0% 100%
+  );
+}
+
+.pstage-shape[data-form='wall'] {
+  clip-path: polygon(0% 16%, 22% 8%, 48% 14%, 74% 6%, 100% 12%, 100% 100%, 0% 100%);
+}
+
+.pstage-shape[data-form='ridge'] {
+  clip-path: polygon(0% 62%, 18% 12%, 42% 46%, 66% 4%, 88% 40%, 100% 22%, 100% 100%, 0% 100%);
+}
+
+.pstage-shape[data-form='silhouette'] {
+  border-radius: 42% 46% 6% 6% / 26% 30% 4% 4%;
+  background: rgba(var(--ink), calc(0.14 + var(--shape-tone) * 0.3));
+}
+
+/* 纸色褪色叠层。
+   暂不上屏：透明资产的母画布远大于画面内容，实色矩形会整块浮在天空上。
+   距离感由 --pv-opacity / scale / 位置承担；--pv-veil 管线保留待逐像素方案。 */
+.pstage-place-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  background: none;
+  opacity: 0;
+}
+
+/* 未知世界边界。
+   没有自己的纸面 —— 只是统一背景与空气之上的一点未知剪影。 */
+.pstage-boundary {
+  pointer-events: none;
+}
+
+.pstage-boundary[data-hidden='true'] {
+  opacity: 0;
+}
+
+.pstage-boundary-shape {
+  position: absolute;
+  bottom: 20%;
+  background: transparent;
+}
+
+.pstage-boundary-shape[data-depth='near'] {
+  left: 26%;
+  width: 44%;
+  height: 30%;
+  clip-path: polygon(0% 100%, 10% 44%, 30% 58%, 46% 16%, 62% 52%, 82% 30%, 100% 100%);
+}
+
+.pstage-boundary-shape[data-depth='far'] {
+  left: 18%;
+  width: 62%;
+  height: 20%;
+  opacity: 0.55;
+  clip-path: polygon(0% 100%, 14% 56%, 34% 30%, 58% 62%, 78% 34%, 100% 70%, 100% 100%);
+}
+
+/* --------------------------------------------------------------------------
+   信息层：覆盖在舞台之上的半屏层，不是右下角小卡片，也不重排成两栏
+   -------------------------------------------------------------------------- */
+
+.pstage-info {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  width: clamp(32rem, 46%, 48rem);
+  max-width: 100%;
+  /* 仓库没有全局 box-sizing，这里必须自己声明：
+     否则内边距会加在宽度之上，实际半屏宽度大于声明值。 */
+  box-sizing: border-box;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: clamp(1.4rem, 3vh, 2.4rem) clamp(1.4rem, 2.6vw, 2.6rem);
+  background:
+    linear-gradient(90deg, rgba(238, 231, 221, 0.86) 0%, rgba(242, 236, 227, 0.97) 12%, rgb(243, 238, 229) 100%);
+  box-shadow: -24px 0 60px -30px rgba(40, 34, 26, 0.5);
+  transform: translateX(101%);
+  transition: transform 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.pstage-info[data-open='true'] {
+  transform: none;
+}
+
+/* 信息层展开时：主体保持清晰，其余舞台元素轻微后退变淡 */
+.pstage[data-info-open='true'] .env-layer,
+.pstage[data-info-open='true'] .pstage-rear-silhouette,
+.pstage[data-info-open='true'] .pstage-boundary {
+  opacity: 0.45;
+  transition: opacity 0.36s ease;
+}
+
+.pstage[data-info-open='true'] .pstage-place[data-role='neighbor'] {
+  opacity: calc(var(--pv-opacity) * var(--pv-visible) * 0.35);
+}
+
+.pstage-info-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.pstage-info-head strong {
+  display: block;
+  font-size: 1.28rem;
+  letter-spacing: 0.04em;
+}
+
+.pstage-info-head span {
+  display: block;
+  margin-top: 0.28rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  color: rgba(62, 55, 45, 0.5);
+}
+
+.pstage-info-close {
+  border: 1px solid rgba(62, 55, 45, 0.2);
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.3rem 0.9rem;
+  font: inherit;
+  font-size: 0.74rem;
+  color: rgba(62, 55, 45, 0.7);
+  cursor: pointer;
+}
+
+.pstage-info-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.pstage-info-note {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.7;
+  color: rgba(62, 55, 45, 0.62);
+}
+
+.pstage-info-meta {
+  margin: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.pstage-info-meta > div {
+  display: flex;
+  gap: 0.8rem;
+  font-size: 0.78rem;
+  border-bottom: 1px solid rgba(62, 55, 45, 0.1);
+  padding-bottom: 0.45rem;
+}
+
+.pstage-info-meta dt {
+  min-width: 5rem;
+  color: rgba(62, 55, 45, 0.42);
+}
+
+.pstage-info-meta dd {
+  margin: 0;
+}
+
+.pstage-info-slot {
+  flex: 1;
+  min-height: 8rem;
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(62, 55, 45, 0.2);
+  border-radius: 0.4rem;
+  font-size: 0.76rem;
+  color: rgba(62, 55, 45, 0.36);
+}
+
+/* --------------------------------------------------------------------------
+   HUD
+   -------------------------------------------------------------------------- */
+
+.plab-arrows {
+  position: absolute;
+  z-index: 15;
+  bottom: 1.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.6rem;
+}
+
+.plab-arrows button {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  border: 1px solid rgba(62, 55, 45, 0.22);
+  background: rgba(244, 239, 231, 0.82);
+  font-size: 0.95rem;
+  color: rgba(52, 46, 38, 0.72);
+  cursor: pointer;
+}
+
+.plab-arrows button:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+.plab-hud-toggle {
+  position: fixed;
+  z-index: 21;
+  right: 0.9rem;
+  top: 0.9rem;
+  border: 1px solid rgba(62, 55, 45, 0.2);
+  border-radius: 0.3rem;
+  background: rgba(246, 242, 235, 0.9);
+  padding: 0.2rem 0.6rem;
+  font: inherit;
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  color: rgba(52, 46, 38, 0.7);
+  cursor: pointer;
+}
+
+.plab-hud {
+  position: fixed;
+  z-index: 20;
+  right: 0.9rem;
+  bottom: 0.9rem;
+  width: min(24rem, 34vw);
+  max-height: 72dvh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(62, 55, 45, 0.16);
+  border-radius: 0.5rem;
+  background: rgba(246, 242, 235, 0.94);
+  font-size: 0.68rem;
+  color: rgba(52, 46, 38, 0.8);
+}
+
+.plab-hud[data-open='false'] {
+  display: none;
+}
+
+.plab-hud-readouts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 0.7rem;
+}
+
+.plab-hud-readouts > div {
+  min-width: 0;
+}
+
+.plab-hud-readouts dt {
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(62, 55, 45, 0.4);
+}
+
+.plab-hud-readouts dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.plab-hud-readouts dd[data-flag='off'] {
+  color: rgba(140, 92, 60, 0.9);
+}
+
+.plab-hud-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(62, 55, 45, 0.1);
+}
+
+.plab-hud-label {
+  width: 100%;
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(62, 55, 45, 0.4);
+}
+
+.plab-hud-group button {
+  border: 1px solid rgba(62, 55, 45, 0.18);
+  border-radius: 0.28rem;
+  background: transparent;
+  padding: 0.16rem 0.44rem;
+  font: inherit;
+  font-size: 0.66rem;
+  color: inherit;
+  cursor: pointer;
+}
+
+.plab-hud-group button[data-on='true'] {
+  background: rgba(62, 55, 45, 0.82);
+  border-color: transparent;
+  color: rgb(245, 241, 234);
+}
+
+.plab-hud-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.plab-hud-hint {
+  margin: 0;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(62, 55, 45, 0.1);
+  font-size: 0.64rem;
+  line-height: 1.6;
+  color: rgba(62, 55, 45, 0.46);
+}
+
+/* --------------------------------------------------------------------------
+   Reduced motion：关掉过渡与视差，构图本身仍然成立
+   -------------------------------------------------------------------------- */
+
+.plab[data-reduced='true'] .pstage-info {
+  transition: none;
+}
+
+.plab[data-reduced='true'] .pstage-layer {
+  transition: none;
+  transition-delay: 0s;
+}
+
+.plab[data-reduced='true'] .pstage-place,
+.plab[data-reduced='true'] .pstage-boundary {
+  will-change: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pstage-info,
+  .pstage-layer,
+  .env-layer {
+    transition: none !important;
+  }
+}

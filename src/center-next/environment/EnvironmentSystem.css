@@ -1,0 +1,419 @@
+/* 全局环境系统。
+
+   环境不是地点的一部分：这份样式跟着 EnvironmentSystem 走，任何舞台都能复用。
+
+   静态资产（天空梯度、日月、星、云）与程序效果（雨雪粒子、云移动）分开。
+   这里没有任何按「时间 × 天气」组合出来的成品背景 —— 组合发生在渲染时。 */
+
+/*
+  过渡的属性一律不要由 var() 算出来。
+
+  `transition: opacity` 配 `opacity: calc(var(--a) * var(--b))` 时，
+  声明值的文本恒定不变，样式系统就认为该属性没有变化：既不重启过渡也不重算，
+  计算值会永久卡在上一次的数值（夜晚太阳不灭、月亮不亮就是这么来的）。
+  因此天体透明度与舞台分级 filter 都由 TSX 算成字面量写进内联样式，
+  这里只声明过渡时长。
+*/
+.env-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/*
+  统一相机模型。
+
+  finalCameraOffset = dragCameraOffset (--camera-x，链位置，换位不回跳)
+                    + pointerParallaxOffset (--place-px × 增益，指针平滑分量)
+
+  两个输入叠加，不互相覆盖；天空、天体、地景各带与地点整体全部只读
+  --cam-final，仅靠各自的 depth factor 产生不同幅度。指针分量的增益 0.045：
+  指针满摆 = 0.045 个地点位，背景因此轻微连续响应，drag 仍是主要空间移动。
+  reduced motion 下 usePlaceParallax 把 --place-px 钉为 0，指针分量自动关闭。
+*/
+.pstage {
+  --cam-final: calc(var(--camera-x, 0) + var(--place-px, 0) * 0.045);
+
+  /*
+    背景手绘资产的共享画布几何。
+
+    1536 × 1024（3:2）的图放进 16:9 视口时，按宽度铺满即等价于 cover ——
+    宽度定为 112vw：100vw 覆盖视口，两侧各留 6vw 出血给视差平移。
+    高度由原比例派生（不拉伸、不裁切、不分别缩放）。
+    再高一点点，远山就会被整体放大 —— 之前 152vw 正是这么把远山顶到
+    视口高度 1.8 倍的。
+
+    锚点是地平线，不是画布中心：资产里远山脚 / 村落线在画布 55.2% 处，
+    把它对齐到 --env-horizon-y，天空、云、地景因此共用同一条地平线。
+  */
+  --bg-art-w: 112vw;
+  --bg-art-h: 74.67vw;
+  --bg-art-left: -6vw;
+  --bg-art-top: calc(var(--env-horizon-y, 54%) - 41.22vw);
+  /* 每单位相机位移对应的背景行程。带倍率最大 0.10 → 最大 5vw，仍在出血内。 */
+  --bg-cam-span: 50vw;
+
+  /*
+    统一环境分级：时间 / 天气 / 世界层的明暗与对比在舞台根一次成型，
+    背景线稿、地点四层、天气粒子共同受光 —— 不存在「背景有颜色、
+    地点仍是纯白贴图」的路径。HUD 与信息板在舞台外，不受影响。
+  */
+  /* filter 的字面量由 environmentCssVars 内联写入；这里只给过渡 */
+  transition: filter 0.9s ease;
+}
+
+/* --------------------------------------------------------------------------
+   SkyLayer
+   -------------------------------------------------------------------------- */
+
+/* 手绘背景图的统一摆放：同画布（1536×1024）、同 cover 裁切、同居中，
+   任何两层之间坐标恒对齐 —— 不允许分别缩放天空和地景。 */
+.env-bg-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  user-select: none;
+}
+
+/* 天空：运行时底色 + 云层线稿。 */
+.env-sky {
+  z-index: 0;
+}
+
+/*
+  天空底色 → 地平线 → 地面底色的一条柔和过渡。
+  颜色来自 environmentModel 的调色板（表世界略暖、里世界略冷略白），
+  过渡带跨在地平线两侧 —— 地面被颜色承载，但不出现一块矩形地板。
+*/
+.env-base-colors {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--env-sky-top, 239 238 233)) 0%,
+    rgb(var(--env-sky-low, 236 234 228)) calc(var(--env-horizon-y, 54%) - 10%),
+    rgb(var(--env-horizon, 235 233 226)) var(--env-horizon-y, 54%),
+    rgb(var(--env-ground, 230 227 219)) calc(var(--env-horizon-y, 54%) + 10%),
+    rgb(var(--env-ground-low, 222 219 211)) 100%
+  );
+}
+
+/*
+  云层窗口：只开在地平线以上，并在接近地平线处淡出。
+  资产是满画布云纹，不裁的话云会一路铺到地面上。
+*/
+.env-sky-clouds {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(0 0 calc(100% - var(--env-horizon-y, 54%)) 0);
+  -webkit-mask-image: linear-gradient(180deg, rgb(0 0 0) 62%, rgb(0 0 0 / 0) 97%);
+  mask-image: linear-gradient(180deg, rgb(0 0 0) 62%, rgb(0 0 0 / 0) 97%);
+}
+
+/* 云层线稿：共享画布几何，随统一相机 ×0.03 轻微平移；密度高，存在感压到很淡 */
+.env-clouds-art {
+  position: absolute;
+  left: var(--bg-art-left);
+  top: var(--bg-art-top);
+  width: var(--bg-art-w);
+  height: var(--bg-art-h);
+  user-select: none;
+  opacity: 0.32;
+  transform: translate3d(calc(var(--cam-final, 0) * 0.03 * var(--bg-cam-span) * -1), 0, 0);
+}
+
+/* --------------------------------------------------------------------------
+   CelestialLayer —— 太阳 / 月亮 / 星星，与天气解耦
+   -------------------------------------------------------------------------- */
+
+.env-celestial {
+  z-index: 1;
+}
+
+/*
+  天体：手绘图资产，独立淡入淡出。透明度由 --art-opacity（可见性 × 云量遮蔽）驱动。
+
+  这三张资产是**浅色**线稿（平均 RGB 约 226），而新的天空底色是近白纸色 ——
+  直接铺上去等于白压白，右上角会读成一片空白。
+  这里用一圈很紧的深色描边给它们一个铅笔边缘，纸上因此看得见白色天体，
+  同时不改资产、不加底板、不做景深模糊。
+*/
+.env-celestial-art {
+  /* opacity 的字面量由 CelestialLayer 内联写入；这里只给过渡 */
+  transition: opacity 0.7s ease;
+  filter:
+    drop-shadow(0 0 1px rgb(96 100 106 / 0.85))
+    drop-shadow(0 1px 2px rgb(96 100 106 / 0.3));
+}
+
+/* 星星：整片星空，随相机 ×0.02 平移，存在感压低 —— 环境元素，不是主角 */
+.env-stars-art {
+  left: -5vw;
+  right: -5vw;
+  width: auto;
+  transform: translate3d(calc(var(--cam-final, 0) * -2vw), 0, 0);
+}
+
+/*
+  太阳 / 月亮：缩到原生尺寸的三成左右，移到右上高位边缘，不压主建筑。
+  transform-origin 对准画布内天体中心（50%, 49%），缩放因此原地发生，
+  再由 --celestial-dx / dy 平移到目标位；--cam-final 提供 ×0.02 视差。
+  姿态（位置 / 缩放 / 透明度上限）由环境模型按时间给出 ——
+  morning / noon / dusk 用同一张 sun_bw 区分，天体不做画面主角。
+*/
+.env-sun-art,
+.env-moon-art {
+  transform-origin: 50% 49%;
+  transform:
+    translate3d(
+      calc(var(--celestial-dx, 26) * 1vw + var(--cam-final, 0) * -2vw),
+      calc(var(--celestial-dy, -26) * 1vh),
+      0
+    )
+    scale(var(--celestial-scale, 0.32));
+}
+
+/* --------------------------------------------------------------------------
+   LandscapeLayer —— 固定手绘地景。压住天空下半部与天体下缘，永远在地点之下。
+   旧 FarField（SVG 远山 / 城市）、旧 GroundLayer（程序化地面 + 透视线 +
+   地平线雾带）被这一张图整体取代，不与它叠加。
+   -------------------------------------------------------------------------- */
+
+.env-landscape {
+  z-index: 2;
+  /* 明暗归舞台级统一分级；这里只压线稿存在感，让地点保持视觉主体（不用 blur） */
+  opacity: 0.88;
+}
+
+/* 视差带：clip 窗口钉死在视口上，里面的图随相机平移。
+   三份图共用同一几何（同宽、同锚点），静止时逐像素重合，接缝不可见。 */
+.env-land-band {
+  position: absolute;
+  inset: 0;
+}
+
+/* 切口正落在地平线上：远山与地面本来就在这里相接，
+   横向速度差因此读成纵深，而不是把山脊撕开。 */
+.env-land-band[data-band='far'] {
+  clip-path: inset(0 0 calc(100% - var(--env-horizon-y, 54%)) 0);
+}
+
+.env-land-band[data-band='ground'] {
+  clip-path: inset(var(--env-horizon-y, 54%) 0 0 0);
+}
+
+/*
+  地景图：共享画布几何（见 .pstage 的 --bg-art-*），与云、天空同一条地平线。
+  平移量 = 统一相机 × 带倍率 × --bg-cam-span，方向与地点一致
+  （相机右移，世界左移）。
+*/
+.env-land-art {
+  position: absolute;
+  left: var(--bg-art-left);
+  top: var(--bg-art-top);
+  width: var(--bg-art-w);
+  height: var(--bg-art-h);
+  user-select: none;
+  transform: translate3d(
+    calc(var(--cam-final, 0) * var(--band-plx, 0) * var(--bg-cam-span) * -1),
+    0,
+    0
+  );
+}
+
+/* --------------------------------------------------------------------------
+   LightWashLayer —— 环境光色罩：黑白资产之上、地点之下的冷暖表达
+   -------------------------------------------------------------------------- */
+
+.env-lightwash {
+  /* 在地点之上、天气之下：背景与地点经过同一层色温，共同受光 */
+  z-index: 6;
+  background: rgb(var(--env-light, 248 244 230));
+  /* color 混合：只染色相，不动手绘的明度笔触；不是半透明灰罩 */
+  mix-blend-mode: color;
+  opacity: 0.18;
+  transition: opacity 0.9s ease;
+}
+
+/* 里世界更冷更白 —— 同一套资产、同一构图，只换光 */
+.env-lightwash[data-world='inner'] {
+  opacity: 0.26;
+}
+
+/* --------------------------------------------------------------------------
+   WeatherLayer —— 只有云与降水，没有任何天体
+   -------------------------------------------------------------------------- */
+
+.env-weather {
+  /* 天气粒子落在地点前方 */
+  z-index: 7;
+}
+
+/* 云是静态资产 + 程序化平移，不是逐天气导出的贴图 */
+.env-clouds {
+  position: absolute;
+  inset: 0 -30% auto -30%;
+  height: 62%;
+  opacity: var(--env-cloud, 0);
+  background:
+    radial-gradient(ellipse 24% 46% at 18% 42%, rgba(232, 230, 226, 0.9), transparent 70%),
+    radial-gradient(ellipse 20% 38% at 38% 30%, rgba(224, 222, 218, 0.82), transparent 72%),
+    radial-gradient(ellipse 26% 44% at 62% 40%, rgba(228, 226, 222, 0.86), transparent 70%),
+    radial-gradient(ellipse 18% 34% at 82% 26%, rgba(220, 218, 214, 0.78), transparent 72%);
+  animation: env-cloud-drift 168s linear infinite;
+}
+
+@keyframes env-cloud-drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(12%); }
+}
+
+/*
+   降水是空间中的独立粒子，由 EnvironmentSystem.tsx 生成数据、这里只管外观。
+
+   不用 background-image / gradient / filter / 全屏叠层：
+   每个雨滴、每片雪是一个实色小元素，位置与节奏来自各自的 --p-* 变量。
+   雨与雪是两套互不复用的系统。
+*/
+
+.env-precip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.env-rain-band,
+.env-snow-band {
+  position: absolute;
+  inset: 0;
+}
+
+/* ── 雨：长条、快速、不发光、不成幕布 ── */
+.env-drop {
+  position: absolute;
+  left: var(--p-x);
+  top: -32px;
+  width: var(--p-w);
+  height: var(--p-len);
+  border-radius: 999px;
+  /* 实色灰蓝，透明度按粒子给定，绝不叠成白雾 */
+  background: rgb(118, 132, 146);
+  opacity: calc(var(--p-opacity) * var(--env-intensity, 1));
+  transform: rotate(var(--p-rot));
+  animation: env-drop-fall var(--p-dur) linear infinite;
+  animation-delay: var(--p-delay);
+}
+
+@keyframes env-drop-fall {
+  from { transform: translate3d(0, 0, 0) rotate(var(--p-rot)); }
+  to { transform: translate3d(var(--p-drift), 125vh, 0) rotate(var(--p-rot)); }
+}
+
+/* ── 雪：圆点、缓慢、轻微漂移；外层管下落，内层管左右摆 ── */
+.env-flake-fall {
+  position: absolute;
+  left: var(--p-x);
+  top: -8px;
+  animation: env-flake-fall var(--p-dur) linear infinite;
+  animation-delay: var(--p-delay);
+}
+
+@keyframes env-flake-fall {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(var(--p-drift), 122vh, 0); }
+}
+
+.env-flake {
+  display: block;
+  width: var(--p-size);
+  height: var(--p-size);
+  border-radius: 50%;
+  /* 实色近白，无光晕、无阴影 */
+  background: rgb(244, 246, 248);
+  opacity: calc(var(--p-opacity) * var(--env-intensity, 1));
+  animation: env-flake-sway var(--p-sway-dur) ease-in-out infinite alternate;
+}
+
+@keyframes env-flake-sway {
+  from { transform: translate3d(calc(var(--p-sway) * -1), 0, 0); }
+  to { transform: translate3d(var(--p-sway), 0, 0); }
+}
+
+/* --------------------------------------------------------------------------
+   AtmosphereLayer
+   -------------------------------------------------------------------------- */
+
+.env-atmos--rear {
+  z-index: 4;
+  background:
+    linear-gradient(
+      180deg,
+      transparent 36%,
+      rgba(224, 220, 210, calc(var(--env-haze, 0) * 1.5)) 76%,
+      rgba(220, 214, 202, calc(var(--env-haze, 0) * 1.8)) 100%
+    ),
+    /* 里世界渗透：表世界 seepage = 0，这一层因此完全不存在 */
+    radial-gradient(
+      ellipse 70% 50% at 50% 88%,
+      rgba(96, 74, 84, calc(var(--env-seepage, 0) * 0.5)),
+      transparent 74%
+    );
+}
+
+.env-atmos--front {
+  z-index: 8;
+  background:
+    radial-gradient(
+      ellipse 90% 30% at 50% 104%,
+      rgba(238, 232, 222, calc(var(--env-haze, 0) * 1.9)),
+      transparent 72%
+    ),
+    radial-gradient(
+      ellipse 40% 60% at 2% 60%,
+      rgba(236, 230, 220, calc(var(--env-haze, 0) * 0.9)),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 96% 78%,
+      rgba(110, 84, 96, calc(var(--env-seepage, 0) * 0.34)),
+      transparent 72%
+    );
+}
+
+/* Reduced motion：关掉云移动与降水位移，天气本身仍然成立 ——
+   粒子停在各自的静态落点（--p-y），画面里仍是一场静止的雨 / 雪。 */
+@media (prefers-reduced-motion: reduce) {
+  .env-clouds,
+  .env-drop,
+  .env-flake-fall,
+  .env-flake {
+    animation: none !important;
+  }
+
+  .env-drop {
+    transform: translate3d(0, var(--p-y), 0) rotate(var(--p-rot));
+  }
+
+  .env-flake-fall {
+    transform: translate3d(0, var(--p-y), 0);
+  }
+}
+
+.pstage[data-reduced='true'] .env-clouds,
+.pstage[data-reduced='true'] .env-drop,
+.pstage[data-reduced='true'] .env-flake-fall,
+.pstage[data-reduced='true'] .env-flake {
+  animation: none;
+}
+
+.pstage[data-reduced='true'] .env-drop {
+  transform: translate3d(0, var(--p-y), 0) rotate(var(--p-rot));
+}
+
+.pstage[data-reduced='true'] .env-flake-fall {
+  transform: translate3d(0, var(--p-y), 0);
+}

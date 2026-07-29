@@ -28,3 +28,13 @@ dist-ssr
 # Local AI tool workspaces
 .claude/
 .codex/
+
+# Local/generated asset workspaces
+/tmp/
+**/__pycache__/
+*.py[cod]
+# Disposable asset review outputs
+/artifacts/center/**/check_*.png
+/artifacts/center/**/*contact-sheet*.png
+/artifacts/center/**/*contact_sheet*.png
+/artifacts/center/**/*-chroma*.png
