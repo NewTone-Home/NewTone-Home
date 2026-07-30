@@ -235,7 +235,12 @@ export function usePlaceParallax({
         return
       }
 
-      if (sessionStorage.getItem(MOTION_PERMISSION_SESSION_KEY) === 'denied') return
+      const storedPermission = sessionStorage.getItem(MOTION_PERMISSION_SESSION_KEY)
+      if (storedPermission === 'granted') {
+        startOrientation()
+        return
+      }
+      if (storedPermission === 'denied') return
 
       try {
         const result = await requestPermission()
@@ -249,7 +254,10 @@ export function usePlaceParallax({
     const OrientationEvent = window.DeviceOrientationEvent as
       | DeviceOrientationEventConstructorWithPermission
       | undefined
-    if (OrientationEvent && !OrientationEvent.requestPermission) startOrientation()
+    if (OrientationEvent) {
+      if (!OrientationEvent.requestPermission) startOrientation()
+      else if (sessionStorage.getItem(MOTION_PERMISSION_SESSION_KEY) === 'granted') startOrientation()
+    }
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') resetOrientationBaseline()
