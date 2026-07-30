@@ -248,10 +248,11 @@ describe('resolveMountWindow / hiddenSlotVisual', () => {
 })
 
 describe('weakSnapTarget', () => {
-  it('靠近整数位才归位，中间态原样保留', () => {
+  it('释放后总是落到正式地点，50/50 明确落到高位', () => {
     expect(weakSnapTarget(1.05, COUNT)).toBe(1)
-    expect(weakSnapTarget(1.5, COUNT)).toBe(1.5)
-    expect(weakSnapTarget(0.45, COUNT)).toBe(0.45)
+    expect(weakSnapTarget(1.5, COUNT)).toBe(2)
+    expect(weakSnapTarget(0.45, COUNT)).toBe(0)
+    expect(weakSnapTarget(0.51, COUNT)).toBe(1)
   })
 })
 
