@@ -17,15 +17,16 @@ const STABLE_DELTA_DEG = 0.35
 const STABLE_REBASE_DELAY_MS = 1800
 const SOFT_REBASE_RATE = 0.018
 const TOUCH_PARALLAX_SCALE = 0.2
+const INFO_PANEL_PARALLAX_SCALE = 0.4
 const MOTION_PERMISSION_SESSION_KEY = 'newtone-place-motion-permission'
 
 interface PlaceParallaxOptions {
   stageRef: RefObject<HTMLElement | null>
   /** Reduced motion 下关闭视差。 */
   reduced: boolean
-  /** false 时归零并停止跟随。 */
+  /** false 时通常归零；信息层展开是例外，只降低强度。 */
   enabled?: boolean
-  /** 信息层打开时可降低强度，但不应关闭空间关系。 */
+  /** 外部需要时可整体降低强度。 */
   intensity?: number
 }
 
@@ -80,12 +81,13 @@ export function usePlaceParallax({
     const stage = stageRef.current
     if (!stage) return
 
+    const infoPanelOpen = stage.dataset.infoOpen === 'true'
     const write = (x: number, y: number) => {
       stage.style.setProperty('--place-px', x.toFixed(4))
       stage.style.setProperty('--place-py', y.toFixed(4))
     }
 
-    if (!enabled || reduced) {
+    if ((!enabled && !infoPanelOpen) || reduced) {
       targetRef.current = { x: 0, y: 0 }
       currentRef.current = { x: 0, y: 0 }
       write(0, 0)
@@ -125,7 +127,8 @@ export function usePlaceParallax({
     }
 
     const setTarget = (x: number, y: number, scale = 1) => {
-      const gain = intensityRef.current * scale
+      const panelScale = stage.dataset.infoOpen === 'true' ? INFO_PANEL_PARALLAX_SCALE : 1
+      const gain = intensityRef.current * scale * panelScale
       targetRef.current = {
         x: clamp(x * gain, -1, 1),
         y: clamp(y * gain, -1, 1),
