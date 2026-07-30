@@ -1,5 +1,8 @@
 import { useEffect } from 'react'
-import type { PointerEvent as ReactPointerEvent } from 'react'
+import type {
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from 'react'
 import type { PlaceStageDefinition } from './placeStageTypes'
 
 /**
@@ -33,7 +36,13 @@ export function PlaceInfoPanel({ place, open, onClose }: PlaceInfoPanelProps) {
 
   if (!place) return null
 
-  const handleBackdropPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const consumePointer = (event: ReactPointerEvent<HTMLElement>) => {
+    event.stopPropagation()
+  }
+
+  const handleBackdropClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
     if (event.target === event.currentTarget) onClose()
   }
 
@@ -41,7 +50,9 @@ export function PlaceInfoPanel({ place, open, onClose }: PlaceInfoPanelProps) {
     <div
       className="pstage-info-backdrop"
       data-open={open ? 'true' : 'false'}
-      onPointerDown={handleBackdropPointerDown}
+      onPointerDown={consumePointer}
+      onPointerUp={consumePointer}
+      onClick={handleBackdropClick}
       aria-hidden={open ? undefined : 'true'}
       style={{
         position: 'absolute',
@@ -57,7 +68,9 @@ export function PlaceInfoPanel({ place, open, onClose }: PlaceInfoPanelProps) {
         aria-label={`${place.title} 信息层`}
         role="dialog"
         aria-modal="true"
-        onPointerDown={event => event.stopPropagation()}
+        onPointerDown={consumePointer}
+        onPointerUp={consumePointer}
+        onClick={event => event.stopPropagation()}
       >
         <header className="pstage-info-head">
           <div>
