@@ -30,10 +30,6 @@ interface PlaceParallaxOptions {
   intensity?: number
 }
 
-interface DeviceOrientationEventWithPermission extends DeviceOrientationEvent {
-  // 仅用于类型收窄；实例上不读取此方法。
-}
-
 type DeviceOrientationEventConstructorWithPermission = typeof DeviceOrientationEvent & {
   requestPermission?: () => Promise<'granted' | 'denied'>
 }
@@ -49,10 +45,11 @@ function clamp(value: number, min: number, max: number): number {
 
 function readScreenAngle(): number {
   if (typeof screen !== 'undefined' && screen.orientation) return screen.orientation.angle
-  return 0
+  const legacyWindow = window as Window & { orientation?: number }
+  return typeof legacyWindow.orientation === 'number' ? legacyWindow.orientation : 0
 }
 
-function mapOrientation(event: DeviceOrientationEventWithPermission): OrientationPoint | null {
+function mapOrientation(event: DeviceOrientationEvent): OrientationPoint | null {
   if (event.beta === null || event.gamma === null) return null
 
   const beta = event.beta
@@ -61,7 +58,7 @@ function mapOrientation(event: DeviceOrientationEventWithPermission): Orientatio
 
   if (angle === 90) return { x: beta, y: -gamma }
   if (angle === 270 || angle === -90) return { x: -beta, y: gamma }
-  if (angle === 180) return { x: -gamma, y: -beta }
+  if (angle === 180 || angle === -180) return { x: -gamma, y: -beta }
   return { x: gamma, y: beta }
 }
 
@@ -166,6 +163,7 @@ export function usePlaceParallax({
     let lastOrientation: OrientationPoint | null = null
     let stableSince = 0
     let orientationListening = false
+    let permissionRequestInFlight = false
 
     const resetOrientationBaseline = () => {
       baseline = null
@@ -219,35 +217,44 @@ export function usePlaceParallax({
       if (orientationListening) return
       window.addEventListener('deviceorientation', handleOrientation)
       orientationListening = true
+      resetOrientationBaseline()
     }
 
     const requestOrientationAccess = async (event: PointerEvent) => {
-      if (event.pointerType !== 'touch') return
+      if (event.pointerType !== 'touch' || permissionRequestInFlight) return
 
       const OrientationEvent = window.DeviceOrientationEvent as
         | DeviceOrientationEventConstructorWithPermission
         | undefined
       if (!OrientationEvent) return
 
-      const requestPermission = OrientationEvent.requestPermission
-      if (!requestPermission) {
+      if (typeof OrientationEvent.requestPermission !== 'function') {
         startOrientation()
         return
       }
 
-      const storedPermission = sessionStorage.getItem(MOTION_PERMISSION_SESSION_KEY)
-      if (storedPermission === 'granted') {
+      // 只缓存 granted。denied 可能来自浏览器设置或一次失效的用户激活，
+      // 不应让当前标签页永久失去再次请求的机会。
+      if (sessionStorage.getItem(MOTION_PERMISSION_SESSION_KEY) === 'granted') {
         startOrientation()
         return
       }
-      if (storedPermission === 'denied') return
 
+      permissionRequestInFlight = true
       try {
-        const result = await requestPermission()
-        sessionStorage.setItem(MOTION_PERMISSION_SESSION_KEY, result)
-        if (result === 'granted') startOrientation()
+        // 必须从一次完成的 touch/pointer gesture 直接调用静态方法。
+        // 不先解构函数，避免 WebKit 丢失调用上下文。
+        const result = await OrientationEvent.requestPermission()
+        if (result === 'granted') {
+          sessionStorage.setItem(MOTION_PERMISSION_SESSION_KEY, 'granted')
+          startOrientation()
+        } else {
+          sessionStorage.removeItem(MOTION_PERMISSION_SESSION_KEY)
+        }
       } catch {
-        // 浏览器拒绝或不支持时自然降级为无移动端视差。
+        sessionStorage.removeItem(MOTION_PERMISSION_SESSION_KEY)
+      } finally {
+        permissionRequestInFlight = false
       }
     }
 
@@ -255,7 +262,7 @@ export function usePlaceParallax({
       | DeviceOrientationEventConstructorWithPermission
       | undefined
     if (OrientationEvent) {
-      if (!OrientationEvent.requestPermission) startOrientation()
+      if (typeof OrientationEvent.requestPermission !== 'function') startOrientation()
       else if (sessionStorage.getItem(MOTION_PERMISSION_SESSION_KEY) === 'granted') startOrientation()
     }
 
@@ -270,7 +277,8 @@ export function usePlaceParallax({
     stage.addEventListener('pointerdown', handleTouchStart)
     stage.addEventListener('pointerup', handleTouchEnd)
     stage.addEventListener('pointercancel', handleTouchEnd)
-    stage.addEventListener('pointerdown', requestOrientationAccess)
+    // iPad Safari 对传感器许可要求完成的用户手势；pointerup 比 pointerdown 稳定。
+    stage.addEventListener('pointerup', requestOrientationAccess)
     window.addEventListener('orientationchange', resetOrientationBaseline)
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
@@ -281,7 +289,7 @@ export function usePlaceParallax({
       stage.removeEventListener('pointerdown', handleTouchStart)
       stage.removeEventListener('pointerup', handleTouchEnd)
       stage.removeEventListener('pointercancel', handleTouchEnd)
-      stage.removeEventListener('pointerdown', requestOrientationAccess)
+      stage.removeEventListener('pointerup', requestOrientationAccess)
       window.removeEventListener('orientationchange', resetOrientationBaseline)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       if (orientationListening) window.removeEventListener('deviceorientation', handleOrientation)
