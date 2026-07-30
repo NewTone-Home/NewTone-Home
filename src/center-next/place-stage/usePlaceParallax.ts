@@ -2,36 +2,79 @@ import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 
 /**
- * 指针视差。
+ * 地点视差输入。
  *
- * 只做一件事：把指针位置写成舞台根上的 `--place-px` / `--place-py`（归一化 -1..1）。
- * 每一层自己带 `--layer-plx` / `--layer-ply`（来自地点定义，不写死在这里），
- * 位移量由 CSS 乘出来。
- *
- * 刻意不做的事：
- * - 整个地点不作为一张卡片倾斜；
- * - 没有 3D rotate；
- * - 不改变构图状态，也不产生任何导航意图。
- *
- * 核心价值是让各深度层产生数像素的相对位移，从而**改变遮挡关系**。
+ * 桌面端读取 pointer；触摸端不读取手指位移，而读取设备方向。
+ * 两种输入最终都只写舞台根上的 `--place-px` / `--place-py`（-1..1），
+ * 不产生地点导航意图，也不改变构图状态。
  */
 
-/** 每帧写入的平滑系数。指针停下后很快收敛，不做弹性。 */
 const PARALLAX_LERP = 0.12
 const PARALLAX_EPSILON = 0.0015
+const ORIENTATION_RANGE_DEG = 14
+const INITIAL_BASELINE_SAMPLES = 12
+const STABLE_DELTA_DEG = 0.35
+const STABLE_REBASE_DELAY_MS = 1800
+const SOFT_REBASE_RATE = 0.018
+const TOUCH_PARALLAX_SCALE = 0.2
+const MOTION_PERMISSION_SESSION_KEY = 'newtone-place-motion-permission'
 
 interface PlaceParallaxOptions {
   stageRef: RefObject<HTMLElement | null>
-  /** Reduced motion 下大幅降级。 */
+  /** Reduced motion 下关闭视差。 */
   reduced: boolean
   /** false 时归零并停止跟随。 */
   enabled?: boolean
+  /** 信息层打开时可降低强度，但不应关闭空间关系。 */
+  intensity?: number
 }
 
-export function usePlaceParallax({ stageRef, reduced, enabled = true }: PlaceParallaxOptions): void {
+interface DeviceOrientationEventWithPermission extends DeviceOrientationEvent {
+  // 仅用于类型收窄；实例上不读取此方法。
+}
+
+type DeviceOrientationEventConstructorWithPermission = typeof DeviceOrientationEvent & {
+  requestPermission?: () => Promise<'granted' | 'denied'>
+}
+
+interface OrientationPoint {
+  x: number
+  y: number
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function readScreenAngle(): number {
+  if (typeof screen !== 'undefined' && screen.orientation) return screen.orientation.angle
+  return 0
+}
+
+function mapOrientation(event: DeviceOrientationEventWithPermission): OrientationPoint | null {
+  if (event.beta === null || event.gamma === null) return null
+
+  const beta = event.beta
+  const gamma = event.gamma
+  const angle = readScreenAngle()
+
+  if (angle === 90) return { x: beta, y: -gamma }
+  if (angle === 270 || angle === -90) return { x: -beta, y: gamma }
+  if (angle === 180) return { x: -gamma, y: -beta }
+  return { x: gamma, y: beta }
+}
+
+export function usePlaceParallax({
+  stageRef,
+  reduced,
+  enabled = true,
+  intensity = 1,
+}: PlaceParallaxOptions): void {
   const targetRef = useRef({ x: 0, y: 0 })
   const currentRef = useRef({ x: 0, y: 0 })
   const frameRef = useRef<number | null>(null)
+  const intensityRef = useRef(intensity)
+  intensityRef.current = clamp(intensity, 0, 1)
 
   useEffect(() => {
     const stage = stageRef.current
@@ -42,7 +85,6 @@ export function usePlaceParallax({ stageRef, reduced, enabled = true }: PlacePar
       stage.style.setProperty('--place-py', y.toFixed(4))
     }
 
-    // Reduced motion：关闭视差，并把已有偏移归零
     if (!enabled || reduced) {
       targetRef.current = { x: 0, y: 0 }
       currentRef.current = { x: 0, y: 0 }
@@ -69,7 +111,10 @@ export function usePlaceParallax({ stageRef, reduced, enabled = true }: PlacePar
         return
       }
 
-      currentRef.current = { x: current.x + dx * PARALLAX_LERP, y: current.y + dy * PARALLAX_LERP }
+      currentRef.current = {
+        x: current.x + dx * PARALLAX_LERP,
+        y: current.y + dy * PARALLAX_LERP,
+      }
       write(currentRef.current.x, currentRef.current.y)
       frameRef.current = requestAnimationFrame(step)
     }
@@ -79,34 +124,156 @@ export function usePlaceParallax({ stageRef, reduced, enabled = true }: PlacePar
       frameRef.current = requestAnimationFrame(step)
     }
 
-    const handlePointerMove = (event: PointerEvent) => {
-      // 触摸不参与视差：手指已经在直接操作构图了
-      if (event.pointerType === 'touch') return
-      const rect = stage.getBoundingClientRect()
-      if (rect.width <= 0 || rect.height <= 0) return
-
+    const setTarget = (x: number, y: number, scale = 1) => {
+      const gain = intensityRef.current * scale
       targetRef.current = {
-        x: Math.min(1, Math.max(-1, ((event.clientX - rect.left) / rect.width) * 2 - 1)),
-        y: Math.min(1, Math.max(-1, ((event.clientY - rect.top) / rect.height) * 2 - 1)),
+        x: clamp(x * gain, -1, 1),
+        y: clamp(y * gain, -1, 1),
       }
       run()
     }
 
-    // 指针离开舞台：目标归零，沿用同一 lerp 平滑走回去，不发生 snap
+    const handlePointerMove = (event: PointerEvent) => {
+      // 触摸只负责地点轴；移动端视差由设备方向提供。
+      if (event.pointerType === 'touch') return
+      const rect = stage.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return
+
+      setTarget(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        ((event.clientY - rect.top) / rect.height) * 2 - 1,
+      )
+    }
+
     const handlePointerLeave = () => {
       targetRef.current = { x: 0, y: 0 }
       run()
+    }
+
+    let touchActive = false
+    const handleTouchStart = (event: PointerEvent) => {
+      if (event.pointerType === 'touch') touchActive = true
+    }
+    const handleTouchEnd = (event: PointerEvent) => {
+      if (event.pointerType === 'touch') touchActive = false
+    }
+
+    let baseline: OrientationPoint | null = null
+    let baselineSum = { x: 0, y: 0, count: 0 }
+    let lastOrientation: OrientationPoint | null = null
+    let stableSince = 0
+    let orientationListening = false
+
+    const resetOrientationBaseline = () => {
+      baseline = null
+      baselineSum = { x: 0, y: 0, count: 0 }
+      lastOrientation = null
+      stableSince = 0
+      targetRef.current = { x: 0, y: 0 }
+      run()
+    }
+
+    const handleOrientation = (event: DeviceOrientationEvent) => {
+      const point = mapOrientation(event)
+      if (!point) return
+
+      if (!baseline) {
+        baselineSum.x += point.x
+        baselineSum.y += point.y
+        baselineSum.count += 1
+        if (baselineSum.count >= INITIAL_BASELINE_SAMPLES) {
+          baseline = {
+            x: baselineSum.x / baselineSum.count,
+            y: baselineSum.y / baselineSum.count,
+          }
+          lastOrientation = point
+        }
+        return
+      }
+
+      const now = performance.now()
+      const movement = lastOrientation
+        ? Math.hypot(point.x - lastOrientation.x, point.y - lastOrientation.y)
+        : Number.POSITIVE_INFINITY
+
+      if (movement <= STABLE_DELTA_DEG) {
+        if (stableSince === 0) stableSince = now
+        if (now - stableSince >= STABLE_REBASE_DELAY_MS) {
+          baseline.x += (point.x - baseline.x) * SOFT_REBASE_RATE
+          baseline.y += (point.y - baseline.y) * SOFT_REBASE_RATE
+        }
+      } else {
+        stableSince = 0
+      }
+      lastOrientation = point
+
+      const x = clamp((point.x - baseline.x) / ORIENTATION_RANGE_DEG, -1, 1)
+      const y = clamp((point.y - baseline.y) / ORIENTATION_RANGE_DEG, -1, 1)
+      setTarget(x, y, touchActive ? TOUCH_PARALLAX_SCALE : 1)
+    }
+
+    const startOrientation = () => {
+      if (orientationListening) return
+      window.addEventListener('deviceorientation', handleOrientation)
+      orientationListening = true
+    }
+
+    const requestOrientationAccess = async (event: PointerEvent) => {
+      if (event.pointerType !== 'touch') return
+
+      const OrientationEvent = window.DeviceOrientationEvent as
+        | DeviceOrientationEventConstructorWithPermission
+        | undefined
+      if (!OrientationEvent) return
+
+      const requestPermission = OrientationEvent.requestPermission
+      if (!requestPermission) {
+        startOrientation()
+        return
+      }
+
+      if (sessionStorage.getItem(MOTION_PERMISSION_SESSION_KEY) === 'denied') return
+
+      try {
+        const result = await requestPermission()
+        sessionStorage.setItem(MOTION_PERMISSION_SESSION_KEY, result)
+        if (result === 'granted') startOrientation()
+      } catch {
+        // 浏览器拒绝或不支持时自然降级为无移动端视差。
+      }
+    }
+
+    const OrientationEvent = window.DeviceOrientationEvent as
+      | DeviceOrientationEventConstructorWithPermission
+      | undefined
+    if (OrientationEvent && !OrientationEvent.requestPermission) startOrientation()
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') resetOrientationBaseline()
     }
 
     write(currentRef.current.x, currentRef.current.y)
     window.addEventListener('pointermove', handlePointerMove)
     stage.addEventListener('pointerleave', handlePointerLeave)
     document.documentElement.addEventListener('mouseleave', handlePointerLeave)
+    stage.addEventListener('pointerdown', handleTouchStart)
+    stage.addEventListener('pointerup', handleTouchEnd)
+    stage.addEventListener('pointercancel', handleTouchEnd)
+    stage.addEventListener('pointerdown', requestOrientationAccess)
+    window.addEventListener('orientationchange', resetOrientationBaseline)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       window.removeEventListener('pointermove', handlePointerMove)
       stage.removeEventListener('pointerleave', handlePointerLeave)
       document.documentElement.removeEventListener('mouseleave', handlePointerLeave)
+      stage.removeEventListener('pointerdown', handleTouchStart)
+      stage.removeEventListener('pointerup', handleTouchEnd)
+      stage.removeEventListener('pointercancel', handleTouchEnd)
+      stage.removeEventListener('pointerdown', requestOrientationAccess)
+      window.removeEventListener('orientationchange', resetOrientationBaseline)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (orientationListening) window.removeEventListener('deviceorientation', handleOrientation)
       stop()
     }
   }, [enabled, reduced, stageRef])
