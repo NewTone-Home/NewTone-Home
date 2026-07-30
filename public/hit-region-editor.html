@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>NewTone · Hit Region Editor</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100dvh; background: #e9e2d8; color: #332f2a; }
+    header { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; padding: .65rem max(.75rem, env(safe-area-inset-left)); background: rgba(246,241,233,.96); border-bottom: 1px solid rgba(51,47,42,.16); backdrop-filter: blur(10px); }
+    header strong { margin-right: auto; font-size: .86rem; letter-spacing: .08em; }
+    select, button, input { font: inherit; }
+    select, button { min-height: 2.2rem; border: 1px solid rgba(51,47,42,.22); border-radius: .4rem; background: #f8f4ed; color: inherit; padding: .35rem .65rem; }
+    button:disabled { opacity: .38; }
+    button[data-primary="true"] { background: #3f3932; color: #faf7f1; }
+    main { display: grid; grid-template-columns: minmax(0,1fr) minmax(18rem,24rem); gap: .8rem; padding: .8rem; }
+    .stage { min-width: 0; position: relative; display: grid; place-items: center; overflow: auto; min-height: calc(100dvh - 5.4rem); border: 1px solid rgba(51,47,42,.14); background: #ded6ca; touch-action: none; }
+    .canvas-wrap { position: relative; width: min(100%, calc((100dvh - 7rem) * 1.5)); aspect-ratio: 3 / 2; background: #eee8df; box-shadow: 0 12px 40px rgba(45,39,32,.18); transform-origin: center; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    #overlay { cursor: crosshair; }
+    aside { display: flex; min-width: 0; flex-direction: column; gap: .75rem; padding: .85rem; border: 1px solid rgba(51,47,42,.14); background: rgba(246,241,233,.9); }
+    aside h2 { margin: 0; font-size: .84rem; }
+    aside p { margin: 0; font-size: .76rem; line-height: 1.65; color: rgba(51,47,42,.68); }
+    .readout { width: 100%; min-height: 12rem; resize: vertical; border: 1px solid rgba(51,47,42,.18); border-radius: .4rem; background: #fffdf9; padding: .65rem; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .status { min-height: 1.3rem; font-size: .72rem; color: rgba(51,47,42,.65); }
+    .zoom { display: flex; align-items: center; gap: .55rem; font-size: .74rem; }
+    .zoom input { flex: 1; }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+      .stage { min-height: auto; }
+      aside { order: -1; }
+      .readout { min-height: 7rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>NEW TONE · HIT REGION EDITOR</strong>
+    <select id="place" aria-label="选择地点">
+      <option value="jijia-stage-layers-v2">姬家大院</option>
+      <option value="central-institute-stage-v13-object-layered">中枢院 v13</option>
+      <option value="commercial-street-stage-layered">商业街</option>
+      <option value="mining-area-stage-layered">矿区</option>
+    </select>
+    <button id="undo">撤销点</button>
+    <button id="close" data-primary="true">闭合当前区域</button>
+    <button id="new">新建区域</button>
+    <button id="clear">全部清空</button>
+    <button id="copy">复制坐标</button>
+  </header>
+
+  <main>
+    <section class="stage" id="stage">
+      <div class="canvas-wrap" id="wrap">
+        <canvas id="image" width="1536" height="1024"></canvas>
+        <canvas id="overlay" width="1536" height="1024"></canvas>
+      </div>
+    </section>
+
+    <aside>
+      <h2>使用方法</h2>
+      <p>沿允许唤出信息板的建筑边缘逐点点击。至少三个点后点击“闭合当前区域”。一个地点可画多个互不相连的区域。坐标按 1536 × 1024 母画布归一化，因此在手机、iPad 和桌面上都不会错位。</p>
+      <label class="zoom">缩放 <input id="zoom" type="range" min="60" max="180" value="100" step="5" /><output id="zoomValue">100%</output></label>
+      <div class="status" id="status"></div>
+      <textarea class="readout" id="output" readonly spellcheck="false"></textarea>
+    </aside>
+  </main>
+
+  <script>
+    const layerNames = ['04_rear_hall.png', '03_inner_courtyard.png', '02_gate.png', '01_foreground.png']
+    const place = document.querySelector('#place')
+    const imageCanvas = document.querySelector('#image')
+    const overlayCanvas = document.querySelector('#overlay')
+    const imageCtx = imageCanvas.getContext('2d')
+    const overlayCtx = overlayCanvas.getContext('2d')
+    const output = document.querySelector('#output')
+    const status = document.querySelector('#status')
+    const wrap = document.querySelector('#wrap')
+    const zoom = document.querySelector('#zoom')
+    const zoomValue = document.querySelector('#zoomValue')
+
+    let polygons = []
+    let current = []
+    let loadingToken = 0
+
+    const round = value => Math.round(value * 10000) / 10000
+    const normalized = point => [round(point.x / 1536), round(point.y / 1024)]
+
+    function updateOutput() {
+      const all = [...polygons, ...(current.length ? [current] : [])]
+      output.value = JSON.stringify({
+        placeId: place.value,
+        activationRegions: all.map(poly => poly.map(normalized)),
+      }, null, 2)
+      status.textContent = `${polygons.length} 个已闭合区域 · 当前区域 ${current.length} 个点`
+    }
+
+    function drawOverlay() {
+      overlayCtx.clearRect(0, 0, 1536, 1024)
+      const drawPolygon = (poly, closed, alpha = 1) => {
+        if (!poly.length) return
+        overlayCtx.save()
+        overlayCtx.lineWidth = 5
+        overlayCtx.strokeStyle = `rgba(170, 54, 38, ${alpha})`
+        overlayCtx.fillStyle = `rgba(196, 75, 52, ${closed ? .18 : .08})`
+        overlayCtx.beginPath()
+        overlayCtx.moveTo(poly[0].x, poly[0].y)
+        for (const point of poly.slice(1)) overlayCtx.lineTo(point.x, point.y)
+        if (closed) overlayCtx.closePath()
+        if (closed) overlayCtx.fill()
+        overlayCtx.stroke()
+        for (const [index, point] of poly.entries()) {
+          overlayCtx.beginPath()
+          overlayCtx.fillStyle = index === 0 ? '#fff7df' : '#c54e39'
+          overlayCtx.strokeStyle = '#4a3028'
+          overlayCtx.lineWidth = 3
+          overlayCtx.arc(point.x, point.y, 10, 0, Math.PI * 2)
+          overlayCtx.fill()
+          overlayCtx.stroke()
+        }
+        overlayCtx.restore()
+      }
+      polygons.forEach(poly => drawPolygon(poly, true, .95))
+      drawPolygon(current, false, 1)
+      updateOutput()
+    }
+
+    async function loadComposite() {
+      const token = ++loadingToken
+      imageCtx.clearRect(0, 0, 1536, 1024)
+      status.textContent = '加载图层中…'
+      const images = await Promise.all(layerNames.map(name => new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => resolve(img)
+        img.onerror = reject
+        img.src = `./assets/center/${place.value}/${name}`
+      })))
+      if (token !== loadingToken) return
+      images.forEach(img => imageCtx.drawImage(img, 0, 0, 1536, 1024))
+      polygons = []
+      current = []
+      drawOverlay()
+    }
+
+    function canvasPoint(event) {
+      const rect = overlayCanvas.getBoundingClientRect()
+      return {
+        x: Math.max(0, Math.min(1536, (event.clientX - rect.left) / rect.width * 1536)),
+        y: Math.max(0, Math.min(1024, (event.clientY - rect.top) / rect.height * 1024)),
+      }
+    }
+
+    overlayCanvas.addEventListener('pointerdown', event => {
+      event.preventDefault()
+      overlayCanvas.setPointerCapture(event.pointerId)
+      current.push(canvasPoint(event))
+      drawOverlay()
+    })
+
+    document.querySelector('#undo').addEventListener('click', () => {
+      if (current.length) current.pop()
+      else if (polygons.length) current = polygons.pop()
+      drawOverlay()
+    })
+
+    document.querySelector('#close').addEventListener('click', () => {
+      if (current.length < 3) {
+        status.textContent = '至少需要三个点才能闭合区域。'
+        return
+      }
+      polygons.push(current)
+      current = []
+      drawOverlay()
+    })
+
+    document.querySelector('#new').addEventListener('click', () => {
+      if (current.length >= 3) polygons.push(current)
+      current = []
+      drawOverlay()
+    })
+
+    document.querySelector('#clear').addEventListener('click', () => {
+      polygons = []
+      current = []
+      drawOverlay()
+    })
+
+    document.querySelector('#copy').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(output.value)
+        status.textContent = '坐标已复制。'
+      } catch {
+        output.focus()
+        output.select()
+        status.textContent = '已选中坐标，请手动复制。'
+      }
+    })
+
+    zoom.addEventListener('input', () => {
+      const scale = Number(zoom.value) / 100
+      wrap.style.width = `min(${scale * 100}%, calc((100dvh - 7rem) * 1.5 * ${scale}))`
+      zoomValue.textContent = `${zoom.value}%`
+    })
+
+    place.addEventListener('change', loadComposite)
+    loadComposite().catch(error => { status.textContent = `图层加载失败：${error}` })
+  </script>
+</body>
+</html>
