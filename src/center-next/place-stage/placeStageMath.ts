@@ -118,9 +118,6 @@ export const OUTGOING_DEPTH_RATE = 2
 /** 小于这个距离才算「稳定处于主体位」，才允许打开信息层。 */
 export const PLACE_SETTLE_DISTANCE = 0.12
 
-/** 释放后弱吸附的作用半径。超出则保留中间态，允许长期停在 50/50。 */
-export const PLACE_SNAP_DISTANCE = 0.14
-
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0
   return Math.min(1, Math.max(0, value))
@@ -181,11 +178,12 @@ export function isSettledAt(index: number, position: number): boolean {
   return Math.abs(index - position) < PLACE_SETTLE_DISTANCE
 }
 
-/** 弱吸附：只有已经很靠近整数位时才归位，中间态原样保留。 */
+/**
+ * 释放后总是落到一个正式地点，不允许中间态长期停留。
+ * 占比超过一半的一侧获胜；精确 50/50 时按地点链前进方向落到高位。
+ */
 export function weakSnapTarget(position: number, placeCount: number): number {
-  const clamped = clampPlacePosition(position, placeCount)
-  const nearest = nearestPlaceIndex(clamped, placeCount)
-  return Math.abs(nearest - clamped) <= PLACE_SNAP_DISTANCE ? nearest : clamped
+  return nearestPlaceIndex(position, placeCount)
 }
 
 /**
