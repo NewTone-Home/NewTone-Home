@@ -204,9 +204,17 @@ export function PlaceStage({
     })
 
     if (!hit) return
-    const index = hit.index
-    const place = places[index]
+    const place = places[hit.index]
     if (!place) return
+
+    // 20% 邻居只负责地点切换，永远不直接打开信息层。
+    if (hit.role === 'neighbor') {
+      controller.sendIntent({ type: 'commit', source: 'arrow', targetIndex: hit.index })
+      return
+    }
+
+    // 只有当前主体地点可以打开信息层。
+    if (hit.role !== 'active') return
     controller.sendIntent({ type: 'activate', source: 'active-click', placeId: place.id })
     onActivate(place)
   }, [controller, input, onActivate, places])
