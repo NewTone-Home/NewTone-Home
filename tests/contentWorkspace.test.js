@@ -43,6 +43,25 @@ describe('owner content workspace', () => {
     expect(content[0].pages[0].beats[1].translations.en.blocks.map(block => block.text)).toEqual(['Third.'])
   })
 
+  it.each([
+    { chinese: ['甲', '乙'], english: ['First.', 'Second.', 'Third.'] },
+    { chinese: ['甲', '乙', '丙', '丁'], english: ['First.', 'Second.', 'Third.'] },
+  ])('keeps both ordered page bodies when paragraph counts differ', ({ chinese, english }) => {
+    const content = compileWorkspace({ schemaVersion: 1, chapters: [{
+      id: 'chapter-one', title: '测试', titleEn: 'Test', protagonistId: 'owner-test',
+      pages: [{
+        id: 'page-one', sceneLabel: '场景', sceneLabelEn: 'Scene',
+        text: chinese.join('\n\n'), textEn: english.join('\n\n'),
+        translationParagraphCounts: { en: [] },
+        worldLayer: 'surface', time: 'unknown', weather: 'unknown', light: 'neutral',
+      }],
+    }] })
+    const page = content[0].pages[0]
+    expect(page.beats.flatMap(beat => beat.blocks.map(block => block.text))).toEqual(chinese)
+    expect(page.beats.flatMap(beat => beat.translations.en.blocks.map(block => block.text))).toEqual(english)
+    expect(page.beats).toHaveLength(Math.min(chinese.length, english.length))
+  })
+
   it('splits, inserts, merges, and deletes pages without inventing text', () => {
     const split = splitWorkspacePage(draft(), 0, 0, 5)
     expect(split.workspace.chapters[0].pages.map(page => page.text)).toEqual(['alpha', ' beta', 'gamma'])

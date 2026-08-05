@@ -41,23 +41,41 @@ function paragraphs(value) {
   return value.split(/\n\s*\n/).map(text => text.trim()).filter(Boolean)
 }
 
-function translationGroups(page, primaryParagraphs) {
-  const translated = paragraphs(page.textEn)
-  if (translated.length === 0) return []
-  const configured = page.translationParagraphCounts.en
-  const counts = configured.length > 0 ? configured : primaryParagraphs.map(() => 1)
-  if (counts.length !== primaryParagraphs.length || counts.some(count => !Number.isInteger(count) || count < 1)) {
-    throw new Error(`${page.sceneLabel || page.id} 的英文段落映射无效。`)
-  }
-  if (counts.reduce((sum, count) => sum + count, 0) !== translated.length) {
-    throw new Error(`${page.sceneLabel || page.id} 的中英文段落数量与映射不一致。`)
-  }
+function balancedGroups(items, groupCount) {
+  const baseSize = Math.floor(items.length / groupCount)
+  const remainder = items.length % groupCount
   let offset = 0
-  return counts.map(count => {
-    const group = translated.slice(offset, offset + count)
-    offset += count
+  return Array.from({ length: groupCount }, (_, index) => {
+    const size = baseSize + (index < remainder ? 1 : 0)
+    const group = items.slice(offset, offset + size)
+    offset += size
     return group
   })
+}
+
+function bilingualGroups(page, primaryParagraphs) {
+  const translated = paragraphs(page.textEn)
+  if (translated.length === 0) return { primary: [], translated: [] }
+  const configured = page.translationParagraphCounts.en
+  const configuredIsValid = configured.length === primaryParagraphs.length
+    && configured.every(count => Number.isInteger(count) && count >= 1)
+    && configured.reduce((sum, count) => sum + count, 0) === translated.length
+  if (configuredIsValid) {
+    let offset = 0
+    return {
+      primary: primaryParagraphs.map(text => [text]),
+      translated: configured.map(count => {
+        const group = translated.slice(offset, offset + count)
+        offset += count
+        return group
+      }),
+    }
+  }
+  const sharedBeatCount = Math.min(primaryParagraphs.length, translated.length)
+  return {
+    primary: balancedGroups(primaryParagraphs, sharedBeatCount),
+    translated: balancedGroups(translated, sharedBeatCount),
+  }
 }
 
 export function compileWorkspace(workspace) {
@@ -73,8 +91,10 @@ export function compileWorkspace(workspace) {
       const pageId = slug(page.id, `${chapterId}-page-${pageIndex + 1}`)
       const primaryParagraphs = paragraphs(page.text)
       if (primaryParagraphs.length === 0) throw new Error(`${chapter.title} 第 ${pageIndex + 1} 页没有正文。`)
-      const translatedGroups = translationGroups(page, primaryParagraphs)
-      if (translatedGroups.length === 0) throw new Error(`${chapter.title} 第 ${pageIndex + 1} 页没有英文正文。`)
+      const groups = bilingualGroups(page, primaryParagraphs)
+      if (groups.translated.length === 0) throw new Error(`${chapter.title} 第 ${pageIndex + 1} 页没有英文正文。`)
+      let primaryOffset = 0
+      let translatedOffset = 0
       return {
         id: pageId, chapterId, chapterTitle: chapter.title.trim(),
         chapterTitleByLanguage: { zh: chapter.title.trim(), en: chapter.titleEn.trim() },
@@ -89,35 +109,41 @@ export function compileWorkspace(workspace) {
             en: page.sceneLabelEn.trim() || chapter.titleEn.trim(),
           },
         },
-        beats: primaryParagraphs.map((text, paragraphIndex) => ({
-          id: `${pageId}-beat-${paragraphIndex + 1}`,
-          source: { chapterId, paragraphIds: [`p-${String(paragraphIndex + 1).padStart(3, '0')}`] },
-          blocks: [{
-            id: 'block-0', type: 'paragraph', text,
-            source: { chapterId, paragraphId: `p-${String(paragraphIndex + 1).padStart(3, '0')}` },
-          }],
-          translations: {
-            en: {
-              blocks: translatedGroups[paragraphIndex].map((translatedText, translatedIndex) => ({
-                id: `block-${translatedIndex}`, type: 'paragraph', text: translatedText,
-                source: { chapterId, paragraphId: `en-p-${String(translatedGroups.slice(0, paragraphIndex).reduce((sum, group) => sum + group.length, 0) + translatedIndex + 1).padStart(3, '0')}` },
-              })),
+        beats: groups.primary.map((primaryGroup, beatIndex) => {
+          const primaryStart = primaryOffset
+          const translatedStart = translatedOffset
+          primaryOffset += primaryGroup.length
+          translatedOffset += groups.translated[beatIndex].length
+          return {
+            id: `${pageId}-beat-${beatIndex + 1}`,
+            source: { chapterId, paragraphIds: primaryGroup.map((_, index) => `p-${String(primaryStart + index + 1).padStart(3, '0')}`) },
+            blocks: primaryGroup.map((text, index) => ({
+              id: `block-${index}`, type: 'paragraph', text,
+              source: { chapterId, paragraphId: `p-${String(primaryStart + index + 1).padStart(3, '0')}` },
+            })),
+            translations: {
+              en: {
+                blocks: groups.translated[beatIndex].map((translatedText, translatedIndex) => ({
+                  id: `block-${translatedIndex}`, type: 'paragraph', text: translatedText,
+                  source: { chapterId, paragraphId: `en-p-${String(translatedStart + translatedIndex + 1).padStart(3, '0')}` },
+                })),
+              },
             },
-          },
-          worldState: {
-            worldLayer: page.worldLayer, time: page.time, weather: page.weather,
-            light: page.light, locationId: pageId, locationLabel: page.sceneLabel.trim() || chapter.title.trim(),
-            characters: [],
-            evidence: {
-              worldLayer: { sourceType: 'owner-authored' },
-              weather: { sourceType: 'owner-authored' },
+            worldState: {
+              worldLayer: page.worldLayer, time: page.time, weather: page.weather,
+              light: page.light, locationId: pageId, locationLabel: page.sceneLabel.trim() || chapter.title.trim(),
+              characters: [],
+              evidence: {
+                worldLayer: { sourceType: 'owner-authored' },
+                weather: { sourceType: 'owner-authored' },
+              },
+              locationLabels: {
+                zh: page.sceneLabel.trim() || chapter.title.trim(),
+                en: page.sceneLabelEn.trim() || chapter.titleEn.trim(),
+              },
             },
-            locationLabels: {
-              zh: page.sceneLabel.trim() || chapter.title.trim(),
-              en: page.sceneLabelEn.trim() || chapter.titleEn.trim(),
-            },
-          },
-        })),
+          }
+        }),
       }
     })
   })
