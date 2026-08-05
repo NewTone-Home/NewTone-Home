@@ -11,13 +11,22 @@ const initial = createInitialProgressState()
 const persisted = loadProgressState(storage)
 function storedLocation(value) { const item = resolvePosition(value); return { phaseId: item.phaseId, pageId: item.pageId, beatIndex: item.beatIndex } }
 function chapterAt(value) { return readerContent.find(phase => phase.id === value.phaseId)?.pages.find(page => page.id === value.pageId)?.chapterId ?? readerContent[0]?.pages?.[0]?.chapterId ?? null }
+export function chooseFurthestLocation(committedLocation, previousFurthestLocation) {
+  try {
+    return comparePosition(committedLocation, previousFurthestLocation) > 0
+      ? { ...committedLocation }
+      : previousFurthestLocation
+  } catch {
+    return { ...committedLocation }
+  }
+}
 
 export const useProgressStore = create((set, get) => ({
   ...initial, ...persisted, isFirstReaderSession: false,
   startReading: () => set(state => ({ currentView: 'reader', readerStarted: true, resumeRequested: false, isFirstReaderSession: state.readerStarted !== true })),
   continueReading: () => set({ currentView: 'reader', readerStarted: true, resumeRequested: true, isFirstReaderSession: false }),
   clearResumeRequest: () => set({ resumeRequested: false }),
-  commitLocation: value => { let committedLocation; try { committedLocation = storedLocation(value) } catch { return false }; const state = get(); const furthestLocation = comparePosition(committedLocation, state.furthestLocation) > 0 ? { ...committedLocation } : state.furthestLocation; set({ committedLocation, furthestLocation, readerStarted: true, currentChapter: chapterAt(committedLocation), currentPage: committedLocation.pageId, currentBeat: committedLocation.beatIndex, readerScrollOffset: 0 }); return true },
+  commitLocation: value => { let committedLocation; try { committedLocation = storedLocation(value) } catch { return false }; const state = get(); const furthestLocation = chooseFurthestLocation(committedLocation, state.furthestLocation); set({ committedLocation, furthestLocation, readerStarted: true, currentChapter: chapterAt(committedLocation), currentPage: committedLocation.pageId, currentBeat: committedLocation.beatIndex, readerScrollOffset: 0 }); return true },
   setReaderScrollOffset: value => set({ readerScrollOffset: Number.isFinite(value) ? Math.max(0, value) : 0 }),
   setReaderExitGestureLearned: () => set({ readerExitGestureLearned: true }),
   endChapterTrial: () => set({ chapterTrialEnded: true }),
