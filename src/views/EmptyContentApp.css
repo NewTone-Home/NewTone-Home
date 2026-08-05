@@ -1,0 +1,6 @@
+.empty-content-shell { min-height: 100dvh; box-sizing: border-box; display: grid; place-items: center; padding: 2rem; color: #21303a; background: radial-gradient(circle at 50% 35%, #f8f4e8 0, #ece6d8 58%, #d9d3c7 100%); }
+.empty-content-shell section { width: min(34rem, 100%); text-align: center; }
+.empty-content-mark { letter-spacing: .3em; text-transform: uppercase; font-size: .78rem; opacity: .62; }
+.empty-content-shell h1 { margin: 1rem 0; font: 500 clamp(1.8rem, 6vw, 3rem)/1.2 serif; }
+.empty-content-shell p { line-height: 1.8; }
+.empty-content-shell button { margin-top: 1.25rem; border: 1px solid currentColor; background: transparent; padding: .65rem 1.2rem; border-radius: 999px; color: inherit; }

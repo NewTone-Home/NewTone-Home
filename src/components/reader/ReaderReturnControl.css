@@ -1,0 +1,54 @@
+.reader-return-control {
+  width: 180px;
+  min-height: 54px;
+}
+
+.reader-return-text {
+  position: relative;
+  z-index: 1;
+}
+
+.reader-return-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  pointer-events: none;
+  stroke: currentColor;
+  stroke-dasharray: 1;
+  stroke-dashoffset: calc(1 - var(--return-progress));
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.05;
+}
+
+.reader-return-ring-echo {
+  opacity: .22;
+  transform: translate(.7px, .45px) rotate(.15deg);
+  transform-origin: center;
+}
+
+.reader-return-control.is-completing .reader-return-ring {
+  animation: reader-return-ring-flash 280ms ease-in-out 2;
+}
+
+.reader-return-control.is-retracting .reader-return-ring {
+  transition: stroke-dashoffset 120ms ease-in;
+  stroke-dashoffset: 1;
+}
+
+@keyframes reader-return-ring-flash {
+  0%, 100% { opacity: .92; }
+  50% { opacity: .16; }
+}
+
+@media (hover: none), (pointer: coarse), (max-width: 720px) {
+  .reader-stage .reader-return-control {
+    bottom: max(118px, calc(env(safe-area-inset-bottom) + 98px)) !important;
+    width: min(180px, calc(100vw - 64px));
+    padding: 12px 14px;
+    opacity: .72;
+  }
+}

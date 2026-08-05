@@ -1,0 +1,188 @@
+/* Final Reader shell cascade. Kept separate so legacy stage rules cannot
+   override the recovered toolbar and current-page progress contract. */
+.reader-corner-menu {
+  top: max(24px, env(safe-area-inset-top));
+  right: max(24px, env(safe-area-inset-right));
+}
+.reader-scene-menu-group { display:flex; min-height:42px; align-items:center; justify-content:flex-end; gap:11px; }
+.reader-scene-menu-label { position:relative; display:block; width:min(230px,28vw); height:1.5em; overflow:hidden; color:var(--reader-muted); font-size:clamp(.68rem,.7vw,.82rem); letter-spacing:.08em; line-height:1.5; pointer-events:none; text-align:right; white-space:nowrap; }
+.reader-scene-menu-label-layer { position:absolute; inset:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.reader-scene-menu-label-layer.is-outgoing { animation:reader-contract-scene-out 560ms ease both; }
+.reader-scene-menu-label-layer.is-incoming { animation:reader-contract-scene-in 560ms ease both; }
+.reader-menu-scene-layers { position:relative; display:grid; width:36px; height:36px; place-items:center; }
+.reader-menu-scene-layers .reader-menu-scene-glyph { position:absolute; width:36px; height:36px; color:var(--reader-ink); fill:currentColor; stroke:none; image-rendering:pixelated; shape-rendering:crispEdges; }
+.reader-menu-scene-glyph.is-outgoing { animation:reader-contract-scene-out 560ms ease both !important; }
+.reader-menu-scene-glyph.is-incoming { animation:reader-contract-scene-in 560ms ease both !important; }
+.reader-menu-bars i {
+  right:auto;
+  left:50%;
+  box-shadow:none;
+  transition:top 420ms cubic-bezier(.2,.8,.2,1), opacity 320ms ease;
+  transform:translateX(-50%) rotate(-.7deg);
+}
+.reader-menu-bars i:first-child { top:4px; width:18px; }
+.reader-menu-bars i:last-child { top:13px; width:26px; transform:translateX(-50%) rotate(.8deg); }
+.reader-menu-mark:hover .reader-menu-bars i:first-child,
+.reader-corner-menu:focus-within .reader-menu-bars i:first-child { top:2px; width:18px; }
+.reader-menu-mark:hover .reader-menu-bars i:last-child,
+.reader-corner-menu:focus-within .reader-menu-bars i:last-child { top:15px; width:26px; }
+
+.reader-menu-mark { position:relative; }
+.reader-menu-mark > .reader-menu-trigger-layer {
+  position:absolute;
+  inset:0;
+  width:auto;
+  height:auto;
+  border-radius:0;
+  background:transparent;
+  display:grid;
+  place-items:center;
+  pointer-events:none;
+}
+.reader-menu-trigger-layer--outgoing { opacity:0; }
+.reader-menu-mark.is-switching .reader-menu-trigger-layer--outgoing {
+  animation:reader-contract-mode-group-out 480ms ease both;
+}
+.reader-menu-mark.is-switching .reader-menu-trigger-layer--incoming {
+  animation:reader-contract-mode-group-in 760ms 640ms cubic-bezier(.2,.8,.2,1) both;
+}
+.reader-mode-tool.is-switching .reader-mode-icon-layer--outgoing {
+  animation:reader-contract-mode-group-out 480ms ease both !important;
+}
+.reader-mode-tool.is-switching .reader-mode-icon-layer--incoming {
+  animation:reader-contract-mode-group-in 760ms 640ms cubic-bezier(.2,.8,.2,1) both !important;
+}
+.reader-theme-dock.is-mode-entering,
+.reader-theme-dock.is-mode-leaving {
+  visibility:visible;
+  pointer-events:none;
+  transition-delay:0s;
+}
+.reader-theme-dock {
+  opacity:1;
+  transition:visibility 0s linear 520ms;
+}
+.reader-theme-dock.is-open {
+  transition-delay:0s;
+}
+.reader-theme-dock .reader-theme-pill {
+  opacity:0;
+  transform:translateX(18px) scaleX(.08);
+  transform-origin:right center;
+  transition:
+    color 360ms ease,
+    opacity 160ms 180ms ease,
+    transform 320ms 180ms cubic-bezier(.2,.8,.2,1);
+}
+.reader-theme-dock.is-open .reader-theme-pill {
+  opacity:1;
+  transform:translateX(0) scaleX(1);
+  transition:
+    color 360ms ease,
+    opacity 160ms ease,
+    transform 360ms cubic-bezier(.2,.8,.2,1);
+}
+.reader-theme-dock .reader-theme-name {
+  opacity:0;
+  transform:translate(-50%,2px);
+  animation:none;
+  transition:opacity 160ms ease, transform 160ms ease;
+}
+.reader-theme-dock.is-open .reader-theme-name {
+  opacity:.82;
+  transform:translate(-50%,0);
+  transition:opacity 180ms 360ms ease, transform 180ms 360ms ease;
+}
+.reader-theme-dock.is-mode-entering .reader-theme-pill {
+  animation:reader-contract-theme-pill-enter 360ms 640ms cubic-bezier(.2,.8,.2,1) both;
+}
+.reader-theme-dock.is-mode-entering .reader-theme-name {
+  animation:reader-contract-theme-name-enter 180ms 1000ms ease both;
+}
+.reader-corner-menu.is-standard-to-immersive .reader-mode-status {
+  animation:reader-contract-mode-group-in 760ms 640ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.reader-stage-page,
+.reader-stage-page--standard {
+  transition:
+    --reader-light-x 2400ms cubic-bezier(.22,.7,.22,1),
+    --reader-light-y 2400ms cubic-bezier(.22,.7,.22,1),
+    --reader-light-width 2400ms cubic-bezier(.22,.7,.22,1),
+    --reader-light-height 2400ms cubic-bezier(.22,.7,.22,1),
+    background-color 1600ms cubic-bezier(.22,.7,.22,1),
+    color 1200ms ease,
+    filter 1200ms ease;
+}
+.reader-stage-page .reader-environment-light,
+.reader-stage-page .reader-environment-shadow,
+.reader-stage-page .reader-environment-weather {
+  transition-duration:1800ms;
+  transition-timing-function:ease;
+}
+.reader-stage-page--standard .reader-environment-light,
+.reader-stage-page--standard .reader-environment-shadow,
+.reader-stage-page--standard .reader-environment-weather {
+  opacity:0 !important;
+}
+
+.reader-stage-page .reader-trace { width:108px; cursor:default; opacity:1; pointer-events:auto; transition:opacity 420ms ease; }
+.reader-stage-page .reader-trace-line {
+  left:14px;
+  width:5px;
+  filter:drop-shadow(0 0 3px rgba(var(--reader-line-rgb),.22));
+  opacity:1;
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,rgba(0,0,0,.08) var(--reader-feather-start),#000 var(--reader-feather-end),#000 100%);
+  mask-image:linear-gradient(to bottom,transparent 0,rgba(0,0,0,.08) var(--reader-feather-start),#000 var(--reader-feather-end),#000 100%);
+}
+.reader-stage-page .reader-trace-line > .reader-trace-base,
+.reader-stage-page .reader-trace-line > .reader-trace-ink { inset:0 auto 0 0; width:5px; height:auto; border-radius:0; transform:none; transition:none; -webkit-mask-image:none; mask-image:none; }
+.reader-stage-page .reader-trace-line > .reader-trace-base {
+  background:repeating-linear-gradient(to bottom,rgba(var(--reader-line-rgb),.2) 0 5px,transparent 5px 9px);
+  opacity:.55;
+}
+.reader-stage-page .reader-trace-line > .reader-trace-ink {
+  background:repeating-linear-gradient(to bottom,rgba(var(--reader-line-rgb),var(--reader-tail-strength)) 0 5px,transparent 5px 9px);
+  opacity:.86;
+}
+.reader-stage-page .reader-trace.is-complete { opacity:1; pointer-events:auto; }
+.reader-stage-page .reader-trace.is-complete .reader-trace-line { opacity:1; }
+.reader-stage-page .reader-reading-percent { left:60px; display:inline-flex; flex-direction:column; align-items:center; gap:2px; padding:0; border:0; background:transparent; opacity:0; pointer-events:none; writing-mode:horizontal-tb; }
+.reader-stage-page .reader-reading-percent-label { writing-mode:vertical-rl; text-orientation:upright; }
+.reader-stage-page .reader-reading-percent-value { writing-mode:horizontal-tb; text-orientation:mixed; white-space:nowrap; }
+.reader-stage-page .reader-trace:hover .reader-reading-percent,
+.reader-stage-page .reader-trace.is-hovered .reader-reading-percent,
+.reader-stage-page .reader-trace:focus-visible .reader-reading-percent { opacity:.92; }
+.reader-stage-page .reader-trace:focus-visible { outline:none; }
+.reader-stage .reader-return-control { bottom:max(24px,env(safe-area-inset-bottom)); left:max(24px,env(safe-area-inset-left)); width:clamp(150px,13vw,190px); cursor:default; opacity:.72; transform:none; animation:reader-contract-return-enter 480ms ease both; }
+.reader-stage .reader-return-ring { position:absolute; inset:0; width:100%; height:100%; overflow:visible; fill:none; pointer-events:none; stroke:currentColor; stroke-linecap:round; stroke-linejoin:round; stroke-width:1.1; }
+.reader-stage .reader-return-ring path { stroke-dasharray:1; stroke-dashoffset:calc(1 - var(--return-progress)); }
+.reader-stage .reader-return-ring-echo { opacity:.28; transform:translate(1px,.5px); }
+
+@keyframes reader-contract-scene-out { from { opacity:1; } to { opacity:0; } }
+@keyframes reader-contract-scene-in { from { opacity:0; } to { opacity:1; } }
+@keyframes reader-contract-mode-group-out { from { opacity:1; } to { opacity:0; } }
+@keyframes reader-contract-mode-group-in { from { opacity:0; } to { opacity:1; } }
+@keyframes reader-contract-theme-pill-enter {
+  from { opacity:0; transform:translateX(18px) scaleX(.08); }
+  to { opacity:1; transform:translateX(0) scaleX(1); }
+}
+@keyframes reader-contract-theme-name-enter {
+  from { opacity:0; transform:translate(-50%,2px); }
+  to { opacity:.82; transform:translate(-50%,0); }
+}
+@keyframes reader-contract-return-enter { from { opacity:0; transform:translateY(8px); } to { opacity:.72; transform:none; } }
+
+@media (max-width:680px) {
+  .reader-corner-menu { top:max(24px,env(safe-area-inset-top)); right:max(24px,env(safe-area-inset-right)); }
+  .reader-scene-menu-group { gap:10px; }
+  .reader-scene-menu-label { width:min(176px,calc(100vw - 98px)); font-size:.65rem; }
+  .reader-stage .reader-return-control { bottom:max(18px,env(safe-area-inset-bottom)) !important; left:max(14px,env(safe-area-inset-left)); }
+  .reader-stage-page .reader-trace { left:8px; width:100px; }
+  .reader-stage-page .reader-trace-line { left:12px; }
+  .reader-stage-page .reader-reading-percent { left:54px; }
+}
+
+@media (orientation:landscape) and (max-height:500px) {
+  .reader-stage .reader-return-control { bottom:max(12px,env(safe-area-inset-bottom)) !important; left:max(14px,env(safe-area-inset-left)); }
+}

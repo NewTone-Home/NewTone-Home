@@ -1,10 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useProgressStore } from '../stores/progressStore'
-import { useTransitionStore } from '../stores/transitionStore'
 import { copy } from '../i18n/copy'
+import { getReaderEntryIntent, hasStableReaderProgress } from '../reader/readerEntry'
+import {
+  TITLE_PHASE,
+  readIntroCompleted,
+  resolveScrollIntent,
+  writeIntroCompleted,
+} from '../landing/landingIntro'
+import { useReducedMotion } from '../hooks/useReducedMotion'
+import { useTitleRetrace } from '../hooks/useTitleRetrace'
+import { LANDING_SCENES, resolveLandingScene } from '../landing/landingScene'
+import { resolveLandingParallax } from '../landing/landingParallax'
+import { detectBrowserReaderLanguage } from '../i18n/languages'
 import ScrambleText from '../components/ScrambleText'
 import LandingSketchLayer from '../components/landing/LandingSketchLayer'
-import '../styles/visualTokens.css'
+import LandingJijiaScene from '../components/landing/LandingJijiaScene'
+import LandingTitleMark from '../components/landing/LandingTitleMark'
 import '../styles/sketchPrimitives.css'
 import './Landing.css'
 
@@ -48,57 +60,129 @@ function TitleSignal({ active }) {
   )
 }
 
-function Landing({ onEnter, leaving, leavingMs }) {
+function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, environmentState }) {
   const language = useProgressStore(s => s.language)
-  const transitionTo = useTransitionStore(s => s.transitionTo)
-  const reset = useProgressStore(s => s.reset)
-  const toggleLanguage = useProgressStore(s => s.toggleLanguage)
-  const lastReadPhase = useProgressStore(s => s.lastReadPhase)
-  const maxReadPhase = useProgressStore(s => s.maxReadPhase)
-  const lastScrollY = useProgressStore(s => s.lastScrollY)
-  const centerUnlocked = useProgressStore(s => s.centerUnlocked)
+  const hasInitializedLanguage = useProgressStore(s => s.hasInitializedLanguage)
+  const readerStarted = useProgressStore(s => s.readerStarted)
+  const readerCompleted = useProgressStore(s => s.readerCompleted)
+  const motionMode = useProgressStore(s => s.motionMode)
 
-  const [isLandingAwake, setIsLandingAwake] = useState(false)
+  const [introCompleted, setIntroCompleted] = useState(() => readIntroCompleted())
   const [scrollTriggered, setScrollTriggered] = useState(false)
-  const [clickCount, setClickCount] = useState(0)
+  const [retraceKey, setRetraceKey] = useState(0)
   const triggeredRef = useRef(false)
+  const introRef = useRef(introCompleted)
+  const titleVisualRef = useRef(null)
 
-  const activateTitle = () => {
-    if (!isLandingAwake) {
-      setIsLandingAwake(true)
+  const reducedMotion = useReducedMotion()
+  // 视觉原型开关，只影响背景层：?landing-scene=jijia_compound
+  const [landingScene] = useState(() => resolveLandingScene(window.location.search))
+
+  const handleIntroComplete = useCallback(() => {
+    writeIntroCompleted()
+    setIntroCompleted(true)
+  }, [])
+
+  const { phase, phaseRef, sweepRef, begin, retract } = useTitleRetrace({
+    introCompleted,
+    reduced: reducedMotion || motionMode === 'reduced',
+    onIntroComplete: handleIntroComplete,
+  })
+
+  useEffect(() => {
+    introRef.current = introCompleted
+  }, [introCompleted])
+
+  useEffect(() => {
+    const node = titleVisualRef.current
+    if (!node || reducedMotion || motionMode === 'reduced') return undefined
+    const target = { x: 0, y: 0 }
+    const current = { x: 0, y: 0 }
+    let frame = 0
+
+    const render = () => {
+      current.x += (target.x - current.x) * 0.11
+      current.y += (target.y - current.y) * 0.11
+      node.style.setProperty('--landing-parallax-x', `${current.x.toFixed(3)}px`)
+      node.style.setProperty('--landing-parallax-y', `${current.y.toFixed(3)}px`)
+      node.dataset.parallaxX = current.x.toFixed(3)
+      node.dataset.parallaxY = current.y.toFixed(3)
+      const unsettled = Math.abs(target.x - current.x) > 0.02 || Math.abs(target.y - current.y) > 0.02
+      frame = unsettled ? requestAnimationFrame(render) : 0
     }
-    setClickCount(c => c + 1)
+    const requestRender = () => {
+      if (!frame) frame = requestAnimationFrame(render)
+    }
+    const onPointerMove = event => {
+      const next = resolveLandingParallax(event.clientX, event.clientY, window.innerWidth, window.innerHeight)
+      target.x = next.x
+      target.y = next.y
+      requestRender()
+    }
+    const returnToCenter = () => {
+      target.x = 0
+      target.y = 0
+      requestRender()
+    }
+    const onPointerOut = event => {
+      if (event.relatedTarget === null) returnToCenter()
+    }
+
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerout', onPointerOut)
+    window.addEventListener('blur', returnToCenter)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerout', onPointerOut)
+      window.removeEventListener('blur', returnToCenter)
+      node.style.removeProperty('--landing-parallax-x')
+      node.style.removeProperty('--landing-parallax-y')
+      delete node.dataset.parallaxX
+      delete node.dataset.parallaxY
+    }
+  }, [motionMode, reducedMotion])
+
+  const activateTitle = useCallback(() => {
+    if (phaseRef.current !== TITLE_PHASE.IDLE) return
+    setRetraceKey(k => k + 1)
+    begin()
+  }, [begin, phaseRef])
+
+  const handleTitlePointerEnter = (event) => {
+    // Touch synthesises a pointerenter on tap; let the click path own that case.
+    if (event.pointerType === 'touch') return
+    activateTitle()
   }
 
   useEffect(() => {
     triggeredRef.current = false
 
-    const detectReader = () => {
-      if (triggeredRef.current) return
-      triggeredRef.current = true
+    const enterReader = () => {
       const state = useProgressStore.getState()
-      const hasProgress = state.lastScrollY > 0 || (state.lastReadPhase ?? state.maxReadPhase) !== null
-      if (hasProgress) {
-        onEnter('continue')
-      } else {
-        onEnter('start')
-      }
+      onEnter(getReaderEntryIntent(state))
     }
 
-    const detectCenter = () => {
+    const requestLeave = (enter, markScrolled) => {
       if (triggeredRef.current) return
+      const intent = resolveScrollIntent({
+        phase: phaseRef.current,
+        introCompleted: introRef.current,
+      })
+      // 'blocked' is the first-visit lock, 'ignore' is a retract already running.
+      if (intent !== 'enter' && intent !== 'retract') return
       triggeredRef.current = true
-      transitionTo('center', { preset: 'surface-to-core' })
+      if (markScrolled) setScrollTriggered(true)
+      if (intent === 'retract') {
+        retract().then(enter)
+        return
+      }
+      enter()
     }
 
     const onWheel = (e) => {
       if (e.deltaY > 8) {
-        if (!triggeredRef.current) setScrollTriggered(true)
-        detectReader()
-        return
-      }
-      if (centerUnlocked && e.deltaY < -8) {
-        detectCenter()
+        requestLeave(enterReader, true)
         return
       }
     }
@@ -110,12 +194,7 @@ function Landing({ onEnter, leaving, leavingMs }) {
     const onTouchMove = (e) => {
       const delta = touchStartY - e.touches[0].clientY
       if (delta > 20) {
-        if (!triggeredRef.current) setScrollTriggered(true)
-        detectReader()
-        return
-      }
-      if (centerUnlocked && delta < -20) {
-        detectCenter()
+        requestLeave(enterReader, true)
         return
       }
     }
@@ -129,74 +208,67 @@ function Landing({ onEnter, leaving, leavingMs }) {
       window.removeEventListener('touchstart', onTouchStart)
       window.removeEventListener('touchmove', onTouchMove)
     }
-  }, [onEnter, centerUnlocked, transitionTo])
+  }, [onEnter, phaseRef, retract])
 
-  const hasProgress = lastScrollY > 0 || (lastReadPhase ?? maxReadPhase) !== null
+  const hasProgress = hasStableReaderProgress({ readerStarted, readerCompleted })
+  const landingLanguage = hasInitializedLanguage
+    ? language
+    : detectBrowserReaderLanguage(navigator.languages || [navigator.language])
   const promptText = hasProgress
-    ? copy[language].landingPromptResume
-    : copy[language].landingPromptInitial
-  const downPromptText = copy[language].scrollDownToContinue || promptText
+    ? copy[landingLanguage].landingPromptResume
+    : copy[landingLanguage].landingPromptInitial
+  const downPromptText = promptText
+
+  // The prompt is the reward for finishing *this* stroke, not a permanent label:
+  // it follows the visual phase only, never the persisted flag.
+  const promptsRevealed = phase === TITLE_PHASE.REVEALED
+  const titleTouched = phase !== TITLE_PHASE.IDLE
 
   return (
-    <div className={`landing paper-surface${leaving ? ' landing--leaving' : ''}`} style={{ '--landing-leave-ms': `${leavingMs}ms` }}>
+    <div
+      className={`landing paper-surface${leaving ? ' landing--leaving' : ''}${landingScene ? ' landing--scene' : ''}`}
+      style={{ ...surfaceStyle, '--landing-leave-ms': `${leavingMs}ms` }}
+      data-reading-mode={readingMode}
+      data-world-layer={environmentState.worldLayer}
+      data-time-of-day={environmentState.time}
+      data-weather={environmentState.weather}
+    >
+      {landingScene === LANDING_SCENES.JIJIA_COMPOUND && <LandingJijiaScene awake={titleTouched} />}
+
       <LandingSketchLayer
-        titleActivated={isLandingAwake}
-        archwayPhase={scrollTriggered ? 2 : isLandingAwake ? 1 : 0}
-        retraceKey={clickCount}
+        titleActivated={titleTouched}
+        archwayPhase={scrollTriggered ? 2 : titleTouched ? 1 : 0}
+        retraceKey={retraceKey}
       />
 
-      <button
-        className="landing-lang-toggle"
-        onClick={toggleLanguage}
-      >
-        {language === 'zh' ? 'EN' : '中'}
-      </button>
-
       <div className="landing-main">
-        <div className={['landing-title-stack', isLandingAwake ? 'landing-direction-prompts--revealed' : ''].filter(Boolean).join(' ')}>
-          {centerUnlocked && isLandingAwake && (
-            <div className="up-entry-group">
-              <p className="landing-prompt landing-prompt--up">
-                <ScrambleText
-                  text={copy[language].scrollUpToEnterCenter}
-                  active
-                  duration={800}
-                />
-              </p>
-              <svg className="entry-arrow entry-arrow--up" viewBox="-60 0 120 70" width="32" height="20" aria-hidden="true">
-                <g className={isLandingAwake ? 'sketch-up-breathe' : ''}>
-                  <path className="sketch-up-shaft" d="M 0,58 L 0,5" />
-                  <path className="sketch-up-shaft-faint" d="M -2,55 L -2,8" />
-                  <path className="sketch-up-head" d="M 0,5 L -10,18" />
-                  <path className="sketch-up-head" d="M 0,5 L 10,18" />
-                </g>
-              </svg>
-            </div>
-          )}
-
+        <div className={['landing-title-stack', promptsRevealed ? 'landing-direction-prompts--revealed' : ''].filter(Boolean).join(' ')}>
           <h1
             className={[
               'landing-title',
-              isLandingAwake ? 'landing-title--activated' : '',
-              centerUnlocked ? 'landing-title--center-unlocked' : ''
+              `landing-title--${phase}`,
+              phase === TITLE_PHASE.REVEALED ? 'landing-title--drawn' : '',
             ].filter(Boolean).join(' ')}
-            onMouseEnter={activateTitle}
+            onPointerEnter={handleTitlePointerEnter}
             onClick={activateTitle}
           >
-            <span className="landing-title-text">NewTone</span>
+            <span ref={titleVisualRef} className="landing-title-text" data-landing-title-visual="true">
+              NewTone
+              <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
+            </span>
           </h1>
 
-          {isLandingAwake && (
+          {promptsRevealed && (
             <div className="down-entry-group">
               <p className="landing-prompt landing-prompt--down">
                 <ScrambleText
-                  text={centerUnlocked ? downPromptText : promptText}
+                  text={downPromptText}
                   active
                   duration={800}
                 />
               </p>
               <svg className="entry-arrow entry-arrow--down" viewBox="-60 0 120 80" width="32" height="22" aria-hidden="true">
-                <g className={isLandingAwake ? 'sketch-down-breathe' : ''}>
+                <g className={promptsRevealed ? 'sketch-down-breathe' : ''}>
                   <path className="sketch-down-shaft" d="M 0,5 L 0,65" />
                   <path className="sketch-down-shaft-faint" d="M -2,8 L -2,62" />
                   <path className="sketch-down-head" d="M 0,65 L -10,50" />
@@ -207,12 +279,8 @@ function Landing({ onEnter, leaving, leavingMs }) {
           )}
         </div>
 
-        {isLandingAwake && !centerUnlocked && <TitleSignal active={isLandingAwake} />}
+        {promptsRevealed && <TitleSignal active={promptsRevealed} />}
       </div>
-
-      <button className="landing-reset" onClick={() => { reset(); setIsLandingAwake(false) }}>
-        {copy[language].reset}
-      </button>
     </div>
   )
 }

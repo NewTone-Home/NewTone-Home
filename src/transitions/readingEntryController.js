@@ -6,13 +6,15 @@ export const READING_ENTRY_TIMINGS = {
   FIRST_LANDING_LEAVE_MS: 550,
   FIRST_ENTRY_EMPTY_HOLD_MS: 350,
   RETURN_LANDING_LEAVE_MS: 300,
-  LANG_LEAVING_MS: 400,
-  MIN_READER_MS: 850,
+  LANG_LEAVING_MS: 1000,
+  MODE_LEAVING_MS: 420,
+  MIN_READER_MS: 3000,
+  RESUME_READER_MS: 4720,
   TRANSITION_FADE_MS: 400,
   LANGUAGE_INIT_TITLE_DELAY_MS: 300,
 }
 
-const { FIRST_LANDING_LEAVE_MS, FIRST_ENTRY_EMPTY_HOLD_MS, RETURN_LANDING_LEAVE_MS, LANG_LEAVING_MS, MIN_READER_MS, TRANSITION_FADE_MS } = READING_ENTRY_TIMINGS
+const { FIRST_LANDING_LEAVE_MS, FIRST_ENTRY_EMPTY_HOLD_MS, RETURN_LANDING_LEAVE_MS, LANG_LEAVING_MS, MODE_LEAVING_MS, MIN_READER_MS, RESUME_READER_MS, TRANSITION_FADE_MS } = READING_ENTRY_TIMINGS
 
 export function useReadingEntry() {
   const [phase, setPhase] = useState('idle')
@@ -56,11 +58,11 @@ export function useReadingEntry() {
     syncPhase('landing-leaving')
 
     const store = useProgressStore.getState()
-    if (!store.hasInitializedLanguage) {
+    if (!store.hasInitializedLanguage || !store.hasInitializedReadingMode) {
       timers.current.add(() => {
         syncPhase('landing-empty-hold')
         timers.current.add(() => {
-          syncPhase('language-active')
+          syncPhase(store.hasInitializedLanguage ? 'mode-active' : 'language-active')
         }, FIRST_ENTRY_EMPTY_HOLD_MS)
       }, FIRST_LANDING_LEAVE_MS)
     } else {
@@ -77,11 +79,20 @@ export function useReadingEntry() {
     timers.current.add(() => {
       const store = useProgressStore.getState()
       store.setInitializedLanguage()
+      syncPhase('mode-active')
+    }, LANG_LEAVING_MS)
+  }, [syncPhase])
 
+  const proceedFromMode = useCallback((readingMode) => {
+    if (phaseRef.current !== 'mode-active') return
+    const store = useProgressStore.getState()
+    if (!store.selectReadingMode(readingMode)) return
+    syncPhase('mode-leaving')
+    timers.current.add(() => {
       const currentIntent = intentRef.current || 'start'
       enterReaderView(currentIntent)
-    }, LANG_LEAVING_MS)
-  }, [syncPhase, enterReaderView])
+    }, MODE_LEAVING_MS)
+  }, [enterReaderView, syncPhase])
 
   const handleReaderReady = useCallback(() => {
     if (readyCalledRef.current) return
@@ -89,7 +100,8 @@ export function useReadingEntry() {
     readyCalledRef.current = true
 
     const elapsed = Date.now() - startTimeRef.current
-    const remaining = Math.max(MIN_READER_MS - elapsed, 0)
+    const visibleDuration = intentRef.current === 'start' ? MIN_READER_MS : RESUME_READER_MS
+    const remaining = Math.max(visibleDuration - elapsed, 0)
 
     timers.current.add(() => {
       syncPhase('transition-leaving')
@@ -118,6 +130,7 @@ export function useReadingEntry() {
     intent,
     start,
     proceedFromLanguage,
+    proceedFromMode,
     handleReaderReady,
     cancel,
     isActive: phase !== 'idle',

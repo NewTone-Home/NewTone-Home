@@ -12,195 +12,149 @@
   display: block;
 }
 
-/* ===== Guide Lines ===== */
+/* ===== Paper Traces ===== */
 
-.sketch-guide-h {
+.sketch-paper-trace {
   fill: none;
   stroke: var(--line-faint, #baada0);
+  stroke-width: 0.6;
+  stroke-linecap: round;
+  opacity: 0.14;
+}
+
+.sketch-paper-trace--short {
   stroke-width: 0.5;
-  stroke-dasharray: 3,5;
-  opacity: 0.2;
+  opacity: 0.1;
 }
 
-.sketch-guide-v {
-  fill: none;
-  stroke: var(--line-faint, #baada0);
-  stroke-width: 0.4;
-  stroke-dasharray: 2,6;
-  opacity: 0.12;
-}
+/* ===== Open Frames ===== */
 
-.sketch-guide-v--offset {
-  stroke-dasharray: 3,8;
-  opacity: 0.08;
-}
-
-/* ===== Archway ===== */
-
-.sketch-arch-pillar {
-  fill: none;
-  stroke: var(--ink-medium, #5a4d40);
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  opacity: 0.35;
-}
-
-.sketch-arch-pillar-faint {
-  fill: none;
-  stroke: var(--ink-muted, #8a7a6b);
-  stroke-width: 0.8;
-  stroke-linecap: round;
-  opacity: 0.15;
-}
-
-.sketch-arch-top {
-  fill: none;
-  stroke: var(--ink-medium, #5a4d40);
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  opacity: 0.35;
-}
-
-.sketch-arch-top-faint {
-  fill: none;
-  stroke: var(--ink-muted, #8a7a6b);
-  stroke-width: 0.8;
-  stroke-linecap: round;
-  opacity: 0.12;
-}
-
-.sketch-arch-base {
+.sketch-frame-stroke {
   fill: none;
   stroke: var(--ink-medium, #5a4d40);
   stroke-width: 1;
   stroke-linecap: round;
-  opacity: 0.3;
+  opacity: 0.16;
 }
 
-.sketch-arch-base-faint {
-  fill: none;
+.sketch-frame-stroke--faint {
   stroke: var(--ink-muted, #8a7a6b);
-  stroke-width: 0.6;
-  stroke-linecap: round;
+  stroke-width: 0.7;
   opacity: 0.1;
 }
 
-/* ===== Archway Phase 1 (prompts visible) ===== */
+.sketch--activated .sketch-frame-stroke {
+  opacity: 0.2;
+}
 
-.sketch-arch-construction {
+.sketch--activated .sketch-frame-stroke--faint {
+  opacity: 0.12;
+}
+
+/* ===== Open Loops ===== */
+
+.sketch-open-loop {
   fill: none;
-  stroke: var(--line-faint, #baada0);
-  stroke-width: 0.5;
-  stroke-dasharray: 2,4;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 0.9;
   stroke-linecap: round;
   opacity: 0.15;
 }
 
-.sketch-arch-diagonal {
-  fill: none;
-  stroke: var(--line-faint, #baada0);
-  stroke-width: 0.4;
-  stroke-dasharray: 3,5;
-  stroke-linecap: round;
-  opacity: 0.1;
+.sketch-open-loop--faint {
+  stroke: var(--ink-muted, #8a7a6b);
+  stroke-width: 0.7;
+  opacity: 0.11;
 }
 
-/* ===== Archway Phase 2 (scroll triggered) ===== */
+/* ===== Direction Strokes ===== */
 
-.sketch-arch-top-complete {
+.sketch-direction {
   fill: none;
   stroke: var(--ink-medium, #5a4d40);
-  stroke-width: 1;
+  stroke-width: 0.9;
   stroke-linecap: round;
-  opacity: 0.3;
+  opacity: 0.14;
 }
 
-.sketch-arch-keystone {
-  fill: none;
-  stroke: var(--ink-medium, #5a4d40);
-  stroke-width: 0.6;
-  stroke-linecap: round;
-  opacity: 0.2;
+.sketch-direction--faint {
+  stroke: var(--ink-muted, #8a7a6b);
+  stroke-width: 0.7;
+  opacity: 0.09;
 }
 
-.sketch-arch-ground {
-  fill: none;
-  stroke: var(--ink-medium, #5a4d40);
-  stroke-width: 0.8;
-  stroke-linecap: round;
-  opacity: 0.2;
-  stroke-dasharray: 5,3;
-}
+/* ===== Structure Ghost ===== */
 
-.sketch-tick {
+.sketch-ghost-link {
   fill: none;
-  stroke: var(--ink-medium, #5a4d40);
-  stroke-width: 0.6;
-  stroke-linecap: round;
-  opacity: 0.18;
-}
-
-/* ===== Title Circle ===== */
-
-.sketch-title-circle {
-  fill: none;
-  stroke: var(--ink-medium, #5a4d40);
-  stroke-width: 0.8;
+  stroke: var(--ink-muted, #8a7a6b);
+  stroke-width: 0.7;
   stroke-linecap: round;
   opacity: 0.12;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 0;
+}
+
+.sketch-ghost-node {
+  fill: none;
+  stroke: var(--ink-muted, #8a7a6b);
+  stroke-width: 0.7;
+  opacity: 0.14;
+}
+
+/* ===== Title Loop ===== */
+
+.sketch-title-loop {
+  fill: none;
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+  opacity: 0.11;
   transition: opacity 0.6s ease;
 }
 
-.sketch-title-circle-faint {
+.sketch-title-loop-second {
   fill: none;
   stroke: var(--ink-muted, #8a7a6b);
-  stroke-width: 0.5;
+  stroke-width: 0.6;
   stroke-linecap: round;
-  opacity: 0.06;
+  opacity: 0.07;
+  transition: opacity 0.6s ease;
 }
 
-.sketch-title-circle-echo {
+.sketch--activated .sketch-title-loop {
+  opacity: 0.18;
+}
+
+.sketch--activated .sketch-title-loop-second {
+  opacity: 0.11;
+}
+
+/* Retrace pass — the hand goes round the loop once more */
+.sketch-title-loop-echo {
   fill: none;
   stroke: var(--ink-medium, #5a4d40);
-  stroke-width: 0.6;
+  stroke-width: 0.7;
   stroke-linecap: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  opacity: 0.25;
-  animation: echo-trace 0.8s ease-out forwards;
+  opacity: 0.24;
+  transform: translate(1.5px, -1px) rotate(-0.2deg);
+  transform-origin: 720px 432px;
+  animation: loop-retrace 0.9s ease-out forwards;
 }
 
-@keyframes echo-trace {
+@keyframes loop-retrace {
   0% {
     stroke-dashoffset: 1;
-    opacity: 0.3;
+    opacity: 0.28;
   }
-  50% {
+  55% {
     stroke-dashoffset: 0;
-    opacity: 0.18;
+    opacity: 0.17;
   }
   100% {
     stroke-dashoffset: 0;
     opacity: 0;
   }
-}
-
-.sketch-crosshair {
-  fill: none;
-  stroke: var(--line-faint, #baada0);
-  stroke-width: 0.3;
-  stroke-dasharray: 2,4;
-  opacity: 0.08;
-}
-
-.sketch--activated .sketch-title-circle {
-  opacity: 0.2;
-}
-
-.sketch--activated .sketch-title-circle-faint {
-  opacity: 0.1;
 }
 
 /* ===== Down Arrow ===== */
@@ -297,35 +251,29 @@
 
 .sketch-eraser {
   fill: none;
-  stroke: #f0ebe2;
+  stroke: var(--reader-paper, var(--paper-base, #f0ebe2));
   stroke-width: 10;
   stroke-linecap: round;
   opacity: 0.25;
   filter: blur(1.5px);
+  transition: stroke 1.2s ease;
 }
 
 .sketch-eraser-blotch {
-  fill: #f0ebe2;
+  fill: var(--reader-paper, var(--paper-base, #f0ebe2));
   opacity: 0.12;
   filter: blur(3px);
+  transition: fill 1.2s ease;
 }
 
-/* ===== Margin Bracket ===== */
+/* ===== Margin Mark ===== */
 
-.sketch-bracket {
+.sketch-margin-bracket {
   fill: none;
   stroke: var(--ink-medium, #5a4d40);
   stroke-width: 0.8;
   stroke-linecap: round;
-  opacity: 0.22;
-}
-
-.sketch-bracket-faint {
-  fill: none;
-  stroke: var(--ink-muted, #8a7a6b);
-  stroke-width: 0.5;
-  stroke-linecap: round;
-  opacity: 0.1;
+  opacity: 0.16;
 }
 
 .sketch-squiggle {
@@ -333,20 +281,18 @@
   stroke: var(--ink-medium, #5a4d40);
   stroke-width: 0.6;
   stroke-linecap: round;
-  opacity: 0.15;
+  opacity: 0.13;
 }
 
-/* Phase 2 elements animate faster */
-.sketch--arch-complete .sketch-arch-top-complete,
-.sketch--arch-complete .sketch-arch-keystone,
-.sketch--arch-complete .sketch-arch-ground {
-  animation-duration: 0.6s;
+/* Structure surfaces a little quicker once the reader has committed */
+.sketch--formed .sketch-ghost-link {
+  animation-duration: 0.7s;
 }
 
 /* ===== Reduced Motion (Landing-specific overrides) ===== */
 
 @media (prefers-reduced-motion: reduce) {
-  .sketch-title-circle-echo {
+  .sketch-title-loop-echo {
     animation: none !important;
     opacity: 0 !important;
   }
@@ -367,40 +313,33 @@
   .sketch-up-head {
     stroke: var(--ink-medium, #5a4d40) !important;
   }
-
-  .sketch-guide-h,
-  .sketch-guide-v,
-  .sketch-tick,
-  .sketch-crosshair {
-    stroke-dasharray: none !important;
-  }
 }
 
 /* ===== Responsive ===== */
 
 @media (max-width: 768px) {
-  .sketch-arch-pillar,
-  .sketch-arch-top,
-  .sketch-arch-base,
-  .sketch-arch-pillar-faint,
-  .sketch-arch-top-faint,
-  .sketch-arch-base-faint,
-  .sketch-tick,
-  .sketch-arch-construction,
-  .sketch-arch-diagonal,
-  .sketch-arch-top-complete,
-  .sketch-arch-keystone,
-  .sketch-arch-ground {
-    opacity: 0.15;
+  .sketch-frame-stroke,
+  .sketch-frame-stroke--faint,
+  .sketch-open-loop,
+  .sketch-open-loop--faint {
+    opacity: 0.12;
   }
 
-  .sketch-title-circle {
+  .sketch--activated .sketch-frame-stroke,
+  .sketch--activated .sketch-frame-stroke--faint {
+    opacity: 0.13;
+  }
+
+  .sketch-title-loop {
     opacity: 0.08;
   }
 
-  .sketch-bracket,
-  .sketch-bracket-faint,
-  .sketch-squiggle {
+  .sketch--activated .sketch-title-loop {
+    opacity: 0.12;
+  }
+
+  .sketch-margin-layer,
+  .sketch-ghost-layer {
     display: none;
   }
 
@@ -419,19 +358,19 @@
     opacity: 0.35;
   }
 
-  .sketch-guide-h,
-  .sketch-guide-v {
-    opacity: 0.1;
+  .sketch-paper-trace,
+  .sketch-paper-trace--short {
+    opacity: 0.08;
   }
 }
 
 @media (max-width: 480px) {
-  .sketch-archway-layer {
+  .sketch-frame-layer,
+  .sketch-direction-layer {
     display: none;
   }
 
-  .sketch-guide-h:nth-child(2),
-  .sketch-guide-h:nth-child(4) {
+  .sketch-paper-trace--short {
     display: none;
   }
 }

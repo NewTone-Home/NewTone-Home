@@ -1,0 +1,133 @@
+import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { getPageSceneTrail } from '../src/components/reader/ReaderTraceProgress'
+
+const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
+const landing = read('../src/views/Landing.jsx')
+const reader = read('../src/views/ReaderOrchestrator.jsx')
+const stage = read('../src/views/ReaderStage.jsx')
+const stageCss = read('../src/views/ReaderStage.css')
+const contractCss = read('../src/views/ReaderShellContract.css')
+const progress = read('../src/components/reader/ReaderTraceProgress.jsx')
+const transition = read('../src/components/ReadingTransition.jsx')
+const copy = read('../src/i18n/copy.js')
+const returnControl = read('../src/components/reader/ReaderReturnControl.jsx')
+
+describe('Reader shell contract boundaries', () => {
+  it('removes Center triggers and debug controls from Landing and Reader', () => {
+    expect(landing).not.toContain("transitionTo('center'")
+    expect(landing).not.toContain('enterCenter')
+    expect(landing).not.toContain('landing-reset')
+    expect(reader).not.toContain("transitionTo('center'")
+    expect(stage).not.toContain('ReaderEnvironmentControl')
+  })
+
+  it('keeps environment layers mounted for mode fades but visually removes them from Standard', () => {
+    expect(stage).toContain('<ReaderPrecipitation />')
+    expect(stage).toContain('<ReaderTraceProgress')
+    expect(stage).not.toContain("readingMode === 'standard' && <ReaderTraceProgress")
+    expect(contractCss).toContain('.reader-stage-page--standard .reader-environment-light')
+    expect(contractCss).toContain('opacity:0 !important')
+    expect(contractCss).toContain('background-color 1600ms')
+    expect(stageCss).toContain('.reader-stage-page--standard .reader-stage-beat')
+    expect(stageCss).toContain('animation: none !important')
+  })
+
+  it('keeps the full Reader shell mounted when no publication exists', () => {
+    expect(reader).toContain('readerContent.length === 0')
+    expect(reader).toContain('<EmptyReaderOrchestrator')
+    expect(reader).toContain('<ReaderStage')
+    expect(stage).toContain('emptyDocument')
+    expect(stage).toContain('<ReaderTools')
+    expect(stage).toContain('returnVisible = emptyDocument ||')
+    expect(stage).toContain('暂无可读页面')
+    expect(stage).toContain('!emptyDocument && <ReaderTraceProgress')
+  })
+
+  it('uses current-page reading progress without a pointer tooltip', () => {
+    expect(progress).toContain('getPageSceneTrail(beats, focusBeatIndex)')
+    expect(stage).toContain('progress={progress}')
+    expect(progress).not.toContain('pointedPercentage')
+    expect(progress).not.toContain('linearIndex')
+    expect(progress).not.toContain('readerContentIndex')
+    expect(progress).not.toContain('onClick=')
+    expect(progress).toContain("language === 'en' ? 'remaining:' : '剩余：'")
+    expect(progress).toContain('reader-reading-percent-label')
+    expect(progress).toContain('reader-reading-percent-value')
+    expect(progress).toContain('100 - percentage')
+    expect(progress).toContain("hovered ? ' is-hovered' : ''")
+    expect(progress).toContain('onPointerMove={() => setHovered(true)}')
+    expect(progress).toContain("window.addEventListener('pointermove', trackHover)")
+    expect(contractCss).toContain('.reader-trace.is-hovered .reader-reading-percent')
+    expect(contractCss).toContain('.reader-reading-percent-label { writing-mode:vertical-rl; text-orientation:upright; }')
+    expect(contractCss).toContain('.reader-reading-percent-value { writing-mode:horizontal-tb;')
+    expect(contractCss).toContain('display:inline-flex; flex-direction:column; align-items:center; gap:2px;')
+    expect(contractCss).toContain('.reader-stage-page .reader-trace { width:108px;')
+    expect(contractCss).toContain('.reader-stage-page .reader-trace { left:8px; width:100px; }')
+    expect(stageCss).toContain('writing-mode: vertical-rl')
+    expect(progress).toContain('visualProgress')
+    expect(progress).toContain('Math.exp(-delta / 1900)')
+    expect(contractCss).toContain('var(--reader-feather-start)')
+    expect(contractCss).toContain('var(--reader-feather-end)')
+    expect(contractCss).toContain('repeating-linear-gradient')
+    expect(contractCss).not.toContain('[data-progress="0"]')
+    expect(contractCss).toMatch(/\.reader-trace-line > \.reader-trace-base,[\s\S]*?inset:0 auto 0 0;[\s\S]*?height:auto;/)
+    expect(contractCss).toContain('.reader-trace.is-complete .reader-trace-line { opacity:1; }')
+    expect(stage.match(/<ReaderTraceProgress/g)).toHaveLength(1)
+  })
+
+  it('keeps Landing prompts complete and selection circles retractable', () => {
+    expect(copy).toContain("landingPromptInitial: '向下滚动 · 开始读取'")
+    expect(copy).toContain("landingPromptResume: '向下滚动 · 继续读取'")
+    expect(copy).toContain("landingPromptInitial: 'Scroll down to begin'")
+    expect(transition).toContain('onPointerLeave={primaryHold.retract}')
+    expect(transition).toContain('targetRef.current = 0')
+    expect(transition).toContain('data-selector-stage={currentStage.id}')
+    expect(transition).toContain('language-btn--primary')
+    expect(transition).toContain('language-btn--secondary')
+    expect(transition).toContain('lang-hover-bridge')
+    expect(transition).toContain('lang-expand-layer')
+    expect(transition).not.toContain('文本层已接入')
+  })
+
+  it('keeps the same left return control visible in immersive mode and at page end or Escape', () => {
+    expect(stage).toContain("event.key !== 'Escape'")
+    expect(stage).toContain("const returnVisible = emptyDocument || readingMode === 'immersive' || atPageEnd || escapeReturnVisible")
+    expect(stage).toContain('returnVisible && <ReaderReturnControl')
+    expect(returnControl).toContain('onPointerLeave={retract}')
+    expect(returnControl).toContain('event.deltaY <= 8')
+    expect(returnControl).toContain('RETURN_INPUT_SETTLE_MS')
+    expect(returnControl).toContain('if (!inputReadyRef.current)')
+    expect(returnControl).toContain('pendingBeginRef.current = true')
+    expect(returnControl).toContain('if (pointerInsideRef.current && pendingBeginRef.current) startDrawing()')
+    expect(returnControl).toContain('data-return-progress={progress.toFixed(3)}')
+    expect(returnControl).toContain("{ passive: false, capture: true }")
+    expect(returnControl).toContain('event.stopPropagation()')
+    expect(returnControl).not.toContain('onClick={begin}')
+    expect(returnControl).toMatch(/className="reader-return-text"[\s\S]*?onPointerEnter={begin}/)
+    expect(returnControl).toContain('onPointerMove={begin}')
+    expect(returnControl).toContain("window.addEventListener('pointermove', trackTextBoundary)")
+    const buttonOpening = returnControl.match(/<button[\s\S]*?>/)?.[0] ?? ''
+    expect(buttonOpening).not.toContain('onPointerEnter={begin}')
+    expect(copy).toContain("returnToLanding: '返回入口'")
+    expect(copy).toContain("returnToLanding: 'Return to entrance'")
+    expect(copy).not.toContain("returnToLanding: 'return to main screen'")
+  })
+
+  it('keeps stable scene IDs available without rendering left-side scene icons', () => {
+    const beats = [
+      { worldState: { locationId: 'inner-street' } },
+      { worldState: { locationId: 'inner-street' } },
+      { worldState: { locationId: 'inner-commercial-street' } },
+    ]
+    const trail = getPageSceneTrail(beats, 1)
+    expect(trail).toEqual([
+      { locationId: 'inner-street', firstBeatIndex: 0, lastBeatIndex: 1, state: 'current' },
+      { locationId: 'inner-commercial-street', firstBeatIndex: 2, lastBeatIndex: 2, state: 'future' },
+    ])
+    expect(progress).not.toContain('<ReaderSceneGlyph')
+    expect(progress).not.toContain('className={`reader-scene-footprint')
+    expect(contractCss).not.toContain('.reader-stage-page .reader-scene-footprint')
+    expect(contractCss).toContain('left:14px')
+  })
+})

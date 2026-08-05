@@ -1,0 +1,116 @@
+/* Pending Pause blocks keep their measured space but are not delivered visually or accessibly. */
+.reader-stage-block[data-narrative-delivery='pending'] {
+  visibility: hidden;
+  user-select: none;
+}
+
+.reader-stage-block[data-narrative-delivery='pending'][data-pause-active='true'] {
+  visibility: visible;
+}
+
+/* Reveal keeps every glyph in layout; delivery changes visibility only. */
+[data-narrative-segment-delivery='pending'] {
+  visibility: hidden;
+  user-select: none;
+}
+
+.reader-stage-block[data-pause-active='true'] {
+  position: relative;
+}
+
+.reader-narrative-pause-rhythm {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 0;
+  min-width: 3em;
+  letter-spacing: .18em;
+  opacity: .34;
+  animation: reader-pause-breathe 900ms ease-in-out infinite;
+}
+
+[data-pause-original] {
+  display: block;
+}
+
+[data-pause-original][data-narrative-segment-delivery='animating'] {
+  animation: reader-pause-target-delivery 880ms cubic-bezier(.2, .72, .24, 1) both;
+}
+
+.reader-narrative-reveal-line {
+  display: block;
+  min-height: 1lh;
+}
+
+[data-narrative-reveal-line='pending'] {
+  visibility: hidden;
+  user-select: none;
+}
+
+[data-narrative-reveal-line='animating'] {
+  animation: reader-reveal-line var(--reveal-duration, 1800ms) cubic-bezier(.18, .7, .22, 1) both;
+}
+
+[data-narrative-typewriter-delivery='pending'] {
+  visibility: hidden;
+  user-select: none;
+}
+
+/* Only content after the next unresolved Narrative event is gated. */
+.reader-beat-stack[data-native-scroll='false'] .reader-stage-beat[data-reader-gated='true'] {
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+  transform: translateY(45vh) scale(.985);
+}
+
+.reader-beat-stack[data-native-scroll='true'] .reader-stage-beat[data-reader-gated='true'] {
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.reader-beat-stack[data-native-scroll='true'][data-narrative-input-locked='true'] {
+  overflow-y: hidden;
+  touch-action: none;
+}
+
+@keyframes reader-pause-breathe {
+  0%, 100% { opacity: .24; transform: translateY(1px); }
+  50% { opacity: .78; transform: translateY(0); }
+}
+
+@keyframes reader-pause-target-delivery {
+  from { opacity: 0; transform: translateY(.35em); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes reader-reveal-line {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (hover: none), (pointer: coarse), (max-width: 720px) {
+  .reader-beat-stack[data-native-scroll='true'] {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    scrollbar-width: none;
+  }
+
+  .reader-beat-stack[data-native-scroll='true']::-webkit-scrollbar {
+    display: none;
+  }
+
+  .reader-beat-stack[data-native-scroll='true'] .reader-beat-flow {
+    padding: 46vh 0 52vh;
+    transform: none !important;
+    transition: none !important;
+    will-change: auto;
+  }
+
+  .reader-beat-stack[data-native-scroll='true'] .reader-stage-beat {
+    scroll-margin-block: 42vh;
+  }
+}
