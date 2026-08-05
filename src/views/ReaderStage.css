@@ -1944,6 +1944,21 @@
   transition-duration: 420ms;
 }
 
+.reader-empty-document {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  left: 50%;
+  width: min(32rem, calc(100% - 6rem));
+  color: var(--reader-ink);
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+.reader-empty-document-mark { margin: 0 0 1rem; color: var(--reader-muted); font-size: .68rem; letter-spacing: .18em; text-transform: uppercase; }
+.reader-empty-document h1 { margin: 0; font: 500 clamp(1.5rem, 3.2vw, 2.6rem)/1.3 "Noto Serif SC", "Songti SC", SimSun, serif; }
+.reader-empty-document > p:not(.reader-empty-document-mark) { margin: .85rem auto 0; color: var(--reader-muted); line-height: 1.8; }
+.reader-empty-document button { margin-top: 1.5rem; padding: .6rem .9rem; border: 1px solid var(--reader-border); background: transparent; color: var(--reader-control); font: inherit; cursor: pointer; }
+
 .reader-trace {
   bottom: max(clamp(20px, 2.4vh, 36px), env(safe-area-inset-bottom));
   width: clamp(240px, 23vw, 430px);
@@ -2065,6 +2080,7 @@
   .reader-scene-label { right: auto; bottom: max(14px, env(safe-area-inset-bottom)); left: 50%; text-align: center; }
   .reader-trace { bottom: max(16px, env(safe-area-inset-bottom)); width: min(46vw, 220px); }
   .reader-input-tutorial { display: none; }
+  .reader-empty-document { width: min(26rem, calc(100% - 4.5rem)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -12,8 +12,16 @@ import './ReaderStage.css'
 import './ReaderShellContract.css'
 
 const STANDARD_THEME_POSITIONS = Object.freeze({ light: 0, soft: 0.5, dark: 1 })
+const EMPTY_READER_ENVIRONMENT = Object.freeze({
+  worldLayer: 'surface', time: 'noon', weather: 'clear', light: 'neutral',
+  locationId: 'unpublished', locationLabel: '', characters: [],
+  evidence: { worldLayer: { sourceType: 'system' }, weather: { sourceType: 'system' } },
+})
 
 function ReaderStage({
+  emptyDocument = false,
+  contentStatus,
+  onRetryContent,
   page,
   beats,
   focusBeatIndex,
@@ -50,20 +58,21 @@ function ReaderStage({
   const sceneState = beats[focusBeatIndex]?.sceneState ?? {}
   const sceneStateName = sceneState.sceneState ?? 'normal'
   const nativeEnvironmentState = beats[focusBeatIndex]?.worldState
-  const environmentState = nativeEnvironmentState
+  const environmentState = nativeEnvironmentState ?? EMPTY_READER_ENVIRONMENT
   const environmentVisual = resolveReaderEnvironmentPreview(environmentState)
   const immersiveStyle = environmentVisual.style
   const stageStyle = readingMode === 'standard'
     ? getReaderThemeVariables(themePosition ?? STANDARD_THEME_POSITIONS[standardTheme] ?? 0.5)
     : immersiveStyle
   const atPageEnd = focusBeatIndex >= Math.max(0, beats.length - 1)
-  const returnVisible = readingMode === 'immersive' || atPageEnd || escapeReturnVisible
-  const locationLabel = getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabel)
-    ?.replace(/\s*·\s*/g, ' · ')
+  const returnVisible = emptyDocument || readingMode === 'immersive' || atPageEnd || escapeReturnVisible
+  const locationLabel = emptyDocument
+    ? (language === 'en' ? 'No page' : '暂无页面')
+    : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
 
   useEffect(() => {
     setEscapeReturnVisible(false)
-  }, [page.id])
+  }, [page?.id])
 
   useEffect(() => {
     const revealReturn = event => {
@@ -102,7 +111,7 @@ function ReaderStage({
       <section
         ref={rootRef}
         className={`reader-stage${sceneTransitionKind ? ` reader-stage--scene-${sceneTransitionKind}` : ''}`}
-        aria-label={`阅读场景：${environmentState.locationLabel}`}
+        aria-label={emptyDocument ? 'NewTone Reader：暂无可读页面' : `阅读场景：${environmentState.locationLabel}`}
         data-transition-kind={transitionKind || 'idle'}
       >
         <div className="reader-environment-light" aria-hidden="true" />
@@ -123,7 +132,7 @@ function ReaderStage({
           locationId={environmentState.locationId}
           locationLabel={locationLabel}
         />
-        <ReaderBeatStack
+        {!emptyDocument && <ReaderBeatStack
           beats={beats}
           focusBeatIndex={focusBeatIndex}
           onFocusMotionEnd={onFocusMotionEnd}
@@ -138,15 +147,21 @@ function ReaderStage({
           activeNarrativeRevealId={activeNarrativeRevealId}
           activeNarrativeTypewriterId={activeNarrativeTypewriterId}
           focusRef={focusRef}
-        />
-        <ReaderTraceProgress
-          key={page.id}
+        />}
+        {emptyDocument && <section className="reader-empty-document" aria-labelledby="reader-empty-document-title">
+          <p className="reader-empty-document-mark">NewTone / Reader</p>
+          <h1 id="reader-empty-document-title">{language === 'en' ? 'No readable page' : '暂无可读页面'}</h1>
+          <p>{language === 'en' ? 'The body has not been published. Reader settings remain available.' : '正文尚未发布。Reader 的阅读设置可以继续使用。'}</p>
+          {contentStatus !== 'empty' && <button type="button" onClick={onRetryContent}>{language === 'en' ? 'Check again' : '重新检查正文'}</button>}
+        </section>}
+        {!emptyDocument && <ReaderTraceProgress
+          key={page?.id}
           progress={progress}
           beats={beats}
           focusBeatIndex={focusBeatIndex}
           language={language}
           readingMode={readingMode}
-        />
+        />}
         {returnVisible && <ReaderReturnControl onComplete={onReturnLanding} language={language} />}
         {chapterTrialEnded && <span className="reader-chapter-end" aria-hidden="true" />}
       </section>

@@ -24,7 +24,7 @@ function getPage(location, content = readerContent) {
 
 function resolveLocationForContent(location) { return resolveReaderDisplayLocation(location) }
 
-function ReaderOrchestrator({ onReaderReady }) {
+function PopulatedReaderOrchestrator({ onReaderReady }) {
   const language = useProgressStore(state => state.language)
   const setLanguage = useProgressStore(state => state.setLanguage)
   const committedLocation = useProgressStore(state => state.committedLocation)
@@ -262,6 +262,70 @@ function ReaderOrchestrator({ onReaderReady }) {
       onReturnLanding={handleReturnLanding}
     />
   )
+}
+
+function EmptyReaderOrchestrator({ contentStatus, onRetryContent, onReaderReady }) {
+  const language = useProgressStore(state => state.language)
+  const setLanguage = useProgressStore(state => state.setLanguage)
+  const readingMode = useProgressStore(state => state.readingMode)
+  const standardTheme = useProgressStore(state => state.standardTheme)
+  const themePosition = useProgressStore(state => state.themePosition)
+  const motionMode = useProgressStore(state => state.motionMode)
+  const selectReadingMode = useProgressStore(state => state.selectReadingMode)
+  const setStandardTheme = useProgressStore(state => state.setStandardTheme)
+  const setThemePosition = useProgressStore(state => state.setThemePosition)
+  const setReaderExitGestureLearned = useProgressStore(state => state.setReaderExitGestureLearned)
+  const transitionTo = useTransitionStore(state => state.transitionTo)
+  const rootRef = useRef(null)
+  const focusRef = useRef(null)
+
+  useEffect(() => { onReaderReady?.() }, [onReaderReady])
+
+  const handleReturnLanding = useCallback(() => {
+    setReaderExitGestureLearned()
+    trackEvent('reader_return', { exitReason: 'return', progressRatio: 0 })
+    transitionTo('landing', { preset: 'reader-to-surface', waitForReady: false })
+  }, [setReaderExitGestureLearned, transitionTo])
+
+  return <ReaderStage
+    emptyDocument
+    contentStatus={contentStatus}
+    onRetryContent={onRetryContent}
+    page={null}
+    beats={[]}
+    focusBeatIndex={0}
+    progress={0}
+    language={language}
+    onLanguage={setLanguage}
+    readingMode={readingMode}
+    standardTheme={standardTheme}
+    themePosition={themePosition}
+    motionMode={motionMode}
+    onReadingMode={selectReadingMode}
+    onStandardTheme={setStandardTheme}
+    onThemePosition={setThemePosition}
+    onFocusMotionEnd={() => {}}
+    onNativeFocusChange={() => false}
+    onNativeBoundary={() => {}}
+    onNativeScrollOffset={() => {}}
+    initialScrollOffset={0}
+    narrativeRuntimeEnabled={false}
+    narrativeDeliveryStates={{}}
+    transitionKind="idle"
+    sceneTransitionKind={null}
+    autoVisual={null}
+    tutorialVisible={false}
+    rootRef={rootRef}
+    focusRef={focusRef}
+    chapterTrialEnded={false}
+    onReturnLanding={handleReturnLanding}
+  />
+}
+
+function ReaderOrchestrator(props) {
+  return readerContent.length === 0
+    ? <EmptyReaderOrchestrator {...props} />
+    : <PopulatedReaderOrchestrator {...props} />
 }
 
 export default ReaderOrchestrator

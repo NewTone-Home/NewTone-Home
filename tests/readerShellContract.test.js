@@ -33,6 +33,17 @@ describe('Reader shell contract boundaries', () => {
     expect(stageCss).toContain('animation: none !important')
   })
 
+  it('keeps the full Reader shell mounted when no publication exists', () => {
+    expect(reader).toContain('readerContent.length === 0')
+    expect(reader).toContain('<EmptyReaderOrchestrator')
+    expect(reader).toContain('<ReaderStage')
+    expect(stage).toContain('emptyDocument')
+    expect(stage).toContain('<ReaderTools')
+    expect(stage).toContain('returnVisible = emptyDocument ||')
+    expect(stage).toContain('暂无可读页面')
+    expect(stage).toContain('!emptyDocument && <ReaderTraceProgress')
+  })
+
   it('uses current-page reading progress without a pointer tooltip', () => {
     expect(progress).toContain('getPageSceneTrail(beats, focusBeatIndex)')
     expect(stage).toContain('progress={progress}')
@@ -81,7 +92,7 @@ describe('Reader shell contract boundaries', () => {
 
   it('keeps the same left return control visible in immersive mode and at page end or Escape', () => {
     expect(stage).toContain("event.key !== 'Escape'")
-    expect(stage).toContain("const returnVisible = readingMode === 'immersive' || atPageEnd || escapeReturnVisible")
+    expect(stage).toContain("const returnVisible = emptyDocument || readingMode === 'immersive' || atPageEnd || escapeReturnVisible")
     expect(stage).toContain('returnVisible && <ReaderReturnControl')
     expect(returnControl).toContain('onPointerLeave={retract}')
     expect(returnControl).toContain('event.deltaY <= 8')

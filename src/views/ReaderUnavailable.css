@@ -1,7 +1,0 @@
-.reader-unavailable{min-height:100dvh;box-sizing:border-box;display:grid;place-items:center;padding:clamp(24px,7vw,96px);background:var(--reader-background,#ece8de);color:var(--reader-text,#22252a)}
-.reader-unavailable section{width:min(34rem,100%);padding:clamp(24px,5vw,56px);border-block:1px solid color-mix(in srgb,currentColor 20%,transparent);text-align:center}
-.reader-unavailable-mark{margin:0 0 1.25rem;font:500 .72rem/1 system-ui;letter-spacing:.18em;text-transform:uppercase;opacity:.58}
-.reader-unavailable h1{margin:0;font:500 clamp(1.8rem,6vw,3.2rem)/1.2 "Noto Serif SC","Songti SC",serif}
-.reader-unavailable section>p:not(.reader-unavailable-mark){margin:1rem auto 0;max-width:27rem;line-height:1.8;opacity:.68}
-.reader-unavailable section>div{display:flex;justify-content:center;flex-wrap:wrap;gap:.75rem;margin-top:2rem}
-.reader-unavailable button{min-width:8rem;padding:.7rem 1rem;border:1px solid currentColor;background:transparent;color:inherit;font:inherit;cursor:pointer}
