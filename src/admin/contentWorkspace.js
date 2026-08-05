@@ -107,6 +107,11 @@ export function compileWorkspace(workspace) {
           worldState: {
             worldLayer: page.worldLayer, time: page.time, weather: page.weather,
             light: page.light, locationId: pageId, locationLabel: page.sceneLabel.trim() || chapter.title.trim(),
+            characters: [],
+            evidence: {
+              worldLayer: { sourceType: 'owner-authored' },
+              weather: { sourceType: 'owner-authored' },
+            },
             locationLabels: {
               zh: page.sceneLabel.trim() || chapter.title.trim(),
               en: page.sceneLabelEn.trim() || chapter.titleEn.trim(),

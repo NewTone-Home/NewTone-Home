@@ -25,6 +25,13 @@ describe('owner content workspace', () => {
     }] })
     expect(content[0].pages[0].beats.map(beat => beat.blocks[0].text)).toEqual(['甲', '乙'])
     expect(content[0].pages[0].beats.map(beat => beat.translations.en.blocks[0].text)).toEqual(['alpha', 'beta'])
+    expect(content[0].pages[0].beats[0].worldState).toMatchObject({
+      characters: [],
+      evidence: {
+        worldLayer: { sourceType: 'owner-authored' },
+        weather: { sourceType: 'owner-authored' },
+      },
+    })
   })
 
   it('preserves an explicit one-to-many English paragraph mapping', () => {
