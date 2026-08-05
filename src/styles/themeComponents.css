@@ -1,0 +1,26 @@
+/* NewTone 视觉 token v0.1 — 第三层:component
+   只为当前确实存在、或 Theme Lab 需要验证的组件提供映射。
+   本轮 Reader 本体不改;reader-* 组件 token 是前瞻映射,
+   尚未被任何正式 Reader 样式引用。 */
+
+[data-nt-theme] {
+  /* Reader 工具(前瞻映射) */
+  --reader-tool-color: var(--text-support);
+  --reader-tool-active-color: var(--text-scene-emphasis);
+  --reader-tool-focus-ring: var(--focus-ring);
+  --reader-paper-surface: var(--surface-world);
+  --chapter-marker-line: var(--line-pencil);
+
+  /* Theme Lab 浮层工具 */
+  --theme-lab-panel-surface: var(--surface-float);
+  --theme-lab-panel-border: var(--surface-float-border);
+  --theme-lab-control-border: var(--line-control);
+  --theme-lab-control-color: var(--text-support);
+  --theme-lab-control-active-color: var(--text-scene-emphasis);
+
+  /* 环形滑块 */
+  --ring-slider-track: var(--line-control);
+  --ring-slider-stroke: var(--text-support);
+  --ring-slider-stroke-active: var(--text-scene-emphasis);
+  --ring-slider-focus: var(--focus-ring);
+}

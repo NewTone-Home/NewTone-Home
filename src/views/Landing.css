@@ -1,10 +1,16 @@
+.page-shell:has(.landing) {
+  background-color: var(--reader-paper, var(--paper-base));
+}
+
 .landing {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   position: relative;
+  background-color: var(--reader-paper, var(--paper-base));
+  color: var(--reader-ink, var(--ink-dark));
 
-  transition: opacity var(--landing-leave-ms, 300ms) ease-in, transform var(--landing-leave-ms, 300ms) ease-in;
+  transition: opacity var(--landing-leave-ms, 300ms) ease-in, transform var(--landing-leave-ms, 300ms) ease-in, background-color 1200ms ease, color 900ms ease;
 }
 
 .landing--leaving {
@@ -37,11 +43,12 @@
   color: var(--ink-dark);
   font-style: italic;
   cursor: default;
-  transition: color 0.4s ease, text-shadow 0.4s ease, transform 0.3s ease;
 }
 
-.landing-title:hover {
-  transform: scale(1.03);
+.landing-title::before {
+  content: '';
+  position: absolute;
+  inset: -50px;
 }
 
 @media (min-width: 768px) {
@@ -51,61 +58,21 @@
   }
 }
 
-.landing-title--activated:not(.landing-title--center-unlocked) .landing-title-text {
-  animation: title-ink-breathe var(--pulse-duration) ease-in-out infinite;
-}
-
-@keyframes title-ink-breathe {
-  0%, 100% {
-    color: var(--ink-dark);
-    text-shadow:
-      0 0 4px rgba(70,55,40,0.18),
-      0 0 10px rgba(70,55,40,0.14),
-      0 0 22px rgba(70,55,40,0.08);
-    transform: scale(1);
-  }
-  50% {
-    color: #1a140e;
-    text-shadow:
-      0 0 6px rgba(70,55,40,0.32),
-      0 0 16px rgba(70,55,40,0.22),
-      0 0 32px rgba(70,55,40,0.12);
-    transform: scale(1.008);
-  }
-}
-
-.landing-title--center-unlocked.landing-title--activated {
-  color: var(--accent-amber);
-  text-shadow:
-    0 0 5px rgba(196,148,80,0.28),
-    0 0 14px rgba(196,148,80,0.20),
-    0 0 30px rgba(196,148,80,0.12);
-}
-
-.landing-title--center-unlocked.landing-title--activated .landing-title-text {
-  animation: title-amber-breathe var(--pulse-duration) ease-in-out infinite;
-}
-
-@keyframes title-amber-breathe {
-  0%, 100% {
-    text-shadow:
-      0 0 5px rgba(196,148,80,0.28),
-      0 0 14px rgba(196,148,80,0.20),
-      0 0 30px rgba(196,148,80,0.12);
-    transform: scale(1);
-  }
-  50% {
-    text-shadow:
-      0 0 8px rgba(196,148,80,0.40),
-      0 0 20px rgba(196,148,80,0.28),
-      0 0 40px rgba(196,148,80,0.16);
-    transform: scale(1.008);
-  }
-}
-
+/* The word itself is painted by LandingTitleMark; the DOM text only holds the
+   box (and the accessible name) so the SVG has something to size itself to. */
 .landing-title-text {
   position: relative;
   display: inline-block;
+  color: transparent;
+  pointer-events: none;
+  transform: translate3d(var(--landing-parallax-x, 0), var(--landing-parallax-y, 0), 0) scale(var(--landing-title-hover-scale, 1));
+  transition: transform 320ms cubic-bezier(.2,.8,.2,1);
+  will-change: transform;
+}
+
+.landing-title:hover .landing-title-text,
+.landing-title:focus-visible .landing-title-text {
+  --landing-title-hover-scale: 1.026;
 }
 
 /* ===== Entry Groups (text + arrow containers) ===== */
@@ -231,63 +198,38 @@
   }
 }
 
-/* ===== Pencil underline for title (activated) ===== */
+/* ===== Pencil underline — the mark left once the stroke has landed ===== */
 
-.landing-title--activated .landing-title-text::after {
+.landing-title--drawn .landing-title-text::after {
   content: '';
   position: absolute;
-  left: -2px;
-  right: -2px;
+  left: -4px;
+  right: 2px;
   bottom: 2px;
-  height: 1.5px;
+  height: 1.2px;
   background: var(--ink-medium);
-  opacity: 0.2;
-  transform: scaleX(0);
-  transform-origin: left;
-  animation: underline-sketch 0.6s ease-out 0.3s forwards;
+  box-shadow: 1.8px 2.6px 0 -0.2px rgba(60,48,36,0.20);
+  opacity: 0.3;
+  transform: scaleX(0) rotate(-0.35deg);
+  transform-origin: left center;
+  animation: underline-retrace 260ms ease-out forwards;
 }
 
-@keyframes underline-sketch {
+@keyframes underline-retrace {
   0% {
-    transform: scaleX(0);
-    opacity: 0.15;
-  }
-  50% {
-    transform: scaleX(0.7);
-    opacity: 0.18;
+    transform: scaleX(0) rotate(-0.35deg);
+    opacity: 0.22;
   }
   100% {
-    transform: scaleX(0.95);
-    opacity: 0.15;
+    transform: scaleX(0.96) rotate(-0.35deg);
+    opacity: 0.3;
   }
 }
 
-.landing-title--center-unlocked.landing-title--activated .landing-title-text::after {
+.landing-title--center-unlocked.landing-title--drawn .landing-title-text::after {
   background: var(--accent-amber);
-  opacity: 0.2;
-}
-
-/* ===== Lang Toggle (pencil annotation style) ===== */
-
-.landing-lang-toggle {
-  position: fixed;
-  top: var(--space-md);
-  right: var(--space-md);
-  background: none;
-  border: none;
-  color: var(--ink-muted);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  letter-spacing: 1px;
-  padding: var(--space-xs) var(--space-sm);
-  z-index: 2;
-  transition: color 0.2s ease;
-}
-
-.landing-lang-toggle:hover {
-  color: var(--ink-dark);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  box-shadow: 1.8px 2.6px 0 -0.2px rgba(150,105,45,0.24);
+  opacity: 0.34;
 }
 
 /* ===== Reset Button (pencil annotation style) ===== */
@@ -316,20 +258,11 @@
 /* ===== Reduced Motion ===== */
 
 @media (prefers-reduced-motion: reduce) {
-  .landing-title--activated:not(.landing-title--center-unlocked) .landing-title-text,
-  .landing-title--center-unlocked.landing-title--activated .landing-title-text {
+  /* The stroke itself is skipped in useTitleRetrace; the mark it leaves still shows. */
+  .landing-title--drawn .landing-title-text::after {
     animation: none !important;
-  }
-
-  .landing-title--center-unlocked.landing-title--activated {
-    color: var(--accent-amber) !important;
-    text-shadow: none !important;
-  }
-
-  .landing-title--activated .landing-title-text::after {
-    animation: none !important;
-    transform: scaleX(1) !important;
-    opacity: 0.15 !important;
+    transform: scaleX(0.96) rotate(-0.35deg) !important;
+    opacity: 0.3 !important;
   }
 
   .landing-direction-prompts--revealed .landing-prompt--down,
@@ -342,6 +275,35 @@
     animation: none !important;
     opacity: 0 !important;
   }
+
+  .landing-title-text {
+    transform: none !important;
+  }
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--down,
+.page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--up,
+.page-shell[data-motion-mode="reduced"] .title-signal-particle {
+  animation: none !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-title--drawn .landing-title-text::after {
+  animation: none !important;
+  transform: scaleX(0.96) rotate(-0.35deg) !important;
+  opacity: 0.3 !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--down,
+.page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--up {
+  opacity: 0.75 !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .title-signal-particle {
+  opacity: 0 !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-title-text {
+  transform: none !important;
 }
 
 /* ===== Responsive ===== */
@@ -360,7 +322,6 @@
     letter-spacing: 1px;
   }
 
-  .landing-lang-toggle,
   .landing-reset {
     font-size: 11px;
   }

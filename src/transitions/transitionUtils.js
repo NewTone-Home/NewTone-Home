@@ -21,16 +21,3 @@ export function createTimerRegistry() {
     },
   }
 }
-
-export function createCallGuard() {
-  let called = false
-  return (fn) => {
-    if (called) return
-    called = true
-    fn()
-  }
-}
-
-export function prefersReducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}

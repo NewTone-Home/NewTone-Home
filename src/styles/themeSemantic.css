@@ -1,0 +1,121 @@
+/* NewTone 视觉 token v0.1 — 第二层:semantic(场景实验室方向)
+   核心表面只有三层:世界/主内容层 < 浮层纸片 < 当前交互层。
+   正文直接生活在世界表面上,不放在明显的纸卡里。
+   默认无边框、无分隔线;线条只作为内容、反馈或异常出现。
+   作用域挂在 [data-nt-theme] 上,不污染现有页面。 */
+
+[data-nt-theme] {
+  /* 动效语义(主题无关) */
+  --motion-fast: var(--nt-duration-fast);
+  --motion-standard: var(--nt-duration-standard);
+  --motion-structural: var(--nt-duration-structural);
+  --motion-narrative: var(--nt-duration-narrative);
+}
+
+/* ===== 明亮:清楚、轻、世界明亮但不刺眼 ===== */
+[data-nt-theme='light'] {
+  --surface-world: var(--nt-color-paper-100);
+  --surface-float: var(--nt-color-paper-050);
+  --surface-interactive: #fffdf6;
+
+  --surface-world-texture:
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(90, 75, 55, 0.008) 2px 3px),
+    radial-gradient(ellipse at 50% 30%, transparent 55%, rgba(150, 128, 95, 0.05) 100%);
+  --surface-float-border: rgba(91, 77, 62, 0.16);
+  --surface-interactive-border: rgba(91, 77, 62, 0.32);
+
+  --text-body: var(--nt-color-ink-900);
+  --text-support: var(--nt-color-ink-500);
+  --text-interactive: var(--nt-color-amber-600);
+  --text-scene-emphasis: var(--nt-color-ink-950);
+  --text-disabled: var(--nt-color-ink-300);
+
+  --line-control: rgba(91, 77, 62, 0.3);
+  --line-select: #5b4d3e;
+  --line-pencil: var(--nt-color-pencil-600);
+  --line-erased: rgba(111, 98, 80, 0.2);
+
+  --focus-ring: var(--nt-color-amber-600);
+  --accent: var(--nt-color-amber-500);
+  --state-warning: var(--nt-color-rust-600);
+
+  --shadow-color-float: rgba(70, 58, 40, 0.12);
+  --shadow-color-interactive: rgba(70, 58, 40, 0.18);
+}
+
+/* ===== 柔和:温暖、安静、长读舒适 ===== */
+[data-nt-theme='soft'] {
+  --surface-world: var(--nt-color-paper-300);
+  --surface-float: #f2ebdd;
+  --surface-interactive: #f9f3e6;
+
+  --surface-world-texture:
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(95, 78, 55, 0.01) 2px 3px),
+    radial-gradient(ellipse at 50% 30%, transparent 50%, rgba(160, 132, 95, 0.07) 100%);
+  --surface-float-border: rgba(91, 77, 62, 0.18);
+  --surface-interactive-border: rgba(91, 77, 62, 0.34);
+
+  --text-body: var(--nt-color-ink-850);
+  --text-support: #756d62;
+  --text-interactive: #7d5f35;
+  --text-scene-emphasis: #262320;
+  --text-disabled: #ab9f8c;
+
+  --line-control: rgba(91, 77, 62, 0.32);
+  --line-select: #5b4d3e;
+  --line-pencil: var(--nt-color-pencil-600);
+  --line-erased: rgba(111, 98, 80, 0.22);
+
+  --focus-ring: #7d5f35;
+  --accent: var(--nt-color-amber-500);
+  --state-warning: var(--nt-color-rust-600);
+
+  --shadow-color-float: rgba(75, 58, 35, 0.14);
+  --shadow-color-interactive: rgba(75, 58, 35, 0.2);
+}
+
+/* ===== 夜间:低亮度、稳定、正文仍清楚 ===== */
+[data-nt-theme='dark'] {
+  --surface-world: var(--nt-color-night-900);
+  --surface-float: var(--nt-color-night-800);
+  --surface-interactive: var(--nt-color-night-700);
+
+  --surface-world-texture:
+    radial-gradient(ellipse at 50% 25%, transparent 55%, rgba(0, 0, 0, 0.3) 100%);
+  --surface-float-border: rgba(200, 189, 169, 0.18);
+  --surface-interactive-border: rgba(200, 189, 169, 0.36);
+
+  --text-body: var(--nt-color-night-100);
+  --text-support: var(--nt-color-night-300);
+  --text-interactive: var(--nt-color-amber-300);
+  --text-scene-emphasis: var(--nt-color-night-050);
+  --text-disabled: var(--nt-color-night-500);
+
+  --line-control: rgba(200, 189, 169, 0.3);
+  --line-select: var(--nt-color-night-200);
+  --line-pencil: var(--nt-color-pencil-300);
+  --line-erased: rgba(200, 189, 169, 0.18);
+
+  --focus-ring: var(--nt-color-amber-300);
+  --accent: var(--nt-color-amber-500);
+  --state-warning: var(--nt-color-rust-300);
+
+  /* 夜间浮层层级主要靠表面亮度 + 描边 */
+  --shadow-color-float: rgba(0, 0, 0, 0.4);
+  --shadow-color-interactive: rgba(0, 0, 0, 0.5);
+}
+
+/* ===== 兼容映射与合成值(所有主题共用) =====
+   页面底与主纸面已合并:旧名指向同一个世界表面。 */
+[data-nt-theme] {
+  --surface-page: var(--surface-world);
+  --surface-paper: var(--surface-world);
+  --surface-hover: var(--surface-interactive);
+  --surface-page-texture: var(--surface-world-texture);
+  --surface-paper-texture: none;
+  --surface-hover-border: var(--surface-interactive-border);
+
+  --shadow-float: var(--nt-shadow-float-geometry) var(--shadow-color-float);
+  --shadow-interactive: var(--nt-shadow-hover-geometry) var(--shadow-color-interactive);
+  --shadow-hover: var(--shadow-interactive);
+}

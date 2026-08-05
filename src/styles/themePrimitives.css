@@ -1,0 +1,102 @@
+/* NewTone 视觉 token v0.1 — 第一层:primitive
+   原始材料,不表达用途。只收录本轮真正使用的值。
+   与 readerTheme.js 的三档锚点色保持同源。 */
+
+:root {
+  /* ===== 颜色:纸面族(明 → 暗) ===== */
+  --nt-color-paper-050: #fbf8f1;
+  --nt-color-paper-100: #f5f1e8;
+  --nt-color-paper-200: #efe8da;
+  --nt-color-paper-300: #e9e1d3;
+  --nt-color-paper-400: #ddd2be;
+  --nt-color-paper-500: #cfc3ac;
+
+  /* ===== 颜色:墨族(用于亮色主题文字与线条) ===== */
+  --nt-color-ink-950: #1f1d19;
+  --nt-color-ink-900: #292722;
+  --nt-color-ink-850: #302c27;
+  --nt-color-ink-700: #4a443c;
+  --nt-color-ink-600: #5b544a;
+  --nt-color-ink-500: #716d65;
+  --nt-color-ink-400: #8d8679;
+  --nt-color-ink-300: #a89f90;
+  --nt-color-ink-200: #b9b0a2;
+
+  /* ===== 颜色:夜族(用于夜间主题表面与文字) ===== */
+  --nt-color-night-975: #121110;
+  --nt-color-night-950: #171614;
+  --nt-color-night-900: #1c1a18;
+  --nt-color-night-800: #272420;
+  --nt-color-night-700: #322e28;
+  --nt-color-night-600: #4f4b45;
+  --nt-color-night-500: #6b6459;
+  --nt-color-night-400: #877f71;
+  --nt-color-night-300: #a69e91;
+  --nt-color-night-200: #c8bda9;
+  --nt-color-night-100: #e6e0d4;
+  --nt-color-night-050: #f0ebe0;
+
+  /* ===== 颜色:强调与手稿 ===== */
+  --nt-color-amber-600: #8a6a3c;
+  --nt-color-amber-500: #c49450;
+  --nt-color-amber-300: #d0a468;
+  --nt-color-pencil-600: #6f6250;
+  --nt-color-pencil-300: #8f8574;
+  --nt-color-rust-600: #9c4a2c;
+  --nt-color-rust-300: #cf8a63;
+
+  /* ===== 透明度阶 ===== */
+  --nt-alpha-ghost: 0.14;
+  --nt-alpha-faint: 0.26;
+  --nt-alpha-mid: 0.5;
+  --nt-alpha-strong: 0.78;
+
+  /* ===== 间距 ===== */
+  --nt-space-1: 4px;
+  --nt-space-2: 8px;
+  --nt-space-3: 12px;
+  --nt-space-4: 16px;
+  --nt-space-5: 24px;
+  --nt-space-6: 32px;
+  --nt-space-7: 48px;
+
+  /* ===== 尺寸 ===== */
+  --nt-size-control: 34px;
+  --nt-size-ring: 22px;
+  --nt-size-ring-hit: 44px;
+
+  /* ===== 圆角 ===== */
+  --nt-radius-sm: 3px;
+  --nt-radius-md: 8px;
+  --nt-radius-lg: 14px;
+  --nt-radius-full: 999px;
+
+  /* ===== 阴影几何(颜色由 semantic 层合成) ===== */
+  --nt-shadow-float-geometry: 0 8px 22px;
+  --nt-shadow-hover-geometry: 0 12px 30px;
+
+  /* ===== 动效时长 ===== */
+  --nt-duration-instant: 80ms;
+  --nt-duration-fast: 140ms;
+  --nt-duration-standard: 260ms;
+  --nt-duration-structural: 460ms;
+  --nt-duration-narrative: 1100ms;
+
+  /* ===== 缓动 ===== */
+  --nt-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --nt-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --nt-ease-draw: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* ===== 字体 ===== */
+  --nt-font-body: -apple-system, 'Noto Sans SC', 'PingFang SC', sans-serif;
+  --nt-font-size-title: 24px;
+  --nt-font-size-body: 16px;
+  --nt-font-size-support: 13px;
+  --nt-font-size-small: 12px;
+  --nt-line-body: 1.9;
+  --nt-line-tight: 1.4;
+
+  /* ===== 线宽 ===== */
+  --nt-line-hair: 1px;
+  --nt-line-bold: 2px;
+}

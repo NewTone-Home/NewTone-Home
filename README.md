@@ -1,16 +1,28 @@
-# React + Vite
+# NewTone first release
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Landing and Reader are the only public product surfaces. Center is intentionally excluded. Public visitors require no account and read only the current published Reader content from Supabase. Browser reading progress is local-only.
 
-Currently, two official plugins are available:
+The database intentionally starts with no published body content. The public shell therefore reports that the new body is not yet published; no legacy manuscript or placeholder prose is bundled. Formal production launch is blocked until the owner authors and publishes the approved new body through `/admin`.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Local verification
 
-## React Compiler
+```bash
+npm ci
+npm test
+npm run lint
+npm run build
+npm run preview
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Copy `.env.example` to `.env.local` and set only:
 
-## Expanding the Oxlint configuration
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Never put a Supabase service-role key in a `VITE_` variable. See `docs/OWNER_ADMIN_AND_ANALYTICS.md` for the owner allow-list, Magic Link redirect, content publication, analytics query, privacy, and retention procedure.
+
+## Vercel
+
+The framework is Vite, build command is `npm run build`, and output directory is `dist`. Set the two public Supabase variables for both Preview and Production. Production Branch must be `main`. `/admin` is an unlinked SPA route protected by Supabase Auth plus database owner authorization.
+
+GitHub Pages configuration, if retained in repository history, is preview-only and is not the formal production channel.

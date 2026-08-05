@@ -1,195 +1,38 @@
 import { create } from 'zustand'
-import { isValidPhase, isAfter } from '../constants/phases'
+import { readerContent } from '../data/readerContent'
+import { getNextReaderLanguage, READER_LANGUAGE_CODES } from '../i18n/languages'
+import { comparePosition, resolvePosition } from '../reader/readerPosition'
+import { clampThemePosition, legacyThemeName, migrateThemePosition } from '../reader/readerTheme'
+import { useNarrativeProgressStore } from './narrativeProgressStore'
+import { clearProgressStorage, createInitialProgressState, loadProgressState, saveProgressState } from './progressMigration'
 
-const STORAGE_KEY = 'newtone-progress-v1'
-const VERSION = 1
-const VALID_VIEWS = ['landing', 'reader', 'center']
-const PERSISTED_KEYS = ['currentView', 'maxReadPhase', 'lastReadPhase', 'lastScrollY', 'centerUnlocked', 'centerMode', 'language', 'hasInitializedLanguage']
-
-const VALID_CENTER_MODES = ['home', 'records', 'perspectives', 'fragments']
-const VALID_LANGUAGES = ['zh', 'en', 'ja', 'ko', 'fr', 'es', 'id']
-
-const initialState = {
-  currentView: 'landing',
-  currentReadingPhase: null,
-  maxReadPhase: null,
-  lastReadPhase: null,
-  lastScrollY: 0,
-  centerUnlocked: false,
-  centerMode: 'home',
-  resumeRequested: false,
-  language: 'zh',
-  hasInitializedLanguage: false,
-}
-
-function sanitizePersisted(data) {
-  const clean = {}
-
-  if (data.maxReadPhase === null || isValidPhase(data.maxReadPhase)) {
-    clean.maxReadPhase = data.maxReadPhase ?? null
-  } else {
-    clean.maxReadPhase = null
-  }
-
-  if (data.lastReadPhase === null || isValidPhase(data.lastReadPhase)) {
-    clean.lastReadPhase = data.lastReadPhase ?? null
-  } else {
-    clean.lastReadPhase = null
-  }
-
-  clean.lastScrollY = typeof data.lastScrollY === 'number' && Number.isFinite(data.lastScrollY)
-    ? Math.max(data.lastScrollY, 0)
-    : 0
-
-  if (VALID_CENTER_MODES.includes(data.centerMode)) {
-    clean.centerMode = data.centerMode
-  } else {
-    clean.centerMode = 'home'
-  }
-
-  clean.centerUnlocked = Boolean(data.centerUnlocked)
-
-  if (clean.centerUnlocked && clean.maxReadPhase !== 'M4') {
-    clean.maxReadPhase = 'M4'
-  }
-  if (clean.maxReadPhase === 'M4' && !clean.centerUnlocked) {
-    clean.centerUnlocked = true
-  }
-
-  clean.currentView =
-    VALID_VIEWS.includes(data.currentView)
-      ? data.currentView
-      : 'landing'
-
-  if (clean.currentView === 'center' && !clean.centerUnlocked) {
-    clean.currentView = 'landing'
-  }
-
-  if (clean.currentView === 'reader') {
-    clean.resumeRequested = true
-  }
-
-  clean.language = VALID_LANGUAGES.includes(data.language) ? data.language : 'zh'
-  clean.hasInitializedLanguage = Boolean(data.hasInitializedLanguage)
-
-  return clean
-}
-
-function loadPersisted() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const data = JSON.parse(raw)
-    if (data._version !== VERSION) {
-      localStorage.removeItem(STORAGE_KEY)
-      return null
-    }
-    return sanitizePersisted(data)
-  } catch {
-    return null
-  }
-}
-
-function savePersisted(state) {
-  const toStore = { _version: VERSION }
-  for (const key of PERSISTED_KEYS) {
-    toStore[key] = state[key]
-  }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore))
-}
-
-const persisted = loadPersisted()
+const storage = typeof localStorage === 'undefined' ? null : localStorage
+const initial = createInitialProgressState()
+const persisted = loadProgressState(storage)
+function storedLocation(value) { const item = resolvePosition(value); return { phaseId: item.phaseId, pageId: item.pageId, beatIndex: item.beatIndex } }
+function chapterAt(value) { return readerContent.find(phase => phase.id === value.phaseId)?.pages.find(page => page.id === value.pageId)?.chapterId ?? readerContent[0].pages[0].chapterId }
 
 export const useProgressStore = create((set, get) => ({
-  ...initialState,
-  ...(persisted || {}),
-
-  startReading: () => {
-    set({ currentView: 'reader', currentReadingPhase: null, resumeRequested: false })
-  },
-
-  continueReading: () => {
-    set({ currentView: 'reader', resumeRequested: true })
-  },
-
-  clearResumeRequest: () => {
-    set({ resumeRequested: false })
-  },
-
-  setPhase: (phase) => {
-    if (!isValidPhase(phase)) return
-    const state = get()
-    if (phase === state.currentReadingPhase) return
-    const updates = { currentReadingPhase: phase, lastReadPhase: phase }
-    if (isAfter(phase, state.maxReadPhase)) {
-      updates.maxReadPhase = phase
-    }
-    set(updates)
-  },
-
-  completeM4: () => {
-    set({ currentReadingPhase: 'M4', maxReadPhase: 'M4', lastReadPhase: 'M4', centerUnlocked: true })
-  },
-
-  enterCenter: () => {
-    const state = get()
-    if (state.centerUnlocked !== true) return
-    set({ currentView: 'center', centerMode: 'home' })
-  },
-
-  goLanding: () => {
-    set({ currentView: 'landing' })
-  },
-
-  setViewFromHistory: (view) => {
-    if (!['landing', 'reader', 'center'].includes(view)) view = 'landing'
-    const state = get()
-    if (view === 'center' && state.centerUnlocked !== true) {
-      window.history.replaceState({ newtoneView: 'landing' }, '')
-      set({ currentView: 'landing' })
-      return
-    }
-    if (view === 'reader') {
-      set({ currentView: 'reader', resumeRequested: true })
-      return
-    }
-    set({ currentView: view })
-  },
-
-  setLastScrollY: (y) => {
-    if (typeof y !== 'number' || !Number.isFinite(y)) return
-    const clamped = Math.max(y, 0)
-    const current = get().lastScrollY
-    if (Math.abs(clamped - current) < 2) return
-    set({ lastScrollY: clamped })
-  },
-
-  setCenterMode: (mode) => {
-    if (!VALID_CENTER_MODES.includes(mode)) mode = 'home'
-    set({ centerMode: mode })
-  },
-
-  setLanguage: (lang) => {
-    if (!VALID_LANGUAGES.includes(lang)) return
-    set({ language: lang })
-  },
-
-  toggleLanguage: () => {
-    const state = get()
-    set({ language: state.language === 'zh' ? 'en' : 'zh' })
-  },
-
-  setInitializedLanguage: () => {
-    set({ hasInitializedLanguage: true })
-  },
-
-  reset: () => {
-    localStorage.removeItem(STORAGE_KEY)
-    set({ ...initialState })
-  },
+  ...initial, ...persisted, isFirstReaderSession: false,
+  startReading: () => set(state => ({ currentView: 'reader', readerStarted: true, resumeRequested: false, isFirstReaderSession: state.readerStarted !== true })),
+  continueReading: () => set({ currentView: 'reader', readerStarted: true, resumeRequested: true, isFirstReaderSession: false }),
+  clearResumeRequest: () => set({ resumeRequested: false }),
+  commitLocation: value => { let committedLocation; try { committedLocation = storedLocation(value) } catch { return false }; const state = get(); const furthestLocation = comparePosition(committedLocation, state.furthestLocation) > 0 ? { ...committedLocation } : state.furthestLocation; set({ committedLocation, furthestLocation, readerStarted: true, currentChapter: chapterAt(committedLocation), currentPage: committedLocation.pageId, currentBeat: committedLocation.beatIndex, readerScrollOffset: 0 }); return true },
+  setReaderScrollOffset: value => set({ readerScrollOffset: Number.isFinite(value) ? Math.max(0, value) : 0 }),
+  setReaderExitGestureLearned: () => set({ readerExitGestureLearned: true }),
+  endChapterTrial: () => set({ chapterTrialEnded: true }),
+  completeReader: () => { if (get().readerCompleted) return false; set({ readerCompleted: true }); return true },
+  goLanding: () => set({ currentView: 'landing' }),
+  setViewFromHistory: view => set(view === 'reader' ? { currentView: 'reader', readerStarted: true, resumeRequested: true } : { currentView: 'landing' }),
+  setLanguage: language => { if (READER_LANGUAGE_CODES.includes(language)) set({ language }) },
+  toggleLanguage: () => set({ language: getNextReaderLanguage(get().language).code }),
+  setInitializedLanguage: () => set({ hasInitializedLanguage: true }),
+  selectReadingMode: readingMode => { if (!['immersive', 'standard'].includes(readingMode)) return false; const themePosition = migrateThemePosition(get().themePosition, get().standardTheme); set({ readingMode, hasInitializedReadingMode: true, themePosition, standardTheme: legacyThemeName(themePosition) }); return true },
+  toggleReadingMode: () => set({ readingMode: get().readingMode === 'immersive' ? 'standard' : 'immersive' }),
+  setStandardTheme: standardTheme => { if (!['soft', 'light', 'dark'].includes(standardTheme)) return false; const themePosition = migrateThemePosition(standardTheme); set({ themePosition, standardTheme }); return true },
+  setThemePosition: value => { const themePosition = clampThemePosition(value); set({ themePosition, standardTheme: legacyThemeName(themePosition) }); return true },
+  toggleMotionMode: () => set({ motionMode: get().motionMode === 'full' ? 'reduced' : 'full' }),
+  reset: () => { clearProgressStorage(storage); useNarrativeProgressStore.getState().reset(); set({ ...createInitialProgressState(), isFirstReaderSession: false }) },
 }))
-
-useProgressStore.subscribe((state, prevState) => {
-  const changed = PERSISTED_KEYS.some(key => state[key] !== prevState[key])
-  if (changed) savePersisted(state)
-})
+useProgressStore.subscribe((state, previous) => { if (state !== previous) saveProgressState(storage, state) })
+useNarrativeProgressStore.getState().initialize({ furthestLocation: useProgressStore.getState().furthestLocation })

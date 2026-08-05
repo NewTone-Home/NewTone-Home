@@ -1,0 +1,221 @@
+.landing-scene {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.landing-scene-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ===== 光影层：上午十点的光从左上来，院子底部略沉 ===== */
+
+.landing-scene-light {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 12% 4%, rgba(232, 214, 178, 0.30), rgba(232, 214, 178, 0) 62%),
+    linear-gradient(158deg, rgba(255, 250, 238, 0.46) 0%, rgba(255, 250, 238, 0) 44%),
+    radial-gradient(140% 120% at 50% 110%, rgba(90, 77, 64, 0.10), rgba(90, 77, 64, 0) 56%);
+}
+
+/* ===== 空气层：把中景洗淡一点，正房因此退到后面去 ===== */
+
+.landing-scene-haze {
+  position: absolute;
+  inset: -24px;
+  background: linear-gradient(
+    180deg,
+    rgba(244, 239, 230, 0) 36%,
+    rgba(244, 239, 230, 0.32) 52%,
+    rgba(244, 239, 230, 0) 70%
+  );
+  filter: blur(16px);
+}
+
+/* ===== 三层景深：深浅就是距离 ===== */
+
+.landing-scene-svg path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 抖动只加在线稿上，碎影不加 —— 影子本来就是软的 */
+.jijia-far,
+.jijia-mid,
+.jijia-near {
+  filter: url(#jijia-pencil);
+}
+
+.jijia-line-far {
+  stroke: var(--ink-muted, #8a7a6b);
+  stroke-width: 0.8;
+  opacity: 0.1;
+}
+
+.jijia-line-farther {
+  stroke: var(--line-faint, #baada0);
+  stroke-width: 0.6;
+  opacity: 0.07;
+}
+
+.jijia-line-mid {
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 0.9;
+  opacity: 0.13;
+}
+
+.jijia-line-ground {
+  stroke: var(--line-faint, #baada0);
+  stroke-width: 0.6;
+  opacity: 0.09;
+}
+
+.jijia-line-near {
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 1.1;
+  opacity: 0.22;
+}
+
+/* 少数几根定轮廓的线，深到能压住画面 */
+.jijia-line-strong {
+  stroke: var(--ink-dark, #3a322a);
+  stroke-width: 1.4;
+  opacity: 0.34;
+}
+
+/* ===== 两处体量：屋顶与堂屋里的暗 ===== */
+
+.jijia-roof-mass {
+  fill: var(--ink-medium, #5a4d40);
+  stroke: none;
+  opacity: 0.07;
+}
+
+.jijia-hall-shade {
+  fill: var(--ink-dark, #3a322a);
+  stroke: none;
+  opacity: 0.055;
+  filter: blur(9px);
+}
+
+.jijia-line-branch {
+  stroke: var(--ink-medium, #5a4d40);
+  stroke-width: 0.8;
+  opacity: 0.14;
+}
+
+/* ===== 暗门：本来就该在那儿，只是没人提过 ===== */
+
+.jijia-hidden-door path {
+  stroke: var(--ink-muted, #8a7a6b);
+  stroke-width: 0.7;
+  opacity: 0.05;
+  transition: opacity 1.2s ease;
+}
+
+.jijia-hidden-door--noticed path {
+  opacity: 0.11;
+}
+
+/* ===== 一地碎影 ===== */
+
+.jijia-dapple {
+  filter: blur(7px);
+}
+
+.jijia-dapple ellipse {
+  stroke: none;
+}
+
+.jijia-dapple-shade {
+  fill: var(--ink-medium, #5a4d40);
+  opacity: 0.06;
+}
+
+/* ===== 落笔：由远及近铺上去 ===== */
+
+.jijia-far { animation: jijia-settle 1.4s ease-out both; }
+.jijia-mid { animation: jijia-settle 1.4s ease-out 0.22s both; }
+.jijia-dapple { animation: jijia-settle 1.6s ease-out 0.5s both; }
+.jijia-near { animation: jijia-settle 1.4s ease-out 0.44s both; }
+
+@keyframes jijia-settle {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 光斑随时间极缓地挪动，慢到不会被当成动画 */
+.jijia-dapple {
+  animation:
+    jijia-settle 1.6s ease-out 0.5s both,
+    jijia-dapple-drift 26s ease-in-out 2s infinite;
+}
+
+@keyframes jijia-dapple-drift {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(7px, -4px); }
+}
+
+/* ===== 场景生效时，让手稿层退回纸面纹理的角色 ===== */
+
+.landing--scene .sketch-frame-layer,
+.landing--scene .sketch-loop-layer,
+.landing--scene .sketch-direction-layer,
+.landing--scene .sketch-ghost-layer,
+.landing--scene .sketch-margin-layer {
+  display: none;
+}
+
+.landing--scene .sketch-paper-trace,
+.landing--scene .sketch-paper-trace--short {
+  opacity: 0.07;
+}
+
+/* ===== Reduced Motion ===== */
+
+@media (prefers-reduced-motion: reduce) {
+  .jijia-far,
+  .jijia-mid,
+  .jijia-near,
+  .jijia-dapple {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  .jijia-hidden-door path {
+    transition: none !important;
+  }
+}
+
+.page-shell[data-motion-mode="reduced"] .jijia-far,
+.page-shell[data-motion-mode="reduced"] .jijia-mid,
+.page-shell[data-motion-mode="reduced"] .jijia-near,
+.page-shell[data-motion-mode="reduced"] .jijia-dapple {
+  animation: none !important;
+  opacity: 1 !important;
+}
+
+/* ===== Responsive ===== */
+
+@media (max-width: 768px) {
+  .jijia-line-near { opacity: 0.15; }
+  .jijia-line-mid { opacity: 0.1; }
+  .jijia-line-far { opacity: 0.08; }
+  .jijia-line-farther,
+  .jijia-line-ground { opacity: 0.06; }
+  .jijia-dapple ellipse { opacity: 0.04; }
+  .landing-scene-haze { filter: blur(12px); }
+}
+
+@media (max-width: 480px) {
+  .jijia-dapple { display: none; }
+  .jijia-line-branch { opacity: 0.1; }
+}

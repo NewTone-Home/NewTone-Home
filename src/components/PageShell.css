@@ -1,6 +1,30 @@
-.page-shell {
-  min-height: 100vh;
+html,
+body,
+#root {
   width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-root, #0b0f12);
+}
+
+.page-shell {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--reader-paper, var(--paper-base));
+  color: var(--reader-ink, var(--ink-dark));
+  overscroll-behavior: none;
+  transition: background-color 1200ms ease, color 900ms ease;
   transform-origin: center center;
   will-change: transform, opacity;
 }
@@ -16,13 +40,13 @@
 }
 
 .page-shell.phase-covered.preset-surface-to-core {
-  opacity: 0.88;
-  transform: scale(0.995);
+  opacity: 0.78;
+  transform: translateY(-3px) scale(0.992);
 }
 
 .page-shell.phase-covered.preset-reader-to-core {
-  opacity: 0.88;
-  transform: scale(0.995);
+  opacity: 0.72;
+  transform: translateY(-6px) scale(0.985);
 }
 
 .page-shell.phase-covered.preset-core-to-surface {
@@ -108,42 +132,42 @@
 
 @keyframes ps-stc-leave {
   from { opacity: 1; transform: scale(1); }
-  to   { opacity: 0.82; transform: scale(0.985); }
+  to   { opacity: 0.78; transform: translateY(-3px) scale(0.992); }
 }
 
 @keyframes ps-stc-enter {
-  from { opacity: 0.88; transform: scale(0.995); }
+  from { opacity: 0.84; transform: translateY(3px) scale(1.004); }
   to   { opacity: 1; transform: scale(1); }
 }
 
 @keyframes ps-rtc-leave {
   from { opacity: 1; transform: scale(1); }
-  to   { opacity: 0.62; transform: scale(0.94); }
+  to   { opacity: 0.72; transform: translateY(-6px) scale(0.985); }
 }
 
 @keyframes ps-rtc-enter {
-  from { opacity: 0.88; transform: scale(0.995); }
+  from { opacity: 0.82; transform: translateY(4px) scale(1.003); }
   to   { opacity: 1; transform: scale(1); }
 }
 
 @keyframes ps-cts-leave {
-  from { opacity: 1; }
-  to   { opacity: 0.88; }
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0.76; transform: translateY(4px); }
 }
 
 @keyframes ps-cts-enter {
-  from { opacity: 0.86; }
-  to   { opacity: 1; }
+  from { opacity: 0.84; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes ps-ctr-leave {
-  from { opacity: 1; }
-  to   { opacity: 0.88; }
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0.78; transform: scale(0.995); }
 }
 
 @keyframes ps-ctr-enter {
-  from { opacity: 0.86; }
-  to   { opacity: 1; }
+  from { opacity: 0.82; transform: scale(1.006); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 @keyframes ps-rts-leave {
@@ -154,4 +178,19 @@
 @keyframes ps-rts-enter {
   from { opacity: 0.86; }
   to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-shell {
+    will-change: auto;
+  }
+
+  .page-shell[class*="phase-"] {
+    animation: none;
+  }
+}
+
+.page-shell[data-motion-mode="reduced"]:not(.phase-idle) {
+  animation: none !important;
+  transform: none !important;
 }

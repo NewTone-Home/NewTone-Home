@@ -3,16 +3,27 @@ import { useProgressStore } from './stores/progressStore'
 import { useTransitionStore } from './stores/transitionStore'
 import { useReadingEntry, READING_ENTRY_TIMINGS } from './transitions/readingEntryController'
 import Landing from './views/Landing'
-import Reader from './views/Reader'
-import Center from './views/Center'
+import Reader from './views/ReaderOrchestrator'
 import ReadingTransition from './components/ReadingTransition'
 import GlobalTransitionOverlay from './components/GlobalTransitionOverlay'
 import PageShell from './components/PageShell'
+import { resolveReaderEnvironmentState } from './data/readerContent'
+import { resolveReaderEnvironmentPreview } from './data/reader-experiments/readerEnvironmentPreview'
+import { getReaderThemeVariables } from './reader/readerTheme'
+import { trackEvent } from './services/analytics'
 
 function App() {
   const currentView = useProgressStore(s => s.currentView)
   const language = useProgressStore(s => s.language)
   const hasInitializedLanguage = useProgressStore(s => s.hasInitializedLanguage)
+  const readingMode = useProgressStore(s => s.readingMode)
+  const themePosition = useProgressStore(s => s.themePosition)
+  const motionMode = useProgressStore(s => s.motionMode)
+  const committedLocation = useProgressStore(s => s.committedLocation)
+  const environmentState = resolveReaderEnvironmentState(committedLocation)
+  const readerSurfaceStyle = readingMode === 'standard'
+    ? getReaderThemeVariables(themePosition)
+    : resolveReaderEnvironmentPreview(environmentState).style
 
   const readingEntry = useReadingEntry()
   const isGlobalTransitioning = useTransitionStore(s => s.phase !== 'idle')
@@ -42,6 +53,8 @@ function App() {
         'landing-empty-hold',
         'language-active',
         'language-leaving',
+        'mode-active',
+        'mode-leaving',
       ].includes(ctrl.phase)
 
       if (isFirstInitHistoryLocked) {
@@ -51,7 +64,12 @@ function App() {
       }
 
       historyPushRef.current = false
-      const view = event.state?.newtoneView || 'landing'
+      const requestedView = event.state?.newtoneView || 'landing'
+      const view = requestedView === 'reader' ? 'reader' : 'landing'
+
+      if (useProgressStore.getState().currentView === 'reader' && view === 'landing') {
+        trackEvent('reader_exit', { exitReason: 'browser-back' })
+      }
 
       if (ctrl.isActive) {
         ctrl.cancel()
@@ -62,14 +80,7 @@ function App() {
         tState.reset()
       }
 
-      const pState = useProgressStore.getState()
-      if (view === 'center' && !pState.centerUnlocked) {
-        window.history.replaceState({ newtoneView: 'landing' }, '')
-        pState.setViewFromHistory('landing')
-        return
-      }
-
-      pState.setViewFromHistory(view)
+      useProgressStore.getState().setViewFromHistory(view)
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
@@ -82,6 +93,10 @@ function App() {
     }
     if (window.history.state?.newtoneView === currentView) return
     window.history.pushState({ newtoneView: currentView }, '')
+  }, [currentView])
+
+  useEffect(() => {
+    if (currentView === 'landing') trackEvent('landing_entry', { stepId: 'landing' })
   }, [currentView])
 
   const handleEnter = useCallback((intent) => {
@@ -108,22 +123,44 @@ function App() {
   const isFirstTimeLeaving = readingEntry.phase === 'landing-leaving' && !hasInitializedLanguage
   const landingLeaveMs = isFirstTimeLeaving ? READING_ENTRY_TIMINGS.FIRST_LANDING_LEAVE_MS : READING_ENTRY_TIMINGS.RETURN_LANDING_LEAVE_MS
 
-  const showCenter = currentView === 'center' && !readingEntry.isActive
+  const handleLanguageProceed = useCallback(() => {
+    trackEvent('language_selected', { language })
+    readingEntry.proceedFromLanguage()
+  }, [language, readingEntry.proceedFromLanguage])
+
+  const handleModeSelect = useCallback((mode) => {
+    trackEvent('mode_selected', { readingMode: mode })
+    readingEntry.proceedFromMode(mode)
+  }, [readingEntry.proceedFromMode])
 
   return (
     <>
-      <PageShell>
+      <PageShell motionMode={motionMode} surfaceStyle={readerSurfaceStyle}>
         {showReader && <Reader onReaderReady={readingEntry.isActive ? readingEntry.handleReaderReady : undefined} />}
-        {showLanding && <Landing onEnter={handleEnter} leaving={readingEntryLandingLeaving} leavingMs={landingLeaveMs} />}
-        {showCenter && <Center />}
+        {showLanding && (
+          <Landing
+            onEnter={handleEnter}
+            leaving={readingEntryLandingLeaving}
+            leavingMs={landingLeaveMs}
+            surfaceStyle={readerSurfaceStyle}
+            readingMode={readingMode}
+            environmentState={environmentState}
+          />
+        )}
       </PageShell>
       <ReadingTransition
         phase={readingEntry.phase}
         intent={readingEntry.intent}
         language={language}
-        onProceed={readingEntry.proceedFromLanguage}
+        readingMode={readingMode}
+        themePosition={themePosition}
+        motionMode={motionMode}
+        surfaceStyle={readerSurfaceStyle}
+        environmentState={environmentState}
+        onProceed={handleLanguageProceed}
+        onModeSelect={handleModeSelect}
       />
-      {isGlobalTransitioning && <GlobalTransitionOverlay />}
+      {isGlobalTransitioning && <GlobalTransitionOverlay surfaceStyle={readerSurfaceStyle} />}
     </>
   )
 }
