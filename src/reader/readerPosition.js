@@ -1,7 +1,7 @@
 import { readerContent, validateReaderContent } from '../data/readerContent'
 
-export function createReaderIndex(content = readerContent) {
-  validateReaderContent(content)
+export function createReaderIndex(content = readerContent, { allowEmpty = false } = {}) {
+  validateReaderContent(content, { allowEmpty })
 
   const entries = []
   const pageLookup = Object.create(null)
@@ -33,11 +33,25 @@ export function createReaderIndex(content = readerContent) {
   })
 }
 
-export const readerContentIndex = createReaderIndex()
+let indexedContent = null
+let currentIndex = null
+
+function getCurrentReaderIndex() {
+  if (indexedContent !== readerContent) {
+    indexedContent = readerContent
+    currentIndex = createReaderIndex(readerContent, { allowEmpty: true })
+  }
+  return currentIndex
+}
+
+export const readerContentIndex = Object.freeze({
+  get entries() { return getCurrentReaderIndex().entries },
+  get pageLookup() { return getCurrentReaderIndex().pageLookup },
+})
 
 function getIndex(content) {
   return content === readerContent
-    ? readerContentIndex
+    ? getCurrentReaderIndex()
     : createReaderIndex(content)
 }
 

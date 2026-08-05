@@ -1,14 +1,29 @@
-import { useMemo, useState } from 'react'
-import { compileWorkspace, createChapter, createPage, normalizeWorkspace } from './contentWorkspace'
+import { useMemo, useRef, useState } from 'react'
+import {
+  compileWorkspace, createChapter, createPage, deleteWorkspacePage, getWorkspaceChapterText,
+  insertWorkspacePage, mergeWorkspacePage, normalizeWorkspace, restoreWorkspacePage, splitWorkspacePage,
+} from './contentWorkspace'
+import { writeAdminPreview } from './adminPreview'
 import './OwnerWorkbench.css'
 
+const ENVIRONMENT_OPTIONS = {
+  worldLayer: [['surface', '表世界'], ['inner', '里世界']],
+  time: [['morning', '上午'], ['noon', '中午'], ['dusk', '傍晚'], ['night', '夜晚']],
+  weather: [['clear', '晴'], ['overcast', '阴'], ['rain', '雨'], ['snow', '雪']],
+  light: [['neutral', '自然'], ['soft', '柔和'], ['bright', '明亮'], ['dim', '昏暗'], ['cold', '冷光'], ['warm', '暖光']],
+}
+
 function OwnerWorkbench({ initialWorkspace, onSave, onPublish, busy }) {
-  const [workspace, setWorkspace] = useState(() => normalizeWorkspace(initialWorkspace))
+  const normalizedInitial = useMemo(() => normalizeWorkspace(initialWorkspace), [initialWorkspace])
+  const [workspace, setWorkspace] = useState(normalizedInitial)
+  const [baseline, setBaseline] = useState(normalizedInitial)
   const [chapterIndex, setChapterIndex] = useState(0)
   const [pageIndex, setPageIndex] = useState(0)
   const [message, setMessage] = useState('')
+  const editorRef = useRef(null)
   const chapter = workspace.chapters[chapterIndex]
   const page = chapter?.pages[pageIndex]
+  const chapterText = useMemo(() => getWorkspaceChapterText(workspace, chapterIndex), [workspace, chapterIndex])
 
   const updateChapter = patch => setWorkspace(current => ({ ...current, chapters: current.chapters.map((item, index) => index === chapterIndex ? { ...item, ...patch } : item) }))
   const updatePage = patch => updateChapter({ pages: chapter.pages.map((item, index) => index === pageIndex ? { ...item, ...patch } : item) })
@@ -17,42 +32,57 @@ function OwnerWorkbench({ initialWorkspace, onSave, onPublish, busy }) {
     setWorkspace(current => ({ ...current, chapters: [...current.chapters, next] }))
     setChapterIndex(workspace.chapters.length); setPageIndex(0); setMessage('已建立空章节。')
   }
-  const addPage = () => {
+  const addFirstPage = () => {
     if (!chapter) return
-    const next = createPage(chapter.id, chapter.pages.length + 1)
-    updateChapter({ pages: [...chapter.pages, next] }); setPageIndex(chapter.pages.length); setMessage('已建立空白页。')
+    updateChapter({ pages: [createPage(chapter.id, 1)] }); setPageIndex(0); setMessage('已建立空白页。')
   }
-  const removePage = () => {
-    if (!page) return
-    updateChapter({ pages: chapter.pages.filter((_, index) => index !== pageIndex) })
-    setPageIndex(Math.max(0, pageIndex - 1)); setMessage('当前页已移除。')
+  const replace = (result, success) => { setWorkspace(result.workspace); setPageIndex(result.selectedPageIndex); setMessage(success) }
+  const splitAtCursor = () => replace(splitWorkspacePage(workspace, chapterIndex, pageIndex, editorRef.current?.selectionStart ?? 0), '光标后的文字已移入新建的下一页。')
+  const insertBlank = () => replace(insertWorkspacePage(workspace, chapterIndex, pageIndex), '已在当前页后新建空白页。')
+  const mergeNext = () => replace(mergeWorkspacePage(workspace, chapterIndex, pageIndex), '下一页内容已合并到当前页。')
+  const removePage = () => replace(deleteWorkspacePage(workspace, chapterIndex, pageIndex), '当前页已删除。')
+  const restorePage = () => {
+    try { setWorkspace(restoreWorkspacePage(workspace, baseline, chapterIndex, pageIndex)); setMessage('当前页已恢复到最近保存版本。') }
+    catch (error) { setMessage(error.message) }
   }
-  const run = async (action, success) => {
-    try { setMessage(''); await action(workspace); setMessage(success) }
-    catch (error) { setMessage(error instanceof Error ? error.message : '操作失败。') }
+  const runSave = async () => {
+    try { setMessage(''); await onSave(workspace); setBaseline(normalizeWorkspace(workspace)); setMessage('草稿已安全保存到 Supabase。') }
+    catch (error) { setMessage(error instanceof Error ? error.message : '保存失败。') }
   }
-  const previewParagraphs = useMemo(() => page?.text.split(/\n\s*\n/).filter(text => text.trim()) ?? [], [page?.text])
+  const runPublish = async () => {
+    try { setMessage(''); const content = compileWorkspace(workspace); await onPublish(workspace, content); setBaseline(normalizeWorkspace(workspace)); setMessage('新版本已发布。') }
+    catch (error) { setMessage(error instanceof Error ? error.message : '发布失败。') }
+  }
+  const openPreview = () => {
+    try { writeAdminPreview(compileWorkspace(workspace)); window.location.assign('/admin/preview') }
+    catch (error) { setMessage(error.message) }
+  }
 
-  return (
-    <main className="owner-workbench">
-      <header><div><p>NewTone / Owner</p><h1>内容、分页与实验控制台</h1></div><div className="owner-actions"><button disabled={busy} onClick={() => run(onSave, '草稿已安全保存到 Supabase。')}>保存草稿</button><button className="publish" disabled={busy} onClick={() => run(async value => onPublish(value, compileWorkspace(value)), '新版本已发布。')}>验证并发布</button></div></header>
-      <div className="owner-layout">
-        <aside className="owner-library"><h2>章节</h2>{workspace.chapters.map((item, index) => <button key={`${item.id}-${index}`} aria-pressed={index === chapterIndex} onClick={() => { setChapterIndex(index); setPageIndex(0) }}>{item.title || `未命名章节 ${index + 1}`}</button>)}<button onClick={addChapter}>＋ 新建章节</button></aside>
-        <section className="owner-editor">
-          {!chapter ? <div className="owner-empty"><h2>正文为空</h2><p>这里没有导入旧稿或占位正文。请新建章节开始创作。</p><button onClick={addChapter}>新建第一个章节</button></div> : <>
-            <div className="owner-fields"><label>章节标题<input value={chapter.title} onChange={event => updateChapter({ title: event.target.value })} /></label><label>章节 ID<input value={chapter.id} onChange={event => updateChapter({ id: event.target.value })} /></label><label>主角 ID<input value={chapter.protagonistId} onChange={event => updateChapter({ protagonistId: event.target.value })} /></label></div>
-            <nav className="owner-pages" aria-label="分页">{chapter.pages.map((item, index) => <button key={`${item.id}-${index}`} aria-pressed={index === pageIndex} onClick={() => setPageIndex(index)}>第 {index + 1} 页</button>)}<button onClick={addPage}>＋ 新建页</button></nav>
-            {!page ? <div className="owner-empty"><p>本章还没有页面。</p><button onClick={addPage}>新建第一页</button></div> : <>
-              <textarea className="owner-text" aria-label="当前页正文" placeholder="" value={page.text} onChange={event => updatePage({ text: event.target.value })} />
-              <div className="owner-page-actions"><button onClick={addPage}>在章末新建页</button><button onClick={removePage}>删除当前页</button></div>
-            </>}
-          </>}
-          {message && <p className="owner-message" role="status">{message}</p>}
-        </section>
-        <aside className="owner-preview"><h2>实验预览</h2>{page ? <><div className="owner-fields"><label>场景标签<input value={page.sceneLabel} onChange={event => updatePage({ sceneLabel: event.target.value })} /></label><label>世界层<select value={page.worldLayer} onChange={event => updatePage({ worldLayer: event.target.value })}><option value="surface">表世界</option><option value="inner">里世界</option></select></label><label>时间<select value={page.time} onChange={event => updatePage({ time: event.target.value })}><option value="morning">上午</option><option value="noon">中午</option><option value="dusk">傍晚</option><option value="night">夜晚</option></select></label><label>天气<select value={page.weather} onChange={event => updatePage({ weather: event.target.value })}><option value="clear">晴</option><option value="overcast">阴</option><option value="rain">雨</option><option value="snow">雪</option></select></label></div><article data-world={page.worldLayer}>{previewParagraphs.length ? previewParagraphs.map((text, index) => <p key={index}>{text}</p>) : <p className="muted">当前页尚无正文。</p>}</article></> : <p className="muted">选择一个页面后可调整环境并预览排版。</p>}</aside>
-      </div>
-    </main>
-  )
+  if (!chapter) return <main className="developer-workbench developer-empty-workbench"><header className="developer-workbench-header"><div><strong>内容与分页工作台</strong><small>Supabase owner 草稿 · 非正式发布</small></div><a href="/">返回公开页面</a></header><section><h1>正文为空</h1><p>没有导入旧稿或占位正文。请从空章节开始创作。</p><button type="button" onClick={addChapter}>新建第一个章节</button></section></main>
+
+  return <main className="developer-workbench" aria-label="Owner 内容与分页工作台">
+    <header className="developer-workbench-header"><div><strong>内容与分页工作台</strong><small>Supabase owner 草稿 · 非正式发布</small></div><div className="developer-header-actions"><button type="button" disabled={busy} onClick={openPreview}>Reader 临时预览</button><button type="button" disabled={busy} onClick={runSave}>保存草稿</button><button type="button" disabled={busy} onClick={runPublish}>验证并发布</button><a href="/">返回公开页面</a></div></header>
+    <div className="developer-workbench-layout">
+      <section className="developer-page-workspace">
+        <div className="developer-page-heading"><div><label>章节标题<input value={chapter.title} onChange={event => updateChapter({ title: event.target.value })} /></label><small>当前编辑：第 {pageIndex + 1} 页</small></div><div className="developer-page-tabs">{chapter.pages.map((item, index) => <button type="button" key={`${item.id}-${index}`} aria-pressed={index === pageIndex} onClick={() => setPageIndex(index)}>第 {index + 1} 页</button>)}</div></div>
+        <div className="developer-chapter-meta"><label>章节 ID<input value={chapter.id} onChange={event => updateChapter({ id: event.target.value })} /></label><label>主角 ID<input value={chapter.protagonistId} onChange={event => updateChapter({ protagonistId: event.target.value })} /></label></div>
+        {!page ? <div className="developer-no-page"><p>本章还没有页面。</p><button type="button" onClick={addFirstPage}>新建第一页</button></div> : <>
+          <textarea ref={editorRef} className="developer-page-editor" aria-label="当前页正文" spellCheck="false" value={page.text} onChange={event => updatePage({ text: event.target.value })} />
+          <div className="developer-page-tools"><button type="button" onClick={splitAtCursor}>从此处分到下一页</button><button type="button" onClick={insertBlank}>新建空白页</button><button type="button" onClick={mergeNext} disabled={pageIndex >= chapter.pages.length - 1}>与下一页合并</button><button type="button" onClick={removePage}>删除当前页</button></div>
+          <section className="developer-current-page-info"><h2>当前页环境</h2><div className="developer-environment-fields">
+            <label><span>世界层</span><select value={page.worldLayer} onChange={event => updatePage({ worldLayer: event.target.value })}>{ENVIRONMENT_OPTIONS.worldLayer.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label><span>地点</span><input value={page.sceneLabel} onChange={event => updatePage({ sceneLabel: event.target.value })} /></label>
+            <label><span>时间段</span><select value={page.time} onChange={event => updatePage({ time: event.target.value })}>{ENVIRONMENT_OPTIONS.time.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label><span>天气</span><select value={page.weather} onChange={event => updatePage({ weather: event.target.value })}>{ENVIRONMENT_OPTIONS.weather.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label><span>背景</span><select value={page.light} onChange={event => updatePage({ light: event.target.value })}>{ENVIRONMENT_OPTIONS.light.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          </div></section>
+          <div className="developer-workbench-actions"><button type="button" onClick={openPreview}>应用 Reader 预览</button><button type="button" disabled={busy} onClick={runSave}>保存草稿</button><button type="button" onClick={restorePage}>恢复本页原值</button></div>
+        </>}
+        {message && <p className="developer-workbench-message" role="status">{message}</p>}
+      </section>
+      <aside className="developer-chapter-library"><nav className="developer-chapter-list"><h2>章节原文库</h2>{workspace.chapters.map((item,index) => <button type="button" key={`${item.id}-${index}`} aria-pressed={index === chapterIndex} onClick={() => { setChapterIndex(index); setPageIndex(0); setMessage('') }}>{item.title || `未命名章节 ${index + 1}`}</button>)}<button type="button" onClick={addChapter}>＋ 新建章节</button></nav><div className="developer-chapter-reference"><div><span>{chapter.title || '未命名章节'}</span><small>当前 owner 草稿整章参考 · 可选择复制</small></div><textarea aria-label="章节连续原文" readOnly value={chapterText} /></div></aside>
+    </div>
+  </main>
 }
 
 export default OwnerWorkbench

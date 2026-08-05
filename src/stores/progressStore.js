@@ -10,7 +10,7 @@ const storage = typeof localStorage === 'undefined' ? null : localStorage
 const initial = createInitialProgressState()
 const persisted = loadProgressState(storage)
 function storedLocation(value) { const item = resolvePosition(value); return { phaseId: item.phaseId, pageId: item.pageId, beatIndex: item.beatIndex } }
-function chapterAt(value) { return readerContent.find(phase => phase.id === value.phaseId)?.pages.find(page => page.id === value.pageId)?.chapterId ?? readerContent[0].pages[0].chapterId }
+function chapterAt(value) { return readerContent.find(phase => phase.id === value.phaseId)?.pages.find(page => page.id === value.pageId)?.chapterId ?? readerContent[0]?.pages?.[0]?.chapterId ?? null }
 
 export const useProgressStore = create((set, get) => ({
   ...initial, ...persisted, isFirstReaderSession: false,

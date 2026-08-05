@@ -4,7 +4,6 @@ import './styles/tokens.css'
 import './styles/visualTokens.css'
 import { installDwellTracking } from './services/analytics'
 import { loadPublishedContent } from './services/publishedContent'
-import EmptyContentApp from './views/EmptyContentApp'
 
 function LoadingShell() {
   return <main className="empty-content-shell"><section><p className="empty-content-mark">NewTone</p><p>正在确认已发布正文…</p></section></main>
@@ -19,12 +18,11 @@ function PublicRoot() {
   useEffect(load, [load])
   const [App, setApp] = useState(null)
   useEffect(() => {
-    if (result.status !== 'ready') return
+    if (result.status === 'loading') return
     import('./App.jsx').then(module => setApp(() => module.default))
   }, [result.status])
-  if (result.status === 'loading' || (result.status === 'ready' && !App)) return <LoadingShell />
-  if (result.status !== 'ready') return <EmptyContentApp status={result.status} onRetry={load} />
-  return <App />
+  if (result.status === 'loading' || !App) return <LoadingShell />
+  return <App contentStatus={result.status} onRetryContent={load} />
 }
 
 function Root() {

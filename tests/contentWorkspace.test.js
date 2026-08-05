@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { compileWorkspace, EMPTY_WORKSPACE } from '../src/admin/contentWorkspace'
+import {
+  compileWorkspace, deleteWorkspacePage, EMPTY_WORKSPACE, getWorkspaceChapterText,
+  insertWorkspacePage, mergeWorkspacePage, restoreWorkspacePage, splitWorkspacePage,
+} from '../src/admin/contentWorkspace'
+
+const draft = () => ({ schemaVersion: 1, chapters: [{
+  id: 'chapter-one', title: 'Test', protagonistId: 'owner-test',
+  pages: [
+    { id: 'page-one', sceneLabel: 'Scene', text: 'alpha beta', worldLayer: 'surface', time: 'noon', weather: 'clear', light: 'neutral' },
+    { id: 'page-two', sceneLabel: 'Scene 2', text: 'gamma', worldLayer: 'inner', time: 'night', weather: 'rain', light: 'dim' },
+  ],
+}] })
 
 describe('owner content workspace', () => {
   it('starts intentionally empty and cannot publish empty content', () => {
@@ -13,5 +24,25 @@ describe('owner content workspace', () => {
       pages: [{ id: 'page-one', sceneLabel: 'Scene', text: 'alpha\n\nbeta', worldLayer: 'surface', time: 'noon', weather: 'clear', light: 'neutral' }],
     }] })
     expect(content[0].pages[0].beats.map(beat => beat.blocks[0].text)).toEqual(['alpha', 'beta'])
+  })
+
+  it('splits, inserts, merges, and deletes pages without inventing text', () => {
+    const split = splitWorkspacePage(draft(), 0, 0, 5)
+    expect(split.workspace.chapters[0].pages.map(page => page.text)).toEqual(['alpha', ' beta', 'gamma'])
+    const merged = mergeWorkspacePage(split.workspace, 0, 0)
+    expect(merged.workspace.chapters[0].pages.map(page => page.text)).toEqual(['alpha\n\n beta', 'gamma'])
+    const inserted = insertWorkspacePage(merged.workspace, 0, 0)
+    expect(inserted.workspace.chapters[0].pages[1].text).toBe('')
+    const deleted = deleteWorkspacePage(inserted.workspace, 0, 1)
+    expect(deleted.workspace.chapters[0].pages.map(page => page.text)).toEqual(['alpha\n\n beta', 'gamma'])
+  })
+
+  it('restores only from the persisted owner draft and derives continuous reference from it', () => {
+    const baseline = draft()
+    const edited = structuredClone(baseline)
+    edited.chapters[0].pages[0].text = 'changed'
+    const restored = restoreWorkspacePage(edited, baseline, 0, 0)
+    expect(restored.chapters[0].pages[0].text).toBe('alpha beta')
+    expect(getWorkspaceChapterText(restored, 0)).toBe('alpha beta\n\ngamma')
   })
 })

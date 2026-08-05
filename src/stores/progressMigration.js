@@ -6,14 +6,15 @@ import { clearNarrativeProgressStorage } from './narrativeProgressStorage'
 
 export const PROGRESS_STORAGE_KEYS = Object.freeze({ V1: 'newtone-progress-v1', V2: 'newtone-progress-v2', V3: 'newtone-progress-v3', V4: 'newtone-progress-v4', EXIT_TUTORIAL: 'newtone-reader-exit-tutorial-v1' })
 export const PROGRESS_VERSION = 4
-const firstPage = readerContent[0].pages[0]
-export const READER_START_LOCATION = { phaseId: readerContent[0].id, pageId: firstPage.id, beatIndex: 0 }
+const firstPhase = readerContent[0]
+const firstPage = firstPhase?.pages?.[0]
+export const READER_START_LOCATION = { phaseId: firstPhase?.id ?? 'M1', pageId: firstPage?.id ?? '', beatIndex: 0 }
 
 function location(value, fallback = READER_START_LOCATION) {
   try { const resolved = resolvePosition(value); return { phaseId: resolved.phaseId, pageId: resolved.pageId, beatIndex: resolved.beatIndex } }
   catch { return { ...fallback } }
 }
-function chapterAt(value) { const phase = readerContent.find(item => item.id === value.phaseId); return phase?.pages.find(page => page.id === value.pageId)?.chapterId ?? readerContent[0].pages[0].chapterId }
+function chapterAt(value) { const phase = readerContent.find(item => item.id === value.phaseId); return phase?.pages.find(page => page.id === value.pageId)?.chapterId ?? firstPage?.chapterId ?? null }
 
 export function createInitialProgressState() {
   return { currentView: 'landing', committedLocation: { ...READER_START_LOCATION }, furthestLocation: { ...READER_START_LOCATION }, readerStarted: false, readerCompleted: false, resumeRequested: false, readerExitGestureLearned: false, chapterTrialEnded: false, language: 'zh', hasInitializedLanguage: false, hasInitializedReadingMode: false, readingMode: 'immersive', themePosition: .5, standardTheme: 'soft', motionMode: 'full', currentChapter: chapterAt(READER_START_LOCATION), currentPage: READER_START_LOCATION.pageId, currentBeat: 0, readerScrollOffset: 0 }

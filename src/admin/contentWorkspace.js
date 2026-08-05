@@ -82,3 +82,85 @@ export function createChapter(sequence) {
 export function createPage(chapterId, sequence) {
   return { id: `${chapterId || 'chapter'}-page-${sequence}`, sceneLabel: '', text: '', worldLayer: 'surface', time: 'noon', weather: 'clear', light: 'neutral' }
 }
+
+function editChapter(workspace, chapterIndex, operation) {
+  const normalized = normalizeWorkspace(workspace)
+  const chapter = normalized.chapters[chapterIndex]
+  if (!chapter) throw new Error('找不到当前章节。')
+  normalized.chapters[chapterIndex] = operation(chapter)
+  return normalized
+}
+
+function uniquePageId(chapter) {
+  const used = new Set(chapter.pages.map(page => page.id))
+  let sequence = chapter.pages.length + 1
+  let id = `${chapter.id || 'chapter'}-page-${sequence}`
+  while (used.has(id)) { sequence += 1; id = `${chapter.id || 'chapter'}-page-${sequence}` }
+  return id
+}
+
+export function splitWorkspacePage(workspace, chapterIndex, pageIndex, cursorOffset) {
+  let selectedPageIndex = pageIndex
+  const nextWorkspace = editChapter(workspace, chapterIndex, chapter => {
+    const page = chapter.pages[pageIndex]
+    if (!page) throw new Error('找不到当前页。')
+    const offset = Math.min(Math.max(Number(cursorOffset) || 0, 0), page.text.length)
+    const nextPage = { ...page, id: uniquePageId(chapter), text: page.text.slice(offset) }
+    const pages = chapter.pages.slice()
+    pages.splice(pageIndex, 1, { ...page, text: page.text.slice(0, offset) }, nextPage)
+    selectedPageIndex = pageIndex + 1
+    return { ...chapter, pages }
+  })
+  return { workspace: nextWorkspace, selectedPageIndex }
+}
+
+export function insertWorkspacePage(workspace, chapterIndex, pageIndex) {
+  let selectedPageIndex = pageIndex
+  const nextWorkspace = editChapter(workspace, chapterIndex, chapter => {
+    const current = chapter.pages[pageIndex]
+    if (!current) throw new Error('找不到当前页。')
+    const page = { ...createPage(chapter.id, chapter.pages.length + 1), id: uniquePageId(chapter), worldLayer: current.worldLayer, time: current.time, weather: current.weather, light: current.light }
+    const pages = chapter.pages.slice()
+    pages.splice(pageIndex + 1, 0, page)
+    selectedPageIndex = pageIndex + 1
+    return { ...chapter, pages }
+  })
+  return { workspace: nextWorkspace, selectedPageIndex }
+}
+
+export function mergeWorkspacePage(workspace, chapterIndex, pageIndex) {
+  const nextWorkspace = editChapter(workspace, chapterIndex, chapter => {
+    const page = chapter.pages[pageIndex]
+    const following = chapter.pages[pageIndex + 1]
+    if (!page || !following) throw new Error('当前页后没有可合并页面。')
+    const separator = page.text && following.text ? '\n\n' : ''
+    const pages = chapter.pages.slice()
+    pages.splice(pageIndex, 2, { ...page, text: `${page.text}${separator}${following.text}` })
+    return { ...chapter, pages }
+  })
+  return { workspace: nextWorkspace, selectedPageIndex: pageIndex }
+}
+
+export function deleteWorkspacePage(workspace, chapterIndex, pageIndex) {
+  let selectedPageIndex = Math.max(0, pageIndex - 1)
+  const nextWorkspace = editChapter(workspace, chapterIndex, chapter => {
+    const pages = chapter.pages.filter((_, index) => index !== pageIndex)
+    selectedPageIndex = Math.min(selectedPageIndex, Math.max(0, pages.length - 1))
+    return { ...chapter, pages }
+  })
+  return { workspace: nextWorkspace, selectedPageIndex }
+}
+
+export function restoreWorkspacePage(workspace, baseline, chapterIndex, pageIndex) {
+  const normalizedBaseline = normalizeWorkspace(baseline)
+  const current = normalizeWorkspace(workspace)
+  const page = current.chapters[chapterIndex]?.pages[pageIndex]
+  const baselineChapter = normalizedBaseline.chapters.find(chapter => chapter.id === current.chapters[chapterIndex]?.id)
+  const original = baselineChapter?.pages.find(candidate => candidate.id === page?.id)
+  if (!page || !original) throw new Error('此页尚未保存，没有可恢复的版本。')
+  return editChapter(current, chapterIndex, chapter => ({ ...chapter, pages: chapter.pages.map((candidate, index) => index === pageIndex ? structuredClone(original) : candidate) }))
+}
+
+export function getWorkspaceChapterText(workspace, chapterIndex) {
+  return normalizeWorkspace(workspace).chapters[chapterIndex]?.pages.map(page => page.text).filter(Boolean).join('\n\n') ?? ''
+}

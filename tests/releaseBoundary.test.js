@@ -18,6 +18,17 @@ describe('first-release boundary', () => {
     expect(source('src/views/Landing.jsx')).not.toContain('/admin')
   })
 
+  it('keeps the real Landing available with empty content and protects 9989 behind Supabase auth', () => {
+    expect(source('src/main.jsx')).toContain('<App contentStatus={result.status}')
+    expect(source('src/main.jsx')).not.toContain('<EmptyContentApp')
+    expect(source('src/App.jsx')).toContain('<Landing')
+    expect(source('src/App.jsx')).toContain('<ReaderUnavailable')
+    expect(source('src/admin/adminAccessSequence.js')).toContain("ADMIN_ACCESS_SEQUENCE = '9989'")
+    expect(source('src/admin/adminAccessSequence.js')).not.toContain('credential')
+    expect(source('src/admin/AdminSequenceGate.jsx')).toContain("window.location.assign('/admin')")
+    expect(source('src/admin/AdminApp.jsx')).toContain('loadOwnerDraft(session.user.id)')
+  })
+
   it('allows only the dedicated release branch to create a protected Preview', () => {
     const vercel = JSON.parse(source('vercel.json'))
     expect(vercel.git.deploymentEnabled).toEqual({

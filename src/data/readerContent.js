@@ -77,6 +77,9 @@ export function resolveReaderDisplayLocation(location) {
 }
 
 export function resolveReaderEnvironmentState(location) {
+  if (readerContent.length === 0) {
+    return { worldLayer: 'surface', time: 'noon', weather: 'clear', light: 'neutral' }
+  }
   const resolved = resolveReaderDisplayLocation(location)
   const phase = readerContent.find(candidate => candidate.id === resolved.phaseId)
   const page = phase.pages.find(candidate => candidate.id === resolved.pageId)

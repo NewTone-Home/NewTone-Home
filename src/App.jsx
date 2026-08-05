@@ -4,6 +4,8 @@ import { useTransitionStore } from './stores/transitionStore'
 import { useReadingEntry, READING_ENTRY_TIMINGS } from './transitions/readingEntryController'
 import Landing from './views/Landing'
 import Reader from './views/ReaderOrchestrator'
+import ReaderUnavailable from './views/ReaderUnavailable'
+import AdminSequenceGate from './admin/AdminSequenceGate'
 import ReadingTransition from './components/ReadingTransition'
 import GlobalTransitionOverlay from './components/GlobalTransitionOverlay'
 import PageShell from './components/PageShell'
@@ -12,7 +14,7 @@ import { resolveReaderEnvironmentPreview } from './data/reader-experiments/reade
 import { getReaderThemeVariables } from './reader/readerTheme'
 import { trackEvent } from './services/analytics'
 
-function App() {
+function App({ contentStatus = 'ready', onRetryContent }) {
   const currentView = useProgressStore(s => s.currentView)
   const language = useProgressStore(s => s.language)
   const hasInitializedLanguage = useProgressStore(s => s.hasInitializedLanguage)
@@ -136,7 +138,9 @@ function App() {
   return (
     <>
       <PageShell motionMode={motionMode} surfaceStyle={readerSurfaceStyle}>
-        {showReader && <Reader onReaderReady={readingEntry.isActive ? readingEntry.handleReaderReady : undefined} />}
+        {showReader && (contentStatus === 'ready'
+          ? <Reader onReaderReady={readingEntry.isActive ? readingEntry.handleReaderReady : undefined} />
+          : <ReaderUnavailable status={contentStatus} onRetry={onRetryContent} onReaderReady={readingEntry.isActive ? readingEntry.handleReaderReady : undefined} />)}
         {showLanding && (
           <Landing
             onEnter={handleEnter}
@@ -161,6 +165,7 @@ function App() {
         onModeSelect={handleModeSelect}
       />
       {isGlobalTransitioning && <GlobalTransitionOverlay surfaceStyle={readerSurfaceStyle} />}
+      <AdminSequenceGate />
     </>
   )
 }
