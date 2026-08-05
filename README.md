@@ -26,3 +26,7 @@ Never put a Supabase service-role key in a `VITE_` variable. See `docs/OWNER_ADM
 The framework is Vite, build command is `npm run build`, and output directory is `dist`. Set the two public Supabase variables for both Preview and Production. Production Branch must be `main`. `/admin` is an unlinked SPA route protected by Supabase Auth plus database owner authorization.
 
 GitHub Pages configuration, if retained in repository history, is preview-only and is not the formal production channel.
+
+## Reader copy deterrence
+
+The published Reader disables text selection, copy/cut, drag, the Reader context menu, and the ordinary select/copy keyboard shortcuts. The owner workbench remains editable. This is a deterrent for casual copying; browser developer tools, screenshots, OCR, and determined extraction cannot be made impossible for anonymously readable web content.

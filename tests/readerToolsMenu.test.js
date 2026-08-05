@@ -160,4 +160,11 @@ describe('Reader shell menu contract', () => {
     expect(readerToolsSource).toContain("if (nextMode === 'immersive') releaseThemeFocus(true)")
     expect(readerToolsSource).toContain("tabIndex={readingMode === 'standard' && themePillOpen ? 0 : -1}")
   })
+
+  it('guards non-Node pointer exits and avoids preventDefault in the wheel handler', () => {
+    expect(readerToolsSource).toContain('if (!(node instanceof Node)')
+    const wheelHandler = readerToolsSource.match(/const handleThemeWheel = event => \{([\s\S]*?)\n  \}/)?.[1] ?? ''
+    expect(wheelHandler).toContain('event.stopPropagation()')
+    expect(wheelHandler).not.toContain('event.preventDefault()')
+  })
 })

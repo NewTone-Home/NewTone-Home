@@ -17,4 +17,11 @@ describe('first-release boundary', () => {
     expect(source('src/App.jsx')).toContain("requestedView === 'reader' ? 'reader' : 'landing'")
     expect(source('src/views/Landing.jsx')).not.toContain('/admin')
   })
+
+  it('allows only the dedicated release branch to create a protected Preview', () => {
+    const vercel = JSON.parse(source('vercel.json'))
+    expect(vercel.git.deploymentEnabled).toEqual({
+      'codex/release-landing-reader-vercel': true,
+    })
+  })
 })

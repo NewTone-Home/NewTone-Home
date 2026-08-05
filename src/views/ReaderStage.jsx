@@ -6,6 +6,7 @@ import ReaderTraceProgress from '../components/reader/ReaderTraceProgress'
 import ReaderReturnControl from '../components/reader/ReaderReturnControl'
 import { resolveReaderEnvironmentPreview } from '../data/reader-experiments/readerEnvironmentPreview'
 import { getReaderSceneLabel } from '../i18n/readerUi'
+import { preventReaderShortcut, preventReaderTransfer } from '../reader/readerCopyProtection'
 import { getReaderThemeVariables } from '../reader/readerTheme'
 import './ReaderStage.css'
 import './ReaderShellContract.css'
@@ -91,6 +92,12 @@ function ReaderStage({
       data-light-state={environmentState.light}
       data-environment-preview="chapter"
       data-auto-visual={autoVisual || 'idle'}
+      data-copy-protected="true"
+      onCopyCapture={preventReaderTransfer}
+      onCutCapture={preventReaderTransfer}
+      onContextMenu={preventReaderTransfer}
+      onDragStartCapture={preventReaderTransfer}
+      onKeyDownCapture={preventReaderShortcut}
     >
       <section
         ref={rootRef}

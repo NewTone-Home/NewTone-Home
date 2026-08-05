@@ -726,6 +726,12 @@
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+.reader-stage-page[data-copy-protected="true"] .reader-stage {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* 2026-08 Reader shell contract lock: restored toolbar, local page trace. */
 .reader-corner-menu {
   top: max(24px, env(safe-area-inset-top));

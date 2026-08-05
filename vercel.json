@@ -5,7 +5,7 @@
   "outputDirectory": "dist",
   "git": {
     "deploymentEnabled": {
-      "codex/release-landing-reader-vercel": false
+      "codex/release-landing-reader-vercel": true
     }
   },
   "rewrites": [
