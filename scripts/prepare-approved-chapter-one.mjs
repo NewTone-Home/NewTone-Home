@@ -79,6 +79,11 @@ const workspace = {
   }],
 }
 const content = compileWorkspace(workspace)
+const compiledPages = content.flatMap(phase => phase.pages)
+const compiledChinese = compiledPages.flatMap(page => page.beats.flatMap(beat => beat.blocks.map(block => block.text))).join('\n\n')
+const compiledEnglish = compiledPages.flatMap(page => page.beats.flatMap(beat => beat.translations.en.blocks.map(block => block.text))).join('\n\n')
+if (compiledChinese !== chinese.body) throw new Error('Compiled Chinese Reader body differs from the approved source.')
+if (compiledEnglish !== english.body) throw new Error('Compiled English Reader body differs from the approved source.')
 const sha256 = value => createHash('sha256').update(value).digest('hex')
 await writeFile(resolve(outputPath), JSON.stringify({
   workspace,
