@@ -79,7 +79,7 @@ describe('Reader shell contract boundaries', () => {
   it('keeps Landing prompts complete and selection circles retractable', () => {
     expect(copy).toContain("landingPromptInitial: '向下滚动 · 开始读取'")
     expect(copy).toContain("landingPromptResume: '向下滚动 · 继续读取'")
-    expect(copy).toContain("landingPromptInitial: 'scroll down · begin reading'")
+    expect(copy).toContain("landingPromptInitial: 'Scroll down to begin'")
     expect(transition).toContain('onPointerLeave={primaryHold.retract}')
     expect(transition).toContain('targetRef.current = 0')
     expect(transition).toContain('data-selector-stage={currentStage.id}')
@@ -110,7 +110,7 @@ describe('Reader shell contract boundaries', () => {
     const buttonOpening = returnControl.match(/<button[\s\S]*?>/)?.[0] ?? ''
     expect(buttonOpening).not.toContain('onPointerEnter={begin}')
     expect(copy).toContain("returnToLanding: '返回入口'")
-    expect(copy).toContain("returnToLanding: 'Return to Entrance'")
+    expect(copy).toContain("returnToLanding: 'Return to entrance'")
     expect(copy).not.toContain("returnToLanding: 'return to main screen'")
   })
 

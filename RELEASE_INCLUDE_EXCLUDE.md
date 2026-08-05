@@ -5,7 +5,7 @@ This branch is assembled from `origin/main` in a clean worktree. It intentionall
 ## Included
 
 - Public Landing and Reader routes, responsive styles, transitions, language/theme/reading controls, and required Landing assets.
-- An intentionally empty Supabase content state. The browser runtime reads only an owner-published Supabase row; no legacy manuscript is bundled or seeded.
+- A Supabase-backed bilingual Chapter 1 publication prepared only from the owner-approved Chinese and English source files. The browser runtime reads only an owner-published Supabase row; no manuscript is bundled into the frontend.
 - A separate `/admin` owner surface containing only the content/pagination workbench required to edit drafts, preview pagination, and publish a new version.
 - Supabase Auth for the admin surface and database-enforced owner authorization through an explicit owner allow-list.
 - Supabase migrations for published content, private drafts, owner authorization, anonymous analytics, RLS, grants, and private aggregate analytics views.
@@ -19,9 +19,9 @@ This branch is assembled from `origin/main` in a clean worktree. It intentionall
 - Remote reading-progress sync, profiles, feedback, or any claim of cross-device public-reader state. Public progress remains local to the browser.
 - Unrelated analysis artifacts, generated screenshots, old asset iterations, and all other pre-existing dirty-worktree files.
 
-## Content publication gate
+## Content provenance gate
 
-No legacy manuscript is accepted as a first-release draft and no placeholder narrative is invented. Production publication and merge remain gated on the owner authoring and explicitly publishing the new body content through `/admin` (or providing the approved replacement source).
+No legacy manuscript or placeholder narrative is accepted. Chapter 1 must pass the recorded source-hash, paragraph-mapping, owner-preview, bilingual Reader, and production smoke checks before publication. The approved source provenance and UI-copy review are recorded in `docs/FIRST_RELEASE_CONTENT_AND_ENGLISH_COPY.md`.
 
 ## One-time external configuration
 

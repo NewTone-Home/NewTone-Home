@@ -1,4 +1,4 @@
-import { PHASES } from '../constants/phases'
+import { PHASES } from '../constants/phases.js'
 
 export const READER_PAGE_MODES = Object.freeze({
   FOCUS_SEQUENCE: 'focus-sequence',
@@ -15,6 +15,18 @@ function deepFreeze(value) {
     if (child && typeof child === 'object' && !Object.isFrozen(child)) deepFreeze(child)
   })
   return Object.freeze(value)
+}
+
+function validateBlocks(blocks, beat, page, label = '') {
+  if (!Array.isArray(blocks) || blocks.length === 0) throw new Error(`Beat ${beat.id}${label} must provide blocks`)
+  const blockIds = new Set()
+  for (const block of blocks) {
+    if (!block || typeof block.id !== 'string' || !/^block-\d+$/.test(block.id)) throw new Error(`Invalid block ID in beat ${beat.id}${label}`)
+    if (blockIds.has(block.id)) throw new Error(`Duplicate block ID ${block.id} in beat ${beat.id}${label}`)
+    if (block.type !== 'paragraph' || typeof block.text !== 'string' || !block.text.trim()) throw new Error(`Invalid block ${block.id} in beat ${beat.id}${label}`)
+    if (block.source?.chapterId !== page.chapterId || typeof block.source?.paragraphId !== 'string') throw new Error(`Invalid source metadata for ${beat.id}/${block.id}${label}`)
+    blockIds.add(block.id)
+  }
 }
 
 export let readerContent = Object.freeze([])
@@ -41,14 +53,13 @@ export function validateReaderContent(content, { allowEmpty = false } = {}) {
       for (const beat of page.beats) {
         if (!beat?.id || beatIds.has(beat.id)) throw new Error(`Invalid or duplicate beat ID: ${String(beat?.id)}`)
         beatIds.add(beat.id)
-        if (!Array.isArray(beat.blocks) || beat.blocks.length === 0) throw new Error(`Beat ${beat.id} must provide blocks`)
-        const blockIds = new Set()
-        for (const block of beat.blocks) {
-          if (!block || typeof block.id !== 'string' || !/^block-\d+$/.test(block.id)) throw new Error(`Invalid block ID in beat ${beat.id}`)
-          if (blockIds.has(block.id)) throw new Error(`Duplicate block ID ${block.id} in beat ${beat.id}`)
-          if (block.type !== 'paragraph' || typeof block.text !== 'string') throw new Error(`Invalid block ${block.id} in beat ${beat.id}`)
-          if (block.source?.chapterId !== page.chapterId || typeof block.source?.paragraphId !== 'string') throw new Error(`Invalid source metadata for ${beat.id}/${block.id}`)
-          blockIds.add(block.id)
+        validateBlocks(beat.blocks, beat, page)
+        if (beat.translations !== undefined) {
+          if (!beat.translations || typeof beat.translations !== 'object') throw new Error(`Invalid translations in beat ${beat.id}`)
+          for (const [language, translation] of Object.entries(beat.translations)) {
+            if (language !== 'en') throw new Error(`Unsupported translation language ${language} in beat ${beat.id}`)
+            validateBlocks(translation?.blocks, beat, page, `/${language}`)
+          }
         }
       }
     }

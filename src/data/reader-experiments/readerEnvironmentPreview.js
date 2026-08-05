@@ -4,6 +4,7 @@ export const READER_ENVIRONMENT_OPTIONS = {
     { value: 'inner', label: '里世界' },
   ],
   times: [
+    { value: 'unknown', label: '未指定' },
     { value: 'morning', label: '上午' },
     { value: 'noon', label: '中午' },
     { value: 'afternoon', label: '下午' },
@@ -11,6 +12,7 @@ export const READER_ENVIRONMENT_OPTIONS = {
     { value: 'night', label: '夜晚' },
   ],
   weather: [
+    { value: 'unknown', label: '未指定' },
     { value: 'clear', label: '晴天' },
     { value: 'overcast', label: '阴天' },
     { value: 'rain', label: '雨天' },
@@ -19,6 +21,7 @@ export const READER_ENVIRONMENT_OPTIONS = {
 }
 
 const TIME_EXPOSURE = {
+  unknown: 1,
   morning: 0.98,
   noon: 1.05,
   afternoon: 1,
@@ -27,6 +30,7 @@ const TIME_EXPOSURE = {
 }
 
 const WEATHER_EXPOSURE = {
+  unknown: 1,
   clear: 1,
   overcast: 0.98,
   rain: 0.76,
@@ -34,6 +38,7 @@ const WEATHER_EXPOSURE = {
 }
 
 const WEATHER_LIGHT = {
+  unknown: 0.2,
   clear: 0.58,
   overcast: 0.13,
   rain: 0,

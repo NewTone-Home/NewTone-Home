@@ -1,22 +1,22 @@
 import { copy } from './copy'
 
 const ENGLISH_SCENES = Object.freeze({
-  'ancestral-home-courtyard': 'Ji ancestral home · courtyard',
-  'ancestral-home-hall': 'Ji ancestral home · main hall',
-  'ancestral-passage': 'hidden passage',
-  'inner-street': 'inner-world street',
-  'inner-commercial-street': 'inner-world commercial street',
-  'inner-commercial-cafe': 'inner-world commercial street café',
-  'inner-lakeside': 'inner world · lakeside',
-  'inner-transit': 'inner world · en route',
-  'mining-old-street': 'mining district · old street',
-  'yonghe-diner': 'Yonghe diner',
-  'yonghe-back-alley': 'alley behind Yonghe diner',
-  'ruoyu-commercial-street': 'commercial street',
-  'ruoyu-cafe': 'café at the end of commercial street',
-  'noodle-shop': 'noodle shop near the subway',
-  'walk-to-subway': 'on the way to the subway',
-  subway: 'subway station and train',
+  'ancestral-home-courtyard': 'Ji ancestral residence · Courtyard',
+  'ancestral-home-hall': 'Ji ancestral residence · Main hall',
+  'ancestral-passage': 'Hidden passage',
+  'inner-street': 'Inner World · Street',
+  'inner-commercial-street': 'Inner World · Shopping street',
+  'inner-commercial-cafe': 'Inner World · Shopping district café',
+  'inner-lakeside': 'Inner World · Lakeside',
+  'inner-transit': 'Inner World · En route',
+  'mining-old-street': 'Mining district · Old street',
+  'yonghe-diner': 'Yonghe Diner',
+  'yonghe-back-alley': 'Alley behind Yonghe Diner',
+  'ruoyu-commercial-street': 'Shopping street',
+  'ruoyu-cafe': 'Café at the end of the shopping street',
+  'noodle-shop': 'Noodle shop near the subway',
+  'walk-to-subway': 'On the way to the subway',
+  subway: 'Subway station and train',
 })
 
 export function getReaderUi(language) {

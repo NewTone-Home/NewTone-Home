@@ -5,8 +5,13 @@ import './ReaderBeatStack.css'
 const NATIVE_SCROLL_QUERY = '(hover: none), (pointer: coarse), (max-width: 720px)'
 const BOUNDARY_THRESHOLD_PX = 12
 
+export function getBeatBlocksForLanguage(beat, language) {
+  return (language === 'en' ? beat.translations?.en?.blocks : null) ?? beat.blocks
+}
+
 function ReaderBeatStack({
   beats,
+  language = 'zh',
   focusBeatIndex,
   onFocusMotionEnd,
   focusRef,
@@ -202,7 +207,7 @@ function ReaderBeatStack({
               data-reader-gated={gated ? 'true' : 'false'}
               data-display-unit-kind={beat.displayUnit?.kind ?? 'authored'}
             >
-              {beat.blocks.map(block => {
+              {getBeatBlocksForLanguage(beat, language).map(block => {
                 const deliveryState = narrativeDeliveryStates[`${beat.id}:${block.id}`] ?? 'delivered'
                 const revealDelivery = deliveryState?.type === 'reveal' ? deliveryState : null
                 const pauseDelivery = deliveryState?.type === 'pause' ? deliveryState : null

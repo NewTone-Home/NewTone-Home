@@ -101,14 +101,14 @@ const TRANSITION_ENVIRONMENT_COPY = Object.freeze({
     weatherValue: { clear: '晴', overcast: '阴', rain: '雨', snow: '雪', unknown: '未标明' },
   },
   en: {
-    worldLayer: 'world layer',
-    location: 'location',
-    time: 'time',
-    weather: 'weather',
-    unknown: 'not specified',
-    world: { surface: 'surface world', inner: 'inner world', unknown: 'not specified' },
-    timeValue: { morning: 'morning', noon: 'noon', afternoon: 'afternoon', dusk: 'dusk', night: 'night', unknown: 'not specified' },
-    weatherValue: { clear: 'clear', overcast: 'overcast', rain: 'rain', snow: 'snow', unknown: 'not specified' },
+    worldLayer: 'World',
+    location: 'Setting',
+    time: 'Time',
+    weather: 'Weather',
+    unknown: 'Not specified',
+    world: { surface: 'Surface World', inner: 'Inner World', unknown: 'Not specified' },
+    timeValue: { morning: 'Morning', noon: 'Noon', afternoon: 'Afternoon', dusk: 'Dusk', night: 'Night', unknown: 'Not specified' },
+    weatherValue: { clear: 'Clear', overcast: 'Overcast', rain: 'Rain', snow: 'Snow', unknown: 'Not specified' },
   },
 })
 
@@ -117,7 +117,7 @@ function resolveTransitionEnvironment(state, language) {
   if (!state) return []
   return [
     `${envCopy.worldLayer} · ${envCopy.world[state.worldLayer] ?? envCopy.unknown}`,
-    `${envCopy.location} · ${getReaderSceneLabel(language, state.locationId, state.locationLabel) || envCopy.unknown}`,
+    `${envCopy.location} · ${getReaderSceneLabel(language, state.locationId, state.locationLabels?.[language] || state.locationLabel) || envCopy.unknown}`,
     `${envCopy.time} · ${envCopy.timeValue[state.time] ?? envCopy.unknown}`,
     `${envCopy.weather} · ${envCopy.weatherValue[state.weather] ?? envCopy.unknown}`,
   ]

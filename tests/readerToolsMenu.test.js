@@ -46,10 +46,10 @@ describe('Reader shell menu contract', () => {
     expect(chinese).not.toContain('Français')
 
     const english = markup({ language: 'en' })
-    expect(english).toContain('aria-label="language: English"')
+    expect(english).toContain('aria-label="Language: English"')
     expect(english).toContain('reader-language-slot-label">中文</span>')
-    expect(english).toContain('aria-label="select language"')
-    expect(english).toContain('aria-label="switch to 中文"')
+    expect(english).toContain('aria-label="Choose a language"')
+    expect(english).toContain('aria-label="Switch to 中文"')
   })
 
   it('keeps the original theme pill with exact Bright, Soft, and Night anchors', () => {
@@ -66,9 +66,9 @@ describe('Reader shell menu contract', () => {
 
     const english = markup({ language: 'en', readingMode: 'standard', themePosition: 0.5 })
     expect(english).toContain('reader-theme-name')
-    expect(english).toContain('>soft</span>')
-    expect(english).toContain('aria-label="standard reading theme"')
-    expect(english).toContain('>standard reading</span>')
+    expect(english).toContain('>Warm</span>')
+    expect(english).toContain('aria-label="Reading theme"')
+    expect(english).toContain('>Classic</span>')
     expect(english).not.toContain('>柔和</span>')
 
     const immersive = markup({ readingMode: 'immersive' })
@@ -76,8 +76,8 @@ describe('Reader shell menu contract', () => {
   })
 
   it('translates reading-mode labels when English is active', () => {
-    expect(markup({ language: 'en', readingMode: 'immersive' })).toContain('aria-label="immersive narrative"')
-    expect(markup({ language: 'en', readingMode: 'standard' })).toContain('aria-label="standard reading"')
+    expect(markup({ language: 'en', readingMode: 'immersive' })).toContain('aria-label="Immersive"')
+    expect(markup({ language: 'en', readingMode: 'standard' })).toContain('aria-label="Classic"')
     expect(markup({ language: 'zh', readingMode: 'immersive' })).toContain('aria-label="沉浸叙事"')
   })
 

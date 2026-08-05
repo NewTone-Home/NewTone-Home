@@ -14,7 +14,7 @@ function OwnerReaderPreview() {
       setApp(() => appModule.default)
     }).catch(reason => setError(reason instanceof Error ? reason.message : '无法启动 Reader 预览。'))
   }, [])
-  if (error) return <main className="admin-access"><section><p>NewTone / Owner Preview</p><h1>无法打开临时预览</h1><p role="alert">{error}</p><a href="/admin">返回工作台</a></section></main>
+  if (error) return <main className="admin-access"><section><p>NewTone / Draft Preview</p><h1>无法打开临时预览</h1><p role="alert">{error}</p><a href="/admin">返回工作台</a></section></main>
   if (!App) return <main className="admin-access"><section><p>正在准备 Reader 临时预览…</p></section></main>
   return <><App contentStatus="ready" /><a className="admin-preview-return" href="/admin">返回工作台</a></>
 }

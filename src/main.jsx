@@ -4,9 +4,11 @@ import './styles/tokens.css'
 import './styles/visualTokens.css'
 import { installDwellTracking } from './services/analytics'
 import { loadPublishedContent } from './services/publishedContent'
+import { detectBrowserReaderLanguage } from './i18n/languages'
 
 function LoadingShell() {
-  return <main className="empty-content-shell"><section><p className="empty-content-mark">NewTone</p><p>正在确认已发布正文…</p></section></main>
+  const language = detectBrowserReaderLanguage(navigator.languages || [navigator.language])
+  return <main className="empty-content-shell"><section><p className="empty-content-mark">NewTone</p><p>{language === 'en' ? 'Preparing the latest chapter…' : '正在确认已发布正文…'}</p></section></main>
 }
 
 function PublicRoot() {

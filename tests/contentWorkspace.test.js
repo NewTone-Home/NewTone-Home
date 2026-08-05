@@ -20,10 +20,20 @@ describe('owner content workspace', () => {
 
   it('compiles owner-authored pages without adding prose', () => {
     const content = compileWorkspace({ schemaVersion: 1, chapters: [{
-      id: 'chapter-one', title: 'Test', protagonistId: 'owner-test',
-      pages: [{ id: 'page-one', sceneLabel: 'Scene', text: 'alpha\n\nbeta', worldLayer: 'surface', time: 'noon', weather: 'clear', light: 'neutral' }],
+      id: 'chapter-one', title: '测试', titleEn: 'Test', protagonistId: 'owner-test',
+      pages: [{ id: 'page-one', sceneLabel: '场景', sceneLabelEn: 'Scene', text: '甲\n\n乙', textEn: 'alpha\n\nbeta', translationParagraphCounts: { en: [1, 1] }, worldLayer: 'surface', time: 'noon', weather: 'clear', light: 'neutral' }],
     }] })
-    expect(content[0].pages[0].beats.map(beat => beat.blocks[0].text)).toEqual(['alpha', 'beta'])
+    expect(content[0].pages[0].beats.map(beat => beat.blocks[0].text)).toEqual(['甲', '乙'])
+    expect(content[0].pages[0].beats.map(beat => beat.translations.en.blocks[0].text)).toEqual(['alpha', 'beta'])
+  })
+
+  it('preserves an explicit one-to-many English paragraph mapping', () => {
+    const content = compileWorkspace({ schemaVersion: 1, chapters: [{
+      id: 'chapter-one', title: '测试', titleEn: 'Test', protagonistId: 'owner-test',
+      pages: [{ id: 'page-one', sceneLabel: '场景', sceneLabelEn: 'Scene', text: '甲\n\n乙', textEn: 'First.\n\nSecond.\n\nThird.', translationParagraphCounts: { en: [2, 1] }, worldLayer: 'surface', time: 'unknown', weather: 'unknown', light: 'neutral' }],
+    }] })
+    expect(content[0].pages[0].beats[0].translations.en.blocks.map(block => block.text)).toEqual(['First.', 'Second.'])
+    expect(content[0].pages[0].beats[1].translations.en.blocks.map(block => block.text)).toEqual(['Third.'])
   })
 
   it('splits, inserts, merges, and deletes pages without inventing text', () => {

@@ -67,8 +67,8 @@ function ReaderStage({
   const atPageEnd = focusBeatIndex >= Math.max(0, beats.length - 1)
   const returnVisible = emptyDocument || readingMode === 'immersive' || atPageEnd || escapeReturnVisible
   const locationLabel = emptyDocument
-    ? (language === 'en' ? 'No page' : '暂无页面')
-    : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
+    ? (language === 'en' ? 'No pages yet' : '暂无页面')
+    : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
 
   useEffect(() => {
     setEscapeReturnVisible(false)
@@ -134,6 +134,7 @@ function ReaderStage({
         />
         {!emptyDocument && <ReaderBeatStack
           beats={beats}
+          language={language}
           focusBeatIndex={focusBeatIndex}
           onFocusMotionEnd={onFocusMotionEnd}
           onNativeFocusChange={onNativeFocusChange}
@@ -150,9 +151,9 @@ function ReaderStage({
         />}
         {emptyDocument && <section className="reader-empty-document" aria-labelledby="reader-empty-document-title">
           <p className="reader-empty-document-mark">NewTone / Reader</p>
-          <h1 id="reader-empty-document-title">{language === 'en' ? 'No readable page' : '暂无可读页面'}</h1>
-          <p>{language === 'en' ? 'The body has not been published. Reader settings remain available.' : '正文尚未发布。Reader 的阅读设置可以继续使用。'}</p>
-          {contentStatus !== 'empty' && <button type="button" onClick={onRetryContent}>{language === 'en' ? 'Check again' : '重新检查正文'}</button>}
+          <h1 id="reader-empty-document-title">{language === 'en' ? 'No pages are available yet' : '暂无可读页面'}</h1>
+          <p>{language === 'en' ? 'The story has not been published yet. You can still explore the Reader settings.' : '正文尚未发布。Reader 的阅读设置可以继续使用。'}</p>
+          {contentStatus !== 'empty' && <button type="button" onClick={onRetryContent}>{language === 'en' ? 'Try again' : '重新检查正文'}</button>}
         </section>}
         {!emptyDocument && <ReaderTraceProgress
           key={page?.id}
