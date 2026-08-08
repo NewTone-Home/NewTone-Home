@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   INTRO_STORAGE_KEY,
   TITLE_PHASE,
+  LANDING_GUIDE_DELAY_MS,
+  LANDING_GUIDE_RETRACT_MS,
   clearIntroCompleted,
   isTitleDrawing,
   readIntroCompleted,
   resolveScrollIntent,
+  shouldScheduleLandingGuide,
   writeIntroCompleted,
 } from './landingIntro'
 
@@ -96,5 +99,20 @@ describe('状态职责分离', () => {
   it('同一视觉阶段在首次与回访下只有滚轮意图不同', () => {
     expect(resolveScrollIntent({ phase: TITLE_PHASE.DRAWING, introCompleted: false })).toBe('blocked')
     expect(resolveScrollIntent({ phase: TITLE_PHASE.DRAWING, introCompleted: true })).toBe('retract')
+  })
+})
+
+describe('首次 Landing 引导', () => {
+  it('uses a quiet delay and a shorter withdrawal', () => {
+    expect(LANDING_GUIDE_DELAY_MS).toBeGreaterThanOrEqual(1000)
+    expect(LANDING_GUIDE_DELAY_MS).toBeLessThanOrEqual(1500)
+    expect(LANDING_GUIDE_RETRACT_MS).toBeLessThan(LANDING_GUIDE_DELAY_MS)
+  })
+
+  it('only schedules the guide for an unlearned idle entrance', () => {
+    expect(shouldScheduleLandingGuide({ introCompleted: false, phase: TITLE_PHASE.IDLE })).toBe(true)
+    expect(shouldScheduleLandingGuide({ introCompleted: true, phase: TITLE_PHASE.IDLE })).toBe(false)
+    expect(shouldScheduleLandingGuide({ introCompleted: false, phase: TITLE_PHASE.DRAWING })).toBe(false)
+    expect(shouldScheduleLandingGuide({ introCompleted: false, phase: TITLE_PHASE.IDLE, activationPending: true })).toBe(false)
   })
 })

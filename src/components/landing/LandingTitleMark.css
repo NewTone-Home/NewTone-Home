@@ -80,12 +80,62 @@
   position: relative;
   display: inline-block;
   color: transparent;
-  transform: translate3d(var(--newtone-transition-x, 0), var(--newtone-transition-y, 0), 0);
-  will-change: transform;
+}
+
+.newtone-hand-lines {
+  position: absolute;
+  left: -1.5%;
+  top: calc(100% - 5px);
+  width: 103%;
+  height: 18px;
+  overflow: visible;
+  fill: none;
+  opacity: 0;
+  pointer-events: none;
+  stroke: var(--newtone-line-color, var(--ink-medium, #5a4d40));
+  stroke-linecap: round;
+  stroke-width: 1.35;
+  transition: opacity 240ms ease;
+}
+
+.newtone-hand-lines path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.newtone-hand-lines__second {
+  opacity: .54;
+  stroke-width: 1.05;
+}
+
+.landing-title--drawn .newtone-hand-lines,
+.newtone-transition-mark[data-title-phase="revealed"] .newtone-hand-lines {
+  opacity: .52;
+}
+
+.landing-title--drawn .newtone-hand-lines path,
+.newtone-transition-mark[data-title-phase="revealed"] .newtone-hand-lines path {
+  animation: newtone-hand-line-draw 360ms ease-out forwards;
+}
+
+.landing-title--drawn .newtone-hand-lines__second,
+.newtone-transition-mark[data-title-phase="revealed"] .newtone-hand-lines__second {
+  animation-delay: 70ms;
+}
+
+@keyframes newtone-hand-line-draw {
+  to { stroke-dashoffset: 0; }
 }
 
 @media (max-width: 768px) {
   .landing-title-ink--second {
     transform: translate(1.6px, 1.1px) rotate(-0.55deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .newtone-hand-lines path {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
   }
 }

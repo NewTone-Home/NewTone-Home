@@ -23,6 +23,14 @@ export const TITLE_PHASE = Object.freeze({
 export const TITLE_DRAW_MS = 2000
 /** Leaving is not — the stroke is snatched back. */
 export const TITLE_RETRACT_MS = 320
+/** The first visit begins quietly before the teaching mark appears. */
+export const LANDING_GUIDE_DELAY_MS = 1200
+/** The guide withdraws before the title retrace begins. */
+export const LANDING_GUIDE_RETRACT_MS = 320
+
+export function shouldScheduleLandingGuide({ introCompleted, phase, activationPending = false }) {
+  return !introCompleted && phase === TITLE_PHASE.IDLE && !activationPending
+}
 
 function defaultStorage() {
   try {

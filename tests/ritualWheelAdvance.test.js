@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveRitualWheelAction } from '../src/interactions/ritualWheelAdvance'
+import { resolveRitualTapAction, resolveRitualWheelAction } from '../src/interactions/ritualWheelAdvance'
 
 describe('initial Reader ritual wheel advance', () => {
   it('advances language only from the primary option on downward scroll', () => {
@@ -16,5 +16,13 @@ describe('initial Reader ritual wheel advance', () => {
   it('ignores tiny wheel noise and inactive phases', () => {
     expect(resolveRitualWheelAction('mode-active', 'primary', 4)).toBeNull()
     expect(resolveRitualWheelAction('mode-leaving', 'primary', 24)).toBeNull()
+  })
+
+  it('allows touch taps to confirm only the actionable setup choices', () => {
+    expect(resolveRitualTapAction('language-active', 'primary', 'touch')).toEqual({ type: 'language' })
+    expect(resolveRitualTapAction('language-active', 'secondary', 'touch')).toBeNull()
+    expect(resolveRitualTapAction('mode-active', 'primary', 'touch')).toEqual({ type: 'mode', mode: 'immersive' })
+    expect(resolveRitualTapAction('mode-active', 'secondary', 'touch')).toEqual({ type: 'mode', mode: 'standard' })
+    expect(resolveRitualTapAction('mode-active', 'primary', 'mouse')).toBeNull()
   })
 })

@@ -1,6 +1,5 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId } from 'react'
 import { useTitleRetrace } from '../../hooks/useTitleRetrace'
-import { resolveLandingParallax } from '../../landing/landingParallax'
 import './LandingTitleMark.css'
 
 /**
@@ -63,8 +62,16 @@ function LandingTitleMark({ text, sweepRef }) {
   )
 }
 
+export function NewToneHandLines() {
+  return (
+    <svg className="newtone-hand-lines" viewBox="0 0 240 18" preserveAspectRatio="none" aria-hidden="true">
+      <path pathLength="1" d="M4 5.6C48 3.2 92 7.3 137 5.1C174 3.4 207 5.8 236 3.7" />
+      <path className="newtone-hand-lines__second" pathLength="1" d="M13 12.7C52 10.1 91 14.4 130 11.6C162 9.4 190 12.8 221 10.2" />
+    </svg>
+  )
+}
+
 export function NewToneTransitionMark({ reduced = false, className = '' }) {
-  const visualRef = useRef(null)
   const { phase, sweepRef, begin } = useTitleRetrace({
     introCompleted: false,
     reduced,
@@ -76,50 +83,12 @@ export function NewToneTransitionMark({ reduced = false, className = '' }) {
     return () => cancelAnimationFrame(frame)
   }, [begin])
 
-  useEffect(() => {
-    const node = visualRef.current
-    if (!node || reduced) return undefined
-    const target = { x: 0, y: 0 }
-    const current = { x: 0, y: 0 }
-    let frame = 0
-
-    const render = () => {
-      current.x += (target.x - current.x) * 0.11
-      current.y += (target.y - current.y) * 0.11
-      node.style.setProperty('--newtone-transition-x', `${current.x.toFixed(3)}px`)
-      node.style.setProperty('--newtone-transition-y', `${current.y.toFixed(3)}px`)
-      const unsettled = Math.abs(target.x - current.x) > 0.02 || Math.abs(target.y - current.y) > 0.02
-      frame = unsettled ? requestAnimationFrame(render) : 0
-    }
-    const requestRender = () => {
-      if (!frame) frame = requestAnimationFrame(render)
-    }
-    const handlePointerMove = event => {
-      const next = resolveLandingParallax(event.clientX, event.clientY, window.innerWidth, window.innerHeight)
-      target.x = next.x
-      target.y = next.y
-      requestRender()
-    }
-    const returnToCenter = () => {
-      target.x = 0
-      target.y = 0
-      requestRender()
-    }
-
-    window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('blur', returnToCenter)
-    return () => {
-      cancelAnimationFrame(frame)
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('blur', returnToCenter)
-    }
-  }, [reduced])
-
   return (
     <div className={`newtone-transition-mark${className ? ` ${className}` : ''}`} data-title-phase={phase}>
-      <span ref={visualRef} className="newtone-transition-mark__visual">
+      <span className="newtone-transition-mark__visual">
         NewTone
         <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
+        <NewToneHandLines />
       </span>
     </div>
   )

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import fs from 'node:fs'
-import { LANDING_PARALLAX_LIMIT, resolveLandingParallax } from '../src/landing/landingParallax'
+import {
+  LANDING_PARALLAX_LIMIT,
+  mapDeviceOrientation,
+  resolveLandingParallax,
+  resolveOrientationNormalized,
+  resolvePointerNormalized,
+} from '../src/landing/landingParallax'
 
 const landingSketchCss = fs.readFileSync(new URL('../src/components/landing/LandingSketchLayer.css', import.meta.url), 'utf8')
 
@@ -15,6 +21,23 @@ describe('Landing title parallax', () => {
     const offset = resolveLandingParallax(1020, 160, 1280, 720)
     expect(Math.abs(offset.x)).toBeLessThanOrEqual(12)
     expect(Math.abs(offset.y)).toBeLessThanOrEqual(9)
+  })
+
+  it('emits the same normalized space before layer-specific amplitudes', () => {
+    expect(resolvePointerNormalized(640, 360, 1280, 720)).toEqual({ x: 0, y: 0 })
+    expect(resolvePointerNormalized(1280, 0, 1280, 720)).toEqual({ x: 1, y: -1 })
+  })
+
+  it('maps device orientation through the current screen rotation', () => {
+    expect(mapDeviceOrientation(10, 4, 0)).toEqual({ x: 4, y: 10 })
+    expect(mapDeviceOrientation(10, 4, 90)).toEqual({ x: 10, y: -4 })
+    expect(mapDeviceOrientation(10, 4, 270)).toEqual({ x: -10, y: 4 })
+    expect(mapDeviceOrientation(null, 4, 0)).toBeNull()
+  })
+
+  it('normalizes orientation relative to the scene baseline and clamps it', () => {
+    expect(resolveOrientationNormalized({ x: 7, y: -7 }, { x: 0, y: 0 }, 14)).toEqual({ x: .5, y: -.5 })
+    expect(resolveOrientationNormalized({ x: 30, y: -30 }, { x: 0, y: 0 }, 14)).toEqual({ x: 1, y: -1 })
   })
 
   it('keeps rubbed-out marks on the active paper tone instead of fixed white bars', () => {

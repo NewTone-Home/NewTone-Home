@@ -3,60 +3,36 @@ import { useProgressStore } from '../stores/progressStore'
 import { copy } from '../i18n/copy'
 import { getReaderEntryIntent, hasStableReaderProgress } from '../reader/readerEntry'
 import {
+  LANDING_GUIDE_DELAY_MS,
+  LANDING_GUIDE_RETRACT_MS,
   TITLE_PHASE,
   readIntroCompleted,
   resolveScrollIntent,
+  shouldScheduleLandingGuide,
   writeIntroCompleted,
 } from '../landing/landingIntro'
 import { useReducedMotion } from '../hooks/useReducedMotion'
+import { useSceneParallax } from '../hooks/useSceneParallax'
 import { useTitleRetrace } from '../hooks/useTitleRetrace'
 import { LANDING_SCENES, resolveLandingScene } from '../landing/landingScene'
-import { resolveLandingParallax } from '../landing/landingParallax'
 import { detectBrowserReaderLanguage } from '../i18n/languages'
 import ScrambleText from '../components/ScrambleText'
-import LandingSketchLayer from '../components/landing/LandingSketchLayer'
 import LandingJijiaScene from '../components/landing/LandingJijiaScene'
-import LandingTitleMark from '../components/landing/LandingTitleMark'
+import LandingTitleMark, { NewToneHandLines } from '../components/landing/LandingTitleMark'
 import '../styles/sketchPrimitives.css'
 import './Landing.css'
 
-function TitleSignal({ active }) {
-  const [particles, setParticles] = useState([])
-
-  useEffect(() => {
-    if (!active) {
-      setParticles([])
-      return
-    }
-    const chars = '·./\\|~'
-    const items = Array.from({ length: 10 }, (_, i) => ({
-      id: i,
-      char: chars[Math.floor(Math.random() * chars.length)],
-      x: (Math.random() - 0.5) * 100,
-      delay: 100 + Math.random() * 350,
-      duration: 1000 + Math.random() * 600,
-      fall: 15 + Math.random() * 35,
-    }))
-    setParticles(items)
-  }, [active])
-
+function LandingGuideArrow({ phase }) {
+  if (phase === 'hidden') return null
   return (
-    <div className="title-signal">
-      {active && particles.map(p => (
-        <span
-          key={p.id}
-          className="title-signal-particle"
-          style={{
-            '--x': `${p.x}px`,
-            '--fall': `${p.fall}px`,
-            '--delay': `${p.delay}ms`,
-            '--duration': `${p.duration}ms`,
-          }}
-        >
-          {p.char}
-        </span>
-      ))}
-    </div>
+    <svg
+      className={`landing-guide-arrow landing-guide-arrow--${phase}`}
+      viewBox="0 0 92 72"
+      aria-hidden="true"
+    >
+      <path className="landing-guide-arrow__curve" pathLength="1" d="M8 64C13 48 22 39 36 32C47 26 55 20 64 12" />
+      <path className="landing-guide-arrow__head" pathLength="1" d="M53 15C58 14 62 13 66 10C65 15 64 20 62 24" />
+    </svg>
   )
 }
 
@@ -68,11 +44,12 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
   const motionMode = useProgressStore(s => s.motionMode)
 
   const [introCompleted, setIntroCompleted] = useState(() => readIntroCompleted())
-  const [scrollTriggered, setScrollTriggered] = useState(false)
-  const [retraceKey, setRetraceKey] = useState(0)
+  const [guidePhase, setGuidePhase] = useState(() => introCompleted ? 'hidden' : 'quiet')
   const triggeredRef = useRef(false)
   const introRef = useRef(introCompleted)
-  const titleVisualRef = useRef(null)
+  const landingRef = useRef(null)
+  const activationPendingRef = useRef(false)
+  const activationTimerRef = useRef(0)
 
   const reducedMotion = useReducedMotion()
   // 视觉原型开关，只影响背景层：?landing-scene=jijia_compound
@@ -93,61 +70,42 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
     introRef.current = introCompleted
   }, [introCompleted])
 
+  useSceneParallax({
+    rootRef: landingRef,
+    enabled: true,
+    reduced: reducedMotion || motionMode === 'reduced',
+  })
+
   useEffect(() => {
-    const node = titleVisualRef.current
-    if (!node || reducedMotion || motionMode === 'reduced') return undefined
-    const target = { x: 0, y: 0 }
-    const current = { x: 0, y: 0 }
-    let frame = 0
+    if (!shouldScheduleLandingGuide({ introCompleted, phase, activationPending: activationPendingRef.current })) {
+      if (introCompleted) setGuidePhase('hidden')
+      return undefined
+    }
+    setGuidePhase('quiet')
+    const timer = window.setTimeout(() => {
+      if (!activationPendingRef.current && phaseRef.current === TITLE_PHASE.IDLE) setGuidePhase('visible')
+    }, LANDING_GUIDE_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [introCompleted, phase, phaseRef])
 
-    const render = () => {
-      current.x += (target.x - current.x) * 0.11
-      current.y += (target.y - current.y) * 0.11
-      node.style.setProperty('--landing-parallax-x', `${current.x.toFixed(3)}px`)
-      node.style.setProperty('--landing-parallax-y', `${current.y.toFixed(3)}px`)
-      node.dataset.parallaxX = current.x.toFixed(3)
-      node.dataset.parallaxY = current.y.toFixed(3)
-      const unsettled = Math.abs(target.x - current.x) > 0.02 || Math.abs(target.y - current.y) > 0.02
-      frame = unsettled ? requestAnimationFrame(render) : 0
-    }
-    const requestRender = () => {
-      if (!frame) frame = requestAnimationFrame(render)
-    }
-    const onPointerMove = event => {
-      const next = resolveLandingParallax(event.clientX, event.clientY, window.innerWidth, window.innerHeight)
-      target.x = next.x
-      target.y = next.y
-      requestRender()
-    }
-    const returnToCenter = () => {
-      target.x = 0
-      target.y = 0
-      requestRender()
-    }
-    const onPointerOut = event => {
-      if (event.relatedTarget === null) returnToCenter()
-    }
-
-    window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerout', onPointerOut)
-    window.addEventListener('blur', returnToCenter)
-    return () => {
-      cancelAnimationFrame(frame)
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerout', onPointerOut)
-      window.removeEventListener('blur', returnToCenter)
-      node.style.removeProperty('--landing-parallax-x')
-      node.style.removeProperty('--landing-parallax-y')
-      delete node.dataset.parallaxX
-      delete node.dataset.parallaxY
-    }
-  }, [motionMode, reducedMotion])
+  useEffect(() => () => window.clearTimeout(activationTimerRef.current), [])
 
   const activateTitle = useCallback(() => {
-    if (phaseRef.current !== TITLE_PHASE.IDLE) return
-    setRetraceKey(k => k + 1)
+    if (phaseRef.current !== TITLE_PHASE.IDLE || activationPendingRef.current) return
+    activationPendingRef.current = true
+    if (guidePhase === 'visible' && !reducedMotion && motionMode !== 'reduced') {
+      setGuidePhase('retracting')
+      activationTimerRef.current = window.setTimeout(() => {
+        setGuidePhase('hidden')
+        activationPendingRef.current = false
+        begin()
+      }, LANDING_GUIDE_RETRACT_MS)
+      return
+    }
+    setGuidePhase('hidden')
+    activationPendingRef.current = false
     begin()
-  }, [begin, phaseRef])
+  }, [begin, guidePhase, motionMode, phaseRef, reducedMotion])
 
   const handleTitlePointerEnter = (event) => {
     // Touch synthesises a pointerenter on tap; let the click path own that case.
@@ -163,7 +121,7 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
       onEnter(getReaderEntryIntent(state))
     }
 
-    const requestLeave = (enter, markScrolled) => {
+    const requestLeave = (enter) => {
       if (triggeredRef.current) return
       const intent = resolveScrollIntent({
         phase: phaseRef.current,
@@ -172,7 +130,6 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
       // 'blocked' is the first-visit lock, 'ignore' is a retract already running.
       if (intent !== 'enter' && intent !== 'retract') return
       triggeredRef.current = true
-      if (markScrolled) setScrollTriggered(true)
       if (intent === 'retract') {
         retract().then(enter)
         return
@@ -182,7 +139,7 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
 
     const onWheel = (e) => {
       if (e.deltaY > 8) {
-        requestLeave(enterReader, true)
+        requestLeave(enterReader)
         return
       }
     }
@@ -194,7 +151,7 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
     const onTouchMove = (e) => {
       const delta = touchStartY - e.touches[0].clientY
       if (delta > 20) {
-        requestLeave(enterReader, true)
+        requestLeave(enterReader)
         return
       }
     }
@@ -226,6 +183,7 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
 
   return (
     <div
+      ref={landingRef}
       className={`landing paper-surface${leaving ? ' landing--leaving' : ''}${landingScene ? ' landing--scene' : ''}`}
       style={{ ...surfaceStyle, '--landing-leave-ms': `${leavingMs}ms` }}
       data-reading-mode={readingMode}
@@ -235,12 +193,6 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
     >
       {landingScene === LANDING_SCENES.JIJIA_COMPOUND && <LandingJijiaScene awake={titleTouched} />}
 
-      <LandingSketchLayer
-        titleActivated={titleTouched}
-        archwayPhase={scrollTriggered ? 2 : titleTouched ? 1 : 0}
-        retraceKey={retraceKey}
-      />
-
       <div className="landing-main">
         <div className={['landing-title-stack', promptsRevealed ? 'landing-direction-prompts--revealed' : ''].filter(Boolean).join(' ')}>
           <h1
@@ -248,13 +200,19 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
               'landing-title',
               `landing-title--${phase}`,
               phase === TITLE_PHASE.REVEALED ? 'landing-title--drawn' : '',
+              phase === TITLE_PHASE.IDLE && guidePhase === 'visible' ? 'landing-title--guiding' : '',
             ].filter(Boolean).join(' ')}
             onPointerEnter={handleTitlePointerEnter}
             onClick={activateTitle}
+            data-motion-parallax-trigger="true"
           >
-            <span ref={titleVisualRef} className="landing-title-text" data-landing-title-visual="true">
-              NewTone
-              <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
+            <span className="landing-title-text" data-landing-title-visual="true">
+              <span className="landing-title-breath">
+                NewTone
+                <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
+                <NewToneHandLines />
+                <LandingGuideArrow phase={guidePhase} />
+              </span>
             </span>
           </h1>
 
@@ -278,8 +236,6 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
             </div>
           )}
         </div>
-
-        {promptsRevealed && <TitleSignal active={promptsRevealed} />}
       </div>
     </div>
   )

@@ -4,6 +4,9 @@ import { READING_ENTRY_TIMINGS } from '../transitions/readingEntryController'
 import { copy } from '../i18n/copy'
 import { detectBrowserReaderLanguage, getReaderLanguage, READER_LANGUAGES } from '../i18n/languages'
 import { HOLD_PROGRESS_TIMINGS, stepHoldProgress } from '../interactions/holdProgress'
+import { resolveRitualTapAction } from '../interactions/ritualWheelAdvance'
+import { useReducedMotion } from '../hooks/useReducedMotion'
+import { useSceneParallax } from '../hooks/useSceneParallax'
 import { getReaderSceneLabel } from '../i18n/readerUi'
 import { NewToneTransitionMark } from './landing/LandingTitleMark'
 import './ReadingTransition.css'
@@ -641,6 +644,16 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const secondaryProgress = modeStage ? modeSecondaryHold.progress : languageSelectorHold.progress
   const secondaryPhase = modeStage ? modeSecondaryHold.holdPhase : languageSelectorHold.holdPhase
 
+  const confirmTouchOption = useCallback((event, selectorOption) => {
+    const action = resolveRitualTapAction(phase, selectorOption, event.pointerType)
+    if (!action) return
+    if (action.type === 'language') {
+      onProceed()
+      return
+    }
+    onModeSelect(action.mode)
+  }, [onModeSelect, onProceed, phase])
+
   const handleLanguageSecondaryPointer = useCallback(event => {
     if (modeStage) return
     const activeText = languageLabelShown ? currentLanguageLabelRef.current : secondaryTextRef.current
@@ -748,7 +761,11 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 onPointerDown={primaryHold.trackPointer}
                 onPointerLeave={primaryHold.retract}
                 onPointerCancel={primaryHold.retract}
-                onPointerUp={event => { if (event.pointerType === 'touch') primaryHold.retract() }}
+                onPointerUp={event => {
+                  if (event.pointerType !== 'touch') return
+                  primaryHold.retract()
+                  confirmTouchOption(event, 'primary')
+                }}
                 disabled={locked}
               >
                 <span className="lang-btn-curtain" style={{ '--hold-angle': `${primaryHold.progress * 360}deg` }} />
@@ -775,7 +792,11 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                   onPointerDown={modeStage ? modeSecondaryHold.trackPointer : handleLanguageSecondaryPointer}
                   onPointerLeave={modeStage ? modeSecondaryHold.retract : undefined}
                   onPointerCancel={modeStage ? modeSecondaryHold.retract : handleLanguageBoundaryLeave}
-                  onPointerUp={event => { if (event.pointerType === 'touch' && modeStage) modeSecondaryHold.retract() }}
+                  onPointerUp={event => {
+                    if (event.pointerType !== 'touch' || !modeStage) return
+                    modeSecondaryHold.retract()
+                    confirmTouchOption(event, 'secondary')
+                  }}
                   onTouchStart={() => { touchInProgress.current = true }}
                   onTouchEnd={() => { scheduleTransient(() => { touchInProgress.current = false }, 300) }}
                   disabled={locked}
@@ -846,6 +867,14 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
 function ReadingTransition({ phase, intent, language, readingMode, motionMode, surfaceStyle, environmentState, onProceed, onModeSelect }) {
   const setLanguage = useProgressStore(s => s.setLanguage)
+  const startRootRef = useRef(null)
+  const reducedMotion = useReducedMotion()
+  const startParallaxEnabled = (phase === 'reader-preparing' || phase === 'transition-leaving') && intent === 'start'
+  useSceneParallax({
+    rootRef: startRootRef,
+    enabled: startParallaxEnabled,
+    reduced: reducedMotion || motionMode === 'reduced',
+  })
   const environmentLines = useMemo(
     () => resolveTransitionEnvironment(environmentState, language),
     [environmentState, language],
@@ -872,14 +901,6 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
 
   if (phase === 'reader-preparing' || phase === 'transition-leaving') {
     const lang = copy[language] ? language : 'zh'
-    const chars = '░▒/\\-_01'
-    const particles = Array.from({ length: 20 }, (_, i) => ({
-      id: i,
-      char: chars[Math.floor(Math.random() * chars.length)],
-      x: Math.random() * 100,
-      delay: Math.random() * 600,
-    }))
-
     const text = intent === 'start'
       ? copy[lang].transitionStart
       : copy[lang].transitionResume
@@ -887,28 +908,34 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
     const fading = phase === 'transition-leaving'
     return (
       <div
-        className={`reading-transition reading-transition--road-${readingMode} reading-transition--motion-${motionMode}${fading ? ' reading-transition--fading' : ''}`}
+        ref={intent === 'start' ? startRootRef : null}
+        className={`reading-transition reading-transition--road-${readingMode} reading-transition--intent-${intent === 'start' ? 'start' : 'resume'} reading-transition--motion-${motionMode}${fading ? ' reading-transition--fading' : ''}`}
         style={{ ...surfaceStyle, '--rt-fade-duration': `${READING_ENTRY_TIMINGS.TRANSITION_FADE_MS}ms` }}
         data-world-layer={environmentState.worldLayer}
         data-time-of-day={environmentState.time}
         data-weather={environmentState.weather}
       >
-        <div className="reading-transition-noise" aria-hidden="true">
-          {particles.map(p => (
-            <span
-              key={p.id}
-              className="reading-transition-char"
-              style={{ left: `${p.x}%`, animationDelay: `${p.delay}ms` }}
-            >
-              {p.char}
-            </span>
-          ))}
-        </div>
         <div className="reading-transition-road-content">
-          {intent === 'start' && <NewToneTransitionMark reduced={motionMode === 'reduced'} />}
-          {intent !== 'start' && <ResumeEnvironment lines={environmentLines} />}
-          <div className="reading-transition-pulse" />
-          <p className={`reading-transition-text${intent !== 'start' ? ' reading-transition-text--resume' : ''}`}>{text}</p>
+          {intent === 'start' ? (
+            <>
+              <div className="reading-transition-start-foreground">
+                <NewToneTransitionMark reduced={reducedMotion || motionMode === 'reduced'} />
+              </div>
+              <div className="reading-transition-start-background">
+                <p className="reading-transition-text">{text}</p>
+                <svg className="reading-transition-direction" viewBox="0 0 34 62" aria-hidden="true">
+                  <path d="M17 3C16 19 18 33 17 53" />
+                  <path d="M9 44C12 48 15 52 17 56" />
+                  <path d="M25 44C22 48 19 52 17 56" />
+                </svg>
+              </div>
+            </>
+          ) : (
+            <>
+              <ResumeEnvironment lines={environmentLines} />
+              <p className="reading-transition-text reading-transition-text--resume">{text}</p>
+            </>
+          )}
         </div>
       </div>
     )

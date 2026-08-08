@@ -65,14 +65,89 @@
   display: inline-block;
   color: transparent;
   pointer-events: none;
-  transform: translate3d(var(--landing-parallax-x, 0), var(--landing-parallax-y, 0), 0) scale(var(--landing-title-hover-scale, 1));
+  transform: translate3d(var(--scene-parallax-front-x, 0), var(--scene-parallax-front-y, 0), 0);
   transition: transform 320ms cubic-bezier(.2,.8,.2,1);
   will-change: transform;
 }
 
-.landing-title:hover .landing-title-text,
-.landing-title:focus-visible .landing-title-text {
+.landing-title-breath {
+  position: relative;
+  display: inline-block;
+  color: transparent;
+  transform: scale(var(--landing-title-hover-scale, 1));
+  transform-origin: 50% 58%;
+  transition: transform 320ms cubic-bezier(.2,.8,.2,1);
+}
+
+.landing-title:hover .landing-title-breath,
+.landing-title:focus-visible .landing-title-breath {
   --landing-title-hover-scale: 1.026;
+}
+
+.landing-title--guiding .landing-title-breath {
+  animation: landing-title-breathe 1.9s ease-in-out infinite;
+}
+
+@keyframes landing-title-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.019); }
+}
+
+.landing-guide-arrow {
+  position: absolute;
+  right: calc(100% - 20px);
+  top: 58%;
+  width: 82px;
+  height: 64px;
+  overflow: visible;
+  fill: none;
+  opacity: 0;
+  pointer-events: none;
+  stroke: var(--ink-medium);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
+}
+
+.landing-guide-arrow path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.landing-guide-arrow--visible {
+  opacity: .68;
+  animation: landing-guide-drift 1.85s ease-in-out 620ms infinite;
+}
+
+.landing-guide-arrow--visible .landing-guide-arrow__curve {
+  animation: landing-guide-draw 620ms cubic-bezier(.25,.7,.25,1) forwards;
+}
+
+.landing-guide-arrow--visible .landing-guide-arrow__head {
+  animation: landing-guide-draw 260ms ease-out 500ms forwards;
+}
+
+.landing-guide-arrow--retracting {
+  opacity: .68;
+}
+
+.landing-guide-arrow--retracting path {
+  animation: landing-guide-retract 320ms cubic-bezier(.55,.05,.8,.35) forwards;
+  stroke-dashoffset: 0;
+}
+
+@keyframes landing-guide-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes landing-guide-retract {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 1; }
+}
+
+@keyframes landing-guide-drift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(2.2px, -1.8px, 0); }
 }
 
 /* ===== Entry Groups (text + arrow containers) ===== */
@@ -92,7 +167,7 @@
   position: absolute;
   left: 50%;
   top: calc(100% + 3.6rem);
-  transform: translateX(-50%);
+  transform: translate3d(calc(-50% + var(--scene-parallax-back-x, 0px)), var(--scene-parallax-back-y, 0px), 0);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -126,41 +201,6 @@
   stroke: currentColor;
   stroke-width: 1.2;
   opacity: 0.32;
-}
-
-/* ===== Title Signal ===== */
-
-.title-signal {
-  position: absolute;
-  left: 50%;
-  top: calc(48% + 3rem);
-  transform: translateX(-50%);
-  pointer-events: none;
-  height: 0;
-  z-index: 2;
-}
-
-.title-signal-particle {
-  position: absolute;
-  font-size: 9px;
-  color: var(--line-faint);
-  opacity: 0;
-  animation: signal-fall var(--duration) ease-out var(--delay) forwards;
-  transform: translateX(var(--x));
-}
-
-@keyframes signal-fall {
-  0% {
-    opacity: 0;
-    transform: translateX(var(--x)) translateY(0);
-  }
-  15% {
-    opacity: 0.2;
-  }
-  100% {
-    opacity: 0;
-    transform: translateX(var(--x)) translateY(var(--fall));
-  }
 }
 
 /* ===== Direction Prompts ===== */
@@ -198,40 +238,6 @@
   }
 }
 
-/* ===== Pencil underline — the mark left once the stroke has landed ===== */
-
-.landing-title--drawn .landing-title-text::after {
-  content: '';
-  position: absolute;
-  left: -4px;
-  right: 2px;
-  bottom: 2px;
-  height: 1.2px;
-  background: var(--ink-medium);
-  box-shadow: 1.8px 2.6px 0 -0.2px rgba(60,48,36,0.20);
-  opacity: 0.3;
-  transform: scaleX(0) rotate(-0.35deg);
-  transform-origin: left center;
-  animation: underline-retrace 260ms ease-out forwards;
-}
-
-@keyframes underline-retrace {
-  0% {
-    transform: scaleX(0) rotate(-0.35deg);
-    opacity: 0.22;
-  }
-  100% {
-    transform: scaleX(0.96) rotate(-0.35deg);
-    opacity: 0.3;
-  }
-}
-
-.landing-title--center-unlocked.landing-title--drawn .landing-title-text::after {
-  background: var(--accent-amber);
-  box-shadow: 1.8px 2.6px 0 -0.2px rgba(150,105,45,0.24);
-  opacity: 0.34;
-}
-
 /* ===== Reset Button (pencil annotation style) ===== */
 
 .landing-reset {
@@ -259,51 +265,53 @@
 
 @media (prefers-reduced-motion: reduce) {
   /* The stroke itself is skipped in useTitleRetrace; the mark it leaves still shows. */
-  .landing-title--drawn .landing-title-text::after {
-    animation: none !important;
-    transform: scaleX(0.96) rotate(-0.35deg) !important;
-    opacity: 0.3 !important;
-  }
-
   .landing-direction-prompts--revealed .landing-prompt--down,
   .landing-direction-prompts--revealed .landing-prompt--up {
     animation: none !important;
     opacity: 0.75 !important;
   }
 
-  .title-signal-particle {
-    animation: none !important;
-    opacity: 0 !important;
-  }
-
   .landing-title-text {
     transform: none !important;
+  }
+
+  .landing-title--guiding .landing-title-breath,
+  .landing-guide-arrow {
+    animation: none !important;
+  }
+
+  .landing-guide-arrow--visible {
+    opacity: .68;
+  }
+
+  .landing-guide-arrow--visible path {
+    animation: none !important;
+    stroke-dashoffset: 0;
   }
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--down,
 .page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--up,
-.page-shell[data-motion-mode="reduced"] .title-signal-particle {
-  animation: none !important;
-}
-
-.page-shell[data-motion-mode="reduced"] .landing-title--drawn .landing-title-text::after {
-  animation: none !important;
-  transform: scaleX(0.96) rotate(-0.35deg) !important;
-  opacity: 0.3 !important;
-}
-
 .page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--down,
 .page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--up {
   opacity: 0.75 !important;
 }
 
-.page-shell[data-motion-mode="reduced"] .title-signal-particle {
-  opacity: 0 !important;
-}
-
 .page-shell[data-motion-mode="reduced"] .landing-title-text {
   transform: none !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-title--guiding .landing-title-breath,
+.page-shell[data-motion-mode="reduced"] .landing-guide-arrow {
+  animation: none !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible {
+  opacity: .68;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible path {
+  stroke-dashoffset: 0;
 }
 
 /* ===== Responsive ===== */
