@@ -4,7 +4,6 @@ import { copy } from '../i18n/copy'
 import { getReaderEntryIntent, hasStableReaderProgress } from '../reader/readerEntry'
 import {
   LANDING_GUIDE_DELAY_MS,
-  LANDING_RETURN_GUIDE_DELAY_MS,
   LANDING_GUIDE_RETRACT_MS,
   TITLE_PHASE,
   readIntroCompleted,
@@ -23,11 +22,11 @@ import LandingTitleMark, { NewToneHandLines } from '../components/landing/Landin
 import '../styles/sketchPrimitives.css'
 import './Landing.css'
 
-function LandingGuideArrow({ phase, variant = 'main' }) {
+function LandingGuideArrow({ phase }) {
   if (phase === 'hidden') return null
   return (
     <svg
-      className={`landing-guide-arrow landing-guide-arrow--${variant} landing-guide-arrow--${phase}`}
+      className={`landing-guide-arrow landing-guide-arrow--main landing-guide-arrow--${phase}`}
       viewBox="0 0 92 72"
       aria-hidden="true"
     >
@@ -37,7 +36,7 @@ function LandingGuideArrow({ phase, variant = 'main' }) {
   )
 }
 
-function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, environmentState, arrivalKind = 'main' }) {
+function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, environmentState, guidePaused = false }) {
   const language = useProgressStore(s => s.language)
   const hasInitializedLanguage = useProgressStore(s => s.hasInitializedLanguage)
   const readerStarted = useProgressStore(s => s.readerStarted)
@@ -46,6 +45,7 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
 
   const [introCompleted, setIntroCompleted] = useState(() => readIntroCompleted())
   const [guidePhase, setGuidePhase] = useState('quiet')
+  const guidePhaseRef = useRef(guidePhase)
   const triggeredRef = useRef(false)
   const introRef = useRef(introCompleted)
   const landingRef = useRef(null)
@@ -71,6 +71,10 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
     introRef.current = introCompleted
   }, [introCompleted])
 
+  useEffect(() => {
+    guidePhaseRef.current = guidePhase
+  }, [guidePhase])
+
   useSceneParallax({
     rootRef: landingRef,
     enabled: true,
@@ -78,6 +82,10 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
   })
 
   useEffect(() => {
+    if (guidePaused) {
+      setGuidePhase('hidden')
+      return undefined
+    }
     if (!shouldScheduleLandingGuide({ phase, activationPending: activationPendingRef.current })) {
       setGuidePhase('hidden')
       return undefined
@@ -85,28 +93,35 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
     setGuidePhase('quiet')
     const timer = window.setTimeout(() => {
       if (!activationPendingRef.current && phaseRef.current === TITLE_PHASE.IDLE) setGuidePhase('visible')
-    }, arrivalKind === 'return' ? LANDING_RETURN_GUIDE_DELAY_MS : LANDING_GUIDE_DELAY_MS)
+    }, LANDING_GUIDE_DELAY_MS)
     return () => window.clearTimeout(timer)
-  }, [arrivalKind, phase, phaseRef])
+  }, [guidePaused, phase, phaseRef])
 
   useEffect(() => () => window.clearTimeout(activationTimerRef.current), [])
+
+  const withdrawGuide = useCallback(() => {
+    if (guidePhaseRef.current !== 'visible' || reducedMotion || motionMode === 'reduced') {
+      setGuidePhase('hidden')
+      return Promise.resolve()
+    }
+    setGuidePhase('retracting')
+    return new Promise((resolve) => {
+      window.clearTimeout(activationTimerRef.current)
+      activationTimerRef.current = window.setTimeout(() => {
+        setGuidePhase('hidden')
+        resolve()
+      }, LANDING_GUIDE_RETRACT_MS)
+    })
+  }, [motionMode, reducedMotion])
 
   const activateTitle = useCallback(() => {
     if (phaseRef.current !== TITLE_PHASE.IDLE || activationPendingRef.current) return
     activationPendingRef.current = true
-    if (guidePhase === 'visible' && !reducedMotion && motionMode !== 'reduced') {
-      setGuidePhase('retracting')
-      activationTimerRef.current = window.setTimeout(() => {
-        setGuidePhase('hidden')
-        activationPendingRef.current = false
-        begin()
-      }, LANDING_GUIDE_RETRACT_MS)
-      return
-    }
-    setGuidePhase('hidden')
-    activationPendingRef.current = false
-    begin()
-  }, [begin, guidePhase, motionMode, phaseRef, reducedMotion])
+    withdrawGuide().then(() => {
+      activationPendingRef.current = false
+      begin()
+    })
+  }, [begin, phaseRef, withdrawGuide])
 
   const handleTitlePointerEnter = (event) => {
     // Touch synthesises a pointerenter on tap; let the click path own that case.
@@ -132,10 +147,10 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
       if (intent !== 'enter' && intent !== 'retract') return
       triggeredRef.current = true
       if (intent === 'retract') {
-        retract().then(enter)
+        Promise.all([withdrawGuide(), retract()]).then(enter)
         return
       }
-      enter()
+      withdrawGuide().then(enter)
     }
 
     const onWheel = (e) => {
@@ -166,7 +181,7 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
       window.removeEventListener('touchstart', onTouchStart)
       window.removeEventListener('touchmove', onTouchMove)
     }
-  }, [onEnter, phaseRef, retract])
+  }, [onEnter, phaseRef, retract, withdrawGuide])
 
   const hasProgress = hasStableReaderProgress({ readerStarted, readerCompleted })
   const landingLanguage = hasInitializedLanguage
@@ -201,7 +216,7 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
               'landing-title',
               `landing-title--${phase}`,
               phase === TITLE_PHASE.REVEALED ? 'landing-title--drawn' : '',
-              arrivalKind === 'main' && phase === TITLE_PHASE.IDLE && guidePhase === 'visible' ? 'landing-title--guiding' : '',
+              phase === TITLE_PHASE.IDLE && guidePhase === 'visible' ? 'landing-title--guiding' : '',
             ].filter(Boolean).join(' ')}
             onPointerEnter={handleTitlePointerEnter}
             onClick={activateTitle}
@@ -211,8 +226,8 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
               <span className="landing-title-breath">
                 NewTone
                 <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
-                {arrivalKind === 'main' && <NewToneHandLines />}
-                <LandingGuideArrow phase={guidePhase} variant={arrivalKind} />
+                <NewToneHandLines />
+                <LandingGuideArrow phase={guidePhase} />
               </span>
             </span>
           </h1>

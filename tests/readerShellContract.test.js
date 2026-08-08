@@ -11,6 +11,10 @@ const contractCss = read('../src/views/ReaderShellContract.css')
 const progress = read('../src/components/reader/ReaderTraceProgress.jsx')
 const transition = read('../src/components/ReadingTransition.jsx')
 const transitionHoverCss = read('../src/components/ReadingTransitionHover.css')
+const app = read('../src/App.jsx')
+const globalTransition = read('../src/components/GlobalTransitionOverlay.jsx')
+const globalTransitionCss = read('../src/components/GlobalTransitionOverlay.css')
+const titleMark = read('../src/components/landing/LandingTitleMark.jsx')
 const copy = read('../src/i18n/copy.js')
 const returnControl = read('../src/components/reader/ReaderReturnControl.jsx')
 
@@ -92,7 +96,20 @@ describe('Reader shell contract boundaries', () => {
     expect(transition).not.toContain('reading-transition-direction')
     expect(transitionHoverCss).toContain('.ritual-hand-affordance--lines-only')
     expect(transitionHoverCss).toContain('.lang-secondary-zone:hover')
+    expect(transitionHoverCss).toContain('@keyframes ritual-arrow-blink')
+    expect(transitionHoverCss).toContain('transform: scaleX(0)')
+    expect(transitionHoverCss).toContain('transform-origin: left center')
     expect(transition).not.toContain('文本层已接入')
+  })
+
+  it('hands Reader return into the complete interactive Landing', () => {
+    expect(app).toContain('guidePaused={isGlobalTransitioning}')
+    expect(app).not.toContain('arrivalKind')
+    expect(landing).toContain('<NewToneHandLines />')
+    expect(landing).not.toContain('arrivalKind')
+    expect(globalTransition).toContain("retracting={safePreset === 'reader-to-surface' && phase === 'entering'}")
+    expect(titleMark).toContain("if (retracting && phase === 'revealed') retract()")
+    expect(globalTransitionCss).toContain('@keyframes gt-newtone-retract-handoff')
   })
 
   it('keeps the same left return control visible in immersive mode and at page end or Escape', () => {

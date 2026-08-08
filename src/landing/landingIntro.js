@@ -25,8 +25,6 @@ export const TITLE_DRAW_MS = 2000
 export const TITLE_RETRACT_MS = 320
 /** Every Landing visit begins quietly before its directional mark appears. */
 export const LANDING_GUIDE_DELAY_MS = 1200
-/** Reader return uses a smaller acknowledgement mark after the overlay handoff. */
-export const LANDING_RETURN_GUIDE_DELAY_MS = 620
 /** The guide withdraws before the title retrace begins. */
 export const LANDING_GUIDE_RETRACT_MS = 320
 
@@ -82,7 +80,7 @@ export function isTitleDrawing(phase) {
  */
 export function resolveScrollIntent({ phase, introCompleted }) {
   if (!introCompleted) return 'blocked'
-  if (isTitleDrawing(phase)) return 'retract'
+  if (isTitleDrawing(phase) || phase === TITLE_PHASE.REVEALED) return 'retract'
   if (phase === TITLE_PHASE.RETRACTING) return 'ignore'
   return 'enter'
 }

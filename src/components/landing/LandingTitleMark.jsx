@@ -71,8 +71,8 @@ export function NewToneHandLines() {
   )
 }
 
-export function NewToneTransitionMark({ reduced = false, className = '' }) {
-  const { phase, sweepRef, begin } = useTitleRetrace({
+export function NewToneTransitionMark({ reduced = false, retracting = false, className = '' }) {
+  const { phase, sweepRef, begin, retract } = useTitleRetrace({
     introCompleted: false,
     reduced,
     onIntroComplete: undefined,
@@ -82,6 +82,10 @@ export function NewToneTransitionMark({ reduced = false, className = '' }) {
     const frame = requestAnimationFrame(begin)
     return () => cancelAnimationFrame(frame)
   }, [begin])
+
+  useEffect(() => {
+    if (retracting && phase === 'revealed') retract()
+  }, [phase, retract, retracting])
 
   return (
     <div className={`newtone-transition-mark${className ? ` ${className}` : ''}`} data-title-phase={phase}>

@@ -3,7 +3,6 @@ import {
   INTRO_STORAGE_KEY,
   TITLE_PHASE,
   LANDING_GUIDE_DELAY_MS,
-  LANDING_RETURN_GUIDE_DELAY_MS,
   LANDING_GUIDE_RETRACT_MS,
   clearIntroCompleted,
   isTitleDrawing,
@@ -64,9 +63,9 @@ describe('滚动意图', () => {
     ).toBe('blocked')
   })
 
-  it('教学完成后静止态直接进入', () => {
+  it('教学完成后静止态直接进入，完成态先收回', () => {
     expect(resolveScrollIntent({ phase: TITLE_PHASE.IDLE, introCompleted: true })).toBe('enter')
-    expect(resolveScrollIntent({ phase: TITLE_PHASE.REVEALED, introCompleted: true })).toBe('enter')
+    expect(resolveScrollIntent({ phase: TITLE_PHASE.REVEALED, introCompleted: true })).toBe('retract')
   })
 
   it('回访重描途中滚轮先收回再进入', () => {
@@ -115,9 +114,5 @@ describe('首次 Landing 引导', () => {
     expect(shouldScheduleLandingGuide({ introCompleted: true, phase: TITLE_PHASE.IDLE })).toBe(true)
     expect(shouldScheduleLandingGuide({ introCompleted: false, phase: TITLE_PHASE.DRAWING })).toBe(false)
     expect(shouldScheduleLandingGuide({ introCompleted: false, phase: TITLE_PHASE.IDLE, activationPending: true })).toBe(false)
-  })
-
-  it('lets the smaller return acknowledgement appear sooner than the main guide', () => {
-    expect(LANDING_RETURN_GUIDE_DELAY_MS).toBeLessThan(LANDING_GUIDE_DELAY_MS)
   })
 })

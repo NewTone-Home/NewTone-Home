@@ -38,6 +38,7 @@ function GlobalTransitionOverlay({ surfaceStyle = {} }) {
       <NewToneTransitionMark
         className="global-transition-newtone"
         reduced={motionMode === 'reduced'}
+        retracting={safePreset === 'reader-to-surface' && phase === 'entering'}
       />
       <div className="global-transition-label">
         <span className="global-transition-label-mark" />

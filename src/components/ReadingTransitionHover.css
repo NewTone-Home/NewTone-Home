@@ -25,26 +25,34 @@
   overflow: visible;
   fill: none;
   color: var(--rt-control);
-  opacity: 0;
+  opacity: 1;
   pointer-events: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.05;
-  transform: translate(-50%, -2px) scaleX(.36);
-  transform-origin: 50% 0;
-  transition: color 220ms ease, opacity 180ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1);
+  transform: translate(-50%, 0);
+  transition: color 220ms ease;
 }
 
-.ritual-hand-affordance__line,
-.ritual-hand-affordance__arrow {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
+.ritual-hand-affordance__line {
+  opacity: 0;
+  transform: scaleX(0);
+  transform-box: fill-box;
+  transform-origin: left center;
+  transition:
+    transform 300ms cubic-bezier(.55, .05, .8, .35),
+    opacity 80ms linear 220ms;
 }
 
 .ritual-hand-affordance__line--second {
-  opacity: .67;
   stroke-width: .92;
+  transition-delay: 45ms, 240ms;
+}
+
+.ritual-hand-affordance__arrow {
+  opacity: 0;
+  transition: opacity 220ms ease;
 }
 
 .ritual-hand-affordance--lines-only .ritual-hand-affordance__arrow {
@@ -65,35 +73,37 @@
 [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance,
 [data-ritual-armed='true'] .ritual-hand-affordance {
   color: var(--rt-ink);
-  opacity: .74;
-  transform: translate(-50%, 0) scaleX(1);
 }
 
 [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line,
 [data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only .ritual-hand-affordance__line,
 [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line,
-[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__arrow,
-[data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__arrow,
-[data-ritual-armed='true'] .ritual-hand-affordance__line,
-[data-ritual-armed='true'] .ritual-hand-affordance__arrow {
-  animation: ritual-affordance-draw 280ms ease-out forwards;
+[data-ritual-armed='true'] .ritual-hand-affordance__line {
+  opacity: .74;
+  transform: scaleX(1);
+  transition:
+    transform 280ms cubic-bezier(.2, .8, .2, 1),
+    opacity 90ms ease;
 }
 
 [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line--second,
 [data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only .ritual-hand-affordance__line--second,
 [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line--second,
 [data-ritual-armed='true'] .ritual-hand-affordance__line--second {
-  animation-delay: 70ms;
+  opacity: .52;
+  transition-delay: 55ms, 55ms;
 }
 
 [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__arrow,
 [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__arrow,
 [data-ritual-armed='true'] .ritual-hand-affordance__arrow {
-  animation-delay: 130ms;
+  opacity: .86;
+  animation: ritual-arrow-blink 940ms ease-in-out 180ms infinite;
 }
 
-@keyframes ritual-affordance-draw {
-  to { stroke-dashoffset: 0; }
+@keyframes ritual-arrow-blink {
+  0%, 100% { stroke-opacity: .32; }
+  48% { stroke-opacity: 1; }
 }
 
 @media (hover: none), (pointer: coarse) {
@@ -118,8 +128,17 @@
     transition: none !important;
   }
 
-  [data-ritual-armed='true'] .ritual-hand-affordance__line,
+  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line,
+  [data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only .ritual-hand-affordance__line,
+  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line,
+  [data-ritual-armed='true'] .ritual-hand-affordance__line {
+    opacity: .74;
+    transform: scaleX(1);
+  }
+
+  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__arrow,
+  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__arrow,
   [data-ritual-armed='true'] .ritual-hand-affordance__arrow {
-    stroke-dashoffset: 0;
+    opacity: .74;
   }
 }

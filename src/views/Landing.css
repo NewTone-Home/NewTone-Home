@@ -118,19 +118,6 @@
   animation: landing-guide-drift 1.85s ease-in-out 620ms infinite;
 }
 
-.landing-guide-arrow--return {
-  right: calc(100% - 10px);
-  top: 66%;
-  width: 52px;
-  height: 41px;
-  stroke-width: 1.2;
-}
-
-.landing-guide-arrow--return.landing-guide-arrow--visible {
-  opacity: .46;
-  animation-duration: 2.2s;
-}
-
 .landing-guide-arrow--visible .landing-guide-arrow__curve {
   animation: landing-guide-draw 620ms cubic-bezier(.25,.7,.25,1) forwards;
 }
