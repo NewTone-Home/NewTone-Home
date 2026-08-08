@@ -199,9 +199,9 @@ commit：
 - reduced-motion：呼吸、引导运动和视差均静态退化。
 - 自动无障碍检查：0 violations；1 项 SVG 重叠背景导致的颜色对比 incomplete，需人工判断。
 
-尚待验收：
+部署与尚待验收：
 
-- GitHub staging 对应的 Vercel Preview 尚需确认部署成功并由用户进行视觉手感验收。
+- GitHub `staging` 的 `c9c58cf` 已由 Vercel 报告 `Deployment has completed` / `success`；稳定 branch alias 启用了 Vercel 登录保护，仍需用户进入测试服完成人工视觉手感验收。
 - 真实 iPhone / Android 上的 Device Orientation 权限、横竖屏映射、场景归零与持续稳定姿态软校准必须真机验收；桌面自动化环境不能替代传感器证据。
 - 依赖安装仍报告 2 个既有 high severity audit 项，本轮没有擅自执行 audit fix。
 
@@ -319,7 +319,7 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 - [x] 运行 `npm test`，包括 `tests/ritualWheelAdvance.test.js`；当前 94 tests 全部通过
 - [ ] 用户人工确认 Landing 引导、双手绘线、前后景视差与首次 Start 的视觉手感
 - [ ] 在真实 iPhone / Android 验收 Device Orientation 权限、归零、横竖屏映射与软校准
-- [ ] 确认 GitHub staging 最新提交对应的 Vercel Preview 已部署成功
+- [x] GitHub staging `c9c58cf` 对应的 Vercel Preview 已报告部署成功
 - [ ] 继续本轮产品实验时，持续更新本文件
 - [ ] 发布前重新同步最新 `main` 到 staging，如果 main 已前进
 - [ ] 发布前重新比较 `main...staging`
