@@ -6,7 +6,11 @@ const RETURN_LINE_DRAW_MS = 560
 const RETURN_WHEEL_THRESHOLD = 8
 const RETURN_TOUCH_THRESHOLD = 36
 
-function ReaderReturnControl({ armed, onArm, onComplete, language }) {
+function hasHoverPointer() {
+  return window.matchMedia?.('(hover: hover) and (pointer: fine)').matches === true
+}
+
+function ReaderReturnControl({ armed, onArm, onDisarm, onComplete, language }) {
   const ui = getReaderUi(language)
   const [progress, setProgress] = useState(0)
   const completedRef = useRef(false)
@@ -68,7 +72,18 @@ function ReaderReturnControl({ armed, onArm, onComplete, language }) {
       data-reader-return-control="true"
       data-return-armed={armed ? 'true' : 'false'}
       data-return-progress={progress.toFixed(3)}
-      onClick={() => { if (!armed) onArm() }}
+      onPointerEnter={event => {
+        if (event.pointerType === 'mouse' && hasHoverPointer()) onArm()
+      }}
+      onPointerLeave={event => {
+        if (event.pointerType === 'mouse' && hasHoverPointer()) onDisarm()
+      }}
+      onPointerUp={event => {
+        if (event.pointerType !== 'mouse' && !armed) onArm()
+      }}
+      onClick={event => {
+        if (event.detail === 0 && !armed) onArm()
+      }}
       aria-label={ui.returnToLandingHint}
       aria-pressed={armed}
     >

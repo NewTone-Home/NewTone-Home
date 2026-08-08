@@ -173,6 +173,7 @@ function ReaderStage({
         {returnVisible && <ReaderReturnControl
           armed={returnArmed}
           onArm={() => updateReturnArmed(true)}
+          onDisarm={() => updateReturnArmed(false)}
           onComplete={onReturnLanding}
           language={language}
         />}
