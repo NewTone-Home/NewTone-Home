@@ -172,6 +172,39 @@ commit：
 - 仍有既有的 >500 kB chunk warning，无新增 build error。
 - **视觉手感尚未由用户人工确认。** 后续如果用户觉得太大、太明显、线太长或箭头位置不合适，优先只微调 `ReadingTransitionHover.css`，不要改 wheel 逻辑。
 
+### 4.3 Landing / Reader Entry 交互与视觉重构
+
+产品提交：`5c83cb7 feat: refine Landing and Reader entry motion`
+
+当前实现：
+
+- Landing 首次未学会入口时，先安静约 1.2 秒，再显示 NewTone 轻微呼吸与指向 N 的手绘弯箭头；若用户提前触发，箭头不会出现；若箭头已出现，则先沿路径收回，再继续原有描线激活动画。
+- 默认 Landing 大幅清理非必要 sketch、随机字符与装饰线；显式 `jijia_compound` query 实验仍保留，不进入默认界面。
+- Landing 与首次 Start 共用场景级视差输入。NewTone 与两条独立 SVG 手绘线作为同一前景层；辅助文字与方向提示作为较小幅度的反向后景层。
+- Reader 返回后的 Landing 继续启用视差；Resume / 回读中过渡明确关闭视差，并移除随机字符噪点，仅保留环境与状态反馈。
+- 桌面使用 pointer 位置输出统一的 normalized X/Y；移动端只使用 Device Orientation，不使用触摸位置模拟视差。
+- 移动端 baseline 只在当前场景生命周期内存在，不写入 localStorage；进入场景、后台恢复和屏幕方向变化时重建中心；稳定新姿态会缓慢软校准。
+- 需要 iOS motion 权限时，只在用户完成 NewTone 入口手势后请求；不支持或拒绝授权时静态退化。
+- 桌面 Language / Mode 初始化仍保留“hover 目标 + 向下滚轮确认”，向上滚动和微小噪声不触发；移动端主选项改为 tap 直接确认，“更改语言”仍只展开语言列表。
+
+本地验证：
+
+- `npm test`：22 files，94 tests 全部通过。
+- lint：通过。
+- typecheck：通过。
+- Vite production build：通过，230 modules transformed。
+- diff-check：通过。
+- 桌面浏览器流程：Landing 引导、激活、反向视差、Language/Mode 下滚确认、首次 Start、Reader 返回、再次进入 Resume 均已走通。
+- 移动端 390×844：无横向溢出；Language / Mode tap 直接确认已走通；未使用 touch-parallax。
+- reduced-motion：呼吸、引导运动和视差均静态退化。
+- 自动无障碍检查：0 violations；1 项 SVG 重叠背景导致的颜色对比 incomplete，需人工判断。
+
+尚待验收：
+
+- GitHub staging 对应的 Vercel Preview 尚需确认部署成功并由用户进行视觉手感验收。
+- 真实 iPhone / Android 上的 Device Orientation 权限、横竖屏映射、场景归零与持续稳定姿态软校准必须真机验收；桌面自动化环境不能替代传感器证据。
+- 依赖安装仍报告 2 个既有 high severity audit 项，本轮没有擅自执行 audit fix。
+
 ## 5. Reader 内容镜像状态
 
 最初建立 NewTone-Staging 时只复制了数据库 schema，没有 production Reader 内容，因此 Preview 曾显示“暂无可读页面”。这不是 Reader 代码损坏，而是 staging `reader_publications` 为空。
@@ -283,7 +316,10 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 - [ ] 决定 `export-reader-publication` / `sync-reader-publication` 是否保留为长期内容 seed 方案
 - [ ] 如果保留长期同步方案，把同步令牌迁移到 secret，不继续硬编码
 - [ ] 检查 staging `http` extension 是否需要保留
-- [ ] 运行 `npm test`，确认 `tests/ritualWheelAdvance.test.js`
+- [x] 运行 `npm test`，包括 `tests/ritualWheelAdvance.test.js`；当前 94 tests 全部通过
+- [ ] 用户人工确认 Landing 引导、双手绘线、前后景视差与首次 Start 的视觉手感
+- [ ] 在真实 iPhone / Android 验收 Device Orientation 权限、归零、横竖屏映射与软校准
+- [ ] 确认 GitHub staging 最新提交对应的 Vercel Preview 已部署成功
 - [ ] 继续本轮产品实验时，持续更新本文件
 - [ ] 发布前重新同步最新 `main` 到 staging，如果 main 已前进
 - [ ] 发布前重新比较 `main...staging`
@@ -328,5 +364,7 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 当前 staging 已实现、等待用户人工确认后再决定是否按现状保留的变化：
 
 - “继续读取 / 沉浸叙事 / 普通阅读”在 hover 时增加可操作反馈：文字轻微放大、双下划线、向下箭头，提示用户可以继续向下滚动。
+- Landing 首次教学引导、NewTone 双手绘线、Landing / 首次 Start 共用前后景视差，以及稳定无视差的 Resume。
+- 移动端 Language / Mode 主选项使用 tap 直接确认；移动端视差只使用 Device Orientation，并采用场景级自动归零与软校准。
 
 其余已完成工作主要是 staging / Supabase / Vercel 测试基础设施，不应自动视为对外更新公告内容。
