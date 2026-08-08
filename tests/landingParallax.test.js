@@ -6,6 +6,7 @@ import {
   resolveLandingParallax,
   resolveOrientationNormalized,
   resolvePointerNormalized,
+  resolveStablePoseAnchor,
 } from '../src/landing/landingParallax'
 
 const landingSketchCss = fs.readFileSync(new URL('../src/components/landing/LandingSketchLayer.css', import.meta.url), 'utf8')
@@ -38,6 +39,12 @@ describe('Landing title parallax', () => {
   it('normalizes orientation relative to the scene baseline and clamps it', () => {
     expect(resolveOrientationNormalized({ x: 7, y: -7 }, { x: 0, y: 0 }, 14)).toEqual({ x: .5, y: -.5 })
     expect(resolveOrientationNormalized({ x: 30, y: -30 }, { x: 0, y: 0 }, 14)).toEqual({ x: 1, y: -1 })
+  })
+
+  it('measures stability across a pose window instead of adjacent slow frames', () => {
+    const anchor = { x: 0, y: 0 }
+    expect(resolveStablePoseAnchor(anchor, { x: .3, y: 0 }, .55)).toEqual({ anchor, stable: true })
+    expect(resolveStablePoseAnchor(anchor, { x: .6, y: 0 }, .55)).toEqual({ anchor: { x: .6, y: 0 }, stable: false })
   })
 
   it('keeps rubbed-out marks on the active paper tone instead of fixed white bars', () => {

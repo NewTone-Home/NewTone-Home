@@ -32,6 +32,13 @@ export function resolveOrientationNormalized(point, baseline, range = ORIENTATIO
   }
 }
 
+export function resolveStablePoseAnchor(anchor, point, radius = 0.55) {
+  if (!point) return { anchor: null, stable: false }
+  if (!anchor) return { anchor: point, stable: false }
+  const stable = Math.hypot(point.x - anchor.x, point.y - anchor.y) <= Math.max(0, radius)
+  return { anchor: stable ? anchor : point, stable }
+}
+
 export function resolveLandingParallax(clientX, clientY, viewportWidth, viewportHeight) {
   const normalized = resolvePointerNormalized(clientX, clientY, viewportWidth, viewportHeight)
   return {

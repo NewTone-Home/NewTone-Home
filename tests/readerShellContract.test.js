@@ -10,6 +10,7 @@ const stageCss = read('../src/views/ReaderStage.css')
 const contractCss = read('../src/views/ReaderShellContract.css')
 const progress = read('../src/components/reader/ReaderTraceProgress.jsx')
 const transition = read('../src/components/ReadingTransition.jsx')
+const transitionHoverCss = read('../src/components/ReadingTransitionHover.css')
 const copy = read('../src/i18n/copy.js')
 const returnControl = read('../src/components/reader/ReaderReturnControl.jsx')
 
@@ -87,6 +88,10 @@ describe('Reader shell contract boundaries', () => {
     expect(transition).toContain('language-btn--secondary')
     expect(transition).toContain('lang-hover-bridge')
     expect(transition).toContain('lang-expand-layer')
+    expect(transition).toContain('<RitualHandAffordance showArrow={modeStage} />')
+    expect(transition).not.toContain('reading-transition-direction')
+    expect(transitionHoverCss).toContain('.ritual-hand-affordance--lines-only')
+    expect(transitionHoverCss).toContain('.lang-secondary-zone:hover')
     expect(transition).not.toContain('文本层已接入')
   })
 

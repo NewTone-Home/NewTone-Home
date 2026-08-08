@@ -75,19 +75,6 @@
   will-change: transform;
 }
 
-.reading-transition-direction {
-  width: 22px;
-  height: 40px;
-  margin-top: 13px;
-  overflow: visible;
-  fill: none;
-  opacity: .58;
-  stroke: var(--rt-control);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.45;
-}
-
 .reading-transition .landing-title-draft {
   fill: var(--rt-ink);
   opacity: .38;
@@ -148,7 +135,13 @@
   transition: opacity 350ms ease;
 }
 
-.language-init::before {
+.reading-transition--ritual {
+  touch-action: none;
+}
+
+/* The persistent horizon was rejected on Language, but the approved Mode
+   composition keeps its existing environmental divider. */
+.language-init[data-selector-stage='mode']::before {
   position: absolute;
   top: 50%;
   left: 50%;

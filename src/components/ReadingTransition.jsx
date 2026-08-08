@@ -341,12 +341,12 @@ function useLanguageSelectorHold({ enabled }) {
   return { progress, holdPhase, hold, retract }
 }
 
-function RitualHandAffordance() {
+function RitualHandAffordance({ showArrow = true }) {
   return (
-    <svg className="ritual-hand-affordance" viewBox="0 0 112 31" aria-hidden="true">
+    <svg className={`ritual-hand-affordance${showArrow ? '' : ' ritual-hand-affordance--lines-only'}`} viewBox="0 0 112 31" aria-hidden="true">
       <path className="ritual-hand-affordance__line" pathLength="1" d="M4 5.8C24 3.1 45 7.4 65 5.1C82 3.2 97 5.8 108 4.2" />
       <path className="ritual-hand-affordance__line ritual-hand-affordance__line--second" pathLength="1" d="M13 11.8C31 9.4 50 13.5 68 10.7C82 8.8 94 11.9 102 10.2" />
-      <path className="ritual-hand-affordance__arrow" pathLength="1" d="M56 17C55 21 56 24 56 28M51 24C53 26 55 28 56 29M61 24C59 26 57 28 56 29" />
+      {showArrow && <path className="ritual-hand-affordance__arrow" pathLength="1" d="M56 17C55 21 56 24 56 28M51 24C53 26 55 28 56 29M61 24C59 26 57 28 56 29" />}
     </svg>
   )
 }
@@ -398,7 +398,6 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const selectorIdentityBaselineRef = useRef(null)
   const [selectorIdentityStable, setSelectorIdentityStable] = useState(null)
   const [armedOption, setArmedOption] = useState(null)
-  const swipeGestureRef = useRef(null)
 
   useEffect(() => {
     if (!slotsInitialized.current) {
@@ -677,37 +676,52 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     setArmedOption(selectorOption)
   }, [locked, phase])
 
-  const handleDirectPointerDown = useCallback(event => {
-    if (!isRitualDirectPointer(event.pointerType) || locked) return
-    swipeGestureRef.current = {
-      pointerId: event.pointerId,
-      pointerType: event.pointerType,
-      startY: event.clientY,
-    }
-  }, [locked])
-
-  const handleDirectPointerUp = useCallback(event => {
-    const gesture = swipeGestureRef.current
-    swipeGestureRef.current = null
-    if (!gesture || gesture.pointerId !== event.pointerId || !armedOption) return
-    const action = resolveRitualSwipeAction({
-      phase,
-      selectorOption: armedOption,
-      pointerType: gesture.pointerType,
-      startY: gesture.startY,
-      endY: event.clientY,
-    })
-    performResolvedAction(action)
-  }, [armedOption, performResolvedAction, phase])
-
-  const cancelDirectPointer = useCallback(() => {
-    swipeGestureRef.current = null
-  }, [])
-
   useEffect(() => {
     setArmedOption(null)
-    swipeGestureRef.current = null
   }, [currentStage.id])
+
+  useEffect(() => {
+    if (!armedOption || locked) return undefined
+    let gesture = null
+
+    const clearGesture = event => {
+      if (!gesture || !event || gesture.pointerId === event.pointerId) gesture = null
+    }
+    const handleWindowPointerDown = event => {
+      if (!isRitualDirectPointer(event.pointerType)) return
+      if (!modeStage && event.target?.closest?.('.lang-secondary-zone')) return
+      gesture = {
+        pointerId: event.pointerId,
+        pointerType: event.pointerType,
+        startY: event.clientY,
+      }
+    }
+    const handleWindowPointerMove = event => {
+      if (!gesture || gesture.pointerId !== event.pointerId) return
+      const action = resolveRitualSwipeAction({
+        phase,
+        selectorOption: armedOption,
+        pointerType: gesture.pointerType,
+        startY: gesture.startY,
+        endY: event.clientY,
+      })
+      if (!action) return
+      gesture = null
+      if (event.cancelable) event.preventDefault()
+      performResolvedAction(action)
+    }
+
+    window.addEventListener('pointerdown', handleWindowPointerDown, { capture: true })
+    window.addEventListener('pointermove', handleWindowPointerMove, { capture: true, passive: false })
+    window.addEventListener('pointerup', clearGesture, { capture: true })
+    window.addEventListener('pointercancel', clearGesture, { capture: true })
+    return () => {
+      window.removeEventListener('pointerdown', handleWindowPointerDown, { capture: true })
+      window.removeEventListener('pointermove', handleWindowPointerMove, { capture: true })
+      window.removeEventListener('pointerup', clearGesture, { capture: true })
+      window.removeEventListener('pointercancel', clearGesture, { capture: true })
+    }
+  }, [armedOption, locked, modeStage, performResolvedAction, phase])
 
   const handleLanguageSecondaryPointer = useCallback(event => {
     if (modeStage) return
@@ -798,9 +812,6 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
       data-selector-stage={currentStage.id}
       data-selector-identity={selectorIdentityStable === null ? 'pending' : selectorIdentityStable ? 'stable' : 'replaced'}
       data-armed-option={armedOption || 'none'}
-      onPointerDown={handleDirectPointerDown}
-      onPointerUp={handleDirectPointerUp}
-      onPointerCancel={cancelDirectPointer}
     >
       <p ref={selectorTitleRef} className="ritual-selector-title language-init-title" data-stable={revealed && titleStable ? 'true' : 'false'}>
         {revealed ? (titleDisplay || '') : ''}
@@ -880,7 +891,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                         scrambleActive={expanded && !languageLabelPinned}
                       />
                     </span>
-                    {modeStage && <RitualHandAffordance />}
+                    <RitualHandAffordance showArrow={modeStage} />
                   </span>
                 </button>
                 <div className="lang-hover-bridge" />
@@ -957,7 +968,7 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
 
   if (['language-active', 'language-leaving', 'mode-active', 'mode-leaving'].includes(phase)) {
     return (
-      <div className={`reading-transition reading-transition--motion-${motionMode}`} style={surfaceStyle}>
+      <div className={`reading-transition reading-transition--ritual reading-transition--motion-${motionMode}`} style={surfaceStyle}>
         <RitualSelector language={language} onProceed={onProceed} onModeSelect={onModeSelect} phase={phase} />
       </div>
     )
@@ -987,11 +998,6 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
               </div>
               <div className="reading-transition-start-background">
                 <p className="reading-transition-text">{text}</p>
-                <svg className="reading-transition-direction" viewBox="0 0 34 62" aria-hidden="true">
-                  <path d="M17 3C16 19 18 33 17 53" />
-                  <path d="M9 44C12 48 15 52 17 56" />
-                  <path d="M25 44C22 48 19 52 17 56" />
-                </svg>
               </div>
             </>
           ) : (

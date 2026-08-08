@@ -64,9 +64,9 @@ function LandingTitleMark({ text, sweepRef }) {
 
 export function NewToneHandLines() {
   return (
-    <svg className="newtone-hand-lines" viewBox="0 0 240 18" preserveAspectRatio="none" aria-hidden="true">
-      <path pathLength="1" d="M4 5.6C48 3.2 92 7.3 137 5.1C174 3.4 207 5.8 236 3.7" />
-      <path className="newtone-hand-lines__second" pathLength="1" d="M13 12.7C52 10.1 91 14.4 130 11.6C162 9.4 190 12.8 221 10.2" />
+    <svg className="newtone-hand-lines" viewBox="0 0 240 26" preserveAspectRatio="none" aria-hidden="true">
+      <path pathLength="1" d="M4 5.8C43 2.8 86 8.1 129 5.2C169 2.6 205 7.1 236 3.9" />
+      <path className="newtone-hand-lines__second" pathLength="1" d="M15 18.4C50 14.2 88 20.7 126 16.8C160 13.1 190 19.8 220 15.3" />
     </svg>
   )
 }

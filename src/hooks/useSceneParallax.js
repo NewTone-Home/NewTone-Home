@@ -6,12 +6,13 @@ import {
   mapDeviceOrientation,
   resolveOrientationNormalized,
   resolvePointerNormalized,
+  resolveStablePoseAnchor,
 } from '../landing/landingParallax'
 
 const PARALLAX_LERP = 0.18
 const PARALLAX_EPSILON = 0.0015
 const INITIAL_BASELINE_SAMPLES = 12
-const STABLE_DELTA_DEG = 0.35
+const STABLE_POSE_RADIUS_DEG = 0.55
 const STABLE_REBASE_DELAY_MS = 1800
 const SOFT_REBASE_RATE = 0.018
 const MOTION_PERMISSION_SESSION_KEY = 'newtone-scene-motion-permission'
@@ -131,7 +132,7 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
     const orientationPreferred = isOrientationInputPreferred()
     let baseline = null
     let baselineSum = { x: 0, y: 0, count: 0 }
-    let lastOrientation = null
+    let stableAnchor = null
     let stableSince = 0
     let orientationListening = false
     let orientationReceived = false
@@ -140,7 +141,7 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
     const resetOrientationBaseline = () => {
       baseline = null
       baselineSum = { x: 0, y: 0, count: 0 }
-      lastOrientation = null
+      stableAnchor = null
       stableSince = 0
       setTarget(0, 0, orientationPreferred ? 'orientation-calibrating' : 'pointer')
     }
@@ -159,26 +160,24 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
             x: baselineSum.x / baselineSum.count,
             y: baselineSum.y / baselineSum.count,
           }
-          lastOrientation = point
+          stableAnchor = point
+          stableSince = performance.now()
           root.dataset.parallaxSource = 'orientation'
         }
         return
       }
 
       const now = performance.now()
-      const movement = lastOrientation
-        ? Math.hypot(point.x - lastOrientation.x, point.y - lastOrientation.y)
-        : Number.POSITIVE_INFINITY
-      if (movement <= STABLE_DELTA_DEG) {
-        if (!stableSince) stableSince = now
+      const stablePose = resolveStablePoseAnchor(stableAnchor, point, STABLE_POSE_RADIUS_DEG)
+      stableAnchor = stablePose.anchor
+      if (stablePose.stable) {
         if (now - stableSince >= STABLE_REBASE_DELAY_MS) {
           baseline.x += (point.x - baseline.x) * SOFT_REBASE_RATE
           baseline.y += (point.y - baseline.y) * SOFT_REBASE_RATE
         }
       } else {
-        stableSince = 0
+        stableSince = now
       }
-      lastOrientation = point
       const normalized = resolveOrientationNormalized(point, baseline)
       setTarget(normalized.x, normalized.y, 'orientation')
     }

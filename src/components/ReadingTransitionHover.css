@@ -3,6 +3,7 @@
    upward swipe confirms it. Change Language is intentionally excluded. */
 
 [data-selector-stage='language'] .language-btn--primary,
+[data-selector-stage='language'] .language-btn--secondary,
 [data-selector-stage='mode'] .language-btn {
   overflow: visible;
 }
@@ -46,6 +47,10 @@
   stroke-width: .92;
 }
 
+.ritual-hand-affordance--lines-only .ritual-hand-affordance__arrow {
+  display: none;
+}
+
 [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .lang-btn-text-single,
 [data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-single,
 [data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-top,
@@ -56,6 +61,7 @@
 }
 
 [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance,
+[data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only,
 [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance,
 [data-ritual-armed='true'] .ritual-hand-affordance {
   color: var(--rt-ink);
@@ -64,6 +70,7 @@
 }
 
 [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line,
+[data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only .ritual-hand-affordance__line,
 [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line,
 [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__arrow,
 [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__arrow,
@@ -73,6 +80,7 @@
 }
 
 [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line--second,
+[data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only .ritual-hand-affordance__line--second,
 [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line--second,
 [data-ritual-armed='true'] .ritual-hand-affordance__line--second {
   animation-delay: 70ms;
