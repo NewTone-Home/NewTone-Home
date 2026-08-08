@@ -38,8 +38,8 @@
 - Git branch：`staging`
 - Vercel：Preview
 - 稳定 branch alias：`https://new-tone-git-staging-newtone-homes-projects.vercel.app`
-- 第一版接手包建立时，最近一次包含产品代码变化的 Preview deployment：`dpl_2GtfTvQ4SP6HsUYskjMZ3Tcifkve`
-- 对应产品代码 commit：`5dfef204e6e79aa59446a6f75ffe003f72bb4191`
+- 当前最近一次包含产品代码变化的 Preview deployment：`dpl_J2D24SxqEkdkASY5GSDNQAJULZpw`
+- 对应产品代码 commit：`6ff3031930402383aaaffc773345e9069b787410`
 - deployment state：`READY`
 - Supabase project：`ksrvlkcpaiowhcvzimkc`
 - Supabase name：`NewTone-Staging`
@@ -129,6 +129,49 @@ commit：
 2. trackpad 小幅滚动是否过于敏感或过于迟钝。
 3. touch/mobile fallback。目前项目 desktop-first，此实验主要针对鼠标/触控板。
 
+### 4.2 Reader 初始化选项 hover 视觉提示
+
+状态：**已实现并部署到 staging，待用户人工体验确认是否保留当前强度与样式。**
+
+代码 commits：
+
+- `a581569cfd35f1841c1b2bdf7bdfb7e64f66cd82` — `style: add Reader setup hover affordance`
+- `6ff3031930402383aaaffc773345e9069b787410` — `style: load Reader setup hover affordance`
+
+涉及文件：
+
+- `src/components/ReadingTransitionHover.css`：新增
+- `src/App.jsx`：加载该样式
+
+目标选项：
+
+- 语言阶段主选项“继续读取 / Continue Reading”
+- 阅读模式“沉浸叙事 / Immersive”
+- 阅读模式“普通阅读 / Standard”
+
+明确排除：
+
+- “更改语言 / Change language” 不显示向下确认提示，因为它不是向下滚轮确认入口。
+
+当前视觉行为：
+
+- 鼠标移入可向下滚动确认的选项后，文字轻微放大至约 `1.08x`。
+- 文字下方出现两条细下划线，第二条略短。
+- 双线下方出现 `↓` 向下箭头。
+- 下划线和箭头以轻微渐显/位移动画进入，移开后恢复。
+- 不改变上一项实验的滚轮确认逻辑，不新增点击行为。
+- reduced-motion 条件仍由现有 ReadingTransition motion 规则统一压缩动画时长。
+
+验证状态：
+
+- Vercel Preview deployment：`dpl_J2D24SxqEkdkASY5GSDNQAJULZpw`
+- deployment：`READY`
+- Vercel 构建确认使用 staging Supabase。
+- TypeScript typecheck：通过。
+- Vite production build：通过，231 modules transformed。
+- 仍有既有的 >500 kB chunk warning，无新增 build error。
+- **视觉手感尚未由用户人工确认。** 后续如果用户觉得太大、太明显、线太长或箭头位置不合适，优先只微调 `ReadingTransitionHover.css`，不要改 wheel 逻辑。
+
 ## 5. Reader 内容镜像状态
 
 最初建立 NewTone-Staging 时只复制了数据库 schema，没有 production Reader 内容，因此 Preview 曾显示“暂无可读页面”。这不是 Reader 代码损坏，而是 staging `reader_publications` 为空。
@@ -198,9 +241,11 @@ GitHub 当时显示以下文件有差异：
 - `tests/ritualWheelAdvance.test.js`：新增
 - `vercel.json`：修改
 
-接手包建立后，还会额外出现：
+接手包建立后/后续产品实验还会额外出现：
 
 - `docs/STAGING_HANDOFF.md`：新增/持续修改
+- `src/components/ReadingTransitionHover.css`：新增
+- `src/App.jsx`：继续修改，用于加载新的 hover 提示样式
 
 发布前不要只凭这份清单判断，应重新执行一次 `main...staging` compare，以 GitHub 实际 diff 为准。
 
@@ -233,6 +278,7 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 
 ## 9. 本轮尚未完成的事项
 
+- [ ] 用户人工确认 4.2 hover 视觉提示的大小、双下划线长度和箭头位置
 - [ ] 清理/禁用 `sync-reader-publication-once`
 - [ ] 决定 `export-reader-publication` / `sync-reader-publication` 是否保留为长期内容 seed 方案
 - [ ] 如果保留长期同步方案，把同步令牌迁移到 secret，不继续硬编码
@@ -275,8 +321,12 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 
 ## 12. 当前产品层事实摘要
 
-截至本文件建立时，本轮用户可感知的产品变化只有一项已经明确决定保留：
+本轮已经明确保留的用户可感知变化：
 
 - Reader 首次语言选择和阅读模式选择，从“持续 hover 自动确认”调整为“hover 对应选项 + 向下滚动确认”。
+
+当前 staging 已实现、等待用户人工确认后再决定是否按现状保留的变化：
+
+- “继续读取 / 沉浸叙事 / 普通阅读”在 hover 时增加可操作反馈：文字轻微放大、双下划线、向下箭头，提示用户可以继续向下滚动。
 
 其余已完成工作主要是 staging / Supabase / Vercel 测试基础设施，不应自动视为对外更新公告内容。
