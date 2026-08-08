@@ -124,6 +124,13 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
       write(0, 0, 'static')
     }
 
+    const settleStatic = source => {
+      stop()
+      targetRef.current = { x: 0, y: 0 }
+      currentRef.current = { x: 0, y: 0 }
+      write(0, 0, source)
+    }
+
     if (!enabled || reduced) {
       resetOutput()
       return () => stop()
@@ -217,10 +224,12 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
         } else {
           writeSessionPermission(null)
           writeMotionPreference(false)
+          settleStatic('denied')
         }
       } catch {
         writeSessionPermission(null)
         if (!readMotionPreference()) writeMotionPreference(false)
+        settleStatic('denied')
       } finally {
         permissionRequestInFlight = false
       }
@@ -255,6 +264,8 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
         // deliver events without another prompt; restricted Safari stays quiet
         // until the next completed NewTone gesture requests access.
         startOrientation()
+      } else {
+        settleStatic('unsupported')
       }
       root.addEventListener('pointerup', requestOrientationAccess)
       window.addEventListener('orientationchange', resetOrientationBaseline)

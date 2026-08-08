@@ -137,9 +137,14 @@ describe('Reader shell contract boundaries', () => {
 
   it('hands Reader return into the complete interactive Landing', () => {
     expect(app).toContain('guidePaused={isGlobalTransitioning}')
-    expect(app).not.toContain('arrivalKind')
+    expect(app).toContain("globalTransitionPreset === 'reader-to-surface'")
+    expect(app).toContain('readerReturnHandoffActive={readerReturnHandoffActive}')
     expect(landing).toContain('<NewToneHandLines />')
-    expect(landing).not.toContain('arrivalKind')
+    expect(landing).toContain('returnHandoffSeenRef.current = true')
+    expect(landing).toContain('window.requestAnimationFrame(() => begin())')
+    expect(landing).toContain("readerReturnHandoffActive ? ' landing--return-handoff' : ''")
+    expect(landingCss).toContain('.landing--return-handoff .landing-title-stack')
+    expect(landingCss).toContain('pointer-events: none')
     expect(globalTransition).toContain("retracting={safePreset === 'reader-to-surface' && phase === 'entering'}")
     expect(titleMark).toContain("if (retracting && phase === 'revealed') retract()")
     expect(globalTransitionCss).toContain('@keyframes gt-newtone-retract-handoff')

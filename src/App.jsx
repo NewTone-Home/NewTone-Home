@@ -30,7 +30,11 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     : resolveReaderEnvironmentPreview(environmentState).style
 
   const readingEntry = useReadingEntry()
-  const isGlobalTransitioning = useTransitionStore(s => s.phase !== 'idle')
+  const globalTransitionPhase = useTransitionStore(s => s.phase)
+  const globalTransitionPreset = useTransitionStore(s => s.preset)
+  const isGlobalTransitioning = globalTransitionPhase !== 'idle'
+  const readerReturnHandoffActive =
+    globalTransitionPreset === 'reader-to-surface' && isGlobalTransitioning
 
   const historyPushRef = useRef(true)
   const readingEntryRef = useRef(readingEntry)
@@ -186,6 +190,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
             readingMode={readingMode}
             environmentState={environmentState}
             guidePaused={isGlobalTransitioning}
+            readerReturnHandoffActive={readerReturnHandoffActive}
           />
         )}
       </PageShell>

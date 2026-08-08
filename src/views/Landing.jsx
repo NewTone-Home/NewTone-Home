@@ -118,7 +118,16 @@ function LandingGuideArrow({ phase, reduced }) {
   )
 }
 
-function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, environmentState, guidePaused = false }) {
+function Landing({
+  onEnter,
+  leaving,
+  leavingMs,
+  surfaceStyle,
+  readingMode,
+  environmentState,
+  guidePaused = false,
+  readerReturnHandoffActive = false,
+}) {
   const language = useProgressStore(s => s.language)
   const hasInitializedLanguage = useProgressStore(s => s.hasInitializedLanguage)
   const readerStarted = useProgressStore(s => s.readerStarted)
@@ -133,6 +142,7 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
   const landingRef = useRef(null)
   const activationPendingRef = useRef(false)
   const activationTimerRef = useRef(0)
+  const returnHandoffSeenRef = useRef(readerReturnHandoffActive)
 
   const reducedMotion = useReducedMotion()
   // 视觉原型开关，只影响背景层：?landing-scene=jijia_compound
@@ -162,6 +172,18 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
     enabled: true,
     reduced: reducedMotion || motionMode === 'reduced',
   })
+
+  useEffect(() => {
+    if (readerReturnHandoffActive) {
+      returnHandoffSeenRef.current = true
+      return undefined
+    }
+    if (!returnHandoffSeenRef.current) return undefined
+
+    returnHandoffSeenRef.current = false
+    const frame = window.requestAnimationFrame(() => begin())
+    return () => window.cancelAnimationFrame(frame)
+  }, [begin, readerReturnHandoffActive])
 
   useEffect(() => {
     if (guidePaused) {
@@ -282,7 +304,7 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
   return (
     <div
       ref={landingRef}
-      className={`landing paper-surface${leaving ? ' landing--leaving' : ''}${landingScene ? ' landing--scene' : ''}`}
+      className={`landing paper-surface${leaving ? ' landing--leaving' : ''}${landingScene ? ' landing--scene' : ''}${readerReturnHandoffActive ? ' landing--return-handoff' : ''}`}
       style={{ ...surfaceStyle, '--landing-leave-ms': `${leavingMs}ms` }}
       data-reading-mode={readingMode}
       data-world-layer={environmentState.worldLayer}

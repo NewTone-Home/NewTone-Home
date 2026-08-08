@@ -29,7 +29,15 @@
   position: absolute;
   left: 50%;
   top: 48%;
+  opacity: 1;
   transform: translate(-50%, -50%);
+  transition: opacity 180ms ease-out;
+}
+
+/* The transition owns the only visible NewTone until its retract is complete. */
+.landing--return-handoff .landing-title-stack {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .landing-title {

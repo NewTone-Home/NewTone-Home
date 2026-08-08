@@ -36,6 +36,12 @@ describe('Landing title parallax', () => {
     expect(sceneParallaxHook).toContain("setTarget(normalized.x, normalized.y, 'pointer')")
   })
 
+  it('reports an honest static fallback when mobile orientation is unavailable or denied', () => {
+    expect(sceneParallaxHook).toContain("settleStatic('unsupported')")
+    expect(sceneParallaxHook).toContain("settleStatic('denied')")
+    expect(sceneParallaxHook).toContain("setTarget(normalized.x, normalized.y, 'orientation')")
+  })
+
   it('maps device orientation through the current screen rotation', () => {
     expect(mapDeviceOrientation(10, 4, 0)).toEqual({ x: 4, y: 10 })
     expect(mapDeviceOrientation(10, 4, 90)).toEqual({ x: 10, y: -4 })
