@@ -33,6 +33,17 @@ The result should be two separate working folders backed by the same repository:
 - the existing production worktree on `main`
 - `NewTone-Staging` on `staging`
 
+## Local Supabase configuration
+
+Inside `NewTone-Staging`, create an ignored `.env.local` file using the public URL and publishable key from the separate `NewTone-Staging` Supabase project:
+
+```text
+VITE_SUPABASE_URL=https://ksrvlkcpaiowhcvzimkc.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=<NewTone-Staging publishable key>
+```
+
+Never use a Supabase secret key or `service_role` key in a browser-exposed `VITE_*` variable.
+
 ## Local verification
 
 Run these commands inside `NewTone-Staging`:
@@ -48,20 +59,17 @@ Use `npm run dev` for normal development and `npm run preview` to verify the bui
 
 ## Vercel Preview
 
-Every push to `staging` should create or update a Vercel Preview deployment. The production branch must remain `main`.
+Every push to `staging` creates or updates the branch Preview deployment. The production branch remains `main`.
 
-Configure these variables in Vercel for the `staging` Preview branch, using test-environment values rather than production values:
+Vercel runs `scripts/vercel-build.mjs`. When `VERCEL_GIT_COMMIT_REF` is exactly `staging`, that build script injects the public URL and publishable key for the isolated `NewTone-Staging` Supabase project before running the normal application build. Every other branch preserves the Supabase values configured in Vercel.
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
-
-Never put Supabase secret keys or `service_role` keys in this repository or in browser-exposed `VITE_*` variables.
+This branch check prevents the production build on `main` from being redirected to the test database even if the build script is later merged.
 
 ## Supabase isolation
 
-The staging Vercel deployment should connect to a separate Supabase development branch or separate test project. It must not write test events, accounts, analytics, or content into the production database.
+The staging Vercel deployment connects to a separate Supabase test project. It must not write test events, accounts, analytics, drafts, publications, or content into the production database.
 
-Production and staging should therefore use different Supabase URLs and publishable keys.
+Production and staging therefore use different Supabase URLs and publishable keys. The staging database contains the same schema and RLS structure but starts without production user data.
 
 ## Release flow
 
