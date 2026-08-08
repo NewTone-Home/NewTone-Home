@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from 'react'
 import ReaderBeatStack from '../components/reader/ReaderBeatStack'
 import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
 import ReaderTools from '../components/reader/ReaderTools'
@@ -52,7 +53,10 @@ function ReaderStage({
   focusRef,
   chapterTrialEnded,
   onReturnLanding,
+  onReturnArmedChange,
 }) {
+  const [readerAtBottom, setReaderAtBottom] = useState(false)
+  const [returnArmed, setReturnArmed] = useState(false)
   const sceneState = beats[focusBeatIndex]?.sceneState ?? {}
   const sceneStateName = sceneState.sceneState ?? 'normal'
   const nativeEnvironmentState = beats[focusBeatIndex]?.worldState
@@ -62,11 +66,28 @@ function ReaderStage({
   const stageStyle = readingMode === 'standard'
     ? getReaderThemeVariables(themePosition ?? STANDARD_THEME_POSITIONS[standardTheme] ?? 0.5)
     : immersiveStyle
-  const atPageEnd = focusBeatIndex >= Math.max(0, beats.length - 1)
-  const returnVisible = emptyDocument || atPageEnd
+  const returnVisible = emptyDocument || readerAtBottom
   const locationLabel = emptyDocument
     ? (language === 'en' ? 'No pages yet' : '暂无页面')
     : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
+
+  const updateReturnArmed = useCallback(value => {
+    setReturnArmed(value)
+    onReturnArmedChange?.(value)
+  }, [onReturnArmedChange])
+
+  const handleViewportBoundaryChange = useCallback(({ atBottom, lastNodeReached }) => {
+    setReaderAtBottom(atBottom && lastNodeReached)
+  }, [])
+
+  useEffect(() => {
+    setReaderAtBottom(false)
+    updateReturnArmed(false)
+  }, [page?.id, updateReturnArmed])
+
+  useEffect(() => {
+    if (!readerAtBottom && returnArmed) updateReturnArmed(false)
+  }, [readerAtBottom, returnArmed, updateReturnArmed])
 
   return (
     <main
@@ -124,6 +145,8 @@ function ReaderStage({
           onNativeFocusChange={onNativeFocusChange}
           onNativeBoundary={onNativeBoundary}
           onNativeScrollOffset={onNativeScrollOffset}
+          onViewportBoundaryChange={handleViewportBoundaryChange}
+          returnArmed={returnArmed}
           initialScrollOffset={initialScrollOffset}
           narrativeRuntimeEnabled={narrativeRuntimeEnabled}
           narrativeDeliveryStates={narrativeDeliveryStates}
@@ -147,7 +170,12 @@ function ReaderStage({
           language={language}
           readingMode={readingMode}
         />}
-        {returnVisible && <ReaderReturnControl onComplete={onReturnLanding} language={language} />}
+        {returnVisible && <ReaderReturnControl
+          armed={returnArmed}
+          onArm={() => updateReturnArmed(true)}
+          onComplete={onReturnLanding}
+          language={language}
+        />}
         {chapterTrialEnded && <span className="reader-chapter-end" aria-hidden="true" />}
       </section>
     </main>

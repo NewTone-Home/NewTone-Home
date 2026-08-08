@@ -8,7 +8,7 @@ import {
   normalizeWheelDelta,
 } from '../reader/readerInput'
 
-export function useReaderInput({ onSteps, wheelThreshold }) {
+export function useReaderInput({ onSteps, wheelThreshold, shouldSuppressForwardWheel }) {
   const wheelRef = useRef(0)
   const onStepsRef = useRef(onSteps)
   const gestureRef = useRef({ id: 0, lastWheelAt: 0 })
@@ -25,13 +25,16 @@ export function useReaderInput({ onSteps, wheelThreshold }) {
 
   useEffect(() => {
     const handleWheel = (event) => {
-      if (isReaderInputControl(event.target)) return
+      const isReturnControl = event.target instanceof HTMLElement
+        && event.target.closest('[data-reader-return-control="true"]')
+      if (isReaderInputControl(event.target) && !isReturnControl) return
       if (isNativeReaderScrollTarget(event.target)) return
-      event.preventDefault()
       const now = performance.now()
       if (now - gestureRef.current.lastWheelAt > 140) gestureRef.current.id += 1
       gestureRef.current.lastWheelAt = now
       const normalizedDelta = normalizeWheelDelta(event.deltaY, event.deltaMode, window.innerHeight)
+      if (normalizedDelta > 0 && shouldSuppressForwardWheel?.()) return
+      event.preventDefault()
       const next = accumulateWheelSteps(wheelRef.current, normalizedDelta, wheelThreshold)
       wheelRef.current = next.accumulated
       dispatchSteps(next.steps, { source: 'wheel', gestureId: gestureRef.current.id })
@@ -54,7 +57,7 @@ export function useReaderInput({ onSteps, wheelThreshold }) {
       window.removeEventListener('keydown', handleKeyDown)
       wheelRef.current = 0
     }
-  }, [dispatchSteps, wheelThreshold])
+  }, [dispatchSteps, shouldSuppressForwardWheel, wheelThreshold])
 
   return { dispatchSteps, clearInputAccumulator }
 }

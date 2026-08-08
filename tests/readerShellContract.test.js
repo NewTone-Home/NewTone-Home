@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { getPageSceneTrail } from '../src/components/reader/ReaderTraceProgress'
+import { isReaderViewportAtBottom } from '../src/components/reader/ReaderBeatStack'
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
 const landing = read('../src/views/Landing.jsx')
@@ -19,6 +20,7 @@ const globalTransitionCss = read('../src/components/GlobalTransitionOverlay.css'
 const titleMark = read('../src/components/landing/LandingTitleMark.jsx')
 const copy = read('../src/i18n/copy.js')
 const returnControl = read('../src/components/reader/ReaderReturnControl.jsx')
+const beatStack = read('../src/components/reader/ReaderBeatStack.jsx')
 
 describe('Reader shell contract boundaries', () => {
   it('does not restore the rejected mode-stage environmental divider', () => {
@@ -143,30 +145,36 @@ describe('Reader shell contract boundaries', () => {
     expect(globalTransitionCss).toContain('@keyframes gt-newtone-retract-handoff')
   })
 
-  it('mounts the left return control only at the current page end', () => {
-    expect(stage).toContain('const returnVisible = emptyDocument || atPageEnd')
-    expect(stage).not.toContain("readingMode === 'immersive' || atPageEnd")
+  it('offers an unarmed return choice only at the real bottom of every page', () => {
+    expect(isReaderViewportAtBottom(500, 500, 1008)).toBe(true)
+    expect(isReaderViewportAtBottom(480, 500, 1008)).toBe(false)
+    expect(stage).toContain('const returnVisible = emptyDocument || readerAtBottom')
+    expect(stage).toContain('onViewportBoundaryChange={handleViewportBoundaryChange}')
+    expect(beatStack).toContain('lastBeat.getBoundingClientRect().bottom <= viewport.getBoundingClientRect().bottom')
     expect(stage).not.toContain('escapeReturnVisible')
     expect(stage).toContain('returnVisible && <ReaderReturnControl')
-    expect(returnControl).toContain('event.deltaY <= RETURN_WHEEL_THRESHOLD')
+    expect(returnControl).toContain("onClick={() => { if (!armed) onArm() }}")
+    expect(returnControl).toContain('if (!armed) return undefined')
+    expect(returnControl).toContain('event.deltaY > RETURN_WHEEL_THRESHOLD')
     expect(returnControl).toContain('data-return-progress={progress.toFixed(3)}')
     expect(returnControl).toContain("window.addEventListener('wheel', onWheel, { passive: true })")
+    expect(returnControl).toContain("window.addEventListener('touchmove', onTouchMove, { passive: true })")
     expect(returnControl).not.toContain('setTimeout')
     expect(returnControl).not.toContain('preventDefault')
     expect(returnControl).not.toContain('stopPropagation')
     expect(returnControl).not.toContain('onPointer')
-    expect(returnControl).not.toContain('onClick')
-    expect(returnControl).not.toContain('touchstart')
-    expect(returnControl).not.toContain('<button')
+    expect(returnControl).toContain('<button')
+    expect(beatStack).toContain('if (returnArmed || !atBottomRef.current')
     expect(copy).toContain("returnToLanding: '返回入口'")
     expect(copy).toContain("returnToLanding: 'Return to entrance'")
     expect(copy).not.toContain("returnToLanding: 'return to main screen'")
   })
 
-  it('draws only the two setup-selector hand lines on Reader return', () => {
+  it('draws the two setup-selector hand lines and arrow only after arming', () => {
     expect(returnControl).toContain('reader-return-affordance__line')
     expect(returnControl).toContain('reader-return-affordance__line--second')
-    expect(returnControl).not.toContain('reader-return-affordance__arrow')
+    expect(returnControl).toContain('reader-return-affordance__arrow')
+    expect(returnControl).toContain("armed ? ' is-armed' : ''")
     expect(returnControl).not.toContain('reader-return-ring')
   })
 
