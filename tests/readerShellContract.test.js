@@ -11,6 +11,7 @@ const stageCss = read('../src/views/ReaderStage.css')
 const contractCss = read('../src/views/ReaderShellContract.css')
 const progress = read('../src/components/reader/ReaderTraceProgress.jsx')
 const transition = read('../src/components/ReadingTransition.jsx')
+const transitionCss = read('../src/components/ReadingTransition.css')
 const transitionHoverCss = read('../src/components/ReadingTransitionHover.css')
 const app = read('../src/App.jsx')
 const globalTransition = read('../src/components/GlobalTransitionOverlay.jsx')
@@ -20,6 +21,10 @@ const copy = read('../src/i18n/copy.js')
 const returnControl = read('../src/components/reader/ReaderReturnControl.jsx')
 
 describe('Reader shell contract boundaries', () => {
+  it('does not restore the rejected mode-stage environmental divider', () => {
+    expect(transitionCss).not.toContain(".language-init[data-selector-stage='mode']::before")
+  })
+
   it('removes Center triggers and debug controls from Landing and Reader', () => {
     expect(landing).not.toContain("transitionTo('center'")
     expect(landing).not.toContain('enterCenter')
