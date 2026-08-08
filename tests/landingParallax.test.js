@@ -14,13 +14,13 @@ describe('Landing title parallax', () => {
   it('maps the center to rest and clamps viewport corners', () => {
     expect(resolveLandingParallax(640, 360, 1280, 720)).toEqual({ x: 0, y: 0 })
     expect(resolveLandingParallax(1280, 720, 1280, 720)).toEqual(LANDING_PARALLAX_LIMIT)
-    expect(resolveLandingParallax(-100, -100, 1280, 720)).toEqual({ x: -12, y: -9 })
+    expect(resolveLandingParallax(-100, -100, 1280, 720)).toEqual({ x: -14, y: -10 })
   })
 
   it('keeps the visual offset within the approved restrained range', () => {
     const offset = resolveLandingParallax(1020, 160, 1280, 720)
-    expect(Math.abs(offset.x)).toBeLessThanOrEqual(12)
-    expect(Math.abs(offset.y)).toBeLessThanOrEqual(9)
+    expect(Math.abs(offset.x)).toBeLessThanOrEqual(14)
+    expect(Math.abs(offset.y)).toBeLessThanOrEqual(10)
   })
 
   it('emits the same normalized space before layer-specific amplitudes', () => {

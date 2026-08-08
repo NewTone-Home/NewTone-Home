@@ -4,7 +4,11 @@ import { READING_ENTRY_TIMINGS } from '../transitions/readingEntryController'
 import { copy } from '../i18n/copy'
 import { detectBrowserReaderLanguage, getReaderLanguage, READER_LANGUAGES } from '../i18n/languages'
 import { HOLD_PROGRESS_TIMINGS, stepHoldProgress } from '../interactions/holdProgress'
-import { resolveRitualTapAction } from '../interactions/ritualWheelAdvance'
+import {
+  isRitualDirectPointer,
+  resolveRitualArmAction,
+  resolveRitualSwipeAction,
+} from '../interactions/ritualWheelAdvance'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useSceneParallax } from '../hooks/useSceneParallax'
 import { getReaderSceneLabel } from '../i18n/readerUi'
@@ -337,6 +341,16 @@ function useLanguageSelectorHold({ enabled }) {
   return { progress, holdPhase, hold, retract }
 }
 
+function RitualHandAffordance() {
+  return (
+    <svg className="ritual-hand-affordance" viewBox="0 0 112 31" aria-hidden="true">
+      <path className="ritual-hand-affordance__line" pathLength="1" d="M4 5.8C24 3.1 45 7.4 65 5.1C82 3.2 97 5.8 108 4.2" />
+      <path className="ritual-hand-affordance__line ritual-hand-affordance__line--second" pathLength="1" d="M13 11.8C31 9.4 50 13.5 68 10.7C82 8.8 94 11.9 102 10.2" />
+      <path className="ritual-hand-affordance__arrow" pathLength="1" d="M56 17C55 21 56 24 56 28M51 24C53 26 55 28 56 29M61 24C59 26 57 28 56 29" />
+    </svg>
+  )
+}
+
 function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const setLanguage = useProgressStore(s => s.setLanguage)
   const lang = copy[language] || copy.zh
@@ -383,6 +397,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const languageSecondaryInsideRef = useRef(false)
   const selectorIdentityBaselineRef = useRef(null)
   const [selectorIdentityStable, setSelectorIdentityStable] = useState(null)
+  const [armedOption, setArmedOption] = useState(null)
+  const swipeGestureRef = useRef(null)
 
   useEffect(() => {
     if (!slotsInitialized.current) {
@@ -612,6 +628,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
   const handleLanguageExpandClick = useCallback(() => {
     if (modeStage) return
+    setArmedOption(null)
     if (window.matchMedia('(hover: hover)').matches) {
       setLangExpandHover(true)
       return
@@ -644,15 +661,53 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const secondaryProgress = modeStage ? modeSecondaryHold.progress : languageSelectorHold.progress
   const secondaryPhase = modeStage ? modeSecondaryHold.holdPhase : languageSelectorHold.holdPhase
 
-  const confirmTouchOption = useCallback((event, selectorOption) => {
-    const action = resolveRitualTapAction(phase, selectorOption, event.pointerType)
+  const performResolvedAction = useCallback(action => {
     if (!action) return
+    setArmedOption(null)
     if (action.type === 'language') {
       onProceed()
       return
     }
     onModeSelect(action.mode)
-  }, [onModeSelect, onProceed, phase])
+  }, [onModeSelect, onProceed])
+
+  const armDirectOption = useCallback((event, selectorOption) => {
+    const action = resolveRitualArmAction(phase, selectorOption, event.pointerType)
+    if (!action || locked) return
+    setArmedOption(selectorOption)
+  }, [locked, phase])
+
+  const handleDirectPointerDown = useCallback(event => {
+    if (!isRitualDirectPointer(event.pointerType) || locked) return
+    swipeGestureRef.current = {
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      startY: event.clientY,
+    }
+  }, [locked])
+
+  const handleDirectPointerUp = useCallback(event => {
+    const gesture = swipeGestureRef.current
+    swipeGestureRef.current = null
+    if (!gesture || gesture.pointerId !== event.pointerId || !armedOption) return
+    const action = resolveRitualSwipeAction({
+      phase,
+      selectorOption: armedOption,
+      pointerType: gesture.pointerType,
+      startY: gesture.startY,
+      endY: event.clientY,
+    })
+    performResolvedAction(action)
+  }, [armedOption, performResolvedAction, phase])
+
+  const cancelDirectPointer = useCallback(() => {
+    swipeGestureRef.current = null
+  }, [])
+
+  useEffect(() => {
+    setArmedOption(null)
+    swipeGestureRef.current = null
+  }, [currentStage.id])
 
   const handleLanguageSecondaryPointer = useCallback(event => {
     if (modeStage) return
@@ -701,6 +756,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
   const handleLanguageChange = useCallback((newLang) => {
     if (newLang === language || isSwitchingRef.current) return
+    setArmedOption(null)
     isSwitchingRef.current = true
 
     const oldLang = language
@@ -741,6 +797,10 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
       className={`ritual-selector language-init${reforming ? ' language-init--reforming' : ''}${exiting ? ' language-init--exiting' : ''}`}
       data-selector-stage={currentStage.id}
       data-selector-identity={selectorIdentityStable === null ? 'pending' : selectorIdentityStable ? 'stable' : 'replaced'}
+      data-armed-option={armedOption || 'none'}
+      onPointerDown={handleDirectPointerDown}
+      onPointerUp={handleDirectPointerUp}
+      onPointerCancel={cancelDirectPointer}
     >
       <p ref={selectorTitleRef} className="ritual-selector-title language-init-title" data-stable={revealed && titleStable ? 'true' : 'false'}>
         {revealed ? (titleDisplay || '') : ''}
@@ -754,6 +814,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 ref={primaryButtonRef}
                 className="language-btn language-btn--primary"
                 data-selector-option="primary"
+                data-ritual-armed={armedOption === 'primary' ? 'true' : 'false'}
                 data-hold-phase={primaryHold.holdPhase}
                 data-hold-progress={primaryHold.progress.toFixed(3)}
                 onPointerEnter={primaryHold.trackPointer}
@@ -762,15 +823,16 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 onPointerLeave={primaryHold.retract}
                 onPointerCancel={primaryHold.retract}
                 onPointerUp={event => {
-                  if (event.pointerType !== 'touch') return
+                  if (!isRitualDirectPointer(event.pointerType)) return
                   primaryHold.retract()
-                  confirmTouchOption(event, 'primary')
+                  armDirectOption(event, 'primary')
                 }}
                 disabled={locked}
               >
                 <span className="lang-btn-curtain" style={{ '--hold-angle': `${primaryHold.progress * 360}deg` }} />
                 <span className="lang-btn-text-area">
                   <span ref={primaryTextRef} className="lang-btn-text-single">{proceedText}</span>
+                  <RitualHandAffordance />
                 </span>
               </button>
             </div>
@@ -783,6 +845,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 <button
                   className="language-btn language-btn--secondary"
                   data-selector-option="secondary"
+                  data-ritual-armed={armedOption === 'secondary' ? 'true' : 'false'}
                   ref={secondaryButtonRef}
                   data-hold-phase={secondaryPhase}
                   data-hold-progress={secondaryProgress.toFixed(3)}
@@ -793,9 +856,9 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                   onPointerLeave={modeStage ? modeSecondaryHold.retract : undefined}
                   onPointerCancel={modeStage ? modeSecondaryHold.retract : handleLanguageBoundaryLeave}
                   onPointerUp={event => {
-                    if (event.pointerType !== 'touch' || !modeStage) return
+                    if (!isRitualDirectPointer(event.pointerType) || !modeStage) return
                     modeSecondaryHold.retract()
-                    confirmTouchOption(event, 'secondary')
+                    armDirectOption(event, 'secondary')
                   }}
                   onTouchStart={() => { touchInProgress.current = true }}
                   onTouchEnd={() => { scheduleTransient(() => { touchInProgress.current = false }, 300) }}
@@ -817,6 +880,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                         scrambleActive={expanded && !languageLabelPinned}
                       />
                     </span>
+                    {modeStage && <RitualHandAffordance />}
                   </span>
                 </button>
                 <div className="lang-hover-bridge" />

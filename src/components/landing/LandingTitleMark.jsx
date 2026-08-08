@@ -88,7 +88,6 @@ export function NewToneTransitionMark({ reduced = false, className = '' }) {
       <span className="newtone-transition-mark__visual">
         NewTone
         <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
-        <NewToneHandLines />
       </span>
     </div>
   )

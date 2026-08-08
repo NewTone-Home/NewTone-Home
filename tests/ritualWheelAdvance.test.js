@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { resolveRitualTapAction, resolveRitualWheelAction } from '../src/interactions/ritualWheelAdvance'
+import {
+  resolveRitualArmAction,
+  resolveRitualSwipeAction,
+  resolveRitualWheelAction,
+} from '../src/interactions/ritualWheelAdvance'
 
 describe('initial Reader ritual wheel advance', () => {
   it('advances language only from the primary option on downward scroll', () => {
@@ -18,11 +22,18 @@ describe('initial Reader ritual wheel advance', () => {
     expect(resolveRitualWheelAction('mode-leaving', 'primary', 24)).toBeNull()
   })
 
-  it('allows touch taps to confirm only the actionable setup choices', () => {
-    expect(resolveRitualTapAction('language-active', 'primary', 'touch')).toEqual({ type: 'language' })
-    expect(resolveRitualTapAction('language-active', 'secondary', 'touch')).toBeNull()
-    expect(resolveRitualTapAction('mode-active', 'primary', 'touch')).toEqual({ type: 'mode', mode: 'immersive' })
-    expect(resolveRitualTapAction('mode-active', 'secondary', 'touch')).toEqual({ type: 'mode', mode: 'standard' })
-    expect(resolveRitualTapAction('mode-active', 'primary', 'mouse')).toBeNull()
+  it('arms touch and pen choices without treating mouse clicks as mobile selection', () => {
+    expect(resolveRitualArmAction('language-active', 'primary', 'touch')).toEqual({ type: 'language' })
+    expect(resolveRitualArmAction('language-active', 'primary', 'pen')).toEqual({ type: 'language' })
+    expect(resolveRitualArmAction('language-active', 'secondary', 'touch')).toBeNull()
+    expect(resolveRitualArmAction('mode-active', 'secondary', 'pen')).toEqual({ type: 'mode', mode: 'standard' })
+    expect(resolveRitualArmAction('mode-active', 'primary', 'mouse')).toBeNull()
+  })
+
+  it('confirms an armed touch or pen choice only after an upward swipe', () => {
+    expect(resolveRitualSwipeAction({ phase: 'language-active', selectorOption: 'primary', pointerType: 'touch', startY: 500, endY: 430 })).toEqual({ type: 'language' })
+    expect(resolveRitualSwipeAction({ phase: 'mode-active', selectorOption: 'secondary', pointerType: 'pen', startY: 500, endY: 430 })).toEqual({ type: 'mode', mode: 'standard' })
+    expect(resolveRitualSwipeAction({ phase: 'mode-active', selectorOption: 'primary', pointerType: 'touch', startY: 500, endY: 475 })).toBeNull()
+    expect(resolveRitualSwipeAction({ phase: 'mode-active', selectorOption: 'primary', pointerType: 'touch', startY: 430, endY: 500 })).toBeNull()
   })
 })

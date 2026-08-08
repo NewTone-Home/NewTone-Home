@@ -33,10 +33,19 @@ function App({ contentStatus = 'ready', onRetryContent }) {
   const isGlobalTransitioning = useTransitionStore(s => s.phase !== 'idle')
 
   const historyPushRef = useRef(true)
+  const previousViewRef = useRef(currentView)
+  const landingArrivalRef = useRef('main')
   const readingEntryRef = useRef(readingEntry)
   readingEntryRef.current = readingEntry
   const restoringBlockedHistoryRef = useRef(false)
   const ritualWheelLockedRef = useRef(false)
+
+  if (previousViewRef.current !== currentView) {
+    landingArrivalRef.current = previousViewRef.current === 'reader' && currentView === 'landing'
+      ? 'return'
+      : 'main'
+    previousViewRef.current = currentView
+  }
 
   useEffect(() => {
     if (!window.history.state?.newtoneView) {
@@ -185,6 +194,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
             surfaceStyle={readerSurfaceStyle}
             readingMode={readingMode}
             environmentState={environmentState}
+            arrivalKind={landingArrivalRef.current}
           />
         )}
       </PageShell>

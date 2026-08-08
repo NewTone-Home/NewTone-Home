@@ -3,6 +3,7 @@ import {
   INTRO_STORAGE_KEY,
   TITLE_PHASE,
   LANDING_GUIDE_DELAY_MS,
+  LANDING_RETURN_GUIDE_DELAY_MS,
   LANDING_GUIDE_RETRACT_MS,
   clearIntroCompleted,
   isTitleDrawing,
@@ -109,10 +110,14 @@ describe('首次 Landing 引导', () => {
     expect(LANDING_GUIDE_RETRACT_MS).toBeLessThan(LANDING_GUIDE_DELAY_MS)
   })
 
-  it('only schedules the guide for an unlearned idle entrance', () => {
+  it('schedules the visual guide on every idle Landing entrance', () => {
     expect(shouldScheduleLandingGuide({ introCompleted: false, phase: TITLE_PHASE.IDLE })).toBe(true)
-    expect(shouldScheduleLandingGuide({ introCompleted: true, phase: TITLE_PHASE.IDLE })).toBe(false)
+    expect(shouldScheduleLandingGuide({ introCompleted: true, phase: TITLE_PHASE.IDLE })).toBe(true)
     expect(shouldScheduleLandingGuide({ introCompleted: false, phase: TITLE_PHASE.DRAWING })).toBe(false)
     expect(shouldScheduleLandingGuide({ introCompleted: false, phase: TITLE_PHASE.IDLE, activationPending: true })).toBe(false)
+  })
+
+  it('lets the smaller return acknowledgement appear sooner than the main guide', () => {
+    expect(LANDING_RETURN_GUIDE_DELAY_MS).toBeLessThan(LANDING_GUIDE_DELAY_MS)
   })
 })

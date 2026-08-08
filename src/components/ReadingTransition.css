@@ -63,7 +63,6 @@
 
 .reading-transition-start-foreground {
   transform: translate3d(var(--scene-parallax-front-x, 0), var(--scene-parallax-front-y, 0), 0);
-  transition: transform 320ms cubic-bezier(.2,.8,.2,1);
   will-change: transform;
 }
 
@@ -73,7 +72,6 @@
   align-items: center;
   margin-top: 38px;
   transform: translate3d(var(--scene-parallax-back-x, 0), var(--scene-parallax-back-y, 0), 0);
-  transition: transform 320ms cubic-bezier(.2,.8,.2,1);
   will-change: transform;
 }
 

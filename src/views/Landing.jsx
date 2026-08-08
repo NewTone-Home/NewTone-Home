@@ -4,6 +4,7 @@ import { copy } from '../i18n/copy'
 import { getReaderEntryIntent, hasStableReaderProgress } from '../reader/readerEntry'
 import {
   LANDING_GUIDE_DELAY_MS,
+  LANDING_RETURN_GUIDE_DELAY_MS,
   LANDING_GUIDE_RETRACT_MS,
   TITLE_PHASE,
   readIntroCompleted,
@@ -22,11 +23,11 @@ import LandingTitleMark, { NewToneHandLines } from '../components/landing/Landin
 import '../styles/sketchPrimitives.css'
 import './Landing.css'
 
-function LandingGuideArrow({ phase }) {
+function LandingGuideArrow({ phase, variant = 'main' }) {
   if (phase === 'hidden') return null
   return (
     <svg
-      className={`landing-guide-arrow landing-guide-arrow--${phase}`}
+      className={`landing-guide-arrow landing-guide-arrow--${variant} landing-guide-arrow--${phase}`}
       viewBox="0 0 92 72"
       aria-hidden="true"
     >
@@ -36,7 +37,7 @@ function LandingGuideArrow({ phase }) {
   )
 }
 
-function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, environmentState }) {
+function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, environmentState, arrivalKind = 'main' }) {
   const language = useProgressStore(s => s.language)
   const hasInitializedLanguage = useProgressStore(s => s.hasInitializedLanguage)
   const readerStarted = useProgressStore(s => s.readerStarted)
@@ -44,7 +45,7 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
   const motionMode = useProgressStore(s => s.motionMode)
 
   const [introCompleted, setIntroCompleted] = useState(() => readIntroCompleted())
-  const [guidePhase, setGuidePhase] = useState(() => introCompleted ? 'hidden' : 'quiet')
+  const [guidePhase, setGuidePhase] = useState('quiet')
   const triggeredRef = useRef(false)
   const introRef = useRef(introCompleted)
   const landingRef = useRef(null)
@@ -77,16 +78,16 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
   })
 
   useEffect(() => {
-    if (!shouldScheduleLandingGuide({ introCompleted, phase, activationPending: activationPendingRef.current })) {
-      if (introCompleted) setGuidePhase('hidden')
+    if (!shouldScheduleLandingGuide({ phase, activationPending: activationPendingRef.current })) {
+      setGuidePhase('hidden')
       return undefined
     }
     setGuidePhase('quiet')
     const timer = window.setTimeout(() => {
       if (!activationPendingRef.current && phaseRef.current === TITLE_PHASE.IDLE) setGuidePhase('visible')
-    }, LANDING_GUIDE_DELAY_MS)
+    }, arrivalKind === 'return' ? LANDING_RETURN_GUIDE_DELAY_MS : LANDING_GUIDE_DELAY_MS)
     return () => window.clearTimeout(timer)
-  }, [introCompleted, phase, phaseRef])
+  }, [arrivalKind, phase, phaseRef])
 
   useEffect(() => () => window.clearTimeout(activationTimerRef.current), [])
 
@@ -200,7 +201,7 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
               'landing-title',
               `landing-title--${phase}`,
               phase === TITLE_PHASE.REVEALED ? 'landing-title--drawn' : '',
-              phase === TITLE_PHASE.IDLE && guidePhase === 'visible' ? 'landing-title--guiding' : '',
+              arrivalKind === 'main' && phase === TITLE_PHASE.IDLE && guidePhase === 'visible' ? 'landing-title--guiding' : '',
             ].filter(Boolean).join(' ')}
             onPointerEnter={handleTitlePointerEnter}
             onClick={activateTitle}
@@ -210,8 +211,8 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
               <span className="landing-title-breath">
                 NewTone
                 <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
-                <NewToneHandLines />
-                <LandingGuideArrow phase={guidePhase} />
+                {arrivalKind === 'main' && <NewToneHandLines />}
+                <LandingGuideArrow phase={guidePhase} variant={arrivalKind} />
               </span>
             </span>
           </h1>

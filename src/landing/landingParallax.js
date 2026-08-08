@@ -1,6 +1,6 @@
-export const LANDING_PARALLAX_LIMIT = Object.freeze({ x: 12, y: 9 })
-export const LANDING_PARALLAX_BACK_LIMIT = Object.freeze({ x: 5, y: 3.5 })
-export const ORIENTATION_RANGE_DEG = 14
+export const LANDING_PARALLAX_LIMIT = Object.freeze({ x: 14, y: 10 })
+export const LANDING_PARALLAX_BACK_LIMIT = Object.freeze({ x: 6, y: 4 })
+export const ORIENTATION_RANGE_DEG = 12
 
 export function clampParallax(value) {
   return Math.max(-1, Math.min(1, value))

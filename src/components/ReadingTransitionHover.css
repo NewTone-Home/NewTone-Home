@@ -1,6 +1,6 @@
-/* Hover affordance for wheel-confirmable Reader setup choices.
-   Applies only to Continue Reading on the language step and both reading-mode choices.
-   The language-change control is intentionally excluded because downward wheel does not confirm it. */
+/* Wheel-confirmable setup choices use two genuine, unequal hand-drawn SVG
+   strokes. On direct input, tapping/penning arms the same affordance and an
+   upward swipe confirms it. Change Language is intentionally excluded. */
 
 [data-selector-stage='language'] .language-btn--primary,
 [data-selector-stage='mode'] .language-btn {
@@ -15,60 +15,103 @@
   transition: transform 220ms cubic-bezier(.2, .8, .2, 1), text-shadow 220ms ease;
 }
 
-[data-selector-stage='language'] .language-btn--primary .lang-btn-text-area::before,
-[data-selector-stage='mode'] .language-btn .lang-btn-text-area::before {
+.ritual-hand-affordance {
   position: absolute;
-  top: calc(50% + 11px);
+  top: calc(50% + 8px);
   left: 50%;
-  width: min(84%, 108px);
-  height: 6px;
-  background:
-    linear-gradient(currentColor, currentColor) 50% 0 / 100% 1px no-repeat,
-    linear-gradient(currentColor, currentColor) 50% 5px / 76% 1px no-repeat;
+  width: min(86%, 112px);
+  height: 31px;
+  overflow: visible;
+  fill: none;
   color: var(--rt-control);
-  content: '';
   opacity: 0;
   pointer-events: none;
-  transform: translateX(-50%) scaleX(.28);
-  transform-origin: center;
-  transition: opacity 180ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1);
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.05;
+  transform: translate(-50%, -2px) scaleX(.36);
+  transform-origin: 50% 0;
+  transition: color 220ms ease, opacity 180ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1);
 }
 
-[data-selector-stage='language'] .language-btn--primary .lang-btn-text-area::after,
-[data-selector-stage='mode'] .language-btn .lang-btn-text-area::after {
-  position: absolute;
-  top: calc(50% + 23px);
-  left: 50%;
-  color: var(--rt-control);
-  content: '↓';
-  font-family: ui-sans-serif, system-ui, sans-serif;
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0;
-  line-height: 1;
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-50%, -4px);
-  transition: color 220ms ease, opacity 180ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1);
+.ritual-hand-affordance__line,
+.ritual-hand-affordance__arrow {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.ritual-hand-affordance__line--second {
+  opacity: .67;
+  stroke-width: .92;
 }
 
 [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .lang-btn-text-single,
 [data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-single,
-[data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-top {
-  transform: scale(1.08);
+[data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-top,
+[data-ritual-armed='true'] .lang-btn-text-single,
+[data-selector-stage='mode'] [data-ritual-armed='true'] .lang-btn-text-top {
+  transform: scale(1.065);
   text-shadow: 0 .5px 0 rgba(58, 50, 42, .16);
 }
 
-[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .lang-btn-text-area::before,
-[data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-area::before {
+[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance,
+[data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance,
+[data-ritual-armed='true'] .ritual-hand-affordance {
   color: var(--rt-ink);
-  opacity: .72;
-  transform: translateX(-50%) scaleX(1);
+  opacity: .74;
+  transform: translate(-50%, 0) scaleX(1);
 }
 
-[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .lang-btn-text-area::after,
-[data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-area::after {
-  color: var(--rt-ink);
-  opacity: .72;
-  transform: translate(-50%, 0);
+[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line,
+[data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line,
+[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__arrow,
+[data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__arrow,
+[data-ritual-armed='true'] .ritual-hand-affordance__line,
+[data-ritual-armed='true'] .ritual-hand-affordance__arrow {
+  animation: ritual-affordance-draw 280ms ease-out forwards;
+}
+
+[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line--second,
+[data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line--second,
+[data-ritual-armed='true'] .ritual-hand-affordance__line--second {
+  animation-delay: 70ms;
+}
+
+[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__arrow,
+[data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__arrow,
+[data-ritual-armed='true'] .ritual-hand-affordance__arrow {
+  animation-delay: 130ms;
+}
+
+@keyframes ritual-affordance-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .ritual-selector {
+    touch-action: none;
+  }
+
+  /* Desktop points toward the next page; direct input shows the physical
+     upward swipe that confirms the armed choice. */
+  .ritual-hand-affordance__arrow {
+    transform: rotate(180deg);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ritual-hand-affordance,
+  .ritual-hand-affordance__line,
+  .ritual-hand-affordance__arrow {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  [data-ritual-armed='true'] .ritual-hand-affordance__line,
+  [data-ritual-armed='true'] .ritual-hand-affordance__arrow {
+    stroke-dashoffset: 0;
+  }
 }

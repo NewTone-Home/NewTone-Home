@@ -168,7 +168,7 @@
 }
 
 .preset-reader-to-surface.phase-entering .global-transition-newtone {
-  animation: gt-newtone-out min(520ms, var(--gt-enter-duration)) ease-in forwards;
+  animation: gt-newtone-out min(430ms, var(--gt-enter-duration)) ease-in forwards;
 }
 
 .global-transition-label-mark {
@@ -373,8 +373,8 @@
 }
 
 @keyframes gt-reader-surface-release {
-  from { opacity: 1; }
-  to { opacity: 0; }
+  0%, 72% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 @keyframes gt-newtone-in {

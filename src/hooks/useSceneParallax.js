@@ -8,13 +8,15 @@ import {
   resolvePointerNormalized,
 } from '../landing/landingParallax'
 
-const PARALLAX_LERP = 0.12
+const PARALLAX_LERP = 0.18
 const PARALLAX_EPSILON = 0.0015
 const INITIAL_BASELINE_SAMPLES = 12
 const STABLE_DELTA_DEG = 0.35
 const STABLE_REBASE_DELAY_MS = 1800
 const SOFT_REBASE_RATE = 0.018
 const MOTION_PERMISSION_SESSION_KEY = 'newtone-scene-motion-permission'
+const MOTION_PREFERENCE_KEY = 'newtone-scene-motion-enabled'
+let motionPermissionRequestedThisPage = false
 
 function readScreenAngle() {
   if (typeof screen !== 'undefined' && screen.orientation) return screen.orientation.angle
@@ -35,6 +37,23 @@ function writeSessionPermission(value) {
     else sessionStorage.removeItem(MOTION_PERMISSION_SESSION_KEY)
   } catch {
     // Private browsing may make session storage unavailable.
+  }
+}
+
+function readMotionPreference() {
+  try {
+    return localStorage.getItem(MOTION_PREFERENCE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function writeMotionPreference(enabled) {
+  try {
+    if (enabled) localStorage.setItem(MOTION_PREFERENCE_KEY, 'true')
+    else localStorage.removeItem(MOTION_PREFERENCE_KEY)
+  } catch {
+    // The preference is optional; orientation still works for this page view.
   }
 }
 
@@ -115,6 +134,7 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
     let lastOrientation = null
     let stableSince = 0
     let orientationListening = false
+    let orientationReceived = false
     let permissionRequestInFlight = false
 
     const resetOrientationBaseline = () => {
@@ -128,6 +148,7 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
     const handleOrientation = event => {
       const point = mapDeviceOrientation(event.beta, event.gamma, readScreenAngle())
       if (!point) return
+      orientationReceived = true
 
       if (!baseline) {
         baselineSum.x += point.x
@@ -170,10 +191,11 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
     }
 
     const requestOrientationAccess = async event => {
-      if (event.pointerType !== 'touch' || permissionRequestInFlight) return
+      if (!['touch', 'pen'].includes(event.pointerType) || permissionRequestInFlight) return
       if (!event.target?.closest?.('[data-motion-parallax-trigger="true"]')) return
       const OrientationEvent = window.DeviceOrientationEvent
       if (!OrientationEvent) return
+      if (orientationReceived) return
       if (typeof OrientationEvent.requestPermission !== 'function') {
         startOrientation()
         return
@@ -182,17 +204,22 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
         startOrientation()
         return
       }
+      if (motionPermissionRequestedThisPage) return
+      motionPermissionRequestedThisPage = true
       permissionRequestInFlight = true
       try {
         const result = await OrientationEvent.requestPermission()
         if (result === 'granted') {
           writeSessionPermission('granted')
+          writeMotionPreference(true)
           startOrientation()
         } else {
           writeSessionPermission(null)
+          writeMotionPreference(false)
         }
       } catch {
         writeSessionPermission(null)
+        if (!readMotionPreference()) writeMotionPreference(false)
       } finally {
         permissionRequestInFlight = false
       }
@@ -220,8 +247,10 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
     if (orientationPreferred) {
       const OrientationEvent = window.DeviceOrientationEvent
       if (OrientationEvent) {
-        if (typeof OrientationEvent.requestPermission !== 'function') startOrientation()
-        else if (readSessionPermission() === 'granted') startOrientation()
+        // Listening first is intentional. Browsers that retain permission will
+        // deliver events without another prompt; restricted Safari stays quiet
+        // until the next completed NewTone gesture requests access.
+        startOrientation()
       }
       root.addEventListener('pointerup', requestOrientationAccess)
       window.addEventListener('orientationchange', resetOrientationBaseline)

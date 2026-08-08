@@ -66,7 +66,6 @@
   color: transparent;
   pointer-events: none;
   transform: translate3d(var(--scene-parallax-front-x, 0), var(--scene-parallax-front-y, 0), 0);
-  transition: transform 320ms cubic-bezier(.2,.8,.2,1);
   will-change: transform;
 }
 
@@ -117,6 +116,19 @@
 .landing-guide-arrow--visible {
   opacity: .68;
   animation: landing-guide-drift 1.85s ease-in-out 620ms infinite;
+}
+
+.landing-guide-arrow--return {
+  right: calc(100% - 10px);
+  top: 66%;
+  width: 52px;
+  height: 41px;
+  stroke-width: 1.2;
+}
+
+.landing-guide-arrow--return.landing-guide-arrow--visible {
+  opacity: .46;
+  animation-duration: 2.2s;
 }
 
 .landing-guide-arrow--visible .landing-guide-arrow__curve {
