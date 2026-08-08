@@ -37,7 +37,7 @@ const GUIDE_SHAPES = [
   },
   {
     at: .56,
-    points: [[-12, 9], [-21, 13], [-17, 16], [-23, 19], [-29, 23], [-35, 27], [-40, 32], [-45, 37], [-49, 41], [-47, 43], [-43, 39], [-38, 35], [-33, 31], [-28, 27], [-22, 23], [-17, 19], [-18, 25], [-12, 9]],
+    points: [[-17, 13], [-22, 15], [-19, 18], [-24, 20], [-29, 23], [-34, 27], [-39, 31], [-44, 36], [-48, 40], [-46, 42], [-42, 38], [-37, 34], [-32, 30], [-27, 26], [-22, 22], [-18, 19], [-19, 24], [-17, 13]],
   },
   {
     at: .78,
@@ -45,7 +45,7 @@ const GUIDE_SHAPES = [
   },
   {
     at: 1,
-    points: [[0, 0], [-16, 3], [-10, 9], [-20, 14], [-31, 21], [-43, 30], [-55, 40], [-67, 52], [-75, 59], [-72, 62], [-65, 55], [-54, 44], [-42, 34], [-30, 25], [-19, 18], [-10, 13], [-12, 22], [0, 0]],
+    points: [[0, 0], [-14, 4], [-10, 8], [-19, 13], [-30, 20], [-42, 29], [-54, 39], [-66, 51], [-75, 59], [-72, 61], [-65, 54], [-54, 43], [-42, 33], [-30, 24], [-19, 17], [-10, 12], [-12, 19], [0, 0]],
   },
 ]
 
@@ -306,7 +306,12 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
           >
             <span className="landing-title-text" data-landing-title-visual="true">
               <span className="landing-title-breath">
-                <span className="landing-title-n-host">N<LandingGuideArrow phase={guidePhase} reduced={reducedMotion || motionMode === 'reduced'} /></span>
+                <span className="landing-title-n-host">
+                  N
+                  <span className="landing-title-n-origin">
+                    <LandingGuideArrow phase={guidePhase} reduced={reducedMotion || motionMode === 'reduced'} />
+                  </span>
+                </span>
                 {'ewTone'}
                 <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
                 <NewToneHandLines />

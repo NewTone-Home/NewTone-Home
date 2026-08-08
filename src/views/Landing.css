@@ -91,6 +91,15 @@
   position: relative;
 }
 
+.landing-title-n-origin {
+  position: absolute;
+  bottom: .16em;
+  left: .08em;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
 @keyframes landing-title-breathe {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.019); }
@@ -98,9 +107,9 @@
 
 .landing-guide-arrow {
   position: absolute;
-  /* The origin of this local SVG is attached to the rendered N host. */
-  left: .08em;
-  top: .72em;
+  /* viewBox (0,0) lands on the zero-size origin inside the rendered N. */
+  top: -8px;
+  left: -92px;
   width: 100px;
   height: 82px;
   overflow: visible;
@@ -112,7 +121,7 @@
 
 .landing-guide-arrow__ink {
   opacity: 0;
-  fill: color-mix(in srgb, var(--ink-dark) 84%, transparent);
+  fill: color-mix(in srgb, var(--ink-dark) 76%, transparent);
 }
 
 .landing-guide-arrow--visible {
@@ -265,7 +274,7 @@
   }
 
   .landing-guide-arrow--visible .landing-guide-arrow__ink {
-    opacity: .6;
+    opacity: .54;
   }
 }
 
@@ -290,7 +299,7 @@
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__ink {
-  opacity: .6;
+  opacity: .54;
 }
 
 /* ===== Responsive ===== */
