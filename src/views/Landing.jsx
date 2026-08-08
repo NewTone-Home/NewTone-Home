@@ -89,7 +89,7 @@ function LandingGuideArrow({ phase, reduced }) {
     const animate = (time) => {
       const delta = Math.min(40, time - lastTime)
       lastTime = time
-      const duration = target > progressRef.current ? 860 : 420
+      const duration = target > progressRef.current ? 860 : 300
       const direction = target > progressRef.current ? 1 : -1
       const next = Math.max(0, Math.min(1, progressRef.current + direction * delta / duration))
       progressRef.current = direction > 0 ? Math.min(target, next) : Math.max(target, next)

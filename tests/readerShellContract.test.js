@@ -123,6 +123,8 @@ describe('Reader shell contract boundaries', () => {
     expect(landing).toContain('at: .18')
     expect(landing).toContain('at: .34')
     expect(landing).toContain('at: .56')
+    expect(landing).toContain('target > progressRef.current ? 860 : 300')
+    expect(landingCss).toContain('var(--ink-dark) 84%')
     expect(landingCss).not.toContain('2.2%')
     expect(landingCss).not.toContain('scale(.04,.08)')
     expect(landingCss).not.toContain('stroke-dashoffset')
