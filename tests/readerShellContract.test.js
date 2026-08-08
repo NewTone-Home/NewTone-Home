@@ -136,9 +136,10 @@ describe('Reader shell contract boundaries', () => {
     expect(globalTransitionCss).toContain('@keyframes gt-newtone-retract-handoff')
   })
 
-  it('keeps the same left return control visible in immersive mode and at page end or Escape', () => {
-    expect(stage).toContain("event.key !== 'Escape'")
-    expect(stage).toContain("const returnVisible = emptyDocument || readingMode === 'immersive' || atPageEnd || escapeReturnVisible")
+  it('mounts the left return control only at the current page end', () => {
+    expect(stage).toContain('const returnVisible = emptyDocument || atPageEnd')
+    expect(stage).not.toContain("readingMode === 'immersive' || atPageEnd")
+    expect(stage).not.toContain('escapeReturnVisible')
     expect(stage).toContain('returnVisible && <ReaderReturnControl')
     expect(returnControl).toContain('onPointerLeave={retract}')
     expect(returnControl).toContain('event.deltaY <= 8')
@@ -158,6 +159,13 @@ describe('Reader shell contract boundaries', () => {
     expect(copy).toContain("returnToLanding: '返回入口'")
     expect(copy).toContain("returnToLanding: 'Return to entrance'")
     expect(copy).not.toContain("returnToLanding: 'return to main screen'")
+  })
+
+  it('uses the setup selector hand-line and arrow language for Reader return', () => {
+    expect(returnControl).toContain('reader-return-affordance__line')
+    expect(returnControl).toContain('reader-return-affordance__line--second')
+    expect(returnControl).toContain('reader-return-affordance__arrow')
+    expect(returnControl).not.toContain('reader-return-ring')
   })
 
   it('keeps stable scene IDs available without rendering left-side scene icons', () => {

@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import ReaderBeatStack from '../components/reader/ReaderBeatStack'
 import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
 import ReaderTools from '../components/reader/ReaderTools'
@@ -54,7 +53,6 @@ function ReaderStage({
   chapterTrialEnded,
   onReturnLanding,
 }) {
-  const [escapeReturnVisible, setEscapeReturnVisible] = useState(false)
   const sceneState = beats[focusBeatIndex]?.sceneState ?? {}
   const sceneStateName = sceneState.sceneState ?? 'normal'
   const nativeEnvironmentState = beats[focusBeatIndex]?.worldState
@@ -65,24 +63,10 @@ function ReaderStage({
     ? getReaderThemeVariables(themePosition ?? STANDARD_THEME_POSITIONS[standardTheme] ?? 0.5)
     : immersiveStyle
   const atPageEnd = focusBeatIndex >= Math.max(0, beats.length - 1)
-  const returnVisible = emptyDocument || readingMode === 'immersive' || atPageEnd || escapeReturnVisible
+  const returnVisible = emptyDocument || atPageEnd
   const locationLabel = emptyDocument
     ? (language === 'en' ? 'No pages yet' : '暂无页面')
     : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
-
-  useEffect(() => {
-    setEscapeReturnVisible(false)
-  }, [page?.id])
-
-  useEffect(() => {
-    const revealReturn = event => {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      setEscapeReturnVisible(true)
-    }
-    window.addEventListener('keydown', revealReturn)
-    return () => window.removeEventListener('keydown', revealReturn)
-  }, [])
 
   return (
     <main

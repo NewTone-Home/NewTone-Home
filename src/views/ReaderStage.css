@@ -1889,7 +1889,7 @@
   position: absolute;
   z-index: 9;
   bottom: max(clamp(48px, 6.2vh, 84px), calc(env(safe-area-inset-bottom) + 38px));
-  left: 50%;
+  left: max(24px, env(safe-area-inset-left));
   display: grid;
   width: clamp(132px, 11vw, 190px);
   padding: 10px 12px 8px;
@@ -1902,7 +1902,7 @@
   letter-spacing: .12em;
   opacity: .44;
   place-items: center;
-  transform: translateX(-50%);
+  transform: none;
   transition: color 360ms ease, opacity 360ms ease;
   user-select: none;
   -webkit-user-select: none;

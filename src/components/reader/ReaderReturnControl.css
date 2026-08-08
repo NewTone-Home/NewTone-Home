@@ -8,40 +8,49 @@
   z-index: 1;
 }
 
-.reader-return-ring {
+.reader-return-affordance {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  top: calc(50% + 8px);
+  left: 50%;
+  width: min(86%, 112px);
+  height: 31px;
   overflow: visible;
   fill: none;
   pointer-events: none;
   stroke: currentColor;
-  stroke-dasharray: 1;
-  stroke-dashoffset: calc(1 - var(--return-progress));
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.05;
+  transform: translateX(-50%);
 }
 
-.reader-return-ring-echo {
-  opacity: .22;
-  transform: translate(.7px, .45px) rotate(.15deg);
-  transform-origin: center;
+.reader-return-affordance__line {
+  opacity: .74;
+  stroke-dasharray: 1;
+  stroke-dashoffset: calc(1 - var(--return-progress));
 }
 
-.reader-return-control.is-completing .reader-return-ring {
-  animation: reader-return-ring-flash 280ms ease-in-out 2;
+.reader-return-affordance__line--second {
+  opacity: .52;
+  stroke-width: .92;
 }
 
-.reader-return-control.is-retracting .reader-return-ring {
-  transition: stroke-dashoffset 120ms ease-in;
-  stroke-dashoffset: 1;
+.reader-return-affordance__arrow {
+  opacity: 0;
+  transition: opacity 220ms ease;
 }
 
-@keyframes reader-return-ring-flash {
-  0%, 100% { opacity: .92; }
-  50% { opacity: .16; }
+.reader-return-control.is-drawing .reader-return-affordance__arrow,
+.reader-return-control.is-completing .reader-return-affordance__arrow {
+  opacity: .86;
+  animation: reader-return-arrow-blink 940ms ease-in-out 180ms infinite;
+}
+
+.reader-return-control.is-retracting .reader-return-affordance__arrow { opacity: 0; }
+
+@keyframes reader-return-arrow-blink {
+  0%, 100% { stroke-opacity: .32; }
+  48% { stroke-opacity: 1; }
 }
 
 @media (hover: none), (pointer: coarse), (max-width: 720px) {

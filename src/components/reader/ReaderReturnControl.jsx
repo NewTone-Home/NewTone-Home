@@ -166,9 +166,10 @@ function ReaderReturnControl({ onComplete, language }) {
       >
         {ui.returnToLanding}
       </span>
-      <svg className="reader-return-ring" viewBox="0 0 180 54" preserveAspectRatio="none" aria-hidden="true">
-        <path pathLength="1" d="M8 27C10 8 39 4 88 5C135 3 169 10 172 25C174 42 143 50 90 49C39 51 5 44 8 27Z" />
-        <path className="reader-return-ring-echo" pathLength="1" d="M8 27C10 8 39 4 88 5C135 3 169 10 172 25C174 42 143 50 90 49C39 51 5 44 8 27Z" />
+      <svg className="reader-return-affordance" viewBox="0 0 112 31" aria-hidden="true">
+        <path className="reader-return-affordance__line" pathLength="1" d="M4 5.8C24 3.1 45 7.4 65 5.1C82 3.2 97 5.8 108 4.2" />
+        <path className="reader-return-affordance__line reader-return-affordance__line--second" pathLength="1" d="M13 11.8C31 9.4 50 13.5 68 10.7C82 8.8 94 11.9 102 10.2" />
+        <path className="reader-return-affordance__arrow" d="M56 17C55 21 56 24 56 28M51 24C53 26 55 28 56 29M61 24C59 26 57 28 56 29" />
       </svg>
     </button>
   )
