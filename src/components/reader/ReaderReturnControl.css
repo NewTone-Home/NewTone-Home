@@ -1,6 +1,8 @@
 .reader-return-control {
   width: 180px;
   min-height: 54px;
+  pointer-events: none;
+  touch-action: pan-y !important;
 }
 
 .reader-return-text {
@@ -13,7 +15,7 @@
   top: calc(50% + 8px);
   left: 50%;
   width: min(86%, 112px);
-  height: 31px;
+  height: 18px;
   overflow: visible;
   fill: none;
   pointer-events: none;
@@ -33,24 +35,6 @@
 .reader-return-affordance__line--second {
   opacity: .52;
   stroke-width: .92;
-}
-
-.reader-return-affordance__arrow {
-  opacity: 0;
-  transition: opacity 220ms ease;
-}
-
-.reader-return-control.is-drawing .reader-return-affordance__arrow,
-.reader-return-control.is-completing .reader-return-affordance__arrow {
-  opacity: .86;
-  animation: reader-return-arrow-blink 940ms ease-in-out 180ms infinite;
-}
-
-.reader-return-control.is-retracting .reader-return-affordance__arrow { opacity: 0; }
-
-@keyframes reader-return-arrow-blink {
-  0%, 100% { stroke-opacity: .32; }
-  48% { stroke-opacity: 1; }
 }
 
 @media (hover: none), (pointer: coarse), (max-width: 720px) {
