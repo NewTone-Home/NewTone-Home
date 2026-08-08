@@ -31,13 +31,11 @@ export function getPageSceneTrail(beats, focusBeatIndex) {
 
 function ReaderTraceProgress({ progress, beats, focusBeatIndex, language, readingMode }) {
   const percentage = getReaderProgressPercentage(progress)
-  const [hovered, setHovered] = useState(false)
   const [visualProgress, setVisualProgress] = useState(() => percentage / 100)
   const visualProgressRef = useRef(percentage / 100)
   const targetProgressRef = useRef(percentage / 100)
   const frameRef = useRef(0)
   const lastFrameRef = useRef(0)
-  const traceRef = useRef(null)
   const ui = getReaderUi(language)
   const remaining = Math.max(0, 100 - percentage)
   const trail = readingMode === 'immersive' ? getPageSceneTrail(beats, focusBeatIndex) : []
@@ -74,15 +72,6 @@ function ReaderTraceProgress({ progress, beats, focusBeatIndex, language, readin
     lastFrameRef.current = 0
   }, [])
 
-  useEffect(() => {
-    const trackHover = event => {
-      const pointedNode = document.elementFromPoint(event.clientX, event.clientY)
-      setHovered(Boolean(pointedNode && traceRef.current?.contains(pointedNode)))
-    }
-    window.addEventListener('pointermove', trackHover)
-    return () => window.removeEventListener('pointermove', trackHover)
-  }, [])
-
   const tailCompression = Math.max(0, (visualProgress - 0.9) / 0.1)
   const featherSpan = 20 - 18 * tailCompression
   const featherStart = Math.max(0, visualProgress * 100 - featherSpan)
@@ -91,19 +80,14 @@ function ReaderTraceProgress({ progress, beats, focusBeatIndex, language, readin
 
   return (
     <div
-      ref={traceRef}
-      className={`reader-trace${complete ? ' is-complete' : ''}${hovered ? ' is-hovered' : ''}`}
+      className={`reader-trace${complete ? ' is-complete' : ''}`}
       role="progressbar"
       aria-label={ui.readingProgress}
       aria-valuemin="0"
       aria-valuemax="100"
       aria-valuenow={percentage}
-      tabIndex="0"
       data-progress={percentage}
       data-page-scenes={trail.filter(item => item.state !== 'future').map(item => item.locationId).join(' ')}
-      onPointerEnter={() => setHovered(true)}
-      onPointerMove={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
       style={{
         '--reader-progress': percentage / 100,
         '--reader-visual-progress': visualProgress,
