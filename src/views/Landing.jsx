@@ -22,17 +22,97 @@ import LandingTitleMark, { NewToneHandLines } from '../components/landing/Landin
 import '../styles/sketchPrimitives.css'
 import './Landing.css'
 
-function LandingGuideArrow({ phase }) {
+const GUIDE_SHAPES = [
+  {
+    at: 0,
+    points: [[0, -2.1], [1.1, -1.8], [1.9, -1], [2.2, 0], [1.9, 1.1], [1.1, 1.9], [0, 2.2], [-1.1, 1.9], [-1.9, 1.1], [-2.2, 0], [-1.9, -1], [-1.1, -1.8], [0, -2.1], [0, -2.1], [0, -2.1], [0, -2.1], [0, -2.1], [0, -2.1]],
+  },
+  {
+    at: .18,
+    points: [[-11, 7.7], [-9.9, 8], [-9.1, 8.9], [-8.8, 10], [-9.2, 11.1], [-10.1, 11.9], [-11.2, 12.1], [-12.3, 11.7], [-13.1, 10.8], [-13.3, 9.7], [-12.9, 8.6], [-12.1, 7.9], [-11, 7.7], [-11, 7.7], [-11, 7.7], [-11, 7.7], [-11, 7.7], [-11, 7.7]],
+  },
+  {
+    at: .34,
+    points: [[-21, 16.6], [-19.8, 16.9], [-19, 17.8], [-18.8, 19], [-19.2, 20.1], [-20.1, 20.9], [-21.3, 21.1], [-22.4, 20.7], [-23.2, 19.8], [-23.4, 18.7], [-23, 17.6], [-22.2, 16.8], [-21, 16.6], [-21, 16.6], [-21, 16.6], [-21, 16.6], [-21, 16.6], [-21, 16.6]],
+  },
+  {
+    at: .56,
+    points: [[-12, 9], [-21, 13], [-17, 16], [-23, 19], [-29, 23], [-35, 27], [-40, 32], [-45, 37], [-49, 41], [-47, 43], [-43, 39], [-38, 35], [-33, 31], [-28, 27], [-22, 23], [-17, 19], [-18, 25], [-12, 9]],
+  },
+  {
+    at: .78,
+    points: [[-5, 3], [-18, 6], [-13, 11], [-21, 15], [-30, 21], [-40, 29], [-49, 37], [-58, 46], [-65, 52], [-63, 55], [-56, 49], [-48, 42], [-39, 35], [-29, 27], [-20, 21], [-12, 16], [-14, 25], [-5, 3]],
+  },
+  {
+    at: 1,
+    points: [[0, 0], [-16, 3], [-10, 9], [-20, 14], [-31, 21], [-43, 30], [-55, 40], [-67, 52], [-75, 59], [-72, 62], [-65, 55], [-54, 44], [-42, 34], [-30, 25], [-19, 18], [-10, 13], [-12, 22], [0, 0]],
+  },
+]
+
+function guidePathAt(progress) {
+  const upperIndex = GUIDE_SHAPES.findIndex(shape => progress <= shape.at)
+  const upper = GUIDE_SHAPES[upperIndex < 0 ? GUIDE_SHAPES.length - 1 : upperIndex]
+  const lower = GUIDE_SHAPES[Math.max(0, (upperIndex < 0 ? GUIDE_SHAPES.length - 1 : upperIndex) - 1)]
+  const span = upper.at - lower.at
+  const mix = span > 0 ? (progress - lower.at) / span : 0
+  const points = lower.points.map(([x, y], index) => {
+    const [toX, toY] = upper.points[index]
+    return [x + (toX - x) * mix, y + (toY - y) * mix]
+  })
+  return `${points.map(([x, y], index) => `${index === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`).join('')}Z`
+}
+
+function guideOpacityAt(progress) {
+  if (progress <= .035) return progress / .035
+  if (progress <= .34) return .88
+  return .88 - ((progress - .34) / .66) * .28
+}
+
+function LandingGuideArrow({ phase, reduced }) {
+  const inkRef = useRef(null)
+  const progressRef = useRef(0)
+  const frameRef = useRef(0)
+
+  useEffect(() => {
+    const target = phase === 'visible' ? 1 : 0
+    const ink = inkRef.current
+    if (!ink) return undefined
+
+    if (reduced) {
+      progressRef.current = target
+      ink.setAttribute('d', guidePathAt(target))
+      ink.style.opacity = String(target ? .6 : 0)
+      return undefined
+    }
+
+    let lastTime = performance.now()
+    const animate = (time) => {
+      const delta = Math.min(40, time - lastTime)
+      lastTime = time
+      const duration = target > progressRef.current ? 860 : 420
+      const direction = target > progressRef.current ? 1 : -1
+      const next = Math.max(0, Math.min(1, progressRef.current + direction * delta / duration))
+      progressRef.current = direction > 0 ? Math.min(target, next) : Math.max(target, next)
+      ink.setAttribute('d', guidePathAt(progressRef.current))
+      ink.style.opacity = String(guideOpacityAt(progressRef.current))
+      if (progressRef.current !== target) frameRef.current = requestAnimationFrame(animate)
+    }
+    cancelAnimationFrame(frameRef.current)
+    frameRef.current = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(frameRef.current)
+  }, [phase, reduced])
+
   if (phase === 'hidden') return null
   return (
     <svg
       className={`landing-guide-arrow landing-guide-arrow--main landing-guide-arrow--${phase}`}
-      viewBox="0 0 92 72"
+      viewBox="-92 -8 100 82"
       aria-hidden="true"
     >
       <path
+        ref={inkRef}
         className="landing-guide-arrow__ink"
-        d="M84 12L67 13L73 18C66 24 60 29 53 33C40 41 25 49 8 62C6.8 63.2 7.1 65.8 8.8 67C10.2 68 12.1 67.8 13.8 66.2C30.7 53.3 45.1 46.2 58 38C66 33 72.2 27.1 78 21L76 29Z"
+        d={guidePathAt(progressRef.current)}
       />
     </svg>
   )
@@ -226,10 +306,10 @@ function Landing({ onEnter, leaving, leavingMs, surfaceStyle, readingMode, envir
           >
             <span className="landing-title-text" data-landing-title-visual="true">
               <span className="landing-title-breath">
-                NewTone
+                <span className="landing-title-n-host">N<LandingGuideArrow phase={guidePhase} reduced={reducedMotion || motionMode === 'reduced'} /></span>
+                {'ewTone'}
                 <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
                 <NewToneHandLines />
-                <LandingGuideArrow phase={guidePhase} />
               </span>
             </span>
           </h1>

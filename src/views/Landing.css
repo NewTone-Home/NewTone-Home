@@ -87,6 +87,10 @@
   animation: landing-title-breathe 1.9s ease-in-out infinite;
 }
 
+.landing-title-n-host {
+  position: relative;
+}
+
 @keyframes landing-title-breathe {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.019); }
@@ -94,12 +98,11 @@
 
 .landing-guide-arrow {
   position: absolute;
-  /* Segoe Script N begins at glyph contour (218,296). Against the full
-     NewTone advance and N ink bounds, that maps to 2.2% / 77.3% here. */
-  left: calc(2.2% - 84px);
-  top: calc(77.3% - 12px);
-  width: 92px;
-  height: 72px;
+  /* The origin of this local SVG is attached to the rendered N host. */
+  left: .08em;
+  top: .72em;
+  width: 100px;
+  height: 82px;
   overflow: visible;
   fill: var(--ink-dark);
   opacity: 0;
@@ -109,43 +112,17 @@
 
 .landing-guide-arrow__ink {
   opacity: 0;
-  transform: scale(0);
-  transform-box: view-box;
-  transform-origin: 84px 12px;
+  fill: color-mix(in srgb, currentColor 84%, transparent);
 }
 
 .landing-guide-arrow--visible {
   opacity: 1;
-  animation: landing-guide-drift 1.85s ease-in-out 740ms infinite;
-  transform-origin: 84px 12px;
-}
-
-.landing-guide-arrow--visible .landing-guide-arrow__ink {
-  animation: landing-guide-ink-form 700ms cubic-bezier(.25,.7,.25,1) forwards;
+  animation: landing-guide-drift 1.85s ease-in-out 900ms infinite;
+  transform-origin: 0 0;
 }
 
 .landing-guide-arrow--retracting {
   opacity: 1;
-}
-
-.landing-guide-arrow--retracting .landing-guide-arrow__ink {
-  animation: landing-guide-ink-return 320ms cubic-bezier(.55,.05,.8,.35) forwards;
-}
-
-@keyframes landing-guide-ink-form {
-  0% { opacity: 0; filter: blur(1.8px); transform: scale(.04,.08) rotate(-8deg); }
-  6% { opacity: .98; filter: blur(1.25px); transform: scale(.09,.16) rotate(-7deg); }
-  26% { opacity: .92; filter: blur(.75px); transform: scale(.3,.48) rotate(-4deg); }
-  58% { opacity: .78; filter: blur(.22px); transform: scale(.68,.84) rotate(-1.4deg); }
-  100% { opacity: .68; filter: blur(0); transform: scale(1) rotate(0); }
-}
-
-@keyframes landing-guide-ink-return {
-  0% { opacity: .68; filter: blur(0); transform: scale(1) rotate(0); }
-  44% { opacity: .82; filter: blur(.38px); transform: scale(.56,.72) rotate(-2.4deg); }
-  76% { opacity: .96; filter: blur(.95px); transform: scale(.17,.3) rotate(-6deg); }
-  93% { opacity: 1; filter: blur(1.35px); transform: scale(.055,.1) rotate(-8deg); }
-  100% { opacity: 0; filter: blur(1.8px); transform: scale(0) rotate(-8deg); }
 }
 
 @keyframes landing-guide-drift {
@@ -288,10 +265,7 @@
   }
 
   .landing-guide-arrow--visible .landing-guide-arrow__ink {
-    animation: none !important;
-    filter: none;
-    opacity: .68;
-    transform: scale(1);
+    opacity: .6;
   }
 }
 
@@ -316,9 +290,7 @@
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__ink {
-  filter: none;
-  opacity: .68;
-  transform: scale(1);
+  opacity: .6;
 }
 
 /* ===== Responsive ===== */

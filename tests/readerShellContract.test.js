@@ -105,16 +105,20 @@ describe('Reader shell contract boundaries', () => {
 
   it('forms and returns the Landing guide as one ink mass at the N stroke origin', () => {
     expect(landing).not.toContain('landing-guide-arrow__anchor')
+    expect(landing).toContain('className="landing-title-n-host"')
+    expect(landing).toContain("{'ewTone'}")
     expect(landing).toContain('className="landing-guide-arrow__ink"')
-    expect(landing.match(/d="M84 12/g)).toHaveLength(1)
-    expect(landingCss).toContain('left: calc(2.2% - 84px)')
-    expect(landingCss).toContain('top: calc(77.3% - 12px)')
-    expect(landingCss).toContain('transform-origin: 84px 12px')
-    expect(landingCss).toContain('@keyframes landing-guide-ink-form')
-    expect(landingCss).toContain('@keyframes landing-guide-ink-return')
+    expect(landing).toContain('const GUIDE_SHAPES = [')
+    expect(landing).toContain('ink.setAttribute(\'d\', guidePathAt(progressRef.current))')
+    expect(landing).toContain('const target = phase === \'visible\' ? 1 : 0')
+    expect(landingCss).toContain('.landing-title-n-host')
+    expect(landingCss).toContain('local SVG is attached to the rendered N host')
+    expect(landing).toContain('at: .18')
+    expect(landing).toContain('at: .34')
+    expect(landing).toContain('at: .56')
+    expect(landingCss).not.toContain('2.2%')
+    expect(landingCss).not.toContain('scale(.04,.08)')
     expect(landingCss).not.toContain('stroke-dashoffset')
-    expect(landingCss).toMatch(/landing-guide-ink-form[\s\S]*?scale\(\.04,\.08\)[\s\S]*?scale\(1\)/)
-    expect(landingCss).toMatch(/landing-guide-ink-return[\s\S]*?100% \{ opacity: 0;[\s\S]*?scale\(0\)/)
   })
 
   it('hands Reader return into the complete interactive Landing', () => {
