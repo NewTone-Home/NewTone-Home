@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { getPageSceneTrail } from '../src/components/reader/ReaderTraceProgress'
-import { isReaderViewportAtBottom } from '../src/components/reader/ReaderBeatStack'
+import { isReaderContentEndVisible, isReaderViewportAtBottom } from '../src/components/reader/ReaderBeatStack'
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
 const landing = read('../src/views/Landing.jsx')
@@ -180,6 +180,14 @@ describe('Reader shell contract boundaries', () => {
     expect(copy).toContain("returnToLanding: '返回入口'")
     expect(copy).toContain("returnToLanding: 'Return to entrance'")
     expect(copy).not.toContain("returnToLanding: 'return to main screen'")
+  })
+
+  it('shows the mobile return choice when real content ends, without waiting for the scroll spacer', () => {
+    expect(isReaderContentEndVisible(800, 808)).toBe(true)
+    expect(isReaderContentEndVisible(800, 820)).toBe(false)
+    expect(beatStack).toContain('? isReaderContentEndVisible(viewport.getBoundingClientRect().bottom, lastBeat.getBoundingClientRect().bottom)')
+    expect(beatStack).toContain('isReaderContentEndVisible(viewportRect.bottom, lastBeat.getBoundingClientRect().bottom)')
+    expect(beatStack).toContain(': lastNodeReached && lastBeat.getBoundingClientRect().bottom')
   })
 
   it('draws the two setup-selector hand lines and arrow only after arming', () => {

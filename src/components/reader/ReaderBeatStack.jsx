@@ -11,6 +11,10 @@ export function isReaderViewportAtBottom(scrollTop, clientHeight, scrollHeight) 
   return scrollTop + clientHeight >= scrollHeight - BOUNDARY_THRESHOLD_PX
 }
 
+export function isReaderContentEndVisible(viewportBottom, contentBottom) {
+  return contentBottom <= viewportBottom + BOUNDARY_THRESHOLD_PX
+}
+
 export function getBeatBlocksForLanguage(beat, language) {
   return (language === 'en' ? beat.translations?.en?.blocks : null) ?? beat.blocks
 }
@@ -61,7 +65,7 @@ function ReaderBeatStack({
     if (!viewport || !(lastBeat instanceof HTMLElement)) return
     const lastNodeReached = focusBeatIndex >= beats.length - 1
     const atBottom = nativeScroll
-      ? isReaderViewportAtBottom(viewport.scrollTop, viewport.clientHeight, viewport.scrollHeight)
+      ? isReaderContentEndVisible(viewport.getBoundingClientRect().bottom, lastBeat.getBoundingClientRect().bottom)
       : lastNodeReached && lastBeat.getBoundingClientRect().bottom <= viewport.getBoundingClientRect().bottom + BOUNDARY_THRESHOLD_PX
     atBottomRef.current = atBottom && lastNodeReached
     onViewportBoundaryChange?.({ atBottom: atBottomRef.current, lastNodeReached })
@@ -179,7 +183,9 @@ function ReaderBeatStack({
         }
 
         const atTop = currentScrollTop <= BOUNDARY_THRESHOLD_PX
-        const atBottom = isReaderViewportAtBottom(currentScrollTop, viewport.clientHeight, viewport.scrollHeight)
+        const lastBeat = flow.lastElementChild
+        const atBottom = lastBeat instanceof HTMLElement
+          && isReaderContentEndVisible(viewportRect.bottom, lastBeat.getBoundingClientRect().bottom)
         const lastNodeReached = nearestIndex === beats.length - 1
         atBottomRef.current = atBottom && lastNodeReached
         onViewportBoundaryChange?.({ atBottom: atBottomRef.current, lastNodeReached })
