@@ -4,6 +4,7 @@ import { getPageSceneTrail } from '../src/components/reader/ReaderTraceProgress'
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
 const landing = read('../src/views/Landing.jsx')
+const landingCss = read('../src/views/Landing.css')
 const reader = read('../src/views/ReaderOrchestrator.jsx')
 const stage = read('../src/views/ReaderStage.jsx')
 const stageCss = read('../src/views/ReaderStage.css')
@@ -100,6 +101,15 @@ describe('Reader shell contract boundaries', () => {
     expect(transitionHoverCss).toContain('transform: scaleX(0)')
     expect(transitionHoverCss).toContain('transform-origin: left center')
     expect(transition).not.toContain('文本层已接入')
+  })
+
+  it('draws and retracts the Landing guide through one fixed lower-left anchor', () => {
+    expect(landing).toContain('className="landing-guide-arrow__anchor" cx="8" cy="64"')
+    expect(landing).toContain('d="M8 64C13 48')
+    expect(landingCss).toContain('@keyframes landing-guide-anchor-reveal')
+    expect(landingCss).toContain('@keyframes landing-guide-anchor-absorb')
+    expect(landingCss).toContain('transform-origin: 8px 64px')
+    expect(landingCss).toMatch(/landing-guide-arrow--retracting \.landing-guide-arrow__curve[\s\S]*?landing-guide-retract/)
   })
 
   it('hands Reader return into the complete interactive Landing', () => {

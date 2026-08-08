@@ -30,6 +30,7 @@ function LandingGuideArrow({ phase }) {
       viewBox="0 0 92 72"
       aria-hidden="true"
     >
+      <circle className="landing-guide-arrow__anchor" cx="8" cy="64" r="2.15" />
       <path className="landing-guide-arrow__curve" pathLength="1" d="M8 64C13 48 22 39 36 32C47 26 55 20 64 12" />
       <path className="landing-guide-arrow__head" pathLength="1" d="M53 15C58 14 62 13 66 10C65 15 64 20 62 24" />
     </svg>

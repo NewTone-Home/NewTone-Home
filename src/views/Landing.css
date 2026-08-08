@@ -111,28 +111,58 @@
 .landing-guide-arrow path {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
+  stroke-opacity: .68;
+}
+
+.landing-guide-arrow__anchor {
+  fill: var(--ink-dark);
+  opacity: 0;
+  stroke: none;
+  transform: scale(.2);
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .landing-guide-arrow--visible {
-  opacity: .68;
-  animation: landing-guide-drift 1.85s ease-in-out 620ms infinite;
+  opacity: 1;
+  animation: landing-guide-drift 1.85s ease-in-out 740ms infinite;
+  transform-origin: 8px 64px;
+}
+
+.landing-guide-arrow--visible .landing-guide-arrow__anchor {
+  animation: landing-guide-anchor-reveal 130ms ease-out forwards;
 }
 
 .landing-guide-arrow--visible .landing-guide-arrow__curve {
-  animation: landing-guide-draw 620ms cubic-bezier(.25,.7,.25,1) forwards;
+  animation: landing-guide-draw 560ms cubic-bezier(.25,.7,.25,1) 90ms forwards;
 }
 
 .landing-guide-arrow--visible .landing-guide-arrow__head {
-  animation: landing-guide-draw 260ms ease-out 500ms forwards;
+  animation: landing-guide-draw 220ms ease-out 520ms forwards;
 }
 
 .landing-guide-arrow--retracting {
-  opacity: .68;
+  opacity: 1;
 }
 
-.landing-guide-arrow--retracting path {
-  animation: landing-guide-retract 320ms cubic-bezier(.55,.05,.8,.35) forwards;
+.landing-guide-arrow--retracting .landing-guide-arrow__head {
+  animation: landing-guide-retract 100ms ease-in forwards;
   stroke-dashoffset: 0;
+}
+
+.landing-guide-arrow--retracting .landing-guide-arrow__curve {
+  animation: landing-guide-retract 230ms cubic-bezier(.55,.05,.8,.35) 45ms forwards;
+  stroke-dashoffset: 0;
+}
+
+.landing-guide-arrow--retracting .landing-guide-arrow__anchor {
+  animation: landing-guide-anchor-absorb 320ms ease-in forwards;
+}
+
+@keyframes landing-guide-anchor-reveal {
+  0% { opacity: 0; transform: scale(.2); }
+  58% { opacity: 1; transform: scale(1.18); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
 @keyframes landing-guide-draw {
@@ -144,9 +174,15 @@
   to { stroke-dashoffset: 1; }
 }
 
+@keyframes landing-guide-anchor-absorb {
+  0%, 72% { opacity: 1; transform: scale(1); }
+  86% { opacity: 1; transform: scale(1.38); }
+  100% { opacity: 0; transform: scale(0); }
+}
+
 @keyframes landing-guide-drift {
-  0%, 100% { transform: translate3d(0, 0, 0); }
-  50% { transform: translate3d(2.2px, -1.8px, 0); }
+  0%, 100% { transform: rotate(-.45deg); }
+  50% { transform: rotate(.75deg); }
 }
 
 /* ===== Entry Groups (text + arrow containers) ===== */
@@ -280,12 +316,18 @@
   }
 
   .landing-guide-arrow--visible {
-    opacity: .68;
+    opacity: 1;
   }
 
   .landing-guide-arrow--visible path {
     animation: none !important;
     stroke-dashoffset: 0;
+  }
+
+  .landing-guide-arrow--visible .landing-guide-arrow__anchor {
+    animation: none !important;
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
@@ -306,11 +348,17 @@
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible {
-  opacity: .68;
+  opacity: 1;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible path {
   stroke-dashoffset: 0;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__anchor {
+  animation: none !important;
+  opacity: 1;
+  transform: scale(1);
 }
 
 /* ===== Responsive ===== */
