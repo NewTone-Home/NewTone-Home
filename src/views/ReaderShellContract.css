@@ -147,7 +147,7 @@
 }
 .reader-stage-page .reader-trace.is-complete { opacity:1; pointer-events:none; }
 .reader-stage-page .reader-trace.is-complete .reader-trace-line { opacity:1; }
-.reader-stage-page .reader-reading-percent { top:clamp(18px,calc(var(--reader-visual-progress) * 100%),calc(100% - 46px)); left:60px; display:inline-flex; flex-direction:column; align-items:center; gap:2px; padding:0; border:0; background:transparent; opacity:.92; pointer-events:none; writing-mode:horizontal-tb; }
+.reader-stage-page .reader-reading-percent { top:clamp(18px,calc(var(--reader-visual-progress) * 100%),calc(100% - 46px)); left:16.5px; display:inline-flex; flex-direction:column; align-items:center; gap:2px; padding:0; border:0; background:transparent; opacity:.92; pointer-events:none; writing-mode:horizontal-tb; transform:translate(-50%,-100%); }
 .reader-stage-page .reader-reading-percent-label { writing-mode:vertical-rl; text-orientation:upright; }
 .reader-stage-page .reader-reading-percent-value { writing-mode:horizontal-tb; text-orientation:mixed; white-space:nowrap; }
 .reader-stage .reader-return-control { bottom:max(24px,env(safe-area-inset-bottom)); left:max(24px,env(safe-area-inset-left)); width:clamp(150px,13vw,190px); cursor:default; opacity:.72; transform:none; animation:reader-contract-return-enter 480ms ease both; }
@@ -176,7 +176,7 @@
   .reader-stage .reader-return-control { bottom:max(18px,env(safe-area-inset-bottom)) !important; left:max(14px,env(safe-area-inset-left)); }
   .reader-stage-page .reader-trace { left:8px; width:100px; }
   .reader-stage-page .reader-trace-line { left:12px; }
-  .reader-stage-page .reader-reading-percent { left:54px; }
+  .reader-stage-page .reader-reading-percent { left:14.5px; }
 }
 
 @media (orientation:landscape) and (max-height:500px) {
