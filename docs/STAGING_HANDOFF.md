@@ -238,6 +238,26 @@ commit：
 - Device Orientation 横竖屏、坐姿到躺姿软校准、后台恢复需要真机确认。
 - Apple Pencil 的物理 swipe 手感、返回遮罩与 Landing 的视觉交接仍需用户在测试服确认。
 
+### 4.5 第二轮测试服反馈：线条、整屏 swipe 与返回视差
+
+产品提交：`efc6e4e fix: polish Landing lines and setup gestures`
+
+- 主 Landing 的两条签名线扩大垂直间距，并重新绘制为曲率、起止点和长度差异更明显的两条 path。
+- Language 的 Change language / 当前语言区域 hover 时显示同一套双手绘线，但显式使用 `lines-only` 变体，不显示箭头；鼠标仍在整个语言展开区域内时，切换语言后双线继续保留，完全移开才消失。
+- Language 页原本一直存在的水平装饰线已删除；Mode / 阅读体验页已获认可的环境分隔线保留。
+- First Start 的方向箭头已删除；Start 只保留 NewTone 与开始读取文字及其前后景视差。
+- touch / pen 的 armed swipe 从 selector 局部监听改为 window 范围监听，超过阈值时在 pointermove 立即确认。Language 的 Change language 整个区域明确排除；Mode 可从页面任意合理位置上滑。
+- Device Orientation 的稳定判断从“相邻帧变化”改为“相对稳定锚点的姿态窗口”。缓慢倾斜累计超过 0.55° 会被识别为用户输入，不再被逐帧软归零；持续停在新姿态后才开始软校准。
+
+验证：
+
+- `npm test`：22 files，97 tests 全部通过；lint、typecheck、Vite production build 通过，231 modules transformed。
+- 浏览器视觉检查：Landing 双线间距已拉开；Language 当前语言 hover 只显示双线无箭头；切换为 English 后双线保持；Language 常驻横线已消失。
+- 390×844：touch 点选 Language 后从页面空白区域上滑可进入 Mode；pen 点选 Mode 后从页面空白区域上滑可进入 Start。
+- Start 截图与 DOM 均确认无方向箭头、无 NewTone 双线。
+- Reader 返回 Landing 后 desktop pointer 实际输出约 front X 13.78px / Y -9.72px，CSS transform 生效；真实 iPad Device Orientation 仍需用户复验。
+- 浏览器无 runtime error；本轮浏览器验收产生的单个临时文件 `0` 已核实并删除，未进入 Git。
+
 ## 5. Reader 内容镜像状态
 
 最初建立 NewTone-Staging 时只复制了数据库 schema，没有 production Reader 内容，因此 Preview 曾显示“暂无可读页面”。这不是 Reader 代码损坏，而是 staging `reader_publications` 为空。
@@ -349,7 +369,7 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 - [ ] 决定 `export-reader-publication` / `sync-reader-publication` 是否保留为长期内容 seed 方案
 - [ ] 如果保留长期同步方案，把同步令牌迁移到 secret，不继续硬编码
 - [ ] 检查 staging `http` extension 是否需要保留
-- [x] 运行 `npm test`，包括 `tests/ritualWheelAdvance.test.js`；当前 96 tests 全部通过
+- [x] 运行 `npm test`，包括 `tests/ritualWheelAdvance.test.js`；当前 97 tests 全部通过
 - [ ] 用户人工确认 Landing 引导、双手绘线、前后景视差与首次 Start 的视觉手感
 - [ ] 在真实 iPhone / Android 验收 Device Orientation 权限、归零、横竖屏映射与软校准
 - [x] GitHub staging `c9c58cf` 对应的 Vercel Preview 已报告部署成功
@@ -400,5 +420,6 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 - Landing 首次教学引导、NewTone 双手绘线、Landing / 首次 Start 共用前后景视差，以及稳定无视差的 Resume。
 - 移动端 Language / Mode 使用 touch / Apple Pencil 先点选 armed、再向上 swipe 确认；移动端视差只使用 Device Orientation，并采用场景级自动归零与软校准。
 - NewTone 双线只属于普通主 Landing；First Start、Reader 返回 Landing 和 Resume 均不显示双线。
+- Language 的当前语言区域 hover 只显示持续双手绘线；Start 不显示方向箭头；移动端 armed 后可从页面空白区域上滑确认。
 
 其余已完成工作主要是 staging / Supabase / Vercel 测试基础设施，不应自动视为对外更新公告内容。
