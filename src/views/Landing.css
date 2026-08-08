@@ -103,15 +103,6 @@
   position: relative;
 }
 
-.landing-title-n-origin {
-  position: absolute;
-  bottom: .16em;
-  left: .08em;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-}
-
 @keyframes landing-title-breathe {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.019); }
@@ -119,36 +110,27 @@
 
 .landing-guide-arrow {
   position: absolute;
-  /* viewBox (0,0) lands on the zero-size origin inside the rendered N. */
-  top: -8px;
-  left: -92px;
-  width: 100px;
-  height: 82px;
+  right: calc(100% - 20px);
+  top: 58%;
+  width: 82px;
+  height: 64px;
   overflow: visible;
-  fill: var(--ink-dark);
+  fill: none;
   opacity: 0;
   pointer-events: none;
-  stroke: none;
-}
-
-.landing-guide-arrow__ink {
-  opacity: 0;
-  fill: color-mix(in srgb, var(--ink-dark) 76%, transparent);
+  stroke: var(--ink-medium);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
+  transition: opacity 300ms ease;
 }
 
 .landing-guide-arrow--visible {
-  opacity: 1;
-  animation: landing-guide-drift 1.85s ease-in-out 900ms infinite;
-  transform-origin: 0 0;
+  opacity: .68;
 }
 
 .landing-guide-arrow--retracting {
-  opacity: 1;
-}
-
-@keyframes landing-guide-drift {
-  0%, 100% { transform: rotate(-.45deg); }
-  50% { transform: rotate(.75deg); }
+  opacity: 0;
 }
 
 /* ===== Entry Groups (text + arrow containers) ===== */
