@@ -1,0 +1,74 @@
+/* Hover affordance for wheel-confirmable Reader setup choices.
+   Applies only to Continue Reading on the language step and both reading-mode choices.
+   The language-change control is intentionally excluded because downward wheel does not confirm it. */
+
+[data-selector-stage='language'] .language-btn--primary,
+[data-selector-stage='mode'] .language-btn {
+  overflow: visible;
+}
+
+[data-selector-stage='language'] .language-btn--primary .lang-btn-text-single,
+[data-selector-stage='mode'] .language-btn .lang-btn-text-single,
+[data-selector-stage='mode'] .language-btn .lang-btn-text-top {
+  transform: scale(1);
+  transform-origin: center;
+  transition: transform 220ms cubic-bezier(.2, .8, .2, 1), text-shadow 220ms ease;
+}
+
+[data-selector-stage='language'] .language-btn--primary .lang-btn-text-area::before,
+[data-selector-stage='mode'] .language-btn .lang-btn-text-area::before {
+  position: absolute;
+  top: calc(50% + 11px);
+  left: 50%;
+  width: min(84%, 108px);
+  height: 6px;
+  background:
+    linear-gradient(currentColor, currentColor) 50% 0 / 100% 1px no-repeat,
+    linear-gradient(currentColor, currentColor) 50% 5px / 76% 1px no-repeat;
+  color: var(--rt-control);
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) scaleX(.28);
+  transform-origin: center;
+  transition: opacity 180ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1);
+}
+
+[data-selector-stage='language'] .language-btn--primary .lang-btn-text-area::after,
+[data-selector-stage='mode'] .language-btn .lang-btn-text-area::after {
+  position: absolute;
+  top: calc(50% + 23px);
+  left: 50%;
+  color: var(--rt-control);
+  content: '↓';
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -4px);
+  transition: color 220ms ease, opacity 180ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1);
+}
+
+[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .lang-btn-text-single,
+[data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-single,
+[data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-top {
+  transform: scale(1.08);
+  text-shadow: 0 .5px 0 rgba(58, 50, 42, .16);
+}
+
+[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .lang-btn-text-area::before,
+[data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-area::before {
+  color: var(--rt-ink);
+  opacity: .72;
+  transform: translateX(-50%) scaleX(1);
+}
+
+[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .lang-btn-text-area::after,
+[data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-area::after {
+  color: var(--rt-ink);
+  opacity: .72;
+  transform: translate(-50%, 0);
+}
