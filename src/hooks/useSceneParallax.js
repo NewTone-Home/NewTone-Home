@@ -137,6 +137,7 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
     let orientationListening = false
     let orientationReceived = false
     let permissionRequestInFlight = false
+    let mouseOverrideUntil = 0
 
     const resetOrientationBaseline = () => {
       baseline = null
@@ -147,6 +148,7 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
     }
 
     const handleOrientation = event => {
+      if (performance.now() < mouseOverrideUntil) return
       const point = mapDeviceOrientation(event.beta, event.gamma, readScreenAngle())
       if (!point) return
       orientationReceived = true
@@ -225,7 +227,10 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
     }
 
     const handlePointerMove = event => {
-      if (orientationPreferred || event.pointerType === 'touch') return
+      // Hybrid tablets can report a coarse primary pointer even while a real
+      // mouse/trackpad is active. The actual event type owns the input source.
+      if (event.pointerType && event.pointerType !== 'mouse') return
+      mouseOverrideUntil = performance.now() + 1200
       const normalized = resolvePointerNormalized(event.clientX, event.clientY, window.innerWidth, window.innerHeight)
       setTarget(normalized.x, normalized.y, 'pointer')
     }

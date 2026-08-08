@@ -10,6 +10,7 @@ import {
 } from '../src/landing/landingParallax'
 
 const landingSketchCss = fs.readFileSync(new URL('../src/components/landing/LandingSketchLayer.css', import.meta.url), 'utf8')
+const sceneParallaxHook = fs.readFileSync(new URL('../src/hooks/useSceneParallax.js', import.meta.url), 'utf8')
 
 describe('Landing title parallax', () => {
   it('maps the center to rest and clamps viewport corners', () => {
@@ -27,6 +28,12 @@ describe('Landing title parallax', () => {
   it('emits the same normalized space before layer-specific amplitudes', () => {
     expect(resolvePointerNormalized(640, 360, 1280, 720)).toEqual({ x: 0, y: 0 })
     expect(resolvePointerNormalized(1280, 0, 1280, 720)).toEqual({ x: 1, y: -1 })
+  })
+
+  it('lets a real mouse drive returned Landing even on a hybrid coarse-pointer device', () => {
+    expect(sceneParallaxHook).toContain("event.pointerType !== 'mouse'")
+    expect(sceneParallaxHook).not.toContain("orientationPreferred || event.pointerType === 'touch'")
+    expect(sceneParallaxHook).toContain("setTarget(normalized.x, normalized.y, 'pointer')")
   })
 
   it('maps device orientation through the current screen rotation', () => {
