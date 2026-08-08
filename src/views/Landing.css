@@ -94,90 +94,58 @@
 
 .landing-guide-arrow {
   position: absolute;
-  right: calc(100% - 20px);
-  top: 58%;
-  width: 82px;
-  height: 64px;
+  /* Segoe Script N begins at glyph contour (218,296). Against the full
+     NewTone advance and N ink bounds, that maps to 2.2% / 77.3% here. */
+  left: calc(2.2% - 84px);
+  top: calc(77.3% - 12px);
+  width: 92px;
+  height: 72px;
   overflow: visible;
-  fill: none;
-  opacity: 0;
-  pointer-events: none;
-  stroke: var(--ink-medium);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.35;
-}
-
-.landing-guide-arrow path {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  stroke-opacity: .68;
-}
-
-.landing-guide-arrow__anchor {
   fill: var(--ink-dark);
   opacity: 0;
+  pointer-events: none;
   stroke: none;
-  transform: scale(.2);
-  transform-box: fill-box;
-  transform-origin: center;
+}
+
+.landing-guide-arrow__ink {
+  opacity: 0;
+  transform: scale(0);
+  transform-box: view-box;
+  transform-origin: 84px 12px;
 }
 
 .landing-guide-arrow--visible {
   opacity: 1;
   animation: landing-guide-drift 1.85s ease-in-out 740ms infinite;
-  transform-origin: 8px 64px;
+  transform-origin: 84px 12px;
 }
 
-.landing-guide-arrow--visible .landing-guide-arrow__anchor {
-  animation: landing-guide-anchor-reveal 130ms ease-out forwards;
-}
-
-.landing-guide-arrow--visible .landing-guide-arrow__curve {
-  animation: landing-guide-draw 560ms cubic-bezier(.25,.7,.25,1) 90ms forwards;
-}
-
-.landing-guide-arrow--visible .landing-guide-arrow__head {
-  animation: landing-guide-draw 220ms ease-out 520ms forwards;
+.landing-guide-arrow--visible .landing-guide-arrow__ink {
+  animation: landing-guide-ink-form 700ms cubic-bezier(.25,.7,.25,1) forwards;
 }
 
 .landing-guide-arrow--retracting {
   opacity: 1;
 }
 
-.landing-guide-arrow--retracting .landing-guide-arrow__head {
-  animation: landing-guide-retract 100ms ease-in forwards;
-  stroke-dashoffset: 0;
+.landing-guide-arrow--retracting .landing-guide-arrow__ink {
+  animation: landing-guide-ink-return 320ms cubic-bezier(.55,.05,.8,.35) forwards;
 }
 
-.landing-guide-arrow--retracting .landing-guide-arrow__curve {
-  animation: landing-guide-retract 230ms cubic-bezier(.55,.05,.8,.35) 45ms forwards;
-  stroke-dashoffset: 0;
+@keyframes landing-guide-ink-form {
+  0% { opacity: 0; filter: blur(1.8px); transform: scale(.04,.08) rotate(-8deg); }
+  6% { opacity: .98; filter: blur(1.25px); transform: scale(.09,.16) rotate(-7deg); }
+  26% { opacity: .92; filter: blur(.75px); transform: scale(.3,.48) rotate(-4deg); }
+  58% { opacity: .78; filter: blur(.22px); transform: scale(.68,.84) rotate(-1.4deg); }
+  100% { opacity: .68; filter: blur(0); transform: scale(1) rotate(0); }
 }
 
-.landing-guide-arrow--retracting .landing-guide-arrow__anchor {
-  animation: landing-guide-anchor-absorb 320ms ease-in forwards;
-}
-
-@keyframes landing-guide-anchor-reveal {
-  0% { opacity: 0; transform: scale(.2); }
-  58% { opacity: 1; transform: scale(1.18); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes landing-guide-draw {
-  to { stroke-dashoffset: 0; }
-}
-
-@keyframes landing-guide-retract {
-  from { stroke-dashoffset: 0; }
-  to { stroke-dashoffset: 1; }
-}
-
-@keyframes landing-guide-anchor-absorb {
-  0%, 72% { opacity: 1; transform: scale(1); }
-  86% { opacity: 1; transform: scale(1.38); }
-  100% { opacity: 0; transform: scale(0); }
+@keyframes landing-guide-ink-return {
+  0% { opacity: .68; filter: blur(0); transform: scale(1) rotate(0); }
+  44% { opacity: .82; filter: blur(.38px); transform: scale(.56,.72) rotate(-2.4deg); }
+  76% { opacity: .96; filter: blur(.95px); transform: scale(.17,.3) rotate(-6deg); }
+  93% { opacity: 1; filter: blur(1.35px); transform: scale(.055,.1) rotate(-8deg); }
+  100% { opacity: 0; filter: blur(1.8px); transform: scale(0) rotate(-8deg); }
 }
 
 @keyframes landing-guide-drift {
@@ -319,14 +287,10 @@
     opacity: 1;
   }
 
-  .landing-guide-arrow--visible path {
+  .landing-guide-arrow--visible .landing-guide-arrow__ink {
     animation: none !important;
-    stroke-dashoffset: 0;
-  }
-
-  .landing-guide-arrow--visible .landing-guide-arrow__anchor {
-    animation: none !important;
-    opacity: 1;
+    filter: none;
+    opacity: .68;
     transform: scale(1);
   }
 }
@@ -351,13 +315,9 @@
   opacity: 1;
 }
 
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible path {
-  stroke-dashoffset: 0;
-}
-
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__anchor {
-  animation: none !important;
-  opacity: 1;
+.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__ink {
+  filter: none;
+  opacity: .68;
   transform: scale(1);
 }
 

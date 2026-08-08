@@ -103,13 +103,18 @@ describe('Reader shell contract boundaries', () => {
     expect(transition).not.toContain('文本层已接入')
   })
 
-  it('draws and retracts the Landing guide through one fixed lower-left anchor', () => {
-    expect(landing).toContain('className="landing-guide-arrow__anchor" cx="8" cy="64"')
-    expect(landing).toContain('d="M8 64C13 48')
-    expect(landingCss).toContain('@keyframes landing-guide-anchor-reveal')
-    expect(landingCss).toContain('@keyframes landing-guide-anchor-absorb')
-    expect(landingCss).toContain('transform-origin: 8px 64px')
-    expect(landingCss).toMatch(/landing-guide-arrow--retracting \.landing-guide-arrow__curve[\s\S]*?landing-guide-retract/)
+  it('forms and returns the Landing guide as one ink mass at the N stroke origin', () => {
+    expect(landing).not.toContain('landing-guide-arrow__anchor')
+    expect(landing).toContain('className="landing-guide-arrow__ink"')
+    expect(landing.match(/d="M84 12/g)).toHaveLength(1)
+    expect(landingCss).toContain('left: calc(2.2% - 84px)')
+    expect(landingCss).toContain('top: calc(77.3% - 12px)')
+    expect(landingCss).toContain('transform-origin: 84px 12px')
+    expect(landingCss).toContain('@keyframes landing-guide-ink-form')
+    expect(landingCss).toContain('@keyframes landing-guide-ink-return')
+    expect(landingCss).not.toContain('stroke-dashoffset')
+    expect(landingCss).toMatch(/landing-guide-ink-form[\s\S]*?scale\(\.04,\.08\)[\s\S]*?scale\(1\)/)
+    expect(landingCss).toMatch(/landing-guide-ink-return[\s\S]*?100% \{ opacity: 0;[\s\S]*?scale\(0\)/)
   })
 
   it('hands Reader return into the complete interactive Landing', () => {
