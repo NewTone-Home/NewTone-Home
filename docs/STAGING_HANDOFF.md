@@ -205,6 +205,39 @@ commit：
 - 真实 iPhone / Android 上的 Device Orientation 权限、横竖屏映射、场景归零与持续稳定姿态软校准必须真机验收；桌面自动化环境不能替代传感器证据。
 - 依赖安装仍报告 2 个既有 high severity audit 项，本轮没有擅自执行 audit fix。
 
+### 4.4 真机反馈修正：Landing return / direct input / motion
+
+产品提交：`e396b94 fix: refine Landing return and mobile setup`
+
+本节覆盖 4.3 中与本轮真机反馈冲突的旧描述：
+
+- `introCompleted` 现在只控制第一次是否锁住离开手势。主 Landing 每次进入仍会安排 NewTone 引导箭头；第一次必须完成描线，已学会后可以在描线途中下滚/上滑，先 retract 再离场。
+- NewTone 双手绘线只保留在普通主 Landing；First Start、Reader 返回后的 Landing、Global Transition 和 Resume 均不显示双线。
+- Reader 返回 Landing 时，遮罩 NewTone 在不透明纸面上先淡出，纸面随后才揭开真实 Landing，避免双 Logo 同时可见；返回 Landing 使用更轻、更小的提示箭头，并继续保留视差。
+- Language / Mode 选项不再使用 CSS gradient 假双线，改为两条独立、长度和曲率不同的 SVG 手绘 path。
+- 移动端和 Apple Pencil 统一走 Pointer Events：tap / pen 只把可确认选项设为 armed，不立即跳页；第二次向上 swipe 才确认。Change language 只展开语言列表并取消已有 armed 状态。
+- 桌面仍保持 hover 目标 + downward wheel；向上 wheel、微小噪声和 Change language 不触发推进。
+- 移除视差层上的 CSS transform transition，只保留 rAF 平滑；前景提高到约 X ±14 / Y ±10，反向后景约 X ±6 / Y ±4，Device Orientation 有效范围调整为 12°。
+- motion 权限请求每次页面生命周期最多一次；先直接监听已授权事件，只有未收到数据时才在 NewTone 自然 touch/pen 手势后请求。localStorage 只记录用户希望启用 motion，不保存 beta/gamma baseline；测试重置不清该偏好。
+- staging `重置测试` 保留既有 `b0ec71b` 实现，没有重复创建。
+
+验证：
+
+- `npm test`：22 files，96 tests 全部通过。
+- lint、typecheck、Vite production build：通过，231 modules transformed。
+- `git diff --check`：通过；仓库当前没有名为 `diff-check` 的 npm script。
+- 浏览器验证：第一次 Landing 下滚锁定、完成后解锁；已学会回访仍显示主引导且可中途 retract；desktop pointer 视差约 13.98px / -9.97px，parallax 层 CSS transition 为 0s。
+- 390×844：Language touch 点选后保持原阶段并显示 armed，向上 swipe 后进入 Mode；Mode 使用 pen 点选后保持原阶段，pen 向上 swipe 后推进；Change language 只展开并清除 armed；横向 overflow 为 0。
+- First Start、返回 Landing 和 Resume 的双线数量均为 0；返回 Landing 使用 return 小箭头并保留视差；Resume 无位置视差。
+- reduced-motion：引导动画为 none；浏览器无 runtime error。
+- 自动无障碍检查：1 个既有的 landmark best-practice violation；SVG 叠层颜色对比仍为 incomplete，需要人工判断。
+
+仍需真实设备验收：
+
+- iPhone / iPad Safari 的实际 motion 权限持久行为不能由桌面 Chromium 模拟。
+- Device Orientation 横竖屏、坐姿到躺姿软校准、后台恢复需要真机确认。
+- Apple Pencil 的物理 swipe 手感、返回遮罩与 Landing 的视觉交接仍需用户在测试服确认。
+
 ## 5. Reader 内容镜像状态
 
 最初建立 NewTone-Staging 时只复制了数据库 schema，没有 production Reader 内容，因此 Preview 曾显示“暂无可读页面”。这不是 Reader 代码损坏，而是 staging `reader_publications` 为空。
@@ -316,7 +349,7 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 - [ ] 决定 `export-reader-publication` / `sync-reader-publication` 是否保留为长期内容 seed 方案
 - [ ] 如果保留长期同步方案，把同步令牌迁移到 secret，不继续硬编码
 - [ ] 检查 staging `http` extension 是否需要保留
-- [x] 运行 `npm test`，包括 `tests/ritualWheelAdvance.test.js`；当前 94 tests 全部通过
+- [x] 运行 `npm test`，包括 `tests/ritualWheelAdvance.test.js`；当前 96 tests 全部通过
 - [ ] 用户人工确认 Landing 引导、双手绘线、前后景视差与首次 Start 的视觉手感
 - [ ] 在真实 iPhone / Android 验收 Device Orientation 权限、归零、横竖屏映射与软校准
 - [x] GitHub staging `c9c58cf` 对应的 Vercel Preview 已报告部署成功
@@ -365,6 +398,7 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 
 - “继续读取 / 沉浸叙事 / 普通阅读”在 hover 时增加可操作反馈：文字轻微放大、双下划线、向下箭头，提示用户可以继续向下滚动。
 - Landing 首次教学引导、NewTone 双手绘线、Landing / 首次 Start 共用前后景视差，以及稳定无视差的 Resume。
-- 移动端 Language / Mode 主选项使用 tap 直接确认；移动端视差只使用 Device Orientation，并采用场景级自动归零与软校准。
+- 移动端 Language / Mode 使用 touch / Apple Pencil 先点选 armed、再向上 swipe 确认；移动端视差只使用 Device Orientation，并采用场景级自动归零与软校准。
+- NewTone 双线只属于普通主 Landing；First Start、Reader 返回 Landing 和 Resume 均不显示双线。
 
 其余已完成工作主要是 staging / Supabase / Vercel 测试基础设施，不应自动视为对外更新公告内容。
