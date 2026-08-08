@@ -29,15 +29,19 @@
   position: absolute;
   left: 50%;
   top: 48%;
-  opacity: 1;
   transform: translate(-50%, -50%);
-  transition: opacity 180ms ease-out;
 }
 
 /* The transition owns the only visible NewTone until its retract is complete. */
 .landing--return-handoff .landing-title-stack {
-  opacity: 0;
+  visibility: hidden;
   pointer-events: none;
+}
+
+/* On handoff release, let the real sweep compose the title; never fade in a
+   complete draft word underneath it. */
+.landing--return-arrival .landing-title-draft {
+  opacity: 0;
 }
 
 .landing-title {

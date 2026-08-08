@@ -136,6 +136,7 @@ function Landing({
 
   const [introCompleted, setIntroCompleted] = useState(() => readIntroCompleted())
   const [guidePhase, setGuidePhase] = useState('quiet')
+  const [returnArrivalActive, setReturnArrivalActive] = useState(readerReturnHandoffActive)
   const guidePhaseRef = useRef(guidePhase)
   const triggeredRef = useRef(false)
   const introRef = useRef(introCompleted)
@@ -176,6 +177,7 @@ function Landing({
   useEffect(() => {
     if (readerReturnHandoffActive) {
       returnHandoffSeenRef.current = true
+      setReturnArrivalActive(true)
       return undefined
     }
     if (!returnHandoffSeenRef.current) return undefined
@@ -184,6 +186,10 @@ function Landing({
     const frame = window.requestAnimationFrame(() => begin())
     return () => window.cancelAnimationFrame(frame)
   }, [begin, readerReturnHandoffActive])
+
+  useEffect(() => {
+    if (returnArrivalActive && phase === TITLE_PHASE.REVEALED) setReturnArrivalActive(false)
+  }, [phase, returnArrivalActive])
 
   useEffect(() => {
     if (guidePaused) {
@@ -304,7 +310,7 @@ function Landing({
   return (
     <div
       ref={landingRef}
-      className={`landing paper-surface${leaving ? ' landing--leaving' : ''}${landingScene ? ' landing--scene' : ''}${readerReturnHandoffActive ? ' landing--return-handoff' : ''}`}
+      className={`landing paper-surface${leaving ? ' landing--leaving' : ''}${landingScene ? ' landing--scene' : ''}${readerReturnHandoffActive ? ' landing--return-handoff' : ''}${returnArrivalActive ? ' landing--return-arrival' : ''}`}
       style={{ ...surfaceStyle, '--landing-leave-ms': `${leavingMs}ms` }}
       data-reading-mode={readingMode}
       data-world-layer={environmentState.worldLayer}

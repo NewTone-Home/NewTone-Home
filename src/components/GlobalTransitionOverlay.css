@@ -171,6 +171,13 @@
   animation: gt-newtone-retract-handoff min(430ms, var(--gt-enter-duration)) linear forwards;
 }
 
+/* The ink sweep retracts during handoff. Remove the always-present draft so a
+   complete static word cannot flash after the ink has gone. */
+.preset-reader-to-surface.phase-entering .global-transition-newtone .landing-title-draft {
+  opacity: 0;
+  transition: opacity 100ms linear;
+}
+
 .global-transition-label-mark {
   width: 22px;
   height: 1px;

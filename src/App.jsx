@@ -75,8 +75,10 @@ function App({ contentStatus = 'ready', onRetryContent }) {
       historyPushRef.current = false
       const requestedView = event.state?.newtoneView || 'landing'
       const view = requestedView === 'reader' ? 'reader' : 'landing'
+      const currentStableView = useProgressStore.getState().currentView
+      const readerReturningToLanding = currentStableView === 'reader' && view === 'landing'
 
-      if (useProgressStore.getState().currentView === 'reader' && view === 'landing') {
+      if (readerReturningToLanding) {
         trackEvent('reader_exit', { exitReason: 'browser-back' })
       }
 
@@ -87,6 +89,11 @@ function App({ contentStatus = 'ready', onRetryContent }) {
       const tState = useTransitionStore.getState()
       if (tState.phase !== 'idle') {
         tState.reset()
+      }
+
+      if (readerReturningToLanding) {
+        tState.transitionTo('landing', { preset: 'reader-to-surface', waitForReady: false })
+        return
       }
 
       useProgressStore.getState().setViewFromHistory(view)
