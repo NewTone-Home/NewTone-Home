@@ -258,6 +258,27 @@ commit：
 - Reader 返回 Landing 后 desktop pointer 实际输出约 front X 13.78px / Y -9.72px，CSS transform 生效；真实 iPad Device Orientation 仍需用户复验。
 - 浏览器无 runtime error；本轮浏览器验收产生的单个临时文件 `0` 已核实并删除，未进入 Git。
 
+### 4.6 第三轮测试服反馈：选择提示退场与 Reader 返回交接
+
+产品提交：`efae17f fix: refine Reader return and setup cues`
+
+本轮完成：
+
+- Language / Mode 的双手绘线与方向箭头改为两套独立动画：双线保持稳定，不参与闪烁；Continue、Immersive、Standard 的箭头单独闪烁。
+- hover / armed 解除或选择确认后，双线以左端为锚向左收回；箭头使用独立 opacity 淡出，不再与闪烁抢同一动画属性。Change language 仍只有双线、没有箭头。
+- Reader → Landing 的 overlay NewTone 在“返回入口中”结束后沿标题 sweep 路径收回，不再整体向上淡出。Landing 已在遮罩后方挂载，但遮罩存在期间暂停引导计时。
+- 返回后的 Landing 不再使用缩小版 return 视觉：与普通 Landing 共用双手绘线、desktop / Device Orientation 视差、1.2 秒安静期和主引导箭头。持久化教学标记只负责解除 scroll / swipe 锁。
+- 已学会入口后，无论标题正处于 drawing 还是 revealed，向下滚动 / 上滑都先收回标题再离场；idle 且引导可见时先收回引导再离场。
+
+验证：
+
+- `npm test`：22 files，97 tests 全部通过；lint、typecheck、Vite production build 通过，231 modules transformed。
+- Chrome 端到端自动验收：页面有内容、无 Vite error overlay、无 console/page error；首次 Landing 与返回 Landing 的 desktop pointer 视差均产生约 `-11.7/-7.7px → +10.8/+7.0px` 的前景位移。
+- 选择页实测：双线 active 时无 animation；箭头使用 `ritual-arrow-blink`；移开 80ms 时箭头 opacity 仍约 `0.26`，220ms 后归零，确认是淡出；双线同步从 scaleX 接近 1 收到 0。
+- Change language 实测双线完整显示且 arrow count 为 0；Mode 两个选项均有箭头；First Start arrow count 为 0。
+- Reader return overlay 标题实测状态序列为 `drawing → revealed → retracting → idle`；遮罩存在时 Landing guide count 为 0，交接结束后先保持安静，约 1.2 秒后 guide count 为 1。
+- 返回 Landing 激活完成后双线 count 为 2、opacity 为 `0.52`、第一笔 stroke dash offset 为 0；完成态滚动后标题进入 `retracting`。
+
 ## 5. Reader 内容镜像状态
 
 最初建立 NewTone-Staging 时只复制了数据库 schema，没有 production Reader 内容，因此 Preview 曾显示“暂无可读页面”。这不是 Reader 代码损坏，而是 staging `reader_publications` 为空。
@@ -419,7 +440,7 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 - “继续读取 / 沉浸叙事 / 普通阅读”在 hover 时增加可操作反馈：文字轻微放大、双下划线、向下箭头，提示用户可以继续向下滚动。
 - Landing 首次教学引导、NewTone 双手绘线、Landing / 首次 Start 共用前后景视差，以及稳定无视差的 Resume。
 - 移动端 Language / Mode 使用 touch / Apple Pencil 先点选 armed、再向上 swipe 确认；移动端视差只使用 Device Orientation，并采用场景级自动归零与软校准。
-- NewTone 双线只属于普通主 Landing；First Start、Reader 返回 Landing 和 Resume 均不显示双线。
+- NewTone 双线属于完整 Landing，包括 Reader 返回后看到的 Landing；First Start 和 Resume 不显示双线。
 - Language 的当前语言区域 hover 只显示持续双手绘线；Start 不显示方向箭头；移动端 armed 后可从页面空白区域上滑确认。
 
 其余已完成工作主要是 staging / Supabase / Vercel 测试基础设施，不应自动视为对外更新公告内容。
