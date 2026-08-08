@@ -7,13 +7,15 @@ const STAGING_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_57_sSKpMOtmoLTFKZtL1uQ_
 const env = { ...process.env }
 const branch = env.VERCEL_GIT_COMMIT_REF ?? ''
 
+env.VITE_ENABLE_STAGING_TOOLS = branch === STAGING_BRANCH ? 'true' : 'false'
+
 if (branch === STAGING_BRANCH) {
   env.VITE_SUPABASE_URL = STAGING_SUPABASE_URL
   env.VITE_SUPABASE_PUBLISHABLE_KEY = STAGING_SUPABASE_PUBLISHABLE_KEY
-  console.log(`[vercel-build] ${branch}: using isolated NewTone-Staging Supabase.`)
+  console.log(`[vercel-build] ${branch}: using isolated NewTone-Staging Supabase with staging test tools.`)
 } else {
   console.log(
-    `[vercel-build] ${branch || 'non-Vercel'}: preserving the configured Supabase environment.`,
+    `[vercel-build] ${branch || 'non-Vercel'}: preserving the configured Supabase environment; staging test tools disabled.`,
   )
 }
 

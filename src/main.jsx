@@ -4,6 +4,7 @@ import './styles/tokens.css'
 import './styles/visualTokens.css'
 import './views/EmptyContentApp.css'
 import App from './App.jsx'
+import StagingResetControl from './components/StagingResetControl.jsx'
 import { installDwellTracking } from './services/analytics'
 import { loadPublishedContent } from './services/publishedContent'
 import { detectBrowserReaderLanguage } from './i18n/languages'
@@ -35,4 +36,9 @@ function Root() {
   return <PublicRoot />
 }
 
-createRoot(document.getElementById('root')).render(<StrictMode><Root /></StrictMode>)
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <Root />
+    <StagingResetControl />
+  </StrictMode>,
+)
