@@ -11,10 +11,11 @@
 - 仓库：`NewTone-Home/NewTone-Home`
 - 正式分支：`main`
 - 当前施工分支：`staging`
-- `main` 当前基线：`8d88d00dcb3b0e01f1bd3f81cd5b36c98177f4af`
-- 建立本轮 staging 时的 merge base：同上
-- 建立本接手包前的 staging HEAD：`5dfef204e6e79aa59446a6f75ffe003f72bb4191`
-- 当前关系：`staging` ahead of `main` by 3 commits, behind by 0
+- 本轮 staging 的 `main` merge base：`8d88d00dcb3b0e01f1bd3f81cd5b36c98177f4af`
+- 建立本接手包前的产品代码 HEAD：`5dfef204e6e79aa59446a6f75ffe003f72bb4191`
+- 建立本接手包前，`staging` 相对 `main`：ahead 3 / behind 0
+
+注意：接手包自身的创建和后续维护也会产生 docs-only commits，因此上面的 ahead 数量只代表“第一版接手包建立前的快照”，不是永久当前值。任何接手人都必须重新执行 `main...staging` compare，以实时 Git 状态为准。
 
 本轮 staging 不是独立产品，也不是另一套代码。它的定义是：
 
@@ -37,11 +38,13 @@
 - Git branch：`staging`
 - Vercel：Preview
 - 稳定 branch alias：`https://new-tone-git-staging-newtone-homes-projects.vercel.app`
-- 当前 Preview deployment：`dpl_2GtfTvQ4SP6HsUYskjMZ3Tcifkve`
-- 当前 Preview commit：`5dfef204e6e79aa59446a6f75ffe003f72bb4191`
-- 当前 deployment state：`READY`
+- 第一版接手包建立时，最近一次包含产品代码变化的 Preview deployment：`dpl_2GtfTvQ4SP6HsUYskjMZ3Tcifkve`
+- 对应产品代码 commit：`5dfef204e6e79aa59446a6f75ffe003f72bb4191`
+- deployment state：`READY`
 - Supabase project：`ksrvlkcpaiowhcvzimkc`
 - Supabase name：`NewTone-Staging`
+
+说明：之后仅修改本接手包也可能触发新的 Preview deployment。判断“产品代码版本”时不要只看最新 deployment 时间，应同时看它对应的 Git commit 和 diff。
 
 Staging Preview 使用独立 Supabase，不应把测试 analytics、测试用户、session、reading state 合回 production。
 
@@ -183,9 +186,9 @@ Staging：
 3. 同步令牌不要长期硬编码在 Edge Function 源码中，应迁移到 Supabase secrets 后再把同步流程视为正式基础设施。
 4. 不要为了同步 Reader 去复制 production Auth、analytics、session 或用户阅读状态。
 
-## 7. 当前 `main...staging` 文件差异
+## 7. 第一版接手包建立前的 `main...staging` 文件差异
 
-建立本接手包之前，GitHub 比较显示以下文件有差异：
+GitHub 当时显示以下文件有差异：
 
 - `docs/STAGING_ENVIRONMENT.md`：新增
 - `scripts/vercel-build.mjs`：新增
@@ -195,9 +198,9 @@ Staging：
 - `tests/ritualWheelAdvance.test.js`：新增
 - `vercel.json`：修改
 
-本接手包提交后，还会额外出现：
+接手包建立后，还会额外出现：
 
-- `docs/STAGING_HANDOFF.md`：新增
+- `docs/STAGING_HANDOFF.md`：新增/持续修改
 
 发布前不要只凭这份清单判断，应重新执行一次 `main...staging` compare，以 GitHub 实际 diff 为准。
 
