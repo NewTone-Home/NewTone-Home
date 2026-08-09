@@ -22,12 +22,16 @@ import LandingJijiaScene from '../components/landing/LandingJijiaScene'
 import LandingTitleMark, { NewToneHandLines } from '../components/landing/LandingTitleMark'
 import '../styles/sketchPrimitives.css'
 import './Landing.css'
+import './LandingGuideArrow.css'
 
 const RETURN_TITLE_DRAW_MS = 1450
 const RETURN_STATUS_BLINK_MS = 800
 const RETURN_STATUS_BLINK_COUNT = 2
 const RETURN_STATUS_TOTAL_MS = RETURN_STATUS_BLINK_MS * RETURN_STATUS_BLINK_COUNT
 const RETURN_GUIDE_DELAY_MS = 1600
+
+const GUIDE_CURVE = 'M8 64C13 48 22 39 36 32C47 26 55 20 64 12'
+const GUIDE_HEAD = 'M53 15C58 14 62 13 66 10C65 15 64 20 62 24'
 
 function LandingGuideArrow({ phase }) {
   if (phase === 'hidden') return null
@@ -37,14 +41,13 @@ function LandingGuideArrow({ phase }) {
       viewBox="0 0 92 72"
       aria-hidden="true"
     >
-      <circle className="landing-guide-arrow__seed" cx="64" cy="12" r="2.15" />
-      <g className="landing-guide-arrow__wash">
-        <path d="M8 64C13 48 22 39 36 32C47 26 55 20 64 12" />
-        <path d="M53 15C58 14 62 13 66 10C65 15 64 20 62 24" />
-      </g>
       <g className="landing-guide-arrow__strokes">
-        <path className="landing-guide-arrow__curve" d="M8 64C13 48 22 39 36 32C47 26 55 20 64 12" />
-        <path className="landing-guide-arrow__head" d="M53 15C58 14 62 13 66 10C65 15 64 20 62 24" />
+        <path className="landing-guide-arrow__curve" pathLength="1" d={GUIDE_CURVE} />
+        <path className="landing-guide-arrow__head" pathLength="1" d={GUIDE_HEAD} />
+      </g>
+      <g className="landing-guide-arrow__eraser">
+        <path className="landing-guide-arrow__curve" pathLength="1" d={GUIDE_CURVE} />
+        <path className="landing-guide-arrow__head" pathLength="1" d={GUIDE_HEAD} />
       </g>
     </svg>
   )
@@ -266,7 +269,6 @@ function Landing({
 
   const promptsRevealed = !returnSequenceActive && phase === TITLE_PHASE.REVEALED
   const titleTouched = phase !== TITLE_PHASE.IDLE
-  const showSignatureLines = !returnArrival
 
   return (
     <div
@@ -304,7 +306,7 @@ function Landing({
                 </span>
                 {'ewTone'}
                 <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
-                {showSignatureLines && <NewToneHandLines />}
+                <NewToneHandLines />
               </span>
             </span>
           </h1>
