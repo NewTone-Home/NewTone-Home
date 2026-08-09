@@ -1,17 +1,15 @@
 .landing-guide-arrow {
-  left: -46px;
-  top: -30px;
-  width: 66px;
-  height: 52px;
-  transform: translate(-8px, -4px) scale(.62);
-  transform-origin: top right;
+  left: -54px;
+  top: -24px;
+  width: 42px;
+  height: 34px;
 }
 
 .landing-guide-arrow__strokes {
   opacity: .68;
   filter: none;
   stroke: var(--ink-medium);
-  stroke-width: 1.2;
+  stroke-width: 1.25;
   animation: none;
 }
 
@@ -22,18 +20,18 @@
 }
 
 .landing-guide-arrow--visible .landing-guide-arrow__curve {
-  animation: landing-guide-pencil-curve 430ms cubic-bezier(.24,.72,.28,1) forwards;
+  animation: landing-guide-pencil-curve 300ms cubic-bezier(.24,.72,.28,1) forwards;
 }
 
 .landing-guide-arrow--visible .landing-guide-arrow__head {
-  animation: landing-guide-pencil-head 140ms ease-out 330ms forwards;
+  animation: landing-guide-pencil-head 120ms ease-out 230ms forwards;
 }
 
 .landing-guide-arrow__eraser {
   opacity: 0;
   fill: none;
   stroke: var(--reader-paper, var(--paper-base, #f0ebe2));
-  stroke-width: 4.2;
+  stroke-width: 4;
   stroke-linecap: round;
   stroke-linejoin: round;
   pointer-events: none;
@@ -55,11 +53,11 @@
 }
 
 .landing-guide-arrow--retracting .landing-guide-arrow__eraser .landing-guide-arrow__curve {
-  animation: landing-guide-erase-curve 250ms cubic-bezier(.42,0,.72,.35) forwards;
+  animation: landing-guide-erase-curve 210ms cubic-bezier(.42,0,.72,.35) forwards;
 }
 
 .landing-guide-arrow--retracting .landing-guide-arrow__eraser .landing-guide-arrow__head {
-  animation: landing-guide-erase-head 105ms ease-in 205ms forwards;
+  animation: landing-guide-erase-head 90ms ease-in 165ms forwards;
 }
 
 /* Reader return status completes its second blink, then actually fades away
@@ -94,10 +92,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .landing-guide-arrow {
-    transform: translate(-8px, -4px) scale(.62);
-  }
-
   .landing-guide-arrow--visible .landing-guide-arrow__strokes path {
     animation: none !important;
     stroke-dashoffset: 0 !important;
@@ -108,17 +102,13 @@
   }
 
   .landing-guide-arrow--visible .landing-guide-arrow__strokes {
-    stroke-width: 1.2 !important;
+    stroke-width: 1.25 !important;
   }
 
   .landing-return-status--fading .landing-return-status__text {
     opacity: 0 !important;
     animation: none !important;
   }
-}
-
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow {
-  transform: translate(-8px, -4px) scale(.62);
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__strokes path {
@@ -131,7 +121,7 @@
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__strokes {
-  stroke-width: 1.2 !important;
+  stroke-width: 1.25 !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-return-status--fading .landing-return-status__text {
