@@ -17,6 +17,9 @@ function isDirectPointer(pointerType) {
 
 function ReaderReturnControl({ armed, onArm, onDisarm, onComplete, language }) {
   const ui = getReaderUi(language)
+  const fallbackUi = getReaderUi('zh')
+  const returnLabel = ui.returnToLanding || ui.backToLanding || fallbackUi.returnToLanding
+  const returnHint = ui.returnToLandingHint || ui.backToLanding || fallbackUi.returnToLandingHint
   const [progress, setProgress] = useState(0)
   const [completing, setCompleting] = useState(false)
   const progressRef = useRef(0)
@@ -151,10 +154,10 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onComplete, language }) {
       onClick={event => {
         if (!completing && event.detail === 0 && !armed) onArm()
       }}
-      aria-label={ui.returnToLandingHint}
+      aria-label={returnHint}
       aria-pressed={visualArmed}
     >
-      <span className="reader-return-text">{ui.returnToLanding}</span>
+      <span className="reader-return-text">{returnLabel}</span>
       <svg className="reader-return-affordance" viewBox="0 0 112 31" aria-hidden="true">
         <path className="reader-return-affordance__line" pathLength="1" d="M4 5.8C24 3.1 45 7.4 65 5.1C82 3.2 97 5.8 108 4.2" />
         <path className="reader-return-affordance__line reader-return-affordance__line--second" pathLength="1" d="M13 11.8C31 9.4 50 13.5 68 10.7C82 8.8 94 11.9 102 10.2" />
