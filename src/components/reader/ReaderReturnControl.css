@@ -72,6 +72,23 @@
     left: max(18px, env(safe-area-inset-left)) !important;
     z-index: 12;
   }
+
+  /* Once Return to Entrance is armed, the next upward swipe belongs to the
+     confirmation gesture, not Safari/native Reader scrolling. The armed
+     state is temporary, so normal pan-y behavior returns automatically after
+     disarm or completion. */
+  .reader-stage-page:has(.reader-return-control.is-armed),
+  .reader-stage-page:has(.reader-return-control.is-armed) .reader-stage,
+  .reader-stage-page:has(.reader-return-control.is-armed) .reader-return-control {
+    touch-action: none !important;
+    overscroll-behavior: none;
+  }
+
+  .reader-stage-page:has(.reader-return-control.is-armed) .reader-beat-stack[data-native-scroll='true'] {
+    overflow-y: hidden !important;
+    touch-action: none !important;
+    overscroll-behavior: none;
+  }
 }
 
 @media (hover: none) and (orientation: landscape) and (max-height: 500px),
