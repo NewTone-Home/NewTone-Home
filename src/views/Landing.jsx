@@ -28,6 +28,7 @@ const RETURN_TITLE_DRAW_MS = 1450
 const RETURN_STATUS_BLINK_MS = 800
 const RETURN_STATUS_BLINK_COUNT = 2
 const RETURN_STATUS_TOTAL_MS = RETURN_STATUS_BLINK_MS * RETURN_STATUS_BLINK_COUNT
+const RETURN_STATUS_FADE_MS = 260
 const RETURN_GUIDE_DELAY_MS = 1600
 
 const GUIDE_CURVE = 'M8 64C13 48 22 39 36 32C47 26 55 20 64 12'
@@ -72,6 +73,7 @@ function Landing({
   const [returnArrival] = useState(() => useTransitionStore.getState().landingArrivalKind === 'return')
   const [returnSequenceActive, setReturnSequenceActive] = useState(returnArrival)
   const [returnStatusVisible, setReturnStatusVisible] = useState(returnArrival)
+  const [returnStatusFading, setReturnStatusFading] = useState(false)
   const [guidePhase, setGuidePhase] = useState(() => returnArrival ? 'hidden' : 'quiet')
   const guidePhaseRef = useRef(guidePhase)
   const triggeredRef = useRef(false)
@@ -128,6 +130,7 @@ function Landing({
     frame = window.requestAnimationFrame(async () => {
       const reduced = reducedMotion || motionMode === 'reduced'
       const statusDuration = reduced ? 320 : RETURN_STATUS_TOTAL_MS
+      const statusFadeDuration = reduced ? 0 : RETURN_STATUS_FADE_MS
       const drawDuration = reduced ? 0 : RETURN_TITLE_DRAW_MS
       const guideDelay = reduced ? 300 : RETURN_GUIDE_DELAY_MS
 
@@ -135,6 +138,10 @@ function Landing({
         begin({ duration: drawDuration, markIntroComplete: false }),
         wait(statusDuration),
       ])
+      if (cancelled) return
+
+      setReturnStatusFading(true)
+      await wait(statusFadeDuration)
       if (cancelled) return
 
       setReturnStatusVisible(false)
@@ -306,13 +313,13 @@ function Landing({
                 </span>
                 {'ewTone'}
                 <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
-                <NewToneHandLines />
+                {!returnSequenceActive && <NewToneHandLines />}
               </span>
             </span>
           </h1>
 
           {returnStatusVisible && (
-            <div className="landing-return-status" aria-live="polite">
+            <div className={`landing-return-status${returnStatusFading ? ' landing-return-status--fading' : ''}`} aria-live="polite">
               <span className="landing-return-status__text">{returnStatusText}</span>
             </div>
           )}
