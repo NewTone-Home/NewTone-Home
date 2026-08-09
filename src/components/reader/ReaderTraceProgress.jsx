@@ -37,7 +37,6 @@ function ReaderTraceProgress({ progress, beats, focusBeatIndex, language, readin
   const frameRef = useRef(0)
   const lastFrameRef = useRef(0)
   const ui = getReaderUi(language)
-  const remaining = Math.max(0, 100 - percentage)
   const trail = readingMode === 'immersive' ? getPageSceneTrail(beats, focusBeatIndex) : []
   const complete = percentage >= 100
 
@@ -72,6 +71,7 @@ function ReaderTraceProgress({ progress, beats, focusBeatIndex, language, readin
     lastFrameRef.current = 0
   }, [])
 
+  const visualRemaining = Math.max(0, Math.min(100, Math.round((1 - visualProgress) * 100)))
   const tailCompression = Math.max(0, (visualProgress - 0.9) / 0.1)
   const featherSpan = 20 - 18 * tailCompression
   const featherStart = Math.max(0, visualProgress * 100 - featherSpan)
@@ -98,7 +98,7 @@ function ReaderTraceProgress({ progress, beats, focusBeatIndex, language, readin
     >
       <span className="reader-reading-percent">
         <span className="reader-reading-percent-label">{language === 'en' ? 'remaining:' : '剩余：'}</span>
-        <span className="reader-reading-percent-value">{remaining}%</span>
+        <span className="reader-reading-percent-value">{visualRemaining}%</span>
       </span>
       <span className="reader-trace-line" aria-hidden="true">
         <span className="reader-trace-base" />

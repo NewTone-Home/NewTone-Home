@@ -39,6 +39,11 @@ export const useTransitionStore = create((set, get) => ({
   preset: 'fade-cover',
   payload: null,
   waitingForTarget: false,
+  landingArrivalKind: null,
+
+  clearLandingArrival() {
+    if (get().landingArrivalKind !== null) set({ landingArrivalKind: null })
+  },
 
   beginEntering() {
     const state = get()
@@ -72,8 +77,25 @@ export const useTransitionStore = create((set, get) => ({
     clearAllTimers()
 
     const preset = options.preset || 'fade-cover'
-    const timings = getDefinition(preset).timings
     const payload = options.payload || null
+
+    // Reader → Landing no longer needs a second NewTone living in an overlay.
+    // Commit the real Landing immediately and let Landing itself own the return
+    // draw/status/retract/guide sequence. The transient arrival flag is memory-
+    // only and is consumed by Landing on mount.
+    if (targetView === 'landing' && preset === 'reader-to-surface') {
+      set({
+        phase: 'idle',
+        targetView: null,
+        preset: 'fade-cover',
+        payload: null,
+        waitingForTarget: false,
+        landingArrivalKind: 'return',
+      })
+      return commitTargetView(targetView, preset, payload)
+    }
+
+    const timings = getDefinition(preset).timings
     const waitForReady = options.waitForReady ?? false
     const readyTimeoutMs = Math.max(500, options.readyTimeoutMs || 4500)
 
@@ -83,6 +105,7 @@ export const useTransitionStore = create((set, get) => ({
       preset,
       payload,
       waitingForTarget: false,
+      landingArrivalKind: null,
     })
 
     schedule(() => {
@@ -119,6 +142,7 @@ export const useTransitionStore = create((set, get) => ({
       preset: 'fade-cover',
       payload: null,
       waitingForTarget: false,
+      landingArrivalKind: null,
     })
   },
 }))

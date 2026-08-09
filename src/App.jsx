@@ -31,10 +31,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
 
   const readingEntry = useReadingEntry()
   const globalTransitionPhase = useTransitionStore(s => s.phase)
-  const globalTransitionPreset = useTransitionStore(s => s.preset)
   const isGlobalTransitioning = globalTransitionPhase !== 'idle'
-  const readerReturnHandoffActive =
-    globalTransitionPreset === 'reader-to-surface' && isGlobalTransitioning
 
   const historyPushRef = useRef(true)
   const readingEntryRef = useRef(readingEntry)
@@ -82,14 +79,10 @@ function App({ contentStatus = 'ready', onRetryContent }) {
         trackEvent('reader_exit', { exitReason: 'browser-back' })
       }
 
-      if (ctrl.isActive) {
-        ctrl.cancel()
-      }
+      if (ctrl.isActive) ctrl.cancel()
 
       const tState = useTransitionStore.getState()
-      if (tState.phase !== 'idle') {
-        tState.reset()
-      }
+      if (tState.phase !== 'idle') tState.reset()
 
       if (readerReturningToLanding) {
         tState.transitionTo('landing', { preset: 'reader-to-surface', waitForReady: false })
@@ -197,7 +190,6 @@ function App({ contentStatus = 'ready', onRetryContent }) {
             readingMode={readingMode}
             environmentState={environmentState}
             guidePaused={isGlobalTransitioning}
-            readerReturnHandoffActive={readerReturnHandoffActive}
           />
         )}
       </PageShell>

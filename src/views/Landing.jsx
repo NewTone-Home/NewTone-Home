@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useProgressStore } from '../stores/progressStore'
+import { useTransitionStore } from '../stores/transitionStore'
 import { copy } from '../i18n/copy'
 import { getReaderEntryIntent, hasStableReaderProgress } from '../reader/readerEntry'
 import {
@@ -22,6 +23,12 @@ import LandingTitleMark, { NewToneHandLines } from '../components/landing/Landin
 import '../styles/sketchPrimitives.css'
 import './Landing.css'
 
+const RETURN_TITLE_DRAW_MS = 1450
+const RETURN_STATUS_BLINK_MS = 800
+const RETURN_STATUS_BLINK_COUNT = 2
+const RETURN_STATUS_TOTAL_MS = RETURN_STATUS_BLINK_MS * RETURN_STATUS_BLINK_COUNT
+const RETURN_GUIDE_DELAY_MS = 1600
+
 function LandingGuideArrow({ phase }) {
   if (phase === 'hidden') return null
   return (
@@ -30,8 +37,15 @@ function LandingGuideArrow({ phase }) {
       viewBox="0 0 92 72"
       aria-hidden="true"
     >
-      <path className="landing-guide-arrow__curve" d="M8 64C13 48 22 39 36 32C47 26 55 20 64 12" />
-      <path className="landing-guide-arrow__head" d="M53 15C58 14 62 13 66 10C65 15 64 20 62 24" />
+      <circle className="landing-guide-arrow__seed" cx="64" cy="12" r="2.15" />
+      <g className="landing-guide-arrow__wash">
+        <path d="M8 64C13 48 22 39 36 32C47 26 55 20 64 12" />
+        <path d="M53 15C58 14 62 13 66 10C65 15 64 20 62 24" />
+      </g>
+      <g className="landing-guide-arrow__strokes">
+        <path className="landing-guide-arrow__curve" d="M8 64C13 48 22 39 36 32C47 26 55 20 64 12" />
+        <path className="landing-guide-arrow__head" d="M53 15C58 14 62 13 66 10C65 15 64 20 62 24" />
+      </g>
     </svg>
   )
 }
@@ -44,7 +58,6 @@ function Landing({
   readingMode,
   environmentState,
   guidePaused = false,
-  readerReturnHandoffActive = false,
 }) {
   const language = useProgressStore(s => s.language)
   const hasInitializedLanguage = useProgressStore(s => s.hasInitializedLanguage)
@@ -53,18 +66,19 @@ function Landing({
   const motionMode = useProgressStore(s => s.motionMode)
 
   const [introCompleted, setIntroCompleted] = useState(() => readIntroCompleted())
-  const [guidePhase, setGuidePhase] = useState('quiet')
-  const [returnArrivalActive, setReturnArrivalActive] = useState(readerReturnHandoffActive)
+  const [returnArrival] = useState(() => useTransitionStore.getState().landingArrivalKind === 'return')
+  const [returnSequenceActive, setReturnSequenceActive] = useState(returnArrival)
+  const [returnStatusVisible, setReturnStatusVisible] = useState(returnArrival)
+  const [guidePhase, setGuidePhase] = useState(() => returnArrival ? 'hidden' : 'quiet')
   const guidePhaseRef = useRef(guidePhase)
   const triggeredRef = useRef(false)
   const introRef = useRef(introCompleted)
   const landingRef = useRef(null)
   const activationPendingRef = useRef(false)
   const activationTimerRef = useRef(0)
-  const returnHandoffSeenRef = useRef(readerReturnHandoffActive)
+  const returnSequenceStartedRef = useRef(false)
 
   const reducedMotion = useReducedMotion()
-  // 视觉原型开关，只影响背景层：?landing-scene=jijia_compound
   const [landingScene] = useState(() => resolveLandingScene(window.location.search))
 
   const handleIntroComplete = useCallback(() => {
@@ -93,27 +107,61 @@ function Landing({
   })
 
   useEffect(() => {
-    if (readerReturnHandoffActive) {
-      returnHandoffSeenRef.current = true
-      setReturnArrivalActive(true)
+    if (returnArrival) useTransitionStore.getState().clearLandingArrival()
+  }, [returnArrival])
+
+  useEffect(() => {
+    if (!returnArrival || returnSequenceStartedRef.current) return undefined
+    returnSequenceStartedRef.current = true
+
+    let cancelled = false
+    let frame = 0
+    const timers = []
+    const wait = ms => new Promise(resolve => {
+      const timer = window.setTimeout(resolve, ms)
+      timers.push(timer)
+    })
+
+    frame = window.requestAnimationFrame(async () => {
+      const reduced = reducedMotion || motionMode === 'reduced'
+      const statusDuration = reduced ? 320 : RETURN_STATUS_TOTAL_MS
+      const drawDuration = reduced ? 0 : RETURN_TITLE_DRAW_MS
+      const guideDelay = reduced ? 300 : RETURN_GUIDE_DELAY_MS
+
+      await Promise.all([
+        begin({ duration: drawDuration, markIntroComplete: false }),
+        wait(statusDuration),
+      ])
+      if (cancelled) return
+
+      setReturnStatusVisible(false)
+      await retract({ duration: reduced ? 0 : undefined })
+      if (cancelled) return
+
+      await wait(guideDelay)
+      if (cancelled) return
+
+      setGuidePhase('visible')
+      setReturnSequenceActive(false)
+    })
+
+    return () => {
+      cancelled = true
+      window.cancelAnimationFrame(frame)
+      timers.forEach(timer => window.clearTimeout(timer))
+    }
+  }, [begin, motionMode, reducedMotion, retract, returnArrival])
+
+  useEffect(() => {
+    if (returnSequenceActive) {
+      if (guidePhaseRef.current !== 'hidden') setGuidePhase('hidden')
       return undefined
     }
-    if (!returnHandoffSeenRef.current) return undefined
-
-    returnHandoffSeenRef.current = false
-    const frame = window.requestAnimationFrame(() => begin())
-    return () => window.cancelAnimationFrame(frame)
-  }, [begin, readerReturnHandoffActive])
-
-  useEffect(() => {
-    if (returnArrivalActive && phase === TITLE_PHASE.REVEALED) setReturnArrivalActive(false)
-  }, [phase, returnArrivalActive])
-
-  useEffect(() => {
     if (guidePaused) {
       setGuidePhase('hidden')
       return undefined
     }
+    if (phase === TITLE_PHASE.IDLE && guidePhaseRef.current === 'visible') return undefined
     if (!shouldScheduleLandingGuide({ phase, activationPending: activationPendingRef.current })) {
       setGuidePhase('hidden')
       return undefined
@@ -123,7 +171,7 @@ function Landing({
       if (!activationPendingRef.current && phaseRef.current === TITLE_PHASE.IDLE) setGuidePhase('visible')
     }, LANDING_GUIDE_DELAY_MS)
     return () => window.clearTimeout(timer)
-  }, [guidePaused, phase, phaseRef])
+  }, [guidePaused, phase, phaseRef, returnSequenceActive])
 
   useEffect(() => () => window.clearTimeout(activationTimerRef.current), [])
 
@@ -143,16 +191,15 @@ function Landing({
   }, [motionMode, reducedMotion])
 
   const activateTitle = useCallback(() => {
-    if (phaseRef.current !== TITLE_PHASE.IDLE || activationPendingRef.current) return
+    if (returnSequenceActive || phaseRef.current !== TITLE_PHASE.IDLE || activationPendingRef.current) return
     activationPendingRef.current = true
     withdrawGuide().then(() => {
       activationPendingRef.current = false
       begin()
     })
-  }, [begin, phaseRef, withdrawGuide])
+  }, [begin, phaseRef, returnSequenceActive, withdrawGuide])
 
   const handleTitlePointerEnter = (event) => {
-    // Touch synthesises a pointerenter on tap; let the click path own that case.
     if (event.pointerType === 'touch') return
     activateTitle()
   }
@@ -166,12 +213,11 @@ function Landing({
     }
 
     const requestLeave = (enter) => {
-      if (triggeredRef.current) return
+      if (returnSequenceActive || triggeredRef.current) return
       const intent = resolveScrollIntent({
         phase: phaseRef.current,
         introCompleted: introRef.current,
       })
-      // 'blocked' is the first-visit lock, 'ignore' is a retract already running.
       if (intent !== 'enter' && intent !== 'retract') return
       triggeredRef.current = true
       if (intent === 'retract') {
@@ -182,10 +228,7 @@ function Landing({
     }
 
     const onWheel = (e) => {
-      if (e.deltaY > 8) {
-        requestLeave(enterReader)
-        return
-      }
+      if (e.deltaY > 8) requestLeave(enterReader)
     }
 
     let touchStartY = 0
@@ -194,10 +237,7 @@ function Landing({
     }
     const onTouchMove = (e) => {
       const delta = touchStartY - e.touches[0].clientY
-      if (delta > 20) {
-        requestLeave(enterReader)
-        return
-      }
+      if (delta > 20) requestLeave(enterReader)
     }
 
     window.addEventListener('wheel', onWheel, { passive: true })
@@ -209,7 +249,7 @@ function Landing({
       window.removeEventListener('touchstart', onTouchStart)
       window.removeEventListener('touchmove', onTouchMove)
     }
-  }, [onEnter, phaseRef, retract, withdrawGuide])
+  }, [onEnter, phaseRef, retract, returnSequenceActive, withdrawGuide])
 
   const hasProgress = hasStableReaderProgress({ readerStarted, readerCompleted })
   const landingLanguage = hasInitializedLanguage
@@ -219,21 +259,25 @@ function Landing({
     ? copy[landingLanguage].landingPromptResume
     : copy[landingLanguage].landingPromptInitial
   const downPromptText = promptText
+  const returnStatusBase = copy[landingLanguage]?.transitionReturn
+    || copy[landingLanguage]?.backToLanding
+    || copy.zh.transitionReturn
+  const returnStatusText = `${returnStatusBase}${landingLanguage === 'zh' ? '……' : '…'}`
 
-  // The prompt is the reward for finishing *this* stroke, not a permanent label:
-  // it follows the visual phase only, never the persisted flag.
-  const promptsRevealed = phase === TITLE_PHASE.REVEALED
+  const promptsRevealed = !returnSequenceActive && phase === TITLE_PHASE.REVEALED
   const titleTouched = phase !== TITLE_PHASE.IDLE
+  const showSignatureLines = !returnArrival
 
   return (
     <div
       ref={landingRef}
-      className={`landing paper-surface${leaving ? ' landing--leaving' : ''}${landingScene ? ' landing--scene' : ''}${readerReturnHandoffActive ? ' landing--return-handoff' : ''}${returnArrivalActive ? ' landing--return-arrival' : ''}`}
-      style={{ ...surfaceStyle, '--landing-leave-ms': `${leavingMs}ms` }}
+      className={`landing paper-surface${leaving ? ' landing--leaving' : ''}${landingScene ? ' landing--scene' : ''}${returnSequenceActive ? ' landing--return-sequence' : ''}`}
+      style={{ ...surfaceStyle, '--landing-leave-ms': `${leavingMs}ms`, '--landing-return-blink-ms': `${RETURN_STATUS_BLINK_MS}ms` }}
       data-reading-mode={readingMode}
       data-world-layer={environmentState.worldLayer}
       data-time-of-day={environmentState.time}
       data-weather={environmentState.weather}
+      data-landing-arrival={returnArrival ? 'return' : 'main'}
     >
       {landingScene === LANDING_SCENES.JIJIA_COMPOUND && <LandingJijiaScene awake={titleTouched} />}
 
@@ -254,14 +298,22 @@ function Landing({
               <span className="landing-title-breath">
                 <span className="landing-title-n-host">
                   N
+                  <span className="landing-title-n-origin">
+                    <LandingGuideArrow phase={guidePhase} />
+                  </span>
                 </span>
                 {'ewTone'}
                 <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
-                <NewToneHandLines />
-                <LandingGuideArrow phase={guidePhase} />
+                {showSignatureLines && <NewToneHandLines />}
               </span>
             </span>
           </h1>
+
+          {returnStatusVisible && (
+            <div className="landing-return-status" aria-live="polite">
+              <span className="landing-return-status__text">{returnStatusText}</span>
+            </div>
+          )}
 
           {promptsRevealed && (
             <div className="down-entry-group">

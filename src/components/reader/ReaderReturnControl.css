@@ -32,15 +32,17 @@
 }
 
 .reader-return-affordance__line--second {
-  opacity: 0;
   stroke-width: .92;
 }
 
-.reader-return-control.is-armed .reader-return-affordance__line { opacity: .74; }
-.reader-return-control.is-armed .reader-return-affordance__line--second { opacity: .52; }
+/* Keep the lines visible while progress runs backward. This turns disarm into
+   a real right-to-left retract instead of dropping the SVG in one frame. */
+.reader-return-control.has-affordance .reader-return-affordance__line { opacity: .74; }
+.reader-return-control.has-affordance .reader-return-affordance__line--second { opacity: .52; }
 
 .reader-return-affordance__arrow {
   opacity: 0;
+  stroke-opacity: .32;
   transition: opacity 220ms ease;
 }
 

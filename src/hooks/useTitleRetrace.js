@@ -4,7 +4,8 @@ import { TITLE_DRAW_MS, TITLE_PHASE, TITLE_RETRACT_MS } from '../landing/landing
 /**
  * A hand, not an easing curve: the pen hesitates on the N, runs almost evenly
  * through the middle of the word, then eases off on the last e. The offsets are
- * fractions of TITLE_DRAW_MS, the values are stroke progress (1 = untouched).
+ * fractions of the selected draw duration, the values are stroke progress
+ * (1 = untouched).
  */
 const DRAW_KEYFRAMES = [
   { strokeDashoffset: '1', offset: 0, easing: 'cubic-bezier(0.8, 0, 0.7, 0.45)' },
@@ -18,10 +19,9 @@ const RETRACT_EASING = 'cubic-bezier(0.5, 0, 0.85, 0.4)'
 /**
  * Drives the sweep path that reveals the retraced title.
  *
- * The path carries pathLength="1", so stroke-dashoffset is the stroke's own
- * progress: 1 is untouched paper, 0 is fully retraced. Running it through the
- * Web Animations API is what makes a retract possible — the reverse leg starts
- * from wherever the forward leg happened to be, along the same path.
+ * begin/retract accept an optional duration override so a scene can reuse the
+ * exact same stroke without inventing a second animation. Normal Landing keeps
+ * the canonical timings; Reader-return Landing can run the same stroke faster.
  */
 export function useTitleRetrace({ introCompleted, reduced, onIntroComplete }) {
   const sweepRef = useRef(null)
@@ -57,48 +57,54 @@ export function useTitleRetrace({ introCompleted, reduced, onIntroComplete }) {
     if (el) el.style.strokeDashoffset = String(offset)
   }, [])
 
-  const begin = useCallback(() => {
-    if (phaseRef.current !== TITLE_PHASE.IDLE) return
+  const begin = useCallback((options = {}) => {
+    if (phaseRef.current !== TITLE_PHASE.IDLE) return Promise.resolve(false)
     const el = sweepRef.current
-    if (!el) return
+    if (!el) return Promise.resolve(false)
 
+    const duration = Number.isFinite(options.duration)
+      ? Math.max(0, options.duration)
+      : TITLE_DRAW_MS
+    const markIntroComplete = options.markIntroComplete !== false
     const firstVisit = !introRef.current
 
-    if (reducedRef.current) {
+    if (reducedRef.current || duration === 0) {
       settle(0)
       setPhase(TITLE_PHASE.REVEALED)
-      if (firstVisit) completeRef.current?.()
-      return
+      if (firstVisit && markIntroComplete) completeRef.current?.()
+      return Promise.resolve(true)
     }
 
     runningRef.current?.cancel()
     el.style.strokeDashoffset = ''
-    // Same stroke, same speed, first visit or tenth — only the bookkeeping differs.
     setPhase(TITLE_PHASE.DRAWING)
 
-    const anim = el.animate(DRAW_KEYFRAMES, { duration: TITLE_DRAW_MS, fill: 'forwards' })
+    const anim = el.animate(DRAW_KEYFRAMES, { duration, fill: 'forwards' })
     runningRef.current = anim
 
-    // Deliberately not tied to hover: once the pen is down the stroke finishes.
-    anim.finished
+    return anim.finished
       .then(() => {
-        if (runningRef.current !== anim) return
+        if (runningRef.current !== anim) return false
         setPhase(TITLE_PHASE.REVEALED)
-        if (firstVisit) completeRef.current?.()
+        if (firstVisit && markIntroComplete) completeRef.current?.()
+        return true
       })
-      .catch(() => {})
+      .catch(() => false)
   }, [settle])
 
-  const retract = useCallback(() => {
+  const retract = useCallback((options = {}) => {
     const el = sweepRef.current
-    if (!el) return Promise.resolve()
+    if (!el) return Promise.resolve(false)
 
+    const duration = Number.isFinite(options.duration)
+      ? Math.max(0, options.duration)
+      : TITLE_RETRACT_MS
     const from = readOffset()
 
-    if (reducedRef.current) {
+    if (reducedRef.current || duration === 0) {
       settle(1)
       setPhase(TITLE_PHASE.IDLE)
-      return Promise.resolve()
+      return Promise.resolve(true)
     }
 
     runningRef.current?.cancel()
@@ -107,16 +113,17 @@ export function useTitleRetrace({ introCompleted, reduced, onIntroComplete }) {
 
     const anim = el.animate(
       [{ strokeDashoffset: String(from) }, { strokeDashoffset: '1' }],
-      { duration: TITLE_RETRACT_MS, easing: RETRACT_EASING, fill: 'forwards' },
+      { duration, easing: RETRACT_EASING, fill: 'forwards' },
     )
     runningRef.current = anim
 
     return anim.finished
       .then(() => {
-        if (runningRef.current !== anim) return
+        if (runningRef.current !== anim) return false
         setPhase(TITLE_PHASE.IDLE)
+        return true
       })
-      .catch(() => {})
+      .catch(() => false)
   }, [readOffset, settle])
 
   const reset = useCallback(() => {
