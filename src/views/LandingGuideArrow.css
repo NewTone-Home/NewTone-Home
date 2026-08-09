@@ -1,6 +1,6 @@
 .landing-guide-arrow {
   left: -54px;
-  top: -24px;
+  top: calc(-0.42em - 19px);
   width: 42px;
   height: 34px;
 }
