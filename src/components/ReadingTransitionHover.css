@@ -118,6 +118,59 @@
     transform-box: fill-box;
     transform-origin: center;
   }
+
+  /* Safari/iPad can preserve :hover across the Language -> Mode stage swap.
+     Direct input therefore ignores hover visuals completely and only reflects
+     the real armed state set by a touch or Pencil pointer-up. */
+  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .lang-btn-text-single,
+  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-single,
+  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-top {
+    transform: scale(1);
+    text-shadow: none;
+  }
+
+  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance,
+  [data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only,
+  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance {
+    color: var(--rt-control);
+  }
+
+  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line,
+  [data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only .ritual-hand-affordance__line,
+  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+
+  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__arrow,
+  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__arrow {
+    opacity: 0;
+    animation: none;
+  }
+
+  [data-ritual-armed='true'] .lang-btn-text-single,
+  [data-selector-stage='mode'] [data-ritual-armed='true'] .lang-btn-text-top {
+    transform: scale(1.065);
+    text-shadow: 0 .5px 0 rgba(58, 50, 42, .16);
+  }
+
+  [data-ritual-armed='true'] .ritual-hand-affordance {
+    color: var(--rt-ink);
+  }
+
+  [data-ritual-armed='true'] .ritual-hand-affordance__line {
+    opacity: .74;
+    transform: scaleX(1);
+  }
+
+  [data-ritual-armed='true'] .ritual-hand-affordance__line--second {
+    opacity: .52;
+  }
+
+  [data-ritual-armed='true'] .ritual-hand-affordance__arrow {
+    opacity: .86;
+    animation: ritual-arrow-blink 940ms ease-in-out 180ms infinite;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
