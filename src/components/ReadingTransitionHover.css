@@ -59,25 +59,58 @@
   display: none;
 }
 
-[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .lang-btn-text-single,
-[data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-single,
-[data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-top,
+/* Desktop hover is a real preview gesture. Direct-input devices do not use
+   this path; they reveal the affordance only after an actual arm action. */
+@media (hover: hover) and (pointer: fine) {
+  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .lang-btn-text-single,
+  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-single,
+  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-top {
+    transform: scale(1.065);
+    text-shadow: 0 .5px 0 rgba(58, 50, 42, .16);
+  }
+
+  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance,
+  [data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only,
+  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance {
+    color: var(--rt-ink);
+  }
+
+  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line,
+  [data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only .ritual-hand-affordance__line,
+  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line {
+    opacity: .74;
+    transform: scaleX(1);
+    transition:
+      transform 280ms cubic-bezier(.2, .8, .2, 1),
+      opacity 90ms ease;
+  }
+
+  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line--second,
+  [data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only .ritual-hand-affordance__line--second,
+  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line--second {
+    opacity: .52;
+    transition-delay: 55ms, 55ms;
+  }
+
+  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__arrow,
+  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__arrow {
+    opacity: .86;
+    animation: ritual-arrow-blink 940ms ease-in-out 180ms infinite;
+  }
+}
+
+/* Armed state is the single source of truth for touch/Pencil and also remains
+   valid on desktop after an explicit arm. */
 [data-ritual-armed='true'] .lang-btn-text-single,
 [data-selector-stage='mode'] [data-ritual-armed='true'] .lang-btn-text-top {
   transform: scale(1.065);
   text-shadow: 0 .5px 0 rgba(58, 50, 42, .16);
 }
 
-[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance,
-[data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only,
-[data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance,
 [data-ritual-armed='true'] .ritual-hand-affordance {
   color: var(--rt-ink);
 }
 
-[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line,
-[data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only .ritual-hand-affordance__line,
-[data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line,
 [data-ritual-armed='true'] .ritual-hand-affordance__line {
   opacity: .74;
   transform: scaleX(1);
@@ -86,16 +119,11 @@
     opacity 90ms ease;
 }
 
-[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line--second,
-[data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only .ritual-hand-affordance__line--second,
-[data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line--second,
 [data-ritual-armed='true'] .ritual-hand-affordance__line--second {
   opacity: .52;
   transition-delay: 55ms, 55ms;
 }
 
-[data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__arrow,
-[data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__arrow,
 [data-ritual-armed='true'] .ritual-hand-affordance__arrow {
   opacity: .86;
   animation: ritual-arrow-blink 940ms ease-in-out 180ms infinite;
@@ -111,65 +139,11 @@
     touch-action: none;
   }
 
-  /* Desktop points toward the next page; direct input shows the physical
-     upward swipe that confirms the armed choice. */
+  /* Direct input shows the physical upward swipe that confirms the armed choice. */
   .ritual-hand-affordance__arrow {
     transform: rotate(180deg);
     transform-box: fill-box;
     transform-origin: center;
-  }
-
-  /* Safari/iPad can preserve :hover across the Language -> Mode stage swap.
-     Direct input therefore ignores hover visuals completely and only reflects
-     the real armed state set by a touch or Pencil pointer-up. */
-  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .lang-btn-text-single,
-  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-single,
-  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-top {
-    transform: scale(1);
-    text-shadow: none;
-  }
-
-  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance,
-  [data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only,
-  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance {
-    color: var(--rt-control);
-  }
-
-  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line,
-  [data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only .ritual-hand-affordance__line,
-  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line {
-    opacity: 0;
-    transform: scaleX(0);
-  }
-
-  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__arrow,
-  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__arrow {
-    opacity: 0;
-    animation: none;
-  }
-
-  [data-ritual-armed='true'] .lang-btn-text-single,
-  [data-selector-stage='mode'] [data-ritual-armed='true'] .lang-btn-text-top {
-    transform: scale(1.065);
-    text-shadow: 0 .5px 0 rgba(58, 50, 42, .16);
-  }
-
-  [data-ritual-armed='true'] .ritual-hand-affordance {
-    color: var(--rt-ink);
-  }
-
-  [data-ritual-armed='true'] .ritual-hand-affordance__line {
-    opacity: .74;
-    transform: scaleX(1);
-  }
-
-  [data-ritual-armed='true'] .ritual-hand-affordance__line--second {
-    opacity: .52;
-  }
-
-  [data-ritual-armed='true'] .ritual-hand-affordance__arrow {
-    opacity: .86;
-    animation: ritual-arrow-blink 940ms ease-in-out 180ms infinite;
   }
 }
 
@@ -181,16 +155,11 @@
     transition: none !important;
   }
 
-  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line,
-  [data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only .ritual-hand-affordance__line,
-  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line,
   [data-ritual-armed='true'] .ritual-hand-affordance__line {
     opacity: .74;
     transform: scaleX(1);
   }
 
-  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__arrow,
-  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__arrow,
   [data-ritual-armed='true'] .ritual-hand-affordance__arrow {
     opacity: .74;
   }
