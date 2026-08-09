@@ -8,6 +8,12 @@
   top: -17px;
   width: 42px;
   height: 34px;
+  transform: translate3d(
+    calc(var(--scene-parallax-back-x, 0px) - var(--scene-parallax-front-x, 0px)),
+    calc(var(--scene-parallax-back-y, 0px) - var(--scene-parallax-front-y, 0px)),
+    0
+  );
+  will-change: transform;
 }
 
 .landing-guide-arrow__strokes {
