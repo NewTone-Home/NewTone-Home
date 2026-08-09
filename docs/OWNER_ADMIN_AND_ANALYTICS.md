@@ -25,20 +25,26 @@ The database intentionally starts with zero publication rows and zero draft rows
 | Event | Meaning | Optional fields |
 | --- | --- | --- |
 | `landing_entry` | Public shell/Landing entered | `step_id` |
-| `language_selected` | Reader language chosen | `language` |
-| `mode_selected` | Reading mode chosen | `reading_mode` |
-| `reading_started` | Reader mounted | `step_id` |
+| `reader_entry_requested` | User committed to entering Reader from Landing | `step_id=entry:start/continue`, `language`, `reading_mode` |
+| `language_selected` | Reader language chosen or changed | `step_id`, `language` |
+| `mode_selected` | Reading mode chosen or changed | `step_id`, `reading_mode` |
+| `content_status` | Published content load resolved | `step_id=content:<status>[:vN]` |
+| `reading_started` | Reader mounted | `step_id`, `language`, `reading_mode` |
+| `page_entered` | Reader entered/re-entered a page | `step_id=page:<page_id>`, `progress_ratio` |
+| `chapter_entered` | Reader entered/re-entered a chapter | `step_id=chapter:<chapter_id>`, `progress_ratio` |
 | `beat_reached` | A Reader beat was reached | `step_id`, `progress_ratio` |
+| `beat_dwell` | Visible time accumulated on a beat before focus changes | `step_id`, `progress_ratio`, `dwell_ms` |
 | `progress_milestone` | First reach of 25/50/75/100% in a session | `step_id`, `progress_ratio` |
-| `reader_return` | Reader return control used | `exit_reason=return` |
-| `reader_exit` | Reader exited through another app path | `exit_reason` |
-| `visibility_dwell` | Page became hidden/visible, best effort | `dwell_ms`, `exit_reason=hidden` |
-| `session_end` | `pagehide`/unload best-effort end | `dwell_ms`, `exit_reason=unload` |
+| `chapter_completed` | User completed the current released chapter/trial boundary | `step_id=chapter:<chapter_id>`, `progress_ratio` |
+| `reader_return` | Reader return control used | `step_id`, `progress_ratio`, `exit_reason=return` |
+| `reader_exit` | Reader exited through another app path | `progress_ratio`, `exit_reason` |
+| `visibility_dwell` | One visible foreground segment ended | `dwell_ms`, `exit_reason=hidden` |
+| `session_end` | `pagehide`/unload best-effort end with cumulative visible dwell | `dwell_ms`, `exit_reason=unload` |
 | `admin_login` | Authorized owner session confirmed | none |
 | `admin_draft_saved` | Owner draft saved | `step_id` |
 | `admin_published` | Owner published a version | `step_id` |
 
-Client identifiers are random UUIDs in local/session storage. No cookies, email, IP column, user agent, URL query, arbitrary metadata, or manuscript text is sent. Analytics failure never blocks the product.
+Client identifiers are random UUIDs in local/session storage. No cookies, email, IP column, user agent, URL query, arbitrary metadata, or manuscript text is sent. Analytics failure never blocks the product. Product reporting should use distinct `session_id`/`visitor_id` for people/session counts; raw event counts are interaction volume and may include revisits.
 
 ## Owner aggregate queries
 
@@ -48,6 +54,25 @@ Run these in the Supabase SQL Editor (database-owner context). No unauthenticate
 select * from private.analytics_daily_summary order by day desc limit 90;
 select * from private.analytics_funnel order by event_name, step_id;
 select * from private.analytics_session_summary order by started_at desc limit 100;
+select * from private.analytics_step_dwell order by average_seconds desc, sessions desc;
+```
+
+Useful funnel slices:
+
+```sql
+select event_name, count(distinct session_id) as sessions
+from public.analytics_events
+where event_name in (
+  'landing_entry', 'reader_entry_requested', 'language_selected',
+  'mode_selected', 'reading_started', 'chapter_completed'
+)
+group by event_name;
+
+select step_id, count(distinct session_id) as sessions
+from public.analytics_events
+where event_name in ('page_entered', 'chapter_entered', 'beat_reached')
+group by step_id
+order by sessions desc, step_id;
 ```
 
 Raw events are intended for 90-day retention. Until a reviewed scheduled job is approved, run this owner-only maintenance query monthly:

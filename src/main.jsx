@@ -5,7 +5,7 @@ import './styles/visualTokens.css'
 import './views/EmptyContentApp.css'
 import App from './App.jsx'
 import StagingResetControl from './components/StagingResetControl.jsx'
-import { installDwellTracking } from './services/analytics'
+import { installDwellTracking, trackEvent } from './services/analytics'
 import { loadPublishedContent } from './services/publishedContent'
 import { detectBrowserReaderLanguage } from './i18n/languages'
 
@@ -21,6 +21,12 @@ function PublicRoot() {
     loadPublishedContent().then(setResult)
   }, [])
   useEffect(load, [load])
+  useEffect(() => {
+    if (result.status === 'loading') return
+    const version = Number(result.publication?.version)
+    const versionSuffix = Number.isInteger(version) ? `:v${version}` : ''
+    trackEvent('content_status', { stepId: `content:${result.status}${versionSuffix}` })
+  }, [result.publication?.version, result.status])
   return <App contentStatus={result.status} onRetryContent={load} />
 }
 

@@ -3,13 +3,14 @@ import { isSupabaseConfigured, supabase } from '../lib/supabaseClient'
 const VISITOR_KEY = 'newtone-analytics-visitor-v1'
 const SESSION_KEY = 'newtone-analytics-session-v1'
 const EVENTS = new Set([
-  'landing_entry', 'language_selected', 'mode_selected', 'reading_started',
-  'beat_reached', 'progress_milestone', 'reader_return', 'reader_exit',
-  'visibility_dwell', 'session_end', 'admin_login', 'admin_draft_saved', 'admin_published',
+  'landing_entry', 'reader_entry_requested', 'language_selected', 'mode_selected', 'reading_started',
+  'page_entered', 'chapter_entered', 'beat_reached', 'beat_dwell', 'progress_milestone',
+  'chapter_completed', 'reader_return', 'reader_exit', 'visibility_dwell', 'session_end', 'content_status',
+  'admin_login', 'admin_draft_saved', 'admin_published',
 ])
 const LANGUAGES = new Set(['zh', 'en'])
 const MODES = new Set(['immersive', 'standard'])
-const EXIT_REASONS = new Set(['return', 'landing', 'hidden', 'unload', 'completed', 'abandoned'])
+const EXIT_REASONS = new Set(['return', 'landing', 'hidden', 'unload', 'completed', 'abandoned', 'browser_back'])
 const MILESTONES = [0.25, 0.5, 0.75, 1]
 
 function uuid() {
@@ -35,15 +36,26 @@ function ensureVisitor(storage = globalThis.localStorage) {
 function ensureSession(storage = globalThis.sessionStorage) {
   try {
     const parsed = JSON.parse(safeRead(storage, SESSION_KEY) ?? 'null')
-    if (parsed?.id && Array.isArray(parsed.milestones)) return parsed
+    if (parsed?.id && Array.isArray(parsed.milestones)) {
+      parsed.visibleTotalMs = Number.isFinite(Number(parsed.visibleTotalMs)) ? Number(parsed.visibleTotalMs) : 0
+      return parsed
+    }
   } catch { /* start a new anonymous session */ }
-  const state = { id: uuid(), sequence: 0, milestones: [], startedAt: Date.now(), visibleAt: Date.now() }
+  const now = Date.now()
+  const state = { id: uuid(), sequence: 0, milestones: [], startedAt: now, visibleAt: now, visibleTotalMs: 0 }
   safeWrite(storage, SESSION_KEY, JSON.stringify(state))
   return state
 }
 
 function saveSession(state, storage = globalThis.sessionStorage) {
   safeWrite(storage, SESSION_KEY, JSON.stringify(state))
+}
+
+function updateSession(mutator, storage = globalThis.sessionStorage) {
+  const session = ensureSession(storage)
+  mutator(session)
+  saveSession(session, storage)
+  return session
 }
 
 function cleanStepId(value) {
@@ -95,31 +107,70 @@ export function trackEvent(eventName, fields = {}, options = {}) {
     .then(({ error }) => !error).catch(() => false)
 }
 
-export function trackReaderProgress(stepId, progressRatio) {
+export function trackReaderProgress(stepId, progressRatio, context = {}) {
   const ratio = Math.min(1, Math.max(0, Number(progressRatio) || 0))
-  trackEvent('beat_reached', { stepId, progressRatio: ratio })
+  trackEvent('beat_reached', { ...context, stepId, progressRatio: ratio })
   const session = ensureSession()
   const reached = MILESTONES.filter(value => ratio >= value && !session.milestones.includes(value))
   session.milestones.push(...reached)
   saveSession(session)
   reached.forEach(value => {
-    trackEvent('progress_milestone', { stepId: `progress:${Math.round(value * 100)}`, progressRatio: value })
+    trackEvent('progress_milestone', {
+      ...context,
+      stepId: `progress:${Math.round(value * 100)}`,
+      progressRatio: value,
+    })
   })
 }
 
 export function installDwellTracking() {
   if (typeof document === 'undefined' || typeof window === 'undefined') return () => {}
-  const session = ensureSession()
-  const emitDwell = (eventName, exitReason, keepalive = false) => {
+  const initial = ensureSession()
+  let visible = document.visibilityState !== 'hidden'
+  let visibleAt = Date.now()
+  let visibleTotalMs = Number(initial.visibleTotalMs) || 0
+
+  if (visible) {
+    updateSession(session => {
+      session.visibleAt = visibleAt
+      session.visibleTotalMs = visibleTotalMs
+    })
+  }
+
+  const closeVisibleSegment = () => {
+    if (!visible) return 0
     const now = Date.now()
-    const dwellMs = Math.max(0, now - (session.visibleAt ?? session.startedAt ?? now))
-    trackEvent(eventName, { dwellMs, exitReason }, { keepalive })
+    const segmentMs = Math.max(0, now - visibleAt)
+    visibleTotalMs += segmentMs
+    visible = false
+    updateSession(session => {
+      session.visibleAt = now
+      session.visibleTotalMs = visibleTotalMs
+    })
+    return segmentMs
   }
+
   const visibility = () => {
-    if (document.visibilityState === 'hidden') emitDwell('visibility_dwell', 'hidden', true)
-    else { session.visibleAt = Date.now(); saveSession(session) }
+    if (document.visibilityState === 'hidden') {
+      const segmentMs = closeVisibleSegment()
+      if (segmentMs > 0) trackEvent('visibility_dwell', { dwellMs: segmentMs, exitReason: 'hidden' }, { keepalive: true })
+      return
+    }
+    if (!visible) {
+      visible = true
+      visibleAt = Date.now()
+      updateSession(session => {
+        session.visibleAt = visibleAt
+        session.visibleTotalMs = visibleTotalMs
+      })
+    }
   }
-  const pagehide = () => emitDwell('session_end', 'unload', true)
+
+  const pagehide = () => {
+    if (visible) closeVisibleSegment()
+    trackEvent('session_end', { dwellMs: visibleTotalMs, exitReason: 'unload' }, { keepalive: true })
+  }
+
   document.addEventListener('visibilitychange', visibility)
   window.addEventListener('pagehide', pagehide)
   return () => {

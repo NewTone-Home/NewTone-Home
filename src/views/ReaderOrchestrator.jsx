@@ -24,6 +24,11 @@ function getPage(location, content = readerContent) {
 
 function resolveLocationForContent(location) { return resolveReaderDisplayLocation(location) }
 
+function currentAnalyticsContext() {
+  const state = useProgressStore.getState()
+  return { language: state.language, readingMode: state.readingMode }
+}
+
 function PopulatedReaderOrchestrator({ onReaderReady }) {
   const language = useProgressStore(state => state.language)
   const setLanguage = useProgressStore(state => state.setLanguage)
@@ -108,13 +113,64 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
   }, [activeLocation, displayLocation, syncTo])
 
   useEffect(() => {
-    trackEvent('reading_started', { stepId: `${activeLocation.pageId}:${activeLocation.beatIndex}` })
+    trackEvent('reading_started', {
+      ...currentAnalyticsContext(),
+      stepId: `${activeLocation.pageId}:${activeLocation.beatIndex}`,
+    })
   }, [])
 
   useEffect(() => {
+    trackEvent('page_entered', {
+      ...currentAnalyticsContext(),
+      stepId: `page:${page.id}`,
+      progressRatio: getOverallProgress(activeLocation, activeReaderContent),
+    })
+  }, [page.id])
+
+  useEffect(() => {
+    trackEvent('chapter_entered', {
+      ...currentAnalyticsContext(),
+      stepId: `chapter:${page.chapterId}`,
+      progressRatio: getOverallProgress(activeLocation, activeReaderContent),
+    })
+  }, [page.chapterId])
+
+  useEffect(() => {
     const stepId = `${activeLocation.pageId}:${activeLocation.beatIndex}`
-    trackReaderProgress(stepId, getOverallProgress(activeLocation, activeReaderContent))
+    trackReaderProgress(stepId, getOverallProgress(activeLocation, activeReaderContent), currentAnalyticsContext())
   }, [activeLocation, activeReaderContent])
+
+  useEffect(() => {
+    const stepId = `${activeLocation.pageId}:${activeLocation.beatIndex}`
+    const progressRatio = getOverallProgress(activeLocation, activeReaderContent)
+    let visibleStartedAt = document.visibilityState === 'visible' ? performance.now() : null
+    let dwellMs = 0
+
+    const closeVisibleSegment = () => {
+      if (visibleStartedAt === null) return
+      dwellMs += Math.max(0, performance.now() - visibleStartedAt)
+      visibleStartedAt = null
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') closeVisibleSegment()
+      else if (visibleStartedAt === null) visibleStartedAt = performance.now()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      closeVisibleSegment()
+      if (dwellMs >= 250) {
+        trackEvent('beat_dwell', {
+          ...currentAnalyticsContext(),
+          stepId,
+          progressRatio,
+          dwellMs,
+        })
+      }
+    }
+  }, [activeLocation.beatIndex, activeLocation.pageId, activeReaderContent])
 
   const navigatePage = useCallback((target, gestureId) => {
     blockedGestureRef.current = gestureId
@@ -180,8 +236,15 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
     }
 
     blockedGestureRef.current = gestureId
+    const progressRatio = getOverallProgress(activeLocation, activeReaderContent)
+    const analyticsContext = currentAnalyticsContext()
     endChapterTrial()
-    trackEvent('reader_exit', { exitReason: 'completed', progressRatio: 1 })
+    trackEvent('chapter_completed', {
+      ...analyticsContext,
+      stepId: `chapter:${page.chapterId}`,
+      progressRatio,
+    })
+    trackEvent('reader_exit', { ...analyticsContext, exitReason: 'completed', progressRatio })
     completeReader()
   }, [activeLocation, activeReaderContent, chapterTrialEnded, completeReader, endChapterTrial, navigatePage, navigateTo, narrativePause, narrativeReveal, narrativeTypewriter, page, readerExitGestureLearned, setReaderExitGestureLearned])
 
@@ -217,11 +280,34 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
 
   useEffect(() => () => window.clearTimeout(pageMotionTimerRef.current), [])
 
+  const handleReaderLanguage = useCallback((nextLanguage) => {
+    setLanguage(nextLanguage)
+    trackEvent('language_selected', {
+      ...currentAnalyticsContext(),
+      stepId: 'reader-tools',
+      language: nextLanguage,
+    })
+  }, [setLanguage])
+
+  const handleReaderMode = useCallback((nextMode) => {
+    selectReadingMode(nextMode)
+    trackEvent('mode_selected', {
+      ...currentAnalyticsContext(),
+      stepId: 'reader-tools',
+      readingMode: nextMode,
+    })
+  }, [selectReadingMode])
+
   const handleReturnLanding = useCallback(() => {
     returnArmedRef.current = false
     clearInputAccumulator()
     setReaderExitGestureLearned()
-    trackEvent('reader_return', { exitReason: 'return', progressRatio: getOverallProgress(activeLocation, activeReaderContent) })
+    trackEvent('reader_return', {
+      ...currentAnalyticsContext(),
+      stepId: `${activeLocation.pageId}:${activeLocation.beatIndex}`,
+      exitReason: 'return',
+      progressRatio: getOverallProgress(activeLocation, activeReaderContent),
+    })
     transitionTo('landing', { preset: 'reader-to-surface', waitForReady: false })
   }, [activeLocation, activeReaderContent, clearInputAccumulator, setReaderExitGestureLearned, transitionTo])
 
@@ -240,12 +326,12 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
       focusBeatIndex={activeLocation.beatIndex}
       progress={page.beats.length === 1 ? 1 : activeLocation.beatIndex / (page.beats.length - 1)}
       language={language}
-      onLanguage={setLanguage}
+      onLanguage={handleReaderLanguage}
       readingMode={readingMode}
       standardTheme={standardTheme}
       themePosition={themePosition}
       motionMode={motionMode}
-      onReadingMode={selectReadingMode}
+      onReadingMode={handleReaderMode}
       onStandardTheme={setStandardTheme}
       onThemePosition={setThemePosition}
       onFocusMotionEnd={finishFocusMotion}
@@ -291,11 +377,27 @@ function EmptyReaderOrchestrator({ contentStatus, onRetryContent, onReaderReady 
 
   useEffect(() => { onReaderReady?.() }, [onReaderReady])
 
+  const handleReaderLanguage = useCallback((nextLanguage) => {
+    setLanguage(nextLanguage)
+    trackEvent('language_selected', { stepId: 'reader-tools', language: nextLanguage, readingMode })
+  }, [readingMode, setLanguage])
+
+  const handleReaderMode = useCallback((nextMode) => {
+    selectReadingMode(nextMode)
+    trackEvent('mode_selected', { stepId: 'reader-tools', language, readingMode: nextMode })
+  }, [language, selectReadingMode])
+
   const handleReturnLanding = useCallback(() => {
     setReaderExitGestureLearned()
-    trackEvent('reader_return', { exitReason: 'return', progressRatio: 0 })
+    trackEvent('reader_return', {
+      stepId: 'content:empty',
+      language,
+      readingMode,
+      exitReason: 'return',
+      progressRatio: 0,
+    })
     transitionTo('landing', { preset: 'reader-to-surface', waitForReady: false })
-  }, [setReaderExitGestureLearned, transitionTo])
+  }, [language, readingMode, setReaderExitGestureLearned, transitionTo])
 
   return <ReaderStage
     emptyDocument
@@ -306,12 +408,12 @@ function EmptyReaderOrchestrator({ contentStatus, onRetryContent, onReaderReady 
     focusBeatIndex={0}
     progress={0}
     language={language}
-    onLanguage={setLanguage}
+    onLanguage={handleReaderLanguage}
     readingMode={readingMode}
     standardTheme={standardTheme}
     themePosition={themePosition}
     motionMode={motionMode}
-    onReadingMode={selectReadingMode}
+    onReadingMode={handleReaderMode}
     onStandardTheme={setStandardTheme}
     onThemePosition={setThemePosition}
     onFocusMotionEnd={() => {}}

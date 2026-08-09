@@ -76,7 +76,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
       const readerReturningToLanding = currentStableView === 'reader' && view === 'landing'
 
       if (readerReturningToLanding) {
-        trackEvent('reader_exit', { exitReason: 'browser-back' })
+        trackEvent('reader_exit', { exitReason: 'browser_back' })
       }
 
       if (ctrl.isActive) ctrl.cancel()
@@ -145,8 +145,13 @@ function App({ contentStatus = 'ready', onRetryContent }) {
 
   const handleEnter = useCallback((intent) => {
     if (readingEntry.isActive || isGlobalTransitioning) return
+    trackEvent('reader_entry_requested', {
+      stepId: `entry:${intent}`,
+      language: hasInitializedLanguage ? language : undefined,
+      readingMode: hasInitializedLanguage ? readingMode : undefined,
+    })
     readingEntry.start(intent)
-  }, [readingEntry.isActive, readingEntry.start, isGlobalTransitioning])
+  }, [hasInitializedLanguage, isGlobalTransitioning, language, readingEntry.isActive, readingEntry.start, readingMode])
 
   const readingEntryLandingLeaving =
     readingEntry.phase === 'landing-leaving' ||
