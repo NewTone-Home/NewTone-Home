@@ -12,6 +12,7 @@ import './ReaderStage.css'
 import './ReaderShellContract.css'
 
 const STANDARD_THEME_POSITIONS = Object.freeze({ light: 0, soft: 0.5, dark: 1 })
+const DIRECT_READER_QUERY = '(hover: none), (pointer: coarse), (max-width: 720px)'
 const EMPTY_READER_ENVIRONMENT = Object.freeze({
   worldLayer: 'surface', time: 'noon', weather: 'clear', light: 'neutral',
   locationId: 'unpublished', locationLabel: '', characters: [],
@@ -77,7 +78,9 @@ function ReaderStage({
   }, [onReturnArmedChange])
 
   const handleViewportBoundaryChange = useCallback(({ atBottom, lastNodeReached }) => {
-    setReaderAtBottom(atBottom && lastNodeReached)
+    const directReaderInput = typeof window !== 'undefined'
+      && window.matchMedia(DIRECT_READER_QUERY).matches
+    setReaderAtBottom(lastNodeReached && (atBottom || directReaderInput))
   }, [])
 
   useEffect(() => {
