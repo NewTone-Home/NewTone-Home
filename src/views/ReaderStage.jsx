@@ -67,7 +67,12 @@ function ReaderStage({
   const stageStyle = readingMode === 'standard'
     ? getReaderThemeVariables(themePosition ?? STANDARD_THEME_POSITIONS[standardTheme] ?? 0.5)
     : immersiveStyle
-  const returnVisible = emptyDocument || readerAtBottom
+  const directReaderInput = typeof window !== 'undefined' && (
+    (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)
+    || window.matchMedia(DIRECT_READER_QUERY).matches
+  )
+  const finalNodeReached = !emptyDocument && beats.length > 0 && focusBeatIndex >= beats.length - 1
+  const returnVisible = emptyDocument || readerAtBottom || (directReaderInput && finalNodeReached)
   const locationLabel = emptyDocument
     ? (language === 'en' ? 'No pages yet' : '暂无页面')
     : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
@@ -78,9 +83,7 @@ function ReaderStage({
   }, [onReturnArmedChange])
 
   const handleViewportBoundaryChange = useCallback(({ atBottom, lastNodeReached }) => {
-    const directReaderInput = typeof window !== 'undefined'
-      && window.matchMedia(DIRECT_READER_QUERY).matches
-    setReaderAtBottom(lastNodeReached && (atBottom || directReaderInput))
+    setReaderAtBottom(atBottom && lastNodeReached)
   }, [])
 
   useEffect(() => {
@@ -89,8 +92,8 @@ function ReaderStage({
   }, [page?.id, updateReturnArmed])
 
   useEffect(() => {
-    if (!readerAtBottom && returnArmed) updateReturnArmed(false)
-  }, [readerAtBottom, returnArmed, updateReturnArmed])
+    if (!returnVisible && returnArmed) updateReturnArmed(false)
+  }, [returnArmed, returnVisible, updateReturnArmed])
 
   return (
     <main
