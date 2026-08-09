@@ -31,15 +31,15 @@ const RETURN_STATUS_TOTAL_MS = RETURN_STATUS_BLINK_MS * RETURN_STATUS_BLINK_COUN
 const RETURN_STATUS_FADE_MS = 260
 const RETURN_GUIDE_DELAY_MS = 1600
 
-const GUIDE_CURVE = 'M8 64C13 48 22 39 36 32C47 26 55 20 64 12'
-const GUIDE_HEAD = 'M53 15C58 14 62 13 66 10C65 15 64 20 62 24'
+const GUIDE_CURVE = 'M7 24L38 24'
+const GUIDE_HEAD = 'M32 18L39 24L32 30'
 
 function LandingGuideArrow({ phase }) {
   if (phase === 'hidden') return null
   return (
     <svg
       className={`landing-guide-arrow landing-guide-arrow--main landing-guide-arrow--${phase}`}
-      viewBox="0 0 92 72"
+      viewBox="0 0 48 48"
       aria-hidden="true"
     >
       <g className="landing-guide-arrow__strokes">
