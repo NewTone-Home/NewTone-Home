@@ -21,7 +21,7 @@
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.05;
+  stroke-width: 1.05px;
   transform: translateX(-50%);
 }
 
@@ -32,7 +32,7 @@
 }
 
 .reader-return-affordance__line--second {
-  stroke-width: .92;
+  stroke-width: .92px;
 }
 
 /* Keep the lines visible while progress runs backward. This turns disarm into
@@ -62,5 +62,22 @@
     width: min(180px, calc(100vw - 64px));
     padding: 12px 14px;
     opacity: .72;
+  }
+
+  /* ReaderShellContract.css is loaded later and historically pushed this
+     control down to 12-18px. Use a more specific final mobile rule here so
+     the control stays above browser chrome and remains fully tappable. */
+  .reader-stage-page .reader-stage .reader-return-control {
+    bottom: max(104px, calc(env(safe-area-inset-bottom) + 84px)) !important;
+    left: max(18px, env(safe-area-inset-left)) !important;
+    z-index: 12;
+  }
+}
+
+@media (hover: none) and (orientation: landscape) and (max-height: 500px),
+       (pointer: coarse) and (orientation: landscape) and (max-height: 500px),
+       (max-width: 720px) and (orientation: landscape) and (max-height: 500px) {
+  .reader-stage-page .reader-stage .reader-return-control {
+    bottom: max(72px, calc(env(safe-area-inset-bottom) + 54px)) !important;
   }
 }
