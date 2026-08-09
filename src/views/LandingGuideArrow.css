@@ -1,15 +1,17 @@
 .landing-guide-arrow {
   left: -46px;
-  top: -9px;
+  top: -30px;
   width: 66px;
   height: 52px;
+  transform: translate(-8px, -4px) scale(.62);
+  transform-origin: top right;
 }
 
 .landing-guide-arrow__strokes {
   opacity: .68;
   filter: none;
   stroke: var(--ink-medium);
-  stroke-width: 1.15;
+  stroke-width: 1.2;
   animation: none;
 }
 
@@ -20,18 +22,18 @@
 }
 
 .landing-guide-arrow--visible .landing-guide-arrow__curve {
-  animation: landing-guide-pencil-curve 520ms cubic-bezier(.24,.72,.28,1) forwards;
+  animation: landing-guide-pencil-curve 430ms cubic-bezier(.24,.72,.28,1) forwards;
 }
 
 .landing-guide-arrow--visible .landing-guide-arrow__head {
-  animation: landing-guide-pencil-head 170ms ease-out 410ms forwards;
+  animation: landing-guide-pencil-head 140ms ease-out 330ms forwards;
 }
 
 .landing-guide-arrow__eraser {
   opacity: 0;
   fill: none;
   stroke: var(--reader-paper, var(--paper-base, #f0ebe2));
-  stroke-width: 4.8;
+  stroke-width: 4.2;
   stroke-linecap: round;
   stroke-linejoin: round;
   pointer-events: none;
@@ -60,6 +62,17 @@
   animation: landing-guide-erase-head 105ms ease-in 205ms forwards;
 }
 
+/* Reader return status completes its second blink, then actually fades away
+   before the NewTone retrace starts. */
+.landing-return-status--fading .landing-return-status__text {
+  animation: landing-return-status-fade 260ms ease-out forwards !important;
+}
+
+@keyframes landing-return-status-fade {
+  from { opacity: .3; }
+  to { opacity: 0; }
+}
+
 @keyframes landing-guide-pencil-curve {
   from { stroke-dashoffset: 1; }
   to { stroke-dashoffset: 0; }
@@ -81,6 +94,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .landing-guide-arrow {
+    transform: translate(-8px, -4px) scale(.62);
+  }
+
   .landing-guide-arrow--visible .landing-guide-arrow__strokes path {
     animation: none !important;
     stroke-dashoffset: 0 !important;
@@ -91,8 +108,17 @@
   }
 
   .landing-guide-arrow--visible .landing-guide-arrow__strokes {
-    stroke-width: 1.15 !important;
+    stroke-width: 1.2 !important;
   }
+
+  .landing-return-status--fading .landing-return-status__text {
+    opacity: 0 !important;
+    animation: none !important;
+  }
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-guide-arrow {
+  transform: translate(-8px, -4px) scale(.62);
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__strokes path {
@@ -105,5 +131,10 @@
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__strokes {
-  stroke-width: 1.15 !important;
+  stroke-width: 1.2 !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-return-status--fading .landing-return-status__text {
+  opacity: 0 !important;
+  animation: none !important;
 }
