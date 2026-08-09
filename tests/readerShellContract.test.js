@@ -166,7 +166,7 @@ describe('Reader shell contract boundaries', () => {
     expect(returnControl).toContain("isDirectPointer(event.pointerType) && !armed")
     expect(returnControl).toContain('event.detail === 0 && !armed')
     expect(stage).toContain('onDisarm={() => updateReturnArmed(false)}')
-    expect(returnControl).toContain('if (!armed) return undefined')
+    expect(returnControl).toContain('if (!visualArmed) return undefined')
     expect(returnControl).toContain('event.deltaY > RETURN_WHEEL_THRESHOLD')
     expect(returnControl).toContain('data-return-progress={progress.toFixed(3)}')
     expect(returnControl).toContain("window.addEventListener('wheel', onWheel, { passive: true })")
@@ -182,11 +182,15 @@ describe('Reader shell contract boundaries', () => {
     expect(copy).not.toContain("returnToLanding: 'return to main screen'")
   })
 
-  it('retracts the return affordance instead of hiding the lines in one frame', () => {
+  it('retracts the return affordance before confirmed navigation instead of hiding it in one frame', () => {
     expect(returnControl).toContain('const RETURN_LINE_RETRACT_MS = 320')
-    expect(returnControl).toContain('const target = armed ? 1 : 0')
-    expect(returnControl).toContain('const affordanceVisible = armed || progress > 0.001')
-    expect(returnControl).toContain("' has-affordance'")
+    expect(returnControl).toContain('const target = visualArmed ? 1 : 0')
+    expect(returnControl).toContain('pendingCompleteRef.current = true')
+    expect(returnControl).toContain('setCompleting(true)')
+    expect(returnControl).toContain('if (target === 0 && pendingCompleteRef.current)')
+    expect(returnControl).toContain('onCompleteRef.current()')
+    expect(returnControl).toContain('const affordanceVisible = visualArmed || progress > 0.001')
+    expect(returnControl).toContain("visualArmed ? ' is-armed' : ''")
     expect(returnControlCss).toContain('.reader-return-control.has-affordance .reader-return-affordance__line')
     expect(returnControlCss).toContain('transition: opacity 220ms ease')
     expect(returnControlCss).toContain('@keyframes reader-return-arrow-blink')
@@ -204,7 +208,7 @@ describe('Reader shell contract boundaries', () => {
     expect(returnControl).toContain('reader-return-affordance__line')
     expect(returnControl).toContain('reader-return-affordance__line--second')
     expect(returnControl).toContain('reader-return-affordance__arrow')
-    expect(returnControl).toContain("armed ? ' is-armed' : ''")
+    expect(returnControl).toContain("visualArmed ? ' is-armed' : ''")
     expect(returnControl).not.toContain('reader-return-ring')
   })
 

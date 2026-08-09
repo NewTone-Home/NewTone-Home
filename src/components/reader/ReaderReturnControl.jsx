@@ -18,28 +18,44 @@ function isDirectPointer(pointerType) {
 function ReaderReturnControl({ armed, onArm, onDisarm, onComplete, language }) {
   const ui = getReaderUi(language)
   const [progress, setProgress] = useState(0)
+  const [completing, setCompleting] = useState(false)
   const progressRef = useRef(0)
   const completedRef = useRef(false)
+  const pendingCompleteRef = useRef(false)
   const frameRef = useRef(0)
+  const onCompleteRef = useRef(onComplete)
+  onCompleteRef.current = onComplete
+
+  const visualArmed = armed && !completing
 
   useEffect(() => {
     cancelAnimationFrame(frameRef.current)
     const from = progressRef.current
-    const target = armed ? 1 : 0
+    const target = visualArmed ? 1 : 0
     const distance = Math.abs(target - from)
-    if (distance < 0.001) {
+
+    const finishTarget = () => {
       progressRef.current = target
       setProgress(target)
+      frameRef.current = 0
+      if (target === 0 && pendingCompleteRef.current) {
+        pendingCompleteRef.current = false
+        onCompleteRef.current()
+      }
+    }
+
+    if (distance < 0.001) {
+      finishTarget()
       return undefined
     }
 
-    const fullDuration = armed ? RETURN_LINE_DRAW_MS : RETURN_LINE_RETRACT_MS
+    const fullDuration = visualArmed ? RETURN_LINE_DRAW_MS : RETURN_LINE_RETRACT_MS
     const duration = Math.max(80, fullDuration * distance)
     const startedAt = performance.now()
 
     const animate = time => {
       const raw = Math.min(1, (time - startedAt) / duration)
-      const eased = armed
+      const eased = visualArmed
         ? 1 - Math.pow(1 - raw, 3)
         : raw * raw * (3 - 2 * raw)
       const next = from + (target - from) * eased
@@ -49,26 +65,29 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onComplete, language }) {
         frameRef.current = requestAnimationFrame(animate)
         return
       }
-      progressRef.current = target
-      setProgress(target)
-      frameRef.current = 0
+      finishTarget()
     }
 
     frameRef.current = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(frameRef.current)
-  }, [armed])
+  }, [visualArmed])
 
   useEffect(() => () => cancelAnimationFrame(frameRef.current), [])
 
   useEffect(() => {
-    if (!armed) return undefined
+    if (!armed && !pendingCompleteRef.current) setCompleting(false)
+  }, [armed])
+
+  useEffect(() => {
+    if (!visualArmed) return undefined
     completedRef.current = false
     let directGesture = null
 
     const completeOnce = () => {
       if (completedRef.current) return
       completedRef.current = true
-      onComplete()
+      pendingCompleteRef.current = true
+      setCompleting(true)
     }
 
     const onWheel = event => {
@@ -107,32 +126,33 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onComplete, language }) {
       window.removeEventListener('pointerup', clearDirectGesture)
       window.removeEventListener('pointercancel', clearDirectGesture)
     }
-  }, [armed, onComplete])
+  }, [visualArmed])
 
-  const affordanceVisible = armed || progress > 0.001
+  const affordanceVisible = visualArmed || progress > 0.001
 
   return (
     <button
       type="button"
-      className={`reader-return-control${armed ? ' is-armed' : ''}${affordanceVisible ? ' has-affordance' : ''}`}
+      className={`reader-return-control${visualArmed ? ' is-armed' : ''}${affordanceVisible ? ' has-affordance' : ''}`}
       style={{ '--return-progress': progress }}
       data-reader-return-control="true"
-      data-return-armed={armed ? 'true' : 'false'}
+      data-return-armed={visualArmed ? 'true' : 'false'}
       data-return-progress={progress.toFixed(3)}
+      data-return-completing={completing ? 'true' : 'false'}
       onPointerEnter={event => {
-        if (event.pointerType === 'mouse' && hasHoverPointer()) onArm()
+        if (!completing && event.pointerType === 'mouse' && hasHoverPointer()) onArm()
       }}
       onPointerLeave={event => {
-        if (event.pointerType === 'mouse' && hasHoverPointer()) onDisarm()
+        if (!completing && event.pointerType === 'mouse' && hasHoverPointer()) onDisarm()
       }}
       onPointerUp={event => {
-        if (isDirectPointer(event.pointerType) && !armed) onArm()
+        if (!completing && isDirectPointer(event.pointerType) && !armed) onArm()
       }}
       onClick={event => {
-        if (event.detail === 0 && !armed) onArm()
+        if (!completing && event.detail === 0 && !armed) onArm()
       }}
       aria-label={ui.returnToLandingHint}
-      aria-pressed={armed}
+      aria-pressed={visualArmed}
     >
       <span className="reader-return-text">{ui.returnToLanding}</span>
       <svg className="reader-return-affordance" viewBox="0 0 112 31" aria-hidden="true">
