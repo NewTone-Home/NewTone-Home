@@ -1,6 +1,11 @@
+.landing-title-n-origin {
+  left: 0;
+  bottom: 50%;
+}
+
 .landing-guide-arrow {
-  left: -54px;
-  top: calc(-0.42em - 19px);
+  left: -52px;
+  top: -17px;
   width: 42px;
   height: 34px;
 }
