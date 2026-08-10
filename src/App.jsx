@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useProgressStore } from './stores/progressStore'
 import { useTransitionStore } from './stores/transitionStore'
-import { useReadingEntry, READING_ENTRY_TIMINGS } from './transitions/readingEntryController'
+import { useReadingEntry } from './transitions/readingEntryController'
 import { setHoldProgressPaused } from './interactions/holdProgress'
 import { resolveRitualWheelAction } from './interactions/ritualWheelAdvance'
-import Landing from './views/Landing'
 import Reader from './views/ReaderOrchestrator'
 import AdminSequenceGate from './admin/AdminSequenceGate'
-import ReadingTransition from './components/ReadingTransition'
+import EntrySurface from './components/EntrySurface'
 import './components/ReadingTransitionHover.css'
 import GlobalTransitionOverlay from './components/GlobalTransitionOverlay'
 import PageShell from './components/PageShell'
@@ -153,10 +152,6 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     readingEntry.start(intent)
   }, [hasInitializedLanguage, isGlobalTransitioning, language, readingEntry.isActive, readingEntry.start, readingMode])
 
-  const readingEntryLandingLeaving =
-    readingEntry.phase === 'landing-leaving' ||
-    readingEntry.phase === 'landing-empty-hold'
-
   const readingEntryNeedsReader =
     readingEntry.phase === 'reader-preparing' ||
     readingEntry.phase === 'transition-leaving'
@@ -165,12 +160,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     currentView === 'reader' &&
     (!readingEntry.isActive || readingEntryNeedsReader)
 
-  const showLanding =
-    currentView === 'landing' &&
-    (!readingEntry.isActive || readingEntryLandingLeaving)
-
-  const isFirstTimeLeaving = readingEntry.phase === 'landing-leaving' && !hasInitializedLanguage
-  const landingLeaveMs = isFirstTimeLeaving ? READING_ENTRY_TIMINGS.FIRST_LANDING_LEAVE_MS : READING_ENTRY_TIMINGS.RETURN_LANDING_LEAVE_MS
+  const showEntrySurface = currentView === 'landing' || readingEntry.isActive
 
   const handleLanguageProceed = useCallback(() => {
     trackEvent('language_selected', { language })
@@ -186,30 +176,25 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     <>
       <PageShell motionMode={motionMode} surfaceStyle={readerSurfaceStyle}>
         {showReader && <Reader contentStatus={contentStatus} onRetryContent={onRetryContent} onReaderReady={readingEntry.isActive ? readingEntry.handleReaderReady : undefined} />}
-        {showLanding && (
-          <Landing
-            onEnter={handleEnter}
-            leaving={readingEntryLandingLeaving}
-            leavingMs={landingLeaveMs}
-            surfaceStyle={readerSurfaceStyle}
+        {showEntrySurface && (
+          <EntrySurface
+            currentView={currentView}
+            phase={readingEntry.phase}
+            intent={readingEntry.intent}
+            language={language}
+            hasInitializedLanguage={hasInitializedLanguage}
             readingMode={readingMode}
+            themePosition={themePosition}
+            motionMode={motionMode}
+            surfaceStyle={readerSurfaceStyle}
             environmentState={environmentState}
+            onEnter={handleEnter}
+            onProceed={handleLanguageProceed}
+            onModeSelect={handleModeSelect}
             guidePaused={isGlobalTransitioning}
           />
         )}
       </PageShell>
-      <ReadingTransition
-        phase={readingEntry.phase}
-        intent={readingEntry.intent}
-        language={language}
-        readingMode={readingMode}
-        themePosition={themePosition}
-        motionMode={motionMode}
-        surfaceStyle={readerSurfaceStyle}
-        environmentState={environmentState}
-        onProceed={handleLanguageProceed}
-        onModeSelect={handleModeSelect}
-      />
       {isGlobalTransitioning && <GlobalTransitionOverlay surfaceStyle={readerSurfaceStyle} />}
       <AdminSequenceGate />
     </>
