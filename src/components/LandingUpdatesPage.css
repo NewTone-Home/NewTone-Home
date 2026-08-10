@@ -1,0 +1,91 @@
+.landing-updates-page {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  background: var(--paper-base);
+  color: var(--ink-strong);
+  transform: translateY(100%);
+}
+
+.landing-updates-page__placeholder {
+  font: inherit;
+  text-align: center;
+}
+
+.landing-updates-page[data-updates-phase="enter-surface"] {
+  animation: updates-page-enter 620ms cubic-bezier(.22,.78,.2,1) forwards;
+}
+
+.landing-updates-page[data-updates-phase="updates"],
+.landing-updates-page[data-updates-phase="return-surface"] {
+  transform: translateY(0);
+}
+
+.landing-updates-page[data-updates-phase="return-surface"] {
+  animation: updates-page-return 620ms cubic-bezier(.4,0,.7,.2) forwards;
+}
+
+@keyframes updates-page-enter {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes updates-page-return {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+
+.landing-updates-return {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .35rem .5rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink-medium);
+  font: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.landing-updates-page[data-return-armed="true"] .landing-updates-return {
+  opacity: .78;
+  pointer-events: auto;
+}
+
+.landing-updates-return__arrow .landing-entry-ring {
+  transition: none;
+}
+
+.landing-updates-page[data-return-armed="true"] .landing-updates-return__arrow .landing-entry-ring {
+  animation: updates-return-ring-draw 900ms cubic-bezier(.24,.72,.28,1) forwards;
+}
+
+@keyframes updates-return-ring-draw {
+  from { stroke-dashoffset: var(--landing-entry-ring-length, 220); }
+  to { stroke-dashoffset: 0; }
+}
+
+@media (pointer: coarse) {
+  .landing-updates-return {
+    opacity: .48;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-updates-page[data-updates-phase="enter-surface"],
+  .landing-updates-page[data-updates-phase="return-surface"] {
+    animation-duration: 1ms;
+  }
+
+  .landing-updates-page[data-return-armed="true"] .landing-updates-return__arrow .landing-entry-ring {
+    animation-duration: 1ms;
+  }
+}

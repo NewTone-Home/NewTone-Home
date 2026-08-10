@@ -1,4 +1,7 @@
+import { useCallback, useRef, useState } from 'react'
 import Landing from '../views/Landing'
+import LandingUpdatesPage from './LandingUpdatesPage'
+import { advanceUpdatesPhase, UPDATES_PHASE } from '../landing/landingUpdatesFlow'
 import ReadingTransition from './ReadingTransition'
 import { READING_ENTRY_TIMINGS } from '../transitions/readingEntryController'
 import './EntrySurface.css'
@@ -15,11 +18,12 @@ function EntrySurface({
   surfaceStyle,
   environmentState,
   onEnter,
-  onEnterUpdates,
   onProceed,
   onModeSelect,
   guidePaused = false,
 }) {
+  const [updatesPhase, setUpdatesPhase] = useState(UPDATES_PHASE.LANDING)
+  const barrierRef = useRef({ phase: '', keys: new Set() })
   const entryActive = phase !== 'idle'
   const mounted = currentView === 'landing' || entryActive
 
@@ -29,21 +33,46 @@ function EntrySurface({
     ? READING_ENTRY_TIMINGS.RETURN_LANDING_LEAVE_MS
     : READING_ENTRY_TIMINGS.FIRST_LANDING_LEAVE_MS
 
+  const sendUpdatesEvent = useCallback((event) => {
+    setUpdatesPhase(current => advanceUpdatesPhase(current, event))
+  }, [])
+
+  const handleUpdatesBarrier = useCallback((kind, key) => {
+    setUpdatesPhase(current => {
+      const expected = 2
+      if (barrierRef.current.phase !== current) {
+        barrierRef.current = { phase: current, keys: new Set() }
+      }
+      barrierRef.current.keys.add(key)
+      if (barrierRef.current.keys.size < expected) return current
+      return advanceUpdatesPhase(current, `${kind}-complete`)
+    })
+  }, [])
+
   return (
     <div
       className={`entry-surface entry-surface--phase-${phase}`}
       data-entry-phase={phase}
       data-entry-intent={intent || 'none'}
+      data-updates-phase={updatesPhase}
     >
       <Landing
         onEnter={onEnter}
-        onEnterUpdates={onEnterUpdates}
+        onEnterUpdates={() => sendUpdatesEvent('enter-requested')}
+        updatesPhase={updatesPhase}
+        onUpdatesBarrier={handleUpdatesBarrier}
         leaving={entryActive}
         leavingMs={landingLeaveMs}
         surfaceStyle={surfaceStyle}
         readingMode={readingMode}
         environmentState={environmentState}
         guidePaused={guidePaused || entryActive}
+      />
+
+      <LandingUpdatesPage
+        phase={updatesPhase}
+        onSurfaceComplete={() => sendUpdatesEvent('surface-complete')}
+        onReturnRequested={() => sendUpdatesEvent('return-requested')}
       />
 
       <ReadingTransition

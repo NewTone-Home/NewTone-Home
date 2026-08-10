@@ -16,6 +16,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useSceneParallax } from '../hooks/useSceneParallax'
 import { useTitleRetrace } from '../hooks/useTitleRetrace'
 import { LANDING_SCENES, resolveLandingScene } from '../landing/landingScene'
+import { UPDATES_PHASE } from '../landing/landingUpdatesFlow'
 import { detectBrowserReaderLanguage } from '../i18n/languages'
 import ScrambleText from '../components/ScrambleText'
 import LandingJijiaScene from '../components/landing/LandingJijiaScene'
@@ -37,6 +38,8 @@ const LANDING_ENTRY_PROMPT_DURATION_MS = 1900
 function Landing({
   onEnter,
   onEnterUpdates,
+  updatesPhase = UPDATES_PHASE.LANDING,
+  onUpdatesBarrier,
   leaving,
   leavingMs,
   surfaceStyle,
@@ -85,6 +88,7 @@ function Landing({
 
   const entryPromptsActive = !returnSequenceActive
     && [TITLE_PHASE.DRAWING, TITLE_PHASE.REVEALED].includes(phase)
+  const updatesFlowActive = updatesPhase !== UPDATES_PHASE.LANDING
 
   useEffect(() => {
     introRef.current = introCompleted
@@ -330,6 +334,10 @@ function Landing({
       })
       if (intent !== 'enter' && intent !== 'retract') return
       triggeredRef.current = true
+      if (entryTargetRef.current === 'updates') {
+        onEnterUpdates?.()
+        return
+      }
       if (intent === 'retract') {
         Promise.all([withdrawGuide(), retract()]).then(enter)
         return
@@ -338,14 +346,17 @@ function Landing({
     }
 
     const onWheel = (e) => {
+      if (updatesFlowActive) return
       if (e.deltaY > 8) requestLeave(enterSelectedTarget)
     }
 
     let touchStartY = 0
     const onTouchStart = (e) => {
+      if (updatesFlowActive) return
       touchStartY = e.touches[0].clientY
     }
     const onTouchMove = (e) => {
+      if (updatesFlowActive) return
       const delta = touchStartY - e.touches[0].clientY
       if (delta > 20) requestLeave(enterSelectedTarget)
     }
@@ -359,7 +370,7 @@ function Landing({
       window.removeEventListener('touchstart', onTouchStart)
       window.removeEventListener('touchmove', onTouchMove)
     }
-  }, [onEnter, onEnterUpdates, phaseRef, retract, returnSequenceActive, withdrawGuide])
+  }, [onEnter, onEnterUpdates, phaseRef, retract, returnSequenceActive, updatesFlowActive, withdrawGuide])
 
   const hasProgress = hasStableReaderProgress({ readerStarted, readerCompleted })
   const landingLanguage = hasInitializedLanguage
@@ -377,13 +388,38 @@ function Landing({
 
   const titleTouched = phase !== TITLE_PHASE.IDLE
   const updatesSelected = entryPromptsActive && entryTarget === 'updates'
-  const guideDirection = entryPromptsActive
+  const arrowsRetracting = updatesPhase === UPDATES_PHASE.ENTER_ARROWS
+  const arrowsReturning = updatesPhase === UPDATES_PHASE.RETURN_ARROWS
+  const arrowsHidden = updatesFlowActive && !arrowsRetracting && !arrowsReturning
+  const guideDirection = arrowsRetracting
+    ? 'left'
+    : arrowsReturning
+      ? 'down'
+      : entryPromptsActive
     ? (updatesSelected ? 'down' : 'left')
     : 'right'
   const readerRingActive = entryPromptsActive
     && entryTarget === 'reader'
     && phase === TITLE_PHASE.REVEALED
   const updatesRingActive = entryPromptsActive && entryTarget === 'updates'
+
+  const handleUpdatesAnimationEnd = useCallback((event) => {
+    if (!onUpdatesBarrier) return
+    if (
+      event.animationName === 'landing-updates-arrow-retract'
+      || event.animationName === 'landing-updates-arrow-return'
+    ) {
+      const key = event.target.classList.contains('landing-guide-entry-arrow') ? 'updates' : 'reader'
+      onUpdatesBarrier('arrows', key)
+      return
+    }
+    if (
+      event.animationName === 'landing-updates-label-retract'
+      || event.animationName === 'landing-updates-label-return'
+    ) {
+      onUpdatesBarrier('labels', event.target.dataset.landingEntry || 'reader')
+    }
+  }, [onUpdatesBarrier])
 
   return (
     <div
@@ -396,6 +432,8 @@ function Landing({
       data-weather={environmentState.weather}
       data-landing-arrival={returnArrival ? 'return' : 'main'}
       data-entry-target={entryTarget}
+      data-updates-phase={updatesPhase}
+      onAnimationEnd={handleUpdatesAnimationEnd}
     >
       {landingScene === LANDING_SCENES.JIJIA_COMPOUND && <LandingJijiaScene awake={titleTouched} />}
 
@@ -425,8 +463,8 @@ function Landing({
               <LandingEntryArrow
                 className="landing-guide-entry-arrow"
                 direction={guideDirection}
-                phase={guidePhase}
-                ringActive={updatesRingActive}
+                phase={arrowsHidden ? 'hidden' : guidePhase}
+                ringActive={!updatesFlowActive && updatesRingActive}
                 delayedBob={updatesSelected && updatesRingActive}
               />
             </span>
@@ -475,9 +513,9 @@ function Landing({
                 </p>
                 <LandingEntryArrow
                   className="reader-entry-arrow"
-                  direction="down"
-                  phase="steady"
-                  ringActive={readerRingActive}
+                  direction={arrowsRetracting ? 'left' : 'down'}
+                  phase={arrowsHidden ? 'hidden' : 'steady'}
+                  ringActive={!updatesFlowActive && readerRingActive}
                   ringRef={readerRingRef}
                   delayedBob={entryPromptsSettled && entryTarget === 'reader'}
                   arrowDelayed={!entryPromptsSettled}
