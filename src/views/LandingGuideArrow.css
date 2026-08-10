@@ -46,7 +46,7 @@
 /* One SVG, one fixed center. Direction changes rotate in place only. */
 .landing-entry-arrow__rotator {
   transform-box: view-box;
-  transform-origin: 50% 50%;
+  transform-origin: 0 35px;
   transform: rotate(0deg);
   transition: transform 620ms cubic-bezier(.2,.8,.2,1);
 }

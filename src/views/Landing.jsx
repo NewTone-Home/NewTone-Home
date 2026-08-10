@@ -34,6 +34,7 @@ const RETURN_GUIDE_DELAY_MS = 1600
 const LANDING_ENTRY_TURN_MS = 260
 const LANDING_ENTRY_PROMPT_DURATION_MS = 1900
 const READER_RING_DRAW_CAP = 0.92
+const TITLE_FINISHING_PASS_MS = 360
 
 function Landing({
   onEnter,
@@ -58,6 +59,7 @@ function Landing({
   const [guidePhase, setGuidePhase] = useState(() => returnArrival ? 'hidden' : 'quiet')
   const [entryTarget, setEntryTarget] = useState('reader')
   const [entryPromptsSettled, setEntryPromptsSettled] = useState(false)
+  const [titleVisualComplete, setTitleVisualComplete] = useState(false)
   const guidePhaseRef = useRef(guidePhase)
   const triggeredRef = useRef(false)
   const introRef = useRef(introCompleted)
@@ -99,13 +101,27 @@ function Landing({
     setEntryPromptsSettled(false)
   }, [entryPromptsActive])
 
+  useEffect(() => {
+    if (phase !== TITLE_PHASE.REVEALED) {
+      setTitleVisualComplete(false)
+      return undefined
+    }
+    if (reducedMotion || motionMode === 'reduced') {
+      setTitleVisualComplete(true)
+      return undefined
+    }
+    const timer = window.setTimeout(() => setTitleVisualComplete(true), TITLE_FINISHING_PASS_MS)
+    return () => window.clearTimeout(timer)
+  }, [motionMode, phase, reducedMotion])
+
   /*
    * Follow the value that actually paints NewTone, not the WAAPI clock.
    * The title uses per-keyframe easing, so getComputedTiming().progress can be
    * far ahead of the visible sweep. Reading computed strokeDashoffset gives us
    * the real on-screen pen position. Keep an 8% gap open while DRAWING so the
    * circle is physically unable to look complete before NewTone reaches its
-   * REVEALED state; the final gap closes on the same state transition.
+   * REVEALED state; the final gap stays open through the finishing hand-line
+   * pass and closes only after titleVisualComplete.
    */
   useEffect(() => {
     if (phase !== TITLE_PHASE.DRAWING || entryTarget !== 'reader') return undefined
@@ -148,10 +164,9 @@ function Landing({
 
       ring.style.transition = 'none'
       if (phaseRef.current === TITLE_PHASE.REVEALED) {
-        ring.style.strokeDashoffset = '0'
+        ring.style.strokeDashoffset = String(ringLength * (1 - READER_RING_DRAW_CAP))
         window.requestAnimationFrame(() => {
           if (readerRingRef.current !== ring) return
-          ring.style.removeProperty('stroke-dashoffset')
           ring.style.removeProperty('transition')
         })
       } else {
@@ -160,6 +175,32 @@ function Landing({
       }
     }
   }, [entryTarget, phase, phaseRef, sweepRef])
+
+  useEffect(() => {
+    if (phase !== TITLE_PHASE.REVEALED) return undefined
+    const ring = readerRingRef.current
+    if (!ring) return undefined
+
+    if (entryTarget !== 'reader') {
+      ring.style.removeProperty('stroke-dashoffset')
+      ring.style.removeProperty('transition')
+      return undefined
+    }
+
+    if (titleVisualComplete) {
+      ring.style.removeProperty('stroke-dashoffset')
+      ring.style.removeProperty('transition')
+      return undefined
+    }
+
+    const ringLength = ring.getTotalLength()
+    ring.style.transition = 'none'
+    ring.style.strokeDashoffset = String(ringLength * (1 - READER_RING_DRAW_CAP))
+    const frame = window.requestAnimationFrame(() => {
+      if (readerRingRef.current === ring) ring.style.removeProperty('transition')
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [entryTarget, phase, titleVisualComplete])
 
   useSceneParallax({
     rootRef: landingRef,
@@ -306,6 +347,15 @@ function Landing({
     setEntryPromptsSettled(true)
   }, [])
 
+  const handleTitleVisualAnimationEnd = useCallback((event) => {
+    if (
+      event.animationName !== 'newtone-hand-line-draw'
+      || !event.target.classList.contains('newtone-hand-lines__second')
+      || phaseRef.current !== TITLE_PHASE.REVEALED
+    ) return
+    setTitleVisualComplete(true)
+  }, [phaseRef])
+
   useEffect(() => {
     triggeredRef.current = false
 
@@ -375,6 +425,7 @@ function Landing({
   const readerRingActive = entryPromptsActive
     && entryTarget === 'reader'
     && phase === TITLE_PHASE.REVEALED
+    && titleVisualComplete
   const updatesRingActive = entryPromptsActive && entryTarget === 'updates'
 
   return (
@@ -405,7 +456,7 @@ function Landing({
             data-motion-parallax-trigger="true"
           >
             <span className="landing-title-text" data-landing-title-visual="true">
-              <span className="landing-title-breath">
+              <span className="landing-title-breath" onAnimationEnd={handleTitleVisualAnimationEnd}>
                 <span className="landing-title-n-host">N</span>
                 {'ewTone'}
                 <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
@@ -471,8 +522,8 @@ function Landing({
                   phase="steady"
                   ringActive={readerRingActive}
                   ringRef={readerRingRef}
-                  delayedBob={entryPromptsSettled && entryTarget === 'reader'}
-                  arrowDelayed={!entryPromptsSettled}
+                  delayedBob={entryPromptsSettled && entryTarget === 'reader' && titleVisualComplete}
+                  arrowDelayed={!entryPromptsSettled || !titleVisualComplete}
                 />
               </div>
             </>
