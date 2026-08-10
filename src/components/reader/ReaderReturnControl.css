@@ -1,6 +1,7 @@
 .reader-return-control {
   width: 180px;
   min-height: 54px;
+  overflow: visible;
   touch-action: pan-y !important;
 }
 
@@ -11,49 +12,42 @@
 
 .reader-return-affordance {
   position: absolute;
-  top: calc(50% + 8px);
-  left: 50%;
-  width: min(86%, 112px);
-  height: 31px;
+  top: 50%;
+  left: calc(100% + 10px);
+  width: 46px;
+  height: 46px;
   overflow: visible;
   fill: none;
   pointer-events: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.05px;
-  transform: translateX(-50%);
+  stroke-width: 1.45px;
+  transform: translateY(-50%);
 }
 
-.reader-return-affordance__line {
+.reader-return-affordance__ring {
   opacity: 0;
-  stroke-dasharray: 1;
+  stroke-dasharray: 1 1;
   stroke-dashoffset: calc(1 - var(--return-progress));
 }
 
-.reader-return-affordance__line--second {
-  stroke-width: .92px;
+.reader-return-control.has-affordance .reader-return-affordance__ring {
+  opacity: .82;
 }
-
-/* Keep the lines visible while progress runs backward. This turns disarm into
-   a real right-to-left retract instead of dropping the SVG in one frame. */
-.reader-return-control.has-affordance .reader-return-affordance__line { opacity: .74; }
-.reader-return-control.has-affordance .reader-return-affordance__line--second { opacity: .52; }
 
 .reader-return-affordance__arrow {
   opacity: 0;
-  stroke-opacity: .32;
-  transition: opacity 220ms ease;
 }
 
-.reader-return-control.is-armed .reader-return-affordance__arrow {
-  opacity: .86;
-  animation: reader-return-arrow-blink 940ms ease-in-out 180ms infinite;
+.reader-return-control[data-return-ready="true"] .reader-return-affordance__arrow {
+  opacity: .78;
+  animation: reader-return-arrow-bob 1700ms ease-in-out infinite;
 }
 
-@keyframes reader-return-arrow-blink {
-  0%, 100% { stroke-opacity: .32; }
-  48% { stroke-opacity: 1; }
+@keyframes reader-return-arrow-bob {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 2px; }
 }
 
 @media (hover: none), (pointer: coarse), (max-width: 720px) {
@@ -64,19 +58,12 @@
     opacity: .72;
   }
 
-  /* ReaderShellContract.css is loaded later and historically pushed this
-     control down to 12-18px. Use a more specific final mobile rule here so
-     the control stays above browser chrome and remains fully tappable. */
   .reader-stage-page .reader-stage .reader-return-control {
     bottom: max(104px, calc(env(safe-area-inset-bottom) + 84px)) !important;
     left: max(18px, env(safe-area-inset-left)) !important;
     z-index: 12;
   }
 
-  /* Once Return to Entrance is armed, the next upward swipe belongs to the
-     confirmation gesture, not Safari/native Reader scrolling. The armed
-     state is temporary, so normal pan-y behavior returns automatically after
-     disarm or completion. */
   .reader-stage-page:has(.reader-return-control.is-armed),
   .reader-stage-page:has(.reader-return-control.is-armed) .reader-stage,
   .reader-stage-page:has(.reader-return-control.is-armed) .reader-return-control {
@@ -96,5 +83,11 @@
        (max-width: 720px) and (orientation: landscape) and (max-height: 500px) {
   .reader-stage-page .reader-stage .reader-return-control {
     bottom: max(72px, calc(env(safe-area-inset-bottom) + 54px)) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-return-affordance__arrow {
+    animation: none !important;
   }
 }

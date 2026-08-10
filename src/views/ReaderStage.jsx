@@ -58,6 +58,7 @@ function ReaderStage({
 }) {
   const [readerAtBottom, setReaderAtBottom] = useState(false)
   const [returnArmed, setReturnArmed] = useState(false)
+  const [returnReady, setReturnReady] = useState(false)
   const sceneState = beats[focusBeatIndex]?.sceneState ?? {}
   const sceneStateName = sceneState.sceneState ?? 'normal'
   const nativeEnvironmentState = beats[focusBeatIndex]?.worldState
@@ -79,6 +80,14 @@ function ReaderStage({
 
   const updateReturnArmed = useCallback(value => {
     setReturnArmed(value)
+    if (!value) {
+      setReturnReady(false)
+      onReturnArmedChange?.(false)
+    }
+  }, [onReturnArmedChange])
+
+  const updateReturnReady = useCallback(value => {
+    setReturnReady(value)
     onReturnArmedChange?.(value)
   }, [onReturnArmedChange])
 
@@ -152,7 +161,7 @@ function ReaderStage({
           onNativeBoundary={onNativeBoundary}
           onNativeScrollOffset={onNativeScrollOffset}
           onViewportBoundaryChange={handleViewportBoundaryChange}
-          returnArmed={returnArmed}
+          returnArmed={returnReady}
           initialScrollOffset={initialScrollOffset}
           narrativeRuntimeEnabled={narrativeRuntimeEnabled}
           narrativeDeliveryStates={narrativeDeliveryStates}
@@ -180,6 +189,7 @@ function ReaderStage({
           armed={returnArmed}
           onArm={() => updateReturnArmed(true)}
           onDisarm={() => updateReturnArmed(false)}
+          onReadyChange={updateReturnReady}
           onComplete={onReturnLanding}
           language={language}
         />}

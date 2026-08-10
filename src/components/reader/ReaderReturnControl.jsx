@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { getReaderUi } from '../../i18n/readerUi'
 import './ReaderReturnControl.css'
 
-const RETURN_LINE_DRAW_MS = 560
-const RETURN_LINE_RETRACT_MS = 320
+const RETURN_RING_DRAW_MS = 560
+const RETURN_RING_RETRACT_MS = 320
 const RETURN_WHEEL_THRESHOLD = 8
 const RETURN_DIRECT_THRESHOLD = 36
 
@@ -15,7 +15,7 @@ function isDirectPointer(pointerType) {
   return pointerType === 'touch' || pointerType === 'pen'
 }
 
-function ReaderReturnControl({ armed, onArm, onDisarm, onComplete, language }) {
+function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete, language }) {
   const ui = getReaderUi(language)
   const fallbackUi = getReaderUi('zh')
   const returnLabel = ui.returnToLanding || ui.backToLanding || fallbackUi.returnToLanding
@@ -52,7 +52,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onComplete, language }) {
       return undefined
     }
 
-    const fullDuration = visualArmed ? RETURN_LINE_DRAW_MS : RETURN_LINE_RETRACT_MS
+    const fullDuration = visualArmed ? RETURN_RING_DRAW_MS : RETURN_RING_RETRACT_MS
     const duration = Math.max(80, fullDuration * distance)
     const startedAt = performance.now()
 
@@ -81,8 +81,14 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onComplete, language }) {
     if (!armed && !pendingCompleteRef.current) setCompleting(false)
   }, [armed])
 
+  const entryReady = visualArmed && progress >= 0.999
+
   useEffect(() => {
-    if (!visualArmed) return undefined
+    onReadyChange?.(entryReady || completing)
+  }, [completing, entryReady, onReadyChange])
+
+  useEffect(() => {
+    if (!entryReady) return undefined
     completedRef.current = false
     let directGesture = null
 
@@ -129,7 +135,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onComplete, language }) {
       window.removeEventListener('pointerup', clearDirectGesture)
       window.removeEventListener('pointercancel', clearDirectGesture)
     }
-  }, [visualArmed])
+  }, [entryReady])
 
   const affordanceVisible = visualArmed || progress > 0.001
 
@@ -141,12 +147,13 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onComplete, language }) {
       data-reader-return-control="true"
       data-return-armed={visualArmed ? 'true' : 'false'}
       data-return-progress={progress.toFixed(3)}
+      data-return-ready={entryReady ? 'true' : 'false'}
       data-return-completing={completing ? 'true' : 'false'}
       onPointerEnter={event => {
         if (!completing && event.pointerType === 'mouse' && hasHoverPointer()) onArm()
       }}
       onPointerLeave={event => {
-        if (!completing && event.pointerType === 'mouse' && hasHoverPointer()) onDisarm()
+        if (!completing && !entryReady && event.pointerType === 'mouse' && hasHoverPointer()) onDisarm()
       }}
       onPointerUp={event => {
         if (!completing && isDirectPointer(event.pointerType) && !armed) onArm()
@@ -158,10 +165,9 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onComplete, language }) {
       aria-pressed={visualArmed}
     >
       <span className="reader-return-text">{returnLabel}</span>
-      <svg className="reader-return-affordance" viewBox="0 0 112 31" aria-hidden="true">
-        <path className="reader-return-affordance__line" pathLength="1" d="M4 5.8C24 3.1 45 7.4 65 5.1C82 3.2 97 5.8 108 4.2" />
-        <path className="reader-return-affordance__line reader-return-affordance__line--second" pathLength="1" d="M13 11.8C31 9.4 50 13.5 68 10.7C82 8.8 94 11.9 102 10.2" />
-        <path className="reader-return-affordance__arrow" d="M56 17C55 21 56 24 56 28M51 24C53 26 55 28 56 29M61 24C59 26 57 28 56 29" />
+      <svg className="reader-return-affordance" viewBox="0 0 80 80" aria-hidden="true">
+        <path className="reader-return-affordance__ring" pathLength="1" d="M40 5C61 4 74 17 74 39C74 61 61 75 39 74C17 73 5 61 6 39C7 17 19 6 40 5" />
+        <path className="reader-return-affordance__arrow" pathLength="1" d="M40 22C39 33 40 45 40 57M31 48C34 52 37 56 40 59M49 48C46 52 43 56 40 59" />
       </svg>
     </button>
   )

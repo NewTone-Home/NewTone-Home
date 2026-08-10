@@ -343,10 +343,9 @@ function useLanguageSelectorHold({ enabled }) {
 
 function RitualHandAffordance({ showArrow = true }) {
   return (
-    <svg className={`ritual-hand-affordance${showArrow ? '' : ' ritual-hand-affordance--lines-only'}`} viewBox="0 0 112 31" aria-hidden="true">
-      <path className="ritual-hand-affordance__line" pathLength="1" d="M4 5.8C24 3.1 45 7.4 65 5.1C82 3.2 97 5.8 108 4.2" />
-      <path className="ritual-hand-affordance__line ritual-hand-affordance__line--second" pathLength="1" d="M13 11.8C31 9.4 50 13.5 68 10.7C82 8.8 94 11.9 102 10.2" />
-      {showArrow && <path className="ritual-hand-affordance__arrow" pathLength="1" d="M56 17C55 21 56 24 56 28M51 24C53 26 55 28 56 29M61 24C59 26 57 28 56 29" />}
+    <svg className={`ritual-hand-affordance${showArrow ? '' : ' ritual-hand-affordance--ring-only'}`} viewBox="0 0 80 80" aria-hidden="true">
+      <path className="ritual-hand-affordance__ring" pathLength="1" d="M40 5C61 4 74 17 74 39C74 61 61 75 39 74C17 73 5 61 6 39C7 17 19 6 40 5" />
+      {showArrow && <path className="ritual-hand-affordance__arrow" pathLength="1" d="M40 22C39 33 40 45 40 57M31 48C34 52 37 56 40 59M49 48C46 52 43 56 40 59" />}
     </svg>
   )
 }
@@ -398,6 +397,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const selectorIdentityBaselineRef = useRef(null)
   const [selectorIdentityStable, setSelectorIdentityStable] = useState(null)
   const [armedOption, setArmedOption] = useState(null)
+  const [readyOption, setReadyOption] = useState(null)
 
   useEffect(() => {
     if (!slotsInitialized.current) {
@@ -663,6 +663,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const performResolvedAction = useCallback(action => {
     if (!action) return
     setArmedOption(null)
+    setReadyOption(null)
     if (action.type === 'language') {
       onProceed()
       return
@@ -673,15 +674,17 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const armDirectOption = useCallback((event, selectorOption) => {
     const action = resolveRitualArmAction(phase, selectorOption, event.pointerType)
     if (!action || locked) return
+    setReadyOption(null)
     setArmedOption(selectorOption)
   }, [locked, phase])
 
   useEffect(() => {
     setArmedOption(null)
+    setReadyOption(null)
   }, [currentStage.id])
 
   useEffect(() => {
-    if (!armedOption || locked) return undefined
+    if (!armedOption || readyOption !== armedOption || locked) return undefined
     let gesture = null
 
     const clearGesture = event => {
@@ -721,7 +724,13 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
       window.removeEventListener('pointerup', clearGesture, { capture: true })
       window.removeEventListener('pointercancel', clearGesture, { capture: true })
     }
-  }, [armedOption, locked, modeStage, performResolvedAction, phase])
+  }, [armedOption, locked, modeStage, performResolvedAction, phase, readyOption])
+
+  const handleAffordanceAnimationEnd = useCallback((event, selectorOption) => {
+    if (event.animationName !== 'ritual-entry-ring-draw') return
+    setArmedOption(selectorOption)
+    setReadyOption(selectorOption)
+  }, [])
 
   const handleLanguageSecondaryPointer = useCallback(event => {
     if (modeStage) return
@@ -812,6 +821,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
       data-selector-stage={currentStage.id}
       data-selector-identity={selectorIdentityStable === null ? 'pending' : selectorIdentityStable ? 'stable' : 'replaced'}
       data-armed-option={armedOption || 'none'}
+      data-ready-option={readyOption || 'none'}
     >
       <p ref={selectorTitleRef} className="ritual-selector-title language-init-title" data-stable={revealed && titleStable ? 'true' : 'false'}>
         {revealed ? (titleDisplay || '') : ''}
@@ -826,6 +836,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 className="language-btn language-btn--primary"
                 data-selector-option="primary"
                 data-ritual-armed={armedOption === 'primary' ? 'true' : 'false'}
+                data-ritual-ready={readyOption === 'primary' ? 'true' : 'false'}
                 data-hold-phase={primaryHold.holdPhase}
                 data-hold-progress={primaryHold.progress.toFixed(3)}
                 onPointerEnter={primaryHold.trackPointer}
@@ -833,6 +844,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 onPointerDown={primaryHold.trackPointer}
                 onPointerLeave={primaryHold.retract}
                 onPointerCancel={primaryHold.retract}
+                onAnimationEnd={event => handleAffordanceAnimationEnd(event, 'primary')}
                 onPointerUp={event => {
                   if (!isRitualDirectPointer(event.pointerType)) return
                   primaryHold.retract()
@@ -857,6 +869,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                   className="language-btn language-btn--secondary"
                   data-selector-option="secondary"
                   data-ritual-armed={armedOption === 'secondary' ? 'true' : 'false'}
+                  data-ritual-ready={readyOption === 'secondary' ? 'true' : 'false'}
                   ref={secondaryButtonRef}
                   data-hold-phase={secondaryPhase}
                   data-hold-progress={secondaryProgress.toFixed(3)}
@@ -866,6 +879,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                   onPointerDown={modeStage ? modeSecondaryHold.trackPointer : handleLanguageSecondaryPointer}
                   onPointerLeave={modeStage ? modeSecondaryHold.retract : undefined}
                   onPointerCancel={modeStage ? modeSecondaryHold.retract : handleLanguageBoundaryLeave}
+                  onAnimationEnd={event => handleAffordanceAnimationEnd(event, 'secondary')}
                   onPointerUp={event => {
                     if (!isRitualDirectPointer(event.pointerType) || !modeStage) return
                     modeSecondaryHold.retract()

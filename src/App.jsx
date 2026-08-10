@@ -118,7 +118,9 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     const handleRitualWheel = event => {
       if (ritualWheelLockedRef.current) return
 
-      const selectorOption = event.target?.closest?.('[data-selector-option]')?.dataset?.selectorOption
+      const selectorOption = event.target
+        ?.closest?.('[data-selector-option][data-ritual-ready="true"]')
+        ?.dataset?.selectorOption
       const ctrl = readingEntryRef.current
       const action = resolveRitualWheelAction(ctrl.phase, selectorOption, event.deltaY)
       if (!action) return

@@ -1,166 +1,89 @@
-/* Wheel-confirmable setup choices use two genuine, unequal hand-drawn SVG
-   strokes. On direct input, tapping/penning arms the same affordance and an
-   upward swipe confirms it. Change Language is intentionally excluded. */
-
 [data-selector-stage='language'] .language-btn--primary,
 [data-selector-stage='language'] .language-btn--secondary,
 [data-selector-stage='mode'] .language-btn {
   overflow: visible;
 }
 
-[data-selector-stage='language'] .language-btn--primary .lang-btn-text-single,
-[data-selector-stage='mode'] .language-btn .lang-btn-text-single,
-[data-selector-stage='mode'] .language-btn .lang-btn-text-top {
-  transform: scale(1);
-  transform-origin: center;
-  transition: transform 220ms cubic-bezier(.2, .8, .2, 1), text-shadow 220ms ease;
+.ritual-selector .lang-btn-curtain {
+  display: none;
 }
 
 .ritual-hand-affordance {
   position: absolute;
-  top: calc(50% + 8px);
-  left: 50%;
-  width: min(86%, 112px);
-  height: 31px;
+  top: 50%;
+  left: calc(100% + 12px);
+  width: 46px;
+  height: 46px;
   overflow: visible;
   fill: none;
   color: var(--rt-control);
-  opacity: 1;
   pointer-events: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.05;
-  transform: translate(-50%, 0);
-  transition: color 220ms ease;
+  stroke-width: 1.45;
+  transform: translateY(-50%);
 }
 
-.ritual-hand-affordance__line {
+.ritual-hand-affordance__ring {
   opacity: 0;
-  transform: scaleX(0);
-  transform-box: fill-box;
-  transform-origin: left center;
-  transition:
-    transform 300ms cubic-bezier(.55, .05, .8, .35),
-    opacity 80ms linear 220ms;
-}
-
-.ritual-hand-affordance__line--second {
-  stroke-width: .92;
-  transition-delay: 45ms, 240ms;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
 }
 
 .ritual-hand-affordance__arrow {
   opacity: 0;
-  transition: opacity 220ms ease;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 0;
 }
 
-.ritual-hand-affordance--lines-only .ritual-hand-affordance__arrow {
+.ritual-hand-affordance--ring-only .ritual-hand-affordance__arrow {
   display: none;
 }
 
-/* Desktop hover is a real preview gesture. Direct-input devices do not use
-   this path; they reveal the affordance only after an actual arm action. */
 @media (hover: hover) and (pointer: fine) {
-  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .lang-btn-text-single,
-  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-single,
-  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .lang-btn-text-top {
-    transform: scale(1.065);
-    text-shadow: 0 .5px 0 rgba(58, 50, 42, .16);
-  }
-
-  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance,
-  [data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only,
-  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance {
-    color: var(--rt-ink);
-  }
-
-  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line,
-  [data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only .ritual-hand-affordance__line,
-  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line {
-    opacity: .74;
-    transform: scaleX(1);
-    transition:
-      transform 280ms cubic-bezier(.2, .8, .2, 1),
-      opacity 90ms ease;
-  }
-
-  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__line--second,
-  [data-selector-stage='language'] .lang-secondary-zone:hover .language-btn--secondary:not(:disabled) .ritual-hand-affordance--lines-only .ritual-hand-affordance__line--second,
-  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__line--second {
-    opacity: .52;
-    transition-delay: 55ms, 55ms;
-  }
-
-  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__arrow,
-  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__arrow {
-    opacity: .86;
-    animation: ritual-arrow-blink 940ms ease-in-out 180ms infinite;
+  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__ring,
+  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__ring {
+    opacity: .82;
+    animation: ritual-entry-ring-draw 900ms cubic-bezier(.24,.72,.28,1) forwards;
   }
 }
 
-/* Armed state is the single source of truth for touch/Pencil and also remains
-   valid on desktop after an explicit arm. */
-[data-ritual-armed='true'] .lang-btn-text-single,
-[data-selector-stage='mode'] [data-ritual-armed='true'] .lang-btn-text-top {
-  transform: scale(1.065);
-  text-shadow: 0 .5px 0 rgba(58, 50, 42, .16);
+[data-ritual-armed='true'] .ritual-hand-affordance__ring,
+[data-ritual-ready='true'] .ritual-hand-affordance__ring {
+  opacity: .82;
+  animation: ritual-entry-ring-draw 900ms cubic-bezier(.24,.72,.28,1) forwards;
 }
 
-[data-ritual-armed='true'] .ritual-hand-affordance {
-  color: var(--rt-ink);
+[data-ritual-ready='true'] .ritual-hand-affordance__ring {
+  stroke-dashoffset: 0;
+  animation: none;
 }
 
-[data-ritual-armed='true'] .ritual-hand-affordance__line {
-  opacity: .74;
-  transform: scaleX(1);
-  transition:
-    transform 280ms cubic-bezier(.2, .8, .2, 1),
-    opacity 90ms ease;
+[data-ritual-ready='true'] .ritual-hand-affordance__arrow {
+  opacity: .78;
+  animation: ritual-entry-arrow-bob 1700ms ease-in-out infinite;
 }
 
-[data-ritual-armed='true'] .ritual-hand-affordance__line--second {
-  opacity: .52;
-  transition-delay: 55ms, 55ms;
+@keyframes ritual-entry-ring-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
 }
 
-[data-ritual-armed='true'] .ritual-hand-affordance__arrow {
-  opacity: .86;
-  animation: ritual-arrow-blink 940ms ease-in-out 180ms infinite;
-}
-
-@keyframes ritual-arrow-blink {
-  0%, 100% { stroke-opacity: .32; }
-  48% { stroke-opacity: 1; }
+@keyframes ritual-entry-arrow-bob {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 2px; }
 }
 
 @media (hover: none), (pointer: coarse) {
   .ritual-selector {
     touch-action: none;
   }
-
-  /* Direct input shows the physical upward swipe that confirms the armed choice. */
-  .ritual-hand-affordance__arrow {
-    transform: rotate(180deg);
-    transform-box: fill-box;
-    transform-origin: center;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ritual-hand-affordance,
-  .ritual-hand-affordance__line,
+  .ritual-hand-affordance__ring,
   .ritual-hand-affordance__arrow {
-    animation: none !important;
-    transition: none !important;
-  }
-
-  [data-ritual-armed='true'] .ritual-hand-affordance__line {
-    opacity: .74;
-    transform: scaleX(1);
-  }
-
-  [data-ritual-armed='true'] .ritual-hand-affordance__arrow {
-    opacity: .74;
+    animation-duration: 1ms !important;
   }
 }
