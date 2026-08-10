@@ -345,8 +345,8 @@ function Landing({
     ? (updatesSelected ? 'down' : 'left')
     : 'right'
   const readerRingActive = entryPromptsActive
+    && entryPromptsSettled
     && entryTarget === 'reader'
-    && phase === TITLE_PHASE.REVEALED
     && !leaving
   const updatesRingActive = entryPromptsActive && entryTarget === 'updates'
 
