@@ -53,42 +53,44 @@
   stroke-linejoin: round;
 }
 
-/* Let the enlarged hand-drawn ring extend beyond the compact arrow viewport. */
 .entry-arrow {
   overflow: visible;
 }
 
+/* Use an explicit visible-dash fraction instead of dash-offset. With pathLength=1,
+   0 1 is guaranteed empty and 1 0 is guaranteed complete, so the browser cannot
+   paint a full ring on the first visible frame. */
 .entry-arrow .landing-entry-ring {
   fill: none;
   stroke: currentColor;
   stroke-width: 2.1;
   stroke-linecap: butt;
   stroke-linejoin: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
+  stroke-dasharray: 0 1;
+  stroke-dashoffset: 0;
   opacity: .8;
   vector-effect: non-scaling-stroke;
   transform-box: fill-box;
   transform-origin: center;
   transform: scale(1.32);
-  transition: stroke-dashoffset 900ms cubic-bezier(.24,.72,.28,1);
+  transition: stroke-dasharray 900ms cubic-bezier(.24,.72,.28,1);
 }
 
-/* Initial Reader selection: the ring begins at the exact same 260ms point as
-   the text scramble, then visibly travels around the arrow for 1.5 seconds.
-   Keep this selector simple and local to the arrow instead of relying on :has(),
-   so browsers do not skip the initial hand-draw and jump straight to a full ring. */
+/* Canonical Landing title draw is 2000ms. The ring begins with NewTone itself,
+   not with the prompt, and finishes on the same beat as the NewTone retrace.
+   The prompt container becomes visible at 260ms, by which time only ~13% of the
+   circle has been drawn, so the hand-drawing remains clearly visible. */
 .down-entry-group[data-entry-selected="true"] .entry-arrow:not(.is-ring-active) .landing-entry-ring {
-  animation: landing-reader-ring-initial-draw 1500ms cubic-bezier(.24,.72,.28,1) 260ms both;
+  animation: landing-reader-ring-initial-draw 2000ms linear both;
 }
 
 .entry-arrow.is-ring-active .landing-entry-ring {
-  stroke-dashoffset: 0;
+  stroke-dasharray: 1 0;
 }
 
 @keyframes landing-reader-ring-initial-draw {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
+  from { stroke-dasharray: 0 1; }
+  to { stroke-dasharray: 1 0; }
 }
 
 /* The reading arrow itself arrives only after the 260ms prompt delay plus the
@@ -128,11 +130,11 @@
 
   .down-entry-group[data-entry-selected="true"] .entry-arrow:not(.is-ring-active) .landing-entry-ring {
     animation: none !important;
-    stroke-dashoffset: 0 !important;
+    stroke-dasharray: 1 0 !important;
   }
 
   .entry-arrow.is-ring-active .landing-entry-ring {
-    stroke-dashoffset: 0 !important;
+    stroke-dasharray: 1 0 !important;
   }
 
   .landing-entry-group--timed .entry-arrow--down .sketch-down-breathe {
@@ -158,11 +160,11 @@
 
 .page-shell[data-motion-mode="reduced"] .down-entry-group[data-entry-selected="true"] .entry-arrow:not(.is-ring-active) .landing-entry-ring {
   animation: none !important;
-  stroke-dashoffset: 0 !important;
+  stroke-dasharray: 1 0 !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .entry-arrow.is-ring-active .landing-entry-ring {
-  stroke-dashoffset: 0 !important;
+  stroke-dasharray: 1 0 !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-entry-group--timed .entry-arrow--down .sketch-down-breathe {
