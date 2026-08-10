@@ -5,11 +5,15 @@
   bottom: 50%;
 }
 
+/* Match the Reader target arrow's rendered 32×22 footprint. Keep the same
+   anchor center as the older guide so the established parallax still feels
+   attached to the N rather than jumping when the entry choices appear. */
 .landing-guide-arrow {
-  left: -52px;
-  top: -17px;
-  width: 42px;
-  height: 34px;
+  left: -47px;
+  top: -11px;
+  width: 32px;
+  height: 22px;
+  overflow: visible;
   transform: translate3d(
     calc(var(--scene-parallax-back-x, 0px) - var(--scene-parallax-front-x, 0px)),
     calc(var(--scene-parallax-back-y, 0px) - var(--scene-parallax-front-y, 0px)),
@@ -33,16 +37,31 @@
   transform: rotate(90deg);
 }
 
+/* Re-shape the old compact guide into the same proportions as the lower
+   reading arrow. Base orientation is right; 180deg = left, 90deg = down. */
+.landing-guide-arrow__strokes .landing-guide-arrow__curve,
+.landing-guide-arrow__eraser .landing-guide-arrow__curve {
+  d: path('M8 24L33 24');
+}
+
+.landing-guide-arrow__strokes .landing-guide-arrow__head,
+.landing-guide-arrow__eraser .landing-guide-arrow__head {
+  d: path('M33 24L26 17M33 24L26 31');
+}
+
 .landing-guide-arrow__strokes {
-  opacity: .68;
+  opacity: .72;
   filter: none;
   stroke: var(--ink-medium);
-  stroke-width: 1.25;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   animation: none;
 }
 
 .landing-guide-arrow__strokes path,
 .landing-guide-arrow__eraser path {
+  vector-effect: non-scaling-stroke;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
 }
@@ -55,8 +74,9 @@
   animation: landing-guide-pencil-head 120ms ease-out 230ms forwards;
 }
 
-/* Same visual contract as the Reader target ring: enlarged hand-drawn path,
-   no round start-cap dot, and the same draw/retract timing. */
+/* Same selected-target footprint as the lower Reader ring. The non-uniform
+   scale compensates only for this SVG's square coordinate system; on screen
+   both rings occupy the same visual area around the same-size arrow. */
 .landing-guide-arrow__ring {
   fill: none;
   stroke: var(--ink-medium);
@@ -66,9 +86,10 @@
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   opacity: .8;
+  vector-effect: non-scaling-stroke;
   transform-box: fill-box;
   transform-origin: center;
-  transform: scale(1.32);
+  transform: scale(.88, 1.48);
   transition: stroke-dashoffset 230ms cubic-bezier(.24,.72,.28,1);
 }
 
@@ -87,7 +108,7 @@
 }
 
 .landing-guide-arrow--retracting .landing-guide-arrow__strokes {
-  opacity: .68;
+  opacity: .72;
   filter: none;
   animation: none;
 }
@@ -160,7 +181,11 @@
   }
 
   .landing-guide-arrow--visible .landing-guide-arrow__strokes {
-    stroke-width: 1.25 !important;
+    stroke-width: 2.4 !important;
+  }
+
+  .landing-return-status__text {
+    opacity: .72 !important;
   }
 
   .landing-return-status--fading .landing-return-status__text {
@@ -188,7 +213,7 @@
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__strokes {
-  stroke-width: 1.25 !important;
+  stroke-width: 2.4 !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-return-status--fading .landing-return-status__text {
