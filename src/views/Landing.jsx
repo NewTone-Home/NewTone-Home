@@ -30,6 +30,8 @@ const RETURN_STATUS_BLINK_COUNT = 2
 const RETURN_STATUS_TOTAL_MS = RETURN_STATUS_BLINK_MS * RETURN_STATUS_BLINK_COUNT
 const RETURN_STATUS_FADE_MS = 260
 const RETURN_GUIDE_DELAY_MS = 1600
+const LANDING_ENTRY_TURN_MS = 260
+const LANDING_ENTRY_PROMPT_DURATION_MS = 1900
 
 const GUIDE_CURVE = 'M7 24L38 24'
 const GUIDE_HEAD = 'M32 18L39 24L32 30'
@@ -290,7 +292,8 @@ function Landing({
     || copy.zh.transitionReturn
   const returnStatusText = `${returnStatusBase}${landingLanguage === 'zh' ? '……' : '…'}`
 
-  const promptsRevealed = !returnSequenceActive && phase === TITLE_PHASE.REVEALED
+  const entryPromptsActive = !returnSequenceActive
+    && [TITLE_PHASE.DRAWING, TITLE_PHASE.REVEALED].includes(phase)
   const titleTouched = phase !== TITLE_PHASE.IDLE
 
   return (
@@ -307,7 +310,7 @@ function Landing({
       {landingScene === LANDING_SCENES.JIJIA_COMPOUND && <LandingJijiaScene awake={titleTouched} />}
 
       <div className="landing-main">
-        <div className={['landing-title-stack', promptsRevealed ? 'landing-direction-prompts--revealed' : ''].filter(Boolean).join(' ')}>
+        <div className={['landing-title-stack', entryPromptsActive ? 'landing-direction-prompts--revealed' : ''].filter(Boolean).join(' ')}>
           <h1
             className={[
               'landing-title',
@@ -324,7 +327,7 @@ function Landing({
                 <span className="landing-title-n-host">
                   N
                   <span className="landing-title-n-origin">
-                    <LandingGuideArrow phase={guidePhase} turned={promptsRevealed} />
+                    <LandingGuideArrow phase={guidePhase} turned={entryPromptsActive} />
                   </span>
                 </span>
                 {'ewTone'}
@@ -340,27 +343,36 @@ function Landing({
             </div>
           )}
 
-          {promptsRevealed && (
+          {entryPromptsActive && (
             <>
-              <div className="updates-entry-group" data-landing-entry="updates">
+              <div
+                className="updates-entry-group landing-entry-group--timed"
+                data-landing-entry="updates"
+                style={{ '--landing-entry-prompt-delay': `${LANDING_ENTRY_TURN_MS}ms` }}
+              >
                 <p className="landing-prompt landing-prompt--updates">
                   <ScrambleText
                     text={updatesPromptText}
                     active
-                    duration={800}
+                    startDelay={LANDING_ENTRY_TURN_MS}
+                    duration={LANDING_ENTRY_PROMPT_DURATION_MS}
                   />
                 </p>
               </div>
-              <div className="down-entry-group">
+              <div
+                className="down-entry-group landing-entry-group--timed"
+                style={{ '--landing-entry-prompt-delay': `${LANDING_ENTRY_TURN_MS}ms` }}
+              >
                 <p className="landing-prompt landing-prompt--down">
                   <ScrambleText
                     text={downPromptText}
                     active
-                    duration={800}
+                    startDelay={LANDING_ENTRY_TURN_MS}
+                    duration={LANDING_ENTRY_PROMPT_DURATION_MS}
                   />
                 </p>
                 <svg className="entry-arrow entry-arrow--down" viewBox="-60 0 120 80" width="32" height="22" aria-hidden="true">
-                  <g className={promptsRevealed ? 'sketch-down-breathe' : ''}>
+                  <g className={entryPromptsActive ? 'sketch-down-breathe' : ''}>
                     <path className="sketch-down-shaft" d="M 0,5 L 0,65" />
                     <path className="sketch-down-shaft-faint" d="M -2,8 L -2,62" />
                     <path className="sketch-down-head" d="M 0,65 L -10,50" />
