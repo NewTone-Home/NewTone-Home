@@ -71,15 +71,15 @@
   transform-box: fill-box;
   transform-origin: center;
   transform: scale(1.32);
-  transition: stroke-dashoffset 720ms cubic-bezier(.24,.72,.28,1);
+  transition: stroke-dashoffset 900ms cubic-bezier(.24,.72,.28,1);
 }
 
-/* On the first reveal the circle begins while the prompt is still scrambling.
-   It is intentionally slower than the old 230ms switch so the hand-drawn path
-   is readable as an action instead of a flash. Once the prompt settles,
-   is-ring-active takes over and later target changes use the 720ms transition. */
-.down-entry-group[data-entry-selected="true"]:not(:has(.entry-arrow.is-ring-active)) .landing-entry-ring {
-  animation: landing-reader-ring-initial-draw 1100ms cubic-bezier(.24,.72,.28,1) 260ms forwards;
+/* Initial Reader selection: the ring begins at the exact same 260ms point as
+   the text scramble, then visibly travels around the arrow for 1.5 seconds.
+   Keep this selector simple and local to the arrow instead of relying on :has(),
+   so browsers do not skip the initial hand-draw and jump straight to a full ring. */
+.down-entry-group[data-entry-selected="true"] .entry-arrow:not(.is-ring-active) .landing-entry-ring {
+  animation: landing-reader-ring-initial-draw 1500ms cubic-bezier(.24,.72,.28,1) 260ms both;
 }
 
 .entry-arrow.is-ring-active .landing-entry-ring {
@@ -126,7 +126,7 @@
     transition: none !important;
   }
 
-  .down-entry-group[data-entry-selected="true"]:not(:has(.entry-arrow.is-ring-active)) .landing-entry-ring {
+  .down-entry-group[data-entry-selected="true"] .entry-arrow:not(.is-ring-active) .landing-entry-ring {
     animation: none !important;
     stroke-dashoffset: 0 !important;
   }
@@ -156,7 +156,7 @@
   transition: none !important;
 }
 
-.page-shell[data-motion-mode="reduced"] .down-entry-group[data-entry-selected="true"]:not(:has(.entry-arrow.is-ring-active)) .landing-entry-ring {
+.page-shell[data-motion-mode="reduced"] .down-entry-group[data-entry-selected="true"] .entry-arrow:not(.is-ring-active) .landing-entry-ring {
   animation: none !important;
   stroke-dashoffset: 0 !important;
 }
