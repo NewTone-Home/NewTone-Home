@@ -1,153 +1,169 @@
 @import './LandingUpdatesEntry.css';
 
-.landing-title-n-origin {
+/*
+ * The guide arrow is now a sibling of the NewTone title instead of a child of
+ * landing-title-breath. It receives only the back-layer parallax and therefore
+ * cannot inherit title hover scale, title breathing, blur, or opacity changes.
+ */
+.landing-guide-anchor {
+  position: absolute;
   left: 0;
-  bottom: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  z-index: 2;
+  pointer-events: none;
+  transform: translate3d(
+    var(--scene-parallax-back-x, 0px),
+    calc(-50% + var(--scene-parallax-back-y, 0px)),
+    0
+  );
 }
 
-/* Match the Reader target arrow's rendered 32×22 footprint. Keep the same
-   anchor center as the older guide so the established parallax still feels
-   attached to the N rather than jumping when the entry choices appear. */
-.landing-guide-arrow {
-  --landing-guide-angle: 0deg;
+.landing-guide-entry-arrow {
+  position: absolute;
   left: -47px;
   top: -11px;
+}
+
+/* ===== Shared Landing entry arrow vocabulary ===== */
+
+.landing-entry-arrow {
+  display: block;
   width: 32px;
   height: 22px;
   overflow: visible;
-  transform: translate3d(
-    calc(var(--scene-parallax-back-x, 0px) - var(--scene-parallax-front-x, 0px)),
-    calc(var(--scene-parallax-back-y, 0px) - var(--scene-parallax-front-y, 0px)),
-    0
-  );
-  will-change: transform;
+  fill: none;
+  color: var(--ink-medium);
+  pointer-events: none;
 }
 
-/* One persistent arrow, one explicit angle. */
-.landing-guide-arrow--turned {
-  --landing-guide-angle: 180deg;
+.landing-entry-arrow--hidden {
+  display: none;
 }
 
-.landing-guide-arrow--turned.landing-guide-arrow--updates-active {
-  --landing-guide-angle: 90deg;
-}
-
-/* Rotate the SVG vectors in their own coordinate system instead of promoting
-   the inner group to a rasterized transform layer. This keeps the stroke crisp
-   during 90° ↔ 180° rotation and avoids the faux fade/blur impression. */
-.landing-guide-arrow__turn {
+/* One SVG, one rotator. Direction changes never replace the arrow DOM. */
+.landing-entry-arrow__rotator {
   transform-box: view-box;
   transform-origin: 50% 50%;
-  transform: rotate(var(--landing-guide-angle));
-  opacity: 1 !important;
-  transition: transform 760ms cubic-bezier(.2,.8,.2,1);
+  transform: rotate(0deg);
+  transition: transform 620ms cubic-bezier(.2,.8,.2,1);
 }
 
-/* Re-shape the old compact guide into the same proportions as the lower
-   reading arrow. Base orientation is right; 180deg = left, 90deg = down. */
-.landing-guide-arrow__strokes .landing-guide-arrow__curve,
-.landing-guide-arrow__eraser .landing-guide-arrow__curve {
-  d: path('M8 24L33 24');
+.landing-entry-arrow--down .landing-entry-arrow__rotator {
+  transform: rotate(0deg);
 }
 
-.landing-guide-arrow__strokes .landing-guide-arrow__head,
-.landing-guide-arrow__eraser .landing-guide-arrow__head {
-  d: path('M33 24L26 17M33 24L26 31');
+.landing-entry-arrow--left .landing-entry-arrow__rotator {
+  transform: rotate(90deg);
 }
 
-.landing-guide-arrow__strokes {
-  opacity: .72 !important;
-  filter: none !important;
+.landing-entry-arrow--right .landing-entry-arrow__rotator {
+  transform: rotate(-90deg);
+}
+
+.landing-entry-arrow__ink {
+  opacity: .74;
   stroke: var(--ink-medium);
   stroke-width: 2.4;
   stroke-linecap: round;
   stroke-linejoin: round;
-  shape-rendering: geometricPrecision;
+  filter: none;
+  transform: translateY(0);
+  transform-origin: center;
 }
 
-.landing-guide-arrow__strokes path,
-.landing-guide-arrow__eraser path {
+.landing-entry-arrow__shaft,
+.landing-entry-arrow__head {
   vector-effect: non-scaling-stroke;
-  stroke-dasharray: 1;
+}
+
+/* Guide appearance: draw the same arrow in place. No scale bloom, wash or blur. */
+.landing-guide-entry-arrow .landing-entry-arrow__shaft,
+.landing-guide-entry-arrow .landing-entry-arrow__head {
+  stroke-dasharray: 1 1;
   stroke-dashoffset: 1;
 }
 
-.landing-guide-arrow--visible .landing-guide-arrow__curve {
-  animation: landing-guide-pencil-curve 300ms cubic-bezier(.24,.72,.28,1) forwards;
+.landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__shaft {
+  animation: landing-entry-guide-shaft-in 300ms cubic-bezier(.24,.72,.28,1) forwards;
 }
 
-.landing-guide-arrow--visible .landing-guide-arrow__head {
-  animation: landing-guide-pencil-head 120ms ease-out 230ms forwards;
+.landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__head {
+  animation: landing-entry-guide-head-in 140ms ease-out 220ms forwards;
 }
 
-/* Updates uses the same normalized offset contract as Reader. */
-.landing-guide-arrow__ring {
+.landing-guide-entry-arrow.landing-entry-arrow--retracting .landing-entry-arrow__shaft,
+.landing-guide-entry-arrow.landing-entry-arrow--retracting .landing-entry-arrow__head {
+  stroke-dashoffset: 0;
+  animation: landing-entry-guide-out 320ms ease-in forwards;
+}
+
+@keyframes landing-entry-guide-shaft-in {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes landing-entry-guide-head-in {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes landing-entry-guide-out {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 1; }
+}
+
+/* ===== Selection ring ===== */
+
+.landing-entry-ring {
   fill: none;
-  stroke: var(--ink-medium);
+  stroke: currentColor;
   stroke-width: 2.1;
   stroke-linecap: butt;
   stroke-linejoin: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  opacity: .8;
+  stroke-dasharray:
+    var(--landing-entry-ring-length, 220)
+    var(--landing-entry-ring-length, 220);
+  stroke-dashoffset: var(--landing-entry-ring-length, 220);
+  opacity: .82;
   vector-effect: non-scaling-stroke;
   transform-box: fill-box;
   transform-origin: center;
-  transform: scale(.88, 1.48);
+  transform: scale(1.32);
   transition: stroke-dashoffset 900ms cubic-bezier(.24,.72,.28,1);
 }
 
-.landing-guide-arrow--ring-active .landing-guide-arrow__ring {
+.landing-entry-arrow.is-ring-active .landing-entry-ring {
   stroke-dashoffset: 0;
 }
 
-/* Bob only after the directional rotation has finished. It stops immediately
-   when Updates loses focus, so the return rotation is a single clean transform
-   instead of a rotation composed with a moving child layer. */
-.landing-guide-arrow--updates-active.landing-guide-arrow--ring-active .landing-guide-arrow__strokes {
-  animation: landing-updates-arrow-bob 1700ms ease-in-out 760ms infinite;
+/* Bob is always on an inner child, never on the rotator. Rotation therefore
+   cannot pick up scale or blur from the breathing motion. */
+.landing-guide-entry-arrow.has-delayed-bob .landing-entry-arrow__ink {
+  animation: landing-entry-arrow-bob 1700ms ease-in-out 620ms infinite;
 }
 
-@keyframes landing-updates-arrow-bob {
+.reader-entry-arrow.has-delayed-bob .landing-entry-arrow__ink {
+  animation: landing-entry-arrow-bob 1700ms ease-in-out infinite;
+}
+
+@keyframes landing-entry-arrow-bob {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(2px); }
 }
 
-.landing-guide-arrow__eraser {
+/* Reader arrow appears only when the prompt has actually finished revealing. */
+.reader-entry-arrow.is-arrow-delayed .landing-entry-arrow__ink {
   opacity: 0;
-  fill: none;
-  stroke: var(--reader-paper, var(--paper-base, #f0ebe2));
-  stroke-width: 4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  pointer-events: none;
 }
 
-.landing-guide-arrow--retracting .landing-guide-arrow__strokes {
-  opacity: .72 !important;
-  filter: none !important;
-  animation: none;
+.reader-entry-arrow:not(.is-arrow-delayed) .landing-entry-arrow__ink {
+  opacity: .74;
+  transition: opacity 280ms ease-out;
 }
 
-.landing-guide-arrow--retracting .landing-guide-arrow__strokes path {
-  stroke-dashoffset: 0;
-  animation: none;
-}
-
-.landing-guide-arrow--retracting .landing-guide-arrow__eraser {
-  opacity: 1;
-}
-
-.landing-guide-arrow--retracting .landing-guide-arrow__eraser .landing-guide-arrow__curve {
-  animation: landing-guide-erase-curve 210ms cubic-bezier(.42,0,.72,.35) forwards;
-}
-
-.landing-guide-arrow--retracting .landing-guide-arrow__eraser .landing-guide-arrow__head {
-  animation: landing-guide-erase-head 90ms ease-in 165ms forwards;
-}
-
-/* Reader return status completes its second blink, then actually fades away
-   before the NewTone retrace starts. */
+/* Reader return status remains unchanged. */
 .landing-return-status--fading .landing-return-status__text {
   animation: landing-return-status-fade 260ms ease-out forwards !important;
 }
@@ -157,56 +173,27 @@
   to { opacity: 0; }
 }
 
-@keyframes landing-guide-pencil-curve {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
-}
-
-@keyframes landing-guide-pencil-head {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
-}
-
-@keyframes landing-guide-erase-curve {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
-}
-
-@keyframes landing-guide-erase-head {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .landing-guide-arrow__turn,
-  .landing-guide-arrow__ring {
+  .landing-entry-arrow__rotator,
+  .landing-entry-ring,
+  .landing-entry-arrow__ink {
     transition: none !important;
+    animation: none !important;
   }
 
-  .landing-guide-arrow--ring-active .landing-guide-arrow__ring {
-    stroke-dashoffset: 0 !important;
-  }
-
-  .landing-guide-arrow--visible .landing-guide-arrow__strokes path {
+  .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__shaft,
+  .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__head {
     animation: none !important;
     stroke-dashoffset: 0 !important;
   }
 
-  .landing-guide-arrow--updates-active.landing-guide-arrow--ring-active .landing-guide-arrow__strokes {
-    animation: none !important;
+  .landing-entry-arrow.is-ring-active .landing-entry-ring {
+    stroke-dashoffset: 0 !important;
+  }
+
+  .reader-entry-arrow .landing-entry-arrow__ink {
+    opacity: .74 !important;
     transform: none !important;
-  }
-
-  .landing-guide-arrow__eraser {
-    display: none;
-  }
-
-  .landing-guide-arrow--visible .landing-guide-arrow__strokes {
-    stroke-width: 2.4 !important;
-  }
-
-  .landing-return-status__text {
-    opacity: .72 !important;
   }
 
   .landing-return-status--fading .landing-return-status__text {
@@ -215,31 +202,26 @@
   }
 }
 
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow__turn,
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow__ring {
+.page-shell[data-motion-mode="reduced"] .landing-entry-arrow__rotator,
+.page-shell[data-motion-mode="reduced"] .landing-entry-ring,
+.page-shell[data-motion-mode="reduced"] .landing-entry-arrow__ink {
   transition: none !important;
+  animation: none !important;
 }
 
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--ring-active .landing-guide-arrow__ring {
-  stroke-dashoffset: 0 !important;
-}
-
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__strokes path {
+.page-shell[data-motion-mode="reduced"] .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__shaft,
+.page-shell[data-motion-mode="reduced"] .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__head {
   animation: none !important;
   stroke-dashoffset: 0 !important;
 }
 
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--updates-active.landing-guide-arrow--ring-active .landing-guide-arrow__strokes {
-  animation: none !important;
+.page-shell[data-motion-mode="reduced"] .landing-entry-arrow.is-ring-active .landing-entry-ring {
+  stroke-dashoffset: 0 !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .reader-entry-arrow .landing-entry-arrow__ink {
+  opacity: .74 !important;
   transform: none !important;
-}
-
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow__eraser {
-  display: none !important;
-}
-
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__strokes {
-  stroke-width: 2.4 !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-return-status--fading .landing-return-status__text {
