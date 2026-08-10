@@ -9,6 +9,7 @@
    anchor center as the older guide so the established parallax still feels
    attached to the N rather than jumping when the entry choices appear. */
 .landing-guide-arrow {
+  --landing-guide-angle: 0deg;
   left: -47px;
   top: -11px;
   width: 32px;
@@ -22,19 +23,22 @@
   will-change: transform;
 }
 
+/* One persistent arrow, one explicit angle. The same DOM rotates right → left,
+   left → down, and down → left; it is never visually replaced by another arrow. */
+.landing-guide-arrow--turned {
+  --landing-guide-angle: 180deg;
+}
+
+.landing-guide-arrow--turned.landing-guide-arrow--updates-active {
+  --landing-guide-angle: 90deg;
+}
+
 .landing-guide-arrow__turn {
   transform-box: fill-box;
   transform-origin: center;
-  transform: rotate(0deg);
-  transition: transform 260ms cubic-bezier(.2,.8,.2,1);
-}
-
-.landing-guide-arrow--turned .landing-guide-arrow__turn {
-  transform: rotate(180deg);
-}
-
-.landing-guide-arrow--updates-active .landing-guide-arrow__turn {
-  transform: rotate(90deg);
+  transform: rotate(var(--landing-guide-angle));
+  opacity: 1;
+  transition: transform 520ms cubic-bezier(.2,.8,.2,1);
 }
 
 /* Re-shape the old compact guide into the same proportions as the lower
@@ -74,9 +78,7 @@
   animation: landing-guide-pencil-head 120ms ease-out 230ms forwards;
 }
 
-/* Same selected-target footprint as the lower Reader ring. The non-uniform
-   scale compensates only for this SVG's square coordinate system; on screen
-   both rings occupy the same visual area around the same-size arrow. */
+/* Same selected-target footprint as the lower Reader ring. */
 .landing-guide-arrow__ring {
   fill: none;
   stroke: var(--ink-medium);
@@ -90,7 +92,7 @@
   transform-box: fill-box;
   transform-origin: center;
   transform: scale(.88, 1.48);
-  transition: stroke-dashoffset 720ms cubic-bezier(.24,.72,.28,1);
+  transition: stroke-dashoffset 900ms cubic-bezier(.24,.72,.28,1);
 }
 
 .landing-guide-arrow--ring-active .landing-guide-arrow__ring {
@@ -98,10 +100,9 @@
 }
 
 /* When Updates owns the downward gesture, the arrow settles into the same
-   restrained vertical breathing used by the Reader arrow. The ring itself
-   stays still so the selected target remains visually anchored. */
+   restrained vertical breathing used by the Reader arrow. The ring stays still. */
 .landing-guide-arrow--updates-active.landing-guide-arrow--ring-active .landing-guide-arrow__strokes {
-  animation: landing-updates-arrow-bob 1700ms ease-in-out 260ms infinite;
+  animation: landing-updates-arrow-bob 1700ms ease-in-out 520ms infinite;
 }
 
 @keyframes landing-updates-arrow-bob {
