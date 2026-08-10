@@ -40,6 +40,19 @@
   cursor: pointer;
 }
 
+/* Both entry targets now use the same single-stroke arrow vocabulary. */
+.entry-arrow .sketch-down-shaft-faint {
+  display: none;
+}
+
+.entry-arrow .sketch-down-shaft,
+.entry-arrow .sketch-down-head {
+  vector-effect: non-scaling-stroke;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 /* Let the enlarged hand-drawn ring extend beyond the compact arrow viewport.
    Without this the top and bottom are clipped and the ring reads as parentheses. */
 .entry-arrow {
@@ -55,6 +68,7 @@
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   opacity: .8;
+  vector-effect: non-scaling-stroke;
   transform-box: fill-box;
   transform-origin: center;
   transform: scale(1.32);
