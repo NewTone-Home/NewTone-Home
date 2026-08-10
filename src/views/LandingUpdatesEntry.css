@@ -43,12 +43,15 @@
 .entry-arrow .landing-entry-ring {
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.35;
+  stroke-width: 2.15;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  opacity: .66;
+  opacity: .8;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(1.36);
   transition: stroke-dashoffset 230ms cubic-bezier(.24,.72,.28,1);
 }
 
