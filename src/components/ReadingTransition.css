@@ -398,8 +398,8 @@
 .lang-hover-bridge {
   position: absolute;
   top: 50%;
-  left: 100%;
-  width: 126px;
+  left: calc(50% + 48px);
+  width: 96px;
   height: 56px;
   transform: translateY(-50%);
   pointer-events: auto;
@@ -408,10 +408,10 @@
 .lang-expand-layer {
   position: absolute;
   top: 50%;
-  left: calc(100% + 74px);
+  left: calc(50% + 80px);
   pointer-events: none;
   opacity: 0;
-  translate: -22px -50%;
+  translate: -12px -50%;
   transition: opacity 360ms ease, translate 520ms cubic-bezier(.2,.8,.2,1);
 }
 
@@ -419,6 +419,7 @@
   opacity: 1;
   pointer-events: auto;
   translate: 0 -50%;
+  transition-delay: 1200ms;
 }
 
 .lang-item {
@@ -463,13 +464,13 @@
 [data-selector-stage='language'] .lang-secondary-zone:hover .language-expand-affordance__ring,
 [data-selector-stage='language'] .lang-secondary-zone:focus-within .language-expand-affordance__ring {
   opacity: .8;
-  animation: language-current-ring-draw 620ms cubic-bezier(.24,.72,.28,1) forwards;
+  animation: language-current-ring-draw 1500ms cubic-bezier(.2,.68,.24,1) forwards;
 }
 
 [data-selector-stage='language'] .lang-secondary-zone:hover .language-expand-affordance__note,
 [data-selector-stage='language'] .lang-secondary-zone:focus-within .language-expand-affordance__note {
   opacity: .72;
-  animation: language-note-arrow-draw 520ms cubic-bezier(.2,.8,.2,1) 500ms forwards;
+  animation: language-note-arrow-draw 720ms cubic-bezier(.2,.8,.2,1) 1100ms forwards;
 }
 
 @keyframes language-current-ring-draw {

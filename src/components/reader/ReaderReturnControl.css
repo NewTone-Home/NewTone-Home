@@ -13,9 +13,9 @@
 .reader-return-affordance {
   position: absolute;
   top: 50%;
-  left: calc(100% + 10px);
-  width: 46px;
-  height: 46px;
+  left: calc(100% + 4px);
+  width: 32px;
+  height: 32px;
   overflow: visible;
   fill: none;
   pointer-events: none;
@@ -38,6 +38,7 @@
 
 .reader-return-affordance__arrow {
   opacity: 0;
+  transition: opacity 320ms ease;
 }
 
 .reader-return-control[data-return-ready="true"] .reader-return-affordance__arrow {
@@ -89,5 +90,6 @@
 @media (prefers-reduced-motion: reduce) {
   .reader-return-affordance__arrow {
     animation: none !important;
+    transition: none !important;
   }
 }

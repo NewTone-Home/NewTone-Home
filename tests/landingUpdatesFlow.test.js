@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   advanceUpdatesPhase,
-  resolveTouchReturnAction,
+  resolveTouchReturnSwipe,
   UPDATES_PHASE,
 } from '../src/landing/landingUpdatesFlow'
 
@@ -27,12 +27,16 @@ describe('Landing updates flow', () => {
     phase = advanceUpdatesPhase(phase, 'labels-complete')
     expect(phase).toBe(UPDATES_PHASE.RETURN_ARROWS)
     phase = advanceUpdatesPhase(phase, 'arrows-complete')
+    expect(phase).toBe(UPDATES_PHASE.RETURN_ARROW_TURN)
+    phase = advanceUpdatesPhase(phase, 'turns-complete')
     expect(phase).toBe(UPDATES_PHASE.LANDING)
   })
 
-  it('requires the mobile return entrance to arm before a ready second tap', () => {
-    expect(resolveTouchReturnAction({ armed: false, ready: false })).toBe('arm')
-    expect(resolveTouchReturnAction({ armed: true, ready: false })).toBe('wait')
-    expect(resolveTouchReturnAction({ armed: true, ready: true })).toBe('return')
+  it('requires a fresh upward touch gesture after the mobile return is armed and ready', () => {
+    expect(resolveTouchReturnSwipe({ armed: false, ready: true, pointerType: 'touch', startY: 500, endY: 440 })).toBe(false)
+    expect(resolveTouchReturnSwipe({ armed: true, ready: false, pointerType: 'touch', startY: 500, endY: 440 })).toBe(false)
+    expect(resolveTouchReturnSwipe({ armed: true, ready: true, pointerType: 'touch', startY: 500, endY: 475 })).toBe(false)
+    expect(resolveTouchReturnSwipe({ armed: true, ready: true, pointerType: 'touch', startY: 500, endY: 440 })).toBe(true)
+    expect(resolveTouchReturnSwipe({ armed: true, ready: true, pointerType: 'touch', startY: 440, endY: 500 })).toBe(false)
   })
 })

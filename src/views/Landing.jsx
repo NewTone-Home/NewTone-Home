@@ -389,12 +389,16 @@ function Landing({
   const titleTouched = phase !== TITLE_PHASE.IDLE
   const updatesSelected = entryPromptsActive && entryTarget === 'updates'
   const arrowsRetracting = updatesPhase === UPDATES_PHASE.ENTER_ARROWS
-  const arrowsReturning = updatesPhase === UPDATES_PHASE.RETURN_ARROWS
+  const arrowsEmerging = updatesPhase === UPDATES_PHASE.RETURN_ARROWS
+  const arrowsTurning = updatesPhase === UPDATES_PHASE.RETURN_ARROW_TURN
+  const arrowsReturning = arrowsEmerging || arrowsTurning
   const arrowsHidden = updatesFlowActive && !arrowsRetracting && !arrowsReturning
   const guideDirection = arrowsRetracting
     ? 'left'
-    : arrowsReturning
-      ? 'down'
+    : arrowsEmerging
+      ? 'left'
+      : arrowsTurning
+        ? 'down'
       : entryPromptsActive
     ? (updatesSelected ? 'down' : 'left')
     : 'right'
@@ -421,6 +425,16 @@ function Landing({
     }
   }, [onUpdatesBarrier])
 
+  const handleUpdatesTransitionEnd = useCallback((event) => {
+    if (
+      updatesPhase !== UPDATES_PHASE.RETURN_ARROW_TURN
+      || event.propertyName !== 'transform'
+      || !event.target.classList.contains('landing-entry-arrow__rotator')
+    ) return
+    const key = event.target.closest('.landing-guide-entry-arrow') ? 'updates' : 'reader'
+    onUpdatesBarrier?.('turns', key)
+  }, [onUpdatesBarrier, updatesPhase])
+
   return (
     <div
       ref={landingRef}
@@ -434,6 +448,7 @@ function Landing({
       data-entry-target={entryTarget}
       data-updates-phase={updatesPhase}
       onAnimationEnd={handleUpdatesAnimationEnd}
+      onTransitionEnd={handleUpdatesTransitionEnd}
     >
       {landingScene === LANDING_SCENES.JIJIA_COMPOUND && <LandingJijiaScene awake={titleTouched} />}
 
@@ -513,7 +528,7 @@ function Landing({
                 </p>
                 <LandingEntryArrow
                   className="reader-entry-arrow"
-                  direction={arrowsRetracting ? 'left' : 'down'}
+                  direction={arrowsRetracting || arrowsEmerging ? 'left' : 'down'}
                   phase={arrowsHidden ? 'hidden' : 'steady'}
                   ringActive={!updatesFlowActive && readerRingActive}
                   ringRef={readerRingRef}

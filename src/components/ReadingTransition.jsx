@@ -474,7 +474,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   })
 
   const expanded = langExpandHover || langExpandToggled
-  const languageLabelShown = !modeStage
+  const languageLabelShown = !modeStage && (expanded || languageLabelPinned)
 
   useLayoutEffect(() => {
     const nodes = [
@@ -670,7 +670,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   }, [currentStage.id])
 
   useEffect(() => {
-    if (!armedOption || readyOption !== armedOption || locked) return undefined
+    if (!armedOption || locked) return undefined
     let gesture = null
 
     const clearGesture = event => {
@@ -710,7 +710,13 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
       window.removeEventListener('pointerup', clearGesture, { capture: true })
       window.removeEventListener('pointercancel', clearGesture, { capture: true })
     }
-  }, [armedOption, locked, modeStage, performResolvedAction, phase, readyOption])
+  }, [armedOption, locked, modeStage, performResolvedAction, phase])
+
+  const armHoverOption = useCallback((event, selectorOption) => {
+    if (event.pointerType !== 'mouse' || locked) return
+    if (armedOption !== selectorOption) setReadyOption(null)
+    setArmedOption(selectorOption)
+  }, [armedOption, locked])
 
   const handleAffordanceAnimationEnd = useCallback((event, selectorOption) => {
     if (event.animationName !== 'ritual-entry-ring-draw') return
@@ -797,7 +803,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     }, 450)
   }, [language, scheduleTransient, setLanguage, languageSlots])
 
-  const alternateLanguage = languageSlots[0]
+  const alternateLanguage = languageSlots.find(code => code !== language)
+    ?? READER_LANGUAGES.find(item => item.code !== language)?.code
 
   return (
     <div
@@ -824,7 +831,10 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 data-ritual-ready={readyOption === 'primary' ? 'true' : 'false'}
                 data-hold-phase={primaryHold.holdPhase}
                 data-hold-progress={primaryHold.progress.toFixed(3)}
-                onPointerEnter={primaryHold.trackPointer}
+                onPointerEnter={event => {
+                  primaryHold.trackPointer(event)
+                  armHoverOption(event, 'primary')
+                }}
                 onPointerMove={primaryHold.trackPointer}
                 onPointerDown={primaryHold.trackPointer}
                 onPointerLeave={primaryHold.retract}
@@ -859,7 +869,10 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                   data-hold-phase={secondaryPhase}
                   data-hold-progress={secondaryProgress.toFixed(3)}
                   onClick={modeStage ? undefined : handleLanguageExpandClick}
-                  onPointerEnter={modeStage ? modeSecondaryHold.trackPointer : undefined}
+                  onPointerEnter={modeStage ? event => {
+                    modeSecondaryHold.trackPointer(event)
+                    armHoverOption(event, 'secondary')
+                  } : undefined}
                   onPointerMove={modeStage ? modeSecondaryHold.trackPointer : handleLanguageSecondaryPointer}
                   onPointerDown={modeStage ? modeSecondaryHold.trackPointer : handleLanguageSecondaryPointer}
                   onPointerLeave={modeStage ? modeSecondaryHold.retract : undefined}

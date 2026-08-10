@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { getReaderUi } from '../../i18n/readerUi'
 import './ReaderReturnControl.css'
 
-const RETURN_RING_DRAW_MS = 560
-const RETURN_RING_RETRACT_MS = 320
+const RETURN_RING_DRAW_MS = 1700
+const RETURN_RING_RETRACT_MS = 900
 const RETURN_WHEEL_THRESHOLD = 8
 const RETURN_DIRECT_THRESHOLD = 36
 
@@ -22,6 +22,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
   const returnHint = ui.returnToLandingHint || ui.backToLanding || fallbackUi.returnToLandingHint
   const [progress, setProgress] = useState(0)
   const [completing, setCompleting] = useState(false)
+  const [arrowFadeComplete, setArrowFadeComplete] = useState(true)
   const progressRef = useRef(0)
   const completedRef = useRef(false)
   const pendingCompleteRef = useRef(false)
@@ -33,6 +34,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
 
   useEffect(() => {
     cancelAnimationFrame(frameRef.current)
+    if (!visualArmed && pendingCompleteRef.current && !arrowFadeComplete) return undefined
     const from = progressRef.current
     const target = visualArmed ? 1 : 0
     const distance = Math.abs(target - from)
@@ -58,9 +60,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
 
     const animate = time => {
       const raw = Math.min(1, (time - startedAt) / duration)
-      const eased = visualArmed
-        ? 1 - Math.pow(1 - raw, 3)
-        : raw * raw * (3 - 2 * raw)
+      const eased = raw * raw * (3 - 2 * raw)
       const next = from + (target - from) * eased
       progressRef.current = next
       setProgress(next)
@@ -73,7 +73,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
 
     frameRef.current = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(frameRef.current)
-  }, [visualArmed])
+  }, [arrowFadeComplete, visualArmed])
 
   useEffect(() => () => cancelAnimationFrame(frameRef.current), [])
 
@@ -88,7 +88,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
   }, [completing, entryReady, onReadyChange])
 
   useEffect(() => {
-    if (!entryReady) return undefined
+    if (!visualArmed) return undefined
     completedRef.current = false
     let directGesture = null
 
@@ -96,6 +96,8 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       if (completedRef.current) return
       completedRef.current = true
       pendingCompleteRef.current = true
+      const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+      setArrowFadeComplete(!entryReady || reduced)
       setCompleting(true)
     }
 
@@ -135,7 +137,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       window.removeEventListener('pointerup', clearDirectGesture)
       window.removeEventListener('pointercancel', clearDirectGesture)
     }
-  }, [entryReady])
+  }, [entryReady, visualArmed])
 
   const affordanceVisible = visualArmed || progress > 0.001
 
@@ -163,6 +165,13 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       }}
       aria-label={returnHint}
       aria-pressed={visualArmed}
+      onTransitionEnd={event => {
+        if (
+          completing
+          && event.propertyName === 'opacity'
+          && event.target.classList.contains('reader-return-affordance__arrow')
+        ) setArrowFadeComplete(true)
+      }}
     >
       <span className="reader-return-text">{returnLabel}</span>
       <svg className="reader-return-affordance" viewBox="0 0 80 80" aria-hidden="true">

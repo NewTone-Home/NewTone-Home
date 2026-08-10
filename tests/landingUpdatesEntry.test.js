@@ -15,6 +15,7 @@ describe('Landing updates entry', () => {
     expect(guideCss).toContain('transform-box: view-box')
     expect(guideCss).toContain('transform: rotate(90deg)')
     expect(guideCss).toContain('transform: rotate(-90deg)')
+    expect(guideCss).toContain('transition: transform 820ms')
   })
 
   it('pre-mounts the reader ring and maps its real path offset to the title sweep', () => {
@@ -23,8 +24,20 @@ describe('Landing updates entry', () => {
     expect(landing).toContain("ring.style.strokeDashoffset = '0'")
     expect(landing).not.toContain('READER_RING_DRAW_CAP')
     expect(landing).not.toContain('TITLE_FINISHING_PASS_MS')
+    expect(guideCss).toContain('transition-duration: 1700ms')
+    expect(guideCss).toContain('transition: stroke-dashoffset 900ms')
+    expect(guideCss).toContain('transform: scale(1.12)')
     expect(updatesCss).toContain('.landing-entry-group--timed {\n  opacity: 0')
     expect(updatesCss).toContain('.landing-direction-prompts--revealed .landing-entry-group--timed')
+  })
+
+  it('returns arrows left from their labels before a separate slow turn down', () => {
+    expect(landing).toContain('const arrowsEmerging = updatesPhase === UPDATES_PHASE.RETURN_ARROWS')
+    expect(landing).toContain('const arrowsTurning = updatesPhase === UPDATES_PHASE.RETURN_ARROW_TURN')
+    expect(landing).toContain("arrowsEmerging\n      ? 'left'")
+    expect(landing).toContain("onUpdatesBarrier?.('turns', key)")
+    expect(guideCss).toContain('landing-updates-arrow-return 920ms')
+    expect(guideCss).toContain('[data-updates-phase="return-arrow-turn"] .landing-entry-arrow__rotator')
   })
 
   it('reveals both labels together and routes the next downward input by target', () => {

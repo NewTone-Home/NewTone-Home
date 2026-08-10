@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import LandingEntryArrow from './landing/LandingEntryArrow'
-import { resolveTouchReturnAction, UPDATES_PHASE } from '../landing/landingUpdatesFlow'
+import { resolveTouchReturnSwipe, UPDATES_PHASE } from '../landing/landingUpdatesFlow'
 import './LandingUpdatesPage.css'
 
 function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
   const [returnArmed, setReturnArmed] = useState(false)
   const [returnReady, setReturnReady] = useState(false)
-  const touchTapRef = useRef(0)
+  const touchGestureRef = useRef(null)
 
   const visible = phase !== UPDATES_PHASE.LANDING
   const interactive = phase === UPDATES_PHASE.UPDATES
@@ -15,7 +15,7 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
     if (!interactive) {
       setReturnArmed(false)
       setReturnReady(false)
-      touchTapRef.current = 0
+      touchGestureRef.current = null
     }
   }, [interactive])
 
@@ -28,6 +28,48 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
     return () => window.removeEventListener('wheel', onWheel)
   }, [interactive, onReturnRequested, returnReady])
 
+  useEffect(() => {
+    if (!interactive || !returnReady) return undefined
+
+    const onPointerDown = event => {
+      if (!['touch', 'pen'].includes(event.pointerType)) return
+      touchGestureRef.current = {
+        pointerId: event.pointerId,
+        pointerType: event.pointerType,
+        startY: event.clientY,
+      }
+    }
+    const onPointerMove = event => {
+      const gesture = touchGestureRef.current
+      if (!gesture || gesture.pointerId !== event.pointerId) return
+      const shouldReturn = resolveTouchReturnSwipe({
+        armed: returnArmed,
+        ready: returnReady,
+        pointerType: gesture.pointerType,
+        startY: gesture.startY,
+        endY: event.clientY,
+      })
+      if (!shouldReturn) return
+      touchGestureRef.current = null
+      if (event.cancelable) event.preventDefault()
+      onReturnRequested()
+    }
+    const clearGesture = event => {
+      if (touchGestureRef.current?.pointerId === event.pointerId) touchGestureRef.current = null
+    }
+
+    window.addEventListener('pointerdown', onPointerDown, { passive: true })
+    window.addEventListener('pointermove', onPointerMove, { passive: false })
+    window.addEventListener('pointerup', clearGesture, { passive: true })
+    window.addEventListener('pointercancel', clearGesture, { passive: true })
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', clearGesture)
+      window.removeEventListener('pointercancel', clearGesture)
+    }
+  }, [interactive, onReturnRequested, returnArmed, returnReady])
+
   const handlePointerMove = useCallback((event) => {
     if (!interactive || event.pointerType === 'touch') return
     if (event.clientY <= 24) setReturnArmed(true)
@@ -35,14 +77,8 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
 
   const handleTouchReturn = useCallback((event) => {
     if (event.pointerType !== 'touch' || !interactive) return
-    const action = resolveTouchReturnAction({ armed: returnArmed, ready: returnReady })
-    if (action === 'arm') {
-      touchTapRef.current = 1
-      setReturnArmed(true)
-      return
-    }
-    if (touchTapRef.current === 1 && action === 'return') onReturnRequested()
-  }, [interactive, onReturnRequested, returnArmed, returnReady])
+    if (!returnArmed) setReturnArmed(true)
+  }, [interactive, returnArmed])
 
   const handleAnimationEnd = useCallback((event) => {
     if (event.animationName === 'updates-return-ring-draw') setReturnReady(true)
