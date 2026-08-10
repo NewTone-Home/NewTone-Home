@@ -5,6 +5,7 @@
   height: 100%;
   overflow: hidden;
   isolation: isolate;
+  background-color: var(--reader-paper, var(--paper-base));
 }
 
 .entry-surface > .landing {
@@ -20,4 +21,6 @@
   position: absolute;
   inset: 0;
   z-index: 2;
+  background-color: transparent;
+  background-image: none;
 }
