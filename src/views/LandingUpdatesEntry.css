@@ -12,9 +12,9 @@
   cursor: pointer;
 }
 
-/* Keep the container visible from the same frame that NewTone begins drawing.
-   ScrambleText owns its own 260ms delay, so the ring is never secretly drawing
-   behind an opacity:0 parent. */
+/* The group is present from the same frame NewTone begins drawing. ScrambleText
+   owns the text delay; the Reader ring is synchronized separately to NewTone's
+   live animation progress in Landing.jsx. */
 .landing-entry-group--timed {
   opacity: 1;
 }
@@ -27,93 +27,14 @@
   animation: prompt-breathe var(--pulse-duration) ease-in-out infinite;
 }
 
-/* Once the directional choices exist, freeze the title's hover scale. The guide
-   arrow lives inside landing-title-breath, so letting the title scale while the
-   arrow rotates makes the arrow look as if it grows/shrinks during the return. */
-.landing-title-stack.landing-direction-prompts--revealed .landing-title-breath {
-  --landing-title-hover-scale: 1;
-}
-
-/* The Landing now uses a single hand-drawn circle to show which downward
-   gesture target is armed. The old NewTone signature lines are visually retired. */
+/* The old signature lines are retired. Selection emphasis now belongs to the
+   shared entry-arrow ring. */
 .landing .newtone-hand-lines {
   display: none;
 }
 
 .down-entry-group {
   cursor: pointer;
-}
-
-/* Both entry targets use the same single-stroke arrow vocabulary. */
-.entry-arrow .sketch-down-shaft-faint {
-  display: none;
-}
-
-.entry-arrow .sketch-down-shaft,
-.entry-arrow .sketch-down-head {
-  vector-effect: non-scaling-stroke;
-  stroke-width: 2.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.entry-arrow {
-  overflow: visible;
-}
-
-/* The ring uses the same normalized stroke contract as NewTone's sweep.
-   pathLength=1 makes dashoffset 1 -> 0 a literal 0% -> 100% path reveal. */
-.entry-arrow .landing-entry-ring {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.1;
-  stroke-linecap: butt;
-  stroke-linejoin: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  opacity: .8;
-  vector-effect: non-scaling-stroke;
-  transform-box: fill-box;
-  transform-origin: center;
-  transform: scale(1.32);
-  transition: stroke-dashoffset 900ms cubic-bezier(.24,.72,.28,1);
-}
-
-/* Canonical NewTone draw duration is TITLE_DRAW_MS = 2000ms. Do not copy the
-   title's nonlinear keyframes here: the circle simply spends the full same
-   2000ms travelling uniformly from empty to complete, so it cannot visually
-   finish early around the W/T area. */
-.down-entry-group[data-entry-selected="true"] .entry-arrow:not(.is-ring-active) .landing-entry-ring {
-  animation: landing-reader-ring-follow-newtone 2000ms linear both;
-}
-
-.entry-arrow.is-ring-active .landing-entry-ring {
-  stroke-dashoffset: 0;
-}
-
-@keyframes landing-reader-ring-follow-newtone {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
-}
-
-/* The reading arrow itself arrives only after the 260ms prompt delay plus the
-   1900ms scramble. It then stays inside the already-drawn circle and breathes
-   vertically with a very small amplitude. */
-.landing-entry-group--timed .entry-arrow--down .sketch-down-breathe {
-  opacity: 0;
-  animation:
-    landing-reader-arrow-fade 280ms ease-out 2160ms forwards,
-    landing-reader-arrow-bob 1700ms ease-in-out 2440ms infinite;
-}
-
-@keyframes landing-reader-arrow-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes landing-reader-arrow-bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(2.2px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -125,25 +46,6 @@
     animation: none !important;
     opacity: .75 !important;
   }
-
-  .entry-arrow .landing-entry-ring {
-    transition: none !important;
-  }
-
-  .down-entry-group[data-entry-selected="true"] .entry-arrow:not(.is-ring-active) .landing-entry-ring {
-    animation: none !important;
-    stroke-dashoffset: 0 !important;
-  }
-
-  .entry-arrow.is-ring-active .landing-entry-ring {
-    stroke-dashoffset: 0 !important;
-  }
-
-  .landing-entry-group--timed .entry-arrow--down .sketch-down-breathe {
-    opacity: 1 !important;
-    transform: none !important;
-    animation: none !important;
-  }
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-entry-group--timed {
@@ -153,25 +55,6 @@
 .page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--updates {
   animation: none !important;
   opacity: .75 !important;
-}
-
-.page-shell[data-motion-mode="reduced"] .entry-arrow .landing-entry-ring {
-  transition: none !important;
-}
-
-.page-shell[data-motion-mode="reduced"] .down-entry-group[data-entry-selected="true"] .entry-arrow:not(.is-ring-active) .landing-entry-ring {
-  animation: none !important;
-  stroke-dashoffset: 0 !important;
-}
-
-.page-shell[data-motion-mode="reduced"] .entry-arrow.is-ring-active .landing-entry-ring {
-  stroke-dashoffset: 0 !important;
-}
-
-.page-shell[data-motion-mode="reduced"] .landing-entry-group--timed .entry-arrow--down .sketch-down-breathe {
-  opacity: 1 !important;
-  transform: none !important;
-  animation: none !important;
 }
 
 @media (max-width: 768px) {
