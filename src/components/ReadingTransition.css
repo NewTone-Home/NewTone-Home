@@ -379,6 +379,7 @@
 }
 
 .lang-current-label {
+  position: relative;
   transition: opacity 350ms ease;
 }
 
@@ -396,43 +397,33 @@
 
 .lang-hover-bridge {
   position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 168px;
-  height: 24px;
+  top: 50%;
+  left: 100%;
+  width: 126px;
+  height: 56px;
+  transform: translateY(-50%);
   pointer-events: auto;
 }
 
 .lang-expand-layer {
   position: absolute;
-  top: calc(100% + 24px);
-  left: 50%;
-  transform: translateX(-50%);
+  top: 50%;
+  left: calc(100% + 74px);
   pointer-events: none;
   opacity: 0;
-  transition: opacity 400ms ease;
+  translate: -22px -50%;
+  transition: opacity 360ms ease, translate 520ms cubic-bezier(.2,.8,.2,1);
 }
 
 .lang-expand-layer--visible {
   opacity: 1;
   pointer-events: auto;
-}
-
-.lang-array {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.lang-row {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
+  translate: 0 -50%;
 }
 
 .lang-item {
+  border: 0;
+  background: transparent;
   color: var(--rt-muted);
   font-size: var(--font-size-xs);
   letter-spacing: 1px;
@@ -443,6 +434,52 @@
   white-space: nowrap;
   word-break: keep-all;
   writing-mode: horizontal-tb;
+}
+
+.language-expand-affordance {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 150px;
+  height: 64px;
+  overflow: visible;
+  fill: none;
+  color: var(--rt-ink);
+  pointer-events: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.25;
+  transform: translate(-35px, -50%);
+}
+
+.language-expand-affordance__ring,
+.language-expand-affordance__note {
+  opacity: 0;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+}
+
+[data-selector-stage='language'] .lang-secondary-zone:hover .language-expand-affordance__ring,
+[data-selector-stage='language'] .lang-secondary-zone:focus-within .language-expand-affordance__ring {
+  opacity: .8;
+  animation: language-current-ring-draw 620ms cubic-bezier(.24,.72,.28,1) forwards;
+}
+
+[data-selector-stage='language'] .lang-secondary-zone:hover .language-expand-affordance__note,
+[data-selector-stage='language'] .lang-secondary-zone:focus-within .language-expand-affordance__note {
+  opacity: .72;
+  animation: language-note-arrow-draw 520ms cubic-bezier(.2,.8,.2,1) 500ms forwards;
+}
+
+@keyframes language-current-ring-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes language-note-arrow-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
 }
 
 .lang-item:hover {

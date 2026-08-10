@@ -73,29 +73,6 @@ function useScrambleText(text, { startDelay = 0, charInterval = 70, scrambleInte
   return { displayText, stable }
 }
 
-function ScrambleFlash({ text }) {
-  const [display, setDisplay] = useState(initialScramble(text.length))
-
-  useEffect(() => {
-    let mounted = true
-    let frame = 0
-    const interval = setInterval(() => {
-      if (!mounted) return
-      frame++
-      if (frame >= 8) {
-        clearInterval(interval)
-        setDisplay(text)
-        return
-      }
-      setDisplay(initialScramble(text.length))
-    }, 50)
-
-    return () => { mounted = false; clearInterval(interval) }
-  }, [text])
-
-  return <>{display}</>
-}
-
 const TRANSITION_ENVIRONMENT_COPY = Object.freeze({
   zh: {
     worldLayer: '世界层',
@@ -350,6 +327,15 @@ function RitualHandAffordance({ showArrow = true }) {
   )
 }
 
+function LanguageExpandAffordance() {
+  return (
+    <svg className="language-expand-affordance" viewBox="0 0 150 64" aria-hidden="true">
+      <path className="language-expand-affordance__ring" pathLength="1" d="M35 7C54 5 67 15 68 31C69 49 55 58 34 57C14 56 4 47 6 31C8 15 17 8 35 7" />
+      <path className="language-expand-affordance__note" pathLength="1" d="M67 32C81 30 94 31 108 31M101 25C104 27 107 29 110 31M101 37C104 35 107 33 110 31" />
+    </svg>
+  )
+}
+
 function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const setLanguage = useProgressStore(s => s.setLanguage)
   const lang = copy[language] || copy.zh
@@ -488,7 +474,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   })
 
   const expanded = langExpandHover || langExpandToggled
-  const languageLabelShown = !modeStage && (expanded || languageLabelPinned)
+  const languageLabelShown = !modeStage
 
   useLayoutEffect(() => {
     const nodes = [
@@ -811,8 +797,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     }, 450)
   }, [language, scheduleTransient, setLanguage, languageSlots])
 
-  const row1 = languageSlots.slice(0, 2)
-  const row2 = languageSlots.slice(2, 5)
+  const alternateLanguage = languageSlots[0]
 
   return (
     <div
@@ -905,45 +890,22 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                         scrambleActive={expanded && !languageLabelPinned}
                       />
                     </span>
-                    <RitualHandAffordance showArrow={modeStage} />
+                    {modeStage ? <RitualHandAffordance /> : <LanguageExpandAffordance />}
                   </span>
                 </button>
                 <div className="lang-hover-bridge" />
                 <div
                   className={`lang-expand-layer${expanded && fillDone ? ' lang-expand-layer--visible' : ''}`}
                 >
-                  <div className="lang-array">
-                    <div className="lang-row">
-                      {row1.map(lc => (
-                        <div
-                          key={lc}
-                          className={`lang-item${lc === scramblingLang ? ' lang-item--scrambling' : ''}`}
-                          onClick={() => handleLanguageChange(lc)}
-                        >
-                          {lc === scramblingLang ? (
-                            <ScrambleFlash text={getReaderLanguage(lc).label} />
-                          ) : (
-                            getReaderLanguage(lc).label
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="lang-row">
-                      {row2.map(lc => (
-                        <div
-                          key={lc}
-                          className={`lang-item${lc === scramblingLang ? ' lang-item--scrambling' : ''}`}
-                          onClick={() => handleLanguageChange(lc)}
-                        >
-                          {lc === scramblingLang ? (
-                            <ScrambleFlash text={getReaderLanguage(lc).label} />
-                          ) : (
-                            getReaderLanguage(lc).label
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  {alternateLanguage && (
+                    <button
+                      type="button"
+                      className={`lang-item${alternateLanguage === scramblingLang ? ' lang-item--scrambling' : ''}`}
+                      onClick={() => handleLanguageChange(alternateLanguage)}
+                    >
+                      {getReaderLanguage(alternateLanguage).label}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
