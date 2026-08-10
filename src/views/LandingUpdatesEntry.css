@@ -40,7 +40,7 @@
   cursor: pointer;
 }
 
-/* Both entry targets now use the same single-stroke arrow vocabulary. */
+/* Both entry targets use the same single-stroke arrow vocabulary. */
 .entry-arrow .sketch-down-shaft-faint {
   display: none;
 }
@@ -53,8 +53,7 @@
   stroke-linejoin: round;
 }
 
-/* Let the enlarged hand-drawn ring extend beyond the compact arrow viewport.
-   Without this the top and bottom are clipped and the ring reads as parentheses. */
+/* Let the enlarged hand-drawn ring extend beyond the compact arrow viewport. */
 .entry-arrow {
   overflow: visible;
 }
@@ -72,11 +71,44 @@
   transform-box: fill-box;
   transform-origin: center;
   transform: scale(1.32);
-  transition: stroke-dashoffset 230ms cubic-bezier(.24,.72,.28,1);
+  transition: stroke-dashoffset 720ms cubic-bezier(.24,.72,.28,1);
+}
+
+/* On the first reveal the circle begins while the prompt is still scrambling.
+   It is intentionally slower than the old 230ms switch so the hand-drawn path
+   is readable as an action instead of a flash. Once the prompt settles,
+   is-ring-active takes over and later target changes use the 720ms transition. */
+.down-entry-group[data-entry-selected="true"]:not(:has(.entry-arrow.is-ring-active)) .landing-entry-ring {
+  animation: landing-reader-ring-initial-draw 1100ms cubic-bezier(.24,.72,.28,1) 260ms forwards;
 }
 
 .entry-arrow.is-ring-active .landing-entry-ring {
   stroke-dashoffset: 0;
+}
+
+@keyframes landing-reader-ring-initial-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* The reading arrow itself arrives only after the 260ms prompt delay plus the
+   1900ms scramble. It then stays inside the already-drawn circle and breathes
+   vertically with a very small amplitude. */
+.landing-entry-group--timed .entry-arrow--down .sketch-down-breathe {
+  opacity: 0;
+  animation:
+    landing-reader-arrow-fade 280ms ease-out 2160ms forwards,
+    landing-reader-arrow-bob 1700ms ease-in-out 2440ms infinite;
+}
+
+@keyframes landing-reader-arrow-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes landing-reader-arrow-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(2.2px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -94,8 +126,19 @@
     transition: none !important;
   }
 
+  .down-entry-group[data-entry-selected="true"]:not(:has(.entry-arrow.is-ring-active)) .landing-entry-ring {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+
   .entry-arrow.is-ring-active .landing-entry-ring {
     stroke-dashoffset: 0 !important;
+  }
+
+  .landing-entry-group--timed .entry-arrow--down .sketch-down-breathe {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
   }
 }
 
@@ -113,8 +156,19 @@
   transition: none !important;
 }
 
+.page-shell[data-motion-mode="reduced"] .down-entry-group[data-entry-selected="true"]:not(:has(.entry-arrow.is-ring-active)) .landing-entry-ring {
+  animation: none !important;
+  stroke-dashoffset: 0 !important;
+}
+
 .page-shell[data-motion-mode="reduced"] .entry-arrow.is-ring-active .landing-entry-ring {
   stroke-dashoffset: 0 !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-entry-group--timed .entry-arrow--down .sketch-down-breathe {
+  opacity: 1 !important;
+  transform: none !important;
+  animation: none !important;
 }
 
 @media (max-width: 768px) {
