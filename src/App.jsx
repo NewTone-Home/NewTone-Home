@@ -152,6 +152,10 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     readingEntry.start(intent)
   }, [hasInitializedLanguage, isGlobalTransitioning, language, readingEntry.isActive, readingEntry.start, readingMode])
 
+  const handleUpdatesEnter = useCallback(() => {
+    trackEvent('updates_entry_requested', { stepId: 'entry:updates' })
+  }, [])
+
   const readingEntryNeedsReader =
     readingEntry.phase === 'reader-preparing' ||
     readingEntry.phase === 'transition-leaving'
@@ -189,6 +193,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
             surfaceStyle={readerSurfaceStyle}
             environmentState={environmentState}
             onEnter={handleEnter}
+            onEnterUpdates={handleUpdatesEnter}
             onProceed={handleLanguageProceed}
             onModeSelect={handleModeSelect}
             guidePaused={isGlobalTransitioning}

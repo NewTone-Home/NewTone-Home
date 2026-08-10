@@ -33,11 +33,10 @@ const RETURN_STATUS_FADE_MS = 260
 const RETURN_GUIDE_DELAY_MS = 1600
 const LANDING_ENTRY_TURN_MS = 260
 const LANDING_ENTRY_PROMPT_DURATION_MS = 1900
-const READER_RING_DRAW_CAP = 0.92
-const TITLE_FINISHING_PASS_MS = 360
 
 function Landing({
   onEnter,
+  onEnterUpdates,
   leaving,
   leavingMs,
   surfaceStyle,
@@ -59,12 +58,12 @@ function Landing({
   const [guidePhase, setGuidePhase] = useState(() => returnArrival ? 'hidden' : 'quiet')
   const [entryTarget, setEntryTarget] = useState('reader')
   const [entryPromptsSettled, setEntryPromptsSettled] = useState(false)
-  const [titleVisualComplete, setTitleVisualComplete] = useState(false)
   const guidePhaseRef = useRef(guidePhase)
   const triggeredRef = useRef(false)
   const introRef = useRef(introCompleted)
   const landingRef = useRef(null)
   const readerRingRef = useRef(null)
+  const entryTargetRef = useRef(entryTarget)
   const activationPendingRef = useRef(false)
   const activationTimerRef = useRef(0)
   const returnSequenceStartedRef = useRef(false)
@@ -96,32 +95,20 @@ function Landing({
   }, [guidePhase])
 
   useEffect(() => {
+    entryTargetRef.current = entryTarget
+  }, [entryTarget])
+
+  useEffect(() => {
     if (entryPromptsActive) return
     setEntryTarget('reader')
     setEntryPromptsSettled(false)
   }, [entryPromptsActive])
 
-  useEffect(() => {
-    if (phase !== TITLE_PHASE.REVEALED) {
-      setTitleVisualComplete(false)
-      return undefined
-    }
-    if (reducedMotion || motionMode === 'reduced') {
-      setTitleVisualComplete(true)
-      return undefined
-    }
-    const timer = window.setTimeout(() => setTitleVisualComplete(true), TITLE_FINISHING_PASS_MS)
-    return () => window.clearTimeout(timer)
-  }, [motionMode, phase, reducedMotion])
-
   /*
-   * Follow the value that actually paints NewTone, not the WAAPI clock.
-   * The title uses per-keyframe easing, so getComputedTiming().progress can be
-   * far ahead of the visible sweep. Reading computed strokeDashoffset gives us
-   * the real on-screen pen position. Keep an 8% gap open while DRAWING so the
-   * circle is physically unable to look complete before NewTone reaches its
-   * REVEALED state; the final gap stays open through the finishing hand-line
-   * pass and closes only after titleVisualComplete.
+   * Follow the value that actually paints NewTone, not elapsed time. The ring
+   * is pre-mounted, and every frame maps the title sweep's normalized painted
+   * offset onto the ring's real path length. Both therefore share the exact
+   * visible start and finish boundaries even though their SVG lengths differ.
    */
   useEffect(() => {
     if (phase !== TITLE_PHASE.DRAWING || entryTarget !== 'reader') return undefined
@@ -145,10 +132,7 @@ function Landing({
       const normalizedSweepOffset = Number.isFinite(rawSweepOffset)
         ? Math.min(1, Math.max(0, rawSweepOffset))
         : 1
-      const titleVisibleProgress = 1 - normalizedSweepOffset
-      const ringVisibleProgress = titleVisibleProgress * READER_RING_DRAW_CAP
-
-      ring.style.strokeDashoffset = String(ringLength * (1 - ringVisibleProgress))
+      ring.style.strokeDashoffset = String(ringLength * normalizedSweepOffset)
 
       if (phaseRef.current === TITLE_PHASE.DRAWING) {
         frame = window.requestAnimationFrame(syncRingToTitle)
@@ -164,9 +148,10 @@ function Landing({
 
       ring.style.transition = 'none'
       if (phaseRef.current === TITLE_PHASE.REVEALED) {
-        ring.style.strokeDashoffset = String(ringLength * (1 - READER_RING_DRAW_CAP))
+        ring.style.strokeDashoffset = '0'
         window.requestAnimationFrame(() => {
           if (readerRingRef.current !== ring) return
+          ring.style.removeProperty('stroke-dashoffset')
           ring.style.removeProperty('transition')
         })
       } else {
@@ -175,32 +160,6 @@ function Landing({
       }
     }
   }, [entryTarget, phase, phaseRef, sweepRef])
-
-  useEffect(() => {
-    if (phase !== TITLE_PHASE.REVEALED) return undefined
-    const ring = readerRingRef.current
-    if (!ring) return undefined
-
-    if (entryTarget !== 'reader') {
-      ring.style.removeProperty('stroke-dashoffset')
-      ring.style.removeProperty('transition')
-      return undefined
-    }
-
-    if (titleVisualComplete) {
-      ring.style.removeProperty('stroke-dashoffset')
-      ring.style.removeProperty('transition')
-      return undefined
-    }
-
-    const ringLength = ring.getTotalLength()
-    ring.style.transition = 'none'
-    ring.style.strokeDashoffset = String(ringLength * (1 - READER_RING_DRAW_CAP))
-    const frame = window.requestAnimationFrame(() => {
-      if (readerRingRef.current === ring) ring.style.removeProperty('transition')
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [entryTarget, phase, titleVisualComplete])
 
   useSceneParallax({
     rootRef: landingRef,
@@ -347,21 +306,20 @@ function Landing({
     setEntryPromptsSettled(true)
   }, [])
 
-  const handleTitleVisualAnimationEnd = useCallback((event) => {
-    if (
-      event.animationName !== 'newtone-hand-line-draw'
-      || !event.target.classList.contains('newtone-hand-lines__second')
-      || phaseRef.current !== TITLE_PHASE.REVEALED
-    ) return
-    setTitleVisualComplete(true)
-  }, [phaseRef])
-
   useEffect(() => {
     triggeredRef.current = false
 
     const enterReader = () => {
       const state = useProgressStore.getState()
       onEnter(getReaderEntryIntent(state))
+    }
+
+    const enterSelectedTarget = () => {
+      if (entryTargetRef.current === 'updates') {
+        onEnterUpdates?.()
+        return
+      }
+      enterReader()
     }
 
     const requestLeave = (enter) => {
@@ -380,7 +338,7 @@ function Landing({
     }
 
     const onWheel = (e) => {
-      if (e.deltaY > 8) requestLeave(enterReader)
+      if (e.deltaY > 8) requestLeave(enterSelectedTarget)
     }
 
     let touchStartY = 0
@@ -389,7 +347,7 @@ function Landing({
     }
     const onTouchMove = (e) => {
       const delta = touchStartY - e.touches[0].clientY
-      if (delta > 20) requestLeave(enterReader)
+      if (delta > 20) requestLeave(enterSelectedTarget)
     }
 
     window.addEventListener('wheel', onWheel, { passive: true })
@@ -401,7 +359,7 @@ function Landing({
       window.removeEventListener('touchstart', onTouchStart)
       window.removeEventListener('touchmove', onTouchMove)
     }
-  }, [onEnter, phaseRef, retract, returnSequenceActive, withdrawGuide])
+  }, [onEnter, onEnterUpdates, phaseRef, retract, returnSequenceActive, withdrawGuide])
 
   const hasProgress = hasStableReaderProgress({ readerStarted, readerCompleted })
   const landingLanguage = hasInitializedLanguage
@@ -425,7 +383,6 @@ function Landing({
   const readerRingActive = entryPromptsActive
     && entryTarget === 'reader'
     && phase === TITLE_PHASE.REVEALED
-    && titleVisualComplete
   const updatesRingActive = entryPromptsActive && entryTarget === 'updates'
 
   return (
@@ -456,7 +413,7 @@ function Landing({
             data-motion-parallax-trigger="true"
           >
             <span className="landing-title-text" data-landing-title-visual="true">
-              <span className="landing-title-breath" onAnimationEnd={handleTitleVisualAnimationEnd}>
+              <span className="landing-title-breath">
                 <span className="landing-title-n-host">N</span>
                 {'ewTone'}
                 <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
@@ -481,7 +438,7 @@ function Landing({
             </div>
           )}
 
-          {entryPromptsActive && (
+          {!returnSequenceActive && (
             <>
               <div
                 className="updates-entry-group landing-entry-group--timed"
@@ -495,7 +452,7 @@ function Landing({
                 <p className="landing-prompt landing-prompt--updates">
                   <ScrambleText
                     text={updatesPromptText}
-                    active
+                    active={entryPromptsActive}
                     startDelay={LANDING_ENTRY_TURN_MS}
                     duration={LANDING_ENTRY_PROMPT_DURATION_MS}
                   />
@@ -510,7 +467,7 @@ function Landing({
                 <p className="landing-prompt landing-prompt--down">
                   <ScrambleText
                     text={downPromptText}
-                    active
+                    active={entryPromptsActive}
                     startDelay={LANDING_ENTRY_TURN_MS}
                     duration={LANDING_ENTRY_PROMPT_DURATION_MS}
                     onRevealed={handleEntryPromptsRevealed}
@@ -522,8 +479,8 @@ function Landing({
                   phase="steady"
                   ringActive={readerRingActive}
                   ringRef={readerRingRef}
-                  delayedBob={entryPromptsSettled && entryTarget === 'reader' && titleVisualComplete}
-                  arrowDelayed={!entryPromptsSettled || !titleVisualComplete}
+                  delayedBob={entryPromptsSettled && entryTarget === 'reader'}
+                  arrowDelayed={!entryPromptsSettled}
                 />
               </div>
             </>

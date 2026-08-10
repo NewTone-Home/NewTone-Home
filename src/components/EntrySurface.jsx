@@ -15,6 +15,7 @@ function EntrySurface({
   surfaceStyle,
   environmentState,
   onEnter,
+  onEnterUpdates,
   onProceed,
   onModeSelect,
   guidePaused = false,
@@ -36,6 +37,7 @@ function EntrySurface({
     >
       <Landing
         onEnter={onEnter}
+        onEnterUpdates={onEnterUpdates}
         leaving={entryActive}
         leavingMs={landingLeaveMs}
         surfaceStyle={surfaceStyle}

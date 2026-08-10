@@ -8,7 +8,7 @@
     0
   );
   white-space: nowrap;
-  pointer-events: auto;
+  pointer-events: none;
   cursor: pointer;
 }
 
@@ -16,7 +16,13 @@
    owns the text delay; the Reader ring is synchronized separately to NewTone's
    live animation progress in Landing.jsx. */
 .landing-entry-group--timed {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.landing-direction-prompts--revealed .landing-entry-group--timed {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .landing-prompt--updates {
@@ -39,7 +45,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .landing-entry-group--timed {
-    opacity: 1 !important;
+    transition: none !important;
   }
 
   .landing-direction-prompts--revealed .landing-prompt--updates {
@@ -49,7 +55,7 @@
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-entry-group--timed {
-  opacity: 1 !important;
+  transition: none !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--updates {
