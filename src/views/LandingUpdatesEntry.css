@@ -40,18 +40,24 @@
   cursor: pointer;
 }
 
+/* Let the enlarged hand-drawn ring extend beyond the compact arrow viewport.
+   Without this the top and bottom are clipped and the ring reads as parentheses. */
+.entry-arrow {
+  overflow: visible;
+}
+
 .entry-arrow .landing-entry-ring {
   fill: none;
   stroke: currentColor;
-  stroke-width: 2.15;
-  stroke-linecap: round;
+  stroke-width: 2.1;
+  stroke-linecap: butt;
   stroke-linejoin: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   opacity: .8;
   transform-box: fill-box;
   transform-origin: center;
-  transform: scale(1.36);
+  transform: scale(1.32);
   transition: stroke-dashoffset 230ms cubic-bezier(.24,.72,.28,1);
 }
 
