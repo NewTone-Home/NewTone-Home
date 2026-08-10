@@ -82,6 +82,7 @@ function Landing({
   const activationPendingRef = useRef(false)
   const activationTimerRef = useRef(0)
   const returnSequenceStartedRef = useRef(false)
+  const returnInputLockedRef = useRef(returnArrival)
 
   const reducedMotion = useReducedMotion()
   const [landingScene] = useState(() => resolveLandingScene(window.location.search))
@@ -147,6 +148,8 @@ function Landing({
       setReturnStatusVisible(false)
       await retract({ duration: reduced ? 0 : undefined })
       if (cancelled) return
+
+      returnInputLockedRef.current = false
 
       await wait(guideDelay)
       if (cancelled) return
@@ -223,7 +226,7 @@ function Landing({
     }
 
     const requestLeave = (enter) => {
-      if (returnSequenceActive || triggeredRef.current) return
+      if (returnInputLockedRef.current || triggeredRef.current) return
       const intent = resolveScrollIntent({
         phase: phaseRef.current,
         introCompleted: introRef.current,
