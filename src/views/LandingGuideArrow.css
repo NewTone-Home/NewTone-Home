@@ -16,6 +16,17 @@
   will-change: transform;
 }
 
+.landing-guide-arrow__turn {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: rotate(0deg);
+  transition: transform 420ms cubic-bezier(.2,.8,.2,1);
+}
+
+.landing-guide-arrow--turned .landing-guide-arrow__turn {
+  transform: rotate(180deg);
+}
+
 .landing-guide-arrow__strokes {
   opacity: .68;
   filter: none;
@@ -103,6 +114,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .landing-guide-arrow__turn {
+    transition: none !important;
+  }
+
   .landing-guide-arrow--visible .landing-guide-arrow__strokes path {
     animation: none !important;
     stroke-dashoffset: 0 !important;
@@ -120,6 +135,10 @@
     opacity: 0 !important;
     animation: none !important;
   }
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-guide-arrow__turn {
+  transition: none !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__strokes path {
