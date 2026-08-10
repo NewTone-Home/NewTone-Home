@@ -1,21 +1,22 @@
 @import './LandingUpdatesEntry.css';
 
 /*
- * The guide arrow is now a sibling of the NewTone title instead of a child of
- * landing-title-breath. It receives only the back-layer parallax and therefore
- * cannot inherit title hover scale, title breathing, blur, or opacity changes.
+ * Keep the guide in the h1 coordinate system so it shares the original N
+ * baseline, but outside landing-title-breath so title hover/breathe transforms
+ * can never move or scale it. This is the old N-origin geometry without the old
+ * transform inheritance.
  */
 .landing-guide-anchor {
   position: absolute;
-  left: 0;
-  top: 50%;
+  left: .08em;
+  bottom: .16em;
   width: 0;
   height: 0;
   z-index: 2;
   pointer-events: none;
   transform: translate3d(
     var(--scene-parallax-back-x, 0px),
-    calc(-50% + var(--scene-parallax-back-y, 0px)),
+    var(--scene-parallax-back-y, 0px),
     0
   );
 }
@@ -42,7 +43,7 @@
   display: none;
 }
 
-/* One SVG, one rotator. Direction changes never replace the arrow DOM. */
+/* One SVG, one fixed center. Direction changes rotate in place only. */
 .landing-entry-arrow__rotator {
   transform-box: view-box;
   transform-origin: 50% 50%;
@@ -139,7 +140,7 @@
 }
 
 /* Bob is always on an inner child, never on the rotator. Rotation therefore
-   cannot pick up scale or blur from the breathing motion. */
+   cannot acquire position or scale from the breathing motion. */
 .landing-guide-entry-arrow.has-delayed-bob .landing-entry-arrow__ink {
   animation: landing-entry-arrow-bob 1700ms ease-in-out 620ms infinite;
 }
