@@ -12,14 +12,12 @@
   cursor: pointer;
 }
 
+/* Keep the container visible from the same frame that NewTone begins drawing.
+   ScrambleText owns its own 260ms delay, so hiding the whole group only hides
+   the first part of the ring animation and makes it look as if the circle
+   appeared almost complete. */
 .landing-entry-group--timed {
-  opacity: 0;
-  animation: landing-entry-group-arrive 120ms ease-out var(--landing-entry-prompt-delay, 260ms) forwards;
-}
-
-@keyframes landing-entry-group-arrive {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  opacity: 1;
 }
 
 .landing-prompt--updates {
@@ -57,40 +55,49 @@
   overflow: visible;
 }
 
-/* Use an explicit visible-dash fraction instead of dash-offset. With pathLength=1,
-   0 1 is guaranteed empty and 1 0 is guaranteed complete, so the browser cannot
-   paint a full ring on the first visible frame. */
+/* Use the same normalized stroke contract as NewTone's sweep. pathLength=1
+   makes 1 -> 0 a literal 0% -> 100% reveal without dash-pattern interpolation. */
 .entry-arrow .landing-entry-ring {
   fill: none;
   stroke: currentColor;
   stroke-width: 2.1;
   stroke-linecap: butt;
   stroke-linejoin: round;
-  stroke-dasharray: 0 1;
-  stroke-dashoffset: 0;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
   opacity: .8;
   vector-effect: non-scaling-stroke;
   transform-box: fill-box;
   transform-origin: center;
   transform: scale(1.32);
-  transition: stroke-dasharray 900ms cubic-bezier(.24,.72,.28,1);
+  transition: stroke-dashoffset 900ms cubic-bezier(.24,.72,.28,1);
 }
 
-/* Canonical Landing title draw is 2000ms. The ring begins with NewTone itself,
-   not with the prompt, and finishes on the same beat as the NewTone retrace.
-   The prompt container becomes visible at 260ms, by which time only ~13% of the
-   circle has been drawn, so the hand-drawing remains clearly visible. */
+/* First reveal is phase-locked to NewTone itself. These four checkpoints mirror
+   useTitleRetrace DRAW_KEYFRAMES exactly: 0/18/80/100% with the same local
+   easing curves and the same canonical 2000ms duration. */
 .down-entry-group[data-entry-selected="true"] .entry-arrow:not(.is-ring-active) .landing-entry-ring {
-  animation: landing-reader-ring-initial-draw 2000ms linear both;
+  animation: landing-reader-ring-follow-newtone 2000ms both;
 }
 
 .entry-arrow.is-ring-active .landing-entry-ring {
-  stroke-dasharray: 1 0;
+  stroke-dashoffset: 0;
 }
 
-@keyframes landing-reader-ring-initial-draw {
-  from { stroke-dasharray: 0 1; }
-  to { stroke-dasharray: 1 0; }
+@keyframes landing-reader-ring-follow-newtone {
+  0% {
+    stroke-dashoffset: 1;
+    animation-timing-function: cubic-bezier(.8,0,.7,.45);
+  }
+  18% {
+    stroke-dashoffset: .86;
+    animation-timing-function: cubic-bezier(.4,.05,.6,.95);
+  }
+  80% {
+    stroke-dashoffset: .1;
+    animation-timing-function: cubic-bezier(.15,.7,.25,1);
+  }
+  100% { stroke-dashoffset: 0; }
 }
 
 /* The reading arrow itself arrives only after the 260ms prompt delay plus the
@@ -116,7 +123,6 @@
 @media (prefers-reduced-motion: reduce) {
   .landing-entry-group--timed {
     opacity: 1 !important;
-    animation: none !important;
   }
 
   .landing-direction-prompts--revealed .landing-prompt--updates {
@@ -130,11 +136,11 @@
 
   .down-entry-group[data-entry-selected="true"] .entry-arrow:not(.is-ring-active) .landing-entry-ring {
     animation: none !important;
-    stroke-dasharray: 1 0 !important;
+    stroke-dashoffset: 0 !important;
   }
 
   .entry-arrow.is-ring-active .landing-entry-ring {
-    stroke-dasharray: 1 0 !important;
+    stroke-dashoffset: 0 !important;
   }
 
   .landing-entry-group--timed .entry-arrow--down .sketch-down-breathe {
@@ -146,7 +152,6 @@
 
 .page-shell[data-motion-mode="reduced"] .landing-entry-group--timed {
   opacity: 1 !important;
-  animation: none !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--updates {
@@ -160,11 +165,11 @@
 
 .page-shell[data-motion-mode="reduced"] .down-entry-group[data-entry-selected="true"] .entry-arrow:not(.is-ring-active) .landing-entry-ring {
   animation: none !important;
-  stroke-dasharray: 1 0 !important;
+  stroke-dashoffset: 0 !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .entry-arrow.is-ring-active .landing-entry-ring {
-  stroke-dasharray: 1 0 !important;
+  stroke-dashoffset: 0 !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-entry-group--timed .entry-arrow--down .sketch-down-breathe {
