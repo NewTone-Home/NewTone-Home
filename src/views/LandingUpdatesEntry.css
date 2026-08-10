@@ -9,6 +9,7 @@
   );
   white-space: nowrap;
   pointer-events: auto;
+  cursor: pointer;
 }
 
 .landing-entry-group--timed {
@@ -29,6 +30,32 @@
   animation: prompt-breathe var(--pulse-duration) ease-in-out infinite;
 }
 
+/* The Landing now uses a single hand-drawn circle to show which downward
+   gesture target is armed. The old NewTone signature lines are visually retired. */
+.landing .newtone-hand-lines {
+  display: none;
+}
+
+.down-entry-group {
+  cursor: pointer;
+}
+
+.entry-arrow .landing-entry-ring {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: .66;
+  transition: stroke-dashoffset 230ms cubic-bezier(.24,.72,.28,1);
+}
+
+.entry-arrow.is-ring-active .landing-entry-ring {
+  stroke-dashoffset: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .landing-entry-group--timed {
     opacity: 1 !important;
@@ -38,6 +65,14 @@
   .landing-direction-prompts--revealed .landing-prompt--updates {
     animation: none !important;
     opacity: .75 !important;
+  }
+
+  .entry-arrow .landing-entry-ring {
+    transition: none !important;
+  }
+
+  .entry-arrow.is-ring-active .landing-entry-ring {
+    stroke-dashoffset: 0 !important;
   }
 }
 
@@ -49,6 +84,14 @@
 .page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--updates {
   animation: none !important;
   opacity: .75 !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .entry-arrow .landing-entry-ring {
+  transition: none !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .entry-arrow.is-ring-active .landing-entry-ring {
+  stroke-dashoffset: 0 !important;
 }
 
 @media (max-width: 768px) {
