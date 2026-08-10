@@ -35,12 +35,14 @@ const LANDING_ENTRY_PROMPT_DURATION_MS = 1900
 
 const GUIDE_CURVE = 'M7 24L38 24'
 const GUIDE_HEAD = 'M32 18L39 24L32 30'
+const GUIDE_RING = 'M24 4.5C35 3.8 43 11.8 43 23.5C43 35.4 35.3 43.2 23.2 43C11.2 42.8 4.8 35.1 5.1 23.7C5.4 12.2 13.2 5.1 24 4.5'
+const DOWN_RING = 'M0 2.5C19 1 30.5 13.2 30 35C29.5 56.5 18 72.5-2 71.8C-22 71.1-30.5 56.9-29.5 35.4C-28.5 14.2-18.5 4.1 0 2.5'
 
-function LandingGuideArrow({ phase, turned = false }) {
+function LandingGuideArrow({ phase, turned = false, updatesActive = false, ringActive = false }) {
   if (phase === 'hidden') return null
   return (
     <svg
-      className={`landing-guide-arrow landing-guide-arrow--main landing-guide-arrow--${phase}${turned ? ' landing-guide-arrow--turned' : ''}`}
+      className={`landing-guide-arrow landing-guide-arrow--main landing-guide-arrow--${phase}${turned ? ' landing-guide-arrow--turned' : ''}${updatesActive ? ' landing-guide-arrow--updates-active' : ''}${ringActive ? ' landing-guide-arrow--ring-active' : ''}`}
       viewBox="0 0 48 48"
       aria-hidden="true"
     >
@@ -54,6 +56,7 @@ function LandingGuideArrow({ phase, turned = false }) {
           <path className="landing-guide-arrow__head" pathLength="1" d={GUIDE_HEAD} />
         </g>
       </g>
+      <path className="landing-guide-arrow__ring" pathLength="1" d={GUIDE_RING} />
     </svg>
   )
 }
@@ -79,6 +82,8 @@ function Landing({
   const [returnStatusVisible, setReturnStatusVisible] = useState(returnArrival)
   const [returnStatusFading, setReturnStatusFading] = useState(false)
   const [guidePhase, setGuidePhase] = useState(() => returnArrival ? 'hidden' : 'quiet')
+  const [entryTarget, setEntryTarget] = useState('reader')
+  const [entryPromptsSettled, setEntryPromptsSettled] = useState(false)
   const guidePhaseRef = useRef(guidePhase)
   const triggeredRef = useRef(false)
   const introRef = useRef(introCompleted)
@@ -102,6 +107,9 @@ function Landing({
     onIntroComplete: handleIntroComplete,
   })
 
+  const entryPromptsActive = !returnSequenceActive
+    && [TITLE_PHASE.DRAWING, TITLE_PHASE.REVEALED].includes(phase)
+
   useEffect(() => {
     introRef.current = introCompleted
   }, [introCompleted])
@@ -109,6 +117,12 @@ function Landing({
   useEffect(() => {
     guidePhaseRef.current = guidePhase
   }, [guidePhase])
+
+  useEffect(() => {
+    if (entryPromptsActive) return
+    setEntryTarget('reader')
+    setEntryPromptsSettled(false)
+  }, [entryPromptsActive])
 
   useSceneParallax({
     rootRef: landingRef,
@@ -231,6 +245,30 @@ function Landing({
     activateTitle()
   }
 
+  const activateUpdatesTarget = useCallback(() => {
+    if (!entryPromptsActive) return
+    setEntryTarget('updates')
+  }, [entryPromptsActive])
+
+  const activateReaderTarget = useCallback(() => {
+    if (!entryPromptsActive) return
+    setEntryTarget('reader')
+  }, [entryPromptsActive])
+
+  const handleUpdatesPointerEnter = useCallback((event) => {
+    if (event.pointerType === 'touch') return
+    activateUpdatesTarget()
+  }, [activateUpdatesTarget])
+
+  const handleUpdatesPointerLeave = useCallback((event) => {
+    if (event.pointerType === 'touch') return
+    activateReaderTarget()
+  }, [activateReaderTarget])
+
+  const handleEntryPromptsRevealed = useCallback(() => {
+    setEntryPromptsSettled(true)
+  }, [])
+
   useEffect(() => {
     triggeredRef.current = false
 
@@ -292,9 +330,10 @@ function Landing({
     || copy.zh.transitionReturn
   const returnStatusText = `${returnStatusBase}${landingLanguage === 'zh' ? '……' : '…'}`
 
-  const entryPromptsActive = !returnSequenceActive
-    && [TITLE_PHASE.DRAWING, TITLE_PHASE.REVEALED].includes(phase)
   const titleTouched = phase !== TITLE_PHASE.IDLE
+  const updatesSelected = entryPromptsActive && entryTarget === 'updates'
+  const readerRingActive = entryPromptsSettled && entryTarget === 'reader'
+  const updatesRingActive = entryPromptsSettled && entryTarget === 'updates'
 
   return (
     <div
@@ -306,6 +345,7 @@ function Landing({
       data-time-of-day={environmentState.time}
       data-weather={environmentState.weather}
       data-landing-arrival={returnArrival ? 'return' : 'main'}
+      data-entry-target={entryTarget}
     >
       {landingScene === LANDING_SCENES.JIJIA_COMPOUND && <LandingJijiaScene awake={titleTouched} />}
 
@@ -327,7 +367,12 @@ function Landing({
                 <span className="landing-title-n-host">
                   N
                   <span className="landing-title-n-origin">
-                    <LandingGuideArrow phase={guidePhase} turned={entryPromptsActive} />
+                    <LandingGuideArrow
+                      phase={guidePhase}
+                      turned={entryPromptsActive}
+                      updatesActive={updatesSelected}
+                      ringActive={updatesRingActive}
+                    />
                   </span>
                 </span>
                 {'ewTone'}
@@ -348,7 +393,11 @@ function Landing({
               <div
                 className="updates-entry-group landing-entry-group--timed"
                 data-landing-entry="updates"
+                data-entry-selected={updatesSelected ? 'true' : 'false'}
                 style={{ '--landing-entry-prompt-delay': `${LANDING_ENTRY_TURN_MS}ms` }}
+                onPointerEnter={handleUpdatesPointerEnter}
+                onPointerLeave={handleUpdatesPointerLeave}
+                onClick={activateUpdatesTarget}
               >
                 <p className="landing-prompt landing-prompt--updates">
                   <ScrambleText
@@ -361,7 +410,9 @@ function Landing({
               </div>
               <div
                 className="down-entry-group landing-entry-group--timed"
+                data-entry-selected={entryTarget === 'reader' ? 'true' : 'false'}
                 style={{ '--landing-entry-prompt-delay': `${LANDING_ENTRY_TURN_MS}ms` }}
+                onClick={activateReaderTarget}
               >
                 <p className="landing-prompt landing-prompt--down">
                   <ScrambleText
@@ -369,9 +420,17 @@ function Landing({
                     active
                     startDelay={LANDING_ENTRY_TURN_MS}
                     duration={LANDING_ENTRY_PROMPT_DURATION_MS}
+                    onRevealed={handleEntryPromptsRevealed}
                   />
                 </p>
-                <svg className="entry-arrow entry-arrow--down" viewBox="-60 0 120 80" width="32" height="22" aria-hidden="true">
+                <svg
+                  className={`entry-arrow entry-arrow--down${readerRingActive ? ' is-ring-active' : ''}`}
+                  viewBox="-60 0 120 80"
+                  width="32"
+                  height="22"
+                  aria-hidden="true"
+                >
+                  <path className="landing-entry-ring" pathLength="1" d={DOWN_RING} />
                   <g className={entryPromptsActive ? 'sketch-down-breathe' : ''}>
                     <path className="sketch-down-shaft" d="M 0,5 L 0,65" />
                     <path className="sketch-down-shaft-faint" d="M -2,8 L -2,62" />
