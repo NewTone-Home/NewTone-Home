@@ -7,7 +7,8 @@ const source = path => readFileSync(`${root}/${path}`, 'utf8')
 
 describe('first-release boundary', () => {
   it('has no bundled legacy manuscript or generated content seed', () => {
-    expect(readdirSync(`${root}/src/content/manuscripts`)).toEqual([])
+    const manuscriptDir = `${root}/src/content/manuscripts`
+    expect(existsSync(manuscriptDir) ? readdirSync(manuscriptDir) : []).toEqual([])
     expect(existsSync(`${root}/supabase/seed/reader-content-v1.json`)).toBe(false)
   })
 
@@ -21,7 +22,8 @@ describe('first-release boundary', () => {
   it('keeps the real Landing available with empty content and protects 9989 behind Supabase auth', () => {
     expect(source('src/main.jsx')).toContain('<App contentStatus={result.status}')
     expect(source('src/main.jsx')).not.toContain('<EmptyContentApp')
-    expect(source('src/App.jsx')).toContain('<Landing')
+    expect(source('src/App.jsx')).toContain('<EntrySurface')
+    expect(source('src/components/EntrySurface.jsx')).toContain('<Landing')
     expect(source('src/App.jsx')).toContain('<Reader contentStatus={contentStatus}')
     expect(source('src/views/ReaderOrchestrator.jsx')).toContain('<EmptyReaderOrchestrator')
     expect(source('src/views/ReaderStage.jsx')).toContain('<ReaderTools')
