@@ -29,6 +29,10 @@
   transform: rotate(180deg);
 }
 
+.landing-guide-arrow--updates-active .landing-guide-arrow__turn {
+  transform: rotate(90deg);
+}
+
 .landing-guide-arrow__strokes {
   opacity: .68;
   filter: none;
@@ -49,6 +53,22 @@
 
 .landing-guide-arrow--visible .landing-guide-arrow__head {
   animation: landing-guide-pencil-head 120ms ease-out 230ms forwards;
+}
+
+.landing-guide-arrow__ring {
+  fill: none;
+  stroke: var(--ink-medium);
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: .66;
+  transition: stroke-dashoffset 230ms cubic-bezier(.24,.72,.28,1);
+}
+
+.landing-guide-arrow--ring-active .landing-guide-arrow__ring {
+  stroke-dashoffset: 0;
 }
 
 .landing-guide-arrow__eraser {
@@ -116,8 +136,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .landing-guide-arrow__turn {
+  .landing-guide-arrow__turn,
+  .landing-guide-arrow__ring {
     transition: none !important;
+  }
+
+  .landing-guide-arrow--ring-active .landing-guide-arrow__ring {
+    stroke-dashoffset: 0 !important;
   }
 
   .landing-guide-arrow--visible .landing-guide-arrow__strokes path {
@@ -139,8 +164,13 @@
   }
 }
 
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow__turn {
+.page-shell[data-motion-mode="reduced"] .landing-guide-arrow__turn,
+.page-shell[data-motion-mode="reduced"] .landing-guide-arrow__ring {
   transition: none !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--ring-active .landing-guide-arrow__ring {
+  stroke-dashoffset: 0 !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__strokes path {
