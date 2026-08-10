@@ -34,21 +34,23 @@ const RETURN_GUIDE_DELAY_MS = 1600
 const GUIDE_CURVE = 'M7 24L38 24'
 const GUIDE_HEAD = 'M32 18L39 24L32 30'
 
-function LandingGuideArrow({ phase }) {
+function LandingGuideArrow({ phase, turned = false }) {
   if (phase === 'hidden') return null
   return (
     <svg
-      className={`landing-guide-arrow landing-guide-arrow--main landing-guide-arrow--${phase}`}
+      className={`landing-guide-arrow landing-guide-arrow--main landing-guide-arrow--${phase}${turned ? ' landing-guide-arrow--turned' : ''}`}
       viewBox="0 0 48 48"
       aria-hidden="true"
     >
-      <g className="landing-guide-arrow__strokes">
-        <path className="landing-guide-arrow__curve" pathLength="1" d={GUIDE_CURVE} />
-        <path className="landing-guide-arrow__head" pathLength="1" d={GUIDE_HEAD} />
-      </g>
-      <g className="landing-guide-arrow__eraser">
-        <path className="landing-guide-arrow__curve" pathLength="1" d={GUIDE_CURVE} />
-        <path className="landing-guide-arrow__head" pathLength="1" d={GUIDE_HEAD} />
+      <g className="landing-guide-arrow__turn">
+        <g className="landing-guide-arrow__strokes">
+          <path className="landing-guide-arrow__curve" pathLength="1" d={GUIDE_CURVE} />
+          <path className="landing-guide-arrow__head" pathLength="1" d={GUIDE_HEAD} />
+        </g>
+        <g className="landing-guide-arrow__eraser">
+          <path className="landing-guide-arrow__curve" pathLength="1" d={GUIDE_CURVE} />
+          <path className="landing-guide-arrow__head" pathLength="1" d={GUIDE_HEAD} />
+        </g>
       </g>
     </svg>
   )
@@ -174,7 +176,14 @@ function Landing({
       setGuidePhase('hidden')
       return undefined
     }
-    if (phase === TITLE_PHASE.IDLE && guidePhaseRef.current === 'visible') return undefined
+    if (
+      guidePhaseRef.current === 'visible'
+      && [TITLE_PHASE.IDLE, TITLE_PHASE.DRAWING, TITLE_PHASE.REVEALED].includes(phase)
+    ) return undefined
+    if (phase !== TITLE_PHASE.IDLE) {
+      if (guidePhaseRef.current !== 'retracting') setGuidePhase('hidden')
+      return undefined
+    }
     if (!shouldScheduleLandingGuide({ phase, activationPending: activationPendingRef.current })) {
       setGuidePhase('hidden')
       return undefined
@@ -206,11 +215,14 @@ function Landing({
   const activateTitle = useCallback(() => {
     if (returnSequenceActive || phaseRef.current !== TITLE_PHASE.IDLE || activationPendingRef.current) return
     activationPendingRef.current = true
-    withdrawGuide().then(() => {
+    if (guidePhaseRef.current !== 'visible') {
+      guidePhaseRef.current = 'visible'
+      setGuidePhase('visible')
+    }
+    begin().finally(() => {
       activationPendingRef.current = false
-      begin()
     })
-  }, [begin, phaseRef, returnSequenceActive, withdrawGuide])
+  }, [begin, phaseRef, returnSequenceActive])
 
   const handleTitlePointerEnter = (event) => {
     if (event.pointerType === 'touch') return
@@ -272,6 +284,7 @@ function Landing({
     ? copy[landingLanguage].landingPromptResume
     : copy[landingLanguage].landingPromptInitial
   const downPromptText = promptText
+  const updatesPromptText = landingLanguage === 'zh' ? '更新公告' : 'Updates'
   const returnStatusBase = copy[landingLanguage]?.transitionReturn
     || copy[landingLanguage]?.backToLanding
     || copy.zh.transitionReturn
@@ -311,7 +324,7 @@ function Landing({
                 <span className="landing-title-n-host">
                   N
                   <span className="landing-title-n-origin">
-                    <LandingGuideArrow phase={guidePhase} />
+                    <LandingGuideArrow phase={guidePhase} turned={promptsRevealed} />
                   </span>
                 </span>
                 {'ewTone'}
@@ -328,23 +341,34 @@ function Landing({
           )}
 
           {promptsRevealed && (
-            <div className="down-entry-group">
-              <p className="landing-prompt landing-prompt--down">
-                <ScrambleText
-                  text={downPromptText}
-                  active
-                  duration={800}
-                />
-              </p>
-              <svg className="entry-arrow entry-arrow--down" viewBox="-60 0 120 80" width="32" height="22" aria-hidden="true">
-                <g className={promptsRevealed ? 'sketch-down-breathe' : ''}>
-                  <path className="sketch-down-shaft" d="M 0,5 L 0,65" />
-                  <path className="sketch-down-shaft-faint" d="M -2,8 L -2,62" />
-                  <path className="sketch-down-head" d="M 0,65 L -10,50" />
-                  <path className="sketch-down-head" d="M 0,65 L 10,50" />
-                </g>
-              </svg>
-            </div>
+            <>
+              <div className="updates-entry-group" data-landing-entry="updates">
+                <p className="landing-prompt landing-prompt--updates">
+                  <ScrambleText
+                    text={updatesPromptText}
+                    active
+                    duration={800}
+                  />
+                </p>
+              </div>
+              <div className="down-entry-group">
+                <p className="landing-prompt landing-prompt--down">
+                  <ScrambleText
+                    text={downPromptText}
+                    active
+                    duration={800}
+                  />
+                </p>
+                <svg className="entry-arrow entry-arrow--down" viewBox="-60 0 120 80" width="32" height="22" aria-hidden="true">
+                  <g className={promptsRevealed ? 'sketch-down-breathe' : ''}>
+                    <path className="sketch-down-shaft" d="M 0,5 L 0,65" />
+                    <path className="sketch-down-shaft-faint" d="M -2,8 L -2,62" />
+                    <path className="sketch-down-head" d="M 0,65 L -10,50" />
+                    <path className="sketch-down-head" d="M 0,65 L 10,50" />
+                  </g>
+                </svg>
+              </div>
+            </>
           )}
         </div>
       </div>
