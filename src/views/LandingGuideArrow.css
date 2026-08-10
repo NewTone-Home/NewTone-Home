@@ -90,11 +90,23 @@
   transform-box: fill-box;
   transform-origin: center;
   transform: scale(.88, 1.48);
-  transition: stroke-dashoffset 230ms cubic-bezier(.24,.72,.28,1);
+  transition: stroke-dashoffset 720ms cubic-bezier(.24,.72,.28,1);
 }
 
 .landing-guide-arrow--ring-active .landing-guide-arrow__ring {
   stroke-dashoffset: 0;
+}
+
+/* When Updates owns the downward gesture, the arrow settles into the same
+   restrained vertical breathing used by the Reader arrow. The ring itself
+   stays still so the selected target remains visually anchored. */
+.landing-guide-arrow--updates-active.landing-guide-arrow--ring-active .landing-guide-arrow__strokes {
+  animation: landing-updates-arrow-bob 1700ms ease-in-out 260ms infinite;
+}
+
+@keyframes landing-updates-arrow-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(2px); }
 }
 
 .landing-guide-arrow__eraser {
@@ -176,6 +188,11 @@
     stroke-dashoffset: 0 !important;
   }
 
+  .landing-guide-arrow--updates-active.landing-guide-arrow--ring-active .landing-guide-arrow__strokes {
+    animation: none !important;
+    transform: none !important;
+  }
+
   .landing-guide-arrow__eraser {
     display: none;
   }
@@ -206,6 +223,11 @@
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__strokes path {
   animation: none !important;
   stroke-dashoffset: 0 !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--updates-active.landing-guide-arrow--ring-active .landing-guide-arrow__strokes {
+  animation: none !important;
+  transform: none !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow__eraser {
