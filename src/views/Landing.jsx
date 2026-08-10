@@ -65,7 +65,6 @@ function Landing({
   const triggeredRef = useRef(false)
   const introRef = useRef(introCompleted)
   const landingRef = useRef(null)
-  const readerRingRef = useRef(null)
   const entryTargetRef = useRef(entryTarget)
   const activationPendingRef = useRef(false)
   const activationTimerRef = useRef(0)
@@ -107,63 +106,6 @@ function Landing({
     setEntryTarget('reader')
     setEntryPromptsSettled(false)
   }, [entryPromptsActive])
-
-  /*
-   * Follow the value that actually paints NewTone, not elapsed time. The ring
-   * is pre-mounted, and every frame maps the title sweep's normalized painted
-   * offset onto the ring's real path length. Both therefore share the exact
-   * visible start and finish boundaries even though their SVG lengths differ.
-   */
-  useEffect(() => {
-    if (phase !== TITLE_PHASE.DRAWING || entryTarget !== 'reader') return undefined
-
-    let frame = 0
-    let ringLength = 0
-
-    const syncRingToTitle = () => {
-      const ring = readerRingRef.current
-      const sweep = sweepRef.current
-
-      if (!ring || !sweep) {
-        frame = window.requestAnimationFrame(syncRingToTitle)
-        return
-      }
-
-      if (!ringLength) ringLength = ring.getTotalLength()
-      ring.style.transition = 'none'
-
-      const rawSweepOffset = Number.parseFloat(window.getComputedStyle(sweep).strokeDashoffset)
-      const normalizedSweepOffset = Number.isFinite(rawSweepOffset)
-        ? Math.min(1, Math.max(0, rawSweepOffset))
-        : 1
-      ring.style.strokeDashoffset = String(ringLength * normalizedSweepOffset)
-
-      if (phaseRef.current === TITLE_PHASE.DRAWING) {
-        frame = window.requestAnimationFrame(syncRingToTitle)
-      }
-    }
-
-    frame = window.requestAnimationFrame(syncRingToTitle)
-
-    return () => {
-      window.cancelAnimationFrame(frame)
-      const ring = readerRingRef.current
-      if (!ring) return
-
-      ring.style.transition = 'none'
-      if (phaseRef.current === TITLE_PHASE.REVEALED) {
-        ring.style.strokeDashoffset = '0'
-        window.requestAnimationFrame(() => {
-          if (readerRingRef.current !== ring) return
-          ring.style.removeProperty('stroke-dashoffset')
-          ring.style.removeProperty('transition')
-        })
-      } else {
-        ring.style.removeProperty('stroke-dashoffset')
-        ring.style.removeProperty('transition')
-      }
-    }
-  }, [entryTarget, phase, phaseRef, sweepRef])
 
   useSceneParallax({
     rootRef: landingRef,
@@ -405,6 +347,7 @@ function Landing({
   const readerRingActive = entryPromptsActive
     && entryTarget === 'reader'
     && phase === TITLE_PHASE.REVEALED
+    && !leaving
   const updatesRingActive = entryPromptsActive && entryTarget === 'updates'
 
   const handleUpdatesAnimationEnd = useCallback((event) => {
@@ -531,9 +474,8 @@ function Landing({
                   direction={arrowsRetracting || arrowsEmerging ? 'left' : 'down'}
                   phase={arrowsHidden ? 'hidden' : 'steady'}
                   ringActive={!updatesFlowActive && readerRingActive}
-                  ringRef={readerRingRef}
-                  delayedBob={entryPromptsSettled && entryTarget === 'reader'}
-                  arrowDelayed={!entryPromptsSettled}
+                  delayedBob={!leaving && entryPromptsSettled && entryTarget === 'reader'}
+                  arrowDelayed={leaving || !entryPromptsSettled}
                 />
               </div>
             </>

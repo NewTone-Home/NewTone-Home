@@ -142,6 +142,7 @@
 .language-init--exiting {
   opacity: 0;
   pointer-events: none;
+  transition-delay: 1250ms;
 }
 
 .language-init--reforming {
@@ -190,21 +191,21 @@
 /* One selector stays mounted. Its existing option and title nodes leave in
    sequence; the same nodes then receive the next stage's scramble text. */
 .language-init.language-init--reforming .language-init-actions-inner {
-  animation: ritual-options-release 1000ms ease both;
+  animation: ritual-options-release 1600ms ease both;
 }
 
 .language-init.language-init--reforming .language-init-title {
-  animation: ritual-title-release 1000ms ease both;
+  animation: ritual-title-release 1600ms ease both;
 }
 
 @keyframes ritual-options-release {
-  0%, 55% { opacity: 1; transform: translateY(0); }
-  75%, 100% { opacity: 0; transform: translateY(3px); }
+  0%, 84% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(3px); }
 }
 
 @keyframes ritual-title-release {
-  0%, 60% { opacity: 1; transform: translateY(0); }
-  80%, 100% { opacity: 0; transform: translateY(2px); }
+  0%, 84% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(2px); }
 }
 
 .language-init-bottom {
@@ -419,7 +420,7 @@
   opacity: 1;
   pointer-events: auto;
   translate: 0 -50%;
-  transition-delay: 1200ms;
+  transition-delay: 1900ms;
 }
 
 .lang-item {
@@ -464,13 +465,13 @@
 [data-selector-stage='language'] .lang-secondary-zone:hover .language-expand-affordance__ring,
 [data-selector-stage='language'] .lang-secondary-zone:focus-within .language-expand-affordance__ring {
   opacity: .8;
-  animation: language-current-ring-draw 1500ms cubic-bezier(.2,.68,.24,1) forwards;
+  animation: language-current-ring-draw 2100ms cubic-bezier(.42,0,.58,1) forwards;
 }
 
 [data-selector-stage='language'] .lang-secondary-zone:hover .language-expand-affordance__note,
 [data-selector-stage='language'] .lang-secondary-zone:focus-within .language-expand-affordance__note {
   opacity: .72;
-  animation: language-note-arrow-draw 720ms cubic-bezier(.2,.8,.2,1) 1100ms forwards;
+  animation: language-note-arrow-draw 900ms cubic-bezier(.42,0,.58,1) 1550ms forwards;
 }
 
 @keyframes language-current-ring-draw {
@@ -494,14 +495,18 @@
 .reading-transition--motion-reduced,
 .reading-transition--motion-reduced * {
   animation-duration: 1ms !important;
+  animation-delay: 0ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 1ms !important;
+  transition-delay: 0ms !important;
 }
 @media (prefers-reduced-motion: reduce) {
   .reading-transition,
   .reading-transition * {
     animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
   }
 }

@@ -64,7 +64,14 @@
 }
 
 .landing-updates-page[data-return-armed="true"] .landing-updates-return__arrow .landing-entry-ring {
-  animation: updates-return-ring-draw 1700ms cubic-bezier(.2,.68,.24,1) forwards;
+  animation: updates-return-ring-draw 2200ms cubic-bezier(.42,0,.58,1) forwards;
+}
+
+@media (pointer: coarse) {
+  .landing-updates-page[data-return-ready="true"] {
+    touch-action: none;
+    overscroll-behavior: none;
+  }
 }
 
 @keyframes updates-return-ring-draw {

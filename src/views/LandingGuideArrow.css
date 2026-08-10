@@ -48,7 +48,7 @@
   transform-box: view-box;
   transform-origin: 0 35px;
   transform: rotate(0deg);
-  transition: transform 820ms cubic-bezier(.2,.8,.2,1);
+  transition: transform 1200ms cubic-bezier(.42,0,.58,1);
 }
 
 .landing-entry-arrow--down .landing-entry-arrow__rotator {
@@ -76,16 +76,16 @@
 }
 
 .landing[data-updates-phase="enter-arrows"] .landing-entry-arrow {
-  animation: landing-updates-arrow-retract 820ms cubic-bezier(.4,0,.7,.2) forwards;
+  animation: landing-updates-arrow-retract 1200ms cubic-bezier(.42,0,.58,1) forwards;
 }
 
 .landing[data-updates-phase="return-arrows"] .landing-entry-arrow {
-  animation: landing-updates-arrow-return 920ms cubic-bezier(.2,.8,.2,1) forwards;
+  animation: landing-updates-arrow-return 1400ms cubic-bezier(.42,0,.58,1) forwards;
 }
 
 .landing[data-updates-phase="return-arrow-turn"] .landing-entry-arrow__rotator {
-  transition-duration: 920ms;
-  transition-timing-function: cubic-bezier(.2,.8,.2,1);
+  transition-duration: 1400ms;
+  transition-timing-function: cubic-bezier(.42,0,.58,1);
 }
 
 @keyframes landing-updates-arrow-retract {
@@ -122,17 +122,17 @@
 }
 
 .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__shaft {
-  animation: landing-entry-guide-shaft-in 520ms cubic-bezier(.24,.72,.28,1) forwards;
+  animation: landing-entry-guide-shaft-in 900ms cubic-bezier(.42,0,.58,1) forwards;
 }
 
 .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__head {
-  animation: landing-entry-guide-head-in 240ms ease-out 380ms forwards;
+  animation: landing-entry-guide-head-in 420ms ease-out 650ms forwards;
 }
 
 .landing-guide-entry-arrow.landing-entry-arrow--retracting .landing-entry-arrow__shaft,
 .landing-guide-entry-arrow.landing-entry-arrow--retracting .landing-entry-arrow__head {
   stroke-dashoffset: 0;
-  animation: landing-entry-guide-out 520ms ease-in forwards;
+  animation: landing-entry-guide-out 900ms ease-in forwards;
 }
 
 @keyframes landing-entry-guide-shaft-in {
@@ -167,13 +167,14 @@
   transform-box: fill-box;
   transform-origin: center;
   transform: scale(1.12);
-  transition: stroke-dashoffset 900ms cubic-bezier(.24,.72,.28,1);
+  transition: stroke-dashoffset 1200ms cubic-bezier(.42,0,.58,1) 360ms;
 }
 
 .landing-entry-arrow.is-ring-active .landing-entry-ring {
   stroke-dashoffset: 0;
-  transition-duration: 1700ms;
-  transition-timing-function: cubic-bezier(.2,.68,.24,1);
+  transition-duration: 2200ms;
+  transition-delay: 0ms;
+  transition-timing-function: cubic-bezier(.42,0,.58,1);
 }
 
 /* Bob is always on an inner child, never on the rotator. Rotation therefore
@@ -198,7 +199,7 @@
 
 .landing-entry-arrow:not(.is-arrow-delayed) .landing-entry-arrow__ink {
   opacity: .74;
-  transition: opacity 420ms ease-out;
+  transition: opacity 360ms ease-out;
 }
 
 /* Reader return status remains unchanged. */

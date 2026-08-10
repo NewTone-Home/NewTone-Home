@@ -3,19 +3,26 @@ import { useProgressStore } from '../stores/progressStore'
 import { createTimerRegistry } from './transitionUtils'
 
 export const READING_ENTRY_TIMINGS = {
-  FIRST_LANDING_LEAVE_MS: 550,
-  RETURN_LANDING_LEAVE_MS: 300,
-  LANG_LEAVING_MS: 1000,
-  MODE_LEAVING_MS: 420,
+  FIRST_LANDING_LEAVE_MS: 1600,
+  RETURN_LANDING_LEAVE_MS: 1600,
+  LANG_LEAVING_MS: 1600,
+  MODE_LEAVING_MS: 1600,
   MIN_READER_MS: 3000,
   RESUME_READER_MS: 4720,
   TRANSITION_FADE_MS: 400,
   LANGUAGE_INIT_TITLE_DELAY_MS: 300,
 }
 
+export const REDUCED_READING_ENTRY_TIMINGS = {
+  FIRST_LANDING_LEAVE_MS: 550,
+  RETURN_LANDING_LEAVE_MS: 300,
+  LANG_LEAVING_MS: 1000,
+  MODE_LEAVING_MS: 420,
+}
+
 const { FIRST_LANDING_LEAVE_MS, RETURN_LANDING_LEAVE_MS, LANG_LEAVING_MS, MODE_LEAVING_MS, MIN_READER_MS, RESUME_READER_MS, TRANSITION_FADE_MS } = READING_ENTRY_TIMINGS
 
-export function useReadingEntry() {
+export function useReadingEntry(motionMode = 'full') {
   const [phase, setPhase] = useState('idle')
   const [intent, setIntent] = useState(null)
 
@@ -32,6 +39,11 @@ export function useReadingEntry() {
     phaseRef.current = newPhase
     setPhase(newPhase)
   }, [])
+
+  const usesReducedTiming = useCallback(() => (
+    motionMode === 'reduced'
+    || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+  ), [motionMode])
 
   useEffect(() => {
     return () => timers.current.clearAll()
@@ -60,13 +72,13 @@ export function useReadingEntry() {
     if (!store.hasInitializedLanguage || !store.hasInitializedReadingMode) {
       timers.current.add(() => {
         syncPhase(store.hasInitializedLanguage ? 'mode-active' : 'language-active')
-      }, FIRST_LANDING_LEAVE_MS)
+      }, usesReducedTiming() ? REDUCED_READING_ENTRY_TIMINGS.FIRST_LANDING_LEAVE_MS : FIRST_LANDING_LEAVE_MS)
     } else {
       timers.current.add(() => {
         enterReaderView(entryIntent)
-      }, RETURN_LANDING_LEAVE_MS)
+      }, usesReducedTiming() ? REDUCED_READING_ENTRY_TIMINGS.RETURN_LANDING_LEAVE_MS : RETURN_LANDING_LEAVE_MS)
     }
-  }, [syncPhase, enterReaderView])
+  }, [enterReaderView, syncPhase, usesReducedTiming])
 
   const proceedFromLanguage = useCallback(() => {
     if (phaseRef.current !== 'language-active') return
@@ -76,8 +88,8 @@ export function useReadingEntry() {
       const store = useProgressStore.getState()
       store.setInitializedLanguage()
       syncPhase('mode-active')
-    }, LANG_LEAVING_MS)
-  }, [syncPhase])
+    }, usesReducedTiming() ? REDUCED_READING_ENTRY_TIMINGS.LANG_LEAVING_MS : LANG_LEAVING_MS)
+  }, [syncPhase, usesReducedTiming])
 
   const proceedFromMode = useCallback((readingMode) => {
     if (phaseRef.current !== 'mode-active') return
@@ -87,8 +99,8 @@ export function useReadingEntry() {
     timers.current.add(() => {
       const currentIntent = intentRef.current || 'start'
       enterReaderView(currentIntent)
-    }, MODE_LEAVING_MS)
-  }, [enterReaderView, syncPhase])
+    }, usesReducedTiming() ? REDUCED_READING_ENTRY_TIMINGS.MODE_LEAVING_MS : MODE_LEAVING_MS)
+  }, [enterReaderView, syncPhase, usesReducedTiming])
 
   const handleReaderReady = useCallback(() => {
     if (readyCalledRef.current) return

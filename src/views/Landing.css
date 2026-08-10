@@ -10,7 +10,7 @@
   background-color: var(--reader-paper, var(--paper-base));
   color: var(--reader-ink, var(--ink-dark));
 
-  transition: opacity var(--landing-leave-ms, 300ms) ease-in, transform var(--landing-leave-ms, 300ms) ease-in, background-color 1200ms ease, color 900ms ease;
+  transition: opacity calc(var(--landing-leave-ms, 1600ms) - 360ms) ease-in 360ms, transform calc(var(--landing-leave-ms, 1600ms) - 360ms) ease-in 360ms, background-color 1200ms ease, color 900ms ease;
 }
 
 .landing--leaving {
@@ -361,6 +361,11 @@
 /* ===== Reduced Motion ===== */
 
 @media (prefers-reduced-motion: reduce) {
+  .landing {
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+  }
+
   .landing-direction-prompts--revealed .landing-prompt--down,
   .landing-direction-prompts--revealed .landing-prompt--up {
     animation: none !important;
@@ -400,6 +405,11 @@
 
 .page-shell[data-motion-mode="reduced"] .landing-title-text {
   transform: none !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing {
+  transition-duration: 1ms !important;
+  transition-delay: 0ms !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-title--guiding .landing-title-breath,

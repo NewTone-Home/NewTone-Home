@@ -28,7 +28,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     ? getReaderThemeVariables(themePosition)
     : resolveReaderEnvironmentPreview(environmentState).style
 
-  const readingEntry = useReadingEntry()
+  const readingEntry = useReadingEntry(motionMode)
   const globalTransitionPhase = useTransitionStore(s => s.phase)
   const isGlobalTransitioning = globalTransitionPhase !== 'idle'
 

@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { getReaderUi } from '../../i18n/readerUi'
 import './ReaderReturnControl.css'
 
-const RETURN_RING_DRAW_MS = 1700
-const RETURN_RING_RETRACT_MS = 900
+const RETURN_RING_DRAW_MS = 2200
+const RETURN_RING_RETRACT_MS = 1200
 const RETURN_WHEEL_THRESHOLD = 8
 const RETURN_DIRECT_THRESHOLD = 36
 
