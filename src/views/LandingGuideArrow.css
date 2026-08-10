@@ -55,11 +55,13 @@
   animation: landing-guide-pencil-head 120ms ease-out 230ms forwards;
 }
 
+/* Same visual contract as the Reader target ring: enlarged hand-drawn path,
+   no round start-cap dot, and the same draw/retract timing. */
 .landing-guide-arrow__ring {
   fill: none;
   stroke: var(--ink-medium);
-  stroke-width: 2.05;
-  stroke-linecap: round;
+  stroke-width: 2.1;
+  stroke-linecap: butt;
   stroke-linejoin: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
