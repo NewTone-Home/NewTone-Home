@@ -13,9 +13,8 @@
 }
 
 /* Keep the container visible from the same frame that NewTone begins drawing.
-   ScrambleText owns its own 260ms delay, so hiding the whole group only hides
-   the first part of the ring animation and makes it look as if the circle
-   appeared almost complete. */
+   ScrambleText owns its own 260ms delay, so the ring is never secretly drawing
+   behind an opacity:0 parent. */
 .landing-entry-group--timed {
   opacity: 1;
 }
@@ -26,6 +25,13 @@
 
 .landing-direction-prompts--revealed .landing-prompt--updates {
   animation: prompt-breathe var(--pulse-duration) ease-in-out infinite;
+}
+
+/* Once the directional choices exist, freeze the title's hover scale. The guide
+   arrow lives inside landing-title-breath, so letting the title scale while the
+   arrow rotates makes the arrow look as if it grows/shrinks during the return. */
+.landing-title-stack.landing-direction-prompts--revealed .landing-title-breath {
+  --landing-title-hover-scale: 1;
 }
 
 /* The Landing now uses a single hand-drawn circle to show which downward
@@ -55,8 +61,8 @@
   overflow: visible;
 }
 
-/* Use the same normalized stroke contract as NewTone's sweep. pathLength=1
-   makes 1 -> 0 a literal 0% -> 100% reveal without dash-pattern interpolation. */
+/* The ring uses the same normalized stroke contract as NewTone's sweep.
+   pathLength=1 makes dashoffset 1 -> 0 a literal 0% -> 100% path reveal. */
 .entry-arrow .landing-entry-ring {
   fill: none;
   stroke: currentColor;
@@ -73,11 +79,12 @@
   transition: stroke-dashoffset 900ms cubic-bezier(.24,.72,.28,1);
 }
 
-/* First reveal is phase-locked to NewTone itself. These four checkpoints mirror
-   useTitleRetrace DRAW_KEYFRAMES exactly: 0/18/80/100% with the same local
-   easing curves and the same canonical 2000ms duration. */
+/* Canonical NewTone draw duration is TITLE_DRAW_MS = 2000ms. Do not copy the
+   title's nonlinear keyframes here: the circle simply spends the full same
+   2000ms travelling uniformly from empty to complete, so it cannot visually
+   finish early around the W/T area. */
 .down-entry-group[data-entry-selected="true"] .entry-arrow:not(.is-ring-active) .landing-entry-ring {
-  animation: landing-reader-ring-follow-newtone 2000ms both;
+  animation: landing-reader-ring-follow-newtone 2000ms linear both;
 }
 
 .entry-arrow.is-ring-active .landing-entry-ring {
@@ -85,19 +92,8 @@
 }
 
 @keyframes landing-reader-ring-follow-newtone {
-  0% {
-    stroke-dashoffset: 1;
-    animation-timing-function: cubic-bezier(.8,0,.7,.45);
-  }
-  18% {
-    stroke-dashoffset: .86;
-    animation-timing-function: cubic-bezier(.4,.05,.6,.95);
-  }
-  80% {
-    stroke-dashoffset: .1;
-    animation-timing-function: cubic-bezier(.15,.7,.25,1);
-  }
-  100% { stroke-dashoffset: 0; }
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
 }
 
 /* The reading arrow itself arrives only after the 260ms prompt delay plus the
