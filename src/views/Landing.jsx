@@ -19,6 +19,7 @@ import { LANDING_SCENES, resolveLandingScene } from '../landing/landingScene'
 import { detectBrowserReaderLanguage } from '../i18n/languages'
 import ScrambleText from '../components/ScrambleText'
 import LandingJijiaScene from '../components/landing/LandingJijiaScene'
+import LandingEntryArrow from '../components/landing/LandingEntryArrow'
 import LandingTitleMark, { NewToneHandLines } from '../components/landing/LandingTitleMark'
 import '../styles/sketchPrimitives.css'
 import './Landing.css'
@@ -32,34 +33,6 @@ const RETURN_STATUS_FADE_MS = 260
 const RETURN_GUIDE_DELAY_MS = 1600
 const LANDING_ENTRY_TURN_MS = 260
 const LANDING_ENTRY_PROMPT_DURATION_MS = 1900
-
-const GUIDE_CURVE = 'M7 24L38 24'
-const GUIDE_HEAD = 'M32 18L39 24L32 30'
-const GUIDE_RING = 'M24 4.5C35 3.8 43 11.8 43 23.5C43 35.4 35.3 43.2 23.2 43C11.2 42.8 4.8 35.1 5.1 23.7C5.4 12.2 13.2 5.1 24 4.5'
-const DOWN_RING = 'M0 2.5C19 1 30.5 13.2 30 35C29.5 56.5 18 72.5-2 71.8C-22 71.1-30.5 56.9-29.5 35.4C-28.5 14.2-18.5 4.1 0 2.5'
-
-function LandingGuideArrow({ phase, turned = false, updatesActive = false, ringActive = false }) {
-  if (phase === 'hidden') return null
-  return (
-    <svg
-      className={`landing-guide-arrow landing-guide-arrow--main landing-guide-arrow--${phase}${turned ? ' landing-guide-arrow--turned' : ''}${updatesActive ? ' landing-guide-arrow--updates-active' : ''}${ringActive ? ' landing-guide-arrow--ring-active' : ''}`}
-      viewBox="0 0 48 48"
-      aria-hidden="true"
-    >
-      <g className="landing-guide-arrow__turn">
-        <g className="landing-guide-arrow__strokes">
-          <path className="landing-guide-arrow__curve" pathLength="1" d={GUIDE_CURVE} />
-          <path className="landing-guide-arrow__head" pathLength="1" d={GUIDE_HEAD} />
-        </g>
-        <g className="landing-guide-arrow__eraser">
-          <path className="landing-guide-arrow__curve" pathLength="1" d={GUIDE_CURVE} />
-          <path className="landing-guide-arrow__head" pathLength="1" d={GUIDE_HEAD} />
-        </g>
-      </g>
-      <path className="landing-guide-arrow__ring" pathLength="1" d={GUIDE_RING} />
-    </svg>
-  )
-}
 
 function Landing({
   onEnter,
@@ -88,6 +61,7 @@ function Landing({
   const triggeredRef = useRef(false)
   const introRef = useRef(introCompleted)
   const landingRef = useRef(null)
+  const readerRingRef = useRef(null)
   const activationPendingRef = useRef(false)
   const activationTimerRef = useRef(0)
   const returnSequenceStartedRef = useRef(false)
@@ -123,6 +97,55 @@ function Landing({
     setEntryTarget('reader')
     setEntryPromptsSettled(false)
   }, [entryPromptsActive])
+
+  /*
+   * The initial Reader ring does not own a timer anymore. It follows the real
+   * NewTone WAAPI animation frame-for-frame. Whatever duration/easing the title
+   * uses now or in the future, the circle cannot finish before the title does.
+   */
+  useEffect(() => {
+    if (phase !== TITLE_PHASE.DRAWING || entryTarget !== 'reader') return undefined
+
+    let frame = 0
+    let ringLength = 0
+
+    const syncRingToTitle = () => {
+      const ring = readerRingRef.current
+      const sweep = sweepRef.current
+
+      if (!ring || !sweep) {
+        frame = window.requestAnimationFrame(syncRingToTitle)
+        return
+      }
+
+      if (!ringLength) ringLength = ring.getTotalLength()
+
+      const animations = typeof sweep.getAnimations === 'function' ? sweep.getAnimations() : []
+      const titleAnimation = animations[0]
+      const timing = titleAnimation?.effect?.getComputedTiming?.()
+      const progress = timing?.progress
+
+      if (Number.isFinite(progress)) {
+        ring.style.strokeDashoffset = String(ringLength * (1 - Math.min(1, Math.max(0, progress))))
+      } else {
+        ring.style.strokeDashoffset = String(ringLength)
+      }
+
+      if (phaseRef.current === TITLE_PHASE.DRAWING) {
+        frame = window.requestAnimationFrame(syncRingToTitle)
+      }
+    }
+
+    frame = window.requestAnimationFrame(syncRingToTitle)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      const ring = readerRingRef.current
+      if (!ring) return
+      if (phaseRef.current === TITLE_PHASE.REVEALED) ring.style.strokeDashoffset = '0'
+      else ring.style.removeProperty('stroke-dashoffset')
+    }
+  }, [entryTarget, phase, phaseRef, sweepRef])
 
   useSceneParallax({
     rootRef: landingRef,
@@ -332,8 +355,13 @@ function Landing({
 
   const titleTouched = phase !== TITLE_PHASE.IDLE
   const updatesSelected = entryPromptsActive && entryTarget === 'updates'
-  const readerRingActive = entryPromptsSettled && entryTarget === 'reader'
-  const updatesRingActive = entryPromptsSettled && entryTarget === 'updates'
+  const guideDirection = entryPromptsActive
+    ? (updatesSelected ? 'down' : 'left')
+    : 'right'
+  const readerRingActive = entryPromptsActive
+    && entryTarget === 'reader'
+    && phase === TITLE_PHASE.REVEALED
+  const updatesRingActive = entryPromptsActive && entryTarget === 'updates'
 
   return (
     <div
@@ -364,23 +392,23 @@ function Landing({
           >
             <span className="landing-title-text" data-landing-title-visual="true">
               <span className="landing-title-breath">
-                <span className="landing-title-n-host">
-                  N
-                  <span className="landing-title-n-origin">
-                    <LandingGuideArrow
-                      phase={guidePhase}
-                      turned={entryPromptsActive}
-                      updatesActive={updatesSelected}
-                      ringActive={updatesRingActive}
-                    />
-                  </span>
-                </span>
+                <span className="landing-title-n-host">N</span>
                 {'ewTone'}
                 <LandingTitleMark text="NewTone" sweepRef={sweepRef} />
                 {!returnSequenceActive && <NewToneHandLines />}
               </span>
             </span>
           </h1>
+
+          <div className="landing-guide-anchor" aria-hidden="true">
+            <LandingEntryArrow
+              className="landing-guide-entry-arrow"
+              direction={guideDirection}
+              phase={guidePhase}
+              ringActive={updatesRingActive}
+              delayedBob={updatesSelected && updatesRingActive}
+            />
+          </div>
 
           {returnStatusVisible && (
             <div className={`landing-return-status${returnStatusFading ? ' landing-return-status--fading' : ''}`} aria-live="polite">
@@ -423,21 +451,15 @@ function Landing({
                     onRevealed={handleEntryPromptsRevealed}
                   />
                 </p>
-                <svg
-                  className={`entry-arrow entry-arrow--down${readerRingActive ? ' is-ring-active' : ''}`}
-                  viewBox="-60 0 120 80"
-                  width="32"
-                  height="22"
-                  aria-hidden="true"
-                >
-                  <path className="landing-entry-ring" pathLength="1" d={DOWN_RING} />
-                  <g className={entryPromptsActive ? 'sketch-down-breathe' : ''}>
-                    <path className="sketch-down-shaft" d="M 0,5 L 0,65" />
-                    <path className="sketch-down-shaft-faint" d="M -2,8 L -2,62" />
-                    <path className="sketch-down-head" d="M 0,65 L -10,50" />
-                    <path className="sketch-down-head" d="M 0,65 L 10,50" />
-                  </g>
-                </svg>
+                <LandingEntryArrow
+                  className="reader-entry-arrow"
+                  direction="down"
+                  phase="steady"
+                  ringActive={readerRingActive}
+                  ringRef={readerRingRef}
+                  delayedBob={entryPromptsSettled && entryTarget === 'reader'}
+                  arrowDelayed={!entryPromptsSettled}
+                />
               </div>
             </>
           )}
