@@ -33,6 +33,7 @@ const RETURN_STATUS_FADE_MS = 260
 const RETURN_GUIDE_DELAY_MS = 1600
 const LANDING_ENTRY_TURN_MS = 260
 const LANDING_ENTRY_PROMPT_DURATION_MS = 1900
+const READER_RING_DRAW_CAP = 0.92
 
 function Landing({
   onEnter,
@@ -99,9 +100,12 @@ function Landing({
   }, [entryPromptsActive])
 
   /*
-   * The initial Reader ring does not own a timer anymore. It follows the real
-   * NewTone WAAPI animation frame-for-frame. Whatever duration/easing the title
-   * uses now or in the future, the circle cannot finish before the title does.
+   * Follow the value that actually paints NewTone, not the WAAPI clock.
+   * The title uses per-keyframe easing, so getComputedTiming().progress can be
+   * far ahead of the visible sweep. Reading computed strokeDashoffset gives us
+   * the real on-screen pen position. Keep an 8% gap open while DRAWING so the
+   * circle is physically unable to look complete before NewTone reaches its
+   * REVEALED state; the final gap closes on the same state transition.
    */
   useEffect(() => {
     if (phase !== TITLE_PHASE.DRAWING || entryTarget !== 'reader') return undefined
@@ -119,17 +123,16 @@ function Landing({
       }
 
       if (!ringLength) ringLength = ring.getTotalLength()
+      ring.style.transition = 'none'
 
-      const animations = typeof sweep.getAnimations === 'function' ? sweep.getAnimations() : []
-      const titleAnimation = animations[0]
-      const timing = titleAnimation?.effect?.getComputedTiming?.()
-      const progress = timing?.progress
+      const rawSweepOffset = Number.parseFloat(window.getComputedStyle(sweep).strokeDashoffset)
+      const normalizedSweepOffset = Number.isFinite(rawSweepOffset)
+        ? Math.min(1, Math.max(0, rawSweepOffset))
+        : 1
+      const titleVisibleProgress = 1 - normalizedSweepOffset
+      const ringVisibleProgress = titleVisibleProgress * READER_RING_DRAW_CAP
 
-      if (Number.isFinite(progress)) {
-        ring.style.strokeDashoffset = String(ringLength * (1 - Math.min(1, Math.max(0, progress))))
-      } else {
-        ring.style.strokeDashoffset = String(ringLength)
-      }
+      ring.style.strokeDashoffset = String(ringLength * (1 - ringVisibleProgress))
 
       if (phaseRef.current === TITLE_PHASE.DRAWING) {
         frame = window.requestAnimationFrame(syncRingToTitle)
@@ -142,8 +145,19 @@ function Landing({
       window.cancelAnimationFrame(frame)
       const ring = readerRingRef.current
       if (!ring) return
-      if (phaseRef.current === TITLE_PHASE.REVEALED) ring.style.strokeDashoffset = '0'
-      else ring.style.removeProperty('stroke-dashoffset')
+
+      ring.style.transition = 'none'
+      if (phaseRef.current === TITLE_PHASE.REVEALED) {
+        ring.style.strokeDashoffset = '0'
+        window.requestAnimationFrame(() => {
+          if (readerRingRef.current !== ring) return
+          ring.style.removeProperty('stroke-dashoffset')
+          ring.style.removeProperty('transition')
+        })
+      } else {
+        ring.style.removeProperty('stroke-dashoffset')
+        ring.style.removeProperty('transition')
+      }
     }
   }, [entryTarget, phase, phaseRef, sweepRef])
 
@@ -398,17 +412,17 @@ function Landing({
                 {!returnSequenceActive && <NewToneHandLines />}
               </span>
             </span>
-          </h1>
 
-          <div className="landing-guide-anchor" aria-hidden="true">
-            <LandingEntryArrow
-              className="landing-guide-entry-arrow"
-              direction={guideDirection}
-              phase={guidePhase}
-              ringActive={updatesRingActive}
-              delayedBob={updatesSelected && updatesRingActive}
-            />
-          </div>
+            <span className="landing-guide-anchor" aria-hidden="true">
+              <LandingEntryArrow
+                className="landing-guide-entry-arrow"
+                direction={guideDirection}
+                phase={guidePhase}
+                ringActive={updatesRingActive}
+                delayedBob={updatesSelected && updatesRingActive}
+              />
+            </span>
+          </h1>
 
           {returnStatusVisible && (
             <div className={`landing-return-status${returnStatusFading ? ' landing-return-status--fading' : ''}`} aria-live="polite">
