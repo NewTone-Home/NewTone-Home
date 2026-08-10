@@ -23,8 +23,7 @@
   will-change: transform;
 }
 
-/* One persistent arrow, one explicit angle. The same DOM rotates right → left,
-   left → down, and down → left; it is never visually replaced by another arrow. */
+/* One persistent arrow, one explicit angle. */
 .landing-guide-arrow--turned {
   --landing-guide-angle: 180deg;
 }
@@ -33,12 +32,14 @@
   --landing-guide-angle: 90deg;
 }
 
+/* Rotate the SVG vectors in their own coordinate system instead of promoting
+   the inner group to a rasterized transform layer. This keeps the stroke crisp
+   during 90° ↔ 180° rotation and avoids the faux fade/blur impression. */
 .landing-guide-arrow__turn {
-  transform-box: fill-box;
-  transform-origin: center;
+  transform-box: view-box;
+  transform-origin: 50% 50%;
   transform: rotate(var(--landing-guide-angle));
   opacity: 1 !important;
-  will-change: transform;
   transition: transform 760ms cubic-bezier(.2,.8,.2,1);
 }
 
@@ -56,12 +57,12 @@
 
 .landing-guide-arrow__strokes {
   opacity: .72 !important;
-  filter: none;
+  filter: none !important;
   stroke: var(--ink-medium);
   stroke-width: 2.4;
   stroke-linecap: round;
   stroke-linejoin: round;
-  transition: none !important;
+  shape-rendering: geometricPrecision;
 }
 
 .landing-guide-arrow__strokes path,
@@ -79,30 +80,30 @@
   animation: landing-guide-pencil-head 120ms ease-out 230ms forwards;
 }
 
-/* The Updates ring uses the exact same visible-dash contract as the Reader ring.
-   Handoff in either direction stays visible for 900ms instead of flashing. */
+/* Updates uses the same normalized offset contract as Reader. */
 .landing-guide-arrow__ring {
   fill: none;
   stroke: var(--ink-medium);
   stroke-width: 2.1;
   stroke-linecap: butt;
   stroke-linejoin: round;
-  stroke-dasharray: 0 1;
-  stroke-dashoffset: 0;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
   opacity: .8;
   vector-effect: non-scaling-stroke;
   transform-box: fill-box;
   transform-origin: center;
   transform: scale(.88, 1.48);
-  transition: stroke-dasharray 900ms cubic-bezier(.24,.72,.28,1);
+  transition: stroke-dashoffset 900ms cubic-bezier(.24,.72,.28,1);
 }
 
 .landing-guide-arrow--ring-active .landing-guide-arrow__ring {
-  stroke-dasharray: 1 0;
+  stroke-dashoffset: 0;
 }
 
-/* When Updates owns the downward gesture, the arrow settles into the same
-   restrained vertical breathing used by the Reader arrow. The ring stays still. */
+/* Bob only after the directional rotation has finished. It stops immediately
+   when Updates loses focus, so the return rotation is a single clean transform
+   instead of a rotation composed with a moving child layer. */
 .landing-guide-arrow--updates-active.landing-guide-arrow--ring-active .landing-guide-arrow__strokes {
   animation: landing-updates-arrow-bob 1700ms ease-in-out 760ms infinite;
 }
@@ -124,7 +125,7 @@
 
 .landing-guide-arrow--retracting .landing-guide-arrow__strokes {
   opacity: .72 !important;
-  filter: none;
+  filter: none !important;
   animation: none;
 }
 
@@ -183,7 +184,7 @@
   }
 
   .landing-guide-arrow--ring-active .landing-guide-arrow__ring {
-    stroke-dasharray: 1 0 !important;
+    stroke-dashoffset: 0 !important;
   }
 
   .landing-guide-arrow--visible .landing-guide-arrow__strokes path {
@@ -220,7 +221,7 @@
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow--ring-active .landing-guide-arrow__ring {
-  stroke-dasharray: 1 0 !important;
+  stroke-dashoffset: 0 !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__strokes path {
