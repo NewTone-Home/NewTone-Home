@@ -114,19 +114,26 @@
   vector-effect: non-scaling-stroke;
 }
 
-/* Guide appearance: draw the same arrow in place. No scale bloom, wash or blur. */
+/*
+ * The NewTone-side guide starts as a complete arrow tucked closer to the title,
+ * then slides left into its established resting position. Only this first
+ * visible appearance changes; later direction rotations keep using the existing
+ * rotator and Updates behavior unchanged.
+ */
 .landing-guide-entry-arrow .landing-entry-arrow__shaft,
 .landing-guide-entry-arrow .landing-entry-arrow__head {
   stroke-dasharray: 1 1;
   stroke-dashoffset: 1;
 }
 
-.landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__shaft {
-  animation: landing-entry-guide-shaft-in 900ms cubic-bezier(.42,0,.58,1) forwards;
+.landing-guide-entry-arrow.landing-entry-arrow--visible {
+  animation: landing-entry-guide-pull-out 650ms cubic-bezier(.2,.8,.2,1) backwards;
 }
 
+.landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__shaft,
 .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__head {
-  animation: landing-entry-guide-head-in 420ms ease-out 650ms forwards;
+  stroke-dashoffset: 0;
+  animation: none;
 }
 
 .landing-guide-entry-arrow.landing-entry-arrow--retracting .landing-entry-arrow__shaft,
@@ -135,14 +142,10 @@
   animation: landing-entry-guide-out 900ms ease-in forwards;
 }
 
-@keyframes landing-entry-guide-shaft-in {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
-}
-
-@keyframes landing-entry-guide-head-in {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
+@keyframes landing-entry-guide-pull-out {
+  from { opacity: 0; translate: 18px 0; }
+  12% { opacity: 1; }
+  to { opacity: 1; translate: 0 0; }
 }
 
 @keyframes landing-entry-guide-out {
@@ -265,6 +268,12 @@
     animation: none !important;
   }
 
+  .landing-guide-entry-arrow.landing-entry-arrow--visible {
+    animation: none !important;
+    translate: 0 0 !important;
+    opacity: 1 !important;
+  }
+
   .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__shaft,
   .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__head {
     animation: none !important;
@@ -296,6 +305,12 @@
 .page-shell[data-motion-mode="reduced"] .landing-entry-arrow__ink {
   transition: none !important;
   animation: none !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-guide-entry-arrow.landing-entry-arrow--visible {
+  animation: none !important;
+  translate: 0 0 !important;
+  opacity: 1 !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__shaft,
