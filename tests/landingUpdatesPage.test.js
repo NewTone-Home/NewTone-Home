@@ -29,6 +29,9 @@ describe('Landing updates return entry', () => {
     expect(styles).toContain('updates-return-arrow-reveal')
     expect(styles).toContain('updates-return-arrow-withdraw')
     expect(styles).toContain('[data-return-state="withdraw-arrow"]')
+    expect(styles).toContain('[data-return-state="arrow-turn"] .landing-updates-return__arrow .landing-entry-arrow__rotator')
+    expect(styles).toContain('transform: rotate(-180deg)')
+    expect(styles).toContain('[data-return-state="ready"] .landing-updates-return__arrow .landing-entry-arrow__rotator')
   })
 
   it('uses one withdrawal path for leave, wheel, and outside pointer input', () => {

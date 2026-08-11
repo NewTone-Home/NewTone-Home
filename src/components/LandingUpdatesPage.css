@@ -156,8 +156,14 @@
   }
 
   .landing-updates-page[data-return-state="arrow-turn"] .landing-updates-return__arrow .landing-entry-arrow__rotator {
+    transform: rotate(-180deg);
     transition-duration: 650ms !important;
     transition-timing-function: cubic-bezier(.42,0,.58,1) !important;
+  }
+
+  .landing-updates-page[data-return-state="ready"] .landing-updates-return__arrow .landing-entry-arrow__rotator {
+    transform: rotate(180deg);
+    transition: none !important;
   }
 
   .landing-updates-page .landing-updates-return__arrow .landing-entry-ring {
@@ -244,8 +250,8 @@
 
 @keyframes updates-return-arrow-withdraw {
   from { opacity: 1; transform: translateX(0); }
-  32% { opacity: .96; transform: translateX(-2px); }
-  72% { opacity: .12; transform: translateX(-20px); }
+  22% { opacity: .82; transform: translateX(-3px); }
+  56% { opacity: .04; transform: translateX(-18px); }
   to { opacity: 0; transform: translateX(-30px); }
 }
 

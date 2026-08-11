@@ -37,6 +37,14 @@ const LANDING_ENTRY_PROMPT_DURATION_MS = 1900
 const LANDING_ENTRY_ARROW_PREP_MS = 320
 const LANDING_UPDATES_ARROW_EXIT_MS = 900
 const LANDING_RING_DEBUG_QUERY = 'landing-ring-debug'
+const LANDING_PROMPT_FLOW_PHASES = new Set([
+  UPDATES_PHASE.LANDING,
+  UPDATES_PHASE.ENTER_ARROW_TURN,
+  UPDATES_PHASE.ENTER_ARROWS,
+  UPDATES_PHASE.RETURN_LABELS,
+  UPDATES_PHASE.RETURN_ARROWS,
+  UPDATES_PHASE.RETURN_ARROW_TURN,
+])
 
 function landingRingDebugEnabled() {
   if (typeof window === 'undefined') return false
@@ -127,7 +135,11 @@ function Landing({
   })
 
   const entryPromptsActive = !returnSequenceActive
-    && [TITLE_PHASE.DRAWING, TITLE_PHASE.REVEALED].includes(phase)
+    && LANDING_PROMPT_FLOW_PHASES.has(updatesPhase)
+    && (
+      updatesPhase !== UPDATES_PHASE.LANDING
+      || [TITLE_PHASE.DRAWING, TITLE_PHASE.REVEALED].includes(phase)
+    )
   const updatesFlowActive = updatesPhase !== UPDATES_PHASE.LANDING
 
   const recordLandingRingDebug = useCallback((label, context = {}) => {
@@ -472,9 +484,9 @@ function Landing({
   const guideDirection = arrowTurningIn || arrowsRetracting
     ? 'left'
     : arrowsEmerging
-      ? 'left'
+      ? 'right'
       : arrowsTurning
-        ? 'down'
+        ? 'left'
       : entryPromptsActive
     ? (updatesSelected ? 'down' : 'left')
     : 'right'
@@ -603,7 +615,11 @@ function Landing({
                 </p>
                 <LandingEntryArrow
                   className="reader-entry-arrow"
-                  direction={arrowTurningIn || arrowsRetracting || arrowsEmerging || updatesSelected ? 'left' : 'down'}
+                  direction={arrowTurningIn || arrowsRetracting || updatesSelected
+                    ? 'left'
+                    : arrowsEmerging
+                      ? 'right'
+                      : 'down'}
                   phase={arrowsHidden ? 'hidden' : 'steady'}
                   showRing={false}
                   entryTurnFirst={!updatesSelected}

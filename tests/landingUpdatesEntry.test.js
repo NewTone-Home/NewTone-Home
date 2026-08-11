@@ -38,15 +38,22 @@ describe('Landing updates entry', () => {
     expect(updatesCss).toContain('landing-updates-surface-exit 900ms')
   })
 
-  it('returns arrows left from their labels before a separate slow turn down', () => {
+  it('returns complete arrows from the glitch source before the final direction turn', () => {
+    expect(landing).toContain('const LANDING_PROMPT_FLOW_PHASES = new Set([')
+    expect(landing).toContain('UPDATES_PHASE.RETURN_LABELS')
+    expect(landing).toContain('UPDATES_PHASE.RETURN_ARROWS')
     expect(landing).toContain('const arrowsEmerging = updatesPhase === UPDATES_PHASE.RETURN_ARROWS')
     expect(landing).toContain('const arrowsTurning = updatesPhase === UPDATES_PHASE.RETURN_ARROW_TURN')
     expect(landing).toContain(': arrowsEmerging')
-    expect(landing).toContain("? 'left'")
+    expect(landing).toContain("? 'right'")
+    expect(landing).toContain("arrowsTurning\n        ? 'left'")
+    expect(landing).toContain("arrowsEmerging\n                      ? 'right'")
     expect(landing).toContain("onUpdatesBarrier?.('turns', key)")
     expect(guideCss).toContain('landing-updates-arrow-return 1400ms')
     expect(guideCss).toContain('[data-updates-phase="return-arrow-turn"] .landing-entry-arrow__rotator')
     expect(guideCss).toContain('--updates-arrow-exit-x: -68px')
+    expect(guideCss).toContain('38% { opacity: .72; }')
+    expect(guideCss).toContain('62% { opacity: .03; }')
   })
 
   it('reveals both labels together and routes the next downward input by target', () => {

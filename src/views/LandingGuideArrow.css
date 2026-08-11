@@ -167,8 +167,8 @@
 
 @keyframes landing-updates-arrow-retract {
   from { opacity: 1; translate: 0 0; }
-  54% { opacity: .78; }
-  76% { opacity: .03; }
+  38% { opacity: .72; }
+  62% { opacity: .03; }
   to { opacity: 0; translate: var(--updates-arrow-exit-x, -46px) 0; }
 }
 
