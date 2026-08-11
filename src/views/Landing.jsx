@@ -462,12 +462,13 @@ function Landing({
 
   const titleTouched = phase !== TITLE_PHASE.IDLE
   const updatesSelected = entryPromptsActive && entryTarget === 'updates'
+  const arrowTurningIn = updatesPhase === UPDATES_PHASE.ENTER_ARROW_TURN
   const arrowsRetracting = updatesPhase === UPDATES_PHASE.ENTER_ARROWS
   const arrowsEmerging = updatesPhase === UPDATES_PHASE.RETURN_ARROWS
   const arrowsTurning = updatesPhase === UPDATES_PHASE.RETURN_ARROW_TURN
   const arrowsReturning = arrowsEmerging || arrowsTurning
-  const arrowsHidden = updatesFlowActive && !arrowsRetracting && !arrowsReturning
-  const guideDirection = arrowsRetracting
+  const arrowsHidden = updatesFlowActive && !arrowTurningIn && !arrowsRetracting && !arrowsReturning
+  const guideDirection = arrowTurningIn || arrowsRetracting
     ? 'left'
     : arrowsEmerging
       ? 'left'
@@ -497,7 +498,8 @@ function Landing({
 
   const handleUpdatesTransitionEnd = useCallback((event) => {
     if (
-      updatesPhase !== UPDATES_PHASE.RETURN_ARROW_TURN
+      updatesPhase !== UPDATES_PHASE.ENTER_ARROW_TURN
+      && updatesPhase !== UPDATES_PHASE.RETURN_ARROW_TURN
       || event.propertyName !== 'transform'
       || !event.target.classList.contains('landing-entry-arrow__rotator')
     ) return
@@ -599,7 +601,7 @@ function Landing({
                 </p>
                 <LandingEntryArrow
                   className="reader-entry-arrow"
-                  direction={arrowsRetracting || arrowsEmerging || updatesSelected ? 'left' : 'down'}
+                  direction={arrowTurningIn || arrowsRetracting || arrowsEmerging || updatesSelected ? 'left' : 'down'}
                   phase={arrowsHidden ? 'hidden' : 'steady'}
                   showRing={false}
                   entryTurnFirst={!updatesSelected}

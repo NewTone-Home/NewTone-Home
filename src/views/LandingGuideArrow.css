@@ -149,10 +149,11 @@
   transition-duration: 900ms;
 }
 
-/* A down-facing entry must finish its existing 1200ms turn to left before its
-   own retract motion starts. The already-left entry keeps the zero-delay path. */
-.landing[data-updates-phase="enter-arrows"] .landing-entry-arrow[data-entry-turn-first="true"] {
-  animation-delay: 900ms;
+/* The guide turn is its own barrier. The reader remains still until this
+   transition completes, then both arrows share the same retract start frame. */
+.landing[data-updates-phase="enter-arrow-turn"] .landing-entry-arrow__rotator {
+  transition-duration: 900ms;
+  transition-timing-function: cubic-bezier(.42,0,.58,1);
 }
 
 .landing[data-updates-phase="return-arrows"] .landing-entry-arrow {
@@ -311,6 +312,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .landing[data-updates-phase="enter-arrows"] .landing-entry-arrow,
+  .landing[data-updates-phase="enter-arrow-turn"] .landing-entry-arrow__rotator,
   .landing[data-updates-phase="return-arrows"] .landing-entry-arrow,
   .landing[data-updates-phase="return-arrow-turn"] .landing-entry-arrow__rotator {
     animation-duration: 1ms !important;

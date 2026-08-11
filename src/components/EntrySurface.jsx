@@ -39,7 +39,7 @@ function EntrySurface({
 
   const handleUpdatesBarrier = useCallback((kind, key) => {
     setUpdatesPhase(current => {
-      const expected = 2
+      const expected = kind === 'turns' && current === UPDATES_PHASE.ENTER_ARROW_TURN ? 1 : 2
       if (barrierRef.current.phase !== current) {
         barrierRef.current = { phase: current, keys: new Set() }
       }

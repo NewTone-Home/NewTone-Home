@@ -8,6 +8,8 @@ import {
 describe('Landing updates flow', () => {
   it('enters only in the three contracted completion barriers', () => {
     let phase = advanceUpdatesPhase(UPDATES_PHASE.LANDING, 'enter-requested')
+    expect(phase).toBe(UPDATES_PHASE.ENTER_ARROW_TURN)
+    phase = advanceUpdatesPhase(phase, 'turns-complete')
     expect(phase).toBe(UPDATES_PHASE.ENTER_ARROWS)
     expect(advanceUpdatesPhase(phase, 'labels-complete')).toBe(phase)
     phase = advanceUpdatesPhase(phase, 'arrows-complete')

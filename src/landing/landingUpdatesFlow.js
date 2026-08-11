@@ -1,5 +1,6 @@
 export const UPDATES_PHASE = Object.freeze({
   LANDING: 'landing',
+  ENTER_ARROW_TURN: 'enter-arrow-turn',
   ENTER_ARROWS: 'enter-arrows',
   ENTER_LABELS: 'enter-labels',
   ENTER_SURFACE: 'enter-surface',
@@ -11,7 +12,8 @@ export const UPDATES_PHASE = Object.freeze({
 })
 
 const TRANSITIONS = Object.freeze({
-  [`${UPDATES_PHASE.LANDING}:enter-requested`]: UPDATES_PHASE.ENTER_ARROWS,
+  [`${UPDATES_PHASE.LANDING}:enter-requested`]: UPDATES_PHASE.ENTER_ARROW_TURN,
+  [`${UPDATES_PHASE.ENTER_ARROW_TURN}:turns-complete`]: UPDATES_PHASE.ENTER_ARROWS,
   [`${UPDATES_PHASE.ENTER_ARROWS}:arrows-complete`]: UPDATES_PHASE.ENTER_LABELS,
   [`${UPDATES_PHASE.ENTER_LABELS}:labels-complete`]: UPDATES_PHASE.ENTER_SURFACE,
   [`${UPDATES_PHASE.ENTER_SURFACE}:surface-complete`]: UPDATES_PHASE.UPDATES,
