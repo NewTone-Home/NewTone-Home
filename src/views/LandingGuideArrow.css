@@ -80,6 +80,62 @@
   top: 4px;
 }
 
+/* Generic text controls reuse the same measured SVG arrow without the
+   selection ring. The wrapper is a real flex item beside the source text;
+   LandingEntryArrow measures that text edge and supplies the signed travel
+   delta for the first pull. */
+.landing-entry-reveal--generic {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 30px;
+  margin-left: 2px;
+  align-self: center;
+  overflow: visible;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.landing-entry-reveal--generic.is-reveal-measured {
+  visibility: visible;
+}
+
+.landing-entry-reveal--generic .landing-entry-arrow {
+  position: absolute;
+  left: 5px;
+  top: 4px;
+}
+
+.landing-entry-reveal--generic:not(.is-reveal-complete) .landing-entry-arrow__rotator {
+  transition: none;
+}
+
+.landing-entry-reveal--generic.is-reveal-measured:not(.is-reveal-complete):not(.is-arrow-retracting) .landing-entry-arrow {
+  animation: landing-entry-generic-pull-out 650ms cubic-bezier(.2,.8,.2,1) backwards;
+}
+
+.landing-entry-reveal--generic .landing-entry-arrow__rotator {
+  transition-duration: 420ms;
+  transition-timing-function: cubic-bezier(.42,0,.58,1);
+}
+
+.landing-entry-reveal--generic.is-arrow-retracting {
+  animation: landing-entry-generic-retract 900ms cubic-bezier(.2,.8,.2,1) 420ms forwards;
+}
+
+@keyframes landing-entry-generic-pull-out {
+  from { translate: var(--landing-entry-reveal-start-x, 0px) 0; }
+  to { translate: 0 0; }
+}
+
+@keyframes landing-entry-generic-retract {
+  from { opacity: 1; translate: 0 0; }
+  24% { opacity: .84; }
+  58% { opacity: .12; }
+  to { opacity: 0; translate: -54px 0; }
+}
+
 /* ===== Shared Landing entry arrow vocabulary ===== */
 
 .landing-entry-arrow {

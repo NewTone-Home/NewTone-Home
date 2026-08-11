@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import '../../views/LandingGuideArrow.css'
 
 const ARROW_SHAFT = 'M 0,5 L 0,65'
 const ARROW_HEAD_LEFT = 'M 0,65 L -10,50'
@@ -24,6 +25,11 @@ function LandingEntryArrow({
   entryTurnFirst = false,
   delayedBob = false,
   arrowDelayed = false,
+  sourceRef = null,
+  sourceEdge = 'right',
+  entryReady = true,
+  initialDirection = 'right',
+  onExitComplete,
 }) {
   const localRingRef = useRef(null)
   const revealRef = useRef(null)
@@ -35,16 +41,20 @@ function LandingEntryArrow({
   const revealStartXRef = useRef(null)
 
   const classTokens = className.split(/\s+/).filter(Boolean)
-  const revealVariant = classTokens.includes('landing-guide-entry-arrow')
-    ? 'guide'
-    : classTokens.includes('reader-entry-arrow')
-      ? 'reader'
-      : null
+  const revealVariant = sourceRef
+    ? 'generic'
+    : classTokens.includes('landing-guide-entry-arrow')
+      ? 'guide'
+      : classTokens.includes('reader-entry-arrow')
+        ? 'reader'
+        : null
   const introDirection = revealVariant === 'guide'
     ? 'left'
     : revealVariant === 'reader'
       ? 'right'
-      : direction
+      : revealVariant === 'generic'
+        ? initialDirection
+        : direction
   const effectiveDirection = revealVariant && !revealComplete
     ? introDirection
     : direction
@@ -52,6 +62,8 @@ function LandingEntryArrow({
     ? phase === 'visible'
     : revealVariant === 'reader'
       ? !arrowDelayed
+      : revealVariant === 'generic'
+        ? Boolean(entryReady)
       : true
 
   useLayoutEffect(() => {
@@ -68,6 +80,14 @@ function LandingEntryArrow({
     setRevealMeasured(false)
     setInitialTurnActive(false)
   }, [arrowDelayed, revealVariant])
+
+  useEffect(() => {
+    if (revealVariant !== 'generic' || revealReady) return
+    revealStartXRef.current = null
+    setRevealComplete(false)
+    setRevealMeasured(false)
+    setInitialTurnActive(false)
+  }, [revealReady, revealVariant])
 
   useLayoutEffect(() => {
     if (!revealVariant || !revealReady || revealComplete) return
@@ -87,6 +107,7 @@ function LandingEntryArrow({
       ? arrow.closest('.down-entry-group')
       : null
     const promptText = group?.querySelector('.landing-prompt--down span')
+    const genericSource = revealVariant === 'generic' ? sourceRef?.current : null
     let frame = 0
     let active = true
 
@@ -97,10 +118,14 @@ function LandingEntryArrow({
       const inkRect = ink.getBoundingClientRect()
       const sourceRect = revealVariant === 'guide'
         ? titleMark?.getBoundingClientRect()
-        : promptText?.getBoundingClientRect()
+        : revealVariant === 'reader'
+          ? promptText?.getBoundingClientRect()
+          : genericSource?.getBoundingClientRect()
       const sourceX = revealVariant === 'guide'
         ? sourceRect?.left
-        : sourceRect?.right
+        : sourceEdge === 'left'
+          ? sourceRect?.left
+          : sourceRect?.right
 
       if (!Number.isFinite(sourceX)) return false
 
@@ -111,7 +136,7 @@ function LandingEntryArrow({
         )
       }
 
-      const sourceFacingInkX = revealVariant === 'guide'
+      const sourceFacingInkX = sourceEdge === 'left'
         ? inkRect.right
         : inkRect.left
       if (revealStartXRef.current === null) {
@@ -138,7 +163,7 @@ function LandingEntryArrow({
     const resizeObserver = typeof ResizeObserver === 'function'
       ? new ResizeObserver(scheduleMeasure)
       : null
-    ;[titleMark, promptText, ink, reveal].filter(Boolean).forEach((node) => {
+    ;[titleMark, promptText, genericSource, ink, reveal].filter(Boolean).forEach((node) => {
       resizeObserver?.observe(node)
     })
     window.addEventListener('resize', scheduleMeasure)
@@ -151,17 +176,23 @@ function LandingEntryArrow({
       window.removeEventListener('resize', scheduleMeasure)
       void fontReady
     }
-  }, [revealComplete, revealReady, revealVariant])
+  }, [revealComplete, revealReady, revealVariant, sourceEdge, sourceRef])
 
   const handleAnimationEnd = (event) => {
     if (
       event.animationName !== 'landing-entry-guide-pull-out'
       && event.animationName !== 'reader-entry-arrow-pull-out'
+      && event.animationName !== 'landing-entry-generic-pull-out'
     ) return
 
     const shouldTurn = direction !== introDirection
     setInitialTurnActive(shouldTurn)
     setRevealComplete(true)
+  }
+
+  const handleRevealAnimationEnd = (event) => {
+    if (event.animationName !== 'landing-entry-generic-retract') return
+    onExitComplete?.()
   }
 
   const handleTransitionEnd = (event) => {
@@ -226,8 +257,10 @@ function LandingEntryArrow({
         revealComplete ? 'is-reveal-complete' : '',
         initialTurnActive ? 'is-initial-turning' : '',
         arrowDelayed ? 'is-reveal-delayed' : '',
+        phase === 'retracting' ? 'is-arrow-retracting' : '',
       ].filter(Boolean).join(' ')}
       aria-hidden="true"
+      onAnimationEnd={handleRevealAnimationEnd}
     >
       {arrow}
     </span>

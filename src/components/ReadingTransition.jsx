@@ -12,6 +12,7 @@ import {
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useSceneParallax } from '../hooks/useSceneParallax'
 import { getReaderSceneLabel } from '../i18n/readerUi'
+import LandingEntryArrow from './landing/LandingEntryArrow'
 import { NewToneTransitionMark } from './landing/LandingTitleMark'
 import './ReadingTransition.css'
 
@@ -148,14 +149,17 @@ function ResumeEnvironment({ lines }) {
   )
 }
 
-function ExpandLabel({ labelText, labelVisible, labelRef, scrambleActive }) {
+function ExpandLabel({ labelText, labelVisible, labelRef, scrambleActive, onStableChange }) {
   const labelCharInterval = Math.max(80, Math.floor(650 / Math.max(1, Array.from(labelText).length)))
-  const { displayText } = useScrambleText(labelText, {
+  const { displayText, stable } = useScrambleText(labelText, {
     startDelay: 0,
     charInterval: labelCharInterval,
     scrambleInterval: 40,
     enabled: scrambleActive,
   })
+  useEffect(() => {
+    onStableChange?.(stable)
+  }, [onStableChange, stable])
   return (
     <span ref={labelRef} className={`lang-current-label${labelVisible ? ' lang-current-label--visible' : ' lang-current-label--hidden'}`}>
       {scrambleActive ? (displayText || labelText) : labelText}
@@ -318,24 +322,6 @@ function useLanguageSelectorHold({ enabled }) {
   return { progress, holdPhase, hold, retract }
 }
 
-function RitualHandAffordance({ showArrow = true }) {
-  return (
-    <svg className={`ritual-hand-affordance${showArrow ? '' : ' ritual-hand-affordance--ring-only'}`} viewBox="0 0 80 80" aria-hidden="true">
-      <path className="ritual-hand-affordance__ring" pathLength="1" d="M40 5C61 4 74 17 74 39C74 61 61 75 39 74C17 73 5 61 6 39C7 17 19 6 40 5" />
-      {showArrow && <path className="ritual-hand-affordance__arrow" pathLength="1" d="M40 22C39 33 40 45 40 57M31 48C34 52 37 56 40 59M49 48C46 52 43 56 40 59" />}
-    </svg>
-  )
-}
-
-function LanguageExpandAffordance() {
-  return (
-    <svg className="language-expand-affordance" viewBox="0 0 150 64" aria-hidden="true">
-      <path className="language-expand-affordance__ring" pathLength="1" d="M35 7C54 5 67 15 68 31C69 49 55 58 34 57C14 56 4 47 6 31C8 15 17 8 35 7" />
-      <path className="language-expand-affordance__note" pathLength="1" d="M67 32C81 30 94 31 108 31M101 25C104 27 107 29 110 31M101 37C104 35 107 33 110 31" />
-    </svg>
-  )
-}
-
 function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const setLanguage = useProgressStore(s => s.setLanguage)
   const lang = copy[language] || copy.zh
@@ -384,6 +370,9 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const [selectorIdentityStable, setSelectorIdentityStable] = useState(null)
   const [armedOption, setArmedOption] = useState(null)
   const [readyOption, setReadyOption] = useState(null)
+  const [hoveredOption, setHoveredOption] = useState(null)
+  const [languageLabelStable, setLanguageLabelStable] = useState(false)
+  const [languageArrowEntered, setLanguageArrowEntered] = useState(false)
 
   useEffect(() => {
     if (!slotsInitialized.current) {
@@ -459,14 +448,14 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     return languageVersion > 0 ? 120 : 100
   }, [languageVersion])
 
-  const { displayText: proceedText } = useScrambleText(currentStage.primary, {
+  const { displayText: proceedText, stable: proceedStable } = useScrambleText(currentStage.primary, {
     startDelay: proceedStartDelay,
     charInterval: proceedCharInterval,
     scrambleInterval: 30,
     enabled: showText && (!modeStage || modeActionsReady),
   })
 
-  const { displayText: changeText } = useScrambleText(currentStage.secondary, {
+  const { displayText: changeText, stable: changeStable } = useScrambleText(currentStage.secondary, {
     startDelay: 0,
     charInterval: 100,
     scrambleInterval: 30,
@@ -475,6 +464,20 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
   const expanded = langExpandHover || langExpandToggled
   const languageLabelShown = !modeStage && (expanded || languageLabelPinned)
+  const languageArrowReady = languageLabelShown
+    && labelVisible
+    && (!expanded || languageLabelStable || languageLabelPinned)
+    && !scramblingLang
+
+  useEffect(() => {
+    if (languageArrowReady) {
+      setLanguageArrowEntered(true)
+      return
+    }
+    if (!languageLabelShown && !scramblingLang && !languageLabelPinned) {
+      setLanguageArrowEntered(false)
+    }
+  }, [languageArrowReady, languageLabelShown, languageLabelPinned, scramblingLang])
 
   useLayoutEffect(() => {
     const nodes = [
@@ -667,6 +670,9 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   useEffect(() => {
     setArmedOption(null)
     setReadyOption(null)
+    setHoveredOption(null)
+    setLanguageLabelStable(false)
+    setLanguageArrowEntered(false)
   }, [currentStage.id])
 
   useEffect(() => {
@@ -732,6 +738,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
       && event.clientY >= rect.top && event.clientY <= rect.bottom)
     if (!inside || languageSecondaryInsideRef.current) return
     languageSecondaryInsideRef.current = true
+    setHoveredOption('secondary')
     handleEnter()
     languageSelectorHold.hold()
   }, [handleEnter, languageLabelShown, languageSelectorHold, modeStage])
@@ -739,9 +746,32 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const handleLanguageBoundaryLeave = useCallback(() => {
     if (modeStage) return
     languageSecondaryInsideRef.current = false
+    setHoveredOption(null)
     handleLeave()
     languageSelectorHold.retract()
   }, [handleLeave, languageSelectorHold, modeStage])
+
+  const primaryArrowDirection = locked
+    ? 'left'
+    : hoveredOption === 'primary'
+      ? 'down'
+      : 'left'
+  const secondaryArrowDirection = locked || scramblingLang
+    ? 'left'
+    : modeStage && hoveredOption === 'secondary'
+      ? 'down'
+      : modeStage
+        ? 'left'
+        : 'right'
+  const languageArrowDirection = locked || scramblingLang || (!expanded && !languageLabelPinned)
+    ? 'left'
+    : 'right'
+  const primaryArrowReady = showText
+    && proceedStable
+    && (!modeStage || modeActionsReady)
+  const secondaryArrowReady = showText
+    && changeStable
+    && (!modeStage || modeActionsReady)
 
   useEffect(() => {
     if (modeStage || !expanded) return undefined
@@ -833,12 +863,19 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 data-hold-progress={primaryHold.progress.toFixed(3)}
                 onPointerEnter={event => {
                   primaryHold.trackPointer(event)
+                  setHoveredOption('primary')
                   armHoverOption(event, 'primary')
                 }}
                 onPointerMove={primaryHold.trackPointer}
                 onPointerDown={primaryHold.trackPointer}
-                onPointerLeave={primaryHold.retract}
-                onPointerCancel={primaryHold.retract}
+                onPointerLeave={() => {
+                  setHoveredOption(null)
+                  primaryHold.retract()
+                }}
+                onPointerCancel={() => {
+                  setHoveredOption(null)
+                  primaryHold.retract()
+                }}
                 onAnimationEnd={event => handleAffordanceAnimationEnd(event, 'primary')}
                 onPointerUp={event => {
                   if (!isRitualDirectPointer(event.pointerType)) return
@@ -849,8 +886,18 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
               >
                 <span className="lang-btn-curtain" style={{ '--hold-angle': `${primaryHold.progress * 360}deg` }} />
                 <span className="lang-btn-text-area">
-                  <span ref={primaryTextRef} className="lang-btn-text-single">{proceedText}</span>
-                  <RitualHandAffordance />
+                  <span className="ritual-entry-text-row">
+                    <span ref={primaryTextRef} className="lang-btn-text-single">{proceedText}</span>
+                    <LandingEntryArrow
+                      className="ritual-entry-arrow ritual-entry-arrow--primary"
+                      direction={primaryArrowDirection}
+                      initialDirection="right"
+                      phase={locked ? 'retracting' : 'steady'}
+                      sourceRef={primaryTextRef}
+                      entryReady={primaryArrowReady}
+                      showRing={false}
+                    />
+                  </span>
                 </span>
               </button>
             </div>
@@ -871,12 +918,19 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                   onClick={modeStage ? undefined : handleLanguageExpandClick}
                   onPointerEnter={modeStage ? event => {
                     modeSecondaryHold.trackPointer(event)
+                    setHoveredOption('secondary')
                     armHoverOption(event, 'secondary')
                   } : undefined}
                   onPointerMove={modeStage ? modeSecondaryHold.trackPointer : handleLanguageSecondaryPointer}
                   onPointerDown={modeStage ? modeSecondaryHold.trackPointer : handleLanguageSecondaryPointer}
-                  onPointerLeave={modeStage ? modeSecondaryHold.retract : undefined}
-                  onPointerCancel={modeStage ? modeSecondaryHold.retract : handleLanguageBoundaryLeave}
+                  onPointerLeave={modeStage ? () => {
+                    setHoveredOption(null)
+                    modeSecondaryHold.retract()
+                  } : undefined}
+                  onPointerCancel={modeStage ? () => {
+                    setHoveredOption(null)
+                    modeSecondaryHold.retract()
+                  } : handleLanguageBoundaryLeave}
                   onAnimationEnd={event => handleAffordanceAnimationEnd(event, 'secondary')}
                   onPointerUp={event => {
                     if (!isRitualDirectPointer(event.pointerType) || !modeStage) return
@@ -892,18 +946,41 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                     style={{ '--hold-angle': `${secondaryProgress * 360}deg` }}
                   />
                   <span className="lang-btn-text-area">
-                    <span ref={secondaryTextRef} className={`lang-btn-text-top${languageLabelShown ? ' lang-btn-text-top--hidden' : ''}`}>
-                      {changeText}
-                    </span>
-                    <span className={`lang-btn-text-reveal${languageLabelShown ? ' lang-btn-text-reveal--visible' : ''}`}>
-                      <ExpandLabel
-                        labelText={labelText}
-                        labelVisible={labelVisible}
-                        labelRef={currentLanguageLabelRef}
-                        scrambleActive={expanded && !languageLabelPinned}
-                      />
-                    </span>
-                    {modeStage ? <RitualHandAffordance /> : <LanguageExpandAffordance />}
+                    {modeStage ? (
+                      <span className="ritual-entry-text-row">
+                        <span ref={secondaryTextRef} className="lang-btn-text-top">{changeText}</span>
+                        <LandingEntryArrow
+                          className="ritual-entry-arrow ritual-entry-arrow--secondary"
+                          direction={secondaryArrowDirection}
+                          initialDirection="right"
+                          phase={locked ? 'retracting' : 'steady'}
+                          sourceRef={secondaryTextRef}
+                          entryReady={secondaryArrowReady}
+                          showRing={false}
+                        />
+                      </span>
+                    ) : (
+                      <span className={`lang-btn-text-reveal${languageLabelShown ? ' lang-btn-text-reveal--visible' : ''}`}>
+                        <span className="ritual-entry-text-row">
+                          <ExpandLabel
+                            labelText={labelText}
+                            labelVisible={labelVisible}
+                            labelRef={currentLanguageLabelRef}
+                            scrambleActive={expanded && !languageLabelPinned}
+                            onStableChange={setLanguageLabelStable}
+                          />
+                          <LandingEntryArrow
+                            className="ritual-entry-arrow ritual-entry-arrow--language"
+                            direction={languageArrowDirection}
+                            initialDirection="right"
+                            phase={locked || scramblingLang || (!expanded && !languageLabelPinned) ? 'retracting' : 'steady'}
+                            sourceRef={currentLanguageLabelRef}
+                            entryReady={languageArrowReady || languageArrowEntered}
+                            showRing={false}
+                          />
+                        </span>
+                      </span>
+                    )}
                   </span>
                 </button>
                 <div className="lang-hover-bridge" />

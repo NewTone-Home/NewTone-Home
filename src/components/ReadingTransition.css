@@ -287,6 +287,46 @@
   color: var(--rt-control);
 }
 
+/* The arrow is a visual companion to the existing text hit area. Keep the
+   button and its hold/hover state intact, but let the measured arrow occupy
+   its own inline slot beside the text instead of using the old ring SVG. */
+.ritual-selector .language-btn {
+  overflow: visible;
+}
+
+.ritual-entry-text-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: max-content;
+  height: 100%;
+  position: relative;
+  z-index: 3;
+}
+
+.ritual-entry-text-row > .lang-btn-text-single,
+.ritual-entry-text-row > .lang-btn-text-top,
+.ritual-entry-text-row > .lang-current-label {
+  position: relative;
+  inset: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: auto;
+  opacity: 1;
+  z-index: 3;
+}
+
+.ritual-selector .ritual-entry-arrow {
+  color: var(--rt-control);
+}
+
+.ritual-selector .ritual-entry-arrow .landing-entry-arrow__ink {
+  stroke: currentColor;
+}
+
 .language-btn::before,
 .language-btn::after {
   position: absolute;

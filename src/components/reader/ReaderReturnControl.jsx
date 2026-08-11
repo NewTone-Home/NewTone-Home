@@ -1,11 +1,52 @@
 import { useEffect, useRef, useState } from 'react'
 import { getReaderUi } from '../../i18n/readerUi'
+import LandingEntryArrow from '../landing/LandingEntryArrow'
 import './ReaderReturnControl.css'
 
 const RETURN_RING_DRAW_MS = 2200
 const RETURN_RING_RETRACT_MS = 1200
 const RETURN_WHEEL_THRESHOLD = 8
 const RETURN_DIRECT_THRESHOLD = 36
+const RETURN_SCRAMBLE = '01░▒/\\-_:;~*#+%&@'
+
+function randomReturnChar() {
+  return RETURN_SCRAMBLE[Math.floor(Math.random() * RETURN_SCRAMBLE.length)]
+}
+
+function useReturnScrambleText(text) {
+  const [displayText, setDisplayText] = useState('')
+  const [stable, setStable] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    let resolvedCount = 0
+    const scrambleTimer = window.setInterval(() => {
+      if (!mounted) return
+      setDisplayText(text.split('').map((char, index) => index < resolvedCount ? char : randomReturnChar()).join(''))
+    }, 40)
+    const resolveTimer = window.setInterval(() => {
+      if (!mounted) return
+      resolvedCount += 1
+      if (resolvedCount >= text.length) {
+        window.clearInterval(resolveTimer)
+        window.clearInterval(scrambleTimer)
+        setDisplayText(text)
+        setStable(true)
+        return
+      }
+      setDisplayText(text.split('').map((char, index) => index < resolvedCount ? char : randomReturnChar()).join(''))
+    }, Math.max(70, Math.floor(650 / Math.max(1, text.length))))
+    setDisplayText(text.split('').map(() => randomReturnChar()).join(''))
+    setStable(false)
+    return () => {
+      mounted = false
+      window.clearInterval(scrambleTimer)
+      window.clearInterval(resolveTimer)
+    }
+  }, [text])
+
+  return { displayText, stable }
+}
 
 function hasHoverPointer() {
   return window.matchMedia?.('(hover: hover) and (pointer: fine)').matches === true
@@ -20,6 +61,9 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
   const fallbackUi = getReaderUi('zh')
   const returnLabel = ui.returnToLanding || ui.backToLanding || fallbackUi.returnToLanding
   const returnHint = ui.returnToLandingHint || ui.backToLanding || fallbackUi.returnToLandingHint
+  const returnTextRef = useRef(null)
+  const [hovered, setHovered] = useState(false)
+  const { displayText: returnDisplayText, stable: returnTextStable } = useReturnScrambleText(returnLabel)
   const [progress, setProgress] = useState(0)
   const [completing, setCompleting] = useState(false)
   const [arrowFadeComplete, setArrowFadeComplete] = useState(true)
@@ -97,8 +141,9 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       completedRef.current = true
       pendingCompleteRef.current = true
       const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
-      setArrowFadeComplete(!entryReady || reduced)
+      setArrowFadeComplete(!entryReady || !returnTextStable || reduced)
       setCompleting(true)
+      setHovered(false)
     }
 
     const onWheel = event => {
@@ -137,7 +182,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       window.removeEventListener('pointerup', clearDirectGesture)
       window.removeEventListener('pointercancel', clearDirectGesture)
     }
-  }, [entryReady, visualArmed])
+  }, [entryReady, returnTextStable, visualArmed])
 
   const affordanceVisible = visualArmed || progress > 0.001
 
@@ -152,9 +197,11 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       data-return-ready={entryReady ? 'true' : 'false'}
       data-return-completing={completing ? 'true' : 'false'}
       onPointerEnter={event => {
+        setHovered(true)
         if (!completing && event.pointerType === 'mouse' && hasHoverPointer()) onArm()
       }}
       onPointerLeave={event => {
+        setHovered(false)
         if (!completing && !entryReady && event.pointerType === 'mouse' && hasHoverPointer()) onDisarm()
       }}
       onPointerUp={event => {
@@ -165,19 +212,22 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       }}
       aria-label={returnHint}
       aria-pressed={visualArmed}
-      onTransitionEnd={event => {
-        if (
-          completing
-          && event.propertyName === 'opacity'
-          && event.target.classList.contains('reader-return-affordance__arrow')
-        ) setArrowFadeComplete(true)
-      }}
     >
-      <span className="reader-return-text">{returnLabel}</span>
-      <svg className="reader-return-affordance" viewBox="0 0 80 80" aria-hidden="true">
-        <path className="reader-return-affordance__ring" pathLength="1" d="M40 5C61 4 74 17 74 39C74 61 61 75 39 74C17 73 5 61 6 39C7 17 19 6 40 5" />
-        <path className="reader-return-affordance__arrow" pathLength="1" d="M40 22C39 33 40 45 40 57M31 48C34 52 37 56 40 59M49 48C46 52 43 56 40 59" />
-      </svg>
+      <span className="reader-return-text-row">
+        <span ref={returnTextRef} className="reader-return-text" data-stable={returnTextStable ? 'true' : 'false'}>
+          {returnDisplayText || returnLabel}
+        </span>
+        <LandingEntryArrow
+          className="reader-return-entry-arrow"
+          direction={completing ? 'left' : hovered ? 'down' : 'left'}
+          initialDirection="right"
+          phase={completing ? 'retracting' : 'steady'}
+          sourceRef={returnTextRef}
+          entryReady={returnTextStable}
+          showRing={false}
+          onExitComplete={() => setArrowFadeComplete(true)}
+        />
+      </span>
     </button>
   )
 }
