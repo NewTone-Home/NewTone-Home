@@ -50,7 +50,6 @@ function readLandingRingDebugSnapshot(root) {
     capturedAtMs: Math.round(window.performance?.now?.() ?? 0),
     root: {
       target: root.dataset.entryTarget ?? null,
-      mode: root.dataset.entryRingMode ?? null,
     },
     rings: rings.map((ring, index) => {
       const style = window.getComputedStyle(ring)
@@ -99,7 +98,6 @@ function Landing({
   const [guidePhase, setGuidePhase] = useState(() => returnArrival ? 'hidden' : 'quiet')
   const [entryTarget, setEntryTarget] = useState('reader')
   const [entryPromptsSettled, setEntryPromptsSettled] = useState(false)
-  const [entryRingSwapStarted, setEntryRingSwapStarted] = useState(false)
   const entryPromptsSettleFrameRef = useRef(0)
   const entryPromptsSettleTimerRef = useRef(0)
   const guidePhaseRef = useRef(guidePhase)
@@ -177,7 +175,6 @@ function Landing({
       entryTarget,
       entryPromptsSettled,
       entryPromptsActive,
-      entryRingSwapStarted,
     }
     const timerIds = []
     const frameIds = []
@@ -197,7 +194,7 @@ function Landing({
       for (const timerId of timerIds) window.clearTimeout(timerId)
       for (const frameId of frameIds) window.cancelAnimationFrame(frameId)
     }
-  }, [entryPromptsActive, entryPromptsSettled, entryRingSwapStarted, entryTarget, recordLandingRingDebug])
+  }, [entryPromptsActive, entryPromptsSettled, entryTarget, recordLandingRingDebug])
 
   useEffect(() => {
     introRef.current = introCompleted
@@ -223,7 +220,6 @@ function Landing({
     if (entryPromptsActive) return
     setEntryTarget('reader')
     setEntryPromptsSettled(false)
-    setEntryRingSwapStarted(false)
   }, [entryPromptsActive])
 
   useEffect(() => () => {
@@ -358,7 +354,6 @@ function Landing({
 
   const activateUpdatesTarget = useCallback(() => {
     if (!entryPromptsActive) return
-    setEntryRingSwapStarted(true)
     setEntryTarget('updates')
   }, [entryPromptsActive])
 
@@ -481,11 +476,6 @@ function Landing({
       : entryPromptsActive
     ? (updatesSelected ? 'down' : 'left')
     : 'right'
-  const readerRingActive = entryPromptsActive
-    && entryPromptsSettled
-    && entryTarget === 'reader'
-    && !leaving
-  const updatesRingActive = entryPromptsActive && entryTarget === 'updates'
 
   const handleUpdatesAnimationEnd = useCallback((event) => {
     if (!onUpdatesBarrier) return
@@ -526,7 +516,6 @@ function Landing({
       data-weather={environmentState.weather}
       data-landing-arrival={returnArrival ? 'return' : 'main'}
       data-entry-target={entryTarget}
-      data-entry-ring-mode={entryRingSwapStarted ? 'swap' : 'initial'}
       data-updates-phase={updatesPhase}
       onAnimationEnd={handleUpdatesAnimationEnd}
       onTransitionEnd={handleUpdatesTransitionEnd}
@@ -560,8 +549,8 @@ function Landing({
                 className="landing-guide-entry-arrow"
                 direction={guideDirection}
                 phase={arrowsHidden ? 'hidden' : guidePhase}
-                ringActive={!updatesFlowActive && updatesRingActive}
-                delayedBob={updatesSelected && updatesRingActive}
+                showRing={false}
+                delayedBob={updatesSelected}
               />
             </span>
           </h1>
@@ -611,7 +600,7 @@ function Landing({
                   className="reader-entry-arrow"
                   direction={arrowsRetracting || arrowsEmerging || updatesSelected ? 'left' : 'down'}
                   phase={arrowsHidden ? 'hidden' : 'steady'}
-                  ringActive={!updatesFlowActive && readerRingActive}
+                  showRing={false}
                   delayedBob={!leaving && entryPromptsSettled && entryTarget === 'reader'}
                   arrowDelayed={leaving || !entryPromptsSettled}
                 />

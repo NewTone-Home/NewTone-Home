@@ -5,12 +5,6 @@ const ARROW_HEAD_LEFT = 'M 0,65 L -10,50'
 const ARROW_HEAD_RIGHT = 'M 0,65 L 10,50'
 const ENTRY_RING = 'M0 2.5C19 1 30.5 13.2 30 35C29.5 56.5 18 72.5-2 71.8C-22 71.1-30.5 56.9-29.5 35.4C-28.5 14.2-18.5 4.1 0 2.5'
 
-function assignRef(ref, node) {
-  if (!ref) return
-  if (typeof ref === 'function') ref(node)
-  else ref.current = node
-}
-
 /**
  * Shared arrow geometry with independent first-entry reveal state.
  *
@@ -26,6 +20,7 @@ function LandingEntryArrow({
   phase = 'steady',
   ringActive = false,
   ringRef,
+  showRing = true,
   delayedBob = false,
   arrowDelayed = false,
 }) {
@@ -157,11 +152,6 @@ function LandingEntryArrow({
     }
   }, [revealComplete, revealReady, revealVariant])
 
-  const setRingNode = (node) => {
-    localRingRef.current = node
-    assignRef(ringRef, node)
-  }
-
   const handleAnimationEnd = (event) => {
     if (
       event.animationName !== 'landing-entry-guide-pull-out'
@@ -181,6 +171,13 @@ function LandingEntryArrow({
     ) {
       setInitialTurnActive(false)
     }
+  }
+
+  const setRingNode = (node) => {
+    localRingRef.current = node
+    if (!ringRef) return
+    if (typeof ringRef === 'function') ringRef(node)
+    else ringRef.current = node
   }
 
   const arrow = (
@@ -203,7 +200,7 @@ function LandingEntryArrow({
       onAnimationEnd={handleAnimationEnd}
       onTransitionEnd={handleTransitionEnd}
     >
-      <path ref={setRingNode} className="landing-entry-ring" d={ENTRY_RING} />
+      {showRing && <path ref={setRingNode} className="landing-entry-ring" d={ENTRY_RING} />}
 
       <g className="landing-entry-arrow__rotator">
         <g ref={inkRef} className="landing-entry-arrow__ink">
