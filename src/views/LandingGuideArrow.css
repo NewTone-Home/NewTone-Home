@@ -115,10 +115,10 @@
 }
 
 /*
- * Both first-entry arrows now use the same reveal principle: the arrow is
- * already fully inked while still moving out from behind the adjacent text.
- * clip-path keeps every part that is still inside the text-side boundary
- * invisible, so there is no overlap and no fade-in beside the lettering.
+ * Both first-entry arrows use the same reveal principle: the arrow is already
+ * fully inked while moving out from behind the adjacent text. The reveal begins
+ * at the arrow's real ink boundary rather than the padded SVG box, so there is
+ * no empty travel before the first visible pixel and no fade beside the text.
  */
 .landing-guide-entry-arrow .landing-entry-arrow__shaft,
 .landing-guide-entry-arrow .landing-entry-arrow__head {
@@ -143,18 +143,18 @@
 }
 
 /*
- * Final guide box is x=-47..-15 relative to the NewTone edge at x=0.
- * Start translated +47px, fully behind the title-side boundary. As it moves
- * left, clip from the right so only ink that has crossed x=0 can be seen.
- * At 68% the full 32px arrow is clear of the title and clipping is released.
+ * The visible NewTone arrow ink occupies the middle half of its 32px SVG box.
+ * Start with that real ink edge exactly at the N-side boundary, then keep the
+ * text-facing side clipped until the whole ink shape has cleared it. The .08em
+ * offset matches the established N-origin rather than the h1 box edge.
  */
 @keyframes landing-entry-guide-pull-out {
   0% {
-    translate: 47px 0;
-    clip-path: inset(0 32px 0 0);
+    translate: calc(39px + .08em) 0;
+    clip-path: inset(0 24px 0 0);
   }
-  68% {
-    translate: 15px 0;
+  62% {
+    translate: calc(15px + .08em) 0;
     clip-path: inset(0 0 0 0);
   }
   100% {
@@ -214,18 +214,18 @@
 }
 
 /*
- * Reader arrow's resting box begins 10px to the right of the prompt. Starting
- * at -42px puts it fully behind the text-side boundary. The left inset shrinks
- * in lockstep with the move, so only the portion that has actually crossed the
- * prompt edge becomes visible. No opacity fade is involved.
+ * The Reader arrow also uses its real ink edge instead of the padded SVG box.
+ * Its flex box rests 10px to the right of the prompt, so -34px puts the first
+ * real ink pixel exactly on the prompt edge. The clip opens only while that ink
+ * crosses the edge, then releases before the arrow continues to its resting gap.
  */
 @keyframes reader-entry-arrow-pull-out {
   0% {
-    translate: -42px 0;
-    clip-path: inset(0 0 0 32px);
+    translate: -34px 0;
+    clip-path: inset(0 0 0 24px);
   }
-  76% {
-    translate: -10px 0;
+  47% {
+    translate: -18px 0;
     clip-path: inset(0 0 0 0);
   }
   100% {
