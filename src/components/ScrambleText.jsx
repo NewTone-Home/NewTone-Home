@@ -2,7 +2,20 @@ import { useState, useEffect, useRef } from 'react'
 
 const CHARS = '░▒/\\-_01'
 
-function ScrambleText({ text, active, duration = 800, startDelay = 0, onRevealed }) {
+function randomScramble(text) {
+  return Array.from(text, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('')
+}
+
+function ScrambleText({
+  text,
+  active,
+  duration = 800,
+  startDelay = 0,
+  onRevealed,
+  withdrawing = false,
+  withdrawalDuration = 260,
+  onWithdrawn,
+}) {
   const [display, setDisplay] = useState('')
   const timerRef = useRef(null)
   const delayRef = useRef(null)
@@ -13,6 +26,26 @@ function ScrambleText({ text, active, duration = 800, startDelay = 0, onRevealed
       setDisplay('')
       revealedRef.current = false
       return
+    }
+
+    if (withdrawing) {
+      const step = 40
+      const totalFrames = Math.max(1, Math.floor(withdrawalDuration / step))
+      let frame = 0
+      setDisplay(text)
+
+      timerRef.current = setInterval(() => {
+        frame++
+        setDisplay(frame >= totalFrames ? '' : randomScramble(text))
+
+        if (frame >= totalFrames) {
+          clearInterval(timerRef.current)
+          revealedRef.current = false
+          onWithdrawn?.()
+        }
+      }, step)
+
+      return () => clearInterval(timerRef.current)
     }
 
     if (revealedRef.current) {
@@ -35,7 +68,7 @@ function ScrambleText({ text, active, duration = 800, startDelay = 0, onRevealed
           if (i < revealCount) {
             result += text[i]
           } else {
-            result += CHARS[Math.floor(Math.random() * CHARS.length)]
+            result += randomScramble('x')
           }
         }
         setDisplay(result)
@@ -56,7 +89,7 @@ function ScrambleText({ text, active, duration = 800, startDelay = 0, onRevealed
       clearTimeout(delayRef.current)
       clearInterval(timerRef.current)
     }
-  }, [text, active, duration, startDelay, onRevealed])
+  }, [text, active, duration, startDelay, onRevealed, withdrawing, withdrawalDuration, onWithdrawn])
 
   return <span>{display}</span>
 }
