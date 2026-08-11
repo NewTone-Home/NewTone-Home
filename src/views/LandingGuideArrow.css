@@ -23,28 +23,36 @@
 
 /*
  * First-entry reveal windows are fixed relative to the adjacent text edge.
- * The SVG moves behind these windows; the windows themselves never move.
- * Once the initial pull-out finishes, overflow is released so every existing
- * rotation, ring, Updates retract/return, and bob animation behaves unchanged.
+ * They stay completely hidden until the component has measured the real text
+ * edge and the real rendered arrow ink, so no pre-reveal sliver can leak out.
  */
 .landing-entry-reveal {
   display: block;
   pointer-events: none;
   overflow: hidden;
+  visibility: hidden;
+}
+
+.landing-entry-reveal.is-reveal-measured {
+  visibility: visible;
+}
+
+.landing-entry-reveal.is-reveal-delayed {
+  visibility: hidden;
 }
 
 .landing-entry-reveal.is-reveal-complete {
   overflow: visible;
 }
 
-/* NewTone edge is the right edge of this fixed window (x = 0). The arrow keeps
-   its established resting box at -47px while receiving a little spare room on
-   the left for the hand-drawn ring. */
+/* NewTone's viewport right edge is adjusted at runtime to the measured left
+   edge of the actual SVG word, not the h1 box. Its left edge stays fixed so the
+   already-approved resting arrow position does not drift. */
 .landing-entry-reveal--guide {
   position: absolute;
   left: -51px;
   top: -15px;
-  width: 51px;
+  width: calc(51px + var(--landing-entry-guide-edge-shift, 0px));
   height: 30px;
 }
 
@@ -54,10 +62,9 @@
   top: 4px;
 }
 
-/* The Reader parent still contributes its existing 10px flex gap. A -10px
-   margin cancels that gap only for the reveal viewport, so the viewport begins
-   exactly at the prompt edge while the arrow itself still rests 10px away after
-   the reveal. Total occupied width remains the same 42px as before. */
+/* The Reader parent contributes a 10px flex gap. The -10px margin cancels that
+   gap for the reveal viewport only, so its fixed left edge is the prompt edge;
+   the arrow itself still finishes in its established resting position. */
 .landing-entry-reveal--reader {
   position: relative;
   flex: 0 0 42px;
@@ -113,18 +120,12 @@
   transform: rotate(180deg);
 }
 
-/* On the normal Landing surface, reverse only the guide's left/right visual
-   directions. The existing React direction states then produce the desired
-   sequence without touching Updates flow semantics: initial state renders left,
-   activating NewTone turns 180deg to the right, and selecting Updates turns
-   90deg down. During Updates enter/return phases the original direction mapping
-   remains untouched. */
-.landing[data-updates-phase="landing"] .landing-guide-entry-arrow.landing-entry-arrow--right .landing-entry-arrow__rotator {
-  transform: rotate(90deg);
-}
-
-.landing[data-updates-phase="landing"] .landing-guide-entry-arrow.landing-entry-arrow--left .landing-entry-arrow__rotator {
-  transform: rotate(-90deg);
+/* The first automatic turn is intentionally short. It is a transition rather
+   than a keyframe animation, so a new direction command can interrupt it at its
+   current rendered angle and immediately reverse toward the new target. */
+.landing-entry-reveal.is-initial-turning .landing-entry-arrow__rotator {
+  transition-duration: 650ms;
+  transition-timing-function: cubic-bezier(.42,0,.58,1);
 }
 
 .landing-guide-entry-arrow {
@@ -174,8 +175,9 @@
   vector-effect: non-scaling-stroke;
 }
 
-/* The guide is fully inked before it moves. The fixed viewport, not a moving
-   clip-path, decides what part is visible beside NewTone. */
+/* The guide first emerges fully inked and facing left. Runtime measurement sets
+   the exact translate needed to put its first rendered ink pixel on NewTone's
+   measured left edge. */
 .landing-guide-entry-arrow .landing-entry-arrow__shaft,
 .landing-guide-entry-arrow .landing-entry-arrow__head {
   stroke-dasharray: 1 1;
@@ -198,12 +200,8 @@
   animation: landing-entry-guide-out 900ms ease-in forwards;
 }
 
-/* Final SVG box rests at x=-47..-15. With the guide now visually facing left,
-   the arrowhead occupies the leftmost real-ink edge. Translating +39px puts that
-   arrowhead exactly on the fixed NewTone boundary at frame zero; it then emerges
-   continuously leftward from behind the title edge. */
 @keyframes landing-entry-guide-pull-out {
-  from { translate: 39px 0; }
+  from { translate: var(--landing-entry-reveal-start-x, 39px) 0; }
   to { translate: 0 0; }
 }
 
@@ -242,34 +240,21 @@
 /*
  * Reader intro sequence. Removing is-arrow-delayed is the single start signal.
  * After the prompt has fully revealed, hold for 320ms so the text can settle;
- * then pull a complete right-facing arrow out, rotate it down in place, and only
- * after that hand-draw the ring independently.
+ * then pull a complete right-facing arrow out. When the pull ends, the shared
+ * transition releases it to the live down direction; the ring begins only after
+ * that 650ms turn has completed.
  */
 .reader-entry-arrow:not(.is-arrow-delayed) {
   animation: reader-entry-arrow-pull-out 650ms cubic-bezier(.2,.8,.2,1) 320ms backwards;
-}
-
-.reader-entry-arrow:not(.is-arrow-delayed) .landing-entry-arrow__rotator {
-  animation: reader-entry-arrow-turn-down 650ms cubic-bezier(.42,0,.58,1) 970ms backwards;
 }
 
 .reader-entry-arrow:not(.is-arrow-delayed) .landing-entry-ring {
   animation: reader-entry-ring-initial-draw 2400ms linear 1620ms backwards;
 }
 
-/* The Reader viewport begins exactly at the prompt edge. The final SVG box is
-   10px to its right. A right-facing arrow puts its arrowhead at the rightmost
-   real-ink edge; -34px places that tip exactly on the fixed prompt boundary at
-   frame zero, so it emerges continuously to the right instead of appearing in
-   the gap first. */
 @keyframes reader-entry-arrow-pull-out {
-  from { translate: -34px 0; }
+  from { translate: var(--landing-entry-reveal-start-x, -34px) 0; }
   to { translate: 0 0; }
-}
-
-@keyframes reader-entry-arrow-turn-down {
-  from { transform: rotate(-90deg); }
-  to { transform: rotate(0deg); }
 }
 
 @keyframes reader-entry-ring-initial-draw {
@@ -292,7 +277,8 @@
   50% { transform: translateY(2px); }
 }
 
-/* Reader arrow appears only when the prompt has actually finished revealing. */
+/* Reader arrow is entirely suppressed until the prompt has finished revealing.
+   Hiding only the ink group allowed sub-pixel/ring edges to leak in some frames. */
 .landing-entry-arrow.is-arrow-delayed .landing-entry-arrow__ink {
   opacity: 0;
 }
@@ -302,8 +288,6 @@
   transition: opacity 360ms ease-out;
 }
 
-/* Reader first reveal is fully inked while the fixed viewport hides the portion
-   still behind the prompt, so there is no independent opacity fade. */
 .reader-entry-arrow:not(.is-arrow-delayed) .landing-entry-arrow__ink {
   transition: none;
 }
@@ -327,6 +311,7 @@
 
   .landing-entry-reveal {
     overflow: visible !important;
+    visibility: visible !important;
   }
 
   .reader-entry-arrow:not(.is-arrow-delayed) {
@@ -370,6 +355,7 @@
 
 .page-shell[data-motion-mode="reduced"] .landing-entry-reveal {
   overflow: visible !important;
+  visibility: visible !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .reader-entry-arrow:not(.is-arrow-delayed) {
