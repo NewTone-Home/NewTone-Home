@@ -72,48 +72,85 @@ function LandingEntryArrow({
   }, [arrowDelayed, revealVariant])
 
   useLayoutEffect(() => {
-    if (!revealVariant || !revealReady || revealComplete || revealMeasured) return
+    if (!revealVariant || !revealReady || revealComplete) return
 
     const reveal = revealRef.current
     const arrow = arrowRef.current
     const ink = inkRef.current
     if (!reveal || !arrow || !ink) return
 
-    const inkRect = ink.getBoundingClientRect()
-    let edgeX
+    const title = revealVariant === 'guide'
+      ? arrow.closest('.landing-title')
+      : null
+    const titleMark = title?.querySelector(
+      '.landing-title-ink:not(.landing-title-ink--second)',
+    ) ?? title?.querySelector('.landing-title-draft')
+    const group = revealVariant === 'reader'
+      ? arrow.closest('.down-entry-group')
+      : null
+    const promptText = group?.querySelector('.landing-prompt--down span')
+    let frame = 0
+    let active = true
 
-    if (revealVariant === 'guide') {
-      const title = arrow.closest('.landing-title')
-      const titleInk = title?.querySelector('.landing-title-draft')
-      edgeX = titleInk?.getBoundingClientRect().left
+    const measureReveal = () => {
+      if (!active) return false
 
-      if (Number.isFinite(edgeX)) {
-        const revealRect = reveal.getBoundingClientRect()
+      const revealRect = reveal.getBoundingClientRect()
+      const inkRect = ink.getBoundingClientRect()
+      const sourceRect = revealVariant === 'guide'
+        ? titleMark?.getBoundingClientRect()
+        : promptText?.getBoundingClientRect()
+      const sourceX = revealVariant === 'guide'
+        ? sourceRect?.left
+        : sourceRect?.right
+
+      if (!Number.isFinite(sourceX)) return false
+
+      if (revealVariant === 'guide') {
         reveal.style.setProperty(
           '--landing-entry-guide-edge-shift',
-          `${edgeX - revealRect.right}px`,
+          `${sourceX - revealRect.right}px`,
         )
       }
 
-      if (!Number.isFinite(edgeX)) edgeX = reveal.getBoundingClientRect().right
+      const sourceFacingInkX = revealVariant === 'guide'
+        ? inkRect.right
+        : inkRect.left
       arrow.style.setProperty(
         '--landing-entry-reveal-start-x',
-        `${edgeX - inkRect.left}px`,
+        `${sourceX - sourceFacingInkX}px`,
       )
-    } else {
-      const group = arrow.closest('.down-entry-group')
-      const promptText = group?.querySelector('.landing-prompt--down span')
-      edgeX = promptText?.getBoundingClientRect().right
-      if (!Number.isFinite(edgeX)) edgeX = reveal.getBoundingClientRect().left
-
-      arrow.style.setProperty(
-        '--landing-entry-reveal-start-x',
-        `${edgeX - inkRect.right}px`,
-      )
+      setRevealMeasured(true)
+      return true
     }
 
-    setRevealMeasured(true)
-  }, [revealComplete, revealMeasured, revealReady, revealVariant])
+    const scheduleMeasure = () => {
+      if (frame) cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        measureReveal()
+      })
+    }
+
+    measureReveal()
+
+    const resizeObserver = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(scheduleMeasure)
+      : null
+    ;[titleMark, promptText, ink, reveal].filter(Boolean).forEach((node) => {
+      resizeObserver?.observe(node)
+    })
+    window.addEventListener('resize', scheduleMeasure)
+    const fontReady = document.fonts?.ready?.then(scheduleMeasure)
+
+    return () => {
+      active = false
+      if (frame) cancelAnimationFrame(frame)
+      resizeObserver?.disconnect()
+      window.removeEventListener('resize', scheduleMeasure)
+      void fontReady
+    }
+  }, [revealComplete, revealReady, revealVariant])
 
   const setRingNode = (node) => {
     localRingRef.current = node

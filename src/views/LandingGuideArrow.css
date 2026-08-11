@@ -213,22 +213,25 @@
 }
 
 @keyframes landing-entry-guide-pull-out {
-  from { translate: var(--landing-entry-reveal-start-x, 39px) 0; }
+  0%, 60% { translate: var(--landing-entry-reveal-start-x, 0px) 0; }
   to { translate: 0 0; }
 }
 
 @keyframes landing-entry-arrow-ink-draw {
   from { stroke-dashoffset: 1; }
+  60% { stroke-dashoffset: 0; }
   to { stroke-dashoffset: 0; }
 }
 
 @keyframes landing-entry-guide-source-clip {
-  from { clip-path: inset(0 0 0 100%); }
+  from { clip-path: inset(0 0 100% 0); }
+  60% { clip-path: inset(0); }
   to { clip-path: inset(0); }
 }
 
 @keyframes landing-entry-reader-source-clip {
-  from { clip-path: inset(0 100% 0 0); }
+  from { clip-path: inset(0 0 100% 0); }
+  60% { clip-path: inset(0); }
   to { clip-path: inset(0); }
 }
 
@@ -292,7 +295,7 @@
 }
 
 @keyframes reader-entry-arrow-pull-out {
-  from { translate: var(--landing-entry-reveal-start-x, -34px) 0; }
+  0%, 60% { translate: var(--landing-entry-reveal-start-x, 0px) 0; }
   to { translate: 0 0; }
 }
 
