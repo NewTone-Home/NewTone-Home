@@ -15,7 +15,7 @@
 }
 
 .landing-updates-page[data-updates-phase="enter-surface"] {
-  animation: updates-page-enter 620ms cubic-bezier(.22,.78,.2,1) forwards;
+  animation: updates-page-enter 620ms cubic-bezier(.22,.78,.2,1) 120ms forwards;
 }
 
 .landing-updates-page[data-updates-phase="updates"],

@@ -145,6 +145,12 @@
   animation: landing-updates-arrow-retract 1200ms cubic-bezier(.42,0,.58,1) forwards;
 }
 
+/* A down-facing entry must finish its existing 1200ms turn to left before its
+   own retract motion starts. The already-left entry keeps the zero-delay path. */
+.landing[data-updates-phase="enter-arrows"] .landing-entry-arrow[data-entry-turn-first="true"] {
+  animation-delay: 1200ms;
+}
+
 .landing[data-updates-phase="return-arrows"] .landing-entry-arrow {
   animation: landing-updates-arrow-return 1400ms cubic-bezier(.42,0,.58,1) forwards;
 }

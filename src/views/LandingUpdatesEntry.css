@@ -72,7 +72,7 @@
 }
 
 .landing[data-updates-phase="enter-surface"] {
-  animation: landing-updates-surface-exit 620ms cubic-bezier(.22,.78,.2,1) forwards;
+  animation: landing-updates-surface-exit 620ms cubic-bezier(.22,.78,.2,1) 120ms forwards;
 }
 
 .landing[data-updates-phase="return-surface"] {

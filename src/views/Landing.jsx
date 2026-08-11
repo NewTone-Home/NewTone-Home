@@ -550,6 +550,7 @@ function Landing({
                 direction={guideDirection}
                 phase={arrowsHidden ? 'hidden' : guidePhase}
                 showRing={false}
+                data-entry-turn-first={updatesSelected ? 'true' : 'false'}
                 delayedBob={updatesSelected}
               />
             </span>
@@ -601,6 +602,7 @@ function Landing({
                   direction={arrowsRetracting || arrowsEmerging || updatesSelected ? 'left' : 'down'}
                   phase={arrowsHidden ? 'hidden' : 'steady'}
                   showRing={false}
+                  data-entry-turn-first={!updatesSelected ? 'true' : 'false'}
                   delayedBob={!leaving && entryPromptsSettled && entryTarget === 'reader'}
                   arrowDelayed={leaving || !entryPromptsSettled}
                 />
