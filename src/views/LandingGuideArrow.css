@@ -113,6 +113,20 @@
   transform: rotate(180deg);
 }
 
+/* On the normal Landing surface, reverse only the guide's left/right visual
+   directions. The existing React direction states then produce the desired
+   sequence without touching Updates flow semantics: initial state renders left,
+   activating NewTone turns 180deg to the right, and selecting Updates turns
+   90deg down. During Updates enter/return phases the original direction mapping
+   remains untouched. */
+.landing[data-updates-phase="landing"] .landing-guide-entry-arrow.landing-entry-arrow--right .landing-entry-arrow__rotator {
+  transform: rotate(90deg);
+}
+
+.landing[data-updates-phase="landing"] .landing-guide-entry-arrow.landing-entry-arrow--left .landing-entry-arrow__rotator {
+  transform: rotate(-90deg);
+}
+
 .landing-guide-entry-arrow {
   --updates-arrow-exit-x: -56px;
 }
@@ -184,10 +198,10 @@
   animation: landing-entry-guide-out 900ms ease-in forwards;
 }
 
-/* Final SVG box rests at x=-47..-15. Its actual horizontal ink begins about 8px
-   inside the box. Translating +39px therefore places that first ink pixel at the
-   fixed NewTone boundary x=0 on frame zero; every following frame reveals ink
-   immediately as the arrow moves left. */
+/* Final SVG box rests at x=-47..-15. With the guide now visually facing left,
+   the arrowhead occupies the leftmost real-ink edge. Translating +39px puts that
+   arrowhead exactly on the fixed NewTone boundary at frame zero; it then emerges
+   continuously leftward from behind the title edge. */
 @keyframes landing-entry-guide-pull-out {
   from { translate: 39px 0; }
   to { translate: 0 0; }
@@ -228,7 +242,7 @@
 /*
  * Reader intro sequence. Removing is-arrow-delayed is the single start signal.
  * After the prompt has fully revealed, hold for 320ms so the text can settle;
- * then pull a complete left-facing arrow out, rotate it down in place, and only
+ * then pull a complete right-facing arrow out, rotate it down in place, and only
  * after that hand-draw the ring independently.
  */
 .reader-entry-arrow:not(.is-arrow-delayed) {
@@ -244,16 +258,17 @@
 }
 
 /* The Reader viewport begins exactly at the prompt edge. The final SVG box is
-   10px to its right and the horizontal ink extends another ~24px inside that
-   box. -34px places the outermost ink pixel exactly on the fixed boundary at
-   frame zero, so the reveal has no invisible travel before the first pixel. */
+   10px to its right. A right-facing arrow puts its arrowhead at the rightmost
+   real-ink edge; -34px places that tip exactly on the fixed prompt boundary at
+   frame zero, so it emerges continuously to the right instead of appearing in
+   the gap first. */
 @keyframes reader-entry-arrow-pull-out {
   from { translate: -34px 0; }
   to { translate: 0 0; }
 }
 
 @keyframes reader-entry-arrow-turn-down {
-  from { transform: rotate(90deg); }
+  from { transform: rotate(-90deg); }
   to { transform: rotate(0deg); }
 }
 
