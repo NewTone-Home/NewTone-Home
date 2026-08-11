@@ -27,9 +27,12 @@ function initialScramble(len) {
   return Array.from({ length: len }, () => randScramble()).join('')
 }
 
-function useScrambleText(text, { startDelay = 0, charInterval = 70, scrambleInterval = 40, enabled = true } = {}) {
+function useScrambleText(text, { startDelay = 0, charInterval = 70, scrambleInterval = 40, enabled = true, holdFinal = false } = {}) {
   const [displayText, setDisplayText] = useState('')
   const [stable, setStable] = useState(false)
+  const holdFinalRef = useRef(holdFinal)
+  const wasHoldingFinalRef = useRef(false)
+  holdFinalRef.current = holdFinal
 
   useLayoutEffect(() => {
     if (!enabled) {
@@ -57,6 +60,10 @@ function useScrambleText(text, { startDelay = 0, charInterval = 70, scrambleInte
         if (resolvedCount >= text.length) {
           clearInterval(ri)
           clearInterval(si)
+          if (holdFinalRef.current) {
+            setDisplayText(initialScramble(text.length))
+            return
+          }
           if (mounted) {
             setDisplayText(text)
             setStable(true)
@@ -70,6 +77,19 @@ function useScrambleText(text, { startDelay = 0, charInterval = 70, scrambleInte
 
     return () => { mounted = false; clearTimeout(st); clearInterval(si); clearInterval(ri) }
   }, [text, startDelay, charInterval, scrambleInterval, enabled])
+
+  useLayoutEffect(() => {
+    if (holdFinal) {
+      wasHoldingFinalRef.current = true
+      return
+    }
+    if (!wasHoldingFinalRef.current) return
+    wasHoldingFinalRef.current = false
+    if (enabled) {
+      setDisplayText(text)
+      setStable(true)
+    }
+  }, [enabled, holdFinal, text])
 
   return { displayText, stable }
 }
@@ -149,13 +169,14 @@ function ResumeEnvironment({ lines }) {
   )
 }
 
-function ExpandLabel({ labelText, labelVisible, labelRef, scrambleActive, onStableChange }) {
+function ExpandLabel({ labelText, labelVisible, labelRef, scrambleActive, holdFinal, onStableChange }) {
   const labelCharInterval = Math.max(80, Math.floor(650 / Math.max(1, Array.from(labelText).length)))
   const { displayText, stable } = useScrambleText(labelText, {
     startDelay: 0,
     charInterval: labelCharInterval,
     scrambleInterval: 40,
     enabled: scrambleActive,
+    holdFinal,
   })
   useEffect(() => {
     onStableChange?.(stable)
@@ -995,6 +1016,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                               labelVisible={labelVisible}
                               labelRef={currentLanguageLabelRef}
                               scrambleActive={(expanded && !languageLabelPinned) || Boolean(scramblingLang)}
+                              holdFinal={Boolean(scramblingLang)}
                               onStableChange={setLanguageLabelStable}
                             />
                             <LandingEntryArrow
