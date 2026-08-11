@@ -257,6 +257,14 @@
   animation: reader-entry-ring-initial-draw 2400ms linear 1300ms backwards;
 }
 
+/* After the first Landing target switch, the two selection rings exchange
+   roles as one synchronized pair. The initial Reader prompt draw above is
+   intentionally disabled only in this swap mode. */
+.landing[data-entry-ring-mode="swap"] .landing-entry-ring {
+  animation: none;
+  transition: stroke-dashoffset 2200ms cubic-bezier(.42,0,.58,1) 0ms;
+}
+
 @keyframes reader-entry-arrow-pull-out {
   from { translate: var(--landing-entry-reveal-start-x, 0px) 0; }
   to { translate: 0 0; }

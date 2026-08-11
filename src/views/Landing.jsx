@@ -62,6 +62,7 @@ function Landing({
   const [guidePhase, setGuidePhase] = useState(() => returnArrival ? 'hidden' : 'quiet')
   const [entryTarget, setEntryTarget] = useState('reader')
   const [entryPromptsSettled, setEntryPromptsSettled] = useState(false)
+  const [entryRingSwapStarted, setEntryRingSwapStarted] = useState(false)
   const entryPromptsSettleFrameRef = useRef(0)
   const entryPromptsSettleTimerRef = useRef(0)
   const guidePhaseRef = useRef(guidePhase)
@@ -116,6 +117,7 @@ function Landing({
     if (entryPromptsActive) return
     setEntryTarget('reader')
     setEntryPromptsSettled(false)
+    setEntryRingSwapStarted(false)
   }, [entryPromptsActive])
 
   useEffect(() => () => {
@@ -250,6 +252,7 @@ function Landing({
 
   const activateUpdatesTarget = useCallback(() => {
     if (!entryPromptsActive) return
+    setEntryRingSwapStarted(true)
     setEntryTarget('updates')
   }, [entryPromptsActive])
 
@@ -417,6 +420,7 @@ function Landing({
       data-weather={environmentState.weather}
       data-landing-arrival={returnArrival ? 'return' : 'main'}
       data-entry-target={entryTarget}
+      data-entry-ring-mode={entryRingSwapStarted ? 'swap' : 'initial'}
       data-updates-phase={updatesPhase}
       onAnimationEnd={handleUpdatesAnimationEnd}
       onTransitionEnd={handleUpdatesTransitionEnd}
