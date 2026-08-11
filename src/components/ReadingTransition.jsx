@@ -349,9 +349,11 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const [labelText, setLabelText] = useState(getReaderLanguage(language).label)
   const [labelVisible, setLabelVisible] = useState(true)
   const [languageLabelPinned, setLanguageLabelPinned] = useState(false)
+  const [languageArrowSuppressed, setLanguageArrowSuppressed] = useState(false)
   const hideTimerRef = useRef(null)
   const hoverActiveRef = useRef(false)
   const isSwitchingRef = useRef(false)
+  const languageSwapRef = useRef(null)
   const expandedRef = useRef(false)
   const slotsInitialized = useRef(false)
   const secondaryZoneRef = useRef(null)
@@ -468,6 +470,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     && labelVisible
     && (!expanded || languageLabelStable || languageLabelPinned)
     && !scramblingLang
+    && !languageArrowSuppressed
 
   useEffect(() => {
     if (languageArrowReady) {
@@ -594,6 +597,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
       hideTimerRef.current = null
     }
     hoverActiveRef.current = true
+    setLanguageArrowSuppressed(false)
     setLangExpandHover(true)
   }, [modeStage])
 
@@ -673,6 +677,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     setHoveredOption(null)
     setLanguageLabelStable(false)
     setLanguageArrowEntered(false)
+    setLanguageArrowSuppressed(false)
   }, [currentStage.id])
 
   useEffect(() => {
@@ -743,6 +748,14 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     languageSelectorHold.hold()
   }, [handleEnter, languageLabelShown, languageSelectorHold, modeStage])
 
+  const handleLanguageSecondaryEnter = useCallback(() => {
+    if (modeStage) return
+    languageSecondaryInsideRef.current = true
+    setHoveredOption('secondary')
+    handleEnter()
+    languageSelectorHold.hold()
+  }, [handleEnter, languageSelectorHold, modeStage])
+
   const handleLanguageBoundaryLeave = useCallback(() => {
     if (modeStage) return
     languageSecondaryInsideRef.current = false
@@ -806,32 +819,41 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
     const oldLang = language
     const clickedIndex = languageSlots.indexOf(newLang)
+    languageSwapRef.current = { clickedIndex, oldLang }
 
     setScramblingLang(newLang)
-
-    setLabelVisible(false)
+    setLanguageArrowSuppressed(true)
+    setLabelVisible(true)
+    setLabelText(getReaderLanguage(newLang).label)
 
     scheduleTransient(() => {
       setLanguage(newLang)
       setLabelText(getReaderLanguage(newLang).label)
       setLabelVisible(true)
-      setLanguageLabelPinned(true)
       setLanguageVersion(v => v + 1)
-      setScramblingLang(null)
-
-      if (clickedIndex !== -1) {
-        setLanguageSlots(prev => {
-          const next = [...prev]
-          next[clickedIndex] = oldLang
-          return next
-        })
-      }
-
-      scheduleTransient(() => {
-        isSwitchingRef.current = false
-      }, 500)
     }, 450)
   }, [language, scheduleTransient, setLanguage, languageSlots])
+
+  const handleLanguageChangeExit = useCallback(() => {
+    const pendingSwap = languageSwapRef.current
+    if (!pendingSwap || !isSwitchingRef.current) return
+
+    if (pendingSwap.clickedIndex !== -1) {
+      setLanguageSlots(prev => {
+        const next = [...prev]
+        next[pendingSwap.clickedIndex] = pendingSwap.oldLang
+        return next
+      })
+    }
+    languageSwapRef.current = null
+    setLanguageLabelPinned(true)
+    setLangExpandHover(false)
+    setLangExpandToggled(false)
+    setScramblingLang(null)
+    setLanguageArrowSuppressed(true)
+    setLanguageArrowEntered(false)
+    isSwitchingRef.current = false
+  }, [])
 
   const alternateLanguage = languageSlots.find(code => code !== language)
     ?? READER_LANGUAGES.find(item => item.code !== language)?.code
@@ -920,7 +942,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                     modeSecondaryHold.trackPointer(event)
                     setHoveredOption('secondary')
                     armHoverOption(event, 'secondary')
-                  } : undefined}
+                  } : handleLanguageSecondaryEnter}
                   onPointerMove={modeStage ? modeSecondaryHold.trackPointer : handleLanguageSecondaryPointer}
                   onPointerDown={modeStage ? modeSecondaryHold.trackPointer : handleLanguageSecondaryPointer}
                   onPointerLeave={modeStage ? () => {
@@ -960,26 +982,34 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                         />
                       </span>
                     ) : (
-                      <span className={`lang-btn-text-reveal${languageLabelShown ? ' lang-btn-text-reveal--visible' : ''}`}>
-                        <span className="ritual-entry-text-row">
-                          <ExpandLabel
-                            labelText={labelText}
-                            labelVisible={labelVisible}
-                            labelRef={currentLanguageLabelRef}
-                            scrambleActive={expanded && !languageLabelPinned}
-                            onStableChange={setLanguageLabelStable}
-                          />
-                          <LandingEntryArrow
-                            className="ritual-entry-arrow ritual-entry-arrow--language"
-                            direction={languageArrowDirection}
-                            initialDirection="right"
-                            phase={locked || scramblingLang || (!expanded && !languageLabelPinned) ? 'retracting' : 'steady'}
-                            sourceRef={currentLanguageLabelRef}
-                            entryReady={languageArrowReady || languageArrowEntered}
-                            showRing={false}
-                          />
+                      <>
+                        <span className={`lang-btn-text-top${languageLabelShown ? ' lang-btn-text-top--hidden' : ''}`}>
+                          <span ref={secondaryTextRef} className="ritual-entry-text-row">
+                            <span className="lang-btn-text-single">{changeText}</span>
+                          </span>
                         </span>
-                      </span>
+                        <span className={`lang-btn-text-reveal${languageLabelShown ? ' lang-btn-text-reveal--visible' : ''}`}>
+                          <span className="ritual-entry-text-row">
+                            <ExpandLabel
+                              labelText={labelText}
+                              labelVisible={labelVisible}
+                              labelRef={currentLanguageLabelRef}
+                              scrambleActive={(expanded && !languageLabelPinned) || Boolean(scramblingLang)}
+                              onStableChange={setLanguageLabelStable}
+                            />
+                            <LandingEntryArrow
+                              className="ritual-entry-arrow ritual-entry-arrow--language"
+                              direction={languageArrowDirection}
+                              initialDirection="right"
+                              phase={locked || scramblingLang || (!expanded && !languageLabelPinned) ? 'retracting' : 'steady'}
+                              sourceRef={currentLanguageLabelRef}
+                              entryReady={languageArrowReady || languageArrowEntered || Boolean(scramblingLang)}
+                              onExitComplete={handleLanguageChangeExit}
+                              showRing={false}
+                            />
+                          </span>
+                        </span>
+                      </>
                     )}
                   </span>
                 </button>
@@ -990,7 +1020,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                   {alternateLanguage && (
                     <button
                       type="button"
-                      className={`lang-item${alternateLanguage === scramblingLang ? ' lang-item--scrambling' : ''}`}
+                      className={`lang-item${scramblingLang ? ' lang-item--scrambling' : ''}`}
                       onClick={() => handleLanguageChange(alternateLanguage)}
                     >
                       {getReaderLanguage(alternateLanguage).label}

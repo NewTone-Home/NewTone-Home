@@ -530,6 +530,8 @@
 
 .lang-item--scrambling {
   color: var(--accent-amber);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .reading-transition--motion-reduced,
