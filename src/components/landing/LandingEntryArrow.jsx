@@ -36,6 +36,7 @@ function LandingEntryArrow({
   const [revealComplete, setRevealComplete] = useState(false)
   const [revealMeasured, setRevealMeasured] = useState(false)
   const [initialTurnActive, setInitialTurnActive] = useState(false)
+  const revealStartXRef = useRef(null)
 
   const classTokens = className.split(/\s+/).filter(Boolean)
   const revealVariant = classTokens.includes('landing-guide-entry-arrow')
@@ -66,6 +67,7 @@ function LandingEntryArrow({
 
   useEffect(() => {
     if (revealVariant !== 'reader' || !arrowDelayed) return
+    revealStartXRef.current = null
     setRevealComplete(false)
     setRevealMeasured(false)
     setInitialTurnActive(false)
@@ -116,9 +118,12 @@ function LandingEntryArrow({
       const sourceFacingInkX = revealVariant === 'guide'
         ? inkRect.right
         : inkRect.left
+      if (revealStartXRef.current === null) {
+        revealStartXRef.current = sourceX - sourceFacingInkX
+      }
       arrow.style.setProperty(
         '--landing-entry-reveal-start-x',
-        `${sourceX - sourceFacingInkX}px`,
+        `${revealStartXRef.current}px`,
       )
       setRevealMeasured(true)
       return true

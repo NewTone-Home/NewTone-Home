@@ -104,6 +104,11 @@
   transition: transform 1200ms cubic-bezier(.42,0,.58,1);
 }
 
+.landing-entry-reveal--guide:not(.is-reveal-complete) .landing-entry-arrow__rotator,
+.landing-entry-reveal--reader:not(.is-reveal-complete) .landing-entry-arrow__rotator {
+  transition: none;
+}
+
 .landing-entry-arrow--down .landing-entry-arrow__rotator {
   transform: rotate(0deg);
 }
@@ -181,29 +186,17 @@
 .landing-guide-entry-arrow .landing-entry-arrow__shaft,
 .landing-guide-entry-arrow .landing-entry-arrow__head {
   stroke-dasharray: 1 1;
-  stroke-dashoffset: 1;
+  stroke-dashoffset: 0;
 }
 
 .reader-entry-arrow .landing-entry-arrow__shaft,
 .reader-entry-arrow .landing-entry-arrow__head {
   stroke-dasharray: 1;
-  stroke-dashoffset: 1;
+  stroke-dashoffset: 0;
 }
 
 .landing-guide-entry-arrow.landing-entry-arrow--visible {
   animation: landing-entry-guide-pull-out 650ms cubic-bezier(.2,.8,.2,1) backwards;
-}
-
-.landing-entry-reveal--guide.is-reveal-measured
-  .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__shaft,
-.landing-entry-reveal--guide.is-reveal-measured
-  .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__head {
-  animation: landing-entry-arrow-ink-draw 650ms cubic-bezier(.2,.8,.2,1) both;
-}
-
-.landing-entry-reveal--guide.is-reveal-measured
-  .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__rotator {
-  animation: landing-entry-guide-source-clip 650ms cubic-bezier(.2,.8,.2,1) both;
 }
 
 .landing-guide-entry-arrow.landing-entry-arrow--retracting .landing-entry-arrow__shaft,
@@ -213,26 +206,8 @@
 }
 
 @keyframes landing-entry-guide-pull-out {
-  0%, 60% { translate: var(--landing-entry-reveal-start-x, 0px) 0; }
+  from { translate: var(--landing-entry-reveal-start-x, 0px) 0; }
   to { translate: 0 0; }
-}
-
-@keyframes landing-entry-arrow-ink-draw {
-  from { stroke-dashoffset: 1; }
-  60% { stroke-dashoffset: 0; }
-  to { stroke-dashoffset: 0; }
-}
-
-@keyframes landing-entry-guide-source-clip {
-  from { clip-path: inset(0 0 100% 0); }
-  60% { clip-path: inset(0); }
-  to { clip-path: inset(0); }
-}
-
-@keyframes landing-entry-reader-source-clip {
-  from { clip-path: inset(0 0 100% 0); }
-  60% { clip-path: inset(0); }
-  to { clip-path: inset(0); }
 }
 
 @keyframes landing-entry-guide-out {
@@ -274,18 +249,6 @@
  * transition releases it to the live down direction; the ring begins only after
  * that 650ms turn has completed.
  */
-.landing-entry-reveal--reader.is-reveal-measured
-  .reader-entry-arrow:not(.is-arrow-delayed) .landing-entry-arrow__shaft,
-.landing-entry-reveal--reader.is-reveal-measured
-  .reader-entry-arrow:not(.is-arrow-delayed) .landing-entry-arrow__head {
-  animation: landing-entry-arrow-ink-draw 650ms cubic-bezier(.2,.8,.2,1) 320ms both;
-}
-
-.landing-entry-reveal--reader.is-reveal-measured
-  .reader-entry-arrow:not(.is-arrow-delayed) .landing-entry-arrow__rotator {
-  animation: landing-entry-reader-source-clip 650ms cubic-bezier(.2,.8,.2,1) 320ms both;
-}
-
 .reader-entry-arrow:not(.is-arrow-delayed) {
   animation: reader-entry-arrow-pull-out 650ms cubic-bezier(.2,.8,.2,1) 320ms backwards;
 }
@@ -295,7 +258,7 @@
 }
 
 @keyframes reader-entry-arrow-pull-out {
-  0%, 60% { translate: var(--landing-entry-reveal-start-x, 0px) 0; }
+  from { translate: var(--landing-entry-reveal-start-x, 0px) 0; }
   to { translate: 0 0; }
 }
 
