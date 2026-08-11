@@ -499,7 +499,7 @@ function Landing({
                 </p>
                 <LandingEntryArrow
                   className="reader-entry-arrow"
-                  direction={arrowsRetracting || arrowsEmerging ? 'left' : 'down'}
+                  direction={arrowsRetracting || arrowsEmerging || updatesSelected ? 'left' : 'down'}
                   phase={arrowsHidden ? 'hidden' : 'steady'}
                   ringActive={!updatesFlowActive && readerRingActive}
                   delayedBob={!leaving && entryPromptsSettled && entryTarget === 'reader'}
