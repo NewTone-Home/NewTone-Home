@@ -231,7 +231,7 @@
   vector-effect: non-scaling-stroke;
   transform-box: fill-box;
   transform-origin: center;
-  transform: scale(1.12);
+  transform: scale(1.23);
   transition: stroke-dashoffset 1200ms cubic-bezier(.42,0,.58,1) 360ms;
 }
 
