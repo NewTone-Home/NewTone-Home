@@ -52,8 +52,10 @@ describe('Landing updates return entry', () => {
 
   it('uses a soft gradient backdrop and explicit leave/wheel timing', () => {
     expect(styles).toContain('linear-gradient(')
+    expect(styles).toContain('radial-gradient(')
+    expect(styles).toContain('width: min(100vw, 760px)')
     expect(styles).toContain('rgba(32, 29, 25, 0) 100%')
-    expect(styles).toContain('backdrop-filter: blur(6px)')
+    expect(styles).toContain('backdrop-filter: blur(2px)')
     expect(styles).toContain('transition: opacity 900ms ease-out')
     expect(styles).toContain('transition-duration: 600ms')
     expect(page).toContain('ring: 560')
