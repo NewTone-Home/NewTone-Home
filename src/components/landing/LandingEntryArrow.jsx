@@ -29,6 +29,7 @@ function LandingEntryArrow({
   sourceEdge = 'right',
   entryReady = true,
   initialDirection = 'right',
+  onEntryComplete,
   onExitComplete,
 }) {
   const localRingRef = useRef(null)
@@ -188,6 +189,7 @@ function LandingEntryArrow({
     const shouldTurn = direction !== introDirection
     setInitialTurnActive(shouldTurn)
     setRevealComplete(true)
+    onEntryComplete?.()
   }
 
   const handleRevealAnimationEnd = (event) => {

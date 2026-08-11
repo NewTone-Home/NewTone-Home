@@ -460,7 +460,6 @@
   opacity: 1;
   pointer-events: auto;
   translate: 0 -50%;
-  transition-delay: 1900ms;
 }
 
 .lang-item {

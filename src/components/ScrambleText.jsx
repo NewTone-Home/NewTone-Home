@@ -1,10 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
-
-const CHARS = '░▒/\\-_01'
-
-function randomScramble(text) {
-  return Array.from(text, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('')
-}
+import { useScrambleText } from '../hooks/useScrambleText'
 
 function ScrambleText({
   text,
@@ -16,87 +10,19 @@ function ScrambleText({
   withdrawalDuration = 260,
   onWithdrawn,
 }) {
-  const [display, setDisplay] = useState('')
-  const timerRef = useRef(null)
-  const delayRef = useRef(null)
-  const revealedRef = useRef(false)
-  const onRevealedRef = useRef(onRevealed)
-  const onWithdrawnRef = useRef(onWithdrawn)
+  const { displayText } = useScrambleText(text, {
+    enabled: active,
+    startDelay,
+    charInterval: Math.max(40, Math.floor(duration / Math.max(1, text.length))),
+    scrambleInterval: 40,
+    chars: '░▒/\\-_01',
+    withdrawing,
+    withdrawalDuration,
+    onRevealed,
+    onWithdrawn,
+  })
 
-  onRevealedRef.current = onRevealed
-  onWithdrawnRef.current = onWithdrawn
-
-  useEffect(() => {
-    if (!active) {
-      setDisplay('')
-      revealedRef.current = false
-      return
-    }
-
-    if (withdrawing) {
-      const step = 40
-      const totalFrames = Math.max(1, Math.floor(withdrawalDuration / step))
-      let frame = 0
-      setDisplay(text)
-
-      timerRef.current = setInterval(() => {
-        frame++
-        setDisplay(frame >= totalFrames ? '' : randomScramble(text))
-
-        if (frame >= totalFrames) {
-          clearInterval(timerRef.current)
-          revealedRef.current = false
-          onWithdrawnRef.current?.()
-        }
-      }, step)
-
-      return () => clearInterval(timerRef.current)
-    }
-
-    if (revealedRef.current) {
-      setDisplay(text)
-      return
-    }
-
-    const step = 40
-    const totalFrames = Math.max(1, Math.floor(duration / step))
-    let frame = 0
-
-    const begin = () => {
-      timerRef.current = setInterval(() => {
-        frame++
-        const progress = frame / totalFrames
-        const revealCount = Math.min(Math.floor(progress * text.length), text.length)
-
-        let result = ''
-        for (let i = 0; i < text.length; i++) {
-          if (i < revealCount) {
-            result += text[i]
-          } else {
-            result += randomScramble('x')
-          }
-        }
-        setDisplay(result)
-
-        if (frame >= totalFrames) {
-          clearInterval(timerRef.current)
-          setDisplay(text)
-          revealedRef.current = true
-          onRevealedRef.current?.()
-        }
-      }, step)
-    }
-
-    if (startDelay > 0) delayRef.current = setTimeout(begin, startDelay)
-    else begin()
-
-    return () => {
-      clearTimeout(delayRef.current)
-      clearInterval(timerRef.current)
-    }
-  }, [text, active, duration, startDelay, withdrawing, withdrawalDuration])
-
-  return <span>{display}</span>
+  return <span>{displayText}</span>
 }
 
 export default ScrambleText

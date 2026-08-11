@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getReaderUi } from '../../i18n/readerUi'
+import { useScrambleText } from '../../hooks/useScrambleText'
 import LandingEntryArrow from '../landing/LandingEntryArrow'
 import './ReaderReturnControl.css'
 
@@ -7,46 +8,6 @@ const RETURN_RING_DRAW_MS = 2200
 const RETURN_RING_RETRACT_MS = 1200
 const RETURN_WHEEL_THRESHOLD = 8
 const RETURN_DIRECT_THRESHOLD = 36
-const RETURN_SCRAMBLE = '01░▒/\\-_:;~*#+%&@'
-
-function randomReturnChar() {
-  return RETURN_SCRAMBLE[Math.floor(Math.random() * RETURN_SCRAMBLE.length)]
-}
-
-function useReturnScrambleText(text) {
-  const [displayText, setDisplayText] = useState('')
-  const [stable, setStable] = useState(false)
-
-  useEffect(() => {
-    let mounted = true
-    let resolvedCount = 0
-    const scrambleTimer = window.setInterval(() => {
-      if (!mounted) return
-      setDisplayText(text.split('').map((char, index) => index < resolvedCount ? char : randomReturnChar()).join(''))
-    }, 40)
-    const resolveTimer = window.setInterval(() => {
-      if (!mounted) return
-      resolvedCount += 1
-      if (resolvedCount >= text.length) {
-        window.clearInterval(resolveTimer)
-        window.clearInterval(scrambleTimer)
-        setDisplayText(text)
-        setStable(true)
-        return
-      }
-      setDisplayText(text.split('').map((char, index) => index < resolvedCount ? char : randomReturnChar()).join(''))
-    }, Math.max(70, Math.floor(650 / Math.max(1, text.length))))
-    setDisplayText(text.split('').map(() => randomReturnChar()).join(''))
-    setStable(false)
-    return () => {
-      mounted = false
-      window.clearInterval(scrambleTimer)
-      window.clearInterval(resolveTimer)
-    }
-  }, [text])
-
-  return { displayText, stable }
-}
 
 function hasHoverPointer() {
   return window.matchMedia?.('(hover: hover) and (pointer: fine)').matches === true
@@ -63,22 +24,53 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
   const returnHint = ui.returnToLandingHint || ui.backToLanding || fallbackUi.returnToLandingHint
   const returnTextRef = useRef(null)
   const [hovered, setHovered] = useState(false)
-  const { displayText: returnDisplayText, stable: returnTextStable } = useReturnScrambleText(returnLabel)
   const [progress, setProgress] = useState(0)
   const [completing, setCompleting] = useState(false)
-  const [arrowFadeComplete, setArrowFadeComplete] = useState(true)
   const progressRef = useRef(0)
   const completedRef = useRef(false)
   const pendingCompleteRef = useRef(false)
+  const textExitCompleteRef = useRef(false)
+  const arrowExitCompleteRef = useRef(false)
+  const completionReportedRef = useRef(false)
+  const reducedExitRef = useRef(false)
   const frameRef = useRef(0)
   const onCompleteRef = useRef(onComplete)
   onCompleteRef.current = onComplete
 
   const visualArmed = armed && !completing
 
+  const maybeCompleteReturn = useCallback(() => {
+    if (
+      !pendingCompleteRef.current
+      || completionReportedRef.current
+      || !textExitCompleteRef.current
+      || (!arrowExitCompleteRef.current && !reducedExitRef.current)
+    ) return
+    completionReportedRef.current = true
+    pendingCompleteRef.current = false
+    onCompleteRef.current()
+  }, [])
+
+  const handleTextExitComplete = useCallback(() => {
+    textExitCompleteRef.current = true
+    maybeCompleteReturn()
+  }, [maybeCompleteReturn])
+
+  const handleArrowExitComplete = useCallback(() => {
+    arrowExitCompleteRef.current = true
+    maybeCompleteReturn()
+  }, [maybeCompleteReturn])
+
+  const { displayText: returnDisplayText, stable: returnTextStable } = useScrambleText(returnLabel, {
+    charInterval: Math.max(70, Math.floor(650 / Math.max(1, returnLabel.length))),
+    scrambleInterval: 40,
+    withdrawing: completing,
+    withdrawalDuration: 900,
+    onWithdrawn: handleTextExitComplete,
+  })
+
   useEffect(() => {
     cancelAnimationFrame(frameRef.current)
-    if (!visualArmed && pendingCompleteRef.current && !arrowFadeComplete) return undefined
     const from = progressRef.current
     const target = visualArmed ? 1 : 0
     const distance = Math.abs(target - from)
@@ -87,10 +79,6 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       progressRef.current = target
       setProgress(target)
       frameRef.current = 0
-      if (target === 0 && pendingCompleteRef.current) {
-        pendingCompleteRef.current = false
-        onCompleteRef.current()
-      }
     }
 
     if (distance < 0.001) {
@@ -117,7 +105,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
 
     frameRef.current = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(frameRef.current)
-  }, [arrowFadeComplete, visualArmed])
+  }, [visualArmed])
 
   useEffect(() => () => cancelAnimationFrame(frameRef.current), [])
 
@@ -140,10 +128,18 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       if (completedRef.current) return
       completedRef.current = true
       pendingCompleteRef.current = true
+      completionReportedRef.current = false
+      textExitCompleteRef.current = false
+      arrowExitCompleteRef.current = false
       const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
-      setArrowFadeComplete(!entryReady || !returnTextStable || reduced)
+      reducedExitRef.current = reduced
       setCompleting(true)
       setHovered(false)
+      if (reduced) {
+        textExitCompleteRef.current = true
+        arrowExitCompleteRef.current = true
+        maybeCompleteReturn()
+      }
     }
 
     const onWheel = event => {
@@ -182,7 +178,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       window.removeEventListener('pointerup', clearDirectGesture)
       window.removeEventListener('pointercancel', clearDirectGesture)
     }
-  }, [entryReady, returnTextStable, visualArmed])
+  }, [entryReady, maybeCompleteReturn, visualArmed])
 
   const affordanceVisible = visualArmed || progress > 0.001
 
@@ -225,7 +221,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
           sourceRef={returnTextRef}
           entryReady={returnTextStable}
           showRing={false}
-          onExitComplete={() => setArrowFadeComplete(true)}
+          onExitComplete={handleArrowExitComplete}
         />
       </span>
     </button>

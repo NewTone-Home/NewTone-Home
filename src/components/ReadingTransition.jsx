@@ -11,88 +11,13 @@ import {
 } from '../interactions/ritualWheelAdvance'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useSceneParallax } from '../hooks/useSceneParallax'
+import { initialScramble, useScrambleText } from '../hooks/useScrambleText'
 import { getReaderSceneLabel } from '../i18n/readerUi'
 import LandingEntryArrow from './landing/LandingEntryArrow'
 import { NewToneTransitionMark } from './landing/LandingTitleMark'
 import './ReadingTransition.css'
 
-const SCRAMBLE = '01░▒/\\-_:;~*#+%&@'
 const RESUME_BLINK_CYCLE_MS = 1180
-
-function randScramble() {
-  return SCRAMBLE[Math.floor(Math.random() * SCRAMBLE.length)]
-}
-
-function initialScramble(len) {
-  return Array.from({ length: len }, () => randScramble()).join('')
-}
-
-function useScrambleText(text, { startDelay = 0, charInterval = 70, scrambleInterval = 40, enabled = true, holdFinal = false } = {}) {
-  const [displayText, setDisplayText] = useState('')
-  const [stable, setStable] = useState(false)
-  const holdFinalRef = useRef(holdFinal)
-  const wasHoldingFinalRef = useRef(false)
-  holdFinalRef.current = holdFinal
-
-  useLayoutEffect(() => {
-    if (!enabled) {
-      setDisplayText('')
-      setStable(false)
-      return
-    }
-
-    let mounted = true
-    let resolvedCount = 0
-    let si, ri, st
-
-    setDisplayText(initialScramble(text.length))
-    setStable(false)
-
-    si = setInterval(() => {
-      if (!mounted) return
-      const chars = text.split('').map((ch, i) => i < resolvedCount ? ch : randScramble())
-      setDisplayText(chars.join(''))
-    }, scrambleInterval)
-
-    const startResolution = () => {
-      ri = setInterval(() => {
-        resolvedCount++
-        if (resolvedCount >= text.length) {
-          clearInterval(ri)
-          clearInterval(si)
-          if (holdFinalRef.current) {
-            setDisplayText(initialScramble(text.length))
-            return
-          }
-          if (mounted) {
-            setDisplayText(text)
-            setStable(true)
-          }
-        }
-      }, charInterval)
-    }
-
-    if (startDelay > 0) st = setTimeout(startResolution, startDelay)
-    else startResolution()
-
-    return () => { mounted = false; clearTimeout(st); clearInterval(si); clearInterval(ri) }
-  }, [text, startDelay, charInterval, scrambleInterval, enabled])
-
-  useLayoutEffect(() => {
-    if (holdFinal) {
-      wasHoldingFinalRef.current = true
-      return
-    }
-    if (!wasHoldingFinalRef.current) return
-    wasHoldingFinalRef.current = false
-    if (enabled) {
-      setDisplayText(text)
-      setStable(true)
-    }
-  }, [enabled, holdFinal, text])
-
-  return { displayText, stable }
-}
 
 const TRANSITION_ENVIRONMENT_COPY = Object.freeze({
   zh: {
@@ -479,6 +404,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     charInterval: proceedCharInterval,
     scrambleInterval: 30,
     enabled: showText && (!modeStage || modeActionsReady),
+    withdrawing: locked,
+    withdrawalDuration: 1200,
   })
 
   const { displayText: changeText, stable: changeStable } = useScrambleText(currentStage.secondary, {
@@ -486,6 +413,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     charInterval: 100,
     scrambleInterval: 30,
     enabled: showText && (!modeStage || modeActionsReady),
+    withdrawing: locked,
+    withdrawalDuration: 1200,
   })
 
   const expanded = langExpandHover || langExpandToggled
@@ -591,15 +520,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
   useEffect(() => {
     expandedRef.current = expanded
-    if (expanded) {
-      setFillDone(false)
-      const t = setTimeout(() => {
-        if (expandedRef.current) setFillDone(true)
-      }, 500)
-      return () => clearTimeout(t)
-    } else {
-      setFillDone(false)
-    }
+    if (!expanded) setFillDone(false)
   }, [expanded])
 
   useEffect(() => {
@@ -1029,6 +950,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                               phase={locked || scramblingLang || (!expanded && !languageLabelPinned) ? 'retracting' : 'steady'}
                               sourceRef={currentLanguageLabelRef}
                               entryReady={languageArrowReady || languageArrowEntered || Boolean(scramblingLang)}
+                              onEntryComplete={() => setFillDone(true)}
                               onExitComplete={handleLanguageChangeExit}
                               showRing={false}
                             />

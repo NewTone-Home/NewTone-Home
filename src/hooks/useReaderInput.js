@@ -27,7 +27,9 @@ export function useReaderInput({ onSteps, wheelThreshold, shouldSuppressForwardW
     const handleWheel = (event) => {
       const isReturnControl = event.target instanceof HTMLElement
         && event.target.closest('[data-reader-return-control="true"]')
-      if (isReaderInputControl(event.target) && !isReturnControl) return
+      // The return control owns its wheel gesture. Letting the global reader
+      // accumulator inspect the same event creates a race with page advance.
+      if (isReturnControl || isReaderInputControl(event.target)) return
       if (isNativeReaderScrollTarget(event.target)) return
       const now = performance.now()
       if (now - gestureRef.current.lastWheelAt > 140) gestureRef.current.id += 1

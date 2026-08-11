@@ -264,7 +264,7 @@
   stroke-dashoffset: 0;
 }
 
-.landing-guide-entry-arrow.landing-entry-arrow--visible {
+.landing-entry-reveal--guide.is-reveal-measured:not(.is-reveal-complete) .landing-guide-entry-arrow.landing-entry-arrow--visible {
   animation: landing-entry-guide-pull-out 650ms cubic-bezier(.2,.8,.2,1) backwards;
 }
 
@@ -317,7 +317,7 @@
  * When the pull ends, the shared transition releases it to the live down
  * direction; the arrow keeps its existing post-turn relationship.
  */
-.reader-entry-arrow:not(.is-arrow-delayed) {
+.landing-entry-reveal--reader.is-reveal-measured:not(.is-reveal-complete) .reader-entry-arrow:not(.is-arrow-delayed) {
   animation: reader-entry-arrow-pull-out 650ms cubic-bezier(.2,.8,.2,1) 0ms backwards;
 }
 

@@ -5,6 +5,7 @@ const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
 const page = read('../src/components/LandingUpdatesPage.jsx')
 const styles = read('../src/components/LandingUpdatesPage.css')
 const scramble = read('../src/components/ScrambleText.jsx')
+const scrambleHook = read('../src/hooks/useScrambleText.js')
 
 describe('Landing updates return entry', () => {
   it('uses the Landing paper and exposes a local desktop return state machine', () => {
@@ -53,8 +54,8 @@ describe('Landing updates return entry', () => {
     expect(styles).toContain('animation: updates-return-arrow-withdraw')
     expect(scramble).toContain('withdrawing = false')
     expect(scramble).toContain('onWithdrawn')
-    expect(scramble).toContain('onWithdrawnRef.current?.()')
-    expect(scramble).toContain('onRevealedRef.current?.()')
+    expect(scrambleHook).toContain('onWithdrawnRef.current?.()')
+    expect(scrambleHook).toContain('onRevealedRef.current?.()')
   })
 
   it('uses a soft gradient backdrop and explicit leave/wheel timing', () => {
