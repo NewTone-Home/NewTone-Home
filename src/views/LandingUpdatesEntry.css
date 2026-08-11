@@ -49,6 +49,11 @@
   animation: landing-updates-label-return 420ms cubic-bezier(.2,.8,.2,1) 160ms both;
 }
 
+.landing[data-updates-phase="return-surface"] .landing-entry-group--timed {
+  pointer-events: none;
+  opacity: 0;
+}
+
 /* Keep both labels at their completed NewTone-bound position after the
    label barrier advances to the surface motion. This prevents animation
    fill-mode from being removed on the same frame and briefly restoring them. */
