@@ -67,11 +67,6 @@
   transform: rotate(180deg);
 }
 
-/* Reader uses the actual geometric center of its arrow as the pivot. */
-.reader-entry-arrow .landing-entry-arrow__rotator {
-  transform-origin: 50% 43.75%;
-}
-
 .landing-guide-entry-arrow {
   --updates-arrow-exit-x: -56px;
 }
