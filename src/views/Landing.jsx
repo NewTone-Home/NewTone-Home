@@ -61,6 +61,7 @@ function Landing({
   const [guidePhase, setGuidePhase] = useState(() => returnArrival ? 'hidden' : 'quiet')
   const [entryTarget, setEntryTarget] = useState('reader')
   const [entryPromptsSettled, setEntryPromptsSettled] = useState(false)
+  const entryPromptsSettleFrameRef = useRef(0)
   const guidePhaseRef = useRef(guidePhase)
   const triggeredRef = useRef(false)
   const introRef = useRef(introCompleted)
@@ -102,10 +103,20 @@ function Landing({
   }, [entryTarget])
 
   useEffect(() => {
+    if (entryPromptsSettleFrameRef.current) {
+      window.cancelAnimationFrame(entryPromptsSettleFrameRef.current)
+      entryPromptsSettleFrameRef.current = 0
+    }
     if (entryPromptsActive) return
     setEntryTarget('reader')
     setEntryPromptsSettled(false)
   }, [entryPromptsActive])
+
+  useEffect(() => () => {
+    if (entryPromptsSettleFrameRef.current) {
+      window.cancelAnimationFrame(entryPromptsSettleFrameRef.current)
+    }
+  }, [])
 
   useSceneParallax({
     rootRef: landingRef,
@@ -249,7 +260,12 @@ function Landing({
   }, [activateReaderTarget])
 
   const handleEntryPromptsRevealed = useCallback(() => {
-    setEntryPromptsSettled(true)
+    entryPromptsSettleFrameRef.current = window.requestAnimationFrame(() => {
+      entryPromptsSettleFrameRef.current = window.requestAnimationFrame(() => {
+        entryPromptsSettleFrameRef.current = 0
+        setEntryPromptsSettled(true)
+      })
+    })
   }, [])
 
   useEffect(() => {
