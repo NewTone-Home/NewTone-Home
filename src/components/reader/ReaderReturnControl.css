@@ -8,14 +8,16 @@
 .reader-return-text {
   position: relative;
   z-index: 1;
+  opacity: 1;
+  transition: opacity var(--return-content-fade-ms, 260ms) ease;
 }
 
 .reader-return-affordance {
   position: absolute;
-  top: 50%;
-  left: calc(100% + 4px);
-  width: 32px;
-  height: 32px;
+  top: var(--return-affordance-top, 50%);
+  left: var(--return-affordance-left, 0px);
+  width: var(--return-affordance-width, 96px);
+  height: var(--return-affordance-height, 28px);
   overflow: visible;
   fill: none;
   pointer-events: none;
@@ -30,6 +32,7 @@
   opacity: 0;
   stroke-dasharray: 1 1;
   stroke-dashoffset: calc(1 - var(--return-progress));
+  transition: stroke-dashoffset var(--return-ring-retract-ms, 360ms) cubic-bezier(.42,0,.58,1);
 }
 
 .reader-return-control.has-affordance .reader-return-affordance__ring {
@@ -38,12 +41,22 @@
 
 .reader-return-affordance__arrow {
   opacity: 0;
-  transition: opacity 360ms ease;
+  transition: opacity var(--return-arrow-fade-ms, 180ms) ease;
 }
 
 .reader-return-control[data-return-ready="true"] .reader-return-affordance__arrow {
   opacity: .78;
   animation: reader-return-arrow-bob 1700ms ease-in-out infinite;
+}
+
+.reader-return-control[data-return-exit-stage="content-fading"] .reader-return-text {
+  opacity: 0;
+}
+
+.reader-return-control[data-return-exit-stage="arrow-fading"] .reader-return-affordance__arrow,
+.reader-return-control[data-return-exit-stage="content-fading"] .reader-return-affordance__arrow {
+  opacity: 0;
+  animation: none;
 }
 
 @keyframes reader-return-arrow-bob {
@@ -57,6 +70,13 @@
     width: min(180px, calc(100vw - 64px));
     padding: 12px 14px;
     opacity: .72;
+  }
+
+  .reader-stage .reader-return-affordance {
+    top: 50%;
+    left: calc(100% + 4px);
+    width: 32px;
+    height: 32px;
   }
 
   .reader-stage-page .reader-stage .reader-return-control {

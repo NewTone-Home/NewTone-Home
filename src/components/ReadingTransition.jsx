@@ -8,6 +8,7 @@ import {
   isRitualDirectPointer,
   resolveRitualArmAction,
   resolveRitualSwipeAction,
+  resolveRitualWheelAction,
 } from '../interactions/ritualWheelAdvance'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useSceneParallax } from '../hooks/useSceneParallax'
@@ -16,7 +17,24 @@ import { NewToneTransitionMark } from './landing/LandingTitleMark'
 import './ReadingTransition.css'
 
 const SCRAMBLE = '01░▒/\\-_:;~*#+%&@'
-const RESUME_BLINK_CYCLE_MS = 1180
+const RESUME_BLINK_CYCLE_MS = 520
+const RITUAL_TIMINGS = Object.freeze({
+  RING_DRAW_MS: 720,
+  RING_RETRACT_MS: 300,
+  ARROW_DRAW_MS: 260,
+  ARROW_FADE_MS: 180,
+  CONTENT_RELEASE_MS: 1600,
+})
+const RITUAL_HOLD_TIMINGS = Object.freeze({
+  DRAW_MS: RITUAL_TIMINGS.RING_DRAW_MS,
+  RETRACT_MS: RITUAL_TIMINGS.RING_RETRACT_MS,
+  FLASH_MS: 280,
+})
+const LANGUAGE_AFFORDANCE_TIMINGS = Object.freeze({
+  RING_DRAW_MS: 560,
+  NOTE_DRAW_MS: 260,
+  CANDIDATE_REVEAL_MS: 220,
+})
 
 function randScramble() {
   return SCRAMBLE[Math.floor(Math.random() * SCRAMBLE.length)]
@@ -175,7 +193,21 @@ function getTextHitRect(node) {
   return range.getBoundingClientRect()
 }
 
-function useHoldAdvance({ enabled, onComplete, resetKey, textRef, flashRef }) {
+function getInitialBrowserLanguage(fallback) {
+  if (typeof navigator === 'undefined') return fallback
+  const browserLangs = navigator.languages || [navigator.language || '']
+  return detectBrowserReaderLanguage(browserLangs) || fallback
+}
+
+function stepRitualProgress(current, target, deltaMs, timings) {
+  const duration = target > current ? timings.DRAW_MS : timings.RETRACT_MS
+  const distance = Math.max(0, deltaMs) / duration
+  return target > current
+    ? Math.min(target, current + distance)
+    : Math.max(target, current - distance)
+}
+
+function useHoldAdvance({ enabled, onComplete, resetKey, textRef, flashRef, timings = HOLD_PROGRESS_TIMINGS }) {
   const [progress, setProgress] = useState(0)
   const [holdPhase, setHoldPhase] = useState('idle')
   const targetRef = useRef(0)
@@ -191,6 +223,14 @@ function useHoldAdvance({ enabled, onComplete, resetKey, textRef, flashRef }) {
   const retract = useCallback(() => {
     if (completedRef.current) return
     targetRef.current = 0
+    setHoldPhase(progressRef.current > 0 ? 'retracting' : 'idle')
+  }, [])
+
+  const interrupt = useCallback(() => {
+    completedRef.current = false
+    targetRef.current = 0
+    window.clearTimeout(finishTimerRef.current)
+    flashAnimationRef.current?.cancel()
     setHoldPhase(progressRef.current > 0 ? 'retracting' : 'idle')
   }, [])
 
@@ -231,7 +271,7 @@ function useHoldAdvance({ enabled, onComplete, resetKey, textRef, flashRef }) {
     const animate = time => {
       const delta = lastTimeRef.current ? Math.min(40, time - lastTimeRef.current) : 16
       lastTimeRef.current = time
-      const next = stepHoldProgress(progressRef.current, targetRef.current, delta)
+      const next = stepRitualProgress(progressRef.current, targetRef.current, delta, timings)
       if (next !== progressRef.current) {
         progressRef.current = next
         setProgress(next)
@@ -243,11 +283,11 @@ function useHoldAdvance({ enabled, onComplete, resetKey, textRef, flashRef }) {
         setHoldPhase('flashing')
         flashAnimationRef.current = flashRef.current?.animate(
           [{ opacity: 1 }, { opacity: .18 }, { opacity: 1 }, { opacity: .18 }, { opacity: 1 }],
-          { duration: HOLD_PROGRESS_TIMINGS.FLASH_MS, easing: 'ease-in-out' },
+          { duration: timings.FLASH_MS, easing: 'ease-in-out' },
         ) ?? null
         finishTimerRef.current = window.setTimeout(
           () => onCompleteRef.current(),
-          HOLD_PROGRESS_TIMINGS.FLASH_MS,
+          timings.FLASH_MS,
         )
       }
       frameRef.current = requestAnimationFrame(animate)
@@ -258,9 +298,9 @@ function useHoldAdvance({ enabled, onComplete, resetKey, textRef, flashRef }) {
       window.clearTimeout(finishTimerRef.current)
       flashAnimationRef.current?.cancel()
     }
-  }, [flashRef])
+  }, [flashRef, timings])
 
-  return { progress, holdPhase, trackPointer, retract }
+  return { progress, holdPhase, trackPointer, retract, interrupt }
 }
 
 function useLanguageSelectorHold({ enabled }) {
@@ -320,18 +360,18 @@ function useLanguageSelectorHold({ enabled }) {
 
 function RitualHandAffordance({ showArrow = true }) {
   return (
-    <svg className={`ritual-hand-affordance${showArrow ? '' : ' ritual-hand-affordance--ring-only'}`} viewBox="0 0 80 80" aria-hidden="true">
-      <path className="ritual-hand-affordance__ring" pathLength="1" d="M40 5C61 4 74 17 74 39C74 61 61 75 39 74C17 73 5 61 6 39C7 17 19 6 40 5" />
-      {showArrow && <path className="ritual-hand-affordance__arrow" pathLength="1" d="M40 22C39 33 40 45 40 57M31 48C34 52 37 56 40 59M49 48C46 52 43 56 40 59" />}
+    <svg className={`ritual-hand-affordance${showArrow ? '' : ' ritual-hand-affordance--ring-only'}`} viewBox="0 0 120 64" aria-hidden="true">
+      <path className="ritual-hand-affordance__ring" pathLength="1" d="M36 5C54 4 68 14 69 31C70 48 56 58 35 57C14 56 4 47 6 31C8 14 18 6 36 5" />
+      {showArrow && <path className="ritual-hand-affordance__arrow" pathLength="1" d="M74 31C85 30 97 31 109 31M102 25C105 27 108 29 111 31M102 37C105 35 108 33 111 31" />}
     </svg>
   )
 }
 
-function LanguageExpandAffordance() {
+function LanguageExpandAffordance({ onAnimationEnd }) {
   return (
-    <svg className="language-expand-affordance" viewBox="0 0 150 64" aria-hidden="true">
-      <path className="language-expand-affordance__ring" pathLength="1" d="M35 7C54 5 67 15 68 31C69 49 55 58 34 57C14 56 4 47 6 31C8 15 17 8 35 7" />
-      <path className="language-expand-affordance__note" pathLength="1" d="M67 32C81 30 94 31 108 31M101 25C104 27 107 29 110 31M101 37C104 35 107 33 110 31" />
+    <svg className="language-expand-affordance" viewBox="0 0 120 64" aria-hidden="true" onAnimationEnd={onAnimationEnd}>
+      <path className="language-expand-affordance__ring" pathLength="1" d="M36 5C54 4 68 14 69 31C70 48 56 58 35 57C14 56 4 47 6 31C8 14 18 6 36 5" />
+      <path className="language-expand-affordance__note" pathLength="1" d="M74 31C85 30 97 31 109 31M102 25C105 27 108 29 111 31M102 37C105 35 108 33 111 31" />
     </svg>
   )
 }
@@ -339,6 +379,7 @@ function LanguageExpandAffordance() {
 function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const setLanguage = useProgressStore(s => s.setLanguage)
   const lang = copy[language] || copy.zh
+  const browserDefaultLanguage = useMemo(() => getInitialBrowserLanguage(language), [])
   const modeStage = phase === 'mode-active' || phase === 'mode-leaving'
   const reforming = phase === 'language-leaving'
   const exiting = phase === 'mode-leaving'
@@ -357,16 +398,16 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   }, [isFirstEntry])
   const [langExpandHover, setLangExpandHover] = useState(false)
   const [langExpandToggled, setLangExpandToggled] = useState(false)
-  const [fillDone, setFillDone] = useState(false)
+  const [languageAffordanceStage, setLanguageAffordanceStage] = useState('idle')
+  const [ritualExitStage, setRitualExitStage] = useState('idle')
   const [scramblingLang, setScramblingLang] = useState(null)
   const [languageSlots, setLanguageSlots] = useState([])
-  const [labelText, setLabelText] = useState(getReaderLanguage(language).label)
+  const [labelText, setLabelText] = useState(getReaderLanguage(browserDefaultLanguage).label)
   const [labelVisible, setLabelVisible] = useState(true)
   const [languageLabelPinned, setLanguageLabelPinned] = useState(false)
   const hideTimerRef = useRef(null)
   const hoverActiveRef = useRef(false)
   const isSwitchingRef = useRef(false)
-  const expandedRef = useRef(false)
   const slotsInitialized = useRef(false)
   const secondaryZoneRef = useRef(null)
   const touchInProgress = useRef(false)
@@ -384,6 +425,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const [selectorIdentityStable, setSelectorIdentityStable] = useState(null)
   const [armedOption, setArmedOption] = useState(null)
   const [readyOption, setReadyOption] = useState(null)
+  const ritualWheelPendingRef = useRef(false)
 
   useEffect(() => {
     if (!slotsInitialized.current) {
@@ -391,9 +433,10 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
       setLanguageSlots(READER_LANGUAGES.map(item => item.code).filter(code => code !== language))
     }
     if (!isSwitchingRef.current) {
-      setLabelText(getReaderLanguage(language).label)
+      const visibleLanguage = languageVersion === 0 ? browserDefaultLanguage : language
+      setLabelText(getReaderLanguage(visibleLanguage).label)
     }
-  }, [language])
+  }, [browserDefaultLanguage, language, languageVersion])
 
   const currentStage = useMemo(() => ({
     id: modeStage ? 'mode' : 'language',
@@ -474,7 +517,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   })
 
   const expanded = langExpandHover || langExpandToggled
-  const languageLabelShown = !modeStage && (expanded || languageLabelPinned)
+  const languageLabelShown = !modeStage
 
   useLayoutEffect(() => {
     const nodes = [
@@ -560,16 +603,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   }, [])
 
   useEffect(() => {
-    expandedRef.current = expanded
-    if (expanded) {
-      setFillDone(false)
-      const t = setTimeout(() => {
-        if (expandedRef.current) setFillDone(true)
-      }, 500)
-      return () => clearTimeout(t)
-    } else {
-      setFillDone(false)
-    }
+    if (!expanded) setLanguageAffordanceStage('idle')
   }, [expanded])
 
   useEffect(() => {
@@ -583,6 +617,11 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     setLangExpandToggled(false)
   }, [modeStage])
 
+  const beginLanguageAffordance = useCallback(() => {
+    if (modeStage) return
+    setLanguageAffordanceStage(current => current === 'idle' ? 'ring' : current)
+  }, [modeStage])
+
   const handleEnter = useCallback(() => {
     if (modeStage) return
     if (touchInProgress.current) return
@@ -591,8 +630,9 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
       hideTimerRef.current = null
     }
     hoverActiveRef.current = true
+    beginLanguageAffordance()
     setLangExpandHover(true)
-  }, [modeStage])
+  }, [beginLanguageAffordance, modeStage])
 
   const handleLeave = useCallback(() => {
     if (modeStage) return
@@ -600,6 +640,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     hideTimerRef.current = setTimeout(() => {
       hoverActiveRef.current = false
       setLangExpandHover(false)
+      setLanguageAffordanceStage('idle')
     }, 180)
   }, [modeStage])
 
@@ -614,12 +655,16 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const handleLanguageExpandClick = useCallback(() => {
     if (modeStage) return
     setArmedOption(null)
+    beginLanguageAffordance()
     if (window.matchMedia('(hover: hover)').matches) {
       setLangExpandHover(true)
       return
     }
-    setLangExpandToggled(s => !s)
-  }, [modeStage])
+    setLangExpandToggled(current => {
+      if (current) setLanguageAffordanceStage('idle')
+      return !current
+    })
+  }, [beginLanguageAffordance, modeStage])
 
   const performModeSecondaryAction = useCallback(() => {
     if (modeStage) onModeSelect('standard')
@@ -632,6 +677,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     resetKey: holdResetKey,
     textRef: primaryTextRef,
     flashRef: primaryButtonRef,
+    timings: RITUAL_HOLD_TIMINGS,
   })
   const modeSecondaryHold = useHoldAdvance({
     enabled: buttonsReady && modeStage && modeActionsReady && !locked,
@@ -639,12 +685,19 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     resetKey: holdResetKey,
     textRef: secondaryHoldTextRef,
     flashRef: secondaryButtonRef,
+    timings: RITUAL_HOLD_TIMINGS,
   })
   const languageSelectorHold = useLanguageSelectorHold({
     enabled: buttonsReady && !modeStage && !locked,
   })
   const secondaryProgress = modeStage ? modeSecondaryHold.progress : languageSelectorHold.progress
   const secondaryPhase = modeStage ? modeSecondaryHold.holdPhase : languageSelectorHold.holdPhase
+
+  useEffect(() => {
+    if (locked || !armedOption) return
+    const progress = armedOption === 'primary' ? primaryHold.progress : modeSecondaryHold.progress
+    if (progress >= 0.999) setReadyOption(armedOption)
+  }, [armedOption, locked, modeSecondaryHold.progress, primaryHold.progress])
 
   const performResolvedAction = useCallback(action => {
     if (!action) return
@@ -667,6 +720,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   useEffect(() => {
     setArmedOption(null)
     setReadyOption(null)
+    setRitualExitStage('idle')
+    ritualWheelPendingRef.current = false
   }, [currentStage.id])
 
   useEffect(() => {
@@ -718,11 +773,48 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     setArmedOption(selectorOption)
   }, [armedOption, locked])
 
-  const handleAffordanceAnimationEnd = useCallback((event, selectorOption) => {
-    if (event.animationName !== 'ritual-entry-ring-draw') return
-    setArmedOption(selectorOption)
-    setReadyOption(selectorOption)
+  const handleLanguageAffordanceAnimationEnd = useCallback(event => {
+    if (event.animationName === 'language-current-ring-draw') {
+      setLanguageAffordanceStage('arrow')
+      return
+    }
+    if (event.animationName === 'language-note-arrow-draw') {
+      setLanguageAffordanceStage('candidate')
+    }
   }, [])
+
+  const queueRitualWheelAction = useCallback((action, selectorOption) => {
+    if (!action || ritualWheelPendingRef.current) return
+    ritualWheelPendingRef.current = true
+    if (selectorOption === 'primary') primaryHold.interrupt()
+    if (selectorOption === 'secondary' && modeStage) modeSecondaryHold.interrupt()
+    setRitualExitStage('retracting')
+    scheduleTransient(() => {
+      setReadyOption(null)
+      setRitualExitStage('arrow-fading')
+      scheduleTransient(() => {
+        setRitualExitStage('content-fading')
+        ritualWheelPendingRef.current = false
+        performResolvedAction(action)
+      }, RITUAL_TIMINGS.ARROW_FADE_MS)
+    }, RITUAL_TIMINGS.RING_RETRACT_MS)
+  }, [modeStage, modeSecondaryHold, performResolvedAction, primaryHold, scheduleTransient])
+
+  useEffect(() => {
+    if (locked) return undefined
+    const onWheel = event => {
+      if (event.deltaY <= 8 || ritualWheelPendingRef.current) return
+      const targetOption = event.target?.closest?.('[data-selector-option]')?.dataset?.selectorOption
+      const selectorOption = targetOption || armedOption
+      const action = resolveRitualWheelAction(phase, selectorOption, event.deltaY)
+      if (!action) return
+      event.preventDefault()
+      event.stopPropagation()
+      queueRitualWheelAction(action, selectorOption)
+    }
+    window.addEventListener('wheel', onWheel, { passive: false, capture: true })
+    return () => window.removeEventListener('wheel', onWheel, { capture: true })
+  }, [armedOption, locked, phase, queueRitualWheelAction])
 
   const handleLanguageSecondaryPointer = useCallback(event => {
     if (modeStage) return
@@ -757,9 +849,20 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   useLayoutEffect(() => {
     const syncRingMetrics = (button, textNode) => {
       const rect = getTextHitRect(textNode)
-      if (!button || !rect) return
-      button.style.setProperty('--hold-text-width', `${rect.width}px`)
-      button.style.setProperty('--hold-text-height', `${rect.height}px`)
+      if (!button || !rect) return undefined
+      const affordanceWidth = Math.max(96, rect.width + 50)
+      const affordanceHeight = Math.max(28, rect.height + 12)
+      const anchorNodes = [button, button.querySelector('.lang-btn-text-area'), button.parentElement].filter(Boolean)
+      anchorNodes.forEach(node => {
+        const nodeRect = node.getBoundingClientRect()
+        node.style.setProperty('--hold-text-width', `${rect.width}px`)
+        node.style.setProperty('--hold-text-height', `${rect.height}px`)
+        node.style.setProperty('--ritual-affordance-left', `${rect.left - nodeRect.left - 6}px`)
+        node.style.setProperty('--ritual-affordance-top', `${rect.top - nodeRect.top + rect.height / 2}px`)
+        node.style.setProperty('--ritual-affordance-width', `${affordanceWidth}px`)
+        node.style.setProperty('--ritual-affordance-height', `${affordanceHeight}px`)
+      })
+      return undefined
     }
     syncRingMetrics(primaryButtonRef.current, primaryTextRef.current)
     const secondaryVisibleText = languageLabelShown
@@ -810,10 +913,21 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     <div
       ref={selectorRootRef}
       className={`ritual-selector language-init${reforming ? ' language-init--reforming' : ''}${exiting ? ' language-init--exiting' : ''}`}
+      style={{
+        '--ritual-ring-draw-ms': `${RITUAL_TIMINGS.RING_DRAW_MS}ms`,
+        '--ritual-ring-retract-ms': `${RITUAL_TIMINGS.RING_RETRACT_MS}ms`,
+        '--ritual-arrow-draw-ms': `${RITUAL_TIMINGS.ARROW_DRAW_MS}ms`,
+        '--ritual-arrow-fade-ms': `${RITUAL_TIMINGS.ARROW_FADE_MS}ms`,
+        '--ritual-content-release-ms': `${RITUAL_TIMINGS.CONTENT_RELEASE_MS}ms`,
+        '--language-ring-draw-ms': `${LANGUAGE_AFFORDANCE_TIMINGS.RING_DRAW_MS}ms`,
+        '--language-note-draw-ms': `${LANGUAGE_AFFORDANCE_TIMINGS.NOTE_DRAW_MS}ms`,
+        '--language-candidate-reveal-ms': `${LANGUAGE_AFFORDANCE_TIMINGS.CANDIDATE_REVEAL_MS}ms`,
+      }}
       data-selector-stage={currentStage.id}
       data-selector-identity={selectorIdentityStable === null ? 'pending' : selectorIdentityStable ? 'stable' : 'replaced'}
       data-armed-option={armedOption || 'none'}
       data-ready-option={readyOption || 'none'}
+      data-ritual-exit-stage={ritualExitStage}
     >
       <p ref={selectorTitleRef} className="ritual-selector-title language-init-title" data-stable={revealed && titleStable ? 'true' : 'false'}>
         {revealed ? (titleDisplay || '') : ''}
@@ -827,10 +941,13 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 ref={primaryButtonRef}
                 className="language-btn language-btn--primary"
                 data-selector-option="primary"
-                data-ritual-armed={armedOption === 'primary' ? 'true' : 'false'}
+                data-ritual-armed="false"
+                data-ritual-active={armedOption === 'primary' ? 'true' : 'false'}
                 data-ritual-ready={readyOption === 'primary' ? 'true' : 'false'}
+                data-ritual-wheel-ready={readyOption === 'primary' ? 'true' : 'false'}
                 data-hold-phase={primaryHold.holdPhase}
                 data-hold-progress={primaryHold.progress.toFixed(3)}
+                style={{ '--ritual-progress': primaryHold.progress }}
                 onPointerEnter={event => {
                   primaryHold.trackPointer(event)
                   armHoverOption(event, 'primary')
@@ -839,7 +956,6 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 onPointerDown={primaryHold.trackPointer}
                 onPointerLeave={primaryHold.retract}
                 onPointerCancel={primaryHold.retract}
-                onAnimationEnd={event => handleAffordanceAnimationEnd(event, 'primary')}
                 onPointerUp={event => {
                   if (!isRitualDirectPointer(event.pointerType)) return
                   primaryHold.retract()
@@ -863,11 +979,14 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 <button
                   className="language-btn language-btn--secondary"
                   data-selector-option="secondary"
-                  data-ritual-armed={armedOption === 'secondary' ? 'true' : 'false'}
-                  data-ritual-ready={readyOption === 'secondary' ? 'true' : 'false'}
+                   data-ritual-armed="false"
+                   data-ritual-active={armedOption === 'secondary' ? 'true' : 'false'}
+                   data-ritual-ready={readyOption === 'secondary' ? 'true' : 'false'}
+                   data-ritual-wheel-ready={readyOption === 'secondary' ? 'true' : 'false'}
                   ref={secondaryButtonRef}
                   data-hold-phase={secondaryPhase}
                   data-hold-progress={secondaryProgress.toFixed(3)}
+                  style={{ '--ritual-progress': modeStage ? modeSecondaryHold.progress : 0 }}
                   onClick={modeStage ? undefined : handleLanguageExpandClick}
                   onPointerEnter={modeStage ? event => {
                     modeSecondaryHold.trackPointer(event)
@@ -877,7 +996,6 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                   onPointerDown={modeStage ? modeSecondaryHold.trackPointer : handleLanguageSecondaryPointer}
                   onPointerLeave={modeStage ? modeSecondaryHold.retract : undefined}
                   onPointerCancel={modeStage ? modeSecondaryHold.retract : handleLanguageBoundaryLeave}
-                  onAnimationEnd={event => handleAffordanceAnimationEnd(event, 'secondary')}
                   onPointerUp={event => {
                     if (!isRitualDirectPointer(event.pointerType) || !modeStage) return
                     modeSecondaryHold.retract()
@@ -903,12 +1021,17 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                         scrambleActive={expanded && !languageLabelPinned}
                       />
                     </span>
-                    {modeStage ? <RitualHandAffordance /> : <LanguageExpandAffordance />}
+                    {modeStage
+                      ? <RitualHandAffordance />
+                      : <span data-language-affordance-stage={languageAffordanceStage}>
+                        <LanguageExpandAffordance onAnimationEnd={handleLanguageAffordanceAnimationEnd} />
+                      </span>}
                   </span>
                 </button>
                 <div className="lang-hover-bridge" />
                 <div
-                  className={`lang-expand-layer${expanded && fillDone ? ' lang-expand-layer--visible' : ''}`}
+                  className={`lang-expand-layer${languageAffordanceStage === 'candidate' ? ' lang-expand-layer--visible' : ''}`}
+                  data-language-candidate-stage={languageAffordanceStage}
                 >
                   {alternateLanguage && (
                     <button

@@ -11,9 +11,9 @@
 .ritual-hand-affordance {
   position: absolute;
   top: 50%;
-  left: calc(100% + 5px);
-  width: 32px;
-  height: 32px;
+  left: var(--ritual-affordance-left, 0px);
+  width: var(--ritual-affordance-width, 96px);
+  height: var(--ritual-affordance-height, 28px);
   overflow: visible;
   fill: none;
   color: var(--rt-control);
@@ -26,50 +26,47 @@
 }
 
 .ritual-hand-affordance__ring {
-  opacity: .82;
+  opacity: 0;
   stroke-dasharray: 1 1;
-  stroke-dashoffset: 1;
-  transition: stroke-dashoffset 1200ms cubic-bezier(.42,0,.58,1) 360ms;
+  stroke-dashoffset: calc(1 - var(--ritual-progress, 0));
+  transition: opacity 120ms ease, stroke-dashoffset var(--ritual-ring-retract-ms, 300ms) cubic-bezier(.42,0,.58,1);
 }
 
 .ritual-hand-affordance__arrow {
   opacity: 0;
   stroke-dasharray: 1 1;
-  stroke-dashoffset: 0;
-  transition: opacity 360ms ease;
+  stroke-dashoffset: 1;
+  transition: opacity var(--ritual-arrow-fade-ms, 180ms) ease;
 }
 
 .ritual-hand-affordance--ring-only .ritual-hand-affordance__arrow {
   display: none;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  [data-selector-stage='language'] .language-btn--primary:not(:disabled):hover .ritual-hand-affordance__ring,
-  [data-selector-stage='mode'] .language-btn:not(:disabled):hover .ritual-hand-affordance__ring {
-    opacity: .82;
-    animation: ritual-entry-ring-draw 2200ms cubic-bezier(.42,0,.58,1) forwards;
-  }
-}
-
-[data-ritual-armed='true'] .ritual-hand-affordance__ring,
+[data-ritual-active='true'] .ritual-hand-affordance__ring,
 [data-ritual-ready='true'] .ritual-hand-affordance__ring {
   opacity: .82;
-  animation: ritual-entry-ring-draw 2200ms cubic-bezier(.42,0,.58,1) forwards;
 }
 
 [data-ritual-ready='true'] .ritual-hand-affordance__ring {
   stroke-dashoffset: 0;
-  animation: none;
 }
 
 [data-ritual-ready='true'] .ritual-hand-affordance__arrow {
   opacity: .78;
-  animation: ritual-entry-arrow-bob 1700ms ease-in-out infinite;
+  stroke-dashoffset: 0;
+  animation: ritual-entry-arrow-draw var(--ritual-arrow-draw-ms, 260ms) cubic-bezier(.42,0,.58,1) forwards, ritual-entry-arrow-bob 1700ms ease-in-out var(--ritual-arrow-draw-ms, 260ms) infinite;
 }
 
-@keyframes ritual-entry-ring-draw {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
+[data-ritual-exit-stage='arrow-fading'] .ritual-hand-affordance__arrow,
+[data-ritual-exit-stage='content-fading'] .ritual-hand-affordance__arrow {
+  opacity: 0;
+  animation: none;
+}
+
+@keyframes ritual-entry-arrow-draw {
+  from { opacity: 0; stroke-dashoffset: 1; }
+  to { opacity: .78; stroke-dashoffset: 0; }
 }
 
 @keyframes ritual-entry-arrow-bob {
@@ -80,6 +77,12 @@
 @media (hover: none), (pointer: coarse) {
   .ritual-selector {
     touch-action: none;
+  }
+
+  .ritual-hand-affordance {
+    left: calc(100% + 5px);
+    width: 32px;
+    height: 32px;
   }
 }
 

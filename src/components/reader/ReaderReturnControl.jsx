@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { getReaderUi } from '../../i18n/readerUi'
 import './ReaderReturnControl.css'
 
-const RETURN_RING_DRAW_MS = 2200
-const RETURN_RING_RETRACT_MS = 1200
+const RETURN_RING_DRAW_MS = 720
+const RETURN_RING_RETRACT_MS = 360
+const RETURN_ARROW_FADE_MS = 180
+const RETURN_CONTENT_FADE_MS = 260
 const RETURN_WHEEL_THRESHOLD = 8
 const RETURN_DIRECT_THRESHOLD = 36
 
@@ -22,21 +24,23 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
   const returnHint = ui.returnToLandingHint || ui.backToLanding || fallbackUi.returnToLandingHint
   const [progress, setProgress] = useState(0)
   const [completing, setCompleting] = useState(false)
-  const [arrowFadeComplete, setArrowFadeComplete] = useState(true)
+  const [exitStage, setExitStage] = useState('idle')
   const progressRef = useRef(0)
   const completedRef = useRef(false)
   const pendingCompleteRef = useRef(false)
+  const pendingArrowFadeRef = useRef(false)
   const frameRef = useRef(0)
   const onCompleteRef = useRef(onComplete)
+  const returnTextRef = useRef(null)
   onCompleteRef.current = onComplete
 
   const visualArmed = armed && !completing
+  const ringActive = visualArmed && exitStage === 'idle'
 
   useEffect(() => {
     cancelAnimationFrame(frameRef.current)
-    if (!visualArmed && pendingCompleteRef.current && !arrowFadeComplete) return undefined
     const from = progressRef.current
-    const target = visualArmed ? 1 : 0
+    const target = ringActive ? 1 : 0
     const distance = Math.abs(target - from)
 
     const finishTarget = () => {
@@ -44,8 +48,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       setProgress(target)
       frameRef.current = 0
       if (target === 0 && pendingCompleteRef.current) {
-        pendingCompleteRef.current = false
-        onCompleteRef.current()
+        setExitStage(pendingArrowFadeRef.current ? 'arrow-fading' : 'content-fading')
       }
     }
 
@@ -54,7 +57,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       return undefined
     }
 
-    const fullDuration = visualArmed ? RETURN_RING_DRAW_MS : RETURN_RING_RETRACT_MS
+    const fullDuration = ringActive ? RETURN_RING_DRAW_MS : RETURN_RING_RETRACT_MS
     const duration = Math.max(80, fullDuration * distance)
     const startedAt = performance.now()
 
@@ -73,12 +76,16 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
 
     frameRef.current = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(frameRef.current)
-  }, [arrowFadeComplete, visualArmed])
+  }, [ringActive])
 
   useEffect(() => () => cancelAnimationFrame(frameRef.current), [])
 
   useEffect(() => {
-    if (!armed && !pendingCompleteRef.current) setCompleting(false)
+    if (!armed && !pendingCompleteRef.current) {
+      setCompleting(false)
+      setExitStage('idle')
+      pendingArrowFadeRef.current = false
+    }
   }, [armed])
 
   const entryReady = visualArmed && progress >= 0.999
@@ -86,6 +93,40 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
   useEffect(() => {
     onReadyChange?.(entryReady || completing)
   }, [completing, entryReady, onReadyChange])
+
+  useEffect(() => {
+    if (exitStage !== 'arrow-fading') return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true) {
+      setExitStage('content-fading')
+    }
+  }, [exitStage])
+
+  useEffect(() => {
+    if (exitStage !== 'content-fading') return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true) {
+      pendingCompleteRef.current = false
+      onCompleteRef.current()
+    }
+  }, [exitStage])
+
+  useLayoutEffect(() => {
+    const syncAffordanceMetrics = () => {
+      const textNode = returnTextRef.current
+      const button = textNode?.closest('.reader-return-control')
+      if (!textNode || !button) return
+      const textRect = textNode.getBoundingClientRect()
+      const buttonRect = button.getBoundingClientRect()
+      const width = Math.max(96, textRect.width + 50)
+      const height = Math.max(28, textRect.height + 12)
+      button.style.setProperty('--return-affordance-left', `${textRect.left - buttonRect.left - 6}px`)
+      button.style.setProperty('--return-affordance-top', `${textRect.top - buttonRect.top + textRect.height / 2}px`)
+      button.style.setProperty('--return-affordance-width', `${width}px`)
+      button.style.setProperty('--return-affordance-height', `${height}px`)
+    }
+    syncAffordanceMetrics()
+    window.addEventListener('resize', syncAffordanceMetrics)
+    return () => window.removeEventListener('resize', syncAffordanceMetrics)
+  }, [returnLabel])
 
   useEffect(() => {
     if (!visualArmed) return undefined
@@ -97,8 +138,9 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       completedRef.current = true
       pendingCompleteRef.current = true
       const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
-      setArrowFadeComplete(!entryReady || reduced)
+      pendingArrowFadeRef.current = entryReady && !reduced
       setCompleting(true)
+      setExitStage('retracting')
     }
 
     const onWheel = event => {
@@ -139,18 +181,26 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
     }
   }, [entryReady, visualArmed])
 
-  const affordanceVisible = visualArmed || progress > 0.001
+  const arrowVisible = (exitStage === 'idle' || exitStage === 'retracting')
+    && (entryReady || pendingArrowFadeRef.current)
+  const affordanceVisible = visualArmed || progress > 0.001 || exitStage !== 'idle'
 
   return (
     <button
       type="button"
       className={`reader-return-control${visualArmed ? ' is-armed' : ''}${affordanceVisible ? ' has-affordance' : ''}`}
-      style={{ '--return-progress': progress }}
+      style={{
+        '--return-progress': progress,
+        '--return-ring-retract-ms': `${RETURN_RING_RETRACT_MS}ms`,
+        '--return-arrow-fade-ms': `${RETURN_ARROW_FADE_MS}ms`,
+        '--return-content-fade-ms': `${RETURN_CONTENT_FADE_MS}ms`,
+      }}
       data-reader-return-control="true"
       data-return-armed={visualArmed ? 'true' : 'false'}
       data-return-progress={progress.toFixed(3)}
-      data-return-ready={entryReady ? 'true' : 'false'}
+      data-return-ready={arrowVisible ? 'true' : 'false'}
       data-return-completing={completing ? 'true' : 'false'}
+      data-return-exit-stage={exitStage}
       onPointerEnter={event => {
         if (!completing && event.pointerType === 'mouse' && hasHoverPointer()) onArm()
       }}
@@ -170,10 +220,20 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
           completing
           && event.propertyName === 'opacity'
           && event.target.classList.contains('reader-return-affordance__arrow')
-        ) setArrowFadeComplete(true)
+          && exitStage === 'arrow-fading'
+        ) setExitStage('content-fading')
+        if (
+          completing
+          && event.propertyName === 'opacity'
+          && event.target.classList.contains('reader-return-text')
+          && exitStage === 'content-fading'
+        ) {
+          pendingCompleteRef.current = false
+          onCompleteRef.current()
+        }
       }}
     >
-      <span className="reader-return-text">{returnLabel}</span>
+      <span ref={returnTextRef} className="reader-return-text">{returnLabel}</span>
       <svg className="reader-return-affordance" viewBox="0 0 80 80" aria-hidden="true">
         <path className="reader-return-affordance__ring" pathLength="1" d="M40 5C61 4 74 17 74 39C74 61 61 75 39 74C17 73 5 61 6 39C7 17 19 6 40 5" />
         <path className="reader-return-affordance__arrow" pathLength="1" d="M40 22C39 33 40 45 40 57M31 48C34 52 37 56 40 59M49 48C46 52 43 56 40 59" />
