@@ -115,10 +115,10 @@
 }
 
 /*
- * The NewTone-side guide starts as a complete arrow tucked closer to the title,
- * then slides left into its established resting position. Only this first
- * visible appearance changes; later direction rotations keep using the existing
- * rotator and Updates behavior unchanged.
+ * Both first-entry arrows now use the same reveal principle: the arrow is
+ * already fully inked while still moving out from behind the adjacent text.
+ * clip-path keeps every part that is still inside the text-side boundary
+ * invisible, so there is no overlap and no fade-in beside the lettering.
  */
 .landing-guide-entry-arrow .landing-entry-arrow__shaft,
 .landing-guide-entry-arrow .landing-entry-arrow__head {
@@ -142,10 +142,25 @@
   animation: landing-entry-guide-out 900ms ease-in forwards;
 }
 
+/*
+ * Final guide box is x=-47..-15 relative to the NewTone edge at x=0.
+ * Start translated +47px, fully behind the title-side boundary. As it moves
+ * left, clip from the right so only ink that has crossed x=0 can be seen.
+ * At 68% the full 32px arrow is clear of the title and clipping is released.
+ */
 @keyframes landing-entry-guide-pull-out {
-  from { opacity: 0; translate: 18px 0; }
-  12% { opacity: 1; }
-  to { opacity: 1; translate: 0 0; }
+  0% {
+    translate: 47px 0;
+    clip-path: inset(0 32px 0 0);
+  }
+  68% {
+    translate: 15px 0;
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    translate: 0 0;
+    clip-path: inset(0 0 0 0);
+  }
 }
 
 @keyframes landing-entry-guide-out {
@@ -198,10 +213,25 @@
   animation: reader-entry-ring-initial-draw 2400ms linear 1620ms backwards;
 }
 
+/*
+ * Reader arrow's resting box begins 10px to the right of the prompt. Starting
+ * at -42px puts it fully behind the text-side boundary. The left inset shrinks
+ * in lockstep with the move, so only the portion that has actually crossed the
+ * prompt edge becomes visible. No opacity fade is involved.
+ */
 @keyframes reader-entry-arrow-pull-out {
-  from { opacity: 0; translate: -18px 0; }
-  12% { opacity: 1; }
-  to { opacity: 1; translate: 0 0; }
+  0% {
+    translate: -42px 0;
+    clip-path: inset(0 0 0 32px);
+  }
+  76% {
+    translate: -10px 0;
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    translate: 0 0;
+    clip-path: inset(0 0 0 0);
+  }
 }
 
 @keyframes reader-entry-arrow-turn-down {
@@ -237,6 +267,12 @@
 .landing-entry-arrow:not(.is-arrow-delayed) .landing-entry-arrow__ink {
   opacity: .74;
   transition: opacity 360ms ease-out;
+}
+
+/* Reader first reveal is fully inked while clipped behind the prompt, so it
+   never fades in beside the text as it emerges. */
+.reader-entry-arrow:not(.is-arrow-delayed) .landing-entry-arrow__ink {
+  transition: none;
 }
 
 /* Reader return status remains unchanged. */
