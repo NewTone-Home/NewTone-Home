@@ -201,6 +201,11 @@
   animation: landing-entry-arrow-ink-draw 650ms cubic-bezier(.2,.8,.2,1) both;
 }
 
+.landing-entry-reveal--guide.is-reveal-measured
+  .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__rotator {
+  animation: landing-entry-guide-source-clip 650ms cubic-bezier(.2,.8,.2,1) both;
+}
+
 .landing-guide-entry-arrow.landing-entry-arrow--retracting .landing-entry-arrow__shaft,
 .landing-guide-entry-arrow.landing-entry-arrow--retracting .landing-entry-arrow__head {
   stroke-dashoffset: 0;
@@ -215,6 +220,16 @@
 @keyframes landing-entry-arrow-ink-draw {
   from { stroke-dashoffset: 1; }
   to { stroke-dashoffset: 0; }
+}
+
+@keyframes landing-entry-guide-source-clip {
+  from { clip-path: inset(0 0 0 100%); }
+  to { clip-path: inset(0); }
+}
+
+@keyframes landing-entry-reader-source-clip {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0); }
 }
 
 @keyframes landing-entry-guide-out {
@@ -261,6 +276,11 @@
 .landing-entry-reveal--reader.is-reveal-measured
   .reader-entry-arrow:not(.is-arrow-delayed) .landing-entry-arrow__head {
   animation: landing-entry-arrow-ink-draw 650ms cubic-bezier(.2,.8,.2,1) 320ms both;
+}
+
+.landing-entry-reveal--reader.is-reveal-measured
+  .reader-entry-arrow:not(.is-arrow-delayed) .landing-entry-arrow__rotator {
+  animation: landing-entry-reader-source-clip 650ms cubic-bezier(.2,.8,.2,1) 320ms both;
 }
 
 .reader-entry-arrow:not(.is-arrow-delayed) {
@@ -345,6 +365,10 @@
     animation: none !important;
   }
 
+  .landing-entry-arrow__rotator {
+    clip-path: inset(0) !important;
+  }
+
   .landing-guide-entry-arrow.landing-entry-arrow--visible {
     animation: none !important;
     translate: 0 0 !important;
@@ -389,6 +413,10 @@
 .page-shell[data-motion-mode="reduced"] .landing-entry-arrow__ink {
   transition: none !important;
   animation: none !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-entry-arrow__rotator {
+  clip-path: inset(0) !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-entry-arrow.landing-entry-arrow--visible {
