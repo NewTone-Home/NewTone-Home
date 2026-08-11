@@ -126,7 +126,7 @@ describe('Reader shell contract boundaries', () => {
     expect(transitionCss).toContain('@keyframes language-note-arrow-draw')
     expect(transitionCss).toContain('transition: opacity 360ms ease, translate 520ms')
     expect(transitionCss).toContain('left: calc(50% + 80px)')
-    expect(transition).toContain('onEntryComplete={() => setFillDone(true)}')
+    expect(transition).toContain('onEntryStart={() => setAlternateLanguageReady(true)}')
     expect(transition).not.toContain('reading-transition-direction')
     expect(transitionHoverCss).toContain('.ritual-hand-affordance--ring-only')
     expect(transitionHoverCss).toContain('@keyframes ritual-entry-ring-draw')

@@ -29,6 +29,7 @@ function LandingEntryArrow({
   sourceEdge = 'right',
   entryReady = true,
   initialDirection = 'right',
+  onEntryStart,
   onEntryComplete,
   onExitComplete,
 }) {
@@ -192,6 +193,16 @@ function LandingEntryArrow({
     onEntryComplete?.()
   }
 
+  const handleAnimationStart = (event) => {
+    if (
+      event.animationName !== 'landing-entry-guide-pull-out'
+      && event.animationName !== 'reader-entry-arrow-pull-out'
+      && event.animationName !== 'landing-entry-generic-pull-out'
+    ) return
+
+    onEntryStart?.()
+  }
+
   const handleRevealAnimationEnd = (event) => {
     if (event.animationName !== 'landing-entry-generic-retract') return
     onExitComplete?.()
@@ -232,6 +243,7 @@ function LandingEntryArrow({
       data-entry-turn-first={entryTurnFirst ? 'true' : 'false'}
       style={revealVariant && !revealMeasured ? { animationPlayState: 'paused' } : undefined}
       aria-hidden="true"
+      onAnimationStart={handleAnimationStart}
       onAnimationEnd={handleAnimationEnd}
       onTransitionEnd={handleTransitionEnd}
     >

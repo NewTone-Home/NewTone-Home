@@ -292,7 +292,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   }, [isFirstEntry])
   const [langExpandHover, setLangExpandHover] = useState(false)
   const [langExpandToggled, setLangExpandToggled] = useState(false)
-  const [fillDone, setFillDone] = useState(false)
+  const [alternateLanguageReady, setAlternateLanguageReady] = useState(false)
   const [scramblingLang, setScramblingLang] = useState(null)
   const [languageSlots, setLanguageSlots] = useState([])
   const [labelText, setLabelText] = useState(getReaderLanguage(language).label)
@@ -520,7 +520,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
   useEffect(() => {
     expandedRef.current = expanded
-    if (!expanded) setFillDone(false)
+    if (!expanded) setAlternateLanguageReady(false)
   }, [expanded])
 
   useEffect(() => {
@@ -950,7 +950,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                               phase={locked || scramblingLang || (!expanded && !languageLabelPinned) ? 'retracting' : 'steady'}
                               sourceRef={currentLanguageLabelRef}
                               entryReady={languageArrowReady || languageArrowEntered || Boolean(scramblingLang)}
-                              onEntryComplete={() => setFillDone(true)}
+                              onEntryStart={() => setAlternateLanguageReady(true)}
                               onExitComplete={handleLanguageChangeExit}
                               showRing={false}
                             />
@@ -962,7 +962,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 </button>
                 <div className="lang-hover-bridge" />
                 <div
-                  className={`lang-expand-layer${expanded && fillDone ? ' lang-expand-layer--visible' : ''}`}
+                  className={`lang-expand-layer${expanded && alternateLanguageReady ? ' lang-expand-layer--visible' : ''}`}
                 >
                   {alternateLanguage && (
                     <button
