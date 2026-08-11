@@ -34,6 +34,7 @@ const RETURN_STATUS_FADE_MS = 260
 const RETURN_GUIDE_DELAY_MS = 1600
 const LANDING_ENTRY_TURN_MS = 260
 const LANDING_ENTRY_PROMPT_DURATION_MS = 1900
+const LANDING_ENTRY_ARROW_PREP_MS = 320
 
 function Landing({
   onEnter,
@@ -62,6 +63,7 @@ function Landing({
   const [entryTarget, setEntryTarget] = useState('reader')
   const [entryPromptsSettled, setEntryPromptsSettled] = useState(false)
   const entryPromptsSettleFrameRef = useRef(0)
+  const entryPromptsSettleTimerRef = useRef(0)
   const guidePhaseRef = useRef(guidePhase)
   const triggeredRef = useRef(false)
   const introRef = useRef(introCompleted)
@@ -107,6 +109,10 @@ function Landing({
       window.cancelAnimationFrame(entryPromptsSettleFrameRef.current)
       entryPromptsSettleFrameRef.current = 0
     }
+    if (entryPromptsSettleTimerRef.current) {
+      window.clearTimeout(entryPromptsSettleTimerRef.current)
+      entryPromptsSettleTimerRef.current = 0
+    }
     if (entryPromptsActive) return
     setEntryTarget('reader')
     setEntryPromptsSettled(false)
@@ -115,6 +121,9 @@ function Landing({
   useEffect(() => () => {
     if (entryPromptsSettleFrameRef.current) {
       window.cancelAnimationFrame(entryPromptsSettleFrameRef.current)
+    }
+    if (entryPromptsSettleTimerRef.current) {
+      window.clearTimeout(entryPromptsSettleTimerRef.current)
     }
   }, [])
 
@@ -263,7 +272,10 @@ function Landing({
     entryPromptsSettleFrameRef.current = window.requestAnimationFrame(() => {
       entryPromptsSettleFrameRef.current = window.requestAnimationFrame(() => {
         entryPromptsSettleFrameRef.current = 0
-        setEntryPromptsSettled(true)
+        entryPromptsSettleTimerRef.current = window.setTimeout(() => {
+          entryPromptsSettleTimerRef.current = 0
+          setEntryPromptsSettled(true)
+        }, LANDING_ENTRY_ARROW_PREP_MS)
       })
     })
   }, [])

@@ -244,17 +244,17 @@
 
 /*
  * Reader intro sequence. Removing is-arrow-delayed is the single start signal.
- * After the prompt has fully revealed, hold for 320ms so the text can settle;
- * then pull a complete right-facing arrow out. When the pull ends, the shared
- * transition releases it to the live down direction; the ring begins only after
- * that 650ms turn has completed.
+ * Landing.jsx holds the fully revealed prompt for 320ms before exposing the
+ * complete arrow. Once exposed, the existing 650ms pull starts immediately.
+ * When the pull ends, the shared transition releases it to the live down
+ * direction; the ring keeps its existing post-turn relationship.
  */
 .reader-entry-arrow:not(.is-arrow-delayed) {
-  animation: reader-entry-arrow-pull-out 650ms cubic-bezier(.2,.8,.2,1) 320ms backwards;
+  animation: reader-entry-arrow-pull-out 650ms cubic-bezier(.2,.8,.2,1) 0ms backwards;
 }
 
 .reader-entry-arrow:not(.is-arrow-delayed) .landing-entry-ring {
-  animation: reader-entry-ring-initial-draw 2400ms linear 1620ms backwards;
+  animation: reader-entry-ring-initial-draw 2400ms linear 1300ms backwards;
 }
 
 @keyframes reader-entry-arrow-pull-out {
