@@ -35,6 +35,43 @@ const RETURN_GUIDE_DELAY_MS = 1600
 const LANDING_ENTRY_TURN_MS = 260
 const LANDING_ENTRY_PROMPT_DURATION_MS = 1900
 const LANDING_ENTRY_ARROW_PREP_MS = 320
+const LANDING_RING_DEBUG_QUERY = 'landing-ring-debug'
+
+function landingRingDebugEnabled() {
+  if (typeof window === 'undefined') return false
+  return new URLSearchParams(window.location.search).get(LANDING_RING_DEBUG_QUERY) === '1'
+}
+
+function readLandingRingDebugSnapshot(root) {
+  if (!root || typeof window === 'undefined') return null
+  const rings = [...root.querySelectorAll('.landing-entry-ring')]
+
+  return {
+    capturedAtMs: Math.round(window.performance?.now?.() ?? 0),
+    root: {
+      target: root.dataset.entryTarget ?? null,
+      mode: root.dataset.entryRingMode ?? null,
+    },
+    rings: rings.map((ring, index) => {
+      const style = window.getComputedStyle(ring)
+      const arrow = ring.closest('.landing-entry-arrow')
+
+      return {
+        index,
+        role: index === 0 ? 'guide' : 'reader',
+        arrowClass: arrow?.getAttribute('class') ?? '',
+        animationName: style.animationName,
+        animationDuration: style.animationDuration,
+        animationDelay: style.animationDelay,
+        animationPlayState: style.animationPlayState,
+        transitionProperty: style.transitionProperty,
+        transitionDuration: style.transitionDuration,
+        transitionDelay: style.transitionDelay,
+        strokeDashoffset: style.strokeDashoffset,
+      }
+    }),
+  }
+}
 
 function Landing({
   onEnter,
@@ -69,6 +106,7 @@ function Landing({
   const triggeredRef = useRef(false)
   const introRef = useRef(introCompleted)
   const landingRef = useRef(null)
+  const landingRingDebugRef = useRef({ enabled: false, sequence: 0, events: [] })
   const entryTargetRef = useRef(entryTarget)
   const activationPendingRef = useRef(false)
   const activationTimerRef = useRef(0)
@@ -92,6 +130,74 @@ function Landing({
   const entryPromptsActive = !returnSequenceActive
     && [TITLE_PHASE.DRAWING, TITLE_PHASE.REVEALED].includes(phase)
   const updatesFlowActive = updatesPhase !== UPDATES_PHASE.LANDING
+
+  const recordLandingRingDebug = useCallback((label, context = {}) => {
+    const debug = landingRingDebugRef.current
+    if (!debug.enabled) return
+
+    const event = {
+      sequence: ++debug.sequence,
+      label,
+      context,
+      snapshot: readLandingRingDebugSnapshot(landingRef.current),
+    }
+    debug.events.push(event)
+
+    if (typeof console !== 'undefined') {
+      console.groupCollapsed(`[Landing ring debug] ${label}`)
+      console.log(JSON.stringify(event))
+      console.table(event.snapshot?.rings ?? [])
+      console.groupEnd()
+    }
+  }, [])
+
+  useEffect(() => {
+    const debug = landingRingDebugRef.current
+    debug.enabled = landingRingDebugEnabled()
+    if (!debug.enabled || typeof window === 'undefined') return undefined
+
+    const api = {
+      events: debug.events,
+      snapshot: () => readLandingRingDebugSnapshot(landingRef.current),
+      clear: () => {
+        debug.events.length = 0
+        debug.sequence = 0
+      },
+    }
+    window.__NEW_TONE_LANDING_RING_DEBUG__ = api
+    console.info('[Landing ring debug] enabled; use window.__NEW_TONE_LANDING_RING_DEBUG__ for the latest snapshot')
+    return undefined
+  }, [])
+
+  useEffect(() => {
+    const debug = landingRingDebugRef.current
+    if (!debug.enabled || typeof window === 'undefined') return undefined
+
+    const context = {
+      entryTarget,
+      entryPromptsSettled,
+      entryPromptsActive,
+      entryRingSwapStarted,
+    }
+    const timerIds = []
+    const frameIds = []
+    const sample = (label) => recordLandingRingDebug(label, context)
+
+    sample('state-commit')
+    frameIds.push(window.requestAnimationFrame(() => {
+      sample('requestAnimationFrame-1')
+      frameIds.push(window.requestAnimationFrame(() => sample('requestAnimationFrame-2')))
+    }))
+
+    for (const delay of [50, 180, 360, 1000, 2200]) {
+      timerIds.push(window.setTimeout(() => sample(`timeout-${delay}ms`), delay))
+    }
+
+    return () => {
+      for (const timerId of timerIds) window.clearTimeout(timerId)
+      for (const frameId of frameIds) window.cancelAnimationFrame(frameId)
+    }
+  }, [entryPromptsActive, entryPromptsSettled, entryRingSwapStarted, entryTarget, recordLandingRingDebug])
 
   useEffect(() => {
     introRef.current = introCompleted
