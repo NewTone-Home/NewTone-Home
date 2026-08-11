@@ -142,13 +142,17 @@
 }
 
 .landing[data-updates-phase="enter-arrows"] .landing-entry-arrow {
-  animation: landing-updates-arrow-retract 1200ms cubic-bezier(.42,0,.58,1) forwards;
+  animation: landing-updates-arrow-retract 900ms cubic-bezier(.42,0,.58,1) forwards;
+}
+
+.landing[data-updates-phase="enter-arrows"] .landing-entry-arrow__rotator {
+  transition-duration: 900ms;
 }
 
 /* A down-facing entry must finish its existing 1200ms turn to left before its
    own retract motion starts. The already-left entry keeps the zero-delay path. */
 .landing[data-updates-phase="enter-arrows"] .landing-entry-arrow[data-entry-turn-first="true"] {
-  animation-delay: 1200ms;
+  animation-delay: 900ms;
 }
 
 .landing[data-updates-phase="return-arrows"] .landing-entry-arrow {
@@ -162,6 +166,8 @@
 
 @keyframes landing-updates-arrow-retract {
   from { opacity: 1; translate: 0 0; }
+  68% { opacity: .96; }
+  82% { opacity: .05; }
   to { opacity: 0; translate: var(--updates-arrow-exit-x, -46px) 0; }
 }
 

@@ -92,7 +92,7 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
 
   return (
     <section
-      className="landing-updates-page"
+      className="landing-updates-page paper-surface"
       data-updates-phase={phase}
       data-return-armed={returnArmed ? 'true' : 'false'}
       data-return-ready={returnReady ? 'true' : 'false'}

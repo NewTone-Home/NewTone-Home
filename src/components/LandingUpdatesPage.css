@@ -4,7 +4,7 @@
   z-index: 4;
   display: grid;
   place-items: center;
-  background: var(--paper-base);
+  background-color: var(--reader-paper, var(--paper-base));
   color: var(--ink-strong);
   transform: translateY(100%);
 }
