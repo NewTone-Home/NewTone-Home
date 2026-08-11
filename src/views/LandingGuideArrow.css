@@ -177,6 +177,15 @@
   transition-timing-function: cubic-bezier(.42,0,.58,1);
 }
 
+/* Reader ring is deliberately independent from NewTone. It becomes active at
+   the same state change that reveals the Reader arrow, waits for the arrow's
+   360ms fade-in to finish, then visibly hand-draws at a steady pace. */
+.reader-entry-arrow.is-ring-active .landing-entry-ring {
+  transition-duration: 2400ms;
+  transition-delay: 360ms;
+  transition-timing-function: linear;
+}
+
 /* Bob is always on an inner child, never on the rotator. Rotation therefore
    cannot acquire position or scale from the breathing motion. */
 .landing-guide-entry-arrow.has-delayed-bob .landing-entry-arrow__ink {
