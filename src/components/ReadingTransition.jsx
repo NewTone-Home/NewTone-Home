@@ -181,9 +181,12 @@ function ExpandLabel({ labelText, labelVisible, labelRef, scrambleActive, holdFi
   useEffect(() => {
     onStableChange?.(stable)
   }, [onStableChange, stable])
+  const renderedText = scrambleActive
+    ? (holdFinal && stable ? initialScramble(labelText.length) : (displayText || labelText))
+    : labelText
   return (
     <span ref={labelRef} className={`lang-current-label${labelVisible ? ' lang-current-label--visible' : ' lang-current-label--hidden'}`}>
-      {scrambleActive ? (displayText || labelText) : labelText}
+      {renderedText}
     </span>
   )
 }
