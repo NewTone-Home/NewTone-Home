@@ -35,6 +35,7 @@ const RETURN_GUIDE_DELAY_MS = 1600
 const LANDING_ENTRY_TURN_MS = 260
 const LANDING_ENTRY_PROMPT_DURATION_MS = 1900
 const LANDING_ENTRY_ARROW_PREP_MS = 320
+const LANDING_UPDATES_ARROW_EXIT_MS = 900
 const LANDING_RING_DEBUG_QUERY = 'landing-ring-debug'
 
 function landingRingDebugEnabled() {
@@ -486,13 +487,6 @@ function Landing({
     ) {
       const key = event.target.classList.contains('landing-guide-entry-arrow') ? 'updates' : 'reader'
       onUpdatesBarrier('arrows', key)
-      return
-    }
-    if (
-      event.animationName === 'landing-updates-label-retract'
-      || event.animationName === 'landing-updates-label-return'
-    ) {
-      onUpdatesBarrier('labels', event.target.dataset.landingEntry || 'reader')
     }
   }, [onUpdatesBarrier])
 
@@ -576,12 +570,14 @@ function Landing({
                 onClick={activateUpdatesTarget}
               >
                 <p className="landing-prompt landing-prompt--updates">
-                  <ScrambleText
-                    text={updatesPromptText}
-                    active={entryPromptsActive}
-                    startDelay={LANDING_ENTRY_TURN_MS}
-                    duration={LANDING_ENTRY_PROMPT_DURATION_MS}
-                  />
+                   <ScrambleText
+                     text={updatesPromptText}
+                     active={entryPromptsActive}
+                     startDelay={LANDING_ENTRY_TURN_MS}
+                     duration={LANDING_ENTRY_PROMPT_DURATION_MS}
+                     withdrawing={updatesPhase === UPDATES_PHASE.ENTER_ARROWS}
+                     withdrawalDuration={LANDING_UPDATES_ARROW_EXIT_MS}
+                   />
                 </p>
               </div>
               <div
@@ -591,13 +587,15 @@ function Landing({
                 onClick={activateReaderTarget}
               >
                 <p className="landing-prompt landing-prompt--down">
-                  <ScrambleText
-                    text={downPromptText}
-                    active={entryPromptsActive}
-                    startDelay={LANDING_ENTRY_TURN_MS}
-                    duration={LANDING_ENTRY_PROMPT_DURATION_MS}
-                    onRevealed={handleEntryPromptsRevealed}
-                  />
+                   <ScrambleText
+                     text={downPromptText}
+                     active={entryPromptsActive}
+                     startDelay={LANDING_ENTRY_TURN_MS}
+                     duration={LANDING_ENTRY_PROMPT_DURATION_MS}
+                     withdrawing={updatesPhase === UPDATES_PHASE.ENTER_ARROWS}
+                     withdrawalDuration={LANDING_UPDATES_ARROW_EXIT_MS}
+                     onRevealed={handleEntryPromptsRevealed}
+                   />
                 </p>
                 <LandingEntryArrow
                   className="reader-entry-arrow"

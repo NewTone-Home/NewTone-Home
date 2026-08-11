@@ -134,11 +134,11 @@
 }
 
 .landing-guide-entry-arrow {
-  --updates-arrow-exit-x: -56px;
+  --updates-arrow-exit-x: -68px;
 }
 
 .reader-entry-arrow {
-  --updates-arrow-exit-x: -46px;
+  --updates-arrow-exit-x: -58px;
 }
 
 .landing[data-updates-phase="enter-arrows"] .landing-entry-arrow {
@@ -167,8 +167,8 @@
 
 @keyframes landing-updates-arrow-retract {
   from { opacity: 1; translate: 0 0; }
-  68% { opacity: .96; }
-  82% { opacity: .05; }
+  54% { opacity: .78; }
+  76% { opacity: .03; }
   to { opacity: 0; translate: var(--updates-arrow-exit-x, -46px) 0; }
 }
 

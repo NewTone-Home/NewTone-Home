@@ -43,14 +43,10 @@
   cursor: pointer;
 }
 
-.landing[data-updates-phase="enter-labels"] .landing-entry-group--timed {
-  pointer-events: none;
-  animation: landing-updates-label-retract 420ms cubic-bezier(.4,0,.7,.2) forwards;
-}
-
 .landing[data-updates-phase="return-labels"] .landing-entry-group--timed {
   pointer-events: none;
-  animation: landing-updates-label-return 420ms cubic-bezier(.2,.8,.2,1) forwards;
+  opacity: 0;
+  animation: landing-updates-label-return 420ms cubic-bezier(.2,.8,.2,1) 160ms both;
 }
 
 /* Keep both labels at their completed NewTone-bound position after the
@@ -59,14 +55,6 @@
 .landing[data-updates-phase="enter-surface"] .landing-entry-group--timed {
   opacity: 0;
   pointer-events: none;
-  translate: var(--updates-label-to-title-x, 0) var(--updates-label-to-title-y, 0);
-}
-
-@keyframes landing-updates-label-retract {
-  from { opacity: 1; translate: 0 0; }
-  68% { opacity: .96; }
-  82% { opacity: .05; }
-  to { opacity: 0; translate: var(--updates-label-to-title-x, 0) var(--updates-label-to-title-y, 0); }
 }
 
 @keyframes landing-updates-label-return {
@@ -83,11 +71,11 @@
 }
 
 .landing[data-updates-phase="enter-surface"] {
-  animation: landing-updates-surface-exit 620ms cubic-bezier(.22,.78,.2,1) 120ms forwards;
+  animation: landing-updates-surface-exit 900ms cubic-bezier(.22,.78,.2,1) 120ms forwards;
 }
 
 .landing[data-updates-phase="return-surface"] {
-  animation: landing-updates-surface-return 620ms cubic-bezier(.4,0,.7,.2) forwards;
+  animation: landing-updates-surface-return 900ms cubic-bezier(.4,0,.7,.2) forwards;
 }
 
 .landing[data-updates-phase="updates"] {
@@ -105,7 +93,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .landing[data-updates-phase="enter-labels"] .landing-entry-group--timed,
   .landing[data-updates-phase="return-labels"] .landing-entry-group--timed,
   .landing[data-updates-phase="enter-surface"],
   .landing[data-updates-phase="return-surface"] {
