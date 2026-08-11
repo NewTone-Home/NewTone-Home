@@ -262,7 +262,7 @@
    intentionally disabled only in this swap mode. */
 .landing[data-entry-ring-mode="swap"] .landing-entry-ring {
   animation: none;
-  transition: stroke-dashoffset 2200ms cubic-bezier(.42,0,.58,1) 0ms;
+  transition: stroke-dashoffset 2200ms cubic-bezier(.2,.8,.2,1) 0ms;
 }
 
 @keyframes reader-entry-arrow-pull-out {
