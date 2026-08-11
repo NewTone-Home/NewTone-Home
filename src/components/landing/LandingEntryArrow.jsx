@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const ARROW_SHAFT = 'M 0,5 L 0,65'
 const ARROW_HEAD_LEFT = 'M 0,65 L -10,50'
@@ -16,8 +16,9 @@ function assignRef(ref, node) {
  *
  * The SVG geometry never changes and never lives inside NewTone's breathing
  * transform. Direction is a pure rotation of the same vectors; selection is a
- * separate ring around them. This keeps rotation, ring drawing, and title
- * animation independent instead of composing several transforms on one node.
+ * separate ring around them. The two Landing entry arrows each receive their
+ * own fixed reveal viewport so their first appearance is independent even
+ * though they keep sharing the same arrow geometry.
  */
 function LandingEntryArrow({
   className = '',
@@ -29,6 +30,14 @@ function LandingEntryArrow({
   arrowDelayed = false,
 }) {
   const localRingRef = useRef(null)
+  const [revealComplete, setRevealComplete] = useState(false)
+
+  const classTokens = className.split(/\s+/).filter(Boolean)
+  const revealVariant = classTokens.includes('landing-guide-entry-arrow')
+    ? 'guide'
+    : classTokens.includes('reader-entry-arrow')
+      ? 'reader'
+      : null
 
   useLayoutEffect(() => {
     const ring = localRingRef.current
@@ -37,12 +46,25 @@ function LandingEntryArrow({
     ring.style.setProperty('--landing-entry-ring-length', String(length))
   }, [])
 
+  useEffect(() => {
+    if (revealVariant === 'reader' && arrowDelayed) setRevealComplete(false)
+  }, [arrowDelayed, revealVariant])
+
   const setRingNode = (node) => {
     localRingRef.current = node
     assignRef(ringRef, node)
   }
 
-  return (
+  const handleAnimationEnd = (event) => {
+    if (
+      event.animationName === 'landing-entry-guide-pull-out'
+      || event.animationName === 'reader-entry-arrow-pull-out'
+    ) {
+      setRevealComplete(true)
+    }
+  }
+
+  const arrow = (
     <svg
       className={[
         'landing-entry-arrow',
@@ -57,6 +79,7 @@ function LandingEntryArrow({
       width="32"
       height="22"
       aria-hidden="true"
+      onAnimationEnd={handleAnimationEnd}
     >
       <path ref={setRingNode} className="landing-entry-ring" d={ENTRY_RING} />
 
@@ -68,6 +91,21 @@ function LandingEntryArrow({
         </g>
       </g>
     </svg>
+  )
+
+  if (!revealVariant) return arrow
+
+  return (
+    <span
+      className={[
+        'landing-entry-reveal',
+        `landing-entry-reveal--${revealVariant}`,
+        revealComplete ? 'is-reveal-complete' : '',
+      ].filter(Boolean).join(' ')}
+      aria-hidden="true"
+    >
+      {arrow}
+    </span>
   )
 }
 
