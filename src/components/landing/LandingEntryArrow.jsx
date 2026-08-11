@@ -156,6 +156,7 @@ function LandingEntryArrow({
       viewBox="-60 0 120 80"
       width="32"
       height="22"
+      style={revealVariant && !revealMeasured ? { animationPlayState: 'paused' } : undefined}
       aria-hidden="true"
       onAnimationEnd={handleAnimationEnd}
       onTransitionEnd={handleTransitionEnd}
