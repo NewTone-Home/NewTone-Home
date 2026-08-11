@@ -396,7 +396,7 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
                 active={returnTextActive}
                 duration={760}
                 onRevealed={() => handleReturnTextRevealed(renderedReturnEntryGeneration)}
-                withdrawing={returnEntryPhase === RETURN_ENTRY_PHASE.WITHDRAW_TEXT}
+                withdrawing={isWithdrawalPhase(returnEntryPhase)}
                 withdrawalDuration={withdrawalTimingRef.current.text}
                 onWithdrawn={() => handleReturnTextWithdrawn(renderedReturnEntryGeneration)}
               />

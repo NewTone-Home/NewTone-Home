@@ -23,6 +23,7 @@ describe('Landing updates return entry', () => {
     expect(ringToReady).toBeGreaterThan(textToArrow)
     expect(page).toContain('showRing={false}')
     expect(page).toContain("direction={isWithdrawalPhase(returnEntryPhase) ? 'left' : 'up'}")
+    expect(page).toContain('withdrawing={isWithdrawalPhase(returnEntryPhase)}')
     expect(styles).toContain('updates-return-arrow-reveal')
     expect(styles).toContain('updates-return-arrow-withdraw')
     expect(styles).toContain('[data-return-state="withdraw-arrow"]')
