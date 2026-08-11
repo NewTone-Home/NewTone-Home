@@ -352,7 +352,9 @@
   }
 
   .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__shaft,
-  .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__head {
+  .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__head,
+  .reader-entry-arrow .landing-entry-arrow__shaft,
+  .reader-entry-arrow .landing-entry-arrow__head {
     animation: none !important;
     stroke-dashoffset: 0 !important;
   }
@@ -396,7 +398,9 @@
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__shaft,
-.page-shell[data-motion-mode="reduced"] .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__head {
+.page-shell[data-motion-mode="reduced"] .landing-guide-entry-arrow.landing-entry-arrow--visible .landing-entry-arrow__head,
+.page-shell[data-motion-mode="reduced"] .reader-entry-arrow .landing-entry-arrow__shaft,
+.page-shell[data-motion-mode="reduced"] .reader-entry-arrow .landing-entry-arrow__head {
   animation: none !important;
   stroke-dashoffset: 0 !important;
 }
