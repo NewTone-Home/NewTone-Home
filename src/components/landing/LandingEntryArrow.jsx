@@ -12,13 +12,13 @@ function assignRef(ref, node) {
 }
 
 /**
- * One arrow vocabulary for every Landing entry target.
+ * Shared arrow geometry with independent first-entry reveal state.
  *
- * The SVG geometry never changes and never lives inside NewTone's breathing
- * transform. Direction is a pure rotation of the same vectors; selection is a
- * separate ring around them. The two Landing entry arrows each receive their
- * own fixed reveal viewport so their first appearance is independent even
- * though they keep sharing the same arrow geometry.
+ * The guide first emerges facing left, then immediately releases to the live
+ * direction supplied by Landing. The Reader first emerges facing right, then
+ * releases to its live direction. Because those turns use CSS transitions,
+ * changing the live direction mid-turn interrupts and reverses from the current
+ * rendered angle instead of waiting for a keyframe animation to finish.
  */
 function LandingEntryArrow({
   className = '',
@@ -30,7 +30,12 @@ function LandingEntryArrow({
   arrowDelayed = false,
 }) {
   const localRingRef = useRef(null)
+  const revealRef = useRef(null)
+  const arrowRef = useRef(null)
+  const inkRef = useRef(null)
   const [revealComplete, setRevealComplete] = useState(false)
+  const [revealMeasured, setRevealMeasured] = useState(false)
+  const [initialTurnActive, setInitialTurnActive] = useState(false)
 
   const classTokens = className.split(/\s+/).filter(Boolean)
   const revealVariant = classTokens.includes('landing-guide-entry-arrow')
@@ -38,6 +43,19 @@ function LandingEntryArrow({
     : classTokens.includes('reader-entry-arrow')
       ? 'reader'
       : null
+  const introDirection = revealVariant === 'guide'
+    ? 'left'
+    : revealVariant === 'reader'
+      ? 'right'
+      : direction
+  const effectiveDirection = revealVariant && !revealComplete
+    ? introDirection
+    : direction
+  const revealReady = revealVariant === 'guide'
+    ? phase === 'visible'
+    : revealVariant === 'reader'
+      ? !arrowDelayed
+      : true
 
   useLayoutEffect(() => {
     const ring = localRingRef.current
@@ -47,8 +65,55 @@ function LandingEntryArrow({
   }, [])
 
   useEffect(() => {
-    if (revealVariant === 'reader' && arrowDelayed) setRevealComplete(false)
+    if (revealVariant !== 'reader' || !arrowDelayed) return
+    setRevealComplete(false)
+    setRevealMeasured(false)
+    setInitialTurnActive(false)
   }, [arrowDelayed, revealVariant])
+
+  useLayoutEffect(() => {
+    if (!revealVariant || !revealReady || revealComplete || revealMeasured) return
+
+    const reveal = revealRef.current
+    const arrow = arrowRef.current
+    const ink = inkRef.current
+    if (!reveal || !arrow || !ink) return
+
+    const inkRect = ink.getBoundingClientRect()
+    let edgeX
+
+    if (revealVariant === 'guide') {
+      const title = arrow.closest('.landing-title')
+      const titleInk = title?.querySelector('.landing-title-draft')
+      edgeX = titleInk?.getBoundingClientRect().left
+
+      if (Number.isFinite(edgeX)) {
+        const revealRect = reveal.getBoundingClientRect()
+        reveal.style.setProperty(
+          '--landing-entry-guide-edge-shift',
+          `${edgeX - revealRect.right}px`,
+        )
+      }
+
+      if (!Number.isFinite(edgeX)) edgeX = reveal.getBoundingClientRect().right
+      arrow.style.setProperty(
+        '--landing-entry-reveal-start-x',
+        `${edgeX - inkRect.left}px`,
+      )
+    } else {
+      const group = arrow.closest('.down-entry-group')
+      const promptText = group?.querySelector('.landing-prompt--down span')
+      edgeX = promptText?.getBoundingClientRect().right
+      if (!Number.isFinite(edgeX)) edgeX = reveal.getBoundingClientRect().left
+
+      arrow.style.setProperty(
+        '--landing-entry-reveal-start-x',
+        `${edgeX - inkRect.right}px`,
+      )
+    }
+
+    setRevealMeasured(true)
+  }, [revealComplete, revealMeasured, revealReady, revealVariant])
 
   const setRingNode = (node) => {
     localRingRef.current = node
@@ -57,18 +122,31 @@ function LandingEntryArrow({
 
   const handleAnimationEnd = (event) => {
     if (
-      event.animationName === 'landing-entry-guide-pull-out'
-      || event.animationName === 'reader-entry-arrow-pull-out'
+      event.animationName !== 'landing-entry-guide-pull-out'
+      && event.animationName !== 'reader-entry-arrow-pull-out'
+    ) return
+
+    const shouldTurn = direction !== introDirection
+    setInitialTurnActive(shouldTurn)
+    setRevealComplete(true)
+  }
+
+  const handleTransitionEnd = (event) => {
+    if (
+      initialTurnActive
+      && event.propertyName === 'transform'
+      && event.target.classList.contains('landing-entry-arrow__rotator')
     ) {
-      setRevealComplete(true)
+      setInitialTurnActive(false)
     }
   }
 
   const arrow = (
     <svg
+      ref={arrowRef}
       className={[
         'landing-entry-arrow',
-        `landing-entry-arrow--${direction}`,
+        `landing-entry-arrow--${effectiveDirection}`,
         `landing-entry-arrow--${phase}`,
         ringActive ? 'is-ring-active' : '',
         delayedBob ? 'has-delayed-bob' : '',
@@ -80,11 +158,12 @@ function LandingEntryArrow({
       height="22"
       aria-hidden="true"
       onAnimationEnd={handleAnimationEnd}
+      onTransitionEnd={handleTransitionEnd}
     >
       <path ref={setRingNode} className="landing-entry-ring" d={ENTRY_RING} />
 
       <g className="landing-entry-arrow__rotator">
-        <g className="landing-entry-arrow__ink">
+        <g ref={inkRef} className="landing-entry-arrow__ink">
           <path className="landing-entry-arrow__shaft" pathLength="1" d={ARROW_SHAFT} />
           <path className="landing-entry-arrow__head" pathLength="1" d={ARROW_HEAD_LEFT} />
           <path className="landing-entry-arrow__head" pathLength="1" d={ARROW_HEAD_RIGHT} />
@@ -97,10 +176,14 @@ function LandingEntryArrow({
 
   return (
     <span
+      ref={revealRef}
       className={[
         'landing-entry-reveal',
         `landing-entry-reveal--${revealVariant}`,
+        revealMeasured ? 'is-reveal-measured' : '',
         revealComplete ? 'is-reveal-complete' : '',
+        initialTurnActive ? 'is-initial-turning' : '',
+        arrowDelayed ? 'is-reveal-delayed' : '',
       ].filter(Boolean).join(' ')}
       aria-hidden="true"
     >
