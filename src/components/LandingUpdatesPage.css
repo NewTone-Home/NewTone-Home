@@ -18,15 +18,27 @@
 
 .landing-updates-page__return-backdrop {
   position: fixed;
-  top: 0;
+  top: -10px;
   left: 0;
   z-index: 0;
   width: 100%;
-  height: clamp(52px, 10vh, 88px);
-  background: rgba(32, 29, 25, .12);
+  height: clamp(110px, 18vh, 170px);
+  background: linear-gradient(
+    180deg,
+    rgba(32, 29, 25, .28) 0%,
+    rgba(32, 29, 25, .16) 24%,
+    rgba(32, 29, 25, .06) 64%,
+    rgba(32, 29, 25, 0) 100%
+  );
   opacity: 0;
   pointer-events: none;
-  transition: opacity 160ms ease-out;
+  filter: blur(8px);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transform: scaleY(1.08);
+  transform-origin: top center;
+  transition: opacity 900ms ease-out;
+  will-change: opacity;
 }
 
 .landing-updates-page[data-updates-phase="enter-surface"] {
@@ -100,7 +112,9 @@
   .landing-updates-page[data-return-state="arrow"] .landing-updates-return,
   .landing-updates-page[data-return-state="ring"] .landing-updates-return,
   .landing-updates-page[data-return-state="ready"] .landing-updates-return,
-  .landing-updates-page[data-return-state="withdrawing"] .landing-updates-return {
+  .landing-updates-page[data-return-state="withdraw-ring"] .landing-updates-return,
+  .landing-updates-page[data-return-state="withdraw-arrow"] .landing-updates-return,
+  .landing-updates-page[data-return-state="withdraw-text"] .landing-updates-return {
     opacity: .78;
   }
 
@@ -109,6 +123,16 @@
   .landing-updates-page[data-return-state="ring"] .landing-updates-page__return-backdrop,
   .landing-updates-page[data-return-state="ready"] .landing-updates-page__return-backdrop {
     opacity: 1;
+  }
+
+  .landing-updates-page[data-return-state="withdraw-ring"] .landing-updates-page__return-backdrop,
+  .landing-updates-page[data-return-state="withdraw-arrow"] .landing-updates-page__return-backdrop,
+  .landing-updates-page[data-return-state="withdraw-text"] .landing-updates-page__return-backdrop {
+    opacity: 0;
+  }
+
+  .landing-updates-page[data-return-withdraw-reason="wheel"] .landing-updates-page__return-backdrop {
+    transition-duration: 600ms;
   }
 
   .landing-updates-page .landing-updates-return__arrow .landing-entry-arrow__ink {
@@ -125,12 +149,6 @@
     opacity: .74 !important;
   }
 
-  .landing-updates-page[data-return-state="withdrawing"] .landing-updates-return__arrow .landing-entry-arrow__ink {
-    opacity: 0 !important;
-    animation: none !important;
-    transition: opacity 180ms ease-in !important;
-  }
-
   .landing-updates-page .landing-updates-return__arrow .landing-entry-ring {
     stroke-dashoffset: var(--landing-entry-ring-length, 220);
     transition: none !important;
@@ -145,10 +163,43 @@
     stroke-dashoffset: 0;
   }
 
-  .landing-updates-page[data-return-state="withdrawing"] .landing-updates-return__arrow .landing-entry-ring {
+  .landing-updates-page[data-return-state="withdraw-ring"] .landing-updates-return__arrow .landing-entry-arrow__ink {
+    opacity: .74 !important;
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .landing-updates-page[data-return-state="withdraw-ring"] .landing-updates-return__arrow .landing-entry-ring {
     stroke-dashoffset: var(--landing-entry-ring-length, 220);
     animation: none !important;
-    transition: stroke-dashoffset 240ms cubic-bezier(.4,0,.7,.2) !important;
+    transition: stroke-dashoffset 560ms cubic-bezier(.4,0,.7,.2) !important;
+  }
+
+  .landing-updates-page[data-return-state="withdraw-arrow"] .landing-updates-return__arrow .landing-entry-arrow__ink {
+    opacity: 0 !important;
+    animation: none !important;
+    transition: opacity 360ms ease-in !important;
+  }
+
+  .landing-updates-page[data-return-state="withdraw-arrow"] .landing-updates-return__arrow .landing-entry-ring,
+  .landing-updates-page[data-return-state="withdraw-text"] .landing-updates-return__arrow .landing-entry-ring {
+    stroke-dashoffset: var(--landing-entry-ring-length, 220);
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .landing-updates-page[data-return-state="withdraw-text"] .landing-updates-return__arrow .landing-entry-arrow__ink {
+    opacity: 0 !important;
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .landing-updates-page[data-return-withdraw-reason="wheel"][data-return-state="withdraw-ring"] .landing-updates-return__arrow .landing-entry-ring {
+    transition-duration: 360ms !important;
+  }
+
+  .landing-updates-page[data-return-withdraw-reason="wheel"][data-return-state="withdraw-arrow"] .landing-updates-return__arrow .landing-entry-arrow__ink {
+    transition-duration: 240ms !important;
   }
 }
 
@@ -185,17 +236,16 @@
     animation-duration: 1ms;
   }
 
-  .landing-updates-page__return-backdrop {
-    transition-duration: 1ms;
-  }
+  .landing-updates-page__return-backdrop { transition-duration: 1ms; }
 
   .landing-updates-page[data-return-state="arrow"] .landing-updates-return__arrow .landing-entry-arrow__ink,
   .landing-updates-page[data-return-state="ring"] .landing-updates-return__arrow .landing-entry-ring,
-  .landing-updates-page[data-return-state="withdrawing"] .landing-updates-return__arrow .landing-entry-arrow__ink {
+  .landing-updates-page[data-return-state="withdraw-arrow"] .landing-updates-return__arrow .landing-entry-arrow__ink {
     animation-duration: 1ms !important;
   }
 
-  .landing-updates-page[data-return-state="withdrawing"] .landing-updates-return__arrow .landing-entry-ring {
+  .landing-updates-page[data-return-state="withdraw-ring"] .landing-updates-return__arrow .landing-entry-ring,
+  .landing-updates-page[data-return-state="withdraw-arrow"] .landing-updates-return__arrow .landing-entry-ring {
     transition-duration: 1ms !important;
   }
 }

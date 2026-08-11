@@ -10,10 +10,29 @@ const RETURN_ENTRY_PHASE = Object.freeze({
   ARROW: 'arrow',
   RING: 'ring',
   READY: 'ready',
-  WITHDRAWING: 'withdrawing',
+  WITHDRAW_RING: 'withdraw-ring',
+  WITHDRAW_ARROW: 'withdraw-arrow',
+  WITHDRAW_TEXT: 'withdraw-text',
 })
 
-const RETURN_ENTRY_WITHDRAWAL_FALLBACK_MS = 520
+const RETURN_ENTRY_WITHDRAWAL_REASON = Object.freeze({
+  LEAVE: 'leave',
+  OUTSIDE: 'outside',
+  WHEEL: 'wheel',
+})
+
+const RETURN_ENTRY_WITHDRAWAL_TIMING = Object.freeze({
+  leave: Object.freeze({ ring: 560, arrow: 360, text: 520, backdrop: 900, fallback: 1600 }),
+  wheel: Object.freeze({ ring: 360, arrow: 240, text: 360, backdrop: 600, fallback: 1120 }),
+})
+
+function isWithdrawalPhase(phase) {
+  return [
+    RETURN_ENTRY_PHASE.WITHDRAW_RING,
+    RETURN_ENTRY_PHASE.WITHDRAW_ARROW,
+    RETURN_ENTRY_PHASE.WITHDRAW_TEXT,
+  ].includes(phase)
+}
 
 function isDesktopPointer(event) {
   return ['mouse', 'pen'].includes(event.pointerType)
@@ -27,8 +46,12 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
   const returnTriggerRef = useRef(null)
   const returnEntryPhaseRef = useRef(RETURN_ENTRY_PHASE.HIDDEN)
   const returnEntryGenerationRef = useRef(0)
+  const returnEntryInstanceRef = useRef(0)
   const withdrawalOriginRef = useRef(RETURN_ENTRY_PHASE.HIDDEN)
-  const withdrawalPartsRef = useRef(new Set())
+  const withdrawalReasonRef = useRef(null)
+  const withdrawalTimingRef = useRef(RETURN_ENTRY_WITHDRAWAL_TIMING.leave)
+  const withdrawalVisiblePartsRef = useRef({ ring: false, arrow: false })
+  const returnNavigationIssuedRef = useRef(false)
   const withdrawalTimerRef = useRef(0)
 
   const visible = phase !== UPDATES_PHASE.LANDING
@@ -49,7 +72,10 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
     clearWithdrawalTimer()
     returnEntryGenerationRef.current += 1
     withdrawalOriginRef.current = RETURN_ENTRY_PHASE.HIDDEN
-    withdrawalPartsRef.current = new Set()
+    withdrawalReasonRef.current = null
+    withdrawalTimingRef.current = RETURN_ENTRY_WITHDRAWAL_TIMING.leave
+    withdrawalVisiblePartsRef.current = { ring: false, arrow: false }
+    returnNavigationIssuedRef.current = false
     returnEntryPhaseRef.current = RETURN_ENTRY_PHASE.HIDDEN
     setReturnEntryPhase(RETURN_ENTRY_PHASE.HIDDEN)
     setMobileReturnArmed(false)
@@ -57,62 +83,117 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
     touchGestureRef.current = null
   }, [clearWithdrawalTimer])
 
-  const markWithdrawalPart = useCallback((part) => {
-    if (returnEntryPhaseRef.current !== RETURN_ENTRY_PHASE.WITHDRAWING) return
-    withdrawalPartsRef.current.add(part)
-    if (['text', 'arrow', 'ring'].every(key => withdrawalPartsRef.current.has(key))) {
-      resetReturnEntry()
-    }
-  }, [resetReturnEntry])
+  const requestReturnToLanding = useCallback(() => {
+    if (returnNavigationIssuedRef.current) return
+    returnNavigationIssuedRef.current = true
+    onReturnRequested()
+  }, [onReturnRequested])
 
-  const beginWithdrawal = useCallback(({ returnToLanding = false } = {}) => {
-    if (!interactive) return
-
-    const currentPhase = returnEntryPhaseRef.current
-    if (currentPhase === RETURN_ENTRY_PHASE.HIDDEN) {
-      if (returnToLanding) onReturnRequested()
+  const advanceWithdrawalStage = useCallback((phaseToAdvance) => {
+    if (returnEntryPhaseRef.current !== phaseToAdvance) return
+    if (phaseToAdvance === RETURN_ENTRY_PHASE.WITHDRAW_RING) {
+      transitionReturnEntry(
+        withdrawalVisiblePartsRef.current.arrow
+          ? RETURN_ENTRY_PHASE.WITHDRAW_ARROW
+          : RETURN_ENTRY_PHASE.WITHDRAW_TEXT,
+      )
       return
     }
-    if (currentPhase === RETURN_ENTRY_PHASE.WITHDRAWING) {
-      if (returnToLanding) onReturnRequested()
+    if (phaseToAdvance === RETURN_ENTRY_PHASE.WITHDRAW_ARROW) {
+      transitionReturnEntry(RETURN_ENTRY_PHASE.WITHDRAW_TEXT)
+    }
+  }, [transitionReturnEntry])
+
+  const beginWithdrawal = useCallback(({
+    reason = RETURN_ENTRY_WITHDRAWAL_REASON.LEAVE,
+    returnToLanding = false,
+  } = {}) => {
+    const currentPhase = returnEntryPhaseRef.current
+    if (!interactive && !isWithdrawalPhase(currentPhase)) return
+
+    if (currentPhase === RETURN_ENTRY_PHASE.HIDDEN) {
+      return
+    }
+    if (isWithdrawalPhase(currentPhase)) {
+      if (returnToLanding) {
+        withdrawalReasonRef.current = RETURN_ENTRY_WITHDRAWAL_REASON.WHEEL
+        requestReturnToLanding()
+      }
       return
     }
 
     clearWithdrawalTimer()
     returnEntryGenerationRef.current += 1
     withdrawalOriginRef.current = currentPhase
-    withdrawalPartsRef.current = new Set(
-      currentPhase === RETURN_ENTRY_PHASE.TEXT
-        ? ['arrow', 'ring']
-        : currentPhase === RETURN_ENTRY_PHASE.ARROW
-          ? ['ring']
-          : [],
-    )
-    transitionReturnEntry(RETURN_ENTRY_PHASE.WITHDRAWING)
-    withdrawalTimerRef.current = window.setTimeout(() => {
-      if (returnEntryPhaseRef.current === RETURN_ENTRY_PHASE.WITHDRAWING) resetReturnEntry()
-    }, RETURN_ENTRY_WITHDRAWAL_FALLBACK_MS)
+    withdrawalReasonRef.current = reason
+    withdrawalTimingRef.current = reason === RETURN_ENTRY_WITHDRAWAL_REASON.WHEEL
+      ? RETURN_ENTRY_WITHDRAWAL_TIMING.wheel
+      : RETURN_ENTRY_WITHDRAWAL_TIMING.leave
+    withdrawalVisiblePartsRef.current = {
+      ring: [RETURN_ENTRY_PHASE.RING, RETURN_ENTRY_PHASE.READY].includes(currentPhase),
+      arrow: [RETURN_ENTRY_PHASE.ARROW, RETURN_ENTRY_PHASE.RING, RETURN_ENTRY_PHASE.READY].includes(currentPhase),
+    }
+    returnNavigationIssuedRef.current = false
 
-    if (returnToLanding) onReturnRequested()
-  }, [clearWithdrawalTimer, interactive, onReturnRequested, resetReturnEntry, transitionReturnEntry])
+    const firstWithdrawalPhase = withdrawalVisiblePartsRef.current.ring
+      ? RETURN_ENTRY_PHASE.WITHDRAW_RING
+      : withdrawalVisiblePartsRef.current.arrow
+        ? RETURN_ENTRY_PHASE.WITHDRAW_ARROW
+        : RETURN_ENTRY_PHASE.WITHDRAW_TEXT
+    const withdrawalGeneration = returnEntryGenerationRef.current
+    transitionReturnEntry(firstWithdrawalPhase)
+    withdrawalTimerRef.current = window.setTimeout(() => {
+      if (
+        returnEntryGenerationRef.current === withdrawalGeneration
+        && isWithdrawalPhase(returnEntryPhaseRef.current)
+      ) resetReturnEntry()
+    }, withdrawalTimingRef.current.fallback)
+
+    if (returnToLanding) requestReturnToLanding()
+  }, [clearWithdrawalTimer, interactive, requestReturnToLanding, resetReturnEntry, transitionReturnEntry])
 
   const beginDesktopReturnEntry = useCallback(() => {
     if (!interactive) return
     if (
       returnEntryPhaseRef.current !== RETURN_ENTRY_PHASE.HIDDEN
-      && returnEntryPhaseRef.current !== RETURN_ENTRY_PHASE.WITHDRAWING
+      && !isWithdrawalPhase(returnEntryPhaseRef.current)
     ) return
 
     clearWithdrawalTimer()
     returnEntryGenerationRef.current += 1
+    returnEntryInstanceRef.current += 1
     withdrawalOriginRef.current = RETURN_ENTRY_PHASE.HIDDEN
-    withdrawalPartsRef.current = new Set()
+    withdrawalReasonRef.current = null
+    withdrawalTimingRef.current = RETURN_ENTRY_WITHDRAWAL_TIMING.leave
+    withdrawalVisiblePartsRef.current = { ring: false, arrow: false }
+    returnNavigationIssuedRef.current = false
     transitionReturnEntry(RETURN_ENTRY_PHASE.TEXT)
   }, [clearWithdrawalTimer, interactive, transitionReturnEntry])
 
   useEffect(() => {
-    if (!interactive) resetReturnEntry()
-  }, [interactive, resetReturnEntry])
+    const preserveWheelWithdrawal = isWithdrawalPhase(returnEntryPhaseRef.current)
+      && withdrawalReasonRef.current === RETURN_ENTRY_WITHDRAWAL_REASON.WHEEL
+    if (phase === UPDATES_PHASE.LANDING || (!interactive && !preserveWheelWithdrawal)) {
+      resetReturnEntry()
+    }
+  }, [interactive, phase, resetReturnEntry])
+
+  useEffect(() => {
+    if (
+      returnEntryPhase !== RETURN_ENTRY_PHASE.WITHDRAW_RING
+      && returnEntryPhase !== RETURN_ENTRY_PHASE.WITHDRAW_ARROW
+    ) return undefined
+
+    const withdrawalGeneration = returnEntryGenerationRef.current
+    const duration = returnEntryPhase === RETURN_ENTRY_PHASE.WITHDRAW_RING
+      ? withdrawalTimingRef.current.ring
+      : withdrawalTimingRef.current.arrow
+    const timer = window.setTimeout(() => {
+      if (returnEntryGenerationRef.current !== withdrawalGeneration) return
+      advanceWithdrawalStage(returnEntryPhase)
+    }, duration + 80)
+    return () => window.clearTimeout(timer)
+  }, [advanceWithdrawalStage, returnEntryPhase])
 
   useEffect(() => {
     if (!interactive) return undefined
@@ -123,7 +204,8 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
 
       if (desktopReturnActive) {
         beginWithdrawal({
-          returnToLanding: currentPhase === RETURN_ENTRY_PHASE.READY && event.deltaY < -8,
+          reason: RETURN_ENTRY_WITHDRAWAL_REASON.WHEEL,
+          returnToLanding: event.deltaY < -8,
         })
         return
       }
@@ -142,7 +224,7 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
       if (!isDesktopPointer(event)) return
       if (returnEntryPhaseRef.current === RETURN_ENTRY_PHASE.HIDDEN) return
       if (returnTriggerRef.current?.contains(event.target)) return
-      beginWithdrawal()
+      beginWithdrawal({ reason: RETURN_ENTRY_WITHDRAWAL_REASON.OUTSIDE })
     }
 
     window.addEventListener('pointerdown', onPointerDown, { capture: true })
@@ -198,7 +280,7 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
 
   const handleReturnPointerLeave = useCallback((event) => {
     if (!isDesktopPointer(event)) return
-    beginWithdrawal()
+    beginWithdrawal({ reason: RETURN_ENTRY_WITHDRAWAL_REASON.LEAVE })
   }, [beginWithdrawal])
 
   const handleTouchReturn = useCallback((event) => {
@@ -206,15 +288,21 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
     if (!mobileReturnArmed) setMobileReturnArmed(true)
   }, [interactive, mobileReturnArmed])
 
-  const handleReturnTextRevealed = useCallback(() => {
-    if (returnEntryPhaseRef.current === RETURN_ENTRY_PHASE.TEXT) {
+  const handleReturnTextRevealed = useCallback((generation) => {
+    if (
+      returnEntryGenerationRef.current === generation
+      && returnEntryPhaseRef.current === RETURN_ENTRY_PHASE.TEXT
+    ) {
       transitionReturnEntry(RETURN_ENTRY_PHASE.ARROW)
     }
   }, [transitionReturnEntry])
 
-  const handleReturnTextWithdrawn = useCallback(() => {
-    markWithdrawalPart('text')
-  }, [markWithdrawalPart])
+  const handleReturnTextWithdrawn = useCallback((generation) => {
+    if (
+      returnEntryGenerationRef.current === generation
+      && returnEntryPhaseRef.current === RETURN_ENTRY_PHASE.WITHDRAW_TEXT
+    ) resetReturnEntry()
+  }, [resetReturnEntry])
 
   const handleAnimationEnd = useCallback((event) => {
     if (event.animationName === 'updates-return-arrow-reveal') {
@@ -240,29 +328,28 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
       (phase === UPDATES_PHASE.ENTER_SURFACE && event.animationName === 'updates-page-enter')
       || (phase === UPDATES_PHASE.RETURN_SURFACE && event.animationName === 'updates-page-return')
     ) onSurfaceComplete()
-  }, [markWithdrawalPart, mobileReturnArmed, onSurfaceComplete, phase, transitionReturnEntry])
+  }, [mobileReturnArmed, onSurfaceComplete, phase, transitionReturnEntry])
 
   const handleTransitionEnd = useCallback((event) => {
-    if (returnEntryPhaseRef.current !== RETURN_ENTRY_PHASE.WITHDRAWING) return
-    if (
-      event.propertyName === 'opacity'
-      && event.target.classList.contains('landing-entry-arrow__ink')
-    ) {
-      markWithdrawalPart('arrow')
+    if (returnEntryPhaseRef.current === RETURN_ENTRY_PHASE.WITHDRAW_RING
+      && event.propertyName === 'stroke-dashoffset'
+      && event.target.classList.contains('landing-entry-ring')) {
+      advanceWithdrawalStage(RETURN_ENTRY_PHASE.WITHDRAW_RING)
       return
     }
-    if (
-      event.propertyName === 'stroke-dashoffset'
-      && event.target.classList.contains('landing-entry-ring')
-    ) {
-      markWithdrawalPart('ring')
+    if (returnEntryPhaseRef.current === RETURN_ENTRY_PHASE.WITHDRAW_ARROW
+      && event.propertyName === 'opacity'
+      && event.target.classList.contains('landing-entry-arrow__ink')) {
+      advanceWithdrawalStage(RETURN_ENTRY_PHASE.WITHDRAW_ARROW)
     }
-  }, [markWithdrawalPart])
+  }, [advanceWithdrawalStage])
 
   if (!visible) return null
 
   const desktopReturnActive = returnEntryPhase !== RETURN_ENTRY_PHASE.HIDDEN
   const returnTextActive = desktopReturnActive
+  const renderedReturnEntryGeneration = returnEntryGenerationRef.current
+  const renderedReturnEntryInstance = returnEntryInstanceRef.current
   const ringActive = returnEntryPhase === RETURN_ENTRY_PHASE.RING
     || returnEntryPhase === RETURN_ENTRY_PHASE.READY
     || mobileReturnArmed
@@ -274,6 +361,7 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
       data-return-state={returnEntryPhase}
       data-return-generation={returnEntryGenerationRef.current}
       data-return-withdraw-origin={withdrawalOriginRef.current}
+      data-return-withdraw-reason={withdrawalReasonRef.current || 'none'}
       data-return-armed={mobileReturnArmed ? 'true' : 'false'}
       data-return-ready={mobileReturnReady ? 'true' : 'false'}
       onAnimationEnd={handleAnimationEnd}
@@ -297,16 +385,19 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
           <span className="landing-updates-return__label">
             {returnTextActive ? (
               <ScrambleText
+                key={`return-text-${renderedReturnEntryInstance}`}
                 text="返回入口"
                 active={returnTextActive}
                 duration={760}
-                onRevealed={handleReturnTextRevealed}
-                withdrawing={returnEntryPhase === RETURN_ENTRY_PHASE.WITHDRAWING}
-                onWithdrawn={handleReturnTextWithdrawn}
+                onRevealed={() => handleReturnTextRevealed(renderedReturnEntryGeneration)}
+                withdrawing={returnEntryPhase === RETURN_ENTRY_PHASE.WITHDRAW_TEXT}
+                withdrawalDuration={withdrawalTimingRef.current.text}
+                onWithdrawn={() => handleReturnTextWithdrawn(renderedReturnEntryGeneration)}
               />
             ) : '返回入口'}
           </span>
           <LandingEntryArrow
+            key={`return-arrow-${renderedReturnEntryInstance}`}
             className="landing-updates-return__arrow"
             direction="up"
             phase="steady"
