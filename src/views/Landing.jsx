@@ -487,6 +487,10 @@ function Landing({
     ) {
       const key = event.target.classList.contains('landing-guide-entry-arrow') ? 'updates' : 'reader'
       onUpdatesBarrier('arrows', key)
+      return
+    }
+    if (event.animationName === 'landing-updates-label-return') {
+      onUpdatesBarrier('labels', event.target.dataset.landingEntry || 'reader')
     }
   }, [onUpdatesBarrier])
 

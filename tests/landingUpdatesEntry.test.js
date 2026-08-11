@@ -33,6 +33,7 @@ describe('Landing updates entry', () => {
     expect(landing).toContain('withdrawing={updatesPhase === UPDATES_PHASE.ENTER_ARROWS}')
     expect(landing).toContain('withdrawalDuration={LANDING_UPDATES_ARROW_EXIT_MS}')
     expect(updatesCss).not.toContain('landing-updates-label-retract')
+    expect(landing).toContain("event.animationName === 'landing-updates-label-return'")
     expect(updatesCss).toContain('landing-updates-surface-exit 900ms')
   })
 
