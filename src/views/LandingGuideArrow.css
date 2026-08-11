@@ -21,10 +21,56 @@
   );
 }
 
-.landing-guide-entry-arrow {
+/*
+ * First-entry reveal windows are fixed relative to the adjacent text edge.
+ * The SVG moves behind these windows; the windows themselves never move.
+ * Once the initial pull-out finishes, overflow is released so every existing
+ * rotation, ring, Updates retract/return, and bob animation behaves unchanged.
+ */
+.landing-entry-reveal {
+  display: block;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.landing-entry-reveal.is-reveal-complete {
+  overflow: visible;
+}
+
+/* NewTone edge is the right edge of this fixed window (x = 0). The arrow keeps
+   its established resting box at -47px while receiving a little spare room on
+   the left for the hand-drawn ring. */
+.landing-entry-reveal--guide {
   position: absolute;
-  left: -47px;
-  top: -11px;
+  left: -51px;
+  top: -15px;
+  width: 51px;
+  height: 30px;
+}
+
+.landing-entry-reveal--guide .landing-guide-entry-arrow {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+}
+
+/* The Reader parent still contributes its existing 10px flex gap. A -10px
+   margin cancels that gap only for the reveal viewport, so the viewport begins
+   exactly at the prompt edge while the arrow itself still rests 10px away after
+   the reveal. Total occupied width remains the same 42px as before. */
+.landing-entry-reveal--reader {
+  position: relative;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 30px;
+  margin-left: -10px;
+  align-self: center;
+}
+
+.landing-entry-reveal--reader .reader-entry-arrow {
+  position: absolute;
+  left: 10px;
+  top: 4px;
 }
 
 /* ===== Shared Landing entry arrow vocabulary ===== */
@@ -114,12 +160,8 @@
   vector-effect: non-scaling-stroke;
 }
 
-/*
- * Both first-entry arrows use the same reveal principle: the arrow is already
- * fully inked while moving out from behind the adjacent text. The reveal begins
- * at the arrow's real ink boundary rather than the padded SVG box, so there is
- * no empty travel before the first visible pixel and no fade beside the text.
- */
+/* The guide is fully inked before it moves. The fixed viewport, not a moving
+   clip-path, decides what part is visible beside NewTone. */
 .landing-guide-entry-arrow .landing-entry-arrow__shaft,
 .landing-guide-entry-arrow .landing-entry-arrow__head {
   stroke-dasharray: 1 1;
@@ -142,25 +184,13 @@
   animation: landing-entry-guide-out 900ms ease-in forwards;
 }
 
-/*
- * The visible NewTone arrow ink occupies the middle half of its 32px SVG box.
- * Start with that real ink edge exactly at the N-side boundary, then keep the
- * text-facing side clipped until the whole ink shape has cleared it. The .08em
- * offset matches the established N-origin rather than the h1 box edge.
- */
+/* Final SVG box rests at x=-47..-15. Its actual horizontal ink begins about 8px
+   inside the box. Translating +39px therefore places that first ink pixel at the
+   fixed NewTone boundary x=0 on frame zero; every following frame reveals ink
+   immediately as the arrow moves left. */
 @keyframes landing-entry-guide-pull-out {
-  0% {
-    translate: calc(39px + .08em) 0;
-    clip-path: inset(0 24px 0 0);
-  }
-  62% {
-    translate: calc(15px + .08em) 0;
-    clip-path: inset(0 0 0 0);
-  }
-  100% {
-    translate: 0 0;
-    clip-path: inset(0 0 0 0);
-  }
+  from { translate: 39px 0; }
+  to { translate: 0 0; }
 }
 
 @keyframes landing-entry-guide-out {
@@ -213,25 +243,13 @@
   animation: reader-entry-ring-initial-draw 2400ms linear 1620ms backwards;
 }
 
-/*
- * The Reader arrow also uses its real ink edge instead of the padded SVG box.
- * Its flex box rests 10px to the right of the prompt, so -34px puts the first
- * real ink pixel exactly on the prompt edge. The clip opens only while that ink
- * crosses the edge, then releases before the arrow continues to its resting gap.
- */
+/* The Reader viewport begins exactly at the prompt edge. The final SVG box is
+   10px to its right and the horizontal ink extends another ~24px inside that
+   box. -34px places the outermost ink pixel exactly on the fixed boundary at
+   frame zero, so the reveal has no invisible travel before the first pixel. */
 @keyframes reader-entry-arrow-pull-out {
-  0% {
-    translate: -34px 0;
-    clip-path: inset(0 0 0 24px);
-  }
-  47% {
-    translate: -18px 0;
-    clip-path: inset(0 0 0 0);
-  }
-  100% {
-    translate: 0 0;
-    clip-path: inset(0 0 0 0);
-  }
+  from { translate: -34px 0; }
+  to { translate: 0 0; }
 }
 
 @keyframes reader-entry-arrow-turn-down {
@@ -269,8 +287,8 @@
   transition: opacity 360ms ease-out;
 }
 
-/* Reader first reveal is fully inked while clipped behind the prompt, so it
-   never fades in beside the text as it emerges. */
+/* Reader first reveal is fully inked while the fixed viewport hides the portion
+   still behind the prompt, so there is no independent opacity fade. */
 .reader-entry-arrow:not(.is-arrow-delayed) .landing-entry-arrow__ink {
   transition: none;
 }
@@ -290,6 +308,10 @@
   .landing[data-updates-phase="return-arrows"] .landing-entry-arrow,
   .landing[data-updates-phase="return-arrow-turn"] .landing-entry-arrow__rotator {
     animation-duration: 1ms !important;
+  }
+
+  .landing-entry-reveal {
+    overflow: visible !important;
   }
 
   .reader-entry-arrow:not(.is-arrow-delayed) {
@@ -329,6 +351,10 @@
     opacity: 0 !important;
     animation: none !important;
   }
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-entry-reveal {
+  overflow: visible !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .reader-entry-arrow:not(.is-arrow-delayed) {
