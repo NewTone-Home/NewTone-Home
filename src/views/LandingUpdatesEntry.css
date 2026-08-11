@@ -64,6 +64,8 @@
 
 @keyframes landing-updates-label-retract {
   from { opacity: 1; translate: 0 0; }
+  68% { opacity: .96; }
+  82% { opacity: .05; }
   to { opacity: 0; translate: var(--updates-label-to-title-x, 0) var(--updates-label-to-title-y, 0); }
 }
 
