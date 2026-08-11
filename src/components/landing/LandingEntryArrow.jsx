@@ -21,6 +21,7 @@ function LandingEntryArrow({
   ringActive = false,
   ringRef,
   showRing = true,
+  entryTurnFirst = false,
   delayedBob = false,
   arrowDelayed = false,
 }) {
@@ -195,6 +196,7 @@ function LandingEntryArrow({
       viewBox="-60 0 120 80"
       width="32"
       height="22"
+      data-entry-turn-first={entryTurnFirst ? 'true' : 'false'}
       style={revealVariant && !revealMeasured ? { animationPlayState: 'paused' } : undefined}
       aria-hidden="true"
       onAnimationEnd={handleAnimationEnd}
