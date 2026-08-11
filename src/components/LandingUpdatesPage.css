@@ -124,7 +124,8 @@
   .landing-updates-page[data-return-state="arrow"] .landing-updates-page__return-backdrop,
   .landing-updates-page[data-return-state="arrow-turn"] .landing-updates-page__return-backdrop,
   .landing-updates-page[data-return-state="ring"] .landing-updates-page__return-backdrop,
-  .landing-updates-page[data-return-state="ready"] .landing-updates-page__return-backdrop {
+  .landing-updates-page[data-return-state="ready"] .landing-updates-page__return-backdrop,
+  .landing-updates-page[data-return-state="withdraw-arrow-turn"] .landing-updates-page__return-backdrop {
     opacity: 1;
   }
 
