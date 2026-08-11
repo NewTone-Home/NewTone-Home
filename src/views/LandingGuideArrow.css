@@ -67,6 +67,11 @@
   transform: rotate(180deg);
 }
 
+/* Reader uses the actual geometric center of its arrow as the pivot. */
+.reader-entry-arrow .landing-entry-arrow__rotator {
+  transform-origin: 50% 43.75%;
+}
+
 .landing-guide-entry-arrow {
   --updates-arrow-exit-x: -56px;
 }
@@ -177,13 +182,39 @@
   transition-timing-function: cubic-bezier(.42,0,.58,1);
 }
 
-/* Reader ring is deliberately independent from NewTone. It becomes active at
-   the same state change that reveals the Reader arrow, waits for the arrow's
-   360ms fade-in to finish, then visibly hand-draws at a steady pace. */
-.reader-entry-arrow.is-ring-active .landing-entry-ring {
-  transition-duration: 2400ms;
-  transition-delay: 360ms;
-  transition-timing-function: linear;
+/*
+ * Reader intro sequence. Removing is-arrow-delayed is the single start signal:
+ * 1) pull a complete left-facing arrow out from the end of the prompt;
+ * 2) once it is parked, rotate that same arrow 90deg down in place;
+ * 3) only after the turn finishes, hand-draw the ring independently.
+ * `backwards` holds each first frame during its delay but releases control once
+ * the one-shot intro finishes, so later target changes keep their normal logic.
+ */
+.reader-entry-arrow:not(.is-arrow-delayed) {
+  animation: reader-entry-arrow-pull-out 650ms cubic-bezier(.2,.8,.2,1) backwards;
+}
+
+.reader-entry-arrow:not(.is-arrow-delayed) .landing-entry-arrow__rotator {
+  animation: reader-entry-arrow-turn-down 650ms cubic-bezier(.42,0,.58,1) 650ms backwards;
+}
+
+.reader-entry-arrow:not(.is-arrow-delayed) .landing-entry-ring {
+  animation: reader-entry-ring-initial-draw 2400ms linear 1300ms backwards;
+}
+
+@keyframes reader-entry-arrow-pull-out {
+  from { translate: -18px 0; }
+  to { translate: 0 0; }
+}
+
+@keyframes reader-entry-arrow-turn-down {
+  from { transform: rotate(90deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes reader-entry-ring-initial-draw {
+  from { stroke-dashoffset: var(--landing-entry-ring-length, 220); }
+  to { stroke-dashoffset: 0; }
 }
 
 /* Bob is always on an inner child, never on the rotator. Rotation therefore
@@ -193,7 +224,7 @@
 }
 
 .reader-entry-arrow.has-delayed-bob .landing-entry-arrow__ink {
-  animation: landing-entry-arrow-bob 1700ms ease-in-out infinite;
+  animation: landing-entry-arrow-bob 1700ms ease-in-out 3700ms infinite;
 }
 
 @keyframes landing-entry-arrow-bob {
@@ -228,6 +259,11 @@
     animation-duration: 1ms !important;
   }
 
+  .reader-entry-arrow:not(.is-arrow-delayed) {
+    animation: none !important;
+    translate: 0 0 !important;
+  }
+
   .landing-entry-arrow__rotator,
   .landing-entry-ring,
   .landing-entry-arrow__ink {
@@ -254,6 +290,11 @@
     opacity: 0 !important;
     animation: none !important;
   }
+}
+
+.page-shell[data-motion-mode="reduced"] .reader-entry-arrow:not(.is-arrow-delayed) {
+  animation: none !important;
+  translate: 0 0 !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-entry-arrow__rotator,
