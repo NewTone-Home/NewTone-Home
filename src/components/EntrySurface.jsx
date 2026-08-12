@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { useTransitionStore } from '../stores/transitionStore'
 import Landing from '../views/Landing'
 import LandingUpdatesPage from './LandingUpdatesPage'
 import { advanceUpdatesPhase, UPDATES_PHASE } from '../landing/landingUpdatesFlow'
@@ -17,15 +18,18 @@ function EntrySurface({
   motionMode,
   surfaceStyle,
   environmentState,
+  landingHandoff = false,
   onEnter,
   onProceed,
   onModeSelect,
   guidePaused = false,
 }) {
   const [updatesPhase, setUpdatesPhase] = useState(UPDATES_PHASE.LANDING)
+  const landingArrivalKind = useTransitionStore(s => s.landingArrivalKind)
+  const [returnArrivalSurface] = useState(() => landingArrivalKind === 'return')
   const barrierRef = useRef({ phase: '', keys: new Set() })
   const entryActive = phase !== 'idle'
-  const mounted = currentView === 'landing' || entryActive
+  const mounted = currentView === 'landing' || entryActive || landingHandoff
 
   if (!mounted) return null
 
@@ -55,10 +59,11 @@ function EntrySurface({
 
   return (
     <div
-      className={`entry-surface entry-surface--phase-${phase}`}
+      className={`entry-surface entry-surface--phase-${phase}${landingHandoff ? ' entry-surface--reader-return' : ''}`}
       data-entry-phase={phase}
       data-entry-intent={intent || 'none'}
       data-updates-phase={updatesPhase}
+      data-entry-handoff={landingHandoff && returnArrivalSurface ? 'reader-to-landing' : 'none'}
     >
       <Landing
         onEnter={onEnter}

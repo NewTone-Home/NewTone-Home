@@ -172,7 +172,9 @@ describe('Reader shell contract boundaries', () => {
   it('runs Reader return entirely inside the live Landing instead of handing between two logos', () => {
     expect(transitionStore).toContain("targetView === 'landing' && preset === 'reader-to-surface'")
     expect(transitionStore).toContain("landingArrivalKind: 'return'")
-    expect(transitionStore).toContain('return commitTargetView(targetView, preset, payload)')
+    expect(transitionStore).toContain("phase: 'handoff'")
+    expect(transitionStore).toContain('schedule(() => {')
+    expect(transitionStore).toContain('const committed = commitTargetView(targetView, preset, payload)')
     expect(landing).toContain("landingArrivalKind === 'return'")
     expect(landing).toContain('const RETURN_TITLE_DRAW_MS = 1450')
     expect(landing).toContain('const RETURN_STATUS_BLINK_COUNT = 2')

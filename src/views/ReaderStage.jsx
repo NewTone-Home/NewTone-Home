@@ -187,6 +187,7 @@ function ReaderStage({
           focusBeatIndex={focusBeatIndex}
           language={language}
           readingMode={readingMode}
+          returningToLanding={returningToLanding}
         />}
         {returnVisible && <ReaderReturnControl
           armed={returnArmed}

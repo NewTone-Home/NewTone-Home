@@ -12,7 +12,7 @@ function GlobalTransitionOverlay({ surfaceStyle = {} }) {
   const language = useProgressStore(s => s.language)
   const isTransitioning = phase !== 'idle'
 
-  if (!isTransitioning) return null
+  if (!isTransitioning || phase === 'handoff') return null
 
   const safePreset = hasDefinition(preset) ? preset : 'fade-cover'
   const def = getDefinition(safePreset)
