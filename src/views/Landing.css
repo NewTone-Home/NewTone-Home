@@ -18,6 +18,17 @@
   transform: scale(0.995);
 }
 
+/* Reader return keeps the existing Landing arrival sequence, but gives the
+   surface one short handoff frame instead of replacing Reader on a hard cut. */
+.landing[data-landing-arrival="return"] {
+  animation: landing-reader-return-arrival 360ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+@keyframes landing-reader-return-arrival {
+  from { opacity: 0; transform: translateY(6px) scale(.996); }
+  to { opacity: 1; transform: none; }
+}
+
 .landing-main {
   position: relative;
   width: 100%;
@@ -410,6 +421,7 @@
 .page-shell[data-motion-mode="reduced"] .landing {
   transition-duration: 1ms !important;
   transition-delay: 0ms !important;
+  animation: none !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing-title--guiding .landing-title-breath,

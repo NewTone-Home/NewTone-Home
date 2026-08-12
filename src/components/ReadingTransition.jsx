@@ -294,6 +294,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const [langExpandHover, setLangExpandHover] = useState(false)
   const [langExpandToggled, setLangExpandToggled] = useState(false)
   const [alternateLanguageReady, setAlternateLanguageReady] = useState(false)
+  const [alternateLanguageVisible, setAlternateLanguageVisible] = useState(false)
   const [scramblingLang, setScramblingLang] = useState(null)
   const [languageSlots, setLanguageSlots] = useState([])
   const [labelText, setLabelText] = useState(getReaderLanguage(language).label)
@@ -521,7 +522,10 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
   useEffect(() => {
     expandedRef.current = expanded
-    if (!expanded) setAlternateLanguageReady(false)
+    if (!expanded) {
+      setAlternateLanguageReady(false)
+      setAlternateLanguageVisible(false)
+    }
   }, [expanded])
 
   useEffect(() => {
@@ -724,7 +728,9 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
         : 'right'
   const languageArrowDirection = locked || scramblingLang || (!expanded && !languageLabelPinned)
     ? 'left'
-    : 'right'
+    : alternateLanguageVisible
+      ? 'left'
+      : 'right'
   const primaryArrowReady = showText
     && proceedStable
     && (!modeStage || modeActionsReady)
@@ -765,24 +771,20 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
     const oldLang = language
     const clickedIndex = languageSlots.indexOf(newLang)
-    languageSwapRef.current = { clickedIndex, oldLang }
+    languageSwapRef.current = { clickedIndex, oldLang, newLang }
 
     setScramblingLang(newLang)
+    setAlternateLanguageVisible(false)
     setLanguageArrowSuppressed(true)
     setLabelVisible(true)
     setLabelText(getReaderLanguage(newLang).label)
-
-    scheduleTransient(() => {
-      setLanguage(newLang)
-      setLabelText(getReaderLanguage(newLang).label)
-      setLabelVisible(true)
-      setLanguageVersion(v => v + 1)
-    }, 450)
-  }, [language, scheduleTransient, setLanguage, languageSlots])
+  }, [language, languageSlots])
 
   const handleLanguageChangeExit = useCallback(() => {
     const pendingSwap = languageSwapRef.current
     if (!pendingSwap || !isSwitchingRef.current) return
+
+    const nextLanguage = pendingSwap.newLang
 
     if (pendingSwap.clickedIndex !== -1) {
       setLanguageSlots(prev => {
@@ -791,15 +793,24 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
         return next
       })
     }
+    setLanguage(nextLanguage)
+    setLabelText(getReaderLanguage(nextLanguage).label)
+    setLanguageVersion(version => version + 1)
     languageSwapRef.current = null
     setLanguageLabelPinned(true)
     setLangExpandHover(false)
     setLangExpandToggled(false)
+    setAlternateLanguageVisible(false)
     setScramblingLang(null)
     setLanguageArrowSuppressed(true)
     setLanguageArrowEntered(false)
     isSwitchingRef.current = false
-  }, [])
+  }, [setLanguage])
+
+  const handleLanguageLayerTransitionEnd = useCallback((event) => {
+    if (event.propertyName !== 'opacity') return
+    setAlternateLanguageVisible(expanded && alternateLanguageReady && !scramblingLang)
+  }, [alternateLanguageReady, expanded, scramblingLang])
 
   const alternateLanguage = languageSlots.find(code => code !== language)
     ?? READER_LANGUAGES.find(item => item.code !== language)?.code
@@ -953,7 +964,10 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                               entryReady={languageArrowReady || languageArrowEntered || Boolean(scramblingLang)}
                               exitDelayMs={0}
                               exitDurationMs={LANGUAGE_LABEL_REFORM_MS}
-                              onEntryStart={() => setAlternateLanguageReady(true)}
+                              onEntryStart={() => {
+                                setAlternateLanguageReady(true)
+                                setAlternateLanguageVisible(false)
+                              }}
                               onExitComplete={handleLanguageChangeExit}
                               showRing={false}
                             />
@@ -965,7 +979,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 </button>
                 <div className="lang-hover-bridge" />
                 <div
-                  className={`lang-expand-layer${expanded && alternateLanguageReady ? ' lang-expand-layer--visible' : ''}`}
+                  className={`lang-expand-layer${expanded && alternateLanguageReady ? ' lang-expand-layer--visible' : ''}${scramblingLang ? ' lang-expand-layer--withdrawing' : ''}`}
+                  onTransitionEnd={handleLanguageLayerTransitionEnd}
                 >
                   {alternateLanguage && (
                     <button

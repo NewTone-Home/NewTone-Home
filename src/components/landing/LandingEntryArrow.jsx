@@ -42,6 +42,7 @@ function LandingEntryArrow({
   const [revealComplete, setRevealComplete] = useState(false)
   const [revealMeasured, setRevealMeasured] = useState(false)
   const [initialTurnActive, setInitialTurnActive] = useState(false)
+  const [exitTurnActive, setExitTurnActive] = useState(false)
   const revealStartXRef = useRef(null)
 
   const classTokens = className.split(/\s+/).filter(Boolean)
@@ -62,6 +63,10 @@ function LandingEntryArrow({
   const effectiveDirection = revealVariant && !revealComplete
     ? introDirection
     : direction
+  const previousDirectionRef = useRef(effectiveDirection)
+  const exitTurnBlocked = revealVariant === 'generic'
+    && phase === 'retracting'
+    && (exitTurnActive || previousDirectionRef.current !== effectiveDirection)
   const revealReady = revealVariant === 'guide'
     ? phase === 'visible'
     : revealVariant === 'reader'
@@ -83,6 +88,7 @@ function LandingEntryArrow({
     setRevealComplete(false)
     setRevealMeasured(false)
     setInitialTurnActive(false)
+    setExitTurnActive(false)
   }, [arrowDelayed, revealVariant])
 
   useEffect(() => {
@@ -91,7 +97,40 @@ function LandingEntryArrow({
     setRevealComplete(false)
     setRevealMeasured(false)
     setInitialTurnActive(false)
+    setExitTurnActive(false)
   }, [revealReady, revealVariant])
+
+  useLayoutEffect(() => {
+    if (revealVariant !== 'generic' || phase !== 'retracting') {
+      previousDirectionRef.current = effectiveDirection
+      setExitTurnActive(false)
+      return
+    }
+
+    if (previousDirectionRef.current !== effectiveDirection) {
+      previousDirectionRef.current = effectiveDirection
+      setExitTurnActive(true)
+    }
+  }, [effectiveDirection, phase, revealVariant])
+
+  useEffect(() => {
+    if (!exitTurnActive) return undefined
+
+    const rotator = arrowRef.current?.querySelector('.landing-entry-arrow__rotator')
+    if (!rotator) {
+      setExitTurnActive(false)
+      return undefined
+    }
+
+    const duration = Number.parseFloat(getComputedStyle(rotator).transitionDuration || '0') * 1000
+    if (!duration) {
+      const frame = requestAnimationFrame(() => setExitTurnActive(false))
+      return () => cancelAnimationFrame(frame)
+    }
+
+    const timer = window.setTimeout(() => setExitTurnActive(false), duration + 80)
+    return () => window.clearTimeout(timer)
+  }, [exitTurnActive])
 
   useLayoutEffect(() => {
     if (!revealVariant || !revealReady || revealComplete) return
@@ -212,6 +251,15 @@ function LandingEntryArrow({
 
   const handleTransitionEnd = (event) => {
     if (
+      exitTurnActive
+      && event.propertyName === 'transform'
+      && event.target.classList.contains('landing-entry-arrow__rotator')
+    ) {
+      setExitTurnActive(false)
+      return
+    }
+
+    if (
       initialTurnActive
       && event.propertyName === 'transform'
       && event.target.classList.contains('landing-entry-arrow__rotator')
@@ -273,7 +321,7 @@ function LandingEntryArrow({
         revealComplete ? 'is-reveal-complete' : '',
         initialTurnActive ? 'is-initial-turning' : '',
         arrowDelayed ? 'is-reveal-delayed' : '',
-        phase === 'retracting' ? 'is-arrow-retracting' : '',
+        phase === 'retracting' && !exitTurnBlocked ? 'is-arrow-retracting' : '',
       ].filter(Boolean).join(' ')}
       style={revealVariant === 'generic'
         ? {

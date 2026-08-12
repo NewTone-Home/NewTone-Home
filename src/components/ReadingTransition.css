@@ -449,7 +449,7 @@
 .lang-expand-layer {
   position: absolute;
   top: 50%;
-  left: calc(50% + 80px);
+  left: calc(50% + 40px);
   pointer-events: none;
   opacity: 0;
   translate: -12px -50%;
@@ -460,6 +460,12 @@
   opacity: 1;
   pointer-events: auto;
   translate: 0 -50%;
+}
+
+.lang-expand-layer--withdrawing {
+  opacity: 0;
+  pointer-events: none;
+  translate: -12px -50%;
 }
 
 .lang-item {
