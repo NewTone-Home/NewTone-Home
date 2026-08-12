@@ -726,6 +726,76 @@
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+/* Reader -> Landing handoff. Keep the Reader mounted until its existing
+   return control and progress retract have finished, so the route change
+   cannot expose a hard cut between two surfaces. */
+.reader-stage-page[data-returning-to-landing="true"] {
+  --reader-return-exit-duration: 1200ms;
+  pointer-events: none;
+}
+
+.reader-stage-page[data-returning-to-landing="true"] .reader-corner-menu {
+  animation: reader-return-chrome-exit var(--reader-return-exit-duration) cubic-bezier(.2,.8,.2,1) both;
+}
+
+.reader-stage-page[data-returning-to-landing="true"] .reader-trace {
+  animation: reader-return-trace-exit var(--reader-return-exit-duration) cubic-bezier(.2,.8,.2,1) both;
+}
+
+.reader-stage-page[data-returning-to-landing="true"] .reader-beat-stack,
+.reader-stage-page[data-returning-to-landing="true"] .reader-empty-document {
+  animation: reader-return-content-exit var(--reader-return-exit-duration) ease-out both;
+}
+
+.reader-stage-page[data-returning-to-landing="true"] .reader-scene-label,
+.reader-stage-page[data-returning-to-landing="true"] .reader-chapter-end {
+  animation: reader-return-meta-exit var(--reader-return-exit-duration) ease-out both;
+}
+
+@keyframes reader-return-chrome-exit {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(calc(100% + 28px), 0, 0); }
+}
+
+@keyframes reader-return-trace-exit {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(calc(-100% - 28px), 0, 0); }
+}
+
+@keyframes reader-return-content-exit {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes reader-return-meta-exit {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-stage-page[data-returning-to-landing="true"] .reader-corner-menu,
+  .reader-stage-page[data-returning-to-landing="true"] .reader-trace,
+  .reader-stage-page[data-returning-to-landing="true"] .reader-beat-stack,
+  .reader-stage-page[data-returning-to-landing="true"] .reader-empty-document,
+  .reader-stage-page[data-returning-to-landing="true"] .reader-scene-label,
+  .reader-stage-page[data-returning-to-landing="true"] .reader-chapter-end {
+    animation: none;
+    opacity: 0;
+    transform: none;
+  }
+}
+
+.page-shell[data-motion-mode="reduced"] .reader-stage-page[data-returning-to-landing="true"] .reader-corner-menu,
+.page-shell[data-motion-mode="reduced"] .reader-stage-page[data-returning-to-landing="true"] .reader-trace,
+.page-shell[data-motion-mode="reduced"] .reader-stage-page[data-returning-to-landing="true"] .reader-beat-stack,
+.page-shell[data-motion-mode="reduced"] .reader-stage-page[data-returning-to-landing="true"] .reader-empty-document,
+.page-shell[data-motion-mode="reduced"] .reader-stage-page[data-returning-to-landing="true"] .reader-scene-label,
+.page-shell[data-motion-mode="reduced"] .reader-stage-page[data-returning-to-landing="true"] .reader-chapter-end {
+  animation: none;
+  opacity: 0;
+  transform: none;
+}
+
 .reader-stage-page[data-copy-protected="true"] .reader-stage {
   -webkit-touch-callout: none;
   -webkit-user-select: none;

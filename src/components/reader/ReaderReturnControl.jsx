@@ -18,7 +18,7 @@ function isDirectPointer(pointerType) {
   return pointerType === 'touch' || pointerType === 'pen'
 }
 
-function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete, language }) {
+function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, onComplete, language }) {
   const ui = getReaderUi(language)
   const fallbackUi = getReaderUi('zh')
   const returnLabel = ui.returnToLanding || ui.backToLanding || fallbackUi.returnToLanding
@@ -32,11 +32,14 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
   const pendingCompleteRef = useRef(false)
   const textExitCompleteRef = useRef(false)
   const arrowExitCompleteRef = useRef(false)
+  const progressExitCompleteRef = useRef(false)
   const completionReportedRef = useRef(false)
   const reducedExitRef = useRef(false)
   const frameRef = useRef(0)
   const onCompleteRef = useRef(onComplete)
+  const onStartRef = useRef(onStart)
   onCompleteRef.current = onComplete
+  onStartRef.current = onStart
 
   const visualArmed = armed && !completing
 
@@ -46,6 +49,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       || completionReportedRef.current
       || !textExitCompleteRef.current
       || (!arrowExitCompleteRef.current && !reducedExitRef.current)
+      || (!progressExitCompleteRef.current && !reducedExitRef.current)
     ) return
     completionReportedRef.current = true
     pendingCompleteRef.current = false
@@ -79,6 +83,10 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
     const finishTarget = () => {
       progressRef.current = target
       setProgress(target)
+      if (target === 0) {
+        progressExitCompleteRef.current = true
+        maybeCompleteReturn()
+      }
       frameRef.current = 0
     }
 
@@ -134,6 +142,8 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
       arrowExitCompleteRef.current = false
       const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
       reducedExitRef.current = reduced
+      progressExitCompleteRef.current = reduced
+      onStartRef.current?.()
       setCompleting(true)
       setHovered(false)
       if (reduced) {

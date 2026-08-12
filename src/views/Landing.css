@@ -265,6 +265,17 @@
   animation: landing-return-status-blink var(--landing-return-blink-ms, 800ms) ease-in-out 2 both;
 }
 
+.landing[data-landing-arrival="return"] .landing-title,
+.landing[data-landing-arrival="return"] .landing-return-status {
+  opacity: 0;
+  animation: landing-return-surface-in 520ms ease-out 40ms both;
+}
+
+@keyframes landing-return-surface-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @keyframes landing-return-status-blink {
   0%, 100% { opacity: .3; }
   48% { opacity: .92; }

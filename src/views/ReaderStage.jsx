@@ -53,6 +53,8 @@ function ReaderStage({
   rootRef,
   focusRef,
   chapterTrialEnded,
+  returningToLanding = false,
+  onReturnStart,
   onReturnLanding,
   onReturnArmedChange,
 }) {
@@ -106,10 +108,11 @@ function ReaderStage({
 
   return (
     <main
-      className={`reader-stage-page paper-surface reader-stage-page--${readingMode} reader-stage-page--theme-${standardTheme} reader-stage-page--motion-${motionMode}`}
+      className={`reader-stage-page paper-surface reader-stage-page--${readingMode} reader-stage-page--theme-${standardTheme} reader-stage-page--motion-${motionMode}${returningToLanding ? ' reader-stage-page--returning' : ''}`}
       style={stageStyle}
       data-reading-mode={readingMode}
       data-motion-mode={motionMode}
+      data-returning-to-landing={returningToLanding ? 'true' : 'false'}
       data-scene-state={sceneStateName}
       data-world-layer={environmentState.worldLayer}
       data-scene-characters={environmentState.characters.join(' ')}
@@ -190,6 +193,7 @@ function ReaderStage({
           onArm={() => updateReturnArmed(true)}
           onDisarm={() => updateReturnArmed(false)}
           onReadyChange={updateReturnReady}
+          onStart={onReturnStart}
           onComplete={onReturnLanding}
           language={language}
         />}
