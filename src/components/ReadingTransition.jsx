@@ -783,7 +783,11 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
       : modeStage
         ? 'left'
         : 'right'
-  const languageArrowDirection = locked || scramblingLang || (!expanded && !languageLabelPinned)
+  const languageArrowDirection = locked
+    || scramblingLang
+    || languageSwapPhase !== 'idle'
+    || languageArrowSuppressed
+    || (!expanded && !languageLabelPinned)
     ? 'left'
     : alternateLanguageVisible
       ? 'left'
@@ -848,10 +852,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
         return next
       })
     }
-    setLanguage(nextLanguage)
     setLabelText(getReaderLanguage(nextLanguage).label)
-    setLanguageVersion(version => version + 1)
-    languageSwapRef.current = null
+    languageSwapRef.current = { ...pendingSwap, awaitingCommit: true }
     setLanguageLabelPinned(true)
     setLangExpandHover(false)
     setLangExpandToggled(false)
@@ -860,6 +862,19 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     setLanguageSwapPhase('idle')
     setLanguageArrowSuppressed(true)
     setLanguageArrowEntered(false)
+    setLanguageLabelStable(false)
+  }, [])
+
+  const handleLanguageLabelStable = useCallback((stable) => {
+    setLanguageLabelStable(stable)
+    if (!stable) return
+
+    const pendingSwap = languageSwapRef.current
+    if (!pendingSwap?.awaitingCommit) return
+
+    languageSwapRef.current = null
+    setLanguage(pendingSwap.newLang)
+    setLanguageVersion(version => version + 1)
     isSwitchingRef.current = false
   }, [setLanguage])
 
@@ -881,6 +896,9 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
   const alternateLanguage = languageSlots.find(code => code !== language)
     ?? READER_LANGUAGES.find(item => item.code !== language)?.code
+  const alternateLanguageLayerVisible = expanded
+    && alternateLanguageReady
+    && (alternateLanguageVisible || languageSwapPhase !== 'idle' || Boolean(scramblingLang))
 
   return (
     <div
@@ -1021,7 +1039,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                               scrambleActive={(expanded && !languageLabelPinned) || Boolean(scramblingLang)}
                               holdFinal={Boolean(scramblingLang)}
                               restartKey={languageSwapKey}
-                              onStableChange={setLanguageLabelStable}
+                              onStableChange={handleLanguageLabelStable}
                             />
                             <LandingEntryArrow
                               className="ritual-entry-arrow ritual-entry-arrow--language"
@@ -1036,6 +1054,9 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                                 setAlternateLanguageReady(true)
                                 setAlternateLanguageVisible(false)
                               }}
+                              onEntryComplete={() => {
+                                setAlternateLanguageVisible(true)
+                              }}
                               onExitComplete={handleLanguageChangeExit}
                               showRing={false}
                             />
@@ -1047,14 +1068,14 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 </button>
                 <div className="lang-hover-bridge" />
                 <div
-                  className={`lang-expand-layer${languageLayerLeft !== null ? ' lang-expand-layer--positioned' : ''}${expanded && alternateLanguageReady ? ' lang-expand-layer--visible' : ''}${languageSwapPhase === 'alternate-withdrawing' || scramblingLang ? ' lang-expand-layer--withdrawing' : ''}`}
+                  className={`lang-expand-layer${languageLayerLeft !== null ? ' lang-expand-layer--positioned' : ''}${alternateLanguageLayerVisible ? ' lang-expand-layer--visible' : ''}${languageSwapPhase === 'alternate-withdrawing' || scramblingLang ? ' lang-expand-layer--withdrawing' : ''}`}
                   style={languageLayerLeft === null ? undefined : { '--lang-expand-left': `${languageLayerLeft}px` }}
                   onTransitionEnd={handleLanguageLayerTransitionEnd}
                 >
                   {alternateLanguage && (
                     <button
                       type="button"
-                      className={`lang-item${scramblingLang ? ' lang-item--scrambling' : ''}`}
+                      className="lang-item"
                       onClick={() => handleLanguageChange(alternateLanguage)}
                     >
                       {getReaderLanguage(alternateLanguage).label}
