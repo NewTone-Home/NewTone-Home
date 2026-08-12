@@ -828,7 +828,15 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
         && event.clientX <= zoneRect.right
         && event.clientY >= zoneRect.top
         && event.clientY <= zoneRect.bottom
-      if (insideZoneRect) return
+      if (insideZoneRect) {
+        if (!languageSecondaryInsideRef.current) {
+          languageSecondaryInsideRef.current = true
+          setHoveredOption('secondary')
+          handleEnter()
+          languageSelectorHold.hold()
+        }
+        return
+      }
       if (!languageSecondaryInsideRef.current && !languageArrowAwaitingLeaveRef.current) return
       const pointedNode = document.elementFromPoint(event.clientX, event.clientY)
       if (pointedNode && secondaryZoneRef.current?.contains(pointedNode)) return
@@ -836,7 +844,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     }
     window.addEventListener('pointermove', trackBoundary)
     return () => window.removeEventListener('pointermove', trackBoundary)
-  }, [handleLanguageBoundaryLeave, modeStage])
+  }, [handleEnter, handleLanguageBoundaryLeave, languageSelectorHold, modeStage])
 
   useLayoutEffect(() => {
     const syncRingMetrics = (button, textNode) => {
