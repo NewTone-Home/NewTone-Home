@@ -756,7 +756,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
       && languageLabelStable
       && !isSwitchingRef.current
       && !languageSwapRef.current
-    if (inside && canReenterPinnedCycle && languageArrowAwaitingLeaveRef.current) {
+    if (inside && canReenterPinnedCycle && !languageArrowEntered) {
       languageArrowAwaitingLeaveRef.current = false
       languageSecondaryInsideRef.current = false
       setLanguageArrowSuppressed(false)
@@ -767,7 +767,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     setHoveredOption('secondary')
     handleEnter()
     languageSelectorHold.hold()
-  }, [handleEnter, languageLabelShown, languageLabelPinned, languageLabelStable, languageSelectorHold, modeStage])
+  }, [handleEnter, languageArrowEntered, languageLabelShown, languageLabelPinned, languageLabelStable, languageSelectorHold, modeStage])
 
   const handleLanguageSecondaryEnter = useCallback(() => {
     if (modeStage) return
