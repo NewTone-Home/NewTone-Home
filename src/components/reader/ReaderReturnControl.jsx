@@ -18,7 +18,7 @@ function isDirectPointer(pointerType) {
   return pointerType === 'touch' || pointerType === 'pen'
 }
 
-function ReaderReturnControl({ armed, onArm, onDisarm, onDismissComplete, onReadyChange, onStart, onComplete, language }) {
+function ReaderReturnControl({ armed, onArm, onDisarm, onDismissStart, onDismissComplete, onReadyChange, onStart, onComplete, language }) {
   const ui = getReaderUi(language)
   const fallbackUi = getReaderUi('zh')
   const returnLabel = ui.returnToLanding || ui.backToLanding || fallbackUi.returnToLanding
@@ -39,9 +39,11 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onDismissComplete, onRead
   const reducedExitRef = useRef(false)
   const frameRef = useRef(0)
   const onCompleteRef = useRef(onComplete)
+  const onDismissStartRef = useRef(onDismissStart)
   const onDismissCompleteRef = useRef(onDismissComplete)
   const onStartRef = useRef(onStart)
   onCompleteRef.current = onComplete
+  onDismissStartRef.current = onDismissStart
   onDismissCompleteRef.current = onDismissComplete
   onStartRef.current = onStart
 
@@ -130,7 +132,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onDismissComplete, onRead
   useEffect(() => () => cancelAnimationFrame(frameRef.current), [])
 
   useEffect(() => {
-    if (!armed && !pendingCompleteRef.current) setCompleting(false)
+    if (!armed && !pendingCompleteRef.current && !dismissOnlyRef.current) setCompleting(false)
   }, [armed])
 
   const entryReady = visualArmed && progress >= 0.999
@@ -157,6 +159,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onDismissComplete, onRead
       reducedExitRef.current = reduced
       progressExitCompleteRef.current = reduced
       if (navigate) onStartRef.current?.()
+      if (!navigate) onDismissStartRef.current?.()
       setCompleting(true)
       setHovered(false)
       if (reduced) {
