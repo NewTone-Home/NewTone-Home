@@ -782,10 +782,14 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     }
     languageSecondaryInsideRef.current = false
     languageArrowAwaitingLeaveRef.current = false
+    if (languageLabelPinned) {
+      setLanguageArrowSuppressed(true)
+      setLanguageArrowEntered(false)
+    }
     setHoveredOption(null)
     handleLeave()
     languageSelectorHold.retract()
-  }, [handleLeave, languageSelectorHold, modeStage])
+  }, [handleLeave, languageLabelPinned, languageSelectorHold, modeStage])
 
   const primaryArrowDirection = locked
     ? 'left'
