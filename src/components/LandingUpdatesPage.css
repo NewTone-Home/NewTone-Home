@@ -96,7 +96,7 @@
 }
 
 @media (pointer: fine) {
-  .landing-updates-return-trigger {
+  .landing-updates-page[data-updates-phase="updates"] .landing-updates-return-trigger {
     pointer-events: auto;
   }
 
@@ -271,14 +271,27 @@
 }
 
 @media (pointer: coarse) {
+  .landing-updates-page[data-updates-phase="updates"] .landing-updates-return-trigger {
+    pointer-events: auto;
+  }
+
   .landing-updates-page[data-return-ready="true"] {
     touch-action: none;
     overscroll-behavior: none;
   }
 
   .landing-updates-return {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .landing-updates-page[data-updates-phase="updates"] .landing-updates-return {
     opacity: .48;
     pointer-events: auto;
+  }
+
+  .landing-updates-page[data-updates-phase="updates"] .landing-updates-page__return-backdrop {
+    opacity: 1;
   }
 
   .landing-updates-page[data-return-armed="true"] .landing-updates-return__arrow .landing-entry-ring {

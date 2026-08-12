@@ -319,9 +319,10 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
   }, [beginWithdrawal])
 
   const handleTouchReturn = useCallback((event) => {
-    if (event.pointerType !== 'touch' || !interactive) return
+    if (!['touch', 'pen'].includes(event.pointerType) || !interactive) return
     if (!mobileReturnArmed) setMobileReturnArmed(true)
-  }, [interactive, mobileReturnArmed])
+    if (!mobileReturnReady) setMobileReturnReady(true)
+  }, [interactive, mobileReturnArmed, mobileReturnReady])
 
   const handleReturnTextRevealed = useCallback((generation) => {
     if (
@@ -350,11 +351,6 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
     if (event.animationName === 'updates-return-ring-draw') {
       if (returnEntryPhaseRef.current === RETURN_ENTRY_PHASE.RING) {
         transitionReturnEntry(RETURN_ENTRY_PHASE.READY)
-      } else if (
-        returnEntryPhaseRef.current === RETURN_ENTRY_PHASE.HIDDEN
-        && mobileReturnArmed
-      ) {
-        setMobileReturnReady(true)
       }
       return
     }
