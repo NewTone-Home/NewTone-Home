@@ -125,11 +125,11 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, o
   const entryReady = visualArmed && progress >= 0.999
 
   useEffect(() => {
-    onReadyChange?.(entryReady || completing)
-  }, [completing, entryReady, onReadyChange])
+    onReadyChange?.(visualArmed || completing)
+  }, [completing, onReadyChange, visualArmed])
 
   useEffect(() => {
-    if (!entryReady) return undefined
+    if (!visualArmed) return undefined
     completedRef.current = false
     let directGesture = null
 
@@ -172,6 +172,13 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, o
       completeOnce()
     }
 
+    const onPointerUp = event => {
+      if (!directGesture || event.pointerId !== directGesture.pointerId) return
+      const gesture = directGesture
+      directGesture = null
+      if (Math.abs(gesture.startY - event.clientY) <= RETURN_DIRECT_THRESHOLD) onDisarm()
+    }
+
     const clearDirectGesture = event => {
       if (!directGesture || event.pointerId !== directGesture.pointerId) return
       directGesture = null
@@ -180,16 +187,16 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, o
     window.addEventListener('wheel', onWheel, { passive: true })
     window.addEventListener('pointerdown', onPointerDown, { passive: true })
     window.addEventListener('pointermove', onPointerMove, { passive: true })
-    window.addEventListener('pointerup', clearDirectGesture, { passive: true })
+    window.addEventListener('pointerup', onPointerUp, { passive: true })
     window.addEventListener('pointercancel', clearDirectGesture, { passive: true })
     return () => {
       window.removeEventListener('wheel', onWheel)
       window.removeEventListener('pointerdown', onPointerDown)
       window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', clearDirectGesture)
+      window.removeEventListener('pointerup', onPointerUp)
       window.removeEventListener('pointercancel', clearDirectGesture)
     }
-  }, [entryReady, maybeCompleteReturn])
+  }, [maybeCompleteReturn, onDisarm, visualArmed])
 
   const affordanceVisible = visualArmed || progress > 0.001
 
@@ -215,7 +222,9 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, o
         if (!completing && isDirectPointer(event.pointerType) && !armed) onArm()
       }}
       onClick={event => {
-        if (!completing && event.detail === 0 && !armed) onArm()
+        if (completing || event.detail !== 0) return
+        if (armed) onDisarm()
+        else onArm()
       }}
       aria-label={returnHint}
       aria-pressed={visualArmed}
