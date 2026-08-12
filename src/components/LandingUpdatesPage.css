@@ -277,7 +277,7 @@
   }
 
   .landing-updates-page[data-return-ready="true"] {
-    touch-action: none;
+    touch-action: pan-y;
     overscroll-behavior: none;
   }
 

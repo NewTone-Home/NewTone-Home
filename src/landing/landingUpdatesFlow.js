@@ -35,5 +35,5 @@ export function isUpdatesFlowActive(phase) {
 export function resolveTouchReturnSwipe({ armed, ready, pointerType, startY, endY }) {
   if (!armed || !ready || !['touch', 'pen'].includes(pointerType)) return false
   if (!Number.isFinite(startY) || !Number.isFinite(endY)) return false
-  return startY - endY >= 42
+  return endY - startY >= 42
 }

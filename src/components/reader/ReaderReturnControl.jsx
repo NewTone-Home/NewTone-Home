@@ -18,7 +18,7 @@ function isDirectPointer(pointerType) {
   return pointerType === 'touch' || pointerType === 'pen'
 }
 
-function ReaderReturnControl({ armed, onArm, onDisarm, onReverseGesture, onDisarmComplete, onReadyChange, onStart, onComplete, language }) {
+function ReaderReturnControl({ armed, onArm, onDisarm, onDismissComplete, onReadyChange, onStart, onComplete, language }) {
   const ui = getReaderUi(language)
   const fallbackUi = getReaderUi('zh')
   const returnLabel = ui.returnToLanding || ui.backToLanding || fallbackUi.returnToLanding
@@ -34,28 +34,37 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReverseGesture, onDisar
   const arrowExitCompleteRef = useRef(false)
   const progressExitCompleteRef = useRef(false)
   const completionReportedRef = useRef(false)
+  const dismissOnlyRef = useRef(false)
+  const dismissReportedRef = useRef(false)
   const reducedExitRef = useRef(false)
   const frameRef = useRef(0)
   const onCompleteRef = useRef(onComplete)
-  const onDisarmCompleteRef = useRef(onDisarmComplete)
+  const onDismissCompleteRef = useRef(onDismissComplete)
   const onStartRef = useRef(onStart)
   onCompleteRef.current = onComplete
-  onDisarmCompleteRef.current = onDisarmComplete
+  onDismissCompleteRef.current = onDismissComplete
   onStartRef.current = onStart
 
   const visualArmed = armed && !completing
 
   const maybeCompleteReturn = useCallback(() => {
-    if (
-      !pendingCompleteRef.current
-      || completionReportedRef.current
-      || !textExitCompleteRef.current
+    if (!textExitCompleteRef.current
       || (!arrowExitCompleteRef.current && !reducedExitRef.current)
-      || (!progressExitCompleteRef.current && !reducedExitRef.current)
-    ) return
-    completionReportedRef.current = true
-    pendingCompleteRef.current = false
-    onCompleteRef.current()
+      || (!progressExitCompleteRef.current && !reducedExitRef.current)) return
+
+    if (pendingCompleteRef.current) {
+      if (completionReportedRef.current) return
+      completionReportedRef.current = true
+      pendingCompleteRef.current = false
+      onCompleteRef.current()
+      return
+    }
+
+    if (dismissOnlyRef.current && !dismissReportedRef.current) {
+      dismissReportedRef.current = true
+      dismissOnlyRef.current = false
+      onDismissCompleteRef.current?.()
+    }
   }, [])
 
   const handleTextExitComplete = useCallback(() => {
@@ -87,7 +96,6 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReverseGesture, onDisar
       setProgress(target)
       if (target === 0) {
         progressExitCompleteRef.current = true
-        if (!pendingCompleteRef.current) onDisarmCompleteRef.current?.()
         maybeCompleteReturn()
       }
       frameRef.current = 0
@@ -136,17 +144,19 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReverseGesture, onDisar
     completedRef.current = false
     let directGesture = null
 
-    const completeOnce = () => {
+    const startExit = (navigate = true) => {
       if (completedRef.current) return
       completedRef.current = true
-      pendingCompleteRef.current = true
+      pendingCompleteRef.current = navigate
+      dismissOnlyRef.current = !navigate
       completionReportedRef.current = false
+      dismissReportedRef.current = false
       textExitCompleteRef.current = false
       arrowExitCompleteRef.current = false
       const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
       reducedExitRef.current = reduced
       progressExitCompleteRef.current = reduced
-      onStartRef.current?.()
+      if (navigate) onStartRef.current?.()
       setCompleting(true)
       setHovered(false)
       if (reduced) {
@@ -157,7 +167,8 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReverseGesture, onDisar
     }
 
     const onWheel = event => {
-      if (event.deltaY > RETURN_WHEEL_THRESHOLD) completeOnce()
+      if (event.deltaY > RETURN_WHEEL_THRESHOLD) startExit(true)
+      if (event.deltaY < -RETURN_WHEEL_THRESHOLD) startExit(false)
     }
 
     const onPointerDown = event => {
@@ -174,11 +185,10 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReverseGesture, onDisar
       if (delta <= RETURN_DIRECT_THRESHOLD && delta >= -RETURN_DIRECT_THRESHOLD) return
       directGesture = null
       if (delta > RETURN_DIRECT_THRESHOLD) {
-        completeOnce()
+        startExit(true)
         return
       }
-      onDisarm()
-      onReverseGesture?.()
+      startExit(false)
     }
 
     const onPointerUp = event => {
@@ -205,7 +215,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReverseGesture, onDisar
       window.removeEventListener('pointerup', onPointerUp)
       window.removeEventListener('pointercancel', clearDirectGesture)
     }
-  }, [maybeCompleteReturn, onDisarm, onReverseGesture, visualArmed])
+  }, [maybeCompleteReturn, onDisarm, visualArmed])
 
   const affordanceVisible = visualArmed || progress > 0.001
 

@@ -301,12 +301,6 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
     const onPointerMove = event => {
       const gesture = touchGestureRef.current
       if (!gesture || gesture.pointerId !== event.pointerId) return
-      if (event.clientY - gesture.startY >= 42) {
-        touchGestureRef.current = null
-        if (event.cancelable) event.preventDefault()
-        beginWithdrawal({ reason: RETURN_ENTRY_WITHDRAWAL_REASON.LEAVE })
-        return
-      }
       const shouldReturn = resolveTouchReturnSwipe({
         armed: mobileReturnArmed,
         ready: mobileReturnReady,
@@ -314,13 +308,19 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
         startY: gesture.startY,
         endY: event.clientY,
       })
-      if (!shouldReturn) return
-      touchGestureRef.current = null
-      if (event.cancelable) event.preventDefault()
-      beginWithdrawal({
-        reason: RETURN_ENTRY_WITHDRAWAL_REASON.WHEEL,
-        returnToLanding: true,
-      })
+      if (shouldReturn) {
+        touchGestureRef.current = null
+        if (event.cancelable) event.preventDefault()
+        beginWithdrawal({
+          reason: RETURN_ENTRY_WITHDRAWAL_REASON.WHEEL,
+          returnToLanding: true,
+        })
+        return
+      }
+      if (gesture.startY - event.clientY >= 42) {
+        touchGestureRef.current = null
+        cancelMobileReturnActivation()
+      }
     }
     const clearGesture = event => {
       const gesture = touchGestureRef.current

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import ReaderBeatStack from '../components/reader/ReaderBeatStack'
 import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
 import ReaderTools from '../components/reader/ReaderTools'
@@ -62,7 +62,6 @@ function ReaderStage({
   const [returnArmed, setReturnArmed] = useState(false)
   const [returnReady, setReturnReady] = useState(false)
   const [returnDismissed, setReturnDismissed] = useState(false)
-  const dismissReturnAfterRetractRef = useRef(false)
   const sceneState = beats[focusBeatIndex]?.sceneState ?? {}
   const sceneStateName = sceneState.sceneState ?? 'normal'
   const nativeEnvironmentState = beats[focusBeatIndex]?.worldState
@@ -103,7 +102,6 @@ function ReaderStage({
   useEffect(() => {
     setReaderAtBottom(false)
     setReturnDismissed(false)
-    dismissReturnAfterRetractRef.current = false
     updateReturnArmed(false)
   }, [page?.id, updateReturnArmed])
 
@@ -198,14 +196,7 @@ function ReaderStage({
           armed={returnArmed}
           onArm={() => updateReturnArmed(true)}
           onDisarm={() => updateReturnArmed(false)}
-          onReverseGesture={() => {
-            dismissReturnAfterRetractRef.current = true
-          }}
-          onDisarmComplete={() => {
-            if (!dismissReturnAfterRetractRef.current) return
-            dismissReturnAfterRetractRef.current = false
-            setReturnDismissed(true)
-          }}
+          onDismissComplete={() => setReturnDismissed(true)}
           onReadyChange={updateReturnReady}
           onStart={onReturnStart}
           onComplete={onReturnLanding}

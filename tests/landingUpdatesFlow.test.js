@@ -32,11 +32,11 @@ describe('Landing updates flow', () => {
     expect(phase).toBe(UPDATES_PHASE.LANDING)
   })
 
-  it('requires a fresh upward touch gesture after the mobile return is armed and ready', () => {
-    expect(resolveTouchReturnSwipe({ armed: false, ready: true, pointerType: 'touch', startY: 500, endY: 440 })).toBe(false)
-    expect(resolveTouchReturnSwipe({ armed: true, ready: false, pointerType: 'touch', startY: 500, endY: 440 })).toBe(false)
-    expect(resolveTouchReturnSwipe({ armed: true, ready: true, pointerType: 'touch', startY: 500, endY: 475 })).toBe(false)
-    expect(resolveTouchReturnSwipe({ armed: true, ready: true, pointerType: 'touch', startY: 500, endY: 440 })).toBe(true)
-    expect(resolveTouchReturnSwipe({ armed: true, ready: true, pointerType: 'touch', startY: 440, endY: 500 })).toBe(false)
+  it('requires a fresh downward touch gesture after the mobile return is armed and ready', () => {
+    expect(resolveTouchReturnSwipe({ armed: false, ready: true, pointerType: 'touch', startY: 500, endY: 560 })).toBe(false)
+    expect(resolveTouchReturnSwipe({ armed: true, ready: false, pointerType: 'touch', startY: 500, endY: 560 })).toBe(false)
+    expect(resolveTouchReturnSwipe({ armed: true, ready: true, pointerType: 'touch', startY: 500, endY: 525 })).toBe(false)
+    expect(resolveTouchReturnSwipe({ armed: true, ready: true, pointerType: 'touch', startY: 500, endY: 560 })).toBe(true)
+    expect(resolveTouchReturnSwipe({ armed: true, ready: true, pointerType: 'touch', startY: 560, endY: 500 })).toBe(false)
   })
 })
