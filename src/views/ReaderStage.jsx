@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ReaderBeatStack from '../components/reader/ReaderBeatStack'
 import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
 import ReaderTools from '../components/reader/ReaderTools'
@@ -61,6 +61,8 @@ function ReaderStage({
   const [readerAtBottom, setReaderAtBottom] = useState(false)
   const [returnArmed, setReturnArmed] = useState(false)
   const [returnReady, setReturnReady] = useState(false)
+  const [returnDismissed, setReturnDismissed] = useState(false)
+  const dismissReturnAfterRetractRef = useRef(false)
   const sceneState = beats[focusBeatIndex]?.sceneState ?? {}
   const sceneStateName = sceneState.sceneState ?? 'normal'
   const nativeEnvironmentState = beats[focusBeatIndex]?.worldState
@@ -75,7 +77,7 @@ function ReaderStage({
     || window.matchMedia(DIRECT_READER_QUERY).matches
   )
   const finalNodeReached = !emptyDocument && beats.length > 0 && focusBeatIndex >= beats.length - 1
-  const returnVisible = emptyDocument || readerAtBottom || (directReaderInput && finalNodeReached)
+  const returnVisible = !returnDismissed && (emptyDocument || readerAtBottom || (directReaderInput && finalNodeReached))
   const locationLabel = emptyDocument
     ? (language === 'en' ? 'No pages yet' : '暂无页面')
     : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
@@ -95,10 +97,13 @@ function ReaderStage({
 
   const handleViewportBoundaryChange = useCallback(({ atBottom, lastNodeReached }) => {
     setReaderAtBottom(atBottom && lastNodeReached)
+    if (atBottom && lastNodeReached) setReturnDismissed(false)
   }, [])
 
   useEffect(() => {
     setReaderAtBottom(false)
+    setReturnDismissed(false)
+    dismissReturnAfterRetractRef.current = false
     updateReturnArmed(false)
   }, [page?.id, updateReturnArmed])
 
@@ -193,6 +198,14 @@ function ReaderStage({
           armed={returnArmed}
           onArm={() => updateReturnArmed(true)}
           onDisarm={() => updateReturnArmed(false)}
+          onReverseGesture={() => {
+            dismissReturnAfterRetractRef.current = true
+          }}
+          onDisarmComplete={() => {
+            if (!dismissReturnAfterRetractRef.current) return
+            dismissReturnAfterRetractRef.current = false
+            setReturnDismissed(true)
+          }}
           onReadyChange={updateReturnReady}
           onStart={onReturnStart}
           onComplete={onReturnLanding}

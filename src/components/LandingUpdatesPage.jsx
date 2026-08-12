@@ -202,6 +202,13 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
     transitionReturnEntry(RETURN_ENTRY_PHASE.TEXT)
   }, [clearWithdrawalTimer, interactive, transitionReturnEntry])
 
+  const cancelMobileReturnActivation = useCallback(() => {
+    if (returnEntryPhaseRef.current !== RETURN_ENTRY_PHASE.READY) return
+    setMobileReturnArmed(false)
+    setMobileReturnReady(false)
+    transitionReturnEntry(RETURN_ENTRY_PHASE.ARROW)
+  }, [transitionReturnEntry])
+
   useEffect(() => {
     const preserveWheelWithdrawal = isWithdrawalPhase(returnEntryPhaseRef.current)
       && withdrawalReasonRef.current === RETURN_ENTRY_WITHDRAWAL_REASON.WHEEL
@@ -294,6 +301,12 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
     const onPointerMove = event => {
       const gesture = touchGestureRef.current
       if (!gesture || gesture.pointerId !== event.pointerId) return
+      if (event.clientY - gesture.startY >= 42) {
+        touchGestureRef.current = null
+        if (event.cancelable) event.preventDefault()
+        beginWithdrawal({ reason: RETURN_ENTRY_WITHDRAWAL_REASON.LEAVE })
+        return
+      }
       const shouldReturn = resolveTouchReturnSwipe({
         armed: mobileReturnArmed,
         ready: mobileReturnReady,
@@ -310,7 +323,10 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
       })
     }
     const clearGesture = event => {
-      if (touchGestureRef.current?.pointerId === event.pointerId) touchGestureRef.current = null
+      const gesture = touchGestureRef.current
+      if (!gesture || gesture.pointerId !== event.pointerId) return
+      touchGestureRef.current = null
+      if (Math.abs(gesture.startY - event.clientY) < 42) cancelMobileReturnActivation()
     }
 
     window.addEventListener('pointerdown', onPointerDown, { passive: true })
@@ -323,7 +339,7 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
       window.removeEventListener('pointerup', clearGesture)
       window.removeEventListener('pointercancel', clearGesture)
     }
-  }, [beginWithdrawal, interactive, mobileReturnArmed, mobileReturnReady])
+  }, [beginWithdrawal, cancelMobileReturnActivation, interactive, mobileReturnArmed, mobileReturnReady])
 
   const handleReturnPointerEnter = useCallback((event) => {
     if (!isDesktopPointer(event)) return

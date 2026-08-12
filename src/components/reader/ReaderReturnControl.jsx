@@ -18,7 +18,7 @@ function isDirectPointer(pointerType) {
   return pointerType === 'touch' || pointerType === 'pen'
 }
 
-function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, onComplete, language }) {
+function ReaderReturnControl({ armed, onArm, onDisarm, onReverseGesture, onDisarmComplete, onReadyChange, onStart, onComplete, language }) {
   const ui = getReaderUi(language)
   const fallbackUi = getReaderUi('zh')
   const returnLabel = ui.returnToLanding || ui.backToLanding || fallbackUi.returnToLanding
@@ -37,8 +37,10 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, o
   const reducedExitRef = useRef(false)
   const frameRef = useRef(0)
   const onCompleteRef = useRef(onComplete)
+  const onDisarmCompleteRef = useRef(onDisarmComplete)
   const onStartRef = useRef(onStart)
   onCompleteRef.current = onComplete
+  onDisarmCompleteRef.current = onDisarmComplete
   onStartRef.current = onStart
 
   const visualArmed = armed && !completing
@@ -85,6 +87,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, o
       setProgress(target)
       if (target === 0) {
         progressExitCompleteRef.current = true
+        if (!pendingCompleteRef.current) onDisarmCompleteRef.current?.()
         maybeCompleteReturn()
       }
       frameRef.current = 0
@@ -167,9 +170,15 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, o
 
     const onPointerMove = event => {
       if (!directGesture || event.pointerId !== directGesture.pointerId) return
-      if (directGesture.startY - event.clientY <= RETURN_DIRECT_THRESHOLD) return
+      const delta = directGesture.startY - event.clientY
+      if (delta <= RETURN_DIRECT_THRESHOLD && delta >= -RETURN_DIRECT_THRESHOLD) return
       directGesture = null
-      completeOnce()
+      if (delta > RETURN_DIRECT_THRESHOLD) {
+        completeOnce()
+        return
+      }
+      onDisarm()
+      onReverseGesture?.()
     }
 
     const onPointerUp = event => {
@@ -196,7 +205,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, o
       window.removeEventListener('pointerup', onPointerUp)
       window.removeEventListener('pointercancel', clearDirectGesture)
     }
-  }, [maybeCompleteReturn, onDisarm, visualArmed])
+  }, [maybeCompleteReturn, onDisarm, onReverseGesture, visualArmed])
 
   const affordanceVisible = visualArmed || progress > 0.001
 
