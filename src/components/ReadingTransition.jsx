@@ -309,6 +309,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const hoverActiveRef = useRef(false)
   const isSwitchingRef = useRef(false)
   const languageSwapRef = useRef(null)
+  const languageArrowAwaitingLeaveRef = useRef(false)
   const expandedRef = useRef(false)
   const slotsInitialized = useRef(false)
   const secondaryZoneRef = useRef(null)
@@ -599,6 +600,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const handleEnter = useCallback(() => {
     if (modeStage) return
     if (touchInProgress.current) return
+    if (languageArrowAwaitingLeaveRef.current) return
+    if (isSwitchingRef.current || languageSwapRef.current?.awaitingCommit) return
     if (hideTimerRef.current) {
       clearTimeout(hideTimerRef.current)
       hideTimerRef.current = null
@@ -685,6 +688,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     setLanguageLabelStable(false)
     setLanguageArrowEntered(false)
     setLanguageArrowSuppressed(false)
+    languageArrowAwaitingLeaveRef.current = false
   }, [currentStage.id])
 
   useEffect(() => {
@@ -766,6 +770,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const handleLanguageBoundaryLeave = useCallback(() => {
     if (modeStage) return
     languageSecondaryInsideRef.current = false
+    languageArrowAwaitingLeaveRef.current = false
     setHoveredOption(null)
     handleLeave()
     languageSelectorHold.retract()
@@ -859,10 +864,11 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     setLangExpandToggled(false)
     setAlternateLanguageVisible(false)
     setScramblingLang(null)
-    setLanguageSwapPhase('idle')
+    setLanguageSwapPhase('label-settling')
     setLanguageArrowSuppressed(true)
     setLanguageArrowEntered(false)
     setLanguageLabelStable(false)
+    languageArrowAwaitingLeaveRef.current = true
   }, [])
 
   const handleLanguageLabelStable = useCallback((stable) => {
@@ -875,6 +881,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     languageSwapRef.current = null
     setLanguage(pendingSwap.newLang)
     setLanguageVersion(version => version + 1)
+    setLanguageSwapPhase('idle')
+    setLanguageArrowSuppressed(true)
     isSwitchingRef.current = false
   }, [setLanguage])
 
@@ -1036,7 +1044,9 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                               labelText={labelText}
                               labelVisible={labelVisible}
                               labelRef={currentLanguageLabelRef}
-                              scrambleActive={(expanded && !languageLabelPinned) || Boolean(scramblingLang)}
+                              scrambleActive={(expanded && !languageLabelPinned)
+                                || Boolean(scramblingLang)
+                                || languageSwapPhase === 'label-settling'}
                               holdFinal={Boolean(scramblingLang)}
                               restartKey={languageSwapKey}
                               onStableChange={handleLanguageLabelStable}
