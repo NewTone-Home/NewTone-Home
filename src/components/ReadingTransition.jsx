@@ -769,7 +769,17 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
   const handleLanguageBoundaryLeave = useCallback((event) => {
     if (modeStage) return
-    if (languageArrowAwaitingLeaveRef.current && event) return
+    if (languageArrowAwaitingLeaveRef.current && event) {
+      const zoneRect = secondaryZoneRef.current?.getBoundingClientRect()
+      const relatedInside = event.relatedTarget
+        && secondaryZoneRef.current?.contains(event.relatedTarget)
+      const insideZoneRect = zoneRect
+        && event.clientX >= zoneRect.left
+        && event.clientX <= zoneRect.right
+        && event.clientY >= zoneRect.top
+        && event.clientY <= zoneRect.bottom
+      if (relatedInside || insideZoneRect) return
+    }
     languageSecondaryInsideRef.current = false
     languageArrowAwaitingLeaveRef.current = false
     setHoveredOption(null)
