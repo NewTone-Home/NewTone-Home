@@ -488,6 +488,11 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     }
 
     frame = window.requestAnimationFrame(syncLanguageLayerPosition)
+    const animationDuration = Number.parseFloat(getComputedStyle(arrow).animationDuration || '0') * 1000
+    const settleTimer = window.setTimeout(
+      syncLanguageLayerPosition,
+      Math.max(0, animationDuration) + 80,
+    )
     const observer = typeof ResizeObserver === 'function'
       ? new ResizeObserver(syncLanguageLayerPosition)
       : null
@@ -496,12 +501,17 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     observer?.observe(arrow)
     window.addEventListener('resize', syncLanguageLayerPosition)
     document.fonts?.addEventListener?.('loadingdone', syncLanguageLayerPosition)
+    arrow.addEventListener('animationend', syncLanguageLayerPosition)
+    arrow.addEventListener('transitionend', syncLanguageLayerPosition)
 
     return () => {
       window.cancelAnimationFrame(frame)
+      window.clearTimeout(settleTimer)
       observer?.disconnect()
       window.removeEventListener('resize', syncLanguageLayerPosition)
       document.fonts?.removeEventListener?.('loadingdone', syncLanguageLayerPosition)
+      arrow.removeEventListener('animationend', syncLanguageLayerPosition)
+      arrow.removeEventListener('transitionend', syncLanguageLayerPosition)
     }
   }, [expanded, labelText, languageLabelShown, languageSwapKey, languageVersion, modeStage])
 
