@@ -95,7 +95,7 @@ function ResumeEnvironment({ lines }) {
   )
 }
 
-function ExpandLabel({ labelText, labelVisible, labelRef, scrambleActive, holdFinal, onStableChange }) {
+function ExpandLabel({ labelText, labelVisible, labelRef, scrambleActive, holdFinal, restartKey, onStableChange }) {
   const labelCharInterval = Math.max(80, Math.floor(LANGUAGE_LABEL_REFORM_MS / Math.max(1, Array.from(labelText).length)))
   const { displayText, stable } = useScrambleText(labelText, {
     startDelay: 0,
@@ -103,6 +103,7 @@ function ExpandLabel({ labelText, labelVisible, labelRef, scrambleActive, holdFi
     scrambleInterval: 40,
     enabled: scrambleActive,
     holdFinal,
+    restartKey,
   })
   useEffect(() => {
     onStableChange?.(stable)
@@ -296,6 +297,9 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const [alternateLanguageReady, setAlternateLanguageReady] = useState(false)
   const [alternateLanguageVisible, setAlternateLanguageVisible] = useState(false)
   const [scramblingLang, setScramblingLang] = useState(null)
+  const [languageSwapPhase, setLanguageSwapPhase] = useState('idle')
+  const [languageSwapKey, setLanguageSwapKey] = useState(0)
+  const [languageLayerLeft, setLanguageLayerLeft] = useState(null)
   const [languageSlots, setLanguageSlots] = useState([])
   const [labelText, setLabelText] = useState(getReaderLanguage(language).label)
   const [labelVisible, setLabelVisible] = useState(true)
@@ -357,6 +361,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     charInterval: titleCharInterval,
     scrambleInterval: 50,
     enabled: revealed,
+    restartKey: languageVersion,
   })
   const [modeActionsReady, setModeActionsReady] = useState(false)
 
@@ -408,6 +413,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     enabled: showText && (!modeStage || modeActionsReady),
     withdrawing: locked,
     withdrawalDuration: 1200,
+    restartKey: languageVersion,
   })
 
   const { displayText: changeText, stable: changeStable } = useScrambleText(currentStage.secondary, {
@@ -417,6 +423,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     enabled: showText && (!modeStage || modeActionsReady),
     withdrawing: locked,
     withdrawalDuration: 1200,
+    restartKey: languageVersion,
   })
 
   const expanded = langExpandHover || langExpandToggled
@@ -457,6 +464,46 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
       setSelectorIdentityStable(nodes.every((node, index) => node === selectorIdentityBaselineRef.current[index]))
     }
   }, [modeStage, reforming])
+
+  useLayoutEffect(() => {
+    const zone = secondaryZoneRef.current
+    const label = currentLanguageLabelRef.current
+    const arrow = zone?.querySelector('.ritual-entry-arrow--language')
+    if (!zone || !label || !arrow) return undefined
+
+    let frame = 0
+    const syncLanguageLayerPosition = () => {
+      const zoneRect = zone.getBoundingClientRect()
+      const labelRect = label.getBoundingClientRect()
+      const arrowRect = arrow.getBoundingClientRect()
+      if (!zoneRect.width || !arrowRect.width) return
+
+      const labelToArrowGap = Math.max(0, arrowRect.left - labelRect.right)
+      const nextLeft = arrowRect.right - zoneRect.left + labelToArrowGap
+      setLanguageLayerLeft(previous => (
+        previous === null || Math.abs(previous - nextLeft) > 0.25
+          ? nextLeft
+          : previous
+      ))
+    }
+
+    frame = window.requestAnimationFrame(syncLanguageLayerPosition)
+    const observer = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(syncLanguageLayerPosition)
+      : null
+    observer?.observe(zone)
+    observer?.observe(label)
+    observer?.observe(arrow)
+    window.addEventListener('resize', syncLanguageLayerPosition)
+    document.fonts?.addEventListener?.('loadingdone', syncLanguageLayerPosition)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      observer?.disconnect()
+      window.removeEventListener('resize', syncLanguageLayerPosition)
+      document.fonts?.removeEventListener?.('loadingdone', syncLanguageLayerPosition)
+    }
+  }, [expanded, labelText, languageLabelShown, languageSwapKey, languageVersion, modeStage])
 
   useEffect(() => {
     if (titleStable && !titleReady) {
@@ -773,11 +820,9 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     const clickedIndex = languageSlots.indexOf(newLang)
     languageSwapRef.current = { clickedIndex, oldLang, newLang }
 
-    setScramblingLang(newLang)
+    setLanguageSwapPhase('alternate-withdrawing')
     setAlternateLanguageVisible(false)
-    setLanguageArrowSuppressed(true)
     setLabelVisible(true)
-    setLabelText(getReaderLanguage(newLang).label)
   }, [language, languageSlots])
 
   const handleLanguageChangeExit = useCallback(() => {
@@ -802,6 +847,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     setLangExpandToggled(false)
     setAlternateLanguageVisible(false)
     setScramblingLang(null)
+    setLanguageSwapPhase('idle')
     setLanguageArrowSuppressed(true)
     setLanguageArrowEntered(false)
     isSwitchingRef.current = false
@@ -809,8 +855,19 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
   const handleLanguageLayerTransitionEnd = useCallback((event) => {
     if (event.propertyName !== 'opacity') return
+    if (languageSwapPhase === 'alternate-withdrawing') {
+      const pendingSwap = languageSwapRef.current
+      if (!pendingSwap) return
+      setLanguageSwapPhase('arrow-retracting')
+      setScramblingLang(pendingSwap.newLang)
+      setLanguageArrowSuppressed(true)
+      setLabelVisible(true)
+      setLabelText(getReaderLanguage(pendingSwap.newLang).label)
+      setLanguageSwapKey(key => key + 1)
+      return
+    }
     setAlternateLanguageVisible(expanded && alternateLanguageReady && !scramblingLang)
-  }, [alternateLanguageReady, expanded, scramblingLang])
+  }, [alternateLanguageReady, expanded, languageSwapPhase, scramblingLang])
 
   const alternateLanguage = languageSlots.find(code => code !== language)
     ?? READER_LANGUAGES.find(item => item.code !== language)?.code
@@ -953,6 +1010,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                               labelRef={currentLanguageLabelRef}
                               scrambleActive={(expanded && !languageLabelPinned) || Boolean(scramblingLang)}
                               holdFinal={Boolean(scramblingLang)}
+                              restartKey={languageSwapKey}
                               onStableChange={setLanguageLabelStable}
                             />
                             <LandingEntryArrow
@@ -979,7 +1037,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 </button>
                 <div className="lang-hover-bridge" />
                 <div
-                  className={`lang-expand-layer${expanded && alternateLanguageReady ? ' lang-expand-layer--visible' : ''}${scramblingLang ? ' lang-expand-layer--withdrawing' : ''}`}
+                  className={`lang-expand-layer${languageLayerLeft !== null ? ' lang-expand-layer--positioned' : ''}${expanded && alternateLanguageReady ? ' lang-expand-layer--visible' : ''}${languageSwapPhase === 'alternate-withdrawing' || scramblingLang ? ' lang-expand-layer--withdrawing' : ''}`}
+                  style={languageLayerLeft === null ? undefined : { '--lang-expand-left': `${languageLayerLeft}px` }}
                   onTransitionEnd={handleLanguageLayerTransitionEnd}
                 >
                   {alternateLanguage && (

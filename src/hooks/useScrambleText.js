@@ -35,6 +35,7 @@ export function useScrambleText(
     withdrawing = false,
     withdrawalDuration = 260,
     holdFinal = false,
+    restartKey = null,
     onRevealed,
     onWithdrawn,
   } = {},
@@ -43,6 +44,7 @@ export function useScrambleText(
   const [stable, setStable] = useState(false)
   const [phase, setPhase] = useState('idle')
   const revealedRef = useRef(false)
+  const restartKeyRef = useRef(restartKey)
   const holdFinalRef = useRef(holdFinal)
   const wasHoldingFinalRef = useRef(false)
   const onRevealedRef = useRef(onRevealed)
@@ -53,6 +55,16 @@ export function useScrambleText(
   onWithdrawnRef.current = onWithdrawn
 
   useEffect(() => {
+    const shouldRestart = restartKeyRef.current !== restartKey
+    if (shouldRestart) {
+      restartKeyRef.current = restartKey
+      revealedRef.current = false
+      wasHoldingFinalRef.current = false
+      setDisplayText('')
+      setStable(false)
+      setPhase('idle')
+    }
+
     if (!enabled) {
       setDisplayText('')
       setStable(false)
@@ -143,7 +155,7 @@ export function useScrambleText(
       window.clearInterval(scrambleTimer)
       window.clearInterval(resolveTimer)
     }
-  }, [chars, charInterval, enabled, scrambleInterval, startDelay, text, withdrawing, withdrawalDuration])
+  }, [chars, charInterval, enabled, restartKey, scrambleInterval, startDelay, text, withdrawing, withdrawalDuration])
 
   useEffect(() => {
     if (holdFinal) {

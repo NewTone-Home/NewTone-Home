@@ -449,11 +449,16 @@
 .lang-expand-layer {
   position: absolute;
   top: 50%;
-  left: calc(50% + 40px);
+  left: var(--lang-expand-left, 0px);
   pointer-events: none;
   opacity: 0;
+  visibility: hidden;
   translate: -12px -50%;
   transition: opacity 360ms ease, translate 520ms cubic-bezier(.2,.8,.2,1);
+}
+
+.lang-expand-layer--positioned {
+  visibility: visible;
 }
 
 .lang-expand-layer--visible {
