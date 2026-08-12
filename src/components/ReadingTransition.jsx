@@ -314,6 +314,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const slotsInitialized = useRef(false)
   const secondaryZoneRef = useRef(null)
   const touchInProgress = useRef(false)
+  const directPointerTypeRef = useRef(null)
   const selectorRootRef = useRef(null)
   const selectorTitleRef = useRef(null)
   const selectorOptionsRef = useRef(null)
@@ -630,6 +631,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
   const handleLanguageExpandClick = useCallback(() => {
     if (modeStage) return
+    directPointerTypeRef.current = null
     setArmedOption(null)
     if (window.matchMedia('(hover: hover)').matches) {
       setLangExpandHover(true)
@@ -674,12 +676,27 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     onModeSelect(action.mode)
   }, [onModeSelect, onProceed])
 
-  const armDirectOption = useCallback((event, selectorOption) => {
-    const action = resolveRitualArmAction(phase, selectorOption, event.pointerType)
+  const rememberDirectPointer = useCallback((event, selectorOption) => {
+    if (!isRitualDirectPointer(event.pointerType)) return false
+    directPointerTypeRef.current = event.pointerType
+    setHoveredOption(selectorOption)
+    return true
+  }, [])
+
+  const armDirectOption = useCallback((pointerType, selectorOption) => {
+    const action = resolveRitualArmAction(phase, selectorOption, pointerType)
     if (!action || locked) return
     setReadyOption(null)
+    setHoveredOption(selectorOption)
     setArmedOption(selectorOption)
   }, [locked, phase])
+
+  const armDirectOptionFromClick = useCallback((selectorOption) => {
+    const pointerType = directPointerTypeRef.current
+    directPointerTypeRef.current = null
+    if (!pointerType) return
+    armDirectOption(pointerType, selectorOption)
+  }, [armDirectOption])
 
   useEffect(() => {
     setArmedOption(null)
@@ -752,6 +769,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     const rect = getTextHitRect(activeText)
     const inside = Boolean(rect && event.clientX >= rect.left && event.clientX <= rect.right
       && event.clientY >= rect.top && event.clientY <= rect.bottom)
+    const isDirectPointer = inside && rememberDirectPointer(event, 'secondary')
     const canReenterPinnedCycle = languageLabelPinned
       && !isSwitchingRef.current
       && !languageSwapRef.current
@@ -765,16 +783,17 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     languageSecondaryInsideRef.current = true
     setHoveredOption('secondary')
     handleEnter()
-    languageSelectorHold.hold()
-  }, [handleEnter, languageArrowEntered, languageLabelShown, languageLabelPinned, languageSelectorHold, modeStage])
+    if (!isDirectPointer) languageSelectorHold.hold()
+  }, [handleEnter, languageArrowEntered, languageLabelShown, languageLabelPinned, languageSelectorHold, modeStage, rememberDirectPointer])
 
-  const handleLanguageSecondaryEnter = useCallback(() => {
+  const handleLanguageSecondaryEnter = useCallback((event) => {
     if (modeStage) return
+    const isDirectPointer = rememberDirectPointer(event, 'secondary')
     languageSecondaryInsideRef.current = true
     setHoveredOption('secondary')
     handleEnter()
-    languageSelectorHold.hold()
-  }, [handleEnter, languageSelectorHold, modeStage])
+    if (!isDirectPointer) languageSelectorHold.hold()
+  }, [handleEnter, languageSelectorHold, modeStage, rememberDirectPointer])
 
   const handleLanguageBoundaryLeave = useCallback((event) => {
     if (modeStage) return
@@ -839,10 +858,11 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
         && event.clientY <= zoneRect.bottom
       if (insideZoneRect) {
         if (!languageSecondaryInsideRef.current) {
+          const isDirectPointer = rememberDirectPointer(event, 'secondary')
           languageSecondaryInsideRef.current = true
           setHoveredOption('secondary')
           handleEnter()
-          languageSelectorHold.hold()
+          if (!isDirectPointer) languageSelectorHold.hold()
         }
         return
       }
@@ -853,7 +873,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     }
     window.addEventListener('pointermove', trackBoundary)
     return () => window.removeEventListener('pointermove', trackBoundary)
-  }, [handleEnter, handleLanguageBoundaryLeave, languageSelectorHold, modeStage])
+  }, [handleEnter, handleLanguageBoundaryLeave, languageSelectorHold, modeStage, rememberDirectPointer])
 
   useLayoutEffect(() => {
     const syncRingMetrics = (button, textNode) => {
@@ -974,17 +994,26 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 data-hold-phase={primaryHold.holdPhase}
                 data-hold-progress={primaryHold.progress.toFixed(3)}
                 onPointerEnter={event => {
+                  if (rememberDirectPointer(event, 'primary')) return
                   primaryHold.trackPointer(event)
                   setHoveredOption('primary')
                   armHoverOption(event, 'primary')
                 }}
-                onPointerMove={primaryHold.trackPointer}
-                onPointerDown={primaryHold.trackPointer}
-                onPointerLeave={() => {
+                onPointerMove={event => {
+                  if (isRitualDirectPointer(event.pointerType)) return
+                  primaryHold.trackPointer(event)
+                }}
+                onPointerDown={event => {
+                  if (rememberDirectPointer(event, 'primary')) return
+                  primaryHold.trackPointer(event)
+                }}
+                onPointerLeave={event => {
+                  if (isRitualDirectPointer(event.pointerType)) return
                   setHoveredOption(null)
                   primaryHold.retract()
                 }}
                 onPointerCancel={() => {
+                  directPointerTypeRef.current = null
                   setHoveredOption(null)
                   primaryHold.retract()
                 }}
@@ -992,8 +1021,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                 onPointerUp={event => {
                   if (!isRitualDirectPointer(event.pointerType)) return
                   primaryHold.retract()
-                  armDirectOption(event, 'primary')
                 }}
+                onClick={() => armDirectOptionFromClick('primary')}
                 disabled={locked}
               >
                 <span className="lang-btn-curtain" style={{ '--hold-angle': `${primaryHold.progress * 360}deg` }} />
@@ -1027,19 +1056,28 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                   ref={secondaryButtonRef}
                   data-hold-phase={secondaryPhase}
                   data-hold-progress={secondaryProgress.toFixed(3)}
-                  onClick={modeStage ? undefined : handleLanguageExpandClick}
+                  onClick={modeStage ? () => armDirectOptionFromClick('secondary') : handleLanguageExpandClick}
                   onPointerEnter={modeStage ? event => {
+                    if (rememberDirectPointer(event, 'secondary')) return
                     modeSecondaryHold.trackPointer(event)
                     setHoveredOption('secondary')
                     armHoverOption(event, 'secondary')
                   } : handleLanguageSecondaryEnter}
-                  onPointerMove={modeStage ? modeSecondaryHold.trackPointer : handleLanguageSecondaryPointer}
-                  onPointerDown={modeStage ? modeSecondaryHold.trackPointer : handleLanguageSecondaryPointer}
-                  onPointerLeave={modeStage ? () => {
+                  onPointerMove={modeStage ? event => {
+                    if (isRitualDirectPointer(event.pointerType)) return
+                    modeSecondaryHold.trackPointer(event)
+                  } : handleLanguageSecondaryPointer}
+                  onPointerDown={modeStage ? event => {
+                    if (rememberDirectPointer(event, 'secondary')) return
+                    modeSecondaryHold.trackPointer(event)
+                  } : handleLanguageSecondaryPointer}
+                  onPointerLeave={modeStage ? event => {
+                    if (isRitualDirectPointer(event.pointerType)) return
                     setHoveredOption(null)
                     modeSecondaryHold.retract()
                   } : undefined}
                   onPointerCancel={modeStage ? () => {
+                    directPointerTypeRef.current = null
                     setHoveredOption(null)
                     modeSecondaryHold.retract()
                   } : handleLanguageBoundaryLeave}
@@ -1047,7 +1085,6 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                   onPointerUp={event => {
                     if (!isRitualDirectPointer(event.pointerType) || !modeStage) return
                     modeSecondaryHold.retract()
-                    armDirectOption(event, 'secondary')
                   }}
                   onTouchStart={() => { touchInProgress.current = true }}
                   onTouchEnd={() => { scheduleTransient(() => { touchInProgress.current = false }, 300) }}
