@@ -874,7 +874,6 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     setScramblingLang(null)
     setLanguageSwapPhase('label-settling')
     setLanguageArrowSuppressed(true)
-    setLanguageArrowEntered(false)
     setLanguageLabelStable(false)
     languageArrowAwaitingLeaveRef.current = true
   }, [])
