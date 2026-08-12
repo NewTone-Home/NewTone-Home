@@ -77,7 +77,7 @@ function ReaderStage({
     || window.matchMedia(DIRECT_READER_QUERY).matches
   )
   const finalNodeReached = !emptyDocument && beats.length > 0 && focusBeatIndex >= beats.length - 1
-  const returnVisible = !returnDismissed && (returnExiting || emptyDocument || readerAtBottom || (directReaderInput && finalNodeReached))
+  const returnVisible = !returnDismissed && (returnExiting || returnArmed || emptyDocument || readerAtBottom || (directReaderInput && finalNodeReached))
   const locationLabel = emptyDocument
     ? (language === 'en' ? 'No pages yet' : '暂无页面')
     : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')

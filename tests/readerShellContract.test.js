@@ -198,7 +198,7 @@ describe('Reader shell contract boundaries', () => {
     expect(isReaderViewportAtBottom(500, 500, 1008)).toBe(true)
     expect(isReaderViewportAtBottom(480, 500, 1008)).toBe(false)
     expect(stage).toContain('const DIRECT_READER_QUERY')
-    expect(stage).toContain('const returnVisible = !returnDismissed && (returnExiting || emptyDocument || readerAtBottom || (directReaderInput && finalNodeReached))')
+    expect(stage).toContain('const returnVisible = !returnDismissed && (returnExiting || returnArmed || emptyDocument || readerAtBottom || (directReaderInput && finalNodeReached))')
     expect(stage).toContain('onViewportBoundaryChange={handleViewportBoundaryChange}')
     expect(beatStack).toContain('lastBeat.getBoundingClientRect().bottom <= viewport.getBoundingClientRect().bottom')
     expect(stage).not.toContain('escapeReturnVisible')
