@@ -214,7 +214,11 @@ function ReaderBeatStack({
     let touchStartedAtBottom = false
     let touchHandled = false
     const onWheel = event => {
-      if (returnArmed || !atBottomRef.current || event.deltaY <= RETURN_WHEEL_THRESHOLD) return
+      if (returnArmed) {
+        if (event.cancelable) event.preventDefault()
+        return
+      }
+      if (!atBottomRef.current || event.deltaY <= RETURN_WHEEL_THRESHOLD) return
       atBottomRef.current = false
       onNativeBoundary?.('forward')
     }
@@ -231,7 +235,7 @@ function ReaderBeatStack({
       atBottomRef.current = false
       onNativeBoundary?.('forward')
     }
-    viewport.addEventListener('wheel', onWheel, { passive: true })
+    viewport.addEventListener('wheel', onWheel, { passive: false })
     viewport.addEventListener('touchstart', onTouchStart, { passive: true })
     viewport.addEventListener('touchmove', onTouchMove, { passive: true })
     return () => {

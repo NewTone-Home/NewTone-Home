@@ -276,6 +276,7 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
   const { clearInputAccumulator } = useReaderInput({
     onSteps: handleReadingSteps,
     shouldSuppressForwardWheel: shouldSuppressReturnWheel,
+    shouldSuppressWheel: shouldSuppressReturnWheel,
   })
   clearInputAccumulatorRef.current = clearInputAccumulator
 

@@ -81,5 +81,8 @@ describe('Landing updates return entry', () => {
     expect(page).toContain('mobileReturnReady')
     expect(page).toContain('resolveTouchReturnSwipe')
     expect(styles).toContain('@media (pointer: coarse)')
+    expect(styles).toContain('pointer-events: auto;')
+    expect(styles).toContain('touch-action: pan-y;')
+    expect(styles).toContain('[data-return-state="ready"] .landing-updates-return')
   })
 })

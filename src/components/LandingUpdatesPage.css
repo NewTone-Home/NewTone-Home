@@ -283,7 +283,17 @@
 
   .landing-updates-return {
     opacity: 0;
-    pointer-events: none;
+    pointer-events: auto;
+    touch-action: pan-y;
+  }
+
+  .landing-updates-page[data-return-state="text"] .landing-updates-return,
+  .landing-updates-page[data-return-state="arrow"] .landing-updates-return,
+  .landing-updates-page[data-return-state="arrow-turn"] .landing-updates-return,
+  .landing-updates-page[data-return-state="ring"] .landing-updates-return,
+  .landing-updates-page[data-return-state="ready"] .landing-updates-return {
+    opacity: .78;
+    pointer-events: auto;
   }
 
   .landing-updates-page[data-return-armed="true"] .landing-updates-return__arrow .landing-entry-ring {
