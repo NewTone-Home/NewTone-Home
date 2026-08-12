@@ -820,7 +820,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     && (!modeStage || modeActionsReady)
 
   useEffect(() => {
-    if (modeStage || !expanded) return undefined
+    if (modeStage) return undefined
     const trackBoundary = event => {
       const zoneRect = secondaryZoneRef.current?.getBoundingClientRect()
       const insideZoneRect = zoneRect
@@ -829,13 +829,14 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
         && event.clientY >= zoneRect.top
         && event.clientY <= zoneRect.bottom
       if (insideZoneRect) return
+      if (!languageSecondaryInsideRef.current && !languageArrowAwaitingLeaveRef.current) return
       const pointedNode = document.elementFromPoint(event.clientX, event.clientY)
       if (pointedNode && secondaryZoneRef.current?.contains(pointedNode)) return
       handleLanguageBoundaryLeave()
     }
     window.addEventListener('pointermove', trackBoundary)
     return () => window.removeEventListener('pointermove', trackBoundary)
-  }, [expanded, handleLanguageBoundaryLeave, modeStage])
+  }, [handleLanguageBoundaryLeave, modeStage])
 
   useLayoutEffect(() => {
     const syncRingMetrics = (button, textNode) => {
@@ -1076,7 +1077,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                             <LandingEntryArrow
                               className="ritual-entry-arrow ritual-entry-arrow--language"
                               direction={languageArrowDirection}
-                              initialDirection="right"
+                              initialDirection={languageArrowSuppressed ? 'left' : 'right'}
                               phase={locked || scramblingLang || (!expanded && !languageLabelPinned) ? 'retracting' : 'steady'}
                               sourceRef={currentLanguageLabelRef}
                               entryReady={languageArrowReady || languageArrowEntered || Boolean(scramblingLang)}
