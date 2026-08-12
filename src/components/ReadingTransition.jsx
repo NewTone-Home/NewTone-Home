@@ -752,12 +752,22 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     const rect = getTextHitRect(activeText)
     const inside = Boolean(rect && event.clientX >= rect.left && event.clientX <= rect.right
       && event.clientY >= rect.top && event.clientY <= rect.bottom)
+    const canReenterPinnedCycle = languageLabelPinned
+      && languageLabelStable
+      && !isSwitchingRef.current
+      && !languageSwapRef.current
+    if (inside && canReenterPinnedCycle && languageArrowAwaitingLeaveRef.current) {
+      languageArrowAwaitingLeaveRef.current = false
+      languageSecondaryInsideRef.current = false
+      setLanguageArrowSuppressed(false)
+      setLanguageArrowEntered(false)
+    }
     if (!inside || languageSecondaryInsideRef.current) return
     languageSecondaryInsideRef.current = true
     setHoveredOption('secondary')
     handleEnter()
     languageSelectorHold.hold()
-  }, [handleEnter, languageLabelShown, languageSelectorHold, modeStage])
+  }, [handleEnter, languageLabelShown, languageLabelPinned, languageLabelStable, languageSelectorHold, modeStage])
 
   const handleLanguageSecondaryEnter = useCallback(() => {
     if (modeStage) return
