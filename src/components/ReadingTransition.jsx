@@ -808,6 +808,13 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   useEffect(() => {
     if (modeStage || !expanded) return undefined
     const trackBoundary = event => {
+      const zoneRect = secondaryZoneRef.current?.getBoundingClientRect()
+      const insideZoneRect = zoneRect
+        && event.clientX >= zoneRect.left
+        && event.clientX <= zoneRect.right
+        && event.clientY >= zoneRect.top
+        && event.clientY <= zoneRect.bottom
+      if (insideZoneRect) return
       const pointedNode = document.elementFromPoint(event.clientX, event.clientY)
       if (pointedNode && secondaryZoneRef.current?.contains(pointedNode)) return
       handleLanguageBoundaryLeave()
