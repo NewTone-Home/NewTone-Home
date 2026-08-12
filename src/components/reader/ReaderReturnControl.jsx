@@ -129,7 +129,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, o
   }, [completing, entryReady, onReadyChange])
 
   useEffect(() => {
-    if (!visualArmed) return undefined
+    if (!entryReady) return undefined
     completedRef.current = false
     let directGesture = null
 
@@ -189,7 +189,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, o
       window.removeEventListener('pointerup', clearDirectGesture)
       window.removeEventListener('pointercancel', clearDirectGesture)
     }
-  }, [entryReady, maybeCompleteReturn, visualArmed])
+  }, [entryReady, maybeCompleteReturn])
 
   const affordanceVisible = visualArmed || progress > 0.001
 
@@ -204,7 +204,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, o
       data-return-ready={entryReady ? 'true' : 'false'}
       data-return-completing={completing ? 'true' : 'false'}
       onPointerEnter={event => {
-        setHovered(true)
+        if (event.pointerType === 'mouse') setHovered(true)
         if (!completing && event.pointerType === 'mouse' && hasHoverPointer()) onArm()
       }}
       onPointerLeave={event => {
@@ -226,7 +226,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, o
         </span>
         <LandingEntryArrow
           className="reader-return-entry-arrow"
-          direction={completing ? 'left' : hovered ? 'down' : 'left'}
+          direction={completing ? 'left' : hovered || armed ? 'down' : 'right'}
           initialDirection="right"
           phase={completing ? 'retracting' : 'steady'}
           sourceRef={returnTextRef}

@@ -235,7 +235,6 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
 
     const frame = window.requestAnimationFrame(() => {
       if (returnEntryPhaseRef.current !== RETURN_ENTRY_PHASE.HIDDEN) return
-      setMobileReturnArmed(true)
       setMobileReturnReady(false)
       beginDesktopReturnEntry()
     })
@@ -338,8 +337,10 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
 
   const handleTouchReturn = useCallback((event) => {
     if (!['touch', 'pen'].includes(event.pointerType) || !interactive) return
+    if (returnEntryPhaseRef.current !== RETURN_ENTRY_PHASE.ARROW) return
     if (!mobileReturnArmed) setMobileReturnArmed(true)
-  }, [interactive, mobileReturnArmed])
+    transitionReturnEntry(RETURN_ENTRY_PHASE.ARROW_TURN)
+  }, [interactive, mobileReturnArmed, transitionReturnEntry])
 
   const handleReturnTextRevealed = useCallback((generation) => {
     if (
@@ -359,7 +360,7 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
 
   const handleAnimationEnd = useCallback((event) => {
     if (event.animationName === 'updates-return-arrow-reveal') {
-      if (returnEntryPhaseRef.current === RETURN_ENTRY_PHASE.ARROW) {
+      if (returnEntryPhaseRef.current === RETURN_ENTRY_PHASE.ARROW && !isCoarsePointer()) {
         transitionReturnEntry(RETURN_ENTRY_PHASE.ARROW_TURN)
       }
       return
@@ -376,7 +377,7 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
       (phase === UPDATES_PHASE.ENTER_SURFACE && event.animationName === 'updates-page-enter')
       || (phase === UPDATES_PHASE.RETURN_SURFACE && event.animationName === 'updates-page-return')
     ) onSurfaceComplete()
-  }, [mobileReturnArmed, onSurfaceComplete, phase, transitionReturnEntry])
+  }, [onSurfaceComplete, phase, transitionReturnEntry])
 
   const handleTransitionEnd = useCallback((event) => {
     if (

@@ -18,12 +18,16 @@ describe('Landing updates return entry', () => {
 
   it('proves the strict text, arrow, ready order without a rendered ring', () => {
     const textToArrow = page.indexOf("transitionReturnEntry(RETURN_ENTRY_PHASE.ARROW)")
-    const arrowToTurn = page.indexOf("transitionReturnEntry(RETURN_ENTRY_PHASE.ARROW_TURN)")
+    const mobileArrowGate = page.indexOf(
+      "returnEntryPhaseRef.current === RETURN_ENTRY_PHASE.ARROW && !isCoarsePointer()",
+    )
     const ringToReady = page.indexOf("transitionReturnEntry(RETURN_ENTRY_PHASE.READY)")
 
     expect(textToArrow).toBeGreaterThan(-1)
-    expect(arrowToTurn).toBeGreaterThan(textToArrow)
+    expect(mobileArrowGate).toBeGreaterThan(-1)
     expect(ringToReady).toBeGreaterThan(textToArrow)
+    expect(page).toContain('if (returnEntryPhaseRef.current !== RETURN_ENTRY_PHASE.ARROW) return')
+    expect(page).toContain('transitionReturnEntry(RETURN_ENTRY_PHASE.ARROW_TURN)')
     expect(page).toContain('showRing={false}')
     expect(page).toContain("RETURN_ENTRY_PHASE.WITHDRAW_ARROW_TURN")
     expect(page).toContain('withdrawing={isTextWithdrawalPhase(returnEntryPhase)}')
