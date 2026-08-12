@@ -48,6 +48,11 @@ function isDesktopPointer(event) {
   return ['mouse', 'pen'].includes(event.pointerType)
 }
 
+function isCoarsePointer() {
+  return typeof window !== 'undefined'
+    && window.matchMedia?.('(pointer: coarse)').matches === true
+}
+
 function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
   const [returnEntryPhase, setReturnEntryPhase] = useState(RETURN_ENTRY_PHASE.HIDDEN)
   const [mobileReturnArmed, setMobileReturnArmed] = useState(false)
@@ -226,6 +231,19 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
   }, [advanceWithdrawalStage, returnEntryPhase])
 
   useEffect(() => {
+    if (!interactive || !isCoarsePointer()) return undefined
+
+    const frame = window.requestAnimationFrame(() => {
+      if (returnEntryPhaseRef.current !== RETURN_ENTRY_PHASE.HIDDEN) return
+      setMobileReturnArmed(true)
+      setMobileReturnReady(false)
+      beginDesktopReturnEntry()
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [beginDesktopReturnEntry, interactive])
+
+  useEffect(() => {
     if (!interactive) return undefined
 
     const onWheel = (event) => {
@@ -321,8 +339,7 @@ function LandingUpdatesPage({ phase, onSurfaceComplete, onReturnRequested }) {
   const handleTouchReturn = useCallback((event) => {
     if (!['touch', 'pen'].includes(event.pointerType) || !interactive) return
     if (!mobileReturnArmed) setMobileReturnArmed(true)
-    if (!mobileReturnReady) setMobileReturnReady(true)
-  }, [interactive, mobileReturnArmed, mobileReturnReady])
+  }, [interactive, mobileReturnArmed])
 
   const handleReturnTextRevealed = useCallback((generation) => {
     if (

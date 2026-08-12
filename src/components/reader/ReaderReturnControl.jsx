@@ -211,7 +211,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onStart, o
         setHovered(false)
         if (!completing && !entryReady && event.pointerType === 'mouse' && hasHoverPointer()) onDisarm()
       }}
-      onPointerUp={event => {
+      onPointerDown={event => {
         if (!completing && isDirectPointer(event.pointerType) && !armed) onArm()
       }}
       onClick={event => {
