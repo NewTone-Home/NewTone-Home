@@ -18,6 +18,7 @@ import { NewToneTransitionMark } from './landing/LandingTitleMark'
 import './ReadingTransition.css'
 
 const RESUME_BLINK_CYCLE_MS = 1180
+const LANGUAGE_LABEL_REFORM_MS = 650
 
 const TRANSITION_ENVIRONMENT_COPY = Object.freeze({
   zh: {
@@ -95,7 +96,7 @@ function ResumeEnvironment({ lines }) {
 }
 
 function ExpandLabel({ labelText, labelVisible, labelRef, scrambleActive, holdFinal, onStableChange }) {
-  const labelCharInterval = Math.max(80, Math.floor(650 / Math.max(1, Array.from(labelText).length)))
+  const labelCharInterval = Math.max(80, Math.floor(LANGUAGE_LABEL_REFORM_MS / Math.max(1, Array.from(labelText).length)))
   const { displayText, stable } = useScrambleText(labelText, {
     startDelay: 0,
     charInterval: labelCharInterval,
@@ -950,6 +951,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
                               phase={locked || scramblingLang || (!expanded && !languageLabelPinned) ? 'retracting' : 'steady'}
                               sourceRef={currentLanguageLabelRef}
                               entryReady={languageArrowReady || languageArrowEntered || Boolean(scramblingLang)}
+                              exitDelayMs={0}
+                              exitDurationMs={LANGUAGE_LABEL_REFORM_MS}
                               onEntryStart={() => setAlternateLanguageReady(true)}
                               onExitComplete={handleLanguageChangeExit}
                               showRing={false}

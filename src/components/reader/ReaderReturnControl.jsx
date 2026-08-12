@@ -6,6 +6,7 @@ import './ReaderReturnControl.css'
 
 const RETURN_RING_DRAW_MS = 2200
 const RETURN_RING_RETRACT_MS = 1200
+const RETURN_TEXT_EXIT_MS = 900
 const RETURN_WHEEL_THRESHOLD = 8
 const RETURN_DIRECT_THRESHOLD = 36
 
@@ -65,7 +66,7 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
     charInterval: Math.max(70, Math.floor(650 / Math.max(1, returnLabel.length))),
     scrambleInterval: 40,
     withdrawing: completing,
-    withdrawalDuration: 900,
+    withdrawalDuration: RETURN_TEXT_EXIT_MS,
     onWithdrawn: handleTextExitComplete,
   })
 
@@ -220,6 +221,8 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onReadyChange, onComplete
           phase={completing ? 'retracting' : 'steady'}
           sourceRef={returnTextRef}
           entryReady={returnTextStable}
+          exitDelayMs={0}
+          exitDurationMs={RETURN_TEXT_EXIT_MS}
           showRing={false}
           onExitComplete={handleArrowExitComplete}
         />

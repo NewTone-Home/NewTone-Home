@@ -29,6 +29,8 @@ function LandingEntryArrow({
   sourceEdge = 'right',
   entryReady = true,
   initialDirection = 'right',
+  exitDelayMs = 420,
+  exitDurationMs = 900,
   onEntryStart,
   onEntryComplete,
   onExitComplete,
@@ -273,6 +275,12 @@ function LandingEntryArrow({
         arrowDelayed ? 'is-reveal-delayed' : '',
         phase === 'retracting' ? 'is-arrow-retracting' : '',
       ].filter(Boolean).join(' ')}
+      style={revealVariant === 'generic'
+        ? {
+            '--landing-entry-generic-retract-delay': `${exitDelayMs}ms`,
+            '--landing-entry-generic-retract-duration': `${exitDurationMs}ms`,
+          }
+        : undefined}
       aria-hidden="true"
       onAnimationEnd={handleRevealAnimationEnd}
     >

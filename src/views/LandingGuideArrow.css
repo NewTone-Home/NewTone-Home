@@ -95,6 +95,8 @@
   overflow: visible;
   pointer-events: none;
   visibility: hidden;
+  --landing-entry-generic-retract-delay: 420ms;
+  --landing-entry-generic-retract-duration: 900ms;
 }
 
 .landing-entry-reveal--generic.is-reveal-measured {
@@ -121,7 +123,7 @@
 }
 
 .landing-entry-reveal--generic.is-arrow-retracting {
-  animation: landing-entry-generic-retract 900ms cubic-bezier(.2,.8,.2,1) 420ms forwards;
+  animation: landing-entry-generic-retract var(--landing-entry-generic-retract-duration) cubic-bezier(.2,.8,.2,1) var(--landing-entry-generic-retract-delay) forwards;
 }
 
 @keyframes landing-entry-generic-pull-out {
@@ -212,7 +214,7 @@
   transition-timing-function: cubic-bezier(.42,0,.58,1);
 }
 
-.landing[data-updates-phase="return-arrows"] .landing-entry-arrow {
+.landing[data-updates-phase="return-arrows"] .landing-guide-entry-arrow {
   animation: landing-updates-arrow-return 1400ms cubic-bezier(.42,0,.58,1) forwards;
 }
 
@@ -369,7 +371,7 @@
 @media (prefers-reduced-motion: reduce) {
   .landing[data-updates-phase="enter-arrows"] .landing-entry-arrow,
   .landing[data-updates-phase="enter-arrow-turn"] .landing-entry-arrow__rotator,
-  .landing[data-updates-phase="return-arrows"] .landing-entry-arrow,
+  .landing[data-updates-phase="return-arrows"] .landing-guide-entry-arrow,
   .landing[data-updates-phase="return-arrow-turn"] .landing-entry-arrow__rotator {
     animation-duration: 1ms !important;
   }
