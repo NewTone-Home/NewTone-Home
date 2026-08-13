@@ -1,6 +1,6 @@
 .reader-return-control {
   --return-mask: #000;
-  --return-mask-text: #f4efe6;
+  --return-text: #f4efe6;
   --return-door-light: rgb(255 255 255 / .24);
   --return-door-shadow: rgb(0 0 0 / .34);
   position: absolute;
@@ -28,7 +28,7 @@
 
 .reader-return-control[data-return-world-layer='inner'] {
   --return-mask: #fff;
-  --return-mask-text: #191817;
+  --return-text: #191817;
   --return-door-light: rgb(255 255 255 / .64);
   --return-door-shadow: rgb(0 0 0 / .2);
 }
@@ -38,13 +38,16 @@
   pointer-events: none;
 }
 
-.reader-return-control:disabled { cursor: default; }
+.reader-return-control:disabled {
+  cursor: default;
+}
 
 .reader-return-control:focus-visible {
   outline: 1px solid currentColor;
   outline-offset: 5px;
 }
 
+/* One local stacking context. The frame is intentionally the outermost layer. */
 .reader-return-content {
   position: relative;
   z-index: 0;
@@ -55,18 +58,19 @@
   place-items: center;
 }
 
-/* The door is clipped to this inset room; the SVG frame is outside it. */
+/* The mask never leaves this inset room. It cannot cover the SVG frame. */
 .reader-return-mask {
   position: absolute;
   z-index: 1;
   inset: 3px;
   box-sizing: border-box;
   overflow: hidden;
-  perspective: 160px;
+  perspective: 220px;
   pointer-events: none;
 }
 
-.reader-return-room,
+/* The depth surface is invisible at door progress 0; it is never a static mask. */
+.reader-return-space,
 .reader-return-door {
   position: absolute;
   box-sizing: border-box;
@@ -75,7 +79,7 @@
   will-change: transform, opacity;
 }
 
-.reader-return-room {
+.reader-return-space {
   z-index: 0;
   inset: 0;
   background: var(--return-mask);
@@ -92,13 +96,7 @@
     inset 0 0 16px var(--return-door-shadow);
 }
 
-.reader-return-control[data-return-mask-direction='left'] .reader-return-door--one,
-.reader-return-control[data-return-mask-direction='right'] .reader-return-door--one,
-.reader-return-control[data-return-mask-direction='top'] .reader-return-door--one,
-.reader-return-control[data-return-mask-direction='bottom'] .reader-return-door--one {
-  display: block;
-}
-
+/* Center is the only two-door model. All other directions render one door. */
 .reader-return-control[data-return-mask-direction='center'] .reader-return-door {
   top: 0;
   bottom: 0;
@@ -120,10 +118,11 @@
 .reader-return-text {
   position: relative;
   z-index: 2;
+  color: var(--return-text);
   white-space: nowrap;
 }
 
-/* The frame is deliberately the last and highest visual layer. */
+/* The border is the final visual layer and remains readable over the door. */
 .reader-return-frame {
   position: absolute;
   z-index: 3;
@@ -159,8 +158,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .reader-return-control,
-  .reader-return-room,
+  .reader-return-space,
   .reader-return-door,
   .reader-return-frame {
     will-change: auto;
