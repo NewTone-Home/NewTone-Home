@@ -251,9 +251,6 @@ function ReaderReturnControl({
   const present = phase !== 'hidden'
   const active = progress.door > 0.001
   const variant = variantRef.current
-  const roomStyle = variant.maskDirection === 'center'
-    ? { opacity: progress.door, transform: `scaleX(${progress.door})` }
-    : undefined
 
   return (
     <button
@@ -288,7 +285,12 @@ function ReaderReturnControl({
     >
       <span className="reader-return-content">
         <span className="reader-return-mask" aria-hidden="true">
-          <span className="reader-return-room" style={roomStyle} />
+          {variant.maskDirection === 'center' && (
+            <span
+              className="reader-return-room"
+              style={{ opacity: progress.door, transform: `scaleX(${progress.door})` }}
+            />
+          )}
           <span className="reader-return-door reader-return-door--one" style={getDoorStyle(variant.maskDirection, 'one', progress.door)} />
           <span className="reader-return-door reader-return-door--two" style={getDoorStyle(variant.maskDirection, 'two', progress.door)} />
         </span>

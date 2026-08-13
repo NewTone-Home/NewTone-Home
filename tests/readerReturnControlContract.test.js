@@ -34,6 +34,7 @@ describe('portable Reader return control', () => {
     expect(controlCss).toContain("data-return-mask-direction='bottom'")
     expect(controlCss).toContain("data-return-mask-direction='center'")
     expect(controlCss).toContain('perspective: 160px')
+    expect(control).toContain("variant.maskDirection === 'center' &&")
   })
 
   it('leaves ReaderStage responsible only for the boundary fact and host callbacks', () => {
