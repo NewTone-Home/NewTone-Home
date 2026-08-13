@@ -37,3 +37,38 @@ export function resolveTouchReturnSwipe({ armed, ready, pointerType, startY, end
   if (!Number.isFinite(startY) || !Number.isFinite(endY)) return false
   return endY - startY >= 42
 }
+
+export const UPDATE_RETURN_INTENTS = Object.freeze({
+  RETURN: 'return',
+  CANCEL: 'cancel',
+})
+
+export function resolveUpdatesWheelIntent({
+  isCoarse = false,
+  phase,
+  armed = false,
+  ready = false,
+  deltaY,
+}) {
+  if (!Number.isFinite(deltaY) || Math.abs(deltaY) <= 8) return null
+
+  if (isCoarse) {
+    if (!armed || !ready) return null
+    return deltaY > 0 ? UPDATE_RETURN_INTENTS.RETURN : UPDATE_RETURN_INTENTS.CANCEL
+  }
+
+  if (![
+    'arrow-turn',
+    'ready',
+  ].includes(phase)) return null
+
+  return deltaY < 0 ? UPDATE_RETURN_INTENTS.RETURN : null
+}
+
+export function resolveUpdatesTouchIntent({ armed = false, ready = false, startY, endY }) {
+  if (!armed || !ready || !Number.isFinite(startY) || !Number.isFinite(endY)) return null
+  const delta = endY - startY
+  if (delta >= 42) return UPDATE_RETURN_INTENTS.RETURN
+  if (delta <= -42) return UPDATE_RETURN_INTENTS.CANCEL
+  return null
+}

@@ -4,8 +4,6 @@ import './ReaderBeatStack.css'
 
 const NATIVE_SCROLL_QUERY = '(hover: none), (pointer: coarse), (max-width: 720px)'
 const BOUNDARY_THRESHOLD_PX = 12
-const RETURN_WHEEL_THRESHOLD = 8
-const RETURN_TOUCH_THRESHOLD = 36
 
 export function isReaderViewportAtBottom(scrollTop, clientHeight, scrollHeight) {
   return scrollTop + clientHeight >= scrollHeight - BOUNDARY_THRESHOLD_PX
@@ -26,10 +24,8 @@ function ReaderBeatStack({
   onFocusMotionEnd,
   focusRef,
   onNativeFocusChange,
-  onNativeBoundary,
   onNativeScrollOffset,
   onViewportBoundaryChange,
-  returnArmed = false,
   initialScrollOffset = 0,
   narrativeRuntimeEnabled = true,
   narrativeDeliveryStates = {},
@@ -44,7 +40,6 @@ function ReaderBeatStack({
   const frameRef = useRef(0)
   const lastReportedIndexRef = useRef(focusBeatIndex)
   const nativeScrollInitializedRef = useRef(false)
-  const boundaryLockRef = useRef(null)
   const lastScrollTopRef = useRef(0)
   const atBottomRef = useRef(false)
   const [offset, setOffset] = useState(0)
@@ -68,7 +63,12 @@ function ReaderBeatStack({
       ? isReaderContentEndVisible(viewport.getBoundingClientRect().bottom, lastBeat.getBoundingClientRect().bottom)
       : lastNodeReached && lastBeat.getBoundingClientRect().bottom <= viewport.getBoundingClientRect().bottom + BOUNDARY_THRESHOLD_PX
     atBottomRef.current = atBottom && lastNodeReached
-    onViewportBoundaryChange?.({ atBottom: atBottomRef.current, lastNodeReached })
+    onViewportBoundaryChange?.({
+      atBottom: atBottomRef.current,
+      lastNodeReached,
+      direction: 0,
+      atTop: nativeScroll && viewport.scrollTop <= BOUNDARY_THRESHOLD_PX,
+    })
   }
 
   useEffect(() => {
@@ -92,7 +92,6 @@ function ReaderBeatStack({
     if (nativeScroll) {
       const needsInitialPosition = !nativeScrollInitializedRef.current || pageChanged
       nativeScrollInitializedRef.current = true
-      if (pageChanged) boundaryLockRef.current = null
       if (needsInitialPosition) {
         const targetTop = focused.offsetTop - (viewport.clientHeight - focused.offsetHeight) / 2
         const nextTop = initialScrollOffset > 0
@@ -145,7 +144,7 @@ function ReaderBeatStack({
 
   useEffect(() => {
     atBottomRef.current = false
-    onViewportBoundaryChange?.({ atBottom: false, lastNodeReached: false })
+      onViewportBoundaryChange?.({ atBottom: false, lastNodeReached: false, direction: 0, atTop: false })
   }, [beats, onViewportBoundaryChange])
 
   useEffect(() => {
@@ -188,14 +187,13 @@ function ReaderBeatStack({
           && isReaderContentEndVisible(viewportRect.bottom, lastBeat.getBoundingClientRect().bottom)
         const lastNodeReached = nearestIndex === beats.length - 1
         atBottomRef.current = atBottom && lastNodeReached
-        onViewportBoundaryChange?.({ atBottom: atBottomRef.current, lastNodeReached })
+        onViewportBoundaryChange?.({
+          atBottom: atBottomRef.current,
+          lastNodeReached,
+          direction,
+          atTop: atTop && nearestIndex === 0,
+        })
 
-        if (!atTop && !atBottom) boundaryLockRef.current = null
-
-        if (direction < 0 && atTop && nearestIndex === 0 && boundaryLockRef.current !== 'backward') {
-          boundaryLockRef.current = 'backward'
-          onNativeBoundary?.('backward')
-        }
       })
     }
 
@@ -204,46 +202,7 @@ function ReaderBeatStack({
       viewport.removeEventListener('scroll', updateFromScroll)
       cancelAnimationFrame(frameRef.current)
     }
-  }, [beats, nativeScroll, onNativeBoundary, onNativeFocusChange, onNativeScrollOffset, onViewportBoundaryChange])
-
-  useEffect(() => {
-    if (!nativeScroll) return undefined
-    const viewport = viewportRef.current
-    if (!viewport) return undefined
-    let touchStartY = 0
-    let touchStartedAtBottom = false
-    let touchHandled = false
-    const onWheel = event => {
-      if (returnArmed) {
-        if (event.cancelable) event.preventDefault()
-        return
-      }
-      if (!atBottomRef.current || event.deltaY <= RETURN_WHEEL_THRESHOLD) return
-      atBottomRef.current = false
-      onNativeBoundary?.('forward')
-    }
-    const onTouchStart = event => {
-      touchStartY = event.touches[0]?.clientY ?? 0
-      touchStartedAtBottom = atBottomRef.current
-      touchHandled = false
-    }
-    const onTouchMove = event => {
-      if (returnArmed || touchHandled || !touchStartedAtBottom) return
-      const currentY = event.touches[0]?.clientY ?? touchStartY
-      if (touchStartY - currentY <= RETURN_TOUCH_THRESHOLD) return
-      touchHandled = true
-      atBottomRef.current = false
-      onNativeBoundary?.('forward')
-    }
-    viewport.addEventListener('wheel', onWheel, { passive: false })
-    viewport.addEventListener('touchstart', onTouchStart, { passive: true })
-    viewport.addEventListener('touchmove', onTouchMove, { passive: true })
-    return () => {
-      viewport.removeEventListener('wheel', onWheel)
-      viewport.removeEventListener('touchstart', onTouchStart)
-      viewport.removeEventListener('touchmove', onTouchMove)
-    }
-  }, [nativeScroll, onNativeBoundary, returnArmed])
+  }, [beats, nativeScroll, onNativeFocusChange, onNativeScrollOffset, onViewportBoundaryChange])
 
   return (
     <div

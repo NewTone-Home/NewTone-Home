@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   advanceUpdatesPhase,
+  resolveUpdatesTouchIntent,
+  resolveUpdatesWheelIntent,
   resolveTouchReturnSwipe,
+  UPDATE_RETURN_INTENTS,
   UPDATES_PHASE,
 } from '../src/landing/landingUpdatesFlow'
 
@@ -38,5 +41,15 @@ describe('Landing updates flow', () => {
     expect(resolveTouchReturnSwipe({ armed: true, ready: true, pointerType: 'touch', startY: 500, endY: 525 })).toBe(false)
     expect(resolveTouchReturnSwipe({ armed: true, ready: true, pointerType: 'touch', startY: 500, endY: 560 })).toBe(true)
     expect(resolveTouchReturnSwipe({ armed: true, ready: true, pointerType: 'touch', startY: 560, endY: 500 })).toBe(false)
+  })
+
+  it('keeps mobile return direction and cancellation explicit', () => {
+    expect(resolveUpdatesWheelIntent({ isCoarse: true, phase: 'ready', armed: false, ready: true, deltaY: 12 })).toBeNull()
+    expect(resolveUpdatesWheelIntent({ isCoarse: true, phase: 'ready', armed: true, ready: true, deltaY: 12 })).toBe(UPDATE_RETURN_INTENTS.RETURN)
+    expect(resolveUpdatesWheelIntent({ isCoarse: true, phase: 'ready', armed: true, ready: true, deltaY: -12 })).toBe(UPDATE_RETURN_INTENTS.CANCEL)
+    expect(resolveUpdatesWheelIntent({ isCoarse: false, phase: 'ready', deltaY: -12 })).toBe(UPDATE_RETURN_INTENTS.RETURN)
+    expect(resolveUpdatesWheelIntent({ isCoarse: false, phase: 'ready', deltaY: 12 })).toBeNull()
+    expect(resolveUpdatesTouchIntent({ armed: true, ready: true, startY: 400, endY: 460 })).toBe(UPDATE_RETURN_INTENTS.RETURN)
+    expect(resolveUpdatesTouchIntent({ armed: true, ready: true, startY: 460, endY: 400 })).toBe(UPDATE_RETURN_INTENTS.CANCEL)
   })
 })

@@ -7,18 +7,22 @@ import './ReaderReturnControl.css'
 const RETURN_RING_DRAW_MS = 2200
 const RETURN_RING_RETRACT_MS = 1200
 const RETURN_TEXT_EXIT_MS = 900
-const RETURN_WHEEL_THRESHOLD = 8
-const RETURN_DIRECT_THRESHOLD = 36
 
-function hasHoverPointer() {
-  return window.matchMedia?.('(hover: hover) and (pointer: fine)').matches === true
-}
-
-function isDirectPointer(pointerType) {
-  return pointerType === 'touch' || pointerType === 'pen'
-}
-
-function ReaderReturnControl({ armed, onArm, onDisarm, onDismissStart, onDismissComplete, onReadyChange, onStart, onComplete, language }) {
+function ReaderReturnControl({
+  armed,
+  onDismissStart,
+  onDismissComplete,
+  exitRequestId = 0,
+  exitRequestMode = 'dismiss',
+  onReadyChange,
+  onStart,
+  onComplete,
+  onPointerEnter,
+  onPointerLeave,
+  onPointerDown,
+  onClick,
+  language,
+}) {
   const ui = getReaderUi(language)
   const fallbackUi = getReaderUi('zh')
   const returnLabel = ui.returnToLanding || ui.backToLanding || fallbackUi.returnToLanding
@@ -36,8 +40,10 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onDismissStart, onDismiss
   const completionReportedRef = useRef(false)
   const dismissOnlyRef = useRef(false)
   const dismissReportedRef = useRef(false)
+  const handledExitRequestRef = useRef(0)
   const reducedExitRef = useRef(false)
   const frameRef = useRef(0)
+  const startExitRef = useRef(null)
   const onCompleteRef = useRef(onComplete)
   const onDismissStartRef = useRef(onDismissStart)
   const onDismissCompleteRef = useRef(onDismissComplete)
@@ -138,87 +144,43 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onDismissStart, onDismiss
   const entryReady = visualArmed && progress >= 0.999
 
   useEffect(() => {
-    onReadyChange?.(visualArmed || completing)
-  }, [completing, onReadyChange, visualArmed])
+    onReadyChange?.(entryReady || completing)
+  }, [completing, entryReady, onReadyChange])
+
+  const startExit = useCallback((navigate = true) => {
+    if (completedRef.current) return
+    completedRef.current = true
+    pendingCompleteRef.current = navigate
+    dismissOnlyRef.current = !navigate
+    completionReportedRef.current = false
+    dismissReportedRef.current = false
+    textExitCompleteRef.current = false
+    arrowExitCompleteRef.current = false
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+    reducedExitRef.current = reduced
+    progressExitCompleteRef.current = reduced
+    if (navigate) onStartRef.current?.()
+    if (!navigate) onDismissStartRef.current?.()
+    setCompleting(true)
+    setHovered(false)
+    if (reduced) {
+      textExitCompleteRef.current = true
+      arrowExitCompleteRef.current = true
+      maybeCompleteReturn()
+    }
+  }, [maybeCompleteReturn])
+
+  startExitRef.current = startExit
 
   useEffect(() => {
-    if (!visualArmed) return undefined
-    completedRef.current = false
-    let directGesture = null
-
-    const startExit = (navigate = true) => {
-      if (completedRef.current) return
-      completedRef.current = true
-      pendingCompleteRef.current = navigate
-      dismissOnlyRef.current = !navigate
-      completionReportedRef.current = false
-      dismissReportedRef.current = false
-      textExitCompleteRef.current = false
-      arrowExitCompleteRef.current = false
-      const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
-      reducedExitRef.current = reduced
-      progressExitCompleteRef.current = reduced
-      if (navigate) onStartRef.current?.()
-      if (!navigate) onDismissStartRef.current?.()
-      setCompleting(true)
-      setHovered(false)
-      if (reduced) {
-        textExitCompleteRef.current = true
-        arrowExitCompleteRef.current = true
-        maybeCompleteReturn()
-      }
+    if (!exitRequestId) {
+      handledExitRequestRef.current = 0
+      return
     }
-
-    const onWheel = event => {
-      if (event.deltaY > RETURN_WHEEL_THRESHOLD) startExit(true)
-      if (event.deltaY < -RETURN_WHEEL_THRESHOLD) startExit(false)
-    }
-
-    const onPointerDown = event => {
-      if (!isDirectPointer(event.pointerType)) return
-      directGesture = {
-        pointerId: event.pointerId,
-        startY: event.clientY,
-      }
-    }
-
-    const onPointerMove = event => {
-      if (!directGesture || event.pointerId !== directGesture.pointerId) return
-      const delta = directGesture.startY - event.clientY
-      if (delta <= RETURN_DIRECT_THRESHOLD && delta >= -RETURN_DIRECT_THRESHOLD) return
-      directGesture = null
-      if (delta > RETURN_DIRECT_THRESHOLD) {
-        startExit(true)
-        return
-      }
-      startExit(false)
-    }
-
-    const onPointerUp = event => {
-      if (!directGesture || event.pointerId !== directGesture.pointerId) return
-      const gesture = directGesture
-      directGesture = null
-      if (Math.abs(gesture.startY - event.clientY) <= RETURN_DIRECT_THRESHOLD) onDisarm()
-    }
-
-    const clearDirectGesture = event => {
-      if (!directGesture || event.pointerId !== directGesture.pointerId) return
-      directGesture = null
-    }
-
-    window.addEventListener('wheel', onWheel, { passive: true })
-    window.addEventListener('pointerdown', onPointerDown, { passive: true })
-    window.addEventListener('pointermove', onPointerMove, { passive: true })
-    window.addEventListener('pointerup', onPointerUp, { passive: true })
-    window.addEventListener('pointercancel', clearDirectGesture, { passive: true })
-    return () => {
-      window.removeEventListener('wheel', onWheel)
-      window.removeEventListener('pointerdown', onPointerDown)
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', onPointerUp)
-      window.removeEventListener('pointercancel', clearDirectGesture)
-    }
-  }, [maybeCompleteReturn, onDisarm, visualArmed])
+    if (handledExitRequestRef.current === exitRequestId) return
+    handledExitRequestRef.current = exitRequestId
+    startExitRef.current?.(exitRequestMode === 'return')
+  }, [exitRequestId, exitRequestMode])
 
   const affordanceVisible = visualArmed || progress > 0.001
 
@@ -234,20 +196,14 @@ function ReaderReturnControl({ armed, onArm, onDisarm, onDismissStart, onDismiss
       data-return-completing={completing ? 'true' : 'false'}
       onPointerEnter={event => {
         if (event.pointerType === 'mouse') setHovered(true)
-        if (!completing && event.pointerType === 'mouse' && hasHoverPointer()) onArm()
+        onPointerEnter?.(event)
       }}
       onPointerLeave={event => {
         setHovered(false)
-        if (!completing && !entryReady && event.pointerType === 'mouse' && hasHoverPointer()) onDisarm()
+        onPointerLeave?.(event)
       }}
-      onPointerDown={event => {
-        if (!completing && isDirectPointer(event.pointerType) && !armed) onArm()
-      }}
-      onClick={event => {
-        if (completing || event.detail !== 0) return
-        if (armed) onDisarm()
-        else onArm()
-      }}
+      onPointerDown={onPointerDown}
+      onClick={onClick}
       aria-label={returnHint}
       aria-pressed={visualArmed}
     >
