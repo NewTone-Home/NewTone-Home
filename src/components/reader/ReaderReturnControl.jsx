@@ -4,6 +4,7 @@ import './ReaderReturnControl.css'
 
 const TEXT_ENTER_MS = 320
 const FRAME_DRAW_MS = 720
+const DOOR_OPEN_MS = 520
 const TEXT_EXIT_MS = 260
 const DOOR_CLOSE_MS = 520
 const FRAME_RETRACT_MS = 420
@@ -37,12 +38,51 @@ function easeInOut(value) {
   return value * value * (3 - 2 * value)
 }
 
+function getDoorStyle(direction, side, progress) {
+  const amount = Math.max(0, Math.min(1, progress))
+  const closed = 1 - amount
+
+  if (direction === 'left') {
+    return {
+      opacity: amount,
+      transform: `perspective(160px) rotateY(${-82 * closed}deg) scaleX(${0.24 + 0.76 * amount}) translateX(${-14 * closed}%)`,
+    }
+  }
+
+  if (direction === 'right') {
+    return {
+      opacity: amount,
+      transform: `perspective(160px) rotateY(${82 * closed}deg) scaleX(${0.24 + 0.76 * amount}) translateX(${14 * closed}%)`,
+    }
+  }
+
+  if (direction === 'top') {
+    return {
+      opacity: amount,
+      transform: `perspective(160px) rotateX(${82 * closed}deg) scaleY(${0.24 + 0.76 * amount}) translateY(${-14 * closed}%)`,
+    }
+  }
+
+  if (direction === 'bottom') {
+    return {
+      opacity: amount,
+      transform: `perspective(160px) rotateX(${-82 * closed}deg) scaleY(${0.24 + 0.76 * amount}) translateY(${14 * closed}%)`,
+    }
+  }
+
+  return {
+    opacity: amount * 0.84,
+    transform: `translateX(${side === 'one' ? -100 * amount : 100 * amount}%)`,
+  }
+}
+
 /**
  * Portable Reader return entry.
  *
- * The host only supplies boundary visibility, input kind, world layer, and
- * two navigation callbacks. This component owns its visual lifecycle:
+ * The host supplies only visibility, input kind, world layer, and navigation
+ * callbacks. This component owns one explicit visual timeline:
  * text -> frame -> door on entry, and text -> door -> frame on exit.
+ * The frame is always the outer layer; the door is always inset inside it.
  */
 function ReaderReturnControl({
   visible = false,
@@ -58,14 +98,14 @@ function ReaderReturnControl({
   const returnHint = ui.returnToLandingHint || ui.backToLanding || fallbackUi.returnToLandingHint
 
   const [phase, setPhase] = useState('hidden')
-  const [hovered, setHovered] = useState(false)
-  const [focused, setFocused] = useState(false)
-  const [progress, setProgress] = useState({ text: 0, frame: 0 })
+  const [progress, setProgress] = useState({ text: 0, frame: 0, door: 0 })
   const phaseRef = useRef('hidden')
-  const progressRef = useRef({ text: 0, frame: 0 })
-  const maskDirectionQueueRef = useRef([])
+  const progressRef = useRef({ text: 0, frame: 0, door: 0 })
+  const hoveredRef = useRef(false)
+  const focusedRef = useRef(false)
+  const directionQueueRef = useRef([])
   const variantRef = useRef(null)
-  if (!variantRef.current) variantRef.current = createVisualVariant(maskDirectionQueueRef.current)
+  if (!variantRef.current) variantRef.current = createVisualVariant(directionQueueRef.current)
   const animationFrameRef = useRef(0)
   const animationTokenRef = useRef(0)
   const entryCompleteRef = useRef(false)
@@ -101,7 +141,7 @@ function ReaderReturnControl({
       && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
     const actualDuration = reducedMotion ? Math.min(120, duration) : duration
 
-    if (distance < 0.001) {
+    if (distance < 0.001 || actualDuration <= 0) {
       setProgressValue(key, target)
       onComplete?.()
       return
@@ -123,24 +163,13 @@ function ReaderReturnControl({
     animationFrameRef.current = requestAnimationFrame(step)
   }, [setProgressValue, stopAnimation])
 
-  const waitForDuration = useCallback((duration, onComplete) => {
-    stopAnimation()
-    const token = animationTokenRef.current
-    const startedAt = performance.now()
-    const step = now => {
-      if (token !== animationTokenRef.current) return
-      if (now - startedAt < duration) {
-        animationFrameRef.current = requestAnimationFrame(step)
-        return
-      }
-      animationFrameRef.current = 0
-      onComplete?.()
-    }
-    animationFrameRef.current = requestAnimationFrame(step)
-  }, [stopAnimation])
+  const animateDoor = useCallback((open) => {
+    if (!entryCompleteRef.current || phaseRef.current !== 'visible') return
+    animateValue('door', open ? 1 : 0, open ? DOOR_OPEN_MS : DOOR_CLOSE_MS)
+  }, [animateValue])
 
   const startEntry = useCallback(() => {
-    if (phaseRef.current === 'hidden') variantRef.current = createVisualVariant(maskDirectionQueueRef.current)
+    if (phaseRef.current === 'hidden') variantRef.current = createVisualVariant(directionQueueRef.current)
     stopAnimation()
     entryCompleteRef.current = false
     exitModeRef.current = null
@@ -149,9 +178,10 @@ function ReaderReturnControl({
       animateValue('frame', 1, FRAME_DRAW_MS, () => {
         entryCompleteRef.current = true
         setPhaseValue('visible')
+        if (mobile || hoveredRef.current || focusedRef.current) animateDoor(true)
       })
     })
-  }, [animateValue, setPhaseValue, stopAnimation])
+  }, [animateDoor, animateValue, mobile, setPhaseValue, stopAnimation])
 
   const startExit = useCallback((mode) => {
     if (phaseRef.current === 'hidden' || phaseRef.current === 'exiting') return
@@ -159,7 +189,7 @@ function ReaderReturnControl({
     exitModeRef.current = mode
     setPhaseValue('exiting')
     animateValue('text', 0, TEXT_EXIT_MS, () => {
-      waitForDuration(DOOR_CLOSE_MS, () => {
+      animateValue('door', 0, DOOR_CLOSE_MS, () => {
         animateValue('frame', 0, FRAME_RETRACT_MS, () => {
           const completedMode = exitModeRef.current
           entryCompleteRef.current = false
@@ -169,7 +199,7 @@ function ReaderReturnControl({
         })
       })
     })
-  }, [animateValue, setPhaseValue, stopAnimation, waitForDuration])
+  }, [animateValue, setPhaseValue, stopAnimation])
 
   useEffect(() => {
     if (visible) {
@@ -183,6 +213,10 @@ function ReaderReturnControl({
     return undefined
   }, [startEntry, startExit, visible])
 
+  useEffect(() => {
+    if (mobile && phaseRef.current === 'visible') animateDoor(true)
+  }, [animateDoor, mobile])
+
   useEffect(() => () => stopAnimation(), [stopAnimation])
 
   const handleReturnClick = useCallback(() => {
@@ -192,11 +226,34 @@ function ReaderReturnControl({
     startExit('return')
   }, [startExit, visible])
 
+  const handlePointerEnter = useCallback(event => {
+    if (event.pointerType !== 'mouse') return
+    hoveredRef.current = true
+    animateDoor(true)
+  }, [animateDoor])
+
+  const handlePointerLeave = useCallback(event => {
+    if (event.pointerType !== 'mouse') return
+    hoveredRef.current = false
+    if (!focusedRef.current && !mobile) animateDoor(false)
+  }, [animateDoor, mobile])
+
+  const handleFocus = useCallback(() => {
+    focusedRef.current = true
+    animateDoor(true)
+  }, [animateDoor])
+
+  const handleBlur = useCallback(() => {
+    focusedRef.current = false
+    if (!hoveredRef.current && !mobile) animateDoor(false)
+  }, [animateDoor, mobile])
+
   const present = phase !== 'hidden'
-  const wantsActivation = mobile || hovered || focused
-  const active = entryCompleteRef.current
-    && (wantsActivation || (phase === 'exiting' && progress.text > 0.001))
+  const active = progress.door > 0.001
   const variant = variantRef.current
+  const roomStyle = variant.maskDirection === 'center'
+    ? { opacity: progress.door, transform: `scaleX(${progress.door})` }
+    : undefined
 
   return (
     <button
@@ -205,6 +262,7 @@ function ReaderReturnControl({
       style={{
         '--return-text-progress': progress.text,
         '--return-frame-progress': progress.frame,
+        '--return-door-progress': progress.door,
       }}
       data-reader-return-control="true"
       data-return-visible={present ? 'true' : 'false'}
@@ -215,27 +273,24 @@ function ReaderReturnControl({
       data-return-mask-direction={variant.maskDirection}
       data-return-frame-origin={variant.frameOrigin}
       data-return-text-progress={progress.text.toFixed(3)}
+      data-return-door-progress={progress.door.toFixed(3)}
       data-return-frame-progress={progress.frame.toFixed(3)}
       aria-label={returnHint}
       aria-hidden={!present}
       aria-pressed={active}
       disabled={!present || phase === 'exiting'}
       tabIndex={present ? 0 : -1}
-      onPointerEnter={event => {
-        if (event.pointerType === 'mouse') setHovered(true)
-      }}
-      onPointerLeave={event => {
-        if (event.pointerType === 'mouse') setHovered(false)
-      }}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
       onClick={handleReturnClick}
     >
       <span className="reader-return-content">
         <span className="reader-return-mask" aria-hidden="true">
-          <span className="reader-return-room" />
-          <span className="reader-return-door reader-return-door--one" />
-          <span className="reader-return-door reader-return-door--two" />
+          <span className="reader-return-room" style={roomStyle} />
+          <span className="reader-return-door reader-return-door--one" style={getDoorStyle(variant.maskDirection, 'one', progress.door)} />
+          <span className="reader-return-door reader-return-door--two" style={getDoorStyle(variant.maskDirection, 'two', progress.door)} />
         </span>
         <span className="reader-return-text" style={{ opacity: progress.text }}>
           {returnLabel}
