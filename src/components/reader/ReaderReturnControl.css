@@ -1,8 +1,5 @@
 .reader-return-control {
-  --return-fill: #000;
   --return-text-active: #f4efe6;
-  --return-fill-highlight: rgb(255 255 255 / .16);
-  --return-fill-shadow: rgb(0 0 0 / .34);
   position: absolute;
   z-index: 9;
   bottom: max(clamp(48px, 6.2vh, 84px), calc(env(safe-area-inset-bottom) + 38px));
@@ -27,10 +24,7 @@
 }
 
 .reader-return-control[data-return-world-layer='inner'] {
-  --return-fill: #fff;
   --return-text-active: #191817;
-  --return-fill-highlight: rgb(255 255 255 / .56);
-  --return-fill-shadow: rgb(0 0 0 / .2);
 }
 
 .reader-return-control[data-return-visible='false'] {
@@ -47,7 +41,7 @@
   outline-offset: 5px;
 }
 
-/* One local stacking context. The frame is always the outermost layer. */
+/* The SVG owns the surface geometry. The frame and fill share the same path. */
 .reader-return-content {
   position: relative;
   z-index: 0;
@@ -58,45 +52,38 @@
   place-items: center;
 }
 
-/* The material is an inset fill, never a page-level mask. */
-.reader-return-fill {
+.reader-return-surface {
   position: absolute;
   z-index: 1;
-  inset: 3px;
-  box-sizing: border-box;
-  overflow: hidden;
-  background:
-    linear-gradient(135deg, var(--return-fill-highlight), transparent 48%),
-    var(--return-fill);
-  box-shadow:
-    inset 0 0 0 1px var(--return-fill-highlight),
-    inset 0 0 18px var(--return-fill-shadow);
-  backface-visibility: hidden;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
   pointer-events: none;
-  will-change: clip-path, transform, opacity;
+}
+
+.reader-return-material {
+  shape-rendering: geometricPrecision;
+}
+
+.reader-return-frame {
+  fill: none;
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.reader-return-material-edge {
+  vector-effect: non-scaling-stroke;
 }
 
 .reader-return-text {
   position: relative;
   z-index: 2;
   white-space: nowrap;
-}
-
-/* The border is the final visual layer and remains visible over the fill. */
-.reader-return-frame {
-  position: absolute;
-  z-index: 3;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  fill: none;
-  pointer-events: none;
-  stroke: currentColor;
-  stroke-width: 1.1;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 1;
 }
 
 @media (hover: none), (pointer: coarse), (max-width: 720px) {
@@ -118,7 +105,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .reader-return-fill,
+  .reader-return-surface,
+  .reader-return-material,
   .reader-return-frame {
     will-change: auto;
   }

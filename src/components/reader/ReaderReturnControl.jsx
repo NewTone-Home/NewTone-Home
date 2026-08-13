@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { getReaderUi } from '../../i18n/readerUi'
 import './ReaderReturnControl.css'
 
@@ -18,6 +18,21 @@ const FRAME_PATHS = Object.freeze({
   'top-right': 'M 99 1 V 35 H 1 V 1 Z',
   'bottom-right': 'M 99 35 H 1 V 1 H 99 Z',
   'bottom-left': 'M 1 35 V 1 H 99 V 35 Z',
+})
+
+const MATERIALS = Object.freeze({
+  surface: Object.freeze({
+    highlight: '#3f372f',
+    body: '#0b0a09',
+    shade: '#020202',
+    edge: '#5d5145',
+  }),
+  inner: Object.freeze({
+    highlight: '#ffffff',
+    body: '#f7f5ef',
+    shade: '#dedbd2',
+    edge: '#bcb7aa',
+  }),
 })
 
 function createProgress() {
@@ -41,54 +56,27 @@ function easeInOut(value) {
   return value * value * (3 - 2 * value)
 }
 
-function getFillStyle(direction, progress) {
+function getFillRect(direction, progress) {
   const amount = clamp(progress)
-  const closed = 1 - amount
-  const edge = 100 - amount * 100
-  const centerEdge = 50 * closed
 
   if (direction === 'left') {
-    return {
-      opacity: amount,
-      clipPath: `inset(0 ${edge}% 0 0)`,
-      transformOrigin: 'left center',
-      transform: `perspective(320px) rotateY(${-7 * closed}deg)`,
-    }
+    return { x: 0, y: 0, width: 100 * amount, height: 36 }
   }
 
   if (direction === 'right') {
-    return {
-      opacity: amount,
-      clipPath: `inset(0 0 0 ${edge}%)`,
-      transformOrigin: 'right center',
-      transform: `perspective(320px) rotateY(${7 * closed}deg)`,
-    }
+    return { x: 100 * (1 - amount), y: 0, width: 100 * amount, height: 36 }
   }
 
   if (direction === 'top') {
-    return {
-      opacity: amount,
-      clipPath: `inset(${edge}% 0 0 0)`,
-      transformOrigin: 'center top',
-      transform: `perspective(320px) rotateX(${7 * closed}deg)`,
-    }
+    return { x: 0, y: 0, width: 100, height: 36 * amount }
   }
 
   if (direction === 'bottom') {
-    return {
-      opacity: amount,
-      clipPath: `inset(0 0 ${edge}% 0)`,
-      transformOrigin: 'center bottom',
-      transform: `perspective(320px) rotateX(${-7 * closed}deg)`,
-    }
+    return { x: 0, y: 36 * (1 - amount), width: 100, height: 36 * amount }
   }
 
-  return {
-    opacity: amount,
-    clipPath: `inset(0 ${centerEdge}% 0 ${centerEdge}%)`,
-    transformOrigin: 'center',
-    transform: `perspective(320px) scale(${0.94 + amount * 0.06})`,
-  }
+  const width = 100 * amount
+  return { x: (100 - width) / 2, y: 0, width, height: 36 }
 }
 
 /**
@@ -98,9 +86,9 @@ function getFillStyle(direction, progress) {
  * navigation callbacks. This component owns the local visual state machine:
  * hidden -> entering -> visible -> exiting -> hidden.
  *
- * The visual model is deliberately small: one inset fill, one text layer,
- * and one outer frame. A new fill direction is selected for each complete
- * desktop activation, while the final-beat source stays with the host.
+ * The button surface has one SVG geometry source. The material fill is clipped
+ * by that exact path, and the frame is stroked from that exact path. Material
+ * changes therefore cannot change the frame geometry.
  */
 function ReaderReturnControl({
   visible = false,
@@ -114,6 +102,10 @@ function ReaderReturnControl({
   const fallbackUi = getReaderUi('zh')
   const returnLabel = ui.returnToLanding || ui.backToLanding || fallbackUi.returnToLanding
   const returnHint = ui.returnToLandingHint || ui.backToLanding || fallbackUi.returnToLandingHint
+  const svgId = useId().replace(/:/g, '')
+  const shapeId = `${svgId}-shape`
+  const fillClipId = `${svgId}-fill-clip`
+  const materialId = `${svgId}-material`
 
   const [phase, setPhase] = useState('hidden')
   const [progress, setProgress] = useState(createProgress)
@@ -318,7 +310,9 @@ function ReaderReturnControl({
 
   const present = phase !== 'hidden'
   const fillActive = progress.fill > 0.001
-  const fillStyle = getFillStyle(variant.fillDirection, progress.fill)
+  const framePath = FRAME_PATHS[variant.frameOrigin]
+  const fillRect = getFillRect(variant.fillDirection, progress.fill)
+  const material = MATERIALS[worldLayer] || MATERIALS.surface
   const textStyle = {
     opacity: progress.text,
     color: fillActive ? 'var(--return-text-active)' : 'var(--reader-muted)',
@@ -341,7 +335,7 @@ function ReaderReturnControl({
       data-return-world-layer={worldLayer}
       data-return-fill-direction={variant.fillDirection}
       data-return-frame-origin={variant.frameOrigin}
-      data-return-layer-model="frame>text>fill"
+      data-return-layer-model="shared-svg-geometry>text"
       data-return-text-progress={progress.text.toFixed(3)}
       data-return-fill-progress={progress.fill.toFixed(3)}
       data-return-frame-progress={progress.frame.toFixed(3)}
@@ -358,17 +352,54 @@ function ReaderReturnControl({
       onClick={handleReturnClick}
     >
       <span className="reader-return-content">
-        <span className="reader-return-fill" style={fillStyle} aria-hidden="true" />
-        <span className="reader-return-text" style={textStyle}>
-          {returnLabel}
-        </span>
-        <svg className="reader-return-frame" viewBox="0 0 100 36" aria-hidden="true" focusable="false">
-          <path
-            d={FRAME_PATHS[variant.frameOrigin]}
+        <svg
+          className="reader-return-surface"
+          viewBox="0 0 100 36"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <defs>
+            <path id={shapeId} d={framePath} pathLength="1" />
+            <clipPath id={fillClipId} clipPathUnits="userSpaceOnUse">
+              <use href={`#${shapeId}`} />
+            </clipPath>
+            <linearGradient id={materialId} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor={material.highlight} stopOpacity=".76" />
+              <stop offset=".34" stopColor={material.body} />
+              <stop offset="1" stopColor={material.shade} />
+            </linearGradient>
+          </defs>
+          <g clipPath={`url(#${fillClipId})`}>
+            <rect
+              className="reader-return-material"
+              x={fillRect.x}
+              y={fillRect.y}
+              width={fillRect.width}
+              height={fillRect.height}
+              fill={`url(#${materialId})`}
+            />
+          </g>
+          <use
+            className="reader-return-frame"
+            href={`#${shapeId}`}
+            fill="none"
+            stroke="currentColor"
             pathLength="1"
             style={{ strokeDashoffset: 1 - progress.frame }}
           />
+          <use
+            className="reader-return-material-edge"
+            href={`#${shapeId}`}
+            fill="none"
+            stroke={material.edge}
+            strokeWidth=".65"
+            opacity={fillActive ? '.7' : '0'}
+            pointerEvents="none"
+          />
         </svg>
+        <span className="reader-return-text" style={textStyle}>
+          {returnLabel}
+        </span>
       </span>
     </button>
   )

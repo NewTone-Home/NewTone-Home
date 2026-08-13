@@ -26,20 +26,22 @@ describe('portable Reader return control', () => {
     expect(control).not.toContain('wheel')
   })
 
-  it('keeps one fill inside the outer frame and supports five directions', () => {
+  it('uses one shared SVG geometry for fill and frame', () => {
     expect(control).toContain("const FILL_DIRECTIONS = ['left', 'right', 'top', 'bottom', 'center']")
     expect(control).toContain('nextFillDirection(fillDirectionQueueRef.current)')
     expect(control).toContain('const FRAME_ORIGINS')
-    expect(controlCss).toContain('inset: 3px')
+    expect(control).toContain('const FRAME_PATHS')
+    expect(control).toContain('getFillRect(variant.fillDirection, progress.fill)')
+    expect(control).toContain('<clipPath id={fillClipId}')
+    expect(control).toContain('href={`#${shapeId}`}')
     expect(controlCss).toContain('reader-return-frame')
     expect(control).toContain("direction === 'left'")
     expect(control).toContain("direction === 'right'")
     expect(control).toContain("direction === 'top'")
     expect(control).toContain("direction === 'bottom'")
-    expect(control).toContain('getFillStyle(variant.fillDirection, progress.fill)')
     expect(control).toContain('data-return-fill-direction={variant.fillDirection}')
-    expect(control).toContain('data-return-layer-model="frame>text>fill"')
-    expect(controlCss).toContain('clip-path')
+    expect(control).toContain('data-return-layer-model="shared-svg-geometry>text"')
+    expect(controlCss).toContain('reader-return-surface')
   })
 
   it('leaves ReaderStage responsible only for the boundary fact and host callbacks', () => {
