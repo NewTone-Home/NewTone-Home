@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { getPageSceneTrail } from '../src/components/reader/ReaderTraceProgress'
-import { isReaderContentEndVisible, isReaderViewportAtBottom } from '../src/components/reader/ReaderBeatStack'
+import { isFinalReaderBeat } from '../src/reader/readerPosition'
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
 const landing = read('../src/views/Landing.jsx')
@@ -55,7 +55,7 @@ describe('Reader shell contract boundaries', () => {
     expect(reader).toContain('<ReaderStage')
     expect(stage).toContain('emptyDocument')
     expect(stage).toContain('<ReaderTools')
-    expect(stage).toContain('const returnVisible = emptyDocument || lastContentReached')
+    expect(stage).toContain('const returnVisible = emptyDocument || isFinalReaderBeat(focusBeatIndex, beats)')
     expect(stage).toContain('暂无可读页面')
     expect(stage).toContain('!emptyDocument && <ReaderTraceProgress')
   })
@@ -195,14 +195,13 @@ describe('Reader shell contract boundaries', () => {
   })
 
   it('offers a click-only return choice at the real page end', () => {
-    expect(isReaderViewportAtBottom(500, 500, 1008)).toBe(true)
-    expect(isReaderViewportAtBottom(480, 500, 1008)).toBe(false)
+    expect(isFinalReaderBeat(2, [{}, {}, {}])).toBe(true)
+    expect(isFinalReaderBeat(1, [{}, {}, {}])).toBe(false)
     expect(stage).toContain('const DIRECT_READER_QUERY')
-    expect(stage).toContain('const returnVisible = emptyDocument || lastContentReached')
-    expect(stage).toContain('if (!emptyDocument && directReaderInput && finalNodeReached)')
+    expect(stage).toContain('const returnVisible = emptyDocument || isFinalReaderBeat(focusBeatIndex, beats)')
     expect(stage).toContain('onViewportBoundaryChange={handleViewportBoundaryChange}')
     expect(stage).toContain('<ReaderReturnControl')
-    expect(stage).toContain('setLastContentReached(reached)')
+    expect(stage).not.toContain('setLastContentReached')
     expect(stage).toContain('mobile={directReaderInput}')
     expect(stage).toContain('worldLayer={environmentState.worldLayer}')
     expect(stage).toContain('onReturnStart={onReturnStart}')
@@ -266,12 +265,13 @@ describe('Reader shell contract boundaries', () => {
     expect(updatesPageCss).toContain('touch-action: pan-y')
   })
 
-  it('shows the mobile return choice when real content ends, without waiting for the scroll spacer', () => {
-    expect(isReaderContentEndVisible(800, 808)).toBe(true)
-    expect(isReaderContentEndVisible(800, 820)).toBe(false)
-    expect(beatStack).toContain('? isReaderContentEndVisible(viewport.getBoundingClientRect().bottom, lastBeat.getBoundingClientRect().bottom)')
-    expect(beatStack).toContain('isReaderContentEndVisible(viewportRect.bottom, lastBeat.getBoundingClientRect().bottom)')
-    expect(beatStack).toContain(': lastNodeReached && lastBeat.getBoundingClientRect().bottom')
+  it('uses the Reader focus position as the only final-beat source on every input path', () => {
+    expect(stage).toContain("import { isFinalReaderBeat } from '../reader/readerPosition'")
+    expect(stage).toContain('isFinalReaderBeat(focusBeatIndex, beats)')
+    expect(beatStack).toContain('onNativeFocusChange?.(nearestIndex)')
+    expect(beatStack).not.toContain('isReaderContentEndVisible')
+    expect(beatStack).not.toContain('lastNodeReached')
+    expect(beatStack).not.toContain('atBottom')
   })
 
   it('draws one random-origin frame and one random-direction world-layer mask', () => {

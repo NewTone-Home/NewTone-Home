@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import ReaderBeatStack from '../components/reader/ReaderBeatStack'
 import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
 import ReaderTools from '../components/reader/ReaderTools'
@@ -7,6 +7,7 @@ import ReaderReturnControl from '../components/reader/ReaderReturnControl'
 import { resolveReaderEnvironmentPreview } from '../data/reader-experiments/readerEnvironmentPreview'
 import { getReaderSceneLabel } from '../i18n/readerUi'
 import { preventReaderShortcut, preventReaderTransfer } from '../reader/readerCopyProtection'
+import { isFinalReaderBeat } from '../reader/readerPosition'
 import { getReaderThemeVariables } from '../reader/readerTheme'
 import './ReaderStage.css'
 import './ReaderShellContract.css'
@@ -57,7 +58,6 @@ function ReaderStage({
   onReturnStart,
   onReturnLanding,
 }) {
-  const [lastContentReached, setLastContentReached] = useState(false)
   const nativeBoundaryLockRef = useRef(null)
   const sceneState = beats[focusBeatIndex]?.sceneState ?? {}
   const sceneStateName = sceneState.sceneState ?? 'normal'
@@ -72,32 +72,22 @@ function ReaderStage({
     (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)
     || window.matchMedia(DIRECT_READER_QUERY).matches
   )
-  const finalNodeReached = !emptyDocument && beats.length > 0 && focusBeatIndex >= beats.length - 1
-  const returnVisible = emptyDocument || lastContentReached
+  const returnVisible = emptyDocument || isFinalReaderBeat(focusBeatIndex, beats)
   const locationLabel = emptyDocument
     ? (language === 'en' ? 'No pages yet' : '暂无页面')
     : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
 
-  const handleViewportBoundaryChange = useCallback(({ atBottom, lastNodeReached, direction = 0, atTop = false }) => {
-    const reached = Boolean(atBottom && lastNodeReached)
-    setLastContentReached(reached)
+  const handleViewportBoundaryChange = useCallback(({ direction = 0, atTop = false }) => {
     if (atTop && direction < 0 && nativeBoundaryLockRef.current !== 'backward') {
       nativeBoundaryLockRef.current = 'backward'
       onNativeBoundary?.('backward')
     }
-    if (!atTop && !reached) nativeBoundaryLockRef.current = null
+    if (!atTop) nativeBoundaryLockRef.current = null
   }, [onNativeBoundary])
 
   useEffect(() => {
-    setLastContentReached(false)
     nativeBoundaryLockRef.current = null
   }, [page?.id])
-
-  useEffect(() => {
-    if (!emptyDocument && directReaderInput && finalNodeReached) {
-      setLastContentReached(true)
-    }
-  }, [directReaderInput, emptyDocument, finalNodeReached])
 
   return (
     <main

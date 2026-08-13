@@ -5,14 +5,6 @@ import './ReaderBeatStack.css'
 const NATIVE_SCROLL_QUERY = '(hover: none), (pointer: coarse), (max-width: 720px)'
 const BOUNDARY_THRESHOLD_PX = 12
 
-export function isReaderViewportAtBottom(scrollTop, clientHeight, scrollHeight) {
-  return scrollTop + clientHeight >= scrollHeight - BOUNDARY_THRESHOLD_PX
-}
-
-export function isReaderContentEndVisible(viewportBottom, contentBottom) {
-  return contentBottom <= viewportBottom + BOUNDARY_THRESHOLD_PX
-}
-
 export function getBeatBlocksForLanguage(beat, language) {
   return (language === 'en' ? beat.translations?.en?.blocks : null) ?? beat.blocks
 }
@@ -41,7 +33,6 @@ function ReaderBeatStack({
   const lastReportedIndexRef = useRef(focusBeatIndex)
   const nativeScrollInitializedRef = useRef(false)
   const lastScrollTopRef = useRef(0)
-  const atBottomRef = useRef(false)
   const [offset, setOffset] = useState(0)
   const [nativeScroll, setNativeScroll] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia(NATIVE_SCROLL_QUERY).matches
@@ -56,16 +47,8 @@ function ReaderBeatStack({
   const reportViewportBoundary = () => {
     const viewport = viewportRef.current
     const flow = flowRef.current
-    const lastBeat = flow?.lastElementChild
-    if (!viewport || !(lastBeat instanceof HTMLElement)) return
-    const lastNodeReached = focusBeatIndex >= beats.length - 1
-    const atBottom = nativeScroll
-      ? isReaderContentEndVisible(viewport.getBoundingClientRect().bottom, lastBeat.getBoundingClientRect().bottom)
-      : lastNodeReached && lastBeat.getBoundingClientRect().bottom <= viewport.getBoundingClientRect().bottom + BOUNDARY_THRESHOLD_PX
-    atBottomRef.current = atBottom && lastNodeReached
+    if (!viewport || !flow) return
     onViewportBoundaryChange?.({
-      atBottom: atBottomRef.current,
-      lastNodeReached,
       direction: 0,
       atTop: nativeScroll && viewport.scrollTop <= BOUNDARY_THRESHOLD_PX,
     })
@@ -143,8 +126,7 @@ function ReaderBeatStack({
   }, [activeNarrativePausePhase, beats, focusBeatIndex, nativeScroll, onFocusMotionEnd])
 
   useEffect(() => {
-    atBottomRef.current = false
-      onViewportBoundaryChange?.({ atBottom: false, lastNodeReached: false, direction: 0, atTop: false })
+      onViewportBoundaryChange?.({ direction: 0, atTop: false })
   }, [beats, onViewportBoundaryChange])
 
   useEffect(() => {
@@ -182,14 +164,7 @@ function ReaderBeatStack({
         }
 
         const atTop = currentScrollTop <= BOUNDARY_THRESHOLD_PX
-        const lastBeat = flow.lastElementChild
-        const atBottom = lastBeat instanceof HTMLElement
-          && isReaderContentEndVisible(viewportRect.bottom, lastBeat.getBoundingClientRect().bottom)
-        const lastNodeReached = nearestIndex === beats.length - 1
-        atBottomRef.current = atBottom && lastNodeReached
         onViewportBoundaryChange?.({
-          atBottom: atBottomRef.current,
-          lastNodeReached,
           direction,
           atTop: atTop && nearestIndex === 0,
         })

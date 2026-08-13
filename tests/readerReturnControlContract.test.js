@@ -37,8 +37,8 @@ describe('portable Reader return control', () => {
   })
 
   it('leaves ReaderStage responsible only for the boundary fact and host callbacks', () => {
-    expect(stage).toContain('const [lastContentReached, setLastContentReached] = useState(false)')
-    expect(stage).toContain('const returnVisible = emptyDocument || lastContentReached')
+    expect(stage).toContain("import { isFinalReaderBeat } from '../reader/readerPosition'")
+    expect(stage).toContain('const returnVisible = emptyDocument || isFinalReaderBeat(focusBeatIndex, beats)')
     expect(stage).toContain('visible={returnVisible}')
     expect(stage).toContain('onReturnStart={onReturnStart}')
     expect(stage).toContain('onReturnComplete={onReturnLanding}')
