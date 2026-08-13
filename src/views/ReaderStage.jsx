@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ReaderBeatStack from '../components/reader/ReaderBeatStack'
 import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
 import ReaderTools from '../components/reader/ReaderTools'
@@ -8,12 +8,6 @@ import { resolveReaderEnvironmentPreview } from '../data/reader-experiments/read
 import { getReaderSceneLabel } from '../i18n/readerUi'
 import { preventReaderShortcut, preventReaderTransfer } from '../reader/readerCopyProtection'
 import { getReaderThemeVariables } from '../reader/readerTheme'
-import {
-  createReaderReturnFlowState,
-  reduceReaderReturnFlow,
-  READER_RETURN_EVENT,
-  READER_RETURN_STATE,
-} from '../reader/readerReturnFlow'
 import './ReaderStage.css'
 import './ReaderShellContract.css'
 
@@ -62,19 +56,8 @@ function ReaderStage({
   returningToLanding = false,
   onReturnStart,
   onReturnLanding,
-  onReturnArmedChange,
 }) {
-  const [returnFlow, dispatchReturn] = useReducer(
-    reduceReaderReturnFlow,
-    undefined,
-    createReaderReturnFlowState,
-  )
-  const [returnEntryReady, setReturnEntryReady] = useState(false)
-  const [exitRequestId, setExitRequestId] = useState(0)
-  const [exitRequestMode, setExitRequestMode] = useState('dismiss')
-  const returnFlowRef = useRef(returnFlow)
-  const pointerGestureRef = useRef(null)
-  const wasAtBottomRef = useRef(false)
+  const [lastContentReached, setLastContentReached] = useState(false)
   const nativeBoundaryLockRef = useRef(null)
   const sceneState = beats[focusBeatIndex]?.sceneState ?? {}
   const sceneStateName = sceneState.sceneState ?? 'normal'
@@ -90,176 +73,31 @@ function ReaderStage({
     || window.matchMedia(DIRECT_READER_QUERY).matches
   )
   const finalNodeReached = !emptyDocument && beats.length > 0 && focusBeatIndex >= beats.length - 1
-  returnFlowRef.current = returnFlow
-  const shouldMountReturnControl = returnFlow.state !== READER_RETURN_STATE.HIDDEN
-  const shouldShowReturnControl = shouldMountReturnControl
-  const returnVisible = shouldMountReturnControl && shouldShowReturnControl
+  const returnVisible = emptyDocument || lastContentReached
   const locationLabel = emptyDocument
     ? (language === 'en' ? 'No pages yet' : '暂无页面')
     : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
 
   const handleViewportBoundaryChange = useCallback(({ atBottom, lastNodeReached, direction = 0, atTop = false }) => {
-    const wasAtBottom = wasAtBottomRef.current
     const reached = Boolean(atBottom && lastNodeReached)
-    wasAtBottomRef.current = reached
-    dispatchReturn({
-      type: reached
-        ? READER_RETURN_EVENT.LAST_CONTENT_REACHED
-        : READER_RETURN_EVENT.BOUNDARY_REACHED,
-      atBottom: reached,
-    })
+    setLastContentReached(reached)
     if (atTop && direction < 0 && nativeBoundaryLockRef.current !== 'backward') {
       nativeBoundaryLockRef.current = 'backward'
       onNativeBoundary?.('backward')
     }
     if (!atTop && !reached) nativeBoundaryLockRef.current = null
-    if (wasAtBottom && !reached && direction < 0) {
-      dispatchReturn({ type: READER_RETURN_EVENT.REVERSE_GESTURE })
-    }
   }, [onNativeBoundary])
 
-  const armReturn = useCallback(() => {
-    if (returnFlowRef.current.state === READER_RETURN_STATE.HIDDEN) {
-      dispatchReturn({ type: READER_RETURN_EVENT.LAST_CONTENT_REACHED })
-    }
-    dispatchReturn({ type: READER_RETURN_EVENT.ACTIVATE })
-  }, [])
-
-  const disarmReturn = useCallback(() => {
-    dispatchReturn({ type: READER_RETURN_EVENT.CANCEL })
-  }, [])
-
-  const handleReturnPointerEnter = useCallback(event => {
-    if (event.pointerType !== 'mouse'
-      || window.matchMedia?.('(hover: hover) and (pointer: fine)').matches !== true) return
-    armReturn()
-  }, [armReturn])
-
-  const handleReturnPointerLeave = useCallback(event => {
-    if (event.pointerType !== 'mouse'
-      || window.matchMedia?.('(hover: hover) and (pointer: fine)').matches !== true
-      || returnEntryReady
-      || returnFlowRef.current.state !== READER_RETURN_STATE.ARMED) return
-    disarmReturn()
-  }, [disarmReturn, returnEntryReady])
-
-  const handleReturnPointerDown = useCallback(event => {
-    if (!['touch', 'pen'].includes(event.pointerType)
-      || returnFlowRef.current.state === READER_RETURN_STATE.ARMED) return
-    armReturn()
-  }, [armReturn])
-
-  const handleReturnClick = useCallback(event => {
-    if (event.detail !== 0) return
-    if (returnFlowRef.current.state === READER_RETURN_STATE.ARMED) {
-      disarmReturn()
-      return
-    }
-    armReturn()
-  }, [armReturn, disarmReturn])
-
   useEffect(() => {
-    dispatchReturn({ type: READER_RETURN_EVENT.RESET })
-    setReturnEntryReady(false)
-    setExitRequestId(0)
-    setExitRequestMode('dismiss')
-    wasAtBottomRef.current = false
-    pointerGestureRef.current = null
+    setLastContentReached(false)
     nativeBoundaryLockRef.current = null
   }, [page?.id])
 
   useEffect(() => {
-    if (!returnVisible) return undefined
-
-    const onWheel = event => {
-      const state = returnFlowRef.current
-      if (event.deltaY > 8 && state.state === READER_RETURN_STATE.ARMED) {
-        if (event.cancelable) event.preventDefault()
-        event.stopPropagation()
-        dispatchReturn({ type: READER_RETURN_EVENT.FORWARD_GESTURE })
-        return
-      }
-      if (event.deltaY < -8 && [
-        READER_RETURN_STATE.REVEALING,
-        READER_RETURN_STATE.READY,
-        READER_RETURN_STATE.ARMED,
-      ].includes(state.state)) {
-        if (event.cancelable) event.preventDefault()
-        event.stopPropagation()
-        dispatchReturn({ type: READER_RETURN_EVENT.REVERSE_GESTURE })
-      }
+    if (!emptyDocument && directReaderInput && finalNodeReached) {
+      setLastContentReached(true)
     }
-
-    window.addEventListener('wheel', onWheel, { capture: true, passive: false })
-    return () => window.removeEventListener('wheel', onWheel, { capture: true })
-  }, [onNativeBoundary, returnVisible])
-
-  useEffect(() => {
-    if (!returnVisible) return undefined
-    const onPointerDown = event => {
-      if (!['touch', 'pen'].includes(event.pointerType)) return
-      pointerGestureRef.current = { pointerId: event.pointerId, startY: event.clientY }
-    }
-    const onPointerMove = event => {
-      const gesture = pointerGestureRef.current
-      if (!gesture || gesture.pointerId !== event.pointerId) return
-      const state = returnFlowRef.current
-      const delta = gesture.startY - event.clientY
-      if (Math.abs(delta) <= 36) return
-      if (![READER_RETURN_STATE.READY, READER_RETURN_STATE.ARMED].includes(state.state)) return
-      pointerGestureRef.current = null
-      if (event.cancelable) event.preventDefault()
-      event.stopPropagation()
-      dispatchReturn({
-        type: delta > 36
-          ? READER_RETURN_EVENT.FORWARD_GESTURE
-          : READER_RETURN_EVENT.REVERSE_GESTURE,
-      })
-    }
-    const clearGesture = event => {
-      const gesture = pointerGestureRef.current
-      if (!gesture || gesture.pointerId !== event.pointerId) return
-      pointerGestureRef.current = null
-      if (returnFlowRef.current.state === READER_RETURN_STATE.ARMED
-        && Math.abs(gesture.startY - event.clientY) <= 36) disarmReturn()
-    }
-    window.addEventListener('pointerdown', onPointerDown, { capture: true, passive: true })
-    window.addEventListener('pointermove', onPointerMove, { capture: true, passive: false })
-    window.addEventListener('pointerup', clearGesture, { capture: true, passive: true })
-    window.addEventListener('pointercancel', clearGesture, { capture: true, passive: true })
-    return () => {
-      window.removeEventListener('pointerdown', onPointerDown, { capture: true })
-      window.removeEventListener('pointermove', onPointerMove, { capture: true })
-      window.removeEventListener('pointerup', clearGesture, { capture: true })
-      window.removeEventListener('pointercancel', clearGesture, { capture: true })
-    }
-  }, [disarmReturn, onNativeBoundary, returnVisible])
-
-  useEffect(() => {
-    if (returnFlow.state === READER_RETURN_STATE.HIDDEN && emptyDocument) {
-      dispatchReturn({ type: READER_RETURN_EVENT.LAST_CONTENT_REACHED })
-    }
-  }, [emptyDocument, returnFlow.state])
-
-  useEffect(() => {
-    if (returnFlow.state === READER_RETURN_STATE.HIDDEN
-      && !emptyDocument
-      && directReaderInput
-      && finalNodeReached) {
-      dispatchReturn({ type: READER_RETURN_EVENT.LAST_CONTENT_REACHED })
-    }
-  }, [directReaderInput, emptyDocument, finalNodeReached, returnFlow.state])
-
-  useEffect(() => {
-    onReturnArmedChange?.(returnFlow.state === READER_RETURN_STATE.ARMED)
-    if (returnFlow.effect === 'return-start' || returnFlow.effect === 'dismiss-start') {
-      setExitRequestMode(returnFlow.effect === 'return-start' ? 'return' : 'dismiss')
-      setExitRequestId(current => current + 1)
-    }
-    if (returnFlow.effect === 'navigation-ready' && returnFlow.returnToLanding) {
-      onReturnLanding?.()
-    }
-  }, [onReturnArmedChange, onReturnLanding, returnFlow.effect, returnFlow.returnToLanding, returnFlow.state])
+  }, [directReaderInput, emptyDocument, finalNodeReached])
 
   return (
     <main
@@ -342,21 +180,14 @@ function ReaderStage({
           readingMode={readingMode}
           returningToLanding={returningToLanding}
         />}
-        {returnVisible && <ReaderReturnControl
-          armed={returnFlow.state === READER_RETURN_STATE.ARMED}
-          onReadyChange={setReturnEntryReady}
-          onPointerEnter={handleReturnPointerEnter}
-          onPointerLeave={handleReturnPointerLeave}
-          onPointerDown={handleReturnPointerDown}
-          onClick={handleReturnClick}
-          onDismissStart={() => {}}
-          onDismissComplete={() => dispatchReturn({ type: READER_RETURN_EVENT.DISMISS_COMPLETED })}
-          exitRequestId={exitRequestId}
-          exitRequestMode={exitRequestMode}
-          onStart={onReturnStart}
-          onComplete={() => dispatchReturn({ type: READER_RETURN_EVENT.DISMISS_COMPLETED })}
+        <ReaderReturnControl
+          visible={returnVisible}
+          mobile={directReaderInput}
+          worldLayer={environmentState.worldLayer}
+          onReturnStart={onReturnStart}
+          onReturnComplete={onReturnLanding}
           language={language}
-        />}
+        />
         {chapterTrialEnded && <span className="reader-chapter-end" aria-hidden="true" />}
       </section>
     </main>

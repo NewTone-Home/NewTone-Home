@@ -1,228 +1,252 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getReaderUi } from '../../i18n/readerUi'
-import { useScrambleText } from '../../hooks/useScrambleText'
-import LandingEntryArrow from '../landing/LandingEntryArrow'
 import './ReaderReturnControl.css'
 
-const RETURN_RING_DRAW_MS = 2200
-const RETURN_RING_RETRACT_MS = 1200
-const RETURN_TEXT_EXIT_MS = 900
+const TEXT_ENTER_MS = 320
+const FRAME_DRAW_MS = 720
+const TEXT_EXIT_MS = 260
+const DOOR_CLOSE_MS = 520
+const FRAME_RETRACT_MS = 420
 
+const MASK_DIRECTIONS = ['left', 'right', 'top', 'bottom', 'center']
+const FRAME_ORIGINS = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
+const FRAME_PATHS = Object.freeze({
+  'top-left': 'M 1 1 H 99 V 35 H 1 Z',
+  'top-right': 'M 99 1 V 35 H 1 V 1 Z',
+  'bottom-right': 'M 99 35 H 1 V 1 H 99 Z',
+  'bottom-left': 'M 1 35 V 1 H 99 V 35 Z',
+})
+
+function randomItem(items) {
+  return items[Math.floor(Math.random() * items.length)]
+}
+
+function nextMaskDirection(queue) {
+  if (queue.length === 0) queue.push(...[...MASK_DIRECTIONS].sort(() => Math.random() - 0.5))
+  return queue.shift()
+}
+
+function createVisualVariant(queue) {
+  return {
+    maskDirection: nextMaskDirection(queue),
+    frameOrigin: randomItem(FRAME_ORIGINS),
+  }
+}
+
+function easeInOut(value) {
+  return value * value * (3 - 2 * value)
+}
+
+/**
+ * Portable Reader return entry.
+ *
+ * The host only supplies boundary visibility, input kind, world layer, and
+ * two navigation callbacks. This component owns its visual lifecycle:
+ * text -> frame -> door on entry, and text -> door -> frame on exit.
+ */
 function ReaderReturnControl({
-  armed,
-  onDismissStart,
-  onDismissComplete,
-  exitRequestId = 0,
-  exitRequestMode = 'dismiss',
-  onReadyChange,
-  onStart,
-  onComplete,
-  onPointerEnter,
-  onPointerLeave,
-  onPointerDown,
-  onClick,
+  visible = false,
+  mobile = false,
+  worldLayer = 'surface',
+  onReturnStart,
+  onReturnComplete,
   language,
 }) {
   const ui = getReaderUi(language)
   const fallbackUi = getReaderUi('zh')
   const returnLabel = ui.returnToLanding || ui.backToLanding || fallbackUi.returnToLanding
   const returnHint = ui.returnToLandingHint || ui.backToLanding || fallbackUi.returnToLandingHint
-  const returnTextRef = useRef(null)
+
+  const [phase, setPhase] = useState('hidden')
   const [hovered, setHovered] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [completing, setCompleting] = useState(false)
-  const progressRef = useRef(0)
-  const completedRef = useRef(false)
-  const pendingCompleteRef = useRef(false)
-  const textExitCompleteRef = useRef(false)
-  const arrowExitCompleteRef = useRef(false)
-  const progressExitCompleteRef = useRef(false)
-  const completionReportedRef = useRef(false)
-  const dismissOnlyRef = useRef(false)
-  const dismissReportedRef = useRef(false)
-  const handledExitRequestRef = useRef(0)
-  const reducedExitRef = useRef(false)
-  const frameRef = useRef(0)
-  const startExitRef = useRef(null)
-  const onCompleteRef = useRef(onComplete)
-  const onDismissStartRef = useRef(onDismissStart)
-  const onDismissCompleteRef = useRef(onDismissComplete)
-  const onStartRef = useRef(onStart)
-  onCompleteRef.current = onComplete
-  onDismissStartRef.current = onDismissStart
-  onDismissCompleteRef.current = onDismissComplete
-  onStartRef.current = onStart
+  const [focused, setFocused] = useState(false)
+  const [progress, setProgress] = useState({ text: 0, frame: 0 })
+  const phaseRef = useRef('hidden')
+  const progressRef = useRef({ text: 0, frame: 0 })
+  const maskDirectionQueueRef = useRef([])
+  const variantRef = useRef(null)
+  if (!variantRef.current) variantRef.current = createVisualVariant(maskDirectionQueueRef.current)
+  const animationFrameRef = useRef(0)
+  const animationTokenRef = useRef(0)
+  const entryCompleteRef = useRef(false)
+  const returnRequestedRef = useRef(false)
+  const exitModeRef = useRef(null)
+  const onReturnStartRef = useRef(onReturnStart)
+  const onReturnCompleteRef = useRef(onReturnComplete)
+  onReturnStartRef.current = onReturnStart
+  onReturnCompleteRef.current = onReturnComplete
 
-  const visualArmed = armed && !completing
-
-  const maybeCompleteReturn = useCallback(() => {
-    if (!textExitCompleteRef.current
-      || (!arrowExitCompleteRef.current && !reducedExitRef.current)
-      || (!progressExitCompleteRef.current && !reducedExitRef.current)) return
-
-    if (pendingCompleteRef.current) {
-      if (completionReportedRef.current) return
-      completionReportedRef.current = true
-      pendingCompleteRef.current = false
-      onCompleteRef.current()
-      return
-    }
-
-    if (dismissOnlyRef.current && !dismissReportedRef.current) {
-      dismissReportedRef.current = true
-      dismissOnlyRef.current = false
-      onDismissCompleteRef.current?.()
-    }
+  const setPhaseValue = useCallback(nextPhase => {
+    phaseRef.current = nextPhase
+    setPhase(nextPhase)
   }, [])
 
-  const handleTextExitComplete = useCallback(() => {
-    textExitCompleteRef.current = true
-    maybeCompleteReturn()
-  }, [maybeCompleteReturn])
+  const setProgressValue = useCallback((key, value) => {
+    progressRef.current = { ...progressRef.current, [key]: value }
+    setProgress(progressRef.current)
+  }, [])
 
-  const handleArrowExitComplete = useCallback(() => {
-    arrowExitCompleteRef.current = true
-    maybeCompleteReturn()
-  }, [maybeCompleteReturn])
+  const stopAnimation = useCallback(() => {
+    cancelAnimationFrame(animationFrameRef.current)
+    animationFrameRef.current = 0
+    animationTokenRef.current += 1
+  }, [])
 
-  const { displayText: returnDisplayText, stable: returnTextStable } = useScrambleText(returnLabel, {
-    charInterval: Math.max(70, Math.floor(650 / Math.max(1, returnLabel.length))),
-    scrambleInterval: 40,
-    withdrawing: completing,
-    withdrawalDuration: RETURN_TEXT_EXIT_MS,
-    onWithdrawn: handleTextExitComplete,
-  })
-
-  useEffect(() => {
-    cancelAnimationFrame(frameRef.current)
-    const from = progressRef.current
-    const target = visualArmed ? 1 : 0
+  const animateValue = useCallback((key, target, duration, onComplete) => {
+    stopAnimation()
+    const token = animationTokenRef.current
+    const from = progressRef.current[key]
     const distance = Math.abs(target - from)
-
-    const finishTarget = () => {
-      progressRef.current = target
-      setProgress(target)
-      if (target === 0) {
-        progressExitCompleteRef.current = true
-        maybeCompleteReturn()
-      }
-      frameRef.current = 0
-    }
+    const reducedMotion = typeof window !== 'undefined'
+      && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+    const actualDuration = reducedMotion ? Math.min(120, duration) : duration
 
     if (distance < 0.001) {
-      finishTarget()
-      return undefined
-    }
-
-    const fullDuration = visualArmed ? RETURN_RING_DRAW_MS : RETURN_RING_RETRACT_MS
-    const duration = Math.max(80, fullDuration * distance)
-    const startedAt = performance.now()
-
-    const animate = time => {
-      const raw = Math.min(1, (time - startedAt) / duration)
-      const eased = raw * raw * (3 - 2 * raw)
-      const next = from + (target - from) * eased
-      progressRef.current = next
-      setProgress(next)
-      if (raw < 1) {
-        frameRef.current = requestAnimationFrame(animate)
-        return
-      }
-      finishTarget()
-    }
-
-    frameRef.current = requestAnimationFrame(animate)
-    return () => cancelAnimationFrame(frameRef.current)
-  }, [visualArmed])
-
-  useEffect(() => () => cancelAnimationFrame(frameRef.current), [])
-
-  useEffect(() => {
-    if (!armed && !pendingCompleteRef.current && !dismissOnlyRef.current) setCompleting(false)
-  }, [armed])
-
-  const entryReady = visualArmed && progress >= 0.999
-
-  useEffect(() => {
-    onReadyChange?.(entryReady || completing)
-  }, [completing, entryReady, onReadyChange])
-
-  const startExit = useCallback((navigate = true) => {
-    if (completedRef.current) return
-    completedRef.current = true
-    pendingCompleteRef.current = navigate
-    dismissOnlyRef.current = !navigate
-    completionReportedRef.current = false
-    dismissReportedRef.current = false
-    textExitCompleteRef.current = false
-    arrowExitCompleteRef.current = false
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
-    reducedExitRef.current = reduced
-    progressExitCompleteRef.current = reduced
-    if (navigate) onStartRef.current?.()
-    if (!navigate) onDismissStartRef.current?.()
-    setCompleting(true)
-    setHovered(false)
-    if (reduced) {
-      textExitCompleteRef.current = true
-      arrowExitCompleteRef.current = true
-      maybeCompleteReturn()
-    }
-  }, [maybeCompleteReturn])
-
-  startExitRef.current = startExit
-
-  useEffect(() => {
-    if (!exitRequestId) {
-      handledExitRequestRef.current = 0
+      setProgressValue(key, target)
+      onComplete?.()
       return
     }
-    if (handledExitRequestRef.current === exitRequestId) return
-    handledExitRequestRef.current = exitRequestId
-    startExitRef.current?.(exitRequestMode === 'return')
-  }, [exitRequestId, exitRequestMode])
 
-  const affordanceVisible = visualArmed || progress > 0.001
+    const startedAt = performance.now()
+    const step = now => {
+      if (token !== animationTokenRef.current) return
+      const raw = Math.min(1, (now - startedAt) / actualDuration)
+      setProgressValue(key, from + (target - from) * easeInOut(raw))
+      if (raw < 1) {
+        animationFrameRef.current = requestAnimationFrame(step)
+        return
+      }
+      animationFrameRef.current = 0
+      onComplete?.()
+    }
+
+    animationFrameRef.current = requestAnimationFrame(step)
+  }, [setProgressValue, stopAnimation])
+
+  const waitForDuration = useCallback((duration, onComplete) => {
+    stopAnimation()
+    const token = animationTokenRef.current
+    const startedAt = performance.now()
+    const step = now => {
+      if (token !== animationTokenRef.current) return
+      if (now - startedAt < duration) {
+        animationFrameRef.current = requestAnimationFrame(step)
+        return
+      }
+      animationFrameRef.current = 0
+      onComplete?.()
+    }
+    animationFrameRef.current = requestAnimationFrame(step)
+  }, [stopAnimation])
+
+  const startEntry = useCallback(() => {
+    if (phaseRef.current === 'hidden') variantRef.current = createVisualVariant(maskDirectionQueueRef.current)
+    stopAnimation()
+    entryCompleteRef.current = false
+    exitModeRef.current = null
+    setPhaseValue('entering')
+    animateValue('text', 1, TEXT_ENTER_MS, () => {
+      animateValue('frame', 1, FRAME_DRAW_MS, () => {
+        entryCompleteRef.current = true
+        setPhaseValue('visible')
+      })
+    })
+  }, [animateValue, setPhaseValue, stopAnimation])
+
+  const startExit = useCallback((mode) => {
+    if (phaseRef.current === 'hidden' || phaseRef.current === 'exiting') return
+    stopAnimation()
+    exitModeRef.current = mode
+    setPhaseValue('exiting')
+    animateValue('text', 0, TEXT_EXIT_MS, () => {
+      waitForDuration(DOOR_CLOSE_MS, () => {
+        animateValue('frame', 0, FRAME_RETRACT_MS, () => {
+          const completedMode = exitModeRef.current
+          entryCompleteRef.current = false
+          exitModeRef.current = null
+          setPhaseValue('hidden')
+          if (completedMode === 'return') onReturnCompleteRef.current?.()
+        })
+      })
+    })
+  }, [animateValue, setPhaseValue, stopAnimation, waitForDuration])
+
+  useEffect(() => {
+    if (visible) {
+      if (returnRequestedRef.current) return undefined
+      if (phaseRef.current === 'hidden' || phaseRef.current === 'exiting') startEntry()
+      return undefined
+    }
+    if (!returnRequestedRef.current && ['entering', 'visible'].includes(phaseRef.current)) {
+      startExit('dismiss')
+    }
+    return undefined
+  }, [startEntry, startExit, visible])
+
+  useEffect(() => () => stopAnimation(), [stopAnimation])
+
+  const handleReturnClick = useCallback(() => {
+    if (!visible || returnRequestedRef.current || phaseRef.current === 'hidden' || phaseRef.current === 'exiting') return
+    returnRequestedRef.current = true
+    onReturnStartRef.current?.()
+    startExit('return')
+  }, [startExit, visible])
+
+  const present = phase !== 'hidden'
+  const wantsActivation = mobile || hovered || focused
+  const active = entryCompleteRef.current
+    && (wantsActivation || (phase === 'exiting' && progress.text > 0.001))
+  const variant = variantRef.current
 
   return (
     <button
       type="button"
-      className={`reader-return-control${visualArmed ? ' is-armed' : ''}${affordanceVisible ? ' has-affordance' : ''}`}
-      style={{ '--return-progress': progress }}
+      className="reader-return-control"
+      style={{
+        '--return-text-progress': progress.text,
+        '--return-frame-progress': progress.frame,
+      }}
       data-reader-return-control="true"
-      data-return-armed={visualArmed ? 'true' : 'false'}
-      data-return-progress={progress.toFixed(3)}
-      data-return-ready={entryReady ? 'true' : 'false'}
-      data-return-completing={completing ? 'true' : 'false'}
+      data-return-visible={present ? 'true' : 'false'}
+      data-return-phase={phase}
+      data-return-active={active ? 'true' : 'false'}
+      data-return-mobile={mobile ? 'true' : 'false'}
+      data-return-world-layer={worldLayer}
+      data-return-mask-direction={variant.maskDirection}
+      data-return-frame-origin={variant.frameOrigin}
+      data-return-text-progress={progress.text.toFixed(3)}
+      data-return-frame-progress={progress.frame.toFixed(3)}
+      aria-label={returnHint}
+      aria-hidden={!present}
+      aria-pressed={active}
+      disabled={!present || phase === 'exiting'}
+      tabIndex={present ? 0 : -1}
       onPointerEnter={event => {
         if (event.pointerType === 'mouse') setHovered(true)
-        onPointerEnter?.(event)
       }}
       onPointerLeave={event => {
-        setHovered(false)
-        onPointerLeave?.(event)
+        if (event.pointerType === 'mouse') setHovered(false)
       }}
-      onPointerDown={onPointerDown}
-      onClick={onClick}
-      aria-label={returnHint}
-      aria-pressed={visualArmed}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onClick={handleReturnClick}
     >
-      <span className="reader-return-text-row">
-        <span ref={returnTextRef} className="reader-return-text" data-stable={returnTextStable ? 'true' : 'false'}>
-          {returnDisplayText || returnLabel}
+      <span className="reader-return-content">
+        <span className="reader-return-mask" aria-hidden="true">
+          <span className="reader-return-room" />
+          <span className="reader-return-door reader-return-door--one" />
+          <span className="reader-return-door reader-return-door--two" />
         </span>
-        <LandingEntryArrow
-          className="reader-return-entry-arrow"
-          direction={completing ? 'left' : hovered || armed ? 'down' : 'right'}
-          initialDirection="right"
-          phase={completing ? 'retracting' : 'steady'}
-          sourceRef={returnTextRef}
-          entryReady={returnTextStable}
-          exitDelayMs={0}
-          exitDurationMs={RETURN_TEXT_EXIT_MS}
-          showRing={false}
-          onExitComplete={handleArrowExitComplete}
-        />
+        <span className="reader-return-text" style={{ opacity: progress.text }}>
+          {returnLabel}
+        </span>
+        <svg className="reader-return-frame" viewBox="0 0 100 36" aria-hidden="true" focusable="false">
+          <path
+            d={FRAME_PATHS[variant.frameOrigin]}
+            pathLength="1"
+            style={{ strokeDashoffset: 1 - progress.frame }}
+          />
+        </svg>
       </span>
     </button>
   )

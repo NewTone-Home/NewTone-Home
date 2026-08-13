@@ -921,37 +921,8 @@
 .reader-stage-page .reader-scene-footprint.is-past { opacity: .24; filter: saturate(.55); }
 .reader-stage-page .reader-scene-footprint.is-current { opacity: .92; filter: none; }
 
-.reader-return-control {
-  bottom: max(24px, env(safe-area-inset-bottom));
-  left: max(24px, env(safe-area-inset-left));
-  width: clamp(150px, 13vw, 190px);
-  cursor: default;
-  opacity: .72;
-  transform: none;
-  animation: reader-return-enter 480ms ease both;
-}
-.reader-return-ring {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  fill: none;
-  pointer-events: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.1;
-}
-.reader-return-ring path {
-  stroke-dasharray: 1;
-  stroke-dashoffset: calc(1 - var(--return-progress));
-}
-.reader-return-ring-echo { opacity: .28; transform: translate(1px, .5px); }
-
 @keyframes reader-scene-meta-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes reader-scene-meta-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes reader-return-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: .72; transform: none; } }
 
 @media (max-width: 680px) {
   .reader-corner-menu {
@@ -960,7 +931,6 @@
   }
   .reader-scene-menu-group { gap: 10px; }
   .reader-scene-menu-label { width: min(176px, calc(100vw - 98px)); font-size: .65rem; }
-  .reader-stage .reader-return-control { bottom: max(18px, env(safe-area-inset-bottom)) !important; left: max(14px, env(safe-area-inset-left)); }
 }
 
 /* Reader shell recovery: preserve the original icon toolbar and its invisible
@@ -1955,51 +1925,6 @@
 .motion-slash.is-visible { opacity: .85; }
 .reader-motion-tool.is-reduced:hover { opacity: .82; }
 
-.reader-return-control {
-  position: absolute;
-  z-index: 9;
-  bottom: max(clamp(48px, 6.2vh, 84px), calc(env(safe-area-inset-bottom) + 38px));
-  left: max(24px, env(safe-area-inset-left));
-  display: grid;
-  width: clamp(132px, 11vw, 190px);
-  padding: 10px 12px 8px;
-  border: 0;
-  background: transparent;
-  color: var(--reader-muted);
-  cursor: default;
-  font: inherit;
-  font-size: clamp(.78rem, .72vw, .98rem);
-  letter-spacing: .12em;
-  opacity: .44;
-  place-items: center;
-  transform: none;
-  transition: color 360ms ease, opacity 360ms ease;
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: none;
-}
-.reader-return-control:hover,
-.reader-return-control:focus-visible { color: var(--reader-ink); opacity: .94; outline: none; }
-.reader-return-track {
-  display: block;
-  width: 100%;
-  height: 2px;
-  margin-top: 8px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(var(--reader-line-rgb), .12);
-}
-.reader-return-track > span {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  background: currentColor;
-  transform: scaleX(var(--return-progress));
-  transform-origin: left;
-}
-.reader-return-control.is-completing { animation: reader-return-confirm 620ms ease both; }
-
 .reader-scene-label {
   right: auto;
   bottom: max(clamp(20px, 2.4vh, 36px), env(safe-area-inset-bottom));
@@ -2126,11 +2051,6 @@
   0% { opacity: 0; transform: translateY(9px); }
   100% { opacity: 1; transform: translateY(0); }
 }
-@keyframes reader-return-confirm {
-  0%, 100% { opacity: .95; filter: none; }
-  22%, 62% { opacity: .42; filter: brightness(1.4); }
-  42%, 82% { opacity: 1; filter: brightness(1); }
-}
 @keyframes reader-tutorial-breathe { 50% { opacity: .78; } }
 
 @media (max-width: 700px), (hover: none) {
@@ -2146,7 +2066,6 @@
   .reader-submenu-inner button { min-height: 36px; padding: 7px 2px; }
   .reader-language-slot { min-width: 56px; height: 36px; font-size: .72rem; }
   .reader-theme-pill { width: 144px; height: 34px; }
-  .reader-return-control { bottom: max(54px, calc(env(safe-area-inset-bottom) + 44px)); width: 150px; }
   .reader-scene-label { right: auto; bottom: max(14px, env(safe-area-inset-bottom)); left: 50%; text-align: center; }
   .reader-trace { bottom: max(16px, env(safe-area-inset-bottom)); width: min(46vw, 220px); }
   .reader-input-tutorial { display: none; }
@@ -2155,9 +2074,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .reader-tool-clapper-top,
-  .motion-line,
-  .reader-return-control,
-  .reader-return-track > span { transition-duration: 120ms !important; animation: none !important; }
+  .motion-line { transition-duration: 120ms !important; animation: none !important; }
 }
 
 /* Final shell priority: this file contains later legacy spatial rules, so the
