@@ -5,13 +5,13 @@ import './ReaderReturnControl.css'
 const TIMINGS = Object.freeze({
   textEnter: 320,
   frameEnter: 720,
-  doorOpen: 520,
+  fillOpen: 520,
   textExit: 260,
-  doorClose: 520,
+  fillClose: 520,
   frameExit: 420,
 })
 
-const MASK_DIRECTIONS = ['left', 'right', 'top', 'bottom', 'center']
+const FILL_DIRECTIONS = ['left', 'right', 'top', 'bottom', 'center']
 const FRAME_ORIGINS = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
 const FRAME_PATHS = Object.freeze({
   'top-left': 'M 1 1 H 99 V 35 H 1 Z',
@@ -21,23 +21,16 @@ const FRAME_PATHS = Object.freeze({
 })
 
 function createProgress() {
-  return { text: 0, frame: 0, door: 0 }
+  return { text: 0, frame: 0, fill: 0 }
 }
 
 function randomItem(items) {
   return items[Math.floor(Math.random() * items.length)]
 }
 
-function nextMaskDirection(queue) {
-  if (queue.length === 0) queue.push(...[...MASK_DIRECTIONS].sort(() => Math.random() - 0.5))
+function nextFillDirection(queue) {
+  if (queue.length === 0) queue.push(...[...FILL_DIRECTIONS].sort(() => Math.random() - 0.5))
   return queue.shift()
-}
-
-function createVariant(queue) {
-  return {
-    maskDirection: nextMaskDirection(queue),
-    frameOrigin: randomItem(FRAME_ORIGINS),
-  }
 }
 
 function clamp(value) {
@@ -48,47 +41,53 @@ function easeInOut(value) {
   return value * value * (3 - 2 * value)
 }
 
-function getDoorStyle(direction, side, progress) {
+function getFillStyle(direction, progress) {
   const amount = clamp(progress)
   const closed = 1 - amount
-  const scale = 0.12 + 0.88 * amount
+  const edge = 100 - amount * 100
+  const centerEdge = 50 * closed
 
   if (direction === 'left') {
     return {
       opacity: amount,
+      clipPath: `inset(0 ${edge}% 0 0)`,
       transformOrigin: 'left center',
-      transform: `perspective(220px) rotateY(${-72 * closed}deg) scaleX(${scale}) translateX(${-16 * closed}%)`,
+      transform: `perspective(320px) rotateY(${-7 * closed}deg)`,
     }
   }
 
   if (direction === 'right') {
     return {
       opacity: amount,
+      clipPath: `inset(0 0 0 ${edge}%)`,
       transformOrigin: 'right center',
-      transform: `perspective(220px) rotateY(${72 * closed}deg) scaleX(${scale}) translateX(${16 * closed}%)`,
+      transform: `perspective(320px) rotateY(${7 * closed}deg)`,
     }
   }
 
   if (direction === 'top') {
     return {
       opacity: amount,
+      clipPath: `inset(${edge}% 0 0 0)`,
       transformOrigin: 'center top',
-      transform: `perspective(220px) rotateX(${72 * closed}deg) scaleY(${scale}) translateY(${-16 * closed}%)`,
+      transform: `perspective(320px) rotateX(${7 * closed}deg)`,
     }
   }
 
   if (direction === 'bottom') {
     return {
       opacity: amount,
+      clipPath: `inset(0 0 ${edge}% 0)`,
       transformOrigin: 'center bottom',
-      transform: `perspective(220px) rotateX(${-72 * closed}deg) scaleY(${scale}) translateY(${16 * closed}%)`,
+      transform: `perspective(320px) rotateX(${-7 * closed}deg)`,
     }
   }
 
   return {
     opacity: amount,
-    transformOrigin: side === 'one' ? 'right center' : 'left center',
-    transform: `perspective(220px) rotateY(${side === 'one' ? -8 : 8}deg) translateX(${side === 'one' ? -50 * closed : 50 * closed}%)`,
+    clipPath: `inset(0 ${centerEdge}% 0 ${centerEdge}%)`,
+    transformOrigin: 'center',
+    transform: `perspective(320px) scale(${0.94 + amount * 0.06})`,
   }
 }
 
@@ -96,11 +95,12 @@ function getDoorStyle(direction, side, progress) {
  * Portable Reader return entry.
  *
  * The host supplies only the boundary fact, input kind, world layer, and
- * navigation callbacks. This component owns the whole visual state machine:
+ * navigation callbacks. This component owns the local visual state machine:
  * hidden -> entering -> visible -> exiting -> hidden.
  *
- * The frame is the outermost layer. The text and door are inset inside it.
- * The door is a visual state, never a permanent background layer.
+ * The visual model is deliberately small: one inset fill, one text layer,
+ * and one outer frame. A new fill direction is selected for each complete
+ * desktop activation, while the final-beat source stays with the host.
  */
 function ReaderReturnControl({
   visible = false,
@@ -117,13 +117,16 @@ function ReaderReturnControl({
 
   const [phase, setPhase] = useState('hidden')
   const [progress, setProgress] = useState(createProgress)
+  const [variant, setVariant] = useState(() => ({
+    fillDirection: 'left',
+    frameOrigin: randomItem(FRAME_ORIGINS),
+  }))
   const phaseRef = useRef('hidden')
   const progressRef = useRef(createProgress())
   const mobileRef = useRef(mobile)
   const hoveredRef = useRef(false)
   const focusedRef = useRef(false)
-  const directionQueueRef = useRef([])
-  const variantRef = useRef(null)
+  const fillDirectionQueueRef = useRef([])
   const timelineRef = useRef({ token: 0, frame: 0 })
   const entryCompleteRef = useRef(false)
   const returnRequestedRef = useRef(false)
@@ -134,8 +137,6 @@ function ReaderReturnControl({
   mobileRef.current = mobile
   onReturnStartRef.current = onReturnStart
   onReturnCompleteRef.current = onReturnComplete
-
-  if (!variantRef.current) variantRef.current = createVariant(directionQueueRef.current)
 
   const setPhaseValue = useCallback(nextPhase => {
     phaseRef.current = nextPhase
@@ -203,18 +204,38 @@ function ReaderReturnControl({
     runNextStep()
   }, [cancelTimeline, setProgressValue])
 
-  const animateDoor = useCallback((open) => {
+  const activateFill = useCallback(() => {
+    if (!entryCompleteRef.current || phaseRef.current !== 'visible') return
+
+    if (progressRef.current.fill <= 0.001) {
+      const nextDirection = nextFillDirection(fillDirectionQueueRef.current)
+      setVariant(current => ({ ...current, fillDirection: nextDirection }))
+    }
+
+    runTimeline([{
+      key: 'fill',
+      to: 1,
+      duration: TIMINGS.fillOpen,
+    }])
+  }, [runTimeline])
+
+  const deactivateFill = useCallback(() => {
     if (!entryCompleteRef.current || phaseRef.current !== 'visible') return
     runTimeline([{
-      key: 'door',
-      to: open ? 1 : 0,
-      duration: open ? TIMINGS.doorOpen : TIMINGS.doorClose,
+      key: 'fill',
+      to: 0,
+      duration: TIMINGS.fillClose,
     }])
   }, [runTimeline])
 
   const startEntry = useCallback(() => {
     if (phaseRef.current !== 'hidden' && phaseRef.current !== 'exiting') return
-    if (phaseRef.current === 'hidden') variantRef.current = createVariant(directionQueueRef.current)
+    if (phaseRef.current === 'hidden') {
+      setVariant(current => ({
+        ...current,
+        frameOrigin: randomItem(FRAME_ORIGINS),
+      }))
+    }
     entryCompleteRef.current = false
     exitModeRef.current = null
     setPhaseValue('entering')
@@ -225,9 +246,9 @@ function ReaderReturnControl({
       if (phaseRef.current !== 'entering') return
       entryCompleteRef.current = true
       setPhaseValue('visible')
-      if (mobileRef.current || hoveredRef.current || focusedRef.current) animateDoor(true)
+      if (mobileRef.current || hoveredRef.current || focusedRef.current) activateFill()
     })
-  }, [animateDoor, runTimeline, setPhaseValue])
+  }, [activateFill, runTimeline, setPhaseValue])
 
   const startExit = useCallback((mode) => {
     if (phaseRef.current === 'hidden' || phaseRef.current === 'exiting') return
@@ -236,7 +257,7 @@ function ReaderReturnControl({
     setPhaseValue('exiting')
     runTimeline([
       { key: 'text', to: 0, duration: TIMINGS.textExit },
-      { key: 'door', to: 0, duration: TIMINGS.doorClose },
+      { key: 'fill', to: 0, duration: TIMINGS.fillClose },
       { key: 'frame', to: 0, duration: TIMINGS.frameExit },
     ], () => {
       if (phaseRef.current !== 'exiting') return
@@ -261,8 +282,8 @@ function ReaderReturnControl({
   }, [startEntry, startExit, visible])
 
   useEffect(() => {
-    if (mobile && phaseRef.current === 'visible') animateDoor(true)
-  }, [animateDoor, mobile])
+    if (mobile && phaseRef.current === 'visible') activateFill()
+  }, [activateFill, mobile])
 
   useEffect(() => () => cancelTimeline(), [cancelTimeline])
 
@@ -276,49 +297,32 @@ function ReaderReturnControl({
   const handlePointerEnter = useCallback(event => {
     if (event.pointerType !== 'mouse') return
     hoveredRef.current = true
-    animateDoor(true)
-  }, [animateDoor])
+    activateFill()
+  }, [activateFill])
 
   const handlePointerLeave = useCallback(event => {
     if (event.pointerType !== 'mouse') return
     hoveredRef.current = false
-    if (!focusedRef.current && !mobileRef.current) animateDoor(false)
-  }, [animateDoor])
+    if (!focusedRef.current && !mobileRef.current) deactivateFill()
+  }, [deactivateFill])
 
   const handleFocus = useCallback(() => {
     focusedRef.current = true
-    animateDoor(true)
-  }, [animateDoor])
+    activateFill()
+  }, [activateFill])
 
   const handleBlur = useCallback(() => {
     focusedRef.current = false
-    if (!hoveredRef.current && !mobileRef.current) animateDoor(false)
-  }, [animateDoor])
+    if (!hoveredRef.current && !mobileRef.current) deactivateFill()
+  }, [deactivateFill])
 
   const present = phase !== 'hidden'
-  const doorActive = progress.door > 0.001
-  const variant = variantRef.current
-  const spaceStyle = {
-    opacity: progress.door * 0.42,
-    transform: `scale(${0.82 + progress.door * 0.18})`,
+  const fillActive = progress.fill > 0.001
+  const fillStyle = getFillStyle(variant.fillDirection, progress.fill)
+  const textStyle = {
+    opacity: progress.text,
+    color: fillActive ? 'var(--return-text-active)' : 'var(--reader-muted)',
   }
-  const doorOne = (
-    <span
-      className="reader-return-door reader-return-door--one"
-      style={getDoorStyle(variant.maskDirection, 'one', progress.door)}
-    />
-  )
-  const doors = variant.maskDirection === 'center'
-    ? (
-      <>
-        {doorOne}
-        <span
-          className="reader-return-door reader-return-door--two"
-          style={getDoorStyle(variant.maskDirection, 'two', progress.door)}
-        />
-      </>
-    )
-    : doorOne
 
   return (
     <button
@@ -327,23 +331,23 @@ function ReaderReturnControl({
       style={{
         '--return-text-progress': progress.text,
         '--return-frame-progress': progress.frame,
-        '--return-door-progress': progress.door,
+        '--return-fill-progress': progress.fill,
       }}
       data-reader-return-control="true"
       data-return-visible={present ? 'true' : 'false'}
       data-return-phase={phase}
-      data-return-active={doorActive ? 'true' : 'false'}
+      data-return-active={fillActive ? 'true' : 'false'}
       data-return-mobile={mobile ? 'true' : 'false'}
       data-return-world-layer={worldLayer}
-      data-return-mask-direction={variant.maskDirection}
+      data-return-fill-direction={variant.fillDirection}
       data-return-frame-origin={variant.frameOrigin}
-      data-return-layer-model="frame>text>door>space"
+      data-return-layer-model="frame>text>fill"
       data-return-text-progress={progress.text.toFixed(3)}
-      data-return-door-progress={progress.door.toFixed(3)}
+      data-return-fill-progress={progress.fill.toFixed(3)}
       data-return-frame-progress={progress.frame.toFixed(3)}
       aria-label={returnHint}
       aria-hidden={!present}
-      aria-pressed={doorActive}
+      aria-pressed={fillActive}
       aria-disabled={phase === 'exiting'}
       disabled={!present}
       tabIndex={present ? 0 : -1}
@@ -354,11 +358,8 @@ function ReaderReturnControl({
       onClick={handleReturnClick}
     >
       <span className="reader-return-content">
-        <span className="reader-return-mask" aria-hidden="true">
-          <span className="reader-return-space" style={spaceStyle} />
-          {doors}
-        </span>
-        <span className="reader-return-text" style={{ opacity: progress.text }}>
+        <span className="reader-return-fill" style={fillStyle} aria-hidden="true" />
+        <span className="reader-return-text" style={textStyle}>
           {returnLabel}
         </span>
         <svg className="reader-return-frame" viewBox="0 0 100 36" aria-hidden="true" focusable="false">

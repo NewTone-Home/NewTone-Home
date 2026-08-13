@@ -1,8 +1,8 @@
 .reader-return-control {
-  --return-mask: #000;
-  --return-text: #f4efe6;
-  --return-door-light: rgb(255 255 255 / .24);
-  --return-door-shadow: rgb(0 0 0 / .34);
+  --return-fill: #000;
+  --return-text-active: #f4efe6;
+  --return-fill-highlight: rgb(255 255 255 / .16);
+  --return-fill-shadow: rgb(0 0 0 / .34);
   position: absolute;
   z-index: 9;
   bottom: max(clamp(48px, 6.2vh, 84px), calc(env(safe-area-inset-bottom) + 38px));
@@ -27,10 +27,10 @@
 }
 
 .reader-return-control[data-return-world-layer='inner'] {
-  --return-mask: #fff;
-  --return-text: #191817;
-  --return-door-light: rgb(255 255 255 / .64);
-  --return-door-shadow: rgb(0 0 0 / .2);
+  --return-fill: #fff;
+  --return-text-active: #191817;
+  --return-fill-highlight: rgb(255 255 255 / .56);
+  --return-fill-shadow: rgb(0 0 0 / .2);
 }
 
 .reader-return-control[data-return-visible='false'] {
@@ -47,7 +47,7 @@
   outline-offset: 5px;
 }
 
-/* One local stacking context. The frame is intentionally the outermost layer. */
+/* One local stacking context. The frame is always the outermost layer. */
 .reader-return-content {
   position: relative;
   z-index: 0;
@@ -58,71 +58,31 @@
   place-items: center;
 }
 
-/* The mask never leaves this inset room. It cannot cover the SVG frame. */
-.reader-return-mask {
+/* The material is an inset fill, never a page-level mask. */
+.reader-return-fill {
   position: absolute;
   z-index: 1;
   inset: 3px;
   box-sizing: border-box;
   overflow: hidden;
-  perspective: 220px;
-  pointer-events: none;
-}
-
-/* The depth surface is invisible at door progress 0; it is never a static mask. */
-.reader-return-space,
-.reader-return-door {
-  position: absolute;
-  box-sizing: border-box;
-  overflow: hidden;
-  backface-visibility: hidden;
-  will-change: transform, opacity;
-}
-
-.reader-return-space {
-  z-index: 0;
-  inset: 0;
-  background: var(--return-mask);
-  box-shadow: inset 0 0 16px var(--return-door-shadow);
-  transform-origin: center;
-}
-
-.reader-return-door {
-  z-index: 1;
-  inset: 0;
-  background: var(--return-mask);
+  background:
+    linear-gradient(135deg, var(--return-fill-highlight), transparent 48%),
+    var(--return-fill);
   box-shadow:
-    inset 0 0 0 1px var(--return-door-light),
-    inset 0 0 16px var(--return-door-shadow);
-}
-
-/* Center is the only two-door model. All other directions render one door. */
-.reader-return-control[data-return-mask-direction='center'] .reader-return-door {
-  top: 0;
-  bottom: 0;
-  width: 50%;
-}
-
-.reader-return-control[data-return-mask-direction='center'] .reader-return-door--one {
-  right: auto;
-  left: 0;
-  background: linear-gradient(90deg, var(--return-mask), var(--return-door-light));
-}
-
-.reader-return-control[data-return-mask-direction='center'] .reader-return-door--two {
-  right: 0;
-  left: auto;
-  background: linear-gradient(270deg, var(--return-mask), var(--return-door-light));
+    inset 0 0 0 1px var(--return-fill-highlight),
+    inset 0 0 18px var(--return-fill-shadow);
+  backface-visibility: hidden;
+  pointer-events: none;
+  will-change: clip-path, transform, opacity;
 }
 
 .reader-return-text {
   position: relative;
   z-index: 2;
-  color: var(--return-text);
   white-space: nowrap;
 }
 
-/* The border is the final visual layer and remains readable over the door. */
+/* The border is the final visual layer and remains visible over the fill. */
 .reader-return-frame {
   position: absolute;
   z-index: 3;
@@ -158,8 +118,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .reader-return-space,
-  .reader-return-door,
+  .reader-return-fill,
   .reader-return-frame {
     will-change: auto;
   }

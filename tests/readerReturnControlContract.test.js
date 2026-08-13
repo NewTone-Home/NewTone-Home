@@ -26,9 +26,9 @@ describe('portable Reader return control', () => {
     expect(control).not.toContain('wheel')
   })
 
-  it('keeps the door inside the outer frame and supports five directions', () => {
-    expect(control).toContain("const MASK_DIRECTIONS = ['left', 'right', 'top', 'bottom', 'center']")
-    expect(control).toContain('nextMaskDirection(queue)')
+  it('keeps one fill inside the outer frame and supports five directions', () => {
+    expect(control).toContain("const FILL_DIRECTIONS = ['left', 'right', 'top', 'bottom', 'center']")
+    expect(control).toContain('nextFillDirection(fillDirectionQueueRef.current)')
     expect(control).toContain('const FRAME_ORIGINS')
     expect(controlCss).toContain('inset: 3px')
     expect(controlCss).toContain('reader-return-frame')
@@ -36,10 +36,10 @@ describe('portable Reader return control', () => {
     expect(control).toContain("direction === 'right'")
     expect(control).toContain("direction === 'top'")
     expect(control).toContain("direction === 'bottom'")
-    expect(controlCss).toContain("data-return-mask-direction='center'")
-    expect(controlCss).toContain('perspective: 220px')
-    expect(control).toContain("const doors = variant.maskDirection === 'center'")
-    expect(control).toContain('data-return-layer-model="frame>text>door>space"')
+    expect(control).toContain('getFillStyle(variant.fillDirection, progress.fill)')
+    expect(control).toContain('data-return-fill-direction={variant.fillDirection}')
+    expect(control).toContain('data-return-layer-model="frame>text>fill"')
+    expect(controlCss).toContain('clip-path')
   })
 
   it('leaves ReaderStage responsible only for the boundary fact and host callbacks', () => {
