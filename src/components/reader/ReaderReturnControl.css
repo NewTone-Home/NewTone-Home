@@ -84,6 +84,11 @@
   position: relative;
   z-index: 2;
   white-space: nowrap;
+  color: color-mix(
+    in srgb,
+    var(--reader-muted) calc((1 - var(--return-fill-progress)) * 100%),
+    var(--return-text-active) calc(var(--return-fill-progress) * 100%)
+  );
 }
 
 @media (hover: none), (pointer: coarse), (max-width: 720px) {

@@ -315,7 +315,6 @@ function ReaderReturnControl({
   const material = MATERIALS[worldLayer] || MATERIALS.surface
   const textStyle = {
     opacity: progress.text,
-    color: fillActive ? 'var(--return-text-active)' : 'var(--reader-muted)',
   }
 
   return (

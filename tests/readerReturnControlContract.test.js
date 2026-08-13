@@ -42,6 +42,9 @@ describe('portable Reader return control', () => {
     expect(control).toContain('data-return-fill-direction={variant.fillDirection}')
     expect(control).toContain('data-return-layer-model="shared-svg-geometry>text"')
     expect(controlCss).toContain('reader-return-surface')
+    expect(controlCss).toContain('color-mix(')
+    expect(controlCss).toContain('var(--return-fill-progress)')
+    expect(control).not.toContain("color: fillActive ? 'var(--return-text-active)'")
   })
 
   it('leaves ReaderStage responsible only for the boundary fact and host callbacks', () => {
