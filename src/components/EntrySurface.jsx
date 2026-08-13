@@ -3,6 +3,7 @@ import { useTransitionStore } from '../stores/transitionStore'
 import Landing from '../views/Landing'
 import LandingUpdatesPage from './LandingUpdatesPage'
 import { advanceUpdatesPhase, UPDATES_PHASE } from '../landing/landingUpdatesFlow'
+import { recordRuntimeAudit } from '../services/runtimeAudit'
 import ReadingTransition from './ReadingTransition'
 import { READING_ENTRY_TIMINGS } from '../transitions/readingEntryController'
 import './EntrySurface.css'
@@ -27,7 +28,7 @@ function EntrySurface({
   const [updatesPhase, setUpdatesPhase] = useState(UPDATES_PHASE.LANDING)
   const landingArrivalKind = useTransitionStore(s => s.landingArrivalKind)
   const [returnArrivalSurface] = useState(() => landingArrivalKind === 'return')
-  const barrierRef = useRef({ phase: '', keys: new Set() })
+  const updatesPhaseRef = useRef(UPDATES_PHASE.LANDING)
   const entryActive = phase !== 'idle'
   const mounted = currentView === 'landing' || entryActive || landingHandoff
 
@@ -38,23 +39,13 @@ function EntrySurface({
     : READING_ENTRY_TIMINGS.FIRST_LANDING_LEAVE_MS
 
   const sendUpdatesEvent = useCallback((event) => {
-    setUpdatesPhase(current => advanceUpdatesPhase(current, event))
-  }, [])
-
-  const handleUpdatesBarrier = useCallback((kind, key) => {
-    setUpdatesPhase(current => {
-      const expected = (
-        kind === 'turns' && current === UPDATES_PHASE.ENTER_ARROW_TURN
-      ) || (
-        kind === 'arrows' && current === UPDATES_PHASE.RETURN_ARROWS
-      ) ? 1 : 2
-      if (barrierRef.current.phase !== current) {
-        barrierRef.current = { phase: current, keys: new Set() }
-      }
-      barrierRef.current.keys.add(key)
-      if (barrierRef.current.keys.size < expected) return current
-      return advanceUpdatesPhase(current, `${kind}-complete`)
-    })
+    const current = updatesPhaseRef.current
+    const next = advanceUpdatesPhase(current, event)
+    recordRuntimeAudit('updates-event', { phase: current, event, nextPhase: next })
+    if (next === current) return
+    updatesPhaseRef.current = next
+    setUpdatesPhase(next)
+    recordRuntimeAudit('updates-phase', { phase: next, sourceEvent: event })
   }, [])
 
   return (
@@ -69,7 +60,6 @@ function EntrySurface({
         onEnter={onEnter}
         onEnterUpdates={() => sendUpdatesEvent('enter-requested')}
         updatesPhase={updatesPhase}
-        onUpdatesBarrier={handleUpdatesBarrier}
         leaving={entryActive}
         leavingMs={landingLeaveMs}
         surfaceStyle={surfaceStyle}

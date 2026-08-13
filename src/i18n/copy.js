@@ -1,8 +1,8 @@
 export const copy = {
   zh: {
-    landingPromptInitial: '向下滚动 · 开始读取',
-    landingPromptResume: '向下滚动 · 继续读取',
-    continueReading: '向下滚动 · 继续读取',
+    landingPromptInitial: '开始读取',
+    landingPromptResume: '继续读取',
+    continueReading: '继续读取',
     languageInitTitle: '文本层已接入：当前语言',
     languageInitProceed: '继续读取',
     languageInitChange: '是否变更',
@@ -38,8 +38,8 @@ export const copy = {
     readerTutorial: '向下前行 · 向上回看',
   },
   en: {
-    landingPromptInitial: 'Scroll down to begin',
-    landingPromptResume: 'Scroll down to continue',
+    landingPromptInitial: 'Begin reading',
+    landingPromptResume: 'Continue reading',
     continueReading: 'Continue reading',
     languageInitTitle: 'Reading language',
     languageInitProceed: 'Continue',
@@ -76,8 +76,8 @@ export const copy = {
     readerTutorial: 'Scroll down to continue · scroll up to revisit',
   },
   ja: {
-    landingPromptInitial: 'スクロールして開始',
-    landingPromptResume: 'スクロールして再開',
+    landingPromptInitial: '読み始める',
+    landingPromptResume: '読み続ける',
     continueReading: '読み続ける',
     languageInitTitle: 'テキストレイヤー：現在の言語',
     languageInitProceed: '読み進む',
@@ -93,8 +93,8 @@ export const copy = {
     backToHome: 'ホームに戻る',
   },
   ko: {
-    landingPromptInitial: '스크롤하여 시작',
-    landingPromptResume: '스크롤하여 계속',
+    landingPromptInitial: '읽기 시작',
+    landingPromptResume: '계속 읽기',
     continueReading: '계속 읽기',
     languageInitTitle: '텍스트 레이어 · 현재 언어',
     languageInitProceed: '계속 읽기',
@@ -110,8 +110,8 @@ export const copy = {
     backToHome: '홈으로 돌아가기',
   },
   fr: {
-    landingPromptInitial: 'défiler pour entrer',
-    landingPromptResume: 'défiler pour reprendre',
+    landingPromptInitial: 'commencer la lecture',
+    landingPromptResume: 'continuer la lecture',
     continueReading: 'continuer',
     languageInitTitle: 'couche texte · langue actuelle',
     languageInitProceed: 'continuer',
@@ -127,8 +127,8 @@ export const copy = {
     backToHome: 'retour à l\'accueil',
   },
   es: {
-    landingPromptInitial: 'desplázate para entrar',
-    landingPromptResume: 'desplázate para reanudar',
+    landingPromptInitial: 'comenzar a leer',
+    landingPromptResume: 'continuar leyendo',
     continueReading: 'continuar',
     languageInitTitle: 'capa de texto · idioma actual',
     languageInitProceed: 'continuar',
@@ -144,8 +144,8 @@ export const copy = {
     backToHome: 'volver al inicio',
   },
   id: {
-    landingPromptInitial: 'gulir untuk masuk',
-    landingPromptResume: 'gulir untuk melanjutkan',
+    landingPromptInitial: 'mulai membaca',
+    landingPromptResume: 'lanjut membaca',
     continueReading: 'lanjutkan',
     languageInitTitle: 'lapisan teks · bahasa saat ini',
     languageInitProceed: 'lanjutkan',

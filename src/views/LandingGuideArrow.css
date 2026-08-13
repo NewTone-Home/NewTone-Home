@@ -191,48 +191,9 @@
   transition-timing-function: cubic-bezier(.42,0,.58,1);
 }
 
-.landing-guide-entry-arrow {
-  --updates-arrow-exit-x: -68px;
-}
-
+.landing-guide-entry-arrow,
 .reader-entry-arrow {
-  --updates-arrow-exit-x: -58px;
-}
-
-.landing[data-updates-phase="enter-arrows"] .landing-entry-arrow {
-  animation: landing-updates-arrow-retract 900ms cubic-bezier(.42,0,.58,1) forwards;
-}
-
-.landing[data-updates-phase="enter-arrows"] .landing-entry-arrow__rotator {
-  transition-duration: 900ms;
-}
-
-/* The guide turn is its own barrier. The reader remains still until this
-   transition completes, then both arrows share the same retract start frame. */
-.landing[data-updates-phase="enter-arrow-turn"] .landing-entry-arrow__rotator {
-  transition-duration: 900ms;
-  transition-timing-function: cubic-bezier(.42,0,.58,1);
-}
-
-.landing[data-updates-phase="return-arrows"] .landing-guide-entry-arrow {
-  animation: landing-updates-arrow-return 1400ms cubic-bezier(.42,0,.58,1) forwards;
-}
-
-.landing[data-updates-phase="return-arrow-turn"] .landing-entry-arrow__rotator {
-  transition-duration: 1400ms;
-  transition-timing-function: cubic-bezier(.42,0,.58,1);
-}
-
-@keyframes landing-updates-arrow-retract {
-  from { opacity: 1; translate: 0 0; }
-  38% { opacity: .72; }
-  62% { opacity: .03; }
-  to { opacity: 0; translate: var(--updates-arrow-exit-x, -46px) 0; }
-}
-
-@keyframes landing-updates-arrow-return {
-  from { opacity: 0; translate: var(--updates-arrow-exit-x, -46px) 0; }
-  to { opacity: 1; translate: 0 0; }
+  --entry-arrow-exit-x: -58px;
 }
 
 .landing-entry-arrow__ink {
@@ -369,13 +330,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .landing[data-updates-phase="enter-arrows"] .landing-entry-arrow,
-  .landing[data-updates-phase="enter-arrow-turn"] .landing-entry-arrow__rotator,
-  .landing[data-updates-phase="return-arrows"] .landing-guide-entry-arrow,
-  .landing[data-updates-phase="return-arrow-turn"] .landing-entry-arrow__rotator {
-    animation-duration: 1ms !important;
-  }
-
   .landing-entry-reveal {
     overflow: visible !important;
     visibility: visible !important;
