@@ -2,12 +2,9 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useProgressStore } from './stores/progressStore'
 import { useTransitionStore } from './stores/transitionStore'
 import { useReadingEntry } from './transitions/readingEntryController'
-import { setHoldProgressPaused } from './interactions/holdProgress'
-import { resolveRitualWheelAction } from './interactions/ritualWheelAdvance'
 import Reader from './views/ReaderOrchestrator'
 import AdminSequenceGate from './admin/AdminSequenceGate'
 import EntrySurface from './components/EntrySurface'
-import './components/ReadingTransitionHover.css'
 import GlobalTransitionOverlay from './components/GlobalTransitionOverlay'
 import PageShell from './components/PageShell'
 import { resolveReaderEnvironmentState } from './data/readerContent'
@@ -36,7 +33,6 @@ function App({ contentStatus = 'ready', onRetryContent }) {
   const readingEntryRef = useRef(readingEntry)
   readingEntryRef.current = readingEntry
   const restoringBlockedHistoryRef = useRef(false)
-  const ritualWheelLockedRef = useRef(false)
 
   useEffect(() => {
     if (!window.history.state?.newtoneView) {
@@ -107,43 +103,6 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     if (currentView === 'landing') trackEvent('landing_entry', { stepId: 'landing' })
   }, [currentView])
 
-  useEffect(() => {
-    const wheelSelectorActive = readingEntry.phase === 'language-active' || readingEntry.phase === 'mode-active'
-    ritualWheelLockedRef.current = false
-    setHoldProgressPaused(wheelSelectorActive)
-    return () => setHoldProgressPaused(false)
-  }, [readingEntry.phase])
-
-  useEffect(() => {
-    const handleRitualWheel = event => {
-      if (ritualWheelLockedRef.current) return
-
-      const selectorOption = event.target
-        ?.closest?.('[data-selector-option][data-ritual-armed="true"]')
-        ?.dataset?.selectorOption
-      const ctrl = readingEntryRef.current
-      const action = resolveRitualWheelAction(ctrl.phase, selectorOption, event.deltaY)
-      if (!action) return
-
-      event.preventDefault()
-      event.stopPropagation()
-      ritualWheelLockedRef.current = true
-
-      if (action.type === 'language') {
-        const selectedLanguage = useProgressStore.getState().language
-        trackEvent('language_selected', { language: selectedLanguage })
-        ctrl.proceedFromLanguage()
-        return
-      }
-
-      trackEvent('mode_selected', { readingMode: action.mode })
-      ctrl.proceedFromMode(action.mode)
-    }
-
-    window.addEventListener('wheel', handleRitualWheel, { passive: false, capture: true })
-    return () => window.removeEventListener('wheel', handleRitualWheel, { capture: true })
-  }, [])
-
   const handleEnter = useCallback((intent) => {
     if (readingEntry.isActive || isGlobalTransitioning) return
     trackEvent('reader_entry_requested', {
@@ -193,7 +152,6 @@ function App({ contentStatus = 'ready', onRetryContent }) {
             onEnter={handleEnter}
             onProceed={handleLanguageProceed}
             onModeSelect={handleModeSelect}
-            guidePaused={isGlobalTransitioning}
           />
         )}
       </PageShell>

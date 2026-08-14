@@ -1,0 +1,140 @@
+.entry-button-surface {
+  --entry-ink: var(--ink-medium, #5a4d40);
+  --entry-fill: color-mix(in srgb, var(--reader-paper, var(--paper-base)) 92%, var(--entry-ink));
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: clamp(9.5rem, 15vw, 12.5rem);
+  aspect-ratio: 200 / 56;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--entry-ink);
+  font: inherit;
+  letter-spacing: .1em;
+  cursor: pointer;
+  isolation: isolate;
+}
+
+.entry-button-surface[data-material-mode="world"][data-world-layer="inner"] {
+  --entry-ink: var(--reader-paper, #f2eee5);
+  --entry-fill: color-mix(in srgb, var(--reader-ink, #211a14) 92%, var(--reader-paper, #f2eee5));
+}
+
+.entry-button-surface:disabled {
+  cursor: default;
+}
+
+.entry-button-surface:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 5px;
+}
+
+.entry-button-surface__geometry {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.entry-button-surface__fill {
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  opacity: .92;
+}
+
+.entry-button-surface__fill rect {
+  fill: var(--entry-fill);
+}
+
+.entry-button-surface__frame {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.entry-button-surface__label {
+  position: relative;
+  z-index: 1;
+  opacity: 0;
+  transform: translateY(2px);
+  white-space: nowrap;
+}
+
+.entry-button-surface[data-entry-phase="entering"] {
+  animation: entry-button-surface-enter 560ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.entry-button-surface[data-entry-phase="entering"] .entry-button-surface__fill {
+  animation: entry-button-fill-enter 560ms cubic-bezier(.2,.8,.2,1) 120ms both;
+}
+
+.entry-button-surface[data-entry-phase="entering"] .entry-button-surface__label {
+  animation: entry-button-label-enter 260ms ease-out 80ms both;
+}
+
+.entry-button-surface[data-entry-phase="visible"] .entry-button-surface__fill {
+  transform: scaleX(1);
+}
+
+.entry-button-surface[data-entry-phase="visible"] .entry-button-surface__label {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.entry-button-surface[data-entry-phase="exiting"] {
+  animation: entry-button-surface-exit 520ms cubic-bezier(.4,0,.7,.2) both;
+}
+
+.entry-button-surface[data-entry-phase="exiting"] .entry-button-surface__fill {
+  animation: entry-button-fill-exit 520ms cubic-bezier(.4,0,.7,.2) both;
+}
+
+.entry-button-surface[data-entry-phase="exiting"] .entry-button-surface__label {
+  animation: entry-button-label-exit 180ms ease-in both;
+}
+
+@keyframes entry-button-surface-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes entry-button-fill-enter {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes entry-button-label-enter {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes entry-button-surface-exit {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes entry-button-fill-exit {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@keyframes entry-button-label-exit {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry-button-surface[data-entry-phase="entering"],
+  .entry-button-surface[data-entry-phase="entering"] .entry-button-surface__fill,
+  .entry-button-surface[data-entry-phase="entering"] .entry-button-surface__label,
+  .entry-button-surface[data-entry-phase="exiting"],
+  .entry-button-surface[data-entry-phase="exiting"] .entry-button-surface__fill,
+  .entry-button-surface[data-entry-phase="exiting"] .entry-button-surface__label {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
+}

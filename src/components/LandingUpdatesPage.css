@@ -39,60 +39,19 @@
 
 .landing-updates-return {
   position: fixed;
-  top: max(8px, env(safe-area-inset-top));
-  left: 50%;
-  display: flex;
-  align-items: center;
-  gap: .55rem;
-  padding: .35rem .5rem;
-  border: 0;
+  left: 1.25rem;
+  bottom: max(1.25rem, env(safe-area-inset-bottom));
+  padding: .55rem .8rem;
+  border: 1px solid currentColor;
   background: transparent;
-  color: var(--ink-medium);
+  color: inherit;
   font: inherit;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(-50%);
-}
-
-.landing-updates-page[data-return-armed="true"] .landing-updates-return {
-  opacity: .78;
-  pointer-events: auto;
-}
-
-.landing-updates-return__arrow .landing-entry-ring {
-  transition: none;
-}
-
-.landing-updates-page[data-return-armed="true"] .landing-updates-return__arrow .landing-entry-ring {
-  animation: updates-return-ring-draw 2200ms cubic-bezier(.42,0,.58,1) forwards;
-}
-
-@media (pointer: coarse) {
-  .landing-updates-page[data-return-ready="true"] {
-    touch-action: none;
-    overscroll-behavior: none;
-  }
-}
-
-@keyframes updates-return-ring-draw {
-  from { stroke-dashoffset: var(--landing-entry-ring-length, 220); }
-  to { stroke-dashoffset: 0; }
-}
-
-@media (pointer: coarse) {
-  .landing-updates-return {
-    opacity: .48;
-    pointer-events: auto;
-  }
+  cursor: pointer;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .landing-updates-page[data-updates-phase="enter-surface"],
   .landing-updates-page[data-updates-phase="return-surface"] {
-    animation-duration: 1ms;
-  }
-
-  .landing-updates-page[data-return-armed="true"] .landing-updates-return__arrow .landing-entry-ring {
     animation-duration: 1ms;
   }
 }

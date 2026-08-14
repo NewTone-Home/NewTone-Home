@@ -1,74 +1,31 @@
-.updates-entry-group {
+.landing-entry-button-group {
+  position: static;
+  display: block;
+  min-width: 0;
+}
+
+.landing-entry-button-group .entry-button-surface {
   position: absolute;
+}
+
+.landing-entry-button-group .entry-button-surface:first-child {
   right: calc(100% + 3.6rem);
   top: 50%;
   transform: translate3d(
-    var(--scene-parallax-back-x, 0px),
-    calc(-50% + var(--scene-parallax-back-y, 0px)),
+    var(--scene-parallax-back-x, 0),
+    calc(-50% + var(--scene-parallax-back-y, 0)),
     0
   );
-  white-space: nowrap;
-  pointer-events: none;
-  cursor: pointer;
 }
 
-/* The group is present from the same frame NewTone begins drawing. ScrambleText
-   owns the text delay; the Reader ring is synchronized separately to NewTone's
-   live animation progress in Landing.jsx. */
-.landing-entry-group--timed {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.landing-direction-prompts--revealed .landing-entry-group--timed {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.landing-prompt--updates {
-  color: var(--ink-medium);
-}
-
-.landing-direction-prompts--revealed .landing-prompt--updates {
-  animation: prompt-breathe var(--pulse-duration) ease-in-out infinite;
-}
-
-/* The old signature lines are retired. Selection emphasis now belongs to the
-   shared entry-arrow ring. */
-.landing .newtone-hand-lines {
-  display: none;
-}
-
-.down-entry-group {
-  cursor: pointer;
-}
-
-.landing[data-updates-phase="enter-labels"] .landing-entry-group--timed {
-  pointer-events: none;
-  animation: landing-updates-label-retract 420ms cubic-bezier(.4,0,.7,.2) forwards;
-}
-
-.landing[data-updates-phase="return-labels"] .landing-entry-group--timed {
-  pointer-events: none;
-  animation: landing-updates-label-return 420ms cubic-bezier(.2,.8,.2,1) forwards;
-}
-
-@keyframes landing-updates-label-retract {
-  from { opacity: 1; translate: 0 0; }
-  to { opacity: 0; translate: var(--updates-label-to-title-x, 0) var(--updates-label-to-title-y, 0); }
-}
-
-@keyframes landing-updates-label-return {
-  from { opacity: 0; translate: var(--updates-label-to-title-x, 0) var(--updates-label-to-title-y, 0); }
-  to { opacity: 1; translate: 0 0; }
-}
-
-.updates-entry-group {
-  --updates-label-to-title-x: 7rem;
-}
-
-.down-entry-group {
-  --updates-label-to-title-y: -3.75rem;
+.landing-entry-button-group .entry-button-surface:last-child {
+  left: 50%;
+  top: calc(100% + 3.6rem);
+  transform: translate3d(
+    calc(-50% + var(--scene-parallax-back-x, 0)),
+    var(--scene-parallax-back-y, 0),
+    0
+  );
 }
 
 .landing[data-updates-phase="enter-surface"] {
@@ -93,41 +50,27 @@
   to { transform: translateY(0); }
 }
 
+@media (max-width: 560px) {
+  .landing-entry-button-group .entry-button-surface:first-child {
+    right: auto;
+    left: 50%;
+    top: calc(100% + 2.5rem);
+    transform: translate3d(
+      calc(-50% + var(--scene-parallax-back-x, 0)),
+      var(--scene-parallax-back-y, 0),
+      0
+    );
+  }
+
+  .landing-entry-button-group .entry-button-surface:last-child {
+    left: 50%;
+    top: calc(100% + 8rem);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .landing[data-updates-phase="enter-labels"] .landing-entry-group--timed,
-  .landing[data-updates-phase="return-labels"] .landing-entry-group--timed,
   .landing[data-updates-phase="enter-surface"],
   .landing[data-updates-phase="return-surface"] {
     animation-duration: 1ms !important;
-  }
-
-  .landing-entry-group--timed {
-    transition: none !important;
-  }
-
-  .landing-direction-prompts--revealed .landing-prompt--updates {
-    animation: none !important;
-    opacity: .75 !important;
-  }
-}
-
-.page-shell[data-motion-mode="reduced"] .landing-entry-group--timed {
-  transition: none !important;
-}
-
-.page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--updates {
-  animation: none !important;
-  opacity: .75 !important;
-}
-
-@media (max-width: 768px) {
-  .updates-entry-group {
-    right: calc(100% + 3.25rem);
-  }
-}
-
-@media (max-width: 480px) {
-  .updates-entry-group {
-    right: calc(100% + 3rem);
   }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import Landing from '../views/Landing'
 import LandingUpdatesPage from './LandingUpdatesPage'
 import { advanceUpdatesPhase, UPDATES_PHASE } from '../landing/landingUpdatesFlow'
@@ -20,10 +20,8 @@ function EntrySurface({
   onEnter,
   onProceed,
   onModeSelect,
-  guidePaused = false,
 }) {
   const [updatesPhase, setUpdatesPhase] = useState(UPDATES_PHASE.LANDING)
-  const barrierRef = useRef({ phase: '', keys: new Set() })
   const entryActive = phase !== 'idle'
   const mounted = currentView === 'landing' || entryActive
 
@@ -37,18 +35,6 @@ function EntrySurface({
     setUpdatesPhase(current => advanceUpdatesPhase(current, event))
   }, [])
 
-  const handleUpdatesBarrier = useCallback((kind, key) => {
-    setUpdatesPhase(current => {
-      const expected = 2
-      if (barrierRef.current.phase !== current) {
-        barrierRef.current = { phase: current, keys: new Set() }
-      }
-      barrierRef.current.keys.add(key)
-      if (barrierRef.current.keys.size < expected) return current
-      return advanceUpdatesPhase(current, `${kind}-complete`)
-    })
-  }, [])
-
   return (
     <div
       className={`entry-surface entry-surface--phase-${phase}`}
@@ -59,14 +45,12 @@ function EntrySurface({
       <Landing
         onEnter={onEnter}
         onEnterUpdates={() => sendUpdatesEvent('enter-requested')}
-        updatesPhase={updatesPhase}
-        onUpdatesBarrier={handleUpdatesBarrier}
         leaving={entryActive}
         leavingMs={landingLeaveMs}
         surfaceStyle={surfaceStyle}
         readingMode={readingMode}
         environmentState={environmentState}
-        guidePaused={guidePaused || entryActive}
+        updatesPhase={updatesPhase}
       />
 
       <LandingUpdatesPage

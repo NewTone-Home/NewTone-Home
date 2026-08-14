@@ -21,6 +21,6 @@ describe('persistent entry surface contract', () => {
     expect(surfaceCss).toContain('.entry-surface > .reading-transition')
     expect(surfaceCss).toContain('position: absolute')
     expect(surfaceCss).toContain('.entry-surface > .landing')
-    expect(surface).toContain('guidePaused={guidePaused || entryActive}')
+    expect(surface).not.toContain('guidePaused')
   })
 })

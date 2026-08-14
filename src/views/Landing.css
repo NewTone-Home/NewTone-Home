@@ -9,13 +9,15 @@
   position: relative;
   background-color: var(--reader-paper, var(--paper-base));
   color: var(--reader-ink, var(--ink-dark));
-
-  transition: opacity calc(var(--landing-leave-ms, 1600ms) - 360ms) ease-in 360ms, transform calc(var(--landing-leave-ms, 1600ms) - 360ms) ease-in 360ms, background-color 1200ms ease, color 900ms ease;
+  transition: opacity calc(var(--landing-leave-ms, 1600ms) - 360ms) ease-in 360ms,
+    transform calc(var(--landing-leave-ms, 1600ms) - 360ms) ease-in 360ms,
+    background-color 1200ms ease,
+    color 900ms ease;
 }
 
 .landing--leaving {
   opacity: 0;
-  transform: scale(0.995);
+  transform: scale(.995);
 }
 
 .landing-main {
@@ -42,24 +44,8 @@
   letter-spacing: 3px;
   color: var(--ink-dark);
   font-style: italic;
-  cursor: default;
 }
 
-.landing-title::before {
-  content: '';
-  position: absolute;
-  inset: -50px;
-}
-
-@media (min-width: 768px) {
-  .landing-title {
-    font-size: clamp(3.5rem, 6vw, 7rem);
-    letter-spacing: 4px;
-  }
-}
-
-/* The word itself is painted by LandingTitleMark; the DOM text only holds the
-   box (and the accessible name) so the SVG has something to size itself to. */
 .landing-title-text {
   position: relative;
   display: inline-block;
@@ -73,187 +59,24 @@
   position: relative;
   display: inline-block;
   color: transparent;
-  transform: scale(var(--landing-title-hover-scale, 1));
-  transform-origin: 50% 58%;
-  transition: transform 320ms cubic-bezier(.2,.8,.2,1);
-}
-
-.landing-title:hover .landing-title-breath,
-.landing-title:focus-visible .landing-title-breath {
-  --landing-title-hover-scale: 1.026;
-}
-
-.landing--return-sequence .landing-title:hover .landing-title-breath,
-.landing--return-sequence .landing-title:focus-visible .landing-title-breath {
-  --landing-title-hover-scale: 1;
-}
-
-.landing-title--guiding .landing-title-breath {
-  animation: landing-title-breathe 1.9s ease-in-out infinite;
 }
 
 .landing-title-n-host {
   position: relative;
 }
 
-/* The guide is anchored to the actual lower-left start area of the N. Its
-   arrowhead sits on this zero-size origin, so the ink seed appears to come out
-   of the letter instead of from an arbitrary box corner. */
-.landing-title-n-origin {
-  position: absolute;
-  left: .08em;
-  bottom: .16em;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-}
-
-@keyframes landing-title-breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.019); }
-}
-
-.landing-guide-arrow {
-  position: absolute;
-  left: -64px;
-  top: -12px;
-  width: 92px;
-  height: 72px;
-  overflow: visible;
-  fill: none;
-  pointer-events: none;
-}
-
-.landing-guide-arrow__seed {
-  fill: var(--ink-dark);
-  opacity: 0;
-  transform: scale(.18);
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.landing-guide-arrow__wash,
-.landing-guide-arrow__strokes {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.landing-guide-arrow__wash {
-  opacity: 0;
-  stroke: var(--ink-dark);
-  stroke-width: 10;
-  filter: blur(3.8px);
-}
-
-.landing-guide-arrow__strokes {
-  opacity: 0;
-  stroke: var(--ink-medium);
-  stroke-width: 1.35;
-  filter: blur(2.4px);
-}
-
-/* The arrow does not draw itself out from the dot. The dot blooms first, then
-   a blurred ink mass resolves in-place into the already-approved curved arrow. */
-.landing-guide-arrow--visible .landing-guide-arrow__seed {
-  animation: landing-guide-seed-bloom 920ms cubic-bezier(.2,.75,.2,1) forwards;
-}
-
-.landing-guide-arrow--visible .landing-guide-arrow__wash {
-  animation: landing-guide-wash-resolve 920ms cubic-bezier(.2,.75,.2,1) forwards;
-}
-
-.landing-guide-arrow--visible .landing-guide-arrow__strokes {
-  animation: landing-guide-strokes-resolve 920ms cubic-bezier(.2,.75,.2,1) forwards;
-}
-
-.landing-guide-arrow--retracting .landing-guide-arrow__seed {
-  animation: landing-guide-seed-return 320ms ease-in forwards;
-}
-
-.landing-guide-arrow--retracting .landing-guide-arrow__wash {
-  animation: landing-guide-wash-return 320ms ease-in forwards;
-}
-
-.landing-guide-arrow--retracting .landing-guide-arrow__strokes {
-  animation: landing-guide-strokes-return 320ms ease-in forwards;
-}
-
-@keyframes landing-guide-seed-bloom {
-  0% { opacity: 0; filter: blur(0); transform: scale(.18); }
-  12% { opacity: .98; filter: blur(0); transform: scale(.9); }
-  34% { opacity: .82; filter: blur(.25px); transform: scale(1.75); }
-  62% { opacity: .38; filter: blur(.75px); transform: scale(2.7); }
-  100% { opacity: 0; filter: blur(1.8px); transform: scale(3.5); }
-}
-
-@keyframes landing-guide-wash-resolve {
-  0%, 18% { opacity: 0; stroke-width: 11; filter: blur(4.2px); }
-  38% { opacity: .16; stroke-width: 9; filter: blur(3.3px); }
-  68% { opacity: .18; stroke-width: 4.2; filter: blur(1.4px); }
-  100% { opacity: 0; stroke-width: 2; filter: blur(0); }
-}
-
-@keyframes landing-guide-strokes-resolve {
-  0%, 24% { opacity: 0; stroke-width: 5.8; filter: blur(2.6px); }
-  46% { opacity: .18; stroke-width: 4.2; filter: blur(1.8px); }
-  72% { opacity: .48; stroke-width: 2.2; filter: blur(.7px); }
-  100% { opacity: .68; stroke-width: 1.35; filter: blur(0); }
-}
-
-@keyframes landing-guide-seed-return {
-  0% { opacity: 0; filter: blur(1.5px); transform: scale(2.8); }
-  54% { opacity: .82; filter: blur(.3px); transform: scale(1.35); }
-  82% { opacity: 1; filter: blur(0); transform: scale(.8); }
-  100% { opacity: 0; filter: blur(0); transform: scale(.18); }
-}
-
-@keyframes landing-guide-wash-return {
-  0% { opacity: 0; stroke-width: 2; filter: blur(0); }
-  44% { opacity: .16; stroke-width: 5.5; filter: blur(1.8px); }
-  78% { opacity: .12; stroke-width: 9; filter: blur(3.2px); }
-  100% { opacity: 0; stroke-width: 11; filter: blur(4px); }
-}
-
-@keyframes landing-guide-strokes-return {
-  0% { opacity: .68; stroke-width: 1.35; filter: blur(0); }
-  48% { opacity: .42; stroke-width: 2.5; filter: blur(.8px); }
-  78% { opacity: .14; stroke-width: 4.8; filter: blur(2px); }
-  100% { opacity: 0; stroke-width: 6; filter: blur(2.8px); }
-}
-
-/* ===== Entry Groups (text + arrow containers) ===== */
-
-.up-entry-group {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 3.6rem);
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  white-space: nowrap;
-}
-
-.down-entry-group,
 .landing-return-status {
   position: absolute;
   left: 50%;
   top: calc(100% + 3.6rem);
-  transform: translate3d(calc(-50% + var(--scene-parallax-back-x, 0px)), var(--scene-parallax-back-y, 0px), 0);
-  white-space: nowrap;
-}
-
-.down-entry-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.landing-return-status {
   display: grid;
   place-items: center;
   min-width: max-content;
+  transform: translate3d(
+    calc(-50% + var(--scene-parallax-back-x, 0)),
+    var(--scene-parallax-back-y, 0),
+    0
+  );
   pointer-events: none;
 }
 
@@ -265,100 +88,20 @@
   animation: landing-return-status-blink var(--landing-return-blink-ms, 800ms) ease-in-out 2 both;
 }
 
+.landing-return-status--fading .landing-return-status__text {
+  animation: landing-return-status-fade 260ms ease-out forwards;
+}
+
 @keyframes landing-return-status-blink {
   0%, 100% { opacity: .3; }
   48% { opacity: .92; }
   72% { opacity: .5; }
 }
 
-.entry-arrow {
-  flex-shrink: 0;
-  color: var(--ink-medium);
+@keyframes landing-return-status-fade {
+  from { opacity: .42; }
+  to { opacity: 0; }
 }
-
-.entry-arrow--down {
-  margin-top: 2px;
-}
-
-.entry-arrow--up {
-  margin-bottom: 2px;
-}
-
-.entry-arrow .sketch-down-shaft,
-.entry-arrow .sketch-down-head,
-.entry-arrow .sketch-up-shaft,
-.entry-arrow .sketch-up-head {
-  stroke: currentColor;
-  stroke-width: 2.4;
-  opacity: 1;
-}
-
-.entry-arrow .sketch-down-shaft-faint,
-.entry-arrow .sketch-up-shaft-faint {
-  stroke: currentColor;
-  stroke-width: 1.2;
-  opacity: 0.32;
-}
-
-/* ===== Direction Prompts ===== */
-
-.landing-prompt {
-  margin: 0;
-  font-size: clamp(0.85rem, 1.1vw, 1.1rem);
-  color: var(--ink-medium);
-  letter-spacing: 1.5px;
-  opacity: 0.7;
-  transition: color 0.4s ease;
-}
-
-.landing-direction-prompts--revealed .landing-prompt--down,
-.landing-direction-prompts--revealed .landing-prompt--up {
-  animation: prompt-breathe var(--pulse-duration) ease-in-out infinite;
-}
-
-.landing-prompt--up {
-  color: var(--ink-medium);
-  opacity: 0.7;
-}
-
-@keyframes prompt-breathe {
-  0%, 100% {
-    color: var(--ink-medium);
-    opacity: 0.38;
-    transform: translateY(0);
-  }
-  50% {
-    color: #3a2e22;
-    opacity: 0.9;
-    text-shadow: 0.5px 0.5px 0 rgba(0,0,0,0.06);
-    transform: translateY(1px);
-  }
-}
-
-/* ===== Reset Button (pencil annotation style) ===== */
-
-.landing-reset {
-  position: fixed;
-  bottom: var(--space-md);
-  right: var(--space-md);
-  background: none;
-  border: none;
-  color: var(--ink-muted);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  padding: var(--space-xs) var(--space-sm);
-  letter-spacing: 1px;
-  z-index: 2;
-  transition: color 0.2s ease;
-}
-
-.landing-reset:hover {
-  color: var(--ink-dark);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-/* ===== Reduced Motion ===== */
 
 @media (prefers-reduced-motion: reduce) {
   .landing {
@@ -366,45 +109,9 @@
     transition-delay: 0ms !important;
   }
 
-  .landing-direction-prompts--revealed .landing-prompt--down,
-  .landing-direction-prompts--revealed .landing-prompt--up {
-    animation: none !important;
-    opacity: 0.75 !important;
-  }
-
-  .landing-title-text {
-    transform: none !important;
-  }
-
-  .landing-title--guiding .landing-title-breath,
-  .landing-guide-arrow *,
   .landing-return-status__text {
     animation: none !important;
   }
-
-  .landing-guide-arrow--visible .landing-guide-arrow__seed,
-  .landing-guide-arrow--visible .landing-guide-arrow__wash {
-    opacity: 0 !important;
-  }
-
-  .landing-guide-arrow--visible .landing-guide-arrow__strokes {
-    opacity: .68 !important;
-    filter: none !important;
-    stroke-width: 1.35 !important;
-  }
-
-  .landing-return-status__text {
-    opacity: .72 !important;
-  }
-}
-
-.page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--down,
-.page-shell[data-motion-mode="reduced"] .landing-direction-prompts--revealed .landing-prompt--up {
-  opacity: 0.75 !important;
-}
-
-.page-shell[data-motion-mode="reduced"] .landing-title-text {
-  transform: none !important;
 }
 
 .page-shell[data-motion-mode="reduced"] .landing {
@@ -412,62 +119,24 @@
   transition-delay: 0ms !important;
 }
 
-.page-shell[data-motion-mode="reduced"] .landing-title--guiding .landing-title-breath,
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow *,
 .page-shell[data-motion-mode="reduced"] .landing-return-status__text {
   animation: none !important;
 }
 
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__seed,
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__wash {
-  opacity: 0 !important;
-}
-
-.page-shell[data-motion-mode="reduced"] .landing-guide-arrow--visible .landing-guide-arrow__strokes {
-  opacity: .68 !important;
-  filter: none !important;
-  stroke-width: 1.35 !important;
-}
-
-.page-shell[data-motion-mode="reduced"] .landing-return-status__text {
-  opacity: .72 !important;
-}
-
-/* ===== Responsive ===== */
-
 @media (max-width: 768px) {
-  .up-entry-group {
-    bottom: calc(100% + 2.8rem);
-  }
-
-  .down-entry-group,
   .landing-return-status {
     top: calc(100% + 2.8rem);
   }
 
-  .landing-prompt,
   .landing-return-status__text {
-    font-size: clamp(0.8rem, 3vw, 0.95rem);
+    font-size: clamp(.8rem, 3vw, .95rem);
     letter-spacing: 1px;
-  }
-
-  .landing-reset {
-    font-size: 11px;
   }
 }
 
-@media (max-width: 480px) {
-  .up-entry-group {
-    bottom: calc(100% + 2.4rem);
-  }
-
-  .down-entry-group,
-  .landing-return-status {
-    top: calc(100% + 2.4rem);
-  }
-
-  .landing-prompt,
-  .landing-return-status__text {
-    font-size: 0.85rem;
+@media (min-width: 768px) {
+  .landing-title {
+    font-size: clamp(3.5rem, 6vw, 7rem);
+    letter-spacing: 4px;
   }
 }

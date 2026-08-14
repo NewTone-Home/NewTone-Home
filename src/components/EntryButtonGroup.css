@@ -1,0 +1,12 @@
+.entry-button-group {
+  display: flex;
+  align-items: center;
+  gap: clamp(1.25rem, 4vw, 3rem);
+}
+
+@media (max-width: 560px) {
+  .entry-button-group {
+    flex-direction: column;
+    gap: .8rem;
+  }
+}
