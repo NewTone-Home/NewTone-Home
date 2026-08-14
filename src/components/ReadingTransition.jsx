@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { READING_ENTRY_TIMINGS } from '../transitions/readingEntryController'
 import { copy } from '../i18n/copy'
-import { detectBrowserReaderLanguage, READER_LANGUAGES } from '../i18n/languages'
+import { detectBrowserReaderLanguage } from '../i18n/languages'
 import { initialScramble, useScrambleText } from '../hooks/useScrambleText'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useSceneParallax } from '../hooks/useSceneParallax'
@@ -50,12 +50,11 @@ function resolveTransitionEnvironment(state, language) {
 
 function TransitionEnvironmentLine({ text }) {
   const { displayText } = useScrambleText(text, {
-    charInterval: Math.max(18, Math.min(54, Math.floor(880 / Math.max(1, Array.from(text).length)))),
-    scrambleInterval: 44,
+    duration: 880,
   })
   return (
     <span className="reading-transition-environment-line">
-      {displayText || initialScramble(text.length)}
+      {displayText || initialScramble(text)}
     </span>
   )
 }
@@ -113,15 +112,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     title: modeStage ? lang.modeInitTitle : lang.languageInitTitle,
   }), [lang, modeStage])
 
-  const titleCharInterval = useMemo(() => (
-    !modeStage
-      ? Math.max(60, Math.min(130, Math.floor(2000 / currentStage.title.length)))
-      : Math.max(30, Math.min(60, Math.floor(800 / currentStage.title.length)))
-  ), [currentStage.title.length, modeStage])
-
   const { displayText: titleDisplay, stable: titleStable } = useScrambleText(currentStage.title, {
-    charInterval: titleCharInterval,
-    scrambleInterval: 50,
+    duration: modeStage ? 900 : 1800,
     enabled: revealed,
   })
 
@@ -172,7 +164,6 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
           {!modeStage && (
             <LanguageWheelSelector
               language={draftLanguage}
-              alternateLanguage={READER_LANGUAGES.find(item => item.code !== draftLanguage)?.code}
               onLanguageChange={setDraftLanguage}
             />
           )}

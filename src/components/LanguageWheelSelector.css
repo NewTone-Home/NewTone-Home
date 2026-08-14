@@ -1,10 +1,12 @@
 .language-wheel-selector {
   position: relative;
   display: inline-grid;
-  min-width: 140px;
-  min-height: 44px;
-  padding: 8px 18px;
-  border: 0;
+  box-sizing: border-box;
+  width: 158px;
+  min-height: 56px;
+  padding: 8px 24px 8px 14px;
+  overflow: visible;
+  border: 1px solid color-mix(in srgb, var(--rt-control) 74%, transparent);
   background: transparent;
   color: var(--rt-control);
   cursor: pointer;
@@ -21,51 +23,83 @@
   outline-offset: 5px;
 }
 
-.language-wheel-selector__current {
-  position: relative;
-  z-index: 2;
+.language-wheel-selector__viewport {
+  display: block;
+  width: 100%;
+  height: 1.6em;
+  overflow: hidden;
+}
+
+.language-wheel-selector__track {
+  display: flex;
+  width: 100%;
+  height: 300%;
+  flex-direction: column;
+  transform: translate3d(0, -33.333333%, 0);
+  transition: transform 360ms cubic-bezier(.22, .61, .36, 1);
+  will-change: transform;
+}
+
+.language-wheel-selector__track[data-language-track-state='previous'] {
+  transform: translate3d(0, 0, 0);
+}
+
+.language-wheel-selector__track[data-language-track-state='next'] {
+  transform: translate3d(0, -66.666667%, 0);
+}
+
+.language-wheel-selector__slot {
+  display: grid;
+  box-sizing: border-box;
+  min-height: 0;
+  flex: 0 0 33.333333%;
+  place-items: center;
   white-space: nowrap;
+  transition: filter 360ms ease, opacity 360ms ease;
 }
 
-.language-wheel-selector[data-language-selector-phase='idle'] .language-wheel-selector__current {
-  animation: language-wheel-current-blink 1.25s ease-in-out infinite;
-}
-
-.language-wheel-selector[data-language-selector-phase='decoding'] .language-wheel-selector__current {
-  min-width: 4em;
-}
-
-.language-wheel-selector__candidate {
-  position: absolute;
-  left: 50%;
+.language-wheel-selector__slot--previous,
+.language-wheel-selector__slot--next {
   color: var(--rt-muted);
   filter: blur(1.8px);
   opacity: .42;
-  pointer-events: none;
-  transform: translateX(-50%);
-  white-space: nowrap;
 }
 
-.language-wheel-selector[data-language-candidate-position='bottom'] .language-wheel-selector__candidate {
-  top: calc(100% + 3px);
+.language-wheel-selector__slot--current {
+  color: var(--rt-control);
+  opacity: 1;
 }
 
-.language-wheel-selector[data-language-candidate-position='top'] .language-wheel-selector__candidate {
-  bottom: calc(100% + 3px);
+.language-wheel-selector[data-language-selector-phase='idle'] .language-wheel-selector__slot--current {
+  animation: language-wheel-current-blink 1.25s ease-in-out infinite;
+}
+
+.language-wheel-selector__track[data-language-track-state='next'] .language-wheel-selector__slot--next,
+.language-wheel-selector__track[data-language-track-state='previous'] .language-wheel-selector__slot--previous {
+  color: var(--rt-control);
+  filter: blur(0);
+  opacity: 1;
+}
+
+.language-wheel-selector__track[data-language-track-state='next'] .language-wheel-selector__slot--current,
+.language-wheel-selector__track[data-language-track-state='previous'] .language-wheel-selector__slot--current {
+  color: var(--rt-muted);
+  filter: blur(1.8px);
+  opacity: .42;
 }
 
 .language-wheel-selector__arrow {
   position: absolute;
   top: 50%;
-  left: calc(100% + 7px);
+  left: calc(100% + 8px);
   color: var(--rt-control);
-  opacity: .76;
+  opacity: 0;
   pointer-events: none;
   transform: translateY(-50%);
   transition: opacity 260ms ease;
 }
 
-.language-wheel-selector[data-language-arrow-state='floating'] .language-wheel-selector__arrow {
+.language-wheel-selector[data-language-arrow-state='visible'] .language-wheel-selector__arrow {
   opacity: .76;
   animation: language-wheel-arrow-float 1.2s ease-in-out infinite;
 }
@@ -75,19 +109,22 @@
   animation: none;
 }
 
-@keyframes language-wheel-current-blink {
-  0%, 100% { opacity: .45; }
-  50% { opacity: 1; }
-}
-
 @keyframes language-wheel-arrow-float {
   0%, 100% { transform: translateY(-58%); }
   50% { transform: translateY(-35%); }
 }
 
+@keyframes language-wheel-current-blink {
+  0%, 100% { opacity: .45; }
+  50% { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .language-wheel-selector__current,
-  .language-wheel-selector__arrow {
+  .language-wheel-selector__track,
+  .language-wheel-selector__slot,
+  .language-wheel-selector__arrow,
+  .language-wheel-selector__slot--current {
     animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
   }
 }

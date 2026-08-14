@@ -13,8 +13,7 @@ function ScrambleText({
   const { displayText } = useScrambleText(text, {
     enabled: active,
     startDelay,
-    charInterval: Math.max(40, Math.floor(duration / Math.max(1, text.length))),
-    scrambleInterval: 40,
+    duration,
     chars: '░▒/\\-_01',
     withdrawing,
     withdrawalDuration,
