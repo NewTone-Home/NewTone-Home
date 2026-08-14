@@ -98,6 +98,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const [draftLanguage, setDraftLanguage] = useState(initialLanguage)
   const [revealed, setRevealed] = useState(false)
   const [actionsVisible, setActionsVisible] = useState(false)
+  const [entriesLeaving, setEntriesLeaving] = useState(false)
 
   const stageLanguage = modeStage ? language : draftLanguage
   const lang = copy[stageLanguage] || copy.zh
@@ -129,6 +130,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
   useEffect(() => {
     setActionsVisible(false)
+    setEntriesLeaving(false)
   }, [currentStage.id])
 
   useEffect(() => {
@@ -158,6 +160,10 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     onProceed(draftLanguage)
   }, [draftLanguage, modeStage, onModeSelect, onProceed])
 
+  const handleEntryActionStart = useCallback(() => {
+    setEntriesLeaving(true)
+  }, [])
+
   return (
     <div
       className={`ritual-selector language-init${leaving ? ' language-init--leaving' : ''}`}
@@ -165,6 +171,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
       data-selector-phase={leaving ? 'leaving' : actionsVisible ? 'visible' : 'preparing'}
       data-language-draft={modeStage ? undefined : draftLanguage}
       data-language-draft-source={modeStage ? undefined : 'browser'}
+      data-selector-entries-leaving={entriesLeaving ? 'true' : 'false'}
     >
       <div className="language-init-title-anchor">
         <p className="ritual-selector-title language-init-title" data-stable={revealed && titleStable ? 'true' : 'false'}>
@@ -178,7 +185,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
             <LanguageWheelSelector
               language={draftLanguage}
               onLanguageChange={setDraftLanguage}
-              visible={!leaving}
+              visible={!leaving && !entriesLeaving}
             />
           )}
 
@@ -187,6 +194,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
             groupId={`reader-${currentStage.id}-entries`}
             entries={entries}
             onNavigate={handleEntryNavigate}
+            onActionStart={handleEntryActionStart}
             visible={!leaving}
             className="reading-transition-entry-group"
           />

@@ -10,13 +10,15 @@ function isCoarsePointer() {
     && window.matchMedia?.('(pointer: coarse)').matches === true
 }
 
-function EntryButtonGroup({ groupId, entries, onNavigate, materialMode, worldLayer, visible = true, className = '' }) {
+function EntryButtonGroup({ groupId, entries, onNavigate, onActionStart, materialMode, worldLayer, visible = true, className = '' }) {
   const [phase, setPhase] = useState(GROUP_PHASE.VISIBLE)
   const phaseRef = useRef(GROUP_PHASE.VISIBLE)
   const actionRef = useRef(null)
   const navigatedRef = useRef(false)
   const onNavigateRef = useRef(onNavigate)
+  const onActionStartRef = useRef(onActionStart)
   onNavigateRef.current = onNavigate
+  onActionStartRef.current = onActionStart
 
   const setGroupPhase = useCallback((nextPhase) => {
     phaseRef.current = nextPhase
@@ -33,6 +35,7 @@ function EntryButtonGroup({ groupId, entries, onNavigate, materialMode, worldLay
     if (phaseRef.current !== GROUP_PHASE.VISIBLE || navigatedRef.current) return
     actionRef.current = { entryId, inputType }
     recordRuntimeAudit('entry-group-click', { groupId, entryId, inputType })
+    onActionStartRef.current?.({ entryId, inputType })
     setGroupPhase(GROUP_PHASE.EXITING)
   }, [groupId, setGroupPhase])
 
