@@ -129,7 +129,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 
   useEffect(() => {
     setActionsVisible(false)
-  }, [currentStage.id, leaving, modeStage])
+  }, [currentStage.id])
 
   useEffect(() => {
     if (leaving || actionsVisible || !titleStable) return undefined
