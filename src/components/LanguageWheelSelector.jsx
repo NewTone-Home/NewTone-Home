@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getReaderLanguage, READER_LANGUAGES } from '../i18n/languages'
 import { recordRuntimeAudit } from '../services/runtimeAudit'
-import EntryButtonFrame, { useEntryFrameProgress } from './EntryButtonFrame'
+import EntryButtonFrame from './EntryButtonFrame'
 import './LanguageWheelSelector.css'
 
 const LANGUAGE_FILL_DIRECTIONS = Object.freeze(['left', 'right', 'top', 'bottom'])
@@ -9,6 +9,14 @@ const LANGUAGE_FILL_DURATION_MS = 520
 export const LANGUAGE_WHEEL_TRANSITION_MS = 360
 export const LANGUAGE_ARROW_DELAY_MS = 0
 export const LANGUAGE_SWIPE_THRESHOLD_PX = 24
+
+const LANGUAGE_ENTRY_TIMINGS = Object.freeze({
+  textEnter: 320,
+  frameEnter: 720,
+  textExit: 260,
+  fillExit: 520,
+  frameExit: 420,
+})
 
 function isCoarsePointer() {
   return typeof window !== 'undefined'
@@ -47,6 +55,10 @@ function easeInOut(value) {
   return value * value * (3 - 2 * value)
 }
 
+function createProgress() {
+  return { text: 0, fill: 1, frame: 0 }
+}
+
 function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
   const coarse = isCoarsePointer()
   const rootRef = useRef(null)
@@ -57,19 +69,21 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
   const pointerRef = useRef({ id: null, startY: 0 })
   const dragOffsetRef = useRef(0)
   const suppressClickRef = useRef(false)
-  const coverProgressRef = useRef(1)
-  const coverAnimationRef = useRef({ token: 0, frame: 0 })
+  const progressRef = useRef(createProgress())
+  const sequenceRef = useRef({ token: 0, frame: 0 })
   const closeRequestedRef = useRef(false)
+  const inputReadyRef = useRef(false)
+  const exitStartedRef = useRef(false)
   const onLanguageChangeRef = useRef(onLanguageChange)
   const [phase, setPhase] = useState('idle')
   const [selectedLanguage, setSelectedLanguage] = useState(language)
-  const [fillDirection, setFillDirection] = useState(() => (coarse ? 'top' : randomDirection()))
-  const [coverProgress, setCoverProgress] = useState(1)
+  const [fillDirection, setFillDirection] = useState(() => randomDirection())
+  const [progress, setProgress] = useState(createProgress)
   const [track, setTrack] = useState(null)
   const [trackState, setTrackState] = useState('center')
+  const [trackMotion, setTrackMotion] = useState('idle')
   const [dragOffset, setDragOffset] = useState(0)
   const [arrowState, setArrowState] = useState('hidden')
-  const frameProgress = useEntryFrameProgress(visible, 'language-selector-frame')
 
   onLanguageChangeRef.current = onLanguageChange
 
@@ -78,43 +92,74 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
     setPhase(nextPhase)
   }, [])
 
-  const cancelCoverAnimation = useCallback(() => {
-    const frame = coverAnimationRef.current.frame
-    if (frame) cancelFrame(frame)
-    coverAnimationRef.current = {
-      token: coverAnimationRef.current.token + 1,
+  const setProgressValue = useCallback((key, value) => {
+    const next = { ...progressRef.current, [key]: value }
+    progressRef.current = next
+    setProgress(next)
+  }, [])
+
+  const cancelSequence = useCallback(() => {
+    if (sequenceRef.current.frame) cancelFrame(sequenceRef.current.frame)
+    sequenceRef.current = {
+      token: sequenceRef.current.token + 1,
       frame: 0,
     }
   }, [])
 
-  const animateCover = useCallback((target, onComplete) => {
-    cancelCoverAnimation()
-    const token = coverAnimationRef.current.token
-    const from = coverProgressRef.current
-    const startedAt = performance.now()
+  const runSequence = useCallback((steps, onComplete) => {
+    cancelSequence()
+    const token = sequenceRef.current.token
+    let stepIndex = 0
 
-    const tick = timestamp => {
-      if (token !== coverAnimationRef.current.token) return
-      const raw = Math.min(1, Math.max(0, (timestamp - startedAt) / LANGUAGE_FILL_DURATION_MS))
-      const next = from + (target - from) * easeInOut(raw)
-      coverProgressRef.current = next
-      setCoverProgress(next)
-      if (raw < 1) {
-        coverAnimationRef.current.frame = requestFrame(tick)
+    const runNextStep = () => {
+      if (token !== sequenceRef.current.token) return
+      const step = steps[stepIndex]
+      if (!step) {
+        sequenceRef.current.frame = 0
+        onComplete?.()
         return
       }
-      coverAnimationRef.current.frame = 0
-      onComplete?.()
+
+      stepIndex += 1
+      const from = progressRef.current[step.key]
+      const target = clamp(step.to, 0, 1)
+      const distance = Math.abs(target - from)
+      if (distance < 0.001 || step.duration <= 0) {
+        setProgressValue(step.key, target)
+        runNextStep()
+        return
+      }
+
+      const startedAt = performance.now()
+      const tick = timestamp => {
+        if (token !== sequenceRef.current.token) return
+        const raw = Math.min(1, Math.max(0, (timestamp - startedAt) / step.duration))
+        setProgressValue(step.key, from + (target - from) * easeInOut(raw))
+        if (raw < 1) {
+          sequenceRef.current.frame = requestFrame(tick)
+          return
+        }
+        sequenceRef.current.frame = 0
+        setProgressValue(step.key, target)
+        runNextStep()
+      }
+
+      sequenceRef.current.frame = requestFrame(tick)
     }
 
-    coverAnimationRef.current.frame = requestFrame(tick)
-  }, [cancelCoverAnimation])
+    runNextStep()
+  }, [cancelSequence, setProgressValue])
+
+  const animateCover = useCallback((target, onComplete) => {
+    runSequence([{ key: 'fill', to: target, duration: LANGUAGE_FILL_DURATION_MS }], onComplete)
+  }, [runSequence])
 
   const closeSelector = useCallback(source => {
     const currentPhase = phaseRef.current
-    if (currentPhase === 'idle' || currentPhase === 'closing') return
+    if (currentPhase === 'idle' || currentPhase === 'closing' || currentPhase === 'hidden') return
     if (currentPhase === 'snapping') {
       closeRequestedRef.current = true
+      setArrowState('fading')
       return
     }
 
@@ -126,17 +171,20 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
     animateCover(1, () => {
       if (phaseRef.current !== 'closing') return
       setTrack(null)
+      trackRef.current = null
       setTrackState('center')
+      setTrackMotion('reset')
       dragOffsetRef.current = 0
       setDragOffset(0)
       setArrowState('hidden')
       setSelectorPhase('idle')
+      requestFrame(() => setTrackMotion('idle'))
       recordRuntimeAudit('language-fill-close-complete', { source })
     })
   }, [animateCover, coarse, fillDirection, setSelectorPhase])
 
   const openSelector = useCallback(source => {
-    if (!visible || phaseRef.current !== 'idle') return
+    if (!visible || !inputReadyRef.current || phaseRef.current !== 'idle') return
     const direction = coarse ? 'top' : randomDirection(fillDirection)
     setFillDirection(direction)
     setSelectorPhase('opening')
@@ -166,9 +214,11 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
     setTrack({ from, target, direction, source })
     trackRef.current = { from, target, direction, source }
     setTrackState('center')
+    setTrackMotion('moving')
     dragOffsetRef.current = dragDistance
     setDragOffset(dragDistance)
     setSelectorPhase('snapping')
+    setArrowState('fading')
     recordRuntimeAudit('language-wheel-snap-start', { from, target, direction, source, dragDistance })
     requestFrame(() => {
       if (phaseRef.current !== 'snapping') return
@@ -184,12 +234,12 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
     setTrack(null)
     trackRef.current = null
     setTrackState('center')
-    setSelectorPhase('snapping')
-    recordRuntimeAudit('language-wheel-snap-start', { source: 'drag-cancel', dragDistance: dragOffsetRef.current })
-    requestFrame(() => {
-      dragOffsetRef.current = 0
-      setDragOffset(0)
-    })
+    setTrackMotion('reset')
+    setSelectorPhase('ready')
+    dragOffsetRef.current = 0
+    setDragOffset(0)
+    requestFrame(() => setTrackMotion('idle'))
+    recordRuntimeAudit('language-wheel-snap-cancelled', {})
   }, [setSelectorPhase])
 
   const handleTrackTransitionEnd = useCallback(event => {
@@ -198,8 +248,9 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
 
     const completedTrack = trackRef.current
     if (!completedTrack) {
+      setTrackMotion('reset')
       setSelectorPhase('ready')
-      recordRuntimeAudit('language-wheel-snap-cancelled', {})
+      requestFrame(() => setTrackMotion('idle'))
       return
     }
 
@@ -208,6 +259,9 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
     setTrack(null)
     trackRef.current = null
     setTrackState('center')
+    setTrackMotion('reset')
+    setDragOffset(0)
+    dragOffsetRef.current = 0
     setSelectorPhase('ready')
     recordRuntimeAudit('language-wheel-transition-complete', {
       language: completedTrack.target,
@@ -220,6 +274,11 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
       previousLanguage: completedTrack.from,
       direction: completedTrack.direction,
       source: completedTrack.source,
+    })
+    setArrowState('hidden')
+    recordRuntimeAudit('language-arrow-dismissed', { source: completedTrack.source })
+    requestFrame(() => {
+      if (phaseRef.current === 'ready') setTrackMotion('idle')
     })
 
     if (closeRequestedRef.current) {
@@ -303,7 +362,7 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
   }, [cancelSnap, coarse, phase, startSnap])
 
   useEffect(() => {
-    if (!coarse || phase === 'idle') return undefined
+    if (!coarse || phase === 'idle' || phase === 'hidden') return undefined
     const handleOutsidePointer = event => {
       if (!rootRef.current?.contains(event.target)) closeSelector('outside-tap')
     }
@@ -318,12 +377,55 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
     }
   }, [language, phase, track])
 
-  useEffect(() => () => cancelCoverAnimation(), [cancelCoverAnimation])
+  useEffect(() => {
+    inputReadyRef.current = false
+    exitStartedRef.current = false
+    runSequence([
+      { key: 'text', to: 1, duration: LANGUAGE_ENTRY_TIMINGS.textEnter },
+      { key: 'frame', to: 1, duration: LANGUAGE_ENTRY_TIMINGS.frameEnter },
+    ], () => {
+      inputReadyRef.current = true
+      recordRuntimeAudit('language-entry-ready', {})
+    })
+
+    return () => cancelSequence()
+  }, [cancelSequence, runSequence])
+
+  useEffect(() => {
+    if (visible) return undefined
+    if (exitStartedRef.current) return undefined
+
+    exitStartedRef.current = true
+    inputReadyRef.current = false
+    pointerRef.current = { id: null, startY: 0 }
+    closeRequestedRef.current = false
+    setArrowState('fading')
+    setSelectorPhase('exiting')
+    recordRuntimeAudit('language-entry-exit-start', {})
+    runSequence([
+      { key: 'text', to: 0, duration: LANGUAGE_ENTRY_TIMINGS.textExit },
+      { key: 'fill', to: 0, duration: LANGUAGE_ENTRY_TIMINGS.fillExit },
+      { key: 'frame', to: 0, duration: LANGUAGE_ENTRY_TIMINGS.frameExit },
+    ], () => {
+      setTrack(null)
+      trackRef.current = null
+      setTrackState('center')
+      setTrackMotion('reset')
+      setDragOffset(0)
+      setArrowState('hidden')
+      setSelectorPhase('hidden')
+      recordRuntimeAudit('language-entry-exit-complete', {})
+    })
+
+    return undefined
+  }, [runSequence, setSelectorPhase, visible])
 
   const codes = trackCodes(track?.from || selectedLanguage)
   const labels = codes.map(code => getReaderLanguage(code).label)
-  const accessibleLanguage = phase === 'idle' ? '当前语言' : getReaderLanguage(selectedLanguage).label
-  const coverState = coverProgress > .999 ? 'closed' : coverProgress < .001 ? 'open' : 'moving'
+  const activeLabel = getReaderLanguage(selectedLanguage).label
+  const showsTrack = ['ready', 'snapping', 'dragging'].includes(phase)
+  const accessibleLanguage = ['idle', 'closing', 'hidden'].includes(phase) ? '当前语言' : activeLabel
+  const coverState = progress.fill > .999 ? 'closed' : progress.fill < .001 ? 'open' : 'moving'
   const trackClass = track ? trackState : 'center'
 
   return (
@@ -335,19 +437,21 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
       data-language-selector-phase={phase}
       data-language-selected={selectedLanguage}
       data-language-track-state={trackClass}
+      data-language-track-motion={trackMotion}
       data-language-arrow-state={arrowState}
       data-language-fill="shared-path"
-      data-language-fill-progress={coverProgress.toFixed(3)}
+      data-language-fill-progress={progress.fill.toFixed(3)}
       data-language-fill-direction={fillDirection}
       data-language-cover-state={coverState}
       data-language-input={coarse ? 'touch' : 'wheel'}
       data-language-candidates={coarse ? 'vertical' : 'none'}
-      data-entry-frame-progress={frameProgress.toFixed(3)}
+      data-entry-frame-progress={progress.frame.toFixed(3)}
+      data-language-text-progress={progress.text.toFixed(3)}
       data-language-drag-offset={dragOffset.toFixed(1)}
       data-entry-frame-fill="enabled"
       data-entry-paint-model="shared-path-fill>shared-path-stroke>text"
       aria-label={`${accessibleLanguage}，语言选择`}
-      aria-hidden={!visible && frameProgress < .001}
+      aria-hidden={!visible || progress.frame < .001}
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
       onPointerDown={handlePointerDown}
@@ -357,29 +461,38 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
       <span className="shared-entry-content language-wheel-selector__content">
         <EntryButtonFrame
           className="language-wheel-selector__surface"
-          frameProgress={frameProgress}
-          fillProgress={coverProgress}
+          frameProgress={progress.frame}
+          fillProgress={progress.fill}
           fillDirection={fillDirection}
           fillEnabled
           materialMode="background"
         />
-        <span className="language-wheel-selector__viewport" ref={viewportRef} aria-hidden="true">
-          <span className="language-wheel-selector__placeholder">当前语言</span>
-          <span
-            className="language-wheel-selector__track"
-            data-language-track-state={trackClass}
-            style={{ '--language-drag-offset': `${dragOffset}px` }}
-            onTransitionEnd={handleTrackTransitionEnd}
-          >
-            {labels.map((label, index) => (
-              <span
-                className={`language-wheel-selector__slot language-wheel-selector__slot--${index === 1 ? 'current' : index === 0 ? 'previous' : 'next'}`}
-                key={`${codes[index]}:${index}`}
-              >
-                {label}
-              </span>
-            ))}
-          </span>
+        <span
+          className={`language-wheel-selector__viewport${showsTrack ? ' language-wheel-selector__viewport--track' : ''}`}
+          ref={viewportRef}
+          aria-hidden="true"
+          style={{ opacity: progress.text }}
+        >
+          {showsTrack ? (
+            <span
+              className="language-wheel-selector__track"
+              data-language-track-state={trackClass}
+              data-language-track-motion={trackMotion}
+              style={{ '--language-drag-offset': `${dragOffset}px` }}
+              onTransitionEnd={handleTrackTransitionEnd}
+            >
+              {labels.map((label, index) => (
+                <span
+                  className={`language-wheel-selector__slot language-wheel-selector__slot--${index === 1 ? 'current' : index === 0 ? 'previous' : 'next'}`}
+                  key={`${codes[index]}:${index}`}
+                >
+                  {label}
+                </span>
+              ))}
+            </span>
+          ) : (
+            <span className="language-wheel-selector__label">{phase === 'idle' || phase === 'closing' ? '当前语言' : activeLabel}</span>
+          )}
         </span>
       </span>
       {arrowState !== 'hidden' && (

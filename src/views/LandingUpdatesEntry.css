@@ -1,31 +1,19 @@
 .landing-entry-button-group {
   position: static;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
   min-width: 0;
+  margin: 3.6rem auto 0;
+  gap: clamp(.75rem, 4vw, 3rem);
+  flex-wrap: nowrap;
 }
 
 .landing-entry-button-group .shared-entry-control {
-  position: absolute;
-}
-
-.landing-entry-button-group .shared-entry-control:first-child {
-  right: calc(100% + 3.6rem);
-  top: 50%;
-  transform: translate3d(
-    var(--scene-parallax-back-x, 0),
-    calc(-50% + var(--scene-parallax-back-y, 0)),
-    0
-  );
-}
-
-.landing-entry-button-group .shared-entry-control:last-child {
-  left: 50%;
-  top: calc(100% + 3.6rem);
-  transform: translate3d(
-    calc(-50% + var(--scene-parallax-back-x, 0)),
-    var(--scene-parallax-back-y, 0),
-    0
-  );
+  position: relative;
+  transform: translate3d(var(--scene-parallax-back-x, 0), var(--scene-parallax-back-y, 0), 0);
 }
 
 .landing[data-updates-phase="enter-surface"] {
@@ -51,20 +39,9 @@
 }
 
 @media (max-width: 560px) {
-  .landing-entry-button-group .shared-entry-control:first-child {
-    right: auto;
-    left: 50%;
-    top: calc(100% + 2.5rem);
-    transform: translate3d(
-      calc(-50% + var(--scene-parallax-back-x, 0)),
-      var(--scene-parallax-back-y, 0),
-      0
-    );
-  }
-
-  .landing-entry-button-group .shared-entry-control:last-child {
-    left: 50%;
-    top: calc(100% + 8rem);
+  .landing-entry-button-group {
+    margin-top: 2.5rem;
+    gap: 1rem;
   }
 }
 
