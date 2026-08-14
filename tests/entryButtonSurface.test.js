@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
 const surface = read('../src/components/EntryButtonSurface.jsx')
+const frame = read('../src/components/EntryButtonFrame.jsx')
 const styles = read('../src/components/EntryButtonSurface.css')
 const audit = read('../src/services/runtimeAudit.js')
 
@@ -25,12 +26,14 @@ describe('shared entry button surface', () => {
   })
 
   it('clips fill and frame to the same SVG path', () => {
-    expect(surface).toContain("const FILL_DIRECTIONS = ['left', 'right', 'top', 'bottom', 'center']")
-    expect(surface).toContain('const FRAME_ORIGINS')
-    expect(surface).toContain('const FRAME_PATHS')
-    expect(surface).toContain('<clipPath id={fillClipId}')
-    expect(surface).toContain('<use href={`#${shapeId}`} />')
-    expect(surface).toContain('clipPath={`url(#${fillClipId})`}')
+    expect(surface).toContain("import EntryButtonFrame, { FILL_DIRECTIONS, FRAME_ORIGINS } from './EntryButtonFrame'")
+    expect(surface).toContain('<EntryButtonFrame')
+    expect(frame).toContain("const FILL_DIRECTIONS = ['left', 'right', 'top', 'bottom', 'center']")
+    expect(frame).toContain('const FRAME_ORIGINS')
+    expect(frame).toContain('const FRAME_PATHS')
+    expect(frame).toContain('<clipPath id={fillClipId}')
+    expect(frame).toContain('<use href={`#${shapeId}`} />')
+    expect(frame).toContain('clipPath={`url(#${fillClipId})`}')
     expect(surface).toContain('data-entry-layer-model="shared-svg-geometry>text"')
     expect(styles).toContain('.shared-entry-surface')
     expect(styles).toContain('.shared-entry-frame')
@@ -38,8 +41,8 @@ describe('shared entry button surface', () => {
   })
 
   it('keeps material source separate from host state', () => {
-    expect(surface).toContain("if (materialMode === 'background') return BACKGROUND_MATERIAL")
-    expect(surface).toContain("WORLD_MATERIALS[worldLayer]")
+    expect(frame).toContain("if (materialMode === 'background') return BACKGROUND_MATERIAL")
+    expect(frame).toContain("WORLD_MATERIALS[worldLayer]")
     expect(surface).toContain('data-entry-material-source={materialMode}')
     expect(surface).toContain('data-entry-world-layer={worldLayer}')
     expect(styles).toContain('color-mix(')

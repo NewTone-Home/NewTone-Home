@@ -98,7 +98,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const [revealed, setRevealed] = useState(false)
   const [actionsVisible, setActionsVisible] = useState(false)
 
-  const stageLanguage = modeStage ? language : initialLanguage
+  const stageLanguage = modeStage ? language : draftLanguage
   const lang = copy[stageLanguage] || copy.zh
   const entryLang = copy[modeStage ? language : draftLanguage] || copy.zh
 
@@ -115,14 +115,18 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const { displayText: titleDisplay, stable: titleStable } = useScrambleText(currentStage.title, {
     duration: modeStage ? 900 : 1800,
     enabled: revealed,
+    restartKey: `${currentStage.id}:${stageLanguage}`,
   })
 
   useEffect(() => {
     setActionsVisible(false)
-    if (leaving || !titleStable) return undefined
+  }, [currentStage.id, leaving, modeStage])
+
+  useEffect(() => {
+    if (leaving || actionsVisible || !titleStable) return undefined
     const timer = window.setTimeout(() => setActionsVisible(true), modeStage ? 160 : 300)
     return () => window.clearTimeout(timer)
-  }, [currentStage.id, leaving, modeStage, titleStable])
+  }, [actionsVisible, leaving, modeStage, titleStable])
 
   const entries = useMemo(() => {
     if (modeStage) {

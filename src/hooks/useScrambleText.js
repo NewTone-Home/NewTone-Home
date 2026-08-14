@@ -15,10 +15,15 @@ export function initialScramble(text, chars = DEFAULT_SCRAMBLE_CHARS) {
   return Array.from({ length }, () => randomChar(chars)).join('')
 }
 
-function partialScramble(units, resolvedCount, chars) {
-  return units.map((char, index) => (
-    index < resolvedCount ? char : randomChar(chars)
-  )).join('')
+function createScrambleBuffer(units, chars) {
+  return units.map(() => randomChar(chars))
+}
+
+function resolveScrambleBuffer(buffer, units, resolvedCount) {
+  for (let index = 0; index < resolvedCount; index += 1) {
+    buffer[index] = units[index]
+  }
+  return buffer.join('')
 }
 
 function now() {
@@ -89,6 +94,7 @@ export function useScrambleText(
     let delayFrame = 0
     const units = textUnits(text)
     const fullText = units.join('')
+    const scrambleBuffer = createScrambleBuffer(units, chars)
 
     const update = value => {
       if (mounted) setDisplayText(value)
@@ -99,10 +105,17 @@ export function useScrambleText(
       setStable(true)
       update(fullText)
       const startedAt = now()
+      let lastRemainingCount = units.length
       const tick = timestamp => {
         if (!mounted) return
         const progress = Math.min(1, Math.max(0, (timestamp - startedAt) / Math.max(1, withdrawalDuration)))
-        update(progress >= 1 ? '' : initialScramble(units.length, chars))
+        const remainingCount = progress >= 1
+          ? 0
+          : Math.max(0, Math.ceil((1 - progress) * units.length))
+        if (remainingCount !== lastRemainingCount) {
+          lastRemainingCount = remainingCount
+          update(scrambleBuffer.slice(0, remainingCount).join(''))
+        }
         if (progress >= 1) {
           revealedRef.current = false
           setPhase('withdrawn')
@@ -127,9 +140,10 @@ export function useScrambleText(
 
     setPhase('revealing')
     setStable(false)
-    update(initialScramble(units.length, chars))
+    update(scrambleBuffer.join(''))
 
     const reveal = startedAt => {
+      let lastResolvedCount = -1
       const tick = timestamp => {
         if (!mounted) return
         const progress = Math.min(1, Math.max(0, (timestamp - startedAt) / Math.max(1, duration)))
@@ -148,7 +162,10 @@ export function useScrambleText(
           return
         }
 
-        update(partialScramble(units, resolvedCount, chars))
+        if (resolvedCount !== lastResolvedCount) {
+          lastResolvedCount = resolvedCount
+          update(resolveScrambleBuffer(scrambleBuffer, units, resolvedCount))
+        }
         frame = scheduleFrame(tick)
       }
       frame = scheduleFrame(tick)

@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getReaderLanguage, READER_LANGUAGES } from '../i18n/languages'
 import { useScrambleText } from '../hooks/useScrambleText'
 import { recordRuntimeAudit } from '../services/runtimeAudit'
+import EntryButtonFrame from './EntryButtonFrame'
 import './LanguageWheelSelector.css'
 
 const LANGUAGE_PREVIEW_DURATION_MS = 760
-export const LANGUAGE_WHEEL_IDLE_MS = 720
 export const LANGUAGE_WHEEL_TRANSITION_MS = 360
 export const LANGUAGE_ARROW_DELAY_MS = 180
 export const LANGUAGE_SWIPE_THRESHOLD_PX = 24
@@ -37,13 +37,12 @@ function LanguageWheelSelector({ language, onLanguageChange }) {
   const [trackState, setTrackState] = useState('center')
   const [hasInteracted, setHasInteracted] = useState(false)
   const [arrowState, setArrowState] = useState('hidden')
-  const settleTimerRef = useRef(null)
   const pointerStartYRef = useRef(null)
   const languageLabel = getReaderLanguage(selectedLanguage).label
   const { displayText, stable } = useScrambleText(languageLabel, {
     startDelay: 80,
     duration: LANGUAGE_PREVIEW_DURATION_MS,
-    enabled: phase === 'decoding' || phase === 'settling',
+    enabled: phase === 'decoding',
     restartKey: `${phase}:${selectedLanguage}`,
   })
 
@@ -52,16 +51,6 @@ function LanguageWheelSelector({ language, onLanguageChange }) {
     setPhase('ready')
     recordRuntimeAudit('language-preview-ready', { language: selectedLanguage })
   }, [phase, selectedLanguage, stable])
-
-  useEffect(() => {
-    if (phase !== 'settling' || !stable) return
-    setPhase('ready')
-    recordRuntimeAudit('language-wheel-settled', { language: selectedLanguage })
-  }, [phase, selectedLanguage, stable])
-
-  useEffect(() => () => {
-    if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current)
-  }, [])
 
   useEffect(() => {
     if (phase !== 'ready' || hasInteracted) {
@@ -97,53 +86,50 @@ function LanguageWheelSelector({ language, onLanguageChange }) {
     activate('tap')
   }, [activate])
 
-  const armSettleTimer = useCallback(languageCode => {
-    if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current)
-    settleTimerRef.current = window.setTimeout(() => {
-      settleTimerRef.current = null
-      setPhase('settling')
-      recordRuntimeAudit('language-wheel-idle', { language: languageCode })
-    }, LANGUAGE_WHEEL_IDLE_MS)
-  }, [])
-
   const selectByDirection = useCallback((direction, source) => {
-    if (!['ready', 'settling'].includes(phase) || track) return
-    if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current)
+    if (phase !== 'ready' || track) return
 
+    const previousLanguage = selectedLanguage
     const nextLanguage = cycleLanguage(selectedLanguage, direction)
     setHasInteracted(true)
     setArrowState('fading')
-    setTrack({ direction, target: nextLanguage })
+    setSelectedLanguage(nextLanguage)
+    setTrack({ direction, from: previousLanguage, target: nextLanguage })
     setTrackState('center')
     setPhase('selecting')
+    onLanguageChange?.(nextLanguage)
+    recordRuntimeAudit('language-wheel-language-committed', {
+      language: nextLanguage,
+      previousLanguage,
+      direction,
+      source,
+    })
     recordRuntimeAudit('language-wheel-select', { language: nextLanguage, direction, source })
     window.requestAnimationFrame(() => {
       setTrackState(direction > 0 ? 'next' : 'previous')
       recordRuntimeAudit('language-wheel-transition-start', { language: nextLanguage, direction })
     })
-  }, [phase, selectedLanguage, track])
+  }, [onLanguageChange, phase, selectedLanguage, track])
 
   const handleTrackTransitionEnd = useCallback(event => {
     if (event.target !== event.currentTarget || event.propertyName !== 'transform' || !track) return
     const committedLanguage = track.target
-    setSelectedLanguage(committedLanguage)
+    const direction = track.direction
     setTrack(null)
     setTrackState('center')
-    setPhase('ready')
-    onLanguageChange?.(committedLanguage)
-    armSettleTimer(committedLanguage)
-    recordRuntimeAudit('language-wheel-transition-complete', { language: committedLanguage, direction: track.direction })
-  }, [armSettleTimer, onLanguageChange, track])
+    setPhase('decoding')
+    recordRuntimeAudit('language-wheel-transition-complete', { language: committedLanguage, direction })
+  }, [track])
 
   const handleWheel = useCallback(event => {
     if (isCoarsePointer() || Math.abs(event.deltaY) < 1) return
-    if (!['ready', 'settling'].includes(phase)) return
+    if (phase !== 'ready') return
     event.preventDefault()
     selectByDirection(event.deltaY > 0 ? 1 : -1, 'wheel')
   }, [phase, selectByDirection])
 
   const handlePointerDown = useCallback(event => {
-    if (!isCoarsePointer() || !['ready', 'settling'].includes(phase)) return
+    if (!isCoarsePointer() || phase !== 'ready') return
     pointerStartYRef.current = event.clientY
   }, [phase])
 
@@ -151,7 +137,7 @@ function LanguageWheelSelector({ language, onLanguageChange }) {
     if (!isCoarsePointer()) return
     const startY = pointerStartYRef.current
     pointerStartYRef.current = null
-    if (startY === null || !['ready', 'settling'].includes(phase)) return
+    if (startY === null || phase !== 'ready') return
     const deltaY = event.clientY - startY
     if (Math.abs(deltaY) < LANGUAGE_SWIPE_THRESHOLD_PX) return
     event.preventDefault()
@@ -164,10 +150,10 @@ function LanguageWheelSelector({ language, onLanguageChange }) {
 
   const visualLabel = phase === 'idle'
     ? '当前语言'
-    : ['decoding', 'settling'].includes(phase)
+    : phase === 'decoding'
       ? (displayText || placeholderLabel(languageLabel))
       : languageLabel
-  const codes = trackCodes(selectedLanguage)
+  const codes = trackCodes(track?.from || selectedLanguage)
   const labels = codes.map(code => getReaderLanguage(code).label)
   const trackClass = track ? trackState : 'center'
   const accessibleLanguage = phase === 'idle' ? '当前语言' : languageLabel
@@ -175,13 +161,15 @@ function LanguageWheelSelector({ language, onLanguageChange }) {
   return (
     <button
       type="button"
-      className="language-wheel-selector"
+      className="shared-entry-control language-wheel-selector"
       data-language-selector="true"
       data-language-selector-phase={phase}
       data-language-selected={selectedLanguage}
       data-language-track-state={trackClass}
       data-language-arrow-state={arrowState}
       data-language-fill="none"
+      data-entry-material-source="background"
+      data-entry-frame-fill="disabled"
       aria-label={`${accessibleLanguage}，语言选择`}
       onPointerEnter={handlePointerEnter}
       onPointerDown={handlePointerDown}
@@ -190,20 +178,23 @@ function LanguageWheelSelector({ language, onLanguageChange }) {
       onWheel={handleWheel}
       onClick={handleClick}
     >
-      <span className="language-wheel-selector__viewport" aria-hidden="true">
-        <span
-          className="language-wheel-selector__track"
-          data-language-track-state={trackClass}
-          onTransitionEnd={handleTrackTransitionEnd}
-        >
-          {labels.map((label, index) => (
-            <span
-              className={`language-wheel-selector__slot language-wheel-selector__slot--${index === 1 ? 'current' : index === 0 ? 'previous' : 'next'}`}
-              key={`${codes[index]}:${index}`}
-            >
-              {index === 1 && !track ? visualLabel : label}
-            </span>
-          ))}
+      <span className="shared-entry-content language-wheel-selector__content">
+        <EntryButtonFrame fillEnabled={false} />
+        <span className="language-wheel-selector__viewport" aria-hidden="true">
+          <span
+            className="language-wheel-selector__track"
+            data-language-track-state={trackClass}
+            onTransitionEnd={handleTrackTransitionEnd}
+          >
+            {labels.map((label, index) => (
+              <span
+                className={`language-wheel-selector__slot language-wheel-selector__slot--${index === 1 ? 'current' : index === 0 ? 'previous' : 'next'}`}
+                key={`${codes[index]}:${index}`}
+              >
+                {index === 1 && !track ? visualLabel : label}
+              </span>
+            ))}
+          </span>
         </span>
       </span>
       {arrowState !== 'hidden' && (
