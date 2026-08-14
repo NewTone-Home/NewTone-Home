@@ -1,79 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useProgressStore } from '../stores/progressStore'
 import { READING_ENTRY_TIMINGS } from '../transitions/readingEntryController'
 import { copy } from '../i18n/copy'
 import { detectBrowserReaderLanguage, READER_LANGUAGES } from '../i18n/languages'
+import { initialScramble, useScrambleText } from '../hooks/useScrambleText'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useSceneParallax } from '../hooks/useSceneParallax'
 import { getReaderSceneLabel } from '../i18n/readerUi'
+import { recordRuntimeAudit } from '../services/runtimeAudit'
+import LanguageWheelSelector from './LanguageWheelSelector'
 import { NewToneTransitionMark } from './landing/LandingTitleMark'
 import EntryButtonGroup from './EntryButtonGroup'
 import './ReadingTransition.css'
 
-const SCRAMBLE = '01░▒/\\-_:;~*#+%&@'
 const RESUME_BLINK_CYCLE_MS = 1180
-
-function randScramble() {
-  return SCRAMBLE[Math.floor(Math.random() * SCRAMBLE.length)]
-}
-
-function initialScramble(len) {
-  return Array.from({ length: len }, () => randScramble()).join('')
-}
-
-function useScrambleText(text, { startDelay = 0, charInterval = 70, scrambleInterval = 40, enabled = true } = {}) {
-  const [displayText, setDisplayText] = useState('')
-  const [stable, setStable] = useState(false)
-
-  useEffect(() => {
-    if (!enabled) {
-      setDisplayText('')
-      setStable(false)
-      return undefined
-    }
-
-    let mounted = true
-    let resolvedCount = 0
-    let scrambleTimer
-    let resolveTimer
-    let startTimer
-
-    setDisplayText(initialScramble(text.length))
-    setStable(false)
-
-    scrambleTimer = window.setInterval(() => {
-      if (!mounted) return
-      const chars = text.split('').map((char, index) => index < resolvedCount ? char : randScramble())
-      setDisplayText(chars.join(''))
-    }, scrambleInterval)
-
-    const startResolution = () => {
-      resolveTimer = window.setInterval(() => {
-        resolvedCount += 1
-        if (resolvedCount >= text.length) {
-          window.clearInterval(resolveTimer)
-          window.clearInterval(scrambleTimer)
-          if (mounted) {
-            setDisplayText(text)
-            setStable(true)
-          }
-        }
-      }, charInterval)
-    }
-
-    if (startDelay > 0) startTimer = window.setTimeout(startResolution, startDelay)
-    else startResolution()
-
-    return () => {
-      mounted = false
-      window.clearTimeout(startTimer)
-      window.clearInterval(scrambleTimer)
-      window.clearInterval(resolveTimer)
-    }
-  }, [charInterval, enabled, scrambleInterval, startDelay, text])
-
-  return { displayText, stable }
-}
 
 const TRANSITION_ENVIRONMENT_COPY = Object.freeze({
   zh: {
@@ -151,22 +90,23 @@ function ResumeEnvironment({ lines }) {
 }
 
 function RitualSelector({ language, onProceed, onModeSelect, phase }) {
-  const setLanguage = useProgressStore(s => s.setLanguage)
-  const lang = copy[language] || copy.zh
   const modeStage = phase === 'mode-active' || phase === 'mode-leaving'
   const leaving = phase === 'language-leaving' || phase === 'mode-leaving'
-  const [languageVersion, setLanguageVersion] = useState(0)
-  const [revealed, setRevealed] = useState(languageVersion > 0)
+  const [initialLanguage] = useState(() => (
+    detectBrowserReaderLanguage(navigator.languages || [navigator.language || ''])
+  ))
+  const [draftLanguage, setDraftLanguage] = useState(initialLanguage)
+  const [revealed, setRevealed] = useState(false)
   const [actionsVisible, setActionsVisible] = useState(false)
 
+  const stageLanguage = modeStage ? language : initialLanguage
+  const lang = copy[stageLanguage] || copy.zh
+  const entryLang = copy[modeStage ? language : draftLanguage] || copy.zh
+
   useEffect(() => {
-    if (languageVersion > 0) {
-      setRevealed(true)
-      return undefined
-    }
     const timer = window.setTimeout(() => setRevealed(true), READING_ENTRY_TIMINGS.LANGUAGE_INIT_TITLE_DELAY_MS)
     return () => window.clearTimeout(timer)
-  }, [languageVersion])
+  }, [])
 
   const currentStage = useMemo(() => ({
     id: modeStage ? 'mode' : 'language',
@@ -174,10 +114,10 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   }), [lang, modeStage])
 
   const titleCharInterval = useMemo(() => (
-    languageVersion === 0
+    !modeStage
       ? Math.max(60, Math.min(130, Math.floor(2000 / currentStage.title.length)))
       : Math.max(30, Math.min(60, Math.floor(800 / currentStage.title.length)))
-  ), [currentStage.title.length, languageVersion])
+  ), [currentStage.title.length, modeStage])
 
   const { displayText: titleDisplay, stable: titleStable } = useScrambleText(currentStage.title, {
     charInterval: titleCharInterval,
@@ -192,62 +132,65 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     return () => window.clearTimeout(timer)
   }, [currentStage.id, leaving, modeStage, titleStable])
 
-  const alternateLanguage = useMemo(
-    () => READER_LANGUAGES.find(item => item.code !== language)?.code,
-    [language],
-  )
-
   const entries = useMemo(() => {
     if (modeStage) {
       return [
-        { id: 'mode-immersive', label: lang.modeImmersive, materialMode: 'background' },
-        { id: 'mode-standard', label: lang.modeStandard, materialMode: 'background' },
+        { id: 'mode-immersive', label: entryLang.modeImmersive, materialMode: 'background' },
+        { id: 'mode-standard', label: entryLang.modeStandard, materialMode: 'background' },
       ]
     }
     return [
-      { id: 'language-continue', label: lang.languageInitProceed, materialMode: 'background' },
-      { id: 'language-change', label: lang.languageInitChange, materialMode: 'background' },
+      { id: 'language-continue', label: entryLang.languageInitProceed, materialMode: 'background' },
     ]
-  }, [lang, modeStage])
+  }, [entryLang, modeStage])
 
   const handleEntryNavigate = useCallback((entryId) => {
     if (modeStage) {
       onModeSelect(entryId === 'mode-standard' ? 'standard' : 'immersive')
       return
     }
-    if (entryId === 'language-change' && alternateLanguage) {
-      setLanguage(alternateLanguage)
-      setLanguageVersion(version => version + 1)
-      return
-    }
-    onProceed()
-  }, [alternateLanguage, modeStage, onModeSelect, onProceed, setLanguage])
+    recordRuntimeAudit('language-confirm-requested', { language: draftLanguage })
+    onProceed(draftLanguage)
+  }, [draftLanguage, modeStage, onModeSelect, onProceed])
 
   return (
     <div
       className={`ritual-selector language-init${leaving ? ' language-init--leaving' : ''}`}
       data-selector-stage={currentStage.id}
       data-selector-phase={leaving ? 'leaving' : actionsVisible ? 'visible' : 'preparing'}
+      data-language-draft={modeStage ? undefined : draftLanguage}
+      data-language-draft-source={modeStage ? undefined : 'browser'}
     >
-      <p className="ritual-selector-title language-init-title" data-stable={revealed && titleStable ? 'true' : 'false'}>
-        {revealed ? (titleDisplay || '') : ''}
-      </p>
+      <div className="language-init-title-anchor">
+        <p className="ritual-selector-title language-init-title" data-stable={revealed && titleStable ? 'true' : 'false'}>
+          {revealed ? (titleDisplay || '') : ''}
+        </p>
+      </div>
 
       {actionsVisible && !leaving && (
-        <EntryButtonGroup
-          key={`${currentStage.id}:${languageVersion}`}
-          groupId={`reader-${currentStage.id}-entries`}
-          entries={entries}
-          onNavigate={handleEntryNavigate}
-          className="reading-transition-entry-group"
-        />
+        <div className="language-init-controls">
+          {!modeStage && (
+            <LanguageWheelSelector
+              language={draftLanguage}
+              alternateLanguage={READER_LANGUAGES.find(item => item.code !== draftLanguage)?.code}
+              onLanguageChange={setDraftLanguage}
+            />
+          )}
+
+          <EntryButtonGroup
+            key={currentStage.id}
+            groupId={`reader-${currentStage.id}-entries`}
+            entries={entries}
+            onNavigate={handleEntryNavigate}
+            className="reading-transition-entry-group"
+          />
+        </div>
       )}
     </div>
   )
 }
 
 function ReadingTransition({ phase, intent, language, readingMode, motionMode, surfaceStyle, environmentState, onProceed, onModeSelect }) {
-  const setLanguage = useProgressStore(s => s.setLanguage)
   const startRootRef = useRef(null)
   const reducedMotion = useReducedMotion()
   const startParallaxEnabled = (phase === 'reader-preparing' || phase === 'transition-leaving') && intent === 'start'
@@ -260,13 +203,6 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
     () => resolveTransitionEnvironment(environmentState, language),
     [environmentState, language],
   )
-
-  useEffect(() => {
-    if (phase !== 'language-active') return
-    const browserLangs = navigator.languages || [navigator.language || '']
-    const detected = detectBrowserReaderLanguage(browserLangs)
-    if (detected && detected !== language) setLanguage(detected)
-  }, [language, phase, setLanguage])
 
   if (phase === 'landing-leaving' || phase === 'landing-empty-hold') return null
 

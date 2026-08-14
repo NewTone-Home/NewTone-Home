@@ -11,6 +11,7 @@ import { resolveReaderEnvironmentState } from './data/readerContent'
 import { resolveReaderEnvironmentPreview } from './data/reader-experiments/readerEnvironmentPreview'
 import { getReaderThemeVariables } from './reader/readerTheme'
 import { trackEvent } from './services/analytics'
+import { recordRuntimeAudit } from './services/runtimeAudit'
 
 function App({ contentStatus = 'ready', onRetryContent }) {
   const currentView = useProgressStore(s => s.currentView)
@@ -126,8 +127,11 @@ function App({ contentStatus = 'ready', onRetryContent }) {
   const showLandingHandoffSurface = globalTransitionPhase === 'handoff'
     && globalTransitionTargetView === 'landing'
 
-  const handleLanguageProceed = useCallback(() => {
-    trackEvent('language_selected', { language })
+  const handleLanguageProceed = useCallback((selectedLanguage) => {
+    const nextLanguage = selectedLanguage || language
+    useProgressStore.getState().setLanguage(nextLanguage)
+    recordRuntimeAudit('language-confirmed', { language: nextLanguage })
+    trackEvent('language_selected', { language: nextLanguage })
     readingEntry.proceedFromLanguage()
   }, [language, readingEntry.proceedFromLanguage])
 

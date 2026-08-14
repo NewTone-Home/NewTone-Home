@@ -17,13 +17,6 @@ function partialScramble(text, resolvedCount, chars) {
   )).join('')
 }
 
-/**
- * Shared text lifecycle for entry controls.
- *
- * stable means that the control has resolved and may keep its paired arrow
- * mounted. It intentionally remains true during withdrawing so the arrow can
- * retract while the same text node performs its scramble-out phase.
- */
 export function useScrambleText(
   text,
   {
@@ -118,11 +111,6 @@ export function useScrambleText(
     setPhase('revealing')
     setStable(false)
     update(initialScramble(text, chars))
-
-    scrambleTimer = window.setInterval(() => {
-      if (!mounted) return
-      update(partialScramble(text, resolvedCount, chars))
-    }, scrambleInterval)
 
     const resolve = () => {
       resolveTimer = window.setInterval(() => {

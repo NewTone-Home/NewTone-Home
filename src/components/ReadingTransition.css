@@ -126,13 +126,31 @@
 }
 
 .language-init {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: min(620px, 82vw);
+  min-height: 1.4em;
+  opacity: 1;
+  transition: opacity 350ms ease;
+}
+
+.language-init-title-anchor {
+  display: grid;
+  min-height: 1.4em;
+  place-items: center;
+}
+
+.language-init-controls {
+  position: absolute;
+  top: calc(100% + 48px);
+  left: 50%;
   display: flex;
+  width: 100%;
   flex-direction: column;
   align-items: center;
   gap: 48px;
-  position: relative;
-  opacity: 1;
-  transition: opacity 350ms ease;
+  transform: translateX(-50%);
 }
 
 .language-init--leaving {
@@ -185,6 +203,10 @@
   --entry-fill: color-mix(in srgb, var(--rt-paper) 92%, var(--rt-control));
   min-height: 56px;
   justify-content: center;
+}
+
+.language-wheel-selector + .reading-transition-entry-group {
+  margin-top: 12px;
 }
 
 .reading-transition-entry-group .shared-entry-control {
