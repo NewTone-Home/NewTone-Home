@@ -2,21 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getReaderLanguage, READER_LANGUAGES } from '../i18n/languages'
 import { recordRuntimeAudit } from '../services/runtimeAudit'
 import EntryButtonFrame from './EntryButtonFrame'
+import { ENTRY_BUTTON_TIMINGS, createEntryProgress, useEntryButtonTimeline } from './entryButtonTimeline'
 import './LanguageWheelSelector.css'
 
 const LANGUAGE_FILL_DIRECTIONS = Object.freeze(['left', 'right', 'top', 'bottom'])
-const LANGUAGE_FILL_DURATION_MS = 520
 export const LANGUAGE_WHEEL_TRANSITION_MS = 360
 export const LANGUAGE_ARROW_DELAY_MS = 0
 export const LANGUAGE_SWIPE_THRESHOLD_PX = 24
-
-const LANGUAGE_ENTRY_TIMINGS = Object.freeze({
-  textEnter: 320,
-  frameEnter: 720,
-  textExit: 260,
-  fillExit: 520,
-  frameExit: 420,
-})
 
 function isCoarsePointer() {
   return typeof window !== 'undefined'
@@ -43,20 +35,8 @@ function requestFrame(callback) {
   return window.requestAnimationFrame(callback)
 }
 
-function cancelFrame(frame) {
-  if (frame) window.cancelAnimationFrame(frame)
-}
-
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value))
-}
-
-function easeInOut(value) {
-  return value * value * (3 - 2 * value)
-}
-
-function createProgress() {
-  return { text: 0, fill: 1, frame: 0 }
 }
 
 function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
@@ -69,8 +49,6 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
   const pointerRef = useRef({ id: null, startY: 0 })
   const dragOffsetRef = useRef(0)
   const suppressClickRef = useRef(false)
-  const progressRef = useRef(createProgress())
-  const sequenceRef = useRef({ token: 0, frame: 0 })
   const closeRequestedRef = useRef(false)
   const inputReadyRef = useRef(false)
   const exitStartedRef = useRef(false)
@@ -78,7 +56,6 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
   const [phase, setPhase] = useState('idle')
   const [selectedLanguage, setSelectedLanguage] = useState(language)
   const [fillDirection, setFillDirection] = useState(() => randomDirection())
-  const [progress, setProgress] = useState(createProgress)
   const [track, setTrack] = useState(null)
   const [trackState, setTrackState] = useState('center')
   const [trackMotion, setTrackMotion] = useState('idle')
@@ -92,67 +69,25 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
     setPhase(nextPhase)
   }, [])
 
-  const setProgressValue = useCallback((key, value) => {
-    const next = { ...progressRef.current, [key]: value }
-    progressRef.current = next
-    setProgress(next)
-  }, [])
-
-  const cancelSequence = useCallback(() => {
-    if (sequenceRef.current.frame) cancelFrame(sequenceRef.current.frame)
-    sequenceRef.current = {
-      token: sequenceRef.current.token + 1,
-      frame: 0,
-    }
-  }, [])
-
-  const runSequence = useCallback((steps, onComplete) => {
-    cancelSequence()
-    const token = sequenceRef.current.token
-    let stepIndex = 0
-
-    const runNextStep = () => {
-      if (token !== sequenceRef.current.token) return
-      const step = steps[stepIndex]
-      if (!step) {
-        sequenceRef.current.frame = 0
-        onComplete?.()
-        return
-      }
-
-      stepIndex += 1
-      const from = progressRef.current[step.key]
-      const target = clamp(step.to, 0, 1)
-      const distance = Math.abs(target - from)
-      if (distance < 0.001 || step.duration <= 0) {
-        setProgressValue(step.key, target)
-        runNextStep()
-        return
-      }
-
-      const startedAt = performance.now()
-      const tick = timestamp => {
-        if (token !== sequenceRef.current.token) return
-        const raw = Math.min(1, Math.max(0, (timestamp - startedAt) / step.duration))
-        setProgressValue(step.key, from + (target - from) * easeInOut(raw))
-        if (raw < 1) {
-          sequenceRef.current.frame = requestFrame(tick)
-          return
-        }
-        sequenceRef.current.frame = 0
-        setProgressValue(step.key, target)
-        runNextStep()
-      }
-
-      sequenceRef.current.frame = requestFrame(tick)
-    }
-
-    runNextStep()
-  }, [cancelSequence, setProgressValue])
+  const {
+    progress,
+    runTimeline,
+  } = useEntryButtonTimeline({
+    initialProgress: createEntryProgress(),
+    onStart: steps => recordRuntimeAudit('language-timeline-start', {
+      phase: phaseRef.current,
+      steps: steps.map(step => step.key),
+    }),
+    onStep: ({ key, progress: stepProgress }) => recordRuntimeAudit('language-timeline-step', {
+      phase: phaseRef.current,
+      key,
+      progress: stepProgress,
+    }),
+  })
 
   const animateCover = useCallback((target, onComplete) => {
-    runSequence([{ key: 'fill', to: target, duration: LANGUAGE_FILL_DURATION_MS }], onComplete)
-  }, [runSequence])
+    runTimeline([{ key: 'fill', to: target, duration: ENTRY_BUTTON_TIMINGS.fillOpen }], onComplete)
+  }, [runTimeline])
 
   const closeSelector = useCallback(source => {
     const currentPhase = phaseRef.current
@@ -380,16 +315,16 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
   useEffect(() => {
     inputReadyRef.current = false
     exitStartedRef.current = false
-    runSequence([
-      { key: 'text', to: 1, duration: LANGUAGE_ENTRY_TIMINGS.textEnter },
-      { key: 'frame', to: 1, duration: LANGUAGE_ENTRY_TIMINGS.frameEnter },
+    runTimeline([
+      { key: 'text', to: 1, duration: ENTRY_BUTTON_TIMINGS.textEnter },
+      { key: 'frame', to: 1, duration: ENTRY_BUTTON_TIMINGS.frameEnter },
+      { key: 'fill', to: 1, duration: ENTRY_BUTTON_TIMINGS.fillOpen },
     ], () => {
       inputReadyRef.current = true
       recordRuntimeAudit('language-entry-ready', {})
     })
 
-    return () => cancelSequence()
-  }, [cancelSequence, runSequence])
+  }, [runTimeline])
 
   useEffect(() => {
     if (visible) return undefined
@@ -402,10 +337,10 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
     setArrowState('fading')
     setSelectorPhase('exiting')
     recordRuntimeAudit('language-entry-exit-start', {})
-    runSequence([
-      { key: 'text', to: 0, duration: LANGUAGE_ENTRY_TIMINGS.textExit },
-      { key: 'fill', to: 0, duration: LANGUAGE_ENTRY_TIMINGS.fillExit },
-      { key: 'frame', to: 0, duration: LANGUAGE_ENTRY_TIMINGS.frameExit },
+    runTimeline([
+      { key: 'text', to: 0, duration: ENTRY_BUTTON_TIMINGS.textExit },
+      { key: 'fill', to: 0, duration: ENTRY_BUTTON_TIMINGS.fillClose },
+      { key: 'frame', to: 0, duration: ENTRY_BUTTON_TIMINGS.frameExit },
     ], () => {
       setTrack(null)
       trackRef.current = null
@@ -418,7 +353,7 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
     })
 
     return undefined
-  }, [runSequence, setSelectorPhase, visible])
+  }, [runTimeline, setSelectorPhase, visible])
 
   const codes = trackCodes(track?.from || selectedLanguage)
   const labels = codes.map(code => getReaderLanguage(code).label)
@@ -502,5 +437,4 @@ function LanguageWheelSelector({ language, onLanguageChange, visible = true }) {
   )
 }
 
-export { LANGUAGE_FILL_DIRECTIONS }
 export default LanguageWheelSelector

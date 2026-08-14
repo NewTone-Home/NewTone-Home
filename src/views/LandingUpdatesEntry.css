@@ -1,13 +1,17 @@
 .landing-entry-button-group {
-  position: static;
+  position: absolute;
+  top: calc(100% + 3.6rem);
+  left: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   width: max-content;
   max-width: calc(100vw - 2rem);
   min-width: 0;
-  margin: 3.6rem auto 0;
+  margin: 0;
+  transform: translateX(-50%);
   gap: clamp(.75rem, 4vw, 3rem);
+  flex-direction: row;
   flex-wrap: nowrap;
 }
 
@@ -40,8 +44,9 @@
 
 @media (max-width: 560px) {
   .landing-entry-button-group {
-    margin-top: 2.5rem;
+    top: calc(100% + 2.5rem);
     gap: 1rem;
+    flex-direction: row;
   }
 }
 

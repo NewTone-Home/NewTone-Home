@@ -1,31 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { recordRuntimeAudit } from '../services/runtimeAudit'
 import EntryButtonFrame, { FILL_DIRECTIONS, FRAME_ORIGINS } from './EntryButtonFrame'
+import { ENTRY_BUTTON_TIMINGS, createEntryProgress, useEntryButtonTimeline } from './entryButtonTimeline'
 import './EntryButtonSurface.css'
-
-const TIMINGS = Object.freeze({
-  textEnter: 320,
-  frameEnter: 720,
-  fillOpen: 520,
-  textExit: 260,
-  fillClose: 520,
-  frameExit: 420,
-})
-
-function createProgress() {
-  return { text: 0, frame: 0, fill: 0 }
-}
 
 function randomItem(items) {
   return items[Math.floor(Math.random() * items.length)]
-}
-
-function clamp(value) {
-  return Math.max(0, Math.min(1, value))
-}
-
-function easeInOut(value) {
-  return value * value * (3 - 2 * value)
 }
 
 function resolveActiveText(materialMode, worldLayer) {
@@ -55,18 +35,15 @@ function EntryButtonSurface({
   onActionComplete,
 }) {
   const [phase, setPhase] = useState('hidden')
-  const [progress, setProgress] = useState(createProgress)
   const [variant, setVariant] = useState(() => ({
     fillDirection: 'left',
     frameOrigin: randomItem(FRAME_ORIGINS),
   }))
   const phaseRef = useRef('hidden')
-  const progressRef = useRef(createProgress())
   const mobileRef = useRef(mobile)
   const hoveredRef = useRef(false)
   const focusedRef = useRef(false)
   const fillDirectionQueueRef = useRef([])
-  const timelineRef = useRef({ token: 0, frame: 0 })
   const entryCompleteRef = useRef(false)
   const actionRequestedRef = useRef(false)
   const actionModeRef = useRef(null)
@@ -92,81 +69,24 @@ function EntryButtonSurface({
     recordRuntimeAudit('entry-phase', auditFields({ phase: nextPhase }))
   }, [auditFields])
 
-  const setProgressValue = useCallback((key, value) => {
-    const next = { ...progressRef.current, [key]: value }
-    progressRef.current = next
-    setProgress(next)
-  }, [])
-
-  const cancelTimeline = useCallback(() => {
-    const hadFrame = Boolean(timelineRef.current.frame)
-    if (timelineRef.current.frame) cancelAnimationFrame(timelineRef.current.frame)
-    if (hadFrame) recordRuntimeAudit('entry-timeline-cancel', auditFields({ phase: phaseRef.current }))
-    timelineRef.current = {
-      token: timelineRef.current.token + 1,
-      frame: 0,
-    }
-  }, [auditFields])
-
-  const runTimeline = useCallback((steps, onComplete) => {
-    cancelTimeline()
-    const token = timelineRef.current.token
-    recordRuntimeAudit('entry-timeline-start', auditFields({
+  const {
+    progress,
+    progressRef,
+    timelineRef,
+    runTimeline,
+  } = useEntryButtonTimeline({
+    initialProgress: createEntryProgress(),
+    onStart: steps => recordRuntimeAudit('entry-timeline-start', auditFields({
       phase: phaseRef.current,
       steps: steps.map(step => step.key),
-    }))
-    const reducedMotion = typeof window !== 'undefined'
-      && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
-    let stepIndex = 0
-
-    const runNextStep = () => {
-      if (token !== timelineRef.current.token) return
-      const step = steps[stepIndex]
-      if (!step) {
-        timelineRef.current.frame = 0
-        onComplete?.()
-        return
-      }
-
-      stepIndex += 1
-      const from = progressRef.current[step.key]
-      const target = clamp(step.to)
-      const distance = Math.abs(target - from)
-      const duration = reducedMotion ? Math.min(120, step.duration) : step.duration
-
-      const finishStep = () => {
-        setProgressValue(step.key, target)
-        recordRuntimeAudit('entry-timeline-step', auditFields({
-          phase: phaseRef.current,
-          key: step.key,
-          progress: target,
-        }))
-        runNextStep()
-      }
-
-      if (distance < 0.001 || duration <= 0) {
-        finishStep()
-        return
-      }
-
-      const startedAt = performance.now()
-      const tick = now => {
-        if (token !== timelineRef.current.token) return
-        const raw = Math.min(1, (now - startedAt) / duration)
-        setProgressValue(step.key, from + (target - from) * easeInOut(raw))
-        if (raw < 1) {
-          timelineRef.current.frame = requestAnimationFrame(tick)
-          return
-        }
-        timelineRef.current.frame = 0
-        finishStep()
-      }
-
-      timelineRef.current.frame = requestAnimationFrame(tick)
-    }
-
-    runNextStep()
-  }, [auditFields, cancelTimeline, setProgressValue])
+    })),
+    onCancel: () => recordRuntimeAudit('entry-timeline-cancel', auditFields({ phase: phaseRef.current })),
+    onStep: ({ key, progress: stepProgress }) => recordRuntimeAudit('entry-timeline-step', auditFields({
+      phase: phaseRef.current,
+      key,
+      progress: stepProgress,
+    })),
+  })
 
   const activateFill = useCallback(() => {
     if (!entryCompleteRef.current || phaseRef.current !== 'visible') return
@@ -181,12 +101,12 @@ function EntryButtonSurface({
       setVariant(current => ({ ...current, fillDirection: nextDirection }))
     }
 
-    runTimeline([{ key: 'fill', to: 1, duration: TIMINGS.fillOpen }])
+    runTimeline([{ key: 'fill', to: 1, duration: ENTRY_BUTTON_TIMINGS.fillOpen }])
   }, [runTimeline])
 
   const deactivateFill = useCallback(() => {
     if (!entryCompleteRef.current || phaseRef.current !== 'visible') return
-    runTimeline([{ key: 'fill', to: 0, duration: TIMINGS.fillClose }])
+    runTimeline([{ key: 'fill', to: 0, duration: ENTRY_BUTTON_TIMINGS.fillClose }])
   }, [runTimeline])
 
   const startEntry = useCallback(() => {
@@ -199,8 +119,8 @@ function EntryButtonSurface({
     actionModeRef.current = null
     setPhaseValue('entering')
     runTimeline([
-      { key: 'text', to: 1, duration: TIMINGS.textEnter },
-      { key: 'frame', to: 1, duration: TIMINGS.frameEnter },
+      { key: 'text', to: 1, duration: ENTRY_BUTTON_TIMINGS.textEnter },
+      { key: 'frame', to: 1, duration: ENTRY_BUTTON_TIMINGS.frameEnter },
     ], () => {
       if (phaseRef.current !== 'entering') return
       entryCompleteRef.current = true
@@ -215,9 +135,9 @@ function EntryButtonSurface({
     actionModeRef.current = mode
     setPhaseValue('exiting')
     runTimeline([
-      { key: 'text', to: 0, duration: TIMINGS.textExit },
-      { key: 'fill', to: 0, duration: TIMINGS.fillClose },
-      { key: 'frame', to: 0, duration: TIMINGS.frameExit },
+      { key: 'text', to: 0, duration: ENTRY_BUTTON_TIMINGS.textExit },
+      { key: 'fill', to: 0, duration: ENTRY_BUTTON_TIMINGS.fillClose },
+      { key: 'frame', to: 0, duration: ENTRY_BUTTON_TIMINGS.frameExit },
     ], () => {
       if (phaseRef.current !== 'exiting') return
       const completedMode = actionModeRef.current
@@ -255,8 +175,6 @@ function EntryButtonSurface({
   useEffect(() => {
     if (mobile && phaseRef.current === 'visible') activateFill()
   }, [activateFill, mobile])
-
-  useEffect(() => () => cancelTimeline(), [cancelTimeline])
 
   const handleActionClick = useCallback(() => {
     if (!visible || disabled || actionRequestedRef.current || phaseRef.current !== 'visible') return
@@ -369,5 +287,5 @@ function EntryButtonSurface({
   )
 }
 
-export { FRAME_ORIGINS, FILL_DIRECTIONS, TIMINGS }
+export { FRAME_ORIGINS, FILL_DIRECTIONS }
 export default EntryButtonSurface

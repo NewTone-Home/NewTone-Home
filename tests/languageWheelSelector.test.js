@@ -16,6 +16,9 @@ describe('language wheel selector stage', () => {
     expect(selector).toContain("recordRuntimeAudit('language-fill-close-start'")
     expect(selector).toContain("recordRuntimeAudit('language-fill-close-complete'")
     expect(selector).toContain("import EntryButtonFrame from './EntryButtonFrame'")
+    expect(selector).toContain("import { ENTRY_BUTTON_TIMINGS, createEntryProgress, useEntryButtonTimeline } from './entryButtonTimeline'")
+    expect(selector).not.toContain('LANGUAGE_ENTRY_TIMINGS')
+    expect(selector).not.toContain('const runSequence')
     expect(selector).toContain('className="shared-entry-control language-wheel-selector"')
     expect(selector).toContain('data-language-fill="shared-path"')
     expect(selector).toContain('data-entry-paint-model="shared-path-fill>shared-path-stroke>text"')
@@ -39,6 +42,7 @@ describe('language wheel selector stage', () => {
     expect(selector).toContain("recordRuntimeAudit('language-wheel-language-committed'")
     expect(selector).toContain("recordRuntimeAudit('language-wheel-transition-complete'")
     expect(selector).toContain('onLanguageChangeRef.current?.(completedTrack.target)')
+    expect(selector).toContain("{ key: 'frame', to: 1, duration: ENTRY_BUTTON_TIMINGS.frameEnter },\n      { key: 'fill', to: 1, duration: ENTRY_BUTTON_TIMINGS.fillOpen },")
     expect(selector.indexOf("recordRuntimeAudit('language-wheel-transition-complete'"))
       .toBeLessThan(selector.indexOf('onLanguageChangeRef.current?.(completedTrack.target)'))
   })
@@ -71,6 +75,7 @@ describe('language wheel selector stage', () => {
     expect(styles).toContain('@media (pointer: fine)')
     expect(styles).toContain('@media (pointer: coarse)')
     expect(styles).toContain('touch-action: none')
+    expect(styles).toContain('font-size: inherit')
   })
 
   it('does not use text decoding for the language selector', () => {
