@@ -15,29 +15,15 @@ export function initialScramble(text, chars = DEFAULT_SCRAMBLE_CHARS) {
   return Array.from({ length }, () => randomChar(chars)).join('')
 }
 
-function createScrambleBuffer(units, chars) {
-  return units.map(() => randomChar(chars))
+export function partialScramble(text, resolvedCount, chars = DEFAULT_SCRAMBLE_CHARS) {
+  return textUnits(text).map((char, index) => (
+    index < resolvedCount ? char : randomChar(chars)
+  )).join('')
 }
 
-function resolveScrambleBuffer(buffer, units, resolvedCount) {
-  for (let index = 0; index < resolvedCount; index += 1) {
-    buffer[index] = units[index]
-  }
-  return buffer.join('')
-}
-
-function now() {
-  return window.performance?.now?.() ?? Date.now()
-}
-
-function scheduleFrame(callback) {
-  if (typeof window.requestAnimationFrame === 'function') return window.requestAnimationFrame(callback)
-  return window.setTimeout(() => callback(now()), 16)
-}
-
-function cancelFrame(frame) {
-  if (typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(frame)
-  else window.clearTimeout(frame)
+function withdrawingScramble(text, remainingCount, chars) {
+  const units = textUnits(text)
+  return units.slice(0, remainingCount).map(char => randomChar(chars) || char).join('')
 }
 
 export function useScrambleText(
@@ -45,7 +31,8 @@ export function useScrambleText(
   {
     enabled = true,
     startDelay = 0,
-    duration = 800,
+    charInterval = 70,
+    scrambleInterval = 40,
     chars = DEFAULT_SCRAMBLE_CHARS,
     withdrawing = false,
     withdrawalDuration = 260,
@@ -90,11 +77,12 @@ export function useScrambleText(
     }
 
     let mounted = true
-    let frame = 0
-    let delayFrame = 0
-    const units = textUnits(text)
-    const fullText = units.join('')
-    const scrambleBuffer = createScrambleBuffer(units, chars)
+    let resolvedCount = 0
+    let remainingCount = textUnits(text).length
+    let scrambleTimer = 0
+    let resolveTimer = 0
+    let startTimer = 0
+    let withdrawalTimer = 0
 
     const update = value => {
       if (mounted) setDisplayText(value)
@@ -103,95 +91,75 @@ export function useScrambleText(
     if (withdrawing) {
       setPhase('withdrawing')
       setStable(true)
-      update(fullText)
-      const startedAt = now()
-      let lastRemainingCount = units.length
-      const tick = timestamp => {
+      update(String(text ?? ''))
+      const interval = Math.max(20, Math.floor(withdrawalDuration / Math.max(1, remainingCount)))
+      withdrawalTimer = window.setInterval(() => {
         if (!mounted) return
-        const progress = Math.min(1, Math.max(0, (timestamp - startedAt) / Math.max(1, withdrawalDuration)))
-        const remainingCount = progress >= 1
-          ? 0
-          : Math.max(0, Math.ceil((1 - progress) * units.length))
-        if (remainingCount !== lastRemainingCount) {
-          lastRemainingCount = remainingCount
-          update(scrambleBuffer.slice(0, remainingCount).join(''))
-        }
-        if (progress >= 1) {
+        remainingCount -= 1
+        update(remainingCount > 0 ? withdrawingScramble(text, remainingCount, chars) : '')
+        if (remainingCount <= 0) {
+          window.clearInterval(withdrawalTimer)
           revealedRef.current = false
           setPhase('withdrawn')
           onWithdrawnRef.current?.()
-          return
         }
-        frame = scheduleFrame(tick)
-      }
-      frame = scheduleFrame(tick)
+      }, interval)
       return () => {
         mounted = false
-        cancelFrame(frame)
+        window.clearInterval(withdrawalTimer)
       }
     }
 
     if (revealedRef.current) {
       setPhase('stable')
-      update(fullText)
+      update(String(text ?? ''))
       setStable(true)
       return undefined
     }
 
     setPhase('revealing')
     setStable(false)
-    update(scrambleBuffer.join(''))
+    update(initialScramble(text, chars))
 
-    const reveal = startedAt => {
-      let lastResolvedCount = -1
-      const tick = timestamp => {
+    const resolve = () => {
+      scrambleTimer = window.setInterval(() => {
+        if (!mounted || resolvedCount >= textUnits(text).length) return
+        update(partialScramble(text, resolvedCount, chars))
+      }, Math.max(20, scrambleInterval))
+
+      resolveTimer = window.setInterval(() => {
         if (!mounted) return
-        const progress = Math.min(1, Math.max(0, (timestamp - startedAt) / Math.max(1, duration)))
-        const resolvedCount = progress >= 1 ? units.length : Math.floor(progress * units.length)
-
-        if (progress >= 1) {
+        resolvedCount += 1
+        const unitsLength = textUnits(text).length
+        if (resolvedCount >= unitsLength) {
+          window.clearInterval(resolveTimer)
+          window.clearInterval(scrambleTimer)
           revealedRef.current = true
           if (holdFinalRef.current) {
-            update(initialScramble(units.length, chars))
+            update(initialScramble(text, chars))
             return
           }
-          update(fullText)
+          update(String(text ?? ''))
           setStable(true)
           setPhase('stable')
           onRevealedRef.current?.()
           return
         }
-
-        if (resolvedCount !== lastResolvedCount) {
-          lastResolvedCount = resolvedCount
-          update(resolveScrambleBuffer(scrambleBuffer, units, resolvedCount))
-        }
-        frame = scheduleFrame(tick)
-      }
-      frame = scheduleFrame(tick)
+        update(partialScramble(text, resolvedCount, chars))
+      }, Math.max(20, charInterval))
     }
 
-    const startedAt = now() + Math.max(0, startDelay)
-    if (startDelay > 0) {
-      const waitForStart = timestamp => {
-        if (!mounted) return
-        if (timestamp < startedAt) {
-          delayFrame = scheduleFrame(waitForStart)
-          return
-        }
-        reveal(startedAt)
-      }
-      delayFrame = scheduleFrame(waitForStart)
-    } else {
-      reveal(startedAt)
-    }
+    if (startDelay > 0) startTimer = window.setTimeout(resolve, startDelay)
+    else resolve()
 
     return () => {
       mounted = false
-      cancelFrame(frame)
-      cancelFrame(delayFrame)
+      window.clearTimeout(startTimer)
+      window.clearInterval(scrambleTimer)
+      window.clearInterval(resolveTimer)
+      window.clearInterval(withdrawalTimer)
     }
-  }, [chars, duration, enabled, restartKey, startDelay, text, withdrawing, withdrawalDuration])
+  }, [charInterval, chars, enabled, restartKey, scrambleInterval, startDelay, text, withdrawing, withdrawalDuration])
 
   useEffect(() => {
     if (holdFinal) {

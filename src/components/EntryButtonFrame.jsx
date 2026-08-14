@@ -1,6 +1,8 @@
-import { useId } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import './EntryButtonSurface.css'
 
+const FRAME_ENTER_DURATION_MS = 720
+const FRAME_EXIT_DURATION_MS = 420
 const FILL_DIRECTIONS = ['left', 'right', 'top', 'bottom', 'center']
 const FRAME_ORIGINS = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
 const WORLD_MATERIALS = Object.freeze({
@@ -23,6 +25,9 @@ const BACKGROUND_MATERIAL = Object.freeze({
   shade: 'var(--entry-background-shade)',
   edge: 'var(--entry-background-edge)',
 })
+
+// This is the only source of button geometry. The visible stroke, material
+// fill, and fill clip all reuse the same path reference below.
 const FRAME_PATHS = Object.freeze({
   'top-left': 'M 1 1 H 99 V 35 H 1 Z',
   'top-right': 'M 99 1 V 35 H 1 V 1 Z',
@@ -34,21 +39,69 @@ function clamp(value) {
   return Math.max(0, Math.min(1, value))
 }
 
-function getFillRect(direction, progress) {
+function materialTransform(direction, progress) {
   const amount = clamp(progress)
+  const remainder = 1 - amount
 
-  if (direction === 'left') return { x: 0, y: 0, width: 100 * amount, height: 36 }
-  if (direction === 'right') return { x: 100 * (1 - amount), y: 0, width: 100 * amount, height: 36 }
-  if (direction === 'top') return { x: 0, y: 0, width: 100, height: 36 * amount }
-  if (direction === 'bottom') return { x: 0, y: 36 * (1 - amount), width: 100, height: 36 * amount }
+  if (direction === 'left') return `translate(${-100 * remainder} 0)`
+  if (direction === 'right') return `translate(${100 * remainder} 0)`
+  if (direction === 'top') return `translate(0 ${-36 * remainder})`
+  if (direction === 'bottom') return `translate(0 ${36 * remainder})`
 
-  const width = 100 * amount
-  return { x: (100 - width) / 2, y: 0, width, height: 36 }
+  const scale = Math.max(.001, amount)
+  return `translate(50 18) scale(${scale}) translate(-50 -18)`
 }
 
 function resolveMaterial(materialMode, worldLayer) {
   if (materialMode === 'background') return BACKGROUND_MATERIAL
   return WORLD_MATERIALS[worldLayer] || WORLD_MATERIALS.surface
+}
+
+function scheduleFrame(callback) {
+  return window.requestAnimationFrame(callback)
+}
+
+function cancelFrame(frame) {
+  if (frame) window.cancelAnimationFrame(frame)
+}
+
+function easeInOut(value) {
+  return value * value * (3 - 2 * value)
+}
+
+/**
+ * Shared frame-only timeline for controls that do not use EntryButtonSurface.
+ * It animates the same path in and out; it never creates a second rectangle.
+ */
+export function useEntryFrameProgress(visible = true, restartKey = 0) {
+  const [progress, setProgress] = useState(() => (visible ? 0 : 1))
+  const progressRef = useRef(progress)
+
+  useEffect(() => {
+    let mounted = true
+    let frame = 0
+    const from = progressRef.current
+    const target = visible ? 1 : 0
+    const duration = visible ? FRAME_ENTER_DURATION_MS : FRAME_EXIT_DURATION_MS
+    const startedAt = performance.now()
+
+    const tick = timestamp => {
+      if (!mounted) return
+      const raw = Math.min(1, Math.max(0, (timestamp - startedAt) / duration))
+      const next = from + (target - from) * easeInOut(raw)
+      progressRef.current = next
+      setProgress(next)
+      if (raw < 1) frame = scheduleFrame(tick)
+    }
+
+    frame = scheduleFrame(tick)
+    return () => {
+      mounted = false
+      cancelFrame(frame)
+    }
+  }, [restartKey, visible])
+
+  return progress
 }
 
 function EntryButtonFrame({
@@ -66,9 +119,9 @@ function EntryButtonFrame({
   const fillClipId = `${svgId}-fill-clip`
   const materialId = `${svgId}-material`
   const framePath = FRAME_PATHS[frameOrigin] || FRAME_PATHS['top-left']
-  const fillRect = getFillRect(fillDirection, fillProgress)
   const material = resolveMaterial(materialMode, worldLayer)
   const fillActive = fillEnabled && fillProgress > 0.001
+  const materialPathTransform = materialTransform(fillDirection, fillProgress)
 
   return (
     <svg
@@ -78,6 +131,7 @@ function EntryButtonFrame({
       focusable="false"
       data-entry-frame-origin={frameOrigin}
       data-entry-frame-fill={fillEnabled ? 'enabled' : 'disabled'}
+      data-entry-paint-model="shared-path-fill>shared-path-stroke"
     >
       <defs>
         <path id={shapeId} d={framePath} pathLength="1" />
@@ -94,18 +148,18 @@ function EntryButtonFrame({
           </>
         )}
       </defs>
+
       {fillEnabled && (
-        <g clipPath={`url(#${fillClipId})`}>
-          <rect
+        <g clipPath={`url(#${fillClipId})`} data-entry-fill-geometry={shapeId}>
+          <use
             className="shared-entry-material"
-            x={fillRect.x}
-            y={fillRect.y}
-            width={fillRect.width}
-            height={fillRect.height}
+            href={`#${shapeId}`}
             fill={`url(#${materialId})`}
+            transform={materialPathTransform}
           />
         </g>
       )}
+
       <use
         className="shared-entry-frame"
         href={`#${shapeId}`}
@@ -114,6 +168,7 @@ function EntryButtonFrame({
         pathLength="1"
         style={{ strokeDashoffset: 1 - clamp(frameProgress) }}
       />
+
       {fillEnabled && (
         <use
           className="shared-entry-material-edge"
@@ -129,5 +184,12 @@ function EntryButtonFrame({
   )
 }
 
-export { FILL_DIRECTIONS, FRAME_ORIGINS }
+export {
+  FILL_DIRECTIONS,
+  FRAME_ENTER_DURATION_MS,
+  FRAME_EXIT_DURATION_MS,
+  FRAME_ORIGINS,
+  FRAME_PATHS,
+  materialTransform,
+}
 export default EntryButtonFrame

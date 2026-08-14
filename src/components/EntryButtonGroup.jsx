@@ -10,7 +10,7 @@ function isCoarsePointer() {
     && window.matchMedia?.('(pointer: coarse)').matches === true
 }
 
-function EntryButtonGroup({ groupId, entries, onNavigate, materialMode, worldLayer, className = '' }) {
+function EntryButtonGroup({ groupId, entries, onNavigate, materialMode, worldLayer, visible = true, className = '' }) {
   const [phase, setPhase] = useState(GROUP_PHASE.VISIBLE)
   const phaseRef = useRef(GROUP_PHASE.VISIBLE)
   const actionRef = useRef(null)
@@ -45,7 +45,7 @@ function EntryButtonGroup({ groupId, entries, onNavigate, materialMode, worldLay
   }, [groupId])
 
   return (
-    <div className={`entry-button-group${className ? ` ${className}` : ''}`} data-entry-group={groupId} data-entry-group-phase={phase}>
+    <div className={`entry-button-group${className ? ` ${className}` : ''}`} data-entry-group={groupId} data-entry-group-phase={phase} data-entry-group-visible={visible ? 'true' : 'false'}>
       {entries.map(entry => (
         <EntryButtonSurface
           key={entry.id}
@@ -53,7 +53,7 @@ function EntryButtonGroup({ groupId, entries, onNavigate, materialMode, worldLay
           label={entry.label}
           materialMode={entry.materialMode || materialMode}
           worldLayer={entry.worldLayer || worldLayer}
-          visible={phase !== GROUP_PHASE.EXITING}
+          visible={visible && phase !== GROUP_PHASE.EXITING}
           mobile={isCoarsePointer()}
           dataAttributes={{ 'data-entry-group-entry': entry.id }}
           onActionStart={handleActionStart}

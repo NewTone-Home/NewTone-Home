@@ -60,7 +60,7 @@ describe('Reader shell contract boundaries', () => {
     expect(transition).not.toContain("id: 'language-change'")
     expect(transition).toContain('const [draftLanguage, setDraftLanguage]')
     expect(transition).toContain('onProceed(draftLanguage)')
-    expect(languageWheel).toContain("activate('hover')")
+    expect(languageWheel).toContain("openSelector('hover')")
     expect(app).toContain("recordRuntimeAudit('language-confirmed'")
     expect(transition).toContain("id: 'mode-immersive'")
     expect(transition).toContain("id: 'mode-standard'")

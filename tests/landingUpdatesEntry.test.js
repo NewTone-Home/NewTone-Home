@@ -57,7 +57,7 @@ describe('Landing updates entry', () => {
     expect(entrySurface).toContain('onActionCompleteRef.current?.')
     expect(entrySurface).toContain('data-entry-fill-progress={progress.fill.toFixed(3)}')
     expect(entryGroup).toContain("const GROUP_PHASE = Object.freeze({ VISIBLE: 'visible', EXITING: 'exiting' })")
-    expect(entryGroup).toContain('visible={phase !== GROUP_PHASE.EXITING}')
+    expect(entryGroup).toContain('visible={visible && phase !== GROUP_PHASE.EXITING}')
     expect(entryGroup).toContain('onActionStart={handleActionStart}')
     expect(entryGroup).toContain('onActionComplete={handleActionComplete}')
     expect(entryGroup).toContain("recordRuntimeAudit('entry-group-click'")

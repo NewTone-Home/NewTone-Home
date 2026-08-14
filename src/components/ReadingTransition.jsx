@@ -50,7 +50,8 @@ function resolveTransitionEnvironment(state, language) {
 
 function TransitionEnvironmentLine({ text }) {
   const { displayText } = useScrambleText(text, {
-    duration: 880,
+    charInterval: Math.max(18, Math.min(54, Math.floor(880 / Math.max(1, Array.from(text).length)))),
+    scrambleInterval: 44,
   })
   return (
     <span className="reading-transition-environment-line">
@@ -112,8 +113,16 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     title: modeStage ? lang.modeInitTitle : lang.languageInitTitle,
   }), [lang, modeStage])
 
+  const titleCharInterval = useMemo(() => {
+    const length = Math.max(1, Array.from(currentStage.title).length)
+    return modeStage
+      ? Math.max(30, Math.min(60, Math.floor(800 / length)))
+      : Math.max(60, Math.min(130, Math.floor(2000 / length)))
+  }, [currentStage.title, modeStage])
+
   const { displayText: titleDisplay, stable: titleStable } = useScrambleText(currentStage.title, {
-    duration: modeStage ? 900 : 1800,
+    charInterval: titleCharInterval,
+    scrambleInterval: 50,
     enabled: revealed,
     restartKey: `${currentStage.id}:${stageLanguage}`,
   })
@@ -163,12 +172,13 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
         </p>
       </div>
 
-      {actionsVisible && !leaving && (
+      {actionsVisible && (
         <div className="language-init-controls">
           {!modeStage && (
             <LanguageWheelSelector
               language={draftLanguage}
               onLanguageChange={setDraftLanguage}
+              visible={!leaving}
             />
           )}
 
@@ -177,6 +187,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
             groupId={`reader-${currentStage.id}-entries`}
             entries={entries}
             onNavigate={handleEntryNavigate}
+            visible={!leaving}
             className="reading-transition-entry-group"
           />
         </div>
