@@ -27,6 +27,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
 
   const readingEntry = useReadingEntry(motionMode)
   const globalTransitionPhase = useTransitionStore(s => s.phase)
+  const globalTransitionTargetView = useTransitionStore(s => s.targetView)
   const isGlobalTransitioning = globalTransitionPhase !== 'idle'
 
   const historyPushRef = useRef(true)
@@ -122,6 +123,8 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     (!readingEntry.isActive || readingEntryNeedsReader)
 
   const showEntrySurface = currentView === 'landing' || readingEntry.isActive
+  const showLandingHandoffSurface = globalTransitionPhase === 'handoff'
+    && globalTransitionTargetView === 'landing'
 
   const handleLanguageProceed = useCallback(() => {
     trackEvent('language_selected', { language })
@@ -137,7 +140,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     <>
       <PageShell motionMode={motionMode} surfaceStyle={readerSurfaceStyle}>
         {showReader && <Reader contentStatus={contentStatus} onRetryContent={onRetryContent} onReaderReady={readingEntry.isActive ? readingEntry.handleReaderReady : undefined} />}
-        {showEntrySurface && (
+        {(showEntrySurface || showLandingHandoffSurface) && (
           <EntrySurface
             currentView={currentView}
             phase={readingEntry.phase}
@@ -149,6 +152,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
             motionMode={motionMode}
             surfaceStyle={readerSurfaceStyle}
             environmentState={environmentState}
+            landingHandoff={showLandingHandoffSurface}
             onEnter={handleEnter}
             onProceed={handleLanguageProceed}
             onModeSelect={handleModeSelect}

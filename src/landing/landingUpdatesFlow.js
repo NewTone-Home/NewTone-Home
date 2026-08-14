@@ -15,3 +15,7 @@ const TRANSITIONS = Object.freeze({
 export function advanceUpdatesPhase(phase, event) {
   return TRANSITIONS[`${phase}:${event}`] ?? phase
 }
+
+export function isUpdatesFlowActive(phase) {
+  return phase !== UPDATES_PHASE.LANDING
+}

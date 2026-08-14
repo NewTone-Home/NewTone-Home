@@ -29,7 +29,7 @@ export function getPageSceneTrail(beats, focusBeatIndex) {
   }))
 }
 
-function ReaderTraceProgress({ progress, beats, focusBeatIndex, language, readingMode }) {
+function ReaderTraceProgress({ progress, beats, focusBeatIndex, language, readingMode, returningToLanding = false }) {
   const percentage = getReaderProgressPercentage(progress)
   const [visualProgress, setVisualProgress] = useState(() => percentage / 100)
   const visualProgressRef = useRef(percentage / 100)
@@ -38,7 +38,7 @@ function ReaderTraceProgress({ progress, beats, focusBeatIndex, language, readin
   const lastFrameRef = useRef(0)
   const ui = getReaderUi(language)
   const trail = readingMode === 'immersive' ? getPageSceneTrail(beats, focusBeatIndex) : []
-  const complete = percentage >= 100
+  const complete = percentage >= 100 && !returningToLanding
 
   useEffect(() => {
     targetProgressRef.current = percentage / 100
@@ -80,13 +80,14 @@ function ReaderTraceProgress({ progress, beats, focusBeatIndex, language, readin
 
   return (
     <div
-      className={`reader-trace${complete ? ' is-complete' : ''}`}
+      className={`reader-trace${complete ? ' is-complete' : ''}${returningToLanding ? ' is-returning' : ''}`}
       role="progressbar"
       aria-label={ui.readingProgress}
       aria-valuemin="0"
       aria-valuemax="100"
       aria-valuenow={percentage}
       data-progress={percentage}
+      data-returning-to-landing={returningToLanding ? 'true' : 'false'}
       data-page-scenes={trail.filter(item => item.state !== 'future').map(item => item.locationId).join(' ')}
       style={{
         '--reader-progress': percentage / 100,

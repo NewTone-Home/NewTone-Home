@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import ReaderBeatStack from '../components/reader/ReaderBeatStack'
 import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
 import ReaderTools from '../components/reader/ReaderTools'
@@ -7,6 +7,7 @@ import ReaderReturnControl from '../components/reader/ReaderReturnControl'
 import { resolveReaderEnvironmentPreview } from '../data/reader-experiments/readerEnvironmentPreview'
 import { getReaderSceneLabel } from '../i18n/readerUi'
 import { preventReaderShortcut, preventReaderTransfer } from '../reader/readerCopyProtection'
+import { isFinalReaderBeat } from '../reader/readerPosition'
 import { getReaderThemeVariables } from '../reader/readerTheme'
 import './ReaderStage.css'
 import './ReaderShellContract.css'
@@ -53,12 +54,11 @@ function ReaderStage({
   rootRef,
   focusRef,
   chapterTrialEnded,
+  returningToLanding = false,
+  onReturnStart,
   onReturnLanding,
-  onReturnArmedChange,
 }) {
-  const [readerAtBottom, setReaderAtBottom] = useState(false)
-  const [returnArmed, setReturnArmed] = useState(false)
-  const [returnReady, setReturnReady] = useState(false)
+  const nativeBoundaryLockRef = useRef(null)
   const sceneState = beats[focusBeatIndex]?.sceneState ?? {}
   const sceneStateName = sceneState.sceneState ?? 'normal'
   const nativeEnvironmentState = beats[focusBeatIndex]?.worldState
@@ -72,44 +72,30 @@ function ReaderStage({
     (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)
     || window.matchMedia(DIRECT_READER_QUERY).matches
   )
-  const finalNodeReached = !emptyDocument && beats.length > 0 && focusBeatIndex >= beats.length - 1
-  const returnVisible = emptyDocument || readerAtBottom || (directReaderInput && finalNodeReached)
+  const returnVisible = emptyDocument || isFinalReaderBeat(focusBeatIndex, beats)
   const locationLabel = emptyDocument
     ? (language === 'en' ? 'No pages yet' : '暂无页面')
     : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
 
-  const updateReturnArmed = useCallback(value => {
-    setReturnArmed(value)
-    if (!value) {
-      setReturnReady(false)
-      onReturnArmedChange?.(false)
+  const handleViewportBoundaryChange = useCallback(({ direction = 0, atTop = false }) => {
+    if (atTop && direction < 0 && nativeBoundaryLockRef.current !== 'backward') {
+      nativeBoundaryLockRef.current = 'backward'
+      onNativeBoundary?.('backward')
     }
-  }, [onReturnArmedChange])
-
-  const updateReturnReady = useCallback(value => {
-    setReturnReady(value)
-    onReturnArmedChange?.(value)
-  }, [onReturnArmedChange])
-
-  const handleViewportBoundaryChange = useCallback(({ atBottom, lastNodeReached }) => {
-    setReaderAtBottom(atBottom && lastNodeReached)
-  }, [])
+    if (!atTop) nativeBoundaryLockRef.current = null
+  }, [onNativeBoundary])
 
   useEffect(() => {
-    setReaderAtBottom(false)
-    updateReturnArmed(false)
-  }, [page?.id, updateReturnArmed])
-
-  useEffect(() => {
-    if (!returnVisible && returnArmed) updateReturnArmed(false)
-  }, [returnArmed, returnVisible, updateReturnArmed])
+    nativeBoundaryLockRef.current = null
+  }, [page?.id])
 
   return (
     <main
-      className={`reader-stage-page paper-surface reader-stage-page--${readingMode} reader-stage-page--theme-${standardTheme} reader-stage-page--motion-${motionMode}`}
+      className={`reader-stage-page paper-surface reader-stage-page--${readingMode} reader-stage-page--theme-${standardTheme} reader-stage-page--motion-${motionMode}${returningToLanding ? ' reader-stage-page--returning' : ''}`}
       style={stageStyle}
       data-reading-mode={readingMode}
       data-motion-mode={motionMode}
+      data-returning-to-landing={returningToLanding ? 'true' : 'false'}
       data-scene-state={sceneStateName}
       data-world-layer={environmentState.worldLayer}
       data-scene-characters={environmentState.characters.join(' ')}
@@ -158,10 +144,8 @@ function ReaderStage({
           focusBeatIndex={focusBeatIndex}
           onFocusMotionEnd={onFocusMotionEnd}
           onNativeFocusChange={onNativeFocusChange}
-          onNativeBoundary={onNativeBoundary}
           onNativeScrollOffset={onNativeScrollOffset}
           onViewportBoundaryChange={handleViewportBoundaryChange}
-          returnArmed={returnReady}
           initialScrollOffset={initialScrollOffset}
           narrativeRuntimeEnabled={narrativeRuntimeEnabled}
           narrativeDeliveryStates={narrativeDeliveryStates}
@@ -184,15 +168,16 @@ function ReaderStage({
           focusBeatIndex={focusBeatIndex}
           language={language}
           readingMode={readingMode}
+          returningToLanding={returningToLanding}
         />}
-        {returnVisible && <ReaderReturnControl
-          armed={returnArmed}
-          onArm={() => updateReturnArmed(true)}
-          onDisarm={() => updateReturnArmed(false)}
-          onReadyChange={updateReturnReady}
-          onComplete={onReturnLanding}
+        <ReaderReturnControl
+          visible={returnVisible}
+          mobile={directReaderInput}
+          worldLayer={environmentState.worldLayer}
+          onReturnStart={onReturnStart}
+          onReturnComplete={onReturnLanding}
           language={language}
-        />}
+        />
         {chapterTrialEnded && <span className="reader-chapter-end" aria-hidden="true" />}
       </section>
     </main>

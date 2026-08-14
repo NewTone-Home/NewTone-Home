@@ -8,7 +8,7 @@ import {
   normalizeWheelDelta,
 } from '../reader/readerInput'
 
-export function useReaderInput({ onSteps, wheelThreshold, shouldSuppressForwardWheel }) {
+export function useReaderInput({ onSteps, wheelThreshold, shouldSuppressForwardWheel, shouldSuppressWheel }) {
   const wheelRef = useRef(0)
   const onStepsRef = useRef(onSteps)
   const gestureRef = useRef({ id: 0, lastWheelAt: 0 })
@@ -27,8 +27,11 @@ export function useReaderInput({ onSteps, wheelThreshold, shouldSuppressForwardW
     const handleWheel = (event) => {
       const isReturnControl = event.target instanceof HTMLElement
         && event.target.closest('[data-reader-return-control="true"]')
-      if (isReaderInputControl(event.target) && !isReturnControl) return
+      // The return control owns its wheel gesture. Letting the global reader
+      // accumulator inspect the same event creates a race with page advance.
+      if (isReturnControl || isReaderInputControl(event.target)) return
       if (isNativeReaderScrollTarget(event.target)) return
+      if (shouldSuppressWheel?.()) return
       const now = performance.now()
       if (now - gestureRef.current.lastWheelAt > 140) gestureRef.current.id += 1
       gestureRef.current.lastWheelAt = now
@@ -57,7 +60,7 @@ export function useReaderInput({ onSteps, wheelThreshold, shouldSuppressForwardW
       window.removeEventListener('keydown', handleKeyDown)
       wheelRef.current = 0
     }
-  }, [dispatchSteps, shouldSuppressForwardWheel, wheelThreshold])
+  }, [dispatchSteps, shouldSuppressForwardWheel, shouldSuppressWheel, wheelThreshold])
 
   return { dispatchSteps, clearInputAccumulator }
 }

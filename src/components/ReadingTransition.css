@@ -187,7 +187,7 @@
   justify-content: center;
 }
 
-.reading-transition-entry-group .entry-button-surface {
+.reading-transition-entry-group .shared-entry-control {
   --entry-ink: var(--rt-control);
   --entry-fill: color-mix(in srgb, var(--rt-paper) 92%, var(--rt-control));
 }

@@ -56,11 +56,11 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
   const focusRef = useRef(null)
   const [pageMotion, setPageMotion] = useState('idle')
   const [autoVisual, setAutoVisual] = useState(null)
+  const [returningToLanding, setReturningToLanding] = useState(false)
   const pageMotionTimerRef = useRef(null)
   const blockedGestureRef = useRef(null)
   const pageTransitionBusyRef = useRef(false)
   const clearInputAccumulatorRef = useRef(null)
-  const returnArmedRef = useRef(false)
   const activeReaderContent = readerContent
   const [initialLocation] = useState(() => {
     const replayParams = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search)
@@ -270,11 +270,8 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
     })
   }, [activeLocation, handleReadingSteps])
 
-  const shouldSuppressReturnWheel = useCallback(() => returnArmedRef.current, [])
-
   const { clearInputAccumulator } = useReaderInput({
     onSteps: handleReadingSteps,
-    shouldSuppressForwardWheel: shouldSuppressReturnWheel,
   })
   clearInputAccumulatorRef.current = clearInputAccumulator
 
@@ -299,7 +296,6 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
   }, [selectReadingMode])
 
   const handleReturnLanding = useCallback(() => {
-    returnArmedRef.current = false
     clearInputAccumulator()
     setReaderExitGestureLearned()
     trackEvent('reader_return', {
@@ -311,13 +307,16 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
     transitionTo('landing', { preset: 'reader-to-surface', waitForReady: false })
   }, [activeLocation, activeReaderContent, clearInputAccumulator, setReaderExitGestureLearned, transitionTo])
 
+  const handleReturnStart = useCallback(() => {
+    if (returningToLanding) return
+    pageTransitionBusyRef.current = true
+    clearInputAccumulator()
+    setReturningToLanding(true)
+  }, [clearInputAccumulator, returningToLanding])
+
   const finishFocusMotion = useCallback((event) => {
     if (event.target === event.currentTarget) finishTransition()
   }, [finishTransition])
-
-  const handleReturnArmedChange = useCallback(armed => {
-    returnArmedRef.current = armed
-  }, [])
 
   return (
     <ReaderStage
@@ -354,7 +353,8 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
       rootRef={rootRef}
       focusRef={focusRef}
       chapterTrialEnded={chapterTrialEnded && page.transitionType === READER_TRANSITION_TYPES.CHAPTER_END && activeLocation.beatIndex === page.beats.length - 1}
-      onReturnArmedChange={handleReturnArmedChange}
+      returningToLanding={returningToLanding}
+      onReturnStart={handleReturnStart}
       onReturnLanding={handleReturnLanding}
     />
   )
@@ -372,6 +372,7 @@ function EmptyReaderOrchestrator({ contentStatus, onRetryContent, onReaderReady 
   const setThemePosition = useProgressStore(state => state.setThemePosition)
   const setReaderExitGestureLearned = useProgressStore(state => state.setReaderExitGestureLearned)
   const transitionTo = useTransitionStore(state => state.transitionTo)
+  const [returningToLanding, setReturningToLanding] = useState(false)
   const rootRef = useRef(null)
   const focusRef = useRef(null)
 
@@ -398,6 +399,10 @@ function EmptyReaderOrchestrator({ contentStatus, onRetryContent, onReaderReady 
     })
     transitionTo('landing', { preset: 'reader-to-surface', waitForReady: false })
   }, [language, readingMode, setReaderExitGestureLearned, transitionTo])
+
+  const handleReturnStart = useCallback(() => {
+    setReturningToLanding(true)
+  }, [])
 
   return <ReaderStage
     emptyDocument
@@ -430,6 +435,8 @@ function EmptyReaderOrchestrator({ contentStatus, onRetryContent, onReaderReady 
     rootRef={rootRef}
     focusRef={focusRef}
     chapterTrialEnded={false}
+    returningToLanding={returningToLanding}
+    onReturnStart={handleReturnStart}
     onReturnLanding={handleReturnLanding}
   />
 }

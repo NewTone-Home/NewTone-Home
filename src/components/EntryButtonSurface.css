@@ -1,140 +1,109 @@
-.entry-button-surface {
-  --entry-ink: var(--ink-medium, #5a4d40);
-  --entry-fill: color-mix(in srgb, var(--reader-paper, var(--paper-base)) 92%, var(--entry-ink));
+.shared-entry-control {
+  --entry-background-body: var(--reader-paper, var(--paper-base));
+  --entry-background-highlight: color-mix(in srgb, var(--entry-background-body) 86%, white 14%);
+  --entry-background-shade: color-mix(in srgb, var(--entry-background-body) 86%, var(--reader-ink, var(--ink-dark)) 14%);
+  --entry-background-edge: color-mix(in srgb, var(--entry-background-body) 62%, var(--reader-ink, var(--ink-dark)) 38%);
   position: relative;
-  display: inline-grid;
-  place-items: center;
-  width: clamp(9.5rem, 15vw, 12.5rem);
-  aspect-ratio: 200 / 56;
-  padding: 0;
+  z-index: 0;
+  display: grid;
+  box-sizing: border-box;
+  width: clamp(132px, 11vw, 190px);
+  min-height: 54px;
+  padding: 10px 12px 8px;
+  overflow: visible;
+  isolation: isolate;
   border: 0;
   background: transparent;
-  color: var(--entry-ink);
-  font: inherit;
-  letter-spacing: .1em;
+  color: var(--reader-muted, var(--ink-medium));
   cursor: pointer;
-  isolation: isolate;
+  font: inherit;
+  font-size: clamp(.78rem, .72vw, .98rem);
+  letter-spacing: .12em;
+  place-items: center;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
 }
 
-.entry-button-surface[data-material-mode="world"][data-world-layer="inner"] {
-  --entry-ink: var(--reader-paper, #f2eee5);
-  --entry-fill: color-mix(in srgb, var(--reader-ink, #211a14) 92%, var(--reader-paper, #f2eee5));
+.shared-entry-control[data-entry-material-source='background'] {
+  --return-text-active: var(--reader-ink, var(--ink-dark));
 }
 
-.entry-button-surface:disabled {
+.shared-entry-control[data-entry-material-source='world'][data-entry-world-layer='inner'] {
+  --return-text-active: #191817;
+}
+
+.shared-entry-control[data-entry-material-source='world'][data-entry-world-layer='surface'] {
+  --return-text-active: #f4efe6;
+}
+
+.shared-entry-control[data-entry-visible='false'] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.shared-entry-control:disabled {
   cursor: default;
 }
 
-.entry-button-surface:focus-visible {
+.shared-entry-control:focus-visible {
   outline: 1px solid currentColor;
   outline-offset: 5px;
 }
 
-.entry-button-surface__geometry {
+.shared-entry-content {
+  position: relative;
+  z-index: 0;
+  display: grid;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 36px;
+  place-items: center;
+}
+
+.shared-entry-surface {
   position: absolute;
+  z-index: 1;
   inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
   overflow: visible;
   pointer-events: none;
 }
 
-.entry-button-surface__fill {
-  transform: scaleX(0);
-  transform-origin: 0 50%;
-  opacity: .92;
+.shared-entry-material {
+  shape-rendering: geometricPrecision;
 }
 
-.entry-button-surface__fill rect {
-  fill: var(--entry-fill);
-}
-
-.entry-button-surface__frame {
+.shared-entry-frame {
   fill: none;
-  stroke: currentColor;
-  stroke-width: 1.2;
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
   vector-effect: non-scaling-stroke;
 }
 
-.entry-button-surface__label {
+.shared-entry-material-edge {
+  vector-effect: non-scaling-stroke;
+}
+
+.shared-entry-text {
   position: relative;
-  z-index: 1;
-  opacity: 0;
-  transform: translateY(2px);
+  z-index: 2;
   white-space: nowrap;
-}
-
-.entry-button-surface[data-entry-phase="entering"] {
-  animation: entry-button-surface-enter 560ms cubic-bezier(.2,.8,.2,1) both;
-}
-
-.entry-button-surface[data-entry-phase="entering"] .entry-button-surface__fill {
-  animation: entry-button-fill-enter 560ms cubic-bezier(.2,.8,.2,1) 120ms both;
-}
-
-.entry-button-surface[data-entry-phase="entering"] .entry-button-surface__label {
-  animation: entry-button-label-enter 260ms ease-out 80ms both;
-}
-
-.entry-button-surface[data-entry-phase="visible"] .entry-button-surface__fill {
-  transform: scaleX(1);
-}
-
-.entry-button-surface[data-entry-phase="visible"] .entry-button-surface__label {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.entry-button-surface[data-entry-phase="exiting"] {
-  animation: entry-button-surface-exit 520ms cubic-bezier(.4,0,.7,.2) both;
-}
-
-.entry-button-surface[data-entry-phase="exiting"] .entry-button-surface__fill {
-  animation: entry-button-fill-exit 520ms cubic-bezier(.4,0,.7,.2) both;
-}
-
-.entry-button-surface[data-entry-phase="exiting"] .entry-button-surface__label {
-  animation: entry-button-label-exit 180ms ease-in both;
-}
-
-@keyframes entry-button-surface-enter {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes entry-button-fill-enter {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
-}
-
-@keyframes entry-button-label-enter {
-  from { opacity: 0; transform: translateY(2px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes entry-button-surface-exit {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
-@keyframes entry-button-fill-exit {
-  from { transform: scaleX(1); }
-  to { transform: scaleX(0); }
-}
-
-@keyframes entry-button-label-exit {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(-2px); }
+  color: color-mix(
+    in srgb,
+    var(--reader-muted, var(--ink-medium)) calc((1 - var(--return-fill-progress)) * 100%),
+    var(--return-text-active) calc(var(--return-fill-progress) * 100%)
+  );
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .entry-button-surface[data-entry-phase="entering"],
-  .entry-button-surface[data-entry-phase="entering"] .entry-button-surface__fill,
-  .entry-button-surface[data-entry-phase="entering"] .entry-button-surface__label,
-  .entry-button-surface[data-entry-phase="exiting"],
-  .entry-button-surface[data-entry-phase="exiting"] .entry-button-surface__fill,
-  .entry-button-surface[data-entry-phase="exiting"] .entry-button-surface__label {
-    animation-duration: 1ms !important;
-    animation-delay: 0ms !important;
+  .shared-entry-surface,
+  .shared-entry-material,
+  .shared-entry-frame {
+    transition-duration: 1ms !important;
   }
 }

@@ -3,6 +3,7 @@ import { useProgressStore } from './progressStore'
 import { getDefinition } from '../transitions/transitionDefinitions'
 
 let activeTimers = []
+const READER_LANDING_HANDOFF_MS = 760
 
 function clearAllTimers() {
   activeTimers.forEach(clearTimeout)
@@ -79,20 +80,34 @@ export const useTransitionStore = create((set, get) => ({
     const preset = options.preset || 'fade-cover'
     const payload = options.payload || null
 
-    // Reader → Landing no longer needs a second NewTone living in an overlay.
-    // Commit the real Landing immediately and let Landing itself own the return
-    // draw/status/retract/guide sequence. The transient arrival flag is memory-
-    // only and is consumed by Landing on mount.
+    // Keep the Reader mounted while the real Landing surface is pre-mounted and
+    // fades in. This removes the route-level flash without introducing a second
+    // NewTone transition mark.
     if (targetView === 'landing' && preset === 'reader-to-surface') {
       set({
-        phase: 'idle',
-        targetView: null,
-        preset: 'fade-cover',
-        payload: null,
+        phase: 'handoff',
+        targetView,
+        preset,
+        payload,
         waitingForTarget: false,
         landingArrivalKind: 'return',
       })
-      return commitTargetView(targetView, preset, payload)
+      schedule(() => {
+        if (get().phase !== 'handoff' || get().targetView !== targetView) return
+        const committed = commitTargetView(targetView, preset, payload)
+        if (committed === false) {
+          get().reset()
+          return
+        }
+        set({
+          phase: 'idle',
+          targetView: null,
+          preset: 'fade-cover',
+          payload: null,
+          waitingForTarget: false,
+        })
+      }, READER_LANDING_HANDOFF_MS)
+      return true
     }
 
     const timings = getDefinition(preset).timings

@@ -3,12 +3,16 @@ import EntryButtonSurface from './EntryButtonSurface'
 import { recordRuntimeAudit } from '../services/runtimeAudit'
 import './EntryButtonGroup.css'
 
-const GROUP_PHASE = Object.freeze({ ENTERING: 'entering', VISIBLE: 'visible', EXITING: 'exiting' })
+const GROUP_PHASE = Object.freeze({ VISIBLE: 'visible', EXITING: 'exiting' })
+
+function isCoarsePointer() {
+  return typeof window !== 'undefined'
+    && window.matchMedia?.('(pointer: coarse)').matches === true
+}
 
 function EntryButtonGroup({ groupId, entries, onNavigate, materialMode, worldLayer, className = '' }) {
-  const [phase, setPhase] = useState(GROUP_PHASE.ENTERING)
-  const phaseRef = useRef(GROUP_PHASE.ENTERING)
-  const completedRef = useRef(new Set())
+  const [phase, setPhase] = useState(GROUP_PHASE.VISIBLE)
+  const phaseRef = useRef(GROUP_PHASE.VISIBLE)
   const actionRef = useRef(null)
   const navigatedRef = useRef(false)
   const onNavigateRef = useRef(onNavigate)
@@ -25,31 +29,20 @@ function EntryButtonGroup({ groupId, entries, onNavigate, materialMode, worldLay
     return () => recordRuntimeAudit('entry-group-unmounted', { groupId })
   }, [entries, groupId])
 
-  const handleAnimationEnd = useCallback((entryId, event) => {
-    if (event.target !== event.currentTarget) return
-    if (phaseRef.current === GROUP_PHASE.ENTERING && event.animationName === 'entry-button-surface-enter') {
-      completedRef.current.add(entryId)
-      if (completedRef.current.size === entries.length) {
-        completedRef.current.clear()
-        setGroupPhase(GROUP_PHASE.VISIBLE)
-      }
-      return
-    }
-    if (phaseRef.current !== GROUP_PHASE.EXITING || event.animationName !== 'entry-button-surface-exit') return
-    completedRef.current.add(entryId)
-    if (completedRef.current.size !== entries.length || navigatedRef.current) return
-    navigatedRef.current = true
-    recordRuntimeAudit('entry-group-action-complete', { groupId, entryId: actionRef.current })
-    onNavigateRef.current?.(actionRef.current)
-  }, [entries.length, groupId, setGroupPhase])
-
-  const handleClick = useCallback((entryId, event) => {
-    if (event.detail < 0 || phaseRef.current !== GROUP_PHASE.VISIBLE || navigatedRef.current) return
-    actionRef.current = entryId
-    completedRef.current.clear()
-    recordRuntimeAudit('entry-group-click', { groupId, entryId, inputType: event.nativeEvent?.pointerType || 'mouse' })
+  const handleActionStart = useCallback(({ entryId, inputType }) => {
+    if (phaseRef.current !== GROUP_PHASE.VISIBLE || navigatedRef.current) return
+    actionRef.current = { entryId, inputType }
+    recordRuntimeAudit('entry-group-click', { groupId, entryId, inputType })
     setGroupPhase(GROUP_PHASE.EXITING)
   }, [groupId, setGroupPhase])
+
+  const handleActionComplete = useCallback(({ entryId, inputType }) => {
+    if (phaseRef.current !== GROUP_PHASE.EXITING || navigatedRef.current) return
+    if (!actionRef.current || actionRef.current.entryId !== entryId) return
+    navigatedRef.current = true
+    recordRuntimeAudit('entry-group-action-complete', { groupId, entryId, inputType })
+    onNavigateRef.current?.(entryId)
+  }, [groupId])
 
   return (
     <div className={`entry-button-group${className ? ` ${className}` : ''}`} data-entry-group={groupId} data-entry-group-phase={phase}>
@@ -60,9 +53,11 @@ function EntryButtonGroup({ groupId, entries, onNavigate, materialMode, worldLay
           label={entry.label}
           materialMode={entry.materialMode || materialMode}
           worldLayer={entry.worldLayer || worldLayer}
-          phase={phase}
-          onClick={event => handleClick(entry.id, event)}
-          onAnimationEnd={event => handleAnimationEnd(entry.id, event)}
+          visible={phase !== GROUP_PHASE.EXITING}
+          mobile={isCoarsePointer()}
+          dataAttributes={{ 'data-entry-group-entry': entry.id }}
+          onActionStart={handleActionStart}
+          onActionComplete={handleActionComplete}
         />
       ))}
     </div>

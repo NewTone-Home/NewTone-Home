@@ -45,7 +45,6 @@ function Landing({
   const [returnStatusVisible, setReturnStatusVisible] = useState(returnArrival)
   const [returnStatusFading, setReturnStatusFading] = useState(false)
   const landingRef = useRef(null)
-  const returnSequenceStartedRef = useRef(false)
 
   const reducedMotion = useReducedMotion()
   const [landingScene] = useState(() => resolveLandingScene(window.location.search))
@@ -82,8 +81,7 @@ function Landing({
   }, [begin, phaseRef, returnArrival, returnSequenceActive])
 
   useEffect(() => {
-    if (!returnArrival || returnSequenceStartedRef.current) return undefined
-    returnSequenceStartedRef.current = true
+    if (!returnArrival) return undefined
 
     let cancelled = false
     let frame = 0

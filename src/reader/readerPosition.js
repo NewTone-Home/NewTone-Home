@@ -112,3 +112,7 @@ export function getOverallProgress(position, content = readerContent) {
 
   return current.linearIndex / (index.entries.length - 1)
 }
+
+export function isFinalReaderBeat(focusBeatIndex, beats) {
+  return Array.isArray(beats) && beats.length > 0 && focusBeatIndex === beats.length - 1
+}
