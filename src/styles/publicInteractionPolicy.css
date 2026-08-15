@@ -1,0 +1,18 @@
+.page-shell,
+.page-shell * {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Keep a future public form editable without reopening selection on the rest
+   of the public surface. The current public flow does not render these. */
+.page-shell input,
+.page-shell textarea,
+.page-shell select,
+.page-shell [contenteditable="true"] {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}
