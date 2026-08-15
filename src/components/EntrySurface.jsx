@@ -29,6 +29,8 @@ function EntrySurface({
   const [returnArrivalSurface] = useState(() => landingArrivalKind === 'return')
   const updatesPhaseRef = useRef(UPDATES_PHASE.LANDING)
   const entryActive = phase !== 'idle'
+  const readerHandoffActive = phase === 'reader-preparing' || phase === 'transition-leaving'
+  const readerHandoffLeaving = phase === 'transition-leaving'
   const mounted = currentView === 'landing' || entryActive || landingHandoff
 
   if (!mounted) return null
@@ -49,7 +51,8 @@ function EntrySurface({
 
   return (
     <div
-      className={`entry-surface entry-surface--phase-${phase}${landingHandoff ? ' entry-surface--reader-return' : ''}`}
+      className={`entry-surface entry-surface--phase-${phase}${readerHandoffActive ? ' entry-surface--reader-handoff' : ''}${readerHandoffLeaving ? ' entry-surface--reader-handoff-leaving' : ''}${landingHandoff ? ' entry-surface--reader-return' : ''}`}
+      style={readerHandoffActive ? { '--entry-handoff-fade-duration': `${READING_ENTRY_TIMINGS.TRANSITION_FADE_MS}ms` } : undefined}
       data-entry-phase={phase}
       data-entry-intent={intent || 'none'}
       data-updates-phase={updatesPhase}

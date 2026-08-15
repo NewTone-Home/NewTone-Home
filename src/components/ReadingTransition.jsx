@@ -178,7 +178,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
       data-selector-entries-leaving={entriesLeaving ? 'true' : 'false'}
     >
       <div className="language-init-title-anchor">
-        <p className="ritual-selector-title language-init-title" data-stable={revealed && titleStable ? 'true' : 'false'}>
+        <p key={titleRestartKey} className="ritual-selector-title language-init-title" data-stable={revealed && titleStable ? 'true' : 'false'}>
           {revealed ? (titleDisplay || '') : ''}
         </p>
       </div>

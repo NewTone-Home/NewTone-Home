@@ -44,7 +44,9 @@
 }
 
 .reading-transition--fading {
-  opacity: 0;
+  /* EntrySurface owns the full-screen fade; keep the transition content
+     mounted so its mark can retract during the same handoff. */
+  opacity: 1;
 }
 
 .reading-transition--entering {

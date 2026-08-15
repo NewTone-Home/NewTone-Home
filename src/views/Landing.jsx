@@ -45,6 +45,7 @@ function Landing({
   const [returnStatusVisible, setReturnStatusVisible] = useState(returnArrival)
   const [returnStatusFading, setReturnStatusFading] = useState(false)
   const landingRef = useRef(null)
+  const landingLeaveRetractStartedRef = useRef(false)
 
   const reducedMotion = useReducedMotion()
   const [landingScene] = useState(() => resolveLandingScene(window.location.search))
@@ -79,6 +80,17 @@ function Landing({
     const frame = window.requestAnimationFrame(() => { begin() })
     return () => window.cancelAnimationFrame(frame)
   }, [begin, phaseRef, returnArrival, returnSequenceActive])
+
+  useEffect(() => {
+    if (!leaving) {
+      landingLeaveRetractStartedRef.current = false
+      return undefined
+    }
+    if (landingLeaveRetractStartedRef.current) return undefined
+    landingLeaveRetractStartedRef.current = true
+    retract({ duration: reducedMotion || motionMode === 'reduced' ? 0 : undefined })
+    return undefined
+  }, [leaving, motionMode, reducedMotion, retract])
 
   useEffect(() => {
     if (!returnArrival) return undefined

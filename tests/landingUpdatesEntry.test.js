@@ -21,6 +21,8 @@ describe('Landing updates entry', () => {
     expect(landingCss).not.toContain('landing-guide-arrow')
     expect(landingCss).not.toContain('landing-title:hover')
     expect(landing).toContain('window.requestAnimationFrame(() => { begin() })')
+    expect(landing).toContain('landingLeaveRetractStartedRef')
+    expect(landing).toContain("retract({ duration: reducedMotion || motionMode === 'reduced' ? 0 : undefined })")
   })
 
   it('keeps Updates and Reader entries in one shared click group', () => {

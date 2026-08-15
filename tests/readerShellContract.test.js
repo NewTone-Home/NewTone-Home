@@ -103,11 +103,14 @@ describe('Reader shell contract boundaries', () => {
     expect(app).not.toContain("addEventListener('wheel'")
     expect(readingEntryController).toContain('FIRST_LANDING_LEAVE_MS: 1600')
     expect(readingEntryController).toContain('RETURN_LANDING_LEAVE_MS: 1600')
-    expect(readingEntryController).toContain('LANG_LEAVING_MS: 1600')
+    expect(readingEntryController).toContain('LANG_LEAVING_MS: 420')
     expect(readingEntryController).toContain('MODE_LEAVING_MS: 420')
     expect(transition).toContain("const entering = phase === 'reader-preparing'")
     expect(transition).toContain("reading-transition--entering")
     expect(transitionCss).toContain('.reading-transition--entering')
+    expect(transitionCss).toContain('.reading-transition--fading')
+    expect(transitionCss).toContain('EntrySurface owns the full-screen fade')
+    expect(transition).toContain('key={titleRestartKey}')
   })
 
   it('keeps English visible labels inside the shared frame capacity', () => {

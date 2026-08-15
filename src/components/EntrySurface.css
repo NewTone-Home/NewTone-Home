@@ -8,6 +8,18 @@
   background-color: var(--reader-paper, var(--paper-base));
 }
 
+/* The persistent surface owns the Reader handoff fade. The transition is
+   inside this surface, so fading only its child would leave this opaque
+   background in place until the whole surface unmounts. */
+.entry-surface--reader-handoff {
+  opacity: 1;
+  transition: opacity var(--entry-handoff-fade-duration, 400ms) ease;
+}
+
+.entry-surface--reader-handoff-leaving {
+  opacity: 0;
+}
+
 .entry-surface > .landing {
   position: absolute;
   inset: 0;

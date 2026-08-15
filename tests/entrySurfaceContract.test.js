@@ -14,6 +14,8 @@ describe('persistent entry surface contract', () => {
     expect(surface).toContain('<Landing')
     expect(surface).toContain('<ReadingTransition')
     expect(surface).toContain("const entryActive = phase !== 'idle'")
+    expect(surface).toContain("const readerHandoffActive = phase === 'reader-preparing' || phase === 'transition-leaving'")
+    expect(surface).toContain('entry-surface--reader-handoff')
     expect(surface).toContain('leaving={entryActive}')
   })
 
@@ -21,6 +23,9 @@ describe('persistent entry surface contract', () => {
     expect(surfaceCss).toContain('.entry-surface > .reading-transition')
     expect(surfaceCss).toContain('position: absolute')
     expect(surfaceCss).toContain('.entry-surface > .landing')
+    expect(surfaceCss).toContain('.entry-surface--reader-handoff')
+    expect(surfaceCss).toContain('transition: opacity var(--entry-handoff-fade-duration, 400ms) ease')
+    expect(surfaceCss).toContain('.entry-surface--reader-handoff-leaving')
     expect(surface).not.toContain('guidePaused')
   })
 })
