@@ -191,8 +191,8 @@ describe('Reader shell contract boundaries', () => {
     expect(updatesPage).toContain('visible={interactive}')
     expect(updatesPage).toContain("recordRuntimeAudit('updates-return-intent'")
     expect(updatesPage).not.toContain('addEventListener')
-    expect(updatesCss).toContain('left: var(--space-md, 1.5rem)')
-    expect(updatesCss).toContain('bottom: var(--space-md, 1.5rem)')
+    expect(updatesCss).toContain('left: clamp(1.25rem, 8vw, 8rem)')
+    expect(updatesCss).toContain('bottom: clamp(1.25rem, 6vh, 3.5rem)')
   })
 
   it('keeps stable scene IDs and exact progress helpers', () => {

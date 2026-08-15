@@ -4,7 +4,7 @@
 >
 > 规则：只记录当前真实状态、已做决定、验证结果、已知风险和待办。不要把宣传文案写进这里。更新公告应在准备发布时，基于本文件 + Git diff 另行撰写。
 
-最后更新：2026-08-08
+最后更新：2026-08-15
 
 ## 1. 项目与分支基线
 
@@ -444,3 +444,60 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 - Language 的当前语言区域 hover 只显示持续双手绘线；Start 不显示方向箭头；移动端 armed 后可从页面空白区域上滑确认。
 
 其余已完成工作主要是 staging / Supabase / Vercel 测试基础设施，不应自动视为对外更新公告内容。
+
+## 13. 2026-08-15 当前施工快照
+
+本节覆盖前文在 2026-08-08 后已经过时的“当前”描述。继续施工时，先读本节，再回看对应的历史决策和 `main...staging` 实际 diff。
+
+### 13.1 当前 Git 基线
+
+- 当前 production `main`：`8d88d00dcb3b0e01f1bd3f81cd5b36c98177f4af`
+- 当前 staging：`b8afdd53a6b2e488e11551537a158d557aad40d5`
+- 比较结果：`staging` 相对 `main` ahead 222 / behind 0。
+- 这 222 个提交不是 222 个独立产品功能；它们包含同一批 Landing、入口、Reader return 和动画状态机的连续实验、重构与修正。
+
+### 13.2 当前阶段实际完成的主题
+
+1. **测试环境隔离**：staging Preview 继续使用独立 Supabase；测试状态、analytics、Auth 和 Reader state 不得写入 production。
+2. **Landing 与入口体验**：Landing 现在承载连续的阅读入口与 Updates 入口；入口、语言和阅读模式使用统一的状态驱动视觉与输入语义。
+3. **Reader 进入与返回**：Reader setup 继续遵循“先选择，再明确继续”的意图结构；Reader return、Reader 到 Landing 的交接和移动端输入已进行多轮修正。
+4. **Reader 阅读反馈**：进度保持为非交互阅读反馈；Reader 完成边界和返回提示由 Reader 自己负责，不把 Reader 变成控制台。
+5. **Analytics v2**：Reader 进入、页面/章节/beat、dwell、return 和 session lifecycle 的观测链已加入 staging，并有对应 migration 与测试。
+
+这些主题的早期设计理由、废弃方案与边界见 `docs/internal/DECISIONS_2026-08-09.md`；本轮完整工程压缩记录见 `docs/internal/STAGE_2026-08-15.md`。
+
+### 13.3 最新变更：Reader handoff 时间线
+
+提交：`b8afdd5 fix: synchronize reader handoff timelines`
+
+已完成：
+
+- 删除 `MIN_READER_MS` / `RESUME_READER_MS` 的固定等待。
+- Reader 进入改为同时等待「Reader 已就绪」和「过渡视觉已完成」两个真实完成条件；二者齐备后立即离开过渡层。
+- Resume 使用真实的动画结束事件；reduced-motion 有独立完成路径。
+- Reader 返回 Landing 时，状态淡出与 NewTone 收回并行开始；返回收回使用独立 `640ms` 时长，不改变其他 Landing 场景共用的标题收回时长。
+- 在唯一状态源中记录 entry phase、Reader-ready 与 transition-ready runtime audit 事件，便于后续验收时序。
+
+这次修复针对的是“标题或 Reader 已完成但仍被固定等待拖住”以及“返回时先停留、后快速收回”的真实时序问题。它不是全局动画调速，也不改变 Reader 内容、完成边界或其他入口路由。
+
+### 13.4 已有验证与仍待验收
+
+`b8afdd5` 施工记录显示：
+
+- 浏览器时序验证：标题 `revealed` 后直接进入 transition leaving；Reader 在淡出期间保持挂载；返回 Landing 的标题连续约 `640ms` 收回，没有旧的固定平台期。
+- 门禁：33 个测试文件 / 130 个测试、lint、typecheck/build、diff-check 通过。
+- 本地与 `origin/staging` 已在 `b8afdd5` 对齐，施工完成时工作树干净。
+
+仍需在准备合入 `main` 前完成：
+
+- 在 staging Preview 人工走通 Landing → language → mode → Reader → return，确认入口、返回和标题时序的真实视觉手感。
+- 在真实 iPhone / Android 上确认 Device Orientation 权限、横竖屏、归零/软校准，以及 touch/pen 手势。
+- 重新确认 Vercel Preview 对应当前 staging SHA，而不是只对应较早的产品提交。
+- 重新比较当时的 `main...staging`，确认 `main` 没有新变化且所有保留实验都应进入 release。
+
+### 13.5 接手规则补充
+
+- 不要把 2026-08-10 至 2026-08-14 的连续微提交误读为一批必须逐项保留的功能；先看当前 `b8afdd5` net diff 和 `STAGE_2026-08-15.md` 的主题级结论。
+- 不要重新引入 hover-only 自动推进、普通设置页式 Reader setup、可点击 progress，或用 overlay 模拟另一个 Landing。
+- 新的用户可感知阶段结束后，更新本接手包，并在 `docs/internal/` 新增阶段或决策记录；commit body 至少保留 Why / Scope / Proof。
+- 未完成上述人工验收与远端 deployment 对齐前，不擅自 merge 到 `main`。

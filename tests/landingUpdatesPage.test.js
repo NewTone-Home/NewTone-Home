@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
 const page = read('../src/components/LandingUpdatesPage.jsx')
 const styles = read('../src/components/LandingUpdatesPage.css')
+const entrySurface = read('../src/components/EntrySurface.jsx')
 const audit = read('../src/services/runtimeAudit.js')
 
 describe('Landing updates page button contract', () => {
@@ -32,8 +33,19 @@ describe('Landing updates page button contract', () => {
     expect(page).toContain('returnIssuedRef.current')
     expect(page).toContain("recordRuntimeAudit('updates-return-intent'")
     expect(page).toContain('onReturnRequested?.()')
-    expect(styles).toContain('left: var(--space-md, 1.5rem)')
-    expect(styles).toContain('bottom: var(--space-md, 1.5rem)')
+    expect(styles).toContain('left: clamp(1.25rem, 8vw, 8rem)')
+    expect(styles).toContain('bottom: clamp(1.25rem, 6vh, 3.5rem)')
     expect(audit).toContain('window.NT_AUDIT')
+  })
+
+  it('renders the selected announcement layout and copy', () => {
+    expect(page).toContain('landing-updates-page__timeline')
+    expect(page).toContain('landing-updates-page__body')
+    expect(page).not.toContain('landing-updates-page__placeholder')
+    expect(page).toContain('本次更新没有加入新的宇宙，也没有打开什么神秘入口。')
+    expect(page).toContain('改善了多个设备运行表现')
+    expect(page).toContain('No new universe this time. No secret doorway, either.')
+    expect(page).toContain('We also improved performance across a wider range of devices.')
+    expect(entrySurface).toContain('language={language}')
   })
 })

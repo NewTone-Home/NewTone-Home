@@ -72,6 +72,7 @@ function EntrySurface({
 
       <LandingUpdatesPage
         phase={updatesPhase}
+        language={language}
         onSurfaceComplete={() => sendUpdatesEvent('surface-complete')}
         onReturnRequested={() => sendUpdatesEvent('return-requested')}
       />
