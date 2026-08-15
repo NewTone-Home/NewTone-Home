@@ -37,6 +37,7 @@ export const copy = {
     returnToLanding: '返回入口',
     returnToLandingHint: '持续悬停返回入口',
     readerTutorial: '向下前行 · 向上回看',
+    readerCompletion: '阅读完成',
   },
   en: {
     landingPromptInitial: 'Begin reading',
@@ -76,6 +77,7 @@ export const copy = {
     returnToLanding: 'Return to entrance',
     returnToLandingHint: 'Keep hovering to return',
     readerTutorial: 'Scroll down to continue · scroll up to revisit',
+    readerCompletion: 'Reading complete',
   },
   ja: {
     landingPromptInitial: '読み始める',

@@ -1,0 +1,18 @@
+.reader-completion-prompt {
+  position: absolute;
+  z-index: 8;
+  right: 0;
+  bottom: clamp(164px, 19vh, 208px);
+  left: 0;
+  margin: 0;
+  color: var(--reader-muted);
+  font-size: .72rem;
+  letter-spacing: .12em;
+  line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-completion-prompt { transition: none; }
+}

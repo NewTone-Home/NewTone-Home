@@ -11,7 +11,9 @@ import { READER_STEP_ACTIONS, resolveReaderStep } from '../reader/readerAdvance'
 import { hasReaderSceneChanged } from '../reader/readerPresentation'
 import { beginNarrativePlaybackSession, NARRATIVE_RUNTIME_ENABLED } from '../reader/narrativePlaybackSession'
 import { getOverallProgress } from '../reader/readerPosition'
+import { canCompleteReader } from '../reader/readerCompletion'
 import { trackEvent, trackReaderProgress } from '../services/analytics'
+import { recordRuntimeAudit } from '../services/runtimeAudit'
 import { useProgressStore } from '../stores/progressStore'
 import { useTransitionStore } from '../stores/transitionStore'
 import ReaderStage from './ReaderStage'
@@ -42,6 +44,7 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
   const clearResumeRequest = useProgressStore(state => state.clearResumeRequest)
   const chapterTrialEnded = useProgressStore(state => state.chapterTrialEnded)
   const endChapterTrial = useProgressStore(state => state.endChapterTrial)
+  const readerCompleted = useProgressStore(state => state.readerCompleted)
   const completeReader = useProgressStore(state => state.completeReader)
   const readingMode = useProgressStore(state => state.readingMode)
   const standardTheme = useProgressStore(state => state.standardTheme)
@@ -56,6 +59,7 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
   const focusRef = useRef(null)
   const [pageMotion, setPageMotion] = useState('idle')
   const [autoVisual, setAutoVisual] = useState(null)
+  const [completionPromptVisible, setCompletionPromptVisible] = useState(false)
   const [returningToLanding, setReturningToLanding] = useState(false)
   const pageMotionTimerRef = useRef(null)
   const blockedGestureRef = useRef(null)
@@ -235,6 +239,13 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
       return
     }
 
+    if (!canCompleteReader({
+      location: activeLocation,
+      action,
+      readerCompleted,
+      content: activeReaderContent,
+    })) return
+
     blockedGestureRef.current = gestureId
     const progressRatio = getOverallProgress(activeLocation, activeReaderContent)
     const analyticsContext = currentAnalyticsContext()
@@ -245,8 +256,14 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
       progressRatio,
     })
     trackEvent('reader_exit', { ...analyticsContext, exitReason: 'completed', progressRatio })
-    completeReader()
-  }, [activeLocation, activeReaderContent, chapterTrialEnded, completeReader, endChapterTrial, navigatePage, navigateTo, narrativePause, narrativeReveal, narrativeTypewriter, page, readerExitGestureLearned, setReaderExitGestureLearned])
+    if (completeReader()) {
+      recordRuntimeAudit('reader-completion-marked', {
+        stepId: `${activeLocation.pageId}:${activeLocation.beatIndex}`,
+        progressRatio,
+      })
+      setCompletionPromptVisible(true)
+    }
+  }, [activeLocation, activeReaderContent, chapterTrialEnded, completeReader, endChapterTrial, navigatePage, navigateTo, narrativePause, narrativeReveal, narrativeTypewriter, page, readerCompleted, readerExitGestureLearned, setReaderExitGestureLearned])
 
   const handleNativeFocusChange = useCallback((beatIndex) => {
     if (!Number.isInteger(beatIndex) || beatIndex === activeLocation.beatIndex) return
@@ -353,6 +370,7 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
       rootRef={rootRef}
       focusRef={focusRef}
       chapterTrialEnded={chapterTrialEnded && page.transitionType === READER_TRANSITION_TYPES.CHAPTER_END && activeLocation.beatIndex === page.beats.length - 1}
+      completionPromptVisible={completionPromptVisible}
       returningToLanding={returningToLanding}
       onReturnStart={handleReturnStart}
       onReturnLanding={handleReturnLanding}

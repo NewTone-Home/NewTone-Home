@@ -4,6 +4,7 @@ import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
 import ReaderTools from '../components/reader/ReaderTools'
 import ReaderTraceProgress from '../components/reader/ReaderTraceProgress'
 import ReaderReturnControl from '../components/reader/ReaderReturnControl'
+import ReaderCompletionPrompt from '../components/reader/ReaderCompletionPrompt'
 import { resolveReaderEnvironmentPreview } from '../data/reader-experiments/readerEnvironmentPreview'
 import { getReaderSceneLabel } from '../i18n/readerUi'
 import { preventReaderShortcut, preventReaderTransfer } from '../reader/readerCopyProtection'
@@ -54,6 +55,7 @@ function ReaderStage({
   rootRef,
   focusRef,
   chapterTrialEnded,
+  completionPromptVisible = false,
   returningToLanding = false,
   onReturnStart,
   onReturnLanding,
@@ -178,6 +180,7 @@ function ReaderStage({
           onReturnComplete={onReturnLanding}
           language={language}
         />
+        <ReaderCompletionPrompt visible={completionPromptVisible} language={language} />
         {chapterTrialEnded && <span className="reader-chapter-end" aria-hidden="true" />}
       </section>
     </main>
