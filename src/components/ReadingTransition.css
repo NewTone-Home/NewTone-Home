@@ -86,6 +86,19 @@
   will-change: transform;
 }
 
+.reading-transition-resume-background,
+.reading-transition-resume-foreground {
+  will-change: transform;
+}
+
+.reading-transition-resume-background {
+  transform: translate3d(var(--scene-parallax-back-x, 0), var(--scene-parallax-back-y, 0), 0);
+}
+
+.reading-transition-resume-foreground {
+  transform: translate3d(var(--scene-parallax-front-x, 0), var(--scene-parallax-front-y, 0), 0);
+}
+
 .reading-transition .landing-title-draft {
   fill: var(--rt-ink);
   opacity: .38;

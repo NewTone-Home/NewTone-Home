@@ -9,8 +9,8 @@
   position: relative;
   background-color: var(--reader-paper, var(--paper-base));
   color: var(--reader-ink, var(--ink-dark));
-  transition: opacity calc(var(--landing-leave-ms, 1600ms) - 360ms) ease-in 360ms,
-    transform calc(var(--landing-leave-ms, 1600ms) - 360ms) ease-in 360ms,
+  transition: opacity calc(var(--landing-leave-ms, 1600ms) - var(--landing-leave-delay-ms, 360ms)) ease-in var(--landing-leave-delay-ms, 360ms),
+    transform calc(var(--landing-leave-ms, 1600ms) - var(--landing-leave-delay-ms, 360ms)) ease-in var(--landing-leave-delay-ms, 360ms),
     background-color 1200ms ease,
     color 900ms ease;
 }

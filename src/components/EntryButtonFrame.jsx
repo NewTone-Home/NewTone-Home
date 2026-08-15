@@ -7,16 +7,18 @@ const FILL_DIRECTIONS = ['left', 'right', 'top', 'bottom', 'center']
 const FRAME_ORIGINS = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
 const WORLD_MATERIALS = Object.freeze({
   surface: Object.freeze({
-    highlight: '#3f372f',
-    body: '#0b0a09',
-    shade: '#020202',
-    edge: '#5d5145',
+    highlight: 'var(--entry-world-surface-highlight)',
+    body: 'var(--entry-world-surface-body)',
+    shade: 'var(--entry-world-surface-shade)',
+    edge: 'var(--entry-world-surface-edge)',
+    opacity: 'var(--entry-world-surface-opacity)',
   }),
   inner: Object.freeze({
-    highlight: '#ffffff',
-    body: '#f7f5ef',
-    shade: '#dedbd2',
-    edge: '#bcb7aa',
+    highlight: 'var(--entry-world-inner-highlight)',
+    body: 'var(--entry-world-inner-body)',
+    shade: 'var(--entry-world-inner-shade)',
+    edge: 'var(--entry-world-inner-edge)',
+    opacity: 'var(--entry-world-inner-opacity)',
   }),
 })
 const BACKGROUND_MATERIAL = Object.freeze({
@@ -24,6 +26,7 @@ const BACKGROUND_MATERIAL = Object.freeze({
   body: 'var(--entry-background-body)',
   shade: 'var(--entry-background-shade)',
   edge: 'var(--entry-background-edge)',
+  opacity: 'var(--entry-background-opacity)',
 })
 
 // This is the only source of button geometry. The visible stroke, material
@@ -156,6 +159,7 @@ function EntryButtonFrame({
             href={`#${shapeId}`}
             fill={`url(#${materialId})`}
             transform={materialPathTransform}
+            style={{ opacity: material.opacity }}
           />
         </g>
       )}

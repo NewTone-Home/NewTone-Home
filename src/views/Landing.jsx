@@ -3,7 +3,7 @@ import { useProgressStore } from '../stores/progressStore'
 import { useTransitionStore } from '../stores/transitionStore'
 import { copy } from '../i18n/copy'
 import { getReaderEntryIntent, hasStableReaderProgress } from '../reader/readerEntry'
-import { TITLE_PHASE, readIntroCompleted, writeIntroCompleted } from '../landing/landingIntro'
+import { LANDING_LEAVE_FADE_DELAY_MS, TITLE_PHASE, readIntroCompleted, writeIntroCompleted } from '../landing/landingIntro'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useSceneParallax } from '../hooks/useSceneParallax'
 import { useTitleRetrace } from '../hooks/useTitleRetrace'
@@ -88,7 +88,10 @@ function Landing({
     }
     if (landingLeaveRetractStartedRef.current) return undefined
     landingLeaveRetractStartedRef.current = true
-    retract({ duration: reducedMotion || motionMode === 'reduced' ? 0 : undefined })
+    const duration = reducedMotion || motionMode === 'reduced'
+      ? 0
+      : Math.max(0, leavingMs - LANDING_LEAVE_FADE_DELAY_MS)
+    retract({ duration })
     return undefined
   }, [leaving, motionMode, reducedMotion, retract])
 
@@ -173,7 +176,12 @@ function Landing({
     <div
       ref={landingRef}
       className={`landing paper-surface${leaving ? ' landing--leaving' : ''}${landingScene ? ' landing--scene' : ''}${returnSequenceActive ? ' landing--return-sequence' : ''}`}
-      style={{ ...surfaceStyle, '--landing-leave-ms': `${leavingMs}ms`, '--landing-return-blink-ms': `${RETURN_STATUS_BLINK_MS}ms` }}
+      style={{
+        ...surfaceStyle,
+        '--landing-leave-ms': `${leavingMs}ms`,
+        '--landing-leave-delay-ms': `${LANDING_LEAVE_FADE_DELAY_MS}ms`,
+        '--landing-return-blink-ms': `${RETURN_STATUS_BLINK_MS}ms`,
+      }}
       data-reading-mode={readingMode}
       data-world-layer={environmentState.worldLayer}
       data-time-of-day={environmentState.time}

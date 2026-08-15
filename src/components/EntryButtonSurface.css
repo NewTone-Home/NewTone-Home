@@ -3,6 +3,19 @@
   --entry-background-highlight: color-mix(in srgb, var(--entry-background-body) 86%, white 14%);
   --entry-background-shade: color-mix(in srgb, var(--entry-background-body) 86%, var(--reader-ink, var(--ink-dark)) 14%);
   --entry-background-edge: color-mix(in srgb, var(--entry-background-body) 62%, var(--reader-ink, var(--ink-dark)) 38%);
+  --entry-background-opacity: 1;
+  /* World fills keep the shared background gradient, then add a restrained
+     world-specific tonal mix instead of replacing it with a flat black/white block. */
+  --entry-world-surface-highlight: color-mix(in srgb, var(--entry-background-highlight) 62%, #3f372f 38%);
+  --entry-world-surface-body: color-mix(in srgb, var(--entry-background-body) 48%, #0b0a09 52%);
+  --entry-world-surface-shade: color-mix(in srgb, var(--entry-background-shade) 36%, #161311 64%);
+  --entry-world-surface-edge: color-mix(in srgb, var(--entry-background-edge) 68%, #5d5145 32%);
+  --entry-world-surface-opacity: .56;
+  --entry-world-inner-highlight: color-mix(in srgb, var(--entry-background-highlight) 66%, #ffffff 34%);
+  --entry-world-inner-body: color-mix(in srgb, var(--entry-background-body) 84%, #f7f5ef 16%);
+  --entry-world-inner-shade: color-mix(in srgb, var(--entry-background-shade) 82%, #dedbd2 18%);
+  --entry-world-inner-edge: color-mix(in srgb, var(--entry-background-edge) 82%, #bcb7aa 18%);
+  --entry-world-inner-opacity: .62;
   position: relative;
   z-index: 0;
   display: grid;

@@ -57,6 +57,7 @@ function ReaderStage({
   chapterTrialEnded,
   completionPromptVisible = false,
   returningToLanding = false,
+  readerEntryHandoffPhase = 'idle',
   onReturnStart,
   onReturnLanding,
 }) {
@@ -104,6 +105,7 @@ function ReaderStage({
       data-reading-mode={readingMode}
       data-motion-mode={motionMode}
       data-returning-to-landing={returningToLanding ? 'true' : 'false'}
+      data-reader-entry-handoff={readerEntryHandoffPhase}
       data-scene-state={sceneStateName}
       data-world-layer={environmentState.worldLayer}
       data-scene-characters={environmentState.characters.join(' ')}

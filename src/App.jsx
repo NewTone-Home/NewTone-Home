@@ -123,6 +123,11 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     currentView === 'reader' &&
     (!readingEntry.isActive || readingEntryNeedsReader)
 
+  const readerEntryHandoffPhase = readingEntry.phase === 'reader-preparing'
+    || readingEntry.phase === 'transition-leaving'
+    ? readingEntry.phase
+    : 'idle'
+
   const showEntrySurface = currentView === 'landing' || readingEntry.isActive
   const showLandingHandoffSurface = globalTransitionPhase === 'handoff'
     && globalTransitionTargetView === 'landing'
@@ -143,7 +148,14 @@ function App({ contentStatus = 'ready', onRetryContent }) {
   return (
     <>
       <PageShell motionMode={motionMode} surfaceStyle={readerSurfaceStyle}>
-        {showReader && <Reader contentStatus={contentStatus} onRetryContent={onRetryContent} onReaderReady={readingEntry.isActive ? readingEntry.handleReaderReady : undefined} />}
+        {showReader && (
+          <Reader
+            contentStatus={contentStatus}
+            onRetryContent={onRetryContent}
+            onReaderReady={readingEntry.isActive ? readingEntry.handleReaderReady : undefined}
+            readerEntryHandoffPhase={readerEntryHandoffPhase}
+          />
+        )}
         {(showEntrySurface || showLandingHandoffSurface) && (
           <EntrySurface
             currentView={currentView}

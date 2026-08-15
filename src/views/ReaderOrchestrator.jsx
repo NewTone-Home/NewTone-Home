@@ -31,7 +31,7 @@ function currentAnalyticsContext() {
   return { language: state.language, readingMode: state.readingMode }
 }
 
-function PopulatedReaderOrchestrator({ onReaderReady }) {
+function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 'idle' }) {
   const language = useProgressStore(state => state.language)
   const setLanguage = useProgressStore(state => state.setLanguage)
   const committedLocation = useProgressStore(state => state.committedLocation)
@@ -374,11 +374,12 @@ function PopulatedReaderOrchestrator({ onReaderReady }) {
       returningToLanding={returningToLanding}
       onReturnStart={handleReturnStart}
       onReturnLanding={handleReturnLanding}
+      readerEntryHandoffPhase={readerEntryHandoffPhase}
     />
   )
 }
 
-function EmptyReaderOrchestrator({ contentStatus, onRetryContent, onReaderReady }) {
+function EmptyReaderOrchestrator({ contentStatus, onRetryContent, onReaderReady, readerEntryHandoffPhase = 'idle' }) {
   const language = useProgressStore(state => state.language)
   const setLanguage = useProgressStore(state => state.setLanguage)
   const readingMode = useProgressStore(state => state.readingMode)
@@ -456,6 +457,7 @@ function EmptyReaderOrchestrator({ contentStatus, onRetryContent, onReaderReady 
     returningToLanding={returningToLanding}
     onReturnStart={handleReturnStart}
     onReturnLanding={handleReturnLanding}
+    readerEntryHandoffPhase={readerEntryHandoffPhase}
   />
 }
 

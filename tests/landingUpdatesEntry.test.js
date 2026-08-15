@@ -22,7 +22,9 @@ describe('Landing updates entry', () => {
     expect(landingCss).not.toContain('landing-title:hover')
     expect(landing).toContain('window.requestAnimationFrame(() => { begin() })')
     expect(landing).toContain('landingLeaveRetractStartedRef')
-    expect(landing).toContain("retract({ duration: reducedMotion || motionMode === 'reduced' ? 0 : undefined })")
+    expect(landing).toContain('const duration = reducedMotion || motionMode === \'reduced\'')
+    expect(landing).toContain('Math.max(0, leavingMs - LANDING_LEAVE_FADE_DELAY_MS)')
+    expect(landing).toContain('retract({ duration })')
   })
 
   it('keeps Updates and Reader entries in one shared click group', () => {

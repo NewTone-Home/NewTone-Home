@@ -1,5 +1,6 @@
 import { useEffect, useId } from 'react'
 import { useTitleRetrace } from '../../hooks/useTitleRetrace'
+import { TRANSITION_TITLE_RETRACT_MS } from '../../landing/landingIntro'
 import './LandingTitleMark.css'
 
 /**
@@ -84,7 +85,7 @@ export function NewToneTransitionMark({ reduced = false, retracting = false, cla
   }, [begin])
 
   useEffect(() => {
-    if (retracting && phase === 'revealed') retract()
+    if (retracting && phase === 'revealed') retract({ duration: TRANSITION_TITLE_RETRACT_MS })
   }, [phase, retract, retracting])
 
   return (

@@ -461,6 +461,22 @@
   transform: none !important;
 }
 
+/* Reader entry handoff: prepare the shell early, but reveal it only after
+   the transition surface has completed its exit. This keeps measurement and
+   restore timing intact without exposing Reader content through the handoff. */
+.reader-stage-page[data-reader-entry-handoff="reader-preparing"],
+.reader-stage-page[data-reader-entry-handoff="transition-leaving"] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 400ms ease;
+  will-change: opacity;
+}
+
+.reader-stage-page[data-reader-entry-handoff="idle"] {
+  opacity: 1;
+  transition: opacity 400ms ease;
+}
+
 .reader-corner-menu {
   --reader-menu-line: rgb(var(--reader-line-rgb) / .5);
   min-width: 48px;

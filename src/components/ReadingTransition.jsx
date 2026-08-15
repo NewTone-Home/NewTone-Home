@@ -209,12 +209,12 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
 }
 
 function ReadingTransition({ phase, intent, language, readingMode, motionMode, surfaceStyle, environmentState, onProceed, onModeSelect }) {
-  const startRootRef = useRef(null)
+  const transitionRootRef = useRef(null)
   const reducedMotion = useReducedMotion()
-  const startParallaxEnabled = (phase === 'reader-preparing' || phase === 'transition-leaving') && intent === 'start'
+  const roadParallaxEnabled = phase === 'reader-preparing' || phase === 'transition-leaving'
   useSceneParallax({
-    rootRef: startRootRef,
-    enabled: startParallaxEnabled,
+    rootRef: transitionRootRef,
+    enabled: roadParallaxEnabled,
     reduced: reducedMotion || motionMode === 'reduced',
   })
   const environmentLines = useMemo(
@@ -227,7 +227,13 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
   if (['language-active', 'language-leaving', 'mode-active', 'mode-leaving'].includes(phase)) {
     return (
       <div className={`reading-transition reading-transition--ritual reading-transition--motion-${motionMode}`} style={surfaceStyle}>
-        <RitualSelector language={language} onProceed={onProceed} onModeSelect={onModeSelect} phase={phase} />
+        <RitualSelector
+          key={phase === 'mode-active' || phase === 'mode-leaving' ? 'mode' : 'language'}
+          language={language}
+          onProceed={onProceed}
+          onModeSelect={onModeSelect}
+          phase={phase}
+        />
       </div>
     )
   }
@@ -239,7 +245,7 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
     const fading = phase === 'transition-leaving'
     return (
       <div
-        ref={intent === 'start' ? startRootRef : null}
+        ref={transitionRootRef}
         className={`reading-transition reading-transition--road-${readingMode} reading-transition--intent-${intent === 'start' ? 'start' : 'resume'} reading-transition--motion-${motionMode}${entering ? ' reading-transition--entering' : ''}${fading ? ' reading-transition--fading' : ''}`}
         style={{ ...surfaceStyle, '--rt-fade-duration': `${READING_ENTRY_TIMINGS.TRANSITION_FADE_MS}ms` }}
         data-world-layer={environmentState.worldLayer}
@@ -261,8 +267,12 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
             </>
           ) : (
             <>
-              <ResumeEnvironment lines={environmentLines} />
-              <p className="reading-transition-text reading-transition-text--resume">{text}</p>
+              <div className="reading-transition-resume-background">
+                <ResumeEnvironment lines={environmentLines} />
+              </div>
+              <div className="reading-transition-resume-foreground">
+                <p className="reading-transition-text reading-transition-text--resume">{text}</p>
+              </div>
             </>
           )}
         </div>
