@@ -16,6 +16,15 @@ export function getNativeBoundaries(viewport) {
   }
 }
 
+export function getNativeEdgeSpace(viewport, flow) {
+  const maxBeatHeight = Array.from(flow?.children ?? [])
+    .reduce((height, beat) => Math.max(
+      height,
+      Number.isFinite(beat?.offsetHeight) ? beat.offsetHeight : 0,
+    ), 0)
+  return Math.max(0, Math.round((viewport.clientHeight - maxBeatHeight) / 2))
+}
+
 export function getBeatBlocksForLanguage(beat, language) {
   return (language === 'en' ? beat.translations?.en?.blocks : null) ?? beat.blocks
 }
@@ -92,6 +101,11 @@ function ReaderBeatStack({
     lastReportedIndexRef.current = focusBeatIndex
 
     if (nativeScroll) {
+      const syncNativeEdgeSpace = () => {
+        const edgeSpace = getNativeEdgeSpace(viewport, flow)
+        flow.style.setProperty('--reader-native-edge-space', `${edgeSpace}px`)
+      }
+      syncNativeEdgeSpace()
       const needsInitialPosition = !nativeScrollInitializedRef.current || pageChanged
       nativeScrollInitializedRef.current = true
       if (needsInitialPosition) {
@@ -103,10 +117,17 @@ function ReaderBeatStack({
         lastScrollTopRef.current = nextTop
       }
       const boundaryFrame = requestAnimationFrame(reportViewportBoundary)
-      return () => cancelAnimationFrame(boundaryFrame)
+      const observer = new ResizeObserver(syncNativeEdgeSpace)
+      observer.observe(viewport)
+      observer.observe(flow)
+      return () => {
+        cancelAnimationFrame(boundaryFrame)
+        observer.disconnect()
+      }
     }
 
     nativeScrollInitializedRef.current = false
+    flow.style.removeProperty('--reader-native-edge-space')
 
     const centerFocusedBeat = () => {
       const viewportRect = viewport.getBoundingClientRect()

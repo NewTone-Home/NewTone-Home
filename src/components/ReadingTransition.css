@@ -47,6 +47,15 @@
   opacity: 0;
 }
 
+.reading-transition--entering {
+  animation: reading-transition-entry-in 360ms ease-out both;
+}
+
+@keyframes reading-transition-entry-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .reading-transition-road-content {
   display: flex;
   flex-direction: column;

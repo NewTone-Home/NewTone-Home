@@ -51,6 +51,7 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
   const dragOffsetRef = useRef(0)
   const suppressClickRef = useRef(false)
   const closeRequestedRef = useRef(false)
+  const reopenAfterCloseRef = useRef(false)
   const inputReadyRef = useRef(false)
   const exitStartedRef = useRef(false)
   const arrowRevealFrameRef = useRef(0)
@@ -163,6 +164,7 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
     setPanelMotion('idle')
     setArrowState('hidden')
     setSelectorPhase('idle')
+    suppressClickRef.current = false
     inputReadyRef.current = true
     recordRuntimeAudit('language-fill-close-complete', { source })
   }, [cancelArrowReveal, resetTrack, setSelectorPhase])
@@ -220,6 +222,16 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
       })
     })
   }, [fillDirection, revealArrowAfterText, runTimeline, setSelectorPhase, startPanelTransition, visible])
+
+  useEffect(() => {
+    if (!visible) {
+      reopenAfterCloseRef.current = false
+      return
+    }
+    if (phase !== 'idle' || !reopenAfterCloseRef.current) return
+    reopenAfterCloseRef.current = false
+    openSelector('tap-after-close')
+  }, [openSelector, phase, visible])
 
   const startSnap = useCallback((direction, source, dragDistance = 0) => {
     if (phaseRef.current !== 'ready' && phaseRef.current !== 'dragging') return
@@ -323,13 +335,18 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
       suppressClickRef.current = false
       return
     }
+    if (phaseRef.current === 'closing') {
+      reopenAfterCloseRef.current = true
+      recordRuntimeAudit('language-fill-reopen-requested', { source: 'tap-during-close' })
+      return
+    }
     openSelector('tap')
   }, [coarse, openSelector])
 
   const handlePointerDown = useCallback(event => {
     if (!coarse || phaseRef.current !== 'ready') return
     pointerRef.current = { id: event.pointerId, startY: event.clientY }
-    suppressClickRef.current = true
+    suppressClickRef.current = false
     dragOffsetRef.current = 0
     setDragOffset(0)
     setSelectorPhase('dragging')
@@ -362,6 +379,7 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
         cancelSnap()
         return
       }
+      suppressClickRef.current = true
       startSnap(deltaY > 0 ? 1 : -1, 'drag', deltaY)
     }
 

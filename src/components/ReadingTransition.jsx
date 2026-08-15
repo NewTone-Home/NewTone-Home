@@ -235,11 +235,12 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
   if (phase === 'reader-preparing' || phase === 'transition-leaving') {
     const lang = copy[language] ? language : 'zh'
     const text = intent === 'start' ? copy[lang].transitionStart : copy[lang].transitionResume
+    const entering = phase === 'reader-preparing'
     const fading = phase === 'transition-leaving'
     return (
       <div
         ref={intent === 'start' ? startRootRef : null}
-        className={`reading-transition reading-transition--road-${readingMode} reading-transition--intent-${intent === 'start' ? 'start' : 'resume'} reading-transition--motion-${motionMode}${fading ? ' reading-transition--fading' : ''}`}
+        className={`reading-transition reading-transition--road-${readingMode} reading-transition--intent-${intent === 'start' ? 'start' : 'resume'} reading-transition--motion-${motionMode}${entering ? ' reading-transition--entering' : ''}${fading ? ' reading-transition--fading' : ''}`}
         style={{ ...surfaceStyle, '--rt-fade-duration': `${READING_ENTRY_TIMINGS.TRANSITION_FADE_MS}ms` }}
         data-world-layer={environmentState.worldLayer}
         data-time-of-day={environmentState.time}
@@ -249,7 +250,10 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
           {intent === 'start' ? (
             <>
               <div className="reading-transition-start-foreground">
-                <NewToneTransitionMark reduced={reducedMotion || motionMode === 'reduced'} />
+                <NewToneTransitionMark
+                  reduced={reducedMotion || motionMode === 'reduced'}
+                  retracting={fading}
+                />
               </div>
               <div className="reading-transition-start-background">
                 <p className="reading-transition-text">{text}</p>
