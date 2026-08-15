@@ -64,7 +64,7 @@ describe('Reader shell contract boundaries', () => {
     expect(transition).toContain("import LanguageWheelSelector from './LanguageWheelSelector'")
     expect(transition).not.toContain("id: 'language-change'")
     expect(transition).toContain('const [draftLanguage, setDraftLanguage]')
-    expect(transition).toContain('const titleLanguage = modeStage ? language : initialLanguage')
+    expect(transition).toContain('const titleLanguage = modeStage ? language : draftLanguage')
     expect(transition).toContain('restartKey: currentStage.id')
     expect(transition).toContain('onProceed(draftLanguage)')
     expect(transition).toContain('onLanguagePreview={setDraftLanguage}')

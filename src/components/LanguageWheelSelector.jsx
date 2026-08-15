@@ -71,8 +71,6 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
   const panelModeRef = useRef('idle')
   const panelMotionRef = useRef('idle')
   const panelCompletionRef = useRef(null)
-  const closeTextCompleteRef = useRef(false)
-  const closePanelCompleteRef = useRef(false)
 
   const setSelectorPhase = useCallback(nextPhase => {
     phaseRef.current = nextPhase
@@ -165,18 +163,9 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
     setPanelMotion('idle')
     setArrowState('hidden')
     setSelectorPhase('idle')
+    inputReadyRef.current = true
     recordRuntimeAudit('language-fill-close-complete', { source })
   }, [cancelArrowReveal, resetTrack, setSelectorPhase])
-
-  const completeCloseIfReady = useCallback(source => {
-    if (!closeTextCompleteRef.current || !closePanelCompleteRef.current) return
-    closeTextCompleteRef.current = false
-    closePanelCompleteRef.current = false
-    finishClose(source)
-    runTimeline([{ key: 'text', to: 1, duration: ENTRY_BUTTON_TIMINGS.textEnter }], () => {
-      inputReadyRef.current = true
-    })
-  }, [finishClose, runTimeline])
 
   const closeSelector = useCallback(source => {
     const currentPhase = phaseRef.current
@@ -193,21 +182,17 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
     setArrowState('fading')
     setFillDirection(coarse ? 'top' : randomDirection(fillDirection))
     setSelectorPhase('closing')
-    closeTextCompleteRef.current = false
-    closePanelCompleteRef.current = false
-    startPanelTransition('closing', () => {
-      closePanelCompleteRef.current = true
-      completeCloseIfReady(source)
-    })
     recordRuntimeAudit('language-fill-close-start', { source, direction: coarse ? 'top' : 'random' })
-    const closeSteps = [{ key: 'text', to: 0, duration: ENTRY_BUTTON_TIMINGS.textExit }]
-    if (!coarse) closeSteps.push({ key: 'fill', to: 0, duration: ENTRY_BUTTON_TIMINGS.fillClose })
-    runTimeline(closeSteps, () => {
+    const closePanel = () => startPanelTransition('closing', () => finishClose(source))
+    if (coarse) {
+      closePanel()
+      return
+    }
+    runTimeline([{ key: 'fill', to: 0, duration: ENTRY_BUTTON_TIMINGS.fillClose }], () => {
       if (phaseRef.current !== 'closing') return
-      closeTextCompleteRef.current = true
-      completeCloseIfReady(source)
+      closePanel()
     })
-  }, [cancelArrowReveal, coarse, completeCloseIfReady, fillDirection, runTimeline, setSelectorPhase, startPanelTransition])
+  }, [cancelArrowReveal, coarse, fillDirection, finishClose, runTimeline, setSelectorPhase, startPanelTransition])
 
   const openSelector = useCallback(source => {
     if (!visible || !inputReadyRef.current || phaseRef.current !== 'idle') return
@@ -218,15 +203,13 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
     trackRef.current = { from: current, target: current, direction: 0, source }
     setTrackState('center')
     setTrackMotion('reset')
-    startPanelTransition('opening')
     setSelectorPhase('opening')
     recordRuntimeAudit('language-fill-open-start', { source, direction })
-    const openSteps = [{ key: 'text', to: 0, duration: ENTRY_BUTTON_TIMINGS.textExit }]
-    if (!coarse) openSteps.push({ key: 'fill', to: 1, duration: ENTRY_BUTTON_TIMINGS.fillOpen })
-    runTimeline(openSteps, () => {
+    startPanelTransition('opening', () => {
       if (phaseRef.current !== 'opening') return
-      setSelectorPhase('ready')
-      runTimeline([{ key: 'text', to: 1, duration: ENTRY_BUTTON_TIMINGS.textEnter }], () => {
+      runTimeline([{ key: 'fill', to: 1, duration: ENTRY_BUTTON_TIMINGS.fillOpen }], () => {
+        if (phaseRef.current !== 'opening') return
+        setSelectorPhase('ready')
         if (phaseRef.current !== 'ready') return
         recordRuntimeAudit('language-fill-open-complete', {
           source,
@@ -236,7 +219,7 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
         revealArrowAfterText()
       })
     })
-  }, [coarse, fillDirection, revealArrowAfterText, runTimeline, setSelectorPhase, startPanelTransition, visible])
+  }, [fillDirection, revealArrowAfterText, runTimeline, setSelectorPhase, startPanelTransition, visible])
 
   const startSnap = useCallback((direction, source, dragDistance = 0) => {
     if (phaseRef.current !== 'ready' && phaseRef.current !== 'dragging') return

@@ -100,7 +100,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const [actionsVisible, setActionsVisible] = useState(false)
   const [entriesLeaving, setEntriesLeaving] = useState(false)
 
-  const titleLanguage = modeStage ? language : initialLanguage
+  const titleLanguage = modeStage ? language : draftLanguage
   const lang = copy[titleLanguage] || copy.zh
   const entryLang = copy[modeStage ? language : draftLanguage] || copy.zh
 
