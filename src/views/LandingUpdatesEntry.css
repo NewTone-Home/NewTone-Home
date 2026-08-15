@@ -21,11 +21,11 @@
 }
 
 .landing[data-updates-phase="enter-surface"] {
-  animation: landing-updates-surface-exit 620ms cubic-bezier(.22,.78,.2,1) forwards;
+  animation: landing-updates-surface-exit 720ms cubic-bezier(.22,.78,.2,1) forwards;
 }
 
 .landing[data-updates-phase="return-surface"] {
-  animation: landing-updates-surface-return 620ms cubic-bezier(.4,0,.7,.2) forwards;
+  animation: landing-updates-surface-return 720ms cubic-bezier(.4,0,.7,.2) forwards;
 }
 
 .landing[data-updates-phase="updates"] {

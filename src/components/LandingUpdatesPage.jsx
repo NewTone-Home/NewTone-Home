@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import EntryButtonSurface from './EntryButtonSurface'
 import { recordRuntimeAudit } from '../services/runtimeAudit'
 import { UPDATES_PHASE } from '../landing/landingUpdatesFlow'
@@ -8,25 +8,31 @@ const LANDING_UPDATES = Object.freeze({
   date: '2026.08.15',
   dateTime: '2026-08-15',
   zh: Object.freeze({
-    title: '更新公告',
     timelineAriaLabel: '公告时间线',
+    expandLabel: '展开更新详情',
+    collapseLabel: '收起更新详情',
     returnLabel: '返回入口',
     returnAriaLabel: '返回 NewTone',
-    body: Object.freeze([
+    summary: Object.freeze([
       '本次更新没有加入新的宇宙，也没有打开什么神秘入口。',
       '我们只是终于认真处理了一下那些“理论上能用，实际用起来总觉得哪里不太对”的东西。',
+    ]),
+    details: Object.freeze([
       '优化并重新设计了交互的逻辑与视觉效果',
       '改善了多个设备运行表现',
     ]),
   }),
   en: Object.freeze({
-    title: 'UPDATES',
     timelineAriaLabel: 'Updates timeline',
+    expandLabel: 'Expand update details',
+    collapseLabel: 'Collapse update details',
     returnLabel: 'BACK',
     returnAriaLabel: 'Return to NewTone',
-    body: Object.freeze([
+    summary: Object.freeze([
       'No new universe this time. No secret doorway, either.',
       'We simply took a proper look at the things that were technically working, but never quite felt right in practice.',
+    ]),
+    details: Object.freeze([
       'We refined and redesigned the logic and visual language of the interactions.',
       'We also improved performance across a wider range of devices.',
     ]),
@@ -40,12 +46,16 @@ function isCoarsePointer() {
 
 function LandingUpdatesPage({ phase, language = 'zh', onSurfaceComplete, onReturnRequested }) {
   const returnIssuedRef = useRef(false)
+  const [expanded, setExpanded] = useState(false)
   const visible = phase !== UPDATES_PHASE.LANDING
   const interactive = phase === UPDATES_PHASE.UPDATES
   const content = language === 'zh' ? LANDING_UPDATES.zh : LANDING_UPDATES.en
 
   useEffect(() => {
-    if (phase === UPDATES_PHASE.LANDING) returnIssuedRef.current = false
+    if (phase === UPDATES_PHASE.LANDING) {
+      returnIssuedRef.current = false
+      setExpanded(false)
+    }
   }, [phase])
 
   const handleReturnComplete = useCallback(({ inputType }) => {
@@ -68,6 +78,11 @@ function LandingUpdatesPage({ phase, language = 'zh', onSurfaceComplete, onRetur
 
   if (!visible) return null
 
+  const toggleExpanded = () => {
+    if (!interactive) return
+    setExpanded(current => !current)
+  }
+
   return (
     <section
       className="landing-updates-page paper-surface"
@@ -75,28 +90,45 @@ function LandingUpdatesPage({ phase, language = 'zh', onSurfaceComplete, onRetur
       onAnimationEnd={handleSurfaceAnimationEnd}
     >
       <div className="landing-updates-page__layout">
-        <aside className="landing-updates-page__timeline" aria-label={content.timelineAriaLabel}>
-          <div className="landing-updates-page__timeline-line" aria-hidden="true" />
-          <div className="landing-updates-page__timeline-entry">
-            <time
-              className="landing-updates-page__timeline-date"
-              dateTime={LANDING_UPDATES.dateTime}
+        <ol className="landing-updates-page__timeline" aria-label={content.timelineAriaLabel}>
+          <li className={`landing-updates-page__timeline-entry${expanded ? ' is-expanded' : ''}`}>
+            <div className="landing-updates-page__timeline-line" aria-hidden="true" />
+            <button
+              type="button"
+              className="landing-updates-page__timeline-trigger"
+              aria-controls="landing-updates-details"
+              aria-expanded={expanded}
+              aria-label={`${expanded ? content.collapseLabel : content.expandLabel} ${LANDING_UPDATES.date}`}
+              disabled={!interactive}
+              onClick={toggleExpanded}
             >
-              {LANDING_UPDATES.date}
-            </time>
-            <span className="landing-updates-page__timeline-dot" aria-hidden="true" />
-          </div>
-        </aside>
+              <span className="landing-updates-page__timeline-dot" aria-hidden="true">
+                {expanded ? '−' : '+'}
+              </span>
+              <span className="landing-updates-page__timeline-copy">
+                <time
+                  className="landing-updates-page__timeline-date"
+                  dateTime={LANDING_UPDATES.dateTime}
+                >
+                  {LANDING_UPDATES.date}
+                </time>
+                <span className="landing-updates-page__summary">
+                  {content.summary.map(line => <span key={line}>{line}</span>)}
+                </span>
+              </span>
+            </button>
 
-        <article className="landing-updates-page__content">
-          <h1>{content.title}</h1>
-          <time className="landing-updates-page__date" dateTime={LANDING_UPDATES.dateTime}>
-            {LANDING_UPDATES.date}
-          </time>
-          <div className="landing-updates-page__body">
-            {content.body.map(paragraph => <p key={paragraph}>{paragraph}</p>)}
-          </div>
-        </article>
+            <div
+              id="landing-updates-details"
+              className="landing-updates-page__details-shell"
+              aria-hidden={!expanded}
+            >
+              <div className="landing-updates-page__details">
+                {content.details.map(line => <p key={line}>{line}</p>)}
+              </div>
+            </div>
+          </li>
+        </ol>
       </div>
 
       <EntryButtonSurface

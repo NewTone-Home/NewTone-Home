@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
 const page = read('../src/components/LandingUpdatesPage.jsx')
 const styles = read('../src/components/LandingUpdatesPage.css')
+const entryStyles = read('../src/views/LandingUpdatesEntry.css')
 const entrySurface = read('../src/components/EntrySurface.jsx')
 const audit = read('../src/services/runtimeAudit.js')
 
@@ -40,12 +41,25 @@ describe('Landing updates page button contract', () => {
 
   it('renders the selected announcement layout and copy', () => {
     expect(page).toContain('landing-updates-page__timeline')
-    expect(page).toContain('landing-updates-page__body')
+    expect(page).toContain('landing-updates-page__timeline-trigger')
+    expect(page).toContain('aria-expanded={expanded}')
+    expect(page).toContain('setExpanded(current => !current)')
+    expect(page).toContain('landing-updates-page__summary')
+    expect(page).toContain('landing-updates-page__details')
     expect(page).not.toContain('landing-updates-page__placeholder')
+    expect(page).not.toContain('<h1>')
     expect(page).toContain('本次更新没有加入新的宇宙，也没有打开什么神秘入口。')
     expect(page).toContain('改善了多个设备运行表现')
     expect(page).toContain('No new universe this time. No secret doorway, either.')
     expect(page).toContain('We also improved performance across a wider range of devices.')
     expect(entrySurface).toContain('language={language}')
+  })
+
+  it('keeps the Landing and updates surface transitions on one timing contract', () => {
+    expect(styles).toContain('animation: updates-page-enter 720ms')
+    expect(styles).toContain('animation: updates-page-return 720ms')
+    expect(entryStyles).toContain('animation: landing-updates-surface-exit 720ms')
+    expect(entryStyles).toContain('animation: landing-updates-surface-return 720ms')
+    expect(styles).not.toContain('120ms forwards')
   })
 })
