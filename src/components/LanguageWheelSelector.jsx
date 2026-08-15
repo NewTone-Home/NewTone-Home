@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { copy } from '../i18n/copy'
 import { getReaderLanguage, READER_LANGUAGES } from '../i18n/languages'
 import { recordRuntimeAudit } from '../services/runtimeAudit'
 import EntryButtonFrame from './EntryButtonFrame'
@@ -62,12 +63,35 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
   const [trackMotion, setTrackMotion] = useState('idle')
   const [dragOffset, setDragOffset] = useState(0)
   const [arrowState, setArrowState] = useState('hidden')
+  const [panelMode, setPanelMode] = useState('idle')
+  const [panelMotion, setPanelMotion] = useState('idle')
 
   onLanguagePreviewRef.current = onLanguagePreview
+
+  const panelModeRef = useRef('idle')
+  const panelMotionRef = useRef('idle')
+  const panelCompletionRef = useRef(null)
+  const closeTextCompleteRef = useRef(false)
+  const closePanelCompleteRef = useRef(false)
 
   const setSelectorPhase = useCallback(nextPhase => {
     phaseRef.current = nextPhase
     setPhase(nextPhase)
+  }, [])
+
+  const startPanelTransition = useCallback((nextMode, onComplete) => {
+    panelModeRef.current = nextMode
+    panelMotionRef.current = 'reset'
+    panelCompletionRef.current = onComplete
+    setPanelMode(nextMode)
+    setPanelMotion('reset')
+    requestFrame(() => {
+      requestFrame(() => {
+        if (panelModeRef.current !== nextMode) return
+        panelMotionRef.current = 'moving'
+        setPanelMotion('moving')
+      })
+    })
   }, [])
 
   const { progress, runTimeline } = useEntryButtonTimeline({
@@ -135,10 +159,24 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
   const finishClose = useCallback(source => {
     cancelArrowReveal()
     resetTrack()
+    panelModeRef.current = 'idle'
+    panelMotionRef.current = 'idle'
+    setPanelMode('idle')
+    setPanelMotion('idle')
     setArrowState('hidden')
     setSelectorPhase('idle')
     recordRuntimeAudit('language-fill-close-complete', { source })
   }, [cancelArrowReveal, resetTrack, setSelectorPhase])
+
+  const completeCloseIfReady = useCallback(source => {
+    if (!closeTextCompleteRef.current || !closePanelCompleteRef.current) return
+    closeTextCompleteRef.current = false
+    closePanelCompleteRef.current = false
+    finishClose(source)
+    runTimeline([{ key: 'text', to: 1, duration: ENTRY_BUTTON_TIMINGS.textEnter }], () => {
+      inputReadyRef.current = true
+    })
+  }, [finishClose, runTimeline])
 
   const closeSelector = useCallback(source => {
     const currentPhase = phaseRef.current
@@ -155,15 +193,21 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
     setArrowState('fading')
     setFillDirection(coarse ? 'top' : randomDirection(fillDirection))
     setSelectorPhase('closing')
-    recordRuntimeAudit('language-fill-close-start', { source, direction: coarse ? 'top' : 'random' })
-    runTimeline([{ key: 'text', to: 0, duration: ENTRY_BUTTON_TIMINGS.textExit }], () => {
-      if (phaseRef.current !== 'closing') return
-      finishClose(source)
-      runTimeline([{ key: 'text', to: 1, duration: ENTRY_BUTTON_TIMINGS.textEnter }], () => {
-        inputReadyRef.current = true
-      })
+    closeTextCompleteRef.current = false
+    closePanelCompleteRef.current = false
+    startPanelTransition('closing', () => {
+      closePanelCompleteRef.current = true
+      completeCloseIfReady(source)
     })
-  }, [cancelArrowReveal, coarse, fillDirection, finishClose, runTimeline, setSelectorPhase])
+    recordRuntimeAudit('language-fill-close-start', { source, direction: coarse ? 'top' : 'random' })
+    const closeSteps = [{ key: 'text', to: 0, duration: ENTRY_BUTTON_TIMINGS.textExit }]
+    if (!coarse) closeSteps.push({ key: 'fill', to: 0, duration: ENTRY_BUTTON_TIMINGS.fillClose })
+    runTimeline(closeSteps, () => {
+      if (phaseRef.current !== 'closing') return
+      closeTextCompleteRef.current = true
+      completeCloseIfReady(source)
+    })
+  }, [cancelArrowReveal, coarse, completeCloseIfReady, fillDirection, runTimeline, setSelectorPhase, startPanelTransition])
 
   const openSelector = useCallback(source => {
     if (!visible || !inputReadyRef.current || phaseRef.current !== 'idle') return
@@ -174,9 +218,12 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
     trackRef.current = { from: current, target: current, direction: 0, source }
     setTrackState('center')
     setTrackMotion('reset')
+    startPanelTransition('opening')
     setSelectorPhase('opening')
     recordRuntimeAudit('language-fill-open-start', { source, direction })
-    runTimeline([{ key: 'text', to: 0, duration: ENTRY_BUTTON_TIMINGS.textExit }], () => {
+    const openSteps = [{ key: 'text', to: 0, duration: ENTRY_BUTTON_TIMINGS.textExit }]
+    if (!coarse) openSteps.push({ key: 'fill', to: 1, duration: ENTRY_BUTTON_TIMINGS.fillOpen })
+    runTimeline(openSteps, () => {
       if (phaseRef.current !== 'opening') return
       setSelectorPhase('ready')
       runTimeline([{ key: 'text', to: 1, duration: ENTRY_BUTTON_TIMINGS.textEnter }], () => {
@@ -189,7 +236,7 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
         revealArrowAfterText()
       })
     })
-  }, [coarse, fillDirection, revealArrowAfterText, runTimeline, setSelectorPhase, visible])
+  }, [coarse, fillDirection, revealArrowAfterText, runTimeline, setSelectorPhase, startPanelTransition, visible])
 
   const startSnap = useCallback((direction, source, dragDistance = 0) => {
     if (phaseRef.current !== 'ready' && phaseRef.current !== 'dragging') return
@@ -256,6 +303,20 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
       requestFrame(() => closeSelector('pointer-leave'))
     }
   }, [centerTrack, closeSelector, setSelectorPhase])
+
+  const handlePanelTransitionEnd = useCallback(event => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'transform') return
+    if (panelMotionRef.current !== 'moving') return
+
+    const completedMode = panelModeRef.current
+    panelMotionRef.current = 'idle'
+    setPanelMotion('idle')
+    if (completedMode === 'opening') setPanelMode('track')
+    if (completedMode === 'closing') setPanelMode('idle')
+    const complete = panelCompletionRef.current
+    panelCompletionRef.current = null
+    complete?.()
+  }, [])
 
   const handleWheel = useCallback(event => {
     if (coarse || phaseRef.current !== 'ready' || Math.abs(event.deltaY) < 1) return
@@ -350,15 +411,16 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
   useEffect(() => {
     inputReadyRef.current = false
     exitStartedRef.current = false
-    runTimeline([
+    const initialSteps = [
       { key: 'text', to: 1, duration: ENTRY_BUTTON_TIMINGS.textEnter },
       { key: 'frame', to: 1, duration: ENTRY_BUTTON_TIMINGS.frameEnter },
-      { key: 'fill', to: 1, duration: ENTRY_BUTTON_TIMINGS.fillOpen },
-    ], () => {
+    ]
+    if (coarse) initialSteps.push({ key: 'fill', to: 1, duration: ENTRY_BUTTON_TIMINGS.fillOpen })
+    runTimeline(initialSteps, () => {
       inputReadyRef.current = true
       recordRuntimeAudit('language-entry-ready', {})
     })
-  }, [runTimeline])
+  }, [coarse, runTimeline])
 
   useEffect(() => () => cancelArrowReveal(), [cancelArrowReveal])
 
@@ -372,6 +434,7 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
     pointerRef.current = { id: null, startY: 0 }
     closeRequestedRef.current = false
     setArrowState('fading')
+    if (panelModeRef.current !== 'idle') startPanelTransition('closing')
     setSelectorPhase('exiting')
     recordRuntimeAudit('language-entry-exit-start', {})
     runTimeline([
@@ -385,13 +448,14 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
       recordRuntimeAudit('language-entry-exit-complete', {})
     })
     return undefined
-  }, [cancelArrowReveal, resetTrack, runTimeline, setSelectorPhase, visible])
+  }, [cancelArrowReveal, resetTrack, runTimeline, setSelectorPhase, startPanelTransition, visible])
 
   const codes = trackCodes(track?.from || selectedLanguage)
   const labels = codes.map(code => getReaderLanguage(code).label)
   const activeLabel = getReaderLanguage(selectedLanguage).label
-  const showsTrack = ['opening', 'ready', 'snapping', 'dragging', 'closing'].includes(phase)
-  const accessibleLanguage = ['idle', 'closing', 'hidden'].includes(phase) ? '当前语言' : activeLabel
+  const currentLanguageLabel = copy[selectedLanguage]?.currentLanguage || copy.zh.currentLanguage
+  const showsTrack = panelMode !== 'idle'
+  const accessibleLanguage = showsTrack ? activeLabel : currentLanguageLabel
   const coverState = progress.fill > .999 ? 'closed' : progress.fill < .001 ? 'open' : 'moving'
   const trackClass = track ? trackState : 'center'
 
@@ -406,6 +470,8 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
       data-language-track-state={trackClass}
       data-language-track-motion={trackMotion}
       data-language-arrow-state={arrowState}
+      data-language-panel-state={panelMode}
+      data-language-panel-motion={panelMotion}
       data-language-fill="shared-path"
       data-language-fill-progress={progress.fill.toFixed(3)}
       data-language-fill-direction={fillDirection}
@@ -440,26 +506,50 @@ function LanguageWheelSelector({ language, onLanguagePreview, visible = true }) 
           aria-hidden="true"
           style={{ opacity: progress.text }}
         >
-          {showsTrack ? (
-            <span
-              className="language-wheel-selector__track"
-              data-language-track-state={trackClass}
-              data-language-track-motion={trackMotion}
-              style={{ '--language-drag-offset': `${dragOffset}px` }}
-              onTransitionEnd={handleTrackTransitionEnd}
-            >
-              {labels.map((label, index) => (
+          <span
+            className="language-wheel-selector__panel-track"
+            data-language-panel-state={panelMode}
+            data-language-panel-motion={panelMotion}
+            onTransitionEnd={handlePanelTransitionEnd}
+          >
+            {panelMode === 'opening' || panelMode === 'track' ? (
+              <span className="language-wheel-selector__panel language-wheel-selector__panel--track">
                 <span
-                  className={`language-wheel-selector__slot language-wheel-selector__slot--${index === 1 ? 'current' : index === 0 ? 'previous' : 'next'}`}
-                  key={`${codes[index]}:${index}`}
+                  className="language-wheel-selector__track"
+                  data-language-track-state={trackClass}
+                  data-language-track-motion={trackMotion}
+                  style={{ '--language-drag-offset': `${dragOffset}px` }}
+                  onTransitionEnd={handleTrackTransitionEnd}
                 >
-                  {label}
+                  {labels.map((label, index) => (
+                    <span
+                      className={`language-wheel-selector__slot language-wheel-selector__slot--${index === 1 ? 'current' : index === 0 ? 'previous' : 'next'}`}
+                      key={`${codes[index]}:${index}`}
+                    >
+                      {label}
+                    </span>
+                  ))}
                 </span>
-              ))}
-            </span>
-          ) : (
-            <span className="language-wheel-selector__label">当前语言</span>
-          )}
+              </span>
+            ) : (
+              <span className="language-wheel-selector__panel language-wheel-selector__panel--idle" aria-hidden="true">
+                {currentLanguageLabel}
+              </span>
+            )}
+            {panelMode === 'opening' || panelMode === 'track' ? (
+              <span className="language-wheel-selector__panel language-wheel-selector__panel--idle" aria-hidden="true">
+                {currentLanguageLabel}
+              </span>
+            ) : (
+              <span className="language-wheel-selector__panel language-wheel-selector__panel--track" aria-hidden="true">
+                <span className="language-wheel-selector__track" aria-hidden="true">
+                  {labels.map((label, index) => (
+                    <span className="language-wheel-selector__slot" key={`hidden-${codes[index]}:${index}`}>{label}</span>
+                  ))}
+                </span>
+              </span>
+            )}
+          </span>
         </span>
       </span>
       {arrowState !== 'hidden' && (

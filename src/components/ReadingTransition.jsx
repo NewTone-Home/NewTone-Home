@@ -100,8 +100,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const [actionsVisible, setActionsVisible] = useState(false)
   const [entriesLeaving, setEntriesLeaving] = useState(false)
 
-  const stageLanguage = modeStage ? language : draftLanguage
-  const lang = copy[stageLanguage] || copy.zh
+  const titleLanguage = modeStage ? language : initialLanguage
+  const lang = copy[titleLanguage] || copy.zh
   const entryLang = copy[modeStage ? language : draftLanguage] || copy.zh
 
   useEffect(() => {
@@ -125,7 +125,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     charInterval: titleCharInterval,
     scrambleInterval: 50,
     enabled: revealed,
-    restartKey: `${currentStage.id}:${stageLanguage}`,
+    restartKey: currentStage.id,
   })
 
   useEffect(() => {

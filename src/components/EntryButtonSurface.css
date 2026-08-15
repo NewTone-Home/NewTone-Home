@@ -92,7 +92,6 @@
 .shared-entry-text {
   position: relative;
   z-index: 2;
-  white-space: nowrap;
   color: color-mix(
     in srgb,
     var(--reader-muted, var(--ink-medium)) calc((1 - var(--return-fill-progress)) * 100%),

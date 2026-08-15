@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { recordRuntimeAudit } from '../services/runtimeAudit'
 import EntryButtonFrame, { FILL_DIRECTIONS, FRAME_ORIGINS } from './EntryButtonFrame'
+import EntryTextFlip from './EntryTextFlip'
 import { ENTRY_BUTTON_TIMINGS, createEntryProgress, useEntryButtonTimeline } from './entryButtonTimeline'
 import './EntryButtonSurface.css'
 
@@ -281,7 +282,7 @@ function EntryButtonSurface({
           materialMode={materialMode}
           worldLayer={worldLayer}
         />
-        <span className="shared-entry-text" style={textStyle}>{label}</span>
+        <EntryTextFlip className="shared-entry-text" value={label} style={textStyle} />
       </span>
     </button>
   )

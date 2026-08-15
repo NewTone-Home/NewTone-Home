@@ -137,6 +137,7 @@
 
 .language-init-title-anchor {
   display: grid;
+  width: 100%;
   min-height: 1.4em;
   place-items: center;
 }
@@ -160,12 +161,14 @@
 }
 
 .language-init-title {
+  width: 100%;
   margin: 0;
   font-size: var(--font-size-base);
   color: var(--rt-ink);
   letter-spacing: 2px;
   min-height: 1.4em;
   opacity: 0.78;
+  text-align: center;
   text-shadow: 0.45px 0.35px 0 rgba(58, 50, 42, 0.13);
   transition: opacity 180ms ease;
 }

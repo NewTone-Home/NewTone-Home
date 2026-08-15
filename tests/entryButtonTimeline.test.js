@@ -21,6 +21,8 @@ describe('shared entry button timeline', () => {
   it('starts with no fill and preserves the shared entry order', () => {
     expect(timeline).toContain('return { text: 0, frame: 0, fill: 0, ...overrides }')
     expect(surface).toContain("{ key: 'text', to: 1, duration: ENTRY_BUTTON_TIMINGS.textEnter },\n      { key: 'frame', to: 1, duration: ENTRY_BUTTON_TIMINGS.frameEnter },")
-    expect(selector).toContain("{ key: 'frame', to: 1, duration: ENTRY_BUTTON_TIMINGS.frameEnter },\n      { key: 'fill', to: 1, duration: ENTRY_BUTTON_TIMINGS.fillOpen },")
+    expect(selector).toContain('const initialSteps = [')
+    expect(selector).toContain("if (coarse) initialSteps.push({ key: 'fill', to: 1, duration: ENTRY_BUTTON_TIMINGS.fillOpen })")
+    expect(selector).toContain("if (!coarse) openSteps.push({ key: 'fill', to: 1, duration: ENTRY_BUTTON_TIMINGS.fillOpen })")
   })
 })
