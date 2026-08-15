@@ -184,7 +184,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
           {!modeStage && (
             <LanguageWheelSelector
               language={draftLanguage}
-              onLanguageChange={setDraftLanguage}
+              onLanguagePreview={setDraftLanguage}
               visible={!leaving && !entriesLeaving}
             />
           )}

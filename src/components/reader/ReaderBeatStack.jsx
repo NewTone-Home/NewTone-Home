@@ -5,6 +5,17 @@ import './ReaderBeatStack.css'
 const NATIVE_SCROLL_QUERY = '(hover: none), (pointer: coarse), (max-width: 720px)'
 const BOUNDARY_THRESHOLD_PX = 12
 
+export function getNativeBoundaries(viewport) {
+  const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+  const scrollTop = viewport.scrollTop
+  return {
+    scrollTop,
+    maxScrollTop,
+    atTop: scrollTop <= BOUNDARY_THRESHOLD_PX,
+    atBottom: maxScrollTop - scrollTop <= BOUNDARY_THRESHOLD_PX,
+  }
+}
+
 export function getBeatBlocksForLanguage(beat, language) {
   return (language === 'en' ? beat.translations?.en?.blocks : null) ?? beat.blocks
 }
@@ -34,6 +45,7 @@ function ReaderBeatStack({
   const nativeScrollInitializedRef = useRef(false)
   const lastScrollTopRef = useRef(0)
   const [offset, setOffset] = useState(0)
+  const [nativeBoundary, setNativeBoundary] = useState({ atTop: false, atBottom: false })
   const [nativeScroll, setNativeScroll] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia(NATIVE_SCROLL_QUERY).matches
   ))
@@ -48,10 +60,17 @@ function ReaderBeatStack({
     const viewport = viewportRef.current
     const flow = flowRef.current
     if (!viewport || !flow) return
-    onViewportBoundaryChange?.({
-      direction: 0,
-      atTop: nativeScroll && viewport.scrollTop <= BOUNDARY_THRESHOLD_PX,
-    })
+    const boundaries = getNativeBoundaries(viewport)
+    const nextBoundary = {
+      atTop: nativeScroll && boundaries.atTop,
+      atBottom: nativeScroll && boundaries.atBottom,
+    }
+    setNativeBoundary(current => (
+      current.atTop === nextBoundary.atTop && current.atBottom === nextBoundary.atBottom
+        ? current
+        : nextBoundary
+    ))
+    onViewportBoundaryChange?.({ direction: 0, ...nextBoundary, ...boundaries })
   }
 
   useEffect(() => {
@@ -126,7 +145,8 @@ function ReaderBeatStack({
   }, [activeNarrativePausePhase, beats, focusBeatIndex, nativeScroll, onFocusMotionEnd])
 
   useEffect(() => {
-      onViewportBoundaryChange?.({ direction: 0, atTop: false })
+      setNativeBoundary({ atTop: false, atBottom: false })
+      onViewportBoundaryChange?.({ direction: 0, atTop: false, atBottom: false })
   }, [beats, onViewportBoundaryChange])
 
   useEffect(() => {
@@ -163,10 +183,21 @@ function ReaderBeatStack({
           if (accepted !== false) lastReportedIndexRef.current = nearestIndex
         }
 
-        const atTop = currentScrollTop <= BOUNDARY_THRESHOLD_PX
+        const boundaries = getNativeBoundaries(viewport)
+        const nextBoundary = {
+          atTop: boundaries.atTop && nearestIndex === 0,
+          atBottom: boundaries.atBottom && nearestIndex === beats.length - 1,
+        }
+        setNativeBoundary(current => (
+          current.atTop === nextBoundary.atTop && current.atBottom === nextBoundary.atBottom
+            ? current
+            : nextBoundary
+        ))
         onViewportBoundaryChange?.({
           direction,
-          atTop: atTop && nearestIndex === 0,
+          ...nextBoundary,
+          scrollTop: boundaries.scrollTop,
+          maxScrollTop: boundaries.maxScrollTop,
         })
 
       })
@@ -184,6 +215,8 @@ function ReaderBeatStack({
       ref={viewportRef}
       className="reader-beat-stack"
       data-native-scroll={nativeScroll ? 'true' : 'false'}
+      data-reader-at-top={nativeBoundary.atTop ? 'true' : 'false'}
+      data-reader-at-bottom={nativeBoundary.atBottom ? 'true' : 'false'}
       data-narrative-runtime={narrativeRuntimeEnabled ? 'enabled' : 'disabled'}
       data-narrative-pause={activeNarrativePauseId || 'idle'}
       data-narrative-reveal={activeNarrativeRevealId || 'idle'}

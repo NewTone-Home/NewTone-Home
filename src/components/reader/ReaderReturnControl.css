@@ -1,13 +1,14 @@
 .reader-return-control {
   position: absolute;
   z-index: 9;
+  touch-action: manipulation;
   bottom: max(clamp(48px, 6.2vh, 84px), calc(env(safe-area-inset-bottom) + 38px));
   left: max(24px, env(safe-area-inset-left));
 }
 
 @media (hover: none), (pointer: coarse), (max-width: 720px) {
   .reader-stage .reader-return-control {
-    bottom: max(104px, calc(env(safe-area-inset-bottom) + 84px));
+    bottom: max(68px, calc(env(safe-area-inset-bottom) + 48px));
     left: max(18px, env(safe-area-inset-left));
     width: min(180px, calc(100vw - 64px));
     padding: 12px 14px;

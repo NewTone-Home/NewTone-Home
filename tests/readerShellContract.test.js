@@ -45,6 +45,11 @@ describe('Reader shell contract boundaries', () => {
     expect(stage).not.toContain('REVERSE_GESTURE')
     expect(beatStack).not.toContain('returnArmed')
     expect(beatStack).not.toContain("viewport.addEventListener('wheel'")
+    expect(beatStack).toContain('function getNativeBoundaries(viewport)')
+    expect(beatStack).toContain('atBottom: maxScrollTop - scrollTop <= BOUNDARY_THRESHOLD_PX')
+    expect(beatStack).toContain('data-reader-at-bottom={nativeBoundary.atBottom ? \'true\' : \'false\'}')
+    expect(stage).toContain('atBottom = false')
+    expect(stage).toContain("onNativeBoundary?.('forward')")
     expect(beatStack).toContain('onViewportBoundaryChange?.({')
   })
 
@@ -60,6 +65,7 @@ describe('Reader shell contract boundaries', () => {
     expect(transition).not.toContain("id: 'language-change'")
     expect(transition).toContain('const [draftLanguage, setDraftLanguage]')
     expect(transition).toContain('onProceed(draftLanguage)')
+    expect(transition).toContain('onLanguagePreview={setDraftLanguage}')
     expect(transition).toContain('visible={!leaving}')
     expect(transition).toContain('const [entriesLeaving, setEntriesLeaving]')
     expect(transition).toContain('data-selector-entries-leaving={entriesLeaving ? \'true\' : \'false\'}')
@@ -80,6 +86,9 @@ describe('Reader shell contract boundaries', () => {
     expect(transitionCss).toContain('.language-init-controls')
     expect(transitionCss).toContain('position: absolute')
     expect(transitionCss).toContain('.reading-transition-entry-group .shared-entry-control')
+    expect(transitionCss).toContain('.language-init-controls .reading-transition-entry-group')
+    expect(transitionCss).toContain('flex-direction: row')
+    expect(transitionCss).toContain('flex-wrap: nowrap')
     expect(app).not.toContain('resolveRitualWheelAction')
     expect(app).not.toContain('setHoldProgressPaused')
     expect(app).not.toContain("addEventListener('wheel'")
@@ -109,6 +118,8 @@ describe('Reader shell contract boundaries', () => {
     expect(returnSurface).toContain('data-return-frame-origin')
     expect(sharedCss).toContain('.shared-entry-control')
     expect(returnCss).toContain('z-index: 9')
+    expect(returnCss).toContain('touch-action: manipulation')
+    expect(returnCss).toContain('bottom: max(68px, calc(env(safe-area-inset-bottom) + 48px))')
   })
 
   it('keeps Reader return handoff in the live Landing surface', () => {

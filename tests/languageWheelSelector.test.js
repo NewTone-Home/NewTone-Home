@@ -9,7 +9,7 @@ const transition = read('../src/components/ReadingTransition.jsx')
 const transitionStyles = read('../src/components/ReadingTransition.css')
 
 describe('language wheel selector stage', () => {
-  it('uses the shared path fill for reveal and keeps language commit after snap', () => {
+  it('uses the shared path fill for reveal and keeps language commit after continue', () => {
     expect(selector).toContain("data-language-selector-phase={phase}")
     expect(selector).toContain("recordRuntimeAudit('language-fill-open-start'")
     expect(selector).toContain("recordRuntimeAudit('language-fill-open-complete'")
@@ -39,12 +39,17 @@ describe('language wheel selector stage', () => {
     expect(selector).toContain("recordRuntimeAudit('language-arrow-dismissed'")
     expect(selector).toContain("setTrackMotion('reset')")
     expect(selector).toContain("setTrackMotion('idle')")
-    expect(selector).toContain("recordRuntimeAudit('language-wheel-language-committed'")
+    expect(selector).toContain("recordRuntimeAudit('language-wheel-language-previewed'")
     expect(selector).toContain("recordRuntimeAudit('language-wheel-transition-complete'")
-    expect(selector).toContain('onLanguageChangeRef.current?.(completedTrack.target)')
+    expect(selector).toContain('onLanguagePreviewRef.current?.(completedTrack.target)')
+    expect(selector).toContain("centerTrack('preview')")
+    expect(selector).toContain('LANGUAGE_ARROW_DELAY_MS = 180')
+    expect(selector).toContain('revealArrowAfterText()')
     expect(selector).toContain("{ key: 'frame', to: 1, duration: ENTRY_BUTTON_TIMINGS.frameEnter },\n      { key: 'fill', to: 1, duration: ENTRY_BUTTON_TIMINGS.fillOpen },")
     expect(selector.indexOf("recordRuntimeAudit('language-wheel-transition-complete'"))
-      .toBeLessThan(selector.indexOf('onLanguageChangeRef.current?.(completedTrack.target)'))
+      .toBeLessThan(selector.indexOf('onLanguagePreviewRef.current?.(completedTrack.target)'))
+    expect(selector).not.toContain('animateCover(0')
+    expect(selector).toContain('onLanguagePreview')
   })
 
   it('uses a shared frame, desktop wheel track, and mobile continuous drag track', () => {

@@ -79,12 +79,18 @@ function ReaderStage({
     ? (language === 'en' ? 'No pages yet' : '暂无页面')
     : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
 
-  const handleViewportBoundaryChange = useCallback(({ direction = 0, atTop = false }) => {
+  const handleViewportBoundaryChange = useCallback(({ direction = 0, atTop = false, atBottom = false }) => {
     if (atTop && direction < 0 && nativeBoundaryLockRef.current !== 'backward') {
       nativeBoundaryLockRef.current = 'backward'
       onNativeBoundary?.('backward')
     }
-    if (!atTop) nativeBoundaryLockRef.current = null
+    if (atBottom && direction > 0 && nativeBoundaryLockRef.current !== 'forward') {
+      nativeBoundaryLockRef.current = 'forward'
+      onNativeBoundary?.('forward')
+    }
+    if ((!atTop && !atBottom) || (atTop && direction > 0) || (atBottom && direction < 0)) {
+      nativeBoundaryLockRef.current = null
+    }
   }, [onNativeBoundary])
 
   useEffect(() => {
