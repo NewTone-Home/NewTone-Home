@@ -100,7 +100,9 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const [actionsVisible, setActionsVisible] = useState(false)
   const [entriesLeaving, setEntriesLeaving] = useState(false)
 
+  const stageId = modeStage ? 'mode' : 'language'
   const titleLanguage = modeStage ? language : draftLanguage
+  const titleRestartKey = `${stageId}:${titleLanguage}`
   const lang = copy[titleLanguage] || copy.zh
   const entryLang = copy[modeStage ? language : draftLanguage] || copy.zh
 
@@ -110,9 +112,9 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   }, [])
 
   const currentStage = useMemo(() => ({
-    id: modeStage ? 'mode' : 'language',
+    id: stageId,
     title: modeStage ? lang.modeInitTitle : lang.languageInitTitle,
-  }), [lang, modeStage])
+  }), [lang, modeStage, stageId])
 
   const titleCharInterval = useMemo(() => {
     const length = Math.max(1, Array.from(currentStage.title).length)
@@ -125,7 +127,7 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     charInterval: titleCharInterval,
     scrambleInterval: 50,
     enabled: revealed,
-    restartKey: currentStage.id,
+    restartKey: titleRestartKey,
   })
 
   useEffect(() => {
@@ -168,6 +170,8 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
     <div
       className={`ritual-selector language-init${leaving ? ' language-init--leaving' : ''}`}
       data-selector-stage={currentStage.id}
+      data-selector-title-language={titleLanguage}
+      data-selector-title-restart-key={titleRestartKey}
       data-selector-phase={leaving ? 'leaving' : actionsVisible ? 'visible' : 'preparing'}
       data-language-draft={modeStage ? undefined : draftLanguage}
       data-language-draft-source={modeStage ? undefined : 'browser'}
