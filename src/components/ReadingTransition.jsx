@@ -258,7 +258,6 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
               <div className="reading-transition-start-foreground">
                 <NewToneTransitionMark
                   reduced={reducedMotion || motionMode === 'reduced'}
-                  retracting={fading}
                 />
               </div>
               <div className="reading-transition-start-background">

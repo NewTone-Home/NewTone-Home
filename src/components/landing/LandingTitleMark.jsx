@@ -1,6 +1,5 @@
 import { useEffect, useId } from 'react'
 import { useTitleRetrace } from '../../hooks/useTitleRetrace'
-import { TRANSITION_TITLE_RETRACT_MS } from '../../landing/landingIntro'
 import './LandingTitleMark.css'
 
 /**
@@ -72,8 +71,8 @@ export function NewToneHandLines() {
   )
 }
 
-export function NewToneTransitionMark({ reduced = false, retracting = false, className = '' }) {
-  const { phase, sweepRef, begin, retract } = useTitleRetrace({
+export function NewToneTransitionMark({ reduced = false, className = '' }) {
+  const { phase, sweepRef, begin } = useTitleRetrace({
     introCompleted: false,
     reduced,
     onIntroComplete: undefined,
@@ -83,10 +82,6 @@ export function NewToneTransitionMark({ reduced = false, retracting = false, cla
     const frame = requestAnimationFrame(begin)
     return () => cancelAnimationFrame(frame)
   }, [begin])
-
-  useEffect(() => {
-    if (retracting && phase === 'revealed') retract({ duration: TRANSITION_TITLE_RETRACT_MS })
-  }, [phase, retract, retracting])
 
   return (
     <div className={`newtone-transition-mark${className ? ` ${className}` : ''}`} data-title-phase={phase}>

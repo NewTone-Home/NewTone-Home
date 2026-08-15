@@ -17,7 +17,6 @@ import '../styles/sketchPrimitives.css'
 import './Landing.css'
 import './LandingUpdatesEntry.css'
 
-const RETURN_TITLE_DRAW_MS = 1450
 const RETURN_STATUS_BLINK_MS = 800
 const RETURN_STATUS_BLINK_COUNT = 2
 const RETURN_STATUS_TOTAL_MS = RETURN_STATUS_BLINK_MS * RETURN_STATUS_BLINK_COUNT
@@ -110,10 +109,9 @@ function Landing({
       const reduced = reducedMotion || motionMode === 'reduced'
       const statusDuration = reduced ? 320 : RETURN_STATUS_TOTAL_MS
       const statusFadeDuration = reduced ? 0 : RETURN_STATUS_FADE_MS
-      const drawDuration = reduced ? 0 : RETURN_TITLE_DRAW_MS
 
       await Promise.all([
-        begin({ duration: drawDuration, markIntroComplete: false }),
+        begin({ duration: 0, markIntroComplete: false }),
         wait(statusDuration),
       ])
       if (cancelled) return
