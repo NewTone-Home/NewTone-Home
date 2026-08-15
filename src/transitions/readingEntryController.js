@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useProgressStore } from '../stores/progressStore'
+import { recordRuntimeAudit } from '../services/runtimeAudit'
 import { createTimerRegistry } from './transitionUtils'
 
 export const READING_ENTRY_TIMINGS = {
@@ -7,8 +8,6 @@ export const READING_ENTRY_TIMINGS = {
   RETURN_LANDING_LEAVE_MS: 1600,
   LANG_LEAVING_MS: 420,
   MODE_LEAVING_MS: 420,
-  MIN_READER_MS: 3000,
-  RESUME_READER_MS: 4720,
   TRANSITION_FADE_MS: 400,
   LANGUAGE_INIT_TITLE_DELAY_MS: 300,
 }
@@ -20,15 +19,16 @@ export const REDUCED_READING_ENTRY_TIMINGS = {
   MODE_LEAVING_MS: 420,
 }
 
-const { FIRST_LANDING_LEAVE_MS, RETURN_LANDING_LEAVE_MS, LANG_LEAVING_MS, MODE_LEAVING_MS, MIN_READER_MS, RESUME_READER_MS, TRANSITION_FADE_MS } = READING_ENTRY_TIMINGS
+const { FIRST_LANDING_LEAVE_MS, RETURN_LANDING_LEAVE_MS, LANG_LEAVING_MS, MODE_LEAVING_MS, TRANSITION_FADE_MS } = READING_ENTRY_TIMINGS
 
 export function useReadingEntry(motionMode = 'full') {
   const [phase, setPhase] = useState('idle')
   const [intent, setIntent] = useState(null)
 
   const guardRef = useRef(false)
-  const readyCalledRef = useRef(false)
-  const startTimeRef = useRef(0)
+  const readerReadyRef = useRef(false)
+  const transitionReadyRef = useRef(false)
+  const handoffLeavingRef = useRef(false)
   const intentRef = useRef(null)
   const phaseRef = useRef('idle')
 
@@ -37,6 +37,7 @@ export function useReadingEntry(motionMode = 'full') {
 
   const syncPhase = useCallback((newPhase) => {
     phaseRef.current = newPhase
+    recordRuntimeAudit('reader-entry-phase', { phase: newPhase, intent: intentRef.current })
     setPhase(newPhase)
   }, [])
 
@@ -56,14 +57,18 @@ export function useReadingEntry(motionMode = 'full') {
     } else {
       store.continueReading()
     }
-    startTimeRef.current = Date.now()
+    readerReadyRef.current = false
+    transitionReadyRef.current = false
+    handoffLeavingRef.current = false
     syncPhase('reader-preparing')
   }, [syncPhase])
 
   const start = useCallback((entryIntent) => {
     if (guardRef.current) return
     guardRef.current = true
-    readyCalledRef.current = false
+    readerReadyRef.current = false
+    transitionReadyRef.current = false
+    handoffLeavingRef.current = false
     intentRef.current = entryIntent
     setIntent(entryIntent)
     syncPhase('landing-leaving')
@@ -102,32 +107,45 @@ export function useReadingEntry(motionMode = 'full') {
     }, usesReducedTiming() ? REDUCED_READING_ENTRY_TIMINGS.MODE_LEAVING_MS : MODE_LEAVING_MS)
   }, [enterReaderView, syncPhase, usesReducedTiming])
 
-  const handleReaderReady = useCallback(() => {
-    if (readyCalledRef.current) return
+  const maybeLeaveReader = useCallback(() => {
     if (phaseRef.current !== 'reader-preparing') return
-    readyCalledRef.current = true
+    if (!readerReadyRef.current || !transitionReadyRef.current) return
+    if (handoffLeavingRef.current) return
 
-    const elapsed = Date.now() - startTimeRef.current
-    const visibleDuration = intentRef.current === 'start' ? MIN_READER_MS : RESUME_READER_MS
-    const remaining = Math.max(visibleDuration - elapsed, 0)
+    handoffLeavingRef.current = true
+    syncPhase('transition-leaving')
 
     timers.current.add(() => {
-      syncPhase('transition-leaving')
-
-      timers.current.add(() => {
-        guardRef.current = false
-        readyCalledRef.current = false
-        intentRef.current = null
-        setIntent(null)
-        syncPhase('idle')
-      }, TRANSITION_FADE_MS)
-    }, remaining)
+      guardRef.current = false
+      readerReadyRef.current = false
+      transitionReadyRef.current = false
+      handoffLeavingRef.current = false
+      intentRef.current = null
+      setIntent(null)
+      syncPhase('idle')
+    }, TRANSITION_FADE_MS)
   }, [syncPhase])
+
+  const handleReaderReady = useCallback(() => {
+    if (phaseRef.current !== 'reader-preparing' || readerReadyRef.current) return
+    readerReadyRef.current = true
+    recordRuntimeAudit('reader-ready', { intent: intentRef.current })
+    maybeLeaveReader()
+  }, [maybeLeaveReader])
+
+  const handleTransitionReady = useCallback(() => {
+    if (phaseRef.current !== 'reader-preparing' || transitionReadyRef.current) return
+    transitionReadyRef.current = true
+    recordRuntimeAudit('reader-transition-ready', { intent: intentRef.current })
+    maybeLeaveReader()
+  }, [maybeLeaveReader])
 
   const cancel = useCallback(() => {
     timers.current.clearAll()
     guardRef.current = false
-    readyCalledRef.current = false
+    readerReadyRef.current = false
+    transitionReadyRef.current = false
+    handoffLeavingRef.current = false
     intentRef.current = null
     setIntent(null)
     syncPhase('idle')
@@ -140,6 +158,7 @@ export function useReadingEntry(motionMode = 'full') {
     proceedFromLanguage,
     proceedFromMode,
     handleReaderReady,
+    handleTransitionReady,
     cancel,
     isActive: phase !== 'idle',
   }

@@ -172,6 +172,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
             onEnter={handleEnter}
             onProceed={handleLanguageProceed}
             onModeSelect={handleModeSelect}
+            onTransitionReady={readingEntry.isActive ? readingEntry.handleTransitionReady : undefined}
           />
         )}
       </PageShell>

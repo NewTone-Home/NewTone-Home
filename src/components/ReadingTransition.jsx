@@ -208,9 +208,10 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   )
 }
 
-function ReadingTransition({ phase, intent, language, readingMode, motionMode, surfaceStyle, environmentState, onProceed, onModeSelect }) {
+function ReadingTransition({ phase, intent, language, readingMode, motionMode, surfaceStyle, environmentState, onProceed, onModeSelect, onTransitionReady }) {
   const transitionRootRef = useRef(null)
   const reducedMotion = useReducedMotion()
+  const reduced = reducedMotion || motionMode === 'reduced'
   const roadParallaxEnabled = phase === 'reader-preparing' || phase === 'transition-leaving'
   useSceneParallax({
     rootRef: transitionRootRef,
@@ -221,6 +222,16 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
     () => resolveTransitionEnvironment(environmentState, language),
     [environmentState, language],
   )
+
+  useEffect(() => {
+    if (phase !== 'reader-preparing' || intent !== 'resume' || !reduced) return undefined
+    const frame = requestAnimationFrame(() => onTransitionReady?.())
+    return () => cancelAnimationFrame(frame)
+  }, [intent, onTransitionReady, phase, reduced])
+
+  const handleResumeAnimationEnd = useCallback((event) => {
+    if (event.animationName === 'reading-transition-resume-blink') onTransitionReady?.()
+  }, [onTransitionReady])
 
   if (phase === 'landing-leaving' || phase === 'landing-empty-hold') return null
 
@@ -257,7 +268,8 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
             <>
               <div className="reading-transition-start-foreground">
                 <NewToneTransitionMark
-                  reduced={reducedMotion || motionMode === 'reduced'}
+                  reduced={reduced}
+                  onComplete={onTransitionReady}
                 />
               </div>
               <div className="reading-transition-start-background">
@@ -270,7 +282,12 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
                 <ResumeEnvironment lines={environmentLines} />
               </div>
               <div className="reading-transition-resume-foreground">
-                <p className="reading-transition-text reading-transition-text--resume">{text}</p>
+                <p
+                  className="reading-transition-text reading-transition-text--resume"
+                  onAnimationEnd={handleResumeAnimationEnd}
+                >
+                  {text}
+                </p>
               </div>
             </>
           )}

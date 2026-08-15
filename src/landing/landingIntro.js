@@ -23,6 +23,8 @@ export const TITLE_PHASE = Object.freeze({
 export const TITLE_DRAW_MS = 2000
 /** Leaving is not — the stroke is snatched back. */
 export const TITLE_RETRACT_MS = 320
+/** Reader-return Landing gives the already-written mark time to erase as a stroke. */
+export const LANDING_RETURN_RETRACT_MS = 640
 /** Landing opacity begins after this lead-in; the title retrace follows the same handoff clock. */
 export const LANDING_LEAVE_FADE_DELAY_MS = 360
 /** Every Landing visit begins quietly before its directional mark appears. */

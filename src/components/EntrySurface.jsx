@@ -23,6 +23,7 @@ function EntrySurface({
   onEnter,
   onProceed,
   onModeSelect,
+  onTransitionReady,
 }) {
   const [updatesPhase, setUpdatesPhase] = useState(UPDATES_PHASE.LANDING)
   const landingArrivalKind = useTransitionStore(s => s.landingArrivalKind)
@@ -86,6 +87,7 @@ function EntrySurface({
         environmentState={environmentState}
         onProceed={onProceed}
         onModeSelect={onModeSelect}
+        onTransitionReady={onTransitionReady}
       />
     </div>
   )

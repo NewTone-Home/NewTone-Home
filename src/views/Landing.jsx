@@ -3,7 +3,7 @@ import { useProgressStore } from '../stores/progressStore'
 import { useTransitionStore } from '../stores/transitionStore'
 import { copy } from '../i18n/copy'
 import { getReaderEntryIntent, hasStableReaderProgress } from '../reader/readerEntry'
-import { LANDING_LEAVE_FADE_DELAY_MS, TITLE_PHASE, readIntroCompleted, writeIntroCompleted } from '../landing/landingIntro'
+import { LANDING_LEAVE_FADE_DELAY_MS, LANDING_RETURN_RETRACT_MS, TITLE_PHASE, readIntroCompleted, writeIntroCompleted } from '../landing/landingIntro'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useSceneParallax } from '../hooks/useSceneParallax'
 import { useTitleRetrace } from '../hooks/useTitleRetrace'
@@ -18,8 +18,6 @@ import './Landing.css'
 import './LandingUpdatesEntry.css'
 
 const RETURN_STATUS_BLINK_MS = 800
-const RETURN_STATUS_BLINK_COUNT = 2
-const RETURN_STATUS_TOTAL_MS = RETURN_STATUS_BLINK_MS * RETURN_STATUS_BLINK_COUNT
 const RETURN_STATUS_FADE_MS = 260
 
 function Landing({
@@ -107,23 +105,19 @@ function Landing({
 
     frame = window.requestAnimationFrame(async () => {
       const reduced = reducedMotion || motionMode === 'reduced'
-      const statusDuration = reduced ? 320 : RETURN_STATUS_TOTAL_MS
       const statusFadeDuration = reduced ? 0 : RETURN_STATUS_FADE_MS
 
-      await Promise.all([
-        begin({ duration: 0, markIntroComplete: false }),
-        wait(statusDuration),
-      ])
+      await begin({ duration: 0, markIntroComplete: false })
       if (cancelled) return
 
       setReturnStatusFading(true)
-      await wait(statusFadeDuration)
+      await Promise.all([
+        retract({ duration: reduced ? 0 : LANDING_RETURN_RETRACT_MS }),
+        wait(statusFadeDuration),
+      ])
       if (cancelled) return
 
       setReturnStatusVisible(false)
-      await retract({ duration: reduced ? 0 : undefined })
-      if (cancelled) return
-
       setReturnSequenceActive(false)
     })
 
