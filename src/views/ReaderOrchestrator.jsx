@@ -18,6 +18,9 @@ import { useProgressStore } from '../stores/progressStore'
 import { useTransitionStore } from '../stores/transitionStore'
 import ReaderStage from './ReaderStage'
 
+const READER_CHECKPOINT_INTERVAL_MS = 60000
+const READER_CHECKPOINT_MIN_DWELL_MS = 1000
+
 function getPage(location, content = readerContent) {
   return content
     .find(phase => phase.id === location.phaseId)
@@ -173,6 +176,53 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
           dwellMs,
         })
       }
+    }
+  }, [activeLocation.beatIndex, activeLocation.pageId, activeReaderContent])
+
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return undefined
+
+    const stepId = `${activeLocation.pageId}:${activeLocation.beatIndex}`
+    const progressRatio = getOverallProgress(activeLocation, activeReaderContent)
+    let visibleStartedAt = document.visibilityState === 'visible' ? Date.now() : null
+    let closed = false
+
+    const sendCheckpoint = (exitReason, keepalive = false) => {
+      if (closed || visibleStartedAt === null) return
+      const now = Date.now()
+      const dwellMs = Math.max(0, now - visibleStartedAt)
+      visibleStartedAt = now
+      if (dwellMs < READER_CHECKPOINT_MIN_DWELL_MS) return
+      trackEvent('reader_checkpoint', {
+        ...currentAnalyticsContext(),
+        stepId,
+        progressRatio,
+        dwellMs,
+        exitReason,
+      }, { keepalive })
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        sendCheckpoint('hidden', true)
+        visibleStartedAt = null
+      } else if (!closed && visibleStartedAt === null) {
+        visibleStartedAt = Date.now()
+      }
+    }
+
+    const handlePageHide = () => {
+      sendCheckpoint('unload', true)
+      closed = true
+    }
+
+    const interval = window.setInterval(() => sendCheckpoint(), READER_CHECKPOINT_INTERVAL_MS)
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('pagehide', handlePageHide)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('pagehide', handlePageHide)
     }
   }, [activeLocation.beatIndex, activeLocation.pageId, activeReaderContent])
 

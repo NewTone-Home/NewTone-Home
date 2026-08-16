@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useProgressStore } from './stores/progressStore'
 import { useTransitionStore } from './stores/transitionStore'
 import { useReadingEntry } from './transitions/readingEntryController'
+import { resolveEntryBlockedStepId, useEntryFrictionTracking } from './hooks/useEntryFrictionTracking'
 import Reader from './views/ReaderOrchestrator'
 import AdminSequenceGate from './admin/AdminSequenceGate'
 import EntrySurface from './components/EntrySurface'
@@ -30,6 +31,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
   const globalTransitionPhase = useTransitionStore(s => s.phase)
   const globalTransitionTargetView = useTransitionStore(s => s.targetView)
   const isGlobalTransitioning = globalTransitionPhase !== 'idle'
+  useEntryFrictionTracking(readingEntry.phase, { language, readingMode })
 
   const historyPushRef = useRef(true)
   const readingEntryRef = useRef(readingEntry)
@@ -106,14 +108,21 @@ function App({ contentStatus = 'ready', onRetryContent }) {
   }, [currentView])
 
   const handleEnter = useCallback((intent) => {
-    if (readingEntry.isActive || isGlobalTransitioning) return
+    if (readingEntry.isActive || isGlobalTransitioning) {
+      trackEvent('entry_blocked', {
+        stepId: resolveEntryBlockedStepId(readingEntry.phase, isGlobalTransitioning),
+        language: hasInitializedLanguage ? language : undefined,
+        readingMode: hasInitializedLanguage ? readingMode : undefined,
+      })
+      return
+    }
     trackEvent('reader_entry_requested', {
       stepId: `entry:${intent}`,
       language: hasInitializedLanguage ? language : undefined,
       readingMode: hasInitializedLanguage ? readingMode : undefined,
     })
     readingEntry.start(intent)
-  }, [hasInitializedLanguage, isGlobalTransitioning, language, readingEntry.isActive, readingEntry.start, readingMode])
+  }, [hasInitializedLanguage, isGlobalTransitioning, language, readingEntry.isActive, readingEntry.phase, readingEntry.start, readingMode])
 
   const readingEntryNeedsReader =
     readingEntry.phase === 'reader-preparing' ||
@@ -136,12 +145,12 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     const nextLanguage = selectedLanguage || language
     useProgressStore.getState().setLanguage(nextLanguage)
     recordRuntimeAudit('language-confirmed', { language: nextLanguage })
-    trackEvent('language_selected', { language: nextLanguage })
+    trackEvent('language_selected', { stepId: 'entry:language', language: nextLanguage })
     readingEntry.proceedFromLanguage()
   }, [language, readingEntry.proceedFromLanguage])
 
   const handleModeSelect = useCallback((mode) => {
-    trackEvent('mode_selected', { readingMode: mode })
+    trackEvent('mode_selected', { stepId: 'entry:mode', readingMode: mode })
     readingEntry.proceedFromMode(mode)
   }, [readingEntry.proceedFromMode])
 

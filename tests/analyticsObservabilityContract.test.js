@@ -6,8 +6,10 @@ const app = read('../src/App.jsx')
 const main = read('../src/main.jsx')
 const reader = read('../src/views/ReaderOrchestrator.jsx')
 const analytics = read('../src/services/analytics.js')
+const entryFriction = read('../src/hooks/useEntryFrictionTracking.js')
 const migration = read('../supabase/migrations/20260809195527_analytics_observability_v2.sql')
 const dwellCheckpointMigration = read('../supabase/migrations/20260809202406_analytics_dwell_checkpoint_rollup.sql')
+const frictionMigration = read('../supabase/migrations/20260816043502_analytics_friction_diagnostics.sql')
 
 describe('analytics observability v2 wiring', () => {
   it('tracks the public funnel from Landing request through Reader structure and completion', () => {
@@ -51,5 +53,19 @@ describe('analytics observability v2 wiring', () => {
     expect(dwellCheckpointMigration).toContain('sequence > last_session_end_sequence')
     expect(dwellCheckpointMigration).toContain('coalesce(checkpoint_dwell_ms, 0)')
     expect(dwellCheckpointMigration).toContain('coalesce(dwell_after_checkpoint_ms, 0)')
+  })
+
+  it('records entry friction and Reader recovery points without widening the analytics payload', () => {
+    for (const eventName of [
+      'entry_step_shown', 'entry_step_dwell', 'entry_blocked', 'reader_checkpoint',
+    ]) {
+      expect(analytics).toContain(`'${eventName}'`)
+      expect(frictionMigration).toContain(`'${eventName}'`)
+    }
+    expect(entryFriction).toContain("closeEntryStep('unload', true)")
+    expect(reader).toContain("trackEvent('reader_checkpoint'")
+    expect(reader).toContain('READER_CHECKPOINT_INTERVAL_MS')
+    expect(frictionMigration).toContain('private.analytics_entry_friction')
+    expect(frictionMigration).toContain('private.analytics_reader_last_position')
   })
 })

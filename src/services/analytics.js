@@ -6,6 +6,7 @@ const EVENTS = new Set([
   'landing_entry', 'reader_entry_requested', 'language_selected', 'mode_selected', 'reading_started',
   'page_entered', 'chapter_entered', 'beat_reached', 'beat_dwell', 'progress_milestone',
   'chapter_completed', 'reader_return', 'reader_exit', 'visibility_dwell', 'session_end', 'content_status',
+  'entry_step_shown', 'entry_step_dwell', 'entry_blocked', 'reader_checkpoint',
   'admin_login', 'admin_draft_saved', 'admin_published',
 ])
 const LANGUAGES = new Set(['zh', 'en'])

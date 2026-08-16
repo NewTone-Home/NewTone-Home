@@ -26,6 +26,9 @@ The database intentionally starts with zero publication rows and zero draft rows
 | --- | --- | --- |
 | `landing_entry` | Public shell/Landing entered | `step_id` |
 | `reader_entry_requested` | User committed to entering Reader from Landing | `step_id=entry:start/continue`, `language`, `reading_mode` |
+| `entry_step_shown` | One entry step became visible | `step_id=entry:landing-transition/language/mode/reader-handoff`, `language`, `reading_mode` |
+| `entry_step_dwell` | Visible foreground time accumulated until an entry step was left or the page was closed | same `step_id`, `dwell_ms`, `exit_reason=completed/abandoned/unload` |
+| `entry_blocked` | A repeat entry request arrived while that entry step or a global transition was already busy | matching entry step, or entry:global-transition; this is an explicit UI block, not a silent exit |
 | `language_selected` | Reader language chosen or changed | `step_id`, `language` |
 | `mode_selected` | Reading mode chosen or changed | `step_id`, `reading_mode` |
 | `content_status` | Published content load resolved | `step_id=content:<status>[:vN]` |
@@ -34,6 +37,7 @@ The database intentionally starts with zero publication rows and zero draft rows
 | `chapter_entered` | Reader entered/re-entered a chapter | `step_id=chapter:<chapter_id>`, `progress_ratio` |
 | `beat_reached` | A Reader beat was reached | `step_id`, `progress_ratio` |
 | `beat_dwell` | Visible time accumulated on a beat before focus changes | `step_id`, `progress_ratio`, `dwell_ms` |
+| `reader_checkpoint` | Low-frequency Reader position confirmation: every 60 visible seconds, and when the tab/page leaves | `step_id`, `progress_ratio`, `dwell_ms`, optional `exit_reason=hidden/unload` |
 | `progress_milestone` | First reach of 25/50/75/100% in a session | `step_id`, `progress_ratio` |
 | `chapter_completed` | User completed the current released chapter/trial boundary | `step_id=chapter:<chapter_id>`, `progress_ratio` |
 | `reader_return` | Reader return control used | `step_id`, `progress_ratio`, `exit_reason=return` |
@@ -55,6 +59,8 @@ select * from private.analytics_daily_summary order by day desc limit 90;
 select * from private.analytics_funnel order by event_name, step_id;
 select * from private.analytics_session_summary order by started_at desc limit 100;
 select * from private.analytics_step_dwell order by average_seconds desc, sessions desc;
+select * from private.analytics_entry_friction order by sessions_without_completion desc, p90_seconds desc;
+select * from private.analytics_reader_last_position order by confirmed_at desc limit 100;
 ```
 
 Useful funnel slices:
@@ -74,6 +80,11 @@ where event_name in ('page_entered', 'chapter_entered', 'beat_reached')
 group by step_id
 order by sessions desc, step_id;
 ```
+
+How to read the two new aggregates:
+
+- `analytics_entry_friction` shows which entrance step took longest, how often it was completed, and how often a user tried again while the interface was busy. A session without completion means only that the next step was not observed; it is not proof that the user disliked the step.
+- `analytics_reader_last_position` gives the last Reader position confirmed by normal progress, an explicit return, or a low-frequency checkpoint. It supports a “where did the reading stop?” review without storing manuscript text.
 
 Raw events are intended for 90-day retention. Until a reviewed scheduled job is approved, run this owner-only maintenance query monthly:
 

@@ -452,9 +452,10 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 ### 13.1 当前 Git 基线
 
 - 当前 production `main`：`8d88d00dcb3b0e01f1bd3f81cd5b36c98177f4af`
-- 当前 staging：`b8afdd53a6b2e488e11551537a158d557aad40d5`
-- 比较结果：`staging` 相对 `main` ahead 222 / behind 0。
-- 这 222 个提交不是 222 个独立产品功能；它们包含同一批 Landing、入口、Reader return 和动画状态机的连续实验、重构与修正。
+- 当前 staging：`4cbc8c61d69db59de385f647f1b51bda2abd3c19`
+- 比较结果：`staging` 相对 `main` ahead 225 / behind 0。
+- 这 225 个提交不是 225 个独立产品功能；它们包含同一批 Landing、入口、Reader return、更新公告与动画状态机的连续实验、重构与修正。
+- 正文基线已于本轮复查：production 与 staging 的 `main-reader` 都是 published version `2`，`content_sha256` 同为 `8ad2228a8425e5f34b190158a9208821194cbdc4caede7f3367545c7479cbb9a`；本轮不需要内容同步。
 
 ### 13.2 当前阶段实际完成的主题
 
@@ -466,7 +467,7 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 
 这些主题的早期设计理由、废弃方案与边界见 `docs/internal/DECISIONS_2026-08-09.md`；本轮完整工程压缩记录见 `docs/internal/STAGE_2026-08-15.md`。
 
-### 13.3 最新变更：Reader handoff 时间线
+### 13.3 Reader handoff 时间线
 
 提交：`b8afdd5 fix: synchronize reader handoff timelines`
 
@@ -480,13 +481,27 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 
 这次修复针对的是“标题或 Reader 已完成但仍被固定等待拖住”以及“返回时先停留、后快速收回”的真实时序问题。它不是全局动画调速，也不改变 Reader 内容、完成边界或其他入口路由。
 
-### 13.4 已有验证与仍待验收
+### 13.4 b8 之后：双语更新公告与公共页面交互保护
+
+提交：`85ba25c feat: add bilingual updates announcement page`、`344a140 feat: 优化双语更新公告时间线与过渡时长`、`4cbc8c6 feat: 建立公共页面交互保护策略`
+
+已完成：
+
+- 用真实的中英文 DOM 内容替换 Updates 占位层；公告改为时间线结构，日期是唯一的展开/收起入口，默认显示两行摘要，展开后显示详情，并沿用共享的返回入口。
+- Landing 与 Updates 的表面转场统一为 `720ms`；NewTone 手写动画不纳入这个转场时长契约。
+- 公共 `PageShell` 增加独立的移动端交互保护：取消点击高亮、公共表面的长按菜单/选择/复制/剪切/粘贴/拖拽；保留滚动手势和可编辑目标的正常编辑行为。Reader 与既有 Landing 交互逻辑不在本次修改范围内。
+- Updates 页面已记录浏览器设计验收：桌面 `1280×720`、移动 `390×844`、中英文真实流程、返回入口、无横向溢出以及控制台无 warning/error。
+
+提交说明质量：这 3 个新提交均有正文，清楚说明 Why、Scope 和保留边界；但此前 `main...staging` 的 222 个提交仍只有标题。因此，后续接手应把这 3 个提交视为当前可追溯模板，而不是误以为旧历史已补齐。
+
+### 13.5 已有验证与仍待验收
 
 `b8afdd5` 施工记录显示：
 
 - 浏览器时序验证：标题 `revealed` 后直接进入 transition leaving；Reader 在淡出期间保持挂载；返回 Landing 的标题连续约 `640ms` 收回，没有旧的固定平台期。
 - 门禁：33 个测试文件 / 130 个测试、lint、typecheck/build、diff-check 通过。
 - 本地与 `origin/staging` 已在 `b8afdd5` 对齐，施工完成时工作树干净。
+- 后续三项 Updates / 公共页面提交已推至 `4cbc8c6`；本次复查时本地 HEAD 与 `origin/staging` 对齐。当前未提交差异仅应为本接手文档和阶段记录的本轮更新。
 
 仍需在准备合入 `main` 前完成：
 
@@ -494,10 +509,22 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 - 在真实 iPhone / Android 上确认 Device Orientation 权限、横竖屏、归零/软校准，以及 touch/pen 手势。
 - 重新确认 Vercel Preview 对应当前 staging SHA，而不是只对应较早的产品提交。
 - 重新比较当时的 `main...staging`，确认 `main` 没有新变化且所有保留实验都应进入 release。
+- 先将 `analytics_observability_v2`、`analytics_observability_v2_summary_flags`、`analytics_dwell_checkpoint_rollup` 同步并验证到 production Supabase；它们当前只存在于 staging。Git 合并不会自动同步数据库迁移或正文数据。
 
-### 13.5 接手规则补充
+### 13.6 接手规则补充
 
 - 不要把 2026-08-10 至 2026-08-14 的连续微提交误读为一批必须逐项保留的功能；先看当前 `b8afdd5` net diff 和 `STAGE_2026-08-15.md` 的主题级结论。
 - 不要重新引入 hover-only 自动推进、普通设置页式 Reader setup、可点击 progress，或用 overlay 模拟另一个 Landing。
 - 新的用户可感知阶段结束后，更新本接手包，并在 `docs/internal/` 新增阶段或决策记录；commit body 至少保留 Why / Scope / Proof。
 - 未完成上述人工验收与远端 deployment 对齐前，不擅自 merge 到 `main`。
+
+### 13.7 入口卡点诊断增量（2026-08-15，待提交）
+
+这是一项 staging-only 的匿名使用诊断，不是新的用户界面功能，也不改变正文、Reader 内容、入口交互语义或 production 数据。
+
+- 新增四类事件：entry_step_shown、entry_step_dwell、entry_blocked、reader_checkpoint。
+- 它们分别用于确认入口实际显示到哪一步、前台可见停留多长、过场期间用户重复操作是否被明确拒绝，以及 Reader 的低频最后位置确认。
+- Reader checkpoint 使用 60 秒间隔，并在隐藏/关闭页面时尽力写入最后一个确认点；不采集鼠标轨迹、文本、IP、邮箱、用户代理、URL query 或设备信息。
+- 入口诊断覆盖 Landing 离开过场、语言、模式和 Reader handoff；没有完成下一步只能解释为“未观察到完成”，不能解释为用户偏好或因果原因。
+- 新迁移为 supabase/migrations/20260816043502_analytics_friction_diagnostics.sql，已应用到 NewTone-Staging；该项目已存在 private.analytics_entry_friction 与 private.analytics_reader_last_position 两个 owner-only 汇总视图。production 目前没有这份新增迁移。
+- 源码、定向测试和完整门禁已完成：34 个测试文件、138 测试，lint、typecheck/build、diff-check 全部通过。这批改动仍尚未 commit/push。未做浏览器实测，因为它会向 staging 写入新的匿名测试会话；不要把 staging 测试记录迁入 production。未来应先审核并合并代码，再将同一 migration 独立应用到 production。

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildAnalyticsEvent } from '../src/services/analytics'
+import { resolveEntryBlockedStepId, resolveEntryStepExitReason, resolveEntryStepId } from '../src/hooks/useEntryFrictionTracking'
 
 describe('privacy-conscious analytics payload', () => {
   const dependencies = (sequence = 0) => ({
@@ -23,6 +24,7 @@ describe('privacy-conscious analytics payload', () => {
     for (const eventName of [
       'reader_entry_requested', 'page_entered', 'chapter_entered',
       'beat_dwell', 'chapter_completed', 'content_status',
+      'entry_step_shown', 'entry_step_dwell', 'entry_blocked', 'reader_checkpoint',
     ]) {
       const event = buildAnalyticsEvent(eventName, {
         stepId: 'chapter:xiujie-1', language: 'zh', readingMode: 'immersive', dwellMs: 2500,
@@ -35,5 +37,13 @@ describe('privacy-conscious analytics payload', () => {
   it('preserves the normalized browser-back exit reason', () => {
     const event = buildAnalyticsEvent('reader_exit', { exitReason: 'browser_back' }, dependencies())
     expect(event?.exit_reason).toBe('browser_back')
+  })
+
+  it('keeps entry friction steps and completion meanings constrained', () => {
+    expect(resolveEntryStepId('landing-leaving')).toBe('entry:landing-transition')
+    expect(resolveEntryStepId('mode-active')).toBe('entry:mode')
+    expect(resolveEntryStepExitReason('landing-leaving', 'reader-preparing')).toBe('completed')
+    expect(resolveEntryStepExitReason('mode-active', 'idle')).toBe('abandoned')
+    expect(resolveEntryBlockedStepId('language-leaving')).toBe('entry:language')
   })
 })
