@@ -509,7 +509,7 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 - 在真实 iPhone / Android 上确认 Device Orientation 权限、横竖屏、归零/软校准，以及 touch/pen 手势。
 - 重新确认 Vercel Preview 对应当前 staging SHA，而不是只对应较早的产品提交。
 - 重新比较当时的 `main...staging`，确认 `main` 没有新变化且所有保留实验都应进入 release。
-- 先将 `analytics_observability_v2`、`analytics_observability_v2_summary_flags`、`analytics_dwell_checkpoint_rollup` 同步并验证到 production Supabase；它们当前只存在于 staging。Git 合并不会自动同步数据库迁移或正文数据。
+- production Supabase 已按顺序应用 analytics_observability_v2、analytics_observability_v2_summary_flags、analytics_dwell_checkpoint_rollup 和 analytics_friction_diagnostics，并验证新事件约束和内部汇总视图。Git 合并仍不会同步正文数据。
 
 ### 13.6 接手规则补充
 
@@ -518,7 +518,7 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 - 新的用户可感知阶段结束后，更新本接手包，并在 `docs/internal/` 新增阶段或决策记录；commit body 至少保留 Why / Scope / Proof。
 - 未完成上述人工验收与远端 deployment 对齐前，不擅自 merge 到 `main`。
 
-### 13.7 入口卡点诊断增量（2026-08-15，待提交）
+### 13.7 入口卡点诊断增量（2026-08-15，已发布）
 
 这是一项 staging-only 的匿名使用诊断，不是新的用户界面功能，也不改变正文、Reader 内容、入口交互语义或 production 数据。
 
@@ -526,5 +526,5 @@ Staging 中 analytics、Auth、session、reader state、reading progress 都是�
 - 它们分别用于确认入口实际显示到哪一步、前台可见停留多长、过场期间用户重复操作是否被明确拒绝，以及 Reader 的低频最后位置确认。
 - Reader checkpoint 使用 60 秒间隔，并在隐藏/关闭页面时尽力写入最后一个确认点；不采集鼠标轨迹、文本、IP、邮箱、用户代理、URL query 或设备信息。
 - 入口诊断覆盖 Landing 离开过场、语言、模式和 Reader handoff；没有完成下一步只能解释为“未观察到完成”，不能解释为用户偏好或因果原因。
-- 新迁移为 supabase/migrations/20260816043502_analytics_friction_diagnostics.sql，已应用到 NewTone-Staging；该项目已存在 private.analytics_entry_friction 与 private.analytics_reader_last_position 两个 owner-only 汇总视图。production 目前没有这份新增迁移。
-- 源码、定向测试和完整门禁已完成：34 个测试文件、138 测试，lint、typecheck/build、diff-check 全部通过。这批改动仍尚未 commit/push。未做浏览器实测，因为它会向 staging 写入新的匿名测试会话；不要把 staging 测试记录迁入 production。未来应先审核并合并代码，再将同一 migration 独立应用到 production。
+- 新迁移为 supabase/migrations/20260816043502_analytics_friction_diagnostics.sql，已应用到 NewTone-Staging 和 production；两个项目均已存在 private.analytics_entry_friction 与 private.analytics_reader_last_position 两个 owner-only 汇总视图。
+- 源码、定向测试和完整门禁已完成：34 个测试文件、138 测试，lint、typecheck/build、diff-check 全部通过。提交 04a1fd3 已推送 staging 并快进到 main。未做浏览器实测，因为它会向 staging 写入新的匿名测试会话；production 只接收 schema migration，不接收 staging 测试记录或正文数据。
