@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react'
 import CenterInfoPanel from '../center/components/CenterInfoPanel'
-import CenterMap from '../center/components/CenterMap'
+import CenterMap from '../center/components/CenterDataMap'
 import CenterNewsTicker from '../center/components/CenterNewsTicker'
 import { useCenterPanZoom } from '../center/camera/useCenterPanZoom'
 import { getCenterCopy } from '../center/data/centerCopy'

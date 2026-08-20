@@ -593,3 +593,121 @@
 .center-experience[data-motion-mode='reduced'] .center-news__track,
 .center-experience[data-motion-mode='reduced'] .center-news__pulse,
 .center-experience[data-motion-mode='reduced'] .center-point__orbit { animation: none !important; transform: none; }
+
+/* Procedural world-map demo -------------------------------------------------
+   This layer deliberately keeps every mark as SVG geometry. Terrain height,
+   graph links, settlement glyphs, and location labels are all projected from
+   data in centerWorldMap.js; there are no raster map assets in this scene. */
+.center-data-map { background: #070c0e; }
+.center-data-map__backdrop { fill: #070c0e; }
+.center-data-map__stars { fill: url('#center-data-stars'); opacity: .56; }
+.center-data-map__vignette { fill: url('#center-data-vignette'); opacity: .92; pointer-events: none; }
+.center-data-layer { pointer-events: none; }
+.center-data-map text { font-family: var(--font-body); }
+.center-data-map path,
+.center-data-map circle,
+.center-data-map text { vector-effect: non-scaling-stroke; }
+
+.center-data-terrain__surface { fill: rgba(70, 88, 88, .095); stroke: none; }
+.center-data-terrain__mesh { opacity: .38; }
+.center-data-terrain__mesh path { fill: none; stroke: rgba(104, 136, 139, .29); stroke-width: .58; }
+.center-data-terrain__boundary { fill: none; stroke: rgba(196, 170, 116, .75); stroke-width: 1.15; stroke-dasharray: 3 7; stroke-linecap: round; }
+.center-data-terrain__contour { fill: none; stroke: rgba(173, 164, 132, .28); stroke-width: .72; stroke-dasharray: 1 5; }
+
+.center-data-mountain__ring { fill: none; stroke: rgba(186, 167, 125, .34); stroke-width: .82; stroke-dasharray: 2 5; }
+.center-data-mountain__ridge { fill: none; stroke: rgba(197, 180, 141, .42); stroke-width: .72; stroke-linecap: round; }
+.center-data-mountain__peak { fill: rgba(230, 207, 158, .72); stroke: rgba(238, 220, 177, .48); stroke-width: .6; }
+.center-data-tone--cool .center-data-mountain__ring,
+.center-data-tone--cool .center-data-mountain__ridge { stroke: rgba(128, 165, 180, .36); }
+.center-data-tone--cool .center-data-mountain__peak { fill: rgba(158, 199, 211, .68); }
+
+.center-data-region { pointer-events: all; cursor: pointer; outline: none; }
+.center-data-region__surface { fill: rgba(145, 149, 136, .018); stroke: rgba(126, 139, 134, .18); stroke-width: .7; transition: fill 260ms ease, stroke 260ms ease; }
+.center-data-region__trace { fill: none; stroke: rgba(202, 176, 124, .62); stroke-width: 1.25; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; transition: stroke-dashoffset 620ms cubic-bezier(.2,.72,.2,1), opacity 220ms ease; }
+.center-data-region__label { fill: rgba(191, 187, 169, .44); font-size: 9px; letter-spacing: .19em; text-anchor: middle; pointer-events: none; }
+.center-data-region[data-entity-state='focus'] .center-data-region__surface,
+.center-data-region[data-entity-state='selected'] .center-data-region__surface,
+.center-data-region[data-entity-state='open'] .center-data-region__surface { fill: rgba(191, 165, 108, .065); stroke: rgba(211, 188, 138, .6); }
+.center-data-region[data-entity-state='focus'] .center-data-region__trace,
+.center-data-region[data-entity-state='selected'] .center-data-region__trace,
+.center-data-region[data-entity-state='open'] .center-data-region__trace { stroke-dashoffset: 0; opacity: .88; }
+
+.center-data-graph__edge { fill: none; stroke: rgba(121, 164, 171, .26); stroke-width: .7; stroke-dasharray: 1 6; stroke-linecap: round; }
+.center-data-route { opacity: .9; }
+.center-data-route path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.center-data-route__underlay { stroke: rgba(24, 37, 38, .85); stroke-width: 13; }
+.center-data-route__line { stroke: rgba(155, 166, 159, .52); stroke-width: 1.3; }
+.center-data-route__signal { stroke: rgba(199, 179, 133, .28); stroke-width: .68; stroke-dasharray: 1 6; }
+.center-data-route--river .center-data-route__underlay { stroke: rgba(42, 85, 98, .58); stroke-width: 15; }
+.center-data-route--river .center-data-route__line { stroke: rgba(145, 190, 199, .72); stroke-width: 2.2; }
+.center-data-route--river .center-data-route__signal { stroke: rgba(198, 215, 207, .58); stroke-width: .7; stroke-dasharray: 2 6; }
+.center-data-route--signal .center-data-route__line { stroke: rgba(149, 178, 193, .62); stroke-width: .92; stroke-dasharray: 2 4; }
+.center-data-route--signal .center-data-route__signal { stroke: rgba(205, 187, 136, .78); stroke-width: .65; stroke-dasharray: 1 7; }
+.center-data-route--trade .center-data-route__line { stroke: rgba(200, 173, 118, .7); stroke-width: 1.05; }
+.center-data-route--road .center-data-route__line { stroke: rgba(152, 159, 148, .44); stroke-width: .78; stroke-dasharray: 3 5; }
+
+.center-data-city__orbit { fill: none; stroke: rgba(204, 180, 126, .54); stroke-width: .8; stroke-dasharray: 2 5; }
+.center-data-city__orbit--inner { stroke: rgba(202, 192, 160, .3); stroke-dasharray: 1 4; }
+.center-data-city__core { fill: rgba(226, 204, 154, .82); stroke: rgba(228, 211, 171, .44); stroke-width: .7; }
+.center-data-city__structure { fill: none; stroke: rgba(212, 195, 157, .6); stroke-width: .78; stroke-linecap: round; stroke-linejoin: round; }
+.center-data-tone--cool .center-data-city__orbit,
+.center-data-tone--cool .center-data-city__structure { stroke: rgba(139, 185, 199, .54); }
+.center-data-tone--cool .center-data-city__core { fill: rgba(166, 204, 211, .76); }
+.center-data-tone--neutral .center-data-city__orbit,
+.center-data-tone--neutral .center-data-city__structure { stroke: rgba(180, 184, 174, .48); }
+
+.center-data-location { opacity: .92; }
+.center-data-location__leader { fill: none; stroke: rgba(198, 181, 142, .58); stroke-width: .66; stroke-dasharray: 1 4; }
+.center-data-location__pin { fill: rgba(212, 190, 140, .8); stroke: rgba(244, 224, 176, .46); stroke-width: .55; }
+.center-data-location__label { fill: rgba(218, 207, 179, .7); font-size: 10px; letter-spacing: .12em; }
+.center-data-tone--cool .center-data-location__leader { stroke: rgba(131, 179, 194, .62); }
+.center-data-tone--cool .center-data-location__pin { fill: rgba(157, 199, 209, .82); }
+.center-data-tone--cool .center-data-location__label { fill: rgba(180, 211, 216, .72); }
+
+.center-data-node { outline: none; }
+.center-data-node--static { pointer-events: none; opacity: .7; }
+.center-data-node--interactive { pointer-events: all; cursor: pointer; }
+.center-data-node__hit { fill: rgba(255,255,255,.001); stroke: transparent; stroke-width: 1; }
+.center-data-node__ring { fill: none; stroke: rgba(182, 178, 151, .36); stroke-width: .8; stroke-dasharray: 2 5; transition: stroke 220ms ease, r 220ms ease; }
+.center-data-node__halo { fill: rgba(194, 173, 120, .24); stroke: none; }
+.center-data-node__dot { fill: rgba(215, 197, 157, .78); stroke: #081013; stroke-width: 1.5; }
+.center-data-node__cross { fill: none; stroke: rgba(210, 193, 155, .28); stroke-width: .65; }
+.center-data-node__label { fill: rgba(218, 208, 186, .76); font-size: 9px; letter-spacing: .11em; pointer-events: none; }
+.center-data-node--static .center-data-node__dot { fill: rgba(140, 159, 160, .52); }
+.center-data-node--static .center-data-node__ring { stroke: rgba(120, 153, 158, .22); }
+.center-data-node[data-entity-state='focus'] .center-data-node__ring,
+.center-data-node[data-entity-state='selected'] .center-data-node__ring,
+.center-data-node[data-entity-state='open'] .center-data-node__ring { stroke: rgba(237, 207, 145, .9); animation: center-data-node-pulse 2.6s ease-in-out infinite; }
+.center-data-node[data-entity-state='focus'] .center-data-node__dot,
+.center-data-node[data-entity-state='selected'] .center-data-node__dot,
+.center-data-node[data-entity-state='open'] .center-data-node__dot { fill: #efd495; }
+.center-data-node[data-entity-state='focus'] .center-data-node__label,
+.center-data-node[data-entity-state='selected'] .center-data-node__label,
+.center-data-node[data-entity-state='open'] .center-data-node__label { fill: #f1dfb4; }
+@keyframes center-data-node-pulse { 50% { opacity: .54; } }
+
+.center-data-fixed-hud { fill: none; stroke: rgba(188, 174, 145, .58); stroke-width: .8; pointer-events: none; }
+.center-data-compass text,
+.center-data-legend text { fill: rgba(202, 192, 169, .62); stroke: none; font-size: 9px; letter-spacing: .15em; }
+.center-data-compass__diamond { stroke: rgba(201, 182, 139, .74); }
+.center-data-legend__title { fill: rgba(223, 206, 167, .76) !important; font-size: 10px !important; }
+.center-data-legend__cool { stroke: rgba(145, 192, 204, .72); }
+.center-data-legend__muted { stroke: rgba(161, 168, 158, .4); stroke-dasharray: 2 4; }
+.center-data-legend__coordinates { fill: rgba(170, 182, 177, .45) !important; font-size: 8px !important; }
+
+@media (max-width: 700px) {
+  .center-data-fixed-hud .center-data-legend { display: none; }
+  .center-data-compass { transform: translate(62px 176px) scale(.82); transform-origin: 0 0; }
+  .center-data-location__label { font-size: 8px; }
+  .center-data-node__label { font-size: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .center-data-node[data-entity-state='focus'] .center-data-node__ring,
+  .center-data-node[data-entity-state='selected'] .center-data-node__ring,
+  .center-data-node[data-entity-state='open'] .center-data-node__ring { animation: none; }
+}
+
+.center-experience[data-motion-mode='reduced'] .center-data-node[data-entity-state='focus'] .center-data-node__ring,
+.center-experience[data-motion-mode='reduced'] .center-data-node[data-entity-state='selected'] .center-data-node__ring,
+.center-experience[data-motion-mode='reduced'] .center-data-node[data-entity-state='open'] .center-data-node__ring { animation: none; }
