@@ -21,6 +21,28 @@ const TRANSITION_DEFINITIONS = {
     },
     scene: 'surface-return',
   },
+  'surface-to-core': {
+    targetView: 'center',
+    label: '接入城区中',
+    timings: {
+      leaving: 320,
+      overlayCover: 320,
+      coveredHold: 180,
+      entering: 460,
+    },
+    scene: 'core-entry',
+  },
+  'core-to-surface': {
+    targetView: 'landing',
+    label: '返回入口中',
+    timings: {
+      leaving: 260,
+      overlayCover: 260,
+      coveredHold: 160,
+      entering: 420,
+    },
+    scene: 'core-exit',
+  },
 }
 
 export function getDefinition(preset) {

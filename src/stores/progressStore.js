@@ -32,7 +32,12 @@ export const useProgressStore = create((set, get) => ({
   endChapterTrial: () => set({ chapterTrialEnded: true }),
   completeReader: () => { if (get().readerCompleted) return false; set({ readerCompleted: true }); return true },
   goLanding: () => set({ currentView: 'landing' }),
-  setViewFromHistory: view => set(view === 'reader' ? { currentView: 'reader', readerStarted: true, resumeRequested: true } : { currentView: 'landing' }),
+  goCenter: () => set({ currentView: 'center' }),
+  setViewFromHistory: view => {
+    if (view === 'reader') return set({ currentView: 'reader', readerStarted: true, resumeRequested: true })
+    if (view === 'center') return set({ currentView: 'center' })
+    return set({ currentView: 'landing' })
+  },
   setLanguage: language => { if (READER_LANGUAGE_CODES.includes(language)) set({ language }) },
   toggleLanguage: () => set({ language: getNextReaderLanguage(get().language).code }),
   setInitializedLanguage: () => set({ hasInitializedLanguage: true }),

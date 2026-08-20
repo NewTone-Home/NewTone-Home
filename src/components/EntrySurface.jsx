@@ -21,6 +21,7 @@ function EntrySurface({
   environmentState,
   landingHandoff = false,
   onEnter,
+  onEnterCenter,
   onProceed,
   onModeSelect,
   onTransitionReady,
@@ -61,6 +62,7 @@ function EntrySurface({
     >
       <Landing
         onEnter={onEnter}
+        onEnterCenter={onEnterCenter}
         onEnterUpdates={() => sendUpdatesEvent('enter-requested')}
         updatesPhase={updatesPhase}
         leaving={entryActive}

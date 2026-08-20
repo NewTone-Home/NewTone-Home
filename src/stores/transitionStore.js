@@ -31,6 +31,10 @@ function commitTargetView(targetView, preset, payload) {
     else progress.startReading()
     return true
   }
+  if (targetView === 'center') {
+    progress.goCenter()
+    return true
+  }
   return false
 }
 

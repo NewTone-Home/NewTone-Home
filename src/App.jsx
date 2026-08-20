@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef } from 'react'
 import { useProgressStore } from './stores/progressStore'
 import { useTransitionStore } from './stores/transitionStore'
 import { useReadingEntry } from './transitions/readingEntryController'
@@ -13,6 +13,8 @@ import { resolveReaderEnvironmentPreview } from './data/reader-experiments/reade
 import { getReaderThemeVariables } from './reader/readerTheme'
 import { trackEvent } from './services/analytics'
 import { recordRuntimeAudit } from './services/runtimeAudit'
+
+const CenterExperience = lazy(() => import('./views/CenterExperience'))
 
 function App({ contentStatus = 'ready', onRetryContent }) {
   const currentView = useProgressStore(s => s.currentView)
@@ -70,9 +72,10 @@ function App({ contentStatus = 'ready', onRetryContent }) {
 
       historyPushRef.current = false
       const requestedView = event.state?.newtoneView || 'landing'
-      const view = requestedView === 'reader' ? 'reader' : 'landing'
+      const view = ['reader', 'center'].includes(requestedView) ? requestedView : 'landing'
       const currentStableView = useProgressStore.getState().currentView
       const readerReturningToLanding = currentStableView === 'reader' && view === 'landing'
+      const centerReturningToLanding = currentStableView === 'center' && view === 'landing'
 
       if (readerReturningToLanding) {
         trackEvent('reader_exit', { exitReason: 'browser_back' })
@@ -85,6 +88,11 @@ function App({ contentStatus = 'ready', onRetryContent }) {
 
       if (readerReturningToLanding) {
         tState.transitionTo('landing', { preset: 'reader-to-surface', waitForReady: false })
+        return
+      }
+
+      if (centerReturningToLanding) {
+        tState.transitionTo('landing', { preset: 'core-to-surface', waitForReady: false })
         return
       }
 
@@ -132,6 +140,8 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     currentView === 'reader' &&
     (!readingEntry.isActive || readingEntryNeedsReader)
 
+  const showCenter = currentView === 'center' && !readingEntry.isActive
+
   const readerEntryHandoffPhase = readingEntry.phase === 'reader-preparing'
     || readingEntry.phase === 'transition-leaving'
     ? readingEntry.phase
@@ -154,6 +164,26 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     readingEntry.proceedFromMode(mode)
   }, [readingEntry.proceedFromMode])
 
+  const handleEnterCenter = useCallback(() => {
+    if (readingEntry.isActive || useTransitionStore.getState().phase !== 'idle') return
+    recordRuntimeAudit('center-entry-requested', { source: 'landing' })
+    void import('./views/CenterExperience')
+    useTransitionStore.getState().transitionTo('center', {
+      preset: 'surface-to-core',
+      waitForReady: true,
+      readyTimeoutMs: 4500,
+    })
+  }, [readingEntry.isActive])
+
+  const handleExitCenter = useCallback(() => {
+    if (useTransitionStore.getState().phase !== 'idle') return
+    recordRuntimeAudit('center-exit-requested', { target: 'landing' })
+    useTransitionStore.getState().transitionTo('landing', {
+      preset: 'core-to-surface',
+      waitForReady: false,
+    })
+  }, [])
+
   return (
     <>
       <PageShell motionMode={motionMode} surfaceStyle={readerSurfaceStyle}>
@@ -164,6 +194,14 @@ function App({ contentStatus = 'ready', onRetryContent }) {
             onReaderReady={readingEntry.isActive ? readingEntry.handleReaderReady : undefined}
             readerEntryHandoffPhase={readerEntryHandoffPhase}
           />
+        )}
+        {showCenter && (
+          <Suspense fallback={null}>
+            <CenterExperience
+              onExit={handleExitCenter}
+              onReady={() => useTransitionStore.getState().notifyTargetReady('center')}
+            />
+          </Suspense>
         )}
         {(showEntrySurface || showLandingHandoffSurface) && (
           <EntrySurface
@@ -179,6 +217,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
             environmentState={environmentState}
             landingHandoff={showLandingHandoffSurface}
             onEnter={handleEnter}
+            onEnterCenter={handleEnterCenter}
             onProceed={handleLanguageProceed}
             onModeSelect={handleModeSelect}
             onTransitionReady={readingEntry.isActive ? readingEntry.handleTransitionReady : undefined}

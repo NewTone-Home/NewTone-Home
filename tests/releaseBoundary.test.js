@@ -12,10 +12,10 @@ describe('first-release boundary', () => {
     expect(existsSync(`${root}/supabase/seed/reader-content-v1.json`)).toBe(false)
   })
 
-  it('keeps admin separate and clamps public history to Landing or Reader', () => {
+  it('keeps admin separate and clamps public history to the three public surfaces', () => {
     expect(source('src/main.jsx')).toContain("window.location.pathname === '/admin'")
-    expect(source('src/App.jsx')).not.toContain("from './views/Center'")
-    expect(source('src/App.jsx')).toContain("requestedView === 'reader' ? 'reader' : 'landing'")
+    expect(source('src/App.jsx')).toContain("lazy(() => import('./views/CenterExperience'))")
+    expect(source('src/App.jsx')).toContain("['reader', 'center'].includes(requestedView)")
     expect(source('src/views/Landing.jsx')).not.toContain('/admin')
   })
 

@@ -22,6 +22,7 @@ const RETURN_STATUS_FADE_MS = 260
 
 function Landing({
   onEnter,
+  onEnterCenter,
   onEnterUpdates,
   leaving,
   leavingMs,
@@ -140,6 +141,12 @@ function Landing({
       materialMode: 'background',
     },
     {
+      id: 'center',
+      label: copy[landingLanguage]?.center || copy.en.center,
+      materialMode: 'world',
+      worldLayer: environmentState.worldLayer,
+    },
+    {
       id: readerEntryId,
       label: hasProgress
         ? (copy[landingLanguage]?.continueReading || copy[landingLanguage]?.transitionResume)
@@ -160,9 +167,13 @@ function Landing({
       onEnterUpdates?.()
       return
     }
+    if (entryId === 'center') {
+      onEnterCenter?.()
+      return
+    }
     const state = useProgressStore.getState()
     onEnter?.(getReaderEntryIntent(state))
-  }, [onEnter, onEnterUpdates])
+  }, [onEnter, onEnterCenter, onEnterUpdates])
 
   return (
     <div
