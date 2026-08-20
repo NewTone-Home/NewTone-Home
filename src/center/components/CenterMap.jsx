@@ -112,9 +112,12 @@ function facadePaths(facade) {
   ]
 }
 
-function AuxiliaryVolumes({ building }) {
-  return building.visual?.annexes?.map((annex, index) => {
-    const geometry = buildingGeometry({ geometry: annex })
+function getAnnexGeometries(building) {
+  return (building.visual?.annexes || []).map(annex => buildingGeometry({ geometry: annex }))
+}
+
+function AuxiliaryVolumes({ building, geometries }) {
+  return geometries.map((geometry, index) => {
     return (
       <g className="center-building__annex" key={`${building.id}-annex-${index}`}>
         <path className="center-building__annex-face center-building__annex-face--east" d={geometry.eastFace} />
@@ -228,6 +231,14 @@ function StructureVolume({ building, interaction, language, onFocus, onBlur, onS
   const facade = buildingFacadeGeometry(building)
   const roof = buildingRoofGeometry(building)
   const steps = buildingStepsGeometry(building)
+  const annexGeometries = getAnnexGeometries(building)
+  const selectionTrace = [geometry.trace, ...annexGeometries.map(annex => annex.trace)].join(' ')
+  const interactionShape = [
+    geometry.roof,
+    geometry.eastFace,
+    geometry.westFace,
+    ...annexGeometries.flatMap(annex => [annex.roof, annex.eastFace, annex.westFace]),
+  ].join(' ')
   const interactive = Boolean(building.interactive)
   const state = interactive ? resolveEntityVisualState(interaction, building.id) : 'idle'
 
@@ -265,12 +276,12 @@ function StructureVolume({ building, interaction, language, onFocus, onBlur, onS
         {roof.special?.dome && <path className="center-building__dome" d={roof.special.dome} />}
         {roof.special?.spire?.map((path, index) => <path className="center-building__spire" d={path} key={`${building.id}-spire-${index}`} />)}
       </g>
-      <AuxiliaryVolumes building={building} />
+      <AuxiliaryVolumes building={building} geometries={annexGeometries} />
       <ArchetypeDetail building={building} geometry={geometry} />
       {building.id === 'signal-tower' && <path className="center-building__signal" d={`M${geometry.anchor[0]} ${geometry.anchor[1]} v-76 m-24 23 q24 -22 48 0 m-36 11 q12 -11 24 0`} />}
       {interactive && <>
-        <path className="center-building__trace" pathLength="1" d={geometry.trace} />
-        <path className="center-building__hit" d={`${geometry.roof} ${geometry.eastFace} ${geometry.westFace}`} />
+        <path className="center-building__trace" pathLength="1" d={selectionTrace} />
+        <path className="center-building__hit" d={interactionShape} />
         <text className="center-building__label" x={geometry.anchor[0]} y={geometry.anchor[1] - 16}>{centerText(building.name, language)}</text>
       </>}
     </g>
