@@ -118,6 +118,10 @@ export const CENTER_URBAN_DETAILS = Object.freeze([
   { id: 'market-kiosk-01', kind: 'kiosk', point: [3.7, 5.05], width: .55, depth: .45, height: .72 },
   { id: 'market-kiosk-02', kind: 'kiosk', point: [6.75, 6.95], width: .55, depth: .45, height: .72 },
   { id: 'station-marker', kind: 'marker', point: [7.4, 8.8] },
+  { id: 'archive-crossing', kind: 'crosswalk', point: [4.02, 3.5], axis: 'y' },
+  { id: 'market-crossing', kind: 'crosswalk', point: [7.86, 6.45], axis: 'x' },
+  { id: 'station-crossing', kind: 'crosswalk', point: [10.62, 8.55], axis: 'y' },
+  { id: 'signal-service-mark', kind: 'marker', point: [11.1, 9.22] },
 ])
 
 // Background massing keeps the district continuous while preserving a small,
@@ -147,7 +151,7 @@ export const CENTER_BUILDINGS = Object.freeze([
     summary: localized('保存已公开叙事与地点记录的主档案。', 'The primary archive for released narrative and location records.'),
     details: localized('后续可绑定 Reader 章节、世界条目、新闻与解锁记录。当前展示的是占位档案。', 'Later this entity can bind Reader chapters, world entries, news, and unlock history. The current record is a placeholder.'),
     geometry: { x: 1.3, y: 1.2, width: 2.4, depth: 2, height: 3.2 },
-    visual: { archetype: 'archive', roof: 'gable', roofAxis: 'x', roofRise: .8, facade: { east: [4, 2], west: [4, 2] }, steps: 'south', annexes: [{ x: .8, y: 2.5, width: .78, depth: .58, height: 1.18 }] },
+    visual: { archetype: 'archive', roof: 'gable', roofAxis: 'x', roofRise: .8, facade: { east: [4, 2], west: [4, 2] }, steps: 'south', annexes: [{ x: .8, y: 2.5, width: .78, depth: .58, height: 1.18 }, { x: 3.46, y: 1.04, width: .52, depth: .68, height: 1.28 }, { x: 1.12, y: 3.08, width: 1.26, depth: .36, height: .64 }] },
     links: { reader: 'chapter-01', news: ['feed-archive'], missions: [], route: 'archive-spine' },
   },
   {
@@ -156,7 +160,7 @@ export const CENTER_BUILDINGS = Object.freeze([
     summary: localized('持续记录城区边界之外的微弱变化。', 'Continuously records faint changes beyond the district boundary.'),
     details: localized('观测结果只以低频事件形式进入 World Feed。', 'Observations enter the World Feed only as low-frequency events.'),
     geometry: { x: 8.1, y: 1.1, width: 2, depth: 1.9, height: 4.5 },
-    visual: { archetype: 'observatory', roof: 'dome', roofRise: 1.2, facade: { east: [3, 3], west: [3, 3] }, steps: 'south' },
+    visual: { archetype: 'observatory', roof: 'dome', roofRise: 1.2, facade: { east: [3, 3], west: [3, 3] }, steps: 'south', annexes: [{ x: 7.72, y: 2.64, width: .78, depth: .52, height: .82 }, { x: 9.93, y: .88, width: .62, depth: .64, height: 1.02 }] },
     links: { reader: null, news: ['feed-observatory'], missions: ['observe-01'], route: 'signal-link' },
   },
   {
@@ -165,7 +169,7 @@ export const CENTER_BUILDINGS = Object.freeze([
     summary: localized('城市公共议程的占位节点。', 'A placeholder node for the city’s public agenda.'),
     details: localized('第一版不开放。', 'Not open in the first demo.'),
     geometry: { x: 11.1, y: 3.1, width: 2.1, depth: 2.4, height: 2.6 },
-    visual: { archetype: 'assembly', roof: 'terrace', facade: { east: [4, 2], west: [4, 2] }, steps: 'south', annexes: [{ x: 10.75, y: 4.8, width: .72, depth: .52, height: .72 }] },
+    visual: { archetype: 'assembly', roof: 'terrace', facade: { east: [4, 2], west: [4, 2] }, steps: 'south', annexes: [{ x: 10.75, y: 4.8, width: .72, depth: .52, height: .72 }, { x: 12.92, y: 3.06, width: .48, depth: .82, height: 1.05 }] },
     links: { reader: null, news: [], missions: [], route: null },
   },
   {
@@ -174,7 +178,7 @@ export const CENTER_BUILDINGS = Object.freeze([
     summary: localized('区域事件最密集的公共交换地点。', 'The public exchange with the highest density of regional events.'),
     details: localized('这里适合承载短新闻、人物片段与一次性互动。', 'A natural home for short news, character fragments, and one-step interactions.'),
     geometry: { x: 4.1, y: 5.1, width: 2.8, depth: 2.2, height: 1.8 },
-    visual: { archetype: 'market', roof: 'canopy', facade: { east: [5, 1], west: [5, 1] }, steps: 'south' },
+    visual: { archetype: 'market', roof: 'canopy', facade: { east: [5, 1], west: [5, 1] }, steps: 'south', annexes: [{ x: 3.72, y: 5.02, width: .55, depth: .44, height: .72 }, { x: 6.46, y: 6.82, width: .5, depth: .44, height: .72 }] },
     links: { reader: null, news: ['feed-market'], missions: ['market-01'], route: 'south-loop' },
   },
   {
@@ -183,7 +187,7 @@ export const CENTER_BUILDINGS = Object.freeze([
     summary: localized('维持基础服务的低层建筑。', 'A low structure maintaining basic services.'),
     details: localized('第一版不开放。', 'Not open in the first demo.'),
     geometry: { x: 0.8, y: 7.2, width: 2.1, depth: 1.7, height: 1.6 },
-    visual: { archetype: 'clinic', roof: 'flat', facade: { east: [3, 2], west: [3, 2] }, steps: 'south', annexes: [{ x: 2.32, y: 7.35, width: .45, depth: .6, height: 1.1 }] },
+    visual: { archetype: 'clinic', roof: 'flat', facade: { east: [3, 2], west: [3, 2] }, steps: 'south', annexes: [{ x: 2.32, y: 7.35, width: .45, depth: .6, height: 1.1 }, { x: 1.04, y: 8.82, width: 1.18, depth: .34, height: .65 }] },
     links: { reader: null, news: [], missions: [], route: null },
   },
   {
@@ -192,7 +196,7 @@ export const CENTER_BUILDINGS = Object.freeze([
     summary: localized('连接城区各层级的通行节点。', 'A transit node linking the city’s different layers.'),
     details: localized('未来可作为进入下一级区域、任务或独立场景的入口。', 'Later this can open a deeper region, mission, or standalone scene.'),
     geometry: { x: 7.7, y: 7.3, width: 3, depth: 1.8, height: 2.2 },
-    visual: { archetype: 'station', roof: 'canopy', facade: { east: [5, 2], west: [5, 2] }, steps: 'south', annexes: [{ x: 7.55, y: 8.78, width: 3.35, depth: .34, height: .42 }] },
+    visual: { archetype: 'station', roof: 'canopy', facade: { east: [5, 2], west: [5, 2] }, steps: 'south', annexes: [{ x: 7.55, y: 8.78, width: 3.35, depth: .34, height: .42 }, { x: 8.02, y: 6.95, width: 1.05, depth: .3, height: .45 }, { x: 10.1, y: 7.05, width: .45, depth: .58, height: 1.06 }] },
     links: { reader: null, news: ['feed-station'], missions: ['transit-01'], route: 'south-loop' },
   },
   {
@@ -201,7 +205,7 @@ export const CENTER_BUILDINGS = Object.freeze([
     summary: localized('向全城投递低强度同步信号。', 'Broadcasts a low-intensity synchronization signal across the city.'),
     details: localized('当前读数存在轻微漂移；信息层保持可访问，但不会阻塞点击。', 'The current reading drifts slightly; its information remains accessible without blocking direct interaction.'),
     geometry: { x: 11.6, y: 8.1, width: 1.3, depth: 1.3, height: 6.2 },
-    visual: { archetype: 'tower', roof: 'spire', roofRise: 1.15, facade: { east: [2, 5], west: [2, 5] }, steps: 'south' },
+    visual: { archetype: 'tower', roof: 'spire', roofRise: 1.15, facade: { east: [2, 5], west: [2, 5] }, steps: 'south', annexes: [{ x: 11.1, y: 8.86, width: .72, depth: .48, height: .54 }, { x: 12.75, y: 8.22, width: .42, depth: .56, height: .7 }] },
     links: { reader: null, news: ['feed-signal'], missions: ['signal-01'], route: 'signal-link' },
   },
   {
@@ -210,7 +214,7 @@ export const CENTER_BUILDINGS = Object.freeze([
     summary: localized('维护道路与结构线的后台节点。', 'A service node maintaining roads and structural lines.'),
     details: localized('第一版不开放。', 'Not open in the first demo.'),
     geometry: { x: 4.5, y: 9.2, width: 2.3, depth: 2.1, height: 2 },
-    visual: { archetype: 'works', roof: 'sawtooth', roofAxis: 'x', facade: { east: [4, 2], west: [4, 2] }, steps: 'south' },
+    visual: { archetype: 'works', roof: 'sawtooth', roofAxis: 'x', facade: { east: [4, 2], west: [4, 2] }, steps: 'south', annexes: [{ x: 6.72, y: 9.22, width: .55, depth: 1.34, height: .98 }, { x: 4.3, y: 10.72, width: .8, depth: .44, height: .68 }] },
     links: { reader: null, news: [], missions: [], route: null },
   },
   {
@@ -219,7 +223,7 @@ export const CENTER_BUILDINGS = Object.freeze([
     summary: localized('沿南部边界排列的生活区。', 'A residential strip along the southern boundary.'),
     details: localized('第一版不开放。', 'Not open in the first demo.'),
     geometry: { x: 1.4, y: 10.1, width: 2.6, depth: 2.1, height: 2.8 },
-    visual: { archetype: 'residences', roof: 'terraced', facade: { east: [5, 3], west: [5, 3] }, steps: 'south' },
+    visual: { archetype: 'residences', roof: 'terraced', facade: { east: [5, 3], west: [5, 3] }, steps: 'south', annexes: [{ x: .7, y: 10.16, width: .52, depth: 2.05, height: 1.72 }, { x: 4.02, y: 10.12, width: .5, depth: 1.3, height: 1.22 }] },
     links: { reader: null, news: [], missions: [], route: null },
   },
 ])

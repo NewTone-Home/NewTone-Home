@@ -137,6 +137,41 @@ function ArchetypeDetail({ building, geometry }) {
     return <path className="center-building__entrance" d={`M${left[0]} ${left[1]} L${top[0]} ${top[1]} L${right[0]} ${right[1]}`} />
   }
 
+  if (archetype === 'observatory') {
+    const center = projectPoint(x + width / 2, y + depth / 2, height + .12)
+    return (
+      <g className="center-building__observatory-detail">
+        <ellipse cx={center[0]} cy={center[1]} rx={width * 21} ry={depth * 9} />
+        <path d={`M${center[0] - width * 18} ${center[1]} Q${center[0]} ${center[1] - 30} ${center[0] + width * 18} ${center[1]}`} />
+        <path d={lineFrom([projectPoint(x + width * .22, y + depth, height), projectPoint(x + width * .22, y + depth, 0)])} />
+      </g>
+    )
+  }
+
+  if (archetype === 'assembly') {
+    return (
+      <g className="center-building__assembly-colonnade">
+        {[.16, .36, .56, .76].map((amount, index) => {
+          const top = projectPoint(x + width * amount, y + depth, height)
+          const bottom = projectPoint(x + width * amount, y + depth, height * .08)
+          return <path key={index} d={lineFrom([top, bottom])} />
+        })}
+      </g>
+    )
+  }
+
+  if (archetype === 'market') {
+    return (
+      <g className="center-building__market-canopies">
+        {[.14, .34, .54, .74, .94].map((amount, index) => {
+          const top = projectPoint(x + width * amount, y + depth + .12, height * .78)
+          const bottom = projectPoint(x + width * amount, y + depth + .12, height * .1)
+          return <path key={index} d={lineFrom([top, bottom])} />
+        })}
+      </g>
+    )
+  }
+
   if (archetype === 'station') {
     const railA = [projectPoint(x - .12, y + depth + .25), projectPoint(x + width + .38, y + depth + .25)]
     const railB = [projectPoint(x - .12, y + depth + .48), projectPoint(x + width + .38, y + depth + .48)]
@@ -144,9 +179,13 @@ function ArchetypeDetail({ building, geometry }) {
       <g className="center-building__platform-detail">
         <path d={lineFrom(railA)} />
         <path d={lineFrom(railB)} />
-        {[.18, .44, .7, .94].map((amount, index) => {
+        {[.12, .3, .48, .66, .84].map((amount, index) => {
           const railX = x + width * amount
           return <path key={index} d={lineFrom([projectPoint(railX, y + depth + .14), projectPoint(railX, y + depth + .58)])} />
+        })}
+        {[.16, .4, .64, .88].map((amount, index) => {
+          const columnX = x + width * amount
+          return <path className="center-building__platform-column" key={`column-${index}`} d={lineFrom([projectPoint(columnX, y + depth, height), projectPoint(columnX, y + depth, .06)])} />
         })}
       </g>
     )
@@ -174,6 +213,11 @@ function ArchetypeDetail({ building, geometry }) {
         })}
       </g>
     )
+  }
+
+  if (archetype === 'clinic') {
+    const center = projectPoint(x + width * .76, y + depth + .02, height * .75)
+    return <path className="center-building__clinic-mark" d={`M${center[0] - 7} ${center[1]} h14 M${center[0]} ${center[1] - 7} v14`} />
   }
 
   return null
@@ -269,6 +313,16 @@ function UrbanDetail({ detail }) {
         <circle cx={top[0]} cy={top[1]} r="2.2" />
       </g>
     )
+  }
+
+  if (detail.kind === 'crosswalk') {
+    const stripes = Array.from({ length: 5 }, (_, index) => {
+      const offset = (index - 2) * .1
+      return detail.axis === 'x'
+        ? lineFrom([projectPoint(detail.point[0] + offset, detail.point[1] - .22), projectPoint(detail.point[0] + offset, detail.point[1] + .22)])
+        : lineFrom([projectPoint(detail.point[0] - .22, detail.point[1] + offset), projectPoint(detail.point[0] + .22, detail.point[1] + offset)])
+    })
+    return <g className="center-urban-detail center-urban-detail--crosswalk" aria-hidden="true">{stripes.map((path, index) => <path d={path} key={index} />)}</g>
   }
 
   if (detail.kind === 'kiosk') {

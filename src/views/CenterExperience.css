@@ -237,9 +237,14 @@
 .center-building__annex-roof { fill: rgba(134,135,124,.04); stroke: rgba(126,130,120,.72); stroke-width: .76; }
 .center-building__annex-trace { fill: none; stroke: rgba(126,130,120,.58); stroke-width: .64; }
 .center-building__entrance { fill: none; stroke: rgba(184,154,98,.76); stroke-width: .8; stroke-linecap: round; }
+.center-building__observatory-detail { fill: rgba(184,154,98,.035); stroke: rgba(184,154,98,.7); stroke-width: .78; }
+.center-building__assembly-colonnade { fill: none; stroke: rgba(153,157,144,.62); stroke-width: .68; }
+.center-building__market-canopies { fill: none; stroke: rgba(184,154,98,.62); stroke-width: .72; }
 .center-building__platform-detail { fill: none; stroke: rgba(141,145,134,.64); stroke-width: .68; }
+.center-building__platform-column { stroke: rgba(184,154,98,.58); }
 .center-building__tower-lattice { fill: none; stroke: rgba(171,176,162,.65); stroke-width: .72; }
 .center-building__residence-divisions { fill: none; stroke: rgba(128,132,122,.58); stroke-width: .62; }
+.center-building__clinic-mark { fill: none; stroke: rgba(145,169,157,.75); stroke-width: .74; }
 .center-building__signal { fill: none; stroke: var(--center-alert); stroke-width: 1; opacity: .55; }
 .center-building__hit { fill: rgba(255,255,255,.001); stroke: transparent; stroke-width: 14; }
 
@@ -287,6 +292,7 @@
 .center-urban-detail--tree .center-urban-detail__crown { fill: rgba(88,113,93,.15); stroke: rgba(117,139,111,.72); stroke-width: .68; }
 .center-urban-detail--lamp { fill: none; stroke: rgba(162,158,144,.72); stroke-width: .68; }
 .center-urban-detail--lamp circle { fill: var(--center-accent); opacity: .76; }
+.center-urban-detail--crosswalk { fill: none; stroke: rgba(190,186,168,.52); stroke-width: 1.1; stroke-linecap: butt; }
 .center-urban-detail--kiosk { fill: rgba(118,110,92,.07); stroke: rgba(165,154,125,.62); stroke-width: .66; }
 .center-urban-detail--marker { fill: rgba(184,154,98,.18); stroke: var(--center-accent); stroke-width: .72; }
 
