@@ -111,9 +111,19 @@
 .center-grid path,
 .center-region__surface,
 .center-region__trace,
+.center-parcel__edge,
 .center-route__bed,
+.center-route__curb,
+.center-route__edge,
 .center-route__line,
-.center-building path,
+.center-building__face,
+.center-building__roof,
+.center-building__roof-plane,
+.center-building__structure,
+.center-building__trace,
+.center-building__annex-face,
+.center-building__annex-roof,
+.center-building__annex-trace,
 .center-point circle,
 .center-point path {
   vector-effect: non-scaling-stroke;
@@ -184,9 +194,19 @@
 .center-region[data-entity-state='selected'] .center-region__label,
 .center-region[data-entity-state='open'] .center-region__label { opacity: .78; }
 
+.center-parcel { pointer-events: none; }
+.center-parcel__surface { fill: rgba(141, 142, 126, .018); transition: fill 240ms ease, opacity 240ms ease; }
+.center-parcel__edge { fill: none; stroke: rgba(104, 109, 101, .52); stroke-width: .7; stroke-dasharray: 3 5; opacity: .58; }
+.center-parcel[data-parcel-use='garden'] .center-parcel__surface { fill: rgba(99, 121, 102, .04); }
+.center-parcel[data-parcel-use='market'] .center-parcel__surface { fill: rgba(184,154,98,.037); }
+.center-parcel[data-parcel-use='transit'] .center-parcel__surface { fill: rgba(116, 132, 130, .035); }
+.center-parcel[data-parcel-use='infrastructure'] .center-parcel__surface { fill: rgba(168, 117, 93, .03); }
+
 .center-route { pointer-events: none; }
-.center-route__bed { fill: none; stroke: #1e231f; stroke-width: 14; stroke-linecap: round; stroke-linejoin: round; }
-.center-route__line { fill: none; stroke: #5c6058; stroke-width: 1.1; stroke-dasharray: 9 8; stroke-linecap: round; opacity: .62; }
+.center-route__curb { fill: none; stroke: #303630; stroke-width: 23; stroke-linecap: round; stroke-linejoin: round; opacity: .65; }
+.center-route__bed { fill: none; stroke: #161b18; stroke-width: 17; stroke-linecap: round; stroke-linejoin: round; }
+.center-route__edge { fill: none; stroke: rgba(112, 117, 107, .36); stroke-width: 15; stroke-linecap: round; stroke-linejoin: round; }
+.center-route__line { fill: none; stroke: #72756a; stroke-width: .9; stroke-dasharray: 9 8; stroke-linecap: round; opacity: .6; }
 .center-route[data-route-status='restricted'] .center-route__line { stroke: var(--center-alert); stroke-dasharray: 2 8; opacity: .46; }
 
 .center-building {
@@ -195,12 +215,31 @@
 }
 
 .center-building--interactive { cursor: pointer; }
-.center-building:not(.center-building--interactive) { opacity: .48; }
+.center-building--static { opacity: .54; pointer-events: none; }
+.center-building__ground { fill: rgba(0,0,0,.2); opacity: .72; }
+.center-building__step { fill: rgba(124,128,117,.045); stroke: rgba(106,112,102,.48); stroke-width: .66; }
 .center-building__face { stroke: var(--center-line-soft); stroke-width: 1; }
 .center-building__face--east { fill: rgba(109, 111, 103, .075); }
 .center-building__face--west { fill: rgba(25, 29, 27, .56); }
 .center-building__roof { fill: rgba(156, 153, 139, .045); stroke: var(--center-line); stroke-width: 1; }
+.center-building__roof-plane { fill: rgba(150,151,140,.075); stroke: rgba(141,143,132,.72); stroke-width: .85; }
+.center-building__roof-plane:nth-of-type(even) { fill: rgba(79,86,79,.14); }
 .center-building__structure { fill: none; stroke: var(--center-line); stroke-width: .9; stroke-linecap: round; stroke-linejoin: round; opacity: .78; }
+.center-building__facade-detail { opacity: .55; }
+.center-building__facade { fill: none; stroke: rgba(139, 141, 130, .52); stroke-width: .6; stroke-linecap: round; }
+.center-building__facade--west { stroke: rgba(105, 110, 102, .45); }
+.center-building__roof-detail { fill: none; stroke: rgba(171,171,157,.62); stroke-width: .62; stroke-linecap: round; stroke-linejoin: round; opacity: .75; }
+.center-building__dome { stroke: rgba(184,154,98,.76); stroke-width: .9; }
+.center-building__spire { stroke: rgba(184,154,98,.7); stroke-width: .76; }
+.center-building__annex-face { stroke: rgba(102,108,100,.6); stroke-width: .72; }
+.center-building__annex-face--east { fill: rgba(92,100,93,.06); }
+.center-building__annex-face--west { fill: rgba(17,21,19,.62); }
+.center-building__annex-roof { fill: rgba(134,135,124,.04); stroke: rgba(126,130,120,.72); stroke-width: .76; }
+.center-building__annex-trace { fill: none; stroke: rgba(126,130,120,.58); stroke-width: .64; }
+.center-building__entrance { fill: none; stroke: rgba(184,154,98,.76); stroke-width: .8; stroke-linecap: round; }
+.center-building__platform-detail { fill: none; stroke: rgba(141,145,134,.64); stroke-width: .68; }
+.center-building__tower-lattice { fill: none; stroke: rgba(171,176,162,.65); stroke-width: .72; }
+.center-building__residence-divisions { fill: none; stroke: rgba(128,132,122,.58); stroke-width: .62; }
 .center-building__signal { fill: none; stroke: var(--center-alert); stroke-width: 1; opacity: .55; }
 .center-building__hit { fill: rgba(255,255,255,.001); stroke: transparent; stroke-width: 14; }
 
@@ -223,7 +262,14 @@
 
 .center-building[data-entity-state='focus'] .center-building__roof,
 .center-building[data-entity-state='selected'] .center-building__roof,
-.center-building[data-entity-state='open'] .center-building__roof { fill: rgba(184, 154, 98, .1); }
+.center-building[data-entity-state='open'] .center-building__roof,
+.center-building[data-entity-state='focus'] .center-building__roof-plane,
+.center-building[data-entity-state='selected'] .center-building__roof-plane,
+.center-building[data-entity-state='open'] .center-building__roof-plane { fill: rgba(184, 154, 98, .1); }
+
+.center-building[data-entity-state='focus'] .center-building__facade-detail,
+.center-building[data-entity-state='selected'] .center-building__facade-detail,
+.center-building[data-entity-state='open'] .center-building__facade-detail { opacity: .84; }
 
 .center-building[data-entity-state='focus'] .center-building__trace,
 .center-building[data-entity-state='selected'] .center-building__trace,
@@ -235,6 +281,24 @@
 .center-building[data-entity-state='focus'] .center-building__label,
 .center-building[data-entity-state='selected'] .center-building__label,
 .center-building[data-entity-state='open'] .center-building__label { opacity: .88; transform: translateY(-6px); }
+
+.center-urban-detail { pointer-events: none; }
+.center-urban-detail--tree .center-urban-detail__trunk { fill: none; stroke: rgba(159,153,134,.72); stroke-width: .72; }
+.center-urban-detail--tree .center-urban-detail__crown { fill: rgba(88,113,93,.15); stroke: rgba(117,139,111,.72); stroke-width: .68; }
+.center-urban-detail--lamp { fill: none; stroke: rgba(162,158,144,.72); stroke-width: .68; }
+.center-urban-detail--lamp circle { fill: var(--center-accent); opacity: .76; }
+.center-urban-detail--kiosk { fill: rgba(118,110,92,.07); stroke: rgba(165,154,125,.62); stroke-width: .66; }
+.center-urban-detail--marker { fill: rgba(184,154,98,.18); stroke: var(--center-accent); stroke-width: .72; }
+
+.center-scene[data-detail-level='overview'] .center-parcel__edge,
+.center-scene[data-detail-level='overview'] .center-building__facade-detail,
+.center-scene[data-detail-level='overview'] .center-building__roof-detail,
+.center-scene[data-detail-level='overview'] .center-building__annex,
+.center-scene[data-detail-level='overview'] .center-building__step,
+.center-scene[data-detail-level='overview'] .center-urban-detail { display: none; }
+.center-scene[data-detail-level='overview'] .center-parcel__surface { opacity: .45; }
+.center-scene[data-detail-level='overview'] .center-building--static { opacity: .32; }
+.center-scene[data-detail-level='standard'] .center-building__facade-detail { opacity: .38; }
 
 .center-point { cursor: pointer; outline: none; }
 .center-point__orbit { fill: rgba(184,154,98,.025); stroke: var(--center-line); stroke-width: .8; stroke-dasharray: 2 5; }
@@ -496,4 +560,3 @@
 .center-experience[data-motion-mode='reduced'] .center-news__track,
 .center-experience[data-motion-mode='reduced'] .center-news__pulse,
 .center-experience[data-motion-mode='reduced'] .center-point__orbit { animation: none !important; transform: none; }
-

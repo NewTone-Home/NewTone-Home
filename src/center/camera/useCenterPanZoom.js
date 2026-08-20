@@ -3,6 +3,12 @@ import Panzoom from '@panzoom/panzoom'
 
 const MOVE_EPSILON = 3
 
+function getDetailLevel(scale) {
+  if (scale < .96) return 'overview'
+  if (scale >= 1.72) return 'detail'
+  return 'standard'
+}
+
 export function useCenterPanZoom({ canvasRef, sceneRef, rootRef, onCameraFrame }) {
   const panzoomRef = useRef(null)
   const cameraFrameRef = useRef(onCameraFrame)
@@ -29,6 +35,7 @@ export function useCenterPanZoom({ canvasRef, sceneRef, rootRef, onCameraFrame }
       },
     })
     panzoomRef.current = panzoom
+    scene.dataset.detailLevel = getDetailLevel(1)
 
     let frame = 0
     const requestCameraFrame = () => {
@@ -54,6 +61,8 @@ export function useCenterPanZoom({ canvasRef, sceneRef, rootRef, onCameraFrame }
     const handleChange = event => {
       const start = gestureRef.current.start
       const detail = event.detail || {}
+      const detailLevel = getDetailLevel(detail.scale || 1)
+      if (scene.dataset.detailLevel !== detailLevel) scene.dataset.detailLevel = detailLevel
       if (start) {
         const distance = Math.hypot((detail.x || 0) - start.x, (detail.y || 0) - start.y)
         const scaleDistance = Math.abs((detail.scale || 1) - start.scale) * 100

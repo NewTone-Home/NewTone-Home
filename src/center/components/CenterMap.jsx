@@ -1,8 +1,11 @@
 import {
   CENTER_BUILDINGS,
+  CENTER_PARCELS,
   CENTER_POINTS,
   CENTER_REGIONS,
   CENTER_ROUTES,
+  CENTER_STATIC_MASSINGS,
+  CENTER_URBAN_DETAILS,
   centerText,
 } from '../data/centerScene'
 import {
@@ -14,17 +17,33 @@ import {
   projectGroundPolygon,
   projectPoint,
 } from '../geometry/isometric'
+import {
+  buildingFacadeGeometry,
+  buildingGroundGeometry,
+  buildingRoofGeometry,
+  buildingStepsGeometry,
+  detailAnchor,
+} from '../geometry/scenePrimitives'
 import { resolveEntityVisualState } from '../interaction/centerInteraction'
 
-const GRID_VALUES = Array.from({ length: 15 }, (_, index) => index)
-const ORDERED_BUILDINGS = [...CENTER_BUILDINGS].sort(
-  (left, right) => (left.geometry.x + left.geometry.y) - (right.geometry.x + right.geometry.y),
-)
+const GRID_VALUES = Array.from({ length: 8 }, (_, index) => index * 2)
+const ORDERED_STRUCTURES = [
+  ...CENTER_STATIC_MASSINGS.map(structure => ({ ...structure, kind: 'massing', interactive: false })),
+  ...CENTER_BUILDINGS,
+].sort((left, right) => {
+  const leftDepth = left.geometry.x + left.geometry.y + left.geometry.depth * .5
+  const rightDepth = right.geometry.x + right.geometry.y + right.geometry.depth * .5
+  return leftDepth - rightDepth
+})
 
 function entityKeyDown(event, entity, onSelect) {
   if (!entity.interactive || !['Enter', ' '].includes(event.key)) return
   event.preventDefault()
   onSelect(entity.id, 'keyboard')
+}
+
+function lineFrom([start, end]) {
+  return `M${start[0]} ${start[1]} L${end[0]} ${end[1]}`
 }
 
 function RegionLayer({ interaction, language, onFocus, onBlur, onSelect }) {
@@ -58,53 +77,222 @@ function RegionLayer({ interaction, language, onFocus, onBlur, onSelect }) {
   })
 }
 
-function RouteLayer() {
+function ParcelLayer() {
+  return CENTER_PARCELS.map(parcel => {
+    const points = projectGroundPolygon(parcel.geometry.points)
+    return (
+      <g key={parcel.id} className="center-parcel" data-parcel-use={parcel.use} aria-hidden="true">
+        <path className="center-parcel__surface" d={polygonPath(points)} />
+        <path className="center-parcel__edge" d={polygonPath(points)} />
+      </g>
+    )
+  })
+}
+
+function StreetLayer() {
   return CENTER_ROUTES.map(route => {
     const points = pointsAttribute(projectGroundLine(route.geometry.points))
     return (
-      <g key={route.id} className="center-route" data-route-status={route.status}>
+      <g key={route.id} className="center-route" data-route-status={route.status} aria-hidden="true">
+        <polyline className="center-route__curb" points={points} />
         <polyline className="center-route__bed" points={points} />
+        <polyline className="center-route__edge" points={points} />
         <polyline className="center-route__line" points={points} />
       </g>
     )
   })
 }
 
-function BuildingLayer({ interaction, language, onFocus, onBlur, onSelect }) {
-  return ORDERED_BUILDINGS.map(building => {
-    const geometry = buildingGeometry(building)
-    const state = resolveEntityVisualState(interaction, building.id)
+function facadePaths(facade) {
+  return [
+    ...facade.east.vertical.map((path, index) => ({ id: `east-v-${index}`, path, face: 'east' })),
+    ...facade.east.horizontal.map((path, index) => ({ id: `east-h-${index}`, path, face: 'east' })),
+    ...facade.west.vertical.map((path, index) => ({ id: `west-v-${index}`, path, face: 'west' })),
+    ...facade.west.horizontal.map((path, index) => ({ id: `west-h-${index}`, path, face: 'west' })),
+  ]
+}
+
+function AuxiliaryVolumes({ building }) {
+  return building.visual?.annexes?.map((annex, index) => {
+    const geometry = buildingGeometry({ geometry: annex })
     return (
-      <g
-        key={building.id}
-        className={`center-building${building.interactive ? ' center-building--interactive' : ''}`}
-        data-center-entity-id={building.id}
-        data-center-entity-interactive={building.interactive ? 'true' : 'false'}
-        data-entity-state={state}
-        data-entity-type={building.entityType}
-        role={building.interactive ? 'button' : undefined}
-        tabIndex={building.interactive ? 0 : undefined}
-        aria-label={building.interactive ? centerText(building.name, language) : undefined}
-        onPointerEnter={event => building.interactive && event.pointerType !== 'touch' && onFocus(building.id)}
-        onPointerLeave={() => building.interactive && onBlur(building.id)}
-        onFocus={() => building.interactive && onFocus(building.id)}
-        onBlur={() => building.interactive && onBlur(building.id)}
-        onClick={event => { if (!building.interactive) return; event.stopPropagation(); onSelect(building.id, event.detail === 0 ? 'keyboard' : 'pointer') }}
-        onKeyDown={event => entityKeyDown(event, building, onSelect)}
-      >
-        <path className="center-building__face center-building__face--east" d={geometry.eastFace} />
-        <path className="center-building__face center-building__face--west" d={geometry.westFace} />
-        <path className="center-building__roof" d={geometry.roof} />
-        <path className="center-building__structure" d={geometry.trace} />
-        {building.id === 'signal-tower' && (
-          <path className="center-building__signal" d={`M${geometry.anchor[0]} ${geometry.anchor[1]} v-62 m-18 18 q18 -18 36 0 m-27 9 q9 -9 18 0`} />
-        )}
-        <path className="center-building__trace" pathLength="1" d={geometry.trace} />
-        <path className="center-building__hit" d={`${geometry.roof} ${geometry.eastFace} ${geometry.westFace}`} />
-        <text className="center-building__label" x={geometry.anchor[0]} y={geometry.anchor[1] - 14}>{centerText(building.name, language)}</text>
+      <g className="center-building__annex" key={`${building.id}-annex-${index}`}>
+        <path className="center-building__annex-face center-building__annex-face--east" d={geometry.eastFace} />
+        <path className="center-building__annex-face center-building__annex-face--west" d={geometry.westFace} />
+        <path className="center-building__annex-roof" d={geometry.roof} />
+        <path className="center-building__annex-trace" d={geometry.trace} />
       </g>
     )
   })
+}
+
+function ArchetypeDetail({ building, geometry }) {
+  const { x, y, width, depth, height } = building.geometry
+  const archetype = building.visual?.archetype
+
+  if (archetype === 'archive') {
+    const left = projectPoint(x + width * .36, y + depth, height * .14)
+    const right = projectPoint(x + width * .64, y + depth, height * .14)
+    const top = projectPoint(x + width * .5, y + depth, height * .68)
+    return <path className="center-building__entrance" d={`M${left[0]} ${left[1]} L${top[0]} ${top[1]} L${right[0]} ${right[1]}`} />
+  }
+
+  if (archetype === 'station') {
+    const railA = [projectPoint(x - .12, y + depth + .25), projectPoint(x + width + .38, y + depth + .25)]
+    const railB = [projectPoint(x - .12, y + depth + .48), projectPoint(x + width + .38, y + depth + .48)]
+    return (
+      <g className="center-building__platform-detail">
+        <path d={lineFrom(railA)} />
+        <path d={lineFrom(railB)} />
+        {[.18, .44, .7, .94].map((amount, index) => {
+          const railX = x + width * amount
+          return <path key={index} d={lineFrom([projectPoint(railX, y + depth + .14), projectPoint(railX, y + depth + .58)])} />
+        })}
+      </g>
+    )
+  }
+
+  if (archetype === 'tower') {
+    const [eastTop, eastBase] = [geometry.top[1], geometry.ground[1]]
+    const [westTop, westBase] = [geometry.top[2], geometry.ground[2]]
+    return (
+      <g className="center-building__tower-lattice">
+        <path d={lineFrom([eastTop, westBase])} />
+        <path d={lineFrom([westTop, eastBase])} />
+        <path d={lineFrom([geometry.top[3], geometry.ground[1]])} />
+      </g>
+    )
+  }
+
+  if (archetype === 'residences') {
+    return (
+      <g className="center-building__residence-divisions">
+        {[.2, .4, .6, .8].map((amount, index) => {
+          const top = projectPoint(x + width * amount, y + depth, height)
+          const bottom = projectPoint(x + width * amount, y + depth)
+          return <path key={index} d={lineFrom([top, bottom])} />
+        })}
+      </g>
+    )
+  }
+
+  return null
+}
+
+function StructureVolume({ building, interaction, language, onFocus, onBlur, onSelect }) {
+  const geometry = buildingGeometry(building)
+  const facade = buildingFacadeGeometry(building)
+  const roof = buildingRoofGeometry(building)
+  const steps = buildingStepsGeometry(building)
+  const interactive = Boolean(building.interactive)
+  const state = interactive ? resolveEntityVisualState(interaction, building.id) : 'idle'
+
+  return (
+    <g
+      className={`center-building${interactive ? ' center-building--interactive' : ' center-building--static'}`}
+      data-center-entity-id={interactive ? building.id : undefined}
+      data-center-entity-interactive={interactive ? 'true' : undefined}
+      data-entity-state={state}
+      data-entity-type={building.entityType || 'Structure'}
+      data-archetype={building.visual?.archetype || 'support'}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      aria-label={interactive ? centerText(building.name, language) : undefined}
+      aria-hidden={interactive ? undefined : true}
+      onPointerEnter={event => interactive && event.pointerType !== 'touch' && onFocus(building.id)}
+      onPointerLeave={() => interactive && onBlur(building.id)}
+      onFocus={() => interactive && onFocus(building.id)}
+      onBlur={() => interactive && onBlur(building.id)}
+      onClick={event => { if (!interactive) return; event.stopPropagation(); onSelect(building.id, event.detail === 0 ? 'keyboard' : 'pointer') }}
+      onKeyDown={event => entityKeyDown(event, building, onSelect)}
+    >
+      <path className="center-building__ground" d={buildingGroundGeometry(building)} />
+      {steps.map((path, index) => <path className="center-building__step" d={path} key={`${building.id}-step-${index}`} />)}
+      <path className="center-building__face center-building__face--east" d={geometry.eastFace} />
+      <path className="center-building__face center-building__face--west" d={geometry.westFace} />
+      <path className="center-building__roof" d={geometry.roof} />
+      {roof.faces.map((path, index) => <path className="center-building__roof-plane" d={path} key={`${building.id}-roof-plane-${index}`} />)}
+      <path className="center-building__structure" d={geometry.trace} />
+      <g className="center-building__facade-detail">
+        {facadePaths(facade).map(item => <path className={`center-building__facade center-building__facade--${item.face}`} d={item.path} key={`${building.id}-${item.id}`} />)}
+      </g>
+      <g className="center-building__roof-detail">
+        {roof.lines.map((path, index) => <path d={path} key={`${building.id}-roof-line-${index}`} />)}
+        {roof.special?.dome && <path className="center-building__dome" d={roof.special.dome} />}
+        {roof.special?.spire?.map((path, index) => <path className="center-building__spire" d={path} key={`${building.id}-spire-${index}`} />)}
+      </g>
+      <AuxiliaryVolumes building={building} />
+      <ArchetypeDetail building={building} geometry={geometry} />
+      {building.id === 'signal-tower' && <path className="center-building__signal" d={`M${geometry.anchor[0]} ${geometry.anchor[1]} v-76 m-24 23 q24 -22 48 0 m-36 11 q12 -11 24 0`} />}
+      {interactive && <>
+        <path className="center-building__trace" pathLength="1" d={geometry.trace} />
+        <path className="center-building__hit" d={`${geometry.roof} ${geometry.eastFace} ${geometry.westFace}`} />
+        <text className="center-building__label" x={geometry.anchor[0]} y={geometry.anchor[1] - 16}>{centerText(building.name, language)}</text>
+      </>}
+    </g>
+  )
+}
+
+function StructureLayer({ interaction, language, onFocus, onBlur, onSelect }) {
+  return ORDERED_STRUCTURES.map(building => (
+    <StructureVolume
+      building={building}
+      interaction={interaction}
+      language={language}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      onSelect={onSelect}
+      key={building.id}
+    />
+  ))
+}
+
+function UrbanDetail({ detail }) {
+  const [x, y] = detailAnchor(detail)
+
+  if (detail.kind === 'tree') {
+    const crown = projectPoint(detail.point[0], detail.point[1], detail.height)
+    const spread = 12 * detail.scale
+    return (
+      <g className="center-urban-detail center-urban-detail--tree" aria-hidden="true">
+        <path className="center-urban-detail__trunk" d={`M${x} ${y} L${crown[0]} ${crown[1]}`} />
+        <path className="center-urban-detail__crown" d={`M${crown[0]} ${crown[1] - spread} L${crown[0] + spread} ${crown[1]} L${crown[0]} ${crown[1] + spread} L${crown[0] - spread} ${crown[1]} Z`} />
+      </g>
+    )
+  }
+
+  if (detail.kind === 'lamp') {
+    const top = projectPoint(detail.point[0], detail.point[1], detail.height)
+    return (
+      <g className="center-urban-detail center-urban-detail--lamp" aria-hidden="true">
+        <path d={`M${x} ${y} L${top[0]} ${top[1]}`} />
+        <circle cx={top[0]} cy={top[1]} r="2.2" />
+      </g>
+    )
+  }
+
+  if (detail.kind === 'kiosk') {
+    const geometry = buildingGeometry({ geometry: { x: detail.point[0], y: detail.point[1], width: detail.width, depth: detail.depth, height: detail.height } })
+    return (
+      <g className="center-urban-detail center-urban-detail--kiosk" aria-hidden="true">
+        <path d={geometry.eastFace} />
+        <path d={geometry.westFace} />
+        <path d={geometry.roof} />
+      </g>
+    )
+  }
+
+  const marker = [
+    projectPoint(detail.point[0] - .16, detail.point[1]),
+    projectPoint(detail.point[0], detail.point[1] - .16),
+    projectPoint(detail.point[0] + .16, detail.point[1]),
+    projectPoint(detail.point[0], detail.point[1] + .16),
+  ]
+  return <path className="center-urban-detail center-urban-detail--marker" d={polygonPath(marker)} aria-hidden="true" />
+}
+
+function UrbanDetailLayer() {
+  return CENTER_URBAN_DETAILS.map(detail => <UrbanDetail detail={detail} key={detail.id} />)
 }
 
 function PointLayer({ interaction, language, onFocus, onBlur, onSelect }) {
@@ -141,12 +329,8 @@ function PointLayer({ interaction, language, onFocus, onBlur, onSelect }) {
 function TerrainGrid() {
   return (
     <g className="center-grid" aria-hidden="true">
-      {GRID_VALUES.map(value => (
-        <path key={`grid-x-${value}`} d={`M${projectPoint(value, 0).join(' ')} L${projectPoint(value, 14).join(' ')}`} />
-      ))}
-      {GRID_VALUES.map(value => (
-        <path key={`grid-y-${value}`} d={`M${projectPoint(0, value).join(' ')} L${projectPoint(14, value).join(' ')}`} />
-      ))}
+      {GRID_VALUES.map(value => <path key={`grid-x-${value}`} d={`M${projectPoint(value, 0).join(' ')} L${projectPoint(value, 14).join(' ')}`} />)}
+      {GRID_VALUES.map(value => <path key={`grid-y-${value}`} d={`M${projectPoint(0, value).join(' ')} L${projectPoint(14, value).join(' ')}`} />)}
     </g>
   )
 }
@@ -167,16 +351,16 @@ function CenterMap({ canvasRef, sceneRef, interaction, language, label, onFocus,
           <feGaussianBlur stdDeviation="2.2" result="blur" />
           <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
-        <pattern id="center-field-dots" width="36" height="36" patternUnits="userSpaceOnUse">
-          <circle cx="2" cy="2" r="1" />
-        </pattern>
+        <pattern id="center-field-dots" width="36" height="36" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" /></pattern>
       </defs>
       <rect className="center-map__field" width="1600" height="1000" />
-      <g ref={sceneRef} className="center-scene" data-center-scene="district-01">
+      <g ref={sceneRef} className="center-scene" data-center-scene="district-01" data-detail-level="standard">
         <TerrainGrid />
         <g className="center-layer center-layer--regions"><RegionLayer interaction={interaction} language={language} onFocus={onFocus} onBlur={onBlur} onSelect={onSelect} /></g>
-        <g className="center-layer center-layer--routes"><RouteLayer /></g>
-        <g className="center-layer center-layer--structures"><BuildingLayer interaction={interaction} language={language} onFocus={onFocus} onBlur={onBlur} onSelect={onSelect} /></g>
+        <g className="center-layer center-layer--parcels"><ParcelLayer /></g>
+        <g className="center-layer center-layer--routes"><StreetLayer /></g>
+        <g className="center-layer center-layer--structures"><StructureLayer interaction={interaction} language={language} onFocus={onFocus} onBlur={onBlur} onSelect={onSelect} /></g>
+        <g className="center-layer center-layer--urban"><UrbanDetailLayer /></g>
         <g className="center-layer center-layer--points"><PointLayer interaction={interaction} language={language} onFocus={onFocus} onBlur={onBlur} onSelect={onSelect} /></g>
       </g>
     </svg>
