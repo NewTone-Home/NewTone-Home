@@ -235,9 +235,14 @@
 .center-building__annex-face--east { fill: rgba(92,100,93,.06); }
 .center-building__annex-face--west { fill: rgba(17,21,19,.62); }
 .center-building__annex-roof { fill: rgba(134,135,124,.04); stroke: rgba(126,130,120,.72); stroke-width: .76; }
+.center-building__annex-roof-plane { fill: rgba(137,139,127,.07); stroke: rgba(143,145,133,.62); stroke-width: .66; }
+.center-building__annex-roof-detail { fill: none; stroke: rgba(159,160,146,.56); stroke-width: .54; stroke-linecap: round; opacity: .72; }
 .center-building__annex-trace { fill: none; stroke: rgba(126,130,120,.58); stroke-width: .64; }
 .center-building__entrance { fill: none; stroke: rgba(184,154,98,.76); stroke-width: .8; stroke-linecap: round; }
 .center-building__observatory-detail { fill: rgba(184,154,98,.035); stroke: rgba(184,154,98,.7); stroke-width: .78; }
+.center-building__observatory-base { fill: rgba(117,122,111,.075); }
+.center-building__observatory-deck { fill: rgba(184,154,98,.08); }
+.center-building__observatory-dome { fill: none; stroke: rgba(198,174,119,.9); stroke-width: .96; }
 .center-building__assembly-colonnade { fill: none; stroke: rgba(153,157,144,.62); stroke-width: .68; }
 .center-building__market-canopies { fill: none; stroke: rgba(184,154,98,.62); stroke-width: .72; }
 .center-building__platform-detail { fill: none; stroke: rgba(141,145,134,.64); stroke-width: .68; }
@@ -247,6 +252,28 @@
 .center-building__clinic-mark { fill: none; stroke: rgba(145,169,157,.75); stroke-width: .74; }
 .center-building__signal { fill: none; stroke: var(--center-alert); stroke-width: 1; opacity: .55; }
 .center-building__hit { fill: rgba(255,255,255,.001); stroke: transparent; stroke-width: 14; }
+
+/* These landmarks deliberately use bespoke silhouettes rather than a generic
+   extruded cuboid. Their invisible hit geometry remains rectangular so touch
+   targets stay generous, while the visible scene reads as a dome and lattice. */
+.center-building[data-archetype='observatory'] > .center-building__face,
+.center-building[data-archetype='observatory'] > .center-building__roof,
+.center-building[data-archetype='observatory'] > .center-building__roof-plane,
+.center-building[data-archetype='observatory'] > .center-building__structure,
+.center-building[data-archetype='observatory'] > .center-building__facade-detail,
+.center-building[data-archetype='observatory'] > .center-building__roof-detail,
+.center-building[data-archetype='tower'] > .center-building__face,
+.center-building[data-archetype='tower'] > .center-building__roof,
+.center-building[data-archetype='tower'] > .center-building__roof-plane,
+.center-building[data-archetype='tower'] > .center-building__structure,
+.center-building[data-archetype='tower'] > .center-building__facade-detail,
+.center-building[data-archetype='tower'] > .center-building__roof-detail { display: none; }
+
+.center-building[data-archetype='station'] > .center-building__face { opacity: .16; }
+.center-building[data-archetype='station'] > .center-building__structure { opacity: .36; }
+.center-building[data-archetype='station'] > .center-building__roof { fill: rgba(184,154,98,.055); }
+.center-building[data-archetype='market'] > .center-building__face { opacity: .3; }
+.center-building[data-archetype='market'] > .center-building__roof { fill: rgba(184,154,98,.075); }
 
 .center-building__trace {
   fill: none;

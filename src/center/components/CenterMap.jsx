@@ -113,16 +113,27 @@ function facadePaths(facade) {
 }
 
 function getAnnexGeometries(building) {
-  return (building.visual?.annexes || []).map(annex => buildingGeometry({ geometry: annex }))
+  return (building.visual?.annexes || []).map((annex, index) => {
+    const volume = { id: `${building.id}-annex-${index}`, geometry: annex, visual: annex }
+    return {
+      geometry: buildingGeometry(volume),
+      roof: buildingRoofGeometry(volume),
+    }
+  })
 }
 
 function AuxiliaryVolumes({ building, geometries }) {
-  return geometries.map((geometry, index) => {
+  return geometries.map((volume, index) => {
+    const { geometry, roof } = volume
     return (
       <g className="center-building__annex" key={`${building.id}-annex-${index}`}>
         <path className="center-building__annex-face center-building__annex-face--east" d={geometry.eastFace} />
         <path className="center-building__annex-face center-building__annex-face--west" d={geometry.westFace} />
         <path className="center-building__annex-roof" d={geometry.roof} />
+        {roof.faces.map((path, roofIndex) => <path className="center-building__annex-roof-plane" d={path} key={`${building.id}-annex-${index}-roof-plane-${roofIndex}`} />)}
+        <g className="center-building__annex-roof-detail">
+          {roof.lines.map((path, roofIndex) => <path d={path} key={`${building.id}-annex-${index}-roof-line-${roofIndex}`} />)}
+        </g>
         <path className="center-building__annex-trace" d={geometry.trace} />
       </g>
     )
@@ -141,12 +152,17 @@ function ArchetypeDetail({ building, geometry }) {
   }
 
   if (archetype === 'observatory') {
-    const center = projectPoint(x + width / 2, y + depth / 2, height + .12)
+    const base = projectPoint(x + width / 2, y + depth / 2, 0)
+    const deck = projectPoint(x + width / 2, y + depth / 2, height * .24)
+    const crown = projectPoint(x + width / 2, y + depth / 2, height + (building.visual?.roofRise || 1.1))
+    const rx = width * 46
+    const ry = depth * 21
     return (
       <g className="center-building__observatory-detail">
-        <ellipse cx={center[0]} cy={center[1]} rx={width * 21} ry={depth * 9} />
-        <path d={`M${center[0] - width * 18} ${center[1]} Q${center[0]} ${center[1] - 30} ${center[0] + width * 18} ${center[1]}`} />
-        <path d={lineFrom([projectPoint(x + width * .22, y + depth, height), projectPoint(x + width * .22, y + depth, 0)])} />
+        <ellipse className="center-building__observatory-base" cx={base[0]} cy={base[1]} rx={rx} ry={ry} />
+        <path d={`M${base[0] - rx} ${base[1]} L${deck[0] - rx} ${deck[1]} M${base[0] + rx} ${base[1]} L${deck[0] + rx} ${deck[1]} M${base[0]} ${base[1] + ry} L${deck[0]} ${deck[1] + ry}`} />
+        <ellipse className="center-building__observatory-deck" cx={deck[0]} cy={deck[1]} rx={rx} ry={ry} />
+        <path className="center-building__observatory-dome" d={`M${deck[0] - rx} ${deck[1]} Q${crown[0]} ${crown[1]} ${deck[0] + rx} ${deck[1]} M${deck[0]} ${deck[1] + ry} L${crown[0]} ${crown[1]}`} />
       </g>
     )
   }
@@ -195,13 +211,17 @@ function ArchetypeDetail({ building, geometry }) {
   }
 
   if (archetype === 'tower') {
-    const [eastTop, eastBase] = [geometry.top[1], geometry.ground[1]]
-    const [westTop, westBase] = [geometry.top[2], geometry.ground[2]]
+    const apex = projectPoint(x + width / 2, y + depth / 2, height + (building.visual?.roofRise || 1))
+    const highWest = projectPoint(x + width * .2, y + depth * .76, height * .66)
+    const highEast = projectPoint(x + width * .8, y + depth * .24, height * .66)
     return (
       <g className="center-building__tower-lattice">
-        <path d={lineFrom([eastTop, westBase])} />
-        <path d={lineFrom([westTop, eastBase])} />
-        <path d={lineFrom([geometry.top[3], geometry.ground[1]])} />
+        {geometry.ground.map((corner, index) => <path d={lineFrom([corner, apex])} key={`leg-${index}`} />)}
+        <path d={lineFrom([geometry.ground[1], highWest])} />
+        <path d={lineFrom([geometry.ground[2], highEast])} />
+        <path d={lineFrom([highWest, geometry.ground[3]])} />
+        <path d={lineFrom([highEast, geometry.ground[0]])} />
+        <path d={lineFrom([highWest, highEast])} />
       </g>
     )
   }
@@ -232,12 +252,12 @@ function StructureVolume({ building, interaction, language, onFocus, onBlur, onS
   const roof = buildingRoofGeometry(building)
   const steps = buildingStepsGeometry(building)
   const annexGeometries = getAnnexGeometries(building)
-  const selectionTrace = [geometry.trace, ...annexGeometries.map(annex => annex.trace)].join(' ')
+  const selectionTrace = [geometry.trace, ...annexGeometries.map(annex => annex.geometry.trace)].join(' ')
   const interactionShape = [
     geometry.roof,
     geometry.eastFace,
     geometry.westFace,
-    ...annexGeometries.flatMap(annex => [annex.roof, annex.eastFace, annex.westFace]),
+    ...annexGeometries.flatMap(annex => [annex.geometry.roof, annex.geometry.eastFace, annex.geometry.westFace]),
   ].join(' ')
   const interactive = Boolean(building.interactive)
   const state = interactive ? resolveEntityVisualState(interaction, building.id) : 'idle'
