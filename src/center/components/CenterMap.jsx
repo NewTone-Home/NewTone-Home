@@ -105,11 +105,9 @@ function StreetLayer() {
 
 function facadePaths(facade) {
   return [
-    ...facade.east.vertical.map((path, index) => ({ id: `east-v-${index}`, path, face: 'east' })),
-    ...facade.east.horizontal.map((path, index) => ({ id: `east-h-${index}`, path, face: 'east' })),
-    ...facade.west.vertical.map((path, index) => ({ id: `west-v-${index}`, path, face: 'west' })),
-    ...facade.west.horizontal.map((path, index) => ({ id: `west-h-${index}`, path, face: 'west' })),
-  ]
+    { id: 'east', path: [...facade.east.vertical, ...facade.east.horizontal].join(' '), face: 'east' },
+    { id: 'west', path: [...facade.west.vertical, ...facade.west.horizontal].join(' '), face: 'west' },
+  ].filter(item => item.path)
 }
 
 function getAnnexGeometries(building) {
@@ -131,9 +129,7 @@ function AuxiliaryVolumes({ building, geometries }) {
         <path className="center-building__annex-face center-building__annex-face--west" d={geometry.westFace} />
         <path className="center-building__annex-roof" d={geometry.roof} />
         {roof.faces.map((path, roofIndex) => <path className="center-building__annex-roof-plane" d={path} key={`${building.id}-annex-${index}-roof-plane-${roofIndex}`} />)}
-        <g className="center-building__annex-roof-detail">
-          {roof.lines.map((path, roofIndex) => <path d={path} key={`${building.id}-annex-${index}-roof-line-${roofIndex}`} />)}
-        </g>
+        {roof.lines.length > 0 && <path className="center-building__annex-roof-detail" d={roof.lines.join(' ')} />}
         <path className="center-building__annex-trace" d={geometry.trace} />
       </g>
     )
@@ -168,25 +164,27 @@ function ArchetypeDetail({ building, geometry }) {
   }
 
   if (archetype === 'assembly') {
+    const columns = [.16, .36, .56, .76].map(amount => {
+      const top = projectPoint(x + width * amount, y + depth, height)
+      const bottom = projectPoint(x + width * amount, y + depth, height * .08)
+      return lineFrom([top, bottom])
+    })
     return (
       <g className="center-building__assembly-colonnade">
-        {[.16, .36, .56, .76].map((amount, index) => {
-          const top = projectPoint(x + width * amount, y + depth, height)
-          const bottom = projectPoint(x + width * amount, y + depth, height * .08)
-          return <path key={index} d={lineFrom([top, bottom])} />
-        })}
+        <path d={columns.join(' ')} />
       </g>
     )
   }
 
   if (archetype === 'market') {
+    const supports = [.14, .34, .54, .74, .94].map(amount => {
+      const top = projectPoint(x + width * amount, y + depth + .12, height * .78)
+      const bottom = projectPoint(x + width * amount, y + depth + .12, height * .1)
+      return lineFrom([top, bottom])
+    })
     return (
       <g className="center-building__market-canopies">
-        {[.14, .34, .54, .74, .94].map((amount, index) => {
-          const top = projectPoint(x + width * amount, y + depth + .12, height * .78)
-          const bottom = projectPoint(x + width * amount, y + depth + .12, height * .1)
-          return <path key={index} d={lineFrom([top, bottom])} />
-        })}
+        <path d={supports.join(' ')} />
       </g>
     )
   }
@@ -194,18 +192,18 @@ function ArchetypeDetail({ building, geometry }) {
   if (archetype === 'station') {
     const railA = [projectPoint(x - .12, y + depth + .25), projectPoint(x + width + .38, y + depth + .25)]
     const railB = [projectPoint(x - .12, y + depth + .48), projectPoint(x + width + .38, y + depth + .48)]
+    const sleepers = [.12, .3, .48, .66, .84].map(amount => {
+      const railX = x + width * amount
+      return lineFrom([projectPoint(railX, y + depth + .14), projectPoint(railX, y + depth + .58)])
+    })
+    const columns = [.16, .4, .64, .88].map(amount => {
+      const columnX = x + width * amount
+      return lineFrom([projectPoint(columnX, y + depth, height), projectPoint(columnX, y + depth, .06)])
+    })
     return (
       <g className="center-building__platform-detail">
-        <path d={lineFrom(railA)} />
-        <path d={lineFrom(railB)} />
-        {[.12, .3, .48, .66, .84].map((amount, index) => {
-          const railX = x + width * amount
-          return <path key={index} d={lineFrom([projectPoint(railX, y + depth + .14), projectPoint(railX, y + depth + .58)])} />
-        })}
-        {[.16, .4, .64, .88].map((amount, index) => {
-          const columnX = x + width * amount
-          return <path className="center-building__platform-column" key={`column-${index}`} d={lineFrom([projectPoint(columnX, y + depth, height), projectPoint(columnX, y + depth, .06)])} />
-        })}
+        <path d={[lineFrom(railA), lineFrom(railB), ...sleepers].join(' ')} />
+        <path className="center-building__platform-column" d={columns.join(' ')} />
       </g>
     )
   }
@@ -214,26 +212,30 @@ function ArchetypeDetail({ building, geometry }) {
     const apex = projectPoint(x + width / 2, y + depth / 2, height + (building.visual?.roofRise || 1))
     const highWest = projectPoint(x + width * .2, y + depth * .76, height * .66)
     const highEast = projectPoint(x + width * .8, y + depth * .24, height * .66)
+    const lattice = [
+      ...geometry.ground.map(corner => lineFrom([corner, apex])),
+      lineFrom([geometry.ground[1], highWest]),
+      lineFrom([geometry.ground[2], highEast]),
+      lineFrom([highWest, geometry.ground[3]]),
+      lineFrom([highEast, geometry.ground[0]]),
+      lineFrom([highWest, highEast]),
+    ]
     return (
       <g className="center-building__tower-lattice">
-        {geometry.ground.map((corner, index) => <path d={lineFrom([corner, apex])} key={`leg-${index}`} />)}
-        <path d={lineFrom([geometry.ground[1], highWest])} />
-        <path d={lineFrom([geometry.ground[2], highEast])} />
-        <path d={lineFrom([highWest, geometry.ground[3]])} />
-        <path d={lineFrom([highEast, geometry.ground[0]])} />
-        <path d={lineFrom([highWest, highEast])} />
+        <path d={lattice.join(' ')} />
       </g>
     )
   }
 
   if (archetype === 'residences') {
+    const divisions = [.2, .4, .6, .8].map(amount => {
+      const top = projectPoint(x + width * amount, y + depth, height)
+      const bottom = projectPoint(x + width * amount, y + depth)
+      return lineFrom([top, bottom])
+    })
     return (
       <g className="center-building__residence-divisions">
-        {[.2, .4, .6, .8].map((amount, index) => {
-          const top = projectPoint(x + width * amount, y + depth, height)
-          const bottom = projectPoint(x + width * amount, y + depth)
-          return <path key={index} d={lineFrom([top, bottom])} />
-        })}
+        <path d={divisions.join(' ')} />
       </g>
     )
   }
@@ -292,9 +294,9 @@ function StructureVolume({ building, interaction, language, onFocus, onBlur, onS
         {facadePaths(facade).map(item => <path className={`center-building__facade center-building__facade--${item.face}`} d={item.path} key={`${building.id}-${item.id}`} />)}
       </g>
       <g className="center-building__roof-detail">
-        {roof.lines.map((path, index) => <path d={path} key={`${building.id}-roof-line-${index}`} />)}
+        {roof.lines.length > 0 && <path d={roof.lines.join(' ')} />}
         {roof.special?.dome && <path className="center-building__dome" d={roof.special.dome} />}
-        {roof.special?.spire?.map((path, index) => <path className="center-building__spire" d={path} key={`${building.id}-spire-${index}`} />)}
+        {roof.special?.spire && <path className="center-building__spire" d={roof.special.spire.join(' ')} />}
       </g>
       <AuxiliaryVolumes building={building} geometries={annexGeometries} />
       <ArchetypeDetail building={building} geometry={geometry} />
@@ -353,7 +355,7 @@ function UrbanDetail({ detail }) {
         ? lineFrom([projectPoint(detail.point[0] + offset, detail.point[1] - .22), projectPoint(detail.point[0] + offset, detail.point[1] + .22)])
         : lineFrom([projectPoint(detail.point[0] - .22, detail.point[1] + offset), projectPoint(detail.point[0] + .22, detail.point[1] + offset)])
     })
-    return <g className="center-urban-detail center-urban-detail--crosswalk" aria-hidden="true">{stripes.map((path, index) => <path d={path} key={index} />)}</g>
+    return <g className="center-urban-detail center-urban-detail--crosswalk" aria-hidden="true"><path d={stripes.join(' ')} /></g>
   }
 
   if (detail.kind === 'kiosk') {
