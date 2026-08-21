@@ -89,9 +89,6 @@ function StaticBuildings() {
   return (
     <g className="center-detail-layer center-detail-buildings center-detail-buildings--static" aria-hidden="true">
       <path className="center-detail-building__ground" d={staticBuildings.map(building => building.ground).join(' ')} />
-      <path className="center-detail-building__silhouette" d={staticBuildings.map(building => building.silhouette).join(' ')} />
-      <path className="center-detail-building__detail" d={staticBuildings.map(building => building.detail).join(' ')} />
-      {staticBuildings.map(building => <BuildingGrammar key={`${building.id}-grammar`} grammar={building.grammar} />)}
     </g>
   )
 }
