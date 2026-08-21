@@ -62,7 +62,18 @@ function addWindow(spec, face, start, end, bottom, top, project, windows, frames
   const windowEnd = end - insetX
   const windowBottom = bottom + insetZ
   const windowTop = top - insetZ
+  const revealStart = start + insetX * .5
+  const revealEnd = end - insetX * .5
+  const revealBottom = bottom + insetZ * .5
+  const revealTop = top - insetZ * .5
+  const reveal = facadeQuad(spec, face, revealStart, revealEnd, revealBottom, revealTop, project)
   const outer = facadeQuad(spec, face, windowStart, windowEnd, windowBottom, windowTop, project)
+  frames.push(
+    line(reveal[0], outer[0]),
+    line(reveal[1], outer[1]),
+    line(reveal[2], outer[2]),
+    line(reveal[3], outer[3]),
+  )
   windows.push(pathFromPoints(outer, true))
   frames.push(
     line(axisPoint(spec, face, (windowStart + windowEnd) / 2, windowBottom, project), axisPoint(spec, face, (windowStart + windowEnd) / 2, windowTop, project)),
@@ -76,6 +87,9 @@ function addWindow(spec, face, start, end, bottom, top, project, windows, frames
   }
   if (seeded(key + 19) > .58) {
     accents.push(facadeLine(spec, face, windowStart, windowEnd, windowTop + insetZ * .48, project))
+  }
+  if (seeded(key + 31) > .46) {
+    accents.push(line(outer[0], outer[2]))
   }
 }
 
@@ -92,6 +106,22 @@ function addStorefront(spec, face, start, end, bottom, top, project, windows, fr
   if (seeded(key + 3) > .36) {
     accents.push(facadeLine(spec, face, start + inset * 1.2, end - inset * 1.2, top + .06, project))
   }
+}
+
+function addEntrance(spec, face, start, end, bottom, top, project, windows, frames, accents) {
+  const width = end - start
+  const doorStart = start + width * .2
+  const doorEnd = end - width * .2
+  const door = facadeQuad(spec, face, doorStart, doorEnd, bottom + .03, top - .05, project)
+  windows.push(pathFromPoints(door, true))
+  frames.push(
+    line(axisPoint(spec, face, (doorStart + doorEnd) / 2, bottom + .05, project), axisPoint(spec, face, (doorStart + doorEnd) / 2, top - .05, project)),
+    facadeLine(spec, face, doorStart - .03, doorEnd + .03, top - .05, project),
+  )
+  accents.push(
+    facadeLine(spec, face, doorStart - .08, doorEnd + .08, bottom + .02, project),
+    verticalLine(spec, face, doorEnd - .05, bottom + (top - bottom) * .46, bottom + (top - bottom) * .54, project),
+  )
 }
 
 function addBalcony(spec, face, start, end, bottom, top, project, props, accents) {
@@ -137,6 +167,44 @@ function addRoof(spec, top, project, roof, accents) {
     project(spec.x - spec.width / 2 + parapetInset, spec.y + spec.depth / 2 - parapetInset, top + .06),
   ]
   roof.push(pathFromPoints(inner, true))
+
+  if (spec.detailStyle === 'archive') {
+    const ridgeFront = project(spec.x, spec.y - spec.depth * .32, top + .38)
+    const ridgeBack = project(spec.x, spec.y + spec.depth * .32, top + .38)
+    roof.push(
+      line(corners[0], ridgeFront),
+      line(corners[1], ridgeFront),
+      line(corners[2], ridgeBack),
+      line(corners[3], ridgeBack),
+      line(ridgeFront, ridgeBack),
+    )
+    for (let rib = -2; rib <= 2; rib += 1) {
+      const x = spec.x + (rib / 2) * spec.width * .34
+      roof.push(line(project(x, spec.y - spec.depth * .32, top + .38), project(x, spec.y + spec.depth * .32, top + .38)))
+    }
+  }
+
+  if (spec.detailStyle === 'market') {
+    const canopyTop = top + .2
+    const eaveFront = project(spec.x - spec.width * .58, spec.y - spec.depth * .58, canopyTop)
+    const eaveBack = project(spec.x - spec.width * .58, spec.y + spec.depth * .58, canopyTop)
+    roof.push(line(corners[0], eaveFront), line(corners[3], eaveBack), line(eaveFront, eaveBack))
+    for (let rib = -2; rib <= 2; rib += 1) {
+      const x = spec.x + (rib / 2) * spec.width * .42
+      roof.push(line(project(x, spec.y - spec.depth * .58, canopyTop), project(x, spec.y + spec.depth * .58, canopyTop)))
+    }
+  }
+
+  if (spec.detailStyle === 'station') {
+    const canopyTop = top + .24
+    for (let rib = -3; rib <= 3; rib += 1) {
+      const x = spec.x + (rib / 3) * spec.width * .42
+      const archTop = project(x, spec.y - spec.depth * .6, canopyTop)
+      const archBottom = project(x, spec.y - spec.depth * .6, top + .02)
+      roof.push(line(archBottom, archTop))
+    }
+    roof.push(facadeLine(spec, 'front', -spec.width * .6, spec.width * .6, canopyTop, project))
+  }
 
   const antennaBase = project(spec.x + .14, spec.y - .04, top + .08)
   const antennaTop = project(spec.x + .14, spec.y - .04, top + .56)
@@ -198,6 +266,9 @@ export function createFacadeGrammar(spec, project) {
 
         if (isGround && spec.detailStyle !== 'relay') {
           addStorefront(spec, face, start, end, floorBottom + .02, floorTop - .08, project, windows, frames, accents, key)
+          if (face === 'front' && column === Math.floor(columns / 2)) {
+            addEntrance(spec, face, start, end, floorBottom + .02, floorTop - .08, project, windows, frames, accents)
+          }
         } else if (!isGround && detailChance > .08) {
           addWindow(spec, face, start, end, floorBottom + .06, floorTop - .06, project, windows, frames, accents, key)
         }
