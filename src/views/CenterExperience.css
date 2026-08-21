@@ -585,6 +585,113 @@
   .center-point__orbit { animation: none !important; }
 }
 
+/*
+ * Local structured detail study.
+ * These styles deliberately keep terrain, architecture and detail in
+ * separate visual bands. The SVG scene owns geometry; CSS only controls
+ * hierarchy, tone and LOD visibility.
+ */
+.center-local-detail-map { background: #04090b; }
+.center-local-detail-map__backdrop { fill: #04090b; }
+.center-local-detail-map__vignette { fill: url('#center-local-detail-vignette'); opacity: .86; pointer-events: none; }
+.center-local-detail-map path,
+.center-local-detail-map circle,
+.center-local-detail-map text { vector-effect: non-scaling-stroke; }
+.center-local-detail-layer { pointer-events: none; }
+.center-local-detail-terrain__surface { fill: rgba(12, 24, 25, .8); stroke: rgba(173, 166, 137, .18); stroke-width: .72; }
+.center-local-detail-terrain__boundary { fill: none; stroke: rgba(203, 185, 143, .42); stroke-width: .9; stroke-dasharray: 2 4; }
+.center-local-detail-terrain__background-contours,
+.center-local-detail-terrain__slope-lines { fill: none; stroke: rgba(129, 142, 130, .23); stroke-width: .48; stroke-linecap: round; stroke-linejoin: round; }
+.center-local-detail-terrain__slope-lines { stroke: rgba(218, 193, 143, .3); stroke-width: .56; }
+.center-local-detail-mountain { pointer-events: none; }
+.center-local-detail-mountain__facets { fill: rgba(35, 49, 47, .16); stroke: rgba(170, 163, 136, .22); stroke-width: .42; stroke-linejoin: round; }
+.center-local-detail-mountain__contours { fill: none; stroke: rgba(196, 184, 145, .35); stroke-width: .56; stroke-linejoin: round; }
+.center-local-detail-mountain__ribs { fill: none; stroke: rgba(223, 195, 143, .43); stroke-width: .54; stroke-linecap: round; }
+.center-local-detail-mountain__summit { fill: rgba(232, 204, 155, .7); stroke: none; }
+.center-local-detail-mountain--cool .center-local-detail-mountain__facets { fill: rgba(18, 43, 50, .16); stroke: rgba(114, 168, 180, .22); }
+.center-local-detail-mountain--cool .center-local-detail-mountain__contours,
+.center-local-detail-mountain--cool .center-local-detail-mountain__ribs { stroke: rgba(126, 184, 196, .4); }
+.center-local-detail-ridge__primary { fill: none; stroke: rgba(231, 202, 151, .72); stroke-width: .94; stroke-linecap: round; stroke-linejoin: round; }
+.center-local-detail-ridge__secondary { fill: none; stroke: rgba(204, 186, 143, .34); stroke-width: .46; stroke-linecap: round; }
+.center-local-detail-ridge--cool .center-local-detail-ridge__primary { stroke: rgba(137, 195, 207, .65); }
+.center-local-detail-ridge--cool .center-local-detail-ridge__secondary { stroke: rgba(112, 166, 178, .3); }
+.center-local-detail-ridge--neutral .center-local-detail-ridge__primary { stroke: rgba(207, 201, 169, .5); }
+.center-local-detail-terrain__plateau path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.center-local-detail-plateau__primary { stroke: rgba(218, 193, 145, .58); stroke-width: .72; }
+.center-local-detail-plateau__secondary { stroke: rgba(178, 168, 135, .27); stroke-width: .44; stroke-dasharray: 2 3; }
+.center-local-detail-terrain__river path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.center-local-detail-river__banks { stroke: rgba(39, 75, 83, .56); stroke-width: 8.2; }
+.center-local-detail-river__water { stroke: rgba(124, 190, 201, .82); stroke-width: 1.45; }
+.center-local-detail-river__micro { stroke: rgba(203, 221, 199, .46); stroke-width: .42; stroke-dasharray: 2 5; }
+.center-local-detail-river__tributaries { stroke: rgba(111, 171, 185, .54); stroke-width: .7; stroke-dasharray: 1 4; }
+.center-local-detail-road { pointer-events: none; }
+.center-local-detail-road__surface { fill: rgba(95, 86, 63, .18); stroke: none; }
+.center-local-detail-road__edge { fill: none; stroke: rgba(211, 185, 137, .58); stroke-width: .84; stroke-linecap: round; stroke-linejoin: round; }
+.center-local-detail-road__edge--secondary { stroke: rgba(166, 157, 129, .3); stroke-width: .42; stroke-dasharray: 2 4; }
+.center-local-detail-road--path .center-local-detail-road__edge { stroke: rgba(186, 190, 163, .4); stroke-width: .54; stroke-dasharray: 2 4; }
+.center-local-detail-cell { fill: none; stroke: rgba(166, 174, 145, .1); stroke-width: .46; stroke-dasharray: 2 5; }
+.center-local-detail-landmark { pointer-events: all; cursor: pointer; outline: none; }
+.center-local-detail-building__geometry { pointer-events: none; }
+.center-local-detail-building__fill { fill: rgba(7, 17, 18, .72); stroke: rgba(189, 174, 137, .18); stroke-width: .5; stroke-linejoin: round; }
+.center-local-detail-building__primary { fill: none; stroke: rgba(235, 207, 157, .91); stroke-width: 1.18; stroke-linecap: round; stroke-linejoin: round; }
+.center-local-detail-building__secondary { fill: none; stroke: rgba(218, 194, 149, .65); stroke-width: .72; stroke-linecap: round; stroke-linejoin: round; }
+.center-local-detail-building__connection { fill: none; stroke: rgba(208, 184, 137, .42); stroke-width: .58; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 2 3; }
+.center-local-detail-building__tertiary { fill: rgba(103, 142, 145, .08); stroke: rgba(239, 216, 174, .59); stroke-width: .44; stroke-linecap: round; stroke-linejoin: round; }
+.center-local-detail-landmark--warm .center-local-detail-building__fill { fill: rgba(55, 38, 23, .56); stroke: rgba(238, 196, 128, .27); }
+.center-local-detail-landmark--warm .center-local-detail-building__primary { stroke: rgba(246, 215, 161, .98); }
+.center-local-detail-landmark--warm .center-local-detail-building__secondary { stroke: rgba(232, 201, 149, .72); }
+.center-local-detail-landmark--cool .center-local-detail-building__fill { fill: rgba(15, 42, 47, .54); stroke: rgba(125, 185, 196, .26); }
+.center-local-detail-landmark--cool .center-local-detail-building__primary { stroke: rgba(168, 219, 222, .9); }
+.center-local-detail-landmark--cool .center-local-detail-building__secondary { stroke: rgba(140, 198, 206, .66); }
+.center-local-detail-landmark--neutral .center-local-detail-building__fill { fill: rgba(35, 39, 34, .54); stroke: rgba(209, 201, 166, .25); }
+.center-local-detail-landmark--neutral .center-local-detail-building__primary { stroke: rgba(229, 221, 188, .88); }
+.center-local-detail-landmark--neutral .center-local-detail-building__secondary { stroke: rgba(209, 201, 174, .64); }
+.center-local-detail-landmark__hit { fill: rgba(255, 255, 255, .001); stroke: transparent; stroke-width: 24; pointer-events: all; }
+.center-local-detail-landmark__leader { fill: none; stroke: rgba(224, 199, 148, .43); stroke-width: .6; stroke-dasharray: 1 4; pointer-events: none; }
+.center-local-detail-landmark--cool .center-local-detail-landmark__leader { stroke: rgba(133, 190, 202, .48); }
+.center-local-detail-landmark__anchor { fill: none; stroke: rgba(227, 202, 152, .54); stroke-width: .72; stroke-dasharray: 2 4; pointer-events: none; }
+.center-local-detail-landmark__dot { fill: rgba(239, 214, 164, .9); stroke: #071012; stroke-width: 1.2; pointer-events: none; }
+.center-local-detail-landmark--cool .center-local-detail-landmark__anchor { stroke: rgba(145, 197, 208, .58); }
+.center-local-detail-landmark--cool .center-local-detail-landmark__dot { fill: rgba(169, 216, 220, .9); }
+.center-local-detail-landmark__label { fill: rgba(231, 215, 181, .78); font-size: 10px; letter-spacing: .12em; pointer-events: none; }
+.center-local-detail-landmark--cool .center-local-detail-landmark__label { fill: rgba(182, 216, 219, .8); }
+.center-local-detail-landmark[data-entity-state='focus'] .center-local-detail-building__primary,
+.center-local-detail-landmark[data-entity-state='selected'] .center-local-detail-building__primary,
+.center-local-detail-landmark[data-entity-state='open'] .center-local-detail-building__primary { stroke-width: 1.46; filter: url('#center-local-detail-soft-glow'); }
+.center-local-detail-landmark[data-entity-state='focus'] .center-local-detail-building__secondary,
+.center-local-detail-landmark[data-entity-state='selected'] .center-local-detail-building__secondary,
+.center-local-detail-landmark[data-entity-state='open'] .center-local-detail-building__secondary { stroke-width: .88; }
+.center-local-detail-landmark[data-entity-state='focus'] .center-local-detail-landmark__anchor,
+.center-local-detail-landmark[data-entity-state='selected'] .center-local-detail-landmark__anchor,
+.center-local-detail-landmark[data-entity-state='open'] .center-local-detail-landmark__anchor { r: 13px; stroke: rgba(245, 219, 164, .9); animation: center-local-detail-anchor-pulse 2.6s ease-in-out infinite; }
+.center-local-detail-landmark[data-entity-state='focus'] .center-local-detail-landmark__label,
+.center-local-detail-landmark[data-entity-state='selected'] .center-local-detail-landmark__label,
+.center-local-detail-landmark[data-entity-state='open'] .center-local-detail-landmark__label { fill: #f4dfb2; }
+.center-local-detail-hud { fill: none; stroke: rgba(193, 177, 143, .42); stroke-width: .66; pointer-events: none; }
+.center-local-detail-hud text { fill: rgba(210, 198, 171, .54); stroke: none; font-size: 8px; letter-spacing: .17em; }
+.center-local-detail-hud__primary { stroke: rgba(239, 211, 161, .82); stroke-width: 1.16; }
+.center-local-detail-hud__secondary { stroke: rgba(213, 190, 145, .58); stroke-width: .72; }
+.center-local-detail-hud__tertiary { stroke: rgba(210, 190, 150, .42); stroke-width: .42; stroke-dasharray: 2 4; }
+.center-local-detail-lod--fine { opacity: .86; }
+.center-local-detail-scene[data-detail-level='overview'] .center-local-detail-lod--secondary,
+.center-local-detail-scene[data-detail-level='overview'] .center-local-detail-lod--fine { display: none; }
+.center-local-detail-scene[data-detail-level='standard'] .center-local-detail-lod--fine { opacity: .42; }
+.center-local-detail-scene[data-detail-level='detail'] .center-local-detail-lod--fine { opacity: 1; }
+@keyframes center-local-detail-anchor-pulse { 50% { opacity: .45; } }
+
+@media (max-width: 700px) {
+  .center-local-detail-hud { opacity: .58; }
+  .center-local-detail-hud g { display: none; }
+  .center-local-detail-landmark__label { font-size: 8px; letter-spacing: .08em; }
+  .center-local-detail-landmark__hit { stroke-width: 30; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .center-local-detail-landmark[data-entity-state='focus'] .center-local-detail-landmark__anchor,
+  .center-local-detail-landmark[data-entity-state='selected'] .center-local-detail-landmark__anchor,
+  .center-local-detail-landmark[data-entity-state='open'] .center-local-detail-landmark__anchor { animation: none; }
+}
+
 .center-experience[data-motion-mode='reduced'] .center-building,
 .center-experience[data-motion-mode='reduced'] .center-building__trace,
 .center-experience[data-motion-mode='reduced'] .center-region__trace,
