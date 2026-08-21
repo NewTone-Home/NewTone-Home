@@ -1,6 +1,7 @@
 import {
   WORLD_MAP_BOUNDS,
   WORLD_MAP_PROJECTION,
+  WORLD_MAP_ROUTES,
 } from '../data/centerWorldMap'
 
 const DOMAIN = WORLD_MAP_BOUNDS
@@ -294,6 +295,135 @@ function createIrregularNetwork() {
   }
 }
 
+/**
+ * A second, much denser relational layer supplies the small-scale structure
+ * visible between the major contours. It is still one SVG path per layer: the
+ * point graph is generated once, not rebuilt during pointer movement.
+ */
+function createDetailedNetwork() {
+  const points = []
+  const cols = 34
+  const rows = 28
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      const x = DOMAIN.minX + ((col + .12 + hash2d(col + 17, row + 7) * .76) / cols) * (DOMAIN.maxX - DOMAIN.minX)
+      const y = DOMAIN.minY + ((row + .12 + hash2d(col + 31, row + 19) * .76) / rows) * (DOMAIN.maxY - DOMAIN.minY)
+      if (!isInsideLooseLand(x, y)) continue
+      points.push([x, y, worldTerrainHeight(x, y)])
+    }
+  }
+
+  for (let index = 0; index < 128; index += 1) {
+    const x = DOMAIN.minX + (.05 + hash2d(index + 101, 23) * .9) * (DOMAIN.maxX - DOMAIN.minX)
+    const y = DOMAIN.minY + (.05 + hash2d(index + 149, 41) * .9) * (DOMAIN.maxY - DOMAIN.minY)
+    if (isInsideLooseLand(x, y)) points.push([x, y, worldTerrainHeight(x, y)])
+  }
+
+  const segments = []
+  const seen = new Set()
+  points.forEach((source, sourceIndex) => {
+    points
+      .map((target, targetIndex) => ({ target, targetIndex, distance: Math.hypot(target[0] - source[0], target[1] - source[1]) }))
+      .filter(candidate => candidate.targetIndex !== sourceIndex)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 5)
+      .forEach(candidate => {
+        if (candidate.distance > 2.15) return
+        const key = [sourceIndex, candidate.targetIndex].sort((a, b) => a - b).join(':')
+        if (seen.has(key)) return
+        seen.add(key)
+        segments.push([source, candidate.target])
+      })
+  })
+
+  return {
+    points,
+    d: projectedSegmentPath(segments, .025),
+  }
+}
+
+function createMountainRelief() {
+  const centers = [
+    { x: 4.1, y: 2.2, radiusX: 3.05, radiusY: 2.05, peak: .9 },
+    { x: 14.2, y: 3.2, radiusX: 2.35, radiusY: 1.65, peak: .7 },
+    { x: 9.35, y: 13.6, radiusX: 2.8, radiusY: 2.25, peak: .86 },
+    { x: 6.7, y: 6.2, radiusX: 1.65, radiusY: 1.25, peak: .42 },
+  ]
+  const paths = []
+
+  centers.forEach((center, centerIndex) => {
+    const ringCount = 8
+    const segmentCount = 28
+    for (let ring = 1; ring <= ringCount; ring += 1) {
+      const ratio = ring / ringCount
+      const points = Array.from({ length: segmentCount }, (_, index) => {
+        const angle = (Math.PI * 2 * index) / segmentCount
+        const distortion = .92 + fractalNoise(Math.cos(angle) * 2.4 + centerIndex * 11, Math.sin(angle) * 2.4 - centerIndex * 7) * .16
+        return [
+          center.x + Math.cos(angle) * center.radiusX * ratio * distortion,
+          center.y + Math.sin(angle) * center.radiusY * ratio * distortion,
+          center.peak * (1 - ratio) * .72,
+        ]
+      })
+      paths.push(worldPathFromPoints(points, .08, true))
+    }
+
+    const peak = worldTerrainPoint(center.x, center.y, center.peak)
+    for (let index = 0; index < segmentCount; index += 1) {
+      const angle = (Math.PI * 2 * index) / segmentCount
+      const outer = [
+        center.x + Math.cos(angle) * center.radiusX * (.8 + (index % 3) * .06),
+        center.y + Math.sin(angle) * center.radiusY * (.8 + (index % 4) * .045),
+      ]
+      const foot = worldTerrainPoint(outer[0], outer[1], .1)
+      paths.push(`M${peak[0].toFixed(2)} ${peak[1].toFixed(2)} L${foot[0].toFixed(2)} ${foot[1].toFixed(2)}`)
+    }
+
+    for (let index = 0; index < 12; index += 1) {
+      const angle = (Math.PI * 2 * index) / 12 + .16
+      const near = worldTerrainPoint(
+        center.x + Math.cos(angle) * center.radiusX * .34,
+        center.y + Math.sin(angle) * center.radiusY * .34,
+        center.peak * .46,
+      )
+      const far = worldTerrainPoint(
+        center.x + Math.cos(angle + .13) * center.radiusX * .72,
+        center.y + Math.sin(angle + .13) * center.radiusY * .72,
+        center.peak * .13,
+      )
+      paths.push(`M${near[0].toFixed(2)} ${near[1].toFixed(2)} L${far[0].toFixed(2)} ${far[1].toFixed(2)}`)
+    }
+  })
+
+  return paths.join(' ')
+}
+
+function offsetPolyline(points, offset) {
+  return points.map((point, index) => {
+    const previous = points[Math.max(0, index - 1)]
+    const next = points[Math.min(points.length - 1, index + 1)]
+    const dx = next[0] - previous[0]
+    const dy = next[1] - previous[1]
+    const length = Math.hypot(dx, dy) || 1
+    return [point[0] - (dy / length) * offset, point[1] + (dx / length) * offset]
+  })
+}
+
+function createHydrology() {
+  const river = WORLD_MAP_ROUTES.find(route => route.type === 'river')
+  if (!river) return { banks: [], tributaries: [] }
+  const banks = [.07, .14, .22].flatMap(offset => [
+    worldLinePath(offsetPolyline(river.points, offset), .3),
+    worldLinePath(offsetPolyline(river.points, -offset), .3),
+  ])
+  const tributaries = river.points
+    .slice(1, -1)
+    .filter((_, index) => index % 2 === 0)
+    .map((point, index) => traceGradient(point[0] + (index % 2 ? .12 : -.12), point[1], -1, 14 + (index % 4) * 3))
+    .filter(Boolean)
+  return { banks, tributaries }
+}
+
 function gradientAt(x, y) {
   const dx = (worldTerrainHeight(x + EPSILON, y) - worldTerrainHeight(x - EPSILON, y)) / (EPSILON * 2)
   const dy = (worldTerrainHeight(x, y + EPSILON) - worldTerrainHeight(x, y - EPSILON)) / (EPSILON * 2)
@@ -331,7 +461,7 @@ function createGradientLines() {
 
 function createPointField(networkPoints) {
   return networkPoints
-    .filter((_, index) => index % 3 !== 0)
+    .filter((_, index) => index % 4 === 0 || index % 11 === 0)
     .map(([x, y, height], index) => {
       const point = worldTerrainPoint(x, y, .12)
       return { id: `terrain-point-${index}`, x: point[0], y: point[1], radius: height > 2.7 ? 1.55 : 1.05 }
@@ -339,16 +469,16 @@ function createPointField(networkPoints) {
 }
 
 function createContourLayers() {
-  const cols = 62
-  const rows = 48
+  const cols = 84
+  const rows = 58
   const grid = createGrid(cols, rows)
   const minimum = Math.min(...grid)
   const maximum = Math.max(...grid)
-  const levels = Array.from({ length: 24 }, (_, index) => minimum + ((maximum - minimum) * (index + 1) / 26))
+  const levels = Array.from({ length: 36 }, (_, index) => minimum + ((maximum - minimum) * (index + 1) / 38))
   return levels.map((level, index) => ({
     id: `contour-${index}`,
     level,
-    major: index % 4 === 0,
+    major: index % 6 === 0,
     d: contourPath(grid, cols, rows, level),
   }))
 }
@@ -357,13 +487,18 @@ function createTerrainRenderData() {
   const boundary = createBoundary()
   const network = createIrregularNetwork()
   const gradientLines = createGradientLines()
+  const detailedNetwork = createDetailedNetwork()
   return Object.freeze({
     boundary,
     contours: createContourLayers(),
     network: network.paths,
+    detailNetwork: detailedNetwork.d,
+    detailPoints: detailedNetwork.points,
+    mountainRelief: createMountainRelief(),
+    hydrology: createHydrology(),
     ridgeLines: gradientLines.ridgeLines,
     flowLines: gradientLines.flowLines,
-    points: createPointField(network.points),
+    points: createPointField(detailedNetwork.points),
   })
 }
 

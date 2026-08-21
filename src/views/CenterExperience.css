@@ -794,3 +794,56 @@
   .center-procedural-terrain__points { opacity: .66; }
   .center-procedural-terrain__contour { stroke-width: .72; }
 }
+
+/* Detail density pass ------------------------------------------------------
+   The reference language is carried by many small, connected marks: a
+   triangulated field, relief facets, river strata and compact wireframe
+   settlements. They remain single-path SVG layers where possible so detail
+   does not turn into a React render-per-edge problem. */
+.center-procedural-terrain__detail-network {
+  fill: none;
+  stroke: rgba(159, 175, 166, .19);
+  stroke-width: .42;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .9;
+}
+.center-procedural-terrain__mountain-relief {
+  fill: none;
+  stroke: rgba(224, 201, 158, .44);
+  stroke-width: .55;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .94;
+}
+.center-procedural-terrain__hydrology path {
+  fill: none;
+  stroke: rgba(149, 192, 201, .32);
+  stroke-width: .64;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.center-procedural-terrain__hydrology path:nth-child(3n) {
+  stroke: rgba(204, 216, 193, .28);
+  stroke-width: .46;
+  stroke-dasharray: 1.3 3.4;
+}
+.center-data-city__streets {
+  fill: none;
+  stroke: rgba(206, 188, 143, .24);
+  stroke-width: .42;
+  stroke-linecap: round;
+  stroke-dasharray: 1 4;
+}
+.center-data-city__structure {
+  stroke-width: .48;
+  opacity: .82;
+}
+.center-data-city__orbit { opacity: .58; }
+.center-data-city__orbit--inner { opacity: .4; }
+
+@media (max-width: 700px) {
+  .center-procedural-terrain__detail-network { opacity: .72; }
+  .center-procedural-terrain__mountain-relief { stroke-width: .64; }
+  .center-data-city__structure { stroke-width: .56; }
+}

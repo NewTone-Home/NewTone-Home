@@ -54,6 +54,13 @@ describe('Center procedural world map', () => {
     expect(worldGridPath('y', 4)).toMatch(/L/)
   })
 
+  it('keeps the fine-detail field dense without exposing a DOM edge per segment', () => {
+    expect(PROCEDURAL_TERRAIN.detailNetwork.startsWith('M')).toBe(true)
+    expect(PROCEDURAL_TERRAIN.mountainRelief.startsWith('M')).toBe(true)
+    expect(PROCEDURAL_TERRAIN.hydrology.banks.length).toBeGreaterThanOrEqual(4)
+    expect(PROCEDURAL_TERRAIN.detailPoints.length).toBeGreaterThan(500)
+  })
+
   it('generates line-only settlement volumes from data', () => {
     const footprint = worldFootprint([[2, 2], [2.4, 2], [2.4, 2.4], [2, 2.4]], 1.4)
     expect(footprint.ground).toMatch(/^M/)

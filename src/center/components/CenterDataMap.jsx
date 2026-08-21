@@ -31,13 +31,24 @@ function entityKeyDown(event, entityId, onSelect) {
 }
 
 function TerrainLayer() {
-  const { boundary, contours, network, ridgeLines, flowLines, points } = PROCEDURAL_TERRAIN
+  const {
+    boundary,
+    contours,
+    network,
+    detailNetwork,
+    mountainRelief,
+    hydrology,
+    ridgeLines,
+    flowLines,
+    points,
+  } = PROCEDURAL_TERRAIN
   return (
     <g className="center-data-layer center-data-terrain center-procedural-terrain" aria-hidden="true">
       <path className="center-data-terrain__surface" d={worldPathFromPoints(boundary, -.02, true)} />
       <g className="center-procedural-terrain__network">
         {network.map(layer => <path key={`terrain-network-${layer.level}`} className={`center-procedural-terrain__network-path center-procedural-terrain__network-path--${layer.level}`} d={layer.d} />)}
       </g>
+      <path className="center-procedural-terrain__detail-network" d={detailNetwork} />
       <g className="center-procedural-terrain__contours">
         {contours.map(contour => (
           <path
@@ -46,6 +57,11 @@ function TerrainLayer() {
             d={contour.d}
           />
         ))}
+      </g>
+      <path className="center-procedural-terrain__mountain-relief" d={mountainRelief} />
+      <g className="center-procedural-terrain__hydrology">
+        {hydrology.banks.map((d, index) => <path key={`terrain-bank-${index}`} d={d} />)}
+        {hydrology.tributaries.map((d, index) => <path key={`terrain-tributary-${index}`} d={d} />)}
       </g>
       <g className="center-procedural-terrain__ridges">
         {ridgeLines.map((d, index) => <path key={`terrain-ridge-${index}`} d={d} />)}
@@ -123,40 +139,82 @@ function RouteLayer() {
   )
 }
 
+function deterministicUnit(value) {
+  const sample = Math.sin((value * 127.1) + 31.7) * 43758.5453
+  return sample - Math.floor(sample)
+}
+
+function buildCityWireframe(city, cityIndex) {
+  const structures = []
+  const streets = []
+  const count = 82
+  for (let index = 0; index < count; index += 1) {
+    const angle = deterministicUnit(index + cityIndex * 71) * Math.PI * 2
+    const distance = Math.sqrt(deterministicUnit(index * 3.7 + cityIndex * 13.1)) * city.radius * .98
+    const x = city.center[0] + Math.cos(angle) * distance
+    const y = city.center[1] + Math.sin(angle) * distance
+    const width = .028 + deterministicUnit(index * 5.3 + cityIndex) * .12
+    const depth = .025 + deterministicUnit(index * 7.1 + cityIndex * 3) * .1
+    const height = city.heights[index % city.heights.length] * (.34 + deterministicUnit(index * 9.9 + cityIndex * 5) * 1.18)
+    const ground = worldTerrainPoint(x, y, .08)
+    const roof = worldTerrainPoint(x, y, height)
+    const groundA = worldTerrainPoint(x - width, y - depth, .08)
+    const groundB = worldTerrainPoint(x + width, y + depth, .08)
+    const groundC = worldTerrainPoint(x - width, y + depth, .08)
+    const groundD = worldTerrainPoint(x + width, y - depth, .08)
+    const roofA = worldTerrainPoint(x - width * .72, y - depth * .72, height)
+    const roofB = worldTerrainPoint(x + width * .72, y + depth * .72, height)
+
+    structures.push(
+      `M${groundA[0].toFixed(2)} ${groundA[1].toFixed(2)} L${groundB[0].toFixed(2)} ${groundB[1].toFixed(2)}`,
+      `M${groundC[0].toFixed(2)} ${groundC[1].toFixed(2)} L${groundD[0].toFixed(2)} ${groundD[1].toFixed(2)}`,
+      `M${groundA[0].toFixed(2)} ${groundA[1].toFixed(2)} L${roofA[0].toFixed(2)} ${roofA[1].toFixed(2)}`,
+      `M${groundB[0].toFixed(2)} ${groundB[1].toFixed(2)} L${roofB[0].toFixed(2)} ${roofB[1].toFixed(2)}`,
+      `M${ground[0].toFixed(2)} ${ground[1].toFixed(2)} L${roof[0].toFixed(2)} ${roof[1].toFixed(2)}`,
+      `M${roofA[0].toFixed(2)} ${roofA[1].toFixed(2)} L${roof[0].toFixed(2)} ${roof[1].toFixed(2)} L${roofB[0].toFixed(2)} ${roofB[1].toFixed(2)}`,
+    )
+
+    const floorCount = height > 1.2 ? 2 + (index % 3) : 1
+    for (let floor = 1; floor < floorCount; floor += 1) {
+      const floorHeight = (height * floor) / floorCount
+      const floorA = worldTerrainPoint(x - width * .86, y - depth * .86, floorHeight)
+      const floorB = worldTerrainPoint(x + width * .86, y + depth * .86, floorHeight)
+      structures.push(`M${floorA[0].toFixed(2)} ${floorA[1].toFixed(2)} L${floorB[0].toFixed(2)} ${floorB[1].toFixed(2)}`)
+    }
+
+    if (index % 6 === 0) {
+      const antenna = worldTerrainPoint(x, y, height + .42)
+      structures.push(`M${roof[0].toFixed(2)} ${roof[1].toFixed(2)} L${antenna[0].toFixed(2)} ${antenna[1].toFixed(2)}`)
+    }
+  }
+
+  for (let index = 0; index < 26; index += 1) {
+    const angle = (Math.PI * 2 * index) / 26 + .08
+    const end = [
+      city.center[0] + Math.cos(angle) * city.radius * (.28 + (index % 4) * .16),
+      city.center[1] + Math.sin(angle) * city.radius * (.28 + (index % 4) * .16),
+    ]
+    streets.push(worldLinePath([city.center, end], .16))
+  }
+
+  return { structures: structures.join(' '), streets: streets.join(' ') }
+}
+
+const CITY_WIREFRAMES = new Map(WORLD_MAP_CITIES.map((city, index) => [city.id, buildCityWireframe(city, index)]))
+
 function CityLayer() {
   return (
     <g className="center-data-layer center-data-cities" aria-hidden="true">
       {WORLD_MAP_CITIES.map(city => {
         const center = worldTerrainPoint(...city.center, .32)
+        const wireframe = CITY_WIREFRAMES.get(city.id)
         return (
           <g key={city.id} className={`center-data-city ${TONE_CLASS[city.tone]}`}>
             <path className="center-data-city__orbit" d={worldRingPath(city.center, city.radius * 1.28, 1, 30, .3)} />
             <path className="center-data-city__orbit center-data-city__orbit--inner" d={worldRingPath(city.center, city.radius * .62, 1, 24, .36)} />
             <circle className="center-data-city__core" cx={center[0]} cy={center[1]} r="2.2" />
-            {Array.from({ length: 24 }, (_, index) => {
-              const angle = (Math.PI * 2 * index) / 24 + (index % 2) * .12
-              const distance = city.radius * (.18 + ((index * 17) % 25) / 25 * .78)
-              const x = city.center[0] + Math.cos(angle) * distance
-              const y = city.center[1] + Math.sin(angle) * distance
-              const height = city.heights[index % city.heights.length] * (.6 + ((index * 13) % 7) * .1)
-              const width = .08 + ((index * 7) % 5) * .028
-              const depth = .07 + ((index * 11) % 4) * .028
-              const ground = worldTerrainPoint(x, y, .08)
-              const roof = worldTerrainPoint(x, y, height)
-              const groundA = worldTerrainPoint(x - width, y - depth, .08)
-              const groundB = worldTerrainPoint(x + width, y + depth, .08)
-              const roofA = worldTerrainPoint(x - width * .72, y - depth * .72, height)
-              const roofB = worldTerrainPoint(x + width * .72, y + depth * .72, height)
-              const groundC = worldTerrainPoint(x - width, y + depth, .08)
-              const groundD = worldTerrainPoint(x + width, y - depth, .08)
-              return (
-                <path
-                  key={`${city.id}-structure-${index}`}
-                  className="center-data-city__structure"
-                  d={`M${groundA[0].toFixed(2)} ${groundA[1].toFixed(2)} L${groundB[0].toFixed(2)} ${groundB[1].toFixed(2)} M${groundC[0].toFixed(2)} ${groundC[1].toFixed(2)} L${groundD[0].toFixed(2)} ${groundD[1].toFixed(2)} M${groundA[0].toFixed(2)} ${groundA[1].toFixed(2)} L${roofA[0].toFixed(2)} ${roofA[1].toFixed(2)} M${groundB[0].toFixed(2)} ${groundB[1].toFixed(2)} L${roofB[0].toFixed(2)} ${roofB[1].toFixed(2)} M${ground[0].toFixed(2)} ${ground[1].toFixed(2)} L${roof[0].toFixed(2)} ${roof[1].toFixed(2)} M${roofA[0].toFixed(2)} ${roofA[1].toFixed(2)} L${roof[0].toFixed(2)} ${roof[1].toFixed(2)} L${roofB[0].toFixed(2)} ${roofB[1].toFixed(2)}`}
-                />
-              )
-            })}
+            <path className="center-data-city__streets" d={wireframe?.streets} />
+            <path className="center-data-city__structure" d={wireframe?.structures} />
           </g>
         )
       })}
