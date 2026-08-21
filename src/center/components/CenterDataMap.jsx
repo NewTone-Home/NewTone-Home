@@ -362,6 +362,11 @@ function CenterDataMap({ canvasRef, sceneRef, interaction, language, label, onFo
           <stop offset="0" stopColor="#121a1b" stopOpacity=".12" />
           <stop offset="1" stopColor="#05090b" stopOpacity=".82" />
         </radialGradient>
+        <linearGradient id="center-terrain-wire-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#d9bb82" stopOpacity=".76" />
+          <stop offset="48%" stopColor="#b8b19b" stopOpacity=".52" />
+          <stop offset="100%" stopColor="#8bb5c1" stopOpacity=".62" />
+        </linearGradient>
         <pattern id="center-data-stars" width="44" height="44" patternUnits="userSpaceOnUse">
           <circle cx="8" cy="11" r=".7" fill="#9da9aa" opacity=".14" />
           <circle cx="33" cy="28" r=".45" fill="#c1a878" opacity=".18" />

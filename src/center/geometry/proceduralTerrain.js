@@ -247,7 +247,10 @@ function createGrid(cols, rows) {
 function createBoundary() {
   return Array.from({ length: 84 }, (_, index) => {
     const angle = (Math.PI * 2 * index) / 84
-    const radial = 1 + ((fractalNoise(Math.cos(angle) * 2.2 + 21, Math.sin(angle) * 2.2 - 9) - .5) * .18)
+    const radial = 1
+      + ((fractalNoise(Math.cos(angle) * 2.2 + 21, Math.sin(angle) * 2.2 - 9) - .5) * .3)
+      + Math.sin((angle * 5) + 1.2) * .045
+      + Math.sin((angle * 11) - .7) * .025
     const x = 9 + Math.cos(angle) * 8.85 * radial
     const y = 8 + Math.sin(angle) * 7.55 * radial
     return [clamp(x, DOMAIN.minX + .16, DOMAIN.maxX - .16), clamp(y, DOMAIN.minY + .16, DOMAIN.maxY - .16)]
@@ -382,10 +385,10 @@ function createDetailedNetwork() {
 
 function createMountainRelief() {
   const centers = [
-    { x: 4.1, y: 2.2, radiusX: 3.05, radiusY: 2.05, peak: .9 },
-    { x: 14.2, y: 3.2, radiusX: 2.35, radiusY: 1.65, peak: .7 },
-    { x: 9.35, y: 13.6, radiusX: 2.8, radiusY: 2.25, peak: .86 },
-    { x: 6.7, y: 6.2, radiusX: 1.65, radiusY: 1.25, peak: .42 },
+    { x: 4.1, y: 2.2, radiusX: 3.05, radiusY: 2.05, peak: 1.45 },
+    { x: 14.2, y: 3.2, radiusX: 2.35, radiusY: 1.65, peak: 1.12 },
+    { x: 9.35, y: 13.6, radiusX: 2.8, radiusY: 2.25, peak: 1.35 },
+    { x: 6.7, y: 6.2, radiusX: 1.65, radiusY: 1.25, peak: .68 },
   ]
   const paths = []
 
@@ -502,7 +505,7 @@ function createPointField(networkPoints) {
     .filter((_, index) => index % 4 === 0 || index % 11 === 0)
     .map(([x, y, height], index) => {
       const point = worldTerrainPoint(x, y, .12)
-      return { id: `terrain-point-${index}`, x: point[0], y: point[1], radius: height > 2.7 ? 1.55 : 1.05 }
+      return { id: `terrain-point-${index}`, x: point[0], y: point[1], radius: height > 2.7 ? 1.8 : 1.22 }
     })
 }
 
