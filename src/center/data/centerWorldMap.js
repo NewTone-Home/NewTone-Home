@@ -10,7 +10,7 @@ export const WORLD_MAP_PROJECTION = Object.freeze({
   originY: 50,
   tileX: 42,
   tileY: 29,
-  height: 24,
+  height: 38,
 })
 
 export const WORLD_MAP_BOUNDS = Object.freeze({ minX: 0, maxX: 18, minY: 0, maxY: 16 })

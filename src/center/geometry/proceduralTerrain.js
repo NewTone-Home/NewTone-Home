@@ -308,39 +308,70 @@ function createDetailedNetwork() {
   const points = []
   const cols = 34
   const rows = 28
+  const grid = Array.from({ length: rows }, () => Array(cols).fill(null))
+  const segments = [[], [], []]
+  const seen = new Set()
+  const addPoint = (point, row, col) => {
+    if (!isInsideLooseLand(point[0], point[1])) return null
+    const value = [point[0], point[1], worldTerrainHeight(point[0], point[1])]
+    grid[row][col] = value
+    points.push(value)
+    return value
+  }
+  const addEdge = (a, b) => {
+    if (!a || !b) return
+    const key = [pointKey(a), pointKey(b)].sort().join('|')
+    if (seen.has(key)) return
+    seen.add(key)
+    const averageHeight = (a[2] + b[2]) / 2
+    const band = averageHeight > 3.1 ? 2 : averageHeight > 1.45 ? 1 : 0
+    segments[band].push([a, b])
+  }
+  const addTriangle = (a, b, c) => {
+    addEdge(a, b)
+    addEdge(b, c)
+    addEdge(c, a)
+  }
+
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < cols; col += 1) {
       const x = DOMAIN.minX + ((col + .12 + hash2d(col + 17, row + 7) * .76) / cols) * (DOMAIN.maxX - DOMAIN.minX)
       const y = DOMAIN.minY + ((row + .12 + hash2d(col + 31, row + 19) * .76) / rows) * (DOMAIN.maxY - DOMAIN.minY)
-      if (!isInsideLooseLand(x, y)) continue
-      points.push([x, y, worldTerrainHeight(x, y)])
+      addPoint([x, y], row, col)
+    }
+  }
+
+  for (let row = 0; row < rows - 1; row += 1) {
+    for (let col = 0; col < cols - 1; col += 1) {
+      const topLeft = grid[row][col]
+      const topRight = grid[row][col + 1]
+      const bottomLeft = grid[row + 1][col]
+      const bottomRight = grid[row + 1][col + 1]
+      if (hash2d(col + 6, row + 18) > .5) {
+        addTriangle(topLeft, topRight, bottomRight)
+        addTriangle(topLeft, bottomRight, bottomLeft)
+      } else {
+        addTriangle(topLeft, topRight, bottomLeft)
+        addTriangle(topRight, bottomRight, bottomLeft)
+      }
     }
   }
 
   for (let index = 0; index < 128; index += 1) {
     const x = DOMAIN.minX + (.05 + hash2d(index + 101, 23) * .9) * (DOMAIN.maxX - DOMAIN.minX)
     const y = DOMAIN.minY + (.05 + hash2d(index + 149, 41) * .9) * (DOMAIN.maxY - DOMAIN.minY)
-    if (isInsideLooseLand(x, y)) points.push([x, y, worldTerrainHeight(x, y)])
-  }
-
-  const segments = [[], [], []]
-  const seen = new Set()
-  points.forEach((source, sourceIndex) => {
-    points
-      .map((target, targetIndex) => ({ target, targetIndex, distance: Math.hypot(target[0] - source[0], target[1] - source[1]) }))
-      .filter(candidate => candidate.targetIndex !== sourceIndex)
+    if (!isInsideLooseLand(x, y)) continue
+    const point = [x, y, worldTerrainHeight(x, y)]
+    points.push(point)
+    const nearby = points
+      .slice(0, -1)
+      .map(target => ({ target, distance: Math.hypot(target[0] - x, target[1] - y) }))
       .sort((a, b) => a.distance - b.distance)
-      .slice(0, 5)
-      .forEach(candidate => {
-        if (candidate.distance > 2.15) return
-        const key = [sourceIndex, candidate.targetIndex].sort((a, b) => a - b).join(':')
-        if (seen.has(key)) return
-        seen.add(key)
-        const averageHeight = (source[2] + candidate.target[2]) / 2
-        const band = averageHeight > 3.1 ? 2 : averageHeight > 1.45 ? 1 : 0
-        segments[band].push([source, candidate.target])
-      })
-  })
+      .slice(0, 2)
+    nearby.forEach(({ target, distance }) => {
+      if (distance < 1.3) addEdge(point, target)
+    })
+  }
 
   return {
     points,
