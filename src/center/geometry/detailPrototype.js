@@ -1,4 +1,5 @@
 import { createFacadeGrammar } from './facadeGrammar'
+import { createBuildingGeometry } from './buildingGeometry'
 
 /*
  * A deliberately small, high-detail local map sample.
@@ -337,6 +338,7 @@ function buildDetailBuilding(spec) {
   }
 
   const grammar = createFacadeGrammar(spec, project)
+  const geometry = spec.geometryStyle ? createBuildingGeometry(spec, project) : null
 
   return {
     ...spec,
@@ -344,6 +346,7 @@ function buildDetailBuilding(spec) {
     silhouette: silhouette.join(' '),
     detail: grammar ? '' : detail.join(' '),
     grammar,
+    geometry,
     hit: pathFromPoints([
       project(spec.x - spec.width * .8, spec.y - spec.depth * .8, .1),
       project(spec.x + spec.width * .8, spec.y - spec.depth * .8, .1),
@@ -354,19 +357,19 @@ function buildDetailBuilding(spec) {
 }
 
 const BUILDING_SPECS = Object.freeze([
-  { id: 'detail-archive', entityId: 'memory-archive', x: 3.05, y: 4.25, width: 1.5, depth: 1.18, height: 2.65, archetype: 'gable', tone: 'warm', detailStyle: 'archive', floors: 4, columns: 5, seed: 17 },
+  { id: 'detail-archive', entityId: 'memory-archive', x: 3.05, y: 4.25, width: 1.5, depth: 1.18, height: 2.65, archetype: 'gable', tone: 'warm', detailStyle: 'archive', geometryStyle: 'civic', roofType: 'hip', floors: 4, columns: 5, seed: 17 },
   { id: 'detail-archive-wing-a', x: 2.25, y: 4.7, width: .55, depth: .52, height: .86, archetype: 'low', tone: 'warm' },
   { id: 'detail-archive-wing-b', x: 3.95, y: 4.75, width: .62, depth: .42, height: 1.05, archetype: 'gable', tone: 'warm' },
   { id: 'detail-archive-row-a', x: 2.55, y: 5.5, width: .5, depth: .48, height: .72, archetype: 'low', tone: 'warm' },
   { id: 'detail-archive-row-b', x: 3.25, y: 5.65, width: .5, depth: .52, height: 1.05, archetype: 'gable', tone: 'warm' },
   { id: 'detail-archive-row-c', x: 4.05, y: 5.55, width: .45, depth: .44, height: .76, archetype: 'low', tone: 'warm' },
-  { id: 'detail-market', entityId: 'crossing-market', x: 6.35, y: 6.2, width: 1.45, depth: 1.05, height: 1.55, archetype: 'market', tone: 'warm', detailStyle: 'market', floors: 2, columns: 4, seed: 29 },
+  { id: 'detail-market', entityId: 'crossing-market', x: 6.35, y: 6.2, width: 1.45, depth: 1.05, height: 1.55, archetype: 'market', tone: 'warm', detailStyle: 'market', geometryStyle: 'market', roofType: 'gable', floors: 2, columns: 4, seed: 29 },
   { id: 'detail-market-stall-a', x: 5.3, y: 6.35, width: .48, depth: .42, height: .58, archetype: 'market', tone: 'warm' },
   { id: 'detail-market-stall-b', x: 5.8, y: 7.02, width: .5, depth: .44, height: .62, archetype: 'market', tone: 'warm' },
   { id: 'detail-market-stall-c', x: 7.25, y: 5.55, width: .52, depth: .43, height: .62, archetype: 'market', tone: 'warm' },
   { id: 'detail-market-stall-d', x: 7.55, y: 6.8, width: .48, depth: .45, height: .7, archetype: 'market', tone: 'warm' },
   { id: 'detail-relay', entityId: 'relay-17', x: 5.55, y: 7.55, width: .36, depth: .36, height: 1.25, archetype: 'lattice', tone: 'cool' },
-  { id: 'detail-station', entityId: 'south-station', x: 9.15, y: 7.35, width: 1.75, depth: 1.05, height: 1.45, archetype: 'station', tone: 'neutral', detailStyle: 'station', floors: 2, columns: 5, seed: 41 },
+  { id: 'detail-station', entityId: 'south-station', x: 9.15, y: 7.35, width: 1.75, depth: 1.05, height: 1.45, archetype: 'station', tone: 'neutral', detailStyle: 'station', geometryStyle: 'station', roofType: 'hip', floors: 2, columns: 5, seed: 41 },
   { id: 'detail-station-wing-a', x: 8.15, y: 7.8, width: .58, depth: .42, height: .64, archetype: 'low', tone: 'neutral' },
   { id: 'detail-station-wing-b', x: 10.3, y: 7.95, width: .55, depth: .4, height: .64, archetype: 'low', tone: 'neutral' },
   { id: 'detail-station-row-a', x: 8.35, y: 8.6, width: .48, depth: .42, height: .74, archetype: 'gable', tone: 'neutral' },

@@ -64,6 +64,26 @@ function BuildingGrammar({ grammar }) {
   )
 }
 
+function BuildingGeometryPaths({ geometry }) {
+  if (!geometry) return null
+  const layers = geometry.layers
+  return (
+    <g className="center-detail-building__geometry" aria-hidden="true">
+      <path className="center-detail-building__geometry-fill" d={layers.fill} />
+      <path className="center-detail-building__geometry-primary" d={layers.primary} />
+      <path className="center-detail-building__geometry-structure" d={layers.structure} />
+      <path className="center-detail-building__geometry-window" d={layers.window} />
+      <path className="center-detail-building__geometry-reveal" d={layers.reveal} />
+      <path className="center-detail-building__geometry-frame" d={layers.frame} />
+      <path className="center-detail-building__geometry-fine" d={layers.fine} />
+      <path className="center-detail-building__geometry-balcony" d={layers.balcony} />
+      <path className="center-detail-building__geometry-arcade" d={layers.arcade} />
+      <path className="center-detail-building__geometry-service" d={layers.service} />
+      <path className="center-detail-building__geometry-roof" d={layers.roof} />
+    </g>
+  )
+}
+
 function StaticBuildings() {
   const { staticBuildings } = DETAIL_PROTOTYPE
   return (
@@ -100,11 +120,15 @@ function InteractiveBuilding({ building, interaction, language, onFocus, onBlur,
       onClick={event => { event.stopPropagation(); onSelect(building.entityId, event.detail === 0 ? 'keyboard' : 'pointer') }}
       onKeyDown={event => entityKeyDown(event, building.entityId, onSelect)}
     >
-      <path className="center-detail-building__ground" d={building.ground} />
-      <path className="center-detail-building__silhouette" d={building.silhouette} />
-      <path className="center-detail-building__detail" d={building.detail} />
-      <BuildingGrammar grammar={building.grammar} />
-      <path className="center-detail-building__hit" d={building.hit} />
+      {building.geometry ? <BuildingGeometryPaths geometry={building.geometry} /> : (
+        <>
+          <path className="center-detail-building__ground" d={building.ground} />
+          <path className="center-detail-building__silhouette" d={building.silhouette} />
+          <path className="center-detail-building__detail" d={building.detail} />
+          <BuildingGrammar grammar={building.grammar} />
+        </>
+      )}
+      <path className="center-detail-building__hit" d={building.geometry?.hitPath || building.hit} />
       <path className="center-detail-anchor__leader" d={`M${point[0]} ${point[1]} L${labelPoint[0]} ${labelPoint[1]}`} />
       <circle className="center-detail-anchor__ring" cx={point[0]} cy={point[1]} r="10" />
       <circle className="center-detail-anchor__dot" cx={point[0]} cy={point[1]} r="2.6" />

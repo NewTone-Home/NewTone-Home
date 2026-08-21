@@ -940,6 +940,18 @@
 .center-detail-building__grammar-prop { fill: rgba(16, 27, 27, .32); stroke: rgba(220, 198, 152, .72); stroke-width: .46; stroke-linecap: round; stroke-linejoin: round; }
 .center-detail-building__grammar-accent { fill: none; stroke: rgba(231, 203, 151, .68); stroke-width: .52; stroke-linecap: round; stroke-linejoin: round; }
 .center-detail-building__grammar-roof { fill: none; stroke: rgba(239, 216, 175, .82); stroke-width: .72; stroke-linecap: round; stroke-linejoin: round; }
+.center-detail-building__geometry { pointer-events: none; }
+.center-detail-building__geometry-fill { fill: rgba(8, 16, 17, .58); stroke: rgba(197, 177, 133, .22); stroke-width: .56; }
+.center-detail-building__geometry-primary { fill: none; stroke: rgba(237, 212, 165, .88); stroke-width: 1.08; stroke-linecap: round; stroke-linejoin: round; }
+.center-detail-building__geometry-structure { fill: none; stroke: rgba(223, 201, 157, .7); stroke-width: .72; stroke-linecap: round; stroke-linejoin: round; }
+.center-detail-building__geometry-window { fill: rgba(105, 147, 151, .13); stroke: rgba(237, 216, 176, .77); stroke-width: .58; stroke-linecap: round; stroke-linejoin: round; }
+.center-detail-building__geometry-reveal { fill: none; stroke: rgba(218, 192, 143, .6); stroke-width: .48; stroke-linecap: round; }
+.center-detail-building__geometry-frame { fill: none; stroke: rgba(242, 222, 183, .62); stroke-width: .46; stroke-linecap: round; stroke-linejoin: round; }
+.center-detail-building__geometry-fine { fill: none; stroke: rgba(229, 201, 151, .62); stroke-width: .42; stroke-linecap: round; }
+.center-detail-building__geometry-balcony { fill: rgba(28, 38, 36, .38); stroke: rgba(236, 209, 164, .78); stroke-width: .62; stroke-linecap: round; stroke-linejoin: round; }
+.center-detail-building__geometry-arcade { fill: none; stroke: rgba(239, 215, 176, .82); stroke-width: .7; stroke-linecap: round; stroke-linejoin: round; }
+.center-detail-building__geometry-service { fill: rgba(18, 29, 29, .46); stroke: rgba(205, 179, 132, .64); stroke-width: .44; stroke-linecap: round; stroke-linejoin: round; }
+.center-detail-building__geometry-roof { fill: none; stroke: rgba(247, 224, 180, .92); stroke-width: .88; stroke-linecap: round; stroke-linejoin: round; }
 .center-detail-building--interactive { pointer-events: all; cursor: pointer; outline: none; }
 .center-detail-building--interactive .center-detail-building__hit { fill: rgba(255, 255, 255, .001); stroke: transparent; stroke-width: 22; pointer-events: all; }
 .center-detail-tone--warm .center-detail-building__silhouette { stroke: rgba(236, 207, 157, .86); }
@@ -947,16 +959,25 @@
 .center-detail-tone--warm .center-detail-building__grammar-face { fill: rgba(55, 40, 25, .2); stroke: rgba(231, 192, 127, .32); }
 .center-detail-tone--warm .center-detail-building__grammar-structure { stroke: rgba(238, 205, 157, .72); }
 .center-detail-tone--warm .center-detail-building__grammar-window { stroke: rgba(244, 218, 169, .86); }
+.center-detail-tone--warm .center-detail-building__geometry-fill { fill: rgba(50, 35, 22, .52); stroke: rgba(232, 192, 126, .34); }
+.center-detail-tone--warm .center-detail-building__geometry-primary { stroke: rgba(244, 215, 164, .96); }
+.center-detail-tone--warm .center-detail-building__geometry-window { stroke: rgba(249, 223, 174, .9); }
 .center-detail-tone--cool .center-detail-building__silhouette { stroke: rgba(153, 201, 210, .82); }
 .center-detail-tone--cool .center-detail-building__detail { stroke: rgba(147, 195, 205, .64); }
 .center-detail-tone--cool .center-detail-building__grammar-face { fill: rgba(18, 42, 47, .2); stroke: rgba(135, 192, 201, .34); }
 .center-detail-tone--cool .center-detail-building__grammar-structure { stroke: rgba(162, 207, 213, .7); }
 .center-detail-tone--cool .center-detail-building__grammar-window { stroke: rgba(175, 217, 220, .84); }
+.center-detail-tone--cool .center-detail-building__geometry-fill { fill: rgba(17, 42, 47, .5); stroke: rgba(132, 190, 201, .34); }
+.center-detail-tone--cool .center-detail-building__geometry-primary { stroke: rgba(174, 218, 221, .94); }
+.center-detail-tone--cool .center-detail-building__geometry-window { stroke: rgba(186, 225, 226, .88); }
 .center-detail-tone--neutral .center-detail-building__silhouette { stroke: rgba(211, 207, 180, .78); }
 .center-detail-tone--neutral .center-detail-building__detail { stroke: rgba(205, 202, 177, .58); }
 .center-detail-tone--neutral .center-detail-building__grammar-face { fill: rgba(39, 40, 34, .2); stroke: rgba(206, 200, 168, .3); }
 .center-detail-tone--neutral .center-detail-building__grammar-structure { stroke: rgba(218, 212, 181, .68); }
 .center-detail-tone--neutral .center-detail-building__grammar-window { stroke: rgba(228, 220, 190, .8); }
+.center-detail-tone--neutral .center-detail-building__geometry-fill { fill: rgba(37, 39, 34, .5); stroke: rgba(205, 199, 166, .32); }
+.center-detail-tone--neutral .center-detail-building__geometry-primary { stroke: rgba(230, 223, 193, .9); }
+.center-detail-tone--neutral .center-detail-building__geometry-window { stroke: rgba(235, 227, 195, .84); }
 .center-detail-anchor__leader { fill: none; stroke: rgba(224, 199, 148, .48); stroke-width: .62; stroke-dasharray: 1 4; pointer-events: none; }
 .center-detail-tone--cool .center-detail-anchor__leader { stroke: rgba(137, 190, 202, .52); }
 .center-detail-anchor__ring { fill: none; stroke: rgba(228, 203, 151, .5); stroke-width: .78; stroke-dasharray: 2 4; pointer-events: none; transition: r 220ms ease, stroke 220ms ease, opacity 220ms ease; }
@@ -974,6 +995,12 @@
 .center-detail-building[data-entity-state='focus'] .center-detail-building__grammar-roof,
 .center-detail-building[data-entity-state='selected'] .center-detail-building__grammar-roof,
 .center-detail-building[data-entity-state='open'] .center-detail-building__grammar-roof { stroke-width: .9; filter: url('#center-detail-soft-glow'); }
+.center-detail-building[data-entity-state='focus'] .center-detail-building__geometry-primary,
+.center-detail-building[data-entity-state='selected'] .center-detail-building__geometry-primary,
+.center-detail-building[data-entity-state='open'] .center-detail-building__geometry-primary,
+.center-detail-building[data-entity-state='focus'] .center-detail-building__geometry-roof,
+.center-detail-building[data-entity-state='selected'] .center-detail-building__geometry-roof,
+.center-detail-building[data-entity-state='open'] .center-detail-building__geometry-roof { stroke-width: 1.34; filter: url('#center-detail-soft-glow'); }
 .center-detail-building[data-entity-state='focus'] .center-detail-building__detail,
 .center-detail-building[data-entity-state='selected'] .center-detail-building__detail,
 .center-detail-building[data-entity-state='open'] .center-detail-building__detail { stroke-width: .84; }
