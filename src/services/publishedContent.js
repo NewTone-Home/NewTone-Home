@@ -1,4 +1,5 @@
 import { setReaderContent } from '../data/readerContent'
+import { compileScenePublicationToReader, validateScenePublication } from '../data/scenePublication'
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient'
 
 export const PUBLICATION_SLUG = 'main-reader'
@@ -15,7 +16,10 @@ export async function loadPublishedContent() {
   if (error) return { status: 'error', error }
   if (!data) return { status: 'empty' }
   try {
-    setReaderContent(data.content)
+    const readerContent = Array.isArray(data.content)
+      ? data.content
+      : compileScenePublicationToReader(validateScenePublication(data.content))
+    setReaderContent(readerContent)
     return { status: 'ready', publication: data }
   } catch (error) {
     return { status: 'invalid', error }

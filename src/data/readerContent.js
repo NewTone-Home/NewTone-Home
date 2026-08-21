@@ -24,7 +24,10 @@ function validateBlocks(blocks, beat, page, label = '') {
     if (!block || typeof block.id !== 'string' || !/^block-\d+$/.test(block.id)) throw new Error(`Invalid block ID in beat ${beat.id}${label}`)
     if (blockIds.has(block.id)) throw new Error(`Duplicate block ID ${block.id} in beat ${beat.id}${label}`)
     if (block.type !== 'paragraph' || typeof block.text !== 'string' || !block.text.trim()) throw new Error(`Invalid block ${block.id} in beat ${beat.id}${label}`)
-    if (block.source?.chapterId !== page.chapterId || typeof block.source?.paragraphId !== 'string') throw new Error(`Invalid source metadata for ${beat.id}/${block.id}${label}`)
+    if (
+      block.source?.chapterId !== page.chapterId
+      || (typeof block.source?.paragraphId !== 'string' && typeof block.source?.sceneId !== 'string')
+    ) throw new Error(`Invalid source metadata for ${beat.id}/${block.id}${label}`)
     blockIds.add(block.id)
   }
 }
