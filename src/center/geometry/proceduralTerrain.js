@@ -55,9 +55,13 @@ export function worldTerrainHeight(x, y) {
     + gaussian(x, y, 13.1, 10.3, .64, 3.6)
   )
   const riverValley = gaussian(x, y, 7.35, 9.2, .9, 3.1)
-  const noise = (fractalNoise(x, y) - .5) * .62
+  const broadNoise = (fractalNoise(x, y) - .5) * .62
+  const fineNoise = (fractalNoise(x * 1.55 + 4.3, y * 1.55 - 6.1) - .5) * .48
+  const directionalRidges = Math.sin((x * 1.18) + (y * .54) + fractalNoise(x * .48 + 9, y * .48 - 5) * 2.4) * .2
+  const crossRidges = Math.cos((x * .43) - (y * 1.31) + fractalNoise(x * .31 - 2, y * .31 + 8) * 1.7) * .13
   const fold = Math.abs(Math.sin((x * .76) + (y * .37))) * .12
-  return clamp(.13 + mainRidges + secondaryRidges - riverValley + noise + fold, .04, 5.9)
+  const landWeight = .7 + Math.min(1, (mainRidges + secondaryRidges) / 3.6) * .3
+  return clamp(.13 + mainRidges + secondaryRidges - riverValley + broadNoise + (fineNoise + directionalRidges + crossRidges) * landWeight + fold, .04, 6.2)
 }
 
 export function worldProjectPoint(x, y, z = 0, projection = WORLD_MAP_PROJECTION) {
@@ -319,7 +323,7 @@ function createDetailedNetwork() {
     if (isInsideLooseLand(x, y)) points.push([x, y, worldTerrainHeight(x, y)])
   }
 
-  const segments = []
+  const segments = [[], [], []]
   const seen = new Set()
   points.forEach((source, sourceIndex) => {
     points
@@ -332,13 +336,16 @@ function createDetailedNetwork() {
         const key = [sourceIndex, candidate.targetIndex].sort((a, b) => a - b).join(':')
         if (seen.has(key)) return
         seen.add(key)
-        segments.push([source, candidate.target])
+        const averageHeight = (source[2] + candidate.target[2]) / 2
+        const band = averageHeight > 3.1 ? 2 : averageHeight > 1.45 ? 1 : 0
+        segments[band].push([source, candidate.target])
       })
   })
 
   return {
     points,
-    d: projectedSegmentPath(segments, .025),
+    paths: segments.map((band, index) => projectedSegmentPath(band, .02 + index * .014)),
+    d: segments.map(band => projectedSegmentPath(band, .025)).join(' '),
   }
 }
 
@@ -493,6 +500,7 @@ function createTerrainRenderData() {
     contours: createContourLayers(),
     network: network.paths,
     detailNetwork: detailedNetwork.d,
+    detailNetworkPaths: detailedNetwork.paths,
     detailPoints: detailedNetwork.points,
     mountainRelief: createMountainRelief(),
     hydrology: createHydrology(),

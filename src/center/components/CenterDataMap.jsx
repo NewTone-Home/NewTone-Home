@@ -37,6 +37,7 @@ function TerrainLayer() {
     contours,
     network,
     detailNetwork,
+    detailNetworkPaths,
     mountainRelief,
     hydrology,
     ridgeLines,
@@ -50,6 +51,9 @@ function TerrainLayer() {
         {network.map(layer => <path key={`terrain-network-${layer.level}`} className={`center-procedural-terrain__network-path center-procedural-terrain__network-path--${layer.level}`} d={layer.d} />)}
       </g>
       <path className="center-procedural-terrain__detail-network" d={detailNetwork} />
+      <g className="center-procedural-terrain__detail-network-bands">
+        {detailNetworkPaths.map((d, index) => <path key={`terrain-detail-band-${index}`} className={`center-procedural-terrain__detail-network-path center-procedural-terrain__detail-network-path--${index}`} d={d} />)}
+      </g>
       <g className="center-procedural-terrain__contours">
         {contours.map(contour => (
           <path
@@ -165,13 +169,17 @@ function buildCityWireframe(city, cityIndex) {
     const groundD = worldTerrainPoint(x + width, y - depth, .08)
     const roofA = worldTerrainPoint(x - width * .72, y - depth * .72, height)
     const roofB = worldTerrainPoint(x + width * .72, y + depth * .72, height)
+    const roofC = worldTerrainPoint(x - width * .72, y + depth * .72, height)
+    const roofD = worldTerrainPoint(x + width * .72, y - depth * .72, height)
 
     structures.push(
+      `M${groundA[0].toFixed(2)} ${groundA[1].toFixed(2)} L${groundC[0].toFixed(2)} ${groundC[1].toFixed(2)} L${groundB[0].toFixed(2)} ${groundB[1].toFixed(2)} L${groundD[0].toFixed(2)} ${groundD[1].toFixed(2)} L${groundA[0].toFixed(2)} ${groundA[1].toFixed(2)}`,
       `M${groundA[0].toFixed(2)} ${groundA[1].toFixed(2)} L${groundB[0].toFixed(2)} ${groundB[1].toFixed(2)}`,
       `M${groundC[0].toFixed(2)} ${groundC[1].toFixed(2)} L${groundD[0].toFixed(2)} ${groundD[1].toFixed(2)}`,
       `M${groundA[0].toFixed(2)} ${groundA[1].toFixed(2)} L${roofA[0].toFixed(2)} ${roofA[1].toFixed(2)}`,
       `M${groundB[0].toFixed(2)} ${groundB[1].toFixed(2)} L${roofB[0].toFixed(2)} ${roofB[1].toFixed(2)}`,
       `M${ground[0].toFixed(2)} ${ground[1].toFixed(2)} L${roof[0].toFixed(2)} ${roof[1].toFixed(2)}`,
+      `M${roofA[0].toFixed(2)} ${roofA[1].toFixed(2)} L${roofC[0].toFixed(2)} ${roofC[1].toFixed(2)} L${roofB[0].toFixed(2)} ${roofB[1].toFixed(2)} L${roofD[0].toFixed(2)} ${roofD[1].toFixed(2)} L${roofA[0].toFixed(2)} ${roofA[1].toFixed(2)}`,
       `M${roofA[0].toFixed(2)} ${roofA[1].toFixed(2)} L${roof[0].toFixed(2)} ${roof[1].toFixed(2)} L${roofB[0].toFixed(2)} ${roofB[1].toFixed(2)}`,
     )
 
@@ -186,6 +194,36 @@ function buildCityWireframe(city, cityIndex) {
     if (index % 6 === 0) {
       const antenna = worldTerrainPoint(x, y, height + .42)
       structures.push(`M${roof[0].toFixed(2)} ${roof[1].toFixed(2)} L${antenna[0].toFixed(2)} ${antenna[1].toFixed(2)}`)
+    }
+  }
+
+  for (let index = 0; index < 8; index += 1) {
+    const angle = (Math.PI * 2 * index) / 8 + .22
+    const distance = city.radius * (.08 + (index % 3) * .08)
+    const x = city.center[0] + Math.cos(angle) * distance
+    const y = city.center[1] + Math.sin(angle) * distance
+    const width = .12 + (index % 2) * .045
+    const depth = .1 + ((index + 1) % 2) * .035
+    const height = 1.6 + (index % 4) * .32
+    const baseA = worldTerrainPoint(x - width, y - depth, .1)
+    const baseB = worldTerrainPoint(x + width, y + depth, .1)
+    const baseC = worldTerrainPoint(x - width, y + depth, .1)
+    const baseD = worldTerrainPoint(x + width, y - depth, .1)
+    const topA = worldTerrainPoint(x - width * .7, y - depth * .7, height)
+    const topB = worldTerrainPoint(x + width * .7, y + depth * .7, height)
+    const topC = worldTerrainPoint(x - width * .7, y + depth * .7, height)
+    const topD = worldTerrainPoint(x + width * .7, y - depth * .7, height)
+    structures.push(
+      `M${baseA[0].toFixed(2)} ${baseA[1].toFixed(2)} L${baseC[0].toFixed(2)} ${baseC[1].toFixed(2)} L${baseB[0].toFixed(2)} ${baseB[1].toFixed(2)} L${baseD[0].toFixed(2)} ${baseD[1].toFixed(2)} L${baseA[0].toFixed(2)} ${baseA[1].toFixed(2)}`,
+      `M${topA[0].toFixed(2)} ${topA[1].toFixed(2)} L${topC[0].toFixed(2)} ${topC[1].toFixed(2)} L${topB[0].toFixed(2)} ${topB[1].toFixed(2)} L${topD[0].toFixed(2)} ${topD[1].toFixed(2)} L${topA[0].toFixed(2)} ${topA[1].toFixed(2)}`,
+      `M${baseA[0].toFixed(2)} ${baseA[1].toFixed(2)} L${topA[0].toFixed(2)} ${topA[1].toFixed(2)} M${baseB[0].toFixed(2)} ${baseB[1].toFixed(2)} L${topB[0].toFixed(2)} ${topB[1].toFixed(2)}`,
+      `M${baseC[0].toFixed(2)} ${baseC[1].toFixed(2)} L${topC[0].toFixed(2)} ${topC[1].toFixed(2)} M${baseD[0].toFixed(2)} ${baseD[1].toFixed(2)} L${topD[0].toFixed(2)} ${topD[1].toFixed(2)}`,
+    )
+    for (let floor = 1; floor < 4; floor += 1) {
+      const z = (height * floor) / 4
+      const left = worldTerrainPoint(x - width * .78, y - depth * .78, z)
+      const right = worldTerrainPoint(x + width * .78, y + depth * .78, z)
+      structures.push(`M${left[0].toFixed(2)} ${left[1].toFixed(2)} L${right[0].toFixed(2)} ${right[1].toFixed(2)}`)
     }
   }
 

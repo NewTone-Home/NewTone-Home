@@ -802,16 +802,33 @@
    does not turn into a React render-per-edge problem. */
 .center-procedural-terrain__detail-network {
   fill: none;
-  stroke: rgba(159, 175, 166, .19);
-  stroke-width: .42;
+  stroke: rgba(159, 175, 166, .1);
+  stroke-width: .32;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: .9;
+  opacity: .66;
+}
+.center-procedural-terrain__detail-network-path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.center-procedural-terrain__detail-network-path--0 {
+  stroke: rgba(137, 167, 166, .28);
+  stroke-width: .38;
+}
+.center-procedural-terrain__detail-network-path--1 {
+  stroke: rgba(185, 172, 139, .34);
+  stroke-width: .48;
+}
+.center-procedural-terrain__detail-network-path--2 {
+  stroke: rgba(231, 202, 153, .47);
+  stroke-width: .58;
 }
 .center-procedural-terrain__mountain-relief {
   fill: none;
-  stroke: rgba(224, 201, 158, .44);
-  stroke-width: .55;
+  stroke: rgba(224, 201, 158, .53);
+  stroke-width: .66;
   stroke-linecap: round;
   stroke-linejoin: round;
   opacity: .94;
@@ -836,8 +853,8 @@
   stroke-dasharray: 1 4;
 }
 .center-data-city__structure {
-  stroke-width: .48;
-  opacity: .82;
+  stroke-width: .52;
+  opacity: .86;
 }
 .center-data-city__orbit { opacity: .58; }
 .center-data-city__orbit--inner { opacity: .4; }
