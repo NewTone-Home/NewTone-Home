@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react'
 import CenterInfoPanel from '../center/components/CenterInfoPanel'
-import CenterMap from '../center/components/CenterDataMap'
+import CenterDataMap from '../center/components/CenterDataMap'
+import CenterDetailPrototype from '../center/components/CenterDetailPrototype'
 import CenterNewsTicker from '../center/components/CenterNewsTicker'
 import { useCenterPanZoom } from '../center/camera/useCenterPanZoom'
 import { getCenterCopy } from '../center/data/centerCopy'
@@ -20,6 +21,9 @@ function CenterExperience({ onExit, onReady }) {
   const language = useProgressStore(state => state.language)
   const motionMode = useProgressStore(state => state.motionMode)
   const copy = getCenterCopy(language)
+  const isDetailPrototype = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('detail') === '1'
+  const CenterMap = isDetailPrototype ? CenterDetailPrototype : CenterDataMap
   const [interaction, dispatch] = useReducer(centerInteractionReducer, initialCenterInteraction)
   const rootRef = useRef(null)
   const canvasRef = useRef(null)

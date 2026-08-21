@@ -872,3 +872,114 @@
   .center-procedural-terrain__mountain-relief { stroke-width: .64; }
   .center-data-city__structure { stroke-width: .56; }
 }
+
+/* Local detail prototype ---------------------------------------------------
+   This is the focused acceptance tile for the terrain language. Unlike the
+   overview field, it deliberately shows a small number of complete systems:
+   triangulated faces, explicit mountain facets, one structured valley and
+   compact wireframe settlements. */
+.center-detail-map { background: #04090b; }
+.center-detail-map__backdrop { fill: #04090b; }
+.center-detail-map__grid { fill: url('#center-detail-grid-pattern'); opacity: .34; }
+.center-detail-map__vignette { fill: url('#center-detail-vignette'); opacity: .84; pointer-events: none; }
+.center-detail-scene { transform-origin: 0 0; }
+.center-detail-layer { pointer-events: none; }
+.center-detail-map path,
+.center-detail-map circle,
+.center-detail-map text { vector-effect: non-scaling-stroke; }
+
+.center-detail-terrain__surface { fill: rgba(42, 62, 64, .4); stroke: none; }
+.center-detail-terrain__faces path { stroke: none; }
+.center-detail-terrain__face--0 { fill: rgba(83, 116, 120, .085); }
+.center-detail-terrain__face--1 { fill: rgba(156, 137, 103, .085); }
+.center-detail-terrain__face--2 { fill: rgba(212, 172, 107, .12); }
+.center-detail-terrain__mesh path {
+  fill: none;
+  stroke: url('#center-detail-wire-gradient');
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.center-detail-terrain__mesh-path--0 { stroke-opacity: .28; stroke-width: .52; }
+.center-detail-terrain__mesh-path--1 { stroke-opacity: .46; stroke-width: .65; }
+.center-detail-terrain__mesh-path--2 { stroke-opacity: .72; stroke-width: .82; }
+.center-detail-terrain__boundary { fill: none; stroke: rgba(230, 203, 151, .78); stroke-width: 1.1; stroke-dasharray: 2 6; stroke-linecap: round; }
+
+.center-detail-mountain__facets path { stroke-width: .48; stroke-linejoin: round; }
+.center-detail-mountain--warm .center-detail-mountain__facets path { fill: rgba(231, 190, 119, .075); stroke: rgba(232, 193, 127, .24); }
+.center-detail-mountain--neutral .center-detail-mountain__facets path { fill: rgba(190, 181, 147, .065); stroke: rgba(204, 194, 158, .2); }
+.center-detail-mountain--cool .center-detail-mountain__facets path { fill: rgba(123, 180, 193, .08); stroke: rgba(132, 185, 198, .25); }
+.center-detail-mountain__ring { fill: none; stroke-width: .72; stroke-linecap: round; stroke-linejoin: round; }
+.center-detail-mountain--warm .center-detail-mountain__ring { stroke: rgba(236, 207, 157, .62); }
+.center-detail-mountain--neutral .center-detail-mountain__ring { stroke: rgba(202, 195, 166, .5); }
+.center-detail-mountain--cool .center-detail-mountain__ring { stroke: rgba(151, 197, 207, .62); }
+.center-detail-mountain__ring--0 { stroke-width: .95; }
+.center-detail-mountain__ring--1 { opacity: .86; }
+.center-detail-mountain__ring--2 { opacity: .68; stroke-dasharray: 1 3; }
+.center-detail-mountain__ring--3 { opacity: .44; stroke-dasharray: 2 5; }
+.center-detail-mountain__spokes { fill: none; stroke: rgba(227, 204, 157, .46); stroke-width: .58; stroke-linecap: round; }
+.center-detail-mountain--cool .center-detail-mountain__spokes { stroke: rgba(142, 191, 204, .48); }
+.center-detail-mountain__summit { fill: rgba(238, 214, 165, .92); stroke: rgba(238, 214, 165, .34); stroke-width: .7; }
+
+.center-detail-terrain__hydrology path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.center-detail-river__bank { stroke: rgba(53, 90, 98, .52); stroke-width: 7.6; }
+.center-detail-river__water { stroke: rgba(133, 190, 201, .86); stroke-width: 1.58; }
+.center-detail-river__micro { stroke: rgba(213, 220, 195, .5); stroke-width: .56; stroke-dasharray: 2 4; }
+.center-detail-river__tributary { stroke: rgba(120, 175, 188, .58); stroke-width: .78; stroke-dasharray: 1 4; }
+.center-detail-roads__courtyards { fill: rgba(186, 161, 113, .035); stroke: rgba(195, 173, 127, .25); stroke-width: .65; stroke-dasharray: 2 5; }
+.center-detail-roads__paths { fill: none; stroke: rgba(202, 180, 132, .37); stroke-width: 1.1; stroke-dasharray: 2 5; stroke-linecap: round; }
+
+.center-detail-buildings--static { opacity: .6; }
+.center-detail-building__ground { fill: rgba(5, 11, 12, .42); stroke: rgba(166, 151, 117, .32); stroke-width: .62; }
+.center-detail-building__silhouette { fill: none; stroke: rgba(218, 198, 157, .68); stroke-width: .86; stroke-linecap: round; stroke-linejoin: round; }
+.center-detail-building__detail { fill: none; stroke: rgba(219, 201, 161, .54); stroke-width: .6; stroke-linecap: round; stroke-linejoin: round; }
+.center-detail-building--interactive { pointer-events: all; cursor: pointer; outline: none; }
+.center-detail-building--interactive .center-detail-building__hit { fill: rgba(255, 255, 255, .001); stroke: transparent; stroke-width: 22; pointer-events: all; }
+.center-detail-tone--warm .center-detail-building__silhouette { stroke: rgba(236, 207, 157, .86); }
+.center-detail-tone--warm .center-detail-building__detail { stroke: rgba(232, 205, 161, .68); }
+.center-detail-tone--cool .center-detail-building__silhouette { stroke: rgba(153, 201, 210, .82); }
+.center-detail-tone--cool .center-detail-building__detail { stroke: rgba(147, 195, 205, .64); }
+.center-detail-tone--neutral .center-detail-building__silhouette { stroke: rgba(211, 207, 180, .78); }
+.center-detail-tone--neutral .center-detail-building__detail { stroke: rgba(205, 202, 177, .58); }
+.center-detail-anchor__leader { fill: none; stroke: rgba(224, 199, 148, .48); stroke-width: .62; stroke-dasharray: 1 4; pointer-events: none; }
+.center-detail-tone--cool .center-detail-anchor__leader { stroke: rgba(137, 190, 202, .52); }
+.center-detail-anchor__ring { fill: none; stroke: rgba(228, 203, 151, .5); stroke-width: .78; stroke-dasharray: 2 4; pointer-events: none; transition: r 220ms ease, stroke 220ms ease, opacity 220ms ease; }
+.center-detail-tone--cool .center-detail-anchor__ring { stroke: rgba(144, 193, 205, .58); }
+.center-detail-anchor__dot { fill: rgba(237, 212, 161, .9); stroke: #071012; stroke-width: 1.5; pointer-events: none; }
+.center-detail-tone--cool .center-detail-anchor__dot { fill: rgba(165, 207, 214, .9); }
+.center-detail-anchor__label { fill: rgba(231, 216, 183, .72); font-size: 10px; letter-spacing: .14em; pointer-events: none; transition: fill 220ms ease, opacity 220ms ease; }
+.center-detail-tone--cool .center-detail-anchor__label { fill: rgba(183, 215, 218, .76); }
+.center-detail-building[data-entity-state='focus'] .center-detail-building__silhouette,
+.center-detail-building[data-entity-state='selected'] .center-detail-building__silhouette,
+.center-detail-building[data-entity-state='open'] .center-detail-building__silhouette { stroke-width: 1.15; filter: url('#center-detail-soft-glow'); }
+.center-detail-building[data-entity-state='focus'] .center-detail-building__detail,
+.center-detail-building[data-entity-state='selected'] .center-detail-building__detail,
+.center-detail-building[data-entity-state='open'] .center-detail-building__detail { stroke-width: .84; }
+.center-detail-building[data-entity-state='focus'] .center-detail-anchor__ring,
+.center-detail-building[data-entity-state='selected'] .center-detail-anchor__ring,
+.center-detail-building[data-entity-state='open'] .center-detail-anchor__ring { r: 15px; stroke: rgba(245, 219, 164, .92); animation: center-detail-anchor-pulse 2.6s ease-in-out infinite; }
+.center-detail-building[data-entity-state='focus'] .center-detail-anchor__label,
+.center-detail-building[data-entity-state='selected'] .center-detail-anchor__label,
+.center-detail-building[data-entity-state='open'] .center-detail-anchor__label { fill: #f4dfb2; }
+@keyframes center-detail-anchor-pulse { 50% { opacity: .46; } }
+
+.center-detail-labels text { fill: rgba(211, 199, 168, .44); font-size: 8px; letter-spacing: .22em; }
+.center-detail-hud { fill: none; stroke: rgba(193, 177, 143, .5); stroke-width: .72; pointer-events: none; }
+.center-detail-hud text { fill: rgba(210, 198, 171, .56); stroke: none; font-size: 8px; letter-spacing: .18em; }
+.center-detail-hud__warm { stroke: rgba(229, 197, 141, .78); stroke-width: 1.1; }
+.center-detail-hud__cool { stroke: rgba(139, 192, 204, .78); stroke-width: 1.1; }
+.center-detail-hud__mesh { stroke: rgba(187, 185, 162, .56); stroke-width: .72; stroke-dasharray: 2 4; }
+
+@media (max-width: 700px) {
+  .center-detail-hud { opacity: .62; }
+  .center-detail-hud g { display: none; }
+  .center-detail-anchor__label { font-size: 8px; letter-spacing: .1em; }
+  .center-detail-labels { opacity: .68; }
+  .center-detail-building--interactive .center-detail-building__hit { stroke-width: 30; }
+  .center-detail-terrain__mesh-path--0 { opacity: .72; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .center-detail-building[data-entity-state='focus'] .center-detail-anchor__ring,
+  .center-detail-building[data-entity-state='selected'] .center-detail-anchor__ring,
+  .center-detail-building[data-entity-state='open'] .center-detail-anchor__ring { animation: none; }
+}
