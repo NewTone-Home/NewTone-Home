@@ -13,6 +13,7 @@ import {
 } from '../interaction/centerInteraction'
 import {
   PROCEDURAL_TERRAIN,
+  worldLinePath,
   worldPathFromPoints,
   worldRingPath,
   worldTerrainPoint,
