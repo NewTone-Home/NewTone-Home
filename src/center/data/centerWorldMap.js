@@ -7,10 +7,10 @@ export const WORLD_MAP_VIEWBOX = Object.freeze({ width: 1600, height: 1000 })
 // lines above that graph so the result reads as a wireframe relief.
 export const WORLD_MAP_PROJECTION = Object.freeze({
   originX: 800,
-  originY: 116,
-  tileX: 45,
-  tileY: 24,
-  height: 26,
+  originY: 50,
+  tileX: 42,
+  tileY: 29,
+  height: 24,
 })
 
 export const WORLD_MAP_BOUNDS = Object.freeze({ minX: 0, maxX: 18, minY: 0, maxY: 16 })

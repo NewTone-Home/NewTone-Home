@@ -8,6 +8,7 @@ import {
   WORLD_MAP_REGIONS,
   WORLD_MAP_ROUTES,
 } from '../src/center/data/centerWorldMap'
+import { PROCEDURAL_TERRAIN } from '../src/center/geometry/proceduralTerrain'
 import {
   worldFootprint,
   worldGridPath,
@@ -17,6 +18,16 @@ import {
 } from '../src/center/geometry/worldMap'
 
 describe('Center procedural world map', () => {
+  it('derives a dense line-art field from one deterministic terrain source', () => {
+    expect(PROCEDURAL_TERRAIN.contours.length).toBeGreaterThanOrEqual(18)
+    expect(PROCEDURAL_TERRAIN.network).toHaveLength(3)
+    expect(PROCEDURAL_TERRAIN.network.every(layer => layer.d.startsWith('M'))).toBe(true)
+    expect(PROCEDURAL_TERRAIN.boundary.length).toBeGreaterThanOrEqual(64)
+    expect(PROCEDURAL_TERRAIN.ridgeLines.length).toBeGreaterThan(12)
+    expect(PROCEDURAL_TERRAIN.flowLines.length).toBeGreaterThan(12)
+    expect(PROCEDURAL_TERRAIN.points.length).toBeGreaterThan(100)
+  })
+
   it('keeps the demo scene explicit, small, and extensible', () => {
     expect(WORLD_MAP_BOUNDARY.length).toBeGreaterThanOrEqual(10)
     expect(WORLD_MAP_REGIONS).toHaveLength(3)

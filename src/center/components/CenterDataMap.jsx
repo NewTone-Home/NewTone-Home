@@ -1,9 +1,7 @@
 import {
-  WORLD_MAP_BOUNDARY,
   WORLD_MAP_CITIES,
   WORLD_MAP_INTERACTIVE_IDS,
   WORLD_MAP_LOCATIONS,
-  WORLD_MAP_MOUNTAINS,
   WORLD_MAP_NODES,
   WORLD_MAP_REGIONS,
   WORLD_MAP_ROUTES,
@@ -14,18 +12,12 @@ import {
   resolveEntityVisualState,
 } from '../interaction/centerInteraction'
 import {
-  worldFootprint,
-  worldGridPath,
+  PROCEDURAL_TERRAIN,
   worldPathFromPoints,
-  worldProjectPoint,
   worldRingPath,
-  worldTerrainHeight,
   worldTerrainPoint,
 } from '../geometry/worldMap'
 
-const GRID_X = Array.from({ length: 19 }, (_, index) => index)
-const GRID_Y = Array.from({ length: 17 }, (_, index) => index)
-const MOUNTAIN_RING_SCALES = [.22, .42, .63, .84, 1]
 const TONE_CLASS = {
   warm: 'center-data-tone--warm',
   cool: 'center-data-tone--cool',
@@ -39,50 +31,32 @@ function entityKeyDown(event, entityId, onSelect) {
 }
 
 function TerrainLayer() {
+  const { boundary, contours, network, ridgeLines, flowLines, points } = PROCEDURAL_TERRAIN
   return (
-    <g className="center-data-layer center-data-terrain" aria-hidden="true">
-      <path className="center-data-terrain__surface" d={worldPathFromPoints(WORLD_MAP_BOUNDARY, -.02, true)} />
-      <g className="center-data-terrain__mesh">
-        {GRID_X.map(value => <path key={`grid-x-${value}`} d={worldGridPath('x', value)} />)}
-        {GRID_Y.map(value => <path key={`grid-y-${value}`} d={worldGridPath('y', value)} />)}
+    <g className="center-data-layer center-data-terrain center-procedural-terrain" aria-hidden="true">
+      <path className="center-data-terrain__surface" d={worldPathFromPoints(boundary, -.02, true)} />
+      <g className="center-procedural-terrain__network">
+        {network.map(layer => <path key={`terrain-network-${layer.level}`} className={`center-procedural-terrain__network-path center-procedural-terrain__network-path--${layer.level}`} d={layer.d} />)}
       </g>
-      <path className="center-data-terrain__boundary" d={worldPathFromPoints(WORLD_MAP_BOUNDARY, .16, true)} />
-      {WORLD_MAP_MOUNTAINS.map(mountain => (
-        <g key={mountain.id} className={`center-data-mountain ${TONE_CLASS[mountain.tone]}`}>
-          {MOUNTAIN_RING_SCALES.map(scale => (
-            <path
-              key={`${mountain.id}-ring-${scale}`}
-              className="center-data-mountain__ring"
-              d={worldRingPath(mountain.point, mountain.radius, scale, 26, .08 + (1 - scale) * mountain.height * .18)}
-            />
-          ))}
-          {Array.from({ length: 8 }, (_, index) => {
-            const angle = (Math.PI * 2 * index) / 8
-            const foot = [
-              mountain.point[0] + Math.cos(angle) * mountain.radius,
-              mountain.point[1] + Math.sin(angle) * mountain.radius,
-            ]
-            const ridge = worldProjectPoint(mountain.point[0], mountain.point[1], worldTerrainHeight(...mountain.point) + mountain.height)
-            const base = worldTerrainPoint(...foot)
-            return <path key={`${mountain.id}-ridge-${index}`} className="center-data-mountain__ridge" d={`M${base[0]} ${base[1]} L${ridge[0]} ${ridge[1]}`} />
-          })}
-          <circle className="center-data-mountain__peak" cx={worldTerrainPoint(...mountain.point, mountain.height)[0]} cy={worldTerrainPoint(...mountain.point, mountain.height)[1]} r="2.6" />
-        </g>
-      ))}
-      {[.95, 1.75, 2.55, 3.35].map(level => (
-        <path
-          key={`contour-${level}`}
-          className="center-data-terrain__contour"
-          d={worldPathFromPoints([
-            [1.1 + level * .32, 3.2 + level * .16],
-            [4.2 + level * .12, 1.3 + level * .1],
-            [8.15 + level * .12, 1.7 + level * .12],
-            [10.7 + level * .18, 4.2 + level * .14],
-            [8.3 + level * .2, 5.9 + level * .18],
-            [4.1 + level * .16, 5.4 + level * .14],
-          ], level * .08, true)}
-        />
-      ))}
+      <g className="center-procedural-terrain__contours">
+        {contours.map(contour => (
+          <path
+            key={contour.id}
+            className={`center-procedural-terrain__contour${contour.major ? ' center-procedural-terrain__contour--major' : ''}`}
+            d={contour.d}
+          />
+        ))}
+      </g>
+      <g className="center-procedural-terrain__ridges">
+        {ridgeLines.map((d, index) => <path key={`terrain-ridge-${index}`} d={d} />)}
+      </g>
+      <g className="center-procedural-terrain__flows">
+        {flowLines.map((d, index) => <path key={`terrain-flow-${index}`} d={d} />)}
+      </g>
+      <g className="center-procedural-terrain__points">
+        {points.map((point, index) => <circle key={`terrain-point-${index}`} cx={point.x.toFixed(2)} cy={point.y.toFixed(2)} r={point.radius.toFixed(2)} />)}
+      </g>
+      <path className="center-data-terrain__boundary" d={worldPathFromPoints(boundary, .16, true)} />
     </g>
   )
 }
@@ -159,20 +133,27 @@ function CityLayer() {
             <path className="center-data-city__orbit" d={worldRingPath(city.center, city.radius * 1.28, 1, 30, .3)} />
             <path className="center-data-city__orbit center-data-city__orbit--inner" d={worldRingPath(city.center, city.radius * .62, 1, 24, .36)} />
             <circle className="center-data-city__core" cx={center[0]} cy={center[1]} r="2.2" />
-            {city.heights.map((height, index) => {
-              const angle = (Math.PI * 2 * index) / city.heights.length
-              const distance = city.radius * (.25 + (index % 3) * .2)
+            {Array.from({ length: 24 }, (_, index) => {
+              const angle = (Math.PI * 2 * index) / 24 + (index % 2) * .12
+              const distance = city.radius * (.18 + ((index * 17) % 25) / 25 * .78)
               const x = city.center[0] + Math.cos(angle) * distance
               const y = city.center[1] + Math.sin(angle) * distance
-              const width = .18 + (index % 2) * .08
-              const depth = .14 + ((index + 1) % 2) * .08
-              const footprint = [[x - width, y - depth], [x + width, y - depth], [x + width, y + depth], [x - width, y + depth]]
-              const geometry = worldFootprint(footprint, height)
+              const height = city.heights[index % city.heights.length] * (.6 + ((index * 13) % 7) * .1)
+              const width = .08 + ((index * 7) % 5) * .028
+              const depth = .07 + ((index * 11) % 4) * .028
+              const ground = worldTerrainPoint(x, y, .08)
+              const roof = worldTerrainPoint(x, y, height)
+              const groundA = worldTerrainPoint(x - width, y - depth, .08)
+              const groundB = worldTerrainPoint(x + width, y + depth, .08)
+              const roofA = worldTerrainPoint(x - width * .72, y - depth * .72, height)
+              const roofB = worldTerrainPoint(x + width * .72, y + depth * .72, height)
+              const groundC = worldTerrainPoint(x - width, y + depth, .08)
+              const groundD = worldTerrainPoint(x + width, y - depth, .08)
               return (
                 <path
                   key={`${city.id}-structure-${index}`}
                   className="center-data-city__structure"
-                  d={`${geometry.ground} ${geometry.top} ${geometry.verticals}`}
+                  d={`M${groundA[0].toFixed(2)} ${groundA[1].toFixed(2)} L${groundB[0].toFixed(2)} ${groundB[1].toFixed(2)} M${groundC[0].toFixed(2)} ${groundC[1].toFixed(2)} L${groundD[0].toFixed(2)} ${groundD[1].toFixed(2)} M${groundA[0].toFixed(2)} ${groundA[1].toFixed(2)} L${roofA[0].toFixed(2)} ${roofA[1].toFixed(2)} M${groundB[0].toFixed(2)} ${groundB[1].toFixed(2)} L${roofB[0].toFixed(2)} ${roofB[1].toFixed(2)} M${ground[0].toFixed(2)} ${ground[1].toFixed(2)} L${roof[0].toFixed(2)} ${roof[1].toFixed(2)} M${roofA[0].toFixed(2)} ${roofA[1].toFixed(2)} L${roof[0].toFixed(2)} ${roof[1].toFixed(2)} L${roofB[0].toFixed(2)} ${roofB[1].toFixed(2)}`}
                 />
               )
             })}
@@ -289,7 +270,7 @@ function CenterDataMap({ canvasRef, sceneRef, interaction, language, label, onFo
           <circle cx="33" cy="28" r=".45" fill="#c1a878" opacity=".18" />
           <path d="M21 2 V7 M18.5 4.5 H23.5" stroke="#8ea0a1" strokeWidth=".45" opacity=".12" />
         </pattern>
-        <clipPath id="center-data-world-clip"><path d={worldPathFromPoints(WORLD_MAP_BOUNDARY, 0, true)} /></clipPath>
+        <clipPath id="center-data-world-clip"><path d={worldPathFromPoints(PROCEDURAL_TERRAIN.boundary, 0, true)} /></clipPath>
       </defs>
       <rect className="center-data-map__backdrop" width={WORLD_MAP_VIEWBOX.width} height={WORLD_MAP_VIEWBOX.height} />
       <rect className="center-data-map__stars" width={WORLD_MAP_VIEWBOX.width} height={WORLD_MAP_VIEWBOX.height} />
