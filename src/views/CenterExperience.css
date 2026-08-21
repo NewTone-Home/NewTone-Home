@@ -803,7 +803,7 @@
 .center-procedural-terrain__detail-network {
   fill: none;
   stroke: url('#center-terrain-wire-gradient');
-  stroke-opacity: .22;
+  stroke-opacity: .3;
   stroke-width: .32;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -816,16 +816,16 @@
   stroke-linejoin: round;
 }
 .center-procedural-terrain__detail-network-path--0 {
-  stroke-opacity: .4;
-  stroke-width: .38;
+  stroke-opacity: .56;
+  stroke-width: .42;
 }
 .center-procedural-terrain__detail-network-path--1 {
-  stroke-opacity: .52;
-  stroke-width: .48;
+  stroke-opacity: .68;
+  stroke-width: .52;
 }
 .center-procedural-terrain__detail-network-path--2 {
-  stroke-opacity: .7;
-  stroke-width: .58;
+  stroke-opacity: .86;
+  stroke-width: .62;
 }
 .center-procedural-terrain__mountain-relief {
   fill: none;
@@ -836,12 +836,12 @@
   stroke-linejoin: round;
   opacity: .94;
 }
-.center-procedural-terrain__contour { stroke: url('#center-terrain-wire-gradient'); stroke-opacity: .54; }
-.center-procedural-terrain__contour--major { stroke-opacity: .86; }
+.center-procedural-terrain__contour { stroke: url('#center-terrain-wire-gradient'); stroke-opacity: .72; }
+.center-procedural-terrain__contour--major { stroke-opacity: .96; }
 .center-procedural-terrain__hydrology path {
   fill: none;
   stroke: rgba(149, 192, 201, .32);
-  stroke-width: .64;
+  stroke-width: .54;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -858,11 +858,14 @@
   stroke-dasharray: 1 4;
 }
 .center-data-city__structure {
-  stroke-width: .52;
-  opacity: .86;
+  stroke-width: .58;
+  opacity: .94;
 }
 .center-data-city__orbit { opacity: .58; }
 .center-data-city__orbit--inner { opacity: .4; }
+.center-data-route--river .center-data-route__underlay { stroke-width: 9; opacity: .56; }
+.center-data-route--river .center-data-route__line { stroke-width: 1.45; }
+.center-data-route--river .center-data-route__signal { stroke-width: .55; }
 
 @media (max-width: 700px) {
   .center-procedural-terrain__detail-network { opacity: .72; }
