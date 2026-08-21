@@ -49,6 +49,21 @@ function DetailTerrain() {
   )
 }
 
+function BuildingGrammar({ grammar }) {
+  if (!grammar) return null
+  return (
+    <g className="center-detail-building__grammar" aria-hidden="true">
+      <path className="center-detail-building__grammar-face" d={grammar.facePaths.join(' ')} />
+      <path className="center-detail-building__grammar-structure" d={grammar.structurePath} />
+      <path className="center-detail-building__grammar-window" d={grammar.windowPath} />
+      <path className="center-detail-building__grammar-frame" d={grammar.framePath} />
+      <path className="center-detail-building__grammar-prop" d={grammar.propPath} />
+      <path className="center-detail-building__grammar-accent" d={grammar.accentPath} />
+      <path className="center-detail-building__grammar-roof" d={grammar.roofPath} />
+    </g>
+  )
+}
+
 function StaticBuildings() {
   const { staticBuildings } = DETAIL_PROTOTYPE
   return (
@@ -56,6 +71,7 @@ function StaticBuildings() {
       <path className="center-detail-building__ground" d={staticBuildings.map(building => building.ground).join(' ')} />
       <path className="center-detail-building__silhouette" d={staticBuildings.map(building => building.silhouette).join(' ')} />
       <path className="center-detail-building__detail" d={staticBuildings.map(building => building.detail).join(' ')} />
+      {staticBuildings.map(building => <BuildingGrammar key={`${building.id}-grammar`} grammar={building.grammar} />)}
     </g>
   )
 }
@@ -87,6 +103,7 @@ function InteractiveBuilding({ building, interaction, language, onFocus, onBlur,
       <path className="center-detail-building__ground" d={building.ground} />
       <path className="center-detail-building__silhouette" d={building.silhouette} />
       <path className="center-detail-building__detail" d={building.detail} />
+      <BuildingGrammar grammar={building.grammar} />
       <path className="center-detail-building__hit" d={building.hit} />
       <path className="center-detail-anchor__leader" d={`M${point[0]} ${point[1]} L${labelPoint[0]} ${labelPoint[1]}`} />
       <circle className="center-detail-anchor__ring" cx={point[0]} cy={point[1]} r="10" />

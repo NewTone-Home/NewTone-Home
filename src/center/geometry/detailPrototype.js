@@ -1,3 +1,5 @@
+import { createFacadeGrammar } from './facadeGrammar'
+
 /*
  * A deliberately small, high-detail local map sample.
  *
@@ -10,7 +12,10 @@
 
 const VIEWBOX = Object.freeze({ width: 1600, height: 1000 })
 const DOMAIN = Object.freeze({ width: 14, height: 10 })
-const PROJECTION = Object.freeze({ originX: 800, originY: 150, tileX: 52, tileY: 30, height: 42 })
+// The local tile is intentionally large in the viewport. A detail study that
+// occupies only the middle third still reads as an empty board, even when the
+// internal geometry is correct.
+const PROJECTION = Object.freeze({ originX: 780, originY: 118, tileX: 57, tileY: 34, height: 48 })
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
@@ -82,16 +87,16 @@ function boundaryPoints() {
 }
 
 function createMesh() {
-  const columns = 15
-  const rows = 11
+  const columns = 24
+  const rows = 18
   const points = []
   const pointAt = (column, row) => points[row * (columns + 1) + column]
 
   for (let row = 0; row <= rows; row += 1) {
     for (let column = 0; column <= columns; column += 1) {
       const edge = row === 0 || row === rows || column === 0 || column === columns
-      const x = (column / columns) * DOMAIN.width + (edge ? 0 : (unit(column * 13.3 + row * 7.1) - .5) * .18)
-      const y = (row / rows) * DOMAIN.height + (edge ? 0 : (unit(column * 5.7 + row * 19.4) - .5) * .18)
+      const x = (column / columns) * DOMAIN.width + (edge ? 0 : (unit(column * 13.3 + row * 7.1) - .5) * .12)
+      const y = (row / rows) * DOMAIN.height + (edge ? 0 : (unit(column * 5.7 + row * 19.4) - .5) * .12)
       points.push({ x, y, z: heightAt(x, y), index: row * (columns + 1) + column })
     }
   }
@@ -125,10 +130,17 @@ function createMesh() {
   }
 
   const edgePaths = [[], [], []]
+  const pointField = []
   edges.forEach(edge => {
     const from = project(edge.from.x, edge.from.y, edge.from.z)
     const to = project(edge.to.x, edge.to.y, edge.to.z)
     edgePaths[edge.band].push(`M${format(from[0])} ${format(from[1])} L${format(to[0])} ${format(to[1])}`)
+  })
+
+  points.forEach((point, index) => {
+    if (index % 3 !== 0 || point.x < .3 || point.x > DOMAIN.width - .3 || point.y < .3 || point.y > DOMAIN.height - .3) return
+    const projected = project(point.x, point.y, point.z + .025)
+    pointField.push({ x: projected[0], y: projected[1], radius: point.z > 1.75 ? 1.35 : .72, band: clamp(Math.round(point.z / 3.3 * 2), 0, 2) })
   })
 
   const facePaths = [[], [], []]
@@ -139,6 +151,7 @@ function createMesh() {
   return {
     edgePaths: edgePaths.map(paths => paths.join(' ')),
     facePaths: facePaths.map(paths => paths.join(' ')),
+    points: pointField,
   }
 }
 
@@ -323,11 +336,14 @@ function buildDetailBuilding(spec) {
     detail.push(`M${format(antennaTop[0] - 8)} ${format(antennaTop[1] + 4)} H${format(antennaTop[0] + 8)}`)
   }
 
+  const grammar = createFacadeGrammar(spec, project)
+
   return {
     ...spec,
     ground: pathFromPoints(base, true),
     silhouette: silhouette.join(' '),
-    detail: detail.join(' '),
+    detail: grammar ? '' : detail.join(' '),
+    grammar,
     hit: pathFromPoints([
       project(spec.x - spec.width * .8, spec.y - spec.depth * .8, .1),
       project(spec.x + spec.width * .8, spec.y - spec.depth * .8, .1),
@@ -338,19 +354,19 @@ function buildDetailBuilding(spec) {
 }
 
 const BUILDING_SPECS = Object.freeze([
-  { id: 'detail-archive', entityId: 'memory-archive', x: 3.05, y: 4.25, width: .9, depth: .8, height: 1.9, archetype: 'gable', tone: 'warm' },
+  { id: 'detail-archive', entityId: 'memory-archive', x: 3.05, y: 4.25, width: 1.5, depth: 1.18, height: 2.65, archetype: 'gable', tone: 'warm', detailStyle: 'archive', floors: 4, columns: 5, seed: 17 },
   { id: 'detail-archive-wing-a', x: 2.25, y: 4.7, width: .55, depth: .52, height: .86, archetype: 'low', tone: 'warm' },
   { id: 'detail-archive-wing-b', x: 3.95, y: 4.75, width: .62, depth: .42, height: 1.05, archetype: 'gable', tone: 'warm' },
   { id: 'detail-archive-row-a', x: 2.55, y: 5.5, width: .5, depth: .48, height: .72, archetype: 'low', tone: 'warm' },
   { id: 'detail-archive-row-b', x: 3.25, y: 5.65, width: .5, depth: .52, height: 1.05, archetype: 'gable', tone: 'warm' },
   { id: 'detail-archive-row-c', x: 4.05, y: 5.55, width: .45, depth: .44, height: .76, archetype: 'low', tone: 'warm' },
-  { id: 'detail-market', entityId: 'crossing-market', x: 6.35, y: 6.2, width: 1.05, depth: .82, height: 1.15, archetype: 'market', tone: 'warm' },
+  { id: 'detail-market', entityId: 'crossing-market', x: 6.35, y: 6.2, width: 1.45, depth: 1.05, height: 1.55, archetype: 'market', tone: 'warm', detailStyle: 'market', floors: 2, columns: 4, seed: 29 },
   { id: 'detail-market-stall-a', x: 5.3, y: 6.35, width: .48, depth: .42, height: .58, archetype: 'market', tone: 'warm' },
   { id: 'detail-market-stall-b', x: 5.8, y: 7.02, width: .5, depth: .44, height: .62, archetype: 'market', tone: 'warm' },
   { id: 'detail-market-stall-c', x: 7.25, y: 5.55, width: .52, depth: .43, height: .62, archetype: 'market', tone: 'warm' },
   { id: 'detail-market-stall-d', x: 7.55, y: 6.8, width: .48, depth: .45, height: .7, archetype: 'market', tone: 'warm' },
   { id: 'detail-relay', entityId: 'relay-17', x: 5.55, y: 7.55, width: .36, depth: .36, height: 1.25, archetype: 'lattice', tone: 'cool' },
-  { id: 'detail-station', entityId: 'south-station', x: 9.15, y: 7.35, width: 1.28, depth: .7, height: 1.18, archetype: 'station', tone: 'neutral' },
+  { id: 'detail-station', entityId: 'south-station', x: 9.15, y: 7.35, width: 1.75, depth: 1.05, height: 1.45, archetype: 'station', tone: 'neutral', detailStyle: 'station', floors: 2, columns: 5, seed: 41 },
   { id: 'detail-station-wing-a', x: 8.15, y: 7.8, width: .58, depth: .42, height: .64, archetype: 'low', tone: 'neutral' },
   { id: 'detail-station-wing-b', x: 10.3, y: 7.95, width: .55, depth: .4, height: .64, archetype: 'low', tone: 'neutral' },
   { id: 'detail-station-row-a', x: 8.35, y: 8.6, width: .48, depth: .42, height: .74, archetype: 'gable', tone: 'neutral' },
