@@ -26,7 +26,7 @@ const markup = props => renderToStaticMarkup(createElement(ReaderTools, {
 }))
 
 describe('Reader shell menu contract', () => {
-  it('contains only Language and Reading mode as the two primary groups', () => {
+  it('contains Language and the ordinary-reading theme group', () => {
     const html = markup()
     expect(html).toContain('data-menu-items="language reading-mode"')
     expect(html.indexOf('reader-language-group')).toBeLessThan(html.indexOf('reader-mode-group'))
@@ -71,38 +71,34 @@ describe('Reader shell menu contract', () => {
     expect(english).toContain('>Classic</span>')
     expect(english).not.toContain('>柔和</span>')
 
-    const immersive = markup({ readingMode: 'immersive' })
-    expect(immersive).not.toContain('role="slider"')
+    const legacyImmersive = markup({ readingMode: 'immersive' })
+    expect(legacyImmersive).toContain('role="slider"')
+    expect(legacyImmersive).toContain('reader-menu-bars')
+    expect(legacyImmersive).not.toContain('reader-menu-scene-layers')
   })
 
-  it('translates reading-mode labels when English is active', () => {
-    expect(markup({ language: 'en', readingMode: 'immersive' })).toContain('aria-label="Immersive"')
+  it('keeps the ordinary-reading label when English is active', () => {
+    expect(markup({ language: 'en', readingMode: 'immersive' })).toContain('aria-label="Classic"')
     expect(markup({ language: 'en', readingMode: 'standard' })).toContain('aria-label="Classic"')
-    expect(markup({ language: 'zh', readingMode: 'immersive' })).toContain('aria-label="沉浸叙事"')
+    expect(markup({ language: 'zh', readingMode: 'immersive' })).toContain('aria-label="普通阅读"')
   })
 
-  it('uses fixed double bars for Standard and the exact location SVG for Immersive', () => {
+  it('uses fixed double bars for the visible Reader and preserves scene SVG helpers', () => {
     const standard = markup({ readingMode: 'standard', locationLabel: '里世界商业街' })
     expect(standard).toContain('reader-menu-bars')
     expect(standard).toContain('reader-scene-menu-label')
     expect(standard).toContain('里世界商业街')
     expect(standard).not.toContain('reader-menu-scene-layers')
-    const immersive = markup({ readingMode: 'immersive', locationId: 'inner-street' })
-    expect(immersive).toContain('data-scene-svg="inner-street"')
-    expect(immersive).toContain('<rect')
-    expect(immersive).toContain('shape-rendering="crispEdges"')
-    expect(immersive).toContain('reader-scene-menu-label')
-    expect(immersive).not.toContain('reader-menu-bars')
-    const renderedCells = [...immersive.matchAll(/<rect[^>]*width="([^"]+)"[^>]*height="([^"]+)"/g)]
-    expect(renderedCells.length).toBeGreaterThan(8)
-    expect(new Set(renderedCells.map(match => `${match[1]}:${match[2]}`))).toEqual(new Set(['1.45:1.45']))
+    const legacyImmersive = markup({ readingMode: 'immersive', locationId: 'inner-street' })
+    expect(legacyImmersive).toContain('reader-menu-bars')
+    expect(legacyImmersive).not.toContain('data-scene-svg="inner-street"')
+    expect(getReaderScenePaths('inner-street').length).toBeGreaterThan(0)
   })
 
   it('does not merge stable scene IDs or ancestral sublocations into one SVG', () => {
     expect(getReaderScenePaths('inner-street')).not.toEqual(getReaderScenePaths('inner-commercial-street'))
     expect(getReaderScenePaths('ancestral-home-courtyard')).not.toEqual(getReaderScenePaths('ancestral-home-hall'))
-    expect(markup({ readingMode: 'immersive', locationId: 'inner-commercial-street' }))
-      .toContain('data-scene-svg="inner-commercial-street"')
+    expect(getReaderScenePaths('inner-commercial-street').length).toBeGreaterThan(0)
   })
 
   it('restores the narrow transparent bridges and gap-safe toolbar', () => {
@@ -116,11 +112,13 @@ describe('Reader shell menu contract', () => {
   })
 
   it('recomputes the open reading-mode menu immediately and keeps centered bars fixed-width', () => {
-    expect(readerToolsSource).toContain("const nextMode = readingMode === 'immersive' ? 'standard' : 'immersive'")
+    expect(readerToolsSource).toContain("const nextMode = visibleReadingMode === 'immersive' ? 'standard' : 'immersive'")
+    expect(readerToolsSource).toContain('const READER_MODE_SWITCH_ENABLED = false')
+    expect(readerToolsSource).toContain("const visibleReadingMode = 'standard'")
     expect(readerToolsSource).toContain("pointerRegionRef.current = 'reading'")
     expect(readerToolsSource).toContain("nextMode === 'standard'")
     expect(readerToolsSource).toContain('{ language: false, theme: true }')
-    expect(readerToolsSource).toContain("const standardControlsPresent = readingMode === 'standard'")
+    expect(readerToolsSource).toContain('const standardControlsPresent = true')
     expect(readerToolsSource).toContain('reader-menu-trigger-layer--outgoing')
     expect(readerContractCss).toContain('reader-contract-mode-group-out 480ms')
     expect(readerContractCss).toContain('reader-contract-mode-group-in 760ms 640ms')
@@ -158,7 +156,7 @@ describe('Reader shell menu contract', () => {
     expect(readerToolsSource).toContain('const releaseThemeFocus = (restoreToMode = false) =>')
     expect(readerToolsSource).toContain('themeDockRef.current?.contains(activeElement)')
     expect(readerToolsSource).toContain("if (nextMode === 'immersive') releaseThemeFocus(true)")
-    expect(readerToolsSource).toContain("tabIndex={readingMode === 'standard' && themePillOpen ? 0 : -1}")
+    expect(readerToolsSource).toContain("tabIndex={visibleReadingMode === 'standard' && themePillOpen ? 0 : -1}")
   })
 
   it('guards non-Node pointer exits and avoids preventDefault in the wheel handler', () => {

@@ -235,7 +235,7 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
 
   if (phase === 'landing-leaving' || phase === 'landing-empty-hold') return null
 
-  if (['language-active', 'language-leaving', 'mode-active', 'mode-leaving'].includes(phase)) {
+  if (['language-active', 'language-leaving'].includes(phase)) {
     return (
       <div className={`reading-transition reading-transition--ritual reading-transition--motion-${motionMode}`} style={surfaceStyle}>
         <RitualSelector
@@ -278,9 +278,11 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
             </>
           ) : (
             <>
-              <div className="reading-transition-resume-background">
-                <ResumeEnvironment lines={environmentLines} />
-              </div>
+              {readingMode === 'immersive' && (
+                <div className="reading-transition-resume-background">
+                  <ResumeEnvironment lines={environmentLines} />
+                </div>
+              )}
               <div className="reading-transition-resume-foreground">
                 <p
                   className="reading-transition-text reading-transition-text--resume"

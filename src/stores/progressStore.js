@@ -36,7 +36,7 @@ export const useProgressStore = create((set, get) => ({
   setLanguage: language => { if (READER_LANGUAGE_CODES.includes(language)) set({ language }) },
   toggleLanguage: () => set({ language: getNextReaderLanguage(get().language).code }),
   setInitializedLanguage: () => set({ hasInitializedLanguage: true }),
-  selectReadingMode: readingMode => { if (!['immersive', 'standard'].includes(readingMode)) return false; const themePosition = migrateThemePosition(get().themePosition, get().standardTheme); set({ readingMode, hasInitializedReadingMode: true, themePosition, standardTheme: legacyThemeName(themePosition) }); return true },
+  selectReadingMode: readingMode => { if (readingMode !== 'standard') return false; const themePosition = migrateThemePosition(get().themePosition, get().standardTheme); set({ readingMode, hasInitializedReadingMode: true, themePosition, standardTheme: legacyThemeName(themePosition) }); return true },
   toggleReadingMode: () => set({ readingMode: get().readingMode === 'immersive' ? 'standard' : 'immersive' }),
   setStandardTheme: standardTheme => { if (!['soft', 'light', 'dark'].includes(standardTheme)) return false; const themePosition = migrateThemePosition(standardTheme); set({ themePosition, standardTheme }); return true },
   setThemePosition: value => { const themePosition = clampThemePosition(value); set({ themePosition, standardTheme: legacyThemeName(themePosition) }); return true },

@@ -31,7 +31,6 @@ function ReaderStage({
   progress,
   language,
   onLanguage,
-  readingMode,
   standardTheme,
   themePosition,
   motionMode,
@@ -61,6 +60,7 @@ function ReaderStage({
   onReturnStart,
   onReturnLanding,
 }) {
+  const visibleReadingMode = 'standard'
   const nativeBoundaryLockRef = useRef(null)
   const sceneState = beats[focusBeatIndex]?.sceneState ?? {}
   const sceneStateName = sceneState.sceneState ?? 'normal'
@@ -68,7 +68,7 @@ function ReaderStage({
   const environmentState = nativeEnvironmentState ?? EMPTY_READER_ENVIRONMENT
   const environmentVisual = resolveReaderEnvironmentPreview(environmentState)
   const immersiveStyle = environmentVisual.style
-  const stageStyle = readingMode === 'standard'
+  const stageStyle = visibleReadingMode === 'standard'
     ? getReaderThemeVariables(themePosition ?? STANDARD_THEME_POSITIONS[standardTheme] ?? 0.5)
     : immersiveStyle
   const directReaderInput = typeof window !== 'undefined' && (
@@ -100,9 +100,9 @@ function ReaderStage({
 
   return (
     <main
-      className={`reader-stage-page paper-surface reader-stage-page--${readingMode} reader-stage-page--theme-${standardTheme} reader-stage-page--motion-${motionMode}${returningToLanding ? ' reader-stage-page--returning' : ''}`}
+      className={`reader-stage-page paper-surface reader-stage-page--${visibleReadingMode} reader-stage-page--theme-${standardTheme} reader-stage-page--motion-${motionMode}${returningToLanding ? ' reader-stage-page--returning' : ''}`}
       style={stageStyle}
-      data-reading-mode={readingMode}
+      data-reading-mode={visibleReadingMode}
       data-motion-mode={motionMode}
       data-returning-to-landing={returningToLanding ? 'true' : 'false'}
       data-reader-entry-handoff={readerEntryHandoffPhase}
@@ -130,15 +130,19 @@ function ReaderStage({
         aria-label={emptyDocument ? 'NewTone Reader：暂无可读页面' : `阅读场景：${environmentState.locationLabel}`}
         data-transition-kind={transitionKind || 'idle'}
       >
-        <div className="reader-environment-light" aria-hidden="true" />
-        <div className="reader-environment-shadow" aria-hidden="true" />
-        <div className="reader-environment-weather" aria-hidden="true">
-          <ReaderPrecipitation />
-        </div>
+        {visibleReadingMode === 'immersive' && (
+          <>
+            <div className="reader-environment-light" aria-hidden="true" />
+            <div className="reader-environment-shadow" aria-hidden="true" />
+            <div className="reader-environment-weather" aria-hidden="true">
+              <ReaderPrecipitation />
+            </div>
+          </>
+        )}
         <ReaderTools
           language={language}
           onLanguage={onLanguage}
-          readingMode={readingMode}
+          readingMode={visibleReadingMode}
           standardTheme={standardTheme}
           themePosition={themePosition}
           motionMode={motionMode}
@@ -177,7 +181,7 @@ function ReaderStage({
           beats={beats}
           focusBeatIndex={focusBeatIndex}
           language={language}
-          readingMode={readingMode}
+          readingMode={visibleReadingMode}
           returningToLanding={returningToLanding}
         />}
         <ReaderReturnControl
