@@ -105,7 +105,38 @@ function stationFootprint(spec) {
   ]
 }
 
+// Secondary wings deliberately use an offset polygon instead of another
+// rectangle. The small chamfers make a compound feel assembled from real
+// architectural masses when it is viewed at detail zoom.
+function wingFootprint(spec) {
+  const width = spec.width / 2
+  const depth = spec.depth / 2
+  return [
+    [-width, -depth * .62],
+    [width * .66, -depth * .62],
+    [width, -depth * .12],
+    [width, depth * .66],
+    [-width * .72, depth],
+    [-width, depth * .28],
+  ]
+}
+
+function towerFootprint(spec) {
+  const width = spec.width / 2
+  const depth = spec.depth / 2
+  return [
+    [-width * .72, -depth],
+    [width * .72, -depth],
+    [width, -depth * .42],
+    [width * .72, depth],
+    [-width * .72, depth],
+    [-width, -depth * .42],
+  ]
+}
+
 function getFootprint(spec) {
+  if (spec.footprintType === 'wing') return wingFootprint(spec)
+  if (spec.footprintType === 'tower') return towerFootprint(spec)
   if (spec.geometryStyle === 'civic') return civicFootprint(spec)
   if (spec.geometryStyle === 'market') return marketFootprint(spec)
   if (spec.geometryStyle === 'station') return stationFootprint(spec)
@@ -291,13 +322,54 @@ function makeLayers() {
   return Object.fromEntries(['fill', 'primary', 'structure', 'window', 'reveal', 'frame', 'fine', 'balcony', 'arcade', 'service', 'roof'].map(key => [key, []]))
 }
 
-export function createBuildingGeometry(spec, project) {
-  const layers = makeLayers()
-  const footprint = getFootprint(spec)
+function massSpecFrom(parent, mass) {
+  const width = mass.width ?? parent.width * (mass.widthScale ?? 1)
+  const depth = mass.depth ?? parent.depth * (mass.depthScale ?? 1)
+  const height = mass.height ?? parent.height * (mass.heightScale ?? 1)
+  return {
+    ...parent,
+    ...mass,
+    x: parent.x + (mass.dx ?? 0),
+    y: parent.y + (mass.dy ?? 0),
+    width,
+    depth,
+    height,
+    floors: mass.floors ?? Math.max(1, Math.round((parent.floors ?? 4) * (mass.heightScale ?? 1))),
+    baseZ: mass.baseZ ?? parent.baseZ ?? .12,
+    seed: (parent.seed ?? 1) + (mass.seedOffset ?? 0),
+  }
+}
+
+function compoundMasses(spec) {
+  const shared = [{ id: 'core', geometryStyle: spec.geometryStyle, footprintType: spec.footprintType }]
+  if (spec.geometryStyle === 'civic') {
+    return shared.concat([
+      { id: 'west-wing', dx: -.66, dy: .12, widthScale: .64, depthScale: .7, heightScale: .7, floors: 3, footprintType: 'wing', roofType: 'gable', seedOffset: 101 },
+      { id: 'east-wing', dx: .62, dy: .2, widthScale: .54, depthScale: .62, heightScale: .58, floors: 2, footprintType: 'wing', roofType: 'hip', seedOffset: 137 },
+      { id: 'rear-wing', dx: .05, dy: .6, widthScale: .74, depthScale: .38, heightScale: .48, floors: 2, footprintType: 'wing', roofType: 'gable', seedOffset: 173 },
+    ])
+  }
+  if (spec.geometryStyle === 'market') {
+    return shared.concat([
+      { id: 'west-stall-hall', dx: -.58, dy: .12, widthScale: .58, depthScale: .7, heightScale: .5, floors: 1, footprintType: 'wing', roofType: 'gable', seedOffset: 211 },
+      { id: 'east-stall-hall', dx: .55, dy: .18, widthScale: .48, depthScale: .62, heightScale: .46, floors: 1, footprintType: 'wing', roofType: 'gable', seedOffset: 239 },
+      { id: 'market-tower', dx: .04, dy: .48, widthScale: .28, depthScale: .28, heightScale: .9, floors: 2, footprintType: 'tower', roofType: 'hip', seedOffset: 263 },
+    ])
+  }
+  if (spec.geometryStyle === 'station') {
+    return shared.concat([
+      { id: 'platform-west', dx: -.74, dy: .12, widthScale: .5, depthScale: .56, heightScale: .55, floors: 1, footprintType: 'wing', roofType: 'gable', seedOffset: 307 },
+      { id: 'platform-east', dx: .74, dy: .2, widthScale: .46, depthScale: .58, heightScale: .52, floors: 1, footprintType: 'wing', roofType: 'gable', seedOffset: 337 },
+      { id: 'station-concourse', dx: .02, dy: .52, widthScale: .72, depthScale: .3, heightScale: .66, floors: 1, footprintType: 'wing', roofType: 'hip', seedOffset: 359 },
+    ])
+  }
+  return shared
+}
+
+function addMassGeometry(spec, project, layers, footprint, seed) {
   const base = spec.baseZ ?? .12
   const floors = spec.floors ?? 4
   const floorHeight = spec.height / floors
-  const seed = spec.seed ?? 1
 
   addPath(layers.fill, project, footprint.map(point => logicalPoint(spec, point, base)), true)
 
@@ -306,16 +378,10 @@ export function createBuildingGeometry(spec, project) {
     const level = scaleFootprint(footprint, setback)
     const z = base + floor * floorHeight
     addPath(floor === floors ? layers.primary : layers.structure, project, level.map(point => logicalPoint(spec, point, z)), true)
-    if (floor > 0 && floor < floors) {
-      level.forEach((point, index) => addSegment(layers.structure, project, logicalPoint(spec, point, z), logicalPoint(spec, level[(index + 1) % level.length], z)))
-    }
   }
 
   const topLevel = scaleFootprint(footprint, .92).map(point => logicalPoint(spec, point, base + spec.height))
-  footprint.forEach((point, index) => {
-    const topPoint = topLevel[index]
-    addSegment(layers.primary, project, logicalPoint(spec, point, base), topPoint)
-  })
+  footprint.forEach((point, index) => addSegment(layers.primary, project, logicalPoint(spec, point, base), topLevel[index]))
 
   for (let floor = 0; floor < floors; floor += 1) {
     const setback = floor >= 2 ? .97 : 1
@@ -326,17 +392,78 @@ export function createBuildingGeometry(spec, project) {
   }
 
   addRoof(spec, scaleFootprint(footprint, .92), spec.roofType || (spec.geometryStyle === 'market' ? 'gable' : 'hip'), base + spec.height, project, layers)
-  if (spec.geometryStyle === 'civic') addAnnex(spec, footprint, base + spec.height, project, layers)
+  if (spec.geometryStyle === 'civic' && spec.id === 'core') addAnnex(spec, footprint, base + spec.height, project, layers)
+}
 
-  const hit = footprint.map(point => projectPoint(project, logicalPoint(spec, point, base - .03)))
+function addCompoundSite(spec, project, layers, masses) {
+  const base = spec.baseZ ?? .12
+  const courtyard = [
+    [-spec.width * .28, -spec.depth * .12],
+    [spec.width * .2, -spec.depth * .12],
+    [spec.width * .24, spec.depth * .28],
+    [-spec.width * .3, spec.depth * .3],
+  ]
+  const courtyardInner = scaleFootprint(courtyard, .72)
+  addPath(layers.primary, project, courtyard.map(point => logicalPoint(spec, point, base + .035)), true)
+  addPath(layers.fine, project, courtyardInner.map(point => logicalPoint(spec, point, base + .06)), true)
+  courtyard.forEach((point, index) => {
+    const next = courtyard[(index + 1) % courtyard.length]
+    addSegment(layers.fine, project, logicalPoint(spec, point, base + .06), logicalPoint(spec, next, base + .06))
+  })
+
+  const core = masses[0]
+  masses.slice(1).forEach((mass, index) => {
+    const from = [mass.x - spec.x, mass.y - spec.y, base + Math.min(mass.height, spec.height) * .28]
+    const to = [core.x - spec.x, core.y - spec.y, base + Math.min(mass.height, spec.height) * .28]
+    addSegment(layers.structure, project, logicalPoint(spec, from, from[2]), logicalPoint(spec, to, to[2]))
+    if (index % 2 === 0) {
+      addSegment(layers.fine, project, logicalPoint(spec, [from[0], from[1] + .06], from[2] + .16), logicalPoint(spec, [to[0], to[1] + .06], to[2] + .16))
+    }
+  })
+
+  // Sparse site ribs make the masses sit on one architectural ground plane;
+  // they are intentionally weaker than facade lines so they don't become a
+  // second terrain mesh.
+  const siteRibs = [
+    [[-spec.width * .82, -spec.depth * .72], [spec.width * .82, -spec.depth * .72]],
+    [[-spec.width * .82, spec.depth * .72], [spec.width * .82, spec.depth * .72]],
+  ]
+  siteRibs.forEach(([from, to]) => addSegment(layers.fine, project, logicalPoint(spec, from, base + .02), logicalPoint(spec, to, base + .02)))
+}
+
+export function createBuildingGeometry(spec, project) {
+  const layers = makeLayers()
+  const massRecords = compoundMasses(spec).map(mass => massSpecFrom(spec, mass))
+  const footprints = massRecords.map(mass => getFootprint(mass))
+
+  massRecords.forEach((mass, index) => addMassGeometry(mass, project, layers, footprints[index], mass.seed))
+  if (massRecords.length > 1) addCompoundSite(spec, project, layers, massRecords)
+
+  const hits = footprints.map((footprint, index) => pathFromPoints(
+    footprint.map(point => projectPoint(project, logicalPoint(massRecords[index], point, (massRecords[index].baseZ ?? .12) - .03))),
+    true,
+  )).join(' ')
+  const primaryFootprint = footprints[0]
+  const floors = spec.floors ?? 4
+
   return Object.freeze({
     style: spec.geometryStyle || 'generic',
-    footprint,
+    footprint: primaryFootprint,
+    masses: Object.freeze(massRecords.map((mass, index) => Object.freeze({
+      id: mass.id,
+      x: mass.x,
+      y: mass.y,
+      width: mass.width,
+      depth: mass.depth,
+      height: mass.height,
+      footprintVertices: footprints[index].length,
+    }))),
     layers: Object.freeze(Object.fromEntries(Object.entries(layers).map(([key, paths]) => [key, paths.join(' ')]))),
-    hitPath: pathFromPoints(hit, true),
+    hitPath: hits,
     stats: Object.freeze({
       floors,
-      footprintVertices: footprint.length,
+      masses: massRecords.length,
+      footprintVertices: primaryFootprint.length,
       pathCount: Object.values(layers).reduce((total, paths) => total + paths.length, 0),
     }),
   })
