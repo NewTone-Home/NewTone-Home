@@ -1,12 +1,13 @@
 import { copy } from './copy'
 
 const ENGLISH_SCENES = Object.freeze({
-  'ancestral-home-courtyard': 'Ji ancestral residence · Courtyard',
-  'ancestral-home-hall': 'Ji ancestral residence · Main hall',
-  'ancestral-passage': 'Hidden passage',
-  'inner-street': 'Inner World · Street',
-  'inner-commercial-street': 'Inner World · Shopping street',
-  'inner-commercial-cafe': 'Inner World · Shopping district café',
+  'ancestral-home-courtyard': 'Courtyard',
+  'ancestral-home-hall': 'Main hall',
+  'ancestral-passage': 'Dark passage',
+  'inner-street': 'Street',
+  'inner-central-court': 'Central Court',
+  'inner-commercial-street': 'Shopping street',
+  'inner-commercial-cafe': 'Café',
   'inner-lakeside': 'Inner World · Lakeside',
   'inner-transit': 'Inner World · En route',
   'mining-old-street': 'Mining district · Old street',
