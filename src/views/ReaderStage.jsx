@@ -30,6 +30,7 @@ function ReaderStage({
   scene,
   beats,
   focusBeatIndex,
+  transitionTargetBeatIndex = null,
   progress,
   language,
   contentLanguage = language,
@@ -55,7 +56,6 @@ function ReaderStage({
   transitionKind,
   sceneTransitionPhase = 'idle',
   hasNextScene = false,
-  onSceneTransitionComplete,
   autoVisual,
   rootRef,
   focusRef,
@@ -165,14 +165,13 @@ function ReaderStage({
           <ReaderSceneTransition
             sceneId={scene?.id}
             phase={sceneTransitionPhase}
-            reducedMotion={motionMode === 'reduced'}
-            onComplete={onSceneTransitionComplete}
           >
             <ReaderBeatStack
               beats={beats}
               language={contentLanguage}
               languageTransitionPhase={languageTransitionPhase}
               focusBeatIndex={focusBeatIndex}
+              transitionTargetBeatIndex={transitionTargetBeatIndex}
               onFocusMotionEnd={onFocusMotionEnd}
               onNativeFocusChange={onNativeFocusChange}
               onNativeScrollOffset={onNativeScrollOffset}

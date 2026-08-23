@@ -13,6 +13,7 @@ import { getOverallProgress } from '../reader/readerPosition'
 import {
   createReaderSceneModel,
   getReaderSceneFocus,
+  getReaderSceneAtLocation,
   isFinalReaderScene,
   isFinalReaderSceneBeat,
   resolveReaderSceneStep,
@@ -70,6 +71,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   const rootRef = useRef(null)
   const focusRef = useRef(null)
   const [sceneTransitionPhase, setSceneTransitionPhase] = useState('idle')
+  const [sceneTransitionDescriptor, setSceneTransitionDescriptor] = useState(null)
   const [autoVisual, setAutoVisual] = useState(null)
   const [completionPromptVisible, setCompletionPromptVisible] = useState(false)
   const [returningToLanding, setReturningToLanding] = useState(false)
@@ -116,6 +118,32 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   const localFocusBeatIndex = sceneFocus?.localBeatIndex ?? 0
   const sceneBeats = scene?.beats ?? []
   const hasNextScene = Boolean(scene?.next)
+  const transitionFromScene = sceneTransitionDescriptor
+    ? sceneModel.sceneById.get(sceneTransitionDescriptor.fromSceneId) ?? null
+    : null
+  const transitionToScene = sceneTransitionDescriptor
+    ? sceneModel.sceneById.get(sceneTransitionDescriptor.toSceneId) ?? null
+    : null
+  const sceneTransitionActive = sceneTransitionPhase === 'entering'
+    && Boolean(transitionFromScene)
+    && Boolean(transitionToScene)
+    && scene?.id === transitionToScene.id
+  const renderedBeats = useMemo(() => {
+    if (!sceneTransitionActive) return sceneBeats
+    return sceneTransitionDescriptor.direction === 'forward'
+      ? [...transitionFromScene.beats, ...transitionToScene.beats]
+      : [...transitionToScene.beats, ...transitionFromScene.beats]
+  }, [sceneBeats, sceneTransitionActive, sceneTransitionDescriptor, transitionFromScene, transitionToScene])
+  const renderedFocusBeatIndex = sceneTransitionActive
+    ? sceneTransitionDescriptor.direction === 'forward'
+      ? transitionFromScene.beats.length - 1
+      : transitionToScene.beats.length
+    : localFocusBeatIndex
+  const transitionTargetBeatIndex = sceneTransitionActive
+    ? sceneTransitionDescriptor.direction === 'forward'
+      ? transitionFromScene.beats.length
+      : transitionToScene.beats.length - 1
+    : null
   const clearNarrativeInputAccumulator = useCallback(() => clearInputAccumulatorRef.current?.(), [])
   const narrativePause = useNarrativePauseRuntime({
     navigateTo,
@@ -247,19 +275,34 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
     }
   }, [activeLocation.beatIndex, activeLocation.pageId, activeReaderContent])
 
-  const navigateToScene = useCallback((target, gestureId) => {
+  const navigateToScene = useCallback((target, gestureId, targetScene = null) => {
     blockedGestureRef.current = gestureId
     readerTransitionBusyRef.current = true
-    navigateTo(target)
-    if (reducedMotion) {
+    const fromScene = getReaderSceneAtLocation(sceneModel, activeLocation) ?? scene
+    const toScene = targetScene ?? getReaderSceneAtLocation(sceneModel, target)
+    const didNavigate = navigateTo(target)
+    if (!didNavigate || !fromScene || !toScene || fromScene.id === toScene.id) {
+      setSceneTransitionDescriptor(null)
       setSceneTransitionPhase('idle')
       readerTransitionBusyRef.current = false
       return
     }
+    if (reducedMotion) {
+      setSceneTransitionDescriptor(null)
+      setSceneTransitionPhase('idle')
+      readerTransitionBusyRef.current = false
+      return
+    }
+    setSceneTransitionDescriptor({
+      fromSceneId: fromScene.id,
+      toSceneId: toScene.id,
+      direction: target.linearIndex > activeLocation.linearIndex ? 'forward' : 'backward',
+    })
     setSceneTransitionPhase('entering')
-  }, [navigateTo, reducedMotion])
+  }, [activeLocation, navigateTo, reducedMotion, scene, sceneModel])
 
   const completeSceneTransition = useCallback(() => {
+    setSceneTransitionDescriptor(null)
     setSceneTransitionPhase('idle')
     readerTransitionBusyRef.current = false
   }, [])
@@ -307,7 +350,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
 
     clearInputAccumulatorRef.current?.()
     if (action.type === READER_STEP_ACTIONS.SCENE) {
-      navigateToScene(action.location, gestureId)
+      navigateToScene(action.location, gestureId, action.scene)
       return
     }
 
@@ -452,15 +495,18 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   }, [clearInputAccumulator, returningToLanding])
 
   const finishFocusMotion = useCallback((event) => {
-    if (event.target === event.currentTarget) finishTransition()
-  }, [finishTransition])
+    if (event.target !== event.currentTarget) return
+    finishTransition()
+    if (sceneTransitionPhase === 'entering') completeSceneTransition()
+  }, [completeSceneTransition, finishTransition, sceneTransitionPhase])
 
   return (
     <ReaderStage
       page={page}
       scene={scene}
-      beats={sceneBeats}
-      focusBeatIndex={localFocusBeatIndex}
+      beats={renderedBeats}
+      focusBeatIndex={renderedFocusBeatIndex}
+      transitionTargetBeatIndex={transitionTargetBeatIndex}
       progress={getOverallProgress(activeLocation, activeReaderContent)}
       language={language}
       contentLanguage={readerContentLanguage}
@@ -489,7 +535,6 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
       transitionKind={navigation.transitionKind}
       sceneTransitionPhase={sceneTransitionPhase}
       hasNextScene={hasNextScene}
-      onSceneTransitionComplete={completeSceneTransition}
       autoVisual={autoVisual}
       tutorialVisible={isFirstReaderSession && !readerExitGestureLearned}
       rootRef={rootRef}
