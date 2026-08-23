@@ -51,7 +51,8 @@ function ReaderBeatStack({
 }) {
   const viewportRef = useRef(null)
   const flowRef = useRef(null)
-  const beatsRef = useRef(beats)
+  const flowSessionRef = useRef(null)
+  const onFocusMotionEndRef = useRef(onFocusMotionEnd)
   const frameRef = useRef(0)
   const lastReportedIndexRef = useRef(focusBeatIndex)
   const nativeScrollInitializedRef = useRef(false)
@@ -62,6 +63,7 @@ function ReaderBeatStack({
     typeof window !== 'undefined' && window.matchMedia(NATIVE_SCROLL_QUERY).matches
   ))
   const sceneFlowTransition = Number.isInteger(transitionTargetBeatIndex)
+  onFocusMotionEndRef.current = onFocusMotionEnd
 
   const localGateBeatIndex = getLocalNarrativeGateBeatIndex({
     beats,
@@ -97,71 +99,90 @@ function ReaderBeatStack({
   }, [])
 
   useLayoutEffect(() => {
+    if (!nativeScroll) return undefined
+
     const viewport = viewportRef.current
     const flow = flowRef.current
     const focused = flow?.children[focusBeatIndex]
     if (!viewport || !flow || !focused) return undefined
 
-    const sceneChanged = beatsRef.current !== beats
-    const sceneFlowTransition = Number.isInteger(transitionTargetBeatIndex)
-      && transitionTargetBeatIndex >= 0
-      && transitionTargetBeatIndex < flow.children.length
-    beatsRef.current = beats
-    lastReportedIndexRef.current = focusBeatIndex
-    let restoreFrame = 0
-    let settleFrame = 0
+    const sceneChanged = flowSessionRef.current !== beats
+    if (sceneChanged) flowSessionRef.current = beats
     let transitionFrame = 0
     let transitionTimer = 0
     let transitionEndHandler = null
+    const syncNativeEdgeSpace = () => {
+      const edgeSpace = getNativeEdgeSpace(viewport, flow)
+      flow.style.setProperty('--reader-native-edge-space', `${edgeSpace}px`)
+    }
+    syncNativeEdgeSpace()
 
-    if (nativeScroll) {
-      const syncNativeEdgeSpace = () => {
-        const edgeSpace = getNativeEdgeSpace(viewport, flow)
-        flow.style.setProperty('--reader-native-edge-space', `${edgeSpace}px`)
-      }
-      syncNativeEdgeSpace()
-      const needsInitialPosition = !nativeScrollInitializedRef.current || sceneChanged
-      nativeScrollInitializedRef.current = true
-      if (needsInitialPosition) {
-        const focusedTop = focused.offsetTop - (viewport.clientHeight - focused.offsetHeight) / 2
-        const nextTop = !sceneChanged && initialScrollOffset > 0
-          ? initialScrollOffset
-          : Math.max(0, focusedTop)
-        viewport.scrollTo({ top: nextTop, behavior: 'auto' })
-        lastScrollTopRef.current = nextTop
-        const transitionTarget = sceneFlowTransition ? flow.children[transitionTargetBeatIndex] : null
-        if (sceneFlowTransition && transitionTarget) {
-          const targetTop = Math.max(0, transitionTarget.offsetTop - (viewport.clientHeight - transitionTarget.offsetHeight) / 2)
-          transitionFrame = requestAnimationFrame(() => {
-            const finishNativeTransition = () => {
-              if (transitionEndHandler) viewport.removeEventListener('scrollend', transitionEndHandler)
-              transitionEndHandler = null
-              if (transitionTimer) window.clearTimeout(transitionTimer)
-              transitionTimer = 0
-              onFocusMotionEnd({ target: flow, currentTarget: flow, propertyName: 'scroll-position' })
-            }
-            transitionEndHandler = finishNativeTransition
-            viewport.addEventListener('scrollend', transitionEndHandler, { once: true })
-            transitionTimer = window.setTimeout(finishNativeTransition, READER_FLOW_TRANSITION_MS + 180)
-            viewport.scrollTo({ top: targetTop, behavior: 'smooth' })
-          })
-        }
-      }
-      const boundaryFrame = requestAnimationFrame(reportViewportBoundary)
-      const observer = new ResizeObserver(syncNativeEdgeSpace)
-      observer.observe(viewport)
-      observer.observe(flow)
-      return () => {
-        cancelAnimationFrame(transitionFrame)
-        if (transitionEndHandler) viewport.removeEventListener('scrollend', transitionEndHandler)
-        if (transitionTimer) window.clearTimeout(transitionTimer)
-        cancelAnimationFrame(boundaryFrame)
-        observer.disconnect()
+    const needsInitialPosition = !nativeScrollInitializedRef.current || sceneChanged
+    nativeScrollInitializedRef.current = true
+    if (needsInitialPosition) {
+      const focusedTop = focused.offsetTop - (viewport.clientHeight - focused.offsetHeight) / 2
+      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+      const nextTop = !sceneChanged && initialScrollOffset > 0
+        ? Math.min(initialScrollOffset, maxScrollTop)
+        : Math.max(0, focusedTop)
+      viewport.scrollTo({ top: nextTop, behavior: 'auto' })
+      lastScrollTopRef.current = nextTop
+      lastReportedIndexRef.current = focusBeatIndex
+
+      const transitionTarget = sceneFlowTransition
+        && transitionTargetBeatIndex >= 0
+        && transitionTargetBeatIndex < flow.children.length
+        ? flow.children[transitionTargetBeatIndex]
+        : null
+      if (sceneFlowTransition && transitionTarget) {
+        const targetTop = Math.max(0, transitionTarget.offsetTop - (viewport.clientHeight - transitionTarget.offsetHeight) / 2)
+        transitionFrame = requestAnimationFrame(() => {
+          let completed = false
+          const finishNativeTransition = () => {
+            if (completed) return
+            completed = true
+            if (transitionEndHandler) viewport.removeEventListener('scrollend', transitionEndHandler)
+            transitionEndHandler = null
+            if (transitionTimer) window.clearTimeout(transitionTimer)
+            transitionTimer = 0
+            onFocusMotionEndRef.current({ target: flow, currentTarget: flow, propertyName: 'scroll-position' })
+          }
+          transitionEndHandler = finishNativeTransition
+          viewport.addEventListener('scrollend', transitionEndHandler, { once: true })
+          transitionTimer = window.setTimeout(finishNativeTransition, READER_FLOW_TRANSITION_MS + 180)
+          viewport.scrollTo({ top: targetTop, behavior: 'smooth' })
+        })
       }
     }
 
+    const boundaryFrame = requestAnimationFrame(reportViewportBoundary)
+    const observer = new ResizeObserver(syncNativeEdgeSpace)
+    observer.observe(viewport)
+    observer.observe(flow)
+    return () => {
+      cancelAnimationFrame(transitionFrame)
+      if (transitionEndHandler) viewport.removeEventListener('scrollend', transitionEndHandler)
+      if (transitionTimer) window.clearTimeout(transitionTimer)
+      cancelAnimationFrame(boundaryFrame)
+      observer.disconnect()
+    }
+  }, [beats, nativeScroll, transitionTargetBeatIndex])
+
+  useLayoutEffect(() => {
+    if (nativeScroll) return undefined
+
+    const viewport = viewportRef.current
+    const flow = flowRef.current
+    const focused = flow?.children[focusBeatIndex]
+    if (!viewport || !flow || !focused) return undefined
+
+    const sceneChanged = flowSessionRef.current !== beats
+    if (sceneChanged) flowSessionRef.current = beats
     nativeScrollInitializedRef.current = false
     flow.style.removeProperty('--reader-native-edge-space')
+
+    let restoreFrame = 0
+    let settleFrame = 0
 
     const getCenteredOffset = target => {
       const viewportRect = viewport.getBoundingClientRect()
@@ -219,7 +240,7 @@ function ReaderBeatStack({
             flow.style.removeProperty('transition')
           })
         })
-        onFocusMotionEnd({ target: flow, currentTarget: flow })
+        onFocusMotionEndRef.current({ target: flow, currentTarget: flow })
       }
     } else {
       syncReaderLayout()
@@ -233,13 +254,10 @@ function ReaderBeatStack({
     return () => {
       cancelAnimationFrame(restoreFrame)
       cancelAnimationFrame(settleFrame)
-      cancelAnimationFrame(transitionFrame)
-      if (transitionEndHandler) viewport.removeEventListener('scrollend', transitionEndHandler)
-      if (transitionTimer) window.clearTimeout(transitionTimer)
       cancelAnimationFrame(boundaryFrame)
       observer.disconnect()
     }
-  }, [activeNarrativePausePhase, beats, focusBeatIndex, initialScrollOffset, nativeScroll, onFocusMotionEnd, transitionTargetBeatIndex])
+  }, [activeNarrativePausePhase, beats, focusBeatIndex, nativeScroll, transitionTargetBeatIndex])
 
   useEffect(() => {
       setNativeBoundary({ atTop: false, atBottom: false })

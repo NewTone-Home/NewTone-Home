@@ -49,7 +49,6 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   const setLanguage = useProgressStore(state => state.setLanguage)
   const committedLocation = useProgressStore(state => state.committedLocation)
   const commitLocation = useProgressStore(state => state.commitLocation)
-  const readerScrollOffset = useProgressStore(state => state.readerScrollOffset)
   const setReaderScrollOffset = useProgressStore(state => state.setReaderScrollOffset)
   const readerExitGestureLearned = useProgressStore(state => state.readerExitGestureLearned)
   const setReaderExitGestureLearned = useProgressStore(state => state.setReaderExitGestureLearned)
@@ -83,7 +82,8 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   const contentLanguageRef = useRef(language)
   const languageTransitionRef = useRef(null)
   const languageTimerRefs = useRef([])
-  const pendingReaderScrollOffsetRef = useRef(readerScrollOffset)
+  const readerScrollOffsetRef = useRef(useProgressStore.getState().readerScrollOffset)
+  const pendingReaderScrollOffsetRef = useRef(readerScrollOffsetRef.current)
   const scrollPersistTimerRef = useRef(null)
   const activeReaderContent = readerContent
   const sceneModel = useMemo(
@@ -99,7 +99,12 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   })
   useMemo(() => beginNarrativePlaybackSession(initialLocation), [initialLocation])
   const commitReaderLocation = useCallback((location) => {
-    commitLocation(location)
+    const committed = commitLocation(location)
+    if (committed) {
+      readerScrollOffsetRef.current = 0
+      pendingReaderScrollOffsetRef.current = 0
+    }
+    return committed
   }, [commitLocation])
   const navigation = useReaderNavigation({
     initialLocation,
@@ -408,17 +413,15 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   clearInputAccumulatorRef.current = clearInputAccumulator
 
   const persistReaderScrollOffset = useCallback((value) => {
-    pendingReaderScrollOffsetRef.current = value
+    const normalizedValue = Number.isFinite(value) ? Math.max(0, value) : 0
+    readerScrollOffsetRef.current = normalizedValue
+    pendingReaderScrollOffsetRef.current = normalizedValue
     if (scrollPersistTimerRef.current !== null) return
     scrollPersistTimerRef.current = window.setTimeout(() => {
       scrollPersistTimerRef.current = null
       setReaderScrollOffset(pendingReaderScrollOffsetRef.current)
     }, READER_SCROLL_PERSIST_MS)
   }, [setReaderScrollOffset])
-
-  useEffect(() => {
-    pendingReaderScrollOffsetRef.current = readerScrollOffset
-  }, [readerScrollOffset])
 
   useEffect(() => () => {
     languageTimerRefs.current.forEach(window.clearTimeout)
@@ -523,7 +526,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
       onNativeFocusChange={handleNativeFocusChange}
       onNativeBoundary={handleNativeBoundary}
       onNativeScrollOffset={persistReaderScrollOffset}
-      initialScrollOffset={readerScrollOffset}
+      initialScrollOffset={readerScrollOffsetRef.current}
       narrativeRuntimeEnabled={NARRATIVE_RUNTIME_ENABLED}
       narrativeDeliveryStates={NARRATIVE_RUNTIME_ENABLED
         ? { ...narrativePause.deliveryStates, ...narrativeReveal.deliveryStates, ...narrativeTypewriter.deliveryStates }
