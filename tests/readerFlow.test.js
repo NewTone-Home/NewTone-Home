@@ -40,6 +40,7 @@ describe('continuous Reader flow', () => {
     const upcoming = getSceneBoundaryState(viewport, flowElement, boundaries)
     expect(upcoming.active).toBe(false)
     expect(upcoming.progress).toBe(0)
+    expect(upcoming.targetScrollTop).toBe(720)
     expect(getSceneBoundaryProgress(viewport, flowElement, boundaries)).toBe(1)
 
     from.getBoundingClientRect = () => ({ top: 280, height: 40 })
@@ -47,6 +48,7 @@ describe('continuous Reader flow', () => {
     const active = getSceneBoundaryState(viewport, flowElement, boundaries)
     expect(active.active).toBe(true)
     expect(active.progress).toBe(0)
+    expect(active.targetScrollTop).toBe(400)
 
     from.getBoundingClientRect = () => ({ top: -120, height: 40 })
     to.getBoundingClientRect = () => ({ top: 280, height: 40 })
