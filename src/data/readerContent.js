@@ -76,6 +76,51 @@ export function setReaderContent(content) {
   return readerContent
 }
 
+export function collapseReaderPagesByChapter(content) {
+  validateReaderContent(content)
+  return content.map(phase => {
+    const chapterPages = []
+    const pagesByChapter = new Map()
+
+    phase.pages.forEach(page => {
+      let chapterPage = pagesByChapter.get(page.chapterId)
+      if (!chapterPage) {
+        chapterPage = {
+          ...page,
+          id: page.chapterId,
+          scene: {
+            ...page.scene,
+            id: page.chapterId,
+            label: page.chapterTitle,
+            labelByLanguage: page.chapterTitleByLanguage ?? page.scene.labelByLanguage,
+          },
+          beats: [],
+        }
+        pagesByChapter.set(page.chapterId, chapterPage)
+        chapterPages.push(chapterPage)
+      }
+      chapterPage.beats.push(...page.beats)
+    })
+
+    return {
+      ...phase,
+      pages: chapterPages.map((page, pageIndex) => {
+        const nextPage = chapterPages[pageIndex + 1]
+        const transitionType = nextPage ? READER_TRANSITION_TYPES.STANDARD : READER_TRANSITION_TYPES.CHAPTER_END
+        return {
+          ...page,
+          transitionType,
+          boundary: {
+            kind: 'continuous',
+            transitionType,
+            ...(nextPage ? { target: { phaseId: phase.id, pageId: nextPage.id, beatIndex: 0 } } : {}),
+          },
+        }
+      }),
+    }
+  })
+}
+
 export function hasReaderContent() {
   return readerContent.length > 0
 }
