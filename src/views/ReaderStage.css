@@ -455,15 +455,20 @@
 }
 
 .reader-stage-page--standard .reader-beat-flow,
-.reader-stage-page--standard .reader-stage-beat,
-.reader-stage-page--standard .reader-stage-beat p {
+.reader-stage-page--standard .reader-stage-beat {
   animation: none !important;
-  transition: none !important;
+}
+
+.reader-stage-page--standard .reader-beat-flow {
+  transition: transform 820ms cubic-bezier(.2, .8, .2, 1) !important;
 }
 
 .reader-stage-page--standard .reader-stage-beat {
-  filter: none !important;
-  transform: none !important;
+  transition:
+    opacity 680ms ease,
+    filter 680ms ease,
+    color 1800ms ease,
+    transform 680ms cubic-bezier(.2, .8, .2, 1) !important;
 }
 
 /* Reader entry handoff: prepare the shell early, but reveal it only after
@@ -2107,14 +2112,34 @@
 .reader-stage-page--standard::before,
 .reader-stage-page--standard::after { display: none; }
 .reader-stage-page--standard .reader-beat-flow,
-.reader-stage-page--standard .reader-stage-beat,
-.reader-stage-page--standard .reader-stage-beat p {
+.reader-stage-page--standard .reader-stage-beat {
   animation: none !important;
-  transition: none !important;
+}
+.reader-stage-page--standard .reader-beat-flow {
+  transition: transform 820ms cubic-bezier(.2, .8, .2, 1) !important;
 }
 .reader-stage-page--standard .reader-stage-beat {
-  filter: none !important;
-  transform: none !important;
+  transition:
+    opacity 680ms ease,
+    filter 680ms ease,
+    color 1800ms ease,
+    transform 680ms cubic-bezier(.2, .8, .2, 1) !important;
+}
+
+.reader-beat-stack[data-language-transition='out'] .reader-stage-block {
+  opacity: .08;
+  filter: blur(3px);
+  transform: translateY(-.14em);
+  transition: opacity 220ms ease, filter 220ms ease, transform 220ms ease !important;
+}
+
+.reader-beat-stack[data-language-transition='in'] .reader-stage-block {
+  animation: reader-language-content-enter 460ms cubic-bezier(.2, .8, .2, 1) both !important;
+}
+
+@keyframes reader-language-content-enter {
+  from { opacity: .08; filter: blur(3px); transform: translateY(.14em); }
+  to { opacity: 1; filter: none; transform: translateY(0); }
 }
 
 .reader-corner-menu { min-width: 48px; }

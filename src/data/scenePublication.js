@@ -188,6 +188,44 @@ function sceneWorldState(scene, chapter) {
   }
 }
 
+function materializeReaderFocusBeats(beat) {
+  if (!beat?.source?.sceneId || !Array.isArray(beat.blocks) || beat.blocks.length <= 1) return [beat]
+
+  const englishBlocks = beat.translations?.en?.blocks ?? []
+  return beat.blocks.map((block, index) => {
+    const displayUnit = {
+      kind: 'scene-paragraph',
+      sceneId: beat.source.sceneId,
+      index,
+    }
+    const translation = englishBlocks[index]
+
+    return {
+      ...beat,
+      id: index === 0 ? beat.id : `${beat.id}_reader_${String(index + 1).padStart(2, '0')}`,
+      displayUnit,
+      blocks: [{ ...block, id: 'block-0' }],
+      ...(translation?.text?.trim()
+        ? {
+          translations: {
+            en: { blocks: [{ ...translation, id: 'block-0' }] },
+          },
+        }
+        : {}),
+    }
+  })
+}
+
+export function expandSceneReaderFocusUnits(content) {
+  return content.map(phase => ({
+    ...phase,
+    pages: phase.pages.map(page => ({
+      ...page,
+      beats: page.beats.flatMap(materializeReaderFocusBeats),
+    })),
+  }))
+}
+
 export function compileScenePublicationToReader(publication) {
   const normalized = normalizeSceneWorkspace(publication)
   validateScenePublication(normalized)

@@ -32,6 +32,7 @@ export function getBeatBlocksForLanguage(beat, language) {
 function ReaderBeatStack({
   beats,
   language = 'zh',
+  languageTransitionPhase = 'idle',
   focusBeatIndex,
   onFocusMotionEnd,
   focusRef,
@@ -246,6 +247,7 @@ function ReaderBeatStack({
       ref={viewportRef}
       className="reader-beat-stack"
       data-native-scroll={nativeScroll ? 'true' : 'false'}
+      data-language-transition={languageTransitionPhase}
       data-reader-at-top={nativeBoundary.atTop ? 'true' : 'false'}
       data-reader-at-bottom={nativeBoundary.atBottom ? 'true' : 'false'}
       data-narrative-runtime={narrativeRuntimeEnabled ? 'enabled' : 'disabled'}

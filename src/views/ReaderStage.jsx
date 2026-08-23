@@ -30,6 +30,8 @@ function ReaderStage({
   focusBeatIndex,
   progress,
   language,
+  contentLanguage = language,
+  languageTransitionPhase = 'idle',
   onLanguage,
   standardTheme,
   themePosition,
@@ -154,7 +156,8 @@ function ReaderStage({
         />
         {!emptyDocument && <ReaderBeatStack
           beats={beats}
-          language={language}
+          language={contentLanguage}
+          languageTransitionPhase={languageTransitionPhase}
           focusBeatIndex={focusBeatIndex}
           onFocusMotionEnd={onFocusMotionEnd}
           onNativeFocusChange={onNativeFocusChange}

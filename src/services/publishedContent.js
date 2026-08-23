@@ -1,5 +1,5 @@
 import { collapseReaderPagesByChapter, setReaderContent } from '../data/readerContent'
-import { compileScenePublicationToReader } from '../data/scenePublication'
+import { compileScenePublicationToReader, expandSceneReaderFocusUnits } from '../data/scenePublication'
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient'
 
 export const PUBLICATION_SLUG = 'main-reader'
@@ -18,7 +18,7 @@ export async function loadPublishedContent() {
   try {
     const readerContent = Array.isArray(data.content)
       ? collapseReaderPagesByChapter(data.content)
-      : compileScenePublicationToReader(data.content)
+      : expandSceneReaderFocusUnits(compileScenePublicationToReader(data.content))
     setReaderContent(readerContent)
     return { status: 'ready', publication: data }
   } catch (error) {

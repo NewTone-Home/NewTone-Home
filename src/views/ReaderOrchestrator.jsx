@@ -20,6 +20,9 @@ import ReaderStage from './ReaderStage'
 
 const READER_CHECKPOINT_INTERVAL_MS = 60000
 const READER_CHECKPOINT_MIN_DWELL_MS = 1000
+const READER_SCROLL_PERSIST_MS = 120
+const READER_LANGUAGE_CONTENT_SWAP_MS = 240
+const READER_LANGUAGE_CONTENT_SETTLE_MS = 760
 
 function getPage(location, content = readerContent) {
   return content
@@ -64,10 +67,17 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   const [autoVisual, setAutoVisual] = useState(null)
   const [completionPromptVisible, setCompletionPromptVisible] = useState(false)
   const [returningToLanding, setReturningToLanding] = useState(false)
+  const [readerContentLanguage, setReaderContentLanguage] = useState(language)
+  const [languageTransitionPhase, setLanguageTransitionPhase] = useState('idle')
   const pageMotionTimerRef = useRef(null)
   const blockedGestureRef = useRef(null)
   const pageTransitionBusyRef = useRef(false)
   const clearInputAccumulatorRef = useRef(null)
+  const contentLanguageRef = useRef(language)
+  const languageTransitionRef = useRef(null)
+  const languageTimerRefs = useRef([])
+  const pendingReaderScrollOffsetRef = useRef(readerScrollOffset)
+  const scrollPersistTimerRef = useRef(null)
   const activeReaderContent = readerContent
   const [initialLocation] = useState(() => {
     const replayParams = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search)
@@ -342,16 +352,65 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   })
   clearInputAccumulatorRef.current = clearInputAccumulator
 
-  useEffect(() => () => window.clearTimeout(pageMotionTimerRef.current), [])
+  const persistReaderScrollOffset = useCallback((value) => {
+    pendingReaderScrollOffsetRef.current = value
+    if (scrollPersistTimerRef.current !== null) return
+    scrollPersistTimerRef.current = window.setTimeout(() => {
+      scrollPersistTimerRef.current = null
+      setReaderScrollOffset(pendingReaderScrollOffsetRef.current)
+    }, READER_SCROLL_PERSIST_MS)
+  }, [setReaderScrollOffset])
+
+  useEffect(() => {
+    pendingReaderScrollOffsetRef.current = readerScrollOffset
+  }, [readerScrollOffset])
+
+  useEffect(() => () => {
+    window.clearTimeout(pageMotionTimerRef.current)
+    languageTimerRefs.current.forEach(window.clearTimeout)
+    if (scrollPersistTimerRef.current !== null) {
+      window.clearTimeout(scrollPersistTimerRef.current)
+      setReaderScrollOffset(pendingReaderScrollOffsetRef.current)
+    }
+  }, [setReaderScrollOffset])
 
   const handleReaderLanguage = useCallback((nextLanguage) => {
+    const previousLanguage = contentLanguageRef.current
+    if (previousLanguage === nextLanguage) {
+      setLanguage(nextLanguage)
+      return
+    }
+
+    languageTimerRefs.current.forEach(window.clearTimeout)
+    languageTimerRefs.current = []
+    const reducedLanguageMotion = reducedMotion || motionMode === 'reduced'
+    languageTransitionRef.current = { from: previousLanguage, to: nextLanguage }
+    setLanguageTransitionPhase(reducedLanguageMotion ? 'idle' : 'out')
     setLanguage(nextLanguage)
+
+    if (reducedLanguageMotion) {
+      contentLanguageRef.current = nextLanguage
+      setReaderContentLanguage(nextLanguage)
+      languageTransitionRef.current = null
+    } else {
+      const swapTimer = window.setTimeout(() => {
+        contentLanguageRef.current = nextLanguage
+        setReaderContentLanguage(nextLanguage)
+        setLanguageTransitionPhase('in')
+      }, READER_LANGUAGE_CONTENT_SWAP_MS)
+      const settleTimer = window.setTimeout(() => {
+        languageTransitionRef.current = null
+        setLanguageTransitionPhase('idle')
+      }, READER_LANGUAGE_CONTENT_SETTLE_MS)
+      languageTimerRefs.current = [swapTimer, settleTimer]
+    }
+
     trackEvent('language_selected', {
       ...currentAnalyticsContext(),
       stepId: 'reader-tools',
       language: nextLanguage,
     })
-  }, [setLanguage])
+  }, [motionMode, reducedMotion, setLanguage])
 
   const handleReaderMode = useCallback((nextMode) => {
     selectReadingMode(nextMode)
@@ -392,6 +451,8 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
       focusBeatIndex={activeLocation.beatIndex}
       progress={page.beats.length === 1 ? 1 : activeLocation.beatIndex / (page.beats.length - 1)}
       language={language}
+      contentLanguage={readerContentLanguage}
+      languageTransitionPhase={languageTransitionPhase}
       onLanguage={handleReaderLanguage}
       readingMode={readingMode}
       standardTheme={standardTheme}
@@ -403,7 +464,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
       onFocusMotionEnd={finishFocusMotion}
       onNativeFocusChange={handleNativeFocusChange}
       onNativeBoundary={handleNativeBoundary}
-      onNativeScrollOffset={setReaderScrollOffset}
+      onNativeScrollOffset={persistReaderScrollOffset}
       initialScrollOffset={readerScrollOffset}
       narrativeRuntimeEnabled={NARRATIVE_RUNTIME_ENABLED}
       narrativeDeliveryStates={NARRATIVE_RUNTIME_ENABLED
