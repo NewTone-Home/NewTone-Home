@@ -179,6 +179,7 @@ function ReaderBeatStack({
     }
 
     const syncReaderLayout = () => {
+      if (sceneFlowTransition) return
       if (focused.offsetHeight > viewport.clientHeight) {
         setNativeScroll(true)
         return
