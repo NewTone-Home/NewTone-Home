@@ -28,11 +28,11 @@ const updatesPage = read('../src/components/LandingUpdatesPage.jsx')
 const updatesCss = read('../src/components/LandingUpdatesPage.css')
 
 describe('Reader shell contract boundaries', () => {
-  it('keeps Reader shell, tools, progress and environment layers mounted', () => {
+  it('keeps Reader shell and environment layers mounted while retaining progress data for later UI work', () => {
     expect(stage).toContain('<ReaderPrecipitation />')
     expect(stage).toContain("const visibleReadingMode = 'standard'")
     expect(stage).toContain("{visibleReadingMode === 'immersive' && (")
-    expect(stage).toContain('<ReaderTraceProgress')
+    expect(stage).not.toContain('<ReaderTraceProgress')
     expect(stage).toContain('sceneBoundaryRanges = []')
     expect(stage).toContain('sceneBoundaryControlRef={returnControlRef}')
     expect(stage).toContain('<ReaderTools')
@@ -220,6 +220,7 @@ describe('Reader shell contract boundaries', () => {
       { locationId: 'inner-commercial-street', firstBeatIndex: 2, lastBeatIndex: 2, state: 'future' },
     ])
     expect(progress).toContain('getPageSceneTrail(beats, focusBeatIndex)')
+    expect(progress).toContain('getReaderProgressPercentage(progress)')
     expect(progress).toContain('Math.round((1 - visualProgress) * 100)')
     expect(progress).toContain('reader-reading-percent-value')
     expect(progress).not.toContain('pointedPercentage')

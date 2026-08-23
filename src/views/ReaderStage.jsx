@@ -3,7 +3,6 @@ import ReaderBeatStack from '../components/reader/ReaderBeatStack'
 import ReaderSceneTransition from '../components/reader/ReaderSceneTransition'
 import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
 import ReaderTools from '../components/reader/ReaderTools'
-import ReaderTraceProgress from '../components/reader/ReaderTraceProgress'
 import ReaderReturnControl from '../components/reader/ReaderReturnControl'
 import { resolveReaderEnvironmentPreview } from '../data/reader-experiments/readerEnvironmentPreview'
 import { getReaderSceneLabel } from '../i18n/readerUi'
@@ -28,7 +27,7 @@ function ReaderStage({
   beats,
   focusBeatIndex,
   sceneBoundaryRanges = [],
-  progress,
+  progress: _progress,
   language,
   contentLanguage = language,
   languageTransitionPhase = 'idle',
@@ -181,14 +180,6 @@ function ReaderStage({
           <p>{language === 'en' ? 'The story has not been published yet. You can still explore the Reader settings.' : '正文尚未发布。Reader 的阅读设置可以继续使用。'}</p>
           {contentStatus !== 'empty' && <button type="button" onClick={onRetryContent}>{language === 'en' ? 'Try again' : '重新检查正文'}</button>}
         </section>}
-        {!emptyDocument && <ReaderTraceProgress
-          progress={progress}
-          beats={beats}
-          focusBeatIndex={focusBeatIndex}
-          language={language}
-          readingMode={visibleReadingMode}
-          returningToLanding={returningToLanding}
-        />}
         <ReaderReturnControl
           ref={returnControlRef}
           visible={!returningToLanding}
