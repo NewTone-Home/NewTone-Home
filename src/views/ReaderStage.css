@@ -66,6 +66,11 @@
   margin: 0;
   font-size: clamp(1.08rem, 2.15vw, 1.48rem);
   line-height: 1.9;
+  white-space: pre-wrap;
+}
+
+.reader-stage-beat .reader-stage-block + .reader-stage-block {
+  margin-top: clamp(1.35rem, 3.2vh, 2.2rem);
 }
 
 .reader-stage-beat[data-distance="0"] {

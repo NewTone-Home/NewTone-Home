@@ -8,6 +8,21 @@ function text(value) {
   return typeof value === 'string' ? value.replace(/\r\n?/g, '\n') : ''
 }
 
+export function splitSceneTextIntoReaderBlocks(value, source) {
+  const paragraphs = text(value)
+    .trim()
+    .split(/\n\s*\n/)
+    .map(paragraph => paragraph.trim())
+    .filter(Boolean)
+
+  return paragraphs.map((paragraph, index) => ({
+    id: `block-${index}`,
+    type: 'paragraph',
+    text: paragraph,
+    source,
+  }))
+}
+
 function languageMap(value) {
   return Object.fromEntries(SCENE_LANGUAGES.map(language => [language, text(value?.[language])]))
 }
@@ -189,13 +204,13 @@ export function compileScenePublicationToReader(publication) {
       supportedModes: [READER_PAGE_MODES.FOCUS_SEQUENCE],
       scene: { id: chapter.id, label: title, labelByLanguage: chapter.title },
       beats: chapter.scenes.map(scene => {
-        const blocks = [{ id: 'block-0', type: 'paragraph', text: scene.content.zh.trim(), source: { chapterId: chapter.id, sceneId: scene.id } }]
+        const source = { chapterId: chapter.id, sceneId: scene.id }
+        const blocks = splitSceneTextIntoReaderBlocks(scene.content.zh, source)
         const translations = {}
-        // The current public Reader UI exposes zh/en. Other translations remain in the
-        // canonical Scene payload and can be projected when their UI is enabled.
+        // Scene remains the persisted unit; paragraph blocks are Reader-only compatibility output.
         SCENE_LANGUAGES.filter(language => language === 'en' && scene.content[language]?.trim()).forEach(language => {
           translations[language] = {
-            blocks: [{ id: 'block-0', type: 'paragraph', text: scene.content[language].trim(), source: { chapterId: chapter.id, sceneId: scene.id } }],
+            blocks: splitSceneTextIntoReaderBlocks(scene.content[language], source),
           }
         })
         return {

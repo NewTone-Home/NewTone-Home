@@ -126,6 +126,11 @@ function ReaderBeatStack({
       }
     }
 
+    if (focused.offsetHeight > viewport.clientHeight) {
+      setNativeScroll(true)
+      return undefined
+    }
+
     nativeScrollInitializedRef.current = false
     flow.style.removeProperty('--reader-native-edge-space')
 

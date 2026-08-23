@@ -79,7 +79,8 @@ describe('Scene content workspace', () => {
     const reader = compileReaderWorkspace(publication)
     expect(reader[0].pages).toHaveLength(1)
     expect(reader[0].pages[0].beats.map(beat => beat.id)).toEqual(['chapter_02_scene_01', 'chapter_02_scene_02'])
-    expect(reader[0].pages[0].beats[0].blocks).toHaveLength(1)
+    expect(reader[0].pages[0].beats[0].blocks).toHaveLength(2)
+    expect(reader[0].pages[0].beats[0].blocks.map(block => block.id)).toEqual(['block-0', 'block-1'])
     expect(reader[0].pages[0].beats[0].translations.en.blocks[0].text).toContain('different paragraph shape')
     expect(reader[0].pages[0].beats[0].worldState).toMatchObject({
       worldLayer: 'inner', locationId: 'shopping_district_corner_cafe', time: 'daylight', weather: 'clear_day_6',
