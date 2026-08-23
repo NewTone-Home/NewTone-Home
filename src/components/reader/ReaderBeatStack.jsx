@@ -175,7 +175,9 @@ function ReaderBeatStack({
     }
 
     const centerFocusedBeat = () => {
-      setOffset(getCenteredOffset(focused))
+      const nextOffset = getCenteredOffset(focused)
+      setOffset(nextOffset)
+      return nextOffset
     }
 
     const syncReaderLayout = () => {
@@ -184,7 +186,7 @@ function ReaderBeatStack({
         setNativeScroll(true)
         return
       }
-      centerFocusedBeat()
+      return centerFocusedBeat()
     }
 
     if (sceneChanged) {
@@ -201,7 +203,10 @@ function ReaderBeatStack({
         })
       } else {
         flow.style.transition = 'none'
-        syncReaderLayout()
+        const nextOffset = syncReaderLayout()
+        if (Number.isFinite(nextOffset)) {
+          flow.style.transform = `translateY(${nextOffset}px)`
+        }
         restoreFrame = requestAnimationFrame(() => {
           flow.style.transition = ''
         })
