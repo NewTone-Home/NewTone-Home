@@ -109,6 +109,7 @@ function ReaderBeatStack({
     beatsRef.current = beats
     lastReportedIndexRef.current = focusBeatIndex
     let restoreFrame = 0
+    let settleFrame = 0
     let transitionFrame = 0
     let transitionTimer = 0
     let transitionEndHandler = null
@@ -208,7 +209,15 @@ function ReaderBeatStack({
           flow.style.transform = `translateY(${nextOffset}px)`
         }
         restoreFrame = requestAnimationFrame(() => {
-          flow.style.removeProperty('transition')
+          if (Number.isFinite(nextOffset)) {
+            flow.style.transform = `translateY(${nextOffset}px)`
+          }
+          settleFrame = requestAnimationFrame(() => {
+            if (Number.isFinite(nextOffset)) {
+              flow.style.transform = `translateY(${nextOffset}px)`
+            }
+            flow.style.removeProperty('transition')
+          })
         })
         onFocusMotionEnd({ target: flow, currentTarget: flow })
       }
@@ -223,6 +232,7 @@ function ReaderBeatStack({
     observer.observe(flow)
     return () => {
       cancelAnimationFrame(restoreFrame)
+      cancelAnimationFrame(settleFrame)
       cancelAnimationFrame(transitionFrame)
       if (transitionEndHandler) viewport.removeEventListener('scrollend', transitionEndHandler)
       if (transitionTimer) window.clearTimeout(transitionTimer)
