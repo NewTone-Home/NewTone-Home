@@ -5,8 +5,8 @@ import { UPDATES_PHASE } from '../landing/landingUpdatesFlow'
 import './LandingUpdatesPage.css'
 
 const LANDING_UPDATES = Object.freeze({
-  date: '2026.08.15',
-  dateTime: '2026-08-15',
+  date: '2026.08.23',
+  dateTime: '2026-08-23',
   zh: Object.freeze({
     timelineAriaLabel: '公告时间线',
     expandLabel: '展开更新详情',
@@ -14,12 +14,11 @@ const LANDING_UPDATES = Object.freeze({
     returnLabel: '返回入口',
     returnAriaLabel: '返回 NewTone',
     summary: Object.freeze([
-      '本次更新没有加入新的宇宙，也没有打开什么神秘入口。',
-      '我们只是终于认真处理了一下那些“理论上能用，实际用起来总觉得哪里不太对”的东西。',
+      '合并了阅读模式，现在不再分成两个模式。',
+      '优化了阅读体验。',
     ]),
     details: Object.freeze([
-      '优化并重新设计了交互的逻辑与视觉效果',
-      '改善了多个设备运行表现',
+      '优化了操作体验。',
     ]),
   }),
   en: Object.freeze({
@@ -29,12 +28,11 @@ const LANDING_UPDATES = Object.freeze({
     returnLabel: 'BACK',
     returnAriaLabel: 'Return to NewTone',
     summary: Object.freeze([
-      'No new universe this time. No secret doorway, either.',
-      'We simply took a proper look at the things that were technically working, but never quite felt right in practice.',
+      'The reading modes are now combined into one, so there are no longer two separate modes.',
+      'The reading experience has been improved.',
     ]),
     details: Object.freeze([
-      'We refined and redesigned the logic and visual language of the interactions.',
-      'We also improved performance across a wider range of devices.',
+      'The interaction experience has been improved.',
     ]),
   }),
 })
