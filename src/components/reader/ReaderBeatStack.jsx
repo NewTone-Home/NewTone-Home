@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { getLocalNarrativeGateBeatIndex } from '../../reader/narrativeGate'
-import { getSceneBoundaryProgress } from '../../reader/readerFlow'
+import { getSceneBoundaryState } from '../../reader/readerFlow'
 import './ReaderBeatStack.css'
 
 const BOUNDARY_THRESHOLD_PX = 12
+const SCENE_ENTRY_LIFT_PX = 240
 
 export function getNativeBoundaries(viewport) {
   const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
@@ -52,6 +53,7 @@ function ReaderBeatStack({
   const frameRef = useRef(0)
   const lastReportedIndexRef = useRef(focusBeatIndex)
   const lastScrollTopRef = useRef(0)
+  const activeSceneEntryRef = useRef([])
   const [nativeBoundary, setNativeBoundary] = useState({ atTop: false, atBottom: false })
 
   const localGateBeatIndex = getLocalNarrativeGateBeatIndex({
@@ -59,6 +61,38 @@ function ReaderBeatStack({
     focusBeatIndex,
     deliveryStates: narrativeDeliveryStates,
   })
+
+  const clearSceneEntryStyles = entry => {
+    entry.removeAttribute('data-scene-entry-active')
+    entry.style.removeProperty('--reader-scene-entry-opacity')
+    entry.style.removeProperty('--reader-scene-entry-lift')
+    entry.style.removeProperty('--reader-scene-entry-blur')
+    entry.style.removeProperty('--reader-scene-entry-scale')
+    entry.style.removeProperty('transition')
+  }
+
+  const applySceneBoundaryState = (state, flow) => {
+    const nextSceneEntries = Number.isInteger(state?.toIndex) && Number.isInteger(state?.toEndIndex)
+      ? Array.from(flow?.children ?? []).slice(state.toIndex, state.toEndIndex + 1)
+      : []
+    const progress = state?.progress ?? 1
+    activeSceneEntryRef.current.forEach(clearSceneEntryStyles)
+
+    if (nextSceneEntries.length === 0 || (state?.active && progress >= 0.999)) {
+      activeSceneEntryRef.current = []
+      return
+    }
+
+    nextSceneEntries.forEach((entry, index) => {
+      entry.dataset.sceneEntryActive = 'true'
+      entry.style.setProperty('--reader-scene-entry-opacity', String(Math.max(0.001, progress * (index === 0 ? 0.34 : 0.18))))
+      entry.style.setProperty('--reader-scene-entry-lift', `${Math.round((1 - progress) * (index === 0 ? SCENE_ENTRY_LIFT_PX : SCENE_ENTRY_LIFT_PX / 2))}px`)
+      entry.style.setProperty('--reader-scene-entry-blur', `${(1 - progress) * (index === 0 ? 2.8 : 2.2) + 1.2}px`)
+      entry.style.setProperty('--reader-scene-entry-scale', `${0.985 + progress * 0.01}`)
+      entry.style.setProperty('transition', 'none')
+    })
+    activeSceneEntryRef.current = nextSceneEntries
+  }
 
   const reportViewportBoundary = () => {
     const viewport = viewportRef.current
@@ -86,9 +120,9 @@ function ReaderBeatStack({
     const syncNativeEdgeSpace = () => {
       const edgeSpace = getNativeEdgeSpace(viewport, flow)
       flow.style.setProperty('--reader-native-edge-space', `${edgeSpace}px`)
-      sceneBoundaryControlRef?.current?.setBoundaryProgress(
-        getSceneBoundaryProgress(viewport, flow, sceneBoundaryRanges),
-      )
+      const sceneBoundaryState = getSceneBoundaryState(viewport, flow, sceneBoundaryRanges)
+      sceneBoundaryControlRef?.current?.setBoundaryProgress(sceneBoundaryState?.active ? sceneBoundaryState.progress : 1)
+      applySceneBoundaryState(sceneBoundaryState, flow)
     }
     syncNativeEdgeSpace()
 
@@ -131,13 +165,17 @@ function ReaderBeatStack({
 
         const viewportRect = viewport.getBoundingClientRect()
         const centerY = viewportRect.top + viewportRect.height / 2
+        const flowRect = flow.getBoundingClientRect()
         let nearestIndex = 0
         let nearestDistance = Number.POSITIVE_INFINITY
 
         Array.from(flow.children).forEach((element, index) => {
           if (!(element instanceof HTMLElement) || !element.matches('.reader-stage-beat')) return
           const rect = element.getBoundingClientRect()
-          const distance = Math.abs((rect.top + rect.height / 2) - centerY)
+          const elementCenter = Number.isFinite(element.offsetTop) && Number.isFinite(element.offsetHeight)
+            ? flowRect.top + element.offsetTop + element.offsetHeight / 2
+            : rect.top + rect.height / 2
+          const distance = Math.abs(elementCenter - centerY)
           if (distance < nearestDistance) {
             nearestDistance = distance
             nearestIndex = index
@@ -154,9 +192,9 @@ function ReaderBeatStack({
           atTop: boundaries.atTop && nearestIndex === 0,
           atBottom: boundaries.atBottom && nearestIndex === beats.length - 1,
         }
-        sceneBoundaryControlRef?.current?.setBoundaryProgress(
-          getSceneBoundaryProgress(viewport, flow, sceneBoundaryRanges),
-        )
+        const sceneBoundaryState = getSceneBoundaryState(viewport, flow, sceneBoundaryRanges)
+        sceneBoundaryControlRef?.current?.setBoundaryProgress(sceneBoundaryState?.active ? sceneBoundaryState.progress : 1)
+        applySceneBoundaryState(sceneBoundaryState, flow)
         setNativeBoundary(current => (
           current.atTop === nextBoundary.atTop && current.atBottom === nextBoundary.atBottom
             ? current

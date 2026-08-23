@@ -12,27 +12,31 @@ function clamp(value, min = 0, max = 1) {
 export function createReaderFlow(sceneModel) {
   const beats = []
   const locations = []
-  const sceneBoundaries = []
+  const sceneRanges = []
 
-  sceneModel.scenes.forEach((scene, sceneIndex) => {
+  sceneModel.scenes.forEach(scene => {
     const startIndex = beats.length
     beats.push(...scene.beats)
     locations.push(...scene.locations)
     const endIndex = beats.length - 1
+    sceneRanges.push(Object.freeze({ sceneId: scene.id, startIndex, endIndex }))
+  })
 
-    if (sceneIndex < sceneModel.scenes.length - 1 && endIndex >= startIndex) {
-      sceneBoundaries.push(Object.freeze({
-        fromIndex: endIndex,
-        toIndex: endIndex + 1,
-        fromSceneId: scene.id,
-        toSceneId: scene.next?.id ?? sceneModel.scenes[sceneIndex + 1]?.id ?? null,
-      }))
-    }
+  const sceneBoundaries = sceneRanges.slice(0, -1).map((range, index) => {
+    const nextRange = sceneRanges[index + 1]
+    return Object.freeze({
+      fromIndex: range.endIndex,
+      toIndex: nextRange.startIndex,
+      toEndIndex: nextRange.endIndex,
+      fromSceneId: range.sceneId,
+      toSceneId: nextRange.sceneId,
+    })
   })
 
   return Object.freeze({
     beats: Object.freeze(beats),
     locations: Object.freeze(locations),
+    sceneRanges: Object.freeze(sceneRanges),
     sceneBoundaries: Object.freeze(sceneBoundaries),
   })
 }
@@ -43,34 +47,54 @@ export function createReaderFlow(sceneModel) {
  * Scene's first unit is centered. Outside a boundary handoff, the control is
  * fully retracted.
  */
-export function getSceneBoundaryProgress(viewport, flowElement, sceneBoundaries = []) {
-  if (!viewport || !flowElement || sceneBoundaries.length === 0) return 1
+export function getSceneBoundaryState(viewport, flowElement, sceneBoundaries = []) {
+  if (!viewport || !flowElement || sceneBoundaries.length === 0) return null
 
   const viewportRect = viewport.getBoundingClientRect()
   const centerY = viewportRect.top + viewport.clientHeight / 2
-  let best = null
+  const flowRect = flowElement.getBoundingClientRect?.() ?? null
+  let active = null
+  let upcoming = null
 
   sceneBoundaries.forEach(boundary => {
       const from = flowElement.children[boundary.fromIndex]
       const to = flowElement.children[boundary.toIndex]
     if (!from || !to) return
 
-    const fromRect = from.getBoundingClientRect()
-    const toRect = to.getBoundingClientRect()
-    const fromCenter = fromRect.top + fromRect.height / 2
-    const toCenter = toRect.top + toRect.height / 2
+    const centerOf = element => {
+      if (flowRect && Number.isFinite(element.offsetTop) && Number.isFinite(element.offsetHeight)) {
+        return flowRect.top + element.offsetTop + element.offsetHeight / 2
+      }
+      const rect = element.getBoundingClientRect()
+      return rect.top + rect.height / 2
+    }
+    const fromCenter = centerOf(from)
+    const toCenter = centerOf(to)
     const span = fromCenter - toCenter
     if (Math.abs(span) < 1) return
 
     const rawProgress = (fromCenter - centerY) / span
-    if (rawProgress < -0.02 || rawProgress > 1.02) return
+    if (rawProgress > 1.02) return
+
+    if (rawProgress < -0.02) {
+      const distanceToBoundary = Math.abs(rawProgress)
+      if (!upcoming || distanceToBoundary < upcoming.distanceToBoundary) {
+        upcoming = { ...boundary, progress: 0, active: false, distanceToBoundary }
+      }
+      return
+    }
 
     const progress = clamp(rawProgress)
     const distanceToBoundaryEdge = Math.min(progress, 1 - progress)
-    if (!best || distanceToBoundaryEdge < best.distanceToBoundaryEdge) {
-      best = { ...boundary, progress, distanceToBoundaryEdge }
+    if (!active || distanceToBoundaryEdge < active.distanceToBoundaryEdge) {
+      active = { ...boundary, progress, active: true, distanceToBoundaryEdge }
     }
   })
 
-  return best?.progress ?? 1
+  return active ?? upcoming
+}
+
+export function getSceneBoundaryProgress(viewport, flowElement, sceneBoundaries = []) {
+  const state = getSceneBoundaryState(viewport, flowElement, sceneBoundaries)
+  return state?.active ? state.progress : 1
 }

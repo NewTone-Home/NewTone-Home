@@ -100,6 +100,15 @@
 .reader-stage-beat[data-distance="3"] { opacity: 0.1; }
 .reader-stage-beat[data-distance="4"] { opacity: 0.045; }
 
+/* The first unit of the next Scene stays below the viewport until the
+   boundary handoff is actually being consumed by the user's scroll. */
+.reader-stage-beat[data-scene-entry-active="true"] {
+  opacity: var(--reader-scene-entry-opacity) !important;
+  filter: blur(var(--reader-scene-entry-blur)) !important;
+  transform: translateY(var(--reader-scene-entry-lift)) scale(var(--reader-scene-entry-scale)) !important;
+  transition: none !important;
+}
+
 .reader-stage-beat:focus { outline: none; }
 
 .reader-stage[data-transition-kind="page-leaving"] .reader-beat-stack {
