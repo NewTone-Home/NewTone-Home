@@ -4,24 +4,6 @@ import { getSceneBoundaryState } from '../../reader/readerFlow'
 import './ReaderBeatStack.css'
 
 const BOUNDARY_THRESHOLD_PX = 12
-const SCENE_ENTRY_LIFT_PX = 240
-const SCENE_BOUNDARY_AUTO_SETTLE_PROGRESS = 0.12
-
-export function getSceneEntryPresentation(index, progress) {
-  const normalizedProgress = Number.isFinite(progress)
-    ? Math.max(0, Math.min(1, progress))
-    : 1
-  const firstEntry = index === 0
-
-  return {
-    opacity: firstEntry
-      ? 1
-      : Math.max(0.001, normalizedProgress * 0.18),
-    liftPx: Math.round((1 - normalizedProgress) * (firstEntry ? SCENE_ENTRY_LIFT_PX : SCENE_ENTRY_LIFT_PX / 2)),
-    blurPx: firstEntry ? 0 : (1 - normalizedProgress) * 2.2 + 1.2,
-    scale: firstEntry ? 1 : 0.985 + normalizedProgress * 0.01,
-  }
-}
 
 export function getNativeBoundaries(viewport) {
   const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
@@ -70,78 +52,14 @@ function ReaderBeatStack({
   const frameRef = useRef(0)
   const lastReportedIndexRef = useRef(focusBeatIndex)
   const lastScrollTopRef = useRef(0)
-  const activeSceneEntryRef = useRef([])
-  const sceneBoundaryHandoffRef = useRef(null)
   const [nativeBoundary, setNativeBoundary] = useState({ atTop: false, atBottom: false })
+  const sceneBoundaryEndIndices = new Set(sceneBoundaryRanges.map(boundary => boundary.fromIndex))
 
   const localGateBeatIndex = getLocalNarrativeGateBeatIndex({
     beats,
     focusBeatIndex,
     deliveryStates: narrativeDeliveryStates,
   })
-
-  const clearSceneEntryStyles = entry => {
-    entry.removeAttribute('data-scene-entry-active')
-    entry.style.removeProperty('--reader-scene-entry-opacity')
-    entry.style.removeProperty('--reader-scene-entry-lift')
-    entry.style.removeProperty('--reader-scene-entry-blur')
-    entry.style.removeProperty('--reader-scene-entry-scale')
-    entry.style.removeProperty('transition')
-  }
-
-  const applySceneBoundaryState = (state, flow) => {
-    const nextSceneEntries = Number.isInteger(state?.toIndex) && Number.isInteger(state?.toEndIndex)
-      ? Array.from(flow?.children ?? []).slice(state.toIndex, state.toEndIndex + 1)
-      : []
-    const progress = state?.progress ?? 1
-    activeSceneEntryRef.current.forEach(clearSceneEntryStyles)
-
-    if (nextSceneEntries.length === 0 || (state?.active && progress >= 0.999)) {
-      activeSceneEntryRef.current = []
-      return
-    }
-
-    nextSceneEntries.forEach((entry, index) => {
-      const presentation = getSceneEntryPresentation(index, progress)
-      entry.dataset.sceneEntryActive = 'true'
-      entry.style.setProperty('--reader-scene-entry-opacity', String(presentation.opacity))
-      entry.style.setProperty('--reader-scene-entry-lift', `${presentation.liftPx}px`)
-      entry.style.setProperty('--reader-scene-entry-blur', `${presentation.blurPx}px`)
-      entry.style.setProperty('--reader-scene-entry-scale', String(presentation.scale))
-      entry.style.setProperty('transition', 'none')
-    })
-    activeSceneEntryRef.current = nextSceneEntries
-  }
-
-  const maybeCompleteSceneBoundary = (state, direction, viewport, flow) => {
-    if (direction < 0) {
-      sceneBoundaryHandoffRef.current = null
-      return
-    }
-    if (!state?.active || direction === 0 || !Number.isFinite(state.targetScrollTop)) return
-
-    const boundaryKey = `${state.fromSceneId}:${state.toSceneId}`
-    if (sceneBoundaryHandoffRef.current?.boundaryKey === boundaryKey) return
-
-    const firstEntry = flow.children[state.toIndex]
-    if (!firstEntry) return
-    const viewportRect = viewport.getBoundingClientRect()
-    const entryRect = firstEntry.getBoundingClientRect()
-    const enteredViewport = entryRect.bottom > viewportRect.top && entryRect.top < viewportRect.bottom
-    const reachedEntryHandoff = state.progress >= SCENE_BOUNDARY_AUTO_SETTLE_PROGRESS || enteredViewport
-    if (!reachedEntryHandoff) return
-
-    sceneBoundaryHandoffRef.current = { boundaryKey }
-    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    const targetScrollTop = Math.max(0, Math.min(
-      state.targetScrollTop,
-      Math.max(0, viewport.scrollHeight - viewport.clientHeight),
-    ))
-    viewport.scrollTo({
-      top: targetScrollTop,
-      behavior: reducedMotion ? 'auto' : 'smooth',
-    })
-  }
 
   const reportViewportBoundary = () => {
     const viewport = viewportRef.current
@@ -165,14 +83,12 @@ function ReaderBeatStack({
     const flow = flowRef.current
     const focused = flow?.children[focusBeatIndex]
     if (!viewport || !flow || !focused) return undefined
-    sceneBoundaryHandoffRef.current = null
 
     const syncNativeEdgeSpace = () => {
       const edgeSpace = getNativeEdgeSpace(viewport, flow)
       flow.style.setProperty('--reader-native-edge-space', `${edgeSpace}px`)
       const sceneBoundaryState = getSceneBoundaryState(viewport, flow, sceneBoundaryRanges)
       sceneBoundaryControlRef?.current?.setBoundaryProgress(sceneBoundaryState?.active ? sceneBoundaryState.progress : 1)
-      applySceneBoundaryState(sceneBoundaryState, flow)
     }
     syncNativeEdgeSpace()
 
@@ -215,16 +131,13 @@ function ReaderBeatStack({
 
         const viewportRect = viewport.getBoundingClientRect()
         const centerY = viewportRect.top + viewportRect.height / 2
-        const flowRect = flow.getBoundingClientRect()
         let nearestIndex = 0
         let nearestDistance = Number.POSITIVE_INFINITY
 
         Array.from(flow.children).forEach((element, index) => {
           if (!(element instanceof HTMLElement) || !element.matches('.reader-stage-beat')) return
           const rect = element.getBoundingClientRect()
-          const elementCenter = Number.isFinite(element.offsetTop) && Number.isFinite(element.offsetHeight)
-            ? flowRect.top + element.offsetTop + element.offsetHeight / 2
-            : rect.top + rect.height / 2
+          const elementCenter = rect.top + rect.height / 2
           const distance = Math.abs(elementCenter - centerY)
           if (distance < nearestDistance) {
             nearestDistance = distance
@@ -244,8 +157,6 @@ function ReaderBeatStack({
         }
         const sceneBoundaryState = getSceneBoundaryState(viewport, flow, sceneBoundaryRanges)
         sceneBoundaryControlRef?.current?.setBoundaryProgress(sceneBoundaryState?.active ? sceneBoundaryState.progress : 1)
-        applySceneBoundaryState(sceneBoundaryState, flow)
-        maybeCompleteSceneBoundary(sceneBoundaryState, direction, viewport, flow)
         setNativeBoundary(current => (
           current.atTop === nextBoundary.atTop && current.atBottom === nextBoundary.atBottom
             ? current
@@ -274,7 +185,7 @@ function ReaderBeatStack({
       className="reader-beat-stack"
       data-native-scroll="true"
       data-language-transition={languageTransitionPhase}
-      data-scene-transition-flow="idle"
+      data-scene-transition-flow="fixed-gap"
       data-reader-at-top={nativeBoundary.atTop ? 'true' : 'false'}
       data-reader-at-bottom={nativeBoundary.atBottom ? 'true' : 'false'}
       data-narrative-runtime={narrativeRuntimeEnabled ? 'enabled' : 'disabled'}
@@ -304,6 +215,7 @@ function ReaderBeatStack({
               data-reader-beat-id={beat.id}
               data-reader-gated={gated ? 'true' : 'false'}
               data-display-unit-kind={beat.displayUnit?.kind ?? 'authored'}
+              data-scene-boundary-after={sceneBoundaryEndIndices.has(beatIndex) ? 'true' : undefined}
             >
               {getBeatBlocksForLanguage(beat, language).map(block => {
                 const deliveryState = narrativeDeliveryStates[`${beat.id}:${block.id}`] ?? 'delivered'

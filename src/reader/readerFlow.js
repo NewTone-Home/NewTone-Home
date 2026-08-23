@@ -52,7 +52,6 @@ export function getSceneBoundaryState(viewport, flowElement, sceneBoundaries = [
 
   const viewportRect = viewport.getBoundingClientRect()
   const centerY = viewportRect.top + viewport.clientHeight / 2
-  const flowRect = flowElement.getBoundingClientRect?.() ?? null
   let active = null
   let upcoming = null
 
@@ -62,9 +61,6 @@ export function getSceneBoundaryState(viewport, flowElement, sceneBoundaries = [
     if (!from || !to) return
 
     const centerOf = element => {
-      if (flowRect && Number.isFinite(element.offsetTop) && Number.isFinite(element.offsetHeight)) {
-        return flowRect.top + element.offsetTop + element.offsetHeight / 2
-      }
       const rect = element.getBoundingClientRect()
       return rect.top + rect.height / 2
     }
@@ -76,9 +72,6 @@ export function getSceneBoundaryState(viewport, flowElement, sceneBoundaries = [
     const rawProgress = (fromCenter - centerY) / span
     if (rawProgress > 1.02) return
 
-    const currentScrollTop = Number.isFinite(viewport.scrollTop) ? viewport.scrollTop : 0
-    const targetScrollTop = currentScrollTop + toCenter - centerY
-
     if (rawProgress < -0.02) {
       const distanceToBoundary = Math.abs(rawProgress)
       if (!upcoming || distanceToBoundary < upcoming.distanceToBoundary) {
@@ -86,7 +79,6 @@ export function getSceneBoundaryState(viewport, flowElement, sceneBoundaries = [
           ...boundary,
           progress: 0,
           active: false,
-          targetScrollTop,
           distanceToBoundary,
         }
       }
@@ -100,7 +92,6 @@ export function getSceneBoundaryState(viewport, flowElement, sceneBoundaries = [
         ...boundary,
         progress,
         active: true,
-        targetScrollTop,
         distanceToBoundaryEdge,
       }
     }
