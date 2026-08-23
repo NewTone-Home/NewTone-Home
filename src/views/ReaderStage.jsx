@@ -168,6 +168,7 @@ function ReaderStage({
           onNativeScrollOffset={onNativeScrollOffset}
           onViewportBoundaryChange={handleViewportBoundaryChange}
           initialScrollOffset={initialScrollOffset}
+          sceneBoundaryLocked={sceneBoundaryVisible && sceneBoundaryHasNext}
           narrativeRuntimeEnabled={narrativeRuntimeEnabled}
           narrativeDeliveryStates={narrativeDeliveryStates}
           activeNarrativePauseId={activeNarrativePauseId}

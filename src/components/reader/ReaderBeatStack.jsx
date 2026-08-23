@@ -40,6 +40,7 @@ function ReaderBeatStack({
   onNativeScrollOffset,
   onViewportBoundaryChange,
   initialScrollOffset = 0,
+  sceneBoundaryLocked = false,
   narrativeRuntimeEnabled = true,
   narrativeDeliveryStates = {},
   activeNarrativePauseId,
@@ -271,17 +272,19 @@ function ReaderBeatStack({
         {beats.map((beat, beatIndex) => {
           const distance = Math.abs(beatIndex - focusBeatIndex)
           const gated = localGateBeatIndex >= 0 && beatIndex > localGateBeatIndex
+          const sceneHidden = sceneBoundaryLocked && beatIndex > focusBeatIndex
           return (
             <article
               key={beat.id}
               ref={distance === 0 ? focusRef : undefined}
               className="reader-stage-beat"
               aria-current={distance === 0 ? 'true' : undefined}
-              aria-hidden={gated ? 'true' : undefined}
+              aria-hidden={gated || sceneHidden ? 'true' : undefined}
               tabIndex={distance === 0 ? -1 : undefined}
               data-distance={Math.min(distance, 4)}
               data-reader-beat-id={beat.id}
               data-reader-gated={gated ? 'true' : 'false'}
+              data-scene-hidden={sceneHidden ? 'true' : 'false'}
               data-display-unit-kind={beat.displayUnit?.kind ?? 'authored'}
             >
               {getBeatBlocksForLanguage(beat, language).map(block => {

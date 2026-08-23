@@ -93,6 +93,10 @@
 .reader-stage-beat[data-distance="3"] { opacity: 0.1; }
 .reader-stage-beat[data-distance="4"] { opacity: 0.045; }
 
+.reader-stage-beat[data-scene-hidden="true"] {
+  display: none;
+}
+
 .reader-stage-beat:focus { outline: none; }
 
 .reader-stage[data-transition-kind="page-leaving"] .reader-beat-stack {
