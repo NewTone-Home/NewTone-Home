@@ -84,7 +84,9 @@ function ReaderBeatStack({
 
   useEffect(() => {
     const media = window.matchMedia(NATIVE_SCROLL_QUERY)
-    const sync = () => setNativeScroll(media.matches)
+    const sync = () => {
+      if (media.matches) setNativeScroll(true)
+    }
     sync()
     media.addEventListener?.('change', sync)
     return () => media.removeEventListener?.('change', sync)
