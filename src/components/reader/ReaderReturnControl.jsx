@@ -1,15 +1,27 @@
+import { forwardRef, useImperativeHandle, useState } from 'react'
 import { getReaderUi } from '../../i18n/readerUi'
 import EntryButtonSurface from '../EntryButtonSurface'
 import './ReaderReturnControl.css'
 
-function ReaderReturnControl({
+const ReaderReturnControl = forwardRef(function ReaderReturnControl({
   visible = false,
+  alwaysVisible = false,
   mobile = false,
   worldLayer = 'surface',
   onReturnStart,
   onReturnComplete,
   language,
-}) {
+}, ref) {
+  const [boundaryProgress, setBoundaryProgress] = useState(1)
+  useImperativeHandle(ref, () => ({
+    setBoundaryProgress(nextProgress) {
+      const normalized = Number.isFinite(nextProgress)
+        ? Math.max(0, Math.min(1, nextProgress))
+        : 1
+      setBoundaryProgress(current => Math.abs(current - normalized) < 0.001 ? current : normalized)
+    },
+  }), [])
+
   const ui = getReaderUi(language)
   const fallbackUi = getReaderUi('zh')
   const returnLabel = ui.returnToLanding || ui.backToLanding || fallbackUi.returnToLanding
@@ -18,6 +30,7 @@ function ReaderReturnControl({
   return (
     <EntryButtonSurface
       visible={visible}
+      controlledProgress={alwaysVisible ? 0 : boundaryProgress}
       mobile={mobile}
       materialMode="world"
       worldLayer={worldLayer}
@@ -33,6 +46,6 @@ function ReaderReturnControl({
       onActionComplete={onReturnComplete}
     />
   )
-}
+})
 
 export default ReaderReturnControl

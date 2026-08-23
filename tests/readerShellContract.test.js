@@ -33,15 +33,15 @@ describe('Reader shell contract boundaries', () => {
     expect(stage).toContain("const visibleReadingMode = 'standard'")
     expect(stage).toContain("{visibleReadingMode === 'immersive' && (")
     expect(stage).toContain('<ReaderTraceProgress')
-    expect(stage).toContain('const returnVisible = emptyDocument || isFinalReaderBeat(focusBeatIndex, beats)')
+    expect(stage).toContain('sceneBoundaryRanges = []')
+    expect(stage).toContain('sceneBoundaryControlRef={returnControlRef}')
     expect(stage).toContain('<ReaderTools')
     expect(stageCss).toContain('.reader-stage-page--standard .reader-stage-beat')
     expect(contractCss).toContain('.reader-stage-page--standard .reader-environment-light')
   })
 
-  it('keeps the final-beat source singular', () => {
-    expect(stage).toContain("import { isFinalReaderBeat } from '../reader/readerPosition'")
-    expect(stage).toContain('isFinalReaderBeat(focusBeatIndex, beats)')
+  it('keeps the continuous flow and whole-reader boundary source singular', () => {
+    expect(stage).toContain('alwaysVisible={emptyDocument || finalReaderBeat}')
     expect(stage).toContain('mobile={directReaderInput}')
     expect(stage).toContain('worldLayer={environmentState.worldLayer}')
     expect(stage).not.toContain('window.addEventListener')
@@ -58,6 +58,11 @@ describe('Reader shell contract boundaries', () => {
     expect(stage).toContain('atBottom = false')
     expect(stage).toContain("onNativeBoundary?.('forward')")
     expect(beatStack).toContain('onViewportBoundaryChange?.({')
+    expect(beatStack).toContain('data-native-scroll="true"')
+    expect(beatStack).toContain('getSceneBoundaryProgress(viewport, flow, sceneBoundaryRanges)')
+    expect(beatStack).not.toContain('READER_FLOW_TRANSITION_MS')
+    expect(beatStack).not.toContain('scrollend')
+    expect(stageCss).not.toContain('reader-scene-continue-cue')
   })
 
   it('uses one shared click group for language and reading mode', () => {

@@ -38,15 +38,22 @@
   position: absolute;
   z-index: 2;
   inset: clamp(72px, 10vh, 108px) clamp(28px, 12vw, 150px) clamp(118px, 17vh, 166px);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  touch-action: pan-y;
 }
+
+.reader-beat-stack::-webkit-scrollbar { display: none; }
 
 .reader-beat-flow {
   width: min(100%, 710px);
   margin: 0 auto;
   padding: 48vh 0;
-  will-change: transform;
-  transition: transform 820ms cubic-bezier(.2, .8, .2, 1);
+  transform: none;
+  transition: none;
+  will-change: auto;
 }
 
 .reader-stage-beat {
@@ -111,37 +118,6 @@
 .reader-stage[data-transition-kind="page-entering"] .reader-trace,
 .reader-stage[data-transition-kind="page-entering"] .reader-scene-label {
   animation: reader-page-meta-enter 480ms ease both;
-}
-
-.reader-scene-continue-cue {
-  position: absolute;
-  z-index: 8;
-  right: 0;
-  bottom: max(76px, calc(env(safe-area-inset-bottom) + 58px));
-  left: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: .55rem;
-  color: var(--reader-muted);
-  font-size: .62rem;
-  letter-spacing: .16em;
-  opacity: .58;
-  pointer-events: none;
-  transform: translateY(0);
-  transition: opacity 220ms ease, transform 220ms ease;
-}
-
-.reader-stage-page[data-scene-transition='entering'] .reader-scene-continue-cue {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-.reader-scene-continue-arrow {
-  display: inline-block;
-  font-size: 1rem;
-  line-height: 1;
-  animation: reader-scene-continue-breathe 1700ms ease-in-out infinite;
 }
 
 .reader-corner-menu {
@@ -425,11 +401,6 @@
   to { opacity: 1; filter: none; transform: translateY(0); }
 }
 
-@keyframes reader-scene-continue-breathe {
-  0%, 100% { opacity: .45; transform: translateY(-1px); }
-  50% { opacity: 1; transform: translateY(3px); }
-}
-
 @keyframes reader-page-meta-leave { to { opacity: 0; } }
 @keyframes reader-page-meta-enter { from { opacity: 0; } to { opacity: 1; } }
 
@@ -464,7 +435,6 @@
   .reader-reading-percent,
   .reader-scene-name,
   .reader-stage-exits,
-  .reader-scene-continue-arrow,
   .reader-page-exit,
   .reader-page-exit::after,
   .reader-exit-direction,
@@ -497,7 +467,9 @@
 }
 
 .reader-stage-page--standard .reader-beat-flow {
-  transition: transform 820ms cubic-bezier(.2, .8, .2, 1) !important;
+  transform: none !important;
+  transition: none !important;
+  will-change: auto;
 }
 
 .reader-stage-page--standard .reader-stage-beat {
@@ -2060,8 +2032,7 @@
 .reader-stage-page--motion-reduced::before { transform: none; filter: none; opacity: .2; }
 .reader-stage-page--motion-reduced { transition-duration: 1400ms; }
 .reader-stage-page--motion-reduced .reader-stage-beat { filter: none; transform: scale(.998); transition-duration: 520ms; }
-.reader-stage-page--motion-reduced .reader-beat-flow { transition-duration: 620ms; }
-.reader-stage-page--motion-reduced .reader-scene-continue-arrow { animation: none; }
+.reader-stage-page--motion-reduced .reader-beat-flow { transition: none; }
 .reader-stage-page--motion-reduced .reader-scene-name.is-changing { filter: none; transform: translateY(2px); }
 .reader-stage-page--motion-reduced .reader-tool-clapper-top,
 .reader-stage-page--motion-reduced .reader-tool-book-left,
@@ -2154,7 +2125,9 @@
   animation: none !important;
 }
 .reader-stage-page--standard .reader-beat-flow {
-  transition: transform 820ms cubic-bezier(.2, .8, .2, 1) !important;
+  transform: none !important;
+  transition: none !important;
+  will-change: auto;
 }
 .reader-stage-page--standard .reader-stage-beat {
   transition:
