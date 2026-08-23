@@ -52,6 +52,8 @@ function ReaderStage({
   activeNarrativeTypewriterId,
   transitionKind,
   sceneTransitionKind,
+  sceneBoundaryMotion = 'idle',
+  sceneBoundaryHasNext = false,
   autoVisual,
   rootRef,
   focusRef,
@@ -78,6 +80,7 @@ function ReaderStage({
     || window.matchMedia(DIRECT_READER_QUERY).matches
   )
   const returnVisible = emptyDocument || isFinalReaderBeat(focusBeatIndex, beats)
+  const sceneBoundaryVisible = returnVisible
   const locationLabel = emptyDocument
     ? (language === 'en' ? 'No pages yet' : '暂无页面')
     : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
@@ -108,6 +111,7 @@ function ReaderStage({
       data-motion-mode={motionMode}
       data-returning-to-landing={returningToLanding ? 'true' : 'false'}
       data-reader-entry-handoff={readerEntryHandoffPhase}
+      data-scene-boundary-motion={sceneBoundaryMotion}
       data-scene-state={sceneStateName}
       data-world-layer={environmentState.worldLayer}
       data-scene-characters={environmentState.characters.join(' ')}
@@ -195,6 +199,12 @@ function ReaderStage({
           onReturnComplete={onReturnLanding}
           language={language}
         />
+        {!emptyDocument && sceneBoundaryVisible && sceneBoundaryHasNext && (
+          <div className="reader-scene-continue-cue" aria-hidden="true">
+            <span className="reader-scene-continue-arrow">↓</span>
+            <span>{language === 'en' ? 'CONTINUE' : '继续'}</span>
+          </div>
+        )}
         <ReaderCompletionPrompt visible={completionPromptVisible} language={language} />
         {chapterTrialEnded && <span className="reader-chapter-end" aria-hidden="true" />}
       </section>

@@ -113,6 +113,41 @@
   animation: reader-page-meta-enter 480ms ease both;
 }
 
+.reader-stage-page[data-scene-boundary-motion='leaving'] .reader-scene-continue-cue {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.reader-stage-page[data-scene-boundary-motion='entering'] .reader-beat-stack {
+  animation: reader-scene-soft-enter 520ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.reader-scene-continue-cue {
+  position: absolute;
+  z-index: 8;
+  right: 0;
+  bottom: max(76px, calc(env(safe-area-inset-bottom) + 58px));
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
+  color: var(--reader-muted);
+  font-size: .62rem;
+  letter-spacing: .16em;
+  opacity: .58;
+  pointer-events: none;
+  transform: translateY(0);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.reader-scene-continue-arrow {
+  display: inline-block;
+  font-size: 1rem;
+  line-height: 1;
+  animation: reader-scene-continue-breathe 1700ms ease-in-out infinite;
+}
+
 .reader-corner-menu {
   position: absolute;
   z-index: 10;
@@ -394,6 +429,16 @@
   to { opacity: 1; filter: none; transform: translateY(0); }
 }
 
+@keyframes reader-scene-soft-enter {
+  from { opacity: .34; transform: translateY(22px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes reader-scene-continue-breathe {
+  0%, 100% { opacity: .45; transform: translateY(-1px); }
+  50% { opacity: 1; transform: translateY(3px); }
+}
+
 @keyframes reader-page-meta-leave { to { opacity: 0; } }
 @keyframes reader-page-meta-enter { from { opacity: 0; } to { opacity: 1; } }
 
@@ -428,6 +473,7 @@
   .reader-reading-percent,
   .reader-scene-name,
   .reader-stage-exits,
+  .reader-scene-continue-arrow,
   .reader-page-exit,
   .reader-page-exit::after,
   .reader-exit-direction,
@@ -2024,6 +2070,7 @@
 .reader-stage-page--motion-reduced { transition-duration: 1400ms; }
 .reader-stage-page--motion-reduced .reader-stage-beat { filter: none; transform: scale(.998); transition-duration: 520ms; }
 .reader-stage-page--motion-reduced .reader-beat-flow { transition-duration: 620ms; }
+.reader-stage-page--motion-reduced .reader-scene-continue-arrow { animation: none; }
 .reader-stage-page--motion-reduced .reader-scene-name.is-changing { filter: none; transform: translateY(2px); }
 .reader-stage-page--motion-reduced .reader-tool-clapper-top,
 .reader-stage-page--motion-reduced .reader-tool-book-left,
