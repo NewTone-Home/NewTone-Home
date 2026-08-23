@@ -1,7 +1,7 @@
 import { READER_PAGE_MODES, READER_TRANSITION_TYPES, validateReaderContent } from './readerContent.js'
 
 export const SCENE_SCHEMA_VERSION = 3
-export const SCENE_LANGUAGES = Object.freeze(['zh', 'en', 'ja', 'ko', 'fr'])
+export const SCENE_LANGUAGES = Object.freeze(['zh', 'en'])
 export const SCENE_WORLD_LAYERS = Object.freeze(['surface', 'inner', 'transition', 'unknown'])
 
 function text(value) {
@@ -120,10 +120,10 @@ function sceneIdIsStable(id) {
 }
 
 export function validateScenePublication(publication, { requireCompleteLanguages = false } = {}) {
-  if (!publication || publication.schemaVersion !== SCENE_SCHEMA_VERSION) throw new Error('内容必须使用 Scene schemaVersion 2。')
+  if (!publication || publication.schemaVersion !== SCENE_SCHEMA_VERSION) throw new Error('内容必须使用 Scene schemaVersion 3。')
   if (typeof publication.storyId !== 'string' || !publication.storyId.trim()) throw new Error('缺少 Story ID。')
   if (!Array.isArray(publication.languages) || publication.languages.join('|') !== SCENE_LANGUAGES.join('|')) {
-    throw new Error('语言清单必须固定为 zh、en、ja、ko、fr。')
+    throw new Error('语言清单必须固定为 zh、en。')
   }
   if (!Array.isArray(publication.chapters) || publication.chapters.length === 0) throw new Error('至少需要一个章节。')
 

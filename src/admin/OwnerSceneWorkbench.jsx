@@ -12,7 +12,7 @@ import {
 import { writeAdminPreview } from './adminPreview'
 import './OwnerWorkbench.css'
 
-const LANGUAGE_LABELS = { zh: '中文', en: 'English', ja: '日本語', ko: '한국어', fr: 'Français' }
+const LANGUAGE_LABELS = { zh: '中文', en: 'English' }
 const WORLD_LAYER_LABELS = { surface: '表世界', inner: '里世界', transition: '暗道', unknown: '未知' }
 const TIME_OPTIONS = [
   { value: 'unknown', label: '未知' },
@@ -86,7 +86,7 @@ function OwnerSceneWorkbench({ initialWorkspace, onSave, onPublish, busy }) {
       const publication = compileWorkspace(workspace)
       await onPublish(workspace, publication)
       setBaseline(normalizeWorkspace(workspace))
-      setMessage('章节 Scene 结构和五种语言已通过验证，新的 Release 已发布。')
+      setMessage('章节 Scene 结构和中英文正文已通过验证，新的 Release 已发布。')
     } catch (error) { setMessage(error instanceof Error ? error.message : '发布失败。') }
   }
   const openPreview = () => {
