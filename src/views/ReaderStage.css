@@ -803,6 +803,12 @@
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+/* Scene entrance is the one intentional Standard Reader exception: the
+   newly revealed Scene must travel upward instead of flashing into place. */
+.reader-stage-page--standard .reader-stage-beat[data-scene-entering='true'] {
+  animation: reader-scene-beat-rise 640ms cubic-bezier(.2, .8, .2, 1) both !important;
+}
+
 /* Reader -> Landing handoff. Keep the Reader mounted until its existing
    return control and progress retract have finished, so the route change
    cannot expose a hard cut between two surfaces. */
