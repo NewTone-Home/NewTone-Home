@@ -126,11 +126,6 @@ function ReaderBeatStack({
       }
     }
 
-    if (focused.offsetHeight > viewport.clientHeight) {
-      setNativeScroll(true)
-      return undefined
-    }
-
     nativeScrollInitializedRef.current = false
     flow.style.removeProperty('--reader-native-edge-space')
 
@@ -146,21 +141,29 @@ function ReaderBeatStack({
       setOffset(nextOffset)
     }
 
+    const syncReaderLayout = () => {
+      if (focused.offsetHeight > viewport.clientHeight) {
+        setNativeScroll(true)
+        return
+      }
+      centerFocusedBeat()
+    }
+
     let restoreFrame = 0
     if (pageChanged) {
       flow.style.transition = 'none'
-      centerFocusedBeat()
+      syncReaderLayout()
       restoreFrame = requestAnimationFrame(() => {
         flow.style.transition = ''
       })
       onFocusMotionEnd({ target: flow, currentTarget: flow })
     } else {
-      centerFocusedBeat()
+      syncReaderLayout()
     }
 
     const boundaryFrame = requestAnimationFrame(reportViewportBoundary)
 
-    const observer = new ResizeObserver(centerFocusedBeat)
+    const observer = new ResizeObserver(syncReaderLayout)
     observer.observe(viewport)
     observer.observe(flow)
     return () => {
