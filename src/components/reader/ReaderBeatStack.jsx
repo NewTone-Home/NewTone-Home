@@ -6,6 +6,22 @@ import './ReaderBeatStack.css'
 const BOUNDARY_THRESHOLD_PX = 12
 const SCENE_ENTRY_LIFT_PX = 240
 
+export function getSceneEntryPresentation(index, progress) {
+  const normalizedProgress = Number.isFinite(progress)
+    ? Math.max(0, Math.min(1, progress))
+    : 1
+  const firstEntry = index === 0
+
+  return {
+    opacity: firstEntry
+      ? 1
+      : Math.max(0.001, normalizedProgress * 0.18),
+    liftPx: Math.round((1 - normalizedProgress) * (firstEntry ? SCENE_ENTRY_LIFT_PX : SCENE_ENTRY_LIFT_PX / 2)),
+    blurPx: firstEntry ? 0 : (1 - normalizedProgress) * 2.2 + 1.2,
+    scale: firstEntry ? 1 : 0.985 + normalizedProgress * 0.01,
+  }
+}
+
 export function getNativeBoundaries(viewport) {
   const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
   const scrollTop = viewport.scrollTop
@@ -84,11 +100,12 @@ function ReaderBeatStack({
     }
 
     nextSceneEntries.forEach((entry, index) => {
+      const presentation = getSceneEntryPresentation(index, progress)
       entry.dataset.sceneEntryActive = 'true'
-      entry.style.setProperty('--reader-scene-entry-opacity', String(Math.max(0.001, progress * (index === 0 ? 0.34 : 0.18))))
-      entry.style.setProperty('--reader-scene-entry-lift', `${Math.round((1 - progress) * (index === 0 ? SCENE_ENTRY_LIFT_PX : SCENE_ENTRY_LIFT_PX / 2))}px`)
-      entry.style.setProperty('--reader-scene-entry-blur', `${(1 - progress) * (index === 0 ? 2.8 : 2.2) + 1.2}px`)
-      entry.style.setProperty('--reader-scene-entry-scale', `${0.985 + progress * 0.01}`)
+      entry.style.setProperty('--reader-scene-entry-opacity', String(presentation.opacity))
+      entry.style.setProperty('--reader-scene-entry-lift', `${presentation.liftPx}px`)
+      entry.style.setProperty('--reader-scene-entry-blur', `${presentation.blurPx}px`)
+      entry.style.setProperty('--reader-scene-entry-scale', String(presentation.scale))
       entry.style.setProperty('transition', 'none')
     })
     activeSceneEntryRef.current = nextSceneEntries
