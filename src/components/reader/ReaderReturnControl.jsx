@@ -12,13 +12,10 @@ const ReaderReturnControl = forwardRef(function ReaderReturnControl({
   onReturnComplete,
   language,
 }, ref) {
-  const [boundaryProgress, setBoundaryProgress] = useState(1)
+  const [boundaryVisible, setBoundaryVisible] = useState(false)
   useImperativeHandle(ref, () => ({
-    setBoundaryProgress(nextProgress) {
-      const normalized = Number.isFinite(nextProgress)
-        ? Math.max(0, Math.min(1, nextProgress))
-        : 1
-      setBoundaryProgress(current => Math.abs(current - normalized) < 0.001 ? current : normalized)
+    setBoundaryVisible(nextVisible) {
+      setBoundaryVisible(Boolean(nextVisible))
     },
   }), [])
 
@@ -26,11 +23,11 @@ const ReaderReturnControl = forwardRef(function ReaderReturnControl({
   const fallbackUi = getReaderUi('zh')
   const returnLabel = ui.returnToLanding || ui.backToLanding || fallbackUi.returnToLanding
   const returnHint = ui.returnToLandingHint || ui.backToLanding || fallbackUi.returnToLandingHint
+  const entryVisible = visible && (alwaysVisible || boundaryVisible)
 
   return (
     <EntryButtonSurface
-      visible={visible}
-      controlledProgress={alwaysVisible ? 0 : boundaryProgress}
+      visible={entryVisible}
       mobile={mobile}
       materialMode="world"
       worldLayer={worldLayer}

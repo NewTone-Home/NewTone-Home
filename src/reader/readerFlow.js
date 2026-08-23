@@ -42,7 +42,18 @@ export function createReaderFlow(sceneModel) {
 }
 
 /**
- * Returns the boundary progress currently under the Reader's center line.
+ * Returns whether the Reader return entry belongs in its fully visible state.
+ * The entry is visible only while the last beat of a Scene is centered; it
+ * stays unchanged through the fixed gap and retracts after the next Scene's
+ * first beat becomes centered.
+ */
+export function isSceneBoundaryReturnVisible(focusBeatIndex, sceneBoundaries = []) {
+  return Number.isInteger(focusBeatIndex)
+    && sceneBoundaries.some(boundary => focusBeatIndex === boundary.fromIndex)
+}
+
+/**
+ * Returns the geometric boundary progress currently under the Reader's center line.
  * 0 means the previous Scene's last unit is centered; 1 means the next
  * Scene's first unit is centered. Outside a boundary handoff, the control is
  * fully retracted.

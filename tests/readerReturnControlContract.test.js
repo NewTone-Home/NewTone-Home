@@ -43,12 +43,12 @@ describe('portable Reader return control', () => {
     expect(surface).not.toContain("color: fillActive ? 'var(--return-text-active)'")
   })
 
-  it('keeps boundary progress in the shared control while ReaderStage owns callbacks', () => {
+  it('keeps discrete Scene-boundary visibility in the shared control while ReaderStage owns callbacks', () => {
     expect(control).toContain('forwardRef')
-    expect(control).toContain('setBoundaryProgress')
-    expect(control).toContain('controlledProgress={alwaysVisible ? 0 : boundaryProgress}')
-    expect(surface).toContain('controlledProgress = null')
-    expect(surface).toContain('boundaryFactor')
+    expect(control).toContain('setBoundaryVisible')
+    expect(control).toContain('const entryVisible = visible && (alwaysVisible || boundaryVisible)')
+    expect(control).toContain('visible={entryVisible}')
+    expect(control).not.toContain('controlledProgress')
     expect(stage).toContain('sceneBoundaryControlRef={returnControlRef}')
     expect(stage).toContain('alwaysVisible={emptyDocument || finalReaderBeat}')
     expect(stage).toContain('onReturnStart={onReturnStart}')

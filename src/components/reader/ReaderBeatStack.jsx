@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { getLocalNarrativeGateBeatIndex } from '../../reader/narrativeGate'
-import { getSceneBoundaryState } from '../../reader/readerFlow'
+import { isSceneBoundaryReturnVisible } from '../../reader/readerFlow'
 import './ReaderBeatStack.css'
 
 const BOUNDARY_THRESHOLD_PX = 12
@@ -52,8 +52,16 @@ function ReaderBeatStack({
   const frameRef = useRef(0)
   const lastReportedIndexRef = useRef(focusBeatIndex)
   const lastScrollTopRef = useRef(0)
+  const sceneBoundaryVisibilityRef = useRef(null)
   const [nativeBoundary, setNativeBoundary] = useState({ atTop: false, atBottom: false })
   const sceneBoundaryEndIndices = new Set(sceneBoundaryRanges.map(boundary => boundary.fromIndex))
+
+  const syncSceneBoundaryControl = useCallback((nextFocusBeatIndex) => {
+    const nextVisible = isSceneBoundaryReturnVisible(nextFocusBeatIndex, sceneBoundaryRanges)
+    if (sceneBoundaryVisibilityRef.current === nextVisible) return
+    sceneBoundaryVisibilityRef.current = nextVisible
+    sceneBoundaryControlRef?.current?.setBoundaryVisible(nextVisible)
+  }, [sceneBoundaryControlRef, sceneBoundaryRanges])
 
   const localGateBeatIndex = getLocalNarrativeGateBeatIndex({
     beats,
@@ -87,10 +95,10 @@ function ReaderBeatStack({
     const syncNativeEdgeSpace = () => {
       const edgeSpace = getNativeEdgeSpace(viewport, flow)
       flow.style.setProperty('--reader-native-edge-space', `${edgeSpace}px`)
-      const sceneBoundaryState = getSceneBoundaryState(viewport, flow, sceneBoundaryRanges)
-      sceneBoundaryControlRef?.current?.setBoundaryProgress(sceneBoundaryState?.active ? sceneBoundaryState.progress : 1)
     }
     syncNativeEdgeSpace()
+    sceneBoundaryVisibilityRef.current = null
+    syncSceneBoundaryControl(focusBeatIndex)
 
     const focusedTop = focused.offsetTop - (viewport.clientHeight - focused.offsetHeight) / 2
     const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
@@ -109,7 +117,7 @@ function ReaderBeatStack({
       cancelAnimationFrame(boundaryFrame)
       observer.disconnect()
     }
-  }, [beats, initialScrollOffset, sceneBoundaryRanges, sceneBoundaryControlRef])
+  }, [beats, initialScrollOffset, sceneBoundaryControlRef, sceneBoundaryRanges, syncSceneBoundaryControl])
 
   useEffect(() => {
       setNativeBoundary({ atTop: false, atBottom: false })
@@ -145,9 +153,13 @@ function ReaderBeatStack({
           }
         })
 
+        let acceptedFocusIndex = lastReportedIndexRef.current
         if (nearestIndex !== lastReportedIndexRef.current) {
           const accepted = onNativeFocusChange?.(nearestIndex)
-          if (accepted !== false) lastReportedIndexRef.current = nearestIndex
+          if (accepted !== false) {
+            lastReportedIndexRef.current = nearestIndex
+            acceptedFocusIndex = nearestIndex
+          }
         }
 
         const boundaries = getNativeBoundaries(viewport)
@@ -155,8 +167,7 @@ function ReaderBeatStack({
           atTop: boundaries.atTop && nearestIndex === 0,
           atBottom: boundaries.atBottom && nearestIndex === beats.length - 1,
         }
-        const sceneBoundaryState = getSceneBoundaryState(viewport, flow, sceneBoundaryRanges)
-        sceneBoundaryControlRef?.current?.setBoundaryProgress(sceneBoundaryState?.active ? sceneBoundaryState.progress : 1)
+        syncSceneBoundaryControl(acceptedFocusIndex)
         setNativeBoundary(current => (
           current.atTop === nextBoundary.atTop && current.atBottom === nextBoundary.atBottom
             ? current
@@ -177,7 +188,7 @@ function ReaderBeatStack({
       viewport.removeEventListener('scroll', updateFromScroll)
       cancelAnimationFrame(frameRef.current)
     }
-  }, [beats, onNativeFocusChange, onNativeScrollOffset, onViewportBoundaryChange, sceneBoundaryRanges, sceneBoundaryControlRef])
+  }, [beats, onNativeFocusChange, onNativeScrollOffset, onViewportBoundaryChange, sceneBoundaryControlRef, sceneBoundaryRanges, syncSceneBoundaryControl])
 
   return (
     <div
