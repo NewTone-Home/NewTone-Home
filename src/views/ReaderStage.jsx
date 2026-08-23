@@ -8,6 +8,7 @@ import ReaderCompletionPrompt from '../components/reader/ReaderCompletionPrompt'
 import { resolveReaderEnvironmentPreview } from '../data/reader-experiments/readerEnvironmentPreview'
 import { getReaderSceneLabel } from '../i18n/readerUi'
 import { preventReaderShortcut, preventReaderTransfer } from '../reader/readerCopyProtection'
+import { getReaderSceneId } from '../reader/readerPosition'
 import { isFinalReaderBeat } from '../reader/readerPosition'
 import { getReaderThemeVariables } from '../reader/readerTheme'
 import './ReaderStage.css'
@@ -81,6 +82,7 @@ function ReaderStage({
   )
   const returnVisible = emptyDocument || isFinalReaderBeat(focusBeatIndex, beats)
   const sceneBoundaryVisible = returnVisible
+  const focusSceneId = getReaderSceneId(beats[focusBeatIndex])
   const locationLabel = emptyDocument
     ? (language === 'en' ? 'No pages yet' : '暂无页面')
     : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
@@ -168,7 +170,8 @@ function ReaderStage({
           onNativeScrollOffset={onNativeScrollOffset}
           onViewportBoundaryChange={handleViewportBoundaryChange}
           initialScrollOffset={initialScrollOffset}
-          sceneBoundaryLocked={sceneBoundaryVisible && sceneBoundaryHasNext}
+          sceneBoundaryLocked={Boolean(focusSceneId)}
+          sceneBoundarySceneId={focusSceneId}
           narrativeRuntimeEnabled={narrativeRuntimeEnabled}
           narrativeDeliveryStates={narrativeDeliveryStates}
           activeNarrativePauseId={activeNarrativePauseId}

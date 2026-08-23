@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { getLocalNarrativeGateBeatIndex } from '../../reader/narrativeGate'
+import { getReaderSceneId } from '../../reader/readerPosition'
 import './ReaderBeatStack.css'
 
 const NATIVE_SCROLL_QUERY = '(hover: none), (pointer: coarse), (max-width: 720px)'
@@ -41,6 +42,7 @@ function ReaderBeatStack({
   onViewportBoundaryChange,
   initialScrollOffset = 0,
   sceneBoundaryLocked = false,
+  sceneBoundarySceneId = null,
   narrativeRuntimeEnabled = true,
   narrativeDeliveryStates = {},
   activeNarrativePauseId,
@@ -272,7 +274,12 @@ function ReaderBeatStack({
         {beats.map((beat, beatIndex) => {
           const distance = Math.abs(beatIndex - focusBeatIndex)
           const gated = localGateBeatIndex >= 0 && beatIndex > localGateBeatIndex
-          const sceneHidden = sceneBoundaryLocked && beatIndex > focusBeatIndex
+          const sceneHidden = Boolean(
+            sceneBoundaryLocked
+            && sceneBoundarySceneId
+            && beatIndex > focusBeatIndex
+            && getReaderSceneId(beat) !== sceneBoundarySceneId,
+          )
           return (
             <article
               key={beat.id}
