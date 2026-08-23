@@ -193,22 +193,22 @@ function ReaderBeatStack({
       if (sceneFlowTransition) {
         const transitionTarget = flow.children[transitionTargetBeatIndex]
         const initialOffset = getCenteredOffset(focused)
-        flow.style.transition = 'none'
+        flow.style.setProperty('transition', 'none', 'important')
         flow.style.transform = `translateY(${initialOffset}px)`
         setOffset(initialOffset)
         restoreFrame = requestAnimationFrame(() => {
-          flow.style.transition = ''
+          flow.style.removeProperty('transition')
           if (!transitionTarget) return
           setOffset(getCenteredOffset(transitionTarget))
         })
       } else {
-        flow.style.transition = 'none'
+        flow.style.setProperty('transition', 'none', 'important')
         const nextOffset = syncReaderLayout()
         if (Number.isFinite(nextOffset)) {
           flow.style.transform = `translateY(${nextOffset}px)`
         }
         restoreFrame = requestAnimationFrame(() => {
-          flow.style.transition = ''
+          flow.style.removeProperty('transition')
         })
         onFocusMotionEnd({ target: flow, currentTarget: flow })
       }
