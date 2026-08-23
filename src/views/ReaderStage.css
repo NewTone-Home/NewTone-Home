@@ -122,8 +122,9 @@
   transform: translateY(10px);
 }
 
-.reader-stage-page[data-scene-boundary-motion='entering'] .reader-beat-stack {
-  animation: reader-scene-soft-enter 520ms cubic-bezier(.2, .8, .2, 1) both;
+.reader-stage-beat[data-scene-entering='true'] {
+  animation: reader-scene-beat-rise 640ms cubic-bezier(.2, .8, .2, 1) both;
+  will-change: translate;
 }
 
 .reader-scene-continue-cue {
@@ -433,9 +434,9 @@
   to { opacity: 1; filter: none; transform: translateY(0); }
 }
 
-@keyframes reader-scene-soft-enter {
-  from { opacity: .34; transform: translateY(22px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes reader-scene-beat-rise {
+  from { translate: 0 58px; }
+  to { translate: 0 0; }
 }
 
 @keyframes reader-scene-continue-breathe {

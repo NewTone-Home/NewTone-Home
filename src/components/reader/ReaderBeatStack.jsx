@@ -43,6 +43,7 @@ function ReaderBeatStack({
   initialScrollOffset = 0,
   sceneBoundaryLocked = false,
   sceneBoundarySceneId = null,
+  sceneBoundaryMotion = 'idle',
   narrativeRuntimeEnabled = true,
   narrativeDeliveryStates = {},
   activeNarrativePauseId,
@@ -280,6 +281,12 @@ function ReaderBeatStack({
             && beatIndex > focusBeatIndex
             && getReaderSceneId(beat) !== sceneBoundarySceneId,
           )
+          const sceneEntering = Boolean(
+            sceneBoundaryMotion === 'entering'
+            && sceneBoundarySceneId
+            && beatIndex >= focusBeatIndex
+            && getReaderSceneId(beat) === sceneBoundarySceneId,
+          )
           return (
             <article
               key={beat.id}
@@ -292,6 +299,7 @@ function ReaderBeatStack({
               data-reader-beat-id={beat.id}
               data-reader-gated={gated ? 'true' : 'false'}
               data-scene-hidden={sceneHidden ? 'true' : 'false'}
+              data-scene-entering={sceneEntering ? 'true' : 'false'}
               data-display-unit-kind={beat.displayUnit?.kind ?? 'authored'}
             >
               {getBeatBlocksForLanguage(beat, language).map(block => {

@@ -172,6 +172,7 @@ function ReaderStage({
           initialScrollOffset={initialScrollOffset}
           sceneBoundaryLocked={Boolean(focusSceneId)}
           sceneBoundarySceneId={focusSceneId}
+          sceneBoundaryMotion={sceneBoundaryMotion}
           narrativeRuntimeEnabled={narrativeRuntimeEnabled}
           narrativeDeliveryStates={narrativeDeliveryStates}
           activeNarrativePauseId={activeNarrativePauseId}
