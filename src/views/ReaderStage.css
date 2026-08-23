@@ -93,10 +93,6 @@
 .reader-stage-beat[data-distance="3"] { opacity: 0.1; }
 .reader-stage-beat[data-distance="4"] { opacity: 0.045; }
 
-.reader-stage-beat[data-scene-hidden="true"] {
-  display: none;
-}
-
 .reader-stage-beat:focus { outline: none; }
 
 .reader-stage[data-transition-kind="page-leaving"] .reader-beat-stack {
@@ -117,16 +113,6 @@
   animation: reader-page-meta-enter 480ms ease both;
 }
 
-.reader-stage-page[data-scene-boundary-motion='leaving'] .reader-scene-continue-cue {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-.reader-stage-beat[data-scene-entering='true'] {
-  animation: reader-scene-beat-rise 640ms cubic-bezier(.2, .8, .2, 1) both;
-  will-change: translate;
-}
-
 .reader-scene-continue-cue {
   position: absolute;
   z-index: 8;
@@ -144,6 +130,11 @@
   pointer-events: none;
   transform: translateY(0);
   transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.reader-stage-page[data-scene-transition='entering'] .reader-scene-continue-cue {
+  opacity: 0;
+  transform: translateY(10px);
 }
 
 .reader-scene-continue-arrow {
@@ -432,11 +423,6 @@
 @keyframes reader-scene-reveal {
   from { opacity: 0; filter: blur(4px); transform: translateY(12px); }
   to { opacity: 1; filter: none; transform: translateY(0); }
-}
-
-@keyframes reader-scene-beat-rise {
-  from { translate: 0 58px; }
-  to { translate: 0 0; }
 }
 
 @keyframes reader-scene-continue-breathe {
@@ -801,12 +787,6 @@
   0% { opacity: 0; transform: translateY(3px) scale(.9); }
   55% { opacity: .5; }
   100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-/* Scene entrance is the one intentional Standard Reader exception: the
-   newly revealed Scene must travel upward instead of flashing into place. */
-.reader-stage-page--standard .reader-stage-beat[data-scene-entering='true'] {
-  animation: reader-scene-beat-rise 640ms cubic-bezier(.2, .8, .2, 1) both !important;
 }
 
 /* Reader -> Landing handoff. Keep the Reader mounted until its existing

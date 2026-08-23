@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getNarrativeReplayLocation, readerContent, READER_TRANSITION_TYPES, resolveReaderDisplayLocation } from '../data/readerContent'
+import { getNarrativeReplayLocation, readerContent, resolveReaderDisplayLocation } from '../data/readerContent'
 import { useReaderInput } from '../hooks/useReaderInput'
 import { useReaderNavigation } from '../hooks/useReaderNavigation'
 import { useReducedMotion } from '../hooks/useReducedMotion'
@@ -7,10 +7,16 @@ import { useReaderRestore } from '../hooks/useReaderRestore'
 import { useNarrativePauseRuntime } from '../hooks/useNarrativePauseRuntime'
 import { useNarrativeRevealRuntime } from '../hooks/useNarrativeRevealRuntime'
 import { useNarrativeTypewriterRuntime } from '../hooks/useNarrativeTypewriterRuntime'
-import { READER_STEP_ACTIONS, resolveReaderStep } from '../reader/readerAdvance'
-import { hasReaderSceneChanged } from '../reader/readerPresentation'
+import { READER_STEP_ACTIONS } from '../reader/readerAdvance'
 import { beginNarrativePlaybackSession, NARRATIVE_RUNTIME_ENABLED } from '../reader/narrativePlaybackSession'
-import { getOverallProgress, getReaderSceneId, nextPosition } from '../reader/readerPosition'
+import { getOverallProgress } from '../reader/readerPosition'
+import {
+  createReaderSceneModel,
+  getReaderSceneFocus,
+  isFinalReaderScene,
+  isFinalReaderSceneBeat,
+  resolveReaderSceneStep,
+} from '../reader/readerSceneModel'
 import { canCompleteReader } from '../reader/readerCompletion'
 import { trackEvent, trackReaderProgress } from '../services/analytics'
 import { recordRuntimeAudit } from '../services/runtimeAudit'
@@ -23,8 +29,6 @@ const READER_CHECKPOINT_MIN_DWELL_MS = 1000
 const READER_SCROLL_PERSIST_MS = 120
 const READER_LANGUAGE_CONTENT_SWAP_MS = 240
 const READER_LANGUAGE_CONTENT_SETTLE_MS = 760
-const READER_SCENE_BOUNDARY_LEAVE_MS = 220
-const READER_SCENE_BOUNDARY_ENTER_MS = 520
 
 function getPage(location, content = readerContent) {
   return content
@@ -33,15 +37,6 @@ function getPage(location, content = readerContent) {
 }
 
 function resolveLocationForContent(location) { return resolveReaderDisplayLocation(location) }
-
-function sceneIdAtLocation(location, content) {
-  const currentPage = getPage(location, content)
-  return getReaderSceneId(currentPage?.beats?.[location.beatIndex])
-}
-
-function crossesReaderSceneBoundary(from, to, content) {
-  return sceneIdAtLocation(from, content) !== sceneIdAtLocation(to, content)
-}
 
 function currentAnalyticsContext() {
   const state = useProgressStore.getState()
@@ -74,15 +69,14 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   const reducedMotion = useReducedMotion()
   const rootRef = useRef(null)
   const focusRef = useRef(null)
-  const [sceneBoundaryMotion, setSceneBoundaryMotion] = useState('idle')
+  const [sceneTransitionPhase, setSceneTransitionPhase] = useState('idle')
   const [autoVisual, setAutoVisual] = useState(null)
   const [completionPromptVisible, setCompletionPromptVisible] = useState(false)
   const [returningToLanding, setReturningToLanding] = useState(false)
   const [readerContentLanguage, setReaderContentLanguage] = useState(language)
   const [languageTransitionPhase, setLanguageTransitionPhase] = useState('idle')
-  const sceneBoundaryTimerRef = useRef(null)
   const blockedGestureRef = useRef(null)
-  const pageTransitionBusyRef = useRef(false)
+  const readerTransitionBusyRef = useRef(false)
   const clearInputAccumulatorRef = useRef(null)
   const contentLanguageRef = useRef(language)
   const languageTransitionRef = useRef(null)
@@ -90,6 +84,10 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   const pendingReaderScrollOffsetRef = useRef(readerScrollOffset)
   const scrollPersistTimerRef = useRef(null)
   const activeReaderContent = readerContent
+  const sceneModel = useMemo(
+    () => createReaderSceneModel(activeReaderContent),
+    [activeReaderContent],
+  )
   const [initialLocation] = useState(() => {
     const replayParams = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search)
     const replayChapter = replayParams?.get('narrative-replay')
@@ -109,16 +107,15 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   })
   const { displayLocation, navigateTo, syncTo, finishTransition } = navigation
   const activeLocation = useMemo(() => resolveLocationForContent(displayLocation), [displayLocation])
-  const page = useMemo(() => getPage(activeLocation, activeReaderContent), [activeLocation, activeReaderContent])
-  const nextReaderLocation = useMemo(
-    () => nextPosition(activeLocation, activeReaderContent),
-    [activeLocation, activeReaderContent],
+  const sceneFocus = useMemo(
+    () => getReaderSceneFocus(sceneModel, activeLocation),
+    [activeLocation, sceneModel],
   )
-  const sceneBoundaryHasNext = Boolean(
-    nextReaderLocation
-    && crossesReaderSceneBoundary(activeLocation, nextReaderLocation, activeReaderContent),
-  )
-  const scene = page.scene
+  const scene = sceneFocus?.scene ?? sceneModel.scenes[0] ?? null
+  const page = scene?.page ?? getPage(activeLocation, activeReaderContent)
+  const localFocusBeatIndex = sceneFocus?.localBeatIndex ?? 0
+  const sceneBeats = scene?.beats ?? []
+  const hasNextScene = Boolean(scene?.next)
   const clearNarrativeInputAccumulator = useCallback(() => clearInputAccumulatorRef.current?.(), [])
   const narrativePause = useNarrativePauseRuntime({
     navigateTo,
@@ -132,11 +129,6 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
     navigateTo,
     clearInputAccumulator: clearNarrativeInputAccumulator,
   })
-
-  const previousScene = navigation.transitionFrom
-    ? getPage(resolveLocationForContent(navigation.transitionFrom), activeReaderContent).scene
-    : scene
-  const sceneTransitionKind = hasReaderSceneChanged(previousScene, scene) ? navigation.transitionKind : null
 
   useReaderRestore({ rootRef, focusRef, clearResumeRequest, onReaderReady })
 
@@ -255,20 +247,22 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
     }
   }, [activeLocation.beatIndex, activeLocation.pageId, activeReaderContent])
 
-  const navigateAcrossSceneBoundary = useCallback((target, gestureId) => {
+  const navigateToScene = useCallback((target, gestureId) => {
     blockedGestureRef.current = gestureId
-    pageTransitionBusyRef.current = true
-    setSceneBoundaryMotion('leaving')
-    window.clearTimeout(sceneBoundaryTimerRef.current)
-    sceneBoundaryTimerRef.current = window.setTimeout(() => {
-      navigateTo(target)
-      setSceneBoundaryMotion('entering')
-      sceneBoundaryTimerRef.current = window.setTimeout(() => {
-        setSceneBoundaryMotion('idle')
-        pageTransitionBusyRef.current = false
-      }, reducedMotion ? 0 : READER_SCENE_BOUNDARY_ENTER_MS)
-    }, reducedMotion ? 0 : READER_SCENE_BOUNDARY_LEAVE_MS)
+    readerTransitionBusyRef.current = true
+    navigateTo(target)
+    if (reducedMotion) {
+      setSceneTransitionPhase('idle')
+      readerTransitionBusyRef.current = false
+      return
+    }
+    setSceneTransitionPhase('entering')
   }, [navigateTo, reducedMotion])
+
+  const completeSceneTransition = useCallback(() => {
+    setSceneTransitionPhase('idle')
+    readerTransitionBusyRef.current = false
+  }, [])
 
   useEffect(() => {
     if (autoVisual !== 'white') return undefined
@@ -277,7 +271,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   }, [autoVisual, reducedMotion])
 
   const handleReadingSteps = useCallback((steps, meta = {}) => {
-    if (pageTransitionBusyRef.current) return
+    if (readerTransitionBusyRef.current) return
     if (!readerExitGestureLearned) setReaderExitGestureLearned()
     const gestureId = meta.gestureId ?? `direct-${Date.now()}`
     if (blockedGestureRef.current === gestureId) return
@@ -289,7 +283,12 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
       if (narrativePause.handleFocusInputDuringPause(steps)) return
     }
 
-    const action = resolveReaderStep({ page, location: activeLocation, steps, chapterTrialEnded, content: activeReaderContent })
+    const action = resolveReaderSceneStep({
+      sceneModel,
+      location: activeLocation,
+      steps,
+      chapterTrialEnded: chapterTrialEnded && isFinalReaderScene(scene),
+    })
     if (action.type === READER_STEP_ACTIONS.NONE) return
 
     if (action.type === READER_STEP_ACTIONS.BEAT) {
@@ -297,10 +296,6 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
         if (narrativeTypewriter.startFocusTypewriter({ fromLocation: activeLocation, toLocation: action.location })) return
         if (narrativeReveal.startFocusReveal({ fromLocation: activeLocation, toLocation: action.location })) return
         if (narrativePause.startFocusPause({ fromLocation: activeLocation, toLocation: action.location })) return
-      }
-      if (crossesReaderSceneBoundary(activeLocation, action.location, activeReaderContent)) {
-        navigateAcrossSceneBoundary(action.location, gestureId)
-        return
       }
       navigateTo(action.location)
       if (action.reachedBoundary) {
@@ -311,8 +306,8 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
     }
 
     clearInputAccumulatorRef.current?.()
-    if (action.type === READER_STEP_ACTIONS.PAGE) {
-      navigateAcrossSceneBoundary(action.location, gestureId)
+    if (action.type === READER_STEP_ACTIONS.SCENE) {
+      navigateToScene(action.location, gestureId)
       return
     }
 
@@ -340,13 +335,13 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
       })
       setCompletionPromptVisible(true)
     }
-  }, [activeLocation, activeReaderContent, chapterTrialEnded, completeReader, endChapterTrial, navigateAcrossSceneBoundary, navigateTo, narrativePause, narrativeReveal, narrativeTypewriter, page, readerCompleted, readerExitGestureLearned, setReaderExitGestureLearned])
+  }, [activeLocation, activeReaderContent, chapterTrialEnded, completeReader, endChapterTrial, navigateTo, navigateToScene, narrativePause, narrativeReveal, narrativeTypewriter, page, readerCompleted, readerExitGestureLearned, scene, sceneModel, setReaderExitGestureLearned])
 
   const handleNativeFocusChange = useCallback((beatIndex) => {
-    if (!Number.isInteger(beatIndex) || beatIndex === activeLocation.beatIndex) return
-    if (beatIndex < 0 || beatIndex >= page.beats.length) return
+    if (!Number.isInteger(beatIndex) || beatIndex === localFocusBeatIndex) return
+    if (beatIndex < 0 || beatIndex >= sceneBeats.length || !scene) return
     if (!readerExitGestureLearned) setReaderExitGestureLearned()
-    const nextLocation = { ...activeLocation, beatIndex, beatId: page.beats[beatIndex]?.id }
+    const nextLocation = scene.locations[beatIndex]
     if (NARRATIVE_RUNTIME_ENABLED) {
       if (narrativeTypewriter.handleFlowFocusChange({ fromLocation: activeLocation, toLocation: nextLocation }) === false) return false
       if (narrativeReveal.handleFlowFocusChange({ fromLocation: activeLocation, toLocation: nextLocation }) === false) return false
@@ -354,7 +349,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
     }
     syncTo(nextLocation)
     return true
-  }, [activeLocation, narrativePause, narrativeReveal, narrativeTypewriter, page.beats, readerExitGestureLearned, setReaderExitGestureLearned, syncTo])
+  }, [activeLocation, localFocusBeatIndex, narrativePause, narrativeReveal, narrativeTypewriter, readerExitGestureLearned, scene, sceneBeats.length, setReaderExitGestureLearned, syncTo])
 
   const handleNativeBoundary = useCallback((direction) => {
     const steps = direction === 'backward' ? -1 : 1
@@ -383,7 +378,6 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   }, [readerScrollOffset])
 
   useEffect(() => () => {
-    window.clearTimeout(sceneBoundaryTimerRef.current)
     languageTimerRefs.current.forEach(window.clearTimeout)
     if (scrollPersistTimerRef.current !== null) {
       window.clearTimeout(scrollPersistTimerRef.current)
@@ -452,7 +446,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
 
   const handleReturnStart = useCallback(() => {
     if (returningToLanding) return
-    pageTransitionBusyRef.current = true
+    readerTransitionBusyRef.current = true
     clearInputAccumulator()
     setReturningToLanding(true)
   }, [clearInputAccumulator, returningToLanding])
@@ -463,10 +457,11 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
 
   return (
     <ReaderStage
-      page={{ ...page, scene }}
-      beats={page.beats}
-      focusBeatIndex={activeLocation.beatIndex}
-      progress={page.beats.length === 1 ? 1 : activeLocation.beatIndex / (page.beats.length - 1)}
+      page={page}
+      scene={scene}
+      beats={sceneBeats}
+      focusBeatIndex={localFocusBeatIndex}
+      progress={getOverallProgress(activeLocation, activeReaderContent)}
       language={language}
       contentLanguage={readerContentLanguage}
       languageTransitionPhase={languageTransitionPhase}
@@ -492,14 +487,14 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
       activeNarrativeRevealId={NARRATIVE_RUNTIME_ENABLED ? narrativeReveal.activeRevealId : null}
       activeNarrativeTypewriterId={NARRATIVE_RUNTIME_ENABLED ? narrativeTypewriter.activeTypewriterId : null}
       transitionKind={navigation.transitionKind}
-      sceneBoundaryMotion={sceneBoundaryMotion}
-      sceneBoundaryHasNext={sceneBoundaryHasNext}
-      sceneTransitionKind={sceneTransitionKind}
+      sceneTransitionPhase={sceneTransitionPhase}
+      hasNextScene={hasNextScene}
+      onSceneTransitionComplete={completeSceneTransition}
       autoVisual={autoVisual}
       tutorialVisible={isFirstReaderSession && !readerExitGestureLearned}
       rootRef={rootRef}
       focusRef={focusRef}
-      chapterTrialEnded={chapterTrialEnded && page.transitionType === READER_TRANSITION_TYPES.CHAPTER_END && activeLocation.beatIndex === page.beats.length - 1}
+      chapterTrialEnded={chapterTrialEnded && isFinalReaderScene(scene) && isFinalReaderSceneBeat(localFocusBeatIndex, scene)}
       completionPromptVisible={completionPromptVisible}
       returningToLanding={returningToLanding}
       onReturnStart={handleReturnStart}
@@ -578,7 +573,8 @@ function EmptyReaderOrchestrator({ contentStatus, onRetryContent, onReaderReady,
     narrativeRuntimeEnabled={false}
     narrativeDeliveryStates={{}}
     transitionKind="idle"
-    sceneTransitionKind={null}
+    sceneTransitionPhase="idle"
+    hasNextScene={false}
     autoVisual={null}
     tutorialVisible={false}
     rootRef={rootRef}

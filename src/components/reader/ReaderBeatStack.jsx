@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { getLocalNarrativeGateBeatIndex } from '../../reader/narrativeGate'
-import { getReaderSceneId } from '../../reader/readerPosition'
 import './ReaderBeatStack.css'
 
 const NATIVE_SCROLL_QUERY = '(hover: none), (pointer: coarse), (max-width: 720px)'
@@ -41,9 +40,6 @@ function ReaderBeatStack({
   onNativeScrollOffset,
   onViewportBoundaryChange,
   initialScrollOffset = 0,
-  sceneBoundaryLocked = false,
-  sceneBoundarySceneId = null,
-  sceneBoundaryMotion = 'idle',
   narrativeRuntimeEnabled = true,
   narrativeDeliveryStates = {},
   activeNarrativePauseId,
@@ -103,7 +99,7 @@ function ReaderBeatStack({
     const focused = flow?.children[focusBeatIndex]
     if (!viewport || !flow || !focused) return undefined
 
-    const pageChanged = beatsRef.current !== beats
+    const sceneChanged = beatsRef.current !== beats
     beatsRef.current = beats
     lastReportedIndexRef.current = focusBeatIndex
 
@@ -113,11 +109,11 @@ function ReaderBeatStack({
         flow.style.setProperty('--reader-native-edge-space', `${edgeSpace}px`)
       }
       syncNativeEdgeSpace()
-      const needsInitialPosition = !nativeScrollInitializedRef.current || pageChanged
+      const needsInitialPosition = !nativeScrollInitializedRef.current || sceneChanged
       nativeScrollInitializedRef.current = true
       if (needsInitialPosition) {
         const targetTop = focused.offsetTop - (viewport.clientHeight - focused.offsetHeight) / 2
-        const nextTop = initialScrollOffset > 0
+        const nextTop = !sceneChanged && initialScrollOffset > 0
           ? initialScrollOffset
           : Math.max(0, targetTop)
         viewport.scrollTo({ top: nextTop, behavior: 'auto' })
@@ -157,7 +153,7 @@ function ReaderBeatStack({
     }
 
     let restoreFrame = 0
-    if (pageChanged) {
+    if (sceneChanged) {
       flow.style.transition = 'none'
       syncReaderLayout()
       restoreFrame = requestAnimationFrame(() => {
@@ -275,31 +271,17 @@ function ReaderBeatStack({
         {beats.map((beat, beatIndex) => {
           const distance = Math.abs(beatIndex - focusBeatIndex)
           const gated = localGateBeatIndex >= 0 && beatIndex > localGateBeatIndex
-          const sceneHidden = Boolean(
-            sceneBoundaryLocked
-            && sceneBoundarySceneId
-            && beatIndex > focusBeatIndex
-            && getReaderSceneId(beat) !== sceneBoundarySceneId,
-          )
-          const sceneEntering = Boolean(
-            sceneBoundaryMotion === 'entering'
-            && sceneBoundarySceneId
-            && beatIndex >= focusBeatIndex
-            && getReaderSceneId(beat) === sceneBoundarySceneId,
-          )
           return (
             <article
               key={beat.id}
               ref={distance === 0 ? focusRef : undefined}
               className="reader-stage-beat"
               aria-current={distance === 0 ? 'true' : undefined}
-              aria-hidden={gated || sceneHidden ? 'true' : undefined}
+              aria-hidden={gated ? 'true' : undefined}
               tabIndex={distance === 0 ? -1 : undefined}
               data-distance={Math.min(distance, 4)}
               data-reader-beat-id={beat.id}
               data-reader-gated={gated ? 'true' : 'false'}
-              data-scene-hidden={sceneHidden ? 'true' : 'false'}
-              data-scene-entering={sceneEntering ? 'true' : 'false'}
               data-display-unit-kind={beat.displayUnit?.kind ?? 'authored'}
             >
               {getBeatBlocksForLanguage(beat, language).map(block => {

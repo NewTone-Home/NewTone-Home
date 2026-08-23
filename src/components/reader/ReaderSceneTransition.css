@@ -1,0 +1,26 @@
+.reader-scene-transition {
+  width: 100%;
+  min-height: 100%;
+}
+
+.reader-scene-transition--entering {
+  animation: reader-scene-enter 820ms cubic-bezier(.2, .8, .2, 1) both;
+  will-change: transform;
+}
+
+@keyframes reader-scene-enter {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 100dvh, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-scene-transition--entering {
+    animation: none;
+  }
+}

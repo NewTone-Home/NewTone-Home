@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import ReaderBeatStack from '../components/reader/ReaderBeatStack'
+import ReaderSceneTransition from '../components/reader/ReaderSceneTransition'
 import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
 import ReaderTools from '../components/reader/ReaderTools'
 import ReaderTraceProgress from '../components/reader/ReaderTraceProgress'
@@ -8,7 +9,6 @@ import ReaderCompletionPrompt from '../components/reader/ReaderCompletionPrompt'
 import { resolveReaderEnvironmentPreview } from '../data/reader-experiments/readerEnvironmentPreview'
 import { getReaderSceneLabel } from '../i18n/readerUi'
 import { preventReaderShortcut, preventReaderTransfer } from '../reader/readerCopyProtection'
-import { getReaderSceneId } from '../reader/readerPosition'
 import { isFinalReaderBeat } from '../reader/readerPosition'
 import { getReaderThemeVariables } from '../reader/readerTheme'
 import './ReaderStage.css'
@@ -27,6 +27,7 @@ function ReaderStage({
   contentStatus,
   onRetryContent,
   page,
+  scene,
   beats,
   focusBeatIndex,
   progress,
@@ -52,9 +53,9 @@ function ReaderStage({
   activeNarrativeRevealId,
   activeNarrativeTypewriterId,
   transitionKind,
-  sceneTransitionKind,
-  sceneBoundaryMotion = 'idle',
-  sceneBoundaryHasNext = false,
+  sceneTransitionPhase = 'idle',
+  hasNextScene = false,
+  onSceneTransitionComplete,
   autoVisual,
   rootRef,
   focusRef,
@@ -81,8 +82,8 @@ function ReaderStage({
     || window.matchMedia(DIRECT_READER_QUERY).matches
   )
   const returnVisible = emptyDocument || isFinalReaderBeat(focusBeatIndex, beats)
-  const sceneBoundaryVisible = returnVisible
-  const focusSceneId = getReaderSceneId(beats[focusBeatIndex])
+  const sceneEndVisible = returnVisible
+  const continueCueVisible = sceneEndVisible || sceneTransitionPhase === 'entering'
   const locationLabel = emptyDocument
     ? (language === 'en' ? 'No pages yet' : '暂无页面')
     : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
@@ -103,7 +104,7 @@ function ReaderStage({
 
   useEffect(() => {
     nativeBoundaryLockRef.current = null
-  }, [page?.id])
+  }, [scene?.id ?? page?.id])
 
   return (
     <main
@@ -113,7 +114,7 @@ function ReaderStage({
       data-motion-mode={motionMode}
       data-returning-to-landing={returningToLanding ? 'true' : 'false'}
       data-reader-entry-handoff={readerEntryHandoffPhase}
-      data-scene-boundary-motion={sceneBoundaryMotion}
+      data-scene-transition={sceneTransitionPhase}
       data-scene-state={sceneStateName}
       data-world-layer={environmentState.worldLayer}
       data-scene-characters={environmentState.characters.join(' ')}
@@ -134,7 +135,7 @@ function ReaderStage({
     >
       <section
         ref={rootRef}
-        className={`reader-stage${sceneTransitionKind ? ` reader-stage--scene-${sceneTransitionKind}` : ''}`}
+        className="reader-stage"
         aria-label={emptyDocument ? 'NewTone Reader：暂无可读页面' : `阅读场景：${environmentState.locationLabel}`}
         data-transition-kind={transitionKind || 'idle'}
       >
@@ -160,27 +161,33 @@ function ReaderStage({
           locationId={environmentState.locationId}
           locationLabel={locationLabel}
         />
-        {!emptyDocument && <ReaderBeatStack
-          beats={beats}
-          language={contentLanguage}
-          languageTransitionPhase={languageTransitionPhase}
-          focusBeatIndex={focusBeatIndex}
-          onFocusMotionEnd={onFocusMotionEnd}
-          onNativeFocusChange={onNativeFocusChange}
-          onNativeScrollOffset={onNativeScrollOffset}
-          onViewportBoundaryChange={handleViewportBoundaryChange}
-          initialScrollOffset={initialScrollOffset}
-          sceneBoundaryLocked={Boolean(focusSceneId)}
-          sceneBoundarySceneId={focusSceneId}
-          sceneBoundaryMotion={sceneBoundaryMotion}
-          narrativeRuntimeEnabled={narrativeRuntimeEnabled}
-          narrativeDeliveryStates={narrativeDeliveryStates}
-          activeNarrativePauseId={activeNarrativePauseId}
-          activeNarrativePausePhase={activeNarrativePausePhase}
-          activeNarrativeRevealId={activeNarrativeRevealId}
-          activeNarrativeTypewriterId={activeNarrativeTypewriterId}
-          focusRef={focusRef}
-        />}
+        {!emptyDocument && (
+          <ReaderSceneTransition
+            sceneId={scene?.id}
+            phase={sceneTransitionPhase}
+            reducedMotion={motionMode === 'reduced'}
+            onComplete={onSceneTransitionComplete}
+          >
+            <ReaderBeatStack
+              beats={beats}
+              language={contentLanguage}
+              languageTransitionPhase={languageTransitionPhase}
+              focusBeatIndex={focusBeatIndex}
+              onFocusMotionEnd={onFocusMotionEnd}
+              onNativeFocusChange={onNativeFocusChange}
+              onNativeScrollOffset={onNativeScrollOffset}
+              onViewportBoundaryChange={handleViewportBoundaryChange}
+              initialScrollOffset={initialScrollOffset}
+              narrativeRuntimeEnabled={narrativeRuntimeEnabled}
+              narrativeDeliveryStates={narrativeDeliveryStates}
+              activeNarrativePauseId={activeNarrativePauseId}
+              activeNarrativePausePhase={activeNarrativePausePhase}
+              activeNarrativeRevealId={activeNarrativeRevealId}
+              activeNarrativeTypewriterId={activeNarrativeTypewriterId}
+              focusRef={focusRef}
+            />
+          </ReaderSceneTransition>
+        )}
         {emptyDocument && <section className="reader-empty-document" aria-labelledby="reader-empty-document-title">
           <p className="reader-empty-document-mark">NewTone / Reader</p>
           <h1 id="reader-empty-document-title">{language === 'en' ? 'No pages are available yet' : '暂无可读页面'}</h1>
@@ -188,7 +195,7 @@ function ReaderStage({
           {contentStatus !== 'empty' && <button type="button" onClick={onRetryContent}>{language === 'en' ? 'Try again' : '重新检查正文'}</button>}
         </section>}
         {!emptyDocument && <ReaderTraceProgress
-          key={page?.id}
+          key={scene?.id ?? page?.id}
           progress={progress}
           beats={beats}
           focusBeatIndex={focusBeatIndex}
@@ -204,7 +211,7 @@ function ReaderStage({
           onReturnComplete={onReturnLanding}
           language={language}
         />
-        {!emptyDocument && sceneBoundaryVisible && sceneBoundaryHasNext && (
+        {!emptyDocument && continueCueVisible && hasNextScene && (
           <div className="reader-scene-continue-cue" aria-hidden="true">
             <span className="reader-scene-continue-arrow">↓</span>
             <span>{language === 'en' ? 'CONTINUE' : '继续'}</span>
