@@ -116,13 +116,28 @@
   min-width: 0;
 }
 
+.landing-updates-page__timeline-heading {
+  display: grid;
+  gap: .12rem;
+}
+
+.landing-updates-page__timeline-version {
+  color: var(--ink-dark);
+  font-family: ui-serif, "Songti SC", "Noto Serif CJK SC", serif;
+  font-size: clamp(1rem, 1.3vw, 1.2rem);
+  font-weight: 400;
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
+
 .landing-updates-page__timeline-date {
   display: block;
   color: var(--ink-dark);
   font-family: ui-serif, "Songti SC", "Noto Serif CJK SC", serif;
-  font-size: clamp(.9rem, 1.1vw, 1.05rem);
+  font-size: clamp(.68rem, .8vw, .78rem);
   font-weight: 400;
   letter-spacing: .12em;
+  opacity: .64;
   white-space: nowrap;
 }
 

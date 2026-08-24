@@ -5,6 +5,7 @@ import { UPDATES_PHASE } from '../landing/landingUpdatesFlow'
 import './LandingUpdatesPage.css'
 
 const LANDING_UPDATES = Object.freeze({
+  version: 'v0.1.2',
   date: '2026.08.23',
   dateTime: '2026-08-23',
   zh: Object.freeze({
@@ -14,12 +15,11 @@ const LANDING_UPDATES = Object.freeze({
     returnLabel: '返回入口',
     returnAriaLabel: '返回 NewTone',
     summary: Object.freeze([
-      '合并了阅读模式，现在不再分成两个模式。',
-      '优化了阅读体验和操作体验。',
+      '这次没有加入新的宇宙，神秘入口正在筹备中。',
     ]),
     details: Object.freeze([
-      '优化并重新设计了交互的逻辑与视觉效果',
-      '改善了多个设备运行表现',
+      '同时，我们把阅读模式合并成了一个，现在不再分成两个模式。',
+      '并且优化了阅读体验和操作体验。',
     ]),
   }),
   en: Object.freeze({
@@ -29,12 +29,11 @@ const LANDING_UPDATES = Object.freeze({
     returnLabel: 'BACK',
     returnAriaLabel: 'Return to NewTone',
     summary: Object.freeze([
-      'The reading modes are now combined into one, so there are no longer two separate modes.',
-      'We improved the reading and interaction experience.',
+      'No new universe was added this time. The mysterious entrance is still in the works.',
     ]),
     details: Object.freeze([
-      'We refined and redesigned the logic and visual language of the interactions.',
-      'We also improved performance across a wider range of devices.',
+      'We combined the reading modes into one, so there are no longer two separate modes.',
+      'We also improved the reading and interaction experience.',
     ]),
   }),
 })
@@ -106,12 +105,15 @@ function LandingUpdatesPage({ phase, language = 'zh', onSurfaceComplete, onRetur
                 {expanded ? '−' : '+'}
               </span>
               <span className="landing-updates-page__timeline-copy">
-                <time
-                  className="landing-updates-page__timeline-date"
-                  dateTime={LANDING_UPDATES.dateTime}
-                >
-                  {LANDING_UPDATES.date}
-                </time>
+                <span className="landing-updates-page__timeline-heading">
+                  <span className="landing-updates-page__timeline-version">{LANDING_UPDATES.version}</span>
+                  <time
+                    className="landing-updates-page__timeline-date"
+                    dateTime={LANDING_UPDATES.dateTime}
+                  >
+                    {LANDING_UPDATES.date}
+                  </time>
+                </span>
                 <span className="landing-updates-page__summary">
                   {content.summary.map(line => <span key={line}>{line}</span>)}
                 </span>
