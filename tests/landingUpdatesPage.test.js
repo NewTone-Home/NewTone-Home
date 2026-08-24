@@ -53,6 +53,8 @@ describe('Landing updates page button contract', () => {
     expect(page).toContain('landing-updates-page__timeline-heading')
     expect(page).toContain('landing-updates-page__timeline-version')
     expect(styles).toContain('.landing-updates-page__timeline::before')
+    expect(styles).toContain('animation: updates-timeline-dot-pulse 1.8s ease-in-out infinite')
+    expect(styles).toContain('@keyframes updates-timeline-dot-pulse')
     expect(page).not.toContain('landing-updates-page__placeholder')
     expect(page).not.toContain('<h1>')
     expect(page).toContain('这次没有加入新的宇宙，神秘入口正在筹备中。')
@@ -69,6 +71,7 @@ describe('Landing updates page button contract', () => {
   it('keeps the Landing and updates surface transitions on one timing contract', () => {
     expect(styles).toContain('animation: updates-page-enter 720ms')
     expect(styles).toContain('animation: updates-page-return 720ms')
+    expect(styles).toContain('.landing-updates-page__timeline-dot {\n    animation: none;\n  }')
     expect(entryStyles).toContain('animation: landing-updates-surface-exit 720ms')
     expect(entryStyles).toContain('animation: landing-updates-surface-return 720ms')
     expect(styles).not.toContain('120ms forwards')
