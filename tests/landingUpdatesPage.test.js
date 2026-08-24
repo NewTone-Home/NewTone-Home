@@ -52,6 +52,7 @@ describe('Landing updates page button contract', () => {
     expect(page).toContain('expandedVersion')
     expect(page).toContain('landing-updates-page__timeline-heading')
     expect(page).toContain('landing-updates-page__timeline-version')
+    expect(styles).toContain('.landing-updates-page__timeline::before')
     expect(page).not.toContain('landing-updates-page__placeholder')
     expect(page).not.toContain('<h1>')
     expect(page).toContain('这次没有加入新的宇宙，神秘入口正在筹备中。')

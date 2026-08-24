@@ -130,7 +130,6 @@ function LandingUpdatesPage({ phase, language = 'zh', onSurfaceComplete, onRetur
             const detailsId = `landing-updates-details-${update.version.replaceAll('.', '-')}`
             return (
               <li className={`landing-updates-page__timeline-entry${expanded ? ' is-expanded' : ''}`} key={update.version}>
-                <div className="landing-updates-page__timeline-line" aria-hidden="true" />
                 <button
                   type="button"
                   className="landing-updates-page__timeline-trigger"

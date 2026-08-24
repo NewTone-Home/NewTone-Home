@@ -27,6 +27,15 @@
   list-style: none;
 }
 
+.landing-updates-page__timeline::before {
+  position: absolute;
+  inset: .55rem auto .55rem .5rem;
+  z-index: 0;
+  border-left: 1px solid color-mix(in srgb, var(--line-faint) 82%, var(--ink-medium) 18%);
+  opacity: .72;
+  content: '';
+}
+
 .landing-updates-page__timeline-entry {
   position: relative;
   display: grid;
@@ -36,15 +45,6 @@
 
 .landing-updates-page__timeline-entry + .landing-updates-page__timeline-entry {
   margin-top: clamp(2rem, 5vh, 3.5rem);
-}
-
-.landing-updates-page__timeline-line {
-  position: absolute;
-  top: .55rem;
-  bottom: .55rem;
-  left: .5rem;
-  border-left: 1px solid color-mix(in srgb, var(--line-faint) 82%, var(--ink-medium) 18%);
-  opacity: .72;
 }
 
 .landing-updates-page__timeline-trigger {
