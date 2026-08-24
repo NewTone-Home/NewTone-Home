@@ -34,6 +34,10 @@
   column-gap: clamp(1rem, 2vw, 1.5rem);
 }
 
+.landing-updates-page__timeline-entry + .landing-updates-page__timeline-entry {
+  margin-top: clamp(2rem, 5vh, 3.5rem);
+}
+
 .landing-updates-page__timeline-line {
   position: absolute;
   top: .55rem;

@@ -141,6 +141,8 @@ describe('Reader shell contract boundaries', () => {
     expect(transition).toContain("const roadParallaxEnabled = phase === 'reader-preparing' || phase === 'transition-leaving'")
     expect(transition).toContain('ref={transitionRootRef}')
     expect(transition).toContain('reading-transition-resume-background')
+    expect(transition).toContain('environmentLines.length > 0')
+    expect(transition).not.toContain("readingMode === 'immersive' && (")
     expect(transition).toContain('reading-transition-resume-foreground')
     expect(transitionCss).toContain('.reading-transition-resume-background')
     expect(transitionCss).toContain('var(--scene-parallax-back-x, 0)')

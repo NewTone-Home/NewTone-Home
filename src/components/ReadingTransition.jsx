@@ -278,7 +278,7 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
             </>
           ) : (
             <>
-              {readingMode === 'immersive' && (
+              {environmentLines.length > 0 && (
                 <div className="reading-transition-resume-background">
                   <ResumeEnvironment lines={environmentLines} />
                 </div>
