@@ -15,10 +15,11 @@ const LANDING_UPDATES = Object.freeze({
     returnAriaLabel: '返回 NewTone',
     summary: Object.freeze([
       '合并了阅读模式，现在不再分成两个模式。',
-      '优化了阅读体验。',
+      '优化了阅读体验和操作体验。',
     ]),
     details: Object.freeze([
-      '优化了操作体验。',
+      '优化并重新设计了交互的逻辑与视觉效果',
+      '改善了多个设备运行表现',
     ]),
   }),
   en: Object.freeze({
@@ -29,10 +30,11 @@ const LANDING_UPDATES = Object.freeze({
     returnAriaLabel: 'Return to NewTone',
     summary: Object.freeze([
       'The reading modes are now combined into one, so there are no longer two separate modes.',
-      'The reading experience has been improved.',
+      'We improved the reading and interaction experience.',
     ]),
     details: Object.freeze([
-      'The interaction experience has been improved.',
+      'We refined and redesigned the logic and visual language of the interactions.',
+      'We also improved performance across a wider range of devices.',
     ]),
   }),
 })
