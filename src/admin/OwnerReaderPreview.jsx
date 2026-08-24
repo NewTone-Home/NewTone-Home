@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { setReaderContent } from '../data/readerContent'
+import { expandSceneReaderFocusUnits } from '../data/scenePublication'
 import { readAdminPreview } from './adminPreview'
 
 function OwnerReaderPreview() {
@@ -8,7 +9,7 @@ function OwnerReaderPreview() {
   useEffect(() => {
     const content = readAdminPreview()
     if (!content) { setError('当前会话没有 Reader 临时预览。请从工作台重新生成。'); return }
-    try { setReaderContent(content) } catch (reason) { setError(reason instanceof Error ? reason.message : '临时预览无效。'); return }
+    try { setReaderContent(expandSceneReaderFocusUnits(content)) } catch (reason) { setError(reason instanceof Error ? reason.message : '临时预览无效。'); return }
     Promise.all([import('../App.jsx'), import('../stores/progressStore')]).then(([appModule, storeModule]) => {
       storeModule.useProgressStore.setState({ currentView: 'reader', readerStarted: true, resumeRequested: false, hasInitializedLanguage: true, hasInitializedReadingMode: true })
       setApp(() => appModule.default)

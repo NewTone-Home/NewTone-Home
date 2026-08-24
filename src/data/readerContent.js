@@ -24,7 +24,10 @@ function validateBlocks(blocks, beat, page, label = '') {
     if (!block || typeof block.id !== 'string' || !/^block-\d+$/.test(block.id)) throw new Error(`Invalid block ID in beat ${beat.id}${label}`)
     if (blockIds.has(block.id)) throw new Error(`Duplicate block ID ${block.id} in beat ${beat.id}${label}`)
     if (block.type !== 'paragraph' || typeof block.text !== 'string' || !block.text.trim()) throw new Error(`Invalid block ${block.id} in beat ${beat.id}${label}`)
-    if (block.source?.chapterId !== page.chapterId || typeof block.source?.paragraphId !== 'string') throw new Error(`Invalid source metadata for ${beat.id}/${block.id}${label}`)
+    if (
+      block.source?.chapterId !== page.chapterId
+      || (typeof block.source?.paragraphId !== 'string' && typeof block.source?.sceneId !== 'string')
+    ) throw new Error(`Invalid source metadata for ${beat.id}/${block.id}${label}`)
     blockIds.add(block.id)
   }
 }
@@ -71,6 +74,51 @@ export function setReaderContent(content) {
   validateReaderContent(content)
   readerContent = deepFreeze(structuredClone(content))
   return readerContent
+}
+
+export function collapseReaderPagesByChapter(content) {
+  validateReaderContent(content)
+  return content.map(phase => {
+    const chapterPages = []
+    const pagesByChapter = new Map()
+
+    phase.pages.forEach(page => {
+      let chapterPage = pagesByChapter.get(page.chapterId)
+      if (!chapterPage) {
+        chapterPage = {
+          ...page,
+          id: page.chapterId,
+          scene: {
+            ...page.scene,
+            id: page.chapterId,
+            label: page.chapterTitle,
+            labelByLanguage: page.chapterTitleByLanguage ?? page.scene.labelByLanguage,
+          },
+          beats: [],
+        }
+        pagesByChapter.set(page.chapterId, chapterPage)
+        chapterPages.push(chapterPage)
+      }
+      chapterPage.beats.push(...page.beats)
+    })
+
+    return {
+      ...phase,
+      pages: chapterPages.map((page, pageIndex) => {
+        const nextPage = chapterPages[pageIndex + 1]
+        const transitionType = nextPage ? READER_TRANSITION_TYPES.STANDARD : READER_TRANSITION_TYPES.CHAPTER_END
+        return {
+          ...page,
+          transitionType,
+          boundary: {
+            kind: 'continuous',
+            transitionType,
+            ...(nextPage ? { target: { phaseId: phase.id, pageId: nextPage.id, beatIndex: 0 } } : {}),
+          },
+        }
+      }),
+    }
+  })
 }
 
 export function hasReaderContent() {

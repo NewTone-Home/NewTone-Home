@@ -1,15 +1,22 @@
 import { supabase } from '../lib/supabaseClient'
 import { PUBLICATION_SLUG } from '../services/publishedContent'
-import { normalizeWorkspace } from './contentWorkspace'
+import { normalizeWorkspace as normalizeLegacyWorkspace } from './contentWorkspace'
+import { normalizeWorkspace as normalizeSceneWorkspace } from './sceneWorkspace'
+
+function normalizeDraftWorkspace(value) {
+  return value?.schemaVersion === 2
+    ? normalizeSceneWorkspace(value)
+    : normalizeLegacyWorkspace(value)
+}
 
 export async function loadOwnerDraft(userId) {
   const { data, error } = await supabase.from('reader_drafts')
     .select('id, slug, workspace, base_publication_id, published_version, updated_at')
     .eq('slug', PUBLICATION_SLUG).eq('owner_id', userId).maybeSingle()
   if (error) throw error
-  if (data) return { ...data, workspace: normalizeWorkspace(data.workspace) }
+  if (data) return { ...data, workspace: normalizeDraftWorkspace(data.workspace) }
   const { data: created, error: createError } = await supabase.from('reader_drafts')
-    .insert({ slug: PUBLICATION_SLUG, owner_id: userId, workspace: normalizeWorkspace(null) })
+    .insert({ slug: PUBLICATION_SLUG, owner_id: userId, workspace: normalizeLegacyWorkspace(null) })
     .select('id, slug, workspace, base_publication_id, published_version, updated_at').single()
   if (createError) {
     const denied = new Error('此账户不在 owner allow-list 中。')
@@ -17,12 +24,12 @@ export async function loadOwnerDraft(userId) {
     denied.code = 'OWNER_NOT_AUTHORIZED'
     throw denied
   }
-  return { ...created, workspace: normalizeWorkspace(created.workspace) }
+  return { ...created, workspace: normalizeDraftWorkspace(created.workspace) }
 }
 
 export async function saveOwnerDraft(draftId, workspace) {
   const { data, error } = await supabase.from('reader_drafts')
-    .update({ workspace: normalizeWorkspace(workspace), updated_at: new Date().toISOString() })
+    .update({ workspace: normalizeDraftWorkspace(workspace), updated_at: new Date().toISOString() })
     .eq('id', draftId).select('id, workspace, updated_at').single()
   if (error) throw error
   return data

@@ -74,6 +74,34 @@
   touch-action: none;
 }
 
+/* Long authored Scenes can exceed the viewport on desktop as well as mobile. */
+.reader-beat-stack[data-native-scroll='true'] {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.reader-beat-stack[data-native-scroll='true']::-webkit-scrollbar {
+  display: none;
+}
+
+.reader-beat-stack[data-native-scroll='true'] .reader-beat-flow {
+  padding: var(--reader-native-edge-space, 46vh) 0;
+  transform: none !important;
+  transition: none !important;
+  will-change: auto;
+}
+
+.reader-beat-stack[data-native-scroll='true'] .reader-stage-beat {
+  scroll-margin-block: var(--reader-native-edge-space, 46vh);
+}
+
+.reader-beat-stack[data-native-scroll='true'][data-narrative-input-locked='true'] {
+  overflow-y: hidden;
+  touch-action: none;
+}
+
 @keyframes reader-pause-breathe {
   0%, 100% { opacity: .24; transform: translateY(1px); }
   50% { opacity: .78; transform: translateY(0); }

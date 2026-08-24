@@ -3,7 +3,7 @@ import { isSupabaseConfigured, supabase } from '../lib/supabaseClient'
 import { trackEvent } from '../services/analytics'
 import { requestAdminMagicLink, signInAdminWithGitHub } from './adminAuth'
 import { loadOwnerDraft, publishOwnerDraft, saveOwnerDraft } from './adminContentService'
-import OwnerWorkbench from './OwnerWorkbench'
+import OwnerWorkbench from './OwnerSceneWorkbench'
 import OwnerReaderPreview from './OwnerReaderPreview'
 import './AdminApp.css'
 

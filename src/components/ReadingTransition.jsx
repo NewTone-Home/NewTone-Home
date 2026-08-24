@@ -20,20 +20,20 @@ const TRANSITION_ENVIRONMENT_COPY = Object.freeze({
     location: '地点',
     time: '时间',
     weather: '天气',
-    unknown: '未标明',
-    world: { surface: '表世界', inner: '里世界', unknown: '未标明' },
-    timeValue: { morning: '上午', noon: '午间', afternoon: '下午', dusk: '黄昏', night: '夜间', unknown: '未标明' },
-    weatherValue: { clear: '晴', overcast: '阴', rain: '雨', snow: '雪', unknown: '未标明' },
+    unknown: '未知',
+    world: { surface: '表世界', inner: '里世界', transition: '暗道', unknown: '未知' },
+    timeValue: { morning: '上午', noon: '中午', afternoon: '下午', dusk: '傍晚', night: '夜晚', unknown: '未知' },
+    weatherValue: { clear: '晴', overcast: '阴', rain: '雨', snow: '雪', unknown: '未知' },
   },
   en: {
     worldLayer: 'World',
     location: 'Setting',
     time: 'Time',
     weather: 'Weather',
-    unknown: 'Not specified',
-    world: { surface: 'Surface World', inner: 'Inner World', unknown: 'Not specified' },
-    timeValue: { morning: 'Morning', noon: 'Noon', afternoon: 'Afternoon', dusk: 'Dusk', night: 'Night', unknown: 'Not specified' },
-    weatherValue: { clear: 'Clear', overcast: 'Overcast', rain: 'Rain', snow: 'Snow', unknown: 'Not specified' },
+    unknown: 'Unknown',
+    world: { surface: 'Surface World', inner: 'Inner World', transition: 'Dark passage', unknown: 'Unknown' },
+    timeValue: { morning: 'Morning', noon: 'Noon', afternoon: 'Afternoon', dusk: 'Dusk', night: 'Night', unknown: 'Unknown' },
+    weatherValue: { clear: 'Clear', overcast: 'Overcast', rain: 'Rain', snow: 'Snow', unknown: 'Unknown' },
   },
 })
 
@@ -235,7 +235,7 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
 
   if (phase === 'landing-leaving' || phase === 'landing-empty-hold') return null
 
-  if (['language-active', 'language-leaving', 'mode-active', 'mode-leaving'].includes(phase)) {
+  if (['language-active', 'language-leaving'].includes(phase)) {
     return (
       <div className={`reading-transition reading-transition--ritual reading-transition--motion-${motionMode}`} style={surfaceStyle}>
         <RitualSelector
@@ -278,9 +278,11 @@ function ReadingTransition({ phase, intent, language, readingMode, motionMode, s
             </>
           ) : (
             <>
-              <div className="reading-transition-resume-background">
-                <ResumeEnvironment lines={environmentLines} />
-              </div>
+              {environmentLines.length > 0 && (
+                <div className="reading-transition-resume-background">
+                  <ResumeEnvironment lines={environmentLines} />
+                </div>
+              )}
               <div className="reading-transition-resume-foreground">
                 <p
                   className="reading-transition-text reading-transition-text--resume"

@@ -1,14 +1,12 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import ReaderBeatStack from '../components/reader/ReaderBeatStack'
+import ReaderSceneTransition from '../components/reader/ReaderSceneTransition'
 import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
 import ReaderTools from '../components/reader/ReaderTools'
-import ReaderTraceProgress from '../components/reader/ReaderTraceProgress'
 import ReaderReturnControl from '../components/reader/ReaderReturnControl'
-import ReaderCompletionPrompt from '../components/reader/ReaderCompletionPrompt'
 import { resolveReaderEnvironmentPreview } from '../data/reader-experiments/readerEnvironmentPreview'
 import { getReaderSceneLabel } from '../i18n/readerUi'
 import { preventReaderShortcut, preventReaderTransfer } from '../reader/readerCopyProtection'
-import { isFinalReaderBeat } from '../reader/readerPosition'
 import { getReaderThemeVariables } from '../reader/readerTheme'
 import './ReaderStage.css'
 import './ReaderShellContract.css'
@@ -25,20 +23,21 @@ function ReaderStage({
   emptyDocument = false,
   contentStatus,
   onRetryContent,
-  page,
+  scene,
   beats,
   focusBeatIndex,
-  progress,
+  sceneBoundaryRanges = [],
+  progress: _progress,
   language,
+  contentLanguage = language,
+  languageTransitionPhase = 'idle',
   onLanguage,
-  readingMode,
   standardTheme,
   themePosition,
   motionMode,
   onReadingMode,
   onStandardTheme,
   onThemePosition,
-  onFocusMotionEnd,
   onNativeFocusChange,
   onNativeBoundary,
   onNativeScrollOffset,
@@ -50,32 +49,32 @@ function ReaderStage({
   activeNarrativeRevealId,
   activeNarrativeTypewriterId,
   transitionKind,
-  sceneTransitionKind,
   autoVisual,
   rootRef,
   focusRef,
   chapterTrialEnded,
-  completionPromptVisible = false,
+  finalReaderBeat = false,
   returningToLanding = false,
   readerEntryHandoffPhase = 'idle',
   onReturnStart,
   onReturnLanding,
 }) {
+  const visibleReadingMode = 'standard'
   const nativeBoundaryLockRef = useRef(null)
+  const returnControlRef = useRef(null)
   const sceneState = beats[focusBeatIndex]?.sceneState ?? {}
   const sceneStateName = sceneState.sceneState ?? 'normal'
   const nativeEnvironmentState = beats[focusBeatIndex]?.worldState
   const environmentState = nativeEnvironmentState ?? EMPTY_READER_ENVIRONMENT
   const environmentVisual = resolveReaderEnvironmentPreview(environmentState)
   const immersiveStyle = environmentVisual.style
-  const stageStyle = readingMode === 'standard'
+  const stageStyle = visibleReadingMode === 'standard'
     ? getReaderThemeVariables(themePosition ?? STANDARD_THEME_POSITIONS[standardTheme] ?? 0.5)
     : immersiveStyle
   const directReaderInput = typeof window !== 'undefined' && (
     (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)
     || window.matchMedia(DIRECT_READER_QUERY).matches
   )
-  const returnVisible = emptyDocument || isFinalReaderBeat(focusBeatIndex, beats)
   const locationLabel = emptyDocument
     ? (language === 'en' ? 'No pages yet' : '暂无页面')
     : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
@@ -94,18 +93,15 @@ function ReaderStage({
     }
   }, [onNativeBoundary])
 
-  useEffect(() => {
-    nativeBoundaryLockRef.current = null
-  }, [page?.id])
-
   return (
     <main
-      className={`reader-stage-page paper-surface reader-stage-page--${readingMode} reader-stage-page--theme-${standardTheme} reader-stage-page--motion-${motionMode}${returningToLanding ? ' reader-stage-page--returning' : ''}`}
+      className={`reader-stage-page paper-surface reader-stage-page--${visibleReadingMode} reader-stage-page--theme-${standardTheme} reader-stage-page--motion-${motionMode}${returningToLanding ? ' reader-stage-page--returning' : ''}`}
       style={stageStyle}
-      data-reading-mode={readingMode}
+      data-reading-mode={visibleReadingMode}
       data-motion-mode={motionMode}
       data-returning-to-landing={returningToLanding ? 'true' : 'false'}
       data-reader-entry-handoff={readerEntryHandoffPhase}
+      data-scene-transition="idle"
       data-scene-state={sceneStateName}
       data-world-layer={environmentState.worldLayer}
       data-scene-characters={environmentState.characters.join(' ')}
@@ -126,19 +122,23 @@ function ReaderStage({
     >
       <section
         ref={rootRef}
-        className={`reader-stage${sceneTransitionKind ? ` reader-stage--scene-${sceneTransitionKind}` : ''}`}
+        className="reader-stage"
         aria-label={emptyDocument ? 'NewTone Reader：暂无可读页面' : `阅读场景：${environmentState.locationLabel}`}
         data-transition-kind={transitionKind || 'idle'}
       >
-        <div className="reader-environment-light" aria-hidden="true" />
-        <div className="reader-environment-shadow" aria-hidden="true" />
-        <div className="reader-environment-weather" aria-hidden="true">
-          <ReaderPrecipitation />
-        </div>
+        {visibleReadingMode === 'immersive' && (
+          <>
+            <div className="reader-environment-light" aria-hidden="true" />
+            <div className="reader-environment-shadow" aria-hidden="true" />
+            <div className="reader-environment-weather" aria-hidden="true">
+              <ReaderPrecipitation />
+            </div>
+          </>
+        )}
         <ReaderTools
           language={language}
           onLanguage={onLanguage}
-          readingMode={readingMode}
+          readingMode={visibleReadingMode}
           standardTheme={standardTheme}
           themePosition={themePosition}
           motionMode={motionMode}
@@ -148,47 +148,48 @@ function ReaderStage({
           locationId={environmentState.locationId}
           locationLabel={locationLabel}
         />
-        {!emptyDocument && <ReaderBeatStack
-          beats={beats}
-          language={language}
-          focusBeatIndex={focusBeatIndex}
-          onFocusMotionEnd={onFocusMotionEnd}
-          onNativeFocusChange={onNativeFocusChange}
-          onNativeScrollOffset={onNativeScrollOffset}
-          onViewportBoundaryChange={handleViewportBoundaryChange}
-          initialScrollOffset={initialScrollOffset}
-          narrativeRuntimeEnabled={narrativeRuntimeEnabled}
-          narrativeDeliveryStates={narrativeDeliveryStates}
-          activeNarrativePauseId={activeNarrativePauseId}
-          activeNarrativePausePhase={activeNarrativePausePhase}
-          activeNarrativeRevealId={activeNarrativeRevealId}
-          activeNarrativeTypewriterId={activeNarrativeTypewriterId}
-          focusRef={focusRef}
-        />}
+        {!emptyDocument && (
+          <ReaderSceneTransition
+            sceneId={scene?.id}
+            phase="idle"
+          >
+            <ReaderBeatStack
+              beats={beats}
+              language={contentLanguage}
+              languageTransitionPhase={languageTransitionPhase}
+              focusBeatIndex={focusBeatIndex}
+              onNativeFocusChange={onNativeFocusChange}
+              onNativeScrollOffset={onNativeScrollOffset}
+              onViewportBoundaryChange={handleViewportBoundaryChange}
+              sceneBoundaryRanges={sceneBoundaryRanges}
+              sceneBoundaryControlRef={returnControlRef}
+              initialScrollOffset={initialScrollOffset}
+              narrativeRuntimeEnabled={narrativeRuntimeEnabled}
+              narrativeDeliveryStates={narrativeDeliveryStates}
+              activeNarrativePauseId={activeNarrativePauseId}
+              activeNarrativePausePhase={activeNarrativePausePhase}
+              activeNarrativeRevealId={activeNarrativeRevealId}
+              activeNarrativeTypewriterId={activeNarrativeTypewriterId}
+              focusRef={focusRef}
+            />
+          </ReaderSceneTransition>
+        )}
         {emptyDocument && <section className="reader-empty-document" aria-labelledby="reader-empty-document-title">
           <p className="reader-empty-document-mark">NewTone / Reader</p>
           <h1 id="reader-empty-document-title">{language === 'en' ? 'No pages are available yet' : '暂无可读页面'}</h1>
           <p>{language === 'en' ? 'The story has not been published yet. You can still explore the Reader settings.' : '正文尚未发布。Reader 的阅读设置可以继续使用。'}</p>
           {contentStatus !== 'empty' && <button type="button" onClick={onRetryContent}>{language === 'en' ? 'Try again' : '重新检查正文'}</button>}
         </section>}
-        {!emptyDocument && <ReaderTraceProgress
-          key={page?.id}
-          progress={progress}
-          beats={beats}
-          focusBeatIndex={focusBeatIndex}
-          language={language}
-          readingMode={readingMode}
-          returningToLanding={returningToLanding}
-        />}
         <ReaderReturnControl
-          visible={returnVisible}
+          ref={returnControlRef}
+          visible={!returningToLanding}
+          alwaysVisible={emptyDocument || finalReaderBeat}
           mobile={directReaderInput}
           worldLayer={environmentState.worldLayer}
           onReturnStart={onReturnStart}
           onReturnComplete={onReturnLanding}
           language={language}
         />
-        <ReaderCompletionPrompt visible={completionPromptVisible} language={language} />
         {chapterTrialEnded && <span className="reader-chapter-end" aria-hidden="true" />}
       </section>
     </main>

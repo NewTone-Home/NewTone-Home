@@ -74,11 +74,12 @@ export function useReadingEntry(motionMode = 'full') {
     syncPhase('landing-leaving')
 
     const store = useProgressStore.getState()
-    if (!store.hasInitializedLanguage || !store.hasInitializedReadingMode) {
+    if (!store.hasInitializedLanguage) {
       timers.current.add(() => {
-        syncPhase(store.hasInitializedLanguage ? 'mode-active' : 'language-active')
+        syncPhase('language-active')
       }, usesReducedTiming() ? REDUCED_READING_ENTRY_TIMINGS.FIRST_LANDING_LEAVE_MS : FIRST_LANDING_LEAVE_MS)
     } else {
+      if (!store.hasInitializedReadingMode) store.selectReadingMode('standard')
       timers.current.add(() => {
         enterReaderView(entryIntent)
       }, usesReducedTiming() ? REDUCED_READING_ENTRY_TIMINGS.RETURN_LANDING_LEAVE_MS : RETURN_LANDING_LEAVE_MS)
@@ -92,7 +93,8 @@ export function useReadingEntry(motionMode = 'full') {
     timers.current.add(() => {
       const store = useProgressStore.getState()
       store.setInitializedLanguage()
-      syncPhase('mode-active')
+      store.selectReadingMode('standard')
+      enterReaderView(intentRef.current || 'start')
     }, usesReducedTiming() ? REDUCED_READING_ENTRY_TIMINGS.LANG_LEAVING_MS : LANG_LEAVING_MS)
   }, [syncPhase, usesReducedTiming])
 

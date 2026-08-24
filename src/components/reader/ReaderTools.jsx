@@ -46,6 +46,7 @@ const LANGUAGE_SCRAMBLE_FRAME_MS = 67
 const FULL_WHEEL_STEP = 0.04
 const TOOLBAR_CLOSE_DELAY_MS = 120
 const CLOSED_PANELS = Object.freeze({ language: false, theme: false })
+const READER_MODE_SWITCH_ENABLED = false
 
 function initialLanguageSlots(language) {
   return READER_LANGUAGES.filter(item => item.code !== language)
@@ -66,6 +67,7 @@ function ReaderTools({
   locationId,
   locationLabel,
 }) {
+  const visibleReadingMode = 'standard'
   const [menuOpen, setMenuOpen] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [expandedPanels, setExpandedPanels] = useState(CLOSED_PANELS)
@@ -95,7 +97,7 @@ function ReaderTools({
   const languageSwapActiveRef = useRef(false)
   const settledLanguageRef = useRef(language)
   const timersRef = useRef(new Set())
-  const previousModeRef = useRef(readingMode)
+  const previousModeRef = useRef(visibleReadingMode)
   const displayedSceneRef = useRef({ locationId, locationLabel })
 
   const schedule = (callback, delay) => {
@@ -177,7 +179,7 @@ function ReaderTools({
     if (tool === 'language') releaseThemeFocus()
     setExpandedPanels(tool === 'language'
       ? { language: true, theme: false }
-      : tool === 'reading' && readingMode === 'standard'
+      : tool === 'reading' && visibleReadingMode === 'standard'
         ? { language: false, theme: true }
         : CLOSED_PANELS)
   }
@@ -209,15 +211,15 @@ function ReaderTools({
 
   useEffect(() => {
     const previousMode = previousModeRef.current
-    if (previousMode === readingMode) return
+    if (previousMode === visibleReadingMode) return
     setOutgoingMode(previousMode)
-    setModeTransition(`${previousMode}-to-${readingMode}`)
-    previousModeRef.current = readingMode
+    setModeTransition(`${previousMode}-to-${visibleReadingMode}`)
+    previousModeRef.current = visibleReadingMode
     schedule(() => {
       setOutgoingMode(null)
       setModeTransition(null)
     }, MODE_TRANSITION_MS)
-  }, [readingMode])
+  }, [visibleReadingMode])
 
   useEffect(() => {
     const previous = displayedSceneRef.current
@@ -301,7 +303,17 @@ function ReaderTools({
   const toggleMode = event => {
     if (modeTransition) return
     rememberPointerFocus(event)
-    const nextMode = readingMode === 'immersive' ? 'standard' : 'immersive'
+    if (!READER_MODE_SWITCH_ENABLED || visibleReadingMode === 'standard') {
+      cancelToolbarClose()
+      cancelPanelClose('language')
+      cancelPanelClose('theme')
+      setMenuOpen(true)
+      setHoveredTool('reading')
+      setExpandedPanels({ language: false, theme: true })
+      pointerRegionRef.current = 'reading'
+      return
+    }
+    const nextMode = visibleReadingMode === 'immersive' ? 'standard' : 'immersive'
     if (nextMode === 'immersive') releaseThemeFocus(true)
     setOutgoingMode(readingMode)
     setModeTransition(`${readingMode}-to-${nextMode}`)
@@ -324,7 +336,7 @@ function ReaderTools({
   }
 
   const handleModeHover = () => {
-    if (readingMode !== 'immersive' || modeTransition || clapping) return
+    if (visibleReadingMode !== 'immersive' || modeTransition || clapping) return
     setClapping(true)
     schedule(() => setClapping(false), 780)
   }
@@ -417,17 +429,15 @@ function ReaderTools({
 
   const languageOpen = expandedPanels.language || languageSwap !== null
   const ui = getReaderUi(language)
-  const modeLabel = readingMode === 'immersive' ? ui.immersiveNarrative : ui.standardReading
+  const modeLabel = ui.standardReading
   const activeThemeNode = nearestThemeNode(themePosition)
   const themeAtAnchor = themeName(themePosition)
   const activeThemeName = themeAtAnchor
     ? ({ 0: ui.bright, 0.5: ui.soft, 1: ui.night })[activeThemeNode]
     : ''
-  const themePillOpen = expandedPanels.theme || mobileOpen
+  const themePillOpen = expandedPanels.theme || mobileOpen || (visibleReadingMode === 'standard' && hoveredTool === 'reading')
   const toolbarOpen = menuOpen || mobileOpen || draggingTheme || languageSwap !== null
-  const standardControlsPresent = readingMode === 'standard'
-    || outgoingMode === 'standard'
-    || modeTransition === 'immersive-to-standard'
+  const standardControlsPresent = true
 
   return (
     <div
@@ -444,13 +454,13 @@ function ReaderTools({
       onFocusCapture={() => { cancelToolbarClose(); setMenuOpen(true) }}
       onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) scheduleToolbarClose() }}
     >
-      <div className={`reader-scene-menu-group reader-scene-menu-group--${readingMode}`}>
+      <div className={`reader-scene-menu-group reader-scene-menu-group--${visibleReadingMode}`}>
         <span className="reader-scene-menu-label" aria-live="polite">
           {sceneSwap && <span className="reader-scene-menu-label-layer is-outgoing">{sceneSwap.previous.locationLabel}</span>}
           <span className={`reader-scene-menu-label-layer${sceneSwap ? ' is-incoming' : ''}`}>{locationLabel}</span>
         </span>
         <button
-          className={`reader-menu-mark reader-menu-mark--${readingMode}${modeTransition ? ` is-switching is-${modeTransition}` : ''}`}
+          className={`reader-menu-mark reader-menu-mark--${visibleReadingMode}${modeTransition ? ` is-switching is-${modeTransition}` : ''}`}
           type="button"
           aria-label={ui.readerSettings}
           aria-expanded={toolbarOpen}
@@ -466,8 +476,8 @@ function ReaderTools({
             else setMenuOpen(true)
           }}
         >
-          <span className={`reader-menu-trigger-layer reader-menu-trigger-layer--incoming reader-menu-trigger-layer--${readingMode}`} aria-hidden="true">
-            {readingMode === 'standard'
+          <span className={`reader-menu-trigger-layer reader-menu-trigger-layer--incoming reader-menu-trigger-layer--${visibleReadingMode}`} aria-hidden="true">
+            {visibleReadingMode === 'standard'
               ? <span className="reader-menu-bars"><i /><i /></span>
               : (
               <span className="reader-menu-scene-layers" aria-hidden="true">
@@ -556,31 +566,31 @@ function ReaderTools({
           onFocus={() => { setModeHintVisible(true); setActiveTool('reading') }}
         >
           <div className="reader-tool-row">
-            {readingMode === 'immersive' && <span className={`reader-tool-status reader-mode-status${modeHintVisible ? ' is-visible' : ''}`} role="status">{modeLabel}</span>}
+            {visibleReadingMode === 'immersive' && <span className={`reader-tool-status reader-mode-status${modeHintVisible ? ' is-visible' : ''}`} role="status">{modeLabel}</span>}
             <div className="reader-mode-anchor">
               <button
                 ref={modeButtonRef}
-                className={`reader-corner-item reader-mode-tool reader-mode-tool--${readingMode}${modeTransition ? ` is-switching is-${modeTransition}` : ''}${clapping ? ' is-clapping' : ''}`}
+                className={`reader-corner-item reader-mode-tool reader-mode-tool--${visibleReadingMode}${modeTransition ? ` is-switching is-${modeTransition}` : ''}${clapping ? ' is-clapping' : ''}`}
                 type="button"
                 role="menuitem"
                 onMouseEnter={handleModeHover}
                 onClick={toggleMode}
                 aria-label={modeLabel}
               >
-                <span className="reader-mode-icon-layer reader-mode-icon-layer--incoming"><ReadingModeIcon mode={readingMode} /></span>
+                <span className="reader-mode-icon-layer reader-mode-icon-layer--incoming"><ReadingModeIcon mode={visibleReadingMode} /></span>
                 {outgoingMode && <span className="reader-mode-icon-layer reader-mode-icon-layer--outgoing"><ReadingModeIcon mode={outgoingMode} /></span>}
               </button>
               {standardControlsPresent && (
                 <div
                   ref={themeDockRef}
-                  className={`reader-theme-dock${readingMode === 'standard' && themePillOpen ? ' is-open' : ''}${modeTransition === 'immersive-to-standard' ? ' is-mode-entering' : ''}${modeTransition === 'standard-to-immersive' ? ' is-mode-leaving' : ''}`}
-                  aria-hidden={readingMode !== 'standard' || !themePillOpen}
+                  className={`reader-theme-dock${visibleReadingMode === 'standard' && themePillOpen ? ' is-open' : ''}${modeTransition === 'immersive-to-standard' ? ' is-mode-entering' : ''}${modeTransition === 'standard-to-immersive' ? ' is-mode-leaving' : ''}`}
+                  aria-hidden={visibleReadingMode !== 'standard' || !themePillOpen}
                 >
                   {activeThemeName && <span key={activeThemeNode} className="reader-theme-name" style={{ '--theme-node': activeThemeNode }} aria-hidden="true">{activeThemeName}</span>}
                   <div
                     className={`reader-theme-pill reader-theme-pill--${motionMode}${draggingTheme ? ' is-dragging' : ''}`}
                     role="slider"
-                    tabIndex={readingMode === 'standard' && themePillOpen ? 0 : -1}
+                    tabIndex={visibleReadingMode === 'standard' && themePillOpen ? 0 : -1}
                     aria-label={ui.standardTheme}
                     aria-valuemin="0"
                     aria-valuemax="1"

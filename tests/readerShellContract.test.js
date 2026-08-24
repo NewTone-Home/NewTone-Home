@@ -28,18 +28,20 @@ const updatesPage = read('../src/components/LandingUpdatesPage.jsx')
 const updatesCss = read('../src/components/LandingUpdatesPage.css')
 
 describe('Reader shell contract boundaries', () => {
-  it('keeps Reader shell, tools, progress and environment layers mounted', () => {
+  it('keeps Reader shell and environment layers mounted while retaining progress data for later UI work', () => {
     expect(stage).toContain('<ReaderPrecipitation />')
-    expect(stage).toContain('<ReaderTraceProgress')
-    expect(stage).toContain('const returnVisible = emptyDocument || isFinalReaderBeat(focusBeatIndex, beats)')
+    expect(stage).toContain("const visibleReadingMode = 'standard'")
+    expect(stage).toContain("{visibleReadingMode === 'immersive' && (")
+    expect(stage).not.toContain('<ReaderTraceProgress')
+    expect(stage).toContain('sceneBoundaryRanges = []')
+    expect(stage).toContain('sceneBoundaryControlRef={returnControlRef}')
     expect(stage).toContain('<ReaderTools')
     expect(stageCss).toContain('.reader-stage-page--standard .reader-stage-beat')
     expect(contractCss).toContain('.reader-stage-page--standard .reader-environment-light')
   })
 
-  it('keeps the final-beat source singular', () => {
-    expect(stage).toContain("import { isFinalReaderBeat } from '../reader/readerPosition'")
-    expect(stage).toContain('isFinalReaderBeat(focusBeatIndex, beats)')
+  it('keeps the continuous flow and whole-reader boundary source singular', () => {
+    expect(stage).toContain('alwaysVisible={emptyDocument || finalReaderBeat}')
     expect(stage).toContain('mobile={directReaderInput}')
     expect(stage).toContain('worldLayer={environmentState.worldLayer}')
     expect(stage).not.toContain('window.addEventListener')
@@ -56,6 +58,15 @@ describe('Reader shell contract boundaries', () => {
     expect(stage).toContain('atBottom = false')
     expect(stage).toContain("onNativeBoundary?.('forward')")
     expect(beatStack).toContain('onViewportBoundaryChange?.({')
+    expect(beatStack).toContain('data-native-scroll="true"')
+    expect(beatStack).toContain('isSceneBoundaryReturnVisible(nextFocusBeatIndex, sceneBoundaryRanges)')
+    expect(beatStack).toContain('setBoundaryVisible(nextVisible)')
+    expect(beatStack).toContain('data-scene-boundary-after')
+    expect(beatStack).toContain("data-scene-transition-flow=\"fixed-gap\"")
+    expect(stageCss).toContain('data-scene-boundary-after="true"')
+    expect(beatStack).not.toContain('READER_FLOW_TRANSITION_MS')
+    expect(beatStack).not.toContain('scrollend')
+    expect(stageCss).not.toContain('reader-scene-continue-cue')
   })
 
   it('uses one shared click group for language and reading mode', () => {
@@ -82,6 +93,7 @@ describe('Reader shell contract boundaries', () => {
     expect(transition).toContain('data-selector-entries-leaving={entriesLeaving ? \'true\' : \'false\'}')
     expect(transition).toContain('onActionStart={handleEntryActionStart}')
     expect(transition).toContain('visible={!leaving && !entriesLeaving}')
+    expect(transition).toContain("if (['language-active', 'language-leaving'].includes(phase))")
     expect(transition).toContain('}, [currentStage.id])')
     expect(transition).not.toContain('}, [currentStage.id, leaving, modeStage])')
     expect(languageWheel).toContain("openSelector('hover')")
@@ -111,6 +123,8 @@ describe('Reader shell contract boundaries', () => {
     expect(readingEntryController).toContain('const transitionReadyRef = useRef(false)')
     expect(readingEntryController).toContain('const maybeLeaveReader = useCallback')
     expect(readingEntryController).toContain('const handleTransitionReady = useCallback')
+    expect(readingEntryController).toContain("store.selectReadingMode('standard')")
+    expect(readingEntryController).toContain("enterReaderView(intentRef.current || 'start')")
     expect(readingEntryController).toContain("recordRuntimeAudit('reader-ready'")
     expect(readingEntryController).toContain("recordRuntimeAudit('reader-transition-ready'")
     expect(readingEntryController).not.toContain('MIN_READER_MS')
@@ -127,6 +141,8 @@ describe('Reader shell contract boundaries', () => {
     expect(transition).toContain("const roadParallaxEnabled = phase === 'reader-preparing' || phase === 'transition-leaving'")
     expect(transition).toContain('ref={transitionRootRef}')
     expect(transition).toContain('reading-transition-resume-background')
+    expect(transition).toContain('environmentLines.length > 0')
+    expect(transition).not.toContain("readingMode === 'immersive' && (")
     expect(transition).toContain('reading-transition-resume-foreground')
     expect(transitionCss).toContain('.reading-transition-resume-background')
     expect(transitionCss).toContain('var(--scene-parallax-back-x, 0)')
@@ -206,6 +222,7 @@ describe('Reader shell contract boundaries', () => {
       { locationId: 'inner-commercial-street', firstBeatIndex: 2, lastBeatIndex: 2, state: 'future' },
     ])
     expect(progress).toContain('getPageSceneTrail(beats, focusBeatIndex)')
+    expect(progress).toContain('getReaderProgressPercentage(progress)')
     expect(progress).toContain('Math.round((1 - visualProgress) * 100)')
     expect(progress).toContain('reader-reading-percent-value')
     expect(progress).not.toContain('pointedPercentage')
