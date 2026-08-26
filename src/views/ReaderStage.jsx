@@ -4,6 +4,7 @@ import ReaderSceneTransition from '../components/reader/ReaderSceneTransition'
 import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
 import ReaderTools from '../components/reader/ReaderTools'
 import ReaderReturnControl from '../components/reader/ReaderReturnControl'
+import ReaderStatusBar from '../components/reader/ReaderStatusBar'
 import { resolveReaderEnvironmentPreview } from '../data/reader-experiments/readerEnvironmentPreview'
 import { getReaderSceneLabel } from '../i18n/readerUi'
 import { preventReaderShortcut, preventReaderTransfer } from '../reader/readerCopyProtection'
@@ -66,6 +67,7 @@ function ReaderStage({
   const sceneStateName = sceneState.sceneState ?? 'normal'
   const nativeEnvironmentState = beats[focusBeatIndex]?.worldState
   const environmentState = nativeEnvironmentState ?? EMPTY_READER_ENVIRONMENT
+  const sceneEnvironmentState = scene?.beats?.[0]?.worldState ?? environmentState
   const environmentVisual = resolveReaderEnvironmentPreview(environmentState)
   const immersiveStyle = environmentVisual.style
   const stageStyle = visibleReadingMode === 'standard'
@@ -147,7 +149,9 @@ function ReaderStage({
           onThemePosition={onThemePosition}
           locationId={environmentState.locationId}
           locationLabel={locationLabel}
+          showLocationLabel={false}
         />
+        {!emptyDocument && <ReaderStatusBar language={language} state={sceneEnvironmentState} />}
         {!emptyDocument && (
           <ReaderSceneTransition
             sceneId={scene?.id}
