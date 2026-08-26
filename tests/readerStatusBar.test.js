@@ -29,4 +29,11 @@ describe('ReaderStatusBar', () => {
     expect(html).toContain('Morning')
     expect(html).toContain('Clear')
   })
+
+  it('keeps the status bar mounted but hidden when the reader has no document', () => {
+    const html = renderToStaticMarkup(createElement(ReaderStatusBar, { language: 'zh', state, visible: false }))
+    expect(html).toContain('data-reader-status-visible="false"')
+    expect(html).toContain('aria-hidden="true"')
+    expect(html).toContain('is-hidden')
+  })
 })
