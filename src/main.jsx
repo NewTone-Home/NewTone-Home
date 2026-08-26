@@ -8,6 +8,7 @@ import StagingResetControl from './components/StagingResetControl.jsx'
 import { installDwellTracking } from './services/analytics'
 import { loadPublishedContent } from './services/publishedContent'
 import { detectBrowserReaderLanguage } from './i18n/languages'
+import CenterCafeDemo from './center/cafeDemo/CafeDemo.jsx'
 
 function LoadingShell() {
   const language = detectBrowserReaderLanguage(navigator.languages || [navigator.language])
@@ -27,11 +28,13 @@ function PublicRoot() {
 function Root() {
   const [AdminApp, setAdminApp] = useState(null)
   const adminRoute = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')
+  const centerCafeDemoRoute = window.location.pathname === '/center/cafe-demo'
   useEffect(() => {
     const removeTracking = installDwellTracking()
     if (adminRoute) import('./admin/AdminApp.jsx').then(module => setAdminApp(() => module.default))
     return removeTracking
   }, [adminRoute])
+  if (centerCafeDemoRoute) return <CenterCafeDemo />
   if (adminRoute) return AdminApp ? <AdminApp /> : <LoadingShell />
   return <PublicRoot />
 }
