@@ -4,7 +4,7 @@ import { getReaderEnvironmentStatus, getReaderSceneLabel } from '../../i18n/read
 import './ReaderStatusBar.css'
 
 const STATUS_FIELDS = Object.freeze(['world', 'location', 'time', 'weather'])
-const STATUS_FIELD_ANIMATION_MS = 680
+const STATUS_FIELD_ANIMATION_MS = 1100
 const STATUS_BAR_ENTER_MS = 700
 const STATUS_BAR_EXIT_MS = 560
 

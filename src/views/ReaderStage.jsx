@@ -100,7 +100,7 @@ function ReaderStage({
       <ReaderStatusBar
         language={language}
         state={sceneEnvironmentState}
-        visible={!emptyDocument && !returningToLanding}
+        visible={!emptyDocument && !returningToLanding && readerEntryHandoffPhase === 'idle'}
         style={stageStyle}
       />
       <main

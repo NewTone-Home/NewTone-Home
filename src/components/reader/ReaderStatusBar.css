@@ -57,7 +57,7 @@
 }
 
 .reader-status-bar__item.is-changing .reader-status-bar__value {
-  animation: reader-status-bar-field-flip 680ms cubic-bezier(.2, .8, .2, 1) both;
+  animation: reader-status-bar-field-flip 1100ms cubic-bezier(.2, .8, .2, 1) both;
 }
 
 .reader-status-bar__world,
