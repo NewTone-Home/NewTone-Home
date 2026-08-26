@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { getReaderEnvironmentStatus, getReaderSceneLabel } from '../../i18n/readerUi'
 import './ReaderStatusBar.css'
 
@@ -7,7 +8,7 @@ const STATUS_FIELD_ANIMATION_MS = 680
 const STATUS_BAR_ENTER_MS = 700
 const STATUS_BAR_EXIT_MS = 560
 
-function ReaderStatusBar({ language, state, visible = true }) {
+function ReaderStatusBar({ language, state, visible = true, style }) {
   const status = getReaderEnvironmentStatus(language, state)
   const location = getReaderSceneLabel(
     language,
@@ -97,12 +98,13 @@ function ReaderStatusBar({ language, state, visible = true }) {
     </span>
   )
 
-  return (
+  const statusBar = (
     <div
       className={`reader-status-bar is-${presencePhase}`}
       role="status"
       aria-live="polite"
       aria-hidden={!visible}
+      style={style}
       aria-label={`${values.world}, ${values.location}, ${values.time}, ${values.weather}`}
       data-reader-status-world={state.worldLayer}
       data-reader-status-location={state.locationId}
@@ -113,6 +115,8 @@ function ReaderStatusBar({ language, state, visible = true }) {
       {renderContent(values, true)}
     </div>
   )
+
+  return typeof document === 'undefined' ? statusBar : createPortal(statusBar, document.body)
 }
 
 export default memo(ReaderStatusBar)
