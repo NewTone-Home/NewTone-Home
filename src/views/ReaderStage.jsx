@@ -151,7 +151,7 @@ function ReaderStage({
           locationLabel={locationLabel}
           showLocationLabel={false}
         />
-        <ReaderStatusBar language={language} state={sceneEnvironmentState} visible={!emptyDocument} />
+        <ReaderStatusBar language={language} state={sceneEnvironmentState} visible={!emptyDocument && !returningToLanding} />
         {!emptyDocument && (
           <ReaderSceneTransition
             sceneId={scene?.id}

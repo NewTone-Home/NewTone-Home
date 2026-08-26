@@ -6,7 +6,6 @@ const STATUS_FIELDS = Object.freeze(['world', 'location', 'time', 'weather'])
 const STATUS_FIELD_ANIMATION_MS = 680
 const STATUS_BAR_ENTER_MS = 700
 const STATUS_BAR_EXIT_MS = 560
-const STATUS_BAR_SWITCH_MS = 720
 
 function ReaderStatusBar({ language, state, visible = true }) {
   const status = getReaderEnvironmentStatus(language, state)
@@ -23,11 +22,8 @@ function ReaderStatusBar({ language, state, visible = true }) {
   }
   const previousValuesRef = useRef(values)
   const fieldTimersRef = useRef(new Map())
-  const transitionTimerRef = useRef(null)
-  const transitionIdRef = useRef(0)
   const presenceInitializedRef = useRef(false)
   const [changingFields, setChangingFields] = useState(() => new Set())
-  const [contentTransition, setContentTransition] = useState(null)
   const [presencePhase, setPresencePhase] = useState(() => (visible ? 'entering' : 'hidden'))
 
   useEffect(() => {
@@ -35,18 +31,6 @@ function ReaderStatusBar({ language, state, visible = true }) {
     const changedFields = STATUS_FIELDS.filter(field => previousValues[field] !== values[field])
     previousValuesRef.current = values
     if (!changedFields.length) return undefined
-
-    transitionIdRef.current += 1
-    setContentTransition({
-      id: transitionIdRef.current,
-      previous: previousValues,
-      next: values,
-    })
-    if (transitionTimerRef.current) window.clearTimeout(transitionTimerRef.current)
-    transitionTimerRef.current = window.setTimeout(() => {
-      setContentTransition(null)
-      transitionTimerRef.current = null
-    }, STATUS_BAR_SWITCH_MS)
 
     setChangingFields(current => {
       const next = new Set(current)
@@ -75,7 +59,6 @@ function ReaderStatusBar({ language, state, visible = true }) {
   useEffect(() => () => {
     fieldTimersRef.current.forEach(timer => window.clearTimeout(timer))
     fieldTimersRef.current.clear()
-    if (transitionTimerRef.current) window.clearTimeout(transitionTimerRef.current)
   }, [])
 
   useEffect(() => {
@@ -100,11 +83,9 @@ function ReaderStatusBar({ language, state, visible = true }) {
     </span>
   )
 
-  const renderContent = (fieldValues, layer = '', animate = false) => (
+  const renderContent = (fieldValues, animate = false) => (
     <span
-      key={layer ? `${layer}:${contentTransition?.id}` : 'current'}
-      className={`reader-status-bar__content${layer ? ` reader-status-bar__content--${layer}` : ''}`}
-      aria-hidden={layer === 'outgoing' ? 'true' : undefined}
+      className="reader-status-bar__content"
     >
       {renderField('world', fieldValues, 'reader-status-bar__world', undefined, animate)}
       <span className="reader-status-bar__divider" aria-hidden="true">|</span>
@@ -118,7 +99,7 @@ function ReaderStatusBar({ language, state, visible = true }) {
 
   return (
     <div
-      className={`reader-status-bar is-${presencePhase}${contentTransition ? ' is-switching' : ''}`}
+      className={`reader-status-bar is-${presencePhase}`}
       role="status"
       aria-live="polite"
       aria-hidden={!visible}
@@ -129,12 +110,7 @@ function ReaderStatusBar({ language, state, visible = true }) {
       data-reader-status-weather={state.weather}
       data-reader-status-visible={visible ? 'true' : 'false'}
     >
-      {contentTransition
-        ? <>
-          {renderContent(contentTransition.previous, 'outgoing')}
-          {renderContent(contentTransition.next, 'incoming', true)}
-        </>
-        : renderContent(values)}
+      {renderContent(values, true)}
     </div>
   )
 }
