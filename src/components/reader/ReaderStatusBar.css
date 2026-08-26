@@ -14,7 +14,7 @@
   letter-spacing: .08em;
   line-height: 1;
   pointer-events: none;
-  opacity: 0;
+  opacity: 1;
   transform: translateX(100%);
   visibility: hidden;
   white-space: nowrap;
@@ -25,7 +25,7 @@
 .reader-status-bar.is-exiting { visibility: visible; }
 
 .reader-status-bar.is-entering {
-  animation: reader-status-bar-enter 420ms cubic-bezier(.2, .8, .2, 1) both;
+  animation: reader-status-bar-enter 700ms cubic-bezier(.2, .8, .2, 1) both;
 }
 
 .reader-status-bar.is-visible {
@@ -34,7 +34,7 @@
 }
 
 .reader-status-bar.is-exiting {
-  animation: reader-status-bar-exit 320ms cubic-bezier(.4, 0, .8, .2) both;
+  animation: reader-status-bar-exit 560ms cubic-bezier(.4, 0, .8, .2) both;
 }
 
 .reader-status-bar__content {
@@ -92,20 +92,20 @@
   }
   .reader-status-bar.is-exiting {
     animation: none;
-    opacity: 0;
+    opacity: 1;
     transform: translateX(-100%);
   }
   .reader-status-bar__item.is-changing .reader-status-bar__value { animation: none; }
 }
 
 @keyframes reader-status-bar-enter {
-  from { opacity: 0; transform: translateX(100%); }
-  to { opacity: 1; transform: translateX(0); }
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
 }
 
 @keyframes reader-status-bar-exit {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(-100%); }
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
 }
 
 @keyframes reader-status-bar-field-flip {
