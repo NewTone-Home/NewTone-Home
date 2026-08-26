@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ReaderBeatStack from '../components/reader/ReaderBeatStack'
 import ReaderSceneTransition from '../components/reader/ReaderSceneTransition'
 import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
@@ -63,6 +63,10 @@ function ReaderStage({
   const visibleReadingMode = 'standard'
   const nativeBoundaryLockRef = useRef(null)
   const returnControlRef = useRef(null)
+  const readerHandoffWasActiveRef = useRef(readerEntryHandoffPhase !== 'idle')
+  const [readerStatusPhase, setReaderStatusPhase] = useState(() => (
+    readerEntryHandoffPhase === 'idle' && !returningToLanding ? 'entering' : 'hidden'
+  ))
   const sceneState = beats[focusBeatIndex]?.sceneState ?? {}
   const sceneStateName = sceneState.sceneState ?? 'normal'
   const nativeEnvironmentState = beats[focusBeatIndex]?.worldState
@@ -95,14 +99,28 @@ function ReaderStage({
     }
   }, [onNativeBoundary])
 
+  useEffect(() => {
+    if (returningToLanding) {
+      setReaderStatusPhase(current => current === 'hidden' ? 'hidden' : 'exiting')
+      return
+    }
+
+    if (readerEntryHandoffPhase !== 'idle') {
+      readerHandoffWasActiveRef.current = true
+      setReaderStatusPhase('hidden')
+    }
+  }, [readerEntryHandoffPhase, returningToLanding])
+
+  const handleReaderPresentationTransitionEnd = useCallback((event) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'opacity') return
+    if (returningToLanding || readerEntryHandoffPhase !== 'idle' || !readerHandoffWasActiveRef.current) return
+
+    readerHandoffWasActiveRef.current = false
+    setReaderStatusPhase('entering')
+  }, [readerEntryHandoffPhase, returningToLanding])
+
   return (
     <>
-      <ReaderStatusBar
-        language={language}
-        state={sceneEnvironmentState}
-        visible={!emptyDocument && !returningToLanding && readerEntryHandoffPhase === 'idle'}
-        style={stageStyle}
-      />
       <main
         className={`reader-stage-page paper-surface reader-stage-page--${visibleReadingMode} reader-stage-page--theme-${standardTheme} reader-stage-page--motion-${motionMode}${returningToLanding ? ' reader-stage-page--returning' : ''}`}
         style={stageStyle}
@@ -123,12 +141,18 @@ function ReaderStage({
         data-environment-preview="chapter"
         data-auto-visual={autoVisual || 'idle'}
         data-copy-protected="true"
+        onTransitionEnd={handleReaderPresentationTransitionEnd}
         onCopyCapture={preventReaderTransfer}
         onCutCapture={preventReaderTransfer}
         onContextMenu={preventReaderTransfer}
         onDragStartCapture={preventReaderTransfer}
         onKeyDownCapture={preventReaderShortcut}
       >
+      <ReaderStatusBar
+        language={language}
+        state={sceneEnvironmentState}
+        lifecyclePhase={emptyDocument ? 'hidden' : readerStatusPhase}
+      />
       <section
         ref={rootRef}
         className="reader-stage"

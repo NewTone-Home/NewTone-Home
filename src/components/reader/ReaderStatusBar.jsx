@@ -1,14 +1,12 @@
 import { memo, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { getReaderEnvironmentStatus, getReaderSceneLabel } from '../../i18n/readerUi'
 import './ReaderStatusBar.css'
 
 const STATUS_FIELDS = Object.freeze(['world', 'location', 'time', 'weather'])
-const STATUS_FIELD_ANIMATION_MS = 1100
-const STATUS_BAR_ENTER_MS = 700
-const STATUS_BAR_EXIT_MS = 560
+const STATUS_FIELD_ANIMATION_MS = 1200
 
-function ReaderStatusBar({ language, state, visible = true, style }) {
+function ReaderStatusBar({ language, state, lifecyclePhase = 'visible', visible }) {
+  const resolvedLifecyclePhase = visible === false ? 'hidden' : lifecyclePhase
   const status = getReaderEnvironmentStatus(language, state)
   const location = getReaderSceneLabel(
     language,
@@ -23,9 +21,8 @@ function ReaderStatusBar({ language, state, visible = true, style }) {
   }
   const previousValuesRef = useRef(values)
   const fieldTimersRef = useRef(new Map())
-  const presenceInitializedRef = useRef(false)
-  const [changingFields, setChangingFields] = useState(() => new Set())
-  const [presencePhase, setPresencePhase] = useState(() => (visible ? 'entering' : 'hidden'))
+  const transitionSequenceRef = useRef(0)
+  const [fieldTransitions, setFieldTransitions] = useState(() => new Map())
 
   useEffect(() => {
     const previousValues = previousValuesRef.current
@@ -33,19 +30,30 @@ function ReaderStatusBar({ language, state, visible = true, style }) {
     previousValuesRef.current = values
     if (!changedFields.length) return undefined
 
-    setChangingFields(current => {
-      const next = new Set(current)
-      changedFields.forEach(field => next.add(field))
+    const changedTransitions = new Map()
+    changedFields.forEach(field => {
+      transitionSequenceRef.current += 1
+      changedTransitions.set(field, {
+        from: previousValues[field],
+        to: values[field],
+        key: `${field}:${transitionSequenceRef.current}`,
+      })
+    })
+
+    setFieldTransitions(current => {
+      const next = new Map(current)
+      changedTransitions.forEach((transition, field) => next.set(field, transition))
       return next
     })
 
     changedFields.forEach(field => {
       const previousTimer = fieldTimersRef.current.get(field)
       if (previousTimer) window.clearTimeout(previousTimer)
+      const transitionKey = changedTransitions.get(field).key
       const timer = window.setTimeout(() => {
-        setChangingFields(current => {
-          if (!current.has(field)) return current
-          const next = new Set(current)
+        setFieldTransitions(current => {
+          if (current.get(field)?.key !== transitionKey) return current
+          const next = new Map(current)
           next.delete(field)
           return next
         })
@@ -62,61 +70,64 @@ function ReaderStatusBar({ language, state, visible = true, style }) {
     fieldTimersRef.current.clear()
   }, [])
 
-  useEffect(() => {
-    if (!visible && !presenceInitializedRef.current) {
-      presenceInitializedRef.current = true
-      return undefined
-    }
-    presenceInitializedRef.current = true
-    const duration = visible ? STATUS_BAR_ENTER_MS : STATUS_BAR_EXIT_MS
-    setPresencePhase(visible ? 'entering' : 'exiting')
-    const timer = window.setTimeout(() => setPresencePhase(visible ? 'visible' : 'hidden'), duration)
-    return () => window.clearTimeout(timer)
-  }, [visible])
+  const renderField = (field, fieldValues, className = '', title) => {
+    const transition = fieldTransitions.get(field)
 
-  const renderField = (field, fieldValues, className = '', title, animate = false) => (
+    return (
     <span
-      key={`${field}:${fieldValues[field]}`}
-      className={`reader-status-bar__item${className ? ` ${className}` : ''}${animate && changingFields.has(field) ? ' is-changing' : ''}`}
+      key={field}
+      className={`reader-status-bar__item${className ? ` ${className}` : ''}`}
       title={title}
     >
-      <span className="reader-status-bar__value">{fieldValues[field]}</span>
+      {transition ? (
+        <span className="reader-status-bar__flip" key={transition.key}>
+          <span className="reader-status-bar__value reader-status-bar__value--old" aria-hidden="true">
+            {transition.from}
+          </span>
+          <span className="reader-status-bar__value reader-status-bar__value--new">
+            {transition.to}
+          </span>
+        </span>
+      ) : (
+        <span className="reader-status-bar__value">{fieldValues[field]}</span>
+      )}
     </span>
-  )
+    )
+  }
 
-  const renderContent = (fieldValues, animate = false) => (
+  const renderContent = (fieldValues) => (
     <span
       className="reader-status-bar__content"
     >
-      {renderField('world', fieldValues, 'reader-status-bar__world', undefined, animate)}
+      {renderField('world', fieldValues, 'reader-status-bar__world')}
       <span className="reader-status-bar__divider" aria-hidden="true">|</span>
-      {renderField('location', fieldValues, 'reader-status-bar__location', fieldValues.location, animate)}
+      {renderField('location', fieldValues, 'reader-status-bar__location', fieldValues.location)}
       <span className="reader-status-bar__divider" aria-hidden="true">|</span>
-      {renderField('time', fieldValues, '', undefined, animate)}
+      {renderField('time', fieldValues)}
       <span className="reader-status-bar__divider" aria-hidden="true">|</span>
-      {renderField('weather', fieldValues, '', undefined, animate)}
+      {renderField('weather', fieldValues)}
     </span>
   )
 
   const statusBar = (
     <div
-      className={`reader-status-bar is-${presencePhase}`}
+      className={`reader-status-bar is-${resolvedLifecyclePhase}`}
       role="status"
       aria-live="polite"
-      aria-hidden={!visible}
-      style={style}
+      aria-hidden={resolvedLifecyclePhase === 'hidden'}
       aria-label={`${values.world}, ${values.location}, ${values.time}, ${values.weather}`}
       data-reader-status-world={state.worldLayer}
       data-reader-status-location={state.locationId}
       data-reader-status-time={state.time}
       data-reader-status-weather={state.weather}
-      data-reader-status-visible={visible ? 'true' : 'false'}
+      data-reader-status-phase={resolvedLifecyclePhase}
+      data-reader-status-visible={resolvedLifecyclePhase === 'hidden' ? 'false' : 'true'}
     >
-      {renderContent(values, true)}
+      {renderContent(values)}
     </div>
   )
 
-  return typeof document === 'undefined' ? statusBar : createPortal(statusBar, document.body)
+  return statusBar
 }
 
 export default memo(ReaderStatusBar)

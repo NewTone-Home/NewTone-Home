@@ -1,5 +1,5 @@
 .reader-status-bar {
-  position: fixed;
+  position: absolute;
   z-index: 10;
   top: max(24px, env(safe-area-inset-top));
   right: max(92px, calc(env(safe-area-inset-right) + 76px));
@@ -17,6 +17,7 @@
   opacity: 1;
   transform: translateX(100%);
   visibility: hidden;
+  will-change: transform;
   white-space: nowrap;
 }
 
@@ -56,8 +57,26 @@
   transform-origin: center;
 }
 
-.reader-status-bar__item.is-changing .reader-status-bar__value {
-  animation: reader-status-bar-field-flip 1100ms cubic-bezier(.2, .8, .2, 1) both;
+.reader-status-bar__flip {
+  display: inline-grid;
+  min-width: max-content;
+  overflow: hidden;
+  perspective: 420px;
+  vertical-align: baseline;
+}
+
+.reader-status-bar__flip > .reader-status-bar__value {
+  grid-area: 1 / 1;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+.reader-status-bar__value--old {
+  animation: reader-status-bar-field-flip-out 1200ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.reader-status-bar__value--new {
+  animation: reader-status-bar-field-flip-in 1200ms cubic-bezier(.2, .8, .2, 1) both;
 }
 
 .reader-status-bar__world,
@@ -95,7 +114,8 @@
     opacity: 1;
     transform: translateX(-100%);
   }
-  .reader-status-bar__item.is-changing .reader-status-bar__value { animation: none; }
+  .reader-status-bar__value--old,
+  .reader-status-bar__value--new { animation: none; }
 }
 
 @keyframes reader-status-bar-enter {
@@ -108,8 +128,12 @@
   to { transform: translateX(-100%); }
 }
 
-@keyframes reader-status-bar-field-flip {
-  0% { opacity: 0; transform: perspective(160px) rotateX(-90deg) translateY(3px); }
-  55% { opacity: 1; transform: perspective(160px) rotateX(12deg) translateY(-1px); }
-  100% { opacity: 1; transform: perspective(160px) rotateX(0) translateY(0); }
+@keyframes reader-status-bar-field-flip-out {
+  0%, 38% { opacity: 1; transform: rotateX(0deg) translateY(0); }
+  68%, 100% { opacity: 0; transform: rotateX(88deg) translateY(-35%); }
+}
+
+@keyframes reader-status-bar-field-flip-in {
+  0%, 32% { opacity: 0; transform: rotateX(-88deg) translateY(35%); }
+  62%, 100% { opacity: 1; transform: rotateX(0deg) translateY(0); }
 }
