@@ -4,7 +4,6 @@ import { WorldPhone } from './runtime/WorldPhone'
 import {
   mainlineRespawnSceneId,
   mainlineSceneRoute,
-  resolveMainlineSceneId,
 } from './runtime/mainlineScenes'
 import {
   phoneRideAvailability,
@@ -21,17 +20,12 @@ import './CenterExperience.css'
 
 const initialSceneId = mainlineRespawnSceneId
 
-function readSceneFromLocation() {
-  const sceneId = resolveMainlineSceneId(window.location.search)
-  return sceneId || initialSceneId
-}
-
 function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
   return { sceneId, entryPosition, spawnMode }
 }
 
 export default function CenterExperience() {
-  const [route, setRoute] = useState(() => createRoute(readSceneFromLocation()))
+  const [route, setRoute] = useState(() => createRoute(initialSceneId))
   const [phoneOpen, setPhoneOpen] = useState(false)
   const [phoneDevice, setPhoneDevice] = useState(() => loadCarriedPhoneDevice(route.sceneId))
   const [resumeSceneId, setResumeSceneId] = useState(null)
