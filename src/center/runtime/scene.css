@@ -1584,7 +1584,7 @@
     font-size: clamp(9px, 1.15vmin, 16px);
   }
   .scene-mainline-echo { max-width: min(76%, 330px); max-height: 38%; padding: 6px 8px 5px; }
-  .scene-mainline-echo { font-size: 13px; }
+  .scene-mainline-echo { font-size: 12px; line-height: 1.5; }
   .mainline-scene--map-only .scene-feedback--overlay { max-width: calc(100% - 24px); padding: 5px 8px; }
 }
 
