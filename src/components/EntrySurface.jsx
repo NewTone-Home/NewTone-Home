@@ -20,6 +20,7 @@ function EntrySurface({
   surfaceStyle,
   environmentState,
   landingHandoff = false,
+  worldMode = false,
   onEnter,
   onProceed,
   onModeSelect,
@@ -68,6 +69,7 @@ function EntrySurface({
         surfaceStyle={surfaceStyle}
         readingMode={readingMode}
         environmentState={environmentState}
+        worldMode={worldMode}
       />
 
       <LandingUpdatesPage

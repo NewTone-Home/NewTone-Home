@@ -1,0 +1,26 @@
+.center-experience {
+  min-height: 100dvh;
+  background: #050505;
+}
+
+.center-experience__boundary {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 120;
+  max-width: min(360px, calc(100vw - 36px));
+  padding: 8px 11px;
+  border: 1px solid rgba(140, 226, 208, .72);
+  background: rgba(7, 16, 24, .94);
+  color: #8ce2d0;
+  font: 12px/1.5 "Courier New", "Noto Sans Mono CJK SC", monospace;
+}
+
+@media (max-width: 600px) {
+  .center-experience__boundary {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    max-width: none;
+  }
+}

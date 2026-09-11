@@ -29,6 +29,7 @@ function Landing({
   readingMode,
   environmentState,
   updatesPhase,
+  worldMode = false,
 }) {
   const language = useProgressStore(s => s.language)
   const hasInitializedLanguage = useProgressStore(s => s.hasInitializedLanguage)
@@ -133,21 +134,31 @@ function Landing({
     ? language
     : detectBrowserReaderLanguage(navigator.languages || [navigator.language])
   const readerEntryId = hasProgress ? 'reader-continue' : 'reader-start'
-  const landingEntries = useMemo(() => ([
-    {
+  const landingEntries = useMemo(() => {
+    const entries = [{
       id: 'updates',
       label: copy[landingLanguage]?.updates || (landingLanguage === 'zh' ? '更新公告' : 'Updates'),
       materialMode: 'background',
-    },
-    {
+    }]
+    if (worldMode) {
+      entries.push({
+        id: 'world',
+        label: '进入世界',
+        materialMode: 'world',
+        worldLayer: environmentState.worldLayer,
+      })
+      return entries
+    }
+    entries.push({
       id: readerEntryId,
       label: hasProgress
         ? (copy[landingLanguage]?.continueReading || copy[landingLanguage]?.transitionResume)
         : copy[landingLanguage]?.transitionStart,
       materialMode: hasProgress ? 'world' : 'background',
       worldLayer: environmentState.worldLayer,
-    },
-  ]), [environmentState.worldLayer, hasProgress, landingLanguage, readerEntryId])
+    })
+    return entries
+  }, [environmentState.worldLayer, hasProgress, landingLanguage, readerEntryId, worldMode])
   const returnStatusBase = copy[landingLanguage]?.transitionReturn
     || copy[landingLanguage]?.backToLanding
     || copy.zh.transitionReturn
@@ -160,9 +171,13 @@ function Landing({
       onEnterUpdates?.()
       return
     }
+    if (entryId === 'world' && worldMode) {
+      onEnter?.()
+      return
+    }
     const state = useProgressStore.getState()
     onEnter?.(getReaderEntryIntent(state))
-  }, [onEnter, onEnterUpdates])
+  }, [onEnter, onEnterUpdates, worldMode])
 
   return (
     <div

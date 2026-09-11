@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useProgressStore } from './stores/progressStore'
 import { useTransitionStore } from './stores/transitionStore'
 import { useReadingEntry } from './transitions/readingEntryController'
@@ -13,8 +13,10 @@ import { resolveReaderEnvironmentPreview } from './data/reader-experiments/reade
 import { getReaderThemeVariables } from './reader/readerTheme'
 import { trackEvent } from './services/analytics'
 import { recordRuntimeAudit } from './services/runtimeAudit'
+import CenterExperience from './center/CenterExperience'
 
 function App({ contentStatus = 'ready', onRetryContent }) {
+  const [worldActive, setWorldActive] = useState(false)
   const currentView = useProgressStore(s => s.currentView)
   const language = useProgressStore(s => s.language)
   const hasInitializedLanguage = useProgressStore(s => s.hasInitializedLanguage)
@@ -107,7 +109,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     if (currentView === 'landing') trackEvent('landing_entry', { stepId: 'landing' })
   }, [currentView])
 
-  const handleEnter = useCallback((intent) => {
+  const _handleEnter = useCallback((intent) => {
     if (readingEntry.isActive || isGlobalTransitioning) {
       trackEvent('entry_blocked', {
         stepId: resolveEntryBlockedStepId(readingEntry.phase, isGlobalTransitioning),
@@ -123,6 +125,11 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     })
     readingEntry.start(intent)
   }, [hasInitializedLanguage, isGlobalTransitioning, language, readingEntry.isActive, readingEntry.phase, readingEntry.start, readingMode])
+
+  const handleEnterWorld = useCallback(() => {
+    trackEvent('center_entry_requested', { stepId: 'entry:center' })
+    setWorldActive(true)
+  }, [])
 
   const readingEntryNeedsReader =
     readingEntry.phase === 'reader-preparing' ||
@@ -156,37 +163,41 @@ function App({ contentStatus = 'ready', onRetryContent }) {
 
   return (
     <>
-      <PageShell motionMode={motionMode} surfaceStyle={readerSurfaceStyle}>
-        {showReader && (
-          <Reader
-            contentStatus={contentStatus}
-            onRetryContent={onRetryContent}
-            onReaderReady={readingEntry.isActive ? readingEntry.handleReaderReady : undefined}
-            readerEntryHandoffPhase={readerEntryHandoffPhase}
-          />
-        )}
-        {(showEntrySurface || showLandingHandoffSurface) && (
-          <EntrySurface
-            currentView={currentView}
-            phase={readingEntry.phase}
-            intent={readingEntry.intent}
-            language={language}
-            hasInitializedLanguage={hasInitializedLanguage}
-            readingMode={readingMode}
-            themePosition={themePosition}
-            motionMode={motionMode}
-            surfaceStyle={readerSurfaceStyle}
-            environmentState={environmentState}
-            landingHandoff={showLandingHandoffSurface}
-            onEnter={handleEnter}
-            onProceed={handleLanguageProceed}
-            onModeSelect={handleModeSelect}
-            onTransitionReady={readingEntry.isActive ? readingEntry.handleTransitionReady : undefined}
-          />
-        )}
-      </PageShell>
+      {worldActive && <CenterExperience />}
+      {!worldActive && (
+        <PageShell motionMode={motionMode} surfaceStyle={readerSurfaceStyle}>
+          {showReader && (
+            <Reader
+              contentStatus={contentStatus}
+              onRetryContent={onRetryContent}
+              onReaderReady={readingEntry.isActive ? readingEntry.handleReaderReady : undefined}
+              readerEntryHandoffPhase={readerEntryHandoffPhase}
+            />
+          )}
+          {(showEntrySurface || showLandingHandoffSurface) && (
+            <EntrySurface
+              currentView={currentView}
+              phase={readingEntry.phase}
+              intent={readingEntry.intent}
+              language={language}
+              hasInitializedLanguage={hasInitializedLanguage}
+              readingMode={readingMode}
+              themePosition={themePosition}
+              motionMode={motionMode}
+              surfaceStyle={readerSurfaceStyle}
+              environmentState={environmentState}
+              landingHandoff={showLandingHandoffSurface}
+              worldMode
+              onEnter={handleEnterWorld}
+              onProceed={handleLanguageProceed}
+              onModeSelect={handleModeSelect}
+              onTransitionReady={readingEntry.isActive ? readingEntry.handleTransitionReady : undefined}
+            />
+          )}
+        </PageShell>
+      )}
       {isGlobalTransitioning && <GlobalTransitionOverlay surfaceStyle={readerSurfaceStyle} />}
-      <AdminSequenceGate />
+      {!worldActive && <AdminSequenceGate />}
     </>
   )
 }
