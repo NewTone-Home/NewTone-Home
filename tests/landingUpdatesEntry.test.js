@@ -65,7 +65,7 @@ describe('Landing updates entry', () => {
     expect(entrySurface).toContain('data-entry-id={entryId}')
     expect(entrySurface).toContain('data-entry-layer-model="shared-svg-geometry>text"')
     expect(entrySurface).toContain('onActionCompleteRef.current?.')
-    expect(entrySurface).toContain('data-entry-fill-progress={progress.fill.toFixed(3)}')
+    expect(entrySurface).toContain('data-entry-fill-progress={visualProgress.fill.toFixed(3)}')
     expect(entryGroup).toContain("const GROUP_PHASE = Object.freeze({ VISIBLE: 'visible', EXITING: 'exiting' })")
     expect(entryGroup).toContain('visible={visible && phase !== GROUP_PHASE.EXITING}')
     expect(entryGroup).toContain('onActionStartRef.current?.({ entryId, inputType })')

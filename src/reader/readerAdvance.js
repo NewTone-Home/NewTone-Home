@@ -4,6 +4,7 @@ import { previousPosition } from './readerPosition'
 export const READER_STEP_ACTIONS = Object.freeze({
   NONE: 'none',
   BEAT: 'beat',
+  SCENE: 'scene',
   PAGE: 'page',
   CHAPTER_END: 'chapter-end',
 })

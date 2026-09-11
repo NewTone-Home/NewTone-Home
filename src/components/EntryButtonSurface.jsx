@@ -14,6 +14,10 @@ function resolveActiveText(materialMode, worldLayer) {
   return worldLayer === 'inner' ? '#191817' : '#f4efe6'
 }
 
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value))
+}
+
 /**
  * Shared entry button surface.
  *
@@ -31,6 +35,7 @@ function EntryButtonSurface({
   ariaLabel = label,
   className = '',
   disabled = false,
+  controlledProgress = null,
   dataAttributes = {},
   onActionStart,
   onActionComplete,
@@ -220,17 +225,25 @@ function EntryButtonSurface({
     if (!hoveredRef.current && !mobileRef.current) deactivateFill()
   }, [deactivateFill])
 
-  const present = phase !== 'hidden'
-  const fillActive = progress.fill > 0.001
-  const textStyle = { opacity: progress.text }
+  const boundaryFactor = Number.isFinite(controlledProgress)
+    ? 1 - clamp01(controlledProgress)
+    : 1
+  const visualProgress = {
+    text: progress.text * boundaryFactor,
+    frame: progress.frame * boundaryFactor,
+    fill: progress.fill * boundaryFactor,
+  }
+  const present = phase !== 'hidden' && boundaryFactor > 0.001
+  const fillActive = visualProgress.fill > 0.001
+  const textStyle = { opacity: visualProgress.text }
   const readerReturnData = entryId === 'reader-return'
     ? {
         'data-return-fill-direction': variant.fillDirection,
         'data-return-frame-origin': variant.frameOrigin,
         'data-return-layer-model': 'shared-svg-geometry>text',
-        'data-return-text-progress': progress.text.toFixed(3),
-        'data-return-fill-progress': progress.fill.toFixed(3),
-        'data-return-frame-progress': progress.frame.toFixed(3),
+        'data-return-text-progress': visualProgress.text.toFixed(3),
+        'data-return-fill-progress': visualProgress.fill.toFixed(3),
+        'data-return-frame-progress': visualProgress.frame.toFixed(3),
       }
     : {}
 
@@ -240,9 +253,9 @@ function EntryButtonSurface({
       className={['shared-entry-control', className].filter(Boolean).join(' ')}
       style={{
         '--return-text-active': resolveActiveText(materialMode, worldLayer),
-        '--return-text-progress': progress.text,
-        '--return-frame-progress': progress.frame,
-        '--return-fill-progress': progress.fill,
+        '--return-text-progress': visualProgress.text,
+        '--return-frame-progress': visualProgress.frame,
+        '--return-fill-progress': visualProgress.fill,
       }}
       data-entry-id={entryId}
       data-entry-visible={present ? 'true' : 'false'}
@@ -254,9 +267,9 @@ function EntryButtonSurface({
       data-entry-fill-direction={variant.fillDirection}
       data-entry-frame-origin={variant.frameOrigin}
       data-entry-layer-model="shared-svg-geometry>text"
-      data-entry-text-progress={progress.text.toFixed(3)}
-      data-entry-fill-progress={progress.fill.toFixed(3)}
-      data-entry-frame-progress={progress.frame.toFixed(3)}
+      data-entry-text-progress={visualProgress.text.toFixed(3)}
+      data-entry-fill-progress={visualProgress.fill.toFixed(3)}
+      data-entry-frame-progress={visualProgress.frame.toFixed(3)}
       {...readerReturnData}
       {...dataAttributes}
       aria-label={ariaLabel}
@@ -276,9 +289,9 @@ function EntryButtonSurface({
       <span className="shared-entry-content">
         <EntryButtonFrame
           frameOrigin={variant.frameOrigin}
-          frameProgress={progress.frame}
+          frameProgress={visualProgress.frame}
           fillDirection={variant.fillDirection}
-          fillProgress={progress.fill}
+          fillProgress={visualProgress.fill}
           materialMode={materialMode}
           worldLayer={worldLayer}
         />

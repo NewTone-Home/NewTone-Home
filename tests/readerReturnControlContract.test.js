@@ -43,9 +43,14 @@ describe('portable Reader return control', () => {
     expect(surface).not.toContain("color: fillActive ? 'var(--return-text-active)'")
   })
 
-  it('leaves ReaderStage responsible only for final-beat visibility and callbacks', () => {
-    expect(stage).toContain("import { isFinalReaderBeat } from '../reader/readerPosition'")
-    expect(stage).toContain('const returnVisible = emptyDocument || isFinalReaderBeat(focusBeatIndex, beats)')
+  it('keeps discrete Scene-boundary visibility in the shared control while ReaderStage owns callbacks', () => {
+    expect(control).toContain('forwardRef')
+    expect(control).toContain('setBoundaryVisible')
+    expect(control).toContain('const entryVisible = visible && (alwaysVisible || boundaryVisible)')
+    expect(control).toContain('visible={entryVisible}')
+    expect(control).not.toContain('controlledProgress')
+    expect(stage).toContain('sceneBoundaryControlRef={returnControlRef}')
+    expect(stage).toContain('alwaysVisible={emptyDocument || finalReaderBeat}')
     expect(stage).toContain('onReturnStart={onReturnStart}')
     expect(stage).toContain('onReturnComplete={onReturnLanding}')
     expect(stage).not.toContain('readerReturnFlow')

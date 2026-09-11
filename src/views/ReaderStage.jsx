@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ReaderBeatStack from '../components/reader/ReaderBeatStack'
+import ReaderSceneTransition from '../components/reader/ReaderSceneTransition'
 import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
 import ReaderTools from '../components/reader/ReaderTools'
-import ReaderTraceProgress from '../components/reader/ReaderTraceProgress'
 import ReaderReturnControl from '../components/reader/ReaderReturnControl'
-import ReaderCompletionPrompt from '../components/reader/ReaderCompletionPrompt'
+import ReaderStatusBar from '../components/reader/ReaderStatusBar'
 import { resolveReaderEnvironmentPreview } from '../data/reader-experiments/readerEnvironmentPreview'
 import { getReaderSceneLabel } from '../i18n/readerUi'
 import { preventReaderShortcut, preventReaderTransfer } from '../reader/readerCopyProtection'
-import { isFinalReaderBeat } from '../reader/readerPosition'
 import { getReaderThemeVariables } from '../reader/readerTheme'
 import './ReaderStage.css'
 import './ReaderShellContract.css'
@@ -25,11 +24,14 @@ function ReaderStage({
   emptyDocument = false,
   contentStatus,
   onRetryContent,
-  page,
+  scene,
   beats,
   focusBeatIndex,
-  progress,
+  sceneBoundaryRanges = [],
+  progress: _progress,
   language,
+  contentLanguage = language,
+  languageTransitionPhase = 'idle',
   onLanguage,
   standardTheme,
   themePosition,
@@ -37,7 +39,6 @@ function ReaderStage({
   onReadingMode,
   onStandardTheme,
   onThemePosition,
-  onFocusMotionEnd,
   onNativeFocusChange,
   onNativeBoundary,
   onNativeScrollOffset,
@@ -49,12 +50,11 @@ function ReaderStage({
   activeNarrativeRevealId,
   activeNarrativeTypewriterId,
   transitionKind,
-  sceneTransitionKind,
   autoVisual,
   rootRef,
   focusRef,
   chapterTrialEnded,
-  completionPromptVisible = false,
+  finalReaderBeat = false,
   returningToLanding = false,
   readerEntryHandoffPhase = 'idle',
   onReturnStart,
@@ -62,10 +62,16 @@ function ReaderStage({
 }) {
   const visibleReadingMode = 'standard'
   const nativeBoundaryLockRef = useRef(null)
+  const returnControlRef = useRef(null)
+  const readerHandoffWasActiveRef = useRef(readerEntryHandoffPhase !== 'idle')
+  const [readerStatusPhase, setReaderStatusPhase] = useState(() => (
+    readerEntryHandoffPhase === 'idle' && !returningToLanding ? 'entering' : 'hidden'
+  ))
   const sceneState = beats[focusBeatIndex]?.sceneState ?? {}
   const sceneStateName = sceneState.sceneState ?? 'normal'
   const nativeEnvironmentState = beats[focusBeatIndex]?.worldState
   const environmentState = nativeEnvironmentState ?? EMPTY_READER_ENVIRONMENT
+  const sceneEnvironmentState = scene?.beats?.[0]?.worldState ?? environmentState
   const environmentVisual = resolveReaderEnvironmentPreview(environmentState)
   const immersiveStyle = environmentVisual.style
   const stageStyle = visibleReadingMode === 'standard'
@@ -75,7 +81,6 @@ function ReaderStage({
     (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)
     || window.matchMedia(DIRECT_READER_QUERY).matches
   )
-  const returnVisible = emptyDocument || isFinalReaderBeat(focusBeatIndex, beats)
   const locationLabel = emptyDocument
     ? (language === 'en' ? 'No pages yet' : '暂无页面')
     : getReaderSceneLabel(language, environmentState.locationId, environmentState.locationLabels?.[language] || environmentState.locationLabel)?.replace(/\s*·\s*/g, ' · ')
@@ -95,38 +100,62 @@ function ReaderStage({
   }, [onNativeBoundary])
 
   useEffect(() => {
-    nativeBoundaryLockRef.current = null
-  }, [page?.id])
+    if (returningToLanding) {
+      setReaderStatusPhase(current => current === 'hidden' ? 'hidden' : 'exiting')
+      return
+    }
+
+    if (readerEntryHandoffPhase !== 'idle') {
+      readerHandoffWasActiveRef.current = true
+      setReaderStatusPhase('hidden')
+    }
+  }, [readerEntryHandoffPhase, returningToLanding])
+
+  const handleReaderPresentationTransitionEnd = useCallback((event) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'opacity') return
+    if (returningToLanding || readerEntryHandoffPhase !== 'idle' || !readerHandoffWasActiveRef.current) return
+
+    readerHandoffWasActiveRef.current = false
+    setReaderStatusPhase('entering')
+  }, [readerEntryHandoffPhase, returningToLanding])
 
   return (
-    <main
-      className={`reader-stage-page paper-surface reader-stage-page--${visibleReadingMode} reader-stage-page--theme-${standardTheme} reader-stage-page--motion-${motionMode}${returningToLanding ? ' reader-stage-page--returning' : ''}`}
-      style={stageStyle}
-      data-reading-mode={visibleReadingMode}
-      data-motion-mode={motionMode}
-      data-returning-to-landing={returningToLanding ? 'true' : 'false'}
-      data-reader-entry-handoff={readerEntryHandoffPhase}
-      data-scene-state={sceneStateName}
-      data-world-layer={environmentState.worldLayer}
-      data-scene-characters={environmentState.characters.join(' ')}
-      data-world-evidence={environmentState.evidence.worldLayer.sourceType}
-      data-time-of-day={environmentState.time}
-      data-weather={environmentState.weather}
-      data-weather-evidence={environmentState.evidence.weather.sourceType}
-      data-reader-location={environmentState.locationId}
-      data-light-state={environmentState.light}
-      data-environment-preview="chapter"
-      data-auto-visual={autoVisual || 'idle'}
-      data-copy-protected="true"
-      onCopyCapture={preventReaderTransfer}
-      onCutCapture={preventReaderTransfer}
-      onContextMenu={preventReaderTransfer}
-      onDragStartCapture={preventReaderTransfer}
-      onKeyDownCapture={preventReaderShortcut}
-    >
+    <>
+      <main
+        className={`reader-stage-page paper-surface reader-stage-page--${visibleReadingMode} reader-stage-page--theme-${standardTheme} reader-stage-page--motion-${motionMode}${returningToLanding ? ' reader-stage-page--returning' : ''}`}
+        style={stageStyle}
+        data-reading-mode={visibleReadingMode}
+        data-motion-mode={motionMode}
+        data-returning-to-landing={returningToLanding ? 'true' : 'false'}
+        data-reader-entry-handoff={readerEntryHandoffPhase}
+        data-scene-transition="idle"
+        data-scene-state={sceneStateName}
+        data-world-layer={environmentState.worldLayer}
+        data-scene-characters={environmentState.characters.join(' ')}
+        data-world-evidence={environmentState.evidence.worldLayer.sourceType}
+        data-time-of-day={environmentState.time}
+        data-weather={environmentState.weather}
+        data-weather-evidence={environmentState.evidence.weather.sourceType}
+        data-reader-location={environmentState.locationId}
+        data-light-state={environmentState.light}
+        data-environment-preview="chapter"
+        data-auto-visual={autoVisual || 'idle'}
+        data-copy-protected="true"
+        onTransitionEnd={handleReaderPresentationTransitionEnd}
+        onCopyCapture={preventReaderTransfer}
+        onCutCapture={preventReaderTransfer}
+        onContextMenu={preventReaderTransfer}
+        onDragStartCapture={preventReaderTransfer}
+        onKeyDownCapture={preventReaderShortcut}
+      >
+      <ReaderStatusBar
+        language={language}
+        state={sceneEnvironmentState}
+        lifecyclePhase={emptyDocument ? 'hidden' : readerStatusPhase}
+      />
       <section
         ref={rootRef}
-        className={`reader-stage${sceneTransitionKind ? ` reader-stage--scene-${sceneTransitionKind}` : ''}`}
+        className="reader-stage"
         aria-label={emptyDocument ? 'NewTone Reader：暂无可读页面' : `阅读场景：${environmentState.locationLabel}`}
         data-transition-kind={transitionKind || 'idle'}
       >
@@ -151,51 +180,54 @@ function ReaderStage({
           onThemePosition={onThemePosition}
           locationId={environmentState.locationId}
           locationLabel={locationLabel}
+          showLocationLabel={false}
         />
-        {!emptyDocument && <ReaderBeatStack
-          beats={beats}
-          language={language}
-          focusBeatIndex={focusBeatIndex}
-          onFocusMotionEnd={onFocusMotionEnd}
-          onNativeFocusChange={onNativeFocusChange}
-          onNativeScrollOffset={onNativeScrollOffset}
-          onViewportBoundaryChange={handleViewportBoundaryChange}
-          initialScrollOffset={initialScrollOffset}
-          narrativeRuntimeEnabled={narrativeRuntimeEnabled}
-          narrativeDeliveryStates={narrativeDeliveryStates}
-          activeNarrativePauseId={activeNarrativePauseId}
-          activeNarrativePausePhase={activeNarrativePausePhase}
-          activeNarrativeRevealId={activeNarrativeRevealId}
-          activeNarrativeTypewriterId={activeNarrativeTypewriterId}
-          focusRef={focusRef}
-        />}
+        {!emptyDocument && (
+          <ReaderSceneTransition
+            sceneId={scene?.id}
+            phase="idle"
+          >
+            <ReaderBeatStack
+              beats={beats}
+              language={contentLanguage}
+              languageTransitionPhase={languageTransitionPhase}
+              focusBeatIndex={focusBeatIndex}
+              onNativeFocusChange={onNativeFocusChange}
+              onNativeScrollOffset={onNativeScrollOffset}
+              onViewportBoundaryChange={handleViewportBoundaryChange}
+              sceneBoundaryRanges={sceneBoundaryRanges}
+              sceneBoundaryControlRef={returnControlRef}
+              initialScrollOffset={initialScrollOffset}
+              narrativeRuntimeEnabled={narrativeRuntimeEnabled}
+              narrativeDeliveryStates={narrativeDeliveryStates}
+              activeNarrativePauseId={activeNarrativePauseId}
+              activeNarrativePausePhase={activeNarrativePausePhase}
+              activeNarrativeRevealId={activeNarrativeRevealId}
+              activeNarrativeTypewriterId={activeNarrativeTypewriterId}
+              focusRef={focusRef}
+            />
+          </ReaderSceneTransition>
+        )}
         {emptyDocument && <section className="reader-empty-document" aria-labelledby="reader-empty-document-title">
           <p className="reader-empty-document-mark">NewTone / Reader</p>
           <h1 id="reader-empty-document-title">{language === 'en' ? 'No pages are available yet' : '暂无可读页面'}</h1>
           <p>{language === 'en' ? 'The story has not been published yet. You can still explore the Reader settings.' : '正文尚未发布。Reader 的阅读设置可以继续使用。'}</p>
           {contentStatus !== 'empty' && <button type="button" onClick={onRetryContent}>{language === 'en' ? 'Try again' : '重新检查正文'}</button>}
         </section>}
-        {!emptyDocument && <ReaderTraceProgress
-          key={page?.id}
-          progress={progress}
-          beats={beats}
-          focusBeatIndex={focusBeatIndex}
-          language={language}
-          readingMode={visibleReadingMode}
-          returningToLanding={returningToLanding}
-        />}
         <ReaderReturnControl
-          visible={returnVisible}
+          ref={returnControlRef}
+          visible={!returningToLanding}
+          alwaysVisible={emptyDocument || finalReaderBeat}
           mobile={directReaderInput}
           worldLayer={environmentState.worldLayer}
           onReturnStart={onReturnStart}
           onReturnComplete={onReturnLanding}
           language={language}
         />
-        <ReaderCompletionPrompt visible={completionPromptVisible} language={language} />
         {chapterTrialEnded && <span className="reader-chapter-end" aria-hidden="true" />}
       </section>
-    </main>
+      </main>
+    </>
   )
 }
 

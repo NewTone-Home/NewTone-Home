@@ -6,8 +6,6 @@ import { canCompleteReader, isReaderFinalLocation } from '../src/reader/readerCo
 import { createReaderIndex } from '../src/reader/readerPosition'
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
-const prompt = read('../src/components/reader/ReaderCompletionPrompt.jsx')
-const promptCss = read('../src/components/reader/ReaderCompletionPrompt.css')
 const orchestrator = read('../src/views/ReaderOrchestrator.jsx')
 const stage = read('../src/views/ReaderStage.jsx')
 
@@ -57,17 +55,12 @@ describe('Reader completion prompt contract', () => {
     })).toBe(false)
   })
 
-  it('is a non-interactive status surface with no navigation ownership', () => {
-    expect(prompt).toContain('data-reader-completion-prompt="visible"')
-    expect(prompt).toContain('role="status"')
-    expect(prompt).toContain('aria-live="polite"')
-    expect(prompt).not.toContain('onClick')
-    expect(prompt).not.toContain('transitionTo')
-    expect(promptCss).toContain('pointer-events: none')
+  it('records completion without rendering a completion prompt', () => {
     expect(orchestrator).toContain('canCompleteReader({')
     expect(orchestrator).toContain("recordRuntimeAudit('reader-completion-marked'")
-    expect(orchestrator).toContain('setCompletionPromptVisible(true)')
-    expect(stage).toContain('<ReaderCompletionPrompt')
-    expect(stage).toContain('completionPromptVisible')
+    expect(orchestrator).not.toContain('completionPromptVisible')
+    expect(orchestrator).not.toContain('setCompletionPromptVisible')
+    expect(stage).not.toContain('<ReaderCompletionPrompt')
+    expect(stage).not.toContain('completionPromptVisible')
   })
 })

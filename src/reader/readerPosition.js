@@ -114,5 +114,17 @@ export function getOverallProgress(position, content = readerContent) {
 }
 
 export function isFinalReaderBeat(focusBeatIndex, beats) {
-  return Array.isArray(beats) && beats.length > 0 && focusBeatIndex === beats.length - 1
+  return isFinalReaderSceneBeat(focusBeatIndex, beats)
+}
+
+export function getReaderSceneId(beat) {
+  return beat?.source?.sceneId ?? beat?.displayUnit?.sceneId ?? null
+}
+
+export function isFinalReaderSceneBeat(focusBeatIndex, beats) {
+  if (!Array.isArray(beats) || beats.length === 0) return false
+  const current = beats[focusBeatIndex]
+  const next = beats[focusBeatIndex + 1]
+  if (getReaderSceneId(current) === null) return focusBeatIndex === beats.length - 1
+  return Boolean(current) && (!next || getReaderSceneId(current) !== getReaderSceneId(next))
 }

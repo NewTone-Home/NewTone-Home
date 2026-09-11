@@ -1,10 +1,26 @@
 import { READER_PAGE_MODES, READER_TRANSITION_TYPES, validateReaderContent } from './readerContent.js'
 
-export const SCENE_SCHEMA_VERSION = 2
-export const SCENE_LANGUAGES = Object.freeze(['zh', 'en', 'ja', 'ko', 'fr'])
+export const SCENE_SCHEMA_VERSION = 3
+export const SCENE_LANGUAGES = Object.freeze(['zh', 'en'])
+export const SCENE_WORLD_LAYERS = Object.freeze(['surface', 'inner', 'transition', 'unknown'])
 
 function text(value) {
   return typeof value === 'string' ? value.replace(/\r\n?/g, '\n') : ''
+}
+
+export function splitSceneTextIntoReaderBlocks(value, source) {
+  const paragraphs = text(value)
+    .trim()
+    .split(/\n\s*\n/)
+    .map(paragraph => paragraph.trim())
+    .filter(Boolean)
+
+  return paragraphs.map((paragraph, index) => ({
+    id: `block-${index}`,
+    type: 'paragraph',
+    text: paragraph,
+    source,
+  }))
 }
 
 function languageMap(value) {
@@ -21,8 +37,18 @@ export function createSceneId(chapterId, sequence) {
   return `${chapter}_scene_${String(sequence).padStart(2, '0')}`
 }
 
+export function createSceneContext() {
+  return {
+    worldLayer: 'unknown',
+    locationId: '',
+    locationLabels: languageMap(),
+    time: 'unknown',
+    weather: 'unknown',
+  }
+}
+
 export function createScene(chapterId, sequence) {
-  return { id: createSceneId(chapterId, sequence), order: sequence, content: languageMap() }
+  return { id: createSceneId(chapterId, sequence), order: sequence, context: createSceneContext(), content: languageMap() }
 }
 
 export function createChapter(sequence) {
@@ -40,9 +66,17 @@ export function createEmptySceneWorkspace() {
 }
 
 function normalizeScene(chapterId, scene, index) {
+  const sourceContext = scene?.context ?? scene?.sceneContext
   return {
     id: typeof scene?.id === 'string' && scene.id.trim() ? scene.id.trim() : createSceneId(chapterId, index + 1),
     order: index + 1,
+    context: {
+      worldLayer: SCENE_WORLD_LAYERS.includes(sourceContext?.worldLayer) ? sourceContext.worldLayer : 'unknown',
+      locationId: identifier(sourceContext?.locationId, ''),
+      locationLabels: languageMap(sourceContext?.locationLabels ?? sourceContext?.locationLabelByLanguage),
+      time: text(sourceContext?.time).trim() || 'unknown',
+      weather: text(sourceContext?.weather).trim() || 'unknown',
+    },
     content: languageMap(scene?.content ?? scene?.contentByLanguage),
   }
 }
@@ -57,18 +91,24 @@ function normalizeV1Workspace(value) {
         order: chapterIndex + 1,
         title: languageMap({ zh: chapter?.title, en: chapter?.titleEn }),
         protagonistId: typeof chapter?.protagonistId === 'string' ? chapter.protagonistId : '',
-        scenes: (Array.isArray(chapter?.pages) ? chapter.pages : []).map((page, pageIndex) => ({
+        scenes: (Array.isArray(chapter?.pages) ? chapter.pages : []).map((page, pageIndex) => normalizeScene(chapterId, {
           id: createSceneId(chapterId, pageIndex + 1),
-          order: pageIndex + 1,
-          content: languageMap({ zh: page?.text, en: page?.textEn }),
-        })),
+          context: {
+            worldLayer: page?.worldLayer,
+            locationId: page?.id,
+            locationLabels: { zh: page?.sceneLabel, en: page?.sceneLabelEn },
+            time: page?.time,
+            weather: page?.weather,
+          },
+          content: { zh: page?.text, en: page?.textEn },
+        }, pageIndex)),
       }
     }),
   }
 }
 
 export function normalizeSceneWorkspace(value) {
-  if (!value || value.schemaVersion !== SCENE_SCHEMA_VERSION || !Array.isArray(value.chapters)) {
+  if (!value || ![2, SCENE_SCHEMA_VERSION].includes(value.schemaVersion) || !Array.isArray(value.chapters)) {
     return normalizeV1Workspace(value)
   }
   return {
@@ -95,10 +135,10 @@ function sceneIdIsStable(id) {
 }
 
 export function validateScenePublication(publication, { requireCompleteLanguages = false } = {}) {
-  if (!publication || publication.schemaVersion !== SCENE_SCHEMA_VERSION) throw new Error('内容必须使用 Scene schemaVersion 2。')
+  if (!publication || publication.schemaVersion !== SCENE_SCHEMA_VERSION) throw new Error('内容必须使用 Scene schemaVersion 3。')
   if (typeof publication.storyId !== 'string' || !publication.storyId.trim()) throw new Error('缺少 Story ID。')
   if (!Array.isArray(publication.languages) || publication.languages.join('|') !== SCENE_LANGUAGES.join('|')) {
-    throw new Error('语言清单必须固定为 zh、en、ja、ko、fr。')
+    throw new Error('语言清单必须固定为 zh、en。')
   }
   if (!Array.isArray(publication.chapters) || publication.chapters.length === 0) throw new Error('至少需要一个章节。')
 
@@ -114,6 +154,12 @@ export function validateScenePublication(publication, { requireCompleteLanguages
     chapter.scenes.forEach((scene, sceneIndex) => {
       if (!scene?.id || !sceneIdIsStable(scene.id) || sceneIds.has(scene.id)) throw new Error(`Scene ID 无效或重复：${scene?.id ?? ''}`)
       if (scene.order !== sceneIndex + 1) throw new Error(`Scene 顺序无效：${scene.id}`)
+      if (!scene.context || !SCENE_WORLD_LAYERS.includes(scene.context.worldLayer)) throw new Error(`${scene.id} 的世界状态无效。`)
+      if (typeof scene.context.locationId !== 'string') throw new Error(`${scene.id} 的地点 ID 无效。`)
+      if (!scene.context.locationLabels || typeof scene.context.locationLabels !== 'object') throw new Error(`${scene.id} 缺少地点显示名。`)
+      if (typeof scene.context.time !== 'string' || !scene.context.time.trim() || typeof scene.context.weather !== 'string' || !scene.context.weather.trim()) {
+        throw new Error(`${scene.id} 缺少时间或天气状态。`)
+      }
       if (!scene.content?.zh?.trim()) throw new Error(`${scene.id} 缺少中文正文。`)
       if (requireCompleteLanguages && SCENE_LANGUAGES.some(language => !scene.content?.[language]?.trim())) {
         throw new Error(`${scene.id} 的所有语言正文必须一起提供。`)
@@ -125,22 +171,66 @@ export function validateScenePublication(publication, { requireCompleteLanguages
 }
 
 function sceneWorldState(scene, chapter) {
+  const context = scene.context
   return {
-    worldLayer: 'surface', time: 'unknown', weather: 'unknown', light: 'neutral',
-    locationId: scene.id, locationLabel: chapter.title.zh,
+    worldLayer: context.worldLayer, time: context.time, weather: context.weather, light: 'neutral',
+    locationId: context.locationId || scene.id,
+    locationLabel: context.locationLabels.zh || chapter.title.zh,
+    locationLabels: Object.fromEntries(SCENE_LANGUAGES.map(language => [
+      language,
+      context.locationLabels[language] || chapter.title[language] || chapter.title.zh,
+    ])),
     characters: [],
     evidence: {
-      worldLayer: { sourceType: 'scene-schema-default' },
-      weather: { sourceType: 'scene-schema-default' },
+      worldLayer: { sourceType: 'scene-schema' },
+      weather: { sourceType: 'scene-schema' },
     },
-    locationLabels: { zh: chapter.title.zh, en: chapter.title.en || chapter.title.zh },
   }
 }
 
+function materializeReaderFocusBeats(beat) {
+  if (!beat?.source?.sceneId || !Array.isArray(beat.blocks) || beat.blocks.length <= 1) return [beat]
+
+  const englishBlocks = beat.translations?.en?.blocks ?? []
+  return beat.blocks.map((block, index) => {
+    const displayUnit = {
+      kind: 'scene-paragraph',
+      sceneId: beat.source.sceneId,
+      index,
+    }
+    const translation = englishBlocks[index]
+
+    return {
+      ...beat,
+      id: index === 0 ? beat.id : `${beat.id}_reader_${String(index + 1).padStart(2, '0')}`,
+      displayUnit,
+      blocks: [{ ...block, id: 'block-0' }],
+      ...(translation?.text?.trim()
+        ? {
+          translations: {
+            en: { blocks: [{ ...translation, id: 'block-0' }] },
+          },
+        }
+        : {}),
+    }
+  })
+}
+
+export function expandSceneReaderFocusUnits(content) {
+  return content.map(phase => ({
+    ...phase,
+    pages: phase.pages.map(page => ({
+      ...page,
+      beats: page.beats.flatMap(materializeReaderFocusBeats),
+    })),
+  }))
+}
+
 export function compileScenePublicationToReader(publication) {
-  validateScenePublication(publication)
-  const pages = publication.chapters.map((chapter, chapterIndex) => {
-    const nextChapter = publication.chapters[chapterIndex + 1]
+  const normalized = normalizeSceneWorkspace(publication)
+  validateScenePublication(normalized)
+  const pages = normalized.chapters.map((chapter, chapterIndex) => {
+    const nextChapter = normalized.chapters[chapterIndex + 1]
     const title = chapter.title.zh.trim()
     const page = {
       id: chapter.id,
@@ -152,13 +242,13 @@ export function compileScenePublicationToReader(publication) {
       supportedModes: [READER_PAGE_MODES.FOCUS_SEQUENCE],
       scene: { id: chapter.id, label: title, labelByLanguage: chapter.title },
       beats: chapter.scenes.map(scene => {
-        const blocks = [{ id: 'block-0', type: 'paragraph', text: scene.content.zh.trim(), source: { chapterId: chapter.id, sceneId: scene.id } }]
+        const source = { chapterId: chapter.id, sceneId: scene.id }
+        const blocks = splitSceneTextIntoReaderBlocks(scene.content.zh, source)
         const translations = {}
-        // The current public Reader UI exposes zh/en. Other translations remain in the
-        // canonical Scene payload and can be projected when their UI is enabled.
+        // Scene remains the persisted unit; paragraph blocks are Reader-only compatibility output.
         SCENE_LANGUAGES.filter(language => language === 'en' && scene.content[language]?.trim()).forEach(language => {
           translations[language] = {
-            blocks: [{ id: 'block-0', type: 'paragraph', text: scene.content[language].trim(), source: { chapterId: chapter.id, sceneId: scene.id } }],
+            blocks: splitSceneTextIntoReaderBlocks(scene.content[language], source),
           }
         })
         return {
