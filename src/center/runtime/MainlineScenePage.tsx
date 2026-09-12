@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { Point } from './sceneGeometry'
 import { MainlineSceneRenderer, type MainlineInputDiagnostic } from './MainlineSceneRenderer'
-import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneGeometryUnits, mainlineSceneWalkBounds, mainlineScenes, type MainlineSceneDefinition, type MainlineSceneExternalExit, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
+import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneGeometryUnits, mainlineSceneWalkBounds, mainlineScenes, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneExternalExit, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
 import { findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, findMainlineWorldRoute, isMainlineEntityWithinInteractionRange, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlinePassageCollisionForNavigation, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageEntersDoorway, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition } from './mainlineNavigation'
 import { layoutGridSize, mainlineEntityInteractionBounds, mainlineEntityVisualBounds, type SceneLayout } from './sceneLayout'
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
@@ -15,6 +15,7 @@ import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBound
 import { mainlineCameraOffset } from './mainlineViewport'
 import { sceneFocusMotionMs } from './sceneMotion'
 import { sceneDoorMotion } from './sceneDoorConfig'
+import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
@@ -293,6 +294,10 @@ export function MainlineScenePage({
   phoneOpen = false,
   onPhoneDismiss,
   onDeskInteraction,
+  onObjectInteraction,
+  onDoorEvent,
+  initialSceneState = {},
+  onPlayerSceneStateChange,
   carriedPhoneDevice = 'surface',
   onSceneTransition,
   onSafeSpawnCorrection,
@@ -314,6 +319,10 @@ export function MainlineScenePage({
   phoneOpen?: boolean
   onPhoneDismiss?: () => void
   onDeskInteraction?: (device: PhoneDevice) => void
+  onObjectInteraction?: (entity: MainlineSceneEntity, dwellMs: number) => void
+  onDoorEvent?: (phase: 'attempted' | 'blocked' | 'crossed', passage: MainlineScenePassage) => void
+  initialSceneState?: PlayerSceneState
+  onPlayerSceneStateChange?: (sceneId: MainlineSceneId, key: string, value: PlayerChoiceValue) => void
   carriedPhoneDevice?: PhoneDevice
   onSceneTransition: (sceneId: MainlineSceneId, entryPosition?: Point, spawnMode?: 'resume' | 'ride') => void
   onSafeSpawnCorrection?: (position: Point) => void
@@ -348,6 +357,7 @@ export function MainlineScenePage({
   }, [onSceneReady])
   const scene = sceneDefinition
   const previousExternalExitPositionRef = useRef(initialPosition)
+  const interactionStartedAtRef = useRef<number | null>(null)
   const handledWalkRequestRef = useRef<number | null>(null)
   const [feedback, setFeedback] = useState(entryFeedbackForScene(sceneDefinition))
   const [inputDiagnostic, setInputDiagnostic] = useState<MainlineInputDiagnostic | null>(null)
@@ -355,8 +365,8 @@ export function MainlineScenePage({
   const debugInput = new URLSearchParams(debugInputSearch).get('debugInput') === '1'
   const [dialogueLineIndex, setDialogueLineIndex] = useState<number | null>(null)
   const [sceneEcho, setSceneEcho] = useState<MainlineSceneEcho | null>(null)
-  const [officeBlindsOpen, setOfficeBlindsOpen] = useState(true)
-  const [incenseLitAt, setIncenseLitAt] = useState<number | null>(null)
+  const [officeBlindsOpen, setOfficeBlindsOpen] = useState(initialSceneState.blindsOpen !== false)
+  const [incenseLitAt, setIncenseLitAt] = useState<number | null>(() => typeof initialSceneState.incenseLitAt === 'number' ? initialSceneState.incenseLitAt : null)
   const [incenseClock, setIncenseClock] = useState(() => Date.now())
   const sceneEchoIdRef = useRef(0)
   const exploredObjectIds = explorationState.sceneId === scene.id ? explorationState.objectIds : emptyExplorationObjectIds
@@ -389,11 +399,15 @@ export function MainlineScenePage({
     setPassageDestination(null)
     setSceneFrameExit({ phase: 'idle' })
     setActiveObjectId(null)
+    setExplorationState({ sceneId, objectIds: new Set() })
     setDialogueLineIndex(null)
     setSceneEcho(null)
+    setOfficeBlindsOpen(initialSceneState.blindsOpen !== false)
+    setIncenseLitAt(typeof initialSceneState.incenseLitAt === 'number' ? initialSceneState.incenseLitAt : null)
+    setIncenseClock(Date.now())
     stopMovement()
     setFeedback(entryFeedbackForScene(sceneDefinition))
-  }, [sceneDefinition, stopMovement])
+  }, [sceneDefinition, sceneId, stopMovement])
   const activeDialoguePosition = activeDialogueLine
     ? echoPositionNearPlayer(scene, activeDialogueLine.text, position, layout, screenMetrics)
     : null
@@ -440,7 +454,10 @@ export function MainlineScenePage({
     canUse: (_actorId, passage) => lifecycleMainlinePassages.find((candidate) => candidate.id === passage.id)?.access === 'open',
     onDenied: (_actorId, passage) => {
       const deniedPassage = lifecycleMainlinePassages.find((candidate) => candidate.id === passage.id)
-      if (deniedPassage) showLockedPassageText(deniedPassage)
+      if (deniedPassage) {
+        onDoorEvent?.('blocked', deniedPassage)
+        showLockedPassageText(deniedPassage)
+      }
       else setFeedback('当前没有权限通过这扇门。')
     },
   })
@@ -519,6 +536,7 @@ export function MainlineScenePage({
         pendingTraversalRef.current = null
         setPassageDestination(null)
         setSceneFrameExit({ phase: 'idle' })
+        onDoorEvent?.('blocked', passage)
         if (passage.access === 'locked') {
           showLockedPassageText(passage)
           return
@@ -526,7 +544,7 @@ export function MainlineScenePage({
         setFeedback('修杰在门前停下了，需要重新选择位置。')
       },
     })
-  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getOpenPassageIds, getPassagePhase, layout, locomotionOptions, moveAlong, navigationOptions, requestPassageLifecycle, scene, screenMetrics, setFeedback, showLockedPassageText, stopMovement])
+  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getOpenPassageIds, getPassagePhase, layout, lifecycleMainlinePassages, locomotionOptions, moveAlong, navigationOptions, onDoorEvent, requestPassageLifecycle, scene, screenMetrics, setFeedback, showLockedPassageText, stopMovement])
 
   const continuePendingTraversal = useCallback((entityId: string) => {
     const pending = pendingTraversalRef.current
@@ -543,6 +561,7 @@ export function MainlineScenePage({
       const transitionScene = () => {
         if (sceneTransitioned) return
         sceneTransitioned = true
+        onDoorEvent?.('crossed', pending.passage)
         pendingTraversalRef.current = null
         setPassageDestination(null)
         setActiveObjectId(null)
@@ -591,6 +610,7 @@ export function MainlineScenePage({
     const completeSameSceneLeg = () => {
       const current = pendingTraversalRef.current
       if (!current || current.passage.entityId !== entityId) return
+      onDoorEvent?.('crossed', current.passage)
       const nextPassage = current.passageQueue[current.passageIndex + 1]
       if (nextPassage) {
         const nextPath = findMainlinePathThroughPassage(scene, nextPassage.id, getCurrentPosition(), layout, openNavigationOptions).path
@@ -647,7 +667,7 @@ export function MainlineScenePage({
         setFeedback('门已经打开，但通路被挡住了。')
       },
     })
-  }, [beginPassageLeg, getCurrentPosition, getOpenPassageIds, layout, locomotionOptions, moveAlong, navigationOptions, notifySceneTransition, scene, setFeedback])
+  }, [beginPassageLeg, getCurrentPosition, getOpenPassageIds, layout, locomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, scene, setFeedback])
 
   continuePendingTraversalRef.current = continuePendingTraversal
 
@@ -757,6 +777,7 @@ export function MainlineScenePage({
     const entity = getMainlineSceneEntity(scene, entityId)
     const passage = scene.passages.find((candidate) => candidate.entityId === entityId)
     if (passage) {
+      onDoorEvent?.('attempted', passage)
       // A direct door click is an explicit request to use that door. Resolve
       // the opposite side from the same projected doorway used by movement,
       // then let the shared lifecycle open and complete the crossing.
@@ -767,8 +788,12 @@ export function MainlineScenePage({
       return
     }
 
+    interactionStartedAtRef.current = Date.now()
     setActiveObjectId(entityId)
     const revealInteraction = () => {
+      const interactionStartedAt = interactionStartedAtRef.current
+      interactionStartedAtRef.current = null
+      onObjectInteraction?.(entity, Math.max(0, Date.now() - (interactionStartedAt ?? Date.now())))
       setExplorationState((current) => {
         const objectIds = current.sceneId === scene.id ? current.objectIds : emptyExplorationObjectIds
         if (objectIds.has(entityId)) return current
@@ -811,6 +836,7 @@ export function MainlineScenePage({
     }
     const resolved = findMainlinePathToEntity(scene, entityId, getCurrentPosition(), layout, navigationOptions)
     if (!resolved.path) {
+      interactionStartedAtRef.current = null
       stopMovement()
       setFeedback('这个位置暂时走不过去。')
       return
@@ -820,7 +846,7 @@ export function MainlineScenePage({
       canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
       onBlocked: () => setFeedback('修杰在边界前停下了，需要重新选择位置。'),
     })
-  }, [carriedPhoneDevice, dismissSceneEcho, getCurrentPosition, incensePhase, layout, moveAlong, navigationOptions, officeBlindsOpen, onPhoneDismiss, phoneOpen, scene, screenMetrics, startPassageTraversal, stopMovement])
+  }, [carriedPhoneDevice, dismissSceneEcho, getCurrentPosition, incensePhase, layout, moveAlong, navigationOptions, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, scene, screenMetrics, startPassageTraversal, stopMovement])
 
   const chooseSceneEchoOption = useCallback((index: number) => {
     const option = sceneEcho?.options?.[index]
@@ -833,6 +859,7 @@ export function MainlineScenePage({
     if (sceneEcho.entityId === 'zhongshuyuan-office-window') {
       const open = option === '打开百叶窗'
       setOfficeBlindsOpen(open)
+      onPlayerSceneStateChange?.(scene.id, 'blindsOpen', open)
       setSceneEcho((current) => current ? {
         ...current,
         text: open ? (scene.explorationText?.[current.entityId ?? ''] ?? []).join('\n') : '',
@@ -850,6 +877,7 @@ export function MainlineScenePage({
         const litAt = Date.now()
         setIncenseLitAt(litAt)
         setIncenseClock(litAt)
+        onPlayerSceneStateChange?.(scene.id, 'incenseLitAt', litAt)
         setFeedback('修杰重新点上了香。')
         setSceneEcho((current) => current ? { ...current, text: '重新点上了香。', options: undefined } : null)
       }
@@ -861,7 +889,7 @@ export function MainlineScenePage({
     }
     setFeedback(option === '重新点香' ? '修杰重新点上了香。' : '修杰没有理会香炉。')
     setSceneEcho((current) => current ? { ...current, options: undefined } : null)
-  }, [dismissSceneEcho, onDeskInteraction, scene, sceneEcho])
+  }, [dismissSceneEcho, onDeskInteraction, onPlayerSceneStateChange, scene, sceneEcho])
 
   const advanceDialogue = useCallback(() => {
     setDialogueLineIndex((current) => {

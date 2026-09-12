@@ -8,10 +8,15 @@ const EVENTS = new Set([
   'chapter_completed', 'reader_return', 'reader_exit', 'visibility_dwell', 'session_end', 'content_status',
   'entry_step_shown', 'entry_step_dwell', 'entry_blocked', 'reader_checkpoint',
   'admin_login', 'admin_draft_saved', 'admin_published',
+  'center_entry_requested', 'center_scene_entered', 'center_scene_exited',
+  'center_object_interacted', 'center_door_attempted', 'center_door_blocked',
+  'center_door_crossed', 'center_phone_opened', 'center_ride_ready',
+  'center_feedback_prompt_shown', 'center_feedback_opened', 'center_feedback_submitted',
 ])
 const LANGUAGES = new Set(['zh', 'en'])
 const MODES = new Set(['immersive', 'standard'])
 const EXIT_REASONS = new Set(['return', 'landing', 'hidden', 'unload', 'completed', 'abandoned', 'browser_back'])
+const PHONE_DEVICES = new Set(['surface', 'inner'])
 const MILESTONES = [0.25, 0.5, 0.75, 1]
 
 function uuid() {
@@ -63,6 +68,10 @@ function cleanStepId(value) {
   return typeof value === 'string' && /^[A-Za-z0-9:_-]{1,96}$/.test(value) ? value : null
 }
 
+function cleanAnalyticsId(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9:_-]{1,128}$/.test(value) ? value : null
+}
+
 export function buildAnalyticsEvent(eventName, fields = {}, dependencies = {}) {
   if (!EVENTS.has(eventName)) return null
   const visitorId = dependencies.visitorId ?? ensureVisitor(dependencies.localStorage)
@@ -85,6 +94,12 @@ export function buildAnalyticsEvent(eventName, fields = {}, dependencies = {}) {
     progress_ratio: Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : null,
     dwell_ms: Number.isFinite(dwell) ? Math.min(86400000, Math.max(0, Math.round(dwell))) : null,
     exit_reason: EXIT_REASONS.has(fields.exitReason) ? fields.exitReason : null,
+    scene_id: cleanAnalyticsId(fields.sceneId),
+    object_id: cleanAnalyticsId(fields.objectId),
+    object_kind: cleanAnalyticsId(fields.objectKind),
+    destination_scene_id: cleanAnalyticsId(fields.destinationSceneId),
+    device: PHONE_DEVICES.has(fields.device) ? fields.device : null,
+    outcome: cleanAnalyticsId(fields.outcome),
   }
 }
 
@@ -106,6 +121,11 @@ export function trackEvent(eventName, fields = {}, options = {}) {
   }
   return supabase.from('analytics_events').insert(payload)
     .then(({ error }) => !error).catch(() => false)
+}
+
+export function getAnalyticsIdentity() {
+  const session = ensureSession()
+  return { visitorId: ensureVisitor(), sessionId: session?.id ?? null }
 }
 
 export function trackReaderProgress(stepId, progressRatio, context = {}) {

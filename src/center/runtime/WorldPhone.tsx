@@ -1,11 +1,20 @@
 'use client'
 
-import { useRef, useState, useSyncExternalStore, type AnimationEvent as ReactAnimationEvent, type PointerEvent as ReactPointerEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type AnimationEvent as ReactAnimationEvent, type FormEvent, type PointerEvent as ReactPointerEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
 import { mainlineMapLandmarksByWorld, mainlineMapLayout, type MainlineMapLandmark, type MainlineSceneId } from './mainlineScenes'
 import { sceneInteractionHandlers } from './sceneInteraction'
 import { phoneInputOwner, phoneIsOnline, phoneRideAvailability, type PhoneDevice, type WorldLayer, type WorldPhonePhase } from './phoneState'
 
-type PhoneApp = 'map' | 'ride' | 'contacts'
+type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback'
+type FeedbackMode = 'exit-prompt' | 'phone'
+type FeedbackPayload = {
+  experienceLength: 'too-short' | 'okay' | 'cannot-understand' | null
+  portraitAdaptation: 'yes' | 'no' | null
+  continuationInterest: 'yes' | 'no-interest' | null
+  freeText: string
+  source: FeedbackMode
+}
+type FeedbackSubmitResult = { ok: boolean; reason?: string }
 type MapPoint = readonly [number, number]
 type MapDragState = { active: boolean; moved: boolean; pointerId: number; start: MapPoint | null; origin: MapPoint | null }
 type ContactView = 'list' | 'messages'
@@ -57,6 +66,12 @@ type WorldPhoneProps = {
   onOpen: () => void
   onClose: () => void
   onRideRequest?: (device: PhoneDevice, destinationSceneId: MainlineSceneId) => void
+  feedbackMode?: FeedbackMode | null
+  onFeedbackModeChange?: (mode: FeedbackMode | null) => void
+  onFeedbackOpen?: () => void
+  onFeedbackSubmit?: (payload: FeedbackPayload) => Promise<FeedbackSubmitResult>
+  onExitWorldRequest?: () => void
+  onExitWorld?: () => void
 }
 
 type RideDestination = MainlineMapLandmark & { sceneId: MainlineSceneId }
@@ -83,7 +98,121 @@ function memoForDevice(device: PhoneDevice) {
     : { title: '当前任务', body: '去商业街咖啡馆找老周。' }
 }
 
-export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onRideRequest }: WorldPhoneProps) {
+function FeedbackApp({
+  mode,
+  onSubmit,
+  onFinish,
+  onExitWorld,
+}: {
+  mode: FeedbackMode
+  onSubmit?: (payload: FeedbackPayload) => Promise<FeedbackSubmitResult>
+  onFinish: () => void
+  onExitWorld?: () => void
+}) {
+  const [experienceLength, setExperienceLength] = useState<FeedbackPayload['experienceLength']>(null)
+  const [portraitAdaptation, setPortraitAdaptation] = useState<FeedbackPayload['portraitAdaptation']>(null)
+  const [continuationInterest, setContinuationInterest] = useState<FeedbackPayload['continuationInterest']>(null)
+  const [freeText, setFreeText] = useState('')
+  const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!onSubmit || submitting) return
+    setSubmitting(true)
+    setError('')
+    const result = await onSubmit({
+      experienceLength,
+      portraitAdaptation,
+      continuationInterest,
+      freeText,
+      source: mode,
+    })
+    setSubmitting(false)
+    if (!result.ok) {
+      setError(result.reason === 'empty-feedback' ? '先写下一点内容。' : '暂时没有提交成功，请稍后再试。')
+      return
+    }
+    setSubmitted(true)
+  }
+
+  if (submitted) {
+    return (
+      <section className="world-phone__feedback world-phone__feedback--result" aria-live="polite">
+        <span className="world-phone__feedback-kicker">反馈</span>
+        <strong>有任何反馈，可以在手机里面找到入口。</strong>
+        <div className="world-phone__feedback-actions">
+          <button type="button" onClick={onFinish}>返回手机</button>
+          {mode === 'exit-prompt' && <button type="button" onClick={onExitWorld}>继续离开</button>}
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <form className="world-phone__feedback" onSubmit={submit}>
+      <span className="world-phone__feedback-kicker">反馈</span>
+      {mode === 'exit-prompt' ? (
+        <>
+          <p className="world-phone__feedback-intro">离开前，想听听你的感受。</p>
+          <fieldset className="world-phone__feedback-question">
+            <legend>感觉怎么样？</legend>
+            <div className="world-phone__feedback-options">
+              {[
+                ['too-short', '太短了'],
+                ['okay', '还不错'],
+                ['cannot-understand', '完全看不懂'],
+              ].map(([value, label]) => (
+                <label key={value} className={experienceLength === value ? 'is-selected' : ''}>
+                  <input type="radio" name="experience-length" value={value} checked={experienceLength === value} onChange={() => setExperienceLength(value as FeedbackPayload['experienceLength'])} />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset className="world-phone__feedback-question">
+            <legend>您希望我们继续根据竖屏做更精细化的适配吗？</legend>
+            <div className="world-phone__feedback-options world-phone__feedback-options--short">
+              {[
+                ['yes', '要'],
+                ['no', '不要'],
+              ].map(([value, label]) => (
+                <label key={value} className={portraitAdaptation === value ? 'is-selected' : ''}>
+                  <input type="radio" name="portrait-adaptation" value={value} checked={portraitAdaptation === value} onChange={() => setPortraitAdaptation(value as FeedbackPayload['portraitAdaptation'])} />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset className="world-phone__feedback-question">
+            <legend>你愿意体验后面的内容吗？</legend>
+            <div className="world-phone__feedback-options world-phone__feedback-options--short">
+              {[
+                ['yes', '愿意'],
+                ['no-interest', '没兴趣'],
+              ].map(([value, label]) => (
+                <label key={value} className={continuationInterest === value ? 'is-selected' : ''}>
+                  <input type="radio" name="continuation-interest" value={value} checked={continuationInterest === value} onChange={() => setContinuationInterest(value as FeedbackPayload['continuationInterest'])} />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </>
+      ) : (
+        <>
+          <p className="world-phone__feedback-intro">有什么想说的，可以写在这里。</p>
+          <textarea className="world-phone__feedback-textarea" value={freeText} maxLength={2000} onChange={event => setFreeText(event.target.value)} placeholder="写下你的反馈" aria-label="自定义反馈" />
+        </>
+      )}
+      {error && <p className="world-phone__feedback-error" role="alert">{error}</p>}
+      <button className="world-phone__feedback-submit" type="submit" disabled={submitting}>{submitting ? '提交中…' : '提交反馈'}</button>
+    </form>
+  )
+}
+
+export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onRideRequest, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, onExitWorldRequest, onExitWorld }: WorldPhoneProps) {
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
   const [phase, setPhase] = useState<WorldPhonePhase>('closed')
@@ -120,7 +249,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
     ))
     : []
   const selectedRideDestination = rideDestinations.find((landmark) => landmark.id === selectedRideDestinationId) ?? rideDestinations[0] ?? null
-  const activeAppLabel = activeApp === 'map' ? '地图' : activeApp === 'ride' ? '叫车' : activeApp === 'contacts' ? contactView === 'messages' ? '短信' : '联系人' : ''
+  const activeAppLabel = activeApp === 'map' ? '地图' : activeApp === 'ride' ? '叫车' : activeApp === 'contacts' ? contactView === 'messages' ? '短信' : '联系人' : activeApp === 'feedback' ? '反馈' : ''
   const batteryPercent = 72
   const isMapOpen = activeApp === 'map'
   const memo = memoForDevice(displayDevice)
@@ -132,9 +261,14 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
   }
 
   const closeApp = () => {
+    if (activeApp === 'feedback') onFeedbackModeChange?.(null)
     setActiveApp(null)
     setContactView('list')
   }
+
+  useEffect(() => {
+    if (feedbackMode) setActiveApp('feedback')
+  }, [feedbackMode])
 
   const handleBodyTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget || event.propertyName !== 'transform') return
@@ -236,7 +370,10 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
               <span className="world-phone__battery" aria-hidden="true"><i style={{ width: `${batteryPercent}%` }} /></span>
               <span>{batteryPercent}%</span>
             </div>
-            <button className="world-phone__close" type="button" aria-label="收起手机" onClick={onClose}>×</button>
+            <div className="world-phone__header-actions">
+              <button className="world-phone__exit" type="button" onClick={onExitWorldRequest} disabled={!onExitWorldRequest}>离开</button>
+              <button className="world-phone__close" type="button" aria-label="收起手机" onClick={onClose}>×</button>
+            </div>
           </header>}
 
           {!isMapOpen && <div className="world-phone__world-status">
@@ -265,6 +402,10 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
                   <button type="button" data-app="contacts" onClick={() => openApp('contacts')}>
                     <span className="world-phone__app-icon" aria-hidden="true">人</span>
                     <span className="world-phone__app-label">联系人</span>
+                  </button>
+                  <button type="button" data-app="feedback" onClick={() => { onFeedbackOpen?.(); onFeedbackModeChange?.('phone'); openApp('feedback') }}>
+                    <span className="world-phone__app-icon" aria-hidden="true">意</span>
+                    <span className="world-phone__app-label">反馈</span>
                   </button>
                 </nav>
               </div>
@@ -402,6 +543,16 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
                   </ul>
                 </section>
               )
+            )}
+
+            {activeApp === 'feedback' && feedbackMode && (
+              <FeedbackApp
+                key={feedbackMode}
+                mode={feedbackMode}
+                onSubmit={onFeedbackSubmit}
+                onFinish={closeApp}
+                onExitWorld={onExitWorld}
+              />
             )}
               </div>
             </>

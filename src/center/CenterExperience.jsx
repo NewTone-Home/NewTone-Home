@@ -1,23 +1,30 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { MainlineScenePage } from './runtime/MainlineScenePage'
 import { WorldPhone } from './runtime/WorldPhone'
 import {
   mainlineRespawnSceneId,
   mainlineSceneRoute,
+  resolveMainlineSceneId,
 } from './runtime/mainlineScenes'
 import {
   phoneRideAvailability,
   worldLayerForScene,
 } from './runtime/phoneState'
 import {
-  loadCarriedPhoneDevice,
-  loadScenePosition,
-  persistCarriedPhoneDevice,
-  persistScenePosition,
-} from './runtime/mainlineRuntimePersistence'
+  loadPlayerSave,
+  recordPlayerScenePosition,
+  recordPlayerSceneState,
+  savePlayerSave as persistPlayerSave,
+} from './runtime/playerSave'
 import './runtime/scene.css'
 import './CenterExperience.css'
 import { useReducedMotion } from '../hooks/useReducedMotion'
+import { trackEvent } from '../services/analytics'
+import {
+  hasShownCenterFeedbackPrompt,
+  markCenterFeedbackPromptShown,
+  submitCenterFeedback,
+} from '../services/centerFeedback'
 
 const initialSceneId = mainlineRespawnSceneId
 
@@ -30,14 +37,22 @@ export default function CenterExperience({
   onCoverComplete,
   onSceneReady,
   onRevealComplete,
+  onExitWorld,
 }) {
   const reducedMotion = useReducedMotion()
-  const [route, setRoute] = useState(() => createRoute(initialSceneId))
+  const [playerSave, setPlayerSave] = useState(() => loadPlayerSave())
+  const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId))
   const [phoneOpen, setPhoneOpen] = useState(false)
-  const [phoneDevice, setPhoneDevice] = useState(() => loadCarriedPhoneDevice(route.sceneId))
+  const [phoneDevice, setPhoneDevice] = useState(() => loadPlayerSave().phoneDevice)
   const [resumeSceneId, setResumeSceneId] = useState(null)
   const [resumePosition, setResumePosition] = useState(undefined)
   const [boundaryNotice, setBoundaryNotice] = useState('')
+  const [feedbackMode, setFeedbackMode] = useState(null)
+  const sceneEnteredAtRef = useRef(null)
+
+  const commitPlayerSave = useCallback((update) => {
+    setPlayerSave((current) => persistPlayerSave(update(current)))
+  }, [])
 
   const handleBackgroundAnimationEnd = useCallback((event) => {
     if (event.animationName === 'center-world-cover') onCoverComplete?.()
@@ -57,15 +72,71 @@ export default function CenterExperience({
     onRevealComplete?.()
   }, [entryPhase, onRevealComplete, reducedMotion])
 
-  const revealPhone = useCallback(() => setPhoneOpen(true), [])
-  const retractPhone = useCallback(() => setPhoneOpen(false), [])
+  const revealPhone = useCallback(() => {
+    trackEvent('center_phone_opened', {
+      sceneId: route.sceneId,
+      device: phoneDevice,
+      outcome: 'opened',
+    })
+    setPhoneOpen(true)
+  }, [phoneDevice, route.sceneId])
+  const retractPhone = useCallback(() => {
+    setPhoneOpen(false)
+    setFeedbackMode(null)
+  }, [])
+
+  const handleFeedbackModeChange = useCallback((mode) => {
+    setFeedbackMode(mode)
+  }, [])
+
+  const handleFeedbackOpen = useCallback(() => {
+    trackEvent('center_feedback_opened', {
+      sceneId: route.sceneId,
+      device: phoneDevice,
+      outcome: 'opened',
+    })
+    setFeedbackMode('phone')
+  }, [phoneDevice, route.sceneId])
+
+  const handleFeedbackSubmit = useCallback((payload) => (
+    submitCenterFeedback(payload)
+  ), [])
+
+  const handleActualWorldExit = useCallback(() => {
+    const currentScene = sceneEnteredAtRef.current
+    trackEvent('center_scene_exited', {
+      sceneId: route.sceneId,
+      dwellMs: currentScene?.sceneId === route.sceneId ? Date.now() - currentScene.enteredAt : undefined,
+      exitReason: 'return',
+      outcome: 'world_exit',
+    })
+    sceneEnteredAtRef.current = null
+    onExitWorld?.()
+  }, [onExitWorld, route.sceneId])
+
+  const handleExitWorldRequest = useCallback(() => {
+    if (hasShownCenterFeedbackPrompt()) {
+      handleActualWorldExit()
+      return
+    }
+    markCenterFeedbackPromptShown()
+    trackEvent('center_feedback_prompt_shown', {
+      sceneId: route.sceneId,
+      device: phoneDevice,
+      outcome: 'shown',
+    })
+    setFeedbackMode('exit-prompt')
+    setPhoneOpen(true)
+  }, [handleActualWorldExit, phoneDevice, route.sceneId])
 
   useEffect(() => {
-    setPhoneDevice(loadCarriedPhoneDevice(route.sceneId))
-  }, [route.sceneId])
-
-  useEffect(() => {
-    persistCarriedPhoneDevice(phoneDevice, route.sceneId)
+    if (sceneEnteredAtRef.current?.sceneId === route.sceneId) return
+    const enteredAt = Date.now()
+    sceneEnteredAtRef.current = { sceneId: route.sceneId, enteredAt }
+    trackEvent('center_scene_entered', {
+      sceneId: route.sceneId,
+      device: phoneDevice,
+    })
   }, [phoneDevice, route.sceneId])
 
   useEffect(() => {
@@ -73,29 +144,46 @@ export default function CenterExperience({
     setResumeSceneId(null)
     setResumePosition(undefined)
     if (route.spawnMode === 'ride' || route.entryPosition) return
-    setResumePosition(loadScenePosition(route.sceneId))
+    setResumePosition(loadPlayerSave(undefined, route.sceneId).scenePositions[route.sceneId])
     setResumeSceneId(route.sceneId)
   }, [route.sceneId, route.entryPosition?.x, route.entryPosition?.y, route.spawnMode])
 
   const switchCarriedPhone = useCallback((device) => {
     setPhoneDevice(device)
-    persistCarriedPhoneDevice(device, route.sceneId)
+    commitPlayerSave((current) => ({ ...current, phoneDevice: device }))
     setPhoneOpen(true)
-  }, [route.sceneId])
+  }, [commitPlayerSave])
+
+  const recordSceneState = useCallback((sceneId, key, value) => {
+    commitPlayerSave((current) => recordPlayerSceneState(current, sceneId, key, value))
+  }, [commitPlayerSave])
 
   const handleSceneTransition = useCallback((nextSceneId, nextEntryPosition, nextSpawnMode) => {
     const nextRoute = createRoute(nextSceneId, nextEntryPosition, nextSpawnMode || 'resume')
-    persistCarriedPhoneDevice(phoneDevice, nextSceneId)
+    const currentScene = sceneEnteredAtRef.current
+    trackEvent('center_scene_exited', {
+      sceneId: route.sceneId,
+      destinationSceneId: nextSceneId,
+      dwellMs: currentScene?.sceneId === route.sceneId ? Date.now() - currentScene.enteredAt : undefined,
+      outcome: 'scene_change',
+    })
+    sceneEnteredAtRef.current = null
+    commitPlayerSave((current) => ({
+      ...current,
+      currentSceneId: nextSceneId,
+      currentPosition: nextEntryPosition ?? current.scenePositions[nextSceneId] ?? null,
+    }))
     window.history.pushState(
       { newtoneCenterScene: nextSceneId },
       '',
       mainlineSceneRoute(nextSceneId, nextEntryPosition, nextRoute.spawnMode),
     )
     setRoute(nextRoute)
-  }, [phoneDevice])
+  }, [commitPlayerSave, route.sceneId])
 
   const handleSafeSpawnCorrection = useCallback((position) => {
     if (!route.entryPosition) return
+    commitPlayerSave((current) => recordPlayerScenePosition(current, route.sceneId, position))
     const nextRoute = createRoute(route.sceneId, position, route.spawnMode)
     window.history.replaceState(
       { newtoneCenterScene: route.sceneId },
@@ -103,11 +191,42 @@ export default function CenterExperience({
       mainlineSceneRoute(route.sceneId, position, route.spawnMode),
     )
     setRoute(nextRoute)
-  }, [route.entryPosition, route.sceneId, route.spawnMode])
+  }, [commitPlayerSave, route.entryPosition, route.sceneId, route.spawnMode])
 
-  const handleRideRequest = useCallback((device) => {
+  const handleObjectInteraction = useCallback((entity, dwellMs) => {
+    trackEvent('center_object_interacted', {
+      sceneId: route.sceneId,
+      objectId: entity.id,
+      objectKind: entity.kind,
+      dwellMs,
+      outcome: 'revealed',
+    })
+  }, [route.sceneId])
+
+  const handleDoorEvent = useCallback((phase, passage) => {
+    const eventName = phase === 'attempted'
+      ? 'center_door_attempted'
+      : phase === 'blocked'
+        ? 'center_door_blocked'
+        : 'center_door_crossed'
+    trackEvent(eventName, {
+      sceneId: route.sceneId,
+      objectId: passage.entityId,
+      objectKind: 'door',
+      destinationSceneId: passage.targetSceneId,
+      outcome: phase,
+    })
+  }, [route.sceneId])
+
+  const handleRideRequest = useCallback((device, destinationSceneId) => {
     const layer = worldLayerForScene(route.sceneId)
     if (phoneRideAvailability(device, layer) !== 'available') return
+    trackEvent('center_ride_ready', {
+      sceneId: route.sceneId,
+      destinationSceneId,
+      device,
+      outcome: 'ready',
+    })
     setPhoneOpen(false)
     setBoundaryNotice('叫车功能已接通，后续内容暂未开放。')
   }, [route.sceneId])
@@ -118,8 +237,8 @@ export default function CenterExperience({
       || resumeSceneId === route.sceneId,
   )
   const handlePositionChange = useCallback((position) => {
-    if (canPersistScenePosition) persistScenePosition(route.sceneId, position)
-  }, [canPersistScenePosition, route.sceneId])
+    if (canPersistScenePosition) commitPlayerSave((current) => recordPlayerScenePosition(current, route.sceneId, position))
+  }, [canPersistScenePosition, commitPlayerSave, route.sceneId])
 
   return (
     <main
@@ -143,6 +262,10 @@ export default function CenterExperience({
           phoneOpen={phoneOpen}
           onPhoneDismiss={retractPhone}
           onDeskInteraction={switchCarriedPhone}
+          onObjectInteraction={handleObjectInteraction}
+          onDoorEvent={handleDoorEvent}
+          initialSceneState={playerSave.sceneState[route.sceneId] ?? {}}
+          onPlayerSceneStateChange={recordSceneState}
           carriedPhoneDevice={phoneDevice}
           onSceneTransition={handleSceneTransition}
           onSafeSpawnCorrection={handleSafeSpawnCorrection}
@@ -160,6 +283,12 @@ export default function CenterExperience({
           onOpen={revealPhone}
           onClose={retractPhone}
           onRideRequest={handleRideRequest}
+          feedbackMode={feedbackMode}
+          onFeedbackModeChange={handleFeedbackModeChange}
+          onFeedbackOpen={handleFeedbackOpen}
+          onFeedbackSubmit={handleFeedbackSubmit}
+          onExitWorldRequest={handleExitWorldRequest}
+          onExitWorld={handleActualWorldExit}
         />
         {boundaryNotice && (
           <div className="center-experience__boundary" role="status" aria-live="polite">

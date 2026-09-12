@@ -152,6 +152,11 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     dispatchWorldEntry({ type: 'reveal-complete' })
   }, [])
 
+  const handleExitWorld = useCallback(() => {
+    dispatchWorldEntry({ type: 'reset' })
+    window.history.replaceState({ newtoneView: 'landing' }, '')
+  }, [])
+
   const readingEntryNeedsReader =
     readingEntry.phase === 'reader-preparing' ||
     readingEntry.phase === 'transition-leaving'
@@ -190,6 +195,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
           onCoverComplete={handleWorldCoverComplete}
           onSceneReady={handleWorldSceneReady}
           onRevealComplete={handleWorldRevealComplete}
+          onExitWorld={handleExitWorld}
         />
       )}
       {landingMounted && (

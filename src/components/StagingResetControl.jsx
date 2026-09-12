@@ -1,5 +1,7 @@
 import { clearIntroCompleted } from '../landing/landingIntro'
 import { useProgressStore } from '../stores/progressStore'
+import { clearPlayerSave } from '../center/runtime/playerSave'
+import { clearCenterFeedbackPrompt } from '../services/centerFeedback'
 
 const STAGING_TOOLS_ENABLED = import.meta.env.VITE_ENABLE_STAGING_TOOLS === 'true'
 
@@ -29,6 +31,8 @@ export default function StagingResetControl() {
 
   const resetTestState = () => {
     clearIntroCompleted()
+    clearPlayerSave()
+    clearCenterFeedbackPrompt()
     useProgressStore.getState().reset()
     window.history.replaceState({ newtoneView: 'landing' }, '')
     window.location.replace('/')

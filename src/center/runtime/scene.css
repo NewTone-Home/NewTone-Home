@@ -213,6 +213,18 @@
 }
 .world-phone__close:hover,
 .world-phone__close:focus-visible { border-color: #ff9f7c; color: #ff9f7c; }
+.world-phone__header-actions { display: flex; align-items: center; gap: 6px; }
+.world-phone__exit {
+  min-height: 22px;
+  padding: 0 7px;
+  border: 1px solid #426177;
+  background: #142635;
+  color: #ad966c;
+  font-size: 9px;
+}
+.world-phone__exit:hover,
+.world-phone__exit:focus-visible { border-color: #ff9f7c; color: #ff9f7c; }
+.world-phone__exit:disabled { opacity: .55; cursor: not-allowed; }
 .world-phone__world-status {
   display: flex;
   flex-wrap: wrap;
@@ -301,6 +313,65 @@
 .world-phone__apps button:focus-visible { outline: 2px solid #f4d57f; outline-offset: 1px; }
 .world-phone--inner .world-phone__apps button:focus-visible { outline-color: #8ce2d0; }
 .world-phone__app-view { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.world-phone__feedback {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 4px 24px;
+  color: #ad966c;
+}
+.world-phone__feedback--result { display: flex; flex-direction: column; justify-content: center; }
+.world-phone__feedback-kicker { display: block; color: #7e9aab; font-size: 9px; letter-spacing: .1em; }
+.world-phone__feedback-intro { margin: 10px 0 18px; color: #e9d6a6; font-size: 12px; line-height: 1.6; }
+.world-phone__feedback-question { margin: 0 0 16px; padding: 0; border: 0; }
+.world-phone__feedback-question legend { margin-bottom: 8px; color: #e9d6a6; font-size: 11px; line-height: 1.5; }
+.world-phone__feedback-options { display: grid; gap: 7px; }
+.world-phone__feedback-options--short { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.world-phone__feedback-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid #426177;
+  background: #101f2b;
+  color: #ad966c;
+  font-size: 10px;
+  cursor: pointer;
+}
+.world-phone__feedback-options label.is-selected { border-color: #8ce2d0; background: #193c45; color: #c6fff2; }
+.world-phone__feedback-options input { accent-color: #8ce2d0; }
+.world-phone__feedback-textarea {
+  display: block;
+  width: 100%;
+  min-height: 180px;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 10px;
+  border: 1px solid #426177;
+  border-radius: 0;
+  background: #07131c;
+  color: #e9d6a6;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.world-phone__feedback-textarea::placeholder { color: #7e9aab; }
+.world-phone__feedback-error { margin: 10px 0; color: #ff9f7c; font-size: 9px; line-height: 1.4; }
+.world-phone__feedback-submit,
+.world-phone__feedback-actions button {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid #8ce2d0;
+  background: #172734;
+  color: #c6fff2;
+  font-size: 10px;
+}
+.world-phone__feedback-submit { width: 100%; margin-top: 8px; }
+.world-phone__feedback-submit:disabled { border-color: #426177; color: #7e9aab; cursor: wait; }
+.world-phone__feedback--result strong { display: block; margin-top: 12px; color: #f4d57f; font-size: 17px; line-height: 1.6; }
+.world-phone__feedback-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+.world-phone__feedback-actions button { flex: 1 1 120px; }
 .world-phone__map-frame { flex: 1; height: auto; min-height: 0; margin-top: 9px; padding: 0; border: 0; background: transparent; display: flex; flex-direction: column; }
 .world-phone__panel--map { position: relative; padding: 0; }
 .world-phone__panel--map .world-phone__app-bar { position: absolute; z-index: 3; top: 18px; right: 18px; left: 18px; min-height: 0; padding: 0 0 10px; border-bottom: 1px solid rgba(140, 226, 208, .32); background: linear-gradient(180deg, rgba(7, 16, 24, .9), rgba(7, 16, 24, 0)); }
@@ -1494,7 +1565,9 @@
     padding-bottom: 8px;
   }
   .world-phone__status { grid-column: 2; grid-row: 1; gap: 4px; font-size: 7px; }
-  .world-phone__close { grid-column: 2; grid-row: 2; justify-self: end; width: 24px; height: 24px; }
+  .world-phone__header-actions { grid-column: 2; grid-row: 2; justify-self: end; }
+  .world-phone__close { width: 24px; height: 24px; }
+  .world-phone__exit { min-height: 24px; font-size: 8px; }
   .world-phone__carrier { font-size: 7px; }
   .world-phone__header strong { margin-top: 3px; font-size: 16px; }
   .world-phone__world-status {
@@ -1545,6 +1618,11 @@
   .world-phone--surface .world-phone__apps button.is-active { color: #fff1b3; }
   .world-phone--surface .world-phone__apps button.is-active .world-phone__app-icon { border-color: #f4d57f; background: #3b3020; }
   .world-phone__app-view { min-height: 0; }
+  .world-phone__feedback { padding: 16px 4px 20px; }
+  .world-phone__feedback-question { margin-bottom: 13px; }
+  .world-phone__feedback-question legend { font-size: 10px; }
+  .world-phone__feedback-options label { min-height: 28px; font-size: 9px; }
+  .world-phone__feedback-textarea { min-height: 150px; font-size: 10px; }
   .world-phone__home-screen { min-height: 0; }
   .world-phone__home-layout { gap: 12px; }
   .world-phone__home-memo { padding: 11px 9px; }
