@@ -28,6 +28,7 @@ function Landing({
   surfaceStyle,
   readingMode,
   environmentState,
+  worldEntryPhase = 'idle',
   updatesPhase,
   worldMode = false,
 }) {
@@ -182,7 +183,7 @@ function Landing({
   return (
     <div
       ref={landingRef}
-      className={`landing paper-surface${leaving ? ' landing--leaving' : ''}${landingScene ? ' landing--scene' : ''}${returnSequenceActive ? ' landing--return-sequence' : ''}`}
+      className={`landing paper-surface${leaving ? ' landing--leaving' : ''}${landingScene ? ' landing--scene' : ''}${returnSequenceActive ? ' landing--return-sequence' : ''}${worldEntryPhase !== 'idle' ? ` landing--world-entry landing--world-entry-${worldEntryPhase}` : ''}`}
       style={{
         ...surfaceStyle,
         '--landing-leave-ms': `${leavingMs}ms`,
@@ -193,6 +194,7 @@ function Landing({
       data-world-layer={environmentState.worldLayer}
       data-time-of-day={environmentState.time}
       data-weather={environmentState.weather}
+      data-world-entry-phase={worldEntryPhase}
       data-landing-arrival={returnArrival ? 'return' : 'main'}
       data-entry-phase={entryPromptsActive ? 'visible' : 'hidden'}
       data-updates-phase={updatesPhase}

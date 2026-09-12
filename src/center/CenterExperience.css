@@ -1,6 +1,71 @@
 .center-experience {
-  min-height: 100dvh;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  overflow: hidden;
+  isolation: isolate;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.center-experience__background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   background: #050505;
+  border-radius: 999px;
+  transform: scale(.004, .004);
+  transform-origin: 50% 50%;
+  will-change: transform, border-radius;
+}
+
+.center-experience--covering .center-experience__background {
+  animation: center-world-cover 980ms cubic-bezier(.55, .05, .2, 1) forwards;
+}
+
+.center-experience--covered .center-experience__background,
+.center-experience--revealing .center-experience__background,
+.center-experience--active .center-experience__background {
+  border-radius: 0;
+  transform: scale(1, 1);
+}
+
+.center-experience__scene-layer {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.center-experience--revealing .center-experience__scene-layer {
+  animation: center-world-scene-in 520ms ease-out forwards;
+}
+
+.center-experience--active .center-experience__scene-layer {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@keyframes center-world-cover {
+  0% {
+    border-radius: 999px;
+    transform: scale(.004, .004);
+  }
+  34% {
+    border-radius: 999px;
+    transform: scale(1, .008);
+  }
+  100% {
+    border-radius: 0;
+    transform: scale(1, 1);
+  }
+}
+
+@keyframes center-world-scene-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .center-experience__boundary {
@@ -22,5 +87,15 @@
     bottom: 12px;
     left: 12px;
     max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .center-experience--covering .center-experience__background {
+    animation-duration: 1ms;
+  }
+
+  .center-experience--revealing .center-experience__scene-layer {
+    animation-duration: 1ms;
   }
 }

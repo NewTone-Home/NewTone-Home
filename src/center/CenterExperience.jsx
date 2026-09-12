@@ -17,6 +17,7 @@ import {
 } from './runtime/mainlineRuntimePersistence'
 import './runtime/scene.css'
 import './CenterExperience.css'
+import { useReducedMotion } from '../hooks/useReducedMotion'
 
 const initialSceneId = mainlineRespawnSceneId
 
@@ -24,13 +25,37 @@ function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
   return { sceneId, entryPosition, spawnMode }
 }
 
-export default function CenterExperience() {
+export default function CenterExperience({
+  entryPhase = 'active',
+  onCoverComplete,
+  onSceneReady,
+  onRevealComplete,
+}) {
+  const reducedMotion = useReducedMotion()
   const [route, setRoute] = useState(() => createRoute(initialSceneId))
   const [phoneOpen, setPhoneOpen] = useState(false)
   const [phoneDevice, setPhoneDevice] = useState(() => loadCarriedPhoneDevice(route.sceneId))
   const [resumeSceneId, setResumeSceneId] = useState(null)
   const [resumePosition, setResumePosition] = useState(undefined)
   const [boundaryNotice, setBoundaryNotice] = useState('')
+
+  const handleBackgroundAnimationEnd = useCallback((event) => {
+    if (event.animationName === 'center-world-cover') onCoverComplete?.()
+  }, [onCoverComplete])
+
+  const handleSceneAnimationEnd = useCallback((event) => {
+    if (event.animationName === 'center-world-scene-in') onRevealComplete?.()
+  }, [onRevealComplete])
+
+  useEffect(() => {
+    if (!reducedMotion || entryPhase !== 'covering') return
+    onCoverComplete?.()
+  }, [entryPhase, onCoverComplete, reducedMotion])
+
+  useEffect(() => {
+    if (!reducedMotion || entryPhase !== 'revealing') return
+    onRevealComplete?.()
+  }, [entryPhase, onRevealComplete, reducedMotion])
 
   const revealPhone = useCallback(() => setPhoneOpen(true), [])
   const retractPhone = useCallback(() => setPhoneOpen(false), [])
@@ -97,38 +122,51 @@ export default function CenterExperience() {
   }, [canPersistScenePosition, route.sceneId])
 
   return (
-    <main className="center-experience" data-center-boundary="inner-phone-ride-ready">
-      <MainlineScenePage
-        key={`${route.sceneId}:${route.entryPosition?.x ?? ''}:${route.entryPosition?.y ?? ''}:${route.spawnMode}:${resumePosition?.x ?? ''}:${resumePosition?.y ?? ''}`}
-        sceneId={route.sceneId}
-        onExternalExit={revealPhone}
-        onExternalReturn={retractPhone}
-        phoneOpen={phoneOpen}
-        onPhoneDismiss={retractPhone}
-        onDeskInteraction={switchCarriedPhone}
-        carriedPhoneDevice={phoneDevice}
-        onSceneTransition={handleSceneTransition}
-        onSafeSpawnCorrection={handleSafeSpawnCorrection}
-        onPositionChange={canPersistScenePosition ? handlePositionChange : undefined}
-        entryPosition={route.entryPosition}
-        spawnMode={route.spawnMode}
-        resumePosition={resumePosition}
-        showSceneChrome={false}
+    <main
+      className={`center-experience center-experience--${entryPhase}`}
+      data-center-boundary="inner-phone-ride-ready"
+      data-entry-phase={entryPhase}
+      aria-busy={entryPhase !== 'active'}
+    >
+      <div
+        className="center-experience__background"
+        aria-hidden="true"
+        onAnimationEnd={handleBackgroundAnimationEnd}
       />
-      <WorldPhone
-        currentSceneId={route.sceneId}
-        worldLayer={worldLayerForScene(route.sceneId)}
-        device={phoneDevice}
-        open={phoneOpen}
-        onOpen={revealPhone}
-        onClose={retractPhone}
-        onRideRequest={handleRideRequest}
-      />
-      {boundaryNotice && (
-        <div className="center-experience__boundary" role="status" aria-live="polite">
-          {boundaryNotice}
-        </div>
-      )}
+      <div className="center-experience__scene-layer" onAnimationEnd={handleSceneAnimationEnd}>
+        <MainlineScenePage
+          key={`${route.sceneId}:${route.entryPosition?.x ?? ''}:${route.entryPosition?.y ?? ''}:${route.spawnMode}:${resumePosition?.x ?? ''}:${resumePosition?.y ?? ''}`}
+          sceneId={route.sceneId}
+          onExternalExit={revealPhone}
+          onExternalReturn={retractPhone}
+          onSceneReady={onSceneReady}
+          phoneOpen={phoneOpen}
+          onPhoneDismiss={retractPhone}
+          onDeskInteraction={switchCarriedPhone}
+          carriedPhoneDevice={phoneDevice}
+          onSceneTransition={handleSceneTransition}
+          onSafeSpawnCorrection={handleSafeSpawnCorrection}
+          onPositionChange={canPersistScenePosition ? handlePositionChange : undefined}
+          entryPosition={route.entryPosition}
+          spawnMode={route.spawnMode}
+          resumePosition={resumePosition}
+          showSceneChrome={false}
+        />
+        <WorldPhone
+          currentSceneId={route.sceneId}
+          worldLayer={worldLayerForScene(route.sceneId)}
+          device={phoneDevice}
+          open={phoneOpen}
+          onOpen={revealPhone}
+          onClose={retractPhone}
+          onRideRequest={handleRideRequest}
+        />
+        {boundaryNotice && (
+          <div className="center-experience__boundary" role="status" aria-live="polite">
+            {boundaryNotice}
+          </div>
+        )}
+      </div>
     </main>
   )
 }

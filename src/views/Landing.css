@@ -20,6 +20,24 @@
   transform: scale(.995);
 }
 
+/* The Center surface grows over Landing. Keep the paper visible until the
+   Center background has covered it, then let the title collapse into the
+   center point that starts the world-entry surface. */
+.landing--world-entry .landing-title-stack {
+  animation: landing-world-title-to-point 420ms cubic-bezier(.55, .05, .2, 1) both;
+}
+
+@keyframes landing-world-title-to-point {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: .72;
+    transform: translate(-50%, -50%) scale(.012);
+  }
+}
+
 .landing-main {
   position: relative;
   width: 100%;
@@ -112,6 +130,10 @@
   .landing-return-status__text {
     animation: none !important;
   }
+
+  .landing--world-entry .landing-title-stack {
+    animation-duration: 1ms;
+  }
 }
 
 .page-shell[data-motion-mode="reduced"] .landing {
@@ -121,6 +143,10 @@
 
 .page-shell[data-motion-mode="reduced"] .landing-return-status__text {
   animation: none !important;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing--world-entry .landing-title-stack {
+  animation-duration: 1ms;
 }
 
 @media (max-width: 768px) {

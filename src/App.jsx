@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useReducer, useRef } from 'react'
 import { useProgressStore } from './stores/progressStore'
 import { useTransitionStore } from './stores/transitionStore'
 import { useReadingEntry } from './transitions/readingEntryController'
@@ -14,9 +14,17 @@ import { getReaderThemeVariables } from './reader/readerTheme'
 import { trackEvent } from './services/analytics'
 import { recordRuntimeAudit } from './services/runtimeAudit'
 import CenterExperience from './center/CenterExperience'
+import {
+  WORLD_ENTRY_INITIAL_STATE,
+  WORLD_ENTRY_PHASE,
+  worldEntryReducer,
+} from './center/worldEntryTransition'
 
 function App({ contentStatus = 'ready', onRetryContent }) {
-  const [worldActive, setWorldActive] = useState(false)
+  const [worldEntry, dispatchWorldEntry] = useReducer(worldEntryReducer, WORLD_ENTRY_INITIAL_STATE)
+  const worldEntryPhase = worldEntry.phase
+  const worldMounted = worldEntryPhase !== WORLD_ENTRY_PHASE.IDLE
+  const landingMounted = worldEntryPhase !== WORLD_ENTRY_PHASE.ACTIVE
   const currentView = useProgressStore(s => s.currentView)
   const language = useProgressStore(s => s.language)
   const hasInitializedLanguage = useProgressStore(s => s.hasInitializedLanguage)
@@ -127,8 +135,21 @@ function App({ contentStatus = 'ready', onRetryContent }) {
   }, [hasInitializedLanguage, isGlobalTransitioning, language, readingEntry.isActive, readingEntry.phase, readingEntry.start, readingMode])
 
   const handleEnterWorld = useCallback(() => {
+    if (worldEntryPhase !== WORLD_ENTRY_PHASE.IDLE) return
     trackEvent('center_entry_requested', { stepId: 'entry:center' })
-    setWorldActive(true)
+    dispatchWorldEntry({ type: 'start' })
+  }, [worldEntryPhase])
+
+  const handleWorldCoverComplete = useCallback(() => {
+    dispatchWorldEntry({ type: 'cover-complete' })
+  }, [])
+
+  const handleWorldSceneReady = useCallback(() => {
+    dispatchWorldEntry({ type: 'scene-ready' })
+  }, [])
+
+  const handleWorldRevealComplete = useCallback(() => {
+    dispatchWorldEntry({ type: 'reveal-complete' })
   }, [])
 
   const readingEntryNeedsReader =
@@ -163,8 +184,15 @@ function App({ contentStatus = 'ready', onRetryContent }) {
 
   return (
     <>
-      {worldActive && <CenterExperience />}
-      {!worldActive && (
+      {worldMounted && (
+        <CenterExperience
+          entryPhase={worldEntryPhase}
+          onCoverComplete={handleWorldCoverComplete}
+          onSceneReady={handleWorldSceneReady}
+          onRevealComplete={handleWorldRevealComplete}
+        />
+      )}
+      {landingMounted && (
         <PageShell motionMode={motionMode} surfaceStyle={readerSurfaceStyle}>
           {showReader && (
             <Reader
@@ -186,6 +214,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
               motionMode={motionMode}
               surfaceStyle={readerSurfaceStyle}
               environmentState={environmentState}
+              worldEntryPhase={worldEntryPhase}
               landingHandoff={showLandingHandoffSurface}
               worldMode
               onEnter={handleEnterWorld}
@@ -197,7 +226,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
         </PageShell>
       )}
       {isGlobalTransitioning && <GlobalTransitionOverlay surfaceStyle={readerSurfaceStyle} />}
-      {!worldActive && <AdminSequenceGate />}
+      {!worldMounted && <AdminSequenceGate />}
     </>
   )
 }

@@ -287,6 +287,7 @@ export function MainlineScenePage({
   showProtagonist = true,
   movementController,
   onPositionChange,
+  onSceneReady,
   onFeedbackChange,
   walkRequest,
   phoneOpen = false,
@@ -307,6 +308,7 @@ export function MainlineScenePage({
   showProtagonist?: boolean
   movementController?: FreeRoamMovement
   onPositionChange?: (position: Point) => void
+  onSceneReady?: () => void
   onFeedbackChange?: (feedback: string | null) => void
   walkRequest?: { id: number; point: Point } | null
   phoneOpen?: boolean
@@ -336,9 +338,14 @@ export function MainlineScenePage({
   const pendingTraversalRef = useRef<PendingMainlineTraversal | null>(null)
   const continuePendingTraversalRef = useRef<(entityId: string) => void>(() => {})
   const [screenMetrics, setScreenMetrics] = useState<SceneScreenMetrics>(defaultSceneScreenMetrics)
+  const sceneReadyRef = useRef(false)
   const handleScreenMetricsChange = useCallback((next: SceneScreenMetrics) => {
     setScreenMetrics((previous) => previous.width === next.width && previous.height === next.height ? previous : next)
-  }, [])
+    if (!sceneReadyRef.current) {
+      sceneReadyRef.current = true
+      onSceneReady?.()
+    }
+  }, [onSceneReady])
   const scene = sceneDefinition
   const previousExternalExitPositionRef = useRef(initialPosition)
   const handledWalkRequestRef = useRef<number | null>(null)
