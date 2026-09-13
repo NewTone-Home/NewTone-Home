@@ -20,6 +20,26 @@
   transform: scale(.995);
 }
 
+/* The paper is the transition surface. It darkens in place and consumes the
+   NewTone mark; the Center takes ownership only after this animation ends. */
+.landing--world-entry-covering {
+  animation: landing-world-surface-cover 980ms cubic-bezier(.55, .05, .2, 1) forwards;
+}
+
+.landing--world-entry .landing-title-stack {
+  animation: landing-world-title-fade 980ms cubic-bezier(.55, .05, .2, 1) forwards;
+}
+
+@keyframes landing-world-surface-cover {
+  from { background-color: var(--reader-paper, var(--paper-base)); }
+  to { background-color: #050505; }
+}
+
+@keyframes landing-world-title-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 .landing-main {
   position: relative;
   width: 100%;
@@ -32,6 +52,23 @@
   left: 50%;
   top: 48%;
   transform: translate(-50%, -50%);
+}
+
+.landing-device-hint {
+  display: none;
+  margin: 1rem auto 0;
+  color: var(--reader-muted, var(--ink-medium));
+  font-size: clamp(.74rem, 2.8vw, .9rem);
+  letter-spacing: .08em;
+  line-height: 1.6;
+  opacity: .42;
+  text-align: center;
+  animation: landing-device-hint-breath 2600ms ease-in-out infinite;
+}
+
+@keyframes landing-device-hint-breath {
+  0%, 100% { opacity: .28; }
+  50% { opacity: .72; }
 }
 
 .landing-title {
@@ -112,6 +149,16 @@
   .landing-return-status__text {
     animation: none !important;
   }
+
+  .landing--world-entry-covering,
+  .landing--world-entry .landing-title-stack {
+    animation-duration: 1ms;
+  }
+
+  .landing-device-hint {
+    animation: none;
+    opacity: .6;
+  }
 }
 
 .page-shell[data-motion-mode="reduced"] .landing {
@@ -123,6 +170,15 @@
   animation: none !important;
 }
 
+.page-shell[data-motion-mode="reduced"] .landing--world-entry .landing-title-stack {
+  animation-duration: 1ms;
+}
+
+.page-shell[data-motion-mode="reduced"] .landing-device-hint {
+  animation: none;
+  opacity: .6;
+}
+
 @media (max-width: 768px) {
   .landing-return-status {
     top: calc(100% + 2.8rem);
@@ -131,6 +187,12 @@
   .landing-return-status__text {
     font-size: clamp(.8rem, 3vw, .95rem);
     letter-spacing: 1px;
+  }
+}
+
+@media (max-width: 640px) {
+  .landing-device-hint[data-world-mode="true"] {
+    display: block;
   }
 }
 

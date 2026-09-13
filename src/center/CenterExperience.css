@@ -1,0 +1,73 @@
+.center-experience {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  overflow: hidden;
+  isolation: isolate;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.center-experience__background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: transparent;
+}
+
+.center-experience--covered .center-experience__background,
+.center-experience--revealing .center-experience__background,
+.center-experience--active .center-experience__background {
+  background: #050505;
+}
+
+.center-experience__scene-layer {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.center-experience--revealing .center-experience__scene-layer {
+  animation: center-world-scene-in 520ms ease-out forwards;
+}
+
+.center-experience--active .center-experience__scene-layer {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@keyframes center-world-scene-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.center-experience__boundary {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 120;
+  max-width: min(360px, calc(100vw - 36px));
+  padding: 8px 11px;
+  border: 1px solid rgba(140, 226, 208, .72);
+  background: rgba(7, 16, 24, .94);
+  color: #8ce2d0;
+  font: 12px/1.5 "Courier New", "Noto Sans Mono CJK SC", monospace;
+}
+
+@media (max-width: 600px) {
+  .center-experience__boundary {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .center-experience--revealing .center-experience__scene-layer {
+    animation-duration: 1ms;
+  }
+}

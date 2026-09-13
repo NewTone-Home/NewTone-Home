@@ -19,7 +19,10 @@ function EntrySurface({
   motionMode,
   surfaceStyle,
   environmentState,
+  worldEntryPhase = 'idle',
+  onWorldCoverComplete,
   landingHandoff = false,
+  worldMode = false,
   onEnter,
   onProceed,
   onModeSelect,
@@ -52,12 +55,13 @@ function EntrySurface({
 
   return (
     <div
-      className={`entry-surface entry-surface--phase-${phase}${readerHandoffActive ? ' entry-surface--reader-handoff' : ''}${readerHandoffLeaving ? ' entry-surface--reader-handoff-leaving' : ''}${landingHandoff ? ' entry-surface--reader-return' : ''}`}
+      className={`entry-surface entry-surface--phase-${phase}${readerHandoffActive ? ' entry-surface--reader-handoff' : ''}${readerHandoffLeaving ? ' entry-surface--reader-handoff-leaving' : ''}${landingHandoff ? ' entry-surface--reader-return' : ''}${worldEntryPhase !== 'idle' ? ' entry-surface--world-entry' : ''}`}
       style={readerHandoffActive ? { '--entry-handoff-fade-duration': `${READING_ENTRY_TIMINGS.TRANSITION_FADE_MS}ms` } : undefined}
       data-entry-phase={phase}
       data-entry-intent={intent || 'none'}
       data-updates-phase={updatesPhase}
       data-entry-handoff={landingHandoff && returnArrivalSurface ? 'reader-to-landing' : 'none'}
+      data-world-entry-phase={worldEntryPhase}
     >
       <Landing
         onEnter={onEnter}
@@ -68,6 +72,9 @@ function EntrySurface({
         surfaceStyle={surfaceStyle}
         readingMode={readingMode}
         environmentState={environmentState}
+        worldEntryPhase={worldEntryPhase}
+        onWorldCoverComplete={onWorldCoverComplete}
+        worldMode={worldMode}
       />
 
       <LandingUpdatesPage

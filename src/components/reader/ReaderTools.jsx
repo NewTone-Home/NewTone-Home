@@ -66,6 +66,7 @@ function ReaderTools({
   onThemePosition,
   locationId,
   locationLabel,
+  showLocationLabel = true,
 }) {
   const visibleReadingMode = 'standard'
   const [menuOpen, setMenuOpen] = useState(false)
@@ -455,10 +456,12 @@ function ReaderTools({
       onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) scheduleToolbarClose() }}
     >
       <div className={`reader-scene-menu-group reader-scene-menu-group--${visibleReadingMode}`}>
-        <span className="reader-scene-menu-label" aria-live="polite">
-          {sceneSwap && <span className="reader-scene-menu-label-layer is-outgoing">{sceneSwap.previous.locationLabel}</span>}
-          <span className={`reader-scene-menu-label-layer${sceneSwap ? ' is-incoming' : ''}`}>{locationLabel}</span>
-        </span>
+        {showLocationLabel && (
+          <span className="reader-scene-menu-label" aria-live="polite">
+            {sceneSwap && <span className="reader-scene-menu-label-layer is-outgoing">{sceneSwap.previous.locationLabel}</span>}
+            <span className={`reader-scene-menu-label-layer${sceneSwap ? ' is-incoming' : ''}`}>{locationLabel}</span>
+          </span>
+        )}
         <button
           className={`reader-menu-mark reader-menu-mark--${visibleReadingMode}${modeTransition ? ` is-switching is-${modeTransition}` : ''}`}
           type="button"

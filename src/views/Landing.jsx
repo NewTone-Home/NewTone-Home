@@ -28,7 +28,10 @@ function Landing({
   surfaceStyle,
   readingMode,
   environmentState,
+  worldEntryPhase = 'idle',
+  onWorldCoverComplete,
   updatesPhase,
+  worldMode = false,
 }) {
   const language = useProgressStore(s => s.language)
   const hasInitializedLanguage = useProgressStore(s => s.hasInitializedLanguage)
@@ -43,6 +46,7 @@ function Landing({
   const [returnStatusFading, setReturnStatusFading] = useState(false)
   const landingRef = useRef(null)
   const landingLeaveRetractStartedRef = useRef(false)
+  const worldCoverCompleteRef = useRef(false)
 
   const reducedMotion = useReducedMotion()
   const [landingScene] = useState(() => resolveLandingScene(window.location.search))
@@ -133,41 +137,73 @@ function Landing({
     ? language
     : detectBrowserReaderLanguage(navigator.languages || [navigator.language])
   const readerEntryId = hasProgress ? 'reader-continue' : 'reader-start'
-  const landingEntries = useMemo(() => ([
-    {
+  const landingEntries = useMemo(() => {
+    const entries = [{
       id: 'updates',
       label: copy[landingLanguage]?.updates || (landingLanguage === 'zh' ? '更新公告' : 'Updates'),
       materialMode: 'background',
-    },
-    {
+    }]
+    if (worldMode) {
+      entries.push({
+        id: 'world',
+        label: '进入世界',
+        materialMode: 'world',
+        worldLayer: environmentState.worldLayer,
+      })
+      return entries
+    }
+    entries.push({
       id: readerEntryId,
       label: hasProgress
         ? (copy[landingLanguage]?.continueReading || copy[landingLanguage]?.transitionResume)
         : copy[landingLanguage]?.transitionStart,
       materialMode: hasProgress ? 'world' : 'background',
       worldLayer: environmentState.worldLayer,
-    },
-  ]), [environmentState.worldLayer, hasProgress, landingLanguage, readerEntryId])
+    })
+    return entries
+  }, [environmentState.worldLayer, hasProgress, landingLanguage, readerEntryId, worldMode])
   const returnStatusBase = copy[landingLanguage]?.transitionReturn
     || copy[landingLanguage]?.backToLanding
     || copy.zh.transitionReturn
   const returnStatusText = `${returnStatusBase}${landingLanguage === 'zh' ? '……' : '…'}`
   const titleTouched = phase !== TITLE_PHASE.IDLE
-   const landingEntriesVisible = !leaving && entryPromptsActive && updatesPhase === UPDATES_PHASE.LANDING
+  const landingEntriesVisible = !leaving && entryPromptsActive && updatesPhase === UPDATES_PHASE.LANDING
+
+  useEffect(() => {
+    if (worldEntryPhase !== 'covering') {
+      worldCoverCompleteRef.current = false
+      return undefined
+    }
+    if (worldCoverCompleteRef.current || !(reducedMotion || motionMode === 'reduced')) return undefined
+    worldCoverCompleteRef.current = true
+    onWorldCoverComplete?.()
+    return undefined
+  }, [motionMode, onWorldCoverComplete, reducedMotion, worldEntryPhase])
+
+  const handleWorldEntryAnimationEnd = useCallback((event) => {
+    if (event.animationName !== 'landing-world-surface-cover' || worldCoverCompleteRef.current) return
+    worldCoverCompleteRef.current = true
+    onWorldCoverComplete?.()
+  }, [onWorldCoverComplete])
 
   const handleEntryNavigate = useCallback((entryId) => {
     if (entryId === 'updates') {
       onEnterUpdates?.()
       return
     }
+    if (entryId === 'world' && worldMode) {
+      onEnter?.()
+      return
+    }
     const state = useProgressStore.getState()
     onEnter?.(getReaderEntryIntent(state))
-  }, [onEnter, onEnterUpdates])
+  }, [onEnter, onEnterUpdates, worldMode])
 
   return (
     <div
       ref={landingRef}
-      className={`landing paper-surface${leaving ? ' landing--leaving' : ''}${landingScene ? ' landing--scene' : ''}${returnSequenceActive ? ' landing--return-sequence' : ''}`}
+      className={`landing paper-surface${leaving ? ' landing--leaving' : ''}${landingScene ? ' landing--scene' : ''}${returnSequenceActive ? ' landing--return-sequence' : ''}${worldEntryPhase !== 'idle' ? ` landing--world-entry landing--world-entry-${worldEntryPhase}` : ''}`}
+      onAnimationEnd={handleWorldEntryAnimationEnd}
       style={{
         ...surfaceStyle,
         '--landing-leave-ms': `${leavingMs}ms`,
@@ -178,6 +214,7 @@ function Landing({
       data-world-layer={environmentState.worldLayer}
       data-time-of-day={environmentState.time}
       data-weather={environmentState.weather}
+      data-world-entry-phase={worldEntryPhase}
       data-landing-arrival={returnArrival ? 'return' : 'main'}
       data-entry-phase={entryPromptsActive ? 'visible' : 'hidden'}
       data-updates-phase={updatesPhase}
@@ -209,13 +246,20 @@ function Landing({
             </div>
           )}
 
-          {landingEntriesVisible && (
-            <EntryButtonGroup
-              groupId="landing-entries"
-              entries={landingEntries}
-              onNavigate={handleEntryNavigate}
-              className="landing-entry-button-group"
-            />
+          {landingEntriesVisible && worldEntryPhase === 'idle' && (
+            <>
+              <EntryButtonGroup
+                groupId="landing-entries"
+                entries={landingEntries}
+                onNavigate={handleEntryNavigate}
+                className="landing-entry-button-group"
+              />
+              {worldMode && (
+                <p className="landing-device-hint" data-world-mode="true" role="note">
+                  当前仍处于开发阶段，电脑或 iPad 体验更佳
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>

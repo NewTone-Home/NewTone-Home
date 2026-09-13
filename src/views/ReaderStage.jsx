@@ -1,9 +1,10 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ReaderBeatStack from '../components/reader/ReaderBeatStack'
 import ReaderSceneTransition from '../components/reader/ReaderSceneTransition'
 import ReaderPrecipitation from '../components/reader/ReaderPrecipitation'
 import ReaderTools from '../components/reader/ReaderTools'
 import ReaderReturnControl from '../components/reader/ReaderReturnControl'
+import ReaderStatusBar from '../components/reader/ReaderStatusBar'
 import { resolveReaderEnvironmentPreview } from '../data/reader-experiments/readerEnvironmentPreview'
 import { getReaderSceneLabel } from '../i18n/readerUi'
 import { preventReaderShortcut, preventReaderTransfer } from '../reader/readerCopyProtection'
@@ -62,10 +63,15 @@ function ReaderStage({
   const visibleReadingMode = 'standard'
   const nativeBoundaryLockRef = useRef(null)
   const returnControlRef = useRef(null)
+  const readerHandoffWasActiveRef = useRef(readerEntryHandoffPhase !== 'idle')
+  const [readerStatusPhase, setReaderStatusPhase] = useState(() => (
+    readerEntryHandoffPhase === 'idle' && !returningToLanding ? 'entering' : 'hidden'
+  ))
   const sceneState = beats[focusBeatIndex]?.sceneState ?? {}
   const sceneStateName = sceneState.sceneState ?? 'normal'
   const nativeEnvironmentState = beats[focusBeatIndex]?.worldState
   const environmentState = nativeEnvironmentState ?? EMPTY_READER_ENVIRONMENT
+  const sceneEnvironmentState = scene?.beats?.[0]?.worldState ?? environmentState
   const environmentVisual = resolveReaderEnvironmentPreview(environmentState)
   const immersiveStyle = environmentVisual.style
   const stageStyle = visibleReadingMode === 'standard'
@@ -93,33 +99,60 @@ function ReaderStage({
     }
   }, [onNativeBoundary])
 
+  useEffect(() => {
+    if (returningToLanding) {
+      setReaderStatusPhase(current => current === 'hidden' ? 'hidden' : 'exiting')
+      return
+    }
+
+    if (readerEntryHandoffPhase !== 'idle') {
+      readerHandoffWasActiveRef.current = true
+      setReaderStatusPhase('hidden')
+    }
+  }, [readerEntryHandoffPhase, returningToLanding])
+
+  const handleReaderPresentationTransitionEnd = useCallback((event) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'opacity') return
+    if (returningToLanding || readerEntryHandoffPhase !== 'idle' || !readerHandoffWasActiveRef.current) return
+
+    readerHandoffWasActiveRef.current = false
+    setReaderStatusPhase('entering')
+  }, [readerEntryHandoffPhase, returningToLanding])
+
   return (
-    <main
-      className={`reader-stage-page paper-surface reader-stage-page--${visibleReadingMode} reader-stage-page--theme-${standardTheme} reader-stage-page--motion-${motionMode}${returningToLanding ? ' reader-stage-page--returning' : ''}`}
-      style={stageStyle}
-      data-reading-mode={visibleReadingMode}
-      data-motion-mode={motionMode}
-      data-returning-to-landing={returningToLanding ? 'true' : 'false'}
-      data-reader-entry-handoff={readerEntryHandoffPhase}
-      data-scene-transition="idle"
-      data-scene-state={sceneStateName}
-      data-world-layer={environmentState.worldLayer}
-      data-scene-characters={environmentState.characters.join(' ')}
-      data-world-evidence={environmentState.evidence.worldLayer.sourceType}
-      data-time-of-day={environmentState.time}
-      data-weather={environmentState.weather}
-      data-weather-evidence={environmentState.evidence.weather.sourceType}
-      data-reader-location={environmentState.locationId}
-      data-light-state={environmentState.light}
-      data-environment-preview="chapter"
-      data-auto-visual={autoVisual || 'idle'}
-      data-copy-protected="true"
-      onCopyCapture={preventReaderTransfer}
-      onCutCapture={preventReaderTransfer}
-      onContextMenu={preventReaderTransfer}
-      onDragStartCapture={preventReaderTransfer}
-      onKeyDownCapture={preventReaderShortcut}
-    >
+    <>
+      <main
+        className={`reader-stage-page paper-surface reader-stage-page--${visibleReadingMode} reader-stage-page--theme-${standardTheme} reader-stage-page--motion-${motionMode}${returningToLanding ? ' reader-stage-page--returning' : ''}`}
+        style={stageStyle}
+        data-reading-mode={visibleReadingMode}
+        data-motion-mode={motionMode}
+        data-returning-to-landing={returningToLanding ? 'true' : 'false'}
+        data-reader-entry-handoff={readerEntryHandoffPhase}
+        data-scene-transition="idle"
+        data-scene-state={sceneStateName}
+        data-world-layer={environmentState.worldLayer}
+        data-scene-characters={environmentState.characters.join(' ')}
+        data-world-evidence={environmentState.evidence.worldLayer.sourceType}
+        data-time-of-day={environmentState.time}
+        data-weather={environmentState.weather}
+        data-weather-evidence={environmentState.evidence.weather.sourceType}
+        data-reader-location={environmentState.locationId}
+        data-light-state={environmentState.light}
+        data-environment-preview="chapter"
+        data-auto-visual={autoVisual || 'idle'}
+        data-copy-protected="true"
+        onTransitionEnd={handleReaderPresentationTransitionEnd}
+        onCopyCapture={preventReaderTransfer}
+        onCutCapture={preventReaderTransfer}
+        onContextMenu={preventReaderTransfer}
+        onDragStartCapture={preventReaderTransfer}
+        onKeyDownCapture={preventReaderShortcut}
+      >
+      <ReaderStatusBar
+        language={language}
+        state={sceneEnvironmentState}
+        lifecyclePhase={emptyDocument ? 'hidden' : readerStatusPhase}
+      />
       <section
         ref={rootRef}
         className="reader-stage"
@@ -147,6 +180,7 @@ function ReaderStage({
           onThemePosition={onThemePosition}
           locationId={environmentState.locationId}
           locationLabel={locationLabel}
+          showLocationLabel={false}
         />
         {!emptyDocument && (
           <ReaderSceneTransition
@@ -192,7 +226,8 @@ function ReaderStage({
         />
         {chapterTrialEnded && <span className="reader-chapter-end" aria-hidden="true" />}
       </section>
-    </main>
+      </main>
+    </>
   )
 }
 
