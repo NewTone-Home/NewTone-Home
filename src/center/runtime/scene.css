@@ -1170,19 +1170,19 @@
 .scene-mainline-storefront--vertical { line-height: 1; }
 
 .scene-mainline-object { z-index: 4; }
-.scene-mainline-object--door { color: var(--active); font-size: clamp(10px, 1.35cqw, 18px); }
+.scene-mainline-object--door { color: var(--active); font-size: var(--scene-mainline-object-font-size, clamp(10px, 1.35cqw, 18px)); }
 .scene-mainline-object--landmark,
-.scene-mainline-object--direction { color: var(--soft); font-size: clamp(9px, 1.15cqw, 16px); }
+.scene-mainline-object--direction { color: var(--soft); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); }
 .scene-mainline-yard-tree-ring { color: var(--soft); opacity: .78; }
 .scene-mainline-yard-tree-ring.is-under-player { opacity: .28; }
-.scene-mainline-object--fixture { color: var(--ink); font-size: clamp(9px, 1.15cqw, 16px); letter-spacing: 0; }
+.scene-mainline-object--fixture { color: var(--ink); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); letter-spacing: 0; }
 .scene-mainline-object--table,
 .scene-mainline-object--seat {
   color: var(--soft);
   min-width: 0;
   min-height: 0;
   padding: 0;
-  font-size: clamp(9px, 1.15cqw, 16px);
+  font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px));
   line-height: 1;
 }
 .scene-mainline-exploration--breathing > span {
@@ -1254,7 +1254,7 @@
 [data-mainline-scene="commercial-cafe"] .scene-mainline-object--fixture,
 [data-mainline-scene="commercial-cafe"] .scene-mainline-object--table,
 [data-mainline-scene="commercial-cafe"] .scene-mainline-object--seat {
-  font-size: clamp(9px, 1.15cqw, 16px);
+  font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px));
 }
 .scene-mainline-object--table.scene-mainline-object--facing-east > span,
 .scene-mainline-object--table.scene-mainline-object--facing-west > span,
@@ -1636,14 +1636,14 @@
     width: max-content;
     max-width: calc(100% - 8px);
     padding: 0;
-    font-size: clamp(9px, 1.15vmin, 16px);
+    font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px));
     letter-spacing: 0;
   }
   .scene-mainline-wall,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--fixture,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--table,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--seat {
-    font-size: clamp(9px, 1.15vmin, 16px);
+    font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px));
   }
   .scene-mainline-echo { max-width: min(76%, 330px); max-height: 38%; padding: 6px 8px 5px; }
   .scene-mainline-echo { font-size: 12px; line-height: 1.5; }
@@ -1659,12 +1659,12 @@
   .scene-shell__state { min-width: 70px; padding-left: 8px; font-size: 9px; }
   .scene-shell__state strong { font-size: 12px; }
   .scene-stage { height: clamp(300px, calc(100svh - 100px), 560px); min-height: 300px; }
-  .scene-mainline-object { min-width: 0; min-height: 0; width: max-content; padding: 0; font-size: clamp(9px, 1.15vmin, 16px); }
+  .scene-mainline-object { min-width: 0; min-height: 0; width: max-content; padding: 0; font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px)); }
   .scene-mainline-wall,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--fixture,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--table,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--seat {
-    font-size: clamp(9px, 1.15vmin, 16px);
+    font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px));
   }
   .scene-spatial-glyph--door { min-width: 42px; }
   .scene-object--fixture,

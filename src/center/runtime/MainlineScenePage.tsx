@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import type { Point } from './sceneGeometry'
 import { MainlineSceneRenderer, type MainlineInputDiagnostic } from './MainlineSceneRenderer'
 import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneGeometryUnits, mainlineSceneWalkBounds, mainlineScenes, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneExternalExit, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
-import { findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, findMainlineWorldRoute, isMainlineEntityWithinInteractionRange, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlinePassageCollisionForNavigation, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageEntersDoorway, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition } from './mainlineNavigation'
+import { findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, findMainlineWorldRoute, isMainlineEntityWithinInteractionRange, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition } from './mainlineNavigation'
 import { layoutGridSize, mainlineEntityInteractionBounds, mainlineEntityVisualBounds, type SceneLayout } from './sceneLayout'
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
 import { useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
@@ -558,6 +558,9 @@ export function MainlineScenePage({
       const collision = mainlinePassageCollisionForNavigation(scene, pending.passage, openNavigationOptions)
       const doorway = mainlinePassageDoorwayForNavigation(scene, pending.passage, openNavigationOptions)
       const exitPoint = mainlinePassageExitPoint(pending.passage, traversalStart, undefined, collision, doorway)
+      const approachStart = pending.approachPath[0] ?? traversalStart
+      const sourceSide = mainlinePassageSide(pending.passage, approachStart, collision, doorway)
+      const targetSide: 0 | 1 = sourceSide === 1 ? 0 : 1
       let sceneTransitioned = false
       let previousTraversalPoint = traversalStart
       const transitionScene = () => {
@@ -597,9 +600,9 @@ export function MainlineScenePage({
         ...locomotionOptions,
         onMove: (point) => {
           if (sceneTransitioned) return
-          const enteredDoorway = mainlinePassageEntersDoorway(pending.passage, previousTraversalPoint, point, collision, doorway)
+          const crossedDoorway = mainlinePassageCrossesToSide(pending.passage, previousTraversalPoint, point, targetSide, collision, doorway)
           previousTraversalPoint = point
-          if (!enteredDoorway) return
+          if (!crossedDoorway) return
           transitionScene()
         },
         canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, { ...navigationOptions, openPassageIds: getOpenPassageIds() })

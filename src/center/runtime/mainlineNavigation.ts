@@ -217,10 +217,13 @@ export function mainlinePassageExitPoint(passage: MainlineScenePassage, from: Po
   const normal = passageNormal(passage)
   const targetDirection = side === 1 ? -normal.direction : normal.direction
   const center = {
-    x: collision.x + collision.width / 2,
-    y: collision.y + collision.height / 2,
+    x: doorway.x + doorway.width / 2,
+    y: doorway.y + doorway.height / 2,
   }
-  const halfDepth = normal.axis === 'x' ? collision.width / 2 : collision.height / 2
+  // The exit point belongs to the rendered doorway, not to the surrounding
+  // passage collision union. The larger union could leave the target inside
+  // the doorway on narrow responsive layouts.
+  const halfDepth = normal.axis === 'x' ? doorway.width / 2 : doorway.height / 2
   const depth = halfDepth + actorRadius + .12
   return normal.axis === 'x'
     ? { x: center.x + targetDirection * depth, y: center.y }
@@ -485,6 +488,25 @@ export function mainlinePassageEntersDoorway(
   if (containsDoorRegion(to, doorwayBox)) return true
   const interval = segmentBoxInterval(from, to, doorwayBox)
   return Boolean(interval && interval.entry <= 1 && interval.exit >= 0)
+}
+
+/**
+ * Resolve the far-side crossing of a doorway. The approach leg can arrive
+ * within movement tolerance already inside the doorway on a responsive
+ * viewport, so crossing cannot depend only on an outside-to-inside event.
+ */
+export function mainlinePassageCrossesToSide(
+  passage: MainlineScenePassage,
+  from: Point,
+  to: Point,
+  targetSide: 0 | 1,
+  collision = passage.collision,
+  doorway = passage.doorway,
+) {
+  const region = mainlinePassageDoorRegion(passage, collision, doorway)
+  if (doorRegionSide(region, to) !== targetSide) return false
+  if (containsDoorRegion(from, region.doorway)) return true
+  return doorRegionSide(region, from) !== targetSide
 }
 
 /**

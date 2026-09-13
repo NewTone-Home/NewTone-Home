@@ -3,8 +3,10 @@ import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import {
   mainlineInteractionTarget,
+  mainlinePassageCrossesToSide,
   mainlinePassageCollisionForNavigation,
   mainlinePassageDoorwayForNavigation,
+  mainlinePassageSide,
 } from '../src/center/runtime/mainlineNavigation'
 
 const viewports = [
@@ -30,6 +32,17 @@ function assertValidBox(box, label) {
 }
 
 describe('mainline screen geometry snapshot', () => {
+  it('recognizes a crossing that begins inside the doorway', () => {
+    const scene = Object.values(mainlineScenes).find((candidate) => candidate.passages.some((passage) => passage.targetSceneId))
+    const passage = scene?.passages.find((candidate) => candidate.targetSceneId)
+    expect(passage).toBeTruthy()
+    const doorway = passage.doorway
+    const center = { x: doorway.x + doorway.width / 2, y: doorway.y + doorway.height / 2 }
+    const target = passage.crossingTargets[0]
+    const targetSide = mainlinePassageSide(passage, target)
+    expect(mainlinePassageCrossesToSide(passage, center, target, targetSide)).toBe(true)
+  })
+
   it.each(viewports)('keeps one geometry source for $name', (screenMetrics) => {
     playableScenes.forEach((scene) => {
       const snapshot = createMainlineSceneGeometrySnapshot(scene, scene.initialPlayerPosition, {}, screenMetrics)

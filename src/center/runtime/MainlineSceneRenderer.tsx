@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import type { CSSProperties, ReactNode } from 'react'
 import type { Point } from './sceneGeometry'
 import { type MainlineSceneDefinition, type MainlineSceneDialogue, type MainlineSceneDialogueLine, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
-import { clampMainlineLayoutAnchor, mainlineEntityInteractionBounds, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
+import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineEntityInteractionBounds, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineObjectGeometry, MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { SceneDoor, type SceneDoorTransitionCompletion } from './SceneDoor'
 import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoorConfig'
@@ -288,6 +288,7 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
       width: interactionBounds ? `${interactionBounds.width}%` : undefined,
       height: interactionBounds ? `${interactionBounds.height}%` : undefined,
       '--incense-burn-remaining': `${incenseBurnRemainingMs}ms`,
+      '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(entity, screenMetrics)}px`,
       padding: 0,
       display: 'flex',
       alignItems: 'center',
@@ -464,7 +465,9 @@ export function MainlineSceneRenderer({
         interactionBusy: target.policy === 'interactive' && activeObjectId === entityId && moving,
         interactionActive: target.policy === 'interactive' && (activeObjectId === entityId || sceneEcho?.entityId === entityId),
         retractRequested,
-        suppressed: target.policy === 'interactive' && (exploredObjectIds.has(entityId ?? '') || sceneEcho?.entityId === entityId),
+        // Exploration persistence affects the resting brightness only. It must
+        // not permanently suppress a frame that is triggered again later.
+        suppressed: target.policy === 'interactive' && sceneEcho?.entityId === entityId,
       })
     })
     scene.objects.forEach((entity) => {
@@ -477,7 +480,9 @@ export function MainlineSceneRenderer({
         interactionBusy: activeObjectId === entity.id && moving,
         interactionActive: activeObjectId === entity.id || sceneEcho?.entityId === entity.id,
         retractRequested: false,
-        suppressed: exploredObjectIds.has(entity.id) || sceneEcho?.entityId === entity.id,
+        // An explored object remains repeatable; the active echo temporarily
+        // owns focus while its text is visible.
+        suppressed: sceneEcho?.entityId === entity.id,
       })
     })
     if (dialogue && dialogueLine && dialogueLineIndex !== null && dialoguePosition) {

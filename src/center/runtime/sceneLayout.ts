@@ -160,12 +160,12 @@ function mainlineEntityUsesVerticalText(entity: MainlineSceneEntity) {
   return (entity.kind === 'table' || entity.kind === 'seat') && (entity.facing === 'east' || entity.facing === 'west')
 }
 
-function mainlineEntityFontSizePx(_entity: MainlineSceneEntity, screenMetrics: SceneScreenMetrics) {
+export function mainlineEntityFontSizePx(_entity: MainlineSceneEntity, screenMetrics: SceneScreenMetrics) {
   // Keep the interaction footprint in lockstep with the mainline object CSS.
-  // The old fixed 16/18px values made the hit box larger than the glyph on
-  // responsive stages, which then made furniture and counter cells overlap.
-  const shortSide = Math.min(screenMetrics.width, screenMetrics.height)
-  return Math.max(9, Math.min(16, shortSide * .0115))
+  // The rendered object consumes the same measured stage-width basis through
+  // a CSS custom property. This keeps the footprint and focus frame aligned
+  // on responsive landscape tablet layouts as well as portrait layouts.
+  return Math.max(9, Math.min(16, screenMetrics.width * .0115))
 }
 
 function isNarrowMainlineViewport(screenMetrics: SceneScreenMetrics) {
