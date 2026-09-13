@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { buildAnalyticsEvent } from '../src/services/analytics.js'
+import { ANALYTICS_STORAGE_KEYS, buildAnalyticsEvent } from '../src/services/analytics.js'
 
 const read = (path) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 
@@ -48,5 +48,11 @@ describe('Center minimal analytics contract', () => {
     expect(experience).toContain("trackEvent('center_ride_ready'")
     expect(scene).toContain("onDoorEvent?.('attempted'")
     expect(scene).toContain("onObjectInteraction?.(entity,")
+    expect(experience).toContain("if (result.ok && payload.source === 'exit-prompt') markCenterFeedbackPromptShown()")
+    expect(analytics).toContain("const PENDING_EVENTS_KEY = 'newtone-analytics-pending-v1'")
+  })
+
+  it('keeps a durable pending-event storage key for retry after a failed send', () => {
+    expect(ANALYTICS_STORAGE_KEYS.pending).toBe('newtone-analytics-pending-v1')
   })
 })

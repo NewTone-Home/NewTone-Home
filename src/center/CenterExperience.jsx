@@ -99,7 +99,10 @@ export default function CenterExperience({
   }, [phoneDevice, route.sceneId])
 
   const handleFeedbackSubmit = useCallback((payload) => (
-    submitCenterFeedback(payload)
+    submitCenterFeedback(payload).then((result) => {
+      if (result.ok && payload.source === 'exit-prompt') markCenterFeedbackPromptShown()
+      return result
+    })
   ), [])
 
   const handleActualWorldExit = useCallback(() => {
@@ -119,7 +122,6 @@ export default function CenterExperience({
       handleActualWorldExit()
       return
     }
-    markCenterFeedbackPromptShown()
     trackEvent('center_feedback_prompt_shown', {
       sceneId: route.sceneId,
       device: phoneDevice,
