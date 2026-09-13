@@ -1334,11 +1334,7 @@
 }
 .scene-mainline-echo > .scene-focus-frame {
   inset: -.34em -.22em;
-  border: 2px solid currentColor;
   opacity: .9;
-}
-.scene-mainline-echo > .scene-focus-frame.is-collapsed {
-  border-color: transparent;
 }
 .scene-mainline-echo.is-leaving {
   animation: none;

@@ -369,6 +369,21 @@ function contiguousBoundaryGridIndicesAround(coordinates: readonly number[], ind
     .filter((index) => index >= 0 && index < coordinates.length)
 }
 
+function nearestAvailableDoorGridIndices(
+  coordinates: readonly number[],
+  center: number,
+  flankCount: number,
+  occupiedIndices: ReadonlySet<number>,
+) {
+  const candidates = coordinates
+    .map((coordinate, index) => ({ coordinate, index }))
+    .sort((first, second) => Math.abs(first.coordinate - center) - Math.abs(second.coordinate - center) || second.index - first.index)
+  return candidates
+    .map(({ index }) => [index])
+    .map((indices) => ({ indices, structural: contiguousBoundaryGridIndicesAround(coordinates, indices, flankCount) }))
+    .find(({ structural }) => structural.length > 0 && structural.every((index) => !occupiedIndices.has(index)))?.indices ?? []
+}
+
 function sharedBoundaryGeometryRange(
   edge: SharedBoundaryFrameEdge,
   coordinates: readonly number[],
@@ -447,9 +462,7 @@ function sharedBoundaryOpeningSlots(
       : opening.labelLayout === 'split'
       ? spacedBoundaryGridIndices(coordinates, center, glyphs.length, opening.labelGapCells ?? 1)
       : opening.doorId
-        ? [coordinates.reduce((nearest, coordinate, index) => (
-          Math.abs(coordinate - center) < Math.abs(coordinates[nearest] - center) ? index : nearest
-        ), 0)]
+        ? nearestAvailableDoorGridIndices(coordinates, center, opening.doorFlankCount ?? 1, claimedStructuralIndices)
         : centeredBoundaryGridIndices(coordinates, center, glyphs.length)
     if (gridIndices.some((index) => index < 0 || index >= coordinates.length)) {
       throw new Error(`Boundary opening ${opening.id} cannot resolve within frame ${edge.id}`)

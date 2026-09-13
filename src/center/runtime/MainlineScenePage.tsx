@@ -16,6 +16,7 @@ import { mainlineCameraOffset } from './mainlineViewport'
 import { sceneFocusMotionMs } from './sceneMotion'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
+import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
@@ -177,10 +178,10 @@ function echoTextBox(text: string, position: Point, screenMetrics: SceneScreenMe
   }
 }
 
-function mainlineWallGlyphOccupancy(scene: MainlineSceneDefinition, position: Point, screenMetrics: SceneScreenMetrics): EchoBox[] {
+function mainlineWallGlyphOccupancy(scene: MainlineSceneDefinition, position: Point, screenMetrics: SceneScreenMetrics, geometrySnapshot?: MainlineSceneGeometrySnapshot): EchoBox[] {
   const fontSizePx = Math.max(9, Math.min(16, screenMetrics.width * .0115))
   const seen = new Set<string>()
-  return mainlineSceneGeometryUnits(scene, position, screenMetrics).flatMap((unit) => unit.visual.cells)
+  return (geometrySnapshot?.units ?? mainlineSceneGeometryUnits(scene, position, screenMetrics)).flatMap((unit) => unit.visual.cells)
     .filter((cell) => Boolean(cell.glyph?.trim()) && cell.baselineVisible !== false)
     .filter((cell) => {
       const key = `${cell.x}:${cell.y}:${cell.glyph}`
@@ -203,16 +204,16 @@ function boxesOverlap(first: EchoBox, second: EchoBox, padding: number) {
     && first.y + first.height > second.y - padding
 }
 
-function echoPositionNearPlayer(scene: MainlineSceneDefinition, text: string, position: Point, layout: SceneLayout, screenMetrics: SceneScreenMetrics): Point {
+function echoPositionNearPlayer(scene: MainlineSceneDefinition, text: string, position: Point, layout: SceneLayout, screenMetrics: SceneScreenMetrics, geometrySnapshot?: MainlineSceneGeometrySnapshot): Point {
   const step = layoutGridSize
-  const bounds = mainlineSceneWalkBounds(scene, screenMetrics)
+  const bounds = geometrySnapshot?.walkBounds ?? mainlineSceneWalkBounds(scene, screenMetrics)
   const ringCount = Math.ceil(Math.max(bounds.width, bounds.height) / step)
   const directionCount = 8
   const echoClearance = layoutGridSize
   const visualOccupancy = scene.objects
-    .map((entity) => mainlineEntityVisualBounds(scene, entity, layout, screenMetrics))
+    .map((entity) => geometrySnapshot?.objects.get(entity.id)?.visualBounds ?? mainlineEntityVisualBounds(scene, entity, layout, screenMetrics))
     .filter((footprint): footprint is EchoBox => Boolean(footprint))
-  const wallGlyphOccupancy = mainlineWallGlyphOccupancy(scene, position, screenMetrics)
+  const wallGlyphOccupancy = mainlineWallGlyphOccupancy(scene, position, screenMetrics, geometrySnapshot)
   const candidates: Array<{ point: Point; score: number }> = []
   for (let ring = 1; ring <= ringCount; ring += 1) {
     for (let direction = 0; direction < directionCount; direction += 1) {
@@ -221,7 +222,7 @@ function echoPositionNearPlayer(scene: MainlineSceneDefinition, text: string, po
         x: position.x + Math.cos(angle) * step * ring,
         y: position.y + Math.sin(angle) * step * ring,
       }, scene, screenMetrics)
-      if (!isWalkableMainlinePoint(candidate, scene, layout, { screenMetrics })) continue
+      if (!isWalkableMainlinePoint(candidate, scene, layout, { screenMetrics, geometrySnapshot })) continue
       const candidateBox = echoTextBox(text, candidate, screenMetrics)
       if (
         candidateBox.x < bounds.x + echoClearance
@@ -232,7 +233,7 @@ function echoPositionNearPlayer(scene: MainlineSceneDefinition, text: string, po
       if (visualOccupancy.some((footprint) => boxesOverlap(candidateBox, footprint, echoClearance))) continue
       if (wallGlyphOccupancy.some((footprint) => boxesOverlap(candidateBox, footprint, .9))) continue
       const interactiveTextOverlap = scene.objects.some((entity) => {
-        const footprint = mainlineEntityInteractionBounds(scene, entity, layout, screenMetrics)
+        const footprint = geometrySnapshot?.objects.get(entity.id)?.interactionBounds ?? mainlineEntityInteractionBounds(scene, entity, layout, screenMetrics)
         return footprint ? boxesOverlap(candidateBox, footprint, echoClearance) : false
       })
       if (interactiveTextOverlap) continue
@@ -394,6 +395,7 @@ export function MainlineScenePage({
     : null
   const internalMovement = useFreeRoamMovement(initialPosition)
   const { position, moving, destination, moveAlong, stopMovement, resetMovement, getCurrentPosition } = movementController ?? internalMovement
+  const geometrySnapshot = useMemo(() => createMainlineSceneGeometrySnapshot(scene, position, layout, screenMetrics), [layout, position, scene, screenMetrics])
   useEffect(() => {
     pendingTraversalRef.current = null
     setPassageDestination(null)
@@ -409,7 +411,7 @@ export function MainlineScenePage({
     setFeedback(entryFeedbackForScene(sceneDefinition))
   }, [sceneDefinition, sceneId, stopMovement])
   const activeDialoguePosition = activeDialogueLine
-    ? echoPositionNearPlayer(scene, activeDialogueLine.text, position, layout, screenMetrics)
+    ? echoPositionNearPlayer(scene, activeDialogueLine.text, position, layout, screenMetrics, geometrySnapshot)
     : null
   const validatedSpawnKeyRef = useRef<string | null>(null)
   const spawnValidationKey = `${scene.id}:${initialPosition.x}:${initialPosition.y}:${screenMetrics.width}:${screenMetrics.height}`
@@ -432,11 +434,11 @@ export function MainlineScenePage({
         id: passage.id,
         region: mainlinePassageDoorRegion(
           passage,
-          mainlinePassageCollisionForNavigation(scene, passage, { screenMetrics }),
-          mainlinePassageDoorwayForNavigation(scene, passage, { screenMetrics }),
+          geometrySnapshot.passages.get(passage.id)?.collision ?? mainlinePassageCollisionForNavigation(scene, passage, { geometrySnapshot }),
+          geometrySnapshot.passages.get(passage.id)?.doorway ?? mainlinePassageDoorwayForNavigation(scene, passage, { geometrySnapshot }),
         ),
       }
-    }), [lifecycleMainlinePassages, scene, screenMetrics])
+    }), [geometrySnapshot, lifecycleMainlinePassages, scene])
   const showLockedPassageText = useCallback((passage: MainlineScenePassage) => {
     const text = lockedPassageText(passage)
     sceneEchoIdRef.current += 1
@@ -444,10 +446,10 @@ export function MainlineScenePage({
       id: sceneEchoIdRef.current,
       entityId: passage.entityId,
       text,
-      position: echoPositionNearPlayer(scene, text, getCurrentPosition(), layout, screenMetrics),
+      position: echoPositionNearPlayer(scene, text, getCurrentPosition(), layout, screenMetrics, geometrySnapshot),
     })
     setFeedback('修杰停在门前。')
-  }, [getCurrentPosition, layout, scene, screenMetrics])
+  }, [geometrySnapshot, getCurrentPosition, layout, scene, screenMetrics])
   const { requestPassage: requestPassageLifecycle, cancelPassage: cancelPassageLifecycle, updateActor: updatePassageLifecycle, completeOpen, completeClose, getPassagePhase, getOpenPassageIds, passageStates } = useAutomaticPassages({
     passages: passageLifecycleDefinitions,
     canOpen: (_actorId, passage) => lifecycleMainlinePassages.find((candidate) => candidate.id === passage.id)?.access === 'open',
@@ -461,7 +463,7 @@ export function MainlineScenePage({
       else setFeedback('当前没有权限通过这扇门。')
     },
   })
-  const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics }), [getOpenPassageIds, screenMetrics])
+  const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics, geometrySnapshot }), [geometrySnapshot, getOpenPassageIds, screenMetrics])
   const locomotionOptions = useMemo(() => ({ screenMetrics, screenSpeedPxPerSecond: 520 }), [screenMetrics])
   const doorPhases = useMemo(() => new Map(passageLifecycleDefinitions
     .map((passage) => [
@@ -568,12 +570,19 @@ export function MainlineScenePage({
         const targetSceneId = pending.passage.targetSceneId!
         const targetScene = mainlineScenes[targetSceneId]
         const targetLayout = getMainlineLayoutSnapshot(targetSceneId)
+        const targetGeometry = createMainlineSceneGeometrySnapshot(
+          targetScene,
+          pending.passage.entryPosition ?? targetScene.initialPlayerPosition,
+          targetLayout,
+          screenMetrics,
+        )
         const safeEntryPosition = resolveMainlineSafeEntryPosition(
           targetScene,
           scene.id,
           pending.passage.entryPosition,
           targetLayout,
           openNavigationOptions,
+          targetGeometry,
         )
         if (!safeEntryPosition) {
           setFeedback('门已经打开，但对面没有安全落脚的位置。')
@@ -825,7 +834,7 @@ export function MainlineScenePage({
       if (explorationChoice || availableExplorationPool.length) {
         const text = explorationChoice?.text ?? availableExplorationPool[Math.floor(Math.random() * availableExplorationPool.length)]
         sceneEchoIdRef.current += 1
-        setSceneEcho({ id: sceneEchoIdRef.current, entityId: entity.id, text, options: explorationChoice?.options, position: echoPositionNearPlayer(scene, text, getCurrentPosition(), layout, screenMetrics) })
+        setSceneEcho({ id: sceneEchoIdRef.current, entityId: entity.id, text, options: explorationChoice?.options, position: echoPositionNearPlayer(scene, text, getCurrentPosition(), layout, screenMetrics, geometrySnapshot) })
       }
       if (scene.dialogue?.triggerEntityId === entity.id) setDialogueLineIndex(0)
     }
@@ -847,7 +856,7 @@ export function MainlineScenePage({
       canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
       onBlocked: () => setFeedback('修杰在边界前停下了，需要重新选择位置。'),
     })
-  }, [carriedPhoneDevice, dismissSceneEcho, getCurrentPosition, incensePhase, layout, locomotionOptions, moveAlong, navigationOptions, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, scene, screenMetrics, startPassageTraversal, stopMovement])
+  }, [carriedPhoneDevice, dismissSceneEcho, geometrySnapshot, getCurrentPosition, incensePhase, layout, locomotionOptions, moveAlong, navigationOptions, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, scene, screenMetrics, startPassageTraversal, stopMovement])
 
   const chooseSceneEchoOption = useCallback((index: number) => {
     const option = sceneEcho?.options?.[index]
@@ -1000,7 +1009,7 @@ export function MainlineScenePage({
               doorPhases={doorPhases}
               sceneFrameExit={sceneFrameExit}
               gateTriggered={gateTriggered}
-              screenMetrics={screenMetrics}
+              geometrySnapshot={geometrySnapshot}
               onScreenMetricsChange={handleScreenMetricsChange}
               cameraOffset={cameraOffset}
               showProtagonist={showProtagonist}

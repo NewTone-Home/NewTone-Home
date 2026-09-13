@@ -3,8 +3,9 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { Point } from './sceneGeometry'
-import { mainlineSceneGeometryUnits, type MainlineSceneDefinition, type MainlineSceneDialogue, type MainlineSceneDialogueLine, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
-import { clampMainlineLayoutAnchor, mainlineEntityInteractionBounds, mainlineEntityPosition, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
+import { type MainlineSceneDefinition, type MainlineSceneDialogue, type MainlineSceneDialogueLine, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
+import { clampMainlineLayoutAnchor, mainlineEntityInteractionBounds, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
+import type { MainlineObjectGeometry, MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { SceneDoor, type SceneDoorTransitionCompletion } from './SceneDoor'
 import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoorConfig'
 import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
@@ -22,7 +23,7 @@ type MainlineSceneRendererProps = {
   doorPhases?: ReadonlyMap<string, SceneDoorRuntimePhase>
   sceneFrameExit?: { phase: 'idle' | 'retracting'; passageEntityId?: string; scope?: 'passage' | 'scene' }
   gateTriggered?: boolean
-  screenMetrics: SceneScreenMetrics
+  geometrySnapshot: MainlineSceneGeometrySnapshot
   onScreenMetricsChange?: (metrics: SceneScreenMetrics) => void
   cameraOffset: Point
   showProtagonist?: boolean
@@ -190,15 +191,6 @@ function mainlineWallCellVisibility(cell: MainlineGeometryCellEntry['cell'], uni
   return (cell.baselineVisible ?? cell.baseline ?? true) ? 'is-baseline' : 'is-hidden'
 }
 
-function mainlineRenderableGeometryUnits(scene: MainlineSceneDefinition, position: Point, screenMetrics: SceneScreenMetrics) {
-  // The compiled storefront variant is already the single visual source of
-  // truth. Far away it contains the café sign; near the entrance it contains
-  // the glass-wall-door-wall-glass cells, including the real door button.
-  // Replacing the near variant with baseline geometry would remove that door
-  // from the rendered tree while navigation still expected the same passage.
-  return mainlineSceneGeometryUnits(scene, position, screenMetrics)
-}
-
 function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, interactionEntityId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false }: {
   entries: readonly MainlineGeometryCellEntry[]
   className: string
@@ -259,7 +251,7 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
   return <span {...commonProps} aria-hidden="true">{content}{renderFrame(first.focusGroup)}</span>
 }
 
-function MainlineObject({ entity, scene, position, visibility, active, explored, underPlayer, layoutMode, selected, dragging, layout, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, renderFrame, breathingAnimationDelay }: {
+function MainlineObject({ entity, scene, position, visibility, active, explored, underPlayer, layoutMode, selected, dragging, layout, screenMetrics, geometry, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, renderFrame, breathingAnimationDelay }: {
   entity: MainlineSceneEntity
   scene: MainlineSceneDefinition
   position: Point
@@ -272,6 +264,7 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
   dragging: boolean
   layout: SceneLayout
   screenMetrics: SceneScreenMetrics
+  geometry?: MainlineObjectGeometry
   incenseLit: boolean
   incenseBurnRemainingMs: number
   onIncenseBurnComplete?: () => void
@@ -283,7 +276,7 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
 }) {
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
   const className = objectClass(entity, visibility, active, explored, underPlayer, selected, dragging, incenseLit)
-  const interactionBounds = mainlineEntityInteractionBounds(scene, entity, layout, screenMetrics)
+  const interactionBounds = geometry?.interactionBounds ?? mainlineEntityInteractionBounds(scene, entity, layout, screenMetrics)
   const visualScale = entity.visualScale ?? 1
   const focusGroup = `exploration:${entity.id}`
   const commonProps = {
@@ -357,6 +350,7 @@ export function MainlineSceneRenderer({
   cameraOffset,
   gateTriggered = false,
   showProtagonist = true,
+  geometrySnapshot,
   onLayoutChange,
   onInteract,
   onDoorTransitionComplete,
@@ -370,7 +364,6 @@ export function MainlineSceneRenderer({
   onSceneEchoChoice,
   onSceneEchoExitComplete,
   exploredObjectIds = new Set(),
-  screenMetrics,
   debugInput = false,
   debugFeedback = null,
   inputDiagnostic = null,
@@ -408,8 +401,8 @@ export function MainlineSceneRenderer({
   // navigation and rendering. Keeping one authority prevents a responsive
   // stage from projecting visible cells with one size while navigation tests
   // collision against another.
-  const renderScreenMetrics = screenMetrics
-  const geometryUnits = useMemo(() => mainlineRenderableGeometryUnits(scene, position, renderScreenMetrics), [position, renderScreenMetrics, scene])
+  const renderScreenMetrics = geometrySnapshot.screenMetrics
+  const geometryUnits = geometrySnapshot.units
   const geometryCells = useMemo(() => geometryUnits.flatMap((unit) => unit.visual.cells.map((cell) => ({
     unit,
     // The compiled geometry unit owns storefront identity. Carry it into
@@ -731,7 +724,7 @@ export function MainlineSceneRenderer({
           </div>
 
           {scene.objects.filter((entity) => entity.visible !== false && entity.kind !== 'door' && !wallFeatureEntityIds.has(entity.id)).map((entity) => {
-            const entityPosition = mainlineEntityPosition(scene, entity, layout, renderScreenMetrics)
+            const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
             const underPlayer = entity.id.startsWith('jijia-old-tree-stone-') && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8
             return <MainlineObject
               key={entity.id}
@@ -745,6 +738,7 @@ export function MainlineSceneRenderer({
               layoutMode={layoutMode}
               layout={layout}
               screenMetrics={renderScreenMetrics}
+              geometry={geometrySnapshot.objects.get(entity.id)}
               incenseLit={incenseLit}
               incenseBurnRemainingMs={incenseBurnRemainingMs}
               onIncenseBurnComplete={onIncenseBurnComplete}
