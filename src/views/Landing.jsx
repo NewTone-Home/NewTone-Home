@@ -227,12 +227,19 @@ function Landing({
           )}
 
           {landingEntriesVisible && (
-            <EntryButtonGroup
-              groupId="landing-entries"
-              entries={landingEntries}
-              onNavigate={handleEntryNavigate}
-              className="landing-entry-button-group"
-            />
+            <>
+              <EntryButtonGroup
+                groupId="landing-entries"
+                entries={landingEntries}
+                onNavigate={handleEntryNavigate}
+                className="landing-entry-button-group"
+              />
+              {worldMode && (
+                <p className="landing-device-hint" data-world-mode="true" role="note">
+                  当前仍处于开发阶段，电脑或 iPad 体验更佳
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>
