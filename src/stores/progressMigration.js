@@ -3,6 +3,7 @@ import { READER_LANGUAGE_CODES } from '../i18n/languages'
 import { resolvePosition } from '../reader/readerPosition'
 import { legacyThemeName, migrateThemePosition } from '../reader/readerTheme'
 import { clearNarrativeProgressStorage } from './narrativeProgressStorage'
+import { applyPublicReleaseCutover } from '../services/publicReleaseMigration'
 
 export const PROGRESS_STORAGE_KEYS = Object.freeze({ V1: 'newtone-progress-v1', V2: 'newtone-progress-v2', V3: 'newtone-progress-v3', V4: 'newtone-progress-v4', EXIT_TUTORIAL: 'newtone-reader-exit-tutorial-v1' })
 export const PROGRESS_VERSION = 4
@@ -29,6 +30,7 @@ export function sanitizeProgress(value) {
 }
 
 export function loadProgressState(storage) {
+  applyPublicReleaseCutover(storage)
   for (const key of [PROGRESS_STORAGE_KEYS.V4, PROGRESS_STORAGE_KEYS.V3, PROGRESS_STORAGE_KEYS.V2, PROGRESS_STORAGE_KEYS.V1]) {
     try { const raw = storage?.getItem(key); if (raw) return sanitizeProgress(JSON.parse(raw)) } catch { /* try older key */ }
   }

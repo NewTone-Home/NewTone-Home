@@ -1,5 +1,6 @@
 import type { MainlineSceneId } from './mainlineSceneModel'
 import type { PhoneDevice } from './phoneState'
+import { applyPublicReleaseCutover } from '../../services/publicReleaseMigration'
 
 export const PLAYER_SAVE_STORAGE_KEY = 'newtone-player-save-v1'
 export const PLAYER_SAVE_VERSION = 1
@@ -138,6 +139,7 @@ export function loadPlayerSave(
   storage = defaultStorage(),
   fallbackSceneId: MainlineSceneId = 'jijia-ancestral-home',
 ): PlayerSave {
+  applyPublicReleaseCutover(storage)
   try {
     const raw = storage?.getItem(PLAYER_SAVE_STORAGE_KEY)
     return raw
