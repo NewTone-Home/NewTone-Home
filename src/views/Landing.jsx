@@ -29,6 +29,7 @@ function Landing({
   readingMode,
   environmentState,
   worldEntryPhase = 'idle',
+  onWorldCoverComplete,
   updatesPhase,
   worldMode = false,
 }) {
@@ -45,6 +46,7 @@ function Landing({
   const [returnStatusFading, setReturnStatusFading] = useState(false)
   const landingRef = useRef(null)
   const landingLeaveRetractStartedRef = useRef(false)
+  const worldCoverCompleteRef = useRef(false)
 
   const reducedMotion = useReducedMotion()
   const [landingScene] = useState(() => resolveLandingScene(window.location.search))
@@ -165,7 +167,24 @@ function Landing({
     || copy.zh.transitionReturn
   const returnStatusText = `${returnStatusBase}${landingLanguage === 'zh' ? '……' : '…'}`
   const titleTouched = phase !== TITLE_PHASE.IDLE
-   const landingEntriesVisible = !leaving && entryPromptsActive && updatesPhase === UPDATES_PHASE.LANDING
+  const landingEntriesVisible = !leaving && entryPromptsActive && updatesPhase === UPDATES_PHASE.LANDING
+
+  useEffect(() => {
+    if (worldEntryPhase !== 'covering') {
+      worldCoverCompleteRef.current = false
+      return undefined
+    }
+    if (worldCoverCompleteRef.current || !(reducedMotion || motionMode === 'reduced')) return undefined
+    worldCoverCompleteRef.current = true
+    onWorldCoverComplete?.()
+    return undefined
+  }, [motionMode, onWorldCoverComplete, reducedMotion, worldEntryPhase])
+
+  const handleWorldEntryAnimationEnd = useCallback((event) => {
+    if (event.animationName !== 'landing-world-surface-cover' || worldCoverCompleteRef.current) return
+    worldCoverCompleteRef.current = true
+    onWorldCoverComplete?.()
+  }, [onWorldCoverComplete])
 
   const handleEntryNavigate = useCallback((entryId) => {
     if (entryId === 'updates') {
@@ -184,6 +203,7 @@ function Landing({
     <div
       ref={landingRef}
       className={`landing paper-surface${leaving ? ' landing--leaving' : ''}${landingScene ? ' landing--scene' : ''}${returnSequenceActive ? ' landing--return-sequence' : ''}${worldEntryPhase !== 'idle' ? ` landing--world-entry landing--world-entry-${worldEntryPhase}` : ''}`}
+      onAnimationEnd={handleWorldEntryAnimationEnd}
       style={{
         ...surfaceStyle,
         '--landing-leave-ms': `${leavingMs}ms`,
@@ -226,7 +246,7 @@ function Landing({
             </div>
           )}
 
-          {landingEntriesVisible && (
+          {landingEntriesVisible && worldEntryPhase === 'idle' && (
             <>
               <EntryButtonGroup
                 groupId="landing-entries"

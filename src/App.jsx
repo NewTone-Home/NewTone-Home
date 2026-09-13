@@ -152,11 +152,6 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     dispatchWorldEntry({ type: 'reveal-complete' })
   }, [])
 
-  const handleExitWorld = useCallback(() => {
-    dispatchWorldEntry({ type: 'reset' })
-    window.history.replaceState({ newtoneView: 'landing' }, '')
-  }, [])
-
   const readingEntryNeedsReader =
     readingEntry.phase === 'reader-preparing' ||
     readingEntry.phase === 'transition-leaving'
@@ -192,10 +187,8 @@ function App({ contentStatus = 'ready', onRetryContent }) {
       {worldMounted && (
         <CenterExperience
           entryPhase={worldEntryPhase}
-          onCoverComplete={handleWorldCoverComplete}
           onSceneReady={handleWorldSceneReady}
           onRevealComplete={handleWorldRevealComplete}
-          onExitWorld={handleExitWorld}
         />
       )}
       {landingMounted && (
@@ -221,6 +214,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
               surfaceStyle={readerSurfaceStyle}
               environmentState={environmentState}
               worldEntryPhase={worldEntryPhase}
+              onWorldCoverComplete={handleWorldCoverComplete}
               landingHandoff={showLandingHandoffSurface}
               worldMode
               onEnter={handleEnterWorld}

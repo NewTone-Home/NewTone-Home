@@ -21,8 +21,9 @@ import './CenterExperience.css'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { trackEvent } from '../services/analytics'
 import {
-  hasShownCenterFeedbackPrompt,
+  hasShownCenterCompletionFeedbackPrompt,
   markCenterFeedbackPromptShown,
+  markCenterCompletionFeedbackPromptShown,
   submitCenterFeedback,
 } from '../services/centerFeedback'
 
@@ -34,10 +35,8 @@ function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
 
 export default function CenterExperience({
   entryPhase = 'active',
-  onCoverComplete,
   onSceneReady,
   onRevealComplete,
-  onExitWorld,
 }) {
   const reducedMotion = useReducedMotion()
   const [playerSave, setPlayerSave] = useState(() => loadPlayerSave())
@@ -54,18 +53,9 @@ export default function CenterExperience({
     setPlayerSave((current) => persistPlayerSave(update(current)))
   }, [])
 
-  const handleBackgroundAnimationEnd = useCallback((event) => {
-    if (event.animationName === 'center-world-cover') onCoverComplete?.()
-  }, [onCoverComplete])
-
   const handleSceneAnimationEnd = useCallback((event) => {
     if (event.animationName === 'center-world-scene-in') onRevealComplete?.()
   }, [onRevealComplete])
-
-  useEffect(() => {
-    if (!reducedMotion || entryPhase !== 'covering') return
-    onCoverComplete?.()
-  }, [entryPhase, onCoverComplete, reducedMotion])
 
   useEffect(() => {
     if (!reducedMotion || entryPhase !== 'revealing') return
@@ -105,31 +95,19 @@ export default function CenterExperience({
     })
   ), [])
 
-  const handleActualWorldExit = useCallback(() => {
-    const currentScene = sceneEnteredAtRef.current
-    trackEvent('center_scene_exited', {
-      sceneId: route.sceneId,
-      dwellMs: currentScene?.sceneId === route.sceneId ? Date.now() - currentScene.enteredAt : undefined,
-      exitReason: 'return',
-      outcome: 'world_exit',
-    })
-    sceneEnteredAtRef.current = null
-    onExitWorld?.()
-  }, [onExitWorld, route.sceneId])
-
-  const handleExitWorldRequest = useCallback(() => {
-    if (hasShownCenterFeedbackPrompt()) {
-      handleActualWorldExit()
-      return
-    }
+  const handlePlayableCompletion = useCallback(() => {
+    if (hasShownCenterCompletionFeedbackPrompt()) return false
     trackEvent('center_feedback_prompt_shown', {
       sceneId: route.sceneId,
       device: phoneDevice,
+      trigger: 'playable-completion',
       outcome: 'shown',
     })
-    setFeedbackMode('exit-prompt')
+    markCenterCompletionFeedbackPromptShown()
+    setFeedbackMode('completion-prompt')
     setPhoneOpen(true)
-  }, [handleActualWorldExit, phoneDevice, route.sceneId])
+    return true
+  }, [phoneDevice, route.sceneId])
 
   useEffect(() => {
     if (sceneEnteredAtRef.current?.sceneId === route.sceneId) return
@@ -229,9 +207,12 @@ export default function CenterExperience({
       device,
       outcome: 'ready',
     })
-    setPhoneOpen(false)
+    const completionPromptShown = device === 'inner' && layer === 'inner'
+      ? handlePlayableCompletion()
+      : false
+    setPhoneOpen(completionPromptShown)
     setBoundaryNotice('叫车功能已接通，后续内容暂未开放。')
-  }, [route.sceneId])
+  }, [handlePlayableCompletion, route.sceneId])
 
   const canPersistScenePosition = Boolean(
     route.entryPosition
@@ -252,7 +233,6 @@ export default function CenterExperience({
       <div
         className="center-experience__background"
         aria-hidden="true"
-        onAnimationEnd={handleBackgroundAnimationEnd}
       />
       <div className="center-experience__scene-layer" onAnimationEnd={handleSceneAnimationEnd}>
         <MainlineScenePage
@@ -289,8 +269,6 @@ export default function CenterExperience({
           onFeedbackModeChange={handleFeedbackModeChange}
           onFeedbackOpen={handleFeedbackOpen}
           onFeedbackSubmit={handleFeedbackSubmit}
-          onExitWorldRequest={handleExitWorldRequest}
-          onExitWorld={handleActualWorldExit}
         />
         {boundaryNotice && (
           <div className="center-experience__boundary" role="status" aria-live="polite">

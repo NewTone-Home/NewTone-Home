@@ -214,17 +214,6 @@
 .world-phone__close:hover,
 .world-phone__close:focus-visible { border-color: #ff9f7c; color: #ff9f7c; }
 .world-phone__header-actions { display: flex; align-items: center; gap: 6px; }
-.world-phone__exit {
-  min-height: 22px;
-  padding: 0 7px;
-  border: 1px solid #426177;
-  background: #142635;
-  color: #ad966c;
-  font-size: 9px;
-}
-.world-phone__exit:hover,
-.world-phone__exit:focus-visible { border-color: #ff9f7c; color: #ff9f7c; }
-.world-phone__exit:disabled { opacity: .55; cursor: not-allowed; }
 .world-phone__world-status {
   display: flex;
   flex-wrap: wrap;
@@ -1567,7 +1556,6 @@
   .world-phone__status { grid-column: 2; grid-row: 1; gap: 4px; font-size: 7px; }
   .world-phone__header-actions { grid-column: 2; grid-row: 2; justify-self: end; }
   .world-phone__close { width: 24px; height: 24px; }
-  .world-phone__exit { min-height: 24px; font-size: 8px; }
   .world-phone__carrier { font-size: 7px; }
   .world-phone__header strong { margin-top: 3px; font-size: 16px; }
   .world-phone__world-status {

@@ -20,6 +20,7 @@ function EntrySurface({
   surfaceStyle,
   environmentState,
   worldEntryPhase = 'idle',
+  onWorldCoverComplete,
   landingHandoff = false,
   worldMode = false,
   onEnter,
@@ -72,6 +73,7 @@ function EntrySurface({
         readingMode={readingMode}
         environmentState={environmentState}
         worldEntryPhase={worldEntryPhase}
+        onWorldCoverComplete={onWorldCoverComplete}
         worldMode={worldMode}
       />
 

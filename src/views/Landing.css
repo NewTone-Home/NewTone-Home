@@ -20,22 +20,24 @@
   transform: scale(.995);
 }
 
-/* The Center surface grows over Landing. Keep the paper visible until the
-   Center background has covered it, then let the title collapse into the
-   center point that starts the world-entry surface. */
-.landing--world-entry .landing-title-stack {
-  animation: landing-world-title-to-point 420ms cubic-bezier(.55, .05, .2, 1) both;
+/* The paper is the transition surface. It darkens in place and consumes the
+   NewTone mark; the Center takes ownership only after this animation ends. */
+.landing--world-entry-covering {
+  animation: landing-world-surface-cover 980ms cubic-bezier(.55, .05, .2, 1) forwards;
 }
 
-@keyframes landing-world-title-to-point {
-  0% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-  100% {
-    opacity: .72;
-    transform: translate(-50%, -50%) scale(.012);
-  }
+.landing--world-entry .landing-title-stack {
+  animation: landing-world-title-fade 980ms cubic-bezier(.55, .05, .2, 1) forwards;
+}
+
+@keyframes landing-world-surface-cover {
+  from { background-color: var(--reader-paper, var(--paper-base)); }
+  to { background-color: #050505; }
+}
+
+@keyframes landing-world-title-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 .landing-main {
@@ -148,6 +150,7 @@
     animation: none !important;
   }
 
+  .landing--world-entry-covering,
   .landing--world-entry .landing-title-stack {
     animation-duration: 1ms;
   }

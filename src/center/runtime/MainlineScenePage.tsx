@@ -843,10 +843,11 @@ export function MainlineScenePage({
     }
     setFeedback(`修杰前往${mainlineEntityDisplayLabel(entity)}。`)
     moveAlong(resolved.path, revealInteraction, {
+      ...locomotionOptions,
       canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
       onBlocked: () => setFeedback('修杰在边界前停下了，需要重新选择位置。'),
     })
-  }, [carriedPhoneDevice, dismissSceneEcho, getCurrentPosition, incensePhase, layout, moveAlong, navigationOptions, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, scene, screenMetrics, startPassageTraversal, stopMovement])
+  }, [carriedPhoneDevice, dismissSceneEcho, getCurrentPosition, incensePhase, layout, locomotionOptions, moveAlong, navigationOptions, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, scene, screenMetrics, startPassageTraversal, stopMovement])
 
   const chooseSceneEchoOption = useCallback((index: number) => {
     const option = sceneEcho?.options?.[index]
