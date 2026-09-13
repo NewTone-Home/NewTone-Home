@@ -3,12 +3,14 @@ import { isSupabaseConfigured, supabase } from '../lib/supabaseClient'
 import { trackEvent } from '../services/analytics'
 import { requestAdminMagicLink, signInAdminWithGitHub } from './adminAuth'
 import { loadOwnerDraft, publishOwnerDraft, saveOwnerDraft } from './adminContentService'
+import CenterAnalyticsDashboard from './CenterAnalyticsDashboard'
 import OwnerWorkbench from './OwnerSceneWorkbench'
 import OwnerReaderPreview from './OwnerReaderPreview'
 import './AdminApp.css'
 
 function AdminApp() {
   const previewRoute = window.location.pathname === '/admin/preview'
+  const analyticsRoute = window.location.pathname === '/admin/analytics'
   const [session, setSession] = useState(null)
   const [phase, setPhase] = useState(isSupabaseConfigured ? 'checking' : 'configuration-missing')
   const [draft, setDraft] = useState(null)
@@ -46,7 +48,9 @@ function AdminApp() {
 
   if (phase === 'ready' && draft) return previewRoute
     ? <OwnerReaderPreview />
-    : <><div className="admin-session"><span>管理员已登录</span><button onClick={() => supabase.auth.signOut()}>退出</button></div><OwnerWorkbench initialWorkspace={draft.workspace} onSave={save} onPublish={publish} busy={busy} /></>
+    : analyticsRoute
+      ? <CenterAnalyticsDashboard />
+      : <><div className="admin-session"><span>管理员已登录</span><a href="/admin/analytics">数据</a><button onClick={() => supabase.auth.signOut()}>退出</button></div><OwnerWorkbench initialWorkspace={draft.workspace} onSave={save} onPublish={publish} busy={busy} /></>
   return <main className="admin-access"><section><p>NewTone / Studio</p><h1>管理员工作台</h1>{phase === 'configuration-missing' && <p>Supabase 环境变量尚未配置。</p>}{phase === 'checking' && <p>正在验证管理员权限…</p>}{phase === 'unauthorized' && <><p>此账户已登录，但不在管理员授权名单中，无法读取或写入草稿。</p><button onClick={() => supabase.auth.signOut()}>退出</button></>}{phase === 'error' && <p role="alert">{message || '无法验证管理权限。'}</p>}{phase === 'signed-out' && <><form onSubmit={requestLink}><label>管理员邮箱<input type="email" required autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} /></label><button disabled={busy}>{busy ? '发送中…' : '发送登录链接'}</button></form><div className="admin-auth-divider" aria-hidden="true">或</div><button type="button" disabled={busy} onClick={requestGitHubLogin}>使用 GitHub 登录</button><p className="admin-auth-note">登录后仍须通过管理员授权名单验证。</p></>}{message && phase !== 'error' && <p role="status">{message}</p>}<a href="/">返回公开页面</a></section></main>
 }
 
