@@ -6,6 +6,31 @@ import './LandingUpdatesPage.css'
 
 const LANDING_UPDATES = Object.freeze([
   Object.freeze({
+    version: 'v0.1.3',
+    date: '2026.09.12',
+    dateTime: '2026-09-12',
+    zh: Object.freeze({
+      summary: Object.freeze([
+        '本次我们重新装修了宇宙空间，重新布置了入口。',
+      ]),
+      details: Object.freeze([
+        '· NewTone 现在已经可以开始探索了。',
+        '· 我们创建了第一批场景和互动元素。',
+        '希望能满足大家的好奇心。',
+      ]),
+    }),
+    en: Object.freeze({
+      summary: Object.freeze([
+        'This time, we renovated the universe and redesigned its entrance.',
+      ]),
+      details: Object.freeze([
+        '· NewTone is now ready to explore.',
+        '· We created the first set of scenes and interactive elements.',
+        'We hope it satisfies your curiosity.',
+      ]),
+    }),
+  }),
+  Object.freeze({
     version: 'v0.1.2',
     date: '2026.08.23',
     dateTime: '2026-08-23',
