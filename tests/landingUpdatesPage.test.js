@@ -48,7 +48,7 @@ describe('Landing updates page button contract', () => {
     expect(page).toContain('landing-updates-page__details')
     expect(page).toContain("version: 'v0.1.2'")
     expect(page).toContain("version: 'v0.1.1'")
-    expect(page).toContain("version: 'v0.1.3'")
+    expect(page).toContain("version: 'v0.2.0'")
     expect(page).toContain("date: '2026.09.12'")
     expect(page).toContain('本次我们重新装修了宇宙空间，重新布置了入口。')
     expect(page).toContain('· NewTone 现在已经可以开始探索了。')

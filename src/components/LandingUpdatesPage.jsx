@@ -6,7 +6,7 @@ import './LandingUpdatesPage.css'
 
 const LANDING_UPDATES = Object.freeze([
   Object.freeze({
-    version: 'v0.1.3',
+    version: 'v0.2.0',
     date: '2026.09.12',
     dateTime: '2026-09-12',
     zh: Object.freeze({
