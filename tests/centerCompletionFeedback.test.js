@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url'
 import {
   clearCenterCompletionFeedbackPrompt,
   hasShownCenterCompletionFeedbackPrompt,
+  hasSubmittedCenterCompletionFeedback,
+  markCenterCompletionFeedbackSubmitted,
   markCenterCompletionFeedbackPromptShown,
 } from '../src/services/centerFeedback'
 
@@ -26,6 +28,16 @@ describe('Center playable-completion feedback contract', () => {
     expect(hasShownCenterCompletionFeedbackPrompt(storage)).toBe(true)
     expect(clearCenterCompletionFeedbackPrompt(storage)).toBe(true)
     expect(hasShownCenterCompletionFeedbackPrompt(storage)).toBe(false)
+  })
+
+  it('tracks prompt display and successful submission separately', () => {
+    const storage = createStorage()
+    expect(hasSubmittedCenterCompletionFeedback(storage)).toBe(false)
+    expect(markCenterCompletionFeedbackPromptShown(storage)).toBe(true)
+    expect(hasShownCenterCompletionFeedbackPrompt(storage)).toBe(true)
+    expect(hasSubmittedCenterCompletionFeedback(storage)).toBe(false)
+    expect(markCenterCompletionFeedbackSubmitted(storage)).toBe(true)
+    expect(hasSubmittedCenterCompletionFeedback(storage)).toBe(true)
   })
 
   it('opens only from the valid inner-world ride completion path', () => {

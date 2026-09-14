@@ -150,6 +150,20 @@ export function loadPlayerSave(
   }
 }
 
+/**
+ * A freshly-created default save is not enough evidence that the player has
+ * entered Center. App startup uses this predicate so a first visit still
+ * opens Landing, while a refresh after real play resumes Center.
+ */
+export function hasResumablePlayerSave(storage = defaultStorage()): boolean {
+  const save = loadPlayerSave(storage)
+  return save.updatedAt > 0
+    || save.currentPosition !== null
+    || Object.keys(save.scenePositions).length > 0
+    || save.phoneDevice === 'inner'
+    || Object.values(save.sceneState).some((state) => Object.keys(state ?? {}).length > 0)
+}
+
 export function savePlayerSave(save: PlayerSave, storage = defaultStorage(), now = Date.now()): PlayerSave {
   const clean = sanitizePlayerSave({ ...save, updatedAt: now }, save.currentSceneId)
   try {

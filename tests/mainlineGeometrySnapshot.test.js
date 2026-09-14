@@ -7,6 +7,7 @@ import {
   mainlinePassageCollisionForNavigation,
   mainlinePassageDoorwayForNavigation,
   mainlinePassageSide,
+  isWalkableMainlinePoint,
 } from '../src/center/runtime/mainlineNavigation'
 
 const viewports = [
@@ -32,6 +33,23 @@ function assertValidBox(box, label) {
 }
 
 describe('mainline screen geometry snapshot', () => {
+  it.each(viewports)('keeps the office desk contact point outside the desk on $name', (screenMetrics) => {
+    const scene = mainlineScenes['zhongshuyuan-office']
+    const desk = scene.objects.find((entity) => entity.id === 'zhongshuyuan-office-desk')
+    expect(desk?.approach).toBeTruthy()
+    const snapshot = createMainlineSceneGeometrySnapshot(scene, scene.initialPlayerPosition, {}, screenMetrics)
+    const target = mainlineInteractionTarget(scene, desk.id, scene.initialPlayerPosition, {}, undefined, {
+      screenMetrics,
+      geometrySnapshot: snapshot,
+    })
+
+    expect(target.y).toBeGreaterThan(desk.position.y + 4)
+    expect(isWalkableMainlinePoint(target, scene, {}, {
+      screenMetrics,
+      geometrySnapshot: snapshot,
+    })).toBe(true)
+  })
+
   it('recognizes a crossing that begins inside the doorway', () => {
     const scene = Object.values(mainlineScenes).find((candidate) => candidate.passages.some((passage) => passage.targetSceneId))
     const passage = scene?.passages.find((candidate) => candidate.targetSceneId)

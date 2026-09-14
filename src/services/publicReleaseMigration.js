@@ -16,6 +16,7 @@ const GAME_STATE_KEYS = Object.freeze([
   'newtone.mainline.scene-positions.v2',
   'newtone-landing-intro-v1',
   'newtone-center-feedback-completion-shown-v1',
+  'newtone-center-feedback-completion-submitted-v1',
   'newtone-center-feedback-prompt-shown-v1',
 ])
 

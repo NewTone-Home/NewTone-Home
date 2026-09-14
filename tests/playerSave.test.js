@@ -3,14 +3,17 @@ import {
   PLAYER_SAVE_STORAGE_KEY,
   clearPlayerSave,
   createInitialPlayerSave,
+  hasResumablePlayerSave,
   loadPlayerSave,
   recordPlayerScenePosition,
   recordPlayerSceneState,
   savePlayerSave,
 } from '../src/center/runtime/playerSave'
+import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { PUBLIC_RELEASE_CUTOVER_ID, PUBLIC_RELEASE_CUTOVER_STORAGE_KEY } from '../src/services/publicReleaseMigration'
 
 function createStorage() {
-  const values = new Map()
+  const values = new Map([[PUBLIC_RELEASE_CUTOVER_STORAGE_KEY, PUBLIC_RELEASE_CUTOVER_ID]])
   return {
     getItem: key => values.get(key) ?? null,
     setItem: (key, value) => values.set(key, String(value)),
@@ -19,6 +22,16 @@ function createStorage() {
 }
 
 describe('player local save contract', () => {
+  it('distinguishes a fresh default save from a resumable session', () => {
+    const storage = createStorage()
+    expect(hasResumablePlayerSave(storage)).toBe(false)
+
+    const initial = createInitialPlayerSave('jijia-ancestral-home')
+    const position = mainlineScenes['jijia-ancestral-home'].initialPlayerPosition
+    savePlayerSave(recordPlayerScenePosition(initial, 'jijia-ancestral-home', position), storage, 1000)
+    expect(hasResumablePlayerSave(storage)).toBe(true)
+  })
+
   it('stores only the player save under its own local key', () => {
     const storage = createStorage()
     const initial = createInitialPlayerSave('jijia-ancestral-home')

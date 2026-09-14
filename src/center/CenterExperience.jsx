@@ -22,6 +22,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion'
 import { trackEvent } from '../services/analytics'
 import {
   hasShownCenterCompletionFeedbackPrompt,
+  markCenterCompletionFeedbackSubmitted,
   markCenterFeedbackPromptShown,
   markCenterCompletionFeedbackPromptShown,
   submitCenterFeedback,
@@ -90,6 +91,7 @@ export default function CenterExperience({
 
   const handleFeedbackSubmit = useCallback((payload) => (
     submitCenterFeedback(payload).then((result) => {
+      if (result.ok && payload.source === 'completion-prompt') markCenterCompletionFeedbackSubmitted()
       if (result.ok && payload.source === 'exit-prompt') markCenterFeedbackPromptShown()
       return result
     })

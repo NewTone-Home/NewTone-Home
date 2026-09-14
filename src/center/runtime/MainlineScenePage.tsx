@@ -857,7 +857,11 @@ export function MainlineScenePage({
     moveAlong(resolved.path, revealInteraction, {
       ...locomotionOptions,
       canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
-      onBlocked: () => setFeedback('修杰在边界前停下了，需要重新选择位置。'),
+      onBlocked: () => {
+        interactionStartedAtRef.current = null
+        setActiveObjectId(null)
+        setFeedback('修杰在边界前停下了，需要重新选择位置。')
+      },
     })
   }, [carriedPhoneDevice, dismissSceneEcho, geometrySnapshot, getCurrentPosition, incensePhase, layout, locomotionOptions, moveAlong, navigationOptions, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, scene, screenMetrics, startPassageTraversal, stopMovement])
 

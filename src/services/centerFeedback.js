@@ -2,6 +2,7 @@ import { isSupabaseConfigured, supabase } from '../lib/supabaseClient'
 import { getAnalyticsIdentity, trackEvent } from './analytics'
 
 const COMPLETION_PROMPT_SHOWN_KEY = 'newtone-center-feedback-completion-shown-v1'
+const COMPLETION_SUBMITTED_KEY = 'newtone-center-feedback-completion-submitted-v1'
 const LEGACY_PROMPT_SHOWN_KEY = 'newtone-center-feedback-prompt-shown-v1'
 const MAX_FREE_TEXT_LENGTH = 2000
 
@@ -40,6 +41,18 @@ export function markCenterCompletionFeedbackPromptShown(storage = globalThis.loc
 
 export function clearCenterCompletionFeedbackPrompt(storage = globalThis.localStorage) {
   return safeRemove(storage, COMPLETION_PROMPT_SHOWN_KEY)
+}
+
+export function hasSubmittedCenterCompletionFeedback(storage = globalThis.localStorage) {
+  return safeRead(storage, COMPLETION_SUBMITTED_KEY) === '1'
+}
+
+export function markCenterCompletionFeedbackSubmitted(storage = globalThis.localStorage) {
+  return safeWrite(storage, COMPLETION_SUBMITTED_KEY, '1')
+}
+
+export function clearCenterCompletionFeedbackSubmitted(storage = globalThis.localStorage) {
+  return safeRemove(storage, COMPLETION_SUBMITTED_KEY)
 }
 
 // Keep the previous storage/API names readable for old staging tools and
@@ -93,4 +106,7 @@ export async function submitCenterFeedback({
   return { ok: true }
 }
 
-export const CENTER_FEEDBACK_STORAGE_KEYS = Object.freeze({ completionPromptShown: COMPLETION_PROMPT_SHOWN_KEY })
+export const CENTER_FEEDBACK_STORAGE_KEYS = Object.freeze({
+  completionPromptShown: COMPLETION_PROMPT_SHOWN_KEY,
+  completionSubmitted: COMPLETION_SUBMITTED_KEY,
+})

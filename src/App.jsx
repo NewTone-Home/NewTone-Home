@@ -14,14 +14,28 @@ import { getReaderThemeVariables } from './reader/readerTheme'
 import { trackEvent } from './services/analytics'
 import { recordRuntimeAudit } from './services/runtimeAudit'
 import CenterExperience from './center/CenterExperience'
+import { resolveMainlineSceneId } from './center/runtime/mainlineScenes'
+import { hasResumablePlayerSave } from './center/runtime/playerSave'
 import {
   WORLD_ENTRY_INITIAL_STATE,
   WORLD_ENTRY_PHASE,
   worldEntryReducer,
 } from './center/worldEntryTransition'
 
+function initialWorldEntryState() {
+  const hasSceneRoute = Boolean(resolveMainlineSceneId())
+  const shouldResume = hasSceneRoute || hasResumablePlayerSave()
+  if (!shouldResume) return WORLD_ENTRY_INITIAL_STATE
+  return {
+    ...WORLD_ENTRY_INITIAL_STATE,
+    phase: WORLD_ENTRY_PHASE.ACTIVE,
+    coverComplete: true,
+    sceneReady: true,
+  }
+}
+
 function App({ contentStatus = 'ready', onRetryContent }) {
-  const [worldEntry, dispatchWorldEntry] = useReducer(worldEntryReducer, WORLD_ENTRY_INITIAL_STATE)
+  const [worldEntry, dispatchWorldEntry] = useReducer(worldEntryReducer, undefined, initialWorldEntryState)
   const worldEntryPhase = worldEntry.phase
   const worldMounted = worldEntryPhase !== WORLD_ENTRY_PHASE.IDLE
   const landingMounted = worldEntryPhase !== WORLD_ENTRY_PHASE.ACTIVE

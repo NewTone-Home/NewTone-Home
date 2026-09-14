@@ -836,7 +836,29 @@ export function mainlineInteractionTarget(scene: MainlineSceneDefinition, entity
     if (entity.approach) return { x: entity.approach.x + offset.x, y: entity.approach.y + offset.y }
   }
   const collision = snapshot.objects.get(entityId)?.collision ?? mainlineEntityCollision(scene, entity, layout, options.screenMetrics)
-  return collision ? edgeContactPoint(position, collision, from, actorRadius) : position
+  if (!collision) return position
+
+  // Floor furniture may author a front-of-object contact point. Resolve that
+  // point through the same screen-specific position projection as the object
+  // itself, then accept it only when the shared collision compiler considers
+  // it walkable. The edge fallback keeps older floor entities safe.
+  if (entity.approach) {
+    const authoredPosition = {
+      x: entity.position.x + offset.x,
+      y: entity.position.y + offset.y,
+    }
+    const responsiveDelta = {
+      x: position.x - authoredPosition.x,
+      y: position.y - authoredPosition.y,
+    }
+    const approach = {
+      x: entity.approach.x + offset.x + responsiveDelta.x,
+      y: entity.approach.y + offset.y + responsiveDelta.y,
+    }
+    if (isWalkableMainlinePoint(approach, scene, layout, { ...options, geometrySnapshot: snapshot })) return approach
+  }
+
+  return edgeContactPoint(position, collision, from, actorRadius)
 }
 
 export function isMainlineEntityWithinInteractionRange(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
