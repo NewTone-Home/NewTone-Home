@@ -465,9 +465,10 @@ export function MainlineSceneRenderer({
         interactionBusy: target.policy === 'interactive' && activeObjectId === entityId && moving,
         interactionActive: target.policy === 'interactive' && (activeObjectId === entityId || sceneEcho?.entityId === entityId),
         retractRequested,
-        // Exploration persistence affects the resting brightness only. It must
-        // not permanently suppress a frame that is triggered again later.
-        suppressed: target.policy === 'interactive' && sceneEcho?.entityId === entityId,
+        // The object frame remains visible while its interaction text is open.
+        // The echo owns its own separate text frame; neither frame should
+        // replace or suppress the other.
+        suppressed: false,
       })
     })
     scene.objects.forEach((entity) => {
@@ -480,9 +481,9 @@ export function MainlineSceneRenderer({
         interactionBusy: activeObjectId === entity.id && moving,
         interactionActive: activeObjectId === entity.id || sceneEcho?.entityId === entity.id,
         retractRequested: false,
-        // An explored object remains repeatable; the active echo temporarily
-        // owns focus while its text is visible.
-        suppressed: sceneEcho?.entityId === entity.id,
+        // An explored object remains repeatable, and its object frame stays
+        // visible while the separate interaction text frame is shown.
+        suppressed: false,
       })
     })
     if (dialogue && dialogueLine && dialogueLineIndex !== null && dialoguePosition) {

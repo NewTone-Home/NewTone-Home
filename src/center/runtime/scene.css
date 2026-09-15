@@ -654,7 +654,7 @@
 .scene-spatial-labels { inset: 0; }
 .scene-focus-frame {
   position: absolute;
-  inset: -.12em;
+  inset: -.18em;
   z-index: 6;
   box-sizing: border-box;
   min-width: 0;
@@ -673,7 +673,7 @@
 .scene-focus-frame path {
   fill: none;
   stroke: currentColor;
-  stroke-width: .8;
+  stroke-width: 1;
   vector-effect: non-scaling-stroke;
   stroke-linecap: square;
   stroke-linejoin: miter;
@@ -1312,7 +1312,7 @@
   width: fit-content;
   max-width: min(42%, calc(100% - 24px));
   max-height: 36%;
-  overflow: hidden;
+  overflow: visible;
   padding: .42em .56em .38em;
   color: var(--ink);
   font-family: "Noto Serif SC", Georgia, serif;
