@@ -13,7 +13,7 @@ import { sceneInteractionHandlers } from './sceneInteraction'
 import { useAutomaticPassages } from './useAutomaticPassages'
 import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { mainlineCameraOffset } from './mainlineViewport'
-import { sceneFocusMotionMs } from './sceneMotion'
+import { sceneFrameDefaultMotionMs } from './sceneMotion'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -349,6 +349,7 @@ export function MainlineScenePage({
   const [explorationState, setExplorationState] = useState<{ sceneId: MainlineSceneId; objectIds: ReadonlySet<string> }>(() => ({ sceneId, objectIds: new Set() }))
   const [passageDestination, setPassageDestination] = useState<Point | null>(null)
   const [sceneFrameExit, setSceneFrameExit] = useState<SceneFrameExitLifecycle>({ phase: 'idle' })
+  const frameMotionBudgetMsRef = useRef(sceneFrameDefaultMotionMs)
   const pendingTraversalRef = useRef<PendingMainlineTraversal | null>(null)
   const continuePendingTraversalRef = useRef<(entityId: string) => void>(() => {})
   const [screenMetrics, setScreenMetrics] = useState<SceneScreenMetrics>(defaultSceneScreenMetrics)
@@ -490,6 +491,9 @@ export function MainlineScenePage({
   })
   const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics, geometrySnapshot }), [geometrySnapshot, getOpenPassageIds, screenMetrics])
   const locomotionOptions = useMemo(() => ({ screenMetrics, screenSpeedPxPerSecond: 520 }), [screenMetrics])
+  const handleFrameMotionBudgetChange = useCallback((durationMs: number) => {
+    if (Number.isFinite(durationMs) && durationMs > 0) frameMotionBudgetMsRef.current = durationMs
+  }, [])
   const doorPhases = useMemo(() => new Map(passageLifecycleDefinitions
     .map((passage) => [
       scene.passages.find((candidate) => candidate.id === passage.id)?.entityId,
@@ -542,7 +546,7 @@ export function MainlineScenePage({
       onMove: (point) => {
         const pending = pendingTraversalRef.current
         if (!pending || pending.passage.id !== passage.id) return
-        if (!pending.frameRetractionStarted && pathRemainingMs(point, pending.approachPath, screenMetrics, locomotionOptions.screenSpeedPxPerSecond) <= sceneFocusMotionMs) {
+        if (!pending.frameRetractionStarted && pathRemainingMs(point, pending.approachPath, screenMetrics, locomotionOptions.screenSpeedPxPerSecond) <= frameMotionBudgetMsRef.current) {
           pending.frameRetractionStarted = true
           armPassageFrameExit(passage)
         }
@@ -1057,6 +1061,7 @@ export function MainlineScenePage({
               sceneEcho={sceneEcho}
               onSceneEchoChoice={chooseSceneEchoOption}
               onSceneEchoExitComplete={completeSceneEchoExit}
+              onFrameMotionBudgetChange={handleFrameMotionBudgetChange}
               exploredObjectIds={exploredObjectIds}
               incenseLit={incenseLit}
               incenseBurnRemainingMs={incenseBurnRemainingMs}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TransitionEvent as ReactTransitionEvent } from 'react'
-import { sceneFocusMotionForPolicy } from './sceneMotion'
+import { sceneFrameDefaultMotionMs, sceneFrameMotionMsForRect } from './sceneMotion'
 import { frameShouldCollapse, frameVisualPhase, type SceneFrameRuntime, type SceneFrameTarget } from './sceneFrameLifecycle'
 
 type FocusFrameCorner = SceneFrameRuntime['corner']
@@ -12,10 +12,10 @@ type SceneFocusFramesProps = {
 
 const frameCorners: readonly FocusFrameCorner[] = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
 const frameCornerPaths: Record<FocusFrameCorner, string> = {
-  'top-left': 'M2 2 H98 V98 H2 V2',
-  'top-right': 'M98 2 V98 H2 V2 H98',
-  'bottom-right': 'M98 98 H2 V2 H98 V98',
-  'bottom-left': 'M2 98 V2 H98 V98 H2',
+  'top-left': 'M2 2 H98 V98 H2 V2 Z',
+  'top-right': 'M98 2 V98 H2 V2 H98 Z',
+  'bottom-right': 'M98 98 H2 V2 H98 V98 Z',
+  'bottom-left': 'M2 98 V2 H98 V98 H2 Z',
 }
 function randomCorner(): FocusFrameCorner {
   return frameCorners[Math.floor(Math.random() * frameCorners.length)]
@@ -36,6 +36,10 @@ export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps)
   const [revision, setRevision] = useState(0)
   const runtimeRef = useRef(new Map<string, SceneFrameRuntime>())
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<ReadonlyMap<string, SceneFrameRuntime>>(new Map())
+  const frameNodeRefsRef = useRef(new Map<string, (node: HTMLSpanElement | null) => void>())
+  const frameNodesRef = useRef(new Map<string, HTMLSpanElement>())
+  const [frameNodesRevision, setFrameNodesRevision] = useState(0)
+  const [motionDurations, setMotionDurations] = useState<ReadonlyMap<string, number>>(new Map())
   const lastPointerTypeRef = useRef(new Map<string, string>())
 
   const bump = useCallback(() => {
@@ -112,6 +116,32 @@ export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps)
     bump()
   }, [bump])
 
+  const frameRefFor = useCallback((group: string) => {
+    const existing = frameNodeRefsRef.current.get(group)
+    if (existing) return existing
+    const ref = (node: HTMLSpanElement | null) => {
+      if (node) frameNodesRef.current.set(group, node)
+      else frameNodesRef.current.delete(group)
+      setFrameNodesRevision((value) => value + 1)
+    }
+    frameNodeRefsRef.current.set(group, ref)
+    return ref
+  }, [])
+
+  useLayoutEffect(() => {
+    const next = new Map<string, number>()
+    targetMap.forEach((_target, group) => {
+      const node = frameNodesRef.current.get(group)
+      if (!node) return
+      const rect = node.getBoundingClientRect()
+      next.set(group, sceneFrameMotionMsForRect(rect.width, rect.height))
+    })
+    setMotionDurations((current) => {
+      if (current.size === next.size && [...next].every(([group, duration]) => current.get(group) === duration)) return current
+      return next
+    })
+  }, [frameNodesRevision, runtimeSnapshot, targetMap])
+
   const onPointerDownCapture = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const element = targetElement(event)
     const group = element?.dataset.focusTargetGroup
@@ -178,9 +208,10 @@ export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps)
     const runtime = runtimeSnapshot.get(group)
     if (!target || !runtime) return null
     const collapsed = runtime.phase === 'hidden' || runtime.phase === 'retracting'
+    const duration = motionDurations.get(group) ?? sceneFrameDefaultMotionMs
     const style = {
-      '--scene-focus-stroke-offset': collapsed ? 1000 : 0,
-      '--scene-focus-frame-duration': `${sceneFocusMotionForPolicy(target.policy)}ms`,
+      '--scene-focus-stroke-offset': collapsed ? 1 : 0,
+      '--scene-focus-frame-duration': `${duration}ms`,
     } as CSSProperties
     return (
       <span
@@ -191,13 +222,14 @@ export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps)
         data-focus-frame-phase={frameVisualPhase(runtime)}
         data-focus-frame-corner={runtime.corner}
         aria-hidden="true"
+        ref={frameRefFor(group)}
       >
         <svg viewBox="0 0 100 100" preserveAspectRatio="none">
-          <path d={frameCornerPaths[runtime.corner]} onTransitionEnd={(event) => handleTransitionEnd(group, event)} />
+          <path pathLength="1" d={frameCornerPaths[runtime.corner]} onTransitionEnd={(event) => handleTransitionEnd(group, event)} />
         </svg>
       </span>
     )
-  }, [handleTransitionEnd, runtimeSnapshot, targetMap])
+  }, [frameRefFor, handleTransitionEnd, motionDurations, runtimeSnapshot, targetMap])
 
   const requestedRetractionsComplete = useMemo(() => {
     const requestedGroups = targets
@@ -210,5 +242,8 @@ export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps)
     })
   }, [runtimeSnapshot, targets])
 
-  return { renderFrame, onPointerDownCapture, onPointerOverCapture, onPointerOutCapture, onClickCapture, requestedRetractionsComplete }
+  const motionDurationMs = useCallback((group: string) => motionDurations.get(group) ?? sceneFrameDefaultMotionMs, [motionDurations])
+  const maxMotionDurationMs = useMemo(() => Math.max(sceneFrameDefaultMotionMs, ...motionDurations.values()), [motionDurations])
+
+  return { renderFrame, motionDurationMs, maxMotionDurationMs, onPointerDownCapture, onPointerOverCapture, onPointerOutCapture, onClickCapture, requestedRetractionsComplete }
 }

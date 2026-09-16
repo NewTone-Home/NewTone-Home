@@ -677,7 +677,7 @@
   vector-effect: non-scaling-stroke;
   stroke-linecap: square;
   stroke-linejoin: miter;
-  stroke-dasharray: 1000;
+  stroke-dasharray: 1;
   stroke-dashoffset: var(--scene-focus-stroke-offset);
   transition: stroke-dashoffset var(--scene-focus-frame-duration) ease-in-out;
 }
@@ -1382,12 +1382,6 @@
 .scene-mainline-echo > .scene-focus-frame {
   inset: -.34em -.22em;
   opacity: .9;
-}
-.scene-mainline-echo > .scene-focus-frame path {
-  stroke-dasharray: 384;
-}
-.scene-mainline-echo > .scene-focus-frame.is-collapsed path {
-  stroke-dashoffset: 384;
 }
 .scene-mainline-echo.is-leaving {
   animation: none;

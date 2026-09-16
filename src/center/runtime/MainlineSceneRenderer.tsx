@@ -11,7 +11,6 @@ import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoor
 import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { useSceneFocusFrameController } from './SceneFocusFrames'
 import type { SceneFrameTarget } from './sceneFrameLifecycle'
-import { sceneFocusMotionForPolicy } from './sceneMotion'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -40,6 +39,7 @@ type MainlineSceneRendererProps = {
   sceneEcho?: { id: number; entityId?: string; text: string; position: Point; options?: readonly string[]; phase?: 'leaving' } | null
   onSceneEchoChoice?: (index: number) => void
   onSceneEchoExitComplete?: (echoId: number, source: 'text' | 'frame') => void
+  onFrameMotionBudgetChange?: (durationMs: number) => void
   exploredObjectIds?: ReadonlySet<string>
   debugInput?: boolean
   debugFeedback?: string | null
@@ -365,6 +365,7 @@ export function MainlineSceneRenderer({
   sceneEcho = null,
   onSceneEchoChoice,
   onSceneEchoExitComplete,
+  onFrameMotionBudgetChange,
   exploredObjectIds = new Set(),
   debugInput = false,
   debugFeedback = null,
@@ -534,6 +535,9 @@ export function MainlineSceneRenderer({
   const focusFrames = useSceneFocusFrameController({
     targets: focusFrameTargets,
   })
+  useEffect(() => {
+    onFrameMotionBudgetChange?.(focusFrames.maxMotionDurationMs)
+  }, [focusFrames.maxMotionDurationMs, onFrameMotionBudgetChange])
   useEffect(() => {
     if (!sceneEcho || sceneEcho.phase !== 'leaving') {
       reportedEchoFrameExitRef.current = null
@@ -801,7 +805,7 @@ export function MainlineSceneRenderer({
               style={{
                 left: `${position.x}%`,
                 top: `${position.y}%`,
-                '--scene-focus-frame-duration': `${sceneFocusMotionForPolicy('exploration')}ms`,
+                '--scene-focus-frame-duration': `${focusFrames.motionDurationMs(group)}ms`,
               } as CSSProperties}
               aria-live="polite"
               data-scene-interaction-text={sceneEcho?.entityId ?? dialogue?.triggerEntityId ?? 'scene'}

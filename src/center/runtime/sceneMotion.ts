@@ -1,14 +1,14 @@
-/** Shared visual motion budget for scene frames. */
-export const sceneFocusMotionMs = 1500
+/**
+ * The frame is drawn at a relative screen-space speed, not a fixed duration.
+ * A small floor keeps short labels visibly drawable without making long text
+ * boxes race through the same animation budget.
+ */
+export const sceneFrameDrawSpeedPxPerSecond = 300
+export const sceneFrameMinimumMotionMs = 1100
+export const sceneFrameDefaultMotionMs = sceneFrameMinimumMotionMs
 
-/** Shorter motion used by non-passage exploration frames. */
-export const sceneExplorationMotionMs = 900
-
-/** Keep the fixed yard gate between passage and exploration pacing. */
-export const sceneGateMotionMs = 1100
-
-export function sceneFocusMotionForPolicy(policy: string) {
-  if (policy === 'exploration' || policy === 'interactive') return sceneExplorationMotionMs
-  if (policy === 'gate') return sceneGateMotionMs
-  return sceneFocusMotionMs
+export function sceneFrameMotionMsForRect(width: number, height: number) {
+  const perimeter = Math.max(0, width) * 2 + Math.max(0, height) * 2
+  if (perimeter <= 0) return sceneFrameDefaultMotionMs
+  return Math.max(sceneFrameMinimumMotionMs, Math.round(perimeter / sceneFrameDrawSpeedPxPerSecond * 1000))
 }
