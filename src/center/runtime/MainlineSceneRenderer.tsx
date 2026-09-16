@@ -4,8 +4,8 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import type { CSSProperties, ReactNode } from 'react'
 import type { Point } from './sceneGeometry'
 import { type MainlineSceneDefinition, type MainlineSceneDialogue, type MainlineSceneDialogueLine, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
-import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineEntityInteractionBounds, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
-import type { MainlineObjectGeometry, MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
+import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
+import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { SceneDoor, type SceneDoorTransitionCompletion } from './SceneDoor'
 import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoorConfig'
 import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
@@ -251,7 +251,7 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
   return <span {...commonProps} aria-hidden="true">{content}{renderFrame(first.focusGroup)}</span>
 }
 
-function MainlineObject({ entity, scene, position, visibility, active, explored, underPlayer, layoutMode, selected, dragging, layout, screenMetrics, geometry, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, renderFrame, breathingAnimationDelay }: {
+function MainlineObject({ entity, scene, position, visibility, active, explored, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, renderFrame, breathingAnimationDelay }: {
   entity: MainlineSceneEntity
   scene: MainlineSceneDefinition
   position: Point
@@ -262,9 +262,7 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
   layoutMode: boolean
   selected: boolean
   dragging: boolean
-  layout: SceneLayout
   screenMetrics: SceneScreenMetrics
-  geometry?: MainlineObjectGeometry
   incenseLit: boolean
   incenseBurnRemainingMs: number
   onIncenseBurnComplete?: () => void
@@ -276,7 +274,6 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
 }) {
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
   const className = objectClass(entity, visibility, active, explored, underPlayer, selected, dragging, incenseLit)
-  const interactionBounds = geometry?.interactionBounds ?? mainlineEntityInteractionBounds(scene, entity, layout, screenMetrics)
   const visualScale = entity.visualScale ?? 1
   const focusGroup = `exploration:${entity.id}`
   const commonProps = {
@@ -285,15 +282,13 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
       left: `${position.x}%`,
       top: `${position.y}%`,
       boxSizing: 'border-box',
-      width: interactionBounds ? `${interactionBounds.width}%` : undefined,
-      height: interactionBounds ? `${interactionBounds.height}%` : undefined,
       '--incense-burn-remaining': `${incenseBurnRemainingMs}ms`,
       '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(entity, screenMetrics)}px`,
       padding: 0,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      transform: 'translate(-50%, -50%)',
+      transform: visualScale === 1 ? 'translate(-50%, -50%)' : `translate(-50%, -50%) scale(${visualScale})`,
     } as CSSProperties,
     'data-object-id': entity.id,
     'data-layout-item-id': layoutItemId ?? undefined,
@@ -302,10 +297,9 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
     'data-focus-target-policy': !layoutMode && entity.interactive !== false ? 'exploration' : undefined,
     'data-focus-interaction-active': !layoutMode && entity.interactive !== false && active ? 'true' : undefined,
   }
-  const labelStyle = {
-    ...(visualScale === 1 ? {} : { display: 'inline-block', transform: `scale(${visualScale})` }),
-    ...(breathingAnimationDelay ? { '--scene-exploration-animation-delay': breathingAnimationDelay } : {}),
-  } as CSSProperties
+  const labelStyle = breathingAnimationDelay
+    ? { '--scene-exploration-animation-delay': breathingAnimationDelay } as CSSProperties
+    : undefined
 
   if (entity.interactive === false) {
     return <span {...commonProps} aria-hidden="true"><span style={labelStyle}>{entity.label}</span></span>
@@ -465,10 +459,9 @@ export function MainlineSceneRenderer({
         interactionBusy: target.policy === 'interactive' && activeObjectId === entityId && moving,
         interactionActive: target.policy === 'interactive' && (activeObjectId === entityId || sceneEcho?.entityId === entityId),
         retractRequested,
-        // The object frame remains visible while its interaction text is open.
-        // The echo owns its own separate text frame; neither frame should
-        // replace or suppress the other.
-        suppressed: false,
+        // The interaction echo owns focus while its text is open. The object
+        // frame retracts, then reappears when the echo closes.
+        suppressed: target.policy === 'interactive' && sceneEcho?.entityId === entityId,
       })
     })
     scene.objects.forEach((entity) => {
@@ -481,9 +474,9 @@ export function MainlineSceneRenderer({
         interactionBusy: activeObjectId === entity.id && moving,
         interactionActive: activeObjectId === entity.id || sceneEcho?.entityId === entity.id,
         retractRequested: false,
-        // An explored object remains repeatable, and its object frame stays
-        // visible while the separate interaction text frame is shown.
-        suppressed: false,
+        // An explored object remains repeatable; its frame yields to the
+        // separate interaction text frame while that text is shown.
+        suppressed: sceneEcho?.entityId === entity.id,
       })
     })
     if (dialogue && dialogueLine && dialogueLineIndex !== null && dialoguePosition) {
@@ -742,9 +735,7 @@ export function MainlineSceneRenderer({
               explored={exploredObjectIds.has(entity.id)}
               underPlayer={underPlayer}
               layoutMode={layoutMode}
-              layout={layout}
               screenMetrics={renderScreenMetrics}
-              geometry={geometrySnapshot.objects.get(entity.id)}
               incenseLit={incenseLit}
               incenseBurnRemainingMs={incenseBurnRemainingMs}
               onIncenseBurnComplete={onIncenseBurnComplete}
