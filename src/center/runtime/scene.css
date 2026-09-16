@@ -662,29 +662,18 @@
   color: var(--active);
   opacity: .62;
   pointer-events: none;
+  border: 1px solid currentColor;
+  clip-path: inset(0 0 0 0);
+  transition: clip-path var(--scene-focus-frame-duration) ease-in-out;
 }
-.scene-focus-frame svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  transform-origin: center;
+.scene-focus-frame.is-collapsed {
+  clip-path: inset(50% 50% 50% 50%);
 }
-.scene-focus-frame path {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-  stroke-linecap: square;
-  stroke-linejoin: miter;
-  /* The authored perimeter is about 384 viewBox units. Keep one dash longer
-     than the complete path so the animation reveals every edge in order. */
-  stroke-dasharray: 1000;
-  stroke-dashoffset: var(--scene-focus-stroke-offset);
-  transition: stroke-dashoffset var(--scene-focus-frame-duration) ease-in-out;
+.scene-focus-frame.is-requested-retraction {
+  clip-path: inset(50% 50% 50% 50%);
 }
 .scene-focus-frame--exploration {
-  border: 0;
+  border-color: currentColor;
 }
 .scene-mainline-focus-group {
   position: absolute;
@@ -1095,7 +1084,7 @@
   .scene-mainline-world { animation: none; }
 }
 .scene-mainline-wall-labels { inset: 0; z-index: 1; }
-.scene-mainline-wall { color: var(--soft); font-size: clamp(9px, 1.15cqw, 16px); line-height: 1; }
+.scene-mainline-wall { color: var(--soft); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); line-height: 1; }
 .scene-mainline-wall-door {
   display: inline-flex;
   align-items: center;
@@ -1117,6 +1106,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 1.15em;
+  min-width: 1.15em;
+  height: 1.2em;
+  min-height: 1.2em;
   box-sizing: border-box;
   padding: 0;
   border: 0;
@@ -1125,7 +1118,16 @@
 }
 .scene-mainline-door-button > .scene-door {
   flex: 0 0 auto;
+  width: 100%;
+  height: 100%;
   margin: 0;
+}
+.scene-mainline-door-button > .scene-door > .scene-door__surface {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 .scene-mainline-wall-door.is-open { color: var(--active); }
 .scene-mainline-wall-opening {
@@ -1135,7 +1137,7 @@
 }
 .scene-mainline-wall-feature {
   color: var(--soft);
-  font-size: clamp(9px, 1.15cqw, 16px);
+  font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px));
   letter-spacing: normal;
   white-space: nowrap;
 }
@@ -1245,18 +1247,19 @@
   opacity: .94;
 }
 .scene-mainline-altar-table > span {
-  /* All four tables use the renderer's shared phase. The burner gets the
-     deliberate half-cycle offset below. */
-  animation-delay: var(--scene-exploration-animation-delay, 0s);
+  /* The altar clock is written once by the renderer and read by every
+     member. No table owns an independent CSS animation anymore. */
+  animation: none;
+  color: color-mix(in srgb, var(--ink) calc(var(--scene-breathing-progress, .5) * 100%), var(--soft));
+  opacity: calc(.52 + var(--scene-breathing-progress, .5) * .48);
 }
-.scene-mainline-altar-table.scene-mainline-exploration--breathing.scene-mainline-exploration--explored > span,
-.scene-mainline-altar-table.scene-mainline-exploration--breathing.is-active > span {
-  /* Exploration and active state may change color, but must not stop the
-     altar group clock or let one table restart on its own. */
-  animation: scene-exploration-breathe 2.8s ease-in-out infinite;
-  animation-delay: var(--scene-exploration-animation-delay, 0s);
+.scene-mainline-incense--lit > span {
+  animation: none;
+  color: color-mix(in srgb, var(--ink) calc(var(--scene-breathing-progress, .5) * 100%), var(--soft));
+  opacity: calc(.52 + var(--scene-breathing-progress, .5) * .48);
 }
-.scene-mainline-altar-table.scene-mainline-exploration--breathing.is-active > span {
+.scene-mainline-altar-table.scene-mainline-exploration--breathing.is-active > span,
+.scene-mainline-incense--lit.is-active > span {
   color: var(--active) !important;
   opacity: 1 !important;
 }
@@ -1370,15 +1373,6 @@
 .scene-mainline-echo > .scene-focus-frame {
   inset: -.34em -.22em;
   opacity: .9;
-}
-.scene-mainline-echo > .scene-focus-frame path {
-  /* The echo is the only frame whose dash was visibly exposed mid-transition.
-     Its authored rectangle is 384 viewBox units, so one complete dash must
-     cover exactly that perimeter instead of leaving a moving gap. */
-  stroke-dasharray: 384;
-}
-.scene-mainline-echo > .scene-focus-frame.is-collapsed path {
-  stroke-dashoffset: 384;
 }
 .scene-mainline-echo.is-leaving {
   animation: none;

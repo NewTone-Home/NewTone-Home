@@ -38,7 +38,7 @@ type MainlineSceneRendererProps = {
   onDialogueAdvance?: () => void
   sceneEcho?: { id: number; entityId?: string; text: string; position: Point; options?: readonly string[]; phase?: 'leaving' } | null
   onSceneEchoChoice?: (index: number) => void
-  onSceneEchoExitComplete?: () => void
+  onSceneEchoExitComplete?: (echoId: number, source: 'text' | 'frame') => void
   exploredObjectIds?: ReadonlySet<string>
   debugInput?: boolean
   debugFeedback?: string | null
@@ -251,7 +251,7 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
   return <span {...commonProps} aria-hidden="true">{content}{renderFrame(first.focusGroup)}</span>
 }
 
-function MainlineObject({ entity, scene, position, visibility, active, explored, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, renderFrame, breathingAnimationDelay }: {
+function MainlineObject({ entity, scene, position, visibility, active, explored, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, renderFrame, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode }: {
   entity: MainlineSceneEntity
   scene: MainlineSceneDefinition
   position: Point
@@ -271,6 +271,8 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
   onInteract: (id: string) => void
   renderFrame: (group: string) => ReactNode
   breathingAnimationDelay?: string
+  sharedBreathingClock?: boolean
+  registerBreathingNode?: (entityId: string, node: HTMLSpanElement | null) => void
 }) {
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
   const className = objectClass(entity, visibility, active, explored, underPlayer, selected, dragging, incenseLit)
@@ -300,9 +302,13 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
   const labelStyle = breathingAnimationDelay
     ? { '--scene-exploration-animation-delay': breathingAnimationDelay } as CSSProperties
     : undefined
+  const labelRef = useCallback((node: HTMLSpanElement | null) => {
+    if (!sharedBreathingClock || !registerBreathingNode) return
+    registerBreathingNode(entity.id, node)
+  }, [entity.id, registerBreathingNode, sharedBreathingClock])
 
   if (entity.interactive === false) {
-    return <span {...commonProps} aria-hidden="true"><span style={labelStyle}>{entity.label}</span></span>
+    return <span {...commonProps} aria-hidden="true"><span ref={labelRef} style={labelStyle}>{entity.label}</span></span>
   }
 
   return (
@@ -325,7 +331,7 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
         if (event.target === event.currentTarget && event.animationName === 'scene-incense-burn-lifecycle') onIncenseBurnComplete?.()
       }}
     >
-      <span style={labelStyle}>{entity.label}</span>
+      <span ref={labelRef} style={labelStyle}>{entity.label}</span>
       {renderFrame(focusGroup)}
     </button>
   )
@@ -368,11 +374,34 @@ export function MainlineSceneRenderer({
   onIncenseBurnComplete,
 }: MainlineSceneRendererProps) {
   const stageRef = useRef<HTMLDivElement>(null)
+  const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
+  const registerBreathingNode = useCallback((entityId: string, node: HTMLSpanElement | null) => {
+    if (node) altarBreathingNodesRef.current.set(entityId, node)
+    else altarBreathingNodesRef.current.delete(entityId)
+  }, [])
+  useEffect(() => {
+    if (scene.id !== 'jijia-ancestral-interior' || typeof window === 'undefined') return undefined
+    const startedAt = performance.now()
+    let frameId = 0
+    const tick = (now: number) => {
+      const cycle = ((now - startedAt) % 2800) / 2800
+      altarBreathingNodesRef.current.forEach((node, entityId) => {
+        const offset = entityId === 'jijia-incense-burner' ? .5 : 0
+        const phase = (cycle + offset) % 1
+        const progress = (1 - Math.cos(phase * Math.PI * 2)) / 2
+        node.style.setProperty('--scene-breathing-progress', progress.toFixed(4))
+      })
+      frameId = window.requestAnimationFrame(tick)
+    }
+    frameId = window.requestAnimationFrame(tick)
+    return () => window.cancelAnimationFrame(frameId)
+  }, [scene.id])
   const synchronizedBreathingDelay = useMemo(() => {
-    if (scene.id !== 'zhongshuyuan-office' && scene.id !== 'jijia-ancestral-interior') return undefined
+    if (scene.id !== 'zhongshuyuan-office') return undefined
     const now = typeof performance === 'undefined' ? 0 : performance.now()
     return `${-(now % 2800)}ms`
   }, [scene.id])
+  const reportedEchoFrameExitRef = useRef<number | null>(null)
   const [draggingItemId, setDraggingItemId] = useState<LayoutItemId | null>(null)
   const [selectedLayoutItemId, setSelectedLayoutItemId] = useState<LayoutItemId | null>(null)
   const dragRef = useRef<{ itemId: LayoutItemId; pointerId: number; startPointer: Point; startAnchor: Point; moved: boolean } | null>(null)
@@ -504,6 +533,15 @@ export function MainlineSceneRenderer({
   const focusFrames = useSceneFocusFrameController({
     targets: focusFrameTargets,
   })
+  useEffect(() => {
+    if (!sceneEcho || sceneEcho.phase !== 'leaving') {
+      reportedEchoFrameExitRef.current = null
+      return
+    }
+    if (reportedEchoFrameExitRef.current === sceneEcho.id || !focusFrames.requestedRetractionsComplete) return
+    reportedEchoFrameExitRef.current = sceneEcho.id
+    onSceneEchoExitComplete?.(sceneEcho.id, 'frame')
+  }, [focusFrames.requestedRetractionsComplete, onSceneEchoExitComplete, sceneEcho])
   const touchWalkRef = useRef<{ clientX: number; clientY: number; at: number } | null>(null)
 
   const pointFromPointer = useCallback((clientX: number, clientY: number) => {
@@ -624,7 +662,7 @@ export function MainlineSceneRenderer({
 
   return (
     <section className="scene-wrap" aria-label={`${scene.title}可探索场景`}>
-      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''}`} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id}>
+      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id}>
         {layoutMode && <div className="scene-layout-grid" aria-hidden="true" />}
 
         <div className="scene-mainline-world" style={{ transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%)` }}>
@@ -742,6 +780,8 @@ export function MainlineSceneRenderer({
               onInteract={onInteract}
               renderFrame={focusFrames.renderFrame}
               breathingAnimationDelay={synchronizedBreathingDelay}
+              sharedBreathingClock={scene.id === 'jijia-ancestral-interior' && (entity.id === 'jijia-incense-burner' || entity.id.startsWith('jijia-offering-table-'))}
+              registerBreathingNode={registerBreathingNode}
             />
           })}
 
@@ -773,7 +813,7 @@ export function MainlineSceneRenderer({
               <span
                 className="scene-mainline-echo__text"
                 onAnimationEnd={(event) => {
-                  if (sceneEcho && event.animationName === 'mainline-echo-text-leave') onSceneEchoExitComplete?.()
+                  if (sceneEcho && event.animationName === 'mainline-echo-text-leave') onSceneEchoExitComplete?.(sceneEcho.id, 'text')
                 }}
               >{text}</span>
               {sceneEcho?.options && sceneEcho.options.length > 0 && <div className="scene-mainline-echo__choices">

@@ -11,13 +11,6 @@ type SceneFocusFramesProps = {
 }
 
 const frameCorners: readonly FocusFrameCorner[] = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
-const frameCornerPaths: Record<FocusFrameCorner, string> = {
-  'top-left': 'M2 2 H98 V98 H2 V2',
-  'top-right': 'M98 2 V98 H2 V2 H98',
-  'bottom-right': 'M98 98 H2 V2 H98 V98',
-  'bottom-left': 'M2 98 V2 H98 V98 H2',
-}
-
 function randomCorner(): FocusFrameCorner {
   return frameCorners[Math.floor(Math.random() * frameCorners.length)]
 }
@@ -37,8 +30,6 @@ export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps)
   const [revision, setRevision] = useState(0)
   const runtimeRef = useRef(new Map<string, SceneFrameRuntime>())
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<ReadonlyMap<string, SceneFrameRuntime>>(new Map())
-  const renderedGroupsRef = useRef(new Set<string>())
-  const [renderedGroups, setRenderedGroups] = useState<ReadonlySet<string>>(new Set())
   const lastPointerTypeRef = useRef(new Map<string, string>())
 
   const bump = useCallback(() => {
@@ -108,15 +99,6 @@ export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps)
     return () => window.cancelAnimationFrame(frameId)
   }, [bump, revision, targetMap])
 
-  useLayoutEffect(() => {
-    const nextGroups = new Set(renderedGroupsRef.current)
-    renderedGroupsRef.current.clear()
-    setRenderedGroups((current) => {
-      if (current.size === nextGroups.size && [...current].every((group) => nextGroups.has(group))) return current
-      return nextGroups
-    })
-  }, [revision, runtimeSnapshot, targetMap])
-
   const updateInteraction = useCallback((group: string, update: (runtime: SceneFrameRuntime) => void) => {
     const runtime = runtimeRef.current.get(group)
     if (!runtime) return
@@ -161,10 +143,17 @@ export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps)
     updateInteraction(group, (runtime) => { runtime.locked = true })
   }, [updateInteraction])
 
-  const handleTransitionEnd = useCallback((group: string, event: ReactTransitionEvent<SVGPathElement>) => {
-    if (event.propertyName !== 'stroke-dashoffset') return
+  const handleTransitionEnd = useCallback((group: string, event: ReactTransitionEvent<HTMLSpanElement>) => {
+    if (event.propertyName !== 'clip-path') return
     const runtime = runtimeRef.current.get(group)
     if (!runtime) return
+    const target = targetMap.get(group)
+    if (target?.retractRequested) {
+      runtime.phase = 'hidden'
+      runtime.fullyCollapsed = true
+      bump()
+      return
+    }
     if (runtime.phase === 'appearing') {
       runtime.phase = 'visible'
       runtime.fullyCollapsed = false
@@ -176,45 +165,39 @@ export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps)
       runtime.fullyCollapsed = true
       bump()
     }
-  }, [bump])
+  }, [bump, targetMap])
 
   const renderFrame = useCallback((group: string): ReactNode => {
     const target = targetMap.get(group)
     const runtime = runtimeSnapshot.get(group)
     if (!target || !runtime) return null
-    renderedGroupsRef.current.add(group)
     const collapsed = runtime.phase === 'hidden' || runtime.phase === 'retracting'
-    const style = {
-      '--scene-focus-stroke-offset': collapsed ? 1000 : 0,
-      '--scene-focus-frame-duration': `${sceneFocusMotionForPolicy(target.policy)}ms`,
-    } as CSSProperties
+    const style = { '--scene-focus-frame-duration': `${sceneFocusMotionForPolicy(target.policy)}ms` } as CSSProperties
     return (
       <span
-        className={`scene-focus-frame ${target.policy === 'exploration' ? 'scene-focus-frame--exploration' : ''} ${collapsed ? 'is-collapsed' : 'is-visible'}`}
+        className={`scene-focus-frame ${target.policy === 'exploration' ? 'scene-focus-frame--exploration' : ''} ${collapsed ? 'is-collapsed' : 'is-visible'} ${target.retractRequested ? 'is-requested-retraction' : ''}`}
         style={style}
         data-focus-frame-group={group}
         data-focus-frame-policy={target.policy}
         data-focus-frame-phase={frameVisualPhase(runtime)}
         data-focus-frame-corner={runtime.corner}
         aria-hidden="true"
+        onTransitionEnd={(event) => handleTransitionEnd(group, event)}
       >
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none">
-          <path d={frameCornerPaths[runtime.corner]} onTransitionEnd={(event) => handleTransitionEnd(group, event)} />
-        </svg>
       </span>
     )
   }, [handleTransitionEnd, runtimeSnapshot, targetMap])
 
   const requestedRetractionsComplete = useMemo(() => {
     const requestedGroups = targets
-      .filter((target) => target.retractRequested && renderedGroups.has(target.group))
+      .filter((target) => target.retractRequested)
       .map((target) => target.group)
     if (requestedGroups.length === 0) return true
     return requestedGroups.every((group) => {
       const runtime = runtimeSnapshot.get(group)
       return runtime?.phase === 'hidden' && runtime.fullyCollapsed
     })
-  }, [renderedGroups, runtimeSnapshot, targets])
+  }, [runtimeSnapshot, targets])
 
   return { renderFrame, onPointerDownCapture, onPointerOverCapture, onPointerOutCapture, onClickCapture, requestedRetractionsComplete }
 }

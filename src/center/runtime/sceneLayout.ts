@@ -160,7 +160,7 @@ function mainlineEntityUsesVerticalText(entity: MainlineSceneEntity) {
   return (entity.kind === 'table' || entity.kind === 'seat') && (entity.facing === 'east' || entity.facing === 'west')
 }
 
-export function mainlineEntityFontSizePx(_entity: MainlineSceneEntity, screenMetrics: SceneScreenMetrics) {
+export function mainlineEntityFontSizePx(_entity: MainlineSceneEntity | null, screenMetrics: SceneScreenMetrics) {
   // Keep the interaction footprint in lockstep with the mainline object CSS.
   // The rendered object consumes the same measured stage-width basis through
   // a CSS custom property. This keeps the footprint and focus frame aligned

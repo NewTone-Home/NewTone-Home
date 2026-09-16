@@ -124,6 +124,10 @@ type MainlineSceneEcho = {
   position: Point
   options?: readonly string[]
   phase?: 'leaving'
+  exit?: {
+    textComplete: boolean
+    frameComplete: boolean
+  }
 }
 
 function lockedPassageText(passage: MainlineScenePassage) {
@@ -366,6 +370,7 @@ export function MainlineScenePage({
   const debugInput = new URLSearchParams(debugInputSearch).get('debugInput') === '1'
   const [dialogueLineIndex, setDialogueLineIndex] = useState<number | null>(null)
   const [sceneEcho, setSceneEcho] = useState<MainlineSceneEcho | null>(null)
+  const sceneEchoRef = useRef<MainlineSceneEcho | null>(null)
   const [officeBlindsOpen, setOfficeBlindsOpen] = useState(initialSceneState.blindsOpen !== false)
   const [incenseLitAt, setIncenseLitAt] = useState<number | null>(() => typeof initialSceneState.incenseLitAt === 'number' ? initialSceneState.incenseLitAt : null)
   const [incenseClock, setIncenseClock] = useState(() => Date.now())
@@ -379,12 +384,32 @@ export function MainlineScenePage({
     ? 0
     : Math.max(0, incenseBurnDurationMs - (incenseClock - incenseLitAt))
   const dismissSceneEcho = useCallback(() => {
-    setSceneEcho((current) => current ? { ...current, phase: 'leaving', options: undefined } : null)
+    const current = sceneEchoRef.current
+    if (!current) return
+    const next = current.phase === 'leaving'
+      ? current
+      : { ...current, phase: 'leaving' as const, options: undefined, exit: { textComplete: false, frameComplete: false } }
+    sceneEchoRef.current = next
+    setSceneEcho(next)
   }, [])
-  const completeSceneEchoExit = useCallback(() => {
-    setSceneEcho((current) => current?.phase === 'leaving' ? null : current)
-    setActiveObjectId(null)
+  const completeSceneEchoExit = useCallback((echoId: number, source: 'text' | 'frame') => {
+    const current = sceneEchoRef.current
+    if (!current || current.id !== echoId || current.phase !== 'leaving') return
+    const exit = {
+      textComplete: current.exit?.textComplete ?? false,
+      frameComplete: current.exit?.frameComplete ?? false,
+      [source === 'text' ? 'textComplete' : 'frameComplete']: true,
+    }
+    const next = exit.textComplete && exit.frameComplete
+      ? null
+      : { ...current, exit }
+    sceneEchoRef.current = next
+    setSceneEcho(next)
+    if (!next) setActiveObjectId(null)
   }, [])
+  useIsomorphicLayoutEffect(() => {
+    sceneEchoRef.current = sceneEcho
+  }, [sceneEcho])
   const notifySceneTransition = useCallback((targetSceneId: MainlineSceneId, targetEntryPosition?: Point, targetSpawnMode?: 'resume' | 'ride') => {
     setExplorationState({ sceneId: targetSceneId, objectIds: new Set() })
     setIncenseClock(Date.now())
