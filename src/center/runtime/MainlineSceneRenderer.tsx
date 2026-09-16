@@ -136,7 +136,7 @@ function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph
   const visualOpen = sceneDoorIsVisuallyOpen(cell.doorBehavior, doorPhase)
   return (
     <button
-      className={`${className} ${visualOpen ? 'is-open' : ''} ${active ? 'is-active' : ''}`}
+      className={`${className} scene-mainline-door-button ${visualOpen ? 'is-open' : ''} ${active ? 'is-active' : ''}`}
       type="button"
       style={style}
       onClick={(event) => { event.stopPropagation(); onInteract(entityId) }}
@@ -369,7 +369,7 @@ export function MainlineSceneRenderer({
 }: MainlineSceneRendererProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const synchronizedBreathingDelay = useMemo(() => {
-    if (scene.id !== 'zhongshuyuan-office') return undefined
+    if (scene.id !== 'zhongshuyuan-office' && scene.id !== 'jijia-ancestral-interior') return undefined
     const now = typeof performance === 'undefined' ? 0 : performance.now()
     return `${-(now % 2800)}ms`
   }, [scene.id])
@@ -458,10 +458,8 @@ export function MainlineSceneRenderer({
         gateTriggered: target.policy === 'gate' && gateTriggered,
         interactionBusy: target.policy === 'interactive' && activeObjectId === entityId && moving,
         interactionActive: target.policy === 'interactive' && (activeObjectId === entityId || sceneEcho?.entityId === entityId),
-        retractRequested,
-        // The interaction echo owns focus while its text is open. The object
-        // frame retracts, then reappears when the echo closes.
-        suppressed: target.policy === 'interactive' && sceneEcho?.entityId === entityId,
+        retractRequested: retractRequested || (sceneEcho?.phase === 'leaving' && sceneEcho.entityId === entityId),
+        suppressed: false,
       })
     })
     scene.objects.forEach((entity) => {
@@ -473,10 +471,8 @@ export function MainlineSceneRenderer({
         gateTriggered: false,
         interactionBusy: activeObjectId === entity.id && moving,
         interactionActive: activeObjectId === entity.id || sceneEcho?.entityId === entity.id,
-        retractRequested: false,
-        // An explored object remains repeatable; its frame yields to the
-        // separate interaction text frame while that text is shown.
-        suppressed: sceneEcho?.entityId === entity.id,
+        retractRequested: sceneEcho?.phase === 'leaving' && sceneEcho.entityId === entity.id,
+        suppressed: false,
       })
     })
     if (dialogue && dialogueLine && dialogueLineIndex !== null && dialoguePosition) {
@@ -499,7 +495,7 @@ export function MainlineSceneRenderer({
         gateTriggered: false,
         interactionBusy: false,
         interactionActive: true,
-        retractRequested: false,
+        retractRequested: sceneEcho.phase === 'leaving',
         suppressed: false,
       })
     }

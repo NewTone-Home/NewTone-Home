@@ -1097,6 +1097,10 @@
 .scene-mainline-wall-labels { inset: 0; z-index: 1; }
 .scene-mainline-wall { color: var(--soft); font-size: clamp(9px, 1.15cqw, 16px); line-height: 1; }
 .scene-mainline-wall-door {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1108,6 +1112,20 @@
   text-orientation: upright;
   white-space: nowrap;
   pointer-events: auto;
+}
+.scene-mainline-door-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: center;
+}
+.scene-mainline-door-button > .scene-door {
+  flex: 0 0 auto;
+  margin: 0;
 }
 .scene-mainline-wall-door.is-open { color: var(--active); }
 .scene-mainline-wall-opening {
@@ -1227,9 +1245,20 @@
   opacity: .94;
 }
 .scene-mainline-altar-table > span {
-  /* All four tables share the same base clock. Only the burner gets the
-     deliberate phase offset, so one table cannot drift away on relight. */
-  animation-delay: 0s;
+  /* All four tables use the renderer's shared phase. The burner gets the
+     deliberate half-cycle offset below. */
+  animation-delay: var(--scene-exploration-animation-delay, 0s);
+}
+.scene-mainline-altar-table.scene-mainline-exploration--breathing.scene-mainline-exploration--explored > span,
+.scene-mainline-altar-table.scene-mainline-exploration--breathing.is-active > span {
+  /* Exploration and active state may change color, but must not stop the
+     altar group clock or let one table restart on its own. */
+  animation: scene-exploration-breathe 2.8s ease-in-out infinite;
+  animation-delay: var(--scene-exploration-animation-delay, 0s);
+}
+.scene-mainline-altar-table.scene-mainline-exploration--breathing.is-active > span {
+  color: var(--active) !important;
+  opacity: 1 !important;
 }
 .scene-mainline-incense--unlit {
   color: var(--muted);
@@ -1341,6 +1370,15 @@
 .scene-mainline-echo > .scene-focus-frame {
   inset: -.34em -.22em;
   opacity: .9;
+}
+.scene-mainline-echo > .scene-focus-frame path {
+  /* The echo is the only frame whose dash was visibly exposed mid-transition.
+     Its authored rectangle is 384 viewBox units, so one complete dash must
+     cover exactly that perimeter instead of leaving a moving gap. */
+  stroke-dasharray: 384;
+}
+.scene-mainline-echo > .scene-focus-frame.is-collapsed path {
+  stroke-dashoffset: 384;
 }
 .scene-mainline-echo.is-leaving {
   animation: none;
