@@ -11,6 +11,7 @@ import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoor
 import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { useSceneFocusFrameController } from './SceneFocusFrames'
 import type { SceneFrameTarget } from './sceneFrameLifecycle'
+import { sceneFocusMotionForPolicy } from './sceneMotion'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -797,7 +798,11 @@ export function MainlineSceneRenderer({
             return <div
               key={sceneEcho?.id ?? dialogueLine!.id}
               className={`scene-mainline-echo ${sceneEcho?.phase === 'leaving' ? 'is-leaving' : ''}`}
-              style={{ left: `${position.x}%`, top: `${position.y}%` }}
+              style={{
+                left: `${position.x}%`,
+                top: `${position.y}%`,
+                '--scene-focus-frame-duration': `${sceneFocusMotionForPolicy('exploration')}ms`,
+              } as CSSProperties}
               aria-live="polite"
               data-scene-interaction-text={sceneEcho?.entityId ?? dialogue?.triggerEntityId ?? 'scene'}
               data-scene-echo={sceneEcho?.entityId}

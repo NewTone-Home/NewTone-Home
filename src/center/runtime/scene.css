@@ -662,18 +662,27 @@
   color: var(--active);
   opacity: .62;
   pointer-events: none;
-  border: 1px solid currentColor;
-  clip-path: inset(0 0 0 0);
-  transition: clip-path var(--scene-focus-frame-duration) ease-in-out;
 }
-.scene-focus-frame.is-collapsed {
-  clip-path: inset(50% 50% 50% 50%);
+.scene-focus-frame svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transform-origin: center;
 }
-.scene-focus-frame.is-requested-retraction {
-  clip-path: inset(50% 50% 50% 50%);
+.scene-focus-frame path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  stroke-dasharray: 1000;
+  stroke-dashoffset: var(--scene-focus-stroke-offset);
+  transition: stroke-dashoffset var(--scene-focus-frame-duration) ease-in-out;
 }
 .scene-focus-frame--exploration {
-  border-color: currentColor;
+  border: 0;
 }
 .scene-mainline-focus-group {
   position: absolute;
@@ -1363,7 +1372,7 @@
   text-shadow: 0 1px 5px rgba(0, 0, 0, .75);
   pointer-events: none;
   transform: translate(-50%, -50%);
-  animation: mainline-echo-arrive 420ms ease-out both;
+  animation: mainline-echo-arrive var(--scene-focus-frame-duration) ease-out both;
 }
 .scene-mainline-echo__speaker { display: block; margin-bottom: 3px; color: var(--active); font-size: .72em; letter-spacing: .06em; }
 .scene-mainline-echo__text { display: inline; }
@@ -1374,6 +1383,12 @@
   inset: -.34em -.22em;
   opacity: .9;
 }
+.scene-mainline-echo > .scene-focus-frame path {
+  stroke-dasharray: 384;
+}
+.scene-mainline-echo > .scene-focus-frame.is-collapsed path {
+  stroke-dashoffset: 384;
+}
 .scene-mainline-echo.is-leaving {
   animation: none;
 }
@@ -1383,7 +1398,7 @@
 }
 .scene-mainline-echo.is-leaving > .scene-mainline-echo__text {
   display: inline-block;
-  animation: mainline-echo-text-leave var(--scene-focus-motion-duration) ease-in both;
+  animation: mainline-echo-text-leave var(--scene-focus-frame-duration) ease-in both;
 }
 @keyframes mainline-echo-text-leave {
   from { opacity: 1; transform: translateY(0); }

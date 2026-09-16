@@ -11,6 +11,12 @@ type SceneFocusFramesProps = {
 }
 
 const frameCorners: readonly FocusFrameCorner[] = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
+const frameCornerPaths: Record<FocusFrameCorner, string> = {
+  'top-left': 'M2 2 H98 V98 H2 V2',
+  'top-right': 'M98 2 V98 H2 V2 H98',
+  'bottom-right': 'M98 98 H2 V2 H98 V98',
+  'bottom-left': 'M2 98 V2 H98 V98 H2',
+}
 function randomCorner(): FocusFrameCorner {
   return frameCorners[Math.floor(Math.random() * frameCorners.length)]
 }
@@ -143,8 +149,8 @@ export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps)
     updateInteraction(group, (runtime) => { runtime.locked = true })
   }, [updateInteraction])
 
-  const handleTransitionEnd = useCallback((group: string, event: ReactTransitionEvent<HTMLSpanElement>) => {
-    if (event.propertyName !== 'clip-path') return
+  const handleTransitionEnd = useCallback((group: string, event: ReactTransitionEvent<SVGPathElement>) => {
+    if (event.propertyName !== 'stroke-dashoffset') return
     const runtime = runtimeRef.current.get(group)
     if (!runtime) return
     const target = targetMap.get(group)
@@ -172,7 +178,10 @@ export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps)
     const runtime = runtimeSnapshot.get(group)
     if (!target || !runtime) return null
     const collapsed = runtime.phase === 'hidden' || runtime.phase === 'retracting'
-    const style = { '--scene-focus-frame-duration': `${sceneFocusMotionForPolicy(target.policy)}ms` } as CSSProperties
+    const style = {
+      '--scene-focus-stroke-offset': collapsed ? 1000 : 0,
+      '--scene-focus-frame-duration': `${sceneFocusMotionForPolicy(target.policy)}ms`,
+    } as CSSProperties
     return (
       <span
         className={`scene-focus-frame ${target.policy === 'exploration' ? 'scene-focus-frame--exploration' : ''} ${collapsed ? 'is-collapsed' : 'is-visible'} ${target.retractRequested ? 'is-requested-retraction' : ''}`}
@@ -182,8 +191,10 @@ export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps)
         data-focus-frame-phase={frameVisualPhase(runtime)}
         data-focus-frame-corner={runtime.corner}
         aria-hidden="true"
-        onTransitionEnd={(event) => handleTransitionEnd(group, event)}
       >
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+          <path d={frameCornerPaths[runtime.corner]} onTransitionEnd={(event) => handleTransitionEnd(group, event)} />
+        </svg>
       </span>
     )
   }, [handleTransitionEnd, runtimeSnapshot, targetMap])
