@@ -70,51 +70,6 @@ function samePoint(first: Point, second: Point) {
   return Math.abs(first.x - second.x) < .001 && Math.abs(first.y - second.y) < .001
 }
 
-function pathRemainingPixels(point: Point, path: readonly Point[], screenMetrics: SceneScreenMetrics) {
-  if (path.length < 2) return 0
-  const project = (candidate: Point) => ({
-    x: candidate.x * screenMetrics.width / 100,
-    y: candidate.y * screenMetrics.height / 100,
-  })
-  const projectedPoint = project(point)
-  let bestSegment = 0
-  let bestT = 0
-  let bestDistance = Number.POSITIVE_INFINITY
-  for (let index = 0; index < path.length - 1; index += 1) {
-    const start = project(path[index])
-    const end = project(path[index + 1])
-    const dx = end.x - start.x
-    const dy = end.y - start.y
-    const lengthSquared = dx * dx + dy * dy
-    const t = lengthSquared <= .000001
-      ? 0
-      : Math.max(0, Math.min(1, ((projectedPoint.x - start.x) * dx + (projectedPoint.y - start.y) * dy) / lengthSquared))
-    const projected = { x: start.x + dx * t, y: start.y + dy * t }
-    const distance = Math.hypot(projectedPoint.x - projected.x, projectedPoint.y - projected.y)
-    if (distance < bestDistance) {
-      bestDistance = distance
-      bestSegment = index
-      bestT = t
-    }
-  }
-  const projectedBestStart = project(path[bestSegment])
-  const projectedBestEnd = project(path[bestSegment + 1])
-  let remaining = Math.hypot(projectedBestEnd.x - projectedBestStart.x, projectedBestEnd.y - projectedBestStart.y) * (1 - bestT)
-  for (let index = bestSegment + 1; index < path.length - 1; index += 1) {
-    const start = project(path[index])
-    const end = project(path[index + 1])
-    remaining += Math.hypot(end.x - start.x, end.y - start.y)
-  }
-  return remaining
-}
-
-function pathRemainingMs(point: Point, path: readonly Point[], screenMetrics: SceneScreenMetrics, screenSpeedPxPerSecond: number) {
-  const pixels = pathRemainingPixels(point, path, screenMetrics)
-  return pixels > 0 && screenSpeedPxPerSecond > 0
-    ? pixels / screenSpeedPxPerSecond * 1000
-    : Number.POSITIVE_INFINITY
-}
-
 type IncenseBurnPhase = 'unlit' | 'fresh' | 'half' | 'burned'
 
 type MainlineSceneEcho = {
@@ -420,7 +375,7 @@ export function MainlineScenePage({
     ? scene.dialogue.lines[dialogueLineIndex] ?? null
     : null
   const internalMovement = useFreeRoamMovement(initialPosition)
-  const { position, moving, destination, moveAlong, stopMovement, resetMovement, getCurrentPosition } = movementController ?? internalMovement
+  const { position, moving, destination, moveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
   const geometrySnapshot = useMemo(() => createMainlineSceneGeometrySnapshot(scene, position, layout, screenMetrics), [layout, position, scene, screenMetrics])
   useEffect(() => {
     pendingTraversalRef.current = null
@@ -546,11 +501,12 @@ export function MainlineScenePage({
       onMove: (point) => {
         const pending = pendingTraversalRef.current
         if (!pending || pending.passage.id !== passage.id) return
-        if (!pending.frameRetractionStarted && pathRemainingMs(point, pending.approachPath, screenMetrics, locomotionOptions.screenSpeedPxPerSecond) <= frameMotionBudgetMsRef.current) {
+        const remainingMovementMs = getRemainingDurationMs()
+        if (!pending.frameRetractionStarted && remainingMovementMs <= frameMotionBudgetMsRef.current) {
           pending.frameRetractionStarted = true
           armPassageFrameExit(passage)
         }
-        if (pending.requestIssued || pathRemainingMs(point, pending.approachPath, screenMetrics, locomotionOptions.screenSpeedPxPerSecond) > sceneDoorMotion.openingMs) return
+        if (pending.requestIssued || remainingMovementMs > sceneDoorMotion.openingMs) return
         pending.requestIssued = requestPassageLifecycle('protagonist', passage.id, point, requestedTarget)
         if (!pending.requestIssued) {
           pendingTraversalRef.current = null
@@ -575,7 +531,7 @@ export function MainlineScenePage({
         setFeedback('修杰在门前停下了，需要重新选择位置。')
       },
     })
-  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getOpenPassageIds, getPassagePhase, layout, lifecycleMainlinePassages, locomotionOptions, moveAlong, navigationOptions, onDoorEvent, requestPassageLifecycle, scene, screenMetrics, setFeedback, showLockedPassageText, stopMovement])
+  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getOpenPassageIds, getPassagePhase, getRemainingDurationMs, layout, lifecycleMainlinePassages, locomotionOptions, moveAlong, navigationOptions, onDoorEvent, requestPassageLifecycle, scene, screenMetrics, setFeedback, showLockedPassageText, stopMovement])
 
   const continuePendingTraversal = useCallback((entityId: string) => {
     const pending = pendingTraversalRef.current

@@ -50,6 +50,7 @@ export type FreeRoamMovement = {
   stopMovement: () => void
   resetMovement: (point?: Point) => void
   getCurrentPosition: () => Point
+  getRemainingDurationMs: () => number
 }
 
 type MovementSession = {
@@ -158,11 +159,19 @@ function screenSpaceMovement(dx: number, dy: number, delta: number, options: Mov
   return { x: dx * ratio, y: dy * ratio }
 }
 
+function screenSpaceDistance(first: Point, second: Point, options: MovementOptions) {
+  const width = options.screenMetrics?.width
+  const height = options.screenMetrics?.height
+  if (!(width && width > 0) || !(height && height > 0)) return null
+  return Math.hypot((second.x - first.x) * width / 100, (second.y - first.y) * height / 100)
+}
+
 export type FreeRoamController = {
   moveAlong: (path: Point[], onArrive?: MovementComplete, options?: MovementOptions) => void
   stopMovement: () => void
   resetMovement: (position?: Point) => void
   getCurrentPosition: () => Point
+  getRemainingDurationMs: () => number
   getSnapshot: () => FreeRoamSnapshot
   isMoving: () => boolean
   tick: (now: number) => boolean
@@ -218,6 +227,23 @@ export function createFreeRoamController(initialPosition: Point): FreeRoamContro
     moving: session !== null,
     destination: session ? copyPoint(session.waypoints[session.waypoints.length - 1]) : null,
   })
+
+  const getRemainingDurationMs = () => {
+    if (!session) return Number.POSITIVE_INFINITY
+    let stageDistance = 0
+    let screenDistance = 0
+    let previous = position
+    for (let index = session.waypointIndex; index < session.waypoints.length; index += 1) {
+      const waypoint = session.waypoints[index]
+      stageDistance += Math.hypot(waypoint.x - previous.x, waypoint.y - previous.y)
+      screenDistance += screenSpaceDistance(previous, waypoint, session.options) ?? 0
+      previous = waypoint
+    }
+    const screenSpeed = session.options.screenSpeedPxPerSecond
+    if (screenSpeed && screenSpeed > 0 && screenDistance > 0) return screenDistance / screenSpeed * 1000
+    const stageSpeed = session.options.maxSpeed ?? defaultFreeRoamSpeed
+    return stageSpeed > 0 && stageDistance > 0 ? stageDistance / stageSpeed * 1000 : Number.POSITIVE_INFINITY
+  }
 
   const tick = (now: number) => {
     const activeSession = session
@@ -300,6 +326,7 @@ export function createFreeRoamController(initialPosition: Point): FreeRoamContro
     stopMovement,
     resetMovement,
     getCurrentPosition,
+    getRemainingDurationMs,
     getSnapshot,
     isMoving: () => session !== null,
     tick,
@@ -359,5 +386,6 @@ export function useFreeRoamMovement(initialPosition: Point) {
     stopMovement,
     resetMovement,
     getCurrentPosition: controller.getCurrentPosition,
+    getRemainingDurationMs: controller.getRemainingDurationMs,
   }
 }
