@@ -13,7 +13,7 @@ import { sceneInteractionHandlers } from './sceneInteraction'
 import { useAutomaticPassages } from './useAutomaticPassages'
 import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { mainlineCameraOffset } from './mainlineViewport'
-import { sceneFrameDefaultMotionMs } from './sceneMotion'
+import { sceneFrameDefaultMotionMs, sceneFrameRetractionBudgetMs } from './sceneMotion'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -304,7 +304,7 @@ export function MainlineScenePage({
   const [explorationState, setExplorationState] = useState<{ sceneId: MainlineSceneId; objectIds: ReadonlySet<string> }>(() => ({ sceneId, objectIds: new Set() }))
   const [passageDestination, setPassageDestination] = useState<Point | null>(null)
   const [sceneFrameExit, setSceneFrameExit] = useState<SceneFrameExitLifecycle>({ phase: 'idle' })
-  const frameMotionBudgetMsRef = useRef(sceneFrameDefaultMotionMs)
+  const frameMotionBudgetMsRef = useRef(sceneFrameRetractionBudgetMs(sceneFrameDefaultMotionMs))
   const pendingTraversalRef = useRef<PendingMainlineTraversal | null>(null)
   const continuePendingTraversalRef = useRef<(entityId: string) => void>(() => {})
   const [screenMetrics, setScreenMetrics] = useState<SceneScreenMetrics>(defaultSceneScreenMetrics)
@@ -447,7 +447,7 @@ export function MainlineScenePage({
   const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics, geometrySnapshot }), [geometrySnapshot, getOpenPassageIds, screenMetrics])
   const locomotionOptions = useMemo(() => ({ screenMetrics, screenSpeedPxPerSecond: 520 }), [screenMetrics])
   const handleFrameMotionBudgetChange = useCallback((durationMs: number) => {
-    if (Number.isFinite(durationMs) && durationMs > 0) frameMotionBudgetMsRef.current = durationMs
+    if (Number.isFinite(durationMs) && durationMs > 0) frameMotionBudgetMsRef.current = sceneFrameRetractionBudgetMs(durationMs)
   }, [])
   const doorPhases = useMemo(() => new Map(passageLifecycleDefinitions
     .map((passage) => [
