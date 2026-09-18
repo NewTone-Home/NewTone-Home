@@ -11,6 +11,7 @@ import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoor
 import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { useSceneFocusFrameController } from './SceneFocusFrames'
 import type { SceneFrameTarget } from './sceneFrameLifecycle'
+import { longestMainlineInteractionSegment } from './mainlineTextSegments'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -33,10 +34,14 @@ type MainlineSceneRendererProps = {
   onWalk: (point: Point) => void
   dialogue?: MainlineSceneDialogue
   dialogueLine?: MainlineSceneDialogueLine | null
+  dialogueText?: string
   dialogueLineIndex?: number | null
+  dialogueSegmentIndex?: number
+  dialogueSegmentCount?: number
   dialoguePosition?: Point | null
   onDialogueAdvance?: () => void
-  sceneEcho?: { id: number; entityId?: string; text: string; position: Point; options?: readonly string[]; phase?: 'leaving' } | null
+  sceneEcho?: { id: number; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; phase?: 'leaving' } | null
+  onSceneEchoAdvance?: () => void
   onSceneEchoChoice?: (index: number) => void
   onSceneEchoExitComplete?: (echoId: number, source: 'text' | 'frame') => void
   onFrameMotionBudgetChange?: (durationMs: number) => void
@@ -359,10 +364,14 @@ export function MainlineSceneRenderer({
   onWalk,
   dialogue,
   dialogueLine = null,
+  dialogueText = '',
   dialogueLineIndex = null,
+  dialogueSegmentIndex = 0,
+  dialogueSegmentCount = 1,
   dialoguePosition = null,
   onDialogueAdvance,
   sceneEcho = null,
+  onSceneEchoAdvance,
   onSceneEchoChoice,
   onSceneEchoExitComplete,
   onFrameMotionBudgetChange,
@@ -796,9 +805,17 @@ export function MainlineSceneRenderer({
           </div>}
           {(sceneEcho || (dialogue && dialogueLine && dialogueLineIndex !== null && dialoguePosition)) && (() => {
             const isDialogue = !sceneEcho && Boolean(dialogue && dialogueLine && dialoguePosition)
-            const text = sceneEcho?.text ?? dialogueLine?.text ?? ''
+            const text = sceneEcho?.text ?? dialogueText ?? dialogueLine?.text ?? ''
             const position = sceneEcho?.position ?? dialoguePosition!
             const group = sceneEcho ? `echo:${sceneEcho.id}` : `dialogue:${dialogueLine!.id}`
+            const hasNextSegment = sceneEcho
+              ? sceneEcho.segmentIndex + 1 < sceneEcho.segments.length
+              : dialogueSegmentIndex + 1 < dialogueSegmentCount || Boolean(dialogue && dialogueLineIndex! + 1 < dialogue.lines.length)
+            const advance = isDialogue ? onDialogueAdvance : onSceneEchoAdvance
+            const canAdvance = Boolean(advance)
+            const slotText = sceneEcho
+              ? sceneEcho.segments.reduce((longest, segment) => Array.from(segment).length > Array.from(longest).length ? segment : longest, '')
+              : longestMainlineInteractionSegment(dialogueLine?.text ?? '')
             return <div
               key={sceneEcho?.id ?? dialogueLine!.id}
               className={`scene-mainline-echo ${sceneEcho?.phase === 'leaving' ? 'is-leaving' : ''}`}
@@ -817,14 +834,39 @@ export function MainlineSceneRenderer({
               data-focus-target-group={isDialogue ? group : undefined}
               data-focus-target-policy={isDialogue ? 'exploration' : undefined}
               data-focus-interaction-active={isDialogue ? 'true' : undefined}
+              data-scene-segment-index={sceneEcho?.segmentIndex ?? dialogueSegmentIndex}
+              data-scene-segment-count={sceneEcho?.segments.length ?? dialogueSegmentCount}
+              data-scene-segment-advance={hasNextSegment ? 'available' : 'complete'}
+              role={canAdvance ? 'button' : undefined}
+              tabIndex={canAdvance ? 0 : -1}
+              aria-label={canAdvance ? '点击或向下滚动切换下一段文字' : undefined}
+              onClick={(event) => {
+                event.stopPropagation()
+                advance?.()
+              }}
+              onWheel={(event) => {
+                if (!canAdvance || event.deltaY <= 0) return
+                event.preventDefault()
+                event.stopPropagation()
+                advance?.()
+              }}
+              onKeyDown={(event) => {
+                if (!canAdvance || !['Enter', ' ', 'ArrowDown'].includes(event.key)) return
+                event.preventDefault()
+                event.stopPropagation()
+                advance?.()
+              }}
             >
+              <span className="scene-mainline-echo__width-probe" aria-hidden="true">{slotText}</span>
               {isDialogue && <span className="scene-mainline-echo__speaker">{dialogueLine!.speaker}</span>}
               <span
                 className="scene-mainline-echo__text"
+                key={`${group}:${sceneEcho?.segmentIndex ?? dialogueSegmentIndex}`}
                 onAnimationEnd={(event) => {
                   if (sceneEcho && event.animationName === 'mainline-echo-text-leave') onSceneEchoExitComplete?.(sceneEcho.id, 'text')
                 }}
               >{text}</span>
+              {!isDialogue && canAdvance && hasNextSegment && <span className="scene-mainline-echo__advance-hint" aria-hidden="true">↓</span>}
               {sceneEcho?.options && sceneEcho.options.length > 0 && <div className="scene-mainline-echo__choices">
                 {sceneEcho.options.map((option, index) => (
                   <button key={option} type="button" onClick={(event) => { event.stopPropagation(); onSceneEchoChoice?.(index) }}>
@@ -832,8 +874,8 @@ export function MainlineSceneRenderer({
                   </button>
                 ))}
               </div>}
-              {isDialogue && <button type="button" onClick={(event) => { event.stopPropagation(); onDialogueAdvance?.() }}>
-                {dialogueLineIndex! + 1 < dialogue!.lines.length ? '继续' : '结束'}
+              {isDialogue && canAdvance && hasNextSegment && <button type="button" onClick={(event) => { event.stopPropagation(); onDialogueAdvance?.() }} aria-label="继续">
+                ↓
               </button>}
               {focusFrames.renderFrame(group)}
             </div>

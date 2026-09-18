@@ -7,7 +7,7 @@ import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneGeomet
 import { findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, findMainlineWorldRoute, isMainlineEntityWithinInteractionRange, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition } from './mainlineNavigation'
 import { layoutGridSize, mainlineEntityInteractionBounds, mainlineEntityVisualBounds, type SceneLayout } from './sceneLayout'
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
-import { useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
+import { movementDurationMsForPath, useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
 import type { PhoneDevice } from './phoneState'
 import { sceneInteractionHandlers } from './sceneInteraction'
 import { useAutomaticPassages } from './useAutomaticPassages'
@@ -17,6 +17,7 @@ import { sceneFrameDefaultMotionMs, sceneFrameRetractionBudgetMs } from './scene
 import { sceneDoorMotion } from './sceneDoorConfig'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
+import { longestMainlineInteractionSegment, splitMainlineInteractionText } from './mainlineTextSegments'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
@@ -76,12 +77,39 @@ type MainlineSceneEcho = {
   id: number
   entityId?: string
   text: string
+  segments: readonly string[]
+  segmentIndex: number
   position: Point
   options?: readonly string[]
   phase?: 'leaving'
   exit?: {
     textComplete: boolean
     frameComplete: boolean
+  }
+}
+
+function createMainlineSceneEcho(id: number, entityId: string | undefined, text: string, position: Point, options?: readonly string[]): MainlineSceneEcho {
+  const segments = splitMainlineInteractionText(text)
+  return {
+    id,
+    entityId,
+    text: segments[0] ?? text.trim(),
+    segments,
+    segmentIndex: 0,
+    position,
+    options,
+  }
+}
+
+function replaceMainlineSceneEchoText(current: MainlineSceneEcho, text: string): MainlineSceneEcho {
+  const segments = splitMainlineInteractionText(text)
+  return {
+    ...current,
+    text: segments[0] ?? text.trim(),
+    segments,
+    segmentIndex: 0,
+    phase: undefined,
+    exit: undefined,
   }
 }
 
@@ -124,11 +152,10 @@ type EchoBox = { x: number; y: number; width: number; height: number }
 function echoTextBox(text: string, position: Point, screenMetrics: SceneScreenMetrics): EchoBox {
   const fontSizePx = Math.max(13, Math.min(16, screenMetrics.width * .011))
   const maxWidthPx = Math.min(screenMetrics.width * .42, Math.max(1, screenMetrics.width - 24))
-  const lines = text.split('\n')
-  const longestLinePx = Math.max(fontSizePx * 4, ...lines.map((line) => Array.from(line).length * fontSizePx))
+  const longestLine = longestMainlineInteractionSegment(text)
+  const longestLinePx = Math.max(fontSizePx * 4, Array.from(longestLine).length * fontSizePx)
   const widthPx = Math.min(maxWidthPx, longestLinePx)
-  const lineCount = Math.max(1, lines.reduce((count, line) => count + Math.max(1, Math.ceil((Array.from(line).length * fontSizePx) / maxWidthPx)), 0))
-  const heightPx = lineCount * fontSizePx * 1.6 + fontSizePx * .8
+  const heightPx = fontSizePx * 1.6 + fontSizePx * .8
   return {
     x: position.x - (widthPx / screenMetrics.width) * 50,
     y: position.y - (heightPx / screenMetrics.height) * 50,
@@ -325,6 +352,7 @@ export function MainlineScenePage({
   const debugInputSearch = useSyncExternalStore(emptyExternalStoreSubscribe, getDebugInputSnapshot, getServerDebugInputSnapshot)
   const debugInput = new URLSearchParams(debugInputSearch).get('debugInput') === '1'
   const [dialogueLineIndex, setDialogueLineIndex] = useState<number | null>(null)
+  const [dialogueSegmentIndex, setDialogueSegmentIndex] = useState(0)
   const [sceneEcho, setSceneEcho] = useState<MainlineSceneEcho | null>(null)
   const sceneEchoRef = useRef<MainlineSceneEcho | null>(null)
   const [officeBlindsOpen, setOfficeBlindsOpen] = useState(initialSceneState.blindsOpen !== false)
@@ -374,6 +402,8 @@ export function MainlineScenePage({
   const activeDialogueLine = scene.dialogue && dialogueLineIndex !== null
     ? scene.dialogue.lines[dialogueLineIndex] ?? null
     : null
+  const activeDialogueSegments = activeDialogueLine ? splitMainlineInteractionText(activeDialogueLine.text) : []
+  const activeDialogueText = activeDialogueSegments[dialogueSegmentIndex] ?? activeDialogueSegments[0] ?? ''
   const internalMovement = useFreeRoamMovement(initialPosition)
   const { position, moving, destination, moveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
   const geometrySnapshot = useMemo(() => createMainlineSceneGeometrySnapshot(scene, position, layout, screenMetrics), [layout, position, scene, screenMetrics])
@@ -384,6 +414,7 @@ export function MainlineScenePage({
     setActiveObjectId(null)
     setExplorationState({ sceneId, objectIds: new Set() })
     setDialogueLineIndex(null)
+    setDialogueSegmentIndex(0)
     setSceneEcho(null)
     setOfficeBlindsOpen(initialSceneState.blindsOpen !== false)
     setIncenseLitAt(typeof initialSceneState.incenseLitAt === 'number' ? initialSceneState.incenseLitAt : null)
@@ -423,12 +454,12 @@ export function MainlineScenePage({
   const showLockedPassageText = useCallback((passage: MainlineScenePassage) => {
     const text = lockedPassageText(passage)
     sceneEchoIdRef.current += 1
-    setSceneEcho({
-      id: sceneEchoIdRef.current,
-      entityId: passage.entityId,
+    setSceneEcho(createMainlineSceneEcho(
+      sceneEchoIdRef.current,
+      passage.entityId,
       text,
-      position: echoPositionNearPlayer(scene, text, getCurrentPosition(), layout, screenMetrics, geometrySnapshot),
-    })
+      echoPositionNearPlayer(scene, text, getCurrentPosition(), layout, screenMetrics, geometrySnapshot),
+    ))
     setFeedback('修杰停在门前。')
   }, [geometrySnapshot, getCurrentPosition, layout, scene, screenMetrics])
   const { requestPassage: requestPassageLifecycle, cancelPassage: cancelPassageLifecycle, updateActor: updatePassageLifecycle, completeOpen, completeClose, getPassagePhase, getOpenPassageIds, passageStates } = useAutomaticPassages({
@@ -479,7 +510,14 @@ export function MainlineScenePage({
     setPassageDestination(requestedTarget)
     setActiveObjectId(passage.entityId)
     setFeedback(`修杰走向${mainlineEntityDisplayLabel(entity)}外侧。`)
-    pendingTraversalRef.current = { passage, passageQueue, passageIndex, requestedTarget, approachPath: resolvedPath, continuationPath, requestIssued: false, frameRetractionStarted: false, approachArrived: false }
+    const approachMovementOptions = {
+      ...locomotionOptions,
+      canOccupy: (point: Point) => isWalkableMainlinePoint(point, scene, layout, { ...navigationOptions, openPassageIds: getOpenPassageIds() }),
+    }
+    const approachDurationMs = movementDurationMsForPath(resolvedPath, traversalStart, approachMovementOptions)
+    const shouldStartFrameExitImmediately = approachDurationMs > 0 && approachDurationMs <= frameMotionBudgetMsRef.current
+    pendingTraversalRef.current = { passage, passageQueue, passageIndex, requestedTarget, approachPath: resolvedPath, continuationPath, requestIssued: false, frameRetractionStarted: shouldStartFrameExitImmediately, approachArrived: false }
+    if (shouldStartFrameExitImmediately) armPassageFrameExit(passage)
     moveAlong(resolvedPath, () => {
       const pending = pendingTraversalRef.current
       if (!pending || pending.passage.id !== passage.id) return
@@ -497,7 +535,7 @@ export function MainlineScenePage({
       const phase = getPassagePhase(passage.id)
       if (phase === 'open' || phase === 'crossing') continuePendingTraversalRef.current(entity.id)
     }, {
-      ...locomotionOptions,
+      ...approachMovementOptions,
       onMove: (point) => {
         const pending = pendingTraversalRef.current
         if (!pending || pending.passage.id !== passage.id) return
@@ -518,7 +556,6 @@ export function MainlineScenePage({
         pending.frameRetractionStarted = true
         armPassageFrameExit(passage)
       },
-      canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, { ...navigationOptions, openPassageIds: getOpenPassageIds() }),
       onBlocked: () => {
         pendingTraversalRef.current = null
         setPassageDestination(null)
@@ -822,9 +859,18 @@ export function MainlineScenePage({
       if (explorationChoice || availableExplorationPool.length) {
         const text = explorationChoice?.text ?? availableExplorationPool[Math.floor(Math.random() * availableExplorationPool.length)]
         sceneEchoIdRef.current += 1
-        setSceneEcho({ id: sceneEchoIdRef.current, entityId: entity.id, text, options: explorationChoice?.options, position: echoPositionNearPlayer(scene, text, getCurrentPosition(), layout, screenMetrics, geometrySnapshot) })
+        setSceneEcho(createMainlineSceneEcho(
+          sceneEchoIdRef.current,
+          entity.id,
+          text,
+          echoPositionNearPlayer(scene, text, getCurrentPosition(), layout, screenMetrics, geometrySnapshot),
+          explorationChoice?.options,
+        ))
       }
-      if (scene.dialogue?.triggerEntityId === entity.id) setDialogueLineIndex(0)
+      if (scene.dialogue?.triggerEntityId === entity.id) {
+        setDialogueSegmentIndex(0)
+        setDialogueLineIndex(0)
+      }
     }
     if (shouldRevealWallExplorationInPlace(scene.id, entity.id) && isMainlineEntityWithinInteractionRange(scene, entity.id, getCurrentPosition(), layout, navigationOptions)) {
       stopMovement()
@@ -862,11 +908,12 @@ export function MainlineScenePage({
       const open = option === '打开百叶窗'
       setOfficeBlindsOpen(open)
       onPlayerSceneStateChange?.(scene.id, 'blindsOpen', open)
-      setSceneEcho((current) => current ? {
-        ...current,
-        text: open ? (scene.explorationText?.[current.entityId ?? ''] ?? []).join('\n') : '',
-        options: [open ? '拉上百叶窗' : '打开百叶窗'],
-      } : null)
+      setSceneEcho((current) => current
+        ? {
+          ...replaceMainlineSceneEchoText(current, open ? (scene.explorationText?.[current.entityId ?? ''] ?? []).join('\n') : ''),
+          options: [open ? '拉上百叶窗' : '打开百叶窗'],
+        }
+        : null)
       return
     }
     if (sceneEcho.entityId === 'zhongshuyuan-office-plant') {
@@ -881,7 +928,7 @@ export function MainlineScenePage({
         setIncenseClock(litAt)
         onPlayerSceneStateChange?.(scene.id, 'incenseLitAt', litAt)
         setFeedback('修杰重新点上了香。')
-        setSceneEcho((current) => current ? { ...current, text: '重新点上了香。', options: undefined } : null)
+        setSceneEcho((current) => current ? { ...replaceMainlineSceneEchoText(current, '重新点上了香。'), options: undefined } : null)
       }
       else {
         setFeedback('修杰没有理会香炉。')
@@ -893,12 +940,33 @@ export function MainlineScenePage({
     setSceneEcho((current) => current ? { ...current, options: undefined } : null)
   }, [dismissSceneEcho, onDeskInteraction, onPlayerSceneStateChange, scene, sceneEcho])
 
+  const advanceSceneEcho = useCallback(() => {
+    const current = sceneEchoRef.current
+    if (!current || current.phase === 'leaving') return
+    if (current.segmentIndex + 1 < current.segments.length) {
+      const next = {
+        ...current,
+        segmentIndex: current.segmentIndex + 1,
+        text: current.segments[current.segmentIndex + 1] ?? current.text,
+      }
+      sceneEchoRef.current = next
+      setSceneEcho(next)
+      return
+    }
+    if (current.options && current.options.length > 0) return
+    dismissSceneEcho()
+  }, [dismissSceneEcho])
+
   const advanceDialogue = useCallback(() => {
-    setDialogueLineIndex((current) => {
-      if (current === null || !scene.dialogue) return null
-      return current + 1 < scene.dialogue.lines.length ? current + 1 : null
-    })
-  }, [scene.dialogue])
+    if (dialogueLineIndex === null || !scene.dialogue) return
+    const segments = splitMainlineInteractionText(scene.dialogue.lines[dialogueLineIndex]?.text ?? '')
+    if (dialogueSegmentIndex + 1 < segments.length) {
+      setDialogueSegmentIndex((current) => current + 1)
+      return
+    }
+    setDialogueSegmentIndex(0)
+    setDialogueLineIndex(dialogueLineIndex + 1 < scene.dialogue.lines.length ? dialogueLineIndex + 1 : null)
+  }, [dialogueLineIndex, dialogueSegmentIndex, scene.dialogue])
 
   const walk = useCallback((point: Point) => {
     if (phoneOpen) {
@@ -1011,10 +1079,14 @@ export function MainlineScenePage({
               onWalk={walk}
               dialogue={scene.dialogue}
               dialogueLine={activeDialogueLine}
+              dialogueText={activeDialogueText}
               dialogueLineIndex={dialogueLineIndex}
+              dialogueSegmentIndex={dialogueSegmentIndex}
+              dialogueSegmentCount={activeDialogueSegments.length}
               dialoguePosition={activeDialoguePosition}
               onDialogueAdvance={advanceDialogue}
               sceneEcho={sceneEcho}
+              onSceneEchoAdvance={advanceSceneEcho}
               onSceneEchoChoice={chooseSceneEchoOption}
               onSceneEchoExitComplete={completeSceneEchoExit}
               onFrameMotionBudgetChange={handleFrameMotionBudgetChange}

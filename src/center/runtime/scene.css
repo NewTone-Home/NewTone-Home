@@ -1365,17 +1365,21 @@
   font-family: "Noto Serif SC", Georgia, serif;
   font-size: clamp(13px, 1.1vw, 16px);
   line-height: 1.6;
-  white-space: pre-line;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: keep-all;
   text-align: center;
   text-shadow: 0 1px 5px rgba(0, 0, 0, .75);
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
   transform: translate(-50%, -50%);
   animation: mainline-echo-arrive var(--scene-focus-frame-duration) ease-out both;
 }
 .scene-mainline-echo__speaker { display: block; margin-bottom: 3px; color: var(--active); font-size: .72em; letter-spacing: .06em; }
-.scene-mainline-echo__text { display: inline; }
+.scene-mainline-echo__width-probe { display: block; width: max-content; height: 0; overflow: visible; visibility: hidden; white-space: nowrap; line-height: 0; pointer-events: none; }
+.scene-mainline-echo__text { display: inline-block; white-space: nowrap; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.22, .61, .36, 1) both; }
+.scene-mainline-echo__advance-hint { display: block; margin-top: 3px; color: var(--soft); font-size: .78em; line-height: 1; opacity: .72; animation: mainline-echo-advance-hint 1.2s ease-in-out infinite; }
 .scene-mainline-object > .scene-focus-frame {
   inset: -.12em -.18em;
 }
@@ -1389,6 +1393,14 @@
 @keyframes mainline-echo-arrive {
   from { opacity: 0; transform: translate(-50%, calc(-50% + 5px)); }
   to { opacity: 1; transform: translate(-50%, -50%); }
+}
+@keyframes mainline-echo-segment-scroll-down {
+  from { opacity: 0; transform: translateY(100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes mainline-echo-advance-hint {
+  0%, 100% { transform: translateY(-1px); opacity: .48; }
+  50% { transform: translateY(2px); opacity: .9; }
 }
 .scene-mainline-echo.is-leaving > .scene-mainline-echo__text {
   display: inline-block;

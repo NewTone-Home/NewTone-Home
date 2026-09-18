@@ -166,6 +166,31 @@ function screenSpaceDistance(first: Point, second: Point, options: MovementOptio
   return Math.hypot((second.x - first.x) * width / 100, (second.y - first.y) * height / 100)
 }
 
+function movementDurationMsForWaypoints(waypoints: Point[], start: Point, options: MovementOptions) {
+  let stageDistance = 0
+  let screenDistance = 0
+  let previous = start
+  for (const waypoint of waypoints) {
+    stageDistance += Math.hypot(waypoint.x - previous.x, waypoint.y - previous.y)
+    screenDistance += screenSpaceDistance(previous, waypoint, options) ?? 0
+    previous = waypoint
+  }
+  const screenSpeed = options.screenSpeedPxPerSecond
+  if (screenSpeed && screenSpeed > 0 && screenDistance > 0) return screenDistance / screenSpeed * 1000
+  const stageSpeed = options.maxSpeed ?? defaultFreeRoamSpeed
+  return stageSpeed > 0 && stageDistance > 0 ? stageDistance / stageSpeed * 1000 : 0
+}
+
+/**
+ * Estimate the same route duration consumed by the live movement controller.
+ * Passage presentation uses this before the first animation frame so a short
+ * approach cannot arrive at the doorway before its frame exit has started.
+ */
+export function movementDurationMsForPath(path: Point[], start: Point, options: MovementOptions = {}) {
+  const prepared = prepareMovementPath(path, start, options)
+  return movementDurationMsForWaypoints(prepared.waypoints, start, options)
+}
+
 export type FreeRoamController = {
   moveAlong: (path: Point[], onArrive?: MovementComplete, options?: MovementOptions) => void
   stopMovement: () => void
@@ -230,19 +255,7 @@ export function createFreeRoamController(initialPosition: Point): FreeRoamContro
 
   const getRemainingDurationMs = () => {
     if (!session) return Number.POSITIVE_INFINITY
-    let stageDistance = 0
-    let screenDistance = 0
-    let previous = position
-    for (let index = session.waypointIndex; index < session.waypoints.length; index += 1) {
-      const waypoint = session.waypoints[index]
-      stageDistance += Math.hypot(waypoint.x - previous.x, waypoint.y - previous.y)
-      screenDistance += screenSpaceDistance(previous, waypoint, session.options) ?? 0
-      previous = waypoint
-    }
-    const screenSpeed = session.options.screenSpeedPxPerSecond
-    if (screenSpeed && screenSpeed > 0 && screenDistance > 0) return screenDistance / screenSpeed * 1000
-    const stageSpeed = session.options.maxSpeed ?? defaultFreeRoamSpeed
-    return stageSpeed > 0 && stageDistance > 0 ? stageDistance / stageSpeed * 1000 : Number.POSITIVE_INFINITY
+    return movementDurationMsForWaypoints(session.waypoints.slice(session.waypointIndex), position, session.options) || Number.POSITIVE_INFINITY
   }
 
   const tick = (now: number) => {
