@@ -1356,7 +1356,9 @@
   position: absolute;
   z-index: 7;
   box-sizing: border-box;
-  width: fit-content;
+  width: var(--scene-mainline-echo-width);
+  inline-size: var(--scene-mainline-echo-width);
+  height: var(--scene-mainline-echo-height);
   max-width: calc(100% - 24px);
   max-height: 36%;
   overflow: visible;
@@ -1376,9 +1378,8 @@
   transform: translate(-50%, -50%);
   animation: mainline-echo-arrive var(--scene-focus-frame-duration) ease-out both;
 }
-.scene-mainline-echo__speaker { display: block; margin-bottom: 3px; color: var(--active); font-size: .72em; letter-spacing: .06em; }
-.scene-mainline-echo__width-probe { display: block; width: max-content; height: 0; overflow: visible; visibility: hidden; white-space: nowrap; line-height: 0; pointer-events: none; }
-.scene-mainline-echo__text { display: inline-block; white-space: nowrap; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.22, .61, .36, 1) both; }
+.scene-mainline-echo__speaker { display: block; width: max-content; margin-bottom: 3px; color: var(--active); font-size: .72em; letter-spacing: .06em; }
+.scene-mainline-echo__text { display: block; width: max-content; white-space: nowrap; animation: mainline-echo-segment-scroll-down var(--scene-focus-frame-duration) cubic-bezier(.22, .61, .36, 1) both; }
 .scene-mainline-object > .scene-focus-frame {
   inset: -.12em -.18em;
 }

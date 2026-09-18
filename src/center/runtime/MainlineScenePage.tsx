@@ -18,6 +18,7 @@ import { sceneDoorMotion } from './sceneDoorConfig'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { splitMainlineInteractionText } from './mainlineTextSegments'
+import { mainlineEchoLayout } from './mainlineEchoLayout'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
@@ -150,12 +151,7 @@ function clampEchoPoint(point: Point, scene: MainlineSceneDefinition, screenMetr
 type EchoBox = { x: number; y: number; width: number; height: number }
 
 function echoTextBox(text: string, position: Point, screenMetrics: SceneScreenMetrics): EchoBox {
-  const fontSizePx = Math.max(13, Math.min(16, screenMetrics.width * .011))
-  const maxWidthPx = Math.max(1, screenMetrics.width - 24)
-  const horizontalPaddingPx = fontSizePx * 1.12
-  const currentLinePx = Math.max(fontSizePx * 4, Array.from(text).length * fontSizePx + horizontalPaddingPx)
-  const widthPx = Math.min(maxWidthPx, currentLinePx)
-  const heightPx = fontSizePx * 1.6 + fontSizePx * .8
+  const { widthPx, heightPx } = mainlineEchoLayout(text, screenMetrics)
   return {
     x: position.x - (widthPx / screenMetrics.width) * 50,
     y: position.y - (heightPx / screenMetrics.height) * 50,

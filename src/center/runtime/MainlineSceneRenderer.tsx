@@ -11,6 +11,7 @@ import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoor
 import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { useSceneFocusFrameController } from './SceneFocusFrames'
 import type { SceneFrameTarget } from './sceneFrameLifecycle'
+import { mainlineEchoLayout } from './mainlineEchoLayout'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -813,13 +814,18 @@ export function MainlineSceneRenderer({
               : dialogueSegmentIndex + 1 < dialogueSegmentCount || Boolean(dialogue && dialogueLineIndex! + 1 < dialogue.lines.length)
             const advance = isDialogue ? onDialogueAdvance : onSceneEchoAdvance
             const canAdvance = Boolean(advance)
-            const slotText = text
+            const echoLayout = mainlineEchoLayout(text, renderScreenMetrics, {
+              speaker: isDialogue ? dialogueLine!.speaker : undefined,
+              choices: sceneEcho?.options,
+            })
             return <div
               key={sceneEcho?.id ?? dialogueLine!.id}
               className={`scene-mainline-echo ${sceneEcho?.phase === 'leaving' ? 'is-leaving' : ''}`}
               style={{
                 left: `${position.x}%`,
                 top: `${position.y}%`,
+                '--scene-mainline-echo-width': `${echoLayout.widthPx}px`,
+                '--scene-mainline-echo-height': `${echoLayout.heightPx}px`,
                 '--scene-focus-frame-duration': `${focusFrames.motionDurationMs(group)}ms`,
               } as CSSProperties}
               aria-live="polite"
@@ -886,7 +892,6 @@ export function MainlineSceneRenderer({
                 advance?.()
               }}
             >
-              <span className="scene-mainline-echo__width-probe" aria-hidden="true">{slotText}</span>
               {isDialogue && <span className="scene-mainline-echo__speaker">{dialogueLine!.speaker}</span>}
               <span
                 className="scene-mainline-echo__text"
