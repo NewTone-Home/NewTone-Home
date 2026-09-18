@@ -76,29 +76,29 @@ function objectVisibility(entity: MainlineSceneEntity, layoutMode: boolean) {
   return 'is-baseline'
 }
 
-function objectClass(entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean) {
-  const isOfferingTable = entity.id.startsWith('jijia-offering-table-')
-  const isOfficeExploration = [
-    'zhongshuyuan-office-desk',
-    'zhongshuyuan-office-chair',
-    'zhongshuyuan-office-plant',
-    'zhongshuyuan-office-rack',
-  ].includes(entity.id)
-  const isBreathing = entity.id === 'jijia-old-tree' || entity.id === 'jijia-incense-burner' || isOfferingTable || isOfficeExploration
+function isAltarEntity(scene: MainlineSceneDefinition, entityId: string) {
+  return scene.altars.some((altar) => altar.incenseBurnerId === entityId)
+    || scene.furnitureGroups.some((group) => group.layout === 'altar-ring' && group.entityIds.includes(entityId))
+}
+
+function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean) {
+  const isOfferingTable = entity.kind === 'table' && scene.furnitureGroups.some((group) => group.layout === 'altar-ring' && group.entityIds.includes(entity.id))
+  const isIncense = entity.visualProfile === 'incense'
+  const isBreathing = entity.visualProfile === 'tree-ring' || isIncense || isOfferingTable || entity.animationGroup === 'office-breathing'
   return [
     'scene-object',
     'scene-mainline-object',
     `scene-mainline-object--${entity.kind}`,
     entity.facing ? `scene-mainline-object--facing-${entity.facing}` : '',
     `scene-object--${entity.weight}`,
-    entity.id === 'jijia-old-tree' || entity.id.startsWith('jijia-old-tree-stone-') ? 'scene-mainline-yard-tree-ring' : '',
+    entity.visualProfile === 'tree-ring' ? 'scene-mainline-yard-tree-ring' : '',
     isBreathing ? 'scene-mainline-exploration--breathing' : '',
     explored && isBreathing ? 'scene-mainline-exploration--explored' : '',
     entity.kind === 'table' ? 'scene-mainline-exploration--steady' : '',
     isOfferingTable ? 'scene-mainline-altar-table' : '',
-    entity.id === 'jijia-incense-burner' && incenseLit ? 'scene-mainline-incense--lit' : '',
-    entity.id === 'jijia-incense-burner' && incenseLit ? 'scene-mainline-incense--burning' : '',
-    entity.id === 'jijia-incense-burner' && !incenseLit ? 'scene-mainline-incense--unlit' : '',
+    isIncense && incenseLit ? 'scene-mainline-incense--lit' : '',
+    isIncense && incenseLit ? 'scene-mainline-incense--burning' : '',
+    isIncense && !incenseLit ? 'scene-mainline-incense--unlit' : '',
     visibility,
     active ? 'is-active' : '',
     underPlayer ? 'is-under-player' : '',
@@ -179,15 +179,15 @@ function mainlineCellFocusTarget(scene: MainlineSceneDefinition, cell: MainlineG
     return { group: storefrontDoorFocusGroup(cell, variant), policy: 'passage' as const }
   }
   if (cell.kind === 'door' && entityId) {
-    const gatePart = entityId === 'jijia-yard-gate' ? cell.doorLabelPart : undefined
+    const gatePart = cell.doorLabelPart
     return gatePart
       ? { group: `gate:${entityId}:${gatePart}`, policy: 'gate' as const }
       : { group: `door:${entityId}`, policy: 'passage' as const }
   }
   if (cell.kind !== 'feature' || !entityId) return undefined
   const entity = scene.objects.find((candidate) => candidate.id === entityId)
-  const portraitFeature = Boolean(cell.featureId?.includes('portrait'))
-  if (!entity || (entity.interactive === false && !portraitFeature)) return undefined
+  const directWallFeature = entity?.interactionBehavior === 'direct-wall'
+  if (!entity || (entity.interactive === false && !directWallFeature)) return undefined
   return { group: `interactive:${cell.featureId ?? entityId}`, policy: 'interactive' as const }
 }
 
@@ -281,7 +281,7 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
   registerBreathingNode?: (entityId: string, node: HTMLSpanElement | null) => void
 }) {
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
-  const className = objectClass(entity, visibility, active, explored, underPlayer, selected, dragging, incenseLit)
+  const className = objectClass(scene, entity, visibility, active, explored, underPlayer, selected, dragging, incenseLit)
   const visualScale = entity.visualScale ?? 1
   const focusGroup = `exploration:${entity.id}`
   const commonProps = {
@@ -390,14 +390,16 @@ export function MainlineSceneRenderer({
     if (node) altarBreathingNodesRef.current.set(entityId, node)
     else altarBreathingNodesRef.current.delete(entityId)
   }, [])
+  const altarLeaderIds = useMemo(() => new Set(scene.altars.map((altar) => altar.incenseBurnerId)), [scene.altars])
+  const hasAltarBreathing = scene.objects.some((entity) => isAltarEntity(scene, entity.id))
   useEffect(() => {
-    if (scene.id !== 'jijia-ancestral-interior' || typeof window === 'undefined') return undefined
+    if (!hasAltarBreathing || typeof window === 'undefined') return undefined
     const startedAt = performance.now()
     let frameId = 0
     const tick = (now: number) => {
       const cycle = ((now - startedAt) % 2800) / 2800
       altarBreathingNodesRef.current.forEach((node, entityId) => {
-        const offset = entityId === 'jijia-incense-burner' ? .5 : 0
+        const offset = altarLeaderIds.has(entityId) ? .5 : 0
         const phase = (cycle + offset) % 1
         const progress = (1 - Math.cos(phase * Math.PI * 2)) / 2
         node.style.setProperty('--scene-breathing-progress', progress.toFixed(4))
@@ -406,12 +408,13 @@ export function MainlineSceneRenderer({
     }
     frameId = window.requestAnimationFrame(tick)
     return () => window.cancelAnimationFrame(frameId)
-  }, [scene.id])
+  }, [altarLeaderIds, hasAltarBreathing])
+  const hasOfficeBreathing = scene.objects.some((entity) => entity.animationGroup === 'office-breathing')
   const synchronizedBreathingDelay = useMemo(() => {
-    if (scene.id !== 'zhongshuyuan-office') return undefined
+    if (!hasOfficeBreathing) return undefined
     const now = typeof performance === 'undefined' ? 0 : performance.now()
     return `${-(now % 2800)}ms`
-  }, [scene.id])
+  }, [hasOfficeBreathing])
   const reportedEchoFrameExitRef = useRef<number | null>(null)
   const [draggingItemId, setDraggingItemId] = useState<LayoutItemId | null>(null)
   const [selectedLayoutItemId, setSelectedLayoutItemId] = useState<LayoutItemId | null>(null)
@@ -745,7 +748,7 @@ export function MainlineSceneRenderer({
                 const doorLabel = cell.displayLabel ?? cell.label ?? '门'
                 const doorPhase = doorPhases.get(entityId) ?? 'closed'
                 const closeHint = cell.access === 'locked' ? (cell.lockedText ?? '当前权限不足') : '接近时自动开门，进入门洞后继续路线'
-                const yardGatePart = entityId === 'jijia-yard-gate' ? cell.doorLabelPart : undefined
+                const yardGatePart = cell.doorLabelPart
                 const focusGroup = yardGatePart ? `gate:${entityId}:${yardGatePart}` : `door:${entityId}`
                 const focusPolicy = yardGatePart ? 'gate' : 'passage' as const
                 return <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} doorLabel={doorLabel} glyph={cell.doorLabelPart ?? doorLabel} doorPhase={doorPhase} focusGroup={focusGroup} focusPolicy={focusPolicy} gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId} closeHint={closeHint} ariaLabel={`${doorLabel}，点击门后目标会在接近时自动开门并穿过`} renderFocusFrame={focusFrames.renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} />
@@ -755,8 +758,8 @@ export function MainlineSceneRenderer({
               }
               if (cell.kind === 'feature' && entityId) {
                 const entity = scene.objects.find((candidate) => candidate.id === entityId)
-                const portraitFeature = Boolean(cell.featureId?.includes('portrait'))
-                if (entity && (entity.interactive !== false || portraitFeature)) {
+                const directWallFeature = entity?.interactionBehavior === 'direct-wall'
+                if (entity && (entity.interactive !== false || directWallFeature)) {
                   const focusGroup = `interactive:${cell.featureId ?? entityId}`
                   return <button key={cell.id} className={`scene-spatial-glyph scene-spatial-glyph--feature scene-mainline-wall scene-mainline-wall-feature ${visibilityClass} ${activeObjectId === entityId ? 'is-active' : ''}`} type="button" style={{ left: `${cell.x}%`, top: `${cell.y}%` }} onClick={(event) => { event.stopPropagation(); onInteract(entityId) }} aria-label={`${entity.label}，点击让主角前往互动`} data-focus-target-id={cell.id} data-focus-target-group={focusGroup} data-focus-target-policy="interactive" data-focus-interaction-busy={activeObjectId === entityId && moving ? 'true' : undefined}>
                     {cell.glyph}
@@ -773,7 +776,7 @@ export function MainlineSceneRenderer({
 
           {scene.objects.filter((entity) => entity.visible !== false && entity.kind !== 'door' && !wallFeatureEntityIds.has(entity.id)).map((entity) => {
             const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
-            const underPlayer = entity.id.startsWith('jijia-old-tree-stone-') && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8
+            const underPlayer = entity.visualProfile === 'tree-ring' && entity.interactive === false && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8
             return <MainlineObject
               key={entity.id}
               entity={entity}
@@ -795,7 +798,7 @@ export function MainlineSceneRenderer({
               onInteract={onInteract}
               renderFrame={focusFrames.renderFrame}
               breathingAnimationDelay={synchronizedBreathingDelay}
-              sharedBreathingClock={scene.id === 'jijia-ancestral-interior' && (entity.id === 'jijia-incense-burner' || entity.id.startsWith('jijia-offering-table-'))}
+              sharedBreathingClock={isAltarEntity(scene, entity.id)}
               registerBreathingNode={registerBreathingNode}
             />
           })}

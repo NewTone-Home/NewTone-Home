@@ -7,6 +7,9 @@ export type MainlineSceneId = 'jijia-ancestral-home' | 'jijia-ancestral-interior
 export type MainlineEntityKind = 'door' | 'landmark' | 'table' | 'seat' | 'direction' | 'trace' | 'fixture'
 export type MainlineEntityWeight = 'gateway' | 'fixture' | 'anchor' | 'minor'
 export type MainlineEntitySurface = 'wall' | 'floor'
+export type MainlineInteractionBehavior = 'echo-pool' | 'incense' | 'desk-device' | 'blinds-toggle' | 'plant-choice' | 'direct-wall'
+export type MainlineVisualProfile = 'tree-ring' | 'incense'
+export type MainlineAnimationGroup = 'office-breathing'
 export type MainlineSceneExternalExit = {
   id?: string
   axis: 'x' | 'y'
@@ -79,6 +82,12 @@ export type MainlineSceneEntity = {
   visualScale?: number
   /** Maximum authored distance for direct exploration of a wall feature. */
   interactionRange?: number
+  /** A small set of authored interaction behaviors used by the generic page flow. */
+  interactionBehavior?: MainlineInteractionBehavior
+  /** Semantic visual treatment; keeps the renderer independent of authored IDs. */
+  visualProfile?: MainlineVisualProfile
+  /** Shared presentation timing for a group of authored entities. */
+  animationGroup?: MainlineAnimationGroup
   /** Keep furniture at one authored visual state instead of distance-revealing it. */
   visualVisibility?: 'distance' | 'distance-baseline' | 'baseline' | 'static'
   groupId?: string
@@ -291,6 +300,8 @@ export type MainlineSceneBlueprint = {
   subtitle: string
   statusLabel: string
   hint: string
+  entryFeedback?: string
+  areaLabel?: string | ((position: Point) => string)
   scene: MainlineSceneData
   portals: readonly MainlineScenePortalBlueprint[]
   interactionText: Readonly<Record<string, string>>
@@ -511,6 +522,8 @@ function createAltarFurniture(altar: MainlineAltarBlueprint) {
     shape: burnerCollision,
     groupId: altar.id,
     facing: altar.facing,
+    interactionBehavior: 'incense',
+    visualProfile: 'incense',
   })
   return {
     group: {
@@ -554,7 +567,7 @@ function inlinePortraitFeature(
     end: axis + .5,
     glyphs: ['画', '像'],
     layout: 'inline',
-    entity: wallEntity({ id, label: '画像', kind: 'landmark', weight: 'minor', position, interactive: false, interactionRange: 7 }),
+    entity: wallEntity({ id, label: '画像', kind: 'landmark', weight: 'minor', position, interactive: false, interactionRange: 7, interactionBehavior: 'direct-wall' }),
   }
 }
 
@@ -679,6 +692,8 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
   subtitle: '两侧连续的现代临街店面夹出一条主通道，尽头接入独立的咖啡馆场景。',
   statusLabel: '里世界',
   hint: '沿中间主通道前进；右侧尾端的咖啡馆是独立场景，门只在路线真正通过时打开。',
+  entryFeedback: '从商业街右侧尾端进入，咖啡馆店面就在右侧。',
+  areaLabel: (position) => position.x >= 140 ? '商业街尾端' : '里世界',
   scene: {
     walkBounds: box(8, 10, 192, 80),
     externalExit: { axis: 'x', direction: -1, threshold: 12 },
@@ -709,6 +724,8 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
   id: 'commercial-cafe', title: '第二章 · 咖啡馆',
   subtitle: '独立的咖啡馆室内；墙、曲线窗格、菜单、黑板、柜台和桌椅都由主线场景契约直接编译。',
   statusLabel: '商业街 / 咖啡馆', hint: '入口在左侧；右侧弧形玻璃是窗边界，菜单和黑板在后墙，后门暂时受权限控制。',
+  entryFeedback: '进入咖啡馆，商业街在身后。',
+  areaLabel: '咖啡馆',
   scene: {
     walkBounds: commercialCafeBounds, wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
     viewport: 'fixed-frame',
@@ -783,6 +800,7 @@ const jijiaOldTreeStoneRing: readonly MainlineSceneEntity[] = jijiaOldTreeStoneO
   weight: 'minor',
   position: { x: jijiaYardCenter.x + x * jijiaYardWallSteps.horizontal, y: jijiaYardCenter.y + y * jijiaYardWallSteps.vertical },
   interactive: false,
+  visualProfile: 'tree-ring',
   visualBounds: box(
     jijiaYardCenter.x + x * jijiaYardWallSteps.horizontal - 1.25,
     jijiaYardCenter.y + y * jijiaYardWallSteps.vertical - 1.25,
@@ -839,6 +857,8 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
   subtitle: '姬家祖宅前院是一个独立场景，右侧正门通向祖宅内堂。',
   statusLabel: '姬家祖宅 / 前院',
   hint: '从前院右侧正门进入祖宅；左侧院门是前院的固定边界出口。',
+  entryFeedback: '从姬家祖宅入口进入。',
+  areaLabel: '前院',
   scene: {
     walkBounds: jijiaYardBounds,
     viewport: 'fixed-frame',
@@ -850,7 +870,7 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
     }],
     floorEntities: [
       ...jijiaOldTreeStoneRing,
-      floor({ id: 'jijia-old-tree', label: '老槐树', kind: 'landmark', weight: 'minor', position: jijiaYardCenter, collision: jijiaOldTreeCollision, shape: jijiaOldTreeCollision, visualBounds: box(jijiaYardCenter.x - 4.5, jijiaYardCenter.y - 4.5, 9, 9), visualScale: 1.12, visualVisibility: 'distance-baseline', groupId: 'jijia-yard-group' }),
+      floor({ id: 'jijia-old-tree', label: '老槐树', kind: 'landmark', weight: 'minor', position: jijiaYardCenter, collision: jijiaOldTreeCollision, shape: jijiaOldTreeCollision, visualBounds: box(jijiaYardCenter.x - 4.5, jijiaYardCenter.y - 4.5, 9, 9), visualScale: 1.12, visualVisibility: 'distance-baseline', groupId: 'jijia-yard-group', interactionBehavior: 'echo-pool', visualProfile: 'tree-ring' }),
       wallEntity({ id: 'jijia-yard-gate', label: '院门', kind: 'door', weight: 'gateway', position: { x: 10, y: 47.5 }, doorBehavior: { leafCount: 'double', openLeaves: 'both', visualMode: 'static' } }),
     ],
     blockers: [], furnitureGroups: [{ id: 'jijia-yard-group', anchor: jijiaYardGroupAnchor, entityIds: ['jijia-old-tree'] }], initialPlayerPosition: { x: 25, y: 50 },
@@ -883,6 +903,8 @@ const jijiaAncestralInteriorBlueprint: MainlineSceneBlueprint = {
   subtitle: '祖宅内堂是独立场景，正门在左侧，右侧后门通向窄暗道。',
   statusLabel: '姬家祖宅 / 内堂',
   hint: '正门在左侧；内堂上下各有两幅画像，右墙中线另有一幅，后门通向中枢院窄暗道。',
+  entryFeedback: '进入祖宅内堂，前院在身后。',
+  areaLabel: '祖宅内堂',
   scene: {
     walkBounds: jijiaInnerHouseBounds,
     viewport: 'fixed-frame',
@@ -947,6 +969,8 @@ const zhongshuyuanPassageBlueprint: MainlineSceneBlueprint = {
   id: 'zhongshuyuan-passage',
   title: '里世界·中枢院窄暗道',
   subtitle: '祖宅后门之后的独立窄暗道，前后各有一扇门。',
+  entryFeedback: '进入祖宅后方的窄暗道。',
+  areaLabel: '中枢院窄暗道',
   statusLabel: '中枢院 / 窄暗道',
   hint: '沿窄暗道向右进入中枢院办公室；左侧门回到祖宅内堂。',
   scene: {
@@ -1036,6 +1060,7 @@ const zhongshuyuanOfficeWindow = wallEntity({
   position: wallEdgePoint(zhongshuyuanOfficeFloorBounds, 'bottom', zhongshuyuanOfficeWindowX),
   approach: authoredPoint(zhongshuyuanOfficeWindowX, zhongshuyuanOfficeFloorBounds.y + zhongshuyuanOfficeFloorBounds.height - 4),
   interactive: true,
+  interactionBehavior: 'blinds-toggle',
 })
 const zhongshuyuanOfficeWindowFeature: MainlineWallFeatureBlueprint = {
   id: 'zhongshuyuan-office-window-feature',
@@ -1065,6 +1090,8 @@ const zhongshuyuanOfficeDesk = floor({
   shape: zhongshuyuanOfficeDeskGeometry.collision,
   visualVisibility: 'baseline',
   groupId: 'zhongshuyuan-office-workstation',
+  animationGroup: 'office-breathing',
+  interactionBehavior: 'desk-device',
 })
 
 const zhongshuyuanOfficeChairGeometry = createSeatGeometry({
@@ -1088,6 +1115,7 @@ const zhongshuyuanOfficeChair = floor({
   visualVisibility: 'baseline',
   groupId: 'zhongshuyuan-office-workstation',
   seat: zhongshuyuanOfficeChairGeometry,
+  animationGroup: 'office-breathing',
 })
 
 const zhongshuyuanOfficePlant = floor({
@@ -1100,6 +1128,8 @@ const zhongshuyuanOfficePlant = floor({
   collision: box(zhongshuyuanOfficePlantPosition.x - 1.5, zhongshuyuanOfficePlantPosition.y - 1.5, 3, 3),
   shape: box(zhongshuyuanOfficePlantPosition.x - 1.5, zhongshuyuanOfficePlantPosition.y - 1.5, 3, 3),
   visualVisibility: 'baseline',
+  animationGroup: 'office-breathing',
+  interactionBehavior: 'plant-choice',
 })
 
 // Paired, non-interactive plants mark the two external corridor openings.
@@ -1132,6 +1162,7 @@ const zhongshuyuanOfficeRack = floor({
   collision: box(zhongshuyuanOfficeRackPosition.x - 1.5, zhongshuyuanOfficeRackPosition.y - 2.5, 3, 5),
   shape: box(zhongshuyuanOfficeRackPosition.x - 1.5, zhongshuyuanOfficeRackPosition.y - 2.5, 3, 5),
   visualVisibility: 'baseline',
+  animationGroup: 'office-breathing',
 })
 
 const zhongshuyuanOfficeDoorXs = [24, 32, 68, 76] as const
@@ -1268,6 +1299,8 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
   subtitle: '中枢院内部的一层办公区，中央长廊连接数间办公室。',
   statusLabel: '中枢院 / 内部楼层',
   hint: '左下办公室是当前办公点；玻璃门通向中央长廊，实体墙上的暗道门通向中枢院窄暗道。中央长廊左右两端都是外部出口，走到任一端手机都会弹出。',
+  entryFeedback: '进入里世界·中枢院内部楼层，暗道入口在左侧。',
+  areaLabel: '中枢院办公室',
   scene: {
       walkBounds: zhongshuyuanOfficeFloorBounds,
       viewport: 'fixed-frame',
@@ -1418,6 +1451,14 @@ const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
   subtitle: '矿区外围沿纵向老街展开，左侧是一排旧店面；永和小馆是其中一个独立场景。',
   statusLabel: '矿区外围老街',
   hint: '从画面下方进入，沿中间通道向上；左侧是八个窄小的生活店面，永和小馆入口在较深处，右侧是少量铁片、管线和围栏组成的矿区边缘。',
+  entryFeedback: '从画面下方进入矿区外围，沿中央通道向上，左侧店面深处是永和小馆。',
+  areaLabel: (position) => position.y >= 150
+    ? '矿区'
+    : position.y >= 100
+      ? '矿区外围'
+      : position.y <= 70
+        ? '永和小馆门口'
+        : '矿区外围老街',
   scene: {
       walkBounds: box(8, 8, 84, 184),
       externalExit: { axis: 'y', direction: 1, threshold: 186 },
@@ -1503,6 +1544,8 @@ const yongheEateryBlueprint: MainlineSceneBlueprint = {
   subtitle: '永和小馆是独立场景；门、墙、桌椅和后门都直接由主线场景契约编译。',
   statusLabel: '永和小馆',
   hint: '入口在左侧，店内中央留出通道；柜台和灶台在右侧，后门暂未开放。',
+  entryFeedback: '进入永和小馆，矿区外围老街在身后。',
+  areaLabel: '永和小馆',
   scene: {
       walkBounds: box(8, 26, 88, 60),
       viewport: 'fixed-frame',

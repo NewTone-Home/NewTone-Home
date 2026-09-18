@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { Point } from './sceneGeometry'
 import { MainlineSceneRenderer, type MainlineInputDiagnostic } from './MainlineSceneRenderer'
-import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneGeometryUnits, mainlineSceneWalkBounds, mainlineScenes, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneExternalExit, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
+import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneAreaLabel, mainlineSceneGeometryUnits, mainlineSceneWalkBounds, mainlineScenes, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneExternalExit, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
 import { findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, findMainlineWorldRoute, isMainlineEntityWithinInteractionRange, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition } from './mainlineNavigation'
 import { layoutGridSize, mainlineEntityInteractionBounds, mainlineEntityVisualBounds, type SceneLayout } from './sceneLayout'
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
@@ -19,12 +19,11 @@ import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
+import { incenseBurnPhase, incenseBurnRemainingMs, isMainlineInPlaceInteraction, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
 const emptyExplorationObjectIds: ReadonlySet<string> = new Set()
-// Keep the incense phase long enough to be revisited during one play session.
-const incenseBurnDurationMs = 10 * 60 * 1000
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 const getDebugInputSnapshot = () => typeof window === 'undefined' ? '' : window.location.search
 const getServerDebugInputSnapshot = () => ''
@@ -72,8 +71,6 @@ function samePoint(first: Point, second: Point) {
   return Math.abs(first.x - second.x) < .001 && Math.abs(first.y - second.y) < .001
 }
 
-type IncenseBurnPhase = 'unlit' | 'fresh' | 'half' | 'burned'
-
 type MainlineSceneEcho = {
   id: number
   entityId?: string
@@ -119,25 +116,6 @@ function lockedPassageText(passage: MainlineScenePassage) {
   return pool?.length
     ? pool[Math.floor(Math.random() * pool.length)]
     : passage.lockedText ?? '当前没有权限通过这扇门。'
-}
-
-function incenseBurnPhase(litAt: number | null, now: number): IncenseBurnPhase {
-  if (litAt === null) return 'unlit'
-  const elapsed = now - litAt
-  if (elapsed >= incenseBurnDurationMs) return 'burned'
-  if (elapsed >= incenseBurnDurationMs / 2) return 'half'
-  return 'fresh'
-}
-
-function incenseExplorationChoice(phase: IncenseBurnPhase) {
-  if (phase === 'fresh') return { text: '重新点上了香。' }
-  if (phase === 'half') return { text: '重新点上的香已经烧到了一半。' }
-  return { text: '香早就烧完了，只剩根部伫立在里面。', options: ['重新点香', '置之不理'] }
-}
-
-function shouldRevealWallExplorationInPlace(sceneId: MainlineSceneId, entityId: string) {
-  return (sceneId === 'jijia-ancestral-interior' && entityId.startsWith('jijia-portrait-'))
-    || (sceneId === 'zhongshuyuan-office' && entityId === 'zhongshuyuan-office-window')
 }
 
 function clampEchoPoint(point: Point, scene: MainlineSceneDefinition, screenMetrics: SceneScreenMetrics): Point {
@@ -232,14 +210,7 @@ function echoPositionNearPlayer(scene: MainlineSceneDefinition, text: string, po
 }
 
 function entryFeedbackForScene(scene: MainlineSceneDefinition) {
-  if (scene.id === 'commercial-street') return '从商业街右侧尾端进入，咖啡馆店面就在右侧。'
-  if (scene.id === 'commercial-cafe') return '进入咖啡馆，商业街在身后。'
-  if (scene.id === 'yonghe-mining-perimeter') return '从画面下方进入矿区外围，沿中央通道向上，左侧店面深处是永和小馆。'
-  if (scene.id === 'yonghe-eatery') return '进入永和小馆，矿区外围老街在身后。'
-  if (scene.id === 'jijia-ancestral-interior') return '进入祖宅内堂，前院在身后。'
-  if (scene.id === 'zhongshuyuan-passage') return '进入祖宅后方的窄暗道。'
-  if (scene.id === 'zhongshuyuan-office') return '进入里世界·中枢院内部楼层，暗道入口在左侧。'
-  return `从${scene.title.replace(/^第[一二三]章 · /, '')}入口进入。`
+  return scene.entryFeedback ?? `从${scene.title.replace(/^第[一二三]章 · /, '')}入口进入。`
 }
 
 type PendingMainlineTraversal = {
@@ -356,13 +327,9 @@ export function MainlineScenePage({
   const [incenseClock, setIncenseClock] = useState(() => Date.now())
   const sceneEchoIdRef = useRef(0)
   const exploredObjectIds = explorationState.sceneId === scene.id ? explorationState.objectIds : emptyExplorationObjectIds
-  const incensePhase = scene.id === 'jijia-ancestral-interior'
-    ? incenseBurnPhase(incenseLitAt, incenseClock)
-    : 'unlit'
+  const incensePhase: IncenseBurnPhase = incenseBurnPhase(incenseLitAt, incenseClock)
   const incenseLit = incensePhase === 'fresh' || incensePhase === 'half'
-  const incenseBurnRemainingMs = incenseLitAt === null
-    ? 0
-    : Math.max(0, incenseBurnDurationMs - (incenseClock - incenseLitAt))
+  const incenseRemainingMs = incenseBurnRemainingMs(incenseLitAt, incenseClock)
   const dismissSceneEcho = useCallback(() => {
     const current = sceneEchoRef.current
     if (!current) return
@@ -849,25 +816,13 @@ export function MainlineScenePage({
         next.add(entityId)
         return { sceneId: scene.id, objectIds: next }
       })
-      const configuredChoice = scene.explorationChoices?.[entity.id]
-      const incenseChoice = scene.id === 'jijia-ancestral-interior' && entity.id === 'jijia-incense-burner'
-        ? incenseExplorationChoice(incensePhase)
-        : undefined
-      const explorationChoice = scene.id === 'zhongshuyuan-office' && entity.id === 'zhongshuyuan-office-desk'
-        ? {
-          text: scene.explorationText?.[entity.id]?.[0] ?? scene.interactionText[entity.id] ?? '',
-          options: [carriedPhoneDevice === 'surface' ? '里世界手机' : '表世界手机'],
-        }
-        : scene.id === 'zhongshuyuan-office' && entity.id === 'zhongshuyuan-office-window'
-          ? {
-            text: officeBlindsOpen ? (scene.explorationText?.[entity.id] ?? []).join('\n') : '',
-            options: [officeBlindsOpen ? '拉上百叶窗' : '打开百叶窗'],
-          }
-          : incenseChoice ?? configuredChoice
-      const explorationPool = explorationChoice
-        ? undefined
-        : scene.explorationText?.[entity.id]
-        ?? (scene.id === 'jijia-ancestral-home' && entity.id === 'jijia-old-tree' ? scene.echoPool : undefined)
+      const exploration = resolveMainlineSceneExploration(scene, entity, {
+        incensePhase,
+        officeBlindsOpen,
+        carriedPhoneDevice,
+      })
+      const explorationChoice = exploration.choice
+      const explorationPool = exploration.pool
       const availableExplorationPool = explorationPool ?? []
       setFeedback(explorationChoice || explorationPool ? '修杰停在这里。' : scene.interactionText[entity.id] ?? `${mainlineEntityDisplayLabel(entity)}留在原处。`)
       if (explorationChoice || availableExplorationPool.length) {
@@ -886,7 +841,7 @@ export function MainlineScenePage({
         setDialogueLineIndex(0)
       }
     }
-    if (shouldRevealWallExplorationInPlace(scene.id, entity.id) && isMainlineEntityWithinInteractionRange(scene, entity.id, getCurrentPosition(), layout, navigationOptions)) {
+    if (isMainlineInPlaceInteraction(entity) && isMainlineEntityWithinInteractionRange(scene, entity.id, getCurrentPosition(), layout, navigationOptions)) {
       stopMovement()
       revealInteraction()
       return
@@ -913,45 +868,39 @@ export function MainlineScenePage({
   const chooseSceneEchoOption = useCallback((index: number) => {
     const option = sceneEcho?.options?.[index]
     if (!option) return
-    if (sceneEcho.entityId === 'zhongshuyuan-office-desk') {
-      onDeskInteraction?.(option === '里世界手机' ? 'inner' : 'surface')
+    const entity = sceneEcho.entityId ? scene.objects.find((candidate) => candidate.id === sceneEcho.entityId) : undefined
+    const resolution = resolveMainlineSceneEchoChoice(scene, entity, option, Date.now())
+    if (!resolution) return
+    if (resolution.deskDevice) {
+      onDeskInteraction?.(resolution.deskDevice)
       dismissSceneEcho()
       return
     }
-    if (sceneEcho.entityId === 'zhongshuyuan-office-window') {
-      const open = option === '打开百叶窗'
+    if (resolution.stateChange?.key === 'blindsOpen') {
+      const open = resolution.stateChange.value === true
       setOfficeBlindsOpen(open)
       onPlayerSceneStateChange?.(scene.id, 'blindsOpen', open)
-      setSceneEcho((current) => current
-        ? {
-          ...replaceMainlineSceneEchoText(current, open ? (scene.explorationText?.[current.entityId ?? ''] ?? []).join('\n') : ''),
-          options: [open ? '拉上百叶窗' : '打开百叶窗'],
+    }
+    if (resolution.stateChange?.key === 'incenseLitAt' && typeof resolution.stateChange.value === 'number') {
+      setIncenseLitAt(resolution.stateChange.value)
+      setIncenseClock(resolution.stateChange.value)
+      onPlayerSceneStateChange?.(scene.id, 'incenseLitAt', resolution.stateChange.value)
+    }
+    if (resolution.feedback) setFeedback(resolution.feedback)
+    if (resolution.dismiss) {
+      dismissSceneEcho()
+      return
+    }
+    setSceneEcho((current) => {
+      if (!current) return current
+      if (resolution.echoText !== undefined) {
+        return {
+          ...replaceMainlineSceneEchoText(current, resolution.echoText),
+          options: resolution.echoOptions,
         }
-        : null)
-      return
-    }
-    if (sceneEcho.entityId === 'zhongshuyuan-office-plant') {
-      setFeedback(option === '浇水' ? '修杰给绿植浇了水。' : '修杰没有理会绿植。')
-      setSceneEcho((current) => current ? { ...current, options: undefined } : null)
-      return
-    }
-    if (sceneEcho.entityId === 'jijia-incense-burner') {
-      if (option === '重新点香') {
-        const litAt = Date.now()
-        setIncenseLitAt(litAt)
-        setIncenseClock(litAt)
-        onPlayerSceneStateChange?.(scene.id, 'incenseLitAt', litAt)
-        setFeedback('修杰重新点上了香。')
-        setSceneEcho((current) => current ? { ...replaceMainlineSceneEchoText(current, '重新点上了香。'), options: undefined } : null)
       }
-      else {
-        setFeedback('修杰没有理会香炉。')
-        setSceneEcho((current) => current ? { ...current, options: undefined } : null)
-      }
-      return
-    }
-    setFeedback(option === '重新点香' ? '修杰重新点上了香。' : '修杰没有理会香炉。')
-    setSceneEcho((current) => current ? { ...current, options: undefined } : null)
+      return resolution.clearOptions ? { ...current, options: undefined } : current
+    })
   }, [dismissSceneEcho, onDeskInteraction, onPlayerSceneStateChange, scene, sceneEcho])
 
   const advanceSceneEcho = useCallback(() => {
@@ -1030,23 +979,7 @@ export function MainlineScenePage({
     setFeedback(entryFeedbackForScene(sceneDefinition))
   }, [cancelPassageLifecycle, initialPosition, resetMovement, scene.id, sceneDefinition, setFeedback])
 
-  const currentAreaLabel = scene.id === 'jijia-ancestral-home'
-    ? '前院'
-    : scene.id === 'jijia-ancestral-interior'
-      ? '祖宅内堂'
-      : scene.id === 'commercial-street'
-        ? position.x >= 140 ? '商业街尾端' : scene.statusLabel
-        : scene.id === 'commercial-cafe'
-          ? '咖啡馆'
-          : scene.id === 'yonghe-mining-perimeter'
-            ? position.y >= 150 ? '矿区' : position.y >= 100 ? '矿区外围' : position.y <= 70 ? '永和小馆门口' : '矿区外围老街'
-            : scene.id === 'yonghe-eatery'
-              ? '永和小馆'
-            : scene.id === 'zhongshuyuan-passage'
-              ? '中枢院窄暗道'
-              : scene.id === 'zhongshuyuan-office'
-                ? '中枢院办公室'
-                : scene.statusLabel
+  const currentAreaLabel = mainlineSceneAreaLabel(scene, position)
   const shouldRenderFeedback = !embedded && Boolean(feedback) && (showSceneChrome || feedback !== entryFeedbackForScene(sceneDefinition))
   const cameraOffset = mainlineCameraOffset(scene, position, embedded)
 
@@ -1106,7 +1039,7 @@ export function MainlineScenePage({
               onFrameMotionBudgetChange={handleFrameMotionBudgetChange}
               exploredObjectIds={exploredObjectIds}
               incenseLit={incenseLit}
-              incenseBurnRemainingMs={incenseBurnRemainingMs}
+              incenseBurnRemainingMs={incenseRemainingMs}
               onIncenseBurnComplete={() => setIncenseClock(Date.now())}
               debugInput={debugInput}
               debugFeedback={feedback}

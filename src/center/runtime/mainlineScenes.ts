@@ -165,6 +165,8 @@ export type MainlineSceneDefinition = {
   subtitle: string
   statusLabel: string
   hint: string
+  entryFeedback?: string
+  areaLabel?: string | ((position: Point) => string)
   walkBounds: CollisionBox
   viewport: MainlineSceneViewport
   externalExit?: MainlineSceneExternalExit
@@ -1084,6 +1086,8 @@ function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneD
     subtitle: blueprint.subtitle,
     statusLabel: blueprint.statusLabel,
     hint: blueprint.hint,
+    entryFeedback: blueprint.entryFeedback,
+    areaLabel: blueprint.areaLabel,
     portals: blueprint.portals,
     interactionText: blueprint.interactionText,
     explorationText: blueprint.explorationText,
@@ -1097,6 +1101,11 @@ function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneD
 export const mainlineScenes: Record<MainlineSceneId, MainlineSceneDefinition> = Object.fromEntries(
   Object.entries(mainlineSceneBlueprints).map(([id, blueprint]) => [id, compileMainlineScene(blueprint)]),
 ) as Record<MainlineSceneId, MainlineSceneDefinition>
+
+export function mainlineSceneAreaLabel(scene: MainlineSceneDefinition, position: Point) {
+  if (typeof scene.areaLabel === 'function') return scene.areaLabel(position)
+  return scene.areaLabel ?? scene.statusLabel
+}
 
 /**
  * Return the compiled geometry for the scene. Wall cells are complete
