@@ -17,7 +17,7 @@ import { sceneFrameDefaultMotionMs, sceneFrameRetractionBudgetMs } from './scene
 import { sceneDoorMotion } from './sceneDoorConfig'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
-import { longestMainlineInteractionSegment, splitMainlineInteractionText } from './mainlineTextSegments'
+import { splitMainlineInteractionText } from './mainlineTextSegments'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
@@ -152,9 +152,8 @@ type EchoBox = { x: number; y: number; width: number; height: number }
 function echoTextBox(text: string, position: Point, screenMetrics: SceneScreenMetrics): EchoBox {
   const fontSizePx = Math.max(13, Math.min(16, screenMetrics.width * .011))
   const maxWidthPx = Math.min(screenMetrics.width * .42, Math.max(1, screenMetrics.width - 24))
-  const longestLine = longestMainlineInteractionSegment(text)
-  const longestLinePx = Math.max(fontSizePx * 4, Array.from(longestLine).length * fontSizePx)
-  const widthPx = Math.min(maxWidthPx, longestLinePx)
+  const currentLinePx = Math.max(fontSizePx * 4, Array.from(text).length * fontSizePx)
+  const widthPx = Math.min(maxWidthPx, currentLinePx)
   const heightPx = fontSizePx * 1.6 + fontSizePx * .8
   return {
     x: position.x - (widthPx / screenMetrics.width) * 50,
@@ -423,7 +422,7 @@ export function MainlineScenePage({
     setFeedback(entryFeedbackForScene(sceneDefinition))
   }, [sceneDefinition, sceneId, stopMovement])
   const activeDialoguePosition = activeDialogueLine
-    ? echoPositionNearPlayer(scene, activeDialogueLine.text, position, layout, screenMetrics, geometrySnapshot)
+    ? echoPositionNearPlayer(scene, activeDialogueText, position, layout, screenMetrics, geometrySnapshot)
     : null
   const validatedSpawnKeyRef = useRef<string | null>(null)
   const spawnValidationKey = `${scene.id}:${initialPosition.x}:${initialPosition.y}:${screenMetrics.width}:${screenMetrics.height}`

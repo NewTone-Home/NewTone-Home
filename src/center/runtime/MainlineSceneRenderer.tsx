@@ -11,7 +11,6 @@ import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoor
 import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { useSceneFocusFrameController } from './SceneFocusFrames'
 import type { SceneFrameTarget } from './sceneFrameLifecycle'
-import { longestMainlineInteractionSegment } from './mainlineTextSegments'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -813,9 +812,7 @@ export function MainlineSceneRenderer({
               : dialogueSegmentIndex + 1 < dialogueSegmentCount || Boolean(dialogue && dialogueLineIndex! + 1 < dialogue.lines.length)
             const advance = isDialogue ? onDialogueAdvance : onSceneEchoAdvance
             const canAdvance = Boolean(advance)
-            const slotText = sceneEcho
-              ? sceneEcho.segments.reduce((longest, segment) => Array.from(segment).length > Array.from(longest).length ? segment : longest, '')
-              : longestMainlineInteractionSegment(dialogueLine?.text ?? '')
+            const slotText = text
             return <div
               key={sceneEcho?.id ?? dialogueLine!.id}
               className={`scene-mainline-echo ${sceneEcho?.phase === 'leaving' ? 'is-leaving' : ''}`}
@@ -866,7 +863,6 @@ export function MainlineSceneRenderer({
                   if (sceneEcho && event.animationName === 'mainline-echo-text-leave') onSceneEchoExitComplete?.(sceneEcho.id, 'text')
                 }}
               >{text}</span>
-              {!isDialogue && canAdvance && hasNextSegment && <span className="scene-mainline-echo__advance-hint" aria-hidden="true">↓</span>}
               {sceneEcho?.options && sceneEcho.options.length > 0 && <div className="scene-mainline-echo__choices">
                 {sceneEcho.options.map((option, index) => (
                   <button key={option} type="button" onClick={(event) => { event.stopPropagation(); onSceneEchoChoice?.(index) }}>
@@ -874,9 +870,6 @@ export function MainlineSceneRenderer({
                   </button>
                 ))}
               </div>}
-              {isDialogue && canAdvance && hasNextSegment && <button type="button" onClick={(event) => { event.stopPropagation(); onDialogueAdvance?.() }} aria-label="继续">
-                ↓
-              </button>}
               {focusFrames.renderFrame(group)}
             </div>
           })()}

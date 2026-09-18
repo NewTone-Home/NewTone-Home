@@ -1379,7 +1379,6 @@
 .scene-mainline-echo__speaker { display: block; margin-bottom: 3px; color: var(--active); font-size: .72em; letter-spacing: .06em; }
 .scene-mainline-echo__width-probe { display: block; width: max-content; height: 0; overflow: visible; visibility: hidden; white-space: nowrap; line-height: 0; pointer-events: none; }
 .scene-mainline-echo__text { display: inline-block; white-space: nowrap; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.22, .61, .36, 1) both; }
-.scene-mainline-echo__advance-hint { display: block; margin-top: 3px; color: var(--soft); font-size: .78em; line-height: 1; opacity: .72; animation: mainline-echo-advance-hint 1.2s ease-in-out infinite; }
 .scene-mainline-object > .scene-focus-frame {
   inset: -.12em -.18em;
 }
@@ -1397,10 +1396,6 @@
 @keyframes mainline-echo-segment-scroll-down {
   from { opacity: 0; transform: translateY(100%); }
   to { opacity: 1; transform: translateY(0); }
-}
-@keyframes mainline-echo-advance-hint {
-  0%, 100% { transform: translateY(-1px); opacity: .48; }
-  50% { transform: translateY(2px); opacity: .9; }
 }
 .scene-mainline-echo.is-leaving > .scene-mainline-echo__text {
   display: inline-block;
@@ -1429,21 +1424,6 @@
 }
 .scene-mainline-echo__choices button:hover,
 .scene-mainline-echo__choices button:focus-visible { color: var(--active); }
-.scene-mainline-echo > button {
-  display: block;
-  margin: 5px 0 0 auto;
-  padding: 0;
-  border: 0;
-  border-bottom: 1px solid rgba(190, 161, 103, .45);
-  background: transparent;
-  color: var(--soft);
-  cursor: pointer;
-  font: inherit;
-  font-size: .78em;
-  pointer-events: auto;
-}
-.scene-mainline-echo > button:focus-visible { outline: 1px solid var(--active); outline-offset: 4px; }
-
 /* Commercial street keeps the same text-first language as the other mainline
    locations; its wall/storefront composition comes from compiled geometry. */
 .mainline-scene-stage[data-mainline-scene="commercial-street"] {
