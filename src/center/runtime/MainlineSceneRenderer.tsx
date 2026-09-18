@@ -416,6 +416,7 @@ export function MainlineSceneRenderer({
   const [selectedLayoutItemId, setSelectedLayoutItemId] = useState<LayoutItemId | null>(null)
   const dragRef = useRef<{ itemId: LayoutItemId; pointerId: number; startPointer: Point; startAnchor: Point; moved: boolean } | null>(null)
   const suppressNextLayoutStageClickRef = useRef(false)
+  const echoSwipeRef = useRef<{ pointerId: number; startX: number; startY: number; swiped: boolean } | null>(null)
   useIsomorphicLayoutEffect(() => {
     const stage = stageRef.current
     if (!stage) return undefined
@@ -836,9 +837,40 @@ export function MainlineSceneRenderer({
               data-scene-segment-advance={hasNextSegment ? 'available' : 'complete'}
               role={canAdvance ? 'button' : undefined}
               tabIndex={canAdvance ? 0 : -1}
-              aria-label={canAdvance ? '点击或向下滚动切换下一段文字' : undefined}
+              aria-label={canAdvance ? '点击或向下滑动切换下一段文字' : undefined}
+              onPointerDown={(event) => {
+                if (!canAdvance || layoutMode || event.pointerType === 'mouse' || !event.isPrimary) return
+                echoSwipeRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, swiped: false }
+                try {
+                  event.currentTarget.setPointerCapture(event.pointerId)
+                }
+                catch {
+                  // Pointer capture is unavailable in a few embedded browser surfaces.
+                }
+              }}
+              onPointerUp={(event) => {
+                const swipe = echoSwipeRef.current
+                if (!swipe || swipe.pointerId !== event.pointerId) return
+                const deltaX = event.clientX - swipe.startX
+                const deltaY = event.clientY - swipe.startY
+                const threshold = Math.max(24, event.currentTarget.getBoundingClientRect().width * .12)
+                const isDownwardSwipe = deltaY >= threshold && deltaY > Math.abs(deltaX) * 1.15
+                swipe.swiped = isDownwardSwipe
+                echoSwipeRef.current = swipe.swiped ? swipe : null
+                if (!isDownwardSwipe || !canAdvance) return
+                event.preventDefault()
+                event.stopPropagation()
+                advance?.()
+              }}
+              onPointerCancel={(event) => {
+                if (echoSwipeRef.current?.pointerId === event.pointerId) echoSwipeRef.current = null
+              }}
               onClick={(event) => {
                 event.stopPropagation()
+                if (echoSwipeRef.current?.swiped) {
+                  echoSwipeRef.current = null
+                  return
+                }
                 advance?.()
               }}
               onWheel={(event) => {
