@@ -837,7 +837,7 @@ export function MainlineSceneRenderer({
               data-scene-segment-advance={hasNextSegment ? 'available' : 'complete'}
               role={canAdvance ? 'button' : undefined}
               tabIndex={canAdvance ? 0 : -1}
-              aria-label={canAdvance ? '点击或向下滑动切换下一段文字' : undefined}
+              aria-label={canAdvance ? '点击或上下滑动切换下一段文字' : undefined}
               onPointerDown={(event) => {
                 if (!canAdvance || layoutMode || event.pointerType === 'mouse' || !event.isPrimary) return
                 echoSwipeRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, swiped: false }
@@ -854,10 +854,10 @@ export function MainlineSceneRenderer({
                 const deltaX = event.clientX - swipe.startX
                 const deltaY = event.clientY - swipe.startY
                 const threshold = Math.max(24, event.currentTarget.getBoundingClientRect().width * .12)
-                const isDownwardSwipe = deltaY >= threshold && deltaY > Math.abs(deltaX) * 1.15
-                swipe.swiped = isDownwardSwipe
+                const isVerticalSwipe = Math.abs(deltaY) >= threshold && Math.abs(deltaY) > Math.abs(deltaX) * 1.15
+                swipe.swiped = isVerticalSwipe
                 echoSwipeRef.current = swipe.swiped ? swipe : null
-                if (!isDownwardSwipe || !canAdvance) return
+                if (!isVerticalSwipe || !canAdvance) return
                 event.preventDefault()
                 event.stopPropagation()
                 advance?.()

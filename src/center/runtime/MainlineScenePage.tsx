@@ -151,8 +151,9 @@ type EchoBox = { x: number; y: number; width: number; height: number }
 
 function echoTextBox(text: string, position: Point, screenMetrics: SceneScreenMetrics): EchoBox {
   const fontSizePx = Math.max(13, Math.min(16, screenMetrics.width * .011))
-  const maxWidthPx = Math.min(screenMetrics.width * .42, Math.max(1, screenMetrics.width - 24))
-  const currentLinePx = Math.max(fontSizePx * 4, Array.from(text).length * fontSizePx)
+  const maxWidthPx = Math.max(1, screenMetrics.width - 24)
+  const horizontalPaddingPx = fontSizePx * 1.12
+  const currentLinePx = Math.max(fontSizePx * 4, Array.from(text).length * fontSizePx + horizontalPaddingPx)
   const widthPx = Math.min(maxWidthPx, currentLinePx)
   const heightPx = fontSizePx * 1.6 + fontSizePx * .8
   return {
