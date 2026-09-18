@@ -781,7 +781,7 @@ export function MainlineScenePage({
     setLayoutSaveState('saved')
   }, [scene.id])
 
-  const moveTo = useCallback((target: Point, onArrive?: () => void, plannedPath?: Point[] | null) => {
+  const moveTo = useCallback((target: Point, onArrive?: () => void, plannedPath?: Point[] | null, framePassage?: MainlineScenePassage) => {
     pendingTraversalRef.current = null
     setSceneFrameExit({ phase: 'idle' })
     cancelPassageLifecycle('protagonist')
@@ -792,13 +792,31 @@ export function MainlineScenePage({
       setFeedback('这条路被墙、桌面或柜台挡住了。')
       return false
     }
-    moveAlong(path, onArrive, {
+    const movementOptions = {
       ...locomotionOptions,
-      canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
-      onBlocked: () => setFeedback('修杰在边界前停下了，需要重新选择位置。'),
+      canOccupy: (point: Point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
+    }
+    let frameRetractionStarted = false
+    if (framePassage) {
+      const movementDurationMs = movementDurationMsForPath(path, getCurrentPosition(), movementOptions)
+      frameRetractionStarted = movementDurationMs > 0 && movementDurationMs <= frameMotionBudgetMsRef.current
+      if (frameRetractionStarted) armPassageFrameExit(framePassage)
+    }
+    moveAlong(path, onArrive, {
+      ...movementOptions,
+      onMove: () => {
+        if (!framePassage || frameRetractionStarted) return
+        if (getRemainingDurationMs() > frameMotionBudgetMsRef.current) return
+        frameRetractionStarted = true
+        armPassageFrameExit(framePassage)
+      },
+      onBlocked: () => {
+        if (framePassage) setSceneFrameExit({ phase: 'idle' })
+        setFeedback('修杰在边界前停下了，需要重新选择位置。')
+      },
     })
     return true
-  }, [cancelPassageLifecycle, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, scene, setFeedback, stopMovement])
+  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getRemainingDurationMs, layout, locomotionOptions, moveAlong, navigationOptions, scene, setFeedback, stopMovement])
 
   const startPassageTraversal = useCallback((passage: MainlineScenePassage, requestedTarget: Point, plannedApproachPath?: Point[] | null, continuationPath?: Point[] | null, passageQueue: readonly MainlineScenePassage[] = [passage], passageIndex = 0) => {
     beginPassageLeg(passage, requestedTarget, plannedApproachPath, continuationPath, passageQueue, passageIndex)
@@ -988,7 +1006,7 @@ export function MainlineScenePage({
     const started = moveTo(route.target, () => {
       setPassageDestination(null)
       setFeedback('修杰停在这里。')
-    }, route.approachPath)
+    }, route.approachPath, route.framePassage)
     if (started) {
       if (outsideScene) setPassageDestination(route.requestedTarget)
       setFeedback('修杰沿着可行空间移动。')

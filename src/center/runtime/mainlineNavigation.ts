@@ -525,6 +525,12 @@ export type MainlineWorldRoute = {
   /** The first movement leg. It ends at the passage boundary when a door event exists. */
   approachPath: Point[] | null
   passage?: MainlineScenePassage
+  /**
+   * The scene-frame owner for a same-side approach. This is route intent,
+   * not a second lifecycle: the page feeds it into the existing movement
+   * deadline and sceneFrameExit state.
+   */
+  framePassage?: MainlineScenePassage
   /** Ordered same-scene doors required to reach the target room. */
   passages: readonly MainlineScenePassage[]
   /** Authored room sequence used to select the door sequence. */
@@ -746,11 +752,34 @@ export function findMainlineWorldRoute(
     return { requestedTarget, target: requestedTarget, approachPath, passage: crossScenePassage, passages: [crossScenePassage], continuationPath: null }
   }
 
+  // A click can intentionally stop on the approach side of a scene door.
+  // That route must still own the existing scene-frame exit, otherwise the
+  // normal-move branch clears it and the frame disappears only on a later
+  // scene change. Select only a doorway whose compiled detection corridor is
+  // actually entered by this route; do not infer intent from screen
+  // coordinates or from a separate proximity lifecycle.
+  const framePassage = plannedPath
+    ? scene.passages
+      .filter((candidate) => candidate.targetSceneId || candidate.frameBehavior === 'scene-retract')
+      .map((candidate) => {
+        const collision = mainlinePassageCollisionForNavigation(scene, candidate, options)
+        const doorway = mainlinePassageDoorwayForNavigation(scene, candidate, options)
+        const region = mainlinePassageDoorRegion(candidate, collision, doorway, options.actorRadius ?? defaultActorRadius)
+        const entryDistance = pathBoxEntryDistance(plannedPath, region.detection)
+        const targetInsideDetection = containsPoint(region.detection, requestedTarget)
+        if (!targetInsideDetection && entryDistance === null) return null
+        return { passage: candidate, entryDistance: entryDistance ?? Number.POSITIVE_INFINITY }
+      })
+      .filter((candidate): candidate is { passage: MainlineScenePassage; entryDistance: number } => Boolean(candidate))
+      .sort((first, second) => first.entryDistance - second.entryDistance)[0]?.passage
+    : undefined
+
   if (targetInsideScene) {
     return {
       requestedTarget,
       target: requestedTarget,
       approachPath: localPath,
+      framePassage,
       passages: [],
     }
   }
@@ -763,6 +792,7 @@ export function findMainlineWorldRoute(
     requestedTarget,
     target: requestedTarget,
     approachPath: boundaryPath,
+    framePassage,
     passages: [],
   }
 }
