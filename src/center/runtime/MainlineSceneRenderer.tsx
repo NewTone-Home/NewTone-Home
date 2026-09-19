@@ -81,10 +81,19 @@ function isAltarEntity(scene: MainlineSceneDefinition, entityId: string) {
     || scene.furnitureGroups.some((group) => group.layout === 'altar-ring' && group.entityIds.includes(entityId))
 }
 
+export function mainlineEntityUsesBreathing(scene: MainlineSceneDefinition, entity: MainlineSceneEntity) {
+  const isOfferingTable = entity.kind === 'table' && scene.furnitureGroups.some((group) => group.layout === 'altar-ring' && group.entityIds.includes(entity.id))
+  const isIncense = entity.visualProfile === 'incense'
+  return (entity.visualProfile === 'tree-ring' && entity.interactive !== false)
+    || isIncense
+    || isOfferingTable
+    || entity.animationGroup === 'office-breathing'
+}
+
 function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean) {
   const isOfferingTable = entity.kind === 'table' && scene.furnitureGroups.some((group) => group.layout === 'altar-ring' && group.entityIds.includes(entity.id))
   const isIncense = entity.visualProfile === 'incense'
-  const isBreathing = entity.visualProfile === 'tree-ring' || isIncense || isOfferingTable || entity.animationGroup === 'office-breathing'
+  const isBreathing = mainlineEntityUsesBreathing(scene, entity)
   return [
     'scene-object',
     'scene-mainline-object',
