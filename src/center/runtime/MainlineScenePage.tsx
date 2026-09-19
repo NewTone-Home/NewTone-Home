@@ -16,6 +16,7 @@ import { mainlineCameraOffset } from './mainlineViewport'
 import { sceneFrameDefaultMotionMs, sceneFrameRetractionBudgetMs } from './sceneMotion'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
+import { commercialCafeStoryStageFromSceneState, commercialCafeStoryStageKey } from './commercialCafeStory'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
@@ -385,6 +386,12 @@ export function MainlineScenePage({
     stopMovement()
     setFeedback(entryFeedbackForScene(sceneDefinition))
   }, [sceneDefinition, sceneId, stopMovement])
+  useEffect(() => {
+    if (sceneId !== 'commercial-cafe') return
+    const stage = commercialCafeStoryStageFromSceneState(initialSceneState)
+    if (initialSceneState[commercialCafeStoryStageKey] === stage) return
+    onPlayerSceneStateChange?.(sceneId, commercialCafeStoryStageKey, stage)
+  }, [initialSceneState, onPlayerSceneStateChange, sceneId])
   const activeDialoguePosition = activeDialogueLine
     ? echoPositionNearPlayer(scene, activeDialogueText, position, layout, screenMetrics, geometrySnapshot)
     : null
