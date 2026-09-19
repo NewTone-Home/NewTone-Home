@@ -1374,7 +1374,7 @@
   text-shadow: 0 1px 5px rgba(0, 0, 0, .75);
   pointer-events: auto;
   cursor: pointer;
-  touch-action: none;
+  touch-action: manipulation;
   transform: translate(-50%, -50%);
   animation: mainline-echo-arrive var(--scene-focus-frame-duration) ease-out both;
 }

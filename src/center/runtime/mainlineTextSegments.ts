@@ -14,9 +14,9 @@ function pushSegment(segments: string[], value: string) {
 
 /**
  * Split one Center interaction into deliberate, one-line display units.
- * Commas are control punctuation only and are intentionally omitted from the
- * rendered unit. Sentence-ending punctuation remains part of the visible
- * unit so the copy keeps its authored cadence.
+ * Commas and full stops are control punctuation only and are intentionally
+ * omitted from the rendered unit. Other sentence punctuation remains part of
+ * the visible unit so the copy keeps its authored cadence.
  */
 export function splitMainlineInteractionText(text: string): readonly string[] {
   const segments: string[] = []
@@ -33,7 +33,7 @@ export function splitMainlineInteractionText(text: string): readonly string[] {
       continue
     }
 
-    if (character === '，' || character === ',') {
+    if (character === '，' || character === ',' || character === '。' || character === '.') {
       pushSegment(segments, buffer)
     }
     else {

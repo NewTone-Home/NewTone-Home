@@ -429,7 +429,6 @@ export function MainlineSceneRenderer({
   const [selectedLayoutItemId, setSelectedLayoutItemId] = useState<LayoutItemId | null>(null)
   const dragRef = useRef<{ itemId: LayoutItemId; pointerId: number; startPointer: Point; startAnchor: Point; moved: boolean } | null>(null)
   const suppressNextLayoutStageClickRef = useRef(false)
-  const echoSwipeRef = useRef<{ pointerId: number; startX: number; startY: number; swiped: boolean } | null>(null)
   useIsomorphicLayoutEffect(() => {
     const stage = stageRef.current
     if (!stage) return undefined
@@ -676,7 +675,7 @@ export function MainlineSceneRenderer({
   const walkFromTouch = (event: React.PointerEvent<HTMLDivElement>) => {
     if (layoutMode || event.pointerType === 'mouse' || !event.isPrimary) return
     const target = event.target instanceof Element ? event.target : null
-    if (target?.closest('button, a, input, textarea, select, [role="button"], [data-focus-target-id]')) return
+    if (target?.closest('button, a, input, textarea, select, [role="button"], [data-focus-target-id], [data-scene-interaction-text]')) return
     if (event.defaultPrevented) return
     event.preventDefault()
     touchWalkRef.current = { clientX: event.clientX, clientY: event.clientY, at: Date.now() }
@@ -825,7 +824,6 @@ export function MainlineSceneRenderer({
               ? sceneEcho.segmentIndex + 1 < sceneEcho.segments.length
               : dialogueSegmentIndex + 1 < dialogueSegmentCount || Boolean(dialogue && dialogueLineIndex! + 1 < dialogue.lines.length)
             const advance = isDialogue ? onDialogueAdvance : onSceneEchoAdvance
-            const canAdvance = Boolean(advance)
             const echoLayout = mainlineEchoLayout(text, renderScreenMetrics, {
               speaker: isDialogue ? dialogueLine!.speaker : undefined,
               choices: sceneEcho?.options,
@@ -853,53 +851,7 @@ export function MainlineSceneRenderer({
               data-scene-segment-index={sceneEcho?.segmentIndex ?? dialogueSegmentIndex}
               data-scene-segment-count={sceneEcho?.segments.length ?? dialogueSegmentCount}
               data-scene-segment-advance={hasNextSegment ? 'available' : 'complete'}
-              role={canAdvance ? 'button' : undefined}
-              tabIndex={canAdvance ? 0 : -1}
-              aria-label={canAdvance ? '点击或上下滑动切换下一段文字' : undefined}
-              onPointerDown={(event) => {
-                if (!canAdvance || layoutMode || event.pointerType === 'mouse' || !event.isPrimary) return
-                echoSwipeRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, swiped: false }
-                try {
-                  event.currentTarget.setPointerCapture(event.pointerId)
-                }
-                catch {
-                  // Pointer capture is unavailable in a few embedded browser surfaces.
-                }
-              }}
-              onPointerUp={(event) => {
-                const swipe = echoSwipeRef.current
-                if (!swipe || swipe.pointerId !== event.pointerId) return
-                const deltaX = event.clientX - swipe.startX
-                const deltaY = event.clientY - swipe.startY
-                const threshold = Math.max(24, event.currentTarget.getBoundingClientRect().width * .12)
-                const isVerticalSwipe = Math.abs(deltaY) >= threshold && Math.abs(deltaY) > Math.abs(deltaX) * 1.15
-                swipe.swiped = isVerticalSwipe
-                echoSwipeRef.current = swipe.swiped ? swipe : null
-                if (!isVerticalSwipe || !canAdvance) return
-                event.preventDefault()
-                event.stopPropagation()
-                advance?.()
-              }}
-              onPointerCancel={(event) => {
-                if (echoSwipeRef.current?.pointerId === event.pointerId) echoSwipeRef.current = null
-              }}
               onClick={(event) => {
-                event.stopPropagation()
-                if (echoSwipeRef.current?.swiped) {
-                  echoSwipeRef.current = null
-                  return
-                }
-                advance?.()
-              }}
-              onWheel={(event) => {
-                if (!canAdvance || event.deltaY <= 0) return
-                event.preventDefault()
-                event.stopPropagation()
-                advance?.()
-              }}
-              onKeyDown={(event) => {
-                if (!canAdvance || !['Enter', ' ', 'ArrowDown'].includes(event.key)) return
-                event.preventDefault()
                 event.stopPropagation()
                 advance?.()
               }}
