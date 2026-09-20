@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineEntityUsesBreathing } from './MainlineSceneRenderer'
+import { mainlineEntityUsesBreathing, sceneEchoFrameShouldRetract } from './MainlineSceneRenderer'
+import { frameShouldCollapse, type SceneFrameRuntime, type SceneFrameTarget } from './sceneFrameLifecycle'
 import { mainlineScenes } from './mainlineScenes'
 
 describe('mainline renderer breathing semantics', () => {
@@ -24,5 +25,39 @@ describe('mainline renderer breathing semantics', () => {
     expect(incense && mainlineEntityUsesBreathing(interior, incense)).toBe(true)
     expect(offeringTable && mainlineEntityUsesBreathing(interior, offeringTable)).toBe(true)
     expect(desk && mainlineEntityUsesBreathing(office, desk)).toBe(true)
+  })
+})
+
+describe('scene echo frame retraction semantics', () => {
+  it('retracts only temporary exploration source frames when an echo leaves', () => {
+    expect(sceneEchoFrameShouldRetract('source', 'interactive', true, true)).toBe(false)
+    expect(sceneEchoFrameShouldRetract('source', 'exploration', true, true)).toBe(true)
+    expect(sceneEchoFrameShouldRetract('source', 'exploration', true, false)).toBe(false)
+    expect(sceneEchoFrameShouldRetract('source', 'exploration', false, true)).toBe(false)
+  })
+
+  it('keeps the echo frame and explicit scene-exit retractions intact', () => {
+    expect(sceneEchoFrameShouldRetract('echo', 'exploration', true)).toBe(true)
+
+    const runtime: SceneFrameRuntime = {
+      corner: 'top-left',
+      phase: 'visible',
+      fullyCollapsed: false,
+      initialized: true,
+      hovered: false,
+      locked: false,
+    }
+    const sceneExitTarget: SceneFrameTarget = {
+      group: 'door:example',
+      policy: 'passage',
+      phase: 'closed',
+      gateTriggered: false,
+      interactionBusy: false,
+      interactionActive: false,
+      retractRequested: true,
+      suppressed: false,
+    }
+
+    expect(frameShouldCollapse(sceneExitTarget, runtime)).toBe(true)
   })
 })

@@ -90,6 +90,17 @@ export function mainlineEntityUsesBreathing(scene: MainlineSceneDefinition, enti
     || entity.animationGroup === 'office-breathing'
 }
 
+export function sceneEchoFrameShouldRetract(
+  role: 'source' | 'echo',
+  policy: SceneFrameTarget['policy'],
+  isLeaving: boolean,
+  isSourceEntity = true,
+) {
+  if (!isLeaving) return false
+  if (role === 'echo') return true
+  return policy === 'exploration' && isSourceEntity
+}
+
 function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean) {
   const isOfferingTable = entity.kind === 'table' && scene.furnitureGroups.some((group) => group.layout === 'altar-ring' && group.entityIds.includes(entity.id))
   const isIncense = entity.visualProfile === 'incense'
@@ -510,7 +521,12 @@ export function MainlineSceneRenderer({
         gateTriggered: target.policy === 'gate' && gateTriggered,
         interactionBusy: target.policy === 'interactive' && activeObjectId === entityId && moving,
         interactionActive: target.policy === 'interactive' && (activeObjectId === entityId || sceneEcho?.entityId === entityId),
-        retractRequested: retractRequested || (sceneEcho?.phase === 'leaving' && sceneEcho.entityId === entityId),
+        retractRequested: retractRequested || sceneEchoFrameShouldRetract(
+          'source',
+          target.policy,
+          sceneEcho?.phase === 'leaving',
+          sceneEcho?.entityId === entityId,
+        ),
         suppressed: false,
       })
     })
@@ -523,7 +539,12 @@ export function MainlineSceneRenderer({
         gateTriggered: false,
         interactionBusy: activeObjectId === entity.id && moving,
         interactionActive: activeObjectId === entity.id || sceneEcho?.entityId === entity.id,
-        retractRequested: sceneEcho?.phase === 'leaving' && sceneEcho.entityId === entity.id,
+        retractRequested: sceneEchoFrameShouldRetract(
+          'source',
+          'exploration',
+          sceneEcho?.phase === 'leaving',
+          sceneEcho?.entityId === entity.id,
+        ),
         suppressed: false,
       })
     })
@@ -547,7 +568,7 @@ export function MainlineSceneRenderer({
         gateTriggered: false,
         interactionBusy: false,
         interactionActive: true,
-        retractRequested: sceneEcho.phase === 'leaving',
+        retractRequested: sceneEchoFrameShouldRetract('echo', 'exploration', sceneEcho.phase === 'leaving'),
         suppressed: false,
       })
     }
