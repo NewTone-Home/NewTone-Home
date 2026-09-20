@@ -29,3 +29,18 @@ export function advanceCommercialCafeStoryStage(stage: CommercialCafeStoryStage)
   const nextIndex = commercialCafeStoryStages.indexOf(stage) + 1
   return commercialCafeStoryStages[nextIndex] ?? stage
 }
+
+export function hasReachedCommercialCafeStoryStage(stage: CommercialCafeStoryStage, threshold: CommercialCafeStoryStage) {
+  return commercialCafeStoryStages.indexOf(stage) >= commercialCafeStoryStages.indexOf(threshold)
+}
+
+/**
+ * Attached café details inherit the scene's saved story stage instead of
+ * becoming separate scene entities with their own lifecycle.
+ */
+export function isCommercialCafeStoryDetailVisible(
+  visibleFromStage: CommercialCafeStoryStage | undefined,
+  stage: CommercialCafeStoryStage,
+) {
+  return visibleFromStage === undefined || hasReachedCommercialCafeStoryStage(stage, visibleFromStage)
+}

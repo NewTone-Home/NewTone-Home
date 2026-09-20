@@ -20,6 +20,8 @@ import type {
   MainlineSceneViewport,
   MainlineSceneRoom,
   MainlineSceneDialogue,
+  MainlineSceneAttachedProp,
+  MainlineSceneNpc,
   MainlineStorefrontRole,
   MainlineStorefrontComposition,
   MainlineStorefrontMode,
@@ -59,6 +61,8 @@ export type {
   MainlineSceneDialogue,
   MainlineSceneDialogueLine,
   MainlineSceneDialogueSpeaker,
+  MainlineSceneAttachedProp,
+  MainlineSceneNpc,
 } from './mainlineSceneModel'
 
 export type MainlineStructure = {
@@ -182,6 +186,8 @@ export type MainlineSceneDefinition = {
   blockers: readonly (CollisionBox & { id: string })[]
   wallDensity?: MainlineWallDensity
   objects: readonly MainlineSceneEntity[]
+  npcs: readonly MainlineSceneNpc[]
+  attachedProps: readonly MainlineSceneAttachedProp[]
   furnitureGroups: readonly MainlineFurnitureGroup[]
   passages: readonly MainlineScenePassage[]
   initialPlayerPosition: Point
@@ -998,6 +1004,8 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     blockers: data.blockers,
     wallDensity: data.wallDensity,
     objects: [...objectById.values()],
+    npcs: data.npcs ?? [],
+    attachedProps: data.attachedProps ?? [],
     furnitureGroups: data.furnitureGroups,
     passages,
     initialPlayerPosition: data.initialPlayerPosition,
@@ -1200,7 +1208,7 @@ function createMainlineSceneSlice(scene: MainlineSceneDefinition): MainlineScene
     id: `${scene.id}-slice`,
     objectIds: scene.objects.map((object) => object.id),
     furnitureGroupIds: scene.furnitureGroups.map((group) => group.id),
-    actorIds: [],
+    actorIds: scene.npcs.map((npc) => npc.id),
   }
 }
 

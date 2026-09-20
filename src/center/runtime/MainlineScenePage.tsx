@@ -331,6 +331,7 @@ export function MainlineScenePage({
   const incensePhase: IncenseBurnPhase = incenseBurnPhase(incenseLitAt, incenseClock)
   const incenseLit = incensePhase === 'fresh' || incensePhase === 'half'
   const incenseRemainingMs = incenseBurnRemainingMs(incenseLitAt, incenseClock)
+  const commercialCafeStoryStage = commercialCafeStoryStageFromSceneState(initialSceneState)
   const dismissSceneEcho = useCallback(() => {
     const current = sceneEchoRef.current
     if (!current) return
@@ -1048,6 +1049,7 @@ export function MainlineScenePage({
               incenseLit={incenseLit}
               incenseBurnRemainingMs={incenseRemainingMs}
               onIncenseBurnComplete={() => setIncenseClock(Date.now())}
+              commercialCafeStoryStage={commercialCafeStoryStage}
               debugInput={debugInput}
               debugFeedback={feedback}
               inputDiagnostic={inputDiagnostic}

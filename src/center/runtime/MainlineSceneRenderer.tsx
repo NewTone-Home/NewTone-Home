@@ -12,6 +12,7 @@ import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundary
 import { useSceneFocusFrameController } from './SceneFocusFrames'
 import type { SceneFrameTarget } from './sceneFrameLifecycle'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
+import { isCommercialCafeStoryDetailVisible, type CommercialCafeStoryStage } from './commercialCafeStory'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -53,6 +54,7 @@ type MainlineSceneRendererProps = {
   incenseLit?: boolean
   incenseBurnRemainingMs?: number
   onIncenseBurnComplete?: () => void
+  commercialCafeStoryStage?: CommercialCafeStoryStage
 }
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
@@ -392,6 +394,7 @@ export function MainlineSceneRenderer({
   incenseLit = false,
   incenseBurnRemainingMs = 0,
   onIncenseBurnComplete,
+  commercialCafeStoryStage,
 }: MainlineSceneRendererProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
@@ -809,6 +812,38 @@ export function MainlineSceneRenderer({
               sharedBreathingClock={isAltarEntity(scene, entity.id)}
               registerBreathingNode={registerBreathingNode}
             />
+          })}
+
+          {scene.npcs.map((npc) => (
+            <div
+              key={npc.id}
+              className="scene-mainline-npc"
+              style={{ left: `${npc.position.x}%`, top: `${npc.position.y}%` }}
+              data-actor-id={npc.id}
+              data-npc-role={npc.roleId}
+              data-interaction-target-entity-id={npc.interactionTargetEntityId}
+              aria-label={`${npc.label}，NPC`}
+            >
+              <span>{npc.label}</span>
+            </div>
+          ))}
+
+          {scene.attachedProps.filter((prop) => commercialCafeStoryStage !== undefined && isCommercialCafeStoryDetailVisible(prop.visibleFromStage, commercialCafeStoryStage)).map((prop) => {
+            const parentPosition = geometrySnapshot.objects.get(prop.parentEntityId)?.position
+            if (!parentPosition) return null
+            return (
+              <div
+                key={prop.id}
+                className="scene-mainline-attached-prop"
+                style={{ left: `${parentPosition.x + prop.offset.x}%`, top: `${parentPosition.y + prop.offset.y}%` }}
+                data-attached-prop-id={prop.id}
+                data-parent-entity-id={prop.parentEntityId}
+                data-interaction-target-entity-id={prop.interactionTargetEntityId}
+                aria-label={`${prop.label}，附着于${prop.parentEntityId}`}
+              >
+                <span>{prop.label}</span>
+              </div>
+            )
           })}
 
           {destination && <div className={`scene-walk-target ${moving ? 'is-active' : ''}`} style={{ left: `${destination.x}%`, top: `${destination.y}%` }} aria-hidden="true" />}

@@ -1205,6 +1205,19 @@
   min-height: 0;
   max-width: calc(100% - 8px);
 }
+.scene-mainline-npc,
+.scene-mainline-attached-prop {
+  position: absolute;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  color: var(--ink);
+  font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px));
+  line-height: 1;
+  white-space: nowrap;
+}
+.scene-mainline-npc { font-weight: 500; }
+.scene-mainline-attached-prop { color: var(--soft); font-size: .84em; }
 .scene-mainline-object--door { color: var(--active); font-size: var(--scene-mainline-object-font-size, clamp(10px, 1.35cqw, 18px)); }
 .scene-mainline-object--landmark,
 .scene-mainline-object--direction { color: var(--soft); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); }

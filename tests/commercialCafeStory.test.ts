@@ -4,7 +4,11 @@ import {
   commercialCafeStoryStageFromSceneState,
   commercialCafeStoryStageKey,
   initialCommercialCafeStoryStage,
+  isCommercialCafeStoryDetailVisible,
 } from '../src/center/runtime/commercialCafeStory'
+import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
+import { mainlineInteractionTarget } from '../src/center/runtime/mainlineNavigation'
+import { mainlineScenes, mainlineSceneSlices } from '../src/center/runtime/mainlineScenes'
 import {
   createInitialPlayerSave,
   loadPlayerSave,
@@ -51,5 +55,46 @@ describe('commercial cafe story stage', () => {
     expect(commercialCafeStoryStageFromSceneState(restored.sceneState['commercial-cafe'])).toBe('intel-received')
     expect(restored.sceneState['jijia-ancestral-interior']).toEqual({ incenseLitAt: 1234 })
     expect(restored.sceneState['zhongshuyuan-office']).toEqual({ blindsOpen: false })
+  })
+
+  it('keeps lao zhou and the server as cafe NPCs, outside spatial scene entities', () => {
+    const cafe = mainlineScenes['commercial-cafe']
+
+    expect(cafe.npcs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'lao-zhou', roleId: 'lao-zhou', interactionTargetEntityId: 'commercial-cafe-right-window-upper-group-table' }),
+      expect.objectContaining({ id: 'server', roleId: 'server', interactionTargetEntityId: 'commercial-cafe-counter' }),
+    ]))
+    expect(cafe.objects.some((entity) => entity.id === 'lao-zhou' || entity.id === 'server')).toBe(false)
+    expect(mainlineSceneSlices['commercial-cafe'].actorIds).toEqual(['lao-zhou', 'server'])
+  })
+
+  it('anchors coffee to an existing table without creating collision or navigation data of its own', () => {
+    const cafe = mainlineScenes['commercial-cafe']
+    const coffee = cafe.attachedProps.find((prop) => prop.id === 'commercial-cafe-coffee')
+    const parentTable = cafe.objects.find((entity) => entity.id === coffee?.parentEntityId)
+    const snapshot = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition)
+
+    expect(coffee).toMatchObject({
+      parentEntityId: 'commercial-cafe-right-window-upper-group-table',
+      interactionTargetEntityId: 'commercial-cafe-right-window-upper-group-table',
+    })
+    expect(parentTable).toMatchObject({ kind: 'table', collision: expect.any(Object), approach: expect.any(Object) })
+    expect(cafe.objects.some((entity) => entity.id === coffee?.id)).toBe(false)
+    expect(snapshot.objects.has(coffee?.id ?? '')).toBe(false)
+    expect(mainlineInteractionTarget(cafe, coffee?.id ?? '', cafe.initialPlayerPosition)).toEqual(cafe.initialPlayerPosition)
+    expect(mainlineInteractionTarget(cafe, coffee?.interactionTargetEntityId ?? '', cafe.initialPlayerPosition)).toEqual(parentTable?.approach)
+  })
+
+  it('reveals coffee only after its delivered story stage while leaving existing cafe geometry intact', () => {
+    const cafe = mainlineScenes['commercial-cafe']
+    const coffee = cafe.attachedProps.find((prop) => prop.id === 'commercial-cafe-coffee')
+    const snapshot = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition)
+
+    expect(isCommercialCafeStoryDetailVisible(coffee?.visibleFromStage, 'met-lao-zhou')).toBe(false)
+    expect(isCommercialCafeStoryDetailVisible(coffee?.visibleFromStage, 'coffee-delivered')).toBe(true)
+    expect(cafe.objects.find((entity) => entity.id === 'commercial-cafe-right-window-upper-group-table')).toMatchObject({ kind: 'table' })
+    expect(cafe.objects.find((entity) => entity.id === 'commercial-cafe-counter')).toMatchObject({ kind: 'fixture' })
+    expect(snapshot.objects.get('commercial-cafe-right-window-upper-group-table')?.collision).toBeDefined()
+    expect(cafe.passages.find((passage) => passage.entityId === 'street-cafe-entry')).toMatchObject({ targetSceneId: 'commercial-street', access: 'open' })
   })
 })

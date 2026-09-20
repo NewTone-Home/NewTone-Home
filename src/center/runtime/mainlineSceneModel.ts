@@ -2,6 +2,8 @@ import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeo
 import type { SceneDoorBehavior } from './sceneDoorConfig'
 import { boundaryGridStepsFromScreenSpacing, defaultSceneScreenMetrics } from './sceneBoundaryGrid'
 import { createFourSeatFurniture, createSeatGeometry, createTableGeometry, sharedFurnitureGeometry, createTwoSeatFurniture, type SharedSeatDefinition } from './twoSeatFurniture'
+import { npcRoles, type NpcRoleDefinition } from './npcRoles'
+import type { CommercialCafeStoryStage } from './commercialCafeStory'
 
 export type MainlineSceneId = 'jijia-ancestral-home' | 'jijia-ancestral-interior' | 'commercial-street' | 'commercial-cafe' | 'yonghe-mining-perimeter' | 'yonghe-eatery' | 'zhongshuyuan-passage' | 'zhongshuyuan-office'
 export type MainlineEntityKind = 'door' | 'landmark' | 'table' | 'seat' | 'direction' | 'trace' | 'fixture'
@@ -94,6 +96,28 @@ export type MainlineSceneEntity = {
   facing?: MainlineFacing
   seat?: SharedSeatDefinition
   doorBehavior?: MainlineDoorBehavior
+}
+
+/** A scene resident with an NPC role; NPCs are not spatial furniture entities. */
+export type MainlineSceneNpc = {
+  id: string
+  roleId: NpcRoleDefinition['id']
+  label: string
+  position: Point
+  /** The existing spatial entity a future interaction should approach. */
+  interactionTargetEntityId: string
+}
+
+/** A display-only item anchored to an existing spatial entity. */
+export type MainlineSceneAttachedProp = {
+  id: string
+  label: string
+  parentEntityId: string
+  offset: Point
+  /** A future interaction resolves through this spatial parent, never the prop itself. */
+  interactionTargetEntityId: string
+  /** Currently used by commercial-cafe to reveal a prop after its story beat. */
+  visibleFromStage?: CommercialCafeStoryStage
 }
 
 export type MainlineWallOpening = {
@@ -251,6 +275,8 @@ export type MainlineSceneData = {
   storefronts?: readonly MainlineStorefrontSlotBlueprint[]
   altars?: readonly MainlineAltarBlueprint[]
   floorEntities: readonly MainlineSceneEntity[]
+  npcs?: readonly MainlineSceneNpc[]
+  attachedProps?: readonly MainlineSceneAttachedProp[]
   curves?: readonly MainlineSceneCurve[]
   airWalls?: readonly MainlineAirWall[]
   blockers: readonly (CollisionBox & { id: string })[]
@@ -675,6 +701,34 @@ const commercialCafeCounterEntities = commercialCafeCounterPositions.map((x, ind
   shape: box(x - commercialCafeCounterCellWidth / 2, 29.65, commercialCafeCounterCellWidth, 2.7),
   visualVisibility: 'baseline',
 }))
+const commercialCafeStoryTableId = 'commercial-cafe-right-window-upper-group-table'
+const commercialCafeNpcs = [
+  {
+    id: npcRoles.laoZhou.id,
+    roleId: npcRoles.laoZhou.id,
+    label: npcRoles.laoZhou.label,
+    // The upper seat of the existing window-side two-seat table.
+    position: authoredPoint(84, 21.6),
+    interactionTargetEntityId: commercialCafeStoryTableId,
+  },
+  {
+    id: npcRoles.server.id,
+    roleId: npcRoles.server.id,
+    label: npcRoles.server.label,
+    position: commercialCafeLayout.service.staff,
+    interactionTargetEntityId: 'commercial-cafe-counter',
+  },
+] as const satisfies readonly MainlineSceneNpc[]
+const commercialCafeAttachedProps = [
+  {
+    id: 'commercial-cafe-coffee',
+    label: '咖啡',
+    parentEntityId: commercialCafeStoryTableId,
+    offset: authoredPoint(-.8, .4),
+    interactionTargetEntityId: commercialCafeStoryTableId,
+    visibleFromStage: 'coffee-delivered',
+  },
+] as const satisfies readonly MainlineSceneAttachedProp[]
 const commercialCafeWindow: MainlineSceneCurve = { id: 'commercial-cafe-glass-front', ...commercialCafeLayout.glass, role: 'glass', glyph: '窗', sampleCount: 26, blocksPlayer: true }
 
 // The storefront rows are visible boundary lines, but the space behind those
@@ -735,11 +789,12 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
     ] }],
     floorEntities: [
       ...commercialCafeCounterEntities,
-      floor({ id: 'commercial-cafe-server', label: '店员', kind: 'landmark', weight: 'minor', position: commercialCafeLayout.service.staff, approach: commercialCafeLayout.service.staffApproach, visualVisibility: 'baseline' }),
       floor({ id: 'commercial-cafe-plant-upper', label: '绿植', kind: 'fixture', weight: 'minor', position: commercialCafeLayout.plants.upper.position, approach: commercialCafeLayout.plants.upper.approach, collision: commercialCafeLayout.plants.upper.collision, shape: commercialCafeLayout.plants.upper.collision, visualVisibility: 'baseline' }),
       floor({ id: 'commercial-cafe-plant-lower', label: '绿植', kind: 'fixture', weight: 'minor', position: commercialCafeLayout.plants.lower.position, approach: commercialCafeLayout.plants.lower.approach, collision: commercialCafeLayout.plants.lower.collision, shape: commercialCafeLayout.plants.lower.collision, visualVisibility: 'baseline' }),
       ...commercialCafeFurnitureEntities,
     ],
+    npcs: commercialCafeNpcs,
+    attachedProps: commercialCafeAttachedProps,
     curves: [commercialCafeWindow], blockers: [{ id: 'commercial-cafe-staff-only', ...commercialCafeLayout.service.staffOnly }], furnitureGroups: commercialCafeFurniture.map(({ group }) => group), initialPlayerPosition: commercialCafeEntryPosition,
   },
   portals: [{
