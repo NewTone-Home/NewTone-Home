@@ -828,6 +828,7 @@ export function MainlineScenePage({
         incensePhase,
         officeBlindsOpen,
         carriedPhoneDevice,
+        commercialCafeStoryStage,
       })
       const explorationChoice = exploration.choice
       const explorationPool = exploration.pool
@@ -871,28 +872,27 @@ export function MainlineScenePage({
         setFeedback('修杰在边界前停下了，需要重新选择位置。')
       },
     })
-  }, [carriedPhoneDevice, dismissSceneEcho, geometrySnapshot, getCurrentPosition, incensePhase, layout, locomotionOptions, moveAlong, navigationOptions, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, scene, screenMetrics, startPassageTraversal, stopMovement])
+  }, [carriedPhoneDevice, commercialCafeStoryStage, dismissSceneEcho, geometrySnapshot, getCurrentPosition, incensePhase, layout, locomotionOptions, moveAlong, navigationOptions, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, scene, screenMetrics, startPassageTraversal, stopMovement])
 
   const chooseSceneEchoOption = useCallback((index: number) => {
     const option = sceneEcho?.options?.[index]
     if (!option) return
     const entity = sceneEcho.entityId ? scene.objects.find((candidate) => candidate.id === sceneEcho.entityId) : undefined
-    const resolution = resolveMainlineSceneEchoChoice(scene, entity, option, Date.now())
+    const resolution = resolveMainlineSceneEchoChoice(scene, entity, option, Date.now(), { commercialCafeStoryStage })
     if (!resolution) return
     if (resolution.deskDevice) {
       onDeskInteraction?.(resolution.deskDevice)
       dismissSceneEcho()
       return
     }
+    if (resolution.stateChange) onPlayerSceneStateChange?.(scene.id, resolution.stateChange.key, resolution.stateChange.value)
     if (resolution.stateChange?.key === 'blindsOpen') {
       const open = resolution.stateChange.value === true
       setOfficeBlindsOpen(open)
-      onPlayerSceneStateChange?.(scene.id, 'blindsOpen', open)
     }
     if (resolution.stateChange?.key === 'incenseLitAt' && typeof resolution.stateChange.value === 'number') {
       setIncenseLitAt(resolution.stateChange.value)
       setIncenseClock(resolution.stateChange.value)
-      onPlayerSceneStateChange?.(scene.id, 'incenseLitAt', resolution.stateChange.value)
     }
     if (resolution.feedback) setFeedback(resolution.feedback)
     if (resolution.dismiss) {
@@ -909,7 +909,7 @@ export function MainlineScenePage({
       }
       return resolution.clearOptions ? { ...current, options: undefined } : current
     })
-  }, [dismissSceneEcho, onDeskInteraction, onPlayerSceneStateChange, scene, sceneEcho])
+  }, [commercialCafeStoryStage, dismissSceneEcho, onDeskInteraction, onPlayerSceneStateChange, scene, sceneEcho])
 
   const advanceSceneEcho = useCallback(() => {
     const current = sceneEchoRef.current

@@ -2,6 +2,7 @@ import type { PhoneDevice } from './phoneState'
 import type { PlayerChoiceValue } from './playerSave'
 import type { MainlineInteractionBehavior } from './mainlineSceneModel'
 import type { MainlineSceneDefinition, MainlineSceneEntity } from './mainlineScenes'
+import { commercialCafeStoryStageKey, initialCommercialCafeStoryStage, type CommercialCafeStoryStage } from './commercialCafeStory'
 
 export const incenseBurnDurationMs = 10 * 60 * 1000
 
@@ -11,6 +12,7 @@ export type MainlineSceneInteractionContext = {
   incensePhase: IncenseBurnPhase
   officeBlindsOpen: boolean
   carriedPhoneDevice: PhoneDevice
+  commercialCafeStoryStage?: CommercialCafeStoryStage
 }
 
 export type MainlineExplorationChoice = {
@@ -24,7 +26,7 @@ export type MainlineExplorationResolution = {
 }
 
 export type MainlineSceneStateChange = {
-  key: 'blindsOpen' | 'incenseLitAt'
+  key: 'blindsOpen' | 'incenseLitAt' | typeof commercialCafeStoryStageKey
   value: PlayerChoiceValue
 }
 
@@ -89,6 +91,11 @@ export function resolveMainlineSceneExploration(
       },
     }
   }
+  if (behavior === 'cafe-order') {
+    return context.commercialCafeStoryStage === initialCommercialCafeStoryStage
+      ? { choice: { text: '要点一杯咖啡吗？', options: ['点一杯咖啡'] } }
+      : { choice: { text: '已经点过咖啡。' } }
+  }
 
   if (configuredChoice) return { choice: configuredChoice }
   if (scene.explorationText?.[entity.id]) return { pool: scene.explorationText[entity.id] }
@@ -105,6 +112,7 @@ export function resolveMainlineSceneEchoChoice(
   entity: MainlineSceneEntity | undefined,
   option: string,
   now: number,
+  context: Pick<MainlineSceneInteractionContext, 'commercialCafeStoryStage'> = {},
 ): MainlineSceneEchoChoiceResolution | null {
   const behavior = entity ? interactionBehavior(entity) : undefined
 
@@ -142,6 +150,17 @@ export function resolveMainlineSceneEchoChoice(
     return {
       feedback: '修杰没有理会香炉。',
       clearOptions: true,
+    }
+  }
+  if (behavior === 'cafe-order') {
+    if (option !== '点一杯咖啡' || context.commercialCafeStoryStage !== initialCommercialCafeStoryStage) {
+      return { feedback: '已经点过咖啡。', clearOptions: true }
+    }
+    return {
+      feedback: '修杰点了一杯咖啡。',
+      echoText: '已经点了一杯咖啡。',
+      clearOptions: true,
+      stateChange: { key: commercialCafeStoryStageKey, value: 'coffee-ordered' },
     }
   }
 

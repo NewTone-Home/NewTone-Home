@@ -9,7 +9,7 @@ export type MainlineSceneId = 'jijia-ancestral-home' | 'jijia-ancestral-interior
 export type MainlineEntityKind = 'door' | 'landmark' | 'table' | 'seat' | 'direction' | 'trace' | 'fixture'
 export type MainlineEntityWeight = 'gateway' | 'fixture' | 'anchor' | 'minor'
 export type MainlineEntitySurface = 'wall' | 'floor'
-export type MainlineInteractionBehavior = 'echo-pool' | 'incense' | 'desk-device' | 'blinds-toggle' | 'plant-choice' | 'direct-wall'
+export type MainlineInteractionBehavior = 'echo-pool' | 'incense' | 'desk-device' | 'blinds-toggle' | 'plant-choice' | 'cafe-order' | 'direct-wall'
 export type MainlineVisualProfile = 'tree-ring' | 'incense'
 export type MainlineAnimationGroup = 'office-breathing'
 export type MainlineSceneExternalExit = {
@@ -699,6 +699,7 @@ const commercialCafeCounterEntities = commercialCafeCounterPositions.map((x, ind
   approach: authoredPoint(x, 34),
   collision: box(x - commercialCafeCounterCellWidth / 2, 29.65, commercialCafeCounterCellWidth, 2.7),
   shape: box(x - commercialCafeCounterCellWidth / 2, 29.65, commercialCafeCounterCellWidth, 2.7),
+  interactionBehavior: 'cafe-order',
   visualVisibility: 'baseline',
 }))
 const commercialCafeStoryTableId = 'commercial-cafe-right-window-upper-group-table'

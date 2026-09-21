@@ -57,6 +57,21 @@ describe('commercial cafe story stage', () => {
     expect(restored.sceneState['zhongshuyuan-office']).toEqual({ blindsOpen: false })
   })
 
+  it('persists a coffee order without changing incense or blinds state', () => {
+    const storage = createStorage()
+    let save = createInitialPlayerSave('commercial-cafe')
+    save = recordPlayerSceneState(save, 'commercial-cafe', commercialCafeStoryStageKey, 'coffee-ordered')
+    save = recordPlayerSceneState(save, 'jijia-ancestral-interior', 'incenseLitAt', 1234)
+    save = recordPlayerSceneState(save, 'zhongshuyuan-office', 'blindsOpen', false)
+
+    savePlayerSave(save, storage, 5678)
+    const restored = loadPlayerSave(storage)
+
+    expect(commercialCafeStoryStageFromSceneState(restored.sceneState['commercial-cafe'])).toBe('coffee-ordered')
+    expect(restored.sceneState['jijia-ancestral-interior']).toEqual({ incenseLitAt: 1234 })
+    expect(restored.sceneState['zhongshuyuan-office']).toEqual({ blindsOpen: false })
+  })
+
   it('keeps lao zhou and the server as cafe NPCs, outside spatial scene entities', () => {
     const cafe = mainlineScenes['commercial-cafe']
 
@@ -94,6 +109,9 @@ describe('commercial cafe story stage', () => {
     expect(isCommercialCafeStoryDetailVisible(coffee?.visibleFromStage, 'coffee-delivered')).toBe(true)
     expect(cafe.objects.find((entity) => entity.id === 'commercial-cafe-right-window-upper-group-table')).toMatchObject({ kind: 'table' })
     expect(cafe.objects.find((entity) => entity.id === 'commercial-cafe-counter')).toMatchObject({ kind: 'fixture' })
+    const counter = cafe.objects.find((entity) => entity.id === 'commercial-cafe-counter')
+    expect(counter).toMatchObject({ kind: 'fixture', interactionBehavior: 'cafe-order', collision: expect.any(Object), approach: expect.any(Object) })
+    expect(mainlineInteractionTarget(cafe, 'commercial-cafe-counter', cafe.initialPlayerPosition)).toEqual(counter?.approach)
     expect(snapshot.objects.get('commercial-cafe-right-window-upper-group-table')?.collision).toBeDefined()
     expect(cafe.passages.find((passage) => passage.entityId === 'street-cafe-entry')).toMatchObject({ targetSceneId: 'commercial-street', access: 'open' })
   })
