@@ -103,8 +103,11 @@ export type MainlineSceneNpc = {
   id: string
   roleId: NpcRoleDefinition['id']
   label: string
-  position: Point
-  /** The existing spatial entity a future interaction should approach. */
+  /** Fallback only when this NPC is not seated. */
+  position?: Point
+  /** An existing seat that owns this static NPC's rendered and navigable position. */
+  seatEntityId?: string
+  /** Semantic context for future story resolution; never a physical movement target. */
   interactionTargetEntityId: string
 }
 
@@ -709,7 +712,7 @@ const commercialCafeNpcs = [
     roleId: npcRoles.laoZhou.id,
     label: npcRoles.laoZhou.label,
     // The upper seat of the existing window-side two-seat table.
-    position: authoredPoint(84, 21.6),
+    seatEntityId: 'commercial-cafe-right-window-upper-group-chair-top',
     interactionTargetEntityId: commercialCafeStoryTableId,
   },
   {

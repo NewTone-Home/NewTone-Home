@@ -13,6 +13,7 @@ import { useSceneFocusFrameController } from './SceneFocusFrames'
 import type { SceneFrameTarget } from './sceneFrameLifecycle'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
 import { isCommercialCafeStoryDetailVisible, type CommercialCafeStoryStage } from './commercialCafeStory'
+import { resolveMainlineNpcPosition } from './mainlineNavigation'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -31,6 +32,8 @@ type MainlineSceneRendererProps = {
   showProtagonist?: boolean
   onLayoutChange: (itemId: LayoutItemId, point: Point) => void
   onInteract: (id: string) => void
+  onNpcInteract?: (npcId: string) => void
+  npcPositions?: ReadonlyMap<string, Point>
   onDoorTransitionComplete?: (entityId: string, completion: SceneDoorTransitionCompletion) => void
   onWalk: (point: Point) => void
   dialogue?: MainlineSceneDialogue
@@ -90,6 +93,11 @@ export function mainlineEntityUsesBreathing(scene: MainlineSceneDefinition, enti
     || isIncense
     || isOfferingTable
     || entity.animationGroup === 'office-breathing'
+}
+
+/** Seats remain scene entities; only their duplicate visual label is suppressed for a seated NPC. */
+export function mainlineNpcOccupiedSeatIds(scene: MainlineSceneDefinition) {
+  return new Set(scene.npcs.flatMap((npc) => npc.seatEntityId ? [npc.seatEntityId] : []))
 }
 
 function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean) {
@@ -268,7 +276,7 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
   return <span {...commonProps} aria-hidden="true">{content}{renderFrame(first.focusGroup)}</span>
 }
 
-function MainlineObject({ entity, scene, position, visibility, active, explored, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, renderFrame, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode }: {
+function MainlineObject({ entity, scene, position, visibility, active, explored, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, renderFrame, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false }: {
   entity: MainlineSceneEntity
   scene: MainlineSceneDefinition
   position: Point
@@ -290,13 +298,14 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
   breathingAnimationDelay?: string
   sharedBreathingClock?: boolean
   registerBreathingNode?: (entityId: string, node: HTMLSpanElement | null) => void
+  suppressLabel?: boolean
 }) {
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
   const className = objectClass(scene, entity, visibility, active, explored, underPlayer, selected, dragging, incenseLit)
   const visualScale = entity.visualScale ?? 1
   const focusGroup = `exploration:${entity.id}`
   const commonProps = {
-    className: `${className} ${layoutItemId ? 'scene-object--layout-draggable' : ''}`,
+    className: `${className} ${layoutItemId ? 'scene-object--layout-draggable' : ''} ${suppressLabel ? 'is-occupied-by-npc' : ''}`,
     style: {
       left: `${position.x}%`,
       top: `${position.y}%`,
@@ -325,7 +334,7 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
   }, [entity.id, registerBreathingNode, sharedBreathingClock])
 
   if (entity.interactive === false) {
-    return <span {...commonProps} aria-hidden="true"><span ref={labelRef} style={labelStyle}>{entity.label}</span></span>
+    return <span {...commonProps} aria-hidden="true">{!suppressLabel && <span ref={labelRef} style={labelStyle}>{entity.label}</span>}</span>
   }
 
   return (
@@ -348,7 +357,7 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
         if (event.target === event.currentTarget && event.animationName === 'scene-incense-burn-lifecycle') onIncenseBurnComplete?.()
       }}
     >
-      <span ref={labelRef} style={labelStyle}>{entity.label}</span>
+      {!suppressLabel && <span ref={labelRef} style={labelStyle}>{entity.label}</span>}
       {renderFrame(focusGroup)}
     </button>
   )
@@ -371,6 +380,8 @@ export function MainlineSceneRenderer({
   geometrySnapshot,
   onLayoutChange,
   onInteract,
+  onNpcInteract,
+  npcPositions,
   onDoorTransitionComplete,
   onWalk,
   dialogue,
@@ -403,6 +414,7 @@ export function MainlineSceneRenderer({
     else altarBreathingNodesRef.current.delete(entityId)
   }, [])
   const altarLeaderIds = useMemo(() => new Set(scene.altars.map((altar) => altar.incenseBurnerId)), [scene.altars])
+  const occupiedSeatIds = useMemo(() => mainlineNpcOccupiedSeatIds(scene), [scene])
   const hasAltarBreathing = scene.objects.some((entity) => isAltarEntity(scene, entity.id))
   useEffect(() => {
     if (!hasAltarBreathing || typeof window === 'undefined') return undefined
@@ -811,22 +823,28 @@ export function MainlineSceneRenderer({
               breathingAnimationDelay={synchronizedBreathingDelay}
               sharedBreathingClock={isAltarEntity(scene, entity.id)}
               registerBreathingNode={registerBreathingNode}
+              suppressLabel={entity.kind === 'seat' && occupiedSeatIds.has(entity.id)}
             />
           })}
 
-          {scene.npcs.map((npc) => (
-            <div
+          {scene.npcs.map((npc) => {
+            const npcPosition = npcPositions?.get(npc.id) ?? resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
+            return <button
               key={npc.id}
               className="scene-mainline-npc"
-              style={{ left: `${npc.position.x}%`, top: `${npc.position.y}%` }}
+              type="button"
+              style={{ left: `${npcPosition.x}%`, top: `${npcPosition.y}%` }}
+              onClick={(event) => { event.stopPropagation(); onNpcInteract?.(npc.id) }}
               data-actor-id={npc.id}
               data-npc-role={npc.roleId}
+              data-npc-id={npc.id}
+              data-seat-entity-id={npc.seatEntityId}
               data-interaction-target-entity-id={npc.interactionTargetEntityId}
-              aria-label={`${npc.label}，NPC`}
+              aria-label={`${npc.label}，点击让主角前往互动`}
             >
               <span>{npc.label}</span>
-            </div>
-          ))}
+            </button>
+          })}
 
           {scene.attachedProps.filter((prop) => commercialCafeStoryStage !== undefined && isCommercialCafeStoryDetailVisible(prop.visibleFromStage, commercialCafeStoryStage)).map((prop) => {
             const parentPosition = geometrySnapshot.objects.get(prop.parentEntityId)?.position

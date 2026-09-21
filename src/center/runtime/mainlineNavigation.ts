@@ -1,4 +1,4 @@
-import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
+import { defaultEdgeContactDirection, mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import { mainlineScenePassageCollision, mainlineScenePassageDoorway, type MainlineSceneDefinition, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import { mainlineEntityCollision, mainlineLayoutOffsetForEntity, type SceneLayout } from './sceneLayout'
@@ -889,6 +889,86 @@ export function mainlineInteractionTarget(scene: MainlineSceneDefinition, entity
   }
 
   return edgeContactPoint(position, collision, from, actorRadius)
+}
+
+/**
+ * Resolve one NPC's physical position from the scene data. A seated NPC lives
+ * at its seat's sit point, including the same layout/screen projection used by
+ * the seat itself; non-seated NPCs retain their authored fallback position.
+ */
+export function resolveMainlineNpcPosition(scene: MainlineSceneDefinition, npcId: string, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): Point {
+  const npc = scene.npcs.find((candidate) => candidate.id === npcId)
+  if (!npc) return scene.initialPlayerPosition
+  if (!npc.seatEntityId) return npc.position ?? scene.initialPlayerPosition
+
+  const seat = scene.objects.find((candidate) => candidate.id === npc.seatEntityId)
+  if (!seat?.seat) return npc.position ?? scene.initialPlayerPosition
+
+  const snapshot = sceneGeometrySnapshot(scene, layout, options)
+  const offset = mainlineLayoutOffsetForEntity(scene, seat.id, layout)
+  const authoredPosition = { x: seat.position.x + offset.x, y: seat.position.y + offset.y }
+  const renderedPosition = snapshot.objects.get(seat.id)?.position ?? authoredPosition
+  return {
+    x: seat.seat.sit.x + offset.x + (renderedPosition.x - authoredPosition.x),
+    y: seat.seat.sit.y + offset.y + (renderedPosition.y - authoredPosition.y),
+  }
+}
+
+function mainlineNpcInteractionCandidates(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout, actorRadius: number, options: MainlineNavigationOptions) {
+  const npcPosition = resolveMainlineNpcPosition(scene, npcId, layout, options)
+  const npcRadius = sharedFurnitureGeometry.playerRadius
+  const collision = {
+    x: npcPosition.x - npcRadius,
+    y: npcPosition.y - npcRadius,
+    width: npcRadius * 2,
+    height: npcRadius * 2,
+  }
+  const dx = from.x - npcPosition.x
+  const dy = from.y - npcPosition.y
+  const length = Math.hypot(dx, dy)
+  const primary = length > .001 ? { x: dx / length, y: dy / length } : defaultEdgeContactDirection
+  const clockwise = { x: -primary.y, y: primary.x }
+  const counterclockwise = { x: primary.y, y: -primary.x }
+  const opposite = { x: -primary.x, y: -primary.y }
+  const defaultClockwise = { x: -defaultEdgeContactDirection.y, y: defaultEdgeContactDirection.x }
+  const defaultCounterclockwise = { x: defaultEdgeContactDirection.y, y: -defaultEdgeContactDirection.x }
+  const defaultOpposite = { x: -defaultEdgeContactDirection.x, y: -defaultEdgeContactDirection.y }
+  const directions = [
+    primary,
+    clockwise,
+    counterclockwise,
+    opposite,
+    defaultEdgeContactDirection,
+    defaultOpposite,
+    defaultClockwise,
+    defaultCounterclockwise,
+  ]
+  return directions.map((direction) => edgeContactPoint(npcPosition, collision, {
+    x: npcPosition.x + direction.x,
+    y: npcPosition.y + direction.y,
+  }, actorRadius))
+}
+
+/** Keep an interacting protagonist outside the NPC actor footprint and nearby furniture. */
+export function mainlineNpcInteractionTarget(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout = {}, actorRadius = defaultActorRadius, options: MainlineNavigationOptions = {}): Point {
+  const candidates = mainlineNpcInteractionCandidates(scene, npcId, from, layout, actorRadius, options)
+  return candidates.find((candidate) => isWalkableMainlinePoint(candidate, scene, layout, options)) ?? candidates[0] ?? from
+}
+
+export function findMainlinePathToNpc(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
+  const actorRadius = options.actorRadius ?? defaultActorRadius
+  const candidates = mainlineNpcInteractionCandidates(scene, npcId, from, layout, actorRadius, options)
+  for (const target of candidates) {
+    if (!isWalkableMainlinePoint(target, scene, layout, options)) continue
+    const path = findMainlinePath(from, target, scene, layout, options)
+    if (path) return { target, path }
+  }
+  return { target: candidates[0] ?? from, path: null }
+}
+
+export function isMainlineNpcWithinInteractionRange(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
+  const target = mainlineNpcInteractionTarget(scene, npcId, from, layout, options.actorRadius ?? defaultActorRadius, options)
+  return Math.hypot(from.x - target.x, from.y - target.y) <= .25
 }
 
 export function isMainlineEntityWithinInteractionRange(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import type { Point } from './sceneGeometry'
 import { MainlineSceneRenderer, type MainlineInputDiagnostic } from './MainlineSceneRenderer'
 import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneAreaLabel, mainlineSceneGeometryUnits, mainlineSceneWalkBounds, mainlineScenes, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneExternalExit, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
-import { findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, findMainlineWorldRoute, isMainlineEntityWithinInteractionRange, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition } from './mainlineNavigation'
+import { findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, findMainlinePathToNpc, findMainlineWorldRoute, isMainlineEntityWithinInteractionRange, isMainlineNpcWithinInteractionRange, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition } from './mainlineNavigation'
 import { layoutGridSize, mainlineEntityInteractionBounds, mainlineEntityVisualBounds, type SceneLayout } from './sceneLayout'
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
 import { movementDurationMsForPath, useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
@@ -18,6 +18,7 @@ import { sceneDoorMotion } from './sceneDoorConfig'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 import { commercialCafeStoryStageFromSceneState, commercialCafeStoryStageKey } from './commercialCafeStory'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
+import { createNavigationRuntime } from './navigationCore'
 import { splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
 import { incenseBurnPhase, incenseBurnRemainingMs, isMainlineInPlaceInteraction, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
@@ -250,6 +251,7 @@ export function MainlineScenePage({
   onPhoneDismiss,
   onDeskInteraction,
   onObjectInteraction,
+  onNpcInteraction,
   onDoorEvent,
   initialSceneState = {},
   onPlayerSceneStateChange,
@@ -275,6 +277,7 @@ export function MainlineScenePage({
   onPhoneDismiss?: () => void
   onDeskInteraction?: (device: PhoneDevice) => void
   onObjectInteraction?: (entity: MainlineSceneEntity, dwellMs: number) => void
+  onNpcInteraction?: (npcId: string) => void
   onDoorEvent?: (phase: 'attempted' | 'blocked' | 'crossed', passage: MainlineScenePassage) => void
   initialSceneState?: PlayerSceneState
   onPlayerSceneStateChange?: (sceneId: MainlineSceneId, key: string, value: PlayerChoiceValue) => void
@@ -314,6 +317,9 @@ export function MainlineScenePage({
   const scene = sceneDefinition
   const previousExternalExitPositionRef = useRef(initialPosition)
   const interactionStartedAtRef = useRef<number | null>(null)
+  const npcInteractionRequestRef = useRef(0)
+  const navigationRuntimeRef = useRef(createNavigationRuntime())
+  const navigationRuntime = navigationRuntimeRef.current
   const handledWalkRequestRef = useRef<number | null>(null)
   const [feedback, setFeedback] = useState(entryFeedbackForScene(sceneDefinition))
   const [inputDiagnostic, setInputDiagnostic] = useState<MainlineInputDiagnostic | null>(null)
@@ -370,8 +376,32 @@ export function MainlineScenePage({
   const activeDialogueSegments = activeDialogueLine ? splitMainlineInteractionText(activeDialogueLine.text) : []
   const activeDialogueText = activeDialogueSegments[dialogueSegmentIndex] ?? activeDialogueSegments[0] ?? ''
   const internalMovement = useFreeRoamMovement(initialPosition)
-  const { position, moving, destination, moveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
+  const { position, moving, destination, moveAlong: rawMoveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
+  const moveAlong = useCallback((path: Point[], onArrive?: () => void, options?: Parameters<FreeRoamMovement['moveAlong']>[2]) => {
+    rawMoveAlong(path, onArrive, {
+      ...options,
+      onMove: (nextPosition) => {
+        navigationRuntime.updateActor('protagonist', nextPosition)
+        options?.onMove?.(nextPosition)
+      },
+    })
+  }, [navigationRuntime, rawMoveAlong])
   const geometrySnapshot = useMemo(() => createMainlineSceneGeometrySnapshot(scene, position, layout, screenMetrics), [layout, position, scene, screenMetrics])
+  const resolvedNpcPositions = useMemo(() => new Map(scene.npcs.map((npc) => [
+    npc.id,
+    resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics }),
+  ])), [geometrySnapshot, layout, scene, screenMetrics])
+  useEffect(() => {
+    navigationRuntime.registerActor('protagonist', getCurrentPosition())
+    return () => navigationRuntime.removeActor('protagonist')
+  }, [getCurrentPosition, navigationRuntime])
+  useEffect(() => {
+    navigationRuntime.updateActor('protagonist', position)
+  }, [navigationRuntime, position])
+  useEffect(() => {
+    resolvedNpcPositions.forEach((npcPosition, npcId) => navigationRuntime.registerActor(npcId, npcPosition))
+    return () => resolvedNpcPositions.forEach((_npcPosition, npcId) => navigationRuntime.removeActor(npcId))
+  }, [navigationRuntime, resolvedNpcPositions])
   useEffect(() => {
     pendingTraversalRef.current = null
     setPassageDestination(null)
@@ -446,7 +476,7 @@ export function MainlineScenePage({
       else setFeedback('当前没有权限通过这扇门。')
     },
   })
-  const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics, geometrySnapshot }), [geometrySnapshot, getOpenPassageIds, screenMetrics])
+  const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics, geometrySnapshot, navigationRuntime, actorId: 'protagonist' }), [geometrySnapshot, getOpenPassageIds, navigationRuntime, screenMetrics])
   const locomotionOptions = useMemo(() => ({ screenMetrics, screenSpeedPxPerSecond: 520 }), [screenMetrics])
   const handleFrameMotionBudgetChange = useCallback((durationMs: number) => {
     if (Number.isFinite(durationMs) && durationMs > 0) frameMotionBudgetMsRef.current = sceneFrameRetractionBudgetMs(durationMs)
@@ -753,6 +783,7 @@ export function MainlineScenePage({
   }, [scene.id])
 
   const moveTo = useCallback((target: Point, onArrive?: () => void, plannedPath?: Point[] | null, framePassage?: MainlineScenePassage) => {
+    npcInteractionRequestRef.current += 1
     pendingTraversalRef.current = null
     setSceneFrameExit({ phase: 'idle' })
     cancelPassageLifecycle('protagonist')
@@ -794,6 +825,7 @@ export function MainlineScenePage({
   }, [beginPassageLeg])
 
   const interact = useCallback((entityId: string) => {
+    npcInteractionRequestRef.current += 1
     if (phoneOpen) onPhoneDismiss?.()
     setDialogueLineIndex(null)
     dismissSceneEcho()
@@ -874,6 +906,46 @@ export function MainlineScenePage({
     })
   }, [carriedPhoneDevice, commercialCafeStoryStage, dismissSceneEcho, geometrySnapshot, getCurrentPosition, incensePhase, layout, locomotionOptions, moveAlong, navigationOptions, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, scene, screenMetrics, startPassageTraversal, stopMovement])
 
+  const interactNpc = useCallback((npcId: string) => {
+    const npc = scene.npcs.find((candidate) => candidate.id === npcId)
+    if (!npc) return
+    if (phoneOpen) onPhoneDismiss?.()
+    setDialogueLineIndex(null)
+    dismissSceneEcho()
+    setActiveObjectId(null)
+    const requestId = npcInteractionRequestRef.current + 1
+    npcInteractionRequestRef.current = requestId
+    const currentPosition = getCurrentPosition()
+    const alreadyNearby = isMainlineNpcWithinInteractionRange(scene, npc.id, currentPosition, layout, navigationOptions)
+    const completeInteraction = () => {
+      if (npcInteractionRequestRef.current !== requestId) return
+      setFeedback(`修杰来到${npc.label}身边。`)
+      onNpcInteraction?.(npc.id)
+    }
+    if (alreadyNearby) {
+      stopMovement()
+      completeInteraction()
+      return
+    }
+    const resolved = findMainlinePathToNpc(scene, npc.id, currentPosition, layout, navigationOptions)
+    if (!resolved.path) {
+      npcInteractionRequestRef.current += 1
+      stopMovement()
+      setFeedback('这个人目前无法接近。')
+      return
+    }
+    setFeedback(`修杰走向${npc.label}。`)
+    moveAlong(resolved.path, completeInteraction, {
+      ...locomotionOptions,
+      canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
+      onBlocked: () => {
+        if (npcInteractionRequestRef.current !== requestId) return
+        npcInteractionRequestRef.current += 1
+        setFeedback('修杰在接近对方前停下了，需要重新选择位置。')
+      },
+    })
+  }, [dismissSceneEcho, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, onNpcInteraction, onPhoneDismiss, phoneOpen, scene, stopMovement])
+
   const chooseSceneEchoOption = useCallback((index: number) => {
     const option = sceneEcho?.options?.[index]
     if (!option) return
@@ -940,6 +1012,7 @@ export function MainlineScenePage({
   }, [dialogueLineIndex, dialogueSegmentIndex, scene.dialogue])
 
   const walk = useCallback((point: Point) => {
+    npcInteractionRequestRef.current += 1
     if (phoneOpen) {
       onPhoneDismiss?.()
     }
@@ -1030,6 +1103,8 @@ export function MainlineScenePage({
               showProtagonist={showProtagonist}
               onLayoutChange={updateLayout}
               onInteract={interact}
+              onNpcInteract={interactNpc}
+              npcPositions={resolvedNpcPositions}
               onDoorTransitionComplete={completeDoorTransition}
               onWalk={walk}
               dialogue={scene.dialogue}
