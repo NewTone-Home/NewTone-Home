@@ -16,7 +16,7 @@ import { mainlineCameraOffset } from './mainlineViewport'
 import { sceneFrameDefaultMotionMs, sceneFrameRetractionBudgetMs } from './sceneMotion'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
-import { commercialCafeStoryStageFromSceneState, commercialCafeStoryStageKey } from './commercialCafeStory'
+import { commercialCafeStoryStageFromSceneState, commercialCafeStoryStageKey, resolveCommercialCafeNpcInteraction, type CommercialCafeNpcInteractionResolution } from './commercialCafeStory'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { createNavigationRuntime } from './navigationCore'
 import { splitMainlineInteractionText } from './mainlineTextSegments'
@@ -327,6 +327,7 @@ export function MainlineScenePage({
   const debugInput = new URLSearchParams(debugInputSearch).get('debugInput') === '1'
   const [dialogueLineIndex, setDialogueLineIndex] = useState<number | null>(null)
   const [dialogueSegmentIndex, setDialogueSegmentIndex] = useState(0)
+  const [npcDialogue, setNpcDialogue] = useState<CommercialCafeNpcInteractionResolution | null>(null)
   const [sceneEcho, setSceneEcho] = useState<MainlineSceneEcho | null>(null)
   const sceneEchoRef = useRef<MainlineSceneEcho | null>(null)
   const [officeBlindsOpen, setOfficeBlindsOpen] = useState(initialSceneState.blindsOpen !== false)
@@ -370,8 +371,9 @@ export function MainlineScenePage({
     setIncenseClock(Date.now())
     onSceneTransition(targetSceneId, targetEntryPosition, targetSpawnMode)
   }, [onSceneTransition])
-  const activeDialogueLine = scene.dialogue && dialogueLineIndex !== null
-    ? scene.dialogue.lines[dialogueLineIndex] ?? null
+  const activeDialogue = npcDialogue?.dialogue ?? scene.dialogue
+  const activeDialogueLine = activeDialogue && dialogueLineIndex !== null
+    ? activeDialogue.lines[dialogueLineIndex] ?? null
     : null
   const activeDialogueSegments = activeDialogueLine ? splitMainlineInteractionText(activeDialogueLine.text) : []
   const activeDialogueText = activeDialogueSegments[dialogueSegmentIndex] ?? activeDialogueSegments[0] ?? ''
@@ -410,6 +412,7 @@ export function MainlineScenePage({
     setExplorationState({ sceneId, objectIds: new Set() })
     setDialogueLineIndex(null)
     setDialogueSegmentIndex(0)
+    setNpcDialogue(null)
     setSceneEcho(null)
     setOfficeBlindsOpen(initialSceneState.blindsOpen !== false)
     setIncenseLitAt(typeof initialSceneState.incenseLitAt === 'number' ? initialSceneState.incenseLitAt : null)
@@ -828,6 +831,7 @@ export function MainlineScenePage({
     npcInteractionRequestRef.current += 1
     if (phoneOpen) onPhoneDismiss?.()
     setDialogueLineIndex(null)
+    setNpcDialogue(null)
     dismissSceneEcho()
     const entity = getMainlineSceneEntity(scene, entityId)
     const passage = scene.passages.find((candidate) => candidate.entityId === entityId)
@@ -911,6 +915,7 @@ export function MainlineScenePage({
     if (!npc) return
     if (phoneOpen) onPhoneDismiss?.()
     setDialogueLineIndex(null)
+    setNpcDialogue(null)
     dismissSceneEcho()
     setActiveObjectId(null)
     const requestId = npcInteractionRequestRef.current + 1
@@ -921,6 +926,15 @@ export function MainlineScenePage({
       if (npcInteractionRequestRef.current !== requestId) return
       setFeedback(`修杰来到${npc.label}身边。`)
       onNpcInteraction?.(npc.id)
+      const resolution = resolveCommercialCafeNpcInteraction({
+        sceneId: scene.id,
+        npcId: npc.id,
+        stage: commercialCafeStoryStage,
+      })
+      if (!resolution) return
+      setDialogueSegmentIndex(0)
+      setNpcDialogue(resolution)
+      setDialogueLineIndex(0)
     }
     if (alreadyNearby) {
       stopMovement()
@@ -944,7 +958,7 @@ export function MainlineScenePage({
         setFeedback('修杰在接近对方前停下了，需要重新选择位置。')
       },
     })
-  }, [dismissSceneEcho, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, onNpcInteraction, onPhoneDismiss, phoneOpen, scene, stopMovement])
+  }, [commercialCafeStoryStage, dismissSceneEcho, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, onNpcInteraction, onPhoneDismiss, phoneOpen, scene, stopMovement])
 
   const chooseSceneEchoOption = useCallback((index: number) => {
     const option = sceneEcho?.options?.[index]
@@ -1001,15 +1015,25 @@ export function MainlineScenePage({
   }, [dismissSceneEcho])
 
   const advanceDialogue = useCallback(() => {
-    if (dialogueLineIndex === null || !scene.dialogue) return
-    const segments = splitMainlineInteractionText(scene.dialogue.lines[dialogueLineIndex]?.text ?? '')
+    if (dialogueLineIndex === null || !activeDialogue) return
+    const segments = splitMainlineInteractionText(activeDialogue.lines[dialogueLineIndex]?.text ?? '')
     if (dialogueSegmentIndex + 1 < segments.length) {
       setDialogueSegmentIndex((current) => current + 1)
       return
     }
     setDialogueSegmentIndex(0)
-    setDialogueLineIndex(dialogueLineIndex + 1 < scene.dialogue.lines.length ? dialogueLineIndex + 1 : null)
-  }, [dialogueLineIndex, dialogueSegmentIndex, scene.dialogue])
+    if (dialogueLineIndex + 1 < activeDialogue.lines.length) {
+      setDialogueLineIndex(dialogueLineIndex + 1)
+      return
+    }
+    const completedNpcDialogue = npcDialogue
+    setDialogueLineIndex(null)
+    setNpcDialogue(null)
+    if (completedNpcDialogue) {
+      const stateChange = completedNpcDialogue.stateChangeOnDialogueComplete
+      onPlayerSceneStateChange?.(scene.id, stateChange.key, stateChange.value)
+    }
+  }, [activeDialogue, dialogueLineIndex, dialogueSegmentIndex, npcDialogue, onPlayerSceneStateChange, scene.id])
 
   const walk = useCallback((point: Point) => {
     npcInteractionRequestRef.current += 1
@@ -1017,6 +1041,7 @@ export function MainlineScenePage({
       onPhoneDismiss?.()
     }
     setDialogueLineIndex(null)
+    setNpcDialogue(null)
     dismissSceneEcho()
     setActiveObjectId(null)
     const route = findMainlineWorldRoute(sceneDefinition, getCurrentPosition(), point, layout, navigationOptions)
@@ -1051,6 +1076,7 @@ export function MainlineScenePage({
     setActiveObjectId(null)
     setExplorationState({ sceneId: scene.id, objectIds: new Set() })
     setDialogueLineIndex(null)
+    setNpcDialogue(null)
     setSceneEcho(null)
     setIncenseLitAt(null)
     setIncenseClock(Date.now())
@@ -1107,7 +1133,7 @@ export function MainlineScenePage({
               npcPositions={resolvedNpcPositions}
               onDoorTransitionComplete={completeDoorTransition}
               onWalk={walk}
-              dialogue={scene.dialogue}
+              dialogue={activeDialogue}
               dialogueLine={activeDialogueLine}
               dialogueText={activeDialogueText}
               dialogueLineIndex={dialogueLineIndex}

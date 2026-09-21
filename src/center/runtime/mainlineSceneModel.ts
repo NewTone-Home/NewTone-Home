@@ -40,6 +40,9 @@ export type MainlineSceneDialogue = {
   width: number
   lines: readonly MainlineSceneDialogueLine[]
 }
+
+/** The existing dialogue surface only needs an interaction owner and ordered lines. */
+export type MainlineSceneDialoguePresentation = Pick<MainlineSceneDialogue, 'triggerEntityId' | 'lines'>
 export type MainlineFacing = 'north' | 'east' | 'south' | 'west'
 export type MainlineStorefrontStyle = 'modern' | 'worn'
 export type MainlineStorefrontMode = 'commercial' | 'content' | 'door'

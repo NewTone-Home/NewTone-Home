@@ -1,4 +1,5 @@
 import type { PlayerSceneState } from './playerSave'
+import type { MainlineSceneDialoguePresentation, MainlineSceneId } from './mainlineSceneModel'
 
 export const commercialCafeStoryStageKey = 'commercialCafeStoryStage'
 
@@ -43,4 +44,41 @@ export function isCommercialCafeStoryDetailVisible(
   stage: CommercialCafeStoryStage,
 ) {
   return visibleFromStage === undefined || hasReachedCommercialCafeStoryStage(stage, visibleFromStage)
+}
+
+export type CommercialCafeNpcInteractionResolution = {
+  dialogue: MainlineSceneDialoguePresentation
+  /** The page applies this only when the shared dialogue surface finishes its final line. */
+  stateChangeOnDialogueComplete: {
+    key: typeof commercialCafeStoryStageKey
+    value: CommercialCafeStoryStage
+  }
+}
+
+const laoZhouFirstDialogue = {
+  triggerEntityId: 'lao-zhou',
+  lines: [
+    { id: 'commercial-cafe-lao-zhou-first-xiujie', speaker: '修杰', text: '老周，陈副部长还是没有消息吗？' },
+    { id: 'commercial-cafe-lao-zhou-first-lao-zhou', speaker: '老周', text: '完全没有。' },
+  ],
+} as const satisfies MainlineSceneDialoguePresentation
+
+/** Narrative rules stay separate from NPC approach and arrival. */
+export function resolveCommercialCafeNpcInteraction({
+  sceneId,
+  npcId,
+  stage,
+}: {
+  sceneId: MainlineSceneId
+  npcId: string
+  stage: CommercialCafeStoryStage
+}): CommercialCafeNpcInteractionResolution | null {
+  if (sceneId !== 'commercial-cafe' || npcId !== 'lao-zhou' || stage !== 'coffee-ordered') return null
+  return {
+    dialogue: laoZhouFirstDialogue,
+    stateChangeOnDialogueComplete: {
+      key: commercialCafeStoryStageKey,
+      value: 'met-lao-zhou',
+    },
+  }
 }

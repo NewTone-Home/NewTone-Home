@@ -3,7 +3,8 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { Point } from './sceneGeometry'
-import { type MainlineSceneDefinition, type MainlineSceneDialogue, type MainlineSceneDialogueLine, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
+import { type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
+import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { SceneDoor, type SceneDoorTransitionCompletion } from './SceneDoor'
@@ -36,7 +37,7 @@ type MainlineSceneRendererProps = {
   npcPositions?: ReadonlyMap<string, Point>
   onDoorTransitionComplete?: (entityId: string, completion: SceneDoorTransitionCompletion) => void
   onWalk: (point: Point) => void
-  dialogue?: MainlineSceneDialogue
+  dialogue?: MainlineSceneDialoguePresentation
   dialogueLine?: MainlineSceneDialogueLine | null
   dialogueText?: string
   dialogueLineIndex?: number | null

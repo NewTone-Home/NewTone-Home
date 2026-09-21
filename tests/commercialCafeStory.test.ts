@@ -5,6 +5,7 @@ import {
   commercialCafeStoryStageKey,
   initialCommercialCafeStoryStage,
   isCommercialCafeStoryDetailVisible,
+  resolveCommercialCafeNpcInteraction,
 } from '../src/center/runtime/commercialCafeStory'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { mainlineInteractionTarget } from '../src/center/runtime/mainlineNavigation'
@@ -71,6 +72,49 @@ describe('commercial cafe story stage', () => {
     expect(restored.sceneState['jijia-ancestral-interior']).toEqual({ incenseLitAt: 1234 })
     expect(restored.sceneState['zhongshuyuan-office']).toEqual({ blindsOpen: false })
   })
+
+  it('resolves Lao Zhou\'s first formal exchange only after coffee has been ordered', () => {
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'entered' })).toBeNull()
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'server', stage: 'coffee-ordered' })).toBeNull()
+
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'coffee-ordered' })).toEqual({
+      dialogue: {
+        triggerEntityId: 'lao-zhou',
+        lines: [
+          { id: 'commercial-cafe-lao-zhou-first-xiujie', speaker: '修杰', text: '老周，陈副部长还是没有消息吗？' },
+          { id: 'commercial-cafe-lao-zhou-first-lao-zhou', speaker: '老周', text: '完全没有。' },
+        ],
+      },
+      stateChangeOnDialogueComplete: { key: commercialCafeStoryStageKey, value: 'met-lao-zhou' },
+    })
+  })
+
+  it('keeps the cafe stage unchanged until Lao Zhou\'s dialogue completion state is applied, then persists it', () => {
+    const interaction = resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'coffee-ordered' })
+    expect(interaction).not.toBeNull()
+
+    let save = createInitialPlayerSave('commercial-cafe')
+    save = recordPlayerSceneState(save, 'commercial-cafe', commercialCafeStoryStageKey, 'coffee-ordered')
+    expect(commercialCafeStoryStageFromSceneState(save.sceneState['commercial-cafe'])).toBe('coffee-ordered')
+
+    save = recordPlayerSceneState(
+      save,
+      'commercial-cafe',
+      interaction!.stateChangeOnDialogueComplete.key,
+      interaction!.stateChangeOnDialogueComplete.value,
+    )
+    const storage = createStorage()
+    savePlayerSave(save, storage, 5678)
+
+    expect(commercialCafeStoryStageFromSceneState(loadPlayerSave(storage).sceneState['commercial-cafe'])).toBe('met-lao-zhou')
+  })
+
+  it.each(['met-lao-zhou', 'coffee-delivered', 'intel-received', 'ready-to-leave', 'complete'] as const)(
+    'does not replay Lao Zhou\'s first exchange at %s',
+    (stage) => {
+      expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage })).toBeNull()
+    },
+  )
 
   it('keeps lao zhou and the server as cafe NPCs, outside spatial scene entities', () => {
     const cafe = mainlineScenes['commercial-cafe']
