@@ -871,7 +871,6 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
     floorEntities: [
       ...jijiaOldTreeStoneRing,
       floor({ id: 'jijia-old-tree', label: '老槐树', kind: 'landmark', weight: 'minor', position: jijiaYardCenter, collision: jijiaOldTreeCollision, shape: jijiaOldTreeCollision, visualBounds: box(jijiaYardCenter.x - 4.5, jijiaYardCenter.y - 4.5, 9, 9), visualScale: 1.12, visualVisibility: 'distance-baseline', groupId: 'jijia-yard-group', interactionBehavior: 'echo-pool', visualProfile: 'tree-ring' }),
-      wallEntity({ id: 'jijia-yard-gate', label: '院门', kind: 'door', weight: 'gateway', position: { x: 10, y: 47.5 }, doorBehavior: { leafCount: 'double', openLeaves: 'both', visualMode: 'static' } }),
     ],
     blockers: [], furnitureGroups: [{ id: 'jijia-yard-group', anchor: jijiaYardGroupAnchor, entityIds: ['jijia-old-tree'] }], initialPlayerPosition: { x: 25, y: 50 },
   },
