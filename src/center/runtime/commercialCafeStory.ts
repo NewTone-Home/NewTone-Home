@@ -16,6 +16,7 @@ export const commercialCafeStoryStages = [
 export type CommercialCafeStoryStage = typeof commercialCafeStoryStages[number]
 
 export const initialCommercialCafeStoryStage: CommercialCafeStoryStage = 'entered'
+export const commercialCafeLaoZhouConversationSeatId = 'commercial-cafe-right-window-upper-group-chair-bottom'
 
 export function isCommercialCafeStoryStage(value: unknown): value is CommercialCafeStoryStage {
   return typeof value === 'string' && commercialCafeStoryStages.includes(value as CommercialCafeStoryStage)
@@ -46,14 +47,20 @@ export function isCommercialCafeStoryDetailVisible(
   return visibleFromStage === undefined || hasReachedCommercialCafeStoryStage(stage, visibleFromStage)
 }
 
-export type CommercialCafeNpcInteractionResolution = {
-  dialogue: MainlineSceneDialoguePresentation
-  /** The page applies this only when the shared dialogue surface finishes its final line. */
-  stateChangeOnDialogueComplete: {
-    key: typeof commercialCafeStoryStageKey
-    value: CommercialCafeStoryStage
-  }
-}
+export type CommercialCafeNpcInteractionResolution =
+  | {
+      kind: 'dialogue'
+      dialogue: MainlineSceneDialoguePresentation
+      /** The page applies this only when the shared dialogue surface finishes its final line. */
+      stateChangeOnDialogueComplete: {
+        key: typeof commercialCafeStoryStageKey
+        value: CommercialCafeStoryStage
+      }
+    }
+  | {
+      kind: 'feedback'
+      feedback: string
+    }
 
 const laoZhouFirstDialogue = {
   triggerEntityId: 'lao-zhou',
@@ -68,13 +75,17 @@ export function resolveCommercialCafeNpcInteraction({
   sceneId,
   npcId,
   stage,
+  playerSeatId,
 }: {
   sceneId: MainlineSceneId
   npcId: string
   stage: CommercialCafeStoryStage
+  playerSeatId?: string | null
 }): CommercialCafeNpcInteractionResolution | null {
   if (sceneId !== 'commercial-cafe' || npcId !== 'lao-zhou' || stage !== 'coffee-ordered') return null
+  if (playerSeatId !== commercialCafeLaoZhouConversationSeatId) return { kind: 'feedback', feedback: '请先坐下。' }
   return {
+    kind: 'dialogue',
     dialogue: laoZhouFirstDialogue,
     stateChangeOnDialogueComplete: {
       key: commercialCafeStoryStageKey,

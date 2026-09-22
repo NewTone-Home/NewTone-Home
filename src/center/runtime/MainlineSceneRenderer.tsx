@@ -15,6 +15,7 @@ import type { SceneFrameTarget } from './sceneFrameLifecycle'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
 import { isCommercialCafeStoryDetailVisible, type CommercialCafeStoryStage } from './commercialCafeStory'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
+import { isMainlineSeatLabelSuppressed, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -59,6 +60,7 @@ type MainlineSceneRendererProps = {
   incenseBurnRemainingMs?: number
   onIncenseBurnComplete?: () => void
   commercialCafeStoryStage?: CommercialCafeStoryStage
+  occupiedSeatIds?: ReadonlySet<string>
 }
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
@@ -94,11 +96,6 @@ export function mainlineEntityUsesBreathing(scene: MainlineSceneDefinition, enti
     || isIncense
     || isOfferingTable
     || entity.animationGroup === 'office-breathing'
-}
-
-/** Seats remain scene entities; only their duplicate visual label is suppressed for a seated NPC. */
-export function mainlineNpcOccupiedSeatIds(scene: MainlineSceneDefinition) {
-  return new Set(scene.npcs.flatMap((npc) => npc.seatEntityId ? [npc.seatEntityId] : []))
 }
 
 function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean) {
@@ -306,7 +303,7 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
   const visualScale = entity.visualScale ?? 1
   const focusGroup = `exploration:${entity.id}`
   const commonProps = {
-    className: `${className} ${layoutItemId ? 'scene-object--layout-draggable' : ''} ${suppressLabel ? 'is-occupied-by-npc' : ''}`,
+    className: `${className} ${layoutItemId ? 'scene-object--layout-draggable' : ''} ${suppressLabel ? 'is-occupied' : ''}`,
     style: {
       left: `${position.x}%`,
       top: `${position.y}%`,
@@ -407,6 +404,7 @@ export function MainlineSceneRenderer({
   incenseBurnRemainingMs = 0,
   onIncenseBurnComplete,
   commercialCafeStoryStage,
+  occupiedSeatIds: runtimeOccupiedSeatIds,
 }: MainlineSceneRendererProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
@@ -415,7 +413,7 @@ export function MainlineSceneRenderer({
     else altarBreathingNodesRef.current.delete(entityId)
   }, [])
   const altarLeaderIds = useMemo(() => new Set(scene.altars.map((altar) => altar.incenseBurnerId)), [scene.altars])
-  const occupiedSeatIds = useMemo(() => mainlineNpcOccupiedSeatIds(scene), [scene])
+  const occupiedSeatIds = useMemo(() => runtimeOccupiedSeatIds ?? mainlineSceneOccupiedSeatIds(scene), [runtimeOccupiedSeatIds, scene])
   const hasAltarBreathing = scene.objects.some((entity) => isAltarEntity(scene, entity.id))
   useEffect(() => {
     if (!hasAltarBreathing || typeof window === 'undefined') return undefined
@@ -824,7 +822,7 @@ export function MainlineSceneRenderer({
               breathingAnimationDelay={synchronizedBreathingDelay}
               sharedBreathingClock={isAltarEntity(scene, entity.id)}
               registerBreathingNode={registerBreathingNode}
-              suppressLabel={entity.kind === 'seat' && occupiedSeatIds.has(entity.id)}
+              suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds)}
             />
           })}
 
@@ -839,7 +837,7 @@ export function MainlineSceneRenderer({
               data-actor-id={npc.id}
               data-npc-role={npc.roleId}
               data-npc-id={npc.id}
-              data-seat-entity-id={npc.seatEntityId}
+              data-seat-entity-id={scene.npcPlacements.find((placement) => placement.npcId === npc.id)?.seatId}
               data-interaction-target-entity-id={npc.interactionTargetEntityId}
               aria-label={`${npc.label}，点击让主角前往互动`}
             >

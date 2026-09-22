@@ -106,12 +106,15 @@ export type MainlineSceneNpc = {
   id: string
   roleId: NpcRoleDefinition['id']
   label: string
-  /** Fallback only when this NPC is not seated. */
-  position?: Point
-  /** An existing seat that owns this static NPC's rendered and navigable position. */
-  seatEntityId?: string
   /** Semantic context for future story resolution; never a physical movement target. */
   interactionTargetEntityId: string
+}
+
+/** Current staging for an NPC. This is scene data, not permanent NPC identity. */
+export type MainlineSceneNpcPlacement = {
+  npcId: string
+  position?: Point
+  seatId?: string
 }
 
 /** A display-only item anchored to an existing spatial entity. */
@@ -282,6 +285,7 @@ export type MainlineSceneData = {
   altars?: readonly MainlineAltarBlueprint[]
   floorEntities: readonly MainlineSceneEntity[]
   npcs?: readonly MainlineSceneNpc[]
+  npcPlacements?: readonly MainlineSceneNpcPlacement[]
   attachedProps?: readonly MainlineSceneAttachedProp[]
   curves?: readonly MainlineSceneCurve[]
   airWalls?: readonly MainlineAirWall[]
@@ -394,7 +398,7 @@ function mainlineTwoSeatFurniture(
     kind: 'seat',
     weight: 'minor',
     position: seat.rest,
-    approach: seat.sit,
+    approach: seat.pulled,
     collision: seat.collision,
     shape: seat.collision,
     groupId,
@@ -433,7 +437,7 @@ function mainlineFourSeatFurniture(
     kind: 'seat',
     weight: 'minor',
     position: seat.rest,
-    approach: seat.sit,
+    approach: seat.pulled,
     collision: seat.collision,
     shape: seat.collision,
     groupId,
@@ -606,6 +610,12 @@ function inlinePortraitFeature(
 // One authored café layout owns every floor zone and furniture anchor. The
 // renderer consumes this shared scene data; it does not arrange a second café
 // layout in screen coordinates.
+const commercialCafeStaffOnly = box(11, 17, 35, 8.5)
+const commercialCafeStaffHome = authoredPoint(
+  commercialCafeStaffOnly.x + commercialCafeStaffOnly.width / 2,
+  commercialCafeStaffOnly.y + commercialCafeStaffOnly.height - (sharedFurnitureGeometry.playerRadius + sharedFurnitureGeometry.actorContactGap),
+)
+
 const commercialCafeLayout = {
   bounds: box(8, 7, 90, 86),
   straightFrameBounds: box(8, 7, 80, 86),
@@ -615,9 +625,11 @@ const commercialCafeLayout = {
   service: {
     // Keep the service zone visually attached to the rear wall instead of
     // leaving the counter floating in the upper half of the room.
-    staff: authoredPoint(35, 25),
+    // A semantic home point at the customer-facing edge of the staff zone:
+    // inside the counter area, but with a reachable customer contact point.
+    staffHome: commercialCafeStaffHome,
     staffApproach: authoredPoint(43, 31),
-    staffOnly: box(11, 17, 35, 8.5),
+    staffOnly: commercialCafeStaffOnly,
   },
   glass: {
     start: authoredPoint(88, 7),
@@ -714,18 +726,19 @@ const commercialCafeNpcs = [
     id: npcRoles.laoZhou.id,
     roleId: npcRoles.laoZhou.id,
     label: npcRoles.laoZhou.label,
-    // The upper seat of the existing window-side two-seat table.
-    seatEntityId: 'commercial-cafe-right-window-upper-group-chair-top',
     interactionTargetEntityId: commercialCafeStoryTableId,
   },
   {
     id: npcRoles.server.id,
     roleId: npcRoles.server.id,
     label: npcRoles.server.label,
-    position: commercialCafeLayout.service.staff,
     interactionTargetEntityId: 'commercial-cafe-counter',
   },
 ] as const satisfies readonly MainlineSceneNpc[]
+const commercialCafeNpcPlacements = [
+  { npcId: npcRoles.laoZhou.id, seatId: 'commercial-cafe-right-window-upper-group-chair-top' },
+  { npcId: npcRoles.server.id, position: commercialCafeLayout.service.staffHome },
+] as const satisfies readonly MainlineSceneNpcPlacement[]
 const commercialCafeAttachedProps = [
   {
     id: 'commercial-cafe-coffee',
@@ -801,6 +814,7 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
       ...commercialCafeFurnitureEntities,
     ],
     npcs: commercialCafeNpcs,
+    npcPlacements: commercialCafeNpcPlacements,
     attachedProps: commercialCafeAttachedProps,
     curves: [commercialCafeWindow], blockers: [{ id: 'commercial-cafe-staff-only', ...commercialCafeLayout.service.staffOnly }], furnitureGroups: commercialCafeFurniture.map(({ group }) => group), initialPlayerPosition: commercialCafeEntryPosition,
   },

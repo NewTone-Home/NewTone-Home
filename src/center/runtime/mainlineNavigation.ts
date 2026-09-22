@@ -891,18 +891,10 @@ export function mainlineInteractionTarget(scene: MainlineSceneDefinition, entity
   return edgeContactPoint(position, collision, from, actorRadius)
 }
 
-/**
- * Resolve one NPC's physical position from the scene data. A seated NPC lives
- * at its seat's sit point, including the same layout/screen projection used by
- * the seat itself; non-seated NPCs retain their authored fallback position.
- */
-export function resolveMainlineNpcPosition(scene: MainlineSceneDefinition, npcId: string, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): Point {
-  const npc = scene.npcs.find((candidate) => candidate.id === npcId)
-  if (!npc) return scene.initialPlayerPosition
-  if (!npc.seatEntityId) return npc.position ?? scene.initialPlayerPosition
-
-  const seat = scene.objects.find((candidate) => candidate.id === npc.seatEntityId)
-  if (!seat?.seat) return npc.position ?? scene.initialPlayerPosition
+/** Resolve an authored seat sit point through the shared layout projection. */
+export function resolveMainlineSeatSitPosition(scene: MainlineSceneDefinition, seatId: string, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): Point | null {
+  const seat = scene.objects.find((candidate) => candidate.id === seatId)
+  if (!seat?.seat) return null
 
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const offset = mainlineLayoutOffsetForEntity(scene, seat.id, layout)
@@ -912,6 +904,14 @@ export function resolveMainlineNpcPosition(scene: MainlineSceneDefinition, npcId
     x: seat.seat.sit.x + offset.x + (renderedPosition.x - authoredPosition.x),
     y: seat.seat.sit.y + offset.y + (renderedPosition.y - authoredPosition.y),
   }
+}
+
+/** Resolve one NPC from its current scene placement, not from NPC identity. */
+export function resolveMainlineNpcPosition(scene: MainlineSceneDefinition, npcId: string, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): Point {
+  const placement = scene.npcPlacements.find((candidate) => candidate.npcId === npcId)
+  if (!placement) return scene.initialPlayerPosition
+  if (placement.seatId) return resolveMainlineSeatSitPosition(scene, placement.seatId, layout, options) ?? placement.position ?? scene.initialPlayerPosition
+  return placement.position ?? scene.initialPlayerPosition
 }
 
 function mainlineNpcInteractionCandidates(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout, actorRadius: number, options: MainlineNavigationOptions) {

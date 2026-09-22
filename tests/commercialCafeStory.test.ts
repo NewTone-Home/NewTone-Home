@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   advanceCommercialCafeStoryStage,
+  commercialCafeLaoZhouConversationSeatId,
   commercialCafeStoryStageFromSceneState,
   commercialCafeStoryStageKey,
   initialCommercialCafeStoryStage,
@@ -76,8 +77,10 @@ describe('commercial cafe story stage', () => {
   it('resolves Lao Zhou\'s first formal exchange only after coffee has been ordered', () => {
     expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'entered' })).toBeNull()
     expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'server', stage: 'coffee-ordered' })).toBeNull()
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'coffee-ordered' })).toEqual({ kind: 'feedback', feedback: '请先坐下。' })
 
-    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'coffee-ordered' })).toEqual({
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'coffee-ordered', playerSeatId: commercialCafeLaoZhouConversationSeatId })).toEqual({
+      kind: 'dialogue',
       dialogue: {
         triggerEntityId: 'lao-zhou',
         lines: [
@@ -90,8 +93,9 @@ describe('commercial cafe story stage', () => {
   })
 
   it('keeps the cafe stage unchanged until Lao Zhou\'s dialogue completion state is applied, then persists it', () => {
-    const interaction = resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'coffee-ordered' })
-    expect(interaction).not.toBeNull()
+    const interaction = resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'coffee-ordered', playerSeatId: commercialCafeLaoZhouConversationSeatId })
+    expect(interaction).toMatchObject({ kind: 'dialogue' })
+    if (!interaction || interaction.kind !== 'dialogue') throw new Error('Expected seated Lao Zhou dialogue resolution')
 
     let save = createInitialPlayerSave('commercial-cafe')
     save = recordPlayerSceneState(save, 'commercial-cafe', commercialCafeStoryStageKey, 'coffee-ordered')
@@ -100,8 +104,8 @@ describe('commercial cafe story stage', () => {
     save = recordPlayerSceneState(
       save,
       'commercial-cafe',
-      interaction!.stateChangeOnDialogueComplete.key,
-      interaction!.stateChangeOnDialogueComplete.value,
+      interaction.stateChangeOnDialogueComplete.key,
+      interaction.stateChangeOnDialogueComplete.value,
     )
     const storage = createStorage()
     savePlayerSave(save, storage, 5678)
@@ -112,7 +116,7 @@ describe('commercial cafe story stage', () => {
   it.each(['met-lao-zhou', 'coffee-delivered', 'intel-received', 'ready-to-leave', 'complete'] as const)(
     'does not replay Lao Zhou\'s first exchange at %s',
     (stage) => {
-      expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage })).toBeNull()
+      expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage, playerSeatId: commercialCafeLaoZhouConversationSeatId })).toBeNull()
     },
   )
 

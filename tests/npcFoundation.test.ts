@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineNpcOccupiedSeatIds } from '../src/center/runtime/MainlineSceneRenderer'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { findMainlinePath, isWalkableMainlinePoint, mainlineNpcInteractionTarget, resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { mainlineSceneOccupiedSeatIds } from '../src/center/runtime/mainlineSeating'
 import { createFreeRoamController } from '../src/center/runtime/useFreeRoamMovement'
 
 describe('static NPC foundation', () => {
@@ -10,17 +10,19 @@ describe('static NPC foundation', () => {
   const laoZhou = cafe.npcs.find((npc) => npc.id === 'lao-zhou')!
   const server = cafe.npcs.find((npc) => npc.id === 'server')!
 
-  it('binds lao zhou to the existing upper window seat instead of duplicating its sit coordinate', () => {
-    const seat = cafe.objects.find((entity) => entity.id === laoZhou.seatEntityId)
+  it('keeps Lao Zhou identity separate from the current scene seating placement', () => {
+    const placement = cafe.npcPlacements.find((candidate) => candidate.npcId === laoZhou.id)
+    const seat = cafe.objects.find((entity) => entity.id === placement?.seatId)
 
-    expect(laoZhou.position).toBeUndefined()
+    expect(laoZhou).not.toHaveProperty('seatEntityId')
+    expect(placement).toEqual({ npcId: 'lao-zhou', seatId: 'commercial-cafe-right-window-upper-group-chair-top' })
     expect(seat).toMatchObject({
       id: 'commercial-cafe-right-window-upper-group-chair-top',
       kind: 'seat',
       seat: expect.objectContaining({ sit: expect.any(Object) }),
     })
     expect(resolveMainlineNpcPosition(cafe, laoZhou.id)).toEqual(seat?.seat?.sit)
-    expect(mainlineNpcOccupiedSeatIds(cafe)).toEqual(new Set([seat?.id]))
+    expect(mainlineSceneOccupiedSeatIds(cafe)).toEqual(new Set([seat?.id]))
   })
 
   it('keeps NPCs out of spatial entities while exposing their distinct physical interaction targets', () => {

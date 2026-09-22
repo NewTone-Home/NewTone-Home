@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import type { Point } from './sceneGeometry'
 import { MainlineSceneRenderer, type MainlineInputDiagnostic } from './MainlineSceneRenderer'
 import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneAreaLabel, mainlineSceneGeometryUnits, mainlineSceneWalkBounds, mainlineScenes, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneExternalExit, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
-import { findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, findMainlinePathToNpc, findMainlineWorldRoute, isMainlineEntityWithinInteractionRange, isMainlineNpcWithinInteractionRange, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition } from './mainlineNavigation'
+import { findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, findMainlinePathToNpc, findMainlineWorldRoute, isMainlineEntityWithinInteractionRange, isMainlineNpcWithinInteractionRange, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlineInteractionTarget, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition, resolveMainlineSeatSitPosition } from './mainlineNavigation'
 import { layoutGridSize, mainlineEntityInteractionBounds, mainlineEntityVisualBounds, type SceneLayout } from './sceneLayout'
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
 import { movementDurationMsForPath, useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
@@ -22,10 +22,12 @@ import { createNavigationRuntime } from './navigationCore'
 import { splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
 import { incenseBurnPhase, incenseBurnRemainingMs, isMainlineInPlaceInteraction, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
+import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
 const emptyExplorationObjectIds: ReadonlySet<string> = new Set()
+type NpcDialogueResolution = Extract<CommercialCafeNpcInteractionResolution, { kind: 'dialogue' }>
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 const getDebugInputSnapshot = () => typeof window === 'undefined' ? '' : window.location.search
 const getServerDebugInputSnapshot = () => ''
@@ -327,7 +329,8 @@ export function MainlineScenePage({
   const debugInput = new URLSearchParams(debugInputSearch).get('debugInput') === '1'
   const [dialogueLineIndex, setDialogueLineIndex] = useState<number | null>(null)
   const [dialogueSegmentIndex, setDialogueSegmentIndex] = useState(0)
-  const [npcDialogue, setNpcDialogue] = useState<CommercialCafeNpcInteractionResolution | null>(null)
+  const [npcDialogue, setNpcDialogue] = useState<NpcDialogueResolution | null>(null)
+  const [playerSeatId, setPlayerSeatId] = useState<string | null>(null)
   const [sceneEcho, setSceneEcho] = useState<MainlineSceneEcho | null>(null)
   const sceneEchoRef = useRef<MainlineSceneEcho | null>(null)
   const [officeBlindsOpen, setOfficeBlindsOpen] = useState(initialSceneState.blindsOpen !== false)
@@ -393,6 +396,7 @@ export function MainlineScenePage({
     npc.id,
     resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics }),
   ])), [geometrySnapshot, layout, scene, screenMetrics])
+  const occupiedSeatIds = useMemo(() => mainlineSceneOccupiedSeatIds(scene, playerSeatId), [playerSeatId, scene])
   useEffect(() => {
     navigationRuntime.registerActor('protagonist', getCurrentPosition())
     return () => navigationRuntime.removeActor('protagonist')
@@ -413,6 +417,7 @@ export function MainlineScenePage({
     setDialogueLineIndex(null)
     setDialogueSegmentIndex(0)
     setNpcDialogue(null)
+    setPlayerSeatId(null)
     setSceneEcho(null)
     setOfficeBlindsOpen(initialSceneState.blindsOpen !== false)
     setIncenseLitAt(typeof initialSceneState.incenseLitAt === 'number' ? initialSceneState.incenseLitAt : null)
@@ -823,6 +828,15 @@ export function MainlineScenePage({
     return true
   }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getRemainingDurationMs, layout, locomotionOptions, moveAlong, navigationOptions, scene, setFeedback, stopMovement])
 
+  const leavePlayerSeat = useCallback(() => {
+    if (!playerSeatId) return false
+    const standingPosition = mainlineInteractionTarget(scene, playerSeatId, getCurrentPosition(), layout, undefined, navigationOptions)
+    setPlayerSeatId(null)
+    resetMovement(standingPosition)
+    navigationRuntime.updateActor('protagonist', standingPosition)
+    return true
+  }, [getCurrentPosition, layout, navigationRuntime, navigationOptions, playerSeatId, resetMovement, scene])
+
   const startPassageTraversal = useCallback((passage: MainlineScenePassage, requestedTarget: Point, plannedApproachPath?: Point[] | null, continuationPath?: Point[] | null, passageQueue: readonly MainlineScenePassage[] = [passage], passageIndex = 0) => {
     beginPassageLeg(passage, requestedTarget, plannedApproachPath, continuationPath, passageQueue, passageIndex)
   }, [beginPassageLeg])
@@ -834,6 +848,39 @@ export function MainlineScenePage({
     setNpcDialogue(null)
     dismissSceneEcho()
     const entity = getMainlineSceneEntity(scene, entityId)
+    if (entity.kind === 'seat' && entity.seat) {
+      const nextSeatId = nextMainlinePlayerSeatId(scene, playerSeatId, entity.id)
+      if (nextSeatId !== entity.id) {
+        stopMovement()
+        setFeedback('这把椅子已经有人坐了。')
+        return
+      }
+      leavePlayerSeat()
+      const resolved = findMainlinePathToEntity(scene, entity.id, getCurrentPosition(), layout, navigationOptions)
+      const sitPosition = resolveMainlineSeatSitPosition(scene, entity.id, layout, navigationOptions)
+      if (!resolved.path || !sitPosition) {
+        stopMovement()
+        setFeedback('这把椅子暂时无法使用。')
+        return
+      }
+      setActiveObjectId(entity.id)
+      setFeedback(`修杰走向${mainlineEntityDisplayLabel(entity)}。`)
+      moveAlong(resolved.path, () => {
+        resetMovement(sitPosition)
+        navigationRuntime.updateActor('protagonist', sitPosition)
+        setPlayerSeatId(nextSeatId)
+        setFeedback('修杰坐下了。')
+      }, {
+        ...locomotionOptions,
+        canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
+        onBlocked: () => {
+          setActiveObjectId(null)
+          setFeedback('修杰在椅子前停下了，需要重新选择位置。')
+        },
+      })
+      return
+    }
+    leavePlayerSeat()
     const passage = scene.passages.find((candidate) => candidate.entityId === entityId)
     if (passage) {
       onDoorEvent?.('attempted', passage)
@@ -908,7 +955,7 @@ export function MainlineScenePage({
         setFeedback('修杰在边界前停下了，需要重新选择位置。')
       },
     })
-  }, [carriedPhoneDevice, commercialCafeStoryStage, dismissSceneEcho, geometrySnapshot, getCurrentPosition, incensePhase, layout, locomotionOptions, moveAlong, navigationOptions, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, scene, screenMetrics, startPassageTraversal, stopMovement])
+  }, [carriedPhoneDevice, commercialCafeStoryStage, dismissSceneEcho, geometrySnapshot, getCurrentPosition, incensePhase, layout, leavePlayerSeat, locomotionOptions, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, playerSeatId, resetMovement, scene, screenMetrics, startPassageTraversal, stopMovement])
 
   const interactNpc = useCallback((npcId: string) => {
     const npc = scene.npcs.find((candidate) => candidate.id === npcId)
@@ -918,6 +965,22 @@ export function MainlineScenePage({
     setNpcDialogue(null)
     dismissSceneEcho()
     setActiveObjectId(null)
+    const seatedResolution = resolveCommercialCafeNpcInteraction({
+      sceneId: scene.id,
+      npcId: npc.id,
+      stage: commercialCafeStoryStage,
+      playerSeatId,
+    })
+    if (playerSeatId && seatedResolution?.kind === 'dialogue') {
+      stopMovement()
+      onNpcInteraction?.(npc.id)
+      setFeedback(`修杰来到${npc.label}身边。`)
+      setDialogueSegmentIndex(0)
+      setNpcDialogue(seatedResolution)
+      setDialogueLineIndex(0)
+      return
+    }
+    leavePlayerSeat()
     const requestId = npcInteractionRequestRef.current + 1
     npcInteractionRequestRef.current = requestId
     const currentPosition = getCurrentPosition()
@@ -930,8 +993,13 @@ export function MainlineScenePage({
         sceneId: scene.id,
         npcId: npc.id,
         stage: commercialCafeStoryStage,
+        playerSeatId: null,
       })
       if (!resolution) return
+      if (resolution.kind === 'feedback') {
+        setFeedback(resolution.feedback)
+        return
+      }
       setDialogueSegmentIndex(0)
       setNpcDialogue(resolution)
       setDialogueLineIndex(0)
@@ -958,7 +1026,7 @@ export function MainlineScenePage({
         setFeedback('修杰在接近对方前停下了，需要重新选择位置。')
       },
     })
-  }, [commercialCafeStoryStage, dismissSceneEcho, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, onNpcInteraction, onPhoneDismiss, phoneOpen, scene, stopMovement])
+  }, [commercialCafeStoryStage, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, locomotionOptions, moveAlong, navigationOptions, onNpcInteraction, onPhoneDismiss, phoneOpen, playerSeatId, scene, stopMovement])
 
   const chooseSceneEchoOption = useCallback((index: number) => {
     const option = sceneEcho?.options?.[index]
@@ -1044,6 +1112,7 @@ export function MainlineScenePage({
     setNpcDialogue(null)
     dismissSceneEcho()
     setActiveObjectId(null)
+    leavePlayerSeat()
     const route = findMainlineWorldRoute(sceneDefinition, getCurrentPosition(), point, layout, navigationOptions)
     if (route.passage) {
       startPassageTraversal(route.passage, route.requestedTarget, route.approachPath, route.continuationPath, route.passages.length > 0 ? route.passages : [route.passage])
@@ -1062,7 +1131,7 @@ export function MainlineScenePage({
       if (outsideScene) setPassageDestination(route.requestedTarget)
       setFeedback('修杰沿着可行空间移动。')
     }
-  }, [dismissSceneEcho, getCurrentPosition, layout, moveTo, navigationOptions, onPhoneDismiss, phoneOpen, sceneDefinition, setFeedback, setDialogueLineIndex, startPassageTraversal])
+  }, [dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, moveTo, navigationOptions, onPhoneDismiss, phoneOpen, sceneDefinition, setFeedback, setDialogueLineIndex, startPassageTraversal])
 
   useEffect(() => {
     if (!walkRequest || handledWalkRequestRef.current === walkRequest.id) return
@@ -1077,6 +1146,7 @@ export function MainlineScenePage({
     setExplorationState({ sceneId: scene.id, objectIds: new Set() })
     setDialogueLineIndex(null)
     setNpcDialogue(null)
+    setPlayerSeatId(null)
     setSceneEcho(null)
     setIncenseLitAt(null)
     setIncenseClock(Date.now())
@@ -1151,6 +1221,7 @@ export function MainlineScenePage({
               incenseBurnRemainingMs={incenseRemainingMs}
               onIncenseBurnComplete={() => setIncenseClock(Date.now())}
               commercialCafeStoryStage={commercialCafeStoryStage}
+              occupiedSeatIds={occupiedSeatIds}
               debugInput={debugInput}
               debugFeedback={feedback}
               inputDiagnostic={inputDiagnostic}

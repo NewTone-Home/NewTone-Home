@@ -22,6 +22,7 @@ import type {
   MainlineSceneDialogue,
   MainlineSceneAttachedProp,
   MainlineSceneNpc,
+  MainlineSceneNpcPlacement,
   MainlineStorefrontRole,
   MainlineStorefrontComposition,
   MainlineStorefrontMode,
@@ -187,6 +188,7 @@ export type MainlineSceneDefinition = {
   wallDensity?: MainlineWallDensity
   objects: readonly MainlineSceneEntity[]
   npcs: readonly MainlineSceneNpc[]
+  npcPlacements: readonly MainlineSceneNpcPlacement[]
   attachedProps: readonly MainlineSceneAttachedProp[]
   furnitureGroups: readonly MainlineFurnitureGroup[]
   passages: readonly MainlineScenePassage[]
@@ -1005,6 +1007,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     wallDensity: data.wallDensity,
     objects: [...objectById.values()],
     npcs: data.npcs ?? [],
+    npcPlacements: data.npcPlacements ?? [],
     attachedProps: data.attachedProps ?? [],
     furnitureGroups: data.furnitureGroups,
     passages,
