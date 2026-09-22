@@ -51,8 +51,10 @@ export type CommercialCafeNpcInteractionResolution =
   | {
       kind: 'dialogue'
       dialogue: MainlineSceneDialoguePresentation
+      /** Optional authored affordance to keep visible after this dialogue ends. */
+      promptSeatId?: string
       /** The page applies this only when the shared dialogue surface finishes its final line. */
-      stateChangeOnDialogueComplete: {
+      stateChangeOnDialogueComplete?: {
         key: typeof commercialCafeStoryStageKey
         value: CommercialCafeStoryStage
       }
@@ -70,6 +72,13 @@ const laoZhouFirstDialogue = {
   ],
 } as const satisfies MainlineSceneDialoguePresentation
 
+const laoZhouSeatGuideDialogue = {
+  triggerEntityId: 'lao-zhou',
+  lines: [
+    { id: 'commercial-cafe-lao-zhou-seat-guide', speaker: '老周', text: '你来了，坐吧。' },
+  ],
+} as const satisfies MainlineSceneDialoguePresentation
+
 /** Narrative rules stay separate from NPC approach and arrival. */
 export function resolveCommercialCafeNpcInteraction({
   sceneId,
@@ -83,7 +92,13 @@ export function resolveCommercialCafeNpcInteraction({
   playerSeatId?: string | null
 }): CommercialCafeNpcInteractionResolution | null {
   if (sceneId !== 'commercial-cafe' || npcId !== 'lao-zhou' || stage !== 'coffee-ordered') return null
-  if (playerSeatId !== commercialCafeLaoZhouConversationSeatId) return { kind: 'feedback', feedback: '请先坐下。' }
+  if (playerSeatId !== commercialCafeLaoZhouConversationSeatId) {
+    return {
+      kind: 'dialogue',
+      dialogue: laoZhouSeatGuideDialogue,
+      promptSeatId: commercialCafeLaoZhouConversationSeatId,
+    }
+  }
   return {
     kind: 'dialogue',
     dialogue: laoZhouFirstDialogue,

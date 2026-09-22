@@ -331,6 +331,7 @@ export function MainlineScenePage({
   const [dialogueSegmentIndex, setDialogueSegmentIndex] = useState(0)
   const [npcDialogue, setNpcDialogue] = useState<NpcDialogueResolution | null>(null)
   const [playerSeatId, setPlayerSeatId] = useState<string | null>(null)
+  const [promptedSeatId, setPromptedSeatId] = useState<string | null>(null)
   const [sceneEcho, setSceneEcho] = useState<MainlineSceneEcho | null>(null)
   const sceneEchoRef = useRef<MainlineSceneEcho | null>(null)
   const [officeBlindsOpen, setOfficeBlindsOpen] = useState(initialSceneState.blindsOpen !== false)
@@ -418,6 +419,7 @@ export function MainlineScenePage({
     setDialogueSegmentIndex(0)
     setNpcDialogue(null)
     setPlayerSeatId(null)
+    setPromptedSeatId(null)
     setSceneEcho(null)
     setOfficeBlindsOpen(initialSceneState.blindsOpen !== false)
     setIncenseLitAt(typeof initialSceneState.incenseLitAt === 'number' ? initialSceneState.incenseLitAt : null)
@@ -837,6 +839,13 @@ export function MainlineScenePage({
     return true
   }, [getCurrentPosition, layout, navigationRuntime, navigationOptions, playerSeatId, resetMovement, scene])
 
+  const startNpcDialogue = useCallback((resolution: NpcDialogueResolution) => {
+    setDialogueSegmentIndex(0)
+    setNpcDialogue(resolution)
+    setDialogueLineIndex(0)
+    if (resolution.promptSeatId) setPromptedSeatId(resolution.promptSeatId)
+  }, [])
+
   const startPassageTraversal = useCallback((passage: MainlineScenePassage, requestedTarget: Point, plannedApproachPath?: Point[] | null, continuationPath?: Point[] | null, passageQueue: readonly MainlineScenePassage[] = [passage], passageIndex = 0) => {
     beginPassageLeg(passage, requestedTarget, plannedApproachPath, continuationPath, passageQueue, passageIndex)
   }, [beginPassageLeg])
@@ -869,7 +878,15 @@ export function MainlineScenePage({
         resetMovement(sitPosition)
         navigationRuntime.updateActor('protagonist', sitPosition)
         setPlayerSeatId(nextSeatId)
+        setPromptedSeatId(null)
         setFeedback('修杰坐下了。')
+        const resolution = resolveCommercialCafeNpcInteraction({
+          sceneId: scene.id,
+          npcId: 'lao-zhou',
+          stage: commercialCafeStoryStage,
+          playerSeatId: nextSeatId,
+        })
+        if (resolution?.kind === 'dialogue' && resolution.stateChangeOnDialogueComplete) startNpcDialogue(resolution)
       }, {
         ...locomotionOptions,
         canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
@@ -955,7 +972,7 @@ export function MainlineScenePage({
         setFeedback('修杰在边界前停下了，需要重新选择位置。')
       },
     })
-  }, [carriedPhoneDevice, commercialCafeStoryStage, dismissSceneEcho, geometrySnapshot, getCurrentPosition, incensePhase, layout, leavePlayerSeat, locomotionOptions, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, playerSeatId, resetMovement, scene, screenMetrics, startPassageTraversal, stopMovement])
+  }, [carriedPhoneDevice, commercialCafeStoryStage, dismissSceneEcho, geometrySnapshot, getCurrentPosition, incensePhase, layout, leavePlayerSeat, locomotionOptions, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, playerSeatId, resetMovement, scene, screenMetrics, startNpcDialogue, startPassageTraversal, stopMovement])
 
   const interactNpc = useCallback((npcId: string) => {
     const npc = scene.npcs.find((candidate) => candidate.id === npcId)
@@ -975,9 +992,7 @@ export function MainlineScenePage({
       stopMovement()
       onNpcInteraction?.(npc.id)
       setFeedback(`修杰来到${npc.label}身边。`)
-      setDialogueSegmentIndex(0)
-      setNpcDialogue(seatedResolution)
-      setDialogueLineIndex(0)
+      startNpcDialogue(seatedResolution)
       return
     }
     leavePlayerSeat()
@@ -996,13 +1011,8 @@ export function MainlineScenePage({
         playerSeatId: null,
       })
       if (!resolution) return
-      if (resolution.kind === 'feedback') {
-        setFeedback(resolution.feedback)
-        return
-      }
-      setDialogueSegmentIndex(0)
-      setNpcDialogue(resolution)
-      setDialogueLineIndex(0)
+      if (resolution.kind === 'dialogue') startNpcDialogue(resolution)
+      else setFeedback(resolution.feedback)
     }
     if (alreadyNearby) {
       stopMovement()
@@ -1026,7 +1036,7 @@ export function MainlineScenePage({
         setFeedback('修杰在接近对方前停下了，需要重新选择位置。')
       },
     })
-  }, [commercialCafeStoryStage, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, locomotionOptions, moveAlong, navigationOptions, onNpcInteraction, onPhoneDismiss, phoneOpen, playerSeatId, scene, stopMovement])
+  }, [commercialCafeStoryStage, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, locomotionOptions, moveAlong, navigationOptions, onNpcInteraction, onPhoneDismiss, phoneOpen, playerSeatId, scene, startNpcDialogue, stopMovement])
 
   const chooseSceneEchoOption = useCallback((index: number) => {
     const option = sceneEcho?.options?.[index]
@@ -1099,7 +1109,7 @@ export function MainlineScenePage({
     setNpcDialogue(null)
     if (completedNpcDialogue) {
       const stateChange = completedNpcDialogue.stateChangeOnDialogueComplete
-      onPlayerSceneStateChange?.(scene.id, stateChange.key, stateChange.value)
+      if (stateChange) onPlayerSceneStateChange?.(scene.id, stateChange.key, stateChange.value)
     }
   }, [activeDialogue, dialogueLineIndex, dialogueSegmentIndex, npcDialogue, onPlayerSceneStateChange, scene.id])
 
@@ -1147,6 +1157,7 @@ export function MainlineScenePage({
     setDialogueLineIndex(null)
     setNpcDialogue(null)
     setPlayerSeatId(null)
+    setPromptedSeatId(null)
     setSceneEcho(null)
     setIncenseLitAt(null)
     setIncenseClock(Date.now())
@@ -1222,6 +1233,8 @@ export function MainlineScenePage({
               onIncenseBurnComplete={() => setIncenseClock(Date.now())}
               commercialCafeStoryStage={commercialCafeStoryStage}
               occupiedSeatIds={occupiedSeatIds}
+              playerSeatId={playerSeatId}
+              promptedSeatId={promptedSeatId}
               debugInput={debugInput}
               debugFeedback={feedback}
               inputDiagnostic={inputDiagnostic}

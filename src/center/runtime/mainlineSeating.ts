@@ -25,3 +25,13 @@ export function nextMainlinePlayerSeatId(scene: MainlineSceneDefinition, current
 export function isMainlineSeatLabelSuppressed(entity: MainlineSceneEntity, occupiedSeatIds: ReadonlySet<string>) {
   return entity.kind === 'seat' && occupiedSeatIds.has(entity.id)
 }
+
+/** Renderer-only semantics: a seated protagonist is represented by their label, not the map dot. */
+export function mainlineProtagonistPresentation(playerSeatId: string | null) {
+  return playerSeatId ? { kind: 'seated' as const, label: '修杰' } : { kind: 'dot' as const }
+}
+
+/** A seat hint belongs to this moment's interaction state, never to the chair itself. */
+export function isMainlineSeatPrompted(entity: MainlineSceneEntity, promptedSeatId: string | null, playerSeatId: string | null) {
+  return entity.kind === 'seat' && entity.id === promptedSeatId && playerSeatId !== promptedSeatId
+}

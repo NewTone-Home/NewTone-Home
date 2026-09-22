@@ -15,7 +15,7 @@ import type { SceneFrameTarget } from './sceneFrameLifecycle'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
 import { isCommercialCafeStoryDetailVisible, type CommercialCafeStoryStage } from './commercialCafeStory'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
-import { isMainlineSeatLabelSuppressed, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
+import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -61,6 +61,8 @@ type MainlineSceneRendererProps = {
   onIncenseBurnComplete?: () => void
   commercialCafeStoryStage?: CommercialCafeStoryStage
   occupiedSeatIds?: ReadonlySet<string>
+  playerSeatId?: string | null
+  promptedSeatId?: string | null
 }
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
@@ -274,7 +276,7 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
   return <span {...commonProps} aria-hidden="true">{content}{renderFrame(first.focusGroup)}</span>
 }
 
-function MainlineObject({ entity, scene, position, visibility, active, explored, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, renderFrame, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false }: {
+function MainlineObject({ entity, scene, position, visibility, active, explored, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, renderFrame, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false }: {
   entity: MainlineSceneEntity
   scene: MainlineSceneDefinition
   position: Point
@@ -297,13 +299,14 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
   sharedBreathingClock?: boolean
   registerBreathingNode?: (entityId: string, node: HTMLSpanElement | null) => void
   suppressLabel?: boolean
+  prompted?: boolean
 }) {
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
   const className = objectClass(scene, entity, visibility, active, explored, underPlayer, selected, dragging, incenseLit)
   const visualScale = entity.visualScale ?? 1
   const focusGroup = `exploration:${entity.id}`
   const commonProps = {
-    className: `${className} ${layoutItemId ? 'scene-object--layout-draggable' : ''} ${suppressLabel ? 'is-occupied' : ''}`,
+    className: `${className} ${layoutItemId ? 'scene-object--layout-draggable' : ''} ${suppressLabel ? 'is-occupied' : ''} ${prompted ? 'scene-mainline-exploration--breathing is-story-prompted' : ''}`,
     style: {
       left: `${position.x}%`,
       top: `${position.y}%`,
@@ -322,6 +325,7 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
     'data-focus-target-group': !layoutMode && entity.interactive !== false ? focusGroup : undefined,
     'data-focus-target-policy': !layoutMode && entity.interactive !== false ? 'exploration' : undefined,
     'data-focus-interaction-active': !layoutMode && entity.interactive !== false && active ? 'true' : undefined,
+    'data-story-seat-prompt': prompted ? 'true' : undefined,
   }
   const labelStyle = breathingAnimationDelay
     ? { '--scene-exploration-animation-delay': breathingAnimationDelay } as CSSProperties
@@ -405,6 +409,8 @@ export function MainlineSceneRenderer({
   onIncenseBurnComplete,
   commercialCafeStoryStage,
   occupiedSeatIds: runtimeOccupiedSeatIds,
+  playerSeatId = null,
+  promptedSeatId = null,
 }: MainlineSceneRendererProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
@@ -414,6 +420,7 @@ export function MainlineSceneRenderer({
   }, [])
   const altarLeaderIds = useMemo(() => new Set(scene.altars.map((altar) => altar.incenseBurnerId)), [scene.altars])
   const occupiedSeatIds = useMemo(() => runtimeOccupiedSeatIds ?? mainlineSceneOccupiedSeatIds(scene), [runtimeOccupiedSeatIds, scene])
+  const protagonistPresentation = mainlineProtagonistPresentation(playerSeatId)
   const hasAltarBreathing = scene.objects.some((entity) => isAltarEntity(scene, entity.id))
   useEffect(() => {
     if (!hasAltarBreathing || typeof window === 'undefined') return undefined
@@ -823,6 +830,7 @@ export function MainlineSceneRenderer({
               sharedBreathingClock={isAltarEntity(scene, entity.id)}
               registerBreathingNode={registerBreathingNode}
               suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds)}
+              prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}
             />
           })}
 
@@ -865,7 +873,9 @@ export function MainlineSceneRenderer({
 
           {destination && <div className={`scene-walk-target ${moving ? 'is-active' : ''}`} style={{ left: `${destination.x}%`, top: `${destination.y}%` }} aria-hidden="true" />}
           {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''}`} style={{ left: `${position.x}%`, top: `${position.y}%` }} data-actor-id="protagonist">
-            <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
+            {protagonistPresentation.kind === 'dot'
+              ? <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
+              : <span className="scene-protagonist__seat-label" aria-label="修杰，已坐下">{protagonistPresentation.label}</span>}
           </div>}
           {(sceneEcho || (dialogue && dialogueLine && dialogueLineIndex !== null && dialoguePosition)) && (() => {
             const isDialogue = !sceneEcho && Boolean(dialogue && dialogueLine && dialoguePosition)

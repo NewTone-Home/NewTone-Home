@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { commercialCafeLaoZhouConversationSeatId } from '../src/center/runtime/commercialCafeStory'
 import { findMainlinePathToEntity, isWalkableMainlinePoint, mainlineInteractionTarget, mainlineNpcInteractionTarget, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
-import { isMainlineSeatAvailable, isMainlineSeatLabelSuppressed, mainlineSceneOccupiedSeatIds, nextMainlinePlayerSeatId } from '../src/center/runtime/mainlineSeating'
+import { isMainlineSeatAvailable, isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds, nextMainlinePlayerSeatId } from '../src/center/runtime/mainlineSeating'
 import { sharedFurnitureGeometry } from '../src/center/runtime/twoSeatFurniture'
 
 describe('commercial cafe seating and staging', () => {
@@ -44,6 +44,17 @@ describe('commercial cafe seating and staging', () => {
 
     expect(isMainlineSeatLabelSuppressed(laoZhouSeat, occupied)).toBe(true)
     expect(isMainlineSeatLabelSuppressed(conversationSeat, occupied)).toBe(false)
+  })
+
+  it('presents a seated protagonist as 修杰 and prompts only the requested free conversation seat', () => {
+    const conversationSeat = cafe.objects.find((entity) => entity.id === commercialCafeLaoZhouConversationSeatId)!
+    const otherSeat = cafe.objects.find((entity) => entity.id === 'commercial-cafe-right-window-lower-group-chair-bottom')!
+
+    expect(mainlineProtagonistPresentation(null)).toEqual({ kind: 'dot' })
+    expect(mainlineProtagonistPresentation(commercialCafeLaoZhouConversationSeatId)).toEqual({ kind: 'seated', label: '修杰' })
+    expect(isMainlineSeatPrompted(conversationSeat, commercialCafeLaoZhouConversationSeatId, null)).toBe(true)
+    expect(isMainlineSeatPrompted(otherSeat, commercialCafeLaoZhouConversationSeatId, null)).toBe(false)
+    expect(isMainlineSeatPrompted(conversationSeat, commercialCafeLaoZhouConversationSeatId, commercialCafeLaoZhouConversationSeatId)).toBe(false)
   })
 
   it('keeps a free seat spatially reachable while seating resolves to its authored sit point', () => {

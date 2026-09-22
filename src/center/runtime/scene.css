@@ -996,6 +996,14 @@
 
 .scene-protagonist.is-moving .scene-protagonist__dot { animation: protagonist-walk 700ms ease-in-out infinite; }
 
+.scene-protagonist__seat-label {
+  display: block;
+  color: var(--ink);
+  font-size: clamp(10px, 1.15cqw, 16px);
+  line-height: 1;
+  white-space: nowrap;
+}
+
 @keyframes protagonist-walk {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-2px); }

@@ -77,7 +77,16 @@ describe('commercial cafe story stage', () => {
   it('resolves Lao Zhou\'s first formal exchange only after coffee has been ordered', () => {
     expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'entered' })).toBeNull()
     expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'server', stage: 'coffee-ordered' })).toBeNull()
-    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'coffee-ordered' })).toEqual({ kind: 'feedback', feedback: '请先坐下。' })
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'coffee-ordered' })).toEqual({
+      kind: 'dialogue',
+      dialogue: {
+        triggerEntityId: 'lao-zhou',
+        lines: [
+          { id: 'commercial-cafe-lao-zhou-seat-guide', speaker: '老周', text: '你来了，坐吧。' },
+        ],
+      },
+      promptSeatId: commercialCafeLaoZhouConversationSeatId,
+    })
 
     expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'coffee-ordered', playerSeatId: commercialCafeLaoZhouConversationSeatId })).toEqual({
       kind: 'dialogue',
@@ -89,6 +98,18 @@ describe('commercial cafe story stage', () => {
         ],
       },
       stateChangeOnDialogueComplete: { key: commercialCafeStoryStageKey, value: 'met-lao-zhou' },
+    })
+  })
+
+  it('keeps the seat guide separate from the formal exchange and does not advance the story', () => {
+    const guide = resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'coffee-ordered' })
+    const otherSeat = 'commercial-cafe-right-window-lower-group-chair-bottom'
+
+    expect(guide).toMatchObject({ kind: 'dialogue', promptSeatId: commercialCafeLaoZhouConversationSeatId })
+    expect(guide).not.toHaveProperty('stateChangeOnDialogueComplete')
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', stage: 'coffee-ordered', playerSeatId: otherSeat })).toMatchObject({
+      kind: 'dialogue',
+      promptSeatId: commercialCafeLaoZhouConversationSeatId,
     })
   })
 
