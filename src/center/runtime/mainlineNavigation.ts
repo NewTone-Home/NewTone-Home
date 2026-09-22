@@ -18,6 +18,8 @@ export type MainlineNavigationOptions = {
   screenMetrics?: SceneScreenMetrics
   /** One screen-specific geometry transaction shared by render and navigation. */
   geometrySnapshot?: MainlineSceneGeometrySnapshot
+  /** Live NPC positions override their authored staging placements. */
+  npcRuntimePositions?: ReadonlyMap<string, Point>
 }
 
 const defaultActorRadius = .2
@@ -950,6 +952,8 @@ export function resolveMainlineSeatSitPosition(scene: MainlineSceneDefinition, s
 
 /** Resolve one NPC from its current scene placement, not from NPC identity. */
 export function resolveMainlineNpcPosition(scene: MainlineSceneDefinition, npcId: string, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): Point {
+  const runtimePosition = options.npcRuntimePositions?.get(npcId)
+  if (runtimePosition) return { ...runtimePosition }
   const placement = scene.npcPlacements.find((candidate) => candidate.npcId === npcId)
   if (!placement) return scene.initialPlayerPosition
   if (placement.seatId) return resolveMainlineSeatSitPosition(scene, placement.seatId, layout, options) ?? placement.position ?? scene.initialPlayerPosition

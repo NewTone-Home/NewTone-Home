@@ -53,6 +53,8 @@ type MainlineSceneRendererProps = {
   onFrameMotionBudgetChange?: (durationMs: number) => void
   exploredObjectIds?: ReadonlySet<string>
   debugInput?: boolean
+  debugNpcMovement?: boolean
+  onDebugNpcMovement?: () => void
   debugFeedback?: string | null
   inputDiagnostic?: MainlineInputDiagnostic | null
   onInputDiagnostic?: (diagnostic: MainlineInputDiagnostic) => void
@@ -401,6 +403,8 @@ export function MainlineSceneRenderer({
   onFrameMotionBudgetChange,
   exploredObjectIds = new Set(),
   debugInput = false,
+  debugNpcMovement = false,
+  onDebugNpcMovement,
   debugFeedback = null,
   inputDiagnostic = null,
   onInputDiagnostic,
@@ -938,7 +942,8 @@ export function MainlineSceneRenderer({
           })()}
           </>
         </div>
-        {debugInput && <div className="scene-input-debug" aria-live="polite">
+        {(debugInput || debugNpcMovement) && <div className="scene-input-debug" aria-live="polite">
+          {debugNpcMovement && <button type="button" onClick={(event) => { event.stopPropagation(); onDebugNpcMovement?.() }}>演示店员移动</button>}
           <div>输入诊断（不改变寻路）</div>
           {!inputDiagnostic && <div>尚未收到空白区域输入</div>}
           {inputDiagnostic && <>

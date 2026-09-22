@@ -745,6 +745,14 @@ const commercialCafeServiceLayout = {
   ),
   staffOnly: commercialCafeStaffArea,
 } as const
+/** Development-only public-floor proof point; it is not a scene entity or story destination. */
+export const commercialCafeServerMovementDebugTarget = {
+  id: 'commercial-cafe-server-movement-test-point',
+  position: authoredPoint(
+    commercialCafeLayout.centralWaitingFloor.x + commercialCafeLayout.centralWaitingFloor.width - commercialCafeCounterCellWidth - commercialCafeCounterClearance,
+    commercialCafeLayout.centralWaitingFloor.y - commercialCafeCounterBody.depth + commercialCafeCounterClearance,
+  ),
+} as const
 const commercialCafeCounterEntities = commercialCafeCounterPositions.map((x, index) => floor({
   id: index === 4 ? 'commercial-cafe-counter' : `commercial-cafe-counter-${index + 1}`,
   label: '柜台',
