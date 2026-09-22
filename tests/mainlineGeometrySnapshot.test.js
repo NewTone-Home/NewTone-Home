@@ -33,21 +33,23 @@ function assertValidBox(box, label) {
 }
 
 describe('mainline screen geometry snapshot', () => {
-  it.each(viewports)('keeps the office desk contact point outside the desk on $name', (screenMetrics) => {
+  it.each(viewports)('keeps office desk contacts outside the desk from multiple actor directions on $name', (screenMetrics) => {
     const scene = mainlineScenes['zhongshuyuan-office']
     const desk = scene.objects.find((entity) => entity.id === 'zhongshuyuan-office-desk')
     expect(desk?.approach).toBeTruthy()
     const snapshot = createMainlineSceneGeometrySnapshot(scene, scene.initialPlayerPosition, {}, screenMetrics)
-    const target = mainlineInteractionTarget(scene, desk.id, scene.initialPlayerPosition, {}, undefined, {
-      screenMetrics,
-      geometrySnapshot: snapshot,
-    })
+    const options = { screenMetrics, geometrySnapshot: snapshot }
+    const renderedDesk = snapshot.objects.get(desk.id)
+    const contacts = [
+      { x: renderedDesk.position.x - renderedDesk.collision.width * 3, y: renderedDesk.position.y },
+      { x: renderedDesk.position.x + renderedDesk.collision.width * 3, y: renderedDesk.position.y },
+    ].map((from) => mainlineInteractionTarget(scene, desk.id, from, {}, undefined, options))
 
-    expect(target.y).toBeGreaterThan(desk.position.y + 4)
-    expect(isWalkableMainlinePoint(target, scene, {}, {
-      screenMetrics,
-      geometrySnapshot: snapshot,
-    })).toBe(true)
+    contacts.forEach((target) => {
+      expect(isWalkableMainlinePoint(target, scene, {}, options)).toBe(true)
+      expect(target.x < renderedDesk.collision.x || target.x > renderedDesk.collision.x + renderedDesk.collision.width || target.y < renderedDesk.collision.y || target.y > renderedDesk.collision.y + renderedDesk.collision.height).toBe(true)
+    })
+    expect(contacts[0]).not.toEqual(contacts[1])
   })
 
   it('recognizes a crossing that begins inside the doorway', () => {

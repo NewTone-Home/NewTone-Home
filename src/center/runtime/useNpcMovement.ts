@@ -119,12 +119,19 @@ type UseNpcMovementOptions = {
 export function useNpcMovement({ enabled, npcId, initialPosition, navigationRuntime }: UseNpcMovementOptions) {
   const movement = useFreeRoamMovement(initialPosition)
   const [revision, setRevision] = useState(0)
+  const movementRef = useRef(movement)
+  movementRef.current = movement
   const adapterRef = useRef<NpcMovementAdapter | null>(null)
   if (!adapterRef.current) {
     adapterRef.current = createNpcMovementAdapter({
       npcId,
       initialPosition,
-      movement,
+      movement: {
+        moveAlong: (...args) => movementRef.current.moveAlong(...args),
+        stopMovement: () => movementRef.current.stopMovement(),
+        resetMovement: (position) => movementRef.current.resetMovement(position),
+        getCurrentPosition: () => movementRef.current.getCurrentPosition(),
+      },
       navigationRuntime,
       onChange: () => setRevision((revision) => revision + 1),
     })

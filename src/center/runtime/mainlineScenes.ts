@@ -23,6 +23,8 @@ import type {
   MainlineSceneAttachedProp,
   MainlineSceneNpc,
   MainlineSceneNpcPlacement,
+  MainlineSceneNpcBehavior,
+  MainlineSceneNpcBehaviorTarget,
   MainlineSceneAccessRegion,
   MainlineRegionAccess,
   MainlineStorefrontRole,
@@ -66,6 +68,8 @@ export type {
   MainlineSceneDialogueSpeaker,
   MainlineSceneAttachedProp,
   MainlineSceneNpc,
+  MainlineSceneNpcBehavior,
+  MainlineSceneNpcBehaviorTarget,
   MainlineSceneAccessRegion,
   MainlineRegionAccess,
 } from './mainlineSceneModel'
@@ -195,6 +199,8 @@ export type MainlineSceneDefinition = {
   objects: readonly MainlineSceneEntity[]
   npcs: readonly MainlineSceneNpc[]
   npcPlacements: readonly MainlineSceneNpcPlacement[]
+  npcBehaviorTargets: readonly MainlineSceneNpcBehaviorTarget[]
+  npcBehaviors: readonly MainlineSceneNpcBehavior[]
   attachedProps: readonly MainlineSceneAttachedProp[]
   furnitureGroups: readonly MainlineFurnitureGroup[]
   passages: readonly MainlineScenePassage[]
@@ -1016,6 +1022,8 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     objects: [...objectById.values()],
     npcs: data.npcs ?? [],
     npcPlacements: data.npcPlacements ?? [],
+    npcBehaviorTargets: data.npcBehaviorTargets ?? [],
+    npcBehaviors: data.npcBehaviors ?? [],
     attachedProps: data.attachedProps ?? [],
     furnitureGroups: data.furnitureGroups,
     passages,

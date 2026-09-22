@@ -23,6 +23,7 @@ export const npcRoles = {
     id: 'server',
     label: '店员',
     duties: {
+      counterService: { id: 'server.counter-service', kind: 'ambient' },
       prepare: { id: 'server.prepare', kind: 'service' },
       walkToSupplies: { id: 'server.walk-to-supplies', kind: 'service' },
       fetchSupplies: { id: 'server.fetch-supplies', kind: 'service' },

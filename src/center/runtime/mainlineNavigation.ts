@@ -3,9 +3,10 @@ import { mainlineScenePassageCollision, mainlineScenePassageDoorway, type Mainli
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import { mainlineEntityCollision, mainlineLayoutOffsetForEntity, type SceneLayout } from './sceneLayout'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
-import { edgeContactPoint, findNavigationPath, type NavigationRuntime } from './navigationCore'
+import { canTravelAlongSegment, edgeContactPoint, findNavigationPath, type NavigationRuntime } from './navigationCore'
 import { containsDoorRegion, doorRegionSide, doorwayBoundaryPoint, isDoorTargetBehind, type DoorPassageRegion, type DoorRegionNormal } from './doorPassageModel'
 import { sharedFurnitureGeometry } from './twoSeatFurniture'
+import { mainlineNpcStagedPoint, mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 
 export type MainlineNavigationOptions = {
   actorRadius?: number
@@ -80,14 +81,26 @@ export function resolveMainlineAccessRegionBoundaryTarget(
     !actorCanEnterRegion(scene, options.actorId, candidate) && containsPoint(candidate, requestedTarget)
   ))
   if (!region) return null
+  const actorRadius = options.actorRadius ?? defaultActorRadius
+  const regionContact = edgeContactPoint(
+    { x: region.x + region.width / 2, y: region.y + region.height / 2 },
+    region,
+    from,
+    actorRadius,
+  )
+  // A region can meet a physical object (the café counter is the important
+  // case).  Stop at the closest real object face on the actor's side when the
+  // nominal region edge itself is occupied; permissions never manufacture an
+  // invisible wall inside the counter body.
+  const physicalContacts = collisionBoxes(scene, {}, options, false).map((collision) => edgeContactPoint(
+    { x: collision.x + collision.width / 2, y: collision.y + collision.height / 2 },
+    collision,
+    from,
+    actorRadius,
+  ))
   return {
     region,
-    target: edgeContactPoint(
-      { x: region.x + region.width / 2, y: region.y + region.height / 2 },
-      region,
-      from,
-      options.actorRadius ?? defaultActorRadius,
-    ),
+    target: [regionContact, ...physicalContacts].find((candidate) => isWalkableMainlinePoint(candidate, scene, {}, options)) ?? regionContact,
   }
 }
 
@@ -123,12 +136,36 @@ function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, opt
       .filter((entity) => entity.visible !== false)
       .map((entity) => snapshot.objects.get(entity.id)?.collision ?? mainlineEntityCollision(scene, entity, layout, options.screenMetrics))
       .filter((collision): collision is NonNullable<typeof collision> => Boolean(collision)),
+    ...furnitureCorridorClosures(scene, snapshot),
     ...scene.accessRegions
       .filter((region) => !actorCanEnterRegion(scene, options.actorId, region))
       .map((region) => ({ x: region.x, y: region.y, width: region.width, height: region.height })),
   ]
   const dynamicBoxes = options.navigationRuntime?.dynamicObstaclesFor(options.actorId) ?? []
   return [...staticBoxes, ...dynamicBoxes]
+}
+
+/** Close only the table-to-rest-seat gap; exterior seating access remains open. */
+function furnitureCorridorClosures(scene: MainlineSceneDefinition, snapshot: MainlineSceneGeometrySnapshot): CollisionBox[] {
+  return scene.objects.flatMap((seat) => {
+    if (!seat.seat) return []
+    const table = scene.objects.find((candidate) => candidate.id === seat.seat!.tableId)
+    const chairBox = snapshot.objects.get(seat.id)?.collision
+    const tableBox = table ? snapshot.objects.get(table.id)?.collision : undefined
+    if (!chairBox || !tableBox) return []
+    if (seat.seat.side === 'left' || seat.seat.side === 'right') {
+      const left = seat.seat.side === 'left' ? chairBox.x + chairBox.width : tableBox.x + tableBox.width
+      const right = seat.seat.side === 'left' ? tableBox.x : chairBox.x
+      if (right <= left) return []
+      const y = Math.min(chairBox.y, tableBox.y)
+      return [{ x: left, y, width: right - left, height: Math.max(chairBox.y + chairBox.height, tableBox.y + tableBox.height) - y }]
+    }
+    const top = seat.seat.side === 'top' ? chairBox.y + chairBox.height : tableBox.y + tableBox.height
+    const bottom = seat.seat.side === 'top' ? tableBox.y : chairBox.y
+    if (bottom <= top) return []
+    const x = Math.min(chairBox.x, tableBox.x)
+    return [{ x, y: top, width: Math.max(chairBox.x + chairBox.width, tableBox.x + tableBox.width) - x, height: bottom - top }]
+  })
 }
 
 export function mainlineNavigationCollisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}, includeClosedPassages = false) {
@@ -876,16 +913,18 @@ export function findMainlinePath(start: Point, target: Point, scene: MainlineSce
   if (!isWalkableMainlinePoint(target, scene, layout, options)) return null
   const actorRadius = options.actorRadius ?? defaultActorRadius
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
+  const canOccupy = (point: Point) => isWalkableMainlinePoint(point, scene, layout, options)
   return findNavigationPath(start, target, {
     bounds: expanded(snapshot.walkBounds, -actorRadius),
     obstacles: collisionBoxes(scene, layout, options, false),
     obstacleClearance: actorRadius,
+    canTravel: (segmentStart, segmentEnd) => canTravelAlongSegment(segmentStart, segmentEnd, canOccupy),
   })
 }
 
-export function mainlineInteractionTarget(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, actorRadius = defaultActorRadius, options: MainlineNavigationOptions = {}): Point {
+function mainlineEntityInteractionCandidates(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout, actorRadius: number, options: MainlineNavigationOptions): Point[] {
   const entity = scene.objects.find((candidate) => candidate.id === entityId)
-  if (!entity) return from
+  if (!entity) return [from]
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const offset = mainlineLayoutOffsetForEntity(scene, entityId, layout)
   const position = snapshot.objects.get(entityId)?.position ?? { x: entity.position.x + offset.x, y: entity.position.y + offset.y }
@@ -895,9 +934,9 @@ export function mainlineInteractionTarget(scene: MainlineSceneDefinition, entity
       const collision = mainlinePassageCollisionForNavigation(scene, passage, { ...options, geometrySnapshot: snapshot })
       const doorway = mainlinePassageDoorwayForNavigation(scene, passage, { ...options, geometrySnapshot: snapshot })
       const side = passageSide(passage, from, collision, doorway)
-      return passageBoundaryPoint(passage, from, passage.crossingTargets[side], actorRadius, collision, doorway)
+      return [passageBoundaryPoint(passage, from, passage.crossingTargets[side], actorRadius, collision, doorway)]
     }
-    return mainlineDoorThreshold(scene, position, actorRadius)
+    return [mainlineDoorThreshold(scene, position, actorRadius)]
   }
   // Wall-mounted interactive features resolve a contact point along their
   // shared wall edge from the actor's current tangent. Their interaction
@@ -905,18 +944,18 @@ export function mainlineInteractionTarget(scene: MainlineSceneDefinition, entity
   // side of the boundary before interacting.
   if (entity.surface === 'wall') {
     const featureTarget = wallFeatureInteractionTarget(scene, entityId, from, actorRadius, snapshot)
-    if (featureTarget) return { x: featureTarget.x + offset.x, y: featureTarget.y + offset.y }
-    if (options.geometrySnapshot?.sceneId === scene.id) return from
-    if (entity.approach) return { x: entity.approach.x + offset.x, y: entity.approach.y + offset.y }
+    if (featureTarget) return [{ x: featureTarget.x + offset.x, y: featureTarget.y + offset.y }]
+    if (options.geometrySnapshot?.sceneId === scene.id) return [from]
+    if (entity.approach) return [{ x: entity.approach.x + offset.x, y: entity.approach.y + offset.y }]
   }
   const collision = snapshot.objects.get(entityId)?.collision ?? mainlineEntityCollision(scene, entity, layout, options.screenMetrics)
-  if (!collision) return position
+  if (!collision) return [position]
 
   // Floor furniture may author a front-of-object contact point. Resolve that
   // point through the same screen-specific position projection as the object
   // itself, then accept it only when the shared collision compiler considers
   // it walkable. The edge fallback keeps older floor entities safe.
-  if (entity.approach) {
+  if (entity.seat && entity.approach) {
     const authoredPosition = {
       x: entity.position.x + offset.x,
       y: entity.position.y + offset.y,
@@ -929,10 +968,41 @@ export function mainlineInteractionTarget(scene: MainlineSceneDefinition, entity
       x: entity.approach.x + offset.x + responsiveDelta.x,
       y: entity.approach.y + offset.y + responsiveDelta.y,
     }
-    if (isWalkableMainlinePoint(approach, scene, layout, { ...options, geometrySnapshot: snapshot })) return approach
+    if (isWalkableMainlinePoint(approach, scene, layout, { ...options, geometrySnapshot: snapshot })) return [approach]
   }
 
-  return edgeContactPoint(position, collision, from, actorRadius)
+  const clearance = actorRadius + sharedFurnitureGeometry.actorContactGap
+  if (entity.id === 'commercial-cafe-counter' || entity.id.startsWith('commercial-cafe-counter-')) {
+    return [{
+      x: Math.max(collision.x + clearance, Math.min(collision.x + collision.width - clearance, from.x)),
+      y: collision.y + collision.height + clearance,
+    }]
+  }
+  const dx = from.x - position.x
+  const dy = from.y - position.y
+  const length = Math.hypot(dx, dy)
+  const primary = length > .001 ? { x: dx / length, y: dy / length } : defaultEdgeContactDirection
+  const clockwise = { x: -primary.y, y: primary.x }
+  const counterclockwise = { x: primary.y, y: -primary.x }
+  const opposite = { x: -primary.x, y: -primary.y }
+  const directional = [primary, clockwise, counterclockwise, opposite].map((direction) => edgeContactPoint(position, collision, {
+    x: position.x + direction.x,
+    y: position.y + direction.y,
+  }, actorRadius))
+  // Older scene data may carry a proven exterior entry point. It is a last
+  // legal fallback rather than the actor's compulsory interaction location.
+  if (!entity.approach) return directional
+  const authoredPosition = { x: entity.position.x + offset.x, y: entity.position.y + offset.y }
+  const responsiveDelta = { x: position.x - authoredPosition.x, y: position.y - authoredPosition.y }
+  return [...directional, {
+    x: entity.approach.x + offset.x + responsiveDelta.x,
+    y: entity.approach.y + offset.y + responsiveDelta.y,
+  }]
+}
+
+export function mainlineInteractionTarget(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, actorRadius = defaultActorRadius, options: MainlineNavigationOptions = {}): Point {
+  const candidates = mainlineEntityInteractionCandidates(scene, entityId, from, layout, actorRadius, options)
+  return candidates.find((candidate) => isWalkableMainlinePoint(candidate, scene, layout, options)) ?? candidates[0] ?? from
 }
 
 /** Resolve an authored seat sit point through the shared layout projection. */
@@ -954,14 +1024,14 @@ export function resolveMainlineSeatSitPosition(scene: MainlineSceneDefinition, s
 export function resolveMainlineNpcPosition(scene: MainlineSceneDefinition, npcId: string, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): Point {
   const runtimePosition = options.npcRuntimePositions?.get(npcId)
   if (runtimePosition) return { ...runtimePosition }
-  const placement = scene.npcPlacements.find((candidate) => candidate.npcId === npcId)
-  if (!placement) return scene.initialPlayerPosition
-  if (placement.seatId) return resolveMainlineSeatSitPosition(scene, placement.seatId, layout, options) ?? placement.position ?? scene.initialPlayerPosition
-  return placement.position ?? scene.initialPlayerPosition
+  const seatId = mainlineNpcStagedSeatId(scene, npcId)
+  const point = mainlineNpcStagedPoint(scene, npcId)
+  if (seatId) return resolveMainlineSeatSitPosition(scene, seatId, layout, options) ?? point ?? scene.initialPlayerPosition
+  return point ?? scene.initialPlayerPosition
 }
 
 function mainlineNpcInteractionCandidates(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout, actorRadius: number, options: MainlineNavigationOptions) {
-  const placement = scene.npcPlacements.find((candidate) => candidate.npcId === npcId)
+  const npc = scene.npcs.find((candidate) => candidate.id === npcId)
   const npcPosition = resolveMainlineNpcPosition(scene, npcId, layout, options)
   const npcRadius = sharedFurnitureGeometry.playerRadius
   const collision = {
@@ -994,11 +1064,13 @@ function mainlineNpcInteractionCandidates(scene: MainlineSceneDefinition, npcId:
     x: npcPosition.x + direction.x,
     y: npcPosition.y + direction.y,
   }, actorRadius))
-  // A worker behind a real counter still has one physical customer-side contact
-  // point. This belongs to the current scene placement, never NPC identity.
-  return placement?.interactionApproach
-    ? [placement.interactionApproach, ...physicalCandidates]
-    : physicalCandidates
+  if (npc?.interactionTargetEntityId === 'commercial-cafe-counter') {
+    const counterCandidates = scene.objects
+      .filter((entity) => entity.id === 'commercial-cafe-counter' || entity.id.startsWith('commercial-cafe-counter-'))
+      .flatMap((entity) => mainlineEntityInteractionCandidates(scene, entity.id, from, layout, actorRadius, options))
+    return [...counterCandidates, ...physicalCandidates]
+  }
+  return physicalCandidates
 }
 
 /** Keep an interacting protagonist outside the NPC actor footprint and nearby furniture. */
@@ -1025,12 +1097,17 @@ export function isMainlineNpcWithinInteractionRange(scene: MainlineSceneDefiniti
 
 export function isMainlineEntityWithinInteractionRange(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
   const entity = scene.objects.find((candidate) => candidate.id === entityId)
-  if (!entity?.interactionRange || entity.surface !== 'wall') return true
+  if (!entity || entity.kind === 'door' || entity.kind === 'seat') return false
   const target = mainlineInteractionTarget(scene, entityId, from, layout, options.actorRadius ?? defaultActorRadius, options)
-  return Math.hypot(from.x - target.x, from.y - target.y) <= entity.interactionRange
+  return Math.hypot(from.x - target.x, from.y - target.y) <= (entity.interactionRange ?? .35)
 }
 
 export function findMainlinePathToEntity(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
-  const target = mainlineInteractionTarget(scene, entityId, from, layout, options.actorRadius ?? defaultActorRadius, options)
-  return { target, path: findMainlinePath(from, target, scene, layout, options) }
+  const candidates = mainlineEntityInteractionCandidates(scene, entityId, from, layout, options.actorRadius ?? defaultActorRadius, options)
+  for (const target of candidates) {
+    if (!isWalkableMainlinePoint(target, scene, layout, options)) continue
+    const path = findMainlinePath(from, target, scene, layout, options)
+    if (path) return { target, path }
+  }
+  return { target: candidates[0] ?? from, path: null }
 }

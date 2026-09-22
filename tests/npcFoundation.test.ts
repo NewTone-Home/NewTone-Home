@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
-import { findMainlinePath, findMainlinePathToNpc, isWalkableMainlinePoint, mainlineNavigationCollisionBoxes, mainlineNpcInteractionTarget, resolveMainlineAccessRegionBoundaryTarget, resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
+import { findMainlinePath, findMainlinePathToNpc, isWalkableMainlinePoint, mainlineInteractionTarget, mainlineNavigationCollisionBoxes, mainlineNpcInteractionTarget, resolveMainlineAccessRegionBoundaryTarget, resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineSceneOccupiedSeatIds } from '../src/center/runtime/mainlineSeating'
+import { mainlineNpcStagedSeatId, mainlineNpcStagingBehavior } from '../src/center/runtime/mainlineNpcStaging'
 import { createFreeRoamController } from '../src/center/runtime/useFreeRoamMovement'
 
 describe('static NPC foundation', () => {
@@ -10,12 +11,13 @@ describe('static NPC foundation', () => {
   const laoZhou = cafe.npcs.find((npc) => npc.id === 'lao-zhou')!
   const server = cafe.npcs.find((npc) => npc.id === 'server')!
 
-  it('keeps Lao Zhou identity separate from the current scene seating placement', () => {
-    const placement = cafe.npcPlacements.find((candidate) => candidate.npcId === laoZhou.id)
-    const seat = cafe.objects.find((entity) => entity.id === placement?.seatId)
+  it('keeps Lao Zhou identity separate from behavior-derived scene seating', () => {
+    const behavior = mainlineNpcStagingBehavior(cafe, laoZhou.id)
+    const seat = cafe.objects.find((entity) => entity.id === mainlineNpcStagedSeatId(cafe, laoZhou.id))
 
     expect(laoZhou).not.toHaveProperty('seatEntityId')
-    expect(placement).toEqual({ npcId: 'lao-zhou', seatId: 'commercial-cafe-right-window-upper-group-chair-top' })
+    expect(cafe.npcPlacements).toEqual([])
+    expect(behavior).toEqual({ npcId: 'lao-zhou', dutyId: 'lao-zhou.seated', targetId: 'commercial-cafe-right-window-upper-group-chair-top', targetKind: 'seat' })
     expect(seat).toMatchObject({
       id: 'commercial-cafe-right-window-upper-group-chair-top',
       kind: 'seat',
@@ -38,13 +40,12 @@ describe('static NPC foundation', () => {
     expect(Math.hypot(laoZhouTarget.x - laoZhouPosition.x, laoZhouTarget.y - laoZhouPosition.y)).toBeGreaterThan(.7)
   })
 
-  it('keeps the server clickable from the customer side of the physical counter', () => {
-    const placement = cafe.npcPlacements.find((candidate) => candidate.npcId === server.id)!
+  it('keeps the server clickable through a dynamic customer-side counter contact', () => {
+    const counter = cafe.objects.find((entity) => entity.id === 'commercial-cafe-counter')!
     const target = mainlineNpcInteractionTarget(cafe, server.id, cafe.initialPlayerPosition)
     const route = findMainlinePathToNpc(cafe, server.id, cafe.initialPlayerPosition)
 
-    expect(placement.interactionApproach).toBeDefined()
-    expect(target).toEqual(placement.interactionApproach)
+    expect(target.y).toBeGreaterThan(counter.collision!.y + counter.collision!.height)
     expect(isWalkableMainlinePoint(target, cafe)).toBe(true)
     expect(route.path).not.toBeNull()
   })
@@ -69,18 +70,15 @@ describe('static NPC foundation', () => {
     expect(path?.every((point) => isWalkableMainlinePoint(point, cafe, {}, options))).toBe(true)
   })
 
-  it('derives each counter segment from one physical counter body while preserving independent customer approaches', () => {
+  it('derives each counter segment from one physical counter body while preserving independent customer contact regions', () => {
     const counters = cafe.objects.filter((entity) => entity.id === 'commercial-cafe-counter' || entity.id.startsWith('commercial-cafe-counter-'))
-    const uniqueApproachXs = new Set(counters.map((counter) => counter.approach?.x))
+    const uniqueContactXs = new Set(counters.map((counter) => mainlineInteractionTarget(cafe, counter.id, { x: counter.position.x, y: cafe.walkBounds.y + cafe.walkBounds.height } ).x))
 
     expect(counters).toHaveLength(17)
-    expect(uniqueApproachXs).toHaveLength(17)
+    expect(uniqueContactXs).toHaveLength(17)
     counters.forEach((counter) => {
       expect(counter.collision).toBeDefined()
-      expect(counter.approach).toBeDefined()
       expect(counter.position.y).toBeCloseTo(counter.collision!.y + counter.collision!.height / 2)
-      expect(counter.approach!.x).toBe(counter.position.x)
-      expect(counter.approach!.y).toBeCloseTo(counter.collision!.y + counter.collision!.height + .62)
       expect(counter.interactionBehavior).toBe('cafe-order')
     })
   })

@@ -87,11 +87,14 @@ describe('mainline scene interaction policies', () => {
     expect(counterSegments).toHaveLength(17)
     expect(counterSegments.every((segment) => segment.interactionBehavior === 'cafe-order')).toBe(true)
     counterSegments.forEach((segment) => {
-      expect(mainlineInteractionTarget(cafe, segment.id, cafe.initialPlayerPosition)).toEqual(segment.approach)
+      const customerY = segment.collision!.y + segment.collision!.height + segment.collision!.height
+      const left = mainlineInteractionTarget(cafe, segment.id, { x: segment.collision!.x - segment.collision!.width, y: customerY })
+      const right = mainlineInteractionTarget(cafe, segment.id, { x: segment.collision!.x + segment.collision!.width * 2, y: customerY })
+      expect(left.y).toBeGreaterThan(segment.collision!.y + segment.collision!.height)
+      expect(right.y).toBeGreaterThan(segment.collision!.y + segment.collision!.height)
+      expect(left.x).toBeLessThanOrEqual(segment.position.x)
+      expect(right.x).toBeGreaterThanOrEqual(segment.position.x)
     })
-    expect(mainlineInteractionTarget(cafe, 'commercial-cafe-counter-1', cafe.initialPlayerPosition)).not.toEqual(
-      mainlineInteractionTarget(cafe, 'commercial-cafe-counter-17', cafe.initialPlayerPosition),
-    )
     expect(entered.choice).toEqual({ text: '要点一杯咖啡吗？', options: ['点一杯咖啡'] })
     expect(resolveMainlineSceneEchoChoice(cafe, counter, '点一杯咖啡', 0, { commercialCafeStoryStage: 'entered' })).toMatchObject({
       stateChange: { key: 'commercialCafeStoryStage', value: 'coffee-ordered' },

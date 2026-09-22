@@ -1,12 +1,17 @@
 import type { MainlineSceneDefinition } from './mainlineScenes'
 import type { MainlineSceneEntity } from './mainlineScenes'
+import type { Point } from './sceneGeometry'
+import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 
 /**
  * Occupancy is a scene condition rather than chair or NPC identity. NPC scene
  * staging supplies the static seats; the optional player seat is runtime-only.
  */
 export function mainlineSceneOccupiedSeatIds(scene: MainlineSceneDefinition, playerSeatId: string | null = null) {
-  const occupiedSeatIds = new Set(scene.npcPlacements.flatMap((placement) => placement.seatId ? [placement.seatId] : []))
+  const occupiedSeatIds = new Set(scene.npcs.flatMap((npc) => {
+    const seatId = mainlineNpcStagedSeatId(scene, npc.id)
+    return seatId ? [seatId] : []
+  }))
   if (playerSeatId) occupiedSeatIds.add(playerSeatId)
   return occupiedSeatIds
 }
@@ -29,6 +34,18 @@ export function isMainlineSeatLabelSuppressed(entity: MainlineSceneEntity, occup
 /** Renderer-only semantics: a seated protagonist is represented by their label, not the map dot. */
 export function mainlineProtagonistPresentation(playerSeatId: string | null) {
   return playerSeatId ? { kind: 'seated' as const, label: '修杰' } : { kind: 'dot' as const }
+}
+
+/**
+ * A seated actor keeps its collision-safe runtime point, but its occupant
+ * label belongs on the seat's final rendered center.
+ */
+export function mainlineSeatedActorVisualPosition(
+  runtimePosition: Point,
+  seatId: string | null | undefined,
+  renderedSeatCenter: Point | undefined,
+): Point {
+  return seatId && renderedSeatCenter ? renderedSeatCenter : runtimePosition
 }
 
 /** A seat hint belongs to this moment's interaction state, never to the chair itself. */

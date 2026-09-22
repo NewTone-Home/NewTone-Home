@@ -119,6 +119,20 @@ export type MainlineSceneNpcPlacement = {
   interactionApproach?: Point
 }
 
+/** A named semantic point used by scene behavior, never an NPC-owned home. */
+export type MainlineSceneNpcBehaviorTarget = {
+  id: string
+  position: Point
+}
+
+/** Current scene behavior that supplies an NPC's initial staging. */
+export type MainlineSceneNpcBehavior = {
+  npcId: string
+  dutyId: string
+  targetId: string
+  targetKind: 'seat' | 'point'
+}
+
 /** A deliberately small scene-local movement permission vocabulary. */
 export type MainlineRegionAccess = 'public' | 'staff'
 
@@ -142,6 +156,8 @@ export type MainlineSceneAttachedProp = {
   interactionTargetEntityId: string
   /** Currently used by commercial-cafe to reveal a prop after its story beat. */
   visibleFromStage?: CommercialCafeStoryStage
+  /** A later presentation can replace this prop without changing its parent furniture. */
+  hiddenFromStage?: CommercialCafeStoryStage
 }
 
 export type MainlineWallOpening = {
@@ -301,6 +317,8 @@ export type MainlineSceneData = {
   floorEntities: readonly MainlineSceneEntity[]
   npcs?: readonly MainlineSceneNpc[]
   npcPlacements?: readonly MainlineSceneNpcPlacement[]
+  npcBehaviorTargets?: readonly MainlineSceneNpcBehaviorTarget[]
+  npcBehaviors?: readonly MainlineSceneNpcBehavior[]
   attachedProps?: readonly MainlineSceneAttachedProp[]
   curves?: readonly MainlineSceneCurve[]
   airWalls?: readonly MainlineAirWall[]
@@ -724,15 +742,23 @@ const commercialCafeCounterCollision = box(
 )
 const commercialCafeCounterClearance = sharedFurnitureGeometry.playerRadius + sharedFurnitureGeometry.actorContactGap
 const commercialCafeCounterCustomerApproachY = commercialCafeCounterCollision.y + commercialCafeCounterCollision.height + commercialCafeCounterClearance
-const commercialCafeCounterStaffServiceY = commercialCafeCounterCollision.y - commercialCafeCounterClearance
-// The access area reaches the customer-facing edge of the counter body. A
-// denied player click therefore stops at the same clear customer-side edge,
-// while the counter itself remains a physical obstacle for every actor.
+const commercialCafeCounterLabelHeight = commercialCafeCounterFixtureFontPx * 1.2 / defaultSceneScreenMetrics.height * 100
+// A staff actor has both a physical contact radius and a rendered text label.
+// Keep the semantic service target clear of the counter body and of its label;
+// this is derived from the same counter geometry, not a hand-tuned NPC offset.
+const commercialCafeCounterStaffClearance = Math.max(
+  commercialCafeCounterClearance,
+  sharedFurnitureGeometry.textFootprint.height / 2 + commercialCafeCounterLabelHeight / 2 + sharedFurnitureGeometry.actorContactGap,
+)
+const commercialCafeCounterStaffServiceY = commercialCafeCounterCollision.y - commercialCafeCounterStaffClearance
+// Staff access ends at the rear face of the physical counter.  The body itself
+// is the shared obstruction; including it in the access region would make a
+// customer-side contact point overlap an artificial permission wall.
 const commercialCafeStaffArea = box(
   commercialCafeCounterBody.x,
   commercialCafeStraightFrameBounds.y + mainlineWallThickness,
   commercialCafeCounterBody.width,
-  commercialCafeCounterCollision.y + commercialCafeCounterCollision.height - (commercialCafeStraightFrameBounds.y + mainlineWallThickness),
+  commercialCafeCounterCollision.y - (commercialCafeStraightFrameBounds.y + mainlineWallThickness),
 )
 const commercialCafeServiceLayout = {
   staffHome: authoredPoint(
@@ -743,7 +769,7 @@ const commercialCafeServiceLayout = {
     commercialCafeCounterPositions[commercialCafeCounterPositions.length - 1]!,
     commercialCafeCounterStaffServiceY,
   ),
-  staffOnly: commercialCafeStaffArea,
+  staffArea: commercialCafeStaffArea,
 } as const
 /** Development-only public-floor proof point; it is not a scene entity or story destination. */
 export const commercialCafeServerMovementDebugTarget = {
@@ -780,17 +806,14 @@ const commercialCafeNpcs = [
     interactionTargetEntityId: 'commercial-cafe-counter',
   },
 ] as const satisfies readonly MainlineSceneNpc[]
-const commercialCafeNpcPlacements = [
-  { npcId: npcRoles.laoZhou.id, seatId: 'commercial-cafe-right-window-upper-group-chair-top' },
-  {
-    npcId: npcRoles.server.id,
-    position: commercialCafeServiceLayout.staffHome,
-    interactionApproach: authoredPoint(
-      commercialCafeServiceLayout.staffHome.x,
-      commercialCafeCounterCustomerApproachY,
-    ),
-  },
-] as const satisfies readonly MainlineSceneNpcPlacement[]
+const commercialCafeNpcBehaviorTargets = [
+  { id: 'commercial-cafe-counter-service', position: commercialCafeServiceLayout.staffHome },
+  { id: 'commercial-cafe-prep-station', position: commercialCafeServiceLayout.staffApproach },
+] as const satisfies readonly MainlineSceneNpcBehaviorTarget[]
+const commercialCafeNpcBehaviors = [
+  { npcId: npcRoles.laoZhou.id, dutyId: npcRoles.laoZhou.duties.seated.id, targetId: 'commercial-cafe-right-window-upper-group-chair-top', targetKind: 'seat' },
+  { npcId: npcRoles.server.id, dutyId: npcRoles.server.duties.counterService.id, targetId: 'commercial-cafe-counter-service', targetKind: 'point' },
+] as const satisfies readonly MainlineSceneNpcBehavior[]
 const commercialCafeAttachedProps = [
   {
     id: 'commercial-cafe-coffee',
@@ -799,6 +822,23 @@ const commercialCafeAttachedProps = [
     offset: authoredPoint(-.8, .4),
     interactionTargetEntityId: commercialCafeStoryTableId,
     visibleFromStage: 'coffee-delivered',
+    hiddenFromStage: 'ready-to-leave',
+  },
+  {
+    id: 'commercial-cafe-empty-cup',
+    label: '空杯',
+    parentEntityId: commercialCafeStoryTableId,
+    offset: authoredPoint(-.8, .4),
+    interactionTargetEntityId: commercialCafeStoryTableId,
+    visibleFromStage: 'ready-to-leave',
+  },
+  {
+    id: 'commercial-cafe-banknote',
+    label: '钞票',
+    parentEntityId: commercialCafeStoryTableId,
+    offset: authoredPoint(.8, .4),
+    interactionTargetEntityId: commercialCafeStoryTableId,
+    visibleFromStage: 'ready-to-leave',
   },
 ] as const satisfies readonly MainlineSceneAttachedProp[]
 const commercialCafeWindow: MainlineSceneCurve = { id: 'commercial-cafe-glass-front', ...commercialCafeLayout.glass, role: 'glass', glyph: '窗', sampleCount: 26, blocksPlayer: true }
@@ -866,12 +906,14 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
       ...commercialCafeFurnitureEntities,
     ],
     npcs: commercialCafeNpcs,
-    npcPlacements: commercialCafeNpcPlacements,
+    npcPlacements: [],
+    npcBehaviorTargets: commercialCafeNpcBehaviorTargets,
+    npcBehaviors: commercialCafeNpcBehaviors,
     attachedProps: commercialCafeAttachedProps,
     curves: [commercialCafeWindow],
     accessRegions: [{
       id: 'commercial-cafe-staff-area',
-      ...commercialCafeServiceLayout.staffOnly,
+      ...commercialCafeServiceLayout.staffArea,
       requiredAccess: 'staff',
       deniedText: '还是别进去打扰他们工作了。',
     }],

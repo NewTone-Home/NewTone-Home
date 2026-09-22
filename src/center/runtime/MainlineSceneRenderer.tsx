@@ -15,7 +15,9 @@ import type { SceneFrameTarget } from './sceneFrameLifecycle'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
 import { isCommercialCafeStoryDetailVisible, type CommercialCafeStoryStage } from './commercialCafeStory'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
-import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
+import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds, mainlineSeatedActorVisualPosition } from './mainlineSeating'
+import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
+import type { NpcRuntimeSnapshot } from './npcCore'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -35,7 +37,9 @@ type MainlineSceneRendererProps = {
   onLayoutChange: (itemId: LayoutItemId, point: Point) => void
   onInteract: (id: string) => void
   onNpcInteract?: (npcId: string) => void
+  onAttachedPropInteract?: (propId: string) => void
   npcPositions?: ReadonlyMap<string, Point>
+  npcRuntimeSnapshots?: ReadonlyMap<string, NpcRuntimeSnapshot>
   onDoorTransitionComplete?: (entityId: string, completion: SceneDoorTransitionCompletion) => void
   onWalk: (point: Point) => void
   dialogue?: MainlineSceneDialoguePresentation
@@ -385,7 +389,9 @@ export function MainlineSceneRenderer({
   onLayoutChange,
   onInteract,
   onNpcInteract,
+  onAttachedPropInteract,
   npcPositions,
+  npcRuntimeSnapshots,
   onDoorTransitionComplete,
   onWalk,
   dialogue,
@@ -425,6 +431,11 @@ export function MainlineSceneRenderer({
   const altarLeaderIds = useMemo(() => new Set(scene.altars.map((altar) => altar.incenseBurnerId)), [scene.altars])
   const occupiedSeatIds = useMemo(() => runtimeOccupiedSeatIds ?? mainlineSceneOccupiedSeatIds(scene), [runtimeOccupiedSeatIds, scene])
   const protagonistPresentation = mainlineProtagonistPresentation(playerSeatId)
+  const protagonistVisualPosition = mainlineSeatedActorVisualPosition(
+    position,
+    playerSeatId,
+    playerSeatId ? geometrySnapshot.objects.get(playerSeatId)?.position : undefined,
+  )
   const hasAltarBreathing = scene.objects.some((entity) => isAltarEntity(scene, entity.id))
   useEffect(() => {
     if (!hasAltarBreathing || typeof window === 'undefined') return undefined
@@ -840,43 +851,55 @@ export function MainlineSceneRenderer({
 
           {scene.npcs.map((npc) => {
             const npcPosition = npcPositions?.get(npc.id) ?? resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
+            const npcSnapshot = npcRuntimeSnapshots?.get(npc.id)
+            const npcSeatId = mainlineNpcStagedSeatId(scene, npc.id)
+            const npcVisualPosition = mainlineSeatedActorVisualPosition(
+              npcPosition,
+              npcSeatId,
+              npcSeatId ? geometrySnapshot.objects.get(npcSeatId)?.position : undefined,
+            )
             return <button
               key={npc.id}
               className="scene-mainline-npc"
               type="button"
-              style={{ left: `${npcPosition.x}%`, top: `${npcPosition.y}%` }}
+              style={{ left: `${npcVisualPosition.x}%`, top: `${npcVisualPosition.y}%` }}
               onClick={(event) => { event.stopPropagation(); onNpcInteract?.(npc.id) }}
               data-actor-id={npc.id}
               data-npc-role={npc.roleId}
               data-npc-id={npc.id}
-              data-seat-entity-id={scene.npcPlacements.find((placement) => placement.npcId === npc.id)?.seatId}
+              data-seat-entity-id={npcSeatId}
               data-interaction-target-entity-id={npc.interactionTargetEntityId}
+              data-npc-phase={npcSnapshot?.phase}
+              data-npc-duty-id={npcSnapshot?.dutyId ?? undefined}
+              data-npc-target-id={npcSnapshot?.targetId ?? undefined}
               aria-label={`${npc.label}，点击让主角前往互动`}
             >
               <span>{npc.label}</span>
             </button>
           })}
 
-          {scene.attachedProps.filter((prop) => commercialCafeStoryStage !== undefined && isCommercialCafeStoryDetailVisible(prop.visibleFromStage, commercialCafeStoryStage)).map((prop) => {
+          {scene.attachedProps.filter((prop) => commercialCafeStoryStage !== undefined && isCommercialCafeStoryDetailVisible(prop.visibleFromStage, commercialCafeStoryStage, prop.hiddenFromStage)).map((prop) => {
             const parentPosition = geometrySnapshot.objects.get(prop.parentEntityId)?.position
             if (!parentPosition) return null
             return (
-              <div
+              <button
                 key={prop.id}
                 className="scene-mainline-attached-prop"
+                type="button"
                 style={{ left: `${parentPosition.x + prop.offset.x}%`, top: `${parentPosition.y + prop.offset.y}%` }}
+                onClick={(event) => { event.stopPropagation(); onAttachedPropInteract?.(prop.id) }}
                 data-attached-prop-id={prop.id}
                 data-parent-entity-id={prop.parentEntityId}
                 data-interaction-target-entity-id={prop.interactionTargetEntityId}
                 aria-label={`${prop.label}，附着于${prop.parentEntityId}`}
               >
                 <span>{prop.label}</span>
-              </div>
+              </button>
             )
           })}
 
           {destination && <div className={`scene-walk-target ${moving ? 'is-active' : ''}`} style={{ left: `${destination.x}%`, top: `${destination.y}%` }} aria-hidden="true" />}
-          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''}`} style={{ left: `${position.x}%`, top: `${position.y}%` }} data-actor-id="protagonist">
+          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%` }} data-actor-id="protagonist">
             {protagonistPresentation.kind === 'dot'
               ? <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
               : <span className="scene-protagonist__seat-label" aria-label="修杰，已坐下">{protagonistPresentation.label}</span>}

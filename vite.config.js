@@ -8,4 +8,7 @@ const githubPagesBase = process.env.GITHUB_PAGES === 'true'
 export default defineConfig({
   base: githubPagesBase,
   plugins: [react()],
+  test: {
+    include: ['tests/**/*.{test,spec}.{js,ts,tsx}', 'src/**/*.{test,spec}.{js,ts,tsx}'],
+  },
 })

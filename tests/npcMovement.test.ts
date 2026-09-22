@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { commercialCafeServerMovementDebugTarget } from '../src/center/runtime/mainlineSceneModel'
-import { isWalkableMainlinePoint, resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
+import { mainlineNpcStagedPoint } from '../src/center/runtime/mainlineNpcStaging'
+import { isWalkableMainlinePoint, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition } from '../src/center/runtime/mainlineNavigation'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
+import { commercialCafeLaoZhouConversationSeatId, resolveCommercialCafeCoffeeDeliveryIntent, resolveCommercialCafeReturnToCounterIntent } from '../src/center/runtime/commercialCafeStory'
+import { npcRoles } from '../src/center/runtime/npcRoles'
 import { createNpcMovementAdapter } from '../src/center/runtime/useNpcMovement'
 import { createFreeRoamController } from '../src/center/runtime/useFreeRoamMovement'
 
 const cafe = mainlineScenes['commercial-cafe']
-const serverPlacement = cafe.npcPlacements.find((placement) => placement.npcId === 'server')!
 const laoZhouPosition = resolveMainlineNpcPosition(cafe, 'lao-zhou')
-const serverHome = serverPlacement.position!
+const serverHome = mainlineNpcStagedPoint(cafe, 'server')!
 const movementTestTarget = commercialCafeServerMovementDebugTarget.position
 
 function runUntilIdle(controller: ReturnType<typeof createFreeRoamController>, adapter: ReturnType<typeof createNpcMovementAdapter>, runtime: ReturnType<typeof createNavigationRuntime>) {
@@ -21,10 +23,10 @@ function runUntilIdle(controller: ReturnType<typeof createFreeRoamController>, a
 }
 
 describe('NPC movement adapter', () => {
-  function createServerMovement() {
+  function createServerMovement(protagonistPosition = cafe.initialPlayerPosition) {
     const navigationRuntime = createNavigationRuntime()
     const controller = createFreeRoamController(serverHome)
-    navigationRuntime.registerActor('protagonist', cafe.initialPlayerPosition)
+    navigationRuntime.registerActor('protagonist', protagonistPosition)
     navigationRuntime.registerActor('lao-zhou', laoZhouPosition)
     navigationRuntime.registerActor('server', serverHome)
     const adapter = createNpcMovementAdapter({
@@ -36,7 +38,7 @@ describe('NPC movement adapter', () => {
     return { navigationRuntime, controller, adapter }
   }
 
-  it('uses the placement only as server staging, then resolves renderer/navigation position from the runtime', () => {
+  it('uses behavior staging only as the server start point, then resolves renderer/navigation position from the runtime', () => {
     const { adapter } = createServerMovement()
     const runtimePosition = movementTestTarget
 
@@ -99,5 +101,33 @@ describe('NPC movement adapter', () => {
       targetId: counter.id,
       retryCount: 1,
     })
+  })
+
+  it('persists delivery only after arrival, then returns with the same movement adapter', () => {
+    const seatedProtagonist = resolveMainlineSeatSitPosition(cafe, commercialCafeLaoZhouConversationSeatId)!
+    const { navigationRuntime, controller, adapter } = createServerMovement(seatedProtagonist)
+    const delivery = resolveCommercialCafeCoffeeDeliveryIntent({
+      scene: cafe,
+      stage: 'met-lao-zhou',
+      from: serverHome,
+      navigationOptions: { navigationRuntime },
+    })!
+    let stage = 'met-lao-zhou'
+    let deliveries = 0
+    const started = adapter.requestMove(delivery, cafe, {}, { navigationRuntime }, {}, () => {
+      deliveries += 1
+      stage = 'coffee-delivered'
+      const returning = adapter.requestMove(resolveCommercialCafeReturnToCounterIntent(cafe)!, cafe, {}, { navigationRuntime })
+      expect(returning).toBe(true)
+    })
+
+    expect(started).toBe(true)
+    expect(stage).toBe('met-lao-zhou')
+    runUntilIdle(controller, adapter, navigationRuntime)
+
+    expect(deliveries).toBe(1)
+    expect(stage).toBe('coffee-delivered')
+    expect(adapter.getPosition()).toEqual(serverHome)
+    expect(adapter.getSnapshot()).toMatchObject({ phase: 'idle', dutyId: npcRoles.server.duties.returnToCounter.id })
   })
 })

@@ -16,20 +16,20 @@ import { mainlineCameraOffset } from './mainlineViewport'
 import { sceneFrameDefaultMotionMs, sceneFrameRetractionBudgetMs } from './sceneMotion'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
-import { commercialCafeStoryStageFromSceneState, commercialCafeStoryStageKey, resolveCommercialCafeNpcInteraction, type CommercialCafeNpcInteractionResolution } from './commercialCafeStory'
+import { commercialCafeDepartureText, commercialCafeLaoZhouConversationSeatId, commercialCafeStoryStageFromSceneState, commercialCafeStoryStageKey, isCommercialCafeStoryStage, resolveCommercialCafeAttachedPropInteraction, resolveCommercialCafeNpcInteraction, shouldCompleteCommercialCafeStoryOnTransition, type CommercialCafeNpcInteractionResolution, type CommercialCafeStoryStage } from './commercialCafeStory'
+import { createCommercialCafeServerBehaviorCoordinator } from './commercialCafeBehavior'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { createNavigationRuntime } from './navigationCore'
 import { useNpcMovement } from './useNpcMovement'
 import { splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
-import { incenseBurnPhase, incenseBurnRemainingMs, isMainlineInPlaceInteraction, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
+import { incenseBurnPhase, incenseBurnRemainingMs, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 import { commercialCafeServerMovementDebugTarget } from './mainlineSceneModel'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
 const emptyExplorationObjectIds: ReadonlySet<string> = new Set()
-const commercialCafeServerMovementDebugOptions = { screenSpeedPxPerSecond: 160 }
 type NpcDialogueResolution = Extract<CommercialCafeNpcInteractionResolution, { kind: 'dialogue' }>
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 const getDebugInputSnapshot = () => typeof window === 'undefined' ? '' : window.location.search
@@ -325,16 +325,27 @@ export function MainlineScenePage({
   const npcInteractionRequestRef = useRef(0)
   const navigationRuntimeRef = useRef(createNavigationRuntime())
   const navigationRuntime = navigationRuntimeRef.current
+  const commercialCafeBehaviorRef = useRef(createCommercialCafeServerBehaviorCoordinator())
+  const commercialCafeBehavior = commercialCafeBehaviorRef.current
+  const debugCafeFixtureAppliedRef = useRef(false)
   const handledWalkRequestRef = useRef<number | null>(null)
   const [feedback, setFeedback] = useState(entryFeedbackForScene(sceneDefinition))
   const [inputDiagnostic, setInputDiagnostic] = useState<MainlineInputDiagnostic | null>(null)
   const debugInputSearch = useSyncExternalStore(emptyExternalStoreSubscribe, getDebugInputSnapshot, getServerDebugInputSnapshot)
   const debugInput = new URLSearchParams(debugInputSearch).get('debugInput') === '1'
   const debugNpcMovement = new URLSearchParams(debugInputSearch).get('debugNpcMovement') === '1'
+  const debugCafeStageValue = new URLSearchParams(debugInputSearch).get('debugCafeStage')
+  const debugCafeFixture = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('debugCafeFixture') === '1'
+  const [debugCafeStoryStage, setDebugCafeStoryStage] = useState<CommercialCafeStoryStage | null>(() => (
+    import.meta.env.DEV && isCommercialCafeStoryStage(debugCafeStageValue) ? debugCafeStageValue : null
+  ))
   const [dialogueLineIndex, setDialogueLineIndex] = useState<number | null>(null)
   const [dialogueSegmentIndex, setDialogueSegmentIndex] = useState(0)
   const [npcDialogue, setNpcDialogue] = useState<NpcDialogueResolution | null>(null)
   const [playerSeatId, setPlayerSeatId] = useState<string | null>(null)
+  // The isolated browser fixture mirrors the real conversation-seat state in
+  // memory only. It never writes the user's save and is unavailable in production.
+  const activePlayerSeatId = debugCafeFixture ? commercialCafeLaoZhouConversationSeatId : playerSeatId
   const [promptedSeatId, setPromptedSeatId] = useState<string | null>(null)
   const [sceneEcho, setSceneEcho] = useState<MainlineSceneEcho | null>(null)
   const sceneEchoRef = useRef<MainlineSceneEcho | null>(null)
@@ -346,7 +357,15 @@ export function MainlineScenePage({
   const incensePhase: IncenseBurnPhase = incenseBurnPhase(incenseLitAt, incenseClock)
   const incenseLit = incensePhase === 'fresh' || incensePhase === 'half'
   const incenseRemainingMs = incenseBurnRemainingMs(incenseLitAt, incenseClock)
-  const commercialCafeStoryStage = commercialCafeStoryStageFromSceneState(initialSceneState)
+  const persistedCommercialCafeStoryStage = commercialCafeStoryStageFromSceneState(initialSceneState)
+  const commercialCafeStoryStage = debugCafeStoryStage ?? persistedCommercialCafeStoryStage
+  const recordSceneState = useCallback((targetSceneId: MainlineSceneId, key: string, value: PlayerChoiceValue) => {
+    if (debugCafeStoryStage && targetSceneId === 'commercial-cafe' && key === commercialCafeStoryStageKey && isCommercialCafeStoryStage(value)) {
+      setDebugCafeStoryStage(value)
+      return
+    }
+    onPlayerSceneStateChange?.(targetSceneId, key, value)
+  }, [debugCafeStoryStage, onPlayerSceneStateChange])
   const dismissSceneEcho = useCallback(() => {
     const current = sceneEchoRef.current
     if (!current) return
@@ -411,6 +430,7 @@ export function MainlineScenePage({
   const npcRuntimePositions = useMemo(() => serverMovement.position
     ? new Map<string, Point>([['server', serverMovement.position]])
     : new Map<string, Point>(), [serverMovement.position])
+  const npcRuntimeSnapshots = useMemo(() => new Map([['server', serverMovement.snapshot]]), [serverMovement.snapshot])
   const resolvedNpcPositions = useMemo(() => new Map(scene.npcs.map((npc) => [
     npc.id,
     resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics, npcRuntimePositions }),
@@ -418,7 +438,7 @@ export function MainlineScenePage({
   const movingNpcIds = useMemo(() => serverMovement.snapshot.phase === 'moving'
     ? new Set(['server'])
     : new Set<string>(), [serverMovement.snapshot.phase])
-  const occupiedSeatIds = useMemo(() => mainlineSceneOccupiedSeatIds(scene, playerSeatId), [playerSeatId, scene])
+  const occupiedSeatIds = useMemo(() => mainlineSceneOccupiedSeatIds(scene, activePlayerSeatId), [activePlayerSeatId, scene])
   useEffect(() => {
     navigationRuntime.registerActor('protagonist', getCurrentPosition())
     return () => navigationRuntime.removeActor('protagonist')
@@ -519,6 +539,39 @@ export function MainlineScenePage({
   })
   const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics, geometrySnapshot, navigationRuntime, actorId: 'protagonist', npcRuntimePositions }), [geometrySnapshot, getOpenPassageIds, navigationRuntime, npcRuntimePositions, screenMetrics])
   const locomotionOptions = useMemo(() => ({ screenMetrics, screenSpeedPxPerSecond: 520 }), [screenMetrics])
+  const commercialCafeServiceMovementOptions = useMemo(() => ({ screenMetrics, screenSpeedPxPerSecond: 160 }), [screenMetrics])
+  useEffect(() => {
+    if (!debugCafeFixture || debugCafeFixtureAppliedRef.current || scene.id !== 'commercial-cafe') return
+    debugCafeFixtureAppliedRef.current = true
+    const sitPosition = resolveMainlineSeatSitPosition(scene, commercialCafeLaoZhouConversationSeatId, layout, navigationOptions)
+    if (!sitPosition) return
+    stopMovement()
+    resetMovement(sitPosition)
+    navigationRuntime.updateActor('protagonist', sitPosition)
+  }, [debugCafeFixture, layout, navigationOptions, navigationRuntime, resetMovement, scene, stopMovement])
+  useEffect(() => {
+    if (scene.id !== 'commercial-cafe') {
+      commercialCafeBehavior.reset()
+      return
+    }
+    if (!serverMovement.position) return
+    const intent = commercialCafeBehavior.requestForStage({
+      scene,
+      stage: commercialCafeStoryStage,
+      from: serverMovement.position,
+      snapshot: serverMovement.snapshot,
+      layout,
+      navigationOptions,
+    })
+    if (!intent) return
+    const started = serverMovement.requestMove(intent, scene, layout, navigationOptions, commercialCafeServiceMovementOptions, () => {
+      if (intent.dutyId === 'server.deliver-coffee') {
+        recordSceneState(scene.id, commercialCafeStoryStageKey, 'coffee-delivered')
+      }
+      commercialCafeBehavior.arrived()
+    })
+    if (!started) commercialCafeBehavior.block()
+  }, [commercialCafeBehavior, commercialCafeServiceMovementOptions, commercialCafeStoryStage, layout, navigationOptions, recordSceneState, scene, serverMovement])
   const runDebugServerMovement = useCallback(() => {
     if (scene.id !== 'commercial-cafe' || !serverMovement.position || serverMovement.snapshot.phase === 'moving') return
     setFeedback('店员开发移动演示中。')
@@ -528,15 +581,15 @@ export function MainlineScenePage({
         dutyId: 'server.debug-return',
         targetId: 'commercial-cafe-server-home',
         target: serverInitialPosition,
-      }, scene, layout, navigationOptions, commercialCafeServerMovementDebugOptions)
+      }, scene, layout, navigationOptions, commercialCafeServiceMovementOptions)
     }
     const started = serverMovement.requestMove({
       dutyId: 'server.debug-movement',
       targetId: commercialCafeServerMovementDebugTarget.id,
       target: commercialCafeServerMovementDebugTarget.position,
-    }, scene, layout, navigationOptions, commercialCafeServerMovementDebugOptions, returnHome)
+    }, scene, layout, navigationOptions, commercialCafeServiceMovementOptions, returnHome)
     if (!started) setFeedback('店员的开发移动演示当前无法规划路线。')
-  }, [layout, navigationOptions, scene, serverInitialPosition, serverMovement])
+  }, [commercialCafeServiceMovementOptions, layout, navigationOptions, scene, serverInitialPosition, serverMovement])
   const handleFrameMotionBudgetChange = useCallback((durationMs: number) => {
     if (Number.isFinite(durationMs) && durationMs > 0) frameMotionBudgetMsRef.current = sceneFrameRetractionBudgetMs(durationMs)
   }, [])
@@ -648,6 +701,10 @@ export function MainlineScenePage({
       const transitionScene = () => {
         if (sceneTransitioned) return
         sceneTransitioned = true
+        const completesCommercialCafeStory = shouldCompleteCommercialCafeStoryOnTransition({ sceneId: scene.id, stage: commercialCafeStoryStage, targetSceneId: pending.passage.targetSceneId })
+        if (completesCommercialCafeStory) {
+          recordSceneState(scene.id, commercialCafeStoryStageKey, 'complete')
+        }
         onDoorEvent?.('crossed', pending.passage)
         pendingTraversalRef.current = null
         setPassageDestination(null)
@@ -673,7 +730,7 @@ export function MainlineScenePage({
           setFeedback('门已经打开，但对面没有安全落脚的位置。')
           return
         }
-        setFeedback(pending.passage.transitionText)
+        setFeedback(completesCommercialCafeStory ? commercialCafeDepartureText : pending.passage.transitionText)
         notifySceneTransition(targetSceneId, safeEntryPosition)
       }
       moveAlong([traversalStart, exitPoint], () => {
@@ -761,7 +818,7 @@ export function MainlineScenePage({
         setFeedback('门已经打开，但通路被挡住了。')
       },
     })
-  }, [beginPassageLeg, getCurrentPosition, getOpenPassageIds, layout, locomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, scene, setFeedback])
+  }, [beginPassageLeg, commercialCafeStoryStage, getCurrentPosition, getOpenPassageIds, layout, locomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, recordSceneState, scene, setFeedback])
 
   continuePendingTraversalRef.current = continuePendingTraversal
 
@@ -880,13 +937,13 @@ export function MainlineScenePage({
   }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getRemainingDurationMs, layout, locomotionOptions, moveAlong, navigationOptions, scene, setFeedback, stopMovement])
 
   const leavePlayerSeat = useCallback(() => {
-    if (!playerSeatId) return false
-    const standingPosition = mainlineInteractionTarget(scene, playerSeatId, getCurrentPosition(), layout, undefined, navigationOptions)
+    if (!activePlayerSeatId) return false
+    const standingPosition = mainlineInteractionTarget(scene, activePlayerSeatId, getCurrentPosition(), layout, undefined, navigationOptions)
     setPlayerSeatId(null)
     resetMovement(standingPosition)
     navigationRuntime.updateActor('protagonist', standingPosition)
     return true
-  }, [getCurrentPosition, layout, navigationRuntime, navigationOptions, playerSeatId, resetMovement, scene])
+  }, [activePlayerSeatId, getCurrentPosition, layout, navigationRuntime, navigationOptions, resetMovement, scene])
 
   const startNpcDialogue = useCallback((resolution: NpcDialogueResolution) => {
     setDialogueSegmentIndex(0)
@@ -907,7 +964,7 @@ export function MainlineScenePage({
     dismissSceneEcho()
     const entity = getMainlineSceneEntity(scene, entityId)
     if (entity.kind === 'seat' && entity.seat) {
-      const nextSeatId = nextMainlinePlayerSeatId(scene, playerSeatId, entity.id)
+      const nextSeatId = nextMainlinePlayerSeatId(scene, activePlayerSeatId, entity.id)
       if (nextSeatId !== entity.id) {
         stopMovement()
         setFeedback('这把椅子已经有人坐了。')
@@ -999,7 +1056,7 @@ export function MainlineScenePage({
         setDialogueLineIndex(0)
       }
     }
-    if (isMainlineInPlaceInteraction(entity) && isMainlineEntityWithinInteractionRange(scene, entity.id, getCurrentPosition(), layout, navigationOptions)) {
+    if (isMainlineEntityWithinInteractionRange(scene, entity.id, getCurrentPosition(), layout, navigationOptions)) {
       stopMovement()
       revealInteraction()
       return
@@ -1021,7 +1078,7 @@ export function MainlineScenePage({
         setFeedback('修杰在边界前停下了，需要重新选择位置。')
       },
     })
-  }, [carriedPhoneDevice, commercialCafeStoryStage, dismissSceneEcho, geometrySnapshot, getCurrentPosition, incensePhase, layout, leavePlayerSeat, locomotionOptions, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, playerSeatId, resetMovement, scene, screenMetrics, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeStoryStage, dismissSceneEcho, geometrySnapshot, getCurrentPosition, incensePhase, layout, leavePlayerSeat, locomotionOptions, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, recordSceneState, resetMovement, scene, screenMetrics, startNpcDialogue, startPassageTraversal, stopMovement])
 
   const interactNpc = useCallback((npcId: string) => {
     const npc = scene.npcs.find((candidate) => candidate.id === npcId)
@@ -1039,9 +1096,9 @@ export function MainlineScenePage({
       sceneId: scene.id,
       npcId: npc.id,
       stage: commercialCafeStoryStage,
-      playerSeatId,
+      playerSeatId: activePlayerSeatId,
     })
-    if (playerSeatId && seatedResolution?.kind === 'dialogue') {
+    if (activePlayerSeatId && seatedResolution?.kind === 'dialogue') {
       stopMovement()
       onNpcInteraction?.(npc.id)
       setFeedback(`修杰来到${npc.label}身边。`)
@@ -1089,7 +1146,40 @@ export function MainlineScenePage({
         setFeedback('修杰在接近对方前停下了，需要重新选择位置。')
       },
     })
-  }, [commercialCafeStoryStage, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, locomotionOptions, moveAlong, movingNpcIds, navigationOptions, onNpcInteraction, onPhoneDismiss, phoneOpen, playerSeatId, scene, startNpcDialogue, stopMovement])
+  }, [activePlayerSeatId, commercialCafeStoryStage, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, locomotionOptions, moveAlong, movingNpcIds, navigationOptions, onNpcInteraction, onPhoneDismiss, phoneOpen, scene, startNpcDialogue, stopMovement])
+
+  const interactAttachedProp = useCallback((propId: string) => {
+    const prop = scene.attachedProps.find((candidate) => candidate.id === propId)
+    if (!prop) return
+    const resolution = resolveCommercialCafeAttachedPropInteraction({ sceneId: scene.id, propId, stage: commercialCafeStoryStage })
+    if (!resolution) return
+    const reveal = () => {
+      if (resolution.kind === 'dialogue') startNpcDialogue(resolution)
+      else setFeedback(resolution.feedback)
+    }
+    const currentPosition = getCurrentPosition()
+    const currentSeat = activePlayerSeatId ? scene.objects.find((candidate) => candidate.id === activePlayerSeatId) : undefined
+    if (currentSeat?.seat?.tableId === prop.parentEntityId) {
+      stopMovement()
+      reveal()
+      return
+    }
+    if (isMainlineEntityWithinInteractionRange(scene, prop.interactionTargetEntityId, currentPosition, layout, navigationOptions)) {
+      stopMovement()
+      reveal()
+      return
+    }
+    const route = findMainlinePathToEntity(scene, prop.interactionTargetEntityId, currentPosition, layout, navigationOptions)
+    if (!route.path) {
+      setFeedback('这个位置暂时走不过去。')
+      return
+    }
+    moveAlong(route.path, reveal, {
+      ...locomotionOptions,
+      canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
+      onBlocked: () => setFeedback('修杰在边界前停下了，需要重新选择位置。'),
+    })
+  }, [activePlayerSeatId, commercialCafeStoryStage, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, scene, startNpcDialogue, stopMovement])
 
   const chooseSceneEchoOption = useCallback((index: number) => {
     const option = sceneEcho?.options?.[index]
@@ -1102,7 +1192,7 @@ export function MainlineScenePage({
       dismissSceneEcho()
       return
     }
-    if (resolution.stateChange) onPlayerSceneStateChange?.(scene.id, resolution.stateChange.key, resolution.stateChange.value)
+      if (resolution.stateChange) recordSceneState(scene.id, resolution.stateChange.key, resolution.stateChange.value)
     if (resolution.stateChange?.key === 'blindsOpen') {
       const open = resolution.stateChange.value === true
       setOfficeBlindsOpen(open)
@@ -1126,7 +1216,7 @@ export function MainlineScenePage({
       }
       return resolution.clearOptions ? { ...current, options: undefined } : current
     })
-  }, [commercialCafeStoryStage, dismissSceneEcho, onDeskInteraction, onPlayerSceneStateChange, scene, sceneEcho])
+  }, [commercialCafeStoryStage, dismissSceneEcho, onDeskInteraction, recordSceneState, scene, sceneEcho])
 
   const advanceSceneEcho = useCallback(() => {
     const current = sceneEchoRef.current
@@ -1162,9 +1252,9 @@ export function MainlineScenePage({
     setNpcDialogue(null)
     if (completedNpcDialogue) {
       const stateChange = completedNpcDialogue.stateChangeOnDialogueComplete
-      if (stateChange) onPlayerSceneStateChange?.(scene.id, stateChange.key, stateChange.value)
+      if (stateChange) recordSceneState(scene.id, stateChange.key, stateChange.value)
     }
-  }, [activeDialogue, dialogueLineIndex, dialogueSegmentIndex, npcDialogue, onPlayerSceneStateChange, scene.id])
+  }, [activeDialogue, dialogueLineIndex, dialogueSegmentIndex, npcDialogue, recordSceneState, scene.id])
 
   const walk = useCallback((point: Point) => {
     npcInteractionRequestRef.current += 1
@@ -1233,7 +1323,7 @@ export function MainlineScenePage({
   const cameraOffset = mainlineCameraOffset(scene, position, embedded)
 
   return (
-    <div {...sceneInteractionHandlers} className={`scene-shell mainline-scene ${embedded ? 'mainline-scene--embedded' : ''} ${!showSceneChrome ? 'mainline-scene--map-only' : ''}`} data-mainline-scene={scene.id}>
+    <div {...sceneInteractionHandlers} className={`scene-shell mainline-scene ${embedded ? 'mainline-scene--embedded' : ''} ${!showSceneChrome ? 'mainline-scene--map-only' : ''}`} data-mainline-scene={scene.id} data-commercial-cafe-stage={scene.id === 'commercial-cafe' ? commercialCafeStoryStage : undefined} data-commercial-cafe-server-behavior={scene.id === 'commercial-cafe' ? commercialCafeBehavior.getPhase() : undefined} data-debug-cafe-fixture={debugCafeFixture ? 'true' : undefined}>
       {!embedded && showSceneChrome && <header className="scene-shell__header">
         <div>
           <p className="scene-shell__eyebrow">NEWTONE / CENTER / MAINLINE SCENE</p>
@@ -1272,7 +1362,9 @@ export function MainlineScenePage({
               onLayoutChange={updateLayout}
               onInteract={interact}
               onNpcInteract={interactNpc}
+              onAttachedPropInteract={interactAttachedProp}
               npcPositions={resolvedNpcPositions}
+              npcRuntimeSnapshots={npcRuntimeSnapshots}
               onDoorTransitionComplete={completeDoorTransition}
               onWalk={walk}
               dialogue={activeDialogue}
@@ -1294,7 +1386,7 @@ export function MainlineScenePage({
               onIncenseBurnComplete={() => setIncenseClock(Date.now())}
               commercialCafeStoryStage={commercialCafeStoryStage}
               occupiedSeatIds={occupiedSeatIds}
-              playerSeatId={playerSeatId}
+              playerSeatId={activePlayerSeatId}
               promptedSeatId={promptedSeatId}
               debugInput={debugInput}
               debugNpcMovement={debugNpcMovement}
