@@ -43,3 +43,6 @@ dist-ssr
 .vercel
 .env*
 !.env.example
+# Local Playwright runtime evidence
+/test-results/
+/playwright-report/
