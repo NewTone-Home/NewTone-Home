@@ -70,21 +70,27 @@ describe('commercial cafe seating and staging', () => {
     expect(path.path).not.toBeNull()
   })
 
-  it('derives the server home from the staff-only zone while preserving a reachable NPC contact point', () => {
-    const staffZone = cafe.blockers.find((blocker) => blocker.id === 'commercial-cafe-staff-only')!
+  it('derives the server home from the counter staff side while preserving a reachable customer contact point', () => {
+    const staffZone = cafe.accessRegions.find((region) => region.id === 'commercial-cafe-staff-area')!
     const serverPlacement = cafe.npcPlacements.find((candidate) => candidate.npcId === 'server')!
     const serverPosition = resolveMainlineNpcPosition(cafe, 'server')
     const serverContact = mainlineNpcInteractionTarget(cafe, 'server', cafe.initialPlayerPosition)
+    const counterSegments = cafe.objects.filter((entity) => entity.id === 'commercial-cafe-counter' || entity.id.startsWith('commercial-cafe-counter-'))
+    const counterLeft = Math.min(...counterSegments.map((entity) => entity.collision!.x))
+    const counterRight = Math.max(...counterSegments.map((entity) => entity.collision!.x + entity.collision!.width))
+    const counterCollision = counterSegments[0]!.collision!
+    const clearance = sharedFurnitureGeometry.playerRadius + sharedFurnitureGeometry.actorContactGap
 
+    expect(cafe.blockers.some((blocker) => blocker.id === 'commercial-cafe-staff-only')).toBe(false)
     expect(serverPlacement.position).toEqual(serverPosition)
     expect(serverPosition.x).toBeGreaterThan(staffZone.x)
     expect(serverPosition.x).toBeLessThan(staffZone.x + staffZone.width)
     expect(serverPosition.y).toBeGreaterThan(staffZone.y)
     expect(serverPosition.y).toBeLessThan(staffZone.y + staffZone.height)
-    expect(serverPosition).toEqual({
-      x: staffZone.x + staffZone.width / 2,
-      y: staffZone.y + staffZone.height - (sharedFurnitureGeometry.playerRadius + sharedFurnitureGeometry.actorContactGap),
-    })
+    expect(serverPosition.x).toBeCloseTo((counterLeft + counterRight) / 2)
+    expect(serverPosition.y).toBeCloseTo(counterCollision.y - clearance)
+    expect(serverPlacement.interactionApproach).toEqual(serverContact)
+    expect(serverContact.y).toBeCloseTo(counterCollision.y + counterCollision.height + clearance)
     expect(isWalkableMainlinePoint(serverContact, cafe)).toBe(true)
   })
 })

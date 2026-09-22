@@ -1,5 +1,5 @@
 import { defaultEdgeContactDirection, mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
-import { mainlineScenePassageCollision, mainlineScenePassageDoorway, type MainlineSceneDefinition, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
+import { mainlineScenePassageCollision, mainlineScenePassageDoorway, type MainlineSceneAccessRegion, type MainlineSceneDefinition, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import { mainlineEntityCollision, mainlineLayoutOffsetForEntity, type SceneLayout } from './sceneLayout'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -51,6 +51,44 @@ function expanded(box: { x: number; y: number; width: number; height: number }, 
   return { x: box.x - radius, y: box.y - radius, width: box.width + radius * 2, height: box.height + radius * 2 }
 }
 
+function actorAccessFor(scene: MainlineSceneDefinition, actorId?: string) {
+  return new Set(scene.actorAccess[actorId ?? 'protagonist'] ?? ['public'])
+}
+
+function actorCanEnterRegion(scene: MainlineSceneDefinition, actorId: string | undefined, region: MainlineSceneAccessRegion) {
+  return actorAccessFor(scene, actorId).has(region.requiredAccess)
+}
+
+export type MainlineAccessRegionBoundaryTarget = {
+  region: MainlineSceneAccessRegion
+  target: Point
+}
+
+/**
+ * Preserve a denied world-click as a normal movement command to the nearest
+ * legal edge, rather than reducing it to an unexplained no-path result.
+ */
+export function resolveMainlineAccessRegionBoundaryTarget(
+  scene: MainlineSceneDefinition,
+  requestedTarget: Point,
+  from: Point,
+  options: MainlineNavigationOptions = {},
+): MainlineAccessRegionBoundaryTarget | null {
+  const region = scene.accessRegions.find((candidate) => (
+    !actorCanEnterRegion(scene, options.actorId, candidate) && containsPoint(candidate, requestedTarget)
+  ))
+  if (!region) return null
+  return {
+    region,
+    target: edgeContactPoint(
+      { x: region.x + region.width / 2, y: region.y + region.height / 2 },
+      region,
+      from,
+      options.actorRadius ?? defaultActorRadius,
+    ),
+  }
+}
+
 function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, options: MainlineNavigationOptions, includeClosedPassages: boolean) {
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const openPassageIds = options.openPassageIds
@@ -83,6 +121,9 @@ function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, opt
       .filter((entity) => entity.visible !== false)
       .map((entity) => snapshot.objects.get(entity.id)?.collision ?? mainlineEntityCollision(scene, entity, layout, options.screenMetrics))
       .filter((collision): collision is NonNullable<typeof collision> => Boolean(collision)),
+    ...scene.accessRegions
+      .filter((region) => !actorCanEnterRegion(scene, options.actorId, region))
+      .map((region) => ({ x: region.x, y: region.y, width: region.width, height: region.height })),
   ]
   const dynamicBoxes = options.navigationRuntime?.dynamicObstaclesFor(options.actorId) ?? []
   return [...staticBoxes, ...dynamicBoxes]
@@ -830,6 +871,7 @@ export function findMainlinePathThroughPassage(scene: MainlineSceneDefinition, p
 
 export function findMainlinePath(start: Point, target: Point, scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): Point[] | null {
   if (!isWalkableMainlinePoint(start, scene, layout, options)) return null
+  if (!isWalkableMainlinePoint(target, scene, layout, options)) return null
   const actorRadius = options.actorRadius ?? defaultActorRadius
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   return findNavigationPath(start, target, {
@@ -915,6 +957,7 @@ export function resolveMainlineNpcPosition(scene: MainlineSceneDefinition, npcId
 }
 
 function mainlineNpcInteractionCandidates(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout, actorRadius: number, options: MainlineNavigationOptions) {
+  const placement = scene.npcPlacements.find((candidate) => candidate.npcId === npcId)
   const npcPosition = resolveMainlineNpcPosition(scene, npcId, layout, options)
   const npcRadius = sharedFurnitureGeometry.playerRadius
   const collision = {
@@ -943,10 +986,15 @@ function mainlineNpcInteractionCandidates(scene: MainlineSceneDefinition, npcId:
     defaultClockwise,
     defaultCounterclockwise,
   ]
-  return directions.map((direction) => edgeContactPoint(npcPosition, collision, {
+  const physicalCandidates = directions.map((direction) => edgeContactPoint(npcPosition, collision, {
     x: npcPosition.x + direction.x,
     y: npcPosition.y + direction.y,
   }, actorRadius))
+  // A worker behind a real counter still has one physical customer-side contact
+  // point. This belongs to the current scene placement, never NPC identity.
+  return placement?.interactionApproach
+    ? [placement.interactionApproach, ...physicalCandidates]
+    : physicalCandidates
 }
 
 /** Keep an interacting protagonist outside the NPC actor footprint and nearby furniture. */

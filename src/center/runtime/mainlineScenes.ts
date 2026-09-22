@@ -23,6 +23,8 @@ import type {
   MainlineSceneAttachedProp,
   MainlineSceneNpc,
   MainlineSceneNpcPlacement,
+  MainlineSceneAccessRegion,
+  MainlineRegionAccess,
   MainlineStorefrontRole,
   MainlineStorefrontComposition,
   MainlineStorefrontMode,
@@ -64,6 +66,8 @@ export type {
   MainlineSceneDialogueSpeaker,
   MainlineSceneAttachedProp,
   MainlineSceneNpc,
+  MainlineSceneAccessRegion,
+  MainlineRegionAccess,
 } from './mainlineSceneModel'
 
 export type MainlineStructure = {
@@ -184,6 +188,8 @@ export type MainlineSceneDefinition = {
   wallCollisions: readonly MainlineWallCollision[]
   curves: readonly MainlineSceneCurve[]
   airWalls?: readonly MainlineAirWall[]
+  accessRegions: readonly MainlineSceneAccessRegion[]
+  actorAccess: Readonly<Record<string, readonly MainlineRegionAccess[]>>
   blockers: readonly (CollisionBox & { id: string })[]
   wallDensity?: MainlineWallDensity
   objects: readonly MainlineSceneEntity[]
@@ -1003,6 +1009,8 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
       })),
     curves: data.curves ?? [],
     airWalls: data.airWalls,
+    accessRegions: data.accessRegions ?? [],
+    actorAccess: data.actorAccess ?? {},
     blockers: data.blockers,
     wallDensity: data.wallDensity,
     objects: [...objectById.values()],

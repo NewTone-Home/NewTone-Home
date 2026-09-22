@@ -115,6 +115,21 @@ export type MainlineSceneNpcPlacement = {
   npcId: string
   position?: Point
   seatId?: string
+  /** A scene-staged contact point when the NPC works behind a physical surface. */
+  interactionApproach?: Point
+}
+
+/** A deliberately small scene-local movement permission vocabulary. */
+export type MainlineRegionAccess = 'public' | 'staff'
+
+/**
+ * A semantic area, not a physical wall. Navigation treats it as blocked only
+ * when the querying actor lacks the declared access.
+ */
+export type MainlineSceneAccessRegion = CollisionBox & {
+  id: string
+  requiredAccess: MainlineRegionAccess
+  deniedText?: string
 }
 
 /** A display-only item anchored to an existing spatial entity. */
@@ -289,6 +304,9 @@ export type MainlineSceneData = {
   attachedProps?: readonly MainlineSceneAttachedProp[]
   curves?: readonly MainlineSceneCurve[]
   airWalls?: readonly MainlineAirWall[]
+  accessRegions?: readonly MainlineSceneAccessRegion[]
+  /** Actor ids remain data here; navigation only consumes their access set. */
+  actorAccess?: Readonly<Record<string, readonly MainlineRegionAccess[]>>
   blockers: readonly (CollisionBox & { id: string })[]
   furnitureGroups: readonly MainlineFurnitureGroup[]
   initialPlayerPosition: Point
@@ -607,30 +625,12 @@ function inlinePortraitFeature(
   }
 }
 
-// One authored café layout owns every floor zone and furniture anchor. The
-// renderer consumes this shared scene data; it does not arrange a second café
-// layout in screen coordinates.
-const commercialCafeStaffOnly = box(11, 17, 35, 8.5)
-const commercialCafeStaffHome = authoredPoint(
-  commercialCafeStaffOnly.x + commercialCafeStaffOnly.width / 2,
-  commercialCafeStaffOnly.y + commercialCafeStaffOnly.height - (sharedFurnitureGeometry.playerRadius + sharedFurnitureGeometry.actorContactGap),
-)
-
 const commercialCafeLayout = {
   bounds: box(8, 7, 90, 86),
   straightFrameBounds: box(8, 7, 80, 86),
   entranceY: 68,
   centralWaitingFloor: box(35, 38, 33, 31),
   entranceCorridor: box(8, 64, 20, 18),
-  service: {
-    // Keep the service zone visually attached to the rear wall instead of
-    // leaving the counter floating in the upper half of the room.
-    // A semantic home point at the customer-facing edge of the staff zone:
-    // inside the counter area, but with a reachable customer contact point.
-    staffHome: commercialCafeStaffHome,
-    staffApproach: authoredPoint(43, 31),
-    staffOnly: commercialCafeStaffOnly,
-  },
   glass: {
     start: authoredPoint(88, 7),
     control: authoredPoint(98, 50),
@@ -687,7 +687,6 @@ const commercialCafeFurniture = [
 const commercialCafeFurnitureEntities = commercialCafeFurniture
   .flatMap(({ entities }) => entities)
   .map((entity) => ({ ...entity, visualVisibility: 'baseline' as const }))
-const commercialCafeCounterY = 20
 const commercialCafeCounterReferencePositions = [12, 16, 20, 24, 28, 32, 36, 40, 44, 48] as const
 // Counter segments follow the same horizontal pitch as the wall lattice. The
 // counter remains a continuous authored span, but it must not be denser than
@@ -708,15 +707,53 @@ const commercialCafeCounterPositions = Array.from(
   { length: Math.round((commercialCafeCounterEnd - commercialCafeCounterStart) / commercialCafeCounterCellWidth) },
   (_, index) => commercialCafeCounterStart + index * commercialCafeCounterCellWidth,
 )
+const commercialCafeCounterRearWallClearance = 11
+const commercialCafeCounterBody = {
+  // The rendered label and physical body share this centerline. Customer space
+  // is south of the counter; staff work in the rear zone to its north.
+  y: commercialCafeStraightFrameBounds.y + mainlineWallThickness + commercialCafeCounterRearWallClearance,
+  depth: 2.7,
+  x: commercialCafeCounterPositions[0]! - commercialCafeCounterCellWidth / 2,
+  width: commercialCafeCounterPositions.length * commercialCafeCounterCellWidth,
+}
+const commercialCafeCounterCollision = box(
+  commercialCafeCounterBody.x,
+  commercialCafeCounterBody.y - commercialCafeCounterBody.depth / 2,
+  commercialCafeCounterBody.width,
+  commercialCafeCounterBody.depth,
+)
+const commercialCafeCounterClearance = sharedFurnitureGeometry.playerRadius + sharedFurnitureGeometry.actorContactGap
+const commercialCafeCounterCustomerApproachY = commercialCafeCounterCollision.y + commercialCafeCounterCollision.height + commercialCafeCounterClearance
+const commercialCafeCounterStaffServiceY = commercialCafeCounterCollision.y - commercialCafeCounterClearance
+// The access area reaches the customer-facing edge of the counter body. A
+// denied player click therefore stops at the same clear customer-side edge,
+// while the counter itself remains a physical obstacle for every actor.
+const commercialCafeStaffArea = box(
+  commercialCafeCounterBody.x,
+  commercialCafeStraightFrameBounds.y + mainlineWallThickness,
+  commercialCafeCounterBody.width,
+  commercialCafeCounterCollision.y + commercialCafeCounterCollision.height - (commercialCafeStraightFrameBounds.y + mainlineWallThickness),
+)
+const commercialCafeServiceLayout = {
+  staffHome: authoredPoint(
+    commercialCafeCounterBody.x + commercialCafeCounterBody.width / 2,
+    commercialCafeCounterStaffServiceY,
+  ),
+  staffApproach: authoredPoint(
+    commercialCafeCounterPositions[commercialCafeCounterPositions.length - 1]!,
+    commercialCafeCounterStaffServiceY,
+  ),
+  staffOnly: commercialCafeStaffArea,
+} as const
 const commercialCafeCounterEntities = commercialCafeCounterPositions.map((x, index) => floor({
   id: index === 4 ? 'commercial-cafe-counter' : `commercial-cafe-counter-${index + 1}`,
   label: '柜台',
   kind: 'fixture',
   weight: 'fixture',
-  position: authoredPoint(x, commercialCafeCounterY),
-  approach: authoredPoint(x, 34),
-  collision: box(x - commercialCafeCounterCellWidth / 2, 29.65, commercialCafeCounterCellWidth, 2.7),
-  shape: box(x - commercialCafeCounterCellWidth / 2, 29.65, commercialCafeCounterCellWidth, 2.7),
+  position: authoredPoint(x, commercialCafeCounterBody.y),
+  approach: authoredPoint(x, commercialCafeCounterCustomerApproachY),
+  collision: box(x - commercialCafeCounterCellWidth / 2, commercialCafeCounterCollision.y, commercialCafeCounterCellWidth, commercialCafeCounterCollision.height),
+  shape: box(x - commercialCafeCounterCellWidth / 2, commercialCafeCounterCollision.y, commercialCafeCounterCellWidth, commercialCafeCounterCollision.height),
   interactionBehavior: 'cafe-order',
   visualVisibility: 'baseline',
 }))
@@ -737,7 +774,14 @@ const commercialCafeNpcs = [
 ] as const satisfies readonly MainlineSceneNpc[]
 const commercialCafeNpcPlacements = [
   { npcId: npcRoles.laoZhou.id, seatId: 'commercial-cafe-right-window-upper-group-chair-top' },
-  { npcId: npcRoles.server.id, position: commercialCafeLayout.service.staffHome },
+  {
+    npcId: npcRoles.server.id,
+    position: commercialCafeServiceLayout.staffHome,
+    interactionApproach: authoredPoint(
+      commercialCafeServiceLayout.staffHome.x,
+      commercialCafeCounterCustomerApproachY,
+    ),
+  },
 ] as const satisfies readonly MainlineSceneNpcPlacement[]
 const commercialCafeAttachedProps = [
   {
@@ -816,7 +860,19 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
     npcs: commercialCafeNpcs,
     npcPlacements: commercialCafeNpcPlacements,
     attachedProps: commercialCafeAttachedProps,
-    curves: [commercialCafeWindow], blockers: [{ id: 'commercial-cafe-staff-only', ...commercialCafeLayout.service.staffOnly }], furnitureGroups: commercialCafeFurniture.map(({ group }) => group), initialPlayerPosition: commercialCafeEntryPosition,
+    curves: [commercialCafeWindow],
+    accessRegions: [{
+      id: 'commercial-cafe-staff-area',
+      ...commercialCafeServiceLayout.staffOnly,
+      requiredAccess: 'staff',
+      deniedText: '还是别进去打扰他们工作了。',
+    }],
+    actorAccess: {
+      protagonist: ['public'],
+      [npcRoles.laoZhou.id]: ['public'],
+      [npcRoles.server.id]: ['public', 'staff'],
+    },
+    blockers: [], furnitureGroups: commercialCafeFurniture.map(({ group }) => group), initialPlayerPosition: commercialCafeEntryPosition,
   },
   portals: [{
     id: 'street-cafe-entry',

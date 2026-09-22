@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import type { Point } from './sceneGeometry'
 import { MainlineSceneRenderer, type MainlineInputDiagnostic } from './MainlineSceneRenderer'
 import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneAreaLabel, mainlineSceneGeometryUnits, mainlineSceneWalkBounds, mainlineScenes, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneExternalExit, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
-import { findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, findMainlinePathToNpc, findMainlineWorldRoute, isMainlineEntityWithinInteractionRange, isMainlineNpcWithinInteractionRange, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlineInteractionTarget, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition, resolveMainlineSeatSitPosition } from './mainlineNavigation'
+import { findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, findMainlinePathToNpc, findMainlineWorldRoute, isMainlineEntityWithinInteractionRange, isMainlineNpcWithinInteractionRange, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlineInteractionTarget, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineAccessRegionBoundaryTarget, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition, resolveMainlineSeatSitPosition } from './mainlineNavigation'
 import { layoutGridSize, mainlineEntityInteractionBounds, mainlineEntityVisualBounds, type SceneLayout } from './sceneLayout'
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
 import { movementDurationMsForPath, useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
@@ -472,6 +472,16 @@ export function MainlineScenePage({
       echoPositionNearPlayer(scene, text, getCurrentPosition(), layout, screenMetrics, geometrySnapshot),
     ))
     setFeedback('修杰停在门前。')
+  }, [geometrySnapshot, getCurrentPosition, layout, scene, screenMetrics])
+  const showAccessRegionDeniedText = useCallback((text: string) => {
+    sceneEchoIdRef.current += 1
+    setSceneEcho(createMainlineSceneEcho(
+      sceneEchoIdRef.current,
+      undefined,
+      text,
+      echoPositionNearPlayer(scene, text, getCurrentPosition(), layout, screenMetrics, geometrySnapshot),
+    ))
+    setFeedback('修杰停在员工区域外。')
   }, [geometrySnapshot, getCurrentPosition, layout, scene, screenMetrics])
   const { requestPassage: requestPassageLifecycle, cancelPassage: cancelPassageLifecycle, updateActor: updatePassageLifecycle, completeOpen, completeClose, getPassagePhase, getOpenPassageIds, passageStates } = useAutomaticPassages({
     passages: passageLifecycleDefinitions,
@@ -1123,6 +1133,14 @@ export function MainlineScenePage({
     dismissSceneEcho()
     setActiveObjectId(null)
     leavePlayerSeat()
+    const deniedRegion = resolveMainlineAccessRegionBoundaryTarget(sceneDefinition, point, getCurrentPosition(), navigationOptions)
+    if (deniedRegion) {
+      const started = moveTo(deniedRegion.target, () => {
+        showAccessRegionDeniedText(deniedRegion.region.deniedText ?? '这里暂时不能进入。')
+      })
+      if (started) setFeedback('修杰走到员工区域外。')
+      return
+    }
     const route = findMainlineWorldRoute(sceneDefinition, getCurrentPosition(), point, layout, navigationOptions)
     if (route.passage) {
       startPassageTraversal(route.passage, route.requestedTarget, route.approachPath, route.continuationPath, route.passages.length > 0 ? route.passages : [route.passage])
@@ -1141,7 +1159,7 @@ export function MainlineScenePage({
       if (outsideScene) setPassageDestination(route.requestedTarget)
       setFeedback('修杰沿着可行空间移动。')
     }
-  }, [dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, moveTo, navigationOptions, onPhoneDismiss, phoneOpen, sceneDefinition, setFeedback, setDialogueLineIndex, startPassageTraversal])
+  }, [dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, moveTo, navigationOptions, onPhoneDismiss, phoneOpen, sceneDefinition, setFeedback, setDialogueLineIndex, showAccessRegionDeniedText, startPassageTraversal])
 
   useEffect(() => {
     if (!walkRequest || handledWalkRequestRef.current === walkRequest.id) return
