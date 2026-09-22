@@ -81,7 +81,7 @@ export function createNpcMovementAdapter({ npcId, initialPosition, movement, nav
         canOccupy,
         // Keep the planner's last turn when entering an access-controlled
         // staging point. Otherwise generic same-direction compression can
-        // straighten a valid around-counter path into the counter body.
+        // straighten a valid route around a protected static body.
         finalCanOccupy: canOccupy,
         onMove: (position) => {
           syncPosition(position)

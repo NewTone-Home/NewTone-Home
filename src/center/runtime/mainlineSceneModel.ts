@@ -87,6 +87,8 @@ export type MainlineSceneEntity = {
   visualScale?: number
   /** Maximum authored distance for direct exploration of a wall feature. */
   interactionRange?: number
+  /** Scene-owned exterior faces permitted for proximity interaction. */
+  interactionContactSides?: readonly ('top' | 'right' | 'bottom' | 'left')[]
   /** A small set of authored interaction behaviors used by the generic page flow. */
   interactionBehavior?: MainlineInteractionBehavior
   /** Semantic visual treatment; keeps the renderer independent of authored IDs. */
@@ -789,6 +791,7 @@ const commercialCafeCounterEntities = commercialCafeCounterPositions.map((x, ind
   collision: box(x - commercialCafeCounterCellWidth / 2, commercialCafeCounterCollision.y, commercialCafeCounterCellWidth, commercialCafeCounterCollision.height),
   shape: box(x - commercialCafeCounterCellWidth / 2, commercialCafeCounterCollision.y, commercialCafeCounterCellWidth, commercialCafeCounterCollision.height),
   interactionBehavior: 'cafe-order',
+  interactionContactSides: ['bottom'],
   visualVisibility: 'baseline',
 }))
 const commercialCafeStoryTableId = 'commercial-cafe-right-window-upper-group-table'

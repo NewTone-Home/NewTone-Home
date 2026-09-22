@@ -14,6 +14,7 @@ test('isolated café fixture keeps stage in memory and proves presentation lifec
   const scene = page.locator('[data-mainline-scene="commercial-cafe"]').first()
   await expect(scene).toHaveAttribute('data-commercial-cafe-stage', 'coffee-delivered')
   await expect(page.locator('[data-attached-prop-id="commercial-cafe-coffee"]')).toHaveCount(1)
+  await expect(page.locator('[data-object-id="commercial-cafe-right-window-upper-group-table"]').getByText('桌子', { exact: true })).toHaveCount(0)
   await expect(page.locator('[data-attached-prop-id="commercial-cafe-empty-cup"]')).toHaveCount(0)
   await expect(page.locator('.scene-protagonist__dot')).toHaveCount(0)
   await expect(page.getByLabel('修杰，已坐下')).toBeVisible()
@@ -43,13 +44,17 @@ test('an isolated real save retains coffee order after browser reload without to
   await expect(scene).toHaveAttribute('data-commercial-cafe-stage', 'coffee-ordered')
 })
 
-test('server begins an ambient semantic duty without a debug control and settles before story delivery', async ({ page }) => {
+test('server begins an ambient semantic duty without a debug control and moves under its own coordinator', async ({ page }) => {
   await page.goto('/?scene=commercial-cafe&debugCafeStage=entered')
-  const scene = page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]').first()
   const server = page.locator('[data-npc-id="server"]')
   await expect(server).toHaveAttribute('data-npc-duty-id', 'server.prepare')
-  await expect(scene).toHaveAttribute('data-commercial-cafe-server-behavior', 'ambient-waiting', { timeout: 30_000 })
-  await expect(server).toHaveAttribute('data-npc-phase', 'idle')
+  const motion = await page.evaluate(async () => {
+    const server = document.querySelector('[data-npc-id="server"]')
+    const before = server?.getAttribute('style')
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    return { before, after: server?.getAttribute('style') }
+  })
+  expect(motion.after).not.toBe(motion.before)
 })
 
 test('fresh isolated player completes the authored cafe story through dialogue, delivery, props, and resolution', async ({ page }) => {
@@ -81,6 +86,7 @@ test('fresh isolated player completes the authored cafe story through dialogue, 
   await expect(scene).toHaveAttribute('data-commercial-cafe-stage', 'ready-to-leave')
   await expect(page.locator('[data-attached-prop-id="commercial-cafe-empty-cup"]')).toHaveCount(1)
   await expect(page.locator('[data-attached-prop-id="commercial-cafe-banknote"]')).toHaveCount(1)
+  await expect(page.locator('[data-object-id="commercial-cafe-right-window-upper-group-table"]').getByText('桌子', { exact: true })).toHaveCount(0)
 })
 
 test('ready-to-leave café exits through the authored passage rather than completing on dialogue alone', async ({ page }) => {
@@ -132,8 +138,8 @@ test('met Lao Zhou starts one real server delivery, reveals coffee on arrival, t
   await expect(scene).toHaveAttribute('data-commercial-cafe-stage', 'coffee-delivered', { timeout: 30_000 })
   await expect(page.locator('[data-attached-prop-id="commercial-cafe-coffee"]')).toHaveCount(1)
   await expect(server).toHaveAttribute('data-npc-duty-id', 'server.return-to-counter', { timeout: 30_000 })
-  await expect(scene).toHaveAttribute('data-commercial-cafe-server-behavior', 'complete', { timeout: 30_000 })
-  await expect(server).toHaveAttribute('data-npc-phase', 'idle')
+  await expect(server).toHaveAttribute('data-npc-duty-id', 'server.prepare', { timeout: 30_000 })
+  await expect(scene).toHaveAttribute('data-commercial-cafe-server-behavior', 'ambient-moving')
 })
 
 test('isolated browser executes animation frames used by shared actor locomotion', async ({ page }) => {

@@ -436,6 +436,13 @@ export function MainlineSceneRenderer({
     playerSeatId,
     playerSeatId ? geometrySnapshot.objects.get(playerSeatId)?.position : undefined,
   )
+  // Attached props are table presentation states, not a second spatial object
+  // beside the table label. Their parent retains all collision and contact
+  // semantics while the visible detail owns the table's current label slot.
+  const visibleAttachedProps = commercialCafeStoryStage === undefined
+    ? []
+    : scene.attachedProps.filter((prop) => isCommercialCafeStoryDetailVisible(prop.visibleFromStage, commercialCafeStoryStage, prop.hiddenFromStage))
+  const presentedParentEntityIds = new Set(visibleAttachedProps.map((prop) => prop.parentEntityId))
   const hasAltarBreathing = scene.objects.some((entity) => isAltarEntity(scene, entity.id))
   useEffect(() => {
     if (!hasAltarBreathing || typeof window === 'undefined') return undefined
@@ -844,7 +851,7 @@ export function MainlineSceneRenderer({
               breathingAnimationDelay={synchronizedBreathingDelay}
               sharedBreathingClock={isAltarEntity(scene, entity.id)}
               registerBreathingNode={registerBreathingNode}
-              suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds)}
+              suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds) || presentedParentEntityIds.has(entity.id)}
               prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}
             />
           })}
@@ -878,7 +885,7 @@ export function MainlineSceneRenderer({
             </button>
           })}
 
-          {scene.attachedProps.filter((prop) => commercialCafeStoryStage !== undefined && isCommercialCafeStoryDetailVisible(prop.visibleFromStage, commercialCafeStoryStage, prop.hiddenFromStage)).map((prop) => {
+          {visibleAttachedProps.map((prop) => {
             const parentPosition = geometrySnapshot.objects.get(prop.parentEntityId)?.position
             if (!parentPosition) return null
             return (

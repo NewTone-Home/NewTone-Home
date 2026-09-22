@@ -88,10 +88,9 @@ export function resolveMainlineAccessRegionBoundaryTarget(
     from,
     actorRadius,
   )
-  // A region can meet a physical object (the café counter is the important
-  // case).  Stop at the closest real object face on the actor's side when the
-  // nominal region edge itself is occupied; permissions never manufacture an
-  // invisible wall inside the counter body.
+  // A region can meet a physical object. Stop at the closest real object face
+  // on the actor's side when the nominal region edge is occupied; permissions
+  // never manufacture an invisible wall inside a physical body.
   const physicalContacts = collisionBoxes(scene, {}, options, false).map((collision) => edgeContactPoint(
     { x: collision.x + collision.width / 2, y: collision.y + collision.height / 2 },
     collision,
@@ -971,13 +970,6 @@ function mainlineEntityInteractionCandidates(scene: MainlineSceneDefinition, ent
     if (isWalkableMainlinePoint(approach, scene, layout, { ...options, geometrySnapshot: snapshot })) return [approach]
   }
 
-  const clearance = actorRadius + sharedFurnitureGeometry.actorContactGap
-  if (entity.id === 'commercial-cafe-counter' || entity.id.startsWith('commercial-cafe-counter-')) {
-    return [{
-      x: Math.max(collision.x + clearance, Math.min(collision.x + collision.width - clearance, from.x)),
-      y: collision.y + collision.height + clearance,
-    }]
-  }
   const dx = from.x - position.x
   const dy = from.y - position.y
   const length = Math.hypot(dx, dy)
@@ -985,7 +977,15 @@ function mainlineEntityInteractionCandidates(scene: MainlineSceneDefinition, ent
   const clockwise = { x: -primary.y, y: primary.x }
   const counterclockwise = { x: primary.y, y: -primary.x }
   const opposite = { x: -primary.x, y: -primary.y }
-  const directional = [primary, clockwise, counterclockwise, opposite].map((direction) => edgeContactPoint(position, collision, {
+  const contactDirectionForSide = {
+    top: { x: -defaultEdgeContactDirection.x, y: -defaultEdgeContactDirection.y },
+    right: { x: defaultEdgeContactDirection.y, y: -defaultEdgeContactDirection.x },
+    bottom: defaultEdgeContactDirection,
+    left: { x: -defaultEdgeContactDirection.y, y: defaultEdgeContactDirection.x },
+  } as const
+  const contactDirections = entity.interactionContactSides?.map((side) => contactDirectionForSide[side])
+    ?? [primary, clockwise, counterclockwise, opposite]
+  const directional = contactDirections.map((direction) => edgeContactPoint(position, collision, {
     x: position.x + direction.x,
     y: position.y + direction.y,
   }, actorRadius))
@@ -1000,9 +1000,45 @@ function mainlineEntityInteractionCandidates(scene: MainlineSceneDefinition, ent
   }]
 }
 
+function mainlinePathLength(path: readonly Point[]): number {
+  return path.slice(1).reduce((total, point, index) => total + Math.hypot(
+    point.x - path[index]!.x,
+    point.y - path[index]!.y,
+  ), 0)
+}
+
+/** Pick the cheapest reachable contact, not the first authored candidate. */
+function nearestReachableInteractionPath(scene: MainlineSceneDefinition, from: Point, candidates: readonly Point[], layout: SceneLayout, options: MainlineNavigationOptions) {
+  let nearest: { target: Point; path: Point[]; distance: number } | null = null
+  const unresolved: Point[] = []
+  const canOccupy = (point: Point) => isWalkableMainlinePoint(point, scene, layout, options)
+  for (const target of candidates) {
+    if (!isWalkableMainlinePoint(target, scene, layout, options)) continue
+    if (canTravelAlongSegment(from, target, canOccupy)) {
+      const path = [from, target]
+      const distance = mainlinePathLength(path)
+      if (!nearest || distance < nearest.distance) nearest = { target, path, distance }
+    } else unresolved.push(target)
+  }
+  for (const target of unresolved.sort((first, second) => (
+    Math.hypot(first.x - from.x, first.y - from.y) - Math.hypot(second.x - from.x, second.y - from.y)
+ ))) {
+    // A path cannot beat its straight-line lower bound, so avoid compiling a
+    // second grid when an already direct contact is strictly closer.
+    if (nearest && Math.hypot(target.x - from.x, target.y - from.y) >= nearest.distance) continue
+    const path = findMainlinePath(from, target, scene, layout, options)
+    if (!path) continue
+    const distance = mainlinePathLength(path)
+    if (!nearest || distance < nearest.distance) nearest = { target, path, distance }
+  }
+  return nearest
+}
+
 export function mainlineInteractionTarget(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, actorRadius = defaultActorRadius, options: MainlineNavigationOptions = {}): Point {
   const candidates = mainlineEntityInteractionCandidates(scene, entityId, from, layout, actorRadius, options)
-  return candidates.find((candidate) => isWalkableMainlinePoint(candidate, scene, layout, options)) ?? candidates[0] ?? from
+  return candidates.find((candidate) => isWalkableMainlinePoint(candidate, scene, layout, options))
+    ?? candidates[0]
+    ?? from
 }
 
 /** Resolve an authored seat sit point through the shared layout projection. */
@@ -1064,30 +1100,25 @@ function mainlineNpcInteractionCandidates(scene: MainlineSceneDefinition, npcId:
     x: npcPosition.x + direction.x,
     y: npcPosition.y + direction.y,
   }, actorRadius))
-  if (npc?.interactionTargetEntityId === 'commercial-cafe-counter') {
-    const counterCandidates = scene.objects
-      .filter((entity) => entity.id === 'commercial-cafe-counter' || entity.id.startsWith('commercial-cafe-counter-'))
-      .flatMap((entity) => mainlineEntityInteractionCandidates(scene, entity.id, from, layout, actorRadius, options))
-    return [...counterCandidates, ...physicalCandidates]
-  }
-  return physicalCandidates
+  const spatialTargetCandidates = npc?.interactionTargetEntityId
+    ? mainlineEntityInteractionCandidates(scene, npc.interactionTargetEntityId, from, layout, actorRadius, options)
+    : []
+  return [...spatialTargetCandidates, ...physicalCandidates]
 }
 
 /** Keep an interacting protagonist outside the NPC actor footprint and nearby furniture. */
 export function mainlineNpcInteractionTarget(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout = {}, actorRadius = defaultActorRadius, options: MainlineNavigationOptions = {}): Point {
   const candidates = mainlineNpcInteractionCandidates(scene, npcId, from, layout, actorRadius, options)
-  return candidates.find((candidate) => isWalkableMainlinePoint(candidate, scene, layout, options)) ?? candidates[0] ?? from
+  return candidates.find((candidate) => isWalkableMainlinePoint(candidate, scene, layout, options))
+    ?? candidates[0]
+    ?? from
 }
 
 export function findMainlinePathToNpc(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
   const actorRadius = options.actorRadius ?? defaultActorRadius
   const candidates = mainlineNpcInteractionCandidates(scene, npcId, from, layout, actorRadius, options)
-  for (const target of candidates) {
-    if (!isWalkableMainlinePoint(target, scene, layout, options)) continue
-    const path = findMainlinePath(from, target, scene, layout, options)
-    if (path) return { target, path }
-  }
-  return { target: candidates[0] ?? from, path: null }
+  const nearest = nearestReachableInteractionPath(scene, from, candidates, layout, options)
+  return nearest ? { target: nearest.target, path: nearest.path } : { target: candidates[0] ?? from, path: null }
 }
 
 export function isMainlineNpcWithinInteractionRange(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
@@ -1104,10 +1135,6 @@ export function isMainlineEntityWithinInteractionRange(scene: MainlineSceneDefin
 
 export function findMainlinePathToEntity(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
   const candidates = mainlineEntityInteractionCandidates(scene, entityId, from, layout, options.actorRadius ?? defaultActorRadius, options)
-  for (const target of candidates) {
-    if (!isWalkableMainlinePoint(target, scene, layout, options)) continue
-    const path = findMainlinePath(from, target, scene, layout, options)
-    if (path) return { target, path }
-  }
-  return { target: candidates[0] ?? from, path: null }
+  const nearest = nearestReachableInteractionPath(scene, from, candidates, layout, options)
+  return nearest ? { target: nearest.target, path: nearest.path } : { target: candidates[0] ?? from, path: null }
 }

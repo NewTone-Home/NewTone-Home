@@ -29,7 +29,7 @@ describe('commercial cafe server behavior coordinator', () => {
     expect(coordinator.requestForStage({ scene: cafe, stage: 'met-lao-zhou', from: serverStart, snapshot: { npcId: 'server', phase: 'idle', retryCount: 0 } })).toEqual(first)
   })
 
-  it('waits for actual delivery arrival before requesting return, then completes at the semantic counter target', () => {
+  it('waits for actual delivery arrival before requesting return, then resumes the semantic ambient loop', () => {
     const coordinator = createCommercialCafeServerBehaviorCoordinator()
     coordinator.requestForStage({ scene: cafe, stage: 'met-lao-zhou', from: serverStart, snapshot: { npcId: 'server', phase: 'idle', retryCount: 0 } })
     coordinator.arrived()
@@ -40,7 +40,20 @@ describe('commercial cafe server behavior coordinator', () => {
       targetId: 'commercial-cafe-counter-service',
     })
     coordinator.arrived()
-    expect(coordinator.getPhase()).toBe('complete')
-    expect(coordinator.requestForStage({ scene: cafe, stage: 'coffee-delivered', from: serverStart, snapshot: { npcId: 'server', phase: 'idle', retryCount: 0 } })).toBeNull()
+    expect(coordinator.getPhase()).toBe('ambient-waiting')
+    expect(coordinator.requestForStage({ scene: cafe, stage: 'coffee-delivered', from: serverStart, snapshot: { npcId: 'server', phase: 'idle', retryCount: 0 } })).toMatchObject({
+      dutyId: npcRoles.server.duties.prepare.id,
+      targetId: 'commercial-cafe-prep-station',
+    })
+  })
+
+  it('lets a story delivery interrupt an ambient move without retaining the ambient target as identity state', () => {
+    const coordinator = createCommercialCafeServerBehaviorCoordinator()
+    expect(coordinator.requestForStage({ scene: cafe, stage: 'entered', from: serverStart, snapshot: { npcId: 'server', phase: 'idle', retryCount: 0 } })).toMatchObject({
+      dutyId: npcRoles.server.duties.prepare.id,
+    })
+    expect(coordinator.requestForStage({ scene: cafe, stage: 'met-lao-zhou', from: serverStart, snapshot: { npcId: 'server', phase: 'moving', retryCount: 0 } })).toMatchObject({
+      dutyId: npcRoles.server.duties.deliverCoffee.id,
+    })
   })
 })
