@@ -7,6 +7,7 @@ import {
   mainlinePassageCollisionForNavigation,
   mainlinePassageDoorwayForNavigation,
   mainlinePassageSide,
+  resolveMainlineSafeEntryPosition,
   isWalkableMainlinePoint,
 } from '../src/center/runtime/mainlineNavigation'
 
@@ -59,6 +60,25 @@ describe('mainline screen geometry snapshot', () => {
     const target = passage.crossingTargets[0]
     const targetSide = mainlinePassageSide(passage, target)
     expect(mainlinePassageCrossesToSide(passage, center, target, targetSide)).toBe(true)
+  })
+
+  it('keeps the passage and office secret door as one cross-scene identity', () => {
+    const passageScene = mainlineScenes['zhongshuyuan-passage']
+    const officeScene = mainlineScenes['zhongshuyuan-office']
+    const canonicalId = 'zhongshuyuan-office-secret-door'
+    const forward = passageScene.passages.find((passage) => passage.targetSceneId === officeScene.id)
+    const reverse = officeScene.passages.find((passage) => passage.targetSceneId === passageScene.id)
+
+    expect(forward).toMatchObject({ id: canonicalId, entityId: canonicalId, targetSceneId: officeScene.id })
+    expect(reverse).toMatchObject({ id: canonicalId, entityId: canonicalId, targetSceneId: passageScene.id })
+
+    const officeEntry = resolveMainlineSafeEntryPosition(officeScene, passageScene.id, forward.entryPosition)
+    const passageEntry = resolveMainlineSafeEntryPosition(passageScene, officeScene.id, reverse.entryPosition)
+
+    expect(officeEntry).toBeTruthy()
+    expect(passageEntry).toBeTruthy()
+    expect(isWalkableMainlinePoint(officeEntry, officeScene)).toBe(true)
+    expect(isWalkableMainlinePoint(passageEntry, passageScene)).toBe(true)
   })
 
   it.each(viewports)('keeps one geometry source for $name', (screenMetrics) => {

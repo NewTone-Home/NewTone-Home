@@ -978,7 +978,7 @@ const zhongshuyuanPassageBlueprint: MainlineSceneBlueprint = {
     wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
     walls: [{ id: 'zhongshuyuan-passage-frame', type: 'alley', bounds: zhongshuyuanPassageBounds, variant: 'narrow-corridor', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { vertical: zhongshuyuanPassageVerticalCoordinateCount }, boundaryProjection: 'screen-spacing', boundaryVisualEndpoints: { vertical: { start: 'omit', end: 'omit' } }, edges: ['top', 'right', 'bottom', 'left'], openings: [
       { edge: 'left', start: zhongshuyuanPassageDoorStart, end: zhongshuyuanPassageDoorEnd, doorId: 'jijia-secret-door', label: '门', displayLabel: '门', labelLayout: 'center' },
-      { edge: 'right', start: zhongshuyuanPassageDoorStart, end: zhongshuyuanPassageDoorEnd, doorId: 'zhongshuyuan-office-entry', label: '门', displayLabel: '门', labelLayout: 'center' },
+      { edge: 'right', start: zhongshuyuanPassageDoorStart, end: zhongshuyuanPassageDoorEnd, doorId: 'zhongshuyuan-office-secret-door', label: '门', displayLabel: '门', labelLayout: 'center' },
     ] }],
     floorEntities: [], blockers: [], furnitureGroups: [], initialPlayerPosition: authoredPoint(30, 50),
   },
@@ -988,12 +988,12 @@ const zhongshuyuanPassageBlueprint: MainlineSceneBlueprint = {
     endpoint: { doorPosition: authoredPoint(3, 50), threshold: authoredPoint(7, 50), crossingTarget: authoredPoint(5, 50), entryPosition: authoredPoint(96, 64) },
     targetSceneId: 'jijia-ancestral-interior', wallOpenings: [], transitionText: '修杰从暗道回到祖宅内堂。', access: 'open',
   }, {
-    id: 'zhongshuyuan-office-entry',
-    entity: { id: 'zhongshuyuan-office-entry', label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
+    id: 'zhongshuyuan-office-secret-door',
+    entity: { id: 'zhongshuyuan-office-secret-door', label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
     endpoint: { doorPosition: authoredPoint(97, 50), threshold: authoredPoint(93, 50), crossingTarget: authoredPoint(95, 50), entryPosition: zhongshuyuanOfficePassageEntryPosition },
     targetSceneId: 'zhongshuyuan-office', wallOpenings: [], transitionText: '修杰穿过暗道尽头的门，进入中枢院办公室。', access: 'open',
   }],
-  interactionText: { 'jijia-secret-door': '这扇门回到祖宅内堂。', 'zhongshuyuan-office-entry': '这扇门通向中枢院办公室。' },
+  interactionText: { 'jijia-secret-door': '这扇门回到祖宅内堂。', 'zhongshuyuan-office-secret-door': '这扇门通向中枢院办公室。' },
 }
 
 const zhongshuyuanOfficeFloorBounds = box(6, 8, 88, 84)
