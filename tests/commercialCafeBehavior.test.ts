@@ -56,4 +56,16 @@ describe('commercial cafe server behavior coordinator', () => {
       dutyId: npcRoles.server.duties.deliverCoffee.id,
     })
   })
+
+  it('selects a public table service duty between staff-area duties without binding the server to a table', () => {
+    const coordinator = createCommercialCafeServerBehaviorCoordinator()
+    const first = coordinator.requestForStage({ scene: cafe, stage: 'entered', from: serverStart, snapshot: { npcId: 'server', phase: 'idle', retryCount: 0 } })!
+    expect(first).toMatchObject({ dutyId: npcRoles.server.duties.prepare.id, targetId: 'commercial-cafe-prep-station' })
+    coordinator.arrived()
+
+    const publicService = coordinator.requestForStage({ scene: cafe, stage: 'entered', from: serverStart, snapshot: { npcId: 'server', phase: 'idle', retryCount: 0 } })!
+    expect(publicService).toMatchObject({ dutyId: npcRoles.server.duties.tableService.id, targetEntityId: expect.any(String) })
+    expect(cafe.objects.find((entity) => entity.id === publicService.targetEntityId)).toMatchObject({ kind: 'table' })
+    expect(publicService).not.toHaveProperty('target')
+  })
 })

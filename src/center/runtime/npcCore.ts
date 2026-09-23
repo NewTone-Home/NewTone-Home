@@ -5,8 +5,13 @@ export type NpcPhase = 'idle' | 'waiting' | 'moving' | 'blocked'
 export type NpcIntent = {
   dutyId: string
   targetId: string
-  target: Point
+  /** A semantic scene entity. The movement adapter resolves its live contact. */
+  targetEntityId?: string
+  /** Named point targets stay valid for staging and staff work surfaces. */
+  target?: Point
 }
+
+export type ResolvedNpcIntent = NpcIntent & { target: Point }
 
 export type NpcRuntimeSnapshot = {
   npcId: string
@@ -21,7 +26,7 @@ export type NpcRuntime = {
   setPosition: (position: Point) => void
   getPosition: () => Point
   getSnapshot: () => NpcRuntimeSnapshot
-  beginIntent: (intent: NpcIntent) => void
+  beginIntent: (intent: ResolvedNpcIntent) => void
   wait: () => void
   arrive: () => void
   blocked: () => void

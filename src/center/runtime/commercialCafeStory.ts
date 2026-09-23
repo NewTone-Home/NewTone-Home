@@ -1,9 +1,6 @@
 import type { PlayerSceneState } from './playerSave'
-import { findMainlinePathToEntity, type MainlineNavigationOptions } from './mainlineNavigation'
 import type { MainlineSceneDialoguePresentation, MainlineSceneId } from './mainlineSceneModel'
 import type { MainlineSceneDefinition } from './mainlineScenes'
-import type { SceneLayout } from './sceneLayout'
-import type { Point } from './sceneGeometry'
 import type { NpcIntent } from './npcCore'
 import { npcRoles } from './npcRoles'
 import { mainlineNpcStagedPoint } from './mainlineNpcStaging'
@@ -78,38 +75,23 @@ export function isCommercialCafeStoryDetailVisible(
 }
 
 /**
- * Coffee remains attached to its table. The table's existing interaction
- * contact is therefore the semantic delivery target; shared navigation owns
- * the actual route and arrival.
+ * Coffee remains attached to its table. Story names only that semantic table;
+ * the movement adapter chooses a live legal contact when the duty runs.
  */
 export function resolveCommercialCafeCoffeeDeliveryIntent({
   scene,
   stage,
-  from,
-  layout = {},
-  navigationOptions = {},
 }: {
   scene: MainlineSceneDefinition
   stage: CommercialCafeStoryStage
-  from: Point
-  layout?: SceneLayout
-  navigationOptions?: MainlineNavigationOptions
 }): NpcIntent | null {
   if (scene.id !== 'commercial-cafe' || stage !== 'met-lao-zhou') return null
   const coffee = scene.attachedProps.find((prop) => prop.id === commercialCafeCoffeeAttachedPropId)
   if (!coffee) return null
-  // Story selects the table's semantic contact from static scene geometry.
-  // Live actors are intentionally excluded here: the shared movement adapter
-  // owns the actual dynamic route and is therefore able to record `blocked`
-  // instead of silently suppressing this story duty before it starts.
-  const { navigationRuntime: _navigationRuntime, ...staticNavigationOptions } = navigationOptions
-  const serverNavigationOptions = { ...staticNavigationOptions, actorId: npcRoles.server.id }
-  const deliveryContact = findMainlinePathToEntity(scene, coffee.parentEntityId, from, layout, serverNavigationOptions)
-  if (!deliveryContact.path) return null
   return {
     dutyId: npcRoles.server.duties.deliverCoffee.id,
     targetId: coffee.parentEntityId,
-    target: deliveryContact.target,
+    targetEntityId: coffee.parentEntityId,
   }
 }
 

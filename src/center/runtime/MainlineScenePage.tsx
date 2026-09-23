@@ -347,13 +347,17 @@ export function MainlineScenePage({
   const debugCafeStageValue = new URLSearchParams(debugInputSearch).get('debugCafeStage')
   const debugCafeFixture = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('debugCafeFixture') === '1'
   const debugRuntimeEvidence = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('debugRuntimeEvidence') === '1'
-  const debugCafeStoryInterrupt = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('debugCafeStoryInterrupt') === '1'
-  const debugCafeServerBlocker = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('debugCafeServerBlocker') === '1'
+  const debugCafeStoryInterruptMode = import.meta.env.DEV ? new URLSearchParams(debugInputSearch).get('debugCafeStoryInterrupt') : null
+  const debugCafeStoryInterrupt = debugCafeStoryInterruptMode === '1' || debugCafeStoryInterruptMode === 'public'
+  const debugCafeServerBlockerMode = import.meta.env.DEV ? new URLSearchParams(debugInputSearch).get('debugCafeServerBlocker') : null
+  const debugCafeServerBlocker = debugCafeServerBlockerMode === '1' || debugCafeServerBlockerMode === 'nearest'
   const debugCafePlayerPosition = import.meta.env.DEV ? debugCafePoint(new URLSearchParams(debugInputSearch).get('debugCafePlayerPosition')) : null
   const [debugCafeStoryStage, setDebugCafeStoryStage] = useState<CommercialCafeStoryStage | null>(() => (
     import.meta.env.DEV && isCommercialCafeStoryStage(debugCafeStageValue) ? debugCafeStageValue : null
   ))
   const debugCafeStoryInterruptAppliedRef = useRef(false)
+  const debugCafeStoryInterruptFromDutyRef = useRef<string | null>(null)
+  const debugCafeServerBlockerTargetRef = useRef<Point | null>(null)
   const debugCafeServerBlockerId = 'e2e-commercial-cafe-server-blocker'
   const [dialogueLineIndex, setDialogueLineIndex] = useState<number | null>(null)
   const [dialogueSegmentIndex, setDialogueSegmentIndex] = useState(0)
@@ -578,18 +582,32 @@ export function MainlineScenePage({
     const coffeeParentId = scene.attachedProps.find((prop) => prop.id === 'commercial-cafe-coffee')?.parentEntityId
     const coffeeTable = coffeeParentId ? geometrySnapshot.objects.get(coffeeParentId) : undefined
     if (!coffeeTable) return undefined
-    // This is an invisible DEV-only actor reservation, deliberately larger
-    // than every legal table contact. It proves that delivery respects the
-    // same dynamic-actor obstacle registry as normal play.
-    navigationRuntime.registerActor(debugCafeServerBlockerId, coffeeTable.position, 15)
+    const allContacts = debugCafeServerBlockerMode === '1'
+    // DEV/e2e-only dynamic reservations validate the same runtime registry as
+    // production: one mode blocks the nearest static contact, the other every
+    // contact. Neither changes save state or scene behavior outside DEV.
+    const target = allContacts
+      ? coffeeTable.position
+      : debugCafeServerBlockerTargetRef.current ?? findMainlinePathToEntity(
+        scene,
+        coffeeParentId!,
+        serverInitialPosition,
+        layout,
+        { ...navigationOptions, actorId: 'server', navigationRuntime: undefined },
+      ).target
+    if (!allContacts) debugCafeServerBlockerTargetRef.current = target
+    navigationRuntime.registerActor(debugCafeServerBlockerId, target, allContacts ? 15 : .8)
     return () => navigationRuntime.removeActor(debugCafeServerBlockerId)
-  }, [debugCafeServerBlocker, debugCafeServerBlockerId, geometrySnapshot, navigationRuntime, scene])
+  }, [debugCafeServerBlocker, debugCafeServerBlockerId, debugCafeServerBlockerMode, geometrySnapshot, layout, navigationOptions, navigationRuntime, scene, serverInitialPosition])
   useEffect(() => {
     if (!debugCafeStoryInterrupt || debugCafeStoryInterruptAppliedRef.current || scene.id !== 'commercial-cafe') return
+    const waitsForPublicService = debugCafeStoryInterruptMode === 'public'
     if (commercialCafeStoryStage !== 'entered' || serverMovement.snapshot.phase !== 'moving') return
+    if (waitsForPublicService && serverMovement.snapshot.dutyId !== 'server.table-service') return
     debugCafeStoryInterruptAppliedRef.current = true
+    debugCafeStoryInterruptFromDutyRef.current = serverMovement.snapshot.dutyId
     setDebugCafeStoryStage('met-lao-zhou')
-  }, [commercialCafeStoryStage, debugCafeStoryInterrupt, scene.id, serverMovement.snapshot.phase])
+  }, [commercialCafeStoryStage, debugCafeStoryInterrupt, debugCafeStoryInterruptMode, scene.id, serverMovement.snapshot.dutyId, serverMovement.snapshot.phase])
   useEffect(() => {
     if (scene.id !== 'commercial-cafe') {
       commercialCafeBehavior.reset()
@@ -1364,7 +1382,7 @@ export function MainlineScenePage({
   const cameraOffset = mainlineCameraOffset(scene, position, embedded)
 
   return (
-    <div {...sceneInteractionHandlers} className={`scene-shell mainline-scene ${embedded ? 'mainline-scene--embedded' : ''} ${!showSceneChrome ? 'mainline-scene--map-only' : ''}`} data-mainline-scene={scene.id} data-commercial-cafe-stage={scene.id === 'commercial-cafe' ? commercialCafeStoryStage : undefined} data-commercial-cafe-server-behavior={scene.id === 'commercial-cafe' ? commercialCafeBehavior.getPhase() : undefined} data-debug-cafe-fixture={debugCafeFixture ? 'true' : undefined} data-debug-runtime-evidence={debugRuntimeEvidence ? 'true' : undefined} data-e2e-server-blocker={debugCafeServerBlocker ? 'true' : undefined}>
+    <div {...sceneInteractionHandlers} className={`scene-shell mainline-scene ${embedded ? 'mainline-scene--embedded' : ''} ${!showSceneChrome ? 'mainline-scene--map-only' : ''}`} data-mainline-scene={scene.id} data-commercial-cafe-stage={scene.id === 'commercial-cafe' ? commercialCafeStoryStage : undefined} data-commercial-cafe-server-behavior={scene.id === 'commercial-cafe' ? commercialCafeBehavior.getPhase() : undefined} data-debug-cafe-fixture={debugCafeFixture ? 'true' : undefined} data-debug-runtime-evidence={debugRuntimeEvidence ? 'true' : undefined} data-e2e-server-blocker={debugCafeServerBlockerMode ?? undefined} data-e2e-server-blocker-x={debugRuntimeEvidence ? debugCafeServerBlockerTargetRef.current?.x : undefined} data-e2e-server-blocker-y={debugRuntimeEvidence ? debugCafeServerBlockerTargetRef.current?.y : undefined} data-e2e-story-interrupt-from-duty={debugRuntimeEvidence ? debugCafeStoryInterruptFromDutyRef.current ?? undefined : undefined}>
       {!embedded && showSceneChrome && <header className="scene-shell__header">
         <div>
           <p className="scene-shell__eyebrow">NEWTONE / CENTER / MAINLINE SCENE</p>

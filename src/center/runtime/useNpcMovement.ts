@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Point } from './sceneGeometry'
 import type { MainlineSceneDefinition } from './mainlineScenes'
-import { findMainlinePath, isWalkableMainlinePoint, type MainlineNavigationOptions } from './mainlineNavigation'
+import { findMainlinePath, findMainlinePathToEntity, isWalkableMainlinePoint, type MainlineNavigationOptions } from './mainlineNavigation'
 import type { SceneLayout } from './sceneLayout'
 import { createNpcRuntime, type NpcIntent, type NpcRuntime, type NpcRuntimeSnapshot } from './npcCore'
 import type { NavigationRuntime } from './navigationCore'
@@ -54,16 +54,21 @@ export function createNpcMovementAdapter({ npcId, initialPosition, movement, nav
     requestMove: (intent, scene, layout, navigationOptions = {}, movementOptions = {}, onArrive) => {
       const start = movement.getCurrentPosition()
       syncPosition(start)
-      runtime.beginIntent(intent)
-      notify()
-
       const options: MainlineNavigationOptions = {
         ...navigationOptions,
         actorId: npcId,
         navigationRuntime,
       }
-      const path = findMainlinePath(start, intent.target, scene, layout, options)
-      if (!path) {
+      // Duties may name an entity instead of preselecting a coordinate. The
+      // shared live navigation query then considers the NPC's current point,
+      // dynamic actors, access, and every legal contact at execution time.
+      const resolved = intent.targetEntityId
+        ? findMainlinePathToEntity(scene, intent.targetEntityId, start, layout, options)
+        : { target: intent.target ?? start, path: intent.target ? findMainlinePath(start, intent.target, scene, layout, options) : null }
+      const resolvedIntent = { ...intent, target: resolved.target }
+      runtime.beginIntent(resolvedIntent)
+      notify()
+      if (!resolved.path) {
         runtime.blocked()
         notify()
         return false
@@ -71,7 +76,7 @@ export function createNpcMovementAdapter({ npcId, initialPosition, movement, nav
 
       const canOccupy = (point: Point) => isWalkableMainlinePoint(point, scene, layout, options)
 
-      movement.moveAlong(path, (position) => {
+      movement.moveAlong(resolved.path, (position) => {
         syncPosition(position)
         runtime.arrive()
         notify()

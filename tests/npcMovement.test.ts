@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { commercialCafeServerMovementDebugTarget } from '../src/center/runtime/mainlineSceneModel'
 import { mainlineNpcStagedPoint } from '../src/center/runtime/mainlineNpcStaging'
-import { isWalkableMainlinePoint, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition } from '../src/center/runtime/mainlineNavigation'
+import { findMainlinePathToEntity, isWalkableMainlinePoint, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition } from '../src/center/runtime/mainlineNavigation'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { commercialCafeLaoZhouConversationSeatId, resolveCommercialCafeCoffeeDeliveryIntent, resolveCommercialCafeReturnToCounterIntent } from '../src/center/runtime/commercialCafeStory'
 import { npcRoles } from '../src/center/runtime/npcRoles'
@@ -109,8 +109,6 @@ describe('NPC movement adapter', () => {
     const delivery = resolveCommercialCafeCoffeeDeliveryIntent({
       scene: cafe,
       stage: 'met-lao-zhou',
-      from: serverHome,
-      navigationOptions: { navigationRuntime },
     })!
     let stage = 'met-lao-zhou'
     let deliveries = 0
@@ -129,5 +127,31 @@ describe('NPC movement adapter', () => {
     expect(stage).toBe('coffee-delivered')
     expect(adapter.getPosition()).toEqual(serverHome)
     expect(adapter.getSnapshot()).toMatchObject({ phase: 'idle', dutyId: npcRoles.server.duties.returnToCounter.id })
+  })
+
+  it('chooses another live table contact when the nearest delivery contact is dynamically occupied', () => {
+    const { navigationRuntime, controller, adapter } = createServerMovement()
+    const delivery = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'met-lao-zhou' })!
+    const staticContact = findMainlinePathToEntity(cafe, delivery.targetEntityId!, serverHome, {}, { actorId: 'server' }).target
+    navigationRuntime.registerActor('contact-blocker', staticContact, .8)
+
+    const started = adapter.requestMove(delivery, cafe, {}, { navigationRuntime })
+
+    expect(started).toBe(true)
+    expect(adapter.getSnapshot()).toMatchObject({ phase: 'moving', dutyId: npcRoles.server.duties.deliverCoffee.id })
+    expect(adapter.getSnapshot().target).not.toEqual(staticContact)
+    runUntilIdle(controller, adapter, navigationRuntime)
+    expect(adapter.getSnapshot()).toMatchObject({ phase: 'idle', dutyId: npcRoles.server.duties.deliverCoffee.id })
+  })
+
+  it('blocks a semantic table delivery only when all legal contacts are dynamically occupied', () => {
+    const { navigationRuntime, controller, adapter } = createServerMovement()
+    const delivery = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'met-lao-zhou' })!
+    const table = cafe.objects.find((entity) => entity.id === delivery.targetEntityId)!
+    navigationRuntime.registerActor('all-contacts-blocker', table.position, 15)
+
+    expect(adapter.requestMove(delivery, cafe, {}, { navigationRuntime })).toBe(false)
+    expect(controller.isMoving()).toBe(false)
+    expect(adapter.getSnapshot()).toMatchObject({ phase: 'blocked', dutyId: npcRoles.server.duties.deliverCoffee.id })
   })
 })

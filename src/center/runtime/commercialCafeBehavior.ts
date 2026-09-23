@@ -27,24 +27,44 @@ export function createCommercialCafeServerBehaviorCoordinator() {
 
   const ambientIntent = (scene: MainlineSceneDefinition): NpcIntent | null => {
     if (pendingAmbientIntent) return pendingAmbientIntent
-    const targets = ['commercial-cafe-prep-station', 'commercial-cafe-counter-service']
+    // A service loop is built from existing scene semantics, not patrol
+    // waypoints and not a table owned by the server identity. Each selected
+    // table is a one-time duty target; the next selection is coordinator state.
+    const pointTargets = ['commercial-cafe-prep-station', 'commercial-cafe-counter-service']
       .map((targetId) => scene.npcBehaviorTargets?.find((target) => target.id === targetId))
       .filter((target): target is NonNullable<typeof target> => Boolean(target))
-    if (targets.length === 0) return null
-    const target = targets[ambientTargetIndex % targets.length]!
+      .map((target) => ({
+        dutyId: target.id === 'commercial-cafe-counter-service'
+          ? npcRoles.server.duties.counterService.id
+          : npcRoles.server.duties.prepare.id,
+        targetId: target.id,
+        target: { ...target.position },
+      } satisfies NpcIntent))
+    const publicTables = scene.objects
+      .filter((entity) => entity.kind === 'table' && entity.id !== 'commercial-cafe-right-window-upper-group-table')
+      .map((entity) => ({
+        dutyId: npcRoles.server.duties.tableService.id,
+        targetId: entity.id,
+        targetEntityId: entity.id,
+      } satisfies NpcIntent))
+    if (pointTargets.length < 2 || publicTables.length === 0) return null
+    // One loop deliberately crosses the service boundary once: prep → one
+    // table service → counter. Subsequent loops rotate the table selection,
+    // so the server has no permanent public-table assignment or patrol route.
+    const step = ambientTargetIndex % 3
+    const cycle = Math.floor(ambientTargetIndex / 3)
+    const target = step === 0
+      ? pointTargets[0]!
+      : step === 1
+        ? publicTables[cycle % publicTables.length]!
+        : pointTargets[1]!
     ambientTargetIndex += 1
-    pendingAmbientIntent = {
-      dutyId: target.id === 'commercial-cafe-counter-service'
-        ? npcRoles.server.duties.counterService.id
-        : npcRoles.server.duties.prepare.id,
-      targetId: target.id,
-      target: { ...target.position },
-    }
+    pendingAmbientIntent = target
     return pendingAmbientIntent
   }
 
   const requestForStage = ({
-    scene, stage, from, snapshot, layout = {}, navigationOptions = {},
+    scene, stage, from: _from, snapshot, layout: _layout = {}, navigationOptions: _navigationOptions = {},
   }: {
     scene: MainlineSceneDefinition
     stage: CommercialCafeStoryStage
@@ -59,7 +79,7 @@ export function createCommercialCafeServerBehaviorCoordinator() {
     // NPC runtime is actually moving; otherwise request the same semantic
     // intent again through the shared adapter.
     if (stage === 'met-lao-zhou' && phase !== 'delivery-arrived' && (phase !== 'delivering' || snapshot.phase !== 'moving')) {
-      const intent = resolveCommercialCafeCoffeeDeliveryIntent({ scene, stage, from, layout, navigationOptions })
+      const intent = resolveCommercialCafeCoffeeDeliveryIntent({ scene, stage })
       if (intent) {
         pendingAmbientIntent = null
         phase = 'delivering'

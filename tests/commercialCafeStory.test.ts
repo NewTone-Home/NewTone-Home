@@ -16,8 +16,7 @@ import {
   shouldCompleteCommercialCafeStoryOnTransition,
 } from '../src/center/runtime/commercialCafeStory'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
-import { defaultSceneScreenMetrics } from '../src/center/runtime/sceneBoundaryGrid'
-import { findMainlinePath, findMainlinePathToEntity, isWalkableMainlinePoint, mainlineInteractionTarget, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition } from '../src/center/runtime/mainlineNavigation'
+import { findMainlinePathToEntity, isWalkableMainlinePoint, mainlineInteractionTarget, resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes, mainlineSceneSlices } from '../src/center/runtime/mainlineScenes'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { npcRoles } from '../src/center/runtime/npcRoles'
@@ -216,36 +215,20 @@ describe('commercial cafe story stage', () => {
     expect(cafe.passages.find((passage) => passage.entityId === 'street-cafe-entry')).toMatchObject({ targetSceneId: 'commercial-street', access: 'open' })
   })
 
-  it('derives delivery from coffee\'s parent table and the existing shared contact point', () => {
+  it('derives delivery from coffee\'s parent table without selecting a contact in Story', () => {
     const cafe = mainlineScenes['commercial-cafe']
     const coffee = cafe.attachedProps.find((prop) => prop.id === commercialCafeCoffeeAttachedPropId)!
-    const runtime = createNavigationRuntime()
     const serverHome = resolveMainlineNpcPosition(cafe, npcRoles.server.id)
-    runtime.registerActor('protagonist', resolveMainlineSeatSitPosition(cafe, commercialCafeLaoZhouConversationSeatId)!)
-    runtime.registerActor(npcRoles.laoZhou.id, resolveMainlineNpcPosition(cafe, npcRoles.laoZhou.id))
-    runtime.registerActor(npcRoles.server.id, serverHome)
-    const navigationOptions = {
-      navigationRuntime: runtime,
-      screenMetrics: defaultSceneScreenMetrics,
-      geometrySnapshot: createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition, {}, defaultSceneScreenMetrics),
-    }
 
-    expect(resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'coffee-ordered', from: serverHome, navigationOptions })).toBeNull()
-    expect(resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'coffee-delivered', from: serverHome, navigationOptions })).toBeNull()
-    const intent = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'met-lao-zhou', from: serverHome, navigationOptions })
-    const { navigationRuntime: _navigationRuntime, ...staticNavigationOptions } = navigationOptions
-    const deliveryContact = findMainlinePathToEntity(cafe, coffee.parentEntityId, serverHome, {}, { ...staticNavigationOptions, actorId: npcRoles.server.id })
+    expect(resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'coffee-ordered' })).toBeNull()
+    expect(resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'coffee-delivered' })).toBeNull()
+    const intent = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'met-lao-zhou' })
 
     expect(intent).toEqual({
       dutyId: npcRoles.server.duties.deliverCoffee.id,
       targetId: coffee.parentEntityId,
-      target: deliveryContact.target,
+      targetEntityId: coffee.parentEntityId,
     })
-    expect(intent && isWalkableMainlinePoint(intent.target, cafe, {}, { ...staticNavigationOptions, actorId: npcRoles.server.id })).toBe(true)
-    const path = intent && findMainlinePath(serverHome, intent.target, cafe, {}, { ...navigationOptions, actorId: npcRoles.server.id })
-    expect(intent?.target).not.toEqual(serverHome)
-    expect(path).not.toBeNull()
-    expect(path?.length).toBeGreaterThan(1)
     expect(resolveCommercialCafeReturnToCounterIntent(cafe)).toEqual({
       dutyId: npcRoles.server.duties.returnToCounter.id,
       targetId: 'commercial-cafe-counter-service',
@@ -253,22 +236,19 @@ describe('commercial cafe story stage', () => {
     })
   })
 
-  it('keeps a semantic delivery duty available when a live actor blocks its route', () => {
+  it('keeps a semantic delivery duty independent of live routing', () => {
     const cafe = mainlineScenes['commercial-cafe']
     const runtime = createNavigationRuntime()
-    const serverHome = resolveMainlineNpcPosition(cafe, npcRoles.server.id)
     const coffeeTable = cafe.objects.find((entity) => entity.id === 'commercial-cafe-right-window-upper-group-table')!
-    runtime.registerActor('e2e-blocker', coffeeTable.position, 15)
 
     const intent = resolveCommercialCafeCoffeeDeliveryIntent({
       scene: cafe,
       stage: 'met-lao-zhou',
-      from: serverHome,
       navigationOptions: { navigationRuntime: runtime },
     })
 
     expect(intent).toMatchObject({ dutyId: npcRoles.server.duties.deliverCoffee.id, targetId: coffeeTable.id })
-    expect(findMainlinePath(serverHome, intent!.target, cafe, {}, { navigationRuntime: runtime, actorId: npcRoles.server.id })).toBeNull()
+    expect(intent).not.toHaveProperty('target')
   })
 
   it('uses the attached coffee and Lao Zhou resolutions to complete the authored information and departure beats', () => {

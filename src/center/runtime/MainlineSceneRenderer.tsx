@@ -894,6 +894,8 @@ export function MainlineSceneRenderer({
               data-npc-phase={npcSnapshot?.phase}
               data-npc-duty-id={npcSnapshot?.dutyId ?? undefined}
               data-npc-target-id={npcSnapshot?.targetId ?? undefined}
+              data-npc-target-x={debugRuntimeEvidence ? npcSnapshot?.target?.x : undefined}
+              data-npc-target-y={debugRuntimeEvidence ? npcSnapshot?.target?.y : undefined}
               data-runtime-x={debugRuntimeEvidence ? npcPosition.x : undefined}
               data-runtime-y={debugRuntimeEvidence ? npcPosition.y : undefined}
               data-rendered-x={debugRuntimeEvidence ? npcVisualPosition.x : undefined}

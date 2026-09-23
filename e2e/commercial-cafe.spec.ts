@@ -90,6 +90,25 @@ async function collectActorPositions(page: import('@playwright/test').Page, acto
   }, { actorId, frames })
 }
 
+/** Wait on actual runtime attribute mutation instead of polling a moving actor. */
+async function waitForActorYBefore(page: import('@playwright/test').Page, actorId: string, maximum: number) {
+  await page.evaluate(async ({ actorId, maximum }) => new Promise<void>((resolve) => {
+    const actor = document.querySelector<HTMLElement>(`[data-actor-id="${actorId}"]`)
+    if (!actor) throw new Error(`Missing actor ${actorId}`)
+    const hasArrived = () => Number(actor.dataset.runtimeY) < maximum
+    if (hasArrived()) {
+      resolve()
+      return
+    }
+    const observer = new MutationObserver(() => {
+      if (!hasArrived()) return
+      observer.disconnect()
+      resolve()
+    })
+    observer.observe(actor, { attributes: true, attributeFilter: ['data-runtime-y'] })
+  }), { actorId, maximum })
+}
+
 function expectUniqueProgress(points: RuntimePoint[]) {
   expect(points.length).toBeGreaterThan(1)
   points.slice(1).forEach((point, index) => expect(pointDistance(point, points[index]!)).toBeGreaterThan(.001))
@@ -361,6 +380,55 @@ test('a DEV-only dynamic actor blocks delivery without teleporting or progressin
 
   await café(page, 'debugCafeStage=met-lao-zhou&debugCafeFixture=1')
   await expect(page.locator('[data-mainline-scene="commercial-cafe"]').first()).toHaveAttribute('data-commercial-cafe-stage', 'coffee-delivered', { timeout: 30_000 })
+  await expect(page.locator('[data-attached-prop-id="commercial-cafe-coffee"]')).toHaveCount(1)
+})
+
+test('a dynamically occupied nearest table contact falls back to another legal delivery contact', async ({ page }) => {
+  await café(page, 'debugCafeStage=met-lao-zhou&debugCafeFixture=1&debugCafeServerBlocker=nearest')
+  const scene = page.locator('[data-mainline-scene="commercial-cafe"]').first()
+  const server = page.locator('[data-npc-id="server"]')
+  await expect(server).toHaveAttribute('data-npc-duty-id', 'server.deliver-coffee')
+  await expect(scene).toHaveAttribute('data-e2e-server-blocker-x', /.+/)
+  const blocker = runtimePoint({
+    x: await scene.getAttribute('data-e2e-server-blocker-x'),
+    y: await scene.getAttribute('data-e2e-server-blocker-y'),
+  })
+  const selected = runtimePoint({
+    x: await server.getAttribute('data-npc-target-x'),
+    y: await server.getAttribute('data-npc-target-y'),
+  })
+  expect(pointDistance(selected, blocker)).toBeGreaterThan(.1)
+  await expect(server).not.toHaveAttribute('data-npc-phase', 'blocked')
+  await expect(scene).toHaveAttribute('data-commercial-cafe-stage', 'coffee-delivered', { timeout: 30_000 })
+  await expect(page.locator('[data-attached-prop-id="commercial-cafe-coffee"]')).toHaveCount(1)
+})
+
+test('ambient service crosses staff and public areas with semantic table work before returning to the counter', async ({ page }) => {
+  await café(page, 'debugCafeStage=entered')
+  const server = page.locator('[data-npc-id="server"]')
+  const counter = page.locator('[data-object-id="commercial-cafe-counter"]')
+  const counterY = Number(await counter.getAttribute('data-collision-y'))
+  const counterHeight = Number(await counter.getAttribute('data-collision-height'))
+  const motion = collectActorPositions(page, 'server', 540)
+
+  await expect(server).toHaveAttribute('data-npc-duty-id', 'server.table-service', { timeout: 30_000 })
+  await expect(server).toHaveAttribute('data-npc-target-id', /-table/)
+  expect((await runtimePosition(server)).y).toBeGreaterThan(counterY + counterHeight)
+  await expect(server).toHaveAttribute('data-npc-duty-id', 'server.counter-service', { timeout: 30_000 })
+  await waitForActorYBefore(page, 'server', counterY)
+
+  const points = await motion
+  expectUniqueProgress(points)
+  expectRouteOutsideRegions(points, [...await furnitureNavigationRegions(page), { x: Number(await counter.getAttribute('data-collision-x')), y: counterY, width: Number(await counter.getAttribute('data-collision-width')), height: counterHeight }])
+})
+
+test('a story delivery interrupts an active public table-service duty from its live position', async ({ page }) => {
+  await café(page, 'debugCafeStage=entered&debugCafeFixture=1&debugCafeStoryInterrupt=public')
+  const scene = page.locator('[data-mainline-scene="commercial-cafe"]').first()
+  const server = page.locator('[data-npc-id="server"]')
+  await expect(scene).toHaveAttribute('data-e2e-story-interrupt-from-duty', 'server.table-service', { timeout: 30_000 })
+  await expect(server).toHaveAttribute('data-npc-duty-id', 'server.deliver-coffee')
+  await expect(scene).toHaveAttribute('data-commercial-cafe-stage', 'coffee-delivered', { timeout: 30_000 })
   await expect(page.locator('[data-attached-prop-id="commercial-cafe-coffee"]')).toHaveCount(1)
 })
 
