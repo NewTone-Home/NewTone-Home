@@ -89,6 +89,8 @@ export type MainlineSceneEntity = {
   interactionRange?: number
   /** Scene-owned exterior faces permitted for proximity interaction. */
   interactionContactSides?: readonly ('top' | 'right' | 'bottom' | 'left')[]
+  /** A rendered wall feature may expose a distinct legal floor contact. */
+  interactionContactAnchor?: Point
   /** A small set of authored interaction behaviors used by the generic page flow. */
   interactionBehavior?: MainlineInteractionBehavior
   /** Semantic visual treatment; keeps the renderer independent of authored IDs. */
@@ -133,6 +135,8 @@ export type MainlineSceneNpcBehavior = {
   dutyId: string
   targetId: string
   targetKind: 'seat' | 'point'
+  /** A behavior-owned physical contact surface, distinct from NPC story context. */
+  interactionContactEntityId?: string
 }
 
 /** A deliberately small scene-local movement permission vocabulary. */
@@ -146,6 +150,16 @@ export type MainlineSceneAccessRegion = CollisionBox & {
   id: string
   requiredAccess: MainlineRegionAccess
   deniedText?: string
+}
+
+/** The only legal crossing of a restricted region's physical boundary. */
+export type MainlineSceneAccessPortal = {
+  id: string
+  regionId: string
+  requiredAccess: MainlineRegionAccess
+  threshold: CollisionBox
+  outside: Point
+  inside: Point
 }
 
 /** A display-only item anchored to an existing spatial entity. */
@@ -325,6 +339,7 @@ export type MainlineSceneData = {
   curves?: readonly MainlineSceneCurve[]
   airWalls?: readonly MainlineAirWall[]
   accessRegions?: readonly MainlineSceneAccessRegion[]
+  accessPortals?: readonly MainlineSceneAccessPortal[]
   /** Actor ids remain data here; navigation only consumes their access set. */
   actorAccess?: Readonly<Record<string, readonly MainlineRegionAccess[]>>
   blockers: readonly (CollisionBox & { id: string })[]
@@ -398,7 +413,6 @@ type MainlineFurnitureGeometryOverrides = {
   seatGap?: number
   pulledSeatGap?: number
   sitSeatGap?: number
-  tablePairOffset?: number
   seatPairOffset?: number
 }
 
@@ -428,6 +442,7 @@ function mainlineTwoSeatFurniture(
     approach: furniture.table.approach,
     collision: furniture.table.collision,
     shape: furniture.table.collision,
+    movementCollision: 'physical',
     groupId,
   })
   const chairs = furniture.seats.map((seat) => floor({
@@ -439,6 +454,7 @@ function mainlineTwoSeatFurniture(
     approach: seat.pulled,
     collision: seat.collision,
     shape: seat.collision,
+    movementCollision: 'physical',
     groupId,
     seat,
   }))
@@ -458,17 +474,21 @@ function mainlineFourSeatFurniture(
   const tableId = ids.tableId ?? `${groupId}-table`
   const seatIds = ids.seatIds ?? [`${groupId}-chair-top`, `${groupId}-chair-right`, `${groupId}-chair-bottom`, `${groupId}-chair-left`] as [string, string, string, string]
  const furniture = createFourSeatFurniture({ groupId, anchor, tableId, seatIds, tableApproach, ...geometry })
-  const tables = furniture.tables.map((table) => floor({
-    id: table.id,
+  const table = floor({
+    id: furniture.table.id,
     label: '桌子',
     kind: 'table',
     weight: 'anchor',
-    position: table.position,
-    approach: table.approach,
-    collision: table.collision,
-    shape: table.collision,
+    position: furniture.table.position,
+    approach: furniture.table.approach,
+    collision: furniture.table.collision,
+    shape: furniture.table.collision,
+    movementCollision: 'physical',
+    // Side seats and their closed table corridors occupy both long edges.
+    // The two remaining body edges are the legal ordinary table contacts.
+    interactionContactSides: ['top', 'bottom'],
     groupId,
-  }))
+  })
   const chairs = furniture.seats.map((seat) => floor({
     id: seat.id,
     label: '椅子',
@@ -478,12 +498,13 @@ function mainlineFourSeatFurniture(
     approach: seat.pulled,
     collision: seat.collision,
     shape: seat.collision,
+    movementCollision: 'physical',
     groupId,
     seat,
   }))
   return {
-    group: { id: groupId, anchor, entityIds: [...tables.map((table) => table.id), ...chairs.map((chair) => chair.id)] },
-    entities: [...tables, ...chairs],
+    group: { id: groupId, anchor, entityIds: [table.id, ...chairs.map((chair) => chair.id)] },
+    entities: [table, ...chairs],
   }
 }
 
@@ -657,9 +678,9 @@ const commercialCafeLayout = {
     end: authoredPoint(88, 93),
   },
   bottomFourSeatTables: [
-    { id: 'commercial-cafe-bottom-left-group', anchor: authoredPoint(24, 72), approach: authoredPoint(24, 63) },
-    { id: 'commercial-cafe-bottom-center-group', anchor: authoredPoint(42, 72), approach: authoredPoint(42, 63) },
-    { id: 'commercial-cafe-bottom-right-group', anchor: authoredPoint(60, 72), approach: authoredPoint(60, 63) },
+    { id: 'commercial-cafe-bottom-left-group', anchor: authoredPoint(24, 78), approach: authoredPoint(24, 69) },
+    { id: 'commercial-cafe-bottom-center-group', anchor: authoredPoint(42, 78), approach: authoredPoint(42, 69) },
+    { id: 'commercial-cafe-bottom-right-group', anchor: authoredPoint(60, 78), approach: authoredPoint(60, 69) },
   ],
   rightTwoSeatTables: [
     { id: 'commercial-cafe-right-inner-upper-group', anchor: authoredPoint(72, 26), approach: authoredPoint(64, 26) },
@@ -676,7 +697,6 @@ const commercialCafeLayout = {
 
 const commercialCafeFurnitureGeometry = {
   seatGap: 4.4,
-  tablePairOffset: 3.15,
   seatPairOffset: 3.15,
 } as const
 
@@ -698,8 +718,6 @@ const commercialStreetCafeDoorEnd = commercialStreetCafeDoorY + 4.5
 // must remain separate from commercialCafeEntryPosition, which is authored
 // inside the café and is not walkable in the street scene.
 const commercialStreetCafeEntryPosition = authoredPoint(184, commercialStreetCafeDoorY)
-const commercialCafeMenu = wallEntity({ id: 'commercial-cafe-menu', label: '菜单', kind: 'fixture', weight: 'fixture', position: authoredPoint(18, 7), approach: authoredPoint(18, 10), interactive: true })
-const commercialCafeBlackboard = wallEntity({ id: 'commercial-cafe-blackboard', label: '黑板', kind: 'fixture', weight: 'fixture', position: authoredPoint(32, 7), approach: authoredPoint(32, 10), interactive: true })
 const commercialCafeFurniture = [
   ...commercialCafeLayout.bottomFourSeatTables.map(({ id, anchor, approach }) => mainlineFourSeatFurniture(id, anchor, approach, {}, commercialCafeFurnitureGeometry)),
   ...commercialCafeLayout.rightTwoSeatTables.map(({ id, anchor, approach }) => mainlineTwoSeatFurniture(id, anchor, approach, {}, commercialCafeFurnitureGeometry)),
@@ -744,6 +762,16 @@ const commercialCafeCounterCollision = box(
 )
 const commercialCafeCounterClearance = sharedFurnitureGeometry.playerRadius + sharedFurnitureGeometry.actorContactGap
 const commercialCafeCounterCustomerApproachY = commercialCafeCounterCollision.y + commercialCafeCounterCollision.height + commercialCafeCounterClearance
+// Visual wall fixtures are read from the customer-side counter surface; the
+// wall glyph itself is never a navigation destination.
+const commercialCafeMenu = wallEntity({
+  id: 'commercial-cafe-menu', label: '菜单', kind: 'fixture', weight: 'fixture', position: authoredPoint(18, 7), interactive: true,
+  interactionContactAnchor: authoredPoint(18, commercialCafeCounterCustomerApproachY),
+})
+const commercialCafeBlackboard = wallEntity({
+  id: 'commercial-cafe-blackboard', label: '黑板', kind: 'fixture', weight: 'fixture', position: authoredPoint(32, 7), interactive: true,
+  interactionContactAnchor: authoredPoint(32, commercialCafeCounterCustomerApproachY),
+})
 const commercialCafeCounterLabelHeight = commercialCafeCounterFixtureFontPx * 1.2 / defaultSceneScreenMetrics.height * 100
 // A staff actor has both a physical contact radius and a rendered text label.
 // Keep the semantic service target clear of the counter body and of its label;
@@ -773,6 +801,25 @@ const commercialCafeServiceLayout = {
   ),
   staffArea: commercialCafeStaffArea,
 } as const
+const commercialCafeStaffAccessPortal = {
+  id: 'commercial-cafe-staff-right-entrance',
+  regionId: 'commercial-cafe-staff-area',
+  requiredAccess: 'staff',
+  threshold: box(
+    commercialCafeCounterCollision.x + commercialCafeCounterCollision.width,
+    commercialCafeCounterCollision.y - commercialCafeCounterStaffClearance * 2,
+    commercialCafeCounterClearance,
+    commercialCafeCounterStaffClearance * 2,
+  ),
+  outside: authoredPoint(
+    commercialCafeCounterCollision.x + commercialCafeCounterCollision.width + commercialCafeCounterClearance,
+    commercialCafeCounterStaffServiceY,
+  ),
+  inside: authoredPoint(
+    commercialCafeCounterCollision.x + commercialCafeCounterCollision.width - commercialCafeCounterClearance,
+    commercialCafeCounterStaffServiceY,
+  ),
+} as const satisfies MainlineSceneAccessPortal
 /** Development-only public-floor proof point; it is not a scene entity or story destination. */
 export const commercialCafeServerMovementDebugTarget = {
   id: 'commercial-cafe-server-movement-test-point',
@@ -790,6 +837,7 @@ const commercialCafeCounterEntities = commercialCafeCounterPositions.map((x, ind
   approach: authoredPoint(x, commercialCafeCounterCustomerApproachY),
   collision: box(x - commercialCafeCounterCellWidth / 2, commercialCafeCounterCollision.y, commercialCafeCounterCellWidth, commercialCafeCounterCollision.height),
   shape: box(x - commercialCafeCounterCellWidth / 2, commercialCafeCounterCollision.y, commercialCafeCounterCellWidth, commercialCafeCounterCollision.height),
+  movementCollision: 'physical',
   interactionBehavior: 'cafe-order',
   interactionContactSides: ['bottom'],
   visualVisibility: 'baseline',
@@ -815,7 +863,7 @@ const commercialCafeNpcBehaviorTargets = [
 ] as const satisfies readonly MainlineSceneNpcBehaviorTarget[]
 const commercialCafeNpcBehaviors = [
   { npcId: npcRoles.laoZhou.id, dutyId: npcRoles.laoZhou.duties.seated.id, targetId: 'commercial-cafe-right-window-upper-group-chair-top', targetKind: 'seat' },
-  { npcId: npcRoles.server.id, dutyId: npcRoles.server.duties.counterService.id, targetId: 'commercial-cafe-counter-service', targetKind: 'point' },
+  { npcId: npcRoles.server.id, dutyId: npcRoles.server.duties.counterService.id, targetId: 'commercial-cafe-counter-service', targetKind: 'point', interactionContactEntityId: 'commercial-cafe-counter' },
 ] as const satisfies readonly MainlineSceneNpcBehavior[]
 const commercialCafeAttachedProps = [
   {
@@ -920,6 +968,7 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
       requiredAccess: 'staff',
       deniedText: '还是别进去打扰他们工作了。',
     }],
+    accessPortals: [commercialCafeStaffAccessPortal],
     actorAccess: {
       protagonist: ['public'],
       [npcRoles.laoZhou.id]: ['public'],

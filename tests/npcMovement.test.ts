@@ -135,7 +135,7 @@ describe('NPC movement adapter', () => {
     const staticContact = findMainlinePathToEntity(cafe, delivery.targetEntityId!, serverHome, {}, { actorId: 'server' }).target
     navigationRuntime.registerActor('contact-blocker', staticContact, .8)
 
-    const started = adapter.requestMove(delivery, cafe, {}, { navigationRuntime })
+    const started = adapter.requestMove(delivery, cafe, {}, { navigationRuntime }, { maxSpeed: 1 })
 
     expect(started).toBe(true)
     expect(adapter.getSnapshot()).toMatchObject({ phase: 'moving', dutyId: npcRoles.server.duties.deliverCoffee.id })

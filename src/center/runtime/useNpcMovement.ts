@@ -83,6 +83,10 @@ export function createNpcMovementAdapter({ npcId, initialPosition, movement, nav
         onArrive?.(position)
       }, {
         ...movementOptions,
+        // NPC routing can pass between live actors and furniture contacts.
+        // Follow the shared planner's actual turns instead of re-smoothing
+        // them into a segment that was never validated by navigation.
+        preserveNavigationRoute: true,
         canOccupy,
         // Keep the planner's last turn when entering an access-controlled
         // staging point. Otherwise generic same-direction compression can

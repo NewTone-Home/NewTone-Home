@@ -114,6 +114,21 @@ describe('commercial cafe seating and staging', () => {
     }
   })
 
+  it('models each four-seat group as one continuous physical table body linked to all four seats', () => {
+    const table = cafe.objects.find((entity) => entity.id === 'commercial-cafe-bottom-center-group-table')!
+    const seats = cafe.objects.filter((entity) => entity.groupId === 'commercial-cafe-bottom-center-group' && entity.kind === 'seat')
+
+    expect(cafe.objects.some((entity) => entity.id === 'commercial-cafe-bottom-center-group-table-top' || entity.id === 'commercial-cafe-bottom-center-group-table-bottom')).toBe(false)
+    expect(table.movementCollision).toBe('physical')
+    expect(table.collision!.height).toBeGreaterThan(8)
+    expect(table.position.y).toBe(78)
+    expect(seats).toHaveLength(4)
+    expect(seats.every((seat) => seat.seat?.tableId === table.id)).toBe(true)
+    const tableRoute = findMainlinePathToEntity(cafe, table.id, cafe.initialPlayerPosition)
+    expect(isWalkableMainlinePoint(cafe.initialPlayerPosition, cafe)).toBe(true)
+    expect(tableRoute.path).not.toBeNull()
+  })
+
   it('derives server staging from a semantic ambient duty while preserving a reachable customer contact region', () => {
     const staffZone = cafe.accessRegions.find((region) => region.id === 'commercial-cafe-staff-area')!
     const serverBehavior = mainlineNpcStagingBehavior(cafe, 'server')!

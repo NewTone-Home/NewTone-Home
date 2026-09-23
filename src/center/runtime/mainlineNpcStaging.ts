@@ -24,3 +24,8 @@ export function mainlineNpcStagedPoint(scene: MainlineSceneDefinition, npcId: st
   const placement = scene.npcPlacements.find((candidate) => candidate.npcId === npcId)
   return placement?.position ? { ...placement.position } : undefined
 }
+
+/** A current behavior may expose a service surface without defining NPC identity. */
+export function mainlineNpcStagedInteractionContactEntityId(scene: MainlineSceneDefinition, npcId: string) {
+  return mainlineNpcStagingBehavior(scene, npcId)?.interactionContactEntityId
+}

@@ -6,7 +6,7 @@ import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot
 import { canTravelAlongSegment, edgeContactPoint, findNavigationPath, type NavigationRuntime } from './navigationCore'
 import { containsDoorRegion, doorRegionSide, doorwayBoundaryPoint, isDoorTargetBehind, type DoorPassageRegion, type DoorRegionNormal } from './doorPassageModel'
 import { sharedFurnitureGeometry } from './twoSeatFurniture'
-import { mainlineNpcStagedPoint, mainlineNpcStagedSeatId } from './mainlineNpcStaging'
+import { mainlineNpcStagedInteractionContactEntityId, mainlineNpcStagedPoint, mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 
 export type MainlineNavigationOptions = {
   actorRadius?: number
@@ -23,7 +23,10 @@ export type MainlineNavigationOptions = {
   npcRuntimePositions?: ReadonlyMap<string, Point>
 }
 
-const defaultActorRadius = .2
+// Navigation clearance must match the actor footprint registered in the shared
+// runtime. A smaller planner radius could choose a contact that live movement
+// subsequently cannot occupy.
+const defaultActorRadius = sharedFurnitureGeometry.playerRadius
 
 export function mainlinePassageCollisionForNavigation(scene: MainlineSceneDefinition, passage: MainlineScenePassage, options: MainlineNavigationOptions = {}) {
   const snapshot = options.geometrySnapshot?.sceneId === scene.id ? options.geometrySnapshot : undefined
@@ -81,25 +84,16 @@ export function resolveMainlineAccessRegionBoundaryTarget(
     !actorCanEnterRegion(scene, options.actorId, candidate) && containsPoint(candidate, requestedTarget)
   ))
   if (!region) return null
-  const actorRadius = options.actorRadius ?? defaultActorRadius
-  const regionContact = edgeContactPoint(
-    { x: region.x + region.width / 2, y: region.y + region.height / 2 },
-    region,
-    from,
-    actorRadius,
-  )
-  // A region can meet a physical object. Stop at the closest real object face
-  // on the actor's side when the nominal region edge is occupied; permissions
-  // never manufacture an invisible wall inside a physical body.
-  const physicalContacts = collisionBoxes(scene, {}, options, false).map((collision) => edgeContactPoint(
-    { x: collision.x + collision.width / 2, y: collision.y + collision.height / 2 },
-    collision,
-    from,
-    actorRadius,
+  const portal = scene.accessPortals.find((candidate) => (
+    candidate.regionId === region.id && candidate.requiredAccess === region.requiredAccess
   ))
+  const actorRadius = options.actorRadius ?? defaultActorRadius
+  const regionContact = portal?.outside ?? edgeContactPoint(
+    { x: region.x + region.width / 2, y: region.y + region.height / 2 }, region, from, actorRadius,
+  )
   return {
     region,
-    target: [regionContact, ...physicalContacts].find((candidate) => isWalkableMainlinePoint(candidate, scene, {}, options)) ?? regionContact,
+    target: regionContact,
   }
 }
 
@@ -942,6 +936,12 @@ function mainlineEntityInteractionCandidates(scene: MainlineSceneDefinition, ent
   // target is not the wall glyph itself, so the actor stays on the walkable
   // side of the boundary before interacting.
   if (entity.surface === 'wall') {
+    if (entity.interactionContactAnchor) {
+      return [{
+        x: entity.interactionContactAnchor.x + offset.x,
+        y: entity.interactionContactAnchor.y + offset.y,
+      }]
+    }
     const featureTarget = wallFeatureInteractionTarget(scene, entityId, from, actorRadius, snapshot)
     if (featureTarget) return [{ x: featureTarget.x + offset.x, y: featureTarget.y + offset.y }]
     if (options.geometrySnapshot?.sceneId === scene.id) return [from]
@@ -978,10 +978,12 @@ function mainlineEntityInteractionCandidates(scene: MainlineSceneDefinition, ent
   const counterclockwise = { x: primary.y, y: -primary.x }
   const opposite = { x: -primary.x, y: -primary.y }
   const contactDirectionForSide = {
-    top: { x: -defaultEdgeContactDirection.x, y: -defaultEdgeContactDirection.y },
-    right: { x: defaultEdgeContactDirection.y, y: -defaultEdgeContactDirection.x },
-    bottom: defaultEdgeContactDirection,
-    left: { x: -defaultEdgeContactDirection.y, y: defaultEdgeContactDirection.x },
+    // Derive all cardinal sides from the shared fallback normal so collision
+    // contact orientation has one geometry source rather than local axes.
+    top: { x: defaultEdgeContactDirection.y, y: defaultEdgeContactDirection.x },
+    right: { x: -defaultEdgeContactDirection.x, y: -defaultEdgeContactDirection.y },
+    bottom: { x: -defaultEdgeContactDirection.y, y: -defaultEdgeContactDirection.x },
+    left: defaultEdgeContactDirection,
   } as const
   const contactDirections = entity.interactionContactSides?.map((side) => contactDirectionForSide[side])
     ?? [primary, clockwise, counterclockwise, opposite]
@@ -991,7 +993,7 @@ function mainlineEntityInteractionCandidates(scene: MainlineSceneDefinition, ent
   }, actorRadius))
   // Older scene data may carry a proven exterior entry point. It is a last
   // legal fallback rather than the actor's compulsory interaction location.
-  if (!entity.approach) return directional
+  if (!entity.approach || entity.kind === 'table') return directional
   const authoredPosition = { x: entity.position.x + offset.x, y: entity.position.y + offset.y }
   const responsiveDelta = { x: position.x - authoredPosition.x, y: position.y - authoredPosition.y }
   return [...directional, {
@@ -1067,7 +1069,6 @@ export function resolveMainlineNpcPosition(scene: MainlineSceneDefinition, npcId
 }
 
 function mainlineNpcInteractionCandidates(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout, actorRadius: number, options: MainlineNavigationOptions) {
-  const npc = scene.npcs.find((candidate) => candidate.id === npcId)
   const npcPosition = resolveMainlineNpcPosition(scene, npcId, layout, options)
   const npcRadius = sharedFurnitureGeometry.playerRadius
   const collision = {
@@ -1100,10 +1101,13 @@ function mainlineNpcInteractionCandidates(scene: MainlineSceneDefinition, npcId:
     x: npcPosition.x + direction.x,
     y: npcPosition.y + direction.y,
   }, actorRadius))
-  const spatialTargetCandidates = npc?.interactionTargetEntityId
-    ? mainlineEntityInteractionCandidates(scene, npc.interactionTargetEntityId, from, layout, actorRadius, options)
+  const behaviorContactEntityId = mainlineNpcStagedInteractionContactEntityId(scene, npcId)
+  const behaviorContactCandidates = behaviorContactEntityId
+    ? mainlineEntityInteractionCandidates(scene, behaviorContactEntityId, from, layout, actorRadius, options)
     : []
-  return [...spatialTargetCandidates, ...physicalCandidates]
+  // Story context never decides physical navigation. A current service surface
+  // can only supplement the NPC's own nearby contact candidates.
+  return [...physicalCandidates, ...behaviorContactCandidates]
 }
 
 /** Keep an interacting protagonist outside the NPC actor footprint and nearby furniture. */

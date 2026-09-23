@@ -37,8 +37,6 @@ export type TwoSeatFurniture = {
 export type FourSeatFurniture = {
   groupId: string
   anchor: Point
-  tables: readonly [SharedTableGeometry, SharedTableGeometry]
-  /** Backward-compatible first table reference for existing furniture callers. */
   table: SharedTableGeometry
   seats: readonly [SharedSeatGeometry, SharedSeatGeometry, SharedSeatGeometry, SharedSeatGeometry]
   bounds: CollisionBox
@@ -158,7 +156,7 @@ export function createTwoSeatFurniture({
   tableApproach = { x: anchor.x - 7, y: anchor.y },
   tableRadius = 4,
   seatGap = sharedFurnitureGeometry.seatGap,
-  pulledSeatGap = seatGap + (sharedFurnitureGeometry.pulledSeatGap - sharedFurnitureGeometry.seatGap),
+  pulledSeatGap,
   sitSeatGap = seatGap + (sharedFurnitureGeometry.sitSeatGap - sharedFurnitureGeometry.seatGap),
 }: {
   groupId: string
@@ -171,6 +169,14 @@ export function createTwoSeatFurniture({
   pulledSeatGap?: number
   sitSeatGap?: number
 }): TwoSeatFurniture {
+  const minimumPulledGap = seatGap
+    + sharedFurnitureGeometry.textFootprint.height / 2
+    + sharedFurnitureGeometry.playerRadius
+    + sharedFurnitureGeometry.actorContactGap
+  const resolvedPulledSeatGap = Math.max(
+    pulledSeatGap ?? seatGap + (sharedFurnitureGeometry.pulledSeatGap - sharedFurnitureGeometry.seatGap),
+    minimumPulledGap,
+  )
   const topRest = { x: anchor.x, y: anchor.y - seatGap }
   const bottomRest = { x: anchor.x, y: anchor.y + seatGap }
   const top = createSeatGeometry({
@@ -178,7 +184,7 @@ export function createTwoSeatFurniture({
     tableId,
     side: 'top',
     rest: topRest,
-    pulled: { x: anchor.x, y: anchor.y - pulledSeatGap },
+    pulled: { x: anchor.x, y: anchor.y - resolvedPulledSeatGap },
     sit: { x: anchor.x, y: anchor.y - sitSeatGap },
   })
   const bottom = createSeatGeometry({
@@ -186,7 +192,7 @@ export function createTwoSeatFurniture({
     tableId,
     side: 'bottom',
     rest: bottomRest,
-    pulled: { x: anchor.x, y: anchor.y + pulledSeatGap },
+    pulled: { x: anchor.x, y: anchor.y + resolvedPulledSeatGap },
     sit: { x: anchor.x, y: anchor.y + sitSeatGap },
   })
   const table = createTableGeometry(tableId, anchor, tableRadius, tableApproach)
@@ -207,10 +213,9 @@ export function createFourSeatFurniture({
   tableApproach = { x: anchor.x, y: anchor.y - 7 },
   tableRadius = 4,
   seatGap = sharedFurnitureGeometry.seatGap,
-  pulledSeatGap = seatGap + (sharedFurnitureGeometry.pulledSeatGap - sharedFurnitureGeometry.seatGap),
+  pulledSeatGap,
   sitSeatGap = seatGap + (sharedFurnitureGeometry.sitSeatGap - sharedFurnitureGeometry.seatGap),
-  tablePairOffset = 3.4,
-  seatPairOffset = tablePairOffset,
+  seatPairOffset = 3.4,
 }: {
   groupId: string
   anchor: Point
@@ -221,54 +226,55 @@ export function createFourSeatFurniture({
   seatGap?: number
   pulledSeatGap?: number
   sitSeatGap?: number
-  tablePairOffset?: number
   seatPairOffset?: number
 }): FourSeatFurniture {
   const gap = seatGap
-  const pulledGap = pulledSeatGap
+  const pulledGap = Math.max(
+    pulledSeatGap ?? seatGap + (sharedFurnitureGeometry.pulledSeatGap - sharedFurnitureGeometry.seatGap),
+    seatGap + sharedFurnitureGeometry.textFootprint.width / 2 + sharedFurnitureGeometry.playerRadius + sharedFurnitureGeometry.actorContactGap,
+  )
   const sitGap = sitSeatGap
-  const topTableId = tableId + '-top'
-  const bottomTableId = tableId + '-bottom'
-  const topTableY = anchor.y - tablePairOffset
-  const bottomTableY = anchor.y + tablePairOffset
   const topSeatY = anchor.y - seatPairOffset
   const bottomSeatY = anchor.y + seatPairOffset
   const seats = [
     createSeatGeometry({
-      id: seatIds[0], tableId: topTableId, side: 'left',
+      id: seatIds[0], tableId, side: 'left',
       rest: { x: anchor.x - gap, y: topSeatY },
       pulled: { x: anchor.x - pulledGap, y: topSeatY },
       sit: { x: anchor.x - sitGap, y: topSeatY },
     }),
     createSeatGeometry({
-      id: seatIds[1], tableId: topTableId, side: 'right',
+      id: seatIds[1], tableId, side: 'right',
       rest: { x: anchor.x + gap, y: topSeatY },
       pulled: { x: anchor.x + pulledGap, y: topSeatY },
       sit: { x: anchor.x + sitGap, y: topSeatY },
     }),
     createSeatGeometry({
-      id: seatIds[2], tableId: bottomTableId, side: 'left',
+      id: seatIds[2], tableId, side: 'left',
       rest: { x: anchor.x - gap, y: bottomSeatY },
       pulled: { x: anchor.x - pulledGap, y: bottomSeatY },
       sit: { x: anchor.x - sitGap, y: bottomSeatY },
     }),
     createSeatGeometry({
-      id: seatIds[3], tableId: bottomTableId, side: 'right',
+      id: seatIds[3], tableId, side: 'right',
       rest: { x: anchor.x + gap, y: bottomSeatY },
       pulled: { x: anchor.x + pulledGap, y: bottomSeatY },
       sit: { x: anchor.x + sitGap, y: bottomSeatY },
     }),
   ] as const
-  const tables = [
-    createTableGeometry(topTableId, { x: anchor.x, y: topTableY }, tableRadius, tableApproach),
-    createTableGeometry(bottomTableId, { x: anchor.x, y: bottomTableY }, tableRadius, tableApproach),
-  ] as const
+  const table = createTableGeometry(tableId, anchor, tableRadius, tableApproach)
+  // A four-seat group is one physical table body, not two narrow tables with
+  // a walkable seam between them. Its body spans both chair rows.
+  table.collision = sharedTextFootprint(anchor, {
+    width: sharedFurnitureGeometry.tableFootprint.wideWidth,
+    height: seatPairOffset * 2 + sharedFurnitureGeometry.tableFootprint.height,
+    padding: sharedFurnitureGeometry.tableFootprint.padding,
+  })
   return {
     groupId,
     anchor,
-    tables,
-    table: tables[0],
+    table,
     seats,
-    bounds: unionCollisionBoxes([...tables.map((table) => table.collision), ...seats.map((seat) => seat.collision)]),
+    bounds: unionCollisionBoxes([table.collision, ...seats.map((seat) => seat.collision)]),
   }
 }

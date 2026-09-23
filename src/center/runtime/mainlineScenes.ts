@@ -26,6 +26,7 @@ import type {
   MainlineSceneNpcBehavior,
   MainlineSceneNpcBehaviorTarget,
   MainlineSceneAccessRegion,
+  MainlineSceneAccessPortal,
   MainlineRegionAccess,
   MainlineStorefrontRole,
   MainlineStorefrontComposition,
@@ -193,6 +194,7 @@ export type MainlineSceneDefinition = {
   curves: readonly MainlineSceneCurve[]
   airWalls?: readonly MainlineAirWall[]
   accessRegions: readonly MainlineSceneAccessRegion[]
+  accessPortals: readonly MainlineSceneAccessPortal[]
   actorAccess: Readonly<Record<string, readonly MainlineRegionAccess[]>>
   blockers: readonly (CollisionBox & { id: string })[]
   wallDensity?: MainlineWallDensity
@@ -1016,6 +1018,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     curves: data.curves ?? [],
     airWalls: data.airWalls,
     accessRegions: data.accessRegions ?? [],
+    accessPortals: data.accessPortals ?? [],
     actorAccess: data.actorAccess ?? {},
     blockers: data.blockers,
     wallDensity: data.wallDensity,

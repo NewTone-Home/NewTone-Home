@@ -32,6 +32,8 @@ export type MovementOptions = {
   deceleration?: number
   /** Kept for compatibility; MOBA movement does not rotate through old heading inertia. */
   turnSmoothing?: number
+  /** Preserve every shared-navigation turn when dynamic occupancy requires it. */
+  preserveNavigationRoute?: boolean
 }
 
 export type MovementComplete = (position: Point) => void
@@ -124,6 +126,12 @@ function smoothPath(path: Point[], canOccupy?: (point: Point) => boolean, preser
  * route preparation.
  */
 export function prepareMovementPath(path: Point[], start: Point, options: MovementOptions = {}) {
+  if (options.preserveNavigationRoute) {
+    return {
+      waypoints: path.filter((point) => point.x !== start.x || point.y !== start.y),
+      preserveInitialExit: false,
+    }
+  }
   const preserveInitialExit = Boolean(options.initialCanOccupy)
   const compressed = compressPath(path, Boolean(options.finalCanOccupy), preserveInitialExit)
   return {
