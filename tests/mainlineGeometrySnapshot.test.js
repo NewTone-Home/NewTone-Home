@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { mainlineSceneGeometryUnits, mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import {
   mainlineInteractionTarget,
@@ -31,6 +31,16 @@ function assertValidBox(box, label) {
   expect(Number.isFinite(box.y), `${label}.y`).toBe(true)
   expect(box.width, `${label}.width`).toBeGreaterThan(0)
   expect(box.height, `${label}.height`).toBeGreaterThan(0)
+}
+
+function renderedDoorLabel(cell) {
+  return cell.doorLabelPart ?? cell.displayLabel ?? cell.label ?? cell.glyph ?? '门'
+}
+
+function doorCells(scene, entityId) {
+  return mainlineSceneGeometryUnits(scene, scene.initialPlayerPosition)
+    .flatMap((unit) => unit.visual.cells.map((cell) => ({ ...cell, entityId: cell.entityId ?? unit.entityId })))
+    .filter((cell) => cell.kind === 'door' && cell.entityId === entityId)
 }
 
 describe('mainline screen geometry snapshot', () => {
@@ -79,6 +89,50 @@ describe('mainline screen geometry snapshot', () => {
     expect(passageEntry).toBeTruthy()
     expect(isWalkableMainlinePoint(officeEntry, officeScene)).toBe(true)
     expect(isWalkableMainlinePoint(passageEntry, passageScene)).toBe(true)
+  })
+
+  it('keeps normal door text on portal entities while split and storefront labels retain their own roles', () => {
+    const cafe = mainlineScenes['commercial-cafe']
+    const cafeBackDoorOpening = cafe.structures
+      .find((structure) => structure.id === 'commercial-cafe-room')
+      ?.openings.find((opening) => opening.doorId === 'cafe-back-door')
+    const cafeBackDoor = cafe.portals.find((portal) => portal.id === 'cafe-back-door')
+    const cafeBackDoorCell = doorCells(cafe, 'cafe-back-door')[0]
+
+    expect(cafeBackDoorOpening).toMatchObject({ doorId: 'cafe-back-door', labelLayout: 'center' })
+    expect(cafeBackDoorOpening?.label).toBeUndefined()
+    expect(cafeBackDoorOpening?.displayLabel).toBeUndefined()
+    expect(cafeBackDoor?.entity).toMatchObject({ label: '后门', displayLabel: '门' })
+    expect(renderedDoorLabel(cafeBackDoorCell)).toBe('门')
+
+    const yard = mainlineScenes['jijia-ancestral-home']
+    const yardGateOpening = yard.structures
+      .find((structure) => structure.id === 'jijia-yard')
+      ?.openings.find((opening) => opening.doorId === 'jijia-yard-gate')
+    const yardGateParts = doorCells(yard, 'jijia-yard-gate')
+      .map((cell) => cell.doorLabelPart)
+      .filter(Boolean)
+
+    expect(yardGateOpening).toMatchObject({ label: '院门', labelLayout: 'split' })
+    expect(yardGateParts).toEqual(['院', '门'])
+
+    const perimeter = mainlineScenes['yonghe-mining-perimeter']
+    const eatery = mainlineScenes['yonghe-eatery']
+    const storefront = perimeter.storefronts.find((candidate) => candidate.portalId === 'yonghe-street-entry')
+    const insideDoor = eatery.portals.find((portal) => portal.id === 'yonghe-street-entry')
+    const insideDoorOpening = eatery.structures
+      .find((structure) => structure.id === 'yonghe-room')
+      ?.openings.find((opening) => opening.doorId === 'yonghe-street-entry')
+    const insideDoorCell = doorCells(eatery, 'yonghe-street-entry')[0]
+    const outwardPassage = perimeter.passages.find((passage) => passage.id === 'yonghe-street-entry')
+    const returnPassage = eatery.passages.find((passage) => passage.id === 'yonghe-street-entry')
+
+    expect(storefront?.label).toBe('永和小馆')
+    expect(insideDoor?.entity).toMatchObject({ label: '永和小馆', displayLabel: '门' })
+    expect(insideDoorOpening?.label).toBeUndefined()
+    expect(renderedDoorLabel(insideDoorCell)).toBe('门')
+    expect(outwardPassage).toMatchObject({ entityId: 'yonghe-street-entry', targetSceneId: 'yonghe-eatery' })
+    expect(returnPassage).toMatchObject({ entityId: 'yonghe-street-entry', targetSceneId: 'yonghe-mining-perimeter' })
   })
 
   it.each(viewports)('keeps one geometry source for $name', (screenMetrics) => {
