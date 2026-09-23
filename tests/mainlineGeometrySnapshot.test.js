@@ -135,6 +135,31 @@ describe('mainline screen geometry snapshot', () => {
     expect(returnPassage).toMatchObject({ entityId: 'yonghe-street-entry', targetSceneId: 'yonghe-mining-perimeter' })
   })
 
+  it('keeps Yonghe outdoor chairs physical while limiting interaction to their tables', () => {
+    const scene = mainlineScenes['yonghe-mining-perimeter']
+    const tableIds = ['yonghe-outdoor-table-1', 'yonghe-outdoor-table-2']
+    const chairIds = [
+      'yonghe-outdoor-chair-1-top',
+      'yonghe-outdoor-chair-1-bottom',
+      'yonghe-outdoor-chair-2-top',
+      'yonghe-outdoor-chair-2-bottom',
+    ]
+
+    tableIds.forEach((id) => {
+      expect(scene.objects.find((entity) => entity.id === id)?.interactive).not.toBe(false)
+    })
+    chairIds.forEach((id) => {
+      const chair = scene.objects.find((entity) => entity.id === id)
+      expect(chair?.interactive).toBe(false)
+      expect(chair?.collision).toBeTruthy()
+      expect(chair?.shape).toEqual(chair?.collision)
+    })
+    ;['yonghe-outdoor-group-1', 'yonghe-outdoor-group-2'].forEach((groupId, index) => {
+      const group = scene.furnitureGroups.find((candidate) => candidate.id === groupId)
+      expect(group?.entityIds).toEqual([tableIds[index], ...chairIds.slice(index * 2, index * 2 + 2)])
+    })
+  })
+
   it.each(viewports)('keeps one geometry source for $name', (screenMetrics) => {
     playableScenes.forEach((scene) => {
       const snapshot = createMainlineSceneGeometrySnapshot(scene, scene.initialPlayerPosition, {}, screenMetrics)

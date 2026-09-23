@@ -1436,7 +1436,10 @@ const yongheOutdoorFurniture = [
     { x: yongheOutdoorApproachX, y: yongheStreetEntryPosition.y + 20 },
     { tableId: 'yonghe-outdoor-table-2', seatIds: ['yonghe-outdoor-chair-2-top', 'yonghe-outdoor-chair-2-bottom'] },
   ),
-]
+].map(({ group, entities }) => ({
+  group,
+  entities: entities.map((entity) => entity.kind === 'seat' ? { ...entity, interactive: false } : entity),
+}))
 
 const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
   id: 'yonghe-mining-perimeter',
