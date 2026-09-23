@@ -98,7 +98,12 @@ export function resolveCommercialCafeCoffeeDeliveryIntent({
   if (scene.id !== 'commercial-cafe' || stage !== 'met-lao-zhou') return null
   const coffee = scene.attachedProps.find((prop) => prop.id === commercialCafeCoffeeAttachedPropId)
   if (!coffee) return null
-  const serverNavigationOptions = { ...navigationOptions, actorId: npcRoles.server.id }
+  // Story selects the table's semantic contact from static scene geometry.
+  // Live actors are intentionally excluded here: the shared movement adapter
+  // owns the actual dynamic route and is therefore able to record `blocked`
+  // instead of silently suppressing this story duty before it starts.
+  const { navigationRuntime: _navigationRuntime, ...staticNavigationOptions } = navigationOptions
+  const serverNavigationOptions = { ...staticNavigationOptions, actorId: npcRoles.server.id }
   const deliveryContact = findMainlinePathToEntity(scene, coffee.parentEntityId, from, layout, serverNavigationOptions)
   if (!deliveryContact.path) return null
   return {

@@ -233,14 +233,15 @@ describe('commercial cafe story stage', () => {
     expect(resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'coffee-ordered', from: serverHome, navigationOptions })).toBeNull()
     expect(resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'coffee-delivered', from: serverHome, navigationOptions })).toBeNull()
     const intent = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'met-lao-zhou', from: serverHome, navigationOptions })
-    const deliveryContact = findMainlinePathToEntity(cafe, coffee.parentEntityId, serverHome, {}, { ...navigationOptions, actorId: npcRoles.server.id })
+    const { navigationRuntime: _navigationRuntime, ...staticNavigationOptions } = navigationOptions
+    const deliveryContact = findMainlinePathToEntity(cafe, coffee.parentEntityId, serverHome, {}, { ...staticNavigationOptions, actorId: npcRoles.server.id })
 
     expect(intent).toEqual({
       dutyId: npcRoles.server.duties.deliverCoffee.id,
       targetId: coffee.parentEntityId,
       target: deliveryContact.target,
     })
-    expect(intent && isWalkableMainlinePoint(intent.target, cafe, {}, { ...navigationOptions, actorId: npcRoles.server.id })).toBe(true)
+    expect(intent && isWalkableMainlinePoint(intent.target, cafe, {}, { ...staticNavigationOptions, actorId: npcRoles.server.id })).toBe(true)
     const path = intent && findMainlinePath(serverHome, intent.target, cafe, {}, { ...navigationOptions, actorId: npcRoles.server.id })
     expect(intent?.target).not.toEqual(serverHome)
     expect(path).not.toBeNull()
@@ -250,6 +251,24 @@ describe('commercial cafe story stage', () => {
       targetId: 'commercial-cafe-counter-service',
       target: serverHome,
     })
+  })
+
+  it('keeps a semantic delivery duty available when a live actor blocks its route', () => {
+    const cafe = mainlineScenes['commercial-cafe']
+    const runtime = createNavigationRuntime()
+    const serverHome = resolveMainlineNpcPosition(cafe, npcRoles.server.id)
+    const coffeeTable = cafe.objects.find((entity) => entity.id === 'commercial-cafe-right-window-upper-group-table')!
+    runtime.registerActor('e2e-blocker', coffeeTable.position, 15)
+
+    const intent = resolveCommercialCafeCoffeeDeliveryIntent({
+      scene: cafe,
+      stage: 'met-lao-zhou',
+      from: serverHome,
+      navigationOptions: { navigationRuntime: runtime },
+    })
+
+    expect(intent).toMatchObject({ dutyId: npcRoles.server.duties.deliverCoffee.id, targetId: coffeeTable.id })
+    expect(findMainlinePath(serverHome, intent!.target, cafe, {}, { navigationRuntime: runtime, actorId: npcRoles.server.id })).toBeNull()
   })
 
   it('uses the attached coffee and Lao Zhou resolutions to complete the authored information and departure beats', () => {

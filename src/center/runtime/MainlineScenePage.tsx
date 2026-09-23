@@ -78,6 +78,15 @@ function samePoint(first: Point, second: Point) {
   return Math.abs(first.x - second.x) < .001 && Math.abs(first.y - second.y) < .001
 }
 
+/** DEV/e2e-only, non-persistent spawn for real browser movement probes. */
+function debugCafePoint(value: string | null): Point | null {
+  if (!value) return null
+  const [rawX, rawY] = value.split(',')
+  const x = Number(rawX)
+  const y = Number(rawY)
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null
+}
+
 type MainlineSceneEcho = {
   id: number
   entityId?: string
@@ -328,6 +337,7 @@ export function MainlineScenePage({
   const commercialCafeBehaviorRef = useRef(createCommercialCafeServerBehaviorCoordinator())
   const commercialCafeBehavior = commercialCafeBehaviorRef.current
   const debugCafeFixtureAppliedRef = useRef(false)
+  const debugCafePlayerPositionAppliedRef = useRef(false)
   const handledWalkRequestRef = useRef<number | null>(null)
   const [feedback, setFeedback] = useState(entryFeedbackForScene(sceneDefinition))
   const [inputDiagnostic, setInputDiagnostic] = useState<MainlineInputDiagnostic | null>(null)
@@ -336,9 +346,15 @@ export function MainlineScenePage({
   const debugNpcMovement = new URLSearchParams(debugInputSearch).get('debugNpcMovement') === '1'
   const debugCafeStageValue = new URLSearchParams(debugInputSearch).get('debugCafeStage')
   const debugCafeFixture = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('debugCafeFixture') === '1'
+  const debugRuntimeEvidence = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('debugRuntimeEvidence') === '1'
+  const debugCafeStoryInterrupt = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('debugCafeStoryInterrupt') === '1'
+  const debugCafeServerBlocker = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('debugCafeServerBlocker') === '1'
+  const debugCafePlayerPosition = import.meta.env.DEV ? debugCafePoint(new URLSearchParams(debugInputSearch).get('debugCafePlayerPosition')) : null
   const [debugCafeStoryStage, setDebugCafeStoryStage] = useState<CommercialCafeStoryStage | null>(() => (
     import.meta.env.DEV && isCommercialCafeStoryStage(debugCafeStageValue) ? debugCafeStageValue : null
   ))
+  const debugCafeStoryInterruptAppliedRef = useRef(false)
+  const debugCafeServerBlockerId = 'e2e-commercial-cafe-server-blocker'
   const [dialogueLineIndex, setDialogueLineIndex] = useState<number | null>(null)
   const [dialogueSegmentIndex, setDialogueSegmentIndex] = useState(0)
   const [npcDialogue, setNpcDialogue] = useState<NpcDialogueResolution | null>(null)
@@ -549,6 +565,31 @@ export function MainlineScenePage({
     resetMovement(sitPosition)
     navigationRuntime.updateActor('protagonist', sitPosition)
   }, [debugCafeFixture, layout, navigationOptions, navigationRuntime, resetMovement, scene, stopMovement])
+  useEffect(() => {
+    if (!debugCafePlayerPosition || debugCafePlayerPositionAppliedRef.current || scene.id !== 'commercial-cafe') return
+    if (!isWalkableMainlinePoint(debugCafePlayerPosition, scene, layout, navigationOptions)) return
+    debugCafePlayerPositionAppliedRef.current = true
+    stopMovement()
+    resetMovement(debugCafePlayerPosition)
+    navigationRuntime.updateActor('protagonist', debugCafePlayerPosition)
+  }, [debugCafePlayerPosition, layout, navigationOptions, navigationRuntime, resetMovement, scene, stopMovement])
+  useEffect(() => {
+    if (!debugCafeServerBlocker || scene.id !== 'commercial-cafe') return undefined
+    const coffeeParentId = scene.attachedProps.find((prop) => prop.id === 'commercial-cafe-coffee')?.parentEntityId
+    const coffeeTable = coffeeParentId ? geometrySnapshot.objects.get(coffeeParentId) : undefined
+    if (!coffeeTable) return undefined
+    // This is an invisible DEV-only actor reservation, deliberately larger
+    // than every legal table contact. It proves that delivery respects the
+    // same dynamic-actor obstacle registry as normal play.
+    navigationRuntime.registerActor(debugCafeServerBlockerId, coffeeTable.position, 15)
+    return () => navigationRuntime.removeActor(debugCafeServerBlockerId)
+  }, [debugCafeServerBlocker, debugCafeServerBlockerId, geometrySnapshot, navigationRuntime, scene])
+  useEffect(() => {
+    if (!debugCafeStoryInterrupt || debugCafeStoryInterruptAppliedRef.current || scene.id !== 'commercial-cafe') return
+    if (commercialCafeStoryStage !== 'entered' || serverMovement.snapshot.phase !== 'moving') return
+    debugCafeStoryInterruptAppliedRef.current = true
+    setDebugCafeStoryStage('met-lao-zhou')
+  }, [commercialCafeStoryStage, debugCafeStoryInterrupt, scene.id, serverMovement.snapshot.phase])
   useEffect(() => {
     if (scene.id !== 'commercial-cafe') {
       commercialCafeBehavior.reset()
@@ -1323,7 +1364,7 @@ export function MainlineScenePage({
   const cameraOffset = mainlineCameraOffset(scene, position, embedded)
 
   return (
-    <div {...sceneInteractionHandlers} className={`scene-shell mainline-scene ${embedded ? 'mainline-scene--embedded' : ''} ${!showSceneChrome ? 'mainline-scene--map-only' : ''}`} data-mainline-scene={scene.id} data-commercial-cafe-stage={scene.id === 'commercial-cafe' ? commercialCafeStoryStage : undefined} data-commercial-cafe-server-behavior={scene.id === 'commercial-cafe' ? commercialCafeBehavior.getPhase() : undefined} data-debug-cafe-fixture={debugCafeFixture ? 'true' : undefined}>
+    <div {...sceneInteractionHandlers} className={`scene-shell mainline-scene ${embedded ? 'mainline-scene--embedded' : ''} ${!showSceneChrome ? 'mainline-scene--map-only' : ''}`} data-mainline-scene={scene.id} data-commercial-cafe-stage={scene.id === 'commercial-cafe' ? commercialCafeStoryStage : undefined} data-commercial-cafe-server-behavior={scene.id === 'commercial-cafe' ? commercialCafeBehavior.getPhase() : undefined} data-debug-cafe-fixture={debugCafeFixture ? 'true' : undefined} data-debug-runtime-evidence={debugRuntimeEvidence ? 'true' : undefined} data-e2e-server-blocker={debugCafeServerBlocker ? 'true' : undefined}>
       {!embedded && showSceneChrome && <header className="scene-shell__header">
         <div>
           <p className="scene-shell__eyebrow">NEWTONE / CENTER / MAINLINE SCENE</p>
@@ -1388,6 +1429,7 @@ export function MainlineScenePage({
               occupiedSeatIds={occupiedSeatIds}
               playerSeatId={activePlayerSeatId}
               promptedSeatId={promptedSeatId}
+              debugRuntimeEvidence={debugRuntimeEvidence}
               debugInput={debugInput}
               debugNpcMovement={debugNpcMovement}
               onDebugNpcMovement={debugNpcMovement ? runDebugServerMovement : undefined}

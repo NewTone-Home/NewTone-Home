@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { Point } from './sceneGeometry'
+import type { CollisionBox, Point } from './sceneGeometry'
 import { type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
@@ -69,6 +69,8 @@ type MainlineSceneRendererProps = {
   occupiedSeatIds?: ReadonlySet<string>
   playerSeatId?: string | null
   promptedSeatId?: string | null
+  /** DEV/e2e-only geometry evidence. It never participates in scene behavior. */
+  debugRuntimeEvidence?: boolean
 }
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
@@ -282,10 +284,11 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
   return <span {...commonProps} aria-hidden="true">{content}{renderFrame(first.focusGroup)}</span>
 }
 
-function MainlineObject({ entity, scene, position, visibility, active, explored, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, renderFrame, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false }: {
+function MainlineObject({ entity, scene, position, collision, visibility, active, explored, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, renderFrame, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false, debugRuntimeEvidence = false }: {
   entity: MainlineSceneEntity
   scene: MainlineSceneDefinition
   position: Point
+  collision?: CollisionBox
   visibility: string
   active: boolean
   explored: boolean
@@ -306,6 +309,7 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
   registerBreathingNode?: (entityId: string, node: HTMLSpanElement | null) => void
   suppressLabel?: boolean
   prompted?: boolean
+  debugRuntimeEvidence?: boolean
 }) {
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
   const className = objectClass(scene, entity, visibility, active, explored, underPlayer, selected, dragging, incenseLit)
@@ -332,6 +336,14 @@ function MainlineObject({ entity, scene, position, visibility, active, explored,
     'data-focus-target-policy': !layoutMode && entity.interactive !== false ? 'exploration' : undefined,
     'data-focus-interaction-active': !layoutMode && entity.interactive !== false && active ? 'true' : undefined,
     'data-story-seat-prompt': prompted ? 'true' : undefined,
+    'data-rendered-x': debugRuntimeEvidence ? position.x : undefined,
+    'data-rendered-y': debugRuntimeEvidence ? position.y : undefined,
+    'data-collision-x': debugRuntimeEvidence && collision ? collision.x : undefined,
+    'data-collision-y': debugRuntimeEvidence && collision ? collision.y : undefined,
+    'data-collision-width': debugRuntimeEvidence && collision ? collision.width : undefined,
+    'data-collision-height': debugRuntimeEvidence && collision ? collision.height : undefined,
+    'data-seat-table-id': debugRuntimeEvidence ? entity.seat?.tableId : undefined,
+    'data-seat-side': debugRuntimeEvidence ? entity.seat?.side : undefined,
   }
   const labelStyle = breathingAnimationDelay
     ? { '--scene-exploration-animation-delay': breathingAnimationDelay } as CSSProperties
@@ -421,6 +433,7 @@ export function MainlineSceneRenderer({
   occupiedSeatIds: runtimeOccupiedSeatIds,
   playerSeatId = null,
   promptedSeatId = null,
+  debugRuntimeEvidence = false,
 }: MainlineSceneRendererProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
@@ -731,7 +744,7 @@ export function MainlineSceneRenderer({
 
   return (
     <section className="scene-wrap" aria-label={`${scene.title}可探索场景`}>
-      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id}>
+      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined}>
         {layoutMode && <div className="scene-layout-grid" aria-hidden="true" />}
 
         <div className="scene-mainline-world" style={{ transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%)` }}>
@@ -833,6 +846,7 @@ export function MainlineSceneRenderer({
               entity={entity}
               scene={scene}
               position={entityPosition}
+              collision={geometrySnapshot.objects.get(entity.id)?.collision ?? undefined}
               visibility={objectVisibility(entity, layoutMode)}
               active={activeObjectId === entity.id || sceneEcho?.entityId === entity.id}
               explored={exploredObjectIds.has(entity.id)}
@@ -853,6 +867,7 @@ export function MainlineSceneRenderer({
               registerBreathingNode={registerBreathingNode}
               suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds) || presentedParentEntityIds.has(entity.id)}
               prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}
+              debugRuntimeEvidence={debugRuntimeEvidence}
             />
           })}
 
@@ -879,6 +894,10 @@ export function MainlineSceneRenderer({
               data-npc-phase={npcSnapshot?.phase}
               data-npc-duty-id={npcSnapshot?.dutyId ?? undefined}
               data-npc-target-id={npcSnapshot?.targetId ?? undefined}
+              data-runtime-x={debugRuntimeEvidence ? npcPosition.x : undefined}
+              data-runtime-y={debugRuntimeEvidence ? npcPosition.y : undefined}
+              data-rendered-x={debugRuntimeEvidence ? npcVisualPosition.x : undefined}
+              data-rendered-y={debugRuntimeEvidence ? npcVisualPosition.y : undefined}
               aria-label={`${npc.label}，点击让主角前往互动`}
             >
               <span>{npc.label}</span>
@@ -898,6 +917,8 @@ export function MainlineSceneRenderer({
                 data-attached-prop-id={prop.id}
                 data-parent-entity-id={prop.parentEntityId}
                 data-interaction-target-entity-id={prop.interactionTargetEntityId}
+                data-rendered-x={debugRuntimeEvidence ? parentPosition.x + prop.offset.x : undefined}
+                data-rendered-y={debugRuntimeEvidence ? parentPosition.y + prop.offset.y : undefined}
                 aria-label={`${prop.label}，附着于${prop.parentEntityId}`}
               >
                 <span>{prop.label}</span>
@@ -906,7 +927,7 @@ export function MainlineSceneRenderer({
           })}
 
           {destination && <div className={`scene-walk-target ${moving ? 'is-active' : ''}`} style={{ left: `${destination.x}%`, top: `${destination.y}%` }} aria-hidden="true" />}
-          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%` }} data-actor-id="protagonist">
+          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%` }} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined}>
             {protagonistPresentation.kind === 'dot'
               ? <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
               : <span className="scene-protagonist__seat-label" aria-label="修杰，已坐下">{protagonistPresentation.label}</span>}
