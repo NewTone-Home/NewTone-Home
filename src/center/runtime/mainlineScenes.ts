@@ -27,12 +27,15 @@ import type {
   MainlineSceneNpcBehaviorTarget,
   MainlineSceneAccessRegion,
   MainlineSceneAccessPortal,
+  MainlineSceneAccessBoundary,
+  MainlineNavigationBarrierRelation,
   MainlineRegionAccess,
   MainlineStorefrontRole,
   MainlineStorefrontComposition,
   MainlineStorefrontMode,
   MainlineStorefrontSlot,
   MainlineAltarBlueprint,
+  MainlineContinuousStructure,
 } from './mainlineSceneModel'
 
 export type {
@@ -57,6 +60,7 @@ export type {
   MainlineStorefrontSlotBlueprint,
   MainlineStorefrontSlot,
   MainlineAltarBlueprint,
+  MainlineContinuousStructure,
   MainlineSceneData,
   MainlineSceneExternalExit,
   MainlineScenePortalBlueprint,
@@ -195,8 +199,11 @@ export type MainlineSceneDefinition = {
   airWalls?: readonly MainlineAirWall[]
   accessRegions: readonly MainlineSceneAccessRegion[]
   accessPortals: readonly MainlineSceneAccessPortal[]
+  accessBoundaries: readonly MainlineSceneAccessBoundary[]
+  navigationBarriers: readonly MainlineNavigationBarrierRelation[]
   actorAccess: Readonly<Record<string, readonly MainlineRegionAccess[]>>
   blockers: readonly (CollisionBox & { id: string })[]
+  continuousStructures: readonly MainlineContinuousStructure[]
   wallDensity?: MainlineWallDensity
   objects: readonly MainlineSceneEntity[]
   npcs: readonly MainlineSceneNpc[]
@@ -818,7 +825,7 @@ function geometryUnion(units: readonly MainlineSceneGeometryUnit[]): CollisionBo
  * collision, air wall, or blocker must be the same rectangle that the active
  * geometry projection exposes to the renderer and navigation.
  */
-export function validateMainlineSceneGeometry(scene: Pick<MainlineSceneDefinition, 'geometry' | 'passages' | 'wallCollisions' | 'airWalls' | 'blockers'>): readonly string[] {
+export function validateMainlineSceneGeometry(scene: Pick<MainlineSceneDefinition, 'geometry' | 'passages' | 'wallCollisions' | 'airWalls' | 'blockers' | 'continuousStructures'>): readonly string[] {
   const issues: string[] = []
   const canonicalBoundaryUnits = scene.geometry.filter((unit) => unit.geometryKind === 'boundary' && unit.variant !== 'near' && !unit.visualOnly)
 
@@ -858,7 +865,7 @@ export function validateMainlineSceneGeometry(scene: Pick<MainlineSceneDefinitio
     const unit = scene.geometry.find((candidate) => candidate.geometryKind === 'air-wall' && candidate.id === airWall.id)
     if (!unit || !sameCollisionBox(unit, airWall)) issues.push(`${airWall.id}: air wall diverges from canonical geometry`)
   })
-  scene.blockers.forEach((blocker) => {
+  ;[...scene.blockers, ...scene.continuousStructures].forEach((blocker) => {
     const unit = scene.geometry.find((candidate) => candidate.geometryKind === 'blocker' && candidate.id === blocker.id)
     if (!unit || !sameCollisionBox(unit, blocker)) issues.push(`${blocker.id}: blocker diverges from canonical geometry`)
   })
@@ -962,6 +969,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
       targetSceneId: portal.targetSceneId,
       routeThrough: portal.routeThrough,
       frameBehavior: portal.frameBehavior,
+      transitionPresentation: portal.transitionPresentation,
       fromRoomId: portal.fromRoomId,
       toRoomId: portal.toRoomId,
       thresholds: [endpoint.threshold, endpoint.crossingTarget],
@@ -980,7 +988,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     [...objectById.values()],
     data.wallDensity,
     data.airWalls,
-    data.blockers,
+    [...data.blockers, ...(data.continuousStructures ?? [])],
     data.curves ?? [],
     passageGeometry,
   )
@@ -1019,8 +1027,11 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     airWalls: data.airWalls,
     accessRegions: data.accessRegions ?? [],
     accessPortals: data.accessPortals ?? [],
+    accessBoundaries: data.accessBoundaries ?? [],
+    navigationBarriers: data.navigationBarriers ?? [],
     actorAccess: data.actorAccess ?? {},
     blockers: data.blockers,
+    continuousStructures: data.continuousStructures ?? [],
     wallDensity: data.wallDensity,
     objects: [...objectById.values()],
     npcs: data.npcs ?? [],
@@ -1097,7 +1108,7 @@ function projectedSceneGeometry(scene: MainlineSceneDefinition, screenMetrics: S
     scene.objects,
     scene.wallDensity,
     scene.airWalls,
-    scene.blockers,
+    [...scene.blockers, ...scene.continuousStructures],
     scene.curves,
     passageGeometryForScene(scene),
     screenMetrics,

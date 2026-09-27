@@ -25,6 +25,11 @@ export type DoorPassageRegion = {
   targetDepth: number
 }
 
+export type DoorPassageActorFootprint = {
+  width: number
+  height: number
+}
+
 export type DoorPassageSide = 0 | 1
 
 export type DoorPassagePhase = 'closed' | 'opening' | 'open' | 'crossing' | 'holding' | 'closing'
@@ -175,12 +180,15 @@ function pointOnSegment(start: Point, target: Point, progress: number): Point {
 }
 
 /** Resolve a clear approach point for every doorway orientation. */
-export function doorwayBoundaryPoint(region: DoorPassageRegion, from: Point, target: Point, actorRadius: number, tangentPoint?: Point) {
+export function doorwayBoundaryPoint(region: DoorPassageRegion, from: Point, target: Point, actorFootprint: DoorPassageActorFootprint, tangentPoint?: Point) {
+  const horizontalNormal = region.normal.axis === 'x'
+  const normalClearance = horizontalNormal ? actorFootprint.width / 2 : actorFootprint.height / 2
+  const tangentClearance = horizontalNormal ? actorFootprint.height / 2 : actorFootprint.width / 2
   const expandedDoor = {
-    x: region.doorway.x - actorRadius,
-    y: region.doorway.y - actorRadius,
-    width: region.doorway.width + actorRadius * 2,
-    height: region.doorway.height + actorRadius * 2,
+    x: region.doorway.x - (horizontalNormal ? normalClearance : tangentClearance),
+    y: region.doorway.y - (horizontalNormal ? tangentClearance : normalClearance),
+    width: region.doorway.width + (horizontalNormal ? normalClearance : tangentClearance) * 2,
+    height: region.doorway.height + (horizontalNormal ? tangentClearance : normalClearance) * 2,
   }
   const length = Math.hypot(target.x - from.x, target.y - from.y)
   const interval = segmentBoxInterval(from, target, expandedDoor)
@@ -193,15 +201,15 @@ export function doorwayBoundaryPoint(region: DoorPassageRegion, from: Point, tar
   const side = doorRegionSide(region, from)
   const direction = region.normal.direction * (side === 1 ? 1 : -1)
   const tangent = tangentPoint ?? center
-  if (region.normal.axis === 'x') {
+  if (horizontalNormal) {
     return {
-      x: center.x + direction * (region.doorway.width / 2 + actorRadius + .08),
+      x: center.x + direction * (region.doorway.width / 2 + normalClearance + .08),
       y: tangent.y,
     }
   }
   return {
     x: tangent.x,
-    y: center.y + direction * (region.doorway.height / 2 + actorRadius + .08),
+    y: center.y + direction * (region.doorway.height / 2 + normalClearance + .08),
   }
 }
 

@@ -86,12 +86,15 @@ describe('mainline scene interaction policies', () => {
     expect(counter).toMatchObject({ kind: 'fixture', interactionBehavior: 'cafe-order' })
     expect(counterSegments).toHaveLength(17)
     expect(counterSegments.every((segment) => segment.interactionBehavior === 'cafe-order')).toBe(true)
+    const counterBody = cafe.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-body')!
+    // APPROVED CONTRACT MIGRATION: cells retain individual customer-side
+    // contacts but share one continuous physical counter body.
     counterSegments.forEach((segment) => {
-      const customerY = segment.collision!.y + segment.collision!.height + segment.collision!.height
-      const left = mainlineInteractionTarget(cafe, segment.id, { x: segment.collision!.x - segment.collision!.width, y: customerY })
-      const right = mainlineInteractionTarget(cafe, segment.id, { x: segment.collision!.x + segment.collision!.width * 2, y: customerY })
-      expect(left.y).toBeGreaterThan(segment.collision!.y + segment.collision!.height)
-      expect(right.y).toBeGreaterThan(segment.collision!.y + segment.collision!.height)
+      const customerY = counterBody.y + counterBody.height * 2
+      const left = mainlineInteractionTarget(cafe, segment.id, { x: counterBody.x - counterBody.width, y: customerY })
+      const right = mainlineInteractionTarget(cafe, segment.id, { x: counterBody.x + counterBody.width * 2, y: customerY })
+      expect(left.y).toBeGreaterThan(counterBody.y + counterBody.height)
+      expect(right.y).toBeGreaterThan(counterBody.y + counterBody.height)
       expect(left.x).toBeLessThanOrEqual(segment.position.x)
       expect(right.x).toBeGreaterThanOrEqual(segment.position.x)
     })

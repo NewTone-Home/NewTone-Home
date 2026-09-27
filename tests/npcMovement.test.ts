@@ -8,6 +8,7 @@ import { commercialCafeLaoZhouConversationSeatId, resolveCommercialCafeCoffeeDel
 import { npcRoles } from '../src/center/runtime/npcRoles'
 import { createNpcMovementAdapter } from '../src/center/runtime/useNpcMovement'
 import { createFreeRoamController } from '../src/center/runtime/useFreeRoamMovement'
+import { mainlineLabelFootprint, mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 
 const cafe = mainlineScenes['commercial-cafe']
 const laoZhouPosition = resolveMainlineNpcPosition(cafe, 'lao-zhou')
@@ -26,14 +27,18 @@ describe('NPC movement adapter', () => {
   function createServerMovement(protagonistPosition = cafe.initialPlayerPosition) {
     const navigationRuntime = createNavigationRuntime()
     const controller = createFreeRoamController(serverHome)
-    navigationRuntime.registerActor('protagonist', protagonistPosition)
-    navigationRuntime.registerActor('lao-zhou', laoZhouPosition)
-    navigationRuntime.registerActor('server', serverHome)
+    const protagonistBox = mainlineProtagonistDotFootprint(protagonistPosition)
+    const laoZhouBox = mainlineLabelFootprint('老周', laoZhouPosition, undefined, { lineHeight: 1 })
+    const serverBox = mainlineLabelFootprint('店员', serverHome, undefined, { lineHeight: 1 })
+    navigationRuntime.registerActor('protagonist', protagonistPosition, { width: protagonistBox.width, height: protagonistBox.height })
+    navigationRuntime.registerActor('lao-zhou', laoZhouPosition, { width: laoZhouBox.width, height: laoZhouBox.height })
+    navigationRuntime.registerActor('server', serverHome, { width: serverBox.width, height: serverBox.height })
     const adapter = createNpcMovementAdapter({
       npcId: 'server',
       initialPosition: serverHome,
       movement: controller,
       navigationRuntime,
+      getFootprint: () => ({ width: serverBox.width, height: serverBox.height }),
     })
     return { navigationRuntime, controller, adapter }
   }
@@ -133,7 +138,7 @@ describe('NPC movement adapter', () => {
     const { navigationRuntime, controller, adapter } = createServerMovement()
     const delivery = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'met-lao-zhou' })!
     const staticContact = findMainlinePathToEntity(cafe, delivery.targetEntityId!, serverHome, {}, { actorId: 'server' }).target
-    navigationRuntime.registerActor('contact-blocker', staticContact, .8)
+    navigationRuntime.registerActor('contact-blocker', staticContact, { width: 1.6, height: 1.6 })
 
     const started = adapter.requestMove(delivery, cafe, {}, { navigationRuntime }, { maxSpeed: 1 })
 
@@ -148,7 +153,7 @@ describe('NPC movement adapter', () => {
     const { navigationRuntime, controller, adapter } = createServerMovement()
     const delivery = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'met-lao-zhou' })!
     const table = cafe.objects.find((entity) => entity.id === delivery.targetEntityId)!
-    navigationRuntime.registerActor('all-contacts-blocker', table.position, 15)
+    navigationRuntime.registerActor('all-contacts-blocker', table.position, { width: 30, height: 30 })
 
     expect(adapter.requestMove(delivery, cafe, {}, { navigationRuntime })).toBe(false)
     expect(controller.isMoving()).toBe(false)

@@ -8,7 +8,7 @@ import {
   type MainlineSceneGeometryUnit,
   type MainlineScenePassage,
 } from './mainlineScenes'
-import type { CollisionBox, Point } from './sceneGeometry'
+import type { CollisionBox, NavigationBarrierSegment, Point } from './sceneGeometry'
 import {
   mainlineEntityCollision,
   mainlineEntityInteractionBounds,
@@ -54,6 +54,86 @@ export type MainlineSceneGeometrySnapshot = {
   objects: ReadonlyMap<string, MainlineObjectGeometry>
   wallFeatures: ReadonlyMap<string, MainlineWallFeatureGeometry>
   passages: ReadonlyMap<string, MainlinePassageGeometrySnapshot>
+  navigationBarriers: readonly NavigationBarrierSegment[]
+}
+
+function relationBarrier(
+  relation: MainlineSceneDefinition['navigationBarriers'][number],
+  first: MainlineObjectGeometry | undefined,
+  second: MainlineObjectGeometry | undefined,
+): NavigationBarrierSegment | null {
+  const firstBox = first?.collision
+  const secondBox = second?.collision
+  if (!firstBox || !secondBox) return null
+
+  const overlapXStart = Math.max(firstBox.x, secondBox.x)
+  const overlapXEnd = Math.min(firstBox.x + firstBox.width, secondBox.x + secondBox.width)
+  const overlapYStart = Math.max(firstBox.y, secondBox.y)
+  const overlapYEnd = Math.min(firstBox.y + firstBox.height, secondBox.y + secondBox.height)
+
+  if (overlapXEnd > overlapXStart) {
+    const upper = first.position.y <= second.position.y ? firstBox : secondBox
+    const lower = upper === firstBox ? secondBox : firstBox
+    const gapStart = upper.y + upper.height
+    const gapEnd = lower.y
+    if (gapEnd > gapStart) {
+      const y = (gapStart + gapEnd) / 2
+      return { id: relation.id, start: { x: overlapXStart, y }, end: { x: overlapXEnd, y } }
+    }
+  }
+
+  if (overlapYEnd > overlapYStart) {
+    const left = first.position.x <= second.position.x ? firstBox : secondBox
+    const right = left === firstBox ? secondBox : firstBox
+    const gapStart = left.x + left.width
+    const gapEnd = right.x
+    if (gapEnd > gapStart) {
+      const x = (gapStart + gapEnd) / 2
+      return { id: relation.id, start: { x, y: overlapYStart }, end: { x, y: overlapYEnd } }
+    }
+  }
+
+  // Diagonal pairs have no shared axis. Join only their nearest visual
+  // corners; do not manufacture an invisible furniture-group rectangle.
+  const nearestPoint = (box: CollisionBox, target: Point): Point => ({
+    x: Math.max(box.x, Math.min(target.x, box.x + box.width)),
+    y: Math.max(box.y, Math.min(target.y, box.y + box.height)),
+  })
+  const firstPoint = nearestPoint(firstBox, second.position)
+  const secondPoint = nearestPoint(secondBox, first.position)
+  if (firstPoint.x === secondPoint.x && firstPoint.y === secondPoint.y) return null
+  return { id: relation.id, start: firstPoint, end: secondPoint }
+}
+
+/** Access regions remain semantic areas; only their declared open edge becomes a route-crossing rule. */
+function accessBoundaryBarrier(
+  scene: MainlineSceneDefinition,
+  boundary: MainlineSceneDefinition['accessBoundaries'][number],
+): NavigationBarrierSegment | null {
+  const region = scene.accessRegions.find((candidate) => candidate.id === boundary.regionId)
+  if (!region) return null
+  const start = boundary.edge === 'top'
+    ? { x: region.x, y: region.y }
+    : boundary.edge === 'right'
+      ? { x: region.x + region.width, y: region.y }
+      : boundary.edge === 'bottom'
+        ? { x: region.x + region.width, y: region.y + region.height }
+        : { x: region.x, y: region.y + region.height }
+  const end = boundary.edge === 'top'
+    ? { x: region.x + region.width, y: region.y }
+    : boundary.edge === 'right'
+      ? { x: region.x + region.width, y: region.y + region.height }
+      : boundary.edge === 'bottom'
+        ? { x: region.x, y: region.y + region.height }
+        : { x: region.x, y: region.y }
+  return {
+    id: boundary.id,
+    start,
+    end,
+    kind: 'access-boundary',
+    regionId: region.id,
+    requiredAccess: region.requiredAccess,
+  }
 }
 
 function minMax(values: readonly number[], fallback: number) {
@@ -128,6 +208,14 @@ export function createMainlineSceneGeometrySnapshot(
     const doorway = mainlineScenePassageDoorway(scene, passage.id, screenMetrics) ?? passage.doorway
     passages.set(passage.id, { passage, collision, doorway })
   })
+  const navigationBarriers = [
+    ...scene.navigationBarriers
+    .map((relation) => relationBarrier(relation, objects.get(relation.firstEntityId), objects.get(relation.secondEntityId)))
+    .filter((barrier): barrier is NavigationBarrierSegment => Boolean(barrier)),
+    ...scene.accessBoundaries
+      .map((boundary) => accessBoundaryBarrier(scene, boundary))
+      .filter((barrier): barrier is NavigationBarrierSegment => Boolean(barrier)),
+  ]
 
   return {
     sceneId: scene.id,
@@ -139,5 +227,6 @@ export function createMainlineSceneGeometrySnapshot(
     objects,
     wallFeatures,
     passages,
+    navigationBarriers,
   }
 }

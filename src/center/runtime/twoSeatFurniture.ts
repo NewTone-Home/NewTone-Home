@@ -7,13 +7,12 @@ export type SharedSeatDefinition<TableId extends string = string, SeatId extends
   id: SeatId
   tableId: TableId
   side: SharedSeatSide
-  blockedSide: SharedSeatSide
   rest: Point
   pulled: Point
   sit: Point
 }
 
-export type SharedSeatSeed<TableId extends string = string, SeatId extends string = string> = Omit<SharedSeatDefinition<TableId, SeatId>, 'blockedSide'>
+export type SharedSeatSeed<TableId extends string = string, SeatId extends string = string> = SharedSeatDefinition<TableId, SeatId>
 
 export type SharedTableGeometry<Id extends string = string> = {
   id: Id
@@ -53,7 +52,6 @@ function unionCollisionBoxes(boxes: readonly CollisionBox[]): CollisionBox {
 export const sharedFurnitureGeometry: {
   textFootprint: { width: number; height: number; padding: number }
   tableFootprint: { compactWidth: number; wideWidth: number; height: number; padding: number }
-  playerRadius: number
   actorContactGap: number
   seatGap: number
   pulledSeatGap: number
@@ -61,7 +59,6 @@ export const sharedFurnitureGeometry: {
 } = {
   textFootprint: { width: 3.2, height: 2.3, padding: .08 },
   tableFootprint: { compactWidth: 3.2, wideWidth: 3.4, height: 2.4, padding: .08 },
-  playerRadius: .56,
   actorContactGap: .06,
   seatGap: 7,
   pulledSeatGap: 8.5,
@@ -76,38 +73,6 @@ export function sharedTextFootprint(position: Point, footprint: Pick<CollisionBo
     height: footprint.height,
     padding: footprint.padding,
   }
-}
-
-export function oppositeSharedSeatSide(side: SharedSeatSide): SharedSeatSide {
-  if (side === 'top') return 'bottom'
-  if (side === 'right') return 'left'
-  if (side === 'bottom') return 'top'
-  return 'right'
-}
-
-export function sharedSeatApproachPoint(
-  definition: Pick<SharedSeatDefinition, 'rest' | 'pulled'>,
-  approachSide: SharedSeatSide,
-  pulled = false,
-  actorRadius = sharedFurnitureGeometry.playerRadius,
-): Point {
-  const anchor = pulled ? definition.pulled : definition.rest
-  const clearance = actorRadius + sharedFurnitureGeometry.textFootprint.padding + sharedFurnitureGeometry.actorContactGap
-  if (approachSide === 'top') return { x: anchor.x, y: anchor.y - sharedFurnitureGeometry.textFootprint.height / 2 - clearance }
-  if (approachSide === 'bottom') return { x: anchor.x, y: anchor.y + sharedFurnitureGeometry.textFootprint.height / 2 + clearance }
-  if (approachSide === 'left') return { x: anchor.x - sharedFurnitureGeometry.textFootprint.width / 2 - clearance, y: anchor.y }
-  return { x: anchor.x + sharedFurnitureGeometry.textFootprint.width / 2 + clearance, y: anchor.y }
-}
-
-export function sharedSeatApproachPoints(
-  definition: Pick<SharedSeatDefinition, 'side' | 'blockedSide' | 'rest' | 'pulled'>,
-  pulled = false,
-  actorRadius = sharedFurnitureGeometry.playerRadius,
-) {
-  const sides: SharedSeatSide[] = ['top', 'right', 'bottom', 'left']
-  return sides
-    .filter((side) => side !== definition.blockedSide)
-    .map((side) => ({ side, point: sharedSeatApproachPoint(definition, side, pulled, actorRadius) }))
 }
 
 export function createTableGeometry<Id extends string>(
@@ -139,7 +104,6 @@ export function createSeatGeometry<TableId extends string, SeatId extends string
   const footprint = sharedFurnitureGeometry.textFootprint
   return {
     ...definition,
-    blockedSide: oppositeSharedSeatSide(definition.side),
     collision: sharedTextFootprint(definition.rest, {
       width: orientation === 'vertical' ? footprint.height : footprint.width,
       height: orientation === 'vertical' ? footprint.width : footprint.height,
@@ -169,14 +133,9 @@ export function createTwoSeatFurniture({
   pulledSeatGap?: number
   sitSeatGap?: number
 }): TwoSeatFurniture {
-  const minimumPulledGap = seatGap
-    + sharedFurnitureGeometry.textFootprint.height / 2
-    + sharedFurnitureGeometry.playerRadius
-    + sharedFurnitureGeometry.actorContactGap
-  const resolvedPulledSeatGap = Math.max(
-    pulledSeatGap ?? seatGap + (sharedFurnitureGeometry.pulledSeatGap - sharedFurnitureGeometry.seatGap),
-    minimumPulledGap,
-  )
+  // Furniture layout is authored solely by its visual relationship. Actor
+  // dimensions affect route legality later, never chair placement here.
+  const resolvedPulledSeatGap = pulledSeatGap ?? seatGap + (sharedFurnitureGeometry.pulledSeatGap - sharedFurnitureGeometry.seatGap)
   const topRest = { x: anchor.x, y: anchor.y - seatGap }
   const bottomRest = { x: anchor.x, y: anchor.y + seatGap }
   const top = createSeatGeometry({
@@ -229,10 +188,7 @@ export function createFourSeatFurniture({
   seatPairOffset?: number
 }): FourSeatFurniture {
   const gap = seatGap
-  const pulledGap = Math.max(
-    pulledSeatGap ?? seatGap + (sharedFurnitureGeometry.pulledSeatGap - sharedFurnitureGeometry.seatGap),
-    seatGap + sharedFurnitureGeometry.textFootprint.width / 2 + sharedFurnitureGeometry.playerRadius + sharedFurnitureGeometry.actorContactGap,
-  )
+  const pulledGap = pulledSeatGap ?? seatGap + (sharedFurnitureGeometry.pulledSeatGap - sharedFurnitureGeometry.seatGap)
   const sitGap = sitSeatGap
   const topSeatY = anchor.y - seatPairOffset
   const bottomSeatY = anchor.y + seatPairOffset
@@ -263,13 +219,6 @@ export function createFourSeatFurniture({
     }),
   ] as const
   const table = createTableGeometry(tableId, anchor, tableRadius, tableApproach)
-  // A four-seat group is one physical table body, not two narrow tables with
-  // a walkable seam between them. Its body spans both chair rows.
-  table.collision = sharedTextFootprint(anchor, {
-    width: sharedFurnitureGeometry.tableFootprint.wideWidth,
-    height: seatPairOffset * 2 + sharedFurnitureGeometry.tableFootprint.height,
-    padding: sharedFurnitureGeometry.tableFootprint.padding,
-  })
   return {
     groupId,
     anchor,

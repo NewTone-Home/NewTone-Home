@@ -1,15 +1,18 @@
-import { defaultEdgeContactDirection, mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
+import { createPoint, defaultEdgeContactDirection, mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import { mainlineScenePassageCollision, mainlineScenePassageDoorway, type MainlineSceneAccessRegion, type MainlineSceneDefinition, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
-import { mainlineEntityCollision, mainlineLayoutOffsetForEntity, type SceneLayout } from './sceneLayout'
+import { mainlineEntityCollision, mainlineLabelFootprint, mainlineLayoutOffsetForEntity, mainlineProtagonistDotFootprint, type SceneLayout } from './sceneLayout'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
-import { canTravelAlongSegment, edgeContactPoint, findNavigationPath, type NavigationRuntime } from './navigationCore'
+import { canTravelAlongSegment, edgeContactPoint, findNavigationPath, navigationActorBox, resolveNavigationPath, sharedNavigationTraversalStep, type NavigationActorFootprint, type NavigationRuntime } from './navigationCore'
+import { createPolygonNavigationMesh, navigationBarriersAllowTravel, type PolygonNavigationMesh } from './scenePathfinding'
 import { containsDoorRegion, doorRegionSide, doorwayBoundaryPoint, isDoorTargetBehind, type DoorPassageRegion, type DoorRegionNormal } from './doorPassageModel'
 import { sharedFurnitureGeometry } from './twoSeatFurniture'
 import { mainlineNpcStagedInteractionContactEntityId, mainlineNpcStagedPoint, mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 
 export type MainlineNavigationOptions = {
   actorRadius?: number
+  /** Current rendered actor dimensions, shared by occupancy and path planning. */
+  actorFootprint?: NavigationActorFootprint
   actorId?: string
   /** Optional shared registry for NPC/protagonist dynamic occupancy. */
   navigationRuntime?: NavigationRuntime
@@ -21,12 +24,55 @@ export type MainlineNavigationOptions = {
   geometrySnapshot?: MainlineSceneGeometrySnapshot
   /** Live NPC positions override their authored staging placements. */
   npcRuntimePositions?: ReadonlyMap<string, Point>
+  /** Hidden occupied chairs do not remain a second static obstacle. */
+  occupiedSeatIds?: ReadonlySet<string>
 }
 
-// Navigation clearance must match the actor footprint registered in the shared
-// runtime. A smaller planner radius could choose a contact that live movement
-// subsequently cannot occupy.
-const defaultActorRadius = sharedFurnitureGeometry.playerRadius
+function footprintFromBox(box: CollisionBox): NavigationActorFootprint {
+  return { width: box.width, height: box.height }
+}
+
+type CachedNavigationMesh = {
+  key: string
+  mesh: PolygonNavigationMesh
+}
+
+// Geometry snapshots are immutable render/navigation transactions. Reusing
+// their static mesh keeps multiple contact candidates in one interaction from
+// recompiling the same scene, without caching dynamic actor occupancy.
+const staticNavigationMeshCache = new WeakMap<MainlineSceneGeometrySnapshot, CachedNavigationMesh>()
+
+// Compatibility-only default for non-Page callers: it is the renderer's
+// default walking-dot footprint, not a second navigation radius.
+const defaultActorFootprint = footprintFromBox(mainlineProtagonistDotFootprint(createPoint(0, 0)))
+
+function mainlineActorFootprint(scene: MainlineSceneDefinition, options: MainlineNavigationOptions, position: Point): NavigationActorFootprint {
+  if (options.actorFootprint) return options.actorFootprint
+  // Compatibility callers may still provide a scalar. It is immediately
+  // converted to the same rectangular footprint used by every route check.
+  if (options.actorRadius !== undefined) return { width: options.actorRadius * 2, height: options.actorRadius * 2 }
+  const metrics = options.screenMetrics
+  const npc = options.actorId ? scene.npcs.find((candidate) => candidate.id === options.actorId) : undefined
+  if (npc) return footprintFromBox(mainlineLabelFootprint(npc.label, position, metrics, { lineHeight: 1 }))
+  return footprintFromBox(mainlineProtagonistDotFootprint(position, metrics))
+}
+
+function normalClearance(footprint: NavigationActorFootprint, axis: 'x' | 'y') {
+  return axis === 'x' ? footprint.width / 2 : footprint.height / 2
+}
+
+function tangentClearance(footprint: NavigationActorFootprint, axis: 'x' | 'y') {
+  return axis === 'x' ? footprint.height / 2 : footprint.width / 2
+}
+
+function insetBounds(bounds: CollisionBox, footprint: NavigationActorFootprint): CollisionBox {
+  return {
+    x: bounds.x + footprint.width / 2,
+    y: bounds.y + footprint.height / 2,
+    width: bounds.width - footprint.width,
+    height: bounds.height - footprint.height,
+  }
+}
 
 export function mainlinePassageCollisionForNavigation(scene: MainlineSceneDefinition, passage: MainlineScenePassage, options: MainlineNavigationOptions = {}) {
   const snapshot = options.geometrySnapshot?.sceneId === scene.id ? options.geometrySnapshot : undefined
@@ -44,6 +90,36 @@ function sceneGeometrySnapshot(scene: MainlineSceneDefinition, layout: SceneLayo
   return options.geometrySnapshot?.sceneId === scene.id
     ? options.geometrySnapshot
     : createMainlineSceneGeometrySnapshot(scene, scene.initialPlayerPosition, layout, options.screenMetrics)
+}
+
+/** Current snapshot-owned relation barriers; they never become collision boxes. */
+export function mainlineNavigationBarriers(scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
+  return sceneGeometrySnapshot(scene, layout, options).navigationBarriers.filter((barrier) => (
+    barrier.kind !== 'access-boundary' || !barrier.requiredAccess || !actorAccessFor(scene, options.actorId).has(barrier.requiredAccess)
+  ))
+}
+
+/** Shared crossing legality for planning, contact resolution and live movement. */
+export function isMainlineNavigationBarrierClear(
+  start: Point,
+  end: Point,
+  scene: MainlineSceneDefinition,
+  layout: SceneLayout = {},
+  options: MainlineNavigationOptions = {},
+) {
+  return navigationBarriersAllowTravel(start, end, mainlineNavigationBarriers(scene, layout, options), mainlineActorFootprint(scene, options, start))
+}
+
+export function canTravelAlongMainlineSegment(
+  start: Point,
+  end: Point,
+  scene: MainlineSceneDefinition,
+  layout: SceneLayout = {},
+  options: MainlineNavigationOptions = {},
+  maxStep = sharedNavigationTraversalStep,
+) {
+  return isMainlineNavigationBarrierClear(start, end, scene, layout, options)
+    && canTravelAlongSegment(start, end, (point) => isWalkableMainlinePoint(point, scene, layout, options), maxStep)
 }
 
 function overlaps(first: { x: number; y: number; width: number; height: number }, second: { x: number; y: number; width: number; height: number }) {
@@ -65,46 +141,22 @@ function actorCanEnterRegion(scene: MainlineSceneDefinition, actorId: string | u
   return actorAccessFor(scene, actorId).has(region.requiredAccess)
 }
 
-export type MainlineAccessRegionBoundaryTarget = {
-  region: MainlineSceneAccessRegion
-  target: Point
+function occupiedSeatIdsForNavigation(scene: MainlineSceneDefinition, options: MainlineNavigationOptions) {
+  if (options.occupiedSeatIds) return options.occupiedSeatIds
+  return new Set(scene.npcs.flatMap((npc) => {
+    const seatId = mainlineNpcStagedSeatId(scene, npc.id)
+    return seatId ? [seatId] : []
+  }))
 }
 
-/**
- * Preserve a denied world-click as a normal movement command to the nearest
- * legal edge, rather than reducing it to an unexplained no-path result.
- */
-export function resolveMainlineAccessRegionBoundaryTarget(
-  scene: MainlineSceneDefinition,
-  requestedTarget: Point,
-  from: Point,
-  options: MainlineNavigationOptions = {},
-): MainlineAccessRegionBoundaryTarget | null {
-  const region = scene.accessRegions.find((candidate) => (
-    !actorCanEnterRegion(scene, options.actorId, candidate) && containsPoint(candidate, requestedTarget)
-  ))
-  if (!region) return null
-  const portal = scene.accessPortals.find((candidate) => (
-    candidate.regionId === region.id && candidate.requiredAccess === region.requiredAccess
-  ))
-  const actorRadius = options.actorRadius ?? defaultActorRadius
-  const regionContact = portal?.outside ?? edgeContactPoint(
-    { x: region.x + region.width / 2, y: region.y + region.height / 2 }, region, from, actorRadius,
-  )
-  return {
-    region,
-    target: regionContact,
-  }
-}
-
-function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, options: MainlineNavigationOptions, includeClosedPassages: boolean) {
+function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, options: MainlineNavigationOptions, includeDynamicActors = true) {
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const openPassageIds = options.openPassageIds
     ? new Set(scene.passages.filter((passage) => options.openPassageIds!.has(passage.id)).map((passage) => passage.id))
     : new Set<string>()
-  // One collision compiler supplies both route geometry and physical
-  // occupancy. The route query omits passage cells; only the movement check
-  // adds a closed passage back as a temporary physical gate.
+  // One collision compiler supplies route geometry and physical occupancy.
+  // A closed passage stays a physical gate until its lifecycle marks it open;
+  // planning may approach its boundary, but cannot plan through the doorway.
   const geometry = snapshot.units
   const staticBoxes = [
     ...geometry
@@ -120,57 +172,29 @@ function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, opt
         // actual door cell is a portal; otherwise the route could bypass the
         // door through the whole five-cell near replacement.
         if (unit.navigation.passageId && !doorwayUnit) return true
-        if (includeClosedPassages) return !passageOpen
-        if (unit.navigation.passageId || unit.navigation.opensWithPassageId) return !doorwayUnit
+        if (unit.navigation.passageId || unit.navigation.opensWithPassageId) return !passageOpen
         return true
       })
       .map((unit) => ({ x: unit.x, y: unit.y, width: unit.width, height: unit.height })),
     ...scene.objects
-      .filter((entity) => entity.visible !== false)
+      .filter((entity) => entity.visible !== false && !(entity.kind === 'seat' && occupiedSeatIdsForNavigation(scene, options).has(entity.id)))
       .map((entity) => snapshot.objects.get(entity.id)?.collision ?? mainlineEntityCollision(scene, entity, layout, options.screenMetrics))
       .filter((collision): collision is NonNullable<typeof collision> => Boolean(collision)),
-    ...furnitureCorridorClosures(scene, snapshot),
-    ...scene.accessRegions
-      .filter((region) => !actorCanEnterRegion(scene, options.actorId, region))
-      .map((region) => ({ x: region.x, y: region.y, width: region.width, height: region.height })),
   ]
-  const dynamicBoxes = options.navigationRuntime?.dynamicObstaclesFor(options.actorId) ?? []
+  const dynamicBoxes = includeDynamicActors ? options.navigationRuntime?.dynamicObstaclesFor(options.actorId) ?? [] : []
   return [...staticBoxes, ...dynamicBoxes]
 }
 
-/** Close only the table-to-rest-seat gap; exterior seating access remains open. */
-function furnitureCorridorClosures(scene: MainlineSceneDefinition, snapshot: MainlineSceneGeometrySnapshot): CollisionBox[] {
-  return scene.objects.flatMap((seat) => {
-    if (!seat.seat) return []
-    const table = scene.objects.find((candidate) => candidate.id === seat.seat!.tableId)
-    const chairBox = snapshot.objects.get(seat.id)?.collision
-    const tableBox = table ? snapshot.objects.get(table.id)?.collision : undefined
-    if (!chairBox || !tableBox) return []
-    if (seat.seat.side === 'left' || seat.seat.side === 'right') {
-      const left = seat.seat.side === 'left' ? chairBox.x + chairBox.width : tableBox.x + tableBox.width
-      const right = seat.seat.side === 'left' ? tableBox.x : chairBox.x
-      if (right <= left) return []
-      const y = Math.min(chairBox.y, tableBox.y)
-      return [{ x: left, y, width: right - left, height: Math.max(chairBox.y + chairBox.height, tableBox.y + tableBox.height) - y }]
-    }
-    const top = seat.seat.side === 'top' ? chairBox.y + chairBox.height : tableBox.y + tableBox.height
-    const bottom = seat.seat.side === 'top' ? tableBox.y : chairBox.y
-    if (bottom <= top) return []
-    const x = Math.min(chairBox.x, tableBox.x)
-    return [{ x, y: top, width: Math.max(chairBox.x + chairBox.width, tableBox.x + tableBox.width) - x, height: bottom - top }]
-  })
-}
-
-export function mainlineNavigationCollisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}, includeClosedPassages = false) {
-  return collisionBoxes(scene, layout, options, includeClosedPassages)
+export function mainlineNavigationCollisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
+  return collisionBoxes(scene, layout, options)
 }
 
 export function isWalkableMainlinePoint(point: Point, scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
-  const actorRadius = options.actorRadius ?? defaultActorRadius
-  const bounds = expanded(sceneGeometrySnapshot(scene, layout, options).walkBounds, -actorRadius)
+  const footprint = mainlineActorFootprint(scene, options, point)
+  const bounds = insetBounds(sceneGeometrySnapshot(scene, layout, options).walkBounds, footprint)
   if (point.x < bounds.x || point.x > bounds.x + bounds.width || point.y < bounds.y || point.y > bounds.y + bounds.height) return false
-  const actorBox = { x: point.x - actorRadius, y: point.y - actorRadius, width: actorRadius * 2, height: actorRadius * 2 }
-  return collisionBoxes(scene, layout, options, true).every((collision) => !overlaps(actorBox, expanded(collision, 0)))
+  const actorBox = navigationActorBox(point, footprint)
+  return collisionBoxes(scene, layout, options).every((collision) => !overlaps(actorBox, expanded(collision, 0)))
 }
 
 function distance(first: Point, second: Point) {
@@ -188,16 +212,16 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.max(minimum, Math.min(maximum, value))
 }
 
-export function clampMainlineWalkTarget(point: Point, scene: MainlineSceneDefinition, actorRadius = defaultActorRadius): Point {
-  const bounds = expanded(scene.walkBounds, -actorRadius)
+export function clampMainlineWalkTarget(point: Point, scene: MainlineSceneDefinition, actorFootprint: NavigationActorFootprint = defaultActorFootprint): Point {
+  const bounds = insetBounds(scene.walkBounds, actorFootprint)
   return {
     x: clamp(point.x, bounds.x, bounds.x + bounds.width),
     y: clamp(point.y, bounds.y, bounds.y + bounds.height),
   }
 }
 
-function mainlineDoorThreshold(scene: MainlineSceneDefinition, position: Point, actorRadius: number): Point {
-  const bounds = expanded(scene.walkBounds, -actorRadius)
+function mainlineDoorThreshold(scene: MainlineSceneDefinition, position: Point, actorFootprint: NavigationActorFootprint): Point {
+  const bounds = insetBounds(scene.walkBounds, actorFootprint)
   const insideBounds = position.x >= bounds.x
     && position.x <= bounds.x + bounds.width
     && position.y >= bounds.y
@@ -250,7 +274,7 @@ export function mainlinePassageDetectionArea(
   passage: MainlineScenePassage,
   normalDepth = mainlinePassageDetectionDepth,
   collision = passage.collision,
-  tangentPadding = defaultActorRadius + .24,
+  tangentPadding = tangentClearance(defaultActorFootprint, passageNormalAxis(passage)) + .24,
 ): CollisionBox {
   if (passageNormalAxis(passage) === 'x') {
     return {
@@ -272,12 +296,12 @@ function passageBoundaryPoint(
   passage: MainlineScenePassage,
   from: Point,
   target: Point,
-  actorRadius: number,
+  actorFootprint: NavigationActorFootprint,
   collision = passage.collision,
   doorway = passage.doorway,
 ) {
   const side = passageSide(passage, from, collision, doorway)
-  return doorwayBoundaryPoint(mainlinePassageDoorRegion(passage, collision, doorway), from, target, actorRadius, passage.thresholds[side])
+  return doorwayBoundaryPoint(mainlinePassageDoorRegion(passage, collision, doorway, actorFootprint), from, target, actorFootprint, passage.thresholds[side])
 }
 
 /**
@@ -285,7 +309,7 @@ function passageBoundaryPoint(
  * doorway. This is derived from the compiled collision rectangle, not from
  * an authored target and never becomes the player's destination marker.
  */
-export function mainlinePassageExitPoint(passage: MainlineScenePassage, from: Point, actorRadius = defaultActorRadius, collision = passage.collision, doorway = passage.doorway) {
+export function mainlinePassageExitPoint(passage: MainlineScenePassage, from: Point, actorFootprint: NavigationActorFootprint = defaultActorFootprint, collision = passage.collision, doorway = passage.doorway) {
   const side = passageSide(passage, from, collision, doorway)
   const normal = passageNormal(passage)
   const targetDirection = side === 1 ? -normal.direction : normal.direction
@@ -297,20 +321,20 @@ export function mainlinePassageExitPoint(passage: MainlineScenePassage, from: Po
   // passage collision union. The larger union could leave the target inside
   // the doorway on narrow responsive layouts.
   const halfDepth = normal.axis === 'x' ? doorway.width / 2 : doorway.height / 2
-  const depth = halfDepth + actorRadius + .12
+  const depth = halfDepth + normalClearance(actorFootprint, normal.axis) + .12
   return normal.axis === 'x'
     ? { x: center.x + targetDirection * depth, y: center.y }
     : { x: center.x, y: center.y + targetDirection * depth }
 }
 
-function passageInteriorPoint(passage: MainlineScenePassage, doorway: CollisionBox, actorRadius: number) {
+function passageInteriorPoint(passage: MainlineScenePassage, doorway: CollisionBox, actorFootprint: NavigationActorFootprint) {
   const region = mainlinePassageDoorRegion(passage, doorway, doorway)
   const center = {
     x: doorway.x + doorway.width / 2,
     y: doorway.y + doorway.height / 2,
   }
   const halfDepth = region.normal.axis === 'x' ? doorway.width / 2 : doorway.height / 2
-  const depth = halfDepth + actorRadius + .12
+  const depth = halfDepth + normalClearance(actorFootprint, region.normal.axis) + .12
   const inward = -region.normal.direction
   return region.normal.axis === 'x'
     ? { x: center.x + inward * depth, y: center.y }
@@ -330,7 +354,7 @@ function wallFeatureForEntity(scene: MainlineSceneDefinition, entityId: string) 
  * the nearest point along the feature, rather than through one authored
  * approach coordinate shared by every direction.
  */
-function wallFeatureInteractionTarget(scene: MainlineSceneDefinition, entityId: string, from: Point, actorRadius: number, snapshot?: MainlineSceneGeometrySnapshot) {
+function wallFeatureInteractionTarget(scene: MainlineSceneDefinition, entityId: string, from: Point, actorFootprint: NavigationActorFootprint, snapshot?: MainlineSceneGeometrySnapshot) {
   const resolved = snapshot?.wallFeatures.get(entityId)
   if (resolved) {
     const horizontal = resolved.edge === 'top' || resolved.edge === 'bottom'
@@ -343,7 +367,7 @@ function wallFeatureInteractionTarget(scene: MainlineSceneDefinition, entityId: 
       ? { x: tangent, y: resolved.position.y }
       : { x: resolved.position.x, y: tangent }
     const inwardDirection = resolved.edge === 'top' || resolved.edge === 'left' ? 1 : -1
-    const clearance = mainlineWallThickness / 2 + actorRadius + sharedFurnitureGeometry.actorContactGap
+    const clearance = mainlineWallThickness / 2 + normalClearance(actorFootprint, horizontal ? 'y' : 'x') + sharedFurnitureGeometry.actorContactGap
     return horizontal
       ? { x: wallPoint.x, y: wallPoint.y + inwardDirection * clearance }
       : { x: wallPoint.x + inwardDirection * clearance, y: wallPoint.y }
@@ -368,7 +392,7 @@ function wallFeatureInteractionTarget(scene: MainlineSceneDefinition, entityId: 
     ? { x: tangent, y: feature.edge === 'top' ? bounds.y : bounds.y + bounds.height }
     : { x: feature.edge === 'left' ? bounds.x : bounds.x + bounds.width, y: tangent }
   const inwardDirection = feature.edge === 'top' || feature.edge === 'left' ? 1 : -1
-  const clearance = mainlineWallThickness / 2 + actorRadius + sharedFurnitureGeometry.actorContactGap
+  const clearance = mainlineWallThickness / 2 + normalClearance(actorFootprint, horizontal ? 'y' : 'x') + sharedFurnitureGeometry.actorContactGap
   return horizontal
     ? { x: wallPoint.x, y: wallPoint.y + inwardDirection * clearance }
     : { x: wallPoint.x + inwardDirection * clearance, y: wallPoint.y }
@@ -423,7 +447,7 @@ export function resolveMainlineSafeEntryPosition(
       mainlinePassageCollisionForNavigation(targetScene, passage, targetOptions),
       doorway,
     )
-    const interiorAnchor = passageInteriorPoint(passage, doorway, options.actorRadius ?? defaultActorRadius)
+    const interiorAnchor = passageInteriorPoint(passage, doorway, mainlineActorFootprint(targetScene, targetOptions, targetScene.initialPlayerPosition))
     const seeds = [
       ...(preferredEntry ? [preferredEntry] : []),
       interiorAnchor,
@@ -482,11 +506,16 @@ export function mainlinePassageDoorRegion(
   passage: MainlineScenePassage,
   collision = passage.collision,
   doorway = collision === passage.collision ? passage.doorway : collision,
-  actorRadius = defaultActorRadius,
+  actorFootprint: NavigationActorFootprint = defaultActorFootprint,
 ): DoorPassageRegion {
   return {
     doorway,
-    detection: mainlinePassageDetectionArea(passage, mainlinePassageDetectionDepth, doorway, actorRadius + .24),
+    detection: mainlinePassageDetectionArea(
+      passage,
+      mainlinePassageDetectionDepth,
+      doorway,
+      tangentClearance(actorFootprint, passageNormalAxis(passage)) + .24,
+    ),
     normal: passageNormal(passage),
     crossingTargets: passage.crossingTargets,
     // A click is considered "behind" the door as soon as it lands on the
@@ -587,8 +616,16 @@ export function mainlinePassageCrossesToSide(
  * open passage. This is movement-only geometry; lifecycle occupancy continues
  * to use the exact compiled doorway above.
  */
-export function isMainlinePassageInTransitZone(passage: MainlineScenePassage, point: Point, actorRadius = defaultActorRadius, doorway = passage.doorway) {
-  return containsPoint(expanded(doorway, actorRadius + .12), point)
+export function isMainlinePassageInTransitZone(passage: MainlineScenePassage, point: Point, actorFootprint: NavigationActorFootprint = defaultActorFootprint, doorway = passage.doorway) {
+  const normal = passageNormal(passage)
+  const normalInset = normalClearance(actorFootprint, normal.axis) + .12
+  const tangentInset = tangentClearance(actorFootprint, normal.axis) + .12
+  return containsPoint({
+    x: doorway.x - (normal.axis === 'x' ? normalInset : tangentInset),
+    y: doorway.y - (normal.axis === 'x' ? tangentInset : normalInset),
+    width: doorway.width + (normal.axis === 'x' ? normalInset : tangentInset) * 2,
+    height: doorway.height + (normal.axis === 'x' ? tangentInset : normalInset) * 2,
+  }, point)
 }
 
 export type MainlineWorldRoute = {
@@ -620,7 +657,14 @@ function roomForPoint(scene: MainlineSceneDefinition, point: Point) {
  * Build the authored room-to-room route before movement starts. Same-scene
  * office doors are graph edges; a locked edge is never part of a usable plan.
  */
-export function findMainlineRoomPassageSequence(scene: MainlineSceneDefinition, from: Point, target: Point) {
+export function findMainlineRoomPassageSequence(
+  scene: MainlineSceneDefinition,
+  from: Point,
+  target: Point,
+  layout: SceneLayout = {},
+  options: MainlineNavigationOptions = {},
+  requireReachableFirstPassage = false,
+) {
   const startRoom = roomForPoint(scene, from)
   const targetRoom = roomForPoint(scene, target)
   if (!startRoom || !targetRoom || startRoom.id === targetRoom.id) return null
@@ -656,6 +700,10 @@ export function findMainlineRoomPassageSequence(scene: MainlineSceneDefinition, 
     cursor = step.roomId
     roomIds.unshift(cursor)
   }
+  // The first door is an actionable route leg, not merely an authored graph
+  // edge. Later legs are checked again from their real post-crossing position
+  // by the traversal runtime before they begin.
+  if (requireReachableFirstPassage && !canActorReachPassageApproach(scene, passages[0]!, from, layout, options)) return null
   return { passages, roomIds }
 }
 
@@ -724,15 +772,105 @@ function routePassageCrossingDistance(scene: MainlineSceneDefinition, path: Poin
   if (!path) return null
   const collision = mainlinePassageCollisionForNavigation(scene, passage, options)
   const doorway = mainlinePassageDoorwayForNavigation(scene, passage, options)
-  const region = mainlinePassageDoorRegion(passage, collision, doorway)
+  const footprint = mainlineActorFootprint(scene, options, path[0] ?? scene.initialPlayerPosition)
+  const region = mainlinePassageDoorRegion(passage, collision, doorway, footprint)
   const start = path[0]
   const targetBehindThisPassage = start ? isDoorTargetBehind(region, start, target) : false
   if (!targetBehindThisPassage) return null
-  const routeDoorway = expanded(region.doorway, defaultActorRadius + .24)
+  const routeDoorway = {
+    x: region.doorway.x - (region.normal.axis === 'x' ? normalClearance(footprint, 'x') : tangentClearance(footprint, 'y')) - .24,
+    y: region.doorway.y - (region.normal.axis === 'x' ? tangentClearance(footprint, 'x') : normalClearance(footprint, 'y')) - .24,
+    width: region.doorway.width + (region.normal.axis === 'x' ? normalClearance(footprint, 'x') : tangentClearance(footprint, 'y')) * 2 + .48,
+    height: region.doorway.height + (region.normal.axis === 'x' ? tangentClearance(footprint, 'x') : normalClearance(footprint, 'y')) * 2 + .48,
+  }
   // A target can be diagonally beyond a door without intending to cross that
   // door. The planned segment must enter the compiled doorway itself; the
   // target's tangent coordinate is not a substitute for that route evidence.
   return pathBoxEntryDistance(path, routeDoorway)
+}
+
+export type MainlineWorldCommandPlan =
+  | {
+    kind: 'passage'
+    requestedTarget: Point
+    passage: MainlineScenePassage
+    passages: readonly MainlineScenePassage[]
+    roomIds?: readonly string[]
+    approachPath: Point[] | null
+  }
+  | {
+    kind: 'ordinary'
+    requestedTarget: Point
+  }
+
+function targetCrossesCompiledDoorway(region: DoorPassageRegion, from: Point, target: Point, footprint: NavigationActorFootprint) {
+  if (!isDoorTargetBehind(region, from, target)) return false
+  const doorway = {
+    x: region.doorway.x - (region.normal.axis === 'x' ? 0 : footprint.width / 2) - .24,
+    y: region.doorway.y - (region.normal.axis === 'x' ? footprint.height / 2 : 0) - .24,
+    width: region.doorway.width + (region.normal.axis === 'x' ? 0 : footprint.width) + .48,
+    height: region.doorway.height + (region.normal.axis === 'x' ? footprint.height : 0) + .48,
+  }
+  return pathBoxEntryDistance([from, target], doorway) !== null
+}
+
+/**
+ * Passage intent owns raw world clicks before ordinary navigation gets a
+ * chance to project them. This includes locked non-routeThrough doors: the
+ * lifecycle, not an invisible wall projection, supplies the denied feedback.
+ */
+export function classifyMainlineWorldCommand(
+  scene: MainlineSceneDefinition,
+  from: Point,
+  requestedTarget: Point,
+  layout: SceneLayout = {},
+  options: MainlineNavigationOptions = {},
+): MainlineWorldCommandPlan {
+  const snapshot = sceneGeometrySnapshot(scene, layout, options)
+  const targetInsideScene = pointInsideBounds(requestedTarget, snapshot.walkBounds)
+  const footprint = mainlineActorFootprint(scene, options, from)
+
+  if (targetInsideScene) {
+    const roomRoute = findMainlineRoomPassageSequence(scene, from, requestedTarget, layout, options, true)
+    if (roomRoute?.passages.length) {
+      const passage = roomRoute.passages[0]!
+      return {
+        kind: 'passage',
+        requestedTarget: { ...requestedTarget },
+        passage,
+        passages: roomRoute.passages,
+        roomIds: roomRoute.roomIds,
+        approachPath: canActorReachPassageApproach(scene, passage, from, layout, options)?.path ?? null,
+      }
+    }
+  }
+
+  const candidates = scene.passages
+    .filter((passage) => passage.targetSceneId || passage.routeThrough || passage.access === 'locked')
+    .map((passage) => {
+      const collision = mainlinePassageCollisionForNavigation(scene, passage, options)
+      const doorway = mainlinePassageDoorwayForNavigation(scene, passage, options)
+      const region = mainlinePassageDoorRegion(passage, collision, doorway, footprint)
+      const storefrontIntent = Boolean(passage.targetSceneId && targetIsInsideStorefrontFrame(scene, passage, requestedTarget))
+      const crossesDoorway = targetCrossesCompiledDoorway(region, from, requestedTarget, footprint)
+      if (!storefrontIntent && !crossesDoorway) return null
+      const approachPath = canActorReachPassageApproach(scene, passage, from, layout, options)?.path
+      if (!approachPath) return null
+      return { passage, approachPath, distance: mainlinePathLength(approachPath) }
+    })
+    .filter((candidate): candidate is { passage: MainlineScenePassage; approachPath: Point[]; distance: number } => Boolean(candidate))
+    .sort((first, second) => first.distance - second.distance)
+  const selected = candidates[0]
+  if (selected) {
+    return {
+      kind: 'passage',
+      requestedTarget: { ...requestedTarget },
+      passage: selected.passage,
+      passages: [selected.passage],
+      approachPath: selected.approachPath,
+    }
+  }
+  return { kind: 'ordinary', requestedTarget: { ...requestedTarget } }
 }
 
 /**
@@ -758,8 +896,8 @@ export function findMainlineWorldRoute(
   const localPath = targetInsideScene
     ? findMainlinePath(from, requestedTarget, scene, layout, options)
     : null
-  const actorRadius = options.actorRadius ?? defaultActorRadius
-  const walkableBounds = expanded(snapshot.walkBounds, -actorRadius)
+  const actorFootprint = mainlineActorFootprint(scene, options, from)
+  const walkableBounds = insetBounds(snapshot.walkBounds, actorFootprint)
   const boundaryTarget = {
     x: Math.max(walkableBounds.x, Math.min(requestedTarget.x, walkableBounds.x + walkableBounds.width)),
     y: Math.max(walkableBounds.y, Math.min(requestedTarget.y, walkableBounds.y + walkableBounds.height)),
@@ -797,7 +935,7 @@ export function findMainlineWorldRoute(
     .map((candidate) => {
       const collision = mainlinePassageCollisionForNavigation(scene, candidate, options)
       const doorway = mainlinePassageDoorwayForNavigation(scene, candidate, options)
-      const region = mainlinePassageDoorRegion(candidate, collision, doorway, options.actorRadius ?? defaultActorRadius)
+      const region = mainlinePassageDoorRegion(candidate, collision, doorway, actorFootprint)
       const targetBehindThisPassage = isDoorTargetBehind(region, from, requestedTarget)
       const storefrontIntent = targetIsInsideStorefrontFrame(scene, candidate, requestedTarget)
       const passagePath = !targetInsideScene || storefrontIntent
@@ -837,7 +975,7 @@ export function findMainlineWorldRoute(
       .map((candidate) => {
         const collision = mainlinePassageCollisionForNavigation(scene, candidate, options)
         const doorway = mainlinePassageDoorwayForNavigation(scene, candidate, options)
-        const region = mainlinePassageDoorRegion(candidate, collision, doorway, options.actorRadius ?? defaultActorRadius)
+        const region = mainlinePassageDoorRegion(candidate, collision, doorway, actorFootprint)
         const entryDistance = pathBoxEntryDistance(plannedPath, region.detection)
         const targetInsideDetection = containsPoint(region.detection, requestedTarget)
         if (!targetInsideDetection && entryDistance === null) return null
@@ -887,35 +1025,173 @@ export function mainlinePassageSide(passage: MainlineScenePassage, from: Point, 
   return passageSide(passage, from, collision, doorway)
 }
 
-export function findMainlinePathThroughPassage(scene: MainlineSceneDefinition, passageId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
-  const passage = mainlinePassageForId(scene, passageId)
-  if (!passage) return { passage: undefined, target: from, path: null }
+export type MainlinePassageApproach = {
+  target: Point
+  path: Point[]
+}
+
+/**
+ * A passage can own an interaction only when this actor can reach the real
+ * approach side through the same closed-door, access and barrier geometry
+ * used by ordinary movement. It deliberately does not authorize opening or
+ * crossing the passage.
+ */
+export function canActorReachPassageApproach(
+  scene: MainlineSceneDefinition,
+  passage: MainlineScenePassage,
+  from: Point,
+  layout: SceneLayout = {},
+  options: MainlineNavigationOptions = {},
+): MainlinePassageApproach | null {
   const collision = mainlinePassageCollisionForNavigation(scene, passage, options)
   const doorway = mainlinePassageDoorwayForNavigation(scene, passage, options)
   const side = passageSide(passage, from, collision, doorway)
-  const target = passageBoundaryPoint(passage, from, passage.crossingTargets[side], options.actorRadius ?? defaultActorRadius, collision, doorway)
+  const target = passageBoundaryPoint(passage, from, passage.crossingTargets[side], mainlineActorFootprint(scene, options, from), collision, doorway)
+  const path = findMainlinePath(from, target, scene, layout, options)
+  return path ? { target, path } : null
+}
+
+export function findMainlinePathThroughPassage(scene: MainlineSceneDefinition, passageId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
+  const passage = mainlinePassageForId(scene, passageId)
+  if (!passage) return { passage: undefined, target: from, path: null }
+  const approach = canActorReachPassageApproach(scene, passage, from, layout, options)
   return {
     passage,
-    target,
-    path: findMainlinePath(from, target, scene, layout, options),
+    target: approach?.target ?? from,
+    path: approach?.path ?? null,
   }
 }
 
 export function findMainlinePath(start: Point, target: Point, scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): Point[] | null {
   if (!isWalkableMainlinePoint(start, scene, layout, options)) return null
   if (!isWalkableMainlinePoint(target, scene, layout, options)) return null
-  const actorRadius = options.actorRadius ?? defaultActorRadius
+  const actorFootprint = mainlineActorFootprint(scene, options, start)
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
+  const barriers = mainlineNavigationBarriers(scene, layout, { ...options, geometrySnapshot: snapshot })
   const canOccupy = (point: Point) => isWalkableMainlinePoint(point, scene, layout, options)
+  const obstacles = collisionBoxes(scene, layout, options)
+  const cacheKey = [
+    options.actorId ?? 'protagonist',
+    actorFootprint.width.toFixed(4),
+    actorFootprint.height.toFixed(4),
+    [...(options.openPassageIds ?? [])].sort().join(','),
+    [...occupiedSeatIdsForNavigation(scene, options)].sort().join(','),
+  ].join('|')
+  const canReuseStaticMesh = !options.navigationRuntime
+  const cached = canReuseStaticMesh ? staticNavigationMeshCache.get(snapshot) : undefined
+  const navigationMesh = cached?.key === cacheKey
+    ? cached.mesh
+    : createPolygonNavigationMesh({
+      bounds: insetBounds(snapshot.walkBounds, actorFootprint),
+      obstacles,
+      obstacleInset: { x: actorFootprint.width / 2, y: actorFootprint.height / 2 },
+      barriers,
+      actorFootprint,
+    })
+  if (canReuseStaticMesh && cached?.key !== cacheKey) staticNavigationMeshCache.set(snapshot, { key: cacheKey, mesh: navigationMesh })
   return findNavigationPath(start, target, {
-    bounds: expanded(snapshot.walkBounds, -actorRadius),
-    obstacles: collisionBoxes(scene, layout, options, false),
-    obstacleClearance: actorRadius,
-    canTravel: (segmentStart, segmentEnd) => canTravelAlongSegment(segmentStart, segmentEnd, canOccupy),
+    bounds: insetBounds(snapshot.walkBounds, actorFootprint),
+    obstacles,
+    actorFootprint,
+    barriers,
+    navigationMesh,
+    canTravel: (segmentStart, segmentEnd) => isMainlineNavigationBarrierClear(segmentStart, segmentEnd, scene, layout, options)
+      && canTravelAlongSegment(segmentStart, segmentEnd, canOccupy),
   })
 }
 
-function mainlineEntityInteractionCandidates(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout, actorRadius: number, options: MainlineNavigationOptions): Point[] {
+export type MainlineWorldNavigationResolution = {
+  requestedTarget: Point
+  resolvedNavigableTarget: Point
+  path: Point[]
+  reachedRequestedTarget: boolean
+  /** Optional world policy feedback; it does not alter collision geometry. */
+  deniedAccessRegion?: MainlineSceneAccessRegion
+}
+
+/**
+ * Resolve a non-passage world click once against static, actor-specific scene
+ * geometry. Dynamic actors remain live route/movement constraints and never
+ * permanently rewrite the player click into a different target.
+ */
+export function resolveMainlineWorldNavigation(
+  scene: MainlineSceneDefinition,
+  from: Point,
+  requestedTarget: Point,
+  layout: SceneLayout = {},
+  options: MainlineNavigationOptions = {},
+): MainlineWorldNavigationResolution | null {
+  if (!isWalkableMainlinePoint(from, scene, layout, options)) return null
+  const actorFootprint = mainlineActorFootprint(scene, options, from)
+  const snapshot = sceneGeometrySnapshot(scene, layout, options)
+  const barriers = mainlineNavigationBarriers(scene, layout, { ...options, geometrySnapshot: snapshot })
+  // The target component belongs to the stable world. Runtime actors are
+  // deliberately excluded here: they may block this movement attempt, but
+  // cannot turn a raw click into a different permanent destination.
+  const obstacles = collisionBoxes(scene, layout, options, false)
+  const cacheKey = [
+    'world',
+    options.actorId ?? 'protagonist',
+    actorFootprint.width.toFixed(4),
+    actorFootprint.height.toFixed(4),
+    [...(options.openPassageIds ?? [])].sort().join(','),
+    [...occupiedSeatIdsForNavigation(scene, options)].sort().join(','),
+  ].join('|')
+  const cached = staticNavigationMeshCache.get(snapshot)
+  const navigationMesh = cached?.key === cacheKey
+    ? cached.mesh
+    : createPolygonNavigationMesh({
+      bounds: insetBounds(snapshot.walkBounds, actorFootprint),
+      obstacles,
+      obstacleInset: { x: actorFootprint.width / 2, y: actorFootprint.height / 2 },
+      barriers,
+      actorFootprint,
+    })
+  if (cached?.key !== cacheKey) staticNavigationMeshCache.set(snapshot, { key: cacheKey, mesh: navigationMesh })
+  const resolved = resolveNavigationPath(from, requestedTarget, {
+    bounds: insetBounds(snapshot.walkBounds, actorFootprint),
+    obstacles,
+    actorFootprint,
+    barriers,
+    navigationMesh,
+  })
+  if (!resolved) return null
+  const deniedAccessRegion = scene.accessRegions.find((region) => (
+    !actorCanEnterRegion(scene, options.actorId, region) && containsPoint(region, requestedTarget)
+  ))
+  return { ...resolved, deniedAccessRegion }
+}
+
+const contactDirectionForSide = {
+  top: createPoint(defaultEdgeContactDirection.y, defaultEdgeContactDirection.x),
+  right: createPoint(-defaultEdgeContactDirection.x, -defaultEdgeContactDirection.y),
+  bottom: createPoint(-defaultEdgeContactDirection.y, -defaultEdgeContactDirection.x),
+  left: defaultEdgeContactDirection,
+} as const
+
+function collisionContactCandidates(
+  position: Point,
+  collision: CollisionBox,
+  from: Point,
+  actorFootprint: NavigationActorFootprint,
+  sides?: readonly ('top' | 'right' | 'bottom' | 'left')[],
+): Point[] {
+  const dx = from.x - position.x
+  const dy = from.y - position.y
+  const length = Math.hypot(dx, dy)
+  const primary = length > .001 ? { x: dx / length, y: dy / length } : defaultEdgeContactDirection
+  const clockwise = { x: -primary.y, y: primary.x }
+  const counterclockwise = { x: primary.y, y: -primary.x }
+  const opposite = { x: -primary.x, y: -primary.y }
+  const directions = sides?.map((side) => contactDirectionForSide[side])
+    ?? [primary, clockwise, counterclockwise, opposite]
+  return directions.map((direction) => edgeContactPoint(position, collision, {
+    x: position.x + direction.x,
+    y: position.y + direction.y,
+  }, actorFootprint))
+}
+
+export function mainlineEntityInteractionCandidates(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout, actorFootprint: NavigationActorFootprint, options: MainlineNavigationOptions): Point[] {
   const entity = scene.objects.find((candidate) => candidate.id === entityId)
   if (!entity) return [from]
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
@@ -927,9 +1203,9 @@ function mainlineEntityInteractionCandidates(scene: MainlineSceneDefinition, ent
       const collision = mainlinePassageCollisionForNavigation(scene, passage, { ...options, geometrySnapshot: snapshot })
       const doorway = mainlinePassageDoorwayForNavigation(scene, passage, { ...options, geometrySnapshot: snapshot })
       const side = passageSide(passage, from, collision, doorway)
-      return [passageBoundaryPoint(passage, from, passage.crossingTargets[side], actorRadius, collision, doorway)]
+      return [passageBoundaryPoint(passage, from, passage.crossingTargets[side], actorFootprint, collision, doorway)]
     }
-    return [mainlineDoorThreshold(scene, position, actorRadius)]
+    return [mainlineDoorThreshold(scene, position, actorFootprint)]
   }
   // Wall-mounted interactive features resolve a contact point along their
   // shared wall edge from the actor's current tangent. Their interaction
@@ -942,64 +1218,51 @@ function mainlineEntityInteractionCandidates(scene: MainlineSceneDefinition, ent
         y: entity.interactionContactAnchor.y + offset.y,
       }]
     }
-    const featureTarget = wallFeatureInteractionTarget(scene, entityId, from, actorRadius, snapshot)
+    const featureTarget = wallFeatureInteractionTarget(scene, entityId, from, actorFootprint, snapshot)
     if (featureTarget) return [{ x: featureTarget.x + offset.x, y: featureTarget.y + offset.y }]
     if (options.geometrySnapshot?.sceneId === scene.id) return [from]
     if (entity.approach) return [{ x: entity.approach.x + offset.x, y: entity.approach.y + offset.y }]
   }
-  const collision = snapshot.objects.get(entityId)?.collision ?? mainlineEntityCollision(scene, entity, layout, options.screenMetrics)
+  const continuousStructure = entity.interactionStructureId
+    ? scene.continuousStructures.find((structure) => structure.id === entity.interactionStructureId)
+    : undefined
+  const collision = continuousStructure
+    ?? snapshot.objects.get(entityId)?.collision
+    ?? mainlineEntityCollision(scene, entity, layout, options.screenMetrics)
   if (!collision) return [position]
 
-  // Floor furniture may author a front-of-object contact point. Resolve that
-  // point through the same screen-specific position projection as the object
-  // itself, then accept it only when the shared collision compiler considers
-  // it walkable. The edge fallback keeps older floor entities safe.
-  if (entity.seat && entity.approach) {
-    const authoredPosition = {
-      x: entity.position.x + offset.x,
-      y: entity.position.y + offset.y,
-    }
-    const responsiveDelta = {
-      x: position.x - authoredPosition.x,
-      y: position.y - authoredPosition.y,
-    }
-    const approach = {
-      x: entity.approach.x + offset.x + responsiveDelta.x,
-      y: entity.approach.y + offset.y + responsiveDelta.y,
-    }
-    if (isWalkableMainlinePoint(approach, scene, layout, { ...options, geometrySnapshot: snapshot })) return [approach]
+  // A visual cell can address a continuous structure without fragmenting its
+  // collision. Keep the contact aligned with the clicked cell along the
+  // exposed surface, while the body remains one physical obstacle.
+  if (continuousStructure) {
+    const halfWidth = actorFootprint.width / 2 + sharedFurnitureGeometry.actorContactGap
+    const halfHeight = actorFootprint.height / 2 + sharedFurnitureGeometry.actorContactGap
+    const directions = entity.interactionContactSides ?? ['top', 'right', 'bottom', 'left']
+    return directions.map((side) => {
+      if (side === 'top' || side === 'bottom') {
+        return {
+          x: Math.max(collision.x + halfWidth, Math.min(position.x, collision.x + collision.width - halfWidth)),
+          y: side === 'top' ? collision.y - halfHeight : collision.y + collision.height + halfHeight,
+        }
+      }
+      return {
+        x: side === 'left' ? collision.x - halfWidth : collision.x + collision.width + halfWidth,
+        y: Math.max(collision.y + halfHeight, Math.min(position.y, collision.y + collision.height - halfHeight)),
+      }
+    })
   }
 
-  const dx = from.x - position.x
-  const dy = from.y - position.y
-  const length = Math.hypot(dx, dy)
-  const primary = length > .001 ? { x: dx / length, y: dy / length } : defaultEdgeContactDirection
-  const clockwise = { x: -primary.y, y: primary.x }
-  const counterclockwise = { x: primary.y, y: -primary.x }
-  const opposite = { x: -primary.x, y: -primary.y }
-  const contactDirectionForSide = {
-    // Derive all cardinal sides from the shared fallback normal so collision
-    // contact orientation has one geometry source rather than local axes.
-    top: { x: defaultEdgeContactDirection.y, y: defaultEdgeContactDirection.x },
-    right: { x: -defaultEdgeContactDirection.x, y: -defaultEdgeContactDirection.y },
-    bottom: { x: -defaultEdgeContactDirection.y, y: -defaultEdgeContactDirection.x },
-    left: defaultEdgeContactDirection,
-  } as const
-  const contactDirections = entity.interactionContactSides?.map((side) => contactDirectionForSide[side])
-    ?? [primary, clockwise, counterclockwise, opposite]
-  const directional = contactDirections.map((direction) => edgeContactPoint(position, collision, {
-    x: position.x + direction.x,
-    y: position.y + direction.y,
-  }, actorRadius))
-  // Older scene data may carry a proven exterior entry point. It is a last
-  // legal fallback rather than the actor's compulsory interaction location.
-  if (!entity.approach || entity.kind === 'table') return directional
-  const authoredPosition = { x: entity.position.x + offset.x, y: entity.position.y + offset.y }
-  const responsiveDelta = { x: position.x - authoredPosition.x, y: position.y - authoredPosition.y }
-  return [...directional, {
-    x: entity.approach.x + offset.x + responsiveDelta.x,
-    y: entity.approach.y + offset.y + responsiveDelta.y,
-  }]
+  // Seats keep their pulled → sit lifecycle, but every edge is a candidate.
+  // Furniture relations and shared route legality decide the usable side.
+  if (entity.seat) {
+    return collisionContactCandidates(position, collision, from, actorFootprint)
+  }
+
+  // Ordinary floor objects never own an authored interaction destination.
+  // Their current footprint, shared route legality, and the actor's direction
+  // decide the contact. Structural wall/door and seat lifecycle branches above
+  // retain their separate semantics.
+  return collisionContactCandidates(position, collision, from, actorFootprint, entity.interactionContactSides)
 }
 
 function mainlinePathLength(path: readonly Point[]): number {
@@ -1016,7 +1279,7 @@ function nearestReachableInteractionPath(scene: MainlineSceneDefinition, from: P
   const canOccupy = (point: Point) => isWalkableMainlinePoint(point, scene, layout, options)
   for (const target of candidates) {
     if (!isWalkableMainlinePoint(target, scene, layout, options)) continue
-    if (canTravelAlongSegment(from, target, canOccupy)) {
+    if (isMainlineNavigationBarrierClear(from, target, scene, layout, options) && canTravelAlongSegment(from, target, canOccupy)) {
       const path = [from, target]
       const distance = mainlinePathLength(path)
       if (!nearest || distance < nearest.distance) nearest = { target, path, distance }
@@ -1024,23 +1287,59 @@ function nearestReachableInteractionPath(scene: MainlineSceneDefinition, from: P
   }
   for (const target of unresolved.sort((first, second) => (
     Math.hypot(first.x - from.x, first.y - from.y) - Math.hypot(second.x - from.x, second.y - from.y)
- ))) {
+  ))) {
     // A path cannot beat its straight-line lower bound, so avoid compiling a
     // second grid when an already direct contact is strictly closer.
     if (nearest && Math.hypot(target.x - from.x, target.y - from.y) >= nearest.distance) continue
     const path = findMainlinePath(from, target, scene, layout, options)
     if (!path) continue
     const distance = mainlinePathLength(path)
-    if (!nearest || distance < nearest.distance) nearest = { target, path, distance }
+    // Candidates are ordered by their physical straight-line lower bound.
+    // The first reachable routed contact is therefore the nearest legal
+    // fallback, and avoids compiling the same scene mesh once per side.
+    return { target, path, distance }
   }
   return nearest
 }
 
-export function mainlineInteractionTarget(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, actorRadius = defaultActorRadius, options: MainlineNavigationOptions = {}): Point {
-  const candidates = mainlineEntityInteractionCandidates(scene, entityId, from, layout, actorRadius, options)
-  return candidates.find((candidate) => isWalkableMainlinePoint(candidate, scene, layout, options))
+export type MainlineInteractionResolution = {
+  target: Point
+  path: Point[] | null
+  inRange: boolean
+}
+
+function resolveInteractionCandidates(
+  scene: MainlineSceneDefinition,
+  from: Point,
+  candidates: readonly Point[],
+  interactionRange: number,
+  layout: SceneLayout,
+  options: MainlineNavigationOptions,
+): MainlineInteractionResolution {
+  const selected = nearestReachableInteractionPath(scene, from, candidates, layout, options)
+  const target = selected?.target
+    ?? candidates.find((candidate) => isWalkableMainlinePoint(candidate, scene, layout, options))
     ?? candidates[0]
     ?? from
+  return {
+    target,
+    path: selected?.path ?? null,
+    inRange: distance(from, target) <= interactionRange,
+  }
+}
+
+/** One selected entity contact is shared by proximity, route and arrival. */
+export function resolveMainlineEntityInteraction(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): MainlineInteractionResolution {
+  const entity = scene.objects.find((candidate) => candidate.id === entityId)
+  const candidates = mainlineEntityInteractionCandidates(scene, entityId, from, layout, mainlineActorFootprint(scene, options, from), options)
+  return resolveInteractionCandidates(scene, from, candidates, entity?.interactionRange ?? .35, layout, options)
+}
+
+export function mainlineInteractionTarget(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, actorRadius?: number, options: MainlineNavigationOptions = {}): Point {
+  return resolveMainlineEntityInteraction(scene, entityId, from, layout, {
+    ...options,
+    ...(actorRadius === undefined || options.actorFootprint ? {} : { actorFootprint: { width: actorRadius * 2, height: actorRadius * 2 } }),
+  }).target
 }
 
 /** Resolve an authored seat sit point through the shared layout projection. */
@@ -1049,13 +1348,9 @@ export function resolveMainlineSeatSitPosition(scene: MainlineSceneDefinition, s
   if (!seat?.seat) return null
 
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
-  const offset = mainlineLayoutOffsetForEntity(scene, seat.id, layout)
-  const authoredPosition = { x: seat.position.x + offset.x, y: seat.position.y + offset.y }
-  const renderedPosition = snapshot.objects.get(seat.id)?.position ?? authoredPosition
-  return {
-    x: seat.seat.sit.x + offset.x + (renderedPosition.x - authoredPosition.x),
-    y: seat.seat.sit.y + offset.y + (renderedPosition.y - authoredPosition.y),
-  }
+  // `sit` remains transition metadata. A stable occupied seat has exactly one
+  // visual and navigation anchor: the rendered seat center.
+  return snapshot.objects.get(seat.id)?.position ?? { ...seat.position }
 }
 
 /** Resolve one NPC from its current scene placement, not from NPC identity. */
@@ -1068,42 +1363,14 @@ export function resolveMainlineNpcPosition(scene: MainlineSceneDefinition, npcId
   return point ?? scene.initialPlayerPosition
 }
 
-function mainlineNpcInteractionCandidates(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout, actorRadius: number, options: MainlineNavigationOptions) {
+function mainlineNpcInteractionCandidates(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout, actorFootprint: NavigationActorFootprint, options: MainlineNavigationOptions) {
   const npcPosition = resolveMainlineNpcPosition(scene, npcId, layout, options)
-  const npcRadius = sharedFurnitureGeometry.playerRadius
-  const collision = {
-    x: npcPosition.x - npcRadius,
-    y: npcPosition.y - npcRadius,
-    width: npcRadius * 2,
-    height: npcRadius * 2,
-  }
-  const dx = from.x - npcPosition.x
-  const dy = from.y - npcPosition.y
-  const length = Math.hypot(dx, dy)
-  const primary = length > .001 ? { x: dx / length, y: dy / length } : defaultEdgeContactDirection
-  const clockwise = { x: -primary.y, y: primary.x }
-  const counterclockwise = { x: primary.y, y: -primary.x }
-  const opposite = { x: -primary.x, y: -primary.y }
-  const defaultClockwise = { x: -defaultEdgeContactDirection.y, y: defaultEdgeContactDirection.x }
-  const defaultCounterclockwise = { x: defaultEdgeContactDirection.y, y: -defaultEdgeContactDirection.x }
-  const defaultOpposite = { x: -defaultEdgeContactDirection.x, y: -defaultEdgeContactDirection.y }
-  const directions = [
-    primary,
-    clockwise,
-    counterclockwise,
-    opposite,
-    defaultEdgeContactDirection,
-    defaultOpposite,
-    defaultClockwise,
-    defaultCounterclockwise,
-  ]
-  const physicalCandidates = directions.map((direction) => edgeContactPoint(npcPosition, collision, {
-    x: npcPosition.x + direction.x,
-    y: npcPosition.y + direction.y,
-  }, actorRadius))
+  const npc = scene.npcs.find((candidate) => candidate.id === npcId)
+  const collision = navigationActorBox(npcPosition, footprintFromBox(mainlineLabelFootprint(npc?.label ?? '', npcPosition, options.screenMetrics, { lineHeight: 1 })))
+  const physicalCandidates = collisionContactCandidates(npcPosition, collision, from, actorFootprint)
   const behaviorContactEntityId = mainlineNpcStagedInteractionContactEntityId(scene, npcId)
   const behaviorContactCandidates = behaviorContactEntityId
-    ? mainlineEntityInteractionCandidates(scene, behaviorContactEntityId, from, layout, actorRadius, options)
+    ? mainlineEntityInteractionCandidates(scene, behaviorContactEntityId, from, layout, actorFootprint, options)
     : []
   // Story context never decides physical navigation. A current service surface
   // can only supplement the NPC's own nearby contact candidates.
@@ -1111,34 +1378,35 @@ function mainlineNpcInteractionCandidates(scene: MainlineSceneDefinition, npcId:
 }
 
 /** Keep an interacting protagonist outside the NPC actor footprint and nearby furniture. */
-export function mainlineNpcInteractionTarget(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout = {}, actorRadius = defaultActorRadius, options: MainlineNavigationOptions = {}): Point {
-  const candidates = mainlineNpcInteractionCandidates(scene, npcId, from, layout, actorRadius, options)
-  return candidates.find((candidate) => isWalkableMainlinePoint(candidate, scene, layout, options))
-    ?? candidates[0]
-    ?? from
+export function mainlineNpcInteractionTarget(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout = {}, actorRadius?: number, options: MainlineNavigationOptions = {}): Point {
+  return resolveMainlineNpcInteraction(scene, npcId, from, layout, {
+    ...options,
+    ...(actorRadius === undefined || options.actorFootprint ? {} : { actorFootprint: { width: actorRadius * 2, height: actorRadius * 2 } }),
+  }).target
+}
+
+/** NPCs use the same current-footprint contact resolver as ordinary objects. */
+export function resolveMainlineNpcInteraction(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): MainlineInteractionResolution {
+  const candidates = mainlineNpcInteractionCandidates(scene, npcId, from, layout, mainlineActorFootprint(scene, options, from), options)
+  return resolveInteractionCandidates(scene, from, candidates, .25, layout, options)
 }
 
 export function findMainlinePathToNpc(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
-  const actorRadius = options.actorRadius ?? defaultActorRadius
-  const candidates = mainlineNpcInteractionCandidates(scene, npcId, from, layout, actorRadius, options)
-  const nearest = nearestReachableInteractionPath(scene, from, candidates, layout, options)
-  return nearest ? { target: nearest.target, path: nearest.path } : { target: candidates[0] ?? from, path: null }
+  const resolved = resolveMainlineNpcInteraction(scene, npcId, from, layout, options)
+  return { target: resolved.target, path: resolved.path }
 }
 
 export function isMainlineNpcWithinInteractionRange(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
-  const target = mainlineNpcInteractionTarget(scene, npcId, from, layout, options.actorRadius ?? defaultActorRadius, options)
-  return Math.hypot(from.x - target.x, from.y - target.y) <= .25
+  return resolveMainlineNpcInteraction(scene, npcId, from, layout, options).inRange
 }
 
 export function isMainlineEntityWithinInteractionRange(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
   const entity = scene.objects.find((candidate) => candidate.id === entityId)
   if (!entity || entity.kind === 'door' || entity.kind === 'seat') return false
-  const target = mainlineInteractionTarget(scene, entityId, from, layout, options.actorRadius ?? defaultActorRadius, options)
-  return Math.hypot(from.x - target.x, from.y - target.y) <= (entity.interactionRange ?? .35)
+  return resolveMainlineEntityInteraction(scene, entityId, from, layout, options).inRange
 }
 
 export function findMainlinePathToEntity(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
-  const candidates = mainlineEntityInteractionCandidates(scene, entityId, from, layout, options.actorRadius ?? defaultActorRadius, options)
-  const nearest = nearestReachableInteractionPath(scene, from, candidates, layout, options)
-  return nearest ? { target: nearest.target, path: nearest.path } : { target: candidates[0] ?? from, path: null }
+  const resolved = resolveMainlineEntityInteraction(scene, entityId, from, layout, options)
+  return { target: resolved.target, path: resolved.path }
 }

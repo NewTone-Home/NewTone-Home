@@ -8,6 +8,9 @@ type FocusFrameCorner = SceneFrameRuntime['corner']
 
 type SceneFocusFramesProps = {
   targets: readonly SceneFrameTarget[]
+  /** A short transition snapshot keeps its already-computed frames, rather
+   * than measuring transformed DOM on every presentation frame. */
+  freezeMeasurements?: boolean
 }
 
 const frameCorners: readonly FocusFrameCorner[] = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
@@ -63,7 +66,7 @@ function targetElement(event: { target: EventTarget | null }) {
  * Owns only frame lifecycle and pointer emphasis. Navigation, scene exploration,
  * and route transitions provide explicit target metadata from above.
  */
-export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps) {
+export function useSceneFocusFrameController({ targets, freezeMeasurements = false }: SceneFocusFramesProps) {
   const targetMap = useMemo(() => new Map(targets.map((target) => [target.group, target] as const)), [targets])
   const [revision, setRevision] = useState(0)
   const runtimeRef = useRef(new Map<string, SceneFrameRuntime>())
@@ -161,6 +164,7 @@ export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps)
   }, [])
 
   useLayoutEffect(() => {
+    if (freezeMeasurements) return undefined
     const measure = () => {
       const next = new Map<string, { duration: number; geometry: SceneFocusFrameGeometry }>()
       targetMap.forEach((_target, group) => {
@@ -189,7 +193,7 @@ export function useSceneFocusFrameController({ targets }: SceneFocusFramesProps)
       if (targetMap.has(group)) observer.observe(node)
     })
     return () => observer.disconnect()
-  }, [frameNodesRevision, targetMap])
+  }, [frameNodesRevision, freezeMeasurements, targetMap])
 
   const onPointerDownCapture = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const element = targetElement(event)

@@ -2,19 +2,29 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Point } from './sceneGeometry'
-import { canTravelAlongSegment } from './navigationCore'
+import { canTravelAlongSegment, sharedNavigationTraversalStep } from './navigationCore'
 
 // One shared cruise speed keeps desktop, tablet, and phone movement consistent.
 // The value is expressed in stage-percent per millisecond.
 const defaultFreeRoamSpeed = .018
-const defaultFreeRoamScreenSpeed = 240
+
+/**
+ * The shared, screen-space cruise speed for ordinary character movement.
+ * Story presentation can supply a future explicit override without creating
+ * separate default speeds for the protagonist and NPCs.
+ */
+export const sharedCharacterWalkSpeedPxPerSecond = 280
 
 export type MovementOptions = {
   /** Called once when a non-empty movement actually starts. */
   onStart?: () => void
   /** Called after each locomotion tick with the actor's real position. */
   onMove?: (position: Point) => void
+  /** Runs once before a locomotion tick validates its next live occupancy step. */
+  onBeforeMoveStep?: (position: Point) => void
   canOccupy?: (point: Point) => boolean
+  /** Shared route-crossing legality, used for non-occupying navigation barriers. */
+  canTraverse?: (start: Point, end: Point) => boolean
   /** Predicate for the first segment only, used to leave the actor's own seat group. */
   initialCanOccupy?: (point: Point) => boolean
   /** Predicate for the final waypoint only, used to enter a resolved chair anchor. */
@@ -101,15 +111,34 @@ function compressPath(path: Point[], preserveFinalApproach = false, preserveInit
   return compressed
 }
 
-function smoothPath(path: Point[], canOccupy?: (point: Point) => boolean, preserveInitialExit = false) {
-  if (!canOccupy || path.length < 3) return path
+function segmentIsTraversable(
+  start: Point,
+  end: Point,
+  canOccupy?: (point: Point) => boolean,
+  canTraverse?: (start: Point, end: Point) => boolean,
+  maxStep = sharedNavigationTraversalStep,
+) {
+  return (!canTraverse || canTraverse(start, end))
+    && (!canOccupy || canTravelAlongSegment(start, end, canOccupy, maxStep))
+}
+
+/**
+ * Build the common movement options once at the page/runtime boundary so
+ * duration estimation and live locomotion consume the identical speed.
+ */
+export function sharedCharacterMovementOptions(screenMetrics?: MovementOptions['screenMetrics']): Pick<MovementOptions, 'screenMetrics' | 'screenSpeedPxPerSecond'> {
+  return { screenMetrics, screenSpeedPxPerSecond: sharedCharacterWalkSpeedPxPerSecond }
+}
+
+function smoothPath(path: Point[], canOccupy?: (point: Point) => boolean, canTraverse?: (start: Point, end: Point) => boolean, preserveInitialExit = false) {
+  if ((!canOccupy && !canTraverse) || path.length < 3) return path
 
   const smoothed = preserveInitialExit ? [path[0], path[1]] : [path[0]]
   let anchorIndex = preserveInitialExit ? 1 : 0
   while (anchorIndex < path.length - 1) {
     let nextIndex = anchorIndex + 1
     for (let candidateIndex = path.length - 1; candidateIndex > anchorIndex + 1; candidateIndex -= 1) {
-      if (canTravelAlongSegment(path[anchorIndex], path[candidateIndex], canOccupy)) {
+      if (segmentIsTraversable(path[anchorIndex], path[candidateIndex], canOccupy, canTraverse)) {
         nextIndex = candidateIndex
         break
       }
@@ -133,9 +162,16 @@ export function prepareMovementPath(path: Point[], start: Point, options: Moveme
     }
   }
   const preserveInitialExit = Boolean(options.initialCanOccupy)
-  const compressed = compressPath(path, Boolean(options.finalCanOccupy), preserveInitialExit)
+  // Navigation paths already carry a shared legality contract. Never apply
+  // direction-only compression before checking a newly joined segment: that
+  // can erase the one turn that keeps an actor outside a collision or barrier.
+  // `smoothPath` remains the sole shortcut owner when legality is available.
+  const hasNavigationLegality = Boolean(options.canOccupy || options.canTraverse)
+  const compressed = hasNavigationLegality
+    ? path
+    : compressPath(path, Boolean(options.finalCanOccupy), preserveInitialExit)
   return {
-    waypoints: smoothPath(compressed, options.canOccupy, preserveInitialExit)
+    waypoints: smoothPath(compressed, options.canOccupy, options.canTraverse, preserveInitialExit)
       .filter((point) => point.x !== start.x || point.y !== start.y),
     preserveInitialExit,
   }
@@ -153,7 +189,7 @@ function movementDelta(now: number, previous: number) {
 function screenSpaceMovement(dx: number, dy: number, delta: number, options: MovementOptions) {
   const width = options.screenMetrics?.width
   const height = options.screenMetrics?.height
-  const pixelsPerSecond = options.screenSpeedPxPerSecond ?? defaultFreeRoamScreenSpeed
+  const pixelsPerSecond = options.screenSpeedPxPerSecond ?? sharedCharacterWalkSpeedPxPerSecond
   if (!(width && width > 0) || !(height && height > 0) || !(pixelsPerSecond > 0)) return null
 
   const projectedDx = dx * width / 100
@@ -302,18 +338,19 @@ export function createFreeRoamController(initialPosition: Point): FreeRoamContro
       : distance <= maxSpeed * delta
         ? { x: dx, y: dy }
         : { x: (dx / distance) * maxSpeed * delta, y: (dy / distance) * maxSpeed * delta }
-    const substeps = Math.max(1, Math.ceil(Math.hypot(movement.x, movement.y) / .18))
+    const substeps = Math.max(1, Math.ceil(Math.hypot(movement.x, movement.y) / sharedNavigationTraversalStep))
     const occupancy = activeSession.waypointIndex === 0 && activeSession.preserveInitialExit
       ? activeSession.options.initialCanOccupy
       : activeSession.waypointIndex === activeSession.waypoints.length - 1
         ? activeSession.options.finalCanOccupy ?? activeSession.options.canOccupy
         : activeSession.options.canOccupy
+    activeSession.options.onBeforeMoveStep?.(copyPoint(current))
 
     let blocked = false
     for (let index = 0; index < substeps; index += 1) {
       const step = { x: movement.x / substeps, y: movement.y / substeps }
       const candidate = { x: current.x + step.x, y: current.y + step.y }
-      if (!occupancy || canTravelAlongSegment(current, candidate, occupancy, .18)) {
+      if (segmentIsTraversable(current, candidate, occupancy, activeSession.options.canTraverse, sharedNavigationTraversalStep)) {
         current = candidate
         continue
       }
@@ -323,8 +360,8 @@ export function createFreeRoamController(initialPosition: Point): FreeRoamContro
       // contact frame; the route remains the source of truth.
       const slideX = { x: current.x + step.x, y: current.y }
       const slideY = { x: current.x, y: current.y + step.y }
-      const canSlideX = Math.abs(step.x) > .000001 && canTravelAlongSegment(current, slideX, occupancy, .18)
-      const canSlideY = Math.abs(step.y) > .000001 && canTravelAlongSegment(current, slideY, occupancy, .18)
+      const canSlideX = Math.abs(step.x) > .000001 && segmentIsTraversable(current, slideX, occupancy, activeSession.options.canTraverse, sharedNavigationTraversalStep)
+      const canSlideY = Math.abs(step.y) > .000001 && segmentIsTraversable(current, slideY, occupancy, activeSession.options.canTraverse, sharedNavigationTraversalStep)
       if (canSlideX) current = slideX
       else if (canSlideY) current = slideY
       else {

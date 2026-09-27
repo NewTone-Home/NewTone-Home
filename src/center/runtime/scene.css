@@ -999,7 +999,7 @@
 .scene-protagonist__seat-label {
   display: block;
   color: var(--ink);
-  font-size: clamp(10px, 1.15cqw, 16px);
+  font-size: var(--scene-mainline-object-font-size);
   line-height: 1;
   white-space: nowrap;
 }
@@ -1032,6 +1032,19 @@
 .scene-walk-target::after { left: -5px; top: 5px; width: 21px; height: 1px; }
 .scene-walk-target.is-active { animation: walk-target-pulse 700ms ease-in-out infinite alternate; }
 @keyframes walk-target-pulse { to { opacity: .24; transform: translate(-50%, -50%) scale(.72); } }
+
+.scene-spatial-qa { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
+.scene-spatial-qa__geometry { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.scene-spatial-qa__staff { fill: rgba(64, 224, 208, .13); stroke: #40e0d0; stroke-width: .18; }
+.scene-spatial-qa__counter { fill: rgba(235, 86, 72, .16); stroke: #eb5648; stroke-width: .22; }
+.scene-spatial-qa__boundary { stroke: #b070ff; stroke-width: .3; stroke-dasharray: .8 .5; }
+.scene-spatial-qa__door { fill: rgba(255, 158, 54, .16); stroke: #ff9e36; stroke-width: .22; }
+.scene-spatial-qa__doorway { fill: none; stroke: #ffd166; stroke-width: .18; stroke-dasharray: .45 .35; }
+.scene-spatial-qa__path { fill: none; stroke: #fff06a; stroke-width: .24; stroke-dasharray: .55 .35; }
+.scene-spatial-qa__requested { fill: #6fd3ff; stroke: #06121c; stroke-width: .18; }
+.scene-spatial-qa__resolved { fill: #75f58d; stroke: #06121c; stroke-width: .18; }
+.scene-spatial-qa__legend { position: absolute; left: 2.5%; bottom: 2.5%; display: grid; gap: 2px; max-width: min(94%, 28rem); padding: 6px 8px; border: 1px solid rgba(255,255,255,.5); background: rgba(5, 12, 19, .78); color: #f3f5ec; font: 10px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .01em; }
+.scene-spatial-qa__legend strong { color: #fff06a; font-size: 11px; }
 
 .scene-dialogue {
   position: absolute;
@@ -1087,7 +1100,16 @@
 .mainline-scene-nav a { color: var(--soft); text-decoration: none; }
 .mainline-scene-nav a:hover,
 .mainline-scene-nav a:focus-visible { color: var(--active); text-decoration: underline; text-underline-offset: 4px; }
-.mainline-scene-stage { height: clamp(560px, 72vh, 730px); container-type: inline-size; }
+.mainline-scene-stage {
+  --interaction-normal: var(--soft);
+  --interaction-active: color-mix(in srgb, var(--soft) 82%, var(--active));
+  --interaction-dynamic: color-mix(in srgb, var(--interaction-normal) 58%, var(--interaction-active));
+  --interaction-explored: color-mix(in srgb, var(--soft) 82%, var(--muted));
+  --interaction-tutorial-low: color-mix(in srgb, var(--soft) 90%, var(--muted));
+  --interaction-tutorial-high: color-mix(in srgb, var(--soft) 86%, var(--ink));
+  height: clamp(560px, 72vh, 730px);
+  container-type: inline-size;
+}
 .mainline-scene--map-only .mainline-scene-stage {
   height: 100dvh;
   min-height: 100dvh;
@@ -1228,7 +1250,9 @@
   border: 0;
   padding: 0;
   background: transparent;
-  font: inherit;
+  font-family: inherit;
+  font-size: var(--scene-mainline-object-font-size);
+  line-height: 1;
   font-weight: 500;
   cursor: pointer;
 }
@@ -1254,11 +1278,6 @@
   animation: scene-exploration-breathe 2.8s ease-in-out infinite;
   animation-delay: var(--scene-exploration-animation-delay, 0s);
 }
-.scene-mainline-exploration--breathing.scene-mainline-exploration--explored > span {
-  animation: none;
-  color: var(--soft);
-  opacity: .78;
-}
 .scene-mainline-exploration--breathing:hover > span,
 .scene-mainline-exploration--breathing:focus-visible > span,
 .scene-mainline-exploration--breathing.is-active > span {
@@ -1276,8 +1295,8 @@
   color: var(--active);
 }
 @keyframes scene-exploration-breathe {
-  0%, 100% { color: var(--soft); opacity: .52; }
-  50% { color: var(--ink); opacity: 1; }
+  0%, 100% { color: var(--interaction-tutorial-low); opacity: .86; }
+  50% { color: var(--interaction-tutorial-high); opacity: .98; }
 }
 .scene-mainline-object.scene-mainline-exploration--breathing.is-baseline {
   opacity: .94;
@@ -1285,20 +1304,20 @@
 .scene-mainline-object.scene-mainline-exploration--breathing.is-near {
   opacity: .94;
 }
-.scene-mainline-altar-table > span {
+.scene-mainline-altar-table.scene-mainline-exploration--breathing > span {
   /* The altar clock is written once by the renderer and read by every
      member. No table owns an independent CSS animation anymore. */
   animation: none;
-  color: color-mix(in srgb, var(--ink) calc(var(--scene-breathing-progress, .5) * 100%), var(--soft));
-  opacity: calc(.52 + var(--scene-breathing-progress, .5) * .48);
+  color: color-mix(in srgb, var(--interaction-tutorial-high) calc(var(--scene-breathing-progress, .5) * 100%), var(--interaction-tutorial-low));
+  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
 }
-.scene-mainline-incense--lit > span {
+.scene-mainline-incense--lit.scene-mainline-exploration--breathing > span {
   animation: none;
-  color: color-mix(in srgb, var(--ink) calc(var(--scene-breathing-progress, .5) * 100%), var(--soft));
-  opacity: calc(.52 + var(--scene-breathing-progress, .5) * .48);
+  color: color-mix(in srgb, var(--interaction-tutorial-high) calc(var(--scene-breathing-progress, .5) * 100%), var(--interaction-tutorial-low));
+  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
 }
-.scene-mainline-altar-table.scene-mainline-exploration--breathing.is-active > span,
-.scene-mainline-incense--lit.is-active > span {
+.scene-mainline-altar-table.scene-mainline-interaction--active > span,
+.scene-mainline-incense--lit.scene-mainline-interaction--active > span {
   color: var(--active) !important;
   opacity: 1 !important;
 }
@@ -1312,10 +1331,6 @@
 .scene-mainline-incense--unlit.is-active {
   color: var(--active);
   opacity: 1 !important;
-}
-.scene-mainline-incense--lit.scene-mainline-exploration--explored:not(.is-active) > span {
-  animation: scene-exploration-breathe 2.8s ease-in-out infinite;
-  animation-delay: -1.4s;
 }
 .scene-mainline-incense--burning {
   animation: scene-incense-burn-lifecycle var(--incense-burn-remaining, 0ms) linear;
@@ -1348,6 +1363,41 @@
 }
 .scene-mainline-object.is-baseline {
   opacity: .7;
+}
+.scene-mainline-object.scene-mainline-interaction--normal-unexplored,
+.scene-mainline-focus-group.scene-mainline-interaction--normal-unexplored {
+  color: var(--interaction-normal);
+  opacity: .9;
+}
+.scene-mainline-object.scene-mainline-interaction--normal-unexplored,
+.scene-mainline-object.scene-mainline-interaction--explored,
+.scene-mainline-object.scene-mainline-interaction--active,
+.scene-mainline-object.scene-mainline-interaction--normal-unexplored > span,
+.scene-mainline-object.scene-mainline-interaction--explored > span,
+.scene-mainline-object.scene-mainline-interaction--active > span {
+  transition: color .14s ease-out, opacity .16s ease-out;
+}
+.scene-mainline-object.scene-mainline-interaction--explored,
+.scene-mainline-focus-group.scene-mainline-interaction--explored {
+  color: var(--interaction-explored);
+  opacity: .82;
+}
+.scene-mainline-object.scene-mainline-interaction--active,
+.scene-mainline-focus-group.scene-mainline-interaction--active {
+  color: var(--interaction-active);
+  opacity: 1;
+}
+.scene-mainline-object.scene-mainline-incense--burning.scene-mainline-interaction--explored {
+  color: var(--interaction-dynamic);
+}
+.scene-mainline-object.scene-mainline-interaction--normal-unexplored > span,
+.scene-mainline-object.scene-mainline-interaction--explored > span,
+.scene-mainline-object.scene-mainline-interaction--active > span {
+  color: inherit;
+}
+.scene-mainline-object.scene-mainline-incense--unlit.scene-mainline-interaction--normal-unexplored {
+  color: var(--muted);
+  opacity: .3 !important;
 }
 .scene-mainline-object.scene-mainline-exploration--breathing.is-baseline,
 .scene-mainline-object.scene-mainline-exploration--breathing.is-near {

@@ -65,6 +65,11 @@ export type MainlineSceneCurve = {
   blocksPlayer?: boolean
 }
 
+export type MainlineContinuousStructure = CollisionBox & {
+  id: string
+  kind: 'counter' | 'barrier'
+}
+
 export type MainlineSceneEntity = {
   id: string
   label: string
@@ -91,6 +96,8 @@ export type MainlineSceneEntity = {
   interactionContactSides?: readonly ('top' | 'right' | 'bottom' | 'left')[]
   /** A rendered wall feature may expose a distinct legal floor contact. */
   interactionContactAnchor?: Point
+  /** A visual cell delegates physical contact to this continuous body. */
+  interactionStructureId?: string
   /** A small set of authored interaction behaviors used by the generic page flow. */
   interactionBehavior?: MainlineInteractionBehavior
   /** Semantic visual treatment; keeps the renderer independent of authored IDs. */
@@ -160,6 +167,26 @@ export type MainlineSceneAccessPortal = {
   threshold: CollisionBox
   outside: Point
   inside: Point
+}
+
+/**
+ * A semantic edge of an access region. The concrete crossing segment is
+ * derived from the current region geometry in the shared scene snapshot.
+ */
+export type MainlineSceneAccessBoundary = {
+  id: string
+  regionId: string
+  edge: 'top' | 'right' | 'bottom' | 'left'
+}
+
+/**
+ * A non-occupying furniture relation. Its concrete segment is derived from
+ * the two entities' current rendered footprints in the geometry snapshot.
+ */
+export type MainlineNavigationBarrierRelation = {
+  id: string
+  firstEntityId: string
+  secondEntityId: string
 }
 
 /** A display-only item anchored to an existing spatial entity. */
@@ -272,6 +299,8 @@ export type MainlineScenePassage = {
   routeThrough?: boolean
   /** Whether this passage retracts only its own frame or the whole scene. */
   frameBehavior?: 'independent' | 'scene-retract'
+  /** Optional post-crossing presentation; never changes passage navigation. */
+  transitionPresentation?: 'local-slide'
   /** Optional room graph endpoints for same-scene multi-door planning. */
   fromRoomId?: string
   toRoomId?: string
@@ -340,9 +369,12 @@ export type MainlineSceneData = {
   airWalls?: readonly MainlineAirWall[]
   accessRegions?: readonly MainlineSceneAccessRegion[]
   accessPortals?: readonly MainlineSceneAccessPortal[]
+  accessBoundaries?: readonly MainlineSceneAccessBoundary[]
+  navigationBarriers?: readonly MainlineNavigationBarrierRelation[]
   /** Actor ids remain data here; navigation only consumes their access set. */
   actorAccess?: Readonly<Record<string, readonly MainlineRegionAccess[]>>
   blockers: readonly (CollisionBox & { id: string })[]
+  continuousStructures?: readonly MainlineContinuousStructure[]
   furnitureGroups: readonly MainlineFurnitureGroup[]
   initialPlayerPosition: Point
   /** Explicit arrival point for a ride/map jump; never reused as a door return point. */
@@ -365,6 +397,8 @@ export type MainlineScenePortalBlueprint = {
   /** Allow a same-scene route to enter this passage's shared door lifecycle. */
   routeThrough?: boolean
   frameBehavior?: 'independent' | 'scene-retract'
+  /** Optional post-crossing presentation; never changes passage navigation. */
+  transitionPresentation?: 'local-slide'
   fromRoomId?: string
   toRoomId?: string
   wallOpenings?: readonly {
@@ -442,7 +476,6 @@ function mainlineTwoSeatFurniture(
     approach: furniture.table.approach,
     collision: furniture.table.collision,
     shape: furniture.table.collision,
-    movementCollision: 'physical',
     groupId,
   })
   const chairs = furniture.seats.map((seat) => floor({
@@ -454,7 +487,6 @@ function mainlineTwoSeatFurniture(
     approach: seat.pulled,
     collision: seat.collision,
     shape: seat.collision,
-    movementCollision: 'physical',
     groupId,
     seat,
   }))
@@ -473,7 +505,7 @@ function mainlineFourSeatFurniture(
 ) {
   const tableId = ids.tableId ?? `${groupId}-table`
   const seatIds = ids.seatIds ?? [`${groupId}-chair-top`, `${groupId}-chair-right`, `${groupId}-chair-bottom`, `${groupId}-chair-left`] as [string, string, string, string]
- const furniture = createFourSeatFurniture({ groupId, anchor, tableId, seatIds, tableApproach, ...geometry })
+  const furniture = createFourSeatFurniture({ groupId, anchor, tableId, seatIds, tableApproach, ...geometry })
   const table = floor({
     id: furniture.table.id,
     label: '桌子',
@@ -483,10 +515,6 @@ function mainlineFourSeatFurniture(
     approach: furniture.table.approach,
     collision: furniture.table.collision,
     shape: furniture.table.collision,
-    movementCollision: 'physical',
-    // Side seats and their closed table corridors occupy both long edges.
-    // The two remaining body edges are the legal ordinary table contacts.
-    interactionContactSides: ['top', 'bottom'],
     groupId,
   })
   const chairs = furniture.seats.map((seat) => floor({
@@ -498,7 +526,6 @@ function mainlineFourSeatFurniture(
     approach: seat.pulled,
     collision: seat.collision,
     shape: seat.collision,
-    movementCollision: 'physical',
     groupId,
     seat,
   }))
@@ -506,6 +533,23 @@ function mainlineFourSeatFurniture(
     group: { id: groupId, anchor, entityIds: [table.id, ...chairs.map((chair) => chair.id)] },
     entities: [table, ...chairs],
   }
+}
+
+/** A non-occupying furniture relationship resolved from current visual bounds. */
+function mainlineRelationBarrier(id: string, firstEntityId: string, secondEntityId: string): MainlineNavigationBarrierRelation {
+  return { id, firstEntityId, secondEntityId }
+}
+
+function mainlineTableChairBarriers(
+  groupId: string,
+  tableId: string,
+  chairIds: readonly string[],
+): readonly MainlineNavigationBarrierRelation[] {
+  return chairIds.map((chairId) => mainlineRelationBarrier(
+    `${groupId}-${chairId.slice(groupId.length + 1)}-table-barrier`,
+    tableId,
+    chairId,
+  ))
 }
 
 const commercialStorefrontStarts = [14, 36, 58, 80, 102, 124, 146, 168] as const
@@ -585,7 +629,6 @@ function altarTableEntity(
     weight: 'anchor',
     position: center,
     collision,
-    movementCollision: 'physical',
     shape: collision,
     visualVisibility: 'distance',
     groupId: altar.id,
@@ -613,7 +656,6 @@ function createAltarFurniture(altar: MainlineAltarBlueprint) {
     weight: 'fixture',
     position: altar.anchor,
     collision: burnerCollision,
-    movementCollision: 'physical',
     shape: burnerCollision,
     groupId: altar.id,
     facing: altar.facing,
@@ -725,6 +767,9 @@ const commercialCafeFurniture = [
 const commercialCafeFurnitureEntities = commercialCafeFurniture
   .flatMap(({ entities }) => entities)
   .map((entity) => ({ ...entity, visualVisibility: 'baseline' as const }))
+const commercialCafeNavigationBarriers = commercialCafeFurniture.flatMap(({ group, entities }) => (
+  mainlineTableChairBarriers(group.id, entities[0]!.id, entities.slice(1).map((entity) => entity.id))
+))
 const commercialCafeCounterReferencePositions = [12, 16, 20, 24, 28, 32, 36, 40, 44, 48] as const
 // Counter segments follow the same horizontal pitch as the wall lattice. The
 // counter remains a continuous authored span, but it must not be denser than
@@ -760,7 +805,15 @@ const commercialCafeCounterCollision = box(
   commercialCafeCounterBody.width,
   commercialCafeCounterBody.depth,
 )
-const commercialCafeCounterClearance = sharedFurnitureGeometry.playerRadius + sharedFurnitureGeometry.actorContactGap
+const commercialCafeCounterStructure = {
+  id: 'commercial-cafe-counter-body',
+  kind: 'counter' as const,
+  ...commercialCafeCounterCollision,
+}
+// This is authored staff-service spacing, not an actor-radius proxy. Actual
+// actor clearance is evaluated from the current presentation footprint by
+// navigation when a route is requested.
+const commercialCafeCounterClearance = sharedFurnitureGeometry.textFootprint.height / 2 + sharedFurnitureGeometry.actorContactGap
 const commercialCafeCounterCustomerApproachY = commercialCafeCounterCollision.y + commercialCafeCounterCollision.height + commercialCafeCounterClearance
 // Visual wall fixtures are read from the customer-side counter surface; the
 // wall glyph itself is never a navigation destination.
@@ -834,10 +887,9 @@ const commercialCafeCounterEntities = commercialCafeCounterPositions.map((x, ind
   kind: 'fixture',
   weight: 'fixture',
   position: authoredPoint(x, commercialCafeCounterBody.y),
-  approach: authoredPoint(x, commercialCafeCounterCustomerApproachY),
-  collision: box(x - commercialCafeCounterCellWidth / 2, commercialCafeCounterCollision.y, commercialCafeCounterCellWidth, commercialCafeCounterCollision.height),
-  shape: box(x - commercialCafeCounterCellWidth / 2, commercialCafeCounterCollision.y, commercialCafeCounterCellWidth, commercialCafeCounterCollision.height),
-  movementCollision: 'physical',
+  // A cell is a responsive visual and click surface. The whole counter body
+  // supplies the one continuous physical structure.
+  interactionStructureId: commercialCafeCounterStructure.id,
   interactionBehavior: 'cafe-order',
   interactionContactSides: ['bottom'],
   visualVisibility: 'baseline',
@@ -969,12 +1021,22 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
       deniedText: '还是别进去打扰他们工作了。',
     }],
     accessPortals: [commercialCafeStaffAccessPortal],
+    // The rear wall, left wall, and counter body already close the other
+    // sides. Only the open right edge is an access-controlled crossing.
+    accessBoundaries: [{
+      id: 'commercial-cafe-staff-right-access-boundary',
+      regionId: 'commercial-cafe-staff-area',
+      edge: 'right',
+    }],
+    navigationBarriers: commercialCafeNavigationBarriers,
     actorAccess: {
       protagonist: ['public'],
       [npcRoles.laoZhou.id]: ['public'],
       [npcRoles.server.id]: ['public', 'staff'],
     },
-    blockers: [], furnitureGroups: commercialCafeFurniture.map(({ group }) => group), initialPlayerPosition: commercialCafeEntryPosition,
+    blockers: [],
+    continuousStructures: [commercialCafeCounterStructure],
+    furnitureGroups: commercialCafeFurniture.map(({ group }) => group), initialPlayerPosition: commercialCafeEntryPosition,
   },
   portals: [{
     id: 'street-cafe-entry',
@@ -1013,6 +1075,13 @@ const jijiaAltarBlueprint: MainlineAltarBlueprint = {
 }
 
 const jijiaAltarFurniture = createAltarFurniture(jijiaAltarBlueprint)
+const jijiaAltarNavigationBarriers = jijiaAltarBlueprint.offeringTableIds.map((tableId) => (
+  mainlineRelationBarrier(
+    `${jijiaAltarBlueprint.id}-${tableId.slice(jijiaAltarBlueprint.id.length + 1)}-incense-barrier`,
+    tableId,
+    jijiaAltarBlueprint.incenseBurnerId,
+  )
+))
 
 const jijiaYardBounds = box(10, 18, 90, 64)
 const jijiaYardCenter = {
@@ -1114,6 +1183,7 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
     entity: { id: 'jijia-main-door', label: '正门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
     endpoint: { doorPosition: authoredPoint(100, 50), threshold: authoredPoint(96, 50), crossingTarget: authoredPoint(98, 50), entryPosition: authoredPoint(14, 50) },
     targetSceneId: 'jijia-ancestral-interior',
+    transitionPresentation: 'local-slide',
     wallOpenings: [], transitionText: '修杰穿过正门，进入祖宅内堂。', access: 'open',
   }, {
     id: 'jijia-yard-gate',
@@ -1146,12 +1216,13 @@ const jijiaAncestralInteriorBlueprint: MainlineSceneBlueprint = {
     walls: [{ id: 'jijia-inner-house', type: 'room', bounds: jijiaInnerHouseBounds, variant: 'interior', edges: ['top', 'right', 'bottom', 'left'], features: jijiaInnerPortraitFeatures,
       openings: [{ edge: 'left', ...jijiaInnerMainDoorOpening, doorId: 'jijia-main-door', label: '正门', displayLabel: '门', labelLayout: 'center' }, { edge: 'right', ...jijiaInnerSideDoorOpening, doorId: 'jijia-secret-door', label: '后门', displayLabel: '门', labelLayout: 'center' }] }],
     altars: [jijiaAltarBlueprint], floorEntities: jijiaAltarFurniture.entities, blockers: [], furnitureGroups: [jijiaAltarFurniture.group], initialPlayerPosition: { x: 18, y: jijiaInnerHouseCenter.y },
+    navigationBarriers: jijiaAltarNavigationBarriers,
   },
   portals: [{
     id: 'jijia-main-door',
     entity: { id: 'jijia-main-door', label: '正门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
     endpoint: { doorPosition: authoredPoint(10, 50), threshold: authoredPoint(14, 50), crossingTarget: authoredPoint(12, 50), entryPosition: authoredPoint(96, 50) },
-    targetSceneId: 'jijia-ancestral-home', wallOpenings: [], transitionText: '修杰从祖宅内堂穿过正门，回到前院。', access: 'open',
+    targetSceneId: 'jijia-ancestral-home', transitionPresentation: 'local-slide', wallOpenings: [], transitionText: '修杰从祖宅内堂穿过正门，回到前院。', access: 'open',
   }, {
     id: 'jijia-secret-door',
     entity: { id: 'jijia-secret-door', label: '后门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
@@ -1614,6 +1685,11 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
         zhongshuyuanOfficeRack,
         ...zhongshuyuanOfficePortMarkers,
       ],
+      navigationBarriers: [mainlineRelationBarrier(
+        'zhongshuyuan-office-workstation-chair-desk-barrier',
+        zhongshuyuanOfficeDesk.id,
+        zhongshuyuanOfficeChair.id,
+      )],
       blockers: [],
       furnitureGroups: [{
         id: 'zhongshuyuan-office-workstation',

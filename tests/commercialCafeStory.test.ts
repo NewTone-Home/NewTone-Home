@@ -20,6 +20,7 @@ import { findMainlinePathToEntity, isWalkableMainlinePoint, mainlineInteractionT
 import { mainlineScenes, mainlineSceneSlices } from '../src/center/runtime/mainlineScenes'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { npcRoles } from '../src/center/runtime/npcRoles'
+import { mainlineLabelFootprint, mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 import {
   createInitialPlayerSave,
   loadPlayerSave,
@@ -188,9 +189,14 @@ describe('commercial cafe story stage', () => {
     expect(isWalkableMainlinePoint(rightContact, cafe)).toBe(true)
     expect(findMainlinePathToEntity(cafe, coffee!.interactionTargetEntityId, cafe.initialPlayerPosition).path).not.toBeNull()
     const interactionRuntime = createNavigationRuntime()
-    interactionRuntime.registerActor('protagonist', cafe.initialPlayerPosition)
-    interactionRuntime.registerActor('lao-zhou', resolveMainlineNpcPosition(cafe, 'lao-zhou'))
-    interactionRuntime.registerActor('server', resolveMainlineNpcPosition(cafe, 'server'))
+    const protagonistBox = mainlineProtagonistDotFootprint(cafe.initialPlayerPosition)
+    const laoZhouPosition = resolveMainlineNpcPosition(cafe, 'lao-zhou')
+    const serverPosition = resolveMainlineNpcPosition(cafe, 'server')
+    const laoZhouBox = mainlineLabelFootprint('老周', laoZhouPosition, undefined, { lineHeight: 1 })
+    const serverBox = mainlineLabelFootprint('店员', serverPosition, undefined, { lineHeight: 1 })
+    interactionRuntime.registerActor('protagonist', cafe.initialPlayerPosition, { width: protagonistBox.width, height: protagonistBox.height })
+    interactionRuntime.registerActor('lao-zhou', laoZhouPosition, { width: laoZhouBox.width, height: laoZhouBox.height })
+    interactionRuntime.registerActor('server', serverPosition, { width: serverBox.width, height: serverBox.height })
     expect(findMainlinePathToEntity(cafe, coffee!.interactionTargetEntityId, cafe.initialPlayerPosition, {}, {
       navigationRuntime: interactionRuntime,
       actorId: 'protagonist',
@@ -209,7 +215,11 @@ describe('commercial cafe story stage', () => {
     expect(cafe.objects.find((entity) => entity.id === 'commercial-cafe-right-window-upper-group-table')).toMatchObject({ kind: 'table' })
     expect(cafe.objects.find((entity) => entity.id === 'commercial-cafe-counter')).toMatchObject({ kind: 'fixture' })
     const counter = cafe.objects.find((entity) => entity.id === 'commercial-cafe-counter')
-    expect(counter).toMatchObject({ kind: 'fixture', interactionBehavior: 'cafe-order', collision: expect.any(Object), approach: expect.any(Object) })
+    // APPROVED CONTRACT MIGRATION: visual counter cells now delegate their
+    // continuous physical body instead of each owning an invisible collision.
+    expect(counter).toMatchObject({ kind: 'fixture', interactionBehavior: 'cafe-order', interactionStructureId: 'commercial-cafe-counter-body' })
+    expect(counter?.collision).toBeUndefined()
+    expect(cafe.continuousStructures).toContainEqual(expect.objectContaining({ id: 'commercial-cafe-counter-body', kind: 'counter' }))
     expect(mainlineInteractionTarget(cafe, 'commercial-cafe-counter', cafe.initialPlayerPosition)).toEqual(expect.objectContaining({ y: expect.any(Number) }))
     expect(snapshot.objects.get('commercial-cafe-right-window-upper-group-table')?.collision).toBeDefined()
     expect(cafe.passages.find((passage) => passage.entityId === 'street-cafe-entry')).toMatchObject({ targetSceneId: 'commercial-street', access: 'open' })

@@ -5,7 +5,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import type { CollisionBox, Point } from './sceneGeometry'
 import { type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
-import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
+import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { SceneDoor, type SceneDoorTransitionCompletion } from './SceneDoor'
 import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoorConfig'
@@ -18,6 +18,7 @@ import { resolveMainlineNpcPosition } from './mainlineNavigation'
 import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds, mainlineSeatedActorVisualPosition } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import type { NpcRuntimeSnapshot } from './npcCore'
+import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisualState'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -31,6 +32,7 @@ type MainlineSceneRendererProps = {
   sceneFrameExit?: { phase: 'idle' | 'retracting'; passageEntityId?: string; scope?: 'passage' | 'scene' }
   gateTriggered?: boolean
   geometrySnapshot: MainlineSceneGeometrySnapshot
+  freezeFrameMeasurements?: boolean
   onScreenMetricsChange?: (metrics: SceneScreenMetrics) => void
   cameraOffset: Point
   showProtagonist?: boolean
@@ -56,6 +58,7 @@ type MainlineSceneRendererProps = {
   onSceneEchoExitComplete?: (echoId: number, source: 'text' | 'frame') => void
   onFrameMotionBudgetChange?: (durationMs: number) => void
   exploredObjectIds?: ReadonlySet<string>
+  interactionTutorialCompleted?: boolean
   debugInput?: boolean
   debugNpcMovement?: boolean
   onDebugNpcMovement?: () => void
@@ -71,6 +74,15 @@ type MainlineSceneRendererProps = {
   promptedSeatId?: string | null
   /** DEV/e2e-only geometry evidence. It never participates in scene behavior. */
   debugRuntimeEvidence?: boolean
+  /** Preview-only, read-only café geometry overlay. */
+  debugCafeSpatialQaEnabled?: boolean
+  debugCafeSpatialQa?: {
+    requestedTarget: Point
+    resolvedNavigableTarget: Point
+    path: readonly Point[]
+    reachedRequestedTarget: boolean
+    deniedAccessRegionId?: string
+  } | null
 }
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
@@ -108,10 +120,18 @@ export function mainlineEntityUsesBreathing(scene: MainlineSceneDefinition, enti
     || entity.animationGroup === 'office-breathing'
 }
 
-function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean) {
+function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, tutorialCompleted: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean) {
   const isOfferingTable = entity.kind === 'table' && scene.furnitureGroups.some((group) => group.layout === 'altar-ring' && group.entityIds.includes(entity.id))
   const isIncense = entity.visualProfile === 'incense'
-  const isBreathing = mainlineEntityUsesBreathing(scene, entity)
+  const tutorialEligible = mainlineEntityUsesBreathing(scene, entity)
+  const interactionVisualState = entity.interactive === false
+    ? null
+    : resolveMainlineInteractionVisualState({
+      active,
+      explored,
+      tutorialCompleted,
+      tutorialEligible,
+    })
   return [
     'scene-object',
     'scene-mainline-object',
@@ -119,8 +139,8 @@ function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity
     entity.facing ? `scene-mainline-object--facing-${entity.facing}` : '',
     `scene-object--${entity.weight}`,
     entity.visualProfile === 'tree-ring' ? 'scene-mainline-yard-tree-ring' : '',
-    isBreathing ? 'scene-mainline-exploration--breathing' : '',
-    explored && isBreathing ? 'scene-mainline-exploration--explored' : '',
+    interactionVisualState === 'tutorial-unexplored' ? 'scene-mainline-exploration--breathing' : '',
+    interactionVisualState ? `scene-mainline-interaction--${interactionVisualState}` : '',
     entity.kind === 'table' ? 'scene-mainline-exploration--steady' : '',
     isOfferingTable ? 'scene-mainline-altar-table' : '',
     isIncense && incenseLit ? 'scene-mainline-incense--lit' : '',
@@ -224,7 +244,7 @@ function mainlineWallCellVisibility(cell: MainlineGeometryCellEntry['cell'], uni
   return (cell.baselineVisible ?? cell.baseline ?? true) ? 'is-baseline' : 'is-hidden'
 }
 
-function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, interactionEntityId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false }: {
+function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, interactionEntityId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, active = false, explored = false }: {
   entries: readonly MainlineGeometryCellEntry[]
   className: string
   visibilityClass: string
@@ -236,6 +256,8 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
   gateTriggered?: boolean
   frameRetracting?: boolean
   hideGlyphs?: boolean
+  active?: boolean
+  explored?: boolean
 }) {
   const first = entries[0]
   if (!first) return null
@@ -269,7 +291,7 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
     return <span key={entries[index]?.cell.id} className="scene-mainline-focus-group__glyph" style={{ left: vertical ? '50%' : `${offset}%`, top: vertical ? `${offset}%` : '50%' }} aria-hidden="true">{glyph}</span>
   })
   const commonProps = {
-    className: `scene-mainline-focus-group ${className} ${visibilityClass}`,
+    className: `scene-mainline-focus-group ${className} ${visibilityClass} scene-mainline-interaction--${resolveMainlineInteractionVisualState({ active, explored, tutorialCompleted: true, tutorialEligible: false })}`,
     style,
     'data-focus-target-id': first.cell.id,
     'data-focus-target-group': first.focusGroup,
@@ -284,7 +306,7 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
   return <span {...commonProps} aria-hidden="true">{content}{renderFrame(first.focusGroup)}</span>
 }
 
-function MainlineObject({ entity, scene, position, collision, visibility, active, explored, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, renderFrame, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false, debugRuntimeEvidence = false }: {
+function MainlineObject({ entity, scene, position, collision, visibility, active, explored, tutorialCompleted, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false, debugRuntimeEvidence = false }: {
   entity: MainlineSceneEntity
   scene: MainlineSceneDefinition
   position: Point
@@ -292,6 +314,7 @@ function MainlineObject({ entity, scene, position, collision, visibility, active
   visibility: string
   active: boolean
   explored: boolean
+  tutorialCompleted: boolean
   underPlayer: boolean
   layoutMode: boolean
   selected: boolean
@@ -303,7 +326,6 @@ function MainlineObject({ entity, scene, position, collision, visibility, active
   onStartLayoutDrag: (itemId: LayoutItemId, event: React.PointerEvent<HTMLElement>) => void
   onSelectLayoutItem: (itemId: LayoutItemId) => void
   onInteract: (id: string) => void
-  renderFrame: (group: string) => ReactNode
   breathingAnimationDelay?: string
   sharedBreathingClock?: boolean
   registerBreathingNode?: (entityId: string, node: HTMLSpanElement | null) => void
@@ -312,11 +334,10 @@ function MainlineObject({ entity, scene, position, collision, visibility, active
   debugRuntimeEvidence?: boolean
 }) {
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
-  const className = objectClass(scene, entity, visibility, active, explored, underPlayer, selected, dragging, incenseLit)
+  const className = objectClass(scene, entity, visibility, active, explored, tutorialCompleted, underPlayer, selected, dragging, incenseLit)
   const visualScale = entity.visualScale ?? 1
-  const focusGroup = `exploration:${entity.id}`
   const commonProps = {
-    className: `${className} ${layoutItemId ? 'scene-object--layout-draggable' : ''} ${suppressLabel ? 'is-occupied' : ''} ${prompted ? 'scene-mainline-exploration--breathing is-story-prompted' : ''}`,
+    className: `${className} ${layoutItemId ? 'scene-object--layout-draggable' : ''} ${suppressLabel ? 'is-occupied' : ''} ${prompted ? 'is-story-prompted' : ''}`,
     style: {
       left: `${position.x}%`,
       top: `${position.y}%`,
@@ -331,10 +352,6 @@ function MainlineObject({ entity, scene, position, collision, visibility, active
     } as CSSProperties,
     'data-object-id': entity.id,
     'data-layout-item-id': layoutItemId ?? undefined,
-    'data-focus-target-id': !layoutMode && entity.interactive !== false ? entity.id : undefined,
-    'data-focus-target-group': !layoutMode && entity.interactive !== false ? focusGroup : undefined,
-    'data-focus-target-policy': !layoutMode && entity.interactive !== false ? 'exploration' : undefined,
-    'data-focus-interaction-active': !layoutMode && entity.interactive !== false && active ? 'true' : undefined,
     'data-story-seat-prompt': prompted ? 'true' : undefined,
     'data-rendered-x': debugRuntimeEvidence ? position.x : undefined,
     'data-rendered-y': debugRuntimeEvidence ? position.y : undefined,
@@ -378,7 +395,6 @@ function MainlineObject({ entity, scene, position, collision, visibility, active
       }}
     >
       {!suppressLabel && <span ref={labelRef} style={labelStyle}>{entity.label}</span>}
-      {renderFrame(focusGroup)}
     </button>
   )
 }
@@ -398,6 +414,7 @@ export function MainlineSceneRenderer({
   gateTriggered = false,
   showProtagonist = true,
   geometrySnapshot,
+  freezeFrameMeasurements = false,
   onLayoutChange,
   onInteract,
   onNpcInteract,
@@ -420,6 +437,7 @@ export function MainlineSceneRenderer({
   onSceneEchoExitComplete,
   onFrameMotionBudgetChange,
   exploredObjectIds = new Set(),
+  interactionTutorialCompleted = false,
   debugInput = false,
   debugNpcMovement = false,
   onDebugNpcMovement,
@@ -433,6 +451,8 @@ export function MainlineSceneRenderer({
   occupiedSeatIds: runtimeOccupiedSeatIds,
   playerSeatId = null,
   promptedSeatId = null,
+  debugCafeSpatialQaEnabled = false,
+  debugCafeSpatialQa = null,
   debugRuntimeEvidence = false,
 }: MainlineSceneRendererProps) {
   const stageRef = useRef<HTMLDivElement>(null)
@@ -456,6 +476,11 @@ export function MainlineSceneRenderer({
     ? []
     : scene.attachedProps.filter((prop) => isCommercialCafeStoryDetailVisible(prop.visibleFromStage, commercialCafeStoryStage, prop.hiddenFromStage))
   const presentedParentEntityIds = new Set(visibleAttachedProps.map((prop) => prop.parentEntityId))
+  const cafeSpatialQa = scene.id === 'commercial-cafe' && debugCafeSpatialQaEnabled
+  const cafeQaCounter = cafeSpatialQa ? scene.continuousStructures?.find((structure) => structure.id === 'commercial-cafe-counter-body') : undefined
+  const cafeQaStaffArea = cafeSpatialQa ? scene.accessRegions.find((region) => region.id === 'commercial-cafe-staff-area') : undefined
+  const cafeQaAccessBoundary = cafeSpatialQa ? geometrySnapshot.navigationBarriers.find((barrier) => barrier.id === 'commercial-cafe-staff-right-access-boundary') : undefined
+  const cafeQaBackDoor = cafeSpatialQa ? geometrySnapshot.passages.get('cafe-back-door') : undefined
   const hasAltarBreathing = scene.objects.some((entity) => isAltarEntity(scene, entity.id))
   useEffect(() => {
     if (!hasAltarBreathing || typeof window === 'undefined') return undefined
@@ -570,19 +595,6 @@ export function MainlineSceneRenderer({
         suppressed: false,
       })
     })
-    scene.objects.forEach((entity) => {
-      if (entity.visible === false || entity.kind === 'door' || wallFeatureEntityIds.has(entity.id) || entity.interactive === false) return
-      addTarget({
-        group: `exploration:${entity.id}`,
-        policy: 'exploration',
-        phase: 'closed',
-        gateTriggered: false,
-        interactionBusy: activeObjectId === entity.id && moving,
-        interactionActive: activeObjectId === entity.id || sceneEcho?.entityId === entity.id,
-        retractRequested: sceneEcho?.phase === 'leaving' && sceneEcho.entityId === entity.id,
-        suppressed: false,
-      })
-    })
     if (dialogue && dialogueLine && dialogueLineIndex !== null && dialoguePosition) {
       addTarget({
         group: `dialogue:${dialogueLine.id}`,
@@ -608,9 +620,10 @@ export function MainlineSceneRenderer({
       })
     }
     return [...targetMap.values()]
-  }, [activeObjectId, dialogue, dialogueLine, dialogueLineIndex, dialoguePosition, doorPhases, exploredObjectIds, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, wallFeatureEntityIds])
+  }, [activeObjectId, dialogue, dialogueLine, dialogueLineIndex, dialoguePosition, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit])
   const focusFrames = useSceneFocusFrameController({
     targets: focusFrameTargets,
+    freezeMeasurements: freezeFrameMeasurements,
   })
   useEffect(() => {
     onFrameMotionBudgetChange?.(focusFrames.maxMotionDurationMs)
@@ -779,7 +792,7 @@ export function MainlineSceneRenderer({
                   const entity = scene.objects.find((candidate) => candidate.id === entityId)
                   if (entity) {
                     return <Fragment key={`feature-${focusTarget.group}`}>
-                      <MainlineFocusGroup key={`focus-${focusTarget.group}`} entries={focusEntries} className={`scene-mainline-wall scene-mainline-wall-feature scene-mainline-wall-feature--interaction scene-mainline-exploration--steady ${activeObjectId === entityId || sceneEcho?.entityId === entityId ? 'is-active' : ''}`} visibilityClass={groupVisibilityClass} renderFrame={focusFrames.renderFrame} onInteract={onInteract} interactionEntityId={entityId} ariaLabel={`${entity.label}，点击让主角前往互动`} />
+                      <MainlineFocusGroup key={`focus-${focusTarget.group}`} entries={focusEntries} className="scene-mainline-wall scene-mainline-wall-feature scene-mainline-wall-feature--interaction scene-mainline-exploration--steady" visibilityClass={groupVisibilityClass} renderFrame={focusFrames.renderFrame} onInteract={onInteract} interactionEntityId={entityId} ariaLabel={`${entity.label}，点击让主角前往互动`} active={activeObjectId === entityId || sceneEcho?.entityId === entityId} explored={exploredObjectIds.has(entityId)} />
                     </Fragment>
                   }
                 }
@@ -825,7 +838,13 @@ export function MainlineSceneRenderer({
                 const directWallFeature = entity?.interactionBehavior === 'direct-wall'
                 if (entity && (entity.interactive !== false || directWallFeature)) {
                   const focusGroup = `interactive:${cell.featureId ?? entityId}`
-                  return <button key={cell.id} className={`scene-spatial-glyph scene-spatial-glyph--feature scene-mainline-wall scene-mainline-wall-feature ${visibilityClass} ${activeObjectId === entityId ? 'is-active' : ''}`} type="button" style={{ left: `${cell.x}%`, top: `${cell.y}%` }} onClick={(event) => { event.stopPropagation(); onInteract(entityId) }} aria-label={`${entity.label}，点击让主角前往互动`} data-focus-target-id={cell.id} data-focus-target-group={focusGroup} data-focus-target-policy="interactive" data-focus-interaction-busy={activeObjectId === entityId && moving ? 'true' : undefined}>
+                  const featureVisualState = resolveMainlineInteractionVisualState({
+                    active: activeObjectId === entityId || sceneEcho?.entityId === entityId,
+                    explored: exploredObjectIds.has(entityId),
+                    tutorialCompleted: true,
+                    tutorialEligible: false,
+                  })
+                  return <button key={cell.id} className={`scene-spatial-glyph scene-spatial-glyph--feature scene-mainline-wall scene-mainline-wall-feature ${visibilityClass} scene-mainline-interaction--${featureVisualState}`} type="button" style={{ left: `${cell.x}%`, top: `${cell.y}%` }} onClick={(event) => { event.stopPropagation(); onInteract(entityId) }} aria-label={`${entity.label}，点击让主角前往互动`} data-focus-target-id={cell.id} data-focus-target-group={focusGroup} data-focus-target-policy="interactive" data-focus-interaction-busy={activeObjectId === entityId && moving ? 'true' : undefined}>
                     {cell.glyph}
                     {focusFrames.renderFrame(focusGroup)}
                   </button>
@@ -850,6 +869,7 @@ export function MainlineSceneRenderer({
               visibility={objectVisibility(entity, layoutMode)}
               active={activeObjectId === entity.id || sceneEcho?.entityId === entity.id}
               explored={exploredObjectIds.has(entity.id)}
+              tutorialCompleted={interactionTutorialCompleted}
               underPlayer={underPlayer}
               layoutMode={layoutMode}
               screenMetrics={renderScreenMetrics}
@@ -861,7 +881,6 @@ export function MainlineSceneRenderer({
               onStartLayoutDrag={startLayoutDrag}
               onSelectLayoutItem={setSelectedLayoutItemId}
               onInteract={onInteract}
-              renderFrame={focusFrames.renderFrame}
               breathingAnimationDelay={synchronizedBreathingDelay}
               sharedBreathingClock={isAltarEntity(scene, entity.id)}
               registerBreathingNode={registerBreathingNode}
@@ -880,11 +899,16 @@ export function MainlineSceneRenderer({
               npcSeatId,
               npcSeatId ? geometrySnapshot.objects.get(npcSeatId)?.position : undefined,
             )
+            const npcVisualFootprint = mainlineLabelFootprint(npc.label, npcVisualPosition, renderScreenMetrics, { lineHeight: 1 })
             return <button
               key={npc.id}
               className="scene-mainline-npc"
               type="button"
-              style={{ left: `${npcVisualPosition.x}%`, top: `${npcVisualPosition.y}%` }}
+              style={{
+                left: `${npcVisualPosition.x}%`,
+                top: `${npcVisualPosition.y}%`,
+                '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px`,
+              } as CSSProperties}
               onClick={(event) => { event.stopPropagation(); onNpcInteract?.(npc.id) }}
               data-actor-id={npc.id}
               data-npc-role={npc.roleId}
@@ -900,6 +924,10 @@ export function MainlineSceneRenderer({
               data-runtime-y={debugRuntimeEvidence ? npcPosition.y : undefined}
               data-rendered-x={debugRuntimeEvidence ? npcVisualPosition.x : undefined}
               data-rendered-y={debugRuntimeEvidence ? npcVisualPosition.y : undefined}
+              data-visual-x={debugRuntimeEvidence ? npcVisualFootprint.x : undefined}
+              data-visual-y={debugRuntimeEvidence ? npcVisualFootprint.y : undefined}
+              data-visual-width={debugRuntimeEvidence ? npcVisualFootprint.width : undefined}
+              data-visual-height={debugRuntimeEvidence ? npcVisualFootprint.height : undefined}
               aria-label={`${npc.label}，点击让主角前往互动`}
             >
               <span>{npc.label}</span>
@@ -928,8 +956,26 @@ export function MainlineSceneRenderer({
             )
           })}
 
+          {cafeSpatialQa && <div className="scene-spatial-qa" aria-hidden="true">
+            <svg className="scene-spatial-qa__geometry" viewBox="0 0 100 100" preserveAspectRatio="none">
+              {cafeQaStaffArea && <rect className="scene-spatial-qa__staff" x={cafeQaStaffArea.x} y={cafeQaStaffArea.y} width={cafeQaStaffArea.width} height={cafeQaStaffArea.height} />}
+              {cafeQaCounter && <rect className="scene-spatial-qa__counter" x={cafeQaCounter.x} y={cafeQaCounter.y} width={cafeQaCounter.width} height={cafeQaCounter.height} />}
+              {cafeQaAccessBoundary && <line className="scene-spatial-qa__boundary" x1={cafeQaAccessBoundary.start.x} y1={cafeQaAccessBoundary.start.y} x2={cafeQaAccessBoundary.end.x} y2={cafeQaAccessBoundary.end.y} />}
+              {cafeQaBackDoor && <rect className="scene-spatial-qa__door" x={cafeQaBackDoor.collision.x} y={cafeQaBackDoor.collision.y} width={cafeQaBackDoor.collision.width} height={cafeQaBackDoor.collision.height} />}
+              {cafeQaBackDoor && <rect className="scene-spatial-qa__doorway" x={cafeQaBackDoor.doorway.x} y={cafeQaBackDoor.doorway.y} width={cafeQaBackDoor.doorway.width} height={cafeQaBackDoor.doorway.height} />}
+              {debugCafeSpatialQa?.path.length && debugCafeSpatialQa.path.length > 1 && <polyline className="scene-spatial-qa__path" points={debugCafeSpatialQa.path.map((point) => `${point.x},${point.y}`).join(' ')} />}
+              {debugCafeSpatialQa && <circle className="scene-spatial-qa__requested" cx={debugCafeSpatialQa.requestedTarget.x} cy={debugCafeSpatialQa.requestedTarget.y} r=".65" />}
+              {debugCafeSpatialQa && <circle className="scene-spatial-qa__resolved" cx={debugCafeSpatialQa.resolvedNavigableTarget.x} cy={debugCafeSpatialQa.resolvedNavigableTarget.y} r=".65" />}
+            </svg>
+            <div className="scene-spatial-qa__legend">
+              <strong>CAFÉ QA</strong>
+              <span>cyan staff · red counter · orange back door · violet boundary</span>
+              <span>{debugCafeSpatialQa ? `route: ${debugCafeSpatialQa.reachedRequestedTarget ? 'raw target' : 'projected'}${debugCafeSpatialQa.deniedAccessRegionId ? ' · staff intent' : ''}` : 'tap open ground to show raw / resolved / route'}</span>
+            </div>
+          </div>}
+
           {destination && <div className={`scene-walk-target ${moving ? 'is-active' : ''}`} style={{ left: `${destination.x}%`, top: `${destination.y}%` }} aria-hidden="true" />}
-          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%` }} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined}>
+          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%`, '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined}>
             {protagonistPresentation.kind === 'dot'
               ? <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
               : <span className="scene-protagonist__seat-label" aria-label="修杰，已坐下">{protagonistPresentation.label}</span>}

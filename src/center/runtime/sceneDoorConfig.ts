@@ -11,6 +11,10 @@ export const sceneDoorMotion = {
   // has its own slower stroke animation; this budget only gates the shared
   // passage lifecycle and keeps pathfinding responsive.
   openingMs: 240,
+  // A small presentation lead absorbs one rendered movement frame so an
+  // approved passage arrives as the opening finishes instead of pausing at
+  // the threshold. It is temporal only; no scene-distance heuristic exists.
+  openingLeadMs: 32,
   closingMs: 240,
   clearHoldMs: 500,
 } as const

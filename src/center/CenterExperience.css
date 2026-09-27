@@ -39,6 +39,78 @@
   pointer-events: auto;
 }
 
+.center-experience__scene-layer.is-local-sliding {
+  pointer-events: none;
+}
+
+.center-local-slide {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.center-local-slide__surface {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+}
+
+.center-local-slide--left .scene-mainline-world,
+.center-local-slide--right .scene-mainline-world {
+  animation: none;
+}
+
+.center-local-slide--left .center-local-slide__surface--source {
+  animation: center-local-slide-source-left var(--local-slide-duration) ease-out both;
+}
+
+.center-local-slide--left .center-local-slide__surface--target {
+  animation: center-local-slide-target-left var(--local-slide-duration) ease-out both;
+}
+
+.center-local-slide--right .center-local-slide__surface--source {
+  animation: center-local-slide-source-right var(--local-slide-duration) ease-out both;
+}
+
+.center-local-slide--right .center-local-slide__surface--target {
+  animation: center-local-slide-target-right var(--local-slide-duration) ease-out both;
+}
+
+.center-local-slide__actor {
+  z-index: 20;
+  left: var(--local-slide-actor-from-x);
+  top: var(--local-slide-actor-from-y);
+  animation: center-local-slide-actor var(--local-slide-duration) linear both;
+}
+
+@keyframes center-local-slide-source-left {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+@keyframes center-local-slide-target-left {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes center-local-slide-source-right {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+
+@keyframes center-local-slide-target-right {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes center-local-slide-actor {
+  from { left: var(--local-slide-actor-from-x); top: var(--local-slide-actor-from-y); }
+  to { left: var(--local-slide-actor-to-x); top: var(--local-slide-actor-to-y); }
+}
+
 @keyframes center-world-scene-in {
   from { opacity: 0; }
   to { opacity: 1; }

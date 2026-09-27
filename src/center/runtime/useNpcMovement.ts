@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Point } from './sceneGeometry'
 import type { MainlineSceneDefinition } from './mainlineScenes'
-import { findMainlinePath, findMainlinePathToEntity, isWalkableMainlinePoint, type MainlineNavigationOptions } from './mainlineNavigation'
+import { findMainlinePath, findMainlinePathToEntity, isMainlineNavigationBarrierClear, isWalkableMainlinePoint, type MainlineNavigationOptions } from './mainlineNavigation'
 import type { SceneLayout } from './sceneLayout'
 import { createNpcRuntime, type NpcIntent, type NpcRuntime, type NpcRuntimeSnapshot } from './npcCore'
-import type { NavigationRuntime } from './navigationCore'
+import type { NavigationActorFootprint, NavigationRuntime } from './navigationCore'
 import { useFreeRoamMovement, type FreeRoamMovement, type MovementComplete, type MovementOptions } from './useFreeRoamMovement'
 
 type NpcLocomotion = Pick<FreeRoamMovement, 'moveAlong' | 'stopMovement' | 'resetMovement' | 'getCurrentPosition'>
@@ -30,6 +30,7 @@ type CreateNpcMovementAdapterOptions = {
   initialPosition: Point
   movement: NpcLocomotion
   navigationRuntime: NavigationRuntime
+  getFootprint: () => NavigationActorFootprint
   onChange?: () => void
 }
 
@@ -38,13 +39,14 @@ type CreateNpcMovementAdapterOptions = {
  * controller. It owns neither a route system nor a second position store:
  * every live point is mirrored into npcCore and NavigationRuntime together.
  */
-export function createNpcMovementAdapter({ npcId, initialPosition, movement, navigationRuntime, onChange }: CreateNpcMovementAdapterOptions): NpcMovementAdapter {
+export function createNpcMovementAdapter({ npcId, initialPosition, movement, navigationRuntime, getFootprint, onChange }: CreateNpcMovementAdapterOptions): NpcMovementAdapter {
   const runtime: NpcRuntime = createNpcRuntime(npcId, initialPosition)
 
   const notify = () => onChange?.()
   const syncPosition = (position: Point) => {
     runtime.setPosition(position)
-    navigationRuntime.updateActor(npcId, position)
+    if (navigationRuntime.getActor(npcId)) navigationRuntime.updateActor(npcId, position)
+    else navigationRuntime.registerActor(npcId, position, getFootprint())
     notify()
   }
 
@@ -57,6 +59,7 @@ export function createNpcMovementAdapter({ npcId, initialPosition, movement, nav
       const options: MainlineNavigationOptions = {
         ...navigationOptions,
         actorId: npcId,
+        actorFootprint: getFootprint(),
         navigationRuntime,
       }
       // Duties may name an entity instead of preselecting a coordinate. The
@@ -88,6 +91,7 @@ export function createNpcMovementAdapter({ npcId, initialPosition, movement, nav
         // them into a segment that was never validated by navigation.
         preserveNavigationRoute: true,
         canOccupy,
+        canTraverse: (segmentStart, segmentEnd) => isMainlineNavigationBarrierClear(segmentStart, segmentEnd, scene, layout, options),
         // Keep the planner's last turn when entering an access-controlled
         // staging point. Otherwise generic same-direction compression can
         // straighten a valid route around a protected static body.
@@ -118,6 +122,7 @@ type UseNpcMovementOptions = {
   npcId: string
   initialPosition: Point
   navigationRuntime: NavigationRuntime
+  footprint: NavigationActorFootprint
 }
 
 /**
@@ -125,11 +130,13 @@ type UseNpcMovementOptions = {
  * placement provides the initial point only; after mounting, this hook's
  * live position is the single source passed to rendering and navigation.
  */
-export function useNpcMovement({ enabled, npcId, initialPosition, navigationRuntime }: UseNpcMovementOptions) {
+export function useNpcMovement({ enabled, npcId, initialPosition, navigationRuntime, footprint }: UseNpcMovementOptions) {
   const movement = useFreeRoamMovement(initialPosition)
   const [revision, setRevision] = useState(0)
   const movementRef = useRef(movement)
+  const footprintRef = useRef(footprint)
   movementRef.current = movement
+  footprintRef.current = footprint
   const adapterRef = useRef<NpcMovementAdapter | null>(null)
   if (!adapterRef.current) {
     adapterRef.current = createNpcMovementAdapter({
@@ -142,6 +149,7 @@ export function useNpcMovement({ enabled, npcId, initialPosition, navigationRunt
         getCurrentPosition: () => movementRef.current.getCurrentPosition(),
       },
       navigationRuntime,
+      getFootprint: () => footprintRef.current,
       onChange: () => setRevision((revision) => revision + 1),
     })
   }

@@ -4,8 +4,11 @@ import { WorldPhone } from './runtime/WorldPhone'
 import {
   mainlineRespawnSceneId,
   mainlineSceneRoute,
+  mainlineScenes,
   resolveMainlineSceneId,
 } from './runtime/mainlineScenes'
+import { mainlineCameraOffset } from './runtime/mainlineViewport'
+import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import {
   phoneRideAvailability,
   worldLayerForScene,
@@ -16,6 +19,11 @@ import {
   recordPlayerSceneState,
   savePlayerSave as persistPlayerSave,
 } from './runtime/playerSave'
+import {
+  interactionTutorialCompletedStateKey,
+  isInteractionTutorialCompleted,
+  isTutorialCompletionTransition,
+} from './runtime/mainlineInteractionVisualState'
 import './runtime/scene.css'
 import './CenterExperience.css'
 import { useReducedMotion } from '../hooks/useReducedMotion'
@@ -34,6 +42,14 @@ function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
   return { sceneId, entryPosition, spawnMode }
 }
 
+function screenPositionForScene(sceneId, position) {
+  const cameraOffset = mainlineCameraOffset(mainlineScenes[sceneId], position)
+  return {
+    x: position.x + cameraOffset.x,
+    y: position.y + cameraOffset.y,
+  }
+}
+
 export default function CenterExperience({
   entryPhase = 'active',
   onSceneReady,
@@ -48,6 +64,7 @@ export default function CenterExperience({
   const [resumePosition, setResumePosition] = useState(undefined)
   const [boundaryNotice, setBoundaryNotice] = useState('')
   const [feedbackMode, setFeedbackMode] = useState(null)
+  const [localSlide, setLocalSlide] = useState(null)
   const sceneEnteredAtRef = useRef(null)
 
   const commitPlayerSave = useCallback((update) => {
@@ -140,8 +157,16 @@ export default function CenterExperience({
     commitPlayerSave((current) => recordPlayerSceneState(current, sceneId, key, value))
   }, [commitPlayerSave])
 
-  const handleSceneTransition = useCallback((nextSceneId, nextEntryPosition, nextSpawnMode) => {
+  const handleSceneTransition = useCallback((nextSceneId, nextEntryPosition, nextSpawnMode, transitionIntent) => {
     const nextRoute = createRoute(nextSceneId, nextEntryPosition, nextSpawnMode || 'resume')
+    if (isLocalSlidePrototypeIntent(transitionIntent) && !reducedMotion) {
+      setLocalSlide({
+        sourceRoute: route,
+        sourceResumePosition: resumePosition,
+        targetRoute: nextRoute,
+        transitionIntent,
+      })
+    }
     const currentScene = sceneEnteredAtRef.current
     trackEvent('center_scene_exited', {
       sceneId: route.sceneId,
@@ -150,18 +175,29 @@ export default function CenterExperience({
       outcome: 'scene_change',
     })
     sceneEnteredAtRef.current = null
-    commitPlayerSave((current) => ({
-      ...current,
+    commitPlayerSave((current) => {
+      const next = {
+        ...current,
       currentSceneId: nextSceneId,
       currentPosition: nextEntryPosition ?? current.scenePositions[nextSceneId] ?? null,
-    }))
+      }
+      return isTutorialCompletionTransition(route.sceneId, nextSceneId, nextRoute.spawnMode)
+        ? recordPlayerSceneState(next, 'commercial-street', interactionTutorialCompletedStateKey, true)
+        : next
+    })
     window.history.pushState(
       { newtoneCenterScene: nextSceneId },
       '',
       mainlineSceneRoute(nextSceneId, nextEntryPosition, nextRoute.spawnMode),
     )
     setRoute(nextRoute)
-  }, [commitPlayerSave, route.sceneId])
+  }, [commitPlayerSave, reducedMotion, resumePosition, route])
+
+  const handleLocalSlideAnimationEnd = useCallback((event) => {
+    if (!event.target.classList.contains('center-local-slide__surface--target')) return
+    if (event.animationName !== 'center-local-slide-target-left' && event.animationName !== 'center-local-slide-target-right') return
+    setLocalSlide(null)
+  }, [])
 
   const handleSafeSpawnCorrection = useCallback((position) => {
     if (!route.entryPosition) return
@@ -225,6 +261,46 @@ export default function CenterExperience({
     if (canPersistScenePosition) commitPlayerSave((current) => recordPlayerScenePosition(current, route.sceneId, position))
   }, [canPersistScenePosition, commitPlayerSave, route.sceneId])
 
+  const renderScenePage = (sceneRoute, {
+    key,
+    showProtagonist = true,
+    snapshot = false,
+    resumePosition: sceneResumePosition = resumePosition,
+  } = {}) => (
+    <MainlineScenePage
+      key={key ?? `${sceneRoute.sceneId}:${sceneRoute.entryPosition?.x ?? ''}:${sceneRoute.entryPosition?.y ?? ''}:${sceneRoute.spawnMode}:${sceneResumePosition?.x ?? ''}:${sceneResumePosition?.y ?? ''}`}
+      sceneId={sceneRoute.sceneId}
+      onExternalExit={snapshot ? undefined : revealPhone}
+      onExternalReturn={snapshot ? undefined : retractPhone}
+      onSceneReady={snapshot ? undefined : onSceneReady}
+      phoneOpen={phoneOpen}
+      onPhoneDismiss={snapshot ? undefined : retractPhone}
+      onDeskInteraction={snapshot ? undefined : switchCarriedPhone}
+      onObjectInteraction={snapshot ? undefined : handleObjectInteraction}
+      onDoorEvent={snapshot ? undefined : handleDoorEvent}
+      initialSceneState={playerSave.sceneState[sceneRoute.sceneId] ?? {}}
+      interactionTutorialCompleted={isInteractionTutorialCompleted(playerSave.sceneState['commercial-street'])}
+      onPlayerSceneStateChange={snapshot ? undefined : recordSceneState}
+      carriedPhoneDevice={phoneDevice}
+      onSceneTransition={handleSceneTransition}
+      onSafeSpawnCorrection={snapshot ? undefined : handleSafeSpawnCorrection}
+      onPositionChange={snapshot ? undefined : canPersistScenePosition ? handlePositionChange : undefined}
+      entryPosition={sceneRoute.entryPosition}
+      spawnMode={sceneRoute.spawnMode}
+      resumePosition={sceneResumePosition}
+      showProtagonist={showProtagonist}
+      presentationSnapshot={snapshot}
+      showSceneChrome={false}
+    />
+  )
+
+  const localSlideActor = localSlide
+    ? {
+        from: screenPositionForScene(localSlide.transitionIntent.sourceSceneId, localSlide.transitionIntent.sourceCrossingPosition),
+        to: screenPositionForScene(localSlide.transitionIntent.targetSceneId, localSlide.transitionIntent.safeEntryPosition),
+      }
+    : null
+
   return (
     <main
       className={`center-experience center-experience--${entryPhase}`}
@@ -236,29 +312,28 @@ export default function CenterExperience({
         className="center-experience__background"
         aria-hidden="true"
       />
-      <div className="center-experience__scene-layer" onAnimationEnd={handleSceneAnimationEnd}>
-        <MainlineScenePage
-          key={`${route.sceneId}:${route.entryPosition?.x ?? ''}:${route.entryPosition?.y ?? ''}:${route.spawnMode}:${resumePosition?.x ?? ''}:${resumePosition?.y ?? ''}`}
-          sceneId={route.sceneId}
-          onExternalExit={revealPhone}
-          onExternalReturn={retractPhone}
-          onSceneReady={onSceneReady}
-          phoneOpen={phoneOpen}
-          onPhoneDismiss={retractPhone}
-          onDeskInteraction={switchCarriedPhone}
-          onObjectInteraction={handleObjectInteraction}
-          onDoorEvent={handleDoorEvent}
-          initialSceneState={playerSave.sceneState[route.sceneId] ?? {}}
-          onPlayerSceneStateChange={recordSceneState}
-          carriedPhoneDevice={phoneDevice}
-          onSceneTransition={handleSceneTransition}
-          onSafeSpawnCorrection={handleSafeSpawnCorrection}
-          onPositionChange={canPersistScenePosition ? handlePositionChange : undefined}
-          entryPosition={route.entryPosition}
-          spawnMode={route.spawnMode}
-          resumePosition={resumePosition}
-          showSceneChrome={false}
-        />
+      <div className={`center-experience__scene-layer ${localSlide ? 'is-local-sliding' : ''}`} onAnimationEnd={handleSceneAnimationEnd}>
+        <div
+          className={`center-local-slide ${localSlide && localSlideActor ? `center-local-slide--${localSlide.transitionIntent.slideDirection}` : ''}`}
+          onAnimationEnd={localSlide ? handleLocalSlideAnimationEnd : undefined}
+          style={localSlide && localSlideActor
+            ? { '--local-slide-duration': `${localSlidePrototypeDurationMs}ms`, '--local-slide-actor-from-x': `${localSlideActor.from.x}%`, '--local-slide-actor-from-y': `${localSlideActor.from.y}%`, '--local-slide-actor-to-x': `${localSlideActor.to.x}%`, '--local-slide-actor-to-y': `${localSlideActor.to.y}%` }
+            : undefined}
+        >
+          <div className="center-local-slide__surface center-local-slide__surface--source">
+            {renderScenePage(localSlide?.sourceRoute ?? route, {
+              showProtagonist: !localSlide,
+              snapshot: Boolean(localSlide),
+              resumePosition: localSlide?.sourceResumePosition,
+            })}
+          </div>
+          {localSlide && localSlideActor && <>
+            <div className="center-local-slide__surface center-local-slide__surface--target">
+              {renderScenePage(localSlide.targetRoute, { key: `local-slide-target:${localSlide.targetRoute.sceneId}:${localSlide.targetRoute.entryPosition?.x ?? ''}:${localSlide.targetRoute.entryPosition?.y ?? ''}`, showProtagonist: false, snapshot: true, resumePosition: undefined })}
+            </div>
+            <div className="scene-protagonist center-local-slide__actor" aria-hidden="true"><span className="scene-protagonist__dot" /></div>
+          </>}
+        </div>
         <WorldPhone
           currentSceneId={route.sceneId}
           worldLayer={worldLayerForScene(route.sceneId)}

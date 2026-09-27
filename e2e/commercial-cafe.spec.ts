@@ -1,10 +1,27 @@
 import { expect, test } from '@playwright/test'
+import { mainlinePassageSide } from '../src/center/runtime/mainlineNavigation'
+import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 
 async function advanceDialogue(page: import('@playwright/test').Page, maximumAdvances: number) {
   const dialogue = page.locator('[data-scene-dialogue]').first()
   for (let index = 0; index < maximumAdvances; index += 1) {
     if (await dialogue.count() === 0) return
+    const previousText = await dialogue.textContent()
+    const transition = page.evaluate((previousText) => new Promise<void>((resolve) => {
+      const hasAdvanced = () => {
+        const current = document.querySelector<HTMLElement>('[data-scene-dialogue]')
+        return !current || current.textContent !== previousText
+      }
+      if (hasAdvanced()) return resolve()
+      const observer = new MutationObserver(() => {
+        if (!hasAdvanced()) return
+        observer.disconnect()
+        resolve()
+      })
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-dialogue-line-id'] })
+    }), previousText)
     await dialogue.click({ force: true })
+    await transition
   }
   await expect(dialogue).toHaveCount(0)
 }
@@ -48,23 +65,13 @@ async function furnitureNavigationRegions(page: import('@playwright/test').Page)
       height: Number((node as HTMLElement).dataset.collisionHeight),
     })
     const objects = nodes.map(read).filter((item) => Number.isFinite(item.x) && Number.isFinite(item.y) && Number.isFinite(item.width) && Number.isFinite(item.height))
-    const byId = new Map(objects.map((item) => [item.id, item]))
-    const closures = objects.flatMap((seat) => {
-      if (!seat.tableId || !seat.side) return []
-      const table = byId.get(seat.tableId)
-      if (!table) return []
-      if (seat.side === 'left' || seat.side === 'right') {
-        const left = seat.side === 'left' ? seat.x + seat.width : table.x + table.width
-        const right = seat.side === 'left' ? table.x : seat.x
-        const y = Math.min(seat.y, table.y)
-        return right > left ? [{ x: left, y, width: right - left, height: Math.max(seat.y + seat.height, table.y + table.height) - y }] : []
-      }
-      const top = seat.side === 'top' ? seat.y + seat.height : table.y + table.height
-      const bottom = seat.side === 'top' ? table.y : seat.y
-      const x = Math.min(seat.x, table.x)
-      return bottom > top ? [{ x, y: top, width: Math.max(seat.x + seat.width, table.x + table.width) - x, height: bottom - top }] : []
-    })
-    return [...objects.filter((item) => item.tableId || item.id.endsWith('-table') || item.id.includes('-table-')).map(({ x, y, width, height }) => ({ x, y, width, height })), ...closures]
+    // APPROVED CONTRACT MIGRATION: furniture relations are crossing barriers,
+    // not hidden occupied rectangles. This browser assertion checks only
+    // actual visible collision bodies; navigation-barrier.spec.ts proves that
+    // their internal relation still cannot be crossed.
+    return objects
+      .filter((item) => item.tableId || item.id.endsWith('-table') || item.id.includes('-table-'))
+      .map(({ x, y, width, height }) => ({ x, y, width, height }))
   })
 }
 
@@ -109,6 +116,25 @@ async function waitForActorYBefore(page: import('@playwright/test').Page, actorI
   }), { actorId, maximum })
 }
 
+/** Wait for actual runtime entry into the public side, not merely a duty transition. */
+async function waitForActorYAfter(page: import('@playwright/test').Page, actorId: string, minimum: number) {
+  await page.evaluate(async ({ actorId, minimum }) => new Promise<void>((resolve) => {
+    const actor = document.querySelector<HTMLElement>(`[data-actor-id="${actorId}"]`)
+    if (!actor) throw new Error(`Missing actor ${actorId}`)
+    const hasEntered = () => Number(actor.dataset.runtimeY) > minimum
+    if (hasEntered()) {
+      resolve()
+      return
+    }
+    const observer = new MutationObserver(() => {
+      if (!hasEntered()) return
+      observer.disconnect()
+      resolve()
+    })
+    observer.observe(actor, { attributes: true, attributeFilter: ['data-runtime-y'] })
+  }), { actorId, minimum })
+}
+
 function expectUniqueProgress(points: RuntimePoint[]) {
   expect(points.length).toBeGreaterThan(1)
   points.slice(1).forEach((point, index) => expect(pointDistance(point, points[index]!)).toBeGreaterThan(.001))
@@ -117,6 +143,35 @@ function expectUniqueProgress(points: RuntimePoint[]) {
 async function café(page: import('@playwright/test').Page, search: string) {
   await page.goto(`/?scene=commercial-cafe&debugRuntimeEvidence=1&${search}`)
   await expect(page.locator('[data-mainline-scene="commercial-cafe"]').first()).toHaveAttribute('data-debug-runtime-evidence', 'true')
+}
+
+async function clickCafeWorldPoint(page: import('@playwright/test').Page, point: RuntimePoint) {
+  const stage = page.locator('.mainline-scene-stage').first()
+  const bounds = await stage.boundingBox()
+  expect(bounds).not.toBeNull()
+  const camera = {
+    x: Number(await stage.getAttribute('data-camera-offset-x')),
+    y: Number(await stage.getAttribute('data-camera-offset-y')),
+  }
+  const position = {
+    x: Math.round(bounds!.width * ((point.x + camera.x) / 100)),
+    y: Math.round(bounds!.height * ((point.y + camera.y) / 100)),
+  }
+  await stage.click({ position })
+  return {
+    x: position.x / bounds!.width * 100 - camera.x,
+    y: position.y / bounds!.height * 100 - camera.y,
+  }
+}
+
+async function expectWorldMarkerAt(marker: import('@playwright/test').Locator, point: RuntimePoint) {
+  await expect(marker).toHaveCount(1)
+  const actual = await marker.evaluate((node) => ({
+    x: Number.parseFloat((node as HTMLElement).style.left),
+    y: Number.parseFloat((node as HTMLElement).style.top),
+  }))
+  expect(actual.x).toBeCloseTo(point.x, 3)
+  expect(actual.y).toBeCloseTo(point.y, 3)
 }
 
 test('isolated café fixture keeps stage in memory and proves presentation lifecycle', async ({ page }) => {
@@ -152,45 +207,64 @@ test('menu and blackboard remain visual wall features but resolve customer-side 
   }
 })
 
-test('a protagonist staff-area click routes to the right entrance and reports access denial', async ({ page }) => {
-  await café(page, 'debugCafeStage=entered&debugCafePlayerPosition=60,45')
-  const stage = page.locator('.mainline-scene-stage').first()
-  const bounds = await stage.boundingBox()
-  expect(bounds).not.toBeNull()
-  const camera = {
-    x: Number(await stage.getAttribute('data-camera-offset-x')),
-    y: Number(await stage.getAttribute('data-camera-offset-y')),
+test('APPROVED CONTRACT MIGRATION: staff-area clicks retain the raw marker while shared navigation resolves the public-side stop', async ({ page }) => {
+  await café(page, 'debugCafeStage=entered&debugCafePlayerPosition=55,24')
+  const scene = page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]').first()
+  const staffRegion = {
+    x: Number(await scene.getAttribute('data-e2e-access-region-x')),
+    y: Number(await scene.getAttribute('data-e2e-access-region-y')),
+    width: Number(await scene.getAttribute('data-e2e-access-region-width')),
+    height: Number(await scene.getAttribute('data-e2e-access-region-height')),
   }
-  expect(Number.isFinite(camera.x)).toBe(true)
-  expect(Number.isFinite(camera.y)).toBe(true)
-  await page.evaluate(() => {
-    const findEcho = () => [...document.querySelectorAll<HTMLElement>('.scene-mainline-echo')]
-      .find((element) => element.textContent?.includes('还是别进去打扰他们工作了'))
-    const observer = new MutationObserver(() => {
-      const echo = findEcho()
-      if (!echo) return
-      observer.disconnect()
-      document.documentElement.dataset.e2eDeniedEcho = `${echo.dataset.sceneInteractionText ?? ''}:${echo.textContent ?? ''}`
-    })
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
-  })
+  const requested = { x: staffRegion.x + staffRegion.width / 2, y: staffRegion.y + staffRegion.height / 2 }
+  const clicked = await clickCafeWorldPoint(page, requested)
+  await expect(page.locator('.scene-mainline-echo')).toContainText('还是别进去打扰他们工作了', { timeout: 30_000 })
+  const marker = page.locator('.scene-walk-target')
+  await expectWorldMarkerAt(marker, clicked)
+  const final = await runtimePosition(page.locator('[data-actor-id="protagonist"]'))
+  expect(pointDistance(final, requested)).toBeGreaterThan(.2)
+})
 
-  // This is a real customer click into the rear staff-only region, not an
-  // imperative movement call. The navigation layer resolves the scene's
-  // authored right-hand portal as the legal boundary contact.
-  // The world is camera-translated, so invert the documented camera offset
-  // before issuing the real browser click. y=15 is open staff space; y=20 is
-  // the counter body and correctly belongs to its own interaction button.
-  await stage.click({ position: {
-    x: bounds!.width * ((30 + camera.x) / 100),
-    y: bounds!.height * ((15 + camera.y) / 100),
-  } })
-  // The echo retracts after its normal presentation lifecycle. Capture the
-  // actual DOM insertion rather than looking for a stale element afterward.
-  await expect(page.locator('html')).toHaveAttribute('data-e2e-denied-echo', /scene:还是别进去打扰他们工作了/, { timeout: 30_000 })
-  const protagonist = await runtimePosition(page.locator('[data-actor-id="protagonist"]'))
-  expect(protagonist.x).toBeGreaterThan(49)
-  expect(protagonist.y).toBeLessThan(25)
+test('an inaccessible direct cafe back-door click does not bypass staff access or start its locked lifecycle', async ({ page }) => {
+  await café(page, 'debugCafeStage=entered&debugCafePlayerPosition=55,24')
+  const backDoor = page.locator('[data-focus-target-group="door:cafe-back-door"]').first()
+  await expect(backDoor).toHaveAttribute('data-focus-passage-phase', 'closed')
+
+  await backDoor.click()
+
+  await expect(backDoor).toHaveAttribute('data-focus-passage-phase', 'closed')
+  await expect(page.locator('.scene-feedback')).toContainText('这扇门当前无法从这里靠近。')
+  await expect(page.locator('.scene-mainline-echo')).toHaveCount(0)
+})
+
+test('a DEV-only server route reaches the cafe back-door approach before the shared locked lifecycle denies it', async ({ page }) => {
+  await café(page, 'debugCafeStage=entered&debugCafeServerBackDoor=1')
+  const scene = page.locator('[data-mainline-scene="commercial-cafe"]').first()
+  await expect(scene).toHaveAttribute('data-e2e-server-back-door', 'true')
+  const backDoor = page.locator('[data-focus-target-group="door:cafe-back-door"]').first()
+  const server = page.locator('[data-npc-id="server"]')
+  const before = await runtimePosition(server)
+
+  await expect(scene).toHaveAttribute('data-e2e-server-back-door-status', 'lifecycle-requested', { timeout: 30_000 })
+  expect(pointDistance(await runtimePosition(server), before)).toBeGreaterThan(.2)
+  await expect(backDoor).toHaveAttribute('data-focus-passage-phase', 'closed')
+  await expect(page.locator('.scene-mainline-echo')).toContainText('后门暂未开启')
+})
+
+test('a world route ending in front of the cafe exit does not open the door', async ({ page }) => {
+  const cafe = mainlineScenes['commercial-cafe']
+  const start = cafe.initialPlayerPosition
+  await café(page, `debugCafeStage=entered&debugCafePlayerPosition=${start.x},${start.y}`)
+  const exitDoor = page.locator('[data-focus-target-group="door:street-cafe-entry"]').first()
+  const exit = cafe.passages.find((passage) => passage.id === 'street-cafe-entry')!
+  const requested = exit.thresholds[mainlinePassageSide(exit, start)]
+
+  await expect(exitDoor).toHaveAttribute('data-focus-passage-phase', 'closed')
+  const clicked = await clickCafeWorldPoint(page, requested)
+  await expect(page.locator('.scene-feedback')).toContainText('修杰停在这里。', { timeout: 30_000 })
+  await expect(exitDoor).toHaveAttribute('data-focus-passage-phase', 'closed')
+  const marker = page.locator('.scene-walk-target')
+  await expectWorldMarkerAt(marker, clicked)
 })
 
 test('an isolated real save retains coffee order after browser reload without touching a user profile', async ({ page }) => {
@@ -479,21 +553,26 @@ test('a dynamically occupied nearest table contact falls back to another legal d
 
 test('ambient service crosses staff and public areas with semantic table work before returning to the counter', async ({ page }) => {
   await café(page, 'debugCafeStage=entered')
+  const scene = page.locator('[data-mainline-scene="commercial-cafe"]').first()
   const server = page.locator('[data-npc-id="server"]')
-  const counter = page.locator('[data-object-id="commercial-cafe-counter"]')
-  const counterY = Number(await counter.getAttribute('data-collision-y'))
-  const counterHeight = Number(await counter.getAttribute('data-collision-height'))
+  const counterY = Number(await scene.getAttribute('data-e2e-counter-structure-y'))
+  const counterHeight = Number(await scene.getAttribute('data-e2e-counter-structure-height'))
+  const counter = {
+    x: Number(await scene.getAttribute('data-e2e-counter-structure-x')),
+    width: Number(await scene.getAttribute('data-e2e-counter-structure-width')),
+  }
+  expect(Number.isFinite(counter.x) && Number.isFinite(counter.width)).toBe(true)
   const motion = collectActorPositions(page, 'server', 540)
 
   await expect(server).toHaveAttribute('data-npc-duty-id', 'server.table-service', { timeout: 30_000 })
   await expect(server).toHaveAttribute('data-npc-target-id', /-table/)
-  expect((await runtimePosition(server)).y).toBeGreaterThan(counterY + counterHeight)
+  await waitForActorYAfter(page, 'server', counterY + counterHeight)
   await expect(server).toHaveAttribute('data-npc-duty-id', 'server.counter-service', { timeout: 30_000 })
   await waitForActorYBefore(page, 'server', counterY)
 
   const points = await motion
   expectUniqueProgress(points)
-  expectRouteOutsideRegions(points, [...await furnitureNavigationRegions(page), { x: Number(await counter.getAttribute('data-collision-x')), y: counterY, width: Number(await counter.getAttribute('data-collision-width')), height: counterHeight }])
+  expectRouteOutsideRegions(points, [...await furnitureNavigationRegions(page), { x: counter.x, y: counterY, width: counter.width, height: counterHeight }])
 })
 
 test('a story delivery interrupts an active public table-service duty from its live position', async ({ page }) => {
@@ -534,7 +613,10 @@ test('objective seated and cafe presentation anchors agree with the rendered DOM
   const laoSeat = page.locator('[data-object-id="commercial-cafe-right-window-upper-group-chair-top"]')
   expect(await runtimePosition(protagonist, 'rendered')).toEqual(await runtimePosition(playerSeat, 'rendered'))
   expect(await runtimePosition(laoZhou, 'rendered')).toEqual(await runtimePosition(laoSeat, 'rendered'))
-  expect(pointDistance(await runtimePosition(laoZhou), await runtimePosition(laoZhou, 'rendered'))).toBeGreaterThan(.1)
+  // APPROVED CONTRACT MIGRATION: a stable seated NPC no longer keeps a
+  // collision-safe offset apart from its visual anchor. The visible label and
+  // NavigationRuntime obstacle use the same occupied-seat center.
+  expect(await runtimePosition(laoZhou)).toEqual(await runtimePosition(laoZhou, 'rendered'))
   await expect(page.locator('.scene-protagonist__dot')).toHaveCount(0)
   await expect(page.locator('[data-npc-id="lao-zhou"]')).toHaveCount(1)
   await expect(page.locator('[data-npc-id="server"]')).toHaveCount(1)
@@ -543,8 +625,12 @@ test('objective seated and cafe presentation anchors agree with the rendered DOM
   await expect(playerSeat.getByText('椅子', { exact: true })).toHaveCount(0)
   await expect(laoSeat.getByText('椅子', { exact: true })).toHaveCount(0)
   const server = page.locator('[data-npc-id="server"]')
-  const counter = page.locator('[data-object-id="commercial-cafe-counter"]')
-  const [stageBox, protagonistBox, seatBox, serverBox, counterBox] = await Promise.all([stage.boundingBox(), protagonist.boundingBox(), playerSeat.boundingBox(), server.boundingBox(), counter.boundingBox()])
+  const counterCell = page.locator('[data-object-id="commercial-cafe-counter"]')
+  const counter = runtimePoint({
+    x: await stage.getAttribute('data-e2e-counter-structure-x'),
+    y: await stage.getAttribute('data-e2e-counter-structure-y'),
+  })
+  const [stageBox, protagonistBox, seatBox, serverBox, counterBox] = await Promise.all([stage.boundingBox(), protagonist.boundingBox(), playerSeat.boundingBox(), server.boundingBox(), counterCell.boundingBox()])
   expect(stageBox).not.toBeNull()
   expect(protagonistBox).not.toBeNull()
   expect(seatBox).not.toBeNull()
@@ -554,17 +640,13 @@ test('objective seated and cafe presentation anchors agree with the rendered DOM
   expect(Math.abs((protagonistBox!.y + protagonistBox!.height / 2) - (seatBox!.y + seatBox!.height / 2))).toBeLessThan(.1)
   expect(boxesOverlap(serverBox!, counterBox!)).toBe(false)
   const serverPosition = await runtimePosition(server)
-  const counterCollision = runtimePoint({
-    x: await counter.getAttribute('data-collision-x'),
-    y: await counter.getAttribute('data-collision-y'),
-  })
-  const counterWidth = Number(await counter.getAttribute('data-collision-width'))
-  const counterHeight = Number(await counter.getAttribute('data-collision-height'))
+  const counterWidth = Number(await stage.getAttribute('data-e2e-counter-structure-width'))
+  const counterHeight = Number(await stage.getAttribute('data-e2e-counter-structure-height'))
   expect(Number.isFinite(counterWidth) && Number.isFinite(counterHeight)).toBe(true)
   expect(
-    serverPosition.x >= counterCollision.x
-      && serverPosition.x <= counterCollision.x + counterWidth
-      && serverPosition.y >= counterCollision.y
-      && serverPosition.y <= counterCollision.y + counterHeight,
+    serverPosition.x >= counter.x
+      && serverPosition.x <= counter.x + counterWidth
+      && serverPosition.y >= counter.y
+      && serverPosition.y <= counter.y + counterHeight,
   ).toBe(false)
 })
