@@ -120,6 +120,19 @@ describe('ordinary world navigation and passage intent', () => {
     expect(lockedPlan).toMatchObject({ kind: 'passage', passage: { id: locked.id }, requestedTarget: lockedTarget })
   })
 
+  it('limits storefront passage intent to the clicked storefront slot, not its entire parent wall', () => {
+    const perimeter = mainlineScenes['yonghe-mining-perimeter']
+    const entrance = perimeter.passages.find((passage) => passage.id === 'yonghe-street-entry')!
+    const storefront = perimeter.storefronts.find((candidate) => candidate.portalId === entrance.portalId)!
+    const sourceThreshold = entrance.thresholds[0]
+    const slotSpan = storefront.end - storefront.start
+    const outsideSlot = { x: sourceThreshold.x, y: storefront.end + slotSpan }
+    const insideSlot = { x: sourceThreshold.x, y: (storefront.start + storefront.end) / 2 }
+
+    expect(classifyMainlineWorldCommand(perimeter, perimeter.initialPlayerPosition, outsideSlot)).toMatchObject({ kind: 'ordinary' })
+    expect(classifyMainlineWorldCommand(perimeter, perimeter.initialPlayerPosition, insideSlot)).toMatchObject({ kind: 'passage', passage: { id: entrance.id } })
+  })
+
   it('keeps a same-scene room queue intact before ordinary continuation', () => {
     const authoredOffice = mainlineScenes['zhongshuyuan-office']
     const office = {

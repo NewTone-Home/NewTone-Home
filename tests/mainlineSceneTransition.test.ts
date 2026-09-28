@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isLocalSlidePrototypeIntent, localSlideDirectionForCrossing } from '../src/center/runtime/mainlineSceneTransition'
+import { isLocalSlidePrototypeIntent, localSlideDirectionForCrossing, shouldUseLocalSlideForPassage } from '../src/center/runtime/mainlineSceneTransition'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 
 describe('walking-passage local-slide prototype metadata', () => {
@@ -31,4 +31,15 @@ describe('walking-passage local-slide prototype metadata', () => {
     })).toBe(true)
     expect(isLocalSlidePrototypeIntent(undefined)).toBe(false)
   })
+
+  it('uses one shared presentation contract for every real cross-scene walking passage', () => {
+    const passages = Object.values(mainlineScenes).flatMap((scene) => scene.passages)
+    const crossScenePassages = passages.filter((passage) => passage.targetSceneId)
+    const localOnlyPassages = passages.filter((passage) => !passage.targetSceneId)
+
+    expect(crossScenePassages.length).toBeGreaterThan(0)
+    expect(crossScenePassages.every(shouldUseLocalSlideForPassage)).toBe(true)
+    expect(localOnlyPassages.every((passage) => !shouldUseLocalSlideForPassage(passage))).toBe(true)
+  })
+
 })

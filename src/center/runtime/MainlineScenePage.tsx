@@ -27,7 +27,7 @@ import { incenseBurnPhase, incenseBurnRemainingMs, resolveMainlineSceneEchoChoic
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 import { commercialCafeServerMovementDebugTarget } from './mainlineSceneModel'
 import { mainlineExploredObjectIdsFromSceneState, mainlineInteractionCompletesImmediately, mainlineInteractionExploredStateKey } from './mainlineInteractionVisualState'
-import { localSlideDirectionForCrossing, type MainlineWalkingPassageTransitionIntent } from './mainlineSceneTransition'
+import { localSlideDirectionForCrossing, shouldUseLocalSlideForPassage, type MainlineWalkingPassageTransitionIntent } from './mainlineSceneTransition'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
@@ -780,7 +780,7 @@ export function MainlineScenePage({
     ] as const)
     .filter((entry): entry is readonly [string, 'closed' | 'opening' | 'open' | 'crossing' | 'holding' | 'closing'] => Boolean(entry[0]))), [passageLifecycleDefinitions, passageStates, scene.passages])
   const armPassageFrameExit = useCallback((passage: MainlineScenePassage) => {
-    if (passage.transitionPresentation === 'local-slide') return
+    if (shouldUseLocalSlideForPassage(passage)) return
     const scope = passage.frameBehavior === 'scene-retract' || passage.targetSceneId ? 'scene' : 'passage'
     setSceneFrameExit((current) => current.phase === 'retracting' && current.passageEntityId === passage.entityId && current.scope === scope
       ? current
@@ -877,7 +877,7 @@ export function MainlineScenePage({
     if (pending.passage.targetSceneId) {
       const collision = mainlinePassageCollisionForNavigation(scene, pending.passage, openNavigationOptions)
       const doorway = mainlinePassageDoorwayForNavigation(scene, pending.passage, openNavigationOptions)
-      const exitPoint = mainlinePassageExitPoint(pending.passage, traversalStart, undefined, collision, doorway)
+      const exitPoint = mainlinePassageExitPoint(pending.passage, traversalStart, protagonistFootprint, collision, doorway)
       const approachStart = pending.approachPath[0] ?? traversalStart
       const sourceSide = mainlinePassageSide(pending.passage, approachStart, collision, doorway)
       const targetSide: 0 | 1 = sourceSide === 1 ? 0 : 1
@@ -916,7 +916,7 @@ export function MainlineScenePage({
           return
         }
         setFeedback(completesCommercialCafeStory ? commercialCafeDepartureText : pending.passage.transitionText)
-        const transitionIntent = pending.passage.transitionPresentation === 'local-slide'
+        const transitionIntent = shouldUseLocalSlideForPassage(pending.passage)
           ? {
               kind: 'walking-passage' as const,
               presentation: 'local-slide' as const,
@@ -943,7 +943,7 @@ export function MainlineScenePage({
           transitionScene(point, previousPoint)
         },
         canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, { ...navigationOptions, openPassageIds: getOpenPassageIds() })
-          || isMainlinePassageInTransitZone(pending.passage, point, undefined, doorway),
+          || isMainlinePassageInTransitZone(pending.passage, point, protagonistFootprint, doorway),
         canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
           onBlocked: () => {
             if (sceneTransitioned) {
@@ -1008,11 +1008,11 @@ export function MainlineScenePage({
     }
     const collision = mainlinePassageCollisionForNavigation(scene, pending.passage, openNavigationOptions)
     const doorway = mainlinePassageDoorwayForNavigation(scene, pending.passage, openNavigationOptions)
-    const exitPoint = mainlinePassageExitPoint(pending.passage, traversalStart, undefined, collision, doorway)
+    const exitPoint = mainlinePassageExitPoint(pending.passage, traversalStart, protagonistFootprint, collision, doorway)
     moveAlong([traversalStart, exitPoint], completeSameSceneLeg, {
       ...locomotionOptions,
       canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, openNavigationOptions)
-        || isMainlinePassageInTransitZone(pending.passage, point, undefined, doorway),
+        || isMainlinePassageInTransitZone(pending.passage, point, protagonistFootprint, doorway),
       canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
       onBlocked: () => {
         pendingTraversalRef.current = null
@@ -1021,7 +1021,7 @@ export function MainlineScenePage({
         setFeedback('门已经打开，但通路被挡住了。')
       },
     })
-  }, [beginPassageLeg, commercialCafeStoryStage, getCurrentPosition, getOpenPassageIds, layout, locomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, recordSceneState, scene, setFeedback])
+  }, [beginPassageLeg, commercialCafeStoryStage, getCurrentPosition, getOpenPassageIds, layout, locomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, protagonistFootprint, recordSceneState, scene, setFeedback])
 
   continuePendingTraversalRef.current = continuePendingTraversal
 

@@ -758,10 +758,14 @@ function targetIsInsideStorefrontFrame(scene: MainlineSceneDefinition, passage: 
   const structure = scene.structures.find((candidate) => candidate.id === storefront.wallId)
   const bounds = structure?.bounds
   if (!bounds) return false
-  if (storefront.edge === 'left') return target.x <= bounds.x && target.y >= bounds.y && target.y <= bounds.y + bounds.height
-  if (storefront.edge === 'right') return target.x >= bounds.x + bounds.width && target.y >= bounds.y && target.y <= bounds.y + bounds.height
-  if (storefront.edge === 'top') return target.y <= bounds.y && target.x >= bounds.x && target.x <= bounds.x + bounds.width
-  return target.y >= bounds.y + bounds.height && target.x >= bounds.x && target.x <= bounds.x + bounds.width
+  const withinStorefrontSpan = storefront.edge === 'left' || storefront.edge === 'right'
+    ? target.y >= storefront.start && target.y <= storefront.end
+    : target.x >= storefront.start && target.x <= storefront.end
+  if (!withinStorefrontSpan) return false
+  if (storefront.edge === 'left') return target.x <= bounds.x
+  if (storefront.edge === 'right') return target.x >= bounds.x + bounds.width
+  if (storefront.edge === 'top') return target.y <= bounds.y
+  return target.y >= bounds.y + bounds.height
 }
 
 function routePassageCrossingDistance(scene: MainlineSceneDefinition, path: Point[] | null, passage: MainlineScenePassage, target: Point, options: MainlineNavigationOptions) {

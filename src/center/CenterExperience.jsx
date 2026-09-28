@@ -193,9 +193,14 @@ export default function CenterExperience({
     setRoute(nextRoute)
   }, [commitPlayerSave, reducedMotion, resumePosition, route])
 
-  const handleLocalSlideAnimationEnd = useCallback((event) => {
-    if (!event.target.classList.contains('center-local-slide__surface--target')) return
-    if (event.animationName !== 'center-local-slide-target-left' && event.animationName !== 'center-local-slide-target-right') return
+  const handleLocalSlideTargetAnimationEnd = useCallback((event) => {
+    if (event.target !== event.currentTarget) return
+    if (
+      event.animationName !== 'center-local-slide-target-left'
+      && event.animationName !== 'center-local-slide-target-right'
+      && event.animationName !== 'center-local-slide-target-up'
+      && event.animationName !== 'center-local-slide-target-down'
+    ) return
     setLocalSlide(null)
   }, [])
 
@@ -315,7 +320,6 @@ export default function CenterExperience({
       <div className={`center-experience__scene-layer ${localSlide ? 'is-local-sliding' : ''}`} onAnimationEnd={handleSceneAnimationEnd}>
         <div
           className={`center-local-slide ${localSlide && localSlideActor ? `center-local-slide--${localSlide.transitionIntent.slideDirection}` : ''}`}
-          onAnimationEnd={localSlide ? handleLocalSlideAnimationEnd : undefined}
           style={localSlide && localSlideActor
             ? { '--local-slide-duration': `${localSlidePrototypeDurationMs}ms`, '--local-slide-actor-from-x': `${localSlideActor.from.x}%`, '--local-slide-actor-from-y': `${localSlideActor.from.y}%`, '--local-slide-actor-to-x': `${localSlideActor.to.x}%`, '--local-slide-actor-to-y': `${localSlideActor.to.y}%` }
             : undefined}
@@ -328,7 +332,10 @@ export default function CenterExperience({
             })}
           </div>
           {localSlide && localSlideActor && <>
-            <div className="center-local-slide__surface center-local-slide__surface--target">
+            <div
+              className="center-local-slide__surface center-local-slide__surface--target"
+              onAnimationEnd={handleLocalSlideTargetAnimationEnd}
+            >
               {renderScenePage(localSlide.targetRoute, { key: `local-slide-target:${localSlide.targetRoute.sceneId}:${localSlide.targetRoute.entryPosition?.x ?? ''}:${localSlide.targetRoute.entryPosition?.y ?? ''}`, showProtagonist: false, snapshot: true, resumePosition: undefined })}
             </div>
             <div className="scene-protagonist center-local-slide__actor" aria-hidden="true"><span className="scene-protagonist__dot" /></div>

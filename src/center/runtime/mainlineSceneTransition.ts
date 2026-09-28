@@ -1,4 +1,4 @@
-import type { MainlineSceneId } from './mainlineSceneModel'
+import type { MainlineSceneId, MainlineScenePassage } from './mainlineSceneModel'
 import type { Point } from './sceneGeometry'
 
 /**
@@ -17,6 +17,12 @@ export type MainlineWalkingPassageTransitionIntent = {
 }
 
 export const localSlidePrototypeDurationMs = 280
+
+/** A completed cross-scene doorway crossing is a walking transition; same-scene,
+ * locked, and external passages never reach this owner. */
+export function shouldUseLocalSlideForPassage(passage: Pick<MainlineScenePassage, 'targetSceneId'>): boolean {
+  return Boolean(passage.targetSceneId)
+}
 
 /** The world moves opposite to the actor's final doorway crossing direction. */
 export function localSlideDirectionForCrossing(from: Point, to: Point): MainlineWalkingPassageTransitionIntent['slideDirection'] {
