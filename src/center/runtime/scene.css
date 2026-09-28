@@ -1115,6 +1115,7 @@
   min-height: 100dvh;
 }
 .scene-mainline-world { position: absolute; inset: 0; will-change: transform; animation: mainline-world-enter 180ms ease both; }
+.scene-mainline-world.is-local-slide-handoff { animation: none; }
 @keyframes mainline-world-enter {
   from { opacity: 0; }
   to { opacity: 1; }

@@ -263,6 +263,7 @@ export function MainlineScenePage({
   showSceneChrome = true,
   showProtagonist = true,
   presentationSnapshot = false,
+  suppressWorldEnterAnimation = false,
   movementController,
   onPositionChange,
   onSceneReady,
@@ -291,6 +292,7 @@ export function MainlineScenePage({
   showSceneChrome?: boolean
   showProtagonist?: boolean
   presentationSnapshot?: boolean
+  suppressWorldEnterAnimation?: boolean
   movementController?: FreeRoamMovement
   onPositionChange?: (position: Point) => void
   onSceneReady?: () => void
@@ -1603,6 +1605,7 @@ export function MainlineScenePage({
               onScreenMetricsChange={handleScreenMetricsChange}
               cameraOffset={cameraOffset}
               showProtagonist={showProtagonist}
+              suppressWorldEnterAnimation={suppressWorldEnterAnimation}
               onLayoutChange={updateLayout}
               onInteract={interact}
               onNpcInteract={interactNpc}

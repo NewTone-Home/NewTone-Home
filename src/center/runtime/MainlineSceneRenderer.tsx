@@ -36,6 +36,7 @@ type MainlineSceneRendererProps = {
   onScreenMetricsChange?: (metrics: SceneScreenMetrics) => void
   cameraOffset: Point
   showProtagonist?: boolean
+  suppressWorldEnterAnimation?: boolean
   onLayoutChange: (itemId: LayoutItemId, point: Point) => void
   onInteract: (id: string) => void
   onNpcInteract?: (npcId: string) => void
@@ -413,6 +414,7 @@ export function MainlineSceneRenderer({
   cameraOffset,
   gateTriggered = false,
   showProtagonist = true,
+  suppressWorldEnterAnimation = false,
   geometrySnapshot,
   freezeFrameMeasurements = false,
   onLayoutChange,
@@ -760,7 +762,7 @@ export function MainlineSceneRenderer({
       <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined}>
         {layoutMode && <div className="scene-layout-grid" aria-hidden="true" />}
 
-        <div className="scene-mainline-world" style={{ transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%)` }}>
+        <div className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''}`} style={{ transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%)` }}>
           <>
           <div className="scene-spatial-labels scene-spatial-labels--wall scene-mainline-wall-labels">
             {geometryCells.map(({ unit, cell }) => {

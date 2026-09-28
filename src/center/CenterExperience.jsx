@@ -62,6 +62,7 @@ export default function CenterExperience({
   const [phoneDevice, setPhoneDevice] = useState(() => loadPlayerSave().phoneDevice)
   const [resumeSceneId, setResumeSceneId] = useState(null)
   const [resumePosition, setResumePosition] = useState(undefined)
+  const [localSlideHandoffRoute, setLocalSlideHandoffRoute] = useState(null)
   const [boundaryNotice, setBoundaryNotice] = useState('')
   const [feedbackMode, setFeedbackMode] = useState(null)
   const [localSlide, setLocalSlide] = useState(null)
@@ -159,13 +160,15 @@ export default function CenterExperience({
 
   const handleSceneTransition = useCallback((nextSceneId, nextEntryPosition, nextSpawnMode, transitionIntent) => {
     const nextRoute = createRoute(nextSceneId, nextEntryPosition, nextSpawnMode || 'resume')
-    if (isLocalSlidePrototypeIntent(transitionIntent) && !reducedMotion) {
+    const startsLocalSlide = isLocalSlidePrototypeIntent(transitionIntent) && !reducedMotion
+    if (startsLocalSlide) {
       setLocalSlide({
         sourceRoute: route,
         sourceResumePosition: resumePosition,
         targetRoute: nextRoute,
         transitionIntent,
       })
+    setLocalSlideHandoffRoute(startsLocalSlide ? nextRoute : null)
     }
     const currentScene = sceneEnteredAtRef.current
     trackEvent('center_scene_exited', {
@@ -294,6 +297,7 @@ export default function CenterExperience({
       spawnMode={sceneRoute.spawnMode}
       resumePosition={sceneResumePosition}
       showProtagonist={showProtagonist}
+      suppressWorldEnterAnimation={!snapshot && localSlideHandoffRoute === sceneRoute}
       presentationSnapshot={snapshot}
       showSceneChrome={false}
     />
