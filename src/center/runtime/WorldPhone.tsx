@@ -65,6 +65,7 @@ type WorldPhoneProps = {
   open: boolean
   onOpen: () => void
   onClose: () => void
+  onCloseComplete?: () => void
   onRideRequest?: (device: PhoneDevice, destinationSceneId: MainlineSceneId) => void
   feedbackMode?: FeedbackMode | null
   onFeedbackModeChange?: (mode: FeedbackMode | null) => void
@@ -207,7 +208,7 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onRideRequest, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit }: WorldPhoneProps) {
+export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit }: WorldPhoneProps) {
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
   const [phase, setPhase] = useState<WorldPhonePhase>('closed')
@@ -250,6 +251,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
   const memo = memoForDevice(displayDevice)
   const selectedContact = innerContacts.find((contact) => contact.id === selectedContactId) ?? innerContacts[0]
 
+
   const openApp = (app: PhoneApp) => {
     setActiveApp(app)
     if (app !== 'contacts') setContactView('list')
@@ -270,6 +272,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
     if (renderedPhase === 'closing') {
       if (swapPending) setDisplayDevice(device)
       setPhase(open ? 'opening' : 'closed')
+      if (!open) onCloseComplete?.()
       return
     }
     if (renderedPhase === 'opening') setPhase('open')

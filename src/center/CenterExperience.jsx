@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MainlineScenePage } from './runtime/MainlineScenePage'
+import { LongDistanceTravel } from './runtime/LongDistanceTravel'
 import { WorldPhone } from './runtime/WorldPhone'
 import {
   mainlineRespawnSceneId,
@@ -9,6 +10,7 @@ import {
 } from './runtime/mainlineScenes'
 import { mainlineCameraOffset } from './runtime/mainlineViewport'
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
+import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
 import {
   phoneRideAvailability,
   worldLayerForScene,
@@ -37,7 +39,6 @@ import {
 } from '../services/centerFeedback'
 
 const initialSceneId = mainlineRespawnSceneId
-
 function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
   return { sceneId, entryPosition, spawnMode }
 }
@@ -66,7 +67,9 @@ export default function CenterExperience({
   const [boundaryNotice, setBoundaryNotice] = useState('')
   const [feedbackMode, setFeedbackMode] = useState(null)
   const [localSlide, setLocalSlide] = useState(null)
+  const [longDistanceTravel, setLongDistanceTravel] = useState(null)
   const sceneEnteredAtRef = useRef(null)
+
 
   const commitPlayerSave = useCallback((update) => {
     setPlayerSave((current) => persistPlayerSave(update(current)))
@@ -168,8 +171,8 @@ export default function CenterExperience({
         targetRoute: nextRoute,
         transitionIntent,
       })
-    setLocalSlideHandoffRoute(startsLocalSlide ? nextRoute : null)
     }
+    setLocalSlideHandoffRoute(startsLocalSlide ? nextRoute : null)
     const currentScene = sceneEnteredAtRef.current
     trackEvent('center_scene_exited', {
       sceneId: route.sceneId,
@@ -181,8 +184,10 @@ export default function CenterExperience({
     commitPlayerSave((current) => {
       const next = {
         ...current,
-      currentSceneId: nextSceneId,
-      currentPosition: nextEntryPosition ?? current.scenePositions[nextSceneId] ?? null,
+        currentSceneId: nextSceneId,
+        currentPosition: nextEntryPosition
+          ?? (nextRoute.spawnMode === 'ride' ? mainlineScenes[nextSceneId].rideArrivalPosition : current.scenePositions[nextSceneId])
+          ?? null,
       }
       return isTutorialCompletionTransition(route.sceneId, nextSceneId, nextRoute.spawnMode)
         ? recordPlayerSceneState(next, 'commercial-street', interactionTutorialCompletedStateKey, true)
@@ -207,8 +212,51 @@ export default function CenterExperience({
     setLocalSlide(null)
   }, [])
 
+  const handlePhoneCloseComplete = useCallback(() => {
+    setLongDistanceTravel((current) => (
+      current?.phase === 'phone-retracting'
+        ? { ...current, phase: 'scene-fading' }
+        : current
+    ))
+  }, [])
+
+  const handleLongDistanceSourceAnimationEnd = useCallback((event) => {
+    if (event.target !== event.currentTarget || event.animationName !== 'center-long-distance-source-out') return
+    if (longDistanceTravel?.phase !== 'scene-fading') return
+    handleSceneTransition(longDistanceTravel.intent.targetSceneId, undefined, 'ride')
+    setLongDistanceTravel((current) => (
+      current?.phase === 'scene-fading'
+        ? { ...current, phase: 'travelling', targetReady: false }
+        : current
+    ))
+  }, [handleSceneTransition, longDistanceTravel])
+
+  const handleLongDistanceTravelComplete = useCallback(() => {
+    setLongDistanceTravel((current) => {
+      if (!current || current.phase !== 'travelling') return current
+      return current.targetReady
+        ? { ...current, phase: 'scene-entering' }
+        : { ...current, phase: 'awaiting-target' }
+    })
+  }, [])
+
+  const handleSceneReady = useCallback(() => {
+    onSceneReady?.()
+    setLongDistanceTravel((current) => {
+      if (!current || current.phase === 'phone-retracting' || current.phase === 'scene-fading') return current
+      if (current.phase === 'awaiting-target') return { ...current, phase: 'scene-entering', targetReady: true }
+      if (current.phase === 'travelling') return { ...current, targetReady: true }
+      return current
+    })
+  }, [onSceneReady])
+
+  const handleLongDistanceTargetAnimationEnd = useCallback((event) => {
+    if (event.target !== event.currentTarget || event.animationName !== 'center-long-distance-target-in') return
+    setLongDistanceTravel((current) => current?.phase === 'scene-entering' ? null : current)
+  }, [])
+
   const handleSafeSpawnCorrection = useCallback((position) => {
-    if (!route.entryPosition) return
+    if (!route.entryPosition && route.spawnMode !== 'ride') return
     commitPlayerSave((current) => recordPlayerScenePosition(current, route.sceneId, position))
     const nextRoute = createRoute(route.sceneId, position, route.spawnMode)
     window.history.replaceState(
@@ -247,12 +295,20 @@ export default function CenterExperience({
   const handleRideRequest = useCallback((device, destinationSceneId) => {
     const layer = worldLayerForScene(route.sceneId)
     if (phoneRideAvailability(device, layer) !== 'available') return
+    const travelIntent = mainlineLongDistanceTravelIntentForRide(route.sceneId, destinationSceneId)
     trackEvent('center_ride_ready', {
       sceneId: route.sceneId,
       destinationSceneId,
       device,
       outcome: 'ready',
     })
+    if (travelIntent) {
+      setFeedbackMode(null)
+      setBoundaryNotice('')
+      setLongDistanceTravel({ phase: 'phone-retracting', intent: travelIntent, targetReady: false })
+      setPhoneOpen(false)
+      return
+    }
     const completionPromptShown = device === 'inner' && layer === 'inner'
       ? handlePlayableCompletion()
       : false
@@ -280,7 +336,7 @@ export default function CenterExperience({
       sceneId={sceneRoute.sceneId}
       onExternalExit={snapshot ? undefined : revealPhone}
       onExternalReturn={snapshot ? undefined : retractPhone}
-      onSceneReady={snapshot ? undefined : onSceneReady}
+      onSceneReady={snapshot ? undefined : handleSceneReady}
       phoneOpen={phoneOpen}
       onPhoneDismiss={snapshot ? undefined : retractPhone}
       onDeskInteraction={snapshot ? undefined : switchCarriedPhone}
@@ -297,8 +353,8 @@ export default function CenterExperience({
       spawnMode={sceneRoute.spawnMode}
       resumePosition={sceneResumePosition}
       showProtagonist={showProtagonist}
-      suppressWorldEnterAnimation={!snapshot && localSlideHandoffRoute === sceneRoute}
       presentationSnapshot={snapshot}
+      suppressWorldEnterAnimation={!snapshot && localSlideHandoffRoute === sceneRoute}
       showSceneChrome={false}
     />
   )
@@ -315,13 +371,21 @@ export default function CenterExperience({
       className={`center-experience center-experience--${entryPhase}`}
       data-center-boundary="inner-phone-ride-ready"
       data-entry-phase={entryPhase}
-      aria-busy={entryPhase !== 'active'}
+      data-long-distance-phase={longDistanceTravel?.phase}
+      aria-busy={entryPhase !== 'active' || Boolean(longDistanceTravel)}
     >
       <div
         className="center-experience__background"
         aria-hidden="true"
       />
-      <div className={`center-experience__scene-layer ${localSlide ? 'is-local-sliding' : ''}`} onAnimationEnd={handleSceneAnimationEnd}>
+      <div
+        className={`center-experience__scene-layer ${localSlide ? 'is-local-sliding' : ''} ${longDistanceTravel ? `is-long-distance-${longDistanceTravel.phase}` : ''}`}
+        onAnimationEnd={(event) => {
+          handleSceneAnimationEnd(event)
+          handleLongDistanceSourceAnimationEnd(event)
+          handleLongDistanceTargetAnimationEnd(event)
+        }}
+      >
         <div
           className={`center-local-slide ${localSlide && localSlideActor ? `center-local-slide--${localSlide.transitionIntent.slideDirection}` : ''}`}
           style={localSlide && localSlideActor
@@ -352,6 +416,7 @@ export default function CenterExperience({
           open={phoneOpen}
           onOpen={revealPhone}
           onClose={retractPhone}
+          onCloseComplete={handlePhoneCloseComplete}
           onRideRequest={handleRideRequest}
           feedbackMode={feedbackMode}
           onFeedbackModeChange={handleFeedbackModeChange}
@@ -364,6 +429,12 @@ export default function CenterExperience({
           </div>
         )}
       </div>
+      {longDistanceTravel && (longDistanceTravel.phase === 'travelling' || longDistanceTravel.phase === 'awaiting-target' || longDistanceTravel.phase === 'scene-entering') && (
+        <LongDistanceTravel
+          leaving={longDistanceTravel.phase === 'scene-entering'}
+          onTravelComplete={handleLongDistanceTravelComplete}
+        />
+      )}
     </main>
   )
 }
