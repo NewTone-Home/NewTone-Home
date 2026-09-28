@@ -12,8 +12,25 @@ type LongDistanceTravelProps = {
   onTravelComplete: () => void
 }
 
+export function completeLongDistanceTravelOnVehicleAnimationEnd(
+  event: AnimationEvent<HTMLSpanElement>,
+  onTravelComplete: () => void,
+): boolean {
+  if (event.target !== event.currentTarget || event.animationName !== 'center-long-distance-vehicle-drive') return false
+  onTravelComplete()
+  return true
+}
+
 /** A visual-only curtain. It never owns routing, scene runtime, or input. */
 export function LongDistanceTravel({ leaving = false, onTravelComplete }: LongDistanceTravelProps) {
+  const handleVehicleAnimationEnd = (event: AnimationEvent<HTMLSpanElement>) => {
+    completeLongDistanceTravelOnVehicleAnimationEnd(event, onTravelComplete)
+  }
+  const travelStyle = {
+    '--long-distance-travel-duration': `${longDistanceTravelVehicleDurationMs}ms`,
+    '--long-distance-status-pulse-duration': `${longDistanceTravelStatusPulseDurationMs}ms`,
+  } as CSSProperties
+  const statusBeats = longDistanceTravelStatusBeats()
 
   return (
     <section
