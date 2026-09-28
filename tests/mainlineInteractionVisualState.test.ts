@@ -32,6 +32,11 @@ describe('mainline interaction visual state', () => {
     expect(resolveMainlineInteractionVisualState({ active: false, explored: false, tutorialCompleted: false, tutorialEligible: false })).toBe('normal-unexplored')
   })
 
+  it('keeps active above dynamic and dynamic above explored', () => {
+    expect(resolveMainlineInteractionVisualState({ active: true, dynamic: true, explored: true, tutorialCompleted: false, tutorialEligible: true })).toBe('active')
+    expect(resolveMainlineInteractionVisualState({ active: false, dynamic: true, explored: true, tutorialCompleted: false, tutorialEligible: true })).toBe('dynamic')
+  })
+
   it('finishes feedback-only interactions while keeping echo and dialogue interactions active', () => {
     expect(mainlineInteractionCompletesImmediately({ hasExplorationContent: false, startsDialogue: false })).toBe(true)
     expect(mainlineInteractionCompletesImmediately({ hasExplorationContent: true, startsDialogue: false })).toBe(false)

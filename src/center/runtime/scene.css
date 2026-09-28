@@ -715,8 +715,8 @@
 }
 .scene-mainline-focus-group.is-baseline { opacity: .88; }
 .scene-mainline-focus-group.is-near { opacity: 1; }
-.scene-mainline-focus-group.scene-mainline-wall-feature--interaction.is-baseline,
-.scene-mainline-focus-group.scene-mainline-wall-feature--interaction.is-near { opacity: 1; }
+.scene-mainline-focus-group.scene-mainline-wall-feature--interaction.is-baseline.scene-mainline-interaction--normal-unexplored,
+.scene-mainline-focus-group.scene-mainline-wall-feature--interaction.is-near.scene-mainline-interaction--normal-unexplored { opacity: 1; }
 .scene-mainline-focus-group.is-hidden {
   opacity: 0;
   visibility: hidden;
@@ -1299,12 +1299,6 @@
   0%, 100% { color: var(--interaction-tutorial-low); opacity: .86; }
   50% { color: var(--interaction-tutorial-high); opacity: .98; }
 }
-.scene-mainline-object.scene-mainline-exploration--breathing.is-baseline {
-  opacity: .94;
-}
-.scene-mainline-object.scene-mainline-exploration--breathing.is-near {
-  opacity: .94;
-}
 .scene-mainline-altar-table.scene-mainline-exploration--breathing > span {
   /* The altar clock is written once by the renderer and read by every
      member. No table owns an independent CSS animation anymore. */
@@ -1320,17 +1314,6 @@
 .scene-mainline-altar-table.scene-mainline-interaction--active > span,
 .scene-mainline-incense--lit.scene-mainline-interaction--active > span {
   color: var(--active) !important;
-  opacity: 1 !important;
-}
-.scene-mainline-incense--unlit {
-  color: var(--muted);
-  opacity: .3 !important;
-}
-.scene-mainline-incense--unlit > span {
-  animation: none;
-}
-.scene-mainline-incense--unlit.is-active {
-  color: var(--active);
   opacity: 1 !important;
 }
 .scene-mainline-incense--burning {
@@ -1383,13 +1366,23 @@
   color: var(--interaction-explored);
   opacity: .82;
 }
+.scene-mainline-object.scene-mainline-interaction--tutorial-unexplored {
+  opacity: 1;
+}
 .scene-mainline-object.scene-mainline-interaction--active,
 .scene-mainline-focus-group.scene-mainline-interaction--active {
   color: var(--interaction-active);
   opacity: 1;
 }
-.scene-mainline-object.scene-mainline-incense--burning.scene-mainline-interaction--explored {
+.scene-mainline-object.scene-mainline-interaction--dynamic,
+.scene-mainline-focus-group.scene-mainline-interaction--dynamic {
   color: var(--interaction-dynamic);
+  opacity: 1;
+}
+.scene-mainline-incense--burning.scene-mainline-interaction--dynamic > span {
+  animation: none;
+  color: color-mix(in srgb, var(--interaction-dynamic) calc(60% + var(--scene-breathing-progress, .5) * 40%), var(--interaction-normal));
+  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
 }
 .scene-mainline-object.scene-mainline-interaction--normal-unexplored > span,
 .scene-mainline-object.scene-mainline-interaction--explored > span,
@@ -1398,11 +1391,7 @@
 }
 .scene-mainline-object.scene-mainline-incense--unlit.scene-mainline-interaction--normal-unexplored {
   color: var(--muted);
-  opacity: .3 !important;
-}
-.scene-mainline-object.scene-mainline-exploration--breathing.is-baseline,
-.scene-mainline-object.scene-mainline-exploration--breathing.is-near {
-  opacity: .94;
+  opacity: .3;
 }
 .scene-mainline-object.is-mid {
   opacity: .34;
@@ -1413,21 +1402,16 @@
   visibility: hidden;
   pointer-events: none;
 }
-.scene-mainline-object.scene-mainline-yard-tree-ring.is-static,
-.scene-mainline-object.scene-mainline-yard-tree-ring.is-baseline {
+.scene-mainline-object.scene-mainline-yard-tree-ring.is-static.scene-mainline-interaction--normal-unexplored,
+.scene-mainline-object.scene-mainline-yard-tree-ring.is-baseline.scene-mainline-interaction--normal-unexplored {
   opacity: .7;
 }
 .scene-mainline-object.scene-mainline-yard-tree-ring.is-under-player {
   opacity: .28;
 }
-.scene-mainline-object.scene-mainline-yard-tree-ring.is-near {
+.scene-mainline-object.scene-mainline-yard-tree-ring.is-near.scene-mainline-interaction--normal-unexplored {
   color: var(--soft);
   opacity: .7;
-}
-.scene-mainline-object.scene-mainline-yard-tree-ring.scene-mainline-exploration--breathing.is-baseline,
-.scene-mainline-object.scene-mainline-yard-tree-ring.scene-mainline-exploration--breathing.is-near {
-  color: var(--soft);
-  opacity: .94;
 }
 .scene-mainline-object.scene-mainline-yard-tree-ring.scene-mainline-exploration--breathing.is-near.is-under-player {
   opacity: .28;
@@ -1845,4 +1829,12 @@
 @media (prefers-reduced-motion: reduce) {
   .scene-shell *, .scene-shell *::before, .scene-shell *::after,
   .world-phone *, .world-phone *::before, .world-phone *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  .scene-mainline-altar-table.scene-mainline-exploration--breathing > span {
+    color: var(--interaction-tutorial-high);
+    opacity: .92;
+  }
+  .scene-mainline-incense--burning.scene-mainline-interaction--dynamic > span {
+    color: var(--interaction-dynamic);
+    opacity: 1;
+  }
 }

@@ -129,6 +129,7 @@ function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity
     ? null
     : resolveMainlineInteractionVisualState({
       active,
+      dynamic: isIncense && incenseLit,
       explored,
       tutorialCompleted,
       tutorialEligible,

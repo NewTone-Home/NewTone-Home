@@ -11,6 +11,7 @@ const interactionExploredStatePrefix = 'interactionExplored:'
 
 export type MainlineInteractionVisualState =
   | 'active'
+  | 'dynamic'
   | 'explored'
   | 'tutorial-unexplored'
   | 'normal-unexplored'
@@ -58,16 +59,19 @@ export function mainlineInteractionCompletesImmediately({
 
 export function resolveMainlineInteractionVisualState({
   active,
+  dynamic = false,
   explored,
   tutorialCompleted,
   tutorialEligible,
 }: {
   active: boolean
+  dynamic?: boolean
   explored: boolean
   tutorialCompleted: boolean
   tutorialEligible: boolean
 }): MainlineInteractionVisualState {
   if (active) return 'active'
+  if (dynamic) return 'dynamic'
   if (explored) return 'explored'
   if (!tutorialCompleted && tutorialEligible) return 'tutorial-unexplored'
   return 'normal-unexplored'
