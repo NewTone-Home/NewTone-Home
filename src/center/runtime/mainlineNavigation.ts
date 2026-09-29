@@ -1312,7 +1312,13 @@ export type MainlineInteractionResolution = {
   inRange: boolean
 }
 
-function resolveInteractionCandidates(
+/**
+ * Resolve one semantic interaction against all of its currently legal
+ * contacts.  Objects, NPCs and storefronts share this owner so a dynamic
+ * actor can occupy one contact without turning the whole interaction into a
+ * dead end.
+ */
+export function resolveMainlineInteractionCandidates(
   scene: MainlineSceneDefinition,
   from: Point,
   candidates: readonly Point[],
@@ -1336,7 +1342,7 @@ function resolveInteractionCandidates(
 export function resolveMainlineEntityInteraction(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): MainlineInteractionResolution {
   const entity = scene.objects.find((candidate) => candidate.id === entityId)
   const candidates = mainlineEntityInteractionCandidates(scene, entityId, from, layout, mainlineActorFootprint(scene, options, from), options)
-  return resolveInteractionCandidates(scene, from, candidates, entity?.interactionRange ?? .35, layout, options)
+  return resolveMainlineInteractionCandidates(scene, from, candidates, entity?.interactionRange ?? .35, layout, options)
 }
 
 export function mainlineInteractionTarget(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, actorRadius?: number, options: MainlineNavigationOptions = {}): Point {
@@ -1392,7 +1398,7 @@ export function mainlineNpcInteractionTarget(scene: MainlineSceneDefinition, npc
 /** NPCs use the same current-footprint contact resolver as ordinary objects. */
 export function resolveMainlineNpcInteraction(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): MainlineInteractionResolution {
   const candidates = mainlineNpcInteractionCandidates(scene, npcId, from, layout, mainlineActorFootprint(scene, options, from), options)
-  return resolveInteractionCandidates(scene, from, candidates, .25, layout, options)
+  return resolveMainlineInteractionCandidates(scene, from, candidates, .25, layout, options)
 }
 
 export function findMainlinePathToNpc(scene: MainlineSceneDefinition, npcId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {

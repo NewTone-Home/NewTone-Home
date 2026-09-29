@@ -1238,6 +1238,23 @@ export function mainlineStorefrontApproach(scene: MainlineSceneDefinition, store
   return { x: anchor.x - approachDistance, y: anchor.y }
 }
 
+/**
+ * A storefront is a long wall surface, not a single physical interaction
+ * point. Keep the authored centre approach first, then offer symmetric
+ * tangential alternatives on the same walkable side. Navigation owns which
+ * candidate is currently reachable when live actors occupy one of them.
+ */
+export function mainlineStorefrontInteractionCandidates(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot): Point[] {
+  const approach = mainlineStorefrontApproach(scene, storefront)
+  const halfSpan = Math.max(0, (storefront.end - storefront.start) / 2)
+  const tangentOffset = Math.min(4, Math.max(0, halfSpan - 2))
+  if (tangentOffset <= 0) return [approach]
+  const alternatives = storefront.edge === 'top' || storefront.edge === 'bottom'
+    ? [{ x: approach.x - tangentOffset, y: approach.y }, { x: approach.x + tangentOffset, y: approach.y }]
+    : [{ x: approach.x, y: approach.y - tangentOffset }, { x: approach.x, y: approach.y + tangentOffset }]
+  return [approach, ...alternatives]
+}
+
 export function mainlineStorefrontAtPoint(scene: MainlineSceneDefinition, point: Point): MainlineStorefrontSlot | undefined {
   return scene.storefronts.find((storefront) => {
     const anchor = mainlineStorefrontAnchor(scene, storefront)

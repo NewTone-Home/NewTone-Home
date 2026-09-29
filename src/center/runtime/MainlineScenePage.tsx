@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { Point } from './sceneGeometry'
 import { MainlineSceneRenderer, type MainlineInputDiagnostic } from './MainlineSceneRenderer'
-import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneAreaLabel, mainlineSceneGeometryUnits, mainlineSceneWalkBounds, mainlineScenes, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneExternalExit, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
-import { canActorReachPassageApproach, classifyMainlineWorldCommand, findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, isMainlineEntityWithinInteractionRange, isMainlineNavigationBarrierClear, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlineInteractionTarget, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineEntityInteraction, resolveMainlineNpcInteraction, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from './mainlineNavigation'
+import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneAreaLabel, mainlineSceneGeometryUnits, mainlineSceneWalkBounds, mainlineScenes, mainlineStorefrontInteractionCandidates, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneExternalExit, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
+import { canActorReachPassageApproach, classifyMainlineWorldCommand, findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, isMainlineEntityWithinInteractionRange, isMainlineNavigationBarrierClear, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlineInteractionTarget, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineEntityInteraction, resolveMainlineInteractionCandidates, resolveMainlineNpcInteraction, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from './mainlineNavigation'
 import { layoutGridSize, mainlineEntityInteractionBounds, mainlineEntityVisualBounds, mainlineLabelFootprint, mainlineProtagonistDotFootprint, type SceneLayout } from './sceneLayout'
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
 import { movementDurationMsForPath, sharedCharacterMovementOptions, useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
@@ -678,7 +678,7 @@ export function MainlineScenePage({
     ))
     setFeedback('修杰停在员工区域外。')
   }, [geometrySnapshot, getCurrentPosition, layout, scene, screenMetrics])
-  const { requestPassage: requestPassageLifecycle, cancelPassage: cancelPassageLifecycle, updateActor: updatePassageLifecycle, completeOpen, completeClose, getPassagePhase, getOpenPassageIds, passageStates } = useAutomaticPassages({
+  const { requestPassage: requestPassageLifecycle, cancelPassage: cancelPassageLifecycle, updateActor: updatePassageLifecycle, completeOpen, completeClose, getPassagePhase, isPassageActorActive, getOpenPassageIds, passageStates } = useAutomaticPassages({
     passages: passageLifecycleDefinitions,
     canOpen: (_actorId, passage) => lifecycleMainlinePassages.find((candidate) => candidate.id === passage.id)?.access === 'open',
     canUse: (_actorId, passage) => lifecycleMainlinePassages.find((candidate) => candidate.id === passage.id)?.access === 'open',
@@ -936,6 +936,7 @@ export function MainlineScenePage({
     const pending = pendingTraversalRef.current
     if (!pending || pending.passage.entityId !== entityId) return
     if (!pending.approachArrived) return
+    if (!isPassageActorActive('protagonist', pending.passage.id)) return
     const traversalStart = getCurrentPosition()
     const openNavigationOptions = { ...navigationOptions, openPassageIds: getOpenPassageIds() }
     if (pending.passage.targetSceneId) {
@@ -1085,9 +1086,17 @@ export function MainlineScenePage({
         setFeedback('门已经打开，但通路被挡住了。')
       },
     })
-  }, [beginPassageLeg, commercialCafeStoryStage, getCurrentPosition, getOpenPassageIds, layout, locomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, protagonistFootprint, recordSceneState, scene, setFeedback])
+  }, [beginPassageLeg, commercialCafeStoryStage, getCurrentPosition, getOpenPassageIds, isPassageActorActive, layout, locomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, protagonistFootprint, recordSceneState, scene, setFeedback])
 
   continuePendingTraversalRef.current = continuePendingTraversal
+
+  useEffect(() => {
+    const pending = pendingTraversalRef.current
+    if (!pending?.approachArrived || !pending.requestIssued) return
+    if (!isPassageActorActive('protagonist', pending.passage.id)) return
+    const phase = getPassagePhase(pending.passage.id)
+    if (phase === 'open' || phase === 'crossing') continuePendingTraversalRef.current(pending.passage.entityId)
+  }, [getPassagePhase, isPassageActorActive, passageStates])
 
   const completeDoorTransition = useCallback((entityId: string, completion: 'opened' | 'closed') => {
     const passage = scene.passages.find((candidate) => candidate.entityId === entityId)
@@ -1391,22 +1400,28 @@ export function MainlineScenePage({
       ))
     }
 
-    const target = mainlineStorefrontApproach(scene, storefront)
     const currentPosition = getCurrentPosition()
-    if (Math.hypot(currentPosition.x - target.x, currentPosition.y - target.y) <= .35) {
+    const interaction = resolveMainlineInteractionCandidates(
+      scene,
+      currentPosition,
+      mainlineStorefrontInteractionCandidates(scene, storefront),
+      .35,
+      layout,
+      navigationOptions,
+    )
+    if (interaction.inRange) {
       stopMovement()
       revealStorefrontInteraction()
       return
     }
-    const path = findMainlinePath(currentPosition, target, scene, layout, navigationOptions)
-    if (!path) {
+    if (!interaction.path) {
       stopMovement()
       setFeedback('这个位置暂时走不过去。')
       return
     }
     setActiveObjectId(storefrontId)
     setFeedback(`修杰前往${storefront.label}。`)
-    moveAlong(path, revealStorefrontInteraction, {
+    moveAlong(interaction.path, revealStorefrontInteraction, {
       ...locomotionOptions,
       canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
       canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
@@ -1415,7 +1430,7 @@ export function MainlineScenePage({
         setFeedback('修杰在边界前停下了，需要重新选择位置。')
       },
     })
-  }, [dismissSceneEcho, findMainlinePath, geometrySnapshot, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, onPhoneDismiss, onStorefrontAction, phoneOpen, scene, screenMetrics, stopMovement])
+  }, [dismissSceneEcho, geometrySnapshot, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, onPhoneDismiss, onStorefrontAction, phoneOpen, scene, screenMetrics, stopMovement])
 
   const interactNpc = useCallback((npcId: string) => {
     const npc = scene.npcs.find((candidate) => candidate.id === npcId)

@@ -45,6 +45,9 @@ export type DoorPassageReservation = {
 export type DoorPassageRuntime = {
   phase: DoorPassagePhase
   reservations: Readonly<Record<string, DoorPassageReservation>>
+  /** FIFO ownership of a physically narrow doorway. Only the head may cross. */
+  queue: readonly string[]
+  activeActorId?: string
   /** The lifecycle deadline after every visible actor clears the real doorway. */
   clearHoldUntil?: number
 }
@@ -60,18 +63,35 @@ export type DoorPassageAction =
   | { type: 'closed' }
 
 export function createDoorPassageRuntime(phase: DoorPassagePhase = 'closed'): DoorPassageRuntime {
-  return { phase, reservations: {} }
+  return { phase, reservations: {}, queue: [] }
+}
+
+export function doorPassageActorIsActive(state: DoorPassageRuntime, actorId: string) {
+  return state.activeActorId === actorId && Boolean(state.reservations[actorId])
+}
+
+function nextActiveActor(queue: readonly string[], reservations: Readonly<Record<string, DoorPassageReservation>>) {
+  return queue.find((actorId) => Boolean(reservations[actorId]))
 }
 
 export function reduceDoorPassageRuntime(state: DoorPassageRuntime, action: DoorPassageAction): DoorPassageRuntime {
   if (action.type === 'request') {
     if (!action.allowed) return state
+    const reservations = { ...state.reservations, [action.reservation.actorId]: action.reservation }
+    const queue = state.queue.includes(action.reservation.actorId)
+      ? state.queue
+      : [...state.queue, action.reservation.actorId]
+    const activeActorId = state.activeActorId && reservations[state.activeActorId]
+      ? state.activeActorId
+      : nextActiveActor(queue, reservations)
     const phase = state.phase === 'open' || state.phase === 'crossing'
       ? state.phase
       : state.phase === 'holding' || state.phase === 'closing' ? 'open' : 'opening'
     return {
       phase,
-      reservations: { ...state.reservations, [action.reservation.actorId]: action.reservation },
+      reservations,
+      queue,
+      activeActorId,
       clearHoldUntil: undefined,
     }
   }
@@ -89,8 +109,10 @@ export function reduceDoorPassageRuntime(state: DoorPassageRuntime, action: Door
 
   if (action.type === 'crossed') {
     const reservation = state.reservations[action.actorId]
+    if (state.activeActorId && state.activeActorId !== action.actorId) return state
     if (!reservation) return { ...state, phase: 'crossing' }
     return {
+      ...state,
       phase: 'crossing',
       reservations: {
         ...state.reservations,
@@ -102,7 +124,11 @@ export function reduceDoorPassageRuntime(state: DoorPassageRuntime, action: Door
   if (action.type === 'release') {
     const reservations = { ...state.reservations }
     delete reservations[action.actorId]
-    return { ...state, reservations }
+    const queue = state.queue.filter((actorId) => actorId !== action.actorId)
+    const activeActorId = state.activeActorId === action.actorId
+      ? nextActiveActor(queue, reservations)
+      : state.activeActorId
+    return { ...state, reservations, queue, activeActorId }
   }
 
   if (action.type === 'begin-hold') {
@@ -116,7 +142,7 @@ export function reduceDoorPassageRuntime(state: DoorPassageRuntime, action: Door
   }
 
   if (state.phase !== 'closing') return state
-  return { phase: 'closed', reservations: {} }
+  return { phase: 'closed', reservations: {}, queue: [] }
 }
 
 export function doorPassageIsOpen(phase: DoorPassagePhase) {

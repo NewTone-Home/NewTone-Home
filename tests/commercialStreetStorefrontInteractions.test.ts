@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { findMainlinePath, isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
-import { mainlineScenes, mainlineStorefrontApproach } from '../src/center/runtime/mainlineScenes'
+import { findMainlinePath, isWalkableMainlinePoint, resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
+import { mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
+import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
+import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 import {
   commercialStreetStorefrontInteractionDebounceMs,
   commercialStreetStorefrontInteractions,
@@ -53,6 +55,28 @@ describe('commercial street storefront interactions', () => {
       expect(findMainlinePath(street.initialPlayerPosition, approach, street)).not.toBeNull()
       expect(Math.hypot(street.initialPlayerPosition.x - approach.x, street.initialPlayerPosition.y - approach.y)).toBeGreaterThan(.35)
     })
+  })
+
+  it('uses another legal storefront contact when an ambient actor occupies the centred approach', () => {
+    const storefront = street.storefronts.find((candidate) => candidate.id === 'commercial-north-slot-2')!
+    const candidates = mainlineStorefrontInteractionCandidates(street, storefront)
+    expect(candidates).toHaveLength(3)
+    const runtime = createNavigationRuntime()
+    const blockerFootprint = mainlineProtagonistDotFootprint(candidates[0]!)
+    runtime.registerActor('ambient-blocker', candidates[0]!, blockerFootprint)
+
+    const resolved = resolveMainlineInteractionCandidates(
+      street,
+      street.initialPlayerPosition,
+      candidates,
+      .35,
+      {},
+      { actorId: 'protagonist', navigationRuntime: runtime },
+    )
+
+    expect(resolved.path).not.toBeNull()
+    expect(resolved.target).not.toEqual(candidates[0])
+    expect(candidates).toContainEqual(resolved.target)
   })
 
   it('guards only rapid already-arrived re-clicks for 300ms', () => {

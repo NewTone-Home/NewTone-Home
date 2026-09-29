@@ -6,6 +6,7 @@ import { sceneDoorMotion } from './sceneDoorConfig'
 import {
   containsDoorRegion,
   createDoorPassageRuntime,
+  doorPassageActorIsActive,
   doorPassageIsOpen,
   doorPassageIsPassable,
   doorRegionSide,
@@ -25,6 +26,8 @@ export type AutomaticPassageRuntime = {
   completeOpen: (passageId: string) => boolean
   completeClose: (passageId: string) => boolean
   getPassagePhase: (passageId: string) => DoorPassagePhase
+  /** Only the FIFO head may advance through a narrow doorway. */
+  isPassageActorActive: (actorId: string, passageId: string) => boolean
   /** Read the current passable set directly from the lifecycle ref. */
   getOpenPassageIds: () => ReadonlySet<string>
   passageStates: ReadonlyMap<string, DoorPassageRuntime>
@@ -163,6 +166,7 @@ export function useAutomaticPassages({ passages, canOpen, canUse, onDenied }: Au
     const actor = actorsRef.current.get(actorId)
     if (!actor?.visible || !containsDoorRegion(actor.position, passage.region.doorway)) return
     const state = stateFor(passage.id)
+    if (!doorPassageActorIsActive(state, actorId)) return
     if (state.phase === 'opening' || state.phase === 'open' || state.phase === 'crossing') return
     if (optionsRef.current.canOpen && !optionsRef.current.canOpen(actorId, passage, actor.position)) return
     if (state.phase === 'holding' || state.phase === 'closing') cancelHoldClock(passage.id)
@@ -216,7 +220,9 @@ export function useAutomaticPassages({ passages, canOpen, canUse, onDenied }: Au
     optionsRef.current.passages.forEach((passage) => {
       const inDoorway = containsDoorRegion(position, passage.region.doorway)
       const state = stateFor(passage.id)
-      const active = state.reservations[actorId]
+      const active = doorPassageActorIsActive(state, actorId)
+        ? state.reservations[actorId]
+        : undefined
       if (active) {
         const currentSide = doorRegionSide(passage.region, position)
         const crossed = active.crossed || currentSide !== active.fromSide
@@ -243,9 +249,13 @@ export function useAutomaticPassages({ passages, canOpen, canUse, onDenied }: Au
 
   const getPassagePhase = useCallback((passageId: string) => stateFor(passageId).phase, [stateFor])
 
+  const isPassageActorActive = useCallback((actorId: string, passageId: string) => (
+    doorPassageActorIsActive(stateFor(passageId), actorId)
+  ), [stateFor])
+
   const getOpenPassageIds = useCallback(() => new Set(optionsRef.current.passages
     .filter((passage) => doorPassageIsPassable(passageStore.getSnapshot().get(passage.id)?.phase ?? 'closed'))
     .map((passage) => passage.id)), [passageStore])
 
-  return { requestPassage, cancelPassage, updateActor, completeOpen, completeClose, getPassagePhase, getOpenPassageIds, passageStates }
+  return { requestPassage, cancelPassage, updateActor, completeOpen, completeClose, getPassagePhase, isPassageActorActive, getOpenPassageIds, passageStates }
 }
