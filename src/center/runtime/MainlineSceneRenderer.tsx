@@ -12,6 +12,7 @@ import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoor
 import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { useSceneFocusFrameController } from './SceneFocusFrames'
 import type { SceneFrameTarget } from './sceneFrameLifecycle'
+import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
 import { isCommercialCafeStoryDetailVisible, type CommercialCafeStoryStage } from './commercialCafeStory'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
@@ -29,7 +30,7 @@ type MainlineSceneRendererProps = {
   layout: SceneLayout
   activeObjectId: string | null
   doorPhases?: ReadonlyMap<string, SceneDoorRuntimePhase>
-  sceneFrameExit?: { phase: 'idle' | 'retracting'; passageEntityId?: string; scope?: 'passage' | 'scene' }
+  sceneFrameExit?: { phase: 'idle' | 'retracting'; passageEntityId?: string; scope?: 'passage' | 'scene'; requestedGroups?: readonly string[] }
   gateTriggered?: boolean
   geometrySnapshot: MainlineSceneGeometrySnapshot
   freezeFrameMeasurements?: boolean
@@ -57,7 +58,7 @@ type MainlineSceneRendererProps = {
   onSceneEchoAdvance?: () => void
   onSceneEchoChoice?: (index: number) => void
   onSceneEchoExitComplete?: (echoId: number, source: 'text' | 'frame') => void
-  onFrameMotionBudgetChange?: (durationMs: number) => void
+  onFrameMotionProfileChange?: (profile: readonly SceneFocusFrameMotionProfile[]) => void
   exploredObjectIds?: ReadonlySet<string>
   interactionTutorialCompleted?: boolean
   debugInput?: boolean
@@ -438,7 +439,7 @@ export function MainlineSceneRenderer({
   onSceneEchoAdvance,
   onSceneEchoChoice,
   onSceneEchoExitComplete,
-  onFrameMotionBudgetChange,
+  onFrameMotionProfileChange,
   exploredObjectIds = new Set(),
   interactionTutorialCompleted = false,
   debugInput = false,
@@ -583,10 +584,11 @@ export function MainlineSceneRenderer({
         ? scene.passages.find((passage) => passage.portalId === storefront.portalId)?.entityId
         : undefined
       const passageEntityId = storefrontPassageEntityId ?? entityId
-      const retractRequested = sceneFrameExit.phase === 'retracting' && (
-        sceneFrameExit.scope === 'scene'
+      const sceneExitMatchesTarget = sceneFrameExit.scope === 'scene'
         || (target.policy === 'passage' && sceneFrameExit.passageEntityId === passageEntityId)
-      )
+      const retractRequested = sceneFrameExit.phase === 'retracting'
+        && sceneExitMatchesTarget
+        && (!sceneFrameExit.requestedGroups || sceneFrameExit.requestedGroups.includes(target.group))
       addTarget({
         group: target.group,
         policy: target.policy,
@@ -628,9 +630,16 @@ export function MainlineSceneRenderer({
     targets: focusFrameTargets,
     freezeMeasurements: freezeFrameMeasurements,
   })
-  useEffect(() => {
-    onFrameMotionBudgetChange?.(focusFrames.maxMotionDurationMs)
-  }, [focusFrames.maxMotionDurationMs, onFrameMotionBudgetChange])
+  const frameMotionProfile = useMemo<readonly SceneFocusFrameMotionProfile[]>(() => focusFrameTargets
+    .map((target) => ({ group: target.group, durationMs: focusFrames.motionDurationMs(target.group) }))
+    .sort((first, second) => first.group.localeCompare(second.group)), [focusFrameTargets, focusFrames.motionDurationMs])
+  const frameMotionProfileKey = frameMotionProfile.map(({ group, durationMs }) => `${group}:${durationMs}`).join('|')
+  const reportedFrameMotionProfileRef = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    if (!onFrameMotionProfileChange || reportedFrameMotionProfileRef.current === frameMotionProfileKey) return
+    reportedFrameMotionProfileRef.current = frameMotionProfileKey
+    onFrameMotionProfileChange(frameMotionProfile)
+  }, [frameMotionProfile, frameMotionProfileKey, onFrameMotionProfileChange])
   useEffect(() => {
     if (!sceneEcho || sceneEcho.phase !== 'leaving') {
       reportedEchoFrameExitRef.current = null

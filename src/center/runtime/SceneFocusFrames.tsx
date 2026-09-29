@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TransitionEvent as ReactTransitionEvent } from 'react'
 import { sceneFrameDefaultMotionMs, sceneFrameMotionMsForRect } from './sceneMotion'
-import { frameShouldCollapse, frameVisualPhase, type SceneFrameRuntime, type SceneFrameTarget } from './sceneFrameLifecycle'
+import { beginFrameAppearance, beginFrameRetraction, completeFrameTransition, frameShouldCollapse, frameVisualPhase, preserveFrameRetractCorner, resumeFrameAppearance, type SceneFrameRuntime, type SceneFrameTarget } from './sceneFrameLifecycle'
 
 type FocusFrameCorner = SceneFrameRuntime['corner']
 
@@ -68,6 +68,7 @@ function targetElement(event: { target: EventTarget | null }) {
  */
 export function useSceneFocusFrameController({ targets, freezeMeasurements = false }: SceneFocusFramesProps) {
   const targetMap = useMemo(() => new Map(targets.map((target) => [target.group, target] as const)), [targets])
+  const retractRequestSignature = targets.map((target) => `${target.group}:${target.retractRequested ? 1 : 0}`).join('|')
   const [revision, setRevision] = useState(0)
   const runtimeRef = useRef(new Map<string, SceneFrameRuntime>())
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<ReadonlyMap<string, SceneFrameRuntime>>(new Map())
@@ -90,6 +91,10 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         corner: randomCorner(),
         phase: 'hidden',
         fullyCollapsed: true,
+        preserveCornerOnResume: false,
+        resumeCorner: null,
+        transitionDirection: null,
+        transitionStartedAt: 0,
         initialized: false,
         hovered: false,
         locked: false,
@@ -105,9 +110,28 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     if (changed) bump()
   }, [bump, targetMap])
 
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return
+    const transitionStartedAt = window.performance.now()
+    let changed = false
+    targetMap.forEach((target, group) => {
+      const runtime = runtimeRef.current.get(group)
+      if (!runtime) return
+      if (target.retractRequested) {
+        preserveFrameRetractCorner(runtime)
+        return
+      }
+      if ((runtime.phase !== 'retracting' && runtime.phase !== 'hidden') || !runtime.preserveCornerOnResume) return
+      resumeFrameAppearance(runtime, randomCorner(), transitionStartedAt)
+      changed = true
+    })
+    if (changed) bump()
+  }, [bump, retractRequestSignature, targetMap])
+
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
     const frameId = window.requestAnimationFrame(() => {
+      const transitionStartedAt = window.performance.now()
       let changed = false
       targetMap.forEach((target, group) => {
         const runtime = runtimeRef.current.get(group)
@@ -119,30 +143,33 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         const shouldCollapse = frameShouldCollapse(target, runtime)
         if (!runtime.initialized) {
           runtime.initialized = true
-          runtime.phase = shouldCollapse ? 'hidden' : 'appearing'
-          runtime.fullyCollapsed = shouldCollapse
+          if (shouldCollapse) {
+            runtime.phase = 'hidden'
+            runtime.fullyCollapsed = true
+            runtime.transitionDirection = null
+          } else {
+            beginFrameAppearance(runtime, transitionStartedAt)
+          }
           changed = true
           return
         }
         if (shouldCollapse) {
+          if (target.retractRequested) preserveFrameRetractCorner(runtime)
           if (runtime.phase === 'visible' || runtime.phase === 'appearing') {
-            runtime.phase = 'retracting'
-            runtime.fullyCollapsed = false
+            beginFrameRetraction(runtime, transitionStartedAt, target.retractRequested)
             changed = true
           }
           return
         }
         if (runtime.phase === 'hidden' || runtime.phase === 'retracting') {
-          runtime.corner = randomCorner()
-          runtime.phase = 'appearing'
-          runtime.fullyCollapsed = false
+          resumeFrameAppearance(runtime, randomCorner(), transitionStartedAt)
           changed = true
         }
       })
       if (changed) bump()
     })
     return () => window.cancelAnimationFrame(frameId)
-  }, [bump, revision, targetMap])
+  }, [bump, retractRequestSignature, revision, targetMap])
 
   const updateInteraction = useCallback((group: string, update: (runtime: SceneFrameRuntime) => void) => {
     const runtime = runtimeRef.current.get(group)
@@ -237,23 +264,13 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     const runtime = runtimeRef.current.get(group)
     if (!runtime) return
     const target = targetMap.get(group)
-    if (target?.retractRequested) {
-      runtime.phase = 'hidden'
-      runtime.fullyCollapsed = true
-      bump()
-      return
-    }
-    if (runtime.phase === 'appearing') {
-      runtime.phase = 'visible'
-      runtime.fullyCollapsed = false
-      bump()
-      return
-    }
-    if (runtime.phase === 'retracting') {
-      runtime.phase = 'hidden'
-      runtime.fullyCollapsed = true
-      bump()
-    }
+    const style = window.getComputedStyle(event.currentTarget)
+    const dashOffset = Number.parseFloat(style.strokeDashoffset)
+    const reachedCurrentEndpoint = runtime.transitionDirection === 'retracting'
+      ? dashOffset >= .999
+      : dashOffset <= .001
+    const elapsedMs = event.elapsedTime * 1000
+    if (completeFrameTransition(runtime, target?.retractRequested ?? false, event.timeStamp, elapsedMs, reachedCurrentEndpoint)) bump()
   }, [bump, targetMap])
 
   const renderFrame = useCallback((group: string): ReactNode => {

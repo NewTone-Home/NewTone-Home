@@ -13,8 +13,8 @@ import { sceneInteractionHandlers } from './sceneInteraction'
 import { useAutomaticPassages } from './useAutomaticPassages'
 import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { mainlineCameraOffset } from './mainlineViewport'
-import { sceneFrameDefaultMotionMs, sceneFrameRetractionBudgetMs } from './sceneMotion'
 import { sceneDoorMotion } from './sceneDoorConfig'
+import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 import { commercialCafeDepartureText, commercialCafeLaoZhouConversationSeatId, commercialCafeStoryStageFromSceneState, commercialCafeStoryStageKey, isCommercialCafeStoryStage, resolveCommercialCafeAttachedPropInteraction, resolveCommercialCafeNpcInteraction, shouldCompleteCommercialCafeStoryOnTransition, type CommercialCafeNpcInteractionResolution, type CommercialCafeStoryStage } from './commercialCafeStory'
 import { createCommercialCafeServerBehaviorCoordinator } from './commercialCafeBehavior'
@@ -243,7 +243,6 @@ type PendingMainlineTraversal = {
   approachPath: Point[]
   continuationPath?: Point[] | null
   requestIssued: boolean
-  frameRetractionStarted: boolean
   approachArrived: boolean
 }
 
@@ -253,6 +252,7 @@ type SceneFrameExitLifecycle =
       phase: 'retracting'
       passageEntityId: string
       scope: 'passage' | 'scene'
+      requestedGroups?: readonly string[]
     }
 
 export function MainlineScenePage({
@@ -333,7 +333,7 @@ export function MainlineScenePage({
   const [requestedWorldTarget, setRequestedWorldTarget] = useState<Point | null>(null)
   const [cafeSpatialQaNavigation, setCafeSpatialQaNavigation] = useState<CafeSpatialQaNavigation | null>(null)
   const [sceneFrameExit, setSceneFrameExit] = useState<SceneFrameExitLifecycle>({ phase: 'idle' })
-  const frameMotionBudgetMsRef = useRef(sceneFrameRetractionBudgetMs(sceneFrameDefaultMotionMs))
+  const frameMotionProfileRef = useRef<readonly SceneFocusFrameMotionProfile[]>([])
   const pendingTraversalRef = useRef<PendingMainlineTraversal | null>(null)
   const continuePendingTraversalRef = useRef<(entityId: string) => void>(() => {})
   const [screenMetrics, setScreenMetrics] = useState<SceneScreenMetrics>(defaultSceneScreenMetrics)
@@ -772,8 +772,8 @@ export function MainlineScenePage({
     }, scene, layout, navigationOptions, locomotionOptions, returnHome)
     if (!started) setFeedback('店员的开发移动演示当前无法规划路线。')
   }, [layout, locomotionOptions, navigationOptions, scene, serverInitialPosition, serverMovement])
-  const handleFrameMotionBudgetChange = useCallback((durationMs: number) => {
-    if (Number.isFinite(durationMs) && durationMs > 0) frameMotionBudgetMsRef.current = sceneFrameRetractionBudgetMs(durationMs)
+  const handleFrameMotionProfileChange = useCallback((profile: readonly SceneFocusFrameMotionProfile[]) => {
+    frameMotionProfileRef.current = profile
   }, [])
   const doorPhases = useMemo(() => new Map(passageLifecycleDefinitions
     .map((passage) => [
@@ -781,8 +781,30 @@ export function MainlineScenePage({
       passageStates.get(passage.id)?.phase ?? 'closed',
     ] as const)
     .filter((entry): entry is readonly [string, 'closed' | 'opening' | 'open' | 'crossing' | 'holding' | 'closing'] => Boolean(entry[0]))), [passageLifecycleDefinitions, passageStates, scene.passages])
-  const armPassageFrameExit = useCallback((passage: MainlineScenePassage) => {
-    if (shouldUseLocalSlideForPassage(passage)) return
+  const armPassageFrameExit = useCallback((passage: MainlineScenePassage, remainingMovementMs?: number) => {
+    if (passage.targetSceneId) {
+      if (remainingMovementMs === undefined || !Number.isFinite(remainingMovementMs)) return
+      setSceneFrameExit((current) => {
+        const requestedGroups = current.phase === 'retracting'
+          && current.passageEntityId === passage.entityId
+          && current.scope === 'scene'
+          ? current.requestedGroups ?? []
+          : []
+        const dueGroups = sceneFrameGroupsDueForExit(
+          frameMotionProfileRef.current,
+          new Set(requestedGroups),
+          remainingMovementMs,
+        )
+        if (dueGroups.length === 0) return current
+        return {
+          phase: 'retracting',
+          passageEntityId: passage.entityId,
+          scope: 'scene',
+          requestedGroups: [...requestedGroups, ...dueGroups],
+        }
+      })
+      return
+    }
     const scope = passage.frameBehavior === 'scene-retract' || passage.targetSceneId ? 'scene' : 'passage'
     setSceneFrameExit((current) => current.phase === 'retracting' && current.passageEntityId === passage.entityId && current.scope === scope
       ? current
@@ -812,17 +834,13 @@ export function MainlineScenePage({
       canTraverse: (start: Point, end: Point) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
     }
     const approachDurationMs = movementDurationMsForPath(resolvedPath, traversalStart, approachMovementOptions)
-    const shouldStartFrameExitImmediately = approachDurationMs > 0 && approachDurationMs <= frameMotionBudgetMsRef.current
-    pendingTraversalRef.current = { passage, passageQueue, passageIndex, requestedTarget, approachPath: resolvedPath, continuationPath, requestIssued: false, frameRetractionStarted: shouldStartFrameExitImmediately, approachArrived: false }
-    if (shouldStartFrameExitImmediately) armPassageFrameExit(passage)
+    pendingTraversalRef.current = { passage, passageQueue, passageIndex, requestedTarget, approachPath: resolvedPath, continuationPath, requestIssued: false, approachArrived: false }
+    armPassageFrameExit(passage, approachDurationMs)
     const requestApproachOpening = (point: Point) => {
       const pending = pendingTraversalRef.current
       if (!pending || pending.passage.id !== passage.id) return
       const remainingMovementMs = getRemainingDurationMs()
-      if (!pending.frameRetractionStarted && remainingMovementMs <= frameMotionBudgetMsRef.current) {
-        pending.frameRetractionStarted = true
-        armPassageFrameExit(passage)
-      }
+      armPassageFrameExit(passage, remainingMovementMs)
       if (pending.requestIssued || remainingMovementMs > sceneDoorMotion.openingMs + sceneDoorMotion.openingLeadMs) return
       pending.requestIssued = requestPassageLifecycle('protagonist', passage.id, point, requestedTarget)
       if (!pending.requestIssued) {
@@ -832,8 +850,7 @@ export function MainlineScenePage({
         setFeedback(`${mainlineEntityDisplayLabel(entity)}暂时无法通行。`)
         return
       }
-      pending.frameRetractionStarted = true
-      armPassageFrameExit(passage)
+      armPassageFrameExit(passage, remainingMovementMs)
     }
     moveAlong(resolvedPath, () => {
       const pending = pendingTraversalRef.current
@@ -848,8 +865,7 @@ export function MainlineScenePage({
         return
       }
       pending.requestIssued = true
-      pending.frameRetractionStarted = true
-      armPassageFrameExit(passage)
+      armPassageFrameExit(passage, 0)
       const phase = getPassagePhase(passage.id)
       if (phase === 'open' || phase === 'crossing') continuePendingTraversalRef.current(entity.id)
     }, {
@@ -1120,19 +1136,15 @@ export function MainlineScenePage({
       canOccupy: (point: Point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
       canTraverse: (start: Point, end: Point) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
     }
-    let frameRetractionStarted = false
     if (framePassage) {
       const movementDurationMs = movementDurationMsForPath(path, getCurrentPosition(), movementOptions)
-      frameRetractionStarted = movementDurationMs > 0 && movementDurationMs <= frameMotionBudgetMsRef.current
-      if (frameRetractionStarted) armPassageFrameExit(framePassage)
+      armPassageFrameExit(framePassage, movementDurationMs)
     }
     moveAlong(path, onArrive, {
       ...movementOptions,
       onMove: () => {
-        if (!framePassage || frameRetractionStarted) return
-        if (getRemainingDurationMs() > frameMotionBudgetMsRef.current) return
-        frameRetractionStarted = true
-        armPassageFrameExit(framePassage)
+        if (!framePassage) return
+        armPassageFrameExit(framePassage, getRemainingDurationMs())
       },
       onBlocked: () => {
         if (framePassage) setSceneFrameExit({ phase: 'idle' })
@@ -1626,7 +1638,7 @@ export function MainlineScenePage({
               onSceneEchoAdvance={advanceSceneEcho}
               onSceneEchoChoice={chooseSceneEchoOption}
               onSceneEchoExitComplete={completeSceneEchoExit}
-              onFrameMotionBudgetChange={handleFrameMotionBudgetChange}
+              onFrameMotionProfileChange={handleFrameMotionProfileChange}
               exploredObjectIds={exploredObjectIds}
               interactionTutorialCompleted={interactionTutorialCompleted}
               incenseLit={incenseLit}
