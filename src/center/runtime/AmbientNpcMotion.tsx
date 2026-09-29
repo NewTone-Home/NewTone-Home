@@ -11,6 +11,38 @@ import type { Point } from './sceneGeometry'
 import type { MovementOptions } from './useFreeRoamMovement'
 import { useNpcMovement } from './useNpcMovement'
 
+/** A blocked pedestrian gets one scene-clock recovery attempt before skipping its route step. */
+export const ambientNpcBlockedRecoveryDelayMs = 350
+export const ambientNpcBlockedRetryLimit = 1
+
+type AmbientNpcBlockedRecoveryDecision = {
+  kind: 'retry' | 'skip'
+  clearRequested: true
+  retryCount: number
+  delayMs?: number
+}
+
+/**
+ * Keep blocked recovery local to ambient route scheduling. Shared movement
+ * remains responsible only for reporting that its live occupancy step failed.
+ */
+export function ambientNpcBlockedRecoveryDecision(
+  previousPhase: NpcRuntimeSnapshot['phase'],
+  nextPhase: NpcRuntimeSnapshot['phase'],
+  retryCount: number,
+): AmbientNpcBlockedRecoveryDecision | null {
+  if (previousPhase !== 'moving' || nextPhase !== 'blocked') return null
+  if (retryCount >= ambientNpcBlockedRetryLimit) {
+    return { kind: 'skip', clearRequested: true, retryCount }
+  }
+  return {
+    kind: 'retry',
+    clearRequested: true,
+    retryCount: retryCount + 1,
+    delayMs: ambientNpcBlockedRecoveryDelayMs,
+  }
+}
+
 type AmbientNpcMotionProps = {
   enabled: boolean
   schedule: MainlineAmbientNpcRoute
@@ -72,7 +104,11 @@ export function AmbientNpcMotion({
   })
   const [routeIndex, setRouteIndex] = useState(0)
   const [readyAtMs, setReadyAtMs] = useState(schedule.initialDelayMs)
+  const [recovery, setRecovery] = useState<{ routeIndex: number; retryAtMs: number } | null>(null)
   const requestedRouteIndexRef = useRef<number | null>(null)
+  const recoveryRef = useRef<{ routeIndex: number; retryAtMs: number } | null>(null)
+  const retryCountRef = useRef(0)
+  const previousPhaseRef = useRef(movement.snapshot.phase)
   const latestRef = useRef({ enabled, scene, layout, navigationOptions, movementOptions, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs })
   latestRef.current = { enabled, scene, layout, navigationOptions, movementOptions, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs }
   const resetKey = `${enabled}:${schedule.npcId}:${initialPosition.x}:${initialPosition.y}`
@@ -81,6 +117,10 @@ export function AmbientNpcMotion({
     setRouteIndex(0)
     setReadyAtMs(schedule.initialDelayMs)
     requestedRouteIndexRef.current = null
+    recoveryRef.current = null
+    retryCountRef.current = 0
+    previousPhaseRef.current = movement.snapshot.phase
+    setRecovery(null)
   }, [resetKey, schedule.initialDelayMs])
 
   useEffect(() => {
@@ -88,14 +128,54 @@ export function AmbientNpcMotion({
   }, [movement.position, movement.snapshot, onRuntimeChange, schedule.npcId])
 
   useEffect(() => {
+    const decision = ambientNpcBlockedRecoveryDecision(
+      previousPhaseRef.current,
+      movement.snapshot.phase,
+      retryCountRef.current,
+    )
+    previousPhaseRef.current = movement.snapshot.phase
+    if (!enabled || !decision || requestedRouteIndexRef.current !== routeIndex) return
+
+    const step = schedule.steps[routeIndex]
+    if (!step) return
+    requestedRouteIndexRef.current = null
+    if (decision.kind === 'skip') {
+      retryCountRef.current = 0
+      recoveryRef.current = null
+      setRecovery(null)
+      setRouteIndex((index) => (index + 1) % schedule.steps.length)
+      setReadyAtMs(sceneClockMs + step.dwellMs)
+      return
+    }
+
+    retryCountRef.current = decision.retryCount
+    const nextRecovery = {
+      routeIndex,
+      retryAtMs: sceneClockMs + (decision.delayMs ?? 0),
+    }
+    recoveryRef.current = nextRecovery
+    setRecovery(nextRecovery)
+  }, [enabled, movement.snapshot.phase, routeIndex, sceneClockMs, schedule.steps])
+
+  useEffect(() => {
+    if (!recovery || sceneClockMs < recovery.retryAtMs) return
+    if (recoveryRef.current?.routeIndex !== recovery.routeIndex) return
+    recoveryRef.current = null
+    setRecovery(null)
+  }, [recovery, sceneClockMs])
+
+  useEffect(() => {
     if (!enabled || movement.snapshot.phase === 'moving' || sceneClockMs < readyAtMs) return
     const step = schedule.steps[routeIndex]
-    if (!step || requestedRouteIndexRef.current === routeIndex) return
+    if (!step || requestedRouteIndexRef.current === routeIndex || recoveryRef.current?.routeIndex === routeIndex) return
     requestedRouteIndexRef.current = routeIndex
     const current = latestRef.current
     if (!current.enabled || current.phase === 'moving') return
     const advanceRoute = () => {
       requestedRouteIndexRef.current = null
+      recoveryRef.current = null
+      retryCountRef.current = 0
+      setRecovery(null)
       setRouteIndex((index) => (index + 1) % schedule.steps.length)
       setReadyAtMs(latestRef.current.sceneClockMs + step.dwellMs)
     }
