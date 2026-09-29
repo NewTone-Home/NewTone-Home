@@ -117,8 +117,20 @@ export type MainlineSceneNpc = {
   id: string
   roleId: NpcRoleDefinition['id']
   label: string
+  /** Ambient residents are physical actors, but never player interaction targets. */
+  interactive?: boolean
   /** Semantic context for future story resolution; never a physical movement target. */
-  interactionTargetEntityId: string
+  interactionTargetEntityId?: string
+}
+
+/** A fixed, scene-local loop for a non-interactive ambient resident. */
+export type MainlineAmbientNpcRoute = {
+  npcId: string
+  initialDelayMs: number
+  steps: readonly {
+    target: Point
+    dwellMs: number
+  }[]
 }
 
 /** Current staging for an NPC. This is scene data, not permanent NPC identity. */
@@ -362,6 +374,7 @@ export type MainlineSceneData = {
   floorEntities: readonly MainlineSceneEntity[]
   npcs?: readonly MainlineSceneNpc[]
   npcPlacements?: readonly MainlineSceneNpcPlacement[]
+  ambientNpcRoutes?: readonly MainlineAmbientNpcRoute[]
   npcBehaviorTargets?: readonly MainlineSceneNpcBehaviorTarget[]
   npcBehaviors?: readonly MainlineSceneNpcBehavior[]
   attachedProps?: readonly MainlineSceneAttachedProp[]
@@ -955,6 +968,27 @@ const commercialStreetFacadeAirWalls: readonly MainlineAirWall[] = [
   { id: 'commercial-south-facade-air-wall-left', ...box(8, 64.7, 180, 25.3) },
 ]
 
+const commercialStreetAmbientNpcs = [
+  { id: 'commercial-street-pedestrian-west-north', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
+  { id: 'commercial-street-pedestrian-west-south', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
+  { id: 'commercial-street-pedestrian-mid-east-north', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
+  { id: 'commercial-street-pedestrian-mid-east-south', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
+  { id: 'commercial-street-pedestrian-long', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
+  { id: 'commercial-street-pedestrian-shopper', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
+] as const satisfies readonly MainlineSceneNpc[]
+
+// These are authored public-lane loops, not a second navigation model. Their
+// differently phased starts and dwell times keep the first street visit from
+// reading as a synchronized stage cue.
+const commercialStreetAmbientNpcRoutes = [
+  { npcId: 'commercial-street-pedestrian-west-north', initialDelayMs: 0, steps: [{ target: authoredPoint(60, 42), dwellMs: 1100 }, { target: authoredPoint(22, 42), dwellMs: 1800 }] },
+  { npcId: 'commercial-street-pedestrian-west-south', initialDelayMs: 900, steps: [{ target: authoredPoint(28, 58), dwellMs: 1700 }, { target: authoredPoint(72, 58), dwellMs: 1200 }] },
+  { npcId: 'commercial-street-pedestrian-mid-east-north', initialDelayMs: 1700, steps: [{ target: authoredPoint(142, 42), dwellMs: 1300 }, { target: authoredPoint(88, 42), dwellMs: 2000 }] },
+  { npcId: 'commercial-street-pedestrian-mid-east-south', initialDelayMs: 2700, steps: [{ target: authoredPoint(174, 58), dwellMs: 1600 }, { target: authoredPoint(124, 58), dwellMs: 900 }] },
+  { npcId: 'commercial-street-pedestrian-long', initialDelayMs: 3900, steps: [{ target: authoredPoint(166, 50), dwellMs: 2400 }, { target: authoredPoint(20, 50), dwellMs: 1600 }] },
+  { npcId: 'commercial-street-pedestrian-shopper', initialDelayMs: 5100, steps: [{ target: authoredPoint(110, 40), dwellMs: 3500 }, { target: authoredPoint(96, 58), dwellMs: 1400 }, { target: authoredPoint(116, 58), dwellMs: 2600 }] },
+] as const satisfies readonly MainlineAmbientNpcRoute[]
+
 const commercialStreetBlueprint: MainlineSceneBlueprint = {
   id: 'commercial-street',
   title: '第一章 · 商业街',
@@ -978,7 +1012,21 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
       ...storefrontRow('commercial-south', 'commercial-south-facade', 'top', ['鞋店', '潮玩店', '香氛店', '服装店', '奶茶店', '周边店', '首饰店', '服装店'], 'modern', commercialStorefrontStarts, 18),
       { id: 'commercial-cafe-slot', wallId: 'commercial-cafe-terminal', edge: 'right', label: '咖啡馆', style: 'modern', composition: { baseline: ['sign'], near: ['wall', 'door', 'wall'] }, portalId: 'street-cafe-entry', nearRadius: 10, start: commercialStreetCafeDoorStart, end: commercialStreetCafeDoorEnd, approach: authoredPoint(186, commercialStreetCafeDoorY) },
     ],
-    floorEntities: [], airWalls: commercialStreetFacadeAirWalls, blockers: [], furnitureGroups: [], initialPlayerPosition: authoredPoint(34, 50),
+    floorEntities: [],
+    airWalls: commercialStreetFacadeAirWalls,
+    blockers: [],
+    npcs: commercialStreetAmbientNpcs,
+    npcPlacements: [
+      { npcId: 'commercial-street-pedestrian-west-north', position: authoredPoint(22, 42) },
+      { npcId: 'commercial-street-pedestrian-west-south', position: authoredPoint(64, 58) },
+      { npcId: 'commercial-street-pedestrian-mid-east-north', position: authoredPoint(88, 42) },
+      { npcId: 'commercial-street-pedestrian-mid-east-south', position: authoredPoint(132, 58) },
+      { npcId: 'commercial-street-pedestrian-long', position: authoredPoint(20, 50) },
+      { npcId: 'commercial-street-pedestrian-shopper', position: authoredPoint(110, 58) },
+    ],
+    ambientNpcRoutes: commercialStreetAmbientNpcRoutes,
+    furnitureGroups: [],
+    initialPlayerPosition: authoredPoint(34, 50),
   },
   portals: [{
     id: 'street-cafe-entry',

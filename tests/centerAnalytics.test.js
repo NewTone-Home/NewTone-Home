@@ -48,7 +48,8 @@ describe('Center minimal analytics contract', () => {
     expect(experience).toContain("trackEvent('center_ride_ready'")
     expect(scene).toContain("onDoorEvent?.('attempted'")
     expect(scene).toContain("onObjectInteraction?.(entity,")
-    expect(experience).toContain("if (result.ok && payload.source === 'exit-prompt') markCenterFeedbackPromptShown()")
+    expect(experience).not.toContain("center_feedback_prompt_shown")
+    expect(experience).toContain("trackEvent('center_feedback_opened'")
     expect(analytics).toContain("const PENDING_EVENTS_KEY = 'newtone-analytics-pending-v1'")
   })
 

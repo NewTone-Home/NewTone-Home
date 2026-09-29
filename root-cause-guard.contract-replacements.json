@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "replacements": [
+    {
+      "id": "chapter-2-survey-retirement-2026-09-29",
+      "projectRoot": "E:\\小说\\NewTone-Workspace\\commercial-street-release-polish",
+      "testFile": "tests/centerCompletionFeedback.test.js",
+      "oldContract": "Chapter 2 completion must show survey",
+      "newContract": "Chapter 2 completion must not auto-show survey or Feedback; manual Feedback remains available",
+      "requiredAddedAssertions": [
+        "expect(experience).not.toContain('completion-prompt')",
+        "expect(phone).toContain('data-app=\"feedback\"')"
+      ]
+    },
+    {
+      "id": "chapter-2-survey-retirement-2026-09-29",
+      "projectRoot": "E:\\小说\\NewTone-Workspace\\commercial-street-release-polish",
+      "testFile": "tests/centerFeedback.test.js",
+      "oldContract": "Exit questionnaire persistence is a current Feedback product feature",
+      "newContract": "Only voluntary phone Feedback is a current product feature",
+      "requiredAddedAssertions": [
+        "expect(service).toContain(\"const SOURCES = new Set(['phone'])\")",
+        "expect(phone).toContain('data-app=\"feedback\"')"
+      ]
+    },
+    {
+      "id": "chapter-2-survey-retirement-2026-09-29",
+      "projectRoot": "E:\\小说\\NewTone-Workspace\\commercial-street-release-polish",
+      "testFile": "tests/centerAnalytics.test.js",
+      "oldContract": "Completion survey prompt is part of the current Center analytics flow",
+      "newContract": "The Center analytics flow does not emit a completion survey prompt",
+      "requiredAddedAssertions": [
+        "expect(experience).not.toContain(\"center_feedback_prompt_shown\")"
+      ]
+    }
+  ]
+}

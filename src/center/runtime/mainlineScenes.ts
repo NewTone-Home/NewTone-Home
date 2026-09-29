@@ -23,6 +23,7 @@ import type {
   MainlineSceneDialogue,
   MainlineSceneAttachedProp,
   MainlineSceneNpc,
+  MainlineAmbientNpcRoute,
   MainlineSceneNpcPlacement,
   MainlineSceneNpcBehavior,
   MainlineSceneNpcBehaviorTarget,
@@ -209,6 +210,7 @@ export type MainlineSceneDefinition = {
   objects: readonly MainlineSceneEntity[]
   npcs: readonly MainlineSceneNpc[]
   npcPlacements: readonly MainlineSceneNpcPlacement[]
+  ambientNpcRoutes: readonly MainlineAmbientNpcRoute[]
   npcBehaviorTargets: readonly MainlineSceneNpcBehaviorTarget[]
   npcBehaviors: readonly MainlineSceneNpcBehavior[]
   attachedProps: readonly MainlineSceneAttachedProp[]
@@ -1037,6 +1039,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     objects: [...objectById.values()],
     npcs: data.npcs ?? [],
     npcPlacements: data.npcPlacements ?? [],
+    ambientNpcRoutes: data.ambientNpcRoutes ?? [],
     npcBehaviorTargets: data.npcBehaviorTargets ?? [],
     npcBehaviors: data.npcBehaviors ?? [],
     attachedProps: data.attachedProps ?? [],
