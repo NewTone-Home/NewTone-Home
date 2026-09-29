@@ -11,7 +11,7 @@ const EVENTS = new Set([
   'center_entry_requested', 'center_scene_entered', 'center_scene_exited',
   'center_object_interacted', 'center_door_attempted', 'center_door_blocked',
   'center_door_crossed', 'center_phone_opened', 'center_ride_ready',
-  'center_feedback_prompt_shown', 'center_feedback_opened', 'center_feedback_submitted',
+  'center_feedback_opened', 'center_feedback_submitted',
 ])
 const LANGUAGES = new Set(['zh', 'en'])
 const MODES = new Set(['immersive', 'standard'])

@@ -30,13 +30,7 @@ import './runtime/scene.css'
 import './CenterExperience.css'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { trackEvent } from '../services/analytics'
-import {
-  hasShownCenterCompletionFeedbackPrompt,
-  markCenterCompletionFeedbackSubmitted,
-  markCenterFeedbackPromptShown,
-  markCenterCompletionFeedbackPromptShown,
-  submitCenterFeedback,
-} from '../services/centerFeedback'
+import { submitCenterFeedback } from '../services/centerFeedback'
 
 const initialSceneId = mainlineRespawnSceneId
 function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
@@ -110,27 +104,7 @@ export default function CenterExperience({
     setFeedbackMode('phone')
   }, [phoneDevice, route.sceneId])
 
-  const handleFeedbackSubmit = useCallback((payload) => (
-    submitCenterFeedback(payload).then((result) => {
-      if (result.ok && payload.source === 'completion-prompt') markCenterCompletionFeedbackSubmitted()
-      if (result.ok && payload.source === 'exit-prompt') markCenterFeedbackPromptShown()
-      return result
-    })
-  ), [])
-
-  const handlePlayableCompletion = useCallback(() => {
-    if (hasShownCenterCompletionFeedbackPrompt()) return false
-    trackEvent('center_feedback_prompt_shown', {
-      sceneId: route.sceneId,
-      device: phoneDevice,
-      trigger: 'playable-completion',
-      outcome: 'shown',
-    })
-    markCenterCompletionFeedbackPromptShown()
-    setFeedbackMode('completion-prompt')
-    setPhoneOpen(true)
-    return true
-  }, [phoneDevice, route.sceneId])
+  const handleFeedbackSubmit = useCallback((payload) => submitCenterFeedback(payload), [])
 
   useEffect(() => {
     if (sceneEnteredAtRef.current?.sceneId === route.sceneId) return
@@ -309,12 +283,9 @@ export default function CenterExperience({
       setPhoneOpen(false)
       return
     }
-    const completionPromptShown = device === 'inner' && layer === 'inner'
-      ? handlePlayableCompletion()
-      : false
-    setPhoneOpen(completionPromptShown)
+    setPhoneOpen(false)
     setBoundaryNotice('叫车功能已接通，后续内容暂未开放。')
-  }, [handlePlayableCompletion, route.sceneId])
+  }, [route.sceneId])
 
   const canPersistScenePosition = Boolean(
     route.entryPosition

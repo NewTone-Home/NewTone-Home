@@ -1,50 +1,26 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import {
-  clearCenterCompletionFeedbackPrompt,
-  hasShownCenterCompletionFeedbackPrompt,
-  hasSubmittedCenterCompletionFeedback,
-  markCenterCompletionFeedbackSubmitted,
-  markCenterCompletionFeedbackPromptShown,
-} from '../src/services/centerFeedback'
 
 const read = (path) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 
-function createStorage() {
-  const values = new Map()
-  return {
-    getItem: key => values.get(key) ?? null,
-    setItem: (key, value) => values.set(key, String(value)),
-    removeItem: key => values.delete(key),
-  }
-}
-
-describe('Center playable-completion feedback contract', () => {
-  it('persists the completion prompt separately from the legacy prompt key', () => {
-    const storage = createStorage()
-    expect(hasShownCenterCompletionFeedbackPrompt(storage)).toBe(false)
-    expect(markCenterCompletionFeedbackPromptShown(storage)).toBe(true)
-    expect(hasShownCenterCompletionFeedbackPrompt(storage)).toBe(true)
-    expect(clearCenterCompletionFeedbackPrompt(storage)).toBe(true)
-    expect(hasShownCenterCompletionFeedbackPrompt(storage)).toBe(false)
-  })
-
-  it('tracks prompt display and successful submission separately', () => {
-    const storage = createStorage()
-    expect(hasSubmittedCenterCompletionFeedback(storage)).toBe(false)
-    expect(markCenterCompletionFeedbackPromptShown(storage)).toBe(true)
-    expect(hasShownCenterCompletionFeedbackPrompt(storage)).toBe(true)
-    expect(hasSubmittedCenterCompletionFeedback(storage)).toBe(false)
-    expect(markCenterCompletionFeedbackSubmitted(storage)).toBe(true)
-    expect(hasSubmittedCenterCompletionFeedback(storage)).toBe(true)
-  })
-
-  it('opens only from the valid inner-world ride completion path', () => {
+describe('Center completion-feedback retirement', () => {
+  it('keeps Chapter 2 completion outside survey and automatic Feedback flows', () => {
     const experience = read('../src/center/CenterExperience.jsx')
     expect(experience).toContain("trackEvent('center_ride_ready'")
-    expect(experience).toContain("trigger: 'playable-completion'")
-    expect(experience).toContain("device === 'inner' && layer === 'inner'")
-    expect(experience).toContain("setFeedbackMode('completion-prompt')")
+    expect(experience).not.toContain('handlePlayableCompletion')
+    expect(experience).not.toContain('completion-prompt')
+    expect(experience).not.toContain('center_feedback_prompt_shown')
+    expect(experience).toContain('setPhoneOpen(false)')
+  })
+
+  it('keeps Feedback voluntary after retired survey flags are ignored', () => {
+    const phone = read('../src/center/runtime/WorldPhone.tsx')
+    const service = read('../src/services/centerFeedback.js')
+    expect(phone).toContain("type FeedbackMode = 'phone'")
+    expect(phone).toContain('data-app="feedback"')
+    expect(phone).not.toContain('experience-length')
+    expect(service).not.toContain('newtone-center-feedback-completion-shown-v1')
+    expect(service).not.toContain('newtone-center-feedback-prompt-shown-v1')
   })
 })

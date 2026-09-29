@@ -303,6 +303,7 @@
 .world-phone--inner .world-phone__apps button:focus-visible { outline-color: #8ce2d0; }
 .world-phone__app-view { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .world-phone__feedback {
+  pointer-events: auto;
   flex: 1;
   min-height: 0;
   overflow-y: auto;

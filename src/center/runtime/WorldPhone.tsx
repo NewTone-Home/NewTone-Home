@@ -6,11 +6,8 @@ import { sceneInteractionHandlers } from './sceneInteraction'
 import { phoneInputOwner, phoneIsOnline, phoneRideAvailability, type PhoneDevice, type WorldLayer, type WorldPhonePhase } from './phoneState'
 
 type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback'
-type FeedbackMode = 'completion-prompt' | 'exit-prompt' | 'phone'
+type FeedbackMode = 'phone'
 type FeedbackPayload = {
-  experienceLength: 'too-short' | 'okay' | 'cannot-understand' | null
-  portraitAdaptation: 'yes' | 'no' | null
-  continuationInterest: 'yes' | 'no-interest' | null
   freeText: string
   source: FeedbackMode
 }
@@ -106,9 +103,6 @@ function FeedbackApp({
   onSubmit?: (payload: FeedbackPayload) => Promise<FeedbackSubmitResult>
   onFinish: () => void
 }) {
-  const [experienceLength, setExperienceLength] = useState<FeedbackPayload['experienceLength']>(null)
-  const [portraitAdaptation, setPortraitAdaptation] = useState<FeedbackPayload['portraitAdaptation']>(null)
-  const [continuationInterest, setContinuationInterest] = useState<FeedbackPayload['continuationInterest']>(null)
   const [freeText, setFreeText] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -120,9 +114,6 @@ function FeedbackApp({
     setSubmitting(true)
     setError('')
     const result = await onSubmit({
-      experienceLength,
-      portraitAdaptation,
-      continuationInterest,
       freeText,
       source: mode,
     })
@@ -149,59 +140,8 @@ function FeedbackApp({
   return (
     <form className="world-phone__feedback" onSubmit={submit}>
       <span className="world-phone__feedback-kicker">反馈</span>
-      {mode === 'completion-prompt' || mode === 'exit-prompt' ? (
-        <>
-          <p className="world-phone__feedback-intro">这一段体验到这里，想听听你的感受。</p>
-          <fieldset className="world-phone__feedback-question">
-            <legend>感觉怎么样？</legend>
-            <div className="world-phone__feedback-options">
-              {[
-                ['too-short', '太短了'],
-                ['okay', '还不错'],
-                ['cannot-understand', '完全看不懂'],
-              ].map(([value, label]) => (
-                <label key={value} className={experienceLength === value ? 'is-selected' : ''}>
-                  <input type="radio" name="experience-length" value={value} checked={experienceLength === value} onChange={() => setExperienceLength(value as FeedbackPayload['experienceLength'])} />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <fieldset className="world-phone__feedback-question">
-            <legend>您希望我们继续根据竖屏做更精细化的适配吗？</legend>
-            <div className="world-phone__feedback-options world-phone__feedback-options--short">
-              {[
-                ['yes', '要'],
-                ['no', '不要'],
-              ].map(([value, label]) => (
-                <label key={value} className={portraitAdaptation === value ? 'is-selected' : ''}>
-                  <input type="radio" name="portrait-adaptation" value={value} checked={portraitAdaptation === value} onChange={() => setPortraitAdaptation(value as FeedbackPayload['portraitAdaptation'])} />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <fieldset className="world-phone__feedback-question">
-            <legend>你愿意体验后面的内容吗？</legend>
-            <div className="world-phone__feedback-options world-phone__feedback-options--short">
-              {[
-                ['yes', '愿意'],
-                ['no-interest', '没兴趣'],
-              ].map(([value, label]) => (
-                <label key={value} className={continuationInterest === value ? 'is-selected' : ''}>
-                  <input type="radio" name="continuation-interest" value={value} checked={continuationInterest === value} onChange={() => setContinuationInterest(value as FeedbackPayload['continuationInterest'])} />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        </>
-      ) : (
-        <>
-          <p className="world-phone__feedback-intro">有什么想说的，可以写在这里。</p>
-          <textarea className="world-phone__feedback-textarea" value={freeText} maxLength={2000} onChange={event => setFreeText(event.target.value)} placeholder="写下你的反馈" aria-label="自定义反馈" />
-        </>
-      )}
+      <p className="world-phone__feedback-intro">有什么想说的，可以写在这里。</p>
+      <textarea className="world-phone__feedback-textarea" value={freeText} maxLength={2000} onChange={event => setFreeText(event.target.value)} placeholder="写下你的反馈" aria-label="自定义反馈" />
       {error && <p className="world-phone__feedback-error" role="alert">{error}</p>}
       <button className="world-phone__feedback-submit" type="submit" disabled={submitting}>{submitting ? '提交中…' : '提交反馈'}</button>
     </form>
