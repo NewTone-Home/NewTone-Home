@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { Point } from './sceneGeometry'
 import { MainlineSceneRenderer, type MainlineInputDiagnostic } from './MainlineSceneRenderer'
-import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneAreaLabel, mainlineSceneGeometryUnits, mainlineSceneWalkBounds, mainlineScenes, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneExternalExit, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
+import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneAreaLabel, mainlineSceneGeometryUnits, mainlineSceneWalkBounds, mainlineScenes, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneExternalExit, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
 import { canActorReachPassageApproach, classifyMainlineWorldCommand, findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, isMainlineEntityWithinInteractionRange, isMainlineNavigationBarrierClear, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlineInteractionTarget, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineEntityInteraction, resolveMainlineNpcInteraction, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from './mainlineNavigation'
 import { layoutGridSize, mainlineEntityInteractionBounds, mainlineEntityVisualBounds, mainlineLabelFootprint, mainlineProtagonistDotFootprint, type SceneLayout } from './sceneLayout'
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
@@ -29,6 +29,7 @@ import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainli
 import { commercialCafeServerMovementDebugTarget } from './mainlineSceneModel'
 import { mainlineExploredObjectIdsFromSceneState, mainlineInteractionCompletesImmediately, mainlineInteractionExploredStateKey } from './mainlineInteractionVisualState'
 import { localSlideDirectionForCrossing, shouldUseLocalSlideForPassage, type MainlineWalkingPassageTransitionIntent } from './mainlineSceneTransition'
+import { createCommercialStreetStorefrontExecutionRuntime, createCommercialStreetStorefrontInteractionRuntime, commercialStreetStorefrontInteractionFor, executeCommercialStreetStorefrontInteraction, type CommercialStreetStorefrontAction } from './commercialStreetStorefrontInteractions'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
@@ -274,6 +275,7 @@ export function MainlineScenePage({
   onPhoneDismiss,
   onDeskInteraction,
   onObjectInteraction,
+  onStorefrontAction,
   onNpcInteraction,
   onDoorEvent,
   initialSceneState = {},
@@ -303,6 +305,8 @@ export function MainlineScenePage({
   onPhoneDismiss?: () => void
   onDeskInteraction?: (device: PhoneDevice) => void
   onObjectInteraction?: (entity: MainlineSceneEntity, dwellMs: number) => void
+  /** Reserved entry point for future storefront actions such as milk-tea ordering. */
+  onStorefrontAction?: (action: CommercialStreetStorefrontAction, storefrontId: string) => void
   onNpcInteraction?: (npcId: string) => void
   onDoorEvent?: (phase: 'attempted' | 'blocked' | 'crossed', passage: MainlineScenePassage) => void
   initialSceneState?: PlayerSceneState
@@ -349,6 +353,8 @@ export function MainlineScenePage({
   const scene = sceneDefinition
   const previousExternalExitPositionRef = useRef(initialPosition)
   const interactionStartedAtRef = useRef<number | null>(null)
+  const storefrontInteractionRuntimeRef = useRef(createCommercialStreetStorefrontInteractionRuntime())
+  const storefrontExecutionRuntimeRef = useRef(createCommercialStreetStorefrontExecutionRuntime())
   const npcInteractionRequestRef = useRef(0)
   const navigationRuntimeRef = useRef(createNavigationRuntime())
   const navigationRuntime = navigationRuntimeRef.current
@@ -359,6 +365,10 @@ export function MainlineScenePage({
   const handledWalkRequestRef = useRef<number | null>(null)
   const [feedback, setFeedback] = useState(entryFeedbackForScene(sceneDefinition))
   const [inputDiagnostic, setInputDiagnostic] = useState<MainlineInputDiagnostic | null>(null)
+  useEffect(() => {
+    storefrontInteractionRuntimeRef.current = createCommercialStreetStorefrontInteractionRuntime()
+    storefrontExecutionRuntimeRef.current = createCommercialStreetStorefrontExecutionRuntime()
+  }, [sceneId])
   const debugInputSearch = useSyncExternalStore(emptyExternalStoreSubscribe, getDebugInputSnapshot, getServerDebugInputSnapshot)
   const debugInput = new URLSearchParams(debugInputSearch).get('debugInput') === '1'
   const debugNpcMovement = new URLSearchParams(debugInputSearch).get('debugNpcMovement') === '1'
@@ -1319,6 +1329,60 @@ export function MainlineScenePage({
     })
   }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeStoryStage, completeShortInteraction, dismissSceneEcho, geometrySnapshot, getCurrentPosition, incensePhase, layout, leavePlayerSeat, locomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, recordSceneState, resetMovement, scene, screenMetrics, startNpcDialogue, startPassageTraversal, stopMovement])
 
+  const interactStorefront = useCallback((storefrontId: string) => {
+    const storefront = scene.storefronts.find((candidate) => candidate.id === storefrontId)
+    if (!storefront || !commercialStreetStorefrontInteractionFor(storefrontId)) return
+    setRequestedWorldTarget(null)
+    if (phoneOpen) onPhoneDismiss?.()
+    setDialogueLineIndex(null)
+    setNpcDialogue(null)
+
+    const revealStorefrontInteraction = () => {
+      const resolution = executeCommercialStreetStorefrontInteraction(storefrontId, storefrontInteractionRuntimeRef.current, storefrontExecutionRuntimeRef.current)
+      setActiveObjectId(null)
+      if (!resolution) return
+      dismissSceneEcho()
+      if (resolution.kind === 'action') {
+        onStorefrontAction?.(resolution.action, storefrontId)
+        setFeedback(`修杰来到${storefront.label}前。`)
+        return
+      }
+      setFeedback('修杰停在这里。')
+      sceneEchoIdRef.current += 1
+      setSceneEcho(createMainlineSceneEcho(
+        sceneEchoIdRef.current,
+        storefrontId,
+        resolution.text,
+        echoPositionNearPlayer(scene, resolution.text, getCurrentPosition(), layout, screenMetrics, geometrySnapshot),
+      ))
+    }
+
+    const target = mainlineStorefrontApproach(scene, storefront)
+    const currentPosition = getCurrentPosition()
+    if (Math.hypot(currentPosition.x - target.x, currentPosition.y - target.y) <= .35) {
+      stopMovement()
+      revealStorefrontInteraction()
+      return
+    }
+    const path = findMainlinePath(currentPosition, target, scene, layout, navigationOptions)
+    if (!path) {
+      stopMovement()
+      setFeedback('这个位置暂时走不过去。')
+      return
+    }
+    setActiveObjectId(storefrontId)
+    setFeedback(`修杰前往${storefront.label}。`)
+    moveAlong(path, revealStorefrontInteraction, {
+      ...locomotionOptions,
+      canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
+      canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
+      onBlocked: () => {
+        setActiveObjectId(null)
+        setFeedback('修杰在边界前停下了，需要重新选择位置。')
+      },
+    })
+  }, [dismissSceneEcho, findMainlinePath, geometrySnapshot, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, onPhoneDismiss, onStorefrontAction, phoneOpen, scene, screenMetrics, stopMovement])
+
   const interactNpc = useCallback((npcId: string) => {
     setRequestedWorldTarget(null)
     const npc = scene.npcs.find((candidate) => candidate.id === npcId)
@@ -1626,6 +1690,7 @@ export function MainlineScenePage({
               suppressWorldEnterAnimation={suppressWorldEnterAnimation}
               onLayoutChange={updateLayout}
               onInteract={interact}
+              onStorefrontInteract={interactStorefront}
               onNpcInteract={interactNpc}
               onAttachedPropInteract={interactAttachedProp}
               npcPositions={resolvedNpcPositions}

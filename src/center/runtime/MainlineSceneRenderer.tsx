@@ -21,6 +21,7 @@ import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import type { NpcRuntimeSnapshot } from './npcCore'
 import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisualState'
 import { storefrontPresentationLabelSlots, type StorefrontPresentationPhase } from './storefrontPresentation'
+import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -45,6 +46,7 @@ type MainlineSceneRendererProps = {
   suppressWorldEnterAnimation?: boolean
   onLayoutChange: (itemId: LayoutItemId, point: Point) => void
   onInteract: (id: string) => void
+  onStorefrontInteract?: (storefrontId: string) => void
   onNpcInteract?: (npcId: string) => void
   onAttachedPropInteract?: (propId: string) => void
   npcPositions?: ReadonlyMap<string, Point>
@@ -170,6 +172,7 @@ type MainlineGeometryCellEntry = {
   entityId?: string
   focusGroup: string
   focusPolicy: MainlineFocusPolicy
+  storefrontInteractionId?: string
 }
 
 type MainlineDoorButtonProps = {
@@ -228,7 +231,11 @@ function storefrontDoorFocusGroup(cell: MainlineGeometryCellEntry['cell'], varia
 
 function mainlineCellFocusTarget(scene: MainlineSceneDefinition, cell: MainlineGeometryCellEntry['cell'], entityId?: string, variant?: MainlineSceneGeometryUnit['variant']) {
   if (cell.kind === 'storefront' && cell.storefrontRole === 'sign' && variant !== 'near') {
-    return { group: storefrontFocusGroup(cell, variant), policy: 'passage' as const }
+    return {
+      group: storefrontFocusGroup(cell, variant),
+      policy: commercialStreetStorefrontInteractionFor(cell.storefrontId ?? '') ? 'interactive' as const : 'passage' as const,
+      storefrontInteractionId: commercialStreetStorefrontInteractionFor(cell.storefrontId ?? '') ? cell.storefrontId : undefined,
+    }
   }
   if (cell.kind === 'storefront' && cell.storefrontRole === 'door' && entityId) {
     return { group: storefrontDoorFocusGroup(cell, variant), policy: 'passage' as const }
@@ -252,13 +259,15 @@ function mainlineWallCellVisibility(cell: MainlineGeometryCellEntry['cell'], uni
   return (cell.baselineVisible ?? cell.baseline ?? true) ? 'is-baseline' : 'is-hidden'
 }
 
-function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, interactionEntityId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontLabel, storefrontPresentationPhase = 'baseline', onStorefrontPresentationMotionComplete, active = false, explored = false }: {
+function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontLabel, storefrontPresentationPhase = 'baseline', onStorefrontPresentationMotionComplete, active = false, explored = false }: {
   entries: readonly MainlineGeometryCellEntry[]
   className: string
   visibilityClass: string
   renderFrame: (group: string) => ReactNode
   onInteract?: (id: string) => void
+  onStorefrontInteract?: (storefrontId: string) => void
   interactionEntityId?: string
+  storefrontInteractionId?: string
   ariaLabel?: string
   passagePhase?: string
   gateTriggered?: boolean
@@ -331,6 +340,9 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
   }
   if (first.focusPolicy === 'interactive' && interactionEntityId && onInteract) {
     return <button {...commonProps} type="button" onClick={(event) => { event.stopPropagation(); onInteract(interactionEntityId) }} aria-label={ariaLabel}>{content}{renderFrame(first.focusGroup)}</button>
+  }
+  if (first.focusPolicy === 'interactive' && storefrontInteractionId && onStorefrontInteract) {
+    return <button {...commonProps} type="button" onClick={(event) => { event.stopPropagation(); onStorefrontInteract(storefrontInteractionId) }} aria-label={ariaLabel}>{content}{renderFrame(first.focusGroup)}</button>
   }
   return <span {...commonProps} aria-hidden="true">{content}{renderFrame(first.focusGroup)}</span>
 }
@@ -451,6 +463,7 @@ export function MainlineSceneRenderer({
   freezeFrameMeasurements = false,
   onLayoutChange,
   onInteract,
+  onStorefrontInteract,
   onNpcInteract,
   onAttachedPropInteract,
   npcPositions,
@@ -581,7 +594,7 @@ export function MainlineSceneRenderer({
       const target = mainlineCellFocusTarget(scene, cell, entityId, unit.variant)
       if (!target) return
       const entries = groups.get(target.group) ?? []
-      entries.push({ unit, cell, entityId, focusGroup: target.group, focusPolicy: target.policy })
+      entries.push({ unit, cell, entityId, focusGroup: target.group, focusPolicy: target.policy, storefrontInteractionId: target.storefrontInteractionId })
       groups.set(target.group, entries)
     })
     return groups
@@ -615,6 +628,7 @@ export function MainlineSceneRenderer({
         ? scene.passages.find((passage) => passage.portalId === storefront.portalId)?.entityId
         : undefined
       const passageEntityId = storefrontPassageEntityId ?? entityId
+      const interactionId = target.storefrontInteractionId ?? entityId
       const sceneExitMatchesTarget = sceneFrameExit.scope === 'scene'
         || (target.policy === 'passage' && sceneFrameExit.passageEntityId === passageEntityId)
       const retractRequested = sceneFrameExit.phase === 'retracting'
@@ -625,8 +639,8 @@ export function MainlineSceneRenderer({
         policy: target.policy,
         phase: target.policy === 'passage' ? doorPhases.get(passageEntityId ?? '') ?? 'closed' : 'closed',
         gateTriggered: target.policy === 'gate' && gateTriggered,
-        interactionBusy: target.policy === 'interactive' && activeObjectId === entityId && moving,
-        interactionActive: target.policy === 'interactive' && (activeObjectId === entityId || sceneEcho?.entityId === entityId),
+        interactionBusy: target.policy === 'interactive' && activeObjectId === interactionId && moving,
+        interactionActive: target.policy === 'interactive' && (activeObjectId === interactionId || sceneEcho?.entityId === interactionId),
         retractRequested: retractRequested
           || (cell.kind === 'storefront' && cell.storefrontRole === 'sign' && (storefrontPresentationPhase === 'revealing' || storefrontPresentationPhase === 'revealed'))
           || (sceneEcho?.phase === 'leaving' && sceneEcho.entityId === entityId),
@@ -838,6 +852,8 @@ export function MainlineSceneRenderer({
                     className={`${groupClass} is-storefront-${storefrontPresentationPhase}`}
                     visibilityClass={groupVisibilityClass}
                     renderFrame={focusFrames.renderFrame}
+                    onStorefrontInteract={onStorefrontInteract}
+                    storefrontInteractionId={commercialStreetStorefrontInteractionFor(storefront?.id ?? '') ? storefront?.id : undefined}
                     storefrontLabel={storefrontRole === 'sign' ? storefront?.label : undefined}
                     storefrontPresentationPhase={storefrontPresentationPhase}
                     onStorefrontPresentationMotionComplete={(phase) => {
@@ -848,6 +864,7 @@ export function MainlineSceneRenderer({
                     }}
                     passagePhase={storefrontPhase}
                     frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === storefrontPassageEntityId}
+                    active={activeObjectId === storefront?.id && Boolean(commercialStreetStorefrontInteractionFor(storefront.id))}
                   />
                 }
                 if (cell.kind === 'feature' && entityId) {
