@@ -90,9 +90,22 @@ describe('commercial street storefront interactions', () => {
   it('does not let the cooldown skip fruit-tea Coming Soon or repeat the milk-tea action', () => {
     const fruitRuntime = createCommercialStreetStorefrontInteractionRuntime()
     const fruitExecutionRuntime = createCommercialStreetStorefrontExecutionRuntime()
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1000)).toEqual({ kind: 'echo', text: 'Coming Soon' })
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1140)).toBeNull()
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1300)).toEqual({ kind: 'echo', text: '门边的立牌上画着几种颜色很亮的果饮。' })
+    let firstChoiceCalls = 0
+    const firstChoice = () => {
+      firstChoiceCalls += 1
+      return 0
+    }
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1000, firstChoice)).toEqual({ kind: 'echo', text: 'Coming Soon' })
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1140, firstChoice)).toBeNull()
+    expect(firstChoiceCalls).toBe(0)
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1300, firstChoice)).toEqual({ kind: 'echo', text: '门边的立牌上画着几种颜色很亮的果饮。' })
+    expect(firstChoiceCalls).toBe(1)
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1600, firstChoice)).toEqual({ kind: 'echo', text: '招牌上的布还没有揭开。' })
+
+    const secondChoiceRuntime = createCommercialStreetStorefrontInteractionRuntime()
+    const secondChoiceExecutionRuntime = createCommercialStreetStorefrontExecutionRuntime()
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', secondChoiceRuntime, secondChoiceExecutionRuntime, 1000, () => .999)).toEqual({ kind: 'echo', text: 'Coming Soon' })
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', secondChoiceRuntime, secondChoiceExecutionRuntime, 1300, () => .999)).toEqual({ kind: 'echo', text: '招牌上的布还没有揭开。' })
 
     const milkRuntime = createCommercialStreetStorefrontInteractionRuntime()
     const milkExecutionRuntime = createCommercialStreetStorefrontExecutionRuntime()
