@@ -962,38 +962,42 @@ export function MainlineSceneRenderer({
               npcSeatId ? geometrySnapshot.objects.get(npcSeatId)?.position : undefined,
             )
             const npcVisualFootprint = mainlineLabelFootprint(npc.label, npcVisualPosition, renderScreenMetrics, { lineHeight: 1 })
-            return <button
-              key={npc.id}
-              className="scene-mainline-npc"
-              type="button"
-              style={{
+            const isInteractive = npc.interactive !== false
+            const commonProps = {
+              className: `scene-mainline-npc ${isInteractive ? '' : 'scene-mainline-npc--ambient'}`,
+              style: {
                 left: `${npcVisualPosition.x}%`,
                 top: `${npcVisualPosition.y}%`,
                 '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px`,
-              } as CSSProperties}
+              } as CSSProperties,
+              'data-actor-id': npc.id,
+              'data-npc-role': npc.roleId,
+              'data-npc-id': npc.id,
+              'data-seat-entity-id': npcSeatId,
+              'data-interaction-target-entity-id': npc.interactionTargetEntityId,
+              'data-npc-phase': npcSnapshot?.phase,
+              'data-npc-duty-id': npcSnapshot?.dutyId ?? undefined,
+              'data-npc-target-id': npcSnapshot?.targetId ?? undefined,
+              'data-npc-target-x': debugRuntimeEvidence ? npcSnapshot?.target?.x : undefined,
+              'data-npc-target-y': debugRuntimeEvidence ? npcSnapshot?.target?.y : undefined,
+              'data-runtime-x': debugRuntimeEvidence ? npcPosition.x : undefined,
+              'data-runtime-y': debugRuntimeEvidence ? npcPosition.y : undefined,
+              'data-rendered-x': debugRuntimeEvidence ? npcVisualPosition.x : undefined,
+              'data-rendered-y': debugRuntimeEvidence ? npcVisualPosition.y : undefined,
+              'data-visual-x': debugRuntimeEvidence ? npcVisualFootprint.x : undefined,
+              'data-visual-y': debugRuntimeEvidence ? npcVisualFootprint.y : undefined,
+              'data-visual-width': debugRuntimeEvidence ? npcVisualFootprint.width : undefined,
+              'data-visual-height': debugRuntimeEvidence ? npcVisualFootprint.height : undefined,
+            }
+            return isInteractive ? <button
+              key={npc.id}
+              {...commonProps}
+              type="button"
               onClick={(event) => { event.stopPropagation(); onNpcInteract?.(npc.id) }}
-              data-actor-id={npc.id}
-              data-npc-role={npc.roleId}
-              data-npc-id={npc.id}
-              data-seat-entity-id={npcSeatId}
-              data-interaction-target-entity-id={npc.interactionTargetEntityId}
-              data-npc-phase={npcSnapshot?.phase}
-              data-npc-duty-id={npcSnapshot?.dutyId ?? undefined}
-              data-npc-target-id={npcSnapshot?.targetId ?? undefined}
-              data-npc-target-x={debugRuntimeEvidence ? npcSnapshot?.target?.x : undefined}
-              data-npc-target-y={debugRuntimeEvidence ? npcSnapshot?.target?.y : undefined}
-              data-runtime-x={debugRuntimeEvidence ? npcPosition.x : undefined}
-              data-runtime-y={debugRuntimeEvidence ? npcPosition.y : undefined}
-              data-rendered-x={debugRuntimeEvidence ? npcVisualPosition.x : undefined}
-              data-rendered-y={debugRuntimeEvidence ? npcVisualPosition.y : undefined}
-              data-visual-x={debugRuntimeEvidence ? npcVisualFootprint.x : undefined}
-              data-visual-y={debugRuntimeEvidence ? npcVisualFootprint.y : undefined}
-              data-visual-width={debugRuntimeEvidence ? npcVisualFootprint.width : undefined}
-              data-visual-height={debugRuntimeEvidence ? npcVisualFootprint.height : undefined}
               aria-label={`${npc.label}，点击让主角前往互动`}
             >
               <span>{npc.label}</span>
-            </button>
+            </button> : <span key={npc.id} {...commonProps} aria-hidden="true">{npc.label}</span>
           })}
 
           {visibleAttachedProps.map((prop) => {

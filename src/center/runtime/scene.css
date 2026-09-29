@@ -1307,6 +1307,7 @@
   cursor: pointer;
 }
 .scene-mainline-npc:focus-visible { outline: 1px solid var(--active); outline-offset: 4px; }
+.scene-mainline-npc--ambient { pointer-events: none; cursor: default; }
 .scene-mainline-attached-prop { pointer-events: auto; border: 0; background: transparent; font: inherit; }
 .scene-mainline-attached-prop { color: var(--soft); font-size: .84em; }
 .scene-mainline-object--door { color: var(--active); font-size: var(--scene-mainline-object-font-size, clamp(10px, 1.35cqw, 18px)); }

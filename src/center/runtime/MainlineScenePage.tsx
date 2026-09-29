@@ -21,6 +21,8 @@ import { createCommercialCafeServerBehaviorCoordinator } from './commercialCafeB
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { createNavigationRuntime } from './navigationCore'
 import { useNpcMovement } from './useNpcMovement'
+import { AmbientNpcMotion, useAmbientNpcSceneClock } from './AmbientNpcMotion'
+import type { NpcRuntimeSnapshot } from './npcCore'
 import { useStorefrontPresentation } from './useStorefrontPresentation'
 import { splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
@@ -358,6 +360,7 @@ export function MainlineScenePage({
   const debugCafePlayerPositionAppliedRef = useRef(false)
   const handledWalkRequestRef = useRef<number | null>(null)
   const [feedback, setFeedback] = useState(entryFeedbackForScene(sceneDefinition))
+  const [ambientNpcRuntime, setAmbientNpcRuntime] = useState<ReadonlyMap<string, { position: Point; snapshot: NpcRuntimeSnapshot }>>(new Map())
   const [inputDiagnostic, setInputDiagnostic] = useState<MainlineInputDiagnostic | null>(null)
   const debugInputSearch = useSyncExternalStore(emptyExternalStoreSubscribe, getDebugInputSnapshot, getServerDebugInputSnapshot)
   const debugInput = new URLSearchParams(debugInputSearch).get('debugInput') === '1'
@@ -516,17 +519,48 @@ export function MainlineScenePage({
     navigationRuntime,
     footprint: serverFootprint,
   })
-  const npcRuntimePositions = useMemo(() => serverMovement.position
-    ? new Map<string, Point>([['server', serverMovement.position]])
-    : new Map<string, Point>(), [serverMovement.position])
-  const npcRuntimeSnapshots = useMemo(() => new Map([['server', serverMovement.snapshot]]), [serverMovement.snapshot])
+  const ambientNpcFootprints = useMemo(() => new Map(scene.ambientNpcRoutes.map((schedule) => {
+    const npc = scene.npcs.find((candidate) => candidate.id === schedule.npcId)
+    const position = stagedNpcPositions.get(schedule.npcId) ?? scene.initialPlayerPosition
+    const box = mainlineLabelFootprint(npc?.label ?? '', position, screenMetrics, { lineHeight: 1 })
+    return [schedule.npcId, { width: box.width, height: box.height }] as const
+  })), [scene, screenMetrics, stagedNpcPositions])
+  const handleAmbientNpcRuntimeChange = useCallback((npcId: string, npcPosition: Point | null, snapshot: NpcRuntimeSnapshot) => {
+    setAmbientNpcRuntime((current) => {
+      const existing = current.get(npcId)
+      if (!npcPosition) {
+        if (!existing) return current
+        const next = new Map(current)
+        next.delete(npcId)
+        return next
+      }
+      if (existing
+        && existing.position.x === npcPosition.x
+        && existing.position.y === npcPosition.y
+        && existing.snapshot.phase === snapshot.phase
+        && existing.snapshot.dutyId === snapshot.dutyId
+        && existing.snapshot.targetId === snapshot.targetId) return current
+      return new Map(current).set(npcId, { position: npcPosition, snapshot })
+    })
+  }, [])
+  const npcRuntimePositions = useMemo(() => {
+    const positions = new Map<string, Point>()
+    if (serverMovement.position) positions.set('server', serverMovement.position)
+    ambientNpcRuntime.forEach(({ position }, npcId) => positions.set(npcId, position))
+    return positions
+  }, [ambientNpcRuntime, serverMovement.position])
+  const npcRuntimeSnapshots = useMemo(() => {
+    const snapshots = new Map<string, NpcRuntimeSnapshot>([['server', serverMovement.snapshot]])
+    ambientNpcRuntime.forEach(({ snapshot }, npcId) => snapshots.set(npcId, snapshot))
+    return snapshots
+  }, [ambientNpcRuntime, serverMovement.snapshot])
   const resolvedNpcPositions = useMemo(() => new Map(scene.npcs.map((npc) => [
     npc.id,
     resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics, npcRuntimePositions }),
   ])), [geometrySnapshot, layout, npcRuntimePositions, scene, screenMetrics])
-  const movingNpcIds = useMemo(() => serverMovement.snapshot.phase === 'moving'
-    ? new Set(['server'])
-    : new Set<string>(), [serverMovement.snapshot.phase])
+  const movingNpcIds = useMemo(() => new Set([...npcRuntimeSnapshots]
+    .filter(([, snapshot]) => snapshot.phase === 'moving')
+    .map(([npcId]) => npcId)), [npcRuntimeSnapshots])
   const occupiedSeatIds = useMemo(() => mainlineSceneOccupiedSeatIds(scene, activePlayerSeatId), [activePlayerSeatId, scene])
   const protagonistFootprint = useMemo(() => {
     const seatedPosition = activePlayerSeatId ? geometrySnapshot.objects.get(activePlayerSeatId)?.position : undefined
@@ -1320,9 +1354,9 @@ export function MainlineScenePage({
   }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeStoryStage, completeShortInteraction, dismissSceneEcho, geometrySnapshot, getCurrentPosition, incensePhase, layout, leavePlayerSeat, locomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, recordSceneState, resetMovement, scene, screenMetrics, startNpcDialogue, startPassageTraversal, stopMovement])
 
   const interactNpc = useCallback((npcId: string) => {
-    setRequestedWorldTarget(null)
     const npc = scene.npcs.find((candidate) => candidate.id === npcId)
-    if (!npc) return
+    if (!npc || npc.interactive === false) return
+    setRequestedWorldTarget(null)
     if (movingNpcIds.has(npcId)) {
       setFeedback(`${npc.label}正在移动，稍后再接近。`)
       return
@@ -1572,6 +1606,7 @@ export function MainlineScenePage({
   }, [cancelPassageLifecycle, initialPosition, resetMovement, scene.id, sceneDefinition, setFeedback])
 
   const currentAreaLabel = mainlineSceneAreaLabel(scene, position)
+  const ambientNpcSceneClockMs = useAmbientNpcSceneClock(scene.id === 'commercial-street')
   const shouldRenderFeedback = !embedded && Boolean(feedback) && (showSceneChrome || feedback !== entryFeedbackForScene(sceneDefinition))
   const cameraOffset = mainlineCameraOffset(scene, position, embedded)
   const debugCafeCounterStructure = debugRuntimeEvidence && scene.id === 'commercial-cafe'
@@ -1582,6 +1617,24 @@ export function MainlineScenePage({
     : undefined
 
   return (
+    <>
+      {scene.ambientNpcRoutes.map((schedule) => {
+        const initialPosition = stagedNpcPositions.get(schedule.npcId) ?? scene.initialPlayerPosition
+        return <AmbientNpcMotion
+          key={schedule.npcId}
+          enabled={scene.id === 'commercial-street'}
+          schedule={schedule}
+          initialPosition={initialPosition}
+          scene={scene}
+          layout={layout}
+          navigationRuntime={navigationRuntime}
+          navigationOptions={navigationOptions}
+          footprint={ambientNpcFootprints.get(schedule.npcId) ?? serverFootprint}
+          movementOptions={locomotionOptions}
+          sceneClockMs={ambientNpcSceneClockMs}
+          onRuntimeChange={handleAmbientNpcRuntimeChange}
+        />
+      })}
     <div {...sceneInteractionHandlers} className={`scene-shell mainline-scene ${embedded ? 'mainline-scene--embedded' : ''} ${!showSceneChrome ? 'mainline-scene--map-only' : ''}`} data-mainline-scene={scene.id} data-commercial-cafe-stage={scene.id === 'commercial-cafe' ? commercialCafeStoryStage : undefined} data-commercial-cafe-server-behavior={scene.id === 'commercial-cafe' ? commercialCafeBehavior.getPhase() : undefined} data-debug-cafe-fixture={debugCafeFixture ? 'true' : undefined} data-debug-runtime-evidence={debugRuntimeEvidence ? 'true' : undefined} data-e2e-server-back-door={debugCafeServerBackDoor ? 'true' : undefined} data-e2e-server-back-door-status={debugCafeServerBackDoor ? debugCafeServerBackDoorStatus : undefined} data-e2e-access-region-x={debugCafeStaffRegion?.x} data-e2e-access-region-y={debugCafeStaffRegion?.y} data-e2e-access-region-width={debugCafeStaffRegion?.width} data-e2e-access-region-height={debugCafeStaffRegion?.height} data-e2e-counter-structure-x={debugCafeCounterStructure?.x} data-e2e-counter-structure-y={debugCafeCounterStructure?.y} data-e2e-counter-structure-width={debugCafeCounterStructure?.width} data-e2e-counter-structure-height={debugCafeCounterStructure?.height} data-e2e-server-blocker={debugCafeServerBlockerMode ?? undefined} data-e2e-server-blocker-x={debugRuntimeEvidence ? debugCafeServerBlockerTargetRef.current?.x : undefined} data-e2e-server-blocker-y={debugRuntimeEvidence ? debugCafeServerBlockerTargetRef.current?.y : undefined} data-e2e-story-interrupt-from-duty={debugRuntimeEvidence ? debugCafeStoryInterruptFromDutyRef.current ?? undefined : undefined}>
       {!embedded && showSceneChrome && <header className="scene-shell__header">
         <div>
@@ -1682,5 +1735,6 @@ export function MainlineScenePage({
         {!showSceneChrome && shouldRenderFeedback && <div className="scene-feedback scene-feedback--overlay" aria-live="polite">{feedback}</div>}
       </main>
     </div>
+    </>
   )
 }

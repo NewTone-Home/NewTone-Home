@@ -4,7 +4,7 @@ export type NpcDutyDefinition = {
 }
 
 export type NpcRoleDefinition = {
-  id: 'lao-zhou' | 'server'
+  id: 'lao-zhou' | 'server' | 'pedestrian'
   label: string
   duties: Readonly<Record<string, NpcDutyDefinition>>
 }
@@ -32,4 +32,9 @@ export const npcRoles = {
       returnToCounter: { id: 'server.return-to-counter', kind: 'service' },
     },
   },
-} as const satisfies { laoZhou: NpcRoleDefinition; server: NpcRoleDefinition }
+  pedestrian: {
+    id: 'pedestrian',
+    label: '人',
+    duties: {},
+  },
+} as const satisfies Record<string, NpcRoleDefinition>
