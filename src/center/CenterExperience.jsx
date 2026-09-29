@@ -19,6 +19,7 @@ import {
   loadPlayerSave,
   recordPlayerScenePosition,
   recordPlayerSceneState,
+  recordPlayerSceneStatePatch,
   savePlayerSave as persistPlayerSave,
 } from './runtime/playerSave'
 import {
@@ -31,6 +32,7 @@ import './CenterExperience.css'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { trackEvent } from '../services/analytics'
 import { submitCenterFeedback } from '../services/centerFeedback'
+import { commercialStreetMilkTeaHeld } from './runtime/commercialStreetMilkTea'
 
 const initialSceneId = mainlineRespawnSceneId
 function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
@@ -133,6 +135,10 @@ export default function CenterExperience({
 
   const recordSceneState = useCallback((sceneId, key, value) => {
     commitPlayerSave((current) => recordPlayerSceneState(current, sceneId, key, value))
+  }, [commitPlayerSave])
+
+  const recordSceneStatePatch = useCallback((sceneId, patch) => {
+    commitPlayerSave((current) => recordPlayerSceneStatePatch(current, sceneId, patch))
   }, [commitPlayerSave])
 
   const handleSceneTransition = useCallback((nextSceneId, nextEntryPosition, nextSpawnMode, transitionIntent) => {
@@ -314,8 +320,10 @@ export default function CenterExperience({
       onObjectInteraction={snapshot ? undefined : handleObjectInteraction}
       onDoorEvent={snapshot ? undefined : handleDoorEvent}
       initialSceneState={playerSave.sceneState[sceneRoute.sceneId] ?? {}}
+      carriedMilkTea={commercialStreetMilkTeaHeld(playerSave.sceneState['commercial-street'])}
       interactionTutorialCompleted={isInteractionTutorialCompleted(playerSave.sceneState['commercial-street'])}
       onPlayerSceneStateChange={snapshot ? undefined : recordSceneState}
+      onPlayerSceneStatePatch={snapshot ? undefined : recordSceneStatePatch}
       carriedPhoneDevice={phoneDevice}
       onSceneTransition={handleSceneTransition}
       onSafeSpawnCorrection={snapshot ? undefined : handleSafeSpawnCorrection}

@@ -22,6 +22,7 @@ import type { NpcRuntimeSnapshot } from './npcCore'
 import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisualState'
 import { storefrontPresentationLabelSlots, type StorefrontPresentationPhase } from './storefrontPresentation'
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
+import { formatCommercialStreetMilkTeaOrderNumber, milkTeaDrinks, milkTeaIceOptions, milkTeaSugarOptions, type MilkTeaDrink, type MilkTeaIce, type MilkTeaSugar } from './commercialStreetMilkTea'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -70,6 +71,20 @@ type MainlineSceneRendererProps = {
   onSceneEchoAdvance?: () => void
   onSceneEchoChoice?: (index: number) => void
   onSceneEchoExitComplete?: (echoId: number, source: 'text' | 'frame') => void
+  milkTeaOrderFlow?: {
+    phase: 'drink' | 'preferences' | 'receipt'
+    position: Point
+    drink?: MilkTeaDrink
+    sugar?: MilkTeaSugar
+    ice?: MilkTeaIce
+    number?: number
+  } | null
+  onMilkTeaDrinkSelect?: (drink: MilkTeaDrink) => void
+  onMilkTeaSugarSelect?: (sugar: MilkTeaSugar) => void
+  onMilkTeaIceSelect?: (ice: MilkTeaIce) => void
+  onMilkTeaOrderConfirm?: () => void
+  onMilkTeaOrderDismiss?: () => void
+  carriedMilkTea?: boolean
   onFrameMotionProfileChange?: (profile: readonly SceneFocusFrameMotionProfile[]) => void
   exploredObjectIds?: ReadonlySet<string>
   interactionTutorialCompleted?: boolean
@@ -492,6 +507,13 @@ export function MainlineSceneRenderer({
   onSceneEchoAdvance,
   onSceneEchoChoice,
   onSceneEchoExitComplete,
+  milkTeaOrderFlow = null,
+  onMilkTeaDrinkSelect,
+  onMilkTeaSugarSelect,
+  onMilkTeaIceSelect,
+  onMilkTeaOrderConfirm,
+  onMilkTeaOrderDismiss,
+  carriedMilkTea = false,
   onFrameMotionProfileChange,
   exploredObjectIds = new Set(),
   interactionTutorialCompleted = false,
@@ -1073,6 +1095,7 @@ export function MainlineSceneRenderer({
             {protagonistPresentation.kind === 'dot'
               ? <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
               : <span className="scene-protagonist__seat-label" aria-label="修杰，已坐下">{protagonistPresentation.label}</span>}
+            {carriedMilkTea && <span className="scene-protagonist__drink-icon scene-protagonist__drink-icon--milk-tea" aria-label="修杰带着奶茶" />}
           </div>}
           {(sceneEcho || (dialogue && dialogueLine && dialogueLineIndex !== null && dialoguePosition)) && (() => {
             const isDialogue = !sceneEcho && Boolean(dialogue && dialogueLine && dialoguePosition)
@@ -1131,6 +1154,46 @@ export function MainlineSceneRenderer({
                 ))}
               </div>}
               {focusFrames.renderFrame(group)}
+            </div>
+          })()}
+          {milkTeaOrderFlow && (() => {
+            const prompt = milkTeaOrderFlow.phase === 'drink'
+              ? '选择一杯奶茶。'
+              : milkTeaOrderFlow.phase === 'preferences'
+                ? '选择甜度和冰量。'
+                : `取餐号 ${formatCommercialStreetMilkTeaOrderNumber(milkTeaOrderFlow.number ?? 1)}`
+            const orderLayout = mainlineEchoLayout(prompt, renderScreenMetrics)
+            const orderHeight = milkTeaOrderFlow.phase === 'preferences' ? 142 : milkTeaOrderFlow.phase === 'drink' ? 86 : 72
+            return <div
+              className="scene-mainline-echo scene-milk-tea-order"
+              style={{
+                left: `${milkTeaOrderFlow.position.x}%`,
+                top: `${milkTeaOrderFlow.position.y}%`,
+                '--scene-mainline-echo-width': `${Math.max(orderLayout.widthPx, 244)}px`,
+                '--scene-mainline-echo-height': `${Math.max(orderLayout.heightPx, orderHeight)}px`,
+                '--scene-focus-frame-duration': '360ms',
+              } as CSSProperties}
+              role="dialog"
+              aria-label="奶茶点单"
+              data-milk-tea-order-phase={milkTeaOrderFlow.phase}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <span className="scene-mainline-echo__text">{prompt}</span>
+              {milkTeaOrderFlow.phase === 'drink' && <div className="scene-milk-tea-order__choices" aria-label="饮料选择">
+                {milkTeaDrinks.map((drink) => <button key={drink} type="button" onClick={() => onMilkTeaDrinkSelect?.(drink)}>{drink}</button>)}
+              </div>}
+              {milkTeaOrderFlow.phase === 'preferences' && <div className="scene-milk-tea-order__preferences">
+                <div className="scene-milk-tea-order__field" aria-label="甜度选择">
+                  <span>甜度</span>
+                  <div>{milkTeaSugarOptions.map((sugar) => <button key={sugar} type="button" aria-pressed={milkTeaOrderFlow.sugar === sugar} onClick={() => onMilkTeaSugarSelect?.(sugar)}>{sugar}</button>)}</div>
+                </div>
+                <div className="scene-milk-tea-order__field" aria-label="冰量选择">
+                  <span>冰量</span>
+                  <div>{milkTeaIceOptions.map((ice) => <button key={ice} type="button" aria-pressed={milkTeaOrderFlow.ice === ice} onClick={() => onMilkTeaIceSelect?.(ice)}>{ice}</button>)}</div>
+                </div>
+                <button className="scene-milk-tea-order__confirm" type="button" disabled={!milkTeaOrderFlow.sugar || !milkTeaOrderFlow.ice} onClick={onMilkTeaOrderConfirm}>确认下单</button>
+              </div>}
+              {milkTeaOrderFlow.phase === 'receipt' && <button className="scene-milk-tea-order__receipt" type="button" onClick={onMilkTeaOrderDismiss}>知道了</button>}
             </div>
           })()}
           </>
