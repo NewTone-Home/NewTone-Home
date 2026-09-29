@@ -54,6 +54,10 @@ type MainlineSceneRendererProps = {
   hiddenNpcIds?: ReadonlySet<string>
   onDoorTransitionComplete?: (entityId: string, completion: SceneDoorTransitionCompletion) => void
   onWalk: (point: Point) => void
+  worldQuestionMark?: { anchor: Point; visible: boolean }
+  worldNarrative?: { anchor: Point; offset: Point; text: string; segmentIndex: number; segmentCount: number; phase: 'active' | 'leaving' }
+  onWorldNarrativeAdvance?: () => void
+  onWorldNarrativeExitComplete?: () => void
   dialogue?: MainlineSceneDialoguePresentation
   dialogueLine?: MainlineSceneDialogueLine | null
   dialogueText?: string
@@ -472,6 +476,10 @@ export function MainlineSceneRenderer({
   hiddenNpcIds,
   onDoorTransitionComplete,
   onWalk,
+  worldQuestionMark,
+  worldNarrative,
+  onWorldNarrativeAdvance,
+  onWorldNarrativeExitComplete,
   dialogue,
   dialogueLine = null,
   dialogueText = '',
@@ -818,7 +826,7 @@ export function MainlineSceneRenderer({
 
   return (
     <section className="scene-wrap" aria-label={`${scene.title}可探索场景`}>
-      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined}>
+      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${worldNarrative ? 'is-world-narrative-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-world-narrative-state={worldNarrative?.phase}>
         {layoutMode && <div className="scene-layout-grid" aria-hidden="true" />}
 
         <div className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''}`} style={{ transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%)` }}>
@@ -1127,6 +1135,42 @@ export function MainlineSceneRenderer({
           })()}
           </>
         </div>
+        {worldQuestionMark?.visible && <span
+          className="scene-commercial-question-mark"
+          style={{ left: `${worldQuestionMark.anchor.x + cameraOffset.x}%`, top: `${worldQuestionMark.anchor.y + cameraOffset.y}%` }}
+          data-commercial-question-mark="true"
+          data-world-anchor-x={worldQuestionMark.anchor.x}
+          data-world-anchor-y={worldQuestionMark.anchor.y}
+          aria-hidden="true"
+        >?</span>}
+        {worldNarrative && <>
+          <div className="scene-world-narrative-dimmer" aria-hidden="true" />
+          <div
+            className={`scene-world-narrative ${worldNarrative.phase === 'leaving' ? 'is-leaving' : ''}`}
+            style={{ left: `${worldNarrative.anchor.x + worldNarrative.offset.x + cameraOffset.x}%`, top: `${worldNarrative.anchor.y + worldNarrative.offset.y + cameraOffset.y}%` }}
+            data-world-narrative="commercial-street-question"
+            data-world-narrative-segment-index={worldNarrative.segmentIndex}
+            data-world-narrative-segment-count={worldNarrative.segmentCount}
+            data-world-anchor-x={worldNarrative.anchor.x}
+            data-world-anchor-y={worldNarrative.anchor.y}
+            aria-live="polite"
+          >
+            <span className="scene-world-narrative__slot"><span key={`${worldNarrative.phase}:${worldNarrative.segmentIndex}`} className="scene-world-narrative__text" onAnimationEnd={(event) => {
+              if (worldNarrative.phase === 'leaving' && event.animationName === 'scene-world-narrative-leave') onWorldNarrativeExitComplete?.()
+            }}>{worldNarrative.text}</span></span>
+          </div>
+          <button
+            type="button"
+            className="scene-world-narrative-shield"
+            aria-label="继续叙事"
+            data-world-narrative-shield="true"
+            onPointerUp={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation()
+              onWorldNarrativeAdvance?.()
+            }}
+          />
+        </>}
         {(debugInput || debugNpcMovement) && <div className="scene-input-debug" aria-live="polite">
           {debugNpcMovement && <button type="button" onClick={(event) => { event.stopPropagation(); onDebugNpcMovement?.() }}>演示店员移动</button>}
           <div>输入诊断（不改变寻路）</div>

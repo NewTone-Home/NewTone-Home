@@ -34,6 +34,8 @@ export type MovementOptions = {
   maxSpeed?: number
   /** Optional screen-space cruise speed used to keep the visual pace stable across viewports. */
   screenSpeedPxPerSecond?: number
+  /** A live presentation multiplier for an already-running movement session. */
+  speedMultiplier?: () => number
   /** The measured stage size used to convert screen-space speed back to scene coordinates. */
   screenMetrics?: { width: number; height: number }
   /** Kept in the public contract for scene movement profiles. */
@@ -306,8 +308,10 @@ export function createFreeRoamController(initialPosition: Point): FreeRoamContro
     const activeSession = session
     if (!activeSession) return false
 
-    const delta = movementDelta(now, activeSession.lastFrameAt)
+    const rawDelta = movementDelta(now, activeSession.lastFrameAt)
     activeSession.lastFrameAt = now
+    const speedMultiplier = activeSession.options.speedMultiplier?.() ?? 1
+    const delta = rawDelta * Math.max(0, speedMultiplier)
     const arrivalRadius = .22
     let current = position
 

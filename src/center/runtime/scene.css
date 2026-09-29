@@ -1540,6 +1540,78 @@
 }
 .scene-mainline-echo__choices button:hover,
 .scene-mainline-echo__choices button:focus-visible { color: var(--active); }
+
+/* A one-shot world-space thought marker, separate from Echo and dialogue frames. */
+.scene-commercial-question-mark {
+  position: absolute;
+  z-index: 7;
+  color: var(--active);
+  font-family: Georgia, "Noto Serif SC", serif;
+  font-size: clamp(22px, 3.1cqw, 38px);
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: scene-commercial-question-mark-pulse 1600ms ease-in-out infinite;
+}
+@keyframes scene-commercial-question-mark-pulse {
+  0%, 100% { opacity: .7; transform: translate(-50%, -50%) scale(.94); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.scene-world-narrative-dimmer {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  background: rgba(5, 5, 5, .22);
+  pointer-events: none;
+  transition: opacity 180ms ease-out;
+}
+.scene-world-narrative {
+  position: absolute;
+  z-index: 9;
+  max-width: min(44cqw, 440px);
+  color: var(--ink);
+  font-family: Georgia, "Noto Serif SC", serif;
+  font-size: clamp(16px, 2.15cqw, 27px);
+  line-height: 1.45;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+.scene-world-narrative__slot {
+  display: block;
+  overflow: hidden;
+  min-height: 1.45em;
+}
+.scene-world-narrative__text {
+  display: block;
+  animation: scene-world-narrative-enter 360ms cubic-bezier(.22, .61, .36, 1) both;
+}
+@keyframes scene-world-narrative-enter {
+  from { opacity: 0; transform: translate3d(0, 100%, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.scene-world-narrative.is-leaving .scene-world-narrative__text {
+  animation: scene-world-narrative-leave 220ms cubic-bezier(.55, .06, .68, .19) both;
+}
+@keyframes scene-world-narrative-leave {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(0, -100%, 0); }
+}
+.scene-world-narrative-shield {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.scene-world-narrative-shield:focus-visible { outline: 1px solid rgba(240, 204, 123, .48); outline-offset: -5px; }
 /* Commercial street keeps the same text-first language as the other mainline
    locations; its wall/storefront composition comes from compiled geometry. */
 .mainline-scene-stage[data-mainline-scene="commercial-street"] {

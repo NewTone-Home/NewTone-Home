@@ -31,4 +31,15 @@ describe('shared ordinary character movement speed', () => {
     expect(estimatedDuration).toBeCloseTo(screenDistance / sharedCharacterWalkSpeedPxPerSecond * 1000, 8)
     expect(controller.getRemainingDurationMs()).toBeCloseTo(estimatedDuration, 8)
   })
+
+  it('can apply a live presentation multiplier to an already-running movement session', () => {
+    let paused = true
+    const controller = createFreeRoamController(start)
+    controller.moveAlong([target], undefined, { maxSpeed: sharedCharacterWalkSpeedPxPerSecond / screenMetrics.width, speedMultiplier: () => paused ? 0 : 1 })
+    controller.tick(Number.MAX_SAFE_INTEGER)
+    expect(controller.getCurrentPosition()).toEqual(start)
+    paused = false
+    controller.tick(Number.MAX_SAFE_INTEGER)
+    expect(controller.getCurrentPosition().x).toBeGreaterThan(start.x)
+  })
 })
