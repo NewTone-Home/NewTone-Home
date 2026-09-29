@@ -19,6 +19,7 @@ import type {
   MainlineScenePortalBlueprint,
   MainlineSceneCurve,
   MainlineSceneViewport,
+  MainlineSceneTextPresentationPolicy,
   MainlineSceneRoom,
   MainlineSceneDialogue,
   MainlineSceneAttachedProp,
@@ -185,10 +186,10 @@ export type MainlineSceneDefinition = {
   subtitle: string
   statusLabel: string
   hint: string
-  entryFeedback?: string
   areaLabel?: string | ((position: Point) => string)
   walkBounds: CollisionBox
   viewport: MainlineSceneViewport
+  presentation: MainlineSceneTextPresentationPolicy
   externalExit?: MainlineSceneExternalExit
   externalExits: readonly MainlineSceneExternalExit[]
   rooms: readonly MainlineSceneRoom[]
@@ -890,7 +891,7 @@ export function validateMainlineSceneGeometry(scene: Pick<MainlineSceneDefinitio
   return issues
 }
 
-function compileMainlineSceneData(data: MainlineSceneData, portals: readonly MainlineScenePortalBlueprint[]): Omit<MainlineSceneDefinition, 'id' | 'title' | 'subtitle' | 'statusLabel' | 'hint' | 'portals' | 'interactionText'> {
+function compileMainlineSceneData(data: MainlineSceneData, portals: readonly MainlineScenePortalBlueprint[]): Omit<MainlineSceneDefinition, 'id' | 'title' | 'subtitle' | 'statusLabel' | 'hint' | 'presentation' | 'portals' | 'interactionText'> {
   const portalOpeningsByWall = new Map<string, MainlineWallOpening[]>()
   const addPortalOpening = (wallId: string, opening: MainlineWallOpening) => {
     const openings = portalOpeningsByWall.get(wallId) ?? []
@@ -1131,8 +1132,8 @@ function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneD
     subtitle: blueprint.subtitle,
     statusLabel: blueprint.statusLabel,
     hint: blueprint.hint,
-    entryFeedback: blueprint.entryFeedback,
     areaLabel: blueprint.areaLabel,
+    presentation: blueprint.presentation,
     portals: blueprint.portals,
     interactionText: blueprint.interactionText,
     explorationText: blueprint.explorationText,

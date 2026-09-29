@@ -8,6 +8,9 @@ export const commercialStreetMilkTeaSugarKey = 'commercialStreetMilkTeaSugar'
 export const commercialStreetMilkTeaIceKey = 'commercialStreetMilkTeaIce'
 export const commercialStreetMilkTeaReadyAtKey = 'commercialStreetMilkTeaReadyAt'
 export const commercialStreetMilkTeaHeldDrinkKey = 'commercialStreetMilkTeaHeldDrink'
+export const commercialStreetMilkTeaAppUnlockedKey = 'commercialStreetMilkTeaAppUnlocked'
+export const commercialStreetMilkTeaCreatedAtKey = 'commercialStreetMilkTeaCreatedAt'
+export const commercialStreetMilkTeaQueueAheadKey = 'commercialStreetMilkTeaQueueAhead'
 
 export const milkTeaDrinks = ['原味奶茶', '黑糖珍珠奶茶', '芋泥奶茶', '茉莉奶绿'] as const
 export const milkTeaSugarOptions = ['少糖', '正常', '多糖'] as const
@@ -23,6 +26,8 @@ export type CommercialStreetMilkTeaOrder = {
   sugar: MilkTeaSugar
   ice: MilkTeaIce
   readyAt: number
+  createdAt: number
+  queueAhead: number
 }
 
 const minimumPreparationMs = 15_000
@@ -47,7 +52,21 @@ export function commercialStreetMilkTeaOrderFromSceneState(sceneState: PlayerSce
   const ice = sceneState?.[commercialStreetMilkTeaIceKey]
   const readyAt = sceneState?.[commercialStreetMilkTeaReadyAtKey]
   if (!validOrderNumber(number) || !includes(milkTeaDrinks, drink) || !includes(milkTeaSugarOptions, sugar) || !includes(milkTeaIceOptions, ice) || !validReadyAt(readyAt)) return null
-  return { number, drink, sugar, ice, readyAt }
+  const createdAt = validReadyAt(sceneState?.[commercialStreetMilkTeaCreatedAtKey])
+    ? sceneState![commercialStreetMilkTeaCreatedAtKey] as number
+    : readyAt - minimumPreparationMs
+  const queueAhead = typeof sceneState?.[commercialStreetMilkTeaQueueAheadKey] === 'number'
+    ? Math.max(0, Math.floor(sceneState![commercialStreetMilkTeaQueueAheadKey] as number))
+    : 0
+  return { number, drink, sugar, ice, readyAt, createdAt, queueAhead }
+}
+
+export function commercialStreetMilkTeaAppUnlocked(sceneState: PlayerSceneState | undefined) {
+  return sceneState?.[commercialStreetMilkTeaAppUnlockedKey] === true
+}
+
+export function commercialStreetMilkTeaAppUnlockPatch(): Record<string, PlayerChoiceValue> {
+  return { [commercialStreetMilkTeaAppUnlockedKey]: true }
 }
 
 export function commercialStreetMilkTeaHeld(sceneState: PlayerSceneState | undefined) {
@@ -72,6 +91,8 @@ export function createCommercialStreetMilkTeaOrder(
     number: nextCommercialStreetMilkTeaOrderNumber(sceneState?.[commercialStreetMilkTeaLastOrderNumberKey]),
     ...selection,
     readyAt: now + milkTeaPreparationDurationMs(random),
+    createdAt: now,
+    queueAhead: nextCommercialStreetMilkTeaOrderNumber(sceneState?.[commercialStreetMilkTeaLastOrderNumberKey]) % 4 + 1,
   }
 }
 
@@ -83,6 +104,8 @@ export function commercialStreetMilkTeaOrderPatch(order: CommercialStreetMilkTea
     [commercialStreetMilkTeaSugarKey]: order.sugar,
     [commercialStreetMilkTeaIceKey]: order.ice,
     [commercialStreetMilkTeaReadyAtKey]: order.readyAt,
+    [commercialStreetMilkTeaCreatedAtKey]: order.createdAt,
+    [commercialStreetMilkTeaQueueAheadKey]: order.queueAhead,
   }
 }
 
@@ -93,12 +116,21 @@ export function commercialStreetMilkTeaPickupPatch(): Record<string, PlayerChoic
     [commercialStreetMilkTeaSugarKey]: null,
     [commercialStreetMilkTeaIceKey]: null,
     [commercialStreetMilkTeaReadyAtKey]: null,
+    [commercialStreetMilkTeaCreatedAtKey]: null,
+    [commercialStreetMilkTeaQueueAheadKey]: null,
     [commercialStreetMilkTeaHeldDrinkKey]: 'milk-tea',
   }
 }
 
 export function commercialStreetMilkTeaIsReady(order: CommercialStreetMilkTeaOrder, now: number = Date.now()) {
   return now >= order.readyAt
+}
+
+export function commercialStreetMilkTeaQueueStatus(order: CommercialStreetMilkTeaOrder, now: number = Date.now()) {
+  if (commercialStreetMilkTeaIsReady(order, now)) return { phase: 'ready' as const, ahead: 0, progress: 1 }
+  const duration = Math.max(1, order.readyAt - order.createdAt)
+  const progress = Math.max(0, Math.min(1, (now - order.createdAt) / duration))
+  return { phase: 'pending' as const, ahead: Math.max(0, Math.ceil(order.queueAhead * (1 - progress))), progress }
 }
 
 export function formatCommercialStreetMilkTeaOrderNumber(number: number) {

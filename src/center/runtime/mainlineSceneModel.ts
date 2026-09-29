@@ -371,6 +371,15 @@ export type MainlineAirWall = CollisionBox & {
  */
 export type MainlineSceneViewport = 'fixed-frame' | 'follow-player'
 
+/**
+ * Text is a scene-level presentation decision, never an entity-level search.
+ * Fixed rooms reserve one authored reading area; long routes keep that area
+ * at a stable offset from the protagonist and only clamp it at the boundary.
+ */
+export type MainlineSceneTextPresentationPolicy =
+  | { mode: 'fixed'; anchor: Point }
+  | { mode: 'actor-relative'; offset: Point }
+
 type MainlineWallBlueprint = {
   id: string
   type: 'frame' | 'room' | 'lane' | 'alley'
@@ -466,8 +475,8 @@ export type MainlineSceneBlueprint = {
   subtitle: string
   statusLabel: string
   hint: string
-  entryFeedback?: string
   areaLabel?: string | ((position: Point) => string)
+  presentation: MainlineSceneTextPresentationPolicy
   scene: MainlineSceneData
   portals: readonly MainlineScenePortalBlueprint[]
   interactionText: Readonly<Record<string, string>>
@@ -1025,7 +1034,7 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
   subtitle: '两侧连续的现代临街店面夹出一条主通道，尽头接入独立的咖啡馆场景。',
   statusLabel: '里世界',
   hint: '沿中间主通道前进；右侧尾端的咖啡馆是独立场景，门只在路线真正通过时打开。',
-  entryFeedback: '从商业街右侧尾端进入，咖啡馆店面就在右侧。',
+  presentation: { mode: 'actor-relative', offset: authoredPoint(0, -14) },
   areaLabel: (position) => position.x >= 140 ? '商业街尾端' : '里世界',
   scene: {
     walkBounds: box(8, 10, 192, 80),
@@ -1071,7 +1080,7 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
   id: 'commercial-cafe', title: '第二章 · 咖啡馆',
   subtitle: '独立的咖啡馆室内；墙、曲线窗格、菜单、黑板、柜台和桌椅都由主线场景契约直接编译。',
   statusLabel: '商业街 / 咖啡馆', hint: '入口在左侧；右侧弧形玻璃是窗边界，菜单和黑板在后墙，后门暂时受权限控制。',
-  entryFeedback: '进入咖啡馆，商业街在身后。',
+  presentation: { mode: 'fixed', anchor: authoredPoint(50, 50) },
   areaLabel: '咖啡馆',
   scene: {
     walkBounds: commercialCafeBounds, wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
@@ -1238,7 +1247,7 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
   subtitle: '姬家祖宅前院是一个独立场景，右侧正门通向祖宅内堂。',
   statusLabel: '姬家祖宅 / 前院',
   hint: '从前院右侧正门进入祖宅；左侧院门是前院的固定边界出口。',
-  entryFeedback: '从姬家祖宅入口进入。',
+  presentation: { mode: 'fixed', anchor: authoredPoint(77, 30) },
   areaLabel: '前院',
   scene: {
     walkBounds: jijiaYardBounds,
@@ -1285,7 +1294,7 @@ const jijiaAncestralInteriorBlueprint: MainlineSceneBlueprint = {
   subtitle: '祖宅内堂是独立场景，正门在左侧，右侧后门通向窄暗道。',
   statusLabel: '姬家祖宅 / 内堂',
   hint: '正门在左侧；内堂上下各有两幅画像，右墙中线另有一幅，后门通向中枢院窄暗道。',
-  entryFeedback: '进入祖宅内堂，前院在身后。',
+  presentation: { mode: 'fixed', anchor: authoredPoint(76, 30) },
   areaLabel: '祖宅内堂',
   scene: {
     walkBounds: jijiaInnerHouseBounds,
@@ -1352,7 +1361,7 @@ const zhongshuyuanPassageBlueprint: MainlineSceneBlueprint = {
   id: 'zhongshuyuan-passage',
   title: '里世界·中枢院窄暗道',
   subtitle: '祖宅后门之后的独立窄暗道，前后各有一扇门。',
-  entryFeedback: '进入祖宅后方的窄暗道。',
+  presentation: { mode: 'actor-relative', offset: authoredPoint(0, -14) },
   areaLabel: '中枢院窄暗道',
   statusLabel: '中枢院 / 窄暗道',
   hint: '沿窄暗道向右进入中枢院办公室；左侧门回到祖宅内堂。',
@@ -1682,7 +1691,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
   subtitle: '中枢院内部的一层办公区，中央长廊连接数间办公室。',
   statusLabel: '中枢院 / 内部楼层',
   hint: '左下办公室是当前办公点；玻璃门通向中央长廊，实体墙上的暗道门通向中枢院窄暗道。中央长廊左右两端都是外部出口，走到任一端手机都会弹出。',
-  entryFeedback: '进入里世界·中枢院内部楼层，暗道入口在左侧。',
+  presentation: { mode: 'fixed', anchor: authoredPoint(58, 24) },
   areaLabel: '中枢院办公室',
   scene: {
       walkBounds: zhongshuyuanOfficeFloorBounds,
@@ -1839,7 +1848,7 @@ const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
   subtitle: '矿区外围沿纵向老街展开，左侧是一排旧店面；永和小馆是其中一个独立场景。',
   statusLabel: '矿区外围老街',
   hint: '从画面下方进入，沿中间通道向上；左侧是八个窄小的生活店面，永和小馆入口在较深处，右侧是少量铁片、管线和围栏组成的矿区边缘。',
-  entryFeedback: '从画面下方进入矿区外围，沿中央通道向上，左侧店面深处是永和小馆。',
+  presentation: { mode: 'actor-relative', offset: authoredPoint(0, -14) },
   areaLabel: (position) => position.y >= 150
     ? '矿区'
     : position.y >= 100
@@ -1932,7 +1941,7 @@ const yongheEateryBlueprint: MainlineSceneBlueprint = {
   subtitle: '永和小馆是独立场景；门、墙、桌椅和后门都直接由主线场景契约编译。',
   statusLabel: '永和小馆',
   hint: '入口在左侧，店内中央留出通道；柜台和灶台在右侧，后门暂未开放。',
-  entryFeedback: '进入永和小馆，矿区外围老街在身后。',
+  presentation: { mode: 'fixed', anchor: authoredPoint(40, 34) },
   areaLabel: '永和小馆',
   scene: {
       walkBounds: box(8, 26, 88, 60),

@@ -32,7 +32,7 @@ import './CenterExperience.css'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { trackEvent } from '../services/analytics'
 import { submitCenterFeedback } from '../services/centerFeedback'
-import { commercialStreetMilkTeaHeld } from './runtime/commercialStreetMilkTea'
+import { commercialStreetMilkTeaAppUnlocked, commercialStreetMilkTeaHeld, commercialStreetMilkTeaOrderFromSceneState, commercialStreetMilkTeaOrderPatch, createCommercialStreetMilkTeaOrder } from './runtime/commercialStreetMilkTea'
 
 const initialSceneId = mainlineRespawnSceneId
 function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
@@ -57,6 +57,7 @@ export default function CenterExperience({
   const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId))
   const [phoneOpen, setPhoneOpen] = useState(false)
   const [phoneDevice, setPhoneDevice] = useState(() => loadPlayerSave().phoneDevice)
+  const [requestedPhoneApp, setRequestedPhoneApp] = useState(null)
   const [resumeSceneId, setResumeSceneId] = useState(null)
   const [resumePosition, setResumePosition] = useState(undefined)
   const [localSlideHandoffRoute, setLocalSlideHandoffRoute] = useState(null)
@@ -91,7 +92,21 @@ export default function CenterExperience({
   const retractPhone = useCallback(() => {
     setPhoneOpen(false)
     setFeedbackMode(null)
+    setRequestedPhoneApp(null)
   }, [])
+
+  const openMilkTeaApp = useCallback(() => {
+    setRequestedPhoneApp('milk-tea')
+    setPhoneOpen(true)
+  }, [])
+
+  const confirmMilkTeaOrder = useCallback((selection) => {
+    commitPlayerSave((current) => {
+      const sceneState = current.sceneState['commercial-street'] ?? {}
+      if (commercialStreetMilkTeaHeld(sceneState) || commercialStreetMilkTeaOrderFromSceneState(sceneState)) return current
+      return recordPlayerSceneStatePatch(current, 'commercial-street', commercialStreetMilkTeaOrderPatch(createCommercialStreetMilkTeaOrder(sceneState, selection)))
+    })
+  }, [commitPlayerSave])
 
   const handleFeedbackModeChange = useCallback((mode) => {
     setFeedbackMode(mode)
@@ -319,6 +334,7 @@ export default function CenterExperience({
       onDeskInteraction={snapshot ? undefined : switchCarriedPhone}
       onObjectInteraction={snapshot ? undefined : handleObjectInteraction}
       onDoorEvent={snapshot ? undefined : handleDoorEvent}
+      onMilkTeaAppOpen={snapshot ? undefined : openMilkTeaApp}
       initialSceneState={playerSave.sceneState[sceneRoute.sceneId] ?? {}}
       carriedMilkTea={commercialStreetMilkTeaHeld(playerSave.sceneState['commercial-street'])}
       interactionTutorialCompleted={isInteractionTutorialCompleted(playerSave.sceneState['commercial-street'])}
@@ -397,6 +413,12 @@ export default function CenterExperience({
           onClose={retractPhone}
           onCloseComplete={handlePhoneCloseComplete}
           onRideRequest={handleRideRequest}
+          milkTeaAppUnlocked={commercialStreetMilkTeaAppUnlocked(playerSave.sceneState['commercial-street'])}
+          milkTeaOrder={commercialStreetMilkTeaOrderFromSceneState(playerSave.sceneState['commercial-street'])}
+          milkTeaHeld={commercialStreetMilkTeaHeld(playerSave.sceneState['commercial-street'])}
+          requestedApp={requestedPhoneApp}
+          onRequestedAppHandled={() => setRequestedPhoneApp(null)}
+          onMilkTeaOrderConfirm={confirmMilkTeaOrder}
           feedbackMode={feedbackMode}
           onFeedbackModeChange={handleFeedbackModeChange}
           onFeedbackOpen={handleFeedbackOpen}

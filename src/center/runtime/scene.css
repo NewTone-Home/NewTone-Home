@@ -302,6 +302,10 @@
 .world-phone__apps button:focus-visible { outline: 2px solid #f4d57f; outline-offset: 1px; }
 .world-phone--inner .world-phone__apps button:focus-visible { outline-color: #8ce2d0; }
 .world-phone__app-view { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.world-phone__milk-tea-field { display: flex; flex-wrap: wrap; gap: 7px; margin: 14px 0 0; }
+.world-phone__milk-tea-field > span { flex-basis: 100%; color: #7e9aab; font-size: 9px; letter-spacing: .08em; }
+.world-phone__milk-tea-field button { padding: 6px 7px; border: 1px solid #426177; background: #142635; color: #e9d6a6; font: inherit; font-size: 10px; }
+.world-phone__milk-tea-field button[aria-pressed="true"] { border-color: #8ce2d0; background: #193c45; color: #c6fff2; }
 .world-phone__feedback {
   pointer-events: auto;
   flex: 1;
@@ -808,7 +812,6 @@
 .scene-object:not(.scene-mainline-object):focus-visible > span,
 .scene-object:not(.scene-mainline-object).is-active > span { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
 .scene-object:focus-visible,
-.scene-dialogue button:focus-visible,
 .scene-reset:focus-visible { outline: 1px solid var(--active); outline-offset: 5px; }
 .scene-object--fixture { color: var(--ink); font-size: clamp(14px, 1.35vw, 18px); letter-spacing: .04em; }
 .scene-object--character { color: var(--ink); font-size: clamp(15px, 1.5vw, 19px); font-weight: 500; }
@@ -1070,24 +1073,6 @@
 .scene-spatial-qa__resolved { fill: #75f58d; stroke: #06121c; stroke-width: .18; }
 .scene-spatial-qa__legend { position: absolute; left: 2.5%; bottom: 2.5%; display: grid; gap: 2px; max-width: min(94%, 28rem); padding: 6px 8px; border: 1px solid rgba(255,255,255,.5); background: rgba(5, 12, 19, .78); color: #f3f5ec; font: 10px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .01em; }
 .scene-spatial-qa__legend strong { color: #fff06a; font-size: 11px; }
-
-.scene-dialogue {
-  position: absolute;
-  z-index: 7;
-  width: min(360px, 34vw);
-  max-height: 42%;
-  overflow: auto;
-  padding: 12px 14px 10px;
-  border-left: 1px solid var(--active);
-  background: rgba(14, 12, 9, .94);
-  box-shadow: 8px 8px 0 rgba(240, 204, 123, .04);
-  animation: dialogue-arrive 220ms ease-out both;
-}
-
-@keyframes dialogue-arrive { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-.scene-dialogue__speaker { display: block; margin-bottom: 4px; color: var(--active); font-size: 11px; letter-spacing: .08em; }
-.scene-dialogue p { margin: 0; color: var(--ink); font-family: "Noto Serif SC", Georgia, serif; font-size: clamp(14px, 1.25vw, 17px); line-height: 1.72; }
-.scene-dialogue button { display: block; margin: 8px 0 0 auto; padding: 0; border: 0; border-bottom: 1px solid var(--faint); background: transparent; color: var(--soft); cursor: pointer; font: inherit; font-size: 12px; }
 
 .scene-echo,
 .scene-feedback,
@@ -1491,17 +1476,17 @@
   opacity: .28;
 }
 
-.scene-mainline-echo {
+.scene-mainline-text {
   position: absolute;
-  z-index: 7;
+  z-index: 9;
   box-sizing: border-box;
-  width: var(--scene-mainline-echo-width);
-  inline-size: var(--scene-mainline-echo-width);
-  height: var(--scene-mainline-echo-height);
+  width: var(--scene-mainline-text-width);
+  inline-size: var(--scene-mainline-text-width);
+  min-height: var(--scene-mainline-text-height);
   max-width: calc(100% - 24px);
   max-height: 36%;
   overflow: visible;
-  padding: .42em .56em .38em;
+  padding: 2px 0;
   color: var(--ink);
   font-family: "Noto Serif SC", Georgia, serif;
   font-size: clamp(13px, 1.1vw, 16px);
@@ -1515,44 +1500,35 @@
   cursor: pointer;
   touch-action: manipulation;
   transform: translate(-50%, -50%);
-  animation: mainline-echo-arrive var(--scene-focus-frame-duration) ease-out both;
+  animation: mainline-text-arrive 160ms ease-out both;
 }
-.scene-mainline-echo__speaker { display: block; width: max-content; margin-bottom: 3px; color: var(--active); font-size: .72em; letter-spacing: .06em; }
-.scene-mainline-echo__text { display: block; width: max-content; white-space: nowrap; animation: mainline-echo-segment-scroll-down var(--scene-focus-frame-duration) cubic-bezier(.22, .61, .36, 1) both; }
+.scene-mainline-text__speaker { display: block; width: max-content; margin-bottom: 3px; color: var(--active); font-size: .72em; letter-spacing: .06em; }
+.scene-mainline-text__observation { display: block; min-height: 1.6em; width: max-content; white-space: nowrap; }
+.scene-mainline-text__dialogue { display: block; width: max-content; white-space: nowrap; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.22, .61, .36, 1) both; }
 .scene-mainline-object > .scene-focus-frame {
   inset: -.12em -.18em;
 }
-.scene-mainline-echo > .scene-focus-frame {
-  inset: -.34em -.22em;
-  opacity: .9;
-}
-.scene-mainline-echo.is-leaving {
-  animation: none;
-}
-@keyframes mainline-echo-arrive {
+.scene-mainline-text.is-leaving { animation: mainline-text-leave 160ms ease-in both; pointer-events: none; }
+@keyframes mainline-text-arrive {
   from { opacity: 0; transform: translate(-50%, calc(-50% + 5px)); }
   to { opacity: 1; transform: translate(-50%, -50%); }
+}
+@keyframes mainline-text-leave {
+  from { opacity: 1; transform: translate(-50%, -50%); }
+  to { opacity: 0; transform: translate(-50%, calc(-50% - 4px)); }
 }
 @keyframes mainline-echo-segment-scroll-down {
   from { opacity: 0; transform: translateY(100%); }
   to { opacity: 1; transform: translateY(0); }
 }
-.scene-mainline-echo.is-leaving > .scene-mainline-echo__text {
-  display: inline-block;
-  animation: mainline-echo-text-leave var(--scene-focus-frame-duration) ease-in both;
-}
-@keyframes mainline-echo-text-leave {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(-3px); }
-}
-.scene-mainline-echo__choices {
+.scene-mainline-text__choices {
   display: flex;
   justify-content: center;
   gap: 14px;
   margin-top: 7px;
   pointer-events: auto;
 }
-.scene-mainline-echo__choices button {
+.scene-mainline-text__choices button {
   padding: 2px 4px;
   border: 0;
   border-bottom: 1px solid rgba(190, 161, 103, .45);
@@ -1562,43 +1538,8 @@
   font: inherit;
   font-size: .86em;
 }
-.scene-mainline-echo__choices button:hover,
-.scene-mainline-echo__choices button:focus-visible { color: var(--active); }
-
-.scene-milk-tea-order {
-  min-height: 72px;
-  white-space: normal;
-  cursor: default;
-  background: linear-gradient(90deg, rgba(2, 6, 7, .86), rgba(2, 6, 7, .68));
-  border: 1px solid rgba(190, 161, 103, .28);
-}
-.scene-milk-tea-order__choices,
-.scene-milk-tea-order__field > div {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 5px 10px;
-  margin-top: 7px;
-}
-.scene-milk-tea-order button {
-  padding: 2px 4px;
-  border: 0;
-  border-bottom: 1px solid rgba(190, 161, 103, .45);
-  background: transparent;
-  color: var(--soft);
-  cursor: pointer;
-  font: inherit;
-  font-size: .84em;
-}
-.scene-milk-tea-order button:hover,
-.scene-milk-tea-order button:focus-visible,
-.scene-milk-tea-order button[aria-pressed="true"] { color: var(--active); }
-.scene-milk-tea-order button:disabled { cursor: default; opacity: .42; }
-.scene-milk-tea-order__preferences { margin-top: 7px; }
-.scene-milk-tea-order__field + .scene-milk-tea-order__field { margin-top: 5px; }
-.scene-milk-tea-order__field > span { display: block; color: var(--soft); font-size: .74em; }
-.scene-milk-tea-order__confirm,
-.scene-milk-tea-order__receipt { display: block; margin: 9px auto 0; }
+.scene-mainline-text__choices button:hover,
+.scene-mainline-text__choices button:focus-visible { color: var(--active); }
 
 /* A one-shot world-space thought marker, separate from Echo and dialogue frames. */
 .scene-commercial-question-mark {
@@ -1616,7 +1557,7 @@
   0%, 100% { opacity: .7; transform: translate(-50%, -50%) scale(.94); }
   50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
-.scene-world-narrative-dimmer {
+.scene-dialogue-dimmer {
   position: absolute;
   inset: 0;
   z-index: 8;
@@ -1624,38 +1565,7 @@
   pointer-events: none;
   transition: opacity 180ms ease-out;
 }
-.scene-world-narrative {
-  position: absolute;
-  z-index: 9;
-  max-width: min(44cqw, 440px);
-  color: var(--ink);
-  font-family: Georgia, "Noto Serif SC", serif;
-  font-size: clamp(16px, 2.15cqw, 27px);
-  line-height: 1.45;
-  pointer-events: none;
-  transform: translateY(-50%);
-}
-.scene-world-narrative__slot {
-  display: block;
-  overflow: hidden;
-  min-height: 1.45em;
-}
-.scene-world-narrative__text {
-  display: block;
-  animation: scene-world-narrative-enter 360ms cubic-bezier(.22, .61, .36, 1) both;
-}
-@keyframes scene-world-narrative-enter {
-  from { opacity: 0; transform: translate3d(0, 100%, 0); }
-  to { opacity: 1; transform: translate3d(0, 0, 0); }
-}
-.scene-world-narrative.is-leaving .scene-world-narrative__text {
-  animation: scene-world-narrative-leave 220ms cubic-bezier(.55, .06, .68, .19) both;
-}
-@keyframes scene-world-narrative-leave {
-  from { opacity: 1; transform: translate3d(0, 0, 0); }
-  to { opacity: 0; transform: translate3d(0, -100%, 0); }
-}
-.scene-world-narrative-shield {
+.scene-dialogue-shield {
   position: absolute;
   inset: 0;
   z-index: 10;
@@ -1670,7 +1580,7 @@
   cursor: pointer;
   touch-action: manipulation;
 }
-.scene-world-narrative-shield:focus-visible { outline: 1px solid rgba(240, 204, 123, .48); outline-offset: -5px; }
+.scene-dialogue-shield:focus-visible { outline: 1px solid rgba(240, 204, 123, .48); outline-offset: -5px; }
 /* Commercial street keeps the same text-first language as the other mainline
    locations; its wall/storefront composition comes from compiled geometry. */
 .mainline-scene-stage[data-mainline-scene="commercial-street"] {
@@ -1931,8 +1841,8 @@
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--seat {
     font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px));
   }
-  .scene-mainline-echo { max-width: calc(100% - 24px); max-height: 38%; padding: 6px 8px 5px; }
-  .scene-mainline-echo { font-size: 12px; line-height: 1.5; }
+  .scene-mainline-text { max-width: calc(100% - 24px); max-height: 38%; padding: 2px 0; }
+  .scene-mainline-text { font-size: 12px; line-height: 1.5; }
   .mainline-scene--map-only .scene-feedback--overlay { max-width: calc(100% - 24px); padding: 5px 8px; }
 }
 
@@ -1958,8 +1868,6 @@
   .scene-actor__label { font-size: 11px; }
   .scene-table-text,
   .scene-chair-text { min-width: 0; min-height: 0; font-size: 11px; letter-spacing: 0; }
-  .scene-dialogue { right: 4%; bottom: 3%; left: 4% !important; top: auto !important; width: auto; max-height: 34%; padding: 10px 12px 9px; }
-  .scene-dialogue p { font-size: 14px; }
   .scene-echo { margin-top: 8px; }
 }
 

@@ -18,7 +18,7 @@ async function clickWorldPoint(page: Page, point: { x: number; y: number }) {
   await stage.click({ position: screenPoint })
 }
 
-test('the Commercial Street question mark locks input, rolls its world-space narration, and persists only at the end', async ({ page }, testInfo) => {
+test('the Commercial Street question mark locks input, presents Xiao Jie dialogue, and persists only at the end', async ({ page }, testInfo) => {
   const consoleErrors: string[] = []
   page.on('pageerror', (error) => consoleErrors.push(error.message))
   page.on('console', (message) => {
@@ -39,24 +39,25 @@ test('the Commercial Street question mark locks input, rolls its world-space nar
   await expect(protagonist).toHaveAttribute('data-runtime-x', `${cameraApproach.x}`, { timeout: 15_000 })
   await clickWorldPoint(page, anchor)
 
-  const narrative = page.locator('[data-world-narrative="commercial-street-question"]')
-  const shield = page.locator('[data-world-narrative-shield="true"]')
-  await expect(narrative).toBeVisible({ timeout: 15_000 })
-  await expect(narrative).toHaveAttribute('data-world-anchor-x', `${anchor.x}`)
-  await expect(narrative).toHaveAttribute('data-world-anchor-y', `${anchor.y}`)
+  const dialogue = page.locator('[data-scene-dialogue="commercial-street-question"]')
+  const shield = page.locator('[data-scene-dialogue-shield="true"]')
+  await expect(dialogue).toBeVisible({ timeout: 15_000 })
+  expect(consoleErrors).toEqual([])
+  await expect(dialogue).toHaveAttribute('data-dialogue-speaker', '修杰')
   await expect(question).toBeHidden()
   await expect(shell).toHaveAttribute('data-commercial-question-narrative', 'active')
-  expect(await narrative.locator('.scene-focus-frame').count()).toBe(0)
+  expect(await dialogue.locator('.scene-focus-frame').count()).toBe(0)
   const stoppedAt = await protagonist.getAttribute('data-runtime-x')
   await page.screenshot({ path: testInfo.outputPath('commercial-street-question-active.png') })
 
   await shield.click()
-  await expect(narrative).toContainText('不，不会认错的。')
+  await expect(dialogue).toContainText('不，不会认错的。')
   await shield.click()
-  await expect(narrative).toContainText('那张脸修杰太过于熟悉。')
+  await expect(dialogue).toContainText('那张脸修杰太过于熟悉。')
   await shield.click()
   await expect(shell).toHaveAttribute('data-commercial-question-narrative', 'leaving')
-  await expect(narrative).toBeHidden({ timeout: 5_000 })
+  await expect(dialogue).toBeHidden({ timeout: 5_000 })
+  expect(consoleErrors).toEqual([])
   await expect(protagonist).toHaveAttribute('data-runtime-x', stoppedAt!)
   await page.screenshot({ path: testInfo.outputPath('commercial-street-question-complete.png') })
 
@@ -65,16 +66,16 @@ test('the Commercial Street question mark locks input, rolls its world-space nar
   expect(consoleErrors).toEqual([])
 })
 
-test('an interrupted question-mark narration does not persist partial progress', async ({ page }) => {
+test('an interrupted question-mark dialogue does not persist partial progress', async ({ page }) => {
   await page.goto('/?scene=commercial-street&debugRuntimeEvidence=1')
   const anchor = commercialStreetQuestionNarrativeAnchor(mainlineScenes['commercial-street'])
   const cameraApproach = { x: anchor.x - mainlineScenes['commercial-street'].walkBounds.height * .3, y: anchor.y }
   await clickWorldPoint(page, cameraApproach)
   await expect(page.locator('[data-actor-id="protagonist"]')).toHaveAttribute('data-runtime-x', `${cameraApproach.x}`, { timeout: 15_000 })
   await clickWorldPoint(page, anchor)
-  await expect(page.locator('[data-world-narrative="commercial-street-question"]')).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('[data-scene-dialogue="commercial-street-question"]')).toBeVisible({ timeout: 15_000 })
 
   await page.reload()
-  await expect(page.locator('[data-world-narrative="commercial-street-question"]')).toContainText('难道刚刚是幻觉吗？')
-  await expect(page.locator('[data-world-narrative="commercial-street-question"]')).toHaveAttribute('data-world-narrative-segment-index', '0')
+  await expect(page.locator('[data-scene-dialogue="commercial-street-question"]')).toContainText('难道刚刚是幻觉吗？')
+  await expect(page.locator('[data-scene-dialogue="commercial-street-question"]')).toHaveAttribute('data-scene-segment-index', '0')
 })

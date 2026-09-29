@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { createInitialPlayerSave, recordPlayerSceneStatePatch, sanitizePlayerSave } from '../src/center/runtime/playerSave'
 import {
   commercialStreetMilkTeaHeld,
+  commercialStreetMilkTeaAppUnlocked,
+  commercialStreetMilkTeaAppUnlockPatch,
   commercialStreetMilkTeaIsReady,
   commercialStreetMilkTeaOrderFromSceneState,
   commercialStreetMilkTeaOrderPatch,
   commercialStreetMilkTeaPickupPatch,
+  commercialStreetMilkTeaQueueStatus,
   createCommercialStreetMilkTeaOrder,
   formatCommercialStreetMilkTeaOrderNumber,
   milkTeaDrinks,
@@ -31,15 +34,45 @@ describe('commercial street milk tea', () => {
     expect(milkTeaPreparationDurationMs(() => 0)).toBe(15_000)
     expect(milkTeaPreparationDurationMs(() => 1)).toBe(30_000)
 
-    const order = createCommercialStreetMilkTeaOrder(
+    const remoteOrder = createCommercialStreetMilkTeaOrder(
       { commercialStreetMilkTeaLastOrderNumber: 41 },
       { drink: '黑糖珍珠奶茶', sugar: '正常', ice: '少冰' },
       1000,
       () => 0,
     )
+    const order = {
+      number: remoteOrder.number,
+      drink: remoteOrder.drink,
+      sugar: remoteOrder.sugar,
+      ice: remoteOrder.ice,
+      readyAt: remoteOrder.readyAt,
+    } as Parameters<typeof commercialStreetMilkTeaIsReady>[0]
     expect(order).toEqual({ number: 42, drink: '黑糖珍珠奶茶', sugar: '正常', ice: '少冰', readyAt: 16_000 })
+    expect({ createdAt: remoteOrder.createdAt, queueAhead: remoteOrder.queueAhead }).toEqual({ createdAt: 1000, queueAhead: 3 })
     expect(commercialStreetMilkTeaIsReady(order, 15_999)).toBe(false)
     expect(commercialStreetMilkTeaIsReady(order, 16_000)).toBe(true)
+  })
+
+  it('persists the physical-store unlock separately from the reusable remote-order domain', () => {
+    const save = recordPlayerSceneStatePatch(
+      createInitialPlayerSave('commercial-street'),
+      'commercial-street',
+      commercialStreetMilkTeaAppUnlockPatch(),
+    )
+    expect(commercialStreetMilkTeaAppUnlocked(save.sceneState['commercial-street'])).toBe(true)
+    expect(commercialStreetMilkTeaOrderFromSceneState(save.sceneState['commercial-street'])).toBeNull()
+  })
+
+  it('derives a stable virtual queue from the persisted order schedule', () => {
+    const order = createCommercialStreetMilkTeaOrder(
+      { commercialStreetMilkTeaLastOrderNumber: 1 },
+      { drink: '原味奶茶', sugar: '少糖', ice: '去冰' },
+      1_000,
+      () => 1,
+    )
+    expect(commercialStreetMilkTeaQueueStatus(order, 1_000)).toEqual({ phase: 'pending', ahead: order.queueAhead, progress: 0 })
+    expect(commercialStreetMilkTeaQueueStatus(order, order.readyAt - 1).ahead).toBeGreaterThanOrEqual(0)
+    expect(commercialStreetMilkTeaQueueStatus(order, order.readyAt)).toEqual({ phase: 'ready', ahead: 0, progress: 1 })
   })
 
   it('persists an in-progress order atomically and restores it after save sanitation', () => {

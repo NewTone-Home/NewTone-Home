@@ -218,7 +218,7 @@ test('APPROVED CONTRACT MIGRATION: staff-area clicks retain the raw marker while
   }
   const requested = { x: staffRegion.x + staffRegion.width / 2, y: staffRegion.y + staffRegion.height / 2 }
   const clicked = await clickCafeWorldPoint(page, requested)
-  await expect(page.locator('.scene-mainline-echo')).toContainText('还是别进去打扰他们工作了', { timeout: 30_000 })
+  await expect(page.locator('[data-scene-echo]')).toContainText('还是别进去打扰他们工作了', { timeout: 30_000 })
   const marker = page.locator('.scene-walk-target')
   await expectWorldMarkerAt(marker, clicked)
   const final = await runtimePosition(page.locator('[data-actor-id="protagonist"]'))
@@ -234,7 +234,7 @@ test('an inaccessible direct cafe back-door click does not bypass staff access o
 
   await expect(backDoor).toHaveAttribute('data-focus-passage-phase', 'closed')
   await expect(page.locator('.scene-feedback')).toContainText('这扇门当前无法从这里靠近。')
-  await expect(page.locator('.scene-mainline-echo')).toHaveCount(0)
+  await expect(page.locator('[data-scene-echo]')).toHaveCount(0)
 })
 
 test('a DEV-only server route reaches the cafe back-door approach before the shared locked lifecycle denies it', async ({ page }) => {
@@ -248,7 +248,7 @@ test('a DEV-only server route reaches the cafe back-door approach before the sha
   await expect(scene).toHaveAttribute('data-e2e-server-back-door-status', 'lifecycle-requested', { timeout: 30_000 })
   expect(pointDistance(await runtimePosition(server), before)).toBeGreaterThan(.2)
   await expect(backDoor).toHaveAttribute('data-focus-passage-phase', 'closed')
-  await expect(page.locator('.scene-mainline-echo')).toContainText('后门暂未开启')
+  await expect(page.locator('[data-scene-echo]')).toContainText('后门暂未开启')
 })
 
 test('a world route ending in front of the cafe exit does not open the door', async ({ page }) => {

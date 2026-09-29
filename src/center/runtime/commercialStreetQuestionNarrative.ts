@@ -1,7 +1,7 @@
 import type { Point } from './sceneGeometry'
 import type { MainlineSceneDefinition } from './mainlineScenes'
 
-/** Persisted only after the final narration has rolled away. */
+/** Persisted only after the final internal-dialogue line has rolled away. */
 export const commercialStreetQuestionNarrativeCompletedKey = 'commercialStreetQuestionNarrativeCompleted'
 
 export const commercialStreetQuestionNarrativeLines = [
@@ -26,14 +26,6 @@ export function commercialStreetQuestionNarrativeAnchor(scene: MainlineSceneDefi
   return {
     x: scene.walkBounds.x + scene.walkBounds.width / 2,
     y: scene.walkBounds.y + scene.walkBounds.height / 2,
-  }
-}
-
-/** Keep the narration on the right side of its world anchor rather than screen-fixed. */
-export function commercialStreetQuestionNarrativeOffset(scene: MainlineSceneDefinition): Point {
-  return {
-    x: scene.walkBounds.width / 24,
-    y: -scene.walkBounds.height / 40,
   }
 }
 

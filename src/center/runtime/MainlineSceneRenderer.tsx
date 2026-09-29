@@ -22,7 +22,6 @@ import type { NpcRuntimeSnapshot } from './npcCore'
 import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisualState'
 import { storefrontPresentationLabelSlots, type StorefrontPresentationPhase } from './storefrontPresentation'
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
-import { formatCommercialStreetMilkTeaOrderNumber, milkTeaDrinks, milkTeaIceOptions, milkTeaSugarOptions, type MilkTeaDrink, type MilkTeaIce, type MilkTeaSugar } from './commercialStreetMilkTea'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -56,9 +55,6 @@ type MainlineSceneRendererProps = {
   onDoorTransitionComplete?: (entityId: string, completion: SceneDoorTransitionCompletion) => void
   onWalk: (point: Point) => void
   worldQuestionMark?: { anchor: Point; visible: boolean }
-  worldNarrative?: { anchor: Point; offset: Point; text: string; segmentIndex: number; segmentCount: number; phase: 'active' | 'leaving' }
-  onWorldNarrativeAdvance?: () => void
-  onWorldNarrativeExitComplete?: () => void
   dialogue?: MainlineSceneDialoguePresentation
   dialogueLine?: MainlineSceneDialogueLine | null
   dialogueText?: string
@@ -66,24 +62,14 @@ type MainlineSceneRendererProps = {
   dialogueSegmentIndex?: number
   dialogueSegmentCount?: number
   dialoguePosition?: Point | null
+  dialoguePhase?: 'active' | 'leaving'
+  dialogueLock?: boolean
+  onDialogueExitComplete?: () => void
   onDialogueAdvance?: () => void
   sceneEcho?: { id: number; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; phase?: 'leaving' } | null
   onSceneEchoAdvance?: () => void
   onSceneEchoChoice?: (index: number) => void
-  onSceneEchoExitComplete?: (echoId: number, source: 'text' | 'frame') => void
-  milkTeaOrderFlow?: {
-    phase: 'drink' | 'preferences' | 'receipt'
-    position: Point
-    drink?: MilkTeaDrink
-    sugar?: MilkTeaSugar
-    ice?: MilkTeaIce
-    number?: number
-  } | null
-  onMilkTeaDrinkSelect?: (drink: MilkTeaDrink) => void
-  onMilkTeaSugarSelect?: (sugar: MilkTeaSugar) => void
-  onMilkTeaIceSelect?: (ice: MilkTeaIce) => void
-  onMilkTeaOrderConfirm?: () => void
-  onMilkTeaOrderDismiss?: () => void
+  onSceneEchoExitComplete?: (echoId: number) => void
   carriedMilkTea?: boolean
   onFrameMotionProfileChange?: (profile: readonly SceneFocusFrameMotionProfile[]) => void
   exploredObjectIds?: ReadonlySet<string>
@@ -214,6 +200,28 @@ type MainlineDoorButtonProps = {
   onInteract: (id: string) => void
   onDoorTransitionComplete?: (entityId: string, completion: SceneDoorTransitionCompletion) => void
   dataAttributes?: Record<string, string | undefined>
+}
+
+function ObservationText({ text }: { text: string }) {
+  const characters = useMemo(() => Array.from(text), [text])
+  const [visibleCount, setVisibleCount] = useState(0)
+
+  useEffect(() => {
+    setVisibleCount(0)
+    if (characters.length === 0) return
+    let frame = 0
+    let startedAt: number | null = null
+    const advance = (now: number) => {
+      startedAt ??= now
+      const next = Math.min(characters.length, Math.floor((now - startedAt) / 28) + 1)
+      setVisibleCount((current) => current === next ? current : next)
+      if (next < characters.length) frame = window.requestAnimationFrame(advance)
+    }
+    frame = window.requestAnimationFrame(advance)
+    return () => window.cancelAnimationFrame(frame)
+  }, [characters])
+
+  return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">{characters.slice(0, visibleCount).join('')}</span>
 }
 
 function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph, doorPhase, focusGroup, focusPolicy, gateTriggered, frameRetracting, active, closeHint, ariaLabel, renderFocusFrame, onInteract, onDoorTransitionComplete, dataAttributes }: MainlineDoorButtonProps) {
@@ -492,9 +500,6 @@ export function MainlineSceneRenderer({
   onDoorTransitionComplete,
   onWalk,
   worldQuestionMark,
-  worldNarrative,
-  onWorldNarrativeAdvance,
-  onWorldNarrativeExitComplete,
   dialogue,
   dialogueLine = null,
   dialogueText = '',
@@ -502,17 +507,14 @@ export function MainlineSceneRenderer({
   dialogueSegmentIndex = 0,
   dialogueSegmentCount = 1,
   dialoguePosition = null,
+  dialoguePhase = 'active',
+  dialogueLock = false,
+  onDialogueExitComplete,
   onDialogueAdvance,
   sceneEcho = null,
   onSceneEchoAdvance,
   onSceneEchoChoice,
   onSceneEchoExitComplete,
-  milkTeaOrderFlow = null,
-  onMilkTeaDrinkSelect,
-  onMilkTeaSugarSelect,
-  onMilkTeaIceSelect,
-  onMilkTeaOrderConfirm,
-  onMilkTeaOrderDismiss,
   carriedMilkTea = false,
   onFrameMotionProfileChange,
   exploredObjectIds = new Set(),
@@ -584,7 +586,6 @@ export function MainlineSceneRenderer({
     const now = typeof performance === 'undefined' ? 0 : performance.now()
     return `${-(now % 2800)}ms`
   }, [hasOfficeBreathing])
-  const reportedEchoFrameExitRef = useRef<number | null>(null)
   const [draggingItemId, setDraggingItemId] = useState<LayoutItemId | null>(null)
   const [selectedLayoutItemId, setSelectedLayoutItemId] = useState<LayoutItemId | null>(null)
   const dragRef = useRef<{ itemId: LayoutItemId; pointerId: number; startPointer: Point; startAnchor: Point; moved: boolean } | null>(null)
@@ -679,32 +680,8 @@ export function MainlineSceneRenderer({
         suppressed: false,
       })
     })
-    if (dialogue && dialogueLine && dialogueLineIndex !== null && dialoguePosition) {
-      addTarget({
-        group: `dialogue:${dialogueLine.id}`,
-        policy: 'exploration',
-        phase: 'closed',
-        gateTriggered: false,
-        interactionBusy: false,
-        interactionActive: true,
-        retractRequested: false,
-        suppressed: false,
-      })
-    }
-    if (sceneEcho) {
-      addTarget({
-        group: `echo:${sceneEcho.id}`,
-        policy: 'exploration',
-        phase: 'closed',
-        gateTriggered: false,
-        interactionBusy: false,
-        interactionActive: true,
-        retractRequested: sceneEcho.phase === 'leaving',
-        suppressed: false,
-      })
-    }
     return [...targetMap.values()]
-  }, [activeObjectId, dialogue, dialogueLine, dialogueLineIndex, dialoguePosition, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation])
+  }, [activeObjectId, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneFrameExit, storefrontPresentation])
   const focusFrames = useSceneFocusFrameController({
     targets: focusFrameTargets,
     freezeMeasurements: freezeFrameMeasurements,
@@ -719,15 +696,6 @@ export function MainlineSceneRenderer({
     reportedFrameMotionProfileRef.current = frameMotionProfileKey
     onFrameMotionProfileChange(frameMotionProfile)
   }, [frameMotionProfile, frameMotionProfileKey, onFrameMotionProfileChange])
-  useEffect(() => {
-    if (!sceneEcho || sceneEcho.phase !== 'leaving') {
-      reportedEchoFrameExitRef.current = null
-      return
-    }
-    if (reportedEchoFrameExitRef.current === sceneEcho.id || !focusFrames.requestedRetractionsComplete) return
-    reportedEchoFrameExitRef.current = sceneEcho.id
-    onSceneEchoExitComplete?.(sceneEcho.id, 'frame')
-  }, [focusFrames.requestedRetractionsComplete, onSceneEchoExitComplete, sceneEcho])
   const touchWalkRef = useRef<{ clientX: number; clientY: number; at: number } | null>(null)
 
   const pointFromPointer = useCallback((clientX: number, clientY: number) => {
@@ -848,7 +816,7 @@ export function MainlineSceneRenderer({
 
   return (
     <section className="scene-wrap" aria-label={`${scene.title}可探索场景`}>
-      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${worldNarrative ? 'is-world-narrative-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-world-narrative-state={worldNarrative?.phase}>
+      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${dialogueLock ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-scene-dialogue-state={dialoguePhase}>
         {layoutMode && <div className="scene-layout-grid" aria-hidden="true" />}
 
         <div className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''}`} style={{ transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%)` }}>
@@ -1097,8 +1065,9 @@ export function MainlineSceneRenderer({
               : <span className="scene-protagonist__seat-label" aria-label="修杰，已坐下">{protagonistPresentation.label}</span>}
             {carriedMilkTea && <span className="scene-protagonist__drink-icon scene-protagonist__drink-icon--milk-tea" aria-label="修杰带着奶茶" />}
           </div>}
-          {(sceneEcho || (dialogue && dialogueLine && dialogueLineIndex !== null && dialoguePosition)) && (() => {
+          {(sceneEcho || (dialogue && dialogueLine && dialoguePosition)) && (() => {
             const isDialogue = !sceneEcho && Boolean(dialogue && dialogueLine && dialoguePosition)
+            const isLeaving = sceneEcho?.phase === 'leaving' || (isDialogue && dialoguePhase === 'leaving')
             const text = sceneEcho?.text ?? dialogueText ?? dialogueLine?.text ?? ''
             const position = sceneEcho?.position ?? dialoguePosition!
             const group = sceneEcho ? `echo:${sceneEcho.id}` : `dialogue:${dialogueLine!.id}`
@@ -1112,24 +1081,19 @@ export function MainlineSceneRenderer({
             })
             return <div
               key={sceneEcho?.id ?? dialogueLine!.id}
-              className={`scene-mainline-echo ${sceneEcho?.phase === 'leaving' ? 'is-leaving' : ''}`}
+              className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${isLeaving ? 'is-leaving' : ''}`}
               style={{
                 left: `${position.x}%`,
                 top: `${position.y}%`,
-                '--scene-mainline-echo-width': `${echoLayout.widthPx}px`,
-                '--scene-mainline-echo-height': `${echoLayout.heightPx}px`,
-                '--scene-focus-frame-duration': `${focusFrames.motionDurationMs(group)}ms`,
+                '--scene-mainline-text-width': `${echoLayout.widthPx}px`,
+                '--scene-mainline-text-height': `${echoLayout.heightPx}px`,
               } as CSSProperties}
               aria-live="polite"
               data-scene-interaction-text={sceneEcho?.entityId ?? dialogue?.triggerEntityId ?? 'scene'}
-              data-scene-echo={sceneEcho?.entityId}
+              data-scene-echo={sceneEcho ? sceneEcho.entityId ?? 'scene' : undefined}
               data-scene-dialogue={isDialogue ? dialogue?.triggerEntityId : undefined}
               data-dialogue-line-id={isDialogue ? dialogueLine?.id : undefined}
               data-dialogue-speaker={isDialogue ? dialogueLine?.speaker : undefined}
-              data-focus-target-id={isDialogue ? group : undefined}
-              data-focus-target-group={isDialogue ? group : undefined}
-              data-focus-target-policy={isDialogue ? 'exploration' : undefined}
-              data-focus-interaction-active={isDialogue ? 'true' : undefined}
               data-scene-segment-index={sceneEcho?.segmentIndex ?? dialogueSegmentIndex}
               data-scene-segment-count={sceneEcho?.segments.length ?? dialogueSegmentCount}
               data-scene-segment-advance={hasNextSegment ? 'available' : 'complete'}
@@ -1137,63 +1101,23 @@ export function MainlineSceneRenderer({
                 event.stopPropagation()
                 advance?.()
               }}
+              onAnimationEnd={(event) => {
+                if (!isLeaving || event.target !== event.currentTarget) return
+                if (sceneEcho) onSceneEchoExitComplete?.(sceneEcho.id)
+                else onDialogueExitComplete?.()
+              }}
             >
-              {isDialogue && <span className="scene-mainline-echo__speaker">{dialogueLine!.speaker}</span>}
-              <span
-                className="scene-mainline-echo__text"
-                key={`${group}:${sceneEcho?.segmentIndex ?? dialogueSegmentIndex}`}
-                onAnimationEnd={(event) => {
-                  if (sceneEcho && event.animationName === 'mainline-echo-text-leave') onSceneEchoExitComplete?.(sceneEcho.id, 'text')
-                }}
-              >{text}</span>
-              {sceneEcho?.options && sceneEcho.options.length > 0 && <div className="scene-mainline-echo__choices">
+              {isDialogue && <span className="scene-mainline-text__speaker">{dialogueLine!.speaker}</span>}
+              {isDialogue
+                ? <span className="scene-mainline-text__dialogue" key={`${group}:${dialogueSegmentIndex}`} data-scene-text-mode="dialogue">{text}</span>
+                : <ObservationText text={text} />}
+              {sceneEcho?.options && sceneEcho.options.length > 0 && <div className="scene-mainline-text__choices">
                 {sceneEcho.options.map((option, index) => (
                   <button key={option} type="button" onClick={(event) => { event.stopPropagation(); onSceneEchoChoice?.(index) }}>
                     {option}
                   </button>
                 ))}
               </div>}
-              {focusFrames.renderFrame(group)}
-            </div>
-          })()}
-          {milkTeaOrderFlow && (() => {
-            const prompt = milkTeaOrderFlow.phase === 'drink'
-              ? '选择一杯奶茶。'
-              : milkTeaOrderFlow.phase === 'preferences'
-                ? '选择甜度和冰量。'
-                : `取餐号 ${formatCommercialStreetMilkTeaOrderNumber(milkTeaOrderFlow.number ?? 1)}`
-            const orderLayout = mainlineEchoLayout(prompt, renderScreenMetrics)
-            const orderHeight = milkTeaOrderFlow.phase === 'preferences' ? 142 : milkTeaOrderFlow.phase === 'drink' ? 86 : 72
-            return <div
-              className="scene-mainline-echo scene-milk-tea-order"
-              style={{
-                left: `${milkTeaOrderFlow.position.x}%`,
-                top: `${milkTeaOrderFlow.position.y}%`,
-                '--scene-mainline-echo-width': `${Math.max(orderLayout.widthPx, 244)}px`,
-                '--scene-mainline-echo-height': `${Math.max(orderLayout.heightPx, orderHeight)}px`,
-                '--scene-focus-frame-duration': '360ms',
-              } as CSSProperties}
-              role="dialog"
-              aria-label="奶茶点单"
-              data-milk-tea-order-phase={milkTeaOrderFlow.phase}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <span className="scene-mainline-echo__text">{prompt}</span>
-              {milkTeaOrderFlow.phase === 'drink' && <div className="scene-milk-tea-order__choices" aria-label="饮料选择">
-                {milkTeaDrinks.map((drink) => <button key={drink} type="button" onClick={() => onMilkTeaDrinkSelect?.(drink)}>{drink}</button>)}
-              </div>}
-              {milkTeaOrderFlow.phase === 'preferences' && <div className="scene-milk-tea-order__preferences">
-                <div className="scene-milk-tea-order__field" aria-label="甜度选择">
-                  <span>甜度</span>
-                  <div>{milkTeaSugarOptions.map((sugar) => <button key={sugar} type="button" aria-pressed={milkTeaOrderFlow.sugar === sugar} onClick={() => onMilkTeaSugarSelect?.(sugar)}>{sugar}</button>)}</div>
-                </div>
-                <div className="scene-milk-tea-order__field" aria-label="冰量选择">
-                  <span>冰量</span>
-                  <div>{milkTeaIceOptions.map((ice) => <button key={ice} type="button" aria-pressed={milkTeaOrderFlow.ice === ice} onClick={() => onMilkTeaIceSelect?.(ice)}>{ice}</button>)}</div>
-                </div>
-                <button className="scene-milk-tea-order__confirm" type="button" disabled={!milkTeaOrderFlow.sugar || !milkTeaOrderFlow.ice} onClick={onMilkTeaOrderConfirm}>确认下单</button>
-              </div>}
-              {milkTeaOrderFlow.phase === 'receipt' && <button className="scene-milk-tea-order__receipt" type="button" onClick={onMilkTeaOrderDismiss}>知道了</button>}
             </div>
           })()}
           </>
@@ -1206,32 +1130,15 @@ export function MainlineSceneRenderer({
           data-world-anchor-y={worldQuestionMark.anchor.y}
           aria-hidden="true"
         >?</span>}
-        {worldNarrative && <>
-          <div className="scene-world-narrative-dimmer" aria-hidden="true" />
-          <div
-            className={`scene-world-narrative ${worldNarrative.phase === 'leaving' ? 'is-leaving' : ''}`}
-            style={{ left: `${worldNarrative.anchor.x + worldNarrative.offset.x + cameraOffset.x}%`, top: `${worldNarrative.anchor.y + worldNarrative.offset.y + cameraOffset.y}%` }}
-            data-world-narrative="commercial-street-question"
-            data-world-narrative-segment-index={worldNarrative.segmentIndex}
-            data-world-narrative-segment-count={worldNarrative.segmentCount}
-            data-world-anchor-x={worldNarrative.anchor.x}
-            data-world-anchor-y={worldNarrative.anchor.y}
-            aria-live="polite"
-          >
-            <span className="scene-world-narrative__slot"><span key={`${worldNarrative.phase}:${worldNarrative.segmentIndex}`} className="scene-world-narrative__text" onAnimationEnd={(event) => {
-              if (worldNarrative.phase === 'leaving' && event.animationName === 'scene-world-narrative-leave') onWorldNarrativeExitComplete?.()
-            }}>{worldNarrative.text}</span></span>
-          </div>
+        {dialogueLock && <>
+          <div className="scene-dialogue-dimmer" aria-hidden="true" />
           <button
             type="button"
-            className="scene-world-narrative-shield"
-            aria-label="继续叙事"
-            data-world-narrative-shield="true"
+            className="scene-dialogue-shield"
+            aria-label="继续对话"
+            data-scene-dialogue-shield="true"
             onPointerUp={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation()
-              onWorldNarrativeAdvance?.()
-            }}
+            onClick={(event) => { event.stopPropagation(); onDialogueAdvance?.() }}
           />
         </>}
         {(debugInput || debugNpcMovement) && <div className="scene-input-debug" aria-live="polite">
