@@ -974,8 +974,8 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
       { id: 'commercial-cafe-terminal', type: 'frame', bounds: box(188, 36, 4, 28), variant: 'terminal', edges: ['right'] },
     ],
     storefronts: [
-      ...storefrontRow('commercial-north', 'commercial-north-facade', 'bottom', ['服装店', '服装店', '鞋包店', '服装店', '饰品店', '服装店', '定制店', '书店'], 'modern', commercialStorefrontStarts, 18),
-      ...storefrontRow('commercial-south', 'commercial-south-facade', 'top', ['服装店', '鞋包店', '服装店', '服装店', '服装店', '珠宝店', '服装店', '服装店'], 'modern', commercialStorefrontStarts, 18),
+      ...storefrontRow('commercial-north', 'commercial-north-facade', 'bottom', ['果茶店', '服装店', '花店', '眼镜店', '美妆店', '服装店', '书店', '甜品店'], 'modern', commercialStorefrontStarts, 18),
+      ...storefrontRow('commercial-south', 'commercial-south-facade', 'top', ['鞋店', '潮玩店', '香氛店', '服装店', '奶茶店', '周边店', '首饰店', '服装店'], 'modern', commercialStorefrontStarts, 18),
       { id: 'commercial-cafe-slot', wallId: 'commercial-cafe-terminal', edge: 'right', label: '咖啡馆', style: 'modern', composition: { baseline: ['sign'], near: ['wall', 'door', 'wall'] }, portalId: 'street-cafe-entry', nearRadius: 10, start: commercialStreetCafeDoorStart, end: commercialStreetCafeDoorEnd, approach: authoredPoint(186, commercialStreetCafeDoorY) },
     ],
     floorEntities: [], airWalls: commercialStreetFacadeAirWalls, blockers: [], furnitureGroups: [], initialPlayerPosition: authoredPoint(34, 50),

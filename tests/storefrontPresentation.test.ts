@@ -11,6 +11,45 @@ const street = mainlineScenes['commercial-street']
 const cafe = street.storefronts.find((storefront) => storefront.id === 'commercial-cafe-slot')!
 
 describe('commercial street storefront presentation', () => {
+  it('keeps the approved 16-slot commercial street inventory while Café remains the only portal storefront', () => {
+    const ordinaryStorefronts = street.storefronts.filter((storefront) => storefront.id !== 'commercial-cafe-slot')
+
+    expect(ordinaryStorefronts.map(({ id, label }) => ({ id, label }))).toEqual([
+      { id: 'commercial-north-slot-1', label: '果茶店' },
+      { id: 'commercial-north-slot-2', label: '服装店' },
+      { id: 'commercial-north-slot-3', label: '花店' },
+      { id: 'commercial-north-slot-4', label: '眼镜店' },
+      { id: 'commercial-north-slot-5', label: '美妆店' },
+      { id: 'commercial-north-slot-6', label: '服装店' },
+      { id: 'commercial-north-slot-7', label: '书店' },
+      { id: 'commercial-north-slot-8', label: '甜品店' },
+      { id: 'commercial-south-slot-1', label: '鞋店' },
+      { id: 'commercial-south-slot-2', label: '潮玩店' },
+      { id: 'commercial-south-slot-3', label: '香氛店' },
+      { id: 'commercial-south-slot-4', label: '服装店' },
+      { id: 'commercial-south-slot-5', label: '奶茶店' },
+      { id: 'commercial-south-slot-6', label: '周边店' },
+      { id: 'commercial-south-slot-7', label: '首饰店' },
+      { id: 'commercial-south-slot-8', label: '服装店' },
+    ])
+    expect(ordinaryStorefronts).toHaveLength(16)
+    expect(ordinaryStorefronts.filter((storefront) => storefront.label === '服装店').map((storefront) => storefront.id)).toEqual([
+      'commercial-north-slot-2',
+      'commercial-north-slot-6',
+      'commercial-south-slot-4',
+      'commercial-south-slot-8',
+    ])
+    expect(ordinaryStorefronts.every((storefront) => storefront.portalId === undefined)).toBe(true)
+    expect(ordinaryStorefronts.find((storefront) => storefront.label === '奶茶店')?.id).toBe('commercial-south-slot-5')
+    expect(ordinaryStorefronts.find((storefront) => storefront.label === '果茶店')?.id).toBe('commercial-north-slot-1')
+    expect(ordinaryStorefronts.find((storefront) => storefront.label === '甜品店')?.id).toBe('commercial-north-slot-8')
+    expect(cafe).toMatchObject({ id: 'commercial-cafe-slot', label: '咖啡馆', portalId: 'street-cafe-entry' })
+    expect(street.passages.find((passage) => passage.id === 'street-cafe-entry')).toMatchObject({
+      entityId: 'street-cafe-entry',
+      targetSceneId: 'commercial-cafe',
+    })
+  })
+
   it('keeps the Café label as one complete rolling slot by default', () => {
     expect(storefrontPresentationLabelSlots(cafe.label)).toEqual(['咖啡馆'])
     expect(storefrontLabelRollDurationMs).toBe(360)
