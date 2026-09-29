@@ -4,6 +4,12 @@ import { boundaryGridStepsFromScreenSpacing, defaultSceneScreenMetrics } from '.
 import { createFourSeatFurniture, createSeatGeometry, createTableGeometry, sharedFurnitureGeometry, createTwoSeatFurniture, type SharedSeatDefinition } from './twoSeatFurniture'
 import { npcRoles, type NpcRoleDefinition } from './npcRoles'
 import type { CommercialCafeStoryStage } from './commercialCafeStory'
+import {
+  ambientNpcOffstreetMaximumMs,
+  ambientNpcOffstreetMinimumMs,
+  ambientNpcStoreVisitMaximumMs,
+  ambientNpcStoreVisitMinimumMs,
+} from './ambientNpcLifecycle'
 
 export type MainlineSceneId = 'jijia-ancestral-home' | 'jijia-ancestral-interior' | 'commercial-street' | 'commercial-cafe' | 'yonghe-mining-perimeter' | 'yonghe-eatery' | 'zhongshuyuan-passage' | 'zhongshuyuan-office'
 export type MainlineEntityKind = 'door' | 'landmark' | 'table' | 'seat' | 'direction' | 'trace' | 'fixture'
@@ -123,14 +129,38 @@ export type MainlineSceneNpc = {
   interactionTargetEntityId?: string
 }
 
+export type MainlineAmbientNpcRouteStep =
+  | {
+    kind?: 'patrol'
+    target: Point
+    dwellMs: number
+  }
+  | {
+    kind: 'storefront-visit'
+    /** Compatibility fallback only; live entry still resolves storefront contacts. */
+    target: Point
+    dwellMs: number
+    storefrontId: string
+    /** A legal nearby point used when this virtual visit finishes. */
+    reentry: Point
+    minDwellMs: number
+    maxDwellMs: number
+  }
+  | {
+    kind: 'offstreet'
+    target: Point
+    dwellMs: number
+    /** The same public lane, just inside the west boundary. */
+    reentry: Point
+    minDwellMs: number
+    maxDwellMs: number
+  }
+
 /** A fixed, scene-local loop for a non-interactive ambient resident. */
 export type MainlineAmbientNpcRoute = {
   npcId: string
   initialDelayMs: number
-  steps: readonly {
-    target: Point
-    dwellMs: number
-  }[]
+  steps: readonly MainlineAmbientNpcRouteStep[]
 }
 
 /** Current staging for an NPC. This is scene data, not permanent NPC identity. */
@@ -981,12 +1011,12 @@ const commercialStreetAmbientNpcs = [
 // differently phased starts and dwell times keep the first street visit from
 // reading as a synchronized stage cue.
 const commercialStreetAmbientNpcRoutes = [
-  { npcId: 'commercial-street-pedestrian-west-north', initialDelayMs: 0, steps: [{ target: authoredPoint(60, 42), dwellMs: 1100 }, { target: authoredPoint(22, 42), dwellMs: 1800 }] },
-  { npcId: 'commercial-street-pedestrian-west-south', initialDelayMs: 900, steps: [{ target: authoredPoint(28, 58), dwellMs: 1700 }, { target: authoredPoint(72, 58), dwellMs: 1200 }] },
-  { npcId: 'commercial-street-pedestrian-mid-east-north', initialDelayMs: 1700, steps: [{ target: authoredPoint(142, 42), dwellMs: 1300 }, { target: authoredPoint(88, 42), dwellMs: 2000 }] },
-  { npcId: 'commercial-street-pedestrian-mid-east-south', initialDelayMs: 2700, steps: [{ target: authoredPoint(174, 58), dwellMs: 1600 }, { target: authoredPoint(124, 58), dwellMs: 900 }] },
-  { npcId: 'commercial-street-pedestrian-long', initialDelayMs: 3900, steps: [{ target: authoredPoint(166, 50), dwellMs: 2400 }, { target: authoredPoint(20, 50), dwellMs: 1600 }] },
-  { npcId: 'commercial-street-pedestrian-shopper', initialDelayMs: 5100, steps: [{ target: authoredPoint(110, 40), dwellMs: 3500 }, { target: authoredPoint(96, 58), dwellMs: 1400 }, { target: authoredPoint(116, 58), dwellMs: 2600 }] },
+  { npcId: 'commercial-street-pedestrian-west-north', initialDelayMs: 0, steps: [{ target: authoredPoint(60, 42), dwellMs: 1100 }, { kind: 'storefront-visit', target: authoredPoint(42, 42), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-north-slot-2', reentry: authoredPoint(42, 42), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(22, 42), dwellMs: 1800 }] },
+  { npcId: 'commercial-street-pedestrian-west-south', initialDelayMs: 900, steps: [{ target: authoredPoint(28, 58), dwellMs: 1700 }, { kind: 'offstreet', target: authoredPoint(12, 58), dwellMs: ambientNpcOffstreetMinimumMs, reentry: authoredPoint(18, 58), minDwellMs: ambientNpcOffstreetMinimumMs, maxDwellMs: ambientNpcOffstreetMaximumMs }, { target: authoredPoint(72, 58), dwellMs: 1200 }] },
+  { npcId: 'commercial-street-pedestrian-mid-east-north', initialDelayMs: 1700, steps: [{ target: authoredPoint(142, 42), dwellMs: 1300 }, { kind: 'storefront-visit', target: authoredPoint(150, 42), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-north-slot-7', reentry: authoredPoint(150, 42), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(88, 42), dwellMs: 2000 }] },
+  { npcId: 'commercial-street-pedestrian-mid-east-south', initialDelayMs: 2700, steps: [{ target: authoredPoint(174, 58), dwellMs: 1600 }, { kind: 'storefront-visit', target: authoredPoint(140, 58), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-6', reentry: authoredPoint(140, 58), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(124, 58), dwellMs: 900 }] },
+  { npcId: 'commercial-street-pedestrian-long', initialDelayMs: 3900, steps: [{ target: authoredPoint(166, 50), dwellMs: 2400 }, { kind: 'offstreet', target: authoredPoint(12, 50), dwellMs: ambientNpcOffstreetMinimumMs, reentry: authoredPoint(18, 50), minDwellMs: ambientNpcOffstreetMinimumMs, maxDwellMs: ambientNpcOffstreetMaximumMs }, { target: authoredPoint(20, 50), dwellMs: 1600 }] },
+  { npcId: 'commercial-street-pedestrian-shopper', initialDelayMs: 5100, steps: [{ target: authoredPoint(110, 40), dwellMs: 3500 }, { kind: 'storefront-visit', target: authoredPoint(156, 58), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-7', reentry: authoredPoint(156, 58), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(96, 58), dwellMs: 1400 }, { target: authoredPoint(116, 58), dwellMs: 2600 }] },
 ] as const satisfies readonly MainlineAmbientNpcRoute[]
 
 const commercialStreetBlueprint: MainlineSceneBlueprint = {

@@ -26,4 +26,20 @@ describe('Commercial Street ambient pedestrians', () => {
       })
     })
   })
+
+  it('lets pedestrians visit ordinary storefronts or leave through the west boundary, never Café or drinks', () => {
+    const activities = street.ambientNpcRoutes.flatMap((route) => route.steps)
+      .filter((step) => step.kind === 'storefront-visit' || step.kind === 'offstreet')
+    const visits = activities.filter((step) => step.kind === 'storefront-visit')
+    const offstreet = activities.filter((step) => step.kind === 'offstreet')
+
+    expect(visits.length).toBeGreaterThan(0)
+    expect(offstreet.length).toBeGreaterThan(0)
+    visits.forEach((step) => {
+      if (step.kind !== 'storefront-visit') return
+      expect(step.storefrontId).not.toBe('commercial-cafe-slot')
+      expect(step.storefrontId).not.toBe('commercial-north-slot-1')
+      expect(step.storefrontId).not.toBe('commercial-south-slot-5')
+    })
+  })
 })

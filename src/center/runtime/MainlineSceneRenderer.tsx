@@ -51,6 +51,7 @@ type MainlineSceneRendererProps = {
   onAttachedPropInteract?: (propId: string) => void
   npcPositions?: ReadonlyMap<string, Point>
   npcRuntimeSnapshots?: ReadonlyMap<string, NpcRuntimeSnapshot>
+  hiddenNpcIds?: ReadonlySet<string>
   onDoorTransitionComplete?: (entityId: string, completion: SceneDoorTransitionCompletion) => void
   onWalk: (point: Point) => void
   dialogue?: MainlineSceneDialoguePresentation
@@ -468,6 +469,7 @@ export function MainlineSceneRenderer({
   onAttachedPropInteract,
   npcPositions,
   npcRuntimeSnapshots,
+  hiddenNpcIds,
   onDoorTransitionComplete,
   onWalk,
   dialogue,
@@ -970,6 +972,7 @@ export function MainlineSceneRenderer({
           })}
 
           {scene.npcs.map((npc) => {
+            if (hiddenNpcIds?.has(npc.id)) return null
             const npcPosition = npcPositions?.get(npc.id) ?? resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
             const npcSnapshot = npcRuntimeSnapshots?.get(npc.id)
             const npcSeatId = mainlineNpcStagedSeatId(scene, npc.id)

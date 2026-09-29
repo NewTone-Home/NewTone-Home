@@ -366,7 +366,7 @@ export function MainlineScenePage({
   const debugCafePlayerPositionAppliedRef = useRef(false)
   const handledWalkRequestRef = useRef<number | null>(null)
   const [feedback, setFeedback] = useState(entryFeedbackForScene(sceneDefinition))
-  const [ambientNpcRuntime, setAmbientNpcRuntime] = useState<ReadonlyMap<string, { position: Point; snapshot: NpcRuntimeSnapshot }>>(new Map())
+  const [ambientNpcRuntime, setAmbientNpcRuntime] = useState<ReadonlyMap<string, { position: Point | null; snapshot: NpcRuntimeSnapshot }>>(new Map())
   const [inputDiagnostic, setInputDiagnostic] = useState<MainlineInputDiagnostic | null>(null)
   useEffect(() => {
     storefrontInteractionRuntimeRef.current = createCommercialStreetStorefrontInteractionRuntime()
@@ -538,15 +538,9 @@ export function MainlineScenePage({
   const handleAmbientNpcRuntimeChange = useCallback((npcId: string, npcPosition: Point | null, snapshot: NpcRuntimeSnapshot) => {
     setAmbientNpcRuntime((current) => {
       const existing = current.get(npcId)
-      if (!npcPosition) {
-        if (!existing) return current
-        const next = new Map(current)
-        next.delete(npcId)
-        return next
-      }
       if (existing
-        && existing.position.x === npcPosition.x
-        && existing.position.y === npcPosition.y
+        && existing.position?.x === npcPosition?.x
+        && existing.position?.y === npcPosition?.y
         && existing.snapshot.phase === snapshot.phase
         && existing.snapshot.dutyId === snapshot.dutyId
         && existing.snapshot.targetId === snapshot.targetId) return current
@@ -556,9 +550,14 @@ export function MainlineScenePage({
   const npcRuntimePositions = useMemo(() => {
     const positions = new Map<string, Point>()
     if (serverMovement.position) positions.set('server', serverMovement.position)
-    ambientNpcRuntime.forEach(({ position }, npcId) => positions.set(npcId, position))
+    ambientNpcRuntime.forEach(({ position }, npcId) => {
+      if (position) positions.set(npcId, position)
+    })
     return positions
   }, [ambientNpcRuntime, serverMovement.position])
+  const hiddenAmbientNpcIds = useMemo(() => new Set([...ambientNpcRuntime]
+    .filter(([, runtime]) => runtime.position === null)
+    .map(([npcId]) => npcId)), [ambientNpcRuntime])
   const npcRuntimeSnapshots = useMemo(() => {
     const snapshots = new Map<string, NpcRuntimeSnapshot>([['server', serverMovement.snapshot]])
     ambientNpcRuntime.forEach(({ snapshot }, npcId) => snapshots.set(npcId, snapshot))
@@ -1763,6 +1762,7 @@ export function MainlineScenePage({
               onAttachedPropInteract={interactAttachedProp}
               npcPositions={resolvedNpcPositions}
               npcRuntimeSnapshots={npcRuntimeSnapshots}
+              hiddenNpcIds={hiddenAmbientNpcIds}
               onDoorTransitionComplete={completeDoorTransition}
               onWalk={walk}
               dialogue={activeDialogue}

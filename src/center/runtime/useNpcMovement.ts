@@ -172,6 +172,8 @@ export function useNpcMovement({ enabled, npcId, initialPosition, navigationRunt
   return {
     position: enabled ? movement.position : null,
     snapshot,
+    getPosition: adapter.getPosition,
     requestMove,
+    reset: adapter.reset,
   }
 }

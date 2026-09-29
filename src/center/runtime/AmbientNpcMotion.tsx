@@ -1,15 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { MainlineAmbientNpcRoute } from './mainlineSceneModel'
-import type { MainlineSceneDefinition } from './mainlineScenes'
-import type { MainlineNavigationOptions } from './mainlineNavigation'
+import type { MainlineAmbientNpcRoute, MainlineAmbientNpcRouteStep } from './mainlineSceneModel'
+import { mainlineStorefrontInteractionCandidates, type MainlineSceneDefinition } from './mainlineScenes'
+import { resolveMainlineInteractionCandidates, type MainlineNavigationOptions } from './mainlineNavigation'
 import type { NavigationActorFootprint, NavigationRuntime } from './navigationCore'
 import type { NpcRuntimeSnapshot } from './npcCore'
 import type { SceneLayout } from './sceneLayout'
 import type { Point } from './sceneGeometry'
 import type { MovementOptions } from './useFreeRoamMovement'
 import { useNpcMovement } from './useNpcMovement'
+import { ambientNpcDwellDuration, ambientNpcReentryPoint, ambientNpcShouldYieldToProtagonist } from './ambientNpcLifecycle'
 
 /** A blocked pedestrian gets one scene-clock recovery attempt before skipping its route step. */
 export const ambientNpcBlockedRecoveryDelayMs = 350
@@ -55,6 +56,32 @@ type AmbientNpcMotionProps = {
   movementOptions: MovementOptions
   sceneClockMs: number
   onRuntimeChange: (npcId: string, position: Point | null, snapshot: NpcRuntimeSnapshot) => void
+}
+
+type HiddenAmbientActivity = {
+  kind: 'storefront-visit' | 'offstreet'
+  untilMs: number
+  reentry: Point
+}
+
+function targetForAmbientStep(
+  step: MainlineAmbientNpcRouteStep,
+  scene: MainlineSceneDefinition,
+  from: Point,
+  layout: SceneLayout,
+  navigationOptions: MainlineNavigationOptions,
+) {
+  if (step.kind !== 'storefront-visit') return step.target
+  const storefront = scene.storefronts.find((candidate) => candidate.id === step.storefrontId)
+  if (!storefront || storefront.portalId || storefront.label === '奶茶店' || storefront.label === '果茶店') return null
+  return resolveMainlineInteractionCandidates(
+    scene,
+    from,
+    mainlineStorefrontInteractionCandidates(scene, storefront),
+    .35,
+    layout,
+    navigationOptions,
+  ).target
 }
 
 /** A shared scene-frame clock; route timing advances only while this scene is mounted. */
@@ -105,10 +132,12 @@ export function AmbientNpcMotion({
   const [routeIndex, setRouteIndex] = useState(0)
   const [readyAtMs, setReadyAtMs] = useState(schedule.initialDelayMs)
   const [recovery, setRecovery] = useState<{ routeIndex: number; retryAtMs: number } | null>(null)
+  const [hiddenActivity, setHiddenActivity] = useState<HiddenAmbientActivity | null>(null)
   const requestedRouteIndexRef = useRef<number | null>(null)
   const recoveryRef = useRef<{ routeIndex: number; retryAtMs: number } | null>(null)
   const retryCountRef = useRef(0)
   const previousPhaseRef = useRef(movement.snapshot.phase)
+  const hiddenActivityRef = useRef<HiddenAmbientActivity | null>(null)
   const latestRef = useRef({ enabled, scene, layout, navigationOptions, movementOptions, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs })
   latestRef.current = { enabled, scene, layout, navigationOptions, movementOptions, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs }
   const resetKey = `${enabled}:${schedule.npcId}:${initialPosition.x}:${initialPosition.y}`
@@ -120,12 +149,39 @@ export function AmbientNpcMotion({
     recoveryRef.current = null
     retryCountRef.current = 0
     previousPhaseRef.current = movement.snapshot.phase
+    hiddenActivityRef.current = null
     setRecovery(null)
+    setHiddenActivity(null)
   }, [resetKey, schedule.initialDelayMs])
 
   useEffect(() => {
-    onRuntimeChange(schedule.npcId, movement.position, movement.snapshot)
-  }, [movement.position, movement.snapshot, onRuntimeChange, schedule.npcId])
+    onRuntimeChange(schedule.npcId, hiddenActivity ? null : movement.position, movement.snapshot)
+  }, [hiddenActivity, movement.position, movement.snapshot, onRuntimeChange, schedule.npcId])
+
+  useEffect(() => {
+    if (!enabled || !hiddenActivity || sceneClockMs < hiddenActivity.untilMs) return
+    if (hiddenActivityRef.current !== hiddenActivity) return
+    movement.reset(ambientNpcReentryPoint(hiddenActivity.reentry))
+    hiddenActivityRef.current = null
+    setHiddenActivity(null)
+    requestedRouteIndexRef.current = null
+    retryCountRef.current = 0
+    setRouteIndex((index) => (index + 1) % schedule.steps.length)
+    setReadyAtMs(sceneClockMs)
+  }, [enabled, hiddenActivity, movement, sceneClockMs, schedule.steps.length])
+
+  useEffect(() => {
+    if (!enabled || hiddenActivity || movement.snapshot.phase === 'moving') return
+    const protagonist = navigationRuntime.getActor('protagonist')
+    const ambient = navigationRuntime.getActor(schedule.npcId)
+    if (!ambientNpcShouldYieldToProtagonist(protagonist, ambient)) return
+    requestedRouteIndexRef.current = null
+    recoveryRef.current = null
+    retryCountRef.current = 0
+    setRecovery(null)
+    setRouteIndex((index) => (index + 1) % schedule.steps.length)
+    setReadyAtMs(sceneClockMs)
+  }, [enabled, hiddenActivity, movement.snapshot.phase, navigationRuntime, schedule.npcId, schedule.steps.length, sceneClockMs])
 
   useEffect(() => {
     const decision = ambientNpcBlockedRecoveryDecision(
@@ -165,7 +221,7 @@ export function AmbientNpcMotion({
   }, [recovery, sceneClockMs])
 
   useEffect(() => {
-    if (!enabled || movement.snapshot.phase === 'moving' || sceneClockMs < readyAtMs) return
+    if (!enabled || hiddenActivity || movement.snapshot.phase === 'moving' || sceneClockMs < readyAtMs) return
     const step = schedule.steps[routeIndex]
     if (!step || requestedRouteIndexRef.current === routeIndex || recoveryRef.current?.routeIndex === routeIndex) return
     requestedRouteIndexRef.current = routeIndex
@@ -177,15 +233,33 @@ export function AmbientNpcMotion({
       retryCountRef.current = 0
       setRecovery(null)
       setRouteIndex((index) => (index + 1) % schedule.steps.length)
-      setReadyAtMs(latestRef.current.sceneClockMs + step.dwellMs)
+      setReadyAtMs(latestRef.current.sceneClockMs + ('dwellMs' in step ? step.dwellMs : 0))
+    }
+    const target = targetForAmbientStep(step, current.scene, movement.getPosition(), current.layout, current.navigationOptions)
+    if (!target) {
+      advanceRoute()
+      return
     }
     const started = current.requestMove({
       dutyId: 'pedestrian.walk',
       targetId: `${schedule.npcId}:route:${routeIndex}`,
-      target: step.target,
-    }, current.scene, current.layout, current.navigationOptions, current.movementOptions, advanceRoute)
+      target,
+    }, current.scene, current.layout, current.navigationOptions, current.movementOptions, () => {
+      if (step.kind !== 'storefront-visit' && step.kind !== 'offstreet') {
+        advanceRoute()
+        return
+      }
+      const activity: HiddenAmbientActivity = {
+        kind: step.kind,
+        untilMs: latestRef.current.sceneClockMs + ambientNpcDwellDuration(step.minDwellMs, step.maxDwellMs),
+        reentry: step.reentry,
+      }
+      navigationRuntime.removeActor(schedule.npcId)
+      hiddenActivityRef.current = activity
+      setHiddenActivity(activity)
+    })
     if (!started) advanceRoute()
-  }, [enabled, movement.snapshot.phase, readyAtMs, routeIndex, sceneClockMs, schedule.npcId, schedule.steps])
+  }, [enabled, hiddenActivity, movement, movement.snapshot.phase, navigationRuntime, readyAtMs, routeIndex, sceneClockMs, schedule.npcId, schedule.steps])
 
   return null
 }
