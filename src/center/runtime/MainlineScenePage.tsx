@@ -21,6 +21,7 @@ import { createCommercialCafeServerBehaviorCoordinator } from './commercialCafeB
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { createNavigationRuntime } from './navigationCore'
 import { useNpcMovement } from './useNpcMovement'
+import { useStorefrontPresentation } from './useStorefrontPresentation'
 import { splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
 import { incenseBurnPhase, incenseBurnRemainingMs, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
@@ -488,6 +489,7 @@ export function MainlineScenePage({
   const activeDialogueText = activeDialogueSegments[dialogueSegmentIndex] ?? activeDialogueSegments[0] ?? ''
   const internalMovement = useFreeRoamMovement(initialPosition)
   const { position, moving, moveAlong: rawMoveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
+  const storefrontPresentation = useStorefrontPresentation(scene, position)
   const moveAlong = useCallback((path: Point[], onArrive?: () => void, options?: Parameters<FreeRoamMovement['moveAlong']>[2]) => {
     rawMoveAlong(path, onArrive, {
       ...options,
@@ -497,7 +499,7 @@ export function MainlineScenePage({
       },
     })
   }, [navigationRuntime, rawMoveAlong])
-  const geometrySnapshot = useMemo(() => createMainlineSceneGeometrySnapshot(scene, position, layout, screenMetrics), [layout, position, scene, screenMetrics])
+  const geometrySnapshot = useMemo(() => createMainlineSceneGeometrySnapshot(scene, position, layout, screenMetrics, storefrontPresentation.phaseByStorefront), [layout, position, scene, screenMetrics, storefrontPresentation.phaseByStorefront])
   const stagedNpcPositions = useMemo(() => new Map(scene.npcs.map((npc) => [
     npc.id,
     resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics }),
@@ -1611,6 +1613,10 @@ export function MainlineScenePage({
               activeObjectId={activeObjectId}
               doorPhases={doorPhases}
               sceneFrameExit={sceneFrameExit}
+              storefrontPresentation={storefrontPresentation.phaseByStorefront}
+              onStorefrontRevealMotionComplete={storefrontPresentation.completeRevealMotion}
+              onStorefrontLingerAnimationComplete={storefrontPresentation.completeLingerAnimation}
+              onStorefrontRestoreMotionComplete={storefrontPresentation.completeRestoreMotion}
               gateTriggered={gateTriggered}
               geometrySnapshot={geometrySnapshot}
               freezeFrameMeasurements={presentationSnapshot}

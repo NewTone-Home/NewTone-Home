@@ -9,6 +9,7 @@ import {
   type MainlineScenePassage,
 } from './mainlineScenes'
 import type { CollisionBox, NavigationBarrierSegment, Point } from './sceneGeometry'
+import type { StorefrontPresentationPhase } from './storefrontPresentation'
 import {
   mainlineEntityCollision,
   mainlineEntityInteractionBounds,
@@ -180,8 +181,9 @@ export function createMainlineSceneGeometrySnapshot(
   position: Point,
   layout: SceneLayout = {},
   screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
+  storefrontPresentation?: ReadonlyMap<string, StorefrontPresentationPhase>,
 ): MainlineSceneGeometrySnapshot {
-  const units = mainlineSceneGeometryUnits(scene, position, screenMetrics)
+  const units = mainlineSceneGeometryUnits(scene, position, screenMetrics, storefrontPresentation)
   const objects = new Map<string, MainlineObjectGeometry>()
   scene.objects.forEach((entity) => {
     objects.set(entity.id, {

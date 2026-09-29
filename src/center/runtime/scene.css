@@ -1217,6 +1217,37 @@
 .scene-mainline-storefront--wall { color: var(--muted); }
 .scene-mainline-storefront--glass { color: rgba(161, 194, 194, .78); }
 .scene-mainline-storefront--sign { color: var(--ink); letter-spacing: .08em; }
+.scene-mainline-storefront--sign .scene-mainline-storefront__label-slot {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.scene-mainline-storefront__label-track {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  transition: transform 360ms cubic-bezier(.22, .61, .36, 1), opacity 280ms ease-out;
+}
+.scene-mainline-storefront.is-storefront-revealing .scene-mainline-storefront__label-track,
+.scene-mainline-storefront.is-storefront-revealed .scene-mainline-storefront__label-track {
+  opacity: .02;
+  transform: translate3d(0, -112%, 0);
+}
+.scene-mainline-storefront.is-storefront-lingering .scene-mainline-storefront__label-track {
+  opacity: .02;
+  transform: translate3d(0, -112%, 0);
+  animation: storefront-presentation-linger 3000ms linear both;
+}
+.scene-mainline-storefront.is-storefront-restoring .scene-mainline-storefront__label-track {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  animation: storefront-presentation-restore 360ms cubic-bezier(.22, .61, .36, 1) both;
+}
 .scene-mainline-storefront--blank { color: transparent; }
 .scene-mainline-storefront--worn { color: rgba(214, 179, 119, .82); }
 .scene-mainline-storefront--worn.scene-mainline-storefront--glass { color: rgba(188, 158, 105, .65); }
@@ -1228,6 +1259,23 @@
   pointer-events: auto;
 }
 .scene-mainline-storefront--vertical { line-height: 1; }
+
+@keyframes storefront-presentation-linger {
+  from { opacity: .02; transform: translate3d(0, -112%, 0); }
+  to { opacity: .02; transform: translate3d(0, -112%, 0); }
+}
+
+@keyframes storefront-presentation-restore {
+  from { opacity: .02; transform: translate3d(0, -112%, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-mainline-storefront__label-track {
+    transition-duration: 1ms;
+    animation-duration: 1ms;
+  }
+}
 
 .scene-mainline-object {
   z-index: 4;

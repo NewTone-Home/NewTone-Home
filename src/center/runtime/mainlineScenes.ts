@@ -2,6 +2,7 @@ import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeo
 import { mainlineSceneBlueprints } from './mainlineSceneModel'
 import { boundaryGridCellRange, boundaryGridStepsFromScreenSpacing, compileSharedFrame, defaultSceneScreenMetrics, sharedBoundaryScreenSpacingPx, type SceneScreenMetrics, type SharedBoundaryCell, type SharedBoundaryFrame, type SharedBoundaryOpening } from './sceneBoundaryGrid'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
+import type { StorefrontPresentationPhase } from './storefrontPresentation'
 import type {
   MainlineFurnitureGroup,
   MainlineSceneBlueprint,
@@ -1153,7 +1154,12 @@ export function mainlineSceneAreaLabel(scene: MainlineSceneDefinition, position:
  * here; the renderer only resolves their visibility from the shared label
  * position, so storefront proximity never creates a second geometry projection.
  */
-export function mainlineSceneGeometryUnits(scene: MainlineSceneDefinition, position: Point, screenMetrics?: SceneScreenMetrics): MainlineSceneGeometryUnit[] {
+export function mainlineSceneGeometryUnits(
+  scene: MainlineSceneDefinition,
+  position: Point,
+  screenMetrics?: SceneScreenMetrics,
+  storefrontPresentation?: ReadonlyMap<string, StorefrontPresentationPhase>,
+): MainlineSceneGeometryUnit[] {
   const geometry = screenMetrics ? projectedSceneGeometry(scene, screenMetrics) : scene.geometry
   return geometry.flatMap((unit) => {
     if (!unit.storefrontId) return [unit]
@@ -1163,6 +1169,16 @@ export function mainlineSceneGeometryUnits(scene: MainlineSceneDefinition, posit
       candidate.storefrontId === unit.storefrontId && candidate.variant === 'near'
     ))
     if (!hasNearProjection) return unit.variant === 'baseline' ? [unit] : []
+    const presentationPhase = storefrontPresentation?.get(storefront.id)
+    if (presentationPhase) {
+      // The base wall-door-wall geometry is already canonical. Presentation
+      // chooses only whether the distant sign cover is painted above it.
+      if (unit.variant === 'baseline') return [unit]
+      if (unit.variant === 'near') return []
+      return presentationPhase === 'baseline'
+        ? [{ ...unit, visual: { kind: 'none' as const, cells: [] } }]
+        : [unit]
+    }
     const near = storefront.portalId ? isMainlineStorefrontNear(scene, storefront, position) : false
     if (unit.variant) return unit.variant === (near ? 'near' : 'baseline') ? [unit] : []
     // Keep the canonical wall/door rectangle for collision and navigation,

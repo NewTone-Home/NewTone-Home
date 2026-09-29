@@ -20,6 +20,7 @@ import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagon
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import type { NpcRuntimeSnapshot } from './npcCore'
 import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisualState'
+import { storefrontPresentationLabelSlots, type StorefrontPresentationPhase } from './storefrontPresentation'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -31,6 +32,10 @@ type MainlineSceneRendererProps = {
   activeObjectId: string | null
   doorPhases?: ReadonlyMap<string, SceneDoorRuntimePhase>
   sceneFrameExit?: { phase: 'idle' | 'retracting'; passageEntityId?: string; scope?: 'passage' | 'scene'; requestedGroups?: readonly string[] }
+  storefrontPresentation?: ReadonlyMap<string, StorefrontPresentationPhase>
+  onStorefrontRevealMotionComplete?: (storefrontId: string) => void
+  onStorefrontLingerAnimationComplete?: (storefrontId: string) => void
+  onStorefrontRestoreMotionComplete?: (storefrontId: string) => void
   gateTriggered?: boolean
   geometrySnapshot: MainlineSceneGeometrySnapshot
   freezeFrameMeasurements?: boolean
@@ -247,7 +252,7 @@ function mainlineWallCellVisibility(cell: MainlineGeometryCellEntry['cell'], uni
   return (cell.baselineVisible ?? cell.baseline ?? true) ? 'is-baseline' : 'is-hidden'
 }
 
-function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, interactionEntityId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, active = false, explored = false }: {
+function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, interactionEntityId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontLabel, storefrontPresentationPhase = 'baseline', onStorefrontPresentationMotionComplete, active = false, explored = false }: {
   entries: readonly MainlineGeometryCellEntry[]
   className: string
   visibilityClass: string
@@ -259,6 +264,9 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
   gateTriggered?: boolean
   frameRetracting?: boolean
   hideGlyphs?: boolean
+  storefrontLabel?: string
+  storefrontPresentationPhase?: StorefrontPresentationPhase
+  onStorefrontPresentationMotionComplete?: (phase: 'revealing' | 'lingering' | 'restoring') => void
   active?: boolean
   explored?: boolean
 }) {
@@ -285,7 +293,25 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
     ? { left: `${centerX}%`, top: `${centerY}%`, width: '1em', height: `${span}%` }
     : { left: `${centerX}%`, top: `${centerY}%`, width: contentExtent, height: '1.2em' }
   const glyphs = entries.map(({ cell }) => cell.glyph ?? '')
-  const content = hideGlyphs ? null : glyphs.map((glyph, index) => {
+  const content = hideGlyphs ? null : storefrontLabel ? (
+    <span className="scene-mainline-storefront__label-slot" data-storefront-label-slot="true">
+      {storefrontPresentationLabelSlots(storefrontLabel).map((label) => (
+        <span
+          key={label}
+          className="scene-mainline-storefront__label-track"
+          data-storefront-label-phase={storefrontPresentationPhase}
+          onTransitionEnd={(event) => {
+            if (event.target !== event.currentTarget || event.propertyName !== 'transform') return
+            if (storefrontPresentationPhase === 'revealing') onStorefrontPresentationMotionComplete?.('revealing')
+          }}
+          onAnimationEnd={(event) => {
+            if (event.target !== event.currentTarget) return
+            if (storefrontPresentationPhase === 'lingering' || storefrontPresentationPhase === 'restoring') onStorefrontPresentationMotionComplete?.(storefrontPresentationPhase)
+          }}
+        >{label}</span>
+      ))}
+    </span>
+  ) : glyphs.map((glyph, index) => {
     const cell = entries[index]?.cell
     if (!cell) return null
     const offset = vertical
@@ -412,6 +438,10 @@ export function MainlineSceneRenderer({
   activeObjectId,
   doorPhases = new Map(),
   sceneFrameExit = { phase: 'idle' },
+  storefrontPresentation = new Map(),
+  onStorefrontRevealMotionComplete,
+  onStorefrontLingerAnimationComplete,
+  onStorefrontRestoreMotionComplete,
   onScreenMetricsChange,
   cameraOffset,
   gateTriggered = false,
@@ -580,6 +610,7 @@ export function MainlineSceneRenderer({
       const target = mainlineCellFocusTarget(scene, cell, entityId, unit.variant)
       if (!target) return
       const storefront = cell.storefrontId ? scene.storefronts.find((candidate) => candidate.id === cell.storefrontId) : undefined
+      const storefrontPresentationPhase = storefront ? storefrontPresentation.get(storefront.id) ?? 'baseline' : 'baseline'
       const storefrontPassageEntityId = storefront?.portalId
         ? scene.passages.find((passage) => passage.portalId === storefront.portalId)?.entityId
         : undefined
@@ -596,7 +627,9 @@ export function MainlineSceneRenderer({
         gateTriggered: target.policy === 'gate' && gateTriggered,
         interactionBusy: target.policy === 'interactive' && activeObjectId === entityId && moving,
         interactionActive: target.policy === 'interactive' && (activeObjectId === entityId || sceneEcho?.entityId === entityId),
-        retractRequested: retractRequested || (sceneEcho?.phase === 'leaving' && sceneEcho.entityId === entityId),
+        retractRequested: retractRequested
+          || (cell.kind === 'storefront' && cell.storefrontRole === 'sign' && (storefrontPresentationPhase === 'revealing' || storefrontPresentationPhase === 'revealed'))
+          || (sceneEcho?.phase === 'leaving' && sceneEcho.entityId === entityId),
         suppressed: false,
       })
     })
@@ -625,7 +658,7 @@ export function MainlineSceneRenderer({
       })
     }
     return [...targetMap.values()]
-  }, [activeObjectId, dialogue, dialogueLine, dialogueLineIndex, dialoguePosition, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit])
+  }, [activeObjectId, dialogue, dialogueLine, dialogueLineIndex, dialoguePosition, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation])
   const focusFrames = useSceneFocusFrameController({
     targets: focusFrameTargets,
     freezeMeasurements: freezeFrameMeasurements,
@@ -791,6 +824,7 @@ export function MainlineSceneRenderer({
                 const firstEntry = focusEntries[0]
                 if (cell.kind === 'storefront') {
                   const storefront = cell.storefrontId ? scene.storefronts.find((candidate) => candidate.id === cell.storefrontId) : undefined
+                  const storefrontPresentationPhase = storefront ? storefrontPresentation.get(storefront.id) ?? 'baseline' : 'baseline'
                   const storefrontState = firstEntry.unit.variant === 'near' ? 'near' : 'baseline'
                   const storefrontRole = cell.storefrontRole ?? 'sign'
                   const storefrontPassageEntityId = storefront?.portalId
@@ -798,7 +832,23 @@ export function MainlineSceneRenderer({
                     : undefined
                   const storefrontPhase = storefrontPassageEntityId ? doorPhases.get(storefrontPassageEntityId) ?? 'closed' : 'closed'
                   const groupClass = `scene-mainline-storefront scene-mainline-storefront--${cell.storefrontStyle ?? 'modern'} scene-mainline-storefront--${storefrontRole} scene-mainline-storefront--${cell.orientation ?? 'horizontal'} is-${storefrontState}`
-                  return <MainlineFocusGroup key={`focus-${focusTarget.group}`} entries={focusEntries} className={groupClass} visibilityClass={groupVisibilityClass} renderFrame={focusFrames.renderFrame} passagePhase={storefrontPhase} frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === storefrontPassageEntityId} />
+                  return <MainlineFocusGroup
+                    key={`focus-${focusTarget.group}`}
+                    entries={focusEntries}
+                    className={`${groupClass} is-storefront-${storefrontPresentationPhase}`}
+                    visibilityClass={groupVisibilityClass}
+                    renderFrame={focusFrames.renderFrame}
+                    storefrontLabel={storefrontRole === 'sign' ? storefront?.label : undefined}
+                    storefrontPresentationPhase={storefrontPresentationPhase}
+                    onStorefrontPresentationMotionComplete={(phase) => {
+                      if (!storefront) return
+                      if (phase === 'revealing') onStorefrontRevealMotionComplete?.(storefront.id)
+                      else if (phase === 'lingering') onStorefrontLingerAnimationComplete?.(storefront.id)
+                      else onStorefrontRestoreMotionComplete?.(storefront.id)
+                    }}
+                    passagePhase={storefrontPhase}
+                    frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === storefrontPassageEntityId}
+                  />
                 }
                 if (cell.kind === 'feature' && entityId) {
                   const entity = scene.objects.find((candidate) => candidate.id === entityId)
