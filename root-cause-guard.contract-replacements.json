@@ -3,7 +3,7 @@
   "replacements": [
     {
       "id": "chapter-2-survey-retirement-2026-09-29",
-      "projectRoot": "E:\\小说\\NewTone-Workspace\\commercial-street-release-polish",
+      "repository": "newtone-home/newtone-home",
       "testFile": "tests/centerCompletionFeedback.test.js",
       "oldContract": "Chapter 2 completion must show survey",
       "newContract": "Chapter 2 completion must not auto-show survey or Feedback; manual Feedback remains available",
@@ -14,7 +14,7 @@
     },
     {
       "id": "chapter-2-survey-retirement-2026-09-29",
-      "projectRoot": "E:\\小说\\NewTone-Workspace\\commercial-street-release-polish",
+      "repository": "newtone-home/newtone-home",
       "testFile": "tests/centerFeedback.test.js",
       "oldContract": "Exit questionnaire persistence is a current Feedback product feature",
       "newContract": "Only voluntary phone Feedback is a current product feature",
@@ -25,7 +25,7 @@
     },
     {
       "id": "chapter-2-survey-retirement-2026-09-29",
-      "projectRoot": "E:\\小说\\NewTone-Workspace\\commercial-street-release-polish",
+      "repository": "newtone-home/newtone-home",
       "testFile": "tests/centerAnalytics.test.js",
       "oldContract": "Completion survey prompt is part of the current Center analytics flow",
       "newContract": "The Center analytics flow does not emit a completion survey prompt",
