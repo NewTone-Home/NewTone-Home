@@ -16,6 +16,19 @@ describe('mainline visual footprint contract', () => {
     )
   })
 
+  it('keeps the approved object focus frames visual-only', () => {
+    const tree = mainlineScenes['jijia-ancestral-home'].objects.find((entity) => entity.id === 'jijia-old-tree')!
+    const interior = mainlineScenes['jijia-ancestral-interior']
+    const burner = interior.objects.find((entity) => entity.id === 'jijia-incense-burner')!
+    const plant = mainlineScenes['zhongshuyuan-office'].objects.find((entity) => entity.id === 'zhongshuyuan-office-plant')!
+
+    expect([tree, burner, plant].every((entity) => entity.focusFrame === 'interactive')).toBe(true)
+    expect(tree.visualBounds).toEqual({ x: tree.position.x - 4.5, y: tree.position.y - 4.5, width: 9, height: 9 })
+    expect(burner.visualBounds).toEqual(burner.collision)
+    expect(plant.visualBounds).toEqual({ x: plant.position.x - 1.7, y: plant.position.y - 2.15, width: 3.4, height: 4.3 })
+    expect(plant.visualBounds).not.toEqual(plant.collision)
+  })
+
   it('measures NPC presentation labels without changing their legacy movement collision in Phase 0', () => {
     const laoZhou = mainlineScenes['commercial-cafe'].npcs.find((npc) => npc.id === 'lao-zhou')!
     const footprint = mainlineLabelFootprint(laoZhou.label, resolveMainlineNpcPosition(mainlineScenes['commercial-cafe'], laoZhou.id), defaultSceneScreenMetrics, { lineHeight: 1 })

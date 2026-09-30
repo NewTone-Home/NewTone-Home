@@ -18,15 +18,16 @@ async function openWithSceneState(page: Page, sceneId: string, sceneState: Recor
   await page.reload()
 }
 
-test('floor objects use their own persistent interaction state without exploration frames', async ({ page }) => {
+test('floor objects keep their own persistent interaction state alongside their visual-only focus frames', async ({ page }) => {
   await page.goto('/?scene=jijia-ancestral-home')
   const tree = page.locator('[data-object-id="jijia-old-tree"]')
 
   await expect(tree).toHaveClass(/scene-mainline-interaction--tutorial-unexplored/)
-  await expect(tree.locator('.scene-focus-frame')).toHaveCount(0)
+  await expect(tree.locator('.scene-focus-frame')).toHaveCount(1)
 
   await tree.click()
   await expect(tree).toHaveClass(/scene-mainline-interaction--active/)
+  await expect(tree.locator('.scene-focus-frame')).toHaveCount(1)
 
   await openWithSceneState(page, 'jijia-ancestral-home', {
     'jijia-ancestral-home': { 'interactionExplored:jijia-old-tree': true },

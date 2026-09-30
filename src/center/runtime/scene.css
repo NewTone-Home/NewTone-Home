@@ -1278,6 +1278,13 @@
   min-height: 0;
   max-width: calc(100% - 8px);
 }
+.scene-mainline-object.has-focus-frame {
+  overflow: visible;
+}
+.scene-mainline-object.has-focus-frame > .scene-mainline-object__label {
+  position: relative;
+  z-index: 1;
+}
 .scene-mainline-npc,
 .scene-mainline-attached-prop {
   position: absolute;
@@ -1325,13 +1332,13 @@
   font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px));
   line-height: 1;
 }
-.scene-mainline-exploration--breathing > span {
+.scene-mainline-exploration--breathing > .scene-mainline-object__label {
   animation: scene-exploration-breathe 2.8s ease-in-out infinite;
   animation-delay: var(--scene-exploration-animation-delay, 0s);
 }
-.scene-mainline-exploration--breathing:hover > span,
-.scene-mainline-exploration--breathing:focus-visible > span,
-.scene-mainline-exploration--breathing.is-active > span {
+.scene-mainline-exploration--breathing:hover > .scene-mainline-object__label,
+.scene-mainline-exploration--breathing:focus-visible > .scene-mainline-object__label,
+.scene-mainline-exploration--breathing.is-active > .scene-mainline-object__label {
   animation: none;
   color: var(--active);
 }
@@ -1498,8 +1505,9 @@
 .scene-mainline-text__dialogue { display: block; width: max-content; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; white-space: nowrap; cursor: pointer; }
 .scene-mainline-text__dialogue > span { display: block; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.22, .61, .36, 1) both; }
 .scene-mainline-text--dialogue { z-index: 14; isolation: isolate; color: var(--active); }
-.scene-mainline-object > .scene-focus-frame {
+.scene-mainline-object.has-focus-frame > .scene-focus-frame {
   inset: -.12em -.18em;
+  color: var(--active);
 }
 .scene-mainline-text.is-leaving { animation: mainline-text-leave 160ms ease-in both; pointer-events: none; }
 @keyframes mainline-text-arrive {

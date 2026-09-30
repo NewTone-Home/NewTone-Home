@@ -95,6 +95,8 @@ export type MainlineSceneEntity = {
   shape?: CollisionBox
   /** Visual occupancy used by scene-anchored text without changing locomotion. */
   visualBounds?: CollisionBox
+  /** Visual-only object emphasis. It never changes collision, navigation, or contacts. */
+  focusFrame?: 'interactive'
   visualScale?: number
   /** Maximum authored distance for direct exploration of a wall feature. */
   interactionRange?: number
@@ -713,6 +715,10 @@ function createAltarFurniture(altar: MainlineAltarBlueprint) {
     position: altar.anchor,
     collision: burnerCollision,
     shape: burnerCollision,
+    // This is deliberately visual-only: the compact vessel gets a frame
+    // without expanding the altar's authored movement body.
+    visualBounds: burnerCollision,
+    focusFrame: 'interactive',
     groupId: altar.id,
     facing: altar.facing,
     interactionBehavior: 'incense',
@@ -1275,7 +1281,7 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
     }],
     floorEntities: [
       ...jijiaOldTreeStoneRing,
-      floor({ id: 'jijia-old-tree', label: '老槐树', kind: 'landmark', weight: 'minor', position: jijiaYardCenter, collision: jijiaOldTreeCollision, shape: jijiaOldTreeCollision, visualBounds: box(jijiaYardCenter.x - 4.5, jijiaYardCenter.y - 4.5, 9, 9), visualScale: 1.12, visualVisibility: 'distance-baseline', groupId: 'jijia-yard-group', interactionBehavior: 'echo-pool', visualProfile: 'tree-ring' }),
+      floor({ id: 'jijia-old-tree', label: '老槐树', kind: 'landmark', weight: 'minor', position: jijiaYardCenter, collision: jijiaOldTreeCollision, shape: jijiaOldTreeCollision, visualBounds: box(jijiaYardCenter.x - 4.5, jijiaYardCenter.y - 4.5, 9, 9), focusFrame: 'interactive', visualScale: 1.12, visualVisibility: 'distance-baseline', groupId: 'jijia-yard-group', interactionBehavior: 'echo-pool', visualProfile: 'tree-ring' }),
       wallEntity({ id: 'jijia-yard-gate', label: '院门', kind: 'door', weight: 'gateway', position: { x: 10, y: 47.5 }, doorBehavior: { leafCount: 'double', openLeaves: 'both', visualMode: 'static' } }),
     ],
     blockers: [], furnitureGroups: [{ id: 'jijia-yard-group', anchor: jijiaYardGroupAnchor, entityIds: ['jijia-old-tree'] }], initialPlayerPosition: { x: 25, y: 50 },
@@ -1534,6 +1540,10 @@ const zhongshuyuanOfficePlant = floor({
   approach: authoredPoint(zhongshuyuanOfficePlantPosition.x - 4, zhongshuyuanOfficePlantPosition.y),
   collision: box(zhongshuyuanOfficePlantPosition.x - 1.5, zhongshuyuanOfficePlantPosition.y - 1.5, 3, 3),
   shape: box(zhongshuyuanOfficePlantPosition.x - 1.5, zhongshuyuanOfficePlantPosition.y - 1.5, 3, 3),
+  // The foliage extends above the physical pot. Keep the emphasis around the
+  // authored visual silhouette, not the smaller collision square.
+  visualBounds: box(zhongshuyuanOfficePlantPosition.x - 1.7, zhongshuyuanOfficePlantPosition.y - 2.15, 3.4, 4.3),
+  focusFrame: 'interactive',
   visualVisibility: 'baseline',
   animationGroup: 'office-breathing',
   interactionBehavior: 'plant-choice',

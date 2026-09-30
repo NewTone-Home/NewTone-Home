@@ -131,7 +131,10 @@ test('Café long dialogue remains readable at the fixed world anchor without a c
   await page.waitForTimeout(400)
   await page.locator('[data-scene-text-mode="dialogue"]').click()
   await expect(dialogue).toHaveAttribute('data-scene-segment-index', '1')
-  await expect(dialogue).toContainText('我真喝不惯那玩意儿')
+  // The first clause is intentionally kept readable before this second
+  // sentence-length segment; assert the actual roll destination rather than
+  // the prior page's text.
+  await expect(dialogue).toContainText('我这把年纪了还是不要折腾比较好。')
   const [stageBox, dialogueBox] = await Promise.all([
     page.locator('.mainline-scene-stage').boundingBox(),
     dialogue.boundingBox(),
@@ -185,8 +188,10 @@ test('coffee is optional and a carried milk tea asks before coffee order', async
   await page.getByRole('button', { name: '柜台' }).first().click()
   await expect(page.getByText('已经有奶茶了，还要买咖啡吗？')).toBeVisible({ timeout: 15_000 })
   await page.getByRole('button', { name: '否', exact: true }).click()
-  await expect(page.getByText('修杰没有点咖啡。')).toBeVisible()
+  // Declining is deliberately quiet: scene feedback has no bottom-left UI.
+  await expect(page.locator('.scene-feedback')).toHaveCount(0)
   await startNarrative(page)
+  await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-coffee"]')).toHaveCount(0)
   await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-milk-tea"]')).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('cafe-milk-tea-table.png') })
 })
@@ -215,9 +220,11 @@ test('optional coffee delivery keeps a carried milk tea and adds the two small c
 test('narrative reload resumes at its persisted stable line and never requires coffee delivery', async ({ page }) => {
   await café(page)
   await startNarrative(page)
-  await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
-  await expect(page.locator('[data-scene-dialogue]')).toHaveAttribute('data-scene-segment-index', '1')
-  await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
+  await page.waitForTimeout(400)
+  await page.locator('[data-scene-text-mode="dialogue"]').click()
+  // The seat guide is now one readable segment, so advancing it moves to the
+  // first Lao Zhou line and persists cursor 1 immediately.
+  await expect(page.locator('[data-dialogue-line-id="commercial-cafe-lao-zhou-first-lao-zhou"]')).toBeVisible()
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-commercial-cafe-cursor', '1')
   await page.reload()
   await startNarrative(page)

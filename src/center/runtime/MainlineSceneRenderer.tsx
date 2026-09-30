@@ -396,11 +396,14 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
   return <span {...commonProps} aria-hidden="true">{content}{renderFrame(first.focusGroup)}</span>
 }
 
-function MainlineObject({ entity, scene, position, collision, visibility, active, explored, tutorialCompleted, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false, debugRuntimeEvidence = false }: {
+function MainlineObject({ entity, scene, position, collision, visualBounds, focusGroup, renderFrame, visibility, active, explored, tutorialCompleted, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false, debugRuntimeEvidence = false }: {
   entity: MainlineSceneEntity
   scene: MainlineSceneDefinition
   position: Point
   collision?: CollisionBox
+  visualBounds?: CollisionBox | null
+  focusGroup?: string
+  renderFrame?: (group: string) => ReactNode
   visibility: string
   active: boolean
   explored: boolean
@@ -426,11 +429,17 @@ function MainlineObject({ entity, scene, position, collision, visibility, active
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
   const className = objectClass(scene, entity, visibility, active, explored, tutorialCompleted, underPlayer, selected, dragging, incenseLit)
   const visualScale = entity.visualScale ?? 1
+  const focusBounds = focusGroup && visualBounds ? visualBounds : null
+  const renderedPosition = focusBounds
+    ? { x: focusBounds.x + focusBounds.width / 2, y: focusBounds.y + focusBounds.height / 2 }
+    : position
   const commonProps = {
-    className: `${className} ${layoutItemId ? 'scene-object--layout-draggable' : ''} ${suppressLabel ? 'is-occupied' : ''} ${prompted ? 'is-story-prompted' : ''}`,
+    className: `${className} ${focusBounds ? 'has-focus-frame' : ''} ${layoutItemId ? 'scene-object--layout-draggable' : ''} ${suppressLabel ? 'is-occupied' : ''} ${prompted ? 'is-story-prompted' : ''}`,
     style: {
-      left: `${position.x}%`,
-      top: `${position.y}%`,
+      left: `${renderedPosition.x}%`,
+      top: `${renderedPosition.y}%`,
+      width: focusBounds ? `${focusBounds.width}%` : undefined,
+      height: focusBounds ? `${focusBounds.height}%` : undefined,
       boxSizing: 'border-box',
       '--incense-burn-remaining': `${incenseBurnRemainingMs}ms`,
       '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(entity, screenMetrics)}px`,
@@ -438,9 +447,12 @@ function MainlineObject({ entity, scene, position, collision, visibility, active
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      transform: visualScale === 1 ? 'translate(-50%, -50%)' : `translate(-50%, -50%) scale(${visualScale})`,
+      transform: 'translate(-50%, -50%)',
     } as CSSProperties,
     'data-object-id': entity.id,
+    'data-focus-target-id': focusGroup ? entity.id : undefined,
+    'data-focus-target-group': focusGroup,
+    'data-focus-target-policy': focusGroup ? 'interactive' : undefined,
     'data-layout-item-id': layoutItemId ?? undefined,
     'data-story-seat-prompt': prompted ? 'true' : undefined,
     'data-rendered-x': debugRuntimeEvidence ? position.x : undefined,
@@ -452,16 +464,17 @@ function MainlineObject({ entity, scene, position, collision, visibility, active
     'data-seat-table-id': debugRuntimeEvidence ? entity.seat?.tableId : undefined,
     'data-seat-side': debugRuntimeEvidence ? entity.seat?.side : undefined,
   }
-  const labelStyle = breathingAnimationDelay
-    ? { '--scene-exploration-animation-delay': breathingAnimationDelay } as CSSProperties
-    : undefined
+  const labelStyle = {
+    '--scene-exploration-animation-delay': breathingAnimationDelay,
+    transform: visualScale === 1 ? undefined : `scale(${visualScale})`,
+  } as CSSProperties
   const labelRef = useCallback((node: HTMLSpanElement | null) => {
     if (!sharedBreathingClock || !registerBreathingNode) return
     registerBreathingNode(entity.id, node)
   }, [entity.id, registerBreathingNode, sharedBreathingClock])
 
   if (entity.interactive === false) {
-    return <span {...commonProps} aria-hidden="true">{!suppressLabel && <span ref={labelRef} style={labelStyle}>{entity.label}</span>}</span>
+    return <span {...commonProps} aria-hidden="true">{!suppressLabel && <span className="scene-mainline-object__label" ref={labelRef} style={labelStyle}>{entity.label}</span>}{focusGroup && renderFrame?.(focusGroup)}</span>
   }
 
   return (
@@ -484,7 +497,8 @@ function MainlineObject({ entity, scene, position, collision, visibility, active
         if (event.target === event.currentTarget && event.animationName === 'scene-incense-burn-lifecycle') onIncenseBurnComplete?.()
       }}
     >
-      {!suppressLabel && <span ref={labelRef} style={labelStyle}>{entity.label}</span>}
+      {!suppressLabel && <span className="scene-mainline-object__label" ref={labelRef} style={labelStyle}>{entity.label}</span>}
+      {focusGroup && renderFrame?.(focusGroup)}
     </button>
   )
 }
@@ -701,8 +715,22 @@ export function MainlineSceneRenderer({
         suppressed: false,
       })
     })
+    scene.objects.forEach((entity) => {
+      if (entity.focusFrame !== 'interactive' || entity.visible === false) return
+      const group = `interactive:${entity.id}`
+      addTarget({
+        group,
+        policy: 'interactive',
+        phase: 'closed',
+        gateTriggered: false,
+        interactionBusy: activeObjectId === entity.id && moving,
+        interactionActive: activeObjectId === entity.id || sceneEcho?.entityId === entity.id,
+        retractRequested: sceneEcho?.phase === 'leaving' && sceneEcho.entityId === entity.id,
+        suppressed: false,
+      })
+    })
     return [...targetMap.values()]
-  }, [activeObjectId, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneFrameExit, storefrontPresentation])
+  }, [activeObjectId, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation])
   const focusFrames = useSceneFocusFrameController({
     targets: focusFrameTargets,
     freezeMeasurements: freezeFrameMeasurements,
@@ -959,6 +987,7 @@ export function MainlineSceneRenderer({
 
           {scene.objects.filter((entity) => entity.visible !== false && entity.kind !== 'door' && !wallFeatureEntityIds.has(entity.id)).map((entity) => {
             const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
+            const focusGroup = !layoutMode && entity.focusFrame === 'interactive' ? `interactive:${entity.id}` : undefined
             const underPlayer = entity.visualProfile === 'tree-ring' && entity.interactive === false && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8
             return <MainlineObject
               key={entity.id}
@@ -966,6 +995,9 @@ export function MainlineSceneRenderer({
               scene={scene}
               position={entityPosition}
               collision={geometrySnapshot.objects.get(entity.id)?.collision ?? undefined}
+              visualBounds={geometrySnapshot.objects.get(entity.id)?.visualBounds}
+              focusGroup={focusGroup}
+              renderFrame={focusFrames.renderFrame}
               visibility={objectVisibility(entity, layoutMode)}
               active={activeObjectId === entity.id || sceneEcho?.entityId === entity.id}
               explored={exploredObjectIds.has(entity.id)}
