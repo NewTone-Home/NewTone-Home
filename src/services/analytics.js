@@ -12,6 +12,11 @@ const EVENTS = new Set([
   'center_object_interacted', 'center_door_attempted', 'center_door_blocked',
   'center_door_crossed', 'center_phone_opened', 'center_ride_ready',
   'center_feedback_opened', 'center_feedback_submitted',
+  'commercial_street_entered', 'commercial_question_triggered', 'commercial_question_completed',
+  'commercial_storefront_interacted', 'milk_tea_app_unlocked', 'milk_tea_order_started',
+  'milk_tea_order_confirmed', 'milk_tea_order_ready', 'milk_tea_order_picked_up',
+  'cafe_storefront_revealed', 'cafe_entered', 'cafe_story_stage_reached',
+  'cafe_coffee_ordered', 'cafe_ready_to_leave', 'cafe_completed', 'cafe_banknote_presented',
 ])
 const LANGUAGES = new Set(['zh', 'en'])
 const MODES = new Set(['immersive', 'standard'])
@@ -164,6 +169,51 @@ function cleanAnalyticsId(value) {
   return typeof value === 'string' && /^[A-Za-z0-9:_-]{1,128}$/.test(value) ? value : null
 }
 
+function cleanChoice(value, choices) {
+  return typeof value === 'string' && choices.includes(value) ? value : null
+}
+
+function cleanOrderNumber(value) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 999 ? value : null
+}
+
+function cleanQueueAhead(value) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 12 ? value : null
+}
+
+/**
+ * Chapter Two only permits small, enumerated analytics fields. This prevents
+ * interaction copy, feedback text, or any arbitrary client object from being
+ * written into the analytics payload.
+ */
+function cleanEventData(eventName, value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  if (eventName === 'commercial_storefront_interacted') {
+    const slotId = cleanAnalyticsId(value.slotId)
+    const storeType = cleanChoice(value.storeType, ['果茶店', '服装店', '花店', '眼镜店', '美妆店', '书店', '甜品店', '鞋店', '潮玩店', '香氛店', '奶茶店', '周边店', '首饰店'])
+    return slotId && storeType ? { slotId, storeType } : {}
+  }
+  if (eventName === 'milk_tea_order_confirmed') {
+    const drink = cleanChoice(value.drink, ['原味奶茶', '黑糖珍珠奶茶', '芋泥奶茶', '茉莉奶绿'])
+    const sugar = cleanChoice(value.sugar, ['少糖', '正常', '多糖'])
+    const ice = cleanChoice(value.ice, ['少冰', '正常冰', '去冰'])
+    const orderNumber = cleanOrderNumber(value.orderNumber)
+    const queueAheadAtOrder = cleanQueueAhead(value.queueAheadAtOrder)
+    return drink && sugar && ice && orderNumber !== null && queueAheadAtOrder !== null
+      ? { drink, sugar, ice, orderNumber, queueAheadAtOrder }
+      : {}
+  }
+  if (eventName === 'milk_tea_order_ready' || eventName === 'milk_tea_order_picked_up') {
+    const orderNumber = cleanOrderNumber(value.orderNumber)
+    return orderNumber === null ? {} : { orderNumber }
+  }
+  if (eventName === 'cafe_story_stage_reached') {
+    const stage = cleanChoice(value.stage, ['meeting-started', 'mine-lead', 'yonghe-lead', 'ready-to-leave', 'complete'])
+    return stage ? { stage } : {}
+  }
+  return {}
+}
+
 export function buildAnalyticsEvent(eventName, fields = {}, dependencies = {}) {
   if (!EVENTS.has(eventName)) return null
   const visitorId = dependencies.visitorId ?? ensureVisitor(dependencies.localStorage)
@@ -192,6 +242,7 @@ export function buildAnalyticsEvent(eventName, fields = {}, dependencies = {}) {
     destination_scene_id: cleanAnalyticsId(fields.destinationSceneId),
     device: PHONE_DEVICES.has(fields.device) ? fields.device : null,
     outcome: cleanAnalyticsId(fields.outcome),
+    event_data: cleanEventData(eventName, fields.eventData),
   }
 }
 

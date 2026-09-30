@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState, useSyncExternalStore, type AnimationEvent as ReactAnimationEvent, type FormEvent, type PointerEvent as ReactPointerEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type AnimationEvent as ReactAnimationEvent, type FormEvent, type PointerEvent as ReactPointerEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
 import { mainlineMapLandmarksByWorld, mainlineMapLayout, type MainlineMapLandmark, type MainlineSceneId } from './mainlineScenes'
 import { sceneInteractionHandlers } from './sceneInteraction'
 import { phoneInputOwner, phoneIsOnline, phoneRideAvailability, type PhoneDevice, type WorldLayer, type WorldPhonePhase } from './phoneState'
-import { commercialStreetMilkTeaQueueStatus, formatCommercialStreetMilkTeaOrderNumber, milkTeaDrinks, milkTeaIceOptions, milkTeaSugarOptions, type CommercialStreetMilkTeaOrder, type MilkTeaDrink, type MilkTeaIce, type MilkTeaSugar } from './commercialStreetMilkTea'
+import { commercialStreetMilkTeaIsReady, commercialStreetMilkTeaQueueStatus, formatCommercialStreetMilkTeaOrderNumber, milkTeaDrinks, milkTeaIceOptions, milkTeaSugarOptions, type CommercialStreetMilkTeaOrder, type MilkTeaDrink, type MilkTeaIce, type MilkTeaSugar } from './commercialStreetMilkTea'
 
 type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea'
 type FeedbackMode = 'phone'
@@ -75,6 +75,8 @@ type WorldPhoneProps = {
   requestedApp?: 'milk-tea' | null
   onRequestedAppHandled?: () => void
   onMilkTeaOrderConfirm?: (selection: { drink: MilkTeaDrink; sugar: MilkTeaSugar; ice: MilkTeaIce }) => void
+  onMilkTeaOrderStarted?: () => void
+  onMilkTeaOrderReady?: (orderNumber: number) => void
 }
 
 type RideDestination = MainlineMapLandmark & { sceneId: MainlineSceneId }
@@ -155,7 +157,7 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm }: WorldPhoneProps) {
+export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMilkTeaOrderReady }: WorldPhoneProps) {
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
   const [phase, setPhase] = useState<WorldPhonePhase>('closed')
@@ -167,6 +169,11 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
   const [milkTeaDrink, setMilkTeaDrink] = useState<MilkTeaDrink | null>(null)
   const [milkTeaSugar, setMilkTeaSugar] = useState<MilkTeaSugar | null>(null)
   const [milkTeaIce, setMilkTeaIce] = useState<MilkTeaIce | null>(null)
+  const milkTeaOrderStartedRef = useRef(false)
+  const milkTeaOrderReadyRef = useRef<string | null>(null)
+  const openSessionRef = useRef(false)
+  const closeCompletionReportedRef = useRef(false)
+  const closeTransitionStartedRef = useRef(false)
   const [mapPan, setMapPan] = useState<MapPoint>([0, 0])
   const mapDragRef = useRef<MapDragState>({ active: false, moved: false, pointerId: -1, start: null, origin: null })
   const phoneTime = usePhoneTime()
@@ -201,6 +208,59 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
   const memo = memoForDevice(displayDevice)
   const selectedContact = innerContacts.find((contact) => contact.id === selectedContactId) ?? innerContacts[0]
 
+  // The parent may close the Phone in the first interactable frame of its
+  // opening transition. Remember that a visible session exists during render
+  // itself, rather than waiting for a later CSS completion event.
+  if (open) {
+    openSessionRef.current = true
+    closeCompletionReportedRef.current = false
+  }
+
+  const completePhoneClose = useCallback(() => {
+    if (closeCompletionReportedRef.current) return
+    closeCompletionReportedRef.current = true
+    openSessionRef.current = false
+    onCloseComplete?.()
+  }, [onCloseComplete])
+
+  // `renderedPhase` can make the Phone visible before its transition-end
+  // callback advances the stored phase. Commit that opening phase before the
+  // next input frame, so an immediate Ride selection still has the ordinary
+  // closing lifecycle and can release LONG_DISTANCE_TRAVEL through
+  // `onCloseComplete`.
+  useLayoutEffect(() => {
+    if (!swapPending && open && phase === 'closed') setPhase('opening')
+  }, [open, phase, swapPending])
+
+  useEffect(() => {
+    // If an opening was immediately reversed before the stored phase could
+    // become `opening`, there is no closing transition to end. This is still
+    // one completed Phone close, so release the parent lifecycle exactly once.
+    if (open || phase !== 'closed' || !openSessionRef.current || closeCompletionReportedRef.current) return
+    completePhoneClose()
+  }, [completePhoneClose, open, phase])
+
+  useEffect(() => {
+    if (open || renderedPhase !== 'closing') return undefined
+    closeTransitionStartedRef.current = false
+    let firstFrame = 0
+    let secondFrame = 0
+    // An opening can be reversed before the browser ever starts a CSS
+    // transition. In that case no transition-end event exists to own release;
+    // observe two paints and complete only when no transform transition began.
+    firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        if (closeTransitionStartedRef.current) return
+        setPhase('closed')
+        completePhoneClose()
+      })
+    })
+    return () => {
+      window.cancelAnimationFrame(firstFrame)
+      window.cancelAnimationFrame(secondFrame)
+    }
+  }, [completePhoneClose, open, renderedPhase])
+
 
   const openApp = (app: PhoneApp) => {
     setActiveApp(app)
@@ -223,15 +283,46 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
     onRequestedAppHandled?.()
   }, [milkTeaAppUnlocked, onRequestedAppHandled, open, requestedApp])
 
+  useEffect(() => {
+    if (activeApp !== 'milk-tea') milkTeaOrderStartedRef.current = false
+  }, [activeApp])
+
+  useEffect(() => {
+    if (activeApp !== 'milk-tea' || !milkTeaOrder || !commercialStreetMilkTeaIsReady(milkTeaOrder)) return
+    const orderKey = `${milkTeaOrder.number}:${milkTeaOrder.readyAt}`
+    if (milkTeaOrderReadyRef.current === orderKey) return
+    milkTeaOrderReadyRef.current = orderKey
+    onMilkTeaOrderReady?.(milkTeaOrder.number)
+  }, [activeApp, milkTeaOrder?.number, milkTeaOrder?.readyAt, onMilkTeaOrderReady])
+
+  const selectMilkTeaDrink = (drink: MilkTeaDrink) => {
+    if (!milkTeaOrderStartedRef.current) {
+      milkTeaOrderStartedRef.current = true
+      onMilkTeaOrderStarted?.()
+    }
+    setMilkTeaDrink(drink)
+  }
+
   const handleBodyTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget || event.propertyName !== 'transform') return
     if (renderedPhase === 'closing') {
       if (swapPending) setDisplayDevice(device)
       setPhase(open ? 'opening' : 'closed')
-      if (!open) onCloseComplete?.()
+      if (!open) completePhoneClose()
       return
     }
     if (renderedPhase === 'opening') setPhase('open')
+  }
+
+  const handleBodyTransitionRun = (event: ReactTransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'transform') return
+    if (renderedPhase === 'closing') closeTransitionStartedRef.current = true
+  }
+
+  const handleBodyTransitionCancel = (event: ReactTransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'transform' || renderedPhase !== 'closing') return
+    setPhase('closed')
+    completePhoneClose()
   }
 
   const handleSwapRetractEnd = (event: ReactAnimationEvent<HTMLButtonElement>) => {
@@ -303,7 +394,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
         <span className="world-phone__handle-mark" aria-hidden="true" />
       </button>
 
-      <div className="world-phone__body" onTransitionEnd={handleBodyTransitionEnd}>
+      <div className="world-phone__body" onTransitionEnd={handleBodyTransitionEnd} onTransitionRun={handleBodyTransitionRun} onTransitionCancel={handleBodyTransitionCancel}>
         <div className="world-phone__hardware" aria-hidden="true">
           <span className="world-phone__earpiece" />
           <span className="world-phone__camera" />
@@ -474,7 +565,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
                   </div>
                 })() : <>
                   <div className="world-phone__list-heading"><span>远程点单</span><strong>选择一杯奶茶</strong></div>
-                  <div className="world-phone__milk-tea-field" aria-label="饮料选择">{milkTeaDrinks.map((drink) => <button key={drink} type="button" aria-pressed={milkTeaDrink === drink} onClick={() => setMilkTeaDrink(drink)}>{drink}</button>)}</div>
+                  <div className="world-phone__milk-tea-field" aria-label="饮料选择">{milkTeaDrinks.map((drink) => <button key={drink} type="button" aria-pressed={milkTeaDrink === drink} onClick={() => selectMilkTeaDrink(drink)}>{drink}</button>)}</div>
                   {milkTeaDrink && <div className="world-phone__milk-tea-field" aria-label="甜度选择"><span>甜度</span>{milkTeaSugarOptions.map((sugar) => <button key={sugar} type="button" aria-pressed={milkTeaSugar === sugar} onClick={() => setMilkTeaSugar(sugar)}>{sugar}</button>)}</div>}
                   {milkTeaDrink && <div className="world-phone__milk-tea-field" aria-label="冰量选择"><span>冰量</span>{milkTeaIceOptions.map((ice) => <button key={ice} type="button" aria-pressed={milkTeaIce === ice} onClick={() => setMilkTeaIce(ice)}>{ice}</button>)}</div>}
                   <button className="world-phone__list-action" type="button" disabled={!milkTeaDrink || !milkTeaSugar || !milkTeaIce} onClick={() => {

@@ -61,6 +61,14 @@ export const commercialCafeNarrativeDialogue = {
   ],
 } as const satisfies MainlineSceneDialoguePresentation
 
+/** Only durable story beats are analytics-worthy; punctuation segments are not. */
+export function commercialCafeAnalyticsStageForCursor(cursor: number) {
+  if (cursor === 0) return 'meeting-started' as const
+  if (cursor === 5) return 'mine-lead' as const
+  if (cursor === 9) return 'yonghe-lead' as const
+  return null
+}
+
 export const commercialCafeSeatGuideDialogue = {
   triggerEntityId: 'lao-zhou',
   lines: [{ id: 'commercial-cafe-lao-zhou-seat-guide', speaker: '老周', text: '你来了，坐吧。' }],

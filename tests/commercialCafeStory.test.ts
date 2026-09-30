@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   commercialCafeBanknoteAttachedPropId,
+  commercialCafeAnalyticsStageForCursor,
   commercialCafeCoffeeAttachedPropId,
   commercialCafeCompletionPresenceMs,
   commercialCafeLaoZhouCoffeeAttachedPropId,
@@ -52,6 +53,13 @@ describe('commercial cafe narrative state', () => {
     expect(text).toContain('有人在那边好像见过陈副部长几次')
     expect(text).toContain('我也不能确定是不是真的')
     expect(text).toContain('你还是不爱喝咖啡。')
+  })
+
+  it('marks only durable Café narrative milestones for analytics', () => {
+    expect(commercialCafeAnalyticsStageForCursor(0)).toBe('meeting-started')
+    expect(commercialCafeAnalyticsStageForCursor(5)).toBe('mine-lead')
+    expect(commercialCafeAnalyticsStageForCursor(9)).toBe('yonghe-lead')
+    expect(commercialCafeAnalyticsStageForCursor(1)).toBeNull()
   })
 
   it('keeps optional coffee delivery independent from narrative cursor', () => {

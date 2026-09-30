@@ -66,6 +66,8 @@ export default function CenterExperience({
   const [localSlide, setLocalSlide] = useState(null)
   const [longDistanceTravel, setLongDistanceTravel] = useState(null)
   const sceneEnteredAtRef = useRef(null)
+  const commercialStreetState = playerSave.sceneState['commercial-street'] ?? {}
+  const milkTeaOrder = commercialStreetMilkTeaOrderFromSceneState(commercialStreetState)
 
 
   const commitPlayerSave = useCallback((update) => {
@@ -95,18 +97,38 @@ export default function CenterExperience({
     setRequestedPhoneApp(null)
   }, [])
 
+  const trackChapterEvent = useCallback((eventName, eventData = {}) => {
+    trackEvent(eventName, { sceneId: route.sceneId, eventData })
+  }, [route.sceneId])
+
   const openMilkTeaApp = useCallback(() => {
     setRequestedPhoneApp('milk-tea')
     setPhoneOpen(true)
   }, [])
 
   const confirmMilkTeaOrder = useCallback((selection) => {
-    commitPlayerSave((current) => {
-      const sceneState = current.sceneState['commercial-street'] ?? {}
-      if (commercialStreetMilkTeaHeld(sceneState) || commercialStreetMilkTeaOrderFromSceneState(sceneState)) return current
-      return recordPlayerSceneStatePatch(current, 'commercial-street', commercialStreetMilkTeaOrderPatch(createCommercialStreetMilkTeaOrder(sceneState, selection)))
+    if (commercialStreetMilkTeaHeld(commercialStreetState) || milkTeaOrder) return
+    const order = createCommercialStreetMilkTeaOrder(commercialStreetState, selection)
+    commitPlayerSave((current) => recordPlayerSceneStatePatch(current, 'commercial-street', commercialStreetMilkTeaOrderPatch(order)))
+    trackEvent('milk_tea_order_confirmed', {
+      sceneId: route.sceneId,
+      eventData: {
+        drink: order.drink,
+        sugar: order.sugar,
+        ice: order.ice,
+        orderNumber: order.number,
+        queueAheadAtOrder: order.queueAhead,
+      },
     })
-  }, [commitPlayerSave])
+  }, [commercialStreetState, commitPlayerSave, milkTeaOrder, route.sceneId])
+
+  const handleMilkTeaOrderStarted = useCallback(() => {
+    trackEvent('milk_tea_order_started', { sceneId: route.sceneId })
+  }, [route.sceneId])
+
+  const handleMilkTeaOrderReady = useCallback((orderNumber) => {
+    trackEvent('milk_tea_order_ready', { sceneId: route.sceneId, eventData: { orderNumber } })
+  }, [route.sceneId])
 
   const handleFeedbackModeChange = useCallback((mode) => {
     setFeedbackMode(mode)
@@ -131,6 +153,9 @@ export default function CenterExperience({
       sceneId: route.sceneId,
       device: phoneDevice,
     })
+    if (route.sceneId === 'commercial-street') {
+      trackEvent('commercial_street_entered', { sceneId: route.sceneId })
+    }
   }, [phoneDevice, route.sceneId])
 
   useEffect(() => {
@@ -175,6 +200,9 @@ export default function CenterExperience({
       dwellMs: currentScene?.sceneId === route.sceneId ? Date.now() - currentScene.enteredAt : undefined,
       outcome: 'scene_change',
     })
+    if (route.sceneId === 'commercial-street' && nextSceneId === 'commercial-cafe') {
+      trackEvent('cafe_entered', { sceneId: nextSceneId })
+    }
     sceneEnteredAtRef.current = null
     commitPlayerSave((current) => {
       const next = {
@@ -335,6 +363,7 @@ export default function CenterExperience({
       onObjectInteraction={snapshot ? undefined : handleObjectInteraction}
       onDoorEvent={snapshot ? undefined : handleDoorEvent}
       onMilkTeaAppOpen={snapshot ? undefined : openMilkTeaApp}
+      onChapterAnalytics={snapshot ? undefined : trackChapterEvent}
       initialSceneState={playerSave.sceneState[sceneRoute.sceneId] ?? {}}
       carriedMilkTea={commercialStreetMilkTeaHeld(playerSave.sceneState['commercial-street'])}
       interactionTutorialCompleted={isInteractionTutorialCompleted(playerSave.sceneState['commercial-street'])}
@@ -413,12 +442,14 @@ export default function CenterExperience({
           onClose={retractPhone}
           onCloseComplete={handlePhoneCloseComplete}
           onRideRequest={handleRideRequest}
-          milkTeaAppUnlocked={commercialStreetMilkTeaAppUnlocked(playerSave.sceneState['commercial-street'])}
-          milkTeaOrder={commercialStreetMilkTeaOrderFromSceneState(playerSave.sceneState['commercial-street'])}
-          milkTeaHeld={commercialStreetMilkTeaHeld(playerSave.sceneState['commercial-street'])}
+          milkTeaAppUnlocked={commercialStreetMilkTeaAppUnlocked(commercialStreetState)}
+          milkTeaOrder={milkTeaOrder}
+          milkTeaHeld={commercialStreetMilkTeaHeld(commercialStreetState)}
           requestedApp={requestedPhoneApp}
           onRequestedAppHandled={() => setRequestedPhoneApp(null)}
           onMilkTeaOrderConfirm={confirmMilkTeaOrder}
+          onMilkTeaOrderStarted={handleMilkTeaOrderStarted}
+          onMilkTeaOrderReady={handleMilkTeaOrderReady}
           feedbackMode={feedbackMode}
           onFeedbackModeChange={handleFeedbackModeChange}
           onFeedbackOpen={handleFeedbackOpen}

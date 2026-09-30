@@ -77,7 +77,9 @@ test('altar breathing stays narrow and burning incense remains above explored so
 
   const incense = page.locator('[data-object-id="jijia-incense-burner"]')
   await expect(incense).toHaveClass(/scene-mainline-incense--burning/)
-  await expect(incense).toHaveClass(/scene-mainline-interaction--explored/)
+  // A live burning state deliberately outranks the persisted explored soft
+  // state; this is the same precedence exercised by the unit contract.
+  await expect(incense).toHaveClass(/scene-mainline-interaction--dynamic/)
   const incenseColor = await incense.evaluate((element) => getComputedStyle(element).color)
   const offeringTable = page.locator('[data-object-id="jijia-offering-table-north"]')
   const samples = await offeringTable.locator('span').evaluate(async (element) => {
