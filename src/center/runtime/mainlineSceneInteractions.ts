@@ -2,7 +2,7 @@ import type { PhoneDevice } from './phoneState'
 import type { PlayerChoiceValue } from './playerSave'
 import type { MainlineInteractionBehavior } from './mainlineSceneModel'
 import type { MainlineSceneDefinition, MainlineSceneEntity } from './mainlineScenes'
-import { commercialCafeStoryStageKey, initialCommercialCafeStoryStage, type CommercialCafeStoryStage } from './commercialCafeStory'
+import { commercialCafeCoffeeOrderedKey } from './commercialCafeStory'
 
 export const incenseBurnDurationMs = 10 * 60 * 1000
 
@@ -12,7 +12,8 @@ export type MainlineSceneInteractionContext = {
   incensePhase: IncenseBurnPhase
   officeBlindsOpen: boolean
   carriedPhoneDevice: PhoneDevice
-  commercialCafeStoryStage?: CommercialCafeStoryStage
+  commercialCafeCoffeeOrdered?: boolean
+  carriedMilkTea?: boolean
 }
 
 export type MainlineExplorationChoice = {
@@ -26,7 +27,7 @@ export type MainlineExplorationResolution = {
 }
 
 export type MainlineSceneStateChange = {
-  key: 'blindsOpen' | 'incenseLitAt' | typeof commercialCafeStoryStageKey
+  key: 'blindsOpen' | 'incenseLitAt' | typeof commercialCafeCoffeeOrderedKey
   value: PlayerChoiceValue
 }
 
@@ -92,9 +93,10 @@ export function resolveMainlineSceneExploration(
     }
   }
   if (behavior === 'cafe-order') {
-    return context.commercialCafeStoryStage === initialCommercialCafeStoryStage
-      ? { choice: { text: '要点一杯咖啡吗？', options: ['点一杯咖啡'] } }
-      : { choice: { text: '已经点过咖啡。' } }
+    if (context.commercialCafeCoffeeOrdered) return { choice: { text: '已经点过咖啡。' } }
+    return context.carriedMilkTea
+      ? { choice: { text: '已经有奶茶了，还要买咖啡吗？', options: ['是', '否'] } }
+      : { choice: { text: '要点一杯咖啡吗？', options: ['点一杯咖啡'] } }
   }
 
   if (configuredChoice) return { choice: configuredChoice }
@@ -112,7 +114,7 @@ export function resolveMainlineSceneEchoChoice(
   entity: MainlineSceneEntity | undefined,
   option: string,
   now: number,
-  context: Pick<MainlineSceneInteractionContext, 'commercialCafeStoryStage'> = {},
+  context: Pick<MainlineSceneInteractionContext, 'commercialCafeCoffeeOrdered' | 'carriedMilkTea'> = {},
 ): MainlineSceneEchoChoiceResolution | null {
   const behavior = entity ? interactionBehavior(entity) : undefined
 
@@ -153,14 +155,16 @@ export function resolveMainlineSceneEchoChoice(
     }
   }
   if (behavior === 'cafe-order') {
-    if (option !== '点一杯咖啡' || context.commercialCafeStoryStage !== initialCommercialCafeStoryStage) {
+    if (context.commercialCafeCoffeeOrdered) {
       return { feedback: '已经点过咖啡。', clearOptions: true }
     }
+    if (context.carriedMilkTea && option === '否') return { feedback: '修杰没有点咖啡。', clearOptions: true }
+    if (option !== '点一杯咖啡' && option !== '是') return { feedback: '修杰没有点咖啡。', clearOptions: true }
     return {
       feedback: '修杰点了一杯咖啡。',
       echoText: '已经点了一杯咖啡。',
       clearOptions: true,
-      stateChange: { key: commercialCafeStoryStageKey, value: 'coffee-ordered' },
+      stateChange: { key: commercialCafeCoffeeOrderedKey, value: true },
     }
   }
 

@@ -58,6 +58,16 @@ type AmbientNpcMotionProps = {
   onRuntimeChange: (npcId: string, position: Point | null, snapshot: NpcRuntimeSnapshot) => void
 }
 
+/**
+ * A nearby protagonist may make an ambient actor skip one authored step. The
+ * scene clock is continuous, so callers keep the returned latch until the
+ * actors separate instead of issuing that skip once per animation frame.
+ */
+export function ambientNpcYieldEncounterDecision(isNearby: boolean, hasYieldedForCurrentProximity: boolean) {
+  if (!isNearby) return { shouldYield: false, resetLatch: true }
+  return { shouldYield: !hasYieldedForCurrentProximity, resetLatch: false }
+}
+
 type HiddenAmbientActivity = {
   kind: 'storefront-visit' | 'offstreet'
   untilMs: number
@@ -138,6 +148,7 @@ export function AmbientNpcMotion({
   const retryCountRef = useRef(0)
   const previousPhaseRef = useRef(movement.snapshot.phase)
   const hiddenActivityRef = useRef<HiddenAmbientActivity | null>(null)
+  const yieldedForCurrentProximityRef = useRef(false)
   const latestRef = useRef({ enabled, scene, layout, navigationOptions, movementOptions, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs })
   latestRef.current = { enabled, scene, layout, navigationOptions, movementOptions, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs }
   const resetKey = `${enabled}:${schedule.npcId}:${initialPosition.x}:${initialPosition.y}`
@@ -150,6 +161,7 @@ export function AmbientNpcMotion({
     retryCountRef.current = 0
     previousPhaseRef.current = movement.snapshot.phase
     hiddenActivityRef.current = null
+    yieldedForCurrentProximityRef.current = false
     setRecovery(null)
     setHiddenActivity(null)
   }, [resetKey, schedule.initialDelayMs])
@@ -174,7 +186,20 @@ export function AmbientNpcMotion({
     if (!enabled || hiddenActivity || movement.snapshot.phase === 'moving') return
     const protagonist = navigationRuntime.getActor('protagonist')
     const ambient = navigationRuntime.getActor(schedule.npcId)
-    if (!ambientNpcShouldYieldToProtagonist(protagonist, ambient)) return
+    const yieldDecision = ambientNpcYieldEncounterDecision(
+      ambientNpcShouldYieldToProtagonist(protagonist, ambient),
+      yieldedForCurrentProximityRef.current,
+    )
+    if (yieldDecision.resetLatch) {
+      yieldedForCurrentProximityRef.current = false
+      return
+    }
+    // The shared scene clock updates every animation frame. Yielding is an
+    // encounter edge, not a per-frame command: after an ambient actor has
+    // skipped its current dwell/route step for this nearby protagonist, wait
+    // until the two actors separate before it can yield again.
+    if (!yieldDecision.shouldYield) return
+    yieldedForCurrentProximityRef.current = true
     requestedRouteIndexRef.current = null
     recoveryRef.current = null
     retryCountRef.current = 0

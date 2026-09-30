@@ -4,7 +4,7 @@ import type { MainlineSceneDefinition } from './mainlineScenes'
 import type { Point } from './sceneGeometry'
 import type { SceneLayout } from './sceneLayout'
 import type { MainlineNavigationOptions } from './mainlineNavigation'
-import { resolveCommercialCafeCoffeeDeliveryIntent, resolveCommercialCafeReturnToCounterIntent, type CommercialCafeStoryStage } from './commercialCafeStory'
+import { resolveCommercialCafeCoffeeDeliveryIntent, resolveCommercialCafeReturnToCounterIntent } from './commercialCafeStory'
 
 export type CommercialCafeServerBehaviorPhase = 'boot' | 'ambient-moving' | 'ambient-waiting' | 'delivering' | 'delivery-arrived' | 'returning' | 'blocked'
 
@@ -63,11 +63,12 @@ export function createCommercialCafeServerBehaviorCoordinator() {
     return pendingAmbientIntent
   }
 
-  const requestForStage = ({
-    scene, stage, from: _from, snapshot, layout: _layout = {}, navigationOptions: _navigationOptions = {},
+  const requestForCoffee = ({
+    scene, coffeeOrdered, coffeeDelivered, from: _from, snapshot, layout: _layout = {}, navigationOptions: _navigationOptions = {},
   }: {
     scene: MainlineSceneDefinition
-    stage: CommercialCafeStoryStage
+    coffeeOrdered: boolean
+    coffeeDelivered: boolean
     from: Point
     snapshot: NpcRuntimeSnapshot
     layout?: SceneLayout
@@ -78,8 +79,8 @@ export function createCommercialCafeServerBehaviorCoordinator() {
     // been cleaned up. A recorded `delivering` phase is only live while the
     // NPC runtime is actually moving; otherwise request the same semantic
     // intent again through the shared adapter.
-    if (stage === 'met-lao-zhou' && phase !== 'delivery-arrived' && (phase !== 'delivering' || snapshot.phase !== 'moving')) {
-      const intent = resolveCommercialCafeCoffeeDeliveryIntent({ scene, stage })
+    if (coffeeOrdered && !coffeeDelivered && phase !== 'delivery-arrived' && (phase !== 'delivering' || snapshot.phase !== 'moving')) {
+      const intent = resolveCommercialCafeCoffeeDeliveryIntent({ scene, coffeeOrdered, coffeeDelivered })
       if (intent) {
         pendingAmbientIntent = null
         phase = 'delivering'
@@ -87,7 +88,7 @@ export function createCommercialCafeServerBehaviorCoordinator() {
       return intent
     }
     if (snapshot.phase === 'moving') return null
-    if (stage === 'coffee-delivered' && (phase === 'delivering' || phase === 'delivery-arrived')) {
+    if (coffeeDelivered && (phase === 'delivering' || phase === 'delivery-arrived')) {
       const intent = resolveCommercialCafeReturnToCounterIntent(scene)
       if (intent) phase = 'returning'
       return intent
@@ -109,5 +110,5 @@ export function createCommercialCafeServerBehaviorCoordinator() {
     else if (phase === 'returning') phase = 'ambient-waiting'
   }
 
-  return { getPhase, requestForStage, arrived, block, reset }
+  return { getPhase, requestForCoffee, arrived, block, reset }
 }

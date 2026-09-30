@@ -14,7 +14,6 @@ import { useSceneFocusFrameController } from './SceneFocusFrames'
 import type { SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
-import { isCommercialCafeStoryDetailVisible, type CommercialCafeStoryStage } from './commercialCafeStory'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
 import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds, mainlineSeatedActorVisualPosition } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
@@ -83,7 +82,7 @@ type MainlineSceneRendererProps = {
   incenseLit?: boolean
   incenseBurnRemainingMs?: number
   onIncenseBurnComplete?: () => void
-  commercialCafeStoryStage?: CommercialCafeStoryStage
+  visibleAttachedPropIds?: ReadonlySet<string>
   occupiedSeatIds?: ReadonlySet<string>
   playerSeatId?: string | null
   promptedSeatId?: string | null
@@ -528,7 +527,7 @@ export function MainlineSceneRenderer({
   incenseLit = false,
   incenseBurnRemainingMs = 0,
   onIncenseBurnComplete,
-  commercialCafeStoryStage,
+  visibleAttachedPropIds,
   occupiedSeatIds: runtimeOccupiedSeatIds,
   playerSeatId = null,
   promptedSeatId = null,
@@ -553,9 +552,9 @@ export function MainlineSceneRenderer({
   // Attached props are table presentation states, not a second spatial object
   // beside the table label. Their parent retains all collision and contact
   // semantics while the visible detail owns the table's current label slot.
-  const visibleAttachedProps = commercialCafeStoryStage === undefined
+  const visibleAttachedProps = visibleAttachedPropIds === undefined
     ? []
-    : scene.attachedProps.filter((prop) => isCommercialCafeStoryDetailVisible(prop.visibleFromStage, commercialCafeStoryStage, prop.hiddenFromStage))
+    : scene.attachedProps.filter((prop) => visibleAttachedPropIds.has(prop.id))
   const presentedParentEntityIds = new Set(visibleAttachedProps.map((prop) => prop.parentEntityId))
   const cafeSpatialQa = scene.id === 'commercial-cafe' && debugCafeSpatialQaEnabled
   const cafeQaCounter = cafeSpatialQa ? scene.continuousStructures?.find((structure) => structure.id === 'commercial-cafe-counter-body') : undefined
@@ -1021,18 +1020,22 @@ export function MainlineSceneRenderer({
           {visibleAttachedProps.map((prop) => {
             const parentPosition = geometrySnapshot.objects.get(prop.parentEntityId)?.position
             if (!parentPosition) return null
-            return (
+            const props = {
+              className: `scene-mainline-attached-prop${prop.visualKind ? ` scene-mainline-attached-prop--${prop.visualKind}` : ''}`,
+              style: { left: `${parentPosition.x + prop.offset.x}%`, top: `${parentPosition.y + prop.offset.y}%` },
+              'data-attached-prop-id': prop.id,
+              'data-parent-entity-id': prop.parentEntityId,
+              'data-interaction-target-entity-id': prop.interactionTargetEntityId,
+              'data-attached-prop-kind': prop.visualKind,
+              'data-rendered-x': debugRuntimeEvidence ? parentPosition.x + prop.offset.x : undefined,
+              'data-rendered-y': debugRuntimeEvidence ? parentPosition.y + prop.offset.y : undefined,
+            }
+            return prop.interactive === false ? <span key={prop.id} {...props} aria-label={prop.label}><span>{prop.visualKind ? '' : prop.label}</span></span> : (
               <button
                 key={prop.id}
-                className="scene-mainline-attached-prop"
+                {...props}
                 type="button"
-                style={{ left: `${parentPosition.x + prop.offset.x}%`, top: `${parentPosition.y + prop.offset.y}%` }}
                 onClick={(event) => { event.stopPropagation(); onAttachedPropInteract?.(prop.id) }}
-                data-attached-prop-id={prop.id}
-                data-parent-entity-id={prop.parentEntityId}
-                data-interaction-target-entity-id={prop.interactionTargetEntityId}
-                data-rendered-x={debugRuntimeEvidence ? parentPosition.x + prop.offset.x : undefined}
-                data-rendered-y={debugRuntimeEvidence ? parentPosition.y + prop.offset.y : undefined}
                 aria-label={`${prop.label}，附着于${prop.parentEntityId}`}
               >
                 <span>{prop.label}</span>
@@ -1120,6 +1123,17 @@ export function MainlineSceneRenderer({
               </div>}
             </div>
           })()}
+          {dialogueLock && <>
+            <div className="scene-dialogue-dimmer" aria-hidden="true" />
+            <button
+              type="button"
+              className="scene-dialogue-shield"
+              aria-label="继续对话"
+              data-scene-dialogue-shield="true"
+              onPointerUp={(event) => event.stopPropagation()}
+              onClick={(event) => { event.stopPropagation(); onDialogueAdvance?.() }}
+            />
+          </>}
           </>
         </div>
         {worldQuestionMark?.visible && <span
@@ -1130,17 +1144,6 @@ export function MainlineSceneRenderer({
           data-world-anchor-y={worldQuestionMark.anchor.y}
           aria-hidden="true"
         >?</span>}
-        {dialogueLock && <>
-          <div className="scene-dialogue-dimmer" aria-hidden="true" />
-          <button
-            type="button"
-            className="scene-dialogue-shield"
-            aria-label="继续对话"
-            data-scene-dialogue-shield="true"
-            onPointerUp={(event) => event.stopPropagation()}
-            onClick={(event) => { event.stopPropagation(); onDialogueAdvance?.() }}
-          />
-        </>}
         {(debugInput || debugNpcMovement) && <div className="scene-input-debug" aria-live="polite">
           {debugNpcMovement && <button type="button" onClick={(event) => { event.stopPropagation(); onDebugNpcMovement?.() }}>演示店员移动</button>}
           <div>输入诊断（不改变寻路）</div>

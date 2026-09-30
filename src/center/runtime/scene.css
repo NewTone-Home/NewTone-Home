@@ -1319,6 +1319,13 @@
 .scene-mainline-npc--ambient { pointer-events: none; cursor: default; }
 .scene-mainline-attached-prop { pointer-events: auto; border: 0; background: transparent; font: inherit; }
 .scene-mainline-attached-prop { color: var(--soft); font-size: .84em; }
+.scene-mainline-attached-prop[class*="--"] { pointer-events: none; width: 9px; height: 9px; color: rgba(218, 195, 142, .76); }
+.scene-mainline-attached-prop--coffee::before { content: ''; position: absolute; width: 6px; height: 4px; border: 1px solid currentColor; border-top: 0; border-radius: 0 0 2px 2px; left: 1px; top: 3px; }
+.scene-mainline-attached-prop--coffee::after { content: ''; position: absolute; width: 2px; height: 3px; border: 1px solid currentColor; border-left: 0; border-radius: 0 2px 2px 0; left: 7px; top: 3px; }
+.scene-mainline-attached-prop--milk-tea::before { content: ''; position: absolute; width: 5px; height: 6px; border: 1px solid currentColor; border-radius: 1px 1px 2px 2px; left: 2px; top: 2px; }
+.scene-mainline-attached-prop--milk-tea::after { content: ''; position: absolute; width: 1px; height: 5px; background: currentColor; transform: rotate(26deg); left: 6px; top: -1px; }
+.scene-mainline-attached-prop--banknote::before { content: ''; position: absolute; width: 7px; height: 4px; border: 1px solid currentColor; border-radius: 1px; left: 1px; top: 2px; }
+.scene-mainline-attached-prop--banknote::after { content: ''; position: absolute; width: 2px; height: 2px; border: 1px solid currentColor; border-radius: 50%; left: 4px; top: 4px; }
 .scene-mainline-object--door { color: var(--active); font-size: var(--scene-mainline-object-font-size, clamp(10px, 1.35cqw, 18px)); }
 .scene-mainline-object--landmark,
 .scene-mainline-object--direction { color: var(--soft); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); }
@@ -1505,6 +1512,7 @@
 .scene-mainline-text__speaker { display: block; width: max-content; margin-bottom: 3px; color: var(--active); font-size: .72em; letter-spacing: .06em; }
 .scene-mainline-text__observation { display: block; min-height: 1.6em; width: max-content; white-space: nowrap; }
 .scene-mainline-text__dialogue { display: block; width: max-content; white-space: nowrap; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.22, .61, .36, 1) both; }
+.scene-mainline-text--dialogue { z-index: 12; isolation: isolate; color: var(--active); }
 .scene-mainline-object > .scene-focus-frame {
   inset: -.12em -.18em;
 }
@@ -1560,7 +1568,7 @@
 .scene-dialogue-dimmer {
   position: absolute;
   inset: 0;
-  z-index: 8;
+  z-index: 10;
   background: rgba(5, 5, 5, .22);
   pointer-events: none;
   transition: opacity 180ms ease-out;
@@ -1568,7 +1576,7 @@
 .scene-dialogue-shield {
   position: absolute;
   inset: 0;
-  z-index: 10;
+  z-index: 13;
   display: block;
   width: 100%;
   height: 100%;

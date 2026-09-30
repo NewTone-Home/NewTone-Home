@@ -7,6 +7,7 @@ import {
   ambientNpcStoreVisitMaximumMs,
   ambientNpcStoreVisitMinimumMs,
 } from '../src/center/runtime/ambientNpcLifecycle'
+import { ambientNpcYieldEncounterDecision } from '../src/center/runtime/AmbientNpcMotion'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 
 describe('ambient NPC lifecycle', () => {
@@ -25,5 +26,12 @@ describe('ambient NPC lifecycle', () => {
     const farAmbient = { actorId: 'ambient', position: { x: street.walkBounds.x, y: street.walkBounds.y }, footprint, visible: true }
     expect(ambientNpcShouldYieldToProtagonist(protagonist, nearAmbient)).toBe(true)
     expect(ambientNpcShouldYieldToProtagonist(protagonist, farAmbient)).toBe(false)
+  })
+
+  it('yields once per nearby encounter instead of rescheduling an ambient route every scene-clock frame', () => {
+    expect(ambientNpcYieldEncounterDecision(true, false)).toEqual({ shouldYield: true, resetLatch: false })
+    expect(ambientNpcYieldEncounterDecision(true, true)).toEqual({ shouldYield: false, resetLatch: false })
+    expect(ambientNpcYieldEncounterDecision(false, true)).toEqual({ shouldYield: false, resetLatch: true })
+    expect(ambientNpcYieldEncounterDecision(true, false)).toEqual({ shouldYield: true, resetLatch: false })
   })
 })

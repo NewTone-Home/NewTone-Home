@@ -72,7 +72,7 @@ describe('mainline scene interaction policies', () => {
     expect(mainlineSceneAreaLabel(mining, mining.initialPlayerPosition)).toBe('矿区')
   })
 
-  it('uses the counter behavior to offer and persist one coffee order without advancing later cafe stages', () => {
+  it('keeps coffee optional and asks for confirmation only when the protagonist carries milk tea', () => {
     const cafe = mainlineScenes['commercial-cafe']
     const counter = entity('commercial-cafe', 'commercial-cafe-counter')
     const counterSegments = cafe.objects.filter((candidate) => candidate.id === 'commercial-cafe-counter' || candidate.id.startsWith('commercial-cafe-counter-'))
@@ -80,7 +80,8 @@ describe('mainline scene interaction policies', () => {
       incensePhase: 'unlit',
       officeBlindsOpen: true,
       carriedPhoneDevice: 'surface',
-      commercialCafeStoryStage: 'entered',
+      commercialCafeCoffeeOrdered: false,
+      carriedMilkTea: false,
     })
 
     expect(counter).toMatchObject({ kind: 'fixture', interactionBehavior: 'cafe-order' })
@@ -99,17 +100,21 @@ describe('mainline scene interaction policies', () => {
       expect(right.x).toBeGreaterThanOrEqual(segment.position.x)
     })
     expect(entered.choice).toEqual({ text: '要点一杯咖啡吗？', options: ['点一杯咖啡'] })
-    expect(resolveMainlineSceneEchoChoice(cafe, counter, '点一杯咖啡', 0, { commercialCafeStoryStage: 'entered' })).toMatchObject({
-      stateChange: { key: 'commercialCafeStoryStage', value: 'coffee-ordered' },
+    expect(resolveMainlineSceneEchoChoice(cafe, counter, '点一杯咖啡', 0, { commercialCafeCoffeeOrdered: false, carriedMilkTea: false })).toMatchObject({
+      stateChange: { key: 'commercialCafeCoffeeOrdered', value: true },
       clearOptions: true,
     })
     expect(resolveMainlineSceneExploration(cafe, counter, {
       incensePhase: 'unlit',
       officeBlindsOpen: true,
       carriedPhoneDevice: 'surface',
-      commercialCafeStoryStage: 'coffee-ordered',
+      commercialCafeCoffeeOrdered: true,
+      carriedMilkTea: false,
     }).choice).toEqual({ text: '已经点过咖啡。' })
-    expect(resolveMainlineSceneEchoChoice(cafe, counter, '点一杯咖啡', 0, { commercialCafeStoryStage: 'coffee-ordered' })?.stateChange).toBeUndefined()
-    expect(resolveMainlineSceneEchoChoice(cafe, counter, '点一杯咖啡', 0, { commercialCafeStoryStage: 'intel-received' })?.stateChange).toBeUndefined()
+    expect(resolveMainlineSceneExploration(cafe, counter, {
+      incensePhase: 'unlit', officeBlindsOpen: true, carriedPhoneDevice: 'surface', commercialCafeCoffeeOrdered: false, carriedMilkTea: true,
+    }).choice).toEqual({ text: '已经有奶茶了，还要买咖啡吗？', options: ['是', '否'] })
+    expect(resolveMainlineSceneEchoChoice(cafe, counter, '否', 0, { commercialCafeCoffeeOrdered: false, carriedMilkTea: true })?.stateChange).toBeUndefined()
+    expect(resolveMainlineSceneEchoChoice(cafe, counter, '是', 0, { commercialCafeCoffeeOrdered: false, carriedMilkTea: true })?.stateChange).toEqual({ key: 'commercialCafeCoffeeOrdered', value: true })
   })
 })

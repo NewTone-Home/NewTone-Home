@@ -32,6 +32,39 @@
       "requiredAddedAssertions": [
         "expect(experience).not.toContain(\"center_feedback_prompt_shown\")"
       ]
+    },
+    {
+      "id": "commercial-cafe-story-migration-2026-09-29",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/commercialCafeStory.test.ts",
+      "oldContract": "Coffee delivery and attached coffee interactions gate Café information and departure story progression.",
+      "newContract": "A seated player enters a persisted locked Café narrative independently of optional coffee delivery; legacy stages map only on load.",
+      "requiredAddedAssertions": [
+        "expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story, playerSeatId: commercialCafeLaoZhouConversationSeatId })).toEqual({ kind: 'start-narrative' })",
+        "expect(resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeOrdered: true, coffeeDelivered: false })).toMatchObject({ dutyId: 'server.deliver-coffee' })"
+      ]
+    },
+    {
+      "id": "commercial-cafe-server-delivery-contract-2026-09-29",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/commercialCafeBehavior.test.ts",
+      "oldContract": "Server behavior derives delivery and return work from legacy Café stages.",
+      "newContract": "Server behavior derives optional delivery and return work from explicit coffee order and delivery state.",
+      "requiredAddedAssertions": [
+        "coffeeOrdered: true, coffeeDelivered: false",
+        "coffeeOrdered: true, coffeeDelivered: true"
+      ]
+    },
+    {
+      "id": "commercial-cafe-delivery-movement-contract-2026-09-29",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/npcMovement.test.ts",
+      "oldContract": "NPC delivery writes a legacy Café stage after movement arrival.",
+      "newContract": "NPC delivery completes only by setting the optional coffee-delivered state after actual arrival.",
+      "requiredAddedAssertions": [
+        "expect(coffeeDelivered).toBe(true)",
+        "coffeeOrdered: true, coffeeDelivered: false"
+      ]
     }
   ]
 }

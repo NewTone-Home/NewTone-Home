@@ -239,6 +239,10 @@ export type MainlineSceneAttachedProp = {
   offset: Point
   /** A future interaction resolves through this spatial parent, never the prop itself. */
   interactionTargetEntityId: string
+  /** Presentation-only props must not become a separate navigation target. */
+  interactive?: boolean
+  /** A small visual-only line icon; it never creates scene geometry. */
+  visualKind?: 'coffee' | 'milk-tea' | 'banknote'
   /** Currently used by commercial-cafe to reveal a prop after its story beat. */
   visibleFromStage?: CommercialCafeStoryStage
   /** A later presentation can replace this prop without changing its parent furniture. */
@@ -971,29 +975,40 @@ const commercialCafeNpcBehaviors = [
 ] as const satisfies readonly MainlineSceneNpcBehavior[]
 const commercialCafeAttachedProps = [
   {
-    id: 'commercial-cafe-coffee',
+    id: 'commercial-cafe-lao-zhou-coffee',
     label: '咖啡',
     parentEntityId: commercialCafeStoryTableId,
-    offset: authoredPoint(-.8, .4),
+    offset: authoredPoint(-1.5, .4),
     interactionTargetEntityId: commercialCafeStoryTableId,
-    visibleFromStage: 'coffee-delivered',
-    hiddenFromStage: 'ready-to-leave',
+    interactive: false,
+    visualKind: 'coffee',
   },
   {
-    id: 'commercial-cafe-empty-cup',
-    label: '空杯',
+    id: 'commercial-cafe-xiujie-coffee',
+    label: '咖啡',
     parentEntityId: commercialCafeStoryTableId,
-    offset: authoredPoint(-.8, .4),
+    offset: authoredPoint(0, .4),
     interactionTargetEntityId: commercialCafeStoryTableId,
-    visibleFromStage: 'ready-to-leave',
+    interactive: false,
+    visualKind: 'coffee',
+  },
+  {
+    id: 'commercial-cafe-xiujie-milk-tea',
+    label: '奶茶',
+    parentEntityId: commercialCafeStoryTableId,
+    offset: authoredPoint(1.5, .4),
+    interactionTargetEntityId: commercialCafeStoryTableId,
+    interactive: false,
+    visualKind: 'milk-tea',
   },
   {
     id: 'commercial-cafe-banknote',
     label: '钞票',
     parentEntityId: commercialCafeStoryTableId,
-    offset: authoredPoint(.8, .4),
+    offset: authoredPoint(0, 1.15),
     interactionTargetEntityId: commercialCafeStoryTableId,
-    visibleFromStage: 'ready-to-leave',
+    interactive: false,
+    visualKind: 'banknote',
   },
 ] as const satisfies readonly MainlineSceneAttachedProp[]
 const commercialCafeWindow: MainlineSceneCurve = { id: 'commercial-cafe-glass-front', ...commercialCafeLayout.glass, role: 'glass', glyph: '窗', sampleCount: 26, blocksPlayer: true }

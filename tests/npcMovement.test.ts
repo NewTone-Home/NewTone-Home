@@ -113,30 +113,31 @@ describe('NPC movement adapter', () => {
     const { navigationRuntime, controller, adapter } = createServerMovement(seatedProtagonist)
     const delivery = resolveCommercialCafeCoffeeDeliveryIntent({
       scene: cafe,
-      stage: 'met-lao-zhou',
+      coffeeOrdered: true,
+      coffeeDelivered: false,
     })!
-    let stage = 'met-lao-zhou'
+    let coffeeDelivered = false
     let deliveries = 0
     const started = adapter.requestMove(delivery, cafe, {}, { navigationRuntime }, {}, () => {
       deliveries += 1
-      stage = 'coffee-delivered'
+      coffeeDelivered = true
       const returning = adapter.requestMove(resolveCommercialCafeReturnToCounterIntent(cafe)!, cafe, {}, { navigationRuntime })
       expect(returning).toBe(true)
     })
 
     expect(started).toBe(true)
-    expect(stage).toBe('met-lao-zhou')
+    expect(coffeeDelivered).toBe(false)
     runUntilIdle(controller, adapter, navigationRuntime)
 
     expect(deliveries).toBe(1)
-    expect(stage).toBe('coffee-delivered')
+    expect(coffeeDelivered).toBe(true)
     expect(adapter.getPosition()).toEqual(serverHome)
     expect(adapter.getSnapshot()).toMatchObject({ phase: 'idle', dutyId: npcRoles.server.duties.returnToCounter.id })
   })
 
   it('chooses another live table contact when the nearest delivery contact is dynamically occupied', () => {
     const { navigationRuntime, controller, adapter } = createServerMovement()
-    const delivery = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'met-lao-zhou' })!
+    const delivery = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeOrdered: true, coffeeDelivered: false })!
     const staticContact = findMainlinePathToEntity(cafe, delivery.targetEntityId!, serverHome, {}, { actorId: 'server' }).target
     navigationRuntime.registerActor('contact-blocker', staticContact, { width: 1.6, height: 1.6 })
 
@@ -151,7 +152,7 @@ describe('NPC movement adapter', () => {
 
   it('blocks a semantic table delivery only when all legal contacts are dynamically occupied', () => {
     const { navigationRuntime, controller, adapter } = createServerMovement()
-    const delivery = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, stage: 'met-lao-zhou' })!
+    const delivery = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeOrdered: true, coffeeDelivered: false })!
     const table = cafe.objects.find((entity) => entity.id === delivery.targetEntityId)!
     navigationRuntime.registerActor('all-contacts-blocker', table.position, { width: 30, height: 30 })
 
