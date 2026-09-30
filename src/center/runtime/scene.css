@@ -536,20 +536,6 @@
   height: 100dvh;
   margin: 0;
 }
-.mainline-scene--map-only .scene-feedback--overlay {
-  position: absolute;
-  right: auto;
-  bottom: 4%;
-  left: 4%;
-  z-index: 8;
-  min-height: 0;
-  max-width: min(62%, 520px);
-  padding: 6px 9px;
-  border: 1px solid rgba(190, 161, 103, .48);
-  background: rgba(5, 5, 5, .7);
-  color: var(--soft);
-  pointer-events: none;
-}
 .scene-wrap { min-width: 0; }
 
 /* Every mainline scene uses the same scene contract and renderer. */
@@ -1075,11 +1061,9 @@
 .scene-spatial-qa__legend strong { color: #fff06a; font-size: 11px; }
 
 .scene-echo,
-.scene-feedback,
 .scene-hint,
 .scene-toolbar { font-size: 12px; }
 .scene-echo { min-height: 28px; margin-top: 10px; padding-left: 10px; border-left: 1px solid var(--faint); color: var(--ink); line-height: 1.65; }
-.scene-feedback { min-height: 21px; padding-top: 8px; color: var(--soft); }
 .scene-hint { color: var(--muted); line-height: 1.6; }
 .scene-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; padding-top: 10px; border-top: 1px dashed var(--faint); color: var(--muted); }
 .scene-toolbar__actions { display: flex; align-items: center; justify-content: flex-end; gap: 16px; flex-wrap: wrap; }
@@ -1496,8 +1480,8 @@
   padding: 2px 0;
   color: var(--ink);
   font-family: "Noto Serif SC", Georgia, serif;
-  font-size: clamp(13px, 1.1vw, 16px);
-  line-height: 1.6;
+  font-size: clamp(16px, 1.35vw, 20px);
+  line-height: 1.62;
   white-space: nowrap;
   overflow-wrap: normal;
   word-break: keep-all;
@@ -1509,7 +1493,7 @@
   transform: translate(-50%, -50%);
   animation: mainline-text-arrive 160ms ease-out both;
 }
-.scene-mainline-text__speaker { display: block; width: max-content; margin-bottom: 3px; color: var(--active); font-size: .72em; letter-spacing: .06em; }
+.scene-mainline-text__speaker { display: block; width: max-content; margin-bottom: 3px; color: var(--active); font-size: max(12px, .74em); letter-spacing: .06em; }
 .scene-mainline-text__observation { display: block; min-height: 1.6em; width: max-content; white-space: nowrap; }
 .scene-mainline-text__dialogue { display: block; width: max-content; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; white-space: nowrap; cursor: pointer; }
 .scene-mainline-text__dialogue > span { display: block; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.22, .61, .36, 1) both; }
@@ -1570,7 +1554,7 @@
   position: absolute;
   inset: 0;
   z-index: 10;
-  background: rgba(5, 5, 5, .22);
+  background: rgba(5, 5, 5, .30);
   pointer-events: none;
   transition: opacity 180ms ease-out;
 }
@@ -1852,7 +1836,6 @@
   }
   .scene-mainline-text { max-width: calc(100% - 24px); max-height: 38%; padding: 2px 0; }
   .scene-mainline-text { font-size: 12px; line-height: 1.5; }
-  .mainline-scene--map-only .scene-feedback--overlay { max-width: calc(100% - 24px); padding: 5px 8px; }
 }
 
 @media (max-height: 600px) and (orientation: landscape) {

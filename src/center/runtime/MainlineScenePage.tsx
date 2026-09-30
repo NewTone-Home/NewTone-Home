@@ -122,7 +122,7 @@ type MainlineSceneEcho = {
 }
 
 function createMainlineSceneEcho(id: number, entityId: string | undefined, text: string, position: Point, options?: readonly string[]): MainlineSceneEcho {
-  const segments = [text.trim()]
+  const segments = splitMainlineInteractionText(text)
   return {
     id,
     entityId,
@@ -136,7 +136,7 @@ function createMainlineSceneEcho(id: number, entityId: string | undefined, text:
 }
 
 function replaceMainlineSceneEchoText(current: MainlineSceneEcho, text: string): MainlineSceneEcho {
-  const segments = [text.trim()]
+  const segments = splitMainlineInteractionText(text)
   return {
     ...current,
     text: segments[0] ?? text.trim(),
@@ -188,7 +188,6 @@ export function MainlineScenePage({
   movementController,
   onPositionChange,
   onSceneReady,
-  onFeedbackChange,
   walkRequest,
   phoneOpen = false,
   onPhoneDismiss,
@@ -222,7 +221,6 @@ export function MainlineScenePage({
   movementController?: FreeRoamMovement
   onPositionChange?: (position: Point) => void
   onSceneReady?: () => void
-  onFeedbackChange?: (feedback: string | null) => void
   walkRequest?: { id: number; point: Point } | null
   phoneOpen?: boolean
   onPhoneDismiss?: () => void
@@ -296,7 +294,11 @@ export function MainlineScenePage({
   const debugCafeFixtureAppliedRef = useRef(false)
   const debugCafePlayerPositionAppliedRef = useRef(false)
   const handledWalkRequestRef = useRef<number | null>(null)
-  const [feedback, setFeedback] = useState<string | null>(null)
+  // Scene feedback is intentionally no longer a presentation channel. Calls
+  // remain semantic no-ops while navigation and interaction outcomes retain
+  // their own state transitions.
+  const feedback = null
+  const setFeedback = useCallback((_message: string | null) => undefined, [])
   const [ambientNpcRuntime, setAmbientNpcRuntime] = useState<ReadonlyMap<string, { position: Point | null; snapshot: NpcRuntimeSnapshot }>>(new Map())
   const [inputDiagnostic, setInputDiagnostic] = useState<MainlineInputDiagnostic | null>(null)
   useEffect(() => {
@@ -422,6 +424,14 @@ export function MainlineScenePage({
     sceneEchoRef.current = next
     setSceneEcho(next)
   }, [])
+  useEffect(() => {
+    if (!phoneOpen) return
+    if (commercialCafeNarrative || commercialStreetQuestionNarrative) {
+      onPhoneDismiss?.()
+      return
+    }
+    dismissSceneEcho()
+  }, [commercialCafeNarrative, commercialStreetQuestionNarrative, dismissSceneEcho, onPhoneDismiss, phoneOpen])
   const presentSceneEcho = useCallback((next: MainlineSceneEcho) => {
     const current = sceneEchoRef.current
     if (!current) {
@@ -474,6 +484,12 @@ export function MainlineScenePage({
   const activeDialogueText = activeDialogueSegments[dialogueSegmentIndex] ?? activeDialogueSegments[0] ?? ''
   const internalMovement = useFreeRoamMovement(initialPosition)
   const { position, moving, moveAlong: rawMoveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
+  useEffect(() => {
+    const current = sceneEchoRef.current
+    if (!current || current.phase === 'leaving' || scene.presentation.mode !== 'actor-relative' || !scene.presentation.readingRail) return
+    const readableSpan = scene.presentation.readingRail.maxX - scene.presentation.readingRail.minX
+    if (Math.abs(position.x - current.position.x) > readableSpan * .7) dismissSceneEcho()
+  }, [dismissSceneEcho, position.x, scene.presentation])
   const storefrontPresentation = useStorefrontPresentation(scene, position)
   const reportedCafeRevealRef = useRef(false)
   const cafeStorefrontPhase = scene.id === 'commercial-street'
@@ -1139,7 +1155,6 @@ export function MainlineScenePage({
   }, [])
 
   useEffect(() => onPositionChange?.(position), [onPositionChange, position])
-  useEffect(() => onFeedbackChange?.(feedback), [feedback, onFeedbackChange])
 
   useEffect(() => {
     const previousExternalExit = externalExits.find((boundary) => isPastExternalExit(previousExternalExitPositionRef.current, boundary, scene))
@@ -1258,8 +1273,9 @@ export function MainlineScenePage({
   }, [commercialCafeStory.narrativeCursor, commercialCafeStory.status, onChapterAnalytics, scene.id])
 
   const startPassageTraversal = useCallback((passage: MainlineScenePassage, requestedTarget: Point, plannedApproachPath?: Point[] | null, continuationPath?: Point[] | null, passageQueue: readonly MainlineScenePassage[] = [passage], passageIndex = 0) => {
+    dismissSceneEcho()
     beginPassageLeg(passage, requestedTarget, plannedApproachPath, continuationPath, passageQueue, passageIndex)
-  }, [beginPassageLeg])
+  }, [beginPassageLeg, dismissSceneEcho])
 
   const interact = useCallback((entityId: string) => {
     if (commercialCafeNarrative) return
@@ -1711,7 +1727,6 @@ export function MainlineScenePage({
     }
     setDialogueLineIndex(null)
     setNpcDialogue(null)
-    dismissSceneEcho()
     setActiveObjectId(null)
     leavePlayerSeat()
     // The marker is the player's unmodified world command, not the current
@@ -1794,7 +1809,6 @@ export function MainlineScenePage({
   }, [cancelPassageLifecycle, initialPosition, resetMovement, scene.id, sceneDefinition, setFeedback])
 
   const currentAreaLabel = mainlineSceneAreaLabel(scene, position)
-  const shouldRenderFeedback = !embedded && Boolean(feedback)
   const cameraOffset = mainlineCameraOffset(scene, position, embedded)
   const debugCafeCounterStructure = debugRuntimeEvidence && scene.id === 'commercial-cafe'
     ? scene.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-body')
@@ -1907,12 +1921,10 @@ export function MainlineScenePage({
               debugInput={debugInput}
               debugNpcMovement={debugNpcMovement}
               onDebugNpcMovement={debugNpcMovement ? runDebugServerMovement : undefined}
-              debugFeedback={feedback}
               inputDiagnostic={inputDiagnostic}
               onInputDiagnostic={debugInput ? setInputDiagnostic : undefined}
             />
         {!embedded && showSceneChrome && <>
-          {shouldRenderFeedback && <div className="scene-feedback" aria-live="polite">{feedback}</div>}
           <div className="scene-hint">{layoutMode ? `拖动文字或桌组调整构图；位置会吸附到 ${layoutGridSize}% 网格。` : scene.hint}</div>
           <div className="scene-toolbar">
             <span>{layoutMode ? `摆设编辑中 · 网格 ${layoutGridSize}%` : currentAreaLabel}</span>
@@ -1926,7 +1938,6 @@ export function MainlineScenePage({
             </div>
           </div>
         </>}
-        {!showSceneChrome && shouldRenderFeedback && <div className="scene-feedback scene-feedback--overlay" aria-live="polite">{feedback}</div>}
       </main>
     </div>
     </>

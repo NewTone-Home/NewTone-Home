@@ -31,13 +31,14 @@ test('fixed scenes use one authored no-frame observation area and no default map
   await expectFixedObservation(page, 'zhongshuyuan-office', page.locator('[data-object-id="zhongshuyuan-office-desk"]'), 'text-fixed-office.png', testInfo)
 })
 
-test('Commercial Street observation stays protagonist-relative without a frame', async ({ page }, testInfo) => {
+test('Commercial Street observation uses the road-center reading rail without a frame', async ({ page }, testInfo) => {
   await page.goto('/?scene=commercial-street')
   await page.getByRole('button', { name: '花店', exact: true }).click()
   const text = page.locator('[data-scene-echo="commercial-north-slot-3"]')
   const protagonist = page.locator('[data-actor-id="protagonist"]')
   await expect(text).toBeVisible({ timeout: 15_000 })
   await expect(text.locator('[data-scene-text-mode="observation"]')).toBeVisible()
+  await expect(text.locator('[data-scene-text-mode="observation"]')).toHaveText(/.{11,}/)
   expect(await text.locator('.scene-focus-frame').count()).toBe(0)
   const [stage, textBox, protagonistBox] = await Promise.all([
     page.locator('.mainline-scene-stage').boundingBox(),
@@ -47,8 +48,11 @@ test('Commercial Street observation stays protagonist-relative without a frame',
   expect(stage).not.toBeNull()
   expect(textBox).not.toBeNull()
   expect(protagonistBox).not.toBeNull()
-  const verticalOffset = (textBox!.y + textBox!.height / 2 - (protagonistBox!.y + protagonistBox!.height / 2)) / stage!.height * 100
-  expect(verticalOffset).toBeLessThan(-10)
-  expect(verticalOffset).toBeGreaterThan(-18)
+  const policy = mainlineScenes['commercial-street'].presentation
+  if (policy.mode !== 'actor-relative' || !policy.readingRail) throw new Error('Commercial Street must use a reading rail.')
+  const textCenterY = (textBox!.y + textBox!.height / 2 - stage!.y) / stage!.height * 100
+  expect(textCenterY).toBeGreaterThan(policy.readingRail.centerY - 3)
+  expect(textCenterY).toBeLessThan(policy.readingRail.centerY + 3)
+  expect(textBox!.x + textBox!.width / 2).toBeGreaterThan(protagonistBox!.x + protagonistBox!.width / 2)
   await page.screenshot({ path: testInfo.outputPath('text-relative-commercial-street.png') })
 })

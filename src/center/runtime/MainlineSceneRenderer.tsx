@@ -77,7 +77,6 @@ type MainlineSceneRendererProps = {
   debugInput?: boolean
   debugNpcMovement?: boolean
   onDebugNpcMovement?: () => void
-  debugFeedback?: string | null
   inputDiagnostic?: MainlineInputDiagnostic | null
   onInputDiagnostic?: (diagnostic: MainlineInputDiagnostic) => void
   incenseLit?: boolean
@@ -202,7 +201,7 @@ type MainlineDoorButtonProps = {
   dataAttributes?: Record<string, string | undefined>
 }
 
-function ObservationText({ text, typing, onTypingComplete }: { text: string; typing: boolean; onTypingComplete?: () => void }) {
+function ObservationText({ echoId, text, typing, onTypingComplete }: { echoId: number; text: string; typing: boolean; onTypingComplete?: (echoId: number) => void }) {
   const characters = useMemo(() => Array.from(text), [text])
   const [visibleCount, setVisibleCount] = useState(0)
 
@@ -219,11 +218,11 @@ function ObservationText({ text, typing, onTypingComplete }: { text: string; typ
       const next = Math.min(characters.length, Math.floor((now - startedAt) / 28) + 1)
       setVisibleCount((current) => current === next ? current : next)
       if (next < characters.length) frame = window.requestAnimationFrame(advance)
-      else onTypingComplete?.()
+      else onTypingComplete?.(echoId)
     }
     frame = window.requestAnimationFrame(advance)
     return () => window.cancelAnimationFrame(frame)
-  }, [characters, onTypingComplete, typing])
+  }, [characters, echoId, onTypingComplete, typing])
 
   return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">{characters.slice(0, visibleCount).join('')}</span>
 }
@@ -545,7 +544,6 @@ export function MainlineSceneRenderer({
   debugInput = false,
   debugNpcMovement = false,
   onDebugNpcMovement,
-  debugFeedback = null,
   inputDiagnostic = null,
   onInputDiagnostic,
   incenseLit = false,
@@ -1137,7 +1135,7 @@ export function MainlineSceneRenderer({
               {isDialogue && <span className="scene-mainline-text__speaker">{dialogueLine!.speaker}</span>}
               {isDialogue
                 ? <DialogueText group={`${group}:${dialogueSegmentIndex}`} text={text} onAdvance={onDialogueAdvance} />
-                : <ObservationText text={text} typing={sceneEcho!.typing} onTypingComplete={() => onSceneEchoTypingComplete?.(sceneEcho!.id)} />}
+                : <ObservationText echoId={sceneEcho!.id} text={text} typing={sceneEcho!.typing} onTypingComplete={onSceneEchoTypingComplete} />}
               {sceneEcho?.options && sceneEcho.options.length > 0 && !sceneEcho.typing && sceneEcho.segmentIndex + 1 >= sceneEcho.segments.length && <div className="scene-mainline-text__choices">
                 {sceneEcho.options.map((option, index) => (
                   <button key={option} type="button" onClick={(event) => { event.stopPropagation(); onSceneEchoChoice?.(index) }}>
@@ -1179,7 +1177,6 @@ export function MainlineSceneRenderer({
             <div>screen：{inputDiagnostic.screenPoint.x.toFixed(2)}%, {inputDiagnostic.screenPoint.y.toFixed(2)}%</div>
             <div>mapped：{inputDiagnostic.mappedPoint.x.toFixed(2)}%, {inputDiagnostic.mappedPoint.y.toFixed(2)}%</div>
           </>}
-          {debugFeedback && <div>反馈：{debugFeedback}</div>}
         </div>}
       </div>
     </section>

@@ -20,6 +20,18 @@ export function sceneTextPresentationPosition(
   const policy = scene.presentation
   if (policy.mode === 'fixed') return policy.anchor
 
+  if (policy.readingRail) {
+    const layout = mainlineEchoLayout(text, screenMetrics)
+    const halfWidth = (layout.widthPx / screenMetrics.width) * 50
+    const right = protagonist.x + halfWidth + policy.readingRail.gap
+    const left = protagonist.x - halfWidth - policy.readingRail.gap
+    const fitsRight = right - halfWidth >= policy.readingRail.minX && right + halfWidth <= policy.readingRail.maxX
+    const x = fitsRight
+      ? right
+      : Math.min(policy.readingRail.maxX - halfWidth, Math.max(policy.readingRail.minX + halfWidth, left))
+    return { x, y: policy.readingRail.centerY }
+  }
+
   const bounds = mainlineSceneWalkBounds(scene, screenMetrics)
   const layout = mainlineEchoLayout(text, screenMetrics)
   const halfWidth = (layout.widthPx / screenMetrics.width) * 50

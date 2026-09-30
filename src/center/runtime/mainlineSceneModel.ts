@@ -382,7 +382,7 @@ export type MainlineSceneViewport = 'fixed-frame' | 'follow-player'
  */
 export type MainlineSceneTextPresentationPolicy =
   | { mode: 'fixed'; anchor: Point }
-  | { mode: 'actor-relative'; offset: Point }
+  | { mode: 'actor-relative'; offset: Point; readingRail?: { centerY: number; minX: number; maxX: number; gap: number } }
 
 type MainlineWallBlueprint = {
   id: string
@@ -1049,7 +1049,7 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
   subtitle: '两侧连续的现代临街店面夹出一条主通道，尽头接入独立的咖啡馆场景。',
   statusLabel: '里世界',
   hint: '沿中间主通道前进；右侧尾端的咖啡馆是独立场景，门只在路线真正通过时打开。',
-  presentation: { mode: 'actor-relative', offset: authoredPoint(0, -14) },
+  presentation: { mode: 'actor-relative', offset: authoredPoint(0, 0), readingRail: { centerY: 50, minX: 16, maxX: 184, gap: 6 } },
   areaLabel: (position) => position.x >= 140 ? '商业街尾端' : '里世界',
   scene: {
     walkBounds: box(8, 10, 192, 80),
@@ -1095,7 +1095,7 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
   id: 'commercial-cafe', title: '第二章 · 咖啡馆',
   subtitle: '独立的咖啡馆室内；墙、曲线窗格、菜单、黑板、柜台和桌椅都由主线场景契约直接编译。',
   statusLabel: '商业街 / 咖啡馆', hint: '入口在左侧；右侧弧形玻璃是窗边界，菜单和黑板在后墙，后门暂时受权限控制。',
-  presentation: { mode: 'fixed', anchor: authoredPoint(50, 50) },
+  presentation: { mode: 'fixed', anchor: authoredPoint(46, 58) },
   areaLabel: '咖啡馆',
   scene: {
     walkBounds: commercialCafeBounds, wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
@@ -1262,7 +1262,7 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
   subtitle: '姬家祖宅前院是一个独立场景，右侧正门通向祖宅内堂。',
   statusLabel: '姬家祖宅 / 前院',
   hint: '从前院右侧正门进入祖宅；左侧院门是前院的固定边界出口。',
-  presentation: { mode: 'fixed', anchor: authoredPoint(77, 30) },
+  presentation: { mode: 'fixed', anchor: authoredPoint(55, 67) },
   areaLabel: '前院',
   scene: {
     walkBounds: jijiaYardBounds,
@@ -1309,7 +1309,7 @@ const jijiaAncestralInteriorBlueprint: MainlineSceneBlueprint = {
   subtitle: '祖宅内堂是独立场景，正门在左侧，右侧后门通向窄暗道。',
   statusLabel: '姬家祖宅 / 内堂',
   hint: '正门在左侧；内堂上下各有两幅画像，右墙中线另有一幅，后门通向中枢院窄暗道。',
-  presentation: { mode: 'fixed', anchor: authoredPoint(76, 30) },
+  presentation: { mode: 'fixed', anchor: authoredPoint(55, 66) },
   areaLabel: '祖宅内堂',
   scene: {
     walkBounds: jijiaInnerHouseBounds,
@@ -1706,7 +1706,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
   subtitle: '中枢院内部的一层办公区，中央长廊连接数间办公室。',
   statusLabel: '中枢院 / 内部楼层',
   hint: '左下办公室是当前办公点；玻璃门通向中央长廊，实体墙上的暗道门通向中枢院窄暗道。中央长廊左右两端都是外部出口，走到任一端手机都会弹出。',
-  presentation: { mode: 'fixed', anchor: authoredPoint(58, 24) },
+  presentation: { mode: 'fixed', anchor: authoredPoint(51, 50) },
   areaLabel: '中枢院办公室',
   scene: {
       walkBounds: zhongshuyuanOfficeFloorBounds,

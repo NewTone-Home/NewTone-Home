@@ -65,6 +65,28 @@
         "expect(coffeeDelivered).toBe(true)",
         "coffeeOrdered: true, coffeeDelivered: false"
       ]
+    },
+    {
+      "id": "scene-text-segmentation-2026-09-30",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/mainlineTextSegments.test.js",
+      "oldContract": "Every comma creates a separate invisible scene-text segment.",
+      "newContract": "Short vocatives stay with their clause, punctuation remains visible, and only long text splits at a readable boundary.",
+      "requiredAddedAssertions": [
+        "老周，陈副部长还是没有消息吗？",
+        "矿区外围旧摄像头曾多次疑似拍到陈副部长，"
+      ]
+    },
+    {
+      "id": "commercial-street-reading-rail-2026-09-30",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/sceneTextPresentation.test.ts",
+      "oldContract": "Commercial Street text follows a generic protagonist offset clamped to walk bounds.",
+      "newContract": "Commercial Street text uses an authored road-center reading rail and chooses a fixed side with enough width.",
+      "requiredAddedAssertions": [
+        "expect(right.y).toBe(rail.centerY)",
+        "expect(left.x).toBeLessThan(rail.maxX - 2)"
+      ]
     }
   ]
 }

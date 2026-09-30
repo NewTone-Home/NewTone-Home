@@ -15,7 +15,7 @@ describe('scene text presentation policy', () => {
     expect(sceneTextPresentationPosition(scene, upperRight, '窗边没有人。', desktop)).toEqual(scene.presentation.anchor)
   })
 
-  it('keeps long scenes protagonist-relative and only clamps at the authored walk bounds', () => {
+  it('pins Commercial Street text to the authored road reading rail', () => {
     const scene = mainlineScenes['commercial-street']
     expect(scene.presentation.mode).toBe('actor-relative')
     if (scene.presentation.mode !== 'actor-relative') throw new Error('Commercial Street needs an actor-relative text presentation policy.')
@@ -23,12 +23,13 @@ describe('scene text presentation policy', () => {
       x: scene.walkBounds.x + scene.walkBounds.width / 2,
       y: scene.walkBounds.y + scene.walkBounds.height / 2,
     }
-    expect(sceneTextPresentationPosition(scene, protagonist, '门边的木架上堆着几本薄薄的杂志。', desktop)).toEqual({
-      x: protagonist.x + scene.presentation.offset.x,
-      y: protagonist.y + scene.presentation.offset.y,
-    })
-    const clamped = sceneTextPresentationPosition(scene, { x: scene.walkBounds.x, y: scene.walkBounds.y }, '门边的木架上堆着几本薄薄的杂志。', desktop)
-    expect(clamped.x).toBeGreaterThanOrEqual(scene.walkBounds.x)
-    expect(clamped.y).toBeGreaterThanOrEqual(scene.walkBounds.y)
+    const rail = scene.presentation.readingRail
+    if (!rail) throw new Error('Commercial Street must define a reading rail.')
+    const right = sceneTextPresentationPosition(scene, protagonist, '门边的木架上堆着几本薄薄的杂志。', desktop)
+    expect(right.y).toBe(rail.centerY)
+    expect(right.x).toBeGreaterThan(protagonist.x)
+    const left = sceneTextPresentationPosition(scene, { x: rail.maxX - 2, y: rail.centerY }, '门边的木架上堆着几本薄薄的杂志。', desktop)
+    expect(left.y).toBe(rail.centerY)
+    expect(left.x).toBeLessThan(rail.maxX - 2)
   })
 })
