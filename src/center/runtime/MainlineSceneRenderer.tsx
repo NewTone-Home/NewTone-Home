@@ -65,8 +65,9 @@ type MainlineSceneRendererProps = {
   dialogueLock?: boolean
   onDialogueExitComplete?: () => void
   onDialogueAdvance?: () => void
-  sceneEcho?: { id: number; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; phase?: 'leaving' } | null
+  sceneEcho?: { id: number; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; typing: boolean; phase?: 'leaving' } | null
   onSceneEchoAdvance?: () => void
+  onSceneEchoTypingComplete?: (echoId: number) => void
   onSceneEchoChoice?: (index: number) => void
   onSceneEchoExitComplete?: (echoId: number) => void
   carriedMilkTea?: boolean
@@ -201,13 +202,16 @@ type MainlineDoorButtonProps = {
   dataAttributes?: Record<string, string | undefined>
 }
 
-function ObservationText({ text }: { text: string }) {
+function ObservationText({ text, typing, onTypingComplete }: { text: string; typing: boolean; onTypingComplete?: () => void }) {
   const characters = useMemo(() => Array.from(text), [text])
   const [visibleCount, setVisibleCount] = useState(0)
 
   useEffect(() => {
     setVisibleCount(0)
-    if (characters.length === 0) return
+    if (!typing || characters.length === 0) {
+      setVisibleCount(characters.length)
+      return
+    }
     let frame = 0
     let startedAt: number | null = null
     const advance = (now: number) => {
@@ -215,12 +219,31 @@ function ObservationText({ text }: { text: string }) {
       const next = Math.min(characters.length, Math.floor((now - startedAt) / 28) + 1)
       setVisibleCount((current) => current === next ? current : next)
       if (next < characters.length) frame = window.requestAnimationFrame(advance)
+      else onTypingComplete?.()
     }
     frame = window.requestAnimationFrame(advance)
     return () => window.cancelAnimationFrame(frame)
-  }, [characters])
+  }, [characters, onTypingComplete, typing])
 
   return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">{characters.slice(0, visibleCount).join('')}</span>
+}
+
+function DialogueText({ group, text, onAdvance }: { group: string; text: string; onAdvance?: () => void }) {
+  const [ready, setReady] = useState(false)
+  useEffect(() => setReady(false), [group])
+  return <button
+    type="button"
+    className="scene-mainline-text__dialogue"
+    data-scene-text-mode="dialogue"
+    onClick={(event) => {
+      event.stopPropagation()
+      if (ready) onAdvance?.()
+    }}
+  >
+    <span key={group} onAnimationEnd={(event) => {
+      if (event.target === event.currentTarget) setReady(true)
+    }}>{text}</span>
+  </button>
 }
 
 function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph, doorPhase, focusGroup, focusPolicy, gateTriggered, frameRetracting, active, closeHint, ariaLabel, renderFocusFrame, onInteract, onDoorTransitionComplete, dataAttributes }: MainlineDoorButtonProps) {
@@ -512,6 +535,7 @@ export function MainlineSceneRenderer({
   onDialogueAdvance,
   sceneEcho = null,
   onSceneEchoAdvance,
+  onSceneEchoTypingComplete,
   onSceneEchoChoice,
   onSceneEchoExitComplete,
   carriedMilkTea = false,
@@ -1102,7 +1126,7 @@ export function MainlineSceneRenderer({
               data-scene-segment-advance={hasNextSegment ? 'available' : 'complete'}
               onClick={(event) => {
                 event.stopPropagation()
-                advance?.()
+                if (!isDialogue) advance?.()
               }}
               onAnimationEnd={(event) => {
                 if (!isLeaving || event.target !== event.currentTarget) return
@@ -1112,9 +1136,9 @@ export function MainlineSceneRenderer({
             >
               {isDialogue && <span className="scene-mainline-text__speaker">{dialogueLine!.speaker}</span>}
               {isDialogue
-                ? <span className="scene-mainline-text__dialogue" key={`${group}:${dialogueSegmentIndex}`} data-scene-text-mode="dialogue">{text}</span>
-                : <ObservationText text={text} />}
-              {sceneEcho?.options && sceneEcho.options.length > 0 && <div className="scene-mainline-text__choices">
+                ? <DialogueText group={`${group}:${dialogueSegmentIndex}`} text={text} onAdvance={onDialogueAdvance} />
+                : <ObservationText text={text} typing={sceneEcho!.typing} onTypingComplete={() => onSceneEchoTypingComplete?.(sceneEcho!.id)} />}
+              {sceneEcho?.options && sceneEcho.options.length > 0 && !sceneEcho.typing && sceneEcho.segmentIndex + 1 >= sceneEcho.segments.length && <div className="scene-mainline-text__choices">
                 {sceneEcho.options.map((option, index) => (
                   <button key={option} type="button" onClick={(event) => { event.stopPropagation(); onSceneEchoChoice?.(index) }}>
                     {option}
@@ -1131,7 +1155,7 @@ export function MainlineSceneRenderer({
               aria-label="继续对话"
               data-scene-dialogue-shield="true"
               onPointerUp={(event) => event.stopPropagation()}
-              onClick={(event) => { event.stopPropagation(); onDialogueAdvance?.() }}
+              onClick={(event) => event.stopPropagation()}
             />
           </>}
           </>

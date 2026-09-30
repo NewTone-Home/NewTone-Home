@@ -1511,8 +1511,9 @@
 }
 .scene-mainline-text__speaker { display: block; width: max-content; margin-bottom: 3px; color: var(--active); font-size: .72em; letter-spacing: .06em; }
 .scene-mainline-text__observation { display: block; min-height: 1.6em; width: max-content; white-space: nowrap; }
-.scene-mainline-text__dialogue { display: block; width: max-content; white-space: nowrap; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.22, .61, .36, 1) both; }
-.scene-mainline-text--dialogue { z-index: 12; isolation: isolate; color: var(--active); }
+.scene-mainline-text__dialogue { display: block; width: max-content; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; white-space: nowrap; cursor: pointer; }
+.scene-mainline-text__dialogue > span { display: block; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.22, .61, .36, 1) both; }
+.scene-mainline-text--dialogue { z-index: 14; isolation: isolate; color: var(--active); }
 .scene-mainline-object > .scene-focus-frame {
   inset: -.12em -.18em;
 }

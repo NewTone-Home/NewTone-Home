@@ -26,10 +26,10 @@ async function advanceNarrative(page: Page, maximum = 80) {
   const shield = page.locator('[data-scene-dialogue-shield="true"]')
   for (let index = 0; index < maximum; index += 1) {
     const interaction = await page.evaluate(() => {
-      const shieldElement = document.querySelector<HTMLElement>('[data-scene-dialogue-shield="true"]')
       const dialogueElement = document.querySelector<HTMLElement>('[data-scene-dialogue]')
-      if (!shieldElement || !dialogueElement) return null
-      const rect = shieldElement.getBoundingClientRect()
+      const textElement = document.querySelector<HTMLElement>('[data-scene-text-mode="dialogue"]')
+      if (!dialogueElement || !textElement) return null
+      const rect = textElement.getBoundingClientRect()
       if (rect.width === 0 || rect.height === 0) return null
       return {
         bounds: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
@@ -37,6 +37,7 @@ async function advanceNarrative(page: Page, maximum = 80) {
       }
     })
     if (!interaction) return
+    await page.waitForTimeout(400)
     await page.mouse.click(
       interaction.bounds.x + interaction.bounds.width / 2,
       interaction.bounds.y + interaction.bounds.height / 2,
@@ -52,10 +53,10 @@ async function advanceNarrative(page: Page, maximum = 80) {
 async function advanceNarrativeToLine(page: Page, lineId: string, maximum = 40) {
   for (let index = 0; index < maximum; index += 1) {
     if (await page.locator(`[data-dialogue-line-id="${lineId}"]`).count() > 0) return
-    const shield = page.locator('[data-scene-dialogue-shield="true"]')
-    await expect(shield).toBeVisible()
+    await expect(page.locator('[data-scene-dialogue-shield="true"]')).toBeVisible()
     const previous = await page.locator('[data-scene-dialogue]').evaluate((element) => `${(element as HTMLElement).dataset.dialogueLineId}:${(element as HTMLElement).dataset.sceneSegmentIndex}:${element.textContent}`)
-    await shield.click({ force: true })
+    await page.waitForTimeout(400)
+    await page.locator('[data-scene-text-mode="dialogue"]').click()
     await page.waitForFunction((token) => {
       const current = document.querySelector<HTMLElement>('[data-scene-dialogue]')
       return current && `${current.dataset.dialogueLineId}:${current.dataset.sceneSegmentIndex}:${current.textContent}` !== token
@@ -72,7 +73,8 @@ async function advanceVisibleDialogue(page: Page, maximum = 20) {
       return `${dialogue.dataset.dialogueLineId}:${dialogue.dataset.sceneSegmentIndex}:${dialogue.textContent}`
     })
     if (!interaction) return
-    await page.locator('[data-scene-dialogue]').click({ force: true })
+    await page.waitForTimeout(400)
+    await page.locator('[data-scene-text-mode="dialogue"]').click()
     await page.waitForFunction((previous) => {
       const current = document.querySelector<HTMLElement>('[data-scene-dialogue]')
       return !current || `${current.dataset.dialogueLineId}:${current.dataset.sceneSegmentIndex}:${current.textContent}` !== previous
@@ -126,7 +128,8 @@ test('Café long dialogue remains readable at the fixed world anchor without a c
   await startNarrative(page)
   await advanceNarrativeToLine(page, 'commercial-cafe-coffee-lao-zhou')
   const dialogue = page.locator('[data-dialogue-line-id="commercial-cafe-coffee-lao-zhou"]')
-  await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
+  await page.waitForTimeout(400)
+  await page.locator('[data-scene-text-mode="dialogue"]').click()
   await expect(dialogue).toHaveAttribute('data-scene-segment-index', '1')
   await expect(dialogue).toContainText('我真喝不惯那玩意儿')
   const [stageBox, dialogueBox] = await Promise.all([
@@ -154,9 +157,12 @@ test('Café narrative shield consumes object, door, and open-floor clicks withou
     expect(box).not.toBeNull()
     const previous = await page.locator('[data-scene-dialogue]').evaluate((element) => `${(element as HTMLElement).dataset.dialogueLineId}:${(element as HTMLElement).dataset.sceneSegmentIndex}:${element.textContent}`)
     await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+    await page.waitForTimeout(250)
+    const afterText = await page.locator('[data-scene-dialogue]').evaluate((element) => `${(element as HTMLElement).dataset.dialogueLineId}:${(element as HTMLElement).dataset.sceneSegmentIndex}:${element.textContent}`)
+    expect(afterText).toBe(previous)
     await page.waitForFunction((token) => {
       const current = document.querySelector<HTMLElement>('[data-scene-dialogue]')
-      return current && `${current.dataset.dialogueLineId}:${current.dataset.sceneSegmentIndex}:${current.textContent}` !== token
+      return current && `${current.dataset.dialogueLineId}:${current.dataset.sceneSegmentIndex}:${current.textContent}` === token
     }, previous)
     const after = await protagonist.boundingBox()
     expect(after).not.toBeNull()

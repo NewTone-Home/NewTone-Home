@@ -54,7 +54,7 @@ type AmbientNpcMotionProps = {
   navigationOptions: MainlineNavigationOptions
   footprint: NavigationActorFootprint
   movementOptions: MovementOptions
-  sceneClockMs: number
+  protagonistPosition: Point
   onRuntimeChange: (npcId: string, position: Point | null, snapshot: NpcRuntimeSnapshot) => void
 }
 
@@ -94,24 +94,39 @@ function targetForAmbientStep(
   ).target
 }
 
-/** A shared scene-frame clock; route timing advances only while this scene is mounted. */
-export function useAmbientNpcSceneClock(enabled: boolean) {
-  const [sceneClockMs, setSceneClockMs] = useState(0)
+/**
+ * A scene-frame clock local to each ambient route projection. Keeping this
+ * state below MainlineScenePage prevents clock ticks from feeding the Page's
+ * NPC-runtime projection back into adapter revisions.
+ */
+export function useAmbientNpcSceneClock(enabled: boolean, wakeAtMs: number | null) {
+  const startedAtRef = useRef<number | null>(null)
+  const clockRef = useRef(0)
+  const notifiedWakeRef = useRef<number | null>(null)
+  const [, setWakeRevision] = useState(0)
   useEffect(() => {
     if (!enabled) {
-      setSceneClockMs(0)
+      startedAtRef.current = null
+      clockRef.current = 0
+      notifiedWakeRef.current = null
       return
     }
-    const startedAt = performance.now()
+    const startedAt = startedAtRef.current ?? performance.now()
+    startedAtRef.current = startedAt
     let frame = 0
     const advance = (now: number) => {
-      setSceneClockMs(now - startedAt)
+      clockRef.current = now - startedAt
+      if (wakeAtMs !== null && clockRef.current >= wakeAtMs && notifiedWakeRef.current !== wakeAtMs) {
+        notifiedWakeRef.current = wakeAtMs
+        setWakeRevision((revision) => revision + 1)
+        return
+      }
       frame = window.requestAnimationFrame(advance)
     }
     frame = window.requestAnimationFrame(advance)
     return () => window.cancelAnimationFrame(frame)
-  }, [enabled])
-  return sceneClockMs
+  }, [enabled, wakeAtMs])
+  return clockRef.current
 }
 
 /**
@@ -129,7 +144,7 @@ export function AmbientNpcMotion({
   navigationOptions,
   footprint,
   movementOptions,
-  sceneClockMs,
+  protagonistPosition,
   onRuntimeChange,
 }: AmbientNpcMotionProps) {
   const movement = useNpcMovement({
@@ -149,6 +164,10 @@ export function AmbientNpcMotion({
   const previousPhaseRef = useRef(movement.snapshot.phase)
   const hiddenActivityRef = useRef<HiddenAmbientActivity | null>(null)
   const yieldedForCurrentProximityRef = useRef(false)
+  const nextWakeAtMs = hiddenActivity?.untilMs
+    ?? recovery?.retryAtMs
+    ?? (movement.snapshot.phase === 'moving' ? null : readyAtMs)
+  const sceneClockMs = useAmbientNpcSceneClock(enabled, nextWakeAtMs)
   const latestRef = useRef({ enabled, scene, layout, navigationOptions, movementOptions, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs })
   latestRef.current = { enabled, scene, layout, navigationOptions, movementOptions, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs }
   const resetKey = `${enabled}:${schedule.npcId}:${initialPosition.x}:${initialPosition.y}`
@@ -206,7 +225,7 @@ export function AmbientNpcMotion({
     setRecovery(null)
     setRouteIndex((index) => (index + 1) % schedule.steps.length)
     setReadyAtMs(sceneClockMs)
-  }, [enabled, hiddenActivity, movement.snapshot.phase, navigationRuntime, schedule.npcId, schedule.steps.length, sceneClockMs])
+  }, [enabled, hiddenActivity, movement.snapshot.phase, navigationRuntime, protagonistPosition.x, protagonistPosition.y, schedule.npcId, schedule.steps.length, sceneClockMs])
 
   useEffect(() => {
     const decision = ambientNpcBlockedRecoveryDecision(

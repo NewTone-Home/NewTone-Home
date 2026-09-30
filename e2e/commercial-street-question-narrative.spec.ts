@@ -18,6 +18,12 @@ async function clickWorldPoint(page: Page, point: { x: number; y: number }) {
   await stage.click({ position: screenPoint })
 }
 
+async function advanceDialogueFromText(page: Page) {
+  const dialogue = page.locator('[data-scene-dialogue="commercial-street-question"]')
+  await page.waitForTimeout(400)
+  await dialogue.locator('[data-scene-text-mode="dialogue"]').click()
+}
+
 test('the Commercial Street question mark locks input, presents Xiao Jie dialogue, and persists only at the end', async ({ page }, testInfo) => {
   const consoleErrors: string[] = []
   page.on('pageerror', (error) => consoleErrors.push(error.message))
@@ -50,11 +56,14 @@ test('the Commercial Street question mark locks input, presents Xiao Jie dialogu
   const stoppedAt = await protagonist.getAttribute('data-runtime-x')
   await page.screenshot({ path: testInfo.outputPath('commercial-street-question-active.png') })
 
-  await shield.click()
+  // The shield blocks the world but never owns dialogue progression.
+  await shield.click({ force: true })
+  await expect(dialogue).toContainText('难道刚刚是幻觉吗？')
+  await advanceDialogueFromText(page)
   await expect(dialogue).toContainText('不，不会认错的。')
-  await shield.click()
+  await advanceDialogueFromText(page)
   await expect(dialogue).toContainText('那张脸修杰太过于熟悉。')
-  await shield.click()
+  await advanceDialogueFromText(page)
   await expect(shell).toHaveAttribute('data-commercial-question-narrative', 'leaving')
   await expect(dialogue).toBeHidden({ timeout: 5_000 })
   expect(consoleErrors).toEqual([])
