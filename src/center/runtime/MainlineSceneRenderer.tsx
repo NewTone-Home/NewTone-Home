@@ -787,6 +787,13 @@ export function MainlineSceneRenderer({
     targets: focusFrameTargets,
     freezeMeasurements: freezeFrameMeasurements,
   })
+  // Reading and an immediately following local Action are one interaction
+  // lifecycle for the source content. Focus-frame targets intentionally keep
+  // their neutral contract; this helper is only for the object/glyph content.
+  const isCurrentInteractionSource = (entityId: string | undefined) => Boolean(
+    entityId
+      && (activeObjectId === entityId || sceneEcho?.entityId === entityId || sceneAction?.entityId === entityId),
+  )
   const frameMotionProfile = useMemo<readonly SceneFocusFrameMotionProfile[]>(() => focusFrameTargets
     .map((target) => ({ group: target.group, durationMs: focusFrames.motionDurationMs(target.group) }))
     .sort((first, second) => first.group.localeCompare(second.group)), [focusFrameTargets, focusFrames.motionDurationMs])
@@ -972,7 +979,7 @@ export function MainlineSceneRenderer({
                   const entity = scene.objects.find((candidate) => candidate.id === entityId)
                   if (entity) {
                     return <Fragment key={`feature-${focusTarget.group}`}>
-                      <MainlineFocusGroup key={`focus-${focusTarget.group}`} entries={focusEntries} className="scene-mainline-wall scene-mainline-wall-feature scene-mainline-wall-feature--interaction scene-mainline-exploration--steady" visibilityClass={groupVisibilityClass} renderFrame={focusFrames.renderFrame} onInteract={onInteract} interactionEntityId={entityId} ariaLabel={`${entity.label}，点击让主角前往互动`} active={activeObjectId === entityId || sceneEcho?.entityId === entityId} explored={exploredObjectIds.has(entityId)} />
+                      <MainlineFocusGroup key={`focus-${focusTarget.group}`} entries={focusEntries} className="scene-mainline-wall scene-mainline-wall-feature scene-mainline-wall-feature--interaction scene-mainline-exploration--steady" visibilityClass={groupVisibilityClass} renderFrame={focusFrames.renderFrame} onInteract={onInteract} interactionEntityId={entityId} ariaLabel={`${entity.label}，点击让主角前往互动`} active={isCurrentInteractionSource(entityId)} explored={exploredObjectIds.has(entityId)} />
                     </Fragment>
                   }
                 }
@@ -1019,7 +1026,7 @@ export function MainlineSceneRenderer({
                 if (entity && (entity.interactive !== false || directWallFeature)) {
                   const focusGroup = `interactive:${cell.featureId ?? entityId}`
                   const featureVisualState = resolveMainlineInteractionVisualState({
-                    active: activeObjectId === entityId || sceneEcho?.entityId === entityId,
+                    active: isCurrentInteractionSource(entityId),
                     explored: exploredObjectIds.has(entityId),
                     tutorialCompleted: true,
                     tutorialEligible: false,
@@ -1051,7 +1058,7 @@ export function MainlineSceneRenderer({
               focusGroup={focusGroup}
               renderFrame={focusFrames.renderFrame}
               visibility={objectVisibility(entity, layoutMode)}
-              active={activeObjectId === entity.id || sceneEcho?.entityId === entity.id}
+              active={isCurrentInteractionSource(entity.id)}
               explored={exploredObjectIds.has(entity.id)}
               tutorialCompleted={interactionTutorialCompleted}
               underPlayer={underPlayer}
@@ -1177,6 +1184,14 @@ export function MainlineSceneRenderer({
               : <span className="scene-protagonist__seat-label" aria-label="修杰，已坐下">{protagonistPresentation.label}</span>}
             {carriedMilkTea && <span className="scene-protagonist__drink-icon scene-protagonist__drink-icon--milk-tea" aria-label="修杰带着奶茶" />}
           </div>}
+          {worldQuestionMark?.visible && <span
+            className="scene-commercial-question-mark"
+            style={{ left: `${worldQuestionMark.anchor.x}%`, top: `${worldQuestionMark.anchor.y}%` }}
+            data-commercial-question-mark="true"
+            data-world-anchor-x={worldQuestionMark.anchor.x}
+            data-world-anchor-y={worldQuestionMark.anchor.y}
+            aria-hidden="true"
+          >?</span>}
           {(sceneEcho || (dialogue && dialogueLine && dialoguePosition)) && (() => {
             const isDialogue = !sceneEcho && Boolean(dialogue && dialogueLine && dialoguePosition)
             const isLeaving = sceneEcho?.phase === 'leaving' || (isDialogue && dialoguePhase === 'leaving')
@@ -1259,14 +1274,6 @@ export function MainlineSceneRenderer({
           </>}
           </>
         </div>
-        {worldQuestionMark?.visible && <span
-          className="scene-commercial-question-mark"
-          style={{ left: `${worldQuestionMark.anchor.x + cameraOffset.x}%`, top: `${worldQuestionMark.anchor.y + cameraOffset.y}%` }}
-          data-commercial-question-mark="true"
-          data-world-anchor-x={worldQuestionMark.anchor.x}
-          data-world-anchor-y={worldQuestionMark.anchor.y}
-          aria-hidden="true"
-        >?</span>}
         {(debugInput || debugNpcMovement) && <div className="scene-input-debug" aria-live="polite">
           {debugNpcMovement && <button type="button" onClick={(event) => { event.stopPropagation(); onDebugNpcMovement?.() }}>演示店员移动</button>}
           <div>输入诊断（不改变寻路）</div>

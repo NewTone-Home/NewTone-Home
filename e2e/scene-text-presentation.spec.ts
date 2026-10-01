@@ -125,12 +125,17 @@ test('an Observation completes into an unlocked Action that can be abandoned by 
   await expect(page.locator('[data-scene-echo="zhongshuyuan-office-desk"]')).toHaveCount(0)
   await expect(page.locator('[data-scene-action="zhongshuyuan-office-plant"]')).toBeVisible()
   await expect(waterAction).toBeEnabled({ timeout: 5_000 })
+  // An Action is still part of the source interaction lifecycle. Its content
+  // stays active, while the structural Focus Frame remains neutral.
+  await expect(plant).toHaveClass(/scene-mainline-interaction--active/)
+  await expect(page.locator('[data-focus-frame-group="interactive:zhongshuyuan-office-plant"]')).toHaveCSS('opacity', '0.62')
 
   // Actions are not Reading: the same desk click dismisses the unused action
   // and starts the new contact-and-observation flow.
   await page.mouse.click(deskBox!.x + deskBox!.width / 2, deskBox!.y + deskBox!.height / 2)
   await expect(page.locator('[data-scene-action="zhongshuyuan-office-plant"]')).toHaveCount(0)
   await expect(page.locator('[data-scene-echo="zhongshuyuan-office-desk"]')).toBeVisible({ timeout: 15_000 })
+  await expect(plant).not.toHaveClass(/scene-mainline-interaction--active/)
 })
 
 async function completeObservationIntoAction(page: Page, target: Locator, entityId: string, option: string) {
@@ -148,6 +153,27 @@ async function completeObservationIntoAction(page: Page, target: Locator, entity
   return action
 }
 
+test('the incense Action keeps source content active without brightening its Focus Frame', async ({ page }, testInfo) => {
+  const consoleErrors: string[] = []
+  page.on('pageerror', (error) => consoleErrors.push(error.message))
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+  await page.goto('/?scene=jijia-ancestral-interior')
+  const incense = page.locator('[data-object-id="jijia-incense-burner"]')
+  const frame = page.locator('[data-focus-frame-group="interactive:jijia-incense-burner"]')
+  const relight = await completeObservationIntoAction(page, incense, 'jijia-incense-burner', '重新点香')
+  await expect(incense).toHaveClass(/scene-mainline-interaction--active/)
+  await expect(frame).toHaveAttribute('data-focus-frame-phase', 'visible')
+  await expect(frame).toHaveCSS('opacity', '0.62')
+  await page.screenshot({ path: testInfo.outputPath('incense-action-content-active.png') })
+  await relight.click()
+  await expect(page.locator('[data-scene-action="jijia-incense-burner"]')).toHaveCount(0)
+  await expect(incense).not.toHaveClass(/scene-mainline-interaction--active/)
+  await expect(frame).toHaveCSS('opacity', '0.62')
+  expect(consoleErrors).toEqual([])
+})
+
 test('office actions persist real world state and never leave an empty Reading presentation', async ({ page }) => {
   const consoleErrors: string[] = []
   page.on('pageerror', (error) => consoleErrors.push(error.message))
@@ -156,9 +182,12 @@ test('office actions persist real world state and never leave an empty Reading p
   })
 
   await page.goto('/?scene=zhongshuyuan-office')
-  const water = await completeObservationIntoAction(page, page.locator('[data-object-id="zhongshuyuan-office-plant"]'), 'zhongshuyuan-office-plant', '浇水')
+  const plant = page.locator('[data-object-id="zhongshuyuan-office-plant"]')
+  const water = await completeObservationIntoAction(page, plant, 'zhongshuyuan-office-plant', '浇水')
+  await expect(plant).toHaveClass(/scene-mainline-interaction--active/)
   await water.click()
   await expect(page.locator('[data-scene-action="zhongshuyuan-office-plant"]')).toHaveCount(0)
+  await expect(plant).not.toHaveClass(/scene-mainline-interaction--active/)
 
   await page.locator('[data-object-id="zhongshuyuan-office-plant"]').click()
   const wetPlantEcho = page.locator('[data-scene-echo="zhongshuyuan-office-plant"]')
@@ -173,8 +202,10 @@ test('office actions persist real world state and never leave an empty Reading p
 
   const window = page.getByRole('button', { name: '窗户，点击让主角前往互动', exact: true })
   const toggle = await completeObservationIntoAction(page, window, 'zhongshuyuan-office-window', '拉上百叶窗')
+  await expect(window).toHaveClass(/scene-mainline-interaction--active/)
   await toggle.click()
   await expect(page.locator('[data-scene-action="zhongshuyuan-office-window"]')).toHaveCount(0)
+  await expect(window).not.toHaveClass(/scene-mainline-interaction--active/)
   await expect(page.locator('[data-scene-echo]')).toHaveCount(0)
 
   await window.click()

@@ -25,6 +25,34 @@ async function advanceDialogueFromScene(page: Page) {
   await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
 }
 
+test('the untriggered question marker stays inside the world layer beneath Reading dim', async ({ page }, testInfo) => {
+  await page.goto('/?scene=commercial-street')
+  const question = page.locator('[data-commercial-question-mark="true"]')
+  await expect(question).toBeVisible()
+
+  // A normal storefront Observation turns on Reading dim without consuming the
+  // one-shot marker. The marker must be a world sibling below the dimmer, not
+  // an overlay that stays bright above it.
+  await page.getByRole('button', { name: '花店', exact: true }).click()
+  await expect(page.locator('[data-scene-echo="commercial-north-slot-3"]')).toBeVisible({ timeout: 15_000 })
+  const dimmer = page.locator('.scene-dialogue-dimmer')
+  await expect(dimmer).toBeVisible()
+  await expect(question).toBeVisible()
+  expect(await page.evaluate(() => {
+    const marker = document.querySelector('[data-commercial-question-mark="true"]')
+    const dim = document.querySelector('.scene-dialogue-dimmer')
+    return Boolean(
+      marker
+      && dim
+      && marker.parentElement === dim.parentElement
+      && (marker.compareDocumentPosition(dim) & Node.DOCUMENT_POSITION_FOLLOWING),
+    )
+  })).toBe(true)
+  await expect(question).toHaveCSS('z-index', '7')
+  await expect(dimmer).toHaveCSS('z-index', '10')
+  await page.screenshot({ path: testInfo.outputPath('commercial-street-question-world-dim.png') })
+})
+
 test('the Commercial Street question mark locks input, presents Xiao Jie dialogue, and persists only at the end', async ({ page }, testInfo) => {
   const consoleErrors: string[] = []
   page.on('pageerror', (error) => consoleErrors.push(error.message))
