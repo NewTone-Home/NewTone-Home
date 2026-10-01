@@ -1476,7 +1476,7 @@
 
 .scene-mainline-text {
   position: absolute;
-  z-index: 9;
+  z-index: 14;
   box-sizing: border-box;
   width: var(--scene-mainline-text-width);
   inline-size: var(--scene-mainline-text-width);
@@ -1494,9 +1494,7 @@
   word-break: keep-all;
   text-align: center;
   text-shadow: 0 1px 5px rgba(0, 0, 0, .75);
-  pointer-events: auto;
-  cursor: pointer;
-  touch-action: manipulation;
+  pointer-events: none;
   transform: translate(-50%, -50%);
   animation: mainline-text-arrive 160ms ease-out both;
 }
@@ -1558,6 +1556,19 @@
   0%, 100% { opacity: .7; transform: translate(-50%, -50%) scale(.94); }
   50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
+.scene-mainline-action {
+  position: absolute;
+  z-index: 14;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  animation: mainline-text-arrive 160ms ease-out both;
+}
+.scene-mainline-action .shared-entry-control {
+  width: clamp(124px, 11vw, 176px);
+  min-height: 48px;
+}
 .scene-dialogue-dimmer {
   position: absolute;
   inset: 0;
@@ -1566,6 +1577,8 @@
   pointer-events: none;
   transition: opacity 180ms ease-out;
 }
+.scene-dialogue-dimmer--observation { background: rgba(5, 5, 5, .18); }
+.scene-dialogue-dimmer--dialogue { background: rgba(5, 5, 5, .30); }
 .scene-dialogue-shield {
   position: absolute;
   inset: 0;

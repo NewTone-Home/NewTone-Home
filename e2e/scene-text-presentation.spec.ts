@@ -56,3 +56,81 @@ test('Commercial Street observation uses the road-center reading rail without a 
   expect(textBox!.x + textBox!.width / 2).toBeGreaterThan(protagonistBox!.x + protagonistBox!.width / 2)
   await page.screenshot({ path: testInfo.outputPath('text-relative-commercial-street.png') })
 })
+
+test('an Observation completes into an unlocked Action that can be abandoned by a new world interaction', async ({ page }) => {
+  await page.goto('/?scene=zhongshuyuan-office')
+  const plant = page.locator('[data-object-id="zhongshuyuan-office-plant"]')
+  const desk = page.locator('[data-object-id="zhongshuyuan-office-desk"]')
+  const shield = page.locator('[data-scene-dialogue-shield="true"]')
+  await plant.click()
+  const plantEcho = page.locator('[data-scene-echo="zhongshuyuan-office-plant"]')
+  await expect(plantEcho).toContainText('有段时间没浇水了，不那么精神了。', { timeout: 15_000 })
+  await expect(shield).toBeVisible()
+
+  // Reading owns the next world click: an underlying desk click cannot start
+  // another interaction; because the sentence has finished typing, it instead
+  // advances the current Observation into its Action.
+  const deskBox = await desk.boundingBox()
+  expect(deskBox).not.toBeNull()
+  await page.mouse.click(deskBox!.x + deskBox!.width / 2, deskBox!.y + deskBox!.height / 2)
+  await expect(plantEcho).toHaveCount(0)
+  await expect(page.locator('[data-scene-echo="zhongshuyuan-office-desk"]')).toHaveCount(0)
+  await expect(page.locator('[data-scene-action="zhongshuyuan-office-plant"]')).toBeVisible()
+  const water = page.getByRole('button', { name: '浇水', exact: true })
+  await expect(water).toBeEnabled({ timeout: 5_000 })
+
+  // Actions are not Reading: the same desk click dismisses the unused action
+  // and starts the new contact-and-observation flow.
+  await page.mouse.click(deskBox!.x + deskBox!.width / 2, deskBox!.y + deskBox!.height / 2)
+  await expect(page.locator('[data-scene-action="zhongshuyuan-office-plant"]')).toHaveCount(0)
+  await expect(page.locator('[data-scene-echo="zhongshuyuan-office-desk"]')).toBeVisible({ timeout: 15_000 })
+})
+
+async function completeObservationIntoAction(page: Page, target: Locator, entityId: string, option: string) {
+  await target.click()
+  const echo = page.locator(`[data-scene-echo="${entityId}"]`)
+  const shield = page.locator('[data-scene-dialogue-shield="true"]')
+  await expect(echo).toBeVisible({ timeout: 15_000 })
+  await page.waitForTimeout(1_000)
+  const action = page.getByRole('button', { name: option, exact: true })
+  for (let attempt = 0; attempt < 5 && await action.count() === 0; attempt += 1) {
+    await shield.click({ force: true })
+    await page.waitForTimeout(180)
+  }
+  await expect(action).toBeEnabled({ timeout: 5_000 })
+  return action
+}
+
+test('office actions persist real world state and never leave an empty Reading presentation', async ({ page }) => {
+  const consoleErrors: string[] = []
+  page.on('pageerror', (error) => consoleErrors.push(error.message))
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+
+  await page.goto('/?scene=zhongshuyuan-office')
+  const water = await completeObservationIntoAction(page, page.locator('[data-object-id="zhongshuyuan-office-plant"]'), 'zhongshuyuan-office-plant', '浇水')
+  await water.click()
+  await expect(page.locator('[data-scene-action="zhongshuyuan-office-plant"]')).toHaveCount(0)
+
+  await page.locator('[data-object-id="zhongshuyuan-office-plant"]').click()
+  const wetPlantEcho = page.locator('[data-scene-echo="zhongshuyuan-office-plant"]')
+  await expect(wetPlantEcho).toContainText('花盆里的土还带着一点湿润的颜色', { timeout: 15_000 })
+  // A natural punctuation split can yield more than one Observation segment.
+  // Complete all of them through the full-scene Reading shield.
+  for (let attempt = 0; attempt < 4 && await wetPlantEcho.count() > 0; attempt += 1) {
+    await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
+    await page.waitForTimeout(180)
+  }
+  await expect(wetPlantEcho).toHaveCount(0)
+
+  const window = page.getByRole('button', { name: '窗户，点击让主角前往互动', exact: true })
+  const toggle = await completeObservationIntoAction(page, window, 'zhongshuyuan-office-window', '拉上百叶窗')
+  await toggle.click()
+  await expect(page.locator('[data-scene-action="zhongshuyuan-office-window"]')).toHaveCount(0)
+  await expect(page.locator('[data-scene-echo]')).toHaveCount(0)
+
+  await window.click()
+  await expect(page.locator('[data-scene-echo="zhongshuyuan-office-window"]')).toContainText('百叶窗已经拉上', { timeout: 15_000 })
+  expect(consoleErrors).toEqual([])
+})

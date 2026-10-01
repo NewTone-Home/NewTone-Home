@@ -28,7 +28,7 @@ async function advanceNarrative(page: Page, maximum = 80) {
     const interaction = await page.evaluate(() => {
       const dialogueElement = document.querySelector<HTMLElement>('[data-scene-dialogue]')
       const textElement = document.querySelector<HTMLElement>('[data-scene-text-mode="dialogue"]')
-      if (!dialogueElement || !textElement) return null
+      if (!dialogueElement || !textElement || dialogueElement.classList.contains('is-leaving')) return null
       const rect = textElement.getBoundingClientRect()
       if (rect.width === 0 || rect.height === 0) return null
       return {
@@ -38,10 +38,7 @@ async function advanceNarrative(page: Page, maximum = 80) {
     })
     if (!interaction) return
     await page.waitForTimeout(400)
-    await page.mouse.click(
-      interaction.bounds.x + interaction.bounds.width / 2,
-      interaction.bounds.y + interaction.bounds.height / 2,
-    )
+    await shield.click({ force: true })
     await page.waitForFunction((previous) => {
       const current = document.querySelector<HTMLElement>('[data-scene-dialogue]')
       return !current || `${current.dataset.dialogueLineId}:${current.dataset.sceneSegmentIndex}:${current.textContent}` !== previous || current.classList.contains('is-leaving')
@@ -56,7 +53,7 @@ async function advanceNarrativeToLine(page: Page, lineId: string, maximum = 40) 
     await expect(page.locator('[data-scene-dialogue-shield="true"]')).toBeVisible()
     const previous = await page.locator('[data-scene-dialogue]').evaluate((element) => `${(element as HTMLElement).dataset.dialogueLineId}:${(element as HTMLElement).dataset.sceneSegmentIndex}:${element.textContent}`)
     await page.waitForTimeout(400)
-    await page.locator('[data-scene-text-mode="dialogue"]').click()
+    await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
     await page.waitForFunction((token) => {
       const current = document.querySelector<HTMLElement>('[data-scene-dialogue]')
       return current && `${current.dataset.dialogueLineId}:${current.dataset.sceneSegmentIndex}:${current.textContent}` !== token
@@ -74,13 +71,21 @@ async function advanceVisibleDialogue(page: Page, maximum = 20) {
     })
     if (!interaction) return
     await page.waitForTimeout(400)
-    await page.locator('[data-scene-text-mode="dialogue"]').click()
+    await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
     await page.waitForFunction((previous) => {
       const current = document.querySelector<HTMLElement>('[data-scene-dialogue]')
       return !current || `${current.dataset.dialogueLineId}:${current.dataset.sceneSegmentIndex}:${current.textContent}` !== previous
     }, interaction)
   }
   await expect(page.locator('[data-scene-dialogue]')).toHaveCount(0)
+}
+
+async function advanceObservationToAction(page: Page, observation: string, option: string) {
+  await expect(page.getByText(observation, { exact: true })).toBeVisible({ timeout: 15_000 })
+  await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
+  const action = page.getByRole('button', { name: option, exact: true })
+  await expect(action).toBeEnabled({ timeout: 5_000 })
+  return action
 }
 
 test('new Café narrative starts seated without coffee, locks scene input, and finishes ready-to-leave', async ({ page }, testInfo) => {
@@ -129,7 +134,7 @@ test('Café long dialogue remains readable at the fixed world anchor without a c
   await advanceNarrativeToLine(page, 'commercial-cafe-coffee-lao-zhou')
   const dialogue = page.locator('[data-dialogue-line-id="commercial-cafe-coffee-lao-zhou"]')
   await page.waitForTimeout(400)
-  await page.locator('[data-scene-text-mode="dialogue"]').click()
+  await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
   await expect(dialogue).toHaveAttribute('data-scene-segment-index', '1')
   // The first clause is intentionally kept readable before this second
   // sentence-length segment; assert the actual roll destination rather than
@@ -159,13 +164,17 @@ test('Café narrative shield consumes object, door, and open-floor clicks withou
     const box = await target.boundingBox()
     expect(box).not.toBeNull()
     const previous = await page.locator('[data-scene-dialogue]').evaluate((element) => `${(element as HTMLElement).dataset.dialogueLineId}:${(element as HTMLElement).dataset.sceneSegmentIndex}:${element.textContent}`)
+    // The shield owns arbitrary scene clicks after the roll settles: the
+    // click advances the current line but never invokes the object, door, or
+    // stage beneath it.
+    await page.waitForTimeout(400)
     await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
     await page.waitForTimeout(250)
     const afterText = await page.locator('[data-scene-dialogue]').evaluate((element) => `${(element as HTMLElement).dataset.dialogueLineId}:${(element as HTMLElement).dataset.sceneSegmentIndex}:${element.textContent}`)
-    expect(afterText).toBe(previous)
+    expect(afterText).not.toBe(previous)
     await page.waitForFunction((token) => {
       const current = document.querySelector<HTMLElement>('[data-scene-dialogue]')
-      return current && `${current.dataset.dialogueLineId}:${current.dataset.sceneSegmentIndex}:${current.textContent}` === token
+      return current && `${current.dataset.dialogueLineId}:${current.dataset.sceneSegmentIndex}:${current.textContent}` !== token
     }, previous)
     const after = await protagonist.boundingBox()
     expect(after).not.toBeNull()
@@ -186,8 +195,8 @@ test('coffee is optional and a carried milk tea asks before coffee order', async
   })
   await page.reload()
   await page.getByRole('button', { name: '柜台' }).first().click()
-  await expect(page.getByText('已经有奶茶了，还要买咖啡吗？')).toBeVisible({ timeout: 15_000 })
-  await page.getByRole('button', { name: '否', exact: true }).click()
+  await (await advanceObservationToAction(page, '已经有奶茶了，还要买咖啡吗？', '否')).click()
+  await expect(page.locator('[data-scene-action]')).toHaveCount(0)
   // Declining is deliberately quiet: scene feedback has no bottom-left UI.
   await expect(page.locator('.scene-feedback')).toHaveCount(0)
   await startNarrative(page)
@@ -207,8 +216,8 @@ test('optional coffee delivery keeps a carried milk tea and adds the two small c
   })
   await page.reload()
   await page.getByRole('button', { name: '柜台' }).first().click()
-  await expect(page.getByText('已经有奶茶了，还要买咖啡吗？')).toBeVisible({ timeout: 15_000 })
-  await page.getByRole('button', { name: '是', exact: true }).click()
+  await (await advanceObservationToAction(page, '已经有奶茶了，还要买咖啡吗？', '是')).click()
+  await expect(page.locator('[data-scene-action]')).toHaveCount(0)
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-commercial-cafe-status', 'available')
   await startNarrative(page)
   await expect(page.locator('[data-attached-prop-id="commercial-cafe-lao-zhou-coffee"]')).toBeVisible()
@@ -221,7 +230,7 @@ test('narrative reload resumes at its persisted stable line and never requires c
   await café(page)
   await startNarrative(page)
   await page.waitForTimeout(400)
-  await page.locator('[data-scene-text-mode="dialogue"]').click()
+  await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
   // The seat guide is now one readable segment, so advancing it moves to the
   // first Lao Zhou line and persists cursor 1 immediately.
   await expect(page.locator('[data-dialogue-line-id="commercial-cafe-lao-zhou-first-lao-zhou"]')).toBeVisible()

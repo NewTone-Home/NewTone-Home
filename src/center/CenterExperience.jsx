@@ -56,6 +56,7 @@ export default function CenterExperience({
   const [playerSave, setPlayerSave] = useState(() => loadPlayerSave())
   const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId))
   const [phoneOpen, setPhoneOpen] = useState(false)
+  const sceneReadingActiveRef = useRef(false)
   const [phoneDevice, setPhoneDevice] = useState(() => loadPlayerSave().phoneDevice)
   const [requestedPhoneApp, setRequestedPhoneApp] = useState(null)
   const [resumeSceneId, setResumeSceneId] = useState(null)
@@ -84,6 +85,7 @@ export default function CenterExperience({
   }, [entryPhase, onRevealComplete, reducedMotion])
 
   const revealPhone = useCallback(() => {
+    if (sceneReadingActiveRef.current) return
     trackEvent('center_phone_opened', {
       sceneId: route.sceneId,
       device: phoneDevice,
@@ -157,6 +159,9 @@ export default function CenterExperience({
       trackEvent('commercial_street_entered', { sceneId: route.sceneId })
     }
   }, [phoneDevice, route.sceneId])
+  const handleSceneReadingStateChange = useCallback((reading) => {
+    sceneReadingActiveRef.current = reading
+  }, [])
 
   useEffect(() => {
     setBoundaryNotice('')
@@ -359,6 +364,7 @@ export default function CenterExperience({
       onSceneReady={snapshot ? undefined : handleSceneReady}
       phoneOpen={phoneOpen}
       onPhoneDismiss={snapshot ? undefined : retractPhone}
+      onReadingStateChange={snapshot ? undefined : handleSceneReadingStateChange}
       onDeskInteraction={snapshot ? undefined : switchCarriedPhone}
       onObjectInteraction={snapshot ? undefined : handleObjectInteraction}
       onDoorEvent={snapshot ? undefined : handleDoorEvent}

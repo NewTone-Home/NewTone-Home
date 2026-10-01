@@ -2,7 +2,7 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test'
 
 test.use({ viewport: { width: 1280, height: 720 } })
 
-async function expectObjectFocusLifecycle(page: Page, sceneId: string, entityId: string, screenshotName: string, testInfo: TestInfo, replacementEntityId?: string) {
+async function expectObjectFocusLifecycle(page: Page, sceneId: string, entityId: string, screenshotName: string, testInfo: TestInfo) {
   const consoleErrors: string[] = []
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text())
@@ -25,11 +25,10 @@ async function expectObjectFocusLifecycle(page: Page, sceneId: string, entityId:
   const echo = page.locator(`[data-scene-echo="${entityId}"]`)
   await expect(echo).toBeVisible({ timeout: 15_000 })
   await page.waitForTimeout(1_000)
-  if (replacementEntityId) {
-    await page.locator(`[data-object-id="${replacementEntityId}"]`).click()
-  } else {
-    await echo.locator('[data-scene-text-mode="observation"]').click()
-  }
+  // Reading owns world input until its current observation is complete. This
+  // test intentionally completes that reading rather than trying to replace it
+  // with a second object click, which is no longer a valid product flow.
+  await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
   await expect(echo).toHaveClass(/is-leaving/)
   await expect(frame).toHaveAttribute('data-focus-frame-phase', /retracting|collapsed/)
   await expect(echo).toHaveCount(0)
@@ -39,6 +38,6 @@ async function expectObjectFocusLifecycle(page: Page, sceneId: string, entityId:
 
 test('the approved object frames use the shared draw, retract, and resume lifecycle', async ({ page }, testInfo) => {
   await expectObjectFocusLifecycle(page, 'jijia-ancestral-home', 'jijia-old-tree', 'object-focus-tree.png', testInfo)
-  await expectObjectFocusLifecycle(page, 'jijia-ancestral-interior', 'jijia-incense-burner', 'object-focus-incense.png', testInfo, 'jijia-offering-table-north')
-  await expectObjectFocusLifecycle(page, 'zhongshuyuan-office', 'zhongshuyuan-office-plant', 'object-focus-plant.png', testInfo, 'zhongshuyuan-office-desk')
+  await expectObjectFocusLifecycle(page, 'jijia-ancestral-interior', 'jijia-incense-burner', 'object-focus-incense.png', testInfo)
+  await expectObjectFocusLifecycle(page, 'zhongshuyuan-office', 'zhongshuyuan-office-plant', 'object-focus-plant.png', testInfo)
 })

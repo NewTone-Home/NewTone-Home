@@ -11,6 +11,10 @@ test('the inner-world Phone keeps the existing Office to Commercial Street ride 
 
   await page.goto('/?scene=zhongshuyuan-office')
   await page.locator('[data-object-id="zhongshuyuan-office-desk"]').click()
+  const readingShield = page.locator('[data-scene-dialogue-shield="true"]')
+  await expect(readingShield).toBeVisible({ timeout: 15_000 })
+  await page.waitForTimeout(900)
+  await readingShield.click({ force: true })
   await page.getByRole('button', { name: '里世界手机', exact: true }).click({ timeout: 15_000 })
 
   const phone = page.locator('.world-phone')

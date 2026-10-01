@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { MainlineAmbientNpcRoute, MainlineAmbientNpcRouteStep } from './mainlineSceneModel'
 import { mainlineStorefrontInteractionCandidates, type MainlineSceneDefinition } from './mainlineScenes'
 import { resolveMainlineInteractionCandidates, type MainlineNavigationOptions } from './mainlineNavigation'
@@ -55,7 +56,8 @@ type AmbientNpcMotionProps = {
   footprint: NavigationActorFootprint
   movementOptions: MovementOptions
   protagonistPosition: Point
-  onRuntimeChange: (npcId: string, position: Point | null, snapshot: NpcRuntimeSnapshot) => void
+  onRuntimeChange: (npcId: string, hidden: boolean, snapshot: NpcRuntimeSnapshot) => void
+  renderActor?: (position: Point, snapshot: NpcRuntimeSnapshot) => ReactNode
 }
 
 /**
@@ -104,6 +106,7 @@ export function useAmbientNpcSceneClock(enabled: boolean, wakeAtMs: number | nul
   const clockRef = useRef(0)
   const notifiedWakeRef = useRef<number | null>(null)
   const [, setWakeRevision] = useState(0)
+  const readSceneClockMs = useCallback(() => clockRef.current, [])
   useEffect(() => {
     if (!enabled) {
       startedAtRef.current = null
@@ -126,7 +129,7 @@ export function useAmbientNpcSceneClock(enabled: boolean, wakeAtMs: number | nul
     frame = window.requestAnimationFrame(advance)
     return () => window.cancelAnimationFrame(frame)
   }, [enabled, wakeAtMs])
-  return clockRef.current
+  return { sceneClockMs: clockRef.current, readSceneClockMs }
 }
 
 /**
@@ -146,6 +149,7 @@ export function AmbientNpcMotion({
   movementOptions,
   protagonistPosition,
   onRuntimeChange,
+  renderActor,
 }: AmbientNpcMotionProps) {
   const movement = useNpcMovement({
     enabled,
@@ -164,12 +168,13 @@ export function AmbientNpcMotion({
   const previousPhaseRef = useRef(movement.snapshot.phase)
   const hiddenActivityRef = useRef<HiddenAmbientActivity | null>(null)
   const yieldedForCurrentProximityRef = useRef(false)
+  const lastRuntimeReportRef = useRef<string | null>(null)
   const nextWakeAtMs = hiddenActivity?.untilMs
     ?? recovery?.retryAtMs
     ?? (movement.snapshot.phase === 'moving' ? null : readyAtMs)
-  const sceneClockMs = useAmbientNpcSceneClock(enabled, nextWakeAtMs)
-  const latestRef = useRef({ enabled, scene, layout, navigationOptions, movementOptions, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs })
-  latestRef.current = { enabled, scene, layout, navigationOptions, movementOptions, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs }
+  const { sceneClockMs, readSceneClockMs } = useAmbientNpcSceneClock(enabled, nextWakeAtMs)
+  const latestRef = useRef({ enabled, scene, layout, navigationOptions, movementOptions, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs, readSceneClockMs })
+  latestRef.current = { enabled, scene, layout, navigationOptions, movementOptions, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs, readSceneClockMs }
   const resetKey = `${enabled}:${schedule.npcId}:${initialPosition.x}:${initialPosition.y}`
 
   useEffect(() => {
@@ -181,25 +186,39 @@ export function AmbientNpcMotion({
     previousPhaseRef.current = movement.snapshot.phase
     hiddenActivityRef.current = null
     yieldedForCurrentProximityRef.current = false
+    lastRuntimeReportRef.current = null
     setRecovery(null)
     setHiddenActivity(null)
   }, [resetKey, schedule.initialDelayMs])
 
   useEffect(() => {
-    onRuntimeChange(schedule.npcId, hiddenActivity ? null : movement.position, movement.snapshot)
-  }, [hiddenActivity, movement.position, movement.snapshot, onRuntimeChange, schedule.npcId])
+    const { phase, dutyId, targetId } = movement.snapshot
+    const report = [
+      hiddenActivity ? 'hidden' : 'visible',
+      phase,
+      dutyId ?? '',
+      targetId ?? '',
+    ].join(':')
+    if (lastRuntimeReportRef.current === report) return
+    lastRuntimeReportRef.current = report
+    onRuntimeChange(schedule.npcId, Boolean(hiddenActivity), movement.snapshot)
+  }, [hiddenActivity, movement.snapshot.dutyId, movement.snapshot.phase, movement.snapshot.targetId, onRuntimeChange, schedule.npcId])
 
   useEffect(() => {
     if (!enabled || !hiddenActivity || sceneClockMs < hiddenActivity.untilMs) return
     if (hiddenActivityRef.current !== hiddenActivity) return
-    movement.reset(ambientNpcReentryPoint(hiddenActivity.reentry))
+    // Claim this lifecycle edge before resetting locomotion. reset() publishes
+    // a movement snapshot synchronously; if the hidden activity still looked
+    // current during that nested render, this effect could re-enter and reset
+    // the same actor until React rejected the update depth.
     hiddenActivityRef.current = null
+    movement.reset(ambientNpcReentryPoint(hiddenActivity.reentry))
     setHiddenActivity(null)
     requestedRouteIndexRef.current = null
     retryCountRef.current = 0
     setRouteIndex((index) => (index + 1) % schedule.steps.length)
-    setReadyAtMs(sceneClockMs)
-  }, [enabled, hiddenActivity, movement, sceneClockMs, schedule.steps.length])
+    setReadyAtMs(readSceneClockMs())
+  }, [enabled, hiddenActivity, movement, readSceneClockMs, sceneClockMs, schedule.steps.length])
 
   useEffect(() => {
     if (!enabled || hiddenActivity || movement.snapshot.phase === 'moving') return
@@ -277,7 +296,7 @@ export function AmbientNpcMotion({
       retryCountRef.current = 0
       setRecovery(null)
       setRouteIndex((index) => (index + 1) % schedule.steps.length)
-      setReadyAtMs(latestRef.current.sceneClockMs + ('dwellMs' in step ? step.dwellMs : 0))
+      setReadyAtMs(latestRef.current.readSceneClockMs() + ('dwellMs' in step ? step.dwellMs : 0))
     }
     const target = targetForAmbientStep(step, current.scene, movement.getPosition(), current.layout, current.navigationOptions)
     if (!target) {
@@ -295,7 +314,7 @@ export function AmbientNpcMotion({
       }
       const activity: HiddenAmbientActivity = {
         kind: step.kind,
-        untilMs: latestRef.current.sceneClockMs + ambientNpcDwellDuration(step.minDwellMs, step.maxDwellMs),
+        untilMs: latestRef.current.readSceneClockMs() + ambientNpcDwellDuration(step.minDwellMs, step.maxDwellMs),
         reentry: step.reentry,
       }
       navigationRuntime.removeActor(schedule.npcId)
@@ -305,5 +324,7 @@ export function AmbientNpcMotion({
     if (!started) advanceRoute()
   }, [enabled, hiddenActivity, movement, movement.snapshot.phase, navigationRuntime, readyAtMs, routeIndex, sceneClockMs, schedule.npcId, schedule.steps])
 
-  return null
+  return hiddenActivity || !movement.position
+    ? null
+    : <>{renderActor?.(movement.position, movement.snapshot)}</>
 }

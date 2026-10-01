@@ -5,11 +5,13 @@ import type { MainlineSceneDefinition, MainlineSceneEntity } from './mainlineSce
 import { commercialCafeCoffeeOrderedKey } from './commercialCafeStory'
 
 export const incenseBurnDurationMs = 10 * 60 * 1000
+export const plantWaterDurationMs = 10 * 60 * 1000
 
 export type IncenseBurnPhase = 'unlit' | 'fresh' | 'half' | 'burned'
 
 export type MainlineSceneInteractionContext = {
   incensePhase: IncenseBurnPhase
+  plantWatered: boolean
   officeBlindsOpen: boolean
   carriedPhoneDevice: PhoneDevice
   commercialCafeCoffeeOrdered?: boolean
@@ -27,18 +29,18 @@ export type MainlineExplorationResolution = {
 }
 
 export type MainlineSceneStateChange = {
-  key: 'blindsOpen' | 'incenseLitAt' | typeof commercialCafeCoffeeOrderedKey
+  key: 'blindsOpen' | 'incenseLitAt' | 'plantWateredAt' | typeof commercialCafeCoffeeOrderedKey
   value: PlayerChoiceValue
 }
 
 export type MainlineSceneEchoChoiceResolution = {
-  feedback: string
   dismiss?: boolean
-  clearOptions?: boolean
-  echoText?: string
-  echoOptions?: readonly string[]
   stateChange?: MainlineSceneStateChange
   deskDevice?: PhoneDevice
+}
+
+export function plantIsWatered(wateredAt: number | null, now: number) {
+  return wateredAt !== null && now - wateredAt < plantWaterDurationMs
 }
 
 export function incenseBurnPhase(litAt: number | null, now: number): IncenseBurnPhase {
@@ -58,7 +60,7 @@ export function incenseBurnRemainingMs(litAt: number | null, now: number) {
 function incenseExplorationChoice(phase: IncenseBurnPhase): MainlineExplorationChoice {
   if (phase === 'fresh') return { text: '重新点上了香。' }
   if (phase === 'half') return { text: '重新点上的香已经烧到了一半。' }
-  return { text: '香早就烧完了，只剩根部伫立在里面。', options: ['重新点香', '置之不理'] }
+  return { text: '香早就烧完了，只剩根部伫立在里面。', options: ['重新点香'] }
 }
 
 function interactionBehavior(entity: MainlineSceneEntity): MainlineInteractionBehavior | undefined {
@@ -87,8 +89,20 @@ export function resolveMainlineSceneExploration(
   if (behavior === 'blinds-toggle') {
     return {
       choice: {
-        text: context.officeBlindsOpen ? (scene.explorationText?.[entity.id] ?? []).join('\n') : '',
+        text: context.officeBlindsOpen
+          ? (scene.explorationText?.[entity.id] ?? []).join('\n')
+          : '百叶窗已经拉上，室内安静了许多。',
         options: [context.officeBlindsOpen ? '拉上百叶窗' : '打开百叶窗'],
+      },
+    }
+  }
+  if (behavior === 'plant-choice') {
+    return {
+      choice: {
+        text: context.plantWatered
+          ? '花盆里的土还带着一点湿润的颜色，叶片看起来精神了一些。'
+          : '有段时间没浇水了，不那么精神了。',
+        options: context.plantWatered ? undefined : ['浇水'],
       },
     }
   }
@@ -120,7 +134,6 @@ export function resolveMainlineSceneEchoChoice(
 
   if (behavior === 'desk-device') {
     return {
-      feedback: '',
       dismiss: true,
       deskDevice: option === '里世界手机' ? 'inner' : 'surface',
     }
@@ -128,42 +141,33 @@ export function resolveMainlineSceneEchoChoice(
   if (behavior === 'blinds-toggle') {
     const open = option === '打开百叶窗'
     return {
-      feedback: '',
       stateChange: { key: 'blindsOpen', value: open },
-      echoText: open ? (scene.explorationText?.[entity?.id ?? ''] ?? []).join('\n') : '',
-      echoOptions: [open ? '拉上百叶窗' : '打开百叶窗'],
+      dismiss: true,
     }
   }
   if (behavior === 'plant-choice') {
     return {
-      feedback: option === '浇水' ? '修杰给绿植浇了水。' : '修杰没有理会绿植。',
-      clearOptions: true,
+      dismiss: true,
+      stateChange: option === '浇水' ? { key: 'plantWateredAt', value: now } : undefined,
     }
   }
   if (behavior === 'incense') {
     if (option === '重新点香') {
       return {
-        feedback: '修杰重新点上了香。',
         stateChange: { key: 'incenseLitAt', value: now },
-        echoText: '重新点上了香。',
-        clearOptions: true,
+        dismiss: true,
       }
     }
-    return {
-      feedback: '修杰没有理会香炉。',
-      clearOptions: true,
-    }
+    return { dismiss: true }
   }
   if (behavior === 'cafe-order') {
     if (context.commercialCafeCoffeeOrdered) {
-      return { feedback: '已经点过咖啡。', clearOptions: true }
+      return { dismiss: true }
     }
-    if (context.carriedMilkTea && option === '否') return { feedback: '修杰没有点咖啡。', clearOptions: true }
-    if (option !== '点一杯咖啡' && option !== '是') return { feedback: '修杰没有点咖啡。', clearOptions: true }
+    if (context.carriedMilkTea && option === '否') return { dismiss: true }
+    if (option !== '点一杯咖啡' && option !== '是') return { dismiss: true }
     return {
-      feedback: '修杰点了一杯咖啡。',
-      echoText: '已经点了一杯咖啡。',
-      clearOptions: true,
+      dismiss: true,
       stateChange: { key: commercialCafeCoffeeOrderedKey, value: true },
     }
   }

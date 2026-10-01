@@ -47,7 +47,6 @@ export function createNpcMovementAdapter({ npcId, initialPosition, movement, nav
     runtime.setPosition(position)
     if (navigationRuntime.getActor(npcId)) navigationRuntime.updateActor(npcId, position)
     else navigationRuntime.registerActor(npcId, position, getFootprint())
-    notify()
   }
 
   return {
@@ -82,7 +81,10 @@ export function createNpcMovementAdapter({ npcId, initialPosition, movement, nav
       movement.moveAlong(resolved.path, (position) => {
         syncPosition(position)
         runtime.arrive()
-        notify()
+        // useFreeRoamMovement publishes the terminal position for this same
+        // animation frame. That render re-reads the runtime snapshot, so a
+        // second adapter revision here would nest a React update inside the
+        // movement controller's own terminal snapshot update.
         onArrive?.(position)
       }, {
         ...movementOptions,
@@ -113,6 +115,7 @@ export function createNpcMovementAdapter({ npcId, initialPosition, movement, nav
       movement.resetMovement(position)
       runtime.reset()
       syncPosition(position)
+      notify()
     },
   }
 }

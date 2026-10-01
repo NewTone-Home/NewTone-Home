@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mainlineSceneAreaLabel, mainlineScenes } from './mainlineScenes'
 import { mainlineInteractionTarget } from './mainlineNavigation'
 import {
+  plantIsWatered,
   isMainlineInPlaceInteraction,
   resolveMainlineSceneEchoChoice,
   resolveMainlineSceneExploration,
@@ -19,16 +20,15 @@ describe('mainline scene interaction policies', () => {
     const burner = entity('jijia-ancestral-interior', 'jijia-incense-burner')
     const exploration = resolveMainlineSceneExploration(scene, burner, {
       incensePhase: 'burned',
+      plantWatered: false,
       officeBlindsOpen: true,
       carriedPhoneDevice: 'surface',
     })
-    expect(exploration.choice?.options).toEqual(['重新点香', '置之不理'])
+    expect(exploration.choice?.options).toEqual(['重新点香'])
 
     const choice = resolveMainlineSceneEchoChoice(scene, burner, '重新点香', 1234)
     expect(choice).toMatchObject({
-      feedback: '修杰重新点上了香。',
-      echoText: '重新点上了香。',
-      clearOptions: true,
+      dismiss: true,
       stateChange: { key: 'incenseLitAt', value: 1234 },
     })
   })
@@ -38,6 +38,7 @@ describe('mainline scene interaction policies', () => {
     const tree = entity('jijia-ancestral-home', 'jijia-old-tree')
     const echo = resolveMainlineSceneExploration(yard, tree, {
       incensePhase: 'unlit',
+      plantWatered: false,
       officeBlindsOpen: true,
       carriedPhoneDevice: 'surface',
     })
@@ -54,6 +55,7 @@ describe('mainline scene interaction policies', () => {
     const desk = entity('zhongshuyuan-office', 'zhongshuyuan-office-desk')
     const deskChoice = resolveMainlineSceneExploration(office, desk, {
       incensePhase: 'unlit',
+      plantWatered: false,
       officeBlindsOpen: true,
       carriedPhoneDevice: 'surface',
     })
@@ -63,7 +65,7 @@ describe('mainline scene interaction policies', () => {
     const window = entity('zhongshuyuan-office', 'zhongshuyuan-office-window')
     expect(resolveMainlineSceneEchoChoice(office, window, '打开百叶窗', 0)).toMatchObject({
       stateChange: { key: 'blindsOpen', value: true },
-      echoOptions: ['拉上百叶窗'],
+      dismiss: true,
     })
 
     const commercial = mainlineScenes['commercial-street']
@@ -72,12 +74,27 @@ describe('mainline scene interaction policies', () => {
     expect(mainlineSceneAreaLabel(mining, mining.initialPlayerPosition)).toBe('矿区')
   })
 
+  it('persists watering as a bounded plant state instead of feedback-only UI', () => {
+    const office = mainlineScenes['zhongshuyuan-office']
+    const plant = entity('zhongshuyuan-office', 'zhongshuyuan-office-plant')
+    expect(resolveMainlineSceneExploration(office, plant, {
+      incensePhase: 'unlit', plantWatered: false, officeBlindsOpen: true, carriedPhoneDevice: 'surface',
+    }).choice).toEqual({ text: '有段时间没浇水了，不那么精神了。', options: ['浇水'] })
+    expect(resolveMainlineSceneEchoChoice(office, plant, '浇水', 4321)).toEqual({
+      dismiss: true,
+      stateChange: { key: 'plantWateredAt', value: 4321 },
+    })
+    expect(plantIsWatered(4321, 4321 + 9 * 60 * 1000)).toBe(true)
+    expect(plantIsWatered(4321, 4321 + 10 * 60 * 1000)).toBe(false)
+  })
+
   it('keeps coffee optional and asks for confirmation only when the protagonist carries milk tea', () => {
     const cafe = mainlineScenes['commercial-cafe']
     const counter = entity('commercial-cafe', 'commercial-cafe-counter')
     const counterSegments = cafe.objects.filter((candidate) => candidate.id === 'commercial-cafe-counter' || candidate.id.startsWith('commercial-cafe-counter-'))
     const entered = resolveMainlineSceneExploration(cafe, counter, {
       incensePhase: 'unlit',
+      plantWatered: false,
       officeBlindsOpen: true,
       carriedPhoneDevice: 'surface',
       commercialCafeCoffeeOrdered: false,
@@ -102,17 +119,18 @@ describe('mainline scene interaction policies', () => {
     expect(entered.choice).toEqual({ text: '要点一杯咖啡吗？', options: ['点一杯咖啡'] })
     expect(resolveMainlineSceneEchoChoice(cafe, counter, '点一杯咖啡', 0, { commercialCafeCoffeeOrdered: false, carriedMilkTea: false })).toMatchObject({
       stateChange: { key: 'commercialCafeCoffeeOrdered', value: true },
-      clearOptions: true,
+      dismiss: true,
     })
     expect(resolveMainlineSceneExploration(cafe, counter, {
       incensePhase: 'unlit',
+      plantWatered: false,
       officeBlindsOpen: true,
       carriedPhoneDevice: 'surface',
       commercialCafeCoffeeOrdered: true,
       carriedMilkTea: false,
     }).choice).toEqual({ text: '已经点过咖啡。' })
     expect(resolveMainlineSceneExploration(cafe, counter, {
-      incensePhase: 'unlit', officeBlindsOpen: true, carriedPhoneDevice: 'surface', commercialCafeCoffeeOrdered: false, carriedMilkTea: true,
+      incensePhase: 'unlit', plantWatered: false, officeBlindsOpen: true, carriedPhoneDevice: 'surface', commercialCafeCoffeeOrdered: false, carriedMilkTea: true,
     }).choice).toEqual({ text: '已经有奶茶了，还要买咖啡吗？', options: ['是', '否'] })
     expect(resolveMainlineSceneEchoChoice(cafe, counter, '否', 0, { commercialCafeCoffeeOrdered: false, carriedMilkTea: true })?.stateChange).toBeUndefined()
     expect(resolveMainlineSceneEchoChoice(cafe, counter, '是', 0, { commercialCafeCoffeeOrdered: false, carriedMilkTea: true })?.stateChange).toEqual({ key: 'commercialCafeCoffeeOrdered', value: true })

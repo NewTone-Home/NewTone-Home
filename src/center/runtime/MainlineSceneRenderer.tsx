@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
+import EntryButtonSurface from '../../components/EntryButtonSurface'
 import type { CollisionBox, Point } from './sceneGeometry'
 import { type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
@@ -51,6 +52,7 @@ type MainlineSceneRendererProps = {
   npcPositions?: ReadonlyMap<string, Point>
   npcRuntimeSnapshots?: ReadonlyMap<string, NpcRuntimeSnapshot>
   hiddenNpcIds?: ReadonlySet<string>
+  ambientNpcActorLayer?: ReactNode
   onDoorTransitionComplete?: (entityId: string, completion: SceneDoorTransitionCompletion) => void
   onWalk: (point: Point) => void
   worldQuestionMark?: { anchor: Point; visible: boolean }
@@ -62,14 +64,16 @@ type MainlineSceneRendererProps = {
   dialogueSegmentCount?: number
   dialoguePosition?: Point | null
   dialoguePhase?: 'active' | 'leaving'
-  dialogueLock?: boolean
+  readingMode?: 'observation' | 'dialogue' | null
   onDialogueExitComplete?: () => void
   onDialogueAdvance?: () => void
   sceneEcho?: { id: number; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; typing: boolean; phase?: 'leaving' } | null
   onSceneEchoAdvance?: () => void
   onSceneEchoTypingComplete?: (echoId: number) => void
-  onSceneEchoChoice?: (index: number) => void
   onSceneEchoExitComplete?: (echoId: number) => void
+  sceneAction?: { entityId?: string; options: readonly string[]; position: Point; phase?: 'active' | 'committing' } | null
+  onSceneActionStart?: (index: number) => void
+  onSceneActionChoice?: (index: number) => void
   carriedMilkTea?: boolean
   onFrameMotionProfileChange?: (profile: readonly SceneFocusFrameMotionProfile[]) => void
   exploredObjectIds?: ReadonlySet<string>
@@ -201,6 +205,44 @@ type MainlineDoorButtonProps = {
   dataAttributes?: Record<string, string | undefined>
 }
 
+type MainlineAmbientNpcActorProps = {
+  npc: MainlineSceneDefinition['npcs'][number]
+  position: Point
+  snapshot: NpcRuntimeSnapshot
+  screenMetrics: SceneScreenMetrics
+  debugRuntimeEvidence: boolean
+}
+
+/** Ambient locomotion owns its live point; this component only projects it into the scene. */
+export function MainlineAmbientNpcActor({ npc, position, snapshot, screenMetrics, debugRuntimeEvidence }: MainlineAmbientNpcActorProps) {
+  const visualFootprint = mainlineLabelFootprint(npc.label, position, screenMetrics, { lineHeight: 1 })
+  return <span
+    className="scene-mainline-npc scene-mainline-npc--ambient"
+    style={{
+      left: `${position.x}%`,
+      top: `${position.y}%`,
+      '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, screenMetrics)}px`,
+    } as CSSProperties}
+    data-actor-id={npc.id}
+    data-npc-role={npc.roleId}
+    data-npc-id={npc.id}
+    data-npc-phase={snapshot.phase}
+    data-npc-duty-id={snapshot.dutyId ?? undefined}
+    data-npc-target-id={snapshot.targetId ?? undefined}
+    data-npc-target-x={debugRuntimeEvidence ? snapshot.target?.x : undefined}
+    data-npc-target-y={debugRuntimeEvidence ? snapshot.target?.y : undefined}
+    data-runtime-x={debugRuntimeEvidence ? position.x : undefined}
+    data-runtime-y={debugRuntimeEvidence ? position.y : undefined}
+    data-rendered-x={debugRuntimeEvidence ? position.x : undefined}
+    data-rendered-y={debugRuntimeEvidence ? position.y : undefined}
+    data-visual-x={debugRuntimeEvidence ? visualFootprint.x : undefined}
+    data-visual-y={debugRuntimeEvidence ? visualFootprint.y : undefined}
+    data-visual-width={debugRuntimeEvidence ? visualFootprint.width : undefined}
+    data-visual-height={debugRuntimeEvidence ? visualFootprint.height : undefined}
+    aria-hidden="true"
+  >{npc.label}</span>
+}
+
 function ObservationText({ echoId, text, typing, onTypingComplete }: { echoId: number; text: string; typing: boolean; onTypingComplete?: (echoId: number) => void }) {
   const characters = useMemo(() => Array.from(text), [text])
   const [visibleCount, setVisibleCount] = useState(0)
@@ -227,22 +269,16 @@ function ObservationText({ echoId, text, typing, onTypingComplete }: { echoId: n
   return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">{characters.slice(0, visibleCount).join('')}</span>
 }
 
-function DialogueText({ group, text, onAdvance }: { group: string; text: string; onAdvance?: () => void }) {
-  const [ready, setReady] = useState(false)
-  useEffect(() => setReady(false), [group])
-  return <button
-    type="button"
+function DialogueText({ group, text, onReadyChange }: { group: string; text: string; onReadyChange?: (ready: boolean) => void }) {
+  useEffect(() => onReadyChange?.(false), [group, onReadyChange])
+  return <span
     className="scene-mainline-text__dialogue"
     data-scene-text-mode="dialogue"
-    onClick={(event) => {
-      event.stopPropagation()
-      if (ready) onAdvance?.()
-    }}
   >
     <span key={group} onAnimationEnd={(event) => {
-      if (event.target === event.currentTarget) setReady(true)
+      if (event.target === event.currentTarget) onReadyChange?.(true)
     }}>{text}</span>
-  </button>
+  </span>
 }
 
 function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph, doorPhase, focusGroup, focusPolicy, gateTriggered, frameRetracting, active, closeHint, ariaLabel, renderFocusFrame, onInteract, onDoorTransitionComplete, dataAttributes }: MainlineDoorButtonProps) {
@@ -532,6 +568,7 @@ export function MainlineSceneRenderer({
   npcPositions,
   npcRuntimeSnapshots,
   hiddenNpcIds,
+  ambientNpcActorLayer,
   onDoorTransitionComplete,
   onWalk,
   worldQuestionMark,
@@ -543,14 +580,16 @@ export function MainlineSceneRenderer({
   dialogueSegmentCount = 1,
   dialoguePosition = null,
   dialoguePhase = 'active',
-  dialogueLock = false,
+  readingMode = null,
   onDialogueExitComplete,
   onDialogueAdvance,
   sceneEcho = null,
   onSceneEchoAdvance,
   onSceneEchoTypingComplete,
-  onSceneEchoChoice,
   onSceneEchoExitComplete,
+  sceneAction = null,
+  onSceneActionStart,
+  onSceneActionChoice,
   carriedMilkTea = false,
   onFrameMotionProfileChange,
   exploredObjectIds = new Set(),
@@ -571,6 +610,7 @@ export function MainlineSceneRenderer({
   debugCafeSpatialQa = null,
   debugRuntimeEvidence = false,
 }: MainlineSceneRendererProps) {
+  const [dialogueReady, setDialogueReady] = useState(false)
   const stageRef = useRef<HTMLDivElement>(null)
   const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
   const registerBreathingNode = useCallback((entityId: string, node: HTMLSpanElement | null) => {
@@ -865,7 +905,7 @@ export function MainlineSceneRenderer({
 
   return (
     <section className="scene-wrap" aria-label={`${scene.title}可探索场景`}>
-      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${dialogueLock ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-scene-dialogue-state={dialoguePhase}>
+      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-scene-dialogue-state={dialoguePhase}>
         {layoutMode && <div className="scene-layout-grid" aria-hidden="true" />}
 
         <div className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''}`} style={{ transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%)` }}>
@@ -1023,6 +1063,7 @@ export function MainlineSceneRenderer({
           })}
 
           {scene.npcs.map((npc) => {
+            if (scene.ambientNpcRoutes.some((schedule) => schedule.npcId === npc.id)) return null
             if (hiddenNpcIds?.has(npc.id)) return null
             const npcPosition = npcPositions?.get(npc.id) ?? resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
             const npcSnapshot = npcRuntimeSnapshots?.get(npc.id)
@@ -1070,6 +1111,8 @@ export function MainlineSceneRenderer({
               <span>{npc.label}</span>
             </button> : <span key={npc.id} {...commonProps} aria-hidden="true">{npc.label}</span>
           })}
+
+          {ambientNpcActorLayer}
 
           {visibleAttachedProps.map((prop) => {
             const parentPosition = geometrySnapshot.objects.get(prop.parentEntityId)?.position
@@ -1131,10 +1174,8 @@ export function MainlineSceneRenderer({
             const hasNextSegment = sceneEcho
               ? sceneEcho.segmentIndex + 1 < sceneEcho.segments.length
               : dialogueSegmentIndex + 1 < dialogueSegmentCount || Boolean(dialogue && dialogueLineIndex! + 1 < dialogue.lines.length)
-            const advance = isDialogue ? onDialogueAdvance : onSceneEchoAdvance
             const echoLayout = mainlineEchoLayout(text, renderScreenMetrics, {
               speaker: isDialogue ? dialogueLine!.speaker : undefined,
-              choices: sceneEcho?.options,
             })
             return <div
               key={sceneEcho?.id ?? dialogueLine!.id}
@@ -1154,10 +1195,6 @@ export function MainlineSceneRenderer({
               data-scene-segment-index={sceneEcho?.segmentIndex ?? dialogueSegmentIndex}
               data-scene-segment-count={sceneEcho?.segments.length ?? dialogueSegmentCount}
               data-scene-segment-advance={hasNextSegment ? 'available' : 'complete'}
-              onClick={(event) => {
-                event.stopPropagation()
-                if (!isDialogue) advance?.()
-              }}
               onAnimationEnd={(event) => {
                 if (!isLeaving || event.target !== event.currentTarget) return
                 if (sceneEcho) onSceneEchoExitComplete?.(sceneEcho.id)
@@ -1166,26 +1203,46 @@ export function MainlineSceneRenderer({
             >
               {isDialogue && <span className="scene-mainline-text__speaker">{dialogueLine!.speaker}</span>}
               {isDialogue
-                ? <DialogueText group={`${group}:${dialogueSegmentIndex}`} text={text} onAdvance={onDialogueAdvance} />
+                ? <DialogueText group={`${group}:${dialogueSegmentIndex}`} text={text} onReadyChange={setDialogueReady} />
                 : <ObservationText echoId={sceneEcho!.id} text={text} typing={sceneEcho!.typing} onTypingComplete={onSceneEchoTypingComplete} />}
-              {sceneEcho?.options && sceneEcho.options.length > 0 && !sceneEcho.typing && sceneEcho.segmentIndex + 1 >= sceneEcho.segments.length && <div className="scene-mainline-text__choices">
-                {sceneEcho.options.map((option, index) => (
-                  <button key={option} type="button" onClick={(event) => { event.stopPropagation(); onSceneEchoChoice?.(index) }}>
-                    {option}
-                  </button>
-                ))}
-              </div>}
             </div>
           })()}
-          {dialogueLock && <>
-            <div className="scene-dialogue-dimmer" aria-hidden="true" />
+          {sceneAction && <div
+            className="scene-mainline-action"
+            style={{ left: `${sceneAction.position.x}%`, top: `${sceneAction.position.y}%` }}
+            data-scene-action={sceneAction.entityId ?? 'scene'}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {sceneAction.options.map((option, index) => (
+              <EntryButtonSurface
+                key={option}
+                visible
+                entryId={`scene-action:${sceneAction.entityId ?? 'scene'}:${option}`}
+                label={option}
+                materialMode="world"
+                worldLayer="surface"
+                disabled={sceneAction.phase === 'committing'}
+                onActionStart={() => onSceneActionStart?.(index)}
+                onActionComplete={() => onSceneActionChoice?.(index)}
+              />
+            ))}
+          </div>}
+          {readingMode && <>
+            <div className={`scene-dialogue-dimmer scene-dialogue-dimmer--${readingMode}`} aria-hidden="true" />
             <button
               type="button"
               className="scene-dialogue-shield"
-              aria-label="继续对话"
+              aria-label="继续阅读"
               data-scene-dialogue-shield="true"
               onPointerUp={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation()
+                if (readingMode === 'dialogue') {
+                  if (dialogueReady) onDialogueAdvance?.()
+                  return
+                }
+                onSceneEchoAdvance?.()
+              }}
             />
           </>}
           </>
