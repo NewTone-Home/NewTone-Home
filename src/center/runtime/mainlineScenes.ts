@@ -222,7 +222,6 @@ export type MainlineSceneDefinition = {
   portals: readonly MainlineScenePortalBlueprint[]
   interactionText: Readonly<Record<string, string>>
   explorationText?: Readonly<Record<string, readonly string[]>>
-  explorationChoices?: Readonly<Record<string, { text: string; options: readonly string[] }>>
   echoPool?: readonly string[]
   dialogue?: MainlineSceneDialogue
 }
@@ -1137,7 +1136,6 @@ function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneD
     portals: blueprint.portals,
     interactionText: blueprint.interactionText,
     explorationText: blueprint.explorationText,
-    explorationChoices: blueprint.explorationChoices,
     echoPool: blueprint.echoPool,
     dialogue: blueprint.dialogue,
     ...compiledScene,

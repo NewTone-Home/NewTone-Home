@@ -73,7 +73,6 @@ export function resolveMainlineSceneExploration(
   context: MainlineSceneInteractionContext,
 ): MainlineExplorationResolution {
   const behavior = interactionBehavior(entity)
-  const configuredChoice = scene.explorationChoices?.[entity.id]
 
   if (behavior === 'incense') {
     return { choice: incenseExplorationChoice(context.incensePhase) }
@@ -113,7 +112,6 @@ export function resolveMainlineSceneExploration(
       : { choice: { text: '要点一杯咖啡吗？', options: ['点一杯咖啡'] } }
   }
 
-  if (configuredChoice) return { choice: configuredChoice }
   if (scene.explorationText?.[entity.id]) return { pool: scene.explorationText[entity.id] }
   if (behavior === 'echo-pool') return { pool: scene.echoPool }
   return {}

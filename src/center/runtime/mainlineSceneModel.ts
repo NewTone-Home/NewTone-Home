@@ -487,7 +487,6 @@ export type MainlineSceneBlueprint = {
   portals: readonly MainlineScenePortalBlueprint[]
   interactionText: Readonly<Record<string, string>>
   explorationText?: Readonly<Record<string, readonly string[]>>
-  explorationChoices?: Readonly<Record<string, { text: string; options: readonly string[] }>>
   echoPool?: readonly string[]
   dialogue?: MainlineSceneDialogue
 }
@@ -1282,7 +1281,6 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
     floorEntities: [
       ...jijiaOldTreeStoneRing,
       floor({ id: 'jijia-old-tree', label: '老槐树', kind: 'landmark', weight: 'minor', position: jijiaYardCenter, collision: jijiaOldTreeCollision, shape: jijiaOldTreeCollision, visualBounds: box(jijiaYardCenter.x - 4.5, jijiaYardCenter.y - 4.5, 9, 9), focusFrame: 'interactive', visualScale: 1.12, visualVisibility: 'distance-baseline', groupId: 'jijia-yard-group', interactionBehavior: 'echo-pool', visualProfile: 'tree-ring' }),
-      wallEntity({ id: 'jijia-yard-gate', label: '院门', kind: 'door', weight: 'gateway', position: { x: 10, y: 47.5 }, doorBehavior: { leafCount: 'double', openLeaves: 'both', visualMode: 'static' } }),
     ],
     blockers: [], furnitureGroups: [{ id: 'jijia-yard-group', anchor: jijiaYardGroupAnchor, entityIds: ['jijia-old-tree'] }], initialPlayerPosition: { x: 25, y: 50 },
   },
@@ -1348,12 +1346,6 @@ const jijiaAncestralInteriorBlueprint: MainlineSceneBlueprint = {
     'jijia-offering-table-west': ['桌子上摆放着一些瓜果。'],
     'jijia-offering-table-east': ['桌子上只摆放着一个牌位，上面写着“姬家家主”。'],
   },
-  explorationChoices: {
-    'jijia-incense-burner': {
-      text: '香早就烧完了，只剩根部伫立在里面。',
-      options: ['重新点香', '置之不理'],
-    },
-  },
 }
 
 const zhongshuyuanPassageWallSteps = boundaryGridStepsFromScreenSpacing()
@@ -1392,7 +1384,7 @@ const zhongshuyuanPassageBlueprint: MainlineSceneBlueprint = {
     wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
     walls: [{ id: 'zhongshuyuan-passage-frame', type: 'alley', bounds: zhongshuyuanPassageBounds, variant: 'narrow-corridor', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { vertical: zhongshuyuanPassageVerticalCoordinateCount }, boundaryProjection: 'screen-spacing', boundaryVisualEndpoints: { vertical: { start: 'omit', end: 'omit' } }, edges: ['top', 'right', 'bottom', 'left'], openings: [
       { edge: 'left', start: zhongshuyuanPassageDoorStart, end: zhongshuyuanPassageDoorEnd, doorId: 'jijia-secret-door', label: '门', displayLabel: '门', labelLayout: 'center' },
-      { edge: 'right', start: zhongshuyuanPassageDoorStart, end: zhongshuyuanPassageDoorEnd, doorId: 'zhongshuyuan-office-entry', label: '门', displayLabel: '门', labelLayout: 'center' },
+      { edge: 'right', start: zhongshuyuanPassageDoorStart, end: zhongshuyuanPassageDoorEnd, doorId: 'zhongshuyuan-office-secret-door', label: '门', displayLabel: '门', labelLayout: 'center' },
     ] }],
     floorEntities: [], blockers: [], furnitureGroups: [], initialPlayerPosition: authoredPoint(30, 50),
   },
@@ -1402,12 +1394,12 @@ const zhongshuyuanPassageBlueprint: MainlineSceneBlueprint = {
     endpoint: { doorPosition: authoredPoint(3, 50), threshold: authoredPoint(7, 50), crossingTarget: authoredPoint(5, 50), entryPosition: authoredPoint(96, 64) },
     targetSceneId: 'jijia-ancestral-interior', wallOpenings: [], transitionText: '修杰从暗道回到祖宅内堂。', access: 'open',
   }, {
-    id: 'zhongshuyuan-office-entry',
-    entity: { id: 'zhongshuyuan-office-entry', label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
+    id: 'zhongshuyuan-office-secret-door',
+    entity: { id: 'zhongshuyuan-office-secret-door', label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
     endpoint: { doorPosition: authoredPoint(97, 50), threshold: authoredPoint(93, 50), crossingTarget: authoredPoint(95, 50), entryPosition: zhongshuyuanOfficePassageEntryPosition },
     targetSceneId: 'zhongshuyuan-office', wallOpenings: [], transitionText: '修杰穿过暗道尽头的门，进入中枢院办公室。', access: 'open',
   }],
-  interactionText: { 'jijia-secret-door': '这扇门回到祖宅内堂。', 'zhongshuyuan-office-entry': '这扇门通向中枢院办公室。' },
+  interactionText: { 'jijia-secret-door': '这扇门回到祖宅内堂。', 'zhongshuyuan-office-secret-door': '这扇门通向中枢院办公室。' },
 }
 
 const zhongshuyuanOfficeFloorBounds = box(6, 8, 88, 84)
@@ -1825,12 +1817,6 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
     'zhongshuyuan-office-plant': ['有段时间没浇水了，不那么精神了。'],
     'zhongshuyuan-office-rack': ['看起来有点老派的衣架。'],
     'zhongshuyuan-office-window': ['外面的阳光白的有些刺眼。', '外面看起来跟表世界没什么区别。'],
-  },
-  explorationChoices: {
-    'zhongshuyuan-office-plant': {
-      text: '有段时间没浇水了，不那么精神了。',
-      options: ['浇水', '无视'],
-    },
   },
 }
 
