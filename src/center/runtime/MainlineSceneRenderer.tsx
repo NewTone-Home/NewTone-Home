@@ -1216,12 +1216,14 @@ export function MainlineSceneRenderer({
               aria-live="polite"
               data-scene-interaction-text={sceneEcho?.entityId ?? dialogue?.triggerEntityId ?? 'scene'}
               data-scene-echo={sceneEcho ? sceneEcho.entityId ?? 'scene' : undefined}
+              data-scene-observation-typing={sceneEcho ? String(sceneEcho.typing) : undefined}
               data-scene-dialogue={isDialogue ? dialogue?.triggerEntityId : undefined}
               data-dialogue-line-id={isDialogue ? dialogueLine?.id : undefined}
               data-dialogue-speaker={isDialogue ? dialogueLine?.speaker : undefined}
               data-scene-segment-index={sceneEcho?.segmentIndex ?? dialogueSegmentIndex}
               data-scene-segment-count={sceneEcho?.segments.length ?? dialogueSegmentCount}
               data-scene-segment-advance={hasNextSegment ? 'available' : 'complete'}
+              data-scene-dialogue-ready={isDialogue ? String(dialogueReady) : undefined}
               onAnimationEnd={(event) => {
                 if (!isLeaving || event.target !== event.currentTarget) return
                 if (sceneEcho) onSceneEchoExitComplete?.(sceneEcho.id)

@@ -32,7 +32,16 @@ import './CenterExperience.css'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { trackEvent } from '../services/analytics'
 import { submitCenterFeedback } from '../services/centerFeedback'
-import { commercialStreetMilkTeaAppUnlocked, commercialStreetMilkTeaHeld, commercialStreetMilkTeaOrderFromSceneState, commercialStreetMilkTeaOrderPatch, createCommercialStreetMilkTeaOrder } from './runtime/commercialStreetMilkTea'
+import {
+  commercialStreetMilkTeaAppUnlocked,
+  commercialStreetMilkTeaHeld,
+  commercialStreetMilkTeaIsReady,
+  commercialStreetMilkTeaOrderFromSceneState,
+  commercialStreetMilkTeaOrderPatch,
+  commercialStreetMilkTeaReadyAnalyticsPatch,
+  commercialStreetMilkTeaReadyAnalyticsWasReported,
+  createCommercialStreetMilkTeaOrder,
+} from './runtime/commercialStreetMilkTea'
 
 const initialSceneId = mainlineRespawnSceneId
 function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
@@ -67,6 +76,7 @@ export default function CenterExperience({
   const [localSlide, setLocalSlide] = useState(null)
   const [longDistanceTravel, setLongDistanceTravel] = useState(null)
   const sceneEnteredAtRef = useRef(null)
+  const milkTeaReadyAnalyticsMarkerRef = useRef(null)
   const commercialStreetState = playerSave.sceneState['commercial-street'] ?? {}
   const milkTeaOrder = commercialStreetMilkTeaOrderFromSceneState(commercialStreetState)
 
@@ -128,9 +138,32 @@ export default function CenterExperience({
     trackEvent('milk_tea_order_started', { sceneId: route.sceneId })
   }, [route.sceneId])
 
-  const handleMilkTeaOrderReady = useCallback((orderNumber) => {
-    trackEvent('milk_tea_order_ready', { sceneId: route.sceneId, eventData: { orderNumber } })
-  }, [route.sceneId])
+  const handleMilkTeaOrderReady = useCallback((order = milkTeaOrder) => {
+    if (!order || !commercialStreetMilkTeaIsReady(order)) return false
+    const marker = `${order.number}:${order.readyAt}`
+    if (milkTeaReadyAnalyticsMarkerRef.current === marker
+      || commercialStreetMilkTeaReadyAnalyticsWasReported(commercialStreetState, order)) return false
+    milkTeaReadyAnalyticsMarkerRef.current = marker
+    commitPlayerSave((current) => recordPlayerSceneStatePatch(
+      current,
+      'commercial-street',
+      commercialStreetMilkTeaReadyAnalyticsPatch(order),
+    ))
+    trackEvent('milk_tea_order_ready', { sceneId: route.sceneId, eventData: { orderNumber: order.number } })
+    return true
+  }, [commercialStreetState, commitPlayerSave, milkTeaOrder, route.sceneId])
+
+  useEffect(() => {
+    if (!milkTeaOrder) {
+      milkTeaReadyAnalyticsMarkerRef.current = null
+      return
+    }
+    if (commercialStreetMilkTeaReadyAnalyticsWasReported(commercialStreetState, milkTeaOrder)) {
+      milkTeaReadyAnalyticsMarkerRef.current = `${milkTeaOrder.number}:${milkTeaOrder.readyAt}`
+      return
+    }
+    handleMilkTeaOrderReady(milkTeaOrder)
+  }, [commercialStreetState, handleMilkTeaOrderReady, milkTeaOrder, route.sceneId])
 
   const handleFeedbackModeChange = useCallback((mode) => {
     setFeedbackMode(mode)
@@ -369,6 +402,7 @@ export default function CenterExperience({
       onObjectInteraction={snapshot ? undefined : handleObjectInteraction}
       onDoorEvent={snapshot ? undefined : handleDoorEvent}
       onMilkTeaAppOpen={snapshot ? undefined : openMilkTeaApp}
+      onMilkTeaOrderReady={snapshot ? undefined : handleMilkTeaOrderReady}
       onChapterAnalytics={snapshot ? undefined : trackChapterEvent}
       initialSceneState={playerSave.sceneState[sceneRoute.sceneId] ?? {}}
       carriedMilkTea={commercialStreetMilkTeaHeld(playerSave.sceneState['commercial-street'])}

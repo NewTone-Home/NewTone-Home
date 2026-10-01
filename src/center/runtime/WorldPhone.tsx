@@ -76,7 +76,7 @@ type WorldPhoneProps = {
   onRequestedAppHandled?: () => void
   onMilkTeaOrderConfirm?: (selection: { drink: MilkTeaDrink; sugar: MilkTeaSugar; ice: MilkTeaIce }) => void
   onMilkTeaOrderStarted?: () => void
-  onMilkTeaOrderReady?: (orderNumber: number) => void
+  onMilkTeaOrderReady?: (order: CommercialStreetMilkTeaOrder) => void
 }
 
 type RideDestination = MainlineMapLandmark & { sceneId: MainlineSceneId }
@@ -292,7 +292,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
     const orderKey = `${milkTeaOrder.number}:${milkTeaOrder.readyAt}`
     if (milkTeaOrderReadyRef.current === orderKey) return
     milkTeaOrderReadyRef.current = orderKey
-    onMilkTeaOrderReady?.(milkTeaOrder.number)
+    onMilkTeaOrderReady?.(milkTeaOrder)
   }, [activeApp, milkTeaOrder?.number, milkTeaOrder?.readyAt, onMilkTeaOrderReady])
 
   const selectMilkTeaDrink = (drink: MilkTeaDrink) => {

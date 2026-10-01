@@ -16,6 +16,7 @@ export const commercialCafeStoryStatusKey = 'commercialCafeStoryStatus'
 export const commercialCafeCoffeeOrderedKey = 'commercialCafeCoffeeOrdered'
 export const commercialCafeCoffeeDeliveredKey = 'commercialCafeCoffeeDelivered'
 export const commercialCafeCompletedAtKey = 'commercialCafeCompletedAt'
+export const commercialCafeAnalyticsMilestonesKey = 'commercialCafeAnalyticsMilestones'
 export const commercialCafeCompletionPresenceMs = 5 * 60 * 1000
 export type CommercialCafeStoryStatus = 'available' | 'ready-to-leave' | 'complete'
 export type CommercialCafeStoryState = { status: CommercialCafeStoryStatus; narrativeCursor: number; coffeeOrdered: boolean; coffeeDelivered: boolean; completedAt: number | null }
@@ -67,6 +68,24 @@ export function commercialCafeAnalyticsStageForCursor(cursor: number) {
   if (cursor === 5) return 'mine-lead' as const
   if (cursor === 9) return 'yonghe-lead' as const
   return null
+}
+
+export const commercialCafeAnalyticsStages = ['meeting-started', 'mine-lead', 'yonghe-lead', 'ready-to-leave', 'complete'] as const
+export type CommercialCafeAnalyticsStage = typeof commercialCafeAnalyticsStages[number]
+
+export function commercialCafeAnalyticsMilestonesFromSceneState(sceneState: PlayerSceneState | undefined) {
+  const stored = sceneState?.[commercialCafeAnalyticsMilestonesKey]
+  if (typeof stored !== 'string') return new Set<CommercialCafeAnalyticsStage>()
+  return new Set(stored.split('|').filter((stage): stage is CommercialCafeAnalyticsStage => commercialCafeAnalyticsStages.includes(stage as CommercialCafeAnalyticsStage)))
+}
+
+export function commercialCafeAnalyticsMilestonePatch(
+  sceneState: PlayerSceneState | undefined,
+  stage: CommercialCafeAnalyticsStage,
+) {
+  const milestones = commercialCafeAnalyticsMilestonesFromSceneState(sceneState)
+  milestones.add(stage)
+  return { [commercialCafeAnalyticsMilestonesKey]: [...milestones].join('|') }
 }
 
 export const commercialCafeSeatGuideDialogue = {

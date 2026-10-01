@@ -7,6 +7,9 @@ import {
   commercialStreetMilkTeaIsReady,
   commercialStreetMilkTeaOrderFromSceneState,
   commercialStreetMilkTeaOrderPatch,
+  commercialStreetMilkTeaReadyAnalyticsMarker,
+  commercialStreetMilkTeaReadyAnalyticsPatch,
+  commercialStreetMilkTeaReadyAnalyticsWasReported,
   commercialStreetMilkTeaPickupPatch,
   commercialStreetMilkTeaQueueStatus,
   createCommercialStreetMilkTeaOrder,
@@ -107,5 +110,25 @@ describe('commercial street milk tea', () => {
     const state = save.sceneState['commercial-street']
     expect(commercialStreetMilkTeaOrderFromSceneState(state)).toBeNull()
     expect(commercialStreetMilkTeaHeld(state)).toBe(true)
+  })
+
+  it('persists the ready analytics marker once per concrete order and clears it for the next order', () => {
+    const order = createCommercialStreetMilkTeaOrder(
+      {},
+      { drink: '原味奶茶', sugar: '少糖', ice: '去冰' },
+      1_000,
+      () => 0,
+    )
+    const marked = { ...commercialStreetMilkTeaOrderPatch(order), ...commercialStreetMilkTeaReadyAnalyticsPatch(order) }
+    expect(commercialStreetMilkTeaReadyAnalyticsMarker(order)).toBe(`1:${order.readyAt}`)
+    expect(commercialStreetMilkTeaReadyAnalyticsWasReported(marked, order)).toBe(true)
+
+    const nextOrder = createCommercialStreetMilkTeaOrder(
+      marked,
+      { drink: '芋泥奶茶', sugar: '正常', ice: '少冰' },
+      20_000,
+      () => 0,
+    )
+    expect(commercialStreetMilkTeaReadyAnalyticsWasReported(commercialStreetMilkTeaOrderPatch(nextOrder), nextOrder)).toBe(false)
   })
 })

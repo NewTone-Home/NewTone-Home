@@ -11,6 +11,7 @@ export const commercialStreetMilkTeaHeldDrinkKey = 'commercialStreetMilkTeaHeldD
 export const commercialStreetMilkTeaAppUnlockedKey = 'commercialStreetMilkTeaAppUnlocked'
 export const commercialStreetMilkTeaCreatedAtKey = 'commercialStreetMilkTeaCreatedAt'
 export const commercialStreetMilkTeaQueueAheadKey = 'commercialStreetMilkTeaQueueAhead'
+export const commercialStreetMilkTeaReadyAnalyticsMarkerKey = 'commercialStreetMilkTeaReadyAnalyticsMarker'
 
 export const milkTeaDrinks = ['原味奶茶', '黑糖珍珠奶茶', '芋泥奶茶', '茉莉奶绿'] as const
 export const milkTeaSugarOptions = ['少糖', '正常', '多糖'] as const
@@ -106,6 +107,7 @@ export function commercialStreetMilkTeaOrderPatch(order: CommercialStreetMilkTea
     [commercialStreetMilkTeaReadyAtKey]: order.readyAt,
     [commercialStreetMilkTeaCreatedAtKey]: order.createdAt,
     [commercialStreetMilkTeaQueueAheadKey]: order.queueAhead,
+    [commercialStreetMilkTeaReadyAnalyticsMarkerKey]: null,
   }
 }
 
@@ -124,6 +126,22 @@ export function commercialStreetMilkTeaPickupPatch(): Record<string, PlayerChoic
 
 export function commercialStreetMilkTeaIsReady(order: CommercialStreetMilkTeaOrder, now: number = Date.now()) {
   return now >= order.readyAt
+}
+
+/** A stable order identity makes the ready milestone durable across reloads. */
+export function commercialStreetMilkTeaReadyAnalyticsMarker(order: CommercialStreetMilkTeaOrder) {
+  return `${order.number}:${order.readyAt}`
+}
+
+export function commercialStreetMilkTeaReadyAnalyticsWasReported(
+  sceneState: PlayerSceneState | undefined,
+  order: CommercialStreetMilkTeaOrder,
+) {
+  return sceneState?.[commercialStreetMilkTeaReadyAnalyticsMarkerKey] === commercialStreetMilkTeaReadyAnalyticsMarker(order)
+}
+
+export function commercialStreetMilkTeaReadyAnalyticsPatch(order: CommercialStreetMilkTeaOrder): Record<string, PlayerChoiceValue> {
+  return { [commercialStreetMilkTeaReadyAnalyticsMarkerKey]: commercialStreetMilkTeaReadyAnalyticsMarker(order) }
 }
 
 export function commercialStreetMilkTeaQueueStatus(order: CommercialStreetMilkTeaOrder, now: number = Date.now()) {

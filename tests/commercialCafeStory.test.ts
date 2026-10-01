@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   commercialCafeBanknoteAttachedPropId,
+  commercialCafeAnalyticsMilestonePatch,
+  commercialCafeAnalyticsMilestonesFromSceneState,
   commercialCafeAnalyticsStageForCursor,
   commercialCafeCoffeeAttachedPropId,
   commercialCafeCompletionPresenceMs,
@@ -67,6 +69,14 @@ describe('commercial cafe narrative state', () => {
     expect(commercialCafeAnalyticsStageForCursor(5)).toBe('mine-lead')
     expect(commercialCafeAnalyticsStageForCursor(9)).toBe('yonghe-lead')
     expect(commercialCafeAnalyticsStageForCursor(1)).toBeNull()
+  })
+
+  it('persists durable Café milestones so reload resumes cannot count them again', () => {
+    const started = commercialCafeAnalyticsMilestonePatch({}, 'meeting-started')
+    const mineLead = commercialCafeAnalyticsMilestonePatch(started, 'mine-lead')
+    expect(commercialCafeAnalyticsMilestonesFromSceneState(mineLead)).toEqual(new Set(['meeting-started', 'mine-lead']))
+    expect(commercialCafeAnalyticsMilestonesFromSceneState(mineLead).has('meeting-started')).toBe(true)
+    expect(commercialCafeAnalyticsMilestonesFromSceneState(mineLead).has('yonghe-lead')).toBe(false)
   })
 
   it('keeps optional coffee delivery independent from narrative cursor', () => {

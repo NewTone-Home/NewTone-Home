@@ -16,7 +16,7 @@ import { mainlineCameraOffset } from './mainlineViewport'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
-import { commercialCafeAnalyticsStageForCursor, commercialCafeCoffeeDeliveredKey, commercialCafeCoffeeOrderedKey, commercialCafeDepartureText, commercialCafeLaoZhouConversationSeatId, commercialCafeLaoZhouIsPresent, commercialCafeNarrativeDialogue, commercialCafeStoryCompleted, commercialCafeStoryNeedsMigration, commercialCafeStoryReadyToLeave, commercialCafeStoryStateFromSceneState, commercialCafeStoryStatePatch, commercialCafeStoryWithCursor, commercialCafeVisibleAttachedPropIds, isCommercialCafeStoryStage, resolveCommercialCafeNpcInteraction, shouldCompleteCommercialCafeStoryOnTransition, type CommercialCafeNpcInteractionResolution, type CommercialCafeStoryStage } from './commercialCafeStory'
+import { commercialCafeAnalyticsMilestonePatch, commercialCafeAnalyticsMilestonesFromSceneState, commercialCafeAnalyticsStageForCursor, commercialCafeCoffeeDeliveredKey, commercialCafeCoffeeOrderedKey, commercialCafeDepartureText, commercialCafeLaoZhouConversationSeatId, commercialCafeLaoZhouIsPresent, commercialCafeNarrativeDialogue, commercialCafeStoryCompleted, commercialCafeStoryNeedsMigration, commercialCafeStoryReadyToLeave, commercialCafeStoryStateFromSceneState, commercialCafeStoryStatePatch, commercialCafeStoryWithCursor, commercialCafeVisibleAttachedPropIds, isCommercialCafeStoryStage, resolveCommercialCafeNpcInteraction, shouldCompleteCommercialCafeStoryOnTransition, type CommercialCafeAnalyticsStage, type CommercialCafeNpcInteractionResolution, type CommercialCafeStoryStage } from './commercialCafeStory'
 import { createCommercialCafeServerBehaviorCoordinator } from './commercialCafeBehavior'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { createNavigationRuntime } from './navigationCore'
@@ -34,7 +34,7 @@ import { mainlineExploredObjectIdsFromSceneState, mainlineInteractionCompletesIm
 import { localSlideDirectionForCrossing, shouldUseLocalSlideForPassage, type MainlineWalkingPassageTransitionIntent } from './mainlineSceneTransition'
 import { createCommercialStreetStorefrontExecutionRuntime, createCommercialStreetStorefrontInteractionRuntime, commercialStreetStorefrontInteractionFor, executeCommercialStreetStorefrontInteraction, type CommercialStreetStorefrontAction } from './commercialStreetStorefrontInteractions'
 import { commercialStreetQuestionNarrativeAnchor, commercialStreetQuestionNarrativeCompleted, commercialStreetQuestionNarrativeCompletedKey, commercialStreetQuestionNarrativeLines, commercialStreetQuestionNarrativeShouldTrigger, nextCommercialStreetQuestionNarrative, type CommercialStreetQuestionNarrativeState } from './commercialStreetQuestionNarrative'
-import { commercialStreetMilkTeaAppUnlockPatch, commercialStreetMilkTeaAppUnlocked, commercialStreetMilkTeaHeld, commercialStreetMilkTeaIsReady, commercialStreetMilkTeaOrderFromSceneState, commercialStreetMilkTeaPickupPatch, commercialStreetMilkTeaStorefrontId, formatCommercialStreetMilkTeaOrderNumber } from './commercialStreetMilkTea'
+import { commercialStreetMilkTeaAppUnlockPatch, commercialStreetMilkTeaAppUnlocked, commercialStreetMilkTeaHeld, commercialStreetMilkTeaIsReady, commercialStreetMilkTeaOrderFromSceneState, commercialStreetMilkTeaPickupPatch, commercialStreetMilkTeaStorefrontId, formatCommercialStreetMilkTeaOrderNumber, type CommercialStreetMilkTeaOrder } from './commercialStreetMilkTea'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
@@ -203,6 +203,7 @@ export function MainlineScenePage({
   onObjectInteraction,
   onStorefrontAction,
   onMilkTeaAppOpen,
+  onMilkTeaOrderReady,
   onChapterAnalytics,
   onNpcInteraction,
   onDoorEvent,
@@ -238,6 +239,7 @@ export function MainlineScenePage({
   /** Reserved entry point for future storefront actions such as milk-tea ordering. */
   onStorefrontAction?: (action: CommercialStreetStorefrontAction, storefrontId: string) => void
   onMilkTeaAppOpen?: () => void
+  onMilkTeaOrderReady?: (order: CommercialStreetMilkTeaOrder) => void
   onChapterAnalytics?: (eventName: string, eventData?: Record<string, string | number>) => void
   onNpcInteraction?: (npcId: string) => void
   onDoorEvent?: (phase: 'attempted' | 'blocked' | 'crossed', passage: MainlineScenePassage) => void
@@ -361,6 +363,7 @@ export function MainlineScenePage({
   const [plantWateredAt, setPlantWateredAt] = useState<number | null>(() => typeof initialSceneState.plantWateredAt === 'number' ? initialSceneState.plantWateredAt : null)
   const [incenseClock, setIncenseClock] = useState(() => Date.now())
   const sceneEchoIdRef = useRef(0)
+  const cafeAnalyticsMilestonesRef = useRef<Set<CommercialCafeAnalyticsStage>>(new Set())
   const shortInteractionCompletionFrameRef = useRef<number | null>(null)
   const exploredObjectIds = explorationState.sceneId === scene.id ? explorationState.objectIds : emptyExplorationObjectIds
   const incensePhase: IncenseBurnPhase = incenseBurnPhase(incenseLitAt, incenseClock)
@@ -387,6 +390,18 @@ export function MainlineScenePage({
   const recordSceneStatePatch = useCallback((targetSceneId: MainlineSceneId, patch: PlayerSceneState) => {
     onPlayerSceneStatePatch?.(targetSceneId, patch)
   }, [onPlayerSceneStatePatch])
+  useEffect(() => {
+    cafeAnalyticsMilestonesRef.current = scene.id === 'commercial-cafe'
+      ? commercialCafeAnalyticsMilestonesFromSceneState(initialSceneState)
+      : new Set()
+  }, [initialSceneState, scene.id])
+  const recordCafeAnalyticsMilestone = useCallback((stage: CommercialCafeAnalyticsStage) => {
+    if (scene.id !== 'commercial-cafe' || cafeAnalyticsMilestonesRef.current.has(stage)) return false
+    cafeAnalyticsMilestonesRef.current.add(stage)
+    recordSceneStatePatch(scene.id, commercialCafeAnalyticsMilestonePatch(initialSceneState, stage))
+    onChapterAnalytics?.('cafe_story_stage_reached', { stage })
+    return true
+  }, [initialSceneState, onChapterAnalytics, recordSceneStatePatch, scene.id])
   const markEntityExplored = useCallback((entityId: string) => {
     recordSceneState(scene.id, mainlineInteractionExploredStateKey(entityId), true)
     setExplorationState((current) => {
@@ -1004,7 +1019,7 @@ export function MainlineScenePage({
         const completesCommercialCafeStory = shouldCompleteCommercialCafeStoryOnTransition({ sceneId: scene.id, story: commercialCafeStory, targetSceneId: pending.passage.targetSceneId })
         if (completesCommercialCafeStory) {
           recordSceneStatePatch(scene.id, commercialCafeStoryStatePatch(commercialCafeStoryCompleted(commercialCafeStory, Date.now())))
-          onChapterAnalytics?.('cafe_story_stage_reached', { stage: 'complete' })
+          recordCafeAnalyticsMilestone('complete')
           onChapterAnalytics?.('cafe_completed')
         }
         onDoorEvent?.('crossed', pending.passage)
@@ -1128,7 +1143,7 @@ export function MainlineScenePage({
         setActiveObjectId(null)
       },
     })
-  }, [beginPassageLeg, commercialCafeStory, getCurrentPosition, getOpenPassageIds, isPassageActorActive, layout, locomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, protagonistFootprint, recordSceneStatePatch, scene])
+  }, [beginPassageLeg, commercialCafeStory, getCurrentPosition, getOpenPassageIds, isPassageActorActive, layout, locomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, protagonistFootprint, recordCafeAnalyticsMilestone, recordSceneStatePatch, scene])
 
   continuePendingTraversalRef.current = continuePendingTraversal
 
@@ -1274,8 +1289,8 @@ export function MainlineScenePage({
     setDialogueLineIndex(commercialCafeStory.narrativeCursor)
     setCommercialCafeNarrative({ phase: 'active' })
     const stage = commercialCafeAnalyticsStageForCursor(commercialCafeStory.narrativeCursor)
-    if (stage) onChapterAnalytics?.('cafe_story_stage_reached', { stage })
-  }, [commercialCafeStory.narrativeCursor, commercialCafeStory.status, onChapterAnalytics, scene.id, stopMovement])
+    if (stage) recordCafeAnalyticsMilestone(stage)
+  }, [commercialCafeStory.narrativeCursor, commercialCafeStory.status, recordCafeAnalyticsMilestone, scene.id, stopMovement])
 
   const startPassageTraversal = useCallback((passage: MainlineScenePassage, requestedTarget: Point, plannedApproachPath?: Point[] | null, continuationPath?: Point[] | null, passageQueue: readonly MainlineScenePassage[] = [passage], passageIndex = 0) => {
     if (sceneAction?.phase === 'committing') return
@@ -1440,6 +1455,7 @@ export function MainlineScenePage({
     }
     if (currentOrder) {
       if (commercialStreetMilkTeaIsReady(currentOrder)) {
+        onMilkTeaOrderReady?.(currentOrder)
         recordSceneStatePatch('commercial-street', commercialStreetMilkTeaPickupPatch())
         onChapterAnalytics?.('milk_tea_order_picked_up', { orderNumber: currentOrder.number })
         showMilkTeaEcho('取到奶茶。')
@@ -1453,7 +1469,7 @@ export function MainlineScenePage({
       onChapterAnalytics?.('milk_tea_app_unlocked')
     }
     onMilkTeaAppOpen?.()
-  }, [carriedMilkTea, initialSceneState, onChapterAnalytics, onMilkTeaAppOpen, recordSceneStatePatch, showMilkTeaEcho])
+  }, [carriedMilkTea, initialSceneState, onChapterAnalytics, onMilkTeaAppOpen, onMilkTeaOrderReady, recordSceneStatePatch, showMilkTeaEcho])
 
   const interactStorefront = useCallback((storefrontId: string) => {
     if (readingActive || sceneAction?.phase === 'committing') return
@@ -1674,11 +1690,11 @@ export function MainlineScenePage({
         recordSceneStatePatch(scene.id, commercialCafeStoryStatePatch(nextStory))
         setDialogueLineIndex(nextCursor)
         const stage = commercialCafeAnalyticsStageForCursor(nextCursor)
-        if (stage) onChapterAnalytics?.('cafe_story_stage_reached', { stage })
+        if (stage) recordCafeAnalyticsMilestone(stage)
         return
       }
       recordSceneStatePatch(scene.id, commercialCafeStoryStatePatch(commercialCafeStoryReadyToLeave(commercialCafeStory)))
-      onChapterAnalytics?.('cafe_story_stage_reached', { stage: 'ready-to-leave' })
+      recordCafeAnalyticsMilestone('ready-to-leave')
       onChapterAnalytics?.('cafe_ready_to_leave')
       onChapterAnalytics?.('cafe_banknote_presented')
       setCommercialCafeNarrative({ phase: 'leaving' })
@@ -1696,7 +1712,7 @@ export function MainlineScenePage({
       return
     }
     setGenericDialoguePhase('leaving')
-  }, [activeDialogue, commercialCafeNarrative, commercialCafeStory, commercialStreetQuestionNarrative, dialogueLineIndex, dialogueSegmentIndex, npcDialogue, onChapterAnalytics, recordSceneState, recordSceneStatePatch, scene.id])
+  }, [activeDialogue, commercialCafeNarrative, commercialCafeStory, commercialStreetQuestionNarrative, dialogueLineIndex, dialogueSegmentIndex, npcDialogue, onChapterAnalytics, recordCafeAnalyticsMilestone, recordSceneState, recordSceneStatePatch, scene.id])
 
   const walk = useCallback((point: Point) => {
     if (readingActive) return

@@ -101,6 +101,11 @@ async function advanceObservationToAction(page: Page, observation: string, optio
   const segments = splitMainlineInteractionText(observation)
   for (let index = 0; index < segments.length; index += 1) {
     await expect(page.getByText(segments[index]!, { exact: true })).toBeVisible({ timeout: 15_000 })
+    const echo = page.locator('[data-scene-echo]')
+    if (await echo.getAttribute('data-scene-observation-typing') === 'true') {
+      await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
+      await expect(echo).toHaveAttribute('data-scene-observation-typing', 'false')
+    }
     await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
   }
   const action = page.getByRole('button', { name: option, exact: true })

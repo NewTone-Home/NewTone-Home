@@ -38,6 +38,25 @@ function waitForAnalyticsEvent(page: Page, eventName: string) {
   return page.waitForRequest((request) => requestHasEvent(request, eventName))
 }
 
+async function advanceSceneDialogue(page: Page, dialogue: ReturnType<Page['locator']>) {
+  await expect(dialogue).toHaveAttribute('data-scene-segment-advance', 'available', { timeout: 15_000 })
+  await expect(dialogue).toHaveAttribute('data-scene-dialogue-ready', 'true', { timeout: 15_000 })
+  await page.locator('[data-scene-dialogue-shield="true"]').click()
+}
+
+async function dismissCompletedDialogue(page: Page, dialogue: ReturnType<Page['locator']>) {
+  await expect(dialogue).toHaveAttribute('data-scene-segment-advance', 'complete', { timeout: 15_000 })
+  await expect(dialogue).toHaveAttribute('data-scene-dialogue-ready', 'true', { timeout: 15_000 })
+  await page.locator('[data-scene-dialogue-shield="true"]').click()
+  await expect(dialogue).toHaveCount(0)
+}
+
+async function dismissCompletedObservation(page: Page, echo: ReturnType<Page['locator']>, text: string) {
+  await expect(echo).toContainText(text, { timeout: 15_000 })
+  await page.locator('[data-scene-dialogue-shield="true"]').click()
+  await expect(echo).toHaveCount(0)
+}
+
 async function triggerStorefrontInteraction(page: Page, label: string) {
   // This analytics contract needs to cover the storefront's ordinary React
   // handler after the question has panned the camera elsewhere. Existing
@@ -66,20 +85,22 @@ test('Chapter Two emits constrained browser analytics without requiring a real d
   const shield = page.locator('[data-scene-dialogue-shield="true"]')
   const questionDialogue = page.locator('[data-scene-dialogue="commercial-street-question"]')
   await expect(shield).toBeVisible({ timeout: 15_000 })
-  await shield.click()
+  await advanceSceneDialogue(page, questionDialogue)
   await expect(questionDialogue).toContainText('不，不会认错的。')
-  await shield.click()
+  await advanceSceneDialogue(page, questionDialogue)
   await expect(questionDialogue).toContainText('那张脸修杰太过于熟悉。')
   const questionCompleted = waitForAnalyticsEvent(page, 'commercial_question_completed')
-  await shield.click()
+  await advanceSceneDialogue(page, questionDialogue)
   await expect(questionDialogue).toBeHidden({ timeout: 5_000 })
   await expect(shield).toHaveCount(0)
   await questionCompleted
 
   const fruitObserved = waitForAnalyticsEvent(page, 'commercial_storefront_interacted')
   await triggerStorefrontInteraction(page, '果茶店')
-  await expect(page.locator('[data-scene-echo="commercial-north-slot-1"]')).toBeVisible({ timeout: 30_000 })
+  const fruitEcho = page.locator('[data-scene-echo="commercial-north-slot-1"]')
+  await expect(fruitEcho).toBeVisible({ timeout: 30_000 })
   await fruitObserved
+  await dismissCompletedObservation(page, fruitEcho, 'Coming Soon')
 
   const teaUnlocked = waitForAnalyticsEvent(page, 'milk_tea_app_unlocked')
   await triggerStorefrontInteraction(page, '奶茶店')
@@ -102,12 +123,14 @@ test('Chapter Two emits constrained browser analytics without requiring a real d
     save.sceneState['commercial-street'][readyAtKey] = Date.now() - 1
     localStorage.setItem('newtone-player-save-v1', JSON.stringify(save))
   }, commercialStreetMilkTeaReadyAtKey)
-  await page.reload()
-  await page.getByLabel('打开手机').click()
+  // Runtime resume is itself a valid ready detector; subscribe before reload
+  // so the test proves the milestone does not require opening the App.
   const teaReady = waitForAnalyticsEvent(page, 'milk_tea_order_ready')
+  await page.reload()
+  await teaReady
+  await page.getByLabel('打开手机').click()
   await phone.locator('[data-app="milk-tea"]').click()
   await expect(phone.getByText('已完成', { exact: true })).toBeVisible()
-  await teaReady
   await page.getByLabel('收起手机').click()
   const teaPickedUp = waitForAnalyticsEvent(page, 'milk_tea_order_picked_up')
   await triggerStorefrontInteraction(page, '奶茶店')
@@ -121,6 +144,7 @@ test('Chapter Two emits constrained browser analytics without requiring a real d
   ]))
   const order = events.find((event) => event.event_name === 'milk_tea_order_confirmed')
   expect(order?.event_data).toMatchObject({ drink: '原味奶茶', sugar: '少糖', ice: '去冰', orderNumber: 1 })
+  expect(events.filter((event) => event.event_name === 'milk_tea_order_ready')).toHaveLength(1)
   expect(events.every((event) => typeof event.event_data === 'object')).toBe(true)
 })
 
@@ -134,6 +158,8 @@ test('Café records only durable story milestones and completion transitions', a
   await page.goto(`${analyticsBaseUrl}/?scene=commercial-cafe&debugCafeFixture=1`)
   const coffeeOrdered = waitForAnalyticsEvent(page, 'cafe_coffee_ordered')
   await page.getByRole('button', { name: '柜台' }).first().click()
+  const counterObservation = page.locator('[data-scene-echo]').filter({ hasText: '要点一杯咖啡吗？' })
+  await dismissCompletedObservation(page, counterObservation, '要点一杯咖啡吗？')
   await page.getByRole('button', { name: '点一杯咖啡', exact: true }).click()
   await coffeeOrdered
 
@@ -156,7 +182,7 @@ test('Café records only durable story milestones and completion transitions', a
   await page.getByRole('button', { name: '老周，点击让主角前往互动' }).click()
   const shield = page.locator('[data-scene-dialogue-shield="true"]')
   await expect(shield).toBeVisible({ timeout: 15_000 })
-  await shield.click()
+  await dismissCompletedDialogue(page, page.locator('[data-scene-dialogue]').filter({ hasText: '好。' }))
   await expect(shield).toHaveCount(0)
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-commercial-cafe-status', 'ready-to-leave')
   await readyToLeave
