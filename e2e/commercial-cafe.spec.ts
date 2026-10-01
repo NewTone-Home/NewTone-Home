@@ -6,6 +6,7 @@ import {
   commercialCafeNarrativeCursorKey,
   commercialCafeStoryStatusKey,
 } from '../src/center/runtime/commercialCafeStory'
+import { splitMainlineInteractionText } from '../src/center/runtime/mainlineTextSegments'
 
 test.use({ viewport: { width: 1280, height: 720 } })
 
@@ -62,6 +63,22 @@ async function advanceNarrativeToLine(page: Page, lineId: string, maximum = 40) 
   await expect(page.locator(`[data-dialogue-line-id="${lineId}"]`)).toBeVisible()
 }
 
+async function advanceNarrativeToText(page: Page, lineId: string, text: string, maximum = 20) {
+  const dialogue = page.locator(`[data-dialogue-line-id="${lineId}"]`)
+  for (let index = 0; index < maximum; index += 1) {
+    await expect(dialogue).toBeVisible()
+    if ((await dialogue.textContent())?.includes(text)) return
+    const previous = await dialogue.evaluate((element) => `${(element as HTMLElement).dataset.sceneSegmentIndex}:${element.textContent}`)
+    await page.waitForTimeout(400)
+    await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
+    await page.waitForFunction((token) => {
+      const current = document.querySelector<HTMLElement>('[data-scene-dialogue]')
+      return current && `${current.dataset.sceneSegmentIndex}:${current.textContent}` !== token
+    }, previous)
+  }
+  await expect(dialogue).toContainText(text)
+}
+
 async function advanceVisibleDialogue(page: Page, maximum = 20) {
   for (let index = 0; index < maximum; index += 1) {
     const interaction = await page.evaluate(() => {
@@ -81,8 +98,11 @@ async function advanceVisibleDialogue(page: Page, maximum = 20) {
 }
 
 async function advanceObservationToAction(page: Page, observation: string, option: string) {
-  await expect(page.getByText(observation, { exact: true })).toBeVisible({ timeout: 15_000 })
-  await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
+  const segments = splitMainlineInteractionText(observation)
+  for (let index = 0; index < segments.length; index += 1) {
+    await expect(page.getByText(segments[index]!, { exact: true })).toBeVisible({ timeout: 15_000 })
+    await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
+  }
   const action = page.getByRole('button', { name: option, exact: true })
   await expect(action).toBeEnabled({ timeout: 5_000 })
   return action
@@ -133,13 +153,7 @@ test('Café long dialogue remains readable at the fixed world anchor without a c
   await startNarrative(page)
   await advanceNarrativeToLine(page, 'commercial-cafe-coffee-lao-zhou')
   const dialogue = page.locator('[data-dialogue-line-id="commercial-cafe-coffee-lao-zhou"]')
-  await page.waitForTimeout(400)
-  await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
-  await expect(dialogue).toHaveAttribute('data-scene-segment-index', '1')
-  // The first clause is intentionally kept readable before this second
-  // sentence-length segment; assert the actual roll destination rather than
-  // the prior page's text.
-  await expect(dialogue).toContainText('我这把年纪了还是不要折腾比较好。')
+  await advanceNarrativeToText(page, 'commercial-cafe-coffee-lao-zhou', '我这把年纪了还是不要折腾比较好。')
   const [stageBox, dialogueBox] = await Promise.all([
     page.locator('.mainline-scene-stage').boundingBox(),
     dialogue.boundingBox(),

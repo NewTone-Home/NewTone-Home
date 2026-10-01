@@ -466,16 +466,12 @@ function MainlineObject({ entity, scene, position, collision, visualBounds, focu
   const className = objectClass(scene, entity, visibility, active, explored, tutorialCompleted, underPlayer, selected, dragging, incenseLit)
   const visualScale = entity.visualScale ?? 1
   const focusBounds = focusGroup && visualBounds ? visualBounds : null
-  const renderedPosition = focusBounds
-    ? { x: focusBounds.x + focusBounds.width / 2, y: focusBounds.y + focusBounds.height / 2 }
-    : position
+  const renderedPosition = position
   const commonProps = {
-    className: `${className} ${focusBounds ? 'has-focus-frame' : ''} ${layoutItemId ? 'scene-object--layout-draggable' : ''} ${suppressLabel ? 'is-occupied' : ''} ${prompted ? 'is-story-prompted' : ''}`,
+    className: `${className} ${layoutItemId ? 'scene-object--layout-draggable' : ''} ${suppressLabel ? 'is-occupied' : ''} ${prompted ? 'is-story-prompted' : ''}`,
     style: {
       left: `${renderedPosition.x}%`,
       top: `${renderedPosition.y}%`,
-      width: focusBounds ? `${focusBounds.width}%` : undefined,
-      height: focusBounds ? `${focusBounds.height}%` : undefined,
       boxSizing: 'border-box',
       '--incense-burn-remaining': `${incenseBurnRemainingMs}ms`,
       '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(entity, screenMetrics)}px`,
@@ -508,13 +504,29 @@ function MainlineObject({ entity, scene, position, collision, visualBounds, focu
     if (!sharedBreathingClock || !registerBreathingNode) return
     registerBreathingNode(entity.id, node)
   }, [entity.id, registerBreathingNode, sharedBreathingClock])
+  const frame = focusGroup && renderFrame
+    ? focusBounds
+      ? <span
+          className={`scene-mainline-object__focus-host ${active ? 'is-active' : ''}`}
+          style={{
+            left: `${focusBounds.x + focusBounds.width / 2}%`,
+            top: `${focusBounds.y + focusBounds.height / 2}%`,
+            width: `${focusBounds.width}%`,
+            height: `${focusBounds.height}%`,
+          }}
+          aria-hidden="true"
+        >{renderFrame(focusGroup)}</span>
+      : renderFrame(focusGroup)
+    : null
 
   if (entity.interactive === false) {
-    return <span {...commonProps} aria-hidden="true">{!suppressLabel && <span className="scene-mainline-object__label" ref={labelRef} style={labelStyle}>{entity.label}</span>}{focusGroup && renderFrame?.(focusGroup)}</span>
+    return <>{focusBounds && frame}<span {...commonProps} aria-hidden="true">{!suppressLabel && <span className="scene-mainline-object__label" ref={labelRef} style={labelStyle}>{entity.label}</span>}{!focusBounds && frame}</span></>
   }
 
   return (
-    <button
+    <>
+      {focusBounds && frame}
+      <button
       {...commonProps}
       type="button"
       aria-label={layoutMode && layoutItemId ? `${entity.label}，拖动摆设套件` : `${entity.label}，点击让主角前往互动`}
@@ -534,8 +546,9 @@ function MainlineObject({ entity, scene, position, collision, visualBounds, focu
       }}
     >
       {!suppressLabel && <span className="scene-mainline-object__label" ref={labelRef} style={labelStyle}>{entity.label}</span>}
-      {focusGroup && renderFrame?.(focusGroup)}
-    </button>
+      {!focusBounds && frame}
+      </button>
+    </>
   )
 }
 
@@ -750,8 +763,7 @@ export function MainlineSceneRenderer({
         interactionBusy: target.policy === 'interactive' && activeObjectId === interactionId && moving,
         interactionActive: target.policy === 'interactive' && (activeObjectId === interactionId || sceneEcho?.entityId === interactionId),
         retractRequested: retractRequested
-          || (cell.kind === 'storefront' && cell.storefrontRole === 'sign' && (storefrontPresentationPhase === 'revealing' || storefrontPresentationPhase === 'revealed'))
-          || (sceneEcho?.phase === 'leaving' && sceneEcho.entityId === entityId),
+          || (cell.kind === 'storefront' && cell.storefrontRole === 'sign' && (storefrontPresentationPhase === 'revealing' || storefrontPresentationPhase === 'revealed')),
         suppressed: false,
       })
     })
@@ -765,7 +777,7 @@ export function MainlineSceneRenderer({
         gateTriggered: false,
         interactionBusy: activeObjectId === entity.id && moving,
         interactionActive: activeObjectId === entity.id || sceneEcho?.entityId === entity.id,
-        retractRequested: sceneEcho?.phase === 'leaving' && sceneEcho.entityId === entity.id,
+        retractRequested: false,
         suppressed: false,
       })
     })

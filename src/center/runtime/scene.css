@@ -1489,8 +1489,8 @@
   font-family: "Noto Serif SC", Georgia, serif;
   font-size: clamp(16px, 1.35vw, 20px);
   line-height: 1.62;
-  white-space: nowrap;
-  overflow-wrap: normal;
+  white-space: normal;
+  overflow-wrap: anywhere;
   word-break: keep-all;
   text-align: center;
   text-shadow: 0 1px 5px rgba(0, 0, 0, .75);
@@ -1499,14 +1499,19 @@
   animation: mainline-text-arrive 160ms ease-out both;
 }
 .scene-mainline-text__speaker { display: block; width: max-content; margin-bottom: 3px; color: var(--active); font-size: max(12px, .74em); letter-spacing: .06em; }
-.scene-mainline-text__observation { display: block; min-height: 1.6em; width: max-content; white-space: nowrap; }
-.scene-mainline-text__dialogue { display: block; width: max-content; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; white-space: nowrap; cursor: pointer; }
+.scene-mainline-text__observation { display: block; min-height: 1.6em; }
+.scene-mainline-text__dialogue { display: block; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; }
 .scene-mainline-text__dialogue > span { display: block; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.22, .61, .36, 1) both; }
 .scene-mainline-text--dialogue { z-index: 14; isolation: isolate; color: var(--active); }
-.scene-mainline-object.has-focus-frame > .scene-focus-frame {
-  inset: -.12em -.18em;
-  color: var(--active);
+.scene-mainline-object__focus-host {
+  position: absolute;
+  z-index: 6;
+  box-sizing: border-box;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
 }
+.scene-mainline-object__focus-host > .scene-focus-frame { inset: -.12em -.18em; color: var(--active); }
+.scene-mainline-object__focus-host.is-active > .scene-focus-frame { opacity: 1; }
 .scene-mainline-text.is-leaving { animation: mainline-text-leave 160ms ease-in both; pointer-events: none; }
 @keyframes mainline-text-arrive {
   from { opacity: 0; transform: translate(-50%, calc(-50% + 5px)); }

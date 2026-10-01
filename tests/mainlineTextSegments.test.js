@@ -2,9 +2,21 @@ import { describe, expect, it } from 'vitest'
 import { longestMainlineInteractionSegment, splitMainlineInteractionText } from '../src/center/runtime/mainlineTextSegments'
 
 describe('mainline interaction text segments', () => {
-  it('keeps ordinary comma clauses together and preserves visible punctuation', () => {
+  it('uses natural comma boundaries and preserves visible punctuation', () => {
     expect(splitMainlineInteractionText('桌上摆放着牌位，香炉里的火还没有熄灭。')).toEqual([
-      '桌上摆放着牌位，香炉里的火还没有熄灭。',
+      '桌上摆放着牌位，',
+      '香炉里的火还没有熄灭。',
+    ])
+  })
+
+  it('keeps the approved Café question intact while exposing independent clue clauses', () => {
+    expect(splitMainlineInteractionText('老周，陈副部长还是没有消息吗？')).toEqual([
+      '老周，陈副部长还是没有消息吗？',
+    ])
+    expect(splitMainlineInteractionText('矿区外围旧摄像头曾多次疑似拍到陈副部长，不过画面始终太远，无法确认那个人的身份。')).toEqual([
+      '矿区外围旧摄像头曾多次疑似拍到陈副部长，',
+      '不过画面始终太远，',
+      '无法确认那个人的身份。',
     ])
   })
 
@@ -30,7 +42,8 @@ describe('mainline interaction text segments', () => {
     const text = '矿区外围旧摄像头曾多次疑似拍到陈副部长，不过画面始终太远，无法确认那个人的身份。'
     expect(splitMainlineInteractionText(text)).toEqual([
       '矿区外围旧摄像头曾多次疑似拍到陈副部长，',
-      '不过画面始终太远，无法确认那个人的身份。',
+      '不过画面始终太远，',
+      '无法确认那个人的身份。',
     ])
     expect(longestMainlineInteractionSegment(text)).toBe('矿区外围旧摄像头曾多次疑似拍到陈副部长，')
   })

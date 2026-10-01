@@ -485,6 +485,15 @@ export function MainlineScenePage({
     ? splitMainlineInteractionText(activeDialogueLine.text)
     : []
   const activeDialogueText = activeDialogueSegments[dialogueSegmentIndex] ?? activeDialogueSegments[0] ?? ''
+  const dialogueAnchorSessionRef = useRef<{ key: string; position: Point } | null>(null)
+  const dialogueAnchorSessionKey = activeDialogueLine
+    ? commercialStreetQuestionNarrative
+      ? 'commercial-street-question'
+      : commercialCafeNarrative
+        ? 'commercial-cafe-narrative'
+        : `dialogue:${scene.id}:${npcDialogue?.dialogue.triggerEntityId ?? activeDialogue?.triggerEntityId ?? 'scene'}`
+    : null
+  const dialogueAnchorText = activeDialogue?.lines.map((line) => line.text).join('\n') ?? activeDialogueLine?.text ?? ''
   const dialoguePresentationPhase = commercialCafeNarrative?.phase ?? commercialStreetQuestionNarrative?.phase ?? (activeDialogueLine ? genericDialoguePhase : undefined)
   const readingActive = Boolean(
     (sceneEcho && sceneEcho.phase !== 'leaving')
@@ -677,9 +686,15 @@ export function MainlineScenePage({
     setCommercialStreetQuestionNarrative({ phase: 'active', segmentIndex: 0 })
     onChapterAnalytics?.('commercial_question_triggered')
   }, [commercialStreetQuestionNarrative, commercialStreetQuestionNarrativeIsCompleted, onChapterAnalytics, position, scene, stopMovement])
-  const activeDialoguePosition = activeDialogueLine
-    ? sceneTextPresentationPosition(scene, position, activeDialogueText, screenMetrics)
-    : null
+  if (!dialogueAnchorSessionKey) {
+    dialogueAnchorSessionRef.current = null
+  } else if (dialogueAnchorSessionRef.current?.key !== dialogueAnchorSessionKey) {
+    dialogueAnchorSessionRef.current = {
+      key: dialogueAnchorSessionKey,
+      position: sceneTextPresentationPosition(scene, position, dialogueAnchorText, screenMetrics),
+    }
+  }
+  const activeDialoguePosition = activeDialogueLine ? dialogueAnchorSessionRef.current?.position ?? null : null
   const validatedSpawnKeyRef = useRef<string | null>(null)
   const spawnValidationKey = `${scene.id}:${initialPosition.x}:${initialPosition.y}:${screenMetrics.width}:${screenMetrics.height}`
   useIsomorphicLayoutEffect(() => {

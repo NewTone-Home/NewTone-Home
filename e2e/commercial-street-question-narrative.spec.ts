@@ -58,11 +58,14 @@ test('the Commercial Street question mark locks input, presents Xiao Jie dialogu
   await page.screenshot({ path: testInfo.outputPath('commercial-street-question-active.png') })
 
   await expect(dialogue).toContainText('难道刚刚是幻觉吗？')
+  const dialogueAnchor = await dialogue.evaluate((element) => ({ left: (element as HTMLElement).style.left, top: (element as HTMLElement).style.top }))
   // Reading owns the whole scene: the shield advances only after the roll is ready.
   await advanceDialogueFromScene(page)
   await expect(dialogue).toContainText('不，不会认错的。')
+  expect(await dialogue.evaluate((element) => ({ left: (element as HTMLElement).style.left, top: (element as HTMLElement).style.top }))).toEqual(dialogueAnchor)
   await advanceDialogueFromScene(page)
   await expect(dialogue).toContainText('那张脸修杰太过于熟悉。')
+  expect(await dialogue.evaluate((element) => ({ left: (element as HTMLElement).style.left, top: (element as HTMLElement).style.top }))).toEqual(dialogueAnchor)
   await advanceDialogueFromScene(page)
   await expect(shell).toHaveAttribute('data-commercial-question-narrative', 'leaving')
   await expect(dialogue).toBeHidden({ timeout: 5_000 })

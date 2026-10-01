@@ -11,7 +11,8 @@ type MainlineEchoLayoutOptions = {
 }
 
 function clampFontSize(screenMetrics: SceneScreenMetrics) {
-  return screenMetrics.width <= 720
+  const compactPortrait = screenMetrics.width <= 600 && screenMetrics.height > screenMetrics.width
+  return compactPortrait
     ? 12
     : Math.max(16, Math.min(20, screenMetrics.width * .0135))
 }
@@ -21,7 +22,7 @@ function textWidthPx(text: string, fontSizePx: number, scale = 1) {
 }
 
 export function mainlineEchoLayout(text: string, screenMetrics: SceneScreenMetrics, options: MainlineEchoLayoutOptions = {}): MainlineEchoLayout {
-  const compact = screenMetrics.width <= 720
+  const compact = screenMetrics.width <= 600 && screenMetrics.height > screenMetrics.width
   const fontSizePx = clampFontSize(screenMetrics)
   const lineHeight = compact ? 1.5 : 1.62
   const paddingX = compact ? 16 : fontSizePx * 1.12

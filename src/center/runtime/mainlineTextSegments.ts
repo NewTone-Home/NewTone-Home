@@ -2,35 +2,11 @@ const strongBoundaries = new Set(['。', '！', '!', '？', '?', '；', ';'])
 const weakBoundaries = new Set(['，', ',', '、', '：', ':'])
 const closingMarks = new Set(['”', '’', '"', "'", '」', '』', '）', ')', '】', '〕', '］', '》', '〉'])
 
-export const mainlineTextSegmentMinClauseLength = 6
-export const mainlineTextSegmentPreferredLength = 22
-export const mainlineTextSegmentMaximumLength = 24
+export const mainlineTextSegmentMinClauseLength = 5
 
 function normalized(value: string) { return value.replace(/\s+/g, ' ').trim() }
-function characterLength(value: string) { return Array.from(value.replace(/\s/g, '')).length }
-
-function splitLongSegment(value: string) {
-  const source = normalized(value)
-  if (characterLength(source) <= mainlineTextSegmentMaximumLength) return [source]
-  const result: string[] = []
-  const characters = Array.from(source)
-  let start = 0
-  while (characters.length - start > mainlineTextSegmentMaximumLength) {
-    const maximumEnd = start + mainlineTextSegmentMaximumLength
-    let splitAt = -1
-    for (let index = maximumEnd - 1; index >= start + mainlineTextSegmentMinClauseLength - 1; index -= 1) {
-      if (weakBoundaries.has(characters[index]) || strongBoundaries.has(characters[index])) {
-        splitAt = index + 1
-        break
-      }
-    }
-    const end = splitAt > start ? splitAt : maximumEnd
-    result.push(normalized(characters.slice(start, end).join('')))
-    start = end
-  }
-  const remainder = normalized(characters.slice(start).join(''))
-  if (remainder) result.push(remainder)
-  return result
+function characterLength(value: string) {
+  return Array.from(value.replace(/[\s。！？!?；;，,、：:“”‘’"'「」『』（）()【】〔〕［］《》〈〉]+$/gu, '').replace(/\s/g, '')).length
 }
 
 /** Preserve punctuation while keeping short vocatives and particles attached. */
@@ -39,7 +15,7 @@ export function splitMainlineInteractionText(text: string): readonly string[] {
   let buffer = ''
   for (const character of text.replace(/\r\n?/g, '\n')) {
     buffer += character
-    if (character === '\n' || strongBoundaries.has(character)) {
+    if (character === '\n' || strongBoundaries.has(character) || weakBoundaries.has(character)) {
       if (normalized(buffer)) clauses.push(normalized(buffer))
       buffer = ''
     }
@@ -51,11 +27,14 @@ export function splitMainlineInteractionText(text: string): readonly string[] {
     else result.push(clause)
     return result
   }, [])
-  const segments = merged.flatMap(splitLongSegment).reduce<string[]>((result, segment) => {
+  const segments = merged.reduce<string[]>((result, segment) => {
     if (segment.length === 1 && closingMarks.has(segment) && result.length > 0) result[result.length - 1] += segment
     else result.push(segment)
     return result
   }, [])
+  if (segments.length > 1 && characterLength(segments[segments.length - 1]!) < mainlineTextSegmentMinClauseLength) {
+    segments[segments.length - 2] += segments.pop()!
+  }
   return segments.length ? segments : [normalized(text)]
 }
 

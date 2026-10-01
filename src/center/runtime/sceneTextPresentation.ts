@@ -3,6 +3,7 @@ import type { MainlineSceneDefinition } from './mainlineScenes'
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
 import { mainlineSceneWalkBounds } from './mainlineScenes'
+import { longestMainlineInteractionSegment } from './mainlineTextSegments'
 
 export type SceneTextKind = 'observation' | 'dialogue'
 
@@ -21,7 +22,7 @@ export function sceneTextPresentationPosition(
   if (policy.mode === 'fixed') return policy.anchor
 
   if (policy.readingRail) {
-    const layout = mainlineEchoLayout(text, screenMetrics)
+    const layout = mainlineEchoLayout(longestMainlineInteractionSegment(text), screenMetrics)
     const halfWidth = (layout.widthPx / screenMetrics.width) * 50
     const right = protagonist.x + halfWidth + policy.readingRail.gap
     const left = protagonist.x - halfWidth - policy.readingRail.gap
@@ -33,7 +34,7 @@ export function sceneTextPresentationPosition(
   }
 
   const bounds = mainlineSceneWalkBounds(scene, screenMetrics)
-  const layout = mainlineEchoLayout(text, screenMetrics)
+  const layout = mainlineEchoLayout(longestMainlineInteractionSegment(text), screenMetrics)
   const halfWidth = (layout.widthPx / screenMetrics.width) * 50
   const halfHeight = (layout.heightPx / screenMetrics.height) * 50
   return {
