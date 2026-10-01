@@ -7,7 +7,6 @@ export type MainlineEchoLayout = {
 
 type MainlineEchoLayoutOptions = {
   speaker?: string
-  choices?: readonly string[]
 }
 
 function clampFontSize(screenMetrics: SceneScreenMetrics) {
@@ -28,13 +27,9 @@ export function mainlineEchoLayout(text: string, screenMetrics: SceneScreenMetri
   const paddingX = compact ? 16 : fontSizePx * 1.12
   const paddingY = compact ? 11 : fontSizePx * .8
   const speakerWidth = options.speaker ? textWidthPx(options.speaker, Math.max(12, fontSizePx * .74), 1.1) : 0
-  const choicesWidth = options.choices && options.choices.length > 0
-    ? options.choices.reduce((total, choice) => total + textWidthPx(choice, fontSizePx * .86, 1.1) + 8, 0) + (options.choices.length - 1) * 14
-    : 0
-  const contentWidth = Math.max(textWidthPx(text, fontSizePx), speakerWidth, choicesWidth)
+  const contentWidth = Math.max(textWidthPx(text, fontSizePx), speakerWidth)
   const widthPx = Math.min(Math.max(1, screenMetrics.width - 24), contentWidth + paddingX)
   let heightPx = paddingY + fontSizePx * lineHeight
   if (options.speaker) heightPx += 3 + Math.max(12, fontSizePx * .74) * 1.62
-  if (options.choices && options.choices.length > 0) heightPx += 7 + fontSizePx * .86 * 1.6
   return { widthPx, heightPx: Math.max(fontSizePx * 2, heightPx) }
 }

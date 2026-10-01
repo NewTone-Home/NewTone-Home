@@ -303,11 +303,6 @@ export function MainlineScenePage({
   const debugCafeFixtureAppliedRef = useRef(false)
   const debugCafePlayerPositionAppliedRef = useRef(false)
   const handledWalkRequestRef = useRef<number | null>(null)
-  // Scene feedback is intentionally no longer a presentation channel. Calls
-  // remain semantic no-ops while navigation and interaction outcomes retain
-  // their own state transitions.
-  const feedback = null
-  const setFeedback = useCallback((_message: string | null) => undefined, [])
   const [ambientNpcRuntime, setAmbientNpcRuntime] = useState<ReadonlyMap<string, { hidden: boolean; snapshot: NpcRuntimeSnapshot }>>(new Map())
   const [inputDiagnostic, setInputDiagnostic] = useState<MainlineInputDiagnostic | null>(null)
   useEffect(() => {
@@ -413,7 +408,7 @@ export function MainlineScenePage({
     }
     // Keep the accepted target through one rendered frame. This is not a
     // timeout: it gives the active state a real visual acknowledgement before
-    // the feedback-only interaction settles into its persistent soft state.
+    // the contentless interaction settles into its persistent soft state.
     shortInteractionCompletionFrameRef.current = window.requestAnimationFrame(() => {
       shortInteractionCompletionFrameRef.current = window.requestAnimationFrame(() => {
         shortInteractionCompletionFrameRef.current = null
@@ -662,7 +657,6 @@ export function MainlineScenePage({
     setPlantWateredAt(typeof initialSceneState.plantWateredAt === 'number' ? initialSceneState.plantWateredAt : null)
     setIncenseClock(Date.now())
     stopMovement()
-    setFeedback(null)
   }, [sceneDefinition, sceneId, stopMovement])
   useEffect(() => {
     const persistedObjectIds = mainlineExploredObjectIdsFromSceneState(initialSceneState)
@@ -730,7 +724,6 @@ export function MainlineScenePage({
       text,
       sceneTextPresentationPosition(scene, getCurrentPosition(), text, screenMetrics),
     ))
-    setFeedback('修杰停在门前。')
   }, [getCurrentPosition, presentSceneEcho, scene, screenMetrics])
   const showAccessRegionDeniedText = useCallback((text: string) => {
     sceneEchoIdRef.current += 1
@@ -740,7 +733,6 @@ export function MainlineScenePage({
       text,
       sceneTextPresentationPosition(scene, getCurrentPosition(), text, screenMetrics),
     ))
-    setFeedback('修杰停在员工区域外。')
   }, [getCurrentPosition, presentSceneEcho, scene, screenMetrics])
   const { requestPassage: requestPassageLifecycle, cancelPassage: cancelPassageLifecycle, updateActor: updatePassageLifecycle, completeOpen, completeClose, getPassagePhase, isPassageActorActive, getOpenPassageIds, passageStates } = useAutomaticPassages({
     passages: passageLifecycleDefinitions,
@@ -752,7 +744,6 @@ export function MainlineScenePage({
         onDoorEvent?.('blocked', deniedPassage)
         showLockedPassageText(deniedPassage)
       }
-      else setFeedback('当前没有权限通过这扇门。')
     },
   })
   const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics, geometrySnapshot, navigationRuntime, actorId: 'protagonist', actorFootprint: protagonistFootprint, npcRuntimePositions, occupiedSeatIds }), [geometrySnapshot, getOpenPassageIds, navigationRuntime, npcRuntimePositions, occupiedSeatIds, protagonistFootprint, screenMetrics])
@@ -826,7 +817,6 @@ export function MainlineScenePage({
     })
     if (!approach) {
       setDebugCafeServerBackDoorStatus('approach-unreachable')
-      setFeedback('店员当前无法走到后门前。')
       return
     }
     debugCafeServerBackDoorAppliedRef.current = true
@@ -842,7 +832,6 @@ export function MainlineScenePage({
       setDebugCafeServerBackDoorStatus('lifecycle-requested')
       requestPassageLifecycle('server', passage.id, position, approach.target)
     })
-    if (!started) setFeedback('店员当前无法规划到后门前的路线。')
   }, [debugCafeServerBackDoor, debugCafeServerBackDoorReady, layout, lifecycleMainlinePassages, locomotionOptions, navigationOptions, navigationRuntime, requestPassageLifecycle, scene, serverMovement])
   useEffect(() => {
     if (scene.id !== 'commercial-cafe' || debugCafeServerBackDoor) {
@@ -870,7 +859,6 @@ export function MainlineScenePage({
   }, [commercialCafeBehavior, commercialCafeStory.coffeeDelivered, commercialCafeStory.coffeeOrdered, debugCafeServerBackDoor, layout, locomotionOptions, navigationOptions, recordSceneState, scene, serverMovement])
   const runDebugServerMovement = useCallback(() => {
     if (scene.id !== 'commercial-cafe' || !serverMovement.position || serverMovement.snapshot.phase === 'moving') return
-    setFeedback('店员开发移动演示中。')
 
     const returnHome = () => {
       serverMovement.requestMove({
@@ -884,7 +872,6 @@ export function MainlineScenePage({
       targetId: commercialCafeServerMovementDebugTarget.id,
       target: commercialCafeServerMovementDebugTarget.position,
     }, scene, layout, navigationOptions, locomotionOptions, returnHome)
-    if (!started) setFeedback('店员的开发移动演示当前无法规划路线。')
   }, [layout, locomotionOptions, navigationOptions, scene, serverInitialPosition, serverMovement])
   const handleFrameMotionProfileChange = useCallback((profile: readonly SceneFocusFrameMotionProfile[]) => {
     frameMotionProfileRef.current = profile
@@ -935,13 +922,11 @@ export function MainlineScenePage({
       : canActorReachPassageApproach(scene, passage, traversalStart, layout, navigationOptions)?.path ?? null
     if (!resolvedPath) {
       stopMovement()
-      setFeedback('门前的路暂时走不过去。')
       return
     }
     const entity = getMainlineSceneEntity(scene, passage.entityId)
     setPassageDestination(requestedTarget)
     setActiveObjectId(passage.entityId)
-    setFeedback(`修杰走向${mainlineEntityDisplayLabel(entity)}外侧。`)
     const approachMovementOptions = {
       ...locomotionOptions,
       canOccupy: (point: Point) => isWalkableMainlinePoint(point, scene, layout, { ...navigationOptions, openPassageIds: getOpenPassageIds() }),
@@ -961,7 +946,6 @@ export function MainlineScenePage({
         pendingTraversalRef.current = null
         setPassageDestination(null)
         setSceneFrameExit({ phase: 'idle' })
-        setFeedback(`${mainlineEntityDisplayLabel(entity)}暂时无法通行。`)
         return
       }
       armPassageFrameExit(passage, remainingMovementMs)
@@ -975,7 +959,6 @@ export function MainlineScenePage({
         setPassageDestination(null)
         setRequestedWorldTarget(null)
         setSceneFrameExit({ phase: 'idle' })
-        setFeedback(`${mainlineEntityDisplayLabel(entity)}暂时无法通行。`)
         return
       }
       pending.requestIssued = true
@@ -995,10 +978,9 @@ export function MainlineScenePage({
           showLockedPassageText(passage)
           return
         }
-        setFeedback('修杰在门前停下了，需要重新选择位置。')
       },
     })
-  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getOpenPassageIds, getPassagePhase, getRemainingDurationMs, layout, lifecycleMainlinePassages, locomotionOptions, moveAlong, navigationOptions, onDoorEvent, requestPassageLifecycle, scene, screenMetrics, setFeedback, showLockedPassageText, stopMovement])
+  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getOpenPassageIds, getPassagePhase, getRemainingDurationMs, layout, lifecycleMainlinePassages, locomotionOptions, moveAlong, navigationOptions, onDoorEvent, requestPassageLifecycle, scene, screenMetrics, showLockedPassageText, stopMovement])
 
   const continuePendingTraversal = useCallback((entityId: string) => {
     const pending = pendingTraversalRef.current
@@ -1047,10 +1029,8 @@ export function MainlineScenePage({
           targetGeometry,
         )
         if (!safeEntryPosition) {
-          setFeedback('门已经打开，但对面没有安全落脚的位置。')
           return
         }
-        setFeedback(completesCommercialCafeStory ? commercialCafeDepartureText : pending.passage.transitionText)
         const transitionIntent = shouldUseLocalSlideForPassage(pending.passage)
           ? {
               kind: 'walking-passage' as const,
@@ -1066,7 +1046,6 @@ export function MainlineScenePage({
         notifySceneTransition(targetSceneId, safeEntryPosition, undefined, transitionIntent)
       }
       moveAlong([traversalStart, exitPoint], () => {
-        if (!sceneTransitioned) setFeedback('修杰在门洞中停下了，需要重新选择位置。')
       }, {
         ...locomotionOptions,
         onMove: (point) => {
@@ -1083,11 +1062,9 @@ export function MainlineScenePage({
           onBlocked: () => {
             if (sceneTransitioned) {
               setSceneFrameExit({ phase: 'idle' })
-              setFeedback('门洞里的路线被挡住了，需要重新选择位置。')
               return
             }
             setPassageDestination(null)
-            setFeedback('修杰在门洞前停下了，需要重新选择位置。')
           },
       })
       return
@@ -1103,7 +1080,6 @@ export function MainlineScenePage({
           pendingTraversalRef.current = null
           setPassageDestination(null)
           setActiveObjectId(null)
-          setFeedback('下一道门前的路线暂时走不过去。')
           return
         }
         beginPassageLeg(nextPassage, current.requestedTarget, nextPath, null, current.passageQueue, current.passageIndex + 1)
@@ -1122,14 +1098,12 @@ export function MainlineScenePage({
         pendingTraversalRef.current = null
         setPassageDestination(null)
         setActiveObjectId(null)
-        setFeedback('门已经打开，但对面的路暂时走不过去。')
         return
       }
       pendingTraversalRef.current = null
       moveAlong(continuation.path, () => {
         setPassageDestination(null)
         setActiveObjectId(null)
-        setFeedback('修杰停在这里。')
       }, {
         ...locomotionOptions,
         canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, openNavigationOptions),
@@ -1137,7 +1111,6 @@ export function MainlineScenePage({
         onBlocked: () => {
           setPassageDestination(null)
           setActiveObjectId(null)
-          setFeedback('门已经打开，但通路被挡住了。')
         },
       })
     }
@@ -1153,10 +1126,9 @@ export function MainlineScenePage({
         pendingTraversalRef.current = null
         setPassageDestination(null)
         setActiveObjectId(null)
-        setFeedback('门已经打开，但通路被挡住了。')
       },
     })
-  }, [beginPassageLeg, commercialCafeStory, getCurrentPosition, getOpenPassageIds, isPassageActorActive, layout, locomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, protagonistFootprint, recordSceneStatePatch, scene, setFeedback])
+  }, [beginPassageLeg, commercialCafeStory, getCurrentPosition, getOpenPassageIds, isPassageActorActive, layout, locomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, protagonistFootprint, recordSceneStatePatch, scene])
 
   continuePendingTraversalRef.current = continuePendingTraversal
 
@@ -1252,7 +1224,6 @@ export function MainlineScenePage({
     const path = plannedPath ?? findMainlinePath(getCurrentPosition(), target, scene, layout, navigationOptions)
     if (!path) {
       stopMovement()
-      setFeedback('这条路被墙、桌面或柜台挡住了。')
       return false
     }
     const movementOptions = {
@@ -1272,11 +1243,10 @@ export function MainlineScenePage({
       },
       onBlocked: () => {
         if (framePassage) setSceneFrameExit({ phase: 'idle' })
-        setFeedback('修杰在边界前停下了，需要重新选择位置。')
       },
     })
     return true
-  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getRemainingDurationMs, layout, locomotionOptions, moveAlong, navigationOptions, scene, setFeedback, stopMovement])
+  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getRemainingDurationMs, layout, locomotionOptions, moveAlong, navigationOptions, scene, stopMovement])
 
   const leavePlayerSeat = useCallback(() => {
     if (!activePlayerSeatId) return false
@@ -1329,7 +1299,6 @@ export function MainlineScenePage({
       const nextSeatId = nextMainlinePlayerSeatId(scene, activePlayerSeatId, entity.id)
       if (nextSeatId !== entity.id) {
         stopMovement()
-        setFeedback('这把椅子已经有人坐了。')
         return
       }
       leavePlayerSeat()
@@ -1337,18 +1306,15 @@ export function MainlineScenePage({
       const sitPosition = resolveMainlineSeatSitPosition(scene, entity.id, layout, navigationOptions)
       if (!resolved.path || !sitPosition) {
         stopMovement()
-        setFeedback('这把椅子暂时无法使用。')
         return
       }
       setActiveObjectId(entity.id)
-      setFeedback(`修杰走向${mainlineEntityDisplayLabel(entity)}。`)
       moveAlong(resolved.path, () => {
         resetMovement(sitPosition)
         navigationRuntime.updateActor('protagonist', sitPosition)
         setPlayerSeatId(nextSeatId)
         setPromptedSeatId(null)
         markEntityExplored(entity.id)
-        setFeedback('修杰坐下了。')
         const resolution = resolveCommercialCafeNpcInteraction({
           sceneId: scene.id,
           npcId: 'lao-zhou',
@@ -1367,7 +1333,6 @@ export function MainlineScenePage({
         canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
         onBlocked: () => {
           setActiveObjectId(null)
-          setFeedback('修杰在椅子前停下了，需要重新选择位置。')
         },
       })
       return
@@ -1384,7 +1349,6 @@ export function MainlineScenePage({
       const approach = canActorReachPassageApproach(scene, passage, getCurrentPosition(), layout, navigationOptions)
       if (!approach) {
         stopMovement()
-        setFeedback('这扇门当前无法从这里靠近。')
         return
       }
       onDoorEvent?.('attempted', passage)
@@ -1409,7 +1373,6 @@ export function MainlineScenePage({
       const availableExplorationPool = explorationPool ?? []
       const hasExplorationContent = Boolean(explorationChoice || availableExplorationPool.length)
       const startsDialogue = scene.dialogue?.triggerEntityId === entity.id
-      setFeedback(explorationChoice || explorationPool ? '修杰停在这里。' : scene.interactionText[entity.id] ?? `${mainlineEntityDisplayLabel(entity)}留在原处。`)
       if (hasExplorationContent) {
         const text = explorationChoice?.text ?? availableExplorationPool[Math.floor(Math.random() * availableExplorationPool.length)]
         sceneEchoIdRef.current += 1
@@ -1444,12 +1407,10 @@ export function MainlineScenePage({
     if (!resolved.path) {
       interactionStartedAtRef.current = null
       stopMovement()
-      setFeedback('这个位置暂时走不过去。')
       return
     }
     interactionStartedAtRef.current = Date.now()
     setActiveObjectId(entityId)
-    setFeedback(`修杰前往${mainlineEntityDisplayLabel(entity)}。`)
     moveAlong(resolved.path, revealInteraction, {
       ...locomotionOptions,
       canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
@@ -1457,7 +1418,6 @@ export function MainlineScenePage({
       onBlocked: () => {
         interactionStartedAtRef.current = null
         setActiveObjectId(null)
-        setFeedback('修杰在边界前停下了，需要重新选择位置。')
       },
     })
   }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, incensePhase, layout, leavePlayerSeat, locomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
@@ -1476,7 +1436,6 @@ export function MainlineScenePage({
     const currentOrder = commercialStreetMilkTeaOrderFromSceneState(initialSceneState)
     if (carriedMilkTea || commercialStreetMilkTeaHeld(initialSceneState)) {
       showMilkTeaEcho('手里已经有一杯饮料。')
-      setFeedback('修杰已经拿着一杯饮料。')
       return
     }
     if (currentOrder) {
@@ -1484,7 +1443,6 @@ export function MainlineScenePage({
         recordSceneStatePatch('commercial-street', commercialStreetMilkTeaPickupPatch())
         onChapterAnalytics?.('milk_tea_order_picked_up', { orderNumber: currentOrder.number })
         showMilkTeaEcho('取到奶茶。')
-        setFeedback('修杰取走了奶茶。')
         return
       }
       onMilkTeaAppOpen?.()
@@ -1520,10 +1478,8 @@ export function MainlineScenePage({
           beginMilkTeaStorefrontAction()
           return
         }
-        setFeedback(`修杰来到${storefront.label}前。`)
         return
       }
-      setFeedback('修杰停在这里。')
       sceneEchoIdRef.current += 1
       presentSceneEcho(createMainlineSceneEcho(
         sceneEchoIdRef.current,
@@ -1549,18 +1505,15 @@ export function MainlineScenePage({
     }
     if (!interaction.path) {
       stopMovement()
-      setFeedback('这个位置暂时走不过去。')
       return
     }
     setActiveObjectId(storefrontId)
-    setFeedback(`修杰前往${storefront.label}。`)
     moveAlong(interaction.path, revealStorefrontInteraction, {
       ...locomotionOptions,
       canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
       canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
       onBlocked: () => {
         setActiveObjectId(null)
-        setFeedback('修杰在边界前停下了，需要重新选择位置。')
       },
     })
   }, [beginMilkTeaStorefrontAction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, onChapterAnalytics, onPhoneDismiss, onStorefrontAction, phoneOpen, presentSceneEcho, readingActive, scene, sceneAction?.phase, screenMetrics, stopMovement])
@@ -1572,7 +1525,6 @@ export function MainlineScenePage({
     if (!npc || npc.interactive === false) return
     setRequestedWorldTarget(null)
     if (movingNpcIds.has(npcId)) {
-      setFeedback(`${npc.label}正在移动，稍后再接近。`)
       return
     }
     if (phoneOpen) onPhoneDismiss?.()
@@ -1589,10 +1541,8 @@ export function MainlineScenePage({
     if (activePlayerSeatId && seatedResolution) {
       stopMovement()
       onNpcInteraction?.(npc.id)
-      setFeedback(`修杰来到${npc.label}身边。`)
       if (seatedResolution.kind === 'dialogue') startNpcDialogue(seatedResolution)
       else if (seatedResolution.kind === 'start-narrative') startCommercialCafeNarrative()
-      else setFeedback(seatedResolution.feedback)
       return
     }
     leavePlayerSeat()
@@ -1603,7 +1553,6 @@ export function MainlineScenePage({
     const alreadyNearby = interaction.inRange
     const completeInteraction = () => {
       if (npcInteractionRequestRef.current !== requestId) return
-      setFeedback(`修杰来到${npc.label}身边。`)
       onNpcInteraction?.(npc.id)
       const resolution = resolveCommercialCafeNpcInteraction({
         sceneId: scene.id,
@@ -1614,7 +1563,6 @@ export function MainlineScenePage({
       if (!resolution) return
       if (resolution.kind === 'dialogue') startNpcDialogue(resolution)
       else if (resolution.kind === 'start-narrative') startCommercialCafeNarrative()
-      else setFeedback(resolution.feedback)
     }
     if (alreadyNearby) {
       stopMovement()
@@ -1625,10 +1573,8 @@ export function MainlineScenePage({
     if (!resolved.path) {
       npcInteractionRequestRef.current += 1
       stopMovement()
-      setFeedback('这个人目前无法接近。')
       return
     }
-    setFeedback(`修杰走向${npc.label}。`)
     moveAlong(resolved.path, completeInteraction, {
       ...locomotionOptions,
       canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
@@ -1636,7 +1582,6 @@ export function MainlineScenePage({
       onBlocked: () => {
         if (npcInteractionRequestRef.current !== requestId) return
         npcInteractionRequestRef.current += 1
-        setFeedback('修杰在接近对方前停下了，需要重新选择位置。')
       },
     })
   }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, locomotionOptions, moveAlong, movingNpcIds, navigationOptions, onNpcInteraction, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
@@ -1777,7 +1722,6 @@ export function MainlineScenePage({
     const resolution = resolveMainlineWorldNavigation(sceneDefinition, getCurrentPosition(), point, layout, navigationOptions)
     if (!resolution) {
       stopMovement()
-      setFeedback('这条路被墙、桌面或柜台挡住了。')
       return
     }
     if (debugCafeSpatialQa) {
@@ -1794,12 +1738,8 @@ export function MainlineScenePage({
         showAccessRegionDeniedText(resolution.deniedAccessRegion.deniedText ?? '这里暂时不能进入。')
         return
       }
-      setFeedback('修杰停在这里。')
     }, resolution.path)
-    if (started) {
-      setFeedback('修杰沿着可行空间移动。')
-    }
-  }, [debugCafeSpatialQa, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, moveTo, navigationOptions, onPhoneDismiss, phoneOpen, readingActive, sceneAction?.phase, sceneDefinition, setFeedback, setDialogueLineIndex, showAccessRegionDeniedText, startPassageTraversal, stopMovement])
+  }, [debugCafeSpatialQa, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, moveTo, navigationOptions, onPhoneDismiss, phoneOpen, readingActive, sceneAction?.phase, sceneDefinition, setDialogueLineIndex, showAccessRegionDeniedText, startPassageTraversal, stopMovement])
 
   const completeCommercialStreetQuestionNarrativeExit = useCallback(() => {
     if (commercialStreetQuestionNarrative?.phase !== 'leaving') return
@@ -1854,8 +1794,7 @@ export function MainlineScenePage({
     setPassageDestination(null)
     setRequestedWorldTarget(null)
     resetMovement(initialPosition)
-    setFeedback(null)
-  }, [cancelPassageLifecycle, initialPosition, resetMovement, scene.id, sceneDefinition, setFeedback])
+  }, [cancelPassageLifecycle, initialPosition, resetMovement, scene.id, sceneDefinition])
 
   const currentAreaLabel = mainlineSceneAreaLabel(scene, position)
   const cameraOffset = mainlineCameraOffset(scene, position, embedded)

@@ -5,7 +5,6 @@ test.use({ viewport: { width: 1280, height: 720 } })
 
 async function expectFixedObservation(page: Page, sceneId: MainlineSceneId, target: Locator, screenshotName: string, testInfo: import('@playwright/test').TestInfo) {
   await page.goto(`/?scene=${sceneId}`)
-  await expect(page.locator('.scene-feedback')).toHaveCount(0)
   await target.click()
   const text = page.locator('[data-scene-echo]')
   await expect(text).toBeVisible({ timeout: 15_000 })

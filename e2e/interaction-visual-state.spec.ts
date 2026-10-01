@@ -21,13 +21,16 @@ async function openWithSceneState(page: Page, sceneId: string, sceneState: Recor
 test('floor objects keep their own persistent interaction state alongside their visual-only focus frames', async ({ page }) => {
   await page.goto('/?scene=jijia-ancestral-home')
   const tree = page.locator('[data-object-id="jijia-old-tree"]')
+  const treeFrame = page.locator('[data-focus-frame-group="interactive:jijia-old-tree"]')
 
   await expect(tree).toHaveClass(/scene-mainline-interaction--tutorial-unexplored/)
-  await expect(tree.locator('.scene-focus-frame')).toHaveCount(1)
+  await expect(treeFrame).toHaveCount(1)
+  await expect(treeFrame).toHaveCSS('opacity', '0.62')
 
   await tree.click()
   await expect(tree).toHaveClass(/scene-mainline-interaction--active/)
-  await expect(tree.locator('.scene-focus-frame')).toHaveCount(1)
+  await expect(treeFrame).toHaveAttribute('data-focus-frame-phase', 'visible')
+  await expect(treeFrame).toHaveCSS('opacity', '0.62')
 
   await openWithSceneState(page, 'jijia-ancestral-home', {
     'jijia-ancestral-home': { 'interactionExplored:jijia-old-tree': true },
@@ -43,12 +46,15 @@ test('wall features retain their focus frame while sharing active and explored v
   })
 
   const portrait = page.locator('[data-focus-target-group="interactive:jijia-portrait-top-1"]').first()
+  const portraitFrame = page.locator('[data-focus-frame-group="interactive:jijia-portrait-top-1"]')
   await expect(portrait).toHaveClass(/scene-mainline-interaction--explored/)
-  await expect(portrait.locator('.scene-focus-frame')).toHaveCount(1)
+  await expect(portraitFrame).toHaveCount(1)
+  await expect(portraitFrame).toHaveCSS('opacity', '0.62')
 
   await portrait.click()
   await expect(portrait).toHaveClass(/scene-mainline-interaction--active/)
-  await expect(portrait.locator('.scene-focus-frame')).toHaveCount(1)
+  await expect(portraitFrame).toHaveAttribute('data-focus-frame-phase', 'visible')
+  await expect(portraitFrame).toHaveCSS('opacity', '0.62')
 })
 
 test('feedback-only objects settle into explored soft state instead of remaining active', async ({ page }) => {

@@ -507,7 +507,7 @@ function MainlineObject({ entity, scene, position, collision, visualBounds, focu
   const frame = focusGroup && renderFrame
     ? focusBounds
       ? <span
-          className={`scene-mainline-object__focus-host ${active ? 'is-active' : ''}`}
+          className="scene-mainline-object__focus-host"
           style={{
             left: `${focusBounds.x + focusBounds.width / 2}%`,
             top: `${focusBounds.y + focusBounds.height / 2}%`,

@@ -211,8 +211,6 @@ test('coffee is optional and a carried milk tea asks before coffee order', async
   await page.getByRole('button', { name: '柜台' }).first().click()
   await (await advanceObservationToAction(page, '已经有奶茶了，还要买咖啡吗？', '否')).click()
   await expect(page.locator('[data-scene-action]')).toHaveCount(0)
-  // Declining is deliberately quiet: scene feedback has no bottom-left UI.
-  await expect(page.locator('.scene-feedback')).toHaveCount(0)
   await startNarrative(page)
   await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-coffee"]')).toHaveCount(0)
   await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-milk-tea"]')).toBeVisible()

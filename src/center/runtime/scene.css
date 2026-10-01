@@ -1510,8 +1510,7 @@
   pointer-events: none;
   transform: translate(-50%, -50%);
 }
-.scene-mainline-object__focus-host > .scene-focus-frame { inset: -.12em -.18em; color: var(--active); }
-.scene-mainline-object__focus-host.is-active > .scene-focus-frame { opacity: 1; }
+.scene-mainline-object__focus-host > .scene-focus-frame { inset: -.12em -.18em; }
 .scene-mainline-text.is-leaving { animation: mainline-text-leave 160ms ease-in both; pointer-events: none; }
 @keyframes mainline-text-arrive {
   from { opacity: 0; transform: translate(-50%, calc(-50% + 5px)); }
@@ -1525,27 +1524,7 @@
   from { opacity: 0; transform: translateY(100%); }
   to { opacity: 1; transform: translateY(0); }
 }
-.scene-mainline-text__choices {
-  display: flex;
-  justify-content: center;
-  gap: 14px;
-  margin-top: 7px;
-  pointer-events: auto;
-}
-.scene-mainline-text__choices button {
-  padding: 2px 4px;
-  border: 0;
-  border-bottom: 1px solid rgba(190, 161, 103, .45);
-  background: transparent;
-  color: var(--soft);
-  cursor: pointer;
-  font: inherit;
-  font-size: .86em;
-}
-.scene-mainline-text__choices button:hover,
-.scene-mainline-text__choices button:focus-visible { color: var(--active); }
-
-/* A one-shot world-space thought marker, separate from Echo and dialogue frames. */
+/* A one-shot world-space story trigger marker. */
 .scene-commercial-question-mark {
   position: absolute;
   z-index: 7;

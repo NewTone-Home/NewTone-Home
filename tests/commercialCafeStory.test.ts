@@ -47,6 +47,13 @@ describe('commercial cafe narrative state', () => {
     expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story, playerSeatId: commercialCafeLaoZhouConversationSeatId })).toEqual({ kind: 'start-narrative' })
   })
 
+  it('returns no legacy map-feedback resolution after the meeting is ready to leave or complete', () => {
+    const ready = commercialCafeStoryReadyToLeave(commercialCafeStoryStateFromSceneState(undefined))
+    const complete = commercialCafeStoryCompleted(ready, 1_000)
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story: ready, playerSeatId: commercialCafeLaoZhouConversationSeatId })).toBeNull()
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story: complete, playerSeatId: commercialCafeLaoZhouConversationSeatId, now: 1_001 })).toBeNull()
+  })
+
   it('keeps the approved independent, unconfirmed mine and Yonghe leads in the narrative', () => {
     const text = commercialCafeNarrativeDialogue.lines.map((line) => line.text).join('\n')
     expect(text).toContain('矿区外围的摄像头疑似拍到过几次陈副部长的身影')

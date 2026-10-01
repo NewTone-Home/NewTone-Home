@@ -122,11 +122,10 @@ export function resolveCommercialCafeReturnToCounterIntent(scene: MainlineSceneD
   return target ? { dutyId: npcRoles.server.duties.returnToCounter.id, targetId: 'commercial-cafe-counter-service', target } : null
 }
 
-export type CommercialCafeNpcInteractionResolution = { kind: 'dialogue'; dialogue: MainlineSceneDialoguePresentation; promptSeatId?: string } | { kind: 'start-narrative' } | { kind: 'feedback'; feedback: string }
+export type CommercialCafeNpcInteractionResolution = { kind: 'dialogue'; dialogue: MainlineSceneDialoguePresentation; promptSeatId?: string } | { kind: 'start-narrative' }
 export function resolveCommercialCafeNpcInteraction({ sceneId, npcId, story, playerSeatId, now = Date.now() }: { sceneId: MainlineSceneId; npcId: string; story: CommercialCafeStoryState; playerSeatId?: string | null; now?: number }): CommercialCafeNpcInteractionResolution | null {
   if (sceneId !== 'commercial-cafe' || npcId !== 'lao-zhou') return null
-  if (story.status === 'complete') return commercialCafeLaoZhouIsPresent(story, now) ? { kind: 'feedback', feedback: '老周还坐在窗边。' } : null
-  if (story.status === 'ready-to-leave') return { kind: 'feedback', feedback: '该走了。' }
+  if (story.status === 'complete' || story.status === 'ready-to-leave') return null
   if (playerSeatId !== commercialCafeLaoZhouConversationSeatId) return { kind: 'dialogue', dialogue: commercialCafeSeatGuideDialogue, promptSeatId: commercialCafeLaoZhouConversationSeatId }
   return { kind: 'start-narrative' }
 }
