@@ -3,7 +3,6 @@ import type { SceneDoorBehavior } from './sceneDoorConfig'
 import { boundaryGridStepsFromScreenSpacing, defaultSceneScreenMetrics } from './sceneBoundaryGrid'
 import { createFourSeatFurniture, createSeatGeometry, createTableGeometry, sharedFurnitureGeometry, createTwoSeatFurniture, type SharedSeatDefinition } from './twoSeatFurniture'
 import { npcRoles, type NpcRoleDefinition } from './npcRoles'
-import type { CommercialCafeStoryStage } from './commercialCafeStory'
 import {
   ambientNpcOffstreetMaximumMs,
   ambientNpcOffstreetMinimumMs,
@@ -238,17 +237,8 @@ export type MainlineSceneAttachedProp = {
   id: string
   label: string
   parentEntityId: string
-  offset: Point
-  /** A future interaction resolves through this spatial parent, never the prop itself. */
-  interactionTargetEntityId: string
-  /** Presentation-only props must not become a separate navigation target. */
-  interactive?: boolean
-  /** A small visual-only line icon; it never creates scene geometry. */
+  /** Visual-only line icon; the table remains the only spatial owner. */
   visualKind?: 'coffee' | 'milk-tea' | 'banknote'
-  /** Currently used by commercial-cafe to reveal a prop after its story beat. */
-  visibleFromStage?: CommercialCafeStoryStage
-  /** A later presentation can replace this prop without changing its parent furniture. */
-  hiddenFromStage?: CommercialCafeStoryStage
 }
 
 export type MainlineWallOpening = {
@@ -934,14 +924,10 @@ const commercialCafeStaffAccessPortal = {
     commercialCafeCounterStaffServiceY,
   ),
 } as const satisfies MainlineSceneAccessPortal
-/** Development-only public-floor proof point; it is not a scene entity or story destination. */
-export const commercialCafeServerMovementDebugTarget = {
-  id: 'commercial-cafe-server-movement-test-point',
-  position: authoredPoint(
-    commercialCafeLayout.centralWaitingFloor.x + commercialCafeLayout.centralWaitingFloor.width - commercialCafeCounterCellWidth - commercialCafeCounterClearance,
-    commercialCafeLayout.centralWaitingFloor.y - commercialCafeCounterBody.depth + commercialCafeCounterClearance,
-  ),
-} as const
+const commercialCafeFloorServicePosition = authoredPoint(
+  commercialCafeLayout.centralWaitingFloor.x + commercialCafeLayout.centralWaitingFloor.width / 2,
+  commercialCafeLayout.centralWaitingFloor.y + commercialCafeLayout.centralWaitingFloor.height / 2,
+)
 const commercialCafeCounterEntities = commercialCafeCounterPositions.map((x, index) => floor({
   id: index === 4 ? 'commercial-cafe-counter' : `commercial-cafe-counter-${index + 1}`,
   label: '柜台',
@@ -964,55 +950,50 @@ const commercialCafeNpcs = [
     interactionTargetEntityId: commercialCafeStoryTableId,
   },
   {
-    id: npcRoles.server.id,
-    roleId: npcRoles.server.id,
-    label: npcRoles.server.label,
+    id: npcRoles.cafeCoffeeOwner.id,
+    roleId: npcRoles.cafeCoffeeOwner.id,
+    label: npcRoles.cafeCoffeeOwner.label,
     interactionTargetEntityId: 'commercial-cafe-counter',
+  },
+  {
+    id: npcRoles.cafeFloorServer.id,
+    roleId: npcRoles.cafeFloorServer.id,
+    label: npcRoles.cafeFloorServer.label,
   },
 ] as const satisfies readonly MainlineSceneNpc[]
 const commercialCafeNpcBehaviorTargets = [
   { id: 'commercial-cafe-counter-service', position: commercialCafeServiceLayout.staffHome },
   { id: 'commercial-cafe-prep-station', position: commercialCafeServiceLayout.staffApproach },
+  { id: 'commercial-cafe-floor-service-staging', position: commercialCafeFloorServicePosition },
 ] as const satisfies readonly MainlineSceneNpcBehaviorTarget[]
 const commercialCafeNpcBehaviors = [
   { npcId: npcRoles.laoZhou.id, dutyId: npcRoles.laoZhou.duties.seated.id, targetId: 'commercial-cafe-right-window-upper-group-chair-top', targetKind: 'seat' },
-  { npcId: npcRoles.server.id, dutyId: npcRoles.server.duties.counterService.id, targetId: 'commercial-cafe-counter-service', targetKind: 'point', interactionContactEntityId: 'commercial-cafe-counter' },
+  { npcId: npcRoles.cafeCoffeeOwner.id, dutyId: npcRoles.cafeCoffeeOwner.duties.counterService.id, targetId: 'commercial-cafe-counter-service', targetKind: 'point', interactionContactEntityId: 'commercial-cafe-counter' },
+  { npcId: npcRoles.cafeFloorServer.id, dutyId: npcRoles.cafeFloorServer.duties.tableService.id, targetId: 'commercial-cafe-floor-service-staging', targetKind: 'point' },
 ] as const satisfies readonly MainlineSceneNpcBehavior[]
 const commercialCafeAttachedProps = [
   {
     id: 'commercial-cafe-lao-zhou-coffee',
     label: '咖啡',
     parentEntityId: commercialCafeStoryTableId,
-    offset: authoredPoint(-1.5, .4),
-    interactionTargetEntityId: commercialCafeStoryTableId,
-    interactive: false,
     visualKind: 'coffee',
   },
   {
     id: 'commercial-cafe-xiujie-coffee',
     label: '咖啡',
     parentEntityId: commercialCafeStoryTableId,
-    offset: authoredPoint(0, .4),
-    interactionTargetEntityId: commercialCafeStoryTableId,
-    interactive: false,
     visualKind: 'coffee',
   },
   {
     id: 'commercial-cafe-xiujie-milk-tea',
     label: '奶茶',
     parentEntityId: commercialCafeStoryTableId,
-    offset: authoredPoint(1.5, .4),
-    interactionTargetEntityId: commercialCafeStoryTableId,
-    interactive: false,
     visualKind: 'milk-tea',
   },
   {
     id: 'commercial-cafe-banknote',
     label: '钞票',
     parentEntityId: commercialCafeStoryTableId,
-    offset: authoredPoint(0, 1.15),
-    interactionTargetEntityId: commercialCafeStoryTableId,
-    interactive: false,
     visualKind: 'banknote',
   },
 ] as const satisfies readonly MainlineSceneAttachedProp[]
@@ -1139,7 +1120,8 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
     actorAccess: {
       protagonist: ['public'],
       [npcRoles.laoZhou.id]: ['public'],
-      [npcRoles.server.id]: ['public', 'staff'],
+      [npcRoles.cafeCoffeeOwner.id]: ['public', 'staff'],
+      [npcRoles.cafeFloorServer.id]: ['public'],
     },
     blockers: [],
     continuousStructures: [commercialCafeCounterStructure],
@@ -1157,7 +1139,7 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
     wallOpenings: [{ wallId: 'commercial-cafe-room', opening: { edge: 'top', start: 46, end: 50, doorId: 'cafe-back-door', label: '后门', displayLabel: '门', labelLayout: 'center' } }], transitionText: '后门暂时没有开放的去处。', access: 'locked', lockedText: '后门暂未开启，当前权限不足。',
   }],
   interactionText: {
-    'street-cafe-entry': '入口已经接入商业街，咖啡馆内部和主线使用同一套空间规则。', 'commercial-cafe-counter': '柜台位于店内前侧。', 'commercial-cafe-server': '店员在柜台附近工作。', 'commercial-cafe-menu': '菜单挂在后墙上。', 'commercial-cafe-blackboard': '黑板挂在菜单旁边。', 'commercial-cafe-plant-upper': '靠窗的绿植留在通道边缘。', 'commercial-cafe-plant-lower': '另一盆绿植靠着玻璃边。', 'cafe-back-door': '后门暂未开启，当前权限不足。',
+    'street-cafe-entry': '入口已经接入商业街，咖啡馆内部和主线使用同一套空间规则。', 'commercial-cafe-counter': '柜台位于店内前侧。', 'commercial-cafe-menu': '菜单挂在后墙上。', 'commercial-cafe-blackboard': '黑板挂在菜单旁边。', 'commercial-cafe-plant-upper': '靠窗的绿植留在通道边缘。', 'commercial-cafe-plant-lower': '另一盆绿植靠着玻璃边。', 'cafe-back-door': '后门暂未开启，当前权限不足。',
   },
 }
 

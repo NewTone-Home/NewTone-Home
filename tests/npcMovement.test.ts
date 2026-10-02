@@ -1,163 +1,130 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
-import { commercialCafeServerMovementDebugTarget } from '../src/center/runtime/mainlineSceneModel'
 import { mainlineNpcStagedPoint } from '../src/center/runtime/mainlineNpcStaging'
-import { findMainlinePathToEntity, isWalkableMainlinePoint, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition } from '../src/center/runtime/mainlineNavigation'
+import { findMainlinePathToEntity, isWalkableMainlinePoint, resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
-import { commercialCafeLaoZhouConversationSeatId, resolveCommercialCafeCoffeeDeliveryIntent, resolveCommercialCafeReturnToCounterIntent } from '../src/center/runtime/commercialCafeStory'
-import { npcRoles } from '../src/center/runtime/npcRoles'
+import { commercialCafeCoffeeDelivered, commercialCafeCoffeeOwnerNpcId, commercialCafeCoffeePreparing, commercialCafeCoffeeReady, commercialCafeCoffeeOrdered, commercialCafeFloorServerNpcId, commercialCafeLaoZhouConversationSeatId, initialCommercialCafeStoryState, resolveCommercialCafeCoffeeDeliveryIntent, resolveCommercialCafeCoffeePrepIntent, resolveCommercialCafeFloorServiceIntent } from '../src/center/runtime/commercialCafeStory'
 import { createNpcMovementAdapter } from '../src/center/runtime/useNpcMovement'
 import { createFreeRoamController } from '../src/center/runtime/useFreeRoamMovement'
 import { mainlineLabelFootprint, mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 
 const cafe = mainlineScenes['commercial-cafe']
-const laoZhouPosition = resolveMainlineNpcPosition(cafe, 'lao-zhou')
-const serverHome = mainlineNpcStagedPoint(cafe, 'server')!
-const movementTestTarget = commercialCafeServerMovementDebugTarget.position
+const staffIds = [commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId] as const
 
-function runUntilIdle(controller: ReturnType<typeof createFreeRoamController>, adapter: ReturnType<typeof createNpcMovementAdapter>, runtime: ReturnType<typeof createNavigationRuntime>) {
-  for (let now = 100; now <= 20000 && controller.isMoving(); now += 100) {
+function createCafeMovement(actorId: typeof staffIds[number]) {
+  const navigationRuntime = createNavigationRuntime()
+  const protagonistPosition = cafe.initialPlayerPosition
+  const protagonistBox = mainlineProtagonistDotFootprint(protagonistPosition)
+  navigationRuntime.registerActor('protagonist', protagonistPosition, { width: protagonistBox.width, height: protagonistBox.height })
+  for (const npc of cafe.npcs) {
+    const point = resolveMainlineNpcPosition(cafe, npc.id)
+    const box = mainlineLabelFootprint(npc.label, point, undefined, { lineHeight: 1 })
+    navigationRuntime.registerActor(npc.id, point, { width: box.width, height: box.height })
+  }
+  const initialPosition = mainlineNpcStagedPoint(cafe, actorId)!
+  const footprint = mainlineLabelFootprint('店员', initialPosition, undefined, { lineHeight: 1 })
+  const controller = createFreeRoamController(initialPosition)
+  const adapter = createNpcMovementAdapter({
+    npcId: actorId,
+    initialPosition,
+    movement: controller,
+    navigationRuntime,
+    getFootprint: () => ({ width: footprint.width, height: footprint.height }),
+  })
+  return { navigationRuntime, initialPosition, controller, adapter }
+}
+
+function runUntilIdle(controller: ReturnType<typeof createFreeRoamController>, adapter: ReturnType<typeof createNpcMovementAdapter>, runtime: ReturnType<typeof createNavigationRuntime>, actorId: string) {
+  for (let now = 100; now <= 30_000 && controller.isMoving(); now += 100) {
     controller.tick(now)
-    expect(runtime.getActor('server')?.position).toEqual(adapter.getPosition())
+    expect(runtime.getActor(actorId)?.position).toEqual(adapter.getPosition())
   }
   expect(controller.isMoving()).toBe(false)
 }
 
-describe('NPC movement adapter', () => {
-  function createServerMovement(protagonistPosition = cafe.initialPlayerPosition) {
-    const navigationRuntime = createNavigationRuntime()
-    const controller = createFreeRoamController(serverHome)
-    const protagonistBox = mainlineProtagonistDotFootprint(protagonistPosition)
-    const laoZhouBox = mainlineLabelFootprint('老周', laoZhouPosition, undefined, { lineHeight: 1 })
-    const serverBox = mainlineLabelFootprint('店员', serverHome, undefined, { lineHeight: 1 })
-    navigationRuntime.registerActor('protagonist', protagonistPosition, { width: protagonistBox.width, height: protagonistBox.height })
-    navigationRuntime.registerActor('lao-zhou', laoZhouPosition, { width: laoZhouBox.width, height: laoZhouBox.height })
-    navigationRuntime.registerActor('server', serverHome, { width: serverBox.width, height: serverBox.height })
-    const adapter = createNpcMovementAdapter({
-      npcId: 'server',
-      initialPosition: serverHome,
-      movement: controller,
-      navigationRuntime,
-      getFootprint: () => ({ width: serverBox.width, height: serverBox.height }),
-    })
-    return { navigationRuntime, controller, adapter }
-  }
-
-  it('uses behavior staging only as the server start point, then resolves renderer/navigation position from the runtime', () => {
-    const { adapter } = createServerMovement()
-    const runtimePosition = movementTestTarget
-
-    expect(adapter.getPosition()).toEqual(serverHome)
-    expect(resolveMainlineNpcPosition(cafe, 'server')).toEqual(serverHome)
-    expect(resolveMainlineNpcPosition(cafe, 'server', {}, {
-      npcRuntimePositions: new Map([['server', runtimePosition]]),
-    })).toEqual(runtimePosition)
+describe('Café NPC runtime movement', () => {
+  it('registers two distinct live staff occupants and keeps individual runtime snapshots', () => {
+    const coffee = createCafeMovement(commercialCafeCoffeeOwnerNpcId)
+    const floor = createCafeMovement(commercialCafeFloorServerNpcId)
+    const actorIds = coffee.navigationRuntime.getActors().map(({ actorId }) => actorId)
+    expect(actorIds).toEqual(expect.arrayContaining(staffIds))
+    expect(coffee.initialPosition).not.toEqual(floor.initialPosition)
+    expect(coffee.adapter.getSnapshot().npcId).toBe(commercialCafeCoffeeOwnerNpcId)
+    expect(floor.adapter.getSnapshot().npcId).toBe(commercialCafeFloorServerNpcId)
+    expect(coffee.navigationRuntime.dynamicObstaclesFor(commercialCafeCoffeeOwnerNpcId)).toHaveLength(3)
+    expect(coffee.navigationRuntime.getActor(commercialCafeFloorServerNpcId)?.position).toEqual(floor.initialPosition)
+    expect(resolveMainlineNpcPosition(cafe, commercialCafeCoffeeOwnerNpcId)).toEqual(coffee.initialPosition)
+    expect(resolveMainlineNpcPosition(cafe, commercialCafeFloorServerNpcId)).toEqual(floor.initialPosition)
   })
 
-  it('plans a legal server route through shared navigation, updates its actor every tick, and returns home', () => {
-    const { navigationRuntime, controller, adapter } = createServerMovement()
-    const moved = adapter.requestMove({
-      dutyId: 'server.debug-movement',
-      targetId: 'commercial-cafe-server-movement-test-point',
-      target: movementTestTarget,
-    }, cafe, {})
-
-    expect(moved).toBe(true)
-    expect(adapter.getSnapshot()).toMatchObject({
-      npcId: 'server',
-      phase: 'moving',
-      dutyId: 'server.debug-movement',
-      targetId: 'commercial-cafe-server-movement-test-point',
+  it('starts preparation only after a shared-navigation route reaches the prep station', () => {
+    const { navigationRuntime, controller, adapter } = createCafeMovement(commercialCafeCoffeeOwnerNpcId)
+    const intent = resolveCommercialCafeCoffeePrepIntent(cafe)!
+    let story = commercialCafeCoffeeOrdered(initialCommercialCafeStoryState())
+    let arrivals = 0
+    const started = adapter.requestMove(intent, cafe, {}, { navigationRuntime }, { maxSpeed: 1 }, () => {
+      arrivals += 1
+      story = commercialCafeCoffeePreparing(story, 42_000)
     })
-    expect(navigationRuntime.getActors().map((actor) => actor.actorId)).toEqual(expect.arrayContaining(['protagonist', 'lao-zhou', 'server']))
-    expect(navigationRuntime.dynamicObstaclesFor('server')).toHaveLength(2)
-    runUntilIdle(controller, adapter, navigationRuntime)
-
-    expect(adapter.getPosition()).toEqual(movementTestTarget)
-    expect(adapter.getSnapshot()).toMatchObject({ phase: 'idle', dutyId: 'server.debug-movement', targetId: 'commercial-cafe-server-movement-test-point' })
-    expect(isWalkableMainlinePoint(adapter.getPosition(), cafe, {}, { actorId: 'server', navigationRuntime })).toBe(true)
-
-    const returned = adapter.requestMove({
-      dutyId: 'server.debug-return',
-      targetId: 'commercial-cafe-server-home',
-      target: serverHome,
-    }, cafe, {})
-    expect(returned).toBe(true)
-    runUntilIdle(controller, adapter, navigationRuntime)
-    expect(adapter.getPosition()).toEqual(serverHome)
-    expect(adapter.getSnapshot()).toMatchObject({ phase: 'idle', dutyId: 'server.debug-return', targetId: 'commercial-cafe-server-home' })
-  })
-
-  it('keeps counter collision authoritative and reports a blocked intent without an ignore-static escape hatch', () => {
-    const { controller, adapter } = createServerMovement()
-    const counter = cafe.objects.find((entity) => entity.id === 'commercial-cafe-counter')!
-    const started = adapter.requestMove({
-      dutyId: 'server.debug-invalid',
-      targetId: counter.id,
-      target: counter.position,
-    }, cafe, {})
-
-    expect(started).toBe(false)
-    expect(controller.isMoving()).toBe(false)
-    expect(adapter.getPosition()).toEqual(serverHome)
-    expect(adapter.getSnapshot()).toMatchObject({
-      phase: 'blocked',
-      dutyId: 'server.debug-invalid',
-      targetId: counter.id,
-      retryCount: 1,
-    })
-  })
-
-  it('persists delivery only after arrival, then returns with the same movement adapter', () => {
-    const seatedProtagonist = resolveMainlineSeatSitPosition(cafe, commercialCafeLaoZhouConversationSeatId)!
-    const { navigationRuntime, controller, adapter } = createServerMovement(seatedProtagonist)
-    const delivery = resolveCommercialCafeCoffeeDeliveryIntent({
-      scene: cafe,
-      coffeeOrdered: true,
-      coffeeDelivered: false,
-    })!
-    let coffeeDelivered = false
-    let deliveries = 0
-    const started = adapter.requestMove(delivery, cafe, {}, { navigationRuntime }, {}, () => {
-      deliveries += 1
-      coffeeDelivered = true
-      const returning = adapter.requestMove(resolveCommercialCafeReturnToCounterIntent(cafe)!, cafe, {}, { navigationRuntime })
-      expect(returning).toBe(true)
-    })
-
     expect(started).toBe(true)
-    expect(coffeeDelivered).toBe(false)
-    runUntilIdle(controller, adapter, navigationRuntime)
-
-    expect(deliveries).toBe(1)
-    expect(coffeeDelivered).toBe(true)
-    expect(adapter.getPosition()).toEqual(serverHome)
-    expect(adapter.getSnapshot()).toMatchObject({ phase: 'idle', dutyId: npcRoles.server.duties.returnToCounter.id })
+    expect(story.coffeeStatus).toBe('ordered')
+    expect(story.coffeePreparationStartedAt).toBeNull()
+    runUntilIdle(controller, adapter, navigationRuntime, commercialCafeCoffeeOwnerNpcId)
+    expect(arrivals).toBe(1)
+    expect(story).toMatchObject({ coffeeStatus: 'preparing', coffeePreparationStartedAt: 42_000 })
+    expect(adapter.getPosition()).toEqual(intent.target)
   })
 
-  it('chooses another live table contact when the nearest delivery contact is dynamically occupied', () => {
-    const { navigationRuntime, controller, adapter } = createServerMovement()
-    const delivery = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeOrdered: true, coffeeDelivered: false })!
-    const staticContact = findMainlinePathToEntity(cafe, delivery.targetEntityId!, serverHome, {}, { actorId: 'server' }).target
-    navigationRuntime.registerActor('contact-blocker', staticContact, { width: 1.6, height: 1.6 })
-
-    const started = adapter.requestMove(delivery, cafe, {}, { navigationRuntime }, { maxSpeed: 1 })
-
+  it('keeps the floor actor on public table service while coffee owner prepares', () => {
+    const { navigationRuntime: coffeeRuntime, controller: coffeeController, adapter: coffeeAdapter } = createCafeMovement(commercialCafeCoffeeOwnerNpcId)
+    const intent = resolveCommercialCafeCoffeePrepIntent(cafe)!
+    const started = coffeeAdapter.requestMove(intent, cafe, {}, { navigationRuntime: coffeeRuntime }, { maxSpeed: 1 })
     expect(started).toBe(true)
-    expect(adapter.getSnapshot()).toMatchObject({ phase: 'moving', dutyId: npcRoles.server.duties.deliverCoffee.id })
-    expect(adapter.getSnapshot().target).not.toEqual(staticContact)
-    runUntilIdle(controller, adapter, navigationRuntime)
-    expect(adapter.getSnapshot()).toMatchObject({ phase: 'idle', dutyId: npcRoles.server.duties.deliverCoffee.id })
+    const floorIntent = resolveCommercialCafeFloorServiceIntent(cafe)!
+    const floorContact = findMainlinePathToEntity(cafe, floorIntent.targetEntityId!, mainlineNpcStagedPoint(cafe, commercialCafeFloorServerNpcId)!, {}, {
+      actorId: commercialCafeFloorServerNpcId,
+      actorFootprint: mainlineLabelFootprint('店员', mainlineNpcStagedPoint(cafe, commercialCafeFloorServerNpcId)!, undefined, { lineHeight: 1 }),
+      navigationRuntime: coffeeRuntime,
+    })
+    expect(floorContact.path).not.toBeNull()
+    expect(coffeeRuntime.getActor(commercialCafeFloorServerNpcId)).toBeDefined()
+    expect(coffeeController.isMoving()).toBe(true)
   })
 
-  it('blocks a semantic table delivery only when all legal contacts are dynamically occupied', () => {
-    const { navigationRuntime, controller, adapter } = createServerMovement()
-    const delivery = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeOrdered: true, coffeeDelivered: false })!
-    const table = cafe.objects.find((entity) => entity.id === delivery.targetEntityId)!
-    navigationRuntime.registerActor('all-contacts-blocker', table.position, { width: 30, height: 30 })
+  it('persists delivery only at the real destination arrival, then uses the same adapter to return', () => {
+    const { navigationRuntime, controller, adapter, initialPosition } = createCafeMovement(commercialCafeCoffeeOwnerNpcId)
+    const seatedSeat = cafe.objects.find(({ id }) => id === commercialCafeLaoZhouConversationSeatId)
+    expect(seatedSeat).toBeDefined()
+    let story = commercialCafeCoffeeReady(commercialCafeCoffeePreparing(commercialCafeCoffeeOrdered(initialCommercialCafeStoryState()), 100))
+    const delivery = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeStatus: story.coffeeStatus, narrativePhase: 'coffee-delivery' })!
+    let deliveredBeforeArrival = story.coffeeStatus === 'delivered'
+    expect(deliveredBeforeArrival).toBe(false)
+    const started = adapter.requestMove(delivery, cafe, {}, { navigationRuntime }, { maxSpeed: 1 }, () => {
+      story = commercialCafeCoffeeDelivered(story)
+      deliveredBeforeArrival = story.coffeeStatus === 'delivered'
+    })
+    expect(started).toBe(true)
+    expect(deliveredBeforeArrival).toBe(false)
+    runUntilIdle(controller, adapter, navigationRuntime, commercialCafeCoffeeOwnerNpcId)
+    expect(deliveredBeforeArrival).toBe(true)
+    expect(adapter.getSnapshot()).toMatchObject({ phase: 'idle', dutyId: 'cafe-coffee-owner.deliver-coffee' })
+    expect(isWalkableMainlinePoint(adapter.getPosition(), cafe, {}, { actorId: commercialCafeCoffeeOwnerNpcId, navigationRuntime })).toBe(true)
 
-    expect(adapter.requestMove(delivery, cafe, {}, { navigationRuntime })).toBe(false)
+    const returning = adapter.requestMove({ dutyId: 'cafe-coffee-owner.return-to-counter', targetId: 'commercial-cafe-counter-service', target: initialPosition }, cafe, {}, { navigationRuntime }, { maxSpeed: 1 })
+    expect(returning).toBe(true)
+    runUntilIdle(controller, adapter, navigationRuntime, commercialCafeCoffeeOwnerNpcId)
+    expect(adapter.getPosition()).toEqual(initialPosition)
+    expect(adapter.getSnapshot()).toMatchObject({ phase: 'idle', dutyId: 'cafe-coffee-owner.return-to-counter' })
+  })
+
+  it('keeps counter collision authoritative and blocks an occupied story table without teleporting', () => {
+    const { navigationRuntime, controller, adapter, initialPosition } = createCafeMovement(commercialCafeCoffeeOwnerNpcId)
+    const table = cafe.objects.find(({ id }) => id === 'commercial-cafe-right-window-upper-group-table')!
+    navigationRuntime.registerActor('contact-blocker', table.position, { width: 30, height: 30 })
+    const intent = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeStatus: 'ready', narrativePhase: 'coffee-delivery' })!
+    expect(adapter.requestMove(intent, cafe, {}, { navigationRuntime })).toBe(false)
     expect(controller.isMoving()).toBe(false)
-    expect(adapter.getSnapshot()).toMatchObject({ phase: 'blocked', dutyId: npcRoles.server.duties.deliverCoffee.id })
+    expect(adapter.getPosition()).toEqual(initialPosition)
+    expect(adapter.getSnapshot()).toMatchObject({ phase: 'blocked', dutyId: 'cafe-coffee-owner.deliver-coffee' })
   })
 })

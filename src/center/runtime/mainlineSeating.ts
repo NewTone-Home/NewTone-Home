@@ -7,8 +7,9 @@ import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
  * Occupancy is a scene condition rather than chair or NPC identity. NPC scene
  * staging supplies the static seats; the optional player seat is runtime-only.
  */
-export function mainlineSceneOccupiedSeatIds(scene: MainlineSceneDefinition, playerSeatId: string | null = null) {
+export function mainlineSceneOccupiedSeatIds(scene: MainlineSceneDefinition, playerSeatId: string | null = null, releasedNpcIds: ReadonlySet<string> = new Set()) {
   const occupiedSeatIds = new Set(scene.npcs.flatMap((npc) => {
+    if (releasedNpcIds.has(npc.id)) return []
     const seatId = mainlineNpcStagedSeatId(scene, npc.id)
     return seatId ? [seatId] : []
   }))

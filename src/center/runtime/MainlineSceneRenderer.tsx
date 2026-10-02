@@ -8,6 +8,7 @@ import { type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSc
 import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
+import type { CommercialCafeAttachedPropLayout } from './commercialCafeTablePresentation'
 import { SceneDoor, type SceneDoorTransitionCompletion } from './SceneDoor'
 import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoorConfig'
 import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
@@ -48,7 +49,6 @@ type MainlineSceneRendererProps = {
   onInteract: (id: string) => void
   onStorefrontInteract?: (storefrontId: string) => void
   onNpcInteract?: (npcId: string) => void
-  onAttachedPropInteract?: (propId: string) => void
   npcPositions?: ReadonlyMap<string, Point>
   npcRuntimeSnapshots?: ReadonlyMap<string, NpcRuntimeSnapshot>
   hiddenNpcIds?: ReadonlySet<string>
@@ -87,6 +87,7 @@ type MainlineSceneRendererProps = {
   incenseBurnRemainingMs?: number
   onIncenseBurnComplete?: () => void
   visibleAttachedPropIds?: ReadonlySet<string>
+  attachedPropLayouts?: ReadonlyMap<string, CommercialCafeAttachedPropLayout>
   occupiedSeatIds?: ReadonlySet<string>
   playerSeatId?: string | null
   promptedSeatId?: string | null
@@ -552,6 +553,28 @@ function MainlineObject({ entity, scene, position, collision, visualBounds, focu
   )
 }
 
+function AttachedPropIcon({ kind }: { kind: 'coffee' | 'milk-tea' | 'banknote' | undefined }) {
+  if (kind === 'coffee') return <svg aria-hidden="true" viewBox="0 0 40 40" focusable="false">
+    <path d="M15 5c-2 2-2 3.5 0 5M23 5c-2 2-2 3.5 0 5" />
+    <ellipse cx="19" cy="13" rx="9" ry="2.5" />
+    <path d="M10 13h18l-1.8 15.2a5 5 0 0 1-5 4.4h-4.4a5 5 0 0 1-5-4.4L10 13Z" />
+    <path d="M28 16h3.5a4 4 0 0 1 0 8H27M13 36h15" />
+  </svg>
+  if (kind === 'milk-tea') return <svg aria-hidden="true" viewBox="0 0 40 44" focusable="false">
+    <path d="m22 3 7 3-8 13" />
+    <path d="M9 11h22l-3.2 27H12.2L9 11Z" />
+    <path d="M10 15h20M14 7h12" />
+    <circle cx="16" cy="31" r="1.7" /><circle cx="21" cy="34" r="1.7" /><circle cx="25" cy="30" r="1.7" />
+  </svg>
+  if (kind === 'banknote') return <svg aria-hidden="true" viewBox="0 0 48 32" focusable="false">
+    <rect x="3" y="5" width="42" height="22" rx="2.5" />
+    <rect x="7" y="8" width="34" height="16" rx="1.5" />
+    <circle cx="24" cy="16" r="5" />
+    <path d="M11 12h2M35 20h2" />
+  </svg>
+  return null
+}
+
 export function MainlineSceneRenderer({
   scene,
   position,
@@ -577,7 +600,6 @@ export function MainlineSceneRenderer({
   onInteract,
   onStorefrontInteract,
   onNpcInteract,
-  onAttachedPropInteract,
   npcPositions,
   npcRuntimeSnapshots,
   hiddenNpcIds,
@@ -616,6 +638,7 @@ export function MainlineSceneRenderer({
   incenseBurnRemainingMs = 0,
   onIncenseBurnComplete,
   visibleAttachedPropIds,
+  attachedPropLayouts,
   occupiedSeatIds: runtimeOccupiedSeatIds,
   playerSeatId = null,
   promptedSeatId = null,
@@ -1135,28 +1158,26 @@ export function MainlineSceneRenderer({
 
           {visibleAttachedProps.map((prop) => {
             const parentPosition = geometrySnapshot.objects.get(prop.parentEntityId)?.position
-            if (!parentPosition) return null
+            const propLayout = attachedPropLayouts?.get(prop.id)
+            if (!parentPosition || !propLayout) return null
+            const xOperator = propLayout.offsetXpx < 0 ? '-' : '+'
+            const yOperator = propLayout.offsetYpx < 0 ? '-' : '+'
             const props = {
               className: `scene-mainline-attached-prop${prop.visualKind ? ` scene-mainline-attached-prop--${prop.visualKind}` : ''}`,
-              style: { left: `${parentPosition.x + prop.offset.x}%`, top: `${parentPosition.y + prop.offset.y}%` },
+              style: {
+                left: `calc(${parentPosition.x}% ${xOperator} ${Math.abs(propLayout.offsetXpx)}px)`,
+                top: `calc(${parentPosition.y}% ${yOperator} ${Math.abs(propLayout.offsetYpx)}px)`,
+                width: `${propLayout.widthPx}px`,
+                height: `${propLayout.heightPx}px`,
+                transform: 'translate(-50%, -50%)',
+              },
               'data-attached-prop-id': prop.id,
               'data-parent-entity-id': prop.parentEntityId,
-              'data-interaction-target-entity-id': prop.interactionTargetEntityId,
               'data-attached-prop-kind': prop.visualKind,
-              'data-rendered-x': debugRuntimeEvidence ? parentPosition.x + prop.offset.x : undefined,
-              'data-rendered-y': debugRuntimeEvidence ? parentPosition.y + prop.offset.y : undefined,
+              'data-layout-offset-x-px': debugRuntimeEvidence ? propLayout.offsetXpx : undefined,
+              'data-layout-offset-y-px': debugRuntimeEvidence ? propLayout.offsetYpx : undefined,
             }
-            return prop.interactive === false ? <span key={prop.id} {...props} aria-label={prop.label}><span>{prop.visualKind ? '' : prop.label}</span></span> : (
-              <button
-                key={prop.id}
-                {...props}
-                type="button"
-                onClick={(event) => { event.stopPropagation(); onAttachedPropInteract?.(prop.id) }}
-                aria-label={`${prop.label}，附着于${prop.parentEntityId}`}
-              >
-                <span>{prop.label}</span>
-              </button>
-            )
+            return <span key={prop.id} {...props} aria-label={prop.label}><AttachedPropIcon kind={prop.visualKind} /></span>
           })}
 
           {cafeSpatialQa && <div className="scene-spatial-qa" aria-hidden="true">

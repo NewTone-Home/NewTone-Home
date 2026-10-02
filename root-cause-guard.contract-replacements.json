@@ -87,6 +87,29 @@
         "expect(right.y).toBe(rail.centerY)",
         "expect(left.x).toBeLessThan(rail.maxX - 2)"
       ]
+    },
+    {
+      "id": "commercial-cafe-dual-staff-access-2026-10-01",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/fixedInteractionAccess.test.ts",
+      "oldContract": "The former single server actor crossed the Café staff boundary.",
+      "newContract": "Only the coffee owner has staff access; navigation still uses the shared access boundary.",
+      "requiredAddedAssertions": [
+        "commercialCafeCoffeeOwnerNpcId",
+        "actorId: commercialCafeCoffeeOwnerNpcId"
+      ]
+    },
+    {
+      "id": "commercial-cafe-canonical-staff-actors-2026-10-01",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/npcFoundation.test.ts",
+      "oldContract": "Café NPC movement and occupancy use a generic server actor.",
+      "newContract": "Coffee owner and floor server have distinct canonical identities, occupancy, contact and access contracts.",
+      "requiredAddedAssertions": [
+        "commercialCafeCoffeeOwnerNpcId",
+        "commercialCafeFloorServerNpcId",
+        "floorServerDenied.reachedRequestedTarget).toBe(false)"
+      ]
     }
   ]
 }

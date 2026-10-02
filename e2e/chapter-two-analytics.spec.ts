@@ -2,10 +2,11 @@ import { expect, test, type Page } from '@playwright/test'
 import { commercialStreetQuestionNarrativeAnchor } from '../src/center/runtime/commercialStreetQuestionNarrative'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { commercialStreetMilkTeaReadyAtKey } from '../src/center/runtime/commercialStreetMilkTea'
-import { commercialCafeCoffeeDeliveredKey, commercialCafeCoffeeOrderedKey, commercialCafeNarrativeCursorKey, commercialCafeStoryStatusKey } from '../src/center/runtime/commercialCafeStory'
+import { commercialCafeCoffeeStatusKey, commercialCafeNarrativeCursorKey, commercialCafeNarrativePhaseKey, commercialCafeStoryStatusKey } from '../src/center/runtime/commercialCafeStory'
 
 const analyticsBaseUrl = process.env.CHAPTER_TWO_ANALYTICS_BASE_URL
-test.skip(!analyticsBaseUrl, 'requires the isolated fake analytics endpoint server')
+const analyticsApiUrl = process.env.CHAPTER_TWO_ANALYTICS_API_URL
+test.skip(!analyticsBaseUrl || !analyticsApiUrl, 'requires the isolated fake analytics endpoint server')
 test.use({ viewport: { width: 1280, height: 720 } })
 
 async function clickWorldPoint(page: Page, point: { x: number; y: number }) {
@@ -24,7 +25,7 @@ function eventNames(events: readonly { event_name: string }[]) {
 }
 
 function requestHasEvent(request: { url(): string; postData(): string | null }, eventName: string) {
-  if (!request.url().startsWith('https://analytics.test/rest/v1/analytics_events')) return false
+  if (!request.url().startsWith(`${analyticsApiUrl}/rest/v1/analytics_events`)) return false
   try {
     const body = JSON.parse(request.postData() ?? '[]')
     return (Array.isArray(body) ? body : [body]).some((event) => event?.event_name === eventName)
@@ -67,7 +68,7 @@ async function triggerStorefrontInteraction(page: Page, label: string) {
 
 test('Chapter Two emits constrained browser analytics without requiring a real database', async ({ page }) => {
   const events: Array<Record<string, unknown>> = []
-  await page.route('https://analytics.test/rest/v1/analytics_events**', async (route) => {
+  await page.route(`${analyticsApiUrl}/rest/v1/analytics_events**`, async (route) => {
     const body = JSON.parse(route.request().postData() ?? '[]')
     events.push(...(Array.isArray(body) ? body : [body]))
     await route.fulfill({ status: 201, body: '' })
@@ -150,7 +151,7 @@ test('Chapter Two emits constrained browser analytics without requiring a real d
 
 test('Café records only durable story milestones and completion transitions', async ({ page }) => {
   const events: Array<Record<string, unknown>> = []
-  await page.route('https://analytics.test/rest/v1/analytics_events**', async (route) => {
+  await page.route(`${analyticsApiUrl}/rest/v1/analytics_events**`, async (route) => {
     const body = JSON.parse(route.request().postData() ?? '[]')
     events.push(...(Array.isArray(body) ? body : [body]))
     await route.fulfill({ status: 201, body: '' })
@@ -172,11 +173,11 @@ test('Café records only durable story milestones and completion transitions', a
       ...sceneState,
       [keys.status]: 'available',
       [keys.cursor]: 13,
-      [keys.coffeeOrdered]: true,
-      [keys.coffeeDelivered]: false,
+      [keys.coffeeStatus]: 'delivered',
+      [keys.phase]: 'dialogue',
     }
     localStorage.setItem('newtone-player-save-v1', JSON.stringify(save))
-  }, { status: commercialCafeStoryStatusKey, cursor: commercialCafeNarrativeCursorKey, coffeeOrdered: commercialCafeCoffeeOrderedKey, coffeeDelivered: commercialCafeCoffeeDeliveredKey })
+  }, { status: commercialCafeStoryStatusKey, cursor: commercialCafeNarrativeCursorKey, coffeeStatus: commercialCafeCoffeeStatusKey, phase: commercialCafeNarrativePhaseKey })
   await page.reload()
   const readyToLeave = waitForAnalyticsEvent(page, 'cafe_ready_to_leave')
   await page.getByRole('button', { name: '老周，点击让主角前往互动' }).click()

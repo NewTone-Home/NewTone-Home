@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineSceneAreaLabel, mainlineScenes } from './mainlineScenes'
 import { mainlineInteractionTarget } from './mainlineNavigation'
+import { commercialCafeCoffeeStatusKey } from './commercialCafeStory'
 import {
   plantIsWatered,
   isMainlineInPlaceInteraction,
@@ -118,7 +119,7 @@ describe('mainline scene interaction policies', () => {
     })
     expect(entered.choice).toEqual({ text: '要点一杯咖啡吗？', options: ['点一杯咖啡'] })
     expect(resolveMainlineSceneEchoChoice(cafe, counter, '点一杯咖啡', 0, { commercialCafeCoffeeOrdered: false, carriedMilkTea: false })).toMatchObject({
-      stateChange: { key: 'commercialCafeCoffeeOrdered', value: true },
+      stateChange: { key: commercialCafeCoffeeStatusKey, value: 'ordered' },
       dismiss: true,
     })
     expect(resolveMainlineSceneExploration(cafe, counter, {
@@ -133,6 +134,6 @@ describe('mainline scene interaction policies', () => {
       incensePhase: 'unlit', plantWatered: false, officeBlindsOpen: true, carriedPhoneDevice: 'surface', commercialCafeCoffeeOrdered: false, carriedMilkTea: true,
     }).choice).toEqual({ text: '已经有奶茶了，还要买咖啡吗？', options: ['是', '否'] })
     expect(resolveMainlineSceneEchoChoice(cafe, counter, '否', 0, { commercialCafeCoffeeOrdered: false, carriedMilkTea: true })?.stateChange).toBeUndefined()
-    expect(resolveMainlineSceneEchoChoice(cafe, counter, '是', 0, { commercialCafeCoffeeOrdered: false, carriedMilkTea: true })?.stateChange).toEqual({ key: 'commercialCafeCoffeeOrdered', value: true })
+    expect(resolveMainlineSceneEchoChoice(cafe, counter, '是', 0, { commercialCafeCoffeeOrdered: false, carriedMilkTea: true })?.stateChange).toEqual({ key: commercialCafeCoffeeStatusKey, value: 'ordered' })
   })
 })

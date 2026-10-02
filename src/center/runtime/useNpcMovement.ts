@@ -22,6 +22,7 @@ export type NpcMovementAdapter = {
     movementOptions?: MovementOptions,
     onArrive?: MovementComplete,
   ) => boolean
+  requestRoute: (intent: NpcIntent, path: Point[], movementOptions?: MovementOptions, onArrive?: MovementComplete) => boolean
   reset: (position: Point) => void
 }
 
@@ -47,6 +48,27 @@ export function createNpcMovementAdapter({ npcId, initialPosition, movement, nav
     runtime.setPosition(position)
     if (navigationRuntime.getActor(npcId)) navigationRuntime.updateActor(npcId, position)
     else navigationRuntime.registerActor(npcId, position, getFootprint())
+  }
+  const followPath = (path: Point[], movementOptions: MovementOptions = {}, onArrive?: MovementComplete) => {
+    movement.moveAlong(path, (position) => {
+      syncPosition(position)
+      runtime.arrive()
+      // Locomotion already publishes the terminal position in this frame.
+      onArrive?.(position)
+    }, {
+      ...movementOptions,
+      preserveNavigationRoute: true,
+      onMove: (position) => {
+        syncPosition(position)
+        movementOptions.onMove?.(position)
+      },
+      onBlocked: (position) => {
+        syncPosition(position)
+        runtime.blocked()
+        notify()
+        movementOptions.onBlocked?.(position)
+      },
+    })
   }
 
   return {
@@ -78,15 +100,7 @@ export function createNpcMovementAdapter({ npcId, initialPosition, movement, nav
 
       const canOccupy = (point: Point) => isWalkableMainlinePoint(point, scene, layout, options)
 
-      movement.moveAlong(resolved.path, (position) => {
-        syncPosition(position)
-        runtime.arrive()
-        // useFreeRoamMovement publishes the terminal position for this same
-        // animation frame. That render re-reads the runtime snapshot, so a
-        // second adapter revision here would nest a React update inside the
-        // movement controller's own terminal snapshot update.
-        onArrive?.(position)
-      }, {
+      followPath(resolved.path, {
         ...movementOptions,
         // NPC routing can pass between live actors and furniture contacts.
         // Follow the shared planner's actual turns instead of re-smoothing
@@ -98,17 +112,21 @@ export function createNpcMovementAdapter({ npcId, initialPosition, movement, nav
         // staging point. Otherwise generic same-direction compression can
         // straighten a valid route around a protected static body.
         finalCanOccupy: canOccupy,
-        onMove: (position) => {
-          syncPosition(position)
-          movementOptions.onMove?.(position)
-        },
-        onBlocked: (position) => {
-          syncPosition(position)
-          runtime.blocked()
-          notify()
-          movementOptions.onBlocked?.(position)
-        },
-      })
+      }, onArrive)
+      return true
+    },
+    requestRoute: (intent, path, movementOptions = {}, onArrive) => {
+      const start = movement.getCurrentPosition()
+      syncPosition(start)
+      const target = path[path.length - 1]
+      if (!target) {
+        runtime.blocked()
+        notify()
+        return false
+      }
+      runtime.beginIntent({ ...intent, target })
+      notify()
+      followPath(path, movementOptions, onArrive)
       return true
     },
     reset: (position) => {
@@ -134,6 +152,8 @@ type UseNpcMovementOptions = {
  * live position is the single source passed to rendering and navigation.
  */
 export function useNpcMovement({ enabled, npcId, initialPosition, navigationRuntime, footprint }: UseNpcMovementOptions) {
+  const initialX = initialPosition.x
+  const initialY = initialPosition.y
   const movement = useFreeRoamMovement(initialPosition)
   const [revision, setRevision] = useState(0)
   const movementRef = useRef(movement)
@@ -157,18 +177,22 @@ export function useNpcMovement({ enabled, npcId, initialPosition, navigationRunt
     })
   }
   const adapter = adapterRef.current
-  const resetKey = `${enabled}:${npcId}:${initialPosition.x}:${initialPosition.y}`
+  const resetKey = `${enabled}:${npcId}:${initialX}:${initialY}`
 
   useEffect(() => {
     if (!enabled) {
       movement.stopMovement()
+      navigationRuntime.removeActor(npcId)
       return
     }
-    adapter.reset(initialPosition)
-  }, [adapter, enabled, resetKey])
+    adapter.reset({ x: initialX, y: initialY })
+  }, [adapter, enabled, initialX, initialY, movement.stopMovement, navigationRuntime, npcId, resetKey])
 
   const requestMove = useCallback((intent: NpcIntent, scene: MainlineSceneDefinition, layout: SceneLayout, navigationOptions?: MainlineNavigationOptions, movementOptions?: MovementOptions, onArrive?: MovementComplete) => (
     enabled && adapter.requestMove(intent, scene, layout, navigationOptions, movementOptions, onArrive)
+  ), [adapter, enabled])
+  const requestRoute = useCallback((intent: NpcIntent, path: Point[], movementOptions?: MovementOptions, onArrive?: MovementComplete) => (
+    enabled && adapter.requestRoute(intent, path, movementOptions, onArrive)
   ), [adapter, enabled])
 
   const snapshot = useMemo(() => adapter.getSnapshot(), [adapter, movement.position, revision])
@@ -177,6 +201,7 @@ export function useNpcMovement({ enabled, npcId, initialPosition, navigationRunt
     snapshot,
     getPosition: adapter.getPosition,
     requestMove,
+    requestRoute,
     reset: adapter.reset,
   }
 }

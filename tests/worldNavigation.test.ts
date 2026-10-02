@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createPolygonNavigationMesh } from '../src/center/runtime/scenePathfinding'
-import { canActorReachPassageApproach, canTravelAlongMainlineSegment, classifyMainlineWorldCommand, findMainlineRoomPassageSequence, mainlineNavigationCollisionBoxes, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, resolveMainlineNpcPosition, resolveMainlineWorldNavigation } from '../src/center/runtime/mainlineNavigation'
+import { canActorReachPassageApproach, canTravelAlongMainlineSegment, classifyMainlineWorldCommand, findMainlineRoomPassageSequence, mainlineNavigationCollisionBoxes, mainlinePassageCollisionForNavigation, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
-import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
+import { mainlineLabelFootprint, mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
+import { defaultSceneScreenMetrics } from '../src/center/runtime/sceneBoundaryGrid'
+import { commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId } from '../src/center/runtime/commercialCafeStory'
+import { mainlineSceneOccupiedSeatIds } from '../src/center/runtime/mainlineSeating'
+import { mainlineNpcStagedSeatId } from '../src/center/runtime/mainlineNpcStaging'
 
 const point = (x: number, y: number) => ({ x, y })
 
@@ -52,8 +56,10 @@ describe('ordinary world navigation and passage intent', () => {
     const denied = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, options)!
     expect(denied.reachedRequestedTarget).toBe(false)
     expect(denied.deniedAccessRegion?.id).toBe(staff.id)
-    const allowed = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, { actorId: 'server' })!
+    const allowed = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, { actorId: commercialCafeCoffeeOwnerNpcId })!
     expect(allowed.reachedRequestedTarget).toBe(true)
+    const floorServerDenied = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, { actorId: commercialCafeFloorServerNpcId })!
+    expect(floorServerDenied.reachedRequestedTarget).toBe(false)
   })
 
   it('uses the same closed-passage geometry for world resolution and live travel', () => {
@@ -92,15 +98,53 @@ describe('ordinary world navigation and passage intent', () => {
     const backDoor = cafe.passages.find((passage) => passage.id === 'cafe-back-door')!
     const protagonistDot = mainlineProtagonistDotFootprint(cafe.initialPlayerPosition)
     const protagonistOptions = { actorId: 'protagonist', actorFootprint: { width: protagonistDot.width, height: protagonistDot.height } } as const
-    const serverPosition = resolveMainlineNpcPosition(cafe, 'server')
+    const coffeeOwnerPosition = resolveMainlineNpcPosition(cafe, commercialCafeCoffeeOwnerNpcId)
 
     expect(canActorReachPassageApproach(cafe, backDoor, cafe.initialPlayerPosition, {}, protagonistOptions)).toBeNull()
-    expect(serverPosition).toBeDefined()
-    expect(canActorReachPassageApproach(cafe, backDoor, serverPosition!, {}, { actorId: 'server' })).not.toBeNull()
+    expect(coffeeOwnerPosition).toBeDefined()
+    expect(canActorReachPassageApproach(cafe, backDoor, coffeeOwnerPosition!, {}, { actorId: commercialCafeCoffeeOwnerNpcId })).not.toBeNull()
 
     const backDoorTarget = mainlinePassageExitPoint(backDoor, cafe.initialPlayerPosition)
     expect(classifyMainlineWorldCommand(cafe, cafe.initialPlayerPosition, backDoorTarget, {}, protagonistOptions)).toMatchObject({ kind: 'ordinary' })
-    expect(classifyMainlineWorldCommand(cafe, serverPosition!, backDoorTarget, {}, { actorId: 'server' })).toMatchObject({ kind: 'passage', passage: { id: backDoor.id } })
+    expect(classifyMainlineWorldCommand(cafe, coffeeOwnerPosition!, backDoorTarget, {}, { actorId: commercialCafeCoffeeOwnerNpcId })).toMatchObject({ kind: 'passage', passage: { id: backDoor.id } })
+  })
+
+  it('keeps Lao Zhou able to reach the real Café street passage from his conversation seat', () => {
+    const cafe = mainlineScenes['commercial-cafe']
+    const exit = cafe.passages.find((passage) => passage.id === 'street-cafe-entry')!
+    const seatId = 'commercial-cafe-right-window-upper-group-chair-top'
+    const seated = resolveMainlineSeatSitPosition(cafe, seatId)
+    expect(seated).not.toBeNull()
+    expect(canActorReachPassageApproach(cafe, exit, seated!, {}, { actorId: 'lao-zhou' })).not.toBeNull()
+  })
+
+  it('routes Lao Zhou from his authored Café conversation seat to the opposite side of the street passage', () => {
+    const cafe = mainlineScenes['commercial-cafe']
+    const exit = cafe.passages.find((passage) => passage.id === 'street-cafe-entry')!
+    const seated = resolveMainlineNpcPosition(cafe, 'lao-zhou', {}, { screenMetrics: defaultSceneScreenMetrics })
+    const footprint = mainlineLabelFootprint('老周', seated, defaultSceneScreenMetrics, { lineHeight: 1 })
+    const options = { actorId: 'lao-zhou', screenMetrics: defaultSceneScreenMetrics, actorFootprint: { width: footprint.width, height: footprint.height } }
+    const collision = mainlinePassageCollisionForNavigation(cafe, exit, options)
+    const doorway = mainlinePassageDoorwayForNavigation(cafe, exit, options)
+    const outsideTarget = mainlinePassageExitPoint(exit, seated, options.actorFootprint, collision, doorway)
+    expect(seated).not.toBeNull()
+    expect(canActorReachPassageApproach(cafe, exit, seated, {}, options)).not.toBeNull()
+    expect(mainlinePassageSide(exit, outsideTarget, collision, doorway)).not.toBe(mainlinePassageSide(exit, seated, collision, doorway))
+  })
+
+  it('keeps the seated NPC route valid until its occupied chair is released', () => {
+    const cafe = mainlineScenes['commercial-cafe']
+    const exit = cafe.passages.find((passage) => passage.id === 'street-cafe-entry')!
+    const from = resolveMainlineNpcPosition(cafe, 'lao-zhou', {}, { screenMetrics: defaultSceneScreenMetrics })
+    const footprint = mainlineLabelFootprint('老周', from, defaultSceneScreenMetrics, { lineHeight: 1 })
+    const laoZhouSeatId = mainlineNpcStagedSeatId(cafe, 'lao-zhou')!
+    const occupiedSeatIds = mainlineSceneOccupiedSeatIds(cafe)
+    const options = { actorId: 'lao-zhou', screenMetrics: defaultSceneScreenMetrics, actorFootprint: { width: footprint.width, height: footprint.height }, occupiedSeatIds }
+    expect(occupiedSeatIds.has(laoZhouSeatId)).toBe(true)
+    expect(canActorReachPassageApproach(cafe, exit, from, {}, options)).not.toBeNull()
+    const releasedSeatIds = new Set(occupiedSeatIds)
+    releasedSeatIds.delete(laoZhouSeatId)
+    expect(canActorReachPassageApproach(cafe, exit, from, {}, { ...options, occupiedSeatIds: releasedSeatIds })).toBeNull()
   })
 
   it('classifies passages before ordinary target resolution, including a locked non-routeThrough back door', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { commercialCafeLaoZhouConversationSeatId } from '../src/center/runtime/commercialCafeStory'
+import { commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId, commercialCafeLaoZhouConversationSeatId } from '../src/center/runtime/commercialCafeStory'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { findMainlinePath, findMainlinePathToEntity, isWalkableMainlinePoint, mainlineEntityInteractionCandidates, mainlineInteractionTarget, mainlineNpcInteractionTarget, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition } from '../src/center/runtime/mainlineNavigation'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
@@ -103,7 +103,7 @@ describe('commercial cafe seating and staging', () => {
   it('routes from Lao Zhou\'s table-side contact around the table before reaching the opposite free seat', () => {
     const screenMetrics = { width: 834, height: 1194 }
     const runtime = createNavigationRuntime()
-    for (const npcId of ['lao-zhou', 'server']) {
+    for (const npcId of ['lao-zhou', commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId]) {
       const npc = cafe.npcs.find((candidate) => candidate.id === npcId)!
       const position = resolveMainlineNpcPosition(cafe, npcId)
       const footprint = mainlineLabelFootprint(npc.label, position, screenMetrics, { lineHeight: 1 })
@@ -189,11 +189,13 @@ describe('commercial cafe seating and staging', () => {
     expect(tableRoute.path).not.toBeNull()
   })
 
-  it('derives server staging from a semantic ambient duty while preserving a reachable customer contact region', () => {
+  it('assigns separate counter and floor staging duties while preserving a reachable customer contact region', () => {
     const staffZone = cafe.accessRegions.find((region) => region.id === 'commercial-cafe-staff-area')!
-    const serverBehavior = mainlineNpcStagingBehavior(cafe, 'server')!
-    const serverPosition = resolveMainlineNpcPosition(cafe, 'server')
-    const serverContact = mainlineNpcInteractionTarget(cafe, 'server', cafe.initialPlayerPosition)
+    const coffeeOwnerBehavior = mainlineNpcStagingBehavior(cafe, commercialCafeCoffeeOwnerNpcId)!
+    const floorServerBehavior = mainlineNpcStagingBehavior(cafe, commercialCafeFloorServerNpcId)!
+    const coffeeOwnerPosition = resolveMainlineNpcPosition(cafe, commercialCafeCoffeeOwnerNpcId)!
+    const floorServerPosition = resolveMainlineNpcPosition(cafe, commercialCafeFloorServerNpcId)!
+    const counterContact = mainlineNpcInteractionTarget(cafe, commercialCafeCoffeeOwnerNpcId, cafe.initialPlayerPosition)
     const counterCollision = cafe.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-body')!
     const counterLeft = counterCollision.x
     const counterRight = counterCollision.x + counterCollision.width
@@ -201,14 +203,18 @@ describe('commercial cafe seating and staging', () => {
     const clearance = protagonist.height / 2 + sharedFurnitureGeometry.actorContactGap
 
     expect(cafe.blockers.some((blocker) => blocker.id === 'commercial-cafe-staff-only')).toBe(false)
-    expect(serverBehavior).toMatchObject({ dutyId: 'server.counter-service', targetId: 'commercial-cafe-counter-service', targetKind: 'point' })
-    expect(serverPosition.x).toBeGreaterThan(staffZone.x)
-    expect(serverPosition.x).toBeLessThan(staffZone.x + staffZone.width)
-    expect(serverPosition.y).toBeGreaterThan(staffZone.y)
-    expect(serverPosition.y).toBeLessThan(staffZone.y + staffZone.height)
-    expect(serverPosition.x).toBeCloseTo((counterLeft + counterRight) / 2)
-    expect(serverPosition.y).toBeLessThan(counterCollision.y - clearance)
-    expect(serverContact.y).toBeGreaterThan(counterCollision.y + counterCollision.height)
-    expect(isWalkableMainlinePoint(serverContact, cafe)).toBe(true)
+    expect(coffeeOwnerBehavior).toMatchObject({ dutyId: 'cafe-coffee-owner.counter-service', targetId: 'commercial-cafe-counter-service', targetKind: 'point' })
+    expect(floorServerBehavior).toMatchObject({ dutyId: 'cafe-floor-server.table-service', targetId: 'commercial-cafe-floor-service-staging', targetKind: 'point' })
+    expect(coffeeOwnerPosition.x).toBeGreaterThan(staffZone.x)
+    expect(coffeeOwnerPosition.x).toBeLessThan(staffZone.x + staffZone.width)
+    expect(coffeeOwnerPosition.y).toBeGreaterThan(staffZone.y)
+    expect(coffeeOwnerPosition.y).toBeLessThan(staffZone.y + staffZone.height)
+    expect(coffeeOwnerPosition.x).toBeCloseTo((counterLeft + counterRight) / 2)
+    expect(coffeeOwnerPosition.y).toBeLessThan(counterCollision.y - clearance)
+    expect(floorServerPosition.x === coffeeOwnerPosition.x && floorServerPosition.y === coffeeOwnerPosition.y).toBe(false)
+    expect(floorServerPosition.x < staffZone.x || floorServerPosition.x > staffZone.x + staffZone.width
+      || floorServerPosition.y < staffZone.y || floorServerPosition.y > staffZone.y + staffZone.height).toBe(true)
+    expect(counterContact.y).toBeGreaterThan(counterCollision.y + counterCollision.height)
+    expect(isWalkableMainlinePoint(counterContact, cafe)).toBe(true)
   })
 })

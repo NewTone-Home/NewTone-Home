@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { commercialCafeServerMovementDebugTarget } from '../src/center/runtime/mainlineSceneModel'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { createFreeRoamController, movementDurationMsForPath, sharedCharacterMovementOptions, sharedCharacterWalkSpeedPxPerSecond } from '../src/center/runtime/useFreeRoamMovement'
 
 describe('shared ordinary character movement speed', () => {
   const start = mainlineScenes['commercial-cafe'].initialPlayerPosition
-  const target = commercialCafeServerMovementDebugTarget.position
+  const target = { x: start.x + 8, y: start.y + 4 }
   const screenMetrics = { width: 1000, height: 600 }
 
   it('uses 280 px/s as the single protagonist and NPC default', () => {

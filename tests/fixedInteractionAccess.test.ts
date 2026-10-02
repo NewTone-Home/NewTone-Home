@@ -9,6 +9,7 @@ import {
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
+import { commercialCafeCoffeeOwnerNpcId } from '../src/center/runtime/commercialCafeStory'
 
 const protagonistFootprint = mainlineProtagonistDotFootprint(mainlineScenes['commercial-cafe'].initialPlayerPosition)
 const protagonistOptions = {
@@ -71,7 +72,7 @@ describe('ordinary floor interaction and access-boundary contracts', () => {
 
     expect(isMainlineNavigationBarrierClear(publicPoint, staffPoint, cafe, {}, protagonistOptions)).toBe(false)
     expect(findMainlinePath(publicPoint, staffPoint, cafe, {}, protagonistOptions)).toBeNull()
-    expect(isMainlineNavigationBarrierClear(publicPoint, staffPoint, cafe, {}, { actorId: 'server' })).toBe(true)
-    expect(findMainlinePath(publicPoint, staffPoint, cafe, {}, { actorId: 'server' })).not.toBeNull()
+    expect(isMainlineNavigationBarrierClear(publicPoint, staffPoint, cafe, {}, { actorId: commercialCafeCoffeeOwnerNpcId })).toBe(true)
+    expect(findMainlinePath(publicPoint, staffPoint, cafe, {}, { actorId: commercialCafeCoffeeOwnerNpcId })).not.toBeNull()
   })
 })

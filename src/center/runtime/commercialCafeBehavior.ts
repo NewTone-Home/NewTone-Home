@@ -1,114 +1,93 @@
 import type { NpcIntent, NpcRuntimeSnapshot } from './npcCore'
-import { npcRoles } from './npcRoles'
 import type { MainlineSceneDefinition } from './mainlineScenes'
-import type { Point } from './sceneGeometry'
-import type { SceneLayout } from './sceneLayout'
-import type { MainlineNavigationOptions } from './mainlineNavigation'
-import { resolveCommercialCafeCoffeeDeliveryIntent, resolveCommercialCafeReturnToCounterIntent } from './commercialCafeStory'
+import { commercialCafeCoffeeOwnerNpcId } from './commercialCafeStory'
+import type { CommercialCafeCoffeeStatus, CommercialCafeNarrativePhase } from './commercialCafeStory'
+import { npcRoles } from './npcRoles'
+import {
+  resolveCommercialCafeCoffeeDeliveryIntent,
+  resolveCommercialCafeCoffeePrepIntent,
+  resolveCommercialCafeFloorServiceIntent,
+  resolveCommercialCafeReturnToCounterIntent,
+} from './commercialCafeStory'
 
-export type CommercialCafeServerBehaviorPhase = 'boot' | 'ambient-moving' | 'ambient-waiting' | 'delivering' | 'delivery-arrived' | 'returning' | 'blocked'
+export type CommercialCafeCoffeeOwnerPhase = 'counter' | 'moving-to-prep' | 'preparing' | 'delivering' | 'delivery-arrived' | 'returning' | 'blocked'
+export type CommercialCafeFloorServerPhase = 'staging' | 'serving' | 'blocked'
 
-/**
- * Small event-driven coordinator.  It selects duties; movement and routing
- * remain in the existing NPC adapter.  No timer, polling or route data lives
- * here.
- */
-export function createCommercialCafeServerBehaviorCoordinator() {
-  let phase: CommercialCafeServerBehaviorPhase = 'boot'
-  let ambientTargetIndex = 0
-  let pendingAmbientIntent: NpcIntent | null = null
+/** Café NPC speed is a local duty override layered on the shared locomotion engine. */
+export function commercialCafeDutySpeedMultiplier(npcId: string, dutyId: string | null, readingActive: boolean) {
+  if (npcId === commercialCafeCoffeeOwnerNpcId
+    && (dutyId === npcRoles.cafeCoffeeOwner.duties.deliverCoffee.id
+      || dutyId === npcRoles.cafeCoffeeOwner.duties.returnToCounter.id)) return 1
+  return readingActive ? .45 : 1
+}
+
+/** Coffee duties belong only to the counter/prep actor; movement remains shared. */
+export function createCommercialCafeCoffeeOwnerBehaviorCoordinator() {
+  let phase: CommercialCafeCoffeeOwnerPhase = 'counter'
+  let retryPhase: CommercialCafeCoffeeOwnerPhase = 'counter'
   const getPhase = () => phase
-  const block = () => { phase = 'blocked' }
-  const reset = () => {
-    phase = 'boot'
-    ambientTargetIndex = 0
-    pendingAmbientIntent = null
+  const reset = () => { phase = 'counter'; retryPhase = 'counter' }
+  const block = () => {
+    if (phase === 'moving-to-prep') retryPhase = 'counter'
+    else if (phase === 'delivering') retryPhase = 'preparing'
+    else if (phase === 'returning') retryPhase = 'delivery-arrived'
+    phase = 'blocked'
   }
+  const retry = () => { if (phase === 'blocked') phase = retryPhase }
+  const arrivedAtPrep = () => { phase = 'preparing' }
+  const arrivedAtStoryTable = () => { phase = 'delivery-arrived' }
+  const arrivedAtCounter = () => { phase = 'counter' }
 
-  const ambientIntent = (scene: MainlineSceneDefinition): NpcIntent | null => {
-    if (pendingAmbientIntent) return pendingAmbientIntent
-    // A service loop is built from existing scene semantics, not patrol
-    // waypoints and not a table owned by the server identity. Each selected
-    // table is a one-time duty target; the next selection is coordinator state.
-    const pointTargets = ['commercial-cafe-prep-station', 'commercial-cafe-counter-service']
-      .map((targetId) => scene.npcBehaviorTargets?.find((target) => target.id === targetId))
-      .filter((target): target is NonNullable<typeof target> => Boolean(target))
-      .map((target) => ({
-        dutyId: target.id === 'commercial-cafe-counter-service'
-          ? npcRoles.server.duties.counterService.id
-          : npcRoles.server.duties.prepare.id,
-        targetId: target.id,
-        target: { ...target.position },
-      } satisfies NpcIntent))
-    const publicTables = scene.objects
-      .filter((entity) => entity.kind === 'table' && entity.id !== 'commercial-cafe-right-window-upper-group-table')
-      .map((entity) => ({
-        dutyId: npcRoles.server.duties.tableService.id,
-        targetId: entity.id,
-        targetEntityId: entity.id,
-      } satisfies NpcIntent))
-    if (pointTargets.length < 2 || publicTables.length === 0) return null
-    // One loop deliberately crosses the service boundary once: prep → one
-    // table service → counter. Subsequent loops rotate the table selection,
-    // so the server has no permanent public-table assignment or patrol route.
-    const step = ambientTargetIndex % 3
-    const cycle = Math.floor(ambientTargetIndex / 3)
-    const target = step === 0
-      ? pointTargets[0]!
-      : step === 1
-        ? publicTables[cycle % publicTables.length]!
-        : pointTargets[1]!
-    ambientTargetIndex += 1
-    pendingAmbientIntent = target
-    return pendingAmbientIntent
-  }
-
-  const requestForCoffee = ({
-    scene, coffeeOrdered, coffeeDelivered, from: _from, snapshot, layout: _layout = {}, navigationOptions: _navigationOptions = {},
+  const request = ({
+    scene, coffeeStatus, narrativePhase, snapshot,
   }: {
     scene: MainlineSceneDefinition
-    coffeeOrdered: boolean
-    coffeeDelivered: boolean
-    from: Point
+    coffeeStatus: CommercialCafeCoffeeStatus
+    narrativePhase: CommercialCafeNarrativePhase
     snapshot: NpcRuntimeSnapshot
-    layout?: SceneLayout
-    navigationOptions?: MainlineNavigationOptions
   }): NpcIntent | null => {
-    if (scene.id !== 'commercial-cafe') return null
-    // Effects may be replayed during development after the movement hook has
-    // been cleaned up. A recorded `delivering` phase is only live while the
-    // NPC runtime is actually moving; otherwise request the same semantic
-    // intent again through the shared adapter.
-    if (coffeeOrdered && !coffeeDelivered && phase !== 'delivery-arrived' && (phase !== 'delivering' || snapshot.phase !== 'moving')) {
-      const intent = resolveCommercialCafeCoffeeDeliveryIntent({ scene, coffeeOrdered, coffeeDelivered })
-      if (intent) {
-        pendingAmbientIntent = null
-        phase = 'delivering'
-      }
+    if (scene.id !== 'commercial-cafe' || snapshot.phase === 'moving') return null
+    if (phase === 'blocked') return null
+
+    if (coffeeStatus === 'ordered' && phase !== 'moving-to-prep') {
+      const intent = resolveCommercialCafeCoffeePrepIntent(scene)
+      if (intent) phase = 'moving-to-prep'
       return intent
     }
-    if (snapshot.phase === 'moving') return null
-    if (coffeeDelivered && (phase === 'delivering' || phase === 'delivery-arrived')) {
+    if (coffeeStatus === 'preparing') {
+      phase = 'preparing'
+      return null
+    }
+    if (coffeeStatus === 'ready' && narrativePhase === 'coffee-delivery' && phase !== 'delivery-arrived') {
+      const intent = resolveCommercialCafeCoffeeDeliveryIntent({ scene, coffeeStatus, narrativePhase })
+      if (intent) phase = 'delivering'
+      return intent
+    }
+    if (coffeeStatus === 'delivered' && phase === 'delivery-arrived') {
       const intent = resolveCommercialCafeReturnToCounterIntent(scene)
       if (intent) phase = 'returning'
-      return intent
-    }
-    if (phase === 'boot' || phase === 'ambient-waiting' || phase === 'ambient-moving') {
-      const intent = ambientIntent(scene)
-      if (intent) phase = 'ambient-moving'
       return intent
     }
     return null
   }
 
-  const arrived = () => {
-    if (phase === 'ambient-moving') {
-      pendingAmbientIntent = null
-      phase = 'ambient-waiting'
-    }
-    else if (phase === 'delivering') phase = 'delivery-arrived'
-    else if (phase === 'returning') phase = 'ambient-waiting'
-  }
+  return { getPhase, request, arrivedAtPrep, arrivedAtStoryTable, arrivedAtCounter, block, retry, reset }
+}
 
-  return { getPhase, requestForCoffee, arrived, block, reset }
+/** Ordinary table service is an independent floor duty and never makes coffee. */
+export function createCommercialCafeFloorServerBehaviorCoordinator() {
+  let phase: CommercialCafeFloorServerPhase = 'staging'
+  let tableRotation = 0
+  const getPhase = () => phase
+  const block = () => { phase = 'blocked' }
+  const reset = () => { phase = 'staging'; tableRotation = 0 }
+  const retry = () => { if (phase === 'blocked') phase = 'staging' }
+  const arrived = () => { phase = 'serving'; tableRotation += 1 }
+  const request = (scene: MainlineSceneDefinition, snapshot: NpcRuntimeSnapshot): NpcIntent | null => {
+    if (scene.id !== 'commercial-cafe' || snapshot.phase === 'moving' || phase === 'blocked') return null
+    const intent = resolveCommercialCafeFloorServiceIntent(scene, tableRotation)
+    if (intent) phase = 'serving'
+    return intent
+  }
+  return { getPhase, request, arrived, block, retry, reset }
 }

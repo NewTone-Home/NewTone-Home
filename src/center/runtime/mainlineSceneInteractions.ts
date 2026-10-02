@@ -2,7 +2,7 @@ import type { PhoneDevice } from './phoneState'
 import type { PlayerChoiceValue } from './playerSave'
 import type { MainlineInteractionBehavior } from './mainlineSceneModel'
 import type { MainlineSceneDefinition, MainlineSceneEntity } from './mainlineScenes'
-import { commercialCafeCoffeeOrderedKey } from './commercialCafeStory'
+import { commercialCafeCoffeeStatusKey } from './commercialCafeStory'
 
 export const incenseBurnDurationMs = 10 * 60 * 1000
 export const plantWaterDurationMs = 10 * 60 * 1000
@@ -29,7 +29,7 @@ export type MainlineExplorationResolution = {
 }
 
 export type MainlineSceneStateChange = {
-  key: 'blindsOpen' | 'incenseLitAt' | 'plantWateredAt' | typeof commercialCafeCoffeeOrderedKey
+  key: 'blindsOpen' | 'incenseLitAt' | 'plantWateredAt' | typeof commercialCafeCoffeeStatusKey
   value: PlayerChoiceValue
 }
 
@@ -166,7 +166,7 @@ export function resolveMainlineSceneEchoChoice(
     if (option !== '点一杯咖啡' && option !== '是') return { dismiss: true }
     return {
       dismiss: true,
-      stateChange: { key: commercialCafeCoffeeOrderedKey, value: true },
+      stateChange: { key: commercialCafeCoffeeStatusKey, value: 'ordered' },
     }
   }
 
