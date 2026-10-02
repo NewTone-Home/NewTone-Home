@@ -3,7 +3,7 @@ import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineNpcStagedPoint } from '../src/center/runtime/mainlineNpcStaging'
 import { findMainlinePathToEntity, isWalkableMainlinePoint, resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
-import { commercialCafeCoffeeDelivered, commercialCafeCoffeeOwnerNpcId, commercialCafeCoffeePreparing, commercialCafeCoffeeReady, commercialCafeCoffeeOrdered, commercialCafeFloorServerNpcId, commercialCafeLaoZhouConversationSeatId, initialCommercialCafeStoryState, resolveCommercialCafeCoffeeDeliveryIntent, resolveCommercialCafeCoffeePrepIntent, resolveCommercialCafeFloorServiceIntent } from '../src/center/runtime/commercialCafeStory'
+import { commercialCafeCoffeeDelivered, commercialCafeCoffeeOwnerNpcId, commercialCafeCoffeePreparing, commercialCafeCoffeeReady, commercialCafeCoffeeOrdered, commercialCafeFinishCursorOne, commercialCafeFloorServerNpcId, commercialCafeLaoZhouConversationSeatId, initialCommercialCafeStoryState, resolveCommercialCafeCoffeeDeliveryIntent, resolveCommercialCafeCoffeePrepIntent, resolveCommercialCafeFloorServiceIntent } from '../src/center/runtime/commercialCafeStory'
 import { createNpcMovementAdapter } from '../src/center/runtime/useNpcMovement'
 import { createFreeRoamController } from '../src/center/runtime/useFreeRoamMovement'
 import { mainlineLabelFootprint, mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
@@ -95,7 +95,7 @@ describe('Café NPC runtime movement', () => {
     const { navigationRuntime, controller, adapter, initialPosition } = createCafeMovement(commercialCafeCoffeeOwnerNpcId)
     const seatedSeat = cafe.objects.find(({ id }) => id === commercialCafeLaoZhouConversationSeatId)
     expect(seatedSeat).toBeDefined()
-    let story = commercialCafeCoffeeReady(commercialCafeCoffeePreparing(commercialCafeCoffeeOrdered(initialCommercialCafeStoryState()), 100))
+    let story = commercialCafeFinishCursorOne(commercialCafeCoffeeReady(commercialCafeCoffeePreparing(commercialCafeCoffeeOrdered(initialCommercialCafeStoryState()), 100)))
     const delivery = resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeStatus: story.coffeeStatus, narrativePhase: 'coffee-delivery' })!
     let deliveredBeforeArrival = story.coffeeStatus === 'delivered'
     expect(deliveredBeforeArrival).toBe(false)
@@ -107,6 +107,7 @@ describe('Café NPC runtime movement', () => {
     expect(deliveredBeforeArrival).toBe(false)
     runUntilIdle(controller, adapter, navigationRuntime, commercialCafeCoffeeOwnerNpcId)
     expect(deliveredBeforeArrival).toBe(true)
+    expect(story).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 1, narrativePhase: 'coffee-delivery' })
     expect(adapter.getSnapshot()).toMatchObject({ phase: 'idle', dutyId: 'cafe-coffee-owner.deliver-coffee' })
     expect(isWalkableMainlinePoint(adapter.getPosition(), cafe, {}, { actorId: commercialCafeCoffeeOwnerNpcId, navigationRuntime })).toBe(true)
 

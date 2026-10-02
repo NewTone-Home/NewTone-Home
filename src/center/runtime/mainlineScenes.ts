@@ -22,7 +22,6 @@ import type {
   MainlineSceneTextPresentationPolicy,
   MainlineSceneRoom,
   MainlineSceneDialogue,
-  MainlineSceneAttachedProp,
   MainlineSceneNpc,
   MainlineAmbientNpcRoute,
   MainlineSceneNpcPlacement,
@@ -74,7 +73,6 @@ export type {
   MainlineSceneDialogue,
   MainlineSceneDialogueLine,
   MainlineSceneDialogueSpeaker,
-  MainlineSceneAttachedProp,
   MainlineSceneNpc,
   MainlineSceneNpcBehavior,
   MainlineSceneNpcBehaviorTarget,
@@ -214,7 +212,6 @@ export type MainlineSceneDefinition = {
   ambientNpcRoutes: readonly MainlineAmbientNpcRoute[]
   npcBehaviorTargets: readonly MainlineSceneNpcBehaviorTarget[]
   npcBehaviors: readonly MainlineSceneNpcBehavior[]
-  attachedProps: readonly MainlineSceneAttachedProp[]
   furnitureGroups: readonly MainlineFurnitureGroup[]
   passages: readonly MainlineScenePassage[]
   initialPlayerPosition: Point
@@ -1042,7 +1039,6 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     ambientNpcRoutes: data.ambientNpcRoutes ?? [],
     npcBehaviorTargets: data.npcBehaviorTargets ?? [],
     npcBehaviors: data.npcBehaviors ?? [],
-    attachedProps: data.attachedProps ?? [],
     furnitureGroups: data.furnitureGroups,
     passages,
     initialPlayerPosition: data.initialPlayerPosition,

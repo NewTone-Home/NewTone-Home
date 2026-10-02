@@ -8,7 +8,6 @@ import { type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSc
 import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
-import type { CommercialCafeAttachedPropLayout } from './commercialCafeTablePresentation'
 import { SceneDoor, type SceneDoorTransitionCompletion } from './SceneDoor'
 import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoorConfig'
 import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
@@ -86,8 +85,6 @@ type MainlineSceneRendererProps = {
   incenseLit?: boolean
   incenseBurnRemainingMs?: number
   onIncenseBurnComplete?: () => void
-  visibleAttachedPropIds?: ReadonlySet<string>
-  attachedPropLayouts?: ReadonlyMap<string, CommercialCafeAttachedPropLayout>
   occupiedSeatIds?: ReadonlySet<string>
   playerSeatId?: string | null
   promptedSeatId?: string | null
@@ -553,28 +550,6 @@ function MainlineObject({ entity, scene, position, collision, visualBounds, focu
   )
 }
 
-function AttachedPropIcon({ kind }: { kind: 'coffee' | 'milk-tea' | 'banknote' | undefined }) {
-  if (kind === 'coffee') return <svg aria-hidden="true" viewBox="0 0 40 40" focusable="false">
-    <path d="M15 5c-2 2-2 3.5 0 5M23 5c-2 2-2 3.5 0 5" />
-    <ellipse cx="19" cy="13" rx="9" ry="2.5" />
-    <path d="M10 13h18l-1.8 15.2a5 5 0 0 1-5 4.4h-4.4a5 5 0 0 1-5-4.4L10 13Z" />
-    <path d="M28 16h3.5a4 4 0 0 1 0 8H27M13 36h15" />
-  </svg>
-  if (kind === 'milk-tea') return <svg aria-hidden="true" viewBox="0 0 40 44" focusable="false">
-    <path d="m22 3 7 3-8 13" />
-    <path d="M9 11h22l-3.2 27H12.2L9 11Z" />
-    <path d="M10 15h20M14 7h12" />
-    <circle cx="16" cy="31" r="1.7" /><circle cx="21" cy="34" r="1.7" /><circle cx="25" cy="30" r="1.7" />
-  </svg>
-  if (kind === 'banknote') return <svg aria-hidden="true" viewBox="0 0 48 32" focusable="false">
-    <rect x="3" y="5" width="42" height="22" rx="2.5" />
-    <rect x="7" y="8" width="34" height="16" rx="1.5" />
-    <circle cx="24" cy="16" r="5" />
-    <path d="M11 12h2M35 20h2" />
-  </svg>
-  return null
-}
-
 export function MainlineSceneRenderer({
   scene,
   position,
@@ -637,8 +612,6 @@ export function MainlineSceneRenderer({
   incenseLit = false,
   incenseBurnRemainingMs = 0,
   onIncenseBurnComplete,
-  visibleAttachedPropIds,
-  attachedPropLayouts,
   occupiedSeatIds: runtimeOccupiedSeatIds,
   playerSeatId = null,
   promptedSeatId = null,
@@ -661,13 +634,6 @@ export function MainlineSceneRenderer({
     playerSeatId,
     playerSeatId ? geometrySnapshot.objects.get(playerSeatId)?.position : undefined,
   )
-  // Attached props are table presentation states, not a second spatial object
-  // beside the table label. Their parent retains all collision and contact
-  // semantics while the visible detail owns the table's current label slot.
-  const visibleAttachedProps = visibleAttachedPropIds === undefined
-    ? []
-    : scene.attachedProps.filter((prop) => visibleAttachedPropIds.has(prop.id))
-  const presentedParentEntityIds = new Set(visibleAttachedProps.map((prop) => prop.parentEntityId))
   const cafeSpatialQa = scene.id === 'commercial-cafe' && debugCafeSpatialQaEnabled
   const cafeQaCounter = cafeSpatialQa ? scene.continuousStructures?.find((structure) => structure.id === 'commercial-cafe-counter-body') : undefined
   const cafeQaStaffArea = cafeSpatialQa ? scene.accessRegions.find((region) => region.id === 'commercial-cafe-staff-area') : undefined
@@ -1098,7 +1064,7 @@ export function MainlineSceneRenderer({
               breathingAnimationDelay={synchronizedBreathingDelay}
               sharedBreathingClock={isAltarEntity(scene, entity.id)}
               registerBreathingNode={registerBreathingNode}
-              suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds) || presentedParentEntityIds.has(entity.id)}
+              suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds)}
               prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}
               debugRuntimeEvidence={debugRuntimeEvidence}
             />
@@ -1156,30 +1122,6 @@ export function MainlineSceneRenderer({
 
           {ambientNpcActorLayer}
 
-          {visibleAttachedProps.map((prop) => {
-            const parentPosition = geometrySnapshot.objects.get(prop.parentEntityId)?.position
-            const propLayout = attachedPropLayouts?.get(prop.id)
-            if (!parentPosition || !propLayout) return null
-            const xOperator = propLayout.offsetXpx < 0 ? '-' : '+'
-            const yOperator = propLayout.offsetYpx < 0 ? '-' : '+'
-            const props = {
-              className: `scene-mainline-attached-prop${prop.visualKind ? ` scene-mainline-attached-prop--${prop.visualKind}` : ''}`,
-              style: {
-                left: `calc(${parentPosition.x}% ${xOperator} ${Math.abs(propLayout.offsetXpx)}px)`,
-                top: `calc(${parentPosition.y}% ${yOperator} ${Math.abs(propLayout.offsetYpx)}px)`,
-                width: `${propLayout.widthPx}px`,
-                height: `${propLayout.heightPx}px`,
-                transform: 'translate(-50%, -50%)',
-              },
-              'data-attached-prop-id': prop.id,
-              'data-parent-entity-id': prop.parentEntityId,
-              'data-attached-prop-kind': prop.visualKind,
-              'data-layout-offset-x-px': debugRuntimeEvidence ? propLayout.offsetXpx : undefined,
-              'data-layout-offset-y-px': debugRuntimeEvidence ? propLayout.offsetYpx : undefined,
-            }
-            return <span key={prop.id} {...props} aria-label={prop.label}><AttachedPropIcon kind={prop.visualKind} /></span>
-          })}
-
           {cafeSpatialQa && <div className="scene-spatial-qa" aria-hidden="true">
             <svg className="scene-spatial-qa__geometry" viewBox="0 0 100 100" preserveAspectRatio="none">
               {cafeQaStaffArea && <rect className="scene-spatial-qa__staff" x={cafeQaStaffArea.x} y={cafeQaStaffArea.y} width={cafeQaStaffArea.width} height={cafeQaStaffArea.height} />}
@@ -1203,7 +1145,7 @@ export function MainlineSceneRenderer({
             {protagonistPresentation.kind === 'dot'
               ? <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
               : <span className="scene-protagonist__seat-label" aria-label="修杰，已坐下">{protagonistPresentation.label}</span>}
-            {carriedMilkTea && <span className="scene-protagonist__drink-icon scene-protagonist__drink-icon--milk-tea" aria-label="修杰带着奶茶" />}
+            {carriedMilkTea && !playerSeatId && <span className="scene-protagonist__drink-icon scene-protagonist__drink-icon--milk-tea" aria-label="修杰带着奶茶" />}
           </div>}
           {worldQuestionMark?.visible && <span
             className="scene-commercial-question-mark"

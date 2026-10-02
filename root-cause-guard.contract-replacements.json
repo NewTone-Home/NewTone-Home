@@ -38,10 +38,12 @@
       "repository": "newtone-home/newtone-home",
       "testFile": "tests/commercialCafeStory.test.ts",
       "oldContract": "Coffee delivery and attached coffee interactions gate Café information and departure story progression.",
-      "newContract": "A seated player enters a persisted locked Café narrative independently of optional coffee delivery; legacy stages map only on load.",
+      "newContract": "A seated player starts the persisted Café narrative without ordering coffee; optional delivery starts only from coffeeStatus ready plus narrativePhase coffee-delivery, uses the dedicated coffee owner, and becomes delivered only after actual arrival.",
       "requiredAddedAssertions": [
-        "expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story, playerSeatId: commercialCafeLaoZhouConversationSeatId })).toEqual({ kind: 'start-narrative' })",
-        "expect(resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeOrdered: true, coffeeDelivered: false })).toMatchObject({ dutyId: 'server.deliver-coffee' })"
+        "expect(resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeStatus: 'ready', narrativePhase: 'coffee-delivery' })).toMatchObject({ dutyId: 'cafe-coffee-owner.deliver-coffee' })",
+        "expect(restoredDeliveryLine.narrativeCursor).toBe(1)",
+        "expect(acknowledged.narrativeCursor).toBe(2)",
+        "expect(acknowledged.narrativePhase).toBe('dialogue')"
       ]
     },
     {
@@ -49,10 +51,11 @@
       "repository": "newtone-home/newtone-home",
       "testFile": "tests/commercialCafeBehavior.test.ts",
       "oldContract": "Server behavior derives delivery and return work from legacy Café stages.",
-      "newContract": "Server behavior derives optional delivery and return work from explicit coffee order and delivery state.",
+      "newContract": "The dedicated coffee owner prepares, delivers only while coffeeStatus is ready and the narrative is in coffee-delivery, and returns only after delivery-line completion; the floor server remains on public table service.",
       "requiredAddedAssertions": [
-        "coffeeOrdered: true, coffeeDelivered: false",
-        "coffeeOrdered: true, coffeeDelivered: true"
+        "expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'coffee-delivery', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toBeNull()",
+        "expect(coffeeOwner.getPhase()).toBe('delivery-arrived')",
+        "expect(returnIntent).toMatchObject({ dutyId: 'cafe-coffee-owner.return-to-counter', targetId: 'commercial-cafe-counter-service' })"
       ]
     },
     {
@@ -60,10 +63,21 @@
       "repository": "newtone-home/newtone-home",
       "testFile": "tests/npcMovement.test.ts",
       "oldContract": "NPC delivery writes a legacy Café stage after movement arrival.",
-      "newContract": "NPC delivery completes only by setting the optional coffee-delivered state after actual arrival.",
+      "newContract": "The dedicated coffee owner writes coffeeStatus delivered only from the real arrival callback; blocked routes leave delivery pending.",
       "requiredAddedAssertions": [
-        "expect(coffeeDelivered).toBe(true)",
-        "coffeeOrdered: true, coffeeDelivered: false"
+        "expect(story).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 1, narrativePhase: 'coffee-delivery' })"
+      ]
+    },
+    {
+      "id": "commercial-cafe-table-props-retired-2026-10-02",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/commercialCafeTablePresentation.test.ts",
+      "oldContract": "Café story props are laid out across viewport sizes and suppress the table label.",
+      "newContract": "The Café story table remains a plain labeled scene object and the Café scene has no attached table-prop presentation.",
+      "requiredAddedAssertions": [
+        "expect(cafe).not.toHaveProperty('attachedProps')",
+        "expect(cafe.objects.find(({ id }) => id === commercialCafeStoryTableId)?.label).toBe('桌子')",
+        "expect(cafe.objects.map(({ id }) => id)).not.toContain('commercial-cafe-banknote')"
       ]
     },
     {

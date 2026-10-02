@@ -34,12 +34,14 @@ describe('Chapter Two commercial analytics contract', () => {
       'commercial_storefront_interacted', 'milk_tea_app_unlocked', 'milk_tea_order_started',
       'milk_tea_order_confirmed', 'milk_tea_order_ready', 'milk_tea_order_picked_up',
       'cafe_storefront_revealed', 'cafe_entered', 'cafe_story_stage_reached',
-      'cafe_coffee_ordered', 'cafe_ready_to_leave', 'cafe_completed', 'cafe_banknote_presented',
+      'cafe_coffee_ordered', 'cafe_ready_to_leave', 'cafe_completed',
     ]) {
       expect(analytics).toContain(`'${eventName}'`)
       expect(migration).toContain(`'${eventName}'`)
     }
     expect(migration).toContain('event_data jsonb')
+    expect(analytics).not.toContain("'cafe_banknote_presented'")
+    expect(migration).toContain("'cafe_banknote_presented'")
     expect(experience).toContain("trackEvent('commercial_street_entered'")
     expect(scene).toContain("onChapterAnalytics?.('commercial_question_triggered'")
     expect(scene).toContain("onChapterAnalytics?.('cafe_ready_to_leave'")

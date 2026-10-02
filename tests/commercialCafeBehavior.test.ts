@@ -27,15 +27,29 @@ describe('commercial café staff duty ownership', () => {
     expect(coffeeOwner.getPhase()).toBe('preparing')
 
     const delivery = coffeeOwner.request({ scene: cafe, coffeeStatus: 'ready', narrativePhase: 'coffee-delivery', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })
-    expect(delivery).toMatchObject({ dutyId: npcRoles.cafeCoffeeOwner.duties.deliverCoffee.id, targetId: 'commercial-cafe-right-window-upper-group-table' })
+    expect(delivery).toMatchObject({ dutyId: 'cafe-coffee-owner.deliver-coffee', targetId: 'commercial-cafe-right-window-upper-group-table' })
     expect(coffeeOwner.getPhase()).toBe('delivering')
     coffeeOwner.arrivedAtStoryTable()
+    expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'coffee-delivery', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toBeNull()
+    expect(coffeeOwner.getPhase()).toBe('delivery-arrived')
     expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'dialogue', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toMatchObject({
       dutyId: npcRoles.cafeCoffeeOwner.duties.returnToCounter.id,
       targetId: 'commercial-cafe-counter-service',
     })
     coffeeOwner.arrivedAtCounter()
     expect(coffeeOwner.getPhase()).toBe('counter')
+  })
+
+  it('keeps the coffee owner at the story table until the delivery line is acknowledged', () => {
+    const coffeeOwner = createCommercialCafeCoffeeOwnerBehaviorCoordinator()
+    coffeeOwner.request({ scene: cafe, coffeeStatus: 'ready', narrativePhase: 'coffee-delivery', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })
+    coffeeOwner.arrivedAtStoryTable()
+
+    expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'coffee-delivery', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toBeNull()
+    expect(coffeeOwner.getPhase()).toBe('delivery-arrived')
+
+    const returnIntent = coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'dialogue', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })
+    expect(returnIntent).toMatchObject({ dutyId: 'cafe-coffee-owner.return-to-counter', targetId: 'commercial-cafe-counter-service' })
   })
 
   it('keeps floor service available while coffee is prepared or ready before its story gate', () => {

@@ -180,7 +180,6 @@ test('Café records only durable story milestones and completion transitions', a
   }, { status: commercialCafeStoryStatusKey, cursor: commercialCafeNarrativeCursorKey, coffeeStatus: commercialCafeCoffeeStatusKey, phase: commercialCafeNarrativePhaseKey })
   await page.reload()
   const readyToLeave = waitForAnalyticsEvent(page, 'cafe_ready_to_leave')
-  await page.getByRole('button', { name: '老周，点击让主角前往互动' }).click()
   const shield = page.locator('[data-scene-dialogue-shield="true"]')
   await expect(shield).toBeVisible({ timeout: 15_000 })
   await dismissCompletedDialogue(page, page.locator('[data-scene-dialogue]').filter({ hasText: '好。' }))
@@ -192,8 +191,45 @@ test('Café records only durable story milestones and completion transitions', a
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible({ timeout: 30_000 })
   await completed
   expect(eventNames(events as Array<{ event_name: string }>)).toEqual(expect.arrayContaining([
-    'cafe_coffee_ordered', 'cafe_story_stage_reached', 'cafe_ready_to_leave', 'cafe_banknote_presented', 'cafe_completed',
+    'cafe_coffee_ordered', 'cafe_story_stage_reached', 'cafe_ready_to_leave', 'cafe_completed',
   ]))
+  expect(eventNames(events as Array<{ event_name: string }>)).not.toContain('cafe_banknote_presented')
   const stages = events.filter((event) => event.event_name === 'cafe_story_stage_reached').map((event) => (event.event_data as { stage?: string }).stage)
   expect(stages).toEqual(expect.arrayContaining(['ready-to-leave', 'complete']))
+})
+
+test('no-coffee Café completion records ready and complete without banknote presentation', async ({ page }) => {
+  const events: Array<Record<string, unknown>> = []
+  await page.route(`${analyticsApiUrl}/rest/v1/analytics_events**`, async (route) => {
+    const body = JSON.parse(route.request().postData() ?? '[]')
+    events.push(...(Array.isArray(body) ? body : [body]))
+    await route.fulfill({ status: 201, body: '' })
+  })
+  await page.goto(`${analyticsBaseUrl}/?scene=commercial-cafe&debugCafeFixture=1`)
+  await page.getByRole('button', { name: '老周，点击让主角前往互动' }).click()
+  const shield = page.locator('[data-scene-dialogue-shield="true"]')
+  await expect(shield).toBeVisible({ timeout: 15_000 })
+  const readyToLeave = waitForAnalyticsEvent(page, 'cafe_ready_to_leave')
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const current = page.locator('[data-scene-dialogue]')
+    if (await current.count() === 0) break
+    const token = await current.evaluate((element) => `${(element as HTMLElement).dataset.dialogueLineId}:${(element as HTMLElement).dataset.sceneSegmentIndex}:${element.textContent}`)
+    await expect(current).toHaveAttribute('data-scene-dialogue-ready', 'true', { timeout: 15_000 })
+    await shield.click({ force: true })
+    await page.waitForFunction((previous) => {
+      const next = document.querySelector<HTMLElement>('[data-scene-dialogue]')
+      return !next || `${next.dataset.dialogueLineId}:${next.dataset.sceneSegmentIndex}:${next.textContent}` !== previous || next.classList.contains('is-leaving')
+    }, token)
+  }
+  const shell = page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')
+  await expect(shell).toHaveAttribute('data-commercial-cafe-status', 'ready-to-leave')
+  await readyToLeave
+  const completed = waitForAnalyticsEvent(page, 'cafe_completed')
+  await page.locator('[data-focus-target-group="door:street-cafe-entry"]').click()
+  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible({ timeout: 30_000 })
+  await completed
+  expect(eventNames(events as Array<{ event_name: string }>)).toContain('cafe_ready_to_leave')
+  expect(eventNames(events as Array<{ event_name: string }>)).toContain('cafe_completed')
+  expect(eventNames(events as Array<{ event_name: string }>)).not.toContain('cafe_coffee_ordered')
+  expect(eventNames(events as Array<{ event_name: string }>)).not.toContain('cafe_banknote_presented')
 })

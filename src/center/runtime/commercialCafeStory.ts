@@ -42,10 +42,6 @@ export type CommercialCafeStoryState = {
 }
 
 export const commercialCafeLaoZhouConversationSeatId = 'commercial-cafe-right-window-upper-group-chair-bottom'
-export const commercialCafeCoffeeAttachedPropId = 'commercial-cafe-xiujie-coffee'
-export const commercialCafeLaoZhouCoffeeAttachedPropId = 'commercial-cafe-lao-zhou-coffee'
-export const commercialCafeMilkTeaAttachedPropId = 'commercial-cafe-xiujie-milk-tea'
-export const commercialCafeBanknoteAttachedPropId = 'commercial-cafe-banknote'
 export const commercialCafeDepartureText = '修杰离开，老周看向窗外。'
 export const commercialCafeCoffeeOwnerNpcId = 'cafe-coffee-owner'
 export const commercialCafeFloorServerNpcId = 'cafe-floor-server'
@@ -81,6 +77,12 @@ export const commercialCafeNarrativeDialogue = {
     { id: 'commercial-cafe-resolution-lao-zhou', speaker: '老周', text: '好。' },
   ],
 } as const satisfies MainlineSceneDialoguePresentation
+
+export const commercialCafeDeliveryDialogueLine = {
+  id: 'commercial-cafe-coffee-delivery',
+  speaker: '店员',
+  text: '您的咖啡。',
+} as const
 
 /** Only durable story beats are analytics-worthy; punctuation segments are not. */
 export function commercialCafeAnalyticsStageForCursor(cursor: number) {
@@ -216,12 +218,12 @@ export function commercialCafeCoffeeDeliveredState(story: CommercialCafeStorySta
 
 /** Cursor 1's completion owns the one optional delivery gate. */
 export function commercialCafeFinishCursorOne(story: CommercialCafeStoryState) {
-  if (story.coffeeStatus === 'none' || story.coffeeStatus === 'delivered') return { ...story, narrativeCursor: 2, narrativePhase: 'dialogue' as const }
+  if (story.coffeeStatus === 'none') return { ...story, narrativeCursor: 2, narrativePhase: 'dialogue' as const }
   const coffee = commercialCafeCoffeeReady(story)
   return { ...coffee, narrativeCursor: 1, narrativePhase: 'coffee-delivery' as const }
 }
-export function commercialCafeFinishDeliveryBeat(story: CommercialCafeStoryState) {
-  return story.coffeeStatus === 'delivered'
+export function commercialCafeFinishDeliveryLine(story: CommercialCafeStoryState) {
+  return story.coffeeStatus === 'delivered' && story.narrativeCursor === 1 && story.narrativePhase === 'coffee-delivery'
     ? { ...story, narrativeCursor: 2, narrativePhase: 'dialogue' as const }
     : story
 }
@@ -245,16 +247,6 @@ export function shouldCompleteCommercialCafeStoryOnTransition({ sceneId, story, 
   return sceneId === 'commercial-cafe' && story.status === 'ready-to-leave' && targetSceneId === 'commercial-street'
 }
 
-/** Visibility is resolved from durable story state and carried inventory only. */
-export function commercialCafeVisibleAttachedPropIds({ story, carriedMilkTea, meetingActive }: { story: CommercialCafeStoryState; carriedMilkTea: boolean; meetingActive: boolean }) {
-  if (story.status === 'complete') return new Set<string>()
-  const visible = new Set<string>([commercialCafeLaoZhouCoffeeAttachedPropId])
-  if (story.coffeeStatus === 'delivered') visible.add(commercialCafeCoffeeAttachedPropId)
-  if (carriedMilkTea && meetingActive) visible.add(commercialCafeMilkTeaAttachedPropId)
-  if (story.status === 'ready-to-leave' && story.coffeeStatus === 'delivered') visible.add(commercialCafeBanknoteAttachedPropId)
-  return visible
-}
-
 export function resolveCommercialCafeCoffeePrepIntent(scene: MainlineSceneDefinition): NpcIntent | null {
   if (scene.id !== 'commercial-cafe') return null
   const target = scene.npcBehaviorTargets?.find((candidate) => candidate.id === commercialCafePrepTargetId)
@@ -262,8 +254,8 @@ export function resolveCommercialCafeCoffeePrepIntent(scene: MainlineSceneDefini
 }
 export function resolveCommercialCafeCoffeeDeliveryIntent({ scene, coffeeStatus, narrativePhase }: { scene: MainlineSceneDefinition; coffeeStatus: CommercialCafeCoffeeStatus; narrativePhase: CommercialCafeNarrativePhase }): NpcIntent | null {
   if (scene.id !== 'commercial-cafe' || coffeeStatus !== 'ready' || narrativePhase !== 'coffee-delivery') return null
-  const coffee = scene.attachedProps.find((prop) => prop.id === commercialCafeCoffeeAttachedPropId)
-  return coffee ? { dutyId: npcRoles.cafeCoffeeOwner.duties.deliverCoffee.id, targetId: coffee.parentEntityId, targetEntityId: coffee.parentEntityId } : null
+  const table = scene.objects.find((entity) => entity.id === commercialCafeStoryTableId)
+  return table ? { dutyId: npcRoles.cafeCoffeeOwner.duties.deliverCoffee.id, targetId: table.id, targetEntityId: table.id } : null
 }
 export function resolveCommercialCafeReturnToCounterIntent(scene: MainlineSceneDefinition): NpcIntent | null {
   if (scene.id !== 'commercial-cafe') return null

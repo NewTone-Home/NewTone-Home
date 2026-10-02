@@ -31,7 +31,7 @@ export type MainlineSceneExternalExit = {
   /** Optional tangent-axis span for an opening without an interactive entity. */
   triggerSpan?: { start: number; end: number }
 }
-export type MainlineSceneDialogueSpeaker = '修杰' | '老周'
+export type MainlineSceneDialogueSpeaker = '修杰' | '老周' | '店员'
 export type MainlineSceneDialogueLine = {
   id: string
   speaker: MainlineSceneDialogueSpeaker
@@ -232,15 +232,6 @@ export type MainlineNavigationBarrierRelation = {
   secondEntityId: string
 }
 
-/** A display-only item anchored to an existing spatial entity. */
-export type MainlineSceneAttachedProp = {
-  id: string
-  label: string
-  parentEntityId: string
-  /** Visual-only line icon; the table remains the only spatial owner. */
-  visualKind?: 'coffee' | 'milk-tea' | 'banknote'
-}
-
 export type MainlineWallOpening = {
   edge: 'top' | 'right' | 'bottom' | 'left'
   start: number
@@ -412,7 +403,6 @@ export type MainlineSceneData = {
   ambientNpcRoutes?: readonly MainlineAmbientNpcRoute[]
   npcBehaviorTargets?: readonly MainlineSceneNpcBehaviorTarget[]
   npcBehaviors?: readonly MainlineSceneNpcBehavior[]
-  attachedProps?: readonly MainlineSceneAttachedProp[]
   curves?: readonly MainlineSceneCurve[]
   airWalls?: readonly MainlineAirWall[]
   accessRegions?: readonly MainlineSceneAccessRegion[]
@@ -971,32 +961,6 @@ const commercialCafeNpcBehaviors = [
   { npcId: npcRoles.cafeCoffeeOwner.id, dutyId: npcRoles.cafeCoffeeOwner.duties.counterService.id, targetId: 'commercial-cafe-counter-service', targetKind: 'point', interactionContactEntityId: 'commercial-cafe-counter' },
   { npcId: npcRoles.cafeFloorServer.id, dutyId: npcRoles.cafeFloorServer.duties.tableService.id, targetId: 'commercial-cafe-floor-service-staging', targetKind: 'point' },
 ] as const satisfies readonly MainlineSceneNpcBehavior[]
-const commercialCafeAttachedProps = [
-  {
-    id: 'commercial-cafe-lao-zhou-coffee',
-    label: '咖啡',
-    parentEntityId: commercialCafeStoryTableId,
-    visualKind: 'coffee',
-  },
-  {
-    id: 'commercial-cafe-xiujie-coffee',
-    label: '咖啡',
-    parentEntityId: commercialCafeStoryTableId,
-    visualKind: 'coffee',
-  },
-  {
-    id: 'commercial-cafe-xiujie-milk-tea',
-    label: '奶茶',
-    parentEntityId: commercialCafeStoryTableId,
-    visualKind: 'milk-tea',
-  },
-  {
-    id: 'commercial-cafe-banknote',
-    label: '钞票',
-    parentEntityId: commercialCafeStoryTableId,
-    visualKind: 'banknote',
-  },
-] as const satisfies readonly MainlineSceneAttachedProp[]
 const commercialCafeWindow: MainlineSceneCurve = { id: 'commercial-cafe-glass-front', ...commercialCafeLayout.glass, role: 'glass', glyph: '窗', sampleCount: 26, blocksPlayer: true }
 
 // The storefront rows are visible boundary lines, but the space behind those
@@ -1100,7 +1064,6 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
     npcPlacements: [],
     npcBehaviorTargets: commercialCafeNpcBehaviorTargets,
     npcBehaviors: commercialCafeNpcBehaviors,
-    attachedProps: commercialCafeAttachedProps,
     curves: [commercialCafeWindow],
     accessRegions: [{
       id: 'commercial-cafe-staff-area',

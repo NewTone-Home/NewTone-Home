@@ -1283,8 +1283,7 @@
   position: relative;
   z-index: 1;
 }
-.scene-mainline-npc,
-.scene-mainline-attached-prop {
+.scene-mainline-npc {
   position: absolute;
   z-index: 5;
   transform: translate(-50%, -50%);
@@ -1306,9 +1305,6 @@
 }
 .scene-mainline-npc:focus-visible { outline: 1px solid var(--active); outline-offset: 4px; }
 .scene-mainline-npc--ambient { pointer-events: none; cursor: default; }
-.scene-mainline-attached-prop { pointer-events: none; display: grid; place-items: center; border: 0; padding: 0; background: transparent; color: #b9a77f; filter: drop-shadow(0 1px 1px rgba(28, 22, 14, .2)); }
-.scene-mainline-attached-prop svg { display: block; width: 100%; height: 100%; overflow: visible; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
-.scene-mainline-attached-prop--milk-tea circle { fill: currentColor; }
 .scene-mainline-object--door { color: var(--active); font-size: var(--scene-mainline-object-font-size, clamp(10px, 1.35cqw, 18px)); }
 .scene-mainline-object--landmark,
 .scene-mainline-object--direction { color: var(--soft); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); }

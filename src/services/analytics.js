@@ -16,7 +16,7 @@ const EVENTS = new Set([
   'commercial_storefront_interacted', 'milk_tea_app_unlocked', 'milk_tea_order_started',
   'milk_tea_order_confirmed', 'milk_tea_order_ready', 'milk_tea_order_picked_up',
   'cafe_storefront_revealed', 'cafe_entered', 'cafe_story_stage_reached',
-  'cafe_coffee_ordered', 'cafe_ready_to_leave', 'cafe_completed', 'cafe_banknote_presented',
+  'cafe_coffee_ordered', 'cafe_ready_to_leave', 'cafe_completed',
 ])
 const LANGUAGES = new Set(['zh', 'en'])
 const MODES = new Set(['immersive', 'standard'])

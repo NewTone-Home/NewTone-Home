@@ -3,8 +3,6 @@ import {
   commercialCafeAnalyticsMilestonePatch,
   commercialCafeAnalyticsMilestonesFromSceneState,
   commercialCafeAnalyticsStageForCursor,
-  commercialCafeBanknoteAttachedPropId,
-  commercialCafeCoffeeAttachedPropId,
   commercialCafeCoffeeArrivedAtPrep,
   commercialCafeCoffeeDelivered,
   commercialCafeCoffeeOwnerNpcId,
@@ -16,13 +14,11 @@ import {
   commercialCafeCoffeeOrdered,
   commercialCafeCompletionPresenceMs,
   commercialCafeFinishCursorOne,
-  commercialCafeFinishDeliveryBeat,
+  commercialCafeFinishDeliveryLine,
   commercialCafeFloorServerNpcId,
-  commercialCafeLaoZhouCoffeeAttachedPropId,
   commercialCafeLaoZhouConversationSeatId,
   commercialCafeLaoZhouDepartureDue,
   commercialCafeLaoZhouIsPresent,
-  commercialCafeMilkTeaAttachedPropId,
   commercialCafeNarrativeDialogue,
   commercialCafeNarrativePhaseKey,
   commercialCafePrepTargetId,
@@ -32,13 +28,12 @@ import {
   commercialCafeStoryStateFromSceneState,
   commercialCafeStoryStatePatch,
   commercialCafeStoryWithCursor,
-  commercialCafeVisibleAttachedPropIds,
+  commercialCafeStoryTableId,
   initialCommercialCafeStoryState,
   resolveCommercialCafeCoffeeDeliveryIntent,
   resolveCommercialCafeNpcInteraction,
   shouldCompleteCommercialCafeStoryOnTransition,
 } from '../src/center/runtime/commercialCafeStory'
-import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { npcRoles } from '../src/center/runtime/npcRoles'
 
@@ -67,6 +62,11 @@ describe('commercial café story contract', () => {
   it('starts the narrative from a seat without requiring a coffee order', () => {
     const story = initialCommercialCafeStoryState()
     expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story, playerSeatId: null })).toMatchObject({ kind: 'dialogue', promptSeatId: commercialCafeLaoZhouConversationSeatId })
+    expect(story.coffeeStatus).toBe('none')
+  })
+
+  it('starts Café dialogue after the player reaches the conversation seat without requiring coffee', () => {
+    const story = initialCommercialCafeStoryState()
     expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story, playerSeatId: commercialCafeLaoZhouConversationSeatId })).toEqual({ kind: 'start-narrative' })
     expect(story.coffeeStatus).toBe('none')
   })
@@ -131,13 +131,22 @@ describe('commercial café story contract', () => {
     const cafe = mainlineScenes['commercial-cafe']
     const ready = commercialCafeFinishCursorOne(commercialCafeCoffeePreparing(commercialCafeCoffeeOrdered(initialCommercialCafeStoryState()), 1))
     expect(ready).toMatchObject({ narrativeCursor: 1, narrativePhase: 'coffee-delivery', coffeeStatus: 'ready' })
+    expect(resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeStatus: 'ready', narrativePhase: 'coffee-delivery' })).toMatchObject({ dutyId: 'cafe-coffee-owner.deliver-coffee' })
     expect(resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeStatus: ready.coffeeStatus, narrativePhase: ready.narrativePhase })).toMatchObject({ dutyId: 'cafe-coffee-owner.deliver-coffee' })
     expect(resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeStatus: 'ready', narrativePhase: 'dialogue' })).toBeNull()
     expect(resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeStatus: 'ordered', narrativePhase: 'coffee-delivery' })).toBeNull()
     const delivered = commercialCafeCoffeeDelivered(ready)
-    const resumed = commercialCafeFinishDeliveryBeat(delivered)
-    expect(resumed).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 2, narrativePhase: 'dialogue' })
-    expect(commercialCafeStoryStatePatch(resumed)).toMatchObject({ commercialCafeCoffeeStatus: 'delivered', commercialCafeNarrativeCursor: 2 })
+    expect(commercialCafeCoffeeDelivered(ready)).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 1, narrativePhase: 'coffee-delivery' })
+    expect(delivered).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 1, narrativePhase: 'coffee-delivery' })
+    const restoredDeliveryLine = commercialCafeStoryStateFromSceneState(commercialCafeStoryStatePatch(delivered))
+    expect(restoredDeliveryLine).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 1, narrativePhase: 'coffee-delivery' })
+    expect(restoredDeliveryLine.narrativeCursor).toBe(1)
+    const acknowledged = commercialCafeFinishDeliveryLine(restoredDeliveryLine)
+    expect(acknowledged).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 2, narrativePhase: 'dialogue' })
+    expect(acknowledged.narrativeCursor).toBe(2)
+    expect(acknowledged.narrativePhase).toBe('dialogue')
+    expect(commercialCafeStoryStatePatch(acknowledged)).toMatchObject({ commercialCafeCoffeeStatus: 'delivered', commercialCafeNarrativeCursor: 2 })
+    expect(commercialCafeFinishDeliveryLine(commercialCafeStoryStateFromSceneState(commercialCafeStoryStatePatch(acknowledged)))).toEqual(acknowledged)
   })
 
   it('does not ready or deliver coffee before prep arrival when cursor 1 opens the gate early', () => {
@@ -175,29 +184,10 @@ describe('commercial café story contract', () => {
     expect(commercialCafeAnalyticsMilestonesFromSceneState(mineLead)).toEqual(new Set(['meeting-started', 'mine-lead']))
   })
 
-  it('keeps attached props outside scene geometry and has no empty-cup prop', () => {
+  it('keeps the Café story table as a normal labeled scene object', () => {
     const cafe = mainlineScenes['commercial-cafe']
-    const snapshot = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition)
-    expect(cafe.attachedProps.map(({ id }) => id)).not.toContain('commercial-cafe-empty-cup')
-    cafe.attachedProps.forEach((prop) => {
-      expect(prop.parentEntityId).toBe('commercial-cafe-right-window-upper-group-table')
-      expect(snapshot.objects.has(prop.id)).toBe(false)
-      expect(prop).not.toHaveProperty('offsetXPercent')
-      expect(prop).not.toHaveProperty('offsetYPercent')
-      expect(prop).not.toHaveProperty('interactive')
-    })
-  })
-
-  it('shows only props backed by current story and inventory state', () => {
-    const base = initialCommercialCafeStoryState()
-    expect(commercialCafeVisibleAttachedPropIds({ story: base, carriedMilkTea: false, meetingActive: false })).toEqual(new Set([commercialCafeLaoZhouCoffeeAttachedPropId]))
-    expect(commercialCafeVisibleAttachedPropIds({ story: base, carriedMilkTea: true, meetingActive: true })).toEqual(new Set([commercialCafeLaoZhouCoffeeAttachedPropId, commercialCafeMilkTeaAttachedPropId]))
-    const delivered = { ...base, coffeeStatus: 'delivered' as const }
-    expect(commercialCafeVisibleAttachedPropIds({ story: delivered, carriedMilkTea: false, meetingActive: false })).toEqual(new Set([commercialCafeLaoZhouCoffeeAttachedPropId, commercialCafeCoffeeAttachedPropId]))
-    const ready = commercialCafeStoryReadyToLeave(delivered)
-    expect(commercialCafeVisibleAttachedPropIds({ story: ready, carriedMilkTea: false, meetingActive: false })).toEqual(new Set([commercialCafeLaoZhouCoffeeAttachedPropId, commercialCafeCoffeeAttachedPropId, commercialCafeBanknoteAttachedPropId]))
-    expect(commercialCafeVisibleAttachedPropIds({ story: commercialCafeStoryReadyToLeave(base), carriedMilkTea: false, meetingActive: false })).not.toContain(commercialCafeBanknoteAttachedPropId)
-    expect(commercialCafeVisibleAttachedPropIds({ story: commercialCafeStoryCompleted(ready, 4), carriedMilkTea: true, meetingActive: true })).toEqual(new Set())
+    expect(commercialCafeStoryTableId).toBe('commercial-cafe-right-window-upper-group-table')
+    expect(cafe.objects.find(({ id }) => id === commercialCafeStoryTableId)?.label).toBe('桌子')
   })
 
   it('completes only on public departure and starts Lao Zhou’s five-minute presence clock', () => {

@@ -170,31 +170,11 @@ async function advanceObservationToAction(page: Page, observation: string, optio
   return action
 }
 
-async function startTableVisualTrace(page: Page) {
-  await page.evaluate(() => {
-    const target = window as Window & { __cafeTableVisualTrace?: Array<{ props: string[]; overlapAreas: number[]; tableText: string }> }
-    target.__cafeTableVisualTrace = []
-    const sample = () => {
-      const elements = [...document.querySelectorAll<HTMLElement>('[data-attached-prop-id]')]
-      const props = elements.map((element) => element.dataset.attachedPropId ?? '')
-      const overlapAreas: number[] = []
-      for (let first = 0; first < elements.length; first += 1) {
-        for (let second = first + 1; second < elements.length; second += 1) {
-          const a = elements[first]!.getBoundingClientRect()
-          const b = elements[second]!.getBoundingClientRect()
-          overlapAreas.push(Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)))
-        }
-      }
-      const table = document.querySelector<HTMLElement>('[data-object-id="commercial-cafe-right-window-upper-group-table"]')
-      target.__cafeTableVisualTrace!.push({ props, overlapAreas, tableText: table?.textContent ?? '' })
-      if (target.__cafeTableVisualTrace!.length < 6000) requestAnimationFrame(sample)
-    }
-    requestAnimationFrame(sample)
-  })
-}
-
-test('no-coffee narrative advances through story and reaches ready-to-leave without delivery or banknote', async ({ page }, testInfo) => {
+test('no-coffee narrative advances through story with the table label retained and no delivery', async ({ page }, testInfo) => {
   await café(page, 'debugRuntimeEvidence=1')
+  const storyTable = page.locator('[data-object-id="commercial-cafe-right-window-upper-group-table"]')
+  await expect(storyTable).toContainText('桌子')
+  await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
   const coffeeOwner = page.locator('[data-actor-id="cafe-coffee-owner"]')
   const floorServer = page.locator('[data-actor-id="cafe-floor-server"]')
   await expect(coffeeOwner).toHaveText('店员')
@@ -212,7 +192,7 @@ test('no-coffee narrative advances through story and reaches ready-to-leave with
   const firstVisibleLineId = await page.locator('[data-scene-dialogue]').getAttribute('data-dialogue-line-id')
   // The shield owns arbitrary world clicks while narration is active.
   await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
-  await expect(page.locator('[data-scene-dialogue-shield="true"]')).toBeVisible()
+  await expect(page.locator('[data-scene-dialogue]')).toHaveAttribute('data-dialogue-line-id', 'commercial-cafe-lao-zhou-first-lao-zhou')
   expect([firstVisibleLineId, ...await advanceNarrative(page)]).toEqual([
     'commercial-cafe-lao-zhou-first-xiujie',
     'commercial-cafe-lao-zhou-first-lao-zhou',
@@ -230,8 +210,10 @@ test('no-coffee narrative advances through story and reaches ready-to-leave with
     'commercial-cafe-resolution-lao-zhou',
   ])
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-commercial-cafe-status', 'ready-to-leave')
-  await expect(page.locator('[data-attached-prop-id="commercial-cafe-banknote"]')).toHaveCount(0)
-  await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-coffee"]')).toHaveCount(0)
+  await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-delivery"]')).toHaveCount(0)
+  await expect(page.getByText('您的咖啡。', { exact: true })).toHaveCount(0)
+  await expect(storyTable).toContainText('桌子')
+  await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-commercial-cafe-coffee-status', 'none')
   await expect(page.locator('[data-actor-id="cafe-coffee-owner"]')).toHaveText('店员')
   await expect(page.locator('[data-actor-id="cafe-floor-server"]')).toHaveText('店员')
@@ -258,6 +240,8 @@ test('normal Café route seats beside Lao Zhou and starts the unlocked narrative
   await expect(page.getByLabel('修杰，已坐下')).toBeVisible({ timeout: 30_000 })
   await expect(page.locator('[data-scene-dialogue="lao-zhou"]')).toBeVisible({ timeout: 30_000 })
   await expect(page.locator('[data-dialogue-speaker="修杰"]')).toBeVisible()
+  await expect(page.locator('[data-object-id="commercial-cafe-right-window-upper-group-table"]')).toContainText('桌子')
+  await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
   await page.screenshot({ path: testInfo.outputPath('cafe-normal-route-narrative.png') })
 })
 
@@ -320,18 +304,31 @@ test('coffee is optional and a carried milk tea asks before coffee order', async
     localStorage.setItem('newtone-player-save-v1', JSON.stringify(save))
   })
   await page.reload()
+  await expect(page.locator('.scene-protagonist__drink-icon--milk-tea')).toBeVisible()
   await page.getByRole('button', { name: '柜台' }).first().click()
   await (await advanceObservationToAction(page, '已经有奶茶了，还要买咖啡吗？', '否')).click()
   await expect(page.locator('[data-scene-action]')).toHaveCount(0)
   await meetLaoZhouAndStartNarrativeFromSeat(page)
-  await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-coffee"]')).toHaveCount(0)
-  await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-milk-tea"]')).toBeVisible()
-  await page.screenshot({ path: testInfo.outputPath('cafe-milk-tea-table.png') })
+  await expect(page.locator('.scene-protagonist__drink-icon--milk-tea')).toHaveCount(0)
+  await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
+  await expect(page.locator('[data-object-id="commercial-cafe-right-window-upper-group-table"]')).toContainText('桌子')
+  await page.screenshot({ path: testInfo.outputPath('cafe-milk-tea-hidden-while-seated.png') })
+  await advanceNarrative(page)
+  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-commercial-cafe-status', 'ready-to-leave')
+  await expect(page.locator('.scene-protagonist__drink-icon--milk-tea')).toHaveCount(0)
+  await page.locator('[data-focus-target-group="door:street-cafe-entry"]').click()
+  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible({ timeout: 30_000 })
+  await expect(page.locator('.scene-protagonist__drink-icon--milk-tea')).toBeVisible()
+  expect(await page.evaluate((key) => {
+    const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
+    return save.sceneState?.['commercial-street']?.[key]
+  }, commercialStreetMilkTeaHeldDrinkKey)).toBe('milk-tea')
 })
 
 test('coffee prepares after prep arrival, waits ready at the counter, and delivers only between cursor 1 and cursor 2', async ({ page }, testInfo) => {
   await enterCafeFromStreet(page, 'debugRuntimeEvidence=1')
-  await startTableVisualTrace(page)
+  const storyTable = page.locator('[data-object-id="commercial-cafe-right-window-upper-group-table"]')
+  await expect(storyTable).toContainText('桌子')
   const coffeeQuestion = '\u8981\u70b9\u4e00\u676f\u5496\u5561\u5417\uff1f'
   await page.locator('[data-object-id="commercial-cafe-counter"]').click()
   await (await advanceObservationToAction(page, coffeeQuestion, '\u70b9\u4e00\u676f\u5496\u5561')).click()
@@ -350,16 +347,16 @@ test('coffee prepares after prep arrival, waits ready at the counter, and delive
     return save.sceneState?.['commercial-cafe']?.[key]
   }, commercialCafeCoffeePreparationStartedAtKey)
   expect(typeof preparationStartedAt).toBe('number')
-  await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-coffee"]')).toHaveCount(0)
+  await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
   await expect.poll(async () => page.evaluate((key) => {
     const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
     return save.sceneState?.['commercial-cafe']?.[key]
   }, commercialCafeCoffeeStatusKey), { timeout: 20_000 }).toBe('ready')
   console.log('CAFE_FLOW_CHECKPOINT', 'preparation-ready')
-  await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-coffee"]')).toHaveCount(0)
+  await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
   await meetLaoZhouAndStartNarrativeFromSeat(page)
   console.log('CAFE_FLOW_CHECKPOINT', 'narrative-started')
-  await expect(page.locator('[data-attached-prop-id="commercial-cafe-lao-zhou-coffee"]')).toBeVisible()
+  await expect(storyTable).toContainText('桌子')
   const laoZhouLineId = 'commercial-cafe-lao-zhou-first-lao-zhou'
   const cursorOneText = '\u5b8c\u5168\u6ca1\u6709\u3002'
   await advanceNarrativeToLine(page, laoZhouLineId)
@@ -377,31 +374,31 @@ test('coffee prepares after prep arrival, waits ready at the counter, and delive
   console.log('CAFE_FLOW_CHECKPOINT', 'delivery-gate-open')
   await expect(shell).toHaveAttribute('data-commercial-cafe-coffee-status', 'ready')
   await expect(page.locator('[data-scene-dialogue]')).toHaveCount(0)
-  await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-coffee"]')).toHaveCount(0)
+  await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
+  await expect(storyTable).toContainText('桌子')
   await expect(page.locator('[data-actor-id="cafe-coffee-owner"]')).toHaveAttribute('data-npc-duty-id', 'cafe-coffee-owner.deliver-coffee', { timeout: 15_000 })
   await expect.poll(async () => page.evaluate((key) => {
     const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
     return save.sceneState?.['commercial-cafe']?.[key]
   }, commercialCafeCoffeeStatusKey), { timeout: 30_000 }).toBe('delivered')
   console.log('CAFE_FLOW_CHECKPOINT', 'delivery-arrived')
+  await expect(shell).toHaveAttribute('data-commercial-cafe-cursor', '1')
+  await expect(shell).toHaveAttribute('data-commercial-cafe-narrative-phase', 'delivery-line')
+  await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-delivery"]')).toBeVisible()
+  await expect(page.locator('[data-dialogue-speaker="店员"]')).toBeVisible()
+  await expect(page.getByText('您的咖啡。', { exact: true })).toBeVisible()
+  await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-xiujie"]')).toHaveCount(0)
+  await expect(storyTable).toContainText('桌子')
+  await page.screenshot({ path: testInfo.outputPath('cafe-delivery-line-at-table.png') })
+  await page.waitForTimeout(400)
+  await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
   await expect(shell).toHaveAttribute('data-commercial-cafe-cursor', '2')
   await expect(shell).toHaveAttribute('data-commercial-cafe-narrative-phase', 'active')
   await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-xiujie"]')).toBeVisible()
-  await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-coffee"]')).toBeVisible()
-  await page.screenshot({ path: testInfo.outputPath('cafe-cursor-2-delivered-plus-milk-tea.png') })
   await expect(page.locator('[data-actor-id="cafe-coffee-owner"]')).toHaveAttribute('data-npc-duty-id', 'cafe-coffee-owner.return-to-counter')
   await expect(shell).toHaveAttribute('data-e2e-coffee-owner-speed', '1')
   await expect(shell).toHaveAttribute('data-commercial-cafe-coffee-owner-phase', 'counter', { timeout: 20_000 })
   await expect(shell).toHaveAttribute('data-e2e-coffee-owner-speed', '0.45')
-  const visualTrace = await page.evaluate(() => {
-    const target = window as Window & { __cafeTableVisualTrace?: Array<{ props: string[]; overlapAreas: number[]; tableText: string }> }
-    return target.__cafeTableVisualTrace ?? []
-  })
-  expect(visualTrace.length).toBeGreaterThan(20)
-  expect(visualTrace.every((sample) => sample.overlapAreas.every((area) => area === 0) && !sample.tableText.includes('桌子'))).toBe(true)
-  expect(visualTrace.some((sample) => sample.props.includes('commercial-cafe-lao-zhou-coffee') && sample.props.length === 1)).toBe(true)
-  expect(visualTrace.some((sample) => sample.props.includes('commercial-cafe-xiujie-coffee'))).toBe(true)
-  await testInfo.attach('cafe-coffee-dynamic-prop-layout.json', { body: JSON.stringify(visualTrace, null, 2), contentType: 'application/json' })
 })
 
 test('cursor 1 fast-forwards the durable preparing state only after coffee owner reached prep', async ({ page }, testInfo) => {
@@ -463,15 +460,20 @@ test('cursor 1 fast-forwards the durable preparing state only after coffee owner
     const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
     return save.sceneState?.['commercial-cafe']?.[key]
   }, commercialCafeCoffeeStatusKey)).toBe('ready')
-  await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-coffee"]')).toHaveCount(0)
+  await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
   await expect(page.locator('[data-actor-id="cafe-coffee-owner"]')).toHaveAttribute('data-npc-duty-id', 'cafe-coffee-owner.deliver-coffee', { timeout: 15_000 })
   await expect.poll(async () => page.evaluate((key) => {
     const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
     return save.sceneState?.['commercial-cafe']?.[key]
   }, commercialCafeCoffeeStatusKey), { timeout: 30_000 }).toBe('delivered')
+  await expect(shell).toHaveAttribute('data-commercial-cafe-cursor', '1')
+  await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-delivery"]')).toBeVisible()
+  await expect(page.getByText('您的咖啡。', { exact: true })).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('cafe-fast-forward-ready-arrival-delivery-line.png') })
+  await page.waitForTimeout(400)
+  await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
   await expect(shell).toHaveAttribute('data-commercial-cafe-cursor', '2')
-  await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-coffee"]')).toBeVisible()
-  await page.screenshot({ path: testInfo.outputPath('cafe-fast-forward-ready-arrival-delivered.png') })
+  await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-xiujie"]')).toBeVisible()
 })
 
 test('a blocked coffee-owner delivery stays ready and recovers through the shared route after the obstruction leaves', async ({ page }) => {
@@ -501,16 +503,18 @@ test('a blocked coffee-owner delivery stays ready and recovers through the share
   await expect(shell).toHaveAttribute('data-commercial-cafe-narrative-phase', 'coffee-delivery')
   await expect(shell).toHaveAttribute('data-commercial-cafe-coffee-status', 'ready')
   await expect(shell).toHaveAttribute('data-e2e-coffee-owner-blocker', '1')
+  await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-delivery"]')).toHaveCount(0)
   await page.waitForTimeout(1_000)
   expect(await page.evaluate((key) => {
     const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
     return save.sceneState?.['commercial-cafe']?.[key]
   }, commercialCafeCoffeeStatusKey)).toBe('ready')
-  await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-coffee"]')).toHaveCount(0)
+  await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
   await expect(shell).toHaveAttribute('data-commercial-cafe-cursor', '1')
 
   await page.goto('/?scene=commercial-cafe&debugRuntimeEvidence=1')
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-commercial-cafe-coffee-status', 'ready')
+  await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-delivery"]')).toHaveCount(0)
   await page.waitForFunction((key) => {
     const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
     return save.sceneState?.['commercial-cafe']?.[key] === 'delivered'
@@ -519,8 +523,13 @@ test('a blocked coffee-owner delivery stays ready and recovers through the share
     const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
     return save.sceneState?.['commercial-cafe']?.[key]
   }, commercialCafeCoffeeStatusKey)).toBe('delivered')
-  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-commercial-cafe-cursor', '2')
-  await expect(page.locator('[data-attached-prop-id="commercial-cafe-xiujie-coffee"]')).toBeVisible()
+  const deliveryShell = page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')
+  await expect(deliveryShell).toHaveAttribute('data-commercial-cafe-cursor', '1')
+  await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-delivery"]')).toBeVisible()
+  await page.waitForTimeout(400)
+  await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
+  await expect(deliveryShell).toHaveAttribute('data-commercial-cafe-cursor', '2')
+  await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-xiujie"]')).toBeVisible()
 })
 
 test('narrative reload resumes at its persisted stable line and never requires coffee delivery', async ({ page }) => {
@@ -533,11 +542,52 @@ test('narrative reload resumes at its persisted stable line and never requires c
   await expect(page.locator('[data-dialogue-line-id="commercial-cafe-lao-zhou-first-lao-zhou"]')).toBeVisible()
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-commercial-cafe-cursor', '1')
   await page.reload()
-  await startNarrative(page)
   await expect(page.locator('[data-dialogue-line-id="commercial-cafe-lao-zhou-first-lao-zhou"]')).toBeVisible()
+  await expect(page.locator('[data-scene-dialogue-shield="true"]')).toBeVisible()
 })
 
-test('post-story re-entry clears story props, retains Lao Zhou for five minutes, and expires by timestamp', async ({ page }) => {
+test('a delivered coffee line resumes after reload and never repeats after acknowledgement', async ({ page }) => {
+  await café(page)
+  await page.evaluate((keys) => {
+    const raw = localStorage.getItem('newtone-player-save-v1')
+    if (!raw) throw new Error('Expected isolated player save')
+    const save = JSON.parse(raw)
+    save.sceneState['commercial-cafe'] = {
+      ...(save.sceneState['commercial-cafe'] ?? {}),
+      [keys.status]: 'available',
+      [keys.cursor]: 1,
+      [keys.coffeeStatus]: 'delivered',
+      [keys.phase]: 'coffee-delivery',
+    }
+    localStorage.setItem('newtone-player-save-v1', JSON.stringify(save))
+  }, { status: commercialCafeStoryStatusKey, cursor: commercialCafeNarrativeCursorKey, coffeeStatus: commercialCafeCoffeeStatusKey, phase: commercialCafeNarrativePhaseKey })
+  await page.reload()
+  const shell = page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')
+  await expect(shell).toHaveAttribute('data-commercial-cafe-narrative-phase', 'delivery-line')
+  await expect(shell).toHaveAttribute('data-commercial-cafe-cursor', '1')
+  const deliveryLine = page.locator('[data-dialogue-line-id="commercial-cafe-coffee-delivery"]')
+  await expect(deliveryLine).toBeVisible()
+  await expect(page.locator('[data-dialogue-speaker="店员"]')).toBeVisible()
+  await expect(page.getByText('您的咖啡。', { exact: true })).toBeVisible()
+  expect(await page.evaluate((key) => {
+    const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
+    return save.sceneState?.['commercial-cafe']?.[key]
+  }, commercialCafeCoffeeStatusKey)).toBe('delivered')
+  await page.waitForTimeout(400)
+  await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
+  await expect(shell).toHaveAttribute('data-commercial-cafe-cursor', '2')
+  await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-xiujie"]')).toBeVisible()
+  await page.reload()
+  await expect(shell).toHaveAttribute('data-commercial-cafe-cursor', '2')
+  await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-xiujie"]')).toBeVisible()
+  await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-delivery"]')).toHaveCount(0)
+  expect(await page.evaluate((key) => {
+    const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
+    return save.sceneState?.['commercial-cafe']?.[key]
+  }, commercialCafeCoffeeStatusKey)).toBe('delivered')
+})
+
+test('post-story re-entry retains the story table label and Lao Zhou for five minutes, then expires by timestamp', async ({ page }) => {
   await café(page)
   await page.evaluate((keys) => {
     const raw = localStorage.getItem('newtone-player-save-v1')
@@ -551,6 +601,7 @@ test('post-story re-entry clears story props, retains Lao Zhou for five minutes,
   await page.reload()
   await expect(page.getByRole('button', { name: '老周，点击让主角前往互动' })).toBeVisible()
   await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
+  await expect(page.locator('[data-object-id="commercial-cafe-right-window-upper-group-table"]')).toContainText('桌子')
   await page.evaluate(({ key, presenceMs }) => {
     const raw = localStorage.getItem('newtone-player-save-v1')!
     const save = JSON.parse(raw)
@@ -686,112 +737,47 @@ test('Lao Zhou completes a real in-Café walkout only after passage crossing clo
   await testInfo.attach('lao-zhou-walkout-runtime-samples.json', { body: JSON.stringify(samples, null, 2), contentType: 'application/json' })
 })
 
-test('Café table prop compositions have real non-overlapping screenshots at four viewports', async ({ page }, testInfo) => {
-  const scenarios = [
-    { id: 'lao-zhou-coffee', coffee: false, tea: false, banknote: false, expected: ['commercial-cafe-lao-zhou-coffee'] },
-    { id: 'coffee-and-milk-tea', coffee: false, tea: true, banknote: false, expected: ['commercial-cafe-lao-zhou-coffee', 'commercial-cafe-xiujie-milk-tea'] },
-    { id: 'two-coffees', coffee: true, tea: false, banknote: false, expected: ['commercial-cafe-lao-zhou-coffee', 'commercial-cafe-xiujie-coffee'] },
-    { id: 'two-coffees-and-milk-tea', coffee: true, tea: true, banknote: false, expected: ['commercial-cafe-lao-zhou-coffee', 'commercial-cafe-xiujie-coffee', 'commercial-cafe-xiujie-milk-tea'] },
-    { id: 'two-coffees-and-banknote', coffee: true, tea: false, banknote: true, expected: ['commercial-cafe-lao-zhou-coffee', 'commercial-cafe-xiujie-coffee', 'commercial-cafe-banknote'] },
-    { id: 'all-four-props', coffee: true, tea: true, banknote: true, expected: ['commercial-cafe-lao-zhou-coffee', 'commercial-cafe-xiujie-coffee', 'commercial-cafe-xiujie-milk-tea', 'commercial-cafe-banknote'] },
-  ]
-  const viewports = [
-    { width: 1280, height: 720 },
-    { width: 412, height: 915 },
-    { width: 390, height: 844 },
-    { width: 360, height: 800 },
-  ]
+test('Café keeps the story table label visible and renders no attached table props across story states', async ({ page }) => {
   await café(page, 'debugRuntimeEvidence=1')
-  const boundsReport: Array<Record<string, unknown>> = []
-  for (const viewport of viewports) {
-    await page.setViewportSize(viewport)
-    for (const scenario of scenarios) {
-      await page.evaluate(({ scenarioState, teaKey }) => {
-        const raw = localStorage.getItem('newtone-player-save-v1')
-        if (!raw) throw new Error('Expected isolated player save')
-        const save = JSON.parse(raw)
-        const cafe = save.sceneState['commercial-cafe'] ?? {}
-        Object.assign(cafe, {
-          [scenarioState.statusKey]: scenarioState.banknote ? 'ready-to-leave' : 'available',
-          [scenarioState.cursorKey]: scenarioState.banknote ? 14 : 0,
-          [scenarioState.coffeeStatusKey]: scenarioState.coffee ? 'delivered' : 'none',
-          [scenarioState.preparationStartedAtKey]: null,
-          [scenarioState.phaseKey]: scenarioState.banknote ? 'complete' : 'not-started',
-          [scenarioState.departureKey]: 'seated',
-          [scenarioState.completedAtKey]: null,
-        })
-        save.sceneState['commercial-cafe'] = cafe
-        const street = save.sceneState['commercial-street'] ?? {}
-        if (scenarioState.tea) street[teaKey] = 'milk-tea'
-        else delete street[teaKey]
-        save.sceneState['commercial-street'] = street
-        localStorage.setItem('newtone-player-save-v1', JSON.stringify(save))
-      }, {
-        scenarioState: {
-          statusKey: commercialCafeStoryStatusKey,
-          cursorKey: commercialCafeNarrativeCursorKey,
-          coffeeStatusKey: commercialCafeCoffeeStatusKey,
-          preparationStartedAtKey: commercialCafeCoffeePreparationStartedAtKey,
-          phaseKey: commercialCafeNarrativePhaseKey,
-          departureKey: commercialCafeLaoZhouDepartureKey,
-          completedAtKey: commercialCafeCompletedAtKey,
-          coffee: scenario.coffee,
-          tea: scenario.tea,
-          banknote: scenario.banknote,
-        },
-        teaKey: commercialStreetMilkTeaHeldDrinkKey,
+  const states = [
+    { status: 'available', cursor: 0, coffee: 'none', phase: 'not-started' },
+    { status: 'available', cursor: 1, coffee: 'ready', phase: 'coffee-delivery' },
+    { status: 'available', cursor: 1, coffee: 'delivered', phase: 'coffee-delivery' },
+    { status: 'available', cursor: 2, coffee: 'delivered', phase: 'dialogue' },
+    { status: 'ready-to-leave', cursor: 14, coffee: 'delivered', phase: 'complete' },
+    { status: 'complete', cursor: 14, coffee: 'none', phase: 'complete' },
+  ]
+  for (const state of states) {
+    await page.evaluate(({ nextState, keys }) => {
+      const raw = localStorage.getItem('newtone-player-save-v1')
+      if (!raw) throw new Error('Expected isolated player save')
+      const save = JSON.parse(raw)
+      const cafe = save.sceneState['commercial-cafe'] ?? {}
+      Object.assign(cafe, {
+        [keys.status]: nextState.status,
+        [keys.cursor]: nextState.cursor,
+        [keys.coffeeStatus]: nextState.coffee,
+        [keys.preparationStartedAt]: null,
+        [keys.phase]: nextState.phase,
+        [keys.departure]: 'seated',
+        [keys.completedAt]: nextState.status === 'complete' ? Date.now() : null,
       })
-      await page.reload()
-      const propLocator = page.locator('[data-attached-prop-id]')
-      await expect(propLocator).toHaveCount(scenario.expected.length)
-      await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-debug-runtime-evidence', 'true')
-      const measured = await page.evaluate(() => {
-        const stage = document.querySelector<HTMLElement>('.mainline-scene-stage')
-        const table = document.querySelector<HTMLElement>('[data-object-id="commercial-cafe-right-window-upper-group-table"]')
-        const protagonist = document.querySelector<HTMLElement>('[data-actor-id="protagonist"]')
-        const laoZhou = document.querySelector<HTMLElement>('[data-actor-id="lao-zhou"]')
-        const props = [...document.querySelectorAll<HTMLElement>('[data-attached-prop-id]')].map((element) => {
-          const rect = element.getBoundingClientRect()
-          return {
-            id: element.dataset.attachedPropId,
-            kind: element.dataset.attachedPropKind,
-            x: rect.x, y: rect.y, width: rect.width, height: rect.height,
-            ariaLabel: element.getAttribute('aria-label'),
-            text: element.innerText,
-            hasSvg: Boolean(element.querySelector('svg')),
-          }
-        })
-        const rectanglesOverlap = (a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) => Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y))
-        const overlaps = props.flatMap((first, index) => props.slice(index + 1).map((second) => ({ first: first.id, second: second.id, area: rectanglesOverlap(first, second) })))
-        const stageRect = stage?.getBoundingClientRect()
-        const tableText = table?.textContent ?? ''
-        const protagonistRect = protagonist?.getBoundingClientRect()
-        const laoZhouRect = laoZhou?.getBoundingClientRect()
-        const protagonistOverlaps = protagonistRect ? props.map((prop) => ({ id: prop.id, area: rectanglesOverlap(prop, protagonistRect) })) : []
-        const laoZhouOverlaps = laoZhouRect ? props.map((prop) => ({ id: prop.id, area: rectanglesOverlap(prop, laoZhouRect) })) : []
-        const actorBounds = [protagonist, laoZhou].map((actor) => {
-          const rect = actor?.getBoundingClientRect()
-          return actor && rect ? { id: actor.dataset.actorId, x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null
-        })
-        return { props, overlaps, protagonistOverlaps, laoZhouOverlaps, actorBounds, tableText, stage: stageRect ? { x: stageRect.x, y: stageRect.y, width: stageRect.width, height: stageRect.height } : null }
-      })
-      expect(measured.props.map((prop) => prop.id).sort()).toEqual([...scenario.expected].sort())
-      expect(measured.props.every((prop) => prop.hasSvg && !prop.text?.trim() && prop.width >= 20 && prop.height >= 20)).toBe(true)
-      expect(measured.tableText).not.toContain('桌子')
-      expect(measured.overlaps.every((pair) => pair.area === 0)).toBe(true)
-      expect(measured.protagonistOverlaps.every((pair) => pair.area === 0), JSON.stringify({ viewport, scenario: scenario.id, measured })).toBe(true)
-      expect(measured.laoZhouOverlaps.every((pair) => pair.area === 0), JSON.stringify({ viewport, scenario: scenario.id, measured })).toBe(true)
-      expect(measured.stage).not.toBeNull()
-      for (const prop of measured.props) {
-        expect(prop.x).toBeGreaterThanOrEqual(measured.stage!.x)
-        expect(prop.y).toBeGreaterThanOrEqual(measured.stage!.y)
-        expect(prop.x + prop.width).toBeLessThanOrEqual(measured.stage!.x + measured.stage!.width)
-        expect(prop.y + prop.height).toBeLessThanOrEqual(measured.stage!.y + measured.stage!.height)
-      }
-      await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
-      await page.screenshot({ path: testInfo.outputPath(`table-${scenario.id}-${viewport.width}x${viewport.height}.png`) })
-      boundsReport.push({ viewport, scenario: scenario.id, ...measured })
-    }
+      save.sceneState['commercial-cafe'] = cafe
+      localStorage.setItem('newtone-player-save-v1', JSON.stringify(save))
+    }, {
+      nextState: state,
+      keys: {
+        status: commercialCafeStoryStatusKey,
+        cursor: commercialCafeNarrativeCursorKey,
+        coffeeStatus: commercialCafeCoffeeStatusKey,
+        preparationStartedAt: commercialCafeCoffeePreparationStartedAtKey,
+        phase: commercialCafeNarrativePhaseKey,
+        departure: commercialCafeLaoZhouDepartureKey,
+        completedAt: commercialCafeCompletedAtKey,
+      },
+    })
+    await page.reload()
+    await expect(page.locator('[data-object-id="commercial-cafe-right-window-upper-group-table"]')).toContainText('桌子')
+    await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
   }
-  await testInfo.attach('cafe-table-prop-bounds.json', { body: JSON.stringify(boundsReport, null, 2), contentType: 'application/json' })
 })
