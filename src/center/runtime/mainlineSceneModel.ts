@@ -2,12 +2,19 @@ import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeo
 import type { SceneDoorBehavior } from './sceneDoorConfig'
 import { boundaryGridStepsFromScreenSpacing, defaultSceneScreenMetrics } from './sceneBoundaryGrid'
 import { createFourSeatFurniture, createSeatGeometry, createTableGeometry, sharedFurnitureGeometry, createTwoSeatFurniture, type SharedSeatDefinition } from './twoSeatFurniture'
+import { npcRoles, type NpcRoleDefinition } from './npcRoles'
+import {
+  ambientNpcOffstreetMaximumMs,
+  ambientNpcOffstreetMinimumMs,
+  ambientNpcStoreVisitMaximumMs,
+  ambientNpcStoreVisitMinimumMs,
+} from './ambientNpcLifecycle'
 
 export type MainlineSceneId = 'jijia-ancestral-home' | 'jijia-ancestral-interior' | 'commercial-street' | 'commercial-cafe' | 'yonghe-mining-perimeter' | 'yonghe-eatery' | 'zhongshuyuan-passage' | 'zhongshuyuan-office'
 export type MainlineEntityKind = 'door' | 'landmark' | 'table' | 'seat' | 'direction' | 'trace' | 'fixture'
 export type MainlineEntityWeight = 'gateway' | 'fixture' | 'anchor' | 'minor'
 export type MainlineEntitySurface = 'wall' | 'floor'
-export type MainlineInteractionBehavior = 'echo-pool' | 'incense' | 'desk-device' | 'blinds-toggle' | 'plant-choice' | 'direct-wall'
+export type MainlineInteractionBehavior = 'echo-pool' | 'incense' | 'desk-device' | 'blinds-toggle' | 'plant-choice' | 'cafe-order' | 'direct-wall'
 export type MainlineVisualProfile = 'tree-ring' | 'incense'
 export type MainlineAnimationGroup = 'office-breathing'
 export type MainlineSceneExternalExit = {
@@ -24,7 +31,7 @@ export type MainlineSceneExternalExit = {
   /** Optional tangent-axis span for an opening without an interactive entity. */
   triggerSpan?: { start: number; end: number }
 }
-export type MainlineSceneDialogueSpeaker = '修杰' | '老周'
+export type MainlineSceneDialogueSpeaker = '修杰' | '老周' | '店员'
 export type MainlineSceneDialogueLine = {
   id: string
   speaker: MainlineSceneDialogueSpeaker
@@ -38,6 +45,9 @@ export type MainlineSceneDialogue = {
   width: number
   lines: readonly MainlineSceneDialogueLine[]
 }
+
+/** The existing dialogue surface only needs an interaction owner and ordered lines. */
+export type MainlineSceneDialoguePresentation = Pick<MainlineSceneDialogue, 'triggerEntityId' | 'lines'>
 export type MainlineFacing = 'north' | 'east' | 'south' | 'west'
 export type MainlineStorefrontStyle = 'modern' | 'worn'
 export type MainlineStorefrontMode = 'commercial' | 'content' | 'door'
@@ -60,6 +70,11 @@ export type MainlineSceneCurve = {
   blocksPlayer?: boolean
 }
 
+export type MainlineContinuousStructure = CollisionBox & {
+  id: string
+  kind: 'counter' | 'barrier'
+}
+
 export type MainlineSceneEntity = {
   id: string
   label: string
@@ -79,9 +94,17 @@ export type MainlineSceneEntity = {
   shape?: CollisionBox
   /** Visual occupancy used by scene-anchored text without changing locomotion. */
   visualBounds?: CollisionBox
+  /** Visual-only object emphasis. It never changes collision, navigation, or contacts. */
+  focusFrame?: 'interactive'
   visualScale?: number
   /** Maximum authored distance for direct exploration of a wall feature. */
   interactionRange?: number
+  /** Scene-owned exterior faces permitted for proximity interaction. */
+  interactionContactSides?: readonly ('top' | 'right' | 'bottom' | 'left')[]
+  /** A rendered wall feature may expose a distinct legal floor contact. */
+  interactionContactAnchor?: Point
+  /** A visual cell delegates physical contact to this continuous body. */
+  interactionStructureId?: string
   /** A small set of authored interaction behaviors used by the generic page flow. */
   interactionBehavior?: MainlineInteractionBehavior
   /** Semantic visual treatment; keeps the renderer independent of authored IDs. */
@@ -94,6 +117,119 @@ export type MainlineSceneEntity = {
   facing?: MainlineFacing
   seat?: SharedSeatDefinition
   doorBehavior?: MainlineDoorBehavior
+}
+
+/** A scene resident with an NPC role; NPCs are not spatial furniture entities. */
+export type MainlineSceneNpc = {
+  id: string
+  roleId: NpcRoleDefinition['id']
+  label: string
+  /** Ambient residents are physical actors, but never player interaction targets. */
+  interactive?: boolean
+  /** Semantic context for future story resolution; never a physical movement target. */
+  interactionTargetEntityId?: string
+}
+
+export type MainlineAmbientNpcRouteStep =
+  | {
+    kind?: 'patrol'
+    target: Point
+    dwellMs: number
+  }
+  | {
+    kind: 'storefront-visit'
+    /** Compatibility fallback only; live entry still resolves storefront contacts. */
+    target: Point
+    dwellMs: number
+    storefrontId: string
+    /** A legal nearby point used when this virtual visit finishes. */
+    reentry: Point
+    minDwellMs: number
+    maxDwellMs: number
+  }
+  | {
+    kind: 'offstreet'
+    target: Point
+    dwellMs: number
+    /** The same public lane, just inside the west boundary. */
+    reentry: Point
+    minDwellMs: number
+    maxDwellMs: number
+  }
+
+/** A fixed, scene-local loop for a non-interactive ambient resident. */
+export type MainlineAmbientNpcRoute = {
+  npcId: string
+  initialDelayMs: number
+  steps: readonly MainlineAmbientNpcRouteStep[]
+}
+
+/** Current staging for an NPC. This is scene data, not permanent NPC identity. */
+export type MainlineSceneNpcPlacement = {
+  npcId: string
+  position?: Point
+  seatId?: string
+  /** A scene-staged contact point when the NPC works behind a physical surface. */
+  interactionApproach?: Point
+}
+
+/** A named semantic point used by scene behavior, never an NPC-owned home. */
+export type MainlineSceneNpcBehaviorTarget = {
+  id: string
+  position: Point
+}
+
+/** Current scene behavior that supplies an NPC's initial staging. */
+export type MainlineSceneNpcBehavior = {
+  npcId: string
+  dutyId: string
+  targetId: string
+  targetKind: 'seat' | 'point'
+  /** A behavior-owned physical contact surface, distinct from NPC story context. */
+  interactionContactEntityId?: string
+}
+
+/** A deliberately small scene-local movement permission vocabulary. */
+export type MainlineRegionAccess = 'public' | 'staff'
+
+/**
+ * A semantic area, not a physical wall. Navigation treats it as blocked only
+ * when the querying actor lacks the declared access.
+ */
+export type MainlineSceneAccessRegion = CollisionBox & {
+  id: string
+  requiredAccess: MainlineRegionAccess
+  deniedText?: string
+}
+
+/** The only legal crossing of a restricted region's physical boundary. */
+export type MainlineSceneAccessPortal = {
+  id: string
+  regionId: string
+  requiredAccess: MainlineRegionAccess
+  threshold: CollisionBox
+  outside: Point
+  inside: Point
+}
+
+/**
+ * A semantic edge of an access region. The concrete crossing segment is
+ * derived from the current region geometry in the shared scene snapshot.
+ */
+export type MainlineSceneAccessBoundary = {
+  id: string
+  regionId: string
+  edge: 'top' | 'right' | 'bottom' | 'left'
+}
+
+/**
+ * A non-occupying furniture relation. Its concrete segment is derived from
+ * the two entities' current rendered footprints in the geometry snapshot.
+ */
+export type MainlineNavigationBarrierRelation = {
+  id: string
+  firstEntityId: string
+  secondEntityId: string
 }
 
 export type MainlineWallOpening = {
@@ -192,6 +328,8 @@ export type MainlineScenePassage = {
   routeThrough?: boolean
   /** Whether this passage retracts only its own frame or the whole scene. */
   frameBehavior?: 'independent' | 'scene-retract'
+  /** Optional post-crossing presentation; never changes passage navigation. */
+  transitionPresentation?: 'local-slide'
   /** Optional room graph endpoints for same-scene multi-door planning. */
   fromRoomId?: string
   toRoomId?: string
@@ -219,6 +357,15 @@ export type MainlineAirWall = CollisionBox & {
  * scene-id exceptions from moving one room independently of another.
  */
 export type MainlineSceneViewport = 'fixed-frame' | 'follow-player'
+
+/**
+ * Text is a scene-level presentation decision, never an entity-level search.
+ * Fixed rooms reserve one authored reading area; long routes keep that area
+ * at a stable offset from the protagonist and only clamp it at the boundary.
+ */
+export type MainlineSceneTextPresentationPolicy =
+  | { mode: 'fixed'; anchor: Point }
+  | { mode: 'actor-relative'; offset: Point; readingRail?: { centerY: number; minX: number; maxX: number; gap: number } }
 
 type MainlineWallBlueprint = {
   id: string
@@ -251,9 +398,21 @@ export type MainlineSceneData = {
   storefronts?: readonly MainlineStorefrontSlotBlueprint[]
   altars?: readonly MainlineAltarBlueprint[]
   floorEntities: readonly MainlineSceneEntity[]
+  npcs?: readonly MainlineSceneNpc[]
+  npcPlacements?: readonly MainlineSceneNpcPlacement[]
+  ambientNpcRoutes?: readonly MainlineAmbientNpcRoute[]
+  npcBehaviorTargets?: readonly MainlineSceneNpcBehaviorTarget[]
+  npcBehaviors?: readonly MainlineSceneNpcBehavior[]
   curves?: readonly MainlineSceneCurve[]
   airWalls?: readonly MainlineAirWall[]
+  accessRegions?: readonly MainlineSceneAccessRegion[]
+  accessPortals?: readonly MainlineSceneAccessPortal[]
+  accessBoundaries?: readonly MainlineSceneAccessBoundary[]
+  navigationBarriers?: readonly MainlineNavigationBarrierRelation[]
+  /** Actor ids remain data here; navigation only consumes their access set. */
+  actorAccess?: Readonly<Record<string, readonly MainlineRegionAccess[]>>
   blockers: readonly (CollisionBox & { id: string })[]
+  continuousStructures?: readonly MainlineContinuousStructure[]
   furnitureGroups: readonly MainlineFurnitureGroup[]
   initialPlayerPosition: Point
   /** Explicit arrival point for a ride/map jump; never reused as a door return point. */
@@ -276,6 +435,8 @@ export type MainlineScenePortalBlueprint = {
   /** Allow a same-scene route to enter this passage's shared door lifecycle. */
   routeThrough?: boolean
   frameBehavior?: 'independent' | 'scene-retract'
+  /** Optional post-crossing presentation; never changes passage navigation. */
+  transitionPresentation?: 'local-slide'
   fromRoomId?: string
   toRoomId?: string
   wallOpenings?: readonly {
@@ -300,13 +461,12 @@ export type MainlineSceneBlueprint = {
   subtitle: string
   statusLabel: string
   hint: string
-  entryFeedback?: string
   areaLabel?: string | ((position: Point) => string)
+  presentation: MainlineSceneTextPresentationPolicy
   scene: MainlineSceneData
   portals: readonly MainlineScenePortalBlueprint[]
   interactionText: Readonly<Record<string, string>>
   explorationText?: Readonly<Record<string, readonly string[]>>
-  explorationChoices?: Readonly<Record<string, { text: string; options: readonly string[] }>>
   echoPool?: readonly string[]
   dialogue?: MainlineSceneDialogue
 }
@@ -324,7 +484,6 @@ type MainlineFurnitureGeometryOverrides = {
   seatGap?: number
   pulledSeatGap?: number
   sitSeatGap?: number
-  tablePairOffset?: number
   seatPairOffset?: number
 }
 
@@ -362,7 +521,7 @@ function mainlineTwoSeatFurniture(
     kind: 'seat',
     weight: 'minor',
     position: seat.rest,
-    approach: seat.sit,
+    approach: seat.pulled,
     collision: seat.collision,
     shape: seat.collision,
     groupId,
@@ -383,34 +542,51 @@ function mainlineFourSeatFurniture(
 ) {
   const tableId = ids.tableId ?? `${groupId}-table`
   const seatIds = ids.seatIds ?? [`${groupId}-chair-top`, `${groupId}-chair-right`, `${groupId}-chair-bottom`, `${groupId}-chair-left`] as [string, string, string, string]
- const furniture = createFourSeatFurniture({ groupId, anchor, tableId, seatIds, tableApproach, ...geometry })
-  const tables = furniture.tables.map((table) => floor({
-    id: table.id,
+  const furniture = createFourSeatFurniture({ groupId, anchor, tableId, seatIds, tableApproach, ...geometry })
+  const table = floor({
+    id: furniture.table.id,
     label: '桌子',
     kind: 'table',
     weight: 'anchor',
-    position: table.position,
-    approach: table.approach,
-    collision: table.collision,
-    shape: table.collision,
+    position: furniture.table.position,
+    approach: furniture.table.approach,
+    collision: furniture.table.collision,
+    shape: furniture.table.collision,
     groupId,
-  }))
+  })
   const chairs = furniture.seats.map((seat) => floor({
     id: seat.id,
     label: '椅子',
     kind: 'seat',
     weight: 'minor',
     position: seat.rest,
-    approach: seat.sit,
+    approach: seat.pulled,
     collision: seat.collision,
     shape: seat.collision,
     groupId,
     seat,
   }))
   return {
-    group: { id: groupId, anchor, entityIds: [...tables.map((table) => table.id), ...chairs.map((chair) => chair.id)] },
-    entities: [...tables, ...chairs],
+    group: { id: groupId, anchor, entityIds: [table.id, ...chairs.map((chair) => chair.id)] },
+    entities: [table, ...chairs],
   }
+}
+
+/** A non-occupying furniture relationship resolved from current visual bounds. */
+function mainlineRelationBarrier(id: string, firstEntityId: string, secondEntityId: string): MainlineNavigationBarrierRelation {
+  return { id, firstEntityId, secondEntityId }
+}
+
+function mainlineTableChairBarriers(
+  groupId: string,
+  tableId: string,
+  chairIds: readonly string[],
+): readonly MainlineNavigationBarrierRelation[] {
+  return chairIds.map((chairId) => mainlineRelationBarrier(
+    `${groupId}-${chairId.slice(groupId.length + 1)}-table-barrier`,
+    tableId,
+    chairId,
+  ))
 }
 
 const commercialStorefrontStarts = [14, 36, 58, 80, 102, 124, 146, 168] as const
@@ -490,7 +666,6 @@ function altarTableEntity(
     weight: 'anchor',
     position: center,
     collision,
-    movementCollision: 'physical',
     shape: collision,
     visualVisibility: 'distance',
     groupId: altar.id,
@@ -518,8 +693,11 @@ function createAltarFurniture(altar: MainlineAltarBlueprint) {
     weight: 'fixture',
     position: altar.anchor,
     collision: burnerCollision,
-    movementCollision: 'physical',
     shape: burnerCollision,
+    // This is deliberately visual-only: the compact vessel gets a frame
+    // without expanding the altar's authored movement body.
+    visualBounds: burnerCollision,
+    focusFrame: 'interactive',
     groupId: altar.id,
     facing: altar.facing,
     interactionBehavior: 'incense',
@@ -571,31 +749,21 @@ function inlinePortraitFeature(
   }
 }
 
-// One authored café layout owns every floor zone and furniture anchor. The
-// renderer consumes this shared scene data; it does not arrange a second café
-// layout in screen coordinates.
 const commercialCafeLayout = {
   bounds: box(8, 7, 90, 86),
   straightFrameBounds: box(8, 7, 80, 86),
   entranceY: 68,
   centralWaitingFloor: box(35, 38, 33, 31),
   entranceCorridor: box(8, 64, 20, 18),
-  service: {
-    // Keep the service zone visually attached to the rear wall instead of
-    // leaving the counter floating in the upper half of the room.
-    staff: authoredPoint(35, 25),
-    staffApproach: authoredPoint(43, 31),
-    staffOnly: box(11, 17, 35, 8.5),
-  },
   glass: {
     start: authoredPoint(88, 7),
     control: authoredPoint(98, 50),
     end: authoredPoint(88, 93),
   },
   bottomFourSeatTables: [
-    { id: 'commercial-cafe-bottom-left-group', anchor: authoredPoint(24, 72), approach: authoredPoint(24, 63) },
-    { id: 'commercial-cafe-bottom-center-group', anchor: authoredPoint(42, 72), approach: authoredPoint(42, 63) },
-    { id: 'commercial-cafe-bottom-right-group', anchor: authoredPoint(60, 72), approach: authoredPoint(60, 63) },
+    { id: 'commercial-cafe-bottom-left-group', anchor: authoredPoint(24, 78), approach: authoredPoint(24, 69) },
+    { id: 'commercial-cafe-bottom-center-group', anchor: authoredPoint(42, 78), approach: authoredPoint(42, 69) },
+    { id: 'commercial-cafe-bottom-right-group', anchor: authoredPoint(60, 78), approach: authoredPoint(60, 69) },
   ],
   rightTwoSeatTables: [
     { id: 'commercial-cafe-right-inner-upper-group', anchor: authoredPoint(72, 26), approach: authoredPoint(64, 26) },
@@ -612,7 +780,6 @@ const commercialCafeLayout = {
 
 const commercialCafeFurnitureGeometry = {
   seatGap: 4.4,
-  tablePairOffset: 3.15,
   seatPairOffset: 3.15,
 } as const
 
@@ -634,8 +801,6 @@ const commercialStreetCafeDoorEnd = commercialStreetCafeDoorY + 4.5
 // must remain separate from commercialCafeEntryPosition, which is authored
 // inside the café and is not walkable in the street scene.
 const commercialStreetCafeEntryPosition = authoredPoint(184, commercialStreetCafeDoorY)
-const commercialCafeMenu = wallEntity({ id: 'commercial-cafe-menu', label: '菜单', kind: 'fixture', weight: 'fixture', position: authoredPoint(18, 7), approach: authoredPoint(18, 10), interactive: true })
-const commercialCafeBlackboard = wallEntity({ id: 'commercial-cafe-blackboard', label: '黑板', kind: 'fixture', weight: 'fixture', position: authoredPoint(32, 7), approach: authoredPoint(32, 10), interactive: true })
 const commercialCafeFurniture = [
   ...commercialCafeLayout.bottomFourSeatTables.map(({ id, anchor, approach }) => mainlineFourSeatFurniture(id, anchor, approach, {}, commercialCafeFurnitureGeometry)),
   ...commercialCafeLayout.rightTwoSeatTables.map(({ id, anchor, approach }) => mainlineTwoSeatFurniture(id, anchor, approach, {}, commercialCafeFurnitureGeometry)),
@@ -643,7 +808,9 @@ const commercialCafeFurniture = [
 const commercialCafeFurnitureEntities = commercialCafeFurniture
   .flatMap(({ entities }) => entities)
   .map((entity) => ({ ...entity, visualVisibility: 'baseline' as const }))
-const commercialCafeCounterY = 20
+const commercialCafeNavigationBarriers = commercialCafeFurniture.flatMap(({ group, entities }) => (
+  mainlineTableChairBarriers(group.id, entities[0]!.id, entities.slice(1).map((entity) => entity.id))
+))
 const commercialCafeCounterReferencePositions = [12, 16, 20, 24, 28, 32, 36, 40, 44, 48] as const
 // Counter segments follow the same horizontal pitch as the wall lattice. The
 // counter remains a continuous authored span, but it must not be denser than
@@ -664,17 +831,136 @@ const commercialCafeCounterPositions = Array.from(
   { length: Math.round((commercialCafeCounterEnd - commercialCafeCounterStart) / commercialCafeCounterCellWidth) },
   (_, index) => commercialCafeCounterStart + index * commercialCafeCounterCellWidth,
 )
+const commercialCafeCounterRearWallClearance = 11
+const commercialCafeCounterBody = {
+  // The rendered label and physical body share this centerline. Customer space
+  // is south of the counter; staff work in the rear zone to its north.
+  y: commercialCafeStraightFrameBounds.y + mainlineWallThickness + commercialCafeCounterRearWallClearance,
+  depth: 2.7,
+  x: commercialCafeCounterPositions[0]! - commercialCafeCounterCellWidth / 2,
+  width: commercialCafeCounterPositions.length * commercialCafeCounterCellWidth,
+}
+const commercialCafeCounterCollision = box(
+  commercialCafeCounterBody.x,
+  commercialCafeCounterBody.y - commercialCafeCounterBody.depth / 2,
+  commercialCafeCounterBody.width,
+  commercialCafeCounterBody.depth,
+)
+const commercialCafeCounterStructure = {
+  id: 'commercial-cafe-counter-body',
+  kind: 'counter' as const,
+  ...commercialCafeCounterCollision,
+}
+// This is authored staff-service spacing, not an actor-radius proxy. Actual
+// actor clearance is evaluated from the current presentation footprint by
+// navigation when a route is requested.
+const commercialCafeCounterClearance = sharedFurnitureGeometry.textFootprint.height / 2 + sharedFurnitureGeometry.actorContactGap
+const commercialCafeCounterCustomerApproachY = commercialCafeCounterCollision.y + commercialCafeCounterCollision.height + commercialCafeCounterClearance
+// Visual wall fixtures are read from the customer-side counter surface; the
+// wall glyph itself is never a navigation destination.
+const commercialCafeMenu = wallEntity({
+  id: 'commercial-cafe-menu', label: '菜单', kind: 'fixture', weight: 'fixture', position: authoredPoint(18, 7), interactive: true,
+  interactionContactAnchor: authoredPoint(18, commercialCafeCounterCustomerApproachY),
+})
+const commercialCafeBlackboard = wallEntity({
+  id: 'commercial-cafe-blackboard', label: '黑板', kind: 'fixture', weight: 'fixture', position: authoredPoint(32, 7), interactive: true,
+  interactionContactAnchor: authoredPoint(32, commercialCafeCounterCustomerApproachY),
+})
+const commercialCafeCounterLabelHeight = commercialCafeCounterFixtureFontPx * 1.2 / defaultSceneScreenMetrics.height * 100
+// A staff actor has both a physical contact radius and a rendered text label.
+// Keep the semantic service target clear of the counter body and of its label;
+// this is derived from the same counter geometry, not a hand-tuned NPC offset.
+const commercialCafeCounterStaffClearance = Math.max(
+  commercialCafeCounterClearance,
+  sharedFurnitureGeometry.textFootprint.height / 2 + commercialCafeCounterLabelHeight / 2 + sharedFurnitureGeometry.actorContactGap,
+)
+const commercialCafeCounterStaffServiceY = commercialCafeCounterCollision.y - commercialCafeCounterStaffClearance
+// Staff access ends at the rear face of the physical counter.  The body itself
+// is the shared obstruction; including it in the access region would make a
+// customer-side contact point overlap an artificial permission wall.
+const commercialCafeStaffArea = box(
+  commercialCafeCounterBody.x,
+  commercialCafeStraightFrameBounds.y + mainlineWallThickness,
+  commercialCafeCounterBody.width,
+  commercialCafeCounterCollision.y - (commercialCafeStraightFrameBounds.y + mainlineWallThickness),
+)
+const commercialCafeServiceLayout = {
+  staffHome: authoredPoint(
+    commercialCafeCounterBody.x + commercialCafeCounterBody.width / 2,
+    commercialCafeCounterStaffServiceY,
+  ),
+  staffApproach: authoredPoint(
+    commercialCafeCounterPositions[commercialCafeCounterPositions.length - 1]!,
+    commercialCafeCounterStaffServiceY,
+  ),
+  staffArea: commercialCafeStaffArea,
+} as const
+const commercialCafeStaffAccessPortal = {
+  id: 'commercial-cafe-staff-right-entrance',
+  regionId: 'commercial-cafe-staff-area',
+  requiredAccess: 'staff',
+  threshold: box(
+    commercialCafeCounterCollision.x + commercialCafeCounterCollision.width,
+    commercialCafeCounterCollision.y - commercialCafeCounterStaffClearance * 2,
+    commercialCafeCounterClearance,
+    commercialCafeCounterStaffClearance * 2,
+  ),
+  outside: authoredPoint(
+    commercialCafeCounterCollision.x + commercialCafeCounterCollision.width + commercialCafeCounterClearance,
+    commercialCafeCounterStaffServiceY,
+  ),
+  inside: authoredPoint(
+    commercialCafeCounterCollision.x + commercialCafeCounterCollision.width - commercialCafeCounterClearance,
+    commercialCafeCounterStaffServiceY,
+  ),
+} as const satisfies MainlineSceneAccessPortal
+const commercialCafeFloorServicePosition = authoredPoint(
+  commercialCafeLayout.centralWaitingFloor.x + commercialCafeLayout.centralWaitingFloor.width / 2,
+  commercialCafeLayout.centralWaitingFloor.y + commercialCafeLayout.centralWaitingFloor.height / 2,
+)
 const commercialCafeCounterEntities = commercialCafeCounterPositions.map((x, index) => floor({
   id: index === 4 ? 'commercial-cafe-counter' : `commercial-cafe-counter-${index + 1}`,
   label: '柜台',
   kind: 'fixture',
   weight: 'fixture',
-  position: authoredPoint(x, commercialCafeCounterY),
-  approach: authoredPoint(x, 34),
-  collision: box(x - commercialCafeCounterCellWidth / 2, 29.65, commercialCafeCounterCellWidth, 2.7),
-  shape: box(x - commercialCafeCounterCellWidth / 2, 29.65, commercialCafeCounterCellWidth, 2.7),
+  position: authoredPoint(x, commercialCafeCounterBody.y),
+  // A cell is a responsive visual and click surface. The whole counter body
+  // supplies the one continuous physical structure.
+  interactionStructureId: commercialCafeCounterStructure.id,
+  interactionBehavior: 'cafe-order',
+  interactionContactSides: ['bottom'],
   visualVisibility: 'baseline',
 }))
+const commercialCafeStoryTableId = 'commercial-cafe-right-window-upper-group-table'
+const commercialCafeNpcs = [
+  {
+    id: npcRoles.laoZhou.id,
+    roleId: npcRoles.laoZhou.id,
+    label: npcRoles.laoZhou.label,
+    interactionTargetEntityId: commercialCafeStoryTableId,
+  },
+  {
+    id: npcRoles.cafeCoffeeOwner.id,
+    roleId: npcRoles.cafeCoffeeOwner.id,
+    label: npcRoles.cafeCoffeeOwner.label,
+    interactionTargetEntityId: 'commercial-cafe-counter',
+  },
+  {
+    id: npcRoles.cafeFloorServer.id,
+    roleId: npcRoles.cafeFloorServer.id,
+    label: npcRoles.cafeFloorServer.label,
+  },
+] as const satisfies readonly MainlineSceneNpc[]
+const commercialCafeNpcBehaviorTargets = [
+  { id: 'commercial-cafe-counter-service', position: commercialCafeServiceLayout.staffHome },
+  { id: 'commercial-cafe-prep-station', position: commercialCafeServiceLayout.staffApproach },
+  { id: 'commercial-cafe-floor-service-staging', position: commercialCafeFloorServicePosition },
+] as const satisfies readonly MainlineSceneNpcBehaviorTarget[]
+const commercialCafeNpcBehaviors = [
+  { npcId: npcRoles.laoZhou.id, dutyId: npcRoles.laoZhou.duties.seated.id, targetId: 'commercial-cafe-right-window-upper-group-chair-top', targetKind: 'seat' },
+  { npcId: npcRoles.cafeCoffeeOwner.id, dutyId: npcRoles.cafeCoffeeOwner.duties.counterService.id, targetId: 'commercial-cafe-counter-service', targetKind: 'point', interactionContactEntityId: 'commercial-cafe-counter' },
+  { npcId: npcRoles.cafeFloorServer.id, dutyId: npcRoles.cafeFloorServer.duties.tableService.id, targetId: 'commercial-cafe-floor-service-staging', targetKind: 'point' },
+] as const satisfies readonly MainlineSceneNpcBehavior[]
 const commercialCafeWindow: MainlineSceneCurve = { id: 'commercial-cafe-glass-front', ...commercialCafeLayout.glass, role: 'glass', glyph: '窗', sampleCount: 26, blocksPlayer: true }
 
 // The storefront rows are visible boundary lines, but the space behind those
@@ -686,13 +972,34 @@ const commercialStreetFacadeAirWalls: readonly MainlineAirWall[] = [
   { id: 'commercial-south-facade-air-wall-left', ...box(8, 64.7, 180, 25.3) },
 ]
 
+const commercialStreetAmbientNpcs = [
+  { id: 'commercial-street-pedestrian-west-north', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
+  { id: 'commercial-street-pedestrian-west-south', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
+  { id: 'commercial-street-pedestrian-mid-east-north', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
+  { id: 'commercial-street-pedestrian-mid-east-south', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
+  { id: 'commercial-street-pedestrian-long', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
+  { id: 'commercial-street-pedestrian-shopper', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
+] as const satisfies readonly MainlineSceneNpc[]
+
+// These are authored public-lane loops, not a second navigation model. Their
+// differently phased starts and dwell times keep the first street visit from
+// reading as a synchronized stage cue.
+const commercialStreetAmbientNpcRoutes = [
+  { npcId: 'commercial-street-pedestrian-west-north', initialDelayMs: 0, steps: [{ target: authoredPoint(60, 42), dwellMs: 1100 }, { kind: 'storefront-visit', target: authoredPoint(42, 42), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-north-slot-2', reentry: authoredPoint(42, 42), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(22, 42), dwellMs: 1800 }] },
+  { npcId: 'commercial-street-pedestrian-west-south', initialDelayMs: 900, steps: [{ target: authoredPoint(28, 58), dwellMs: 1700 }, { kind: 'offstreet', target: authoredPoint(12, 58), dwellMs: ambientNpcOffstreetMinimumMs, reentry: authoredPoint(18, 58), minDwellMs: ambientNpcOffstreetMinimumMs, maxDwellMs: ambientNpcOffstreetMaximumMs }, { target: authoredPoint(72, 58), dwellMs: 1200 }] },
+  { npcId: 'commercial-street-pedestrian-mid-east-north', initialDelayMs: 1700, steps: [{ target: authoredPoint(142, 42), dwellMs: 1300 }, { kind: 'storefront-visit', target: authoredPoint(150, 42), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-north-slot-7', reentry: authoredPoint(150, 42), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(88, 42), dwellMs: 2000 }] },
+  { npcId: 'commercial-street-pedestrian-mid-east-south', initialDelayMs: 2700, steps: [{ target: authoredPoint(174, 58), dwellMs: 1600 }, { kind: 'storefront-visit', target: authoredPoint(140, 58), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-6', reentry: authoredPoint(140, 58), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(124, 58), dwellMs: 900 }] },
+  { npcId: 'commercial-street-pedestrian-long', initialDelayMs: 3900, steps: [{ target: authoredPoint(166, 50), dwellMs: 2400 }, { kind: 'offstreet', target: authoredPoint(12, 50), dwellMs: ambientNpcOffstreetMinimumMs, reentry: authoredPoint(18, 50), minDwellMs: ambientNpcOffstreetMinimumMs, maxDwellMs: ambientNpcOffstreetMaximumMs }, { target: authoredPoint(20, 50), dwellMs: 1600 }] },
+  { npcId: 'commercial-street-pedestrian-shopper', initialDelayMs: 5100, steps: [{ target: authoredPoint(110, 40), dwellMs: 3500 }, { kind: 'storefront-visit', target: authoredPoint(156, 58), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-7', reentry: authoredPoint(156, 58), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(96, 58), dwellMs: 1400 }, { target: authoredPoint(116, 58), dwellMs: 2600 }] },
+] as const satisfies readonly MainlineAmbientNpcRoute[]
+
 const commercialStreetBlueprint: MainlineSceneBlueprint = {
   id: 'commercial-street',
   title: '第一章 · 商业街',
   subtitle: '两侧连续的现代临街店面夹出一条主通道，尽头接入独立的咖啡馆场景。',
   statusLabel: '里世界',
   hint: '沿中间主通道前进；右侧尾端的咖啡馆是独立场景，门只在路线真正通过时打开。',
-  entryFeedback: '从商业街右侧尾端进入，咖啡馆店面就在右侧。',
+  presentation: { mode: 'actor-relative', offset: authoredPoint(0, 0), readingRail: { centerY: 50, minX: 16, maxX: 184, gap: 6 } },
   areaLabel: (position) => position.x >= 140 ? '商业街尾端' : '里世界',
   scene: {
     walkBounds: box(8, 10, 192, 80),
@@ -705,11 +1012,25 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
       { id: 'commercial-cafe-terminal', type: 'frame', bounds: box(188, 36, 4, 28), variant: 'terminal', edges: ['right'] },
     ],
     storefronts: [
-      ...storefrontRow('commercial-north', 'commercial-north-facade', 'bottom', ['服装店', '服装店', '鞋包店', '服装店', '饰品店', '服装店', '定制店', '书店'], 'modern', commercialStorefrontStarts, 18),
-      ...storefrontRow('commercial-south', 'commercial-south-facade', 'top', ['服装店', '鞋包店', '服装店', '服装店', '服装店', '珠宝店', '服装店', '服装店'], 'modern', commercialStorefrontStarts, 18),
+      ...storefrontRow('commercial-north', 'commercial-north-facade', 'bottom', ['果茶店', '服装店', '花店', '眼镜店', '美妆店', '服装店', '书店', '甜品店'], 'modern', commercialStorefrontStarts, 18),
+      ...storefrontRow('commercial-south', 'commercial-south-facade', 'top', ['鞋店', '潮玩店', '香氛店', '服装店', '奶茶店', '周边店', '首饰店', '服装店'], 'modern', commercialStorefrontStarts, 18),
       { id: 'commercial-cafe-slot', wallId: 'commercial-cafe-terminal', edge: 'right', label: '咖啡馆', style: 'modern', composition: { baseline: ['sign'], near: ['wall', 'door', 'wall'] }, portalId: 'street-cafe-entry', nearRadius: 10, start: commercialStreetCafeDoorStart, end: commercialStreetCafeDoorEnd, approach: authoredPoint(186, commercialStreetCafeDoorY) },
     ],
-    floorEntities: [], airWalls: commercialStreetFacadeAirWalls, blockers: [], furnitureGroups: [], initialPlayerPosition: authoredPoint(34, 50),
+    floorEntities: [],
+    airWalls: commercialStreetFacadeAirWalls,
+    blockers: [],
+    npcs: commercialStreetAmbientNpcs,
+    npcPlacements: [
+      { npcId: 'commercial-street-pedestrian-west-north', position: authoredPoint(22, 42) },
+      { npcId: 'commercial-street-pedestrian-west-south', position: authoredPoint(64, 58) },
+      { npcId: 'commercial-street-pedestrian-mid-east-north', position: authoredPoint(88, 42) },
+      { npcId: 'commercial-street-pedestrian-mid-east-south', position: authoredPoint(132, 58) },
+      { npcId: 'commercial-street-pedestrian-long', position: authoredPoint(20, 50) },
+      { npcId: 'commercial-street-pedestrian-shopper', position: authoredPoint(110, 58) },
+    ],
+    ambientNpcRoutes: commercialStreetAmbientNpcRoutes,
+    furnitureGroups: [],
+    initialPlayerPosition: authoredPoint(34, 50),
   },
   portals: [{
     id: 'street-cafe-entry',
@@ -724,7 +1045,7 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
   id: 'commercial-cafe', title: '第二章 · 咖啡馆',
   subtitle: '独立的咖啡馆室内；墙、曲线窗格、菜单、黑板、柜台和桌椅都由主线场景契约直接编译。',
   statusLabel: '商业街 / 咖啡馆', hint: '入口在左侧；右侧弧形玻璃是窗边界，菜单和黑板在后墙，后门暂时受权限控制。',
-  entryFeedback: '进入咖啡馆，商业街在身后。',
+  presentation: { mode: 'fixed', anchor: authoredPoint(46, 58) },
   areaLabel: '咖啡馆',
   scene: {
     walkBounds: commercialCafeBounds, wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
@@ -735,12 +1056,39 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
     ] }],
     floorEntities: [
       ...commercialCafeCounterEntities,
-      floor({ id: 'commercial-cafe-server', label: '店员', kind: 'landmark', weight: 'minor', position: commercialCafeLayout.service.staff, approach: commercialCafeLayout.service.staffApproach, visualVisibility: 'baseline' }),
       floor({ id: 'commercial-cafe-plant-upper', label: '绿植', kind: 'fixture', weight: 'minor', position: commercialCafeLayout.plants.upper.position, approach: commercialCafeLayout.plants.upper.approach, collision: commercialCafeLayout.plants.upper.collision, shape: commercialCafeLayout.plants.upper.collision, visualVisibility: 'baseline' }),
       floor({ id: 'commercial-cafe-plant-lower', label: '绿植', kind: 'fixture', weight: 'minor', position: commercialCafeLayout.plants.lower.position, approach: commercialCafeLayout.plants.lower.approach, collision: commercialCafeLayout.plants.lower.collision, shape: commercialCafeLayout.plants.lower.collision, visualVisibility: 'baseline' }),
       ...commercialCafeFurnitureEntities,
     ],
-    curves: [commercialCafeWindow], blockers: [{ id: 'commercial-cafe-staff-only', ...commercialCafeLayout.service.staffOnly }], furnitureGroups: commercialCafeFurniture.map(({ group }) => group), initialPlayerPosition: commercialCafeEntryPosition,
+    npcs: commercialCafeNpcs,
+    npcPlacements: [],
+    npcBehaviorTargets: commercialCafeNpcBehaviorTargets,
+    npcBehaviors: commercialCafeNpcBehaviors,
+    curves: [commercialCafeWindow],
+    accessRegions: [{
+      id: 'commercial-cafe-staff-area',
+      ...commercialCafeServiceLayout.staffArea,
+      requiredAccess: 'staff',
+      deniedText: '还是别进去打扰他们工作了。',
+    }],
+    accessPortals: [commercialCafeStaffAccessPortal],
+    // The rear wall, left wall, and counter body already close the other
+    // sides. Only the open right edge is an access-controlled crossing.
+    accessBoundaries: [{
+      id: 'commercial-cafe-staff-right-access-boundary',
+      regionId: 'commercial-cafe-staff-area',
+      edge: 'right',
+    }],
+    navigationBarriers: commercialCafeNavigationBarriers,
+    actorAccess: {
+      protagonist: ['public'],
+      [npcRoles.laoZhou.id]: ['public'],
+      [npcRoles.cafeCoffeeOwner.id]: ['public', 'staff'],
+      [npcRoles.cafeFloorServer.id]: ['public'],
+    },
+    blockers: [],
+    continuousStructures: [commercialCafeCounterStructure],
+    furnitureGroups: commercialCafeFurniture.map(({ group }) => group), initialPlayerPosition: commercialCafeEntryPosition,
   },
   portals: [{
     id: 'street-cafe-entry',
@@ -754,7 +1102,7 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
     wallOpenings: [{ wallId: 'commercial-cafe-room', opening: { edge: 'top', start: 46, end: 50, doorId: 'cafe-back-door', labelLayout: 'center' } }], transitionText: '后门暂时没有开放的去处。', access: 'locked', lockedText: '后门暂未开启，当前权限不足。',
   }],
   interactionText: {
-    'street-cafe-entry': '入口已经接入商业街，咖啡馆内部和主线使用同一套空间规则。', 'commercial-cafe-counter': '柜台位于店内前侧。', 'commercial-cafe-server': '店员在柜台附近工作。', 'commercial-cafe-menu': '菜单挂在后墙上。', 'commercial-cafe-blackboard': '黑板挂在菜单旁边。', 'commercial-cafe-plant-upper': '靠窗的绿植留在通道边缘。', 'commercial-cafe-plant-lower': '另一盆绿植靠着玻璃边。', 'cafe-back-door': '后门暂未开启，当前权限不足。',
+    'street-cafe-entry': '入口已经接入商业街，咖啡馆内部和主线使用同一套空间规则。', 'commercial-cafe-counter': '柜台位于店内前侧。', 'commercial-cafe-menu': '菜单挂在后墙上。', 'commercial-cafe-blackboard': '黑板挂在菜单旁边。', 'commercial-cafe-plant-upper': '靠窗的绿植留在通道边缘。', 'commercial-cafe-plant-lower': '另一盆绿植靠着玻璃边。', 'cafe-back-door': '后门暂未开启，当前权限不足。',
   },
 }
 
@@ -779,6 +1127,13 @@ const jijiaAltarBlueprint: MainlineAltarBlueprint = {
 }
 
 const jijiaAltarFurniture = createAltarFurniture(jijiaAltarBlueprint)
+const jijiaAltarNavigationBarriers = jijiaAltarBlueprint.offeringTableIds.map((tableId) => (
+  mainlineRelationBarrier(
+    `${jijiaAltarBlueprint.id}-${tableId.slice(jijiaAltarBlueprint.id.length + 1)}-incense-barrier`,
+    tableId,
+    jijiaAltarBlueprint.incenseBurnerId,
+  )
+))
 
 const jijiaYardBounds = box(10, 18, 90, 64)
 const jijiaYardCenter = {
@@ -857,7 +1212,7 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
   subtitle: '姬家祖宅前院是一个独立场景，右侧正门通向祖宅内堂。',
   statusLabel: '姬家祖宅 / 前院',
   hint: '从前院右侧正门进入祖宅；左侧院门是前院的固定边界出口。',
-  entryFeedback: '从姬家祖宅入口进入。',
+  presentation: { mode: 'fixed', anchor: authoredPoint(55, 67) },
   areaLabel: '前院',
   scene: {
     walkBounds: jijiaYardBounds,
@@ -870,7 +1225,7 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
     }],
     floorEntities: [
       ...jijiaOldTreeStoneRing,
-      floor({ id: 'jijia-old-tree', label: '老槐树', kind: 'landmark', weight: 'minor', position: jijiaYardCenter, collision: jijiaOldTreeCollision, shape: jijiaOldTreeCollision, visualBounds: box(jijiaYardCenter.x - 4.5, jijiaYardCenter.y - 4.5, 9, 9), visualScale: 1.12, visualVisibility: 'distance-baseline', groupId: 'jijia-yard-group', interactionBehavior: 'echo-pool', visualProfile: 'tree-ring' }),
+      floor({ id: 'jijia-old-tree', label: '老槐树', kind: 'landmark', weight: 'minor', position: jijiaYardCenter, collision: jijiaOldTreeCollision, shape: jijiaOldTreeCollision, visualBounds: box(jijiaYardCenter.x - 4.5, jijiaYardCenter.y - 4.5, 9, 9), focusFrame: 'interactive', visualScale: 1.12, visualVisibility: 'distance-baseline', groupId: 'jijia-yard-group', interactionBehavior: 'echo-pool', visualProfile: 'tree-ring' }),
     ],
     blockers: [], furnitureGroups: [{ id: 'jijia-yard-group', anchor: jijiaYardGroupAnchor, entityIds: ['jijia-old-tree'] }], initialPlayerPosition: { x: 25, y: 50 },
   },
@@ -879,6 +1234,7 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
     entity: { id: 'jijia-main-door', label: '正门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
     endpoint: { doorPosition: authoredPoint(100, 50), threshold: authoredPoint(96, 50), crossingTarget: authoredPoint(98, 50), entryPosition: authoredPoint(14, 50) },
     targetSceneId: 'jijia-ancestral-interior',
+    transitionPresentation: 'local-slide',
     wallOpenings: [], transitionText: '修杰穿过正门，进入祖宅内堂。', access: 'open',
   }, {
     id: 'jijia-yard-gate',
@@ -902,7 +1258,7 @@ const jijiaAncestralInteriorBlueprint: MainlineSceneBlueprint = {
   subtitle: '祖宅内堂是独立场景，正门在左侧，右侧后门通向窄暗道。',
   statusLabel: '姬家祖宅 / 内堂',
   hint: '正门在左侧；内堂上下各有两幅画像，右墙中线另有一幅，后门通向中枢院窄暗道。',
-  entryFeedback: '进入祖宅内堂，前院在身后。',
+  presentation: { mode: 'fixed', anchor: authoredPoint(55, 66) },
   areaLabel: '祖宅内堂',
   scene: {
     walkBounds: jijiaInnerHouseBounds,
@@ -911,12 +1267,13 @@ const jijiaAncestralInteriorBlueprint: MainlineSceneBlueprint = {
     walls: [{ id: 'jijia-inner-house', type: 'room', bounds: jijiaInnerHouseBounds, variant: 'interior', edges: ['top', 'right', 'bottom', 'left'], features: jijiaInnerPortraitFeatures,
       openings: [{ edge: 'left', ...jijiaInnerMainDoorOpening, doorId: 'jijia-main-door', labelLayout: 'center' }, { edge: 'right', ...jijiaInnerSideDoorOpening, doorId: 'jijia-secret-door', labelLayout: 'center' }] }],
     altars: [jijiaAltarBlueprint], floorEntities: jijiaAltarFurniture.entities, blockers: [], furnitureGroups: [jijiaAltarFurniture.group], initialPlayerPosition: { x: 18, y: jijiaInnerHouseCenter.y },
+    navigationBarriers: jijiaAltarNavigationBarriers,
   },
   portals: [{
     id: 'jijia-main-door',
     entity: { id: 'jijia-main-door', label: '正门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
     endpoint: { doorPosition: authoredPoint(10, 50), threshold: authoredPoint(14, 50), crossingTarget: authoredPoint(12, 50), entryPosition: authoredPoint(96, 50) },
-    targetSceneId: 'jijia-ancestral-home', wallOpenings: [], transitionText: '修杰从祖宅内堂穿过正门，回到前院。', access: 'open',
+    targetSceneId: 'jijia-ancestral-home', transitionPresentation: 'local-slide', wallOpenings: [], transitionText: '修杰从祖宅内堂穿过正门，回到前院。', access: 'open',
   }, {
     id: 'jijia-secret-door',
     entity: { id: 'jijia-secret-door', label: '后门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
@@ -933,12 +1290,6 @@ const jijiaAncestralInteriorBlueprint: MainlineSceneBlueprint = {
     'jijia-offering-table-south': ['桌子上摆放着不少的牌位。'],
     'jijia-offering-table-west': ['桌子上摆放着一些瓜果。'],
     'jijia-offering-table-east': ['桌子上只摆放着一个牌位，上面写着“姬家家主”。'],
-  },
-  explorationChoices: {
-    'jijia-incense-burner': {
-      text: '香早就烧完了，只剩根部伫立在里面。',
-      options: ['重新点香', '置之不理'],
-    },
   },
 }
 
@@ -968,7 +1319,7 @@ const zhongshuyuanPassageBlueprint: MainlineSceneBlueprint = {
   id: 'zhongshuyuan-passage',
   title: '里世界·中枢院窄暗道',
   subtitle: '祖宅后门之后的独立窄暗道，前后各有一扇门。',
-  entryFeedback: '进入祖宅后方的窄暗道。',
+  presentation: { mode: 'actor-relative', offset: authoredPoint(0, -14) },
   areaLabel: '中枢院窄暗道',
   statusLabel: '中枢院 / 窄暗道',
   hint: '沿窄暗道向右进入中枢院办公室；左侧门回到祖宅内堂。',
@@ -1126,6 +1477,10 @@ const zhongshuyuanOfficePlant = floor({
   approach: authoredPoint(zhongshuyuanOfficePlantPosition.x - 4, zhongshuyuanOfficePlantPosition.y),
   collision: box(zhongshuyuanOfficePlantPosition.x - 1.5, zhongshuyuanOfficePlantPosition.y - 1.5, 3, 3),
   shape: box(zhongshuyuanOfficePlantPosition.x - 1.5, zhongshuyuanOfficePlantPosition.y - 1.5, 3, 3),
+  // The foliage extends above the physical pot. Keep the emphasis around the
+  // authored visual silhouette, not the smaller collision square.
+  visualBounds: box(zhongshuyuanOfficePlantPosition.x - 1.7, zhongshuyuanOfficePlantPosition.y - 2.15, 3.4, 4.3),
+  focusFrame: 'interactive',
   visualVisibility: 'baseline',
   animationGroup: 'office-breathing',
   interactionBehavior: 'plant-choice',
@@ -1292,7 +1647,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
   subtitle: '中枢院内部的一层办公区，中央长廊连接数间办公室。',
   statusLabel: '中枢院 / 内部楼层',
   hint: '左下办公室是当前办公点；玻璃门通向中央长廊，实体墙上的暗道门通向中枢院窄暗道。中央长廊左右两端都是外部出口，走到任一端手机都会弹出。',
-  entryFeedback: '进入里世界·中枢院内部楼层，暗道入口在左侧。',
+  presentation: { mode: 'fixed', anchor: authoredPoint(51, 50) },
   areaLabel: '中枢院办公室',
   scene: {
       walkBounds: zhongshuyuanOfficeFloorBounds,
@@ -1373,6 +1728,11 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
         zhongshuyuanOfficeRack,
         ...zhongshuyuanOfficePortMarkers,
       ],
+      navigationBarriers: [mainlineRelationBarrier(
+        'zhongshuyuan-office-workstation-chair-desk-barrier',
+        zhongshuyuanOfficeDesk.id,
+        zhongshuyuanOfficeChair.id,
+      )],
       blockers: [],
       furnitureGroups: [{
         id: 'zhongshuyuan-office-workstation',
@@ -1396,12 +1756,6 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
     'zhongshuyuan-office-plant': ['有段时间没浇水了，不那么精神了。'],
     'zhongshuyuan-office-rack': ['看起来有点老派的衣架。'],
     'zhongshuyuan-office-window': ['外面的阳光白的有些刺眼。', '外面看起来跟表世界没什么区别。'],
-  },
-  explorationChoices: {
-    'zhongshuyuan-office-plant': {
-      text: '有段时间没浇水了，不那么精神了。',
-      options: ['浇水', '无视'],
-    },
   },
 }
 
@@ -1447,7 +1801,7 @@ const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
   subtitle: '矿区外围沿纵向老街展开，左侧是一排旧店面；永和小馆是其中一个独立场景。',
   statusLabel: '矿区外围老街',
   hint: '从画面下方进入，沿中间通道向上；左侧是八个窄小的生活店面，永和小馆入口在较深处，右侧是少量铁片、管线和围栏组成的矿区边缘。',
-  entryFeedback: '从画面下方进入矿区外围，沿中央通道向上，左侧店面深处是永和小馆。',
+  presentation: { mode: 'actor-relative', offset: authoredPoint(0, -14) },
   areaLabel: (position) => position.y >= 150
     ? '矿区'
     : position.y >= 100
@@ -1540,7 +1894,7 @@ const yongheEateryBlueprint: MainlineSceneBlueprint = {
   subtitle: '永和小馆是独立场景；门、墙、桌椅和后门都直接由主线场景契约编译。',
   statusLabel: '永和小馆',
   hint: '入口在左侧，店内中央留出通道；柜台和灶台在右侧，后门暂未开放。',
-  entryFeedback: '进入永和小馆，矿区外围老街在身后。',
+  presentation: { mode: 'fixed', anchor: authoredPoint(40, 34) },
   areaLabel: '永和小馆',
   scene: {
       walkBounds: box(8, 26, 88, 60),

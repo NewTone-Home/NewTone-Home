@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "replacements": [
+    {
+      "id": "chapter-2-survey-retirement-2026-09-29",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/centerCompletionFeedback.test.js",
+      "oldContract": "Chapter 2 completion must show survey",
+      "newContract": "Chapter 2 completion must not auto-show survey or Feedback; manual Feedback remains available",
+      "requiredAddedAssertions": [
+        "expect(experience).not.toContain('completion-prompt')",
+        "expect(phone).toContain('data-app=\"feedback\"')"
+      ]
+    },
+    {
+      "id": "chapter-2-survey-retirement-2026-09-29",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/centerFeedback.test.js",
+      "oldContract": "Exit questionnaire persistence is a current Feedback product feature",
+      "newContract": "Only voluntary phone Feedback is a current product feature",
+      "requiredAddedAssertions": [
+        "expect(service).toContain(\"const SOURCES = new Set(['phone'])\")",
+        "expect(phone).toContain('data-app=\"feedback\"')"
+      ]
+    },
+    {
+      "id": "chapter-2-survey-retirement-2026-09-29",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/centerAnalytics.test.js",
+      "oldContract": "Completion survey prompt is part of the current Center analytics flow",
+      "newContract": "The Center analytics flow does not emit a completion survey prompt",
+      "requiredAddedAssertions": [
+        "expect(experience).not.toContain(\"center_feedback_prompt_shown\")"
+      ]
+    },
+    {
+      "id": "commercial-cafe-story-migration-2026-09-29",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/commercialCafeStory.test.ts",
+      "oldContract": "Coffee delivery and attached coffee interactions gate Café information and departure story progression.",
+      "newContract": "A seated player starts the persisted Café narrative without ordering coffee; optional delivery starts only from coffeeStatus ready plus narrativePhase coffee-delivery, uses the dedicated coffee owner, and becomes delivered only after actual arrival.",
+      "requiredAddedAssertions": [
+        "expect(resolveCommercialCafeCoffeeDeliveryIntent({ scene: cafe, coffeeStatus: 'ready', narrativePhase: 'coffee-delivery' })).toMatchObject({ dutyId: 'cafe-coffee-owner.deliver-coffee' })",
+        "expect(restoredDeliveryLine.narrativeCursor).toBe(1)",
+        "expect(acknowledged.narrativeCursor).toBe(2)",
+        "expect(acknowledged.narrativePhase).toBe('dialogue')"
+      ]
+    },
+    {
+      "id": "commercial-cafe-server-delivery-contract-2026-09-29",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/commercialCafeBehavior.test.ts",
+      "oldContract": "Server behavior derives delivery and return work from legacy Café stages.",
+      "newContract": "The dedicated coffee owner prepares, delivers only while coffeeStatus is ready and the narrative is in coffee-delivery, and returns only after delivery-line completion; the floor server remains on public table service.",
+      "requiredAddedAssertions": [
+        "expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'coffee-delivery', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toBeNull()",
+        "expect(coffeeOwner.getPhase()).toBe('delivery-arrived')",
+        "expect(returnIntent).toMatchObject({ dutyId: 'cafe-coffee-owner.return-to-counter', targetId: 'commercial-cafe-counter-service' })"
+      ]
+    },
+    {
+      "id": "commercial-cafe-delivery-movement-contract-2026-09-29",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/npcMovement.test.ts",
+      "oldContract": "NPC delivery writes a legacy Café stage after movement arrival.",
+      "newContract": "The dedicated coffee owner writes coffeeStatus delivered only from the real arrival callback; blocked routes leave delivery pending.",
+      "requiredAddedAssertions": [
+        "expect(story).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 1, narrativePhase: 'coffee-delivery' })"
+      ]
+    },
+    {
+      "id": "commercial-cafe-table-props-retired-2026-10-02",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/commercialCafeTablePresentation.test.ts",
+      "oldContract": "Café story props are laid out across viewport sizes and suppress the table label.",
+      "newContract": "The Café story table remains a plain labeled scene object and the Café scene has no attached table-prop presentation.",
+      "requiredAddedAssertions": [
+        "expect(cafe).not.toHaveProperty('attachedProps')",
+        "expect(cafe.objects.find(({ id }) => id === commercialCafeStoryTableId)?.label).toBe('桌子')",
+        "expect(cafe.objects.map(({ id }) => id)).not.toContain('commercial-cafe-banknote')"
+      ]
+    },
+    {
+      "id": "scene-text-segmentation-2026-09-30",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/mainlineTextSegments.test.js",
+      "oldContract": "Every comma creates a separate invisible scene-text segment.",
+      "newContract": "Short vocatives stay with their clause, punctuation remains visible, and only long text splits at a readable boundary.",
+      "requiredAddedAssertions": [
+        "老周，陈副部长还是没有消息吗？",
+        "矿区外围旧摄像头曾多次疑似拍到陈副部长，"
+      ]
+    },
+    {
+      "id": "commercial-street-reading-rail-2026-09-30",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/sceneTextPresentation.test.ts",
+      "oldContract": "Commercial Street text follows a generic protagonist offset clamped to walk bounds.",
+      "newContract": "Commercial Street text uses an authored road-center reading rail and chooses a fixed side with enough width.",
+      "requiredAddedAssertions": [
+        "expect(right.y).toBe(rail.centerY)",
+        "expect(left.x).toBeLessThan(rail.maxX - 2)"
+      ]
+    },
+    {
+      "id": "commercial-cafe-dual-staff-access-2026-10-01",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/fixedInteractionAccess.test.ts",
+      "oldContract": "The former single server actor crossed the Café staff boundary.",
+      "newContract": "Only the coffee owner has staff access; navigation still uses the shared access boundary.",
+      "requiredAddedAssertions": [
+        "commercialCafeCoffeeOwnerNpcId",
+        "actorId: commercialCafeCoffeeOwnerNpcId"
+      ]
+    },
+    {
+      "id": "commercial-cafe-canonical-staff-actors-2026-10-01",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/npcFoundation.test.ts",
+      "oldContract": "Café NPC movement and occupancy use a generic server actor.",
+      "newContract": "Coffee owner and floor server have distinct canonical identities, occupancy, contact and access contracts.",
+      "requiredAddedAssertions": [
+        "commercialCafeCoffeeOwnerNpcId",
+        "commercialCafeFloorServerNpcId",
+        "floorServerDenied.reachedRequestedTarget).toBe(false)"
+      ]
+    }
+  ]
+}

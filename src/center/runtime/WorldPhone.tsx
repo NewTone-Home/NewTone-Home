@@ -1,16 +1,14 @@
 'use client'
 
-import { useEffect, useRef, useState, useSyncExternalStore, type AnimationEvent as ReactAnimationEvent, type FormEvent, type PointerEvent as ReactPointerEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type AnimationEvent as ReactAnimationEvent, type FormEvent, type PointerEvent as ReactPointerEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
 import { mainlineMapLandmarksByWorld, mainlineMapLayout, type MainlineMapLandmark, type MainlineSceneId } from './mainlineScenes'
 import { sceneInteractionHandlers } from './sceneInteraction'
 import { phoneInputOwner, phoneIsOnline, phoneRideAvailability, type PhoneDevice, type WorldLayer, type WorldPhonePhase } from './phoneState'
+import { commercialStreetMilkTeaIsReady, commercialStreetMilkTeaQueueStatus, formatCommercialStreetMilkTeaOrderNumber, milkTeaDrinks, milkTeaIceOptions, milkTeaSugarOptions, type CommercialStreetMilkTeaOrder, type MilkTeaDrink, type MilkTeaIce, type MilkTeaSugar } from './commercialStreetMilkTea'
 
-type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback'
-type FeedbackMode = 'completion-prompt' | 'exit-prompt' | 'phone'
+type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea'
+type FeedbackMode = 'phone'
 type FeedbackPayload = {
-  experienceLength: 'too-short' | 'okay' | 'cannot-understand' | null
-  portraitAdaptation: 'yes' | 'no' | null
-  continuationInterest: 'yes' | 'no-interest' | null
   freeText: string
   source: FeedbackMode
 }
@@ -65,11 +63,20 @@ type WorldPhoneProps = {
   open: boolean
   onOpen: () => void
   onClose: () => void
+  onCloseComplete?: () => void
   onRideRequest?: (device: PhoneDevice, destinationSceneId: MainlineSceneId) => void
   feedbackMode?: FeedbackMode | null
   onFeedbackModeChange?: (mode: FeedbackMode | null) => void
   onFeedbackOpen?: () => void
   onFeedbackSubmit?: (payload: FeedbackPayload) => Promise<FeedbackSubmitResult>
+  milkTeaAppUnlocked?: boolean
+  milkTeaOrder?: CommercialStreetMilkTeaOrder | null
+  milkTeaHeld?: boolean
+  requestedApp?: 'milk-tea' | null
+  onRequestedAppHandled?: () => void
+  onMilkTeaOrderConfirm?: (selection: { drink: MilkTeaDrink; sugar: MilkTeaSugar; ice: MilkTeaIce }) => void
+  onMilkTeaOrderStarted?: () => void
+  onMilkTeaOrderReady?: (order: CommercialStreetMilkTeaOrder) => void
 }
 
 type RideDestination = MainlineMapLandmark & { sceneId: MainlineSceneId }
@@ -105,9 +112,6 @@ function FeedbackApp({
   onSubmit?: (payload: FeedbackPayload) => Promise<FeedbackSubmitResult>
   onFinish: () => void
 }) {
-  const [experienceLength, setExperienceLength] = useState<FeedbackPayload['experienceLength']>(null)
-  const [portraitAdaptation, setPortraitAdaptation] = useState<FeedbackPayload['portraitAdaptation']>(null)
-  const [continuationInterest, setContinuationInterest] = useState<FeedbackPayload['continuationInterest']>(null)
   const [freeText, setFreeText] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -119,9 +123,6 @@ function FeedbackApp({
     setSubmitting(true)
     setError('')
     const result = await onSubmit({
-      experienceLength,
-      portraitAdaptation,
-      continuationInterest,
       freeText,
       source: mode,
     })
@@ -148,66 +149,15 @@ function FeedbackApp({
   return (
     <form className="world-phone__feedback" onSubmit={submit}>
       <span className="world-phone__feedback-kicker">反馈</span>
-      {mode === 'completion-prompt' || mode === 'exit-prompt' ? (
-        <>
-          <p className="world-phone__feedback-intro">这一段体验到这里，想听听你的感受。</p>
-          <fieldset className="world-phone__feedback-question">
-            <legend>感觉怎么样？</legend>
-            <div className="world-phone__feedback-options">
-              {[
-                ['too-short', '太短了'],
-                ['okay', '还不错'],
-                ['cannot-understand', '完全看不懂'],
-              ].map(([value, label]) => (
-                <label key={value} className={experienceLength === value ? 'is-selected' : ''}>
-                  <input type="radio" name="experience-length" value={value} checked={experienceLength === value} onChange={() => setExperienceLength(value as FeedbackPayload['experienceLength'])} />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <fieldset className="world-phone__feedback-question">
-            <legend>您希望我们继续根据竖屏做更精细化的适配吗？</legend>
-            <div className="world-phone__feedback-options world-phone__feedback-options--short">
-              {[
-                ['yes', '要'],
-                ['no', '不要'],
-              ].map(([value, label]) => (
-                <label key={value} className={portraitAdaptation === value ? 'is-selected' : ''}>
-                  <input type="radio" name="portrait-adaptation" value={value} checked={portraitAdaptation === value} onChange={() => setPortraitAdaptation(value as FeedbackPayload['portraitAdaptation'])} />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <fieldset className="world-phone__feedback-question">
-            <legend>你愿意体验后面的内容吗？</legend>
-            <div className="world-phone__feedback-options world-phone__feedback-options--short">
-              {[
-                ['yes', '愿意'],
-                ['no-interest', '没兴趣'],
-              ].map(([value, label]) => (
-                <label key={value} className={continuationInterest === value ? 'is-selected' : ''}>
-                  <input type="radio" name="continuation-interest" value={value} checked={continuationInterest === value} onChange={() => setContinuationInterest(value as FeedbackPayload['continuationInterest'])} />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        </>
-      ) : (
-        <>
-          <p className="world-phone__feedback-intro">有什么想说的，可以写在这里。</p>
-          <textarea className="world-phone__feedback-textarea" value={freeText} maxLength={2000} onChange={event => setFreeText(event.target.value)} placeholder="写下你的反馈" aria-label="自定义反馈" />
-        </>
-      )}
+      <p className="world-phone__feedback-intro">有什么想说的，可以写在这里。</p>
+      <textarea className="world-phone__feedback-textarea" value={freeText} maxLength={2000} onChange={event => setFreeText(event.target.value)} placeholder="写下你的反馈" aria-label="自定义反馈" />
       {error && <p className="world-phone__feedback-error" role="alert">{error}</p>}
       <button className="world-phone__feedback-submit" type="submit" disabled={submitting}>{submitting ? '提交中…' : '提交反馈'}</button>
     </form>
   )
 }
 
-export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onRideRequest, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit }: WorldPhoneProps) {
+export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMilkTeaOrderReady }: WorldPhoneProps) {
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
   const [phase, setPhase] = useState<WorldPhonePhase>('closed')
@@ -216,6 +166,14 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
   const [selectedContactId, setSelectedContactId] = useState<ContactId>('lao-zhou')
   const [selectedMapLandmarkId, setSelectedMapLandmarkId] = useState<string | null>(null)
   const [selectedRideDestinationId, setSelectedRideDestinationId] = useState<string | null>(null)
+  const [milkTeaDrink, setMilkTeaDrink] = useState<MilkTeaDrink | null>(null)
+  const [milkTeaSugar, setMilkTeaSugar] = useState<MilkTeaSugar | null>(null)
+  const [milkTeaIce, setMilkTeaIce] = useState<MilkTeaIce | null>(null)
+  const milkTeaOrderStartedRef = useRef(false)
+  const milkTeaOrderReadyRef = useRef<string | null>(null)
+  const openSessionRef = useRef(false)
+  const closeCompletionReportedRef = useRef(false)
+  const closeTransitionStartedRef = useRef(false)
   const [mapPan, setMapPan] = useState<MapPoint>([0, 0])
   const mapDragRef = useRef<MapDragState>({ active: false, moved: false, pointerId: -1, start: null, origin: null })
   const phoneTime = usePhoneTime()
@@ -244,11 +202,65 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
     ))
     : []
   const selectedRideDestination = rideDestinations.find((landmark) => landmark.id === selectedRideDestinationId) ?? rideDestinations[0] ?? null
-  const activeAppLabel = activeApp === 'map' ? '地图' : activeApp === 'ride' ? '叫车' : activeApp === 'contacts' ? contactView === 'messages' ? '短信' : '联系人' : activeApp === 'feedback' ? '反馈' : ''
+  const activeAppLabel = activeApp === 'map' ? '地图' : activeApp === 'ride' ? '叫车' : activeApp === 'contacts' ? contactView === 'messages' ? '短信' : '联系人' : activeApp === 'feedback' ? '反馈' : activeApp === 'milk-tea' ? '奶茶' : ''
   const batteryPercent = 72
   const isMapOpen = activeApp === 'map'
   const memo = memoForDevice(displayDevice)
   const selectedContact = innerContacts.find((contact) => contact.id === selectedContactId) ?? innerContacts[0]
+
+  // The parent may close the Phone in the first interactable frame of its
+  // opening transition. Remember that a visible session exists during render
+  // itself, rather than waiting for a later CSS completion event.
+  if (open) {
+    openSessionRef.current = true
+    closeCompletionReportedRef.current = false
+  }
+
+  const completePhoneClose = useCallback(() => {
+    if (closeCompletionReportedRef.current) return
+    closeCompletionReportedRef.current = true
+    openSessionRef.current = false
+    onCloseComplete?.()
+  }, [onCloseComplete])
+
+  // `renderedPhase` can make the Phone visible before its transition-end
+  // callback advances the stored phase. Commit that opening phase before the
+  // next input frame, so an immediate Ride selection still has the ordinary
+  // closing lifecycle and can release LONG_DISTANCE_TRAVEL through
+  // `onCloseComplete`.
+  useLayoutEffect(() => {
+    if (!swapPending && open && phase === 'closed') setPhase('opening')
+  }, [open, phase, swapPending])
+
+  useEffect(() => {
+    // If an opening was immediately reversed before the stored phase could
+    // become `opening`, there is no closing transition to end. This is still
+    // one completed Phone close, so release the parent lifecycle exactly once.
+    if (open || phase !== 'closed' || !openSessionRef.current || closeCompletionReportedRef.current) return
+    completePhoneClose()
+  }, [completePhoneClose, open, phase])
+
+  useEffect(() => {
+    if (open || renderedPhase !== 'closing') return undefined
+    closeTransitionStartedRef.current = false
+    let firstFrame = 0
+    let secondFrame = 0
+    // An opening can be reversed before the browser ever starts a CSS
+    // transition. In that case no transition-end event exists to own release;
+    // observe two paints and complete only when no transform transition began.
+    firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        if (closeTransitionStartedRef.current) return
+        setPhase('closed')
+        completePhoneClose()
+      })
+    })
+    return () => {
+      window.cancelAnimationFrame(firstFrame)
+      window.cancelAnimationFrame(secondFrame)
+    }
+  }, [completePhoneClose, open, renderedPhase])
+
 
   const openApp = (app: PhoneApp) => {
     setActiveApp(app)
@@ -265,14 +277,52 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
     if (feedbackMode) setActiveApp('feedback')
   }, [feedbackMode])
 
+  useEffect(() => {
+    if (!open || requestedApp !== 'milk-tea' || !milkTeaAppUnlocked) return
+    setActiveApp('milk-tea')
+    onRequestedAppHandled?.()
+  }, [milkTeaAppUnlocked, onRequestedAppHandled, open, requestedApp])
+
+  useEffect(() => {
+    if (activeApp !== 'milk-tea') milkTeaOrderStartedRef.current = false
+  }, [activeApp])
+
+  useEffect(() => {
+    if (activeApp !== 'milk-tea' || !milkTeaOrder || !commercialStreetMilkTeaIsReady(milkTeaOrder)) return
+    const orderKey = `${milkTeaOrder.number}:${milkTeaOrder.readyAt}`
+    if (milkTeaOrderReadyRef.current === orderKey) return
+    milkTeaOrderReadyRef.current = orderKey
+    onMilkTeaOrderReady?.(milkTeaOrder)
+  }, [activeApp, milkTeaOrder?.number, milkTeaOrder?.readyAt, onMilkTeaOrderReady])
+
+  const selectMilkTeaDrink = (drink: MilkTeaDrink) => {
+    if (!milkTeaOrderStartedRef.current) {
+      milkTeaOrderStartedRef.current = true
+      onMilkTeaOrderStarted?.()
+    }
+    setMilkTeaDrink(drink)
+  }
+
   const handleBodyTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget || event.propertyName !== 'transform') return
     if (renderedPhase === 'closing') {
       if (swapPending) setDisplayDevice(device)
       setPhase(open ? 'opening' : 'closed')
+      if (!open) completePhoneClose()
       return
     }
     if (renderedPhase === 'opening') setPhase('open')
+  }
+
+  const handleBodyTransitionRun = (event: ReactTransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'transform') return
+    if (renderedPhase === 'closing') closeTransitionStartedRef.current = true
+  }
+
+  const handleBodyTransitionCancel = (event: ReactTransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'transform' || renderedPhase !== 'closing') return
+    setPhase('closed')
+    completePhoneClose()
   }
 
   const handleSwapRetractEnd = (event: ReactAnimationEvent<HTMLButtonElement>) => {
@@ -344,7 +394,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
         <span className="world-phone__handle-mark" aria-hidden="true" />
       </button>
 
-      <div className="world-phone__body" onTransitionEnd={handleBodyTransitionEnd}>
+      <div className="world-phone__body" onTransitionEnd={handleBodyTransitionEnd} onTransitionRun={handleBodyTransitionRun} onTransitionCancel={handleBodyTransitionCancel}>
         <div className="world-phone__hardware" aria-hidden="true">
           <span className="world-phone__earpiece" />
           <span className="world-phone__camera" />
@@ -393,6 +443,10 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
                     <span className="world-phone__app-icon" aria-hidden="true">↗</span>
                     <span className="world-phone__app-label">叫车</span>
                   </button>
+                  {milkTeaAppUnlocked && <button type="button" data-app="milk-tea" onClick={() => openApp('milk-tea')}>
+                    <span className="world-phone__app-icon" aria-hidden="true">杯</span>
+                    <span className="world-phone__app-label">奶茶</span>
+                  </button>}
                   <button type="button" data-app="contacts" onClick={() => openApp('contacts')}>
                     <span className="world-phone__app-icon" aria-hidden="true">人</span>
                     <span className="world-phone__app-label">联系人</span>
@@ -499,6 +553,30 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
                 </button>
               </section>
             )}
+
+            {activeApp === 'milk-tea' && <section className="world-phone__list-page world-phone__milk-tea" aria-label="奶茶">
+              {milkTeaHeld ? <div className="world-phone__list-heading"><span>奶茶</span><strong>手里已有一杯饮料</strong><small>暂时不能再下单。</small></div>
+                : milkTeaOrder ? (() => {
+                  const queue = commercialStreetMilkTeaQueueStatus(milkTeaOrder)
+                  return <div className="world-phone__list-heading" data-milk-tea-status={queue.phase}>
+                    <span>取餐号 {formatCommercialStreetMilkTeaOrderNumber(milkTeaOrder.number)}</span>
+                    <strong>{queue.phase === 'ready' ? '已完成' : '制作中'}</strong>
+                    <small>{queue.phase === 'ready' ? '请到商业街奶茶店取餐。' : `前方还有 ${queue.ahead} 单`}</small>
+                  </div>
+                })() : <>
+                  <div className="world-phone__list-heading"><span>远程点单</span><strong>选择一杯奶茶</strong></div>
+                  <div className="world-phone__milk-tea-field" aria-label="饮料选择">{milkTeaDrinks.map((drink) => <button key={drink} type="button" aria-pressed={milkTeaDrink === drink} onClick={() => selectMilkTeaDrink(drink)}>{drink}</button>)}</div>
+                  {milkTeaDrink && <div className="world-phone__milk-tea-field" aria-label="甜度选择"><span>甜度</span>{milkTeaSugarOptions.map((sugar) => <button key={sugar} type="button" aria-pressed={milkTeaSugar === sugar} onClick={() => setMilkTeaSugar(sugar)}>{sugar}</button>)}</div>}
+                  {milkTeaDrink && <div className="world-phone__milk-tea-field" aria-label="冰量选择"><span>冰量</span>{milkTeaIceOptions.map((ice) => <button key={ice} type="button" aria-pressed={milkTeaIce === ice} onClick={() => setMilkTeaIce(ice)}>{ice}</button>)}</div>}
+                  <button className="world-phone__list-action" type="button" disabled={!milkTeaDrink || !milkTeaSugar || !milkTeaIce} onClick={() => {
+                    if (!milkTeaDrink || !milkTeaSugar || !milkTeaIce) return
+                    onMilkTeaOrderConfirm?.({ drink: milkTeaDrink, sugar: milkTeaSugar, ice: milkTeaIce })
+                    setMilkTeaDrink(null)
+                    setMilkTeaSugar(null)
+                    setMilkTeaIce(null)
+                  }}>确认下单</button>
+                </>}
+            </section>}
 
             {activeApp === 'contacts' && (
               contactView === 'messages' ? (

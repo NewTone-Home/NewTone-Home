@@ -32,4 +32,14 @@ describe('世界入口转场状态机', () => {
 
     expect(active.phase).toBe(WORLD_ENTRY_PHASE.ACTIVE)
   })
+
+  it('keeps the global entry active when a later scene layout reports ready', () => {
+    const active = {
+      phase: WORLD_ENTRY_PHASE.ACTIVE,
+      coverComplete: true,
+      sceneReady: true,
+    }
+
+    expect(worldEntryReducer(active, { type: 'scene-ready' })).toBe(active)
+  })
 })

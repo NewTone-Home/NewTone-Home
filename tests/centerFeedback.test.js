@@ -1,26 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import {
-  clearCenterFeedbackPrompt,
-  hasShownCenterFeedbackPrompt,
-  markCenterFeedbackPromptShown,
-} from '../src/services/centerFeedback'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
-function createStorage() {
-  const values = new Map()
-  return {
-    getItem: key => values.get(key) ?? null,
-    setItem: (key, value) => values.set(key, String(value)),
-    removeItem: key => values.delete(key),
-  }
-}
+const read = (path) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 
-describe('Center feedback prompt persistence', () => {
-  it('shows the exit questionnaire once per anonymous visitor', () => {
-    const storage = createStorage()
-    expect(hasShownCenterFeedbackPrompt(storage)).toBe(false)
-    expect(markCenterFeedbackPromptShown(storage)).toBe(true)
-    expect(hasShownCenterFeedbackPrompt(storage)).toBe(true)
-    expect(clearCenterFeedbackPrompt(storage)).toBe(true)
-    expect(hasShownCenterFeedbackPrompt(storage)).toBe(false)
+describe('Center voluntary Feedback contract', () => {
+  it('accepts only the active phone Feedback source', () => {
+    const service = read('../src/services/centerFeedback.js')
+    expect(service).toContain("const SOURCES = new Set(['phone'])")
+    expect(service).not.toContain('incomplete-questionnaire')
+    expect(service).not.toContain('completion-prompt')
+  })
+
+  it('keeps the Feedback app as an explicit phone action', () => {
+    const phone = read('../src/center/runtime/WorldPhone.tsx')
+    expect(phone).toContain('data-app="feedback"')
+    expect(phone).toContain("onFeedbackModeChange?.('phone')")
   })
 })

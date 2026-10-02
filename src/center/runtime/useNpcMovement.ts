@@ -1,0 +1,207 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { Point } from './sceneGeometry'
+import type { MainlineSceneDefinition } from './mainlineScenes'
+import { findMainlinePath, findMainlinePathToEntity, isMainlineNavigationBarrierClear, isWalkableMainlinePoint, type MainlineNavigationOptions } from './mainlineNavigation'
+import type { SceneLayout } from './sceneLayout'
+import { createNpcRuntime, type NpcIntent, type NpcRuntime, type NpcRuntimeSnapshot } from './npcCore'
+import type { NavigationActorFootprint, NavigationRuntime } from './navigationCore'
+import { useFreeRoamMovement, type FreeRoamMovement, type MovementComplete, type MovementOptions } from './useFreeRoamMovement'
+
+type NpcLocomotion = Pick<FreeRoamMovement, 'moveAlong' | 'stopMovement' | 'resetMovement' | 'getCurrentPosition'>
+
+export type NpcMovementAdapter = {
+  getPosition: () => Point
+  getSnapshot: () => NpcRuntimeSnapshot
+  requestMove: (
+    intent: NpcIntent,
+    scene: MainlineSceneDefinition,
+    layout: SceneLayout,
+    navigationOptions?: MainlineNavigationOptions,
+    movementOptions?: MovementOptions,
+    onArrive?: MovementComplete,
+  ) => boolean
+  requestRoute: (intent: NpcIntent, path: Point[], movementOptions?: MovementOptions, onArrive?: MovementComplete) => boolean
+  reset: (position: Point) => void
+}
+
+type CreateNpcMovementAdapterOptions = {
+  npcId: string
+  initialPosition: Point
+  movement: NpcLocomotion
+  navigationRuntime: NavigationRuntime
+  getFootprint: () => NavigationActorFootprint
+  onChange?: () => void
+}
+
+/**
+ * Small bridge between NPC intent state and the already-shared locomotion
+ * controller. It owns neither a route system nor a second position store:
+ * every live point is mirrored into npcCore and NavigationRuntime together.
+ */
+export function createNpcMovementAdapter({ npcId, initialPosition, movement, navigationRuntime, getFootprint, onChange }: CreateNpcMovementAdapterOptions): NpcMovementAdapter {
+  const runtime: NpcRuntime = createNpcRuntime(npcId, initialPosition)
+
+  const notify = () => onChange?.()
+  const syncPosition = (position: Point) => {
+    runtime.setPosition(position)
+    if (navigationRuntime.getActor(npcId)) navigationRuntime.updateActor(npcId, position)
+    else navigationRuntime.registerActor(npcId, position, getFootprint())
+  }
+  const followPath = (path: Point[], movementOptions: MovementOptions = {}, onArrive?: MovementComplete) => {
+    movement.moveAlong(path, (position) => {
+      syncPosition(position)
+      runtime.arrive()
+      // Locomotion already publishes the terminal position in this frame.
+      onArrive?.(position)
+    }, {
+      ...movementOptions,
+      preserveNavigationRoute: true,
+      onMove: (position) => {
+        syncPosition(position)
+        movementOptions.onMove?.(position)
+      },
+      onBlocked: (position) => {
+        syncPosition(position)
+        runtime.blocked()
+        notify()
+        movementOptions.onBlocked?.(position)
+      },
+    })
+  }
+
+  return {
+    getPosition: () => runtime.getPosition(),
+    getSnapshot: () => runtime.getSnapshot(),
+    requestMove: (intent, scene, layout, navigationOptions = {}, movementOptions = {}, onArrive) => {
+      const start = movement.getCurrentPosition()
+      syncPosition(start)
+      const options: MainlineNavigationOptions = {
+        ...navigationOptions,
+        actorId: npcId,
+        actorFootprint: getFootprint(),
+        navigationRuntime,
+      }
+      // Duties may name an entity instead of preselecting a coordinate. The
+      // shared live navigation query then considers the NPC's current point,
+      // dynamic actors, access, and every legal contact at execution time.
+      const resolved = intent.targetEntityId
+        ? findMainlinePathToEntity(scene, intent.targetEntityId, start, layout, options)
+        : { target: intent.target ?? start, path: intent.target ? findMainlinePath(start, intent.target, scene, layout, options) : null }
+      const resolvedIntent = { ...intent, target: resolved.target }
+      runtime.beginIntent(resolvedIntent)
+      notify()
+      if (!resolved.path) {
+        runtime.blocked()
+        notify()
+        return false
+      }
+
+      const canOccupy = (point: Point) => isWalkableMainlinePoint(point, scene, layout, options)
+
+      followPath(resolved.path, {
+        ...movementOptions,
+        // NPC routing can pass between live actors and furniture contacts.
+        // Follow the shared planner's actual turns instead of re-smoothing
+        // them into a segment that was never validated by navigation.
+        preserveNavigationRoute: true,
+        canOccupy,
+        canTraverse: (segmentStart, segmentEnd) => isMainlineNavigationBarrierClear(segmentStart, segmentEnd, scene, layout, options),
+        // Keep the planner's last turn when entering an access-controlled
+        // staging point. Otherwise generic same-direction compression can
+        // straighten a valid route around a protected static body.
+        finalCanOccupy: canOccupy,
+      }, onArrive)
+      return true
+    },
+    requestRoute: (intent, path, movementOptions = {}, onArrive) => {
+      const start = movement.getCurrentPosition()
+      syncPosition(start)
+      const target = path[path.length - 1]
+      if (!target) {
+        runtime.blocked()
+        notify()
+        return false
+      }
+      runtime.beginIntent({ ...intent, target })
+      notify()
+      followPath(path, movementOptions, onArrive)
+      return true
+    },
+    reset: (position) => {
+      movement.resetMovement(position)
+      runtime.reset()
+      syncPosition(position)
+      notify()
+    },
+  }
+}
+
+type UseNpcMovementOptions = {
+  enabled: boolean
+  npcId: string
+  initialPosition: Point
+  navigationRuntime: NavigationRuntime
+  footprint: NavigationActorFootprint
+}
+
+/**
+ * React projection of one NPC's intent/locomotion bridge. The scene
+ * placement provides the initial point only; after mounting, this hook's
+ * live position is the single source passed to rendering and navigation.
+ */
+export function useNpcMovement({ enabled, npcId, initialPosition, navigationRuntime, footprint }: UseNpcMovementOptions) {
+  const initialX = initialPosition.x
+  const initialY = initialPosition.y
+  const movement = useFreeRoamMovement(initialPosition)
+  const [revision, setRevision] = useState(0)
+  const movementRef = useRef(movement)
+  const footprintRef = useRef(footprint)
+  movementRef.current = movement
+  footprintRef.current = footprint
+  const adapterRef = useRef<NpcMovementAdapter | null>(null)
+  if (!adapterRef.current) {
+    adapterRef.current = createNpcMovementAdapter({
+      npcId,
+      initialPosition,
+      movement: {
+        moveAlong: (...args) => movementRef.current.moveAlong(...args),
+        stopMovement: () => movementRef.current.stopMovement(),
+        resetMovement: (position) => movementRef.current.resetMovement(position),
+        getCurrentPosition: () => movementRef.current.getCurrentPosition(),
+      },
+      navigationRuntime,
+      getFootprint: () => footprintRef.current,
+      onChange: () => setRevision((revision) => revision + 1),
+    })
+  }
+  const adapter = adapterRef.current
+  const resetKey = `${enabled}:${npcId}:${initialX}:${initialY}`
+
+  useEffect(() => {
+    if (!enabled) {
+      movement.stopMovement()
+      navigationRuntime.removeActor(npcId)
+      return
+    }
+    adapter.reset({ x: initialX, y: initialY })
+  }, [adapter, enabled, initialX, initialY, movement.stopMovement, navigationRuntime, npcId, resetKey])
+
+  const requestMove = useCallback((intent: NpcIntent, scene: MainlineSceneDefinition, layout: SceneLayout, navigationOptions?: MainlineNavigationOptions, movementOptions?: MovementOptions, onArrive?: MovementComplete) => (
+    enabled && adapter.requestMove(intent, scene, layout, navigationOptions, movementOptions, onArrive)
+  ), [adapter, enabled])
+  const requestRoute = useCallback((intent: NpcIntent, path: Point[], movementOptions?: MovementOptions, onArrive?: MovementComplete) => (
+    enabled && adapter.requestRoute(intent, path, movementOptions, onArrive)
+  ), [adapter, enabled])
+
+  const snapshot = useMemo(() => adapter.getSnapshot(), [adapter, movement.position, revision])
+  return {
+    position: enabled ? movement.position : null,
+    snapshot,
+    getPosition: adapter.getPosition,
+    requestMove,
+    requestRoute,
+    reset: adapter.reset,
+  }
+}

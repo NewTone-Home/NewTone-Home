@@ -2,6 +2,7 @@ import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeo
 import { mainlineSceneBlueprints } from './mainlineSceneModel'
 import { boundaryGridCellRange, boundaryGridStepsFromScreenSpacing, compileSharedFrame, defaultSceneScreenMetrics, sharedBoundaryScreenSpacingPx, type SceneScreenMetrics, type SharedBoundaryCell, type SharedBoundaryFrame, type SharedBoundaryOpening } from './sceneBoundaryGrid'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
+import type { StorefrontPresentationPhase } from './storefrontPresentation'
 import type {
   MainlineFurnitureGroup,
   MainlineSceneBlueprint,
@@ -18,13 +19,25 @@ import type {
   MainlineScenePortalBlueprint,
   MainlineSceneCurve,
   MainlineSceneViewport,
+  MainlineSceneTextPresentationPolicy,
   MainlineSceneRoom,
   MainlineSceneDialogue,
+  MainlineSceneNpc,
+  MainlineAmbientNpcRoute,
+  MainlineSceneNpcPlacement,
+  MainlineSceneNpcBehavior,
+  MainlineSceneNpcBehaviorTarget,
+  MainlineSceneAccessRegion,
+  MainlineSceneAccessPortal,
+  MainlineSceneAccessBoundary,
+  MainlineNavigationBarrierRelation,
+  MainlineRegionAccess,
   MainlineStorefrontRole,
   MainlineStorefrontComposition,
   MainlineStorefrontMode,
   MainlineStorefrontSlot,
   MainlineAltarBlueprint,
+  MainlineContinuousStructure,
 } from './mainlineSceneModel'
 
 export type {
@@ -49,6 +62,7 @@ export type {
   MainlineStorefrontSlotBlueprint,
   MainlineStorefrontSlot,
   MainlineAltarBlueprint,
+  MainlineContinuousStructure,
   MainlineSceneData,
   MainlineSceneExternalExit,
   MainlineScenePortalBlueprint,
@@ -59,6 +73,11 @@ export type {
   MainlineSceneDialogue,
   MainlineSceneDialogueLine,
   MainlineSceneDialogueSpeaker,
+  MainlineSceneNpc,
+  MainlineSceneNpcBehavior,
+  MainlineSceneNpcBehaviorTarget,
+  MainlineSceneAccessRegion,
+  MainlineRegionAccess,
 } from './mainlineSceneModel'
 
 export type MainlineStructure = {
@@ -165,10 +184,10 @@ export type MainlineSceneDefinition = {
   subtitle: string
   statusLabel: string
   hint: string
-  entryFeedback?: string
   areaLabel?: string | ((position: Point) => string)
   walkBounds: CollisionBox
   viewport: MainlineSceneViewport
+  presentation: MainlineSceneTextPresentationPolicy
   externalExit?: MainlineSceneExternalExit
   externalExits: readonly MainlineSceneExternalExit[]
   rooms: readonly MainlineSceneRoom[]
@@ -179,9 +198,20 @@ export type MainlineSceneDefinition = {
   wallCollisions: readonly MainlineWallCollision[]
   curves: readonly MainlineSceneCurve[]
   airWalls?: readonly MainlineAirWall[]
+  accessRegions: readonly MainlineSceneAccessRegion[]
+  accessPortals: readonly MainlineSceneAccessPortal[]
+  accessBoundaries: readonly MainlineSceneAccessBoundary[]
+  navigationBarriers: readonly MainlineNavigationBarrierRelation[]
+  actorAccess: Readonly<Record<string, readonly MainlineRegionAccess[]>>
   blockers: readonly (CollisionBox & { id: string })[]
+  continuousStructures: readonly MainlineContinuousStructure[]
   wallDensity?: MainlineWallDensity
   objects: readonly MainlineSceneEntity[]
+  npcs: readonly MainlineSceneNpc[]
+  npcPlacements: readonly MainlineSceneNpcPlacement[]
+  ambientNpcRoutes: readonly MainlineAmbientNpcRoute[]
+  npcBehaviorTargets: readonly MainlineSceneNpcBehaviorTarget[]
+  npcBehaviors: readonly MainlineSceneNpcBehavior[]
   furnitureGroups: readonly MainlineFurnitureGroup[]
   passages: readonly MainlineScenePassage[]
   initialPlayerPosition: Point
@@ -189,7 +219,6 @@ export type MainlineSceneDefinition = {
   portals: readonly MainlineScenePortalBlueprint[]
   interactionText: Readonly<Record<string, string>>
   explorationText?: Readonly<Record<string, readonly string[]>>
-  explorationChoices?: Readonly<Record<string, { text: string; options: readonly string[] }>>
   echoPool?: readonly string[]
   dialogue?: MainlineSceneDialogue
 }
@@ -796,7 +825,7 @@ function geometryUnion(units: readonly MainlineSceneGeometryUnit[]): CollisionBo
  * collision, air wall, or blocker must be the same rectangle that the active
  * geometry projection exposes to the renderer and navigation.
  */
-export function validateMainlineSceneGeometry(scene: Pick<MainlineSceneDefinition, 'geometry' | 'passages' | 'wallCollisions' | 'airWalls' | 'blockers'>): readonly string[] {
+export function validateMainlineSceneGeometry(scene: Pick<MainlineSceneDefinition, 'geometry' | 'passages' | 'wallCollisions' | 'airWalls' | 'blockers' | 'continuousStructures'>): readonly string[] {
   const issues: string[] = []
   const canonicalBoundaryUnits = scene.geometry.filter((unit) => unit.geometryKind === 'boundary' && unit.variant !== 'near' && !unit.visualOnly)
 
@@ -836,7 +865,7 @@ export function validateMainlineSceneGeometry(scene: Pick<MainlineSceneDefinitio
     const unit = scene.geometry.find((candidate) => candidate.geometryKind === 'air-wall' && candidate.id === airWall.id)
     if (!unit || !sameCollisionBox(unit, airWall)) issues.push(`${airWall.id}: air wall diverges from canonical geometry`)
   })
-  scene.blockers.forEach((blocker) => {
+  ;[...scene.blockers, ...scene.continuousStructures].forEach((blocker) => {
     const unit = scene.geometry.find((candidate) => candidate.geometryKind === 'blocker' && candidate.id === blocker.id)
     if (!unit || !sameCollisionBox(unit, blocker)) issues.push(`${blocker.id}: blocker diverges from canonical geometry`)
   })
@@ -858,7 +887,7 @@ export function validateMainlineSceneGeometry(scene: Pick<MainlineSceneDefinitio
   return issues
 }
 
-function compileMainlineSceneData(data: MainlineSceneData, portals: readonly MainlineScenePortalBlueprint[]): Omit<MainlineSceneDefinition, 'id' | 'title' | 'subtitle' | 'statusLabel' | 'hint' | 'portals' | 'interactionText'> {
+function compileMainlineSceneData(data: MainlineSceneData, portals: readonly MainlineScenePortalBlueprint[]): Omit<MainlineSceneDefinition, 'id' | 'title' | 'subtitle' | 'statusLabel' | 'hint' | 'presentation' | 'portals' | 'interactionText'> {
   const portalOpeningsByWall = new Map<string, MainlineWallOpening[]>()
   const addPortalOpening = (wallId: string, opening: MainlineWallOpening) => {
     const openings = portalOpeningsByWall.get(wallId) ?? []
@@ -940,6 +969,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
       targetSceneId: portal.targetSceneId,
       routeThrough: portal.routeThrough,
       frameBehavior: portal.frameBehavior,
+      transitionPresentation: portal.transitionPresentation,
       fromRoomId: portal.fromRoomId,
       toRoomId: portal.toRoomId,
       thresholds: [endpoint.threshold, endpoint.crossingTarget],
@@ -958,7 +988,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     [...objectById.values()],
     data.wallDensity,
     data.airWalls,
-    data.blockers,
+    [...data.blockers, ...(data.continuousStructures ?? [])],
     data.curves ?? [],
     passageGeometry,
   )
@@ -995,9 +1025,20 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
       })),
     curves: data.curves ?? [],
     airWalls: data.airWalls,
+    accessRegions: data.accessRegions ?? [],
+    accessPortals: data.accessPortals ?? [],
+    accessBoundaries: data.accessBoundaries ?? [],
+    navigationBarriers: data.navigationBarriers ?? [],
+    actorAccess: data.actorAccess ?? {},
     blockers: data.blockers,
+    continuousStructures: data.continuousStructures ?? [],
     wallDensity: data.wallDensity,
     objects: [...objectById.values()],
+    npcs: data.npcs ?? [],
+    npcPlacements: data.npcPlacements ?? [],
+    ambientNpcRoutes: data.ambientNpcRoutes ?? [],
+    npcBehaviorTargets: data.npcBehaviorTargets ?? [],
+    npcBehaviors: data.npcBehaviors ?? [],
     furnitureGroups: data.furnitureGroups,
     passages,
     initialPlayerPosition: data.initialPlayerPosition,
@@ -1067,7 +1108,7 @@ function projectedSceneGeometry(scene: MainlineSceneDefinition, screenMetrics: S
     scene.objects,
     scene.wallDensity,
     scene.airWalls,
-    scene.blockers,
+    [...scene.blockers, ...scene.continuousStructures],
     scene.curves,
     passageGeometryForScene(scene),
     screenMetrics,
@@ -1086,12 +1127,11 @@ function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneD
     subtitle: blueprint.subtitle,
     statusLabel: blueprint.statusLabel,
     hint: blueprint.hint,
-    entryFeedback: blueprint.entryFeedback,
     areaLabel: blueprint.areaLabel,
+    presentation: blueprint.presentation,
     portals: blueprint.portals,
     interactionText: blueprint.interactionText,
     explorationText: blueprint.explorationText,
-    explorationChoices: blueprint.explorationChoices,
     echoPool: blueprint.echoPool,
     dialogue: blueprint.dialogue,
     ...compiledScene,
@@ -1112,7 +1152,12 @@ export function mainlineSceneAreaLabel(scene: MainlineSceneDefinition, position:
  * here; the renderer only resolves their visibility from the shared label
  * position, so storefront proximity never creates a second geometry projection.
  */
-export function mainlineSceneGeometryUnits(scene: MainlineSceneDefinition, position: Point, screenMetrics?: SceneScreenMetrics): MainlineSceneGeometryUnit[] {
+export function mainlineSceneGeometryUnits(
+  scene: MainlineSceneDefinition,
+  position: Point,
+  screenMetrics?: SceneScreenMetrics,
+  storefrontPresentation?: ReadonlyMap<string, StorefrontPresentationPhase>,
+): MainlineSceneGeometryUnit[] {
   const geometry = screenMetrics ? projectedSceneGeometry(scene, screenMetrics) : scene.geometry
   return geometry.flatMap((unit) => {
     if (!unit.storefrontId) return [unit]
@@ -1122,6 +1167,16 @@ export function mainlineSceneGeometryUnits(scene: MainlineSceneDefinition, posit
       candidate.storefrontId === unit.storefrontId && candidate.variant === 'near'
     ))
     if (!hasNearProjection) return unit.variant === 'baseline' ? [unit] : []
+    const presentationPhase = storefrontPresentation?.get(storefront.id)
+    if (presentationPhase) {
+      // The base wall-door-wall geometry is already canonical. Presentation
+      // chooses only whether the distant sign cover is painted above it.
+      if (unit.variant === 'baseline') return [unit]
+      if (unit.variant === 'near') return []
+      return presentationPhase === 'baseline'
+        ? [{ ...unit, visual: { kind: 'none' as const, cells: [] } }]
+        : [unit]
+    }
     const near = storefront.portalId ? isMainlineStorefrontNear(scene, storefront, position) : false
     if (unit.variant) return unit.variant === (near ? 'near' : 'baseline') ? [unit] : []
     // Keep the canonical wall/door rectangle for collision and navigation,
@@ -1178,6 +1233,23 @@ export function mainlineStorefrontApproach(scene: MainlineSceneDefinition, store
   return { x: anchor.x - approachDistance, y: anchor.y }
 }
 
+/**
+ * A storefront is a long wall surface, not a single physical interaction
+ * point. Keep the authored centre approach first, then offer symmetric
+ * tangential alternatives on the same walkable side. Navigation owns which
+ * candidate is currently reachable when live actors occupy one of them.
+ */
+export function mainlineStorefrontInteractionCandidates(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot): Point[] {
+  const approach = mainlineStorefrontApproach(scene, storefront)
+  const halfSpan = Math.max(0, (storefront.end - storefront.start) / 2)
+  const tangentOffset = Math.min(4, Math.max(0, halfSpan - 2))
+  if (tangentOffset <= 0) return [approach]
+  const alternatives = storefront.edge === 'top' || storefront.edge === 'bottom'
+    ? [{ x: approach.x - tangentOffset, y: approach.y }, { x: approach.x + tangentOffset, y: approach.y }]
+    : [{ x: approach.x, y: approach.y - tangentOffset }, { x: approach.x, y: approach.y + tangentOffset }]
+  return [approach, ...alternatives]
+}
+
 export function mainlineStorefrontAtPoint(scene: MainlineSceneDefinition, point: Point): MainlineStorefrontSlot | undefined {
   return scene.storefronts.find((storefront) => {
     const anchor = mainlineStorefrontAnchor(scene, storefront)
@@ -1200,7 +1272,7 @@ function createMainlineSceneSlice(scene: MainlineSceneDefinition): MainlineScene
     id: `${scene.id}-slice`,
     objectIds: scene.objects.map((object) => object.id),
     furnitureGroupIds: scene.furnitureGroups.map((group) => group.id),
-    actorIds: [],
+    actorIds: scene.npcs.map((npc) => npc.id),
   }
 }
 

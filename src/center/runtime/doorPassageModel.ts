@@ -25,6 +25,11 @@ export type DoorPassageRegion = {
   targetDepth: number
 }
 
+export type DoorPassageActorFootprint = {
+  width: number
+  height: number
+}
+
 export type DoorPassageSide = 0 | 1
 
 export type DoorPassagePhase = 'closed' | 'opening' | 'open' | 'crossing' | 'holding' | 'closing'
@@ -40,6 +45,9 @@ export type DoorPassageReservation = {
 export type DoorPassageRuntime = {
   phase: DoorPassagePhase
   reservations: Readonly<Record<string, DoorPassageReservation>>
+  /** FIFO ownership of a physically narrow doorway. Only the head may cross. */
+  queue: readonly string[]
+  activeActorId?: string
   /** The lifecycle deadline after every visible actor clears the real doorway. */
   clearHoldUntil?: number
 }
@@ -55,18 +63,35 @@ export type DoorPassageAction =
   | { type: 'closed' }
 
 export function createDoorPassageRuntime(phase: DoorPassagePhase = 'closed'): DoorPassageRuntime {
-  return { phase, reservations: {} }
+  return { phase, reservations: {}, queue: [] }
+}
+
+export function doorPassageActorIsActive(state: DoorPassageRuntime, actorId: string) {
+  return state.activeActorId === actorId && Boolean(state.reservations[actorId])
+}
+
+function nextActiveActor(queue: readonly string[], reservations: Readonly<Record<string, DoorPassageReservation>>) {
+  return queue.find((actorId) => Boolean(reservations[actorId]))
 }
 
 export function reduceDoorPassageRuntime(state: DoorPassageRuntime, action: DoorPassageAction): DoorPassageRuntime {
   if (action.type === 'request') {
     if (!action.allowed) return state
+    const reservations = { ...state.reservations, [action.reservation.actorId]: action.reservation }
+    const queue = state.queue.includes(action.reservation.actorId)
+      ? state.queue
+      : [...state.queue, action.reservation.actorId]
+    const activeActorId = state.activeActorId && reservations[state.activeActorId]
+      ? state.activeActorId
+      : nextActiveActor(queue, reservations)
     const phase = state.phase === 'open' || state.phase === 'crossing'
       ? state.phase
       : state.phase === 'holding' || state.phase === 'closing' ? 'open' : 'opening'
     return {
       phase,
-      reservations: { ...state.reservations, [action.reservation.actorId]: action.reservation },
+      reservations,
+      queue,
+      activeActorId,
       clearHoldUntil: undefined,
     }
   }
@@ -84,8 +109,10 @@ export function reduceDoorPassageRuntime(state: DoorPassageRuntime, action: Door
 
   if (action.type === 'crossed') {
     const reservation = state.reservations[action.actorId]
+    if (state.activeActorId && state.activeActorId !== action.actorId) return state
     if (!reservation) return { ...state, phase: 'crossing' }
     return {
+      ...state,
       phase: 'crossing',
       reservations: {
         ...state.reservations,
@@ -97,7 +124,11 @@ export function reduceDoorPassageRuntime(state: DoorPassageRuntime, action: Door
   if (action.type === 'release') {
     const reservations = { ...state.reservations }
     delete reservations[action.actorId]
-    return { ...state, reservations }
+    const queue = state.queue.filter((actorId) => actorId !== action.actorId)
+    const activeActorId = state.activeActorId === action.actorId
+      ? nextActiveActor(queue, reservations)
+      : state.activeActorId
+    return { ...state, reservations, queue, activeActorId }
   }
 
   if (action.type === 'begin-hold') {
@@ -111,7 +142,7 @@ export function reduceDoorPassageRuntime(state: DoorPassageRuntime, action: Door
   }
 
   if (state.phase !== 'closing') return state
-  return { phase: 'closed', reservations: {} }
+  return { phase: 'closed', reservations: {}, queue: [] }
 }
 
 export function doorPassageIsOpen(phase: DoorPassagePhase) {
@@ -175,12 +206,15 @@ function pointOnSegment(start: Point, target: Point, progress: number): Point {
 }
 
 /** Resolve a clear approach point for every doorway orientation. */
-export function doorwayBoundaryPoint(region: DoorPassageRegion, from: Point, target: Point, actorRadius: number, tangentPoint?: Point) {
+export function doorwayBoundaryPoint(region: DoorPassageRegion, from: Point, target: Point, actorFootprint: DoorPassageActorFootprint, tangentPoint?: Point) {
+  const horizontalNormal = region.normal.axis === 'x'
+  const normalClearance = horizontalNormal ? actorFootprint.width / 2 : actorFootprint.height / 2
+  const tangentClearance = horizontalNormal ? actorFootprint.height / 2 : actorFootprint.width / 2
   const expandedDoor = {
-    x: region.doorway.x - actorRadius,
-    y: region.doorway.y - actorRadius,
-    width: region.doorway.width + actorRadius * 2,
-    height: region.doorway.height + actorRadius * 2,
+    x: region.doorway.x - (horizontalNormal ? normalClearance : tangentClearance),
+    y: region.doorway.y - (horizontalNormal ? tangentClearance : normalClearance),
+    width: region.doorway.width + (horizontalNormal ? normalClearance : tangentClearance) * 2,
+    height: region.doorway.height + (horizontalNormal ? tangentClearance : normalClearance) * 2,
   }
   const length = Math.hypot(target.x - from.x, target.y - from.y)
   const interval = segmentBoxInterval(from, target, expandedDoor)
@@ -193,15 +227,15 @@ export function doorwayBoundaryPoint(region: DoorPassageRegion, from: Point, tar
   const side = doorRegionSide(region, from)
   const direction = region.normal.direction * (side === 1 ? 1 : -1)
   const tangent = tangentPoint ?? center
-  if (region.normal.axis === 'x') {
+  if (horizontalNormal) {
     return {
-      x: center.x + direction * (region.doorway.width / 2 + actorRadius + .08),
+      x: center.x + direction * (region.doorway.width / 2 + normalClearance + .08),
       y: tangent.y,
     }
   }
   return {
     x: tangent.x,
-    y: center.y + direction * (region.doorway.height / 2 + actorRadius + .08),
+    y: center.y + direction * (region.doorway.height / 2 + normalClearance + .08),
   }
 }
 

@@ -40,6 +40,7 @@ export function worldEntryReducer(state, action) {
         coverComplete: true,
       })
     case 'scene-ready':
+      if (state.phase === WORLD_ENTRY_PHASE.ACTIVE) return state
       return advanceWhenReady(state, {
         ...state,
         phase: state.coverComplete ? WORLD_ENTRY_PHASE.REVEALING : state.phase,

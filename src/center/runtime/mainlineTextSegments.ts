@@ -1,60 +1,41 @@
-const SEGMENT_BOUNDARIES = new Set([
-  '，', ',', '、',
-  '。', '.', '！', '!', '？', '?',
-  '；', ';', '：', ':',
-  '…',
-])
+const strongBoundaries = new Set(['。', '！', '!', '？', '?', '；', ';'])
+const weakBoundaries = new Set(['，', ',', '、', '：', ':'])
+const closingMarks = new Set(['”', '’', '"', "'", '」', '』', '）', ')', '】', '〕', '］', '》', '〉'])
 
-const CLOSING_MARKS = new Set(['”', '’', '"', "'", '」', '』', '）', ')', '】', '〕', '］', '》', '〉'])
+export const mainlineTextSegmentMinClauseLength = 5
 
-function pushSegment(segments: string[], value: string) {
-  const normalized = value.replace(/\s+/g, ' ').trim()
-  if (normalized) segments.push(normalized)
+function normalized(value: string) { return value.replace(/\s+/g, ' ').trim() }
+function characterLength(value: string) {
+  return Array.from(value.replace(/[\s。！？!?；;，,、：:“”‘’"'「」『』（）()【】〔〕［］《》〈〉]+$/gu, '').replace(/\s/g, '')).length
 }
 
-/**
- * Split one Center interaction into deliberate, one-line display units.
- * Commas and full stops are control punctuation only and are intentionally
- * omitted from the rendered unit. Other sentence punctuation remains part of
- * the visible unit so the copy keeps its authored cadence.
- */
+/** Preserve punctuation while keeping short vocatives and particles attached. */
 export function splitMainlineInteractionText(text: string): readonly string[] {
-  const segments: string[] = []
+  const clauses: string[] = []
   let buffer = ''
-
   for (const character of text.replace(/\r\n?/g, '\n')) {
-    if (character === '\n') {
-      pushSegment(segments, buffer)
+    buffer += character
+    if (character === '\n' || strongBoundaries.has(character) || weakBoundaries.has(character)) {
+      if (normalized(buffer)) clauses.push(normalized(buffer))
       buffer = ''
-      continue
     }
-    if (!SEGMENT_BOUNDARIES.has(character)) {
-      buffer += character
-      continue
-    }
-
-    if (character === '，' || character === ',' || character === '。' || character === '.') {
-      pushSegment(segments, buffer)
-    }
-    else {
-      pushSegment(segments, `${buffer}${character}`)
-    }
-    buffer = ''
   }
-
-  pushSegment(segments, buffer)
-
-  if (segments.length === 0) return [text.trim()]
-
-  // Keep a closing quote/bracket with the segment it closes instead of
-  // creating a one-character display unit.
-  return segments.reduce<string[]>((result, segment) => {
-    if (segment.length === 1 && CLOSING_MARKS.has(segment) && result.length > 0) {
-      result[result.length - 1] += segment
-    }
+  if (normalized(buffer)) clauses.push(normalized(buffer))
+  const merged = clauses.reduce<string[]>((result, clause) => {
+    const previous = result[result.length - 1]
+    if (previous && characterLength(previous) < mainlineTextSegmentMinClauseLength) result[result.length - 1] = `${previous}${clause}`
+    else result.push(clause)
+    return result
+  }, [])
+  const segments = merged.reduce<string[]>((result, segment) => {
+    if (segment.length === 1 && closingMarks.has(segment) && result.length > 0) result[result.length - 1] += segment
     else result.push(segment)
     return result
   }, [])
+  if (segments.length > 1 && characterLength(segments[segments.length - 1]!) < mainlineTextSegmentMinClauseLength) {
+    segments[segments.length - 2] += segments.pop()!
+  }
+  return segments.length ? segments : [normalized(text)]
 }
 
 export function longestMainlineInteractionSegment(text: string) {

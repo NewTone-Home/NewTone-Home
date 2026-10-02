@@ -1,17 +1,33 @@
-import type { CollisionBox, Point } from './sceneGeometry'
+import { createPoint, type CollisionBox, type NavigationBarrierSegment, type Point } from './sceneGeometry'
 
 export type PolygonNavigationOptions = {
   /** The actor-clear walkable rectangle, before obstacle clearance is applied. */
   bounds: CollisionBox
   /** Raw static collision boxes from the shared scene contract. */
   obstacles: readonly CollisionBox[]
-  /** Clearance around every obstacle for the current actor. */
-  obstacleClearance?: number
+  /** Minkowski inset for the current rectangular actor footprint. */
+  obstacleInset?: { x: number; y: number }
+  /** Non-occupying segments that routes may not cross. */
+  barriers?: readonly NavigationBarrierSegment[]
+  /** The same actor footprint used by route clearance and barrier endpoints. */
+  actorFootprint?: { width: number; height: number }
 }
 
 export type PolygonNavigationMesh = {
   findPath: (start: Point, destination: Point) => Point[] | null
   nearestPoint: (point: Point) => Point | null
+  /**
+   * Resolve a raw world click against the start component of this static
+   * mesh. Dynamic actors deliberately do not rewrite the requested target.
+   */
+  resolvePath: (start: Point, requestedTarget: Point) => PolygonNavigationResolution | null
+}
+
+export type PolygonNavigationResolution = {
+  requestedTarget: Point
+  resolvedNavigableTarget: Point
+  path: Point[]
+  reachedRequestedTarget: boolean
 }
 
 type FreeCell = CollisionBox & { index: number }
@@ -24,12 +40,12 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.max(minimum, Math.min(maximum, value))
 }
 
-function expanded(box: CollisionBox, amount: number): CollisionBox {
+function expanded(box: CollisionBox, inset: { x: number; y: number }): CollisionBox {
   return {
-    x: box.x - amount,
-    y: box.y - amount,
-    width: box.width + amount * 2,
-    height: box.height + amount * 2,
+    x: box.x - inset.x,
+    y: box.y - inset.y,
+    width: box.width + inset.x * 2,
+    height: box.height + inset.y * 2,
   }
 }
 
@@ -51,12 +67,64 @@ function pointDistance(first: Point, second: Point) {
   return Math.hypot(first.x - second.x, first.y - second.y)
 }
 
+function cross(first: Point, second: Point) {
+  return first.x * second.y - first.y * second.x
+}
+
+function subtract(first: Point, second: Point): Point {
+  return { x: first.x - second.x, y: first.y - second.y }
+}
+
+function barrierTangentClearance(barrier: NavigationBarrierSegment, footprint: { width: number; height: number }) {
+  const dx = barrier.end.x - barrier.start.x
+  const dy = barrier.end.y - barrier.start.y
+  const length = Math.hypot(dx, dy)
+  if (length <= epsilon) return 0
+  return (Math.abs(dx / length) * footprint.width + Math.abs(dy / length) * footprint.height) / 2
+}
+
+/**
+ * A barrier is a crossing rule, not an occupied strip. Only a segment that
+ * changes sides through its span is blocked; movement beside the line remains
+ * legal. Endpoint clearance uses the current rectangular actor footprint.
+ */
+export function navigationBarrierBlocksTravel(
+  start: Point,
+  end: Point,
+  barrier: NavigationBarrierSegment,
+  footprint: { width: number; height: number } = { width: 0, height: 0 },
+) {
+  const direction = subtract(barrier.end, barrier.start)
+  const lengthSquared = direction.x * direction.x + direction.y * direction.y
+  if (lengthSquared <= epsilon) return false
+  const startSide = cross(direction, subtract(start, barrier.start))
+  const endSide = cross(direction, subtract(end, barrier.start))
+  if (Math.abs(startSide) <= epsilon || Math.abs(endSide) <= epsilon || startSide * endSide >= 0) return false
+  const crossing = startSide / (startSide - endSide)
+  const point = {
+    x: start.x + (end.x - start.x) * crossing,
+    y: start.y + (end.y - start.y) * crossing,
+  }
+  const projection = ((point.x - barrier.start.x) * direction.x + (point.y - barrier.start.y) * direction.y) / lengthSquared
+  const extension = barrierTangentClearance(barrier, footprint) / Math.sqrt(lengthSquared)
+  return projection >= -extension - epsilon && projection <= 1 + extension + epsilon
+}
+
+export function navigationBarriersAllowTravel(
+  start: Point,
+  end: Point,
+  barriers: readonly NavigationBarrierSegment[] = [],
+  footprint: { width: number; height: number } = { width: 0, height: 0 },
+) {
+  return barriers.every((barrier) => !navigationBarrierBlocksTravel(start, end, barrier, footprint))
+}
+
 function uniqueSorted(values: number[]) {
   return [...new Set(values.map((value) => Number(value.toFixed(4))))].sort((first, second) => first - second)
 }
 
-function clippedObstacle(box: CollisionBox, bounds: CollisionBox, clearance: number): CollisionBox | null {
-  const clipped = expanded(box, clearance)
+function clippedObstacle(box: CollisionBox, bounds: CollisionBox, inset: { x: number; y: number }): CollisionBox | null {
+  const clipped = expanded(box, inset)
   const left = Math.max(bounds.x, clipped.x)
   const top = Math.max(bounds.y, clipped.y)
   const right = Math.min(bounds.x + bounds.width, clipped.x + clipped.width)
@@ -88,12 +156,20 @@ function connectEdgeGroups(
   edges: Map<string, CellEdge[]>,
   cells: readonly FreeCell[],
   links: Map<number, CellLink[]>,
+  obstacles: readonly CollisionBox[],
+  barriers: readonly NavigationBarrierSegment[],
+  footprint: { width: number; height: number },
 ) {
   for (const group of edges.values()) {
-    for (let firstIndex = 0; firstIndex < group.length; firstIndex += 1) {
-      for (let secondIndex = firstIndex + 1; secondIndex < group.length; secondIndex += 1) {
-        const first = group[firstIndex]!
-        const second = group[secondIndex]!
+    // Only intervals that overlap can share a portal. Barrier endpoints add
+    // legitimate scene grid lines, so a full all-pairs comparison here grows
+    // quadratically even though nearly every pair is disjoint.
+    const ordered = [...group].sort((first, second) => first.start - second.start || first.end - second.end)
+    for (let firstIndex = 0; firstIndex < ordered.length; firstIndex += 1) {
+      const first = ordered[firstIndex]!
+      for (let secondIndex = firstIndex + 1; secondIndex < ordered.length; secondIndex += 1) {
+        const second = ordered[secondIndex]!
+        if (second.start >= first.end - epsilon) break
         if (first.cell === second.cell) continue
         const start = Math.max(first.start, second.start)
         const end = Math.min(first.end, second.end)
@@ -102,6 +178,13 @@ function connectEdgeGroups(
         const secondCell = cells[second.cell]!
         const portal = sharedPortal(firstCell, secondCell)
         if (!portal) continue
+        // A relation/access barrier splits otherwise adjacent free cells. The
+        // direct center-to-center edge is the shared topology contract used
+        // by component projection; route visibility remains the final path
+        // planner below.
+        const firstCenter = { x: firstCell.x + firstCell.width / 2, y: firstCell.y + firstCell.height / 2 }
+        const secondCenter = { x: secondCell.x + secondCell.width / 2, y: secondCell.y + secondCell.height / 2 }
+        if (!segmentIsClear(firstCenter, secondCenter, obstacles, barriers, footprint)) continue
         const firstLinks = links.get(first.cell) ?? []
         const secondLinks = links.get(second.cell) ?? []
         if (!firstLinks.some((link) => link.cell === second.cell)) firstLinks.push({ cell: second.cell, portal })
@@ -135,18 +218,25 @@ function segmentCrossesInterior(start: Point, end: Point, box: CollisionBox) {
   return entry < 1 - epsilon && exit > epsilon && entry < exit - epsilon
 }
 
-function segmentIsClear(start: Point, end: Point, obstacles: readonly CollisionBox[]) {
+function segmentIsClear(
+  start: Point,
+  end: Point,
+  obstacles: readonly CollisionBox[],
+  barriers: readonly NavigationBarrierSegment[] = [],
+  footprint: { width: number; height: number } = { width: 0, height: 0 },
+) {
   return obstacles.every((obstacle) => !segmentCrossesInterior(start, end, obstacle))
+    && navigationBarriersAllowTravel(start, end, barriers, footprint)
 }
 
-function compressVisiblePath(path: Point[], obstacles: readonly CollisionBox[]) {
+function compressVisiblePath(path: Point[], obstacles: readonly CollisionBox[], barriers: readonly NavigationBarrierSegment[] = [], footprint: { width: number; height: number } = { width: 0, height: 0 }) {
   if (path.length < 3) return path
   const compressed = [path[0]!]
   let anchorIndex = 0
   while (anchorIndex < path.length - 1) {
     let nextIndex = anchorIndex + 1
     for (let candidateIndex = path.length - 1; candidateIndex > anchorIndex + 1; candidateIndex -= 1) {
-      if (segmentIsClear(path[anchorIndex]!, path[candidateIndex]!, obstacles)) {
+      if (segmentIsClear(path[anchorIndex]!, path[candidateIndex]!, obstacles, barriers, footprint)) {
         nextIndex = candidateIndex
         break
       }
@@ -164,7 +254,7 @@ function compressVisiblePath(path: Point[], obstacles: readonly CollisionBox[]) 
       const incoming = { x: current.x - previous.x, y: current.y - previous.y }
       const outgoing = { x: next.x - current.x, y: next.y - current.y }
       if (incoming.x * outgoing.x + incoming.y * outgoing.y >= 0) continue
-      if (!segmentIsClear(previous, next, obstacles)) continue
+      if (!segmentIsClear(previous, next, obstacles, barriers, footprint)) continue
       compressed.splice(index, 1)
       changed = true
       break
@@ -181,20 +271,27 @@ function compressVisiblePath(path: Point[], obstacles: readonly CollisionBox[]) 
  */
 export function createPolygonNavigationMesh(options: PolygonNavigationOptions): PolygonNavigationMesh {
   const bounds = options.bounds
-  const clearance = options.obstacleClearance ?? 0
+  const inset = options.obstacleInset ?? createPoint(0, 0)
   const obstacles = options.obstacles
-    .map((obstacle) => clippedObstacle(obstacle, bounds, clearance))
+    .map((obstacle) => clippedObstacle(obstacle, bounds, inset))
     .filter((obstacle): obstacle is CollisionBox => Boolean(obstacle))
+  const barriers = options.barriers ?? []
+  const actorFootprint = options.actorFootprint ?? {
+    width: (options.obstacleInset?.x ?? 0) * 2,
+    height: (options.obstacleInset?.y ?? 0) * 2,
+  }
 
   const xLines = uniqueSorted([
     bounds.x,
     bounds.x + bounds.width,
     ...obstacles.flatMap((obstacle) => [obstacle.x, obstacle.x + obstacle.width]),
+    ...barriers.flatMap((barrier) => [barrier.start.x, barrier.end.x]),
   ]).filter((value) => value >= bounds.x - epsilon && value <= bounds.x + bounds.width + epsilon)
   const yLines = uniqueSorted([
     bounds.y,
     bounds.y + bounds.height,
     ...obstacles.flatMap((obstacle) => [obstacle.y, obstacle.y + obstacle.height]),
+    ...barriers.flatMap((barrier) => [barrier.start.y, barrier.end.y]),
   ]).filter((value) => value >= bounds.y - epsilon && value <= bounds.y + bounds.height + epsilon)
 
   const cells: FreeCell[] = []
@@ -227,8 +324,8 @@ export function createPolygonNavigationMesh(options: PolygonNavigationOptions): 
     addEdge(horizontalEdges, cell.y + cell.height, cell.x, cell.x + cell.width, cell.index)
   })
   const links = new Map<number, CellLink[]>()
-  connectEdgeGroups(verticalEdges, cells, links)
-  connectEdgeGroups(horizontalEdges, cells, links)
+  connectEdgeGroups(verticalEdges, cells, links, obstacles, barriers, actorFootprint)
+  connectEdgeGroups(horizontalEdges, cells, links, obstacles, barriers, actorFootprint)
 
   const cellContaining = (point: Point) => cells.find((cell) => containsPoint(cell, point))
   const nearestPoint = (point: Point): Point | null => {
@@ -248,30 +345,103 @@ export function createPolygonNavigationMesh(options: PolygonNavigationOptions): 
     return closest
   }
 
-  const findPath = (start: Point, destination: Point): Point[] | null => {
-    const exactDestinationCell = cellContaining(destination)
-    const goal = exactDestinationCell ? { x: destination.x, y: destination.y } : nearestPoint(destination)
-    if (!goal) return null
-    if (segmentIsClear(start, goal, obstacles)) return [start, goal]
+  const reachableCellIdsFrom = (start: Point) => {
+    const startCell = cellContaining(start)
+    if (!startCell) return new Set<number>()
+    const reachable = new Set([startCell.index])
+    const queue = [startCell.index]
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      for (const link of links.get(current) ?? []) {
+        if (reachable.has(link.cell)) continue
+        reachable.add(link.cell)
+        queue.push(link.cell)
+      }
+    }
+    return reachable
+  }
 
-    const cornerOffset = .02
-    const visibilityNodes = [start, goal, ...obstacles.flatMap((obstacle) => [
+  const nearestPointInCells = (point: Point, allowedCells: ReadonlySet<number>): Point | null => {
+    let closest: Point | null = null
+    let closestDistance = Infinity
+    for (const cell of cells) {
+      if (!allowedCells.has(cell.index)) continue
+      const candidate = {
+        x: clamp(point.x, cell.x, cell.x + cell.width),
+        y: clamp(point.y, cell.y, cell.y + cell.height),
+      }
+      const candidateDistance = pointDistance(point, candidate)
+      if (candidateDistance < closestDistance) {
+        closestDistance = candidateDistance
+        closest = candidate
+      }
+    }
+    return closest
+  }
+
+  // Obstacles and relation barriers are static for this mesh. Build their
+  // visibility graph once; each route only adds its start and goal edges.
+  const cornerOffset = .02
+  const barrierDetours = barriers.flatMap((barrier) => {
+    const dx = barrier.end.x - barrier.start.x
+    const dy = barrier.end.y - barrier.start.y
+    const length = Math.hypot(dx, dy)
+    if (length <= epsilon) return []
+    const tangent = { x: dx / length, y: dy / length }
+    const normal = { x: -tangent.y, y: tangent.x }
+    const edgeClearance = barrierTangentClearance(barrier, actorFootprint) + cornerOffset
+    return [barrier.start, barrier.end].flatMap((endpoint, index) => {
+      const outward = index === 0 ? -1 : 1
+      return [-1, 1].map((side) => ({
+        x: endpoint.x + tangent.x * edgeClearance * outward + normal.x * cornerOffset * side,
+        y: endpoint.y + tangent.y * edgeClearance * outward + normal.y * cornerOffset * side,
+      }))
+    })
+  })
+  const staticVisibilityNodes = [
+    ...obstacles.flatMap((obstacle) => [
       { x: obstacle.x - cornerOffset, y: obstacle.y - cornerOffset },
       { x: obstacle.x + obstacle.width + cornerOffset, y: obstacle.y - cornerOffset },
       { x: obstacle.x + obstacle.width + cornerOffset, y: obstacle.y + obstacle.height + cornerOffset },
       { x: obstacle.x - cornerOffset, y: obstacle.y + obstacle.height + cornerOffset },
-    ]).filter((node) => (
-      node.x >= bounds.x && node.x <= bounds.x + bounds.width
-      && node.y >= bounds.y && node.y <= bounds.y + bounds.height
-      && obstacles.every((obstacle) => !containsPoint(obstacle, node))
-    ))]
+    ]),
+    ...barrierDetours,
+  ].filter((node) => (
+    node.x >= bounds.x && node.x <= bounds.x + bounds.width
+    && node.y >= bounds.y && node.y <= bounds.y + bounds.height
+    && obstacles.every((obstacle) => !containsPoint(obstacle, node))
+  ))
+  const staticVisibilityDistances = staticVisibilityNodes.map(() => new Map<number, number>())
+  staticVisibilityNodes.forEach((node, nodeIndex) => {
+    for (let candidateIndex = nodeIndex + 1; candidateIndex < staticVisibilityNodes.length; candidateIndex += 1) {
+      const candidate = staticVisibilityNodes[candidateIndex]!
+      if (!segmentIsClear(node, candidate, obstacles, barriers, actorFootprint)) continue
+      const distance = pointDistance(node, candidate)
+      staticVisibilityDistances[nodeIndex]!.set(candidateIndex, distance)
+      staticVisibilityDistances[candidateIndex]!.set(nodeIndex, distance)
+    }
+  })
+
+  const findPathToGoal = (start: Point, goal: Point): Point[] | null => {
+    if (segmentIsClear(start, goal, obstacles, barriers, actorFootprint)) return [start, goal]
+
+    const visibilityNodes = [start, goal, ...staticVisibilityNodes]
     const visibilityDistances = visibilityNodes.map(() => new Map<number, number>())
-    visibilityNodes.forEach((node, nodeIndex) => {
-      visibilityNodes.forEach((candidate, candidateIndex) => {
-        if (nodeIndex === candidateIndex || !segmentIsClear(node, candidate, obstacles)) return
-        visibilityDistances[nodeIndex]!.set(candidateIndex, pointDistance(node, candidate))
+    staticVisibilityDistances.forEach((links, nodeIndex) => {
+      links.forEach((distance, candidateIndex) => {
+        visibilityDistances[nodeIndex + 2]!.set(candidateIndex + 2, distance)
       })
     })
+    for (let dynamicIndex = 0; dynamicIndex < 2; dynamicIndex += 1) {
+      const node = visibilityNodes[dynamicIndex]!
+      for (let candidateIndex = dynamicIndex + 1; candidateIndex < visibilityNodes.length; candidateIndex += 1) {
+        const candidate = visibilityNodes[candidateIndex]!
+        if (!segmentIsClear(node, candidate, obstacles, barriers, actorFootprint)) continue
+        const distance = pointDistance(node, candidate)
+        visibilityDistances[dynamicIndex]!.set(candidateIndex, distance)
+        visibilityDistances[candidateIndex]!.set(dynamicIndex, distance)
+      }
+    }
     const visibilityCost = visibilityNodes.map(() => Infinity)
     const visibilityPrevious = visibilityNodes.map(() => -1)
     const visited = new Set<number>()
@@ -304,5 +474,24 @@ export function createPolygonNavigationMesh(options: PolygonNavigationOptions): 
     return null
   }
 
-  return { findPath, nearestPoint }
+  const resolvePath = (start: Point, requestedTarget: Point): PolygonNavigationResolution | null => {
+    const reachableCells = reachableCellIdsFrom(start)
+    if (reachableCells.size === 0) return null
+    const targetCell = cellContaining(requestedTarget)
+    const reachedRequestedTarget = Boolean(targetCell && reachableCells.has(targetCell.index))
+    const resolvedNavigableTarget = reachedRequestedTarget
+      ? { x: requestedTarget.x, y: requestedTarget.y }
+      : nearestPointInCells(requestedTarget, reachableCells)
+    if (!resolvedNavigableTarget) return null
+    const path = findPathToGoal(start, resolvedNavigableTarget)
+    if (!path) return null
+    return { requestedTarget: { ...requestedTarget }, resolvedNavigableTarget, path, reachedRequestedTarget }
+  }
+
+  // Keep the established route API strict: callers that ask for an exact
+  // navigation point must not silently receive a projected target. World
+  // clicks opt into projection explicitly through resolvePath().
+  const findPath = (start: Point, destination: Point): Point[] | null => findPathToGoal(start, destination)
+
+  return { findPath, nearestPoint, resolvePath }
 }

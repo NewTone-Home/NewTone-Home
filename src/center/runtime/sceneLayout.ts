@@ -168,6 +168,45 @@ export function mainlineEntityFontSizePx(_entity: MainlineSceneEntity | null, sc
   return Math.max(9, Math.min(16, screenMetrics.width * .0115))
 }
 
+/**
+ * The renderer-facing source of truth for one text label. Phase 0 deliberately
+ * keeps this separate from movement collision so each later migration can
+ * replace an old collision owner with a measured visual footprint explicitly.
+ */
+export function mainlineLabelFootprint(
+  label: string,
+  position: Point,
+  screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
+  options: { vertical?: boolean; visualScale?: number; lineHeight?: number } = {},
+): CollisionBox {
+  const glyphCount = Math.max(1, Array.from(label).length)
+  const fontSizePx = mainlineEntityFontSizePx(null, screenMetrics)
+  const vertical = options.vertical ?? false
+  const lineHeight = options.lineHeight ?? (vertical ? 1 : 1.2)
+  const scale = Number.isFinite(options.visualScale) && (options.visualScale ?? 0) > 0 ? options.visualScale! : 1
+  const widthPx = vertical ? fontSizePx : glyphCount * fontSizePx
+  const heightPx = vertical ? glyphCount * fontSizePx : fontSizePx * lineHeight
+  const width = Number(((widthPx * scale / screenMetrics.width) * 100).toFixed(4))
+  const height = Number(((heightPx * scale / screenMetrics.height) * 100).toFixed(4))
+  return {
+    x: Number((position.x - width / 2).toFixed(4)),
+    y: Number((position.y - height / 2).toFixed(4)),
+    width,
+    height,
+  }
+}
+
+/** The walking marker is a real 11px square, not a hidden navigation radius. */
+export function mainlineProtagonistDotFootprint(
+  position: Point,
+  screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
+): CollisionBox {
+  const sizePx = 11
+  const width = Number(((sizePx / screenMetrics.width) * 100).toFixed(4))
+  const height = Number(((sizePx / screenMetrics.height) * 100).toFixed(4))
+  return { x: position.x - width / 2, y: position.y - height / 2, width, height }
+}
+
 function isNarrowMainlineViewport(screenMetrics: SceneScreenMetrics) {
   return Math.min(screenMetrics.width, screenMetrics.height) <= 600
 }
@@ -246,21 +285,11 @@ export function mainlineEntityTextFootprint(
   position: Point,
   screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
 ): CollisionBox {
-  const glyphCount = Math.max(1, Array.from(entity.label).length)
-  const fontSizePx = mainlineEntityFontSizePx(entity, screenMetrics)
-  const vertical = mainlineEntityUsesVerticalText(entity)
-  const letterSpacingPx = 0
-  const widthPx = vertical ? fontSizePx : glyphCount * fontSizePx + Math.max(0, glyphCount - 1) * letterSpacingPx
-  const heightPx = vertical ? glyphCount * fontSizePx : fontSizePx * (entity.kind === 'table' || entity.kind === 'seat' ? 1 : 1.2)
-  const scale = Number.isFinite(entity.visualScale) && (entity.visualScale ?? 0) > 0 ? entity.visualScale! : 1
-  const width = Number(((widthPx * scale / screenMetrics.width) * 100).toFixed(4))
-  const height = Number(((heightPx * scale / screenMetrics.height) * 100).toFixed(4))
-  return {
-    x: Number((position.x - width / 2).toFixed(4)),
-    y: Number((position.y - height / 2).toFixed(4)),
-    width,
-    height,
-  }
+  return mainlineLabelFootprint(entity.label, position, screenMetrics, {
+    vertical: mainlineEntityUsesVerticalText(entity),
+    visualScale: entity.visualScale,
+    lineHeight: entity.kind === 'table' || entity.kind === 'seat' ? 1 : 1.2,
+  })
 }
 
 export function mainlineEntityCollision(

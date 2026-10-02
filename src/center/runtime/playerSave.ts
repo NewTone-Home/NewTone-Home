@@ -211,3 +211,18 @@ export function recordPlayerSceneState(
     },
   }
 }
+
+/** Apply one domain-owned scene-state transition atomically. */
+export function recordPlayerSceneStatePatch(
+  save: PlayerSave,
+  sceneId: MainlineSceneId,
+  patch: Readonly<Record<string, PlayerChoiceValue>>,
+): PlayerSave {
+  return {
+    ...save,
+    sceneState: {
+      ...save.sceneState,
+      [sceneId]: { ...save.sceneState[sceneId], ...patch },
+    },
+  }
+}

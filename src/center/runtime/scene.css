@@ -302,7 +302,12 @@
 .world-phone__apps button:focus-visible { outline: 2px solid #f4d57f; outline-offset: 1px; }
 .world-phone--inner .world-phone__apps button:focus-visible { outline-color: #8ce2d0; }
 .world-phone__app-view { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.world-phone__milk-tea-field { display: flex; flex-wrap: wrap; gap: 7px; margin: 14px 0 0; }
+.world-phone__milk-tea-field > span { flex-basis: 100%; color: #7e9aab; font-size: 9px; letter-spacing: .08em; }
+.world-phone__milk-tea-field button { padding: 6px 7px; border: 1px solid #426177; background: #142635; color: #e9d6a6; font: inherit; font-size: 10px; }
+.world-phone__milk-tea-field button[aria-pressed="true"] { border-color: #8ce2d0; background: #193c45; color: #c6fff2; }
 .world-phone__feedback {
+  pointer-events: auto;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -531,20 +536,6 @@
   height: 100dvh;
   margin: 0;
 }
-.mainline-scene--map-only .scene-feedback--overlay {
-  position: absolute;
-  right: auto;
-  bottom: 4%;
-  left: 4%;
-  z-index: 8;
-  min-height: 0;
-  max-width: min(62%, 520px);
-  padding: 6px 9px;
-  border: 1px solid rgba(190, 161, 103, .48);
-  background: rgba(5, 5, 5, .7);
-  color: var(--soft);
-  pointer-events: none;
-}
 .scene-wrap { min-width: 0; }
 
 /* Every mainline scene uses the same scene contract and renderer. */
@@ -715,8 +706,8 @@
 }
 .scene-mainline-focus-group.is-baseline { opacity: .88; }
 .scene-mainline-focus-group.is-near { opacity: 1; }
-.scene-mainline-focus-group.scene-mainline-wall-feature--interaction.is-baseline,
-.scene-mainline-focus-group.scene-mainline-wall-feature--interaction.is-near { opacity: 1; }
+.scene-mainline-focus-group.scene-mainline-wall-feature--interaction.is-baseline.scene-mainline-interaction--normal-unexplored,
+.scene-mainline-focus-group.scene-mainline-wall-feature--interaction.is-near.scene-mainline-interaction--normal-unexplored { opacity: 1; }
 .scene-mainline-focus-group.is-hidden {
   opacity: 0;
   visibility: hidden;
@@ -807,7 +798,6 @@
 .scene-object:not(.scene-mainline-object):focus-visible > span,
 .scene-object:not(.scene-mainline-object).is-active > span { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
 .scene-object:focus-visible,
-.scene-dialogue button:focus-visible,
 .scene-reset:focus-visible { outline: 1px solid var(--active); outline-offset: 5px; }
 .scene-object--fixture { color: var(--ink); font-size: clamp(14px, 1.35vw, 18px); letter-spacing: .04em; }
 .scene-object--character { color: var(--ink); font-size: clamp(15px, 1.5vw, 19px); font-weight: 500; }
@@ -888,7 +878,6 @@
   transition: none;
 }
 .scene-spatial-glyph--door.is-open { color: var(--active); }
-.scene-object--server.is-serving,
 .scene-object--menu.is-toggled,
 .scene-object--blackboard.is-toggled,
 .scene-object--plant.is-toggled { color: var(--active); }
@@ -904,7 +893,6 @@
   line-height: 1;
   transform: translateX(-50%);
 }
-.scene-object--server.is-moving > span { animation: text-breathe 700ms ease-in-out infinite; }
 
 .scene-actor {
   position: absolute;
@@ -996,6 +984,38 @@
 
 .scene-protagonist.is-moving .scene-protagonist__dot { animation: protagonist-walk 700ms ease-in-out infinite; }
 
+.scene-protagonist__drink-icon {
+  position: absolute;
+  left: 8px;
+  top: -5px;
+  width: 7px;
+  height: 9px;
+  border: 1px solid var(--active);
+  border-top: 0;
+  border-radius: 0 0 2px 2px;
+  background: rgba(240, 204, 123, .12);
+  box-sizing: border-box;
+}
+.scene-protagonist__drink-icon::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  bottom: 7px;
+  width: 1px;
+  height: 6px;
+  background: var(--active);
+  transform: rotate(-18deg);
+  transform-origin: bottom;
+}
+
+.scene-protagonist__seat-label {
+  display: block;
+  color: var(--ink);
+  font-size: var(--scene-mainline-object-font-size);
+  line-height: 1;
+  white-space: nowrap;
+}
+
 @keyframes protagonist-walk {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-2px); }
@@ -1025,30 +1045,23 @@
 .scene-walk-target.is-active { animation: walk-target-pulse 700ms ease-in-out infinite alternate; }
 @keyframes walk-target-pulse { to { opacity: .24; transform: translate(-50%, -50%) scale(.72); } }
 
-.scene-dialogue {
-  position: absolute;
-  z-index: 7;
-  width: min(360px, 34vw);
-  max-height: 42%;
-  overflow: auto;
-  padding: 12px 14px 10px;
-  border-left: 1px solid var(--active);
-  background: rgba(14, 12, 9, .94);
-  box-shadow: 8px 8px 0 rgba(240, 204, 123, .04);
-  animation: dialogue-arrive 220ms ease-out both;
-}
-
-@keyframes dialogue-arrive { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-.scene-dialogue__speaker { display: block; margin-bottom: 4px; color: var(--active); font-size: 11px; letter-spacing: .08em; }
-.scene-dialogue p { margin: 0; color: var(--ink); font-family: "Noto Serif SC", Georgia, serif; font-size: clamp(14px, 1.25vw, 17px); line-height: 1.72; }
-.scene-dialogue button { display: block; margin: 8px 0 0 auto; padding: 0; border: 0; border-bottom: 1px solid var(--faint); background: transparent; color: var(--soft); cursor: pointer; font: inherit; font-size: 12px; }
+.scene-spatial-qa { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
+.scene-spatial-qa__geometry { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.scene-spatial-qa__staff { fill: rgba(64, 224, 208, .13); stroke: #40e0d0; stroke-width: .18; }
+.scene-spatial-qa__counter { fill: rgba(235, 86, 72, .16); stroke: #eb5648; stroke-width: .22; }
+.scene-spatial-qa__boundary { stroke: #b070ff; stroke-width: .3; stroke-dasharray: .8 .5; }
+.scene-spatial-qa__door { fill: rgba(255, 158, 54, .16); stroke: #ff9e36; stroke-width: .22; }
+.scene-spatial-qa__doorway { fill: none; stroke: #ffd166; stroke-width: .18; stroke-dasharray: .45 .35; }
+.scene-spatial-qa__path { fill: none; stroke: #fff06a; stroke-width: .24; stroke-dasharray: .55 .35; }
+.scene-spatial-qa__requested { fill: #6fd3ff; stroke: #06121c; stroke-width: .18; }
+.scene-spatial-qa__resolved { fill: #75f58d; stroke: #06121c; stroke-width: .18; }
+.scene-spatial-qa__legend { position: absolute; left: 2.5%; bottom: 2.5%; display: grid; gap: 2px; max-width: min(94%, 28rem); padding: 6px 8px; border: 1px solid rgba(255,255,255,.5); background: rgba(5, 12, 19, .78); color: #f3f5ec; font: 10px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .01em; }
+.scene-spatial-qa__legend strong { color: #fff06a; font-size: 11px; }
 
 .scene-echo,
-.scene-feedback,
 .scene-hint,
 .scene-toolbar { font-size: 12px; }
 .scene-echo { min-height: 28px; margin-top: 10px; padding-left: 10px; border-left: 1px solid var(--faint); color: var(--ink); line-height: 1.65; }
-.scene-feedback { min-height: 21px; padding-top: 8px; color: var(--soft); }
 .scene-hint { color: var(--muted); line-height: 1.6; }
 .scene-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; padding-top: 10px; border-top: 1px dashed var(--faint); color: var(--muted); }
 .scene-toolbar__actions { display: flex; align-items: center; justify-content: flex-end; gap: 16px; flex-wrap: wrap; }
@@ -1079,12 +1092,22 @@
 .mainline-scene-nav a { color: var(--soft); text-decoration: none; }
 .mainline-scene-nav a:hover,
 .mainline-scene-nav a:focus-visible { color: var(--active); text-decoration: underline; text-underline-offset: 4px; }
-.mainline-scene-stage { height: clamp(560px, 72vh, 730px); container-type: inline-size; }
+.mainline-scene-stage {
+  --interaction-normal: var(--soft);
+  --interaction-active: color-mix(in srgb, var(--soft) 82%, var(--active));
+  --interaction-dynamic: color-mix(in srgb, var(--interaction-normal) 58%, var(--interaction-active));
+  --interaction-explored: color-mix(in srgb, var(--soft) 82%, var(--muted));
+  --interaction-tutorial-low: color-mix(in srgb, var(--soft) 90%, var(--muted));
+  --interaction-tutorial-high: color-mix(in srgb, var(--soft) 86%, var(--ink));
+  height: clamp(560px, 72vh, 730px);
+  container-type: inline-size;
+}
 .mainline-scene--map-only .mainline-scene-stage {
   height: 100dvh;
   min-height: 100dvh;
 }
 .scene-mainline-world { position: absolute; inset: 0; will-change: transform; animation: mainline-world-enter 180ms ease both; }
+.scene-mainline-world.is-local-slide-handoff { animation: none; }
 @keyframes mainline-world-enter {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -1186,6 +1209,37 @@
 .scene-mainline-storefront--wall { color: var(--muted); }
 .scene-mainline-storefront--glass { color: rgba(161, 194, 194, .78); }
 .scene-mainline-storefront--sign { color: var(--ink); letter-spacing: .08em; }
+.scene-mainline-storefront--sign .scene-mainline-storefront__label-slot {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.scene-mainline-storefront__label-track {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  transition: transform 360ms cubic-bezier(.22, .61, .36, 1), opacity 280ms ease-out;
+}
+.scene-mainline-storefront.is-storefront-revealing .scene-mainline-storefront__label-track,
+.scene-mainline-storefront.is-storefront-revealed .scene-mainline-storefront__label-track {
+  opacity: .02;
+  transform: translate3d(0, -112%, 0);
+}
+.scene-mainline-storefront.is-storefront-lingering .scene-mainline-storefront__label-track {
+  opacity: .02;
+  transform: translate3d(0, -112%, 0);
+  animation: storefront-presentation-linger 3000ms linear both;
+}
+.scene-mainline-storefront.is-storefront-restoring .scene-mainline-storefront__label-track {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  animation: storefront-presentation-restore 360ms cubic-bezier(.22, .61, .36, 1) both;
+}
 .scene-mainline-storefront--blank { color: transparent; }
 .scene-mainline-storefront--worn { color: rgba(214, 179, 119, .82); }
 .scene-mainline-storefront--worn.scene-mainline-storefront--glass { color: rgba(188, 158, 105, .65); }
@@ -1198,6 +1252,23 @@
 }
 .scene-mainline-storefront--vertical { line-height: 1; }
 
+@keyframes storefront-presentation-linger {
+  from { opacity: .02; transform: translate3d(0, -112%, 0); }
+  to { opacity: .02; transform: translate3d(0, -112%, 0); }
+}
+
+@keyframes storefront-presentation-restore {
+  from { opacity: .02; transform: translate3d(0, -112%, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-mainline-storefront__label-track {
+    transition-duration: 1ms;
+    animation-duration: 1ms;
+  }
+}
+
 .scene-mainline-object {
   z-index: 4;
   width: max-content;
@@ -1205,6 +1276,35 @@
   min-height: 0;
   max-width: calc(100% - 8px);
 }
+.scene-mainline-object.has-focus-frame {
+  overflow: visible;
+}
+.scene-mainline-object.has-focus-frame > .scene-mainline-object__label {
+  position: relative;
+  z-index: 1;
+}
+.scene-mainline-npc {
+  position: absolute;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+  color: var(--ink);
+  font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px));
+  line-height: 1;
+  white-space: nowrap;
+}
+.scene-mainline-npc {
+  pointer-events: auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--scene-mainline-object-font-size);
+  line-height: 1;
+  font-weight: 500;
+  cursor: pointer;
+}
+.scene-mainline-npc:focus-visible { outline: 1px solid var(--active); outline-offset: 4px; }
+.scene-mainline-npc--ambient { pointer-events: none; cursor: default; }
 .scene-mainline-object--door { color: var(--active); font-size: var(--scene-mainline-object-font-size, clamp(10px, 1.35cqw, 18px)); }
 .scene-mainline-object--landmark,
 .scene-mainline-object--direction { color: var(--soft); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); }
@@ -1220,18 +1320,13 @@
   font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px));
   line-height: 1;
 }
-.scene-mainline-exploration--breathing > span {
+.scene-mainline-exploration--breathing > .scene-mainline-object__label {
   animation: scene-exploration-breathe 2.8s ease-in-out infinite;
   animation-delay: var(--scene-exploration-animation-delay, 0s);
 }
-.scene-mainline-exploration--breathing.scene-mainline-exploration--explored > span {
-  animation: none;
-  color: var(--soft);
-  opacity: .78;
-}
-.scene-mainline-exploration--breathing:hover > span,
-.scene-mainline-exploration--breathing:focus-visible > span,
-.scene-mainline-exploration--breathing.is-active > span {
+.scene-mainline-exploration--breathing:hover > .scene-mainline-object__label,
+.scene-mainline-exploration--breathing:focus-visible > .scene-mainline-object__label,
+.scene-mainline-exploration--breathing.is-active > .scene-mainline-object__label {
   animation: none;
   color: var(--active);
 }
@@ -1246,46 +1341,25 @@
   color: var(--active);
 }
 @keyframes scene-exploration-breathe {
-  0%, 100% { color: var(--soft); opacity: .52; }
-  50% { color: var(--ink); opacity: 1; }
+  0%, 100% { color: var(--interaction-tutorial-low); opacity: .86; }
+  50% { color: var(--interaction-tutorial-high); opacity: .98; }
 }
-.scene-mainline-object.scene-mainline-exploration--breathing.is-baseline {
-  opacity: .94;
-}
-.scene-mainline-object.scene-mainline-exploration--breathing.is-near {
-  opacity: .94;
-}
-.scene-mainline-altar-table > span {
+.scene-mainline-altar-table.scene-mainline-exploration--breathing > span {
   /* The altar clock is written once by the renderer and read by every
      member. No table owns an independent CSS animation anymore. */
   animation: none;
-  color: color-mix(in srgb, var(--ink) calc(var(--scene-breathing-progress, .5) * 100%), var(--soft));
-  opacity: calc(.52 + var(--scene-breathing-progress, .5) * .48);
+  color: color-mix(in srgb, var(--interaction-tutorial-high) calc(var(--scene-breathing-progress, .5) * 100%), var(--interaction-tutorial-low));
+  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
 }
-.scene-mainline-incense--lit > span {
+.scene-mainline-incense--lit.scene-mainline-exploration--breathing > span {
   animation: none;
-  color: color-mix(in srgb, var(--ink) calc(var(--scene-breathing-progress, .5) * 100%), var(--soft));
-  opacity: calc(.52 + var(--scene-breathing-progress, .5) * .48);
+  color: color-mix(in srgb, var(--interaction-tutorial-high) calc(var(--scene-breathing-progress, .5) * 100%), var(--interaction-tutorial-low));
+  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
 }
-.scene-mainline-altar-table.scene-mainline-exploration--breathing.is-active > span,
-.scene-mainline-incense--lit.is-active > span {
+.scene-mainline-altar-table.scene-mainline-interaction--active > span,
+.scene-mainline-incense--lit.scene-mainline-interaction--active > span {
   color: var(--active) !important;
   opacity: 1 !important;
-}
-.scene-mainline-incense--unlit {
-  color: var(--muted);
-  opacity: .3 !important;
-}
-.scene-mainline-incense--unlit > span {
-  animation: none;
-}
-.scene-mainline-incense--unlit.is-active {
-  color: var(--active);
-  opacity: 1 !important;
-}
-.scene-mainline-incense--lit.scene-mainline-exploration--explored:not(.is-active) > span {
-  animation: scene-exploration-breathe 2.8s ease-in-out infinite;
-  animation-delay: -1.4s;
 }
 .scene-mainline-incense--burning {
   animation: scene-incense-burn-lifecycle var(--incense-burn-remaining, 0ms) linear;
@@ -1319,9 +1393,50 @@
 .scene-mainline-object.is-baseline {
   opacity: .7;
 }
-.scene-mainline-object.scene-mainline-exploration--breathing.is-baseline,
-.scene-mainline-object.scene-mainline-exploration--breathing.is-near {
-  opacity: .94;
+.scene-mainline-object.scene-mainline-interaction--normal-unexplored,
+.scene-mainline-focus-group.scene-mainline-interaction--normal-unexplored {
+  color: var(--interaction-normal);
+  opacity: .9;
+}
+.scene-mainline-object.scene-mainline-interaction--normal-unexplored,
+.scene-mainline-object.scene-mainline-interaction--explored,
+.scene-mainline-object.scene-mainline-interaction--active,
+.scene-mainline-object.scene-mainline-interaction--normal-unexplored > span,
+.scene-mainline-object.scene-mainline-interaction--explored > span,
+.scene-mainline-object.scene-mainline-interaction--active > span {
+  transition: color .14s ease-out, opacity .16s ease-out;
+}
+.scene-mainline-object.scene-mainline-interaction--explored,
+.scene-mainline-focus-group.scene-mainline-interaction--explored {
+  color: var(--interaction-explored);
+  opacity: .82;
+}
+.scene-mainline-object.scene-mainline-interaction--tutorial-unexplored {
+  opacity: 1;
+}
+.scene-mainline-object.scene-mainline-interaction--active,
+.scene-mainline-focus-group.scene-mainline-interaction--active {
+  color: var(--interaction-active);
+  opacity: 1;
+}
+.scene-mainline-object.scene-mainline-interaction--dynamic,
+.scene-mainline-focus-group.scene-mainline-interaction--dynamic {
+  color: var(--interaction-dynamic);
+  opacity: 1;
+}
+.scene-mainline-incense--burning.scene-mainline-interaction--dynamic > span {
+  animation: none;
+  color: color-mix(in srgb, var(--interaction-dynamic) calc(60% + var(--scene-breathing-progress, .5) * 40%), var(--interaction-normal));
+  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
+}
+.scene-mainline-object.scene-mainline-interaction--normal-unexplored > span,
+.scene-mainline-object.scene-mainline-interaction--explored > span,
+.scene-mainline-object.scene-mainline-interaction--active > span {
+  color: inherit;
+}
+.scene-mainline-object.scene-mainline-incense--unlit.scene-mainline-interaction--normal-unexplored {
+  color: var(--muted);
+  opacity: .3;
 }
 .scene-mainline-object.is-mid {
   opacity: .34;
@@ -1332,99 +1447,126 @@
   visibility: hidden;
   pointer-events: none;
 }
-.scene-mainline-object.scene-mainline-yard-tree-ring.is-static,
-.scene-mainline-object.scene-mainline-yard-tree-ring.is-baseline {
+.scene-mainline-object.scene-mainline-yard-tree-ring.is-static.scene-mainline-interaction--normal-unexplored,
+.scene-mainline-object.scene-mainline-yard-tree-ring.is-baseline.scene-mainline-interaction--normal-unexplored {
   opacity: .7;
 }
 .scene-mainline-object.scene-mainline-yard-tree-ring.is-under-player {
   opacity: .28;
 }
-.scene-mainline-object.scene-mainline-yard-tree-ring.is-near {
+.scene-mainline-object.scene-mainline-yard-tree-ring.is-near.scene-mainline-interaction--normal-unexplored {
   color: var(--soft);
   opacity: .7;
-}
-.scene-mainline-object.scene-mainline-yard-tree-ring.scene-mainline-exploration--breathing.is-baseline,
-.scene-mainline-object.scene-mainline-yard-tree-ring.scene-mainline-exploration--breathing.is-near {
-  color: var(--soft);
-  opacity: .94;
 }
 .scene-mainline-object.scene-mainline-yard-tree-ring.scene-mainline-exploration--breathing.is-near.is-under-player {
   opacity: .28;
 }
 
-.scene-mainline-echo {
+.scene-mainline-text {
   position: absolute;
-  z-index: 7;
+  z-index: 14;
   box-sizing: border-box;
-  width: var(--scene-mainline-echo-width);
-  inline-size: var(--scene-mainline-echo-width);
-  height: var(--scene-mainline-echo-height);
+  width: var(--scene-mainline-text-width);
+  inline-size: var(--scene-mainline-text-width);
+  min-height: var(--scene-mainline-text-height);
   max-width: calc(100% - 24px);
   max-height: 36%;
   overflow: visible;
-  padding: .42em .56em .38em;
+  padding: 2px 0;
   color: var(--ink);
   font-family: "Noto Serif SC", Georgia, serif;
-  font-size: clamp(13px, 1.1vw, 16px);
-  line-height: 1.6;
-  white-space: nowrap;
-  overflow-wrap: normal;
+  font-size: clamp(16px, 1.35vw, 20px);
+  line-height: 1.62;
+  white-space: normal;
+  overflow-wrap: anywhere;
   word-break: keep-all;
   text-align: center;
   text-shadow: 0 1px 5px rgba(0, 0, 0, .75);
-  pointer-events: auto;
-  cursor: pointer;
-  touch-action: manipulation;
+  pointer-events: none;
   transform: translate(-50%, -50%);
-  animation: mainline-echo-arrive var(--scene-focus-frame-duration) ease-out both;
+  animation: mainline-text-arrive 160ms ease-out both;
 }
-.scene-mainline-echo__speaker { display: block; width: max-content; margin-bottom: 3px; color: var(--active); font-size: .72em; letter-spacing: .06em; }
-.scene-mainline-echo__text { display: block; width: max-content; white-space: nowrap; animation: mainline-echo-segment-scroll-down var(--scene-focus-frame-duration) cubic-bezier(.22, .61, .36, 1) both; }
-.scene-mainline-object > .scene-focus-frame {
-  inset: -.12em -.18em;
+.scene-mainline-text__speaker { display: block; width: max-content; margin-bottom: 3px; color: var(--active); font-size: max(12px, .74em); letter-spacing: .06em; }
+.scene-mainline-text__observation { display: block; min-height: 1.6em; }
+.scene-mainline-text__dialogue { display: block; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; }
+.scene-mainline-text__dialogue > span { display: block; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.22, .61, .36, 1) both; }
+.scene-mainline-text--dialogue { z-index: 14; isolation: isolate; color: var(--active); }
+.scene-mainline-object__focus-host {
+  position: absolute;
+  z-index: 6;
+  box-sizing: border-box;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
 }
-.scene-mainline-echo > .scene-focus-frame {
-  inset: -.34em -.22em;
-  opacity: .9;
-}
-.scene-mainline-echo.is-leaving {
-  animation: none;
-}
-@keyframes mainline-echo-arrive {
+.scene-mainline-object__focus-host > .scene-focus-frame { inset: -.12em -.18em; }
+.scene-mainline-text.is-leaving { animation: mainline-text-leave 160ms ease-in both; pointer-events: none; }
+@keyframes mainline-text-arrive {
   from { opacity: 0; transform: translate(-50%, calc(-50% + 5px)); }
   to { opacity: 1; transform: translate(-50%, -50%); }
+}
+@keyframes mainline-text-leave {
+  from { opacity: 1; transform: translate(-50%, -50%); }
+  to { opacity: 0; transform: translate(-50%, calc(-50% - 4px)); }
 }
 @keyframes mainline-echo-segment-scroll-down {
   from { opacity: 0; transform: translateY(100%); }
   to { opacity: 1; transform: translateY(0); }
 }
-.scene-mainline-echo.is-leaving > .scene-mainline-echo__text {
-  display: inline-block;
-  animation: mainline-echo-text-leave var(--scene-focus-frame-duration) ease-in both;
+/* A one-shot world-space story trigger marker. */
+.scene-commercial-question-mark {
+  position: absolute;
+  z-index: 7;
+  color: var(--active);
+  font-family: Georgia, "Noto Serif SC", serif;
+  font-size: clamp(22px, 3.1cqw, 38px);
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: scene-commercial-question-mark-pulse 1600ms ease-in-out infinite;
 }
-@keyframes mainline-echo-text-leave {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(-3px); }
+@keyframes scene-commercial-question-mark-pulse {
+  0%, 100% { opacity: .7; transform: translate(-50%, -50%) scale(.94); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
-.scene-mainline-echo__choices {
+.scene-mainline-action {
+  position: absolute;
+  z-index: 14;
   display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 14px;
-  margin-top: 7px;
-  pointer-events: auto;
+  transform: translate(-50%, -50%);
+  animation: mainline-text-arrive 160ms ease-out both;
 }
-.scene-mainline-echo__choices button {
-  padding: 2px 4px;
+.scene-mainline-action .shared-entry-control {
+  width: clamp(124px, 11vw, 176px);
+  min-height: 48px;
+}
+.scene-dialogue-dimmer {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: rgba(5, 5, 5, .30);
+  pointer-events: none;
+  transition: opacity 180ms ease-out;
+}
+.scene-dialogue-dimmer--observation { background: rgba(5, 5, 5, .18); }
+.scene-dialogue-dimmer--dialogue { background: rgba(5, 5, 5, .30); }
+.scene-dialogue-shield {
+  position: absolute;
+  inset: 0;
+  z-index: 13;
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
   border: 0;
-  border-bottom: 1px solid rgba(190, 161, 103, .45);
   background: transparent;
-  color: var(--soft);
+  color: transparent;
   cursor: pointer;
-  font: inherit;
-  font-size: .86em;
+  touch-action: manipulation;
 }
-.scene-mainline-echo__choices button:hover,
-.scene-mainline-echo__choices button:focus-visible { color: var(--active); }
+.scene-dialogue-shield:focus-visible { outline: 1px solid rgba(240, 204, 123, .48); outline-offset: -5px; }
 /* Commercial street keeps the same text-first language as the other mainline
    locations; its wall/storefront composition comes from compiled geometry. */
 .mainline-scene-stage[data-mainline-scene="commercial-street"] {
@@ -1685,9 +1827,8 @@
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--seat {
     font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px));
   }
-  .scene-mainline-echo { max-width: calc(100% - 24px); max-height: 38%; padding: 6px 8px 5px; }
-  .scene-mainline-echo { font-size: 12px; line-height: 1.5; }
-  .mainline-scene--map-only .scene-feedback--overlay { max-width: calc(100% - 24px); padding: 5px 8px; }
+  .scene-mainline-text { max-width: calc(100% - 24px); max-height: 38%; padding: 2px 0; }
+  .scene-mainline-text { font-size: 12px; line-height: 1.5; }
 }
 
 @media (max-height: 600px) and (orientation: landscape) {
@@ -1712,8 +1853,6 @@
   .scene-actor__label { font-size: 11px; }
   .scene-table-text,
   .scene-chair-text { min-width: 0; min-height: 0; font-size: 11px; letter-spacing: 0; }
-  .scene-dialogue { right: 4%; bottom: 3%; left: 4% !important; top: auto !important; width: auto; max-height: 34%; padding: 10px 12px 9px; }
-  .scene-dialogue p { font-size: 14px; }
   .scene-echo { margin-top: 8px; }
 }
 
@@ -1764,4 +1903,12 @@
 @media (prefers-reduced-motion: reduce) {
   .scene-shell *, .scene-shell *::before, .scene-shell *::after,
   .world-phone *, .world-phone *::before, .world-phone *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  .scene-mainline-altar-table.scene-mainline-exploration--breathing > span {
+    color: var(--interaction-tutorial-high);
+    opacity: .92;
+  }
+  .scene-mainline-incense--burning.scene-mainline-interaction--dynamic > span {
+    color: var(--interaction-dynamic);
+    opacity: 1;
+  }
 }
