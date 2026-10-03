@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-const migration = readFileSync(new URL('../supabase/migrations/20261003023500_session_trajectory_analytics.sql', import.meta.url), 'utf8')
+const migration = readFileSync(new URL('../supabase/migrations/20261003023500_session_trajectory_analytics.sql', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 
 function extractCheckConstraint(sql, constraintName) {
   const start = sql.toLowerCase().indexOf(`add constraint ${constraintName.toLowerCase()} check`)
