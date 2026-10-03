@@ -30,7 +30,16 @@ import {
 import './runtime/scene.css'
 import './CenterExperience.css'
 import { useReducedMotion } from '../hooks/useReducedMotion'
-import { trackEvent } from '../services/analytics'
+import {
+  checkpointSessionActivityIfDue,
+  markSessionActivity,
+  setAnalyticsCurrentScene,
+  setAnalyticsPhoneOpen,
+  setCenterMovementActive,
+  setCenterReadingActive,
+  trackEvent,
+} from '../services/analytics'
+import { createCenterPositionSampler } from '../services/centerPositionSampler'
 import { submitCenterFeedback } from '../services/centerFeedback'
 import {
   commercialStreetMilkTeaAppUnlocked,
@@ -66,6 +75,20 @@ export default function CenterExperience({
   const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId))
   const [phoneOpen, setPhoneOpen] = useState(false)
   const sceneReadingActiveRef = useRef(false)
+  const positionSamplerRef = useRef(null)
+  const currentSceneIdRef = useRef(route.sceneId)
+  const latestWorldPositionRef = useRef(null)
+  const pendingInteractionRequestsRef = useRef(new Map())
+  currentSceneIdRef.current = route.sceneId
+  if (!positionSamplerRef.current) {
+    positionSamplerRef.current = createCenterPositionSampler({
+      onSample: ({ sceneId, positionX, positionY }) => trackEvent('center_position_sample', {
+        sceneId,
+        positionX,
+        positionY,
+      }, { deferred: true }).then(() => checkpointSessionActivityIfDue()),
+    })
+  }
   const [phoneDevice, setPhoneDevice] = useState(() => loadPlayerSave().phoneDevice)
   const [requestedPhoneApp, setRequestedPhoneApp] = useState(null)
   const [resumeSceneId, setResumeSceneId] = useState(null)
@@ -96,13 +119,8 @@ export default function CenterExperience({
 
   const revealPhone = useCallback(() => {
     if (sceneReadingActiveRef.current) return
-    trackEvent('center_phone_opened', {
-      sceneId: route.sceneId,
-      device: phoneDevice,
-      outcome: 'opened',
-    })
     setPhoneOpen(true)
-  }, [phoneDevice, route.sceneId])
+  }, [])
   const retractPhone = useCallback(() => {
     setPhoneOpen(false)
     setFeedbackMode(null)
@@ -112,6 +130,17 @@ export default function CenterExperience({
   const trackChapterEvent = useCallback((eventName, eventData = {}) => {
     trackEvent(eventName, { sceneId: route.sceneId, eventData })
   }, [route.sceneId])
+
+  useEffect(() => {
+    setAnalyticsCurrentScene(route.sceneId)
+  }, [route.sceneId])
+
+  const previousPhoneOpenRef = useRef(false)
+  useEffect(() => {
+    if (previousPhoneOpenRef.current === phoneOpen) return
+    previousPhoneOpenRef.current = phoneOpen
+    setAnalyticsPhoneOpen(phoneOpen, phoneDevice)
+  }, [phoneDevice, phoneOpen])
 
   const openMilkTeaApp = useCallback(() => {
     setRequestedPhoneApp('milk-tea')
@@ -194,6 +223,11 @@ export default function CenterExperience({
   }, [phoneDevice, route.sceneId])
   const handleSceneReadingStateChange = useCallback((reading) => {
     sceneReadingActiveRef.current = reading
+    setCenterReadingActive(reading)
+  }, [])
+
+  const handleMeaningfulActivity = useCallback(() => {
+    markSessionActivity()
   }, [])
 
   useEffect(() => {
@@ -220,6 +254,10 @@ export default function CenterExperience({
   }, [commitPlayerSave])
 
   const handleSceneTransition = useCallback((nextSceneId, nextEntryPosition, nextSpawnMode, transitionIntent) => {
+    const lastPosition = latestWorldPositionRef.current
+    if (lastPosition?.sceneId === route.sceneId) {
+      positionSamplerRef.current?.sample(route.sceneId, lastPosition.position, { boundary: true })
+    }
     const nextRoute = createRoute(nextSceneId, nextEntryPosition, nextSpawnMode || 'resume')
     const startsLocalSlide = isLocalSlidePrototypeIntent(transitionIntent) && !reducedMotion
     if (startsLocalSlide) {
@@ -339,6 +377,7 @@ export default function CenterExperience({
   }, [route.sceneId])
 
   const handleDoorEvent = useCallback((phase, passage) => {
+    if (phase === 'attempted') handleMeaningfulActivity()
     const eventName = phase === 'attempted'
       ? 'center_door_attempted'
       : phase === 'blocked'
@@ -351,7 +390,39 @@ export default function CenterExperience({
       destinationSceneId: passage.targetSceneId,
       outcome: phase,
     })
-  }, [route.sceneId])
+    const interactionKey = `${route.sceneId}/${passage.entityId}/door`
+    const pending = pendingInteractionRequestsRef.current.get(interactionKey) ?? 0
+    if ((phase === 'crossed' || phase === 'blocked') && pending > 0) {
+      trackEvent(phase === 'crossed' ? 'center_interaction_completed' : 'center_interaction_blocked', {
+        sceneId: route.sceneId,
+        objectId: passage.entityId,
+        objectKind: 'door',
+        outcome: phase,
+      })
+      if (pending === 1) pendingInteractionRequestsRef.current.delete(interactionKey)
+      else pendingInteractionRequestsRef.current.set(interactionKey, pending - 1)
+    }
+  }, [handleMeaningfulActivity, route.sceneId])
+
+  const handleInteractionAnalytics = useCallback((phase, objectId, objectKind, outcome) => {
+    if (phase === 'requested') handleMeaningfulActivity()
+    const eventName = phase === 'requested'
+      ? 'center_interaction_requested'
+      : phase === 'completed'
+        ? 'center_interaction_completed'
+        : 'center_interaction_blocked'
+    trackEvent(eventName, {
+      sceneId: route.sceneId,
+      objectId,
+      objectKind,
+      outcome,
+    })
+    const key = `${route.sceneId}/${objectId}/${objectKind}`
+    const pending = pendingInteractionRequestsRef.current.get(key) ?? 0
+    if (phase === 'requested') pendingInteractionRequestsRef.current.set(key, pending + 1)
+    else if (pending > 1) pendingInteractionRequestsRef.current.set(key, pending - 1)
+    else pendingInteractionRequestsRef.current.delete(key)
+  }, [handleMeaningfulActivity, route.sceneId])
 
   const handleRideRequest = useCallback((device, destinationSceneId) => {
     const layer = worldLayerForScene(route.sceneId)
@@ -383,6 +454,15 @@ export default function CenterExperience({
     if (canPersistScenePosition) commitPlayerSave((current) => recordPlayerScenePosition(current, route.sceneId, position))
   }, [canPersistScenePosition, commitPlayerSave, route.sceneId])
 
+  const handleRuntimePositionChange = useCallback((sceneId, position) => {
+    latestWorldPositionRef.current = { sceneId, position }
+    positionSamplerRef.current?.sample(sceneId, position)
+  }, [])
+
+  const handlePlayerMovementStateChange = useCallback((moving) => {
+    setCenterMovementActive(moving)
+  }, [])
+
   const renderScenePage = (sceneRoute, {
     key,
     showProtagonist = true,
@@ -398,9 +478,13 @@ export default function CenterExperience({
       phoneOpen={phoneOpen}
       onPhoneDismiss={snapshot ? undefined : retractPhone}
       onReadingStateChange={snapshot ? undefined : handleSceneReadingStateChange}
+      onMeaningfulActivity={snapshot ? undefined : handleMeaningfulActivity}
+      onPlayerMovementStateChange={snapshot ? undefined : handlePlayerMovementStateChange}
+      onRuntimePositionChange={snapshot ? undefined : handleRuntimePositionChange}
       onDeskInteraction={snapshot ? undefined : switchCarriedPhone}
       onObjectInteraction={snapshot ? undefined : handleObjectInteraction}
       onDoorEvent={snapshot ? undefined : handleDoorEvent}
+      onInteractionAnalytics={snapshot ? undefined : handleInteractionAnalytics}
       onMilkTeaAppOpen={snapshot ? undefined : openMilkTeaApp}
       onMilkTeaOrderReady={snapshot ? undefined : handleMilkTeaOrderReady}
       onChapterAnalytics={snapshot ? undefined : trackChapterEvent}
@@ -494,6 +578,7 @@ export default function CenterExperience({
           onFeedbackModeChange={handleFeedbackModeChange}
           onFeedbackOpen={handleFeedbackOpen}
           onFeedbackSubmit={handleFeedbackSubmit}
+          onMeaningfulActivity={handleMeaningfulActivity}
         />
         {boundaryNotice && (
           <div className="center-experience__boundary" role="status" aria-live="polite">

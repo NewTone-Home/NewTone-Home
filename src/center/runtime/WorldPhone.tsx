@@ -77,6 +77,7 @@ type WorldPhoneProps = {
   onMilkTeaOrderConfirm?: (selection: { drink: MilkTeaDrink; sugar: MilkTeaSugar; ice: MilkTeaIce }) => void
   onMilkTeaOrderStarted?: () => void
   onMilkTeaOrderReady?: (order: CommercialStreetMilkTeaOrder) => void
+  onMeaningfulActivity?: () => void
 }
 
 type RideDestination = MainlineMapLandmark & { sceneId: MainlineSceneId }
@@ -157,7 +158,7 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMilkTeaOrderReady }: WorldPhoneProps) {
+export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMilkTeaOrderReady, onMeaningfulActivity }: WorldPhoneProps) {
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
   const [phase, setPhase] = useState<WorldPhonePhase>('closed')
@@ -380,6 +381,8 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
       data-phone-phase={renderedPhase}
       data-phone-device={displayDevice}
       data-world-layer={worldLayer}
+      onClickCapture={onMeaningfulActivity}
+      onKeyDownCapture={onMeaningfulActivity}
     >
       <button
         className="world-phone__handle"

@@ -34,7 +34,7 @@ function Root() {
   const [AdminApp, setAdminApp] = useState(null)
   const adminRoute = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')
   useEffect(() => {
-    const removeTracking = installDwellTracking()
+    const removeTracking = installDwellTracking({ trackInputActivity: !adminRoute })
     if (adminRoute) import('./admin/AdminApp.jsx').then(module => setAdminApp(() => module.default))
     return removeTracking
   }, [adminRoute])

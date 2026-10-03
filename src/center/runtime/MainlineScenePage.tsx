@@ -205,11 +205,14 @@ export function MainlineScenePage({
   suppressWorldEnterAnimation = false,
   movementController,
   onPositionChange,
+  onRuntimePositionChange,
+  onPlayerMovementStateChange,
   onSceneReady,
   walkRequest,
   phoneOpen = false,
   onPhoneDismiss,
   onReadingStateChange,
+  onMeaningfulActivity,
   onDeskInteraction,
   onObjectInteraction,
   onStorefrontAction,
@@ -218,6 +221,7 @@ export function MainlineScenePage({
   onChapterAnalytics,
   onNpcInteraction,
   onDoorEvent,
+  onInteractionAnalytics,
   initialSceneState = {},
   interactionTutorialCompleted = false,
   onPlayerSceneStateChange,
@@ -240,11 +244,14 @@ export function MainlineScenePage({
   suppressWorldEnterAnimation?: boolean
   movementController?: FreeRoamMovement
   onPositionChange?: (position: Point) => void
+  onRuntimePositionChange?: (sceneId: MainlineSceneId, position: Point) => void
+  onPlayerMovementStateChange?: (moving: boolean) => void
   onSceneReady?: () => void
   walkRequest?: { id: number; point: Point } | null
   phoneOpen?: boolean
   onPhoneDismiss?: () => void
   onReadingStateChange?: (reading: boolean) => void
+  onMeaningfulActivity?: () => void
   onDeskInteraction?: (device: PhoneDevice) => void
   onObjectInteraction?: (entity: MainlineSceneEntity, dwellMs: number) => void
   /** Reserved entry point for future storefront actions such as milk-tea ordering. */
@@ -254,6 +261,7 @@ export function MainlineScenePage({
   onChapterAnalytics?: (eventName: string, eventData?: Record<string, string | number>) => void
   onNpcInteraction?: (npcId: string) => void
   onDoorEvent?: (phase: 'attempted' | 'blocked' | 'crossed', passage: MainlineScenePassage) => void
+  onInteractionAnalytics?: (phase: 'requested' | 'completed' | 'blocked', objectId: string, objectKind: string, outcome?: string) => void
   initialSceneState?: PlayerSceneState
   interactionTutorialCompleted?: boolean
   onPlayerSceneStateChange?: (sceneId: MainlineSceneId, key: string, value: PlayerChoiceValue) => void
@@ -1295,6 +1303,11 @@ export function MainlineScenePage({
   }, [])
 
   useEffect(() => onPositionChange?.(position), [onPositionChange, position])
+  useEffect(() => onRuntimePositionChange?.(scene.id, position), [onRuntimePositionChange, position, scene.id])
+  useEffect(() => {
+    onPlayerMovementStateChange?.(moving)
+    return () => onPlayerMovementStateChange?.(false)
+  }, [moving, onPlayerMovementStateChange])
 
   useEffect(() => {
     const previousExternalExit = externalExits.find((boundary) => isPastExternalExit(previousExternalExitPositionRef.current, boundary, scene))
@@ -1584,10 +1597,13 @@ export function MainlineScenePage({
     setCommercialCafeNarrative(null)
     dismissSceneEcho()
     const entity = getMainlineSceneEntity(scene, entityId)
+    const passage = scene.passages.find((candidate) => candidate.entityId === entityId)
+    onInteractionAnalytics?.('requested', entityId, passage ? 'door' : entity.kind)
     if (entity.kind === 'seat' && entity.seat) {
       const nextSeatId = nextMainlinePlayerSeatId(scene, activePlayerSeatId, entity.id)
       if (nextSeatId !== entity.id) {
         stopMovement()
+        onInteractionAnalytics?.('blocked', entity.id, 'seat', 'already-seated')
         return
       }
       leavePlayerSeat()
@@ -1595,6 +1611,7 @@ export function MainlineScenePage({
       const sitPosition = resolveMainlineSeatSitPosition(scene, entity.id, layout, navigationOptions)
       if (!resolved.path || !sitPosition) {
         stopMovement()
+        onInteractionAnalytics?.('blocked', entity.id, 'seat', 'unreachable')
         return
       }
       setActiveObjectId(entity.id)
@@ -1604,6 +1621,7 @@ export function MainlineScenePage({
         setPlayerSeatId(nextSeatId)
         setPromptedSeatId(null)
         markEntityExplored(entity.id)
+        onInteractionAnalytics?.('completed', entity.id, 'seat', 'seated')
         const resolution = resolveCommercialCafeNpcInteraction({
           sceneId: scene.id,
           npcId: 'lao-zhou',
@@ -1622,12 +1640,12 @@ export function MainlineScenePage({
         canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
         onBlocked: () => {
           setActiveObjectId(null)
+          onInteractionAnalytics?.('blocked', entity.id, 'seat', 'movement-blocked')
         },
       })
       return
     }
     leavePlayerSeat()
-    const passage = scene.passages.find((candidate) => candidate.entityId === entityId)
     if (passage) {
       // A direct door click is an explicit request to use that door. Resolve
       // the opposite side from the same projected doorway used by movement,
@@ -1638,6 +1656,7 @@ export function MainlineScenePage({
       const approach = canActorReachPassageApproach(scene, passage, getCurrentPosition(), layout, navigationOptions)
       if (!approach) {
         stopMovement()
+        onDoorEvent?.('blocked', passage)
         return
       }
       onDoorEvent?.('attempted', passage)
@@ -1649,6 +1668,7 @@ export function MainlineScenePage({
       const interactionStartedAt = interactionStartedAtRef.current
       interactionStartedAtRef.current = null
       onObjectInteraction?.(entity, Math.max(0, Date.now() - (interactionStartedAt ?? Date.now())))
+      onInteractionAnalytics?.('completed', entity.id, entity.kind, 'interacted')
       const exploration = resolveMainlineSceneExploration(scene, entity, {
         incensePhase,
         plantWatered: plantIsWatered(plantWateredAt, Date.now()),
@@ -1696,6 +1716,7 @@ export function MainlineScenePage({
     if (!resolved.path) {
       interactionStartedAtRef.current = null
       stopMovement()
+      onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'unreachable')
       return
     }
     interactionStartedAtRef.current = Date.now()
@@ -1707,9 +1728,10 @@ export function MainlineScenePage({
       onBlocked: () => {
         interactionStartedAtRef.current = null
         setActiveObjectId(null)
+        onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, incensePhase, layout, leavePlayerSeat, locomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onObjectInteraction, onPhoneDismiss, phoneOpen, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, incensePhase, layout, leavePlayerSeat, locomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
 
   const showMilkTeaEcho = useCallback((text: string) => {
     sceneEchoIdRef.current += 1
@@ -1750,6 +1772,7 @@ export function MainlineScenePage({
     dismissSceneAction()
     const storefront = scene.storefronts.find((candidate) => candidate.id === storefrontId)
     if (!storefront || !commercialStreetStorefrontInteractionFor(storefrontId)) return
+    onInteractionAnalytics?.('requested', storefrontId, 'storefront')
     setRequestedWorldTarget(null)
     if (phoneOpen) onPhoneDismiss?.()
     setDialogueLineIndex(null)
@@ -1759,7 +1782,11 @@ export function MainlineScenePage({
     const revealStorefrontInteraction = () => {
       const resolution = executeCommercialStreetStorefrontInteraction(storefrontId, storefrontInteractionRuntimeRef.current, storefrontExecutionRuntimeRef.current)
       setActiveObjectId(null)
-      if (!resolution) return
+      if (!resolution) {
+        onInteractionAnalytics?.('blocked', storefrontId, 'storefront', 'not-resolved')
+        return
+      }
+      onInteractionAnalytics?.('completed', storefrontId, 'storefront', 'interacted')
       onChapterAnalytics?.('commercial_storefront_interacted', { slotId: storefront.id, storeType: storefront.label })
       dismissSceneEcho()
       if (resolution.kind === 'action') {
@@ -1795,6 +1822,7 @@ export function MainlineScenePage({
     }
     if (!interaction.path) {
       stopMovement()
+      onInteractionAnalytics?.('blocked', storefrontId, 'storefront', 'unreachable')
       return
     }
     setActiveObjectId(storefrontId)
@@ -1804,17 +1832,20 @@ export function MainlineScenePage({
       canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
       onBlocked: () => {
         setActiveObjectId(null)
+        onInteractionAnalytics?.('blocked', storefrontId, 'storefront', 'movement-blocked')
       },
     })
-  }, [beginMilkTeaStorefrontAction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, onChapterAnalytics, onPhoneDismiss, onStorefrontAction, phoneOpen, presentSceneEcho, readingActive, scene, sceneAction?.phase, screenMetrics, stopMovement])
+  }, [beginMilkTeaStorefrontAction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, onChapterAnalytics, onInteractionAnalytics, onPhoneDismiss, onStorefrontAction, phoneOpen, presentSceneEcho, readingActive, scene, sceneAction?.phase, screenMetrics, stopMovement])
 
   const interactNpc = useCallback((npcId: string) => {
     if (readingActive || sceneAction?.phase === 'committing') return
     dismissSceneAction()
     const npc = scene.npcs.find((candidate) => candidate.id === npcId)
     if (!npc || npc.interactive === false) return
+    onInteractionAnalytics?.('requested', npc.id, 'npc')
     setRequestedWorldTarget(null)
     if (movingNpcIds.has(npcId)) {
+      onInteractionAnalytics?.('blocked', npc.id, 'npc', 'actor-moving')
       return
     }
     if (phoneOpen) onPhoneDismiss?.()
@@ -1831,6 +1862,7 @@ export function MainlineScenePage({
     if (activePlayerSeatId && seatedResolution) {
       stopMovement()
       onNpcInteraction?.(npc.id)
+      onInteractionAnalytics?.('completed', npc.id, 'npc', 'dialogue-started')
       if (seatedResolution.kind === 'dialogue') startNpcDialogue(seatedResolution)
       else if (seatedResolution.kind === 'start-narrative') startCommercialCafeNarrative()
       return
@@ -1850,7 +1882,11 @@ export function MainlineScenePage({
         story: commercialCafeStory,
         playerSeatId: null,
       })
-      if (!resolution) return
+      if (!resolution) {
+        onInteractionAnalytics?.('blocked', npc.id, 'npc', 'no-interaction-available')
+        return
+      }
+      onInteractionAnalytics?.('completed', npc.id, 'npc', 'dialogue-started')
       if (resolution.kind === 'dialogue') startNpcDialogue(resolution)
       else if (resolution.kind === 'start-narrative') startCommercialCafeNarrative()
     }
@@ -1863,6 +1899,7 @@ export function MainlineScenePage({
     if (!resolved.path) {
       npcInteractionRequestRef.current += 1
       stopMovement()
+      onInteractionAnalytics?.('blocked', npc.id, 'npc', 'unreachable')
       return
     }
     moveAlong(resolved.path, completeInteraction, {
@@ -1872,13 +1909,15 @@ export function MainlineScenePage({
       onBlocked: () => {
         if (npcInteractionRequestRef.current !== requestId) return
         npcInteractionRequestRef.current += 1
+        onInteractionAnalytics?.('blocked', npc.id, 'npc', 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, locomotionOptions, moveAlong, movingNpcIds, navigationOptions, onNpcInteraction, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
+  }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, locomotionOptions, moveAlong, movingNpcIds, navigationOptions, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
 
   const chooseSceneEchoOption = useCallback((index: number) => {
     const option = sceneAction?.options[index]
     if (!option) return
+    onMeaningfulActivity?.()
     const entity = sceneAction?.entityId ? scene.objects.find((candidate) => candidate.id === sceneAction.entityId) : undefined
     const resolution = resolveMainlineSceneEchoChoice(scene, entity, option, Date.now(), {
       commercialCafeCoffeeOrdered: commercialCafeCoffeeOrderedState(commercialCafeStory),
@@ -1906,11 +1945,12 @@ export function MainlineScenePage({
       setPlantWateredAt(resolution.stateChange.value)
     }
     dismissSceneAction()
-  }, [carriedMilkTea, commercialCafeStory, dismissSceneAction, initialSceneState, onChapterAnalytics, onDeskInteraction, recordSceneState, recordSceneStatePatch, scene, sceneAction])
+  }, [carriedMilkTea, commercialCafeStory, dismissSceneAction, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, recordSceneState, recordSceneStatePatch, scene, sceneAction])
 
   const advanceSceneEcho = useCallback(() => {
     const current = sceneEchoRef.current
     if (!current || current.phase === 'leaving') return
+    onMeaningfulActivity?.()
     if (current.typing) {
       const next = { ...current, typing: false }
       sceneEchoRef.current = next
@@ -1934,7 +1974,7 @@ export function MainlineScenePage({
       return
     }
     dismissSceneEcho()
-  }, [dismissSceneEcho])
+  }, [dismissSceneEcho, onMeaningfulActivity])
 
   const completeSceneEchoTyping = useCallback((echoId: number) => {
     const current = sceneEchoRef.current
@@ -1945,6 +1985,7 @@ export function MainlineScenePage({
   }, [])
 
   const advanceDialogue = useCallback(() => {
+    onMeaningfulActivity?.()
     if (commercialStreetQuestionNarrative) {
       setCommercialStreetQuestionNarrative((current) => current ? nextCommercialStreetQuestionNarrative(current) : current)
       return
@@ -2007,11 +2048,12 @@ export function MainlineScenePage({
       return
     }
     setGenericDialoguePhase('leaving')
-  }, [activeDialogue, commercialCafeNarrative, commercialCafeStory, commercialStreetQuestionNarrative, dialogueLineIndex, dialogueSegmentIndex, npcDialogue, onChapterAnalytics, recordCafeAnalyticsMilestone, recordSceneState, recordSceneStatePatch, scene.id])
+  }, [activeDialogue, commercialCafeNarrative, commercialCafeStory, commercialStreetQuestionNarrative, dialogueLineIndex, dialogueSegmentIndex, npcDialogue, onChapterAnalytics, onMeaningfulActivity, recordCafeAnalyticsMilestone, recordSceneState, recordSceneStatePatch, scene.id])
 
   const walk = useCallback((point: Point) => {
     if (readingActive) return
     if (sceneAction?.phase === 'committing') return
+    onMeaningfulActivity?.()
     dismissSceneAction()
     npcInteractionRequestRef.current += 1
     if (phoneOpen) {
@@ -2050,7 +2092,7 @@ export function MainlineScenePage({
         return
       }
     }, resolution.path)
-  }, [debugCafeSpatialQa, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, moveTo, navigationOptions, onPhoneDismiss, phoneOpen, readingActive, sceneAction?.phase, sceneDefinition, setDialogueLineIndex, showAccessRegionDeniedText, startPassageTraversal, stopMovement])
+  }, [debugCafeSpatialQa, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, moveTo, navigationOptions, onMeaningfulActivity, onPhoneDismiss, phoneOpen, readingActive, sceneAction?.phase, sceneDefinition, setDialogueLineIndex, showAccessRegionDeniedText, startPassageTraversal, stopMovement])
 
   const completeCommercialStreetQuestionNarrativeExit = useCallback(() => {
     if (commercialStreetQuestionNarrative?.phase !== 'leaving') return
