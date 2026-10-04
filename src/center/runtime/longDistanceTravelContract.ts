@@ -12,6 +12,11 @@ const mainlineLongDistanceTravelRoutes: readonly MainlineLongDistanceTravelInten
     sourceSceneId: 'zhongshuyuan-office',
     targetSceneId: 'commercial-street',
   },
+  {
+    kind: 'ride',
+    sourceSceneId: 'commercial-street',
+    targetSceneId: 'jijia-ancestral-home',
+  },
 ]
 
 export const longDistanceTravelVehicleDurationMs = 1600

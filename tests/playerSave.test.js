@@ -22,6 +22,12 @@ function createStorage() {
 }
 
 describe('player local save contract', () => {
+  it('returns the same save for an unchanged persisted position', () => {
+    const initial = createInitialPlayerSave('jijia-ancestral-home')
+    const next = recordPlayerScenePosition(initial, 'jijia-ancestral-home', { x: 12, y: 24 })
+    expect(recordPlayerScenePosition(next, 'jijia-ancestral-home', { x: 12, y: 24 })).toBe(next)
+    expect(recordPlayerScenePosition(next, 'jijia-ancestral-home', { x: 13, y: 24 })).not.toBe(next)
+  })
   it('distinguishes a fresh default save from a resumable session', () => {
     const storage = createStorage()
     expect(hasResumablePlayerSave(storage)).toBe(false)

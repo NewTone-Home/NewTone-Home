@@ -72,6 +72,7 @@ export default function CenterExperience({
 }) {
   const reducedMotion = useReducedMotion()
   const [playerSave, setPlayerSave] = useState(() => loadPlayerSave())
+  const playerSaveRef = useRef(playerSave)
   const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId))
   const [phoneOpen, setPhoneOpen] = useState(false)
   const sceneReadingActiveRef = useRef(false)
@@ -105,7 +106,11 @@ export default function CenterExperience({
 
 
   const commitPlayerSave = useCallback((update) => {
-    setPlayerSave((current) => persistPlayerSave(update(current)))
+    const current = playerSaveRef.current
+    const next = update(current)
+    if (next === current) return
+    playerSaveRef.current = persistPlayerSave(next)
+    setPlayerSave(playerSaveRef.current)
   }, [])
 
   const handleSceneAnimationEnd = useCallback((event) => {
@@ -451,8 +456,12 @@ export default function CenterExperience({
       || resumeSceneId === route.sceneId,
   )
   const handlePositionChange = useCallback((position) => {
-    if (canPersistScenePosition) commitPlayerSave((current) => recordPlayerScenePosition(current, route.sceneId, position))
-  }, [canPersistScenePosition, commitPlayerSave, route.sceneId])
+    if (!canPersistScenePosition) return
+    const current = playerSaveRef.current
+    const next = recordPlayerScenePosition(current, route.sceneId, position)
+    // Position is persisted continuously; only scene state needs a React publication.
+    if (next !== current) playerSaveRef.current = persistPlayerSave(next)
+  }, [canPersistScenePosition, route.sceneId])
 
   const handleRuntimePositionChange = useCallback((sceneId, position) => {
     latestWorldPositionRef.current = { sceneId, position }

@@ -38,6 +38,41 @@
   touch-action: pan-y;
 }
 
+.shared-entry-control.is-content-sized {
+  width: max-content;
+  min-width: 0;
+  max-width: min(92vw, 360px);
+  min-height: 48px;
+  padding: 0;
+}
+.shared-entry-control.is-content-sized .shared-entry-content {
+  width: max-content;
+  min-width: 76px;
+  min-height: 48px;
+  padding: 12px 22px;
+}
+.shared-entry-control.is-content-sized .entry-text-flip {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  overflow: visible;
+  white-space: normal;
+}
+.shared-entry-control.is-content-sized .entry-text-flip__track {
+  display: grid;
+  width: 100%;
+  height: auto;
+  transform: none;
+}
+.shared-entry-control.is-content-sized .entry-text-flip__slot {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: auto;
+  min-height: 1.4em;
+  white-space: nowrap;
+  text-align: center;
+}
+
 .shared-entry-control[data-entry-material-source='background'] {
   --return-text-active: var(--reader-ink, var(--ink-dark));
 }

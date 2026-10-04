@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import type { Point } from './sceneGeometry'
 import { MainlineAmbientNpcActor, MainlineSceneRenderer, type MainlineInputDiagnostic } from './MainlineSceneRenderer'
 import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneAreaLabel, mainlineScenes, mainlineStorefrontInteractionCandidates, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneExternalExit, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
-import { canActorReachPassageApproach, classifyMainlineWorldCommand, findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, isMainlineEntityWithinInteractionRange, isMainlineNavigationBarrierClear, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlineInteractionTarget, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineEntityInteraction, resolveMainlineInteractionCandidates, resolveMainlineNpcInteraction, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from './mainlineNavigation'
+import { prepareMainlineWorldNavigation, canActorReachPassageApproach, classifyMainlineWorldCommand, findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, isMainlineEntityWithinInteractionRange, isMainlineNavigationBarrierClear, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlineInteractionTarget, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineEntityInteraction, resolveMainlineInteractionCandidates, resolveMainlineStorefrontInteraction, resolveMainlineNpcInteraction, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from './mainlineNavigation'
 import { layoutGridSize, mainlineLabelFootprint, mainlineProtagonistDotFootprint, type SceneLayout } from './sceneLayout'
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
 import { movementDurationMsForPath, sharedCharacterMovementOptions, useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
@@ -28,7 +28,7 @@ import { useStorefrontPresentation } from './useStorefrontPresentation'
 import { splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
-import { incenseBurnPhase, incenseBurnRemainingMs, plantIsWatered, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
+import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, plantIsWatered, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import { mainlineExploredObjectIdsFromSceneState, mainlineInteractionCompletesImmediately, mainlineInteractionExploredStateKey } from './mainlineInteractionVisualState'
@@ -321,6 +321,8 @@ export function MainlineScenePage({
   const frameMotionProfileRef = useRef<readonly SceneFocusFrameMotionProfile[]>([])
   const pendingTraversalRef = useRef<PendingMainlineTraversal | null>(null)
   const continuePendingTraversalRef = useRef<(entityId: string) => void>(() => {})
+  const pendingInteractionAfterTraversalRef = useRef<string | null>(null)
+  const resumeInteractionRef = useRef<(entityId: string) => void>(() => {})
   const [screenMetrics, setScreenMetrics] = useState<SceneScreenMetrics>(defaultSceneScreenMetrics)
   const sceneReadyRef = useRef(false)
   const handleScreenMetricsChange = useCallback((next: SceneScreenMetrics) => {
@@ -335,6 +337,7 @@ export function MainlineScenePage({
   const interactionStartedAtRef = useRef<number | null>(null)
   const storefrontInteractionRuntimeRef = useRef(createCommercialStreetStorefrontInteractionRuntime())
   const storefrontExecutionRuntimeRef = useRef(createCommercialStreetStorefrontExecutionRuntime())
+  const storefrontRequestIdRef = useRef(0)
   const npcInteractionRequestRef = useRef(0)
   const navigationRuntimeRef = useRef(createNavigationRuntime())
   const navigationRuntime = navigationRuntimeRef.current
@@ -345,6 +348,8 @@ export function MainlineScenePage({
   const cafeCoffeeOwnerCurrentDutyRef = useRef<string | null>(null)
   const [cafeCoffeeMoveRetryTick, setCafeCoffeeMoveRetryTick] = useState(0)
   const [cafeFloorMoveRetryTick, setCafeFloorMoveRetryTick] = useState(0)
+  const [cafeCounterAmbientWakeTick, setCafeCounterAmbientWakeTick] = useState(0)
+  const cafeCounterAmbientTimerRef = useRef<number | null>(null)
   const [laoZhouExitRetryTick, setLaoZhouExitRetryTick] = useState(0)
   const cafeCoffeeMoveRetryAppliedRef = useRef(0)
   const cafeFloorMoveRetryAppliedRef = useRef(0)
@@ -405,6 +410,7 @@ export function MainlineScenePage({
   const [incenseLitAt, setIncenseLitAt] = useState<number | null>(() => typeof initialSceneState.incenseLitAt === 'number' ? initialSceneState.incenseLitAt : null)
   const [plantWateredAt, setPlantWateredAt] = useState<number | null>(() => typeof initialSceneState.plantWateredAt === 'number' ? initialSceneState.plantWateredAt : null)
   const [incenseClock, setIncenseClock] = useState(() => Date.now())
+  const handleIncenseBurnComplete = useCallback(() => setIncenseClock(Date.now()), [])
   const sceneEchoIdRef = useRef(0)
   const cafeAnalyticsMilestonesRef = useRef<Set<CommercialCafeAnalyticsStage>>(new Set())
   const shortInteractionCompletionFrameRef = useRef<number | null>(null)
@@ -438,6 +444,10 @@ export function MainlineScenePage({
       ? commercialCafeAnalyticsMilestonesFromSceneState(initialSceneState)
       : new Set()
   }, [initialSceneState, scene.id])
+  useEffect(() => {
+    const patch = initializeOfficePlants(scene, initialSceneState, Date.now())
+    if (Object.keys(patch).length) recordSceneStatePatch(scene.id, patch)
+  }, [initialSceneState, recordSceneStatePatch, scene])
   const recordCafeAnalyticsMilestone = useCallback((stage: CommercialCafeAnalyticsStage) => {
     if (scene.id !== 'commercial-cafe' || cafeAnalyticsMilestonesRef.current.has(stage)) return false
     cafeAnalyticsMilestonesRef.current.add(stage)
@@ -601,7 +611,10 @@ export function MainlineScenePage({
       },
     })
   }, [navigationRuntime, rawMoveAlong])
-  const geometrySnapshot = useMemo(() => createMainlineSceneGeometrySnapshot(scene, position, layout, screenMetrics, storefrontPresentation.phaseByStorefront), [layout, position, scene, screenMetrics, storefrontPresentation.phaseByStorefront])
+  // Compiled scene geometry is independent of a moving actor. Storefront
+  // visibility is owned by its presentation phase map; use the authored spawn
+  // only as the stable fallback during that map's initial render.
+  const geometrySnapshot = useMemo(() => createMainlineSceneGeometrySnapshot(scene, scene.initialPlayerPosition, layout, screenMetrics, storefrontPresentation.phaseByStorefront), [layout, scene, screenMetrics, storefrontPresentation.phaseByStorefront])
   const stagedNpcPositions = useMemo(() => new Map(scene.npcs.map((npc) => [
     npc.id,
     resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics }),
@@ -868,6 +881,9 @@ export function MainlineScenePage({
     },
   })
   const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics, geometrySnapshot, navigationRuntime, actorId: 'protagonist', actorFootprint: protagonistFootprint, npcRuntimePositions, occupiedSeatIds }), [geometrySnapshot, getOpenPassageIds, navigationRuntime, npcRuntimePositions, occupiedSeatIds, protagonistFootprint, screenMetrics])
+  useEffect(() => {
+    prepareMainlineWorldNavigation(scene, layout, navigationOptions)
+  }, [scene, layout, navigationOptions])
   const locomotionOptions = useMemo(() => ({
     ...sharedCharacterMovementOptions(screenMetrics),
     speedMultiplier: () => sceneTextSlowdownActiveRef.current ? .45 : 1,
@@ -948,6 +964,9 @@ export function MainlineScenePage({
     const timer = window.setTimeout(() => setCafeCoffeeMoveRetryTick((tick) => tick + 1), npcRetryDelay(300, cafeCoffeeOwnerMovement.snapshot.retryCount))
     return () => window.clearTimeout(timer)
   }, [cafeCoffeeOwnerMovement.snapshot.phase, cafeCoffeeOwnerMovement.snapshot.retryCount, scene.id])
+  useEffect(() => () => {
+    if (cafeCounterAmbientTimerRef.current !== null) window.clearTimeout(cafeCounterAmbientTimerRef.current)
+  }, [])
   useEffect(() => {
     if (scene.id !== 'commercial-cafe' || cafeFloorServerMovement.snapshot.phase !== 'blocked') return
     const timer = window.setTimeout(() => setCafeFloorMoveRetryTick((tick) => tick + 1), npcRetryDelay(300, cafeFloorServerMovement.snapshot.retryCount))
@@ -988,10 +1007,18 @@ export function MainlineScenePage({
       } else if (intent.dutyId === 'cafe-coffee-owner.return-to-counter') {
         cafeCoffeeOwnerCurrentDutyRef.current = null
         commercialCafeCoffeeBehavior.arrivedAtCounter()
+      } else if (intent.dutyId === 'cafe-coffee-owner.counter-ambient') {
+        commercialCafeCoffeeBehavior.arrivedAtAmbientCounter()
+        if (cafeCounterAmbientTimerRef.current !== null) window.clearTimeout(cafeCounterAmbientTimerRef.current)
+        cafeCounterAmbientTimerRef.current = window.setTimeout(() => {
+          cafeCounterAmbientTimerRef.current = null
+          commercialCafeCoffeeBehavior.resumeAmbientCounter()
+          setCafeCounterAmbientWakeTick((tick) => tick + 1)
+        }, 900)
       }
     })
     if (!started) commercialCafeCoffeeBehavior.block()
-  }, [cafeCoffeeMoveRetryTick, cafeCoffeeOwnerMovement, cafeCoffeeOwnerLocomotionOptions, commercialCafeCoffeeBehavior, commercialCafeStory.coffeeStatus, commercialCafeStory.narrativePhase, initialSceneState, layout, navigationOptions, recordSceneStatePatch, scene])
+  }, [cafeCoffeeMoveRetryTick, cafeCounterAmbientWakeTick, cafeCoffeeOwnerMovement, cafeCoffeeOwnerLocomotionOptions, commercialCafeCoffeeBehavior, commercialCafeStory.coffeeStatus, commercialCafeStory.narrativePhase, initialSceneState, layout, navigationOptions, recordSceneStatePatch, scene])
   useEffect(() => {
     if (scene.id !== 'commercial-cafe') {
       commercialCafeFloorBehavior.reset()
@@ -1056,7 +1083,7 @@ export function MainlineScenePage({
       : { phase: 'retracting', passageEntityId: passage.entityId, scope })
   }, [])
 
-  const beginPassageLeg = useCallback((passage: MainlineScenePassage, requestedTarget: Point, plannedApproachPath: Point[] | null | undefined, continuationPath: Point[] | null | undefined, passageQueue: readonly MainlineScenePassage[], passageIndex: number) => {
+  const beginPassageLeg = useCallback(function beginPassageLeg(passage: MainlineScenePassage, requestedTarget: Point, plannedApproachPath: Point[] | null | undefined, continuationPath: Point[] | null | undefined, passageQueue: readonly MainlineScenePassage[], passageIndex: number, replanCount = 0) {
     pendingTraversalRef.current = null
     setSceneFrameExit({ phase: 'idle' })
     cancelPassageLifecycle('protagonist')
@@ -1114,7 +1141,16 @@ export function MainlineScenePage({
       onBeforeMoveStep: requestApproachOpening,
       onMove: requestApproachOpening,
       onBlocked: () => {
+        // Replan the same request against current actor occupancy at the legal stop.
+        const approach = passage.access !== 'locked' && replanCount < 2
+          ? canActorReachPassageApproach(scene, passage, getCurrentPosition(), layout, navigationOptions)
+          : null
+        if (approach) {
+          beginPassageLeg(passage, requestedTarget, approach.path, continuationPath, passageQueue, passageIndex, replanCount + 1)
+          return
+        }
         pendingTraversalRef.current = null
+        cancelPassageLifecycle('protagonist', passage.id)
         setPassageDestination(null)
         setSceneFrameExit({ phase: 'idle' })
         onDoorEvent?.('blocked', passage)
@@ -1248,6 +1284,9 @@ export function MainlineScenePage({
       moveAlong(continuation.path, () => {
         setPassageDestination(null)
         setActiveObjectId(null)
+        const pendingInteractionId = pendingInteractionAfterTraversalRef.current
+        pendingInteractionAfterTraversalRef.current = null
+        if (pendingInteractionId) resumeInteractionRef.current(pendingInteractionId)
       }, {
         ...locomotionOptions,
         canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, openNavigationOptions),
@@ -1255,6 +1294,7 @@ export function MainlineScenePage({
         onBlocked: () => {
           setPassageDestination(null)
           setActiveObjectId(null)
+          pendingInteractionAfterTraversalRef.current = null
         },
       })
     }
@@ -1586,7 +1626,7 @@ export function MainlineScenePage({
     beginPassageLeg(passage, requestedTarget, plannedApproachPath, continuationPath, passageQueue, passageIndex)
   }, [beginPassageLeg, dismissSceneAction, dismissSceneEcho, sceneAction?.phase])
 
-  const interact = useCallback((entityId: string) => {
+  const interact = useCallback((entityId: string, requestAlreadyRecorded = false) => {
     if (readingActive || sceneAction?.phase === 'committing') return
     dismissSceneAction()
     npcInteractionRequestRef.current += 1
@@ -1598,7 +1638,8 @@ export function MainlineScenePage({
     dismissSceneEcho()
     const entity = getMainlineSceneEntity(scene, entityId)
     const passage = scene.passages.find((candidate) => candidate.entityId === entityId)
-    onInteractionAnalytics?.('requested', entityId, passage ? 'door' : entity.kind)
+    if (!requestAlreadyRecorded) pendingInteractionAfterTraversalRef.current = null
+    if (!requestAlreadyRecorded) onInteractionAnalytics?.('requested', entityId, passage ? 'door' : entity.kind)
     if (entity.kind === 'seat' && entity.seat) {
       const nextSeatId = nextMainlinePlayerSeatId(scene, activePlayerSeatId, entity.id)
       if (nextSeatId !== entity.id) {
@@ -1671,7 +1712,14 @@ export function MainlineScenePage({
       onInteractionAnalytics?.('completed', entity.id, entity.kind, 'interacted')
       const exploration = resolveMainlineSceneExploration(scene, entity, {
         incensePhase,
-        plantWatered: plantIsWatered(plantWateredAt, Date.now()),
+        plantWatered: entity.id === 'zhongshuyuan-office-plant'
+          ? plantIsWatered(plantWateredAt, Date.now())
+          : plantIsWatered(typeof initialSceneState[`plantWateredAt:${entity.id}`] === 'number' ? initialSceneState[`plantWateredAt:${entity.id}`] as number : null, Date.now()),
+        plantHealthyText: entity.id.startsWith('zhongshuyuan-office-port-plant-')
+          && plantIsWatered(typeof initialSceneState[`plantWateredAt:${entity.id}`] === 'number' ? initialSceneState[`plantWateredAt:${entity.id}`] as number : null, Date.now())
+          ? '叶子翠绿翠绿的，看起来很有活力'
+          : undefined,
+        plantWaterStateKey: entity.id === 'zhongshuyuan-office-plant' ? undefined : `plantWateredAt:${entity.id}`,
         officeBlindsOpen,
         carriedPhoneDevice,
         commercialCafeCoffeeOrdered: commercialCafeCoffeeOrderedState(commercialCafeStory),
@@ -1714,6 +1762,13 @@ export function MainlineScenePage({
     }
     const resolved = interaction
     if (!resolved.path) {
+      const command = classifyMainlineWorldCommand(scene, getCurrentPosition(), resolved.target, layout, navigationOptions)
+      if (command.kind === 'passage' && command.approachPath) {
+        pendingInteractionAfterTraversalRef.current = entity.id
+        setActiveObjectId(entityId)
+        startPassageTraversal(command.passage, command.requestedTarget, command.approachPath, null, command.passages)
+        return
+      }
       interactionStartedAtRef.current = null
       stopMovement()
       onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'unreachable')
@@ -1731,7 +1786,9 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, incensePhase, layout, leavePlayerSeat, locomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, incensePhase, layout, leavePlayerSeat, locomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
+
+  resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
   const showMilkTeaEcho = useCallback((text: string) => {
     sceneEchoIdRef.current += 1
@@ -1773,6 +1830,7 @@ export function MainlineScenePage({
     const storefront = scene.storefronts.find((candidate) => candidate.id === storefrontId)
     if (!storefront || !commercialStreetStorefrontInteractionFor(storefrontId)) return
     onInteractionAnalytics?.('requested', storefrontId, 'storefront')
+    const requestId = ++storefrontRequestIdRef.current
     setRequestedWorldTarget(null)
     if (phoneOpen) onPhoneDismiss?.()
     setDialogueLineIndex(null)
@@ -1780,6 +1838,7 @@ export function MainlineScenePage({
     setGenericDialoguePhase('active')
 
     const revealStorefrontInteraction = () => {
+      if (requestId !== storefrontRequestIdRef.current) return
       const resolution = executeCommercialStreetStorefrontInteraction(storefrontId, storefrontInteractionRuntimeRef.current, storefrontExecutionRuntimeRef.current)
       setActiveObjectId(null)
       if (!resolution) {
@@ -1806,36 +1865,44 @@ export function MainlineScenePage({
       ))
     }
 
-    const currentPosition = getCurrentPosition()
-    const interaction = resolveMainlineInteractionCandidates(
-      scene,
-      currentPosition,
-      mainlineStorefrontInteractionCandidates(scene, storefront),
-      .35,
-      layout,
-      navigationOptions,
-    )
-    if (interaction.inRange) {
-      stopMovement()
-      revealStorefrontInteraction()
-      return
+    let blockedReported = false
+    const reportFinalBlock = (reason: string) => {
+      if (blockedReported || requestId !== storefrontRequestIdRef.current) return
+      blockedReported = true
+      setActiveObjectId(null)
+      onInteractionAnalytics?.('blocked', storefrontId, 'storefront', reason)
     }
-    if (!interaction.path) {
-      stopMovement()
-      onInteractionAnalytics?.('blocked', storefrontId, 'storefront', 'unreachable')
-      return
+    const attemptContact = (retry: number) => {
+      if (requestId !== storefrontRequestIdRef.current) return
+      const currentPosition = getCurrentPosition()
+      const interaction = resolveMainlineStorefrontInteraction(scene, storefront, currentPosition, layout, navigationOptions)
+      if (interaction.inRange) {
+        stopMovement()
+        revealStorefrontInteraction()
+        return
+      }
+      if (!interaction.path) {
+        stopMovement()
+        reportFinalBlock(retry === 0 ? 'unreachable' : 'dynamic-contacts-unreachable')
+        return
+      }
+      setActiveObjectId(storefrontId)
+      moveAlong(interaction.path, revealStorefrontInteraction, {
+        ...locomotionOptions,
+        canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
+        canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
+        onBlocked: () => {
+          if (requestId !== storefrontRequestIdRef.current) return
+          if (retry < 2) {
+            attemptContact(retry + 1)
+            return
+          }
+          reportFinalBlock('movement-blocked')
+        },
+      })
     }
-    setActiveObjectId(storefrontId)
-    moveAlong(interaction.path, revealStorefrontInteraction, {
-      ...locomotionOptions,
-      canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
-      canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
-      onBlocked: () => {
-        setActiveObjectId(null)
-        onInteractionAnalytics?.('blocked', storefrontId, 'storefront', 'movement-blocked')
-      },
-    })
-  }, [beginMilkTeaStorefrontAction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, onChapterAnalytics, onInteractionAnalytics, onPhoneDismiss, onStorefrontAction, phoneOpen, presentSceneEcho, readingActive, scene, sceneAction?.phase, screenMetrics, stopMovement])
+    attemptContact(0)
+  }, [beginMilkTeaStorefrontAction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, onChapterAnalytics, onInteractionAnalytics, onPhoneDismiss, onStorefrontAction, phoneOpen, presentSceneEcho, protagonistFootprint, readingActive, scene, sceneAction?.phase, screenMetrics, stopMovement])
 
   const interactNpc = useCallback((npcId: string) => {
     if (readingActive || sceneAction?.phase === 'committing') return
@@ -1920,8 +1987,10 @@ export function MainlineScenePage({
     onMeaningfulActivity?.()
     const entity = sceneAction?.entityId ? scene.objects.find((candidate) => candidate.id === sceneAction.entityId) : undefined
     const resolution = resolveMainlineSceneEchoChoice(scene, entity, option, Date.now(), {
+      carriedPhoneDevice,
       commercialCafeCoffeeOrdered: commercialCafeCoffeeOrderedState(commercialCafeStory),
       carriedMilkTea: carriedMilkTea || commercialStreetMilkTeaHeld(initialSceneState),
+      plantWaterStateKey: entity?.id === 'zhongshuyuan-office-plant' ? undefined : entity ? `plantWateredAt:${entity.id}` : undefined,
     })
     if (!resolution) return
     if (resolution.deskDevice) {
@@ -2054,6 +2123,8 @@ export function MainlineScenePage({
     if (readingActive) return
     if (sceneAction?.phase === 'committing') return
     onMeaningfulActivity?.()
+    pendingInteractionAfterTraversalRef.current = null
+    storefrontRequestIdRef.current += 1
     dismissSceneAction()
     npcInteractionRequestRef.current += 1
     if (phoneOpen) {
@@ -2292,7 +2363,7 @@ export function MainlineScenePage({
               interactionTutorialCompleted={interactionTutorialCompleted}
               incenseLit={incenseLit}
               incenseBurnRemainingMs={incenseRemainingMs}
-              onIncenseBurnComplete={() => setIncenseClock(Date.now())}
+              onIncenseBurnComplete={handleIncenseBurnComplete}
               occupiedSeatIds={occupiedSeatIds}
               playerSeatId={activePlayerSeatId}
               promptedSeatId={promptedSeatId}

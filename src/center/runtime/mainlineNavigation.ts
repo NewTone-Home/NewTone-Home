@@ -1,5 +1,5 @@
 import { createPoint, defaultEdgeContactDirection, mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
-import { mainlineScenePassageCollision, mainlineScenePassageDoorway, type MainlineSceneAccessRegion, type MainlineSceneDefinition, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
+import { mainlineScenePassageCollision, mainlineScenePassageDoorway, mainlineStorefrontInteractionCandidates, mainlineStorefrontInteractionRegion, type MainlineStorefrontSlot, type MainlineSceneAccessRegion, type MainlineSceneDefinition, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import { mainlineEntityCollision, mainlineLabelFootprint, mainlineLayoutOffsetForEntity, mainlineProtagonistDotFootprint, type SceneLayout } from './sceneLayout'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -40,7 +40,13 @@ type CachedNavigationMesh = {
 // Geometry snapshots are immutable render/navigation transactions. Reusing
 // their static mesh keeps multiple contact candidates in one interaction from
 // recompiling the same scene, without caching dynamic actor occupancy.
-const staticNavigationMeshCache = new WeakMap<MainlineSceneGeometrySnapshot, CachedNavigationMesh>()
+const staticNavigationMeshCache = new WeakMap<MainlineSceneGeometrySnapshot, Map<string, CachedNavigationMesh>>()
+
+function cacheStaticNavigationMesh(snapshot: MainlineSceneGeometrySnapshot, key: string, mesh: PolygonNavigationMesh) {
+  const meshes = staticNavigationMeshCache.get(snapshot) ?? new Map<string, CachedNavigationMesh>()
+  meshes.set(key, { key, mesh })
+  staticNavigationMeshCache.set(snapshot, meshes)
+}
 
 // Compatibility-only default for non-Page callers: it is the renderer's
 // default walking-dot footprint, not a second navigation radius.
@@ -1050,9 +1056,13 @@ export function canActorReachPassageApproach(
   const collision = mainlinePassageCollisionForNavigation(scene, passage, options)
   const doorway = mainlinePassageDoorwayForNavigation(scene, passage, options)
   const side = passageSide(passage, from, collision, doorway)
-  const target = passageBoundaryPoint(passage, from, passage.crossingTargets[side], mainlineActorFootprint(scene, options, from), collision, doorway)
-  const path = findMainlinePath(from, target, scene, layout, options)
-  return path ? { target, path } : null
+  const footprint = mainlineActorFootprint(scene, options, from)
+  const boundary = passageBoundaryPoint(passage, from, passage.crossingTargets[side], footprint, collision, doorway)
+  for (const target of [boundary, passage.thresholds[side]]) {
+    const path = findMainlinePath(from, target, scene, layout, options)
+    if (path) return { target, path }
+  }
+  return null
 }
 
 export function findMainlinePathThroughPassage(scene: MainlineSceneDefinition, passageId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
@@ -1073,6 +1083,7 @@ export function findMainlinePath(start: Point, target: Point, scene: MainlineSce
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const barriers = mainlineNavigationBarriers(scene, layout, { ...options, geometrySnapshot: snapshot })
   const canOccupy = (point: Point) => isWalkableMainlinePoint(point, scene, layout, options)
+  if (isMainlineNavigationBarrierClear(start, target, scene, layout, options) && canTravelAlongSegment(start, target, canOccupy)) return [start, target]
   const obstacles = collisionBoxes(scene, layout, options)
   const cacheKey = [
     options.actorId ?? 'protagonist',
@@ -1082,7 +1093,7 @@ export function findMainlinePath(start: Point, target: Point, scene: MainlineSce
     [...occupiedSeatIdsForNavigation(scene, options)].sort().join(','),
   ].join('|')
   const canReuseStaticMesh = !options.navigationRuntime
-  const cached = canReuseStaticMesh ? staticNavigationMeshCache.get(snapshot) : undefined
+  const cached = canReuseStaticMesh ? staticNavigationMeshCache.get(snapshot)?.get(cacheKey) : undefined
   const navigationMesh = cached?.key === cacheKey
     ? cached.mesh
     : createPolygonNavigationMesh({
@@ -1092,7 +1103,7 @@ export function findMainlinePath(start: Point, target: Point, scene: MainlineSce
       barriers,
       actorFootprint,
     })
-  if (canReuseStaticMesh && cached?.key !== cacheKey) staticNavigationMeshCache.set(snapshot, { key: cacheKey, mesh: navigationMesh })
+  if (canReuseStaticMesh && cached?.key !== cacheKey) cacheStaticNavigationMesh(snapshot, cacheKey, navigationMesh)
   return findNavigationPath(start, target, {
     bounds: insetBounds(snapshot.walkBounds, actorFootprint),
     obstacles,
@@ -1118,15 +1129,9 @@ export type MainlineWorldNavigationResolution = {
  * geometry. Dynamic actors remain live route/movement constraints and never
  * permanently rewrite the player click into a different target.
  */
-export function resolveMainlineWorldNavigation(
-  scene: MainlineSceneDefinition,
-  from: Point,
-  requestedTarget: Point,
-  layout: SceneLayout = {},
-  options: MainlineNavigationOptions = {},
-): MainlineWorldNavigationResolution | null {
-  if (!isWalkableMainlinePoint(from, scene, layout, options)) return null
-  const actorFootprint = mainlineActorFootprint(scene, options, from)
+/** Prepare immutable scene navigation when its geometry/door contract changes. */
+export function prepareMainlineWorldNavigation(scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
+  const actorFootprint = mainlineActorFootprint(scene, options, scene.initialPlayerPosition)
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const barriers = mainlineNavigationBarriers(scene, layout, { ...options, geometrySnapshot: snapshot })
   // The target component belongs to the stable world. Runtime actors are
@@ -1141,7 +1146,7 @@ export function resolveMainlineWorldNavigation(
     [...(options.openPassageIds ?? [])].sort().join(','),
     [...occupiedSeatIdsForNavigation(scene, options)].sort().join(','),
   ].join('|')
-  const cached = staticNavigationMeshCache.get(snapshot)
+  const cached = staticNavigationMeshCache.get(snapshot)?.get(cacheKey)
   const navigationMesh = cached?.key === cacheKey
     ? cached.mesh
     : createPolygonNavigationMesh({
@@ -1151,14 +1156,22 @@ export function resolveMainlineWorldNavigation(
       barriers,
       actorFootprint,
     })
-  if (cached?.key !== cacheKey) staticNavigationMeshCache.set(snapshot, { key: cacheKey, mesh: navigationMesh })
-  const resolved = resolveNavigationPath(from, requestedTarget, {
-    bounds: insetBounds(snapshot.walkBounds, actorFootprint),
-    obstacles,
-    actorFootprint,
-    barriers,
-    navigationMesh,
-  })
+  if (cached?.key !== cacheKey) cacheStaticNavigationMesh(snapshot, cacheKey, navigationMesh)
+  return {
+    bounds: insetBounds(snapshot.walkBounds, actorFootprint), obstacles, actorFootprint, barriers, navigationMesh,
+  }
+}
+
+export function resolveMainlineWorldNavigation(
+  scene: MainlineSceneDefinition,
+  from: Point,
+  requestedTarget: Point,
+  layout: SceneLayout = {},
+  options: MainlineNavigationOptions = {},
+): MainlineWorldNavigationResolution | null {
+  if (!isWalkableMainlinePoint(from, scene, layout, options)) return null
+  const adapter = prepareMainlineWorldNavigation(scene, layout, options)
+  const resolved = resolveNavigationPath(from, requestedTarget, adapter)
   if (!resolved) return null
   const deniedAccessRegion = scene.accessRegions.find((region) => (
     !actorCanEnterRegion(scene, options.actorId, region) && containsPoint(region, requestedTarget)
@@ -1326,6 +1339,9 @@ export function resolveMainlineInteractionCandidates(
   layout: SceneLayout,
   options: MainlineNavigationOptions,
 ): MainlineInteractionResolution {
+  options = { ...options, geometrySnapshot: sceneGeometrySnapshot(scene, layout, options) }
+  const nearby = candidates.find((target) => distance(from, target) <= interactionRange && isWalkableMainlinePoint(from, scene, layout, options) && isMainlineNavigationBarrierClear(from, target, scene, layout, options))
+  if (nearby) return { target: from, path: [from], inRange: true }
   const selected = nearestReachableInteractionPath(scene, from, candidates, layout, options)
   const target = selected?.target
     ?? candidates.find((candidate) => isWalkableMainlinePoint(candidate, scene, layout, options))
@@ -1336,6 +1352,16 @@ export function resolveMainlineInteractionCandidates(
     path: selected?.path ?? null,
     inRange: distance(from, target) <= interactionRange,
   }
+}
+
+/** Continuous range ownership stays separate from route destination sampling. */
+export function resolveMainlineStorefrontInteraction(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): MainlineInteractionResolution {
+  const { center, outward, radius } = mainlineStorefrontInteractionRegion(scene, storefront)
+  const dx = from.x - center.x, dy = from.y - center.y
+  if (dx * outward.x + dy * outward.y >= 0 && Math.hypot(dx, dy) <= radius + .001 && isWalkableMainlinePoint(from, scene, layout, options)) return { target: from, path: [from], inRange: true }
+  const candidates = mainlineStorefrontInteractionCandidates(scene, storefront, from, mainlineActorFootprint(scene, options, from))
+  const resolved = resolveMainlineInteractionCandidates(scene, from, candidates, 0, layout, options)
+  return { ...resolved, inRange: false }
 }
 
 /** One selected entity contact is shared by proximity, route and arrival. */

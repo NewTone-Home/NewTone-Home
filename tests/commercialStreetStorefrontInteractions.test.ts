@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findMainlinePath, isWalkableMainlinePoint, resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
+import { findMainlinePath, isWalkableMainlinePoint, resolveMainlineInteractionCandidates, resolveMainlineStorefrontInteraction } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
@@ -57,13 +57,36 @@ describe('commercial street storefront interactions', () => {
     })
   })
 
-  it('uses another legal storefront contact when an ambient actor occupies the centred approach', () => {
+  it('projects the contact onto the continuous facade span from left, centre, and right approaches', () => {
     const storefront = street.storefronts.find((candidate) => candidate.id === 'commercial-north-slot-2')!
-    const candidates = mainlineStorefrontInteractionCandidates(street, storefront)
-    expect(candidates).toHaveLength(3)
+    const approach = mainlineStorefrontApproach(street, storefront)
+    const fromPoints = [
+      { x: storefront.start + 1, y: approach.y + 8 },
+      { x: (storefront.start + storefront.end) / 2, y: approach.y + 8 },
+      { x: storefront.end - 1, y: approach.y + 8 },
+    ]
+    const preferred = fromPoints.map((from) => mainlineStorefrontInteractionCandidates(street, storefront, from)[0]!)
+    expect(preferred[0]!.x).toBeLessThan(preferred[1]!.x)
+    expect(preferred[1]!.x).toBeLessThan(preferred[2]!.x)
+    expect(preferred.every((point) => isWalkableMainlinePoint(point, street))).toBe(true)
+  })
+
+  it('accepts any legal point in the outward half-disc without routing to a fixed contact', () => {
+    const storefront = street.storefronts.find(s => s.id === 'commercial-south-slot-5')!
+    for (const from of [{x:108,y:60.5},{x:110,y:59},{x:114,y:60.5}]) {
+      expect(resolveMainlineStorefrontInteraction(street, storefront, from)).toEqual({target:from,path:[from],inRange:true})
+    }
+    expect(resolveMainlineStorefrontInteraction(street, storefront, {x:110,y:53}).inRange).toBe(false)
+  })
+
+  it('re-resolves a continuous facade when a live actor occupies the nearest projected contact', () => {
+    const storefront = street.storefronts.find((candidate) => candidate.id === 'commercial-north-slot-2')!
+    const from = { x: (storefront.start + storefront.end) / 2, y: mainlineStorefrontApproach(street, storefront).y + 8 }
+    const candidates = mainlineStorefrontInteractionCandidates(street, storefront, from)
     const runtime = createNavigationRuntime()
-    const blockerFootprint = mainlineProtagonistDotFootprint(candidates[0]!)
-    runtime.registerActor('ambient-blocker', candidates[0]!, blockerFootprint)
+    const preferredContact = candidates[0]!
+    const blockerFootprint = mainlineProtagonistDotFootprint(preferredContact)
+    runtime.registerActor('ambient-blocker', preferredContact, blockerFootprint)
 
     const resolved = resolveMainlineInteractionCandidates(
       street,
@@ -75,7 +98,8 @@ describe('commercial street storefront interactions', () => {
     )
 
     expect(resolved.path).not.toBeNull()
-    expect(resolved.target).not.toEqual(candidates[0])
+    expect(resolved.target).not.toEqual(preferredContact)
+    expect(isWalkableMainlinePoint(resolved.target, street, {}, { actorId: 'protagonist', navigationRuntime: runtime })).toBe(true)
     expect(candidates).toContainEqual(resolved.target)
   })
 

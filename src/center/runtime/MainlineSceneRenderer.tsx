@@ -1,10 +1,10 @@
 'use client'
 
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import EntryButtonSurface from '../../components/EntryButtonSurface'
 import type { CollisionBox, Point } from './sceneGeometry'
-import { type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
+import { mainlineStorefrontAnchor, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -15,6 +15,7 @@ import { useSceneFocusFrameController } from './SceneFocusFrames'
 import type { SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
+import { dialoguePresentationText } from './dialoguePresentation'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
 import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds, mainlineSeatedActorVisualPosition } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
@@ -212,7 +213,7 @@ type MainlineAmbientNpcActorProps = {
 }
 
 /** Ambient locomotion owns its live point; this component only projects it into the scene. */
-export function MainlineAmbientNpcActor({ npc, position, snapshot, screenMetrics, debugRuntimeEvidence }: MainlineAmbientNpcActorProps) {
+function MainlineAmbientNpcActorView({ npc, position, snapshot, screenMetrics, debugRuntimeEvidence }: MainlineAmbientNpcActorProps) {
   const visualFootprint = mainlineLabelFootprint(npc.label, position, screenMetrics, { lineHeight: 1 })
   return <span
     className="scene-mainline-npc scene-mainline-npc--ambient"
@@ -241,6 +242,8 @@ export function MainlineAmbientNpcActor({ npc, position, snapshot, screenMetrics
   >{npc.label}</span>
 }
 
+export const MainlineAmbientNpcActor = memo(MainlineAmbientNpcActorView)
+
 function ObservationText({ echoId, text, typing, onTypingComplete }: { echoId: number; text: string; typing: boolean; onTypingComplete?: (echoId: number) => void }) {
   const characters = useMemo(() => Array.from(text), [text])
   const [visibleCount, setVisibleCount] = useState(0)
@@ -267,15 +270,15 @@ function ObservationText({ echoId, text, typing, onTypingComplete }: { echoId: n
   return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">{characters.slice(0, visibleCount).join('')}</span>
 }
 
-function DialogueText({ group, text, onReadyChange }: { group: string; text: string; onReadyChange?: (ready: boolean) => void }) {
-  useEffect(() => onReadyChange?.(false), [group, onReadyChange])
+function DialogueText({ group, text, onReadyChange }: { group: string; text: string; onReadyChange?: (group: string, ready: boolean) => void }) {
+  useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, onReadyChange])
   return <span
     className="scene-mainline-text__dialogue"
     data-scene-text-mode="dialogue"
   >
     <span key={group} onAnimationEnd={(event) => {
-      if (event.target === event.currentTarget) onReadyChange?.(true)
-    }}>{text}</span>
+      if (event.target === event.currentTarget) onReadyChange?.(group, true)
+    }}>{dialoguePresentationText(text)}</span>
   </span>
 }
 
@@ -313,7 +316,7 @@ function storefrontDoorFocusGroup(cell: MainlineGeometryCellEntry['cell'], varia
 }
 
 function mainlineCellFocusTarget(scene: MainlineSceneDefinition, cell: MainlineGeometryCellEntry['cell'], entityId?: string, variant?: MainlineSceneGeometryUnit['variant']) {
-  if (cell.kind === 'storefront' && cell.storefrontRole === 'sign' && variant !== 'near') {
+  if (cell.kind === 'storefront' && cell.storefrontRole === 'sign') {
     return {
       group: storefrontFocusGroup(cell, variant),
       policy: commercialStreetStorefrontInteractionFor(cell.storefrontId ?? '') ? 'interactive' as const : 'passage' as const,
@@ -342,7 +345,7 @@ function mainlineWallCellVisibility(cell: MainlineGeometryCellEntry['cell'], uni
   return (cell.baselineVisible ?? cell.baseline ?? true) ? 'is-baseline' : 'is-hidden'
 }
 
-function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontLabel, storefrontPresentationPhase = 'baseline', onStorefrontPresentationMotionComplete, active = false, explored = false }: {
+function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontPresentationPhase = 'baseline', onStorefrontPresentationMotionComplete, active = false, explored = false }: {
   entries: readonly MainlineGeometryCellEntry[]
   className: string
   visibilityClass: string
@@ -356,6 +359,9 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
   gateTriggered?: boolean
   frameRetracting?: boolean
   hideGlyphs?: boolean
+  storefrontId?: string
+  storefrontSpan?: number
+  storefrontCenter?: Point
   storefrontLabel?: string
   storefrontPresentationPhase?: StorefrontPresentationPhase
   onStorefrontPresentationMotionComplete?: (phase: 'revealing' | 'lingering' | 'restoring') => void
@@ -384,9 +390,15 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
   const style = vertical
     ? { left: `${centerX}%`, top: `${centerY}%`, width: '1em', height: `${span}%` }
     : { left: `${centerX}%`, top: `${centerY}%`, width: contentExtent, height: '1.2em' }
+  if (storefrontLabel && storefrontSpan && storefrontCenter) {
+    const textExtent = Array.from(storefrontLabel).length * 1.08 + .7
+    Object.assign(style, vertical
+      ? { left: `${centerX}%`, top: `${centerY}%`, width: '1.4em', height: `min(${textExtent}em, calc(${span}% - .15em))` }
+      : { left: `${centerX}%`, top: `${centerY}%`, width: `min(${textExtent}em, calc(${span}% - .15em))`, height: '1.4em' })
+  }
   const glyphs = entries.map(({ cell }) => cell.glyph ?? '')
   const content = hideGlyphs ? null : storefrontLabel ? (
-    <span className="scene-mainline-storefront__label-slot" data-storefront-label-slot="true">
+    <span className="scene-mainline-storefront__label-slot" data-storefront-label-slot="true" data-storefront-id={storefrontId} style={{ '--storefront-label-length': Array.from(storefrontLabel).length * 1.08 } as CSSProperties}>
       {storefrontPresentationLabelSlots(storefrontLabel).map((label) => (
         <span
           key={label}
@@ -463,7 +475,9 @@ function MainlineObject({ entity, scene, position, collision, visualBounds, focu
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
   const className = objectClass(scene, entity, visibility, active, explored, tutorialCompleted, underPlayer, selected, dragging, incenseLit)
   const visualScale = entity.visualScale ?? 1
-  const focusBounds = focusGroup && visualBounds ? visualBounds : null
+  // Focus emphasis follows the visible label/glyph's typography, never the
+  // object's collision or authored spatial envelope.
+  const focusContent = Boolean(focusGroup && visualBounds)
   const renderedPosition = position
   const commonProps = {
     className: `${className} ${layoutItemId ? 'scene-object--layout-draggable' : ''} ${suppressLabel ? 'is-occupied' : ''} ${prompted ? 'is-story-prompted' : ''}`,
@@ -503,27 +517,26 @@ function MainlineObject({ entity, scene, position, collision, visualBounds, focu
     registerBreathingNode(entity.id, node)
   }, [entity.id, registerBreathingNode, sharedBreathingClock])
   const frame = focusGroup && renderFrame
-    ? focusBounds
+    ? focusContent
       ? <span
-          className="scene-mainline-object__focus-host"
+          className="scene-mainline-object__focus-host scene-mainline-object__focus-host--content"
           style={{
-            left: `${focusBounds.x + focusBounds.width / 2}%`,
-            top: `${focusBounds.y + focusBounds.height / 2}%`,
-            width: `${focusBounds.width}%`,
-            height: `${focusBounds.height}%`,
+            left: `${renderedPosition.x}%`,
+            top: `${renderedPosition.y}%`,
+            fontSize: `${mainlineEntityFontSizePx(entity, screenMetrics) * visualScale}px`,
           }}
           aria-hidden="true"
-        >{renderFrame(focusGroup)}</span>
+        ><span className="scene-mainline-object__focus-measure">{entity.label}</span>{renderFrame(focusGroup)}</span>
       : renderFrame(focusGroup)
     : null
 
   if (entity.interactive === false) {
-    return <>{focusBounds && frame}<span {...commonProps} aria-hidden="true">{!suppressLabel && <span className="scene-mainline-object__label" ref={labelRef} style={labelStyle}>{entity.label}</span>}{!focusBounds && frame}</span></>
+    return <>{focusContent && frame}<span {...commonProps} aria-hidden="true">{!suppressLabel && <span className="scene-mainline-object__label" ref={labelRef} style={labelStyle}>{entity.label}</span>}{!focusContent && frame}</span></>
   }
 
   return (
     <>
-      {focusBounds && frame}
+      {focusContent && frame}
       <button
       {...commonProps}
       type="button"
@@ -544,11 +557,63 @@ function MainlineObject({ entity, scene, position, collision, visualBounds, focu
       }}
     >
       {!suppressLabel && <span className="scene-mainline-object__label" ref={labelRef} style={labelStyle}>{entity.label}</span>}
-      {!focusBounds && frame}
+      {!focusContent && frame}
       </button>
     </>
   )
 }
+
+const MemoMainlineObject = memo(MainlineObject)
+
+type MainlineNpcActorProps = {
+  npc: MainlineSceneDefinition['npcs'][number]
+  position: Point
+  snapshot?: NpcRuntimeSnapshot
+  seatId?: string
+  seatPosition?: Point
+  screenMetrics: SceneScreenMetrics
+  interactive: boolean
+  debugRuntimeEvidence: boolean
+  onInteract?: (npcId: string) => void
+}
+
+function MainlineNpcActor({ npc, position, snapshot, seatId, seatPosition, screenMetrics, interactive, debugRuntimeEvidence, onInteract }: MainlineNpcActorProps) {
+  const visualPosition = mainlineSeatedActorVisualPosition(position, seatId, seatPosition)
+  const visualFootprint = mainlineLabelFootprint(npc.label, visualPosition, screenMetrics, { lineHeight: 1 })
+  const className = `scene-mainline-npc ${interactive ? '' : 'scene-mainline-npc--ambient'}`
+  const style = {
+    left: `${visualPosition.x}%`,
+    top: `${visualPosition.y}%`,
+    '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, screenMetrics)}px`,
+  } as CSSProperties
+  const attributes = {
+    className,
+    style,
+    'data-actor-id': npc.id,
+    'data-npc-role': npc.roleId,
+    'data-npc-id': npc.id,
+    'data-seat-entity-id': seatId,
+    'data-interaction-target-entity-id': npc.interactionTargetEntityId,
+    'data-npc-phase': snapshot?.phase,
+    'data-npc-duty-id': snapshot?.dutyId ?? undefined,
+    'data-npc-target-id': snapshot?.targetId ?? undefined,
+    'data-npc-target-x': debugRuntimeEvidence ? snapshot?.target?.x : undefined,
+    'data-npc-target-y': debugRuntimeEvidence ? snapshot?.target?.y : undefined,
+    'data-runtime-x': debugRuntimeEvidence ? position.x : undefined,
+    'data-runtime-y': debugRuntimeEvidence ? position.y : undefined,
+    'data-rendered-x': debugRuntimeEvidence ? visualPosition.x : undefined,
+    'data-rendered-y': debugRuntimeEvidence ? visualPosition.y : undefined,
+    'data-visual-x': debugRuntimeEvidence ? visualFootprint.x : undefined,
+    'data-visual-y': debugRuntimeEvidence ? visualFootprint.y : undefined,
+    'data-visual-width': debugRuntimeEvidence ? visualFootprint.width : undefined,
+    'data-visual-height': debugRuntimeEvidence ? visualFootprint.height : undefined,
+  }
+  return interactive
+    ? <button {...attributes} type="button" onClick={(event) => { event.stopPropagation(); onInteract?.(npc.id) }} aria-label={`${npc.label}，点击让主角前往互动`}><span>{npc.label}</span></button>
+    : <span {...attributes} aria-hidden="true">{npc.label}</span>
+}
+
+const MemoMainlineNpcActor = memo(MainlineNpcActor)
 
 export function MainlineSceneRenderer({
   scene,
@@ -620,6 +685,9 @@ export function MainlineSceneRenderer({
   debugRuntimeEvidence = false,
 }: MainlineSceneRendererProps) {
   const [dialogueReady, setDialogueReady] = useState(false)
+  const dialogueReadyGroupRef = useRef<string | null>(null)
+  const currentDialogueGroupRef = useRef<string | null>(null)
+  const dialogueAdvanceConsumedGroupRef = useRef<string | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
   const registerBreathingNode = useCallback((entityId: string, node: HTMLSpanElement | null) => {
@@ -629,6 +697,15 @@ export function MainlineSceneRenderer({
   const altarLeaderIds = useMemo(() => new Set(scene.altars.map((altar) => altar.incenseBurnerId)), [scene.altars])
   const occupiedSeatIds = useMemo(() => runtimeOccupiedSeatIds ?? mainlineSceneOccupiedSeatIds(scene), [runtimeOccupiedSeatIds, scene])
   const protagonistPresentation = mainlineProtagonistPresentation(playerSeatId)
+  const currentDialogueGroup = dialogue && dialogueLine
+    ? `dialogue:${dialogueLine.id}:${dialogueSegmentIndex}`
+    : null
+  currentDialogueGroupRef.current = currentDialogueGroup
+  const updateDialogueReady = useCallback((group: string, ready: boolean) => {
+    if (ready) dialogueReadyGroupRef.current = group
+    else if (dialogueReadyGroupRef.current === group) dialogueReadyGroupRef.current = null
+    setDialogueReady(ready)
+  }, [])
   const protagonistVisualPosition = mainlineSeatedActorVisualPosition(
     position,
     playerSeatId,
@@ -925,7 +1002,7 @@ export function MainlineSceneRenderer({
               const entityId = cell.entityId ?? unit.entityId
               const focusTarget = mainlineCellFocusTarget(scene, cell, entityId, unit.variant)
               const focusEntries = focusTarget ? focusGroupCells.get(focusTarget.group) : undefined
-              if (focusTarget && focusEntries && focusEntries.length > 1) {
+      if (focusTarget && focusEntries && (focusEntries.length > 1 || cell.kind === 'storefront' && cell.storefrontRole === 'sign')) {
                 if (focusEntries[0]?.cell.id !== cell.id) return null
                 const groupVisibilityClass = focusEntries.some((entry) => mainlineWallCellVisibility(entry.cell, entry.unit) === 'is-near')
                   ? 'is-near'
@@ -951,6 +1028,9 @@ export function MainlineSceneRenderer({
                     renderFrame={focusFrames.renderFrame}
                     onStorefrontInteract={onStorefrontInteract}
                     storefrontInteractionId={commercialStreetStorefrontInteractionFor(storefront?.id ?? '') ? storefront?.id : undefined}
+                    storefrontId={storefrontRole === 'sign' ? storefront?.id : undefined}
+                    storefrontSpan={storefront ? storefront.end - storefront.start : undefined}
+                    storefrontCenter={storefront ? mainlineStorefrontAnchor(scene, storefront) : undefined}
                     storefrontLabel={storefrontRole === 'sign' ? storefront?.label : undefined}
                     storefrontPresentationPhase={storefrontPresentationPhase}
                     onStorefrontPresentationMotionComplete={(phase) => {
@@ -1037,7 +1117,7 @@ export function MainlineSceneRenderer({
             const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
             const focusGroup = !layoutMode && entity.focusFrame === 'interactive' ? `interactive:${entity.id}` : undefined
             const underPlayer = entity.visualProfile === 'tree-ring' && entity.interactive === false && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8
-            return <MainlineObject
+            return <MemoMainlineObject
               key={entity.id}
               entity={entity}
               scene={scene}
@@ -1076,48 +1156,18 @@ export function MainlineSceneRenderer({
             const npcPosition = npcPositions?.get(npc.id) ?? resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
             const npcSnapshot = npcRuntimeSnapshots?.get(npc.id)
             const npcSeatId = mainlineNpcStagedSeatId(scene, npc.id)
-            const npcVisualPosition = mainlineSeatedActorVisualPosition(
-              npcPosition,
-              npcSeatId,
-              npcSeatId ? geometrySnapshot.objects.get(npcSeatId)?.position : undefined,
-            )
-            const npcVisualFootprint = mainlineLabelFootprint(npc.label, npcVisualPosition, renderScreenMetrics, { lineHeight: 1 })
-            const isInteractive = npc.interactive !== false
-            const commonProps = {
-              className: `scene-mainline-npc ${isInteractive ? '' : 'scene-mainline-npc--ambient'}`,
-              style: {
-                left: `${npcVisualPosition.x}%`,
-                top: `${npcVisualPosition.y}%`,
-                '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px`,
-              } as CSSProperties,
-              'data-actor-id': npc.id,
-              'data-npc-role': npc.roleId,
-              'data-npc-id': npc.id,
-              'data-seat-entity-id': npcSeatId,
-              'data-interaction-target-entity-id': npc.interactionTargetEntityId,
-              'data-npc-phase': npcSnapshot?.phase,
-              'data-npc-duty-id': npcSnapshot?.dutyId ?? undefined,
-              'data-npc-target-id': npcSnapshot?.targetId ?? undefined,
-              'data-npc-target-x': debugRuntimeEvidence ? npcSnapshot?.target?.x : undefined,
-              'data-npc-target-y': debugRuntimeEvidence ? npcSnapshot?.target?.y : undefined,
-              'data-runtime-x': debugRuntimeEvidence ? npcPosition.x : undefined,
-              'data-runtime-y': debugRuntimeEvidence ? npcPosition.y : undefined,
-              'data-rendered-x': debugRuntimeEvidence ? npcVisualPosition.x : undefined,
-              'data-rendered-y': debugRuntimeEvidence ? npcVisualPosition.y : undefined,
-              'data-visual-x': debugRuntimeEvidence ? npcVisualFootprint.x : undefined,
-              'data-visual-y': debugRuntimeEvidence ? npcVisualFootprint.y : undefined,
-              'data-visual-width': debugRuntimeEvidence ? npcVisualFootprint.width : undefined,
-              'data-visual-height': debugRuntimeEvidence ? npcVisualFootprint.height : undefined,
-            }
-            return isInteractive ? <button
+            return <MemoMainlineNpcActor
               key={npc.id}
-              {...commonProps}
-              type="button"
-              onClick={(event) => { event.stopPropagation(); onNpcInteract?.(npc.id) }}
-              aria-label={`${npc.label}，点击让主角前往互动`}
-            >
-              <span>{npc.label}</span>
-            </button> : <span key={npc.id} {...commonProps} aria-hidden="true">{npc.label}</span>
+              npc={npc}
+              position={npcPosition}
+              snapshot={npcSnapshot}
+              seatId={npcSeatId}
+              seatPosition={npcSeatId ? geometrySnapshot.objects.get(npcSeatId)?.position : undefined}
+              screenMetrics={renderScreenMetrics}
+              interactive={npc.interactive !== false}
+              debugRuntimeEvidence={debugRuntimeEvidence}
+              onInteract={onNpcInteract}
+            />
           })}
 
           {ambientNpcActorLayer}
@@ -1155,6 +1205,9 @@ export function MainlineSceneRenderer({
             data-world-anchor-y={worldQuestionMark.anchor.y}
             aria-hidden="true"
           >?</span>}
+          </>
+        </div>
+        <div className="scene-mainline-reading-layer">
           {(sceneEcho || (dialogue && dialogueLine && dialoguePosition)) && (() => {
             const isDialogue = !sceneEcho && Boolean(dialogue && dialogueLine && dialoguePosition)
             const isLeaving = sceneEcho?.phase === 'leaving' || (isDialogue && dialoguePhase === 'leaving')
@@ -1171,8 +1224,8 @@ export function MainlineSceneRenderer({
               key={sceneEcho?.id ?? dialogueLine!.id}
               className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${isLeaving ? 'is-leaving' : ''}`}
               style={{
-                left: `${position.x}%`,
-                top: `${position.y}%`,
+                left: `${Math.max((echoLayout.widthPx / renderScreenMetrics.width) * 50 + 2, Math.min(98 - (echoLayout.widthPx / renderScreenMetrics.width) * 50, position.x + cameraOffset.x))}%`,
+                top: `${Math.max(10, Math.min(85, position.y + cameraOffset.y))}%`,
                 '--scene-mainline-text-width': `${echoLayout.widthPx}px`,
                 '--scene-mainline-text-height': `${echoLayout.heightPx}px`,
               } as CSSProperties}
@@ -1195,13 +1248,13 @@ export function MainlineSceneRenderer({
             >
               {isDialogue && <span className="scene-mainline-text__speaker">{dialogueLine!.speaker}</span>}
               {isDialogue
-                ? <DialogueText group={`${group}:${dialogueSegmentIndex}`} text={text} onReadyChange={setDialogueReady} />
+                ? <DialogueText group={`${group}:${dialogueSegmentIndex}`} text={text} onReadyChange={updateDialogueReady} />
                 : <ObservationText echoId={sceneEcho!.id} text={text} typing={sceneEcho!.typing} onTypingComplete={onSceneEchoTypingComplete} />}
             </div>
           })()}
           {sceneAction && <div
             className="scene-mainline-action"
-            style={{ left: `${sceneAction.position.x}%`, top: `${sceneAction.position.y}%` }}
+            style={{ left: `${Math.max(12, Math.min(88, sceneAction.position.x + cameraOffset.x))}%`, top: `${Math.max(10, Math.min(85, sceneAction.position.y + cameraOffset.y))}%` }}
             data-scene-action={sceneAction.entityId ?? 'scene'}
             onClick={(event) => event.stopPropagation()}
           >
@@ -1211,6 +1264,7 @@ export function MainlineSceneRenderer({
                 visible
                 entryId={`scene-action:${sceneAction.entityId ?? 'scene'}:${option}`}
                 label={option}
+                contentSized
                 materialMode="world"
                 worldLayer="surface"
                 disabled={sceneAction.phase === 'committing'}
@@ -1219,6 +1273,7 @@ export function MainlineSceneRenderer({
               />
             ))}
           </div>}
+        </div>
           {readingMode && <>
             <div className={`scene-dialogue-dimmer scene-dialogue-dimmer--${readingMode}`} aria-hidden="true" />
             <button
@@ -1230,15 +1285,20 @@ export function MainlineSceneRenderer({
               onClick={(event) => {
                 event.stopPropagation()
                 if (readingMode === 'dialogue') {
-                  if (dialogueReady) onDialogueAdvance?.()
+                  if (currentDialogueGroupRef.current !== null
+                    && dialogueAdvanceConsumedGroupRef.current !== currentDialogueGroupRef.current
+                    && dialogueReadyGroupRef.current === currentDialogueGroupRef.current) {
+                    dialogueAdvanceConsumedGroupRef.current = currentDialogueGroupRef.current
+                    dialogueReadyGroupRef.current = null
+                    setDialogueReady(false)
+                    onDialogueAdvance?.()
+                  }
                   return
                 }
                 onSceneEchoAdvance?.()
               }}
             />
           </>}
-          </>
-        </div>
         {(debugInput || debugNpcMovement) && <div className="scene-input-debug" aria-live="polite">
           {debugNpcMovement && <button type="button" onClick={(event) => { event.stopPropagation(); onDebugNpcMovement?.() }}>演示店员移动</button>}
           <div>输入诊断（不改变寻路）</div>

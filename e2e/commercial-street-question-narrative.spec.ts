@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
-import { commercialStreetQuestionNarrativeAnchor } from '../src/center/runtime/commercialStreetQuestionNarrative'
+import { commercialStreetQuestionNarrativeAnchor, commercialStreetQuestionNarrativeLines } from '../src/center/runtime/commercialStreetQuestionNarrative'
 
 test.use({ viewport: { width: 1280, height: 720 } })
 
@@ -44,8 +44,8 @@ test('the untriggered question marker stays inside the world layer beneath Readi
     return Boolean(
       marker
       && dim
-      && marker.parentElement === dim.parentElement
-      && (marker.compareDocumentPosition(dim) & Node.DOCUMENT_POSITION_FOLLOWING),
+      && marker.closest('.scene-mainline-world')?.parentElement === dim.parentElement
+      && (marker.closest('.scene-mainline-world')!.compareDocumentPosition(dim) & Node.DOCUMENT_POSITION_FOLLOWING),
     )
   })).toBe(true)
   await expect(question).toHaveCSS('z-index', '7')
@@ -85,14 +85,21 @@ test('the Commercial Street question mark locks input, presents Xiao Jie dialogu
   const stoppedAt = await protagonist.getAttribute('data-runtime-x')
   await page.screenshot({ path: testInfo.outputPath('commercial-street-question-active.png') })
 
-  await expect(dialogue).toContainText('难道刚刚是幻觉吗？')
+  expect(commercialStreetQuestionNarrativeLines).toEqual([
+    '难道刚刚是幻觉吗？',
+    '不，不会认错的。',
+    '那张脸修杰太过于熟悉。',
+  ])
+  await expect(dialogue).toContainText('难道刚刚是幻觉吗')
+  expect(commercialStreetQuestionNarrativeLines[0]).toBe('难道刚刚是幻觉吗？')
+  expect(await dialogue.locator('[data-scene-text-mode="dialogue"]').innerText()).not.toMatch(/[，。！？；：、]/)
   const dialogueAnchor = await dialogue.evaluate((element) => ({ left: (element as HTMLElement).style.left, top: (element as HTMLElement).style.top }))
   // Reading owns the whole scene: the shield advances only after the roll is ready.
   await advanceDialogueFromScene(page)
-  await expect(dialogue).toContainText('不，不会认错的。')
+  await expect(dialogue).toContainText('不会认错的')
   expect(await dialogue.evaluate((element) => ({ left: (element as HTMLElement).style.left, top: (element as HTMLElement).style.top }))).toEqual(dialogueAnchor)
   await advanceDialogueFromScene(page)
-  await expect(dialogue).toContainText('那张脸修杰太过于熟悉。')
+  await expect(dialogue).toContainText('那张脸修杰太过于熟悉')
   expect(await dialogue.evaluate((element) => ({ left: (element as HTMLElement).style.left, top: (element as HTMLElement).style.top }))).toEqual(dialogueAnchor)
   await advanceDialogueFromScene(page)
   await expect(shell).toHaveAttribute('data-commercial-question-narrative', 'leaving')
@@ -116,6 +123,98 @@ test('an interrupted question-mark dialogue does not persist partial progress', 
   await expect(page.locator('[data-scene-dialogue="commercial-street-question"]')).toBeVisible({ timeout: 15_000 })
 
   await page.reload()
-  await expect(page.locator('[data-scene-dialogue="commercial-street-question"]')).toContainText('难道刚刚是幻觉吗？')
+  await expect(page.locator('[data-scene-dialogue="commercial-street-question"]')).toContainText('难道刚刚是幻觉吗')
   await expect(page.locator('[data-scene-dialogue="commercial-street-question"]')).toHaveAttribute('data-scene-segment-index', '0')
 })
+
+async function runQuestionDialogueBoundaryTrial(page: Page, trial: number) {
+  await page.goto('/?scene=commercial-street&debugRuntimeEvidence=1')
+  const scene = mainlineScenes['commercial-street']
+  const anchor = commercialStreetQuestionNarrativeAnchor(scene)
+  const cameraApproach = { x: anchor.x - scene.walkBounds.height * .3, y: anchor.y }
+  const protagonist = page.locator('[data-actor-id="protagonist"]')
+  await clickWorldPoint(page, cameraApproach)
+  await expect(protagonist).toHaveAttribute('data-runtime-x', `${cameraApproach.x}`, { timeout: 15_000 })
+  await clickWorldPoint(page, anchor)
+
+  const dialogue = page.locator('[data-scene-dialogue="commercial-street-question"]')
+  const shield = page.locator('[data-scene-dialogue-shield="true"]')
+  await expect(dialogue).toBeVisible({ timeout: 15_000 })
+  await page.evaluate(() => {
+    const clicks: Array<{ ready: string; lineId: string; at: number }> = []
+    Object.assign(window, { __questionClicks: clicks })
+    document.addEventListener('click', () => {
+      const active = document.querySelector<HTMLElement>('[data-scene-dialogue="commercial-street-question"]')
+      if (active) clicks.push({
+        ready: active.dataset.sceneDialogueReady ?? 'missing',
+        lineId: active.dataset.dialogueLineId ?? 'missing',
+        at: performance.now(),
+      })
+    }, true)
+  })
+  const visibleLines = ['难道刚刚是幻觉吗', '不不会认错的', '那张脸修杰太过于熟悉']
+  const readDialogueClicks = () => page.evaluate(() => (
+    (window as Window & { __questionClicks?: Array<{ ready: string; lineId: string; at: number }> }).__questionClicks ?? []
+  ).slice())
+
+  let currentIndex = 0
+  // Half the sessions send an immediate first click while the opening roll is
+  // active. Capture the actual click before the React handler so readiness
+  // corresponds to the input the product accepts or rejects.
+  if (trial % 2 === 0 && await dialogue.getAttribute('data-scene-dialogue-ready') === 'false') {
+    const beforeCount = (await readDialogueClicks()).length
+    await shield.click({ force: true })
+    const clicks = await readDialogueClicks()
+    const early = clicks[beforeCount]!
+    if (early.ready === 'false') {
+      await expect(dialogue).toHaveAttribute('data-dialogue-line-id', 'commercial-street-question-0')
+      currentIndex = 0
+    } else {
+      await expect(dialogue).toHaveAttribute('data-dialogue-line-id', 'commercial-street-question-1')
+      currentIndex = 1
+    }
+  }
+
+  while (currentIndex < visibleLines.length - 1) {
+    await expect(dialogue).toHaveAttribute('data-dialogue-line-id', `commercial-street-question-${currentIndex}`)
+    await expect(dialogue).toContainText(visibleLines[currentIndex]!)
+    await expect(dialogue).toHaveAttribute('data-scene-dialogue-ready', 'true', { timeout: 5_000 })
+    const beforeCount = (await readDialogueClicks()).length
+    await shield.click({ force: true })
+    await shield.click({ force: true })
+    const clicks = await readDialogueClicks()
+    const first = clicks[beforeCount]!
+    const second = clicks[beforeCount + 1]!
+    expect(first.ready).toBe('true')
+    const nextLineId = `commercial-street-question-${currentIndex + 1}`
+    const secondClickCanAdvance = second.lineId === nextLineId && second.ready === 'true'
+    const expectedIndex = currentIndex + (secondClickCanAdvance ? 2 : 1)
+    if (!secondClickCanAdvance) {
+      await expect(dialogue).toHaveAttribute('data-dialogue-line-id', `commercial-street-question-${currentIndex + 1}`)
+    }
+    currentIndex = expectedIndex
+    if (currentIndex < visibleLines.length) {
+      await expect(dialogue).toHaveAttribute('data-dialogue-line-id', `commercial-street-question-${currentIndex}`)
+      await expect(dialogue).toContainText(visibleLines[currentIndex]!)
+    }
+  }
+
+  if (currentIndex < visibleLines.length) {
+    await expect(dialogue).toHaveAttribute('data-dialogue-line-id', `commercial-street-question-${currentIndex}`)
+    await expect(dialogue).toContainText(visibleLines[currentIndex]!)
+    await expect(dialogue).toHaveAttribute('data-scene-dialogue-ready', 'true', { timeout: 5_000 })
+    await shield.click({ force: true })
+  }
+
+  await expect(dialogue).toBeHidden({ timeout: 5_000 })
+}
+
+for (let trial = 0; trial < 30; trial += 1) {
+  test(`question Dialogue roll-boundary trial ${trial + 1}/30`, async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', (error) => errors.push(error.message))
+    page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()) })
+    await runQuestionDialogueBoundaryTrial(page, trial)
+    expect(errors).toEqual([])
+  })
+}

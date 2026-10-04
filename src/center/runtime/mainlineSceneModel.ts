@@ -889,6 +889,11 @@ const commercialCafeServiceLayout = {
     commercialCafeCounterBody.x + commercialCafeCounterBody.width / 2,
     commercialCafeCounterStaffServiceY,
   ),
+  staffCounterStops: [
+    authoredPoint(commercialCafeCounterPositions[1]!, commercialCafeCounterStaffServiceY),
+    authoredPoint(commercialCafeCounterPositions[Math.floor(commercialCafeCounterPositions.length / 2)]!, commercialCafeCounterStaffServiceY),
+    authoredPoint(commercialCafeCounterPositions[commercialCafeCounterPositions.length - 2]!, commercialCafeCounterStaffServiceY),
+  ],
   staffApproach: authoredPoint(
     commercialCafeCounterPositions[commercialCafeCounterPositions.length - 1]!,
     commercialCafeCounterStaffServiceY,
@@ -953,6 +958,7 @@ const commercialCafeNpcs = [
 ] as const satisfies readonly MainlineSceneNpc[]
 const commercialCafeNpcBehaviorTargets = [
   { id: 'commercial-cafe-counter-service', position: commercialCafeServiceLayout.staffHome },
+  ...commercialCafeServiceLayout.staffCounterStops.map((position, index) => ({ id: `commercial-cafe-counter-ambient-${index + 1}`, position })),
   { id: 'commercial-cafe-prep-station', position: commercialCafeServiceLayout.staffApproach },
   { id: 'commercial-cafe-floor-service-staging', position: commercialCafeFloorServicePosition },
 ] as const satisfies readonly MainlineSceneNpcBehaviorTarget[]
@@ -1486,15 +1492,13 @@ const zhongshuyuanOfficePlant = floor({
   interactionBehavior: 'plant-choice',
 })
 
-// Paired, non-interactive plants mark the two external corridor openings.
-// They sit inside the corridor, close to the left/right side walls rather
-// than in front of the north/south glass; they are visual landmarks, not
-// blockers.
+// Corridor plants are visual and interactive, but their visual glyph/frame
+// remains independent of their small physical collision footprint.
 const zhongshuyuanOfficePortMarkerPositions = [
-  ['left-top', zhongshuyuanOfficeFloorBounds.x + 1.5, zhongshuyuanOfficeCorridor.y + 4],
-  ['left-bottom', zhongshuyuanOfficeFloorBounds.x + 1.5, zhongshuyuanOfficeCorridor.y + zhongshuyuanOfficeCorridor.height - 4],
-  ['right-top', zhongshuyuanOfficeFloorBounds.x + zhongshuyuanOfficeFloorBounds.width - 1.5, zhongshuyuanOfficeCorridor.y + 4],
-  ['right-bottom', zhongshuyuanOfficeFloorBounds.x + zhongshuyuanOfficeFloorBounds.width - 1.5, zhongshuyuanOfficeCorridor.y + zhongshuyuanOfficeCorridor.height - 4],
+  ['left-top', zhongshuyuanOfficeCorridor.x + 6, zhongshuyuanOfficeCorridor.y + 4],
+  ['left-bottom', zhongshuyuanOfficeCorridor.x + 6, zhongshuyuanOfficeCorridor.y + zhongshuyuanOfficeCorridor.height - 4],
+  ['right-top', zhongshuyuanOfficeCorridor.x + zhongshuyuanOfficeCorridor.width - 6, zhongshuyuanOfficeCorridor.y + 4],
+  ['right-bottom', zhongshuyuanOfficeCorridor.x + zhongshuyuanOfficeCorridor.width - 6, zhongshuyuanOfficeCorridor.y + zhongshuyuanOfficeCorridor.height - 4],
 ] as const
 const zhongshuyuanOfficePortMarkers = zhongshuyuanOfficePortMarkerPositions.map(([side, x, y]) => floor({
   id: `zhongshuyuan-office-port-plant-${side}`,
@@ -1502,7 +1506,9 @@ const zhongshuyuanOfficePortMarkers = zhongshuyuanOfficePortMarkerPositions.map(
   kind: 'fixture',
   weight: 'minor',
   position: authoredPoint(x, y),
-  interactive: false,
+  focusFrame: 'interactive',
+  visualBounds: box(x - .8, y - 1, 1.6, 2),
+  interactionBehavior: 'plant-choice',
   visualVisibility: 'baseline',
 }))
 

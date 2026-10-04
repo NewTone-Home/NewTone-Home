@@ -189,6 +189,10 @@ export function recordPlayerScenePosition(
   sceneId: MainlineSceneId,
   position: PlayerPoint,
 ): PlayerSave {
+  const stored = save.scenePositions[sceneId]
+  if (save.currentSceneId === sceneId
+    && save.currentPosition?.x === position.x && save.currentPosition?.y === position.y
+    && stored?.x === position.x && stored?.y === position.y) return save
   return {
     ...save,
     currentSceneId: sceneId,

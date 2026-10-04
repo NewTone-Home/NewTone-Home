@@ -124,6 +124,29 @@
         "commercialCafeFloorServerNpcId",
         "floorServerDenied.reachedRequestedTarget).toBe(false)"
       ]
+    },
+    {
+      "id": "staging-action-copy-2026-10-04",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/mainlineCanonicalAuthoring.test.ts",
+      "oldContract": "Office actions display 拉上百叶窗 and 里世界手机.",
+      "newContract": "User explicitly requires 拉上窗帘 and 换手机; exact authored Action assertions remain mandatory.",
+      "requiredAddedAssertions": [
+        "expect(resolveMainlineSceneExploration(office, entity(office, 'zhongshuyuan-office-window'), base).choice?.options).toEqual(['拉上窗帘'])",
+        "expect(resolveMainlineSceneExploration(office, entity(office, 'zhongshuyuan-office-desk'), base).choice?.options).toEqual(['换手机'])"
+      ]
+    },
+    {
+      "id": "staging-storefront-half-disc-2026-10-04",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/commercialStreetStorefrontInteractions.test.ts",
+      "oldContract": "Storefront routes use exactly three fixed contact candidates.",
+      "newContract": "User explicitly requires any legal point in the outward half-disc to interact without moving to a fixed contact, with dynamic collision fallback preserved.",
+      "requiredAddedAssertions": [
+        "expect(resolveMainlineStorefrontInteraction(street, storefront, from)).toEqual({target:from,path:[from],inRange:true})",
+        "expect(resolveMainlineStorefrontInteraction(street, storefront, {x:110,y:53}).inRange).toBe(false)",
+        "expect(isWalkableMainlinePoint(resolved.target, street, {}, { actorId: 'protagonist', navigationRuntime: runtime })).toBe(true)"
+      ]
     }
   ]
 }

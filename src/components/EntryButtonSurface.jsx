@@ -34,6 +34,7 @@ function EntryButtonSurface({
   label,
   ariaLabel = label,
   className = '',
+  contentSized = false,
   disabled = false,
   controlledProgress = null,
   dataAttributes = {},
@@ -250,7 +251,7 @@ function EntryButtonSurface({
   return (
     <button
       type="button"
-      className={['shared-entry-control', className].filter(Boolean).join(' ')}
+      className={['shared-entry-control', contentSized ? 'is-content-sized' : '', className].filter(Boolean).join(' ')}
       style={{
         '--return-text-active': resolveActiveText(materialMode, worldLayer),
         '--return-text-progress': visualProgress.text,
@@ -288,6 +289,7 @@ function EntryButtonSurface({
     >
       <span className="shared-entry-content">
         <EntryButtonFrame
+          stretchToContent={contentSized}
           frameOrigin={variant.frameOrigin}
           frameProgress={visualProgress.frame}
           fillDirection={variant.fillDirection}

@@ -1,10 +1,11 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { mainlineScenes, type MainlineSceneId } from '../src/center/runtime/mainlineScenes'
+import { isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
 
 test.use({ viewport: { width: 1280, height: 720 } })
 
 async function expectFixedObservation(page: Page, sceneId: MainlineSceneId, target: Locator, screenshotName: string, testInfo: import('@playwright/test').TestInfo) {
-  await page.goto(`/?scene=${sceneId}`)
+  await page.goto(`/?scene=${sceneId}&debugRuntimeEvidence=1`)
   await target.click()
   const text = page.locator('[data-scene-echo]')
   await expect(text).toBeVisible({ timeout: 15_000 })
@@ -19,8 +20,9 @@ async function expectFixedObservation(page: Page, sceneId: MainlineSceneId, targ
   if (policy.mode !== 'fixed') throw new Error(`${sceneId} must use a fixed text policy`)
   // The existing scene camera may translate the whole world. The authored
   // anchor itself remains the stable contract, so inspect its world values.
-  expect(await text.evaluate((element) => element.style.left)).toBe(`${policy.anchor.x}%`)
-  expect(await text.evaluate((element) => element.style.top)).toBe(`${policy.anchor.y}%`)
+  const camera = await page.locator('.mainline-scene-stage').evaluate(e => ({ x:Number(e.getAttribute('data-camera-offset-x')??0), y:Number(e.getAttribute('data-camera-offset-y')??0) }))
+  expect(await text.evaluate((element) => element.style.left)).toBe(`${policy.anchor.x+camera.x}%`)
+  expect(await text.evaluate((element) => element.style.top)).toBe(`${policy.anchor.y+camera.y}%`)
   await page.screenshot({ path: testInfo.outputPath(screenshotName) })
 }
 
@@ -174,7 +176,7 @@ test('the incense Action keeps source content active without brightening its Foc
   expect(consoleErrors).toEqual([])
 })
 
-test('office actions persist real world state and never leave an empty Reading presentation', async ({ page }) => {
+test('office actions persist real world state and never leave an empty Reading presentation', async ({ page }, testInfo) => {
   const consoleErrors: string[] = []
   page.on('pageerror', (error) => consoleErrors.push(error.message))
   page.on('console', (message) => {
@@ -185,6 +187,7 @@ test('office actions persist real world state and never leave an empty Reading p
   const plant = page.locator('[data-object-id="zhongshuyuan-office-plant"]')
   const water = await completeObservationIntoAction(page, plant, 'zhongshuyuan-office-plant', '浇水')
   await expect(plant).toHaveClass(/scene-mainline-interaction--active/)
+  await page.screenshot({ path: testInfo.outputPath('action-short-water.png') })
   await water.click()
   await expect(page.locator('[data-scene-action="zhongshuyuan-office-plant"]')).toHaveCount(0)
   await expect(plant).not.toHaveClass(/scene-mainline-interaction--active/)
@@ -201,8 +204,9 @@ test('office actions persist real world state and never leave an empty Reading p
   await expect(wetPlantEcho).toHaveCount(0)
 
   const window = page.getByRole('button', { name: '窗户，点击让主角前往互动', exact: true })
-  const toggle = await completeObservationIntoAction(page, window, 'zhongshuyuan-office-window', '拉上百叶窗')
+  const toggle = await completeObservationIntoAction(page, window, 'zhongshuyuan-office-window', '拉上窗帘')
   await expect(window).toHaveClass(/scene-mainline-interaction--active/)
+  await page.screenshot({ path: testInfo.outputPath('action-long-blinds.png') })
   await toggle.click()
   await expect(page.locator('[data-scene-action="zhongshuyuan-office-window"]')).toHaveCount(0)
   await expect(window).not.toHaveClass(/scene-mainline-interaction--active/)
@@ -211,4 +215,97 @@ test('office actions persist real world state and never leave an empty Reading p
   await window.click()
   await expect(page.locator('[data-scene-echo="zhongshuyuan-office-window"]')).toContainText('百叶窗已经拉上', { timeout: 15_000 })
   expect(consoleErrors).toEqual([])
+})
+
+test('the four Office corridor plants keep stable healthy or needs-water ownership across reload', async ({ page }, testInfo) => {
+  const healthyText = '叶子翠绿翠绿的，看起来很有活力'
+  const thirstyText = '有段时间没浇水了，不那么精神了。'
+  const shield = page.locator('[data-scene-dialogue-shield="true"]')
+  await page.goto('/?scene=zhongshuyuan-office&debugRuntimeEvidence=1')
+
+  const finishObservation = async (plantId: string) => {
+    const echo = page.locator(`[data-scene-echo="${plantId}"]`)
+    const action = page.locator(`[data-scene-action="${plantId}"]`)
+    const segments: string[] = []
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      if (await action.count()) return segments.join('')
+      await expect(echo).toBeVisible()
+      await expect(echo).toHaveAttribute('data-scene-observation-typing', 'false', { timeout: 5_000 })
+      segments.push(await echo.innerText())
+      const index = Number(await echo.getAttribute('data-scene-segment-index'))
+      const count = Number(await echo.getAttribute('data-scene-segment-count'))
+      await shield.click({ force: true })
+      if (index + 1 >= count) {
+        await expect(echo).toHaveCount(0)
+        return segments.join('')
+      }
+      await expect(echo).toHaveAttribute('data-scene-segment-index', String(index + 1))
+    }
+    await expect(action).toBeVisible()
+    return segments.join('')
+  }
+
+  for (const suffix of ['left-top', 'left-bottom', 'right-top', 'right-bottom']) {
+    const state = await page.evaluate((id) => {
+      const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
+      const at = save.sceneState?.['zhongshuyuan-office']?.[`plantWateredAt:zhongshuyuan-office-port-plant-${id}`]
+      return typeof at === 'number' && Date.now() - at < 240000 ? 'healthy' : 'needs-water'
+    }, suffix)
+    const plantId = `zhongshuyuan-office-port-plant-${suffix}`
+    const plant = page.locator(`[data-object-id="${plantId}"]`)
+    const frame = page.locator(`[data-focus-frame-group="interactive:${plantId}"]`)
+    await expect(frame).toHaveCount(1)
+    await plant.click()
+    const echo = page.locator(`[data-scene-echo="${plantId}"]`)
+    await expect(echo).toBeVisible({ timeout: 15_000 })
+    const observationText = await finishObservation(plantId)
+    if (state === 'healthy') {
+      expect(observationText).toContain(healthyText)
+      await expect(page.locator(`[data-scene-action="${plantId}"]`)).toHaveCount(0)
+      await page.screenshot({ path: testInfo.outputPath(`office-corridor-${suffix}-healthy.png`) })
+      await plant.click()
+      await expect(echo).toBeVisible({ timeout: 15_000 })
+      expect(await finishObservation(plantId)).toContain(healthyText)
+      await expect(page.locator(`[data-scene-action="${plantId}"]`)).toHaveCount(0)
+    } else {
+      expect(observationText).toContain(thirstyText)
+      const action = page.locator(`[data-scene-action="${plantId}"]`)
+      const water = action.getByRole('button', { name: '浇水', exact: true })
+      await expect(water).toBeVisible({ timeout: 5_000 })
+      await page.screenshot({ path: testInfo.outputPath(`office-corridor-${suffix}-needs-water.png`) })
+      await water.click()
+      await expect(action).toHaveCount(0)
+      await plant.click()
+      await expect(echo).toBeVisible({ timeout: 15_000 })
+      expect(await finishObservation(plantId)).toContain(healthyText)
+      await page.reload()
+      const reloadedPlant = page.locator(`[data-object-id="${plantId}"]`)
+      await reloadedPlant.click()
+      const reloadedEcho = page.locator(`[data-scene-echo="${plantId}"]`)
+      await expect(reloadedEcho).toBeVisible({ timeout: 15_000 })
+      expect(await finishObservation(plantId)).toContain(healthyText)
+    }
+  }
+})
+
+test('Office lower-left clicks toward locked upper-right rooms stop at legal navigation points', async ({ page }) => {
+  await page.goto('/?scene=zhongshuyuan-office&debugRuntimeEvidence=1')
+  const stage = page.locator('.mainline-scene-stage[data-mainline-scene="zhongshuyuan-office"]')
+  const actor = page.locator('[data-actor-id="protagonist"]')
+  await expect(stage).toBeVisible()
+  const stageBox = await stage.boundingBox()
+  expect(stageBox).not.toBeNull()
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.mouse.click(stageBox!.x + stageBox!.width * .15, stageBox!.y + stageBox!.height * .82)
+    await expect(actor).toHaveAttribute('data-runtime-x', '15')
+    await expect(actor).not.toHaveClass(/is-moving/)
+    await page.mouse.click(stageBox!.x + stageBox!.width * .84, stageBox!.y + stageBox!.height * .24)
+    await expect(actor).not.toHaveClass(/is-moving/, { timeout: 10_000 })
+    const position = await actor.evaluate((element) => ({
+      x: Number((element as HTMLElement).dataset.runtimeX),
+      y: Number((element as HTMLElement).dataset.runtimeY),
+    }))
+    expect(isWalkableMainlinePoint(position, mainlineScenes['zhongshuyuan-office']), JSON.stringify(position)).toBe(true)
+  }
 })

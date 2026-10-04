@@ -412,18 +412,24 @@ export function createPolygonNavigationMesh(options: PolygonNavigationOptions): 
     && obstacles.every((obstacle) => !containsPoint(obstacle, node))
   ))
   const staticVisibilityDistances = staticVisibilityNodes.map(() => new Map<number, number>())
-  staticVisibilityNodes.forEach((node, nodeIndex) => {
-    for (let candidateIndex = nodeIndex + 1; candidateIndex < staticVisibilityNodes.length; candidateIndex += 1) {
-      const candidate = staticVisibilityNodes[candidateIndex]!
-      if (!segmentIsClear(node, candidate, obstacles, barriers, actorFootprint)) continue
-      const distance = pointDistance(node, candidate)
-      staticVisibilityDistances[nodeIndex]!.set(candidateIndex, distance)
-      staticVisibilityDistances[candidateIndex]!.set(nodeIndex, distance)
-    }
-  })
+  let visibilityGraphReady = false
+  const ensureVisibilityGraph = () => {
+    if (visibilityGraphReady) return
+    visibilityGraphReady = true
+    staticVisibilityNodes.forEach((node, nodeIndex) => {
+      for (let candidateIndex = nodeIndex + 1; candidateIndex < staticVisibilityNodes.length; candidateIndex += 1) {
+        const candidate = staticVisibilityNodes[candidateIndex]!
+        if (!segmentIsClear(node, candidate, obstacles, barriers, actorFootprint)) continue
+        const distance = pointDistance(node, candidate)
+        staticVisibilityDistances[nodeIndex]!.set(candidateIndex, distance)
+        staticVisibilityDistances[candidateIndex]!.set(nodeIndex, distance)
+      }
+    })
+  }
 
   const findPathToGoal = (start: Point, goal: Point): Point[] | null => {
     if (segmentIsClear(start, goal, obstacles, barriers, actorFootprint)) return [start, goal]
+    ensureVisibilityGraph()
 
     const visibilityNodes = [start, goal, ...staticVisibilityNodes]
     const visibilityDistances = visibilityNodes.map(() => new Map<number, number>())

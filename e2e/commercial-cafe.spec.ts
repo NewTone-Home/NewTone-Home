@@ -7,6 +7,7 @@ import {
   commercialCafeCoffeeStatusKey,
   commercialCafeLaoZhouDepartureKey,
   commercialCafeLaoZhouConversationSeatId,
+  commercialCafeNarrativeDialogue,
   commercialCafeNarrativeCursorKey,
   commercialCafeNarrativePhaseKey,
   commercialCafeStoryStatusKey,
@@ -71,7 +72,7 @@ async function advanceNarrative(page: Page, maximum = 80) {
     })
     if (!interaction) return visitedLineIds
     if (interaction.lineId && visitedLineIds.at(-1) !== interaction.lineId) visitedLineIds.push(interaction.lineId)
-    await page.waitForTimeout(400)
+    await expect(page.locator('[data-scene-dialogue]')).toHaveAttribute('data-scene-dialogue-ready', 'true')
     await shield.click({ force: true })
     await page.waitForFunction((previous) => {
       const current = document.querySelector<HTMLElement>('[data-scene-dialogue]')
@@ -110,7 +111,7 @@ async function advanceNarrativeToLine(page: Page, lineId: string, maximum = 40) 
       throw new Error(`Narrative shield did not return before ${lineId}: ${JSON.stringify(state)}; ${String(error)}`)
     }
     const previous = await page.locator('[data-scene-dialogue]').evaluate((element) => `${(element as HTMLElement).dataset.dialogueLineId}:${(element as HTMLElement).dataset.sceneSegmentIndex}:${element.textContent}`)
-    await page.waitForTimeout(400)
+    await expect(page.locator('[data-scene-dialogue]')).toHaveAttribute('data-scene-dialogue-ready', 'true')
     await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
     await page.waitForFunction((token) => {
       const current = document.querySelector<HTMLElement>('[data-scene-dialogue]')
@@ -122,18 +123,19 @@ async function advanceNarrativeToLine(page: Page, lineId: string, maximum = 40) 
 
 async function advanceNarrativeToText(page: Page, lineId: string, text: string, maximum = 20) {
   const dialogue = page.locator(`[data-dialogue-line-id="${lineId}"]`)
+  const presentedText = text.replace(/[，。？！；：“”‘’]/g, '')
   for (let index = 0; index < maximum; index += 1) {
     await expect(dialogue).toBeVisible()
-    if ((await dialogue.textContent())?.includes(text)) return
+    if ((await dialogue.textContent())?.includes(presentedText)) return
     const previous = await dialogue.evaluate((element) => `${(element as HTMLElement).dataset.sceneSegmentIndex}:${element.textContent}`)
-    await page.waitForTimeout(400)
+    await expect(dialogue).toHaveAttribute('data-scene-dialogue-ready', 'true')
     await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
     await page.waitForFunction((token) => {
       const current = document.querySelector<HTMLElement>('[data-scene-dialogue]')
       return current && `${current.dataset.sceneSegmentIndex}:${current.textContent}` !== token
     }, previous)
   }
-  await expect(dialogue).toContainText(text)
+  await expect(dialogue).toContainText(presentedText)
 }
 
 async function advanceVisibleDialogue(page: Page, maximum = 20) {
@@ -144,7 +146,7 @@ async function advanceVisibleDialogue(page: Page, maximum = 20) {
       return `${dialogue.dataset.dialogueLineId}:${dialogue.dataset.sceneSegmentIndex}:${dialogue.textContent}`
     })
     if (!interaction) return
-    await page.waitForTimeout(400)
+    await expect(page.locator('[data-scene-dialogue]')).toHaveAttribute('data-scene-dialogue-ready', 'true')
     await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
     await page.waitForFunction((previous) => {
       const current = document.querySelector<HTMLElement>('[data-scene-dialogue]')
@@ -171,10 +173,11 @@ async function advanceObservationToAction(page: Page, observation: string, optio
 }
 
 test('no-coffee narrative advances through story with the table label retained and no delivery', async ({ page }, testInfo) => {
-  await café(page, 'debugRuntimeEvidence=1')
+  await enterCafeFromStreet(page, 'debugRuntimeEvidence=1')
   const storyTable = page.locator('[data-object-id="commercial-cafe-right-window-upper-group-table"]')
   await expect(storyTable).toContainText('桌子')
   await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
+  await page.screenshot({ path: testInfo.outputPath('cafe-world-before-dialogue.png') })
   const coffeeOwner = page.locator('[data-actor-id="cafe-coffee-owner"]')
   const floorServer = page.locator('[data-actor-id="cafe-floor-server"]')
   await expect(coffeeOwner).toHaveText('店员')
@@ -184,16 +187,17 @@ test('no-coffee narrative advances through story with the table label retained a
   expect(staffBounds.every(Boolean)).toBe(true)
   expect(Math.max(0, Math.min(staffBounds[0]!.x + staffBounds[0]!.width, staffBounds[1]!.x + staffBounds[1]!.width) - Math.max(staffBounds[0]!.x, staffBounds[1]!.x))
     * Math.max(0, Math.min(staffBounds[0]!.y + staffBounds[0]!.height, staffBounds[1]!.y + staffBounds[1]!.height) - Math.max(staffBounds[0]!.y, staffBounds[1]!.y))).toBe(0)
-  await startNarrative(page)
+  await meetLaoZhouAndStartNarrativeFromSeat(page)
   await expect(page.locator('[data-dialogue-speaker="修杰"]')).toBeVisible()
+  expect(commercialCafeNarrativeDialogue.lines[0]?.text).toBe('陈副部长还是没有消息吗？')
+  const renderedDialogue = page.locator('[data-scene-text-mode="dialogue"]')
+  await expect(renderedDialogue).toContainText('陈副部长还是没有消息吗')
+  await expect(page.locator('[data-scene-dialogue]')).toHaveAttribute('data-scene-dialogue-ready', 'true')
+  expect(await renderedDialogue.innerText()).not.toMatch(/[，。！？；：、]/)
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-e2e-world-speed', '0.45')
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-e2e-floor-server-speed', '0.45')
   await page.screenshot({ path: testInfo.outputPath('cafe-narrative-xiujie.png') })
-  const firstVisibleLineId = await page.locator('[data-scene-dialogue]').getAttribute('data-dialogue-line-id')
-  // The shield owns arbitrary world clicks while narration is active.
-  await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
-  await expect(page.locator('[data-scene-dialogue]')).toHaveAttribute('data-dialogue-line-id', 'commercial-cafe-lao-zhou-first-lao-zhou')
-  expect([firstVisibleLineId, ...await advanceNarrative(page)]).toEqual([
+  expect(await advanceNarrative(page)).toEqual([
     'commercial-cafe-lao-zhou-first-xiujie',
     'commercial-cafe-lao-zhou-first-lao-zhou',
     'commercial-cafe-coffee-xiujie',
@@ -211,7 +215,7 @@ test('no-coffee narrative advances through story with the table label retained a
   ])
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-commercial-cafe-status', 'ready-to-leave')
   await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-delivery"]')).toHaveCount(0)
-  await expect(page.getByText('您的咖啡。', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('您的咖啡', { exact: true })).toHaveCount(0)
   await expect(storyTable).toContainText('桌子')
   await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-commercial-cafe-coffee-status', 'none')
@@ -327,14 +331,39 @@ test('coffee is optional and a carried milk tea asks before coffee order', async
 
 test('coffee prepares after prep arrival, waits ready at the counter, and delivers only between cursor 1 and cursor 2', async ({ page }, testInfo) => {
   await enterCafeFromStreet(page, 'debugRuntimeEvidence=1')
+  const coffeeOwner = page.locator('[data-actor-id="cafe-coffee-owner"]')
+  await expect(coffeeOwner).toHaveAttribute('data-npc-duty-id', 'cafe-coffee-owner.counter-ambient')
+  const idlePosition = {
+    x: Number(await coffeeOwner.getAttribute('data-runtime-x')),
+    y: Number(await coffeeOwner.getAttribute('data-runtime-y')),
+  }
+  await page.waitForFunction(({ x, y }) => {
+    const actor = document.querySelector<HTMLElement>('[data-actor-id="cafe-coffee-owner"]')
+    return Boolean(actor && Math.hypot(Number(actor.dataset.runtimeX) - x, Number(actor.dataset.runtimeY) - y) > .2)
+  }, idlePosition, { timeout: 30_000 })
   const storyTable = page.locator('[data-object-id="commercial-cafe-right-window-upper-group-table"]')
   await expect(storyTable).toContainText('桌子')
   const coffeeQuestion = '\u8981\u70b9\u4e00\u676f\u5496\u5561\u5417\uff1f'
   await page.locator('[data-object-id="commercial-cafe-counter"]').click()
-  await (await advanceObservationToAction(page, coffeeQuestion, '\u70b9\u4e00\u676f\u5496\u5561')).click()
+  const coffeeAction = await advanceObservationToAction(page, coffeeQuestion, '\u70b9\u4e00\u676f\u5496\u5561')
+  await page.evaluate(() => {
+    const transitions: string[] = []
+    Object.assign(window, { __cafeCoffeeStatusTransitions: transitions })
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        if (record.type !== 'attributes' || record.attributeName !== 'data-commercial-cafe-coffee-status') continue
+        const current = (record.target as HTMLElement).getAttribute(record.attributeName)
+        if (current && transitions.at(-1) !== current) transitions.push(current)
+      }
+    })
+    observer.observe(document.querySelector('.scene-shell[data-mainline-scene="commercial-cafe"]')!, {
+      attributes: true,
+      attributeFilter: ['data-commercial-cafe-coffee-status'],
+    })
+  })
+  await coffeeAction.click()
   await expect(page.locator('[data-scene-action]')).toHaveCount(0)
   const shell = page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')
-  await expect(shell).toHaveAttribute('data-commercial-cafe-coffee-status', 'ordered')
   await expect(shell).toHaveAttribute('data-e2e-world-speed', '1')
   console.log('CAFE_FLOW_CHECKPOINT', 'order-selected')
   await expect.poll(async () => page.evaluate((key) => {
@@ -347,6 +376,8 @@ test('coffee prepares after prep arrival, waits ready at the counter, and delive
     return save.sceneState?.['commercial-cafe']?.[key]
   }, commercialCafeCoffeePreparationStartedAtKey)
   expect(typeof preparationStartedAt).toBe('number')
+  expect(await page.evaluate(() => (window as Window & { __cafeCoffeeStatusTransitions?: string[] }).__cafeCoffeeStatusTransitions))
+    .toEqual(expect.arrayContaining(['ordered', 'preparing']))
   await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
   await expect.poll(async () => page.evaluate((key) => {
     const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
@@ -358,7 +389,7 @@ test('coffee prepares after prep arrival, waits ready at the counter, and delive
   console.log('CAFE_FLOW_CHECKPOINT', 'narrative-started')
   await expect(storyTable).toContainText('桌子')
   const laoZhouLineId = 'commercial-cafe-lao-zhou-first-lao-zhou'
-  const cursorOneText = '\u5b8c\u5168\u6ca1\u6709\u3002'
+  const cursorOneText = '\u5b8c\u5168\u6ca1\u6709'
   await advanceNarrativeToLine(page, laoZhouLineId)
   await advanceNarrativeToText(page, laoZhouLineId, cursorOneText)
   const shield = page.locator('[data-scene-dialogue-shield="true"]')
@@ -376,7 +407,7 @@ test('coffee prepares after prep arrival, waits ready at the counter, and delive
   await expect(page.locator('[data-scene-dialogue]')).toHaveCount(0)
   await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
   await expect(storyTable).toContainText('桌子')
-  await expect(page.locator('[data-actor-id="cafe-coffee-owner"]')).toHaveAttribute('data-npc-duty-id', 'cafe-coffee-owner.deliver-coffee', { timeout: 15_000 })
+  await expect(coffeeOwner).toHaveAttribute('data-npc-duty-id', 'cafe-coffee-owner.deliver-coffee', { timeout: 15_000 })
   await expect.poll(async () => page.evaluate((key) => {
     const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
     return save.sceneState?.['commercial-cafe']?.[key]
@@ -386,7 +417,7 @@ test('coffee prepares after prep arrival, waits ready at the counter, and delive
   await expect(shell).toHaveAttribute('data-commercial-cafe-narrative-phase', 'delivery-line')
   await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-delivery"]')).toBeVisible()
   await expect(page.locator('[data-dialogue-speaker="店员"]')).toBeVisible()
-  await expect(page.getByText('您的咖啡。', { exact: true })).toBeVisible()
+  await expect(page.getByText('您的咖啡', { exact: true })).toBeVisible()
   await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-xiujie"]')).toHaveCount(0)
   await expect(storyTable).toContainText('桌子')
   await page.screenshot({ path: testInfo.outputPath('cafe-delivery-line-at-table.png') })
@@ -399,6 +430,15 @@ test('coffee prepares after prep arrival, waits ready at the counter, and delive
   await expect(shell).toHaveAttribute('data-e2e-coffee-owner-speed', '1')
   await expect(shell).toHaveAttribute('data-commercial-cafe-coffee-owner-phase', 'counter', { timeout: 20_000 })
   await expect(shell).toHaveAttribute('data-e2e-coffee-owner-speed', '0.45')
+  await expect(coffeeOwner).toHaveAttribute('data-npc-duty-id', 'cafe-coffee-owner.counter-ambient')
+  const returnedPosition = {
+    x: Number(await coffeeOwner.getAttribute('data-runtime-x')),
+    y: Number(await coffeeOwner.getAttribute('data-runtime-y')),
+  }
+  await page.waitForFunction(({ x, y }) => {
+    const actor = document.querySelector<HTMLElement>('[data-actor-id="cafe-coffee-owner"]')
+    return Boolean(actor && Math.hypot(Number(actor.dataset.runtimeX) - x, Number(actor.dataset.runtimeY) - y) > .2)
+  }, returnedPosition, { timeout: 30_000 })
 })
 
 test('cursor 1 fast-forwards the durable preparing state only after coffee owner reached prep', async ({ page }, testInfo) => {
@@ -468,7 +508,7 @@ test('cursor 1 fast-forwards the durable preparing state only after coffee owner
   }, commercialCafeCoffeeStatusKey), { timeout: 30_000 }).toBe('delivered')
   await expect(shell).toHaveAttribute('data-commercial-cafe-cursor', '1')
   await expect(page.locator('[data-dialogue-line-id="commercial-cafe-coffee-delivery"]')).toBeVisible()
-  await expect(page.getByText('您的咖啡。', { exact: true })).toBeVisible()
+  await expect(page.getByText('您的咖啡', { exact: true })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('cafe-fast-forward-ready-arrival-delivery-line.png') })
   await page.waitForTimeout(400)
   await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
@@ -493,7 +533,7 @@ test('a blocked coffee-owner delivery stays ready and recovers through the share
   }, commercialCafeCoffeeStatusKey)).toBe('ready')
   await meetLaoZhouAndStartNarrativeFromSeat(page)
   await advanceNarrativeToLine(page, 'commercial-cafe-lao-zhou-first-lao-zhou')
-  await advanceNarrativeToText(page, 'commercial-cafe-lao-zhou-first-lao-zhou', '完全没有。')
+  await advanceNarrativeToText(page, 'commercial-cafe-lao-zhou-first-lao-zhou', '完全没有')
   const shield = page.locator('[data-scene-dialogue-shield="true"]')
   for (let attempt = 0; attempt < 8; attempt += 1) {
     if (await shell.getAttribute('data-commercial-cafe-narrative-phase') === 'coffee-delivery') break
@@ -568,7 +608,7 @@ test('a delivered coffee line resumes after reload and never repeats after ackno
   const deliveryLine = page.locator('[data-dialogue-line-id="commercial-cafe-coffee-delivery"]')
   await expect(deliveryLine).toBeVisible()
   await expect(page.locator('[data-dialogue-speaker="店员"]')).toBeVisible()
-  await expect(page.getByText('您的咖啡。', { exact: true })).toBeVisible()
+  await expect(page.getByText('您的咖啡', { exact: true })).toBeVisible()
   expect(await page.evaluate((key) => {
     const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
     return save.sceneState?.['commercial-cafe']?.[key]

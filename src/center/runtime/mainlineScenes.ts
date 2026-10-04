@@ -620,7 +620,14 @@ function storefrontFixedCellCount(storefront: MainlineStorefrontSlot) {
 }
 
 function fitStorefrontRoles(roles: readonly MainlineStorefrontRole[], cellCount: number): MainlineStorefrontRole[] {
-  if (roles.length >= cellCount) return roles.slice(0, cellCount)
+  if (cellCount <= 0) return []
+  if (roles.length >= cellCount) {
+    const featuredRoles = roles.filter((role) => role === 'door' || role === 'sign')
+    if (featuredRoles.length === 0) return roles.slice(0, cellCount)
+    if (featuredRoles.length >= cellCount) return featuredRoles.slice(0, cellCount)
+    const supportingRoles = roles.filter((role) => role !== 'door' && role !== 'sign')
+    return [...featuredRoles, ...supportingRoles.slice(0, cellCount - featuredRoles.length)]
+  }
   const paddingCount = cellCount - roles.length
   const leftPadding = Math.floor(paddingCount / 2)
   return [
@@ -1178,7 +1185,18 @@ export function mainlineSceneGeometryUnits(
         : [unit]
     }
     const near = storefront.portalId ? isMainlineStorefrontNear(scene, storefront, position) : false
-    if (unit.variant) return unit.variant === (near ? 'near' : 'baseline') ? [unit] : []
+    if (unit.variant) {
+      if (near && unit.variant === 'baseline') {
+        // The close-up wall/door projection must not make the storefront's
+        // authored name disappear. Keep only the baseline sign cells as a
+        // stable visual label; the near projection still owns the physical
+        // wall and door glyphs, and navigation remains on canonical geometry.
+        return unit.visual.cells.some((cell) => cell.kind === 'storefront' && cell.storefrontRole === 'sign')
+          ? [unit]
+          : []
+      }
+      return unit.variant === (near ? 'near' : 'baseline') ? [unit] : []
+    }
     // Keep the canonical wall/door rectangle for collision and navigation,
     // but switch only its visual projection. Far away, the storefront label
     // covers this location; near the portal, the real wall-door-wall cells
@@ -1233,21 +1251,30 @@ export function mainlineStorefrontApproach(scene: MainlineSceneDefinition, store
   return { x: anchor.x - approachDistance, y: anchor.y }
 }
 
-/**
- * A storefront is a long wall surface, not a single physical interaction
- * point. Keep the authored centre approach first, then offer symmetric
- * tangential alternatives on the same walkable side. Navigation owns which
- * candidate is currently reachable when live actors occupy one of them.
- */
-export function mainlineStorefrontInteractionCandidates(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot): Point[] {
-  const approach = mainlineStorefrontApproach(scene, storefront)
-  const halfSpan = Math.max(0, (storefront.end - storefront.start) / 2)
-  const tangentOffset = Math.min(4, Math.max(0, halfSpan - 2))
-  if (tangentOffset <= 0) return [approach]
-  const alternatives = storefront.edge === 'top' || storefront.edge === 'bottom'
-    ? [{ x: approach.x - tangentOffset, y: approach.y }, { x: approach.x + tangentOffset, y: approach.y }]
-    : [{ x: approach.x, y: approach.y - tangentOffset }, { x: approach.x, y: approach.y + tangentOffset }]
-  return [approach, ...alternatives]
+/** A storefront interaction is the outward half-disc of its authored facade. */
+export function mainlineStorefrontInteractionRegion(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot) {
+  const center = mainlineStorefrontAnchor(scene, storefront)
+  const outward = storefront.edge === 'top' ? { x: 0, y: -1 }
+    : storefront.edge === 'bottom' ? { x: 0, y: 1 }
+      : storefront.edge === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 }
+  return { center, outward, radius: 6 }
+}
+
+/** Route samples find legal alternatives; membership never depends on these samples. */
+export function mainlineStorefrontInteractionCandidates(
+  scene: MainlineSceneDefinition,
+  storefront: MainlineStorefrontSlot,
+  from: Point = mainlineStorefrontApproach(scene, storefront),
+  _actorFootprint: { width: number; height: number } = { width: .8, height: .8 },
+): Point[] {
+  const { center, outward, radius } = mainlineStorefrontInteractionRegion(scene, storefront)
+  const tangent = { x: -outward.y, y: outward.x }
+  const dx = from.x - center.x, dy = from.y - center.y
+  const angle = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, Math.atan2(dx * tangent.x + dy * tangent.y, dx * outward.x + dy * outward.y)))
+  return [1, .7, .4].flatMap((fraction) => [angle, ...Array.from({ length: 17 }, (_, i) => -Math.PI / 2 + Math.PI * i / 16)].map((a) => ({
+    x: center.x + radius * fraction * (outward.x * Math.cos(a) + tangent.x * Math.sin(a)),
+    y: center.y + radius * fraction * (outward.y * Math.cos(a) + tangent.y * Math.sin(a)),
+  })))
 }
 
 export function mainlineStorefrontAtPoint(scene: MainlineSceneDefinition, point: Point): MainlineStorefrontSlot | undefined {
@@ -1326,6 +1353,7 @@ export const mainlineMapLandmarksByWorld: Record<MainlineMapWorld, readonly Main
   ],
   inner: [
     { id: 'commercial', sceneId: 'commercial-street', label: '商业街', glyph: '街', position: mainlineMapLayout.landmarkPositions.commercial },
+    { id: 'jijia', sceneId: 'jijia-ancestral-home', label: '姬家祖宅', glyph: '宅', position: mainlineMapLayout.landmarkPositions.jijia },
     { id: 'zhongshuyuan', sceneId: 'zhongshuyuan-office', label: '中枢院', glyph: '院', position: mainlineMapLayout.landmarkPositions.zhongshuyuan },
     { id: 'mine', sceneId: 'yonghe-mining-perimeter', label: '矿区', glyph: '矿', position: mainlineMapLayout.landmarkPositions.mine },
   ],

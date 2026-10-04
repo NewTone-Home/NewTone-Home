@@ -10,6 +10,7 @@ import {
   longDistanceTravelStatusPulseDurationMs,
   longDistanceTravelVehicleDurationMs,
 } from '../src/center/runtime/longDistanceTravelContract'
+import { mainlineMapLandmarksByWorld } from '../src/center/runtime/mainlineScenes'
 
 describe('LongDistanceTravel core component', () => {
   it('renders the two phrase beats from the production travel contract', () => {
@@ -50,5 +51,11 @@ describe('LongDistanceTravel core component', () => {
       animationName: 'center-long-distance-vehicle-drive',
     } as AnimationEvent<HTMLSpanElement>, onTravelComplete)).toBe(true)
     expect(onTravelComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers the Ancestral Home as a playable inner-world Phone destination', () => {
+    const home = mainlineMapLandmarksByWorld.inner.find(({ sceneId }) => sceneId === 'jijia-ancestral-home')
+    expect(home).toMatchObject({ id: 'jijia', label: '姬家祖宅' })
+    expect(home?.position).toEqual(mainlineMapLandmarksByWorld.surface.find(({ id }) => id === 'jijia')?.position)
   })
 })

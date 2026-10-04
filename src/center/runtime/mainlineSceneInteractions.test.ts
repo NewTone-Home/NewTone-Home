@@ -60,11 +60,11 @@ describe('mainline scene interaction policies', () => {
       officeBlindsOpen: true,
       carriedPhoneDevice: 'surface',
     })
-    expect(deskChoice.choice?.options).toEqual(['里世界手机'])
-    expect(resolveMainlineSceneEchoChoice(office, desk, '里世界手机', 0)?.deskDevice).toBe('inner')
+    expect(deskChoice.choice?.options).toEqual(['换手机'])
+    expect(resolveMainlineSceneEchoChoice(office, desk, '换手机', 0)?.deskDevice).toBe('inner')
 
     const window = entity('zhongshuyuan-office', 'zhongshuyuan-office-window')
-    expect(resolveMainlineSceneEchoChoice(office, window, '打开百叶窗', 0)).toMatchObject({
+    expect(resolveMainlineSceneEchoChoice(office, window, '打开窗帘', 0)).toMatchObject({
       stateChange: { key: 'blindsOpen', value: true },
       dismiss: true,
     })
@@ -85,8 +85,8 @@ describe('mainline scene interaction policies', () => {
       dismiss: true,
       stateChange: { key: 'plantWateredAt', value: 4321 },
     })
-    expect(plantIsWatered(4321, 4321 + 9 * 60 * 1000)).toBe(true)
-    expect(plantIsWatered(4321, 4321 + 10 * 60 * 1000)).toBe(false)
+    expect(plantIsWatered(4321, 4321 + 3 * 60 * 1000)).toBe(true)
+    expect(plantIsWatered(4321, 4321 + 4 * 60 * 1000)).toBe(false)
   })
 
   it('keeps coffee optional and asks for confirmation only when the protagonist carries milk tea', () => {

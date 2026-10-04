@@ -3,7 +3,7 @@ import { defaultSceneScreenMetrics } from '../src/center/runtime/sceneBoundaryGr
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { mainlineEntityTextFootprint, mainlineLabelFootprint } from '../src/center/runtime/sceneLayout'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
-import { findMainlinePathToEntity, findMainlinePathToNpc, mainlineInteractionTarget, mainlineNpcInteractionTarget, resolveMainlineEntityInteraction, resolveMainlineNpcInteraction, resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
+import { canActorReachPassageApproach, classifyMainlineWorldCommand, findMainlinePathToEntity, findMainlinePathToNpc, findMainlineRoomPassageSequence, mainlineInteractionTarget, mainlineNpcInteractionTarget, resolveMainlineEntityInteraction, resolveMainlineNpcInteraction, resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
 
 describe('mainline visual footprint contract', () => {
   it('derives ordinary labels from the same font, orientation, line-height and scale used by the renderer', () => {
@@ -48,6 +48,26 @@ describe('mainline visual footprint contract', () => {
     const laoZhou = resolveMainlineNpcInteraction(cafe, 'lao-zhou', from, {}, options)
     expect(mainlineNpcInteractionTarget(cafe, 'lao-zhou', from, {}, undefined, options)).toEqual(laoZhou.target)
     expect(findMainlinePathToNpc(cafe, 'lao-zhou', from, {}, options).target).toEqual(laoZhou.target)
+  })
+
+  it('keeps all four Office corridor plant contacts reachable from the current lower-left office', () => {
+    const office = mainlineScenes['zhongshuyuan-office']
+    const from = office.initialPlayerPosition
+    const snapshot = createMainlineSceneGeometrySnapshot(office, from, {}, defaultSceneScreenMetrics)
+    const options = { geometrySnapshot: snapshot, screenMetrics: defaultSceneScreenMetrics }
+    const corridorPlants = office.objects.filter((entity) => entity.id.startsWith('zhongshuyuan-office-port-plant-'))
+
+    expect(corridorPlants).toHaveLength(4)
+    corridorPlants.forEach((plant) => {
+      const interaction = resolveMainlineEntityInteraction(office, plant.id, from, {}, options)
+      const command = classifyMainlineWorldCommand(office, from, interaction.target, {}, options)
+
+      expect(findMainlineRoomPassageSequence(office, from, plant.position, {}, options, true)?.passages[0]?.id).toBe('zhongshuyuan-office-south-door-1')
+      expect(command.kind, plant.id).toBe('passage')
+      if (command.kind !== 'passage') throw new Error(`${plant.id} must route through its legal Office passage`)
+      expect(canActorReachPassageApproach(office, command.passage, from, {}, options)?.path).not.toBeNull()
+      expect(command.kind === 'passage' ? command.requestedTarget : null, plant.id).toEqual(interaction.target)
+    })
   })
 
   it('keeps the cafe counter one continuous structure while its visual cells reflow', () => {

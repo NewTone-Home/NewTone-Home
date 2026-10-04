@@ -1,7 +1,44 @@
 import { expect, test } from '@playwright/test'
-import { commercialStreetMilkTeaReadyAtKey } from '../src/center/runtime/commercialStreetMilkTea'
+import {mainlineScenes,mainlineStorefrontInteractionRegion} from '../src/center/runtime/mainlineScenes'
 
 test.use({ viewport: { width: 1280, height: 720 } })
+
+async function clickWorldPoint(page: import('@playwright/test').Page, point: { x: number; y: number }) {
+  const stage = page.locator('.mainline-scene-stage')
+  const screenPoint = await stage.evaluate((element, target) => {
+    const rect = element.getBoundingClientRect()
+    const cameraX = Number(element.getAttribute('data-camera-offset-x') ?? 0)
+    const cameraY = Number(element.getAttribute('data-camera-offset-y') ?? 0)
+    return { x: ((target.x + cameraX) / 100) * rect.width, y: ((target.y + cameraY) / 100) * rect.height }
+  }, point)
+  await stage.click({ position: screenPoint })
+}
+
+test('the Milk Tea storefront interaction surface works from west, center, and east approaches during normal NPC activity', async ({ page }) => {
+  await page.goto('/?scene=commercial-street&debugRuntimeEvidence=1')
+  const protagonist = page.locator('[data-actor-id="protagonist"]')
+  const phone = page.locator('.world-phone')
+  for (const start of [{ x: 78, y: 54 }, { x: 110, y: 54 }, { x: 142, y: 54 }]) {
+    await clickWorldPoint(page, start)
+    await page.waitForFunction(({ x, y }) => {
+      const actor = document.querySelector<HTMLElement>('[data-actor-id="protagonist"]')
+      return Boolean(actor && Math.hypot(Number(actor.dataset.runtimeX) - x, Number(actor.dataset.runtimeY) - y) < .6)
+    }, start, { timeout: 30_000 })
+    await page.getByRole('button', { name: '奶茶店', exact: true }).click()
+    await expect(phone).toHaveClass(/is-open/, { timeout: 30_000 })
+    const arrived = {
+      x: Number(await protagonist.getAttribute('data-runtime-x')),
+      y: Number(await protagonist.getAttribute('data-runtime-y')),
+    }
+    expect(arrived.x).toBeGreaterThan(101)
+    expect(arrived.x).toBeLessThan(121)
+    const region=mainlineStorefrontInteractionRegion(mainlineScenes['commercial-street'],mainlineScenes['commercial-street'].storefronts.find(s=>s.id==='commercial-south-slot-5')!)
+    expect(Math.hypot(arrived.x-region.center.x,arrived.y-region.center.y)).toBeLessThanOrEqual(region.radius+.01)
+    expect((arrived.x-region.center.x)*region.outward.x+(arrived.y-region.center.y)*region.outward.y).toBeGreaterThanOrEqual(0)
+    await page.getByLabel('收起手机').click()
+    await expect(phone).not.toHaveClass(/is-open/)
+  }
+})
 
 test('a first physical visit unlocks the Phone app, while ordering stays remote and pickup stays physical', async ({ page }, testInfo) => {
   const consoleErrors: string[] = []
@@ -27,18 +64,7 @@ test('a first physical visit unlocks the Phone app, while ordering stays remote 
   await expect(phone.getByText(/前方还有/)).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('milk-tea-phone-pending.png') })
 
-  await page.evaluate((readyAtKey) => {
-    const raw = localStorage.getItem('newtone-player-save-v1')
-    if (!raw) throw new Error('Expected a persisted milk-tea order')
-    const save = JSON.parse(raw)
-    save.sceneState['commercial-street'][readyAtKey] = Date.now() - 1
-    localStorage.setItem('newtone-player-save-v1', JSON.stringify(save))
-  }, commercialStreetMilkTeaReadyAtKey)
-  await page.reload()
-
-  await page.getByLabel('打开手机').click()
-  await phone.locator('[data-app="milk-tea"]').click()
-  await expect(phone.getByText('已完成', { exact: true })).toBeVisible()
+  await expect(phone.getByText('已完成', { exact: true })).toBeVisible({ timeout: 45_000 })
   await expect(phone.getByText('请到商业街奶茶店取餐。', { exact: true })).toBeVisible()
   await expect(phone.getByRole('button', { name: /取餐|领取/ })).toHaveCount(0)
   await page.getByLabel('收起手机').click()

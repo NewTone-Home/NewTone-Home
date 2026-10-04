@@ -57,6 +57,23 @@ describe('commercial street storefront presentation', () => {
     expect(baseline.some((unit) => unit.storefrontId === cafe.id && unit.variant === 'baseline')).toBe(true)
   })
 
+  it('keeps the complete storefront sign visible alongside the near wall and door projection', () => {
+    const nearUnits = mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, cafe))
+      .filter((unit) => unit.storefrontId === cafe.id)
+    const roles = nearUnits.flatMap((unit) => unit.visual.cells.map((cell) => cell.storefrontRole))
+
+    expect(nearUnits.some((unit) => unit.variant === 'baseline' && unit.visual.cells.some((cell) => cell.storefrontRole === 'sign'))).toBe(true)
+    expect(roles).toContain('sign')
+  })
+
+  it('preserves a sign owner when narrow projection provides fewer cells than label characters', () => {
+    const clothing = street.storefronts.find((storefront) => storefront.id === 'commercial-north-slot-2')!
+    const projected = mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, clothing), { width: 390, height: 844 })
+    const cells = projected.filter((unit) => unit.storefrontId === clothing.id).flatMap((unit) => unit.visual.cells)
+
+    expect(cells.some((cell) => cell.storefrontRole === 'sign')).toBe(true)
+  })
+
   it('enters revealing and then revealed only for the portal storefront approach', () => {
     expect(storefrontPresentationShouldReveal(street, cafe, mainlineStorefrontApproach(street, cafe))).toBe(true)
     expect(nextStorefrontPresentationPhase('baseline', 'approach')).toBe('revealing')

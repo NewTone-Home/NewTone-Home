@@ -82,6 +82,7 @@ function targetForAmbientStep(
   from: Point,
   layout: SceneLayout,
   navigationOptions: MainlineNavigationOptions,
+  footprint: NavigationActorFootprint,
 ) {
   if (step.kind !== 'storefront-visit') return step.target
   const storefront = scene.storefronts.find((candidate) => candidate.id === step.storefrontId)
@@ -89,7 +90,7 @@ function targetForAmbientStep(
   return resolveMainlineInteractionCandidates(
     scene,
     from,
-    mainlineStorefrontInteractionCandidates(scene, storefront),
+    mainlineStorefrontInteractionCandidates(scene, storefront, from, footprint),
     .35,
     layout,
     navigationOptions,
@@ -173,8 +174,8 @@ export function AmbientNpcMotion({
     ?? recovery?.retryAtMs
     ?? (movement.snapshot.phase === 'moving' ? null : readyAtMs)
   const { sceneClockMs, readSceneClockMs } = useAmbientNpcSceneClock(enabled, nextWakeAtMs)
-  const latestRef = useRef({ enabled, scene, layout, navigationOptions, movementOptions, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs, readSceneClockMs })
-  latestRef.current = { enabled, scene, layout, navigationOptions, movementOptions, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs, readSceneClockMs }
+  const latestRef = useRef({ enabled, scene, layout, navigationOptions, movementOptions, footprint, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs, readSceneClockMs })
+  latestRef.current = { enabled, scene, layout, navigationOptions, movementOptions, footprint, requestMove: movement.requestMove, phase: movement.snapshot.phase, sceneClockMs, readSceneClockMs }
   const resetKey = `${enabled}:${schedule.npcId}:${initialPosition.x}:${initialPosition.y}`
 
   useEffect(() => {
@@ -298,7 +299,7 @@ export function AmbientNpcMotion({
       setRouteIndex((index) => (index + 1) % schedule.steps.length)
       setReadyAtMs(latestRef.current.readSceneClockMs() + ('dwellMs' in step ? step.dwellMs : 0))
     }
-    const target = targetForAmbientStep(step, current.scene, movement.getPosition(), current.layout, current.navigationOptions)
+    const target = targetForAmbientStep(step, current.scene, movement.getPosition(), current.layout, current.navigationOptions, current.footprint)
     if (!target) {
       advanceRoute()
       return

@@ -114,6 +114,7 @@ function EntryButtonFrame({
   fillProgress = 0,
   materialMode = 'background',
   worldLayer = 'surface',
+  stretchToContent = false,
   fillEnabled = true,
   className = '',
 }) {
@@ -130,6 +131,7 @@ function EntryButtonFrame({
     <svg
       className={['shared-entry-surface', className].filter(Boolean).join(' ')}
       viewBox="0 0 100 36"
+      preserveAspectRatio={stretchToContent ? 'none' : 'xMidYMid meet'}
       aria-hidden="true"
       focusable="false"
       data-entry-frame-origin={frameOrigin}

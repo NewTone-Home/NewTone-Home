@@ -25,8 +25,10 @@ export function commercialCafeDutySpeedMultiplier(npcId: string, dutyId: string 
 export function createCommercialCafeCoffeeOwnerBehaviorCoordinator() {
   let phase: CommercialCafeCoffeeOwnerPhase = 'counter'
   let retryPhase: CommercialCafeCoffeeOwnerPhase = 'counter'
+  let ambientStopIndex = 0
+  let ambientPaused = false
   const getPhase = () => phase
-  const reset = () => { phase = 'counter'; retryPhase = 'counter' }
+  const reset = () => { phase = 'counter'; retryPhase = 'counter'; ambientStopIndex = 0; ambientPaused = false }
   const block = () => {
     if (phase === 'moving-to-prep') retryPhase = 'counter'
     else if (phase === 'delivering') retryPhase = 'preparing'
@@ -46,7 +48,9 @@ export function createCommercialCafeCoffeeOwnerBehaviorCoordinator() {
     narrativePhase: CommercialCafeNarrativePhase
     snapshot: NpcRuntimeSnapshot
   }): NpcIntent | null => {
-    if (scene.id !== 'commercial-cafe' || snapshot.phase === 'moving') return null
+    if (scene.id !== 'commercial-cafe') return null
+    const ambientMoving = snapshot.dutyId === 'cafe-coffee-owner.counter-ambient'
+    if (snapshot.phase === 'moving' && !ambientMoving) return null
     if (phase === 'blocked') return null
 
     if (coffeeStatus === 'ordered' && phase !== 'moving-to-prep') {
@@ -68,10 +72,16 @@ export function createCommercialCafeCoffeeOwnerBehaviorCoordinator() {
       if (intent) phase = 'returning'
       return intent
     }
+    if ((coffeeStatus === 'none' || coffeeStatus === 'delivered') && phase === 'counter' && !ambientPaused && !(snapshot.phase === 'moving' && ambientMoving)) {
+      const stop = scene.npcBehaviorTargets?.find((candidate) => candidate.id === `commercial-cafe-counter-ambient-${ambientStopIndex + 1}`)
+      if (stop) return { dutyId: 'cafe-coffee-owner.counter-ambient', targetId: stop.id, target: { ...stop.position } }
+    }
     return null
   }
 
-  return { getPhase, request, arrivedAtPrep, arrivedAtStoryTable, arrivedAtCounter, block, retry, reset }
+  const arrivedAtAmbientCounter = () => { ambientStopIndex = (ambientStopIndex + 1) % 3; ambientPaused = true }
+  const resumeAmbientCounter = () => { ambientPaused = false }
+  return { getPhase, request, arrivedAtPrep, arrivedAtStoryTable, arrivedAtCounter, arrivedAtAmbientCounter, resumeAmbientCounter, block, retry, reset }
 }
 
 /** Ordinary table service is an independent floor duty and never makes coffee. */

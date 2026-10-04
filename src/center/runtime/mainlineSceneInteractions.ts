@@ -1,17 +1,19 @@
 import type { PhoneDevice } from './phoneState'
-import type { PlayerChoiceValue } from './playerSave'
+import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 import type { MainlineInteractionBehavior } from './mainlineSceneModel'
 import type { MainlineSceneDefinition, MainlineSceneEntity } from './mainlineScenes'
 import { commercialCafeCoffeeStatusKey } from './commercialCafeStory'
 
 export const incenseBurnDurationMs = 10 * 60 * 1000
-export const plantWaterDurationMs = 10 * 60 * 1000
+export const plantWaterDurationMs = 4 * 60 * 1000
 
 export type IncenseBurnPhase = 'unlit' | 'fresh' | 'half' | 'burned'
 
 export type MainlineSceneInteractionContext = {
   incensePhase: IncenseBurnPhase
   plantWatered: boolean
+  plantHealthyText?: string
+  plantWaterStateKey?: `plantWateredAt:${string}`
   officeBlindsOpen: boolean
   carriedPhoneDevice: PhoneDevice
   commercialCafeCoffeeOrdered?: boolean
@@ -29,7 +31,7 @@ export type MainlineExplorationResolution = {
 }
 
 export type MainlineSceneStateChange = {
-  key: 'blindsOpen' | 'incenseLitAt' | 'plantWateredAt' | typeof commercialCafeCoffeeStatusKey
+  key: 'blindsOpen' | 'incenseLitAt' | 'plantWateredAt' | `plantWateredAt:${string}` | typeof commercialCafeCoffeeStatusKey
   value: PlayerChoiceValue
 }
 
@@ -41,6 +43,18 @@ export type MainlineSceneEchoChoiceResolution = {
 
 export function plantIsWatered(wateredAt: number | null, now: number) {
   return wateredAt !== null && now - wateredAt < plantWaterDurationMs
+}
+
+/** Initial health is persisted using the same watering timestamp as every plant. */
+export function initializeOfficePlants(scene: MainlineSceneDefinition, state: PlayerSceneState, now: number, random = Math.random): PlayerSceneState {
+  if (scene.id !== 'zhongshuyuan-office') return {}
+  const plants = scene.objects.filter(entity => entity.id.startsWith('zhongshuyuan-office-port-plant-'))
+  if (plants.every(entity => state[`plantWateredAt:${entity.id}`] !== undefined)) return {}
+  const ranked = plants.map(entity => ({ entity, rank: random() })).sort((a,b) => a.rank - b.rank)
+  return Object.fromEntries(ranked.flatMap(({ entity }, index) => {
+    const key = `plantWateredAt:${entity.id}`
+    return state[key] === undefined ? [[key, index < Math.ceil(plants.length / 2) ? now - random() * 30000 : 0]] : []
+  }))
 }
 
 export function incenseBurnPhase(litAt: number | null, now: number): IncenseBurnPhase {
@@ -81,7 +95,7 @@ export function resolveMainlineSceneExploration(
     return {
       choice: {
         text: scene.explorationText?.[entity.id]?.[0] ?? scene.interactionText[entity.id] ?? '',
-        options: [context.carriedPhoneDevice === 'surface' ? '里世界手机' : '表世界手机'],
+        options: ['换手机'],
       },
     }
   }
@@ -91,11 +105,12 @@ export function resolveMainlineSceneExploration(
         text: context.officeBlindsOpen
           ? (scene.explorationText?.[entity.id] ?? []).join('\n')
           : '百叶窗已经拉上，室内安静了许多。',
-        options: [context.officeBlindsOpen ? '拉上百叶窗' : '打开百叶窗'],
+        options: [context.officeBlindsOpen ? '拉上窗帘' : '打开窗帘'],
       },
     }
   }
   if (behavior === 'plant-choice') {
+    if (context.plantHealthyText) return { choice: { text: context.plantHealthyText } }
     return {
       choice: {
         text: context.plantWatered
@@ -126,18 +141,18 @@ export function resolveMainlineSceneEchoChoice(
   entity: MainlineSceneEntity | undefined,
   option: string,
   now: number,
-  context: Pick<MainlineSceneInteractionContext, 'commercialCafeCoffeeOrdered' | 'carriedMilkTea'> = {},
+  context: Partial<Pick<MainlineSceneInteractionContext, 'commercialCafeCoffeeOrdered' | 'carriedMilkTea' | 'plantWaterStateKey' | 'carriedPhoneDevice'>> = {},
 ): MainlineSceneEchoChoiceResolution | null {
   const behavior = entity ? interactionBehavior(entity) : undefined
 
   if (behavior === 'desk-device') {
     return {
       dismiss: true,
-      deskDevice: option === '里世界手机' ? 'inner' : 'surface',
+      deskDevice: context.carriedPhoneDevice === 'inner' ? 'surface' : 'inner',
     }
   }
   if (behavior === 'blinds-toggle') {
-    const open = option === '打开百叶窗'
+    const open = option === '打开窗帘'
     return {
       stateChange: { key: 'blindsOpen', value: open },
       dismiss: true,
@@ -146,7 +161,7 @@ export function resolveMainlineSceneEchoChoice(
   if (behavior === 'plant-choice') {
     return {
       dismiss: true,
-      stateChange: option === '浇水' ? { key: 'plantWateredAt', value: now } : undefined,
+      stateChange: option === '浇水' ? { key: context.plantWaterStateKey ?? 'plantWateredAt', value: now } : undefined,
     }
   }
   if (behavior === 'incense') {

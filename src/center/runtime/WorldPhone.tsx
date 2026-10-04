@@ -176,6 +176,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
   const closeCompletionReportedRef = useRef(false)
   const closeTransitionStartedRef = useRef(false)
   const [mapPan, setMapPan] = useState<MapPoint>([0, 0])
+  const [milkTeaClock, setMilkTeaClock] = useState(() => Date.now())
   const mapDragRef = useRef<MapDragState>({ active: false, moved: false, pointerId: -1, start: null, origin: null })
   const phoneTime = usePhoneTime()
 
@@ -287,6 +288,18 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
   useEffect(() => {
     if (activeApp !== 'milk-tea') milkTeaOrderStartedRef.current = false
   }, [activeApp])
+
+  useEffect(() => {
+    if (activeApp !== 'milk-tea' || !milkTeaOrder) return
+    const refreshAtReady = () => setMilkTeaClock(Date.now())
+    const remainingMs = milkTeaOrder.readyAt - Date.now()
+    if (remainingMs <= 0) {
+      refreshAtReady()
+      return
+    }
+    const timer = window.setTimeout(refreshAtReady, remainingMs)
+    return () => window.clearTimeout(timer)
+  }, [activeApp, milkTeaOrder?.number, milkTeaOrder?.readyAt])
 
   useEffect(() => {
     if (activeApp !== 'milk-tea' || !milkTeaOrder || !commercialStreetMilkTeaIsReady(milkTeaOrder)) return
@@ -560,7 +573,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
             {activeApp === 'milk-tea' && <section className="world-phone__list-page world-phone__milk-tea" aria-label="奶茶">
               {milkTeaHeld ? <div className="world-phone__list-heading"><span>奶茶</span><strong>手里已有一杯饮料</strong><small>暂时不能再下单。</small></div>
                 : milkTeaOrder ? (() => {
-                  const queue = commercialStreetMilkTeaQueueStatus(milkTeaOrder)
+                  const queue = commercialStreetMilkTeaQueueStatus(milkTeaOrder, milkTeaClock)
                   return <div className="world-phone__list-heading" data-milk-tea-status={queue.phase}>
                     <span>取餐号 {formatCommercialStreetMilkTeaOrderNumber(milkTeaOrder.number)}</span>
                     <strong>{queue.phase === 'ready' ? '已完成' : '制作中'}</strong>

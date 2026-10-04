@@ -1106,7 +1106,7 @@
   height: 100dvh;
   min-height: 100dvh;
 }
-.scene-mainline-world { position: absolute; inset: 0; will-change: transform; animation: mainline-world-enter 180ms ease both; }
+.scene-mainline-world { z-index: 0; position: absolute; inset: 0; will-change: transform; animation: mainline-world-enter 180ms ease both; }
 .scene-mainline-world.is-local-slide-handoff { animation: none; }
 @keyframes mainline-world-enter {
   from { opacity: 0; }
@@ -1215,12 +1215,19 @@
   display: grid;
   place-items: center;
   overflow: hidden;
+  container-type: size;
+  line-height: 1.2;
   white-space: nowrap;
+}
+.scene-mainline-storefront--vertical.scene-mainline-storefront--sign .scene-mainline-storefront__label-track {
+  font-size: min(1em, calc((100cqh - 4px) / var(--storefront-label-length)));
 }
 .scene-mainline-storefront__label-track {
   display: block;
   width: max-content;
   max-width: 100%;
+  font-size: min(1em, calc((100cqw - 4px) / var(--storefront-label-length)));
+  white-space: nowrap;
   will-change: transform, opacity;
   transform: translate3d(0, 0, 0);
   transition: transform 360ms cubic-bezier(.22, .61, .36, 1), opacity 280ms ease-out;
@@ -1462,6 +1469,8 @@
   opacity: .28;
 }
 
+.scene-mainline-reading-layer { position: absolute; inset: 0; z-index: 14; pointer-events: none; }
+.scene-mainline-reading-layer .shared-entry-control { pointer-events: auto; }
 .scene-mainline-text {
   position: absolute;
   z-index: 14;
@@ -1498,7 +1507,20 @@
   pointer-events: none;
   transform: translate(-50%, -50%);
 }
-.scene-mainline-object__focus-host > .scene-focus-frame { inset: -.12em -.18em; }
+.scene-mainline-object__focus-host--content {
+  width: max-content;
+  height: auto;
+  padding: .28em .45em;
+  line-height: 1.2;
+}
+.scene-mainline-object__focus-measure {
+  display: block;
+  width: max-content;
+  visibility: hidden;
+  white-space: nowrap;
+  line-height: 1;
+}
+.scene-mainline-object__focus-host > .scene-focus-frame { inset: 0; }
 .scene-mainline-text.is-leaving { animation: mainline-text-leave 160ms ease-in both; pointer-events: none; }
 @keyframes mainline-text-arrive {
   from { opacity: 0; transform: translate(-50%, calc(-50% + 5px)); }
@@ -1538,19 +1560,18 @@
   animation: mainline-text-arrive 160ms ease-out both;
 }
 .scene-mainline-action .shared-entry-control {
-  width: clamp(124px, 11vw, 176px);
-  min-height: 48px;
+  padding: 0;
 }
 .scene-dialogue-dimmer {
   position: absolute;
   inset: 0;
   z-index: 10;
-  background: rgba(5, 5, 5, .30);
+  background: rgba(5, 5, 5, .42);
   pointer-events: none;
   transition: opacity 180ms ease-out;
 }
 .scene-dialogue-dimmer--observation { background: rgba(5, 5, 5, .18); }
-.scene-dialogue-dimmer--dialogue { background: rgba(5, 5, 5, .30); }
+.scene-dialogue-dimmer--dialogue { background: rgba(5, 5, 5, .42); }
 .scene-dialogue-shield {
   position: absolute;
   inset: 0;
