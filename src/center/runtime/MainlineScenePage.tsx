@@ -2014,7 +2014,7 @@ export function MainlineScenePage({
       setPlantWateredAt(resolution.stateChange.value)
     }
     dismissSceneAction()
-  }, [carriedMilkTea, commercialCafeStory, dismissSceneAction, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, recordSceneState, recordSceneStatePatch, scene, sceneAction])
+  }, [carriedMilkTea, carriedPhoneDevice, commercialCafeStory, dismissSceneAction, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, recordSceneState, recordSceneStatePatch, scene, sceneAction])
 
   const advanceSceneEcho = useCallback(() => {
     const current = sceneEchoRef.current

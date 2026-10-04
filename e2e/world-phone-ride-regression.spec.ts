@@ -2,6 +2,33 @@ import { expect, test } from '@playwright/test'
 
 test.use({ viewport: { width: 1280, height: 720 } })
 
+test('the Office desk Phone Action switches the carried device in both directions', async ({ page }) => {
+  const consoleErrors: string[] = []
+  page.on('pageerror', (error) => consoleErrors.push(error.message))
+  page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()) })
+  await page.route('**/rest/v1/analytics_events**', async (route) => route.fulfill({ status: 201, body: '' }))
+  await page.goto('/?scene=zhongshuyuan-office')
+
+  const phone = page.locator('.world-phone')
+  await expect(phone).toHaveAttribute('data-phone-device', 'surface')
+  for (const target of ['inner', 'surface'] as const) {
+    await page.locator('[data-object-id="zhongshuyuan-office-desk"]').click()
+    const echo = page.locator('[data-scene-echo="zhongshuyuan-office-desk"]')
+    const readingShield = page.locator('[data-scene-dialogue-shield="true"]')
+    await expect(echo).toBeVisible({ timeout: 15_000 })
+    await expect(readingShield).toBeVisible()
+    await expect(echo).toHaveAttribute('data-scene-observation-typing', 'false', { timeout: 15_000 })
+    await readingShield.click({ force: true })
+    const switchAction = page.getByRole('button', { name: '换手机', exact: true })
+    await expect(switchAction).toBeEnabled({ timeout: 15_000 })
+    await switchAction.click()
+    await expect(phone).toHaveAttribute('data-phone-device', target)
+    await page.getByLabel('收起手机').click()
+    await expect(phone).not.toHaveClass(/is-open/)
+  }
+  expect(consoleErrors).toEqual([])
+})
+
 test('the inner-world Phone keeps the existing Office to Commercial Street ride handoff', async ({ page }) => {
   const consoleErrors: string[] = []
   page.on('pageerror', (error) => consoleErrors.push(error.message))

@@ -302,12 +302,12 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
   }, [activeApp, milkTeaOrder?.number, milkTeaOrder?.readyAt])
 
   useEffect(() => {
-    if (activeApp !== 'milk-tea' || !milkTeaOrder || !commercialStreetMilkTeaIsReady(milkTeaOrder)) return
+    if (activeApp !== 'milk-tea' || !milkTeaOrder || !commercialStreetMilkTeaIsReady(milkTeaOrder, milkTeaClock)) return
     const orderKey = `${milkTeaOrder.number}:${milkTeaOrder.readyAt}`
     if (milkTeaOrderReadyRef.current === orderKey) return
     milkTeaOrderReadyRef.current = orderKey
     onMilkTeaOrderReady?.(milkTeaOrder)
-  }, [activeApp, milkTeaOrder?.number, milkTeaOrder?.readyAt, onMilkTeaOrderReady])
+  }, [activeApp, milkTeaClock, milkTeaOrder?.number, milkTeaOrder?.readyAt, onMilkTeaOrderReady])
 
   const selectMilkTeaDrink = (drink: MilkTeaDrink) => {
     if (!milkTeaOrderStartedRef.current) {

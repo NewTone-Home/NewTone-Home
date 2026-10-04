@@ -42,6 +42,15 @@ test('the Milk Tea storefront interaction surface works from west, center, and e
 
 test('a first physical visit unlocks the Phone app, while ordering stays remote and pickup stays physical', async ({ page }, testInfo) => {
   const consoleErrors: string[] = []
+  const readyEvents: unknown[] = []
+  test.setTimeout(75_000)
+  await page.route('**/rest/v1/analytics_events**', async (route) => {
+    const body = JSON.parse(route.request().postData() ?? '[]')
+    const events = Array.isArray(body) ? body : [body]
+    const matchingEvents = events.filter((event) => event?.event_name === 'milk_tea_order_ready')
+    readyEvents.push(...matchingEvents)
+    await route.fulfill({ status: 201, body: '' })
+  })
   page.on('pageerror', (error) => consoleErrors.push(error.message))
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text())
@@ -67,6 +76,23 @@ test('a first physical visit unlocks the Phone app, while ordering stays remote 
   await expect(phone.getByText('已完成', { exact: true })).toBeVisible({ timeout: 45_000 })
   await expect(phone.getByText('请到商业街奶茶店取餐。', { exact: true })).toBeVisible()
   await expect(phone.getByRole('button', { name: /取餐|领取/ })).toHaveCount(0)
+  await page.waitForFunction(() => {
+    const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
+    const state = save.sceneState?.['commercial-street'] ?? {}
+    return state.commercialStreetMilkTeaReadyAnalyticsMarker === `${state.commercialStreetMilkTeaOrderNumber}:${state.commercialStreetMilkTeaReadyAt}`
+  })
+  await page.waitForLoadState('networkidle')
+  const readyEventCount = readyEvents.length
+  expect(readyEventCount).toBeLessThanOrEqual(1)
+  await page.screenshot({ path: testInfo.outputPath('milk-tea-phone-ready.png') })
+  await page.getByLabel('收起手机').click()
+
+  await page.reload()
+  await page.getByLabel('打开手机').click()
+  await page.locator('.world-phone [data-app="milk-tea"]').click()
+  await expect(page.getByText('已完成', { exact: true })).toBeVisible()
+  await page.waitForLoadState('networkidle')
+  expect(readyEvents).toHaveLength(readyEventCount)
   await page.getByLabel('收起手机').click()
 
   await page.getByRole('button', { name: '奶茶店', exact: true }).click()
