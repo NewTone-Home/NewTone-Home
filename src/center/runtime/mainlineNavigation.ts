@@ -182,6 +182,9 @@ function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, opt
         return true
       })
       .map((unit) => ({ x: unit.x, y: unit.y, width: unit.width, height: unit.height })),
+    ...scene.accessRegions
+      .filter((region) => !actorCanEnterRegion(scene, options.actorId, region))
+      .map(({ x, y, width, height }) => ({ x, y, width, height })),
     ...scene.objects
       .filter((entity) => entity.visible !== false && !(entity.kind === 'seat' && occupiedSeatIdsForNavigation(scene, options).has(entity.id)))
       .map((entity) => snapshot.objects.get(entity.id)?.collision ?? mainlineEntityCollision(scene, entity, layout, options.screenMetrics))
@@ -676,7 +679,7 @@ export function findMainlineRoomPassageSequence(
   if (!startRoom || !targetRoom || startRoom.id === targetRoom.id) return null
 
   const edges = scene.passages
-    .filter((passage) => passage.routeThrough && !passage.targetSceneId && passage.access === 'open' && passage.fromRoomId && passage.toRoomId)
+    .filter((passage) => passage.routeThrough && !passage.targetSceneId && passage.fromRoomId && passage.toRoomId)
     .flatMap((passage) => [
       { from: passage.fromRoomId!, to: passage.toRoomId!, passage },
       { from: passage.toRoomId!, to: passage.fromRoomId!, passage },
@@ -1176,7 +1179,24 @@ export function resolveMainlineWorldNavigation(
   const deniedAccessRegion = scene.accessRegions.find((region) => (
     !actorCanEnterRegion(scene, options.actorId, region) && containsPoint(region, requestedTarget)
   ))
-  return { ...resolved, deniedAccessRegion }
+  if (!deniedAccessRegion) return resolved
+  const portal = scene.accessPortals.find((candidate) => candidate.regionId === deniedAccessRegion.id
+    && candidate.requiredAccess === deniedAccessRegion.requiredAccess)
+  const approach = portal ? findMainlinePath(from, portal.outside, scene, layout, options) : null
+  if (!approach) return {
+    ...resolved,
+    resolvedNavigableTarget: { ...from },
+    path: [{ ...from }],
+    reachedRequestedTarget: false,
+    deniedAccessRegion,
+  }
+  return {
+    ...resolved,
+    resolvedNavigableTarget: { ...portal!.outside },
+    path: approach,
+    reachedRequestedTarget: false,
+    deniedAccessRegion,
+  }
 }
 
 const contactDirectionForSide = {

@@ -366,9 +366,11 @@ export function createPolygonNavigationMesh(options: PolygonNavigationOptions): 
     let closestDistance = Infinity
     for (const cell of cells) {
       if (!allowedCells.has(cell.index)) continue
+      const insetX = Math.min(.02, cell.width / 2)
+      const insetY = Math.min(.02, cell.height / 2)
       const candidate = {
-        x: clamp(point.x, cell.x, cell.x + cell.width),
-        y: clamp(point.y, cell.y, cell.y + cell.height),
+        x: clamp(point.x, cell.x + insetX, cell.x + cell.width - insetX),
+        y: clamp(point.y, cell.y + insetY, cell.y + cell.height - insetY),
       }
       const candidateDistance = pointDistance(point, candidate)
       if (candidateDistance < closestDistance) {
@@ -483,7 +485,16 @@ export function createPolygonNavigationMesh(options: PolygonNavigationOptions): 
   const resolvePath = (start: Point, requestedTarget: Point): PolygonNavigationResolution | null => {
     const reachableCells = reachableCellIdsFrom(start)
     if (reachableCells.size === 0) return null
-    const targetCell = cellContaining(requestedTarget)
+    const liesOnBarrier = barriers.some((barrier) => {
+      const dx = barrier.end.x - barrier.start.x
+      const dy = barrier.end.y - barrier.start.y
+      const length = Math.hypot(dx, dy)
+      if (length <= epsilon) return pointDistance(requestedTarget, barrier.start) <= epsilon
+      const cross = (requestedTarget.x - barrier.start.x) * dy - (requestedTarget.y - barrier.start.y) * dx
+      const along = (requestedTarget.x - barrier.start.x) * dx + (requestedTarget.y - barrier.start.y) * dy
+      return Math.abs(cross) <= epsilon * length && along >= -epsilon && along <= length * length + epsilon
+    })
+    const targetCell = liesOnBarrier ? undefined : cellContaining(requestedTarget)
     const reachedRequestedTarget = Boolean(targetCell && reachableCells.has(targetCell.index))
     const resolvedNavigableTarget = reachedRequestedTarget
       ? { x: requestedTarget.x, y: requestedTarget.y }

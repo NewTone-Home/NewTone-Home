@@ -14,6 +14,8 @@ import {
 } from '../src/center/runtime/commercialCafeStory'
 import { commercialStreetMilkTeaHeldDrinkKey } from '../src/center/runtime/commercialStreetMilkTea'
 import { splitMainlineInteractionText } from '../src/center/runtime/mainlineTextSegments'
+import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
 
 test.use({ viewport: { width: 1280, height: 720 } })
 
@@ -820,4 +822,59 @@ test('Café keeps the story table label visible and renders no attached table pr
     await expect(page.locator('[data-object-id="commercial-cafe-right-window-upper-group-table"]')).toContainText('桌子')
     await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
   }
+})
+
+
+test('public clicks on Café staff access hand off to the legal outside portal', async ({ page }, testInfo) => {
+  const cafe = mainlineScenes['commercial-cafe']
+  const staff = cafe.accessRegions.find((region) => region.id === 'commercial-cafe-staff-area')!
+  const target = { x: staff.x + staff.width / 2, y: staff.y + staff.height / 2 }
+  const publicTarget = cafe.initialPlayerPosition
+  await page.goto('/?scene=commercial-cafe&debugRuntimeEvidence=1')
+  const stage = page.locator('.mainline-scene-stage[data-mainline-scene="commercial-cafe"]')
+  const actor = page.locator('[data-actor-id="protagonist"]')
+  await expect(stage).toBeVisible()
+  const bounds = await stage.boundingBox()
+  expect(bounds).not.toBeNull()
+  const camera = {
+    x: Number(await stage.getAttribute('data-camera-offset-x') ?? 0),
+    y: Number(await stage.getAttribute('data-camera-offset-y') ?? 0),
+  }
+  const clickWorld = async (point: { x: number; y: number }) => page.mouse.click(
+    bounds!.x + bounds!.width * (point.x + camera.x) / 100,
+    bounds!.y + bounds!.height * (point.y + camera.y) / 100,
+  )
+  const readActor = () => actor.evaluate((element) => ({
+    x: Number((element as HTMLElement).dataset.runtimeX),
+    y: Number((element as HTMLElement).dataset.runtimeY),
+  }))
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await clickWorld(target)
+    const echo = page.locator('[data-scene-echo]')
+    await expect(echo).toBeVisible({ timeout: 20_000 })
+    await expect(echo).toContainText('还是别进去打扰他们工作了')
+    await expect(actor).not.toHaveClass(/is-moving/, { timeout: 15_000 })
+    const position = await readActor()
+    expect(isWalkableMainlinePoint(position, cafe), JSON.stringify(position)).toBe(true)
+    const portalOutside = cafe.accessPortals.find((portal) => portal.regionId === staff.id)!.outside
+    expect(position).toEqual(portalOutside)
+    if (attempt === 0) {
+      const shield = page.locator('[data-scene-dialogue-shield="true"]')
+      if (await shield.isVisible().catch(() => false)) await shield.click({ force: true })
+    }
+  }
+
+  const shield = page.locator('[data-scene-dialogue-shield="true"]')
+  if (await shield.isVisible().catch(() => false)) await shield.click({ force: true })
+  await clickWorld(target)
+  await page.waitForTimeout(80)
+  await clickWorld(publicTarget)
+  await page.waitForTimeout(80)
+  await clickWorld(target)
+  await page.waitForTimeout(80)
+  await clickWorld(publicTarget)
+  await expect(actor).not.toHaveClass(/is-moving/, { timeout: 10_000 })
+  expect(isWalkableMainlinePoint(await readActor(), cafe)).toBe(true)
+  await page.screenshot({ path: testInfo.outputPath('cafe-access-denied-legal-approach.png'), fullPage: true })
 })

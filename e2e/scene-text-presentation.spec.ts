@@ -301,11 +301,24 @@ test('Office lower-left clicks toward locked upper-right rooms stop at legal nav
     await expect(actor).toHaveAttribute('data-runtime-x', '15')
     await expect(actor).not.toHaveClass(/is-moving/)
     await page.mouse.click(stageBox!.x + stageBox!.width * .84, stageBox!.y + stageBox!.height * .24)
-    await expect(actor).not.toHaveClass(/is-moving/, { timeout: 10_000 })
+    const echo = page.locator('[data-scene-echo]')
+    await expect(echo).toBeVisible({ timeout: 30_000 })
+    await expect(echo).toContainText(/锁|权限/)
+    await expect(actor).not.toHaveClass(/is-moving/, { timeout: 15_000 })
     const position = await actor.evaluate((element) => ({
       x: Number((element as HTMLElement).dataset.runtimeX),
       y: Number((element as HTMLElement).dataset.runtimeY),
     }))
     expect(isWalkableMainlinePoint(position, mainlineScenes['zhongshuyuan-office']), JSON.stringify(position)).toBe(true)
+    expect(position.y).toBeLessThan(60)
+    const shield = page.locator('[data-scene-dialogue-shield="true"]')
+    if (await shield.isVisible().catch(() => false)) await shield.click({ force: true })
+    await page.mouse.click(stageBox!.x + stageBox!.width * .5, stageBox!.y + stageBox!.height * .5)
+    await expect(actor).not.toHaveClass(/is-moving/, { timeout: 10_000 })
+    const afterNormalMove = await actor.evaluate((element) => ({
+      x: Number((element as HTMLElement).dataset.runtimeX),
+      y: Number((element as HTMLElement).dataset.runtimeY),
+    }))
+    expect(isWalkableMainlinePoint(afterNormalMove, mainlineScenes['zhongshuyuan-office'])).toBe(true)
   }
 })

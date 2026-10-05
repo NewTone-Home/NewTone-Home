@@ -318,6 +318,16 @@ export function createFreeRoamController(initialPosition: Point): FreeRoamContro
     while (activeSession.waypointIndex < activeSession.waypoints.length) {
       const waypoint = activeSession.waypoints[activeSession.waypointIndex]
       if (Math.hypot(waypoint.x - current.x, waypoint.y - current.y) > arrivalRadius) break
+      const occupancy = activeSession.waypointIndex === 0 && activeSession.preserveInitialExit
+        ? activeSession.options.initialCanOccupy
+        : activeSession.waypointIndex === activeSession.waypoints.length - 1
+          ? activeSession.options.finalCanOccupy ?? activeSession.options.canOccupy
+          : activeSession.options.canOccupy
+      if (!segmentIsTraversable(current, waypoint, occupancy, activeSession.options.canTraverse, sharedNavigationTraversalStep)) {
+        session = null
+        activeSession.options.onBlocked?.(copyPoint(position))
+        return true
+      }
       current = waypoint
       activeSession.waypointIndex += 1
     }

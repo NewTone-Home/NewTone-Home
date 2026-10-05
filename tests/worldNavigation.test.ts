@@ -34,6 +34,11 @@ describe('ordinary world navigation and passage intent', () => {
     expect(separated.reachedRequestedTarget).toBe(false)
     expect(separated.resolvedNavigableTarget.x).toBeLessThanOrEqual(splitStart.x)
     expect(separated.path.at(-1)).toEqual(separated.resolvedNavigableTarget)
+
+    const boundaryClick = mesh.resolvePath(source, point(splitStart.x, gridBounds.y + halfGrid))!
+    expect(boundaryClick.reachedRequestedTarget).toBe(false)
+    expect(boundaryClick.resolvedNavigableTarget.x).toBeLessThan(splitStart.x)
+    expect(boundaryClick.path.at(-1)).toEqual(boundaryClick.resolvedNavigableTarget)
   })
 
   it('keeps a reachable world click raw, projects blocked/access targets once, and honors actor access', () => {
@@ -56,6 +61,8 @@ describe('ordinary world navigation and passage intent', () => {
     const denied = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, options)!
     expect(denied.reachedRequestedTarget).toBe(false)
     expect(denied.deniedAccessRegion?.id).toBe(staff.id)
+    expect(denied.resolvedNavigableTarget).toEqual(cafe.accessPortals.find((portal) => portal.regionId === staff.id)!.outside)
+    expect(denied.resolvedNavigableTarget).not.toEqual(staffTarget)
     const allowed = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, { actorId: commercialCafeCoffeeOwnerNpcId })!
     expect(allowed.reachedRequestedTarget).toBe(true)
     const floorServerDenied = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, { actorId: commercialCafeFloorServerNpcId })!
@@ -175,6 +182,19 @@ describe('ordinary world navigation and passage intent', () => {
 
     expect(classifyMainlineWorldCommand(perimeter, perimeter.initialPlayerPosition, outsideSlot)).toMatchObject({ kind: 'ordinary' })
     expect(classifyMainlineWorldCommand(perimeter, perimeter.initialPlayerPosition, insideSlot)).toMatchObject({ kind: 'passage', passage: { id: entrance.id } })
+  })
+
+  it('routes an Office target room through its locked semantic edge without treating the door as open', () => {
+    const office = mainlineScenes['zhongshuyuan-office']
+    const start = office.initialPlayerPosition
+    const targetRoom = office.rooms.find((room) => room.id === 'zhongshuyuan-office-north-room-4')!
+    const target = point(targetRoom.bounds.x + targetRoom.bounds.width / 2, targetRoom.bounds.y + targetRoom.bounds.height / 2)
+    const plan = classifyMainlineWorldCommand(office, start, target)
+    expect(plan.kind).toBe('passage')
+    if (plan.kind !== 'passage') throw new Error('Locked target must retain passage intent')
+    expect(plan.passages.at(-1)).toMatchObject({ access: 'locked', toRoomId: targetRoom.id })
+    expect(plan.approachPath).not.toBeNull()
+    expect(plan.approachPath!.at(-1)).not.toEqual(target)
   })
 
   it('keeps a same-scene room queue intact before ordinary continuation', () => {

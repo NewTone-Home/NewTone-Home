@@ -1556,7 +1556,7 @@ export function MainlineScenePage({
     setLayoutSaveState('saved')
   }, [scene.id])
 
-  const moveTo = useCallback((target: Point, onArrive?: () => void, plannedPath?: Point[] | null, framePassage?: MainlineScenePassage) => {
+  const moveTo = useCallback((target: Point, onArrive?: () => void, plannedPath?: Point[] | null, framePassage?: MainlineScenePassage, onBlocked?: () => void) => {
     npcInteractionRequestRef.current += 1
     pendingTraversalRef.current = null
     setSceneFrameExit({ phase: 'idle' })
@@ -1584,6 +1584,7 @@ export function MainlineScenePage({
       },
       onBlocked: () => {
         if (framePassage) setSceneFrameExit({ phase: 'idle' })
+        onBlocked?.()
       },
     })
     return true
@@ -2157,12 +2158,11 @@ export function MainlineScenePage({
         deniedAccessRegionId: resolution.deniedAccessRegion?.id,
       })
     }
-    const started = moveTo(resolution.resolvedNavigableTarget, () => {
-      if (resolution.deniedAccessRegion) {
-        showAccessRegionDeniedText(resolution.deniedAccessRegion.deniedText ?? '这里暂时不能进入。')
-        return
-      }
-    }, resolution.path)
+    const showDeniedFeedback = resolution.deniedAccessRegion
+      ? () => showAccessRegionDeniedText(resolution.deniedAccessRegion!.deniedText ?? '这里暂时不能进入。')
+      : undefined
+    const started = moveTo(resolution.resolvedNavigableTarget, showDeniedFeedback, resolution.path, undefined, showDeniedFeedback)
+    if (!started) showDeniedFeedback?.()
   }, [debugCafeSpatialQa, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, moveTo, navigationOptions, onMeaningfulActivity, onPhoneDismiss, phoneOpen, readingActive, sceneAction?.phase, sceneDefinition, setDialogueLineIndex, showAccessRegionDeniedText, startPassageTraversal, stopMovement])
 
   const completeCommercialStreetQuestionNarrativeExit = useCallback(() => {
