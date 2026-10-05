@@ -1353,7 +1353,6 @@ export const mainlineMapLandmarksByWorld: Record<MainlineMapWorld, readonly Main
   ],
   inner: [
     { id: 'commercial', sceneId: 'commercial-street', label: '商业街', glyph: '街', position: mainlineMapLayout.landmarkPositions.commercial },
-    { id: 'jijia', sceneId: 'jijia-ancestral-home', label: '姬家祖宅', glyph: '宅', position: mainlineMapLayout.landmarkPositions.jijia },
     { id: 'zhongshuyuan', sceneId: 'zhongshuyuan-office', label: '中枢院', glyph: '院', position: mainlineMapLayout.landmarkPositions.zhongshuyuan },
     { id: 'mine', sceneId: 'yonghe-mining-perimeter', label: '矿区', glyph: '矿', position: mainlineMapLayout.landmarkPositions.mine },
   ],

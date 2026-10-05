@@ -53,9 +53,15 @@ describe('LongDistanceTravel core component', () => {
     expect(onTravelComplete).toHaveBeenCalledTimes(1)
   })
 
-  it('offers the Ancestral Home as a playable inner-world Phone destination', () => {
-    const home = mainlineMapLandmarksByWorld.inner.find(({ sceneId }) => sceneId === 'jijia-ancestral-home')
-    expect(home).toMatchObject({ id: 'jijia', label: '姬家祖宅' })
-    expect(home?.position).toEqual(mainlineMapLandmarksByWorld.surface.find(({ id }) => id === 'jijia')?.position)
+  it('keeps the Ancestral Home on the surface map and Office/Street rides bidirectional in the inner world', async () => {
+    const { mainlineLongDistanceTravelIntentForRide } = await import('../src/center/runtime/longDistanceTravelContract')
+    expect(mainlineMapLandmarksByWorld.inner.some(({ sceneId }) => sceneId === 'jijia-ancestral-home')).toBe(false)
+    expect(mainlineMapLandmarksByWorld.surface.find(({ sceneId }) => sceneId === 'jijia-ancestral-home'))
+      .toMatchObject({ id: 'jijia', label: '姬家祖宅' })
+    expect(mainlineLongDistanceTravelIntentForRide('zhongshuyuan-office', 'commercial-street'))
+      .toMatchObject({ sourceSceneId: 'zhongshuyuan-office', targetSceneId: 'commercial-street' })
+    expect(mainlineLongDistanceTravelIntentForRide('commercial-street', 'zhongshuyuan-office'))
+      .toMatchObject({ sourceSceneId: 'commercial-street', targetSceneId: 'zhongshuyuan-office' })
+    expect(mainlineLongDistanceTravelIntentForRide('commercial-street', 'jijia-ancestral-home')).toBeNull()
   })
 })

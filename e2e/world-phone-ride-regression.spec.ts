@@ -55,7 +55,7 @@ test('the inner-world Phone keeps the existing Office to Commercial Street ride 
   expect(consoleErrors).toEqual([])
 })
 
-test('Commercial Street can ride through the inner-world Phone to the Ancestral Home', async ({ page }) => {
+test('Commercial Street can ride through the inner-world Phone back to the Zhongshuyuan Office', async ({ page }) => {
   const consoleErrors: string[] = []
   page.on('pageerror', (error) => consoleErrors.push(error.message))
   page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()) })
@@ -85,10 +85,15 @@ test('Commercial Street can ride through the inner-world Phone to the Ancestral 
   await page.getByLabel('打开手机').click()
   await expect(phone).toHaveAttribute('data-phone-device', 'inner')
   await expect(phone.locator('section[aria-label="叫车"]')).toBeVisible()
-  await phone.getByRole('button', { name: /姬家祖宅.*从当前位置出发/ }).click()
-  await phone.getByRole('button', { name: '呼叫车辆前往姬家祖宅', exact: true }).click()
+  await phone.getByLabel('返回手机主屏').click()
+  await phone.locator('[data-app="map"]').click()
+  await expect(phone.locator('[data-map-world="inner"] [data-scene-id="jijia-ancestral-home"]')).toHaveCount(0)
+  await phone.getByLabel('返回手机主屏').click()
+  await phone.locator('[data-app="ride"]').click()
+  await phone.getByRole('button', { name: /中枢院.*从当前位置出发/ }).click()
+  await phone.getByRole('button', { name: '呼叫车辆前往中枢院', exact: true }).click()
 
   await expect(page.locator('.center-long-distance-travel')).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('.scene-shell[data-mainline-scene="jijia-ancestral-home"]')).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('.scene-shell[data-mainline-scene="zhongshuyuan-office"]')).toBeVisible({ timeout: 15_000 })
   expect(consoleErrors).toEqual([])
 })

@@ -14,6 +14,7 @@ const defaultFreeRoamSpeed = .018
  * separate default speeds for the protagonist and NPCs.
  */
 export const sharedCharacterWalkSpeedPxPerSecond = 280
+export const protagonistCharacterWalkSpeedPxPerSecond = 340
 
 export type MovementOptions = {
   /** Called once when a non-empty movement actually starts. */
@@ -130,6 +131,10 @@ function segmentIsTraversable(
  */
 export function sharedCharacterMovementOptions(screenMetrics?: MovementOptions['screenMetrics']): Pick<MovementOptions, 'screenMetrics' | 'screenSpeedPxPerSecond'> {
   return { screenMetrics, screenSpeedPxPerSecond: sharedCharacterWalkSpeedPxPerSecond }
+}
+
+export function protagonistCharacterMovementOptions(screenMetrics?: MovementOptions['screenMetrics']): Pick<MovementOptions, 'screenMetrics' | 'screenSpeedPxPerSecond'> {
+  return { screenMetrics, screenSpeedPxPerSecond: protagonistCharacterWalkSpeedPxPerSecond }
 }
 
 function smoothPath(path: Point[], canOccupy?: (point: Point) => boolean, canTraverse?: (start: Point, end: Point) => boolean, preserveInitialExit = false) {

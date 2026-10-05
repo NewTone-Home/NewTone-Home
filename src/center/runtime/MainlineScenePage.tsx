@@ -7,7 +7,7 @@ import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneAreaLa
 import { prepareMainlineWorldNavigation, canActorReachPassageApproach, classifyMainlineWorldCommand, findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, isMainlineEntityWithinInteractionRange, isMainlineNavigationBarrierClear, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlineInteractionTarget, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineEntityInteraction, resolveMainlineInteractionCandidates, resolveMainlineStorefrontInteraction, resolveMainlineNpcInteraction, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from './mainlineNavigation'
 import { layoutGridSize, mainlineLabelFootprint, mainlineProtagonistDotFootprint, type SceneLayout } from './sceneLayout'
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
-import { movementDurationMsForPath, sharedCharacterMovementOptions, useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
+import { movementDurationMsForPath, protagonistCharacterMovementOptions, sharedCharacterMovementOptions, useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
 import type { PhoneDevice } from './phoneState'
 import { sceneInteractionHandlers } from './sceneInteraction'
 import { useAutomaticPassages } from './useAutomaticPassages'
@@ -888,6 +888,10 @@ export function MainlineScenePage({
     ...sharedCharacterMovementOptions(screenMetrics),
     speedMultiplier: () => sceneTextSlowdownActiveRef.current ? .45 : 1,
   }), [screenMetrics])
+  const protagonistLocomotionOptions = useMemo(() => ({
+    ...protagonistCharacterMovementOptions(screenMetrics),
+    speedMultiplier: () => sceneTextSlowdownActiveRef.current ? .45 : 1,
+  }), [screenMetrics])
   const cafeCoffeeOwnerLocomotionOptions = useMemo(() => ({
     ...locomotionOptions,
     speedMultiplier: () => commercialCafeDutySpeedMultiplier(commercialCafeCoffeeOwnerNpcId, cafeCoffeeOwnerCurrentDutyRef.current, sceneTextSlowdownActiveRef.current),
@@ -1103,7 +1107,7 @@ export function MainlineScenePage({
     setPassageDestination(requestedTarget)
     setActiveObjectId(passage.entityId)
     const approachMovementOptions = {
-      ...locomotionOptions,
+      ...protagonistLocomotionOptions,
       canOccupy: (point: Point) => isWalkableMainlinePoint(point, scene, layout, { ...navigationOptions, openPassageIds: getOpenPassageIds() }),
       canTraverse: (start: Point, end: Point) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
     }
@@ -1160,7 +1164,7 @@ export function MainlineScenePage({
         onDoorEvent?.('blocked', passage)
       },
     })
-  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getOpenPassageIds, getPassagePhase, getRemainingDurationMs, layout, lifecycleMainlinePassages, locomotionOptions, moveAlong, navigationOptions, onDoorEvent, protagonistFootprint, requestPassageLifecycle, scene, screenMetrics, stopMovement])
+  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getOpenPassageIds, getPassagePhase, getRemainingDurationMs, layout, lifecycleMainlinePassages, protagonistLocomotionOptions, moveAlong, navigationOptions, onDoorEvent, protagonistFootprint, requestPassageLifecycle, scene, screenMetrics, stopMovement])
 
   const continuePendingTraversal = useCallback((entityId: string) => {
     const pending = pendingTraversalRef.current
@@ -1229,7 +1233,7 @@ export function MainlineScenePage({
       }
       moveAlong([traversalStart, exitPoint], () => {
       }, {
-        ...locomotionOptions,
+        ...protagonistLocomotionOptions,
         onMove: (point) => {
           if (sceneTransitioned) return
           const crossedDoorway = mainlinePassageCrossesToSide(pending.passage, previousTraversalPoint, point, targetSide, collision, doorway)
@@ -1290,7 +1294,7 @@ export function MainlineScenePage({
         pendingInteractionAfterTraversalRef.current = null
         if (pendingInteractionId) resumeInteractionRef.current(pendingInteractionId)
       }, {
-        ...locomotionOptions,
+        ...protagonistLocomotionOptions,
         canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, openNavigationOptions),
         canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
         onBlocked: () => {
@@ -1304,7 +1308,7 @@ export function MainlineScenePage({
     const doorway = mainlinePassageDoorwayForNavigation(scene, pending.passage, openNavigationOptions)
     const exitPoint = mainlinePassageExitPoint(pending.passage, traversalStart, protagonistFootprint, collision, doorway)
     moveAlong([traversalStart, exitPoint], completeSameSceneLeg, {
-      ...locomotionOptions,
+      ...protagonistLocomotionOptions,
       canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, openNavigationOptions)
         || isMainlinePassageInTransitZone(pending.passage, point, protagonistFootprint, doorway),
       canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
@@ -1314,7 +1318,7 @@ export function MainlineScenePage({
         setActiveObjectId(null)
       },
     })
-  }, [beginPassageLeg, commercialCafeStory, getCurrentPosition, getOpenPassageIds, isPassageActorActive, layout, locomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, protagonistFootprint, recordCafeAnalyticsMilestone, recordSceneStatePatch, scene])
+  }, [beginPassageLeg, commercialCafeStory, getCurrentPosition, getOpenPassageIds, isPassageActorActive, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, protagonistFootprint, recordCafeAnalyticsMilestone, recordSceneStatePatch, scene])
 
   continuePendingTraversalRef.current = continuePendingTraversal
 
@@ -1570,7 +1574,7 @@ export function MainlineScenePage({
       return false
     }
     const movementOptions = {
-      ...locomotionOptions,
+      ...protagonistLocomotionOptions,
       canOccupy: (point: Point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
       canTraverse: (start: Point, end: Point) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
     }
@@ -1590,7 +1594,7 @@ export function MainlineScenePage({
       },
     })
     return true
-  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getRemainingDurationMs, layout, locomotionOptions, moveAlong, navigationOptions, scene, stopMovement])
+  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getRemainingDurationMs, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, scene, stopMovement])
 
   const leavePlayerSeat = useCallback(() => {
     if (!activePlayerSeatId) return false
@@ -1674,7 +1678,7 @@ export function MainlineScenePage({
         })
         if (resolution?.kind === 'start-narrative') startCommercialCafeNarrative()
       }, {
-        ...locomotionOptions,
+        ...protagonistLocomotionOptions,
         // A seat remains a two-step interaction exception. Its route may need
         // to keep the planner's turn around the paired table before the final
         // pulled/sit transition; generic smoothing must not straighten that
@@ -1780,7 +1784,7 @@ export function MainlineScenePage({
     interactionStartedAtRef.current = Date.now()
     setActiveObjectId(entityId)
     moveAlong(resolved.path, revealInteraction, {
-      ...locomotionOptions,
+      ...protagonistLocomotionOptions,
       canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
       canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
       onBlocked: () => {
@@ -1789,7 +1793,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, incensePhase, layout, leavePlayerSeat, locomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
@@ -1891,7 +1895,7 @@ export function MainlineScenePage({
       }
       setActiveObjectId(storefrontId)
       moveAlong(interaction.path, revealStorefrontInteraction, {
-        ...locomotionOptions,
+        ...protagonistLocomotionOptions,
         canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
         canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
         onBlocked: () => {
@@ -1905,7 +1909,7 @@ export function MainlineScenePage({
       })
     }
     attemptContact(0)
-  }, [beginMilkTeaStorefrontAction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, locomotionOptions, moveAlong, navigationOptions, onChapterAnalytics, onInteractionAnalytics, onPhoneDismiss, onStorefrontAction, phoneOpen, presentSceneEcho, protagonistFootprint, readingActive, scene, sceneAction?.phase, screenMetrics, stopMovement])
+  }, [beginMilkTeaStorefrontAction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, onChapterAnalytics, onInteractionAnalytics, onPhoneDismiss, onStorefrontAction, phoneOpen, presentSceneEcho, protagonistFootprint, readingActive, scene, sceneAction?.phase, screenMetrics, stopMovement])
 
   const interactNpc = useCallback((npcId: string) => {
     if (readingActive || sceneAction?.phase === 'committing') return
@@ -1973,7 +1977,7 @@ export function MainlineScenePage({
       return
     }
     moveAlong(resolved.path, completeInteraction, {
-      ...locomotionOptions,
+      ...protagonistLocomotionOptions,
       canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
       canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
       onBlocked: () => {
@@ -1982,7 +1986,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', npc.id, 'npc', 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, locomotionOptions, moveAlong, movingNpcIds, navigationOptions, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
+  }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
 
   const chooseSceneEchoOption = useCallback((index: number) => {
     const option = sceneAction?.options[index]

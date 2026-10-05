@@ -15,7 +15,7 @@ const mainlineLongDistanceTravelRoutes: readonly MainlineLongDistanceTravelInten
   {
     kind: 'ride',
     sourceSceneId: 'commercial-street',
-    targetSceneId: 'jijia-ancestral-home',
+    targetSceneId: 'zhongshuyuan-office',
   },
 ]
 

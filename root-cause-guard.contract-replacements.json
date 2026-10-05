@@ -159,6 +159,31 @@
         "expect(mainlineNavigationCollisionBoxes(cafe, {}, options)).not.toContainEqual",
         "expect(new Set(contacts).size).toBeGreaterThan(2)"
       ]
+    },
+    {
+      "id": "protagonist-npc-speed-split-2026-10-04",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/movementSpeed.test.ts",
+      "oldContract": "Protagonist and NPC share the single ordinary movement default of 280 px/s.",
+      "newContract": "Protagonist ordinary movement is 340 px/s while the shared NPC default stays 280 px/s; the protagonist retains the reading slowdown multiplier.",
+      "requiredAddedAssertions": [
+        "expect(protagonistCharacterWalkSpeedPxPerSecond).toBe(340)",
+        "expect(protagonistCharacterMovementOptions(screenMetrics)).toEqual({"
+      ]
+    },
+    {
+      "id": "inner-world-ride-route-correction-2026-10-04",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/longDistanceTravelComponent.test.tsx",
+      "oldContract": "Inner World Phone offers Jijia Ancestral Home as a playable ride destination.",
+      "newContract": "Jijia Ancestral Home remains on the surface map, while the inner map excludes it and long-distance rides connect Zhongshuyuan Office and Commercial Street in both directions.",
+      "requiredAddedAssertions": [
+        "expect(mainlineMapLandmarksByWorld.inner.some(({ sceneId }) => sceneId === 'jijia-ancestral-home')).toBe(false)",
+        "expect(mainlineMapLandmarksByWorld.surface.find(({ sceneId }) => sceneId === 'jijia-ancestral-home'))",
+        "expect(mainlineLongDistanceTravelIntentForRide('zhongshuyuan-office', 'commercial-street'))",
+        "expect(mainlineLongDistanceTravelIntentForRide('commercial-street', 'zhongshuyuan-office'))",
+        "expect(mainlineLongDistanceTravelIntentForRide('commercial-street', 'jijia-ancestral-home')).toBeNull()"
+      ]
     }
   ]
 }
