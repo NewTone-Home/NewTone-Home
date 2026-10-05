@@ -481,7 +481,7 @@ export default function CenterExperience({
     setPhoneOpen(false)
   }, [readPhoneApp, recordSceneStatePatch])
   rideBoardingRef.current = (sceneId, position, context) => {
-    if (!sceneReadingActiveRef.current && rideOrder && Date.now() >= rideOrder.driverArrivesAt && mainlineRideAtPickup(rideOrder, sceneId, position, context?.screenMetrics)) boardRide(rideOrder)
+    if (!sceneReadingActiveRef.current && rideOrder && Date.now() >= rideOrder.driverArrivesAt && mainlineRideAtPickup(rideOrder, sceneId, position)) boardRide(rideOrder)
   }
   useEffect(() => {
     if (!rideOrder) return
@@ -503,7 +503,7 @@ export default function CenterExperience({
     if (etaMs === null) return
     const order = { sourceSceneId: zone.pickupSceneId, targetSceneId: destinationSceneId, driverArrivesAt: Date.now() + Math.ceil(etaMs) }
     trackEvent('center_ride_ready', { sceneId: route.sceneId, destinationSceneId, device, outcome: 'ready' })
-    if (etaMs === 0 && mainlineRideAtPickup(order, route.sceneId, current.position, current.context.screenMetrics)) boardRide(order)
+    if (etaMs === 0 && mainlineRideAtPickup(order, route.sceneId, current.position)) boardRide(order)
     else {
       recordSceneStatePatch(order.sourceSceneId, mainlineRideOrderPatch(order))
       setRideOrder(order)

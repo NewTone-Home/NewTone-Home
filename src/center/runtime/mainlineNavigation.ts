@@ -4,7 +4,7 @@ import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import { mainlineEntityCollision, mainlineLabelFootprint, mainlineLayoutOffsetForEntity, mainlineProtagonistDotFootprint, type SceneLayout } from './sceneLayout'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { canTravelAlongSegment, edgeContactPoint, findNavigationPath, navigationActorBox, resolveNavigationPath, sharedNavigationTraversalStep, type NavigationActorFootprint, type NavigationRuntime } from './navigationCore'
-import { createPolygonNavigationMesh, navigationBarriersAllowTravel, type PolygonNavigationMesh } from './scenePathfinding'
+import { createPolygonNavigationMesh, navigationBarrierIntersectsActor, navigationBarriersAllowTravel, type PolygonNavigationMesh } from './scenePathfinding'
 import { containsDoorRegion, doorRegionSide, doorwayBoundaryPoint, doorwayLegalTangent, isDoorTargetBehind, type DoorPassageRegion, type DoorRegionNormal } from './doorPassageModel'
 import { sharedFurnitureGeometry } from './twoSeatFurniture'
 import { mainlineNpcStagedInteractionContactEntityId, mainlineNpcStagedPoint, mainlineNpcStagedSeatId } from './mainlineNpcStaging'
@@ -1382,6 +1382,21 @@ function mainlinePathLength(path: readonly Point[]): number {
   ), 0)
 }
 
+/** Shared final-stance legality for interactions and authored service contacts. */
+export function isMainlineInteractionPositionLegal(position: Point, scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
+  return isWalkableMainlinePoint(position, scene, layout, options)
+    && mainlineNavigationBarriers(scene, layout, options).every(barrier => !navigationBarrierIntersectsActor(position, mainlineActorFootprint(scene, options, position), barrier))
+}
+
+/** An authored approach chooses a service side; the visible edge owns the destination. */
+export function resolveMainlineServiceContact(scene: MainlineSceneDefinition, entityId: string, approach: Point, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): MainlineInteractionResolution {
+  const snapshot = sceneGeometrySnapshot(scene, layout, options)
+  const geometry = snapshot.objects.get(entityId)
+  if (!geometry?.collision) return { target: from, path: null, inRange: false }
+  const contact = edgeContactPoint(geometry.position, geometry.collision, approach, mainlineActorFootprint(scene, options, from))
+  return resolveMainlineInteractionCandidates(scene, from, [contact], 0, layout, { ...options, geometrySnapshot: snapshot })
+}
+
 /** Pick the cheapest reachable contact, not the first authored candidate. */
 function nearestReachableInteractionPath(scene: MainlineSceneDefinition, from: Point, candidates: readonly Point[], layout: SceneLayout, options: MainlineNavigationOptions) {
   let nearest: { target: Point; path: Point[]; distance: number } | null = null
@@ -1433,7 +1448,8 @@ export function resolveMainlineInteractionCandidates(
   options: MainlineNavigationOptions,
 ): MainlineInteractionResolution {
   options = { ...options, geometrySnapshot: sceneGeometrySnapshot(scene, layout, options) }
-  const nearby = candidates.find((target) => distance(from, target) <= interactionRange && isWalkableMainlinePoint(from, scene, layout, options) && isMainlineNavigationBarrierClear(from, target, scene, layout, options))
+  candidates = candidates.filter(target => isMainlineInteractionPositionLegal(target, scene, layout, options))
+  const nearby = candidates.find((target) => distance(from, target) <= interactionRange && isMainlineInteractionPositionLegal(from, scene, layout, options) && isMainlineNavigationBarrierClear(from, target, scene, layout, options))
   if (nearby) return { target: from, path: [from], inRange: true }
   const selected = nearestReachableInteractionPath(scene, from, candidates, layout, options)
   const target = selected?.target
@@ -1443,7 +1459,7 @@ export function resolveMainlineInteractionCandidates(
   return {
     target,
     path: selected?.path ?? null,
-    inRange: distance(from, target) <= interactionRange,
+    inRange: Boolean(selected) && distance(from, target) <= interactionRange,
   }
 }
 

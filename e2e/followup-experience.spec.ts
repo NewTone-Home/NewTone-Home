@@ -1,3 +1,4 @@
+import { edgeContactPoint } from '../src/center/runtime/navigationCore'
 import { writeFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
@@ -33,7 +34,13 @@ test('Floor Server uses authored service sides for 60 seconds without relation c
     for(const barrier of snapshot.navigationBarriers.filter(b=>b.kind!=='access-boundary')) if(navigationBarrierBlocksTravel(previous,current,barrier,footprint)) crossings.push({previous,current,barrier:barrier.id})
     if(previous.phase==='moving'&&current.phase==='idle'){
       const next=samples.slice(i+1).find(s=>s.phase==='moving')
-      services.push({table:current.target,resolved:{x:current.tx,y:current.ty},arrival:{x:current.x,y:current.y},dwell:next?next.t-current.t:null})
+      const entity=scene.objects.find(o=>o.id===current.target)!, geometry=snapshot.objects.get(entity.id)!, expected=edgeContactPoint(geometry.position,geometry.collision!,entity.approach!,footprint)
+      const dx=Math.max(geometry.collision!.x-current.x-footprint.width/2,current.x-footprint.width/2-geometry.collision!.x-geometry.collision!.width,0)
+      const dy=Math.max(geometry.collision!.y-current.y-footprint.height/2,current.y-footprint.height/2-geometry.collision!.y-geometry.collision!.height,0)
+      const edgeGapPx=Math.hypot(dx*metrics.width/100,dy*metrics.height/100)
+      expect(Math.hypot(current.x-expected.x,current.y-expected.y)).toBeLessThan(.02)
+      expect(edgeGapPx).toBeLessThan(1.5)
+      services.push({table:current.target,authoredSide:entity.approach,resolved:{x:current.tx,y:current.ty},arrival:{x:current.x,y:current.y},edgeGapPx,dwell:next?next.t-current.t:null})
       expect(Math.hypot(current.x-current.tx,current.y-current.ty)).toBeLessThan(.02)
       const table=scene.objects.find(o=>o.id===current.target)!
       if(table.id.startsWith('commercial-cafe-right-')){expect(current.x).toBeLessThan(table.position.x-1);expect(Math.abs(current.y-table.approach!.y)).toBeLessThan(2)}

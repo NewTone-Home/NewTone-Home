@@ -1,7 +1,8 @@
+import { isMainlineExternalExitTriggered } from './mainlineExternalExit'
 import { mainlineScenes, type MainlineSceneId } from './mainlineScenes'
 import { canActorReachPassageApproach, findMainlinePath } from './mainlineNavigation'
 import { createMainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
-import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
+import { type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { movementDurationMsForPath, protagonistCharacterMovementOptions } from './useFreeRoamMovement'
 import type { Point } from './sceneGeometry'
 import type { SceneLayout } from './sceneLayout'
@@ -28,10 +29,12 @@ export function mainlineRidePickupPosition(sceneId: MainlineSceneId) { return ma
 export function mainlineRideWaitingGuidance(sceneId: MainlineSceneId) {
   return mainlineRideZone(sceneId) ?? { waitingLabel: '院门', guidanceText: '请到院门等车' }
 }
-export function mainlineRideAtPickup(order: MainlineRideOrder, sceneId: MainlineSceneId, position: Point, metrics = defaultSceneScreenMetrics) {
+export function mainlineRideAtPickup(order: MainlineRideOrder, sceneId: MainlineSceneId, position: Point) {
   if (order.sourceSceneId !== sceneId) return false
-  return mainlineRidePickupPositions(sceneId).some(pickup => Math.hypot((position.x - pickup.x) * metrics.width / 100, (position.y - pickup.y) * metrics.height / 100) <= 18)
+  const scene = mainlineScenes[sceneId]
+  return scene.externalExits.some(exit => isMainlineExternalExitTriggered(position, exit, scene))
 }
+
 /** Estimate legal walking legs once, independent of subsequent player progress. */
 export function mainlineRideWalkingEtaMs(sceneId: MainlineSceneId, position: Point, context: MainlineRideWalkingContext): number | null {
   const zone = mainlineRideZone(sceneId)

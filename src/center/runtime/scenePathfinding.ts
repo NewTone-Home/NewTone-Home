@@ -118,6 +118,25 @@ export function navigationBarrierBlocksTravel(
   return projection >= -extension - epsilon && projection <= 1 + extension + epsilon
 }
 
+/** An interaction destination must keep the actor's actual body off a relation line.
+ * This checks the rendered footprint, without turning the barrier into a solid strip. */
+export function navigationBarrierIntersectsActor(position: Point, footprint: { width: number; height: number }, barrier: NavigationBarrierSegment) {
+  const half = { x: footprint.width / 2, y: footprint.height / 2 }
+  let low = 0, high = 1
+  for (const axis of ['x', 'y'] as const) {
+    const delta = barrier.end[axis] - barrier.start[axis]
+    const minimum = position[axis] - half[axis], maximum = position[axis] + half[axis]
+    if (Math.abs(delta) <= epsilon) {
+      if (barrier.start[axis] < minimum - epsilon || barrier.start[axis] > maximum + epsilon) return false
+    } else {
+      const first = (minimum - barrier.start[axis]) / delta, second = (maximum - barrier.start[axis]) / delta
+      low = Math.max(low, Math.min(first, second)); high = Math.min(high, Math.max(first, second))
+      if (low > high + epsilon) return false
+    }
+  }
+  return true
+}
+
 export function navigationBarriersAllowTravel(
   start: Point,
   end: Point,
