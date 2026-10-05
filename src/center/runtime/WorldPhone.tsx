@@ -19,7 +19,7 @@ type FeedbackSubmitResult = { ok: boolean; reason?: string }
 type MapPoint = readonly [number, number]
 type MapDragState = { active: boolean; moved: boolean; pointerId: number; start: MapPoint | null; origin: MapPoint | null }
 type ContactView = 'list' | 'messages'
-type ContactId = 'lao-zhou' | 'ruo-yu'
+type ContactId = 'lao-zhou'
 
 type ContactDefinition = {
   id: ContactId
@@ -34,12 +34,6 @@ const innerContacts: readonly ContactDefinition[] = [
     name: '老周',
     detail: '中枢院 · 联系人',
     messages: ['陈副部长失踪了。', '什么时候有空。', '周六。', '老地方。', '好。'],
-  },
-  {
-    id: 'ruo-yu',
-    name: '若雨',
-    detail: '联系人',
-    messages: ['帮我查一下陈副部长这件事。', '陈副部长？出什么事了？', '你查就知道了。什么时候有空。', '周六。', '老地方。', '好的。'],
   },
 ]
 

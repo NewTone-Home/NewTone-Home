@@ -6,6 +6,35 @@ import './LandingUpdatesPage.css'
 
 const LANDING_UPDATES = Object.freeze([
   Object.freeze({
+    version: 'v0.2.1',
+    date: '2026.10.05',
+    dateTime: '2026-10-05',
+    zh: Object.freeze({
+      summary: Object.freeze([
+        '世界正在慢慢变得热闹起来。',
+        '新的街道、新的人，以及一些还没有结束的事情，正在出现。',
+      ]),
+      details: Object.freeze([
+        '· 我们开放了新的场景，现在大家可以去逛街了',
+        '· 出现了一些NPC',
+        '· 我们调整了一些视觉效果和交互体验。',
+        '可惜的是，其他语言版本暂时还没有完成，目前仍在开发中。',
+      ]),
+    }),
+    en: Object.freeze({
+      summary: Object.freeze([
+        'The world is slowly starting to feel a little more alive.',
+        'New streets, new faces, and a few things still unfolding are beginning to appear.',
+      ]),
+      details: Object.freeze([
+        '· We’ve opened up more places to explore. You can go wander the streets now.',
+        '· A few new NPCs have appeared.',
+        '· We’ve also refined some of the visuals and interactions.',
+        'The English version and other localizations aren’t ready just yet, but they’re still in development.',
+      ]),
+    }),
+  }),
+  Object.freeze({
     version: 'v0.2.0',
     date: '2026.09.12',
     dateTime: '2026-09-12',
