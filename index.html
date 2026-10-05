@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="世界正在慢慢变得热闹起来。新的街道、新的人，以及一些还没有结束的事情，正在出现。" />
+    <meta property="og:title" content="NewTone" />
+    <meta property="og:description" content="世界正在慢慢变得热闹起来。新的街道、新的人，以及一些还没有结束的事情，正在出现。" />
     <title>NewTone</title>
     <style>
       body {
@@ -25,7 +28,21 @@
     </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main id="static-landing-fallback" aria-label="NewTone">
+        <h1>NewTone</h1>
+        <section lang="zh-CN" aria-label="v0.2.1 中文公告">
+          <p><time datetime="2026-10-05">2026.10.05</time> · v0.2.1</p>
+          <p>世界正在慢慢变得热闹起来。</p>
+          <p>新的街道、新的人，以及一些还没有结束的事情，正在出现。</p>
+        </section>
+        <section lang="en" aria-label="v0.2.1 English notice">
+          <p><time datetime="2026-10-05">2026.10.05</time> · v0.2.1</p>
+          <p>The world is slowly starting to feel a little more alive.</p>
+          <p>New streets, new faces, and a few things still unfolding are beginning to appear.</p>
+        </section>
+      </main>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
