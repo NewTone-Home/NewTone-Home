@@ -1461,7 +1461,17 @@ export function resolveMainlineStorefrontInteraction(scene: MainlineSceneDefinit
 export function resolveMainlineEntityInteraction(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): MainlineInteractionResolution {
   const entity = scene.objects.find((candidate) => candidate.id === entityId)
   const candidates = mainlineEntityInteractionCandidates(scene, entityId, from, layout, mainlineActorFootprint(scene, options, from), options)
-  return resolveMainlineInteractionCandidates(scene, from, candidates, entity?.interactionRange ?? .35, layout, options)
+  const range = entity?.interactionRange ?? .35
+  const resolved = resolveMainlineInteractionCandidates(scene, from, candidates, range, layout, options)
+  if (resolved.path || entity?.surface !== 'floor' || entity.kind === 'door' || entity.kind === 'seat' || range <= .35) return resolved
+  // A neighbouring visible body can occupy a contact without invalidating
+  // the object's authored interaction range. Project through shared legality
+  // and accept only positions still inside that range; barriers stay intact.
+  const legalContacts = candidates.flatMap(contact => {
+    const route = resolveMainlineWorldNavigation(scene, from, contact, layout, options)
+    return route && distance(route.resolvedNavigableTarget, contact) <= range ? [route.resolvedNavigableTarget] : []
+  })
+  return resolveMainlineInteractionCandidates(scene, from, legalContacts, range, layout, options)
 }
 
 export function mainlineInteractionTarget(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, actorRadius?: number, options: MainlineNavigationOptions = {}): Point {

@@ -1,4 +1,5 @@
 import type { MainlineSceneId } from './mainlineSceneModel'
+import { cleanPhoneNotifications, type PhoneNotification } from './phoneNotifications'
 import type { PhoneDevice } from './phoneState'
 import { applyPublicReleaseCutover } from '../../services/publicReleaseMigration'
 
@@ -18,6 +19,7 @@ export type PlayerSave = {
   scenePositions: Partial<Record<MainlineSceneId, PlayerPoint>>
   phoneDevice: PhoneDevice
   sceneState: Partial<Record<MainlineSceneId, PlayerSceneState>>
+  phoneNotifications: PhoneNotification[]
   updatedAt: number
 }
 
@@ -76,6 +78,7 @@ export function createInitialPlayerSave(sceneId: MainlineSceneId): PlayerSave {
     scenePositions: {},
     phoneDevice: 'surface',
     sceneState: {},
+    phoneNotifications: [],
     updatedAt: 0,
   }
 }
@@ -131,6 +134,7 @@ export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineScen
     scenePositions: cleanScenePositions(source.scenePositions),
     phoneDevice,
     sceneState: cleanSceneState(source.sceneState),
+    phoneNotifications: cleanPhoneNotifications(source.phoneNotifications),
     updatedAt: Number.isFinite(updatedAt) && updatedAt >= 0 ? Math.round(updatedAt) : 0,
   }
 }

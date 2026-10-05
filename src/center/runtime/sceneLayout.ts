@@ -126,7 +126,23 @@ export function mainlineEntityPosition(
   screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
 ): Point {
   const authoredPosition = sceneLayoutEntityPosition(scene, entity, layout)
-  if (entity.surface !== 'floor' || !isNarrowMainlineViewport(screenMetrics)) return authoredPosition
+  if (entity.surface !== 'floor') return authoredPosition
+  const altar = scene.furnitureGroups.find(group => group.id === entity.groupId && group.layout === 'altar-ring')
+  if (altar) {
+    const anchor = sceneLayoutAnchor(scene, altar.id, layout) ?? altar.anchor
+    const burner = scene.objects.find(member => member.groupId === altar.id && member.kind !== 'table')
+    const verticalTable = scene.objects.find(member => member.groupId === altar.id && member.kind === 'table' && Math.abs(member.position.x - altar.anchor.x) < .001)
+    if (burner && verticalTable && Math.abs(authoredPosition.x - anchor.x) > .001) {
+      const vertical = mainlineEntityTextFootprint(verticalTable, verticalTable.position, screenMetrics)
+      const vessel = mainlineEntityTextFootprint(burner, burner.position, screenMetrics)
+      const horizontal = mainlineEntityTextFootprint(entity, authoredPosition, screenMetrics)
+      const gapPx = Math.abs(verticalTable.position.y - altar.anchor.y) * screenMetrics.height / 100 - (vertical.height + vessel.height) * screenMetrics.height / 200
+      const distance = (gapPx + (horizontal.width + vessel.width) * screenMetrics.width / 200) * 100 / screenMetrics.width
+      return { x: anchor.x + Math.sign(authoredPosition.x - anchor.x) * distance, y: authoredPosition.y }
+    }
+    return authoredPosition
+  }
+  if (!isNarrowMainlineViewport(screenMetrics)) return authoredPosition
 
   const groupId = entity.groupId
   if (groupId) {

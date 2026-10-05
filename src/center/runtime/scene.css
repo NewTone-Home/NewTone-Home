@@ -989,16 +989,21 @@
   pointer-events: auto;
   cursor: pointer;
   position: absolute;
-  left: 8px;
-  top: -5px;
+  left: 19px;
+  top: -6px;
   width: 7px;
   height: 9px;
   border: 1px solid var(--active);
   border-top: 0;
   border-radius: 0 0 2px 2px;
-  background: rgba(240, 204, 123, .12);
+  background: rgba(240, 204, 123, .18);
+  animation: held-drink-glow 1800ms ease-in-out infinite;
+  transition: transform 160ms ease;
   box-sizing: border-box;
 }
+.scene-protagonist__drink-icon:hover, .scene-protagonist__drink-icon:focus-visible { transform: scale(1.18); filter: brightness(1.3); }
+@keyframes held-drink-glow { 0%, 100% { box-shadow: 0 0 3px 1px rgba(240,204,123,.35); } 50% { box-shadow: 0 0 7px 2px rgba(240,204,123,.65); } }
+@media (prefers-reduced-motion: reduce) { .scene-protagonist__drink-icon { animation: none; box-shadow: 0 0 4px 1px rgba(240,204,123,.5); } }
 .scene-protagonist__drink-icon::before {
   content: '';
   position: absolute;
@@ -1936,3 +1941,10 @@
     opacity: 1;
   }
 }
+
+.world-phone__apps button { position: relative; }
+.world-phone__apps button[data-unread="true"]::after { content: ''; position: absolute; top: 2px; right: 10px; width: 7px; height: 7px; border-radius: 50%; background: #ec6862; box-shadow: 0 0 0 2px var(--bg, #14232b); }
+.world-phone__lock-screen { flex: 1; pointer-events: auto; min-height: 290px; display: flex; flex-direction: column; gap: 12px; padding: 26px 12px; cursor: pointer; }
+.world-phone__lock-hint { font-size: 11px; opacity: .55; text-align: center; margin-bottom: 12px; }
+.world-phone__notification { display: flex; flex-direction: column; gap: 8px; padding: 16px 12px; text-align: left; color: inherit; background: rgba(140,226,208,.08); border: 1px solid rgba(140,226,208,.35); border-radius: 8px; cursor: pointer; }
+.world-phone__notification span { font-size: 12px; opacity: .8; }

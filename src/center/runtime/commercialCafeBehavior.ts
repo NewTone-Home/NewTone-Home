@@ -1,6 +1,9 @@
 import type { NpcIntent, NpcRuntimeSnapshot } from './npcCore'
 import type { MainlineSceneDefinition } from './mainlineScenes'
-import { commercialCafeCoffeeOwnerNpcId } from './commercialCafeStory'
+import { resolveMainlineWorldNavigation, type MainlineNavigationOptions } from './mainlineNavigation'
+import type { Point } from './sceneGeometry'
+import type { SceneLayout } from './sceneLayout'
+import { commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId } from './commercialCafeStory'
 import type { CommercialCafeCoffeeStatus, CommercialCafeNarrativePhase } from './commercialCafeStory'
 import { npcRoles } from './npcRoles'
 import {
@@ -109,4 +112,11 @@ export function commercialCafeFloorServiceDwellMs(random = Math.random) {
   if (sample < .1) return 1000
   if (sample >= .9) return 5000
   return Math.round(2000 + (sample - .1) / .8 * 2000)
+}
+
+/** Resolve the authored work surface through shared legality, rather than table contacts. */
+export function commercialCafeFloorServiceTarget(scene: MainlineSceneDefinition, from: Point, intent: NpcIntent, layout: SceneLayout, options: MainlineNavigationOptions): Point | null {
+  if (!intent.target) return null
+  const route = resolveMainlineWorldNavigation(scene, from, intent.target, layout, { ...options, actorId: commercialCafeFloorServerNpcId, actorFootprint: undefined })
+  return route?.resolvedNavigableTarget ?? null
 }

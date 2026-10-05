@@ -18,7 +18,7 @@ import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 import { commercialCafeAnalyticsMilestonePatch, commercialCafeAnalyticsMilestonesFromSceneState, commercialCafeAnalyticsStageForCursor, commercialCafeCompletionPresenceMs, commercialCafeCoffeePreparationDurationMs, commercialCafeCoffeePreparationElapsed, commercialCafeCoffeePreparationStartedAtKey, commercialCafeCoffeeStatusKey, commercialCafeCoffeeArrivedAtPrep, commercialCafeCoffeeDelivered, commercialCafeCoffeeOrdered, commercialCafeCoffeeOrderedState, commercialCafeCoffeeReady, commercialCafeDeliveryDialogueLine, commercialCafeDepartureText, commercialCafeFinishCursorOne, commercialCafeFinishDeliveryLine, commercialCafeLaoZhouConversationSeatId, commercialCafeLaoZhouDepartureDue, commercialCafeLaoZhouIsPresent, commercialCafeNarrativeDialogue, commercialCafeNarrativePhaseKey, commercialCafeNarrativeStarted, commercialCafeStoryCompleted, commercialCafeStoryNeedsMigration, commercialCafeStoryReadyToLeave, commercialCafeStoryStateFromSceneState, commercialCafeStoryStatePatch, commercialCafeStoryWithCursor, isCommercialCafeStoryStage, resolveCommercialCafeNpcInteraction, shouldCompleteCommercialCafeStoryOnTransition, commercialCafeLaoZhouDepartureKey, commercialCafeStoryWithLaoZhouDeparture, commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId, commercialCafeStoryTableId, type CommercialCafeAnalyticsStage, type CommercialCafeNpcInteractionResolution, type CommercialCafeStoryStage } from './commercialCafeStory'
-import { commercialCafeDutySpeedMultiplier, createCommercialCafeCoffeeOwnerBehaviorCoordinator, createCommercialCafeFloorServerBehaviorCoordinator } from './commercialCafeBehavior'
+import { commercialCafeFloorServiceTarget, commercialCafeDutySpeedMultiplier, createCommercialCafeCoffeeOwnerBehaviorCoordinator, createCommercialCafeFloorServerBehaviorCoordinator } from './commercialCafeBehavior'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { createNavigationRuntime } from './navigationCore'
 import { useNpcMovement } from './useNpcMovement'
@@ -229,7 +229,6 @@ export function MainlineScenePage({
   onPlayerSceneStatePatch,
   carriedMilkTea = false,
   carriedPhoneDevice = 'surface',
-  ridePickup,
   onSceneTransition,
   onSafeSpawnCorrection,
   entryPosition,
@@ -270,7 +269,6 @@ export function MainlineScenePage({
   onPlayerSceneStatePatch?: (sceneId: MainlineSceneId, patch: PlayerSceneState) => void
   carriedMilkTea?: boolean
   carriedPhoneDevice?: PhoneDevice
-  ridePickup?: Point
   onSceneTransition: (sceneId: MainlineSceneId, entryPosition?: Point, spawnMode?: 'resume' | 'ride', transitionIntent?: MainlineWalkingPassageTransitionIntent) => void
   onSafeSpawnCorrection?: (position: Point) => void
   entryPosition?: Point
@@ -1042,7 +1040,9 @@ export function MainlineScenePage({
     }
     const intent = commercialCafeFloorBehavior.request(scene, cafeFloorServerMovement.snapshot)
     if (!intent) return
-    const started = cafeFloorServerMovement.requestMove(intent, scene, layout, navigationOptions, locomotionOptions, () => {
+    const serviceTarget = commercialCafeFloorServiceTarget(scene, cafeFloorServerMovement.position, intent, layout, navigationOptions)
+    if (!serviceTarget) { commercialCafeFloorBehavior.block(); return }
+    const started = cafeFloorServerMovement.requestMove({ ...intent, target: serviceTarget }, scene, layout, navigationOptions, locomotionOptions, () => {
       const dwellMs = commercialCafeFloorBehavior.arrived()
       cafeFloorDwellTimerRef.current = window.setTimeout(() => {
         cafeFloorDwellTimerRef.current = null
@@ -1820,10 +1820,17 @@ export function MainlineScenePage({
     ))
   }, [getCurrentPosition, presentSceneEcho, scene, screenMetrics])
 
+  const showHeldMilkTeaAction = useCallback(() => {
+    if (readingActive) return
+    dismissSceneAction()
+    if (phoneOpen) onPhoneDismiss?.()
+    setSceneAction({ entityId: commercialStreetMilkTeaStorefrontId, options: ['喝掉奶茶'], position: sceneTextPresentationPosition(scene, getCurrentPosition(), '喝掉奶茶', screenMetrics) })
+  }, [dismissSceneAction, getCurrentPosition, onPhoneDismiss, phoneOpen, readingActive, scene, screenMetrics])
+
   const beginMilkTeaStorefrontAction = useCallback(() => {
     const currentOrder = commercialStreetMilkTeaOrderFromSceneState(initialSceneState)
     if (carriedMilkTea || commercialStreetMilkTeaHeld(initialSceneState)) {
-      showMilkTeaEcho('手里已经有一杯饮料。', ['喝奶茶'])
+      showHeldMilkTeaAction()
       return
     }
     if (currentOrder) {
@@ -1842,7 +1849,7 @@ export function MainlineScenePage({
       onChapterAnalytics?.('milk_tea_app_unlocked')
     }
     onMilkTeaAppOpen?.()
-  }, [carriedMilkTea, initialSceneState, onChapterAnalytics, onMilkTeaAppOpen, onMilkTeaOrderReady, recordSceneStatePatch, showMilkTeaEcho])
+  }, [carriedMilkTea, initialSceneState, onChapterAnalytics, onMilkTeaAppOpen, onMilkTeaOrderReady, recordSceneStatePatch, showHeldMilkTeaAction, showMilkTeaEcho])
 
   const interactStorefront = useCallback((storefrontId: string) => {
     if (readingActive || sceneAction?.phase === 'committing') return
@@ -2005,7 +2012,7 @@ export function MainlineScenePage({
     const option = sceneAction?.options[index]
     if (!option) return
     onMeaningfulActivity?.()
-    if (sceneAction?.entityId === commercialStreetMilkTeaStorefrontId && option === '喝奶茶') {
+    if (sceneAction?.entityId === commercialStreetMilkTeaStorefrontId && option === '喝掉奶茶') {
       recordSceneStatePatch('commercial-street', commercialStreetMilkTeaConsumePatch())
       dismissSceneAction()
       return
@@ -2380,8 +2387,7 @@ export function MainlineScenePage({
               onSceneActionStart={beginSceneActionChoice}
               onSceneActionChoice={chooseSceneEchoOption}
               onSceneEchoExitComplete={completeSceneEchoExit}
-              onMilkTeaInteract={() => showMilkTeaEcho('手里的奶茶还没喝完。', ['喝奶茶'])}
-              ridePickup={ridePickup}
+              onMilkTeaInteract={showHeldMilkTeaAction}
               carriedMilkTea={carryingMilkTea}
               onFrameMotionProfileChange={handleFrameMotionProfileChange}
               exploredObjectIds={exploredObjectIds}

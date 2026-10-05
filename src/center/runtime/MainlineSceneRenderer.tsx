@@ -76,7 +76,6 @@ type MainlineSceneRendererProps = {
   onSceneActionChoice?: (index: number) => void
   carriedMilkTea?: boolean
   onMilkTeaInteract?: () => void
-  ridePickup?: Point
   onFrameMotionProfileChange?: (profile: readonly SceneFocusFrameMotionProfile[]) => void
   exploredObjectIds?: ReadonlySet<string>
   interactionTutorialCompleted?: boolean
@@ -669,7 +668,6 @@ export function MainlineSceneRenderer({
   onSceneActionChoice,
   carriedMilkTea = false,
   onMilkTeaInteract,
-  ridePickup,
   onFrameMotionProfileChange,
   exploredObjectIds = new Set(),
   interactionTutorialCompleted = false,
@@ -1193,8 +1191,6 @@ export function MainlineSceneRenderer({
               <span>{debugCafeSpatialQa ? `route: ${debugCafeSpatialQa.reachedRequestedTarget ? 'raw target' : 'projected'}${debugCafeSpatialQa.deniedAccessRegionId ? ' · staff intent' : ''}` : 'tap open ground to show raw / resolved / route'}</span>
             </div>
           </div>}
-
-          {ridePickup && <button type="button" className="scene-mainline-npc" style={{ left: `${ridePickup.x}%`, top: `${ridePickup.y}%` }} data-ride-pickup="true" onClick={(event) => { event.stopPropagation(); onWalk(ridePickup) }}>上车点</button>}
           {destination && <div className={`scene-walk-target ${moving ? 'is-active' : ''}`} style={{ left: `${destination.x}%`, top: `${destination.y}%` }} aria-hidden="true" />}
           {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%`, '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined}>
             {protagonistPresentation.kind === 'dot'

@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { navigationBarrierBlocksTravel } from '../src/center/runtime/scenePathfinding'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
+import { mainlineRidePickupPositions } from '../src/center/runtime/mainlineRide'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 
 test.use({ viewport: { width: 1280, height: 720 } })
@@ -46,11 +47,9 @@ async function requestRide(page: Page, destination: string) {
   await phone.getByRole('button', { name: '呼叫车辆前往' + destination, exact: true }).click()
 }
 async function pickup(page: Page, targetScene: string) {
-  const pickup = page.locator('[data-ride-pickup="true"]')
-  if (await pickup.count()) {
-    if (await page.locator('.world-phone.is-open').count()) await page.getByLabel('收起手机').click()
-    await pickup.click()
-  }
+  if (await page.locator('.world-phone.is-open').count()) await page.getByLabel('收起手机').click()
+  const sceneId = await page.locator('.scene-shell[data-mainline-scene]').getAttribute('data-mainline-scene')
+  await point(page, mainlineRidePickupPositions(sceneId as keyof typeof mainlineScenes)[0])
   await expect(page.locator('.center-long-distance-travel')).toBeVisible({ timeout: 15000 })
   await expect(page.locator('.scene-shell[data-mainline-scene="' + targetScene + '"]')).toBeVisible({ timeout: 15000 })
   await expect(page.locator('.center-long-distance-travel')).toHaveCount(0, { timeout: 10000 })
@@ -104,17 +103,40 @@ test('real Cafe ride order waits independently, boards only at Street pickup, an
   const order = page.locator('[data-ride-order="true"]')
   await expect(order).toContainText('司机预计')
   await page.screenshot({ path: info.outputPath('cafe-ride-eta.png') })
-  const positionBefore = await page.locator('[data-actor-id="protagonist"]').getAttribute('style')
-  await expect(order).toContainText('司机已到达', { timeout: 30000 })
-  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveCount(1)
-  expect(await page.locator('[data-actor-id="protagonist"]').getAttribute('style')).toBe(positionBefore)
+  await expect(order).toContainText('请回到商业街口等车')
+  await expect(order).not.toContainText(/第一章|上车点/)
+  await page.getByLabel('收起手机').click()
+  const staffArea = mainlineScenes['commercial-cafe'].accessRegions.find(region => region.requiredAccess === 'staff')!
+  await point(page, { x: staffArea.x + staffArea.width / 2, y: staffArea.y + staffArea.height / 2 })
+  await expect(page.locator('[data-scene-dialogue-shield="true"]')).toBeVisible({ timeout: 15000 })
+  const deadline = await page.evaluate(() => {
+    const save=JSON.parse(localStorage.getItem('newtone-player-save-v1')!)
+    return save.sceneState['commercial-street'].rideDriverArrivesAt
+  })
+  await expect.poll(() => Date.now(), { timeout: 30000 }).toBeGreaterThanOrEqual(deadline)
+  await expect(page.locator('.world-phone')).not.toHaveClass(/is-open/)
+  await expect(page.locator('[data-scene-dialogue-shield="true"]')).toBeVisible()
+  await reading(page)
+  await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({ timeout: 10000 })
+  await expect(page.locator('[data-notification-app="ride"]')).toContainText('正在商业街口等你')
+  await page.screenshot({ path: info.outputPath('ride-reading-deferred-notification.png') })
+  await page.locator('.world-phone__lock-hint').click()
+  await expect(page.locator('[data-app="ride"]')).toHaveAttribute('data-unread', 'true')
+  await page.reload()
+  await page.getByLabel('打开手机').click()
+  await expect(page.locator('[data-app="ride"]')).toHaveAttribute('data-unread', 'true')
+  await page.locator('[data-app="ride"]').click()
+  await expect(order).toContainText('司机已到达')
+  await page.getByLabel('返回手机主屏').click()
+  await expect(page.locator('[data-app="ride"]')).toHaveAttribute('data-unread', 'false')
+  await page.locator('[data-app="ride"]').click()
   await page.screenshot({ path: info.outputPath('cafe-driver-waiting.png') })
   await page.getByLabel('收起手机').click()
   await page.locator('[data-focus-target-group="door:street-cafe-entry"]').first().click()
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible({ timeout: 15000 })
   await expect(page.locator('.center-local-slide__surface--target .scene-shell')).toHaveCount(0)
-  await moveAcrossStreet(page, mainlineScenes['commercial-street'].rideArrivalPosition.x)
-  if (await page.locator('.scene-shell[data-mainline-scene="commercial-street"]').count()) await page.locator('[data-ride-pickup="true"]').click()
+  await moveAcrossStreet(page, mainlineRidePickupPositions('commercial-street')[0].x)
+  if (await page.locator('.scene-shell[data-mainline-scene="commercial-street"]').count()) await point(page, mainlineRidePickupPositions('commercial-street')[0])
   await expect(page.locator('.scene-shell[data-mainline-scene="zhongshuyuan-office"]')).toBeVisible({ timeout: 20000 })
   await expect(page.locator('.center-long-distance-travel')).toHaveCount(0, { timeout: 10000 })
   expect(errors).toEqual([])

@@ -47,18 +47,6 @@
       ]
     },
     {
-      "id": "commercial-cafe-server-delivery-contract-2026-09-29",
-      "repository": "newtone-home/newtone-home",
-      "testFile": "tests/commercialCafeBehavior.test.ts",
-      "oldContract": "Server behavior derives delivery and return work from legacy Café stages.",
-      "newContract": "The dedicated coffee owner prepares, delivers only while coffeeStatus is ready and the narrative is in coffee-delivery, and returns only after delivery-line completion; the floor server remains on public table service.",
-      "requiredAddedAssertions": [
-        "expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'coffee-delivery', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toBeNull()",
-        "expect(coffeeOwner.getPhase()).toBe('delivery-arrived')",
-        "expect(returnIntent).toMatchObject({ dutyId: 'cafe-coffee-owner.return-to-counter', targetId: 'commercial-cafe-counter-service' })"
-      ]
-    },
-    {
       "id": "commercial-cafe-delivery-movement-contract-2026-09-29",
       "repository": "newtone-home/newtone-home",
       "testFile": "tests/npcMovement.test.ts",
@@ -193,6 +181,17 @@
       "newContract": "Relation segments connect the nearest visible furniture edges. Player and ordinary NPC cannot thread through that gap; legal routes detour around the furniture without an occupied strip.",
       "requiredAddedAssertions": [
         "expect(barrier.start.x).toBe(barrier.end.x)"
+      ]
+    },
+    {
+      "id": "cafe-authored-service-approach-2026-10-05",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/commercialCafeBehavior.test.ts",
+      "oldContract": "Floor service resolves arbitrary table interaction contacts.",
+      "newContract": "Floor service navigates to the authored table approach using shared movement and relation barriers.",
+      "requiredAddedAssertions": [
+        "expect(floorIntent?.target).toEqual(table?.approach)",
+        "expect(floorIntent).not.toHaveProperty('targetEntityId')"
       ]
     }
   ]

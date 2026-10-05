@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MainlineScenePage } from './runtime/MainlineScenePage'
 import { LongDistanceTravel } from './runtime/LongDistanceTravel'
+import { enqueuePhoneNotification, presentPhoneNotifications, readPhoneNotifications } from './runtime/phoneNotifications'
+import { mainlineRideWaitingGuidance } from './runtime/mainlineRide'
 import { WorldPhone } from './runtime/WorldPhone'
 import {
   mainlineRespawnSceneId,
@@ -11,7 +13,7 @@ import {
 import { mainlineCameraOffset } from './runtime/mainlineViewport'
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
-import { mainlineRideAtPickup, mainlineRideOrderFromState, mainlineRideOrderPatch, mainlineRidePickupPosition, mainlineRideWalkingEtaMs, mainlineRideZone } from './runtime/mainlineRide'
+import { mainlineRideAtPickup, mainlineRideOrderFromState, mainlineRideOrderPatch, mainlineRideWalkingEtaMs, mainlineRideZone } from './runtime/mainlineRide'
 import {
   phoneRideAvailability,
   worldLayerForScene,
@@ -77,6 +79,8 @@ export default function CenterExperience({
   const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId))
   const [phoneOpen, setPhoneOpen] = useState(false)
   const sceneReadingActiveRef = useRef(false)
+  const [sceneReadingActive, setSceneReadingActive] = useState(false)
+  const [phoneNotificationScreen, setPhoneNotificationScreen] = useState(false)
   const positionSamplerRef = useRef(null)
   const currentSceneIdRef = useRef(route.sceneId)
   const latestWorldPositionRef = useRef(null)
@@ -119,6 +123,27 @@ export default function CenterExperience({
     setPlayerSave(playerSaveRef.current)
   }, [])
 
+  const notifyPhone = useCallback((event) => {
+    commitPlayerSave(current => {
+      const notifications = enqueuePhoneNotification(current.phoneNotifications, event)
+      return notifications === current.phoneNotifications ? current : { ...current, phoneNotifications: notifications }
+    })
+  }, [commitPlayerSave])
+  const readPhoneApp = useCallback((app) => {
+    setPhoneNotificationScreen(false)
+    if (app !== 'ride' && app !== 'milk-tea') return
+    commitPlayerSave(current => current.phoneNotifications.some(n => n.app === app && n.unread)
+      ? { ...current, phoneNotifications: readPhoneNotifications(current.phoneNotifications, app) } : current)
+  }, [commitPlayerSave])
+  useEffect(() => {
+    if (sceneReadingActiveRef.current || sceneReadingActive || localSlide || longDistanceTravel || entryPhase !== 'active') return
+    if (!playerSave.phoneNotifications.some(n => n.unread && !n.presented)) return
+    commitPlayerSave(current => ({ ...current, phoneNotifications: presentPhoneNotifications(current.phoneNotifications) }))
+    setRequestedPhoneApp(null)
+    setPhoneNotificationScreen(true)
+    setPhoneOpen(true)
+  }, [commitPlayerSave, entryPhase, localSlide, longDistanceTravel, playerSave.phoneNotifications, sceneReadingActive])
+
   const handleSceneAnimationEnd = useCallback((event) => {
     if (event.animationName === 'center-world-scene-in') onRevealComplete?.()
   }, [onRevealComplete])
@@ -130,6 +155,8 @@ export default function CenterExperience({
 
   const revealPhone = useCallback(() => {
     if (sceneReadingActiveRef.current) return
+    setPhoneNotificationScreen(false)
+    setRequestedPhoneApp(null)
     setPhoneOpen(true)
   }, [])
   const retractPhone = useCallback(() => {
@@ -154,6 +181,7 @@ export default function CenterExperience({
   }, [phoneDevice, phoneOpen])
 
   const openMilkTeaApp = useCallback(() => {
+    setPhoneNotificationScreen(false)
     setRequestedPhoneApp('milk-tea')
     setPhoneOpen(true)
   }, [])
@@ -178,11 +206,12 @@ export default function CenterExperience({
     trackEvent('milk_tea_order_started', { sceneId: route.sceneId })
   }, [route.sceneId])
 
-  const handleMilkTeaOrderReady = useCallback((order = milkTeaOrder) => {
+  const handleMilkTeaOrderReady = useCallback((order = commercialStreetMilkTeaOrderFromSceneState(playerSaveRef.current.sceneState['commercial-street'])) => {
     if (!order || !commercialStreetMilkTeaIsReady(order)) return false
     const marker = `${order.number}:${order.readyAt}`
+    notifyPhone({ id: `milk-tea:${marker}`, app: 'milk-tea', title: '奶茶已制作完成', body: '可以去奶茶店取餐了' })
     if (milkTeaReadyAnalyticsMarkerRef.current === marker
-      || commercialStreetMilkTeaReadyAnalyticsWasReported(commercialStreetState, order)) return false
+      || commercialStreetMilkTeaReadyAnalyticsWasReported(playerSaveRef.current.sceneState['commercial-street'], order)) return false
     milkTeaReadyAnalyticsMarkerRef.current = marker
     commitPlayerSave((current) => recordPlayerSceneStatePatch(
       current,
@@ -191,19 +220,16 @@ export default function CenterExperience({
     ))
     trackEvent('milk_tea_order_ready', { sceneId: route.sceneId, eventData: { orderNumber: order.number } })
     return true
-  }, [commercialStreetState, commitPlayerSave, milkTeaOrder, route.sceneId])
+  }, [commitPlayerSave, notifyPhone, route.sceneId])
 
   useEffect(() => {
-    if (!milkTeaOrder) {
-      milkTeaReadyAnalyticsMarkerRef.current = null
-      return
-    }
-    if (commercialStreetMilkTeaReadyAnalyticsWasReported(commercialStreetState, milkTeaOrder)) {
-      milkTeaReadyAnalyticsMarkerRef.current = `${milkTeaOrder.number}:${milkTeaOrder.readyAt}`
-      return
-    }
-    handleMilkTeaOrderReady(milkTeaOrder)
-  }, [commercialStreetState, handleMilkTeaOrderReady, milkTeaOrder, route.sceneId])
+    if (!milkTeaOrder) { milkTeaReadyAnalyticsMarkerRef.current = null; return }
+    const remaining = milkTeaOrder.readyAt - Date.now()
+    if (remaining <= 0) { handleMilkTeaOrderReady(milkTeaOrder); return }
+    // The order deadline owns readiness even when its app and Phone are closed.
+    const timer = window.setTimeout(() => handleMilkTeaOrderReady(milkTeaOrder), remaining)
+    return () => window.clearTimeout(timer)
+  }, [handleMilkTeaOrderReady, milkTeaOrder?.number, milkTeaOrder?.readyAt])
 
   const handleFeedbackModeChange = useCallback((mode) => {
     setFeedbackMode(mode)
@@ -234,7 +260,12 @@ export default function CenterExperience({
   }, [phoneDevice, route.sceneId])
   const handleSceneReadingStateChange = useCallback((reading) => {
     sceneReadingActiveRef.current = reading
+    setSceneReadingActive(reading)
     setCenterReadingActive(reading)
+    if (!reading) {
+      const current = latestWorldPositionRef.current
+      if (current) rideBoardingRef.current(current.sceneId, current.position, current.context)
+    }
   }, [])
 
   const handleMeaningfulActivity = useCallback(() => {
@@ -442,24 +473,26 @@ export default function CenterExperience({
     const intent = mainlineLongDistanceTravelIntentForRide(order.sourceSceneId, order.targetSceneId)
     if (!intent) return
     setRideOrder(null)
+    readPhoneApp('ride')
     recordSceneStatePatch(order.sourceSceneId, mainlineRideOrderPatch(null))
     setFeedbackMode(null)
     setBoundaryNotice('')
     setLongDistanceTravel({ phase: phoneRetractedRef.current ? 'scene-fading' : 'phone-retracting', intent, targetReady: false })
     setPhoneOpen(false)
-  }, [recordSceneStatePatch])
+  }, [readPhoneApp, recordSceneStatePatch])
   rideBoardingRef.current = (sceneId, position, context) => {
-    if (rideOrder && Date.now() >= rideOrder.driverArrivesAt && mainlineRideAtPickup(rideOrder, sceneId, position, context?.screenMetrics)) boardRide(rideOrder)
+    if (!sceneReadingActiveRef.current && rideOrder && Date.now() >= rideOrder.driverArrivesAt && mainlineRideAtPickup(rideOrder, sceneId, position, context?.screenMetrics)) boardRide(rideOrder)
   }
   useEffect(() => {
     if (!rideOrder) return
     const arrived = () => {
+      notifyPhone({ id: 'ride:' + rideOrder.sourceSceneId + ':' + rideOrder.targetSceneId + ':' + rideOrder.driverArrivesAt, app: 'ride', title: '司机已到达', body: '正在' + mainlineRideWaitingGuidance(rideOrder.sourceSceneId).waitingLabel + '等你' })
       const current = latestWorldPositionRef.current
       if (current) rideBoardingRef.current(current.sceneId, current.position, current.context)
     }
     const timer = window.setTimeout(arrived, Math.max(0, rideOrder.driverArrivesAt - Date.now()))
     return () => window.clearTimeout(timer)
-  }, [rideOrder])
+  }, [notifyPhone, rideOrder])
   const handleRideRequest = useCallback((device, destinationSceneId) => {
     if (rideOrder || phoneRideAvailability(device, worldLayerForScene(route.sceneId)) !== 'available') return
     const zone = mainlineRideZone(route.sceneId)
@@ -531,7 +564,6 @@ export default function CenterExperience({
       onPlayerSceneStateChange={snapshot ? undefined : recordSceneState}
       onPlayerSceneStatePatch={snapshot ? undefined : recordSceneStatePatch}
       carriedPhoneDevice={phoneDevice}
-      ridePickup={!snapshot && rideOrder?.sourceSceneId === sceneRoute.sceneId ? mainlineRidePickupPosition(sceneRoute.sceneId) : undefined}
       onSceneTransition={handleSceneTransition}
       onSafeSpawnCorrection={snapshot ? undefined : handleSafeSpawnCorrection}
       onPositionChange={snapshot ? undefined : canPersistScenePosition ? handlePositionChange : undefined}
@@ -602,6 +634,10 @@ export default function CenterExperience({
           onCloseComplete={handlePhoneCloseComplete}
           onRideRequest={handleRideRequest}
           rideOrder={rideOrder}
+          notifications={playerSave.phoneNotifications}
+          notificationScreen={phoneNotificationScreen}
+          onNotificationDismiss={() => setPhoneNotificationScreen(false)}
+          onAppOpen={readPhoneApp}
           milkTeaAppUnlocked={commercialStreetMilkTeaAppUnlocked(commercialStreetState)}
           milkTeaOrder={milkTeaOrder}
           milkTeaHeld={commercialStreetMilkTeaHeld(commercialStreetState)}
@@ -609,7 +645,6 @@ export default function CenterExperience({
           onRequestedAppHandled={() => setRequestedPhoneApp(null)}
           onMilkTeaOrderConfirm={confirmMilkTeaOrder}
           onMilkTeaOrderStarted={handleMilkTeaOrderStarted}
-          onMilkTeaOrderReady={handleMilkTeaOrderReady}
           feedbackMode={feedbackMode}
           onFeedbackModeChange={handleFeedbackModeChange}
           onFeedbackOpen={handleFeedbackOpen}

@@ -701,6 +701,7 @@ function createAltarFurniture(altar: MainlineAltarBlueprint) {
     groupId: altar.id,
     facing: altar.facing,
     interactionBehavior: 'incense',
+    interactionRange: 2,
     visualProfile: 'incense',
   })
   return {

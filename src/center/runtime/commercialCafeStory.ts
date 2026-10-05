@@ -266,7 +266,7 @@ export function resolveCommercialCafeFloorServiceIntent(scene: MainlineSceneDefi
   if (scene.id !== 'commercial-cafe') return null
   const publicTables = scene.objects.filter((entity) => entity.kind === 'table' && entity.id !== commercialCafeStoryTableId)
   const table = publicTables.length ? publicTables[rotation % publicTables.length] : undefined
-  return table ? { dutyId: npcRoles.cafeFloorServer.duties.tableService.id, targetId: table.id, targetEntityId: table.id } : null
+  return table?.approach ? { dutyId: npcRoles.cafeFloorServer.duties.tableService.id, targetId: table.id, target: { ...table.approach } } : null
 }
 
 export type CommercialCafeNpcInteractionResolution = { kind: 'dialogue'; dialogue: MainlineSceneDialoguePresentation; promptSeatId?: string } | { kind: 'start-narrative' }
