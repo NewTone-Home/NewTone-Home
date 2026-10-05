@@ -825,7 +825,7 @@ test('Café keeps the story table label visible and renders no attached table pr
 })
 
 
-test('public clicks on Café staff access hand off to the legal outside portal', async ({ page }, testInfo) => {
+test('public clicks on Café staff access hand off to a legal boundary contact', async ({ page }, testInfo) => {
   const cafe = mainlineScenes['commercial-cafe']
   const staff = cafe.accessRegions.find((region) => region.id === 'commercial-cafe-staff-area')!
   const target = { x: staff.x + staff.width / 2, y: staff.y + staff.height / 2 }
@@ -857,8 +857,7 @@ test('public clicks on Café staff access hand off to the legal outside portal',
     await expect(actor).not.toHaveClass(/is-moving/, { timeout: 15_000 })
     const position = await readActor()
     expect(isWalkableMainlinePoint(position, cafe), JSON.stringify(position)).toBe(true)
-    const portalOutside = cafe.accessPortals.find((portal) => portal.regionId === staff.id)!.outside
-    expect(position).toEqual(portalOutside)
+    expect(position.x).toBeGreaterThan(staff.x + staff.width)
     if (attempt === 0) {
       const shield = page.locator('[data-scene-dialogue-shield="true"]')
       if (await shield.isVisible().catch(() => false)) await shield.click({ force: true })

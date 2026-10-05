@@ -174,69 +174,27 @@ export function doorRegionSide(region: DoorPassageRegion, point: Point): DoorPas
   return normalDistanceFromDoorway(region, point) >= 0 ? 1 : 0
 }
 
-type SegmentBoxInterval = { entry: number; exit: number }
-
-function segmentBoxInterval(start: Point, target: Point, box: DoorRegionBox): SegmentBoxInterval | null {
-  let entry = 0
-  let exit = 1
-  const axes = [
-    [start.x, target.x, box.x, box.x + box.width],
-    [start.y, target.y, box.y, box.y + box.height],
-  ] as const
-  for (const [startValue, targetValue, minimum, maximum] of axes) {
-    const delta = targetValue - startValue
-    if (Math.abs(delta) <= 0.000001) {
-      if (startValue < minimum || startValue > maximum) return null
-      continue
-    }
-    const first = (minimum - startValue) / delta
-    const second = (maximum - startValue) / delta
-    entry = Math.max(entry, Math.min(first, second))
-    exit = Math.min(exit, Math.max(first, second))
-    if (entry > exit) return null
-  }
-  return { entry, exit }
-}
-
-function pointOnSegment(start: Point, target: Point, progress: number): Point {
-  return {
-    x: start.x + (target.x - start.x) * progress,
-    y: start.y + (target.y - start.y) * progress,
-  }
+/** Keep the actor's incoming tangent inside the real usable doorway span. */
+export function doorwayLegalTangent(doorway: DoorRegionBox, axis: 'x' | 'y', footprint: DoorPassageActorFootprint, incoming: Point) {
+  const origin = axis === 'x' ? doorway.y : doorway.x
+  const span = axis === 'x' ? doorway.height : doorway.width
+  const half = axis === 'x' ? footprint.height / 2 : footprint.width / 2
+  const min = origin + half + .02
+  const max = origin + span - half - .02
+  return min > max ? origin + span / 2 : Math.max(min, Math.min(max, axis === 'x' ? incoming.y : incoming.x))
 }
 
 /** Resolve a clear approach point for every doorway orientation. */
-export function doorwayBoundaryPoint(region: DoorPassageRegion, from: Point, target: Point, actorFootprint: DoorPassageActorFootprint, tangentPoint?: Point) {
+export function doorwayBoundaryPoint(region: DoorPassageRegion, from: Point, _target: Point, actorFootprint: DoorPassageActorFootprint, tangentPoint?: Point) {
   const horizontalNormal = region.normal.axis === 'x'
   const normalClearance = horizontalNormal ? actorFootprint.width / 2 : actorFootprint.height / 2
-  const tangentClearance = horizontalNormal ? actorFootprint.height / 2 : actorFootprint.width / 2
-  const expandedDoor = {
-    x: region.doorway.x - (horizontalNormal ? normalClearance : tangentClearance),
-    y: region.doorway.y - (horizontalNormal ? tangentClearance : normalClearance),
-    width: region.doorway.width + (horizontalNormal ? normalClearance : tangentClearance) * 2,
-    height: region.doorway.height + (horizontalNormal ? tangentClearance : normalClearance) * 2,
-  }
-  const length = Math.hypot(target.x - from.x, target.y - from.y)
-  const interval = segmentBoxInterval(from, target, expandedDoor)
-  if (interval && length > 0.001) return pointOnSegment(from, target, Math.max(0, interval.entry - .08 / length))
-
-  const center = {
-    x: region.doorway.x + region.doorway.width / 2,
-    y: region.doorway.y + region.doorway.height / 2,
-  }
+  const center = { x: region.doorway.x + region.doorway.width / 2, y: region.doorway.y + region.doorway.height / 2 }
   const side = doorRegionSide(region, from)
   const direction = region.normal.direction * (side === 1 ? 1 : -1)
-  const tangent = tangentPoint ?? center
-  if (horizontalNormal) {
-    return {
-      x: center.x + direction * (region.doorway.width / 2 + normalClearance + .08),
-      y: tangent.y,
-    }
-  }
-  return {
-    x: tangent.x,
-    y: center.y + direction * (region.doorway.height / 2 + normalClearance + .08),
-  }
+  const tangent = doorwayLegalTangent(region.doorway, region.normal.axis, actorFootprint, tangentPoint ?? from)
+  return horizontalNormal
+    ? { x: center.x + direction * (region.doorway.width / 2 + normalClearance + .08), y: tangent }
+    : { x: tangent, y: center.y + direction * (region.doorway.height / 2 + normalClearance + .08) }
 }
 
 /**

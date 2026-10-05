@@ -1096,6 +1096,10 @@ export function MainlineScenePage({
       return
     }
     const entity = getMainlineSceneEntity(scene, passage.entityId)
+    // Reservations describe this door's crossing, not the final room destination.
+    const crossingTarget = mainlinePassageExitPoint(passage, resolvedPath.at(-1) ?? traversalStart, protagonistFootprint,
+      mainlinePassageCollisionForNavigation(scene, passage, navigationOptions),
+      mainlinePassageDoorwayForNavigation(scene, passage, navigationOptions))
     setPassageDestination(requestedTarget)
     setActiveObjectId(passage.entityId)
     const approachMovementOptions = {
@@ -1111,8 +1115,8 @@ export function MainlineScenePage({
       if (!pending || pending.passage.id !== passage.id) return
       const remainingMovementMs = getRemainingDurationMs()
       armPassageFrameExit(passage, remainingMovementMs)
-      if (pending.requestIssued || remainingMovementMs > sceneDoorMotion.openingMs + sceneDoorMotion.openingLeadMs) return
-      pending.requestIssued = requestPassageLifecycle('protagonist', passage.id, point, requestedTarget)
+      if (passage.access !== 'open' || pending.requestIssued || remainingMovementMs > sceneDoorMotion.openingMs + sceneDoorMotion.openingLeadMs) return
+      pending.requestIssued = requestPassageLifecycle('protagonist', passage.id, point, crossingTarget)
       if (!pending.requestIssued) {
         pendingTraversalRef.current = null
         setPassageDestination(null)
@@ -1125,7 +1129,7 @@ export function MainlineScenePage({
       const pending = pendingTraversalRef.current
       if (!pending || pending.passage.id !== passage.id) return
       pending.approachArrived = true
-      if (!pending.requestIssued && !requestPassageLifecycle('protagonist', passage.id, getCurrentPosition(), requestedTarget)) {
+      if (!pending.requestIssued && !requestPassageLifecycle('protagonist', passage.id, getCurrentPosition(), crossingTarget)) {
         pendingTraversalRef.current = null
         setPassageDestination(null)
         setRequestedWorldTarget(null)
@@ -1142,7 +1146,7 @@ export function MainlineScenePage({
       onMove: requestApproachOpening,
       onBlocked: () => {
         // Replan the same request against current actor occupancy at the legal stop.
-        const approach = passage.access !== 'locked' && replanCount < 2
+        const approach = replanCount < 2
           ? canActorReachPassageApproach(scene, passage, getCurrentPosition(), layout, navigationOptions)
           : null
         if (approach) {
@@ -1154,19 +1158,17 @@ export function MainlineScenePage({
         setPassageDestination(null)
         setSceneFrameExit({ phase: 'idle' })
         onDoorEvent?.('blocked', passage)
-        if (passage.access === 'locked') {
-          showLockedPassageText(passage)
-          return
-        }
       },
     })
-  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getOpenPassageIds, getPassagePhase, getRemainingDurationMs, layout, lifecycleMainlinePassages, locomotionOptions, moveAlong, navigationOptions, onDoorEvent, requestPassageLifecycle, scene, screenMetrics, showLockedPassageText, stopMovement])
+  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getOpenPassageIds, getPassagePhase, getRemainingDurationMs, layout, lifecycleMainlinePassages, locomotionOptions, moveAlong, navigationOptions, onDoorEvent, protagonistFootprint, requestPassageLifecycle, scene, screenMetrics, stopMovement])
 
   const continuePendingTraversal = useCallback((entityId: string) => {
     const pending = pendingTraversalRef.current
     if (!pending || pending.passage.entityId !== entityId) return
     if (!pending.approachArrived) return
     if (!isPassageActorActive('protagonist', pending.passage.id)) return
+    // Consume approach arrival before crossing; lifecycle updates cannot restart this leg.
+    pending.approachArrived = false
     const traversalStart = getCurrentPosition()
     const openNavigationOptions = { ...navigationOptions, openPassageIds: getOpenPassageIds() }
     if (pending.passage.targetSceneId) {

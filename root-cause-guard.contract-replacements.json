@@ -147,6 +147,18 @@
         "expect(resolveMainlineStorefrontInteraction(street, storefront, {x:110,y:53}).inRange).toBe(false)",
         "expect(isWalkableMainlinePoint(resolved.target, street, {}, { actorId: 'protagonist', navigationRuntime: runtime })).toBe(true)"
       ]
+    },
+    {
+      "id": "continuous-staff-boundary-contact",
+      "repository": "NewTone-Home/NewTone-Home",
+      "testFile": "tests/worldNavigation.test.ts",
+      "oldContract": "Unauthorized staff clicks always resolve to accessPortal.outside.",
+      "newContract": "User-approved continuous permission edge: attempted physical crossing derives a legal public contact; access region is not a physical obstacle.",
+      "requiredAddedAssertions": [
+        "expect(denied.resolvedNavigableTarget.x).toBeGreaterThan(staff.x + staff.width)",
+        "expect(mainlineNavigationCollisionBoxes(cafe, {}, options)).not.toContainEqual",
+        "expect(new Set(contacts).size).toBeGreaterThan(2)"
+      ]
     }
   ]
 }

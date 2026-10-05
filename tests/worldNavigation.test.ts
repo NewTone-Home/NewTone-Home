@@ -61,12 +61,58 @@ describe('ordinary world navigation and passage intent', () => {
     const denied = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, options)!
     expect(denied.reachedRequestedTarget).toBe(false)
     expect(denied.deniedAccessRegion?.id).toBe(staff.id)
-    expect(denied.resolvedNavigableTarget).toEqual(cafe.accessPortals.find((portal) => portal.regionId === staff.id)!.outside)
+    expect(denied.resolvedNavigableTarget.x).toBeGreaterThan(staff.x + staff.width)
+    expect(mainlineNavigationCollisionBoxes(cafe, {}, options)).not.toContainEqual({ x: staff.x, y: staff.y, width: staff.width, height: staff.height })
     expect(denied.resolvedNavigableTarget).not.toEqual(staffTarget)
     const allowed = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, { actorId: commercialCafeCoffeeOwnerNpcId })!
     expect(allowed.reachedRequestedTarget).toBe(true)
     const floorServerDenied = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, { actorId: commercialCafeFloorServerNpcId })!
     expect(floorServerDenied.reachedRequestedTarget).toBe(false)
+  })
+
+  it('derives distinct public contacts along the declared access boundary, including the top wall', () => {
+    const cafe = mainlineScenes['commercial-cafe']
+    const staff = cafe.accessRegions[0]!
+    const from = { x: staff.x + staff.width + 7, y: staff.y + 1 }
+    const dot = mainlineProtagonistDotFootprint(from)
+    const options = { actorId: 'protagonist', actorFootprint: { width: dot.width, height: dot.height } }
+    const contacts = [staff.y - .2, staff.y + 1, staff.y + staff.height / 2, staff.y + staff.height - 1].map(y => {
+      const result = resolveMainlineWorldNavigation(cafe, from, { x: staff.x + staff.width - 2, y }, {}, options)!
+      expect(result.deniedAccessRegion?.id).toBe(staff.id)
+      expect(result.resolvedNavigableTarget.x).toBeGreaterThan(staff.x + staff.width + dot.width / 2)
+      for (let i = 1; i < result.path.length; i++) expect(canTravelAlongMainlineSegment(result.path[i - 1]!, result.path[i]!, cafe, {}, options)).toBe(true)
+      return result.resolvedNavigableTarget.y
+    })
+    expect(new Set(contacts).size).toBeGreaterThan(2)
+  })
+
+  it('preserves distinct incoming tangents on the usable Office doorway span', () => {
+    const office = mainlineScenes['zhongshuyuan-office']
+    const passage = office.passages.find(p => p.id === 'zhongshuyuan-office-south-door-1')!
+    const doorway = mainlinePassageDoorwayForNavigation(office, passage)
+    const dot = mainlineProtagonistDotFootprint(office.initialPlayerPosition)
+    const options = { actorFootprint: { width: dot.width, height: dot.height } }
+    const tangents = [.25, .5, .75].map(fraction => {
+      const from = { x: doorway.x + doorway.width * fraction, y: doorway.y - doorway.height * 3 }
+      const approach = canActorReachPassageApproach(office, passage, from, {}, options)!
+      expect(approach).not.toBeNull()
+      const exit = mainlinePassageExitPoint(passage, approach.target, options.actorFootprint)
+      expect(exit.x).toBeCloseTo(approach.target.x, 5)
+      expect(mainlinePassageSide(passage, exit)).not.toBe(mainlinePassageSide(passage, approach.target))
+      return approach.target.x
+    })
+    expect(new Set(tangents).size).toBe(3)
+  })
+
+  it('keeps denied room edges terminal rather than traversing them to other rooms', () => {
+    const office = mainlineScenes['zhongshuyuan-office']
+    const closedStart = { ...office, passages: office.passages.map(p => ({ ...p, access: 'locked' as const })) }
+    const room = office.rooms.find(r => r.id.endsWith('north-room-4'))!
+    const target = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+    expect(findMainlineRoomPassageSequence(closedStart, office.initialPlayerPosition, target)).toBeNull()
+    const route = findMainlineRoomPassageSequence(office, office.initialPlayerPosition, target)!
+    expect(route.passages.slice(0, -1).every(p => p.access === 'open')).toBe(true)
+    expect(route.passages.at(-1)?.access).toBe('locked')
   })
 
   it('uses the same closed-passage geometry for world resolution and live travel', () => {
