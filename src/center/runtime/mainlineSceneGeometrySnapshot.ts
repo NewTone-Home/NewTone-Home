@@ -78,8 +78,8 @@ function relationBarrier(
     const gapStart = upper.y + upper.height
     const gapEnd = lower.y
     if (gapEnd > gapStart) {
-      const y = (gapStart + gapEnd) / 2
-      return { id: relation.id, start: { x: overlapXStart, y }, end: { x: overlapXEnd, y } }
+      const x = (overlapXStart + overlapXEnd) / 2
+      return { id: relation.id, start: { x, y: gapStart }, end: { x, y: gapEnd } }
     }
   }
 
@@ -89,8 +89,8 @@ function relationBarrier(
     const gapStart = left.x + left.width
     const gapEnd = right.x
     if (gapEnd > gapStart) {
-      const x = (gapStart + gapEnd) / 2
-      return { id: relation.id, start: { x, y: overlapYStart }, end: { x, y: overlapYEnd } }
+      const y = (overlapYStart + overlapYEnd) / 2
+      return { id: relation.id, start: { x: gapStart, y }, end: { x: gapEnd, y } }
     }
   }
 

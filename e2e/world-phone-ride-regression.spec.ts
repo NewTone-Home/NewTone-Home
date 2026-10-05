@@ -46,10 +46,15 @@ test('the inner-world Phone keeps the existing Office to Commercial Street ride 
 
   const phone = page.locator('.world-phone')
   await expect(phone).toBeVisible()
+  await expect(phone).toHaveAttribute('data-phone-device', 'inner')
   await phone.locator('[data-app="ride"]').click()
   await phone.getByRole('button', { name: /商业街.*从当前位置出发/ }).click()
   await phone.getByRole('button', { name: '呼叫车辆前往商业街', exact: true }).click()
 
+  if (await page.locator('[data-ride-pickup="true"]').count()) {
+    await page.getByLabel('收起手机').click()
+    await page.locator('[data-ride-pickup="true"]').click()
+  }
   await expect(page.locator('.center-long-distance-travel')).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible({ timeout: 15_000 })
   expect(consoleErrors).toEqual([])
@@ -80,6 +85,10 @@ test('Commercial Street can ride through the inner-world Phone back to the Zhong
   await phone.getByRole('button', { name: /商业街.*从当前位置出发/ }).click()
   await phone.getByRole('button', { name: '呼叫车辆前往商业街', exact: true }).click()
 
+  if (await page.locator('[data-ride-pickup="true"]').count()) {
+    await page.getByLabel('收起手机').click()
+    await page.locator('[data-ride-pickup="true"]').click()
+  }
   await expect(page.locator('.center-long-distance-travel')).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible({ timeout: 15_000 })
   await page.getByLabel('打开手机').click()
@@ -93,6 +102,10 @@ test('Commercial Street can ride through the inner-world Phone back to the Zhong
   await phone.getByRole('button', { name: /中枢院.*从当前位置出发/ }).click()
   await phone.getByRole('button', { name: '呼叫车辆前往中枢院', exact: true }).click()
 
+  if (await page.locator('[data-ride-pickup="true"]').count()) {
+    await page.getByLabel('收起手机').click()
+    await page.locator('[data-ride-pickup="true"]').click()
+  }
   await expect(page.locator('.center-long-distance-travel')).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('.scene-shell[data-mainline-scene="zhongshuyuan-office"]')).toBeVisible({ timeout: 15_000 })
   expect(consoleErrors).toEqual([])

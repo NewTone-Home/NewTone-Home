@@ -101,9 +101,15 @@ function sceneGeometrySnapshot(scene: MainlineSceneDefinition, layout: SceneLayo
 
 /** Current snapshot-owned relation barriers; they never become collision boxes. */
 export function mainlineNavigationBarriers(scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
-  return sceneGeometrySnapshot(scene, layout, options).navigationBarriers.filter((barrier) => (
-    barrier.kind !== 'access-boundary' || !barrier.requiredAccess || !actorAccessFor(scene, options.actorId).has(barrier.requiredAccess)
-  ))
+  const departureSeat = options.actorId ? mainlineNpcStagedSeatId(scene, options.actorId) : undefined
+  const ownSeatOccupied = departureSeat && occupiedSeatIdsForNavigation(scene, options).has(departureSeat)
+  return sceneGeometrySnapshot(scene, layout, options).navigationBarriers.filter((barrier) => {
+    const relation = scene.navigationBarriers.find(candidate => candidate.id === barrier.id)
+    // A seated actor owns departure from its own occupied chair. Other actors
+    // retain the furniture relation, and a released chair is static again.
+    if (ownSeatOccupied && relation && (relation.firstEntityId === departureSeat || relation.secondEntityId === departureSeat)) return false
+    return barrier.kind !== 'access-boundary' || !barrier.requiredAccess || !actorAccessFor(scene, options.actorId).has(barrier.requiredAccess)
+  })
 }
 
 /** Shared crossing legality for planning, contact resolution and live movement. */
@@ -441,7 +447,7 @@ export function resolveMainlineSafeEntryPosition(
   targetGeometry?: MainlineSceneGeometrySnapshot,
 ): Point | null {
   try {
-    const targetOptions = targetGeometry?.sceneId === targetScene.id ? { ...options, geometrySnapshot: targetGeometry } : options
+    const targetOptions = { ...options, geometrySnapshot: targetGeometry?.sceneId === targetScene.id ? targetGeometry : sceneGeometrySnapshot(targetScene, layout, options) }
     const reversePassages = targetScene.passages.filter((passage) => passage.targetSceneId === sourceSceneId)
     const targetPassage = reversePassages
       .map((passage) => {
@@ -554,6 +560,7 @@ export function resolveMainlineSafeSpawnPosition(
   layout: SceneLayout = {},
   options: MainlineNavigationOptions = {},
 ): Point | null {
+  options = { ...options, geometrySnapshot: sceneGeometrySnapshot(scene, layout, options) }
   const candidates = [
     ...(preferred ? [preferred] : []),
     scene.initialPlayerPosition,
@@ -1107,6 +1114,7 @@ export function findMainlinePathThroughPassage(scene: MainlineSceneDefinition, p
 }
 
 export function findMainlinePath(start: Point, target: Point, scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): Point[] | null {
+  options = { ...options, geometrySnapshot: sceneGeometrySnapshot(scene, layout, options) }
   if (!isWalkableMainlinePoint(start, scene, layout, options)) return null
   if (!isWalkableMainlinePoint(target, scene, layout, options)) return null
   const actorFootprint = mainlineActorFootprint(scene, options, start)
@@ -1271,6 +1279,7 @@ function collisionContactCandidates(
   from: Point,
   actorFootprint: NavigationActorFootprint,
   sides?: readonly ('top' | 'right' | 'bottom' | 'left')[],
+  includeDiagonals = false,
 ): Point[] {
   const dx = from.x - position.x
   const dy = from.y - position.y
@@ -1280,7 +1289,12 @@ function collisionContactCandidates(
   const counterclockwise = { x: primary.y, y: -primary.x }
   const opposite = { x: -primary.x, y: -primary.y }
   const directions = sides?.map((side) => contactDirectionForSide[side])
-    ?? [primary, clockwise, counterclockwise, opposite]
+    ?? [primary, clockwise, counterclockwise, opposite, ...(includeDiagonals ? [
+      { x: primary.x + clockwise.x, y: primary.y + clockwise.y },
+      { x: primary.x + counterclockwise.x, y: primary.y + counterclockwise.y },
+      { x: opposite.x + clockwise.x, y: opposite.y + clockwise.y },
+      { x: opposite.x + counterclockwise.x, y: opposite.y + counterclockwise.y },
+    ] : [])]
   return directions.map((direction) => edgeContactPoint(position, collision, {
     x: position.x + direction.x,
     y: position.y + direction.y,
@@ -1358,7 +1372,7 @@ export function mainlineEntityInteractionCandidates(scene: MainlineSceneDefiniti
   // Their current footprint, shared route legality, and the actor's direction
   // decide the contact. Structural wall/door and seat lifecycle branches above
   // retain their separate semantics.
-  return collisionContactCandidates(position, collision, from, actorFootprint, entity.interactionContactSides)
+  return collisionContactCandidates(position, collision, from, actorFootprint, entity.interactionContactSides, true)
 }
 
 function mainlinePathLength(path: readonly Point[]): number {

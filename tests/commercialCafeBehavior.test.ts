@@ -133,6 +133,8 @@ describe('commercial café staff duty ownership', () => {
     const first = floor.request(cafe, snapshot(commercialCafeFloorServerNpcId))!
     expect(first.dutyId).toBe(npcRoles.cafeFloorServer.duties.tableService.id)
     floor.arrived()
+    expect(floor.request(cafe, snapshot(commercialCafeFloorServerNpcId))).toBeNull()
+    floor.finishDwell()
     const second = floor.request(cafe, snapshot(commercialCafeFloorServerNpcId))!
     expect(second.dutyId).toBe(npcRoles.cafeFloorServer.duties.tableService.id)
     expect(second.targetEntityId).not.toBe(first.targetEntityId)

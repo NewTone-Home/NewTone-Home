@@ -37,3 +37,22 @@ export function mainlineCameraOffset(
     ? fixedFrameCameraOffset(scene)
     : followPlayerCameraOffset(scene, position)
 }
+
+/** Keep the central 30% free of camera motion; clamp against scene edges. */
+export function mainlineCameraTarget(scene: Pick<MainlineSceneDefinition, 'viewport' | 'walkBounds'>, position: Point, current: Point, embedded = false): Point {
+  if (embedded || scene.viewport === 'fixed-frame') return mainlineCameraOffset(scene, position, embedded)
+  const desired = { ...current }
+  for (const axis of ['x', 'y'] as const) {
+    const screen = position[axis] + current[axis]
+    if (screen < 35) desired[axis] += 35 - screen
+    if (screen > 65) desired[axis] += 65 - screen
+  }
+  const minX = Math.min(0, 100 - (scene.walkBounds.x + scene.walkBounds.width) - 2)
+  const minY = Math.min(0, 100 - (scene.walkBounds.y + scene.walkBounds.height) - 2)
+  return { x: clamp(desired.x, minX, 0), y: clamp(desired.y, minY, 0) }
+}
+
+export function advanceMainlineCamera(current: Point, target: Point, elapsedMs: number): Point {
+  const blend = 1 - Math.exp(-Math.max(0, elapsedMs) / 140)
+  return { x: current.x + (target.x - current.x) * blend, y: current.y + (target.y - current.y) * blend }
+}

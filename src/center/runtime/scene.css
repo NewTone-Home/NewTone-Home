@@ -985,6 +985,9 @@
 .scene-protagonist.is-moving .scene-protagonist__dot { animation: protagonist-walk 700ms ease-in-out infinite; }
 
 .scene-protagonist__drink-icon {
+  padding: 0;
+  pointer-events: auto;
+  cursor: pointer;
   position: absolute;
   left: 8px;
   top: -5px;

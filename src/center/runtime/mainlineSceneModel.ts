@@ -646,7 +646,7 @@ function altarTableEntity(
   const gridSteps = boundaryGridStepsFromScreenSpacing()
   const gridStep = isHorizontal ? gridSteps.horizontal : gridSteps.vertical
   const clearanceDistance = tableDepth / 2 + burnerSize / 2 + (altar.tableGap ?? gridStep)
-  const distance = Math.max(configuredDistance, clearanceDistance)
+  const distance = altar.tableGap === undefined ? Math.max(configuredDistance, clearanceDistance) : configuredDistance + altar.tableGap
   const offset = isHorizontal
     ? { x: direction * distance, y: base.offset.y }
     : { x: base.offset.x, y: direction * distance }
@@ -1123,7 +1123,7 @@ const jijiaAltarBlueprint: MainlineAltarBlueprint = {
     'jijia-offering-table-west',
   ],
   incenseBurnerId: 'jijia-incense-burner',
-  tableDistance: 4,
+  tableDistance: 2.8,
   // Keep the burner reachable from the diagonal side positions without
   // leaving a straight walkable lane between it and the offering tables.
   tableGap: 0,

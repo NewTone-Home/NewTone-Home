@@ -11,6 +11,7 @@ import {
 import { mainlineCameraOffset } from './runtime/mainlineViewport'
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
+import { mainlineRideAtPickup, mainlineRideOrderFromState, mainlineRideOrderPatch, mainlineRidePickupPosition, mainlineRideWalkingEtaMs, mainlineRideZone } from './runtime/mainlineRide'
 import {
   phoneRideAvailability,
   worldLayerForScene,
@@ -57,8 +58,8 @@ function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
   return { sceneId, entryPosition, spawnMode }
 }
 
-function screenPositionForScene(sceneId, position) {
-  const cameraOffset = mainlineCameraOffset(mainlineScenes[sceneId], position)
+function screenPositionForScene(sceneId, position, liveCameraOffset) {
+  const cameraOffset = liveCameraOffset ?? mainlineCameraOffset(mainlineScenes[sceneId], position)
   return {
     x: position.x + cameraOffset.x,
     y: position.y + cameraOffset.y,
@@ -95,7 +96,12 @@ export default function CenterExperience({
   const [resumeSceneId, setResumeSceneId] = useState(null)
   const [resumePosition, setResumePosition] = useState(undefined)
   const [localSlideHandoffRoute, setLocalSlideHandoffRoute] = useState(null)
+  const [sceneSlot, setSceneSlot] = useState(0)
   const [boundaryNotice, setBoundaryNotice] = useState('')
+  const [rideOrder, setRideOrder] = useState(() => mainlineRideOrderFromState(loadPlayerSave().sceneState))
+  const rideBoardingRef = useRef(() => {})
+  const phoneRetractedRef = useRef(true)
+  useEffect(() => { if (phoneOpen) phoneRetractedRef.current = false }, [phoneOpen])
   const [feedbackMode, setFeedbackMode] = useState(null)
   const [localSlide, setLocalSlide] = useState(null)
   const [longDistanceTravel, setLongDistanceTravel] = useState(null)
@@ -266,8 +272,10 @@ export default function CenterExperience({
     const nextRoute = createRoute(nextSceneId, nextEntryPosition, nextSpawnMode || 'resume')
     const startsLocalSlide = isLocalSlidePrototypeIntent(transitionIntent) && !reducedMotion
     if (startsLocalSlide) {
+      setSceneSlot(1 - sceneSlot)
       setLocalSlide({
         sourceRoute: route,
+        sourceSlot: sceneSlot,
         sourceResumePosition: resumePosition,
         targetRoute: nextRoute,
         transitionIntent,
@@ -303,7 +311,7 @@ export default function CenterExperience({
       mainlineSceneRoute(nextSceneId, nextEntryPosition, nextRoute.spawnMode),
     )
     setRoute(nextRoute)
-  }, [commitPlayerSave, reducedMotion, resumePosition, route])
+  }, [commitPlayerSave, reducedMotion, resumePosition, route, sceneSlot])
 
   const handleLocalSlideTargetAnimationEnd = useCallback((event) => {
     if (event.target !== event.currentTarget) return
@@ -317,6 +325,7 @@ export default function CenterExperience({
   }, [])
 
   const handlePhoneCloseComplete = useCallback(() => {
+    phoneRetractedRef.current = true
     setLongDistanceTravel((current) => (
       current?.phase === 'phone-retracting'
         ? { ...current, phase: 'scene-fading' }
@@ -429,26 +438,44 @@ export default function CenterExperience({
     else pendingInteractionRequestsRef.current.delete(key)
   }, [handleMeaningfulActivity, route.sceneId])
 
-  const handleRideRequest = useCallback((device, destinationSceneId) => {
-    const layer = worldLayerForScene(route.sceneId)
-    if (phoneRideAvailability(device, layer) !== 'available') return
-    const travelIntent = mainlineLongDistanceTravelIntentForRide(route.sceneId, destinationSceneId)
-    trackEvent('center_ride_ready', {
-      sceneId: route.sceneId,
-      destinationSceneId,
-      device,
-      outcome: 'ready',
-    })
-    if (travelIntent) {
-      setFeedbackMode(null)
-      setBoundaryNotice('')
-      setLongDistanceTravel({ phase: 'phone-retracting', intent: travelIntent, targetReady: false })
-      setPhoneOpen(false)
-      return
-    }
+  const boardRide = useCallback((order) => {
+    const intent = mainlineLongDistanceTravelIntentForRide(order.sourceSceneId, order.targetSceneId)
+    if (!intent) return
+    setRideOrder(null)
+    recordSceneStatePatch(order.sourceSceneId, mainlineRideOrderPatch(null))
+    setFeedbackMode(null)
+    setBoundaryNotice('')
+    setLongDistanceTravel({ phase: phoneRetractedRef.current ? 'scene-fading' : 'phone-retracting', intent, targetReady: false })
     setPhoneOpen(false)
-    setBoundaryNotice('叫车功能已接通，后续内容暂未开放。')
-  }, [route.sceneId])
+  }, [recordSceneStatePatch])
+  rideBoardingRef.current = (sceneId, position, context) => {
+    if (rideOrder && Date.now() >= rideOrder.driverArrivesAt && mainlineRideAtPickup(rideOrder, sceneId, position, context?.screenMetrics)) boardRide(rideOrder)
+  }
+  useEffect(() => {
+    if (!rideOrder) return
+    const arrived = () => {
+      const current = latestWorldPositionRef.current
+      if (current) rideBoardingRef.current(current.sceneId, current.position, current.context)
+    }
+    const timer = window.setTimeout(arrived, Math.max(0, rideOrder.driverArrivesAt - Date.now()))
+    return () => window.clearTimeout(timer)
+  }, [rideOrder])
+  const handleRideRequest = useCallback((device, destinationSceneId) => {
+    if (rideOrder || phoneRideAvailability(device, worldLayerForScene(route.sceneId)) !== 'available') return
+    const zone = mainlineRideZone(route.sceneId)
+    const intent = zone && mainlineLongDistanceTravelIntentForRide(zone.pickupSceneId, destinationSceneId)
+    const current = latestWorldPositionRef.current
+    if (!intent || current?.sceneId !== route.sceneId) return
+    const etaMs = mainlineRideWalkingEtaMs(route.sceneId, current.position, current.context)
+    if (etaMs === null) return
+    const order = { sourceSceneId: zone.pickupSceneId, targetSceneId: destinationSceneId, driverArrivesAt: Date.now() + Math.ceil(etaMs) }
+    trackEvent('center_ride_ready', { sceneId: route.sceneId, destinationSceneId, device, outcome: 'ready' })
+    if (etaMs === 0 && mainlineRideAtPickup(order, route.sceneId, current.position, current.context.screenMetrics)) boardRide(order)
+    else {
+      recordSceneStatePatch(order.sourceSceneId, mainlineRideOrderPatch(order))
+      setRideOrder(order)
+    }
+  }, [boardRide, recordSceneStatePatch, rideOrder, route.sceneId])
 
   const canPersistScenePosition = Boolean(
     route.entryPosition
@@ -463,8 +490,9 @@ export default function CenterExperience({
     if (next !== current) playerSaveRef.current = persistPlayerSave(next)
   }, [canPersistScenePosition, route.sceneId])
 
-  const handleRuntimePositionChange = useCallback((sceneId, position) => {
-    latestWorldPositionRef.current = { sceneId, position }
+  const handleRuntimePositionChange = useCallback((sceneId, position, context) => {
+    latestWorldPositionRef.current = { sceneId, position, context }
+    rideBoardingRef.current(sceneId, position, context)
     positionSamplerRef.current?.sample(sceneId, position)
   }, [])
 
@@ -503,6 +531,7 @@ export default function CenterExperience({
       onPlayerSceneStateChange={snapshot ? undefined : recordSceneState}
       onPlayerSceneStatePatch={snapshot ? undefined : recordSceneStatePatch}
       carriedPhoneDevice={phoneDevice}
+      ridePickup={!snapshot && rideOrder?.sourceSceneId === sceneRoute.sceneId ? mainlineRidePickupPosition(sceneRoute.sceneId) : undefined}
       onSceneTransition={handleSceneTransition}
       onSafeSpawnCorrection={snapshot ? undefined : handleSafeSpawnCorrection}
       onPositionChange={snapshot ? undefined : canPersistScenePosition ? handlePositionChange : undefined}
@@ -518,7 +547,7 @@ export default function CenterExperience({
 
   const localSlideActor = localSlide
     ? {
-        from: screenPositionForScene(localSlide.transitionIntent.sourceSceneId, localSlide.transitionIntent.sourceCrossingPosition),
+        from: screenPositionForScene(localSlide.transitionIntent.sourceSceneId, localSlide.transitionIntent.sourceCrossingPosition, latestWorldPositionRef.current?.context?.cameraOffset),
         to: screenPositionForScene(localSlide.transitionIntent.targetSceneId, localSlide.transitionIntent.safeEntryPosition),
       }
     : null
@@ -549,22 +578,19 @@ export default function CenterExperience({
             ? { '--local-slide-duration': `${localSlidePrototypeDurationMs}ms`, '--local-slide-actor-from-x': `${localSlideActor.from.x}%`, '--local-slide-actor-from-y': `${localSlideActor.from.y}%`, '--local-slide-actor-to-x': `${localSlideActor.to.x}%`, '--local-slide-actor-to-y': `${localSlideActor.to.y}%` }
             : undefined}
         >
-          <div className="center-local-slide__surface center-local-slide__surface--source">
-            {renderScenePage(localSlide?.sourceRoute ?? route, {
-              showProtagonist: !localSlide,
-              snapshot: Boolean(localSlide),
-              resumePosition: localSlide?.sourceResumePosition,
-            })}
-          </div>
-          {localSlide && localSlideActor && <>
-            <div
-              className="center-local-slide__surface center-local-slide__surface--target"
-              onAnimationEnd={handleLocalSlideTargetAnimationEnd}
-            >
-              {renderScenePage(localSlide.targetRoute, { key: `local-slide-target:${localSlide.targetRoute.sceneId}:${localSlide.targetRoute.entryPosition?.x ?? ''}:${localSlide.targetRoute.entryPosition?.y ?? ''}`, showProtagonist: false, snapshot: true, resumePosition: undefined })}
+          {[0, 1].map((slot) => {
+            const source = localSlide && slot === localSlide.sourceSlot
+            const active = slot === sceneSlot
+            const sceneRoute = source ? localSlide.sourceRoute : active ? route : null
+            return <div key={slot} hidden={!sceneRoute} className={`center-local-slide__surface center-local-slide__surface--${localSlide && active ? 'target' : 'source'}`} onAnimationEnd={localSlide && active ? handleLocalSlideTargetAnimationEnd : undefined}>
+              {sceneRoute && renderScenePage(sceneRoute, {
+                showProtagonist: !localSlide,
+                snapshot: Boolean(localSlide),
+                resumePosition: source ? localSlide.sourceResumePosition : active && !localSlide ? resumePosition : undefined,
+              })}
             </div>
-            <div className="scene-protagonist center-local-slide__actor" aria-hidden="true"><span className="scene-protagonist__dot" /></div>
-          </>}
+          })}
+          {localSlide && localSlideActor && <div className="scene-protagonist center-local-slide__actor" aria-hidden="true"><span className="scene-protagonist__dot" /></div>}
         </div>
         <WorldPhone
           currentSceneId={route.sceneId}
@@ -575,6 +601,7 @@ export default function CenterExperience({
           onClose={retractPhone}
           onCloseComplete={handlePhoneCloseComplete}
           onRideRequest={handleRideRequest}
+          rideOrder={rideOrder}
           milkTeaAppUnlocked={commercialStreetMilkTeaAppUnlocked(commercialStreetState)}
           milkTeaOrder={milkTeaOrder}
           milkTeaHeld={commercialStreetMilkTeaHeld(commercialStreetState)}

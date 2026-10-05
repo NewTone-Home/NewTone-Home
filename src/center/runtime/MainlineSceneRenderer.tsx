@@ -75,6 +75,8 @@ type MainlineSceneRendererProps = {
   onSceneActionStart?: (index: number) => void
   onSceneActionChoice?: (index: number) => void
   carriedMilkTea?: boolean
+  onMilkTeaInteract?: () => void
+  ridePickup?: Point
   onFrameMotionProfileChange?: (profile: readonly SceneFocusFrameMotionProfile[]) => void
   exploredObjectIds?: ReadonlySet<string>
   interactionTutorialCompleted?: boolean
@@ -666,6 +668,8 @@ export function MainlineSceneRenderer({
   onSceneActionStart,
   onSceneActionChoice,
   carriedMilkTea = false,
+  onMilkTeaInteract,
+  ridePickup,
   onFrameMotionProfileChange,
   exploredObjectIds = new Set(),
   interactionTutorialCompleted = false,
@@ -1190,12 +1194,13 @@ export function MainlineSceneRenderer({
             </div>
           </div>}
 
+          {ridePickup && <button type="button" className="scene-mainline-npc" style={{ left: `${ridePickup.x}%`, top: `${ridePickup.y}%` }} data-ride-pickup="true" onClick={(event) => { event.stopPropagation(); onWalk(ridePickup) }}>上车点</button>}
           {destination && <div className={`scene-walk-target ${moving ? 'is-active' : ''}`} style={{ left: `${destination.x}%`, top: `${destination.y}%` }} aria-hidden="true" />}
           {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%`, '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined}>
             {protagonistPresentation.kind === 'dot'
               ? <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
               : <span className="scene-protagonist__seat-label" aria-label="修杰，已坐下">{protagonistPresentation.label}</span>}
-            {carriedMilkTea && !playerSeatId && <span className="scene-protagonist__drink-icon scene-protagonist__drink-icon--milk-tea" aria-label="修杰带着奶茶" />}
+            {carriedMilkTea && !playerSeatId && <button type="button" className="scene-protagonist__drink-icon scene-protagonist__drink-icon--milk-tea" aria-label="修杰带着奶茶，点击饮用" onClick={(event) => { event.stopPropagation(); onMilkTeaInteract?.() }} />}
           </div>}
           {worldQuestionMark?.visible && <span
             className="scene-commercial-question-mark"

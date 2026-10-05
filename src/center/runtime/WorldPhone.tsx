@@ -1,10 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type AnimationEvent as ReactAnimationEvent, type FormEvent, type PointerEvent as ReactPointerEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
-import { mainlineMapLandmarksByWorld, mainlineMapLayout, type MainlineMapLandmark, type MainlineSceneId } from './mainlineScenes'
+import { mainlineScenes, mainlineMapLandmarksByWorld, mainlineMapLayout, type MainlineMapLandmark, type MainlineSceneId } from './mainlineScenes'
 import { sceneInteractionHandlers } from './sceneInteraction'
 import { phoneInputOwner, phoneIsOnline, phoneRideAvailability, type PhoneDevice, type WorldLayer, type WorldPhonePhase } from './phoneState'
 import { commercialStreetMilkTeaIsReady, commercialStreetMilkTeaQueueStatus, formatCommercialStreetMilkTeaOrderNumber, milkTeaDrinks, milkTeaIceOptions, milkTeaSugarOptions, type CommercialStreetMilkTeaOrder, type MilkTeaDrink, type MilkTeaIce, type MilkTeaSugar } from './commercialStreetMilkTea'
+
+import type { MainlineRideOrder } from './mainlineRide'
 
 type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea'
 type FeedbackMode = 'phone'
@@ -64,6 +66,7 @@ type WorldPhoneProps = {
   onOpen: () => void
   onClose: () => void
   onCloseComplete?: () => void
+  rideOrder?: MainlineRideOrder | null
   onRideRequest?: (device: PhoneDevice, destinationSceneId: MainlineSceneId) => void
   feedbackMode?: FeedbackMode | null
   onFeedbackModeChange?: (mode: FeedbackMode | null) => void
@@ -158,7 +161,7 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMilkTeaOrderReady, onMeaningfulActivity }: WorldPhoneProps) {
+export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMilkTeaOrderReady, onMeaningfulActivity }: WorldPhoneProps) {
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
   const [phase, setPhase] = useState<WorldPhonePhase>('closed')
@@ -177,6 +180,18 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
   const closeTransitionStartedRef = useRef(false)
   const [mapPan, setMapPan] = useState<MapPoint>([0, 0])
   const [milkTeaClock, setMilkTeaClock] = useState(() => Date.now())
+  const [rideClock, setRideClock] = useState(() => Date.now())
+  useEffect(() => {
+    if (!rideOrder) return
+    let timer = 0
+    const update = () => {
+      const now = Date.now()
+      setRideClock(now)
+      if (now < rideOrder.driverArrivesAt) timer = window.setTimeout(update, Math.min(1000, rideOrder.driverArrivesAt - now))
+    }
+    update()
+    return () => window.clearTimeout(timer)
+  }, [rideOrder])
   const mapDragRef = useRef<MapDragState>({ active: false, moved: false, pointerId: -1, start: null, origin: null })
   const phoneTime = usePhoneTime()
 
@@ -531,6 +546,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
 
             {activeApp === 'ride' && (
               <section className="world-phone__list-page" aria-label="叫车">
+                {rideOrder && <div className="world-phone__list-heading" data-ride-order="true" aria-live="polite"><strong>{rideClock < rideOrder.driverArrivesAt ? `司机预计 ${Math.ceil((rideOrder.driverArrivesAt - rideClock) / 1000)} 秒后到达` : '司机已到达，正在上车点等候'}</strong><small>请前往{mainlineScenes[rideOrder.sourceSceneId].title}上车点</small></div>}
                 <div className="world-phone__list-heading">
                   <span>叫车服务</span>
                   <strong>目的地</strong>
@@ -562,7 +578,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
                 <button
                   className="world-phone__list-action"
                   type="button"
-                  disabled={rideAvailability !== 'available' || selectedRideDestination === null}
+                  disabled={Boolean(rideOrder) || rideAvailability !== 'available' || selectedRideDestination === null}
                   onClick={rideAvailability === 'available' && selectedRideDestination ? () => onRideRequest?.(displayDevice, selectedRideDestination.sceneId) : undefined}
                 >
                   {rideAvailability === 'available' ? selectedRideDestination ? `呼叫车辆前往${selectedRideDestination.label}` : '暂无可去地点' : rideAvailability === 'not-open' ? '服务暂未开通' : '当前无网络，无法叫车'}

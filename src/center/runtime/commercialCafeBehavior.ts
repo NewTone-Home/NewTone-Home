@@ -11,7 +11,7 @@ import {
 } from './commercialCafeStory'
 
 export type CommercialCafeCoffeeOwnerPhase = 'counter' | 'moving-to-prep' | 'preparing' | 'delivering' | 'delivery-arrived' | 'returning' | 'blocked'
-export type CommercialCafeFloorServerPhase = 'staging' | 'serving' | 'blocked'
+export type CommercialCafeFloorServerPhase = 'staging' | 'serving' | 'dwelling' | 'blocked'
 
 /** Café NPC speed is a local duty override layered on the shared locomotion engine. */
 export function commercialCafeDutySpeedMultiplier(npcId: string, dutyId: string | null, readingActive: boolean) {
@@ -92,12 +92,21 @@ export function createCommercialCafeFloorServerBehaviorCoordinator() {
   const block = () => { phase = 'blocked' }
   const reset = () => { phase = 'staging'; tableRotation = 0 }
   const retry = () => { if (phase === 'blocked') phase = 'staging' }
-  const arrived = () => { phase = 'serving'; tableRotation += 1 }
+  const arrived = () => { phase = 'dwelling'; tableRotation += 1; return commercialCafeFloorServiceDwellMs() }
+  const finishDwell = () => { if (phase === 'dwelling') phase = 'serving' }
   const request = (scene: MainlineSceneDefinition, snapshot: NpcRuntimeSnapshot): NpcIntent | null => {
-    if (scene.id !== 'commercial-cafe' || snapshot.phase === 'moving' || phase === 'blocked') return null
+    if (scene.id !== 'commercial-cafe' || snapshot.phase === 'moving' || phase === 'blocked' || phase === 'dwelling') return null
     const intent = resolveCommercialCafeFloorServiceIntent(scene, tableRotation)
     if (intent) phase = 'serving'
     return intent
   }
-  return { getPhase, request, arrived, block, retry, reset }
+  return { getPhase, request, arrived, finishDwell, block, retry, reset }
+}
+
+/** Eight of ten services last 2–4s; the tails are 1s and 5s. */
+export function commercialCafeFloorServiceDwellMs(random = Math.random) {
+  const sample = Math.max(0, Math.min(1, random()))
+  if (sample < .1) return 1000
+  if (sample >= .9) return 5000
+  return Math.round(2000 + (sample - .1) / .8 * 2000)
 }

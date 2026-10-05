@@ -12,7 +12,8 @@ import type { PhoneDevice } from './phoneState'
 import { sceneInteractionHandlers } from './sceneInteraction'
 import { useAutomaticPassages } from './useAutomaticPassages'
 import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
-import { mainlineCameraOffset } from './mainlineViewport'
+import { useMainlineCamera } from './useMainlineCamera'
+import type { MainlineRideWalkingContext } from './mainlineRide'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
@@ -35,7 +36,7 @@ import { mainlineExploredObjectIdsFromSceneState, mainlineInteractionCompletesIm
 import { localSlideDirectionForCrossing, shouldUseLocalSlideForPassage, type MainlineWalkingPassageTransitionIntent } from './mainlineSceneTransition'
 import { createCommercialStreetStorefrontExecutionRuntime, createCommercialStreetStorefrontInteractionRuntime, commercialStreetStorefrontInteractionFor, executeCommercialStreetStorefrontInteraction, type CommercialStreetStorefrontAction } from './commercialStreetStorefrontInteractions'
 import { commercialStreetQuestionNarrativeAnchor, commercialStreetQuestionNarrativeCompleted, commercialStreetQuestionNarrativeCompletedKey, commercialStreetQuestionNarrativeLines, commercialStreetQuestionNarrativeShouldTrigger, nextCommercialStreetQuestionNarrative, type CommercialStreetQuestionNarrativeState } from './commercialStreetQuestionNarrative'
-import { commercialStreetMilkTeaAppUnlockPatch, commercialStreetMilkTeaAppUnlocked, commercialStreetMilkTeaHeld, commercialStreetMilkTeaIsReady, commercialStreetMilkTeaOrderFromSceneState, commercialStreetMilkTeaPickupPatch, commercialStreetMilkTeaStorefrontId, formatCommercialStreetMilkTeaOrderNumber, type CommercialStreetMilkTeaOrder } from './commercialStreetMilkTea'
+import { commercialStreetMilkTeaConsumePatch, commercialStreetMilkTeaAppUnlockPatch, commercialStreetMilkTeaAppUnlocked, commercialStreetMilkTeaHeld, commercialStreetMilkTeaIsReady, commercialStreetMilkTeaOrderFromSceneState, commercialStreetMilkTeaPickupPatch, commercialStreetMilkTeaStorefrontId, formatCommercialStreetMilkTeaOrderNumber, type CommercialStreetMilkTeaOrder } from './commercialStreetMilkTea'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
@@ -228,6 +229,7 @@ export function MainlineScenePage({
   onPlayerSceneStatePatch,
   carriedMilkTea = false,
   carriedPhoneDevice = 'surface',
+  ridePickup,
   onSceneTransition,
   onSafeSpawnCorrection,
   entryPosition,
@@ -244,7 +246,7 @@ export function MainlineScenePage({
   suppressWorldEnterAnimation?: boolean
   movementController?: FreeRoamMovement
   onPositionChange?: (position: Point) => void
-  onRuntimePositionChange?: (sceneId: MainlineSceneId, position: Point) => void
+  onRuntimePositionChange?: (sceneId: MainlineSceneId, position: Point, context: MainlineRideWalkingContext) => void
   onPlayerMovementStateChange?: (moving: boolean) => void
   onSceneReady?: () => void
   walkRequest?: { id: number; point: Point } | null
@@ -268,6 +270,7 @@ export function MainlineScenePage({
   onPlayerSceneStatePatch?: (sceneId: MainlineSceneId, patch: PlayerSceneState) => void
   carriedMilkTea?: boolean
   carriedPhoneDevice?: PhoneDevice
+  ridePickup?: Point
   onSceneTransition: (sceneId: MainlineSceneId, entryPosition?: Point, spawnMode?: 'resume' | 'ride', transitionIntent?: MainlineWalkingPassageTransitionIntent) => void
   onSafeSpawnCorrection?: (position: Point) => void
   entryPosition?: Point
@@ -350,6 +353,8 @@ export function MainlineScenePage({
   const [cafeFloorMoveRetryTick, setCafeFloorMoveRetryTick] = useState(0)
   const [cafeCounterAmbientWakeTick, setCafeCounterAmbientWakeTick] = useState(0)
   const cafeCounterAmbientTimerRef = useRef<number | null>(null)
+  const cafeFloorDwellTimerRef = useRef<number | null>(null)
+  const [cafeFloorDwellWake, setCafeFloorDwellWake] = useState(0)
   const [laoZhouExitRetryTick, setLaoZhouExitRetryTick] = useState(0)
   const cafeCoffeeMoveRetryAppliedRef = useRef(0)
   const cafeFloorMoveRetryAppliedRef = useRef(0)
@@ -588,6 +593,7 @@ export function MainlineScenePage({
   }, [dismissSceneAction, dismissSceneEcho, onPhoneDismiss, phoneOpen, readingActive])
   const internalMovement = useFreeRoamMovement(initialPosition)
   const { position, moving, moveAlong: rawMoveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
+  const cameraOffset = useMainlineCamera(scene, position, embedded)
   const storefrontPresentation = useStorefrontPresentation(scene, position)
   const reportedCafeRevealRef = useRef(false)
   const cafeStorefrontPhase = scene.id === 'commercial-street'
@@ -635,21 +641,21 @@ export function MainlineScenePage({
     return { width: box.width, height: box.height }
   }, [laoZhouInitialPosition, screenMetrics])
   const cafeCoffeeOwnerMovement = useNpcMovement({
-    enabled: scene.id === 'commercial-cafe' && scene.npcs.some((npc) => npc.id === commercialCafeCoffeeOwnerNpcId),
+    enabled: !presentationSnapshot && scene.id === 'commercial-cafe' && scene.npcs.some((npc) => npc.id === commercialCafeCoffeeOwnerNpcId),
     npcId: commercialCafeCoffeeOwnerNpcId,
     initialPosition: coffeeOwnerInitialPosition,
     navigationRuntime,
     footprint: cafeCoffeeOwnerFootprint,
   })
   const cafeFloorServerMovement = useNpcMovement({
-    enabled: scene.id === 'commercial-cafe' && scene.npcs.some((npc) => npc.id === commercialCafeFloorServerNpcId),
+    enabled: !presentationSnapshot && scene.id === 'commercial-cafe' && scene.npcs.some((npc) => npc.id === commercialCafeFloorServerNpcId),
     npcId: commercialCafeFloorServerNpcId,
     initialPosition: floorServerInitialPosition,
     navigationRuntime,
     footprint: cafeFloorServerFootprint,
   })
   const laoZhouMovement = useNpcMovement({
-    enabled: laoZhouVisibleInCurrentVisit,
+    enabled: !presentationSnapshot && laoZhouVisibleInCurrentVisit,
     npcId: 'lao-zhou',
     initialPosition: laoZhouInitialPosition,
     navigationRuntime,
@@ -882,8 +888,8 @@ export function MainlineScenePage({
   })
   const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics, geometrySnapshot, navigationRuntime, actorId: 'protagonist', actorFootprint: protagonistFootprint, npcRuntimePositions, occupiedSeatIds }), [geometrySnapshot, getOpenPassageIds, navigationRuntime, npcRuntimePositions, occupiedSeatIds, protagonistFootprint, screenMetrics])
   useEffect(() => {
-    prepareMainlineWorldNavigation(scene, layout, navigationOptions)
-  }, [scene, layout, navigationOptions])
+    if (!presentationSnapshot) prepareMainlineWorldNavigation(scene, layout, navigationOptions)
+  }, [scene, layout, navigationOptions, presentationSnapshot])
   const locomotionOptions = useMemo(() => ({
     ...sharedCharacterMovementOptions(screenMetrics),
     speedMultiplier: () => sceneTextSlowdownActiveRef.current ? .45 : 1,
@@ -970,6 +976,7 @@ export function MainlineScenePage({
   }, [cafeCoffeeOwnerMovement.snapshot.phase, cafeCoffeeOwnerMovement.snapshot.retryCount, scene.id])
   useEffect(() => () => {
     if (cafeCounterAmbientTimerRef.current !== null) window.clearTimeout(cafeCounterAmbientTimerRef.current)
+    if (cafeFloorDwellTimerRef.current !== null) window.clearTimeout(cafeFloorDwellTimerRef.current)
   }, [])
   useEffect(() => {
     if (scene.id !== 'commercial-cafe' || cafeFloorServerMovement.snapshot.phase !== 'blocked') return
@@ -1036,10 +1043,15 @@ export function MainlineScenePage({
     const intent = commercialCafeFloorBehavior.request(scene, cafeFloorServerMovement.snapshot)
     if (!intent) return
     const started = cafeFloorServerMovement.requestMove(intent, scene, layout, navigationOptions, locomotionOptions, () => {
-      commercialCafeFloorBehavior.arrived()
+      const dwellMs = commercialCafeFloorBehavior.arrived()
+      cafeFloorDwellTimerRef.current = window.setTimeout(() => {
+        cafeFloorDwellTimerRef.current = null
+        commercialCafeFloorBehavior.finishDwell()
+        setCafeFloorDwellWake((wake) => wake + 1)
+      }, dwellMs)
     })
     if (!started) commercialCafeFloorBehavior.block()
-  }, [cafeFloorMoveRetryTick, cafeFloorServerMovement, commercialCafeFloorBehavior, layout, locomotionOptions, navigationOptions, scene])
+  }, [cafeFloorDwellWake, cafeFloorMoveRetryTick, cafeFloorServerMovement, commercialCafeFloorBehavior, layout, locomotionOptions, navigationOptions, scene])
   const runDebugFloorServerMovement = useCallback(() => {
     if (scene.id !== 'commercial-cafe' || !cafeFloorServerMovement.position || cafeFloorServerMovement.snapshot.phase === 'moving') return
     cafeFloorServerMovement.requestMove({
@@ -1349,7 +1361,7 @@ export function MainlineScenePage({
   }, [])
 
   useEffect(() => onPositionChange?.(position), [onPositionChange, position])
-  useEffect(() => onRuntimePositionChange?.(scene.id, position), [onRuntimePositionChange, position, scene.id])
+  useEffect(() => onRuntimePositionChange?.(scene.id, position, { layout, screenMetrics, cameraOffset }), [cameraOffset, layout, onRuntimePositionChange, position, scene.id, screenMetrics])
   useEffect(() => {
     onPlayerMovementStateChange?.(moving)
     return () => onPlayerMovementStateChange?.(false)
@@ -1797,20 +1809,21 @@ export function MainlineScenePage({
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
-  const showMilkTeaEcho = useCallback((text: string) => {
+  const showMilkTeaEcho = useCallback((text: string, options?: readonly string[]) => {
     sceneEchoIdRef.current += 1
     presentSceneEcho(createMainlineSceneEcho(
       sceneEchoIdRef.current,
       commercialStreetMilkTeaStorefrontId,
       text,
       sceneTextPresentationPosition(scene, getCurrentPosition(), text, screenMetrics),
+      options,
     ))
   }, [getCurrentPosition, presentSceneEcho, scene, screenMetrics])
 
   const beginMilkTeaStorefrontAction = useCallback(() => {
     const currentOrder = commercialStreetMilkTeaOrderFromSceneState(initialSceneState)
     if (carriedMilkTea || commercialStreetMilkTeaHeld(initialSceneState)) {
-      showMilkTeaEcho('手里已经有一杯饮料。')
+      showMilkTeaEcho('手里已经有一杯饮料。', ['喝奶茶'])
       return
     }
     if (currentOrder) {
@@ -1992,6 +2005,11 @@ export function MainlineScenePage({
     const option = sceneAction?.options[index]
     if (!option) return
     onMeaningfulActivity?.()
+    if (sceneAction?.entityId === commercialStreetMilkTeaStorefrontId && option === '喝奶茶') {
+      recordSceneStatePatch('commercial-street', commercialStreetMilkTeaConsumePatch())
+      dismissSceneAction()
+      return
+    }
     const entity = sceneAction?.entityId ? scene.objects.find((candidate) => candidate.id === sceneAction.entityId) : undefined
     const resolution = resolveMainlineSceneEchoChoice(scene, entity, option, Date.now(), {
       carriedPhoneDevice,
@@ -2227,7 +2245,6 @@ export function MainlineScenePage({
   }, [cancelPassageLifecycle, initialPosition, resetMovement, scene.id, sceneDefinition])
 
   const currentAreaLabel = mainlineSceneAreaLabel(scene, position)
-  const cameraOffset = mainlineCameraOffset(scene, position, embedded)
   const debugCafeCounterStructure = debugRuntimeEvidence && scene.id === 'commercial-cafe'
     ? scene.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-body')
     : undefined
@@ -2240,7 +2257,7 @@ export function MainlineScenePage({
     if (!npc) return null
     return <AmbientNpcMotion
       key={schedule.npcId}
-      enabled={scene.id === 'commercial-street'}
+      enabled={!presentationSnapshot && scene.id === 'commercial-street'}
       schedule={schedule}
       initialPosition={initialPosition}
       scene={scene}
@@ -2363,6 +2380,8 @@ export function MainlineScenePage({
               onSceneActionStart={beginSceneActionChoice}
               onSceneActionChoice={chooseSceneEchoOption}
               onSceneEchoExitComplete={completeSceneEchoExit}
+              onMilkTeaInteract={() => showMilkTeaEcho('手里的奶茶还没喝完。', ['喝奶茶'])}
+              ridePickup={ridePickup}
               carriedMilkTea={carryingMilkTea}
               onFrameMotionProfileChange={handleFrameMotionProfileChange}
               exploredObjectIds={exploredObjectIds}

@@ -4,6 +4,8 @@ import { mainlineNavigationBarriers } from '../src/center/runtime/mainlineNaviga
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 
+test.use({ viewport: { width: 834, height: 1194 } })
+
 type RuntimePoint = { x: number; y: number }
 
 function pointFromActor(locator: import('@playwright/test').Locator): Promise<RuntimePoint> {
@@ -15,21 +17,17 @@ function pointFromActor(locator: import('@playwright/test').Locator): Promise<Ru
 
 test('relation barrier blocks a real protagonist gap crossing without creating an occupied gap', async ({ page }, testInfo) => {
   const cafe = mainlineScenes['commercial-cafe']
-  const snapshot = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition)
-  const table = snapshot.objects.get('commercial-cafe-right-window-upper-group-table')!
-  const topChair = snapshot.objects.get('commercial-cafe-right-window-upper-group-chair-top')!
-  const barrier = mainlineNavigationBarriers(cafe).find((candidate) => candidate.id === 'commercial-cafe-right-window-upper-group-chair-top-table-barrier')!
-  const dot = mainlineProtagonistDotFootprint(cafe.initialPlayerPosition)
-  const start = {
-    x: table.position.x,
-    y: (topChair.collision!.y + topChair.collision!.height + dot.height / 2 + barrier.start.y) / 2,
-  }
-  const destination = {
-    x: table.position.x,
-    y: (barrier.start.y + table.collision!.y - dot.height / 2) / 2,
-  }
+  await page.goto('/?scene=commercial-cafe&debugCafeStage=entered&debugRuntimeEvidence=1')
+  const metrics = await page.locator('.mainline-scene-stage').evaluate(element => ({ width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height }))
+  const snapshot = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition, {}, metrics)
+  const barrier = mainlineNavigationBarriers(cafe, {}, { screenMetrics: metrics, geometrySnapshot: snapshot }).find((candidate) => candidate.id === 'commercial-cafe-right-window-lower-group-chair-top-table-barrier')!
+  const dot = mainlineProtagonistDotFootprint(cafe.initialPlayerPosition, metrics)
+  const gapY = (barrier.start.y + barrier.end.y) / 2
+  const start = { x: barrier.start.x - dot.width, y: gapY }
+  // Issue the floor command outside the furniture's DOM hit area.
+  const destination = { x: barrier.start.x + dot.width * 3, y: gapY }
   await page.goto(`/?scene=commercial-cafe&debugCafeStage=entered&debugRuntimeEvidence=1&debugCafePlayerPosition=${start.x},${start.y}`)
-  const stage = page.locator('[data-mainline-scene="commercial-cafe"]').first()
+  const stage = page.locator('.mainline-scene-stage')
   const protagonist = page.locator('[data-actor-id="protagonist"]')
   await expect(protagonist).toHaveAttribute('data-runtime-x', `${start.x}`)
   await expect(protagonist).toHaveAttribute('data-runtime-y', `${start.y}`)
@@ -55,8 +53,8 @@ test('relation barrier blocks a real protagonist gap crossing without creating a
   const positions = await route
   const finalPosition = await pointFromActor(protagonist)
 
-  expect(finalPosition.y).toBeGreaterThan(barrier.start.y)
-  expect(positions.some((point) => Math.abs(point.x - start.x) > dot.width / 4)).toBe(true)
+  expect(finalPosition.x).toBeGreaterThan(barrier.start.x)
+  expect(positions.some((point) => Math.abs(point.y - start.y) > dot.height / 4)).toBe(true)
   await testInfo.attach('navigation-barrier-route-evidence', {
     body: JSON.stringify({ camera, start, destination, barrier, finalPosition, positions }),
     contentType: 'application/json',

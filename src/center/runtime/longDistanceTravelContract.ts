@@ -7,6 +7,10 @@ export type MainlineLongDistanceTravelIntent = {
 }
 
 const mainlineLongDistanceTravelRoutes: readonly MainlineLongDistanceTravelIntent[] = [
+  { kind: 'ride', sourceSceneId: 'zhongshuyuan-office', targetSceneId: 'yonghe-mining-perimeter' },
+  { kind: 'ride', sourceSceneId: 'yonghe-mining-perimeter', targetSceneId: 'zhongshuyuan-office' },
+  { kind: 'ride', sourceSceneId: 'commercial-street', targetSceneId: 'yonghe-mining-perimeter' },
+  { kind: 'ride', sourceSceneId: 'yonghe-mining-perimeter', targetSceneId: 'commercial-street' },
   {
     kind: 'ride',
     sourceSceneId: 'zhongshuyuan-office',

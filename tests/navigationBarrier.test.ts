@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
-import { canTravelAlongMainlineSegment, findMainlinePath, findMainlinePathToEntity, isMainlineNavigationBarrierClear, isWalkableMainlinePoint, mainlineEntityInteractionCandidates, mainlineNavigationBarriers } from '../src/center/runtime/mainlineNavigation'
+import { canTravelAlongMainlineSegment, findMainlinePath, findMainlinePathToEntity, isMainlineNavigationBarrierClear, isWalkableMainlinePoint, mainlineEntityInteractionCandidates, mainlineNavigationBarriers, resolveMainlineWorldNavigation } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineEntityTextFootprint } from '../src/center/runtime/sceneLayout'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
@@ -53,7 +53,7 @@ describe('navigation barrier segments', () => {
     for (const [chair, barrier] of [[topChair, topBarrier], [bottomChair, bottomBarrier] as const]) {
       const gapCenter = { x: table.position.x, y: (chair.collision!.y + chair.collision!.height + table.collision!.y) / 2 }
       expect(isWalkableMainlinePoint(gapCenter, cafe, {}, protagonistOptions)).toBe(true)
-      expect(barrier.start.y).toBe(barrier.end.y)
+      expect(barrier.start.x).toBe(barrier.end.x)
       expect(barrier.start.x).toBeGreaterThanOrEqual(table.collision!.x)
       expect(barrier.end.x).toBeLessThanOrEqual(table.collision!.x + table.collision!.width)
     }
@@ -62,15 +62,9 @@ describe('navigation barrier segments', () => {
   it('blocks direct table-chair crossings for both protagonists and NPCs, while a shared route detours around the barrier', () => {
     const { table, topChair, barriers } = pilotGeometry()
     const barrier = barriers.find((candidate) => candidate.id === 'commercial-cafe-right-window-upper-group-chair-top-table-barrier')!
-    const actorHalfHeight = dot.height / 2
-    const topGapSide = {
-      x: table.position.x,
-      y: (topChair.collision!.y + topChair.collision!.height + actorHalfHeight + barrier.start.y) / 2,
-    }
-    const tableGapSide = {
-      x: table.position.x,
-      y: (barrier.start.y + table.collision!.y - actorHalfHeight) / 2,
-    }
+    const gapY = (barrier.start.y + barrier.end.y) / 2
+    const topGapSide = { x: barrier.start.x - dot.width, y: gapY }
+    const tableGapSide = { x: barrier.start.x + dot.width, y: gapY }
 
     expect(isWalkableMainlinePoint(topGapSide, cafe, {}, protagonistOptions)).toBe(true)
     expect(isWalkableMainlinePoint(tableGapSide, cafe, {}, protagonistOptions)).toBe(true)
@@ -78,6 +72,8 @@ describe('navigation barrier segments', () => {
     expect(isMainlineNavigationBarrierClear(topGapSide, tableGapSide, cafe, {}, { actorId: 'server' })).toBe(false)
 
     const route = findMainlinePath(topGapSide, tableGapSide, cafe, {}, protagonistOptions)
+    const worldCommand = resolveMainlineWorldNavigation(cafe, topGapSide, tableGapSide, {}, protagonistOptions)
+    expect(worldCommand?.resolvedNavigableTarget).toEqual(tableGapSide)
     expect(route).not.toBeNull()
     expect(route!.length).toBeGreaterThan(2)
     expect(route!.every((point) => isWalkableMainlinePoint(point, cafe, {}, protagonistOptions))).toBe(true)

@@ -184,6 +184,16 @@
         "expect(mainlineLongDistanceTravelIntentForRide('commercial-street', 'zhongshuyuan-office'))",
         "expect(mainlineLongDistanceTravelIntentForRide('commercial-street', 'jijia-ancestral-home')).toBeNull()"
       ]
+    },
+    {
+      "id": "furniture-gap-edge-connection-2026-10-04",
+      "repository": "newtone-home/newtone-home",
+      "testFile": "tests/navigationBarrier.test.ts",
+      "oldContract": "Relation separators lie across the overlap axis inside the gap and the test crosses toward the furniture.",
+      "newContract": "Relation segments connect the nearest visible furniture edges. Player and ordinary NPC cannot thread through that gap; legal routes detour around the furniture without an occupied strip.",
+      "requiredAddedAssertions": [
+        "expect(barrier.start.x).toBe(barrier.end.x)"
+      ]
     }
   ]
 }

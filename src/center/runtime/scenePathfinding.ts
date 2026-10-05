@@ -99,7 +99,15 @@ export function navigationBarrierBlocksTravel(
   if (lengthSquared <= epsilon) return false
   const startSide = cross(direction, subtract(start, barrier.start))
   const endSide = cross(direction, subtract(end, barrier.start))
-  if (Math.abs(startSide) <= epsilon || Math.abs(endSide) <= epsilon || startSide * endSide >= 0) return false
+  const onStart = Math.abs(startSide) <= epsilon
+  const onEnd = Math.abs(endSide) <= epsilon
+  if (!onStart && !onEnd && startSide * endSide >= 0) return false
+  if (onStart && onEnd) {
+    const projection = (point: Point) => ((point.x - barrier.start.x) * direction.x + (point.y - barrier.start.y) * direction.y) / lengthSquared
+    const extension = barrierTangentClearance(barrier, footprint) / Math.sqrt(lengthSquared)
+    return Math.min(projection(start), projection(end)) <= 1 + extension + epsilon
+      && Math.max(projection(start), projection(end)) >= -extension - epsilon
+  }
   const crossing = startSide / (startSide - endSide)
   const point = {
     x: start.x + (end.x - start.x) * crossing,

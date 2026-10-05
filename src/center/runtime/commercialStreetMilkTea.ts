@@ -154,3 +154,7 @@ export function commercialStreetMilkTeaQueueStatus(order: CommercialStreetMilkTe
 export function formatCommercialStreetMilkTeaOrderNumber(number: number) {
   return String(number).padStart(3, '0')
 }
+
+export function commercialStreetMilkTeaConsumePatch(): PlayerSceneState {
+  return { [commercialStreetMilkTeaHeldDrinkKey]: null }
+}
