@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type AnimationEvent as ReactAnimationEvent, type FormEvent, type PointerEvent as ReactPointerEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type AnimationEvent as ReactAnimationEvent, type FormEvent, type PointerEvent as ReactPointerEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
 import { mainlineMapLandmarksByWorld, mainlineMapLayout, type MainlineMapLandmark, type MainlineSceneId } from './mainlineScenes'
 import { sceneInteractionHandlers } from './sceneInteraction'
 import { phoneInputOwner, phoneIsOnline, phoneRideAvailability, type PhoneDevice, type WorldLayer, type WorldPhonePhase } from './phoneState'
@@ -8,6 +8,7 @@ import { commercialStreetMilkTeaQueueStatus, formatCommercialStreetMilkTeaOrderN
 
 import { mainlineRideWaitingGuidance, type MainlineRideOrder } from './mainlineRide'
 import type { PhoneNotification } from './phoneNotifications'
+import { mainlineStoryDateLabel, mainlineStoryTimeLabel, mainlineWorldWeatherLabel, type MainlineStoryClock } from './mainlineStoryClock'
 
 type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea'
 type FeedbackMode = 'phone'
@@ -37,22 +38,6 @@ const innerContacts: readonly ContactDefinition[] = [
   },
 ]
 
-const serverPhoneTime = { clock: '时间读取中', date: '今天' }
-const clientPhoneTime = typeof window === 'undefined'
-  ? serverPhoneTime
-  : (() => {
-    const now = new Date()
-    return { clock: formatClock(now), date: formatDate(now) }
-  })()
-
-function subscribeToPhoneTime() {
-  return () => undefined
-}
-
-function usePhoneTime() {
-  return useSyncExternalStore(subscribeToPhoneTime, () => clientPhoneTime, () => serverPhoneTime)
-}
-
 type WorldPhoneProps = {
   currentSceneId: string
   worldLayer: WorldLayer
@@ -63,6 +48,7 @@ type WorldPhoneProps = {
   onCloseComplete?: () => void
   rideOrder?: MainlineRideOrder | null
   notifications?: readonly PhoneNotification[]
+  storyClock: MainlineStoryClock
   notificationScreen?: boolean
   onNotificationDismiss?: () => void
   onAppOpen?: (app: PhoneApp) => void
@@ -83,20 +69,29 @@ type WorldPhoneProps = {
 
 type RideDestination = MainlineMapLandmark & { sceneId: MainlineSceneId }
 
+function PhoneAppIcon({ app }: { app: PhoneApp }) {
+  const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {app === 'map' && <><path {...common} d="M12 21s7-6.4 7-12a7 7 0 1 0-14 0c0 5.6 7 12 7 12Z" /><circle {...common} cx="12" cy="9" r="2.3" /></>}
+      {app === 'ride' && <><path {...common} d="m5 13 1.4-4.1A2 2 0 0 1 8.3 7.5h7.4a2 2 0 0 1 1.9 1.4L19 13v5h-2v-2H7v2H5v-5Z" /><path {...common} d="M5.5 13h13M8 10.5h.01M16 10.5h.01" /></>}
+      {app === 'milk-tea' && <><path {...common} d="M7 8h10l-1 12H8L7 8Z" /><path {...common} d="m10 8 3-5M12 11v5M10 13h4" /></>}
+      {app === 'contacts' && <><circle {...common} cx="9" cy="8" r="3" /><path {...common} d="M3.5 20a5.5 5.5 0 0 1 11 0M17 5.5a3 3 0 0 1 0 5.8M17 14a5 5 0 0 1 3.5 4.8" /></>}
+      {app === 'feedback' && <><path {...common} d="M4 5.5h16v11H9l-5 3v-14Z" /><path {...common} d="M8 10h8M8 13h5" /></>}
+    </svg>
+  )
+}
+
+function HomeIndicator({ onReturn }: { onReturn: () => void }) {
+  return <button className="world-phone__home-indicator" type="button" aria-label="返回手机主屏" onClick={onReturn}><span /></button>
+}
+
 function landmarkForScene(sceneId: string): { device: PhoneDevice; id: string } | null {
   if (sceneId === 'jijia-ancestral-home' || sceneId === 'jijia-ancestral-interior') return { device: 'surface', id: 'jijia' }
   if (sceneId === 'commercial-street' || sceneId === 'commercial-cafe') return { device: 'inner', id: 'commercial' }
   if (sceneId === 'yonghe-mining-perimeter' || sceneId === 'yonghe-eatery') return { device: 'inner', id: 'mine' }
   if (sceneId === 'zhongshuyuan-office') return { device: 'inner', id: 'zhongshuyuan' }
   return null
-}
-
-function formatClock(date: Date) {
-  return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(date)
-}
-
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'numeric', day: 'numeric' }).format(date)
 }
 
 function memoForDevice(device: PhoneDevice) {
@@ -159,7 +154,7 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity }: WorldPhoneProps) {
+export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity }: WorldPhoneProps) {
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
   const [phase, setPhase] = useState<WorldPhonePhase>('closed')
@@ -190,7 +185,6 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
     return () => window.clearTimeout(timer)
   }, [rideOrder])
   const mapDragRef = useRef<MapDragState>({ active: false, moved: false, pointerId: -1, start: null, origin: null })
-  const phoneTime = usePhoneTime()
 
   const swapPending = displayDevice !== device
   const renderedPhase: WorldPhonePhase = swapPending
@@ -390,9 +384,12 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
   }
 
   const selectedMapLandmark = mapLandmarks.find((landmark) => landmark.id === selectedMapLandmarkId) ?? null
+  const storyDate = mainlineStoryDateLabel()
+  const storyTime = mainlineStoryTimeLabel(storyClock.stage)
+  const worldWeather = mainlineWorldWeatherLabel(displayDevice)
   const statusDetail = displayDevice === 'inner'
-    ? '晴天第1天 · 22°C'
-    : `${phoneTime.date} · 晴 22°C`
+    ? `${storyDate} · ${worldWeather}`
+    : `${storyDate} · ${worldWeather}`
 
   return (
     <aside
@@ -445,43 +442,52 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
           </header>}
 
           {!isMapOpen && <div className="world-phone__world-status">
-            <span>{phoneTime.clock}</span>
+            <span>{storyTime}</span>
             <span>{statusDetail}</span>
           </div>}
 
           {notificationScreen ? (
             <section className="world-phone__lock-screen" aria-label="手机通知" onClick={() => { setActiveApp(null); onNotificationDismiss?.() }}>
+              <header className="world-phone__lock-clock">
+                <strong>{storyTime}</strong>
+                <span>{storyDate}{displayDevice === 'inner' ? ` · ${worldWeather}` : ''}</span>
+              </header>
               <span className="world-phone__lock-hint">点击空白进入手机</span>
               {notifications.filter(n => n.unread).map(n => <button type="button" className="world-phone__notification" data-notification-app={n.app} key={n.id} onClick={event => { event.stopPropagation(); openApp(n.app) }}><strong>{n.title}</strong><span>{n.body}</span></button>)}
             </section>
           ) : activeApp === null ? (
             <section className="world-phone__home-screen" aria-label="手机主屏">
               <div className="world-phone__home-layout">
+                <section className="world-phone__home-calendar" aria-label="剧情日历">
+                  <span>剧情日历</span>
+                  <strong>{storyDate}</strong>
+                  <small>{displayDevice === 'inner' ? worldWeather : '故事日 · 第一日'}</small>
+                </section>
                 <section className="world-phone__home-memo" aria-label="备忘录">
                   <span>备忘录</span>
                   <strong>{memo.title}</strong>
                   <p>{memo.body}</p>
-                  <small>{phoneTime.date} · 今日事项</small>
+                  <small>故事日 · 第一日 · 当前记录</small>
                 </section>
                 <nav className="world-phone__apps" aria-label="手机应用">
                   <button type="button" data-app="map" onClick={() => openApp('map')}>
-                    <span className="world-phone__app-icon" aria-hidden="true">⌖</span>
+                    <span className="world-phone__app-icon"><PhoneAppIcon app="map" /></span>
                     <span className="world-phone__app-label">地图</span>
                   </button>
                   <button type="button" data-app="ride" data-unread={notifications.some(n => n.app === 'ride' && n.unread)} onClick={() => openApp('ride')}>
-                    <span className="world-phone__app-icon" aria-hidden="true">↗</span>
+                    <span className="world-phone__app-icon"><PhoneAppIcon app="ride" /></span>
                     <span className="world-phone__app-label">叫车</span>
                   </button>
                   {milkTeaAppUnlocked && <button type="button" data-app="milk-tea" data-unread={notifications.some(n => n.app === 'milk-tea' && n.unread)} onClick={() => openApp('milk-tea')}>
-                    <span className="world-phone__app-icon" aria-hidden="true">杯</span>
+                    <span className="world-phone__app-icon"><PhoneAppIcon app="milk-tea" /></span>
                     <span className="world-phone__app-label">奶茶</span>
                   </button>}
                   <button type="button" data-app="contacts" onClick={() => openApp('contacts')}>
-                    <span className="world-phone__app-icon" aria-hidden="true">人</span>
+                    <span className="world-phone__app-icon"><PhoneAppIcon app="contacts" /></span>
                     <span className="world-phone__app-label">联系人</span>
                   </button>
                   <button type="button" data-app="feedback" onClick={() => { onFeedbackOpen?.(); onFeedbackModeChange?.('phone'); openApp('feedback') }}>
-                    <span className="world-phone__app-icon" aria-hidden="true">意</span>
+                    <span className="world-phone__app-icon"><PhoneAppIcon app="feedback" /></span>
                     <span className="world-phone__app-label">反馈</span>
                   </button>
                 </nav>
@@ -490,7 +496,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
           ) : (
             <>
               <div className="world-phone__app-bar">
-                <button className="world-phone__app-back" type="button" onClick={activeApp === 'contacts' && contactView === 'messages' ? () => setContactView('list') : closeApp} aria-label={activeApp === 'contacts' && contactView === 'messages' ? '返回联系人' : '返回手机主屏'}>⌂</button>
+                {activeApp === 'contacts' && contactView === 'messages' && <button className="world-phone__app-back" type="button" onClick={() => setContactView('list')} aria-label="返回联系人"><span aria-hidden="true">‹</span><small>联系人</small></button>}
                 <div><span>NEWTONE APP</span><strong>{activeAppLabel}</strong></div>
               </div>
               <div className="world-phone__app-view">
@@ -656,6 +662,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
               />
             )}
               </div>
+              <HomeIndicator onReturn={closeApp} />
             </>
           )}
         </section>

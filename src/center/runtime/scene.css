@@ -1948,3 +1948,106 @@
 .world-phone__lock-hint { font-size: 11px; opacity: .55; text-align: center; margin-bottom: 12px; }
 .world-phone__notification { display: flex; flex-direction: column; gap: 8px; padding: 16px 12px; text-align: left; color: inherit; background: rgba(140,226,208,.08); border: 1px solid rgba(140,226,208,.35); border-radius: 8px; cursor: pointer; }
 .world-phone__notification span { font-size: 12px; opacity: .8; }
+
+/* Phone OS shell v1: shared chrome and app navigation only. */
+.world-phone {
+  --phone-bg: #111216;
+  --phone-panel: #18191f;
+  --phone-panel-raised: rgba(255, 255, 255, .055);
+  --phone-border: rgba(236, 239, 244, .13);
+  --phone-text: #f1f2f4;
+  --phone-muted: #a4a6ad;
+  --phone-accent: #d7d9de;
+  color: var(--phone-text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans CJK SC", sans-serif;
+  image-rendering: auto;
+}
+.world-phone__body {
+  padding: 8px 8px 0;
+  border: 1px solid rgba(238, 240, 244, .24);
+  border-bottom: 0;
+  border-radius: 26px 26px 0 0;
+  background: #0b0c0f;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, .42);
+  transition: transform 240ms cubic-bezier(.2, .75, .2, 1);
+}
+.world-phone--inner .world-phone__body { border-color: rgba(238, 240, 244, .24); box-shadow: 0 18px 60px rgba(0, 0, 0, .42); }
+.world-phone__hardware { flex-basis: 20px; height: 20px; margin: 0 10px 5px; border: 0; }
+.world-phone__earpiece, .world-phone__camera, .world-phone__side-buttons, .world-phone__brand { display: none; }
+.world-phone__panel {
+  position: relative;
+  padding: 14px 16px 12px;
+  border: 1px solid rgba(238, 240, 244, .11);
+  border-radius: 20px 20px 0 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255,255,255,.055), transparent 48%), var(--phone-bg);
+}
+.world-phone__header { align-items: center; padding: 0 0 10px; border-bottom: 1px solid var(--phone-border); }
+.world-phone__carrier { color: var(--phone-muted); font-size: 9px; font-weight: 650; letter-spacing: .14em; }
+.world-phone__status { color: var(--phone-text); font-size: 10px; }
+.world-phone__signal-bars i { background: currentColor; }
+.world-phone__battery { border-radius: 3px; }
+.world-phone__battery i { border-radius: 1px; background: #d9e2d6; }
+.world-phone__close { width: 26px; height: 26px; border: 1px solid var(--phone-border); border-radius: 50%; background: var(--phone-panel-raised); color: var(--phone-text); font: inherit; line-height: 1; }
+.world-phone__close:hover, .world-phone__close:focus-visible { border-color: rgba(255,255,255,.38); color: #fff; }
+.world-phone__world-status { gap: 5px 10px; margin-top: 8px; padding: 0 1px 7px; border-bottom-color: var(--phone-border); color: var(--phone-muted); font-size: 10px; }
+.world-phone__world-status span:first-child,
+.world-phone--surface .world-phone__world-status span:first-child,
+.world-phone--inner .world-phone__world-status span:first-child { color: var(--phone-text); font-size: 15px; font-weight: 600; }
+.world-phone__home-screen { padding-top: 12px; }
+.world-phone__home-layout { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
+.world-phone__home-calendar { display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 5px 10px; min-height: 96px; padding: 15px 16px; border: 1px solid var(--phone-border); border-radius: 16px; background: linear-gradient(145deg, rgba(255,255,255,.095), rgba(255,255,255,.025)); }
+.world-phone__home-calendar > span { grid-column: 1 / -1; color: var(--phone-muted); font-size: 10px; }
+.world-phone__home-calendar strong { align-self: center; color: var(--phone-text); font-size: 21px; font-weight: 550; letter-spacing: -.03em; }
+.world-phone__home-calendar small { align-self: center; justify-self: end; color: #c7c9cf; font-size: 10px; }
+.world-phone__home-memo { min-height: 118px; padding: 15px 16px; border: 1px solid var(--phone-border); border-radius: 16px; background: linear-gradient(135deg, rgba(255,255,255,.075), rgba(255,255,255,.025)); }
+.world-phone__home-memo span, .world-phone__home-memo small { color: var(--phone-muted); font-size: 10px; letter-spacing: .02em; }
+.world-phone__home-memo strong, .world-phone--inner .world-phone__home-memo strong { margin-top: 12px; color: var(--phone-text); font-size: 16px; font-weight: 600; }
+.world-phone__home-memo p { margin: 8px 0 10px; color: #d2d3d7; font-size: 12px; line-height: 1.55; }
+.world-phone__apps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px 7px; padding: 8px 2px; }
+.world-phone__apps button { min-width: 0; gap: 7px; color: var(--phone-text); font: inherit; }
+.world-phone__app-icon { display: grid; place-items: center; width: 52px; height: 52px; border: 1px solid var(--phone-border); border-radius: 16px; background: linear-gradient(150deg, rgba(255,255,255,.12), rgba(255,255,255,.045)); color: #f4f5f7; box-shadow: none; }
+.world-phone__app-icon svg { width: 25px; height: 25px; }
+.world-phone__app-label { color: #dadbe0; font-size: 10px; }
+.world-phone__apps button.is-active .world-phone__app-icon,
+.world-phone__apps button:hover .world-phone__app-icon,
+.world-phone__apps button:focus-visible .world-phone__app-icon,
+.world-phone--surface .world-phone__apps button.is-active .world-phone__app-icon,
+.world-phone--surface .world-phone__apps button:hover .world-phone__app-icon,
+.world-phone--surface .world-phone__apps button:focus-visible .world-phone__app-icon { border-color: rgba(255,255,255,.34); background: rgba(255,255,255,.12); box-shadow: none; }
+.world-phone__apps button:focus-visible { outline-color: rgba(255,255,255,.72); }
+.world-phone__apps button[data-unread="true"]::after { top: -2px; right: calc(50% - 28px); width: 8px; height: 8px; background: #ef6d72; box-shadow: 0 0 0 2px #111216; }
+.world-phone__lock-screen { position: relative; gap: 10px; min-height: 0; padding: 17px 2px 20px; }
+.world-phone__lock-clock { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 0 24px; border: 0; text-align: center; }
+.world-phone__lock-clock strong { color: #f4f5f7; font-size: clamp(38px, 12vw, 54px); font-weight: 300; letter-spacing: -.055em; line-height: 1.1; }
+.world-phone__lock-clock span { color: #c3c5cb; font-size: 11px; }
+.world-phone__lock-hint { order: 2; margin: auto 0 0; color: var(--phone-muted); font-size: 10px; }
+.world-phone__notification { gap: 6px; padding: 15px 14px; border: 1px solid var(--phone-border); border-radius: 16px; background: rgba(36, 38, 44, .88); color: var(--phone-text); box-shadow: 0 8px 24px rgba(0,0,0,.18); backdrop-filter: blur(16px); }
+.world-phone__notification strong { font-size: 12px; font-weight: 650; }
+.world-phone__notification span { color: #c7c9cf; font-size: 11px; line-height: 1.45; }
+.world-phone__app-bar { gap: 12px; min-height: 42px; padding: 3px 1px 10px; border-bottom-color: var(--phone-border); }
+.world-phone__app-bar span { color: var(--phone-muted); font-size: 8px; letter-spacing: .13em; }
+.world-phone__app-bar strong, .world-phone--inner .world-phone__app-bar strong { color: var(--phone-text); font-size: 15px; font-weight: 650; }
+.world-phone__app-back { display: flex; align-items: center; gap: 4px; width: auto; height: 30px; padding: 0 9px; border: 1px solid var(--phone-border); border-radius: 14px; background: var(--phone-panel-raised); color: var(--phone-text); font: inherit; }
+.world-phone__app-back span { color: inherit; font-size: 22px; line-height: 1; }
+.world-phone__app-back small { color: inherit; font-size: 10px; }
+.world-phone__app-back:hover, .world-phone__app-back:focus-visible { border-color: rgba(255,255,255,.4); background: rgba(255,255,255,.1); }
+.world-phone__app-view { animation: phone-app-enter 180ms ease-out both; }
+@keyframes phone-app-enter { from { opacity: .6; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
+.world-phone__home-indicator { position: relative; z-index: 6; display: grid; place-items: center; flex: 0 0 26px; width: 100%; margin: 0; padding: 5px 0 7px; border: 0; background: transparent; cursor: pointer; }
+.world-phone__home-indicator span { display: block; width: 82px; height: 4px; border-radius: 99px; background: rgba(245,246,248,.82); transition: background-color 140ms ease, transform 140ms ease; }
+.world-phone__home-indicator:hover span, .world-phone__home-indicator:focus-visible span { background: #fff; }
+.world-phone__home-indicator:active span { transform: scaleX(.9); }
+.world-phone__body button { transition: transform 110ms ease, background-color 140ms ease, border-color 140ms ease; }
+.world-phone__body button:active { transform: scale(.97); }
+.world-phone__app-view button:focus-visible, .world-phone__home-indicator:focus-visible { outline: 2px solid rgba(255,255,255,.76); outline-offset: 2px; }
+@media (max-width: 480px) {
+  .world-phone { right: 8px; width: min(366px, calc(100vw - 16px)); }
+  .world-phone__panel { padding-right: 13px; padding-left: 13px; }
+  .world-phone__home-memo { min-height: 108px; }
+  .world-phone__home-calendar { min-height: 88px; padding: 13px 14px; }
+  .world-phone__home-calendar strong { font-size: 19px; }
+  .world-phone__app-icon { width: 48px; height: 48px; border-radius: 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .world-phone__app-view { animation: none; }
+}

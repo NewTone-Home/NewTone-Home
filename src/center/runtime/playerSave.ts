@@ -1,6 +1,7 @@
 import type { MainlineSceneId } from './mainlineSceneModel'
 import { cleanPhoneNotifications, type PhoneNotification } from './phoneNotifications'
 import type { PhoneDevice } from './phoneState'
+import { createInitialMainlineStoryClock, type MainlineStoryClock, type MainlineStoryStage } from './mainlineStoryClock'
 import { applyPublicReleaseCutover } from '../../services/publicReleaseMigration'
 
 export const PLAYER_SAVE_STORAGE_KEY = 'newtone-player-save-v1'
@@ -18,6 +19,7 @@ export type PlayerSave = {
   currentPosition: PlayerPoint | null
   scenePositions: Partial<Record<MainlineSceneId, PlayerPoint>>
   phoneDevice: PhoneDevice
+  storyClock: MainlineStoryClock
   sceneState: Partial<Record<MainlineSceneId, PlayerSceneState>>
   phoneNotifications: PhoneNotification[]
   updatedAt: number
@@ -77,6 +79,7 @@ export function createInitialPlayerSave(sceneId: MainlineSceneId): PlayerSave {
     currentPosition: null,
     scenePositions: {},
     phoneDevice: 'surface',
+    storyClock: createInitialMainlineStoryClock(sceneId),
     sceneState: {},
     phoneNotifications: [],
     updatedAt: 0,
@@ -126,6 +129,10 @@ export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineScen
     ? source.currentSceneId as MainlineSceneId
     : fallbackSceneId
   const phoneDevice = source.phoneDevice === 'inner' ? 'inner' : 'surface'
+  const storyStage = source.storyClock?.stage
+  const storyClock: MainlineStoryClock = storyStage === 'commercial-street' || storyStage === 'cafe' || storyStage === 'yonghe' || storyStage === 'opening'
+    ? { dayId: 'story-day-001', stage: storyStage as MainlineStoryStage }
+    : createInitialMainlineStoryClock(currentSceneId)
   const updatedAt = Number(source.updatedAt)
   return {
     _version: PLAYER_SAVE_VERSION,
@@ -133,6 +140,7 @@ export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineScen
     currentPosition: cleanPoint(source.currentPosition),
     scenePositions: cleanScenePositions(source.scenePositions),
     phoneDevice,
+    storyClock,
     sceneState: cleanSceneState(source.sceneState),
     phoneNotifications: cleanPhoneNotifications(source.phoneNotifications),
     updatedAt: Number.isFinite(updatedAt) && updatedAt >= 0 ? Math.round(updatedAt) : 0,

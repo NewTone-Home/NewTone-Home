@@ -13,6 +13,7 @@ import {
 import { mainlineCameraOffset } from './runtime/mainlineViewport'
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
+import { advanceMainlineStoryClock } from './runtime/mainlineStoryClock'
 import { mainlineRideAtPickup, mainlineRideOrderFromState, mainlineRideOrderPatch, mainlineRideWalkingEtaMs, mainlineRideZone } from './runtime/mainlineRide'
 import {
   phoneRideAvailability,
@@ -122,6 +123,13 @@ export default function CenterExperience({
     playerSaveRef.current = persistPlayerSave(next)
     setPlayerSave(playerSaveRef.current)
   }, [])
+
+  useEffect(() => {
+    commitPlayerSave(current => {
+      const storyClock = advanceMainlineStoryClock(current.storyClock, route.sceneId)
+      return storyClock === current.storyClock ? current : { ...current, storyClock }
+    })
+  }, [commitPlayerSave, route.sceneId])
 
   const notifyPhone = useCallback((event) => {
     commitPlayerSave(current => {
@@ -635,6 +643,7 @@ export default function CenterExperience({
           onRideRequest={handleRideRequest}
           rideOrder={rideOrder}
           notifications={playerSave.phoneNotifications}
+          storyClock={playerSave.storyClock}
           notificationScreen={phoneNotificationScreen}
           onNotificationDismiss={() => setPhoneNotificationScreen(false)}
           onAppOpen={readPhoneApp}
