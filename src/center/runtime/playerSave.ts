@@ -3,6 +3,7 @@ import { cleanPhoneNotifications, type PhoneNotification } from './phoneNotifica
 import type { PhoneDevice } from './phoneState'
 import { createInitialMainlineStoryClock, type MainlineStoryClock, type MainlineStoryStage } from './mainlineStoryClock'
 import { applyPublicReleaseCutover } from '../../services/publicReleaseMigration'
+import { cleanPhoneCallHistory, cleanPhoneContactNotes, cleanPhoneNotes, createInitialPhoneNotes, type PhoneCallRecord, type PhoneNote } from './phonePersonalData'
 
 export const PLAYER_SAVE_STORAGE_KEY = 'newtone-player-save-v1'
 export const PLAYER_SAVE_VERSION = 1
@@ -22,6 +23,9 @@ export type PlayerSave = {
   storyClock: MainlineStoryClock
   sceneState: Partial<Record<MainlineSceneId, PlayerSceneState>>
   phoneNotifications: PhoneNotification[]
+  phoneNotes: PhoneNote[]
+  phoneContactNotes: Record<string, string>
+  phoneCallHistory: PhoneCallRecord[]
   updatedAt: number
 }
 
@@ -82,6 +86,9 @@ export function createInitialPlayerSave(sceneId: MainlineSceneId): PlayerSave {
     storyClock: createInitialMainlineStoryClock(sceneId),
     sceneState: {},
     phoneNotifications: [],
+    phoneNotes: createInitialPhoneNotes(),
+    phoneContactNotes: {},
+    phoneCallHistory: [],
     updatedAt: 0,
   }
 }
@@ -143,6 +150,9 @@ export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineScen
     storyClock,
     sceneState: cleanSceneState(source.sceneState),
     phoneNotifications: cleanPhoneNotifications(source.phoneNotifications),
+    phoneNotes: cleanPhoneNotes(source.phoneNotes),
+    phoneContactNotes: cleanPhoneContactNotes(source.phoneContactNotes),
+    phoneCallHistory: cleanPhoneCallHistory(source.phoneCallHistory),
     updatedAt: Number.isFinite(updatedAt) && updatedAt >= 0 ? Math.round(updatedAt) : 0,
   }
 }

@@ -71,6 +71,8 @@ test('Surface empty contacts and Inner Lao Zhou-only contacts with working messa
   await expect(page.getByText('若雨', { exact: true })).toHaveCount(0)
   await page.screenshot({ path: info.outputPath('inner-contacts.png') })
   await page.locator('.world-phone__contact-row').click()
+  await expect(page.getByRole('region', { name: '老周联系人详情' })).toBeVisible()
+  await page.getByRole('button', { name: '信息' }).click()
   await expect(page.getByRole('region', { name: '与老周的短信' })).toBeVisible()
   await expect(page.locator('.world-phone__message-bubble')).toHaveText(['陈副部长失踪了。', '什么时候有空。', '周六。', '老地方。', '好。'])
   await expect(page.getByText('若雨', { exact: true })).toHaveCount(0)

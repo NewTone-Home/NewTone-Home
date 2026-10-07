@@ -14,6 +14,8 @@ import { mainlineCameraOffset } from './runtime/mainlineViewport'
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
 import { advanceMainlineStoryClock } from './runtime/mainlineStoryClock'
+import { advancePhoneStoryNotes, createPlayerPhoneNote, ensurePhoneYongheLead, pinPhoneStoryNote, updatePhoneNote } from './runtime/phonePersonalData'
+import { commercialCafeStoryStatusKey } from './runtime/commercialCafeStory'
 import { mainlineRideAtPickup, mainlineRideOrderFromState, mainlineRideOrderPatch, mainlineRideWalkingEtaMs, mainlineRideZone } from './runtime/mainlineRide'
 import {
   phoneRideAvailability,
@@ -127,9 +129,37 @@ export default function CenterExperience({
   useEffect(() => {
     commitPlayerSave(current => {
       const storyClock = advanceMainlineStoryClock(current.storyClock, route.sceneId)
-      return storyClock === current.storyClock ? current : { ...current, storyClock }
+      if (storyClock === current.storyClock) return current
+      return { ...current, storyClock, phoneNotes: advancePhoneStoryNotes(current.phoneNotes, storyClock.stage) }
     })
   }, [commitPlayerSave, route.sceneId])
+  const cafeStoryStatus = playerSave.sceneState['commercial-cafe']?.[commercialCafeStoryStatusKey]
+  useEffect(() => {
+    if (cafeStoryStatus !== 'complete') return
+    commitPlayerSave(current => {
+      const phoneNotes = ensurePhoneYongheLead(current.phoneNotes)
+      return phoneNotes === current.phoneNotes ? current : { ...current, phoneNotes }
+    })
+  }, [cafeStoryStatus, commitPlayerSave])
+
+  const createPhoneNote = useCallback((title, body) => {
+    commitPlayerSave(current => {
+      const phoneNotes = createPlayerPhoneNote(current.phoneNotes, title, body)
+      return phoneNotes === current.phoneNotes ? current : { ...current, phoneNotes }
+    })
+  }, [commitPlayerSave])
+  const changePhoneNote = useCallback((id, update) => {
+    commitPlayerSave(current => ({ ...current, phoneNotes: updatePhoneNote(current.phoneNotes, id, update) }))
+  }, [commitPlayerSave])
+  const pinPhoneNote = useCallback((id) => {
+    commitPlayerSave(current => ({ ...current, phoneNotes: pinPhoneStoryNote(current.phoneNotes, id) }))
+  }, [commitPlayerSave])
+  const changePhoneContactNote = useCallback((contactId, note) => {
+    commitPlayerSave(current => ({ ...current, phoneContactNotes: { ...current.phoneContactNotes, [contactId]: note.slice(0, 1000) } }))
+  }, [commitPlayerSave])
+  const recordPhoneCall = useCallback((record) => {
+    commitPlayerSave(current => ({ ...current, phoneCallHistory: [...current.phoneCallHistory, record].slice(-50) }))
+  }, [commitPlayerSave])
 
   const notifyPhone = useCallback((event) => {
     commitPlayerSave(current => {
@@ -659,6 +689,15 @@ export default function CenterExperience({
           onFeedbackOpen={handleFeedbackOpen}
           onFeedbackSubmit={handleFeedbackSubmit}
           onMeaningfulActivity={handleMeaningfulActivity}
+          notes={playerSave.phoneNotes}
+          yongheLeadUnlocked={cafeStoryStatus === 'complete'}
+          contactNotes={playerSave.phoneContactNotes}
+          callHistory={playerSave.phoneCallHistory}
+          onNoteCreate={createPhoneNote}
+          onNoteChange={changePhoneNote}
+          onNotePin={pinPhoneNote}
+          onContactNoteChange={changePhoneContactNote}
+          onCallRecord={recordPhoneCall}
         />
         {boundaryNotice && (
           <div className="center-experience__boundary" role="status" aria-live="polite">

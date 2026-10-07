@@ -12,7 +12,7 @@ test('Phone home uses story time and app navigation returns through the home ind
   await expect(phone.getByLabel('剧情日历')).toContainText('四月 · 周六')
   await expect(phone.getByLabel('剧情日历')).toContainText('故事日 · 第一日')
   await expect(phone.locator('.world-phone__world-status')).toContainText('10:00')
-  await expect(phone.locator('.world-phone__apps button')).toHaveText(['地图', '叫车', '联系人', '反馈'])
+  await expect(phone.locator('.world-phone__apps button')).toHaveText(['地图', '叫车', '联系人', '备忘录', '反馈'])
 
   await phone.locator('[data-app="contacts"]').click()
   await expect(phone.getByRole('region', { name: '联系人' })).toBeVisible()

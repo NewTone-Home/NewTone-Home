@@ -23,7 +23,7 @@ describe('v0.2.1 release preparation', () => {
   })
   it('keeps only the existing Lao Zhou contact and messages, with no Ruo Yu UI data', () => {
     const phone = read('../src/center/runtime/WorldPhone.tsx')
-    const contacts = phone.slice(phone.indexOf('const innerContacts'), phone.indexOf('const serverPhoneTime'))
+    const contacts = phone.slice(phone.indexOf('const innerContacts'), phone.indexOf('type WorldPhoneProps'))
     expect([...contacts.matchAll(/id: '([^']+)'/g)].map(match => match[1])).toEqual(['lao-zhou'])
     expect(contacts).toContain("messages: ['陈副部长失踪了。', '什么时候有空。', '周六。', '老地方。', '好。']")
     expect(phone).not.toContain('ruo-yu')

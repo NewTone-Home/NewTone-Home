@@ -8,9 +8,10 @@ import { commercialStreetMilkTeaQueueStatus, formatCommercialStreetMilkTeaOrderN
 
 import { mainlineRideWaitingGuidance, type MainlineRideOrder } from './mainlineRide'
 import type { PhoneNotification } from './phoneNotifications'
+import type { PhoneCallRecord, PhoneNote } from './phonePersonalData'
 import { mainlineStoryDateLabel, mainlineStoryTimeLabel, mainlineWorldWeatherLabel, type MainlineStoryClock } from './mainlineStoryClock'
 
-type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea'
+type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea' | 'notes'
 type FeedbackMode = 'phone'
 type FeedbackPayload = {
   freeText: string
@@ -19,7 +20,7 @@ type FeedbackPayload = {
 type FeedbackSubmitResult = { ok: boolean; reason?: string }
 type MapPoint = readonly [number, number]
 type MapDragState = { active: boolean; moved: boolean; pointerId: number; start: MapPoint | null; origin: MapPoint | null }
-type ContactView = 'list' | 'messages'
+type ContactView = 'list' | 'detail' | 'messages' | 'call'
 type ContactId = 'lao-zhou'
 
 type ContactDefinition = {
@@ -65,6 +66,15 @@ type WorldPhoneProps = {
   onMilkTeaOrderConfirm?: (selection: { drink: MilkTeaDrink; sugar: MilkTeaSugar; ice: MilkTeaIce }) => void
   onMilkTeaOrderStarted?: () => void
   onMeaningfulActivity?: () => void
+  notes?: readonly PhoneNote[]
+  yongheLeadUnlocked?: boolean
+  contactNotes?: Readonly<Record<string, string>>
+  callHistory?: readonly PhoneCallRecord[]
+  onNoteCreate?: (title: string, body: string) => void
+  onNoteChange?: (id: string, update: Partial<Pick<PhoneNote, 'title' | 'body' | 'status'>>) => void
+  onNotePin?: (id: string) => void
+  onContactNoteChange?: (contactId: string, note: string) => void
+  onCallRecord?: (record: PhoneCallRecord) => void
 }
 
 type RideDestination = MainlineMapLandmark & { sceneId: MainlineSceneId }
@@ -78,6 +88,7 @@ function PhoneAppIcon({ app }: { app: PhoneApp }) {
       {app === 'milk-tea' && <><path {...common} d="M7 8h10l-1 12H8L7 8Z" /><path {...common} d="m10 8 3-5M12 11v5M10 13h4" /></>}
       {app === 'contacts' && <><circle {...common} cx="9" cy="8" r="3" /><path {...common} d="M3.5 20a5.5 5.5 0 0 1 11 0M17 5.5a3 3 0 0 1 0 5.8M17 14a5 5 0 0 1 3.5 4.8" /></>}
       {app === 'feedback' && <><path {...common} d="M4 5.5h16v11H9l-5 3v-14Z" /><path {...common} d="M8 10h8M8 13h5" /></>}
+      {app === 'notes' && <><path {...common} d="M6 3.5h9l3.5 3.7v13.3H6z" /><path {...common} d="M14.5 3.5v4H18M9 12h6M9 15h6" /></>}
     </svg>
   )
 }
@@ -94,10 +105,50 @@ function landmarkForScene(sceneId: string): { device: PhoneDevice; id: string } 
   return null
 }
 
-function memoForDevice(device: PhoneDevice) {
-  return device === 'surface'
-    ? { title: '当前任务', body: '去里世界商业街咖啡馆找老周。' }
-    : { title: '当前任务', body: '去商业街咖啡馆找老周。' }
+function formatCallDuration(durationMs: number) {
+  const totalSeconds = Math.floor(Math.max(0, durationMs) / 1000)
+  return `${String(Math.floor(totalSeconds / 60)).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`
+}
+
+function NotesApp({ notes, onCreate, onChange, onPin }: {
+  notes: readonly PhoneNote[]
+  onCreate?: (title: string, body: string) => void
+  onChange?: (id: string, update: Partial<Pick<PhoneNote, 'title' | 'body' | 'status'>>) => void
+  onPin?: (id: string) => void
+}) {
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
+  const [showHistory, setShowHistory] = useState(false)
+  const current = notes.filter(note => note.status === 'current')
+  const history = notes.filter(note => note.status === 'history')
+  const create = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!title.trim() && !body.trim()) return
+    onCreate?.(title, body)
+    setTitle('')
+    setBody('')
+  }
+  const renderNote = (note: PhoneNote, archived = false) => (
+    <article className="world-phone__note" data-note-kind={note.kind} key={note.id}>
+      <span className="world-phone__note-kind">{note.kind === 'story' ? '剧情记录' : '备忘'}</span>
+      {note.kind === 'player' && !archived ? <input aria-label="备忘标题" maxLength={80} value={note.title} onChange={event => onChange?.(note.id, { title: event.target.value })} /> : <strong>{note.title}</strong>}
+      {note.kind === 'player' && !archived ? <textarea aria-label="备忘内容" maxLength={2000} value={note.body} onChange={event => onChange?.(note.id, { body: event.target.value })} /> : <p>{note.body}</p>}
+      {!archived && <div className="world-phone__note-actions">
+        {note.kind === 'story' && note.pinAvailable && <button type="button" aria-pressed={note.pinned} onClick={() => onPin?.(note.id)}>{note.pinned ? '已置顶' : '置顶'}</button>}
+        <button type="button" onClick={() => onChange?.(note.id, { status: 'history' })}>移入历史</button>
+      </div>}
+    </article>
+  )
+  return <section className="world-phone__notes-page" aria-label="备忘录">
+    <form className="world-phone__note-compose" onSubmit={create}>
+      <label>新增备忘<input aria-label="新备忘标题" maxLength={80} value={title} onChange={event => setTitle(event.target.value)} placeholder="标题" /></label>
+      <textarea aria-label="新备忘内容" maxLength={2000} value={body} onChange={event => setBody(event.target.value)} placeholder="写下要记住的事" />
+      <button type="submit" disabled={!title.trim() && !body.trim()}>保存备忘</button>
+    </form>
+    <div className="world-phone__notes-section"><span>当前事项</span>{current.length ? current.map(note => renderNote(note)) : <p className="world-phone__empty-state">暂无当前事项</p>}</div>
+    <button className="world-phone__notes-history-toggle" type="button" aria-expanded={showHistory} onClick={() => setShowHistory(value => !value)}>历史记录 <span>{history.length}</span></button>
+    {showHistory && <div className="world-phone__notes-section" aria-label="历史记录">{history.length ? history.map(note => renderNote(note, true)) : <p className="world-phone__empty-state">暂无历史记录</p>}</div>}
+  </section>
 }
 
 function FeedbackApp({
@@ -154,14 +205,18 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity }: WorldPhoneProps) {
+export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
   const [phase, setPhase] = useState<WorldPhonePhase>('closed')
   const [activeApp, setActiveApp] = useState<PhoneApp | null>(null)
   const [contactView, setContactView] = useState<ContactView>('list')
   const [selectedContactId, setSelectedContactId] = useState<ContactId>('lao-zhou')
+  const [contactNoteDraft, setContactNoteDraft] = useState('')
+  const [activeCallStartedAt, setActiveCallStartedAt] = useState<number | null>(null)
+  const [locationCardOpen, setLocationCardOpen] = useState(false)
   const [selectedMapLandmarkId, setSelectedMapLandmarkId] = useState<string | null>(null)
+  const [yongheMapContext, setYongheMapContext] = useState(false)
   const [selectedRideDestinationId, setSelectedRideDestinationId] = useState<string | null>(null)
   const [milkTeaDrink, setMilkTeaDrink] = useState<MilkTeaDrink | null>(null)
   const [milkTeaSugar, setMilkTeaSugar] = useState<MilkTeaSugar | null>(null)
@@ -173,6 +228,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
   const [mapPan, setMapPan] = useState<MapPoint>([0, 0])
   const [milkTeaClock, setMilkTeaClock] = useState(() => Date.now())
   const [rideClock, setRideClock] = useState(() => Date.now())
+  useEffect(() => { setContactNoteDraft(contactNotes[selectedContactId] ?? '') }, [contactNotes, selectedContactId])
   useEffect(() => {
     if (!rideOrder) return
     let timer = 0
@@ -210,10 +266,12 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
     ))
     : []
   const selectedRideDestination = rideDestinations.find((landmark) => landmark.id === selectedRideDestinationId) ?? rideDestinations[0] ?? null
-  const activeAppLabel = activeApp === 'map' ? '地图' : activeApp === 'ride' ? '叫车' : activeApp === 'contacts' ? contactView === 'messages' ? '短信' : '联系人' : activeApp === 'feedback' ? '反馈' : activeApp === 'milk-tea' ? '奶茶' : ''
+  const activeAppLabel = activeApp === 'map' ? '地图' : activeApp === 'ride' ? '叫车' : activeApp === 'contacts' ? contactView === 'messages' ? '短信' : contactView === 'call' ? '电话' : contactView === 'detail' ? '联系人详情' : '联系人' : activeApp === 'feedback' ? '反馈' : activeApp === 'milk-tea' ? '奶茶' : activeApp === 'notes' ? '备忘录' : ''
   const batteryPercent = 72
   const isMapOpen = !notificationScreen && activeApp === 'map'
-  const memo = memoForDevice(displayDevice)
+  const pinnedMemo = notes.find(note => note.status === 'current' && note.pinned)
+  const widgetNotes = notes.filter(note => note.status === 'current' && note.id !== pinnedMemo?.id).slice(0, 2)
+  const memo = pinnedMemo ?? widgetNotes[0] ?? null
   const selectedContact = innerContacts.find((contact) => contact.id === selectedContactId) ?? innerContacts[0]
 
   // The parent may close the Phone in the first interactable frame of its
@@ -274,12 +332,32 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
     onAppOpen?.(app)
     setActiveApp(app)
     if (app !== 'contacts') setContactView('list')
+    setLocationCardOpen(false)
   }
 
   const closeApp = () => {
     if (activeApp === 'feedback') onFeedbackModeChange?.(null)
     setActiveApp(null)
     setContactView('list')
+  }
+
+  const finishCall = () => {
+    if (activeCallStartedAt === null) return
+    const endedAt = Date.now()
+    onCallRecord?.({
+      id: `call-${activeCallStartedAt}-${endedAt}`,
+      contactId: selectedContactId,
+      startedAt: activeCallStartedAt,
+      endedAt,
+      durationMs: endedAt - activeCallStartedAt,
+      result: 'cancelled',
+    })
+    setActiveCallStartedAt(null)
+    setContactView('detail')
+  }
+  const closePhone = () => {
+    if (activeCallStartedAt !== null) finishCall()
+    onClose()
   }
 
   useEffect(() => {
@@ -380,6 +458,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
       mapDragRef.current.moved = false
       return
     }
+    setYongheMapContext(false)
     setSelectedMapLandmarkId(landmarkId)
   }
 
@@ -437,7 +516,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
               <span>{batteryPercent}%</span>
             </div>
             <div className="world-phone__header-actions">
-              <button className="world-phone__close" type="button" aria-label="收起手机" onClick={onClose}>×</button>
+              <button className="world-phone__close" type="button" aria-label="收起手机" onClick={closePhone}>×</button>
             </div>
           </header>}
 
@@ -464,10 +543,13 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
                   <small>{displayDevice === 'inner' ? worldWeather : '故事日 · 第一日'}</small>
                 </section>
                 <section className="world-phone__home-memo" aria-label="备忘录">
-                  <span>备忘录</span>
-                  <strong>{memo.title}</strong>
-                  <p>{memo.body}</p>
-                  <small>故事日 · 第一日 · 当前记录</small>
+                  <button className="world-phone__memo-open" type="button" data-app="notes" onClick={() => openApp('notes')}>
+                    <span>备忘录</span>
+                    <strong>{memo?.title ?? '暂无备忘'}</strong>
+                    <p>{memo?.body ?? '添加一条想记住的事。'}</p>
+                    {pinnedMemo && <small>已置顶</small>}
+                    {widgetNotes.slice(pinnedMemo ? 0 : 1, pinnedMemo ? 2 : 2).map(note => <small className="world-phone__memo-extra" key={note.id}>{note.title} · {note.body}</small>)}
+                  </button>
                 </section>
                 <nav className="world-phone__apps" aria-label="手机应用">
                   <button type="button" data-app="map" onClick={() => openApp('map')}>
@@ -486,6 +568,10 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
                     <span className="world-phone__app-icon"><PhoneAppIcon app="contacts" /></span>
                     <span className="world-phone__app-label">联系人</span>
                   </button>
+                  <button type="button" data-app="notes" onClick={() => openApp('notes')}>
+                    <span className="world-phone__app-icon"><PhoneAppIcon app="notes" /></span>
+                    <span className="world-phone__app-label">备忘录</span>
+                  </button>
                   <button type="button" data-app="feedback" onClick={() => { onFeedbackOpen?.(); onFeedbackModeChange?.('phone'); openApp('feedback') }}>
                     <span className="world-phone__app-icon"><PhoneAppIcon app="feedback" /></span>
                     <span className="world-phone__app-label">反馈</span>
@@ -496,7 +582,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
           ) : (
             <>
               <div className="world-phone__app-bar">
-                {activeApp === 'contacts' && contactView === 'messages' && <button className="world-phone__app-back" type="button" onClick={() => setContactView('list')} aria-label="返回联系人"><span aria-hidden="true">‹</span><small>联系人</small></button>}
+                {activeApp === 'contacts' && contactView !== 'list' && <button className="world-phone__app-back" type="button" onClick={() => { if (contactView === 'call') finishCall(); else setContactView(contactView === 'messages' ? 'list' : 'list') }} aria-label="返回联系人"><span aria-hidden="true">‹</span><small>联系人</small></button>}
                 <div><span>NEWTONE APP</span><strong>{activeAppLabel}</strong></div>
               </div>
               <div className="world-phone__app-view">
@@ -523,7 +609,7 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
                         role="button"
                         tabIndex={0}
                         aria-label={`${landmark.label}，点击查看详情`}
-                        onPointerDown={(event) => { event.stopPropagation(); setSelectedMapLandmarkId(landmark.id) }}
+                        onPointerDown={(event) => { event.stopPropagation(); setYongheMapContext(false); setSelectedMapLandmarkId(landmark.id) }}
                         onClick={() => handleMapLandmarkClick(landmark.id)}
                         onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') handleMapLandmarkClick(landmark.id) }}
                         key={landmark.id}
@@ -540,8 +626,8 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
                 {selectedMapLandmark && (
                   <section className="world-phone__map-detail" aria-live="polite">
                     <span>地点详情</span>
-                    <strong>{selectedMapLandmark.label}</strong>
-                    <p>{selectedMapLandmark.sceneId ? '可进入该地点对应场景。' : '当前只显示地点信息，暂未开放直接进入。'}</p>
+                    <strong>{yongheMapContext ? '永和小馆' : selectedMapLandmark.label}</strong>
+                    <p>{yongheMapContext ? '位于矿区外围老街。' : selectedMapLandmark.sceneId ? '可进入该地点对应场景。' : '当前只显示地点信息，暂未开放直接进入。'}</p>
                   </section>
                 )}
                 {!online && <p className="world-phone__offline-note">当前为离线地图，显示已缓存路线。</p>}
@@ -614,6 +700,8 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
                 </>}
             </section>}
 
+            {activeApp === 'notes' && <NotesApp notes={notes} onCreate={onNoteCreate} onChange={onNoteChange} onPin={onNotePin} />}
+
             {activeApp === 'contacts' && (
               contactView === 'messages' ? (
                 <section className="world-phone__message-thread" aria-label={`与${selectedContact.name}的短信`}>
@@ -624,6 +712,35 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
                       {message}
                     </div>
                   ))}
+                  {selectedContactId === 'lao-zhou' && displayDevice === 'inner' && yongheLeadUnlocked && (
+                    <div className={`world-phone__message-place ${locationCardOpen ? 'is-expanded' : ''}`} onMouseEnter={() => setLocationCardOpen(true)} onMouseLeave={() => setLocationCardOpen(false)} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('.world-phone__place-card')) setLocationCardOpen(true) }}>
+                      <div className="world-phone__message-bubble world-phone__message-bubble--received world-phone__message-bubble--place">
+                        <span className="world-phone__message-place-source">剧情线索 · 老周</span>
+                        <p>查不到去了哪里。不过我在那边有个线人，据说有人好像在永和小馆那块见过陈副部长。</p>
+                        <button type="button" className="world-phone__place-reveal" onClick={() => setLocationCardOpen(true)}>查看地点</button>
+                      </div>
+                      {locationCardOpen && <button type="button" className="world-phone__place-card" onClick={event => { event.stopPropagation(); setYongheMapContext(true); setSelectedMapLandmarkId('mine'); setLocationCardOpen(false); openApp('map') }}><span aria-hidden="true">⌖</span><strong>永和小馆</strong></button>}
+                    </div>
+                  )}
+                </section>
+              ) : contactView === 'call' ? (
+                <section className="world-phone__call-screen" aria-label={`正在呼叫${selectedContact.name}`}>
+                  <div className="world-phone__call-avatar" aria-hidden="true">👤</div>
+                  <span>正在拨号</span>
+                  <strong>{selectedContact.name}</strong>
+                  <div className="world-phone__call-ringing" aria-label="持续响铃"><i /><i /><i /></div>
+                  <small aria-live="polite">持续响铃中 · 请手动挂断</small>
+                  <button type="button" className="world-phone__call-hangup" onClick={finishCall}>挂断</button>
+                </section>
+              ) : contactView === 'detail' ? (
+                <section className="world-phone__contact-detail" aria-label={`${selectedContact.name}联系人详情`}>
+                  <div className="world-phone__contact-profile"><span aria-hidden="true">👤</span><strong>{selectedContact.name}</strong><small>{selectedContact.detail}</small></div>
+                  <div className="world-phone__contact-actions">
+                    <button type="button" onClick={() => setContactView('messages')}><span aria-hidden="true">▤</span>信息</button>
+                    <button type="button" onClick={() => { setActiveCallStartedAt(Date.now()); setContactView('call') }}><span aria-hidden="true">⌕</span>电话</button>
+                  </div>
+                  <label className="world-phone__contact-note">我的备注<textarea aria-label="我的联系人备注" maxLength={1000} value={contactNoteDraft} onChange={event => setContactNoteDraft(event.target.value)} onBlur={() => onContactNoteChange?.(selectedContactId, contactNoteDraft)} placeholder="添加自己的昵称或判断" /></label>
+                  <div className="world-phone__call-history"><span>通话记录</span>{callHistory.filter(record => record.contactId === selectedContactId).slice().reverse().map(record => <p key={record.id}>拨出 · {record.result === 'cancelled' ? '已挂断' : '已结束'} · {formatCallDuration(record.durationMs)}</p>)}{!callHistory.some(record => record.contactId === selectedContactId) && <small>暂无通话记录</small>}</div>
                 </section>
               ) : displayDevice === 'surface' ? (
                 <section className="world-phone__list-page" aria-label="联系人">
@@ -642,9 +759,9 @@ export function WorldPhone({ currentSceneId, worldLayer, device, open, onOpen, o
                   <ul className="world-phone__list">
                     {innerContacts.map((contact) => (
                       <li className="world-phone__list-row" key={contact.id}>
-                        <button className="world-phone__contact-row" type="button" onClick={() => { setSelectedContactId(contact.id); setContactView('messages') }}>
-                          <span><strong>{contact.name}</strong><small>{contact.detail}</small></span>
-                          <em className={online ? 'is-ready' : ''}>{online ? '短信' : '离线'}</em>
+                        <button className="world-phone__contact-row" type="button" onClick={() => { setSelectedContactId(contact.id); setContactView('detail') }}>
+                          <span className="world-phone__contact-avatar" aria-hidden="true">👤</span><span><strong>{contact.name}</strong><small>{contact.detail}</small></span>
+                          <em className={online ? 'is-ready' : ''}>{online ? '›' : '离线'}</em>
                         </button>
                       </li>
                     ))}
