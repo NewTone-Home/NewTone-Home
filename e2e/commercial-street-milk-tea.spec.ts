@@ -1,3 +1,5 @@
+import { registerPhoneTestNetwork } from './phoneTestNetwork'
+registerPhoneTestNetwork()
 import { expect, test, type Page } from '@playwright/test'
 import {mainlineScenes,mainlineStorefrontInteractionRegion} from '../src/center/runtime/mainlineScenes'
 
@@ -44,7 +46,7 @@ test('the Milk Tea storefront interaction surface works from west, center, and e
     const region=mainlineStorefrontInteractionRegion(mainlineScenes['commercial-street'],mainlineScenes['commercial-street'].storefronts.find(s=>s.id==='commercial-south-slot-5')!)
     expect(Math.hypot(arrived.x-region.center.x,arrived.y-region.center.y)).toBeLessThanOrEqual(region.radius+.01)
     expect((arrived.x-region.center.x)*region.outward.x+(arrived.y-region.center.y)*region.outward.y).toBeGreaterThanOrEqual(0)
-    await page.getByLabel('收起手机').click()
+    await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
     await expect(phone).not.toHaveClass(/is-open/)
   }
 })
@@ -82,7 +84,7 @@ test('a first physical visit unlocks the Phone app, while ordering stays remote 
   await expect(phone.getByText(/前方还有/)).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('milk-tea-phone-pending.png') })
 
-  await page.getByLabel('收起手机').click()
+  await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
   await expect(phone).not.toHaveClass(/is-open/)
   await finishReading(page)
   const notification = page.locator('[data-notification-app="milk-tea"]')
@@ -112,7 +114,7 @@ test('a first physical visit unlocks the Phone app, while ordering stays remote 
   const readyEventCount = readyEvents.length
   expect(readyEventCount).toBeLessThanOrEqual(1)
   await page.screenshot({ path: testInfo.outputPath('milk-tea-phone-ready.png') })
-  await page.getByLabel('收起手机').click()
+  await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
 
   await page.reload()
   await page.getByLabel('打开手机').click()
@@ -120,7 +122,7 @@ test('a first physical visit unlocks the Phone app, while ordering stays remote 
   await expect(page.getByText('已完成', { exact: true })).toBeVisible()
   await page.waitForLoadState('networkidle')
   expect(readyEvents).toHaveLength(readyEventCount)
-  await page.getByLabel('收起手机').click()
+  await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
 
   await page.getByRole('button', { name: '奶茶店', exact: true }).click()
   await expect(page.locator('[data-scene-echo="commercial-south-slot-5"]')).toContainText('取到奶茶', { timeout: 15_000 })
@@ -152,7 +154,7 @@ test('a first physical visit unlocks the Phone app, while ordering stays remote 
   await phone.getByRole('button', { name: '去冰', exact: true }).click()
   await phone.getByRole('button', { name: '确认下单', exact: true }).click()
   await expect(phone.getByText('取餐号 002', { exact: true })).toBeVisible()
-  await page.getByLabel('收起手机').click()
+  await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
   await expect(page.locator('[data-notification-app="milk-tea"]')).toBeVisible({ timeout: 45000 })
   await page.locator('[data-notification-app="milk-tea"]').click()
   await expect(phone.getByText('已完成', { exact: true })).toBeVisible()

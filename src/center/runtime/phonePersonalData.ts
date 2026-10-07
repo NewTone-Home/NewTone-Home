@@ -51,7 +51,7 @@ export function cleanPhoneNotes(value: unknown): PhoneNote[] {
     return [{
       id: source.id.slice(0, 100), kind: source.kind,
       title: source.title.slice(0, 80), body: source.body.slice(0, 2000),
-      status: source.status === 'history' ? 'history' : 'current',
+      status: source.kind === 'story' && source.status === 'history' ? 'history' : 'current',
       pinned: source.kind === 'story' && source.status !== 'history' && source.pinAvailable === true && source.pinned === true,
       pinAvailable: source.kind === 'story' && source.status !== 'history' && source.pinAvailable === true,
       ...(source.storyStage && source.kind === 'story' ? { storyStage: source.storyStage } : {}),
@@ -85,13 +85,13 @@ export function cleanPhoneCallHistory(value: unknown): PhoneCallRecord[] {
 }
 
 export function advancePhoneStoryNotes(notes: readonly PhoneNote[], stage: MainlineStoryStage, now = 0): PhoneNote[] {
-  if (notes.some(note => note.kind === 'story' && note.storyStage === stage && note.status === 'current')) return notes as PhoneNote[]
+  if (notes.some(note => note.kind === 'story' && note.id === `story-${stage}` && note.status === 'current')) return notes as PhoneNote[]
   const updated = notes.map(note => note.kind === 'story' && note.status === 'current'
     ? { ...note, status: 'history' as const, pinned: false, updatedAt: now }
     : note)
   const nextStoryNote: PhoneNote = {
     id: `story-${stage}`, kind: 'story', title: `${storyStageLabels[stage]}记录`,
-    body: `剧情已推进至${storyStageLabels[stage]}。`, status: 'current', pinned: false, pinAvailable: false,
+    body: `来到了${storyStageLabels[stage]}。`, status: 'current', pinned: false, pinAvailable: false,
     storyStage: stage, createdAt: now, updatedAt: now,
   }
   return [...updated, nextStoryNote]
@@ -110,13 +110,12 @@ export function createPlayerPhoneNote(notes: readonly PhoneNote[], title: string
 }
 
 export function updatePhoneNote(notes: readonly PhoneNote[], id: string, update: Partial<Pick<PhoneNote, 'title' | 'body' | 'status'>>, now = Date.now()): PhoneNote[] {
-  return notes.map(note => note.id !== id ? note : {
+  return notes.map(note => note.id !== id || note.kind !== 'player' ? note : {
     ...note,
-    ...update,
     title: update.title?.trim().slice(0, 80) ?? note.title,
     body: update.body?.slice(0, 2000) ?? note.body,
-    status: update.status ?? note.status,
-    pinned: update.status === 'history' ? false : note.pinned,
+    status: 'current',
+    pinned: false,
     updatedAt: now,
   })
 }
@@ -134,7 +133,20 @@ export function ensurePhoneYongheLead(notes: readonly PhoneNote[], now = 0): Pho
   const lead: PhoneNote = {
     id: 'story-yonghe-lead', kind: 'story', title: '永和线索',
     body: '查不到去了哪里。不过我在那边有个线人，据说有人好像在永和小馆那块见过陈副部长。', status: 'current', pinned: false,
-    pinAvailable: true, storyStage: 'yonghe', createdAt: now, updatedAt: now,
+    pinAvailable: true, storyStage: 'cafe', createdAt: now, updatedAt: now,
   }
   return [...archived, lead]
+}
+
+export function phoneStoryHistory(notes: readonly PhoneNote[]) {
+ const story = notes.filter(note => note.kind === 'story')
+ return story.flatMap((note,index) => {
+  if (note.status !== 'history') return []
+  const next = story[index + 1]
+  if (!next) return []
+  const event = next.id === 'story-yonghe-lead'
+    ? { title: '获得了永和小馆相关线索', summary: '老周提到了矿区的永和小馆。', stage: 'cafe' as const }
+    : { title: `来到${storyStageLabels[next.storyStage ?? 'opening']}`, summary: next.body, stage: next.storyStage ?? 'opening' }
+  return [{ id:note.id, ...event, notes:[note] }]
+ })
 }

@@ -1,7 +1,7 @@
 import type { MainlineSceneId } from './mainlineSceneModel'
 import { cleanPhoneNotifications, type PhoneNotification } from './phoneNotifications'
 import type { PhoneDevice } from './phoneState'
-import { createInitialMainlineStoryClock, type MainlineStoryClock, type MainlineStoryStage } from './mainlineStoryClock'
+import { createInitialMainlineStoryClock, storyClockForStage, type MainlineStoryClock, type MainlineStoryStage } from './mainlineStoryClock'
 import { applyPublicReleaseCutover } from '../../services/publicReleaseMigration'
 import { cleanPhoneCallHistory, cleanPhoneContactNotes, cleanPhoneNotes, createInitialPhoneNotes, type PhoneCallRecord, type PhoneNote } from './phonePersonalData'
 
@@ -138,7 +138,7 @@ export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineScen
   const phoneDevice = source.phoneDevice === 'inner' ? 'inner' : 'surface'
   const storyStage = source.storyClock?.stage
   const storyClock: MainlineStoryClock = storyStage === 'commercial-street' || storyStage === 'cafe' || storyStage === 'yonghe' || storyStage === 'opening'
-    ? { dayId: 'story-day-001', stage: storyStage as MainlineStoryStage }
+    ? storyClockForStage(storyStage as MainlineStoryStage)
     : createInitialMainlineStoryClock(currentSceneId)
   const updatedAt = Number(source.updatedAt)
   return {

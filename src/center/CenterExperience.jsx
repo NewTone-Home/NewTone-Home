@@ -663,6 +663,11 @@ export default function CenterExperience({
           {localSlide && localSlideActor && <div className="scene-protagonist center-local-slide__actor" aria-hidden="true"><span className="scene-protagonist__dot" /></div>}
         </div>
         <WorldPhone
+          estimateRideEtaMs={() => {
+            const current = latestWorldPositionRef.current
+            return current?.sceneId === route.sceneId ? mainlineRideWalkingEtaMs(route.sceneId, current.position, current.context) : null
+          }}
+          getPlayerPosition={() => latestWorldPositionRef.current?.sceneId === route.sceneId ? latestWorldPositionRef.current.position : null}
           currentSceneId={route.sceneId}
           worldLayer={worldLayerForScene(route.sceneId)}
           device={phoneDevice}

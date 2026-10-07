@@ -28,6 +28,7 @@ describe('v0.2.1 release preparation', () => {
     expect(contacts).toContain("messages: ['陈副部长失踪了。', '什么时候有空。', '周六。', '老地方。', '好。']")
     expect(phone).not.toContain('ruo-yu')
     expect(phone).not.toContain('若雨')
-    expect(phone).toContain('当前手机没有里世界联系人。')
+    expect(phone).toContain('暂无联系人')
+    expect(phone).not.toContain('当前手机没有里世界联系人。')
   })
 })

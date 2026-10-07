@@ -1,0 +1,184 @@
+.world-phone { --phone-bg:#141519; --phone-panel:#202126; --phone-border:#ffffff24; --phone-text:#eeeef0; --phone-muted:#a1a2a9; position:fixed; right:24px; bottom:0; width:366px; height:min(730px,calc(100dvh - 20px)); z-index:80; color:var(--phone-text); font:13px/1.55 system-ui,sans-serif; pointer-events:none; }
+.world-phone,.world-phone * { box-sizing:border-box; }
+.world-phone__dismiss-region { position:fixed; inset:0; z-index:79; background:transparent; }
+.world-phone button { font:inherit; cursor:pointer; color:inherit; }
+.world-phone button:active { transform:scale(.97); }
+.world-phone button:disabled { opacity:.4; cursor:default; }
+.world-phone button:focus-visible,.world-phone [role=button]:focus-visible { outline:2px solid #eee; outline-offset:3px; }
+.world-phone__body { height:100%; padding:8px; border:1px solid #ffffff38; border-bottom:0; border-radius:25px 25px 0 0; background:#0d0e11; transform:translateY(calc(100% - 38px)); transition:transform 240ms cubic-bezier(.2,.75,.2,1); overflow:hidden; }
+.world-phone.is-open .world-phone__body { transform:translateY(0); pointer-events:auto; }
+.world-phone__hardware { height:12px; }
+.world-phone__hardware span { display:none; }
+.world-phone__handle { position:absolute; bottom:0; left:0; width:100%; height:38px; z-index:3; border:0; background:transparent; pointer-events:auto; }
+.world-phone.is-open .world-phone__handle { display:none; }
+.world-phone__handle-mark { display:block; width:44px; height:5px; border-radius:4px; background:#c3c4ca; margin:auto; }
+.world-phone--phase-swap-retracting .world-phone__handle { animation:world-phone-swap-retract 220ms ease; }
+@keyframes world-phone-swap-retract{ to { transform:translateY(32px); opacity:0; } }
+.world-phone__panel { height:calc(100% - 12px); display:flex; flex-direction:column; min-height:0; padding:14px; border:1px solid var(--phone-border); border-radius:19px 19px 0 0; background:radial-gradient(ellipse at top,#ffffff08,transparent 60%),var(--phone-bg); overflow:hidden; }
+.world-phone__header { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:30px; margin-bottom:12px; font-size:11px; }
+.world-phone__status { display:flex; align-items:center; gap:8px; white-space:nowrap; }
+.world-phone__signal-bars { display:flex; align-items:end; gap:2px; height:12px; }
+.world-phone__signal-bars i { width:3px; background:#d5d6db; height:5px; }
+.world-phone__signal-bars i:nth-child(2) { height:8px; }
+.world-phone__signal-bars i:nth-child(3) { height:11px; }
+.world-phone__signal-bars.is-offline { opacity:.25; }
+.world-phone__battery { width:20px; height:10px; padding:1px; border:1px solid #a1a2a9; border-radius:2px; }
+.world-phone__battery i { display:block; height:100%; background:#d5d6db; }
+.world-phone__home-screen { flex:1; min-height:0; overflow:auto; }
+.world-phone__home-layout { display:flex; flex-direction:column; gap:18px; }
+.world-phone__home-calendar,.world-phone__home-memo { padding:15px; background:#ffffff06; border:1px solid var(--phone-border); border-radius:15px; }
+.world-phone__calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-top:10px; text-align:center; }
+.world-phone__calendar-grid span { line-height:28px; border-radius:5px; font-size:12px; }
+.world-phone__calendar-grid small { color:var(--phone-muted); padding-bottom:5px; }
+.world-phone__calendar-grid [data-weather=sunny] { background:#ffffff0c; }
+.world-phone__calendar-grid [data-weather=rainy] { background:#00000022; }
+.world-phone__calendar-grid [aria-current=date] { background:#e1e2e5; color:#1b1c20; font-weight:650; }
+.world-phone__memo-open { display:block; width:100%; text-align:left; padding:0; border:0; background:none; }
+.world-phone__memo-open>span { display:block; color:var(--phone-muted); font-size:11px; margin-bottom:6px; }
+.world-phone__memo-open strong { font-size:15px; }
+.world-phone__memo-open p { font-size:12px; margin:6px 0; color:#b8b9c0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.world-phone__memo-extra { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:10px; color:var(--phone-muted); }
+.world-phone__pin-candidates button { margin-top:8px; background:#ffffff0c; border:1px solid var(--phone-border); border-radius:6px; padding:5px 8px; font-size:11px; }
+.world-phone__apps { display:grid; grid-template-columns:repeat(3,1fr); gap:18px 12px; }
+.world-phone__apps button { position:relative; display:flex; align-items:center; flex-direction:column; gap:8px; border:0; background:none; padding:0; }
+.world-phone__app-icon { width:54px; height:54px; border:1px solid #ffffff26; border-radius:15px; background:linear-gradient(145deg,#37383f,#22232a); display:grid; place-items:center; }
+.world-phone__app-icon svg { width:27px; height:27px; }
+.world-phone__app-label { font-size:11px; }
+.world-phone__apps [data-unread=true]::after { content:''; position:absolute; top:0; right:15px; width:7px; height:7px; border-radius:50%; background:#e26969; }
+.world-phone__app-bar { display:flex; align-items:center; gap:10px; min-height:40px; padding-bottom:12px; }
+.world-phone__app-bar strong { font-size:18px; }
+.world-phone__app-back { border:0; background:none; padding:6px 0; }
+.world-phone__app-back small { margin-left:4px; }
+.world-phone__app-view { position:relative; flex:1; min-height:0; overflow:auto; animation:phone-app-enter 180ms ease-out; }
+.world-phone__home-indicator { flex:none; height:34px; border:0; background:none; display:grid; place-items:center; }
+.world-phone__home-indicator span { height:4px; width:100px; border-radius:5px; background:#dadbe1; }
+@keyframes phone-app-enter{ from { opacity:.3;transform:scale(.92) } to { opacity:1;transform:scale(1) } }
+.world-phone__notes-toolbar { display:flex; justify-content:space-between; margin-bottom:14px; }
+.world-phone__notes-toolbar button,.world-phone__note-compose button,.world-phone__list-action,.world-phone__feedback-submit { border:1px solid var(--phone-border); border-radius:9px; padding:10px 15px; background:#ffffff10; }
+.world-phone__notes-toolbar button:last-child { min-width:40px; }
+.world-phone__note { border-bottom:1px solid var(--phone-border); padding:12px 0; }
+.world-phone__note button { display:block; width:100%; border:0; background:none; text-align:left; padding:0; }
+.world-phone__note strong { display:block; font-size:14px; }
+.world-phone__note p { margin:5px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--phone-muted); }
+.world-phone small { color:var(--phone-muted); }
+.world-phone input,.world-phone textarea { width:100%; border:1px solid var(--phone-border); border-radius:9px; background:#202126; color:var(--phone-text); font:inherit; padding:12px; user-select:text; }
+.world-phone__note-compose { display:grid; gap:12px; }
+.world-phone__note-compose textarea { min-height:240px; resize:vertical; }
+.world-phone__timeline details { border-left:1px solid #ffffff40; margin-left:5px; padding:0 0 24px 16px; }
+.world-phone__timeline summary { cursor:pointer; list-style:none; }
+.world-phone__timeline summary>* { display:block; }
+.world-phone__timeline summary span { font-size:12px; color:var(--phone-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.world-phone__list { list-style:none; padding:0; margin:0; }
+.world-phone__list-row { border-bottom:1px solid var(--phone-border); }
+.world-phone__contact-row,.world-phone__ride-destination { display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:14px 4px; border:0; background:none; }
+.world-phone__contact-row small { display:block; }
+.world-phone__contact-row em { margin-left:auto; font-style:normal; }
+.world-phone__contact-avatar { font-size:24px; }
+.world-phone__empty-state { color:var(--phone-muted); padding:70px 0; text-align:center; }
+.world-phone__contact-profile { display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px; }
+.world-phone__contact-profile>span { font-size:45px; }
+.world-phone__contact-profile strong { font-size:22px; }
+.world-phone__contact-actions { display:flex; gap:12px; margin:15px 0; }
+.world-phone__contact-actions button { flex:1; border:1px solid var(--phone-border); background:#ffffff0a; padding:12px; border-radius:10px; }
+.world-phone__contact-actions span { display:block; }
+.world-phone__contact-note { display:grid; gap:8px; margin:24px 0; }
+.world-phone__call-history { border-top:1px solid var(--phone-border); padding-top:14px; font-size:12px; }
+.world-phone__message-person { display:flex; gap:10px; align-items:center; margin-bottom:18px; }
+.world-phone__message-person>span { display:none; }
+.world-phone__message-date { text-align:center; color:var(--phone-muted); font-size:10px; }
+.world-phone__message-bubble { width:fit-content; max-width:87%; padding:10px 13px; background:#303138; border-radius:13px; margin:10px 0; font-size:12px; }
+.world-phone__message-bubble--sent { margin-left:auto; background:#43444b; }
+.world-phone__message-place { position:relative; }
+.world-phone__message-bubble--place { cursor:pointer; }
+.world-phone__message-bubble--place p { margin:0; }
+.world-phone__place-card { display:flex; align-items:center; gap:12px; width:90%; padding:18px; background:#eeeef0; color:#18191d!important; border:0; border-radius:12px; margin:8px 0 18px; box-shadow:0 8px 24px #0004; }
+.world-phone__place-card span { font-size:25px; }
+.world-phone__call-screen { display:flex; align-items:center; flex-direction:column; gap:18px; padding:40px 0; }
+.world-phone__call-screen strong { font-size:24px; }
+.world-phone__call-avatar { font-size:50px; }
+.world-phone__call-ringing { display:flex; gap:5px; }
+.world-phone__call-ringing i { width:4px; height:4px; background:#ddd; border-radius:50%; animation:phone-ring 1.8s infinite; }
+.world-phone__call-ringing i:nth-child(2) { animation-delay:.3s; }
+.world-phone__call-ringing i:nth-child(3) { animation-delay:.6s; }
+.world-phone__call-hangup { margin-top:70px; border:0; border-radius:40px; padding:15px 28px; background:#833a40; }
+@keyframes phone-ring{50%{opacity:.2}}
+.world-phone__feedback { display:flex; flex-direction:column; gap:14px; }
+.world-phone__feedback-kicker { display:none; }
+.world-phone__feedback-intro { color:var(--phone-muted); }
+.world-phone__feedback-textarea { min-height:220px; resize:vertical; }
+.world-phone__feedback-error { color:#e2aaa8; }
+.world-phone__feedback--result { align-items:center; justify-content:center; min-height:300px; }
+.world-phone__feedback--result strong { font-size:20px; }
+.world-phone__feedback-actions button { border:0; background:none; padding:12px; color:var(--phone-muted); }
+.world-phone__lock-screen { flex:1; padding:25px 0; cursor:pointer; }
+.world-phone__lock-clock { text-align:center; display:grid; gap:5px; margin-bottom:40px; }
+.world-phone__lock-clock strong { font-size:44px; }
+.world-phone__lock-hint { display:block; text-align:center; color:var(--phone-muted); font-size:11px; }
+.world-phone__notification { width:100%; display:grid; gap:8px; margin-top:15px; padding:18px; text-align:left; border:1px solid var(--phone-border); border-radius:14px; background:#ffffff0b; }
+.world-phone__notification span { font-size:12px; color:var(--phone-muted); }
+.world-phone__map-frame { height:100%; min-height:300px; position:relative; display:flex; flex-direction:column; }
+.world-phone__map-title { font-size:11px; color:var(--phone-muted); }
+.world-phone__map-viewport { position:relative; flex:1; min-height:220px; overflow:hidden; background:#1c1d22; border:1px solid var(--phone-border); border-radius:12px; touch-action:none; cursor:grab; }
+.world-phone__map { width:100%; height:100%; min-height:0; transform-origin:center; transition:transform 100ms ease-out; overflow:visible; }
+.world-phone__map-region-field { fill:#ffffff08; stroke:#ffffff23; stroke-width:.25; }
+.world-phone__map-region { cursor:pointer; }
+.world-phone__map-region-dot { fill:#d6d7dc; }
+.world-phone__map-region-label,.world-phone__map-poi-label { fill:#dfdfe4; font-size:3.4px; }
+.world-phone__map-region.is-active circle { fill:#b2bfc0; }
+.world-phone__map-region-link { stroke:#ffffff28; stroke-width:.2; }
+.world-phone__map-poi-halo { fill:#ffffff12; }
+.world-phone__map-poi-dot { fill:#b5c5c3; }
+.world-phone__map-controls { display:flex; justify-content:end; gap:10px; align-items:center; padding:8px 0; font-size:10px; }
+.world-phone__map-controls button { width:34px; height:34px; border:1px solid var(--phone-border); border-radius:8px; background:#282930; }
+.world-phone__map-detail { position:relative; padding:15px; background:#25262b; border:1px solid var(--phone-border); border-radius:12px; max-height:65%; overflow:auto; flex-shrink:0; }
+.world-phone__map-detail>strong { font-size:20px; display:block; }
+.world-phone__map-detail>span { font-size:11px; color:var(--phone-muted); }
+.world-phone__map-detail p { font-size:12px; color:#bcbcc4; }
+.world-phone__map-detail button { padding:10px; border:1px solid var(--phone-border); background:#ffffff0a; border-radius:8px; }
+.world-phone__offline-note { font-size:11px; color:var(--phone-muted); }
+.world-phone__list-heading { display:grid; gap:8px; padding:16px 0; }
+.world-phone__list-heading>span { font-size:11px; color:var(--phone-muted); }
+.world-phone__milk-tea-field { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.world-phone__milk-tea-field button { padding:10px; border:1px solid var(--phone-border); background:#ffffff08; border-radius:8px; }
+.world-phone [aria-pressed=true] { border-color:#c8c9ce; background:#ffffff1b; }
+@media(max-width:600px){.world-phone{right:8px;width:calc(100vw - 16px);height:min(730px,calc(100dvh - 16px))}.world-phone__panel{padding:14px}.world-phone__apps{gap:16px}.world-phone__header{font-size:11px}}
+@media(prefers-reduced-motion:reduce){.world-phone *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+.world-phone__detail-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.world-phone__detail-heading strong { font-size:20px; }
+.world-phone__business-hours { display:grid; align-content:start; gap:5px; font-size:12px; }
+.world-phone__business-hours p { margin:0; }
+.world-phone__business-hours button { text-align:left; width:fit-content; border:0; padding:6px 0; color:#bbbcc4; }
+.world-phone__detail-actions { display:flex; gap:8px; margin-top:12px; }
+.world-phone__detail-actions button { flex:1; }
+.world-phone__ride-page { height:100%; display:flex; flex-direction:column; min-height:0; }
+.world-phone__ride-page>.world-phone__map-viewport { flex:1; min-height:140px; }
+.world-phone__ride-sheet { flex:none; background:#26272d; border:1px solid var(--phone-border); border-radius:18px 18px 10px 10px; padding:12px; max-height:65%; overflow:auto; }
+.world-phone__ride-sheet[data-expanded=true] { height:calc(100% - 190px); max-height:calc(100% - 190px); }
+.world-phone__sheet-handle { display:block; width:100%; height:18px; padding:7px; border:0; background:transparent; touch-action:none; cursor:ns-resize!important; }
+.world-phone__sheet-grip { display:block; margin:0 auto; width:35px; height:3px; border-radius:5px; background:#66676e; }
+.world-phone__ride-sheet h3 { margin:8px 0; font-size:16px; }
+.world-phone__ride-sheet p { font-size:12px; color:var(--phone-muted); }
+.world-phone__ride-destination { justify-content:space-between; border-bottom:1px solid var(--phone-border); }
+.world-phone__ride-destination small { display:block; }
+.world-phone__ride-change { border:0; background:none; font-size:11px!important; color:var(--phone-muted)!important; padding:4px 0; }
+.world-phone__vehicles { display:grid; gap:7px; margin:8px 0; }
+.world-phone__vehicles button { display:grid; grid-template-columns:48px 1fr auto; gap:0 8px; align-items:center; border:1px solid var(--phone-border); border-radius:9px; background:#ffffff05; text-align:left; padding:9px; }
+.world-phone__vehicles svg { width:45px; grid-row:span 2; }
+.world-phone__vehicles button>small { font-size:9px; }
+.world-phone__vehicles button>small:last-child { grid-column:3; grid-row:1 / 3; }
+.world-phone__ride-sheet>.world-phone__list-action { width:100%; padding:12px; margin-top:7px; }
+.world-phone__body,.world-phone__panel { overflow:clip; }
+.world-phone__map-frame .world-phone__map-viewport { min-height:120px; }
+.world-phone__app-view[data-app-view=map],.world-phone__app-view[data-app-view=ride] { overflow:clip; }
+.world-phone__app-view[data-app-view=map] { transform-origin:16% 76%; }
+.world-phone__app-view[data-app-view=ride] { transform-origin:50% 76%; }
+.world-phone__app-view[data-app-view=contacts] { transform-origin:84% 76%; }
+.world-phone__app-view[data-app-view=feedback] { transform-origin:16% 90%; }
+.world-phone__app-view.is-leaving { animation:phone-app-exit 140ms ease-in forwards; }
+@keyframes phone-app-exit{to{opacity:0;transform:scale(.1)}}
+.world-phone .world-phone__map-region:focus-visible,.world-phone .world-phone__map-poi:focus-visible { outline:none; }
+.world-phone__map-region:focus-visible circle,.world-phone__map-poi:focus-visible circle { stroke:#eee; stroke-width:.4; }
+.world-phone__contact-avatar svg { width:32px; height:32px; }
+.world-phone__contact-profile>span svg,.world-phone__call-avatar svg { width:54px; height:54px; }
+.world-phone__call-history>span,.world-phone__call-history>small { display:block; }
+.world-phone__call-history>span { margin-bottom:8px; }

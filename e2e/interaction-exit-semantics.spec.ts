@@ -1,3 +1,5 @@
+import { registerPhoneTestNetwork } from './phoneTestNetwork'
+registerPhoneTestNetwork()
 import {writeFile} from 'node:fs/promises'
 import {expect,test,type Page} from '@playwright/test'
 import {mainlineScenes} from '../src/center/runtime/mainlineScenes'
@@ -52,35 +54,36 @@ async function enablePhone(page:Page){
  await page.locator('[data-scene-dialogue-shield="true"]').click({force:true})
  await page.getByRole('button',{name:'换手机',exact:true}).click()
  await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-device','inner')
- await page.getByLabel('收起手机').click()
+ await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
 }
 async function ride(page:Page,destination:string,close=true){
  if(!await page.locator('.world-phone.is-open').count())await page.getByLabel('打开手机').click()
  await page.locator('[data-app="ride"]').click()
  await page.getByRole('button',{name:new RegExp(destination+'.*从当前位置出发')}).click()
- await page.getByRole('button',{name:'呼叫车辆前往'+destination,exact:true}).click()
- if(close)await page.getByLabel('收起手机').click()
+ await page.locator('.world-phone').getByRole('button',{name:/^快车/}).click(); await page.getByRole('button',{name:'确认叫车',exact:true}).click(); await expect(page.locator('[data-ride-order="true"]')).toBeVisible()
+ if(close) { await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed') }
 }
 async function deadline(page:Page,id:string){return page.evaluate(id=>JSON.parse(localStorage.getItem('newtone-player-save-v1')!).sceneState[id].rideDriverArrivesAt,id)}
 async function travel(page:Page,id:string){await expect(page.locator('.center-long-distance-travel')).toBeVisible({timeout:15000});await expect(page.locator('.scene-shell[data-mainline-scene="'+id+'"]')).toBeVisible({timeout:20000});await expect(page.locator('.center-long-distance-travel')).toHaveCount(0,{timeout:10000})}
 test('Street stationary exit boards at real arrival deadline outside former circle',async({page},info)=>{
  test.setTimeout(60000);await enablePhone(page)
- await ride(page,'商业街');await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({timeout:15000});await page.locator('[data-notification-app="ride"]').click();await page.getByLabel('收起手机').click();await point(page,{x:10,y:50});await travel(page,'commercial-street')
+ await ride(page,'商业街');await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({timeout:15000});await page.locator('[data-notification-app="ride"]').click();await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed');await point(page,{x:10,y:50});await travel(page,'commercial-street')
  // Normal walking to the entrance's upper public lane, no save/state injection.
- if(await page.locator('.world-phone.is-open').count())await page.getByLabel('收起手机').click()
+ if(await page.locator('.world-phone.is-open').count())await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
  await point(page,{x:14,y:46});await arrived(page,{x:14,y:46})
- await point(page,{x:12.3,y:38});await arrived(page,{x:12.3,y:38})
+ await point(page,{x:11.8,y:38});await arrived(page,{x:11.8,y:38})
  // Prepare both input locations before ordering; send genuine mouse clicks without post-click locator settling overhead.
- await page.getByLabel('打开手机').click();await page.locator('[data-app="ride"]').click()
+ if(!await page.locator('.world-phone.is-open').count())await page.getByLabel('打开手机').click();await page.locator('[data-app="ride"]').click()
  await page.getByRole('button',{name:/中枢院.*从当前位置出发/}).click()
- const orderButton=await page.getByRole('button',{name:'呼叫车辆前往中枢院',exact:true}).boundingBox(),exitScreen=await screenPoint(page,{x:11.8,y:38})
+ await page.getByRole('button',{name:/^快车/}).click()
+ const orderButton=await page.getByRole('button',{name:'确认叫车',exact:true}).boundingBox()
  const observation=page.evaluate(async()=>{
   const samples:any[]=[];let due=0
   while(true){await new Promise<void>(r=>requestAnimationFrame(()=>r()));const state=JSON.parse(localStorage.getItem('newtone-player-save-v1')!).sceneState['commercial-street'];due=state.rideDriverArrivesAt??due;const a=document.querySelector<HTMLElement>('.scene-shell[data-mainline-scene="commercial-street"] [data-actor-id="protagonist"]');if(!a||due&&Date.now()>due+200)break;samples.push({t:Date.now(),x:parseFloat(a.style.left),y:parseFloat(a.style.top),moving:a.classList.contains('is-moving')})}
   return {samples,due}
  })
  await page.mouse.click(orderButton!.x+orderButton!.width/2,orderButton!.y+orderButton!.height/2)
- await page.mouse.click(exitScreen.x,exitScreen.y)
+
  const {samples,due}=await observation,stationary=samples.find(p=>p.x<=12&&!p.moving),before=stationary
  expect(stationary).toBeDefined();expect(stationary.t).toBeLessThan(due)
  expect(isMainlineExternalExitTriggered(before,mainlineScenes['commercial-street'].externalExits[0],mainlineScenes['commercial-street'])).toBe(true)
@@ -92,7 +95,7 @@ test('Street stationary exit boards at real arrival deadline outside former circ
 for(const side of [0,1]) test('Office real exit '+side+' boards after driver arrival',async({page})=>{
  await enablePhone(page);await ride(page,'商业街')
  await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({timeout:15000})
- await page.locator('[data-notification-app="ride"]').click();await page.getByLabel('收起手机').click()
+ await page.locator('[data-notification-app="ride"]').click();await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
  const exit=mainlineScenes['zhongshuyuan-office'].externalExits[side],y=exit.triggerSpan!.start+.5
  await point(page,{x:exit.threshold+exit.direction,y})
  await travel(page,'commercial-street')
@@ -100,21 +103,24 @@ for(const side of [0,1]) test('Office real exit '+side+' boards after driver arr
 
 test('real reading defers arrival notification and remains able to board after finishing',async({page},info)=>{
  await page.setViewportSize({width:390,height:844});await enablePhone(page)
- const plant=page.locator('[data-object-id="zhongshuyuan-office-port-plant-left-bottom"]')
- await plant.click();await expect(page.locator('[data-scene-echo="zhongshuyuan-office-port-plant-left-bottom"]')).toBeVisible();await finishObservation(page)
+ const plant=page.locator('[data-object-id="zhongshuyuan-office-plant"]')
+ await plant.click();await expect(page.locator('[data-scene-echo="zhongshuyuan-office-plant"]')).toBeVisible();await finishObservation(page)
  await page.getByLabel('打开手机').click();await page.locator('[data-app="ride"]').click()
  await page.getByRole('button',{name:/商业街.*从当前位置出发/}).click()
- const button=await page.getByRole('button',{name:'呼叫车辆前往商业街',exact:true}).boundingBox(),plantRect=await plant.boundingBox()
+ await page.getByRole('button',{name:/^快车/}).click()
+ const button=await page.getByRole('button',{name:'确认叫车',exact:true}).boundingBox(),plantRect=await plant.boundingBox()
  await page.mouse.click(button!.x+button!.width/2,button!.y+button!.height/2)
+ await expect(page.locator('[data-ride-order="true"]')).toBeVisible()
+ await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
  await page.mouse.click(plantRect!.x+plantRect!.width/2,plantRect!.y+plantRect!.height/2)
- await expect(page.locator('[data-scene-echo="zhongshuyuan-office-port-plant-left-bottom"]')).toBeVisible()
+ await expect(page.locator('[data-scene-echo="zhongshuyuan-office-plant"]')).toBeVisible()
  const due=await deadline(page,'zhongshuyuan-office'),at=await position(page)
  await expect.poll(()=>Date.now(),{timeout:15000}).toBeGreaterThanOrEqual(due)
  await expect(page.locator('[data-scene-dialogue-shield="true"]')).toBeVisible()
  await expect(page.locator('.center-long-distance-travel')).toHaveCount(0)
  expect(await position(page)).toEqual(at)
  await finishObservation(page)
- if(await page.locator('.world-phone.is-open').count())await page.getByLabel('收起手机').click()
+ if(await page.locator('.world-phone.is-open').count())await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
  await point(page,{x:9,y:50});await travel(page,'commercial-street')
  await writeFile(info.outputPath('reading-arrival.json'),JSON.stringify({at,driverArrivesAt:due,readingUninterrupted:true,boardedAfterEnteringExit:true}))
 })

@@ -1,18 +1,22 @@
+import { registerPhoneTestNetwork } from './phoneTestNetwork'
+registerPhoneTestNetwork()
 import { expect, test } from '@playwright/test'
 
 test('Phone home uses story time and app navigation returns through the home indicator', async ({ page }) => {
   const consoleErrors: string[] = []
   page.on('pageerror', error => consoleErrors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()) })
+  await page.route('**/rest/v1/analytics_events**', route => route.fulfill({ status:201, body:'' }))
   await page.goto('/?scene=jijia-ancestral-home')
 
   const phone = page.locator('.world-phone')
   await page.getByRole('button', { name: '打开手机' }).click()
   await expect(phone).toHaveAttribute('data-phone-phase', 'open')
-  await expect(phone.getByLabel('剧情日历')).toContainText('四月 · 周六')
-  await expect(phone.getByLabel('剧情日历')).toContainText('故事日 · 第一日')
+  await expect(phone.getByLabel('剧情日历')).toContainText('四月')
+  await expect(phone.locator('[aria-current="date"]')).toHaveText('12')
+  await expect(phone.getByLabel('剧情日历')).not.toContainText('故事日')
   await expect(phone.locator('.world-phone__world-status')).toContainText('10:00')
-  await expect(phone.locator('.world-phone__apps button')).toHaveText(['地图', '叫车', '联系人', '备忘录', '反馈'])
+  await expect(phone.locator('.world-phone__apps button')).toHaveText(['地图', '叫车', '联系人', '反馈'])
 
   await phone.locator('[data-app="contacts"]').click()
   await expect(phone.getByRole('region', { name: '联系人' })).toBeVisible()

@@ -1,3 +1,5 @@
+import { registerPhoneTestNetwork } from './phoneTestNetwork'
+registerPhoneTestNetwork()
 import { expect, test, type Page } from '@playwright/test'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { navigationBarrierBlocksTravel } from '../src/center/runtime/scenePathfinding'
@@ -29,11 +31,17 @@ async function moveAcrossStreet(page: Page, targetX: number) {
   for (let step = 0; step < 30; step += 1) {
     if (!await page.locator('.scene-shell[data-mainline-scene="commercial-street"]').count()) return
     await reading(page)
+    if(await page.locator('.world-phone.is-open').count()) await page.keyboard.press('Escape')
+    await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
     const actor = page.locator('[data-actor-id="protagonist"]')
     const x = await actor.evaluate(element => parseFloat((element as HTMLElement).style.left))
     if (Math.abs(x - targetX) < 2) return
     await point(page, { x: x + Math.sign(targetX - x) * Math.min(22, Math.abs(targetX - x)), y: 46 })
-    await expect.poll(async () => Math.abs(await actor.evaluate(element => parseFloat((element as HTMLElement).style.left)) - x), { timeout: 15000 }).toBeGreaterThan(0.1)
+    await expect.poll(async () => {
+      if(!await page.locator('.scene-shell[data-mainline-scene="commercial-street"]').count()) return 1
+      return Math.abs(await actor.evaluate(element => parseFloat((element as HTMLElement).style.left)) - x)
+    }, { timeout: 15000 }).toBeGreaterThan(0.1)
+    if(!await page.locator('.scene-shell[data-mainline-scene="commercial-street"]').count()) return
     await expect(actor).not.toHaveClass(/is-moving/, { timeout: 15000 })
   }
   throw new Error('Street walking did not reach its target')
@@ -44,12 +52,19 @@ async function requestRide(page: Page, destination: string) {
   if (!await phone.getAttribute('class').then(c => c?.includes('is-open'))) await page.getByLabel('打开手机').click()
   if (!await phone.locator('section[aria-label="叫车"]').isVisible()) await phone.locator('[data-app="ride"]').click()
   await phone.getByRole('button', { name: new RegExp(destination + '.*从当前位置出发') }).click()
-  await phone.getByRole('button', { name: '呼叫车辆前往' + destination, exact: true }).click()
+  await phone.getByRole('button',{name:/^快车/}).click(); await phone.getByRole('button',{name:'确认叫车',exact:true}).click(); await expect(page.locator('[data-ride-order="true"]')).toBeVisible()
 }
 async function pickup(page: Page, targetScene: string) {
-  if (await page.locator('.world-phone.is-open').count()) await page.getByLabel('收起手机').click()
+  if (await page.locator('.world-phone.is-open').count()) await page.keyboard.press('Escape')
+  await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
+  await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({timeout:30000})
+  await page.locator('[data-notification-app="ride"]').click()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
   const sceneId = await page.locator('.scene-shell[data-mainline-scene]').getAttribute('data-mainline-scene')
-  await point(page, mainlineRidePickupPositions(sceneId as keyof typeof mainlineScenes)[0])
+  const exit=mainlineScenes[sceneId as keyof typeof mainlineScenes].externalExits[0]
+  const pickup=mainlineRidePickupPositions(sceneId as keyof typeof mainlineScenes)[0]
+  await point(page, {...pickup,[exit.axis]:pickup[exit.axis]+exit.direction})
   await expect(page.locator('.center-long-distance-travel')).toBeVisible({ timeout: 15000 })
   await expect(page.locator('.scene-shell[data-mainline-scene="' + targetScene + '"]')).toBeVisible({ timeout: 15000 })
   await expect(page.locator('.center-long-distance-travel')).toHaveCount(0, { timeout: 10000 })
@@ -105,7 +120,7 @@ test('real Cafe ride order waits independently, boards only at Street pickup, an
   await page.screenshot({ path: info.outputPath('cafe-ride-eta.png') })
   await expect(order).toContainText('请回到商业街口等车')
   await expect(order).not.toContainText(/第一章|上车点/)
-  await page.getByLabel('收起手机').click()
+  await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
   const staffArea = mainlineScenes['commercial-cafe'].accessRegions.find(region => region.requiredAccess === 'staff')!
   await point(page, { x: staffArea.x + staffArea.width / 2, y: staffArea.y + staffArea.height / 2 })
   await expect(page.locator('[data-scene-dialogue-shield="true"]')).toBeVisible({ timeout: 15000 })
@@ -131,7 +146,7 @@ test('real Cafe ride order waits independently, boards only at Street pickup, an
   await expect(page.locator('[data-app="ride"]')).toHaveAttribute('data-unread', 'false')
   await page.locator('[data-app="ride"]').click()
   await page.screenshot({ path: info.outputPath('cafe-driver-waiting.png') })
-  await page.getByLabel('收起手机').click()
+  await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
   await page.locator('[data-focus-target-group="door:street-cafe-entry"]').first().click()
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible({ timeout: 15000 })
   await expect(page.locator('.center-local-slide__surface--target .scene-shell')).toHaveCount(0)

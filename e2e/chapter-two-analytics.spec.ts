@@ -1,3 +1,5 @@
+import { registerPhoneTestNetwork } from './phoneTestNetwork'
+registerPhoneTestNetwork()
 import { expect, test, type Page } from '@playwright/test'
 import { commercialStreetQuestionNarrativeAnchor } from '../src/center/runtime/commercialStreetQuestionNarrative'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
@@ -87,9 +89,9 @@ test('Chapter Two emits constrained browser analytics without requiring a real d
   const questionDialogue = page.locator('[data-scene-dialogue="commercial-street-question"]')
   await expect(shield).toBeVisible({ timeout: 15_000 })
   await advanceSceneDialogue(page, questionDialogue)
-  await expect(questionDialogue).toContainText('不，不会认错的。')
+  await expect(questionDialogue).toContainText('不不会认错的')
   await advanceSceneDialogue(page, questionDialogue)
-  await expect(questionDialogue).toContainText('那张脸修杰太过于熟悉。')
+  await expect(questionDialogue).toContainText('那张脸修杰太过于熟悉')
   const questionCompleted = waitForAnalyticsEvent(page, 'commercial_question_completed')
   await advanceSceneDialogue(page, questionDialogue)
   await expect(questionDialogue).toBeHidden({ timeout: 5_000 })
@@ -129,10 +131,10 @@ test('Chapter Two emits constrained browser analytics without requiring a real d
   const teaReady = waitForAnalyticsEvent(page, 'milk_tea_order_ready')
   await page.reload()
   await teaReady
-  await page.getByLabel('打开手机').click()
-  await phone.locator('[data-app="milk-tea"]').click()
+  await expect(phone.locator('[data-notification-app="milk-tea"]')).toBeVisible()
+  await phone.locator('[data-notification-app="milk-tea"]').click()
   await expect(phone.getByText('已完成', { exact: true })).toBeVisible()
-  await page.getByLabel('收起手机').click()
+  await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
   const teaPickedUp = waitForAnalyticsEvent(page, 'milk_tea_order_picked_up')
   await triggerStorefrontInteraction(page, '奶茶店')
   await expect(page.locator('.scene-protagonist__drink-icon--milk-tea')).toBeVisible({ timeout: 15_000 })
@@ -182,7 +184,7 @@ test('Café records only durable story milestones and completion transitions', a
   const readyToLeave = waitForAnalyticsEvent(page, 'cafe_ready_to_leave')
   const shield = page.locator('[data-scene-dialogue-shield="true"]')
   await expect(shield).toBeVisible({ timeout: 15_000 })
-  await dismissCompletedDialogue(page, page.locator('[data-scene-dialogue]').filter({ hasText: '好。' }))
+  await dismissCompletedDialogue(page, page.locator('[data-scene-dialogue]').filter({ hasText: '好' }))
   await expect(shield).toHaveCount(0)
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveAttribute('data-commercial-cafe-status', 'ready-to-leave')
   await readyToLeave

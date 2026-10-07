@@ -5,6 +5,12 @@ export type MainlineStoryStage = 'opening' | 'commercial-street' | 'cafe' | 'yon
 export type MainlineStoryClock = {
   dayId: 'story-day-001'
   stage: MainlineStoryStage
+  month?: number
+  day?: number
+  weekday?: number
+  hour?: number
+  minute?: number
+  weatherCycle?: 'sunny' | 'rainy'
 }
 
 const stageOrder: Record<MainlineStoryStage, number> = {
@@ -23,7 +29,7 @@ export function mainlineStoryStageForScene(sceneId: MainlineSceneId): MainlineSt
 }
 
 export function createInitialMainlineStoryClock(sceneId: MainlineSceneId): MainlineStoryClock {
-  return { dayId: 'story-day-001', stage: mainlineStoryStageForScene(sceneId) ?? 'opening' }
+  return storyClockForStage(mainlineStoryStageForScene(sceneId) ?? 'opening')
 }
 
 export function advanceMainlineStoryClock(
@@ -32,22 +38,20 @@ export function advanceMainlineStoryClock(
 ): MainlineStoryClock {
   const stage = mainlineStoryStageForScene(sceneId)
   if (!stage || stageOrder[stage] <= stageOrder[clock.stage]) return clock
-  return { ...clock, stage }
+  return storyClockForStage(stage)
+}
+
+export function storyClockForStage(stage: MainlineStoryStage): MainlineStoryClock {
+  const times = { opening: [10, 0], 'commercial-street': [11, 0], cafe: [12, 0], yonghe: [12, 30] }
+  const [hour, minute] = times[stage]
+  return { dayId: 'story-day-001', stage, month: 4, day: 12, weekday: 6, hour, minute, weatherCycle: 'sunny' }
 }
 
 export function mainlineStoryTimeLabel(stage: MainlineStoryStage): string {
-  switch (stage) {
-    case 'opening': return '10:00'
-    case 'commercial-street': return '上午后段'
-    case 'cafe': return '午休时段'
-    case 'yonghe': return '午间至下午早段'
-  }
+  const clock = storyClockForStage(stage)
+  return `${String(clock.hour).padStart(2, '0')}:${String(clock.minute).padStart(2, '0')}`
 }
-
-export function mainlineStoryDateLabel(): string {
-  return '四月 · 周六'
-}
-
-export function mainlineWorldWeatherLabel(device: 'surface' | 'inner'): string {
-  return device === 'inner' ? '晴天周期 · 第六天' : '表世界'
+export function mainlineStoryDateLabel(): string { return '4月12日' }
+export function mainlineWorldWeatherLabel(_device: 'surface' | 'inner', cycle: 'sunny' | 'rainy' = 'sunny'): string {
+  return cycle === 'rainy' ? '🌧 14°' : '☀ 18°'
 }

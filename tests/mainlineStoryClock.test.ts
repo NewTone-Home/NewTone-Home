@@ -20,8 +20,8 @@ function createStorage() {
 
 describe('story clock', () => {
   it('uses narrative calendar labels rather than the device date', () => {
-    expect(mainlineStoryDateLabel()).toBe('四月 · 周六')
-    expect(mainlineWorldWeatherLabel('inner')).toBe('晴天周期 · 第六天')
+    expect(mainlineStoryDateLabel()).toBe('4月12日')
+    expect(mainlineWorldWeatherLabel('inner')).toBe('☀ 18°')
     expect(mainlineStoryTimeLabel('opening')).toBe('10:00')
   })
 
@@ -44,7 +44,7 @@ describe('story clock', () => {
     storage.setItem(PLAYER_SAVE_STORAGE_KEY, JSON.stringify(oldSave))
     const loaded = loadPlayerSave(storage)
 
-    expect(loaded.storyClock).toEqual({ dayId: 'story-day-001', stage: 'cafe' })
+    expect(loaded.storyClock).toMatchObject({ dayId: 'story-day-001', stage: 'cafe', month:4, day:12, weekday:6, hour:12, minute:0, weatherCycle:'sunny' })
     savePlayerSave(loaded, storage, 10)
     expect(JSON.parse(storage.getItem(PLAYER_SAVE_STORAGE_KEY) ?? '{}').storyClock).toEqual(loaded.storyClock)
   })

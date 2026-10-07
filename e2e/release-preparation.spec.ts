@@ -1,3 +1,5 @@
+import { registerPhoneTestNetwork } from './phoneTestNetwork'
+registerPhoneTestNetwork()
 import { expect, test } from '@playwright/test'
 const copy = {
   zh: {
@@ -57,9 +59,9 @@ test('Surface empty contacts and Inner Lao Zhou-only contacts with working messa
   await page.getByLabel('打开手机').click()
   await page.locator('[data-app="contacts"]').click()
   await expect(page.getByText('暂无联系人', { exact: true })).toBeVisible()
-  await expect(page.getByText('当前手机没有里世界联系人。', { exact: true })).toBeVisible()
+  await expect(page.getByText('当前手机没有里世界联系人。', { exact: true })).toHaveCount(0)
   await expect(page.locator('.world-phone__contact-row')).toHaveCount(0)
-  await page.getByLabel('收起手机').click()
+  await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
   await page.locator('[data-object-id="zhongshuyuan-office-desk"]').click()
   await expect(page.locator('[data-scene-echo="zhongshuyuan-office-desk"]')).toHaveAttribute('data-scene-observation-typing', 'false', { timeout: 15000 })
   await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
@@ -76,6 +78,8 @@ test('Surface empty contacts and Inner Lao Zhou-only contacts with working messa
   await expect(page.getByRole('region', { name: '与老周的短信' })).toBeVisible()
   await expect(page.locator('.world-phone__message-bubble')).toHaveText(['陈副部长失踪了。', '什么时候有空。', '周六。', '老地方。', '好。'])
   await expect(page.getByText('若雨', { exact: true })).toHaveCount(0)
+  await page.getByLabel('返回联系人').click()
+  await expect(page.getByRole('region', { name: '老周联系人详情' })).toBeVisible()
   await page.getByLabel('返回联系人').click()
   await expect(page.locator('.world-phone__contact-row')).toHaveCount(1)
 })
