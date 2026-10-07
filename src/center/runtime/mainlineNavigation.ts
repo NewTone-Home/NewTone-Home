@@ -9,6 +9,8 @@ import { containsDoorRegion, doorRegionSide, doorwayBoundaryPoint, doorwayLegalT
 import { sharedFurnitureGeometry } from './twoSeatFurniture'
 import { mainlineNpcStagedInteractionContactEntityId, mainlineNpcStagedPoint, mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 
+export const MAINLINE_STOREFRONT_DIRECT_INTERACTION_RANGE = 2.5
+
 export type MainlineNavigationOptions = {
   actorRadius?: number
   /** Current rendered actor dimensions, shared by occupancy and path planning. */
@@ -1465,9 +1467,9 @@ export function resolveMainlineInteractionCandidates(
 
 /** Continuous range ownership stays separate from route destination sampling. */
 export function resolveMainlineStorefrontInteraction(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): MainlineInteractionResolution {
-  const { center, outward, radius } = mainlineStorefrontInteractionRegion(scene, storefront)
+  const { center, outward } = mainlineStorefrontInteractionRegion(scene, storefront)
   const dx = from.x - center.x, dy = from.y - center.y
-  if (dx * outward.x + dy * outward.y >= 0 && Math.hypot(dx, dy) <= radius + .001 && isWalkableMainlinePoint(from, scene, layout, options)) return { target: from, path: [from], inRange: true }
+  if (dx * outward.x + dy * outward.y >= 0 && Math.hypot(dx, dy) <= MAINLINE_STOREFRONT_DIRECT_INTERACTION_RANGE + .001 && isWalkableMainlinePoint(from, scene, layout, options)) return { target: from, path: [from], inRange: true }
   const candidates = mainlineStorefrontInteractionCandidates(scene, storefront, from, mainlineActorFootprint(scene, options, from))
   const resolved = resolveMainlineInteractionCandidates(scene, from, candidates, 0, layout, options)
   return { ...resolved, inRange: false }
