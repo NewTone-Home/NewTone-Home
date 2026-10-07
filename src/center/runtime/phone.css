@@ -176,7 +176,7 @@
 .world-phone__app-view[data-app-view=feedback] { transform-origin:16% 90%; }
 .world-phone__app-view.is-leaving { animation:phone-app-exit 140ms ease-in forwards; }
 @keyframes phone-app-exit{to{opacity:0;transform:scale(.1)}}
-.world-phone .world-phone__map-region:focus-visible,.world-phone .world-phone__map-poi:focus-visible { outline:none; }
+.world-phone .world-phone__map-region:focus,.world-phone .world-phone__map-poi:focus { outline:none; }
 .world-phone__map-region:focus-visible circle,.world-phone__map-poi:focus-visible circle { stroke:#eee; stroke-width:.4; }
 .world-phone__contact-avatar svg { width:32px; height:32px; }
 .world-phone__contact-profile>span svg,.world-phone__call-avatar svg { width:54px; height:54px; }
