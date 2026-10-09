@@ -1,5 +1,5 @@
 const segmentBoundaries = new Set(Array.from('，。？！；：、,!?;:'))
-const closingMarks = new Set(Array.from('”’\"\'」』）)】〕］》〉'))
+const closingMarks = new Set(Array.from('”’"\'」』）)】〕］》〉'))
 
 /** Hide only the current segment's boundary, keeping its closing marks intact. */
 export function mainlineVisiblePresentationText(source: string) {
