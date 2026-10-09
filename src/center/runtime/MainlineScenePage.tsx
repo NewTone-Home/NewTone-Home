@@ -1350,7 +1350,13 @@ export function MainlineScenePage({
   }, [])
 
   useEffect(() => onPositionChange?.(position), [onPositionChange, position])
-  useEffect(() => onRuntimePositionChange?.(scene.id, position, { layout, screenMetrics, cameraOffset }), [cameraOffset, layout, onRuntimePositionChange, position, scene.id, screenMetrics])
+  const rideWalkingStart = useMemo(() => activePlayerSeatId
+    ? mainlineInteractionTarget(scene, activePlayerSeatId, position, layout, undefined, {geometrySnapshot,screenMetrics,actorId:'protagonist'})
+    : undefined, [activePlayerSeatId,geometrySnapshot,layout,position,scene,screenMetrics])
+  useEffect(() => onRuntimePositionChange?.(scene.id, position, {
+    layout, screenMetrics, cameraOffset,
+    ...(rideWalkingStart ? { walkingStart: rideWalkingStart } : {}),
+  }), [cameraOffset, layout, onRuntimePositionChange, position, rideWalkingStart, scene.id, screenMetrics])
   useEffect(() => {
     onPlayerMovementStateChange?.(moving)
     return () => onPlayerMovementStateChange?.(false)

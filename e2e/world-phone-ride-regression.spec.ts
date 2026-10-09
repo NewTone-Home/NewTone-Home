@@ -171,7 +171,7 @@ async function callRide(page: Page, destination: string) {
 test('Office right external exit boards after a real driver notification card',async({page},info)=>{
   await enableInnerPhone(page)
   await callRide(page,'商业街')
-  await expect(page.locator('[data-ride-order="true"]')).toContainText('请到办公室出口等车')
+  await expect(page.locator('[data-ride-order="true"]')).toContainText('目的地')
   await expect(page.locator('[data-ride-order="true"]')).not.toContainText(/第一章|第二章|第三章/)
   await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
   await openRideArrivalNotification(page, 15000)
@@ -196,7 +196,7 @@ test('Mining guidance and boarding use the original external entrance',async({pa
   await callRide(page,'中枢院')
   await openRideArrivalNotification(page, 10000)
   await page.locator('[data-notification-app="ride"]').click()
-  await expect(page.locator('[data-ride-order="true"]')).toContainText('请到矿区入口等车')
+  await expect(page.locator('[data-ride-order="true"]')).toContainText('目的地')
   await expect(page.locator('[data-ride-order="true"]')).not.toContainText(/第一章|第二章|第三章/)
   await page.screenshot({path:info.outputPath('mining-exit-guidance.png')})
   await walkToExit(page)

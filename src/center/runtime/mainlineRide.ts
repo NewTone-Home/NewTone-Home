@@ -13,8 +13,10 @@ export const mainlineRideZones: readonly { pickupSceneId: MainlineSceneId; scene
   { pickupSceneId: 'commercial-street', scenes: ['commercial-street', 'commercial-cafe'], waitingLabel: '商业街口', guidanceText: '请回到商业街口等车' },
   { pickupSceneId: 'yonghe-mining-perimeter', scenes: ['yonghe-mining-perimeter', 'yonghe-eatery'], waitingLabel: '矿区入口', guidanceText: '请到矿区入口等车' },
 ]
-export type MainlineRideOrder = { sourceSceneId: MainlineSceneId; targetSceneId: MainlineSceneId; driverArrivesAt: number }
-export type MainlineRideWalkingContext = { layout: SceneLayout; screenMetrics: SceneScreenMetrics; cameraOffset?: Point }
+export type MainlineRideVehicle = '快车' | '舒适型' | '商务型'
+export type MainlineRideOrder = { sourceSceneId: MainlineSceneId; targetSceneId: MainlineSceneId; driverArrivesAt: number; vehicle?: MainlineRideVehicle; requestedAt?: number; arrivalLabel?: string }
+export type MainlineRideRequestResult = { ok: true } | { ok: false; reason: string }
+export type MainlineRideWalkingContext = { layout: SceneLayout; screenMetrics: SceneScreenMetrics; cameraOffset?: Point; walkingStart?: Point }
 export function mainlineRideZone(sceneId: MainlineSceneId) { return mainlineRideZones.find(zone => zone.scenes.includes(sceneId)) }
 /** Waiting positions are the actual external exits, never the arrival spawn. */
 export function mainlineRidePickupPositions(sceneId: MainlineSceneId): Point[] {
@@ -40,7 +42,7 @@ export function mainlineRideWalkingEtaMs(sceneId: MainlineSceneId, position: Poi
   const zone = mainlineRideZone(sceneId)
   if (!zone) return null
   let currentSceneId = sceneId
-  let start = position
+  let start = context.walkingStart ?? position
   let duration = 0
   const visited = new Set<MainlineSceneId>()
   while (!visited.has(currentSceneId)) {
@@ -69,13 +71,16 @@ export function mainlineRideWalkingEtaMs(sceneId: MainlineSceneId, position: Poi
   return null
 }
 export function mainlineRideOrderPatch(order: MainlineRideOrder | null): PlayerSceneState {
-  return { rideDestination: order?.targetSceneId ?? null, rideDriverArrivesAt: order?.driverArrivesAt ?? null }
+  return { rideDestination: order?.targetSceneId ?? null, rideDriverArrivesAt: order?.driverArrivesAt ?? null, rideVehicle: order?.vehicle ?? null, rideRequestedAt: order?.requestedAt ?? null, rideArrivalLabel: order?.arrivalLabel ?? null }
 }
 export function mainlineRideOrderFromState(sceneState: Partial<Record<MainlineSceneId, PlayerSceneState>>): MainlineRideOrder | null {
   for (const zone of mainlineRideZones) {
     const state = sceneState[zone.pickupSceneId]
     if (typeof state?.rideDestination === 'string' && mainlineScenes[state.rideDestination as MainlineSceneId] && typeof state.rideDriverArrivesAt === 'number') {
-      return { sourceSceneId: zone.pickupSceneId, targetSceneId: state.rideDestination as MainlineSceneId, driverArrivesAt: state.rideDriverArrivesAt }
+      return { sourceSceneId: zone.pickupSceneId, targetSceneId: state.rideDestination as MainlineSceneId, driverArrivesAt: state.rideDriverArrivesAt,
+        ...(['快车','舒适型','商务型'].includes(String(state.rideVehicle)) ? {vehicle:state.rideVehicle as MainlineRideVehicle} : {}),
+        ...(typeof state.rideRequestedAt==='number' && Number.isFinite(state.rideRequestedAt) ? {requestedAt:state.rideRequestedAt} : {}),
+        ...(typeof state.rideArrivalLabel==='string' && /^\d{2}:\d{2}$/.test(state.rideArrivalLabel) ? {arrivalLabel:state.rideArrivalLabel} : {}) }
     }
   }
   return null

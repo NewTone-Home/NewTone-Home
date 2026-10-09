@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { MainlineScenePage } from './runtime/MainlineScenePage'
 import { LongDistanceTravel } from './runtime/LongDistanceTravel'
 import { enqueuePhoneNotification, phoneHasAutomaticNotification, presentPhoneNotifications, readPhoneNotifications } from './runtime/phoneNotifications'
-import { mainlineRideWaitingGuidance } from './runtime/mainlineRide'
 import { WorldPhone } from './runtime/WorldPhone'
 import {
   mainlineRespawnSceneId,
@@ -524,28 +523,32 @@ export default function CenterExperience({
   useEffect(() => {
     if (!rideOrder) return
     const arrived = () => {
-      notifyPhone({ id: 'ride:' + rideOrder.sourceSceneId + ':' + rideOrder.targetSceneId + ':' + rideOrder.driverArrivesAt, app: 'ride', title: '司机已到达', body: '正在' + mainlineRideWaitingGuidance(rideOrder.sourceSceneId).waitingLabel + '等你' })
+      notifyPhone({ id: 'ride:' + rideOrder.sourceSceneId + ':' + rideOrder.targetSceneId + ':' + rideOrder.driverArrivesAt, app: 'ride', title: '司机已到达', body: '请前往上车点' })
       const current = latestWorldPositionRef.current
       if (current) rideBoardingRef.current(current.sceneId, current.position, current.context)
     }
     const timer = window.setTimeout(arrived, Math.max(0, rideOrder.driverArrivesAt - Date.now()))
     return () => window.clearTimeout(timer)
   }, [notifyPhone, rideOrder])
-  const handleRideRequest = useCallback((device, destinationSceneId) => {
-    if (rideOrder || phoneRideAvailability(device, worldLayerForScene(route.sceneId)) !== 'available') return
+  const handleRideRequest = useCallback((device, destinationSceneId, presentation) => {
+    if (rideOrder) return { ok: false, reason: '已有进行中的订单' }
+    if (phoneRideAvailability(device, worldLayerForScene(route.sceneId)) !== 'available') return { ok: false, reason: '当前手机无法使用叫车服务' }
     const zone = mainlineRideZone(route.sceneId)
     const intent = zone && mainlineLongDistanceTravelIntentForRide(zone.pickupSceneId, destinationSceneId)
     const current = latestWorldPositionRef.current
-    if (!intent || current?.sceneId !== route.sceneId) return
+    if (!intent) return { ok: false, reason: '此目的地暂时无法叫车前往' }
+    if (current?.sceneId !== route.sceneId) return { ok: false, reason: '当前位置尚未就绪，请稍后重试' }
     const etaMs = mainlineRideWalkingEtaMs(route.sceneId, current.position, current.context)
-    if (etaMs === null) return
-    const order = { sourceSceneId: zone.pickupSceneId, targetSceneId: destinationSceneId, driverArrivesAt: Date.now() + Math.ceil(etaMs) }
+    if (etaMs === null) return { ok: false, reason: '暂时无法找到通往上车点的路线，请换一个位置重试' }
+    const requestedAt = Date.now()
+    const order = { sourceSceneId: zone.pickupSceneId, targetSceneId: destinationSceneId, driverArrivesAt: requestedAt + Math.ceil(etaMs), requestedAt, ...presentation }
     trackEvent('center_ride_ready', { sceneId: route.sceneId, destinationSceneId, device, outcome: 'ready' })
     if (etaMs === 0 && mainlineRideAtPickup(order, route.sceneId, current.position)) boardRide(order)
     else {
       recordSceneStatePatch(order.sourceSceneId, mainlineRideOrderPatch(order))
       setRideOrder(order)
     }
+    return { ok: true }
   }, [boardRide, recordSceneStatePatch, rideOrder, route.sceneId])
 
   const canPersistScenePosition = Boolean(

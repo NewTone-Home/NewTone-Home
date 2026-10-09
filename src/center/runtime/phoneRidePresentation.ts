@@ -14,5 +14,14 @@ export function phoneRideTripEstimate(sourceId: string | undefined, targetId: st
 export const phoneDriverDisplayMetersPerSecond = 6
 export function phoneDriverDisplayDistance(driverArrivesAt: number, now: number) {
   const remaining = Math.max(0, driverArrivesAt - now)
-  return remaining === 0 ? 0 : Math.ceil(remaining / 1000 * phoneDriverDisplayMetersPerSecond / 5) * 5
+  const meters=remaining / 1000 * phoneDriverDisplayMetersPerSecond
+  return remaining === 0 ? 0 : meters < 100 ? 50 : meters < 1000 ? Math.ceil(meters/100)*100 : Math.ceil(meters/1000)*1000
+}
+export function phoneDriverDistanceLabel(deadline:number,now:number) {
+ const meters=phoneDriverDisplayDistance(deadline,now)
+ return meters===0 ? '已到达' : meters<100 ? '不足 100 米' : meters>=1000 ? `约 ${meters/1000} 公里` : `约 ${meters} 米`
+}
+export function phoneDriverEtaLabel(deadline:number,now:number) {
+ const remaining=Math.max(0,deadline-now)
+ return remaining===0 ? '已到达' : remaining<60000 ? '即将到达' : `约 ${Math.ceil(remaining/60000)} 分钟`
 }

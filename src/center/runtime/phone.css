@@ -11,11 +11,13 @@
 .world-phone__hardware span { display:none; }
 .world-phone__handle { position:absolute; bottom:0; left:0; width:100%; height:48px; z-index:3; border:0; background:transparent; pointer-events:auto; }
 .world-phone.is-open .world-phone__handle { display:none; }
-.world-phone__handle-mark { position:relative; display:block; width:90px; height:10px; border:1px solid #ffffff23; border-radius:12px; background:#020306; margin:auto; box-shadow:0 1px 0 #ffffff0c; }
+.world-phone__handle-mark { position:relative; display:block; width:90px; height:10px; border:1px solid #9da5b355; border-radius:12px; background:linear-gradient(#717781 0%,#4f545f 18%,#373c46 55%,#24272e 100%); margin:auto; box-shadow:inset 0 1px 0 #cbd3df45,0 1px 3px #0008; }
 .world-phone__notification-dot { position:absolute; right:8px; top:2px; width:4px; height:4px; border-radius:50%; background:#cdd4dc; animation:phone-notification-dot 3.2s ease-in-out infinite; }
-.world-phone[data-has-notifications=true] .world-phone__handle-mark { animation:phone-notification-cue 360ms ease-out; }
+.world-phone__notification-flow { position:absolute; inset:-1px; width:90px; height:10px; overflow:visible; pointer-events:none; animation:phone-notification-fade 1s linear both; }
+.world-phone__notification-flow path { fill:none; stroke:#eef3fc; stroke-width:1.1; stroke-linecap:round; stroke-dasharray:1.8 98.2; animation:phone-notification-flow 1s linear both; }
+@keyframes phone-notification-flow { from { stroke-dashoffset:var(--tail); } to { stroke-dashoffset:calc(-100 + var(--tail)); } }
+@keyframes phone-notification-fade { 0%,80% { opacity:1; } to { opacity:0; } }
 @keyframes phone-notification-dot { 50% { opacity:.4; box-shadow:0 0 4px #d4dbe15c; } }
-@keyframes phone-notification-cue { 45% { transform:translateY(-2px); } }
 .world-phone--phase-swap-retracting .world-phone__handle { animation:world-phone-swap-retract 220ms ease; }
 @keyframes world-phone-swap-retract{ to { transform:translateY(32px); opacity:0; } }
 .world-phone__panel { height:calc(100% - 12px); display:flex; flex-direction:column; min-height:0; padding:14px; border:1px solid var(--phone-border); border-radius:19px 19px 0 0; background:radial-gradient(ellipse at top,#ffffff08,transparent 60%),var(--phone-bg); overflow:hidden; }
@@ -154,7 +156,7 @@
 @keyframes phone-map-poi-in { from { opacity:0; } }
 .world-phone__map-poi span { font-size:11px; color:#bac0c9; }
 .world-phone__map-caption { position:absolute; top:9px; left:10px; font-size:9px; color:#7d808c; pointer-events:none; }
-.world-phone__map-viewport:active .world-phone__map,.world-phone__map-viewport:active .world-phone__map-marker { transition:none; }
+.world-phone__map-viewport[data-dragging=true] .world-phone__map,.world-phone__map-viewport[data-dragging=true] .world-phone__map-marker { transition:none; }
 .world-phone__map-region { cursor:pointer; }
 .world-phone__map-region-dot { fill:#d6d7dc; }
 .world-phone__map-region-label,.world-phone__map-poi-label { fill:#dfdfe4; font-size:3.4px; }
@@ -201,7 +203,14 @@
 .world-phone__ride-sheet p { font-size:12px; color:var(--phone-muted); }
 .world-phone__ride-destination { justify-content:space-between; border-bottom:1px solid var(--phone-border); }
 .world-phone__ride-destination small { display:block; }
-.world-phone__ride-change { border:0; background:none; font-size:11px!important; color:var(--phone-muted)!important; padding:4px 0; }
+.world-phone__ride-change { border:1px solid #ffffff38; border-radius:8px; background:#ffffff08; font-size:12px!important; color:var(--phone-text)!important; padding:10px 13px; min-height:40px; }
+.world-phone__ride-sheet { scrollbar-width:none; }
+.world-phone__ride-sheet::-webkit-scrollbar { display:none; }
+.world-phone__ride-summary { margin:8px 0; }
+.world-phone__ride-summary>div { display:flex; justify-content:space-between; gap:12px; padding:5px 0; font-size:12px; }
+.world-phone__ride-summary dt { color:var(--phone-muted); }
+.world-phone__ride-summary dd { margin:0; text-align:right; }
+.world-phone__ride-error { color:#e2aaa8!important; }
 .world-phone__vehicles { display:grid; gap:7px; margin:8px 0; }
 .world-phone__vehicles button { display:grid; grid-template-columns:48px 1fr auto; gap:0 8px; align-items:center; border:1px solid var(--phone-border); border-radius:9px; background:#ffffff05; text-align:left; padding:9px; }
 .world-phone__vehicles svg { width:45px; grid-row:span 2; }

@@ -6,7 +6,8 @@ import { getPhoneMapRegions, phoneMapZoomBounds, type PhoneMapZoomLevel } from '
 import { phoneInputOwner, phoneIsOnline, phoneRideAvailability, type PhoneDevice, type WorldLayer, type WorldPhonePhase } from './phoneState'
 import { commercialStreetMilkTeaQueueStatus, formatCommercialStreetMilkTeaOrderNumber, milkTeaDrinks, milkTeaIceOptions, milkTeaSugarOptions, type CommercialStreetMilkTeaOrder, type MilkTeaDrink, type MilkTeaIce, type MilkTeaSugar } from './commercialStreetMilkTea'
 
-import { type MainlineRideOrder } from './mainlineRide'
+import { type MainlineRideOrder, type MainlineRideVehicle, type MainlineRideRequestResult } from './mainlineRide'
+import { PhoneNotificationCapsule } from './PhoneNotificationCapsule'
 import type { PhoneNotification } from './phoneNotifications'
 import { phoneStoryHistory, type PhoneCallRecord, type PhoneNote } from './phonePersonalData'
 import { mainlineStoryDateLabel, mainlineStoryTimeLabel, mainlineWorldWeatherLabel, type MainlineStoryClock } from './mainlineStoryClock'
@@ -57,7 +58,7 @@ type WorldPhoneProps = {
   notificationScreen?: boolean
   onNotificationDismiss?: () => void
   onAppOpen?: (app: PhoneApp) => void
-  onRideRequest?: (device: PhoneDevice, destinationSceneId: MainlineSceneId) => void
+  onRideRequest?: (device: PhoneDevice, destinationSceneId: MainlineSceneId, presentation:{vehicle:MainlineRideVehicle;arrivalLabel?:string}) => MainlineRideRequestResult | void
   feedbackMode?: FeedbackMode | null
   onFeedbackModeChange?: (mode: FeedbackMode | null) => void
   onFeedbackOpen?: () => void
@@ -500,7 +501,7 @@ export function WorldPhone({ getPlayerPosition, currentSceneId, worldLayer, devi
         onAnimationEnd={handleSwapRetractEnd}
         onClick={handleIsInteractive ? onOpen : undefined}
       >
-        <span key={notifications.filter(n => n.unread).map(n => n.id).join('|')} className="world-phone__handle-mark" aria-hidden="true">{notifications.some(n => n.unread) && <i className="world-phone__notification-dot" />}</span>
+        <PhoneNotificationCapsule notifications={notifications} />
       </button>
 
       <div inert={!isInteractive} className="world-phone__body" onTransitionEnd={handleBodyTransitionEnd} onTransitionRun={handleBodyTransitionRun} onTransitionCancel={handleBodyTransitionCancel}>
@@ -590,7 +591,7 @@ export function WorldPhone({ getPlayerPosition, currentSceneId, worldLayer, devi
               </div>
             )}
 
-            {activeApp === 'ride' && <PhoneRideApp regions={mapRegions} device={displayDevice} currentLandmark={currentLandmark} currentSceneId={currentSceneId as MainlineSceneId} order={rideOrder} clock={rideClock} storyClock={storyClock} available={rideAvailability === 'available'} online={online} destinationId={selectedRideDestinationId} onDestination={setSelectedRideDestinationId} onConfirm={sceneId => onRideRequest?.(displayDevice, sceneId)} getPosition={getPlayerPosition} />}
+            {activeApp === 'ride' && <PhoneRideApp regions={mapRegions} device={displayDevice} currentLandmark={currentLandmark} currentSceneId={currentSceneId as MainlineSceneId} order={rideOrder} clock={rideClock} storyClock={storyClock} available={rideAvailability === 'available'} online={online} destinationId={selectedRideDestinationId} onDestination={setSelectedRideDestinationId} onConfirm={(sceneId,presentation) => onRideRequest?.(displayDevice, sceneId,presentation)} getPosition={getPlayerPosition} />}
 
             {activeApp === 'milk-tea' && <section className="world-phone__list-page world-phone__milk-tea" aria-label="奶茶">
               {milkTeaHeld ? <div className="world-phone__list-heading"><span>奶茶</span><strong>手里已有一杯饮料</strong><small>暂时不能再下单。</small></div>
@@ -655,7 +656,7 @@ export function WorldPhone({ getPlayerPosition, currentSceneId, worldLayer, devi
                     <button type="button" onClick={() => { setContactDirection(1); setContactView('messages') }}><span aria-hidden="true">▤</span>信息</button>
                     <button type="button" onClick={() => { setActiveCallStartedAt(Date.now()); setContactView('call') }}><span aria-hidden="true">⌕</span>电话</button>
                   </div>
-                  <label className="world-phone__contact-note">我的备注<textarea aria-label="我的联系人备注" maxLength={1000} value={contactNoteDraft} onChange={event => setContactNoteDraft(event.target.value)} onBlur={() => onContactNoteChange?.(selectedContactId, contactNoteDraft)} placeholder="添加自己的昵称或判断" /></label>
+                  <label className="world-phone__contact-note">备注<textarea aria-label="联系人备注" maxLength={1000} value={contactNoteDraft} onChange={event => setContactNoteDraft(event.target.value)} onBlur={() => onContactNoteChange?.(selectedContactId, contactNoteDraft)} placeholder="添加备注" /></label>
                   <div className="world-phone__call-history"><span>通话记录</span>{callHistory.filter(record => record.contactId === selectedContactId).slice().reverse().map(record => <p key={record.id}>拨出 · {record.result === 'cancelled' ? '已挂断' : '已结束'} · {formatCallDuration(record.durationMs)}</p>)}{!callHistory.some(record => record.contactId === selectedContactId) && <small>暂无通话记录</small>}</div>
                 </section>
               ) : displayDevice === 'surface' ? (
