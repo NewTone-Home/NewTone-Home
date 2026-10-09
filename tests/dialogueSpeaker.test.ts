@@ -5,11 +5,11 @@ import { mainlineSpeakerAnchor, mainlineEchoLayout } from '../src/center/runtime
 describe('speaker presentation', () => {
   const initial: SpeakerPresentation = { name: '修杰', phase: 'steady' }
   it('does not animate an unchanged name', () => expect(requestSpeaker(initial, '修杰')).toBe(initial))
-  it('fades out then fades in a replacement over 150ms', () => {
+  it('fades out then fades in a replacement over 260ms', () => {
     const leaving = requestSpeaker(initial, '老周')
     expect(leaving).toEqual({ name: '修杰', phase: 'exiting' })
     expect(completeSpeakerAnimation(leaving, '老周')).toEqual({ name: '老周', phase: 'entering' })
-    expect(dialogueSpeakerTransitionMs).toBe(150)
+    expect(dialogueSpeakerTransitionMs).toBe(260)
   })
   it('consumes only the latest rapid replacement', () => {
     const leaving = requestSpeaker(initial, '老周')

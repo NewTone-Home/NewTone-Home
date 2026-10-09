@@ -24,6 +24,15 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
     }
     expect(widths[0]).toBeGreaterThan(widths[1])
     await speaker.evaluate(element => {
+      const durations: number[] = []
+      ;(window as unknown as { speakerAnimationDurations: number[] }).speakerAnimationDurations = durations
+      element.addEventListener('animationstart', event => {
+        if (event.animationName.startsWith('dialogue-speaker-')) {
+          durations.push(Number.parseFloat(getComputedStyle(element).animationDuration) * 1000)
+        }
+      })
+    })
+    await speaker.evaluate(element => {
       const history: string[] = []
       ;(window as unknown as { speakerHistory: string[] }).speakerHistory = history
       new MutationObserver(() => history.push(`${element.textContent}:${element.getAttribute('data-speaker-phase')}`)).observe(element, { attributes: true, childList: true, characterData: true, subtree: true })
@@ -31,6 +40,8 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
     await page.locator('[data-fixture-speaker]').fill('老周')
     await expect(speaker).toHaveText('老周')
     await expect(speaker).toHaveAttribute('data-speaker-phase', 'steady')
+    await expect.poll(() => page.evaluate(() => (window as unknown as { speakerAnimationDurations: number[] }).speakerAnimationDurations.length)).toBe(2)
+    expect(await page.evaluate(() => (window as unknown as { speakerAnimationDurations: number[] }).speakerAnimationDurations)).toEqual([130, 130])
     const history = await page.evaluate(() => (window as unknown as { speakerHistory: string[] }).speakerHistory)
     expect(history).toContain('修杰:exiting')
     expect(history).toContain('老周:entering')

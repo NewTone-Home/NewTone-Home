@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-export const dialogueSpeakerTransitionMs = 150
+export const dialogueSpeakerTransitionMs = 260
 export type SpeakerPresentation = { name: string; phase: 'steady' | 'entering' | 'exiting' }
 
 export function requestSpeaker(current: SpeakerPresentation, requested: string): SpeakerPresentation {
