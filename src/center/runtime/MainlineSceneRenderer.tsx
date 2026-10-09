@@ -1302,8 +1302,8 @@ export function MainlineSceneRenderer({
             ))}
           </div>}
         </div>
+          <div className={`scene-dialogue-dimmer${readingMode ? ` scene-dialogue-dimmer--${readingMode}` : ''}`} aria-hidden="true" />
           {readingMode && <>
-            <div className={`scene-dialogue-dimmer scene-dialogue-dimmer--${readingMode}`} aria-hidden="true" />
             <button
               type="button"
               className="scene-dialogue-shield"

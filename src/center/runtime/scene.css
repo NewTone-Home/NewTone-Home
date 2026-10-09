@@ -1606,12 +1606,13 @@
   position: absolute;
   inset: 0;
   z-index: 10;
-  background: rgba(5, 5, 5, .42);
+  background: rgb(5, 5, 5);
+  opacity: 0;
   pointer-events: none;
-  transition: opacity 180ms ease-out;
+  transition: opacity 250ms ease-in-out;
 }
-.scene-dialogue-dimmer--observation { background: rgba(5, 5, 5, .18); }
-.scene-dialogue-dimmer--dialogue { background: rgba(5, 5, 5, .42); }
+.scene-dialogue-dimmer--observation { opacity: .18; }
+.scene-dialogue-dimmer--dialogue { opacity: .42; }
 .scene-dialogue-shield {
   position: absolute;
   inset: 0;
