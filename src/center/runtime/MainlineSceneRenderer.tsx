@@ -14,7 +14,8 @@ import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundary
 import { useSceneFocusFrameController } from './SceneFocusFrames'
 import type { SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
-import { mainlineEchoLayout } from './mainlineEchoLayout'
+import { mainlineEchoLayout, mainlineSpeakerAnchor } from './mainlineEchoLayout'
+import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
 import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds, mainlineSeatedActorVisualPosition } from './mainlineSeating'
@@ -1228,7 +1229,15 @@ export function MainlineSceneRenderer({
             const echoLayout = mainlineEchoLayout(text, renderScreenMetrics, {
               speaker: isDialogue ? dialogueLine!.speaker : undefined,
             })
-            return <div
+            const speakerAnchor = isDialogue ? mainlineSpeakerAnchor(dialogue!.lines, renderScreenMetrics, position, cameraOffset) : null
+            return <Fragment>
+            {isDialogue && speakerAnchor && <div
+              key={`speaker:${scene.id}:${dialogue!.triggerEntityId}`}
+              className={`scene-mainline-speaker-anchor ${isLeaving ? 'is-leaving' : ''}`}
+              aria-live="polite"
+              style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.widthPx}px`, minHeight: `${echoLayout.heightPx}px` }}
+            ><DialogueSpeaker speaker={dialogueLine!.speaker} /></div>}
+            <div
               key={sceneEcho?.id ?? dialogueLine!.id}
               className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${isLeaving ? 'is-leaving' : ''}`}
               style={{
@@ -1254,11 +1263,12 @@ export function MainlineSceneRenderer({
                 else onDialogueExitComplete?.()
               }}
             >
-              {isDialogue && <span className="scene-mainline-text__speaker">{dialogueLine!.speaker}</span>}
+              {isDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
                 ? <DialogueText group={`${group}:${dialogueSegmentIndex}`} text={text} onReadyChange={updateDialogueReady} />
                 : <ObservationText echoId={sceneEcho!.id} text={text} typing={sceneEcho!.typing} onTypingComplete={onSceneEchoTypingComplete} />}
             </div>
+            </Fragment>
           })()}
           {sceneAction && <div
             className="scene-mainline-action"

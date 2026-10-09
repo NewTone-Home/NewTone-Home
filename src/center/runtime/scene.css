@@ -1504,6 +1504,25 @@
   animation: mainline-text-arrive 160ms ease-out both;
 }
 .scene-mainline-text__speaker { display: block; width: max-content; margin-bottom: 3px; color: var(--active); font-size: max(12px, .74em); letter-spacing: .06em; }
+.scene-mainline-speaker-anchor {
+  position: absolute;
+  z-index: 14;
+  box-sizing: border-box;
+  padding: 2px 0;
+  color: var(--active);
+  font-family: "Noto Serif SC", Georgia, serif;
+  font-size: clamp(16px, 1.35vw, 20px);
+  line-height: 1.62;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, .75);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+.scene-mainline-text__speaker-space { visibility: hidden; }
+.scene-mainline-text__speaker[data-speaker-phase="entering"] { animation: dialogue-speaker-entering var(--speaker-half-duration) ease-out both; }
+.scene-mainline-text__speaker[data-speaker-phase="exiting"] { animation: dialogue-speaker-exiting var(--speaker-half-duration) ease-in both; }
+.scene-mainline-speaker-anchor.is-leaving { animation: dialogue-speaker-exiting 160ms ease-in both; }
+@keyframes dialogue-speaker-entering { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dialogue-speaker-exiting { from { opacity: 1; } to { opacity: 0; } }
 .scene-mainline-text__observation { display: block; min-height: 1.6em; }
 .scene-mainline-text__dialogue { display: block; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; }
 .scene-mainline-text__dialogue > span { display: block; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.22, .61, .36, 1) both; }
@@ -1857,7 +1876,7 @@
     font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px));
   }
   .scene-mainline-text { max-width: calc(100% - 24px); max-height: 38%; padding: 2px 0; }
-  .scene-mainline-text { font-size: 12px; line-height: 1.5; }
+  .scene-mainline-text, .scene-mainline-speaker-anchor { font-size: 12px; line-height: 1.5; }
 }
 
 @media (max-height: 600px) and (orientation: landscape) {

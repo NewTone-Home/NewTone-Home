@@ -1,4 +1,6 @@
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
+import type { Point } from './sceneGeometry'
+import { splitMainlineInteractionText } from './mainlineTextSegments'
 
 export type MainlineEchoLayout = {
   widthPx: number
@@ -32,4 +34,13 @@ export function mainlineEchoLayout(text: string, screenMetrics: SceneScreenMetri
   let heightPx = paddingY + fontSizePx * lineHeight
   if (options.speaker) heightPx += 3 + Math.max(12, fontSizePx * .74) * 1.62
   return { widthPx, heightPx: Math.max(fontSizePx * 2, heightPx) }
+}
+
+/** The name uses the dialogue's reading envelope, never the current segment width. */
+export function mainlineSpeakerAnchor(lines: readonly { text: string; speaker: string }[], screenMetrics: SceneScreenMetrics, position: Point, cameraOffset: Point) {
+  const widthPx = Math.max(0, ...lines.flatMap(line => splitMainlineInteractionText(line.text)
+    .map(text => mainlineEchoLayout(text, screenMetrics, { speaker: line.speaker }).widthPx)))
+  const halfWidth = widthPx / screenMetrics.width * 50
+  const center = Math.max(halfWidth + 2, Math.min(98 - halfWidth, position.x + cameraOffset.x))
+  return { left: center - halfWidth, top: Math.max(10, Math.min(85, position.y + cameraOffset.y)), widthPx }
 }
