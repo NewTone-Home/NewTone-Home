@@ -52,7 +52,7 @@ describe('commercial street storefront presentation', () => {
 
   it('keeps the Café label as one complete rolling slot by default', () => {
     expect(storefrontPresentationLabelSlots(cafe.label)).toEqual(['咖啡馆'])
-    expect(storefrontLabelRollDurationMs).toBe(360)
+    expect(storefrontLabelRollDurationMs).toBe(700)
     const baseline = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, undefined, new Map())
     expect(baseline.some((unit) => unit.storefrontId === cafe.id && unit.variant === 'baseline')).toBe(true)
   })

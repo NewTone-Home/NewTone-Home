@@ -4,8 +4,8 @@ import { mainlineStorefrontApproach, type MainlineSceneDefinition, type Mainline
 /** Presentation-only state for a portal storefront. It never changes passage or collision state. */
 export type StorefrontPresentationPhase = 'baseline' | 'revealing' | 'revealed' | 'lingering' | 'restoring'
 
-/** Matches EntryTextFlip's established translate3d motion contract. */
-export const storefrontLabelRollDurationMs = 360
+/** Shared duration for the storefront label's reveal and restoration motion. */
+export const storefrontLabelRollDurationMs = 700
 
 /** The label remains retracted throughout its leave grace period. */
 export function storefrontPresentationRetractsFrame(phase: StorefrontPresentationPhase) {

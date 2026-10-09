@@ -21,7 +21,7 @@ function Fixture() {
   const presentation = useStorefrontPresentation(scene, position)
   const [metrics, setMetrics] = useState({ width: innerWidth, height: innerHeight, viewportWidth: innerWidth })
   const snapshot = createMainlineSceneGeometrySnapshot(scene, position, {}, metrics, presentation.phaseByStorefront)
-  return <div className="mainline-scene--map-only" style={{ '--active': '#f0cc7b', '--ink': '#b0bec5', '--soft': '#a1c2c2', '--muted': '#6c8088' } as React.CSSProperties}>
+  return <div className="mainline-scene--map-only" style={{ '--room': '#0b0f12', '--active': '#f0cc7b', '--ink': '#b0bec5', '--soft': '#a1c2c2', '--muted': '#6c8088' } as React.CSSProperties}>
     <button style={{ position: 'fixed', zIndex: 100 }} onClick={() => setNear(value => !value)} data-fixture-approach>{near ? 'leave' : 'approach'}</button>
     <div style={{ position: 'fixed', top: 30, zIndex: 100 }}>
       <input data-fixture-text value={text} onChange={event => setText(event.target.value)} />

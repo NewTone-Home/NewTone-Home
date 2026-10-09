@@ -22,7 +22,7 @@ import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagon
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import type { NpcRuntimeSnapshot } from './npcCore'
 import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisualState'
-import { storefrontPresentationLabelSlots, storefrontPresentationRetractsFrame, type StorefrontPresentationPhase } from './storefrontPresentation'
+import { storefrontLabelRollDurationMs, storefrontPresentationLabelSlots, storefrontPresentationRetractsFrame, type StorefrontPresentationPhase } from './storefrontPresentation'
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 
@@ -412,6 +412,7 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
           key={label}
           className="scene-mainline-storefront__label-track"
           data-storefront-label-phase={storefrontPresentationPhase}
+          style={{ '--storefront-label-roll-duration': `${storefrontLabelRollDurationMs}ms` } as CSSProperties}
           onTransitionEnd={(event) => {
             if (event.target !== event.currentTarget || event.propertyName !== 'transform') return
             if (storefrontPresentationPhase === 'revealing') onStorefrontPresentationMotionComplete?.('revealing')
@@ -420,7 +421,7 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
             if (event.target !== event.currentTarget) return
             if (storefrontPresentationPhase === 'lingering' || storefrontPresentationPhase === 'restoring') onStorefrontPresentationMotionComplete?.(storefrontPresentationPhase)
           }}
-        >{label}</span>
+        ><span className="scene-mainline-storefront__label-text">{label}</span></span>
       ))}
     </span>
   ) : glyphs.map((glyph, index) => {
@@ -1030,7 +1031,7 @@ export function MainlineSceneRenderer({
                     ? scene.passages.find((passage) => passage.portalId === storefront.portalId)?.entityId
                     : undefined
                   const storefrontPhase = storefrontPassageEntityId ? doorPhases.get(storefrontPassageEntityId) ?? 'closed' : 'closed'
-                  const groupClass = `scene-mainline-storefront scene-mainline-storefront--${cell.storefrontStyle ?? 'modern'} scene-mainline-storefront--${storefrontRole} scene-mainline-storefront--${cell.orientation ?? 'horizontal'} is-${storefrontState}`
+                  const groupClass = `scene-mainline-storefront scene-mainline-storefront--${cell.storefrontStyle ?? 'modern'} scene-mainline-storefront--${storefrontRole} scene-mainline-storefront--${cell.orientation ?? 'horizontal'} ${storefront?.portalId ? 'scene-mainline-storefront--portal' : ''} is-${storefrontState}`
                   return <MainlineFocusGroup
                     key={`focus-${focusTarget.group}`}
                     entries={focusEntries}
