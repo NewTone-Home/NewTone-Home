@@ -1,3 +1,4 @@
+import { openRideArrivalNotification } from './phoneRideNotification'
 import { registerPhoneTestNetwork } from './phoneTestNetwork'
 registerPhoneTestNetwork()
 import { mainlineRidePickupPositions } from '../src/center/runtime/mainlineRide'
@@ -16,7 +17,7 @@ async function walkToExit(page: Page, index = 0) {
     await page.keyboard.press('Escape')
     await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
   }
-  if(driverPending) await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({timeout:30000})
+  if(driverPending) await openRideArrivalNotification(page, 30000)
   if(await page.locator('[data-notification-app="ride"]').isVisible()) await page.locator('[data-notification-app="ride"]').click()
   if (await page.locator('.world-phone.is-open').count()) {
     await page.keyboard.press('Escape')
@@ -142,7 +143,7 @@ test('Commercial Street can ride through the inner-world Phone back to the Zhong
   await phone.getByRole('button', { name: /中枢院.*从当前位置出发/ }).click()
   await phone.getByRole('button',{name:/^快车/}).click(); await phone.getByRole('button',{name:'确认叫车',exact:true}).click(); await expect(page.locator('[data-ride-order="true"]')).toBeVisible()
   await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
-  await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({ timeout: 15000 })
+  await openRideArrivalNotification(page, 15000)
   await page.locator('[data-notification-app="ride"]').click()
   await expect(phone.locator('section[aria-label="叫车"]')).toBeVisible()
 
@@ -171,9 +172,9 @@ test('Office right external exit boards after a real driver notification card',a
   await enableInnerPhone(page)
   await callRide(page,'商业街')
   await expect(page.locator('[data-ride-order="true"]')).toContainText('请到办公室出口等车')
-  await expect(page.locator('[data-ride-order="true"]')).not.toContainText(/上车点|第一章|第二章|第三章/)
+  await expect(page.locator('[data-ride-order="true"]')).not.toContainText(/第一章|第二章|第三章/)
   await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
-  await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({timeout:15000})
+  await openRideArrivalNotification(page, 15000)
   await page.locator('[data-notification-app="ride"]').click()
   await expect(page.locator('section[aria-label="叫车"]')).toBeVisible()
   await page.getByLabel('返回手机主屏').click()
@@ -193,10 +194,10 @@ test('Mining guidance and boarding use the original external entrance',async({pa
   await expect(page.locator('.scene-shell[data-mainline-scene="yonghe-mining-perimeter"]')).toBeVisible({timeout:20000})
   await expect(page.locator('.center-experience')).not.toHaveAttribute('data-long-distance-phase',/.+/)
   await callRide(page,'中枢院')
-  await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({timeout:10000})
+  await openRideArrivalNotification(page, 10000)
   await page.locator('[data-notification-app="ride"]').click()
   await expect(page.locator('[data-ride-order="true"]')).toContainText('请到矿区入口等车')
-  await expect(page.locator('[data-ride-order="true"]')).not.toContainText(/上车点|第一章|第二章|第三章/)
+  await expect(page.locator('[data-ride-order="true"]')).not.toContainText(/第一章|第二章|第三章/)
   await page.screenshot({path:info.outputPath('mining-exit-guidance.png')})
   await walkToExit(page)
   await expect(page.locator('.center-long-distance-travel')).toBeVisible({timeout:10000})

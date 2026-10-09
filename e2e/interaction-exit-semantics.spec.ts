@@ -1,3 +1,4 @@
+import { openRideArrivalNotification } from './phoneRideNotification'
 import { registerPhoneTestNetwork } from './phoneTestNetwork'
 registerPhoneTestNetwork()
 import {writeFile} from 'node:fs/promises'
@@ -67,7 +68,7 @@ async function deadline(page:Page,id:string){return page.evaluate(id=>JSON.parse
 async function travel(page:Page,id:string){await expect(page.locator('.center-long-distance-travel')).toBeVisible({timeout:15000});await expect(page.locator('.scene-shell[data-mainline-scene="'+id+'"]')).toBeVisible({timeout:20000});await expect(page.locator('.center-long-distance-travel')).toHaveCount(0,{timeout:10000})}
 test('Street stationary exit boards at real arrival deadline outside former circle',async({page},info)=>{
  test.setTimeout(60000);await enablePhone(page)
- await ride(page,'商业街');await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({timeout:15000});await page.locator('[data-notification-app="ride"]').click();await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed');await point(page,{x:10,y:50});await travel(page,'commercial-street')
+ await ride(page,'商业街');await openRideArrivalNotification(page, 15000);await page.locator('[data-notification-app="ride"]').click();await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed');await point(page,{x:10,y:50});await travel(page,'commercial-street')
  // Normal walking to the entrance's upper public lane, no save/state injection.
  if(await page.locator('.world-phone.is-open').count())await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
  await point(page,{x:14,y:46});await arrived(page,{x:14,y:46})
@@ -76,6 +77,8 @@ test('Street stationary exit boards at real arrival deadline outside former circ
  if(!await page.locator('.world-phone.is-open').count())await page.getByLabel('打开手机').click();await page.locator('[data-app="ride"]').click()
  await page.getByRole('button',{name:/中枢院.*从当前位置出发/}).click()
  await page.getByRole('button',{name:/^快车/}).click()
+ await page.locator('.world-phone__app-view').evaluateAll(elements=>Promise.all(elements.flatMap(e=>e.getAnimations().map(a=>a.finished))))
+ await page.getByRole('button',{name:'确认叫车',exact:true}).scrollIntoViewIfNeeded()
  const orderButton=await page.getByRole('button',{name:'确认叫车',exact:true}).boundingBox()
  const observation=page.evaluate(async()=>{
   const samples:any[]=[];let due=0
@@ -94,7 +97,7 @@ test('Street stationary exit boards at real arrival deadline outside former circ
 })
 for(const side of [0,1]) test('Office real exit '+side+' boards after driver arrival',async({page})=>{
  await enablePhone(page);await ride(page,'商业街')
- await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({timeout:15000})
+ await openRideArrivalNotification(page, 15000)
  await page.locator('[data-notification-app="ride"]').click();await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
  const exit=mainlineScenes['zhongshuyuan-office'].externalExits[side],y=exit.triggerSpan!.start+.5
  await point(page,{x:exit.threshold+exit.direction,y})
@@ -108,6 +111,8 @@ test('real reading defers arrival notification and remains able to board after f
  await page.getByLabel('打开手机').click();await page.locator('[data-app="ride"]').click()
  await page.getByRole('button',{name:/商业街.*从当前位置出发/}).click()
  await page.getByRole('button',{name:/^快车/}).click()
+ await page.locator('.world-phone__app-view').evaluateAll(elements=>Promise.all(elements.flatMap(e=>e.getAnimations().map(a=>a.finished))))
+ await page.getByRole('button',{name:'确认叫车',exact:true}).scrollIntoViewIfNeeded()
  const button=await page.getByRole('button',{name:'确认叫车',exact:true}).boundingBox(),plantRect=await plant.boundingBox()
  await page.mouse.click(button!.x+button!.width/2,button!.y+button!.height/2)
  await expect(page.locator('[data-ride-order="true"]')).toBeVisible()

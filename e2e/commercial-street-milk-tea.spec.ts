@@ -97,6 +97,8 @@ test('a first physical visit unlocks the Phone app, while ordering stays remote 
   await page.reload()
   await finishReading(page)
   await page.getByLabel('打开手机').click()
+  await expect(phone.getByLabel('手机通知')).toContainText('奶茶已制作完成')
+  await page.locator('.world-phone__lock-hint').click()
   await expect(phone.locator('[data-app="milk-tea"]')).toHaveAttribute('data-unread', 'true')
   await phone.locator('[data-app="milk-tea"]').click()
   await expect(phone.getByText('已完成', { exact: true })).toBeVisible()

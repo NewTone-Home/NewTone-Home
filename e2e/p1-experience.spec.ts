@@ -1,3 +1,4 @@
+import { openRideArrivalNotification } from './phoneRideNotification'
 import { registerPhoneTestNetwork } from './phoneTestNetwork'
 registerPhoneTestNetwork()
 import { expect, test, type Page } from '@playwright/test'
@@ -57,7 +58,7 @@ async function requestRide(page: Page, destination: string) {
 async function pickup(page: Page, targetScene: string) {
   if (await page.locator('.world-phone.is-open').count()) await page.keyboard.press('Escape')
   await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
-  await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({timeout:30000})
+  await openRideArrivalNotification(page, 30000)
   await page.locator('[data-notification-app="ride"]').click()
   await page.keyboard.press('Escape')
   await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
@@ -116,10 +117,10 @@ test('real Cafe ride order waits independently, boards only at Street pickup, an
   await expect(page.locator('[data-actor-id="protagonist"]')).not.toHaveClass(/is-moving/)
   await requestRide(page, '中枢院')
   const order = page.locator('[data-ride-order="true"]')
-  await expect(order).toContainText('司机预计')
+  await expect(order).toContainText('司机距离上车点约')
   await page.screenshot({ path: info.outputPath('cafe-ride-eta.png') })
   await expect(order).toContainText('请回到商业街口等车')
-  await expect(order).not.toContainText(/第一章|上车点/)
+  await expect(order).not.toContainText(/第一章/)
   await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
   const staffArea = mainlineScenes['commercial-cafe'].accessRegions.find(region => region.requiredAccess === 'staff')!
   await point(page, { x: staffArea.x + staffArea.width / 2, y: staffArea.y + staffArea.height / 2 })
@@ -132,13 +133,14 @@ test('real Cafe ride order waits independently, boards only at Street pickup, an
   await expect(page.locator('.world-phone')).not.toHaveClass(/is-open/)
   await expect(page.locator('[data-scene-dialogue-shield="true"]')).toBeVisible()
   await reading(page)
-  await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({ timeout: 10000 })
+  await openRideArrivalNotification(page, 10000)
   await expect(page.locator('[data-notification-app="ride"]')).toContainText('正在商业街口等你')
   await page.screenshot({ path: info.outputPath('ride-reading-deferred-notification.png') })
   await page.locator('.world-phone__lock-hint').click()
   await expect(page.locator('[data-app="ride"]')).toHaveAttribute('data-unread', 'true')
   await page.reload()
   await page.getByLabel('打开手机').click()
+  await page.locator('.world-phone__lock-hint').click()
   await expect(page.locator('[data-app="ride"]')).toHaveAttribute('data-unread', 'true')
   await page.locator('[data-app="ride"]').click()
   await expect(order).toContainText('司机已到达')

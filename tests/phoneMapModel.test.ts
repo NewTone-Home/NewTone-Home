@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getPhoneMapRegions, stepPhoneMapZoom, phoneBusinessStatus, phonePublicPlaces } from '../src/center/runtime/phoneMapModel'
+import { getPhoneMapRegions, stepPhoneMapZoom, phoneBusinessStatus, phonePublicPlaces, clampPhoneMapZoom, phoneMapTransitLinks } from '../src/center/runtime/phoneMapModel'
 
 describe('Phone map region and POI model', () => {
   it('groups current inner-world locations and real POIs by their parent area', () => {
@@ -19,12 +19,16 @@ describe('Phone map region and POI model', () => {
     expect(regions.flatMap(region => region.pois)).toEqual([])
   })
 
-  it('uses three bounded zoom levels', () => {
-    expect(stepPhoneMapZoom(0, -1)).toBe(0)
-    expect(stepPhoneMapZoom(0, 1)).toBe(1)
-    expect(stepPhoneMapZoom(1, 1)).toBe(2)
-    expect(stepPhoneMapZoom(2, 1)).toBe(2)
-    expect(stepPhoneMapZoom(2, -1)).toBe(1)
+  it('uses continuous bounded zoom ratios', () => {
+    expect(clampPhoneMapZoom(.5)).toBe(1)
+    expect(clampPhoneMapZoom(9)).toBe(3.5)
+    expect(clampPhoneMapZoom(1.37)).toBe(1.37)
+    expect(stepPhoneMapZoom(1, 1)).toBe(1.25)
+    expect(stepPhoneMapZoom(1.25, -1)).toBe(1)
+    expect(stepPhoneMapZoom(3.5, 1)).toBe(3.5)
+  })
+  it('only supplies the confirmed three transit relationships', () => {
+    expect(phoneMapTransitLinks).toEqual([['commercial', 'zhongshuyuan'], ['commercial', 'mine'], ['zhongshuyuan', 'mine']])
   })
 })
 

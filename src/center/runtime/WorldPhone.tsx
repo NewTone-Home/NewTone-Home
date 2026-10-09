@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type AnimationEvent as ReactAnimationEvent, type FormEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
 import { type MainlineSceneId } from './mainlineScenes'
-import { getPhoneMapRegions, type PhoneMapZoomLevel } from './phoneMapModel'
+import { getPhoneMapRegions, phoneMapZoomBounds, type PhoneMapZoomLevel } from './phoneMapModel'
 import { phoneInputOwner, phoneIsOnline, phoneRideAvailability, type PhoneDevice, type WorldLayer, type WorldPhonePhase } from './phoneState'
 import { commercialStreetMilkTeaQueueStatus, formatCommercialStreetMilkTeaOrderNumber, milkTeaDrinks, milkTeaIceOptions, milkTeaSugarOptions, type CommercialStreetMilkTeaOrder, type MilkTeaDrink, type MilkTeaIce, type MilkTeaSugar } from './commercialStreetMilkTea'
 
@@ -43,7 +43,6 @@ const innerContacts: readonly ContactDefinition[] = [
 ]
 
 type WorldPhoneProps = {
-  estimateRideEtaMs?: () => number | null
   getPlayerPosition?: () => {x:number;y:number} | null
   currentSceneId: string
   worldLayer: WorldLayer
@@ -124,19 +123,20 @@ function NotesApp({ notes, onCreate, onChange }: {
   onPin?: (id: string) => void
 }) {
   const [view, setView] = useState<'list' | 'compose' | 'history'>('list')
+  const [direction, setDirection] = useState(1)
   const [editing, setEditing] = useState<PhoneNote | null>(null)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const meta = (note: PhoneNote) => note.kind === 'story' ? `4月12日 ${mainlineStoryTimeLabel(note.id === 'story-yonghe-lead' ? 'cafe' : note.storyStage ?? 'opening')}` : '私人备忘'
   return <section className="world-phone__notes-page" aria-label="备忘录">
     <div className="world-phone__notes-toolbar">
-      {view !== 'list' ? <button onClick={() => setView('list')} aria-label="返回备忘录">‹ 返回</button> : <button onClick={() => setView('history')}>历史记录</button>}
-      {view === 'list' && <button aria-label="新增备忘" onClick={() => { setEditing(null); setTitle(''); setBody(''); setView('compose') }}>+</button>}
+      {view !== 'list' ? <button onClick={() => { setDirection(-1); setView('list') }} aria-label="返回备忘录">‹ 返回</button> : <button onClick={() => { setDirection(1); setView('history') }}>历史记录</button>}
+      {view === 'list' && <button aria-label="新增备忘" onClick={() => { setDirection(1); setEditing(null); setTitle(''); setBody(''); setView('compose') }}>+</button>}
     </div>
-    {view === 'compose' ? <form className="world-phone__note-compose" onSubmit={event => {
+    <div key={view} className="world-phone__subpage" data-direction={direction}>{view === 'compose' ? <form className="world-phone__note-compose" onSubmit={event => {
       event.preventDefault()
       if (editing) onChange?.(editing.id, { title, body }); else onCreate?.(title, body)
-      setView('list')
+      setDirection(-1); setView('list')
     }}>
       <input aria-label="新备忘标题" placeholder="标题" value={title} maxLength={80} onChange={event => setTitle(event.target.value)} />
       <textarea aria-label="新备忘内容" placeholder="写下要记住的事" value={body} maxLength={2000} onChange={event => setBody(event.target.value)} />
@@ -149,11 +149,11 @@ function NotesApp({ notes, onCreate, onChange }: {
       {!notes.some(note => note.kind === 'story' && note.status === 'history') && <p>暂无历史记录</p>}
     </section> : <div className="world-phone__notes-list">
       {notes.filter(note => note.kind === 'player' || note.status === 'current').map(note => <article className="world-phone__note" data-note-kind={note.kind} key={note.id}>
-        <button onClick={() => { if (note.kind !== 'player') return; setEditing(note); setTitle(note.title); setBody(note.body); setView('compose') }}>
+        <button onClick={() => { if (note.kind !== 'player') return; setDirection(1); setEditing(note); setTitle(note.title); setBody(note.body); setView('compose') }}>
           <strong>{note.title}</strong><p>{note.body}</p><small>{meta(note)}</small>
         </button>
       </article>)}
-    </div>}
+    </div>}</div>
   </section>
 }
 
@@ -211,12 +211,13 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
+export function WorldPhone({ getPlayerPosition, currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
   const [phase, setPhase] = useState<WorldPhonePhase>('closed')
-  const [leavingApp, setLeavingApp] = useState<PhoneApp | null>(null)
-  const [rideLaunchPending, setRideLaunchPending] = useState(false)
+  const [leavingApp, setLeavingApp] = useState<PhoneApp | 'home' | null>(null)
+  const [appOrigin, setAppOrigin] = useState('50% 80%')
+  const phoneRef = useRef<HTMLElement>(null)
   const [placeCall, setPlaceCall] = useState<string | null>(null)
   const [activeApp, setActiveApp] = useState<PhoneApp | null>(null)
   const [contactView, setContactView] = useState<ContactView>('list')
@@ -226,7 +227,9 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
   const [locationCardOpen, setLocationCardOpen] = useState(false)
   const [selectedMapPlaceId, setSelectedMapPlaceId] = useState<string | null>(null)
   const [mapFocusRequestId, setMapFocusRequestId] = useState<string | null>(null)
-  const [mapZoom, setMapZoom] = useState<PhoneMapZoomLevel>(0)
+  const [mapSheetHeight, setMapSheetHeight] = useState(0)
+  const [contactDirection, setContactDirection] = useState(1)
+  const [mapZoom, setMapZoom] = useState<PhoneMapZoomLevel>(1)
   const [selectedRideDestinationId, setSelectedRideDestinationId] = useState<string | null>(null)
   const [milkTeaDrink, setMilkTeaDrink] = useState<MilkTeaDrink | null>(null)
   const [milkTeaSugar, setMilkTeaSugar] = useState<MilkTeaSugar | null>(null)
@@ -331,6 +334,14 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
 
 
   const openApp = (app: PhoneApp) => {
+    if (leavingApp) return
+    const root = phoneRef.current
+    const icon = root?.querySelector<HTMLElement>(`[data-app="${app}"]`)
+    const panel = root?.querySelector<HTMLElement>('.world-phone__home-screen')
+    if (icon && panel) {
+      const i = icon.getBoundingClientRect(), p = panel.getBoundingClientRect()
+      setAppOrigin(`${i.x + i.width / 2 - p.x}px ${i.y + i.height / 2 - p.y}px`)
+    }
     onAppOpen?.(app)
     if (activeApp && activeApp !== app) setLeavingApp(app)
     else setActiveApp(app)
@@ -338,18 +349,9 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
     setLocationCardOpen(false)
   }
 
-  useEffect(() => {
-    if (!rideLaunchPending) return
-    const timer = window.setTimeout(() => { onAppOpen?.('ride'); setLeavingApp('ride'); setRideLaunchPending(false) }, 1000)
-    return () => window.clearTimeout(timer)
-  }, [rideLaunchPending, onAppOpen])
-
   const closeApp = () => {
-    if (activeApp === 'feedback') onFeedbackModeChange?.(null)
-    setLeavingApp(null)
-    setRideLaunchPending(false)
-    setActiveApp(null)
-    setContactView('list')
+    if (leavingApp) return
+    if (activeApp) setLeavingApp('home')
   }
 
   const finishCall = useCallback(() => {
@@ -368,7 +370,6 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
   }, [activeCallStartedAt, onCallRecord, selectedContactId])
   const closePhone = useCallback(() => {
     setPlaceCall(null)
-    setRideLaunchPending(false)
     setLeavingApp(null)
     if (activeCallStartedAt !== null) finishCall()
     onClose()
@@ -417,8 +418,7 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
     if (!open || notificationScreen) {
       setActiveApp(null)
       setLeavingApp(null)
-      setRideLaunchPending(false)
-      setPlaceCall(null)
+        setPlaceCall(null)
     }
   }, [open, notificationScreen])
 
@@ -465,7 +465,7 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
   useEffect(() => {
     if (activeApp !== 'map' || mapFocusRequestId !== 'yonghe-eatery') return undefined
     const frame = window.requestAnimationFrame(() => {
-      setMapZoom(2)
+      setMapZoom(current => Math.max(current, phoneMapZoomBounds.poi + .2))
       setMapFocusRequestId(null)
     })
     return () => window.cancelAnimationFrame(frame)
@@ -478,14 +478,17 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
   return (
     <>
     {isInteractive && <div className="world-phone__dismiss-region" onPointerDown={event => { event.stopPropagation() }} onPointerUp={event => event.stopPropagation()} onClick={event => { event.preventDefault(); event.stopPropagation(); closePhone() }} />}
-    <aside
+    <aside ref={phoneRef}
       className={`world-phone world-phone--${displayDevice} world-phone--phase-${renderedPhase} ${isInteractive ? 'is-open' : ''} ${isMapOpen ? 'world-phone--map-app' : ''}`}
+      data-has-notifications={notifications.some(n => n.unread)}
       data-phone-open={open}
       data-phone-phase={renderedPhase}
       data-phone-device={displayDevice}
       data-world-layer={worldLayer}
       onClickCapture={onMeaningfulActivity} onClick={event => { event.stopPropagation(); if (!(event.target instanceof Element) || !event.target.closest(".world-phone__message-place")) setLocationCardOpen(false) }}
       onKeyDownCapture={onMeaningfulActivity}
+      onWheel={event => event.stopPropagation()} onTouchStart={event => event.stopPropagation()} onTouchMove={event => event.stopPropagation()}
+      onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}
     >
       <button
         className="world-phone__handle"
@@ -497,7 +500,7 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
         onAnimationEnd={handleSwapRetractEnd}
         onClick={handleIsInteractive ? onOpen : undefined}
       >
-        <span className="world-phone__handle-mark" aria-hidden="true" />
+        <span key={notifications.filter(n => n.unread).map(n => n.id).join('|')} className="world-phone__handle-mark" aria-hidden="true">{notifications.some(n => n.unread) && <i className="world-phone__notification-dot" />}</span>
       </button>
 
       <div inert={!isInteractive} className="world-phone__body" onTransitionEnd={handleBodyTransitionEnd} onTransitionRun={handleBodyTransitionRun} onTransitionCancel={handleBodyTransitionCancel}>
@@ -533,7 +536,7 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
                   <div className="world-phone__calendar-grid">
                     {['一','二','三','四','五','六','日'].map(day => <small key={day}>{day}</small>)}
                     <span />
-                    {Array.from({ length: 30 }, (_, i) => i + 1).map(day => <span key={day} aria-current={day === 12 ? 'date' : undefined} data-weather={displayDevice === 'inner' ? (Math.floor(day / 7) % 2 ? 'sunny' : 'rainy') : undefined}>{day}</span>)}
+                    {Array.from({ length: 30 }, (_, i) => i + 1).map(day => <span key={day} aria-current={day === 12 ? 'date' : undefined} data-weather={displayDevice === 'inner' ? (Math.floor(day / 7) % 2 ? (storyClock.weatherCycle ?? 'sunny') : (storyClock.weatherCycle === 'rainy' ? 'sunny' : 'rainy')) : undefined}><b>{day}</b></span>)}
                   </div>
                 </section>
                 <section className="world-phone__home-memo" aria-label="备忘录">
@@ -572,22 +575,22 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
             </section>
           ) : (
             <>
+              <div key={activeApp} className={`world-phone__app-view ${leavingApp ? 'is-leaving' : ''}`} data-app-view={activeApp} style={{ transformOrigin: appOrigin }} onAnimationEnd={event => { if (event.target !== event.currentTarget || !leavingApp) return; if (leavingApp === 'home' && activeApp === 'feedback') onFeedbackModeChange?.(null); setActiveApp(leavingApp === 'home' ? null : leavingApp); setLeavingApp(null); setContactView('list') }}>
               <div className="world-phone__app-bar">
-                {activeApp === 'contacts' && contactView !== 'list' && <button className="world-phone__app-back" type="button" onClick={() => { if (contactView === 'call') finishCall(); else setContactView(contactView === 'messages' ? 'detail' : 'list') }} aria-label="返回联系人"><span aria-hidden="true">‹</span><small>联系人</small></button>}
+                {activeApp === 'contacts' && contactView !== 'list' && <button className="world-phone__app-back" type="button" onClick={() => { if (contactView === 'call') finishCall(); else { setContactDirection(-1); setContactView(contactView === 'messages' ? 'detail' : 'list') } }} aria-label="返回联系人"><span aria-hidden="true">‹</span><small>联系人</small></button>}
                 <div><strong>{activeAppLabel}</strong></div>
               </div>
-              <div key={activeApp} className={`world-phone__app-view ${leavingApp ? 'is-leaving' : ''}`} data-app-view={activeApp} onAnimationEnd={event => { if (event.target !== event.currentTarget || !leavingApp) return; setActiveApp(leavingApp); setLeavingApp(null) }}>
+              <div className="world-phone__app-content">
             {activeApp === 'map' && (
               <div className="world-phone__map-frame">
                 <div className="world-phone__map-title">区域地图{!online ? ' · 离线' : ''}</div>
-                <PhoneMapCanvas mapRegions={mapRegions} displayDevice={displayDevice} currentLandmark={currentLandmark} selectedMapPlaceId={selectedMapPlaceId} onSelect={id => { setMapFocusRequestId(null); setSelectedMapPlaceId(id) }} mapZoom={mapZoom} setMapZoom={setMapZoom} mapPan={mapPan} setMapPan={setMapPan} focusId={mapFocusRequestId ?? selectedMapPlaceId} />
-                {rideLaunchPending && <p role="status">正在打开叫车…</p>}
-                {selectedMapTitle && <PhonePlaceDetails id={selectedMapPlaceId!} title={selectedMapTitle} clock={storyClock} onClose={() => { setSelectedMapPlaceId(null); setMapFocusRequestId(null); if(mapZoom===0)setMapPan([0,0]) }} onRide={() => { setSelectedRideDestinationId(selectedMapRegion?.id ?? selectedMapPoi?.region.id ?? null); setRideLaunchPending(true) }} onCall={() => setPlaceCall('中枢院 · 0000')} />}
+                <PhoneMapCanvas mapRegions={mapRegions} displayDevice={displayDevice} currentLandmark={currentLandmark} selectedMapPlaceId={selectedMapPlaceId} onSelect={id => { setMapFocusRequestId(null); setSelectedMapPlaceId(id) }} mapZoom={mapZoom} setMapZoom={setMapZoom} mapPan={mapPan} setMapPan={setMapPan} focusId={mapFocusRequestId ?? selectedMapPlaceId} coveredHeight={mapSheetHeight} onBlank={() => { setSelectedMapPlaceId(null); setMapFocusRequestId(null) }} />
+                <PhonePlaceDetails id={selectedMapPlaceId} title={selectedMapTitle} onHeight={setMapSheetHeight} onRide={() => { setSelectedRideDestinationId(selectedMapRegion?.id ?? selectedMapPoi?.region.id ?? null); openApp('ride') }} onCall={() => setPlaceCall('中枢院 · 0000')} />
                 {!online && <p className="world-phone__offline-note">当前为离线地图，显示已缓存路线。</p>}
               </div>
             )}
 
-            {activeApp === 'ride' && <PhoneRideApp regions={mapRegions} device={displayDevice} currentLandmark={currentLandmark} currentSceneId={currentSceneId as MainlineSceneId} order={rideOrder} clock={rideClock} available={rideAvailability === 'available'} online={online} destinationId={selectedRideDestinationId} onDestination={setSelectedRideDestinationId} onConfirm={sceneId => onRideRequest?.(displayDevice, sceneId)} getPosition={getPlayerPosition} estimateEtaMs={estimateRideEtaMs} />}
+            {activeApp === 'ride' && <PhoneRideApp regions={mapRegions} device={displayDevice} currentLandmark={currentLandmark} currentSceneId={currentSceneId as MainlineSceneId} order={rideOrder} clock={rideClock} storyClock={storyClock} available={rideAvailability === 'available'} online={online} destinationId={selectedRideDestinationId} onDestination={setSelectedRideDestinationId} onConfirm={sceneId => onRideRequest?.(displayDevice, sceneId)} getPosition={getPlayerPosition} />}
 
             {activeApp === 'milk-tea' && <section className="world-phone__list-page world-phone__milk-tea" aria-label="奶茶">
               {milkTeaHeld ? <div className="world-phone__list-heading"><span>奶茶</span><strong>手里已有一杯饮料</strong><small>暂时不能再下单。</small></div>
@@ -615,7 +618,7 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
 
             {activeApp === 'notes' && <NotesApp notes={notes} onCreate={onNoteCreate} onChange={onNoteChange} onPin={onNotePin} />}
 
-            {activeApp === 'contacts' && (
+            {activeApp === 'contacts' && <div key={contactView} className="world-phone__subpage" data-direction={contactDirection}>{(
               contactView === 'messages' ? (
                 <section className="world-phone__message-thread" aria-label={`与${selectedContact.name}的短信`}>
                   <div className="world-phone__message-person"><span>短信</span><strong>{selectedContact.name}</strong><small>{selectedContact.detail}</small></div>
@@ -632,7 +635,7 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
                         <p>查不到去了哪里。不过我在那边有个线人，据说有人好像在永和小馆那块见过陈副部长。</p>
 
                       </div>
-                      {locationCardOpen && <button type="button" className="world-phone__place-card" onClick={event => { event.stopPropagation(); setMapPan([0, 0]); setMapZoom(1); setSelectedMapPlaceId('yonghe-eatery'); setMapFocusRequestId('yonghe-eatery'); setLocationCardOpen(false); openApp('map') }}><span aria-hidden="true">⌖</span><strong>永和小馆</strong></button>}
+                      {locationCardOpen && <button type="button" className="world-phone__place-card" onClick={event => { event.stopPropagation(); setMapZoom(current => Math.max(current, phoneMapZoomBounds.poi + .2)); setSelectedMapPlaceId('yonghe-eatery'); setMapFocusRequestId('yonghe-eatery'); setLocationCardOpen(false); openApp('map') }}><span aria-hidden="true">⌖</span><strong>永和小馆</strong></button>}
                     </div>
                   )}
                 </section>
@@ -649,7 +652,7 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
                 <section className="world-phone__contact-detail" aria-label={`${selectedContact.name}联系人详情`}>
                   <div className="world-phone__contact-profile"><span aria-hidden="true"><ContactAvatar /></span><strong>{selectedContact.name}</strong><small>{selectedContact.detail}</small></div>
                   <div className="world-phone__contact-actions">
-                    <button type="button" onClick={() => setContactView('messages')}><span aria-hidden="true">▤</span>信息</button>
+                    <button type="button" onClick={() => { setContactDirection(1); setContactView('messages') }}><span aria-hidden="true">▤</span>信息</button>
                     <button type="button" onClick={() => { setActiveCallStartedAt(Date.now()); setContactView('call') }}><span aria-hidden="true">⌕</span>电话</button>
                   </div>
                   <label className="world-phone__contact-note">我的备注<textarea aria-label="我的联系人备注" maxLength={1000} value={contactNoteDraft} onChange={event => setContactNoteDraft(event.target.value)} onBlur={() => onContactNoteChange?.(selectedContactId, contactNoteDraft)} placeholder="添加自己的昵称或判断" /></label>
@@ -664,7 +667,7 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
                   <ul className="world-phone__list">
                     {innerContacts.map((contact) => (
                       <li className="world-phone__list-row" key={contact.id}>
-                        <button className="world-phone__contact-row" type="button" onClick={() => { setSelectedContactId(contact.id); setContactView('detail') }}>
+                        <button className="world-phone__contact-row" type="button" onClick={() => { setContactDirection(1); setSelectedContactId(contact.id); setContactView('detail') }}>
                           <span className="world-phone__contact-avatar" aria-hidden="true"><ContactAvatar /></span><span><strong>{contact.name}</strong><small>{contact.detail}</small></span>
                           <em className={online ? 'is-ready' : ''}>{online ? '›' : '离线'}</em>
                         </button>
@@ -673,7 +676,7 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
                   </ul>
                 </section>
               )
-            )}
+            )}</div>}
 
             {activeApp === 'feedback' && feedbackMode && (
               <FeedbackApp
@@ -683,6 +686,7 @@ export function WorldPhone({ estimateRideEtaMs, getPlayerPosition, currentSceneI
                 onFinish={closeApp}
               />
             )}
+              </div>
               </div>
               <HomeIndicator onReturn={closeApp} />
             </>

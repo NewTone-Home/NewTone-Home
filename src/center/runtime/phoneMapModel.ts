@@ -1,7 +1,10 @@
 import { mainlineMapLandmarksByWorld, type MainlineMapLandmark, type MainlineMapWorld, type MainlineSceneId } from './mainlineScenes'
 
-export const phoneMapZoomScales = [1, 1.24, 1.52] as const
-export type PhoneMapZoomLevel = 0 | 1 | 2
+export const phoneMapZoomBounds = { min: 1, max: 3.5, poi: 1.45 } as const
+export type PhoneMapZoomLevel = number
+export function clampPhoneMapZoom(value: number) {
+  return Math.max(phoneMapZoomBounds.min, Math.min(phoneMapZoomBounds.max, value))
+}
 export type PhoneMapPoint = readonly [number, number]
 
 export type PhoneMapPoi = {
@@ -57,7 +60,16 @@ export function getPhoneMapRegions(world: MainlineMapWorld): PhoneMapRegion[] {
 }
 
 export function stepPhoneMapZoom(current: PhoneMapZoomLevel, direction: -1 | 1): PhoneMapZoomLevel {
-  return Math.max(0, Math.min(phoneMapZoomScales.length - 1, current + direction)) as PhoneMapZoomLevel
+  return clampPhoneMapZoom(current * (direction > 0 ? 1.25 : 1 / 1.25))
+}
+
+// Schematic transit links, never geographic roads or formal region boundaries.
+export const phoneMapTransitLinks = [['commercial', 'zhongshuyuan'], ['commercial', 'mine'], ['zhongshuyuan', 'mine']] as const
+export const phoneMapRegionContours: Record<string, string> = {
+  commercial: 'M-13 -7 Q-8 -13 1 -10 L12 -7 Q17 -1 12 7 L5 11 -6 9 Q-16 7 -13 -7Z',
+  zhongshuyuan: 'M-12 -8 L-3 -11 9 -8 Q15 -3 11 6 L4 10 -8 7 Q-14 2 -12 -8Z',
+  mine: 'M-10 -9 L0 -12 11 -7 14 2 7 10 -4 8 -13 2Z',
+  jijia: 'M-10 -7 Q-3 -11 7 -7 L12 1 6 9 -7 7 Q-13 2 -10 -7Z',
 }
 
 export const phonePublicPlaces: Record<string, {category:string; description?:string;address:string;hours?:readonly (readonly [number,number])[];phone?:string}> = {

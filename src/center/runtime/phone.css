@@ -5,13 +5,17 @@
 .world-phone button:active { transform:scale(.97); }
 .world-phone button:disabled { opacity:.4; cursor:default; }
 .world-phone button:focus-visible,.world-phone [role=button]:focus-visible { outline:2px solid #eee; outline-offset:3px; }
-.world-phone__body { height:100%; padding:8px; border:1px solid #ffffff38; border-bottom:0; border-radius:25px 25px 0 0; background:#0d0e11; transform:translateY(calc(100% - 38px)); transition:transform 240ms cubic-bezier(.2,.75,.2,1); overflow:hidden; }
+.world-phone__body { height:100%; padding:8px; border:1px solid #ffffff38; border-bottom:0; border-radius:25px 25px 0 0; background:#0d0e11; transform:translateY(calc(100% - 42px)); transition:transform 240ms cubic-bezier(.2,.75,.2,1); overflow:hidden; }
 .world-phone.is-open .world-phone__body { transform:translateY(0); pointer-events:auto; }
 .world-phone__hardware { height:12px; }
 .world-phone__hardware span { display:none; }
-.world-phone__handle { position:absolute; bottom:0; left:0; width:100%; height:38px; z-index:3; border:0; background:transparent; pointer-events:auto; }
+.world-phone__handle { position:absolute; bottom:0; left:0; width:100%; height:48px; z-index:3; border:0; background:transparent; pointer-events:auto; }
 .world-phone.is-open .world-phone__handle { display:none; }
-.world-phone__handle-mark { display:block; width:44px; height:5px; border-radius:4px; background:#c3c4ca; margin:auto; }
+.world-phone__handle-mark { position:relative; display:block; width:90px; height:10px; border:1px solid #ffffff23; border-radius:12px; background:#020306; margin:auto; box-shadow:0 1px 0 #ffffff0c; }
+.world-phone__notification-dot { position:absolute; right:8px; top:2px; width:4px; height:4px; border-radius:50%; background:#cdd4dc; animation:phone-notification-dot 3.2s ease-in-out infinite; }
+.world-phone[data-has-notifications=true] .world-phone__handle-mark { animation:phone-notification-cue 360ms ease-out; }
+@keyframes phone-notification-dot { 50% { opacity:.4; box-shadow:0 0 4px #d4dbe15c; } }
+@keyframes phone-notification-cue { 45% { transform:translateY(-2px); } }
 .world-phone--phase-swap-retracting .world-phone__handle { animation:world-phone-swap-retract 220ms ease; }
 @keyframes world-phone-swap-retract{ to { transform:translateY(32px); opacity:0; } }
 .world-phone__panel { height:calc(100% - 12px); display:flex; flex-direction:column; min-height:0; padding:14px; border:1px solid var(--phone-border); border-radius:19px 19px 0 0; background:radial-gradient(ellipse at top,#ffffff08,transparent 60%),var(--phone-bg); overflow:hidden; }
@@ -28,10 +32,16 @@
 .world-phone__home-layout { display:flex; flex-direction:column; gap:18px; }
 .world-phone__home-calendar,.world-phone__home-memo { padding:15px; background:#ffffff06; border:1px solid var(--phone-border); border-radius:15px; }
 .world-phone__calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-top:10px; text-align:center; }
-.world-phone__calendar-grid span { line-height:28px; border-radius:5px; font-size:12px; }
+.world-phone__calendar-grid span { position:relative; overflow:hidden; isolation:isolate; line-height:28px; border-radius:5px; font-size:12px; }
 .world-phone__calendar-grid small { color:var(--phone-muted); padding-bottom:5px; }
-.world-phone__calendar-grid [data-weather=sunny] { background:#ffffff0c; }
-.world-phone__calendar-grid [data-weather=rainy] { background:#00000022; }
+.world-phone__calendar-grid b { position:relative; z-index:1; font-weight:inherit; }
+.world-phone__calendar-grid [data-weather]::before { content:''; position:absolute; inset:0; pointer-events:none; z-index:0; }
+.world-phone__calendar-grid [data-weather=sunny] { background:#ffffff09; }
+.world-phone__calendar-grid [data-weather=sunny]::before { background:linear-gradient(110deg,transparent,#ffffff13,transparent); background-size:200% 100%; animation:phone-calendar-sun 7s ease-in-out infinite alternate; }
+.world-phone__calendar-grid [data-weather=rainy] { background:#00000030; }
+.world-phone__calendar-grid [data-weather=rainy]::before { background:repeating-linear-gradient(105deg,transparent 0 7px,#c4d0e42b 8px,transparent 9px 15px); background-size:17px 36px; animation:phone-calendar-rain 3s linear infinite; opacity:.65; }
+@keyframes phone-calendar-sun { to { background-position:100% 0; } }
+@keyframes phone-calendar-rain { to { background-position:0 36px; } }
 .world-phone__calendar-grid [aria-current=date] { background:#e1e2e5; color:#1b1c20; font-weight:650; }
 .world-phone__memo-open { display:block; width:100%; text-align:left; padding:0; border:0; background:none; }
 .world-phone__memo-open>span { display:block; color:var(--phone-muted); font-size:11px; margin-bottom:6px; }
@@ -49,10 +59,19 @@
 .world-phone__app-bar strong { font-size:18px; }
 .world-phone__app-back { border:0; background:none; padding:6px 0; }
 .world-phone__app-back small { margin-left:4px; }
-.world-phone__app-view { position:relative; flex:1; min-height:0; overflow:auto; animation:phone-app-enter 180ms ease-out; }
+.world-phone__app-view { position:relative; display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; animation:phone-app-enter 230ms cubic-bezier(.18,.75,.2,1); }
+.world-phone__app-content { position:relative; flex:1; min-height:0; overflow:auto; }
+.world-phone__app-view[data-app-view=map]>.world-phone__app-content,.world-phone__app-view[data-app-view=ride]>.world-phone__app-content { overflow:clip; }
+.world-phone__app-bar { flex:none; }
 .world-phone__home-indicator { flex:none; height:34px; border:0; background:none; display:grid; place-items:center; }
 .world-phone__home-indicator span { height:4px; width:100px; border-radius:5px; background:#dadbe1; }
-@keyframes phone-app-enter{ from { opacity:.3;transform:scale(.92) } to { opacity:1;transform:scale(1) } }
+@keyframes phone-app-enter{ from { opacity:0;transform:scale(.14) } to { opacity:1;transform:scale(1) } }
+.world-phone__home-screen { animation:phone-home-return 180ms ease-out; }
+@keyframes phone-home-return { from { opacity:.45;transform:scale(1.03) } to { opacity:1;transform:scale(1) } }
+.world-phone__subpage { animation:phone-subpage-forward 160ms ease-out; }
+.world-phone__subpage[data-direction='-1'] { animation-name:phone-subpage-back; }
+@keyframes phone-subpage-forward { from { opacity:.4;transform:translateX(16px) } }
+@keyframes phone-subpage-back { from { opacity:.4;transform:translateX(-16px) } }
 .world-phone__notes-toolbar { display:flex; justify-content:space-between; margin-bottom:14px; }
 .world-phone__notes-toolbar button,.world-phone__note-compose button,.world-phone__list-action,.world-phone__feedback-submit { border:1px solid var(--phone-border); border-radius:9px; padding:10px 15px; background:#ffffff10; }
 .world-phone__notes-toolbar button:last-child { min-width:40px; }
@@ -119,8 +138,23 @@
 .world-phone__map-frame { height:100%; min-height:300px; position:relative; display:flex; flex-direction:column; }
 .world-phone__map-title { font-size:11px; color:var(--phone-muted); }
 .world-phone__map-viewport { position:relative; flex:1; min-height:220px; overflow:hidden; background:#1c1d22; border:1px solid var(--phone-border); border-radius:12px; touch-action:none; cursor:grab; }
-.world-phone__map { width:100%; height:100%; min-height:0; transform-origin:center; transition:transform 100ms ease-out; overflow:visible; }
-.world-phone__map-region-field { fill:#ffffff08; stroke:#ffffff23; stroke-width:.25; }
+.world-phone__map { width:100%; height:100%; min-height:0; transform-origin:center; transition:transform 220ms cubic-bezier(.2,.75,.2,1); pointer-events:none; overflow:visible; }
+.world-phone__map-region-field { fill:#ffffff09; stroke:#ffffff30; stroke-width:.3; }
+.world-phone__map-contour { fill:none; stroke:#ffffff0c; stroke-width:.4; stroke-dasharray:.4 1; }
+.world-phone__map-transit { stroke:#ffffff20; stroke-width:.25; stroke-dasharray:1 1.6; }
+.world-phone__map-labels { position:absolute; inset:0; pointer-events:none; }
+.world-phone .world-phone__map-marker { position:absolute; display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:44px; height:44px; padding:0; border:0; background:transparent; transform:translate(-50%,-50%); pointer-events:auto; transition:left 220ms cubic-bezier(.2,.75,.2,1),top 220ms cubic-bezier(.2,.75,.2,1); }
+.world-phone .world-phone__map-marker:active { transform:translate(-50%,-50%); }
+.world-phone__map-marker i { width:7px; height:7px; flex:none; border-radius:50%; background:#b4b7c0; box-shadow:0 0 0 3px #ffffff09; }
+.world-phone__map-marker span { margin-top:5px; padding:1px 5px; border-radius:4px; color:#dedee3; font-size:12px; line-height:17px; white-space:nowrap; background:#1c1d22df; }
+.world-phone__map-marker.is-selected i { background:#e0e1e5; box-shadow:0 0 0 5px #ffffff16; }
+.world-phone__map-marker:focus-visible i { outline:2px solid #eee; outline-offset:3px; }
+.world-phone__map-poi i { width:5px; height:5px; }
+.world-phone__map-poi { animation:phone-map-poi-in 180ms ease-out; }
+@keyframes phone-map-poi-in { from { opacity:0; } }
+.world-phone__map-poi span { font-size:11px; color:#bac0c9; }
+.world-phone__map-caption { position:absolute; top:9px; left:10px; font-size:9px; color:#7d808c; pointer-events:none; }
+.world-phone__map-viewport:active .world-phone__map,.world-phone__map-viewport:active .world-phone__map-marker { transition:none; }
 .world-phone__map-region { cursor:pointer; }
 .world-phone__map-region-dot { fill:#d6d7dc; }
 .world-phone__map-region-label,.world-phone__map-poi-label { fill:#dfdfe4; font-size:3.4px; }
@@ -128,9 +162,16 @@
 .world-phone__map-region-link { stroke:#ffffff28; stroke-width:.2; }
 .world-phone__map-poi-halo { fill:#ffffff12; }
 .world-phone__map-poi-dot { fill:#b5c5c3; }
-.world-phone__map-controls { display:flex; justify-content:end; gap:10px; align-items:center; padding:8px 0; font-size:10px; }
+.world-phone__map-controls { position:absolute; right:8px; top:34px; z-index:2; display:flex; flex-direction:column; gap:6px; }
 .world-phone__map-controls button { width:34px; height:34px; border:1px solid var(--phone-border); border-radius:8px; background:#282930; }
-.world-phone__map-detail { position:relative; padding:15px; background:#25262b; border:1px solid var(--phone-border); border-radius:12px; max-height:65%; overflow:auto; flex-shrink:0; }
+.world-phone__map-detail { position:absolute; z-index:3; bottom:0; left:0; right:0; padding:17px 15px; background:#25262bf5; border:1px solid var(--phone-border); border-radius:18px 18px 10px 10px; max-height:60%; overflow:auto; overscroll-behavior:contain; animation:phone-sheet-in 200ms ease-out; box-shadow:0 -8px 20px #0002; }
+.world-phone__map-detail[data-open=false] { animation:phone-sheet-out 180ms ease-in forwards; pointer-events:none; }
+@keyframes phone-sheet-in { from { transform:translateY(100%);opacity:.5 } }
+@keyframes phone-sheet-out { to { transform:translateY(100%);opacity:.5 } }
+.world-phone__weekly-hours { margin:5px 0; }
+.world-phone__weekly-hours div { display:grid; grid-template-columns:34px 1fr; gap:6px; padding:3px 0; }
+.world-phone__weekly-hours dt { color:#bcbcc4; }
+.world-phone__weekly-hours dd { margin:0; font-size:10px; line-height:18px; }
 .world-phone__map-detail>strong { font-size:20px; display:block; }
 .world-phone__map-detail>span { font-size:11px; color:var(--phone-muted); }
 .world-phone__map-detail p { font-size:12px; color:#bcbcc4; }
@@ -150,10 +191,10 @@
 .world-phone__business-hours button { text-align:left; width:fit-content; border:0; padding:6px 0; color:#bbbcc4; }
 .world-phone__detail-actions { display:flex; gap:8px; margin-top:12px; }
 .world-phone__detail-actions button { flex:1; }
-.world-phone__ride-page { height:100%; display:flex; flex-direction:column; min-height:0; }
+.world-phone__ride-page { position:relative; height:100%; display:flex; flex-direction:column; min-height:0; }
 .world-phone__ride-page>.world-phone__map-viewport { flex:1; min-height:140px; }
-.world-phone__ride-sheet { flex:none; background:#26272d; border:1px solid var(--phone-border); border-radius:18px 18px 10px 10px; padding:12px; max-height:65%; overflow:auto; }
-.world-phone__ride-sheet[data-expanded=true] { height:calc(100% - 190px); max-height:calc(100% - 190px); }
+.world-phone__ride-sheet { position:absolute; z-index:3; bottom:0; left:0; right:0; background:#26272d; border:1px solid var(--phone-border); border-radius:18px 18px 10px 10px; padding:12px; max-height:60%; overflow:auto; overscroll-behavior:contain; }
+.world-phone__ride-sheet[data-expanded=true] { height:60%; max-height:60%; }
 .world-phone__sheet-handle { display:block; width:100%; height:18px; padding:7px; border:0; background:transparent; touch-action:none; cursor:ns-resize!important; }
 .world-phone__sheet-grip { display:block; margin:0 auto; width:35px; height:3px; border-radius:5px; background:#66676e; }
 .world-phone__ride-sheet h3 { margin:8px 0; font-size:16px; }
@@ -175,7 +216,11 @@
 .world-phone__app-view[data-app-view=contacts] { transform-origin:84% 76%; }
 .world-phone__app-view[data-app-view=feedback] { transform-origin:16% 90%; }
 .world-phone__app-view.is-leaving { animation:phone-app-exit 140ms ease-in forwards; }
-@keyframes phone-app-exit{to{opacity:0;transform:scale(.1)}}
+@keyframes phone-app-exit{to{opacity:0;transform:scale(.14)}}
+.world-phone__ride-estimate { display:grid; gap:2px; margin:6px 0; }
+.world-phone__ride-estimate strong { font-size:13px; color:#dedee4; }
+.world-phone__ride-estimate span { font-size:11px; }
+@media(prefers-reduced-motion:reduce){.world-phone__notification-dot,.world-phone__calendar-grid [data-weather]::before{animation:none!important}.world-phone__calendar-grid [data-weather=sunny]::before{background-position:50% 0}}
 .world-phone .world-phone__map-region:focus,.world-phone .world-phone__map-poi:focus { outline:none; }
 .world-phone__map-region:focus-visible circle,.world-phone__map-poi:focus-visible circle { stroke:#eee; stroke-width:.4; }
 .world-phone__contact-avatar svg { width:32px; height:32px; }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MainlineScenePage } from './runtime/MainlineScenePage'
 import { LongDistanceTravel } from './runtime/LongDistanceTravel'
-import { enqueuePhoneNotification, presentPhoneNotifications, readPhoneNotifications } from './runtime/phoneNotifications'
+import { enqueuePhoneNotification, phoneHasAutomaticNotification, presentPhoneNotifications, readPhoneNotifications } from './runtime/phoneNotifications'
 import { mainlineRideWaitingGuidance } from './runtime/mainlineRide'
 import { WorldPhone } from './runtime/WorldPhone'
 import {
@@ -175,7 +175,7 @@ export default function CenterExperience({
   }, [commitPlayerSave])
   useEffect(() => {
     if (sceneReadingActiveRef.current || sceneReadingActive || localSlide || longDistanceTravel || entryPhase !== 'active') return
-    if (!playerSave.phoneNotifications.some(n => n.unread && !n.presented)) return
+    if (!phoneHasAutomaticNotification(playerSave.phoneNotifications)) return
     commitPlayerSave(current => ({ ...current, phoneNotifications: presentPhoneNotifications(current.phoneNotifications) }))
     setRequestedPhoneApp(null)
     setPhoneNotificationScreen(true)
@@ -193,7 +193,7 @@ export default function CenterExperience({
 
   const revealPhone = useCallback(() => {
     if (sceneReadingActiveRef.current) return
-    setPhoneNotificationScreen(false)
+    setPhoneNotificationScreen(playerSaveRef.current.phoneNotifications.some(n => n.unread))
     setRequestedPhoneApp(null)
     setPhoneOpen(true)
   }, [])
@@ -663,10 +663,6 @@ export default function CenterExperience({
           {localSlide && localSlideActor && <div className="scene-protagonist center-local-slide__actor" aria-hidden="true"><span className="scene-protagonist__dot" /></div>}
         </div>
         <WorldPhone
-          estimateRideEtaMs={() => {
-            const current = latestWorldPositionRef.current
-            return current?.sceneId === route.sceneId ? mainlineRideWalkingEtaMs(route.sceneId, current.position, current.context) : null
-          }}
           getPlayerPosition={() => latestWorldPositionRef.current?.sceneId === route.sceneId ? latestWorldPositionRef.current.position : null}
           currentSceneId={route.sceneId}
           worldLayer={worldLayerForScene(route.sceneId)}
