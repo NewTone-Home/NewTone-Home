@@ -1,6 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { mainlineScenes, type MainlineSceneId } from '../src/center/runtime/mainlineScenes'
 import { isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
+import { splitMainlineInteractionText } from '../src/center/runtime/mainlineTextSegments'
+import { mainlineVisiblePresentationText } from '../src/center/runtime/dialoguePresentation'
 
 test.use({ viewport: { width: 1280, height: 720 } })
 
@@ -218,8 +220,9 @@ test('office actions persist real world state and never leave an empty Reading p
 })
 
 test('the four Office corridor plants keep stable healthy or needs-water ownership across reload', async ({ page }, testInfo) => {
-  const healthyText = '叶子翠绿翠绿的，看起来很有活力'
-  const thirstyText = '有段时间没浇水了，不那么精神了。'
+  const visibleObservation = (text: string) => splitMainlineInteractionText(text).map(mainlineVisiblePresentationText).join('')
+  const healthyText = visibleObservation('叶子翠绿翠绿的，看起来很有活力')
+  const thirstyText = visibleObservation('有段时间没浇水了，不那么精神了。')
   const shield = page.locator('[data-scene-dialogue-shield="true"]')
   await page.goto('/?scene=zhongshuyuan-office&debugRuntimeEvidence=1')
 
