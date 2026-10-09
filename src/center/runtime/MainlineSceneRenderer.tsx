@@ -694,6 +694,8 @@ export function MainlineSceneRenderer({
   debugRuntimeEvidence = false,
 }: MainlineSceneRendererProps) {
   const [dialogueReady, setDialogueReady] = useState(false)
+  const speakerPlacementRef = useRef<{ session: string; metrics: string; anchor: ReturnType<typeof mainlineSpeakerAnchor> } | null>(null)
+  if (!dialogue || !dialogueLine || !dialoguePosition || sceneEcho) speakerPlacementRef.current = null
   const dialogueReadyGroupRef = useRef<string | null>(null)
   const currentDialogueGroupRef = useRef<string | null>(null)
   const dialogueAdvanceConsumedGroupRef = useRef<string | null>(null)
@@ -1229,7 +1231,14 @@ export function MainlineSceneRenderer({
             const echoLayout = mainlineEchoLayout(text, renderScreenMetrics, {
               speaker: isDialogue ? dialogueLine!.speaker : undefined,
             })
-            const speakerAnchor = isDialogue ? mainlineSpeakerAnchor(dialogue!.lines, renderScreenMetrics, position, cameraOffset) : null
+            if (isDialogue) {
+              const session = `${scene.id}:${dialogue!.triggerEntityId}`
+              const metrics = `${renderScreenMetrics.width}:${renderScreenMetrics.height}:${renderScreenMetrics.viewportWidth}`
+              if (speakerPlacementRef.current?.session !== session || speakerPlacementRef.current.metrics !== metrics) {
+                speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, renderScreenMetrics, position, cameraOffset) }
+              }
+            }
+            const speakerAnchor = isDialogue ? speakerPlacementRef.current!.anchor : null
             return <Fragment>
             {isDialogue && speakerAnchor && <div
               key={`speaker:${scene.id}:${dialogue!.triggerEntityId}`}
@@ -1241,8 +1250,8 @@ export function MainlineSceneRenderer({
               key={sceneEcho?.id ?? dialogueLine!.id}
               className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${isLeaving ? 'is-leaving' : ''}`}
               style={{
-                left: `${Math.max((echoLayout.widthPx / renderScreenMetrics.width) * 50 + 2, Math.min(98 - (echoLayout.widthPx / renderScreenMetrics.width) * 50, position.x + cameraOffset.x))}%`,
-                top: `${Math.max(10, Math.min(85, position.y + cameraOffset.y))}%`,
+                left: `${speakerAnchor ? speakerAnchor.left + (speakerAnchor.widthPx / renderScreenMetrics.width) * 50 : Math.max((echoLayout.widthPx / renderScreenMetrics.width) * 50 + 2, Math.min(98 - (echoLayout.widthPx / renderScreenMetrics.width) * 50, position.x + cameraOffset.x))}%`,
+                top: `${speakerAnchor?.top ?? Math.max(10, Math.min(85, position.y + cameraOffset.y))}%`,
                 '--scene-mainline-text-width': `${echoLayout.widthPx}px`,
                 '--scene-mainline-text-height': `${echoLayout.heightPx}px`,
               } as CSSProperties}

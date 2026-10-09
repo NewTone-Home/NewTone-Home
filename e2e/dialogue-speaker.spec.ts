@@ -10,6 +10,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
     const speaker = page.locator('.scene-mainline-speaker-anchor .scene-mainline-text__speaker')
     await expect(speaker).toHaveAttribute('data-speaker-phase', 'steady')
     const original = (await speaker.boundingBox())!
+    await page.locator('[data-fixture-camera]').click()
     const widths: number[] = []
     for (const text of ['我跟你说，这一段长文字需要保持原有正文的阅读方式。', '好。', '我跟你说，这一段长文字需要保持原有正文的阅读方式。']) {
       await page.locator('[data-fixture-text]').fill(text)

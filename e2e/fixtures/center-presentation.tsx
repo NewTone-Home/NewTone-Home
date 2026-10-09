@@ -15,6 +15,7 @@ function Fixture() {
   const [text, setText] = useState('我跟你说，事情不是这样的。')
   const [mode, setMode] = useState<'dialogue' | 'observation' | null>(null)
   const [speaker, setSpeaker] = useState('修杰')
+  const [cameraShift, setCameraShift] = useState(0)
   const lines = [{ id: 'long', speaker, text: '我跟你说，这一段长文字需要保持原有正文的阅读方式。' }, { id: 'short', speaker, text: '好。' }]
   const position = near ? mainlineStorefrontApproach(scene, cafe) : scene.initialPlayerPosition
   const presentation = useStorefrontPresentation(scene, position)
@@ -28,8 +29,9 @@ function Fixture() {
       <button data-fixture-dialogue onClick={() => setMode('dialogue')}>dialogue</button>
       <button data-fixture-observation onClick={() => setMode('observation')}>observation</button>
       <button data-fixture-close onClick={() => setMode(null)}>close</button>
+      <button data-fixture-camera onClick={() => setCameraShift(scene.walkBounds.width / 10)}>camera follow</button>
     </div>
-    <MainlineSceneRenderer scene={scene} position={position} moving={false} destination={null} layoutMode={false} layout={{}} activeObjectId={null} geometrySnapshot={snapshot} onScreenMetricsChange={next => setMetrics(current => current.width === next.width && current.height === next.height ? current : { ...next, viewportWidth: innerWidth })} cameraOffset={{ x: 50 - anchor.x, y: 50 - anchor.y }} onLayoutChange={() => {}} onInteract={() => {}} onWalk={() => {}} storefrontPresentation={presentation.phaseByStorefront} onStorefrontRevealMotionComplete={presentation.completeRevealMotion} onStorefrontLingerAnimationComplete={presentation.completeLingerAnimation} onStorefrontRestoreMotionComplete={presentation.completeRestoreMotion}
+    <MainlineSceneRenderer scene={scene} position={position} moving={false} destination={null} layoutMode={false} layout={{}} activeObjectId={null} geometrySnapshot={snapshot} onScreenMetricsChange={next => setMetrics(current => current.width === next.width && current.height === next.height ? current : { ...next, viewportWidth: innerWidth })} cameraOffset={{ x: 50 - anchor.x + cameraShift, y: 50 - anchor.y }} onLayoutChange={() => {}} onInteract={() => {}} onWalk={() => {}} storefrontPresentation={presentation.phaseByStorefront} onStorefrontRevealMotionComplete={presentation.completeRevealMotion} onStorefrontLingerAnimationComplete={presentation.completeLingerAnimation} onStorefrontRestoreMotionComplete={presentation.completeRestoreMotion}
       dialogue={mode === 'dialogue' ? { triggerEntityId: 'fixture', lines: lines as import('../../src/center/runtime/mainlineSceneModel').MainlineSceneDialogueLine[] } : undefined}
       dialogueLine={mode === 'dialogue' ? { id: text, speaker: speaker as import('../../src/center/runtime/mainlineSceneModel').MainlineSceneDialogueSpeaker, text } : null}
       dialogueText={text} dialoguePosition={{ x: anchor.x, y: anchor.y }}
