@@ -21,6 +21,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
     })
     const original = (await group.boundingBox())!
     const originalFrame = (await frame.boundingBox())!
+    expect(await group.evaluate(element => getComputedStyle(element).zIndex)).toBe('5')
     expect(await group.evaluate(element => element.style.height)).toMatch(/%$/)
     const initialLabelGeometry = await group.evaluate(element => {
       const slot = element.querySelector<HTMLElement>('[data-storefront-label-slot]')!
@@ -72,7 +73,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
           track: { top: rect.top, bottom: rect.bottom },
           slot: { top: parent.top, bottom: parent.bottom },
           glyphRects,
-          background: getComputedStyle(track).backgroundColor,
+          background: getComputedStyle(track.parentElement!, '::before').backgroundColor,
           room: getComputedStyle(document.querySelector('.mainline-scene-stage')!).getPropertyValue('--room').trim(),
         }
       }, percent)
@@ -80,6 +81,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
       expect(sample.background).toBe('rgb(11, 15, 18)')
       expect(sample.room).toBe('#0b0f12')
       expect(sample.opacity).toBe('1')
+      expect(await group.evaluate(element => getComputedStyle(element).opacity)).toBe('1')
       expect(sample.textOpacity).toBe('1')
       expect(sample.glyphRects.length).toBeGreaterThan(0)
       revealSamples.push(sample)
@@ -115,11 +117,12 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
         const range = document.createRange()
         range.selectNodeContents(track)
         const glyphRects = Array.from(range.getClientRects()).map(item => ({ left: item.left, right: item.right, top: item.top, bottom: item.bottom }))
-        return { duration, transform: getComputedStyle(track).transform, opacity: getComputedStyle(track).opacity, textOpacity: getComputedStyle(track.querySelector('.scene-mainline-storefront__label-text')!).opacity, top: rect.top, glyphRects, background: getComputedStyle(track).backgroundColor }
+        return { duration, transform: getComputedStyle(track).transform, opacity: getComputedStyle(track).opacity, textOpacity: getComputedStyle(track.querySelector('.scene-mainline-storefront__label-text')!).opacity, top: rect.top, glyphRects, background: getComputedStyle(track.parentElement!, '::before').backgroundColor }
       }, percent)
       expect(sample.duration).toBe(700)
       expect(sample.background).toBe('rgb(11, 15, 18)')
       expect(sample.opacity).toBe('1')
+      expect(await group.evaluate(element => getComputedStyle(element).opacity)).toBe('1')
       expect(sample.textOpacity).toBe('1')
       expect(sample.glyphRects.length).toBeGreaterThan(0)
       restoreSamples.push(sample)

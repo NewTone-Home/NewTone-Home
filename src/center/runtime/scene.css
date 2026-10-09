@@ -1236,6 +1236,25 @@
 .scene-mainline-storefront--portal .scene-mainline-storefront__label-track {
   background: var(--room, #0b0f12);
 }
+.scene-mainline-storefront--portal .scene-mainline-storefront__label-slot::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: var(--room, #0b0f12);
+  content: '';
+  pointer-events: none;
+}
+.scene-mainline-storefront--portal .scene-mainline-storefront__label-track {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+.scene-mainline-storefront--portal { z-index: 5; }
+.scene-mainline-focus-group.scene-mainline-storefront--portal.is-baseline,
+.scene-mainline-focus-group.scene-mainline-storefront--portal.is-near {
+  opacity: 1;
+  transition: color 120ms ease-out, visibility 0s linear 140ms;
+}
 .scene-mainline-storefront--vertical.scene-mainline-storefront--sign .scene-mainline-storefront__label-track {
   font-size: min(1em, calc((100cqh - 4px) / var(--storefront-label-length)));
 }
