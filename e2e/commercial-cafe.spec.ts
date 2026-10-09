@@ -14,6 +14,7 @@ import {
 } from '../src/center/runtime/commercialCafeStory'
 import { commercialStreetMilkTeaHeldDrinkKey } from '../src/center/runtime/commercialStreetMilkTea'
 import { splitMainlineInteractionText } from '../src/center/runtime/mainlineTextSegments'
+import { mainlineVisiblePresentationText } from '../src/center/runtime/dialoguePresentation'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
 
@@ -125,7 +126,7 @@ async function advanceNarrativeToLine(page: Page, lineId: string, maximum = 40) 
 
 async function advanceNarrativeToText(page: Page, lineId: string, text: string, maximum = 20) {
   const dialogue = page.locator(`[data-dialogue-line-id="${lineId}"]`)
-  const presentedText = text.replace(/[，。？！；：“”‘’]/g, '')
+  const presentedText = mainlineVisiblePresentationText(text)
   for (let index = 0; index < maximum; index += 1) {
     await expect(dialogue).toBeVisible()
     if ((await dialogue.textContent())?.includes(presentedText)) return
@@ -161,7 +162,7 @@ async function advanceVisibleDialogue(page: Page, maximum = 20) {
 async function advanceObservationToAction(page: Page, observation: string, option: string) {
   const segments = splitMainlineInteractionText(observation)
   for (let index = 0; index < segments.length; index += 1) {
-    await expect(page.getByText(segments[index]!, { exact: true })).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText(mainlineVisiblePresentationText(segments[index]!), { exact: true })).toBeVisible({ timeout: 15_000 })
     const echo = page.locator('[data-scene-echo]')
     if (await echo.getAttribute('data-scene-observation-typing') === 'true') {
       await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })

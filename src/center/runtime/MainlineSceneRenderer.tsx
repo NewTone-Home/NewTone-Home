@@ -15,7 +15,7 @@ import { useSceneFocusFrameController } from './SceneFocusFrames'
 import type { SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
-import { dialoguePresentationText } from './dialoguePresentation'
+import { mainlineVisiblePresentationText } from './dialoguePresentation'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
 import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds, mainlineSeatedActorVisualPosition } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
@@ -247,7 +247,7 @@ function MainlineAmbientNpcActorView({ npc, position, snapshot, screenMetrics, d
 export const MainlineAmbientNpcActor = memo(MainlineAmbientNpcActorView)
 
 function ObservationText({ echoId, text, typing, onTypingComplete }: { echoId: number; text: string; typing: boolean; onTypingComplete?: (echoId: number) => void }) {
-  const characters = useMemo(() => Array.from(text), [text])
+  const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
   const [visibleCount, setVisibleCount] = useState(0)
 
   useEffect(() => {
@@ -280,7 +280,7 @@ function DialogueText({ group, text, onReadyChange }: { group: string; text: str
   >
     <span key={group} onAnimationEnd={(event) => {
       if (event.target === event.currentTarget) onReadyChange?.(group, true)
-    }}>{dialoguePresentationText(text)}</span>
+    }}>{mainlineVisiblePresentationText(text)}</span>
   </span>
 }
 
