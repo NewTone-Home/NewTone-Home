@@ -10,6 +10,7 @@ import {
 } from './mainlineScenes'
 import type { CollisionBox, NavigationBarrierSegment, Point } from './sceneGeometry'
 import type { StorefrontPresentationPhase } from './storefrontPresentation'
+import { storefrontContactGeometry, type StorefrontContactGeometry } from './storefrontContactGeometry'
 import {
   mainlineEntityCollision,
   mainlineEntityInteractionBounds,
@@ -52,6 +53,7 @@ export type MainlineSceneGeometrySnapshot = {
   screenMetrics: SceneScreenMetrics
   walkBounds: CollisionBox
   units: readonly MainlineSceneGeometryUnit[]
+  storefronts: ReadonlyMap<string, StorefrontContactGeometry>
   objects: ReadonlyMap<string, MainlineObjectGeometry>
   wallFeatures: ReadonlyMap<string, MainlineWallFeatureGeometry>
   passages: ReadonlyMap<string, MainlinePassageGeometrySnapshot>
@@ -184,6 +186,11 @@ export function createMainlineSceneGeometrySnapshot(
   storefrontPresentation?: ReadonlyMap<string, StorefrontPresentationPhase>,
 ): MainlineSceneGeometrySnapshot {
   const units = mainlineSceneGeometryUnits(scene, position, screenMetrics, storefrontPresentation)
+  const storefronts = new Map<string, StorefrontContactGeometry>()
+  scene.storefronts.forEach(storefront => {
+    const contact = storefrontContactGeometry(storefront, units, screenMetrics)
+    if (contact) storefronts.set(storefront.id, contact)
+  })
   const objects = new Map<string, MainlineObjectGeometry>()
   scene.objects.forEach((entity) => {
     objects.set(entity.id, {
@@ -226,6 +233,7 @@ export function createMainlineSceneGeometrySnapshot(
     screenMetrics,
     walkBounds: mainlineSceneWalkBounds(scene, screenMetrics),
     units,
+    storefronts,
     objects,
     wallFeatures,
     passages,

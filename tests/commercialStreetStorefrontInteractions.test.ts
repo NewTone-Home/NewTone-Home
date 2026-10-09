@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findMainlinePath, isWalkableMainlinePoint, MAINLINE_STOREFRONT_DIRECT_INTERACTION_RANGE, resolveMainlineInteractionCandidates, resolveMainlineStorefrontInteraction } from '../src/center/runtime/mainlineNavigation'
+import { findMainlinePath, isWalkableMainlinePoint, resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
@@ -71,22 +71,6 @@ describe('commercial street storefront interactions', () => {
     expect(preferred.every((point) => isWalkableMainlinePoint(point, street))).toBe(true)
   })
 
-  it('requires a close direct range while routing distant requests through the unchanged contact geometry', () => {
-    const storefront = street.storefronts.find(s => s.id === 'commercial-south-slot-5')!
-    expect(MAINLINE_STOREFRONT_DIRECT_INTERACTION_RANGE).toBe(2.5)
-    const near = { x: 110.5, y: 62 }
-    expect(resolveMainlineStorefrontInteraction(street, storefront, near)).toEqual({ target: near, path: [near], inRange: true })
-
-    const distantStorefront = street.storefronts.find((candidate) => candidate.id === 'commercial-north-slot-2')!
-    const distant = street.initialPlayerPosition
-    const resolved = resolveMainlineStorefrontInteraction(street, distantStorefront, distant)
-    expect(resolved.inRange).toBe(false)
-    expect(resolved.path).not.toBeNull()
-    expect(resolved.target).not.toEqual(distant)
-    expect(mainlineStorefrontInteractionCandidates(street, distantStorefront, distant)).toContainEqual(resolved.target)
-    expect(isWalkableMainlinePoint(resolved.target, street)).toBe(true)
-  })
-
   it('keeps the radius-six navigation candidate geometry unchanged', () => {
     const storefront = street.storefronts.find((candidate) => candidate.id === 'commercial-north-slot-2')!
     const approach = mainlineStorefrontApproach(street, storefront)
@@ -101,14 +85,6 @@ describe('commercial street storefront interactions', () => {
     const cafe = street.storefronts.find((candidate) => candidate.id === 'commercial-cafe-slot')!
     expect(cafe.portalId).toBe('street-cafe-entry')
     expect(commercialStreetStorefrontInteractionFor(cafe.id)).toBeUndefined()
-  })
-
-  it('accepts close legal points without routing to a fixed contact', () => {
-    const storefront = street.storefronts.find(s => s.id === 'commercial-south-slot-5')!
-    for (const from of [{ x: 110.5, y: 62 }, { x: 111, y: 62 }, { x: 111.5, y: 62 }]) {
-      expect(resolveMainlineStorefrontInteraction(street, storefront, from)).toEqual({target:from,path:[from],inRange:true})
-    }
-    expect(resolveMainlineStorefrontInteraction(street, storefront, {x:110,y:53}).inRange).toBe(false)
   })
 
   it('re-resolves a continuous facade when a live actor occupies the nearest projected contact', () => {

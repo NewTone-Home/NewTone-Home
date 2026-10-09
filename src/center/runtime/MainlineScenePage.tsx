@@ -6,7 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import type { Point } from './sceneGeometry'
 import { MainlineAmbientNpcActor, MainlineSceneRenderer, type MainlineInputDiagnostic } from './MainlineSceneRenderer'
 import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneAreaLabel, mainlineScenes, mainlineStorefrontInteractionCandidates, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
-import { prepareMainlineWorldNavigation, canActorReachPassageApproach, classifyMainlineWorldCommand, findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, isMainlineEntityWithinInteractionRange, isMainlineNavigationBarrierClear, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlineInteractionTarget, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineEntityInteraction, resolveMainlineInteractionCandidates, resolveMainlineStorefrontInteraction, resolveMainlineNpcInteraction, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from './mainlineNavigation'
+import { prepareMainlineWorldNavigation, canActorReachPassageApproach, classifyMainlineWorldCommand, findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, isMainlineEntityWithinInteractionRange, isMainlineNavigationBarrierClear, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlineInteractionTarget, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineEntityInteraction, resolveMainlineInteractionCandidates, resolveMainlineStorefrontInteraction, mainlineStorefrontArrivalDecision, resolveMainlineNpcInteraction, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from './mainlineNavigation'
 import { layoutGridSize, mainlineLabelFootprint, mainlineProtagonistDotFootprint, type SceneLayout } from './sceneLayout'
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
 import { movementDurationMsForPath, protagonistCharacterMovementOptions, sharedCharacterMovementOptions, useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
@@ -316,7 +316,7 @@ export function MainlineScenePage({
   const [screenMetrics, setScreenMetrics] = useState<SceneScreenMetrics>(defaultSceneScreenMetrics)
   const sceneReadyRef = useRef(false)
   const handleScreenMetricsChange = useCallback((next: SceneScreenMetrics) => {
-    setScreenMetrics((previous) => previous.width === next.width && previous.height === next.height ? previous : next)
+    setScreenMetrics((previous) => previous.width === next.width && previous.height === next.height && previous.viewportWidth === next.viewportWidth ? previous : next)
     if (!sceneReadyRef.current) {
       sceneReadyRef.current = true
       onSceneReady?.()
@@ -874,6 +874,8 @@ export function MainlineScenePage({
     },
   })
   const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics, geometrySnapshot, navigationRuntime, actorId: 'protagonist', actorFootprint: protagonistFootprint, npcRuntimePositions, occupiedSeatIds }), [geometrySnapshot, getOpenPassageIds, navigationRuntime, npcRuntimePositions, occupiedSeatIds, protagonistFootprint, screenMetrics])
+  const storefrontNavigationRef = useRef({ scene, layout, options: navigationOptions })
+  storefrontNavigationRef.current = { scene, layout, options: navigationOptions }
   useEffect(() => {
     if (!presentationSnapshot) prepareMainlineWorldNavigation(scene, layout, navigationOptions)
   }, [scene, layout, navigationOptions, presentationSnapshot])
@@ -1891,7 +1893,8 @@ export function MainlineScenePage({
     const attemptContact = (retry: number) => {
       if (requestId !== storefrontRequestIdRef.current) return
       const currentPosition = getCurrentPosition()
-      const interaction = resolveMainlineStorefrontInteraction(scene, storefront, currentPosition, layout, navigationOptions)
+      const live = storefrontNavigationRef.current
+      const interaction = resolveMainlineStorefrontInteraction(live.scene, storefront, currentPosition, live.layout, live.options)
       if (interaction.inRange) {
         stopMovement()
         revealStorefrontInteraction()
@@ -1903,10 +1906,25 @@ export function MainlineScenePage({
         return
       }
       setActiveObjectId(storefrontId)
-      moveAlong(interaction.path, revealStorefrontInteraction, {
+      moveAlong(interaction.path, () => {
+        if (requestId !== storefrontRequestIdRef.current) return
+        // Arrival is not permission to reveal: validate the actual body and
+        // live occupancy against the same contact contract as a manual click.
+        const live = storefrontNavigationRef.current
+        const decision = mainlineStorefrontArrivalDecision(live.scene, storefront, getCurrentPosition(), retry, live.layout, live.options)
+        if (decision === 'interact') revealStorefrontInteraction()
+        else if (decision === 'retry') attemptContact(retry + 1)
+        else reportFinalBlock('arrival-contact-invalid')
+      }, {
         ...protagonistLocomotionOptions,
-        canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
-        canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
+        canOccupy: (point) => {
+          const live = storefrontNavigationRef.current
+          return isWalkableMainlinePoint(point, live.scene, live.layout, live.options)
+        },
+        canTraverse: (start, end) => {
+          const live = storefrontNavigationRef.current
+          return isMainlineNavigationBarrierClear(start, end, live.scene, live.layout, live.options)
+        },
         onBlocked: () => {
           if (requestId !== storefrontRequestIdRef.current) return
           if (retry < 2) {

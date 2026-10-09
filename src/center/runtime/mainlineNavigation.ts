@@ -1,5 +1,5 @@
 import { createPoint, defaultEdgeContactDirection, mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
-import { mainlineScenePassageCollision, mainlineScenePassageDoorway, mainlineStorefrontInteractionCandidates, mainlineStorefrontInteractionRegion, type MainlineStorefrontSlot, type MainlineSceneAccessRegion, type MainlineSceneDefinition, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
+import { mainlineScenePassageCollision, mainlineScenePassageDoorway, type MainlineStorefrontSlot, type MainlineSceneAccessRegion, type MainlineSceneDefinition, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import { mainlineEntityCollision, mainlineLabelFootprint, mainlineLayoutOffsetForEntity, mainlineProtagonistDotFootprint, type SceneLayout } from './sceneLayout'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -9,7 +9,9 @@ import { containsDoorRegion, doorRegionSide, doorwayBoundaryPoint, doorwayLegalT
 import { sharedFurnitureGeometry } from './twoSeatFurniture'
 import { mainlineNpcStagedInteractionContactEntityId, mainlineNpcStagedPoint, mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 
-export const MAINLINE_STOREFRONT_DIRECT_INTERACTION_RANGE = 2.5
+/** Screen-space gap as a fraction of the protagonist's visible width. */
+export const MAINLINE_STOREFRONT_CONTACT_GAP = .25
+export const MAINLINE_STOREFRONT_MAX_CONTACT_GAP = .35
 
 export type MainlineNavigationOptions = {
   actorRadius?: number
@@ -1465,14 +1467,60 @@ export function resolveMainlineInteractionCandidates(
   }
 }
 
-/** Continuous range ownership stays separate from route destination sampling. */
+/** Player-only close contacts. Ambient NPCs keep their authored three-ring sampler. */
+export function mainlineStorefrontPlayerContact(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
+  const snapshot = sceneGeometrySnapshot(scene, layout, options)
+  const geometry = snapshot.storefronts.get(storefront.id)
+  if (!geometry) return null
+  const footprint = mainlineActorFootprint(scene, options, from)
+  const horizontal = geometry.outward.y !== 0
+  const normal = horizontal ? 'y' : 'x'
+  const tangent = horizontal ? 'x' : 'y'
+  const direction = geometry.outward[normal]
+  const normalSize = horizontal ? 'height' : 'width'
+  const tangentSize = horizontal ? 'width' : 'height'
+  const visualEdge = geometry.visualBounds[normal] + (direction > 0 ? geometry.visualBounds[normalSize] : 0)
+  const physicalEdge = geometry.physicalBounds[normal] + (direction > 0 ? geometry.physicalBounds[normalSize] : 0)
+  const pixelGap = footprint.width * snapshot.screenMetrics.width / 100
+  const normalPixels = horizontal ? snapshot.screenMetrics.height : snapshot.screenMetrics.width
+  const gap = pixelGap / normalPixels * 100
+  // Preserve the existing collision boundary. If it lies beyond the requested
+  // visual band there is no close contact, rather than a distant fallback.
+  const edge = Math.max(direction * physicalEdge + .000001, direction * visualEdge + gap * MAINLINE_STOREFRONT_CONTACT_GAP)
+  const line = direction * (edge + footprint[normalSize] / 2)
+  const minimum = geometry.visualBounds[tangent] + footprint[tangentSize] / 2
+  const maximum = geometry.visualBounds[tangent] + geometry.visualBounds[tangentSize] - footprint[tangentSize] / 2
+  const maxGap = gap * MAINLINE_STOREFRONT_MAX_CONTACT_GAP
+  const isClose = (point: Point) => {
+    const separation = direction * (point[normal] - visualEdge) - footprint[normalSize] / 2
+    return minimum <= maximum && point[tangent] >= minimum - .000001 && point[tangent] <= maximum + .000001
+      && separation > 0 && separation <= maxGap + .000001
+  }
+  const values = minimum <= maximum
+    ? [clamp(from[tangent], minimum, maximum), (minimum + maximum) / 2, minimum, maximum]
+    : []
+  // Sample the visible entrance span at half a body width, so a dynamic actor
+  // can invalidate the preferred contact without owning the whole entrance.
+  const count = Math.max(1, Math.ceil((maximum - minimum) / (footprint[tangentSize] / 2)))
+  for (let index = 0; index <= count && minimum <= maximum; index += 1) values.push(minimum + (maximum - minimum) * index / count)
+  const candidates = [...new Set(values)].map(value => ({ ...geometry.center, [normal]: line, [tangent]: value })).filter(isClose)
+  return { candidates, isClose, geometry, footprint }
+}
+
+/** Manual proximity, route destinations and arrival use one edge-gap contract. */
 export function resolveMainlineStorefrontInteraction(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): MainlineInteractionResolution {
-  const { center, outward } = mainlineStorefrontInteractionRegion(scene, storefront)
-  const dx = from.x - center.x, dy = from.y - center.y
-  if (dx * outward.x + dy * outward.y >= 0 && Math.hypot(dx, dy) <= MAINLINE_STOREFRONT_DIRECT_INTERACTION_RANGE + .001 && isWalkableMainlinePoint(from, scene, layout, options)) return { target: from, path: [from], inRange: true }
-  const candidates = mainlineStorefrontInteractionCandidates(scene, storefront, from, mainlineActorFootprint(scene, options, from))
-  const resolved = resolveMainlineInteractionCandidates(scene, from, candidates, 0, layout, options)
+  options = { ...options, geometrySnapshot: sceneGeometrySnapshot(scene, layout, options) }
+  const contact = mainlineStorefrontPlayerContact(scene, storefront, from, layout, options)
+  if (!contact) return { target: from, path: null, inRange: false }
+  if (contact.isClose(from) && isMainlineInteractionPositionLegal(from, scene, layout, options)) return { target: from, path: [from], inRange: true }
+  const resolved = resolveMainlineInteractionCandidates(scene, from, contact.candidates, 0, layout, options)
   return { ...resolved, inRange: false }
+}
+
+/** A completed move must still meet the current manual-interaction contract. */
+export function mainlineStorefrontArrivalDecision(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot, position: Point, retry: number, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
+  if (resolveMainlineStorefrontInteraction(scene, storefront, position, layout, options).inRange) return 'interact'
+  return retry < 2 ? 'retry' : 'blocked'
 }
 
 /** One selected entity contact is shared by proximity, route and arrival. */

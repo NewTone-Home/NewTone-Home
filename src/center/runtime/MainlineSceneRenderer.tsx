@@ -23,6 +23,7 @@ import type { NpcRuntimeSnapshot } from './npcCore'
 import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisualState'
 import { storefrontPresentationLabelSlots, type StorefrontPresentationPhase } from './storefrontPresentation'
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
+import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -346,7 +347,7 @@ function mainlineWallCellVisibility(cell: MainlineGeometryCellEntry['cell'], uni
   return (cell.baselineVisible ?? cell.baseline ?? true) ? 'is-baseline' : 'is-hidden'
 }
 
-function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontPresentationPhase = 'baseline', onStorefrontPresentationMotionComplete, active = false, explored = false }: {
+function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontGeometry, storefrontPresentationPhase = 'baseline', onStorefrontPresentationMotionComplete, active = false, explored = false }: {
   entries: readonly MainlineGeometryCellEntry[]
   className: string
   visibilityClass: string
@@ -364,6 +365,7 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
   storefrontSpan?: number
   storefrontCenter?: Point
   storefrontLabel?: string
+  storefrontGeometry?: StorefrontContactGeometry
   storefrontPresentationPhase?: StorefrontPresentationPhase
   onStorefrontPresentationMotionComplete?: (phase: 'revealing' | 'lingering' | 'restoring') => void
   active?: boolean
@@ -396,6 +398,10 @@ function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, 
     Object.assign(style, vertical
       ? { left: `${centerX}%`, top: `${centerY}%`, width: '1.4em', height: `min(${textExtent}em, calc(${span}% - .15em))` }
       : { left: `${centerX}%`, top: `${centerY}%`, width: `min(${textExtent}em, calc(${span}% - .15em))`, height: '1.4em' })
+  }
+  if (storefrontGeometry) {
+    const { center, visualBounds, fontSizePx } = storefrontGeometry
+    Object.assign(style, { left: `${center.x}%`, top: `${center.y}%`, width: `${visualBounds.width}%`, height: `${visualBounds.height}%`, fontSize: `${fontSizePx}px` })
   }
   const glyphs = entries.map(({ cell }) => cell.glyph ?? '')
   const content = hideGlyphs ? null : storefrontLabel ? (
@@ -1034,6 +1040,7 @@ export function MainlineSceneRenderer({
                     storefrontSpan={storefront ? storefront.end - storefront.start : undefined}
                     storefrontCenter={storefront ? mainlineStorefrontAnchor(scene, storefront) : undefined}
                     storefrontLabel={storefrontRole === 'sign' ? storefront?.label : undefined}
+                    storefrontGeometry={storefrontRole === 'sign' && storefront ? geometrySnapshot.storefronts.get(storefront.id) : undefined}
                     storefrontPresentationPhase={storefrontPresentationPhase}
                     onStorefrontPresentationMotionComplete={(phase) => {
                       if (!storefront) return

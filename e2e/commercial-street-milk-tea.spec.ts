@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
-import {mainlineScenes,mainlineStorefrontInteractionRegion} from '../src/center/runtime/mainlineScenes'
+import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { resolveMainlineStorefrontInteraction } from '../src/center/runtime/mainlineNavigation'
+import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 
 test.use({ viewport: { width: 1280, height: 720 } })
 
@@ -41,9 +43,12 @@ test('the Milk Tea storefront interaction surface works from west, center, and e
     }
     expect(arrived.x).toBeGreaterThan(101)
     expect(arrived.x).toBeLessThan(121)
-    const region=mainlineStorefrontInteractionRegion(mainlineScenes['commercial-street'],mainlineScenes['commercial-street'].storefronts.find(s=>s.id==='commercial-south-slot-5')!)
-    expect(Math.hypot(arrived.x-region.center.x,arrived.y-region.center.y)).toBeLessThanOrEqual(region.radius+.01)
-    expect((arrived.x-region.center.x)*region.outward.x+(arrived.y-region.center.y)*region.outward.y).toBeGreaterThanOrEqual(0)
+    const scene = mainlineScenes['commercial-street']
+    const storefront = scene.storefronts.find(s => s.id === 'commercial-south-slot-5')!
+    const box = (await page.locator('.mainline-scene-stage').boundingBox())!
+    const screenMetrics = { width: box.width, height: box.height, viewportWidth: 1280 }
+    const geometrySnapshot = createMainlineSceneGeometrySnapshot(scene, arrived, {}, screenMetrics)
+    expect(resolveMainlineStorefrontInteraction(scene, storefront, arrived, {}, { screenMetrics, geometrySnapshot }).inRange).toBe(true)
     await page.getByLabel('收起手机').click()
     await expect(phone).not.toHaveClass(/is-open/)
   }
