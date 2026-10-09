@@ -7,6 +7,11 @@ export type StorefrontPresentationPhase = 'baseline' | 'revealing' | 'revealed' 
 /** Matches EntryTextFlip's established translate3d motion contract. */
 export const storefrontLabelRollDurationMs = 360
 
+/** The label remains retracted throughout its leave grace period. */
+export function storefrontPresentationRetractsFrame(phase: StorefrontPresentationPhase) {
+  return phase === 'revealing' || phase === 'revealed' || phase === 'lingering'
+}
+
 export type StorefrontPresentationEvent =
   | 'approach'
   | 'reveal-motion-complete'
