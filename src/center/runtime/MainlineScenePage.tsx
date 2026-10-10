@@ -861,7 +861,7 @@ export function MainlineScenePage({
       sceneTextPresentationPosition(scene, getCurrentPosition(), text, screenMetrics),
     ))
   }, [getCurrentPosition, presentSceneEcho, scene, screenMetrics])
-  const { requestPassage: requestPassageLifecycle, cancelPassage: cancelPassageLifecycle, updateActor: updatePassageLifecycle, completeOpen, completeClose, getPassagePhase, isPassageActorActive, getOpenPassageIds, passageStates } = useAutomaticPassages({
+  const { requestPassage: requestPassageLifecycle, cancelPassage: cancelPassageLifecycle, updateActor: updatePassageLifecycle, getPassagePhase, isPassageActorActive, getOpenPassageIds, passageStates } = useAutomaticPassages({
     passages: passageLifecycleDefinitions,
     canOpen: (_actorId, passage) => lifecycleMainlinePassages.find((candidate) => candidate.id === passage.id)?.access === 'open',
     canUse: (_actorId, passage) => lifecycleMainlinePassages.find((candidate) => candidate.id === passage.id)?.access === 'open',
@@ -1333,19 +1333,13 @@ export function MainlineScenePage({
     if (phase === 'open' || phase === 'crossing') continuePendingTraversalRef.current(pending.passage.entityId)
   }, [getPassagePhase, isPassageActorActive, passageStates])
 
-  const completeDoorTransition = useCallback((entityId: string, completion: 'opened' | 'closed') => {
-    const passage = scene.passages.find((candidate) => candidate.entityId === entityId)
-    if (!passage) return
-    if (completion === 'opened') {
-      if (completeOpen(passage.id)) continuePendingTraversal(entityId)
-    }
-    else {
-      completeClose(passage.id)
-      setSceneFrameExit((current) => current.phase === 'retracting' && current.scope === 'passage' && current.passageEntityId === entityId
-        ? { phase: 'idle' }
-        : current)
-    }
-  }, [completeClose, completeOpen, continuePendingTraversal, scene.passages])
+  useEffect(() => {
+    setSceneFrameExit(current => {
+      if (current.phase !== 'retracting' || current.scope !== 'passage') return current
+      const passage = scene.passages.find(candidate => candidate.entityId === current.passageEntityId)
+      return passage && getPassagePhase(passage.id) === 'closed' ? { phase: 'idle' } : current
+    })
+  }, [getPassagePhase, passageStates, scene.passages])
 
   useEffect(() => () => {
     pendingTraversalRef.current = null
@@ -2373,7 +2367,6 @@ export function MainlineScenePage({
               npcRuntimeSnapshots={npcRuntimeSnapshots}
               hiddenNpcIds={hiddenNpcIds}
               ambientNpcActorLayer={ambientNpcActorLayer}
-              onDoorTransitionComplete={completeDoorTransition}
               onWalk={walk}
               worldQuestionMark={scene.id === 'commercial-street' && !commercialStreetQuestionNarrativeIsCompleted ? { anchor: commercialStreetQuestionNarrativeAnchor(scene), visible: !commercialStreetQuestionNarrative } : undefined}
               dialogue={activeDialogue}
