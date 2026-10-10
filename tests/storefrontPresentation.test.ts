@@ -4,6 +4,7 @@ import {
   nextStorefrontPresentationPhase,
   storefrontRollDirection,
   storefrontLingerDurationMs,
+  storefrontRestoreDelayMs,
   storefrontLabelRollDurationMs,
   storefrontPresentationLabelSlots,
   storefrontPresentationShouldReveal,
@@ -13,6 +14,12 @@ const street = mainlineScenes['commercial-street']
 const cafe = street.storefronts.find((storefront) => storefront.id === 'commercial-cafe-slot')!
 
 describe('commercial street storefront presentation', () => {
+  it('counts the restore grace from actual departure, including unfinished reveal motion', () => {
+    expect(storefrontRestoreDelayMs(100, 100)).toBe(3000)
+    expect(storefrontRestoreDelayMs(100, 800)).toBe(2300)
+    expect(storefrontRestoreDelayMs(100, 3100)).toBe(0)
+    expect(storefrontRestoreDelayMs(100, 4100)).toBe(0)
+  })
   it('keeps the approved 16-slot commercial street inventory while Café remains the only portal storefront', () => {
     const ordinaryStorefronts = street.storefronts.filter((storefront) => storefront.id !== 'commercial-cafe-slot')
 

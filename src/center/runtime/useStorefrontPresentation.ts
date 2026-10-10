@@ -5,7 +5,7 @@ import type { Point } from './sceneGeometry'
 import type { MainlineSceneDefinition } from './mainlineScenes'
 import {
   nextStorefrontPresentationPhase,
-  storefrontLingerDurationMs,
+  storefrontRestoreDelayMs,
   storefrontPresentationShouldReveal,
   type StorefrontPresentationEvent,
   type StorefrontPresentationPhase,
@@ -23,6 +23,7 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
     .join('|')
   const handledApproachSignatureRef = useRef<string | null>(null)
   const nearRef = useRef(new Map<string, boolean>())
+  const departedAtRef = useRef(new Map<string, number>())
   nearRef.current = new Map(portalStorefronts.map(storefront => [storefront.id, storefrontPresentationShouldReveal(scene, storefront, position)]))
 
   const transition = useCallback((storefrontId: string, event: StorefrontPresentationEvent) => {
@@ -45,9 +46,11 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
     portalStorefronts.forEach((storefront) => {
       const nearApproach = storefrontPresentationShouldReveal(scene, storefront, position)
       if (nearApproach) {
+        departedAtRef.current.delete(storefront.id)
         transition(storefront.id, 'approach')
         return
       }
+      if (!departedAtRef.current.has(storefront.id)) departedAtRef.current.set(storefront.id, performance.now())
       transition(storefront.id, 'leave')
     })
   }, [approachSignature, portalStorefronts, scene, transition])
@@ -55,7 +58,11 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
   // Product grace period belongs to presentation, not a CSS animation clock.
   useEffect(() => {
     const timers = [...phaseByStorefront].filter(([, phase]) => phase === 'lingering')
-      .map(([id]) => window.setTimeout(() => transition(id, 'linger-animation-complete'), storefrontLingerDurationMs))
+      .map(([id]) => {
+        const now = performance.now()
+        return window.setTimeout(() => transition(id, 'linger-animation-complete'),
+          storefrontRestoreDelayMs(departedAtRef.current.get(id) ?? now, now))
+      })
     return () => timers.forEach(timer => window.clearTimeout(timer))
   }, [phaseByStorefront, transition])
 

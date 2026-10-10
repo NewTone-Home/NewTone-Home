@@ -9,6 +9,10 @@ export const storefrontLabelRollDurationMs = 700
 
 export const storefrontLingerDurationMs = 3000
 
+export function storefrontRestoreDelayMs(departedAt: number, now: number) {
+  return Math.max(0, storefrontLingerDurationMs - (now - departedAt))
+}
+
 /** The inward normal is independent of horizontal/vertical typography. */
 export function storefrontRollDirection(edge: MainlineStorefrontSlot['edge']): Point {
   return edge === 'left' ? { x: -1, y: 0 } : edge === 'right' ? { x: 1, y: 0 }
