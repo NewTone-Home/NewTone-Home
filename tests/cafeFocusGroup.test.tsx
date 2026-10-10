@@ -22,7 +22,7 @@ describe('Café focus geometry and lifecycle', () => {
       }
     })
   }
-  it.each([['baseline', false], ['revealing', true], ['revealed', true], ['lingering', true], ['restoring', false]] as const)('%s maps to retract=%s', (phase, expected) => {
+  it.each([['baseline', false], ['revealing', true], ['revealed', true], ['lingering', true], ['restoring', true], ['retracting', true]] as const)('%s maps to retract=%s', (phase, expected) => {
     expect(storefrontPresentationRetractsFrame(phase)).toBe(expected)
   })
 })

@@ -6,4 +6,3 @@ export const SceneCharacters = forwardRef<HTMLSpanElement, ComponentPropsWithout
     return <span {...props} ref={ref} data-scene-characters="true">{children}</span>
   },
 )
-

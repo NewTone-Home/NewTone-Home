@@ -15,7 +15,7 @@ describe('sceneFocusFrameGeometry', () => {
     const geometry = sceneFocusFrameGeometry(176.03125, 78.28125)
 
     expect(geometry.viewBox).toBe('0 0 176.031 78.281')
-    expect(geometry.paths['bottom-right']).toBe('M172.511 76.716 H3.521 V1.566 H172.511 V76.716 Z')
+    expect(geometry.paths['bottom-right']).toBe('M175.031 77.281 H1 V1 H175.031 V77.281 Z')
   })
 
   it('updates viewBox and paths when the measured frame size changes', () => {

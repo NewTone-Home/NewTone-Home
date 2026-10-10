@@ -5,6 +5,7 @@ import type { Point } from './sceneGeometry'
 import type { MainlineSceneDefinition } from './mainlineScenes'
 import {
   nextStorefrontPresentationPhase,
+  storefrontLingerDurationMs,
   storefrontPresentationShouldReveal,
   type StorefrontPresentationEvent,
   type StorefrontPresentationPhase,
@@ -21,11 +22,15 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
     .map((storefront) => `${storefront.id}:${storefrontPresentationShouldReveal(scene, storefront, position) ? 1 : 0}`)
     .join('|')
   const handledApproachSignatureRef = useRef<string | null>(null)
+  const nearRef = useRef(new Map<string, boolean>())
+  nearRef.current = new Map(portalStorefronts.map(storefront => [storefront.id, storefrontPresentationShouldReveal(scene, storefront, position)]))
 
   const transition = useCallback((storefrontId: string, event: StorefrontPresentationEvent) => {
     setPhaseByStorefront((current) => {
       const phase = current.get(storefrontId) ?? 'baseline'
-      const nextPhase = nextStorefrontPresentationPhase(phase, event)
+      let nextPhase = nextStorefrontPresentationPhase(phase, event)
+      if (event === 'reveal-motion-complete' && !nearRef.current.get(storefrontId)) nextPhase = 'lingering'
+      if (event === 'restore-motion-complete' && nearRef.current.get(storefrontId)) nextPhase = 'retracting'
       if (nextPhase === phase) return current
       const next = new Map(current)
       next.set(storefrontId, nextPhase)
@@ -47,8 +52,17 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
     })
   }, [approachSignature, portalStorefronts, scene, transition])
 
+  // Product grace period belongs to presentation, not a CSS animation clock.
+  useEffect(() => {
+    const timers = [...phaseByStorefront].filter(([, phase]) => phase === 'lingering')
+      .map(([id]) => window.setTimeout(() => transition(id, 'linger-animation-complete'), storefrontLingerDurationMs))
+    return () => timers.forEach(timer => window.clearTimeout(timer))
+  }, [phaseByStorefront, transition])
+
   return {
     phaseByStorefront,
+    nearByStorefront: nearRef.current,
+    completeFrameRetraction: (storefrontId: string) => transition(storefrontId, 'frame-retracted'),
     completeRevealMotion: (storefrontId: string) => transition(storefrontId, 'reveal-motion-complete'),
     completeLingerAnimation: (storefrontId: string) => transition(storefrontId, 'linger-animation-complete'),
     completeRestoreMotion: (storefrontId: string) => transition(storefrontId, 'restore-motion-complete'),

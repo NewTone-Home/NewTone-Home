@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { mainlineSceneGeometryUnits, mainlineScenePassageCollision, mainlineScenes, mainlineStorefrontApproach } from '../src/center/runtime/mainlineScenes'
 import {
   nextStorefrontPresentationPhase,
+  storefrontRollDirection,
+  storefrontLingerDurationMs,
   storefrontLabelRollDurationMs,
   storefrontPresentationLabelSlots,
   storefrontPresentationShouldReveal,
@@ -57,6 +59,14 @@ describe('commercial street storefront presentation', () => {
     expect(baseline.some((unit) => unit.storefrontId === cafe.id && unit.variant === 'baseline')).toBe(true)
   })
 
+  it('rolls a whole group inward independently of typography and preserves the grace period', () => {
+    expect(storefrontRollDirection('left')).toEqual({ x: -1, y: 0 })
+    expect(storefrontRollDirection('right')).toEqual({ x: 1, y: 0 })
+    expect(storefrontRollDirection('top')).toEqual({ x: 0, y: -1 })
+    expect(storefrontRollDirection('bottom')).toEqual({ x: 0, y: 1 })
+    expect(storefrontLingerDurationMs).toBe(3000)
+  })
+
   it('keeps the complete storefront sign visible alongside the near wall and door projection', () => {
     const nearUnits = mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, cafe))
       .filter((unit) => unit.storefrontId === cafe.id)
@@ -76,7 +86,10 @@ describe('commercial street storefront presentation', () => {
 
   it('enters revealing and then revealed only for the portal storefront approach', () => {
     expect(storefrontPresentationShouldReveal(street, cafe, mainlineStorefrontApproach(street, cafe))).toBe(true)
-    expect(nextStorefrontPresentationPhase('baseline', 'approach')).toBe('revealing')
+    expect(nextStorefrontPresentationPhase('baseline', 'approach')).toBe('retracting')
+    expect(nextStorefrontPresentationPhase('retracting', 'frame-retracted')).toBe('revealing')
+    expect(nextStorefrontPresentationPhase('retracting', 'leave')).toBe('baseline')
+    expect(nextStorefrontPresentationPhase('revealing', 'leave')).toBe('revealing')
     expect(nextStorefrontPresentationPhase('revealing', 'reveal-motion-complete')).toBe('revealed')
     const nonPortal = street.storefronts.find((storefront) => !storefront.portalId)!
     expect(storefrontPresentationShouldReveal(street, nonPortal, mainlineStorefrontApproach(street, nonPortal))).toBe(false)
