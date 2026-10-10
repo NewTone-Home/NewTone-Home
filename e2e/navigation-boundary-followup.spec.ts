@@ -30,6 +30,12 @@ async function reach(page: Page, target: { x: number; y: number }) {
 async function dismiss(page: Page) {
   for (let i = 0; i < 12 && await page.locator('[data-scene-echo]').count(); i++) {
     const echo = page.locator('[data-scene-echo]')
+    const state = await echo.evaluateAll(nodes => nodes[0] ? { leaving: nodes[0].classList.contains('is-leaving') } : null)
+    if (!state) break
+    if (state.leaving) {
+      await expect(echo).toHaveCount(0)
+      break
+    }
     await expect(echo).toHaveAttribute('data-scene-observation-typing', 'false')
     const index = Number(await echo.getAttribute('data-scene-segment-index'))
     const count = Number(await echo.getAttribute('data-scene-segment-count'))
@@ -113,6 +119,9 @@ for (const start of ['lower', 'top']) test('Café continuous staff boundary from
   expect(new Set(contacts.map(y => y.toFixed(2))).size).toBeGreaterThan(2)
   await reach(page, origin)
   for (let i = 0; i < 4; i++) { await clickWorld(page, { x: staff.x + staff.width - 2, y: staff.y + 1 + i }); await clickWorld(page, origin) }
+  // Rapid clicks can legitimately start denied-access reading. Complete its
+  // input shield before asserting the next world movement command.
+  await dismiss(page)
   await reach(page, origin)
   await clickWorld(page, { x: staff.x + staff.width - 2, y: staff.y + staff.height / 2 })
   await expect(page.locator('[data-scene-echo]')).toBeVisible({ timeout: 20000 })
