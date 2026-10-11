@@ -63,6 +63,17 @@ export function stepPhoneMapZoom(current: PhoneMapZoomLevel, direction: -1 | 1):
   return clampPhoneMapZoom(current * (direction > 0 ? 1.25 : 1 / 1.25))
 }
 
+// Marker visibility and hit targets share this presentation list. Geography is unchanged.
+export function phoneMapVisiblePlaces(regions: readonly PhoneMapRegion[], zoom: number, center: PhoneMapPoint, focusId?: string | null, regionsOnly = false) {
+  const focused = regions.find(r => r.id === focusId || r.pois.some(p => p.id === focusId))
+  const nearest = regions.reduce<PhoneMapRegion | undefined>((best,r) => !best || Math.hypot(r.position[0]-center[0],r.position[1]-center[1]) < Math.hypot(best.position[0]-center[0],best.position[1]-center[1]) ? r : best, undefined)
+  const detail = zoom >= phoneMapZoomBounds.poi && !regionsOnly ? focused ?? nearest : undefined
+  return regions.flatMap<{place:PhoneMapRegion | PhoneMapPoi;parent:PhoneMapRegion | undefined}>(region => {
+    const showPois = detail?.id === region.id && region.id !== 'zhongshuyuan' && region.pois.length > 0
+    return showPois ? region.pois.map(place => ({place, parent:region})) : [{place:region, parent:undefined as PhoneMapRegion | undefined}]
+  })
+}
+
 // Schematic transit links, never geographic roads or formal region boundaries.
 export const phoneMapTransitLinks = [['commercial', 'zhongshuyuan'], ['commercial', 'mine'], ['zhongshuyuan', 'mine']] as const
 export const phoneMapRegionContours: Record<string, string> = {

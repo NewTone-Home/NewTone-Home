@@ -59,7 +59,7 @@ test('Notes persist and the contact flow supports details, location cards, and a
   const map = phone.locator('[data-map-world="inner"]')
   await expect(map).toBeVisible()
   await expect(map).toHaveAttribute('data-map-zoom', '1.650')
-  await expect(phone.locator('[data-map-region="mine"]')).toBeVisible()
+  await expect(phone.locator('[data-map-region="mine"]')).toHaveCount(0)
   await expect(phone.locator('[data-map-poi="yonghe-eatery"]')).toBeVisible()
   await expect(phone.locator('[data-map-poi="yonghe-eatery"]')).toHaveAttribute('data-map-poi-region', 'mine')
   await expect(phone.locator('.world-phone__detail-heading strong')).toBeVisible()

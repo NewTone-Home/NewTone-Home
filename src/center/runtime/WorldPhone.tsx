@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type AnimationEvent as ReactAnimationEvent, type FormEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
 import { type MainlineSceneId } from './mainlineScenes'
-import { getPhoneMapRegions, phoneMapZoomBounds, type PhoneMapZoomLevel } from './phoneMapModel'
+import { getPhoneMapRegions, type PhoneMapZoomLevel } from './phoneMapModel'
 import { phoneInputOwner, phoneIsOnline, phoneRideAvailability, type PhoneDevice, type WorldLayer, type WorldPhonePhase } from './phoneState'
 import { commercialStreetMilkTeaQueueStatus, formatCommercialStreetMilkTeaOrderNumber, milkTeaDrinks, milkTeaIceOptions, milkTeaSugarOptions, type CommercialStreetMilkTeaOrder, type MilkTeaDrink, type MilkTeaIce, type MilkTeaSugar } from './commercialStreetMilkTea'
 
@@ -463,14 +463,6 @@ export function WorldPhone({ getPlayerPosition, currentSceneId, worldLayer, devi
   const selectedMapPoi = mapRegions.flatMap((region) => region.pois.map((poi) => ({ region, poi }))).find(({ poi }) => poi.id === selectedMapPlaceId) ?? null
   const selectedMapTitle = selectedMapPoi?.poi.label ?? selectedMapRegion?.label ?? null
 
-  useEffect(() => {
-    if (activeApp !== 'map' || mapFocusRequestId !== 'yonghe-eatery') return undefined
-    const frame = window.requestAnimationFrame(() => {
-      setMapZoom(current => Math.max(current, phoneMapZoomBounds.poi + .2))
-      setMapFocusRequestId(null)
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [activeApp, mapFocusRequestId])
   const storyDate = mainlineStoryDateLabel()
   const storyTime = mainlineStoryTimeLabel(storyClock.stage)
   const worldWeather = mainlineWorldWeatherLabel(displayDevice, storyClock.weatherCycle)
@@ -501,17 +493,11 @@ export function WorldPhone({ getPlayerPosition, currentSceneId, worldLayer, devi
         onAnimationEnd={handleSwapRetractEnd}
         onClick={handleIsInteractive ? onOpen : undefined}
       >
-        <PhoneNotificationCapsule notifications={notifications} visible={handleIsInteractive && !open && !swapPending} />
       </button>
 
       <div inert={!isInteractive} className="world-phone__body" onTransitionEnd={handleBodyTransitionEnd} onTransitionRun={handleBodyTransitionRun} onTransitionCancel={handleBodyTransitionCancel}>
-        <div className="world-phone__hardware" aria-hidden="true">
-          <span className="world-phone__earpiece" />
-          <span className="world-phone__camera" />
-          <span className="world-phone__brand">NEWTONE</span>
-          <span className="world-phone__side-buttons" />
-        </div>
         <section className={`world-phone__panel ${isMapOpen ? 'world-phone__panel--map' : ''}`} role="dialog" aria-label="手机" aria-hidden={!isInteractive}>
+          <PhoneNotificationCapsule notifications={notifications} visible={handleIsInteractive && !open && !swapPending} />
           <header className="world-phone__header">
             <span className="world-phone__world-status">{storyTime}　{storyDate}</span>
             <div className="world-phone__status" aria-label={`${online ? '有信号' : '无信号'}，电量${batteryPercent}%`}>
@@ -585,7 +571,7 @@ export function WorldPhone({ getPlayerPosition, currentSceneId, worldLayer, devi
             {activeApp === 'map' && (
               <div className="world-phone__map-frame">
                 <div className="world-phone__map-title">区域地图{!online ? ' · 离线' : ''}</div>
-                <PhoneMapCanvas mapRegions={mapRegions} displayDevice={displayDevice} currentLandmark={currentLandmark} selectedMapPlaceId={selectedMapPlaceId} onSelect={id => { setMapFocusRequestId(null); setSelectedMapPlaceId(id) }} mapZoom={mapZoom} setMapZoom={setMapZoom} mapPan={mapPan} setMapPan={setMapPan} focusId={mapFocusRequestId ?? selectedMapPlaceId} coveredHeight={mapSheetHeight} onBlank={() => { setSelectedMapPlaceId(null); setMapFocusRequestId(null) }} />
+                <PhoneMapCanvas mapRegions={mapRegions} displayDevice={displayDevice} currentLandmark={currentLandmark} selectedMapPlaceId={selectedMapPlaceId} onSelect={id => { setMapFocusRequestId(null); setSelectedMapPlaceId(id) }} mapZoom={mapZoom} setMapZoom={setMapZoom} mapPan={mapPan} setMapPan={setMapPan} focusId={mapFocusRequestId ?? selectedMapPlaceId} coveredHeight={mapSheetHeight} restoreOnBlank onBlank={() => { setSelectedMapPlaceId(null); setMapFocusRequestId(null) }} />
                 <PhonePlaceDetails id={selectedMapPlaceId} title={selectedMapTitle} onHeight={setMapSheetHeight} onRide={() => { setSelectedRideDestinationId(selectedMapRegion?.id ?? selectedMapPoi?.region.id ?? null); openApp('ride') }} onCall={() => setPlaceCall('中枢院 · 0000')} />
                 {!online && <p className="world-phone__offline-note">当前为离线地图，显示已缓存路线。</p>}
               </div>
@@ -636,7 +622,7 @@ export function WorldPhone({ getPlayerPosition, currentSceneId, worldLayer, devi
                         <p>查不到去了哪里。不过我在那边有个线人，据说有人好像在永和小馆那块见过陈副部长。</p>
 
                       </div>
-                      {locationCardOpen && <button type="button" className="world-phone__place-card" onClick={event => { event.stopPropagation(); setMapZoom(current => Math.max(current, phoneMapZoomBounds.poi + .2)); setSelectedMapPlaceId('yonghe-eatery'); setMapFocusRequestId('yonghe-eatery'); setLocationCardOpen(false); openApp('map') }}><span aria-hidden="true">⌖</span><strong>永和小馆</strong></button>}
+                      {locationCardOpen && <button type="button" className="world-phone__place-card" onClick={event => { event.stopPropagation(); setSelectedMapPlaceId('yonghe-eatery'); setMapFocusRequestId('yonghe-eatery'); setLocationCardOpen(false); openApp('map') }}><span aria-hidden="true">⌖</span><strong>永和小馆</strong></button>}
                     </div>
                   )}
                 </section>

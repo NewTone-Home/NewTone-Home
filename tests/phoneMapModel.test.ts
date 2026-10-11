@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getPhoneMapRegions, stepPhoneMapZoom, phoneBusinessStatus, phonePublicPlaces, clampPhoneMapZoom, phoneMapTransitLinks } from '../src/center/runtime/phoneMapModel'
+import { getPhoneMapRegions, stepPhoneMapZoom, phoneBusinessStatus, phonePublicPlaces, clampPhoneMapZoom, phoneMapTransitLinks, phoneMapVisiblePlaces } from '../src/center/runtime/phoneMapModel'
 
 describe('Phone map region and POI model', () => {
   it('groups current inner-world locations and real POIs by their parent area', () => {
@@ -29,6 +29,21 @@ describe('Phone map region and POI model', () => {
   })
   it('only supplies the confirmed three transit relationships', () => {
     expect(phoneMapTransitLinks).toEqual([['commercial', 'zhongshuyuan'], ['commercial', 'mine'], ['zhongshuyuan', 'mine']])
+  })
+  it('replaces only the focused region with its POIs, retaining Zhongshuyuan', () => {
+    const regions=getPhoneMapRegions('inner')
+    const ids=(zoom:number,focus:string|null)=>phoneMapVisiblePlaces(regions,zoom,[0,0],focus).map(p=>p.place.id)
+    expect(ids(1,'commercial')).toEqual(['commercial','zhongshuyuan','mine'])
+    expect(ids(1.65,'commercial')).toEqual(['commercial-cafe','zhongshuyuan','mine'])
+    expect(ids(1.65,'yonghe-eatery')).toEqual(['commercial','zhongshuyuan','yonghe-eatery'])
+    expect(ids(1.65,'zhongshuyuan')).toEqual(['commercial','zhongshuyuan','mine'])
+    expect(regions.find(r=>r.id==='zhongshuyuan')!.pois[0].sceneId).toBe('zhongshuyuan-office')
+  })
+  it('uses the visible center for manual views; Ride keeps selectable regional destinations',()=>{
+    const regions=getPhoneMapRegions('inner'),mine=regions.find(r=>r.id==='mine')!
+    expect(phoneMapVisiblePlaces(regions,2,mine.position).map(p=>p.place.id)).toEqual(['commercial','zhongshuyuan','yonghe-eatery'])
+    expect(phoneMapVisiblePlaces(regions,2,mine.position,'mine',true).map(p=>p.place.id)).toEqual(['commercial','zhongshuyuan','mine'])
+    expect(phoneMapVisiblePlaces(getPhoneMapRegions('surface'),2,[0,0],'zhongshuyuan').map(p=>p.place.id)).toEqual(['jijia','zhongshuyuan'])
   })
 })
 

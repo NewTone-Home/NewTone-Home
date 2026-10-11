@@ -14,14 +14,20 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(view
  await expect(phone.locator('[data-map-world=inner]')).toHaveAttribute('data-map-zoom','1.650');
  await phone.getByRole('button',{name:'更换目的地',exact:true}).click()
  await phone.getByRole('button',{name:/矿区.*从当前位置出发/}).click()
- const frames=await phone.locator('.world-phone__map').evaluate(async e=>{
-  const values:{scale:number;x:number;y:number}[]=[];const begin=performance.now()
-  await new Promise<void>(resolve=>{const tick=()=>{const m=new DOMMatrix(getComputedStyle(e).transform);values.push({scale:m.a,x:m.e,y:m.f});if(performance.now()-begin<900)requestAnimationFrame(tick);else resolve()};tick()})
+ const framesPromise=phone.locator('.world-phone__map').evaluate(async e=>{
+  const values:{time:number;scale:number;x:number;y:number}[]=[];const begin=performance.now()
+  await new Promise<void>(resolve=>{const tick=()=>{const m=new DOMMatrix(getComputedStyle(e).transform);values.push({time:performance.now()-begin,scale:m.a,x:m.e,y:m.f});if(performance.now()-begin<1700)requestAnimationFrame(tick);else resolve()};tick()})
   return values
  })
+ await page.waitForTimeout(350);await page.screenshot({path:info.outputPath('camera-pulled-out.png')})
+ await page.waitForTimeout(650);await page.screenshot({path:info.outputPath('camera-approaching.png')})
+ const frames=await framesPromise
  await info.attach('camera-frames',{body:JSON.stringify(frames),contentType:'application/json'})
  expect(Math.min(...frames.map(f=>f.scale))).toBeLessThan(1.1)
  expect(frames.at(-1)!.scale).toBeCloseTo(1.65,2)
+ const finalArrival=frames.findIndex((f,i)=>i>20 && f.scale>1.64 && frames.slice(i).every(next=>next.scale>1.64))
+ expect(frames[finalArrival].time).toBeGreaterThan(1100)
+ expect(frames[finalArrival].time).toBeLessThan(1600)
  expect(frames.filter(f=>f.scale<1.1).some((f,i,all)=>i>0&&Math.hypot(f.x-all[0].x,f.y-all[0].y)>2)).toBe(true)
  await page.screenshot({path:info.outputPath('focused-map.png')})
  await phone.getByRole('button',{name:/^快车/}).click();await phone.getByRole('button',{name:'确认叫车',exact:true}).click()
@@ -30,13 +36,17 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(view
  await expect(flow).toBeVisible({timeout:30000})
  await flow.evaluate(e=>{for(const node of [e,...e.querySelectorAll('path')])for(const animation of node.getAnimations())animation.pause()})
  const endpoints=await flow.locator('path').first().evaluate(e=>{const path=e as SVGPathElement;const a=path.getPointAtLength(0),b=path.getPointAtLength(path.getTotalLength());return Math.hypot(a.x-b.x,a.y-b.y)})
- expect(endpoints).toBeLessThan(.01)
+ expect(endpoints).toBeGreaterThan(80)
+ const route=await flow.locator('path').first().evaluate(e=>{const p=e as SVGPathElement,n=p.getTotalLength();return [0,.1,.5,.9,1].map(t=>{const point=p.getPointAtLength(n*t);return {x:point.x,y:point.y}})})
+ expect(route[0].x).toBeLessThan(2);expect(route.at(-1)!.x).toBeGreaterThan(88)
+ expect(route[2].y).toBe(9)
+ await info.attach('notification-sweep-path',{body:JSON.stringify(route),contentType:'application/json'})
  const offsets:number[]=[]
  for(let index=0;index<4;index++){
   await flow.evaluate((e,time)=>{for(const node of [e,...e.querySelectorAll('path')])for(const animation of node.getAnimations())animation.currentTime=time},index*300)
   offsets.push(await flow.locator('path').first().evaluate(e=>parseFloat(getComputedStyle(e).strokeDashoffset)))
   await page.screenshot({path:info.outputPath('orbit-'+index+'.png')})
-  await phone.locator('.world-phone__handle').screenshot({path:info.outputPath('orbit-detail-'+index+'.png')})
+  await phone.locator('.world-phone__handle-mark').screenshot({path:info.outputPath('orbit-detail-'+index+'.png')})
 
  }
  expect(offsets[3]).toBeLessThan(offsets[0]-50)
@@ -88,6 +98,6 @@ test('manual map input cancels automatic travel; sheet resize does not replay it
  await expect(viewport).toHaveAttribute('data-camera-moving','false');await phone.getByRole('button',{name:'更换目的地',exact:true}).click();await phone.getByRole('button',{name:/矿区.*从当前位置出发/}).click()
  await expect(viewport).toHaveAttribute('data-camera-moving','true');await viewport.hover({position:{x:30,y:40}});await page.mouse.wheel(0,100)
  await expect(viewport).toHaveAttribute('data-camera-moving','false');const interrupted=await map.getAttribute('data-map-zoom')
- await page.waitForTimeout(800);await expect(map).toHaveAttribute('data-map-zoom',interrupted!)
+ await page.waitForTimeout(1600);await expect(map).toHaveAttribute('data-map-zoom',interrupted!)
  await phone.getByLabel('展开叫车面板').click();await expect(viewport).toHaveAttribute('data-camera-moving','false');await expect(map).toHaveAttribute('data-map-zoom',interrupted!)
 })
