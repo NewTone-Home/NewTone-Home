@@ -501,7 +501,7 @@ export function WorldPhone({ getPlayerPosition, currentSceneId, worldLayer, devi
         onAnimationEnd={handleSwapRetractEnd}
         onClick={handleIsInteractive ? onOpen : undefined}
       >
-        <PhoneNotificationCapsule notifications={notifications} />
+        <PhoneNotificationCapsule notifications={notifications} visible={handleIsInteractive && !open && !swapPending} />
       </button>
 
       <div inert={!isInteractive} className="world-phone__body" onTransitionEnd={handleBodyTransitionEnd} onTransitionRun={handleBodyTransitionRun} onTransitionCancel={handleBodyTransitionCancel}>
@@ -530,7 +530,7 @@ export function WorldPhone({ getPlayerPosition, currentSceneId, worldLayer, devi
               {notifications.filter(n => n.unread).map(n => <button type="button" className="world-phone__notification" data-notification-app={n.app} key={n.id} onClick={event => { event.stopPropagation(); openApp(n.app) }}><strong>{n.title}</strong><span>{n.body}</span></button>)}
             </section>
           ) : activeApp === null ? (
-            <section className="world-phone__home-screen" aria-label="手机主屏">
+            <section className="world-phone__home-screen" tabIndex={0} aria-label="手机主屏">
               <div className="world-phone__home-layout">
                 <section className="world-phone__home-calendar" aria-label="剧情日历">
                   <strong>四月</strong>
@@ -581,7 +581,7 @@ export function WorldPhone({ getPlayerPosition, currentSceneId, worldLayer, devi
                 {activeApp === 'contacts' && contactView !== 'list' && <button className="world-phone__app-back" type="button" onClick={() => { if (contactView === 'call') finishCall(); else { setContactDirection(-1); setContactView(contactView === 'messages' ? 'detail' : 'list') } }} aria-label="返回联系人"><span aria-hidden="true">‹</span><small>联系人</small></button>}
                 <div><strong>{activeAppLabel}</strong></div>
               </div>
-              <div className="world-phone__app-content">
+              <div className="world-phone__app-content" tabIndex={0}>
             {activeApp === 'map' && (
               <div className="world-phone__map-frame">
                 <div className="world-phone__map-title">区域地图{!online ? ' · 离线' : ''}</div>

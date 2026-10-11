@@ -25,6 +25,12 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
   const [vx, vy, vw, vh] = (localViewBox ?? mainlineMapLayout.viewBox).split(' ').map(Number)
   const scale = Math.min(size.width / vw, size.height / vh)
   const focusPoint = mapRegions.flatMap(r => [r, ...r.pois]).find(p => p.id === focusId)?.position
+  const coveredHeightRef=useRef(coveredHeight)
+  coveredHeightRef.current=coveredHeight
+  const cameraFrame=useRef(0)
+  const previousFocus=useRef<string|null>(null)
+  const [cameraMoving,setCameraMoving]=useState(false)
+  const cancelCamera=()=>{cancelAnimationFrame(cameraFrame.current);setCameraMoving(false)}
   const zoomRef = useRef(mapZoom)
   zoomRef.current = mapZoom
   const project = ([x, y]: Point): Point => [size.width / 2 + (x - vx - vw / 2) * scale * mapZoom + mapPan[0], size.height / 2 + (y - vy - vh / 2) * scale * mapZoom + mapPan[1]]
@@ -46,12 +52,39 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
     return () => observer.disconnect()
   }, [])
   useLayoutEffect(() => {
-    if (!focusPoint || !focusId || size.width <= 1) return
-    const zoom = Math.max(zoomRef.current, phoneMapZoomBounds.poi + .2)
-    setMapZoom(zoom)
-    setMapPan(boundPan([(vx + vw / 2 - focusPoint[0]) * scale * zoom, (vy + vh / 2 - focusPoint[1]) * scale * zoom - coveredHeight / 2],zoom))
-    // Selection and visible-area changes own focus; wheel and drag remain user controlled.
-  }, [focusId, focusPoint?.[0], focusPoint?.[1], coveredHeight, size.width, size.height, vx, vy, vw, vh, scale, setMapZoom, setMapPan])
+    if (!focusPoint || !focusId || size.width <= 1) { cancelCamera(); return }
+    cancelAnimationFrame(cameraFrame.current)
+    const zoom=Math.max(zoomRef.current,phoneMapZoomBounds.poi+.2)
+    const panFor=(z:number):Point=>boundPan([(vx+vw/2-focusPoint[0])*scale*z,(vy+vh/2-focusPoint[1])*scale*z-coveredHeightRef.current/2],z)
+    const switching=previousFocus.current!==null && previousFocus.current!==focusId && !localViewBox
+    previousFocus.current=focusId
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){setMapZoom(zoom);setMapPan(panFor(zoom));setCameraMoving(false);return}
+    const overview=Math.min(zoomRef.current,1.05),ratio=overview/zoomRef.current
+    const phases=switching?[
+      {zoom:overview,pan:boundPan([mapPan[0]*ratio,mapPan[1]*ratio],overview),duration:180},
+      {zoom:overview,pan:panFor(overview),duration:300},
+      {zoom,pan:panFor(zoom),duration:220}
+    ]:[{zoom,pan:panFor(zoom),duration:220}]
+    let origin={zoom:zoomRef.current,pan:mapPan},index=0,started:number|null=null
+    setCameraMoving(true)
+    const tick=(now:number)=>{
+      if(started===null)started=now
+      const phase=phases[index]; if(index>0 || !switching)phase.pan=panFor(phase.zoom)
+      const t=Math.min(1,(now-started)/phase.duration),e=t*t*(3-2*t)
+      setMapZoom(origin.zoom+(phase.zoom-origin.zoom)*e)
+      setMapPan([origin.pan[0]+(phase.pan[0]-origin.pan[0])*e,origin.pan[1]+(phase.pan[1]-origin.pan[1])*e])
+      if(t===1){origin=phase;index++;started=null}
+      if(index<phases.length)cameraFrame.current=requestAnimationFrame(tick)
+      else setCameraMoving(false)
+    }
+    cameraFrame.current=requestAnimationFrame(tick)
+    return()=>cancelAnimationFrame(cameraFrame.current)
+  },[focusId,focusPoint?.[0],focusPoint?.[1],size.width,size.height,vx,vy,vw,vh,scale,setMapZoom,setMapPan])
+  // Sheet resizing only adjusts the visible-area offset, never restarts a destination journey.
+  useLayoutEffect(() => {
+    if (!focusPoint || size.width <= 1 || cameraMoving) return
+    setMapPan(boundPan([(vx+vw/2-focusPoint[0])*scale*zoomRef.current,(vy+vh/2-focusPoint[1])*scale*zoomRef.current-coveredHeight/2],zoomRef.current))
+  },[coveredHeight])
   useEffect(() => {
     if (size.width <= 1) return
     setMapPan(current => {
@@ -62,12 +95,13 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
   useEffect(() => {
     const viewport = viewportRef.current
     if (!viewport) return
-    const wheel = (event: WheelEvent) => { event.preventDefault(); event.stopPropagation(); setMapZoom(current => clampPhoneMapZoom(current * Math.exp(-event.deltaY * .002))) }
+    const wheel = (event: WheelEvent) => { event.preventDefault(); event.stopPropagation(); cancelCamera(); setMapZoom(current => clampPhoneMapZoom(current * Math.exp(-event.deltaY * .002))) }
     viewport.addEventListener('wheel', wheel, { passive: false })
     return () => viewport.removeEventListener('wheel', wheel)
   }, [setMapZoom])
   const down = (event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== 'touch' && event.button !== 0) return
+    cancelCamera()
     suppressClick.current = false
     pointers.current.set(event.pointerId, [event.clientX, event.clientY])
     const p = [...pointers.current.values()]
@@ -109,7 +143,7 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
   const places = mapRegions.flatMap(region => [{ place: region, parent: undefined as PhoneMapRegion | undefined }, ...(localViewBox || mapZoom < phoneMapZoomBounds.poi ? [] : region.pois.map(place => ({ place, parent: region })))])
     .sort((a, b) => Number(b.place.id === selectedMapPlaceId) - Number(a.place.id === selectedMapPlaceId))
   return <>
-    <div className="world-phone__map-viewport" data-dragging={dragging} ref={viewportRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('[data-map-interactive]')) { if (!suppressClick.current) onBlank?.() } }}>
+    <div className="world-phone__map-viewport" data-dragging={dragging} data-camera-moving={cameraMoving} ref={viewportRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('[data-map-interactive]')) { if (!suppressClick.current) onBlank?.() } }}>
       <svg className="world-phone__map" viewBox={localViewBox ?? mainlineMapLayout.viewBox} role="group" aria-label="世界地图，拖动查看，滚轮、双指或按钮缩放，点击区域和地点查看详情" data-map-world={displayDevice} data-map-zoom={mapZoom.toFixed(3)} style={{ transform: `translate(${mapPan[0]}px, ${mapPan[1]}px) scale(${mapZoom})` }}>
         {geometry?.filter(unit => unit.visual.kind !== 'none').map(unit => <rect key={unit.id} x={unit.x} y={unit.y} width={unit.width} height={unit.height} fill="#ffffff10" stroke="#ffffff35" strokeWidth=".15" />)}
         {!localViewBox && <>
@@ -119,6 +153,6 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
       </svg>
       <div className="world-phone__map-labels">{places.map(({ place, parent }) => marker(place, parent))}</div>
     </div>
-    <div className="world-phone__map-controls" ref={controlsRef} role="group" aria-label="地图缩放"><button type="button" aria-label="放大地图" onClick={() => setMapZoom(current => stepPhoneMapZoom(current, 1))}>+</button><button type="button" aria-label="缩小地图" onClick={() => setMapZoom(current => stepPhoneMapZoom(current, -1))}>−</button><button type="button" aria-label="回到地图概览" onClick={() => { setMapZoom(1); setMapPan([0, 0]) }}>⌖</button></div>
+    <div className="world-phone__map-controls" ref={controlsRef} role="group" aria-label="地图缩放"><button type="button" aria-label="放大地图" onClick={() => {cancelCamera();setMapZoom(current => stepPhoneMapZoom(current, 1))}}>+</button><button type="button" aria-label="缩小地图" onClick={() => {cancelCamera();setMapZoom(current => stepPhoneMapZoom(current, -1))}}>−</button><button type="button" aria-label="回到地图概览" onClick={() => { cancelCamera();setMapZoom(1); setMapPan([0, 0]) }}>⌖</button></div>
   </>
 }

@@ -1,8 +1,8 @@
 export type PhoneNotificationApp = 'ride' | 'milk-tea'
 export type PhoneNotification = { id: string; app: PhoneNotificationApp; title: string; body: string; unread: boolean; presented: boolean }
-/** Driver arrival stays non-blocking; other existing notifications keep automatic presentation. */
-export function phoneHasAutomaticNotification(current: readonly PhoneNotification[]): boolean {
-  return current.some(n => n.app !== 'ride' && n.unread && !n.presented)
+/** Ordinary notifications do not own phone opening. */
+export function phoneHasAutomaticNotification(_current: readonly PhoneNotification[]): boolean {
+  return false
 }
 export function cleanPhoneNotifications(value: unknown): PhoneNotification[] {
   if (!Array.isArray(value)) return []

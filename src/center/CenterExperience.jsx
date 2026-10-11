@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MainlineScenePage } from './runtime/MainlineScenePage'
 import { LongDistanceTravel } from './runtime/LongDistanceTravel'
-import { enqueuePhoneNotification, phoneHasAutomaticNotification, presentPhoneNotifications, readPhoneNotifications } from './runtime/phoneNotifications'
+import { enqueuePhoneNotification, readPhoneNotifications } from './runtime/phoneNotifications'
 import { WorldPhone } from './runtime/WorldPhone'
 import {
   mainlineRespawnSceneId,
@@ -81,7 +81,7 @@ export default function CenterExperience({
   const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId))
   const [phoneOpen, setPhoneOpen] = useState(false)
   const sceneReadingActiveRef = useRef(false)
-  const [sceneReadingActive, setSceneReadingActive] = useState(false)
+  const [, setSceneReadingActive] = useState(false)
   const [phoneNotificationScreen, setPhoneNotificationScreen] = useState(false)
   const positionSamplerRef = useRef(null)
   const currentSceneIdRef = useRef(route.sceneId)
@@ -172,14 +172,7 @@ export default function CenterExperience({
     commitPlayerSave(current => current.phoneNotifications.some(n => n.app === app && n.unread)
       ? { ...current, phoneNotifications: readPhoneNotifications(current.phoneNotifications, app) } : current)
   }, [commitPlayerSave])
-  useEffect(() => {
-    if (sceneReadingActiveRef.current || sceneReadingActive || localSlide || longDistanceTravel || entryPhase !== 'active') return
-    if (!phoneHasAutomaticNotification(playerSave.phoneNotifications)) return
-    commitPlayerSave(current => ({ ...current, phoneNotifications: presentPhoneNotifications(current.phoneNotifications) }))
-    setRequestedPhoneApp(null)
-    setPhoneNotificationScreen(true)
-    setPhoneOpen(true)
-  }, [commitPlayerSave, entryPhase, localSlide, longDistanceTravel, playerSave.phoneNotifications, sceneReadingActive])
+
 
   const handleSceneAnimationEnd = useCallback((event) => {
     if (event.animationName === 'center-world-scene-in') onRevealComplete?.()

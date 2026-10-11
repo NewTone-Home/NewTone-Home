@@ -11,11 +11,11 @@
 .world-phone__hardware span { display:none; }
 .world-phone__handle { position:absolute; bottom:0; left:0; width:100%; height:48px; z-index:3; border:0; background:transparent; pointer-events:auto; }
 .world-phone.is-open .world-phone__handle { display:none; }
-.world-phone__handle-mark { position:relative; display:block; width:90px; height:10px; border:1px solid #9da5b355; border-radius:12px; background:linear-gradient(#717781 0%,#4f545f 18%,#373c46 55%,#24272e 100%); margin:auto; box-shadow:inset 0 1px 0 #cbd3df45,0 1px 3px #0008; }
+.world-phone__handle-mark { position:relative; display:block; width:90px; height:10px; border:1px solid #858e9b40; border-radius:12px; background:linear-gradient(180deg,#555b65 0%,#424852 18%,#30353e 52%,#20242b 100%); margin:auto; box-shadow:inset 0 1px 1px #cbd3df35,inset 0 -1px 1px #0009,0 0 0 1px #07080b80; }
 .world-phone__notification-dot { position:absolute; right:8px; top:2px; width:4px; height:4px; border-radius:50%; background:#cdd4dc; animation:phone-notification-dot 3.2s ease-in-out infinite; }
-.world-phone__notification-flow { position:absolute; inset:-1px; width:90px; height:10px; overflow:visible; pointer-events:none; animation:phone-notification-fade 1s linear both; }
-.world-phone__notification-flow path { fill:none; stroke:#eef3fc; stroke-width:1.1; stroke-linecap:round; stroke-dasharray:1.8 98.2; animation:phone-notification-flow 1s linear both; }
-@keyframes phone-notification-flow { from { stroke-dashoffset:var(--tail); } to { stroke-dashoffset:calc(-100 + var(--tail)); } }
+.world-phone__notification-flow { position:absolute; inset:-1px; width:90px; height:10px; overflow:visible; pointer-events:none; animation:phone-notification-fade 1.2s linear both; }
+.world-phone__notification-flow path { fill:none; stroke:#eef3fc; stroke-width:1.1; stroke-linecap:round; stroke-dasharray:2.2 97.8; animation:phone-notification-flow 1.2s linear both; }
+@keyframes phone-notification-flow { from { stroke-dashoffset:var(--tail); } to { stroke-dashoffset:calc(-100px + var(--tail)); } }
 @keyframes phone-notification-fade { 0%,80% { opacity:1; } to { opacity:0; } }
 @keyframes phone-notification-dot { 50% { opacity:.4; box-shadow:0 0 4px #d4dbe15c; } }
 .world-phone--phase-swap-retracting .world-phone__handle { animation:world-phone-swap-retract 220ms ease; }
@@ -236,3 +236,8 @@
 .world-phone__contact-profile>span svg,.world-phone__call-avatar svg { width:54px; height:54px; }
 .world-phone__call-history>span,.world-phone__call-history>small { display:block; }
 .world-phone__call-history>span { margin-bottom:8px; }
+
+.world-phone__home-screen,.world-phone__app-content,.world-phone__map-detail,.world-phone__ride-sheet,.world-phone textarea { scrollbar-width:none; overscroll-behavior:contain; }
+.world-phone__home-screen::-webkit-scrollbar,.world-phone__app-content::-webkit-scrollbar,.world-phone__map-detail::-webkit-scrollbar,.world-phone__ride-sheet::-webkit-scrollbar,.world-phone textarea::-webkit-scrollbar { display:none; }
+.world-phone__home-screen,.world-phone__app-content { overflow-x:hidden; }
+.world-phone__map-viewport[data-camera-moving=true] .world-phone__map,.world-phone__map-viewport[data-camera-moving=true] .world-phone__map-marker { transition:none; }
