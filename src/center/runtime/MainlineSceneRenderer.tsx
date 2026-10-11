@@ -4,7 +4,7 @@ import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import type { CSSProperties, ReactNode } from 'react'
 import EntryButtonSurface from '../../components/EntryButtonSurface'
 import type { CollisionBox, Point } from './sceneGeometry'
-import { mainlineStorefrontAnchor, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
+import { mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -830,8 +830,23 @@ export function MainlineSceneRenderer({
   const renderScreenMetrics = geometrySnapshot.screenMetrics
   const geometryUnits = geometrySnapshot.units
   const switchableStorefronts = useMemo(() => scene.storefronts.filter(slot => slot.portalId && slot.characterSwitch), [scene.storefronts])
-  const switchCells = useMemo(() => new Map(switchableStorefronts.map(slot => [slot.id, storefrontCharacterCells(scene, slot)])), [scene, switchableStorefronts])
+  // Keep the three glyph anchors tied to the storefront's real near geometry
+  // for the full presentation lifecycle. The render snapshot intentionally
+  // swaps visual projections as the player approaches; deriving these cells
+  // from that changing snapshot made the glyphs jump between source cells.
+  const switchCells = useMemo(() => new Map(switchableStorefronts.map(slot => {
+    const presentationGeometry = mainlineSceneGeometryUnits(scene, mainlineStorefrontApproach(scene, slot), geometrySnapshot.screenMetrics)
+    return [slot.id, storefrontCharacterCells(scene, slot, presentationGeometry)] as const
+  })), [geometrySnapshot.screenMetrics, scene, switchableStorefronts])
   const activeSwitchableStorefronts = useMemo(() => switchableStorefronts.filter(slot => switchCells.get(slot.id)?.length === 3), [switchCells, switchableStorefronts])
+  // Player movement only invalidates frame targets when crossing a storefront
+  // approach boundary. Keep ordinary walking out of the measured-frame path.
+  const approachedStorefrontSignature = useMemo(() => activeSwitchableStorefronts
+    .filter(slot => storefrontPresentationShouldReveal(scene, slot, position))
+    .map(slot => slot.id)
+    .sort()
+    .join('\u001f'), [activeSwitchableStorefronts, position, scene])
+  const approachedStorefrontIds = useMemo(() => new Set(approachedStorefrontSignature ? approachedStorefrontSignature.split('\u001f') : []), [approachedStorefrontSignature])
   const replacedWallCellIds = useMemo(() => {
     const ids = new Set<string>()
     activeSwitchableStorefronts.forEach(slot => {
@@ -918,7 +933,7 @@ export function MainlineSceneRenderer({
         interactionActive: target.policy === 'interactive' && (activeObjectId === interactionId || sceneEcho?.entityId === interactionId),
         retractRequested: Boolean(retractRequested
           || (cell.kind === 'storefront' && cell.storefrontRole === 'sign' && storefrontPresentationRetractsFrame(storefrontPresentationPhase))
-          || (cell.kind === 'door' && storefront?.characterSwitch && (storefrontPresentationPhase !== 'revealed' || !storefrontPresentationShouldReveal(scene, storefront, position)))),
+          || (cell.kind === 'door' && storefront?.characterSwitch && (storefrontPresentationPhase !== 'revealed' || !approachedStorefrontIds.has(storefront.id)))),
         suppressed: false,
       })
     })
@@ -927,7 +942,7 @@ export function MainlineSceneRenderer({
       addTarget({ group: 'storefront:' + slot.id + ':baseline', policy: 'passage', phase: 'closed', gateTriggered: false, interactionBusy: false, interactionActive: false, retractRequested: phase !== 'baseline' || sceneFrameExit.phase === 'retracting', suppressed: false })
       const entityId = scene.passages.find(passage => passage.portalId === slot.portalId)?.entityId ?? slot.portalId!
       addTarget({ group: `door:${entityId}`, policy: 'passage', phase: doorPhases.get(entityId) ?? 'closed', gateTriggered: false,
-        interactionBusy: false, interactionActive: false, retractRequested: phase !== 'revealed' || !storefrontPresentationShouldReveal(scene, slot, position)
+        interactionBusy: false, interactionActive: false, retractRequested: phase !== 'revealed' || !approachedStorefrontIds.has(slot.id)
           || (sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === entityId), suppressed: false })
     })
     scene.objects.forEach((entity) => {
@@ -945,7 +960,7 @@ export function MainlineSceneRenderer({
       })
     })
     return [...targetMap.values()]
-  }, [activeObjectId, activeSwitchableStorefronts, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation, position, occupiedSeatIds])
+  }, [activeObjectId, activeSwitchableStorefronts, approachedStorefrontIds, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation, occupiedSeatIds])
   const focusFrames = useSceneFocusFrameController({
     targets: focusFrameTargets,
     freezeMeasurements: freezeFrameMeasurements,

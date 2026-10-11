@@ -69,6 +69,8 @@ function targetElement(event: { target: EventTarget | null }) {
  */
 export function useSceneFocusFrameController({ targets, freezeMeasurements = false }: SceneFocusFramesProps) {
   const targetMap = useMemo(() => new Map(targets.map((target) => [target.group, target] as const)), [targets])
+  const targetGroupSignature = JSON.stringify(targets.map((target) => target.group).sort())
+  const targetGroups = useMemo(() => new Set(targets.map((target) => target.group)), [targetGroupSignature])
   const retractRequestSignature = targets.map((target) => `${target.group}:${target.retractRequested ? 1 : 0}`).join('|')
   const [revision, setRevision] = useState(0)
   const runtimeRef = useRef(new Map<string, SceneFrameRuntime>())
@@ -195,7 +197,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     if (freezeMeasurements) return undefined
     const measure = () => {
       const next = new Map<string, { duration: number; geometry: SceneFocusFrameGeometry; bounds: CSSProperties }>()
-      targetMap.forEach((_target, group) => {
+      targetGroups.forEach((group) => {
         const node = frameNodesRef.current.get(group)
         if (!node) return
         const parent = node.parentElement
@@ -257,7 +259,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     const observer = new ResizeObserver(measure)
     const characterChanges = new MutationObserver(measure)
     frameNodesRef.current.forEach((node, group) => {
-      if (!targetMap.has(group)) return
+      if (!targetGroups.has(group)) return
       if (node.parentElement) observer.observe(node.parentElement)
       node.closest('.mainline-scene-stage')?.querySelectorAll<HTMLElement>('[data-focus-visual-group]').forEach(element => {
         if (element.dataset.focusVisualGroup === group) {
@@ -268,7 +270,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     })
     document.fonts?.addEventListener('loadingdone', measure)
     return () => { observer.disconnect(); characterChanges.disconnect(); document.fonts?.removeEventListener('loadingdone', measure) }
-  }, [frameNodesRevision, freezeMeasurements, targetMap])
+  }, [frameNodesRevision, freezeMeasurements, targetGroups])
 
   const onPointerDownCapture = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const element = targetElement(event)

@@ -74,13 +74,29 @@ export function storefrontCharacterCells(
   const door = entries.find(entry => onStorefrontEdge(entry)
     && entry.cell.kind === 'door'
     && (entry.cell.entityId === storefront.portalId || entry.unit.entityId === storefront.portalId))
-  if (!door) return []
+  // A narrow responsive lattice can leave only one reserved storefront cell.
+  // The compiled passage unit still owns the real door center, while the
+  // neighboring projected wall segments own the two flank glyph positions.
+  const passageAnchor = door ? undefined : geometryUnits.find(unit => (
+    unit.storefrontId === storefront.id && unit.navigation.passageId === storefront.portalId
+  ))
+  const resolvedDoor = door ?? (passageAnchor ? {
+    unit: passageAnchor,
+    cell: {
+      id: `${storefront.id}-base-cell-1`,
+      x: passageAnchor.x + passageAnchor.width / 2,
+      y: passageAnchor.y + passageAnchor.height / 2,
+      kind: 'door' as const,
+      entityId: storefront.portalId,
+    },
+  } : undefined)
+  if (!resolvedDoor) return []
 
   const vertical = storefront.edge === 'left' || storefront.edge === 'right'
-  const tangent = ({ cell }: typeof door) => vertical ? cell.y : cell.x
-  const normal = ({ cell }: typeof door) => vertical ? cell.x : cell.y
-  const doorTangent = tangent(door)
-  const doorNormal = normal(door)
+  const tangent = ({ cell }: typeof resolvedDoor) => vertical ? cell.y : cell.x
+  const normal = ({ cell }: typeof resolvedDoor) => vertical ? cell.x : cell.y
+  const doorTangent = tangent(resolvedDoor)
+  const doorNormal = normal(resolvedDoor)
   const adjacentWalls = entries.filter(entry => onStorefrontEdge(entry)
     && entry.cell.kind === 'wall'
     && Math.abs(normal(entry) - doorNormal) < .01)
@@ -90,7 +106,7 @@ export function storefrontCharacterCells(
     .sort((first, second) => tangent(first) - tangent(second))[0]
   if (!before || !after) return []
 
-  return [before, door, after].map((entry, index) => ({
+  return [before, resolvedDoor, after].map((entry, index) => ({
     id: entry.cell.id,
     x: entry.cell.x,
     y: entry.cell.y,

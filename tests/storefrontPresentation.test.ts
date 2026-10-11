@@ -75,19 +75,26 @@ describe('commercial street storefront presentation', () => {
     expect(yonghePortal?.characterSwitch).not.toBe(true)
     for (const metrics of [{ width: 1280, height: 720 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
       const projected = mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, cafe), metrics, new Map([[cafe.id, 'revealed']]))
-      const cells = storefrontCharacterCells(street, cafe)
+      const cells = storefrontCharacterCells(street, cafe, projected)
       expect(cells.map(cell => [cell.baselineGlyph, cell.glyph])).toEqual([['咖', '墙'], ['啡', '门'], ['馆', '墙']])
       expect(cells).toHaveLength(3)
       expect(cells[1].entityId).toBe(cafe.portalId)
-      const source = street.geometry.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
+      const source = projected.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
         .filter(({ unit, cell }) => unit.sourceWallId === cafe.wallId && unit.edge === cafe.edge && (cell.kind === 'wall' || cell.kind === 'door'))
       const along = ({ cell }: typeof source[number]) => cafe.edge === 'left' || cafe.edge === 'right' ? cell.y : cell.x
-      const sourceDoor = source.find(({ unit, cell }) => cell.kind === 'door' && (cell.entityId === cafe.portalId || unit.entityId === cafe.portalId))!
-      const wallBefore = source.filter(({ cell }) => cell.kind === 'wall' && along({ unit: sourceDoor.unit, cell }) < along(sourceDoor))
+      const sourceDoor = source.find(({ unit, cell }) => cell.kind === 'door' && (cell.entityId === cafe.portalId || unit.entityId === cafe.portalId))
+      const passageAnchor = projected.find(unit => unit.storefrontId === cafe.id && unit.navigation.passageId === cafe.portalId)!
+      const doorPosition = sourceDoor?.cell ?? { x: passageAnchor.x + passageAnchor.width / 2, y: passageAnchor.y + passageAnchor.height / 2 }
+      const doorTangent = cafe.edge === 'left' || cafe.edge === 'right' ? doorPosition.y : doorPosition.x
+      const wallBefore = source.filter(({ cell }) => cell.kind === 'wall' && along({ unit: passageAnchor, cell }) < doorTangent)
         .sort((first, second) => along(second) - along(first))[0]
-      const wallAfter = source.filter(({ cell }) => cell.kind === 'wall' && along({ unit: sourceDoor.unit, cell }) > along(sourceDoor))
+      const wallAfter = source.filter(({ cell }) => cell.kind === 'wall' && along({ unit: passageAnchor, cell }) > doorTangent)
         .sort((first, second) => along(first) - along(second))[0]
-      expect(cells.map(({ id, x, y }) => [id, x, y])).toEqual([wallBefore, sourceDoor, wallAfter].map(({ cell }) => [cell.id, cell.x, cell.y]))
+      expect(cells.map(({ id, x, y }) => [id, x, y])).toEqual([
+        [wallBefore.cell.id, wallBefore.cell.x, wallBefore.cell.y],
+        [sourceDoor?.cell.id ?? `${cafe.id}-base-cell-1`, doorPosition.x, doorPosition.y],
+        [wallAfter.cell.id, wallAfter.cell.x, wallAfter.cell.y],
+      ])
       expect(new Set(cells.map(cell => `${cell.x},${cell.y}`)).size).toBe(3)
       const baselineUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[cafe.id, 'baseline']]))
       const revealedUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[cafe.id, 'revealed']]))
