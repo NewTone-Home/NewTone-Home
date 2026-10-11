@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type CSSProperties, type TransitionEvent } from 'react'
+import { useCallback, useEffect, useRef, type CSSProperties, type ReactNode, type TransitionEvent } from 'react'
 import { defaultSceneDoorBehavior, sceneDoorIsVisuallyOpen, sceneDoorMotion, sceneDoorVisualMode, type SceneDoorBehavior, type SceneDoorRuntimePhase } from './sceneDoorConfig'
 import { SceneCharacters } from './SceneCharacters'
 
@@ -11,6 +11,7 @@ type SceneDoorProps = {
   glyph?: string
   heightEm?: number
   visualGroup?: string
+  characters?: ReactNode
   onTransitionComplete?: (completion: SceneDoorTransitionCompletion) => void
 }
 
@@ -19,7 +20,7 @@ type SceneDoorProps = {
  * The behavior record supplies the visual style; the lifecycle owns the
  * opening state and this component renders one entrance surface.
  */
-export function SceneDoor({ phase, behavior = defaultSceneDoorBehavior, label = '门', glyph = label, heightEm = 1.2, visualGroup, onTransitionComplete }: SceneDoorProps) {
+export function SceneDoor({ phase, behavior = defaultSceneDoorBehavior, label = '门', glyph = label, heightEm = 1.2, visualGroup, characters, onTransitionComplete }: SceneDoorProps) {
   const runtimePhase = phase
   const visualMode = sceneDoorVisualMode(behavior)
   const notifiedPhaseRef = useRef<SceneDoorRuntimePhase | null>(null)
@@ -50,7 +51,7 @@ export function SceneDoor({ phase, behavior = defaultSceneDoorBehavior, label = 
 
   return (
     <span className={`scene-door scene-door--${visualMode} scene-door--phase-${runtimePhase} ${sceneDoorIsVisuallyOpen(behavior, runtimePhase) ? 'is-open' : ''}`} style={{ '--door-height': `${heightEm}em`, '--door-label-width': `${Math.max(1.15, Array.from(glyph).length * .72)}em`, '--scene-door-transition-duration': `${runtimePhase === 'opening' ? sceneDoorMotion.openingMs : runtimePhase === 'closing' ? sceneDoorMotion.closingMs : 0}ms` } as CSSProperties} onTransitionEnd={handleTransitionEnd} data-door-label={label} data-door-glyph={glyph} data-door-presentation={visualMode} data-door-phase={runtimePhase} data-door-visual-mode={visualMode} data-door-leaf-count={behavior.leafCount} data-door-open-leaves={behavior.openLeaves} aria-hidden="true">
-      <SceneCharacters className="scene-door__surface" data-focus-visual-group={visualGroup}>{glyph}</SceneCharacters>
+      <SceneCharacters className="scene-door__surface" data-focus-visual-group={characters ? undefined : visualGroup}>{characters ?? glyph}</SceneCharacters>
     </span>
   )
 }

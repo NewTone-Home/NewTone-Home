@@ -1,5 +1,5 @@
 import type { Point } from './sceneGeometry'
-import { mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineStorefrontSlot } from './mainlineScenes'
+import { mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneGeometryUnit, type MainlineStorefrontSlot } from './mainlineScenes'
 
 /** Presentation-only state for a portal storefront. It never changes passage or collision state. */
 export type StorefrontPresentationPhase = 'baseline' | 'retracting' | 'revealing' | 'revealed' | 'lingering' | 'restoring'
@@ -59,7 +59,55 @@ export function storefrontPresentationShouldReveal(
   return Math.hypot(position.x - approach.x, position.y - approach.y) <= (storefront.nearRadius ?? 10)
 }
 
-/** A storefront label is always one visual slot, never a per-character reel. */
+/** Project a label onto the already-compiled real wall/door/wall cells. */
+export function storefrontCharacterCells(
+  scene: MainlineSceneDefinition,
+  storefront: MainlineStorefrontSlot,
+  geometryUnits: readonly MainlineSceneGeometryUnit[] = scene.geometry,
+) {
+  const roles = storefront.composition?.near ?? []
+  const labels = Array.from(storefront.label)
+  if (!storefront.characterSwitch || roles.length !== 3 || roles[0] !== 'wall' || roles[1] !== 'door' || roles[2] !== 'wall' || labels.length !== roles.length) return []
+
+  const entries = geometryUnits.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
+  const onStorefrontEdge = ({ unit }: typeof entries[number]) => unit.sourceWallId === storefront.wallId && unit.edge === storefront.edge
+  const door = entries.find(entry => onStorefrontEdge(entry)
+    && entry.cell.kind === 'door'
+    && (entry.cell.entityId === storefront.portalId || entry.unit.entityId === storefront.portalId))
+  if (!door) return []
+
+  const vertical = storefront.edge === 'left' || storefront.edge === 'right'
+  const tangent = ({ cell }: typeof door) => vertical ? cell.y : cell.x
+  const normal = ({ cell }: typeof door) => vertical ? cell.x : cell.y
+  const doorTangent = tangent(door)
+  const doorNormal = normal(door)
+  const adjacentWalls = entries.filter(entry => onStorefrontEdge(entry)
+    && entry.cell.kind === 'wall'
+    && Math.abs(normal(entry) - doorNormal) < .01)
+  const before = adjacentWalls.filter(entry => tangent(entry) < doorTangent)
+    .sort((first, second) => tangent(second) - tangent(first))[0]
+  const after = adjacentWalls.filter(entry => tangent(entry) > doorTangent)
+    .sort((first, second) => tangent(first) - tangent(second))[0]
+  if (!before || !after) return []
+
+  return [before, door, after].map((entry, index) => ({
+    id: entry.cell.id,
+    x: entry.cell.x,
+    y: entry.cell.y,
+    role: roles[index],
+    baselineGlyph: labels[index],
+    glyph: entry.cell.glyph ?? (roles[index] === 'door' ? '门' : '墙'),
+    ...(entry.cell.kind === 'door' ? { entityId: entry.cell.entityId ?? entry.unit.entityId } : {}),
+  }))
+}
+
+/** All cells consume the same normalized animation clock. */
+export function storefrontCharacterProgress(from: number, to: number, elapsed: number, duration: number) {
+  const t = Math.max(0, Math.min(1, elapsed / Math.max(1, duration)))
+  return from + (to - from) * t * t * (3 - 2 * t)
+}
+
+/** One visual window per character; identity and behavior remain outside. */
 export function storefrontPresentationLabelSlots(label: string) {
-  return [label] as const
+  return Array.from(label)
 }

@@ -7,6 +7,8 @@ import {
   storefrontRestoreDelayMs,
   storefrontLabelRollDurationMs,
   storefrontPresentationLabelSlots,
+  storefrontCharacterCells,
+  storefrontCharacterProgress,
   storefrontPresentationShouldReveal,
 } from '../src/center/runtime/storefrontPresentation'
 
@@ -59,11 +61,47 @@ describe('commercial street storefront presentation', () => {
     })
   })
 
-  it('keeps the Café label as one complete rolling slot by default', () => {
-    expect(storefrontPresentationLabelSlots(cafe.label)).toEqual(['咖啡馆'])
+  it('projects one window per character without adding world entities', () => {
+    expect(storefrontPresentationLabelSlots(cafe.label)).toEqual(['咖', '啡', '馆'])
     expect(storefrontLabelRollDurationMs).toBe(700)
     const baseline = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, undefined, new Map())
     expect(baseline.some((unit) => unit.storefrontId === cafe.id && unit.variant === 'baseline')).toBe(true)
+  })
+
+  it('uses the real three authored visual positions and door identity across responsive viewports', () => {
+    expect(cafe.characterSwitch).toBe(true)
+    const yonghePortal = Object.values(mainlineScenes).flatMap(scene => scene.storefronts).find(storefront => storefront.portalId === 'yonghe-street-entry')
+    expect(yonghePortal).toBeDefined()
+    expect(yonghePortal?.characterSwitch).not.toBe(true)
+    for (const metrics of [{ width: 1280, height: 720 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
+      const projected = mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, cafe), metrics, new Map([[cafe.id, 'revealed']]))
+      const cells = storefrontCharacterCells(street, cafe)
+      expect(cells.map(cell => [cell.baselineGlyph, cell.glyph])).toEqual([['咖', '墙'], ['啡', '门'], ['馆', '墙']])
+      expect(cells).toHaveLength(3)
+      expect(cells[1].entityId).toBe(cafe.portalId)
+      const source = street.geometry.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
+        .filter(({ unit, cell }) => unit.sourceWallId === cafe.wallId && unit.edge === cafe.edge && (cell.kind === 'wall' || cell.kind === 'door'))
+      const along = ({ cell }: typeof source[number]) => cafe.edge === 'left' || cafe.edge === 'right' ? cell.y : cell.x
+      const sourceDoor = source.find(({ unit, cell }) => cell.kind === 'door' && (cell.entityId === cafe.portalId || unit.entityId === cafe.portalId))!
+      const wallBefore = source.filter(({ cell }) => cell.kind === 'wall' && along({ unit: sourceDoor.unit, cell }) < along(sourceDoor))
+        .sort((first, second) => along(second) - along(first))[0]
+      const wallAfter = source.filter(({ cell }) => cell.kind === 'wall' && along({ unit: sourceDoor.unit, cell }) > along(sourceDoor))
+        .sort((first, second) => along(first) - along(second))[0]
+      expect(cells.map(({ id, x, y }) => [id, x, y])).toEqual([wallBefore, sourceDoor, wallAfter].map(({ cell }) => [cell.id, cell.x, cell.y]))
+      expect(new Set(cells.map(cell => `${cell.x},${cell.y}`)).size).toBe(3)
+      const baselineUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[cafe.id, 'baseline']]))
+      const revealedUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[cafe.id, 'revealed']]))
+      const physical = (units: typeof baselineUnits) => units.filter(unit => unit.navigation.blocked).map(({ id, x, y, width, height, navigation }) => ({ id, x, y, width, height, navigation }))
+      expect(physical(revealedUnits)).toEqual(physical(baselineUnits))
+      expect(projected.some(unit => unit.navigation.passageId === cafe.portalId)).toBe(true)
+    }
+  })
+
+  it('uses one reversible normalized progress rather than per-cell timers', () => {
+    expect(storefrontCharacterProgress(0, 1, 0, 700)).toBe(0)
+    expect(storefrontCharacterProgress(0, 1, 350, 700)).toBe(.5)
+    expect(storefrontCharacterProgress(0, 1, 700, 700)).toBe(1)
+    expect(storefrontCharacterProgress(.5, 0, 175, 350)).toBe(.25)
   })
 
   it('rolls a whole group inward independently of typography and preserves the grace period', () => {

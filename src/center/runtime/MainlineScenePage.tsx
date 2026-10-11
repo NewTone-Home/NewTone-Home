@@ -2351,7 +2351,6 @@ export function MainlineScenePage({
               storefrontPresentation={storefrontPresentation.phaseByStorefront}
               onStorefrontFrameRetractionComplete={storefrontPresentation.completeFrameRetraction}
               onStorefrontRevealMotionComplete={storefrontPresentation.completeRevealMotion}
-              onStorefrontLingerAnimationComplete={storefrontPresentation.completeLingerAnimation}
               onStorefrontRestoreMotionComplete={storefrontPresentation.completeRestoreMotion}
               gateTriggered={gateTriggered}
               geometrySnapshot={geometrySnapshot}

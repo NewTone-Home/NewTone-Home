@@ -1958,37 +1958,9 @@
 .world-phone__notification { display: flex; flex-direction: column; gap: 8px; padding: 16px 12px; text-align: left; color: inherit; background: rgba(140,226,208,.08); border: 1px solid rgba(140,226,208,.35); border-radius: 8px; cursor: pointer; }
 .world-phone__notification span { font-size: 12px; opacity: .8; }
 
-/* A complete old/new character group shares one transform and one clipping window. */
-.scene-mainline-storefront__label-track.is-character-roll {
-  position: relative;
-  width: 100%; height: 100%; max-width: none;
-  display: grid; place-items: center;
-  background: transparent;
-  font-size: min(1em, calc((100cqh - 4px) / var(--storefront-label-length)));
-}
-.scene-mainline-storefront--horizontal .scene-mainline-storefront__label-track.is-character-roll {
-  font-size: min(1em, calc((100cqw - 4px) / var(--storefront-label-length)));
-}
-.is-character-roll > .scene-mainline-storefront__label-text,
-.scene-mainline-storefront__replacement {
-  position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--room, #0b0f12);
-}
-.scene-mainline-storefront--vertical .is-character-roll > .scene-mainline-storefront__label-text,
-.scene-mainline-storefront--vertical .scene-mainline-storefront__replacement { flex-direction: column; }
-.scene-mainline-storefront__replacement { transform: translate(calc(var(--roll-x) * -100%), calc(var(--roll-y) * -100%)); }
-.scene-storefront-door-character {
-  position: relative; display: inline-flex; align-items: center; justify-content: center;
-  font: inherit; color: var(--active); background: transparent; border: 0; padding: 0;
-  width: 1em; height: 1.08em; cursor: pointer; writing-mode: inherit; pointer-events: auto;
-}
-.scene-storefront-door-character > .scene-door { width: 1em; height: 1.08em; }
-.scene-storefront-door-character .scene-door__surface { display: block; width: max-content; }
-
-.is-character-roll > .scene-mainline-storefront__label-text { display: grid; place-items: center; writing-mode: horizontal-tb; }
-.is-character-roll > .scene-mainline-storefront__label-text > [data-scene-characters] { display: block; width: max-content; }
-.scene-mainline-storefront--vertical .is-character-roll > .scene-mainline-storefront__label-text > [data-scene-characters] { writing-mode: vertical-rl; text-orientation: upright; }
-.scene-mainline-storefront__replacement { writing-mode: horizontal-tb; }
-
-.is-character-roll > .scene-mainline-storefront__label-text { width: 100%; height: 100%; max-width: none; }
+/* Fixed cells share one presentation clock; direction is independent of typography. */
+.scene-portal-characters { position: absolute; inset: 0; pointer-events: none; --character-progress: 0; }
+.scene-character-switch { position: relative; display: inline-block; width: 1.4em; height: 1.4em; overflow: hidden; vertical-align: middle; writing-mode: horizontal-tb; pointer-events: none; }
+.scene-character-switch__before, .scene-character-switch__after { position: absolute; left: 50%; top: 50%; display: block; width: max-content; line-height: 1; letter-spacing: 0; }
+.scene-character-switch__before { color: var(--ink); transform: translate(-50%, -50%) translate(calc(var(--roll-x) * var(--character-progress) * 1.4em), calc(var(--roll-y) * var(--character-progress) * 1.4em)); }
+.scene-character-switch__after { transform: translate(-50%, -50%) translate(calc(var(--roll-x) * (var(--character-progress) - 1) * 1.4em), calc(var(--roll-y) * (var(--character-progress) - 1) * 1.4em)); }

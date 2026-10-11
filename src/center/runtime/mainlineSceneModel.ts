@@ -278,6 +278,8 @@ export type MainlineStorefrontSlotBlueprint = {
   style: MainlineStorefrontStyle
   mode?: MainlineStorefrontMode
   composition?: MainlineStorefrontComposition
+  /** Opts this portal into the synchronized character presentation layer. */
+  characterSwitch?: boolean
   portalId?: string
   nearRadius?: number
   approach?: Point
@@ -1021,7 +1023,7 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
     storefronts: [
       ...storefrontRow('commercial-north', 'commercial-north-facade', 'bottom', ['果茶店', '服装店', '花店', '眼镜店', '美妆店', '服装店', '书店', '甜品店'], 'modern', commercialStorefrontStarts, 18),
       ...storefrontRow('commercial-south', 'commercial-south-facade', 'top', ['鞋店', '潮玩店', '香氛店', '服装店', '奶茶店', '周边店', '首饰店', '服装店'], 'modern', commercialStorefrontStarts, 18),
-      { id: 'commercial-cafe-slot', wallId: 'commercial-cafe-terminal', edge: 'right', label: '咖啡馆', style: 'modern', composition: { baseline: ['sign'], near: ['wall', 'door', 'wall'] }, portalId: 'street-cafe-entry', nearRadius: 10, start: commercialStreetCafeDoorStart, end: commercialStreetCafeDoorEnd, approach: authoredPoint(186, commercialStreetCafeDoorY) },
+      { id: 'commercial-cafe-slot', wallId: 'commercial-cafe-terminal', edge: 'right', label: '咖啡馆', style: 'modern', composition: { baseline: ['sign'], near: ['wall', 'door', 'wall'] }, characterSwitch: true, portalId: 'street-cafe-entry', nearRadius: 10, start: commercialStreetCafeDoorStart, end: commercialStreetCafeDoorEnd, approach: authoredPoint(186, commercialStreetCafeDoorY) },
     ],
     floorEntities: [],
     airWalls: commercialStreetFacadeAirWalls,

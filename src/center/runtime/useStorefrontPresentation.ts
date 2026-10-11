@@ -17,7 +17,7 @@ import {
  */
 export function useStorefrontPresentation(scene: MainlineSceneDefinition, position: Point) {
   const [phaseByStorefront, setPhaseByStorefront] = useState<ReadonlyMap<string, StorefrontPresentationPhase>>(new Map())
-  const portalStorefronts = useMemo(() => scene.storefronts.filter((storefront) => storefront.portalId), [scene.storefronts])
+  const portalStorefronts = useMemo(() => scene.storefronts.filter((storefront) => storefront.portalId && storefront.characterSwitch), [scene.storefronts])
   const approachSignature = portalStorefronts
     .map((storefront) => `${storefront.id}:${storefrontPresentationShouldReveal(scene, storefront, position) ? 1 : 0}`)
     .join('|')
@@ -71,7 +71,6 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
     nearByStorefront: nearRef.current,
     completeFrameRetraction: (storefrontId: string) => transition(storefrontId, 'frame-retracted'),
     completeRevealMotion: (storefrontId: string) => transition(storefrontId, 'reveal-motion-complete'),
-    completeLingerAnimation: (storefrontId: string) => transition(storefrontId, 'linger-animation-complete'),
     completeRestoreMotion: (storefrontId: string) => transition(storefrontId, 'restore-motion-complete'),
   }
 }
