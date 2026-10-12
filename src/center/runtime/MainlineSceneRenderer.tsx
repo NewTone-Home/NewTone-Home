@@ -42,6 +42,8 @@ type MainlineSceneRendererProps = {
   freezeFrameMeasurements?: boolean
   onScreenMetricsChange?: (metrics: SceneScreenMetrics) => void
   cameraOffset: Point
+  cameraScale: number
+  worldSize: SceneScreenMetrics
   showProtagonist?: boolean
   suppressWorldEnterAnimation?: boolean
   onLayoutChange: (itemId: LayoutItemId, point: Point) => void
@@ -566,6 +568,8 @@ export function MainlineSceneRenderer({
   onStorefrontRestoreMotionComplete,
   onScreenMetricsChange,
   cameraOffset,
+  cameraScale,
+  worldSize,
   gateTriggered = false,
   showProtagonist = true,
   suppressWorldEnterAnimation = false,
@@ -799,10 +803,10 @@ export function MainlineSceneRenderer({
     const rect = stageRef.current?.getBoundingClientRect()
     if (!rect || rect.width === 0 || rect.height === 0) return null
     return {
-      x: ((clientX - rect.left) / rect.width) * 100 - cameraOffset.x,
-      y: ((clientY - rect.top) / rect.height) * 100 - cameraOffset.y,
+      x: (((clientX - rect.left) / worldSize.width) * 100 - cameraOffset.x) / cameraScale,
+      y: (((clientY - rect.top) / worldSize.height) * 100 - cameraOffset.y) / cameraScale,
     }
-  }, [cameraOffset.x, cameraOffset.y])
+  }, [cameraOffset.x, cameraOffset.y, cameraScale, worldSize.height, worldSize.width])
 
   const startLayoutDrag = useCallback((itemId: LayoutItemId, event: React.PointerEvent<HTMLElement>) => {
     if (!layoutMode) return
@@ -865,7 +869,10 @@ export function MainlineSceneRenderer({
       x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
       y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
     }
-    const point = { x: screenPoint.x - cameraOffset.x, y: screenPoint.y - cameraOffset.y }
+    const point = {
+      x: (((clientX - rect.left) / worldSize.width) * 100 - cameraOffset.x) / cameraScale,
+      y: (((clientY - rect.top) / worldSize.height) * 100 - cameraOffset.y) / cameraScale,
+    }
     onInputDiagnostic?.({
       ...input,
       client: { x: clientX, y: clientY },
@@ -882,7 +889,7 @@ export function MainlineSceneRenderer({
       return
     }
     onWalk(point)
-  }, [cameraOffset.x, cameraOffset.y, layoutMode, onInputDiagnostic, onLayoutChange, onWalk, scene, selectedLayoutItemId])
+  }, [cameraOffset.x, cameraOffset.y, cameraScale, layoutMode, onInputDiagnostic, onLayoutChange, onWalk, scene, selectedLayoutItemId, worldSize.height, worldSize.width])
 
   const walkToEmptySpace = (event: React.MouseEvent<HTMLDivElement>) => {
     const touchWalk = touchWalkRef.current
@@ -913,10 +920,10 @@ export function MainlineSceneRenderer({
 
   return (
     <section className="scene-wrap" aria-label={`${scene.title}可探索场景`}>
-      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-scene-dialogue-state={dialoguePhase}>
+      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-camera-scale={debugRuntimeEvidence ? cameraScale : undefined} data-input-mapped-x={debugRuntimeEvidence ? inputDiagnostic?.mappedPoint.x : undefined} data-input-mapped-y={debugRuntimeEvidence ? inputDiagnostic?.mappedPoint.y : undefined} data-scene-dialogue-state={dialoguePhase}>
         {layoutMode && <div className="scene-layout-grid" aria-hidden="true" />}
 
-        <div className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''}`} style={{ transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%)` }}>
+        <div className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''}`} style={{ width: worldSize.width, height: worldSize.height, transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%) scale(${cameraScale})`, transformOrigin: 'top left' }}>
           <>
           <div className="scene-spatial-labels scene-spatial-labels--wall scene-mainline-wall-labels">
             {geometryCells.map(({ unit, cell }) => {

@@ -12,7 +12,7 @@ import type { PhoneDevice } from './phoneState'
 import { sceneInteractionHandlers } from './sceneInteraction'
 import { useAutomaticPassages } from './useAutomaticPassages'
 import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
-import { mainlineCameraOffset } from './mainlineViewport'
+import { mainlineCameraProjection, mainlineWorldDesignMetrics } from './mainlineViewport'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
@@ -314,6 +314,7 @@ export function MainlineScenePage({
   const pendingTraversalRef = useRef<PendingMainlineTraversal | null>(null)
   const continuePendingTraversalRef = useRef<(entityId: string) => void>(() => {})
   const [screenMetrics, setScreenMetrics] = useState<SceneScreenMetrics>(defaultSceneScreenMetrics)
+  const worldDesignMetrics = useMemo(() => mainlineWorldDesignMetrics(screenMetrics, embedded), [embedded, screenMetrics])
   const sceneReadyRef = useRef(false)
   const handleScreenMetricsChange = useCallback((next: SceneScreenMetrics) => {
     setScreenMetrics((previous) => previous.width === next.width && previous.height === next.height ? previous : next)
@@ -593,26 +594,26 @@ export function MainlineScenePage({
       },
     })
   }, [navigationRuntime, rawMoveAlong])
-  const geometrySnapshot = useMemo(() => createMainlineSceneGeometrySnapshot(scene, position, layout, screenMetrics, storefrontPresentation.phaseByStorefront), [layout, position, scene, screenMetrics, storefrontPresentation.phaseByStorefront])
+  const geometrySnapshot = useMemo(() => createMainlineSceneGeometrySnapshot(scene, position, layout, worldDesignMetrics, storefrontPresentation.phaseByStorefront), [layout, position, scene, storefrontPresentation.phaseByStorefront, worldDesignMetrics])
   const stagedNpcPositions = useMemo(() => new Map(scene.npcs.map((npc) => [
     npc.id,
-    resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics }),
-  ])), [geometrySnapshot, layout, scene, screenMetrics])
+    resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics: worldDesignMetrics }),
+  ])), [geometrySnapshot, layout, scene, worldDesignMetrics])
   const coffeeOwnerInitialPosition = stagedNpcPositions.get(commercialCafeCoffeeOwnerNpcId) ?? scene.initialPlayerPosition
   const floorServerInitialPosition = stagedNpcPositions.get(commercialCafeFloorServerNpcId) ?? scene.initialPlayerPosition
   const laoZhouInitialPosition = stagedNpcPositions.get('lao-zhou') ?? scene.initialPlayerPosition
   const cafeCoffeeOwnerFootprint = useMemo(() => {
-    const box = mainlineLabelFootprint('店员', coffeeOwnerInitialPosition, screenMetrics, { lineHeight: 1 })
+    const box = mainlineLabelFootprint('店员', coffeeOwnerInitialPosition, worldDesignMetrics, { lineHeight: 1 })
     return { width: box.width, height: box.height }
-  }, [coffeeOwnerInitialPosition, screenMetrics])
+  }, [coffeeOwnerInitialPosition, worldDesignMetrics])
   const cafeFloorServerFootprint = useMemo(() => {
-    const box = mainlineLabelFootprint('店员', floorServerInitialPosition, screenMetrics, { lineHeight: 1 })
+    const box = mainlineLabelFootprint('店员', floorServerInitialPosition, worldDesignMetrics, { lineHeight: 1 })
     return { width: box.width, height: box.height }
-  }, [floorServerInitialPosition, screenMetrics])
+  }, [floorServerInitialPosition, worldDesignMetrics])
   const laoZhouFootprint = useMemo(() => {
-    const box = mainlineLabelFootprint('老周', laoZhouInitialPosition, screenMetrics, { lineHeight: 1 })
+    const box = mainlineLabelFootprint('老周', laoZhouInitialPosition, worldDesignMetrics, { lineHeight: 1 })
     return { width: box.width, height: box.height }
-  }, [laoZhouInitialPosition, screenMetrics])
+  }, [laoZhouInitialPosition, worldDesignMetrics])
   const cafeCoffeeOwnerMovement = useNpcMovement({
     enabled: scene.id === 'commercial-cafe' && scene.npcs.some((npc) => npc.id === commercialCafeCoffeeOwnerNpcId),
     npcId: commercialCafeCoffeeOwnerNpcId,
@@ -637,9 +638,9 @@ export function MainlineScenePage({
   const ambientNpcFootprints = useMemo(() => new Map(scene.ambientNpcRoutes.map((schedule) => {
     const npc = scene.npcs.find((candidate) => candidate.id === schedule.npcId)
     const position = stagedNpcPositions.get(schedule.npcId) ?? scene.initialPlayerPosition
-    const box = mainlineLabelFootprint(npc?.label ?? '', position, screenMetrics, { lineHeight: 1 })
+    const box = mainlineLabelFootprint(npc?.label ?? '', position, worldDesignMetrics, { lineHeight: 1 })
     return [schedule.npcId, { width: box.width, height: box.height }] as const
-  })), [scene, screenMetrics, stagedNpcPositions])
+  })), [scene, stagedNpcPositions, worldDesignMetrics])
   const handleAmbientNpcRuntimeChange = useCallback((npcId: string, hidden: boolean, snapshot: NpcRuntimeSnapshot) => {
     setAmbientNpcRuntime((current) => {
       const existing = current.get(npcId)
@@ -677,8 +678,8 @@ export function MainlineScenePage({
   }, [ambientNpcRuntime, cafeCoffeeOwnerMovement.snapshot, cafeFloorServerMovement.snapshot, laoZhouMovement.snapshot])
   const resolvedNpcPositions = useMemo(() => new Map(scene.npcs.map((npc) => [
     npc.id,
-    resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics, npcRuntimePositions }),
-  ])), [geometrySnapshot, layout, npcRuntimePositions, scene, screenMetrics])
+    resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics: worldDesignMetrics, npcRuntimePositions }),
+  ])), [geometrySnapshot, layout, npcRuntimePositions, scene, worldDesignMetrics])
   const registeredNpcPositions = useMemo(() => new Map([...resolvedNpcPositions]
     .filter(([npcId]) => npcId !== 'lao-zhou' || scene.id !== 'commercial-cafe' || laoZhouVisibleInCurrentVisit)), [laoZhouVisibleInCurrentVisit, resolvedNpcPositions, scene.id])
   // Moving actors own their NavigationRuntime registration through their
@@ -704,14 +705,14 @@ export function MainlineScenePage({
   const protagonistFootprint = useMemo(() => {
     const seatedPosition = seatedProtagonistPosition
     const box = seatedPosition
-      ? mainlineLabelFootprint('修杰', seatedPosition, screenMetrics, { lineHeight: 1 })
+      ? mainlineLabelFootprint('修杰', seatedPosition, worldDesignMetrics, { lineHeight: 1 })
       // The walking marker's dimensions are independent of its live world
       // position. Keeping this footprint stable lets the separate position
       // effect update occupancy without unregistering the protagonist between
       // movement frames.
-      : mainlineProtagonistDotFootprint(initialPosition, screenMetrics)
+      : mainlineProtagonistDotFootprint(initialPosition, worldDesignMetrics)
     return { width: box.width, height: box.height }
-  }, [activePlayerSeatId, initialPosition, screenMetrics, seatedProtagonistPosition?.x, seatedProtagonistPosition?.y])
+  }, [activePlayerSeatId, initialPosition, worldDesignMetrics, seatedProtagonistPosition?.x, seatedProtagonistPosition?.y])
   useEffect(() => {
     navigationRuntime.registerActor('protagonist', getCurrentPosition(), protagonistFootprint)
     return () => navigationRuntime.removeActor('protagonist')
@@ -722,11 +723,11 @@ export function MainlineScenePage({
   useEffect(() => {
     staticNpcPositions.forEach((npcPosition, npcId) => {
       const npc = scene.npcs.find((candidate) => candidate.id === npcId)
-      const box = mainlineLabelFootprint(npc?.label ?? '', npcPosition, screenMetrics, { lineHeight: 1 })
+      const box = mainlineLabelFootprint(npc?.label ?? '', npcPosition, worldDesignMetrics, { lineHeight: 1 })
       navigationRuntime.registerActor(npcId, npcPosition, { width: box.width, height: box.height })
     })
     return () => staticNpcPositions.forEach((_npcPosition, npcId) => navigationRuntime.removeActor(npcId))
-  }, [navigationRuntime, scene.npcs, screenMetrics, staticNpcPositions])
+  }, [navigationRuntime, scene.npcs, staticNpcPositions, worldDesignMetrics])
   useEffect(() => {
     pendingTraversalRef.current = null
     setPassageDestination(null)
@@ -803,16 +804,16 @@ export function MainlineScenePage({
   }
   const activeDialoguePosition = activeDialogueLine ? dialogueAnchorSessionRef.current?.position ?? null : null
   const validatedSpawnKeyRef = useRef<string | null>(null)
-  const spawnValidationKey = `${scene.id}:${initialPosition.x}:${initialPosition.y}:${screenMetrics.width}:${screenMetrics.height}`
+  const spawnValidationKey = `${scene.id}:${initialPosition.x}:${initialPosition.y}:${worldDesignMetrics.width}:${worldDesignMetrics.height}`
   useIsomorphicLayoutEffect(() => {
     if (validatedSpawnKeyRef.current === spawnValidationKey) return
     validatedSpawnKeyRef.current = spawnValidationKey
-    const safePosition = resolveMainlineSafeSpawnPosition(scene, initialPosition, layout, { screenMetrics })
+    const safePosition = resolveMainlineSafeSpawnPosition(scene, initialPosition, layout, { screenMetrics: worldDesignMetrics })
     if (!safePosition || samePoint(safePosition, initialPosition) || !samePoint(getCurrentPosition(), initialPosition)) return
     resetMovement(safePosition)
     onPositionChange?.(safePosition)
     if (entryPosition) onSafeSpawnCorrection?.(safePosition)
-  }, [entryPosition, getCurrentPosition, initialPosition, layout, onPositionChange, onSafeSpawnCorrection, resetMovement, scene, screenMetrics, spawnValidationKey])
+  }, [entryPosition, getCurrentPosition, initialPosition, layout, onPositionChange, onSafeSpawnCorrection, resetMovement, scene, spawnValidationKey, worldDesignMetrics])
   const externalExits = scene.externalExits
   const activeExternalExit = externalExits.find((boundary) => isPastExternalExit(position, boundary, scene))
   const gateTriggered = externalExits.some((boundary) => Boolean(boundary.triggerEntityId) && isPastExternalExit(position, boundary, scene))
@@ -859,11 +860,11 @@ export function MainlineScenePage({
       }
     },
   })
-  const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics, geometrySnapshot, navigationRuntime, actorId: 'protagonist', actorFootprint: protagonistFootprint, npcRuntimePositions, occupiedSeatIds }), [geometrySnapshot, getOpenPassageIds, navigationRuntime, npcRuntimePositions, occupiedSeatIds, protagonistFootprint, screenMetrics])
+  const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics: worldDesignMetrics, geometrySnapshot, navigationRuntime, actorId: 'protagonist', actorFootprint: protagonistFootprint, npcRuntimePositions, occupiedSeatIds }), [geometrySnapshot, getOpenPassageIds, navigationRuntime, npcRuntimePositions, occupiedSeatIds, protagonistFootprint, worldDesignMetrics])
   const locomotionOptions = useMemo(() => ({
-    ...sharedCharacterMovementOptions(screenMetrics),
+    ...sharedCharacterMovementOptions(worldDesignMetrics),
     speedMultiplier: () => sceneTextSlowdownActiveRef.current ? .45 : 1,
-  }), [screenMetrics])
+  }), [worldDesignMetrics])
   const cafeCoffeeOwnerLocomotionOptions = useMemo(() => ({
     ...locomotionOptions,
     speedMultiplier: () => commercialCafeDutySpeedMultiplier(commercialCafeCoffeeOwnerNpcId, cafeCoffeeOwnerCurrentDutyRef.current, sceneTextSlowdownActiveRef.current),
@@ -1116,7 +1117,7 @@ export function MainlineScenePage({
         }
       },
     })
-  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getOpenPassageIds, getPassagePhase, getRemainingDurationMs, layout, lifecycleMainlinePassages, locomotionOptions, moveAlong, navigationOptions, onDoorEvent, requestPassageLifecycle, scene, screenMetrics, showLockedPassageText, stopMovement])
+  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getOpenPassageIds, getPassagePhase, getRemainingDurationMs, layout, lifecycleMainlinePassages, locomotionOptions, moveAlong, navigationOptions, onDoorEvent, requestPassageLifecycle, scene, worldDesignMetrics, showLockedPassageText, stopMovement])
 
   const continuePendingTraversal = useCallback((entityId: string) => {
     const pending = pendingTraversalRef.current
@@ -1154,7 +1155,7 @@ export function MainlineScenePage({
           targetScene,
           pending.passage.entryPosition ?? targetScene.initialPlayerPosition,
           targetLayout,
-          screenMetrics,
+          worldDesignMetrics,
         )
         const safeEntryPosition = resolveMainlineSafeEntryPosition(
           targetScene,
@@ -2108,7 +2109,7 @@ export function MainlineScenePage({
   }, [cancelPassageLifecycle, initialPosition, resetMovement, scene.id, sceneDefinition])
 
   const currentAreaLabel = mainlineSceneAreaLabel(scene, position)
-  const cameraOffset = mainlineCameraOffset(scene, position, embedded)
+  const cameraProjection = mainlineCameraProjection(scene, position, screenMetrics, embedded)
   const debugCafeCounterStructure = debugRuntimeEvidence && scene.id === 'commercial-cafe'
     ? scene.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-body')
     : undefined
@@ -2212,7 +2213,9 @@ export function MainlineScenePage({
               geometrySnapshot={geometrySnapshot}
               freezeFrameMeasurements={presentationSnapshot}
               onScreenMetricsChange={handleScreenMetricsChange}
-              cameraOffset={cameraOffset}
+              cameraOffset={cameraProjection.offset}
+              cameraScale={cameraProjection.scale}
+              worldSize={cameraProjection.worldSize}
               showProtagonist={showProtagonist}
               suppressWorldEnterAnimation={suppressWorldEnterAnimation}
               onLayoutChange={updateLayout}
