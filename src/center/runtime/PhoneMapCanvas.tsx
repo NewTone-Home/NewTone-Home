@@ -4,7 +4,7 @@ import { clampPhoneMapZoom, phoneMapZoomBounds, phoneMapTransitLinks, phoneMapRe
 import type { PhoneDevice } from './phoneState'
 
 type Point = PhoneMapPoint
-type LocalMapShape = { id: string; kind?: string; bounds: { x: number; y: number; width: number; height: number } }
+type LocalMapShape = { id: string; kind?: string; bounds: { x: number; y: number; width: number; height: number }; fillBounds?: { x: number; y: number; width: number; height: number } }
 type Props = {
   mapRegions: readonly PhoneMapRegion[]; displayDevice: PhoneDevice
   currentLandmark: { device: PhoneDevice; id: string } | null
@@ -177,19 +177,34 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
     <div className="world-phone__map-viewport" data-dragging={dragging} data-camera-moving={cameraMoving} data-camera-follow={followFocus} ref={viewportRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('[data-map-interactive]')) { if (!suppressClick.current) { restorePending.current=restoreOnBlank && beforeFocus.current!==null;onBlank?.() } } }}>
       <svg className="world-phone__map" viewBox={localViewBox ?? mainlineMapLayout.viewBox} role="group" aria-label="世界地图，拖动查看，滚轮、双指或按钮缩放，点击区域和地点查看详情" data-map-world={displayDevice} data-map-zoom={mapZoom.toFixed(3)} style={{ transform: `translate(${mapPan[0]}px, ${mapPan[1]}px) scale(${mapZoom})` }}>
         {localMapZones.length > 0 && <defs>
-          <radialGradient id={`${mapId}-ride-target-gradient`} data-ride-target-gradient="true" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#52d99a" stopOpacity="0.76" />
-            <stop offset="52%" stopColor="#52d99a" stopOpacity="0.38" />
-            <stop offset="100%" stopColor="#52d99a" stopOpacity="0" />
-          </radialGradient>
           <clipPath id={`${mapId}-ride-map-frame`}>
             <rect x={vx} y={vy} width={vw} height={vh} />
           </clipPath>
+          {localMapZones.map(zone => {
+            const safeId = zone.id.replace(/[^a-zA-Z0-9_-]/g, '-')
+            const floor = zone.fillBounds ?? zone.bounds
+            const blocked = geometry?.filter(unit => unit.navigation.blocked && !unit.visualOnly) ?? []
+            return <g key={`${zone.id}-defs`}>
+              <radialGradient id={`${mapId}-${safeId}-gradient`} data-ride-target-gradient="true" gradientUnits="userSpaceOnUse" cx={zone.bounds.x + zone.bounds.width / 2} cy={zone.bounds.y + zone.bounds.height / 2} r={Math.max(1, Math.hypot(floor.width, floor.height) * .55)}>
+                <stop offset="0%" stopColor="#52d99a" stopOpacity="0.34" />
+                <stop offset="52%" stopColor="#52d99a" stopOpacity="0.14" />
+                <stop offset="100%" stopColor="#52d99a" stopOpacity="0" />
+              </radialGradient>
+              <mask id={`${mapId}-${safeId}-floor-mask`} data-ride-target-floor-mask="true" maskUnits="userSpaceOnUse" x={floor.x} y={floor.y} width={floor.width} height={floor.height}>
+                <rect x={floor.x} y={floor.y} width={floor.width} height={floor.height} fill="white" />
+                {blocked.map(unit => <rect key={unit.id} x={unit.x} y={unit.y} width={unit.width} height={unit.height} fill="black" />)}
+              </mask>
+            </g>
+          })}
         </defs>}
         {geometry?.filter(unit => unit.visual.kind !== 'none').map(unit => <rect key={unit.id} className={`world-phone__map-geometry world-phone__map-geometry--${unit.surface}`} data-map-geometry={unit.id} x={unit.x} y={unit.y} width={unit.width} height={unit.height} />)}
         {localMapPassages.map(passage => <rect key={passage.id} className="world-phone__map-passage" data-map-passage={passage.id} x={passage.bounds.x} y={passage.bounds.y} width={passage.bounds.width} height={passage.bounds.height} />)}
         {localMapZones.length > 0 && <g className="world-phone__map-zones" clipPath={`url(#${mapId}-ride-map-frame)`}>
-          {localMapZones.map(zone => <ellipse key={zone.id} className="world-phone__map-zone" data-map-zone={zone.id} cx={zone.bounds.x + zone.bounds.width / 2} cy={zone.bounds.y + zone.bounds.height / 2} rx={Math.max(5, zone.bounds.width / 2 + 7)} ry={Math.max(5, zone.bounds.height / 2 + 5)} fill={`url(#${mapId}-ride-target-gradient)`} stroke="none" />)}
+          {localMapZones.map(zone => {
+            const safeId = zone.id.replace(/[^a-zA-Z0-9_-]/g, '-')
+            const floor = zone.fillBounds ?? zone.bounds
+            return <rect key={zone.id} className="world-phone__map-zone" data-map-zone={zone.id} data-map-zone-fill="true" x={floor.x} y={floor.y} width={floor.width} height={floor.height} fill={`url(#${mapId}-${safeId}-gradient)`} mask={`url(#${mapId}-${safeId}-floor-mask)`} stroke="none" />
+          })}
         </g>}
         {localMapObjects.map(object => <rect key={object.id} className={`world-phone__map-object world-phone__map-object--${object.kind ?? 'fixture'}`} data-map-object={object.id} x={object.bounds.x} y={object.bounds.y} width={object.bounds.width} height={object.bounds.height} />)}
         {!localViewBox && <>
