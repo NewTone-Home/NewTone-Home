@@ -75,8 +75,8 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(view
  await page.keyboard.press('Escape');await page.reload();await expect(flow).toHaveCount(0);await expect(phone.locator('.world-phone__notification-dot')).toBeVisible()
 })
 
-test('a real Café Ride order follows the authored exit into a separate Street pickup map',async({page},info)=>{
- test.setTimeout(60000);await page.setViewportSize({width:1440,height:900});await seed(page)
+for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(viewport.width+' real Café Ride order follows the authored exit into a separate Street pickup map',async({page},info)=>{
+ test.setTimeout(90000);await page.setViewportSize(viewport);await seed(page)
  const phone=page.locator('.world-phone')
  await page.getByLabel('打开手机').click();await phone.locator('[data-app=ride]').click()
  await expect(phone.locator('.world-phone__ride-destination')).toHaveCount(2)

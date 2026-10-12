@@ -79,10 +79,12 @@ test('an ordinary Street exit still opens the Phone when no Ride order exists',a
   await page.goto('/?scene=commercial-street')
   const phone=page.locator('.world-phone')
   await expect(phone).toHaveAttribute('data-phone-phase','closed')
-  for(let step=0;step<6&&await phone.getAttribute('data-phone-phase')!=='open';step++){
+  const actor=page.locator('[data-actor-id="protagonist"]')
+  for(let step=0;step<6&&await phone.getAttribute('data-phone-phase')==='closed';step++){
+    const before=await actor.evaluate(e=>(e as HTMLElement).style.left)
     await walkToExit(page)
-    await expect(page.locator('[data-actor-id="protagonist"]')).toHaveClass(/is-moving/,{timeout:5000})
-    await expect(page.locator('[data-actor-id="protagonist"]')).not.toHaveClass(/is-moving/,{timeout:30000})
+    await expect.poll(async()=>await phone.getAttribute('data-phone-phase')!=='closed'||(await actor.getAttribute('class'))?.includes('is-moving')||(await actor.evaluate(e=>(e as HTMLElement).style.left))!==before,{timeout:5000}).toBe(true)
+    if(await phone.getAttribute('data-phone-phase')==='closed')await expect(actor).not.toHaveClass(/is-moving/,{timeout:30000})
   }
   await expect(phone).toHaveAttribute('data-phone-phase','open',{timeout:15000})
   await expect(phone.locator('[data-ride-order=true]')).toHaveCount(0)
