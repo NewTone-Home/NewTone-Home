@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { Point } from './sceneGeometry'
 import { sceneDoorMotion } from './sceneDoorConfig'
+import { passageMotionDeadline } from './passageMotionClock'
 import {
   containsDoorRegion,
   createDoorPassageRuntime,
@@ -184,6 +185,31 @@ export function useAutomaticPassages({ passages, canOpen, canUse, onDenied }: Au
     updateState(passageId, { type: 'closed' })
     return true
   }, [stateFor, updateState])
+
+  useEffect(() => {
+    const clocks = new Map<string, { phase: DoorPassagePhase; timer: ReturnType<typeof setTimeout> }>()
+    const syncClocks = () => {
+      passageStore.getSnapshot().forEach((state, id) => {
+        const current = clocks.get(id)
+        if (current?.phase === state.phase) return
+        if (current) clearTimeout(current.timer)
+        clocks.delete(id)
+        const now = lifecycleNow()
+        const deadline = passageMotionDeadline(state.phase, now)
+        if (deadline === null) return
+        const phase = state.phase
+        clocks.set(id, { phase, timer: setTimeout(() => {
+          clocks.delete(id)
+          if (stateFor(id).phase !== phase) return
+          if (phase === 'opening') completeOpen(id)
+          else completeClose(id)
+        }, deadline - now) })
+      })
+    }
+    syncClocks()
+    const unsubscribe = passageStore.subscribe(syncClocks)
+    return () => { unsubscribe(); clocks.forEach(clock => clearTimeout(clock.timer)) }
+  }, [completeClose, completeOpen, passageStore, stateFor])
 
   const requestPassage = useCallback((actorId: string, passageId: string, from: Point, target: Point) => {
     const passage = passageForId(passageId)

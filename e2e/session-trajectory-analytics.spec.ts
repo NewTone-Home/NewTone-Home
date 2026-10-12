@@ -1,3 +1,5 @@
+import { registerPhoneTestNetwork } from './phoneTestNetwork'
+registerPhoneTestNetwork()
 import { expect, test, type Page } from '@playwright/test'
 
 const analyticsBaseUrl = process.env.CHAPTER_TWO_ANALYTICS_BASE_URL
@@ -87,7 +89,7 @@ test('session trajectory batches a privacy-safe ordered Center journey and survi
   await expect(page.locator('.world-phone')).toBeVisible()
   await phoneOpened
   const phoneClosed = waitForAnalyticsEvent(page, event => event.event_name === 'center_phone_closed')
-  await page.getByLabel('收起手机').click()
+  await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
   await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-open', 'false')
   await expect(page.locator('.world-phone [role="dialog"]')).toHaveAttribute('aria-hidden', 'true')
   await phoneClosed

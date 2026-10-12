@@ -621,7 +621,35 @@ function storefrontFixedCellCount(storefront: MainlineStorefrontSlot) {
 
 function fitStorefrontRoles(roles: readonly MainlineStorefrontRole[], cellCount: number): MainlineStorefrontRole[] {
   if (cellCount <= 0) return []
-  if (roles.length >= cellCount) {
+  if (roles.length <= cellCount) return roles.slice(0, cellCount)
+
+  // Preserve the authored glass / sign / glass order while a responsive
+  // storefront has enough cells for every sign glyph and at least one glass
+  // glyph on each side. Narrower projections still prioritize the sign.
+  const signStart = roles.indexOf('sign')
+  const signEnd = roles.lastIndexOf('sign')
+  const isGlassSignGlass = signStart > 0
+    && signEnd < roles.length - 1
+    && roles.slice(0, signStart).every((role) => role === 'glass')
+    && roles.slice(signStart, signEnd + 1).every((role) => role === 'sign')
+    && roles.slice(signEnd + 1).every((role) => role === 'glass')
+  if (isGlassSignGlass) {
+    const signs = roles.slice(signStart, signEnd + 1)
+    if (cellCount <= signs.length) return signs.slice(0, cellCount)
+    const glassCount = cellCount - signs.length
+    if (glassCount >= 2) {
+      const leftCount = Math.min(signStart, Math.floor(glassCount / 2))
+      const rightCount = Math.min(roles.length - signEnd - 1, glassCount - leftCount)
+      const remaining = glassCount - leftCount - rightCount
+      return [
+        ...roles.slice(signStart - leftCount, signStart),
+        ...signs,
+        ...roles.slice(signEnd + 1, signEnd + 1 + rightCount + remaining),
+      ]
+    }
+  }
+
+  if (roles.length > cellCount) {
     const featuredRoles = roles.filter((role) => role === 'door' || role === 'sign')
     if (featuredRoles.length === 0) return roles.slice(0, cellCount)
     if (featuredRoles.length >= cellCount) return featuredRoles.slice(0, cellCount)
@@ -1251,6 +1279,47 @@ export function mainlineStorefrontApproach(scene: MainlineSceneDefinition, store
   return { x: anchor.x - approachDistance, y: anchor.y }
 }
 
+/**
+ * Café departure is bounded by the compiled outer edge of the closest
+ * neighboring storefront glass. This only tightens the outward side of the
+ * Café presentation trigger; the inward door approach keeps its authored
+ * radius so approaching and using the real passage are unchanged.
+ */
+export function mainlineStorefrontDepartureRadius(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot): number | undefined {
+  if (scene.id !== 'commercial-street' || storefront.id !== 'commercial-cafe-slot') return undefined
+  const approach = mainlineStorefrontApproach(scene, storefront)
+  const glassEnds = scene.geometry.flatMap((unit) => {
+    if (unit.edge !== 'top' && unit.edge !== 'bottom') return []
+    return unit.visual.cells
+      .filter((cell) => cell.storefrontRole === 'glass' && cell.cellEnd !== undefined && cell.cellEnd < approach.x)
+      .map((cell) => cell.cellEnd!)
+  })
+  const nearestGlassEdge = Math.max(...glassEnds)
+  if (!Number.isFinite(nearestGlassEdge) || nearestGlassEdge >= approach.x) return undefined
+  return approach.x - nearestGlassEdge
+}
+
+/** Shared visual-trigger predicate for the compiled geometry and presentation owner. */
+export function isMainlineStorefrontPresentationInRange(
+  scene: MainlineSceneDefinition,
+  storefront: MainlineStorefrontSlot,
+  position: Point,
+) {
+  if (!storefront.portalId) return false
+  const approach = mainlineStorefrontApproach(scene, storefront)
+  const anchor = mainlineStorefrontAnchor(scene, storefront)
+  const inwardX = anchor.x - approach.x
+  const inwardY = anchor.y - approach.y
+  const inwardLength = Math.hypot(inwardX, inwardY)
+  const alongInward = inwardLength > 0
+    ? ((position.x - approach.x) * inwardX + (position.y - approach.y) * inwardY) / inwardLength
+    : 0
+  const authoredRadius = storefront.nearRadius ?? 10
+  const departureRadius = mainlineStorefrontDepartureRadius(scene, storefront)
+  const radius = departureRadius !== undefined && alongInward < 0 ? departureRadius : authoredRadius
+  return Math.hypot(position.x - approach.x, position.y - approach.y) <= radius
+}
+
 /** A storefront interaction is the outward half-disc of its authored facade. */
 export function mainlineStorefrontInteractionRegion(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot) {
   const center = mainlineStorefrontAnchor(scene, storefront)
@@ -1290,6 +1359,9 @@ export function mainlineStorefrontAtPoint(scene: MainlineSceneDefinition, point:
 }
 
 export function isMainlineStorefrontNear(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot, position: Point) {
+  if (scene.id === 'commercial-street' && storefront.id === 'commercial-cafe-slot') {
+    return isMainlineStorefrontPresentationInRange(scene, storefront, position)
+  }
   const anchor = mainlineStorefrontAnchor(scene, storefront)
   return Math.hypot(position.x - anchor.x, position.y - anchor.y) <= (storefront.nearRadius ?? 10)
 }

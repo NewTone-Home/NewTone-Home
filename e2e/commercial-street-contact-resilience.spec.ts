@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates, mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { mainlineStorefrontPlayerContact, resolveMainlineStorefrontInteraction } from '../src/center/runtime/mainlineNavigation'
+import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 
 test.use({ viewport: { width: 1280, height: 720 } })
 
@@ -7,7 +9,7 @@ const street = mainlineScenes['commercial-street']
 const northClothing = street.storefronts.find((storefront) => storefront.id === 'commercial-north-slot-2')!
 const [centredContact] = mainlineStorefrontInteractionCandidates(street, northClothing)
 
-test('an ambient pedestrian occupying the centred storefront contact leaves a real fallback for the protagonist', async ({ page }, testInfo) => {
+test('ambient storefront traffic leaves a legal close player contact without changing pedestrian visit geometry', async ({ page }, testInfo) => {
   const consoleErrors: string[] = []
   page.on('pageerror', (error) => consoleErrors.push(error.message))
   page.on('console', (message) => {
@@ -27,17 +29,124 @@ test('an ambient pedestrian occupying the centred storefront contact leaves a re
     x: Number(await protagonist.getAttribute('data-runtime-x')),
     y: Number(await protagonist.getAttribute('data-runtime-y')),
   }
-  const runtimeCandidates = mainlineStorefrontInteractionCandidates(street, northClothing, beforeClick)
+  const box = (await page.locator('.mainline-scene-stage').boundingBox())!
+  const screenMetrics = { width: box.width, height: box.height, viewportWidth: 1280 }
+  const options = { screenMetrics, geometrySnapshot: createMainlineSceneGeometrySnapshot(street, beforeClick, {}, screenMetrics) }
+  const contact = mainlineStorefrontPlayerContact(street, northClothing, beforeClick, {}, options)!
   await page.getByRole('button', { name: '服装店', exact: true }).first().click()
   await expect(echo).toBeVisible({ timeout: 15_000 })
   const arrived = {
     x: Number(await protagonist.getAttribute('data-runtime-x')),
     y: Number(await protagonist.getAttribute('data-runtime-y')),
   }
-  expect(runtimeCandidates.some((candidate) => Math.hypot(candidate.x - arrived.x, candidate.y - arrived.y) < .35)).toBe(true)
+  expect(contact.isClose(arrived)).toBe(true)
   expect(Math.hypot(centredContact.x - arrived.x, centredContact.y - arrived.y)).toBeGreaterThan(.75)
   await page.screenshot({ path: testInfo.outputPath('commercial-street-fallback-contact.png') })
   expect(consoleErrors).toEqual([])
+})
+
+for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
+  test(`ordinary storefront travels before interaction and leaves a tiny visual edge gap at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+    await page.setViewportSize(viewport)
+    await page.goto('/?scene=commercial-street&debugRuntimeEvidence=1')
+    const actor = page.locator('[data-actor-id="protagonist"]')
+    const echo = page.locator(`[data-scene-echo="${northClothing.id}"]`)
+    await expect(echo).toHaveCount(0)
+    await page.getByRole('button', { name: northClothing.label, exact: true }).first().click()
+    await expect(actor).toHaveClass(/is-moving/)
+    await expect(echo).toHaveCount(0)
+    await expect(echo).toBeVisible({ timeout: 30000 })
+    await expect(actor).not.toHaveClass(/is-moving/)
+    const measurements = await page.evaluate(storefrontId => {
+      const actor = document.querySelector<HTMLElement>('[data-actor-id="protagonist"]')!
+      const dot = actor.querySelector('.scene-protagonist__dot')!.getBoundingClientRect()
+      const sign = document.querySelector(`[data-storefront-label-slot][data-storefront-id="${storefrontId}"]`)!.getBoundingClientRect()
+      const stage = document.querySelector('.mainline-scene-stage')!.getBoundingClientRect()
+      const overlapsNpc = [...document.querySelectorAll<HTMLElement>('[data-npc-role="pedestrian"]')].some(npc => {
+        const body = npc.getBoundingClientRect()
+        return dot.left < body.right && dot.right > body.left && dot.top < body.bottom && dot.bottom > body.top
+      })
+      return { gap: dot.top - sign.bottom, actorWidth: dot.width, overlapsNpc, position: { x: Number(actor.dataset.runtimeX), y: Number(actor.dataset.runtimeY) }, metrics: { width: stage.width, height: stage.height, viewportWidth: innerWidth } }
+    }, northClothing.id)
+    expect(measurements.gap).toBeGreaterThan(0)
+    expect(measurements.gap / measurements.actorWidth).toBeGreaterThanOrEqual(.2)
+    expect(measurements.gap / measurements.actorWidth).toBeLessThanOrEqual(.35)
+    expect(measurements.overlapsNpc).toBe(false)
+    const options = { screenMetrics: measurements.metrics, geometrySnapshot: createMainlineSceneGeometrySnapshot(street, measurements.position, {}, measurements.metrics) }
+    expect(resolveMainlineStorefrontInteraction(street, northClothing, measurements.position, {}, options).inRange).toBe(true)
+    await testInfo.attach('contact-measurements', { body: JSON.stringify(measurements), contentType: 'application/json' })
+    await page.screenshot({ path: testInfo.outputPath(`bug1b-near-contact-${viewport.width}.png`) })
+    expect(errors).toEqual([])
+  })
+}
+
+test('walking manually to the geometry-derived entrance permits interaction without another move', async ({ page }) => {
+  await page.goto('/?scene=commercial-street&debugRuntimeEvidence=1')
+  const stage = page.locator('.mainline-scene-stage')
+  const box = (await stage.boundingBox())!
+  const screenMetrics = { width: box.width, height: box.height, viewportWidth: 1280 }
+  const options = { screenMetrics, geometrySnapshot: createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, screenMetrics) }
+  const contact = mainlineStorefrontPlayerContact(street, northClothing, street.initialPlayerPosition, {}, options)!
+  // Use an interior manual stance: browser mouse coordinates are integer
+  // pixels, so clicking a span's exact inset endpoint may round outside it.
+  const target = { ...resolveMainlineStorefrontInteraction(street, northClothing, street.initialPlayerPosition, {}, options).target, x: contact.geometry.center.x }
+  const screenPoint = await stage.evaluate((element, point) => {
+    const rect = element.getBoundingClientRect()
+    return { x: (point.x + Number(element.getAttribute('data-camera-offset-x'))) / 100 * rect.width, y: (point.y + Number(element.getAttribute('data-camera-offset-y'))) / 100 * rect.height }
+  }, target)
+  await stage.click({ position: screenPoint })
+  const actor = page.locator('[data-actor-id="protagonist"]')
+  await expect(actor).toHaveClass(/is-moving/)
+  await expect(actor).not.toHaveClass(/is-moving/, { timeout: 30000 })
+  const before = { x: Number(await actor.getAttribute('data-runtime-x')), y: Number(await actor.getAttribute('data-runtime-y')) }
+  expect(resolveMainlineStorefrontInteraction(street, northClothing, before, {}, options).inRange).toBe(true)
+  await page.getByRole('button', { name: northClothing.label, exact: true }).first().click()
+  await expect(page.locator(`[data-scene-echo="${northClothing.id}"]`)).toBeVisible()
+  await expect(actor).not.toHaveClass(/is-moving/)
+  expect({ x: Number(await actor.getAttribute('data-runtime-x')), y: Number(await actor.getAttribute('data-runtime-y')) }).toEqual(before)
+})
+
+test('Café keeps its reveal and portal traversal after ordinary storefront contact changes', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  await page.goto('/?scene=commercial-street&debugRuntimeEvidence=1')
+  const cafe = street.storefronts.find(store => store.id === 'commercial-cafe-slot')!
+  const approach = mainlineStorefrontApproach(street, cafe)
+  const actor = page.locator('[data-actor-id="protagonist"]')
+  const stage = page.locator('.mainline-scene-stage')
+  // Walk through visible portions of the scrolling street using real input.
+  const step = street.walkBounds.width / 8
+  for (let index = 0; index < 16; index += 1) {
+    // The authored question narrative interrupts street travel. Complete its
+    // real reading interaction before issuing the next movement request.
+    for (let line = 0; line < 25; line += 1) {
+      const shield = page.locator('[data-scene-dialogue-shield="true"]')
+      if (!await shield.count()) break
+      await expect(page.locator('[data-scene-observation-typing="true"]')).toHaveCount(0, { timeout: 15000 })
+      await shield.click({ force: true })
+      await expect(page.locator('[data-scene-echo-phase="leaving"]')).toHaveCount(0)
+    }
+    const x = Number(await actor.getAttribute('data-runtime-x'))
+    if (Math.abs(x - approach.x) < .01) break
+    const target = { x: Math.min(approach.x, x + step), y: street.initialPlayerPosition.y }
+    const pixels = await stage.evaluate((element, target) => {
+      const rect = element.getBoundingClientRect()
+      return { x: (target.x + Number(element.getAttribute('data-camera-offset-x'))) / 100 * rect.width, y: (target.y + Number(element.getAttribute('data-camera-offset-y'))) / 100 * rect.height }
+    }, target)
+    await stage.click({ position: pixels })
+    await expect(actor).toHaveClass(/is-moving/)
+    await expect(actor).not.toHaveClass(/is-moving/, { timeout: 15000 })
+    if (Math.abs(Number(await actor.getAttribute('data-runtime-x')) - approach.x) < step / 100) break
+  }
+  await expect(page.locator(`[data-storefront-id="${cafe.id}"] .scene-mainline-storefront__label-track`)).toHaveAttribute('data-storefront-label-phase', 'revealed')
+  await expect(page.locator(`[data-scene-echo="${cafe.id}"]`)).toHaveCount(0)
+  await page.locator('[data-focus-target-group="door:street-cafe-entry"]').first().click()
+  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toBeVisible({ timeout: 15000 })
+  expect(errors).toEqual([])
 })
 
 test('Commercial Street storefront names remain complete and legible at desktop and narrow viewports', async ({ page }, testInfo) => {
