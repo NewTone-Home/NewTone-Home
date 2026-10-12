@@ -2,9 +2,10 @@ import { useEffect, useLayoutEffect, useRef, useState, useId, type Dispatch, typ
 import { mainlineMapLayout, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import { clampPhoneMapZoom, phoneMapZoomBounds, phoneMapTransitLinks, phoneMapRegionContours, phoneMapVisiblePlaces, stepPhoneMapZoom, type PhoneMapPoint, type PhoneMapRegion } from './phoneMapModel'
 import type { PhoneDevice } from './phoneState'
+import { phoneRideMapTargetGradient } from './phoneRideMapModel'
 
 type Point = PhoneMapPoint
-type LocalMapShape = { id: string; kind?: string; bounds: { x: number; y: number; width: number; height: number }; fillBounds?: { x: number; y: number; width: number; height: number } }
+type LocalMapShape = { id: string; kind?: string; bounds: { x: number; y: number; width: number; height: number }; fillBounds?: { x: number; y: number; width: number; height: number }; fadeTowardTarget?: boolean }
 type Props = {
   mapRegions: readonly PhoneMapRegion[]; displayDevice: PhoneDevice
   currentLandmark: { device: PhoneDevice; id: string } | null
@@ -183,13 +184,21 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
           {localMapZones.map(zone => {
             const safeId = zone.id.replace(/[^a-zA-Z0-9_-]/g, '-')
             const floor = zone.fillBounds ?? zone.bounds
+            const gradient = phoneRideMapTargetGradient(zone.bounds, floor)
             const blocked = geometry?.filter(unit => unit.navigation.blocked && !unit.visualOnly) ?? []
+            const gradientFill = zone.fadeTowardTarget
+              ? <linearGradient id={`${mapId}-${safeId}-gradient`} data-ride-target-gradient="true" gradientUnits="userSpaceOnUse" x1={gradient.x1} y1={gradient.y1} x2={gradient.x2} y2={gradient.y2}>
+                  <stop offset="0%" stopColor="#52d99a" stopOpacity="0.34" />
+                  <stop offset="52%" stopColor="#52d99a" stopOpacity="0.14" />
+                  <stop offset="100%" stopColor="#52d99a" stopOpacity="0" />
+                </linearGradient>
+              : <radialGradient id={`${mapId}-${safeId}-gradient`} data-ride-target-gradient="true" gradientUnits="userSpaceOnUse" cx={zone.bounds.x + zone.bounds.width / 2} cy={zone.bounds.y + zone.bounds.height / 2} r={Math.max(1, Math.hypot(floor.width, floor.height) * .55)}>
+                  <stop offset="0%" stopColor="#52d99a" stopOpacity="0.34" />
+                  <stop offset="52%" stopColor="#52d99a" stopOpacity="0.14" />
+                  <stop offset="100%" stopColor="#52d99a" stopOpacity="0" />
+                </radialGradient>
             return <g key={`${zone.id}-defs`}>
-              <radialGradient id={`${mapId}-${safeId}-gradient`} data-ride-target-gradient="true" gradientUnits="userSpaceOnUse" cx={zone.bounds.x + zone.bounds.width / 2} cy={zone.bounds.y + zone.bounds.height / 2} r={Math.max(1, Math.hypot(floor.width, floor.height) * .55)}>
-                <stop offset="0%" stopColor="#52d99a" stopOpacity="0.34" />
-                <stop offset="52%" stopColor="#52d99a" stopOpacity="0.14" />
-                <stop offset="100%" stopColor="#52d99a" stopOpacity="0" />
-              </radialGradient>
+              {gradientFill}
               <mask id={`${mapId}-${safeId}-floor-mask`} data-ride-target-floor-mask="true" maskUnits="userSpaceOnUse" x={floor.x} y={floor.y} width={floor.width} height={floor.height}>
                 <rect x={floor.x} y={floor.y} width={floor.width} height={floor.height} fill="white" />
                 {blocked.map(unit => <rect key={unit.id} x={unit.x} y={unit.y} width={unit.width} height={unit.height} fill="black" />)}
