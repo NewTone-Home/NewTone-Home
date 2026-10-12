@@ -128,7 +128,15 @@ function App({ contentStatus = 'ready', onRetryContent }) {
   }, [currentView])
 
   useEffect(() => {
-    if (currentView === 'landing') trackEvent('landing_entry', { stepId: 'landing' })
+    if (currentView !== 'landing') return
+    const displayedPreferences = useProgressStore.getState()
+    trackEvent('landing_entry', {
+      stepId: 'landing',
+      language: displayedPreferences.language,
+      eventData: {
+        languageSource: displayedPreferences.hasInitializedLanguage ? 'user_selected' : 'product_default',
+      },
+    })
   }, [currentView])
 
   const _handleEnter = useCallback((intent) => {
@@ -187,7 +195,11 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     const nextLanguage = selectedLanguage || language
     useProgressStore.getState().setLanguage(nextLanguage)
     recordRuntimeAudit('language-confirmed', { language: nextLanguage })
-    trackEvent('language_selected', { stepId: 'entry:language', language: nextLanguage })
+    trackEvent('language_selected', {
+      stepId: 'entry:language',
+      language: nextLanguage,
+      eventData: { languageSource: 'user_selected' },
+    })
     readingEntry.proceedFromLanguage()
   }, [language, readingEntry.proceedFromLanguage])
 

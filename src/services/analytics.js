@@ -32,6 +32,9 @@ const PENDING_BATCH_SIZE = 20
 const KEEPALIVE_BATCH_SIZE = 10
 const MAX_SEQUENCE = 100000
 const MAX_ACTIVITY_MS = 31_536_000_000
+const MAX_VIEWPORT_DIMENSION = 10000
+const PHONE_LAYOUT_MAX_WIDTH = 640
+const TABLET_LAYOUT_MAX_WIDTH = 1024
 let flushPromise = null
 let sessionActivityTracker = null
 let analyticsPhoneDevice = null
@@ -230,6 +233,51 @@ function cleanWorldCoordinate(value) {
     : null
 }
 
+function cleanViewportDimension(value) {
+  return typeof value === 'number'
+    && Number.isInteger(value)
+    && value >= 1
+    && value <= MAX_VIEWPORT_DIMENSION
+    ? value
+    : null
+}
+
+function readPointerType(viewportWindow) {
+  try {
+    const coarse = viewportWindow?.matchMedia?.('(pointer: coarse)')?.matches === true
+    const fine = viewportWindow?.matchMedia?.('(pointer: fine)')?.matches === true
+    if (coarse && !fine) return 'coarse'
+    if (fine && !coarse) return 'fine'
+  } catch { /* Treat unavailable or ambiguous input as unknown. */ }
+  return 'unknown'
+}
+
+function getViewportMetadata(viewportWindow) {
+  const rawWidth = cleanViewportDimension(viewportWindow?.innerWidth)
+  const rawHeight = cleanViewportDimension(viewportWindow?.innerHeight)
+  const hasViewport = rawWidth !== null && rawHeight !== null
+  const width = hasViewport ? rawWidth : null
+  const height = hasViewport ? rawHeight : null
+  const pointer = hasViewport ? readPointerType(viewportWindow) : 'unknown'
+
+  // These are conservative layout categories, not claims about physical hardware.
+  // A narrow fine-pointer desktop remains unknown instead of being called a phone.
+  let deviceCategory = 'unknown'
+  if (pointer === 'coarse' && width <= PHONE_LAYOUT_MAX_WIDTH) {
+    deviceCategory = 'phone'
+  } else if (pointer === 'coarse' && width <= TABLET_LAYOUT_MAX_WIDTH) {
+    deviceCategory = 'tablet'
+  } else if (pointer === 'fine' && width > TABLET_LAYOUT_MAX_WIDTH) {
+    deviceCategory = 'computer'
+  }
+
+  return {
+    device_category: deviceCategory,
+    viewport_width: width,
+    viewport_height: height,
+  }
+}
+
 /**
  * Chapter Two only permits small, enumerated analytics fields. This prevents
  * interaction copy, feedback text, or any arbitrary client object from being
@@ -237,6 +285,10 @@ function cleanWorldCoordinate(value) {
  */
 function cleanEventData(eventName, value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  if (eventName === 'landing_entry' || eventName === 'language_selected') {
+    const languageSource = cleanChoice(value.languageSource, ['user_selected', 'product_default'])
+    return languageSource ? { languageSource } : {}
+  }
   if (eventName === 'commercial_storefront_interacted') {
     const slotId = cleanAnalyticsId(value.slotId)
     const storeType = cleanChoice(value.storeType, ['果茶店', '服装店', '花店', '眼镜店', '美妆店', '书店', '甜品店', '鞋店', '潮玩店', '香氛店', '奶茶店', '周边店', '首饰店'])
@@ -282,6 +334,10 @@ export function buildAnalyticsEvent(eventName, fields = {}, dependencies = {}) {
   const positionX = eventName === 'center_position_sample' ? cleanWorldCoordinate(fields.positionX) : null
   const positionY = eventName === 'center_position_sample' ? cleanWorldCoordinate(fields.positionY) : null
   if (eventName === 'center_position_sample' && (positionX === null || positionY === null)) return null
+  const viewportWindow = Object.hasOwn(dependencies, 'viewportWindow')
+    ? dependencies.viewportWindow
+    : globalThis.window
+  const viewport = getViewportMetadata(viewportWindow)
   return {
     client_event_id: clientEventId,
     visitor_id: visitorId,
@@ -303,6 +359,7 @@ export function buildAnalyticsEvent(eventName, fields = {}, dependencies = {}) {
     outcome: cleanAnalyticsId(fields.outcome),
     position_x: positionX,
     position_y: positionY,
+    ...viewport,
     event_data: cleanEventData(eventName, fields.eventData),
   }
 }

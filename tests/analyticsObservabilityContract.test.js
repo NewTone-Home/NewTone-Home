@@ -31,6 +31,19 @@ describe('analytics observability v2 wiring', () => {
     expect(analytics).not.toContain('parallax_move')
   })
 
+  it('records the displayed Landing language source and viewport metadata without hardware identifiers', () => {
+    expect(app).toContain("trackEvent('landing_entry'")
+    expect(app).toContain('languageSource: displayedPreferences.hasInitializedLanguage ? \'user_selected\' : \'product_default\'')
+    expect(app).toContain("eventData: { languageSource: 'user_selected' }")
+    expect(analytics).toContain('device_category: deviceCategory')
+    expect(analytics).toContain('viewport_width: width')
+    expect(analytics).toContain('viewport_height: height')
+    expect(analytics).toContain("['user_selected', 'product_default']")
+    expect(analytics).not.toContain('navigator.userAgent')
+    expect(analytics).not.toContain('screen.width')
+    expect(analytics).not.toContain('screen.height')
+  })
+
   it('keeps the staging database event dictionary aligned with the client dictionary', () => {
     for (const eventName of [
       'reader_entry_requested', 'page_entered', 'chapter_entered',
