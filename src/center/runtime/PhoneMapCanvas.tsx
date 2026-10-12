@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction, type PointerEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useId, type Dispatch, type SetStateAction, type PointerEvent } from 'react'
 import { mainlineMapLayout, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import { clampPhoneMapZoom, phoneMapZoomBounds, phoneMapTransitLinks, phoneMapRegionContours, phoneMapVisiblePlaces, stepPhoneMapZoom, type PhoneMapPoint, type PhoneMapRegion } from './phoneMapModel'
 import type { PhoneDevice } from './phoneState'
@@ -20,6 +20,7 @@ type Props = {
   hideMarkerLabels?: readonly string[]
 }
 export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, selectedMapPlaceId, onSelect, mapZoom, setMapZoom, mapPan, setMapPan, localViewBox, geometry, localMapObjects = [], localMapPassages = [], localMapZones = [], focusId, coveredHeight = 0, onBlank, restoreOnBlank = false, regionsOnly = false, slowDestinationTravel = false, followFocus = false, unhideMarkerLabels = [], hideMarkerLabels = [] }: Props) {
+  const mapId = useId().replace(/:/g, '')
   const viewportRef = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<HTMLDivElement>(null)
   const [controlBounds,setControlBounds]=useState({left:Infinity,top:0,bottom:0})
@@ -175,9 +176,21 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
   return <>
     <div className="world-phone__map-viewport" data-dragging={dragging} data-camera-moving={cameraMoving} data-camera-follow={followFocus} ref={viewportRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('[data-map-interactive]')) { if (!suppressClick.current) { restorePending.current=restoreOnBlank && beforeFocus.current!==null;onBlank?.() } } }}>
       <svg className="world-phone__map" viewBox={localViewBox ?? mainlineMapLayout.viewBox} role="group" aria-label="世界地图，拖动查看，滚轮、双指或按钮缩放，点击区域和地点查看详情" data-map-world={displayDevice} data-map-zoom={mapZoom.toFixed(3)} style={{ transform: `translate(${mapPan[0]}px, ${mapPan[1]}px) scale(${mapZoom})` }}>
+        {localMapZones.length > 0 && <defs>
+          <radialGradient id={`${mapId}-ride-target-gradient`} data-ride-target-gradient="true" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#52d99a" stopOpacity="0.76" />
+            <stop offset="52%" stopColor="#52d99a" stopOpacity="0.38" />
+            <stop offset="100%" stopColor="#52d99a" stopOpacity="0" />
+          </radialGradient>
+          <clipPath id={`${mapId}-ride-map-frame`}>
+            <rect x={vx} y={vy} width={vw} height={vh} />
+          </clipPath>
+        </defs>}
         {geometry?.filter(unit => unit.visual.kind !== 'none').map(unit => <rect key={unit.id} className={`world-phone__map-geometry world-phone__map-geometry--${unit.surface}`} data-map-geometry={unit.id} x={unit.x} y={unit.y} width={unit.width} height={unit.height} />)}
         {localMapPassages.map(passage => <rect key={passage.id} className="world-phone__map-passage" data-map-passage={passage.id} x={passage.bounds.x} y={passage.bounds.y} width={passage.bounds.width} height={passage.bounds.height} />)}
-        {localMapZones.map(zone => <rect key={zone.id} className="world-phone__map-zone" data-map-zone={zone.id} x={zone.bounds.x} y={zone.bounds.y} width={zone.bounds.width} height={zone.bounds.height} />)}
+        {localMapZones.length > 0 && <g className="world-phone__map-zones" clipPath={`url(#${mapId}-ride-map-frame)`}>
+          {localMapZones.map(zone => <ellipse key={zone.id} className="world-phone__map-zone" data-map-zone={zone.id} cx={zone.bounds.x + zone.bounds.width / 2} cy={zone.bounds.y + zone.bounds.height / 2} rx={Math.max(5, zone.bounds.width / 2 + 7)} ry={Math.max(5, zone.bounds.height / 2 + 5)} fill={`url(#${mapId}-ride-target-gradient)`} stroke="none" />)}
+        </g>}
         {localMapObjects.map(object => <rect key={object.id} className={`world-phone__map-object world-phone__map-object--${object.kind ?? 'fixture'}`} data-map-object={object.id} x={object.bounds.x} y={object.bounds.y} width={object.bounds.width} height={object.bounds.height} />)}
         {!localViewBox && <>
           {displayDevice === 'inner' && phoneMapTransitLinks.map(([from, to]) => { const a = mapRegions.find(r => r.id === from), b = mapRegions.find(r => r.id === to); return a && b ? <line key={`${from}-${to}`} className="world-phone__map-transit" data-map-transit={`${from}-${to}`} x1={a.position[0]} y1={a.position[1]} x2={b.position[0]} y2={b.position[1]} /> : null })}
