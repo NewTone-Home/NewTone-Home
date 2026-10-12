@@ -1,7 +1,7 @@
 import { registerPhoneTestNetwork } from './phoneTestNetwork'
 registerPhoneTestNetwork()
 import { expect, test, type Page } from '@playwright/test'
-import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { mainlineScenes, mainlineStorefrontInteractionRegion } from '../src/center/runtime/mainlineScenes'
 import { resolveMainlineStorefrontInteraction } from '../src/center/runtime/mainlineNavigation'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 
