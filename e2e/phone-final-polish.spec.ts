@@ -2,9 +2,9 @@ import {expect,test,type Page} from '@playwright/test'
 import {registerPhoneTestNetwork} from './phoneTestNetwork'
 import {mainlineScenes} from '../src/center/runtime/mainlineScenes'
 registerPhoneTestNetwork()
-async function seed(page:Page,milkTeaUnlocked=false){
+async function seed(page:Page,milkTeaUnlocked=false,debugRuntimeEvidence=false){
  await page.addInitScript(milkTeaUnlocked=>{localStorage.setItem('newtone-public-release-cutover-v1','center-v1');if(!localStorage.getItem('newtone-player-save-v1'))localStorage.setItem('newtone-player-save-v1',JSON.stringify({currentSceneId:'commercial-cafe',phoneDevice:'inner',sceneState:{'commercial-cafe':{commercialCafeStoryStatus:'complete'},'commercial-street':{commercialStreetMilkTeaAppUnlocked:milkTeaUnlocked}},updatedAt:100}))},milkTeaUnlocked)
- await page.goto('/?scene=commercial-cafe')
+ await page.goto(`/?scene=commercial-cafe${debugRuntimeEvidence?'&debugRuntimeEvidence=1':''}`)
  for(let i=0;i<25;i++){const shield=page.locator('[data-scene-dialogue-shield=true]');if(!await shield.count())break;await expect(page.locator('[data-scene-observation-typing=true]')).toHaveCount(0,{timeout:15000});await shield.click({force:true})}
 }
 for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(viewport.width+' camera frames, notification orbit and phone scroll',async({page},info)=>{
@@ -76,7 +76,7 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(view
 })
 
 for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(viewport.width+' real Café Ride order follows the authored exit into a separate Street pickup map',async({page},info)=>{
- test.setTimeout(90000);await page.setViewportSize(viewport);await seed(page)
+ test.setTimeout(90000);await page.setViewportSize(viewport);await seed(page,false,true)
  const phone=page.locator('.world-phone')
  await page.getByLabel('打开手机').click();await phone.locator('[data-app=ride]').click()
  await expect(phone.locator('.world-phone__ride-destination')).toHaveCount(2)
@@ -95,12 +95,38 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(view
  await expect(cafeMap.locator('[data-map-geometry]')).toHaveCount(cafeGeometry)
  await expect(cafeMap.locator('[data-map-passage="street-cafe-entry"]')).toBeVisible()
  expect(await cafeMap.locator('[data-map-object]').count()).toBeGreaterThan(10)
+ const nearPlayer=cafeMap.locator('[data-map-region=player] span')
+ const nearExit=cafeMap.locator('[data-map-region=ride-goal] span')
+ const nearPlayerBox=await nearPlayer.boundingBox(),nearExitBox=await nearExit.boundingBox()
+ expect(nearPlayerBox).not.toBeNull();expect(nearExitBox).not.toBeNull()
+ expect(nearPlayerBox!.y+nearPlayerBox!.height).toBeLessThanOrEqual(nearExitBox!.y)
+ const nearPlayerMarker=await cafeMap.locator('[data-map-region=player]').boundingBox()
+ const nearExitMarker=await cafeMap.locator('[data-map-region=ride-goal]').boundingBox()
+ expect(Math.hypot(nearPlayerMarker!.x-nearExitMarker!.x,nearPlayerMarker!.y-nearExitMarker!.y)).toBeLessThan(55)
  await cafeMap.screenshot({path:info.outputPath('ride-map-cafe-segment.png')})
+ await page.screenshot({path:info.outputPath('ride-map-cafe-near-full.png')})
+ await page.keyboard.press('Escape')
+ const protagonist=page.locator('[data-actor-id="protagonist"]')
+ const beforeWalk={x:Number(await protagonist.getAttribute('data-runtime-x')),y:Number(await protagonist.getAttribute('data-runtime-y'))}
+ const stageBox=await page.locator('.mainline-scene-stage').boundingBox()
+ expect(stageBox).not.toBeNull()
+ await page.mouse.click(stageBox!.x+stageBox!.width*.62,stageBox!.y+stageBox!.height*.52)
+ await page.waitForFunction(({x,y})=>{const actor=document.querySelector<HTMLElement>('[data-actor-id="protagonist"]');return Boolean(actor&&Math.hypot(Number(actor.dataset.runtimeX)-x,Number(actor.dataset.runtimeY)-y)>15)},beforeWalk,{timeout:20000})
+ await page.getByRole('button',{name:'打开手机'}).click()
+ await phone.locator('[data-app=ride]').click()
+ const farCafeMap=phone.locator('[data-ride-map-scene="commercial-cafe"]')
+ await expect(farCafeMap.locator('[data-map-region=player]')).toBeVisible()
+ await expect(farCafeMap.locator('.world-phone__ride-map-edge')).toBeVisible()
+ await farCafeMap.screenshot({path:info.outputPath('ride-map-cafe-far-segment.png')})
+ await page.screenshot({path:info.outputPath('ride-map-cafe-far-full.png')})
  await page.keyboard.press('Escape')
  await page.locator('[data-focus-target-group="door:street-cafe-entry"]').click()
  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible({timeout:15000})
- await page.getByLabel('打开手机').click()
- await phone.locator('[data-app=ride]').click()
+ if(await phone.getAttribute('data-phone-phase')==='closed')await page.getByRole('button',{name:'打开手机'}).click()
+ const lockHint=phone.locator('.world-phone__lock-hint')
+ if(await lockHint.isVisible())await lockHint.click()
+ const rideAppButton=phone.locator('[data-app=ride]')
+ if(await rideAppButton.isVisible())await rideAppButton.click()
  await expect(phone.locator('[data-ride-order=true]')).toBeVisible()
  const streetMap=phone.locator('[data-ride-map-scene="commercial-street"]')
  await expect(streetMap.locator('[data-map-region=ride-goal]')).toBeVisible()

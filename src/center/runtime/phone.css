@@ -250,6 +250,8 @@
 .world-phone__ride-local-map .world-phone__map-object--seat { fill:#b7c1d035; stroke:#d0d9e8dd; }
 .world-phone__ride-local-map .world-phone__map-passage { fill:#46d1b628; stroke:#68e3d1; stroke-width:.9; stroke-dasharray:1.2 .8; vector-effect:non-scaling-stroke; }
 .world-phone__ride-local-map [data-map-region=player] i { width:9px; height:9px; background:#aee8de; box-shadow:0 0 0 3px #56cbb64d; }
+.world-phone__ride-local-map [data-map-region=player] span { position:absolute; left:50%; bottom:calc(50% + 7px); margin:0; transform:translateX(-50%) !important; }
+.world-phone__ride-local-map [data-map-region=ride-goal] span { position:absolute; left:50%; top:calc(50% + 7px); margin:0; transform:translateX(-50%) !important; }
 .world-phone__ride-local-map>.world-phone__map-viewport { position:absolute; inset:0; }
 .world-phone__ride-map-guidance { position:absolute; z-index:2; top:8px; left:8px; max-width:72%; margin:0; padding:5px 8px; border:1px solid #ffffff20; border-radius:7px; background:#17181ddd; color:#e1e2e6; font-size:10px; pointer-events:none; }
 .world-phone__ride-map-edge { position:absolute; z-index:2; display:grid; place-items:center; width:25px; height:25px; border-radius:50%; background:#26282de8; border:1px solid #cdd4dc88; color:#f1f3f7; font-size:18px; line-height:1; pointer-events:none; }
