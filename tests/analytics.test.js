@@ -84,7 +84,7 @@ describe('privacy-conscious analytics payload', () => {
     }, { ...dependencies(), viewportWindow: null })
     expect(selected).toMatchObject({ language: 'en', event_data: { languageSource: 'user_selected' } })
     expect(buildAnalyticsEvent('language_selected', {
-      language: 'en', eventData: { languageSource: 'browser_default' },
+      language: 'en', eventData: { languageSource: 'not-a-source' },
     }, dependencies())?.event_data).toEqual({})
   })
 

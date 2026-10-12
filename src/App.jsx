@@ -13,6 +13,7 @@ import { resolveReaderEnvironmentPreview } from './data/reader-experiments/reade
 import { getReaderThemeVariables } from './reader/readerTheme'
 import { trackEvent } from './services/analytics'
 import { recordRuntimeAudit } from './services/runtimeAudit'
+import { trackLandingEntry } from './services/landingEntryAnalytics'
 import CenterExperience from './center/CenterExperience'
 import { resolveMainlineSceneId } from './center/runtime/mainlineScenes'
 import { hasResumablePlayerSave } from './center/runtime/playerSave'
@@ -130,13 +131,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
   useEffect(() => {
     if (currentView !== 'landing') return
     const displayedPreferences = useProgressStore.getState()
-    trackEvent('landing_entry', {
-      stepId: 'landing',
-      language: displayedPreferences.language,
-      eventData: {
-        languageSource: displayedPreferences.hasInitializedLanguage ? 'user_selected' : 'product_default',
-      },
-    })
+    trackLandingEntry(displayedPreferences, navigator.languages || [navigator.language || ''])
   }, [currentView])
 
   const _handleEnter = useCallback((intent) => {

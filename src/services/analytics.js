@@ -286,7 +286,7 @@ function getViewportMetadata(viewportWindow) {
 function cleanEventData(eventName, value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   if (eventName === 'landing_entry' || eventName === 'language_selected') {
-    const languageSource = cleanChoice(value.languageSource, ['user_selected', 'product_default'])
+    const languageSource = cleanChoice(value.languageSource, ['user_selected', 'browser_default', 'product_default'])
     return languageSource ? { languageSource } : {}
   }
   if (eventName === 'commercial_storefront_interacted') {
