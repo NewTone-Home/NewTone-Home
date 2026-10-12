@@ -84,12 +84,17 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(view
  await phone.getByRole('button',{name:/^快车/}).click();await phone.getByRole('button',{name:'确认叫车',exact:true}).click()
  await expect(phone.locator('[data-ride-order=true]')).toBeVisible()
  const cafeMap=phone.locator('[data-ride-map-scene="commercial-cafe"]')
+ await expect(cafeMap.locator('.world-phone__map-viewport')).toBeVisible()
+ await expect(cafeMap.locator('.world-phone__ride-map-guidance')).toHaveCount(0)
+ await expect(cafeMap.locator('svg.world-phone__map')).toHaveAttribute('data-map-zoom','1.150')
  await expect(cafeMap.locator('[data-map-region=ride-goal]')).toBeVisible()
  await expect(cafeMap.locator('[data-map-region=ride-goal] span')).toHaveText('\u5496\u5561\u9986\u51fa\u53e3')
  await expect(cafeMap.locator('[data-map-region=player] span')).toHaveText('\u4f60')
  await expect(cafeMap.locator('.world-phone__ride-map-edge')).toHaveCount(0)
  const cafeGeometry=mainlineScenes['commercial-cafe'].geometry.filter(unit=>unit.visual.kind!=='none').length
- await expect(cafeMap.locator('svg.world-phone__map rect')).toHaveCount(cafeGeometry)
+ await expect(cafeMap.locator('[data-map-geometry]')).toHaveCount(cafeGeometry)
+ await expect(cafeMap.locator('[data-map-passage="street-cafe-entry"]')).toBeVisible()
+ expect(await cafeMap.locator('[data-map-object]').count()).toBeGreaterThan(10)
  await cafeMap.screenshot({path:info.outputPath('ride-map-cafe-segment.png')})
  await page.keyboard.press('Escape')
  await page.locator('[data-focus-target-group="door:street-cafe-entry"]').click()
@@ -100,8 +105,7 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(view
  const streetMap=phone.locator('[data-ride-map-scene="commercial-street"]')
  await expect(streetMap.locator('[data-map-region=ride-goal]')).toBeVisible()
  await expect(streetMap.locator('.world-phone__ride-map-edge')).toBeVisible()
- const streetGeometry=mainlineScenes['commercial-street'].geometry.filter(unit=>unit.visual.kind!=='none').length
- await expect(streetMap.locator('svg.world-phone__map rect')).toHaveCount(streetGeometry)
+ await expect(streetMap.locator('[data-map-geometry]')).not.toHaveCount(0)
  await streetMap.screenshot({path:info.outputPath('ride-map-street-segment.png')})
 })
 

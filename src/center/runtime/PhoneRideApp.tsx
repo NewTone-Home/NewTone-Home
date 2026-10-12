@@ -1,14 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { PhoneMapCanvas } from './PhoneMapCanvas'
 import { mainlineScenes, type MainlineSceneId } from './mainlineScenes'
-import { mainlineRideNavigationGoal, mainlineRideWaitingGuidance, type MainlineRideOrder, type MainlineRideVehicle, type MainlineRideRequestResult } from './mainlineRide'
+import { mainlineRideNavigationGoal, type MainlineRideOrder, type MainlineRideVehicle, type MainlineRideRequestResult } from './mainlineRide'
 import { type PhoneMapRegion, type PhoneMapZoomLevel } from './phoneMapModel'
 import type { PhoneDevice } from './phoneState'
+import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import type { MainlineStoryClock } from './mainlineStoryClock'
 import { phoneDriverDistanceLabel, phoneDriverEtaLabel, phoneRideTripEstimate } from './phoneRidePresentation'
 type Point={x:number;y:number}
-export function PhoneRideApp({regions,device,currentLandmark,currentSceneId,order,clock,storyClock,available,online,destinationId,onDestination,onConfirm,getPosition}:{
- regions:readonly PhoneMapRegion[];device:PhoneDevice;currentLandmark:{device:PhoneDevice;id:string}|null;currentSceneId:MainlineSceneId;order:MainlineRideOrder|null;clock:number;storyClock:MainlineStoryClock;available:boolean;online:boolean;destinationId:string|null;onDestination:(id:string)=>void;onConfirm:(sceneId:MainlineSceneId,presentation:{vehicle:MainlineRideVehicle;arrivalLabel?:string})=>MainlineRideRequestResult|void;getPosition?:()=>Point|null
+export function PhoneRideApp({regions,device,currentLandmark,currentSceneId,order,clock,storyClock,available,online,destinationId,onDestination,onConfirm,getPosition,getRideMapSnapshot}:{
+ regions:readonly PhoneMapRegion[];device:PhoneDevice;currentLandmark:{device:PhoneDevice;id:string}|null;currentSceneId:MainlineSceneId;order:MainlineRideOrder|null;clock:number;storyClock:MainlineStoryClock;available:boolean;online:boolean;destinationId:string|null;onDestination:(id:string)=>void;onConfirm:(sceneId:MainlineSceneId,presentation:{vehicle:MainlineRideVehicle;arrivalLabel?:string})=>MainlineRideRequestResult|void;getPosition?:()=>Point|null;getRideMapSnapshot?:()=>MainlineSceneGeometrySnapshot|null
 }) {
  const destinations=regions.filter(region=>region.sceneId && region.id!==currentLandmark?.id)
  const destination=destinations.find(region=>region.id===destinationId) ?? null
@@ -38,7 +39,7 @@ export function PhoneRideApp({regions,device,currentLandmark,currentSceneId,orde
   return ()=>window.clearTimeout(timer)
  },[request])
  return <section className="world-phone__ride-page" aria-label="叫车">
-  {order ? <PhoneRideLocalMap waitingSceneId={order.sourceSceneId} sceneId={currentSceneId} getPosition={getPosition} coveredHeight={sheetHeight} /> : <PhoneMapCanvas mapRegions={regions} displayDevice={device} currentLandmark={currentLandmark} selectedMapPlaceId={destinationId} onSelect={id=>{if(destinations.some(d=>d.id===id)) {onDestination(id);setVehicle(null)}}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} focusId={destinationId} coveredHeight={sheetHeight} regionsOnly slowDestinationTravel />}
+  {order ? <PhoneRideLocalMap waitingSceneId={order.sourceSceneId} sceneId={currentSceneId} getPosition={getPosition} getSnapshot={getRideMapSnapshot} coveredHeight={sheetHeight} /> : <PhoneMapCanvas mapRegions={regions} displayDevice={device} currentLandmark={currentLandmark} selectedMapPlaceId={destinationId} onSelect={id=>{if(destinations.some(d=>d.id===id)) {onDestination(id);setVehicle(null)}}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} focusId={destinationId} coveredHeight={sheetHeight} regionsOnly slowDestinationTravel />}
   <div ref={sheetRef} className="world-phone__ride-sheet" data-expanded={sheetExpanded}>
    <button className="world-phone__sheet-handle" aria-label={sheetExpanded?'收起叫车面板':'展开叫车面板'} aria-expanded={sheetExpanded}
     onPointerDown={event=>{sheetDragStart.current=event.clientY;sheetDragged.current=false;event.currentTarget.setPointerCapture(event.pointerId)}}
@@ -60,18 +61,23 @@ export function PhoneRideApp({regions,device,currentLandmark,currentSceneId,orde
   </div>
  </section>
 }
-function PhoneRideLocalMap({sceneId,waitingSceneId,getPosition,coveredHeight}:{sceneId:MainlineSceneId;waitingSceneId:MainlineSceneId;getPosition?:()=>Point|null;coveredHeight:number}) {
+function PhoneRideLocalMap({sceneId,waitingSceneId,getPosition,getSnapshot,coveredHeight}:{sceneId:MainlineSceneId;waitingSceneId:MainlineSceneId;getPosition?:()=>Point|null;getSnapshot?:()=>MainlineSceneGeometrySnapshot|null;coveredHeight:number}) {
  const scene=mainlineScenes[sceneId]
  const cafeExit=sceneId==='commercial-cafe'&&waitingSceneId==='commercial-street'
  const pickup=mainlineRideNavigationGoal(sceneId,waitingSceneId) ?? undefined
  const [position,setPosition]=useState(()=>getPosition?.() ?? scene.initialPlayerPosition)
- const [zoom,setZoom]=useState<PhoneMapZoomLevel>(2)
+ const [zoom,setZoom]=useState<PhoneMapZoomLevel>(()=>sceneId==='commercial-cafe'?1.15:2)
  const [pan,setPan]=useState<readonly [number,number]>([0,0])
  const viewportRef=useRef<HTMLDivElement>(null)
  const [viewportSize,setViewportSize]=useState({width:0,height:0})
- useEffect(()=>{let frame=0;const paint=()=>{const next=getPosition?.();if(next)setPosition(old=>old.x===next.x&&old.y===next.y?old:next);frame=requestAnimationFrame(paint)};frame=requestAnimationFrame(paint);return()=>cancelAnimationFrame(frame)},[getPosition])
+ const [snapshot,setSnapshot]=useState(()=>getSnapshot?.() ?? null)
+ const previousSceneId=useRef(sceneId)
+ const positionRef=useRef(position)
+ useEffect(()=>{if(previousSceneId.current===sceneId)return;previousSceneId.current=sceneId;const next=getPosition?.() ?? mainlineScenes[sceneId].initialPlayerPosition;positionRef.current=next;setPosition(next);setZoom(sceneId==='commercial-cafe'?1.15:2);setPan([0,0])},[sceneId,getPosition])
+ useEffect(()=>{const next=getSnapshot?.();if(next?.sceneId===sceneId)setSnapshot(next)},[getSnapshot,sceneId,viewportSize.width,viewportSize.height])
+ useEffect(()=>{let frame=0;const paint=()=>{const next=getPosition?.();if(next&&(positionRef.current.x!==next.x||positionRef.current.y!==next.y)){positionRef.current=next;setPosition(next);const updated=getSnapshot?.();if(updated?.sceneId===sceneId)setSnapshot(updated)}frame=requestAnimationFrame(paint)};frame=requestAnimationFrame(paint);return()=>cancelAnimationFrame(frame)},[getPosition,getSnapshot,sceneId])
  useLayoutEffect(()=>{const viewport=viewportRef.current;if(!viewport)return;const update=()=>setViewportSize({width:viewport.clientWidth,height:viewport.clientHeight});update();const observer=new ResizeObserver(update);observer.observe(viewport);return()=>observer.disconnect()},[])
- const bounds=scene.walkBounds
+ const bounds=snapshot?.sceneId===sceneId?snapshot.walkBounds:scene.walkBounds
  const regions:PhoneMapRegion[]=[{id:'player',glyph:'●',label:'你',position:[position.x,position.y],detail:'',pois:[]},...(pickup?[{id:'ride-goal',glyph:'○',label:cafeExit?'咖啡馆出口':'上车点',position:[pickup.x,pickup.y] as const,detail:'',pois:[]}]:[])]
  const scale=Math.min(viewportSize.width/bounds.width,viewportSize.height/bounds.height)
  const dx=pickup?(pickup.x-position.x)*scale*zoom:0,dy=pickup?(pickup.y-position.y)*scale*zoom:0
@@ -79,10 +85,12 @@ function PhoneRideLocalMap({sceneId,waitingSceneId,getPosition,coveredHeight}:{s
  const safeX=Math.max(16,viewportSize.width/2-14),safeY=Math.max(16,(viewportSize.height-coveredHeight)/2-18)
  const ray=Math.max(Math.abs(dx)/Math.max(1,safeX),Math.abs(dy)/Math.max(1,safeY))
  const edge=pickup&&ray>1?{x:viewportSize.width/2+dx/ray,y:centerY+dy/ray,angle:Math.atan2(dy,dx)*180/Math.PI+90}:null
- const guidance=cafeExit?'请从咖啡馆左侧出口返回商业街':mainlineRideWaitingGuidance(waitingSceneId).guidanceText
+ const mapGeometry=snapshot?.sceneId===sceneId?snapshot.units:scene.geometry
+ const mapObjects=snapshot?.sceneId===sceneId?scene.objects.flatMap(entity=>{const bounds=snapshot.objects.get(entity.id)?.visualBounds;if(!bounds||entity.visible===false)return[];return[{id:entity.id,kind:entity.kind,bounds}]}):[]
+ const cafeDoorway=snapshot?.sceneId===sceneId&&cafeExit?snapshot.passages.get('street-cafe-entry')?.doorway:undefined
+ const mapPassages=cafeDoorway?[{id:'street-cafe-entry',bounds:cafeDoorway}]:[]
  return <div ref={viewportRef} className="world-phone__ride-local-map" data-ride-map-scene={sceneId}>
-  <PhoneMapCanvas mapRegions={regions} displayDevice="inner" currentLandmark={{device:'inner',id:'player'}} selectedMapPlaceId={null} onSelect={()=>{}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} localViewBox={`${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`} geometry={scene.geometry} focusId="player" coveredHeight={coveredHeight} regionsOnly followFocus unhideMarkerLabels={['player','ride-goal']} />
-  <p className="world-phone__ride-map-guidance">{guidance}</p>
+  <PhoneMapCanvas mapRegions={regions} displayDevice="inner" currentLandmark={{device:'inner',id:'player'}} selectedMapPlaceId={null} onSelect={()=>{}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} localViewBox={`${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`} geometry={mapGeometry} localMapObjects={mapObjects} localMapPassages={mapPassages} focusId="player" coveredHeight={coveredHeight} regionsOnly followFocus unhideMarkerLabels={['player','ride-goal']} />
   {edge&&<span className="world-phone__ride-map-edge" aria-label={cafeExit?'咖啡馆出口在视野外':'上车点在视野外'} style={{left:edge.x,top:edge.y,transform:`translate(-50%,-50%) rotate(${edge.angle}deg)`}}>↑</span>}
  </div>
 }

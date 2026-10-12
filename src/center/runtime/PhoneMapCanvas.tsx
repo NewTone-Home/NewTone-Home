@@ -4,6 +4,7 @@ import { clampPhoneMapZoom, phoneMapZoomBounds, phoneMapTransitLinks, phoneMapRe
 import type { PhoneDevice } from './phoneState'
 
 type Point = PhoneMapPoint
+type LocalMapShape = { id: string; kind?: string; bounds: { x: number; y: number; width: number; height: number } }
 type Props = {
   mapRegions: readonly PhoneMapRegion[]; displayDevice: PhoneDevice
   currentLandmark: { device: PhoneDevice; id: string } | null
@@ -11,12 +12,13 @@ type Props = {
   mapZoom: number; setMapZoom: Dispatch<SetStateAction<number>>
   mapPan: Point; setMapPan: Dispatch<SetStateAction<Point>>
   localViewBox?: string; geometry?: readonly MainlineSceneGeometryUnit[]
+  localMapObjects?: readonly LocalMapShape[]; localMapPassages?: readonly LocalMapShape[]
   focusId?: string | null; coveredHeight?: number; onBlank?: () => void
   restoreOnBlank?: boolean; regionsOnly?: boolean; slowDestinationTravel?: boolean
   followFocus?: boolean
   unhideMarkerLabels?: readonly string[]
 }
-export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, selectedMapPlaceId, onSelect, mapZoom, setMapZoom, mapPan, setMapPan, localViewBox, geometry, focusId, coveredHeight = 0, onBlank, restoreOnBlank = false, regionsOnly = false, slowDestinationTravel = false, followFocus = false, unhideMarkerLabels = [] }: Props) {
+export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, selectedMapPlaceId, onSelect, mapZoom, setMapZoom, mapPan, setMapPan, localViewBox, geometry, localMapObjects = [], localMapPassages = [], focusId, coveredHeight = 0, onBlank, restoreOnBlank = false, regionsOnly = false, slowDestinationTravel = false, followFocus = false, unhideMarkerLabels = [] }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<HTMLDivElement>(null)
   const [controlBounds,setControlBounds]=useState({left:Infinity,top:0,bottom:0})
@@ -172,7 +174,9 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
   return <>
     <div className="world-phone__map-viewport" data-dragging={dragging} data-camera-moving={cameraMoving} data-camera-follow={followFocus} ref={viewportRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('[data-map-interactive]')) { if (!suppressClick.current) { restorePending.current=restoreOnBlank && beforeFocus.current!==null;onBlank?.() } } }}>
       <svg className="world-phone__map" viewBox={localViewBox ?? mainlineMapLayout.viewBox} role="group" aria-label="世界地图，拖动查看，滚轮、双指或按钮缩放，点击区域和地点查看详情" data-map-world={displayDevice} data-map-zoom={mapZoom.toFixed(3)} style={{ transform: `translate(${mapPan[0]}px, ${mapPan[1]}px) scale(${mapZoom})` }}>
-        {geometry?.filter(unit => unit.visual.kind !== 'none').map(unit => <rect key={unit.id} x={unit.x} y={unit.y} width={unit.width} height={unit.height} fill="#ffffff10" stroke="#ffffff35" strokeWidth=".15" />)}
+        {geometry?.filter(unit => unit.visual.kind !== 'none').map(unit => <rect key={unit.id} className={`world-phone__map-geometry world-phone__map-geometry--${unit.surface}`} data-map-geometry={unit.id} x={unit.x} y={unit.y} width={unit.width} height={unit.height} />)}
+        {localMapPassages.map(passage => <rect key={passage.id} className="world-phone__map-passage" data-map-passage={passage.id} x={passage.bounds.x} y={passage.bounds.y} width={passage.bounds.width} height={passage.bounds.height} />)}
+        {localMapObjects.map(object => <rect key={object.id} className={`world-phone__map-object world-phone__map-object--${object.kind ?? 'fixture'}`} data-map-object={object.id} x={object.bounds.x} y={object.bounds.y} width={object.bounds.width} height={object.bounds.height} />)}
         {!localViewBox && <>
           {displayDevice === 'inner' && phoneMapTransitLinks.map(([from, to]) => { const a = mapRegions.find(r => r.id === from), b = mapRegions.find(r => r.id === to); return a && b ? <line key={`${from}-${to}`} className="world-phone__map-transit" data-map-transit={`${from}-${to}`} x1={a.position[0]} y1={a.position[1]} x2={b.position[0]} y2={b.position[1]} /> : null })}
           {mapRegions.map(region => <g key={region.id} transform={`translate(${region.position.join(' ')})`}><path className="world-phone__map-region-field" d={phoneMapRegionContours[region.id]} /><path className="world-phone__map-contour" d={phoneMapRegionContours[region.id]} transform="scale(.74)" /></g>)}

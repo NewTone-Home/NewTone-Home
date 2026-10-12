@@ -10,6 +10,7 @@ import {
   resolveMainlineSceneId,
 } from './runtime/mainlineScenes'
 import { mainlineCameraOffset } from './runtime/mainlineViewport'
+import { createMainlineSceneGeometrySnapshot } from './runtime/mainlineSceneGeometrySnapshot'
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
 import { advanceMainlineStoryClock } from './runtime/mainlineStoryClock'
@@ -86,6 +87,14 @@ export default function CenterExperience({
   const positionSamplerRef = useRef(null)
   const currentSceneIdRef = useRef(route.sceneId)
   const latestWorldPositionRef = useRef(null)
+  const getRideMapSnapshot = useCallback(() => {
+    const current = latestWorldPositionRef.current
+    if (!current || current.sceneId !== route.sceneId) return null
+    return createMainlineSceneGeometrySnapshot(
+      mainlineScenes[current.sceneId], current.position,
+      current.context.layout, current.context.screenMetrics,
+    )
+  }, [route.sceneId])
   const pendingInteractionRequestsRef = useRef(new Map())
   currentSceneIdRef.current = route.sceneId
   if (!positionSamplerRef.current) {
@@ -664,6 +673,7 @@ export default function CenterExperience({
         </div>
         <WorldPhone
           getPlayerPosition={() => latestWorldPositionRef.current?.sceneId === route.sceneId ? latestWorldPositionRef.current.position : null}
+          getRideMapSnapshot={getRideMapSnapshot}
           currentSceneId={route.sceneId}
           worldLayer={worldLayerForScene(route.sceneId)}
           device={phoneDevice}
