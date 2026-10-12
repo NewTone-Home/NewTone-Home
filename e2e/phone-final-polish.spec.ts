@@ -1,8 +1,22 @@
-import {expect,test,type Page} from '@playwright/test'
+import {expect,test,type Locator,type Page} from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import {registerPhoneTestNetwork} from './phoneTestNetwork'
 import {mainlineScenes} from '../src/center/runtime/mainlineScenes'
 registerPhoneTestNetwork()
+async function sampleRideZonePixels(page:Page,map:Locator,zone:Locator){
+ const viewport=map.locator('.world-phone__map-viewport'),viewportBox=await viewport.boundingBox(),zoneBox=await zone.boundingBox()
+ if(!viewportBox||!zoneBox)throw new Error('Ride zone or map viewport is not visible')
+ const image=await viewport.screenshot(),ratios=[.03,.18,.5,.82,.97],axis=await zone.getAttribute('data-fade-axis')
+ const along=ratios.map(r=>axis==='y'?{x:zoneBox.x+zoneBox.width/2-viewportBox.x,y:zoneBox.y+zoneBox.height*r-viewportBox.y}:{x:zoneBox.x+zoneBox.width*r-viewportBox.x,y:zoneBox.y+zoneBox.height/2-viewportBox.y})
+ const across=ratios.map(r=>axis==='y'?{x:zoneBox.x+zoneBox.width*r-viewportBox.x,y:zoneBox.y+zoneBox.height*.58-viewportBox.y}:{x:zoneBox.x+zoneBox.width/2-viewportBox.x,y:zoneBox.y+zoneBox.height*r-viewportBox.y})
+ return page.evaluate(async({source,along,across})=>{
+  const image=new Image();image.src='data:image/png;base64,'+source;await image.decode()
+  const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height
+  const context=canvas.getContext('2d')!;context.drawImage(image,0,0)
+  const score=({x,y}:{x:number;y:number})=>{const pixel=context.getImageData(Math.round(x),Math.round(y),1,1).data;return pixel[1]-pixel[0]}
+  return {along:along.map(score),across:across.map(score)}
+ },{source:image.toString('base64'),along,across})
+}
 async function seed(page:Page,milkTeaUnlocked=false,debugRuntimeEvidence=false){
  await page.addInitScript(milkTeaUnlocked=>{localStorage.setItem('newtone-public-release-cutover-v1','center-v1');if(!localStorage.getItem('newtone-player-save-v1'))localStorage.setItem('newtone-player-save-v1',JSON.stringify({currentSceneId:'commercial-cafe',phoneDevice:'inner',sceneState:{'commercial-cafe':{commercialCafeStoryStatus:'complete'},'commercial-street':{commercialStreetMilkTeaAppUnlocked:milkTeaUnlocked}},updatedAt:100}))},milkTeaUnlocked)
  await page.goto(`/?scene=commercial-cafe${debugRuntimeEvidence?'&debugRuntimeEvidence=1':''}`)
@@ -102,8 +116,17 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(view
  await expect(cafeMap.locator('[data-map-zone-fill=true]')).toHaveAttribute('mask',/floor-mask/)
  await expect(cafeMap.locator('[data-map-region=player] span')).toHaveCount(0)
  await expect(cafeMap.locator('[data-map-zone]')).toHaveAttribute('stroke','none')
- await expect(cafeMap.locator('[data-ride-target-gradient] stop')).toHaveCount(3)
- await expect(cafeMap.locator('[data-ride-target-gradient] stop').last()).toHaveAttribute('stop-opacity','0')
+ await expect(cafeMap.locator('[data-ride-target-gradient] stop')).toHaveCount(5)
+ const longitudinalStops=await cafeMap.locator('[data-ride-target-gradient] stop').evaluateAll(stops=>stops.map(stop=>Number(stop.getAttribute('stop-opacity'))))
+ expect(longitudinalStops[0]).toBe(0);expect(longitudinalStops[2]).toBeGreaterThan(longitudinalStops[1]);expect(longitudinalStops[4]).toBe(0)
+ const transverseStops=await cafeMap.locator('[data-ride-target-edge-gradient] stop').evaluateAll(stops=>stops.map(stop=>Number(stop.getAttribute('stop-opacity'))))
+ expect(transverseStops[0]).toBe(0);expect(transverseStops[2]).toBe(1);expect(transverseStops[4]).toBe(0)
+ const pixelProfile=await sampleRideZonePixels(page,cafeMap,cafeMap.locator('[data-map-zone-fill=true]'))
+ await info.attach('cafe-ride-zone-rendered-pixel-profile',{body:JSON.stringify(pixelProfile),contentType:'application/json'})
+ expect(pixelProfile.along[2]).toBeGreaterThan(pixelProfile.along[0]+8)
+ expect(pixelProfile.along[2]).toBeGreaterThan(pixelProfile.along[4]+8)
+ expect(pixelProfile.across[2]).toBeGreaterThan(pixelProfile.across[0]+8)
+ expect(pixelProfile.across[2]).toBeGreaterThan(pixelProfile.across[4]+8)
  const targetClip=cafeMap.locator('clipPath[id*="ride-map-frame"] rect')
  await expect(targetClip).toHaveAttribute('x',String(mainlineScenes['commercial-cafe'].walkBounds.x))
  await expect(targetClip).toHaveAttribute('y',String(mainlineScenes['commercial-cafe'].walkBounds.y))
@@ -129,6 +152,8 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(view
  await page.mouse.click(stageBox!.x+stageBox!.width*.62,stageBox!.y+stageBox!.height*.52)
  await page.waitForFunction(({x,y})=>{const actor=document.querySelector<HTMLElement>('[data-actor-id="protagonist"]');return Boolean(actor&&Math.hypot(Number(actor.dataset.runtimeX)-x,Number(actor.dataset.runtimeY)-y)>15)},beforeWalk,{timeout:20000})
  await page.getByRole('button',{name:'打开手机'}).click()
+ const reopenedLockHint=phone.locator('.world-phone__lock-hint')
+ if(await reopenedLockHint.isVisible())await reopenedLockHint.click()
  await phone.locator('[data-app=ride]').click()
  const farCafeMap=phone.locator('[data-ride-map-scene="commercial-cafe"]')
  await expect(farCafeMap.locator('[data-map-region=player]')).toBeVisible()

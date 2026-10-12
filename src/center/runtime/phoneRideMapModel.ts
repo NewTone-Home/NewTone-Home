@@ -2,41 +2,17 @@ import { mainlineScenePassageDoorway, type MainlineSceneDefinition, type Mainlin
 import type { CollisionBox } from './sceneGeometry'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 
-export type RideMapTargetZone = { id: string; bounds: CollisionBox; fillBounds: CollisionBox; fadeTowardTarget?: boolean }
-
-export type RideMapGradient = { x1: number; y1: number; x2: number; y2: number }
-
-const LOCAL_EXIT_FILL_DEPTH = 10
-const LOCAL_EXIT_FILL_WIDTH = 10
-
-/** Fade the pickup highlight toward its real exit, keeping the interior strongest. */
-export function phoneRideMapTargetGradient(target: CollisionBox, floor: CollisionBox): RideMapGradient {
-  const targetX = target.x + target.width / 2
-  const targetY = target.y + target.height / 2
-  const centerX = floor.x + floor.width / 2
-  const centerY = floor.y + floor.height / 2
-  const dx = targetX - centerX
-  const dy = targetY - centerY
-  const scaleX = Math.abs(dx) > 1e-6 ? floor.width / 2 / Math.abs(dx) : Number.POSITIVE_INFINITY
-  const scaleY = Math.abs(dy) > 1e-6 ? floor.height / 2 / Math.abs(dy) : Number.POSITIVE_INFINITY
-  const scale = Math.min(scaleX, scaleY)
-
-  if (!Number.isFinite(scale)) {
-    return { x1: centerX - floor.width / 2, y1: centerY, x2: centerX + floor.width / 2, y2: centerY }
-  }
-
-  return { x1: centerX - dx * scale, y1: centerY - dy * scale, x2: targetX, y2: targetY }
-}
+export type RideMapTargetZone = { id: string; bounds: CollisionBox; fillBounds: CollisionBox; fadeTowardTarget?: boolean; fadeAxis?: 'x' | 'y'; inwardDirection?: -1 | 1 }
 
 function groundBoundsAtTarget(scene: MainlineSceneDefinition, target: CollisionBox, fallback: CollisionBox): CollisionBox {
   const targetGround = [
-    ...scene.rooms.filter((room) => room.kind !== 'boundary').map((room) => room.bounds),
-    ...scene.structures.filter((structure) => structure.type === 'lane' && structure.bounds).map((structure) => structure.bounds!),
+    ...scene.structures.filter((structure) => structure.type === 'lane' && structure.bounds).map((structure) => ({ bounds: structure.bounds!, priority: 0 })),
+    ...scene.rooms.filter((room) => room.kind !== 'boundary').map((room) => ({ bounds: room.bounds, priority: 1 })),
   ]
   const overlaps = targetGround
-    .map((bounds) => ({ bounds, area: Math.max(0, Math.min(target.x + target.width, bounds.x + bounds.width) - Math.max(target.x, bounds.x)) * Math.max(0, Math.min(target.y + target.height, bounds.y + bounds.height) - Math.max(target.y, bounds.y)) }))
+    .map(({ bounds, priority }) => ({ bounds, priority, area: Math.max(0, Math.min(target.x + target.width, bounds.x + bounds.width) - Math.max(target.x, bounds.x)) * Math.max(0, Math.min(target.y + target.height, bounds.y + bounds.height) - Math.max(target.y, bounds.y)) }))
     .filter((room) => room.area > 0)
-    .sort((a, b) => a.area - b.area)
+    .sort((a, b) => a.area - b.area || a.priority - b.priority)
   return overlaps[0]?.bounds ?? fallback
 }
 
@@ -48,23 +24,26 @@ function intersectBounds(a: CollisionBox, b: CollisionBox): CollisionBox | null 
   return right > x && bottom > y ? { x, y, width: right - x, height: bottom - y } : null
 }
 
-function localExitFillBounds(target: CollisionBox, ground: CollisionBox, axis: 'x' | 'y', outwardDirection: -1 | 1): CollisionBox | null {
+function localExitFillBounds(target: CollisionBox, ground: CollisionBox, axis: 'x' | 'y', outwardDirection: -1 | 1, tangentSpan: number): CollisionBox | null {
   const targetX = target.x + target.width / 2
   const targetY = target.y + target.height / 2
-  const tangentHalf = LOCAL_EXIT_FILL_WIDTH / 2
+  const tangentHalf = tangentSpan / 2
+  // Keep the highlight local: derive its depth from half the actual opening or
+  // channel span, then clip it to the available in-scene ground.
+  const depth = Math.min(tangentSpan / 2, axis === 'x' ? ground.width : ground.height)
   const insideDirection = outwardDirection * -1
   const raw = axis === 'x'
     ? {
-        x: insideDirection > 0 ? targetX : targetX - LOCAL_EXIT_FILL_DEPTH,
+        x: insideDirection > 0 ? targetX : targetX - depth,
         y: targetY - tangentHalf,
-        width: LOCAL_EXIT_FILL_DEPTH,
-        height: LOCAL_EXIT_FILL_WIDTH,
+        width: depth,
+        height: tangentSpan,
       }
     : {
         x: targetX - tangentHalf,
-        y: insideDirection > 0 ? targetY : targetY - LOCAL_EXIT_FILL_DEPTH,
-        width: LOCAL_EXIT_FILL_WIDTH,
-        height: LOCAL_EXIT_FILL_DEPTH,
+        y: insideDirection > 0 ? targetY : targetY - depth,
+        width: tangentSpan,
+        height: depth,
       }
   return intersectBounds(raw, ground)
 }
@@ -84,11 +63,13 @@ export function phoneRideMapTargetZones(
       const boundary = exit.triggerEntityId
         ? scene.geometry.find((unit) => unit.geometryKind === 'boundary' && unit.entityId === exit.triggerEntityId)
         : undefined
-      const tangentStart = exit.triggerSpan?.start ?? (exit.axis === 'x' ? boundary?.y ?? walkBounds.y : boundary?.x ?? walkBounds.x)
+      const preliminaryTarget = { x: exit.axis === 'x' ? exit.threshold - 1 : walkBounds.x + walkBounds.width / 2 - 1, y: exit.axis === 'x' ? walkBounds.y + walkBounds.height / 2 - 1 : exit.threshold - 1, width: 2, height: 2 }
+      const ground = groundBoundsAtTarget(scene, preliminaryTarget, walkBounds)
+      const tangentStart = exit.triggerSpan?.start ?? (exit.axis === 'x' ? boundary?.y ?? ground.y : boundary?.x ?? ground.x)
       const tangentEnd = exit.triggerSpan?.end ?? (
         exit.axis === 'x' && boundary ? boundary.y + boundary.height
           : exit.axis === 'y' && boundary ? boundary.x + boundary.width
-            : exit.axis === 'x' ? walkBounds.y + walkBounds.height : walkBounds.x + walkBounds.width
+            : exit.axis === 'x' ? ground.y + ground.height : ground.x + ground.width
       )
       if (tangentEnd <= tangentStart) return []
       const targetPoint = exit.axis === 'x'
@@ -98,9 +79,9 @@ export function phoneRideMapTargetZones(
         id: 'pickup-' + (exit.id ?? 'exit'),
         bounds: { x: targetPoint.x - 1, y: targetPoint.y - 1, width: 2, height: 2 },
       }
-      const ground = groundBoundsAtTarget(scene, bounds.bounds, walkBounds)
-      const fillBounds = localExitFillBounds(bounds.bounds, ground, exit.axis, exit.direction)
-      return fillBounds ? [{ ...bounds, fillBounds, fadeTowardTarget: true }] : []
+      const tangentSpan = tangentEnd - tangentStart
+      const fillBounds = localExitFillBounds(bounds.bounds, ground, exit.axis, exit.direction, tangentSpan)
+      return fillBounds ? [{ ...bounds, fillBounds, fadeTowardTarget: true, fadeAxis: exit.axis, inwardDirection: exit.direction * -1 as -1 | 1 }] : []
     })
   }
 
@@ -112,6 +93,8 @@ export function phoneRideMapTargetZones(
   const groundCenter = axis === 'x' ? walkBounds.x + walkBounds.width / 2 : walkBounds.y + walkBounds.height / 2
   const targetCenter = axis === 'x' ? doorway.x + doorway.width / 2 : doorway.y + doorway.height / 2
   const outwardDirection = (targetCenter < groundCenter ? -1 : 1) as -1 | 1
-  const fillBounds = localExitFillBounds(doorway, walkBounds, axis, outwardDirection)
-  return fillBounds ? [{ id: 'pickup-' + passage.id, bounds: doorway, fillBounds, fadeTowardTarget: true }] : []
+  const tangentSpan = axis === 'x' ? doorway.height : doorway.width
+  const ground = groundBoundsAtTarget(scene, doorway, walkBounds)
+  const fillBounds = localExitFillBounds(doorway, ground, axis, outwardDirection, tangentSpan)
+  return fillBounds ? [{ id: 'pickup-' + passage.id, bounds: doorway, fillBounds, fadeTowardTarget: true, fadeAxis: axis, inwardDirection: outwardDirection * -1 as -1 | 1 }] : []
 }
