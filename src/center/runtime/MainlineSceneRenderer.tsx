@@ -1118,7 +1118,12 @@ export function MainlineSceneRenderer({
               phase={storefrontPresentation.get(slot.id) ?? 'baseline'} doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'}
               renderFrame={focusFrames.renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete}
               frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === slot.portalId}
-              onMotionComplete={phase => phase === 'revealing' ? onStorefrontRevealMotionComplete?.(slot.id) : onStorefrontRestoreMotionComplete?.(slot.id)} />)}
+              onMotionComplete={phase => {
+                if (phase === 'revealing') {
+                  onStorefrontRevealMotionComplete?.(slot.id)
+                  focusFrames.remeasureGroup(`door:${slot.portalId}`)
+                } else onStorefrontRestoreMotionComplete?.(slot.id)
+              }} />)}
 
             {geometryCells.map(({ unit, cell }) => {
               if (cell.glyph === '') return null

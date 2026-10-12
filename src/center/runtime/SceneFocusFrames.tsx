@@ -77,6 +77,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<ReadonlyMap<string, SceneFrameRuntime>>(new Map())
   const frameNodeRefsRef = useRef(new Map<string, (node: HTMLSpanElement | null) => void>())
   const frameNodesRef = useRef(new Map<string, HTMLSpanElement>())
+  const measureGroupRef = useRef<(group: string) => void>(() => {})
   const [frameNodesRevision, setFrameNodesRevision] = useState(0)
   const [frameMeasurements, setFrameMeasurements] = useState<ReadonlyMap<string, { duration: number; geometry: SceneFocusFrameGeometry; bounds: CSSProperties }>>(new Map())
   const lastPointerTypeRef = useRef(new Map<string, string>())
@@ -193,20 +194,22 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     return ref
   }, [])
 
+  const remeasureGroup = useCallback((group: string) => measureGroupRef.current(group), [])
+
   useLayoutEffect(() => {
     if (freezeMeasurements) return undefined
-    const measure = () => {
-      const next = new Map<string, { duration: number; geometry: SceneFocusFrameGeometry; bounds: CSSProperties }>()
-      targetGroups.forEach((group) => {
+    const measure = (groups: Iterable<string> = targetGroups) => {
+      const updates = new Map<string, { duration: number; geometry: SceneFocusFrameGeometry; bounds: CSSProperties }>()
+      for (const group of groups) {
         const node = frameNodesRef.current.get(group)
-        if (!node) return
+        if (!node) continue
         const parent = node.parentElement
         const stage = node.closest('.mainline-scene-stage')
-        if (!parent || !stage) return
+        if (!parent || !stage) continue
         const characters = [...stage.querySelectorAll<HTMLElement>('[data-focus-visual-group]')]
           .filter(element => element.dataset.focusVisualGroup === group)
         const rect = measureSceneCharacters(characters)
-        if (!rect) return
+        if (!rect) continue
         const otherCharacters = [...stage.querySelectorAll<HTMLElement>('[data-scene-characters]')]
           .filter(element => !characters.some(target => target === element || target.contains(element) || element.contains(target)))
         const neighbors = measureSceneCharacterRects(otherCharacters)
@@ -238,26 +241,32 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         })
         const width = rect.right - rect.left + leftMargin + rightMargin
         const height = rect.bottom - rect.top + topMargin + bottomMargin
-        next.set(group, {
+        updates.set(group, {
           duration: sceneFrameMotionMsForRect(width, height),
           geometry: sceneFocusFrameGeometry(width, height),
           bounds: { left: (rect.left - origin.left - leftMargin) / scaleX, top: (rect.top - origin.top - topMargin) / scaleY, width: width / scaleX, height: height / scaleY },
         })
-      })
+      }
       setFrameMeasurements((current) => {
-        if (current.size !== next.size) return next
-        for (const [group, measurement] of next) {
+        const next = new Map(current)
+        let changed = false
+        for (const [group, measurement] of updates) {
           const previous = current.get(group)
-          if (!previous || previous.duration !== measurement.duration || previous.geometry.viewBox !== measurement.geometry.viewBox || JSON.stringify(previous.bounds) !== JSON.stringify(measurement.bounds)) return next
+          if (!previous || previous.duration !== measurement.duration || previous.geometry.viewBox !== measurement.geometry.viewBox || JSON.stringify(previous.bounds) !== JSON.stringify(measurement.bounds)) {
+            next.set(group, measurement)
+            changed = true
+          }
         }
-        return current
+        return changed ? next : current
       })
     }
 
+    const measureAll = () => measure()
+    measureGroupRef.current = (group) => measure([group])
     measure()
     if (typeof ResizeObserver === 'undefined') return undefined
-    const observer = new ResizeObserver(measure)
-    const characterChanges = new MutationObserver(measure)
+    const observer = new ResizeObserver(measureAll)
+    const characterChanges = new MutationObserver(measureAll)
     frameNodesRef.current.forEach((node, group) => {
       if (!targetGroups.has(group)) return
       if (node.parentElement) observer.observe(node.parentElement)
@@ -268,8 +277,13 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         }
       })
     })
-    document.fonts?.addEventListener('loadingdone', measure)
-    return () => { observer.disconnect(); characterChanges.disconnect(); document.fonts?.removeEventListener('loadingdone', measure) }
+    document.fonts?.addEventListener('loadingdone', measureAll)
+    return () => {
+      observer.disconnect()
+      characterChanges.disconnect()
+      document.fonts?.removeEventListener('loadingdone', measureAll)
+      measureGroupRef.current = () => {}
+    }
   }, [frameNodesRevision, freezeMeasurements, targetGroups])
 
   const onPointerDownCapture = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
@@ -372,5 +386,5 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     const runtime = runtimeSnapshot.get(group)
     return Boolean(runtime?.phase === 'hidden' && runtime.fullyCollapsed)
   }, [runtimeSnapshot])
-  return { renderFrame, motionDurationMs, maxMotionDurationMs, onPointerDownCapture, onPointerOverCapture, onPointerOutCapture, onClickCapture, requestedRetractionsComplete, isCollapsed }
+  return { renderFrame, remeasureGroup, motionDurationMs, maxMotionDurationMs, onPointerDownCapture, onPointerOverCapture, onPointerOutCapture, onClickCapture, requestedRetractionsComplete, isCollapsed }
 }
