@@ -26,11 +26,11 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
     await expect(host).toHaveAttribute('data-character-motion-duration', '700')
     const samples: number[] = []
     for (const [index, threshold] of [0.14, 0.48, 0.82].entries()) {
-      await page.waitForFunction(minimum => {
+      const sampled = await page.waitForFunction(minimum => {
         const progress = Number(document.querySelector<HTMLElement>('.scene-portal-characters')?.dataset.characterProgress)
-        return progress >= minimum && progress < 1
+        return progress >= minimum && progress < 1 ? progress : false
       }, threshold)
-      const value = Number(await host.getAttribute('data-character-progress'))
+      const value = await sampled.jsonValue() as number
       samples.push(value)
       const inherited = await host.locator('.scene-character-switch').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).getPropertyValue('--character-progress')))
       expect(new Set(inherited).size).toBe(1)

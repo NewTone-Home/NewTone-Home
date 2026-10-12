@@ -9,6 +9,8 @@ import {
   storefrontPresentationLabelSlots,
   storefrontCharacterCells,
   storefrontCharacterProgress,
+  activeStorefrontPresentationOwner,
+  storefrontPresentationHandoffSource,
   storefrontPresentationShouldReveal,
 } from '../src/center/runtime/storefrontPresentation'
 
@@ -136,6 +138,28 @@ describe('commercial street storefront presentation', () => {
     expect(cells.some((cell) => cell.storefrontRole === 'sign')).toBe(true)
   })
 
+  it('keeps ordinary storefront glass on both sides of each sign when the projected cells allow it', () => {
+    for (const metrics of [{ width: 1280, height: 720 }, { width: 844, height: 390 }]) {
+      const projected = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics)
+      const rowStorefronts = street.storefronts.filter((storefront) => storefront.edge === 'top' || storefront.edge === 'bottom')
+      for (const storefront of rowStorefronts) {
+        const cells = projected
+          .filter((unit) => unit.storefrontId === storefront.id && unit.variant === 'baseline')
+          .flatMap((unit) => unit.visual.cells)
+          .sort((first, second) => (first.cellStart ?? first.x) - (second.cellStart ?? second.x))
+        const signIndexes = cells.flatMap((cell, index) => cell.storefrontRole === 'sign' ? [index] : [])
+        if (signIndexes.length < Array.from(storefront.label).length || cells.length < signIndexes.length + 2) continue
+
+        const firstSign = signIndexes[0]
+        const lastSign = signIndexes.at(-1)!
+        expect(cells[0].storefrontRole, `${storefront.id} leading glass`).toBe('glass')
+        expect(cells.at(-1)?.storefrontRole, `${storefront.id} trailing glass`).toBe('glass')
+        expect(cells.slice(firstSign, lastSign + 1).map((cell) => cell.glyph).join('')).toBe(storefront.label)
+        expect(cells.slice(firstSign, lastSign + 1).every((cell) => cell.storefrontRole === 'sign')).toBe(true)
+      }
+    }
+  })
+
   it('enters revealing and then revealed only for the portal storefront approach', () => {
     expect(storefrontPresentationShouldReveal(street, cafe, mainlineStorefrontApproach(street, cafe))).toBe(true)
     expect(nextStorefrontPresentationPhase('baseline', 'approach')).toBe('retracting')
@@ -145,6 +169,33 @@ describe('commercial street storefront presentation', () => {
     expect(nextStorefrontPresentationPhase('revealing', 'reveal-motion-complete')).toBe('revealed')
     const nonPortal = street.storefronts.find((storefront) => !storefront.portalId)!
     expect(storefrontPresentationShouldReveal(street, nonPortal, mainlineStorefrontApproach(street, nonPortal))).toBe(false)
+  })
+
+  it('assigns one entrance owner to the nearest eligible storefront and releases ownership on exit', () => {
+    const firstApproach = mainlineStorefrontApproach(street, cafe)
+    const distantStorefront = street.storefronts
+      .filter((storefront) => storefront.id !== cafe.id)
+      .map((storefront) => ({ storefront, approach: mainlineStorefrontApproach(street, storefront) }))
+      .sort((first, second) => Math.hypot(second.approach.x - firstApproach.x, second.approach.y - firstApproach.y)
+        - Math.hypot(first.approach.x - firstApproach.x, first.approach.y - firstApproach.y))[0].storefront
+    const secondApproach = mainlineStorefrontApproach(street, distantStorefront)
+    const first = { ...cafe, id: 'cafe-a', approach: firstApproach }
+    const second = { ...cafe, id: 'cafe-b', approach: secondApproach }
+    const pairedScene = { ...street, storefronts: [first, second] }
+
+    expect(activeStorefrontPresentationOwner(pairedScene, firstApproach)).toBe('cafe-a')
+    expect(activeStorefrontPresentationOwner(pairedScene, secondApproach)).toBe('cafe-b')
+    expect(activeStorefrontPresentationOwner(pairedScene, street.initialPlayerPosition)).toBeNull()
+  })
+
+  it('restores the outgoing entrance immediately on an A-to-B handoff', () => {
+    expect(nextStorefrontPresentationPhase('revealed', 'handoff')).toBe('restoring')
+    expect(nextStorefrontPresentationPhase('lingering', 'handoff')).toBe('restoring')
+    expect(nextStorefrontPresentationPhase('revealing', 'handoff')).toBe('restoring')
+    expect(nextStorefrontPresentationPhase('retracting', 'handoff')).toBe('baseline')
+    expect(nextStorefrontPresentationPhase('baseline', 'handoff')).toBe('baseline')
+    expect(storefrontPresentationHandoffSource(new Map([['cafe-a', 'lingering'], ['cafe-b', 'baseline']]), 'cafe-b')).toBe('cafe-a')
+    expect(storefrontPresentationHandoffSource(new Map([['cafe-a', 'baseline']]), 'cafe-b')).toBeNull()
   })
 
   it('keeps real passage collision unchanged while the visual cover reveals', () => {

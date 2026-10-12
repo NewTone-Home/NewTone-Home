@@ -2349,6 +2349,7 @@ export function MainlineScenePage({
               doorPhases={doorPhases}
               sceneFrameExit={sceneFrameExit}
               storefrontPresentation={storefrontPresentation.phaseByStorefront}
+              activeStorefrontId={storefrontPresentation.activeStorefrontId}
               onStorefrontFrameRetractionComplete={storefrontPresentation.completeFrameRetraction}
               onStorefrontRevealMotionComplete={storefrontPresentation.completeRevealMotion}
               onStorefrontRestoreMotionComplete={storefrontPresentation.completeRestoreMotion}

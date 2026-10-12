@@ -621,7 +621,35 @@ function storefrontFixedCellCount(storefront: MainlineStorefrontSlot) {
 
 function fitStorefrontRoles(roles: readonly MainlineStorefrontRole[], cellCount: number): MainlineStorefrontRole[] {
   if (cellCount <= 0) return []
-  if (roles.length >= cellCount) {
+  if (roles.length <= cellCount) return roles.slice(0, cellCount)
+
+  // Preserve the authored glass / sign / glass order while a responsive
+  // storefront has enough cells for every sign glyph and at least one glass
+  // glyph on each side. Narrower projections still prioritize the sign.
+  const signStart = roles.indexOf('sign')
+  const signEnd = roles.lastIndexOf('sign')
+  const isGlassSignGlass = signStart > 0
+    && signEnd < roles.length - 1
+    && roles.slice(0, signStart).every((role) => role === 'glass')
+    && roles.slice(signStart, signEnd + 1).every((role) => role === 'sign')
+    && roles.slice(signEnd + 1).every((role) => role === 'glass')
+  if (isGlassSignGlass) {
+    const signs = roles.slice(signStart, signEnd + 1)
+    if (cellCount <= signs.length) return signs.slice(0, cellCount)
+    const glassCount = cellCount - signs.length
+    if (glassCount >= 2) {
+      const leftCount = Math.min(signStart, Math.floor(glassCount / 2))
+      const rightCount = Math.min(roles.length - signEnd - 1, glassCount - leftCount)
+      const remaining = glassCount - leftCount - rightCount
+      return [
+        ...roles.slice(signStart - leftCount, signStart),
+        ...signs,
+        ...roles.slice(signEnd + 1, signEnd + 1 + rightCount + remaining),
+      ]
+    }
+  }
+
+  if (roles.length > cellCount) {
     const featuredRoles = roles.filter((role) => role === 'door' || role === 'sign')
     if (featuredRoles.length === 0) return roles.slice(0, cellCount)
     if (featuredRoles.length >= cellCount) return featuredRoles.slice(0, cellCount)

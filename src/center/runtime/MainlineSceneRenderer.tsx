@@ -23,9 +23,10 @@ import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagon
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import type { NpcRuntimeSnapshot } from './npcCore'
 import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisualState'
-import { storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDirection, storefrontPresentationShouldReveal, storefrontLabelRollDurationMs, storefrontPresentationRetractsFrame, type StorefrontPresentationPhase } from './storefrontPresentation'
+import { storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDirection, storefrontLabelRollDurationMs, storefrontPresentationRetractsFrame, type StorefrontPresentationPhase } from './storefrontPresentation'
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
+import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -38,6 +39,7 @@ type MainlineSceneRendererProps = {
   doorPhases?: ReadonlyMap<string, SceneDoorRuntimePhase>
   sceneFrameExit?: { phase: 'idle' | 'retracting'; passageEntityId?: string; scope?: 'passage' | 'scene'; requestedGroups?: readonly string[] }
   storefrontPresentation?: ReadonlyMap<string, StorefrontPresentationPhase>
+  activeStorefrontId?: string | null
   onStorefrontFrameRetractionComplete?: (storefrontId: string) => void
   onStorefrontRevealMotionComplete?: (storefrontId: string) => void
   onStorefrontRestoreMotionComplete?: (storefrontId: string) => void
@@ -687,6 +689,7 @@ export function MainlineSceneRenderer({
   doorPhases = new Map(),
   sceneFrameExit = { phase: 'idle' },
   storefrontPresentation = new Map(),
+  activeStorefrontId = null,
   onStorefrontFrameRetractionComplete,
   onStorefrontRevealMotionComplete,
   onStorefrontRestoreMotionComplete,
@@ -753,6 +756,7 @@ export function MainlineSceneRenderer({
   const currentDialogueGroupRef = useRef<string | null>(null)
   const dialogueAdvanceConsumedGroupRef = useRef<string | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
+  const dimmerRef = useRef<HTMLDivElement>(null)
   const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
   const registerBreathingNode = useCallback((entityId: string, node: HTMLSpanElement | null) => {
     if (node) altarBreathingNodesRef.current.set(entityId, node)
@@ -781,6 +785,33 @@ export function MainlineSceneRenderer({
   const cafeQaAccessBoundary = cafeSpatialQa ? geometrySnapshot.navigationBarriers.find((barrier) => barrier.id === 'commercial-cafe-staff-right-access-boundary') : undefined
   const cafeQaBackDoor = cafeSpatialQa ? geometrySnapshot.passages.get('cafe-back-door') : undefined
   const hasAltarBreathing = scene.objects.some((entity) => isAltarEntity(scene, entity.id))
+  useIsomorphicLayoutEffect(() => {
+    const dimmer = dimmerRef.current
+    if (!dimmer) return
+    const currentOpacity = Number(getComputedStyle(dimmer).opacity)
+    const targetOpacity = readingMode ? centerReadingDimmerTargets[readingMode] : 0
+    dimmer.getAnimations().forEach((animation) => animation.cancel())
+    dimmer.style.opacity = String(currentOpacity)
+    const duration = centerReadingDimmerTransitionDurationMs(
+      currentOpacity,
+      targetOpacity,
+      readingMode ? centerReadingDimmerTargets[readingMode] : currentOpacity,
+    )
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (duration <= 0.5 || reducedMotion) {
+      dimmer.style.opacity = String(targetOpacity)
+      return
+    }
+    const animation = dimmer.animate(
+      [{ opacity: currentOpacity }, { opacity: targetOpacity }],
+      { duration, easing: 'linear', fill: 'forwards' },
+    )
+    animation.onfinish = () => {
+      if (dimmerRef.current !== dimmer) return
+      dimmer.style.opacity = String(targetOpacity)
+      animation.cancel()
+    }
+  }, [readingMode])
   useEffect(() => {
     if (!hasAltarBreathing || typeof window === 'undefined') return undefined
     const startedAt = performance.now()
@@ -841,12 +872,10 @@ export function MainlineSceneRenderer({
   const activeSwitchableStorefronts = useMemo(() => switchableStorefronts.filter(slot => switchCells.get(slot.id)?.length === 3), [switchCells, switchableStorefronts])
   // Player movement only invalidates frame targets when crossing a storefront
   // approach boundary. Keep ordinary walking out of the measured-frame path.
-  const approachedStorefrontSignature = useMemo(() => activeSwitchableStorefronts
-    .filter(slot => storefrontPresentationShouldReveal(scene, slot, position))
-    .map(slot => slot.id)
-    .sort()
-    .join('\u001f'), [activeSwitchableStorefronts, position, scene])
-  const approachedStorefrontIds = useMemo(() => new Set(approachedStorefrontSignature ? approachedStorefrontSignature.split('\u001f') : []), [approachedStorefrontSignature])
+  const approachedStorefrontIds = useMemo(
+    () => new Set(activeStorefrontId ? [activeStorefrontId] : []),
+    [activeStorefrontId],
+  )
   const replacedWallCellIds = useMemo(() => {
     const ids = new Set<string>()
     activeSwitchableStorefronts.forEach(slot => {
@@ -1416,7 +1445,7 @@ export function MainlineSceneRenderer({
             ))}
           </div>}
         </div>
-          <div className={`scene-dialogue-dimmer${readingMode ? ` scene-dialogue-dimmer--${readingMode}` : ''}`} aria-hidden="true" />
+          <div ref={dimmerRef} className={`scene-dialogue-dimmer${readingMode ? ` scene-dialogue-dimmer--${readingMode}` : ''}`} style={{ opacity: 0 }} aria-hidden="true" />
           {readingMode && <>
             <button
               type="button"

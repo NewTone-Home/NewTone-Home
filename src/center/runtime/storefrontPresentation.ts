@@ -26,6 +26,7 @@ export function storefrontPresentationRetractsFrame(phase: StorefrontPresentatio
 
 export type StorefrontPresentationEvent =
   | 'approach'
+  | 'handoff'
   | 'frame-retracted'
   | 'reveal-motion-complete'
   | 'leave'
@@ -36,12 +37,44 @@ export function nextStorefrontPresentationPhase(
   phase: StorefrontPresentationPhase,
   event: StorefrontPresentationEvent,
 ): StorefrontPresentationPhase {
+  if (event === 'handoff') {
+    if (phase === 'retracting') return 'baseline'
+    if (phase === 'revealing' || phase === 'revealed' || phase === 'lingering') return 'restoring'
+    return phase
+  }
   if (event === 'approach') return phase === 'baseline' ? 'retracting' : phase === 'restoring' ? 'revealing' : phase === 'lingering' ? 'revealed' : phase
   if (event === 'frame-retracted') return phase === 'retracting' ? 'revealing' : phase
   if (event === 'reveal-motion-complete') return phase === 'revealing' ? 'revealed' : phase
   if (event === 'leave') return phase === 'retracting' ? 'baseline' : phase === 'revealed' ? 'lingering' : phase
   if (event === 'linger-animation-complete') return phase === 'lingering' ? 'restoring' : phase
   return phase === 'restoring' ? 'baseline' : phase
+}
+
+/** Choose one eligible switchable portal so only one storefront can own the entrance presentation. */
+export function activeStorefrontPresentationOwner(
+  scene: MainlineSceneDefinition,
+  position: Point,
+) {
+  return scene.storefronts
+    .filter((storefront) => storefront.portalId && storefront.characterSwitch
+      && storefrontPresentationShouldReveal(scene, storefront, position))
+    .map((storefront, index) => ({
+      storefront,
+      index,
+      distance: Math.hypot(
+        position.x - mainlineStorefrontApproach(scene, storefront).x,
+        position.y - mainlineStorefrontApproach(scene, storefront).y,
+      ),
+    }))
+    .sort((first, second) => first.distance - second.distance || first.index - second.index)[0]?.storefront.id ?? null
+}
+
+/** A grace-period presentation still owns the visual entrance after the player leaves its trigger. */
+export function storefrontPresentationHandoffSource(
+  phases: ReadonlyMap<string, StorefrontPresentationPhase>,
+  incomingStorefrontId: string,
+) {
+  return [...phases].find(([storefrontId, phase]) => storefrontId !== incomingStorefrontId && phase !== 'baseline')?.[0] ?? null
 }
 
 /**

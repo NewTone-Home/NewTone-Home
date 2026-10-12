@@ -36,6 +36,7 @@ function Fixture() {
       dialogueLine={mode === 'dialogue' ? { id: text, speaker: speaker as import('../../src/center/runtime/mainlineSceneModel').MainlineSceneDialogueSpeaker, text } : null}
       dialogueText={text} dialoguePosition={{ x: anchor.x, y: anchor.y }}
       sceneEcho={mode === 'observation' ? { id: 1, text, segments: [text], segmentIndex: 0, position: anchor, typing: false } : null}
+      activeStorefrontId={presentation.activeStorefrontId}
     />
   </div>
 }
