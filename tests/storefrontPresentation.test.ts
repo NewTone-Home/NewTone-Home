@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineSceneGeometryUnits, mainlineScenePassageCollision, mainlineScenes, mainlineStorefrontApproach } from '../src/center/runtime/mainlineScenes'
+import { isMainlineStorefrontNear, isMainlineStorefrontPresentationInRange, mainlineSceneGeometryUnits, mainlineScenePassageCollision, mainlineScenes, mainlineStorefrontAnchor, mainlineStorefrontApproach, mainlineStorefrontDepartureRadius } from '../src/center/runtime/mainlineScenes'
 import {
   nextStorefrontPresentationPhase,
   storefrontRollDirection,
@@ -169,6 +169,31 @@ describe('commercial street storefront presentation', () => {
     expect(nextStorefrontPresentationPhase('revealing', 'reveal-motion-complete')).toBe('revealed')
     const nonPortal = street.storefronts.find((storefront) => !storefront.portalId)!
     expect(storefrontPresentationShouldReveal(street, nonPortal, mainlineStorefrontApproach(street, nonPortal))).toBe(false)
+  })
+
+  it('bounds only Café outward departure by the neighboring compiled glass edge', () => {
+    const departureRadius = mainlineStorefrontDepartureRadius(street, cafe)
+    const approach = mainlineStorefrontApproach(street, cafe)
+    expect(departureRadius).toBeDefined()
+    const glassBoundary = { x: approach.x - departureRadius!, y: approach.y }
+    const inwardDoor = mainlineStorefrontAnchor(street, cafe)
+    const nearestCompiledGlassEdge = Math.max(...street.geometry.flatMap((unit) => (
+      unit.edge === 'top' || unit.edge === 'bottom'
+        ? unit.visual.cells.filter((cell) => cell.storefrontRole === 'glass' && cell.cellEnd !== undefined && cell.cellEnd < approach.x).map((cell) => cell.cellEnd!)
+        : []
+    )))
+
+    expect(departureRadius).toBeCloseTo(approach.x - nearestCompiledGlassEdge, 8)
+    expect(isMainlineStorefrontPresentationInRange(street, cafe, glassBoundary)).toBe(true)
+    expect(isMainlineStorefrontPresentationInRange(street, cafe, { x: glassBoundary.x - .02, y: approach.y })).toBe(false)
+    expect(isMainlineStorefrontPresentationInRange(street, cafe, approach)).toBe(true)
+    expect(isMainlineStorefrontPresentationInRange(street, cafe, inwardDoor)).toBe(true)
+
+    const ordinary = street.storefronts.find((storefront) => storefront.id === 'commercial-north-slot-8')!
+    expect(mainlineStorefrontDepartureRadius(street, ordinary)).toBeUndefined()
+    const ordinaryPortal = { ...ordinary, id: 'ordinary-portal', portalId: 'ordinary-entry' }
+    expect(isMainlineStorefrontPresentationInRange(street, ordinaryPortal, mainlineStorefrontApproach(street, ordinary))).toBe(true)
+    expect(isMainlineStorefrontNear(street, ordinaryPortal, mainlineStorefrontAnchor(street, ordinary))).toBe(true)
   })
 
   it('assigns one entrance owner to the nearest eligible storefront and releases ownership on exit', () => {

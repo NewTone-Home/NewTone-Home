@@ -1,5 +1,5 @@
 import type { Point } from './sceneGeometry'
-import { mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneGeometryUnit, type MainlineStorefrontSlot } from './mainlineScenes'
+import { isMainlineStorefrontPresentationInRange, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneGeometryUnit, type MainlineStorefrontSlot } from './mainlineScenes'
 
 /** Presentation-only state for a portal storefront. It never changes passage or collision state. */
 export type StorefrontPresentationPhase = 'baseline' | 'retracting' | 'revealing' | 'revealed' | 'lingering' | 'restoring'
@@ -87,9 +87,7 @@ export function storefrontPresentationShouldReveal(
   storefront: MainlineStorefrontSlot,
   position: Point,
 ) {
-  if (!storefront.portalId) return false
-  const approach = mainlineStorefrontApproach(scene, storefront)
-  return Math.hypot(position.x - approach.x, position.y - approach.y) <= (storefront.nearRadius ?? 10)
+  return isMainlineStorefrontPresentationInRange(scene, storefront, position)
 }
 
 /** Project a label onto the already-compiled real wall/door/wall cells. */
