@@ -75,6 +75,36 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(view
  await page.keyboard.press('Escape');await page.reload();await expect(flow).toHaveCount(0);await expect(phone.locator('.world-phone__notification-dot')).toBeVisible()
 })
 
+test('a real Café Ride order follows the authored exit into a separate Street pickup map',async({page},info)=>{
+ test.setTimeout(60000);await page.setViewportSize({width:1440,height:900});await seed(page)
+ const phone=page.locator('.world-phone')
+ await page.getByLabel('打开手机').click();await phone.locator('[data-app=ride]').click()
+ await expect(phone.locator('.world-phone__ride-destination')).toHaveCount(2)
+ await phone.locator('.world-phone__ride-destination').first().click()
+ await phone.getByRole('button',{name:/^快车/}).click();await phone.getByRole('button',{name:'确认叫车',exact:true}).click()
+ await expect(phone.locator('[data-ride-order=true]')).toBeVisible()
+ const cafeMap=phone.locator('[data-ride-map-scene="commercial-cafe"]')
+ await expect(cafeMap.locator('[data-map-region=ride-goal]')).toBeVisible()
+ await expect(cafeMap.locator('[data-map-region=ride-goal] span')).toHaveText('\u5496\u5561\u9986\u51fa\u53e3')
+ await expect(cafeMap.locator('[data-map-region=player] span')).toHaveText('\u4f60')
+ await expect(cafeMap.locator('.world-phone__ride-map-edge')).toHaveCount(0)
+ const cafeGeometry=mainlineScenes['commercial-cafe'].geometry.filter(unit=>unit.visual.kind!=='none').length
+ await expect(cafeMap.locator('svg.world-phone__map rect')).toHaveCount(cafeGeometry)
+ await cafeMap.screenshot({path:info.outputPath('ride-map-cafe-segment.png')})
+ await page.keyboard.press('Escape')
+ await page.locator('[data-focus-target-group="door:street-cafe-entry"]').click()
+ await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible({timeout:15000})
+ await page.getByLabel('打开手机').click()
+ await phone.locator('[data-app=ride]').click()
+ await expect(phone.locator('[data-ride-order=true]')).toBeVisible()
+ const streetMap=phone.locator('[data-ride-map-scene="commercial-street"]')
+ await expect(streetMap.locator('[data-map-region=ride-goal]')).toBeVisible()
+ await expect(streetMap.locator('.world-phone__ride-map-edge')).toBeVisible()
+ const streetGeometry=mainlineScenes['commercial-street'].geometry.filter(unit=>unit.visual.kind!=='none').length
+ await expect(streetMap.locator('svg.world-phone__map rect')).toHaveCount(streetGeometry)
+ await streetMap.screenshot({path:info.outputPath('ride-map-street-segment.png')})
+})
+
 for(const reduced of [false,true])test('visible notifications are consumed without replay; reduced motion='+reduced,async({page})=>{
  await page.emulateMedia({reducedMotion:reduced?'reduce':'no-preference'});await seed(page)
  const phone=page.locator('.world-phone');await page.getByLabel('打开手机').click();await phone.locator('[data-app=ride]').click()

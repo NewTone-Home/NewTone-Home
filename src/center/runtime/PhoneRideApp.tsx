@@ -81,7 +81,7 @@ function PhoneRideLocalMap({sceneId,waitingSceneId,getPosition,coveredHeight}:{s
  const edge=pickup&&ray>1?{x:viewportSize.width/2+dx/ray,y:centerY+dy/ray,angle:Math.atan2(dy,dx)*180/Math.PI+90}:null
  const guidance=cafeExit?'请从咖啡馆左侧出口返回商业街':mainlineRideWaitingGuidance(waitingSceneId).guidanceText
  return <div ref={viewportRef} className="world-phone__ride-local-map" data-ride-map-scene={sceneId}>
-  <PhoneMapCanvas mapRegions={regions} displayDevice="inner" currentLandmark={{device:'inner',id:'player'}} selectedMapPlaceId={null} onSelect={()=>{}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} localViewBox={`${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`} geometry={scene.geometry} focusId="player" coveredHeight={coveredHeight} regionsOnly followFocus />
+  <PhoneMapCanvas mapRegions={regions} displayDevice="inner" currentLandmark={{device:'inner',id:'player'}} selectedMapPlaceId={null} onSelect={()=>{}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} localViewBox={`${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`} geometry={scene.geometry} focusId="player" coveredHeight={coveredHeight} regionsOnly followFocus unhideMarkerLabels={['player','ride-goal']} />
   <p className="world-phone__ride-map-guidance">{guidance}</p>
   {edge&&<span className="world-phone__ride-map-edge" aria-label={cafeExit?'咖啡馆出口在视野外':'上车点在视野外'} style={{left:edge.x,top:edge.y,transform:`translate(-50%,-50%) rotate(${edge.angle}deg)`}}>↑</span>}
  </div>

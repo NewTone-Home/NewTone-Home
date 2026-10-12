@@ -14,8 +14,9 @@ type Props = {
   focusId?: string | null; coveredHeight?: number; onBlank?: () => void
   restoreOnBlank?: boolean; regionsOnly?: boolean; slowDestinationTravel?: boolean
   followFocus?: boolean
+  unhideMarkerLabels?: readonly string[]
 }
-export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, selectedMapPlaceId, onSelect, mapZoom, setMapZoom, mapPan, setMapPan, localViewBox, geometry, focusId, coveredHeight = 0, onBlank, restoreOnBlank = false, regionsOnly = false, slowDestinationTravel = false, followFocus = false }: Props) {
+export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, selectedMapPlaceId, onSelect, mapZoom, setMapZoom, mapPan, setMapPan, localViewBox, geometry, focusId, coveredHeight = 0, onBlank, restoreOnBlank = false, regionsOnly = false, slowDestinationTravel = false, followFocus = false, unhideMarkerLabels = [] }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<HTMLDivElement>(null)
   const [controlBounds,setControlBounds]=useState({left:Infinity,top:0,bottom:0})
@@ -157,7 +158,7 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
     const width = Math.max(44, place.label.length * 12 + 14)
     const labelRight = y >= controlBounds.top-25 && y <= controlBounds.bottom+25 ? Math.min(size.width-8,controlBounds.left-8) : size.width-8
     const labelX = x < 0 || x > size.width ? x : Math.max(width/2+8,Math.min(labelRight-width/2,x))
-    const collision = !selected && labels.some(l => Math.abs(labelX - l.x) < (width + l.width) / 2 && Math.abs(y - l.y) < 38)
+    const collision = !selected && !unhideMarkerLabels.includes(place.id) && labels.some(l => Math.abs(labelX - l.x) < (width + l.width) / 2 && Math.abs(y - l.y) < 38)
     const hideLabel = collision
     if (!hideLabel) labels.push({ x:labelX, y, width })
     return <button key={place.id} type="button" className={`world-phone__map-marker ${poi ? 'world-phone__map-poi' : 'world-phone__map-region'} ${selected ? 'is-selected' : ''} ${currentLandmark?.device === displayDevice && currentLandmark.id === place.id ? 'is-active' : ''}`}

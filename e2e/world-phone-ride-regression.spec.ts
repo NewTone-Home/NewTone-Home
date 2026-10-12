@@ -75,6 +75,19 @@ test('the Office desk Phone Action switches the carried device in both direction
   expect(consoleErrors).toEqual([])
 })
 
+test('an ordinary Street exit still opens the Phone when no Ride order exists',async({page})=>{
+  await page.goto('/?scene=commercial-street')
+  const phone=page.locator('.world-phone')
+  await expect(phone).toHaveAttribute('data-phone-phase','closed')
+  for(let step=0;step<6&&await phone.getAttribute('data-phone-phase')!=='open';step++){
+    await walkToExit(page)
+    await expect(page.locator('[data-actor-id="protagonist"]')).toHaveClass(/is-moving/,{timeout:5000})
+    await expect(page.locator('[data-actor-id="protagonist"]')).not.toHaveClass(/is-moving/,{timeout:30000})
+  }
+  await expect(phone).toHaveAttribute('data-phone-phase','open',{timeout:15000})
+  await expect(phone.locator('[data-ride-order=true]')).toHaveCount(0)
+})
+
 test('the inner-world Phone keeps the existing Office to Commercial Street ride handoff', async ({ page }) => {
   const consoleErrors: string[] = []
   page.on('pageerror', (error) => consoleErrors.push(error.message))
