@@ -189,38 +189,24 @@ test('Office right external exit boards after a real driver notification card',a
   await callRide(page,'商业街')
   const officeMap=page.locator('[data-ride-map-scene="zhongshuyuan-office"]')
   await expect(officeMap).toBeVisible()
-  await expect(officeMap.locator('[data-map-zone]')).toHaveCount(2)
-  await expect(officeMap.locator('[data-map-zone-fill=true]')).toHaveCount(2)
-  const officeZones=officeMap.locator('[data-map-zone-fill=true]')
-  for(let index=0;index<2;index++){
-    const zone=officeZones.nth(index)
-    await expect(zone).toHaveAttribute('data-fade-axis','x')
-    await expect(zone).toHaveAttribute('filter',/soft-edge/)
-    await expect(zone).toHaveAttribute('clip-path',/ground-clip/)
-  }
-  await expect(officeMap.locator('[data-ride-target-gradient] stop')).toHaveCount(10)
+  await expect(officeMap.locator('[data-map-zone]')).toHaveCount(0)
+  await expect(officeMap.locator('[data-map-pickup-marker]')).toHaveCount(2)
+  await expect(officeMap.locator('[data-map-pickup-marker] svg')).toHaveCount(2)
   const officeZoomOut=officeMap.locator('.world-phone__map-controls button').nth(1)
   await officeZoomOut.click();await officeZoomOut.click();await officeZoomOut.click();await officeZoomOut.click()
   await officeMap.locator('.world-phone__map-controls button').nth(2).click()
   await expect(officeMap.locator('svg.world-phone__map')).toHaveAttribute('data-map-zoom','1.000')
   const officeViewportBounds=await officeMap.locator('.world-phone__map-viewport').boundingBox()
   expect(officeViewportBounds).not.toBeNull()
-  const officeZoneBounds=[await officeZones.nth(0).boundingBox(),await officeZones.nth(1).boundingBox()]
-  for(const bounds of officeZoneBounds){
+  const officeMarkerBounds=[await officeMap.locator('[data-map-pickup-marker]').nth(0).boundingBox(),await officeMap.locator('[data-map-pickup-marker]').nth(1).boundingBox()]
+  for(const bounds of officeMarkerBounds){
     expect(bounds).not.toBeNull()
     expect(bounds!.x).toBeGreaterThanOrEqual(officeViewportBounds!.x)
     expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(officeViewportBounds!.x+officeViewportBounds!.width)
     expect(bounds!.y).toBeGreaterThanOrEqual(officeViewportBounds!.y)
     expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(officeViewportBounds!.y+officeViewportBounds!.height)
   }
-  const officeMapImage=await officeMap.locator('.world-phone__map-viewport').screenshot()
-  const officePatchPixels=await page.evaluate(async({source,points})=>{
-    const image=new Image();image.src='data:image/png;base64,'+source;await image.decode()
-    const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height
-    const context=canvas.getContext('2d')!;context.drawImage(image,0,0)
-    return points.map(({x,y})=>Array.from(context.getImageData(Math.round(x),Math.round(y),1,1).data))
-  },{source:officeMapImage.toString('base64'),points:officeZoneBounds.map(bounds=>({x:bounds!.x+bounds!.width/2-officeViewportBounds!.x,y:bounds!.y+bounds!.height/2-officeViewportBounds!.y}))})
-  for(const [red,green] of officePatchPixels.map(([red,green])=>[red,green]))expect(green-red).toBeGreaterThan(20)
+  for(let index=0;index<2;index++)await expect(officeMap.locator('[data-map-pickup-marker]').nth(index)).toHaveCSS('color','rgb(112, 239, 170)')
   await page.screenshot({path:info.outputPath('ride-map-office-waiting-in-phone.png')})
   await expect(page.locator('[data-ride-order="true"]')).toContainText('目的地')
   await expect(page.locator('[data-ride-order="true"]')).not.toContainText(/第一章|第二章|第三章/)

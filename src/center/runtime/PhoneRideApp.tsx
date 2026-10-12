@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { PhoneMapCanvas } from './PhoneMapCanvas'
 import { mainlineScenes, type MainlineSceneId } from './mainlineScenes'
-import { phoneRideMapTargetZones } from './phoneRideMapModel'
+import { phoneRideMapPickupMarkers } from './phoneRideMapModel'
 import { mainlineRideNavigationGoal, type MainlineRideOrder, type MainlineRideVehicle, type MainlineRideRequestResult } from './mainlineRide'
 import { type PhoneMapRegion, type PhoneMapZoomLevel } from './phoneMapModel'
 import type { PhoneDevice } from './phoneState'
@@ -80,6 +80,7 @@ function PhoneRideLocalMap({sceneId,waitingSceneId,getPosition,getSnapshot,cover
  useEffect(()=>{let frame=0;const paint=()=>{const next=getPosition?.();if(next&&(positionRef.current.x!==next.x||positionRef.current.y!==next.y)){positionRef.current=next;setPosition(next);const updated=getSnapshot?.();if(updated?.sceneId===sceneId)setSnapshot(updated)}frame=requestAnimationFrame(paint)};frame=requestAnimationFrame(paint);return()=>cancelAnimationFrame(frame)},[getPosition,getSnapshot,sceneId])
  useLayoutEffect(()=>{const viewport=viewportRef.current;if(!viewport)return;const update=()=>setViewportSize({width:viewport.clientWidth,height:viewport.clientHeight});update();const observer=new ResizeObserver(update);observer.observe(viewport);return()=>observer.disconnect()},[])
  const bounds=snapshot?.sceneId===sceneId?snapshot.walkBounds:scene.walkBounds
+ const cafeExit=sceneId==='commercial-cafe'&&waitingSceneId==='commercial-street'
  const regions:PhoneMapRegion[]=[{id:'player',glyph:'●',label:'',position:[position.x,position.y],detail:'',pois:[]}]
  const scale=Math.min(viewportSize.width/bounds.width,viewportSize.height/bounds.height)
  const dx=pickup?(pickup.x-position.x)*scale*zoom:0,dy=pickup?(pickup.y-position.y)*scale*zoom:0
@@ -88,10 +89,12 @@ function PhoneRideLocalMap({sceneId,waitingSceneId,getPosition,getSnapshot,cover
  const ray=Math.max(Math.abs(dx)/Math.max(1,safeX),Math.abs(dy)/Math.max(1,safeY))
  const edge=pickup&&ray>1?{x:viewportSize.width/2+dx/ray,y:centerY+dy/ray,angle:Math.atan2(dy,dx)*180/Math.PI+90}:null
  const mapGeometry=snapshot?.sceneId===sceneId?snapshot.units:scene.geometry
- const targetZones=phoneRideMapTargetZones(scene,sceneId,waitingSceneId,bounds)
+ const pickupMarkers=phoneRideMapPickupMarkers(sceneId,waitingSceneId)
+ const cafeDoorway=snapshot?.sceneId===sceneId&&cafeExit?snapshot.passages.get('street-cafe-entry')?.doorway:undefined
+ const mapPassages=cafeDoorway?[{id:'street-cafe-entry',bounds:cafeDoorway}]:[]
  return <div ref={viewportRef} className="world-phone__ride-local-map" data-ride-map-scene={sceneId}>
   <div className="world-phone__ride-map-scene" key={sceneId}>
-   <PhoneMapCanvas mapRegions={regions} displayDevice="inner" currentLandmark={{device:'inner',id:'player'}} selectedMapPlaceId={null} onSelect={()=>{}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} localViewBox={bounds.x+' '+bounds.y+' '+bounds.width+' '+bounds.height} geometry={mapGeometry} localMapObjects={[]} localMapPassages={[]} localMapZones={targetZones} focusId="player" coveredHeight={coveredHeight} regionsOnly followFocus hideMarkerLabels={['player']} />
+   <PhoneMapCanvas mapRegions={regions} displayDevice="inner" currentLandmark={{device:'inner',id:'player'}} selectedMapPlaceId={null} onSelect={()=>{}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} localViewBox={bounds.x+' '+bounds.y+' '+bounds.width+' '+bounds.height} geometry={mapGeometry} localMapObjects={[]} localMapPassages={mapPassages} localPickupMarkers={pickupMarkers} focusId="player" coveredHeight={coveredHeight} regionsOnly followFocus hideMarkerLabels={['player']} />
   </div>
   {edge&&<span className="world-phone__ride-map-edge" aria-label="Ride target direction" style={{left:edge.x,top:edge.y,transform:'translate(-50%,-50%) rotate('+edge.angle+'deg)'}}>↑</span>}
  </div>

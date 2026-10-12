@@ -1,10 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, useId, type Dispatch, type SetStateAction, type PointerEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction, type PointerEvent } from 'react'
 import { mainlineMapLayout, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import { clampPhoneMapZoom, phoneMapZoomBounds, phoneMapTransitLinks, phoneMapRegionContours, phoneMapVisiblePlaces, stepPhoneMapZoom, type PhoneMapPoint, type PhoneMapRegion } from './phoneMapModel'
 import type { PhoneDevice } from './phoneState'
 
 type Point = PhoneMapPoint
-type LocalMapShape = { id: string; kind?: string; bounds: { x: number; y: number; width: number; height: number }; fillBounds?: { x: number; y: number; width: number; height: number }; clipBounds?: { x: number; y: number; width: number; height: number }; fadeTowardTarget?: boolean; fadeAxis?: 'x' | 'y'; inwardDirection?: -1 | 1 }
+type LocalMapShape = { id: string; kind?: string; bounds: { x: number; y: number; width: number; height: number } }
+type LocalPickupMarker = { id: string; position: Point }
 type Props = {
   mapRegions: readonly PhoneMapRegion[]; displayDevice: PhoneDevice
   currentLandmark: { device: PhoneDevice; id: string } | null
@@ -12,15 +13,14 @@ type Props = {
   mapZoom: number; setMapZoom: Dispatch<SetStateAction<number>>
   mapPan: Point; setMapPan: Dispatch<SetStateAction<Point>>
   localViewBox?: string; geometry?: readonly MainlineSceneGeometryUnit[]
-  localMapObjects?: readonly LocalMapShape[]; localMapPassages?: readonly LocalMapShape[]; localMapZones?: readonly LocalMapShape[]
+  localMapObjects?: readonly LocalMapShape[]; localMapPassages?: readonly LocalMapShape[]; localPickupMarkers?: readonly LocalPickupMarker[]
   focusId?: string | null; coveredHeight?: number; onBlank?: () => void
   restoreOnBlank?: boolean; regionsOnly?: boolean; slowDestinationTravel?: boolean
   followFocus?: boolean
   unhideMarkerLabels?: readonly string[]
   hideMarkerLabels?: readonly string[]
 }
-export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, selectedMapPlaceId, onSelect, mapZoom, setMapZoom, mapPan, setMapPan, localViewBox, geometry, localMapObjects = [], localMapPassages = [], localMapZones = [], focusId, coveredHeight = 0, onBlank, restoreOnBlank = false, regionsOnly = false, slowDestinationTravel = false, followFocus = false, unhideMarkerLabels = [], hideMarkerLabels = [] }: Props) {
-  const mapId = useId().replace(/:/g, '')
+export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, selectedMapPlaceId, onSelect, mapZoom, setMapZoom, mapPan, setMapPan, localViewBox, geometry, localMapObjects = [], localMapPassages = [], localPickupMarkers = [], focusId, coveredHeight = 0, onBlank, restoreOnBlank = false, regionsOnly = false, slowDestinationTravel = false, followFocus = false, unhideMarkerLabels = [], hideMarkerLabels = [] }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<HTMLDivElement>(null)
   const [controlBounds,setControlBounds]=useState({left:Infinity,top:0,bottom:0})
@@ -176,65 +176,18 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
   return <>
     <div className="world-phone__map-viewport" data-dragging={dragging} data-camera-moving={cameraMoving} data-camera-follow={followFocus} ref={viewportRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('[data-map-interactive]')) { if (!suppressClick.current) { restorePending.current=restoreOnBlank && beforeFocus.current!==null;onBlank?.() } } }}>
       <svg className="world-phone__map" viewBox={localViewBox ?? mainlineMapLayout.viewBox} role="group" aria-label="世界地图，拖动查看，滚轮、双指或按钮缩放，点击区域和地点查看详情" data-map-world={displayDevice} data-map-zoom={mapZoom.toFixed(3)} style={{ transform: `translate(${mapPan[0]}px, ${mapPan[1]}px) scale(${mapZoom})` }}>
-        {localMapZones.length > 0 && <defs>
-          <clipPath id={`${mapId}-ride-map-frame`}>
-            <rect x={vx} y={vy} width={vw} height={vh} />
-          </clipPath>
-          {localMapZones.map(zone => {
-            const safeId = zone.id.replace(/[^a-zA-Z0-9_-]/g, '-')
-            const floor = zone.fillBounds ?? zone.bounds
-            const profileAxis = zone.fadeAxis ?? (floor.width >= floor.height ? 'x' : 'y')
-            const inwardDirection = zone.inwardDirection ?? 1
-            const profileStart = profileAxis === 'x'
-              ? (inwardDirection > 0 ? floor.x : floor.x + floor.width)
-              : (inwardDirection > 0 ? floor.y : floor.y + floor.height)
-            const profileEnd = profileAxis === 'x'
-              ? (inwardDirection > 0 ? floor.x + floor.width : floor.x)
-              : (inwardDirection > 0 ? floor.y + floor.height : floor.y)
-            const support = zone.clipBounds ?? floor
-            const blocked = geometry?.filter(unit => unit.navigation.blocked && !unit.visualOnly) ?? []
-            const profileGradient = zone.fadeTowardTarget
-              ? <linearGradient id={`${mapId}-${safeId}-gradient`} data-ride-target-gradient="true" gradientUnits="userSpaceOnUse"
-                    x1={profileAxis === 'x' ? profileStart : floor.x + floor.width / 2} y1={profileAxis === 'y' ? profileStart : floor.y + floor.height / 2}
-                    x2={profileAxis === 'x' ? profileEnd : floor.x + floor.width / 2} y2={profileAxis === 'y' ? profileEnd : floor.y + floor.height / 2}>
-                    <stop offset="0%" stopColor="#52d99a" stopOpacity="0" />
-                    <stop offset="18%" stopColor="#52d99a" stopOpacity="0.18" />
-                    <stop offset="58%" stopColor="#52d99a" stopOpacity="0.34" />
-                    <stop offset="82%" stopColor="#52d99a" stopOpacity="0.24" />
-                    <stop offset="100%" stopColor="#52d99a" stopOpacity="0" />
-                  </linearGradient>
-              : <radialGradient id={`${mapId}-${safeId}-gradient`} data-ride-target-gradient="true" gradientUnits="userSpaceOnUse" cx={zone.bounds.x + zone.bounds.width / 2} cy={zone.bounds.y + zone.bounds.height / 2} r={Math.max(1, Math.hypot(floor.width, floor.height) * .55)}>
-                  <stop offset="0%" stopColor="#52d99a" stopOpacity="0.34" />
-                  <stop offset="52%" stopColor="#52d99a" stopOpacity="0.14" />
-                  <stop offset="100%" stopColor="#52d99a" stopOpacity="0" />
-                </radialGradient>
-            return <g key={`${zone.id}-defs`}>
-              {profileGradient}
-              {zone.fadeTowardTarget && <filter id={`${mapId}-${safeId}-soft-edge`} x="-12%" y="-12%" width="124%" height="124%" colorInterpolationFilters="sRGB"><feGaussianBlur stdDeviation="0.45" /></filter>}
-              {zone.fadeTowardTarget && <clipPath id={`${mapId}-${safeId}-ground-clip`}><rect x={support.x} y={support.y} width={support.width} height={support.height} /></clipPath>}
-              <mask id={`${mapId}-${safeId}-floor-mask`} data-ride-target-floor-mask="true" maskUnits="userSpaceOnUse" x={floor.x} y={floor.y} width={floor.width} height={floor.height}>
-                <rect x={floor.x} y={floor.y} width={floor.width} height={floor.height} fill="white" />
-                {blocked.map(unit => <rect key={unit.id} x={unit.x} y={unit.y} width={unit.width} height={unit.height} fill="black" />)}
-              </mask>
-            </g>
-          })}
-        </defs>}
         {geometry?.filter(unit => unit.visual.kind !== 'none').map(unit => <rect key={unit.id} className={`world-phone__map-geometry world-phone__map-geometry--${unit.surface}`} data-map-geometry={unit.id} x={unit.x} y={unit.y} width={unit.width} height={unit.height} />)}
         {localMapPassages.map(passage => <rect key={passage.id} className="world-phone__map-passage" data-map-passage={passage.id} x={passage.bounds.x} y={passage.bounds.y} width={passage.bounds.width} height={passage.bounds.height} />)}
-        {localMapZones.length > 0 && <g className="world-phone__map-zones" clipPath={`url(#${mapId}-ride-map-frame)`}>
-          {localMapZones.map(zone => {
-            const safeId = zone.id.replace(/[^a-zA-Z0-9_-]/g, '-')
-            const floor = zone.fillBounds ?? zone.bounds
-            return <rect key={zone.id} className="world-phone__map-zone" data-map-zone={zone.id} data-map-zone-fill="true" data-fade-axis={zone.fadeAxis} x={floor.x} y={floor.y} width={floor.width} height={floor.height} fill={`url(#${mapId}-${safeId}-gradient)`} filter={zone.fadeTowardTarget ? `url(#${mapId}-${safeId}-soft-edge)` : undefined} mask={`url(#${mapId}-${safeId}-floor-mask)`} clipPath={zone.fadeTowardTarget ? `url(#${mapId}-${safeId}-ground-clip)` : undefined} stroke="none" />
-          })}
-        </g>}
         {localMapObjects.map(object => <rect key={object.id} className={`world-phone__map-object world-phone__map-object--${object.kind ?? 'fixture'}`} data-map-object={object.id} x={object.bounds.x} y={object.bounds.y} width={object.bounds.width} height={object.bounds.height} />)}
         {!localViewBox && <>
           {displayDevice === 'inner' && phoneMapTransitLinks.map(([from, to]) => { const a = mapRegions.find(r => r.id === from), b = mapRegions.find(r => r.id === to); return a && b ? <line key={`${from}-${to}`} className="world-phone__map-transit" data-map-transit={`${from}-${to}`} x1={a.position[0]} y1={a.position[1]} x2={b.position[0]} y2={b.position[1]} /> : null })}
           {mapRegions.map(region => <g key={region.id} transform={`translate(${region.position.join(' ')})`}><path className="world-phone__map-region-field" d={phoneMapRegionContours[region.id]} /><path className="world-phone__map-contour" d={phoneMapRegionContours[region.id]} transform="scale(.74)" /></g>)}
         </>}
       </svg>
-      <div className="world-phone__map-labels">{places.map(({ place, parent }) => marker(place, parent))}</div>
+      <div className="world-phone__map-labels">
+        {places.map(({ place, parent }) => marker(place, parent))}
+        {localPickupMarkers.map(target => { const [x,y]=project(target.position); return <span key={target.id} className="world-phone__ride-pickup-marker" data-map-pickup-marker={target.id} role="img" aria-label="Ride 上车点" style={{left:x,top:y}}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17V9l2-4h8l2 4v8H6Z" /><path className="world-phone__ride-pickup-window" d="M8 9h8l-1-2H9L8 9ZM8 11h8v4H8z" /><circle cx="8" cy="17" r="1.3" /><circle cx="16" cy="17" r="1.3" /></svg></span> })}
+      </div>
     </div>
     <div className="world-phone__map-controls" ref={controlsRef} role="group" aria-label="地图缩放"><button type="button" aria-label="放大地图" onClick={() => {manualCamera();setMapZoom(current => stepPhoneMapZoom(current, 1))}}>+</button><button type="button" aria-label="缩小地图" onClick={() => {manualCamera();setMapZoom(current => stepPhoneMapZoom(current, -1))}}>−</button><button type="button" aria-label="回到地图概览" onClick={() => { manualCamera();setMapZoom(1); setMapPan([0, 0]) }}>⌖</button></div>
   </>
