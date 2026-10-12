@@ -25,6 +25,7 @@ const LANGUAGES = new Set(['zh', 'en'])
 const MODES = new Set(['immersive', 'standard'])
 const EXIT_REASONS = new Set(['return', 'landing', 'hidden', 'unload', 'completed', 'abandoned', 'browser_back'])
 const PHONE_DEVICES = new Set(['surface', 'inner'])
+const DEVICE_CATEGORIES = new Set(['phone', 'tablet', 'computer', 'unknown'])
 const MILESTONES = [0.25, 0.5, 0.75, 1]
 const PENDING_EVENTS_KEY = 'newtone-analytics-pending-v1'
 const MAX_PENDING_EVENTS = 2000
@@ -64,11 +65,26 @@ function safeWrite(storage, key, value) {
   try { storage?.setItem(key, value); return true } catch { return false }
 }
 
+function normalizePendingEvent(event) {
+  const width = cleanViewportDimension(event.viewport_width)
+  const height = cleanViewportDimension(event.viewport_height)
+  const hasValidViewportPair = width !== null && height !== null
+
+  return {
+    ...event,
+    device_category: DEVICE_CATEGORIES.has(event.device_category) ? event.device_category : 'unknown',
+    viewport_width: hasValidViewportPair ? width : null,
+    viewport_height: hasValidViewportPair ? height : null,
+  }
+}
+
 function readPendingEvents(storage = globalThis.localStorage) {
   try {
     const parsed = JSON.parse(safeRead(storage, PENDING_EVENTS_KEY) ?? '[]')
     return Array.isArray(parsed)
-      ? parsed.filter(event => event && typeof event === 'object' && typeof event.client_event_id === 'string')
+      ? parsed
+        .filter(event => event && typeof event === 'object' && typeof event.client_event_id === 'string')
+        .map(normalizePendingEvent)
       : []
   } catch {
     return []
@@ -100,7 +116,7 @@ function enqueuePendingEvent(payload, storage = globalThis.localStorage) {
 }
 
 function analyticsUrl() {
-  return `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/analytics_events?on_conflict=client_event_id`
+  return `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/analytics_events`
 }
 
 function analyticsHeaders() {
@@ -108,7 +124,7 @@ function analyticsHeaders() {
     apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
     Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
     'Content-Type': 'application/json',
-    Prefer: 'resolution=ignore-duplicates,return=minimal',
+    Prefer: 'return=minimal',
   }
 }
 
