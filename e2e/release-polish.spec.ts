@@ -1,3 +1,5 @@
+import { registerPhoneTestNetwork } from './phoneTestNetwork'
+registerPhoneTestNetwork()
 import { expect, test } from '@playwright/test'
 
 test.use({ hasTouch: true })
@@ -44,7 +46,7 @@ test('voluntary Feedback owns mouse, pointer, and touch input until it closes', 
   expect(await runtimePosition(protagonist)).toEqual(beforeFeedback)
   await page.screenshot({ path: testInfo.outputPath('feedback-overlay-input-guard.png') })
 
-  await page.getByLabel('收起手机').click()
+  await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
   const stageBox = await stage.boundingBox()
   expect(stageBox).not.toBeNull()
   await page.mouse.click(stageBox!.x + stageBox!.width * .62, stageBox!.y + stageBox!.height * .5)

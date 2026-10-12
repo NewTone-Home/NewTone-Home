@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { commercialCafeFloorServiceTarget } from '../src/center/runtime/commercialCafeBehavior'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineEntityPosition, mainlineEntityCollision } from '../src/center/runtime/sceneLayout'
-import { mainlineRideAtPickup, mainlineRidePickupPositions, mainlineRideWaitingGuidance, mainlineRideWalkingEtaMs } from '../src/center/runtime/mainlineRide'
+import { mainlineRideAtPickup, mainlineRideNavigationGoal, mainlineRidePickupPosition, mainlineRidePickupPositions, mainlineRideSuppressExternalPhoneReveal, mainlineRideWaitingGuidance, mainlineRideWalkingEtaMs } from '../src/center/runtime/mainlineRide'
 import { resolveCommercialCafeFloorServiceIntent, commercialCafeStoryTableId } from '../src/center/runtime/commercialCafeStory'
 import { enqueuePhoneNotification, presentPhoneNotifications, readPhoneNotifications } from '../src/center/runtime/phoneNotifications'
 import { createInitialPlayerSave, sanitizePlayerSave } from '../src/center/runtime/playerSave'
@@ -48,6 +48,24 @@ describe('follow-up experience contracts', () => {
     expect(mainlineRideWaitingGuidance('yonghe-mining-perimeter').guidanceText).toBe('请到矿区入口等车')
     expect(mainlineRideWaitingGuidance('zhongshuyuan-office').guidanceText).toBe('请到办公室出口等车')
     expect(mainlineRideWaitingGuidance('jijia-ancestral-home').guidanceText).toBe('请到院门等车')
+  })
+  it('navigates Café and Street as separate scene segments using their authored portal and pickup exits', () => {
+    const cafe=mainlineScenes['commercial-cafe']
+    const portal=cafe.passages.find(p=>p.id==='street-cafe-entry')!
+    const expectedPortal={x:(portal.thresholds[0].x+portal.thresholds[1].x)/2,y:(portal.thresholds[0].y+portal.thresholds[1].y)/2}
+    expect(mainlineRideNavigationGoal('commercial-cafe','commercial-street')).toEqual(expectedPortal)
+    expect(expectedPortal.x).toBeLessThan(cafe.initialPlayerPosition.x)
+    expect(mainlineRideNavigationGoal('commercial-street','commercial-street')).toEqual(mainlineRidePickupPosition('commercial-street'))
+    const eateryExit=mainlineScenes['yonghe-eatery'].passages.find(p=>p.targetSceneId==='yonghe-mining-perimeter')
+    expect(mainlineRideNavigationGoal('yonghe-eatery','yonghe-mining-perimeter')).toEqual(eateryExit?{x:(eateryExit.thresholds[0].x+eateryExit.thresholds[1].x)/2,y:(eateryExit.thresholds[0].y+eateryExit.thresholds[1].y)/2}:null)
+    expect(mainlineRideNavigationGoal('yonghe-eatery','commercial-street')).toBeNull()
+  })
+  it('suppresses world-exit phone reveal only at the active ride pickup exits', () => {
+    const order={sourceSceneId:'commercial-street' as const,targetSceneId:'zhongshuyuan-office' as const,driverArrivesAt:Date.now()+60000}
+    const pickup=mainlineRidePickupPosition(order.sourceSceneId)!
+    expect(mainlineRideSuppressExternalPhoneReveal(order,'commercial-street',pickup)).toBe(true)
+    expect(mainlineRideSuppressExternalPhoneReveal(order,'commercial-cafe',pickup)).toBe(false)
+    expect(mainlineRideSuppressExternalPhoneReveal(null,'commercial-street',pickup)).toBe(false)
   })
   it('persists pending presentation, unread badges and deduplication for both apps', () => {
     let save=createInitialPlayerSave('commercial-street')
