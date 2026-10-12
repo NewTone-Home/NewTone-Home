@@ -90,7 +90,7 @@ function PhoneRideLocalMap({sceneId,waitingSceneId,getPosition,getSnapshot,cover
  const cafeDoorway=snapshot?.sceneId===sceneId&&cafeExit?snapshot.passages.get('street-cafe-entry')?.doorway:undefined
  const mapPassages=cafeDoorway?[{id:'street-cafe-entry',bounds:cafeDoorway}]:[]
  return <div ref={viewportRef} className="world-phone__ride-local-map" data-ride-map-scene={sceneId}>
-  <PhoneMapCanvas mapRegions={regions} displayDevice="inner" currentLandmark={{device:'inner',id:'player'}} selectedMapPlaceId={null} onSelect={()=>{}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} localViewBox={`${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`} geometry={mapGeometry} localMapObjects={mapObjects} localMapPassages={mapPassages} focusId="player" coveredHeight={coveredHeight} regionsOnly followFocus unhideMarkerLabels={['player','ride-goal']} />
+  <PhoneMapCanvas mapRegions={regions} displayDevice="inner" currentLandmark={{device:'inner',id:'player'}} selectedMapPlaceId={null} onSelect={()=>{}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} localViewBox={`${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`} geometry={mapGeometry} localMapObjects={cafeExit?[]:mapObjects} localMapPassages={mapPassages} focusId="player" coveredHeight={coveredHeight} regionsOnly followFocus unhideMarkerLabels={cafeExit?[]:['player','ride-goal']} hideMarkerLabels={cafeExit?['player','ride-goal']:[]} />
   {edge&&<span className="world-phone__ride-map-edge" aria-label={cafeExit?'咖啡馆出口在视野外':'上车点在视野外'} style={{left:edge.x,top:edge.y,transform:`translate(-50%,-50%) rotate(${edge.angle}deg)`}}>↑</span>}
  </div>
 }

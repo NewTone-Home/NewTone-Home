@@ -245,11 +245,12 @@
 .world-phone__map-viewport[data-camera-follow=true] .world-phone__map,.world-phone__map-viewport[data-camera-follow=true] .world-phone__map-marker { transition:none; }
 .world-phone__ride-local-map { position:relative; flex:1; min-height:140px; overflow:hidden; }
 .world-phone__ride-local-map .world-phone__map-geometry { fill:#8592a51e; stroke:#c5cfdeaa; stroke-width:1; vector-effect:non-scaling-stroke; }
-.world-phone__ride-local-map .world-phone__map-geometry--door,.world-phone__ride-local-map .world-phone__map-geometry--opening { fill:#56cbb633; stroke:#76e2ce; stroke-width:1.2; }
+.world-phone__ride-local-map[data-ride-map-scene="commercial-cafe"] .world-phone__map-geometry--door,.world-phone__ride-local-map[data-ride-map-scene="commercial-cafe"] .world-phone__map-geometry--opening { fill:#8592a51e; stroke:#c5cfdeaa; stroke-width:1; }
 .world-phone__ride-local-map .world-phone__map-object { fill:#9eabc02e; stroke:#d4deecdd; stroke-width:.9; vector-effect:non-scaling-stroke; }
 .world-phone__ride-local-map .world-phone__map-object--seat { fill:#b7c1d035; stroke:#d0d9e8dd; }
-.world-phone__ride-local-map .world-phone__map-passage { fill:#46d1b628; stroke:#68e3d1; stroke-width:.9; stroke-dasharray:1.2 .8; vector-effect:non-scaling-stroke; }
+.world-phone__ride-local-map[data-ride-map-scene="commercial-cafe"] .world-phone__map-passage { fill:#ffc94a55; stroke:#ffdc73; stroke-width:2; vector-effect:non-scaling-stroke; filter:drop-shadow(0 0 3px #ffc94aaa); }
 .world-phone__ride-local-map [data-map-region=player] i { width:9px; height:9px; background:#aee8de; box-shadow:0 0 0 3px #56cbb64d; }
+.world-phone__ride-local-map[data-ride-map-scene="commercial-cafe"] [data-map-region=ride-goal] i { width:12px; height:12px; background:#ffd36a; box-shadow:0 0 0 4px #ffc94a48,0 0 13px #ffc94a99; }
 .world-phone__ride-local-map [data-map-region=player] span { position:absolute; left:50%; bottom:calc(50% + 7px); margin:0; transform:translateX(-50%) !important; }
 .world-phone__ride-local-map [data-map-region=ride-goal] span { position:absolute; left:50%; top:calc(50% + 7px); margin:0; transform:translateX(-50%) !important; }
 .world-phone__ride-local-map>.world-phone__map-viewport { position:absolute; inset:0; }
