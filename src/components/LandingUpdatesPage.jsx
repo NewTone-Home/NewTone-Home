@@ -6,6 +6,41 @@ import './LandingUpdatesPage.css'
 
 const LANDING_UPDATES = Object.freeze([
   Object.freeze({
+    version: 'v0.2.2',
+    date: '2026.10.12',
+    dateTime: '2026-10-12',
+    zh: Object.freeze({
+      summary: Object.freeze([
+        '这次没有加入新的宇宙，也没有打开什么新的神秘入口。',
+        '我们优化了不少体验。',
+      ]),
+      details: Object.freeze([
+        '· 重新设计了手机，现在更好看，也更好用了。',
+        '· 优化了部分视觉效果和交互体验。',
+        '接下来，我们计划逐步推进以下内容：',
+        '· 不同设备的适配',
+        '· 不同语言的适配',
+        '· 新的场景和新的剧情',
+        '· 用户注册系统',
+      ]),
+    }),
+    en: Object.freeze({
+      summary: Object.freeze([
+        'No new universe this time. No secret doorway, either.',
+        "We've made quite a few improvements to the experience.",
+      ]),
+      details: Object.freeze([
+        "· We've redesigned the in-world phone. It looks better and is easier to use.",
+        "· We've also refined some of the visuals and interactions.",
+        "Here's what we're planning to work on next:",
+        '· Better support for different devices',
+        '· Support for more languages',
+        '· New scenes and story content',
+        '· User registration system',
+      ]),
+    }),
+  }),
+  Object.freeze({
     version: 'v0.2.1',
     date: '2026.10.05',
     dateTime: '2026-10-05',
