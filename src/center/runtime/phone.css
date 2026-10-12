@@ -10,12 +10,13 @@
 .world-phone__handle { position:absolute; bottom:0; left:0; width:100%; height:48px; z-index:3; border:0; background:transparent; pointer-events:auto; }
 .world-phone.is-open .world-phone__handle { display:none; }
 .world-phone__handle-mark { position:absolute; display:block; top:0; left:50%; transform:translateX(-50%); width:96px; height:12px; border-radius:0 0 7px 7px; background:#050507; pointer-events:none; }
-.world-phone__notification-dot { position:absolute; right:8px; top:2px; width:4px; height:4px; border-radius:50%; background:#cdd4dc; animation:phone-notification-dot 3.2s ease-in-out infinite; }
+.world-phone__notification-dot { position:absolute; right:8px; top:50%; width:4px; height:4px; border-radius:50%; background:#cdd4dc; opacity:0; transform:translateY(-50%); animation:phone-notification-dot-enter 240ms ease-out forwards,phone-notification-dot 3.2s 240ms ease-in-out infinite; }
 .world-phone__notification-flow { position:absolute; inset:0; width:96px; height:12px; overflow:visible; pointer-events:none; animation:phone-notification-fade 1.2s linear both; }
 .world-phone__notification-flow path { fill:none; stroke:#eef3fc; stroke-width:1.1; stroke-linecap:round; stroke-dasharray:2.2 200; animation:phone-notification-flow 1.2s linear both; }
 @keyframes phone-notification-flow { from { stroke-dashoffset:var(--tail); } to { stroke-dashoffset:calc(-116px + var(--tail)); } }
 @keyframes phone-notification-fade { 0%,80% { opacity:1; } to { opacity:0; } }
 @keyframes phone-notification-dot { 50% { opacity:.4; box-shadow:0 0 4px #d4dbe15c; } }
+@keyframes phone-notification-dot-enter { from { opacity:0; } to { opacity:1; } }
 .world-phone--phase-swap-retracting .world-phone__handle { animation:world-phone-swap-retract 220ms ease; }
 .world-phone--phase-swap-retracting .world-phone__body { animation:world-phone-screen-retract 220ms ease; }
 @keyframes world-phone-screen-retract { to { transform:translateY(calc(100% + 4px)); opacity:0; } }
@@ -229,7 +230,7 @@
 .world-phone__ride-estimate { display:grid; gap:2px; margin:6px 0; }
 .world-phone__ride-estimate strong { font-size:13px; color:#dedee4; }
 .world-phone__ride-estimate span { font-size:11px; }
-@media(prefers-reduced-motion:reduce){.world-phone__notification-dot,.world-phone__calendar-grid [data-weather]::before{animation:none!important}.world-phone__calendar-grid [data-weather=sunny]::before{background-position:50% 0}}
+@media(prefers-reduced-motion:reduce){.world-phone__notification-dot,.world-phone__calendar-grid [data-weather]::before{animation:none!important;opacity:1}.world-phone__calendar-grid [data-weather=sunny]::before{background-position:50% 0}}
 .world-phone .world-phone__map-region:focus,.world-phone .world-phone__map-poi:focus { outline:none; }
 .world-phone__map-region:focus-visible circle,.world-phone__map-poi:focus-visible circle { stroke:#eee; stroke-width:.4; }
 .world-phone__contact-avatar svg { width:32px; height:32px; }
@@ -241,3 +242,8 @@
 .world-phone__home-screen::-webkit-scrollbar,.world-phone__app-content::-webkit-scrollbar,.world-phone__map-detail::-webkit-scrollbar,.world-phone__ride-sheet::-webkit-scrollbar,.world-phone textarea::-webkit-scrollbar { display:none; }
 .world-phone__home-screen,.world-phone__app-content { overflow-x:hidden; }
 .world-phone__map-viewport[data-camera-moving=true] .world-phone__map,.world-phone__map-viewport[data-camera-moving=true] .world-phone__map-marker { transition:none; }
+.world-phone__map-viewport[data-camera-follow=true] .world-phone__map,.world-phone__map-viewport[data-camera-follow=true] .world-phone__map-marker { transition:none; }
+.world-phone__ride-local-map { position:relative; flex:1; min-height:140px; overflow:hidden; }
+.world-phone__ride-local-map>.world-phone__map-viewport { position:absolute; inset:0; }
+.world-phone__ride-map-guidance { position:absolute; z-index:2; top:8px; left:8px; max-width:72%; margin:0; padding:5px 8px; border:1px solid #ffffff20; border-radius:7px; background:#17181ddd; color:#e1e2e6; font-size:10px; pointer-events:none; }
+.world-phone__ride-map-edge { position:absolute; z-index:2; display:grid; place-items:center; width:25px; height:25px; border-radius:50%; background:#26282de8; border:1px solid #cdd4dc88; color:#f1f3f7; font-size:18px; line-height:1; pointer-events:none; }

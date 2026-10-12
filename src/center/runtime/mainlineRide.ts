@@ -28,6 +28,17 @@ export function mainlineRidePickupPositions(sceneId: MainlineSceneId): Point[] {
   })
 }
 export function mainlineRidePickupPosition(sceneId: MainlineSceneId) { return mainlineRidePickupPositions(sceneId)[0] }
+/** Return only a goal backed by a real pickup exit or an authored cross-scene portal. */
+export function mainlineRideNavigationGoal(sceneId: MainlineSceneId, pickupSceneId: MainlineSceneId): Point | null {
+  if (sceneId === pickupSceneId) return mainlineRidePickupPosition(pickupSceneId) ?? null
+  if (!mainlineRideZone(pickupSceneId)?.scenes.includes(sceneId)) return null
+  const passage = mainlineScenes[sceneId].passages.find((item) => item.targetSceneId === pickupSceneId)
+  if (!passage) return null
+  return { x: (passage.thresholds[0].x + passage.thresholds[1].x) / 2, y: (passage.thresholds[0].y + passage.thresholds[1].y) / 2 }
+}
+export function mainlineRideSuppressExternalPhoneReveal(order: MainlineRideOrder | null, sceneId: MainlineSceneId, position: Point): boolean {
+  return Boolean(order && mainlineRideAtPickup(order, sceneId, position))
+}
 export function mainlineRideWaitingGuidance(sceneId: MainlineSceneId) {
   return mainlineRideZone(sceneId) ?? { waitingLabel: '院门', guidanceText: '请到院门等车' }
 }

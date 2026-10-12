@@ -13,8 +13,9 @@ type Props = {
   localViewBox?: string; geometry?: readonly MainlineSceneGeometryUnit[]
   focusId?: string | null; coveredHeight?: number; onBlank?: () => void
   restoreOnBlank?: boolean; regionsOnly?: boolean; slowDestinationTravel?: boolean
+  followFocus?: boolean
 }
-export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, selectedMapPlaceId, onSelect, mapZoom, setMapZoom, mapPan, setMapPan, localViewBox, geometry, focusId, coveredHeight = 0, onBlank, restoreOnBlank = false, regionsOnly = false, slowDestinationTravel = false }: Props) {
+export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, selectedMapPlaceId, onSelect, mapZoom, setMapZoom, mapPan, setMapPan, localViewBox, geometry, focusId, coveredHeight = 0, onBlank, restoreOnBlank = false, regionsOnly = false, slowDestinationTravel = false, followFocus = false }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<HTMLDivElement>(null)
   const [controlBounds,setControlBounds]=useState({left:Infinity,top:0,bottom:0})
@@ -58,6 +59,16 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
   }, [])
   useLayoutEffect(() => {
     if (size.width <= 1) return
+    if (followFocus && focusPoint) {
+      cancelAnimationFrame(cameraFrame.current)
+      manualView.current = false
+      previousFocus.current = focusId ?? null
+      const zoom = Math.max(1, Math.min(1.6, zoomRef.current))
+      setMapZoom(zoom)
+      setMapPan(boundPan([(vx + vw / 2 - focusPoint[0]) * scale * zoom, (vy + vh / 2 - focusPoint[1]) * scale * zoom - coveredHeightRef.current / 2], zoom))
+      setCameraMoving(false)
+      return
+    }
     const restore = !focusId && restorePending.current ? beforeFocus.current : null
     restorePending.current=false
     if (!focusPoint || !focusId) {
@@ -94,7 +105,7 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
     }
     cameraFrame.current=requestAnimationFrame(tick)
     return()=>cancelAnimationFrame(cameraFrame.current)
-  },[focusId,focusPoint?.[0],focusPoint?.[1],size.width,size.height,vx,vy,vw,vh,scale,setMapZoom,setMapPan])
+  },[focusId,focusPoint?.[0],focusPoint?.[1],size.width,size.height,vx,vy,vw,vh,scale,setMapZoom,setMapPan,followFocus])
   // Sheet resizing only adjusts the visible-area offset, never restarts a destination journey.
   useLayoutEffect(() => {
     if (!focusPoint || size.width <= 1 || cameraMoving) return
@@ -158,7 +169,7 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
   const places = phoneMapVisiblePlaces(mapRegions,mapZoom,center,manualView.current?null:focusId,regionsOnly || Boolean(localViewBox))
     .sort((a, b) => Number(b.place.id === selectedMapPlaceId) - Number(a.place.id === selectedMapPlaceId))
   return <>
-    <div className="world-phone__map-viewport" data-dragging={dragging} data-camera-moving={cameraMoving} ref={viewportRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('[data-map-interactive]')) { if (!suppressClick.current) { restorePending.current=restoreOnBlank && beforeFocus.current!==null;onBlank?.() } } }}>
+    <div className="world-phone__map-viewport" data-dragging={dragging} data-camera-moving={cameraMoving} data-camera-follow={followFocus} ref={viewportRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('[data-map-interactive]')) { if (!suppressClick.current) { restorePending.current=restoreOnBlank && beforeFocus.current!==null;onBlank?.() } } }}>
       <svg className="world-phone__map" viewBox={localViewBox ?? mainlineMapLayout.viewBox} role="group" aria-label="世界地图，拖动查看，滚轮、双指或按钮缩放，点击区域和地点查看详情" data-map-world={displayDevice} data-map-zoom={mapZoom.toFixed(3)} style={{ transform: `translate(${mapPan[0]}px, ${mapPan[1]}px) scale(${mapZoom})` }}>
         {geometry?.filter(unit => unit.visual.kind !== 'none').map(unit => <rect key={unit.id} x={unit.x} y={unit.y} width={unit.width} height={unit.height} fill="#ffffff10" stroke="#ffffff35" strokeWidth=".15" />)}
         {!localViewBox && <>

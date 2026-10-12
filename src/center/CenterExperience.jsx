@@ -15,7 +15,7 @@ import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceT
 import { advanceMainlineStoryClock } from './runtime/mainlineStoryClock'
 import { advancePhoneStoryNotes, createPlayerPhoneNote, ensurePhoneYongheLead, pinPhoneStoryNote, updatePhoneNote } from './runtime/phonePersonalData'
 import { commercialCafeStoryStatusKey } from './runtime/commercialCafeStory'
-import { mainlineRideAtPickup, mainlineRideOrderFromState, mainlineRideOrderPatch, mainlineRideWalkingEtaMs, mainlineRideZone } from './runtime/mainlineRide'
+import { mainlineRideAtPickup, mainlineRideOrderFromState, mainlineRideOrderPatch, mainlineRideSuppressExternalPhoneReveal, mainlineRideWalkingEtaMs, mainlineRideZone } from './runtime/mainlineRide'
 import {
   phoneRideAvailability,
   worldLayerForScene,
@@ -576,7 +576,11 @@ export default function CenterExperience({
     <MainlineScenePage
       key={key ?? `${sceneRoute.sceneId}:${sceneRoute.entryPosition?.x ?? ''}:${sceneRoute.entryPosition?.y ?? ''}:${sceneRoute.spawnMode}:${sceneResumePosition?.x ?? ''}:${sceneResumePosition?.y ?? ''}`}
       sceneId={sceneRoute.sceneId}
-      onExternalExit={snapshot ? undefined : revealPhone}
+      onExternalExit={snapshot ? undefined : () => {
+        const current = latestWorldPositionRef.current
+        if (current && mainlineRideSuppressExternalPhoneReveal(rideOrder, current.sceneId, current.position)) return
+        revealPhone()
+      }}
       onExternalReturn={snapshot ? undefined : retractPhone}
       onSceneReady={snapshot ? undefined : handleSceneReady}
       phoneOpen={phoneOpen}

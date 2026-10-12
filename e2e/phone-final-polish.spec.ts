@@ -1,5 +1,6 @@
 import {expect,test,type Page} from '@playwright/test'
 import {registerPhoneTestNetwork} from './phoneTestNetwork'
+import {mainlineScenes} from '../src/center/runtime/mainlineScenes'
 registerPhoneTestNetwork()
 async function seed(page:Page,milkTeaUnlocked=false){
  await page.addInitScript(milkTeaUnlocked=>{localStorage.setItem('newtone-public-release-cutover-v1','center-v1');if(!localStorage.getItem('newtone-player-save-v1'))localStorage.setItem('newtone-player-save-v1',JSON.stringify({currentSceneId:'commercial-cafe',phoneDevice:'inner',sceneState:{'commercial-cafe':{commercialCafeStoryStatus:'complete'},'commercial-street':{commercialStreetMilkTeaAppUnlocked:milkTeaUnlocked}},updatedAt:100}))},milkTeaUnlocked)
@@ -31,7 +32,15 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(view
  expect(frames.filter(f=>f.scale<1.1).some((f,i,all)=>i>0&&Math.hypot(f.x-all[0].x,f.y-all[0].y)>2)).toBe(true)
  await page.screenshot({path:info.outputPath('focused-map.png')})
  await phone.getByRole('button',{name:/^快车/}).click();await phone.getByRole('button',{name:'确认叫车',exact:true}).click()
- await expect(phone.locator('[data-ride-order=true]')).toBeVisible();await page.keyboard.press('Escape')
+ await expect(phone.locator('[data-ride-order=true]')).toBeVisible()
+ const rideMap=phone.locator('[data-ride-map-scene="commercial-cafe"]')
+ await expect(rideMap).toBeVisible();await expect(rideMap.locator('[data-map-region=player]')).toBeVisible();await expect(rideMap.locator('[data-map-region=ride-goal]')).toBeVisible()
+ const mapBox=rideMap.locator('svg.world-phone__map')
+ await expect(mapBox).toHaveAttribute('viewBox',`${mainlineScenes['commercial-cafe'].walkBounds.x} ${mainlineScenes['commercial-cafe'].walkBounds.y} ${mainlineScenes['commercial-cafe'].walkBounds.width} ${mainlineScenes['commercial-cafe'].walkBounds.height}`)
+ const playerMarker=await rideMap.locator('[data-map-region=player]').boundingBox()
+ expect(playerMarker?.width).toBe(44);expect(playerMarker?.height).toBe(44)
+ await rideMap.screenshot({path:info.outputPath('ride-local-cafe-map.png')})
+ await page.keyboard.press('Escape')
  const flow=phone.locator('.world-phone__notification-flow')
  await expect(flow).toBeVisible({timeout:30000})
  await flow.evaluate(e=>{for(const node of [e,...e.querySelectorAll('path')])for(const animation of node.getAnimations())animation.pause()})
@@ -52,6 +61,11 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(view
  expect(offsets[3]).toBeLessThan(offsets[0]-50)
  await flow.evaluate(e=>{for(const node of [e,...e.querySelectorAll('path')])for(const animation of node.getAnimations())animation.play()})
  await expect(flow).toHaveCount(0);await expect(phone.locator('.world-phone__notification-dot')).toBeVisible()
+ const dot=phone.locator('.world-phone__notification-dot'),capsule=phone.locator('.world-phone__handle-mark')
+ const centered=await dot.evaluate((e,parent)=>{const a=e.getBoundingClientRect(),b=parent.getBoundingClientRect();return Math.abs((a.top+a.height/2)-(b.top+b.height/2))},await capsule.elementHandle())
+ expect(centered).toBeLessThanOrEqual(0.5)
+ const fade=await dot.evaluate(e=>{const animation=e.getAnimations().find(a=>(a as CSSAnimation).animationName==='phone-notification-dot-enter') as CSSAnimation|undefined;if(!animation)return null;animation.pause();animation.currentTime=0;const start=Number(getComputedStyle(e).opacity);animation.currentTime=120;const middle=Number(getComputedStyle(e).opacity);animation.currentTime=240;const end=Number(getComputedStyle(e).opacity);animation.play();return {start,middle,end}})
+ expect(fade).not.toBeNull();expect(fade!.start).toBeLessThan(fade!.middle);expect(fade!.middle).toBeLessThan(fade!.end)
  await expect(phone).toHaveAttribute('data-phone-phase','closed')
  await page.screenshot({path:info.outputPath('capsule.png')})
  await page.getByLabel('打开手机').click();await expect(phone.getByLabel('手机通知')).toContainText('司机已到达')

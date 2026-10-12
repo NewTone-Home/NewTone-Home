@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { PhoneMapCanvas } from './PhoneMapCanvas'
 import { mainlineScenes, type MainlineSceneId } from './mainlineScenes'
-import { mainlineRidePickupPositions, type MainlineRideOrder, type MainlineRideVehicle, type MainlineRideRequestResult } from './mainlineRide'
+import { mainlineRideNavigationGoal, mainlineRideWaitingGuidance, type MainlineRideOrder, type MainlineRideVehicle, type MainlineRideRequestResult } from './mainlineRide'
 import { type PhoneMapRegion, type PhoneMapZoomLevel } from './phoneMapModel'
 import type { PhoneDevice } from './phoneState'
 import type { MainlineStoryClock } from './mainlineStoryClock'
@@ -62,19 +62,27 @@ export function PhoneRideApp({regions,device,currentLandmark,currentSceneId,orde
 }
 function PhoneRideLocalMap({sceneId,waitingSceneId,getPosition,coveredHeight}:{sceneId:MainlineSceneId;waitingSceneId:MainlineSceneId;getPosition?:()=>Point|null;coveredHeight:number}) {
  const scene=mainlineScenes[sceneId]
- const waitingScene=mainlineScenes[waitingSceneId]
- const offset=sceneId===waitingSceneId?0:scene.walkBounds.x+scene.walkBounds.width+20-waitingScene.walkBounds.x
- const pickups=mainlineRidePickupPositions(waitingSceneId).map(p=>({x:p.x+offset,y:p.y}))
- const geometry=sceneId===waitingSceneId?scene.geometry:[...scene.geometry,...waitingScene.geometry.map(unit=>({...unit,id:`waiting-${unit.id}`,x:unit.x+offset}))]
+ const cafeExit=sceneId==='commercial-cafe'&&waitingSceneId==='commercial-street'
+ const pickup=mainlineRideNavigationGoal(sceneId,waitingSceneId) ?? undefined
  const [position,setPosition]=useState(()=>getPosition?.() ?? scene.initialPlayerPosition)
- const [zoom,setZoom]=useState<PhoneMapZoomLevel>(1)
+ const [zoom,setZoom]=useState<PhoneMapZoomLevel>(2)
  const [pan,setPan]=useState<readonly [number,number]>([0,0])
+ const viewportRef=useRef<HTMLDivElement>(null)
+ const [viewportSize,setViewportSize]=useState({width:0,height:0})
  useEffect(()=>{let frame=0;const paint=()=>{const next=getPosition?.();if(next)setPosition(old=>old.x===next.x&&old.y===next.y?old:next);frame=requestAnimationFrame(paint)};frame=requestAnimationFrame(paint);return()=>cancelAnimationFrame(frame)},[getPosition])
- useEffect(()=>{setPan([0,-coveredHeight/2])},[coveredHeight])
- // A scene geometry inset shares the Phone map gestures. Points come from the actual scene and exit owner.
- const [fitPoints]=useState(()=>[position,...pickups])
- const left=Math.min(...fitPoints.map(p=>p.x))-12,top=Math.min(...fitPoints.map(p=>p.y))-12
- const width=Math.max(35,Math.max(...fitPoints.map(p=>p.x))-left+12),height=Math.max(35,Math.max(...fitPoints.map(p=>p.y))-top+12)
- const regions:PhoneMapRegion[]=[{id:'player',glyph:'●',label:'你',position:[position.x,position.y],detail:'',pois:[]},...pickups.map((p,i)=>({id:`exit-${i}`,glyph:'○',label:'上车点',position:[p.x,p.y] as const,detail:'',pois:[]}))]
- return <PhoneMapCanvas mapRegions={regions} displayDevice="inner" currentLandmark={{device:'inner',id:'player'}} selectedMapPlaceId={null} onSelect={()=>{}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} localViewBox={`${left} ${top} ${width} ${height}`} geometry={geometry} />
+ useLayoutEffect(()=>{const viewport=viewportRef.current;if(!viewport)return;const update=()=>setViewportSize({width:viewport.clientWidth,height:viewport.clientHeight});update();const observer=new ResizeObserver(update);observer.observe(viewport);return()=>observer.disconnect()},[])
+ const bounds=scene.walkBounds
+ const regions:PhoneMapRegion[]=[{id:'player',glyph:'●',label:'你',position:[position.x,position.y],detail:'',pois:[]},...(pickup?[{id:'ride-goal',glyph:'○',label:cafeExit?'咖啡馆出口':'上车点',position:[pickup.x,pickup.y] as const,detail:'',pois:[]}]:[])]
+ const scale=Math.min(viewportSize.width/bounds.width,viewportSize.height/bounds.height)
+ const dx=pickup?(pickup.x-position.x)*scale*zoom:0,dy=pickup?(pickup.y-position.y)*scale*zoom:0
+ const centerY=(viewportSize.height-coveredHeight)/2
+ const safeX=Math.max(16,viewportSize.width/2-14),safeY=Math.max(16,(viewportSize.height-coveredHeight)/2-18)
+ const ray=Math.max(Math.abs(dx)/Math.max(1,safeX),Math.abs(dy)/Math.max(1,safeY))
+ const edge=pickup&&ray>1?{x:viewportSize.width/2+dx/ray,y:centerY+dy/ray,angle:Math.atan2(dy,dx)*180/Math.PI+90}:null
+ const guidance=cafeExit?'请从咖啡馆左侧出口返回商业街':mainlineRideWaitingGuidance(waitingSceneId).guidanceText
+ return <div ref={viewportRef} className="world-phone__ride-local-map" data-ride-map-scene={sceneId}>
+  <PhoneMapCanvas mapRegions={regions} displayDevice="inner" currentLandmark={{device:'inner',id:'player'}} selectedMapPlaceId={null} onSelect={()=>{}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} localViewBox={`${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`} geometry={scene.geometry} focusId="player" coveredHeight={coveredHeight} regionsOnly followFocus />
+  <p className="world-phone__ride-map-guidance">{guidance}</p>
+  {edge&&<span className="world-phone__ride-map-edge" aria-label={cafeExit?'咖啡馆出口在视野外':'上车点在视野外'} style={{left:edge.x,top:edge.y,transform:`translate(-50%,-50%) rotate(${edge.angle}deg)`}}>↑</span>}
+ </div>
 }
