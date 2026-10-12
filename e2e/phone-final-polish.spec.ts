@@ -1,4 +1,5 @@
 import {expect,test,type Page} from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
 import {registerPhoneTestNetwork} from './phoneTestNetwork'
 import {mainlineScenes} from '../src/center/runtime/mainlineScenes'
 registerPhoneTestNetwork()
@@ -84,6 +85,7 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(view
  const orderFramesPromise=page.evaluate(()=>new Promise<{time:number;stage:string|null;opacity:number|null}[]>(resolve=>{const frames:{time:number;stage:string|null;opacity:number|null}[]=[];const start=performance.now();const tick=()=>{const stage=document.querySelector<HTMLElement>('.world-phone__ride-map-stage');frames.push({time:performance.now()-start,stage:stage?.dataset.rideMapStage??null,opacity:stage?Number(getComputedStyle(stage).opacity):null});if(performance.now()-start<2000)setTimeout(tick,20);else resolve(frames)};tick()}))
  await phone.getByRole('button',{name:/^快车/}).click();await phone.getByRole('button',{name:'确认叫车',exact:true}).click()
  const orderFrames=await orderFramesPromise
+ await writeFile(info.outputPath('ride-order-map-transition-frames.json'),JSON.stringify(orderFrames,null,2))
  await info.attach('ride-order-map-transition-frames',{body:JSON.stringify(orderFrames),contentType:'application/json'})
  expect(orderFrames.some(frame=>frame.stage==='order'&&frame.opacity!==null&&frame.opacity<0.95)).toBe(true)
  expect(orderFrames.at(-1)?.stage).toBe('order')
