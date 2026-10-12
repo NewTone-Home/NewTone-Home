@@ -1,31 +1,52 @@
+import { openRideArrivalNotification } from './phoneRideNotification'
+import { registerPhoneTestNetwork } from './phoneTestNetwork'
+registerPhoneTestNetwork()
 import { mainlineRidePickupPositions } from '../src/center/runtime/mainlineRide'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { expect, test, type Page } from '@playwright/test'
 
 test.use({ viewport: { width: 1280, height: 720 } })
 async function walkToExit(page: Page, index = 0) {
-  if (await page.locator('.world-phone.is-open').count()) await page.getByLabel('收起手机').click()
-  const id = await page.locator('.scene-shell[data-mainline-scene]').getAttribute('data-mainline-scene') as keyof typeof mainlineScenes
-  const target = mainlineRidePickupPositions(id)[index]
-  if (id === 'commercial-street') {
-    // Walk through the public lane, clear of the entry pedestrian's center line.
-    const lane = await page.locator('.mainline-scene-stage').evaluate(e => {
-      const r=e.getBoundingClientRect(), actor=e.querySelector<HTMLElement>('[data-actor-id="protagonist"]')!, world=e.querySelector<HTMLElement>('.scene-mainline-world')!
-      const o=world.style.transform.match(/translate\(([-\d.]+)%, ([-\d.]+)%\)/)!
-      return {x:r.x+r.width*(parseFloat(actor.style.left)+Number(o[1]))/100,y:r.y+r.height*(46+Number(o[2]))/100}
-    })
-    await page.mouse.click(lane.x,lane.y)
-    await expect(page.locator('[data-actor-id="protagonist"]')).not.toHaveClass(/is-moving/, {timeout:15000})
+  // Wait for the real driver before entering the exit. A Phone notification that
+  // appears mid-walk owns its next click, so it must be read/dismissed first.
+  const driverPending = await page.evaluate(() => {
+    const save=JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
+    return Object.values(save.sceneState ?? {}).some((state:any)=>state.rideDriverArrivesAt > Date.now())
+  })
+  if (await page.locator('.world-phone.is-open').count()) {
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
   }
-  const point = await page.locator('.mainline-scene-stage').evaluate((e, p) => {
-    const r=e.getBoundingClientRect(), transform=e.querySelector<HTMLElement>('.scene-mainline-world')!.style.transform
-    const o=transform.match(/translate\(([-\d.]+)%, ([-\d.]+)%\)/)!
-    return {x:r.x+r.width*(p.x+Number(o[1]))/100,y:r.y+r.height*(p.y+Number(o[2]))/100}
-  }, target)
-  await page.mouse.click(point.x, point.y)
-  await expect(page.locator('[data-actor-id="protagonist"]')).not.toHaveClass(/is-moving/, {timeout:15000})
+  if(driverPending) await openRideArrivalNotification(page, 30000)
+  if(await page.locator('[data-notification-app="ride"]').isVisible()) await page.locator('[data-notification-app="ride"]').click()
+  if (await page.locator('.world-phone.is-open').count()) {
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
+  }
+  const id = await page.locator('.scene-shell[data-mainline-scene]').getAttribute('data-mainline-scene') as keyof typeof mainlineScenes
+  const exit = mainlineScenes[id].externalExits[index]
+  const pickup = mainlineRidePickupPositions(id)[index]
+  // Choose the interior of the declared trigger, avoiding exact floating-point threshold equality.
+  const target = { ...pickup, [exit.axis]: pickup[exit.axis] + exit.direction }
+  for (let step = 0; step < 12; step += 1) {
+    if (await page.locator('.world-phone.is-open').count()) {
+      await page.keyboard.press('Escape')
+      await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
+    }
+    const stage=page.locator('.mainline-scene-stage')
+    const projected=await stage.evaluate((e,p)=>{
+      const r=e.getBoundingClientRect(), world=e.querySelector<HTMLElement>('.scene-mainline-world')!
+      const o=world.style.transform.match(/translate\(([-\d.]+)%, ([-\d.]+)%\)/)!
+      const x=r.x+r.width*(p.x+Number(o[1]))/100,y=r.y+r.height*(p.y+Number(o[2]))/100
+      return {x:Math.max(r.x+20,Math.min(r.right-20,x)),y:Math.max(r.y+20,Math.min(r.bottom-30,y)),final:x>=r.x&&x<=r.right&&y>=r.y&&y<=r.bottom}
+    },target)
+    await page.mouse.click(projected.x,projected.y)
+    if(projected.final)return
+    await expect(page.locator('[data-actor-id="protagonist"]')).toHaveClass(/is-moving/)
+    await expect(page.locator('[data-actor-id="protagonist"]')).not.toHaveClass(/is-moving/,{timeout:15000})
+  }
+  throw new Error('Exit could not be reached through visible world inputs')
 }
-
 
 test('the Office desk Phone Action switches the carried device in both directions', async ({ page }) => {
   const consoleErrors: string[] = []
@@ -48,10 +69,25 @@ test('the Office desk Phone Action switches the carried device in both direction
     await expect(switchAction).toBeEnabled({ timeout: 15_000 })
     await switchAction.click()
     await expect(phone).toHaveAttribute('data-phone-device', target)
-    await page.getByLabel('收起手机').click()
+    await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
     await expect(phone).not.toHaveClass(/is-open/)
   }
   expect(consoleErrors).toEqual([])
+})
+
+test('an ordinary Street exit still opens the Phone when no Ride order exists',async({page})=>{
+  await page.goto('/?scene=commercial-street')
+  const phone=page.locator('.world-phone')
+  await expect(phone).toHaveAttribute('data-phone-phase','closed')
+  const actor=page.locator('[data-actor-id="protagonist"]')
+  for(let step=0;step<6&&await phone.getAttribute('data-phone-phase')==='closed';step++){
+    const before=await actor.evaluate(e=>(e as HTMLElement).style.left)
+    await walkToExit(page)
+    await expect.poll(async()=>await phone.getAttribute('data-phone-phase')!=='closed'||(await actor.getAttribute('class'))?.includes('is-moving')||(await actor.evaluate(e=>(e as HTMLElement).style.left))!==before,{timeout:5000}).toBe(true)
+    if(await phone.getAttribute('data-phone-phase')==='closed')await expect(actor).not.toHaveClass(/is-moving/,{timeout:30000})
+  }
+  await expect(phone).toHaveAttribute('data-phone-phase','open',{timeout:15000})
+  await expect(phone.locator('[data-ride-order=true]')).toHaveCount(0)
 })
 
 test('the inner-world Phone keeps the existing Office to Commercial Street ride handoff', async ({ page }) => {
@@ -74,7 +110,7 @@ test('the inner-world Phone keeps the existing Office to Commercial Street ride 
   await expect(phone).toHaveAttribute('data-phone-device', 'inner')
   await phone.locator('[data-app="ride"]').click()
   await phone.getByRole('button', { name: /商业街.*从当前位置出发/ }).click()
-  await phone.getByRole('button', { name: '呼叫车辆前往商业街', exact: true }).click()
+  await phone.getByRole('button',{name:/^快车/}).click(); await phone.getByRole('button',{name:'确认叫车',exact:true}).click(); await expect(page.locator('[data-ride-order="true"]')).toBeVisible()
 
   await walkToExit(page)
   await expect(page.locator('.center-long-distance-travel')).toBeVisible({ timeout: 10_000 })
@@ -106,7 +142,7 @@ test('Commercial Street can ride through the inner-world Phone back to the Zhong
   await expect(phone).toHaveAttribute('data-phone-device', 'inner')
   await phone.locator('[data-app="ride"]').click()
   await phone.getByRole('button', { name: /商业街.*从当前位置出发/ }).click()
-  await phone.getByRole('button', { name: '呼叫车辆前往商业街', exact: true }).click()
+  await phone.getByRole('button',{name:/^快车/}).click(); await phone.getByRole('button',{name:'确认叫车',exact:true}).click(); await expect(page.locator('[data-ride-order="true"]')).toBeVisible()
 
   await walkToExit(page)
   await expect(page.locator('.center-long-distance-travel')).toBeVisible({ timeout: 10_000 })
@@ -120,9 +156,9 @@ test('Commercial Street can ride through the inner-world Phone back to the Zhong
   await phone.getByLabel('返回手机主屏').click()
   await phone.locator('[data-app="ride"]').click()
   await phone.getByRole('button', { name: /中枢院.*从当前位置出发/ }).click()
-  await phone.getByRole('button', { name: '呼叫车辆前往中枢院', exact: true }).click()
-  await page.getByLabel('收起手机').click()
-  await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({ timeout: 15000 })
+  await phone.getByRole('button',{name:/^快车/}).click(); await phone.getByRole('button',{name:'确认叫车',exact:true}).click(); await expect(page.locator('[data-ride-order="true"]')).toBeVisible()
+  await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
+  await openRideArrivalNotification(page, 15000)
   await page.locator('[data-notification-app="ride"]').click()
   await expect(phone.locator('section[aria-label="叫车"]')).toBeVisible()
 
@@ -145,15 +181,37 @@ async function callRide(page: Page, destination: string) {
   if(!await phone.getAttribute('class').then(c=>c?.includes('is-open'))) await page.getByLabel('打开手机').click()
   await phone.locator('[data-app="ride"]').click()
   await phone.getByRole('button',{name:new RegExp(destination+'.*从当前位置出发')}).click()
-  await phone.getByRole('button',{name:'呼叫车辆前往'+destination,exact:true}).click()
+  await page.locator('.world-phone').getByRole('button',{name:/^快车/}).click(); await page.getByRole('button',{name:'确认叫车',exact:true}).click(); await expect(page.locator('[data-ride-order="true"], [data-notification-app="ride"]')).toBeVisible()
 }
 test('Office right external exit boards after a real driver notification card',async({page},info)=>{
+  await page.setViewportSize({width:1440,height:900})
   await enableInnerPhone(page)
   await callRide(page,'商业街')
-  await expect(page.locator('[data-ride-order="true"]')).toContainText('请到办公室出口等车')
-  await expect(page.locator('[data-ride-order="true"]')).not.toContainText(/上车点|第一章|第二章|第三章/)
-  await page.getByLabel('收起手机').click()
-  await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({timeout:15000})
+  const officeMap=page.locator('[data-ride-map-scene="zhongshuyuan-office"]')
+  await expect(officeMap).toBeVisible()
+  await expect(officeMap.locator('[data-map-zone]')).toHaveCount(0)
+  await expect(officeMap.locator('[data-map-pickup-marker]')).toHaveCount(2)
+  await expect(officeMap.locator('[data-map-pickup-marker] svg')).toHaveCount(2)
+  const officeZoomOut=officeMap.locator('.world-phone__map-controls button').nth(1)
+  await officeZoomOut.click();await officeZoomOut.click();await officeZoomOut.click();await officeZoomOut.click()
+  await officeMap.locator('.world-phone__map-controls button').nth(2).click()
+  await expect(officeMap.locator('svg.world-phone__map')).toHaveAttribute('data-map-zoom','1.000')
+  const officeViewportBounds=await officeMap.locator('.world-phone__map-viewport').boundingBox()
+  expect(officeViewportBounds).not.toBeNull()
+  const officeMarkerBounds=[await officeMap.locator('[data-map-pickup-marker]').nth(0).boundingBox(),await officeMap.locator('[data-map-pickup-marker]').nth(1).boundingBox()]
+  for(const bounds of officeMarkerBounds){
+    expect(bounds).not.toBeNull()
+    expect(bounds!.x).toBeGreaterThanOrEqual(officeViewportBounds!.x)
+    expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(officeViewportBounds!.x+officeViewportBounds!.width)
+    expect(bounds!.y).toBeGreaterThanOrEqual(officeViewportBounds!.y)
+    expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(officeViewportBounds!.y+officeViewportBounds!.height)
+  }
+  for(let index=0;index<2;index++)await expect(officeMap.locator('[data-map-pickup-marker]').nth(index)).toHaveCSS('color','rgb(112, 239, 170)')
+  await page.screenshot({path:info.outputPath('ride-map-office-waiting-in-phone.png')})
+  await expect(page.locator('[data-ride-order="true"]')).toContainText('目的地')
+  await expect(page.locator('[data-ride-order="true"]')).not.toContainText(/第一章|第二章|第三章/)
+  await page.keyboard.press('Escape'); await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase','closed')
+  await openRideArrivalNotification(page, 15000)
   await page.locator('[data-notification-app="ride"]').click()
   await expect(page.locator('section[aria-label="叫车"]')).toBeVisible()
   await page.getByLabel('返回手机主屏').click()
@@ -173,10 +231,10 @@ test('Mining guidance and boarding use the original external entrance',async({pa
   await expect(page.locator('.scene-shell[data-mainline-scene="yonghe-mining-perimeter"]')).toBeVisible({timeout:20000})
   await expect(page.locator('.center-experience')).not.toHaveAttribute('data-long-distance-phase',/.+/)
   await callRide(page,'中枢院')
-  await expect(page.locator('[data-notification-app="ride"]')).toBeVisible({timeout:10000})
+  await openRideArrivalNotification(page, 10000)
   await page.locator('[data-notification-app="ride"]').click()
-  await expect(page.locator('[data-ride-order="true"]')).toContainText('请到矿区入口等车')
-  await expect(page.locator('[data-ride-order="true"]')).not.toContainText(/上车点|第一章|第二章|第三章/)
+  await expect(page.locator('[data-ride-order="true"]')).toContainText('目的地')
+  await expect(page.locator('[data-ride-order="true"]')).not.toContainText(/第一章|第二章|第三章/)
   await page.screenshot({path:info.outputPath('mining-exit-guidance.png')})
   await walkToExit(page)
   await expect(page.locator('.center-long-distance-travel')).toBeVisible({timeout:10000})

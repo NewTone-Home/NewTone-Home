@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
+import { isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
+import { mainlineScenes, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
 
 const street = mainlineScenes['commercial-street']
 const ambientNpcs = street.npcs.filter((npc) => npc.roleId === 'pedestrian')
@@ -41,5 +43,21 @@ describe('Commercial Street ambient pedestrians', () => {
       expect(step.storefrontId).not.toBe('commercial-north-slot-1')
       expect(step.storefrontId).not.toBe('commercial-south-slot-5')
     })
+  })
+
+  it('keeps pedestrian storefront visits routed through legal existing storefront candidates', () => {
+    const visit = street.ambientNpcRoutes.flatMap((route) => route.steps)
+      .find((step) => step.kind === 'storefront-visit')
+    expect(visit?.kind).toBe('storefront-visit')
+    if (!visit || visit.kind !== 'storefront-visit') return
+
+    const storefront = street.storefronts.find((candidate) => candidate.id === visit.storefrontId)!
+    const candidates = mainlineStorefrontInteractionCandidates(street, storefront, visit.target)
+    const resolved = resolveMainlineInteractionCandidates(street, visit.target, candidates, .35, {}, {})
+
+    expect(candidates.length).toBeGreaterThan(0)
+    expect(resolved.path).not.toBeNull()
+    expect(candidates).toContainEqual(resolved.target)
+    expect(isWalkableMainlinePoint(resolved.target, street)).toBe(true)
   })
 })

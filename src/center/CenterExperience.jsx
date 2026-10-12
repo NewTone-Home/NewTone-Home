@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MainlineScenePage } from './runtime/MainlineScenePage'
 import { LongDistanceTravel } from './runtime/LongDistanceTravel'
-import { enqueuePhoneNotification, presentPhoneNotifications, readPhoneNotifications } from './runtime/phoneNotifications'
-import { mainlineRideWaitingGuidance } from './runtime/mainlineRide'
+import { enqueuePhoneNotification, readPhoneNotifications } from './runtime/phoneNotifications'
 import { WorldPhone } from './runtime/WorldPhone'
 import {
   mainlineRespawnSceneId,
@@ -11,9 +10,13 @@ import {
   resolveMainlineSceneId,
 } from './runtime/mainlineScenes'
 import { mainlineCameraOffset } from './runtime/mainlineViewport'
+import { createMainlineSceneGeometrySnapshot } from './runtime/mainlineSceneGeometrySnapshot'
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
-import { mainlineRideAtPickup, mainlineRideOrderFromState, mainlineRideOrderPatch, mainlineRideWalkingEtaMs, mainlineRideZone } from './runtime/mainlineRide'
+import { advanceMainlineStoryClock } from './runtime/mainlineStoryClock'
+import { advancePhoneStoryNotes, createPlayerPhoneNote, ensurePhoneYongheLead, pinPhoneStoryNote, updatePhoneNote } from './runtime/phonePersonalData'
+import { commercialCafeStoryStatusKey } from './runtime/commercialCafeStory'
+import { mainlineRideAtPickup, mainlineRideOrderFromState, mainlineRideOrderPatch, mainlineRideSuppressExternalPhoneReveal, mainlineRideWalkingEtaMs, mainlineRideZone } from './runtime/mainlineRide'
 import {
   phoneRideAvailability,
   worldLayerForScene,
@@ -79,11 +82,19 @@ export default function CenterExperience({
   const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId))
   const [phoneOpen, setPhoneOpen] = useState(false)
   const sceneReadingActiveRef = useRef(false)
-  const [sceneReadingActive, setSceneReadingActive] = useState(false)
+  const [, setSceneReadingActive] = useState(false)
   const [phoneNotificationScreen, setPhoneNotificationScreen] = useState(false)
   const positionSamplerRef = useRef(null)
   const currentSceneIdRef = useRef(route.sceneId)
   const latestWorldPositionRef = useRef(null)
+  const getRideMapSnapshot = useCallback(() => {
+    const current = latestWorldPositionRef.current
+    if (!current || current.sceneId !== route.sceneId) return null
+    return createMainlineSceneGeometrySnapshot(
+      mainlineScenes[current.sceneId], current.position,
+      current.context.layout, current.context.screenMetrics,
+    )
+  }, [route.sceneId])
   const pendingInteractionRequestsRef = useRef(new Map())
   currentSceneIdRef.current = route.sceneId
   if (!positionSamplerRef.current) {
@@ -123,6 +134,41 @@ export default function CenterExperience({
     setPlayerSave(playerSaveRef.current)
   }, [])
 
+  useEffect(() => {
+    commitPlayerSave(current => {
+      const storyClock = advanceMainlineStoryClock(current.storyClock, route.sceneId)
+      if (storyClock === current.storyClock) return current
+      return { ...current, storyClock, phoneNotes: advancePhoneStoryNotes(current.phoneNotes, storyClock.stage) }
+    })
+  }, [commitPlayerSave, route.sceneId])
+  const cafeStoryStatus = playerSave.sceneState['commercial-cafe']?.[commercialCafeStoryStatusKey]
+  useEffect(() => {
+    if (cafeStoryStatus !== 'complete') return
+    commitPlayerSave(current => {
+      const phoneNotes = ensurePhoneYongheLead(current.phoneNotes)
+      return phoneNotes === current.phoneNotes ? current : { ...current, phoneNotes }
+    })
+  }, [cafeStoryStatus, commitPlayerSave])
+
+  const createPhoneNote = useCallback((title, body) => {
+    commitPlayerSave(current => {
+      const phoneNotes = createPlayerPhoneNote(current.phoneNotes, title, body)
+      return phoneNotes === current.phoneNotes ? current : { ...current, phoneNotes }
+    })
+  }, [commitPlayerSave])
+  const changePhoneNote = useCallback((id, update) => {
+    commitPlayerSave(current => ({ ...current, phoneNotes: updatePhoneNote(current.phoneNotes, id, update) }))
+  }, [commitPlayerSave])
+  const pinPhoneNote = useCallback((id) => {
+    commitPlayerSave(current => ({ ...current, phoneNotes: pinPhoneStoryNote(current.phoneNotes, id) }))
+  }, [commitPlayerSave])
+  const changePhoneContactNote = useCallback((contactId, note) => {
+    commitPlayerSave(current => ({ ...current, phoneContactNotes: { ...current.phoneContactNotes, [contactId]: note.slice(0, 1000) } }))
+  }, [commitPlayerSave])
+  const recordPhoneCall = useCallback((record) => {
+    commitPlayerSave(current => ({ ...current, phoneCallHistory: [...current.phoneCallHistory, record].slice(-50) }))
+  }, [commitPlayerSave])
+
   const notifyPhone = useCallback((event) => {
     commitPlayerSave(current => {
       const notifications = enqueuePhoneNotification(current.phoneNotifications, event)
@@ -135,14 +181,7 @@ export default function CenterExperience({
     commitPlayerSave(current => current.phoneNotifications.some(n => n.app === app && n.unread)
       ? { ...current, phoneNotifications: readPhoneNotifications(current.phoneNotifications, app) } : current)
   }, [commitPlayerSave])
-  useEffect(() => {
-    if (sceneReadingActiveRef.current || sceneReadingActive || localSlide || longDistanceTravel || entryPhase !== 'active') return
-    if (!playerSave.phoneNotifications.some(n => n.unread && !n.presented)) return
-    commitPlayerSave(current => ({ ...current, phoneNotifications: presentPhoneNotifications(current.phoneNotifications) }))
-    setRequestedPhoneApp(null)
-    setPhoneNotificationScreen(true)
-    setPhoneOpen(true)
-  }, [commitPlayerSave, entryPhase, localSlide, longDistanceTravel, playerSave.phoneNotifications, sceneReadingActive])
+
 
   const handleSceneAnimationEnd = useCallback((event) => {
     if (event.animationName === 'center-world-scene-in') onRevealComplete?.()
@@ -155,7 +194,7 @@ export default function CenterExperience({
 
   const revealPhone = useCallback(() => {
     if (sceneReadingActiveRef.current) return
-    setPhoneNotificationScreen(false)
+    setPhoneNotificationScreen(playerSaveRef.current.phoneNotifications.some(n => n.unread))
     setRequestedPhoneApp(null)
     setPhoneOpen(true)
   }, [])
@@ -486,28 +525,32 @@ export default function CenterExperience({
   useEffect(() => {
     if (!rideOrder) return
     const arrived = () => {
-      notifyPhone({ id: 'ride:' + rideOrder.sourceSceneId + ':' + rideOrder.targetSceneId + ':' + rideOrder.driverArrivesAt, app: 'ride', title: '司机已到达', body: '正在' + mainlineRideWaitingGuidance(rideOrder.sourceSceneId).waitingLabel + '等你' })
+      notifyPhone({ id: 'ride:' + rideOrder.sourceSceneId + ':' + rideOrder.targetSceneId + ':' + rideOrder.driverArrivesAt, app: 'ride', title: '司机已到达', body: '请前往上车点' })
       const current = latestWorldPositionRef.current
       if (current) rideBoardingRef.current(current.sceneId, current.position, current.context)
     }
     const timer = window.setTimeout(arrived, Math.max(0, rideOrder.driverArrivesAt - Date.now()))
     return () => window.clearTimeout(timer)
   }, [notifyPhone, rideOrder])
-  const handleRideRequest = useCallback((device, destinationSceneId) => {
-    if (rideOrder || phoneRideAvailability(device, worldLayerForScene(route.sceneId)) !== 'available') return
+  const handleRideRequest = useCallback((device, destinationSceneId, presentation) => {
+    if (rideOrder) return { ok: false, reason: '已有进行中的订单' }
+    if (phoneRideAvailability(device, worldLayerForScene(route.sceneId)) !== 'available') return { ok: false, reason: '当前手机无法使用叫车服务' }
     const zone = mainlineRideZone(route.sceneId)
     const intent = zone && mainlineLongDistanceTravelIntentForRide(zone.pickupSceneId, destinationSceneId)
     const current = latestWorldPositionRef.current
-    if (!intent || current?.sceneId !== route.sceneId) return
+    if (!intent) return { ok: false, reason: '此目的地暂时无法叫车前往' }
+    if (current?.sceneId !== route.sceneId) return { ok: false, reason: '当前位置尚未就绪，请稍后重试' }
     const etaMs = mainlineRideWalkingEtaMs(route.sceneId, current.position, current.context)
-    if (etaMs === null) return
-    const order = { sourceSceneId: zone.pickupSceneId, targetSceneId: destinationSceneId, driverArrivesAt: Date.now() + Math.ceil(etaMs) }
+    if (etaMs === null) return { ok: false, reason: '暂时无法找到通往上车点的路线，请换一个位置重试' }
+    const requestedAt = Date.now()
+    const order = { sourceSceneId: zone.pickupSceneId, targetSceneId: destinationSceneId, driverArrivesAt: requestedAt + Math.ceil(etaMs), requestedAt, ...presentation }
     trackEvent('center_ride_ready', { sceneId: route.sceneId, destinationSceneId, device, outcome: 'ready' })
     if (etaMs === 0 && mainlineRideAtPickup(order, route.sceneId, current.position)) boardRide(order)
     else {
       recordSceneStatePatch(order.sourceSceneId, mainlineRideOrderPatch(order))
       setRideOrder(order)
     }
+    return { ok: true }
   }, [boardRide, recordSceneStatePatch, rideOrder, route.sceneId])
 
   const canPersistScenePosition = Boolean(
@@ -542,7 +585,11 @@ export default function CenterExperience({
     <MainlineScenePage
       key={key ?? `${sceneRoute.sceneId}:${sceneRoute.entryPosition?.x ?? ''}:${sceneRoute.entryPosition?.y ?? ''}:${sceneRoute.spawnMode}:${sceneResumePosition?.x ?? ''}:${sceneResumePosition?.y ?? ''}`}
       sceneId={sceneRoute.sceneId}
-      onExternalExit={snapshot ? undefined : revealPhone}
+      onExternalExit={snapshot ? undefined : () => {
+        const current = latestWorldPositionRef.current
+        if (current && mainlineRideSuppressExternalPhoneReveal(rideOrder, current.sceneId, current.position)) return
+        revealPhone()
+      }}
       onExternalReturn={snapshot ? undefined : retractPhone}
       onSceneReady={snapshot ? undefined : handleSceneReady}
       phoneOpen={phoneOpen}
@@ -625,6 +672,8 @@ export default function CenterExperience({
           {localSlide && localSlideActor && <div className="scene-protagonist center-local-slide__actor" aria-hidden="true"><span className="scene-protagonist__dot" /></div>}
         </div>
         <WorldPhone
+          getPlayerPosition={() => latestWorldPositionRef.current?.sceneId === route.sceneId ? latestWorldPositionRef.current.position : null}
+          getRideMapSnapshot={getRideMapSnapshot}
           currentSceneId={route.sceneId}
           worldLayer={worldLayerForScene(route.sceneId)}
           device={phoneDevice}
@@ -635,6 +684,7 @@ export default function CenterExperience({
           onRideRequest={handleRideRequest}
           rideOrder={rideOrder}
           notifications={playerSave.phoneNotifications}
+          storyClock={playerSave.storyClock}
           notificationScreen={phoneNotificationScreen}
           onNotificationDismiss={() => setPhoneNotificationScreen(false)}
           onAppOpen={readPhoneApp}
@@ -650,6 +700,15 @@ export default function CenterExperience({
           onFeedbackOpen={handleFeedbackOpen}
           onFeedbackSubmit={handleFeedbackSubmit}
           onMeaningfulActivity={handleMeaningfulActivity}
+          notes={playerSave.phoneNotes}
+          yongheLeadUnlocked={cafeStoryStatus === 'complete'}
+          contactNotes={playerSave.phoneContactNotes}
+          callHistory={playerSave.phoneCallHistory}
+          onNoteCreate={createPhoneNote}
+          onNoteChange={changePhoneNote}
+          onNotePin={pinPhoneNote}
+          onContactNoteChange={changePhoneContactNote}
+          onCallRecord={recordPhoneCall}
         />
         {boundaryNotice && (
           <div className="center-experience__boundary" role="status" aria-live="polite">

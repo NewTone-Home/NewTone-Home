@@ -3,7 +3,13 @@
   inset: 0;
   z-index: 4;
   box-sizing: border-box;
-  overflow: hidden;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
   padding: clamp(3.5rem, 11vh, 7.5rem) clamp(1.25rem, 7vw, 7rem) clamp(5rem, 10vh, 6rem);
   background-color: var(--reader-paper, var(--paper-base));
   color: var(--ink-strong);
@@ -12,10 +18,12 @@
 
 .landing-updates-page__layout {
   display: flex;
-  align-items: center;
+  align-items: safe center;
   justify-content: center;
   width: min(100%, 72rem);
-  height: 100%;
+  height: auto;
+  min-height: 100%;
+  box-sizing: border-box;
   margin: 0 auto;
 }
 

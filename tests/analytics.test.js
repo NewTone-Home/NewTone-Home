@@ -34,6 +34,60 @@ describe('privacy-conscious analytics payload', () => {
     }
   })
 
+  it('captures bounded CSS viewport dimensions and conservative device layout categories', () => {
+    const viewport = (innerWidth, innerHeight, pointer) => ({
+      innerWidth,
+      innerHeight,
+      matchMedia: query => ({ matches: query === `(pointer: ${pointer})` }),
+    })
+    const phone = buildAnalyticsEvent('landing_entry', {
+      stepId: 'landing', language: 'zh', eventData: { languageSource: 'product_default' },
+    }, { ...dependencies(), viewportWindow: viewport(390, 844, 'coarse') })
+    expect(phone).toMatchObject({
+      device_category: 'phone', viewport_width: 390, viewport_height: 844,
+      language: 'zh', event_data: { languageSource: 'product_default' },
+    })
+
+    const tablet = buildAnalyticsEvent('landing_entry', {}, {
+      ...dependencies(), viewportWindow: viewport(820, 1180, 'coarse'),
+    })
+    expect(tablet).toMatchObject({ device_category: 'tablet', viewport_width: 820, viewport_height: 1180 })
+
+    const computer = buildAnalyticsEvent('landing_entry', {}, {
+      ...dependencies(), viewportWindow: viewport(1440, 900, 'fine'),
+    })
+    expect(computer).toMatchObject({ device_category: 'computer', viewport_width: 1440, viewport_height: 900 })
+
+    const narrowDesktop = buildAnalyticsEvent('landing_entry', {}, {
+      ...dependencies(), viewportWindow: viewport(520, 900, 'fine'),
+    })
+    expect(narrowDesktop).toMatchObject({ device_category: 'unknown', viewport_width: 520, viewport_height: 900 })
+  })
+
+  it('keeps unavailable and invalid viewport metadata safe and labels language sources explicitly', () => {
+    const noViewport = buildAnalyticsEvent('landing_entry', {
+      stepId: 'landing', language: 'zh', eventData: { languageSource: 'product_default', rawUA: 'must-not-leak' },
+    }, { ...dependencies(), viewportWindow: null })
+    expect(noViewport).toMatchObject({
+      device_category: 'unknown', viewport_width: null, viewport_height: null,
+      language: 'zh', event_data: { languageSource: 'product_default' },
+    })
+    expect(noViewport.event_data).not.toHaveProperty('rawUA')
+
+    const invalidViewport = buildAnalyticsEvent('landing_entry', {}, {
+      ...dependencies(), viewportWindow: { innerWidth: 10001, innerHeight: 900 },
+    })
+    expect(invalidViewport).toMatchObject({ device_category: 'unknown', viewport_width: null, viewport_height: null })
+
+    const selected = buildAnalyticsEvent('language_selected', {
+      stepId: 'entry:language', language: 'en', eventData: { languageSource: 'user_selected' },
+    }, { ...dependencies(), viewportWindow: null })
+    expect(selected).toMatchObject({ language: 'en', event_data: { languageSource: 'user_selected' } })
+    expect(buildAnalyticsEvent('language_selected', {
+      language: 'en', eventData: { languageSource: 'not-a-source' },
+    }, dependencies())?.event_data).toEqual({})
+  })
+
   it('preserves the normalized browser-back exit reason', () => {
     const event = buildAnalyticsEvent('reader_exit', { exitReason: 'browser_back' }, dependencies())
     expect(event?.exit_reason).toBe('browser_back')

@@ -9,7 +9,7 @@ import { useSceneParallax } from '../hooks/useSceneParallax'
 import { useTitleRetrace } from '../hooks/useTitleRetrace'
 import { LANDING_SCENES, resolveLandingScene } from '../landing/landingScene'
 import { UPDATES_PHASE } from '../landing/landingUpdatesFlow'
-import { detectBrowserReaderLanguage } from '../i18n/languages'
+import { resolveDisplayedReaderLanguage } from '../i18n/languages'
 import EntryButtonGroup from '../components/EntryButtonGroup'
 import LandingJijiaScene from '../components/landing/LandingJijiaScene'
 import LandingTitleMark from '../components/landing/LandingTitleMark'
@@ -133,9 +133,11 @@ function Landing({
   }, [begin, motionMode, reducedMotion, retract, returnArrival])
 
   const hasProgress = hasStableReaderProgress({ readerStarted, readerCompleted })
-  const landingLanguage = hasInitializedLanguage
-    ? language
-    : detectBrowserReaderLanguage(navigator.languages || [navigator.language])
+  const { language: landingLanguage } = resolveDisplayedReaderLanguage({
+    language,
+    hasInitializedLanguage,
+    browserLanguages: navigator.languages || [navigator.language || ''],
+  })
   const readerEntryId = hasProgress ? 'reader-continue' : 'reader-start'
   const landingEntries = useMemo(() => {
     const entries = [{

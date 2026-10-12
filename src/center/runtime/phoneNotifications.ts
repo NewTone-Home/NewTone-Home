@@ -1,5 +1,9 @@
 export type PhoneNotificationApp = 'ride' | 'milk-tea'
 export type PhoneNotification = { id: string; app: PhoneNotificationApp; title: string; body: string; unread: boolean; presented: boolean }
+/** Ordinary notifications do not own phone opening. */
+export function phoneHasAutomaticNotification(_current: readonly PhoneNotification[]): boolean {
+  return false
+}
 export function cleanPhoneNotifications(value: unknown): PhoneNotification[] {
   if (!Array.isArray(value)) return []
   return value.filter((n): n is PhoneNotification => Boolean(n && typeof n.id === 'string' && (n.app === 'ride' || n.app === 'milk-tea') && typeof n.title === 'string' && typeof n.body === 'string'))

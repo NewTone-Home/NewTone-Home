@@ -19,6 +19,8 @@ export type BoundaryGridCell = {
 export type SceneScreenMetrics = {
   width: number
   height: number
+  /** Viewport-based storefront typography; stage percentages still use width/height. */
+  viewportWidth?: number
 }
 
 export const sharedBoundaryScreenSpacingPx = 28
@@ -59,7 +61,7 @@ export function boundaryGridOffsetForScreenCells(
 export function readSceneScreenMetrics(element: { getBoundingClientRect: () => { width: number; height: number } }): SceneScreenMetrics | null {
   const rect = element.getBoundingClientRect()
   if (!(rect.width > 0) || !(rect.height > 0)) return null
-  return { width: Number(rect.width.toFixed(2)), height: Number(rect.height.toFixed(2)) }
+  return { width: Number(rect.width.toFixed(2)), height: Number(rect.height.toFixed(2)), viewportWidth: typeof window === 'undefined' ? rect.width : window.innerWidth }
 }
 
 export function boundaryGridCoordinates(start: number, end: number, targetStep: number): number[] {

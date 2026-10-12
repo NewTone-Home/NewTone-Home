@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { READING_ENTRY_TIMINGS } from '../transitions/readingEntryController'
 import { copy } from '../i18n/copy'
-import { detectBrowserReaderLanguage } from '../i18n/languages'
+import { resolveDisplayedReaderLanguage } from '../i18n/languages'
 import { initialScramble, useScrambleText } from '../hooks/useScrambleText'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useSceneParallax } from '../hooks/useSceneParallax'
@@ -93,7 +93,11 @@ function RitualSelector({ language, onProceed, onModeSelect, phase }) {
   const modeStage = phase === 'mode-active' || phase === 'mode-leaving'
   const leaving = phase === 'language-leaving' || phase === 'mode-leaving'
   const [initialLanguage] = useState(() => (
-    detectBrowserReaderLanguage(navigator.languages || [navigator.language || ''])
+    resolveDisplayedReaderLanguage({
+      language: 'zh',
+      hasInitializedLanguage: false,
+      browserLanguages: navigator.languages || [navigator.language || ''],
+    }).language
   ))
   const [draftLanguage, setDraftLanguage] = useState(initialLanguage)
   const [revealed, setRevealed] = useState(false)

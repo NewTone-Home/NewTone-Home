@@ -13,6 +13,7 @@ import { resolveReaderEnvironmentPreview } from './data/reader-experiments/reade
 import { getReaderThemeVariables } from './reader/readerTheme'
 import { trackEvent } from './services/analytics'
 import { recordRuntimeAudit } from './services/runtimeAudit'
+import { trackLandingEntry } from './services/landingEntryAnalytics'
 import CenterExperience from './center/CenterExperience'
 import { resolveMainlineSceneId } from './center/runtime/mainlineScenes'
 import { hasResumablePlayerSave } from './center/runtime/playerSave'
@@ -128,7 +129,9 @@ function App({ contentStatus = 'ready', onRetryContent }) {
   }, [currentView])
 
   useEffect(() => {
-    if (currentView === 'landing') trackEvent('landing_entry', { stepId: 'landing' })
+    if (currentView !== 'landing') return
+    const displayedPreferences = useProgressStore.getState()
+    trackLandingEntry(displayedPreferences, navigator.languages || [navigator.language || ''])
   }, [currentView])
 
   const _handleEnter = useCallback((intent) => {
@@ -187,7 +190,11 @@ function App({ contentStatus = 'ready', onRetryContent }) {
     const nextLanguage = selectedLanguage || language
     useProgressStore.getState().setLanguage(nextLanguage)
     recordRuntimeAudit('language-confirmed', { language: nextLanguage })
-    trackEvent('language_selected', { stepId: 'entry:language', language: nextLanguage })
+    trackEvent('language_selected', {
+      stepId: 'entry:language',
+      language: nextLanguage,
+      eventData: { languageSource: 'user_selected' },
+    })
     readingEntry.proceedFromLanguage()
   }, [language, readingEntry.proceedFromLanguage])
 

@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
 const app = read('../src/App.jsx')
+const landing = read('../src/views/Landing.jsx')
+const landingEntryAnalytics = read('../src/services/landingEntryAnalytics.js')
 const main = read('../src/main.jsx')
 const reader = read('../src/views/ReaderOrchestrator.jsx')
 const analytics = read('../src/services/analytics.js')
@@ -29,6 +31,20 @@ describe('analytics observability v2 wiring', () => {
     expect(reader).toContain("trackEvent('mode_selected'")
     expect(analytics).not.toContain('pointer_move')
     expect(analytics).not.toContain('parallax_move')
+  })
+
+  it('records the displayed Landing language source and viewport metadata without hardware identifiers', () => {
+    expect(app).toContain('trackLandingEntry(displayedPreferences, navigator.languages')
+    expect(landing).toContain('resolveDisplayedReaderLanguage({')
+    expect(landingEntryAnalytics).toContain('resolveDisplayedReaderLanguage({')
+    expect(app).toContain("eventData: { languageSource: 'user_selected' }")
+    expect(analytics).toContain('device_category: deviceCategory')
+    expect(analytics).toContain('viewport_width: width')
+    expect(analytics).toContain('viewport_height: height')
+    expect(analytics).toContain("['user_selected', 'browser_default', 'product_default']")
+    expect(analytics).not.toContain('navigator.userAgent')
+    expect(analytics).not.toContain('screen.width')
+    expect(analytics).not.toContain('screen.height')
   })
 
   it('keeps the staging database event dictionary aligned with the client dictionary', () => {

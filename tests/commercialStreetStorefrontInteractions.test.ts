@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findMainlinePath, isWalkableMainlinePoint, resolveMainlineInteractionCandidates, resolveMainlineStorefrontInteraction } from '../src/center/runtime/mainlineNavigation'
+import { findMainlinePath, isWalkableMainlinePoint, resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
@@ -71,12 +71,20 @@ describe('commercial street storefront interactions', () => {
     expect(preferred.every((point) => isWalkableMainlinePoint(point, street))).toBe(true)
   })
 
-  it('accepts any legal point in the outward half-disc without routing to a fixed contact', () => {
-    const storefront = street.storefronts.find(s => s.id === 'commercial-south-slot-5')!
-    for (const from of [{x:108,y:60.5},{x:110,y:59},{x:114,y:60.5}]) {
-      expect(resolveMainlineStorefrontInteraction(street, storefront, from)).toEqual({target:from,path:[from],inRange:true})
-    }
-    expect(resolveMainlineStorefrontInteraction(street, storefront, {x:110,y:53}).inRange).toBe(false)
+  it('keeps the radius-six navigation candidate geometry unchanged', () => {
+    const storefront = street.storefronts.find((candidate) => candidate.id === 'commercial-north-slot-2')!
+    const approach = mainlineStorefrontApproach(street, storefront)
+    const candidates = mainlineStorefrontInteractionCandidates(street, storefront, { x: (storefront.start + storefront.end) / 2, y: approach.y + 8 })
+    const centerX = (storefront.start + storefront.end) / 2
+    expect(candidates[0]).toEqual({ x: centerX, y: approach.y })
+    expect(candidates[18]).toEqual({ x: centerX, y: approach.y - 1.8 })
+    expect(candidates[36]).toEqual({ x: centerX, y: approach.y - 3.6 })
+  })
+
+  it('keeps Café on the separate portal and reveal contract', () => {
+    const cafe = street.storefronts.find((candidate) => candidate.id === 'commercial-cafe-slot')!
+    expect(cafe.portalId).toBe('street-cafe-entry')
+    expect(commercialStreetStorefrontInteractionFor(cafe.id)).toBeUndefined()
   })
 
   it('re-resolves a continuous facade when a live actor occupies the nearest projected contact', () => {

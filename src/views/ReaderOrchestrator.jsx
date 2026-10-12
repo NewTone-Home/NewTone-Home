@@ -389,6 +389,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
       ...currentAnalyticsContext(),
       stepId: 'reader-tools',
       language: nextLanguage,
+      eventData: { languageSource: 'user_selected' },
     })
   }, [motionMode, reducedMotion, setLanguage])
 
@@ -485,7 +486,12 @@ function EmptyReaderOrchestrator({ contentStatus, onRetryContent, onReaderReady,
 
   const handleReaderLanguage = useCallback((nextLanguage) => {
     setLanguage(nextLanguage)
-    trackEvent('language_selected', { stepId: 'reader-tools', language: nextLanguage, readingMode })
+    trackEvent('language_selected', {
+      stepId: 'reader-tools',
+      language: nextLanguage,
+      readingMode,
+      eventData: { languageSource: 'user_selected' },
+    })
   }, [readingMode, setLanguage])
 
   const handleReaderMode = useCallback((nextMode) => {

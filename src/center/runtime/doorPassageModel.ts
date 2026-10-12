@@ -149,7 +149,7 @@ export function doorPassageIsOpen(phase: DoorPassagePhase) {
   return phase === 'opening' || phase === 'open' || phase === 'crossing' || phase === 'holding'
 }
 
-/** A passage is physically traversable only after its visual opening completes. */
+/** A passage is traversable after its mechanism completes opening, independently of glyphs. */
 export function doorPassageIsPassable(phase: DoorPassagePhase) {
   return phase === 'open' || phase === 'crossing' || phase === 'holding'
 }
