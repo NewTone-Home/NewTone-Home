@@ -114,6 +114,9 @@ describe('Landing updates page button contract', () => {
   it('keeps expanded updates inside a bounded, vertically scrollable viewport on desktop and touch screens', () => {
     expect(pageShellStyles).toContain('height: 100dvh')
     expect(pageShellStyles).toContain('overflow: hidden')
+    expect(styles).toContain('height: 100%')
+    expect(styles).toContain('min-height: 0')
+    expect(styles).toContain('max-height: 100%')
     expect(styles).toContain('overflow-x: hidden')
     expect(styles).toContain('overflow-y: auto')
     expect(styles).toContain('overscroll-behavior-y: contain')
