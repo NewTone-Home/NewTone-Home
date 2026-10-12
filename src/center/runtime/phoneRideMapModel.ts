@@ -1,8 +1,7 @@
-import { mainlineScenePassageDoorway, type MainlineSceneDefinition, type MainlineSceneId } from './mainlineScenes'
+import { type MainlineSceneDefinition, type MainlineSceneId } from './mainlineScenes'
 import type { CollisionBox } from './sceneGeometry'
-import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 
-export type RideMapTargetZone = { id: string; bounds: CollisionBox; fillBounds: CollisionBox; fadeTowardTarget?: boolean; fadeAxis?: 'x' | 'y'; inwardDirection?: -1 | 1 }
+export type RideMapTargetZone = { id: string; bounds: CollisionBox; fillBounds: CollisionBox; clipBounds?: CollisionBox; fadeTowardTarget?: boolean; fadeAxis?: 'x' | 'y'; inwardDirection?: -1 | 1 }
 
 function groundBoundsAtTarget(scene: MainlineSceneDefinition, target: CollisionBox, fallback: CollisionBox): CollisionBox {
   const targetGround = [
@@ -54,7 +53,6 @@ export function phoneRideMapTargetZones(
   sceneId: MainlineSceneId,
   pickupSceneId: MainlineSceneId,
   walkBounds: CollisionBox = scene.walkBounds,
-  snapshot?: MainlineSceneGeometrySnapshot,
 ): RideMapTargetZone[] {
   if (sceneId === pickupSceneId) {
     // Every authored external exit is a valid Ride pickup in the current Ride
@@ -81,20 +79,12 @@ export function phoneRideMapTargetZones(
       }
       const tangentSpan = tangentEnd - tangentStart
       const fillBounds = localExitFillBounds(bounds.bounds, ground, exit.axis, exit.direction, tangentSpan)
-      return fillBounds ? [{ ...bounds, fillBounds, fadeTowardTarget: true, fadeAxis: exit.axis, inwardDirection: exit.direction * -1 as -1 | 1 }] : []
+      return fillBounds ? [{ ...bounds, fillBounds, clipBounds: ground, fadeTowardTarget: true, fadeAxis: exit.axis, inwardDirection: exit.direction * -1 as -1 | 1 }] : []
     })
   }
 
-  const passage = scene.passages.find((item) => item.targetSceneId === pickupSceneId)
-  if (!passage) return []
-  const doorway = snapshot?.passages.get(passage.id)?.doorway ?? mainlineScenePassageDoorway(scene, passage.id)
-  if (!doorway) return []
-  const axis = doorway.width <= doorway.height ? 'x' : 'y'
-  const groundCenter = axis === 'x' ? walkBounds.x + walkBounds.width / 2 : walkBounds.y + walkBounds.height / 2
-  const targetCenter = axis === 'x' ? doorway.x + doorway.width / 2 : doorway.y + doorway.height / 2
-  const outwardDirection = (targetCenter < groundCenter ? -1 : 1) as -1 | 1
-  const tangentSpan = axis === 'x' ? doorway.height : doorway.width
-  const ground = groundBoundsAtTarget(scene, doorway, walkBounds)
-  const fillBounds = localExitFillBounds(doorway, ground, axis, outwardDirection, tangentSpan)
-  return fillBounds ? [{ id: 'pickup-' + passage.id, bounds: doorway, fillBounds, fadeTowardTarget: true, fadeAxis: axis, inwardDirection: outwardDirection * -1 as -1 | 1 }] : []
+  // A passage leading to the pickup scene is a route transition, not a Ride
+  // pickup area. PhoneRideLocalMap still shows its direction through the
+  // navigation goal; reserve ground fill for formal, Ride-valid exits above.
+  return []
 }

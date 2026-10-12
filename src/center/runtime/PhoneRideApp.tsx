@@ -88,7 +88,7 @@ function PhoneRideLocalMap({sceneId,waitingSceneId,getPosition,getSnapshot,cover
  const ray=Math.max(Math.abs(dx)/Math.max(1,safeX),Math.abs(dy)/Math.max(1,safeY))
  const edge=pickup&&ray>1?{x:viewportSize.width/2+dx/ray,y:centerY+dy/ray,angle:Math.atan2(dy,dx)*180/Math.PI+90}:null
  const mapGeometry=snapshot?.sceneId===sceneId?snapshot.units:scene.geometry
- const targetZones=phoneRideMapTargetZones(scene,sceneId,waitingSceneId,bounds,snapshot?.sceneId===sceneId?snapshot:undefined)
+ const targetZones=phoneRideMapTargetZones(scene,sceneId,waitingSceneId,bounds)
  return <div ref={viewportRef} className="world-phone__ride-local-map" data-ride-map-scene={sceneId}>
   <div className="world-phone__ride-map-scene" key={sceneId}>
    <PhoneMapCanvas mapRegions={regions} displayDevice="inner" currentLandmark={{device:'inner',id:'player'}} selectedMapPlaceId={null} onSelect={()=>{}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} localViewBox={bounds.x+' '+bounds.y+' '+bounds.width+' '+bounds.height} geometry={mapGeometry} localMapObjects={[]} localMapPassages={[]} localMapZones={targetZones} focusId="player" coveredHeight={coveredHeight} regionsOnly followFocus hideMarkerLabels={['player']} />

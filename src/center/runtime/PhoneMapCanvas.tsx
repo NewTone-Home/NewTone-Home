@@ -4,7 +4,7 @@ import { clampPhoneMapZoom, phoneMapZoomBounds, phoneMapTransitLinks, phoneMapRe
 import type { PhoneDevice } from './phoneState'
 
 type Point = PhoneMapPoint
-type LocalMapShape = { id: string; kind?: string; bounds: { x: number; y: number; width: number; height: number }; fillBounds?: { x: number; y: number; width: number; height: number }; fadeTowardTarget?: boolean; fadeAxis?: 'x' | 'y'; inwardDirection?: -1 | 1 }
+type LocalMapShape = { id: string; kind?: string; bounds: { x: number; y: number; width: number; height: number }; fillBounds?: { x: number; y: number; width: number; height: number }; clipBounds?: { x: number; y: number; width: number; height: number }; fadeTowardTarget?: boolean; fadeAxis?: 'x' | 'y'; inwardDirection?: -1 | 1 }
 type Props = {
   mapRegions: readonly PhoneMapRegion[]; displayDevice: PhoneDevice
   currentLandmark: { device: PhoneDevice; id: string } | null
@@ -191,29 +191,18 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
             const profileEnd = profileAxis === 'x'
               ? (inwardDirection > 0 ? floor.x + floor.width : floor.x)
               : (inwardDirection > 0 ? floor.y + floor.height : floor.y)
-            const sideAxis = profileAxis === 'x' ? 'y' : 'x'
+            const support = zone.clipBounds ?? floor
             const blocked = geometry?.filter(unit => unit.navigation.blocked && !unit.visualOnly) ?? []
             const profileGradient = zone.fadeTowardTarget
-              ? <>
-                  <linearGradient id={`${mapId}-${safeId}-longitudinal`} data-ride-target-gradient="true" gradientUnits="userSpaceOnUse"
+              ? <linearGradient id={`${mapId}-${safeId}-gradient`} data-ride-target-gradient="true" gradientUnits="userSpaceOnUse"
                     x1={profileAxis === 'x' ? profileStart : floor.x + floor.width / 2} y1={profileAxis === 'y' ? profileStart : floor.y + floor.height / 2}
                     x2={profileAxis === 'x' ? profileEnd : floor.x + floor.width / 2} y2={profileAxis === 'y' ? profileEnd : floor.y + floor.height / 2}>
-                    <stop offset="0%" stopColor="white" stopOpacity="0" />
-                    <stop offset="18%" stopColor="white" stopOpacity="0.38" />
-                    <stop offset="58%" stopColor="white" stopOpacity="0.92" />
-                    <stop offset="82%" stopColor="white" stopOpacity="0.58" />
-                    <stop offset="100%" stopColor="white" stopOpacity="0" />
+                    <stop offset="0%" stopColor="#52d99a" stopOpacity="0" />
+                    <stop offset="18%" stopColor="#52d99a" stopOpacity="0.18" />
+                    <stop offset="58%" stopColor="#52d99a" stopOpacity="0.34" />
+                    <stop offset="82%" stopColor="#52d99a" stopOpacity="0.24" />
+                    <stop offset="100%" stopColor="#52d99a" stopOpacity="0" />
                   </linearGradient>
-                  <linearGradient id={`${mapId}-${safeId}-transverse`} data-ride-target-edge-gradient="true" gradientUnits="userSpaceOnUse"
-                    x1={sideAxis === 'x' ? floor.x : floor.x + floor.width / 2} y1={sideAxis === 'y' ? floor.y : floor.y + floor.height / 2}
-                    x2={sideAxis === 'x' ? floor.x + floor.width : floor.x + floor.width / 2} y2={sideAxis === 'y' ? floor.y + floor.height : floor.y + floor.height / 2}>
-                    <stop offset="0%" stopColor="white" stopOpacity="0" />
-                    <stop offset="22%" stopColor="white" stopOpacity="0.82" />
-                    <stop offset="50%" stopColor="white" stopOpacity="1" />
-                    <stop offset="78%" stopColor="white" stopOpacity="0.82" />
-                    <stop offset="100%" stopColor="white" stopOpacity="0" />
-                  </linearGradient>
-                </>
               : <radialGradient id={`${mapId}-${safeId}-gradient`} data-ride-target-gradient="true" gradientUnits="userSpaceOnUse" cx={zone.bounds.x + zone.bounds.width / 2} cy={zone.bounds.y + zone.bounds.height / 2} r={Math.max(1, Math.hypot(floor.width, floor.height) * .55)}>
                   <stop offset="0%" stopColor="#52d99a" stopOpacity="0.34" />
                   <stop offset="52%" stopColor="#52d99a" stopOpacity="0.14" />
@@ -221,16 +210,10 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
                 </radialGradient>
             return <g key={`${zone.id}-defs`}>
               {profileGradient}
-              {zone.fadeTowardTarget && <mask id={`${mapId}-${safeId}-profile-mask`} maskUnits="userSpaceOnUse" x={floor.x} y={floor.y} width={floor.width} height={floor.height}>
-                <g mask={`url(#${mapId}-${safeId}-transverse-mask)`}>
-                  <rect x={floor.x} y={floor.y} width={floor.width} height={floor.height} fill={`url(#${mapId}-${safeId}-longitudinal)`} />
-                </g>
-              </mask>}
-              {zone.fadeTowardTarget && <mask id={`${mapId}-${safeId}-transverse-mask`} maskUnits="userSpaceOnUse" x={floor.x} y={floor.y} width={floor.width} height={floor.height}>
-                <rect x={floor.x} y={floor.y} width={floor.width} height={floor.height} fill={`url(#${mapId}-${safeId}-transverse)`} />
-              </mask>}
+              {zone.fadeTowardTarget && <filter id={`${mapId}-${safeId}-soft-edge`} x="-12%" y="-12%" width="124%" height="124%" colorInterpolationFilters="sRGB"><feGaussianBlur stdDeviation="0.45" /></filter>}
+              {zone.fadeTowardTarget && <clipPath id={`${mapId}-${safeId}-ground-clip`}><rect x={support.x} y={support.y} width={support.width} height={support.height} /></clipPath>}
               <mask id={`${mapId}-${safeId}-floor-mask`} data-ride-target-floor-mask="true" maskUnits="userSpaceOnUse" x={floor.x} y={floor.y} width={floor.width} height={floor.height}>
-                <rect x={floor.x} y={floor.y} width={floor.width} height={floor.height} fill="white" mask={zone.fadeTowardTarget ? `url(#${mapId}-${safeId}-profile-mask)` : undefined} />
+                <rect x={floor.x} y={floor.y} width={floor.width} height={floor.height} fill="white" />
                 {blocked.map(unit => <rect key={unit.id} x={unit.x} y={unit.y} width={unit.width} height={unit.height} fill="black" />)}
               </mask>
             </g>
@@ -242,7 +225,7 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
           {localMapZones.map(zone => {
             const safeId = zone.id.replace(/[^a-zA-Z0-9_-]/g, '-')
             const floor = zone.fillBounds ?? zone.bounds
-            return <rect key={zone.id} className="world-phone__map-zone" data-map-zone={zone.id} data-map-zone-fill="true" data-fade-axis={zone.fadeAxis} x={floor.x} y={floor.y} width={floor.width} height={floor.height} fill={zone.fadeTowardTarget ? '#52d99a' : `url(#${mapId}-${safeId}-gradient)`} fillOpacity={zone.fadeTowardTarget ? 0.34 : 1} mask={`url(#${mapId}-${safeId}-floor-mask)`} stroke="none" />
+            return <rect key={zone.id} className="world-phone__map-zone" data-map-zone={zone.id} data-map-zone-fill="true" data-fade-axis={zone.fadeAxis} x={floor.x} y={floor.y} width={floor.width} height={floor.height} fill={`url(#${mapId}-${safeId}-gradient)`} filter={zone.fadeTowardTarget ? `url(#${mapId}-${safeId}-soft-edge)` : undefined} mask={`url(#${mapId}-${safeId}-floor-mask)`} clipPath={zone.fadeTowardTarget ? `url(#${mapId}-${safeId}-ground-clip)` : undefined} stroke="none" />
           })}
         </g>}
         {localMapObjects.map(object => <rect key={object.id} className={`world-phone__map-object world-phone__map-object--${object.kind ?? 'fixture'}`} data-map-object={object.id} x={object.bounds.x} y={object.bounds.y} width={object.bounds.width} height={object.bounds.height} />)}

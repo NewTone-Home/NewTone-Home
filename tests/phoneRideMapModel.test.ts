@@ -9,10 +9,7 @@ describe('Ride local map target zones', () => {
       for (const sceneId of rideZone.scenes) {
         const scene = mainlineScenes[sceneId]
         const zones = phoneRideMapTargetZones(scene, sceneId, rideZone.pickupSceneId)
-        const expectedCount = sceneId === rideZone.pickupSceneId
-          ? scene.externalExits.length
-          : Number(scene.passages.some((passage) => passage.targetSceneId === rideZone.pickupSceneId))
-        expect(expectedCount).toBeGreaterThan(0)
+        const expectedCount = sceneId === rideZone.pickupSceneId ? scene.externalExits.length : 0
         expect(zones).toHaveLength(expectedCount)
         for (const zone of zones) {
           expect(zone.bounds.width).toBeGreaterThan(0)
@@ -20,6 +17,11 @@ describe('Ride local map target zones', () => {
           expect(Number.isFinite(zone.bounds.x + zone.bounds.y + zone.bounds.width + zone.bounds.height)).toBe(true)
           expect(zone.fillBounds.width).toBeGreaterThan(0)
           expect(zone.fillBounds.height).toBeGreaterThan(0)
+          expect(zone.clipBounds).toBeDefined()
+          expect(zone.fillBounds.x).toBeGreaterThanOrEqual(zone.clipBounds!.x)
+          expect(zone.fillBounds.y).toBeGreaterThanOrEqual(zone.clipBounds!.y)
+          expect(zone.fillBounds.x + zone.fillBounds.width).toBeLessThanOrEqual(zone.clipBounds!.x + zone.clipBounds!.width)
+          expect(zone.fillBounds.y + zone.fillBounds.height).toBeLessThanOrEqual(zone.clipBounds!.y + zone.clipBounds!.height)
         }
       }
     })
@@ -35,7 +37,7 @@ describe('Ride local map target zones', () => {
     expect(phoneRideMapTargetZones(street, 'commercial-street', 'commercial-street')).toHaveLength(1)
     const cafeRidePassages = cafe.passages.filter((passage) => passage.targetSceneId === 'commercial-street' && passage.access === 'open')
     expect(cafeRidePassages).toHaveLength(1)
-    expect(phoneRideMapTargetZones(cafe, 'commercial-cafe', 'commercial-street')).toHaveLength(1)
+    expect(phoneRideMapTargetZones(cafe, 'commercial-cafe', 'commercial-street')).toHaveLength(0)
   })
 
   it('keeps the Street pickup target at the formal exit and limits fill to its nearby ground patch', () => {
@@ -52,6 +54,7 @@ describe('Ride local map target zones', () => {
     expect(zone.fillBounds.x + zone.fillBounds.width).toBeLessThan(100)
     expect(zone.fillBounds.x).toBeCloseTo(scene.externalExits[0]!.threshold)
     expect(zone.fillBounds).not.toEqual(zone.bounds)
+    expect(zone.clipBounds).toEqual(lane.bounds)
   })
 
   it('fills a small patch at each real Office pickup exit', () => {
@@ -102,16 +105,9 @@ describe('Ride local map target zones', () => {
     expect(zone.fadeTowardTarget).toBe(true)
   })
 
-  it('limits Café fill to the walkable floor beside its authored Street doorway', () => {
+  it('does not present the Café return-to-Street passage as a Ride pickup zone', () => {
     const scene = mainlineScenes['commercial-cafe']
-    const zone = phoneRideMapTargetZones(scene, 'commercial-cafe', 'commercial-street')[0]
-    expect(zone.bounds.width).toBeGreaterThan(0)
-    const tangentSpan = Math.max(zone.bounds.width, zone.bounds.height)
-    expect(Math.max(zone.fillBounds.width, zone.fillBounds.height)).toBeLessThanOrEqual(tangentSpan)
-    expect(Math.min(zone.fillBounds.width, zone.fillBounds.height)).toBeCloseTo(tangentSpan / 2)
-    expect(zone.fillBounds.width * zone.fillBounds.height).toBeLessThan((scene.walkBounds.width * scene.walkBounds.height) / 50)
-    expect(zone.fillBounds.x).toBeCloseTo(scene.walkBounds.x)
-    expect(zone.fillBounds.y + zone.fillBounds.height / 2).toBeCloseTo(zone.bounds.y + zone.bounds.height / 2)
-    expect(zone.fadeTowardTarget).toBe(true)
+    expect(scene.passages.some((passage) => passage.id === 'street-cafe-entry' && passage.targetSceneId === 'commercial-street')).toBe(true)
+    expect(phoneRideMapTargetZones(scene, 'commercial-cafe', 'commercial-street')).toEqual([])
   })
 })
