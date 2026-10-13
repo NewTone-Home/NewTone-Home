@@ -1,0 +1,26 @@
+{
+  "fixture_kind": "isolated browser localStorage key/value map",
+  "generated_by": "exact baseline playerSave.ts APIs loadPlayerSave/createInitialPlayerSave/recordPlayerScenePosition/recordPlayerSceneState(recordPlayerSceneStatePatch)/savePlayerSave",
+  "baseline_commit": "2b7a099c71b64812ee338d607970949d18c06ed0",
+  "current_under_test": "a5860fc202e58a450d6d7ef6a1b665b6d6d1ac43",
+  "expected_scene": "commercial-street",
+  "expected_position": {
+    "x": 38,
+    "y": 53
+  },
+  "expected_restored_state": {
+    "interactionTutorialCompleted": true,
+    "exploredObjectId": "commercial-south-slot-5",
+    "commercialStreetQuestionNarrativeCompleted": true,
+    "commercialStreetMilkTeaAppUnlocked": true
+  },
+  "storage": {
+    "newtone-public-release-cutover-v1": "center-v1",
+    "newtone-player-save-v1": "{\"_version\":1,\"currentSceneId\":\"commercial-street\",\"currentPosition\":{\"x\":38,\"y\":53},\"scenePositions\":{\"commercial-street\":{\"x\":38,\"y\":53}},\"phoneDevice\":\"surface\",\"sceneState\":{\"commercial-street\":{\"interactionTutorialCompleted\":true,\"interactionExplored:commercial-south-slot-5\":true,\"commercialStreetQuestionNarrativeCompleted\":true,\"commercialStreetMilkTeaAppUnlocked\":true}},\"phoneNotifications\":[],\"updatedAt\":1712345678901}"
+  },
+  "expected_default_spawn_position": {
+    "x": 34,
+    "y": 50
+  },
+  "position_is_non_default": true
+}
