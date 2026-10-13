@@ -1,0 +1,27 @@
+{
+  "fixture_kind": "isolated browser localStorage key/value map",
+  "generated_by": "exact baseline playerSave.ts APIs loadPlayerSave/createInitialPlayerSave/recordPlayerScenePosition/recordPlayerSceneState(recordPlayerSceneStatePatch)/savePlayerSave",
+  "baseline_commit": "2b7a099c71b64812ee338d607970949d18c06ed0",
+  "current_under_test": "a5860fc202e58a450d6d7ef6a1b665b6d6d1ac43",
+  "expected_scene": "commercial-cafe",
+  "expected_position": {
+    "x": 20,
+    "y": 70
+  },
+  "expected_restored_state": {
+    "status": "complete",
+    "narrativeCursor": 14,
+    "coffeeStatus": "delivered",
+    "narrativePhase": "complete",
+    "laoZhouDeparture": "departed"
+  },
+  "storage": {
+    "newtone-public-release-cutover-v1": "center-v1",
+    "newtone-player-save-v1": "{\"_version\":1,\"currentSceneId\":\"commercial-cafe\",\"currentPosition\":{\"x\":20,\"y\":70},\"scenePositions\":{\"commercial-cafe\":{\"x\":20,\"y\":70}},\"phoneDevice\":\"surface\",\"sceneState\":{\"commercial-cafe\":{\"commercialCafeStoryStatus\":\"complete\",\"commercialCafeNarrativeCursor\":14,\"commercialCafeCoffeeStatus\":\"delivered\",\"commercialCafeCoffeePreparationStartedAt\":null,\"commercialCafeNarrativePhase\":\"complete\",\"commercialCafeLaoZhouDeparture\":\"departed\",\"commercialCafeCompletedAt\":1712345670000,\"commercialCafeStoryStage\":null,\"commercialCafeCoffeeOrdered\":null,\"commercialCafeCoffeeDelivered\":null}},\"phoneNotifications\":[],\"updatedAt\":1712345678902}"
+  },
+  "expected_default_spawn_position": {
+    "x": 18,
+    "y": 68
+  },
+  "position_is_non_default": true
+}
