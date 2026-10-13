@@ -5,6 +5,7 @@ import { useReadingEntry } from './transitions/readingEntryController'
 import { resolveEntryBlockedStepId, useEntryFrictionTracking } from './hooks/useEntryFrictionTracking'
 import Reader from './views/ReaderOrchestrator'
 import AdminSequenceGate from './admin/AdminSequenceGate'
+import LegacySaveAcceptancePreview from './test/LegacySaveAcceptancePreview'
 import EntrySurface from './components/EntrySurface'
 import GlobalTransitionOverlay from './components/GlobalTransitionOverlay'
 import PageShell from './components/PageShell'
@@ -248,6 +249,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
       )}
       {isGlobalTransitioning && <GlobalTransitionOverlay surfaceStyle={readerSurfaceStyle} />}
       {!worldMounted && <AdminSequenceGate />}
+      {import.meta.env.VITE_LEGACY_SAVE_ACCEPTANCE_PREVIEW === 'true' && <LegacySaveAcceptancePreview />}
     </>
   )
 }
