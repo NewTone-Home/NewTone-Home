@@ -9,8 +9,10 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
     await page.locator('[data-fixture-dialogue]').click()
     const speaker = page.locator('.scene-mainline-speaker-anchor .scene-mainline-text__speaker')
     await expect(speaker).toHaveAttribute('data-speaker-phase', 'steady')
-    const original = (await speaker.boundingBox())!
     await page.locator('[data-fixture-camera]').click()
+    // The anchor remains attached to its world point after camera movement;
+    // subsequent body-length changes must not shift the speaker itself.
+    const original = (await speaker.boundingBox())!
     const widths: number[] = []
     for (const text of ['我跟你说，这一段长文字需要保持原有正文的阅读方式。', '好。', '我跟你说，这一段长文字需要保持原有正文的阅读方式。']) {
       await page.locator('[data-fixture-text]').fill(text)

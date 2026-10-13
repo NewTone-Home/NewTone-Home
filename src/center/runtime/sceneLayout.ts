@@ -142,33 +142,6 @@ export function mainlineEntityPosition(
     }
     return authoredPosition
   }
-  if (!isNarrowMainlineViewport(screenMetrics)) return authoredPosition
-
-  const groupId = entity.groupId
-  if (groupId) {
-    const group = scene.furnitureGroups.find((candidate) => candidate.id === groupId)
-    const members = scene.objects.filter((candidate) => candidate.surface === 'floor' && candidate.groupId === groupId)
-    if (group && members.length > 1) {
-      const anchor = sceneLayoutAnchor(scene, groupId, layout) ?? group.anchor
-      const scale = responsiveFurnitureScale(members, scene, layout, anchor, screenMetrics)
-      return {
-        x: anchor.x + (authoredPosition.x - anchor.x) * scale.x,
-        y: anchor.y + (authoredPosition.y - anchor.y) * scale.y,
-      }
-    }
-  }
-
-  const sameRowCounters = scene.objects
-    .filter((candidate) => candidate.surface === 'floor' && candidate.kind === 'fixture' && candidate.label === entity.label)
-    .map((candidate) => ({ entity: candidate, position: sceneLayoutEntityPosition(scene, candidate, layout) }))
-    .filter(({ position }) => Math.abs(position.y - authoredPosition.y) < .001)
-    .sort((first, second) => first.position.x - second.position.x)
-
-  if (sameRowCounters.length > 1 && entity.label === '柜台') {
-    const index = sameRowCounters.findIndex(({ entity: candidate }) => candidate.id === entity.id)
-    if (index >= 0) return responsiveRowPosition(sameRowCounters, index, scene, screenMetrics)
-  }
-
   return authoredPosition
 }
 
@@ -223,79 +196,6 @@ export function mainlineProtagonistDotFootprint(
   return { x: position.x - width / 2, y: position.y - height / 2, width, height }
 }
 
-function isNarrowMainlineViewport(screenMetrics: SceneScreenMetrics) {
-  return Math.min(screenMetrics.width, screenMetrics.height) <= 600
-}
-
-function responsiveFloorGapPercent(screenMetrics: SceneScreenMetrics, axis: 'x' | 'y') {
-  const axisSize = axis === 'x' ? screenMetrics.width : screenMetrics.height
-  return 200 / Math.max(1, axisSize)
-}
-
-function responsiveFurnitureScale(
-  members: readonly MainlineSceneEntity[],
-  scene: MainlineSceneDefinition,
-  layout: SceneLayout,
-  anchor: Point,
-  screenMetrics: SceneScreenMetrics,
-) {
-  const positions = members.map((member) => ({
-    entity: member,
-    position: sceneLayoutEntityPosition(scene, member, layout),
-  }))
-  const gapX = responsiveFloorGapPercent(screenMetrics, 'x')
-  const gapY = responsiveFloorGapPercent(screenMetrics, 'y')
-  let scaleX = 1
-  let scaleY = 1
-
-  for (let firstIndex = 0; firstIndex < positions.length; firstIndex += 1) {
-    for (let secondIndex = firstIndex + 1; secondIndex < positions.length; secondIndex += 1) {
-      const first = positions[firstIndex]
-      const second = positions[secondIndex]
-      const firstFootprint = mainlineEntityTextFootprint(first.entity, first.position, screenMetrics)
-      const secondFootprint = mainlineEntityTextFootprint(second.entity, second.position, screenMetrics)
-      const xDistance = Math.abs(second.position.x - first.position.x)
-      const yDistance = Math.abs(second.position.y - first.position.y)
-      if (xDistance > .001) {
-        const yOverlap = yDistance < (firstFootprint.height + secondFootprint.height) / 2
-        if (yOverlap) scaleX = Math.max(scaleX, (firstFootprint.width + secondFootprint.width + gapX) / (xDistance * 2))
-      }
-      if (yDistance > .001) {
-        const xOverlap = xDistance < (firstFootprint.width + secondFootprint.width) / 2
-        if (xOverlap) scaleY = Math.max(scaleY, (firstFootprint.height + secondFootprint.height + gapY) / (yDistance * 2))
-      }
-    }
-  }
-
-  return { x: scaleX, y: scaleY }
-}
-
-function responsiveRowPosition(
-  row: readonly { entity: MainlineSceneEntity; position: Point }[],
-  index: number,
-  scene: MainlineSceneDefinition,
-  screenMetrics: SceneScreenMetrics,
-) {
-  const footprint = mainlineEntityTextFootprint(row[index].entity, row[index].position, screenMetrics)
-  const gap = responsiveFloorGapPercent(screenMetrics, 'x')
-  const minPitch = footprint.width + gap
-  const bounds = scene.walkBounds
-  const availableSpan = Math.max(0, bounds.width - footprint.width)
-  const authoredSpan = row[row.length - 1].position.x - row[0].position.x
-  const span = Math.min(availableSpan, Math.max(authoredSpan, minPitch * (row.length - 1)))
-  const firstX = Math.max(bounds.x + footprint.width / 2, Math.min(
-    bounds.x + bounds.width - footprint.width / 2 - span,
-    (row[0].position.x + row[row.length - 1].position.x) / 2 - span / 2,
-  ))
-  return { x: firstX + (span / Math.max(1, row.length - 1)) * index, y: row[index].position.y }
-}
-
-/**
- * Floor interaction stays anchored to the visible characters. Most scenery
- * uses that same footprint for navigation, while authored furniture can opt
- * into its physical collision for locomotion. Wall entities stay on the
- * canonical boundary path.
- */
 export function mainlineEntityTextFootprint(
   entity: MainlineSceneEntity,
   position: Point,

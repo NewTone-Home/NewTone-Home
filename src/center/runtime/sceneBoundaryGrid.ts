@@ -11,16 +11,10 @@ export type BoundaryGridCell = {
   center: number
 }
 
-/**
- * The stage is authored in percentage coordinates, but glyph spacing is a
- * physical screen concern. Keep one spacing source and project it onto the
- * stage's two dimensions instead of authoring independent x/y steps.
- */
+/** Geometry and glyph spacing are authored in the fixed logical 1280×720 world. */
 export type SceneScreenMetrics = {
   width: number
   height: number
-  /** Viewport-based storefront typography; stage percentages still use width/height. */
-  viewportWidth?: number
 }
 
 export const sharedBoundaryScreenSpacingPx = 28
@@ -56,12 +50,6 @@ export function boundaryGridOffsetForScreenCells(
     x: offset.x * (steps.horizontal * cellDistance / sourceDistance),
     y: offset.y * (steps.vertical * cellDistance / sourceDistance),
   }
-}
-
-export function readSceneScreenMetrics(element: { getBoundingClientRect: () => { width: number; height: number } }): SceneScreenMetrics | null {
-  const rect = element.getBoundingClientRect()
-  if (!(rect.width > 0) || !(rect.height > 0)) return null
-  return { width: Number(rect.width.toFixed(2)), height: Number(rect.height.toFixed(2)), viewportWidth: typeof window === 'undefined' ? rect.width : window.innerWidth }
 }
 
 export function boundaryGridCoordinates(start: number, end: number, targetStep: number): number[] {

@@ -7,6 +7,7 @@ import { movementDurationMsForPath, protagonistCharacterMovementOptions } from '
 import type { Point } from './sceneGeometry'
 import type { SceneLayout } from './sceneLayout'
 import type { PlayerSceneState } from './playerSave'
+import type { MainlineViewportProjection } from './mainlineViewport'
 
 export const mainlineRideZones: readonly { pickupSceneId: MainlineSceneId; scenes: readonly MainlineSceneId[]; waitingLabel: string; guidanceText: string }[] = [
   { pickupSceneId: 'zhongshuyuan-office', scenes: ['zhongshuyuan-office'], waitingLabel: '办公室出口', guidanceText: '请到办公室出口等车' },
@@ -16,7 +17,7 @@ export const mainlineRideZones: readonly { pickupSceneId: MainlineSceneId; scene
 export type MainlineRideVehicle = '快车' | '舒适型' | '商务型'
 export type MainlineRideOrder = { sourceSceneId: MainlineSceneId; targetSceneId: MainlineSceneId; driverArrivesAt: number; vehicle?: MainlineRideVehicle; requestedAt?: number; arrivalLabel?: string }
 export type MainlineRideRequestResult = { ok: true } | { ok: false; reason: string }
-export type MainlineRideWalkingContext = { layout: SceneLayout; screenMetrics: SceneScreenMetrics; cameraOffset?: Point; walkingStart?: Point }
+export type MainlineRideWalkingContext = { layout: SceneLayout; screenMetrics: SceneScreenMetrics; cameraOffset?: Point; viewportProjection?: MainlineViewportProjection; walkingStart?: Point }
 export function mainlineRideZone(sceneId: MainlineSceneId) { return mainlineRideZones.find(zone => zone.scenes.includes(sceneId)) }
 /** Waiting positions are the actual external exits, never the arrival spawn. */
 export function mainlineRidePickupPositions(sceneId: MainlineSceneId): Point[] {

@@ -141,9 +141,9 @@ describe('player storefront edge contacts', () => {
     }
   })
 
-  it('keeps viewport typography distinct from an embedded stage and excludes Café', () => {
-    const metrics = { width: viewports[1].width, height: viewports[1].height, viewportWidth: viewports[0].width }
-    const snapshot = context(metrics).geometrySnapshot
+  it('keeps storefront typography in logical world units and excludes Café', () => {
+    const logicalMetrics = { width: 1280, height: 720 }
+    const snapshot = context(logicalMetrics).geometrySnapshot
     expect(snapshot.storefronts.get(clothing.id)!.fontSizePx).toBe(15.36)
     const cafe = street.storefronts.find(store => store.portalId)!
     expect(snapshot.storefronts.has(cafe.id)).toBe(false)

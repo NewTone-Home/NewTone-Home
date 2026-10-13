@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
-import { advanceMainlineCamera, mainlineCameraOffset, mainlineCameraTarget } from './mainlineViewport'
+import { advanceMainlineCamera, mainlineCameraOffset, mainlineCameraTarget, type MainlineViewportProjection } from './mainlineViewport'
 import type { MainlineSceneDefinition } from './mainlineScenes'
 import type { Point } from './sceneGeometry'
 
-export function useMainlineCamera(scene: MainlineSceneDefinition, position: Point, embedded: boolean) {
-  const [offset, setOffset] = useState(() => mainlineCameraOffset(scene, position, embedded))
+export function useMainlineCamera(scene: MainlineSceneDefinition, position: Point, embedded: boolean, projection: MainlineViewportProjection) {
+  const [offset, setOffset] = useState(() => mainlineCameraOffset(scene, position, embedded, projection))
   const current = useRef(offset)
   useEffect(() => {
     if (embedded || scene.viewport === 'fixed-frame') {
-      current.current = mainlineCameraOffset(scene, position, embedded)
+      current.current = mainlineCameraOffset(scene, position, embedded, projection)
       setOffset(current.current)
       return
     }
     let frame = 0
     let previous = performance.now()
     const follow = (now: number) => {
-      const target = mainlineCameraTarget(scene, position, current.current, embedded)
+      const target = mainlineCameraTarget(scene, position, current.current, embedded, projection)
       const remaining = Math.hypot(target.x - current.current.x, target.y - current.current.y)
       if (remaining < .005) return
       current.current = advanceMainlineCamera(current.current, target, now - previous)
@@ -25,6 +25,6 @@ export function useMainlineCamera(scene: MainlineSceneDefinition, position: Poin
     }
     frame = requestAnimationFrame(follow)
     return () => cancelAnimationFrame(frame)
-  }, [embedded, position.x, position.y, scene])
+  }, [embedded, position.x, position.y, projection, scene])
   return offset
 }

@@ -123,7 +123,13 @@
 .scene-layout-grid {
   position: absolute;
   z-index: 1;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: auto;
+  bottom: auto;
+  width: 1280px;
+  height: 720px;
+  transform-origin: top left;
   pointer-events: none;
   opacity: .48;
   background-image:
@@ -664,7 +670,7 @@
   height: 100dvh;
   min-height: 100dvh;
 }
-.scene-mainline-world { z-index: 0; position: absolute; inset: 0; will-change: transform; animation: mainline-world-enter 180ms ease both; }
+.scene-mainline-world { z-index: 0; position: absolute; top: 0; left: 0; right: auto; bottom: auto; width: 1280px; height: 720px; transform-origin: top left; will-change: transform; animation: mainline-world-enter 180ms ease both; }
 .scene-mainline-world.is-local-slide-handoff { animation: none; }
 @keyframes mainline-world-enter {
   from { opacity: 0; }
@@ -1027,7 +1033,7 @@
   opacity: .28;
 }
 
-.scene-mainline-reading-layer { position: absolute; inset: 0; z-index: 14; pointer-events: none; }
+.scene-mainline-reading-layer { position: absolute; top: 0; left: 0; right: auto; bottom: auto; width: 1280px; height: 720px; transform-origin: top left; z-index: 14; pointer-events: none; }
 .scene-mainline-reading-layer .shared-entry-control { pointer-events: auto; }
 .scene-mainline-text {
   position: absolute;
@@ -1283,28 +1289,7 @@
 }
 @media (max-width: 600px) and (orientation: portrait) {
   .mainline-scene-nav { gap: 12px; font-size: 10px; }
-  .mainline-scene-stage { height: 540px; min-height: 500px; }/* Mainline object footprints are the rendered labels themselves. A fixed
-     32x26 touch box made narrow screens visually overlap furniture while the
-     collision compiler still used the smaller text footprint. */
-
-  .scene-mainline-object {
-    box-sizing: border-box;
-    min-width: 0;
-    min-height: 0;
-    width: max-content;
-    max-width: calc(100% - 8px);
-    padding: 0;
-    font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px));
-    letter-spacing: 0;
-  }
-  .scene-mainline-wall,
-  [data-mainline-scene="commercial-cafe"] .scene-mainline-object--fixture,
-  [data-mainline-scene="commercial-cafe"] .scene-mainline-object--table,
-  [data-mainline-scene="commercial-cafe"] .scene-mainline-object--seat {
-    font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px));
-  }
-  .scene-mainline-text { max-width: calc(100% - 24px); max-height: 38%; padding: 2px 0; }
-  .scene-mainline-text, .scene-mainline-speaker-anchor { font-size: 12px; line-height: 1.5; }
+  .mainline-scene-stage { height: 540px; min-height: 500px; }
 }
 
 @media (max-height: 600px) and (orientation: landscape) {
@@ -1316,20 +1301,6 @@
   .scene-shell__state { min-width: 70px; padding-left: 8px; font-size: 9px; }
   .scene-shell__state strong { font-size: 12px; }
   .scene-stage { height: clamp(300px, calc(100svh - 100px), 560px); min-height: 300px; }
-  .scene-mainline-object { min-width: 0; min-height: 0; width: max-content; padding: 0; font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px)); }
-  .scene-mainline-wall,
-  [data-mainline-scene="commercial-cafe"] .scene-mainline-object--fixture,
-  [data-mainline-scene="commercial-cafe"] .scene-mainline-object--table,
-  [data-mainline-scene="commercial-cafe"] .scene-mainline-object--seat {
-    font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px));
-  }
-  .scene-spatial-glyph--door { min-width: 42px; }
-  .scene-object--fixture,
-  .scene-object--character { font-size: 11px; letter-spacing: 0; }
-  .scene-actor__label { font-size: 11px; }
-  .scene-table-text,
-  .scene-chair-text { min-width: 0; min-height: 0; font-size: 11px; letter-spacing: 0; }
-  .scene-echo { margin-top: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

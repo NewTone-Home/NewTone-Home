@@ -73,10 +73,7 @@ test('walking does not repeatedly measure focus characters, and Café switch cel
     stage = page.locator('.mainline-scene-stage')
     const cells = stage.locator(`.scene-portal-characters[data-storefront-id="${cafe.id}"] [data-storefront-cell-id]`)
     await expect.poll(async () => {
-      const metrics = await stage.evaluate(element => {
-        const rect = element.getBoundingClientRect()
-        return { width: Number(rect.width.toFixed(2)), height: Number(rect.height.toFixed(2)), viewportWidth: window.innerWidth }
-      })
+      const metrics = await stage.evaluate(() => ({ width: 1280, height: 720, viewportWidth: window.innerWidth }))
       const expected = storefrontCharacterCells(street, cafe, mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, cafe), metrics))
         .map(cell => ({ id: cell.id, x: cell.x, y: cell.y }))
       const actual = await cells.evaluateAll(nodes => nodes.map(node => ({
@@ -86,10 +83,7 @@ test('walking does not repeatedly measure focus characters, and Café switch cel
       })))
       return actual.length === 3 && JSON.stringify(actual) === JSON.stringify(expected)
     }, { timeout: 8_000 }).toBe(true)
-    const metrics = await stage.evaluate(element => {
-      const rect = element.getBoundingClientRect()
-      return { width: Number(rect.width.toFixed(2)), height: Number(rect.height.toFixed(2)), viewportWidth: window.innerWidth }
-    })
+    const metrics = await stage.evaluate(() => ({ width: 1280, height: 720, viewportWidth: window.innerWidth }))
     const expectedCells = storefrontCharacterCells(street, cafe, mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, cafe), metrics))
     const actualCells = await cells.evaluateAll(nodes => nodes.map(node => ({
       id: (node as HTMLElement).dataset.storefrontCellId,

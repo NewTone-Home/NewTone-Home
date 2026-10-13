@@ -13,8 +13,9 @@ import { movementDurationMsForPath, protagonistCharacterMovementOptions, sharedC
 import type { PhoneDevice } from './phoneState'
 import { sceneInteractionHandlers } from './sceneInteraction'
 import { useAutomaticPassages } from './useAutomaticPassages'
-import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
+import { defaultSceneScreenMetrics } from './sceneBoundaryGrid'
 import { useMainlineCamera } from './useMainlineCamera'
+import { createMainlineViewportProjection, DEFAULT_MAINLINE_VIEWPORT_SIZE, type MainlineViewportSize } from './mainlineViewport'
 import type { MainlineRideWalkingContext } from './mainlineRide'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
@@ -313,10 +314,12 @@ export function MainlineScenePage({
   const continuePendingTraversalRef = useRef<(entityId: string) => void>(() => {})
   const pendingInteractionAfterTraversalRef = useRef<string | null>(null)
   const resumeInteractionRef = useRef<(entityId: string) => void>(() => {})
-  const [screenMetrics, setScreenMetrics] = useState<SceneScreenMetrics>(defaultSceneScreenMetrics)
+  const screenMetrics = defaultSceneScreenMetrics
+  const [viewportSize, setViewportSize] = useState<MainlineViewportSize>(DEFAULT_MAINLINE_VIEWPORT_SIZE)
+  const viewportProjection = useMemo(() => createMainlineViewportProjection(viewportSize), [viewportSize])
   const sceneReadyRef = useRef(false)
-  const handleScreenMetricsChange = useCallback((next: SceneScreenMetrics) => {
-    setScreenMetrics((previous) => previous.width === next.width && previous.height === next.height && previous.viewportWidth === next.viewportWidth ? previous : next)
+  const handleViewportSizeChange = useCallback((next: MainlineViewportSize) => {
+    setViewportSize((previous) => previous.width === next.width && previous.height === next.height ? previous : next)
     if (!sceneReadyRef.current) {
       sceneReadyRef.current = true
       onSceneReady?.()
@@ -580,7 +583,7 @@ export function MainlineScenePage({
   }, [dismissSceneAction, dismissSceneEcho, onPhoneDismiss, phoneOpen, readingActive])
   const internalMovement = useFreeRoamMovement(initialPosition)
   const { position, moving, moveAlong: rawMoveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
-  const cameraOffset = useMainlineCamera(scene, position, embedded)
+  const cameraOffset = useMainlineCamera(scene, position, embedded, viewportProjection)
   const storefrontPresentation = useStorefrontPresentation(scene, position)
   const reportedCafeRevealRef = useRef(false)
   const cafeStorefrontPhase = scene.id === 'commercial-street'
@@ -1350,9 +1353,9 @@ export function MainlineScenePage({
     ? mainlineInteractionTarget(scene, activePlayerSeatId, position, layout, undefined, {geometrySnapshot,screenMetrics,actorId:'protagonist'})
     : undefined, [activePlayerSeatId,geometrySnapshot,layout,position,scene,screenMetrics])
   useEffect(() => onRuntimePositionChange?.(scene.id, position, {
-    layout, screenMetrics, cameraOffset,
+    layout, screenMetrics, cameraOffset, viewportProjection,
     ...(rideWalkingStart ? { walkingStart: rideWalkingStart } : {}),
-  }), [cameraOffset, layout, onRuntimePositionChange, position, rideWalkingStart, scene.id, screenMetrics])
+  }), [cameraOffset, layout, onRuntimePositionChange, position, rideWalkingStart, scene.id, screenMetrics, viewportProjection])
   useEffect(() => {
     onPlayerMovementStateChange?.(moving)
     return () => onPlayerMovementStateChange?.(false)
@@ -2362,7 +2365,8 @@ export function MainlineScenePage({
               gateTriggered={gateTriggered}
               geometrySnapshot={geometrySnapshot}
               freezeFrameMeasurements={presentationSnapshot}
-              onScreenMetricsChange={handleScreenMetricsChange}
+              viewportProjection={viewportProjection}
+              onViewportSizeChange={handleViewportSizeChange}
               cameraOffset={cameraOffset}
               showProtagonist={showProtagonist}
               suppressWorldEnterAnimation={suppressWorldEnterAnimation}

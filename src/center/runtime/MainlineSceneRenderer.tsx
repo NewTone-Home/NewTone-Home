@@ -11,7 +11,7 @@ import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnaps
 import { SceneCharacters, SceneCharacterSwitch } from './SceneCharacters'
 import { SceneDoor, type SceneDoorTransitionCompletion } from './SceneDoor'
 import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoorConfig'
-import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
+import { type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { useSceneFocusFrameController } from './SceneFocusFrames'
 import type { SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
@@ -27,6 +27,7 @@ import { storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDi
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
+import { mainlineWorldTransform, unprojectMainlineViewportPoint, type MainlineViewportProjection, type MainlineViewportSize } from './mainlineViewport'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -46,7 +47,8 @@ type MainlineSceneRendererProps = {
   gateTriggered?: boolean
   geometrySnapshot: MainlineSceneGeometrySnapshot
   freezeFrameMeasurements?: boolean
-  onScreenMetricsChange?: (metrics: SceneScreenMetrics) => void
+  viewportProjection: MainlineViewportProjection
+  onViewportSizeChange?: (size: MainlineViewportSize) => void
   cameraOffset: Point
   showProtagonist?: boolean
   suppressWorldEnterAnimation?: boolean
@@ -693,7 +695,8 @@ export function MainlineSceneRenderer({
   onStorefrontFrameRetractionComplete,
   onStorefrontRevealMotionComplete,
   onStorefrontRestoreMotionComplete,
-  onScreenMetricsChange,
+  viewportProjection,
+  onViewportSizeChange,
   cameraOffset,
   gateTriggered = false,
   showProtagonist = true,
@@ -750,7 +753,7 @@ export function MainlineSceneRenderer({
   debugRuntimeEvidence = false,
 }: MainlineSceneRendererProps) {
   const [dialogueReady, setDialogueReady] = useState(false)
-  const speakerPlacementRef = useRef<{ session: string; metrics: string; anchor: ReturnType<typeof mainlineSpeakerAnchor> } | null>(null)
+  const speakerPlacementRef = useRef<{ session: string; anchor: ReturnType<typeof mainlineSpeakerAnchor> } | null>(null)
   if (!dialogue || !dialogueLine || !dialoguePosition || sceneEcho) speakerPlacementRef.current = null
   const dialogueReadyGroupRef = useRef<string | null>(null)
   const currentDialogueGroupRef = useRef<string | null>(null)
@@ -842,23 +845,29 @@ export function MainlineSceneRenderer({
   useIsomorphicLayoutEffect(() => {
     const stage = stageRef.current
     if (!stage) return undefined
-    const reportMetrics = () => {
-      const metrics = readSceneScreenMetrics(stage)
-      if (!metrics) return
-      onScreenMetricsChange?.(metrics)
+    const reportViewport = () => {
+      const rect = stage.getBoundingClientRect()
+      if (!(rect.width > 0) || !(rect.height > 0)) return
+      onViewportSizeChange?.({ width: Number(rect.width.toFixed(2)), height: Number(rect.height.toFixed(2)) })
     }
-    reportMetrics()
+    reportViewport()
     if (typeof ResizeObserver === 'undefined') return undefined
-    const observer = new ResizeObserver(reportMetrics)
+    const observer = new ResizeObserver(reportViewport)
     observer.observe(stage)
     return () => observer.disconnect()
-  }, [onScreenMetricsChange])
+  }, [onViewportSizeChange])
 
   // The page owns the stage measurement and passes the same snapshot to
   // navigation and rendering. Keeping one authority prevents a responsive
   // stage from projecting visible cells with one size while navigation tests
   // collision against another.
   const renderScreenMetrics = geometrySnapshot.screenMetrics
+  const projectedWorldStyle = {
+    width: `${viewportProjection.worldSize.width}px`,
+    height: `${viewportProjection.worldSize.height}px`,
+    transformOrigin: 'top left',
+    transform: mainlineWorldTransform(viewportProjection, cameraOffset),
+  } as CSSProperties
   const geometryUnits = geometrySnapshot.units
   const switchableStorefronts = useMemo(() => scene.storefronts.filter(slot => slot.portalId && slot.characterSwitch), [scene.storefronts])
   // Keep the three glyph anchors tied to the storefront's real near geometry
@@ -1022,11 +1031,11 @@ export function MainlineSceneRenderer({
   const pointFromPointer = useCallback((clientX: number, clientY: number) => {
     const rect = stageRef.current?.getBoundingClientRect()
     if (!rect || rect.width === 0 || rect.height === 0) return null
-    return {
-      x: ((clientX - rect.left) / rect.width) * 100 - cameraOffset.x,
-      y: ((clientY - rect.top) / rect.height) * 100 - cameraOffset.y,
-    }
-  }, [cameraOffset.x, cameraOffset.y])
+    return unprojectMainlineViewportPoint({
+      x: Math.max(0, Math.min(rect.width, clientX - rect.left)),
+      y: Math.max(0, Math.min(rect.height, clientY - rect.top)),
+    }, cameraOffset, viewportProjection)
+  }, [cameraOffset, viewportProjection])
 
   const startLayoutDrag = useCallback((itemId: LayoutItemId, event: React.PointerEvent<HTMLElement>) => {
     if (!layoutMode) return
@@ -1089,7 +1098,10 @@ export function MainlineSceneRenderer({
       x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
       y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
     }
-    const point = { x: screenPoint.x - cameraOffset.x, y: screenPoint.y - cameraOffset.y }
+    const point = unprojectMainlineViewportPoint({
+      x: screenPoint.x / 100 * rect.width,
+      y: screenPoint.y / 100 * rect.height,
+    }, cameraOffset, viewportProjection)
     onInputDiagnostic?.({
       ...input,
       client: { x: clientX, y: clientY },
@@ -1106,7 +1118,7 @@ export function MainlineSceneRenderer({
       return
     }
     onWalk(point)
-  }, [cameraOffset.x, cameraOffset.y, layoutMode, onInputDiagnostic, onLayoutChange, onWalk, scene, selectedLayoutItemId])
+  }, [cameraOffset, layoutMode, onInputDiagnostic, onLayoutChange, onWalk, scene, selectedLayoutItemId, viewportProjection])
 
   const walkToEmptySpace = (event: React.MouseEvent<HTMLDivElement>) => {
     const touchWalk = touchWalkRef.current
@@ -1137,10 +1149,10 @@ export function MainlineSceneRenderer({
 
   return (
     <section className="scene-wrap" aria-label={`${scene.title}可探索场景`}>
-      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-scene-dialogue-state={dialoguePhase}>
-        {layoutMode && <div className="scene-layout-grid" aria-hidden="true" />}
+      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-camera-scale={debugRuntimeEvidence ? viewportProjection.scale : undefined} data-world-size-width={debugRuntimeEvidence ? viewportProjection.worldSize.width : undefined} data-world-size-height={debugRuntimeEvidence ? viewportProjection.worldSize.height : undefined} data-viewport-width={debugRuntimeEvidence ? viewportProjection.viewportSize.width : undefined} data-viewport-height={debugRuntimeEvidence ? viewportProjection.viewportSize.height : undefined} data-scene-dialogue-state={dialoguePhase}>
+        {layoutMode && <div className="scene-layout-grid" style={projectedWorldStyle} aria-hidden="true" />}
 
-        <div className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''}`} style={{ transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%)` }}>
+        <div className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''}`} style={projectedWorldStyle}>
           <>
           <div className="scene-spatial-labels scene-spatial-labels--wall scene-mainline-wall-labels">
             {activeSwitchableStorefronts.map(slot => <PortalStorefrontCharacters key={slot.id} scene={scene} storefront={slot} cells={switchCells.get(slot.id)!}
@@ -1362,7 +1374,7 @@ export function MainlineSceneRenderer({
           >?</span>}
           </>
         </div>
-        <div className="scene-mainline-reading-layer">
+        <div className="scene-mainline-reading-layer" style={projectedWorldStyle}>
           {(sceneEcho || (dialogue && dialogueLine && dialoguePosition)) && (() => {
             const isDialogue = !sceneEcho && Boolean(dialogue && dialogueLine && dialoguePosition)
             const isLeaving = sceneEcho?.phase === 'leaving' || (isDialogue && dialoguePhase === 'leaving')
@@ -1377,9 +1389,8 @@ export function MainlineSceneRenderer({
             })
             if (isDialogue) {
               const session = `${scene.id}:${dialogue!.triggerEntityId}`
-              const metrics = `${renderScreenMetrics.width}:${renderScreenMetrics.height}:${renderScreenMetrics.viewportWidth}`
-              if (speakerPlacementRef.current?.session !== session || speakerPlacementRef.current.metrics !== metrics) {
-                speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, renderScreenMetrics, position, cameraOffset) }
+              if (speakerPlacementRef.current?.session !== session) {
+                speakerPlacementRef.current = { session, anchor: mainlineSpeakerAnchor(dialogue!.lines, renderScreenMetrics, position) }
               }
             }
             const speakerAnchor = isDialogue ? speakerPlacementRef.current!.anchor : null
@@ -1394,8 +1405,8 @@ export function MainlineSceneRenderer({
               key={sceneEcho?.id ?? dialogueLine!.id}
               className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${isLeaving ? 'is-leaving' : ''}`}
               style={{
-                left: `${speakerAnchor ? speakerAnchor.left + (speakerAnchor.widthPx / renderScreenMetrics.width) * 50 : Math.max((echoLayout.widthPx / renderScreenMetrics.width) * 50 + 2, Math.min(98 - (echoLayout.widthPx / renderScreenMetrics.width) * 50, position.x + cameraOffset.x))}%`,
-                top: `${speakerAnchor?.top ?? Math.max(10, Math.min(85, position.y + cameraOffset.y))}%`,
+                left: `${speakerAnchor ? speakerAnchor.left + (speakerAnchor.widthPx / renderScreenMetrics.width) * 50 : Math.max((echoLayout.widthPx / renderScreenMetrics.width) * 50 + 2, Math.min(98 - (echoLayout.widthPx / renderScreenMetrics.width) * 50, position.x))}%`,
+                top: `${speakerAnchor?.top ?? Math.max(10, Math.min(85, position.y))}%`,
                 '--scene-mainline-text-width': `${echoLayout.widthPx}px`,
                 '--scene-mainline-text-height': `${echoLayout.heightPx}px`,
               } as CSSProperties}
@@ -1425,7 +1436,7 @@ export function MainlineSceneRenderer({
           })()}
           {sceneAction && <div
             className="scene-mainline-action"
-            style={{ left: `${Math.max(12, Math.min(88, sceneAction.position.x + cameraOffset.x))}%`, top: `${Math.max(10, Math.min(85, sceneAction.position.y + cameraOffset.y))}%` }}
+            style={{ left: `${Math.max(12, Math.min(88, sceneAction.position.x))}%`, top: `${Math.max(10, Math.min(85, sceneAction.position.y))}%` }}
             data-scene-action={sceneAction.entityId ?? 'scene'}
             onClick={(event) => event.stopPropagation()}
           >

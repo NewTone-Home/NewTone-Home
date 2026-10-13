@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 
+test.use({ viewport: { width: 1280, height: 720 } })
+
 const yardId = 'jijia-ancestral-home'
 const interiorId = 'jijia-ancestral-interior'
 const sceneRoot = (sceneId: string) => `.mainline-scene[data-mainline-scene="${sceneId}"]`
@@ -60,9 +62,16 @@ test('ancestral main door uses a short crossing-triggered local slide in both di
   const yardDoor = mainlineScenes[yardId].passages.find((passage) => passage.id === 'jijia-main-door')!
   await page.goto(`/?scene=${yardId}&entryX=${yardDoor.thresholds[0].x}&entryY=${yardDoor.thresholds[0].y}&debugRuntimeEvidence=1`)
   const observer = await observeLocalSlides(page)
-
   await crossMainDoor(page, observer, yardId, interiorId)
   await crossMainDoor(page, observer, interiorId, yardId)
+})
+
+test('ancestral main door remains reachable and transitions on a phone-sized viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const yardDoor = mainlineScenes[yardId].passages.find((passage) => passage.id === 'jijia-main-door')!
+  await page.goto(`/?scene=${yardId}&entryX=${yardDoor.thresholds[0].x}&entryY=${yardDoor.thresholds[0].y}&debugRuntimeEvidence=1`)
+  const observer = await observeLocalSlides(page)
+  await crossMainDoor(page, observer, yardId, interiorId)
 })
 
 test('ancestral main door cleans each local-slide overlap across repeated crossings', async ({ page }) => {

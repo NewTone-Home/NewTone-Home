@@ -9,7 +9,7 @@ import {
   mainlineScenes,
   resolveMainlineSceneId,
 } from './runtime/mainlineScenes'
-import { mainlineCameraOffset } from './runtime/mainlineViewport'
+import { createMainlineViewportProjection, DEFAULT_MAINLINE_VIEWPORT_SIZE, mainlineCameraOffset, projectMainlineWorldPointPercent } from './runtime/mainlineViewport'
 import { createMainlineSceneGeometrySnapshot } from './runtime/mainlineSceneGeometrySnapshot'
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
@@ -63,12 +63,10 @@ function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
   return { sceneId, entryPosition, spawnMode }
 }
 
-function screenPositionForScene(sceneId, position, liveCameraOffset) {
-  const cameraOffset = liveCameraOffset ?? mainlineCameraOffset(mainlineScenes[sceneId], position)
-  return {
-    x: position.x + cameraOffset.x,
-    y: position.y + cameraOffset.y,
-  }
+function screenPositionForScene(sceneId, position, liveCameraOffset, viewportProjection) {
+  const projection = viewportProjection ?? createMainlineViewportProjection(DEFAULT_MAINLINE_VIEWPORT_SIZE)
+  const cameraOffset = liveCameraOffset ?? mainlineCameraOffset(mainlineScenes[sceneId], position, false, projection)
+  return projectMainlineWorldPointPercent(position, cameraOffset, projection)
 }
 
 export default function CenterExperience({
@@ -626,8 +624,8 @@ export default function CenterExperience({
 
   const localSlideActor = localSlide
     ? {
-        from: screenPositionForScene(localSlide.transitionIntent.sourceSceneId, localSlide.transitionIntent.sourceCrossingPosition, latestWorldPositionRef.current?.context?.cameraOffset),
-        to: screenPositionForScene(localSlide.transitionIntent.targetSceneId, localSlide.transitionIntent.safeEntryPosition),
+        from: screenPositionForScene(localSlide.transitionIntent.sourceSceneId, localSlide.transitionIntent.sourceCrossingPosition, latestWorldPositionRef.current?.context?.cameraOffset, latestWorldPositionRef.current?.context?.viewportProjection),
+        to: screenPositionForScene(localSlide.transitionIntent.targetSceneId, localSlide.transitionIntent.safeEntryPosition, undefined, latestWorldPositionRef.current?.context?.viewportProjection),
       }
     : null
 
