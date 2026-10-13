@@ -78,3 +78,52 @@ test('resizing keeps the world and dialogue layer on one shared transform', asyn
   }
 })
 
+test.describe('portrait touch camera follow', () => {
+test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+
+test('player and camera keep moving after the old tree interaction', async ({ page }) => {
+  await page.goto('/?scene=jijia-ancestral-home&debugRuntimeEvidence=1')
+  const stage = page.locator('.mainline-scene-stage')
+  const actor = page.locator('[data-actor-id="protagonist"]')
+  const state = async () => stage.evaluate(el => ({
+    offsetX: Number((el as HTMLElement).dataset.cameraOffsetX),
+    actorX: Number(document.querySelector<HTMLElement>('[data-actor-id="protagonist"]')!.dataset.runtimeX),
+  }))
+  const initial = await state()
+  await page.touchscreen.tap(380, 420)
+  await expect(actor).toHaveClass(/is-moving/)
+  await expect(actor).not.toHaveClass(/is-moving/, { timeout: 15000 })
+  const afterApproach = await state()
+  expect(afterApproach.actorX).toBeGreaterThan(initial.actorX + 5)
+  expect(Math.abs(afterApproach.offsetX - initial.offsetX)).toBeGreaterThan(5)
+  const tree = page.locator('[data-object-id="jijia-old-tree"]')
+  const treeBox = await tree.boundingBox()
+  expect(treeBox).not.toBeNull()
+  await page.touchscreen.tap(treeBox!.x + treeBox!.width / 2, treeBox!.y + treeBox!.height / 2)
+  const echo = page.locator('[data-scene-echo="jijia-old-tree"]')
+  await expect(echo).toBeVisible()
+  const count = Number(await echo.getAttribute('data-scene-segment-count'))
+  for (let i = 0; i < count; i++) {
+    await expect(echo).toHaveAttribute('data-scene-segment-index', String(i))
+    const shield = page.locator('[data-scene-dialogue-shield="true"]')
+    if (await echo.getAttribute('data-scene-observation-typing') === 'true') {
+      await shield.click()
+      await expect(echo).toHaveAttribute('data-scene-observation-typing', 'false')
+    }
+    if (i < count - 1) {
+      await shield.click()
+      await expect(echo).toHaveAttribute('data-scene-segment-index', String(i + 1))
+    }
+  }
+  await expect(echo).toHaveAttribute('data-scene-segment-advance', 'complete')
+  await page.locator('[data-scene-dialogue-shield="true"]').click()
+  await expect(echo).toHaveCount(0)
+  const before = await state()
+  await page.touchscreen.tap(10, 420)
+  await expect(actor).not.toHaveClass(/is-moving/, { timeout: 15000 })
+  const after = await state()
+  expect(Math.abs(after.actorX - before.actorX)).toBeGreaterThan(1)
+  expect(Math.abs(after.offsetX - before.offsetX)).toBeGreaterThan(1)
+})
+})
+
