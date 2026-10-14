@@ -99,9 +99,26 @@ function staticWorldOrigin(projection: MainlineViewportProjection, axis: 'x' | '
   return -offset / (projection.scale * worldPixels) * 100
 }
 
-function clampCameraOffset(scene: Pick<MainlineSceneDefinition, 'walkBounds'>, offset: Point, projection: MainlineViewportProjection, centerFrame = false, focusPosition?: Point): Point {
+type CenterFrameAxes = boolean | { x: boolean; y: boolean }
+
+function centerFrameOnAxis(centerFrame: CenterFrameAxes, axis: 'x' | 'y') {
+  return typeof centerFrame === 'boolean' ? centerFrame : centerFrame[axis]
+}
+
+export function mainlineCameraFollowAxes(
+  scene: Pick<MainlineSceneDefinition, 'viewport' | 'walkBounds'>,
+  projection: MainlineViewportProjection,
+) {
+  return {
+    x: scene.viewport === 'follow-player' || visibleWorldSpan(projection, 'x') < scene.walkBounds.width,
+    y: scene.viewport === 'follow-player' || visibleWorldSpan(projection, 'y') < scene.walkBounds.height,
+  }
+}
+
+function clampCameraOffset(scene: Pick<MainlineSceneDefinition, 'walkBounds'>, offset: Point, projection: MainlineViewportProjection, centerFrame: CenterFrameAxes = false, focusPosition?: Point): Point {
   const result = { ...offset }
   for (const axis of ['x', 'y'] as const) {
+    const keepFrameCentered = centerFrameOnAxis(centerFrame, axis)
     const boundsStart = scene.walkBounds[axis]
     const boundsEnd = boundsStart + (axis === 'x' ? scene.walkBounds.width : scene.walkBounds.height)
     const span = visibleWorldSpan(projection, axis)
@@ -109,23 +126,22 @@ function clampCameraOffset(scene: Pick<MainlineSceneDefinition, 'walkBounds'>, o
       // A follow camera can shift either way when a smaller viewport crops
       // the logical canvas; at the authored 1280x720 frame it remains
       // left-anchored. A fixed-frame room keeps its centered pose.
-      if (!centerFrame) result[axis] = Math.min(result[axis], Math.max(0, staticWorldOrigin(projection, axis) - boundsStart + mainlineCameraEdgePadding))
+      if (!keepFrameCentered) result[axis] = Math.min(result[axis], Math.max(0, staticWorldOrigin(projection, axis) - boundsStart + mainlineCameraEdgePadding))
       continue
     }
     const origin = staticWorldOrigin(projection, axis)
-    const minimum = origin + span - boundsEnd - mainlineCameraEdgePadding
-    const maximum = centerFrame
+    const minimum = origin + span * mainlineCameraDeadzone.end / 100 - boundsEnd
+    const maximum = keepFrameCentered
       ? origin - boundsStart + mainlineCameraEdgePadding
-      : Math.max(0, origin - boundsStart + mainlineCameraEdgePadding)
+      : origin + span * mainlineCameraDeadzone.start / 100 - boundsStart
     result[axis] = clamp(result[axis], minimum, maximum)
 
-    // At extreme portrait crops, a valid spawn can be outside the viewport
-    // even when the walk-bounds clamp is satisfied. Keep the focused actor
-    // visible and place it back inside the camera deadzone.
+    // Authored spawns can sit outside their walk-bounds. Keep the actor in
+    // the deadzone even when that requires relaxing the normal map-edge clamp.
     if (focusPosition) {
       const screenPercent = (focusPosition[axis] + result[axis] - origin) / span * 100
-      if (screenPercent < 0) result[axis] += (mainlineCameraDeadzone.start - screenPercent) * span / 100
-      if (screenPercent > 100) result[axis] += (mainlineCameraDeadzone.end - screenPercent) * span / 100
+      if (screenPercent < mainlineCameraDeadzone.start) result[axis] += (mainlineCameraDeadzone.start - screenPercent) * span / 100
+      if (screenPercent > mainlineCameraDeadzone.end) result[axis] += (mainlineCameraDeadzone.end - screenPercent) * span / 100
     }
   }
   return result
@@ -159,9 +175,10 @@ export function mainlineCameraOffset(
   projection = createMainlineViewportProjection(DEFAULT_MAINLINE_VIEWPORT_SIZE),
 ): Point {
   if (embedded) return { x: 0, y: 0 }
-  return scene.viewport === 'fixed-frame'
-    ? fixedFrameCameraOffset(scene, projection, position)
-    : followPlayerCameraOffset(scene, position, projection)
+  if (scene.viewport === 'follow-player') return followPlayerCameraOffset(scene, position, projection)
+  const followAxes = mainlineCameraFollowAxes(scene, projection)
+  if (!followAxes.x && !followAxes.y) return fixedFrameCameraOffset(scene, projection, position)
+  return mainlineCameraTarget(scene, position, fixedFrameCameraOffset(scene, projection), false, projection)
 }
 
 /** Keep the actor in a 35–65% screen-space deadzone and clamp at world edges. */
@@ -172,9 +189,17 @@ export function mainlineCameraTarget(
   embedded = false,
   projection = createMainlineViewportProjection(DEFAULT_MAINLINE_VIEWPORT_SIZE),
 ): Point {
-  if (embedded || scene.viewport === 'fixed-frame') return mainlineCameraOffset(scene, position, embedded, projection)
+  if (embedded) return mainlineCameraOffset(scene, position, embedded, projection)
+  const followAxes = mainlineCameraFollowAxes(scene, projection)
+  if (scene.viewport === 'fixed-frame' && !followAxes.x && !followAxes.y) return fixedFrameCameraOffset(scene, projection, position)
   const desired = { ...current }
   for (const axis of ['x', 'y'] as const) {
+    if (scene.viewport === 'fixed-frame' && !followAxes[axis]) {
+      desired[axis] = axis === 'x'
+        ? 50 - (scene.walkBounds.x + scene.walkBounds.width / 2)
+        : 50 - (scene.walkBounds.y + scene.walkBounds.height / 2)
+      continue
+    }
     const screenPercent = 50 + (position[axis] + current[axis] - 50) / visibleWorldSpan(projection, axis) * 100
     const viewportPercentDelta = screenPercent < mainlineCameraDeadzone.start
       ? mainlineCameraDeadzone.start - screenPercent
@@ -183,7 +208,9 @@ export function mainlineCameraTarget(
         : 0
     desired[axis] += viewportPercentDelta * visibleWorldSpan(projection, axis) / 100
   }
-  return clampCameraOffset(scene, desired, projection, false, position)
+  return clampCameraOffset(scene, desired, projection, scene.viewport === 'fixed-frame'
+    ? { x: !followAxes.x, y: !followAxes.y }
+    : false, position)
 }
 
 export function advanceMainlineCamera(current: Point, target: Point, elapsedMs: number): Point {

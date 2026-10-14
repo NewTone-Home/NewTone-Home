@@ -1225,7 +1225,7 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
   areaLabel: '前院',
   scene: {
     walkBounds: jijiaYardBounds,
-    viewport: 'follow-player',
+    viewport: 'fixed-frame',
     externalExit: { axis: 'x', direction: -1, threshold: 14, triggerEntityId: 'jijia-yard-gate' },
     wallDensity: { horizontalBaselineEvery: 2, verticalBaselineEvery: 2 },
     walls: [{

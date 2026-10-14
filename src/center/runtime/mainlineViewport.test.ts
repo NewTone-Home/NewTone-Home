@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { MainlineSceneDefinition } from './mainlineScenes'
+import { mainlineScenes } from './mainlineScenes'
 import {
   DEFAULT_MAINLINE_VIEWPORT_SIZE,
   MAINLINE_WORLD_SIZE,
   createMainlineViewportProjection,
   fixedFrameCameraOffset,
+  mainlineCameraFollowAxes,
   mainlineCameraOffset,
   mainlineCameraTarget,
   mainlineViewportScale,
@@ -81,7 +83,7 @@ describe('unified mainline viewport projection', () => {
     expect(actor.x).toBeLessThanOrEqual(65)
   })
 
-  it('shifts a fixed room frame only when the requested actor would be cropped', () => {
+  it('keeps a fixed room actor in the deadzone and preserves axes that fit', () => {
     const projection = createMainlineViewportProjection({ width: 390, height: 844 })
     const scene = {
       viewport: 'fixed-frame',
@@ -92,8 +94,44 @@ describe('unified mainline viewport projection', () => {
     const actor = projectMainlineWorldPointPercent(position, camera, projection)
     expect(actor.x).toBeGreaterThanOrEqual(35)
     expect(actor.x).toBeLessThanOrEqual(65)
-    expect(mainlineCameraOffset(scene, { x: 50, y: 50 }, false, projection)).toEqual(fixedFrameCameraOffset(scene, projection))
+    const centerCamera = mainlineCameraOffset(scene, { x: 50, y: 50 }, false, projection)
+    const centeredActor = projectMainlineWorldPointPercent({ x: 50, y: 50 }, centerCamera, projection)
+    expect(centeredActor.x).toBeCloseTo(35, 0)
+    expect(centeredActor.y).toBeCloseTo(50, 0)
   })
+
+  const fixedFrameSceneCases = Object.values(mainlineScenes)
+    .filter((scene) => scene.viewport === 'fixed-frame')
+    .map((scene) => [scene.id, scene] as const)
+
+  it.each(fixedFrameSceneCases)(
+    'follows the player only along cropped axes in %s',
+    (_id, scene) => {
+      for (const size of [
+        { width: 390, height: 844 },
+        { width: 838, height: 2048 },
+        { width: 1194, height: 834 },
+      ]) {
+        const projection = createMainlineViewportProjection(size)
+        const axes = mainlineCameraFollowAxes(scene, projection)
+        const center = {
+          x: scene.walkBounds.x + scene.walkBounds.width / 2,
+          y: scene.walkBounds.y + scene.walkBounds.height / 2,
+        }
+        const current = mainlineCameraOffset(scene, center, false, projection)
+        const targetPosition = {
+          x: center.x + (axes.x ? size.width / (projection.scale * projection.worldSize.width) * 100 * .45 : 0),
+          y: center.y + (axes.y ? size.height / (projection.scale * projection.worldSize.height) * 100 * .45 : 0),
+        }
+        const target = mainlineCameraTarget(scene, targetPosition, current, false, projection)
+        const screen = projectMainlineWorldPointPercent(targetPosition, target, projection)
+        if (axes.x) expect(screen.x).toBeCloseTo(65, 0)
+        else expect(target.x).toBeCloseTo(fixedFrameCameraOffset(scene, projection).x, 6)
+        if (axes.y) expect(screen.y).toBeCloseTo(65, 0)
+        else expect(target.y).toBeCloseTo(fixedFrameCameraOffset(scene, projection).y, 6)
+      }
+    },
+  )
 
   it('composes stage centering and camera movement before the shared scale', () => {
     const projection = createMainlineViewportProjection({ width: 390, height: 844 })
