@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MainlineSceneDefinition } from './mainlineScenes'
-import { mainlineScenes } from './mainlineScenes'
+import { mainlineSceneRoute, mainlineScenes } from './mainlineScenes'
 import {
   DEFAULT_MAINLINE_VIEWPORT_SIZE,
   MAINLINE_WORLD_SIZE,
@@ -62,6 +62,25 @@ describe('unified mainline viewport projection', () => {
     expect(resolveMainlineViewportScaleMode('?viewportScale=invalid')).toBe('current')
     expect(resolveMainlineViewportScaleMode('')).toBe('current')
     expect(createMainlineViewportProjection({ width: 390, height: 844 }).scaleMode).toBe('current')
+  })
+
+  it.each(['C', 'D', 'current'] as const)('keeps the %s viewport mode in scene routes', (mode) => {
+    const route = mainlineSceneRoute('jijia-ancestral-interior', { x: 96, y: 50 }, 'resume', mode)
+    const search = new URL(route, 'https://example.test').search
+
+    expect(resolveMainlineViewportScaleMode(search)).toBe(mode)
+    expect(route).toContain('entryX=96&entryY=50')
+    expect(route).not.toContain('access_token')
+    expect(route).not.toContain('unknownQuery')
+  })
+
+  it('keeps the selected mode through a multi-scene route sequence', () => {
+    const sceneIds = ['jijia-ancestral-interior', 'jijia-ancestral-home', 'zhongshuyuan-passage', 'zhongshuyuan-office'] as const
+
+    for (const sceneId of sceneIds) {
+      const route = mainlineSceneRoute(sceneId, undefined, 'resume', 'C')
+      expect(resolveMainlineViewportScaleMode(new URL(route, 'https://example.test').search)).toBe('C')
+    }
   })
 
   it('keeps the authored 1280×720 composition at unit scale', () => {

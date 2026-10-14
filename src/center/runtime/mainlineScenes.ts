@@ -1432,11 +1432,19 @@ export const mainlineMapLandmarksByWorld: Record<MainlineMapWorld, readonly Main
 
 export type MainlineSpawnMode = 'resume' | 'ride'
 
-export function mainlineSceneRoute(sceneId: MainlineSceneId, entryPosition?: Point, spawnMode?: MainlineSpawnMode) {
+export type MainlineSceneRouteScaleMode = 'current' | 'C' | 'D'
+
+export function mainlineSceneRoute(
+  sceneId: MainlineSceneId,
+  entryPosition?: Point,
+  spawnMode?: MainlineSpawnMode,
+  scaleMode: MainlineSceneRouteScaleMode = 'current',
+) {
   const route = '/?scene=' + sceneId
   const entry = entryPosition ? '&entryX=' + entryPosition.x + '&entryY=' + entryPosition.y : ''
   const spawn = spawnMode === 'ride' ? '&spawn=ride' : ''
-  return route + entry + spawn
+  const scale = scaleMode === 'C' || scaleMode === 'D' ? '&viewportScale=' + scaleMode : ''
+  return route + entry + spawn + scale
 }
 
 export function resolveMainlineSceneId(search?: string): MainlineSceneId | null {

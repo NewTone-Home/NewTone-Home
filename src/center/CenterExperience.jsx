@@ -9,7 +9,7 @@ import {
   mainlineScenes,
   resolveMainlineSceneId,
 } from './runtime/mainlineScenes'
-import { createMainlineViewportProjection, DEFAULT_MAINLINE_VIEWPORT_SIZE, mainlineCameraOffset, projectMainlineWorldPointPercent } from './runtime/mainlineViewport'
+import { createMainlineViewportProjection, DEFAULT_MAINLINE_VIEWPORT_SIZE, mainlineCameraOffset, projectMainlineWorldPointPercent, resolveMainlineViewportScaleMode } from './runtime/mainlineViewport'
 import { createMainlineSceneGeometrySnapshot } from './runtime/mainlineSceneGeometrySnapshot'
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
@@ -59,8 +59,8 @@ import {
 } from './runtime/commercialStreetMilkTea'
 
 const initialSceneId = mainlineRespawnSceneId
-function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
-  return { sceneId, entryPosition, spawnMode }
+function createRoute(sceneId, entryPosition, spawnMode = 'resume', viewportScaleMode = 'current') {
+  return { sceneId, entryPosition, spawnMode, viewportScaleMode }
 }
 
 function screenPositionForScene(sceneId, position, liveCameraOffset, viewportProjection) {
@@ -77,7 +77,12 @@ export default function CenterExperience({
   const reducedMotion = useReducedMotion()
   const [playerSave, setPlayerSave] = useState(() => loadPlayerSave())
   const playerSaveRef = useRef(playerSave)
-  const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId))
+  const [route, setRoute] = useState(() => createRoute(
+    resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId,
+    undefined,
+    'resume',
+    resolveMainlineViewportScaleMode(window.location.search),
+  ))
   const [phoneOpen, setPhoneOpen] = useState(false)
   const sceneReadingActiveRef = useRef(false)
   const [, setSceneReadingActive] = useState(false)
@@ -337,7 +342,7 @@ export default function CenterExperience({
     if (lastPosition?.sceneId === route.sceneId) {
       positionSamplerRef.current?.sample(route.sceneId, lastPosition.position, { boundary: true })
     }
-    const nextRoute = createRoute(nextSceneId, nextEntryPosition, nextSpawnMode || 'resume')
+    const nextRoute = createRoute(nextSceneId, nextEntryPosition, nextSpawnMode || 'resume', route.viewportScaleMode)
     const startsLocalSlide = isLocalSlidePrototypeIntent(transitionIntent) && !reducedMotion
     if (startsLocalSlide) {
       setSceneSlot(1 - sceneSlot)
@@ -374,9 +379,9 @@ export default function CenterExperience({
         : next
     })
     window.history.pushState(
-      { newtoneCenterScene: nextSceneId },
+      { newtoneCenterScene: nextSceneId, viewportScaleMode: nextRoute.viewportScaleMode },
       '',
-      mainlineSceneRoute(nextSceneId, nextEntryPosition, nextRoute.spawnMode),
+      mainlineSceneRoute(nextSceneId, nextEntryPosition, nextRoute.spawnMode, nextRoute.viewportScaleMode),
     )
     setRoute(nextRoute)
   }, [commitPlayerSave, reducedMotion, resumePosition, route, sceneSlot])
@@ -439,11 +444,11 @@ export default function CenterExperience({
   const handleSafeSpawnCorrection = useCallback((position) => {
     if (!route.entryPosition && route.spawnMode !== 'ride') return
     commitPlayerSave((current) => recordPlayerScenePosition(current, route.sceneId, position))
-    const nextRoute = createRoute(route.sceneId, position, route.spawnMode)
+    const nextRoute = createRoute(route.sceneId, position, route.spawnMode, route.viewportScaleMode)
     window.history.replaceState(
-      { newtoneCenterScene: route.sceneId },
+      { newtoneCenterScene: route.sceneId, viewportScaleMode: nextRoute.viewportScaleMode },
       '',
-      mainlineSceneRoute(route.sceneId, position, route.spawnMode),
+      mainlineSceneRoute(route.sceneId, position, route.spawnMode, nextRoute.viewportScaleMode),
     )
     setRoute(nextRoute)
   }, [commitPlayerSave, route.entryPosition, route.sceneId, route.spawnMode])

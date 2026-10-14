@@ -16,7 +16,6 @@ export type MainlineEntityWeight = 'gateway' | 'fixture' | 'anchor' | 'minor'
 export type MainlineEntitySurface = 'wall' | 'floor'
 export type MainlineInteractionBehavior = 'echo-pool' | 'incense' | 'desk-device' | 'blinds-toggle' | 'plant-choice' | 'cafe-order' | 'direct-wall'
 export type MainlineVisualProfile = 'tree-ring' | 'incense'
-export type MainlineAnimationGroup = 'office-breathing'
 export type MainlineSceneExternalExit = {
   id?: string
   axis: 'x' | 'y'
@@ -109,8 +108,6 @@ export type MainlineSceneEntity = {
   interactionBehavior?: MainlineInteractionBehavior
   /** Semantic visual treatment; keeps the renderer independent of authored IDs. */
   visualProfile?: MainlineVisualProfile
-  /** Shared presentation timing for a group of authored entities. */
-  animationGroup?: MainlineAnimationGroup
   /** Keep furniture at one authored visual state instead of distance-revealing it. */
   visualVisibility?: 'distance' | 'distance-baseline' | 'baseline' | 'static'
   groupId?: string
@@ -1449,7 +1446,6 @@ const zhongshuyuanOfficeDesk = floor({
   shape: zhongshuyuanOfficeDeskGeometry.collision,
   visualVisibility: 'baseline',
   groupId: 'zhongshuyuan-office-workstation',
-  animationGroup: 'office-breathing',
   interactionBehavior: 'desk-device',
 })
 
@@ -1474,7 +1470,6 @@ const zhongshuyuanOfficeChair = floor({
   visualVisibility: 'baseline',
   groupId: 'zhongshuyuan-office-workstation',
   seat: zhongshuyuanOfficeChairGeometry,
-  animationGroup: 'office-breathing',
 })
 
 const zhongshuyuanOfficePlant = floor({
@@ -1491,7 +1486,6 @@ const zhongshuyuanOfficePlant = floor({
   visualBounds: box(zhongshuyuanOfficePlantPosition.x - 1.7, zhongshuyuanOfficePlantPosition.y - 2.15, 3.4, 4.3),
   focusFrame: 'interactive',
   visualVisibility: 'baseline',
-  animationGroup: 'office-breathing',
   interactionBehavior: 'plant-choice',
 })
 
@@ -1525,7 +1519,6 @@ const zhongshuyuanOfficeRack = floor({
   collision: box(zhongshuyuanOfficeRackPosition.x - 1.5, zhongshuyuanOfficeRackPosition.y - 2.5, 3, 5),
   shape: box(zhongshuyuanOfficeRackPosition.x - 1.5, zhongshuyuanOfficeRackPosition.y - 2.5, 3, 5),
   visualVisibility: 'baseline',
-  animationGroup: 'office-breathing',
 })
 
 const zhongshuyuanOfficeDoorXs = [24, 32, 68, 76] as const

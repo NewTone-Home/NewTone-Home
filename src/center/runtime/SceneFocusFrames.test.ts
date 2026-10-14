@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { sceneFocusFrameGeometry } from './SceneFocusFrames'
+import { focusGeometryStyleSignature, sceneFocusFrameGeometry } from './SceneFocusFrames'
 
 const corners = ['top-left', 'top-right', 'bottom-right', 'bottom-left'] as const
 
@@ -30,5 +30,23 @@ describe('sceneFocusFrameGeometry', () => {
     const geometry = sceneFocusFrameGeometry(176.03125, 78.28125)
 
     expect(geometry.paths[corner]).toMatch(/ Z$/)
+  })
+})
+
+describe('focusGeometryStyleSignature', () => {
+  const signature = (values: Record<string, string>) => focusGeometryStyleSignature({
+    getPropertyValue: (property: string) => values[property] ?? '',
+  })
+
+  it('does not treat continuous visible opacity changes as geometry changes', () => {
+    expect(signature({ opacity: '.86174' })).toBe(signature({ opacity: '.979976' }))
+  })
+
+  it('still distinguishes hidden from visible and detects geometry-affecting styles', () => {
+    const visible = signature({ opacity: '.9', 'font-size': '12px' })
+
+    expect(signature({ opacity: '0', 'font-size': '12px' })).not.toBe(visible)
+    expect(signature({ opacity: '.9', 'font-size': '14px' })).not.toBe(visible)
+    expect(signature({ opacity: '.9', visibility: 'hidden', 'font-size': '12px' })).not.toBe(visible)
   })
 })

@@ -46,9 +46,21 @@ const focusGeometryStyleProperties = [
   'transform', 'transformOrigin', 'width', 'height', 'padding', 'borderWidth',
 ] as const
 
+export function focusGeometryStyleSignature(style: Pick<CSSStyleDeclaration, 'getPropertyValue'>) {
+  return focusGeometryStyleProperties.map(property => {
+    const cssProperty = property.replace(/[A-Z]/gu, letter => `-${letter.toLowerCase()}`)
+    const value = style.getPropertyValue(cssProperty)
+    // Opacity animation changes paint but not measured glyph geometry until
+    // the element crosses the hidden/visible boundary. Avoid remeasuring every
+    // frame while still responding when opacity reaches zero or becomes visible.
+    if (property !== 'opacity') return value
+    const opacity = Number(value)
+    return Number.isFinite(opacity) && opacity <= 0 ? 'hidden' : 'visible'
+  }).join('|')
+}
+
 function characterGeometrySignature(element: Element) {
-  const style = getComputedStyle(element)
-  return focusGeometryStyleProperties.map(property => style.getPropertyValue(property.replace(/[A-Z]/gu, letter => `-${letter.toLowerCase()}`))).join('|')
+  return focusGeometryStyleSignature(getComputedStyle(element))
 }
 
 function transformedCoordinateScale(element: HTMLElement, axis: 'x' | 'y') {

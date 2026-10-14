@@ -892,7 +892,6 @@
 }
 .scene-mainline-exploration--breathing > .scene-mainline-object__label {
   animation: scene-exploration-breathe 2.8s ease-in-out infinite;
-  animation-delay: var(--scene-exploration-animation-delay, 0s);
 }
 .scene-mainline-exploration--breathing:hover > .scene-mainline-object__label,
 .scene-mainline-exploration--breathing:focus-visible > .scene-mainline-object__label,
@@ -913,13 +912,6 @@
 @keyframes scene-exploration-breathe {
   0%, 100% { color: var(--interaction-tutorial-low); opacity: .86; }
   50% { color: var(--interaction-tutorial-high); opacity: .98; }
-}
-.scene-mainline-altar-table.scene-mainline-exploration--breathing > span {
-  /* The altar clock is written once by the renderer and read by every
-     member. No table owns an independent CSS animation anymore. */
-  animation: none;
-  color: color-mix(in srgb, var(--interaction-tutorial-high) calc(var(--scene-breathing-progress, .5) * 100%), var(--interaction-tutorial-low));
-  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
 }
 .scene-mainline-incense--lit.scene-mainline-exploration--breathing > span {
   animation: none;
@@ -1304,10 +1296,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .scene-shell *, .scene-shell *::before, .scene-shell *::after{ animation-duration: .01ms !important; transition-duration: .01ms !important; }
-  .scene-mainline-altar-table.scene-mainline-exploration--breathing > span {
-    color: var(--interaction-tutorial-high);
-    opacity: .92;
-  }
   .scene-mainline-incense--burning.scene-mainline-interaction--dynamic > span {
     color: var(--interaction-dynamic);
     opacity: 1;
