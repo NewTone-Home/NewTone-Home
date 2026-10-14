@@ -691,6 +691,7 @@
   color: inherit;
   cursor: pointer;
   font: inherit;
+  font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px));
   line-height: inherit;
   writing-mode: vertical-rl;
   text-orientation: upright;
@@ -766,7 +767,10 @@
 .scene-mainline-storefront-cell.is-near {
   color: var(--active);
 }
-.scene-mainline-storefront { font: inherit; }
+.scene-mainline-storefront {
+  font: inherit;
+  font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px));
+}
 .scene-mainline-storefront--horizontal { writing-mode: horizontal-tb; text-orientation: mixed; }
 .scene-mainline-storefront--vertical { writing-mode: vertical-rl; text-orientation: upright; }
 .scene-mainline-storefront--wall { color: var(--muted); }

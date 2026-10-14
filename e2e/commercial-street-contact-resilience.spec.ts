@@ -118,6 +118,19 @@ test('Café keeps its reveal and portal traversal after ordinary storefront cont
   const approach = mainlineStorefrontApproach(street, cafe)
   const actor = page.locator('[data-actor-id="protagonist"]')
   const stage = page.locator('.mainline-scene-stage')
+  const cafeDoorSurface = page.locator(`.scene-portal-characters[data-storefront-id="${cafe.id}"] .scene-door__surface`)
+  const sharedWallFont = async () => Number(await page.locator(
+    '.scene-mainline-wall-labels .scene-mainline-wall:not(.scene-mainline-wall-door):not(.scene-mainline-storefront)',
+  ).first().evaluate(element => getComputedStyle(element).fontSize.replace('px', '')))
+  const assertCafeDoorFont = async () => {
+    const [doorFont, wallFont] = await Promise.all([
+      cafeDoorSurface.evaluate(element => Number(getComputedStyle(element).fontSize.replace('px', ''))),
+      sharedWallFont(),
+    ])
+    expect(doorFont).toBeCloseTo(wallFont, 2)
+  }
+  await expect(cafeDoorSurface).toHaveCount(1)
+  await assertCafeDoorFont()
   // Walk through visible portions of the scrolling street using real input.
   const step = street.walkBounds.width / 8
   for (let index = 0; index < 16; index += 1) {
@@ -143,9 +156,16 @@ test('Café keeps its reveal and portal traversal after ordinary storefront cont
     if (Math.abs(Number(await actor.getAttribute('data-runtime-x')) - approach.x) < step / 100) break
   }
   await expect(page.locator(`[data-storefront-id="${cafe.id}"] .scene-mainline-storefront__label-track`)).toHaveAttribute('data-storefront-label-phase', 'revealed')
+  await assertCafeDoorFont()
   await expect(page.locator(`[data-scene-echo="${cafe.id}"]`)).toHaveCount(0)
   await page.locator('[data-focus-target-group="door:street-cafe-entry"]').first().click()
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toBeVisible({ timeout: 15000 })
+  const cafeWallFont = Number(await page.locator(
+    '.scene-mainline-wall-labels .scene-mainline-wall:not(.scene-mainline-wall-door)',
+  ).first().evaluate(element => getComputedStyle(element).fontSize.replace('px', '')))
+  const interiorDoorFonts = await page.locator('.scene-mainline-wall-door .scene-door__surface').evaluateAll(elements => elements.map(element => Number(getComputedStyle(element).fontSize.replace('px', ''))))
+  expect(interiorDoorFonts).toHaveLength(2)
+  for (const font of interiorDoorFonts) expect(font).toBeCloseTo(cafeWallFont, 2)
   expect(errors).toEqual([])
 })
 
