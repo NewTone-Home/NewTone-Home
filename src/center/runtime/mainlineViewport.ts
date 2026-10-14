@@ -5,12 +5,14 @@ export const MAINLINE_WORLD_SIZE = { width: 1280, height: 720 } as const
 export const DEFAULT_MAINLINE_VIEWPORT_SIZE = { width: 1280, height: 720 } as const
 export const mainlineCameraDeadzone = { start: 35, end: 65 } as const
 export const mainlineCameraEdgePadding = 2
+export type MainlineViewportScaleMode = 'current' | 'C' | 'D'
 
 export type MainlineViewportSize = { width: number; height: number }
 
 export type MainlineViewportProjection = {
   worldSize: typeof MAINLINE_WORLD_SIZE
   viewportSize: MainlineViewportSize
+  scaleMode: MainlineViewportScaleMode
   scale: number
   /** Screen-pixel offset that centers the scaled logical canvas in the stage. */
   offset: Point
@@ -29,24 +31,32 @@ function positive(value: number, fallback: number) {
  * viewport near the previously approved 0.8 zoom while allowing smaller
  * screens to ease toward the shared 0.65 floor. No device classes are used.
  */
-export function mainlineViewportScale(size: MainlineViewportSize) {
+export function mainlineViewportScale(size: MainlineViewportSize, mode: MainlineViewportScaleMode = 'current') {
   const width = positive(size.width, DEFAULT_MAINLINE_VIEWPORT_SIZE.width)
   const height = positive(size.height, DEFAULT_MAINLINE_VIEWPORT_SIZE.height)
+  if (mode === 'C') return clamp(height / MAINLINE_WORLD_SIZE.height, .85, 1.5)
+  if (mode === 'D') return clamp(Math.min(width / MAINLINE_WORLD_SIZE.width, height / MAINLINE_WORLD_SIZE.height), .85, 1.5)
   const areaScale = Math.sqrt((width / MAINLINE_WORLD_SIZE.width) * (height / MAINLINE_WORLD_SIZE.height))
   const aspect = width / height
   const portraitRelief = .275 * Math.max(0, 1 - aspect / (MAINLINE_WORLD_SIZE.width / MAINLINE_WORLD_SIZE.height))
   return clamp(areaScale + portraitRelief, .65, 1.5)
 }
 
-export function createMainlineViewportProjection(size: MainlineViewportSize): MainlineViewportProjection {
+export function resolveMainlineViewportScaleMode(search: string): MainlineViewportScaleMode {
+  const mode = new URLSearchParams(search).get('viewportScale')
+  return mode === 'C' || mode === 'D' ? mode : 'current'
+}
+
+export function createMainlineViewportProjection(size: MainlineViewportSize, scaleMode: MainlineViewportScaleMode = 'current'): MainlineViewportProjection {
   const viewportSize = {
     width: positive(size.width, DEFAULT_MAINLINE_VIEWPORT_SIZE.width),
     height: positive(size.height, DEFAULT_MAINLINE_VIEWPORT_SIZE.height),
   }
-  const scale = mainlineViewportScale(viewportSize)
+  const scale = mainlineViewportScale(viewportSize, scaleMode)
   return {
     worldSize: MAINLINE_WORLD_SIZE,
     viewportSize,
+    scaleMode,
     scale,
     offset: {
       x: (viewportSize.width - MAINLINE_WORLD_SIZE.width * scale) / 2,

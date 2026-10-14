@@ -71,6 +71,7 @@ for (const viewport of viewports) for (const scene of scenes) {
       }
       return frames.map(frame => {
         const group = frame.dataset.focusFrameGroup
+        const path = frame.querySelector<SVGPathElement>('path')
         const texts = [...stage.querySelectorAll<HTMLElement>('[data-focus-visual-group]')].filter(node => node.dataset.focusVisualGroup === group)
         const text = bounds(texts)
         if (!text) return { group, error: 'missing glyph bounds' }
@@ -93,13 +94,17 @@ for (const viewport of viewports) for (const scene of scenes) {
         ]
         const overlapNeighbors = neighbors.flatMap(rect => strokeRects.some(stroke => stroke.left < rect.right && stroke.right > rect.left && stroke.top < rect.bottom && stroke.bottom > rect.top)
           ? [{ left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }] : [])
-        return { group, text, frame: { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height }, gap, overlapNeighbors }
+        return { group, text, vectorEffect: path ? getComputedStyle(path).vectorEffect : null, frame: { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height }, gap, overlapNeighbors }
       })
     })
     expect(result.length).toBeGreaterThan(0)
     for (const frame of result) {
       expect('error' in frame ? frame.error : frame.group).not.toBe('missing glyph bounds')
       if ('error' in frame) continue
+      // Keep dash length and path geometry in the same transform space. The
+      // enclosing world receives a camera CSS transform, so a non-scaling
+      // stroke can leave a short unpainted tail when the camera scale is < 1.
+      expect(frame.vectorEffect).toBe('none')
       // SVG paths sit 1px inside the measured box and use a 1px stroke.
       // Adaptive margins may approach adjacent glyphs, so validate the actual
       // visible stroke gap rather than assuming a fixed outer box padding.

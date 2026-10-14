@@ -78,6 +78,29 @@ test('resizing keeps the world and dialogue layer on one shared transform', asyn
   }
 })
 
+test('C and D URL candidates use the measured stage and preserve the shared logical world', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  for (const mode of ['C', 'D'] as const) {
+    await page.goto(`/?scene=jijia-ancestral-interior&debugRuntimeEvidence=1&viewportScale=${mode}`)
+    const stage = page.locator('.mainline-scene-stage')
+    await expect(stage).toHaveAttribute('data-camera-scale-mode', mode)
+    const measured = await stage.evaluate((element) => {
+      const node = element as HTMLElement
+      return { width: node.clientWidth, height: node.clientHeight, scale: Number(node.dataset.cameraScale) }
+    })
+    const projection = createMainlineViewportProjection(measured, mode)
+    expect(measured.scale).toBeCloseTo(projection.scale, 5)
+    expect(projection.worldSize).toEqual({ width: 1280, height: 720 })
+    const transform = await page.locator('.scene-mainline-world').evaluate((element) => getComputedStyle(element).transform)
+    const scale = await page.evaluate((value) => {
+      const matrix = new DOMMatrixReadOnly(value)
+      return { x: matrix.a, y: matrix.d }
+    }, transform)
+    expect(scale.x).toBeCloseTo(projection.scale, 5)
+    expect(scale.y).toBeCloseTo(projection.scale, 5)
+  }
+})
+
 test.describe('portrait touch camera follow', () => {
 test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
 

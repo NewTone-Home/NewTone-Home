@@ -15,7 +15,7 @@ import { sceneInteractionHandlers } from './sceneInteraction'
 import { useAutomaticPassages } from './useAutomaticPassages'
 import { defaultSceneScreenMetrics } from './sceneBoundaryGrid'
 import { useMainlineCamera } from './useMainlineCamera'
-import { createMainlineViewportProjection, DEFAULT_MAINLINE_VIEWPORT_SIZE, type MainlineViewportSize } from './mainlineViewport'
+import { createMainlineViewportProjection, DEFAULT_MAINLINE_VIEWPORT_SIZE, resolveMainlineViewportScaleMode, type MainlineViewportScaleMode, type MainlineViewportSize } from './mainlineViewport'
 import type { MainlineRideWalkingContext } from './mainlineRide'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
@@ -316,7 +316,10 @@ export function MainlineScenePage({
   const resumeInteractionRef = useRef<(entityId: string) => void>(() => {})
   const screenMetrics = defaultSceneScreenMetrics
   const [viewportSize, setViewportSize] = useState<MainlineViewportSize>(DEFAULT_MAINLINE_VIEWPORT_SIZE)
-  const viewportProjection = useMemo(() => createMainlineViewportProjection(viewportSize), [viewportSize])
+  const [viewportScaleMode] = useState<MainlineViewportScaleMode>(() =>
+    typeof window === 'undefined' ? 'current' : resolveMainlineViewportScaleMode(window.location.search),
+  )
+  const viewportProjection = useMemo(() => createMainlineViewportProjection(viewportSize, viewportScaleMode), [viewportScaleMode, viewportSize])
   const sceneReadyRef = useRef(false)
   const handleViewportSizeChange = useCallback((next: MainlineViewportSize) => {
     setViewportSize((previous) => previous.width === next.width && previous.height === next.height ? previous : next)

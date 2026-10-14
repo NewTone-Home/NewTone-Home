@@ -13,6 +13,7 @@ import {
   mainlineWorldTransform,
   projectMainlineWorldPoint,
   projectMainlineWorldPointPercent,
+  resolveMainlineViewportScaleMode,
   unprojectMainlineViewportPoint,
 } from './mainlineViewport'
 
@@ -37,6 +38,30 @@ describe('unified mainline viewport projection', () => {
     expect(projection.worldSize).toEqual({ width: 1280, height: 720 })
     expect(projection.scale).toBeCloseTo(expectedScale, 1)
     expect(mainlineViewportScale({ width, height })).toBe(projection.scale)
+  })
+
+  it.each([
+    { width: 1280, height: 720, c: 1, d: 1 },
+    { width: 390, height: 844, c: 844 / 720, d: .85 },
+    { width: 320, height: 844, c: 844 / 720, d: .85 },
+    { width: 419, height: 1024, c: 1024 / 720, d: .85 },
+    { width: 844, height: 390, c: .85, d: .85 },
+    { width: 834, height: 1194, c: 1.5, d: .85 },
+    { width: 1194, height: 834, c: 834 / 720, d: 1194 / 1280 },
+    { width: 1920, height: 1080, c: 1.5, d: 1.5 },
+  ])('exposes reversible C/D scale candidates at $width×$height', ({ width, height, c, d }) => {
+    expect(createMainlineViewportProjection({ width, height }, 'C').scale).toBeCloseTo(c, 3)
+    expect(createMainlineViewportProjection({ width, height }, 'D').scale).toBeCloseTo(d, 3)
+    expect(createMainlineViewportProjection({ width, height }, 'C').scaleMode).toBe('C')
+    expect(createMainlineViewportProjection({ width, height }, 'D').scaleMode).toBe('D')
+  })
+
+  it('selects only explicit C/D URL candidates and otherwise preserves the current projection', () => {
+    expect(resolveMainlineViewportScaleMode('?scene=jijia-ancestral-home&viewportScale=C')).toBe('C')
+    expect(resolveMainlineViewportScaleMode('?viewportScale=D')).toBe('D')
+    expect(resolveMainlineViewportScaleMode('?viewportScale=invalid')).toBe('current')
+    expect(resolveMainlineViewportScaleMode('')).toBe('current')
+    expect(createMainlineViewportProjection({ width: 390, height: 844 }).scaleMode).toBe('current')
   })
 
   it('keeps the authored 1280×720 composition at unit scale', () => {
