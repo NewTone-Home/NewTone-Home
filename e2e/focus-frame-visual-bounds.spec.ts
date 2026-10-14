@@ -1,11 +1,24 @@
 import { expect, test } from '@playwright/test'
 
-const viewports = [{ width: 1280, height: 720 }, { width: 390, height: 844 }, { width: 844, height: 390 }, { width: 838, height: 2048 }]
+const viewports = [
+  { width: 1280, height: 720, dpr: 1 },
+  { width: 390, height: 844, dpr: 1 },
+  { width: 844, height: 390, dpr: 1 },
+  // 838x2048 was a physical screenshot. At DPR 2, its CSS viewport is 419x1024.
+  { width: 419, height: 1024, dpr: 2 },
+]
 const scenes = ['jijia-ancestral-home', 'jijia-ancestral-interior', 'zhongshuyuan-office', 'commercial-street']
 
 for (const viewport of viewports) for (const scene of scenes) {
-  test(`focus frames follow visible glyph bounds for ${scene} at ${viewport.width}x${viewport.height}`, async ({ page }, info) => {
-    await page.setViewportSize(viewport)
+  test(`focus frames follow visible glyph bounds for ${scene} at ${viewport.width}x${viewport.height} DPR ${viewport.dpr}`, async ({ browser }, info) => {
+    const context = await browser.newContext({
+      viewport: { width: viewport.width, height: viewport.height },
+      deviceScaleFactor: viewport.dpr,
+      isMobile: viewport.width < 600,
+      hasTouch: viewport.width < 600,
+    })
+    const page = await context.newPage()
+    try {
     await page.goto('/?scene=' + scene)
     await page.waitForSelector('.mainline-scene-stage')
     await page.evaluate(() => document.fonts.ready)
@@ -18,6 +31,16 @@ for (const viewport of viewports) for (const scene of scenes) {
       const bounds = (elements: HTMLElement[]) => {
         const ink: DOMRect[] = []
         for (const element of elements) {
+          let scaleX = 1, scaleY = 1
+          for (let current: HTMLElement | null = element; current; current = current.parentElement) {
+            const transform = getComputedStyle(current).transform
+            if (transform !== 'none') {
+              const matrix = new DOMMatrixReadOnly(transform)
+              scaleX *= Math.hypot(matrix.a, matrix.b)
+              scaleY *= Math.hypot(matrix.c, matrix.d)
+            }
+            if (current.classList.contains('mainline-scene-stage')) break
+          }
           const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
           for (let text = walker.nextNode(); text; text = walker.nextNode()) {
             const style = getComputedStyle(text.parentElement ?? element)
@@ -35,8 +58,8 @@ for (const viewport of viewports) for (const scene of scenes) {
               const measuredWidth = metric.actualBoundingBoxLeft + metric.actualBoundingBoxRight
               const measuredHeight = metric.actualBoundingBoxAscent + metric.actualBoundingBoxDescent
               const sideways = style.writingMode.startsWith('vertical') && style.textOrientation !== 'upright'
-              const width = Math.min(layout.width, sideways ? measuredHeight : measuredWidth)
-              const height = Math.min(layout.height, sideways ? measuredWidth : measuredHeight)
+              const width = Math.min(layout.width, sideways ? measuredHeight * scaleY : measuredWidth * scaleX)
+              const height = Math.min(layout.height, sideways ? measuredWidth * scaleX : measuredHeight * scaleY)
               if (width > 0 && height > 0) ink.push(new DOMRect(layout.left + (layout.width - width) / 2, layout.top + (layout.height - height) / 2, width, height))
             }
           }
@@ -86,5 +109,8 @@ for (const viewport of viewports) for (const scene of scenes) {
       expect(frame.overlapNeighbors, JSON.stringify(frame)).toHaveLength(0)
     }
     await page.screenshot({ path: info.outputPath('focus-frames-' + scene + '.png') })
+    } finally {
+      await context.close()
+    }
   })
 }

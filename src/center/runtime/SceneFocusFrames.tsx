@@ -39,6 +39,35 @@ function sameFrameBounds(first: CSSProperties, second: CSSProperties) {
   })
 }
 
+const focusGeometryStyleProperties = [
+  'font', 'fontFamily', 'fontSize', 'fontStyle', 'fontWeight', 'fontVariant',
+  'letterSpacing', 'wordSpacing', 'lineHeight', 'writingMode', 'textOrientation',
+  'textTransform', 'textIndent', 'whiteSpace', 'display', 'visibility', 'opacity',
+  'transform', 'transformOrigin', 'width', 'height', 'padding', 'borderWidth',
+] as const
+
+function characterGeometrySignature(element: Element) {
+  const style = getComputedStyle(element)
+  return focusGeometryStyleProperties.map(property => style.getPropertyValue(property.replace(/[A-Z]/gu, letter => `-${letter.toLowerCase()}`))).join('|')
+}
+
+function transformedCoordinateScale(element: HTMLElement, axis: 'x' | 'y') {
+  for (let candidate: HTMLElement | null = element; candidate; candidate = candidate.parentElement) {
+    const rect = candidate.getBoundingClientRect()
+    const style = getComputedStyle(candidate)
+    const dimension = Number.parseFloat(axis === 'x' ? style.width : style.height)
+    const sides = axis === 'x' ? ['Left', 'Right'] : ['Top', 'Bottom']
+    const extra = style.boxSizing === 'border-box' ? 0 : sides.reduce((sum, side) => sum
+      + (Number.parseFloat(style.getPropertyValue(`padding-${side.toLowerCase()}`)) || 0)
+      + (Number.parseFloat(style.getPropertyValue(`border-${side.toLowerCase()}-width`)) || 0), 0)
+    const layoutDimension = dimension + extra
+    const visualDimension = axis === 'x' ? rect.width : rect.height
+    if (layoutDimension > 0 && visualDimension > 0) return visualDimension / layoutDimension
+    if (candidate.classList.contains('scene-mainline-world')) break
+  }
+  return 1
+}
+
 export function sceneFocusFrameGeometry(width: number, height: number): SceneFocusFrameGeometry {
   const viewWidth = geometryDimension(width)
   const viewHeight = geometryDimension(height)
@@ -208,6 +237,8 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
 
   useLayoutEffect(() => {
     if (freezeMeasurements) return undefined
+    let measureFrame = 0
+    let pendingMeasure = false
     const measure = (groups: Iterable<string> = targetGroups) => {
       const updates = new Map<string, { duration: number; geometry: SceneFocusFrameGeometry; bounds: CSSProperties }>()
       for (const group of groups) {
@@ -224,18 +255,17 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
           .filter(element => !characters.some(target => target === element || target.contains(element) || element.contains(target)))
         const neighbors = measureSceneCharacterRects(otherCharacters)
         const origin = parent.getBoundingClientRect()
-        const parentStyle = getComputedStyle(parent)
-        const borderSize = (axis: 'x' | 'y') => {
-          const sides = axis === 'x' ? ['Left', 'Right'] : ['Top', 'Bottom']
-          const extra = parentStyle.boxSizing === 'border-box' ? 0 : sides.reduce((sum, side) => sum
-            + (Number.parseFloat(parentStyle.getPropertyValue(`padding-${side.toLowerCase()}`)) || 0)
-            + (Number.parseFloat(parentStyle.getPropertyValue(`border-${side.toLowerCase()}-width`)) || 0), 0)
-          return (Number.parseFloat(axis === 'x' ? parentStyle.width : parentStyle.height) || 0) + extra
-        }
-        const scaleX = origin.width > 0 ? origin.width / (borderSize('x') || origin.width) : 1
-        const scaleY = origin.height > 0 ? origin.height / (borderSize('y') || origin.height) : 1
+        // Some object frames live in a zero-size focus host positioned over a
+        // separately rendered label. Its own rect cannot reveal the world
+        // scale, so resolve the containing coordinate scale from its nearest
+        // sized ancestor (normally the 1280x720 world layer).
+        const scaleX = transformedCoordinateScale(parent, 'x')
+        const scaleY = transformedCoordinateScale(parent, 'y')
         const nominalMargin = sceneFocusVisualGapPx + sceneFocusStrokeInsetPx
-        const minMargin = sceneFocusStrokeInsetPx + .5
+        // Keep a small positive visible gap after fractional transforms and
+        // non-scaling SVG stroke rasterization, even at the tightest adaptive
+        // margin used beside adjacent glyphs.
+        const minMargin = sceneFocusStrokeInsetPx + .6
         const crowdingMargin = (distance: number) => Math.min(nominalMargin, Math.max(minMargin, minMargin + (distance - 1) / 2))
         let leftMargin = nominalMargin
         let rightMargin = nominalMargin
@@ -271,27 +301,58 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
       })
     }
 
-    const measureAll = () => measure()
+    const scheduleMeasureAll = () => {
+      if (measureFrame) return
+      measureFrame = window.requestAnimationFrame(() => {
+        measureFrame = 0
+        if (pendingMeasure) {
+          pendingMeasure = false
+          measure()
+        }
+      })
+      pendingMeasure = true
+    }
     measureGroupRef.current = (group) => measure([group])
     measure()
     if (typeof ResizeObserver === 'undefined') return undefined
-    const observer = new ResizeObserver(measureAll)
-    const characterChanges = new MutationObserver(measureAll)
+    const observer = new ResizeObserver(scheduleMeasureAll)
+    const characterChanges = new MutationObserver((records) => {
+      let geometryChanged = false
+      records.forEach(record => {
+        if (record.type === 'characterData' || record.type === 'childList') {
+          geometryChanged = true
+          return
+        }
+        const element = record.target instanceof Element ? record.target : record.target.parentElement
+        if (!element) return
+        const signature = characterGeometrySignature(element)
+        if (characterGeometrySignatures.get(element) !== signature) {
+          characterGeometrySignatures.set(element, signature)
+          geometryChanged = true
+        }
+      })
+      if (geometryChanged) scheduleMeasureAll()
+    })
+    const characterGeometrySignatures = new WeakMap<Element, string>()
+    const observedCharacters = new Set<HTMLElement>()
     frameNodesRef.current.forEach((node, group) => {
       if (!targetGroups.has(group)) return
       if (node.parentElement) observer.observe(node.parentElement)
-      node.closest('.mainline-scene-stage')?.querySelectorAll<HTMLElement>('[data-focus-visual-group]').forEach(element => {
-        if (element.dataset.focusVisualGroup === group) {
-          observer.observe(element)
-          characterChanges.observe(element, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] })
-        }
+      node.closest('.mainline-scene-stage')?.querySelectorAll<HTMLElement>('[data-scene-characters]').forEach(element => {
+        if (observedCharacters.has(element)) return
+        observedCharacters.add(element)
+        observer.observe(element)
+        characterChanges.observe(element, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] })
+        characterGeometrySignatures.set(element, characterGeometrySignature(element))
+        element.querySelectorAll('*').forEach(child => characterGeometrySignatures.set(child, characterGeometrySignature(child)))
       })
     })
-    document.fonts?.addEventListener('loadingdone', measureAll)
+    document.fonts?.addEventListener('loadingdone', scheduleMeasureAll)
     return () => {
+      if (measureFrame) window.cancelAnimationFrame(measureFrame)
       observer.disconnect()
       characterChanges.disconnect()
-      document.fonts?.removeEventListener('loadingdone', measureAll)
+      document.fonts?.removeEventListener('loadingdone', scheduleMeasureAll)
       measureGroupRef.current = () => {}
     }
   }, [frameNodesRevision, freezeMeasurements, targetGroups])

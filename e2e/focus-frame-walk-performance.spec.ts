@@ -100,7 +100,10 @@ test('walking does not repeatedly measure focus characters, and Café switch cel
   }
 
   await page.setViewportSize({ width: 1280, height: 720 })
-  await page.goto('/?scene=commercial-street&debugRuntimeEvidence=1')
+  // Use a dialogue-free office route for repeatable movement measurements.
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })
+  await page.goto('/?scene=zhongshuyuan-office&debugRuntimeEvidence=1')
   await page.evaluate(() => document.fonts.ready)
   stage = page.locator('.mainline-scene-stage')
   const protagonist = page.locator('[data-actor-id="protagonist"]')
@@ -124,10 +127,14 @@ test('walking does not repeatedly measure focus characters, and Café switch cel
     x: Number(element.getAttribute('data-camera-offset-x') ?? 0),
     y: Number(element.getAttribute('data-camera-offset-y') ?? 0),
   }))
-  const clickPoint = { x: ((90 + camera.x) / 100) * metrics.width, y: ((60 + camera.y) / 100) * metrics.height }
+  const clickPoint = { x: ((65 + camera.x) / 100) * metrics.width, y: ((50 + camera.y) / 100) * metrics.height }
   await stage.click({ position: clickPoint })
   await expect(protagonist).toHaveClass(/is-moving/)
-  const startX = Number(await protagonist.getAttribute('data-runtime-x'))
+  const currentActorX = () => protagonist.evaluate(element => {
+    const node = element as HTMLElement
+    return Number.parseFloat(node.dataset.runtimeX ?? node.style.left)
+  })
+  const startX = await currentActorX()
   await page.evaluate(() => {
     const frameProbe = { gaps: [] as number[], last: null as number | null, handle: 0 }
     const sample = (now: number) => {
@@ -157,10 +164,11 @@ test('walking does not repeatedly measure focus characters, and Café switch cel
       maxFrameMs: Number((sorted.at(-1) ?? 0).toFixed(1)),
     }
   })
-  const endX = Number(await protagonist.getAttribute('data-runtime-x'))
+  const endX = await currentActorX()
   console.log('[focus-frame-walk-performance]', JSON.stringify({ ...measurement, startX, endX }))
   expect(Math.abs(endX - startX)).toBeGreaterThan(1)
   const measurements = measurement
+  await cdp.detach()
   expect(measurements.rangeRects, JSON.stringify(measurements)).toBe(0)
   expect(measurements.canvasMeasures, JSON.stringify(measurements)).toBe(0)
   expect(measurements.focusQueries, JSON.stringify(measurements)).toBe(0)

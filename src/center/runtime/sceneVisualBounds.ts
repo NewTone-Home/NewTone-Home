@@ -13,6 +13,22 @@ export function unionVisualRects(rects: readonly VisualRect[]): VisualRect | nul
   }
 }
 
+/** Canvas text metrics are in CSS pixels; Range rectangles include ancestor transforms. */
+export function sceneVisualTransformScale(element: HTMLElement) {
+  let x = 1
+  let y = 1
+  for (let current: HTMLElement | null = element; current; current = current.parentElement) {
+    const transform = getComputedStyle(current).transform
+    if (transform !== 'none') {
+      const matrix = new DOMMatrixReadOnly(transform)
+      x *= Math.hypot(matrix.a, matrix.b)
+      y *= Math.hypot(matrix.c, matrix.d)
+    }
+    if (current.classList.contains('mainline-scene-stage')) break
+  }
+  return { x, y }
+}
+
 /**
  * A DOM Range describes the font's advance/line box, not the visible ink. Use
  * the same browser font metrics to tighten each glyph inside its own range;
@@ -31,6 +47,7 @@ export function measureSceneCharacterRects(nodes: readonly HTMLElement[]) {
       const style = getComputedStyle(text.parentElement ?? root)
       if (style.visibility === 'hidden' || Number.parseFloat(style.opacity) === 0) continue
       if (context) context.font = style.font || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+      const visualScale = sceneVisualTransformScale(root)
       const range = document.createRange()
       let offset = 0
       for (const glyph of value) {
@@ -46,8 +63,8 @@ export function measureSceneCharacterRects(nodes: readonly HTMLElement[]) {
         const inkHeight = metrics ? metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent : layout.height
         if (!(inkWidth > 0 && inkHeight > 0)) continue
         const verticalSideways = style.writingMode.startsWith('vertical') && style.textOrientation !== 'upright'
-        const width = Math.min(layout.width, verticalSideways ? inkHeight : inkWidth)
-        const height = Math.min(layout.height, verticalSideways ? inkWidth : inkHeight)
+        const width = Math.min(layout.width, verticalSideways ? inkHeight * visualScale.y : inkWidth * visualScale.x)
+        const height = Math.min(layout.height, verticalSideways ? inkWidth * visualScale.x : inkHeight * visualScale.y)
         rects.push({
           left: layout.left + (layout.width - width) / 2,
           top: layout.top + (layout.height - height) / 2,
