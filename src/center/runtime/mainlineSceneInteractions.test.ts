@@ -3,6 +3,9 @@ import { mainlineSceneAreaLabel, mainlineScenes } from './mainlineScenes'
 import { mainlineInteractionTarget } from './mainlineNavigation'
 import { commercialCafeCoffeeStatusKey } from './commercialCafeStory'
 import {
+  incenseBurnDurationMs,
+  incenseBurnPhase,
+  incenseBurnRemainingMs,
   plantIsWatered,
   isMainlineInPlaceInteraction,
   resolveMainlineSceneEchoChoice,
@@ -16,6 +19,33 @@ function entity(sceneId: keyof typeof mainlineScenes, entityId: string) {
 }
 
 describe('mainline scene interaction policies', () => {
+  it('only starts incense on the explicit relight choice and burns out after the existing ten-minute duration', () => {
+    const scene = mainlineScenes['jijia-ancestral-interior']
+    const burner = entity('jijia-ancestral-interior', 'jijia-incense-burner')
+    const now = 1_000_000
+    const unlitChoice = resolveMainlineSceneExploration(scene, burner, {
+      incensePhase: 'unlit', plantWatered: false, officeBlindsOpen: true, carriedPhoneDevice: 'surface',
+    }).choice
+    const relightOption = unlitChoice?.options?.[0]
+    expect(relightOption).toBeTruthy()
+    expect(incenseBurnPhase(null, now)).toBe('unlit')
+
+    const relight = resolveMainlineSceneEchoChoice(scene, burner, relightOption!, now)
+    expect(relight?.stateChange).toEqual({ key: 'incenseLitAt', value: now })
+    expect(incenseBurnPhase(now, now)).toBe('fresh')
+    expect(incenseBurnPhase(now, now + incenseBurnDurationMs / 2)).toBe('half')
+    expect(incenseBurnRemainingMs(now, now + incenseBurnDurationMs / 2)).toBe(incenseBurnDurationMs / 2)
+    expect(incenseBurnPhase(now, now + incenseBurnDurationMs)).toBe('burned')
+    expect(incenseBurnRemainingMs(now, now + incenseBurnDurationMs)).toBe(0)
+
+    const freshRead = resolveMainlineSceneExploration(scene, burner, {
+      incensePhase: 'fresh', plantWatered: false, officeBlindsOpen: true, carriedPhoneDevice: 'surface',
+    }).choice
+    expect(freshRead?.options).toBeUndefined()
+    expect(resolveMainlineSceneEchoChoice(scene, burner, `${relightOption} `, now + 20)?.stateChange).toBeUndefined()
+    expect(incenseBurnPhase(now, now + incenseBurnDurationMs + 1)).toBe('burned')
+  })
+
   it('keeps incense phase choices and state effects independent of scene IDs', () => {
     const scene = mainlineScenes['jijia-ancestral-interior']
     const burner = entity('jijia-ancestral-interior', 'jijia-incense-burner')

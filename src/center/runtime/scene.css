@@ -880,6 +880,14 @@
 .scene-mainline-object--direction { color: var(--soft); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); }
 .scene-mainline-yard-tree-ring { color: var(--soft); opacity: .78; }
 .scene-mainline-yard-tree-ring.is-under-player { opacity: .28; }
+.scene-mainline-yard-tree-ring--wind > .scene-mainline-object__label {
+  animation: scene-yard-tree-wind 5.2s ease-in-out infinite;
+}
+@keyframes scene-yard-tree-wind {
+  0%, 100% { opacity: .96; filter: brightness(.99); }
+  38% { opacity: 1; filter: brightness(1.015); }
+  72% { opacity: .975; filter: brightness(1); }
+}
 .scene-mainline-object--fixture { color: var(--ink); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); letter-spacing: 0; }
 .scene-mainline-object--table,
 .scene-mainline-object--seat {
@@ -913,10 +921,12 @@
   0%, 100% { color: var(--interaction-tutorial-low); opacity: .86; }
   50% { color: var(--interaction-tutorial-high); opacity: .98; }
 }
-.scene-mainline-incense--lit.scene-mainline-exploration--breathing > span {
-  animation: none;
-  color: color-mix(in srgb, var(--interaction-tutorial-high) calc(var(--scene-breathing-progress, .5) * 100%), var(--interaction-tutorial-low));
-  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
+.scene-mainline-incense--burning > .scene-mainline-object__label {
+  animation: scene-incense-flame-breathe 2.8s ease-in-out infinite;
+}
+@keyframes scene-incense-flame-breathe {
+  0%, 100% { opacity: .92; filter: brightness(.99); }
+  50% { opacity: .98; filter: brightness(1.04); }
 }
 .scene-mainline-altar-table.scene-mainline-interaction--active > span,
 .scene-mainline-incense--lit.scene-mainline-interaction--active > span {
@@ -987,9 +997,9 @@
   opacity: 1;
 }
 .scene-mainline-incense--burning.scene-mainline-interaction--dynamic > span {
-  animation: none;
-  color: color-mix(in srgb, var(--interaction-dynamic) calc(60% + var(--scene-breathing-progress, .5) * 40%), var(--interaction-normal));
-  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
+  animation: scene-incense-flame-breathe 2.8s ease-in-out infinite;
+  color: var(--interaction-dynamic);
+  opacity: .94;
 }
 .scene-mainline-object.scene-mainline-interaction--normal-unexplored > span,
 .scene-mainline-object.scene-mainline-interaction--explored > span,
