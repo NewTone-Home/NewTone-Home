@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const viewports = [{ width: 1280, height: 720 }, { width: 390, height: 844 }, { width: 844, height: 390 }]
+const viewports = [{ width: 1280, height: 720 }, { width: 390, height: 844 }, { width: 844, height: 390 }, { width: 838, height: 2048 }]
 const scenes = ['jijia-ancestral-home', 'jijia-ancestral-interior', 'zhongshuyuan-office', 'commercial-street']
 
 for (const viewport of viewports) for (const scene of scenes) {

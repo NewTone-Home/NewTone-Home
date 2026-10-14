@@ -29,6 +29,16 @@ function geometryNumber(value: number) {
   return Number(value.toFixed(3))
 }
 
+function sameFrameBounds(first: CSSProperties, second: CSSProperties) {
+  return (['left', 'top', 'width', 'height'] as const).every((key) => {
+    const a = first[key]
+    const b = second[key]
+    return typeof a === 'number' && typeof b === 'number'
+      ? Math.abs(a - b) < .01
+      : a === b
+  })
+}
+
 export function sceneFocusFrameGeometry(width: number, height: number): SceneFocusFrameGeometry {
   const viewWidth = geometryDimension(width)
   const viewHeight = geometryDimension(height)
@@ -252,7 +262,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         let changed = false
         for (const [group, measurement] of updates) {
           const previous = current.get(group)
-          if (!previous || previous.duration !== measurement.duration || previous.geometry.viewBox !== measurement.geometry.viewBox || JSON.stringify(previous.bounds) !== JSON.stringify(measurement.bounds)) {
+          if (!previous || previous.duration !== measurement.duration || previous.geometry.viewBox !== measurement.geometry.viewBox || !sameFrameBounds(previous.bounds, measurement.bounds)) {
             next.set(group, measurement)
             changed = true
           }
