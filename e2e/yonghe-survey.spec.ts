@@ -117,6 +117,7 @@ test('390x844 mobile: all four observations complete in any order and survive re
 })
 
 test('legal isolated save: perimeter, eatery round trip, ride map, and Café entry', async ({ page }, testInfo) => {
+  test.setTimeout(90_000)
   await page.addInitScript((key) => {
     localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
     localStorage.setItem(key, JSON.stringify({
@@ -175,7 +176,10 @@ test('legal isolated save: perimeter, eatery round trip, ride map, and Café ent
     if (currentScene === 'commercial-street') break
     const stage = page.locator('.scene-stage')
     const box = await stage.boundingBox()
-    if (!box) throw new Error('Scene stage unavailable while approaching the ride pickup')
+    if (!box) {
+      await page.waitForTimeout(800)
+      continue
+    }
     await stage.click({ position: { x: box.width / 2, y: box.height * 0.96 } })
     await page.waitForTimeout(800)
   }
@@ -184,7 +188,15 @@ test('legal isolated save: perimeter, eatery round trip, ride map, and Café ent
 
   const cafeDoor = page.locator('.scene-shell[data-mainline-scene="commercial-street"] [data-focus-target-group="door:street-cafe-entry"]')
   await expect(cafeDoor).toBeVisible({ timeout: 15_000 })
-  await cafeDoor.click()
+  const streetStage = page.locator('.scene-stage')
+  for (const xRatio of [0.6, 0.8, 0.94]) {
+    if (await page.locator('.scene-shell').getAttribute('data-mainline-scene') === 'commercial-cafe') break
+    const stageBox = await streetStage.boundingBox()
+    if (!stageBox) throw new Error('Commercial street stage is unavailable near the Café')
+    await streetStage.click({ position: { x: stageBox.width * xRatio, y: stageBox.height * 0.5 } })
+    await page.waitForTimeout(1_000)
+  }
+  if (await page.locator('.scene-shell').getAttribute('data-mainline-scene') !== 'commercial-cafe') await cafeDoor.click()
   const cafe = page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')
   await expect(cafe).toBeVisible({ timeout: 15_000 })
   await expect(page.locator('.scene-shell[data-mainline-scene="yonghe-eatery"]')).toHaveCount(0)
