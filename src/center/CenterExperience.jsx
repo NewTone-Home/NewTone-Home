@@ -110,8 +110,13 @@ export default function CenterExperience({
   }
   const [phoneDevice, setPhoneDevice] = useState(() => loadPlayerSave().phoneDevice)
   const [requestedPhoneApp, setRequestedPhoneApp] = useState(null)
-  const [resumeSceneId, setResumeSceneId] = useState(null)
-  const [resumePosition, setResumePosition] = useState(undefined)
+  const [resumeSceneId, setResumeSceneId] = useState(() => route.sceneId)
+  const [resumePosition, setResumePosition] = useState(() => {
+    if (route.entryPosition || route.spawnMode === 'ride') return undefined
+    const initialSave = loadPlayerSave(undefined, route.sceneId)
+    return initialSave.scenePositions[route.sceneId]
+      ?? (initialSave.currentSceneId === route.sceneId ? initialSave.currentPosition ?? undefined : undefined)
+  })
   const [localSlideHandoffRoute, setLocalSlideHandoffRoute] = useState(null)
   const [sceneSlot, setSceneSlot] = useState(0)
   const [boundaryNotice, setBoundaryNotice] = useState('')
@@ -316,10 +321,14 @@ export default function CenterExperience({
 
   useEffect(() => {
     setBoundaryNotice('')
-    setResumeSceneId(null)
-    setResumePosition(undefined)
-    if (route.spawnMode === 'ride' || route.entryPosition) return
-    setResumePosition(loadPlayerSave(undefined, route.sceneId).scenePositions[route.sceneId])
+    if (route.spawnMode === 'ride' || route.entryPosition) {
+      setResumeSceneId(null)
+      setResumePosition(undefined)
+      return
+    }
+    const save = loadPlayerSave(undefined, route.sceneId)
+    setResumePosition(save.scenePositions[route.sceneId]
+      ?? (save.currentSceneId === route.sceneId ? save.currentPosition ?? undefined : undefined))
     setResumeSceneId(route.sceneId)
   }, [route.sceneId, route.entryPosition?.x, route.entryPosition?.y, route.spawnMode])
 
@@ -367,16 +376,20 @@ export default function CenterExperience({
     }
     sceneEnteredAtRef.current = null
     commitPlayerSave((current) => {
+      const nextPosition = nextEntryPosition
+        ?? (nextRoute.spawnMode === 'ride' ? mainlineScenes[nextSceneId].rideArrivalPosition : current.scenePositions[nextSceneId])
+        ?? null
       const next = {
         ...current,
         currentSceneId: nextSceneId,
-        currentPosition: nextEntryPosition
-          ?? (nextRoute.spawnMode === 'ride' ? mainlineScenes[nextSceneId].rideArrivalPosition : current.scenePositions[nextSceneId])
-          ?? null,
+        currentPosition: nextPosition,
       }
-      return isTutorialCompletionTransition(route.sceneId, nextSceneId, nextRoute.spawnMode)
-        ? recordPlayerSceneState(next, 'commercial-street', interactionTutorialCompletedStateKey, true)
+      const positioned = nextPosition
+        ? recordPlayerScenePosition(next, nextSceneId, nextPosition)
         : next
+      return isTutorialCompletionTransition(route.sceneId, nextSceneId, nextRoute.spawnMode)
+        ? recordPlayerSceneState(positioned, 'commercial-street', interactionTutorialCompletedStateKey, true)
+        : positioned
     })
     window.history.pushState(
       { newtoneCenterScene: nextSceneId },
@@ -584,9 +597,15 @@ export default function CenterExperience({
     showProtagonist = true,
     snapshot = false,
     resumePosition: sceneResumePosition = resumePosition,
-  } = {}) => (
+  } = {}) => {
+    const effectiveResumePosition = sceneRoute.entryPosition || sceneRoute.spawnMode === 'ride'
+      ? sceneResumePosition
+      : sceneResumePosition
+        ?? playerSave.scenePositions[sceneRoute.sceneId]
+        ?? (playerSave.currentSceneId === sceneRoute.sceneId ? playerSave.currentPosition ?? undefined : undefined)
+    return (
     <MainlineScenePage
-      key={key ?? `${sceneRoute.sceneId}:${sceneRoute.entryPosition?.x ?? ''}:${sceneRoute.entryPosition?.y ?? ''}:${sceneRoute.spawnMode}:${sceneResumePosition?.x ?? ''}:${sceneResumePosition?.y ?? ''}`}
+      key={key ?? `${sceneRoute.sceneId}:${sceneRoute.entryPosition?.x ?? ''}:${sceneRoute.entryPosition?.y ?? ''}:${sceneRoute.spawnMode}:${effectiveResumePosition?.x ?? ''}:${effectiveResumePosition?.y ?? ''}`}
       sceneId={sceneRoute.sceneId}
       onExternalExit={snapshot ? undefined : () => {
         const current = latestWorldPositionRef.current
@@ -621,13 +640,14 @@ export default function CenterExperience({
       onPositionChange={snapshot ? undefined : canPersistScenePosition ? handlePositionChange : undefined}
       entryPosition={sceneRoute.entryPosition}
       spawnMode={sceneRoute.spawnMode}
-      resumePosition={sceneResumePosition}
+      resumePosition={effectiveResumePosition}
       showProtagonist={showProtagonist}
       presentationSnapshot={snapshot}
       suppressWorldEnterAnimation={!snapshot && localSlideHandoffRoute === sceneRoute}
       showSceneChrome={false}
     />
-  )
+    )
+  }
 
   const localSlideActor = localSlide
     ? {

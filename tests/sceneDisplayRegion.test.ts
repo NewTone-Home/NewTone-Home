@@ -7,6 +7,8 @@ import {
   type MainlineSceneDisplayRegion,
 } from '../src/center/runtime/sceneDisplayRegion'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { commercialStreetShopRegionId, commercialStreetShops } from '../src/center/runtime/commercialStreetWorldLayout'
+import { resolveMainlineSafeSpawnPosition } from '../src/center/runtime/mainlineNavigation'
 
 const regions: MainlineSceneDisplayRegion[] = [
   {
@@ -55,6 +57,8 @@ describe('mainline scene display regions', () => {
     const streetRegions = mainlineScenes['commercial-street'].displayRegions
     expect(streetRegions.map(region => region.id)).toEqual([
       'commercial-street-west', 'commercial-street-center', 'commercial-street-east',
+      ...commercialStreetShops.map(commercialStreetShopRegionId),
+      'commercial-lakeside',
     ])
     expect(resolveMainlineDisplayRegion(streetRegions, { x: 34, y: 50 })?.id).toBe('commercial-street-west')
     expect(resolveMainlineDisplayRegion(streetRegions, { x: 106, y: 50 })?.id).toBe('commercial-street-center')
@@ -62,5 +66,19 @@ describe('mainline scene display regions', () => {
     expect(streetRegions[0]!.visibleGeometryGroupIds).toContain('commercial-north-slot-1')
     expect(streetRegions[0]!.visibleGeometryGroupIds).not.toContain('commercial-north-slot-8')
     expect(streetRegions[2]!.visibleGeometryGroupIds).toContain('commercial-cafe-slot')
+    for (const shop of commercialStreetShops) {
+      const region = streetRegions.find(candidate => candidate.id === commercialStreetShopRegionId(shop))!
+      expect(region.passageLinks).toHaveLength(shop.kind === 'cafe' ? 2 : 1)
+      expect(region.bounds.width).toBe(shop.moduleCount * 22)
+      expect(region.bounds.height).toBe(shop.kind === 'cafe' ? 58 : 52)
+    }
+  })
+
+  it('preserves a walkable resumed position inside its current shop region', () => {
+    const scene = mainlineScenes['commercial-street']
+    const migratedCafePosition = { x: 166.4889, y: 22 }
+    const regionId = resolveMainlineDisplayRegion(scene.displayRegions, migratedCafePosition)?.id
+    expect(regionId).toBe('commercial-cafe-interior')
+    expect(resolveMainlineSafeSpawnPosition(scene, migratedCafePosition, {}, { displayRegionId: regionId })).toEqual(migratedCafePosition)
   })
 })

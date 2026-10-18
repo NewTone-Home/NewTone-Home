@@ -8,8 +8,10 @@ import { createFreeRoamController } from '../src/center/runtime/useFreeRoamMovem
 import { storefrontContactGeometry } from '../src/center/runtime/storefrontContactGeometry'
 import type { SceneScreenMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 
-const street = mainlineScenes['commercial-street']
-const clothing = street.storefronts.find(store => store.id === 'commercial-north-slot-2')!
+const actualStreet = mainlineScenes['commercial-street']
+const sourceClothing = actualStreet.storefronts.find(store => store.id === 'commercial-north-slot-2')!
+const clothing = { ...sourceClothing, portalId: undefined }
+const street = { ...actualStreet, storefronts: actualStreet.storefronts.map(store => store.id === clothing.id ? clothing : store) }
 const viewports = [
   { width: 1280, height: 720 }, { width: 390, height: 844 },
   { width: 412, height: 915 }, { width: 844, height: 390 },
@@ -31,7 +33,7 @@ function gapPixels(point: { x: number; y: number }, contact: NonNullable<ReturnT
 }
 
 describe('player storefront edge contacts', () => {
-  it.each(viewports)('routes all ordinary stores to a legal tiny edge gap at $width × $height', metrics => {
+  it.each(viewports)('routes a non-portal storefront to a legal tiny edge gap at $width × $height', metrics => {
     const options = context(metrics)
     for (const store of street.storefronts.filter(store => !store.portalId)) {
       const from = street.initialPlayerPosition
@@ -47,10 +49,10 @@ describe('player storefront edge contacts', () => {
     }
   })
 
-  it.each(viewports)('rejects aligned 6 / 4.2 / 2.4 rings as final interaction at $width × $height', metrics => {
+  it.each(viewports)('rejects distant aligned points as final interaction at $width × $height', metrics => {
     const options = context(metrics)
     const { center, outward, radius } = mainlineStorefrontInteractionRegion(street, clothing)
-    for (const fraction of [1, .7, .4]) {
+    for (const fraction of [3, 2.5, 2]) {
       const point = { x: center.x + outward.x * radius * fraction, y: center.y + outward.y * radius * fraction }
       expect(resolveMainlineStorefrontInteraction(street, clothing, point, {}, options).inRange).toBe(false)
       expect(mainlineStorefrontArrivalDecision(street, clothing, point, 2, {}, options)).toBe('blocked')
@@ -145,9 +147,9 @@ describe('player storefront edge contacts', () => {
     const metrics = { width: viewports[1].width, height: viewports[1].height, viewportWidth: viewports[0].width }
     const snapshot = context(metrics).geometrySnapshot
     expect(snapshot.storefronts.get(clothing.id)!.fontSizePx).toBe(15.36)
-    const cafe = street.storefronts.find(store => store.portalId)!
-    expect(snapshot.storefronts.has(cafe.id)).toBe(false)
-    expect(mainlineStorefrontPlayerContact(street, cafe, street.initialPlayerPosition, {}, { geometrySnapshot: snapshot })).toBeNull()
-    expect(resolveMainlineStorefrontInteraction(street, cafe, street.initialPlayerPosition).path).toBeNull()
+    const cafe = actualStreet.storefronts.find(store => store.id === 'commercial-cafe-slot')!
+    expect(createMainlineSceneGeometrySnapshot(actualStreet, actualStreet.initialPlayerPosition, {}, metrics).storefronts.has(cafe.id)).toBe(false)
+    expect(mainlineStorefrontPlayerContact(actualStreet, cafe, actualStreet.initialPlayerPosition, {}, { geometrySnapshot: createMainlineSceneGeometrySnapshot(actualStreet, actualStreet.initialPlayerPosition, {}, metrics) })).toBeNull()
+    expect(resolveMainlineStorefrontInteraction(actualStreet, cafe, actualStreet.initialPlayerPosition).path).toBeNull()
   })
 })

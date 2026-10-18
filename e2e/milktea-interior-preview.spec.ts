@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { commercialStreetMilkTeaCopy } from '../src/center/runtime/commercialStreetMilkTeaInterior'
+import { commercialStreetMilkTeaCopy, commercialStreetMilkTeaInteriorLayout, commercialStreetMilkTeaShopSceneId } from '../src/center/runtime/commercialStreetMilkTeaInterior'
+const milkTeaBounds = commercialStreetMilkTeaInteriorLayout.bounds
 
 async function seed(page: Page, language: 'en' | 'zh' = 'en', legacy = false) {
   const position = legacy ? { x: 47, y: 79 } : { x: 105, y: 57 }
@@ -18,6 +19,7 @@ async function seed(page: Page, language: 'en' | 'zh' = 'en', legacy = false) {
     phoneNotifications: [], phoneNotes: [], phoneContactNotes: {}, phoneCallHistory: [], updatedAt: Date.now(),
   }
   await page.addInitScript(({ storedSave, selectedLanguage }) => {
+    if (localStorage.getItem('newtone-player-save-v1')) return
     localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
     localStorage.setItem('newtone-progress-v4', JSON.stringify({ _version: 4, language: selectedLanguage, hasInitializedLanguage: true }))
     localStorage.setItem('newtone-player-save-v1', JSON.stringify(storedSave))
@@ -25,10 +27,12 @@ async function seed(page: Page, language: 'en' | 'zh' = 'en', legacy = false) {
 }
 
 async function enterShop(page: Page) {
+  const interior = page.locator(`.scene-shell[data-mainline-scene="${commercialStreetMilkTeaShopSceneId}"]`)
   const entry = page.locator('[data-focus-target-group="door:street-milktea-entry"]')
   await expect(entry).toBeVisible()
   await entry.click()
-  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-milktea-interior"]')).toBeVisible({ timeout: 30_000 })
+  await expect(interior).toBeVisible({ timeout: 30_000 })
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').currentSceneId), { timeout: 30_000 }).toBe(commercialStreetMilkTeaShopSceneId)
 }
 
 test('desktop: Chinese first clerk click teaches and opens the existing ordering app', async ({ page }, info) => {
@@ -64,10 +68,15 @@ test('mobile 390x844: English interior fits, QR opens the app, and position surv
   await expect(phone.locator('[data-app-view="milk-tea"]')).toBeVisible()
   await page.keyboard.press('Escape')
   const beforeRefresh = await page.evaluate(() => ({ url: location.href, save: JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}') }))
-  expect(beforeRefresh.save.currentSceneId).toBe('commercial-milktea-interior')
-  // Reload the actual interior route and verify its saved position is restored.
+  expect(beforeRefresh.save.currentSceneId).toBe(commercialStreetMilkTeaShopSceneId)
+  expect(beforeRefresh.save.currentPosition.x).toBeGreaterThanOrEqual(milkTeaBounds.x)
+  expect(beforeRefresh.save.currentPosition.x).toBeLessThanOrEqual(milkTeaBounds.x + milkTeaBounds.width)
+  expect(beforeRefresh.save.currentPosition.y).toBeGreaterThan(milkTeaBounds.y)
+  // Reload inside the shop and verify the independent room position is restored.
   await page.reload()
-  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-milktea-interior"]')).toBeVisible()
+  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-milktea-shop"]')).toBeVisible()
+  await page.waitForTimeout(1_000)
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').currentSceneId)).toBe(commercialStreetMilkTeaShopSceneId)
   await expect(page.locator('button[data-object-id="milk-tea-qr"]')).toBeVisible()
   await page.screenshot({ path: info.outputPath('milktea-interior-mobile-390x844-en.png') })
 })
@@ -77,7 +86,7 @@ test('legacy interior save maps safely to the street and preserves shop state', 
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.goto('/?debugRuntimeEvidence=1')
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible()
-  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-milktea-interior"]')).toHaveCount(0)
+  await expect(page.locator(`.scene-shell[data-mainline-scene="${commercialStreetMilkTeaShopSceneId}"]`)).toHaveCount(0)
   const migrated = await page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}'))
   expect(migrated.currentSceneId).toBe('commercial-street')
   expect(migrated.sceneState['commercial-street'].milkTeaTutorialSeen).toBe(true)

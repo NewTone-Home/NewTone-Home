@@ -124,7 +124,7 @@ describe('static NPC foundation', () => {
     expect(cafe.actorAccess[floorServer.id]).toEqual(['public'])
     expect(isWalkableMainlinePoint(coffeeOwnerPosition, cafe, {}, { actorId: coffeeOwner.id })).toBe(true)
     expect(isWalkableMainlinePoint(floorServerPosition, cafe, {}, { actorId: floorServer.id })).toBe(true)
-    expect(isWalkableMainlinePoint(coffeeOwnerPosition, cafe, {}, { actorId: 'protagonist' })).toBe(true)
+    expect(findMainlinePath(cafe.initialPlayerPosition, coffeeOwnerPosition, cafe, {}, { actorId: 'protagonist' })).toBeNull()
     expect(isWalkableMainlinePoint(counter.position, cafe, {}, { actorId: coffeeOwner.id })).toBe(false)
     expect(mainlineNavigationCollisionBoxes(cafe, {}, { actorId: coffeeOwner.id }).some((box) => box.x === staffArea.x && box.y === staffArea.y && box.width === staffArea.width && box.height === staffArea.height)).toBe(false)
     expect(mainlineNavigationCollisionBoxes(cafe, {}, { actorId: 'protagonist' }).some((box) => box.x === staffArea.x && box.y === staffArea.y && box.width === staffArea.width && box.height === staffArea.height)).toBe(false)

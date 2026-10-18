@@ -581,6 +581,7 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
     if (!sharedBreathingClock || !registerBreathingNode) return
     registerBreathingNode(entity.id, node)
   }, [entity.id, registerBreathingNode, sharedBreathingClock])
+  const label = <SceneCharacters className="scene-mainline-object__label" ref={labelRef} style={{ ...labelStyle, visibility: suppressLabel ? 'hidden' : undefined }} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters>
   const frame = focusGroup && renderFrame
     ? focusContent
       ? <span
@@ -596,7 +597,7 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
     : null
 
   if (entity.interactive === false) {
-    return <>{focusContent && frame}<span {...commonProps} aria-hidden="true">{!suppressLabel && <SceneCharacters className="scene-mainline-object__label" ref={labelRef} style={labelStyle} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters>}{!focusContent && frame}</span></>
+    return <>{focusContent && frame}<span {...commonProps} aria-hidden="true">{label}{!focusContent && frame}</span></>
   }
 
   return (
@@ -621,7 +622,7 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
         if (event.target === event.currentTarget && event.animationName === 'scene-incense-burn-lifecycle') onIncenseBurnComplete?.()
       }}
     >
-      {!suppressLabel && <SceneCharacters className="scene-mainline-object__label" ref={labelRef} style={labelStyle} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters>}
+      {label}
       {!focusContent && frame}
       </button>
     </>
@@ -786,7 +787,6 @@ export function MainlineSceneRenderer({
   const cafeQaCounter = cafeSpatialQa ? scene.continuousStructures?.find((structure) => structure.id === 'commercial-cafe-counter-body') : undefined
   const cafeQaStaffArea = cafeSpatialQa ? scene.accessRegions.find((region) => region.id === 'commercial-cafe-staff-area') : undefined
   const cafeQaAccessBoundary = cafeSpatialQa ? geometrySnapshot.navigationBarriers.find((barrier) => barrier.id === 'commercial-cafe-staff-right-access-boundary') : undefined
-  const cafeQaBackDoor = cafeSpatialQa ? geometrySnapshot.passages.get('cafe-back-door') : undefined
   const hasAltarBreathing = scene.objects.some((entity) => isAltarEntity(scene, entity.id))
   useIsomorphicLayoutEffect(() => {
     const dimmer = dimmerRef.current
@@ -1310,7 +1310,7 @@ export function MainlineSceneRenderer({
               breathingAnimationDelay={synchronizedBreathingDelay}
               sharedBreathingClock={isAltarEntity(scene, entity.id)}
               registerBreathingNode={registerBreathingNode}
-              suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds)}
+              suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds) || (scene.id === 'commercial-street' && ['milk-tea-pickup-3', 'milk-tea-clerk-contact', 'milk-tea-pickup-4'].includes(entity.id))}
               prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}
               debugRuntimeEvidence={debugRuntimeEvidence}
             />
@@ -1344,8 +1344,6 @@ export function MainlineSceneRenderer({
               {cafeQaStaffArea && <rect className="scene-spatial-qa__staff" x={cafeQaStaffArea.x} y={cafeQaStaffArea.y} width={cafeQaStaffArea.width} height={cafeQaStaffArea.height} />}
               {cafeQaCounter && <rect className="scene-spatial-qa__counter" x={cafeQaCounter.x} y={cafeQaCounter.y} width={cafeQaCounter.width} height={cafeQaCounter.height} />}
               {cafeQaAccessBoundary && <line className="scene-spatial-qa__boundary" x1={cafeQaAccessBoundary.start.x} y1={cafeQaAccessBoundary.start.y} x2={cafeQaAccessBoundary.end.x} y2={cafeQaAccessBoundary.end.y} />}
-              {cafeQaBackDoor && <rect className="scene-spatial-qa__door" x={cafeQaBackDoor.collision.x} y={cafeQaBackDoor.collision.y} width={cafeQaBackDoor.collision.width} height={cafeQaBackDoor.collision.height} />}
-              {cafeQaBackDoor && <rect className="scene-spatial-qa__doorway" x={cafeQaBackDoor.doorway.x} y={cafeQaBackDoor.doorway.y} width={cafeQaBackDoor.doorway.width} height={cafeQaBackDoor.doorway.height} />}
               {debugCafeSpatialQa?.path.length && debugCafeSpatialQa.path.length > 1 && <polyline className="scene-spatial-qa__path" points={debugCafeSpatialQa.path.map((point) => `${point.x},${point.y}`).join(' ')} />}
               {debugCafeSpatialQa && <circle className="scene-spatial-qa__requested" cx={debugCafeSpatialQa.requestedTarget.x} cy={debugCafeSpatialQa.requestedTarget.y} r=".65" />}
               {debugCafeSpatialQa && <circle className="scene-spatial-qa__resolved" cx={debugCafeSpatialQa.resolvedNavigableTarget.x} cy={debugCafeSpatialQa.resolvedNavigableTarget.y} r=".65" />}

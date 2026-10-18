@@ -1,6 +1,7 @@
 import type { PlayerSceneState } from './playerSave'
 
 export const commercialStreetMilkTeaInteriorId = 'commercial-milktea-interior' as const
+export const commercialStreetMilkTeaShopSceneId = 'commercial-milktea-shop' as const
 export const commercialStreetMilkTeaClerkId = 'milk-tea-clerk'
 export const commercialStreetMilkTeaClerkContactId = 'milk-tea-clerk-contact'
 export const commercialStreetMilkTeaQrId = 'milk-tea-qr'
@@ -17,7 +18,7 @@ export const commercialStreetMilkTeaInteriorLayout = {
   staffArea: { x: 25, y: 8, width: 56, height: 21 },
   clerk: { x: 53, y: 23 },
   clerkContact: { x: 53, y: 35 },
-  qr: { x: 80, y: 45 },
+  qr: { x: 68, y: 34 },
   tables: [
     { id: 'milk-tea-left-table', anchor: { x: 28, y: 42 }, approach: { x: 28, y: 36 } },
     { id: 'milk-tea-right-table', anchor: { x: 75, y: 42 }, approach: { x: 75, y: 36 } },
@@ -30,32 +31,33 @@ export const commercialStreetMilkTeaInteriorLayout = {
  * and extends behind it, matching the existing storefront slot (102..120).
  */
 export const commercialStreetMilkTeaContinuousLayout = {
-  bounds: { x: 102, y: 64, width: 18, height: 78 },
-  storefront: { start: 102, end: 120, doorX: 111, doorY: 64 },
-  streetEntry: { x: 109, y: 69 },
-  front: { x: 102, y: 64, width: 18, height: 48 },
-  rear: { x: 102, y: 112, width: 18, height: 30 },
+  bounds: { x: 100, y: 64, width: 22, height: 52 },
+  storefront: { start: 100, end: 122, doorX: 111, doorY: 64 },
+  streetEntry: { x: 111, y: 69 },
+  front: { x: 100, y: 64, width: 22, height: 34 },
+  rear: { x: 100, y: 98, width: 22, height: 18 },
   counter: {
-    run: { x: 110.6, y: 80, width: 1.6, height: 23 },
-    return: { x: 104.5, y: 101.4, width: 7.7, height: 1.6 },
+    run: { x: 116, y: 72, width: 2, height: 22 },
+    return: { x: 106, y: 92, width: 12, height: 2 },
   },
-  staffArea: { x: 112.5, y: 64.7, width: 7.5, height: 47.3 },
-  clerk: { x: 116, y: 87 },
-  clerkContact: { x: 111.4, y: 87 },
-  qr: { x: 105.5, y: 79 },
-  menu: { x: 105, y: 72 },
+  staffArea: { x: 118.5, y: 65, width: 3.2, height: 32 },
+  clerk: { x: 120, y: 81 },
+  clerkContact: { x: 114.5, y: 82 },
+  clerkApproach: { x: 111, y: 82 },
+  qr: { x: 106, y: 80 },
+  menu: { x: 106, y: 73 },
   counterContacts: [
-    { id: 'milk-tea-pickup-1', y: 82 },
-    { id: 'milk-tea-clerk-contact', y: 87 },
-    { id: 'milk-tea-pickup-3', y: 93 },
-    { id: 'milk-tea-pickup-4', y: 98 },
+    { id: 'milk-tea-pickup-1', y: 76 },
+    { id: 'milk-tea-clerk-contact', y: 82 },
+    { id: 'milk-tea-pickup-3', y: 88 },
+    { id: 'milk-tea-pickup-4', y: 94 },
   ],
-  rearDivider: { x: 102, y: 112, width: 18, height: 1.4 },
-  kitchenWarehouseDivider: { x: 111, y: 113, width: 1.4, height: 29 },
-  kitchenLabel: { x: 106.5, y: 125 },
-  warehouseLabel: { x: 115.5, y: 125 },
-  walkBounds: { x: 8, y: 10, width: 192, height: 132 },
-  oldInteriorFallback: { x: 109, y: 69 },
+  rearDivider: { x: 100, y: 98, width: 16, height: 1.4 },
+  kitchenWarehouseDivider: { x: 111, y: 99, width: 1.4, height: 17 },
+  kitchenLabel: { x: 102.5, y: 100.5 },
+  warehouseLabel: { x: 119.5, y: 100.5 },
+  walkBounds: { x: 8, y: -16, width: 180, height: 132 },
+  oldInteriorFallback: { x: 111, y: 69 },
 } as const
 
 /** Map legacy room coordinates into the new public aisle without deleting old save data. */

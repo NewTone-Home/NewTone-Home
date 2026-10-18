@@ -2,6 +2,7 @@ import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeo
 import type { SceneDoorBehavior } from './sceneDoorConfig'
 import { boundaryGridStepsFromScreenSpacing, defaultSceneScreenMetrics } from './sceneBoundaryGrid'
 import type { MainlineSceneDisplayRegion } from './sceneDisplayRegion'
+import { mainlineProtagonistDotFootprint } from './sceneLayout'
 import { createFourSeatFurniture, createSeatGeometry, createTableGeometry, sharedFurnitureGeometry, createTwoSeatFurniture, type SharedSeatDefinition } from './twoSeatFurniture'
 import { npcRoles, type NpcRoleDefinition } from './npcRoles'
 import {
@@ -10,10 +11,11 @@ import {
   ambientNpcStoreVisitMaximumMs,
   ambientNpcStoreVisitMinimumMs,
 } from './ambientNpcLifecycle'
-import { commercialStreetMilkTeaInteriorCopy, commercialStreetMilkTeaInteriorLayout as milkTeaLayout, commercialStreetMilkTeaContinuousLayout as milkTeaContinuousLayout, commercialStreetMilkTeaInteriorId, commercialStreetMilkTeaClerkContactId, commercialStreetMilkTeaClerkId, commercialStreetMilkTeaQrId, commercialStreetMilkTeaPickupId } from './commercialStreetMilkTeaInterior'
+import { commercialStreetMilkTeaInteriorCopy, commercialStreetMilkTeaInteriorLayout as milkTeaLayout, commercialStreetMilkTeaContinuousLayout as milkTeaContinuousLayout, commercialStreetMilkTeaInteriorId, commercialStreetMilkTeaShopSceneId, commercialStreetMilkTeaClerkContactId, commercialStreetMilkTeaClerkId, commercialStreetMilkTeaQrId, commercialStreetMilkTeaPickupId } from './commercialStreetMilkTeaInterior'
 import { commercialStreetMilkTeaStorefrontId } from './commercialStreetMilkTea'
+import { commercialStreetModulePitch, commercialStreetShopBounds, commercialStreetShopDepth, commercialStreetShopEntry, commercialStreetShopPortalId, commercialStreetShopRegionId, commercialStreetShops, commercialStreetSouthStorefrontY } from './commercialStreetWorldLayout'
 
-export type MainlineSceneId = 'jijia-ancestral-home' | 'jijia-ancestral-interior' | 'commercial-street' | 'commercial-cafe' | 'commercial-milktea-interior' | 'yonghe-mining-perimeter' | 'yonghe-eatery' | 'zhongshuyuan-passage' | 'zhongshuyuan-office'
+export type MainlineSceneId = 'jijia-ancestral-home' | 'jijia-ancestral-interior' | 'commercial-street' | 'commercial-cafe' | 'commercial-milktea-interior' | 'commercial-milktea-shop' | 'yonghe-mining-perimeter' | 'yonghe-eatery' | 'zhongshuyuan-passage' | 'zhongshuyuan-office'
 export type MainlineEntityKind = 'door' | 'landmark' | 'table' | 'seat' | 'direction' | 'trace' | 'fixture'
 export type MainlineEntityWeight = 'gateway' | 'fixture' | 'anchor' | 'minor'
 export type MainlineEntitySurface = 'wall' | 'floor'
@@ -758,31 +760,25 @@ function inlinePortraitFeature(
 }
 
 const commercialCafeLayout = {
-  bounds: box(8, 7, 90, 86),
-  straightFrameBounds: box(8, 7, 80, 86),
-  entranceY: 68,
-  centralWaitingFloor: box(35, 38, 33, 31),
-  entranceCorridor: box(8, 64, 20, 18),
+  bounds: box(8, 35, 90, 58),
+  straightFrameBounds: box(8, 35, 80, 58),
+  entranceY: 84,
+  centralWaitingFloor: box(56, 75, 14, 10),
+  entranceCorridor: box(8, 66, 22, 18),
   glass: {
-    start: authoredPoint(88, 7),
-    control: authoredPoint(98, 50),
-    end: authoredPoint(88, 93),
+    start: authoredPoint(54, 35),
+    control: authoredPoint(71, 32),
+    end: authoredPoint(88, 35),
   },
-  bottomFourSeatTables: [
-    { id: 'commercial-cafe-bottom-left-group', anchor: authoredPoint(24, 78), approach: authoredPoint(24, 69) },
-    { id: 'commercial-cafe-bottom-center-group', anchor: authoredPoint(42, 78), approach: authoredPoint(42, 69) },
-    { id: 'commercial-cafe-bottom-right-group', anchor: authoredPoint(60, 78), approach: authoredPoint(60, 69) },
-  ],
+  bottomFourSeatTables: [],
   rightTwoSeatTables: [
-    { id: 'commercial-cafe-right-inner-upper-group', anchor: authoredPoint(72, 26), approach: authoredPoint(64, 26) },
-    { id: 'commercial-cafe-right-inner-middle-group', anchor: authoredPoint(72, 50), approach: authoredPoint(64, 50) },
-    { id: 'commercial-cafe-right-inner-lower-group', anchor: authoredPoint(72, 74), approach: authoredPoint(64, 74) },
-    { id: 'commercial-cafe-right-window-upper-group', anchor: authoredPoint(84, 26), approach: authoredPoint(76, 26) },
-    { id: 'commercial-cafe-right-window-lower-group', anchor: authoredPoint(84, 74), approach: authoredPoint(76, 74) },
+    { id: 'commercial-cafe-right-window-upper-group', anchor: authoredPoint(72, 46), approach: authoredPoint(64, 46) },
+    { id: 'commercial-cafe-right-inner-middle-group', anchor: authoredPoint(51, 67), approach: authoredPoint(43, 67) },
+    { id: 'commercial-cafe-right-window-lower-group', anchor: authoredPoint(80, 68), approach: authoredPoint(72, 68) },
   ],
   plants: {
-    upper: { position: authoredPoint(84, 14), approach: authoredPoint(81, 14), collision: box(82.8, 13, 2.4, 2) },
-    lower: { position: authoredPoint(84, 86), approach: authoredPoint(81, 86), collision: box(82.8, 85, 2.4, 2) },
+    upper: { position: authoredPoint(84, 41), approach: authoredPoint(80, 43), collision: box(82.8, 40, 2.4, 2) },
+    lower: { position: authoredPoint(84, 86), approach: authoredPoint(80, 86), collision: box(82.8, 85, 2.4, 2) },
   },
 } as const
 
@@ -793,22 +789,23 @@ const commercialCafeFurnitureGeometry = {
 
 const commercialCafeBounds = commercialCafeLayout.bounds
 const commercialCafeStraightFrameBounds = commercialCafeLayout.straightFrameBounds
-const commercialCafeDoorY = commercialCafeLayout.entranceY
+const commercialCafeDoorY = 93
 // Keep both a cold start and a street-to-café arrival safely inside the room.
 // The door glyph occupies the outer wall cell; spawning on that same cell
 // places the protagonist inside the door hit area before navigation begins.
-const commercialCafeEntryX = 18
-const commercialCafeEntryPosition = authoredPoint(commercialCafeEntryX, commercialCafeDoorY)
+const commercialCafeEntryX = 54
+const commercialCafeEntryPosition = authoredPoint(commercialCafeEntryX, commercialCafeLayout.entranceY)
+const commercialStreetCafeEntry = commercialStreetShopEntry(commercialStreetShops.find((shop) => shop.kind === 'cafe')!)
 // The street storefront is a separate boundary from the café interior. Keep
 // its doorway on the commercial-street lane center; the interior entrance
 // remains owned by commercialCafeLayout above.
-const commercialStreetCafeDoorY = 50
+const commercialStreetCafeDoorY = 38
 const commercialStreetCafeDoorStart = commercialStreetCafeDoorY - 4.5
 const commercialStreetCafeDoorEnd = commercialStreetCafeDoorY + 4.5
 // Return to the commercial-street lane just before the café terminal. This
 // must remain separate from commercialCafeEntryPosition, which is authored
 // inside the café and is not walkable in the street scene.
-const commercialStreetCafeEntryPosition = authoredPoint(184, commercialStreetCafeDoorY)
+const commercialStreetCafeEntryPosition = authoredPoint(commercialStreetCafeEntry.doorX, commercialStreetCafeDoorY)
 const commercialCafeFurniture = [
   ...commercialCafeLayout.bottomFourSeatTables.map(({ id, anchor, approach }) => mainlineFourSeatFurniture(id, anchor, approach, {}, commercialCafeFurnitureGeometry)),
   ...commercialCafeLayout.rightTwoSeatTables.map(({ id, anchor, approach }) => mainlineTwoSeatFurniture(id, anchor, approach, {}, commercialCafeFurnitureGeometry)),
@@ -862,16 +859,20 @@ const commercialCafeCounterStructure = {
 // This is authored staff-service spacing, not an actor-radius proxy. Actual
 // actor clearance is evaluated from the current presentation footprint by
 // navigation when a route is requested.
-const commercialCafeCounterClearance = sharedFurnitureGeometry.textFootprint.height / 2 + sharedFurnitureGeometry.actorContactGap
+const commercialCafeMaximumActorHalfHeight = mainlineProtagonistDotFootprint({ x: 0, y: 0 }, { width: 390, height: 390 }).height / 2
+const commercialCafeCounterClearance = Math.max(
+  sharedFurnitureGeometry.textFootprint.height / 2,
+  commercialCafeMaximumActorHalfHeight,
+) + sharedFurnitureGeometry.actorContactGap
 const commercialCafeCounterCustomerApproachY = commercialCafeCounterCollision.y + commercialCafeCounterCollision.height + commercialCafeCounterClearance
 // Visual wall fixtures are read from the customer-side counter surface; the
 // wall glyph itself is never a navigation destination.
 const commercialCafeMenu = wallEntity({
-  id: 'commercial-cafe-menu', label: '菜单', kind: 'fixture', weight: 'fixture', position: authoredPoint(18, 7), interactive: true,
+  id: 'commercial-cafe-menu', label: '菜单', kind: 'fixture', weight: 'fixture', position: authoredPoint(18,  35), interactive: true,
   interactionContactAnchor: authoredPoint(18, commercialCafeCounterCustomerApproachY),
 })
 const commercialCafeBlackboard = wallEntity({
-  id: 'commercial-cafe-blackboard', label: '黑板', kind: 'fixture', weight: 'fixture', position: authoredPoint(32, 7), interactive: true,
+  id: 'commercial-cafe-blackboard', label: '黑板', kind: 'fixture', weight: 'fixture', position: authoredPoint(32,  35), interactive: true,
   interactionContactAnchor: authoredPoint(32, commercialCafeCounterCustomerApproachY),
 })
 const commercialCafeCounterLabelHeight = commercialCafeCounterFixtureFontPx * 1.2 / defaultSceneScreenMetrics.height * 100
@@ -1007,28 +1008,346 @@ const commercialStreetAmbientNpcRoutes = [
   { npcId: 'commercial-street-pedestrian-shopper', initialDelayMs: 5100, steps: [{ target: authoredPoint(110, 40), dwellMs: 3500 }, { kind: 'storefront-visit', target: authoredPoint(156, 58), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-7', reentry: authoredPoint(156, 58), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(96, 58), dwellMs: 1400 }, { target: authoredPoint(116, 58), dwellMs: 2600 }] },
 ] as const satisfies readonly MainlineAmbientNpcRoute[]
 
+function commercialStreetShopDividerId(row: 'north' | 'south', boundaryIndex: number) {
+  return `commercial-${row}-shop-divider-${boundaryIndex}`
+}
+
+function commercialStreetShopRearWallId(shopId: string) {
+  return `commercial-shop-rear-${shopId}`
+}
+
+function commercialStreetShopClerkId(shop: (typeof commercialStreetShops)[number]) {
+  return shop.kind === 'milk-tea' ? commercialStreetMilkTeaClerkId : `${shop.id}-clerk`
+}
+
+function commercialStreetShopCounterContactId(shop: (typeof commercialStreetShops)[number]) {
+  return shop.kind === 'milk-tea' ? commercialStreetMilkTeaClerkContactId : `${shop.id}-counter-contact`
+}
+
+function commercialStreetShopVisibleStorefrontId(shop: (typeof commercialStreetShops)[number]) {
+  return shop.kind === 'cafe' ? 'commercial-cafe-slot' : shop.storefrontIds[0]!
+}
+
+function commercialStreetStreetRegionForShop(shop: (typeof commercialStreetShops)[number]) {
+  const x = commercialStreetShopEntry(shop).x
+  return x < 72 ? 'commercial-street-west' : x < 136 ? 'commercial-street-center' : 'commercial-street-east'
+}
+
+const commercialStreetStorefronts: readonly MainlineStorefrontSlotBlueprint[] = commercialStreetShops.map((shop) => {
+  const firstStart = commercialStorefrontStarts[shop.firstModule - 1]!
+  const lastStart = commercialStorefrontStarts[shop.firstModule + shop.moduleCount - 2]!
+  const portalId = commercialStreetShopPortalId(shop)
+  return {
+    id: commercialStreetShopVisibleStorefrontId(shop),
+    wallId: shop.row === 'north' ? 'commercial-north-facade' : 'commercial-south-facade',
+    edge: shop.row === 'north' ? 'bottom' : 'top',
+    start: firstStart,
+    end: lastStart + 18,
+    label: shop.label.zh,
+    style: 'modern',
+    mode: 'commercial',
+    composition: shop.kind === 'cafe' ? { baseline: ['sign'], near: ['sign'] } : { baseline: ['sign'] },
+    characterSwitch: true,
+    portalId,
+    approach: commercialStreetShopEntry(shop).streetApproach,
+    nearRadius: 10,
+  }
+})
+
+const commercialStreetShopRooms: readonly MainlineSceneRoom[] = commercialStreetShops.filter((shop) => shop.kind !== 'milk-tea').map((shop) => ({
+  id: commercialStreetShopRegionId(shop),
+  bounds: commercialStreetShopBounds(shop),
+  kind: 'room',
+}))
+
+const commercialStreetShopWalls: readonly MainlineWallBlueprint[] = [
+  ...commercialStreetShops.filter((shop) => shop.kind !== 'milk-tea').map((shop) => ({
+    id: commercialStreetShopRearWallId(shop.id),
+    type: 'room' as const,
+    bounds: commercialStreetShopBounds(shop),
+    variant: shop.kind === 'cafe' ? 'cafe' : 'shop-interior',
+    edges: [shop.row === 'north' ? 'top' as const : 'bottom' as const],
+  })),
+  ...(['north', 'south'] as const).flatMap((row) => {
+    const shops = commercialStreetShops.filter((shop) => shop.row === row)
+    const boundaryIndices = [...new Set(shops.flatMap((shop) => [shop.firstModule - 1, shop.firstModule - 1 + shop.moduleCount]))].sort((a, b) => a - b)
+    const y = row === 'north' ? commercialStreetShopBounds(shops[0]!).y : commercialStreetSouthStorefrontY
+    return boundaryIndices.map((index) => ({
+      id: commercialStreetShopDividerId(row, index),
+      type: 'room' as const,
+      bounds: box(12 + index * commercialStreetModulePitch, y, 1, commercialStreetShopDepth),
+      variant: 'shop-divider',
+      edges: ['left'] as const,
+    }))
+  }),
+]
+
+const commercialCafeWorldTransform = { x: 144, y: -62, scaleX: 44 / 90 }
+function transformCommercialCafeWorld<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((item) => transformCommercialCafeWorld(item)) as T
+  if (!value || typeof value !== 'object') return value
+  const source = value as Record<string, unknown>
+  const result: Record<string, unknown> = {}
+  for (const [key, child] of Object.entries(source)) {
+    if (typeof child === 'number' && key === 'x') result[key] = commercialCafeWorldTransform.x + (child - commercialCafeBounds.x) * commercialCafeWorldTransform.scaleX
+    else if (typeof child === 'number' && key === 'y') result[key] = child + commercialCafeWorldTransform.y
+    else if (typeof child === 'number' && key === 'width') result[key] = child * commercialCafeWorldTransform.scaleX
+    else if (typeof child === 'number' && (key === 'start' || key === 'end') && 'edge' in source) result[key] = commercialCafeWorldTransform.x + (child - commercialCafeBounds.x) * commercialCafeWorldTransform.scaleX
+    else result[key] = transformCommercialCafeWorld(child)
+  }
+  return result as T
+}
+const commercialStreetShopPortals: readonly MainlineScenePortalBlueprint[] = commercialStreetShops.map((shop) => {
+  const entry = commercialStreetShopEntry(shop)
+  const portalId = commercialStreetShopPortalId(shop)
+  const wallId = shop.row === 'north' ? 'commercial-north-facade' : 'commercial-south-facade'
+  return {
+    id: portalId,
+    entity: { id: portalId, label: '门', displayLabel: shop.label.zh, kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
+    endpoint: {
+      doorPosition: authoredPoint(entry.doorX, entry.storefrontY),
+      threshold: entry.streetApproach,
+      crossingTarget: entry.crossingTarget,
+      ...(shop.kind === 'cafe' ? { entryPosition: transformCommercialCafeWorld(commercialCafeEntryPosition) } : shop.kind === 'milk-tea' ? { entryPosition: milkTeaContinuousLayout.streetEntry } : {}),
+    },
+    routeThrough: true,
+    fromRoomId: commercialStreetStreetRegionForShop(shop), toRoomId: commercialStreetShopRegionId(shop),
+    wallOpenings: [
+      {
+        wallId,
+        opening: {
+          edge: shop.row === 'north' ? 'bottom' : 'top',
+          start: entry.doorX - 3,
+          end: entry.doorX + 3,
+          doorId: portalId,
+          labelLayout: 'center',
+        },
+      },
+      ...(shop.kind === 'cafe' ? [{
+        wallId: 'commercial-cafe-room',
+        opening: {
+          edge: 'bottom' as const,
+          start: commercialCafeWorldTransform.x + (commercialCafeEntryX - 3.5 - commercialCafeBounds.x) * commercialCafeWorldTransform.scaleX,
+          end: commercialCafeWorldTransform.x + (commercialCafeEntryX + 3.5 - commercialCafeBounds.x) * commercialCafeWorldTransform.scaleX,
+          doorId: portalId,
+          labelLayout: 'center' as const,
+        },
+      }] : []),
+    ],
+    transitionText: `走进${shop.label.zh}。`,
+    access: 'open',
+  }
+})
+
+const commercialStreetShopNpcs: readonly MainlineSceneNpc[] = commercialStreetShops.map((shop) => ({
+  id: commercialStreetShopClerkId(shop),
+  roleId: shop.kind === 'milk-tea' ? npcRoles.milkTeaClerk.id : npcRoles.pedestrian.id,
+  label: `${shop.label.zh}店员`,
+  interactive: true,
+  interactionTargetEntityId: commercialStreetShopCounterContactId(shop),
+}))
+
+const commercialStreetShopNpcPlacements = commercialStreetShops.map((shop) => {
+  const bounds = commercialStreetShopBounds(shop)
+  return {
+    npcId: commercialStreetShopClerkId(shop),
+    position: authoredPoint(
+      bounds.x + bounds.width / 2,
+      shop.row === 'north' ? bounds.y + 9 : bounds.y + 39,
+    ),
+  }
+})
+
+const commercialStreetShopCustomerShops = commercialStreetShops.filter((shop) => shop.kind !== 'cafe' && shop.kind !== 'milk-tea')
+const commercialStreetShopCustomerNpcs: readonly MainlineSceneNpc[] = commercialStreetShopCustomerShops.map((shop) => ({
+  id: `${shop.id}-customer`,
+  roleId: npcRoles.pedestrian.id,
+  label: `${shop.label.zh}顾客`,
+  interactive: false,
+}))
+const commercialStreetShopCustomerPlacements = commercialStreetShopCustomerShops.map((shop) => ({
+  npcId: `${shop.id}-customer`,
+  position: authoredPoint(
+    commercialStreetShopEntry(shop).doorX + (commercialStreetShopEntry(shop).doorX < 150 ? 10 : -10),
+    commercialStreetShopEntry(shop).streetApproach.y,
+  ),
+}))
+const commercialStreetShopCustomerRoutes: readonly MainlineAmbientNpcRoute[] = commercialStreetShopCustomerShops.map((shop) => {
+  const entry = commercialStreetShopEntry(shop)
+  const bounds = commercialStreetShopBounds(shop)
+  const inside = authoredPoint(entry.x, shop.row === 'north' ? bounds.y + bounds.height - 10 : bounds.y + 10)
+  const exit = authoredPoint(entry.doorX + (entry.doorX < 100 ? 6 : -6), entry.streetApproach.y)
+  return {
+    npcId: `${shop.id}-customer`,
+    initialDelayMs: 800 + shop.firstModule * 420,
+    steps: [
+      { target: inside, dwellMs: 2200 },
+      { target: entry.streetApproach, dwellMs: 500 },
+      { target: exit, dwellMs: 1000 },
+      { target: entry.streetApproach, dwellMs: 700 },
+    ],
+  }
+})
+
+const commercialStreetShopEntities: readonly MainlineSceneEntity[] = commercialStreetShops.flatMap((shop) => {
+  const bounds = commercialStreetShopBounds(shop)
+  const centerX = bounds.x + bounds.width / 2
+  const counterY = bounds.y + 26
+  const contactY = shop.row === 'north' ? counterY + 4 : counterY - 4
+  const milkTeaCounterContactX = bounds.x + 8.5
+  const displayY = shop.row === 'north' ? bounds.y + 20 : bounds.y + 12
+  return [
+    floor({
+      id: `${shop.id}-display`, label: `${shop.label.zh}展示`, kind: 'fixture', weight: 'minor',
+      position: authoredPoint(bounds.x + 3, displayY), approach: authoredPoint(bounds.x + 6, displayY + (shop.row === 'north' ? 2 : -2)),
+      interactive: true, interactionRange: 8, visualVisibility: 'baseline',
+    }),
+    ...[
+      { suffix: 'fixture-a', x: bounds.x + 4 },
+      { suffix: 'fixture-b', x: bounds.x + bounds.width - 4 },
+    ].map(({ suffix, x }, index) => {
+      const y = shop.row === 'north' ? bounds.y + bounds.height - 9 : bounds.y + 9
+      return floor({
+        id: `${shop.id}-${suffix}`,
+        label: `${shop.label.zh}${index === 0 ? '陈列' : '商品'}`,
+        kind: 'fixture', weight: 'minor',
+        position: authoredPoint(x, y),
+        approach: authoredPoint(x, y + (shop.row === 'north' ? -3 : 3)),
+        interactive: true, interactionRange: 8, visualVisibility: 'baseline',
+      })
+    }),
+    floor({
+      id: commercialStreetShopCounterContactId(shop), label: '柜台', kind: 'fixture', weight: 'fixture',
+      position: authoredPoint(shop.kind === 'milk-tea' ? milkTeaCounterContactX : centerX, shop.kind === 'milk-tea' ? bounds.y + 23 : contactY),
+      approach: authoredPoint(shop.kind === 'milk-tea' ? milkTeaCounterContactX : centerX, shop.kind === 'milk-tea' ? bounds.y + 23 : contactY),
+      interactive: true, interactionRange: 3, visualVisibility: 'baseline',
+      ...(shop.kind === 'milk-tea' ? {
+        interactionStructureId: 'commercial-milktea-counter-run',
+        interactionContactSides: ['left'] as const,
+        interactionBehavior: 'milk-tea-clerk' as const,
+      } : {}),
+    }),
+    ...(shop.kind === 'milk-tea' ? [
+      floor({
+        id: commercialStreetMilkTeaQrId, label: commercialStreetMilkTeaInteriorCopy.zh.qr, kind: 'fixture', weight: 'fixture',
+        position: authoredPoint(bounds.x + 4, bounds.y + 17),
+        approach: authoredPoint(bounds.x + 7, bounds.y + 20),
+        interactive: true, interactionBehavior: 'milk-tea-qr', interactionRange: 8, visualVisibility: 'baseline',
+      }),
+      floor({
+        id: 'milk-tea-shop-menu', label: commercialStreetMilkTeaInteriorCopy.zh.menu, kind: 'fixture', weight: 'minor',
+        position: authoredPoint(bounds.x + 4, bounds.y + 7), approach: authoredPoint(bounds.x + 7, bounds.y + 10),
+        interactive: true, interactionRange: 8, visualVisibility: 'baseline',
+      }),
+      ...[
+        { id: `${commercialStreetMilkTeaPickupId}-1`, y: bounds.y + 16 },
+        { id: `${commercialStreetMilkTeaPickupId}-3`, y: bounds.y + 28 },
+        { id: `${commercialStreetMilkTeaPickupId}-4`, y: bounds.y + 35 },
+      ].map((contact) => floor({
+        id: contact.id,
+        label: commercialStreetMilkTeaInteriorCopy.zh.counter,
+        kind: 'fixture', weight: 'fixture',
+        position: authoredPoint(milkTeaCounterContactX, contact.y),
+        approach: authoredPoint(milkTeaCounterContactX, contact.y),
+        interactionRange: 3, interactionStructureId: 'commercial-milktea-counter-run',
+        interactionContactSides: ['left'], interactionBehavior: 'milk-tea-pickup', visualVisibility: 'baseline',
+      })),
+    ] : []),
+  ]
+})
+
+const commercialStreetShopAccessRegions = commercialStreetShops.filter((shop) => shop.kind !== 'milk-tea' && shop.kind !== 'cafe').map((shop) => {
+  const bounds = commercialStreetShopBounds(shop)
+  const staffDepth = shop.row === 'north' ? 24 : 22
+  return {
+    id: `${shop.id}-staff-area`,
+    x: bounds.x + 1,
+    y: shop.row === 'north' ? bounds.y + 1 : bounds.y + bounds.height - staffDepth - 1,
+    width: bounds.width - 2,
+    height: staffDepth,
+    requiredAccess: 'staff' as const,
+    deniedText: '工作区只允许店员进入。',
+  }
+})
+
+const commercialStreetShopAccessBoundaries = commercialStreetShops.filter((shop) => shop.kind !== 'milk-tea' && shop.kind !== 'cafe').map((shop) => ({
+  id: `${shop.id}-staff-boundary`,
+  regionId: `${shop.id}-staff-area`,
+  edge: shop.row === 'north' ? 'bottom' as const : 'top' as const,
+}))
+
+const commercialStreetShopCounters = commercialStreetShops.flatMap((shop) => {
+  const bounds = commercialStreetShopBounds(shop)
+  if (shop.kind === 'milk-tea') return [
+    {
+      id: 'commercial-milktea-counter-run',
+      kind: 'counter' as const,
+      x: 110.6,
+      y: bounds.y + 16,
+      width: 1.6,
+      height: 23,
+    },
+    {
+      id: 'commercial-milktea-counter-return',
+      kind: 'counter' as const,
+      x: 104.5,
+      y: bounds.y + 37.4,
+      width: 7.7,
+      height: 1.6,
+    },
+  ]
+  return {
+    id: `${shop.id}-counter-structure`,
+    kind: 'counter' as const,
+    x: bounds.x + bounds.width * .2,
+    y: bounds.y + 25,
+    width: bounds.width * .6,
+    height: 2,
+  }
+})
+
+const commercialStreetShopActorAccess = Object.fromEntries([
+  ['protagonist', ['public']],
+  ...commercialStreetShops.map((shop) => [commercialStreetShopClerkId(shop), ['public', 'staff']]),
+])
+
+const commercialStreetMilkTeaShop = commercialStreetShops.find((shop) => shop.kind === 'milk-tea')!
 const commercialStreetDisplayRegions: readonly MainlineSceneDisplayRegion[] = [
   {
     id: 'commercial-street-west',
-    bounds: box(8, 10, 68, 80),
-    visibleGeometryGroupIds: ['commercial-north-facade', 'commercial-south-facade', 'commercial-main-lane', ...[1, 2, 3].flatMap(index => [`commercial-north-slot-${index}`, `commercial-south-slot-${index}`])],
+    bounds: box(12, 36, 60, 28),
+    visibleGeometryGroupIds: ['commercial-north-facade', 'commercial-south-facade', 'commercial-main-lane', ...commercialStreetShops.filter(shop => commercialStreetShopEntry(shop).x < 72).map(shop => commercialStreetShopVisibleStorefrontId(shop))],
     cameraAnchor: authoredPoint(42, 50),
-    passageLinks: [],
+    passageLinks: commercialStreetShops.filter(shop => commercialStreetShopEntry(shop).x < 72).map(shop => ({ passageId: commercialStreetShopPortalId(shop), targetRegionId: commercialStreetShopRegionId(shop) })),
   },
   {
     id: 'commercial-street-center',
-    bounds: box(72, 10, 68, 80),
-    visibleGeometryGroupIds: ['commercial-north-facade', 'commercial-south-facade', 'commercial-main-lane', ...[3, 4, 5, 6].flatMap(index => [`commercial-north-slot-${index}`, `commercial-south-slot-${index}`])],
+    bounds: box(72, 36, 64, 28),
+    visibleGeometryGroupIds: ['commercial-north-facade', 'commercial-south-facade', 'commercial-main-lane', ...commercialStreetShops.filter(shop => commercialStreetShopEntry(shop).x >= 72 && commercialStreetShopEntry(shop).x < 136).map(shop => commercialStreetShopVisibleStorefrontId(shop))],
     cameraAnchor: authoredPoint(106, 50),
-    passageLinks: [],
+    passageLinks: commercialStreetShops.filter(shop => commercialStreetShopEntry(shop).x >= 72 && commercialStreetShopEntry(shop).x < 136).map(shop => ({ passageId: commercialStreetShopPortalId(shop), targetRegionId: commercialStreetShopRegionId(shop) })),
   },
   {
     id: 'commercial-street-east',
-    bounds: box(136, 10, 64, 80),
-    visibleGeometryGroupIds: ['commercial-north-facade', 'commercial-south-facade', 'commercial-main-lane', ...[6, 7, 8].flatMap(index => [`commercial-north-slot-${index}`, `commercial-south-slot-${index}`]), 'commercial-cafe-terminal', 'commercial-cafe-slot'],
+    bounds: box(136, 36, 52, 28),
+    visibleGeometryGroupIds: ['commercial-north-facade', 'commercial-south-facade', 'commercial-main-lane', ...commercialStreetShops.filter(shop => commercialStreetShopEntry(shop).x >= 136).map(shop => commercialStreetShopVisibleStorefrontId(shop))],
     cameraAnchor: authoredPoint(168, 50),
-    passageLinks: [],
+    passageLinks: commercialStreetShops.filter(shop => commercialStreetShopEntry(shop).x >= 136).map(shop => ({ passageId: commercialStreetShopPortalId(shop), targetRegionId: commercialStreetShopRegionId(shop) })),
   },
+  ...commercialStreetShops.map((shop) => {
+    const bounds = commercialStreetShopBounds(shop)
+    const boundaryStart = Math.round((bounds.x - 12) / commercialStreetModulePitch)
+    const boundaryEnd = boundaryStart + shop.moduleCount
+    const dividerIds = [boundaryStart, boundaryEnd].map((index) => commercialStreetShopDividerId(shop.row, index))
+    const rearId = commercialStreetShopRearWallId(shop.id)
+    return {
+      id: commercialStreetShopRegionId(shop),
+      bounds,
+      visibleGeometryGroupIds: [rearId, ...dividerIds, commercialStreetShopVisibleStorefrontId(shop)],
+      cameraAnchor: authoredPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2),
+      passageLinks: [{ passageId: commercialStreetShopPortalId(shop), targetRegionId: commercialStreetStreetRegionForShop(shop) }],
+    }
+  }),
 ]
 
 const commercialStreetBlueprint: MainlineSceneBlueprint = {
@@ -1040,24 +1359,26 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
   presentation: { mode: 'actor-relative', offset: authoredPoint(0, 0), readingRail: { centerY: 50, minX: 16, maxX: 184, gap: 6 } },
   areaLabel: (position) => position.x >= 140 ? '商业街尾端' : '里世界',
   scene: {
-    walkBounds: box(8, 10, 192, 80),
+    walkBounds: box(8, -16, 180, 132),
     externalExit: { axis: 'x', direction: -1, threshold: 12 },
     wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
+    rooms: [
+      { id: 'commercial-street-west', bounds: box(12, 36, 60, 28), kind: 'corridor' },
+      { id: 'commercial-street-center', bounds: box(72, 36, 64, 28), kind: 'corridor' },
+      { id: 'commercial-street-east', bounds: box(136, 36, 52, 28), kind: 'corridor' },
+      ...commercialStreetShopRooms,
+    ],
     walls: [
-      { id: 'commercial-north-facade', type: 'room', bounds: box(12, 14, 180, 22), variant: 'shop-row', edges: ['bottom'] },
+      { id: 'commercial-north-facade', type: 'room', bounds: box(12, 14, 176, 22), variant: 'shop-row', edges: ['bottom'] },
       { id: 'commercial-main-lane', type: 'lane', bounds: box(12, 36, 176, 28), edges: [] },
-      { id: 'commercial-south-facade', type: 'room', bounds: box(12, 64, 180, 22), variant: 'shop-row', edges: ['top'] },
-      { id: 'commercial-cafe-terminal', type: 'frame', bounds: box(188, 36, 4, 28), variant: 'terminal', edges: ['right'] },
+      { id: 'commercial-south-facade', type: 'room', bounds: box(12, 64, 176, 22), variant: 'shop-row', edges: ['top'] },
+      ...commercialStreetShopWalls,
     ],
-    storefronts: [
-      ...storefrontRow('commercial-north', 'commercial-north-facade', 'bottom', ['果茶店', '服装店', '花店', '眼镜店', '美妆店', '服装店', '书店', '甜品店'], 'modern', commercialStorefrontStarts, 18),
-      ...storefrontRow('commercial-south', 'commercial-south-facade', 'top', ['鞋店', '潮玩店', '香氛店', '服装店', '奶茶店', '周边店', '首饰店', '服装店'], 'modern', commercialStorefrontStarts, 18, { index: 4, portalId: 'street-milktea-entry', nearRadius: 10, characterSwitch: true }, { baseline: ['sign'], near: ['wall', 'door', 'wall'] }),
-      { id: 'commercial-cafe-slot', wallId: 'commercial-cafe-terminal', edge: 'right', label: '咖啡馆', style: 'modern', composition: { baseline: ['sign'], near: ['wall', 'door', 'wall'] }, characterSwitch: true, portalId: 'street-cafe-entry', nearRadius: 10, start: commercialStreetCafeDoorStart, end: commercialStreetCafeDoorEnd, approach: authoredPoint(186, commercialStreetCafeDoorY) },
-    ],
-    floorEntities: [],
-    airWalls: commercialStreetFacadeAirWalls,
+    storefronts: commercialStreetStorefronts,
+    floorEntities: commercialStreetShopEntities.filter((entity) => !entity.id.startsWith('commercial-milktea-') && !entity.id.startsWith('milk-tea-pickup-') && ![commercialStreetMilkTeaClerkContactId, commercialStreetMilkTeaQrId, 'milk-tea-shop-menu'].includes(entity.id)),
+    airWalls: [],
     blockers: [],
-    npcs: commercialStreetAmbientNpcs,
+    npcs: [...commercialStreetAmbientNpcs, ...commercialStreetShopNpcs.filter((npc) => npc.id !== commercialStreetMilkTeaClerkId), ...commercialStreetShopCustomerNpcs],
     npcPlacements: [
       { npcId: 'commercial-street-pedestrian-west-north', position: authoredPoint(22, 42) },
       { npcId: 'commercial-street-pedestrian-west-south', position: authoredPoint(64, 58) },
@@ -1065,24 +1386,30 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
       { npcId: 'commercial-street-pedestrian-mid-east-south', position: authoredPoint(132, 58) },
       { npcId: 'commercial-street-pedestrian-long', position: authoredPoint(20, 50) },
       { npcId: 'commercial-street-pedestrian-shopper', position: authoredPoint(110, 58) },
+      ...commercialStreetShopNpcPlacements.filter(({ npcId }) => npcId !== commercialStreetMilkTeaClerkId),
+      ...commercialStreetShopCustomerPlacements,
     ],
-    ambientNpcRoutes: commercialStreetAmbientNpcRoutes,
+    ambientNpcRoutes: [...commercialStreetAmbientNpcRoutes, ...commercialStreetShopCustomerRoutes],
+    npcBehaviorTargets: [],
+    npcBehaviors: [],
+    accessRegions: commercialStreetShopAccessRegions,
+    accessBoundaries: commercialStreetShopAccessBoundaries,
+    actorAccess: commercialStreetShopActorAccess,
+    continuousStructures: commercialStreetShopCounters.filter((structure) => !structure.id.startsWith('commercial-milktea-')),
     furnitureGroups: [],
     displayRegions: commercialStreetDisplayRegions,
     initialPlayerPosition: authoredPoint(34, 50),
   },
-  portals: [{
-    id: 'street-cafe-entry',
-    entity: { id: 'street-cafe-entry', label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
-    endpoint: { doorPosition: authoredPoint(192, commercialStreetCafeDoorY), threshold: authoredPoint(188, commercialStreetCafeDoorY), crossingTarget: authoredPoint(190, commercialStreetCafeDoorY), entryPosition: authoredPoint(14, commercialCafeDoorY) },
-    targetSceneId: 'commercial-cafe', wallOpenings: [], transitionText: '修杰穿过商业街尾端的门，进入咖啡馆。', access: 'open',
-  }, {
-    id: 'street-milktea-entry',
-    entity: { id: 'street-milktea-entry', label: commercialStreetMilkTeaInteriorCopy.zh.door, displayLabel: commercialStreetMilkTeaInteriorCopy.zh.door, kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
-    endpoint: { doorPosition: authoredPoint(111, 64), threshold: authoredPoint(111, 62), crossingTarget: authoredPoint(111, 66), entryPosition: authoredPoint(53, 55) },
-    targetSceneId: commercialStreetMilkTeaInteriorId, wallOpenings: [{ wallId: 'commercial-south-facade', opening: { edge: 'top', start: 106.5, end: 115.5, doorId: 'street-milktea-entry', labelLayout: 'center' } }], transitionText: commercialStreetMilkTeaInteriorCopy.zh.door, access: 'open',
-  }],
-  interactionText: { 'street-cafe-entry': '咖啡馆是独立场景，入口沿用主线门和寻路契约。' },
+  portals: commercialStreetShopPortals,
+  interactionText: {
+    ...Object.fromEntries(commercialStreetShops.map((shop) => [shop.id + '-display', shop.label.zh])),
+    ...Object.fromEntries(commercialStreetShops.map((shop) => [commercialStreetShopCounterContactId(shop), shop.label.zh])),
+    [commercialStreetMilkTeaQrId]: commercialStreetMilkTeaInteriorCopy.zh.qrPrompt,
+    ['milk-tea-shop-menu']: commercialStreetMilkTeaInteriorCopy.zh.menu,
+    ['milk-tea-pickup-1']: commercialStreetMilkTeaInteriorCopy.zh.noOrder,
+    ['milk-tea-pickup-3']: commercialStreetMilkTeaInteriorCopy.zh.noOrder,
+    ['milk-tea-pickup-4']: commercialStreetMilkTeaInteriorCopy.zh.noOrder,
+  },
 }
 
 const commercialCafeBlueprint: MainlineSceneBlueprint = {
@@ -1137,16 +1464,11 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
   portals: [{
     id: 'street-cafe-entry',
     entity: { id: 'street-cafe-entry', label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
-    endpoint: { doorPosition: authoredPoint(8, commercialCafeDoorY), threshold: authoredPoint(12, commercialCafeDoorY), crossingTarget: authoredPoint(10, commercialCafeDoorY), entryPosition: commercialStreetCafeEntryPosition },
-    targetSceneId: 'commercial-street', wallOpenings: [{ wallId: 'commercial-cafe-room', opening: { edge: 'left', start: 63.5, end: 72.5, doorId: 'street-cafe-entry', labelLayout: 'center' } }], transitionText: '修杰从咖啡馆返回商业街。', access: 'open',
-  }, {
-    id: 'cafe-back-door',
-    entity: { id: 'cafe-back-door', label: '后门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
-    endpoint: { doorPosition: authoredPoint(48, 7), threshold: authoredPoint(48, 12), crossingTarget: authoredPoint(48, 9) },
-    wallOpenings: [{ wallId: 'commercial-cafe-room', opening: { edge: 'top', start: 46, end: 50, doorId: 'cafe-back-door', labelLayout: 'center' } }], transitionText: '后门暂时没有开放的去处。', access: 'locked', lockedText: '后门暂未开启，当前权限不足。',
+    endpoint: { doorPosition: authoredPoint(commercialCafeEntryX, commercialCafeDoorY), threshold: authoredPoint(commercialCafeEntryX, 88), crossingTarget: authoredPoint(commercialCafeEntryX, 91), entryPosition: commercialStreetCafeEntryPosition },
+    targetSceneId: 'commercial-street', wallOpenings: [{ wallId: 'commercial-cafe-room', opening: { edge: 'bottom', start: commercialCafeEntryX - 3.5, end: commercialCafeEntryX + 3.5, doorId: 'street-cafe-entry', labelLayout: 'center' } }], transitionText: '修杰从咖啡馆返回商业街。', access: 'open',
   }],
   interactionText: {
-    'street-cafe-entry': '入口已经接入商业街，咖啡馆内部和主线使用同一套空间规则。', 'commercial-cafe-counter': '柜台位于店内前侧。', 'commercial-cafe-menu': '菜单挂在后墙上。', 'commercial-cafe-blackboard': '黑板挂在菜单旁边。', 'commercial-cafe-plant-upper': '靠窗的绿植留在通道边缘。', 'commercial-cafe-plant-lower': '另一盆绿植靠着玻璃边。', 'cafe-back-door': '后门暂未开启，当前权限不足。',
+    'street-cafe-entry': '入口已经接入商业街，咖啡馆内部和主线使用同一套空间规则。', 'commercial-cafe-counter': '柜台位于店内前侧。', 'commercial-cafe-menu': '菜单挂在后墙上。', 'commercial-cafe-blackboard': '黑板挂在菜单旁边。', 'commercial-cafe-plant-upper': '靠窗的绿植留在通道边缘。', 'commercial-cafe-plant-lower': '另一盆绿植靠着玻璃边。',
   },
 }
 
@@ -1722,7 +2044,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
           bounds: zhongshuyuanOfficeNorthGlassWall,
           variant: 'corridor-glass',
           boundaryGeometrySource: 'cell-range',
-          wallGlyphs: ['玻', '璃'],
+          wallGlyphs: [String.fromCharCode(0x5899), ''],
           edges: ['top'],
         },
         {
@@ -1731,7 +2053,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
           bounds: zhongshuyuanOfficeSouthGlassWall,
           variant: 'corridor-glass',
           boundaryGeometrySource: 'cell-range',
-          wallGlyphs: ['玻', '璃'],
+          wallGlyphs: [String.fromCharCode(0x5899), ''],
           edges: ['bottom'],
         },
         ...zhongshuyuanOfficeNorthDividerBounds.map((bounds, index) => ({
@@ -2051,11 +2373,20 @@ const milkTeaContinuousCounterStructures: readonly MainlineContinuousStructure[]
   { id: 'milk-tea-continuous-counter-run', kind: 'counter', ...milkTeaContinuousLayout.counter.run },
   { id: 'milk-tea-continuous-counter-return', kind: 'counter', ...milkTeaContinuousLayout.counter.return },
 ]
+const milkTeaContinuousFurniture = [mainlineTwoSeatFurniture(
+  'milk-tea-continuous-table',
+  authoredPoint(106, 107.2),
+  authoredPoint(108.8, 107.2),
+  {},
+  { seatGap: 2.8, pulledSeatGap: 3.8, sitSeatGap: 2.4 },
+)]
+const milkTeaContinuousFurnitureEntities = milkTeaContinuousFurniture.flatMap(({ entities }) => entities)
+  .map((entity) => ({ ...entity, visualVisibility: 'baseline' as const }))
 const milkTeaContinuousCounterEntities: readonly MainlineSceneEntity[] = milkTeaContinuousLayout.counterContacts.map((contact) => {
   const clerkContact = contact.id === commercialStreetMilkTeaClerkContactId
   return floor({
     id: contact.id,
-    label: clerkContact ? milkTeaCopy.clerk : milkTeaCopy.counter,
+    label: clerkContact ? '' : milkTeaCopy.counter,
     kind: 'fixture',
     weight: 'fixture',
     position: authoredPoint(111.4, contact.y),
@@ -2071,6 +2402,7 @@ const milkTeaClerk = {
   id: commercialStreetMilkTeaClerkId,
   roleId: npcRoles.milkTeaClerk.id,
   label: milkTeaCopy.clerk,
+  interactive: true,
   interactionTargetEntityId: commercialStreetMilkTeaClerkContactId,
 } as const satisfies MainlineSceneNpc
 const milkTeaDoorPosition = milkTeaLayout.interiorDoor
@@ -2135,61 +2467,144 @@ const milkTeaInteriorBlueprint: MainlineSceneBlueprint = {
   },
 }
 
+function commercialStreetNorthExpansionAirWalls() {
+  const doorCenters = commercialStreetShops.filter((shop) => shop.row === 'north').map((shop) => commercialStreetShopEntry(shop).doorX).sort((a, b) => a - b)
+  let cursor = 8
+  const walls: Array<{ id: string; x: number; y: number; width: number; height: number }> = []
+  for (const [index, center] of doorCenters.entries()) {
+    const openingStart = center - 7
+    if (openingStart > cursor) walls.push({ id: `commercial-north-expansion-wall-${index}`, x: cursor, y: 10, width: openingStart - cursor, height: 25.3 })
+    cursor = Math.max(cursor, center + 7)
+  }
+  if (cursor < 200) walls.push({ id: 'commercial-north-expansion-wall-last', x: cursor, y: 10, width: 200 - cursor, height: 25.3 })
+  return walls
+}
+function commercialStreetSouthExpansionAirWalls() {
+  const doorCenters = commercialStreetShops
+    .filter((shop) => shop.row === 'south')
+    .map((shop) => commercialStreetShopEntry(shop).doorX)
+    .sort((a, b) => a - b)
+  let cursor = 8
+  const walls: Array<{ id: string; x: number; y: number; width: number; height: number }> = []
+  for (const [index, center] of doorCenters.entries()) {
+    const openingStart = center - 7
+    if (openingStart > cursor) walls.push({ id: `commercial-south-expansion-wall-${index}`, x: cursor, y: 64.7, width: openingStart - cursor, height: 51.3 })
+    cursor = Math.max(cursor, center + 7)
+  }
+  if (cursor < 188) walls.push({ id: 'commercial-south-expansion-wall-last', x: cursor, y: 64.7, width: 188 - cursor, height: 51.3 })
+  return walls
+}
+const transformedCommercialCafeScene = transformCommercialCafeWorld(commercialCafeBlueprint.scene)
+const commercialCafeWorldScene = {
+  ...transformedCommercialCafeScene,
+  walls: transformedCommercialCafeScene.walls.map((wall) => wall.id !== 'commercial-cafe-room' ? wall : {
+    ...wall,
+    features: wall.features?.map((feature) => {
+      const isMenu = feature.id === 'commercial-cafe-menu-feature'
+      const isBlackboard = feature.id === 'commercial-cafe-blackboard-feature'
+      if (!isMenu && !isBlackboard) return feature
+      const start = isMenu ? 147 : 169
+      const end = isMenu ? 160 : 182
+      return {
+        ...feature,
+        start,
+        end,
+        // The feature's span is the source of truth for its rendered glyph,
+        // entity and customer-side contact. The old transformed entity
+        // positions made the blackboard clickable at the menu's x; dropping
+        // the anchor also lost its Cafe region context during route planning.
+        entity: feature.entity ? {
+          ...feature.entity,
+          position: { x: (start + end) / 2, y: feature.entity.position.y },
+          interactionContactAnchor: {
+            x: (start + end) / 2,
+          // Reserve the same customer-side aisle in portrait and landscape:
+          // landscape actor footprints are taller and otherwise overlap the
+          // counter/menu contact or the neighboring chair collision.
+          y: (feature.entity.interactionContactAnchor?.y ?? feature.entity.position.y + 15)
+            + (isBlackboard ? 4.5 : 1.5),
+          },
+        } : undefined,
+      }
+    }),
+  }),
+}
+const commercialCafeShop = commercialStreetShops.find((shop) => shop.kind === 'cafe')!
+const commercialCafeDisplayRegionId = commercialStreetShopRegionId(commercialCafeShop)
+const commercialLakefrontPortalId = 'commercial-cafe-lakefront-entry'
+const commercialLakefrontBounds = box(144, -68, 44, 41)
+const commercialLakefrontPortal: MainlineScenePortalBlueprint = {
+  id: commercialLakefrontPortalId,
+  entity: { id: commercialLakefrontPortalId, label: '��', displayLabel: 'Lakefront', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
+  endpoint: { doorPosition: authoredPoint(166, -27), threshold: authoredPoint(166, -26), crossingTarget: authoredPoint(166, -32), entryPosition: authoredPoint(166, -32) },
+  routeThrough: true,
+  fromRoomId: commercialCafeDisplayRegionId,
+  toRoomId: 'commercial-lakeside',
+  wallOpenings: [{ wallId: 'commercial-cafe-room', opening: { edge: 'top', start: 163, end: 169, doorId: commercialLakefrontPortalId } }],
+  transitionText: 'You step out beside the lake.',
+  access: 'open',
+}
 const commercialStreetWithContinuousMilkTeaBlueprint: MainlineSceneBlueprint = {
   ...commercialStreetBlueprint,
   scene: {
     ...commercialStreetBlueprint.scene,
-    walkBounds: milkTeaContinuousLayout.walkBounds,
-    walls: (commercialStreetBlueprint.scene.walls ?? []).flatMap((wall) => {
-      if (wall.id !== 'commercial-south-facade') return [wall]
-      return [
-        {
-          ...wall,
-          id: 'commercial-south-facade-left',
-          bounds: box(wall.bounds.x, wall.bounds.y, milkTeaContinuousLayout.storefront.start - wall.bounds.x, wall.bounds.height),
-          openings: [],
-        },
-        {
-          ...wall,
-          id: 'commercial-south-facade-right',
-          bounds: box(milkTeaContinuousLayout.storefront.end, wall.bounds.y, wall.bounds.x + wall.bounds.width - milkTeaContinuousLayout.storefront.end, wall.bounds.height),
-          openings: [],
-        },
-        { id: 'milk-tea-continuous-shop-shell', type: 'room' as const, bounds: milkTeaContinuousLayout.bounds, variant: 'milk-tea-long-narrow', edges: ['left', 'right', 'bottom'] as const },
-        { id: 'milk-tea-rear-area-wall', type: 'room' as const, bounds: milkTeaContinuousLayout.rearDivider, variant: 'milk-tea-back-area', edges: ['top'] as const },
-        { id: 'milk-tea-kitchen-warehouse-wall', type: 'room' as const, bounds: milkTeaContinuousLayout.kitchenWarehouseDivider, variant: 'milk-tea-back-divider', edges: ['left'] as const },
-      ]
-    }),
-    storefronts: (commercialStreetBlueprint.scene.storefronts ?? []).map((storefront) => storefront.id === commercialStreetMilkTeaStorefrontId
-      ? { ...storefront, portalId: undefined, characterSwitch: false, composition: { baseline: ['sign'], near: ['wall', 'blank', 'wall'] } }
-      : storefront),
-    airWalls: (commercialStreetBlueprint.scene.airWalls ?? []).flatMap((airWall) => airWall.id === 'commercial-south-facade-air-wall-left'
-      ? [
-        { id: 'commercial-south-facade-air-wall-left', ...box(8, 64.7, 94, 77.3) },
-        { id: 'commercial-south-facade-air-wall-right', ...box(120, 64.7, 80, 77.3) },
-      ]
-      : [airWall]),
+    walkBounds: box(8, -68, 180, 184),
+    walls: [
+      ...(commercialStreetBlueprint.scene.walls ?? []).flatMap((wall) => wall.id !== 'commercial-south-facade'
+        ? [wall]
+        : [
+          wall,
+          { id: 'milk-tea-continuous-shop-shell', type: 'room' as const, bounds: milkTeaContinuousLayout.bounds, variant: 'milk-tea-long-narrow', wallGlyphs: [String.fromCharCode(0x5899), '', '', ''], edges: ['left', 'right', 'bottom'] as const },
+          { id: 'milk-tea-rear-area-wall', type: 'room' as const, bounds: milkTeaContinuousLayout.rearDivider, variant: 'milk-tea-back-area', wallGlyphs: [String.fromCharCode(0x5899), '', '', ''], edges: ['top'] as const },
+          { id: 'milk-tea-kitchen-warehouse-wall', type: 'room' as const, bounds: milkTeaContinuousLayout.kitchenWarehouseDivider, variant: 'milk-tea-back-divider', wallGlyphs: [String.fromCharCode(0x5899), '', '', ''], edges: ['left'] as const },
+        ]),
+      ...(commercialCafeWorldScene.walls ?? []),
+      { id: 'commercial-lakeside-shore', type: 'room' as const, bounds: commercialLakefrontBounds, variant: 'lakefront', edges: ['top', 'left', 'right'] as const },
+    ],
+    storefronts: commercialStreetBlueprint.scene.storefronts ?? [],
+    airWalls: [...commercialStreetSouthExpansionAirWalls(), ...commercialStreetNorthExpansionAirWalls()],
     floorEntities: [
-      ...(commercialStreetBlueprint.scene.floorEntities ?? []),
+      ...(commercialStreetBlueprint.scene.floorEntities ?? []).filter((entity) => ![commercialStreetMilkTeaClerkContactId, commercialStreetMilkTeaQrId, 'milk-tea-shop-menu', 'milk-tea-pickup-1', 'milk-tea-pickup-3', 'milk-tea-pickup-4'].includes(entity.id) && !entity.id.startsWith('commercial-south-slot-5-') && !entity.id.startsWith('commercial-milktea-')),
       ...milkTeaContinuousCounterEntities,
       floor({ id: commercialStreetMilkTeaQrId, label: milkTeaCopy.qr, kind: 'fixture', weight: 'fixture', position: authoredPoint(milkTeaContinuousLayout.qr.x, milkTeaContinuousLayout.qr.y), approach: authoredPoint(108.5, milkTeaContinuousLayout.qr.y), interactive: true, interactionBehavior: 'milk-tea-qr', interactionRange: 10, visualVisibility: 'baseline' }),
       floor({ id: 'milk-tea-shop-menu', label: milkTeaCopy.menu, kind: 'fixture', weight: 'minor', position: authoredPoint(milkTeaContinuousLayout.menu.x, milkTeaContinuousLayout.menu.y), interactive: true, interactionRange: 8, visualVisibility: 'baseline' }),
-      floor({ id: 'street-milktea-threshold', label: milkTeaCopy.door, kind: 'door', weight: 'gateway', position: authoredPoint(milkTeaContinuousLayout.storefront.doorX, milkTeaContinuousLayout.storefront.doorY), visualVisibility: 'baseline' }),
       floor({ id: 'milk-tea-kitchen-label', label: '厨房', kind: 'fixture', weight: 'minor', position: authoredPoint(milkTeaContinuousLayout.kitchenLabel.x, milkTeaContinuousLayout.kitchenLabel.y), visualVisibility: 'baseline' }),
       floor({ id: 'milk-tea-warehouse-label', label: '仓库', kind: 'fixture', weight: 'minor', position: authoredPoint(milkTeaContinuousLayout.warehouseLabel.x, milkTeaContinuousLayout.warehouseLabel.y), visualVisibility: 'baseline' }),
+      ...milkTeaContinuousFurnitureEntities,
+      ...commercialCafeWorldScene.floorEntities,
+      floor({ id: 'commercial-lakeside-water', label: 'Lake', kind: 'landmark', weight: 'minor', position: authoredPoint(166, -51), interactive: false, visualVisibility: 'baseline' }),
+      floor({ id: 'commercial-lakeside-bench', label: 'Bench', kind: 'fixture', weight: 'minor', position: authoredPoint(158, -40), approach: authoredPoint(158, -37), visualVisibility: 'baseline' }),
     ],
-    npcs: [...(commercialStreetBlueprint.scene.npcs ?? []), milkTeaClerk],
-    npcPlacements: [...(commercialStreetBlueprint.scene.npcPlacements ?? []), { npcId: commercialStreetMilkTeaClerkId, position: milkTeaContinuousLayout.clerk }],
-    npcBehaviorTargets: [...(commercialStreetBlueprint.scene.npcBehaviorTargets ?? []), { id: 'milk-tea-clerk-counter', position: milkTeaContinuousLayout.clerk }],
-    npcBehaviors: [...(commercialStreetBlueprint.scene.npcBehaviors ?? []), { npcId: commercialStreetMilkTeaClerkId, dutyId: npcRoles.milkTeaClerk.duties.counterService.id, targetId: 'milk-tea-clerk-counter', targetKind: 'point' as const, interactionContactEntityId: commercialStreetMilkTeaClerkContactId }],
-    accessRegions: [...(commercialStreetBlueprint.scene.accessRegions ?? []), { id: 'milk-tea-staff-area', ...milkTeaContinuousLayout.staffArea, requiredAccess: 'staff' as const, deniedText: milkTeaCopy.deniedStaff }],
-    accessBoundaries: [...(commercialStreetBlueprint.scene.accessBoundaries ?? []), { id: 'milk-tea-staff-boundary', regionId: 'milk-tea-staff-area', edge: 'left' as const }],
-    actorAccess: { ...(commercialStreetBlueprint.scene.actorAccess ?? {}), protagonist: ['public'], [commercialStreetMilkTeaClerkId]: ['public', 'staff'] },
-    continuousStructures: [...(commercialStreetBlueprint.scene.continuousStructures ?? []), ...milkTeaContinuousCounterStructures],
+    npcs: [...(commercialStreetBlueprint.scene.npcs ?? []).filter((npc) => npc.id !== commercialStreetMilkTeaClerkId && npc.id !== commercialStreetShopClerkId(commercialCafeShop)), milkTeaClerk, ...(commercialCafeWorldScene.npcs ?? [])],
+    npcPlacements: [...(commercialStreetBlueprint.scene.npcPlacements ?? []).filter(({ npcId }) => npcId !== commercialStreetMilkTeaClerkId && npcId !== commercialStreetShopClerkId(commercialCafeShop)), { npcId: commercialStreetMilkTeaClerkId, position: milkTeaContinuousLayout.clerk }, ...(commercialCafeWorldScene.npcPlacements ?? [])],
+    npcBehaviorTargets: [...(commercialStreetBlueprint.scene.npcBehaviorTargets ?? []), { id: 'milk-tea-clerk-counter', position: milkTeaContinuousLayout.clerk }, ...(commercialCafeWorldScene.npcBehaviorTargets ?? [])],
+    npcBehaviors: [...(commercialStreetBlueprint.scene.npcBehaviors ?? []), { npcId: commercialStreetMilkTeaClerkId, dutyId: npcRoles.milkTeaClerk.duties.counterService.id, targetId: 'milk-tea-clerk-counter', targetKind: 'point' as const, interactionContactEntityId: commercialStreetMilkTeaClerkContactId }, ...(commercialCafeWorldScene.npcBehaviors ?? [])],
+    accessRegions: [...(commercialStreetBlueprint.scene.accessRegions ?? []).filter(({ id }) => id !== 'commercial-south-slot-5-staff-area'), { id: 'milk-tea-staff-area', ...milkTeaContinuousLayout.staffArea, requiredAccess: 'staff' as const, deniedText: milkTeaCopy.deniedStaff }, ...(commercialCafeWorldScene.accessRegions ?? []).map((region) => region.id === 'commercial-cafe-staff-area' ? { ...region, y: region.y - 4, height: region.height + 4 } : region)],
+    accessBoundaries: [...(commercialStreetBlueprint.scene.accessBoundaries ?? []).filter(({ id }) => id !== 'commercial-south-slot-5-staff-boundary'), { id: 'milk-tea-staff-boundary', regionId: 'milk-tea-staff-area', edge: 'left' as const }, ...(commercialCafeWorldScene.accessBoundaries ?? [])],
+    actorAccess: { ...(commercialStreetBlueprint.scene.actorAccess ?? {}), ...(commercialCafeWorldScene.actorAccess ?? {}), protagonist: ['public'], [commercialStreetMilkTeaClerkId]: ['public', 'staff'] },
+    continuousStructures: [...(commercialStreetBlueprint.scene.continuousStructures ?? []).filter(({ id }) => !id.startsWith('commercial-milktea-counter-')), ...milkTeaContinuousCounterStructures, ...(commercialCafeWorldScene.continuousStructures ?? [])],
+    furnitureGroups: [...(commercialStreetBlueprint.scene.furnitureGroups ?? []), ...milkTeaContinuousFurniture.map(({ group }) => group), ...commercialCafeWorldScene.furnitureGroups],
+    rooms: [...(commercialStreetBlueprint.scene.rooms ?? []), { id: commercialCafeDisplayRegionId, bounds: box(144, -27, 44, 58), kind: 'room' as const }, { id: 'commercial-lakeside', bounds: commercialLakefrontBounds, kind: 'corridor' as const }, ...(commercialCafeWorldScene.rooms ?? [])],
+    curves: [...(commercialStreetBlueprint.scene.curves ?? []), ...(commercialCafeWorldScene.curves ?? [])],
+    accessPortals: [...(commercialStreetBlueprint.scene.accessPortals ?? []), ...(commercialCafeWorldScene.accessPortals ?? [])],
+    navigationBarriers: [...(commercialStreetBlueprint.scene.navigationBarriers ?? []), ...(commercialCafeWorldScene.navigationBarriers ?? [])],
+    blockers: [...(commercialStreetBlueprint.scene.blockers ?? []), ...(commercialCafeWorldScene.blockers ?? [])],
+    displayRegions: [...commercialStreetDisplayRegions.map((region) => region.id === commercialCafeDisplayRegionId
+      ? { ...region, bounds: box(144, -27, 44, 58), visibleGeometryGroupIds: ['commercial-cafe-room', 'commercial-cafe-counter-body', 'commercial-cafe-glass-front', ...commercialCafeWorldScene.floorEntities.map((entity) => entity.id), ...commercialCafeWorldScene.furnitureGroups.map((group) => group.id)], cameraAnchor: authoredPoint(166, 2), passageLinks: [...region.passageLinks, { passageId: commercialLakefrontPortalId, targetRegionId: 'commercial-lakeside' }] }
+      : region.id === commercialStreetShopRegionId(commercialStreetMilkTeaShop)
+      ? {
+        ...region,
+        bounds: milkTeaContinuousLayout.bounds,
+        visibleGeometryGroupIds: [commercialStreetShopVisibleStorefrontId(commercialStreetMilkTeaShop), 'milk-tea-continuous-shop-shell', 'milk-tea-rear-area-wall', 'milk-tea-kitchen-warehouse-wall'],
+        cameraAnchor: authoredPoint(111, 90),
+        passageLinks: [{ passageId: commercialStreetShopPortalId(commercialStreetMilkTeaShop), targetRegionId: commercialStreetStreetRegionForShop(commercialStreetMilkTeaShop) }],
+      }
+      : region), { id: 'commercial-lakeside', bounds: commercialLakefrontBounds, visibleGeometryGroupIds: ['commercial-lakeside-shore', 'commercial-lakeside-water', 'commercial-lakeside-bench'], cameraAnchor: authoredPoint(166, -48), passageLinks: [{ passageId: commercialLakefrontPortalId, targetRegionId: commercialCafeDisplayRegionId }] }],
   },
-  portals: commercialStreetBlueprint.portals,
+  portals: [...(commercialStreetBlueprint.portals ?? []), commercialLakefrontPortal],
   interactionText: {
     ...commercialStreetBlueprint.interactionText,
+    ...commercialCafeBlueprint.interactionText,
     [commercialStreetMilkTeaQrId]: milkTeaCopy.qrPrompt,
     'milk-tea-shop-menu': milkTeaCopy.menu,
     [commercialStreetMilkTeaClerkContactId]: milkTeaCopy.clerkAgain,
@@ -2203,9 +2618,10 @@ const commercialStreetWithContinuousMilkTeaBlueprint: MainlineSceneBlueprint = {
 export const mainlineSceneBlueprints: Record<MainlineSceneId, MainlineSceneBlueprint> = {
   'jijia-ancestral-home': jijiaYardBlueprint,
   'jijia-ancestral-interior': jijiaAncestralInteriorBlueprint,
-  'commercial-street': commercialStreetBlueprint,
+  'commercial-street': commercialStreetWithContinuousMilkTeaBlueprint,
   'commercial-cafe': commercialCafeBlueprint,
   'commercial-milktea-interior': milkTeaInteriorBlueprint,
+  'commercial-milktea-shop': { ...milkTeaInteriorBlueprint, id: commercialStreetMilkTeaShopSceneId },
   'yonghe-mining-perimeter': yongheMiningPerimeterBlueprint,
   'yonghe-eatery': yongheEateryBlueprint,
   'zhongshuyuan-passage': zhongshuyuanPassageBlueprint,

@@ -54,7 +54,7 @@ describe('follow-up experience contracts', () => {
     const portal=cafe.passages.find(p=>p.id==='street-cafe-entry')!
     const expectedPortal={x:(portal.thresholds[0].x+portal.thresholds[1].x)/2,y:(portal.thresholds[0].y+portal.thresholds[1].y)/2}
     expect(mainlineRideNavigationGoal('commercial-cafe','commercial-street')).toEqual(expectedPortal)
-    expect(expectedPortal.x).toBeLessThan(cafe.initialPlayerPosition.x)
+    expect(expectedPortal.y).toBeGreaterThan(cafe.initialPlayerPosition.y)
     expect(mainlineRideNavigationGoal('commercial-street','commercial-street')).toEqual(mainlineRidePickupPosition('commercial-street'))
     const eateryExit=mainlineScenes['yonghe-eatery'].passages.find(p=>p.targetSceneId==='yonghe-mining-perimeter')
     expect(mainlineRideNavigationGoal('yonghe-eatery','yonghe-mining-perimeter')).toEqual(eateryExit?{x:(eateryExit.thresholds[0].x+eateryExit.thresholds[1].x)/2,y:(eateryExit.thresholds[0].y+eateryExit.thresholds[1].y)/2}:null)

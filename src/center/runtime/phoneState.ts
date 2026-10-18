@@ -32,6 +32,7 @@ export const mainlineSceneWorldLayers: Record<MainlineSceneId, WorldLayer> = {
   'commercial-street': 'inner',
   'commercial-cafe': 'inner',
   'commercial-milktea-interior': 'inner',
+  'commercial-milktea-shop': 'inner',
   'yonghe-mining-perimeter': 'inner',
   'yonghe-eatery': 'inner',
   'zhongshuyuan-passage': 'passage',

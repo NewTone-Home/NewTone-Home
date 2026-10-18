@@ -51,20 +51,26 @@ async function seedMilkTeaStreetPosition(page: Page, point: { x: number; y: numb
 }
 
 async function enterMilkTeaShopFromStreet(page: Page) {
-  const interior = page.locator('.scene-shell[data-mainline-scene="commercial-milktea-interior"]')
-  if (await interior.count() > 0) return
+  const region = page.locator('.scene-shell[data-mainline-scene="commercial-street"]')
+  const actor = region.locator('[data-actor-id="protagonist"]')
+  const isInside = () => actor.evaluate((node) => {
+    const element = node as HTMLElement
+    const x = Number(element.dataset.runtimeX), y = Number(element.dataset.runtimeY)
+    return x >= 100 && x <= 122 && y >= 64 && y <= 116
+  })
+  if (await isInside().catch(() => false)) return
   const entrance = page.locator('[data-focus-target-group="door:street-milktea-entry"]')
   if (await entrance.count() > 0) await entrance.click()
   else await clickWorldPoint(page, { x: 111, y: 54 })
-  await expect(interior).toBeVisible({ timeout: 30_000 })
+  await expect.poll(isInside, { timeout: 30_000 }).toBe(true)
 }
-test('the storefront portal enters and exits the dedicated Milk Tea interior', async ({ page }) => {
+test('the storefront portal enters and exits the Milk Tea display region', async ({ page }) => {
   await seedMilkTeaStreetPosition(page, { x: 105, y: 57 })
   await page.goto('/?scene=commercial-street&debugRuntimeEvidence=1')
   await enterMilkTeaShopFromStreet(page)
   await expect(page.locator('[data-milk-tea-order-status="none"]')).toHaveCount(1)
-  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-milktea-interior"]')).toBeVisible()
-  await page.locator('[data-focus-target-group="door:milktea-street-exit"]').click()
+  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible()
+  await page.locator('[data-focus-target-group="door:street-milktea-entry"]').click()
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible({ timeout: 30_000 })
 })
 
@@ -91,7 +97,7 @@ test('a first physical visit unlocks the Phone app, while ordering stays remote 
     return Boolean(actor && Math.abs(Number(actor.dataset.runtimeX) - 105) < 1 && Math.abs(Number(actor.dataset.runtimeY) - 57) < 1)
   }, undefined, { timeout: 30_000 })
   await enterMilkTeaShopFromStreet(page)
-  await page.getByRole('button', { name: /店员/ }).click()
+  await page.locator('button[data-npc-id="milk-tea-clerk"]').click()
   const phone = page.locator('.world-phone')
   await expect(phone).toBeVisible({ timeout: 30_000 })
   await expect(phone.locator('[data-app-view="milk-tea"]')).toBeVisible({ timeout: 30_000 })
@@ -110,7 +116,7 @@ test('a first physical visit unlocks the Phone app, while ordering stays remote 
   await expect(phone).not.toHaveClass(/is-open/)
   await finishReading(page)
   const notification = page.locator('[data-notification-app="milk-tea"]')
-  await page.locator('[data-focus-target-group="door:milktea-street-exit"]').click()
+  await page.locator('[data-focus-target-group="door:street-milktea-entry"]').click()
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible()
   await expect(phone.locator('.world-phone__notification-dot')).toBeVisible({ timeout: 45000 })
   await expect(phone).toHaveAttribute('data-phone-phase', 'closed')
@@ -176,8 +182,8 @@ test('a first physical visit unlocks the Phone app, while ordering stays remote 
   await page.screenshot({ path: testInfo.outputPath('milk-tea-consumed.png') })
   await page.reload()
   await expect(page.locator('.scene-protagonist__drink-icon--milk-tea')).toHaveCount(0)
-  if (await page.locator('.scene-shell[data-mainline-scene="commercial-milktea-interior"]').count() === 0) await enterMilkTeaShopFromStreet(page)
   await finishReading(page)
+  await enterMilkTeaShopFromStreet(page)
   await page.getByRole('button', { name: /Scan to Order|扫码点单/ }).click()
   await expect(phone.locator('[data-app-view="milk-tea"]')).toBeVisible({ timeout: 30_000 })
   await phone.getByRole('button', { name: '原味奶茶', exact: true }).click()

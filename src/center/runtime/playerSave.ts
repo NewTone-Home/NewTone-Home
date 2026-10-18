@@ -1,5 +1,5 @@
 import type { MainlineSceneId } from './mainlineSceneModel'
-import { commercialStreetMilkTeaInteriorId, remapLegacyMilkTeaInteriorPosition } from './commercialStreetMilkTeaInterior'
+import { commercialStreetMilkTeaInteriorId, commercialStreetMilkTeaShopSceneId, remapLegacyMilkTeaInteriorPosition } from './commercialStreetMilkTeaInterior'
 import { cleanPhoneNotifications, type PhoneNotification } from './phoneNotifications'
 import type { PhoneDevice } from './phoneState'
 import { createInitialMainlineStoryClock, storyClockForStage, type MainlineStoryClock, type MainlineStoryStage } from './mainlineStoryClock'
@@ -131,6 +131,13 @@ function readLegacyPlayerSave(storage: PlayerSaveStorage | null, fallbackSceneId
   return hasLegacyValue ? migrated : createInitialPlayerSave(fallbackSceneId)
 }
 
+export function remapLegacyCafePosition(position: PlayerPoint | null | undefined): PlayerPoint {
+  if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) return { x: 166, y: 22 }
+  return {
+    x: Number(Math.max(144, Math.min(188, 144 + (position.x - 8) * (44 / 90))).toFixed(4)),
+    y: Math.max(-27, Math.min(31, position.y - 62)),
+  }
+}
 export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineSceneId): PlayerSave {
   const source = value && typeof value === 'object' ? value as Partial<PlayerSave> : {}
   const sourceSceneId = typeof source.currentSceneId === 'string' && source.currentSceneId.length > 0
@@ -138,34 +145,40 @@ export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineScen
     : fallbackSceneId
   const rawCurrentPosition = cleanPoint(source.currentPosition)
   const rawInteriorPosition = rawCurrentPosition ?? cleanScenePositions(source.scenePositions)[commercialStreetMilkTeaInteriorId] ?? null
+  const preCleanedPositions = cleanScenePositions(source.scenePositions)
+  const wasLegacyCafe = sourceSceneId === 'commercial-cafe'
+  const legacyCafePosition = rawCurrentPosition ?? preCleanedPositions['commercial-cafe'] ?? null
   // Saves from the retired, long-corridor preview used coordinates beyond the
   // new room's 52-unit depth. Keep valid positions in the current room intact.
   const wasLegacyMilkTeaInterior = sourceSceneId === commercialStreetMilkTeaInteriorId
     && rawInteriorPosition !== null
     && rawInteriorPosition.y > 59
-  const currentSceneId: MainlineSceneId = wasLegacyMilkTeaInterior ? 'commercial-street' : sourceSceneId
+  const wasDetachedMilkTeaShop = sourceSceneId === commercialStreetMilkTeaShopSceneId
+  const currentSceneId: MainlineSceneId = wasLegacyMilkTeaInterior || wasDetachedMilkTeaShop || wasLegacyCafe ? 'commercial-street' : sourceSceneId
   const cleanedPositions = cleanScenePositions(source.scenePositions)
   const legacyInteriorPosition = wasLegacyMilkTeaInterior
     ? cleanPoint(source.currentPosition) ?? cleanedPositions[commercialStreetMilkTeaInteriorId]
     : null
   const migratedInteriorPosition = wasLegacyMilkTeaInterior
     ? remapLegacyMilkTeaInteriorPosition(legacyInteriorPosition)
-    : null
-  const scenePositions = wasLegacyMilkTeaInterior
+    : wasDetachedMilkTeaShop ? { x: 111, y: 69 } : wasLegacyCafe ? remapLegacyCafePosition(legacyCafePosition) : null
+  const scenePositions = wasLegacyMilkTeaInterior || wasDetachedMilkTeaShop || wasLegacyCafe
     ? { ...cleanedPositions, 'commercial-street': migratedInteriorPosition! }
     : cleanedPositions
   const cleanedSceneState = cleanSceneState(source.sceneState)
-  const sceneState = wasLegacyMilkTeaInterior
+  const hasCafeState = Boolean(cleanedSceneState['commercial-cafe'] && Object.keys(cleanedSceneState['commercial-cafe']).length)
+  const shouldMergeStreetState = wasLegacyMilkTeaInterior || wasDetachedMilkTeaShop || wasLegacyCafe || hasCafeState
+  const sceneState = shouldMergeStreetState
     ? {
       ...cleanedSceneState,
-      'commercial-street': { ...cleanedSceneState[commercialStreetMilkTeaInteriorId], ...cleanedSceneState['commercial-street'] },
+      'commercial-street': { ...cleanedSceneState[commercialStreetMilkTeaInteriorId], ...cleanedSceneState[commercialStreetMilkTeaShopSceneId], ...cleanedSceneState['commercial-cafe'], ...cleanedSceneState['commercial-street'] },
     }
     : cleanedSceneState
   const phoneDevice = source.phoneDevice === 'inner' ? 'inner' : 'surface'
   const storyStage = source.storyClock?.stage
   const storyClock: MainlineStoryClock = storyStage === 'commercial-street' || storyStage === 'cafe' || storyStage === 'yonghe' || storyStage === 'opening'
-    ? storyClockForStage(storyStage as MainlineStoryStage)
-    : createInitialMainlineStoryClock(currentSceneId)
+    ? { ...source.storyClock!, stage: storyStage as MainlineStoryStage }
+    : createInitialMainlineStoryClock(sourceSceneId)
   const updatedAt = Number(source.updatedAt)
   return {
     _version: PLAYER_SAVE_VERSION,

@@ -164,10 +164,6 @@ test('seat, NPC, locked door, and storefront each report one requested and their
   })
   await page.goto(`${analyticsBaseUrl}/?scene=commercial-cafe&debugRuntimeEvidence=1`)
 
-  const lockedRequest = waitForAnalyticsEvent(page, event => event.event_name === 'center_interaction_requested' && event.object_id === 'cafe-back-door')
-  const lockedBlocked = waitForAnalyticsEvent(page, event => event.event_name === 'center_interaction_blocked' && event.object_id === 'cafe-back-door')
-  await page.locator('[data-focus-target-group="door:cafe-back-door"]').first().click()
-  await Promise.all([lockedRequest, lockedBlocked])
 
   const npcRequested = waitForAnalyticsEvent(page, event => event.event_name === 'center_interaction_requested' && event.object_id === 'lao-zhou')
   const npcCompleted = waitForAnalyticsEvent(page, event => event.event_name === 'center_interaction_completed' && event.object_id === 'lao-zhou')
@@ -182,11 +178,9 @@ test('seat, NPC, locked door, and storefront each report one requested and their
   await Promise.all([seatRequested, seatCompleted])
   await expect(page.getByLabel('修杰，已坐下')).toBeVisible({ timeout: 30_000 })
 
-  for (const objectId of ['cafe-back-door', 'lao-zhou', seatId]) {
+  for (const objectId of ['lao-zhou', seatId]) {
     expect(events.filter(event => event.event_name === 'center_interaction_requested' && event.object_id === objectId)).toHaveLength(1)
   }
-  expect(events.filter(event => event.event_name === 'center_interaction_blocked' && event.object_id === 'cafe-back-door')).toHaveLength(1)
-  expect(events.filter(event => event.event_name === 'center_interaction_completed' && event.object_id === 'cafe-back-door')).toHaveLength(0)
   expect(events.filter(event => event.event_name === 'center_interaction_completed' && event.object_id === 'lao-zhou')).toHaveLength(1)
   expect(events.filter(event => event.event_name === 'center_interaction_completed' && event.object_id === seatId)).toHaveLength(1)
 })

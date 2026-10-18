@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineSceneGeometryUnits, mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
+import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 import {
   mainlineInteractionTarget,
   mainlinePassageCrossesToSide,
@@ -93,19 +94,12 @@ describe('mainline screen geometry snapshot', () => {
     expect(isWalkableMainlinePoint(passageEntry, passageScene)).toBe(true)
   })
 
-  it('keeps normal door text on portal entities while split and storefront labels retain their own roles', () => {
+  it('keeps the cafe lake-facing edge window-only while preserving other door labels', () => {
     const cafe = mainlineScenes['commercial-cafe']
-    const cafeBackDoorOpening = cafe.structures
-      .find((structure) => structure.id === 'commercial-cafe-room')
-      ?.openings.find((opening) => opening.doorId === 'cafe-back-door')
-    const cafeBackDoor = cafe.portals.find((portal) => portal.id === 'cafe-back-door')
-    const cafeBackDoorCell = doorCells(cafe, 'cafe-back-door')[0]
 
-    expect(cafeBackDoorOpening).toMatchObject({ doorId: 'cafe-back-door', labelLayout: 'center' })
-    expect(cafeBackDoorOpening?.label).toBeUndefined()
-    expect(cafeBackDoorOpening?.displayLabel).toBeUndefined()
-    expect(cafeBackDoor?.entity).toMatchObject({ label: '后门', displayLabel: '门' })
-    expect(renderedDoorLabel(cafeBackDoorCell)).toBe('门')
+    expect(cafe.portals.some((portal) => portal.id === 'cafe-back-door')).toBe(false)
+    expect(cafe.passages.some((passage) => passage.id === 'cafe-back-door')).toBe(false)
+    expect(cafe.structures.find((structure) => structure.id === 'commercial-cafe-room')?.openings.some((opening) => opening.doorId === 'cafe-back-door')).toBe(false)
 
     const yard = mainlineScenes['jijia-ancestral-home']
     const yardGateOpening = yard.structures
@@ -177,9 +171,18 @@ describe('mainline screen geometry snapshot', () => {
         if (geometry.visualBounds) assertValidBox(geometry.visualBounds, `${scene.id}:${entity.id}: visualBounds`)
         if (geometry.collision) assertValidBox(geometry.collision, `${scene.id}:${entity.id}: collision`)
 
-        const target = mainlineInteractionTarget(scene, entity.id, scene.initialPlayerPosition, {}, undefined, {
+        const region = scene.displayRegions.find((candidate) => entity.position.x >= candidate.bounds.x
+          && entity.position.x <= candidate.bounds.x + candidate.bounds.width
+          && entity.position.y >= candidate.bounds.y
+          && entity.position.y <= candidate.bounds.y + candidate.bounds.height)
+        const from = entity.interactionContactAnchor ?? region?.cameraAnchor ?? scene.initialPlayerPosition
+        const dot = mainlineProtagonistDotFootprint(from, screenMetrics)
+        const target = mainlineInteractionTarget(scene, entity.id, from, {}, undefined, {
           screenMetrics,
           geometrySnapshot: snapshot,
+          actorId: 'protagonist',
+          actorFootprint: { width: dot.width, height: dot.height },
+          ...(region ? { displayRegionId: region.id } : {}),
         })
         assertFinitePoint(target, `${scene.id}:${entity.id}: interaction target`)
       })
@@ -196,14 +199,30 @@ describe('mainline screen geometry snapshot', () => {
       snapshot.wallFeatures.forEach((feature) => {
         assertValidBox(feature.bounds, `${scene.id}:${feature.entityId}: wall feature bounds`)
         assertFinitePoint(feature.position, `${scene.id}:${feature.entityId}: wall feature position`)
-        const target = mainlineInteractionTarget(scene, feature.entityId, scene.initialPlayerPosition, {}, undefined, {
+        const entity = scene.objects.find((candidate) => candidate.id === feature.entityId)
+        const contactFrom = entity?.interactionContactAnchor ?? scene.initialPlayerPosition
+        const dot = mainlineProtagonistDotFootprint(contactFrom, screenMetrics)
+        const featureOptions = {
           screenMetrics,
           geometrySnapshot: snapshot,
+          actorId: 'protagonist',
+          actorFootprint: { width: dot.width, height: dot.height },
+          ...(entity?.interactionContactAnchor ? {
+            displayRegionId: scene.displayRegions.find((region) => contactFrom.x >= region.bounds.x
+              && contactFrom.x <= region.bounds.x + region.bounds.width
+              && contactFrom.y >= region.bounds.y
+              && contactFrom.y <= region.bounds.y + region.bounds.height)?.id,
+          } : {}),
+        }
+        expect(isWalkableMainlinePoint(contactFrom, scene, {}, featureOptions), `${scene.id}:${feature.entityId} authored contact is walkable`).toBe(true)
+        const target = mainlineInteractionTarget(scene, feature.entityId, contactFrom, {}, undefined, {
+          ...featureOptions,
         })
         assertFinitePoint(target, `${scene.id}:${feature.entityId}: wall interaction target`)
+        expect(isWalkableMainlinePoint(target, scene, {}, featureOptions), `${scene.id}:${feature.entityId} legal interaction contact`).toBe(true)
         if (feature.edge === 'top' || feature.edge === 'bottom') {
-          expect(target.x).toBeGreaterThanOrEqual(feature.bounds.x - 0.001)
-          expect(target.x).toBeLessThanOrEqual(feature.bounds.x + feature.bounds.width + 0.001)
+          expect(target.x, `${screenMetrics.name ?? `${screenMetrics.width}x${screenMetrics.height}`} ${scene.id}:${feature.entityId} target.x`).toBeGreaterThanOrEqual(feature.bounds.x - 0.001)
+          expect(target.x, `${screenMetrics.name ?? `${screenMetrics.width}x${screenMetrics.height}`} ${scene.id}:${feature.entityId} target.x`).toBeLessThanOrEqual(feature.bounds.x + feature.bounds.width + 0.001)
         } else {
           expect(target.y).toBeGreaterThanOrEqual(feature.bounds.y - 0.001)
           expect(target.y).toBeLessThanOrEqual(feature.bounds.y + feature.bounds.height + 0.001)

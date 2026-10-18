@@ -7,42 +7,49 @@ type AmbientStorefrontInteraction = {
   lines: readonly [string, string, string]
 }
 
-type ComingSoonStorefrontInteraction = {
-  kind: 'coming-soon'
-  firstLine: string
-  lines: readonly [string, string]
-}
-
 type ActionStorefrontInteraction = {
   kind: 'action'
   action: CommercialStreetStorefrontAction
 }
 
-export type CommercialStreetStorefrontInteraction = AmbientStorefrontInteraction | ComingSoonStorefrontInteraction | ActionStorefrontInteraction
+export type CommercialStreetStorefrontId =
+  | 'commercial-north-slot-1' | 'commercial-north-slot-2' | 'commercial-north-slot-3' | 'commercial-north-slot-4'
+  | 'commercial-north-slot-5' | 'commercial-north-slot-6' | 'commercial-north-slot-7' | 'commercial-north-slot-8'
+  | 'commercial-south-slot-1' | 'commercial-south-slot-2' | 'commercial-south-slot-3' | 'commercial-south-slot-4'
+  | 'commercial-south-slot-5' | 'commercial-south-slot-6' | 'commercial-south-slot-7' | 'commercial-south-slot-8'
+
+export const commercialStreetStorefrontIds = [
+  'commercial-north-slot-1', 'commercial-north-slot-2', 'commercial-north-slot-3', 'commercial-north-slot-4',
+  'commercial-north-slot-5', 'commercial-north-slot-6', 'commercial-north-slot-7', 'commercial-north-slot-8',
+  'commercial-south-slot-1', 'commercial-south-slot-2', 'commercial-south-slot-3', 'commercial-south-slot-4',
+  'commercial-south-slot-5', 'commercial-south-slot-6', 'commercial-south-slot-7', 'commercial-south-slot-8',
+] as const satisfies readonly CommercialStreetStorefrontId[]
+
+export type CommercialStreetStorefrontInteraction = AmbientStorefrontInteraction | ActionStorefrontInteraction
 
 export const commercialStreetStorefrontInteractions = {
   'commercial-north-slot-1': {
-    kind: 'coming-soon',
-    firstLine: 'Coming Soon',
+    kind: 'ambient',
     lines: [
-      '门边的立牌上画着几种颜色很亮的果饮。',
-      '招牌上的布还没有揭开。',
+      '窗边立牌上画着几种颜色鲜亮的果茶。',
+      '菜单板列着当季水果的搭配，冷热选项标在旁边。',
+      '透明壶里的柑橘和莓果浸出淡淡的颜色。',
     ],
   },
   'commercial-north-slot-2': {
     kind: 'ambient',
     lines: [
-      '靠窗的衣架上挂着一排颜色很素的上衣。',
-      '门口的衣架上挂着几件薄外套。',
-      '橱窗里的模特穿着一套浅色外套和长裤。',
+      '门边木架上摆着几本新到的书。',
+      '玻璃上贴着本周书单，角落压着一张借阅说明。',
+      '靠窗的矮桌上摊开一本翻到一半的书。',
     ],
   },
   'commercial-north-slot-3': {
     kind: 'ambient',
     lines: [
-      '门口摆着几束已经包好的鲜花。',
-      '门边的小黑板上写着几种花的名字。',
-      '一股很淡的花香从门缝里飘出来。',
+      '展示台上排着几支不同色号的口红。',
+      '玻璃柜里摆着几只粉盒和小镜子。',
+      '墙边海报介绍着新一季的护肤系列。',
     ],
   },
   'commercial-north-slot-4': {
@@ -56,33 +63,33 @@ export const commercialStreetStorefrontInteractions = {
   'commercial-north-slot-5': {
     kind: 'ambient',
     lines: [
-      '玻璃上贴着一张新品海报。',
-      '靠门的展示台上放着一组口红试色卡。',
-      '展示架上摆着几只圆形粉盒和小镜子。',
+      '玻璃柜里摆着几只不同大小的模型。',
+      '门边立牌印着几只颜色鲜艳的卡通角色。',
+      '展示架上站着几只排成一列的玩偶。',
     ],
   },
   'commercial-north-slot-6': {
     kind: 'ambient',
     lines: [
-      '橱窗里有一排宽松版型的外套。',
-      '门边摆着两双搭配展示的鞋。',
-      '展示台上叠着几件印花 T 恤。',
+      '门边陈列着几瓶插有试香纸的香水。',
+      '展示架上摆着几只不同香调的香氛蜡烛。',
+      '小牌子上写着木质、花香和柑橘调。',
     ],
   },
   'commercial-north-slot-7': {
     kind: 'ambient',
     lines: [
-      '门边的木架上堆着几本薄薄的杂志。',
-      '玻璃门上贴着一张新书推荐单。',
-      '靠门的矮桌上摆着几摞大小不同的书。',
+      '吧台沿着两间店面展开，靠街一侧留作点单区。',
+      '磨豆机旁放着当天的豆袋，纸签标着烘焙日期。',
+      '靠窗座位朝向湖面，桌椅之间留出通行位置。',
     ],
   },
   'commercial-north-slot-8': {
     kind: 'ambient',
     lines: [
-      '橱窗里的冷柜摆着几块颜色不同的小蛋糕。',
-      '门口能闻到一点奶油和烘烤过的甜味。',
-      '门边立着一块画着蛋糕和冰淇淋的小黑板。',
+      '弧形玻璃外能望见湖岸，窗边没有通往室外的门。',
+      '靠湖的桌椅沿窗边排开，没有挡住店内通道。',
+      '湖面的光落在桌面上，杯垫和水壶摆在一侧。',
     ],
   },
   'commercial-south-slot-1': {
@@ -96,17 +103,17 @@ export const commercialStreetStorefrontInteractions = {
   'commercial-south-slot-2': {
     kind: 'ambient',
     lines: [
-      '橱窗里摆着一排大大小小的玩偶。',
-      '门边的立牌上印着几只颜色很鲜艳的卡通角色。',
-      '橱窗角落里摆着一只比其他玩偶大很多的模型。',
+      '墙边菜单列着几种简餐，旁边标出可选配菜。',
+      '靠墙的餐桌留出座位，桌面上放着菜单牌。',
+      '服务台旁摆着取餐托盘和餐具，通道保持畅通。',
     ],
   },
   'commercial-south-slot-3': {
     kind: 'ambient',
     lines: [
-      '门边放着几瓶插着木条的香薰。',
-      '展示架上摆着几只不同颜色的香氛蜡烛。',
-      '门边的小牌子上写着几种香调的名字。',
+      '几张餐桌分布在店内，桌间留着进出的空隙。',
+      '墙上的小牌写着今日供应，下面附着简短说明。',
+      '柜台旁的点单牌列着饮品与简餐搭配。',
     ],
   },
   'commercial-south-slot-4': {
@@ -124,9 +131,9 @@ export const commercialStreetStorefrontInteractions = {
   'commercial-south-slot-6': {
     kind: 'ambient',
     lines: [
-      '靠门的架子上挂着一排钥匙扣。',
-      '展示台上摊着几张颜色不同的徽章卡。',
-      '橱窗里立着几张角色立牌。',
+      '玻璃柜里摆着几块颜色不同的小蛋糕。',
+      '门边的小黑板画着蛋糕和冰淇淋口味。',
+      '柜台旁的冷柜里排着几份甜点。',
     ],
   },
   'commercial-south-slot-7': {
@@ -145,11 +152,10 @@ export const commercialStreetStorefrontInteractions = {
       '橱窗里摆着一套颜色很深的上下装。',
     ],
   },
-} as const satisfies Readonly<Record<string, CommercialStreetStorefrontInteraction>>
+} as const satisfies Readonly<Record<CommercialStreetStorefrontId, CommercialStreetStorefrontInteraction>>
 
 export type CommercialStreetStorefrontInteractionRuntime = {
   lastShownByStorefront: Map<string, string>
-  comingSoonShown: Set<string>
 }
 
 export type CommercialStreetStorefrontExecutionRuntime = {
@@ -163,7 +169,6 @@ export type CommercialStreetStorefrontInteractionResult =
 export function createCommercialStreetStorefrontInteractionRuntime(): CommercialStreetStorefrontInteractionRuntime {
   return {
     lastShownByStorefront: new Map(),
-    comingSoonShown: new Set(),
   }
 }
 
@@ -172,7 +177,8 @@ export function createCommercialStreetStorefrontExecutionRuntime(): CommercialSt
 }
 
 export function commercialStreetStorefrontInteractionFor(storefrontId: string): CommercialStreetStorefrontInteraction | undefined {
-  return (commercialStreetStorefrontInteractions as Readonly<Record<string, CommercialStreetStorefrontInteraction>>)[storefrontId]
+  const canonicalId = storefrontId === 'commercial-cafe-slot' ? 'commercial-north-slot-7' : storefrontId
+  return (commercialStreetStorefrontInteractions as Readonly<Record<string, CommercialStreetStorefrontInteraction>>)[canonicalId]
 }
 
 function randomIndex(length: number, random: () => number) {
@@ -197,11 +203,6 @@ export function resolveCommercialStreetStorefrontInteraction(
   const interaction = commercialStreetStorefrontInteractionFor(storefrontId)
   if (!interaction) return null
   if (interaction.kind === 'action') return { kind: 'action', action: interaction.action }
-  if (interaction.kind === 'coming-soon' && !runtime.comingSoonShown.has(storefrontId)) {
-    runtime.comingSoonShown.add(storefrontId)
-    runtime.lastShownByStorefront.set(storefrontId, interaction.firstLine)
-    return { kind: 'echo', text: interaction.firstLine }
-  }
   return {
     kind: 'echo',
     text: nextNonRepeatingLine(storefrontId, interaction.lines, runtime, random),

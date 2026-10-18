@@ -16,6 +16,10 @@ import {
 export type CommercialCafeCoffeeOwnerPhase = 'counter' | 'moving-to-prep' | 'preparing' | 'delivering' | 'delivery-arrived' | 'returning' | 'blocked'
 export type CommercialCafeFloorServerPhase = 'staging' | 'serving' | 'dwelling' | 'blocked'
 
+function isCommercialCafeRuntimeScene(scene: MainlineSceneDefinition) {
+  return scene.id === 'commercial-cafe' || (scene.id === 'commercial-street' && scene.objects.some((entity) => entity.id === 'commercial-cafe-counter'))
+}
+
 /** Café NPC speed is a local duty override layered on the shared locomotion engine. */
 export function commercialCafeDutySpeedMultiplier(npcId: string, dutyId: string | null, readingActive: boolean) {
   if (npcId === commercialCafeCoffeeOwnerNpcId
@@ -51,7 +55,7 @@ export function createCommercialCafeCoffeeOwnerBehaviorCoordinator() {
     narrativePhase: CommercialCafeNarrativePhase
     snapshot: NpcRuntimeSnapshot
   }): NpcIntent | null => {
-    if (scene.id !== 'commercial-cafe') return null
+    if (!isCommercialCafeRuntimeScene(scene)) return null
     const ambientMoving = snapshot.dutyId === 'cafe-coffee-owner.counter-ambient'
     if (snapshot.phase === 'moving' && !ambientMoving) return null
     if (phase === 'blocked') return null
@@ -98,7 +102,7 @@ export function createCommercialCafeFloorServerBehaviorCoordinator() {
   const arrived = () => { phase = 'dwelling'; tableRotation += 1; return commercialCafeFloorServiceDwellMs() }
   const finishDwell = () => { if (phase === 'dwelling') phase = 'serving' }
   const request = (scene: MainlineSceneDefinition, snapshot: NpcRuntimeSnapshot): NpcIntent | null => {
-    if (scene.id !== 'commercial-cafe' || snapshot.phase === 'moving' || phase === 'blocked' || phase === 'dwelling') return null
+    if (!isCommercialCafeRuntimeScene(scene) || snapshot.phase === 'moving' || phase === 'blocked' || phase === 'dwelling') return null
     const intent = resolveCommercialCafeFloorServiceIntent(scene, tableRotation)
     if (intent) phase = 'serving'
     return intent

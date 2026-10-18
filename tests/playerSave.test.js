@@ -8,6 +8,7 @@ import {
   recordPlayerScenePosition,
   recordPlayerSceneState,
   savePlayerSave,
+  sanitizePlayerSave,
 } from '../src/center/runtime/playerSave'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { PUBLIC_RELEASE_CUTOVER_ID, PUBLIC_RELEASE_CUTOVER_STORAGE_KEY } from '../src/services/publicReleaseMigration'
@@ -77,6 +78,28 @@ describe('player local save contract', () => {
     })
   })
 
+  it('migrates legacy Cafe position and story into the shared street state idempotently', () => {
+    const legacy = {
+      currentSceneId: 'commercial-cafe',
+      currentPosition: { x: 54, y: 84 },
+      scenePositions: { 'commercial-cafe': { x: 54, y: 84 } },
+      sceneState: {
+        'commercial-cafe': { commercialCafeNarrativeCursor: 4, commercialCafeCoffeeStatus: 'ready', duplicate: 'legacy' },
+        'commercial-street': { duplicate: 'street' },
+      },
+    }
+    const migrated = sanitizePlayerSave(legacy, 'commercial-street')
+    expect(migrated.currentSceneId).toBe('commercial-street')
+    expect(migrated.currentPosition).toEqual({ x: 166.4889, y: 22 })
+    expect(migrated.scenePositions['commercial-street']).toEqual(migrated.currentPosition)
+    expect(migrated.sceneState['commercial-street']).toMatchObject({
+      commercialCafeNarrativeCursor: 4,
+      commercialCafeCoffeeStatus: 'ready',
+      duplicate: 'street',
+    })
+    expect(migrated.sceneState['commercial-cafe']).toMatchObject({ commercialCafeNarrativeCursor: 4 })
+    expect(sanitizePlayerSave(migrated, 'commercial-street')).toEqual(migrated)
+  })
   it('clears only the player save key', () => {
     const storage = createStorage()
     storage.setItem(PLAYER_SAVE_STORAGE_KEY, '{}')

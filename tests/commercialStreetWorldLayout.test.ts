@@ -1,0 +1,149 @@
+import { describe, expect, it } from 'vitest'
+import { findMainlinePath, isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
+import { mainlineSceneRoute, mainlineScenes, resolveMainlineSceneId } from '../src/center/runtime/mainlineScenes'
+import { resolveMainlineDisplayTransition } from '../src/center/runtime/sceneDisplayRegion'
+import {
+  commercialStreetMerchantCount,
+  commercialStreetModuleCount,
+  commercialStreetShopForStorefront,
+  commercialStreetShopPortalId,
+  commercialStreetShops,
+} from '../src/center/runtime/commercialStreetWorldLayout'
+
+const north = (slot: number) => `commercial-north-slot-${slot}`
+const south = (slot: number) => `commercial-south-slot-${slot}`
+
+const expectedShops = [
+  { id: 'commercial-fruit-tea', slots: [north(1)], row: 'north', firstModule: 1, kind: 'fruit-tea', zh: '果茶', en: 'Fruit Tea' },
+  { id: 'commercial-bookstore', slots: [north(2)], row: 'north', firstModule: 2, kind: 'bookstore', zh: '书店', en: 'Bookshop' },
+  { id: 'commercial-beauty', slots: [north(3)], row: 'north', firstModule: 3, kind: 'beauty', zh: '美妆', en: 'Beauty' },
+  { id: 'commercial-glasses', slots: [north(4)], row: 'north', firstModule: 4, kind: 'glasses', zh: '眼镜', en: 'Optical' },
+  { id: 'commercial-toys', slots: [north(5)], row: 'north', firstModule: 5, kind: 'toys', zh: '潮玩', en: 'Collectibles' },
+  { id: 'commercial-fragrance', slots: [north(6)], row: 'north', firstModule: 6, kind: 'fragrance', zh: '香氛', en: 'Fragrance' },
+  { id: 'commercial-cafe', slots: [north(7), north(8)], row: 'north', firstModule: 7, kind: 'cafe', zh: '咖啡馆', en: 'Cafe' },
+  { id: 'commercial-shoes', slots: [south(1)], row: 'south', firstModule: 1, kind: 'shoes', zh: '鞋店', en: 'Shoes' },
+  { id: 'commercial-eatery', slots: [south(2), south(3)], row: 'south', firstModule: 2, kind: 'eatery', zh: '简餐', en: 'Eatery' },
+  { id: 'commercial-clothing-west', slots: [south(4)], row: 'south', firstModule: 4, kind: 'clothing', zh: '服装', en: 'Clothing' },
+  { id: 'commercial-milktea', slots: [south(5)], row: 'south', firstModule: 5, kind: 'milk-tea', zh: '奶茶', en: 'Milk Tea' },
+  { id: 'commercial-dessert', slots: [south(6)], row: 'south', firstModule: 6, kind: 'dessert', zh: '甜品', en: 'Dessert' },
+  { id: 'commercial-jewelry', slots: [south(7)], row: 'south', firstModule: 7, kind: 'jewelry', zh: '首饰', en: 'Jewelry' },
+  { id: 'commercial-clothing-east', slots: [south(8)], row: 'south', firstModule: 8, kind: 'clothing', zh: '服装', en: 'Clothing' },
+] as const
+
+describe('commercial street world layout registry', () => {
+  it('contains sixteen standard modules represented by fourteen merchants', () => {
+    expect(commercialStreetModuleCount).toBe(16)
+    expect(commercialStreetMerchantCount).toBe(14)
+    expect(commercialStreetShops).toHaveLength(14)
+  })
+
+  it('assigns the two selected double-module storefront pairs to Café and the eatery only', () => {
+    const doubleModuleShops = commercialStreetShops.filter((shop) => shop.moduleCount === 2)
+    expect(doubleModuleShops.map(({ id, storefrontIds, row, firstModule }) => ({ id, storefrontIds, row, firstModule }))).toEqual([
+      { id: 'commercial-cafe', storefrontIds: [north(7), north(8)], row: 'north', firstModule: 7 },
+      { id: 'commercial-eatery', storefrontIds: [south(2), south(3)], row: 'south', firstModule: 2 },
+    ])
+    for (const shop of commercialStreetShops.filter((candidate) => candidate.moduleCount === 1)) {
+      expect(shop.storefrontIds).toHaveLength(1)
+    }
+  })
+
+  it('assigns every storefront and each row module exactly once, with the approved merchant and labels', () => {
+    expect(commercialStreetShops.map(({ id, storefrontIds, row, firstModule, moduleCount, kind, label }) => ({
+      id, storefrontIds, row, firstModule, moduleCount, kind, label,
+    }))).toEqual(expectedShops.map(({ id, slots, row, firstModule, kind, zh, en }) => ({
+      id,
+      storefrontIds: slots,
+      row,
+      firstModule,
+      moduleCount: slots.length,
+      kind,
+      label: { zh, en },
+    })))
+
+    const allStorefronts = [...commercialStreetShops.flatMap(({ storefrontIds }) => storefrontIds)]
+    const expectedStorefronts = [...Array.from({ length: 8 }, (_, index) => north(index + 1)), ...Array.from({ length: 8 }, (_, index) => south(index + 1))]
+    expect(allStorefronts).toHaveLength(16)
+    expect(new Set(allStorefronts).size).toBe(16)
+    expect([...allStorefronts].sort()).toEqual([...expectedStorefronts].sort())
+
+    for (const storefrontId of expectedStorefronts) {
+      const owners = commercialStreetShops.filter((shop) => shop.storefrontIds.includes(storefrontId))
+      expect(owners).toHaveLength(1)
+      expect(commercialStreetShopForStorefront(storefrontId)).toBe(owners[0])
+    }
+
+    for (const row of ['north', 'south'] as const) {
+      const modules = commercialStreetShops
+        .filter((shop) => shop.row === row)
+        .flatMap((shop) => Array.from({ length: shop.moduleCount }, (_, offset) => shop.firstModule + offset))
+      expect(modules).toHaveLength(8)
+      expect(new Set(modules).size).toBe(8)
+      expect([...modules].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
+    }
+  })
+
+  it('has a legal street approach and an open-door path both in and out for every shop', () => {
+    const street = mainlineScenes['commercial-street']
+    for (const shop of commercialStreetShops) {
+      const passage = street.passages.find(candidate => candidate.id === commercialStreetShopPortalId(shop))!
+      const storefrontId = shop.kind === 'cafe' ? 'commercial-cafe-slot' : shop.storefrontIds[0]
+      const storefront = street.storefronts.find(candidate => candidate.id === storefrontId)!
+      expect(storefront.portalId, `${shop.id} storefront portal`).toBe(passage.id)
+      expect(storefront.characterSwitch, `${shop.id} exposes an approach door`).toBe(true)
+      expect(street.geometry.some(unit => unit.ownerId === storefront.id
+        && unit.entityId === passage.entityId
+        && unit.visual.cells.some(cell => cell.kind === 'door' && cell.entityId === passage.entityId)), `${shop.id} door geometry`).toBe(true)
+      const open = { actorId: 'protagonist', openPassageIds: new Set([passage.id]) }
+      const [outside, inside] = [passage.thresholds[0], passage.crossingTargets[0]]
+      expect(isWalkableMainlinePoint(outside, street, {}, open), shop.id).toBe(true)
+      expect(isWalkableMainlinePoint(inside, street, {}, open), shop.id).toBe(true)
+      expect(findMainlinePath(street.initialPlayerPosition, outside, street, {}, open), shop.id).not.toBeNull()
+      expect(findMainlinePath(outside, inside, street, {}, open), `${shop.id} enter`).not.toBeNull()
+      expect(findMainlinePath(inside, outside, street, {}, open), `${shop.id} exit`).not.toBeNull()
+    }
+  }, 30_000)
+
+  it('keeps Cafe interior as a region of the shared commercial-street runtime', () => {
+    const street = mainlineScenes['commercial-street']
+    const passage = street.passages.find(candidate => candidate.id === 'street-cafe-entry')!
+    const streetRegion = street.displayRegions.find(region => region.id === 'commercial-street-east')!
+    const cafeRegion = street.displayRegions.find(region => region.id === 'commercial-cafe-interior')!
+
+    expect(street.id).toBe('commercial-street')
+    expect(mainlineScenes['commercial-cafe'].id).toBe('commercial-cafe')
+    expect(resolveMainlineSceneId('?scene=commercial-cafe')).toBe('commercial-street')
+    expect(mainlineSceneRoute('commercial-cafe')).toBe('/?scene=commercial-street')
+    expect(mainlineScenes['commercial-milktea-interior']).toBe(street)
+    expect(mainlineScenes['commercial-milktea-shop']).toBe(street)
+    expect(passage.targetSceneId).toBeUndefined()
+    expect(passage.routeThrough).toBe(true)
+    expect(passage.fromRoomId).toBe('commercial-street-east')
+    expect(passage.toRoomId).toBe('commercial-cafe-interior')
+    expect(streetRegion.passageLinks).toContainEqual({ passageId: passage.id, targetRegionId: cafeRegion.id })
+    expect(cafeRegion.passageLinks).toContainEqual({ passageId: passage.id, targetRegionId: streetRegion.id })
+    expect(street.objects.some(entity => entity.id === 'commercial-cafe-right-window-upper-group-table')).toBe(true)
+    expect(street.objects.some(entity => entity.id === 'commercial-cafe-counter')).toBe(true)
+    expect(street.accessRegions.some(region => region.id === 'commercial-cafe-staff-area')).toBe(true)
+  })
+
+  it('crosses from the Cafe to a lakeside display region without changing runtime world', () => {
+    const street = mainlineScenes['commercial-street']
+    const cafe = street.displayRegions.find(region => region.id === 'commercial-cafe-interior')!
+    const lake = street.displayRegions.find(region => region.id === 'commercial-lakeside')!
+    const portal = street.passages.find(candidate => candidate.id === 'commercial-cafe-lakefront-entry')!
+
+    expect(mainlineScenes['commercial-cafe'].id).toBe('commercial-cafe')
+    expect(portal.targetSceneId).toBeUndefined()
+    expect(portal.routeThrough).toBe(true)
+    expect(portal.fromRoomId).toBe(cafe.id)
+    expect(portal.toRoomId).toBe(lake.id)
+    expect(cafe.passageLinks).toContainEqual({ passageId: portal.id, targetRegionId: lake.id })
+    expect(resolveMainlineDisplayTransition(street.displayRegions, cafe.id, portal.id, { crossed: true })).toBe(lake)
+    expect(street.objects.some(entity => entity.id === 'commercial-lakeside-water')).toBe(true)
+    const openCafe = { displayRegionId: cafe.id, openPassageIds: new Set([portal.id]) }
+    const openLake = { displayRegionId: lake.id, openPassageIds: new Set([portal.id]) }
+    expect(findMainlinePath({ x: 166, y: -22 }, { x: 166, y: -32 }, street, {}, openCafe)).not.toBeNull()
+    expect(findMainlinePath({ x: 166, y: -32 }, { x: 166, y: -22 }, street, {}, openLake)).not.toBeNull()
+  })
+})

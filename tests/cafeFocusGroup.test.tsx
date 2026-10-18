@@ -17,8 +17,8 @@ describe('Café focus geometry and lifecycle', () => {
       const end = Math.max(...entries.map(({ cell }) => cell.cellEnd!))
       for (const label of [cafe.label, '很长的咖啡馆招牌文字', undefined]) {
         const html = renderToStaticMarkup(<MainlineFocusGroup entries={entries} className="" visibilityClass="is-baseline" renderFrame={() => null} storefrontLabel={label} storefrontSpan={cafe.end - cafe.start} storefrontCenter={{ x: entries[0].cell.x, y: (start + end) / 2 }} />)
-        expect(html).toContain(`height:${Math.max(.001, end - start)}%`)
-        expect(html).toContain('width:1em')
+        expect(html).toContain(`width:${Math.max(.001, end - start)}%`)
+        expect(html).toContain('height:1.2em')
         expect(html).not.toContain('min(')
       }
     })

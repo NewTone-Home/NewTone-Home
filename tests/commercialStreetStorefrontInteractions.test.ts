@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { findMainlinePath, isWalkableMainlinePoint, resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
-import { mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
+import { mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates, mainlineStorefrontInteractionRegion } from '../src/center/runtime/mainlineScenes'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 import {
   commercialStreetStorefrontInteractionDebounceMs,
+  commercialStreetStorefrontIds,
   commercialStreetStorefrontInteractions,
   commercialStreetStorefrontInteractionFor,
   createCommercialStreetStorefrontExecutionRuntime,
@@ -17,12 +18,48 @@ import {
 const street = mainlineScenes['commercial-street']
 
 describe('commercial street storefront interactions', () => {
-  it('defines exactly the 15 echo-capable storefronts plus the milk-tea order action, never Café', () => {
+  it('covers every v5 storefront slot exactly once and reserves the milk-tea action for S5', () => {
     const interactions = Object.entries(commercialStreetStorefrontInteractions)
     expect(interactions).toHaveLength(16)
-    expect(interactions.filter(([, interaction]) => interaction.kind !== 'action')).toHaveLength(15)
+    expect(interactions.map(([id]) => id).sort()).toEqual([...commercialStreetStorefrontIds].sort())
+    expect(interactions.filter(([, interaction]) => interaction.kind === 'ambient')).toHaveLength(15)
+    expect(interactions.filter(([, interaction]) => interaction.kind === 'action')).toHaveLength(1)
     expect(commercialStreetStorefrontInteractionFor('commercial-south-slot-5')).toEqual({ kind: 'action', action: 'milk-tea-order' })
-    expect(commercialStreetStorefrontInteractionFor('commercial-cafe-slot')).toBeUndefined()
+    expect(Object.values(commercialStreetStorefrontInteractions).every((interaction) => interaction.kind === 'ambient' || interaction.kind === 'action')).toBe(true)
+    expect(commercialStreetStorefrontInteractionFor('commercial-cafe-slot')).toMatchObject({ kind: 'ambient' })
+  })
+
+  it('maps all merchant observations to the v5 business layout, including the double-module shops', () => {
+    const markerByStorefront: Record<string, string> = {
+      'commercial-north-slot-1': '果茶',
+      'commercial-north-slot-2': '书',
+      'commercial-north-slot-3': '口红',
+      'commercial-north-slot-4': '太阳镜',
+      'commercial-north-slot-5': '玩偶',
+      'commercial-north-slot-6': '香氛',
+      'commercial-north-slot-7': '吧台',
+      'commercial-north-slot-8': '湖岸',
+      'commercial-south-slot-1': '运动鞋',
+      'commercial-south-slot-2': '简餐',
+      'commercial-south-slot-3': '餐桌',
+      'commercial-south-slot-4': '长裙',
+      'commercial-south-slot-6': '蛋糕',
+      'commercial-south-slot-7': '项链',
+      'commercial-south-slot-8': '风衣',
+    }
+
+    for (const [storefrontId, marker] of Object.entries(markerByStorefront)) {
+      const interaction = commercialStreetStorefrontInteractionFor(storefrontId)
+      expect(interaction?.kind, storefrontId).toBe('ambient')
+      if (interaction?.kind === 'ambient') {
+        expect(interaction.lines.join(' '), storefrontId).toContain(marker)
+      }
+    }
+    expect(commercialStreetStorefrontInteractionFor('commercial-north-slot-7')?.kind).toBe('ambient')
+    expect(commercialStreetStorefrontInteractionFor('commercial-north-slot-8')?.kind).toBe('ambient')
+    expect(commercialStreetStorefrontInteractionFor('commercial-south-slot-2')?.kind).toBe('ambient')
+    expect(commercialStreetStorefrontInteractionFor('commercial-south-slot-3')?.kind).toBe('ambient')
+    expect(Object.values(commercialStreetStorefrontInteractions).flatMap((interaction) => interaction.kind === 'ambient' ? interaction.lines : []).join(' ')).not.toContain('Coming Soon')
   })
 
   it('selects ordinary storefront text without an immediate repeat and keeps it runtime-only', () => {
@@ -33,18 +70,16 @@ describe('commercial street storefront interactions', () => {
     expect(second).toMatchObject({ kind: 'echo' })
     expect(second).not.toEqual(first)
     expect(runtime.lastShownByStorefront.get('commercial-north-slot-2')).toBe((second as { text: string }).text)
-    expect(Object.keys(runtime)).toEqual(['lastShownByStorefront', 'comingSoonShown'])
+    expect(Object.keys(runtime)).toEqual(['lastShownByStorefront'])
   })
 
-  it('shows fruit tea Coming Soon once per scene runtime, then chooses non-repeating local text', () => {
+  it('shows fruit-tea observations directly and avoids an immediate repeat', () => {
     const runtime = createCommercialStreetStorefrontInteractionRuntime()
-    expect(resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', runtime, () => 0)).toEqual({ kind: 'echo', text: 'Coming Soon' })
+    const first = resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', runtime, () => 0)
     const second = resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', runtime, () => 0)
-    const third = resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', runtime, () => 0)
-    expect(second).toEqual({ kind: 'echo', text: '门边的立牌上画着几种颜色很亮的果饮。' })
-    expect(third).toEqual({ kind: 'echo', text: '招牌上的布还没有揭开。' })
-    const rebuiltRuntime = createCommercialStreetStorefrontInteractionRuntime()
-    expect(resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', rebuiltRuntime)).toEqual({ kind: 'echo', text: 'Coming Soon' })
+    expect(first).toEqual({ kind: 'echo', text: '窗边立牌上画着几种颜色鲜亮的果茶。' })
+    expect(second).toEqual({ kind: 'echo', text: '菜单板列着当季水果的搭配，冷热选项标在旁边。' })
+    expect(second).not.toEqual(first)
   })
 
   it('uses existing legal navigation to reach representative storefront approaches before interaction', () => {
@@ -74,17 +109,17 @@ describe('commercial street storefront interactions', () => {
   it('keeps the radius-six navigation candidate geometry unchanged', () => {
     const storefront = street.storefronts.find((candidate) => candidate.id === 'commercial-north-slot-2')!
     const approach = mainlineStorefrontApproach(street, storefront)
+    const region = mainlineStorefrontInteractionRegion(street, storefront)
     const candidates = mainlineStorefrontInteractionCandidates(street, storefront, { x: (storefront.start + storefront.end) / 2, y: approach.y + 8 })
-    const centerX = (storefront.start + storefront.end) / 2
-    expect(candidates[0]).toEqual({ x: centerX, y: approach.y })
-    expect(candidates[18]).toEqual({ x: centerX, y: approach.y - 1.8 })
-    expect(candidates[36]).toEqual({ x: centerX, y: approach.y - 3.6 })
+    expect(candidates[0]).toEqual({ x: region.center.x + region.outward.x * region.radius, y: region.center.y + region.outward.y * region.radius })
+    expect(candidates[18]).toEqual({ x: region.center.x + region.outward.x * region.radius * .7, y: region.center.y + region.outward.y * region.radius * .7 })
+    expect(candidates[36]).toEqual({ x: region.center.x + region.outward.x * region.radius * .4, y: region.center.y + region.outward.y * region.radius * .4 })
   })
 
   it('keeps Café on the separate portal and reveal contract', () => {
     const cafe = street.storefronts.find((candidate) => candidate.id === 'commercial-cafe-slot')!
     expect(cafe.portalId).toBe('street-cafe-entry')
-    expect(commercialStreetStorefrontInteractionFor(cafe.id)).toBeUndefined()
+    expect(commercialStreetStorefrontInteractionFor(cafe.id)).toMatchObject({ kind: 'ambient' })
   })
 
   it('re-resolves a continuous facade when a live actor occupies the nearest projected contact', () => {
@@ -143,25 +178,25 @@ describe('commercial street storefront interactions', () => {
     expect(afterCooldown).not.toEqual(first)
   })
 
-  it('does not let the cooldown skip fruit-tea Coming Soon or repeat the milk-tea action', () => {
+  it('debounces fruit-tea observations without suppressing the milk-tea action', () => {
     const fruitRuntime = createCommercialStreetStorefrontInteractionRuntime()
     const fruitExecutionRuntime = createCommercialStreetStorefrontExecutionRuntime()
     let firstChoiceCalls = 0
     const firstChoice = () => {
       firstChoiceCalls += 1
-      return 0
+      return firstChoiceCalls === 3 ? .999 : 0
     }
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1000, firstChoice)).toEqual({ kind: 'echo', text: 'Coming Soon' })
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1000, firstChoice)).toEqual({ kind: 'echo', text: '窗边立牌上画着几种颜色鲜亮的果茶。' })
     expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1140, firstChoice)).toBeNull()
-    expect(firstChoiceCalls).toBe(0)
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1300, firstChoice)).toEqual({ kind: 'echo', text: '门边的立牌上画着几种颜色很亮的果饮。' })
     expect(firstChoiceCalls).toBe(1)
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1600, firstChoice)).toEqual({ kind: 'echo', text: '招牌上的布还没有揭开。' })
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1300, firstChoice)).toEqual({ kind: 'echo', text: '菜单板列着当季水果的搭配，冷热选项标在旁边。' })
+    expect(firstChoiceCalls).toBe(2)
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1600, firstChoice)).toEqual({ kind: 'echo', text: '透明壶里的柑橘和莓果浸出淡淡的颜色。' })
 
     const secondChoiceRuntime = createCommercialStreetStorefrontInteractionRuntime()
     const secondChoiceExecutionRuntime = createCommercialStreetStorefrontExecutionRuntime()
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', secondChoiceRuntime, secondChoiceExecutionRuntime, 1000, () => .999)).toEqual({ kind: 'echo', text: 'Coming Soon' })
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', secondChoiceRuntime, secondChoiceExecutionRuntime, 1300, () => .999)).toEqual({ kind: 'echo', text: '招牌上的布还没有揭开。' })
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', secondChoiceRuntime, secondChoiceExecutionRuntime, 1000, () => 0)).toEqual({ kind: 'echo', text: '窗边立牌上画着几种颜色鲜亮的果茶。' })
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', secondChoiceRuntime, secondChoiceExecutionRuntime, 1300, () => 0)).toEqual({ kind: 'echo', text: '菜单板列着当季水果的搭配，冷热选项标在旁边。' })
 
     const milkRuntime = createCommercialStreetStorefrontInteractionRuntime()
     const milkExecutionRuntime = createCommercialStreetStorefrontExecutionRuntime()

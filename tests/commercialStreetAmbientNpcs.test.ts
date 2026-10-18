@@ -4,20 +4,32 @@ import { isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigatio
 import { mainlineScenes, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
 
 const street = mainlineScenes['commercial-street']
-const ambientNpcs = street.npcs.filter((npc) => npc.roleId === 'pedestrian')
+const ambientNpcs = street.npcs.filter((npc) => npc.id.startsWith('commercial-street-pedestrian-'))
+const ambientRoutes = street.ambientNpcRoutes.filter((route) => route.npcId.startsWith('commercial-street-pedestrian-'))
+const shopClerks = street.npcs.filter((npc) => npc.id.endsWith('-clerk'))
+const shopCustomers = street.npcs.filter((npc) => npc.id.endsWith('-customer'))
 
 describe('Commercial Street ambient pedestrians', () => {
-  it('authors exactly six non-interactive people in the street only', () => {
+  it('authors six non-interactive street pedestrians in the shared world', () => {
     expect(ambientNpcs).toHaveLength(6)
     expect(ambientNpcs.every((npc) => npc.label === '人' && npc.interactive === false && npc.interactionTargetEntityId === undefined)).toBe(true)
-    expect(mainlineScenes['commercial-cafe'].npcs.some((npc) => npc.roleId === 'pedestrian')).toBe(false)
+    expect(mainlineScenes['commercial-cafe'].npcs.some((npc) => npc.id.startsWith('commercial-street-pedestrian-'))).toBe(false)
+    expect(shopClerks).toHaveLength(13)
+    expect(shopClerks.every((npc) => npc.interactive && Boolean(npc.interactionTargetEntityId))).toBe(true)
+    const cafeOwner = street.npcs.find((npc) => npc.id === 'cafe-coffee-owner')
+    expect(cafeOwner?.interactive).not.toBe(false)
+    expect(cafeOwner?.interactionTargetEntityId).toBe('commercial-cafe-counter')
+    expect(street.npcBehaviors.some((behavior) => behavior.npcId === 'cafe-coffee-owner' && behavior.targetKind === 'point')).toBe(true)
+    expect(shopCustomers).toHaveLength(12)
   })
 
   it('gives every pedestrian a distinct startup phase and a fixed legal route', () => {
-    expect(street.ambientNpcRoutes).toHaveLength(6)
-    expect(new Set(street.ambientNpcRoutes.map((route) => route.npcId))).toEqual(new Set(ambientNpcs.map((npc) => npc.id)))
-    expect(new Set(street.ambientNpcRoutes.map((route) => route.initialDelayMs)).size).toBe(6)
-    street.ambientNpcRoutes.forEach((route) => {
+    expect(ambientRoutes).toHaveLength(6)
+    expect(street.ambientNpcRoutes).toHaveLength(18)
+    expect(new Set(ambientRoutes.map((route) => route.npcId))).toEqual(new Set(ambientNpcs.map((npc) => npc.id)))
+    expect(new Set(ambientRoutes.map((route) => route.initialDelayMs)).size).toBe(6)
+    expect(street.ambientNpcRoutes.filter((route) => route.npcId.endsWith('-customer'))).toHaveLength(12)
+    ambientRoutes.forEach((route) => {
       expect(route.steps.length).toBeGreaterThan(1)
       route.steps.forEach(({ target, dwellMs }) => {
         expect(dwellMs).toBeGreaterThan(0)

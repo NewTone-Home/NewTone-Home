@@ -8,6 +8,7 @@ import { createPolygonNavigationMesh, navigationBarrierIntersectsActor, navigati
 import { containsDoorRegion, doorRegionSide, doorwayBoundaryPoint, doorwayLegalTangent, isDoorTargetBehind, type DoorPassageRegion, type DoorRegionNormal } from './doorPassageModel'
 import { sharedFurnitureGeometry } from './twoSeatFurniture'
 import { mainlineNpcStagedInteractionContactEntityId, mainlineNpcStagedPoint, mainlineNpcStagedSeatId } from './mainlineNpcStaging'
+import { mainlineDisplayRegionContains, mainlineDisplayRegionShowsGeometry, type MainlineSceneDisplayRegion } from './sceneDisplayRegion'
 
 /** Screen-space gap as a fraction of the protagonist's visible width. */
 export const MAINLINE_STOREFRONT_CONTACT_GAP = .25
@@ -30,6 +31,8 @@ export type MainlineNavigationOptions = {
   npcRuntimePositions?: ReadonlyMap<string, Point>
   /** Hidden occupied chairs do not remain a second static obstacle. */
   occupiedSeatIds?: ReadonlySet<string>
+  /** Active camera/geometry slice in a single continuous world. */
+  displayRegionId?: string | null
 }
 
 function footprintFromBox(box: CollisionBox): NavigationActorFootprint {
@@ -103,12 +106,21 @@ function sceneGeometrySnapshot(scene: MainlineSceneDefinition, layout: SceneLayo
     : createMainlineSceneGeometrySnapshot(scene, scene.initialPlayerPosition, layout, options.screenMetrics)
 }
 
+function navigationDisplayRegion(scene: MainlineSceneDefinition, options: MainlineNavigationOptions): MainlineSceneDisplayRegion | null {
+  return scene.displayRegions.find((region) => region.id === options.displayRegionId) ?? null
+}
+
 /** Current snapshot-owned relation barriers; they never become collision boxes. */
 export function mainlineNavigationBarriers(scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
   const departureSeat = options.actorId ? mainlineNpcStagedSeatId(scene, options.actorId) : undefined
   const ownSeatOccupied = departureSeat && occupiedSeatIdsForNavigation(scene, options).has(departureSeat)
+  const displayRegion = navigationDisplayRegion(scene, options)
   return sceneGeometrySnapshot(scene, layout, options).navigationBarriers.filter((barrier) => {
     const relation = scene.navigationBarriers.find(candidate => candidate.id === barrier.id)
+    if (displayRegion && relation && !displayRegion.visibleGeometryGroupIds.includes(relation.firstEntityId)
+      && !displayRegion.visibleGeometryGroupIds.includes(relation.secondEntityId)
+      && !mainlineDisplayRegionContains(displayRegion, scene.objects.find((entity) => entity.id === relation.firstEntityId)?.position ?? { x: Number.NaN, y: Number.NaN })
+      && !mainlineDisplayRegionContains(displayRegion, scene.objects.find((entity) => entity.id === relation.secondEntityId)?.position ?? { x: Number.NaN, y: Number.NaN })) return false
     // A seated actor owns departure from its own occupied chair. Other actors
     // retain the furniture relation, and a released chair is static again.
     if (ownSeatOccupied && relation && (relation.firstEntityId === departureSeat || relation.secondEntityId === departureSeat)) return false
@@ -168,6 +180,7 @@ function occupiedSeatIdsForNavigation(scene: MainlineSceneDefinition, options: M
 
 function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, options: MainlineNavigationOptions, includeDynamicActors = true) {
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
+  const displayRegion = navigationDisplayRegion(scene, options)
   const openPassageIds = options.openPassageIds
     ? new Set(scene.passages.filter((passage) => options.openPassageIds!.has(passage.id)).map((passage) => passage.id))
     : new Set<string>()
@@ -178,6 +191,7 @@ function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, opt
   const staticBoxes = [
     ...geometry
       .filter((unit) => {
+        if (displayRegion && !mainlineDisplayRegionShowsGeometry(displayRegion, unit.ownerId)) return false
         if (!unit.navigation.blocked) return false
         const passageOpen = unit.navigation.passageId
           ? openPassageIds.has(unit.navigation.passageId)
@@ -194,7 +208,9 @@ function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, opt
       })
       .map((unit) => ({ x: unit.x, y: unit.y, width: unit.width, height: unit.height })),
     ...scene.objects
-      .filter((entity) => entity.visible !== false && !(entity.kind === 'seat' && occupiedSeatIdsForNavigation(scene, options).has(entity.id)))
+      .filter((entity) => entity.visible !== false
+        && (!displayRegion || mainlineDisplayRegionContains(displayRegion, entity.position) || displayRegion.visibleGeometryGroupIds.includes(entity.id) || displayRegion.visibleGeometryGroupIds.includes(entity.groupId ?? ''))
+        && !(entity.kind === 'seat' && occupiedSeatIdsForNavigation(scene, options).has(entity.id)))
       .map((entity) => snapshot.objects.get(entity.id)?.collision ?? mainlineEntityCollision(scene, entity, layout, options.screenMetrics))
       .filter((collision): collision is NonNullable<typeof collision> => Boolean(collision)),
   ]
@@ -211,13 +227,21 @@ export function isWalkableMainlinePoint(point: Point, scene: MainlineSceneDefini
   const bounds = insetBounds(sceneGeometrySnapshot(scene, layout, options).walkBounds, footprint)
   if (point.x < bounds.x || point.x > bounds.x + bounds.width || point.y < bounds.y || point.y > bounds.y + bounds.height) return false
   // Access is a semantic occupancy policy, never a physical scene obstacle.
-  if (scene.accessRegions.some(region => !actorCanEnterRegion(scene, options.actorId, region) && containsPoint(region, point))) return false
+  const displayRegion = navigationDisplayRegion(scene, options)
+  const accessRegions = scene.accessRegions.filter((region) => !displayRegion || intersects(region, displayRegion.bounds))
+  if (accessRegions.some(region => !actorCanEnterRegion(scene, options.actorId, region) && containsPoint(region, point))) return false
   for (const boundary of scene.accessBoundaries) {
-    const region = scene.accessRegions.find(candidate => candidate.id === boundary.regionId)
+    const region = accessRegions.find(candidate => candidate.id === boundary.regionId)
     if (!region || actorCanEnterRegion(scene, options.actorId, region)) continue
     const contact = accessBoundaryGeometry(region, boundary.edge, footprint)
     const tangent = point[contact.tangentAxis]
-    if (tangent >= contact.min && tangent <= contact.max && (point[contact.axis] - contact.line) * contact.direction <= contact.clearance) return false
+    const oppositeEdge = contact.axis === 'x'
+      ? region.x + (boundary.edge === 'left' ? region.width : 0)
+      : region.y + (boundary.edge === 'top' ? region.height : 0)
+    const withinBoundaryDepth = point[contact.axis] >= Math.min(contact.line, oppositeEdge) - contact.clearance
+      && point[contact.axis] <= Math.max(contact.line, oppositeEdge) + contact.clearance
+    if (withinBoundaryDepth && tangent >= contact.min && tangent <= contact.max
+      && (point[contact.axis] - contact.line) * contact.direction <= contact.clearance) return false
   }
   const actorBox = navigationActorBox(point, footprint)
   return collisionBoxes(scene, layout, options).every((collision) => !overlaps(actorBox, expanded(collision, 0)))
@@ -232,6 +256,11 @@ function containsPoint(box: CollisionBox, point: Point) {
     && point.x <= box.x + box.width
     && point.y >= box.y
     && point.y <= box.y + box.height
+}
+
+function intersects(first: CollisionBox, second: CollisionBox) {
+  return first.x < second.x + second.width && first.x + first.width > second.x
+    && first.y < second.y + second.height && first.y + first.height > second.y
 }
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -565,6 +594,10 @@ export function resolveMainlineSafeSpawnPosition(
   options: MainlineNavigationOptions = {},
 ): Point | null {
   options = { ...options, geometrySnapshot: sceneGeometrySnapshot(scene, layout, options) }
+  // A saved/explicit spawn point is already the actor's starting location;
+  // it does not need a path back to the scene's global default spawn. In a
+  // continuous world those points may live in another display region.
+  if (preferred && isWalkableMainlinePoint(preferred, scene, layout, options)) return preferred
   const candidates = [
     ...(preferred ? [preferred] : []),
     scene.initialPlayerPosition,

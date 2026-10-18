@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { commercialStreetShopBounds, commercialStreetShopEntry, commercialStreetShopPortalId, commercialStreetShops } from '../src/center/runtime/commercialStreetWorldLayout'
 import { isMainlineStorefrontNear, isMainlineStorefrontPresentationInRange, mainlineSceneGeometryUnits, mainlineScenePassageCollision, mainlineScenes, mainlineStorefrontAnchor, mainlineStorefrontApproach, mainlineStorefrontDepartureRadius } from '../src/center/runtime/mainlineScenes'
 import {
   nextStorefrontPresentationPhase,
@@ -7,7 +8,6 @@ import {
   storefrontRestoreDelayMs,
   storefrontLabelRollDurationMs,
   storefrontPresentationLabelSlots,
-  storefrontCharacterCells,
   storefrontCharacterProgress,
   activeStorefrontPresentationOwner,
   storefrontPresentationHandoffSource,
@@ -24,45 +24,70 @@ describe('commercial street storefront presentation', () => {
     expect(storefrontRestoreDelayMs(100, 3100)).toBe(0)
     expect(storefrontRestoreDelayMs(100, 4100)).toBe(0)
   })
-  it('keeps the approved 16-slot inventory with dedicated milk-tea and Café portals', () => {
-    const ordinaryStorefronts = street.storefronts.filter((storefront) => storefront.id !== 'commercial-cafe-slot')
-
-    expect(ordinaryStorefronts.map(({ id, label }) => ({ id, label }))).toEqual([
-      { id: 'commercial-north-slot-1', label: '果茶店' },
-      { id: 'commercial-north-slot-2', label: '服装店' },
-      { id: 'commercial-north-slot-3', label: '花店' },
-      { id: 'commercial-north-slot-4', label: '眼镜店' },
-      { id: 'commercial-north-slot-5', label: '美妆店' },
-      { id: 'commercial-north-slot-6', label: '服装店' },
-      { id: 'commercial-north-slot-7', label: '书店' },
-      { id: 'commercial-north-slot-8', label: '甜品店' },
-      { id: 'commercial-south-slot-1', label: '鞋店' },
-      { id: 'commercial-south-slot-2', label: '潮玩店' },
-      { id: 'commercial-south-slot-3', label: '香氛店' },
-      { id: 'commercial-south-slot-4', label: '服装店' },
-      { id: 'commercial-south-slot-5', label: '奶茶店' },
-      { id: 'commercial-south-slot-6', label: '周边店' },
-      { id: 'commercial-south-slot-7', label: '首饰店' },
-      { id: 'commercial-south-slot-8', label: '服装店' },
+  it('builds fourteen enterable merchants across sixteen standard modules', () => {
+    expect(street.storefronts).toHaveLength(14)
+    expect(commercialStreetShops).toHaveLength(14)
+    expect(commercialStreetShops.reduce((sum, shop) => sum + shop.moduleCount, 0)).toBe(16)
+    expect(street.storefronts.map((storefront) => storefront.id)).toEqual([
+      'commercial-north-slot-1', 'commercial-north-slot-2', 'commercial-north-slot-3',
+      'commercial-north-slot-4', 'commercial-north-slot-5', 'commercial-north-slot-6',
+      'commercial-cafe-slot', 'commercial-south-slot-1', 'commercial-south-slot-2',
+      'commercial-south-slot-4', 'commercial-south-slot-5', 'commercial-south-slot-6',
+      'commercial-south-slot-7', 'commercial-south-slot-8',
     ])
-    expect(ordinaryStorefronts).toHaveLength(16)
-    expect(ordinaryStorefronts.filter((storefront) => storefront.label === '服装店').map((storefront) => storefront.id)).toEqual([
-      'commercial-north-slot-2',
-      'commercial-north-slot-6',
-      'commercial-south-slot-4',
-      'commercial-south-slot-8',
-    ])
-    expect(ordinaryStorefronts.filter(storefront => storefront.id !== 'commercial-south-slot-5').every((storefront) => storefront.portalId === undefined)).toBe(true)
-    expect(ordinaryStorefronts.find(storefront => storefront.id === 'commercial-south-slot-5')).toMatchObject({ portalId: 'street-milktea-entry', characterSwitch: true })
-    expect(street.passages.find(passage => passage.id === 'street-milktea-entry')).toMatchObject({ entityId: 'street-milktea-entry', targetSceneId: 'commercial-milktea-interior' })
-    expect(ordinaryStorefronts.find((storefront) => storefront.label === '奶茶店')?.id).toBe('commercial-south-slot-5')
-    expect(ordinaryStorefronts.find((storefront) => storefront.label === '果茶店')?.id).toBe('commercial-north-slot-1')
-    expect(ordinaryStorefronts.find((storefront) => storefront.label === '甜品店')?.id).toBe('commercial-north-slot-8')
-    expect(cafe).toMatchObject({ id: 'commercial-cafe-slot', label: '咖啡馆', portalId: 'street-cafe-entry' })
+    expect(street.portals).toHaveLength(15)
+    expect(street.portals.filter((portal) => portal.id !== 'commercial-cafe-lakefront-entry')).toHaveLength(14)
+    for (const shop of commercialStreetShops) {
+      const passage = street.passages.find((candidate) => candidate.id === commercialStreetShopPortalId(shop))!
+      const entry = commercialStreetShopEntry(shop)
+      const bounds = commercialStreetShopBounds(shop)
+      const storefrontId = shop.kind === 'cafe' ? 'commercial-cafe-slot' : shop.storefrontIds[0]
+      const storefront = street.storefronts.find((candidate) => candidate.id === storefrontId)!
+      expect(storefront.portalId).toBe(passage.id)
+      expect(storefront.characterSwitch).toBe(true)
+      expect(passage, shop.id).toBeDefined()
+      if (shop.kind === 'cafe') {
+        expect(passage.targetSceneId).toBeUndefined()
+        expect(passage.routeThrough).toBe(true)
+        expect(passage.fromRoomId).toBe('commercial-street-east')
+        expect(passage.toRoomId).toBe('commercial-cafe-interior')
+      } else {
+        expect(passage.fromRoomId).toBeDefined()
+        expect(passage.toRoomId).toBeDefined()
+      }
+      expect(Math.abs(passage.thresholds[0]!.x - entry.doorX), shop.id).toBeLessThan(1.5)
+      expect(Math.abs(passage.crossingTargets[0]!.x - entry.doorX), shop.id).toBeLessThan(1.5)
+      expect(passage.thresholds[0]!.y).toBe(entry.streetApproach.y)
+      expect(passage.crossingTargets[0]!.y).toBe(entry.crossingTarget.y)
+      if (shop.row === 'north') {
+        expect(passage.thresholds[0]!.y).toBeGreaterThan(entry.storefrontY)
+        expect(passage.crossingTargets[0]!.y).toBeLessThan(entry.storefrontY)
+      } else {
+        expect(passage.thresholds[0]!.y).toBeLessThan(entry.storefrontY)
+        expect(passage.crossingTargets[0]!.y).toBeGreaterThan(entry.storefrontY)
+      }
+      if (shop.kind === 'cafe') {
+        expect(passage.entryPosition?.y).toBeGreaterThan(bounds.y + 5)
+        expect(passage.entryPosition?.y).toBeLessThan(bounds.y + bounds.height - 5)
+        expect(passage.targetSceneId).toBeUndefined()
+        expect(passage.toRoomId).toBe('commercial-cafe-interior')
+      } else {
+        expect(passage.fromRoomId).toBeDefined()
+        expect(passage.toRoomId).toBeDefined()
+      }
+    }
+    expect(cafe).toMatchObject({ id: 'commercial-cafe-slot', portalId: 'street-cafe-entry', characterSwitch: true })
     expect(street.passages.find((passage) => passage.id === 'street-cafe-entry')).toMatchObject({
       entityId: 'street-cafe-entry',
-      targetSceneId: 'commercial-cafe',
+      routeThrough: true,
+      fromRoomId: 'commercial-street-east',
+      toRoomId: 'commercial-cafe-interior',
     })
+    const milkTeaPassage = street.passages.find((passage) => passage.id === 'street-milktea-entry')!
+    expect(milkTeaPassage.fromRoomId).toBeDefined()
+    expect(milkTeaPassage.toRoomId).toBeDefined()
+    expect(milkTeaPassage.targetSceneId).toBeUndefined()
+    expect(milkTeaPassage.entryPosition).toEqual({ x: 111, y: 69 })
   })
 
   it('projects one window per character without adding world entities', () => {
@@ -79,27 +104,10 @@ describe('commercial street storefront presentation', () => {
     expect(yonghePortal?.characterSwitch).not.toBe(true)
     for (const metrics of [{ width: 1280, height: 720 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
       const projected = mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, cafe), metrics, new Map([[cafe.id, 'revealed']]))
-      const cells = storefrontCharacterCells(street, cafe, projected)
-      expect(cells.map(cell => [cell.baselineGlyph, cell.glyph])).toEqual([['咖', '墙'], ['啡', '门'], ['馆', '墙']])
-      expect(cells).toHaveLength(3)
-      expect(cells[1].entityId).toBe(cafe.portalId)
-      const source = projected.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
-        .filter(({ unit, cell }) => unit.sourceWallId === cafe.wallId && unit.edge === cafe.edge && (cell.kind === 'wall' || cell.kind === 'door'))
-      const along = ({ cell }: typeof source[number]) => cafe.edge === 'left' || cafe.edge === 'right' ? cell.y : cell.x
-      const sourceDoor = source.find(({ unit, cell }) => cell.kind === 'door' && (cell.entityId === cafe.portalId || unit.entityId === cafe.portalId))
-      const passageAnchor = projected.find(unit => unit.storefrontId === cafe.id && unit.navigation.passageId === cafe.portalId)!
-      const doorPosition = sourceDoor?.cell ?? { x: passageAnchor.x + passageAnchor.width / 2, y: passageAnchor.y + passageAnchor.height / 2 }
-      const doorTangent = cafe.edge === 'left' || cafe.edge === 'right' ? doorPosition.y : doorPosition.x
-      const wallBefore = source.filter(({ cell }) => cell.kind === 'wall' && along({ unit: passageAnchor, cell }) < doorTangent)
-        .sort((first, second) => along(second) - along(first))[0]
-      const wallAfter = source.filter(({ cell }) => cell.kind === 'wall' && along({ unit: passageAnchor, cell }) > doorTangent)
-        .sort((first, second) => along(first) - along(second))[0]
-      expect(cells.map(({ id, x, y }) => [id, x, y])).toEqual([
-        [wallBefore.cell.id, wallBefore.cell.x, wallBefore.cell.y],
-        [sourceDoor?.cell.id ?? `${cafe.id}-base-cell-1`, doorPosition.x, doorPosition.y],
-        [wallAfter.cell.id, wallAfter.cell.x, wallAfter.cell.y],
-      ])
-      expect(new Set(cells.map(cell => `${cell.x},${cell.y}`)).size).toBe(3)
+      const passageAnchor = projected.find(unit => unit.navigation.passageId === cafe.portalId)
+      expect(passageAnchor).toBeDefined()
+      expect(passageAnchor?.navigation.passageId).toBe(cafe.portalId)
+      expect(projected.some(unit => unit.storefrontId === cafe.id && unit.visual.cells.some(cell => cell.storefrontRole === 'sign'))).toBe(true)
       const baselineUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[cafe.id, 'baseline']]))
       const revealedUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[cafe.id, 'revealed']]))
       const physical = (units: typeof baselineUnits) => units.filter(unit => unit.navigation.blocked).map(({ id, x, y, width, height, navigation }) => ({ id, x, y, width, height, navigation }))
@@ -169,29 +177,25 @@ describe('commercial street storefront presentation', () => {
     expect(nextStorefrontPresentationPhase('retracting', 'leave')).toBe('baseline')
     expect(nextStorefrontPresentationPhase('revealing', 'leave')).toBe('revealing')
     expect(nextStorefrontPresentationPhase('revealing', 'reveal-motion-complete')).toBe('revealed')
-    const nonPortal = street.storefronts.find((storefront) => !storefront.portalId)!
+    const nonPortal = { ...street.storefronts.find((storefront) => storefront.id !== cafe.id)!, portalId: undefined }
     expect(storefrontPresentationShouldReveal(street, nonPortal, mainlineStorefrontApproach(street, nonPortal))).toBe(false)
   })
 
-  it('bounds only Café outward departure by the neighboring compiled glass edge', () => {
+  it('bounds Café reveal departure outside its south facing entrance', () => {
     const departureRadius = mainlineStorefrontDepartureRadius(street, cafe)
     const approach = mainlineStorefrontApproach(street, cafe)
     expect(departureRadius).toBeDefined()
-    const glassBoundary = { x: approach.x - departureRadius!, y: approach.y }
+    const glassBoundary = { x: approach.x, y: approach.y + departureRadius! }
+    const beyondBoundary = { x: approach.x, y: approach.y + departureRadius! + .02 }
     const inwardDoor = mainlineStorefrontAnchor(street, cafe)
-    const nearestCompiledGlassEdge = Math.max(...street.geometry.flatMap((unit) => (
-      unit.edge === 'top' || unit.edge === 'bottom'
-        ? unit.visual.cells.filter((cell) => cell.storefrontRole === 'glass' && cell.cellEnd !== undefined && cell.cellEnd < approach.x).map((cell) => cell.cellEnd!)
-        : []
-    )))
 
-    expect(departureRadius).toBeCloseTo(approach.x - nearestCompiledGlassEdge, 8)
+    expect(departureRadius).toBe(6)
     expect(isMainlineStorefrontPresentationInRange(street, cafe, glassBoundary)).toBe(true)
-    expect(isMainlineStorefrontPresentationInRange(street, cafe, { x: glassBoundary.x - .02, y: approach.y })).toBe(false)
+    expect(isMainlineStorefrontPresentationInRange(street, cafe, beyondBoundary)).toBe(false)
     expect(isMainlineStorefrontPresentationInRange(street, cafe, approach)).toBe(true)
     expect(isMainlineStorefrontPresentationInRange(street, cafe, inwardDoor)).toBe(true)
 
-    const ordinary = street.storefronts.find((storefront) => storefront.id === 'commercial-north-slot-8')!
+    const ordinary = street.storefronts.find((storefront) => storefront.id === 'commercial-north-slot-2')!
     expect(mainlineStorefrontDepartureRadius(street, ordinary)).toBeUndefined()
     const ordinaryPortal = { ...ordinary, id: 'ordinary-portal', portalId: 'ordinary-entry' }
     expect(isMainlineStorefrontPresentationInRange(street, ordinaryPortal, mainlineStorefrontApproach(street, ordinary))).toBe(true)
@@ -243,7 +247,9 @@ describe('commercial street storefront presentation', () => {
 
   it('does not make the presentation part of traversal completion', () => {
     const passage = street.passages.find((candidate) => candidate.id === 'street-cafe-entry')!
-    expect(passage.targetSceneId).toBe('commercial-cafe')
+    expect(passage.targetSceneId).toBeUndefined()
+    expect(passage.routeThrough).toBe(true)
+    expect(passage.toRoomId).toBe('commercial-cafe-interior')
     expect(nextStorefrontPresentationPhase('revealing', 'reveal-motion-complete')).toBe('revealed')
   })
 })

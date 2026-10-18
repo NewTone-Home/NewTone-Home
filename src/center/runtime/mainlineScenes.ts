@@ -355,6 +355,13 @@ function compileMainlineFrameUnits(
       const axisEnd = horizontal ? structure.bounds.x + structure.bounds.width : structure.bounds.y + structure.bounds.height
       const orientation = horizontal ? 'horizontal' : 'vertical'
       const sharedOpenings: SharedBoundaryOpening[] = [
+        ...config.storefronts.map((storefront) => ({
+          id: storefront.id,
+          start: storefront.start,
+          end: storefront.end,
+          kind: 'reserved' as const,
+          cellCount: storefrontFixedCellCount(storefront),
+        })),
         ...config.openings.map((opening) => {
           const passage = opening.doorId ? passages.find((candidate) => candidate.entityId === opening.doorId) : undefined
           const door = opening.doorId ? objects.find((entity) => entity.id === opening.doorId) : undefined
@@ -379,13 +386,6 @@ function compileMainlineFrameUnits(
             lockedText: passage?.lockedText,
           }
         }),
-        ...config.storefronts.map((storefront) => ({
-          id: storefront.id,
-          start: storefront.start,
-          end: storefront.end,
-          kind: 'reserved' as const,
-          cellCount: storefrontFixedCellCount(storefront),
-        })),
       ]
       return {
         id: `${structure.id}-${edge}`,
@@ -1178,9 +1178,19 @@ function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneD
   }
 }
 
-export const mainlineScenes: Record<MainlineSceneId, MainlineSceneDefinition> = Object.fromEntries(
+const compiledMainlineScenes = Object.fromEntries(
   Object.entries(mainlineSceneBlueprints).map(([id, blueprint]) => [id, compileMainlineScene(blueprint)]),
 ) as Record<MainlineSceneId, MainlineSceneDefinition>
+
+/** Legacy merchant scene keys resolve to shared runtime world; they never mount separate geometry/state. */
+export const mainlineScenes: Record<MainlineSceneId, MainlineSceneDefinition> = {
+  ...compiledMainlineScenes,
+  // The old key remains a content/migration lookup for story helpers and legacy tests.
+  // Runtime entry points below normalize it to the shared street world.
+  'commercial-cafe': compiledMainlineScenes['commercial-cafe'],
+  'commercial-milktea-interior': compiledMainlineScenes['commercial-street'],
+  'commercial-milktea-shop': compiledMainlineScenes['commercial-street'],
+}
 
 export function mainlineSceneAreaLabel(scene: MainlineSceneDefinition, position: Point) {
   if (typeof scene.areaLabel === 'function') return scene.areaLabel(position)
@@ -1284,24 +1294,10 @@ export function mainlineStorefrontApproach(scene: MainlineSceneDefinition, store
   return { x: anchor.x - approachDistance, y: anchor.y }
 }
 
-/**
- * Café departure is bounded by the compiled outer edge of the closest
- * neighboring storefront glass. This only tightens the outward side of the
- * Café presentation trigger; the inward door approach keeps its authored
- * radius so approaching and using the real passage are unchanged.
- */
+/** Keep the café facade presentation close to its south-facing street door. */
 export function mainlineStorefrontDepartureRadius(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot): number | undefined {
-  if (scene.id !== 'commercial-street' || storefront.id !== 'commercial-cafe-slot') return undefined
-  const approach = mainlineStorefrontApproach(scene, storefront)
-  const glassEnds = scene.geometry.flatMap((unit) => {
-    if (unit.edge !== 'top' && unit.edge !== 'bottom') return []
-    return unit.visual.cells
-      .filter((cell) => cell.storefrontRole === 'glass' && cell.cellEnd !== undefined && cell.cellEnd < approach.x)
-      .map((cell) => cell.cellEnd!)
-  })
-  const nearestGlassEdge = Math.max(...glassEnds)
-  if (!Number.isFinite(nearestGlassEdge) || nearestGlassEdge >= approach.x) return undefined
-  return approach.x - nearestGlassEdge
+  if (scene.id !== 'commercial-street' || storefront?.id !== 'commercial-cafe-slot') return undefined
+  return Math.min(storefront.nearRadius ?? 10, 6)
 }
 
 /** Shared visual-trigger predicate for the compiled geometry and presentation owner. */
@@ -1386,6 +1382,7 @@ export const mainlineSceneSlices: Record<MainlineSceneId, MainlineSceneSliceDefi
   'commercial-street': createMainlineSceneSlice(mainlineScenes['commercial-street']),
   'commercial-cafe': createMainlineSceneSlice(mainlineScenes['commercial-cafe']),
   'commercial-milktea-interior': createMainlineSceneSlice(mainlineScenes['commercial-milktea-interior']),
+  'commercial-milktea-shop': createMainlineSceneSlice(mainlineScenes['commercial-milktea-shop']),
   'yonghe-mining-perimeter': createMainlineSceneSlice(mainlineScenes['yonghe-mining-perimeter']),
   'yonghe-eatery': createMainlineSceneSlice(mainlineScenes['yonghe-eatery']),
   'zhongshuyuan-passage': createMainlineSceneSlice(mainlineScenes['zhongshuyuan-passage']),
@@ -1439,7 +1436,10 @@ export const mainlineMapLandmarksByWorld: Record<MainlineMapWorld, readonly Main
 export type MainlineSpawnMode = 'resume' | 'ride'
 
 export function mainlineSceneRoute(sceneId: MainlineSceneId, entryPosition?: Point, spawnMode?: MainlineSpawnMode) {
-  const route = '/?scene=' + sceneId
+  const runtimeSceneId = sceneId === 'commercial-cafe' || sceneId === 'commercial-milktea-interior' || sceneId === 'commercial-milktea-shop'
+    ? 'commercial-street'
+    : sceneId
+  const route = '/?scene=' + runtimeSceneId
   const entry = entryPosition ? '&entryX=' + entryPosition.x + '&entryY=' + entryPosition.y : ''
   const spawn = spawnMode === 'ride' ? '&spawn=ride' : ''
   return route + entry + spawn
@@ -1448,7 +1448,9 @@ export function mainlineSceneRoute(sceneId: MainlineSceneId, entryPosition?: Poi
 export function resolveMainlineSceneId(search?: string): MainlineSceneId | null {
   const query = new URLSearchParams(search ?? (typeof window === 'undefined' ? '' : window.location.search))
   const value = query.get('scene')
-  return value && value in mainlineScenes ? value as MainlineSceneId : null
+  if (!value || !(value in mainlineScenes)) return null
+  if (value === 'commercial-cafe' || value === 'commercial-milktea-interior' || value === 'commercial-milktea-shop') return 'commercial-street'
+  return value as MainlineSceneId
 }
 
 export function getMainlineSceneEntity(scene: MainlineSceneDefinition, id: string) {

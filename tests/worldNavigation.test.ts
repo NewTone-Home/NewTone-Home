@@ -146,20 +146,10 @@ describe('ordinary world navigation and passage intent', () => {
     expect(coversDoorwayCenter(mainlineNavigationCollisionBoxes(cafe, {}, opened))).toBe(false)
   })
 
-  it('requires exact actor-specific reachability before a passage can participate', () => {
+  it('keeps the Cafe lake-facing edge window-only and street-facing entrance traversable', () => {
     const cafe = mainlineScenes['commercial-cafe']
-    const backDoor = cafe.passages.find((passage) => passage.id === 'cafe-back-door')!
-    const protagonistDot = mainlineProtagonistDotFootprint(cafe.initialPlayerPosition)
-    const protagonistOptions = { actorId: 'protagonist', actorFootprint: { width: protagonistDot.width, height: protagonistDot.height } } as const
-    const coffeeOwnerPosition = resolveMainlineNpcPosition(cafe, commercialCafeCoffeeOwnerNpcId)
-
-    expect(canActorReachPassageApproach(cafe, backDoor, cafe.initialPlayerPosition, {}, protagonistOptions)).toBeNull()
-    expect(coffeeOwnerPosition).toBeDefined()
-    expect(canActorReachPassageApproach(cafe, backDoor, coffeeOwnerPosition!, {}, { actorId: commercialCafeCoffeeOwnerNpcId })).not.toBeNull()
-
-    const backDoorTarget = mainlinePassageExitPoint(backDoor, cafe.initialPlayerPosition)
-    expect(classifyMainlineWorldCommand(cafe, cafe.initialPlayerPosition, backDoorTarget, {}, protagonistOptions)).toMatchObject({ kind: 'ordinary' })
-    expect(classifyMainlineWorldCommand(cafe, coffeeOwnerPosition!, backDoorTarget, {}, { actorId: commercialCafeCoffeeOwnerNpcId })).toMatchObject({ kind: 'passage', passage: { id: backDoor.id } })
+    expect(cafe.passages.some((passage) => passage.id === 'street-cafe-entry')).toBe(true)
+    expect(cafe.passages.some((passage) => passage.id === 'cafe-back-door')).toBe(false)
   })
 
   it('keeps Lao Zhou able to reach the real Café street passage from his conversation seat', () => {
