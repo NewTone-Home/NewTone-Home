@@ -32,6 +32,7 @@ import { splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
 import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, plantIsWatered, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
+import { yongheSurveyPointForEntity, yongheSurveyStatePatch, yongheSurveyStatusFromSceneState } from './yongheSurvey'
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import { mainlineExploredObjectIdsFromSceneState, mainlineInteractionCompletesImmediately, mainlineInteractionExploredStateKey } from './mainlineInteractionVisualState'
@@ -457,6 +458,12 @@ export function MainlineScenePage({
       return { sceneId: scene.id, objectIds: next }
     })
   }, [recordSceneState, scene.id])
+  const recordYongheSurveyObservation = useCallback((entityId: string) => {
+    if (scene.id !== 'yonghe-eatery') return
+    const pointId = yongheSurveyPointForEntity(entityId)
+    if (!pointId) return
+    recordSceneStatePatch(scene.id, yongheSurveyStatePatch(initialSceneState, pointId))
+  }, [initialSceneState, recordSceneStatePatch, scene.id])
   const completeShortInteraction = useCallback((entityId: string) => {
     markEntityExplored(entityId)
     if (typeof window === 'undefined') {
@@ -1650,6 +1657,21 @@ export function MainlineScenePage({
     const passage = scene.passages.find((candidate) => candidate.entityId === entityId)
     if (!requestAlreadyRecorded) pendingInteractionAfterTraversalRef.current = null
     if (!requestAlreadyRecorded) onInteractionAnalytics?.('requested', entityId, passage ? 'door' : entity.kind)
+    if (scene.id === 'yonghe-eatery' && entityId === 'yonghe-back-door' && passage?.access === 'locked') {
+      const text = scene.explorationText?.[entityId]?.[0] ?? scene.interactionText[entityId] ?? ''
+      stopMovement()
+      recordYongheSurveyObservation(entityId)
+      markEntityExplored(entityId)
+      sceneEchoIdRef.current += 1
+      presentSceneEcho(createMainlineSceneEcho(
+        sceneEchoIdRef.current,
+        entityId,
+        text,
+        sceneTextPresentationPosition(scene, getCurrentPosition(), text, screenMetrics),
+      ))
+      onInteractionAnalytics?.('completed', entityId, 'door', 'observed')
+      return
+    }
     if (entity.kind === 'seat' && entity.seat) {
       const nextSeatId = nextMainlinePlayerSeatId(scene, activePlayerSeatId, entity.id)
       if (nextSeatId !== entity.id) {
@@ -1735,6 +1757,7 @@ export function MainlineScenePage({
         commercialCafeCoffeeOrdered: commercialCafeCoffeeOrderedState(commercialCafeStory),
         carriedMilkTea: carriedMilkTea || commercialStreetMilkTeaHeld(initialSceneState),
       })
+      recordYongheSurveyObservation(entityId)
       const explorationChoice = exploration.choice
       const explorationPool = exploration.pool
       const availableExplorationPool = explorationPool ?? []
@@ -1796,7 +1819,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, recordSceneStatePatch, recordYongheSurveyObservation, resetMovement, scene, sceneAction?.phase, screenMetrics, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
@@ -2259,6 +2282,9 @@ export function MainlineScenePage({
   }, [cancelPassageLifecycle, initialPosition, resetMovement, scene.id, sceneDefinition])
 
   const currentAreaLabel = mainlineSceneAreaLabel(scene, position)
+  const yongheSurveyStatus = scene.id === 'yonghe-eatery'
+    ? yongheSurveyStatusFromSceneState(initialSceneState)
+    : undefined
   const debugCafeCounterStructure = debugRuntimeEvidence && scene.id === 'commercial-cafe'
     ? scene.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-body')
     : undefined
@@ -2298,6 +2324,7 @@ export function MainlineScenePage({
       {...sceneInteractionHandlers}
       className={`scene-shell mainline-scene ${embedded ? 'mainline-scene--embedded' : ''} ${!showSceneChrome ? 'mainline-scene--map-only' : ''}`}
       data-mainline-scene={scene.id}
+      data-yonghe-survey-status={yongheSurveyStatus}
       data-commercial-cafe-status={scene.id === 'commercial-cafe' ? commercialCafeStory.status : undefined}
       data-commercial-cafe-cursor={scene.id === 'commercial-cafe' ? commercialCafeStory.narrativeCursor : undefined}
       data-commercial-cafe-coffee-status={scene.id === 'commercial-cafe' ? commercialCafeStory.coffeeStatus : undefined}

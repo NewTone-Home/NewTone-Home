@@ -9,6 +9,7 @@ import {
   ambientNpcStoreVisitMaximumMs,
   ambientNpcStoreVisitMinimumMs,
 } from './ambientNpcLifecycle'
+import { yongheMiningPerimeterLayout } from './yongheMiningPerimeterLayout'
 
 export type MainlineSceneId = 'jijia-ancestral-home' | 'jijia-ancestral-interior' | 'commercial-street' | 'commercial-cafe' | 'yonghe-mining-perimeter' | 'yonghe-eatery' | 'zhongshuyuan-passage' | 'zhongshuyuan-office'
 export type MainlineEntityKind = 'door' | 'landmark' | 'table' | 'seat' | 'direction' | 'trace' | 'fixture'
@@ -1768,16 +1769,12 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
   },
 }
 
-const yongheStorefrontStarts = [10, 32, 54, 76, 98, 120, 142, 164] as const
-const yongheStreetEntryPosition: Point = { x: 36, y: yongheStorefrontStarts[1] + 9 }
-const yongheOutdoorTableX = yongheStreetEntryPosition.x + 4
-const yongheOutdoorApproachX = yongheStreetEntryPosition.x + 11
+const yongheStorefrontStarts = yongheMiningPerimeterLayout.storefronts.starts
 
-const yongheFacadeAirWalls: readonly MainlineAirWall[] = [
-  { id: 'yonghe-left-shop-air-wall-top', ...box(8, 8, 27.3, 23.3) },
-  { id: 'yonghe-left-shop-air-wall-bottom', ...box(8, 50.7, 27.3, 141.3) },
-  { id: 'yonghe-industrial-edge-air-wall', ...box(64.7, 8, 27.3, 184) },
-]
+const yongheFacadeAirWalls: readonly MainlineAirWall[] = yongheMiningPerimeterLayout.facadeAirWalls.map(({ id, bounds }) => ({
+  id,
+  ...box(bounds.x, bounds.y, bounds.width, bounds.height),
+}))
 
 const yongheDiningFurniture = [
   mainlineTwoSeatFurniture('yonghe-upper-left-group', { x: 35, y: 50 }, { x: 27, y: 50 }),
@@ -1788,16 +1785,16 @@ const yongheDiningFurniture = [
 
 const yongheOutdoorFurniture = [
   mainlineTwoSeatFurniture(
-    'yonghe-outdoor-group-1',
-    { x: yongheOutdoorTableX, y: yongheStreetEntryPosition.y },
-    { x: yongheOutdoorApproachX, y: yongheStreetEntryPosition.y },
-    { tableId: 'yonghe-outdoor-table-1', seatIds: ['yonghe-outdoor-chair-1-top', 'yonghe-outdoor-chair-1-bottom'] },
+    yongheMiningPerimeterLayout.outdoorFurniture[0].groupId,
+    yongheMiningPerimeterLayout.outdoorFurniture[0].anchor,
+    yongheMiningPerimeterLayout.outdoorFurniture[0].approach,
+    { tableId: yongheMiningPerimeterLayout.outdoorFurniture[0].tableId, seatIds: yongheMiningPerimeterLayout.outdoorFurniture[0].seatIds },
   ),
   mainlineTwoSeatFurniture(
-    'yonghe-outdoor-group-2',
-    { x: yongheOutdoorTableX, y: yongheStreetEntryPosition.y + 20 },
-    { x: yongheOutdoorApproachX, y: yongheStreetEntryPosition.y + 20 },
-    { tableId: 'yonghe-outdoor-table-2', seatIds: ['yonghe-outdoor-chair-2-top', 'yonghe-outdoor-chair-2-bottom'] },
+    yongheMiningPerimeterLayout.outdoorFurniture[1].groupId,
+    yongheMiningPerimeterLayout.outdoorFurniture[1].anchor,
+    yongheMiningPerimeterLayout.outdoorFurniture[1].approach,
+    { tableId: yongheMiningPerimeterLayout.outdoorFurniture[1].tableId, seatIds: yongheMiningPerimeterLayout.outdoorFurniture[1].seatIds },
   ),
 ].map(({ group, entities }) => ({
   group,
@@ -1811,29 +1808,29 @@ const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
   statusLabel: '矿区外围老街',
   hint: '从画面下方进入，沿中间通道向上；左侧是八个窄小的生活店面，永和小馆入口在较深处，右侧是少量铁片、管线和围栏组成的矿区边缘。',
   presentation: { mode: 'actor-relative', offset: authoredPoint(0, -14) },
-  areaLabel: (position) => position.y >= 150
+  areaLabel: (position) => position.y >= yongheMiningPerimeterLayout.areaLabelThresholds.mine
     ? '矿区'
-    : position.y >= 100
+    : position.y >= yongheMiningPerimeterLayout.areaLabelThresholds.perimeter
       ? '矿区外围'
-      : position.y <= 70
+      : position.y <= yongheMiningPerimeterLayout.areaLabelThresholds.eateryFront
         ? '永和小馆门口'
         : '矿区外围老街',
   scene: {
-      walkBounds: box(8, 8, 84, 184),
-      externalExit: { axis: 'y', direction: 1, threshold: 186 },
+      walkBounds: box(yongheMiningPerimeterLayout.walkBounds.x, yongheMiningPerimeterLayout.walkBounds.y, yongheMiningPerimeterLayout.walkBounds.width, yongheMiningPerimeterLayout.walkBounds.height),
+      externalExit: yongheMiningPerimeterLayout.externalExit,
       wallDensity: { horizontalBaselineEvery: 2, verticalBaselineEvery: 2 },
       walls: [
         {
           id: 'yonghe-left-shop-row',
           type: 'room',
-          bounds: box(10, 8, 26, 184),
+          bounds: box(yongheMiningPerimeterLayout.areas.shopRow.x, yongheMiningPerimeterLayout.areas.shopRow.y, yongheMiningPerimeterLayout.areas.shopRow.width, yongheMiningPerimeterLayout.areas.shopRow.height),
           variant: 'worn-shop-row',
           edges: ['right'],
         },
         {
           id: 'yonghe-industrial-edge',
           type: 'room',
-          bounds: box(64, 8, 28, 184),
+          bounds: box(yongheMiningPerimeterLayout.areas.industrialEdge.x, yongheMiningPerimeterLayout.areas.industrialEdge.y, yongheMiningPerimeterLayout.areas.industrialEdge.width, yongheMiningPerimeterLayout.areas.industrialEdge.height),
           variant: 'industrial-mine-edge',
           edges: ['left'],
           features: [
@@ -1847,7 +1844,7 @@ const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
         {
           id: 'yonghe-main-lane',
           type: 'lane',
-          bounds: box(36, 8, 28, 184),
+          bounds: box(yongheMiningPerimeterLayout.areas.publicLane.x, yongheMiningPerimeterLayout.areas.publicLane.y, yongheMiningPerimeterLayout.areas.publicLane.width, yongheMiningPerimeterLayout.areas.publicLane.height),
           variant: 'main-lane',
           edges: [],
         },
@@ -1857,11 +1854,11 @@ const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
           'yonghe',
           'yonghe-left-shop-row',
           'right',
-          ['修鞋', '永和小馆', '药品', '五金', '小吃', '面馆', '修理', '早点'],
+          yongheMiningPerimeterLayout.storefronts.labels,
           'worn',
           yongheStorefrontStarts,
-          18,
-          { index: 1, portalId: 'yonghe-street-entry', mode: 'door' },
+          yongheMiningPerimeterLayout.storefronts.width,
+          { index: yongheMiningPerimeterLayout.storefronts.eateryIndex, portalId: 'yonghe-street-entry', mode: 'door' },
           undefined,
           'content',
         ),
@@ -1870,7 +1867,7 @@ const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
       airWalls: yongheFacadeAirWalls,
       blockers: [],
       furnitureGroups: yongheOutdoorFurniture.map(({ group }) => group),
-      initialPlayerPosition: { x: 50, y: 180 },
+      initialPlayerPosition: yongheMiningPerimeterLayout.initialPlayerPosition,
     },
   portals: [
     {
@@ -1883,7 +1880,12 @@ const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
         surface: 'wall',
         doorBehavior: { leafCount: 'single', openLeaves: 'both' },
       },
-      endpoint: { doorPosition: yongheStreetEntryPosition, threshold: { x: 39.5, y: yongheStreetEntryPosition.y }, crossingTarget: { x: 37.5, y: yongheStreetEntryPosition.y }, entryPosition: { x: 20, y: 56 } },
+      endpoint: {
+        doorPosition: yongheMiningPerimeterLayout.entry.doorPosition,
+        threshold: yongheMiningPerimeterLayout.entry.threshold,
+        crossingTarget: yongheMiningPerimeterLayout.entry.crossingTarget,
+        entryPosition: yongheMiningPerimeterLayout.entry.eateryEntryPosition,
+      },
       targetSceneId: 'yonghe-eatery',
       wallOpenings: [],
       transitionText: '修杰从矿区外围老街走进永和小馆，店里仍按平常的节奏营业。',
@@ -1918,6 +1920,7 @@ const yongheEateryBlueprint: MainlineSceneBlueprint = {
       }],
       floorEntities: [
         ...yongheDiningFurniture.flatMap(({ entities }) => entities),
+        floor({ id: 'yonghe-survey-central-lane', label: '中央通道', kind: 'landmark', weight: 'minor', position: { x: 45, y: 60 } }),
         floor({ id: 'yonghe-counter', label: '柜台', kind: 'fixture', weight: 'fixture', position: { x: 78, y: 38 }, collision: box(68, 34, 20, 7), shape: box(68, 34, 20, 7), groupId: 'yonghe-service-group' }),
         floor({ id: 'yonghe-stove', label: '灶台', kind: 'fixture', weight: 'fixture', position: { x: 84, y: 46 }, collision: box(80, 43, 8, 6), shape: box(80, 43, 8, 6), groupId: 'yonghe-service-group' }),
       ],
@@ -1941,9 +1944,9 @@ const yongheEateryBlueprint: MainlineSceneBlueprint = {
         surface: 'wall',
         doorBehavior: { leafCount: 'single', openLeaves: 'both' },
       },
-      endpoint: { doorPosition: { x: 10, y: 56 }, threshold: { x: 14, y: 56 }, crossingTarget: { x: 8, y: 56 }, entryPosition: { x: yongheStreetEntryPosition.x + 6, y: yongheStreetEntryPosition.y } },
+      endpoint: { doorPosition: { x: 10, y: 56 }, threshold: { x: 14, y: 56 }, crossingTarget: { x: 8, y: 56 }, entryPosition: yongheMiningPerimeterLayout.entry.streetEntryPosition },
       targetSceneId: 'yonghe-mining-perimeter',
-      wallOpenings: [{ wallId: 'yonghe-room', opening: { edge: 'left', start: 50, end: 62, doorId: 'yonghe-street-entry' } }],
+      wallOpenings: [{ wallId: 'yonghe-room', opening: { edge: yongheMiningPerimeterLayout.entry.indoorWallOpening.edge, start: yongheMiningPerimeterLayout.entry.indoorWallOpening.start, end: yongheMiningPerimeterLayout.entry.indoorWallOpening.end, doorId: 'yonghe-street-entry' } }],
       transitionText: '修杰从矿区外围老街走进永和小馆，店里仍按平常的节奏营业。',
       access: 'open',
     },
@@ -1979,6 +1982,13 @@ const yongheEateryBlueprint: MainlineSceneBlueprint = {
     'yonghe-back-door': '后门暂未开启，当前权限不足。',
     'yonghe-outdoor-table-1': '小桌摆在永和小馆门外，主通道仍然留着。',
     'yonghe-outdoor-table-2': '另一张门外小桌靠着旧店面，行人可以从侧边绕过。',
+  },
+  explorationText: {
+  // Preview proposal copy only; pending author review and not canon.
+    'yonghe-upper-left-group-table': ['店里的桌椅摆得紧凑，但桌与桌之间仍留着通行的空隙。'],
+    'yonghe-counter': ['柜台与灶台靠在一起，里面的工作区域没有向外延伸。'],
+    'yonghe-survey-central-lane': ['通道足够让人走过。桌椅虽然靠得近，却没有完全挡住去路。'],
+    'yonghe-back-door': ['后门目前无法通行。仅凭眼前的情况，还看不出门后通向哪里。'],
   },
 }
 
