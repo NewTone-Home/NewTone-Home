@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createTwoSeatFurniture } from '../src/center/runtime/twoSeatFurniture'
+import { createTwoSeatFurniture, sharedTextFootprint } from '../src/center/runtime/twoSeatFurniture'
 import { mainlineSceneBlueprints } from '../src/center/runtime/mainlineSceneModel'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
@@ -94,6 +94,44 @@ describe('Yonghe mining perimeter layout', () => {
     expect(findMainlinePath(start, layout.entry.customerCentralLane, eatery, {}, options)).not.toBeNull()
   })
 
+  it('moves the lower Yonghe dining group as one footprint while preserving IDs and usable separation', () => {
+    const floorEntities = mainlineSceneBlueprints['yonghe-eatery'].scene.floorEntities
+    const boundsForGroup = (groupId: string) => {
+      const members = floorEntities.filter((entity) => entity.groupId === groupId)
+      const boxes = members.flatMap((entity) => [
+        ...(entity.collision ? [entity.collision] : []),
+        ...(entity.seat ? [entity.seat.rest, entity.seat.pulled, entity.seat.sit].map((position) => sharedTextFootprint(position)) : []),
+      ])
+      return {
+        x: Math.min(...boxes.map((box) => box.x)),
+        y: Math.min(...boxes.map((box) => box.y)),
+        width: Math.max(...boxes.map((box) => box.x + box.width)) - Math.min(...boxes.map((box) => box.x)),
+        height: Math.max(...boxes.map((box) => box.y + box.height)) - Math.min(...boxes.map((box) => box.y)),
+      }
+    }
+    const upper = boundsForGroup('yonghe-upper-left-group')
+    const lower = boundsForGroup('yonghe-lower-right-group')
+    const lowerEntities = floorEntities.filter((entity) => entity.groupId === 'yonghe-lower-right-group')
+    const lowerTable = lowerEntities.find((entity) => entity.id === 'yonghe-lower-right-group-table')!
+    const lowerSeats = lowerEntities.filter((entity) => entity.kind === 'seat')
+
+    expect(lowerEntities.map((entity) => entity.id)).toEqual([
+      'yonghe-lower-right-group-table',
+      'yonghe-lower-right-group-chair-top',
+      'yonghe-lower-right-group-chair-bottom',
+    ])
+    expect(lowerTable.position).toEqual({ x: 33, y: 42 })
+    expect(lowerTable.approach).toEqual({ x: 36.5, y: 42 })
+    expect(lowerSeats.map((seat) => seat.approach)).toEqual([{ x: 33, y: 37.8 }, { x: 33, y: 46.2 }])
+    expect(lowerSeats.map((seat) => [seat.seat?.rest.y, seat.seat?.pulled.y, seat.seat?.sit.y])).toEqual([
+      [38.8, 37.8, 37.8],
+      [45.2, 46.2, 46.2],
+    ])
+    expect(overlaps(upper, lower)).toBe(false)
+    expect(lower.y).toBeCloseTo(36.65)
+    expect(lower.y + lower.height).toBeCloseTo(47.35)
+    expect(layout.entry.roomBounds.y + layout.entry.roomBounds.height - (lower.y + lower.height)).toBeCloseTo(1.65)
+  })
   it('leaves a clear collision corridor around the street-side door landing', () => {
     const corridor = layout.entry.approachClearance
 

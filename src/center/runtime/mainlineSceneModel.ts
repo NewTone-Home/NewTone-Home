@@ -1781,7 +1781,7 @@ const yongheFacadeAirWalls: readonly MainlineAirWall[] = yongheMiningPerimeterLa
 
 const yongheDiningFurniture = [
   mainlineTwoSeatFurniture('yonghe-upper-left-group', { x: 30.5, y: 29.5 }, { x: 35.5, y: 29.5 }, {}, { seatGap: 3.2, pulledSeatGap: 4.2, sitSeatGap: 4.2, tableWidth: 3.45, tableLabel: '桌　子' }),
-  mainlineTwoSeatFurniture('yonghe-lower-right-group', { x: 33, y: 43 }, { x: 36.5, y: 43 }, {}, { seatGap: 3.2, pulledSeatGap: 4.2, sitSeatGap: 4.2, tableWidth: 3.45, tableLabel: '桌　子' }),
+  mainlineTwoSeatFurniture('yonghe-lower-right-group', { x: 33, y: 42 }, { x: 36.5, y: 42 }, {}, { seatGap: 3.2, pulledSeatGap: 4.2, sitSeatGap: 4.2, tableWidth: 3.45, tableLabel: '桌　子' }),
 ]
 
 const yongheCounterTextPositions = Array.from({ length: 9 }, (_, index) => ({
