@@ -27,6 +27,7 @@ import { storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDi
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
+import { mainlineDisplayRegionContains, mainlineDisplayRegionShowsGeometry } from './sceneDisplayRegion'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -36,6 +37,7 @@ type MainlineSceneRendererProps = {
   layoutMode: boolean
   layout: SceneLayout
   activeObjectId: string | null
+  activeDisplayRegionId?: string | null
   doorPhases?: ReadonlyMap<string, SceneDoorRuntimePhase>
   sceneFrameExit?: { phase: 'idle' | 'retracting'; passageEntityId?: string; scope?: 'passage' | 'scene'; requestedGroups?: readonly string[] }
   storefrontPresentation?: ReadonlyMap<string, StorefrontPresentationPhase>
@@ -686,6 +688,7 @@ export function MainlineSceneRenderer({
   layoutMode,
   layout,
   activeObjectId,
+  activeDisplayRegionId = null,
   doorPhases = new Map(),
   sceneFrameExit = { phase: 'idle' },
   storefrontPresentation = new Map(),
@@ -859,8 +862,14 @@ export function MainlineSceneRenderer({
   // stage from projecting visible cells with one size while navigation tests
   // collision against another.
   const renderScreenMetrics = geometrySnapshot.screenMetrics
-  const geometryUnits = geometrySnapshot.units
-  const switchableStorefronts = useMemo(() => scene.storefronts.filter(slot => slot.portalId && slot.characterSwitch), [scene.storefronts])
+  const activeDisplayRegion = scene.displayRegions.find(region => region.id === activeDisplayRegionId) ?? null
+  const geometryUnits = activeDisplayRegion
+    ? geometrySnapshot.units.filter(unit => mainlineDisplayRegionShowsGeometry(activeDisplayRegion, unit.ownerId))
+    : geometrySnapshot.units
+  const switchableStorefronts = useMemo(() => scene.storefronts.filter(slot => (
+    slot.portalId && slot.characterSwitch
+    && (!activeDisplayRegion || mainlineDisplayRegionContains(activeDisplayRegion, mainlineStorefrontAnchor(scene, slot)))
+  )), [activeDisplayRegion, scene, scene.storefronts])
   // Keep the three glyph anchors tied to the storefront's real near geometry
   // for the full presentation lifecycle. The render snapshot intentionally
   // swaps visual projections as the player approaches; deriving these cells
@@ -1269,7 +1278,8 @@ export function MainlineSceneRenderer({
             })}
           </div>
 
-          {scene.objects.filter((entity) => entity.visible !== false && entity.kind !== 'door' && !wallFeatureEntityIds.has(entity.id)).map((entity) => {
+          {scene.objects.filter((entity) => entity.visible !== false && entity.kind !== 'door' && !wallFeatureEntityIds.has(entity.id)
+            && (!activeDisplayRegion || mainlineDisplayRegionContains(activeDisplayRegion, entity.position))).map((entity) => {
             const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
             const focusGroup = !layoutMode && entity.focusFrame === 'interactive' ? `interactive:${entity.id}` : undefined
             const underPlayer = entity.visualProfile === 'tree-ring' && entity.interactive === false && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8
@@ -1310,6 +1320,7 @@ export function MainlineSceneRenderer({
             if (scene.ambientNpcRoutes.some((schedule) => schedule.npcId === npc.id)) return null
             if (hiddenNpcIds?.has(npc.id)) return null
             const npcPosition = npcPositions?.get(npc.id) ?? resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
+            if (activeDisplayRegion && !mainlineDisplayRegionContains(activeDisplayRegion, npcPosition)) return null
             const npcSnapshot = npcRuntimeSnapshots?.get(npc.id)
             const npcSeatId = mainlineNpcStagedSeatId(scene, npc.id)
             return <MemoMainlineNpcActor

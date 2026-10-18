@@ -31,6 +31,7 @@ export const mainlineSceneWorldLayers: Record<MainlineSceneId, WorldLayer> = {
   'jijia-ancestral-interior': 'surface',
   'commercial-street': 'inner',
   'commercial-cafe': 'inner',
+  'commercial-milktea-interior': 'inner',
   'yonghe-mining-perimeter': 'inner',
   'yonghe-eatery': 'inner',
   'zhongshuyuan-passage': 'passage',

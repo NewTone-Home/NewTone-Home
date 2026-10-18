@@ -676,6 +676,8 @@
 .scene-mainline-wall-labels { inset: 0; z-index: 1; }
 .scene-mainline-wall { color: var(--soft); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); line-height: 1; }
 .scene-mainline-wall-door {
+  position: relative;
+  z-index: 6;
   display: inline-flex;
   align-items: center;
   justify-content: center;

@@ -39,6 +39,8 @@ import { localSlideDirectionForCrossing, shouldUseLocalSlideForPassage, type Mai
 import { createCommercialStreetStorefrontExecutionRuntime, createCommercialStreetStorefrontInteractionRuntime, commercialStreetStorefrontInteractionFor, executeCommercialStreetStorefrontInteraction, type CommercialStreetStorefrontAction } from './commercialStreetStorefrontInteractions'
 import { commercialStreetQuestionNarrativeAnchor, commercialStreetQuestionNarrativeCompleted, commercialStreetQuestionNarrativeCompletedKey, commercialStreetQuestionNarrativeLines, commercialStreetQuestionNarrativeShouldTrigger, nextCommercialStreetQuestionNarrative, type CommercialStreetQuestionNarrativeState } from './commercialStreetQuestionNarrative'
 import { commercialStreetMilkTeaConsumePatch, commercialStreetMilkTeaAppUnlockPatch, commercialStreetMilkTeaAppUnlocked, commercialStreetMilkTeaHeld, commercialStreetMilkTeaIsReady, commercialStreetMilkTeaOrderFromSceneState, commercialStreetMilkTeaPickupPatch, commercialStreetMilkTeaStorefrontId, formatCommercialStreetMilkTeaOrderNumber, type CommercialStreetMilkTeaOrder } from './commercialStreetMilkTea'
+import { mainlineDisplayRegionContains, resolveMainlineDisplayRegion, resolveMainlineDisplayTransition } from './sceneDisplayRegion'
+import { commercialStreetMilkTeaClerkContactId, commercialStreetMilkTeaClerkId, commercialStreetMilkTeaCopy, commercialStreetMilkTeaContinuousLayout, commercialStreetMilkTeaInteriorId, commercialStreetMilkTeaPickupId, commercialStreetMilkTeaQrId, commercialStreetMilkTeaTutorialPatch, commercialStreetMilkTeaTutorialSeen } from './commercialStreetMilkTeaInterior'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
@@ -70,6 +72,9 @@ const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : us
 const getDebugInputSnapshot = () => typeof window === 'undefined' ? '' : window.location.search
 const getServerDebugInputSnapshot = () => ''
 const cachedMainlineLayouts = new Map<string, { href: string; layout: SceneLayout }>()
+function isMilkTeaRuntimeScene(sceneId: MainlineSceneId) {
+  return sceneId === 'commercial-street' || sceneId === commercialStreetMilkTeaInteriorId
+}
 
 function getMainlineLayoutSnapshot(sceneId: string) {
   if (typeof window === 'undefined') return emptyLayoutSnapshot
@@ -95,6 +100,89 @@ function initialPositionForEntry(scene: MainlineSceneDefinition, sceneId: Mainli
 
 function samePoint(first: Point, second: Point) {
   return Math.abs(first.x - second.x) < .001 && Math.abs(first.y - second.y) < .001
+}
+
+function localizedMilkTeaScene(scene: MainlineSceneDefinition, language?: string): MainlineSceneDefinition {
+  const copy = commercialStreetMilkTeaCopy(language)
+  if (scene.id === 'commercial-street') {
+    const labelById: Record<string, string> = {
+      [commercialStreetMilkTeaClerkContactId]: copy.clerk,
+      [commercialStreetMilkTeaQrId]: copy.qr,
+      'milk-tea-shop-menu': copy.menu,
+      'milk-tea-kitchen-label': language?.toLowerCase().startsWith('en') ? 'Kitchen' : '厨房',
+      'milk-tea-warehouse-label': language?.toLowerCase().startsWith('en') ? 'Stock' : '仓库',
+      'milk-tea-pickup-1': copy.counter,
+      'milk-tea-pickup-3': copy.counter,
+      'milk-tea-pickup-4': copy.counter,
+      'street-milktea-threshold': copy.door,
+    }
+    return {
+      ...scene,
+      storefronts: scene.storefronts.map((storefront) => storefront.id === 'commercial-south-slot-5' ? { ...storefront, label: language?.toLowerCase().startsWith('en') ? 'Milk Tea' : copy.areaLabel } : storefront),
+      areaLabel: scene.areaLabel,
+      objects: scene.objects.map((entity) => labelById[entity.id] ? { ...entity, label: labelById[entity.id], displayLabel: labelById[entity.id] } : entity),
+      npcs: scene.npcs.map((npc) => npc.id === commercialStreetMilkTeaClerkId ? { ...npc, label: copy.clerk } : npc),
+      geometry: scene.geometry.map((unit) => ({
+        ...unit,
+        visual: {
+          ...unit.visual,
+          cells: unit.visual.cells.map((cell) => cell.storefrontId === 'commercial-south-slot-5'
+            ? { ...cell, label: language?.toLowerCase().startsWith('en') ? 'Milk Tea' : copy.areaLabel, displayLabel: language?.toLowerCase().startsWith('en') ? 'Milk Tea' : copy.areaLabel }
+            : labelById[cell.entityId ?? ''] ? { ...cell, label: labelById[cell.entityId ?? ''], displayLabel: labelById[cell.entityId ?? ''] } : cell),
+        },
+      })),
+    }
+  }
+  if (scene.id !== commercialStreetMilkTeaInteriorId) return scene
+  const labelById: Record<string, string> = {
+    [commercialStreetMilkTeaClerkContactId]: copy.clerk,
+    [commercialStreetMilkTeaQrId]: copy.qr,
+    'milk-tea-shop-menu': copy.menu,
+    'milk-tea-shop-window-plant': copy.plant,
+    'milk-tea-counter-3': copy.counter,
+    'milk-tea-counter-4': copy.counter,
+    'milk-tea-counter-1': copy.counter,
+    'milk-tea-left-table-table': copy.table,
+    'milk-tea-left-table-chair-top': copy.chair,
+    'milk-tea-left-table-chair-bottom': copy.chair,
+    'milk-tea-right-table-table': copy.table,
+    'milk-tea-right-table-chair-top': copy.chair,
+    'milk-tea-right-table-chair-bottom': copy.chair,
+    'milktea-street-exit': copy.door,
+  }
+  return {
+    ...scene,
+    title: copy.title,
+    subtitle: copy.subtitle,
+    statusLabel: copy.statusLabel,
+    hint: copy.hint,
+    areaLabel: copy.areaLabel,
+    objects: scene.objects.map((entity) => labelById[entity.id] ? { ...entity, label: labelById[entity.id], displayLabel: labelById[entity.id] } : entity),
+    npcs: scene.npcs.map((npc) => npc.id === commercialStreetMilkTeaClerkId ? { ...npc, label: copy.clerk } : npc),
+    portals: scene.portals.map((portal) => portal.id === 'milktea-street-exit'
+      ? { ...portal, entity: { ...portal.entity, label: copy.door, displayLabel: copy.door } }
+      : portal),
+    geometry: scene.geometry.map((unit) => ({
+      ...unit,
+      visual: {
+        ...unit.visual,
+        cells: unit.visual.cells.map((cell) => cell.entityId === 'milktea-street-exit'
+          ? { ...cell, label: copy.door, displayLabel: copy.door }
+          : cell),
+      },
+    })),
+    interactionText: {
+      ...scene.interactionText,
+      [commercialStreetMilkTeaQrId]: copy.qrPrompt,
+      'milk-tea-shop-menu': copy.menu,
+      'milk-tea-shop-window-plant': copy.plantText,
+      [commercialStreetMilkTeaClerkContactId]: copy.clerkAgain,
+      [`${commercialStreetMilkTeaPickupId}-1`]: copy.noOrder,
+      [`${commercialStreetMilkTeaPickupId}-3`]: copy.noOrder,
+      [`${commercialStreetMilkTeaPickupId}-4`]: copy.noOrder,
+      'milktea-street-exit': copy.door,
+    },
+  }
 }
 
 /** DEV/e2e-only, non-persistent spawn for real browser movement probes. */
@@ -218,6 +306,8 @@ export function MainlineScenePage({
   onPlayerSceneStatePatch,
   carriedMilkTea = false,
   carriedPhoneDevice = 'surface',
+  milkTeaSceneState = {},
+  language = 'zh',
   onSceneTransition,
   onSafeSpawnCorrection,
   entryPosition,
@@ -258,13 +348,21 @@ export function MainlineScenePage({
   onPlayerSceneStatePatch?: (sceneId: MainlineSceneId, patch: PlayerSceneState) => void
   carriedMilkTea?: boolean
   carriedPhoneDevice?: PhoneDevice
+  milkTeaSceneState?: PlayerSceneState
+  language?: string
   onSceneTransition: (sceneId: MainlineSceneId, entryPosition?: Point, spawnMode?: 'resume' | 'ride', transitionIntent?: MainlineWalkingPassageTransitionIntent) => void
   onSafeSpawnCorrection?: (position: Point) => void
   entryPosition?: Point
   spawnMode?: 'resume' | 'ride'
   resumePosition?: Point
 }) {
-  const sceneDefinition: MainlineSceneDefinition = mainlineScenes[sceneId]
+  const sceneDefinition = useMemo(() => localizedMilkTeaScene(mainlineScenes[sceneId], language), [language, sceneId])
+  const milkTeaInteriorOrder = commercialStreetMilkTeaOrderFromSceneState(milkTeaSceneState)
+  const milkTeaInteriorOrderStatus = carriedMilkTea || commercialStreetMilkTeaHeld(milkTeaSceneState)
+    ? 'held'
+    : milkTeaInteriorOrder
+      ? commercialStreetMilkTeaIsReady(milkTeaInteriorOrder) ? 'ready' : 'making'
+      : 'none'
   // Entry resolution returns a point value. Stabilize that value across ordinary
   // scene re-renders so actor-footprint registration is an occupancy lifecycle,
   // not a fresh register/remove cycle whenever presentation state changes.
@@ -272,6 +370,13 @@ export function MainlineScenePage({
     () => initialPositionForEntry(sceneDefinition, sceneId, entryPosition, spawnMode, resumePosition),
     [entryPosition?.x, entryPosition?.y, resumePosition?.x, resumePosition?.y, sceneDefinition, sceneId, spawnMode],
   )
+  const [activeDisplayRegionId, setActiveDisplayRegionId] = useState<string | null>(() => (
+    resolveMainlineDisplayRegion(sceneDefinition.displayRegions, initialPosition)?.id ?? null
+  ))
+  useEffect(() => {
+    setActiveDisplayRegionId(resolveMainlineDisplayRegion(sceneDefinition.displayRegions, initialPosition)?.id ?? null)
+  }, [initialPosition, sceneDefinition.displayRegions, sceneId])
+  const activeDisplayRegion = sceneDefinition.displayRegions.find(region => region.id === activeDisplayRegionId) ?? null
   const cafeSceneEntryRef = useRef({ sceneId, enteredAt: Date.now() })
   const laoZhouWalkoutActiveRef = useRef(false)
   const [laoZhouSeatReleased, setLaoZhouSeatReleased] = useState(false)
@@ -313,6 +418,8 @@ export function MainlineScenePage({
   const continuePendingTraversalRef = useRef<(entityId: string) => void>(() => {})
   const pendingInteractionAfterTraversalRef = useRef<string | null>(null)
   const resumeInteractionRef = useRef<(entityId: string) => void>(() => {})
+  const milkTeaInteriorActionRef = useRef<(entityId: string) => void>(() => {})
+  const milkTeaOpenPhoneAfterEchoRef = useRef(false)
   const [screenMetrics, setScreenMetrics] = useState<SceneScreenMetrics>(defaultSceneScreenMetrics)
   const sceneReadyRef = useRef(false)
   const handleScreenMetricsChange = useCallback((next: SceneScreenMetrics) => {
@@ -511,7 +618,10 @@ export function MainlineScenePage({
     const nextAction = pendingSceneActionRef.current
     pendingSceneActionRef.current = null
     if (nextAction) setSceneAction(nextAction)
-  }, [])
+    if (milkTeaOpenPhoneAfterEchoRef.current) {
+      milkTeaOpenPhoneAfterEchoRef.current = false
+    }
+  }, [onMilkTeaAppOpen])
   useIsomorphicLayoutEffect(() => {
     sceneEchoRef.current = sceneEcho
   }, [sceneEcho])
@@ -572,7 +682,7 @@ export function MainlineScenePage({
   useEffect(() => {
     if (!phoneOpen) return
     if (readingActive) {
-      onPhoneDismiss?.()
+      if (!milkTeaOpenPhoneAfterEchoRef.current) onPhoneDismiss?.()
       return
     }
     dismissSceneEcho()
@@ -580,7 +690,11 @@ export function MainlineScenePage({
   }, [dismissSceneAction, dismissSceneEcho, onPhoneDismiss, phoneOpen, readingActive])
   const internalMovement = useFreeRoamMovement(initialPosition)
   const { position, moving, moveAlong: rawMoveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
-  const cameraOffset = useMainlineCamera(scene, position, embedded)
+  useEffect(() => {
+    const resolved = resolveMainlineDisplayRegion(sceneDefinition.displayRegions, position, activeDisplayRegionId)
+    if (resolved && resolved.id !== activeDisplayRegionId) setActiveDisplayRegionId(resolved.id)
+  }, [activeDisplayRegionId, position.x, position.y, sceneDefinition.displayRegions])
+  const cameraOffset = useMainlineCamera(scene, position, embedded, activeDisplayRegion?.cameraAnchor)
   const storefrontPresentation = useStorefrontPresentation(scene, position)
   const reportedCafeRevealRef = useRef(false)
   const cafeStorefrontPhase = scene.id === 'commercial-street'
@@ -1262,6 +1376,13 @@ export function MainlineScenePage({
       const current = pendingTraversalRef.current
       if (!current || current.passage.entityId !== entityId) return
       onDoorEvent?.('crossed', current.passage)
+      const displayTransition = resolveMainlineDisplayTransition(
+        scene.displayRegions,
+        activeDisplayRegionId ?? '',
+        current.passage.id,
+        { crossed: true },
+      )
+      if (displayTransition) setActiveDisplayRegionId(displayTransition.id)
       const nextPassage = current.passageQueue[current.passageIndex + 1]
       if (nextPassage) {
         const nextPath = findMainlinePathThroughPassage(scene, nextPassage.id, getCurrentPosition(), layout, openNavigationOptions).path
@@ -1321,7 +1442,7 @@ export function MainlineScenePage({
         setActiveObjectId(null)
       },
     })
-  }, [beginPassageLeg, commercialCafeStory, getCurrentPosition, getOpenPassageIds, isPassageActorActive, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, protagonistFootprint, recordCafeAnalyticsMilestone, recordSceneStatePatch, scene])
+  }, [activeDisplayRegionId, beginPassageLeg, commercialCafeStory, getCurrentPosition, getOpenPassageIds, isPassageActorActive, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, protagonistFootprint, recordCafeAnalyticsMilestone, recordSceneStatePatch, scene])
 
   continuePendingTraversalRef.current = continuePendingTraversal
 
@@ -1720,6 +1841,14 @@ export function MainlineScenePage({
       interactionStartedAtRef.current = null
       onObjectInteraction?.(entity, Math.max(0, Date.now() - (interactionStartedAt ?? Date.now())))
       onInteractionAnalytics?.('completed', entity.id, entity.kind, 'interacted')
+    if (isMilkTeaRuntimeScene(scene.id) && [
+        'milk-tea-clerk', 'milk-tea-qr', 'milk-tea-pickup',
+      ].includes(entity.interactionBehavior ?? '')) {
+        milkTeaInteriorActionRef.current(entity.id)
+        markEntityExplored(entity.id)
+        completeShortInteraction(entity.id)
+        return
+      }
       const exploration = resolveMainlineSceneExploration(scene, entity, {
         incensePhase,
         plantWatered: entity.id === 'zhongshuyuan-office-plant'
@@ -1800,16 +1929,70 @@ export function MainlineScenePage({
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
-  const showMilkTeaEcho = useCallback((text: string, options?: readonly string[]) => {
+  const showMilkTeaEcho = useCallback((text: string, options?: readonly string[], entityId = commercialStreetMilkTeaStorefrontId) => {
     sceneEchoIdRef.current += 1
     presentSceneEcho(createMainlineSceneEcho(
       sceneEchoIdRef.current,
-      commercialStreetMilkTeaStorefrontId,
+      entityId,
       text,
       sceneTextPresentationPosition(scene, getCurrentPosition(), text, screenMetrics),
       options,
     ))
   }, [getCurrentPosition, presentSceneEcho, scene, screenMetrics])
+
+  const handleMilkTeaInteriorInteraction = useCallback((entityId: string) => {
+    if (!isMilkTeaRuntimeScene(scene.id)) return
+    const copy = commercialStreetMilkTeaCopy(language)
+    const unlockApp = () => {
+      if (!commercialStreetMilkTeaAppUnlocked(milkTeaSceneState)) {
+        recordSceneStatePatch('commercial-street', commercialStreetMilkTeaAppUnlockPatch())
+        onChapterAnalytics?.('milk_tea_app_unlocked')
+      }
+    }
+    if (entityId === commercialStreetMilkTeaClerkId || entityId === commercialStreetMilkTeaClerkContactId) {
+      if (commercialStreetMilkTeaTutorialSeen(milkTeaSceneState)) {
+        showMilkTeaEcho(copy.clerkAgain, undefined, entityId)
+        return
+      }
+      recordSceneStatePatch('commercial-street', commercialStreetMilkTeaTutorialPatch())
+      unlockApp()
+      onChapterAnalytics?.('milk_tea_tutorial_seen')
+      milkTeaOpenPhoneAfterEchoRef.current = true
+      showMilkTeaEcho(copy.tutorial, undefined, entityId)
+      onMilkTeaAppOpen?.()
+      return
+    }
+    if (entityId === commercialStreetMilkTeaQrId) {
+      if (carriedMilkTea || commercialStreetMilkTeaHeld(milkTeaSceneState)) {
+        showMilkTeaEcho(copy.alreadyHolding, undefined, entityId)
+        return
+      }
+      unlockApp()
+      milkTeaOpenPhoneAfterEchoRef.current = true
+      showMilkTeaEcho(copy.qrPrompt, undefined, entityId)
+      onMilkTeaAppOpen?.()
+      return
+    }
+    if (!entityId.startsWith(commercialStreetMilkTeaPickupId)) return
+    if (carriedMilkTea || commercialStreetMilkTeaHeld(milkTeaSceneState)) {
+      showMilkTeaEcho(copy.alreadyHolding, undefined, entityId)
+      return
+    }
+    const order = commercialStreetMilkTeaOrderFromSceneState(milkTeaSceneState)
+    if (!order) {
+      showMilkTeaEcho(copy.noOrder, undefined, entityId)
+      return
+    }
+    if (!commercialStreetMilkTeaIsReady(order)) {
+      showMilkTeaEcho(copy.making, undefined, entityId)
+      return
+    }
+    onMilkTeaOrderReady?.(order)
+    recordSceneStatePatch('commercial-street', commercialStreetMilkTeaPickupPatch())
+    onChapterAnalytics?.('milk_tea_order_picked_up', { orderNumber: order.number })
+    showMilkTeaEcho(copy.pickedUp, undefined, entityId)
+  }, [carriedMilkTea, language, milkTeaSceneState, onChapterAnalytics, onMilkTeaAppOpen, onMilkTeaOrderReady, recordSceneStatePatch, scene.id, showMilkTeaEcho])
+  milkTeaInteriorActionRef.current = handleMilkTeaInteriorInteraction
 
   const showHeldMilkTeaAction = useCallback(() => {
     if (readingActive) return
@@ -1819,28 +2002,9 @@ export function MainlineScenePage({
   }, [dismissSceneAction, getCurrentPosition, onPhoneDismiss, phoneOpen, readingActive, scene, screenMetrics])
 
   const beginMilkTeaStorefrontAction = useCallback(() => {
-    const currentOrder = commercialStreetMilkTeaOrderFromSceneState(initialSceneState)
-    if (carriedMilkTea || commercialStreetMilkTeaHeld(initialSceneState)) {
-      showHeldMilkTeaAction()
-      return
-    }
-    if (currentOrder) {
-      if (commercialStreetMilkTeaIsReady(currentOrder)) {
-        onMilkTeaOrderReady?.(currentOrder)
-        recordSceneStatePatch('commercial-street', commercialStreetMilkTeaPickupPatch())
-        onChapterAnalytics?.('milk_tea_order_picked_up', { orderNumber: currentOrder.number })
-        showMilkTeaEcho('取到奶茶。')
-        return
-      }
-      onMilkTeaAppOpen?.()
-      return
-    }
-    if (!commercialStreetMilkTeaAppUnlocked(initialSceneState)) {
-      recordSceneStatePatch('commercial-street', commercialStreetMilkTeaAppUnlockPatch())
-      onChapterAnalytics?.('milk_tea_app_unlocked')
-    }
-    onMilkTeaAppOpen?.()
-  }, [carriedMilkTea, initialSceneState, onChapterAnalytics, onMilkTeaAppOpen, onMilkTeaOrderReady, recordSceneStatePatch, showHeldMilkTeaAction, showMilkTeaEcho])
+    if (scene.id !== 'commercial-street') return
+    interact('street-milktea-entry')
+  }, [interact, scene.id])
 
   const interactStorefront = useCallback((storefrontId: string) => {
     if (readingActive || sceneAction?.phase === 'committing') return
@@ -1977,6 +2141,11 @@ export function MainlineScenePage({
     const completeInteraction = () => {
       if (npcInteractionRequestRef.current !== requestId) return
       onNpcInteraction?.(npc.id)
+      if (isMilkTeaRuntimeScene(scene.id) && npc.id === commercialStreetMilkTeaClerkId) {
+        milkTeaInteriorActionRef.current(npc.id)
+        onInteractionAnalytics?.('completed', npc.id, 'npc', 'interacted')
+        return
+      }
       const resolution = resolveCommercialCafeNpcInteraction({
         sceneId: scene.id,
         npcId: npc.id,
@@ -2282,13 +2451,15 @@ export function MainlineScenePage({
       movementOptions={locomotionOptions}
       protagonistPosition={position}
       onRuntimeChange={handleAmbientNpcRuntimeChange}
-      renderActor={(npcPosition, snapshot) => <MainlineAmbientNpcActor
-        npc={npc}
-        position={npcPosition}
-        snapshot={snapshot}
-        screenMetrics={screenMetrics}
-        debugRuntimeEvidence={debugRuntimeEvidence}
-      />}
+      renderActor={(npcPosition, snapshot) => activeDisplayRegion && !mainlineDisplayRegionContains(activeDisplayRegion, npcPosition)
+        ? null
+        : <MainlineAmbientNpcActor
+          npc={npc}
+          position={npcPosition}
+          snapshot={snapshot}
+          screenMetrics={screenMetrics}
+          debugRuntimeEvidence={debugRuntimeEvidence}
+        />}
     />
   })
 
@@ -2298,6 +2469,8 @@ export function MainlineScenePage({
       {...sceneInteractionHandlers}
       className={`scene-shell mainline-scene ${embedded ? 'mainline-scene--embedded' : ''} ${!showSceneChrome ? 'mainline-scene--map-only' : ''}`}
       data-mainline-scene={scene.id}
+      data-milk-tea-tutorial-seen={isMilkTeaRuntimeScene(scene.id) ? String(commercialStreetMilkTeaTutorialSeen(milkTeaSceneState)) : undefined}
+      data-milk-tea-order-status={isMilkTeaRuntimeScene(scene.id) ? milkTeaInteriorOrderStatus : undefined}
       data-commercial-cafe-status={scene.id === 'commercial-cafe' ? commercialCafeStory.status : undefined}
       data-commercial-cafe-cursor={scene.id === 'commercial-cafe' ? commercialCafeStory.narrativeCursor : undefined}
       data-commercial-cafe-coffee-status={scene.id === 'commercial-cafe' ? commercialCafeStory.coffeeStatus : undefined}
@@ -2352,6 +2525,7 @@ export function MainlineScenePage({
               layoutMode={layoutMode}
               layout={layout}
               activeObjectId={activeObjectId}
+              activeDisplayRegionId={activeDisplayRegionId}
               doorPhases={doorPhases}
               sceneFrameExit={sceneFrameExit}
               storefrontPresentation={storefrontPresentation.phaseByStorefront}

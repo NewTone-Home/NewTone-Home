@@ -2,6 +2,7 @@ import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeo
 import { mainlineSceneBlueprints } from './mainlineSceneModel'
 import { boundaryGridCellRange, boundaryGridStepsFromScreenSpacing, compileSharedFrame, defaultSceneScreenMetrics, sharedBoundaryScreenSpacingPx, type SceneScreenMetrics, type SharedBoundaryCell, type SharedBoundaryFrame, type SharedBoundaryOpening } from './sceneBoundaryGrid'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
+import type { MainlineSceneDisplayRegion } from './sceneDisplayRegion'
 import type { StorefrontPresentationPhase } from './storefrontPresentation'
 import type {
   MainlineFurnitureGroup,
@@ -39,6 +40,8 @@ import type {
   MainlineAltarBlueprint,
   MainlineContinuousStructure,
 } from './mainlineSceneModel'
+
+export type { MainlineSceneDisplayRegion } from './sceneDisplayRegion'
 
 export type {
   MainlineDoorBehavior,
@@ -213,6 +216,7 @@ export type MainlineSceneDefinition = {
   npcBehaviorTargets: readonly MainlineSceneNpcBehaviorTarget[]
   npcBehaviors: readonly MainlineSceneNpcBehavior[]
   furnitureGroups: readonly MainlineFurnitureGroup[]
+  displayRegions: readonly MainlineSceneDisplayRegion[]
   passages: readonly MainlineScenePassage[]
   initialPlayerPosition: Point
   rideArrivalPosition: Point
@@ -1075,6 +1079,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     npcBehaviorTargets: data.npcBehaviorTargets ?? [],
     npcBehaviors: data.npcBehaviors ?? [],
     furnitureGroups: data.furnitureGroups,
+    displayRegions: data.displayRegions ?? [],
     passages,
     initialPlayerPosition: data.initialPlayerPosition,
     rideArrivalPosition: data.rideArrivalPosition ?? data.initialPlayerPosition,
@@ -1380,6 +1385,7 @@ export const mainlineSceneSlices: Record<MainlineSceneId, MainlineSceneSliceDefi
   'jijia-ancestral-interior': { ...createMainlineSceneSlice(mainlineScenes['jijia-ancestral-interior']), id: 'jijia-ancestral-interior-slice' },
   'commercial-street': createMainlineSceneSlice(mainlineScenes['commercial-street']),
   'commercial-cafe': createMainlineSceneSlice(mainlineScenes['commercial-cafe']),
+  'commercial-milktea-interior': createMainlineSceneSlice(mainlineScenes['commercial-milktea-interior']),
   'yonghe-mining-perimeter': createMainlineSceneSlice(mainlineScenes['yonghe-mining-perimeter']),
   'yonghe-eatery': createMainlineSceneSlice(mainlineScenes['yonghe-eatery']),
   'zhongshuyuan-passage': createMainlineSceneSlice(mainlineScenes['zhongshuyuan-passage']),

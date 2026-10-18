@@ -5,6 +5,7 @@ import { type MainlineSceneId } from './mainlineScenes'
 import { getPhoneMapRegions, type PhoneMapZoomLevel } from './phoneMapModel'
 import { phoneInputOwner, phoneIsOnline, phoneRideAvailability, type PhoneDevice, type WorldLayer, type WorldPhonePhase } from './phoneState'
 import { commercialStreetMilkTeaQueueStatus, formatCommercialStreetMilkTeaOrderNumber, milkTeaDrinks, milkTeaIceOptions, milkTeaSugarOptions, type CommercialStreetMilkTeaOrder, type MilkTeaDrink, type MilkTeaIce, type MilkTeaSugar } from './commercialStreetMilkTea'
+import { commercialStreetMilkTeaCopy } from './commercialStreetMilkTeaInterior'
 
 import { type MainlineRideOrder, type MainlineRideVehicle, type MainlineRideRequestResult } from './mainlineRide'
 import { PhoneNotificationCapsule } from './PhoneNotificationCapsule'
@@ -68,6 +69,7 @@ type WorldPhoneProps = {
   milkTeaAppUnlocked?: boolean
   milkTeaOrder?: CommercialStreetMilkTeaOrder | null
   milkTeaHeld?: boolean
+  language?: string
   requestedApp?: 'milk-tea' | null
   onRequestedAppHandled?: () => void
   onMilkTeaOrderConfirm?: (selection: { drink: MilkTeaDrink; sugar: MilkTeaSugar; ice: MilkTeaIce }) => void
@@ -214,8 +216,9 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
+export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, language = 'zh', requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
   const currentLandmark = landmarkForScene(currentSceneId)
+  const milkTeaCopy = commercialStreetMilkTeaCopy(language)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
   const [phase, setPhase] = useState<WorldPhonePhase>('closed')
   const [leavingApp, setLeavingApp] = useState<PhoneApp | 'home' | null>(null)
@@ -567,7 +570,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
               <div key={activeApp} className={`world-phone__app-view ${leavingApp ? 'is-leaving' : ''}`} data-app-view={activeApp} style={{ transformOrigin: appOrigin }} onAnimationEnd={event => { if (event.target !== event.currentTarget || !leavingApp) return; if (leavingApp === 'home' && activeApp === 'feedback') onFeedbackModeChange?.(null); setActiveApp(leavingApp === 'home' ? null : leavingApp); setLeavingApp(null); setContactView('list') }}>
               <div className="world-phone__app-bar">
                 {activeApp === 'contacts' && contactView !== 'list' && <button className="world-phone__app-back" type="button" onClick={() => { if (contactView === 'call') finishCall(); else { setContactDirection(-1); setContactView(contactView === 'messages' ? 'detail' : 'list') } }} aria-label="返回联系人"><span aria-hidden="true">‹</span><small>联系人</small></button>}
-                <div><strong>{activeAppLabel}</strong></div>
+                <div><strong>{activeApp === 'milk-tea' ? milkTeaCopy.phoneHeading : activeAppLabel}</strong></div>
               </div>
               <div className="world-phone__app-content" tabIndex={0}>
             {activeApp === 'map' && (
@@ -581,27 +584,27 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
 
             {activeApp === 'ride' && <PhoneRideApp regions={mapRegions} device={displayDevice} currentLandmark={currentLandmark} currentSceneId={currentSceneId as MainlineSceneId} order={rideOrder} clock={rideClock} storyClock={storyClock} available={rideAvailability === 'available'} online={online} destinationId={selectedRideDestinationId} onDestination={setSelectedRideDestinationId} onConfirm={(sceneId,presentation) => onRideRequest?.(displayDevice, sceneId,presentation)} getPosition={getPlayerPosition} getRideMapSnapshot={getRideMapSnapshot} />}
 
-            {activeApp === 'milk-tea' && <section className="world-phone__list-page world-phone__milk-tea" aria-label="奶茶">
-              {milkTeaHeld ? <div className="world-phone__list-heading"><span>奶茶</span><strong>手里已有一杯饮料</strong><small>暂时不能再下单。</small></div>
+            {activeApp === 'milk-tea' && <section className="world-phone__list-page world-phone__milk-tea" aria-label={milkTeaCopy.phoneHeading}>
+              {milkTeaHeld ? <div className="world-phone__list-heading"><span>{milkTeaCopy.phoneHeading}</span><strong>{milkTeaCopy.phoneHeld}</strong><small>{milkTeaCopy.phoneCannotOrder}</small></div>
                 : milkTeaOrder ? (() => {
                   const queue = commercialStreetMilkTeaQueueStatus(milkTeaOrder, milkTeaClock)
                   return <div className="world-phone__list-heading" data-milk-tea-status={queue.phase}>
-                    <span>取餐号 {formatCommercialStreetMilkTeaOrderNumber(milkTeaOrder.number)}</span>
-                    <strong>{queue.phase === 'ready' ? '已完成' : '制作中'}</strong>
-                    <small>{queue.phase === 'ready' ? '请到商业街奶茶店取餐。' : `前方还有 ${queue.ahead} 单`}</small>
+                    <span>{milkTeaCopy.phonePickupNumber} {formatCommercialStreetMilkTeaOrderNumber(milkTeaOrder.number)}</span>
+                    <strong>{queue.phase === 'ready' ? milkTeaCopy.phoneReady : milkTeaCopy.phonePending}</strong>
+                    <small>{queue.phase === 'ready' ? milkTeaCopy.phoneReady : language.toLowerCase().startsWith('en') ? 'Ahead of you: ' + queue.ahead : '前面还有 ' + queue.ahead + ' 杯'}</small>
                   </div>
                 })() : <>
-                  <div className="world-phone__list-heading"><span>远程点单</span><strong>选择一杯奶茶</strong></div>
-                  <div className="world-phone__milk-tea-field" aria-label="饮料选择">{milkTeaDrinks.map((drink) => <button key={drink} type="button" aria-pressed={milkTeaDrink === drink} onClick={() => selectMilkTeaDrink(drink)}>{drink}</button>)}</div>
-                  {milkTeaDrink && <div className="world-phone__milk-tea-field" aria-label="甜度选择"><span>甜度</span>{milkTeaSugarOptions.map((sugar) => <button key={sugar} type="button" aria-pressed={milkTeaSugar === sugar} onClick={() => setMilkTeaSugar(sugar)}>{sugar}</button>)}</div>}
-                  {milkTeaDrink && <div className="world-phone__milk-tea-field" aria-label="冰量选择"><span>冰量</span>{milkTeaIceOptions.map((ice) => <button key={ice} type="button" aria-pressed={milkTeaIce === ice} onClick={() => setMilkTeaIce(ice)}>{ice}</button>)}</div>}
+                  <div className="world-phone__list-heading"><span>{milkTeaCopy.phoneHeading}</span><strong>{milkTeaCopy.phoneOrder}</strong></div>
+                  <div className="world-phone__milk-tea-field" aria-label={milkTeaCopy.phoneDrink}>{milkTeaDrinks.map((drink) => <button key={drink} type="button" aria-pressed={milkTeaDrink === drink} onClick={() => selectMilkTeaDrink(drink)}>{language.toLowerCase().startsWith('en') ? ['Classic Milk Tea', 'Brown Sugar Pearl Milk Tea', 'Taro Milk Tea', 'Jasmine Milk Tea'][milkTeaDrinks.indexOf(drink)] : drink}</button>)}</div>
+                  {milkTeaDrink && <div className="world-phone__milk-tea-field" aria-label={milkTeaCopy.phoneSugar}><span>{milkTeaCopy.phoneSugar}</span>{milkTeaSugarOptions.map((sugar, index) => <button key={sugar} type="button" aria-pressed={milkTeaSugar === sugar} onClick={() => setMilkTeaSugar(sugar)}>{language.toLowerCase().startsWith('en') ? ['Less sugar', 'Regular', 'Extra sugar'][index] : sugar}</button>)}</div>}
+                  {milkTeaDrink && <div className="world-phone__milk-tea-field" aria-label={milkTeaCopy.phoneIce}><span>{milkTeaCopy.phoneIce}</span>{milkTeaIceOptions.map((ice, index) => <button key={ice} type="button" aria-pressed={milkTeaIce === ice} onClick={() => setMilkTeaIce(ice)}>{language.toLowerCase().startsWith('en') ? ['Light ice', 'Regular ice', 'No ice'][index] : ice}</button>)}</div>}
                   <button className="world-phone__list-action" type="button" disabled={!milkTeaDrink || !milkTeaSugar || !milkTeaIce} onClick={() => {
                     if (!milkTeaDrink || !milkTeaSugar || !milkTeaIce) return
                     onMilkTeaOrderConfirm?.({ drink: milkTeaDrink, sugar: milkTeaSugar, ice: milkTeaIce })
                     setMilkTeaDrink(null)
                     setMilkTeaSugar(null)
                     setMilkTeaIce(null)
-                  }}>确认下单</button>
+                  }}>{milkTeaCopy.phonePlaceOrder}</button>
                 </>}
             </section>}
 

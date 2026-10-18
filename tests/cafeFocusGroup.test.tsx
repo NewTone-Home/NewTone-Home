@@ -8,7 +8,8 @@ describe('Café focus geometry and lifecycle', () => {
   for (const metrics of [{ width: 1280, height: 720 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
     it(`measures the canonical façade rather than its label at ${metrics.width}x${metrics.height}`, () => {
       const scene = mainlineScenes['commercial-street']
-      const cafe = scene.storefronts.find(slot => slot.portalId)!
+      // Milk tea now has its own portal, so select the Cafe passage explicitly.
+      const cafe = scene.storefronts.find(slot => slot.id === 'commercial-cafe-slot')!
       const units = mainlineSceneGeometryUnits(scene, scene.initialPlayerPosition, metrics, new Map([[cafe.id, 'baseline']]))
       const entries = units.filter(unit => unit.storefrontId === cafe.id && unit.variant === 'baseline')
         .flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell, focusGroup: 'cafe', focusPolicy: 'passage' as const })))

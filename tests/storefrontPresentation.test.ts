@@ -24,7 +24,7 @@ describe('commercial street storefront presentation', () => {
     expect(storefrontRestoreDelayMs(100, 3100)).toBe(0)
     expect(storefrontRestoreDelayMs(100, 4100)).toBe(0)
   })
-  it('keeps the approved 16-slot commercial street inventory while Café remains the only portal storefront', () => {
+  it('keeps the approved 16-slot inventory with dedicated milk-tea and Café portals', () => {
     const ordinaryStorefronts = street.storefronts.filter((storefront) => storefront.id !== 'commercial-cafe-slot')
 
     expect(ordinaryStorefronts.map(({ id, label }) => ({ id, label }))).toEqual([
@@ -52,7 +52,9 @@ describe('commercial street storefront presentation', () => {
       'commercial-south-slot-4',
       'commercial-south-slot-8',
     ])
-    expect(ordinaryStorefronts.every((storefront) => storefront.portalId === undefined)).toBe(true)
+    expect(ordinaryStorefronts.filter(storefront => storefront.id !== 'commercial-south-slot-5').every((storefront) => storefront.portalId === undefined)).toBe(true)
+    expect(ordinaryStorefronts.find(storefront => storefront.id === 'commercial-south-slot-5')).toMatchObject({ portalId: 'street-milktea-entry', characterSwitch: true })
+    expect(street.passages.find(passage => passage.id === 'street-milktea-entry')).toMatchObject({ entityId: 'street-milktea-entry', targetSceneId: 'commercial-milktea-interior' })
     expect(ordinaryStorefronts.find((storefront) => storefront.label === '奶茶店')?.id).toBe('commercial-south-slot-5')
     expect(ordinaryStorefronts.find((storefront) => storefront.label === '果茶店')?.id).toBe('commercial-north-slot-1')
     expect(ordinaryStorefronts.find((storefront) => storefront.label === '甜品店')?.id).toBe('commercial-north-slot-8')

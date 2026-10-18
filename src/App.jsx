@@ -210,6 +210,7 @@ function App({ contentStatus = 'ready', onRetryContent }) {
           entryPhase={worldEntryPhase}
           onSceneReady={handleWorldSceneReady}
           onRevealComplete={handleWorldRevealComplete}
+          language={language}
         />
       )}
       {landingMounted && (

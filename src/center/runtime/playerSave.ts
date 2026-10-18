@@ -1,4 +1,5 @@
 import type { MainlineSceneId } from './mainlineSceneModel'
+import { commercialStreetMilkTeaInteriorId, remapLegacyMilkTeaInteriorPosition } from './commercialStreetMilkTeaInterior'
 import { cleanPhoneNotifications, type PhoneNotification } from './phoneNotifications'
 import type { PhoneDevice } from './phoneState'
 import { createInitialMainlineStoryClock, storyClockForStage, type MainlineStoryClock, type MainlineStoryStage } from './mainlineStoryClock'
@@ -132,9 +133,34 @@ function readLegacyPlayerSave(storage: PlayerSaveStorage | null, fallbackSceneId
 
 export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineSceneId): PlayerSave {
   const source = value && typeof value === 'object' ? value as Partial<PlayerSave> : {}
-  const currentSceneId = typeof source.currentSceneId === 'string' && source.currentSceneId.length > 0
+  const sourceSceneId = typeof source.currentSceneId === 'string' && source.currentSceneId.length > 0
     ? source.currentSceneId as MainlineSceneId
     : fallbackSceneId
+  const rawCurrentPosition = cleanPoint(source.currentPosition)
+  const rawInteriorPosition = rawCurrentPosition ?? cleanScenePositions(source.scenePositions)[commercialStreetMilkTeaInteriorId] ?? null
+  // Saves from the retired, long-corridor preview used coordinates beyond the
+  // new room's 52-unit depth. Keep valid positions in the current room intact.
+  const wasLegacyMilkTeaInterior = sourceSceneId === commercialStreetMilkTeaInteriorId
+    && rawInteriorPosition !== null
+    && rawInteriorPosition.y > 59
+  const currentSceneId: MainlineSceneId = wasLegacyMilkTeaInterior ? 'commercial-street' : sourceSceneId
+  const cleanedPositions = cleanScenePositions(source.scenePositions)
+  const legacyInteriorPosition = wasLegacyMilkTeaInterior
+    ? cleanPoint(source.currentPosition) ?? cleanedPositions[commercialStreetMilkTeaInteriorId]
+    : null
+  const migratedInteriorPosition = wasLegacyMilkTeaInterior
+    ? remapLegacyMilkTeaInteriorPosition(legacyInteriorPosition)
+    : null
+  const scenePositions = wasLegacyMilkTeaInterior
+    ? { ...cleanedPositions, 'commercial-street': migratedInteriorPosition! }
+    : cleanedPositions
+  const cleanedSceneState = cleanSceneState(source.sceneState)
+  const sceneState = wasLegacyMilkTeaInterior
+    ? {
+      ...cleanedSceneState,
+      'commercial-street': { ...cleanedSceneState[commercialStreetMilkTeaInteriorId], ...cleanedSceneState['commercial-street'] },
+    }
+    : cleanedSceneState
   const phoneDevice = source.phoneDevice === 'inner' ? 'inner' : 'surface'
   const storyStage = source.storyClock?.stage
   const storyClock: MainlineStoryClock = storyStage === 'commercial-street' || storyStage === 'cafe' || storyStage === 'yonghe' || storyStage === 'opening'
@@ -144,11 +170,11 @@ export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineScen
   return {
     _version: PLAYER_SAVE_VERSION,
     currentSceneId,
-    currentPosition: cleanPoint(source.currentPosition),
-    scenePositions: cleanScenePositions(source.scenePositions),
+    currentPosition: migratedInteriorPosition ?? cleanPoint(source.currentPosition),
+    scenePositions,
     phoneDevice,
     storyClock,
-    sceneState: cleanSceneState(source.sceneState),
+    sceneState,
     phoneNotifications: cleanPhoneNotifications(source.phoneNotifications),
     phoneNotes: cleanPhoneNotes(source.phoneNotes),
     phoneContactNotes: cleanPhoneContactNotes(source.phoneContactNotes),
@@ -164,9 +190,17 @@ export function loadPlayerSave(
   applyPublicReleaseCutover(storage)
   try {
     const raw = storage?.getItem(PLAYER_SAVE_STORAGE_KEY)
-    return raw
-      ? sanitizePlayerSave(JSON.parse(raw), fallbackSceneId)
-      : readLegacyPlayerSave(storage, fallbackSceneId)
+    if (!raw) return readLegacyPlayerSave(storage, fallbackSceneId)
+    const parsed = JSON.parse(raw)
+    const cleaned = sanitizePlayerSave(parsed, fallbackSceneId)
+    // Persist only the explicit legacy interior migration. Ordinary reads stay
+    // read-only, while an old save cannot bounce back into the removed scene on
+    // the next refresh.
+    if (parsed && typeof parsed === 'object'
+      && sanitizePlayerSave(parsed, fallbackSceneId).currentSceneId !== (parsed as Partial<PlayerSave>).currentSceneId) {
+      storage?.setItem(PLAYER_SAVE_STORAGE_KEY, JSON.stringify(cleaned))
+    }
+    return cleaned
   } catch {
     return createInitialPlayerSave(fallbackSceneId)
   }

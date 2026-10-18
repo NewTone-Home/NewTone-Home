@@ -57,6 +57,7 @@ import {
   commercialStreetMilkTeaReadyAnalyticsWasReported,
   createCommercialStreetMilkTeaOrder,
 } from './runtime/commercialStreetMilkTea'
+import { commercialStreetMilkTeaCopy } from './runtime/commercialStreetMilkTeaInterior'
 
 const initialSceneId = mainlineRespawnSceneId
 function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
@@ -75,6 +76,7 @@ export default function CenterExperience({
   entryPhase = 'active',
   onSceneReady,
   onRevealComplete,
+  language = 'zh',
 }) {
   const reducedMotion = useReducedMotion()
   const [playerSave, setPlayerSave] = useState(() => loadPlayerSave())
@@ -248,9 +250,10 @@ export default function CenterExperience({
   const handleMilkTeaOrderReady = useCallback((order = commercialStreetMilkTeaOrderFromSceneState(playerSaveRef.current.sceneState['commercial-street'])) => {
     if (!order || !commercialStreetMilkTeaIsReady(order)) return false
     const marker = `${order.number}:${order.readyAt}`
-    notifyPhone({ id: `milk-tea:${marker}`, app: 'milk-tea', title: '奶茶已制作完成', body: '可以去奶茶店取餐了' })
     if (milkTeaReadyAnalyticsMarkerRef.current === marker
       || commercialStreetMilkTeaReadyAnalyticsWasReported(playerSaveRef.current.sceneState['commercial-street'], order)) return false
+    const milkTeaCopy = commercialStreetMilkTeaCopy(language)
+    notifyPhone({ id: `milk-tea:${marker}`, app: 'milk-tea', title: milkTeaCopy.phoneHeading, body: milkTeaCopy.phoneReady })
     milkTeaReadyAnalyticsMarkerRef.current = marker
     commitPlayerSave((current) => recordPlayerSceneStatePatch(
       current,
@@ -259,7 +262,7 @@ export default function CenterExperience({
     ))
     trackEvent('milk_tea_order_ready', { sceneId: route.sceneId, eventData: { orderNumber: order.number } })
     return true
-  }, [commitPlayerSave, notifyPhone, route.sceneId])
+  }, [commitPlayerSave, language, notifyPhone, route.sceneId])
 
   useEffect(() => {
     if (!milkTeaOrder) { milkTeaReadyAnalyticsMarkerRef.current = null; return }
@@ -606,6 +609,8 @@ export default function CenterExperience({
       onMilkTeaOrderReady={snapshot ? undefined : handleMilkTeaOrderReady}
       onChapterAnalytics={snapshot ? undefined : trackChapterEvent}
       initialSceneState={playerSave.sceneState[sceneRoute.sceneId] ?? {}}
+      milkTeaSceneState={playerSave.sceneState['commercial-street'] ?? {}}
+      language={language}
       carriedMilkTea={commercialStreetMilkTeaHeld(playerSave.sceneState['commercial-street'])}
       interactionTutorialCompleted={isInteractionTutorialCompleted(playerSave.sceneState['commercial-street'])}
       onPlayerSceneStateChange={snapshot ? undefined : recordSceneState}
@@ -691,6 +696,7 @@ export default function CenterExperience({
           milkTeaAppUnlocked={commercialStreetMilkTeaAppUnlocked(commercialStreetState)}
           milkTeaOrder={milkTeaOrder}
           milkTeaHeld={commercialStreetMilkTeaHeld(commercialStreetState)}
+          language={language}
           requestedApp={requestedPhoneApp}
           onRequestedAppHandled={() => setRequestedPhoneApp(null)}
           onMilkTeaOrderConfirm={confirmMilkTeaOrder}

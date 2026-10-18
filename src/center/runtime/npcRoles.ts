@@ -4,7 +4,7 @@ export type NpcDutyDefinition = {
 }
 
 export type NpcRoleDefinition = {
-  id: 'lao-zhou' | 'cafe-coffee-owner' | 'cafe-floor-server' | 'pedestrian'
+  id: 'lao-zhou' | 'cafe-coffee-owner' | 'cafe-floor-server' | 'milk-tea-clerk' | 'pedestrian'
   label: string
   duties: Readonly<Record<string, NpcDutyDefinition>>
 }
@@ -35,6 +35,13 @@ export const npcRoles = {
     label: '店员',
     duties: {
       tableService: { id: 'cafe-floor-server.table-service', kind: 'ambient' },
+    },
+  },
+  milkTeaClerk: {
+    id: 'milk-tea-clerk',
+    label: '店员',
+    duties: {
+      counterService: { id: 'milk-tea-clerk.counter-service', kind: 'ambient' },
     },
   },
   pedestrian: {
