@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="760" viewBox="0 0 960 760" role="img" aria-labelledby="title desc">
+  <title id="title">永和小馆紧凑街段与店内平面</title>
+  <desc id="desc">依当前预览代码逻辑坐标绘制：左侧后巷、一排八店、公共街道和右侧工业边界；右侧为永和小馆室内布局。示意图并非正式世界设定。</desc>
+  <defs><style>
+    text{font-family:'Microsoft YaHei',sans-serif;fill:#2d2a25}.title{font-size:24px;font-weight:700}.sub{font-size:13px;fill:#625a50}.label{font-size:13px;font-weight:600}.small{font-size:11px}.tiny{font-size:9px}.door{stroke:#a54d37;stroke-width:5}.route{stroke:#41686a;stroke-width:3;stroke-dasharray:8 6;fill:none}.table{fill:#cda879;stroke:#74583c;stroke-width:1.5}.chair{fill:#e5d4bb;stroke:#826b50;stroke-width:1}.counter{fill:#79573d;stroke:#533b2d;stroke-width:2}.staff{fill:#efe5d7}.room{fill:#f6f0e6;stroke:#685746;stroke-width:2}
+  </style></defs>
+  <rect width="960" height="760" fill="#f9f7f2"/>
+  <text x="42" y="45" class="title">永和小馆 · 紧凑街段预览图</text>
+  <text x="42" y="68" class="sub">隔离分支坐标示意；观察文案与位置仍为待验收提案，不是正式设定。</text>
+  <text x="48" y="105" class="label">街段纵向布局（逻辑坐标 68 × 141）</text>
+  <g transform="translate(85 125) scale(4.5)">
+    <rect x="0" y="0" width="10" height="141" fill="#d7d0c5" stroke="#766e63"/><rect x="10" y="0" width="28" height="141" fill="#d8c8b1" stroke="#766e63"/><rect x="38" y="0" width="14" height="141" fill="#d6d9d3" stroke="#766e63"/><rect x="52" y="0" width="16" height="141" fill="#9b9a92" stroke="#625f58"/>
+    <text transform="translate(6 70) rotate(-90)" text-anchor="middle" class="tiny">后侧窄巷</text><text transform="translate(45 70) rotate(-90)" text-anchor="middle" class="small">公共通道</text><text transform="translate(61 70) rotate(-90)" text-anchor="middle" class="tiny">工业边界</text>
+    <g fill="#e8dccb" stroke="#887663" stroke-width=".4"><rect x="10" y="6" width="28" height="14"/><rect x="10" y="21" width="28" height="28"/><rect x="10" y="50" width="28" height="14"/><rect x="10" y="65" width="28" height="14"/><rect x="10" y="80" width="28" height="14"/><rect x="10" y="95" width="28" height="14"/><rect x="10" y="110" width="28" height="14"/><rect x="10" y="125" width="28" height="14"/></g>
+    <g class="tiny" text-anchor="middle"><text x="24" y="14">旧店 1</text><text x="24" y="36">永和小馆</text><text x="24" y="59">药铺</text><text x="24" y="74">杂货</text><text x="24" y="89">小店</text><text x="24" y="104">熟食</text><text x="24" y="119">作坊</text><text x="24" y="134">旧店 8</text></g>
+    <g fill="#aa8060" stroke="#624a36" stroke-width=".45"><rect x="9.3" y="11.5" width="1.4" height="3"/><rect x="9.3" y="43.5" width="1.4" height="3"/><rect x="9.3" y="55.5" width="1.4" height="3"/><rect x="9.3" y="70.5" width="1.4" height="3"/><rect x="9.3" y="85.5" width="1.4" height="3"/><rect x="9.3" y="100.5" width="1.4" height="3"/><rect x="9.3" y="115.5" width="1.4" height="3"/><rect x="9.3" y="130.5" width="1.4" height="3"/></g>
+    <text x="8" y="42" class="tiny" text-anchor="middle">门</text><path d="M38 32 L38 38" class="door"/><text x="39.5" y="36" class="tiny">前门</text>
+    <g><rect x="41.4" y="24.9" width="3.2" height="3.2" rx=".35" class="table"/><rect x="41.4" y="41.9" width="3.2" height="3.2" rx=".35" class="table"/><circle cx="43" cy="23.4" r=".65" class="chair"/><circle cx="43" cy="29.6" r=".65" class="chair"/><circle cx="43" cy="40.4" r=".65" class="chair"/><circle cx="43" cy="46.6" r=".65" class="chair"/></g>
+    <path d="M47.8 25 L47.8 48" class="route"/><text x="47" y="53" class="tiny" text-anchor="end">留出行人通道</text>
+    <g fill="#8b8a83" stroke="#55534d" stroke-width=".35"><rect x="53" y="12" width="12" height="3"/><rect x="53" y="38" width="12" height="3"/><rect x="53" y="64" width="12" height="3"/><rect x="53" y="90" width="12" height="3"/><rect x="53" y="116" width="12" height="3"/></g>
+  </g>
+  <text x="520" y="105" class="label">永和小馆室内（28 × 28）</text><text x="520" y="124" class="sub">进店时前门在右墙；锁定后门在左墙下方。</text>
+  <g transform="translate(550 150) scale(9)">
+    <rect x="10" y="21" width="28" height="28" class="room"/><rect x="10.1" y="21.1" width="7.9" height="27.8" class="staff"/><path d="M38 30 L38 40" stroke="#f9f7f2" stroke-width="3"/><path d="M38 32 L38 38" class="door"/><path d="M10 41 L10 49" stroke="#f9f7f2" stroke-width="3"/><path d="M10 41 L10 49" stroke="#9b5341" stroke-width=".7" stroke-dasharray="1 1"/>
+    <text x="38.7" y="35.5" class="tiny">门</text><text x="9.5" y="46" class="tiny" text-anchor="end">门·锁</text><rect x="18" y="27" width="3.5" height="17" rx=".25" class="counter"/><text x="19.7" y="35.5" text-anchor="middle" transform="rotate(-90 19.7 35.5)" style="font-size:1.2px;fill:#f7e8d2">柜台</text>
+    <rect x="12" y="29" width="4" height="4" rx=".3" fill="#8c6747"/><text x="14" y="31.7" text-anchor="middle" style="font-size:1px;fill:white">灶</text><rect x="12" y="37" width="4" height="4" rx=".3" fill="#b69c78"/><text x="14" y="39.7" text-anchor="middle" style="font-size:1px">备菜</text>
+    <g class="table"><rect x="23.4" y="25.8" width="3.2" height="2.4"/><rect x="30.4" y="25.8" width="3.2" height="2.4"/><rect x="23.4" y="37.8" width="3.2" height="2.4"/><rect x="30.4" y="37.8" width="3.2" height="2.4"/></g>
+    <g class="chair"><circle cx="25" cy="22.5" r="1"/><circle cx="25" cy="31.5" r="1"/><circle cx="32" cy="22.5" r="1"/><circle cx="32" cy="31.5" r="1"/><circle cx="25" cy="34.5" r="1"/><circle cx="25" cy="43.5" r="1"/><circle cx="32" cy="34.5" r="1"/><circle cx="32" cy="43.5" r="1"/></g><path d="M35 32 L35 38" class="route"/><text x="35.8" y="35" class="tiny">留空通道</text>
+  </g>
+  <g transform="translate(520 548)"><rect width="390" height="122" rx="8" fill="#eee9df" stroke="#c9bca9"/><text x="20" y="28" class="label">当前明确保留</text><text x="20" y="53" class="small">• 四组室内桌椅；两张门外桌分列入口上下</text><text x="20" y="76" class="small">• 柜台的矩形可见范围与实体碰撞一致</text><text x="20" y="99" class="small">• 后门仍锁定；不新增对话、会面或线索</text></g>
+  <text x="42" y="710" class="sub">示意图先用于空间审阅；实机桌面/手机画面仍待浏览器自动化环境放行后验收。</text>
+</svg>

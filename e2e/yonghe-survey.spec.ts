@@ -195,41 +195,47 @@ test('legal isolated save: perimeter, eatery round trip, ride map, and Café ent
 })
 
 test('rapid front-door round trips keep one scene active and preserve survey state', async ({ page }, testInfo) => {
-  await page.addInitScript((key) => {
-    localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
-    localStorage.setItem(key, JSON.stringify({
-      _version: 1,
-      currentSceneId: 'yonghe-mining-perimeter',
-      currentPosition: { x: 42, y: 41 },
-      scenePositions: { 'yonghe-mining-perimeter': { x: 42, y: 41 } },
-      phoneDevice: 'inner',
-      sceneState: { 'yonghe-eatery': { 'yongheSurveyPoint:tables': true, yongheSurveyStatus: 'in-progress' } },
-      updatedAt: 1,
-    }))
-  }, playerSaveKey)
-  await page.goto('/')
+  await page.addInitScript(() => localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1'))
+  await page.goto('/?scene=yonghe-mining-perimeter')
 
   const perimeter = page.locator('.scene-shell[data-mainline-scene="yonghe-mining-perimeter"]')
   const inside = page.locator(eatery)
   await expect(perimeter).toBeVisible()
 
-  for (let round = 0; round < 2; round += 1) {
-    const entry = perimeter.locator('[data-storefront-cell-id][data-focus-target-policy="passage"]')
-    await entry.click()
-    await expect(inside).toBeVisible({ timeout: 15_000 })
-    await expect(perimeter).toHaveCount(0)
+  // Walk up the normal mine-side lane with actual stage input. The doorway
+  // becomes visible through the existing camera follow as the player advances.
+  const stage = perimeter.locator('.mainline-scene-stage')
+  for (const yRatio of [0.4, 0.2]) {
+    const beforeY = await page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').currentPosition?.y)
+    const box = await stage.boundingBox()
+    if (!box) throw new Error('Mining perimeter stage has no layout box')
+    await stage.click({ position: { x: box.width * 0.45, y: box.height * yRatio } })
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').currentPosition?.y)).toBeLessThan(beforeY)
+  }
 
+  const entry = perimeter.locator('[data-storefront-cell-id][data-focus-target-policy="passage"]')
+  await expect(entry).toBeInViewport()
+  await page.screenshot({ path: testInfo.outputPath('yonghe-route-door-in-viewport.png') })
+  await entry.click()
+  await expect(inside).toHaveAttribute('data-yonghe-survey-status', 'not-started', { timeout: 15_000 })
+  await expect(perimeter).toHaveCount(0)
+
+  await inspect(page, 'yonghe-upper-left-group-table', 'yongheSurveyPoint:tables', 'in-progress')
+  for (let round = 0; round < 2; round += 1) {
     await page.locator('[data-focus-target-group="door:yonghe-street-entry"]').click()
     await expect(perimeter).toBeVisible({ timeout: 15_000 })
     await expect(inside).toHaveCount(0)
-    await expect.poll(() => page.evaluate((key) =>
-      JSON.parse(localStorage.getItem(key) ?? '{}').sceneState?.['yonghe-eatery']?.['yongheSurveyPoint:tables'], playerSaveKey,
-    )).toBe(true)
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').sceneState?.['yonghe-eatery']?.['yongheSurveyPoint:tables'])).toBe(true)
+
+    const returningEntry = perimeter.locator('[data-storefront-cell-id][data-focus-target-policy="passage"]')
+    await expect(returningEntry).toBeInViewport()
+    await returningEntry.click()
+    await expect(inside).toHaveAttribute('data-yonghe-survey-status', 'in-progress', { timeout: 15_000 })
+    await expect(perimeter).toHaveCount(0)
   }
 
   await page.screenshot({ path: testInfo.outputPath('yonghe-doorway-round-trip.png') })
 })
-
 test('Chinese observation copy is presented as an in-scene observation', async ({ page }) => {
   await openEatery(page)
   await page.locator('[data-object-id="yonghe-survey-central-lane"]').click()

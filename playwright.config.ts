@@ -13,7 +13,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: `node node_modules/vite/bin/vite.js --host 127.0.0.1 --port ${playwrightTestPort} --strictPort`,
+    command: `node node_modules/vite/bin/vite.js --host 127.0.0.1 --port ${playwrightTestPort} --strictPort --configLoader runner`,
     url: playwrightTestUrl,
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === 'true',
     timeout: 30_000,

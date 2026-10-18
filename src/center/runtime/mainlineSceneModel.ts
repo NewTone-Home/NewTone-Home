@@ -16,7 +16,7 @@ export type MainlineEntityKind = 'door' | 'landmark' | 'table' | 'seat' | 'direc
 export type MainlineEntityWeight = 'gateway' | 'fixture' | 'anchor' | 'minor'
 export type MainlineEntitySurface = 'wall' | 'floor'
 export type MainlineInteractionBehavior = 'echo-pool' | 'incense' | 'desk-device' | 'blinds-toggle' | 'plant-choice' | 'cafe-order' | 'direct-wall'
-export type MainlineVisualProfile = 'tree-ring' | 'incense'
+export type MainlineVisualProfile = 'tree-ring' | 'incense' | 'counter'
 export type MainlineAnimationGroup = 'office-breathing'
 export type MainlineSceneExternalExit = {
   id?: string
@@ -601,7 +601,7 @@ function storefrontRow(
   labels: readonly string[],
   style: MainlineStorefrontStyle,
   starts: readonly number[],
-  span: number,
+  span: number | readonly number[],
   portal?: { index: number; portalId: string; nearRadius?: number; mode?: MainlineStorefrontMode },
   composition?: MainlineStorefrontComposition,
   mode: MainlineStorefrontMode = 'commercial',
@@ -611,7 +611,7 @@ function storefrontRow(
     wallId,
     edge,
     start: starts[index],
-    end: starts[index] + span,
+    end: starts[index] + (typeof span === 'number' ? span : span[index] ?? 0),
     label,
     style,
     mode: portal?.index === index ? portal.mode ?? mode : mode,
@@ -1541,7 +1541,7 @@ const zhongshuyuanOfficeDoorPortals: readonly MainlineScenePortalBlueprint[] = [
       id,
       entity: {
         id,
-        label: '门',
+        label: '永和小馆',
         displayLabel: '门',
         kind: 'door' as const,
         weight: 'gateway' as const,
@@ -1777,10 +1777,10 @@ const yongheFacadeAirWalls: readonly MainlineAirWall[] = yongheMiningPerimeterLa
 }))
 
 const yongheDiningFurniture = [
-  mainlineTwoSeatFurniture('yonghe-upper-left-group', { x: 35, y: 50 }, { x: 27, y: 50 }),
-  mainlineTwoSeatFurniture('yonghe-upper-right-group', { x: 55, y: 50 }, { x: 63, y: 50 }),
-  mainlineTwoSeatFurniture('yonghe-lower-left-group', { x: 35, y: 70 }, { x: 27, y: 70 }),
-  mainlineTwoSeatFurniture('yonghe-lower-right-group', { x: 55, y: 70 }, { x: 63, y: 70 }),
+  mainlineTwoSeatFurniture('yonghe-upper-left-group', { x: 25, y: 27 }, { x: 31, y: 27 }, {}, { seatGap: 4.5, pulledSeatGap: 5.5, sitSeatGap: 5.5 }),
+  mainlineTwoSeatFurniture('yonghe-upper-right-group', { x: 32, y: 27 }, { x: 36, y: 27 }, {}, { seatGap: 4.5, pulledSeatGap: 5.5, sitSeatGap: 5.5 }),
+  mainlineTwoSeatFurniture('yonghe-lower-left-group', { x: 25, y: 39 }, { x: 31, y: 39 }, {}, { seatGap: 4.5, pulledSeatGap: 5.5, sitSeatGap: 5.5 }),
+  mainlineTwoSeatFurniture('yonghe-lower-right-group', { x: 32, y: 39 }, { x: 36, y: 39 }, {}, { seatGap: 4.5, pulledSeatGap: 5.5, sitSeatGap: 5.5 }),
 ]
 
 const yongheOutdoorFurniture = [
@@ -1789,16 +1789,22 @@ const yongheOutdoorFurniture = [
     yongheMiningPerimeterLayout.outdoorFurniture[0].anchor,
     yongheMiningPerimeterLayout.outdoorFurniture[0].approach,
     { tableId: yongheMiningPerimeterLayout.outdoorFurniture[0].tableId, seatIds: yongheMiningPerimeterLayout.outdoorFurniture[0].seatIds },
+      { seatGap: 3.2, pulledSeatGap: 4.2, sitSeatGap: 4.2 },
   ),
   mainlineTwoSeatFurniture(
     yongheMiningPerimeterLayout.outdoorFurniture[1].groupId,
     yongheMiningPerimeterLayout.outdoorFurniture[1].anchor,
     yongheMiningPerimeterLayout.outdoorFurniture[1].approach,
     { tableId: yongheMiningPerimeterLayout.outdoorFurniture[1].tableId, seatIds: yongheMiningPerimeterLayout.outdoorFurniture[1].seatIds },
+      { seatGap: 3.2, pulledSeatGap: 4.2, sitSeatGap: 4.2 },
   ),
 ].map(({ group, entities }) => ({
   group,
-  entities: entities.map((entity) => entity.kind === 'seat' ? { ...entity, interactive: false } : entity),
+  entities: entities.map((entity) => ({
+    ...entity,
+    ...(entity.kind === 'seat' ? { interactive: false } : {}),
+    movementCollision: 'physical' as const,
+  })),
 }))
 
 const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
@@ -1825,7 +1831,16 @@ const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
           type: 'room',
           bounds: box(yongheMiningPerimeterLayout.areas.shopRow.x, yongheMiningPerimeterLayout.areas.shopRow.y, yongheMiningPerimeterLayout.areas.shopRow.width, yongheMiningPerimeterLayout.areas.shopRow.height),
           variant: 'worn-shop-row',
-          edges: ['right'],
+          edges: ['right', 'left'],
+          features: yongheMiningPerimeterLayout.shopRow.rearDoorPositions
+            .filter((position) => position !== yongheMiningPerimeterLayout.entry.rearDoorPosition.y)
+            .map((position, index) => ({
+              id: `yonghe-shop-rear-door-${index + 1}`,
+              edge: 'left' as const,
+              start: position - 1.5,
+              end: position + 1.5,
+              glyphs: ['門'],
+            })),
         },
         {
           id: 'yonghe-industrial-edge',
@@ -1834,11 +1849,11 @@ const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
           variant: 'industrial-mine-edge',
           edges: ['left'],
           features: [
-            { id: 'yonghe-pipe-feature', edge: 'left', start: 18, end: 30, glyphs: ['管', '线'] },
-            { id: 'yonghe-fence-feature', edge: 'left', start: 52, end: 66, glyphs: ['围', '栏'] },
-            { id: 'yonghe-metal-feature', edge: 'left', start: 88, end: 102, glyphs: ['铁', '片'] },
-            { id: 'yonghe-steel-feature', edge: 'left', start: 122, end: 136, glyphs: ['钢', '架'] },
-            { id: 'yonghe-scrap-feature', edge: 'left', start: 158, end: 172, glyphs: ['废', '料'] },
+            { id: 'yonghe-pipe-feature', edge: 'left', start: 12, end: 22, glyphs: ['管', '线'] },
+            { id: 'yonghe-fence-feature', edge: 'left', start: 38, end: 48, glyphs: ['围', '栏'] },
+            { id: 'yonghe-metal-feature', edge: 'left', start: 64, end: 74, glyphs: ['铁', '片'] },
+            { id: 'yonghe-steel-feature', edge: 'left', start: 90, end: 100, glyphs: ['钢', '架'] },
+            { id: 'yonghe-scrap-feature', edge: 'left', start: 116, end: 126, glyphs: ['废', '料'] },
           ],
         },
         {
@@ -1857,7 +1872,7 @@ const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
           yongheMiningPerimeterLayout.storefronts.labels,
           'worn',
           yongheStorefrontStarts,
-          yongheMiningPerimeterLayout.storefronts.width,
+          yongheMiningPerimeterLayout.storefronts.widths,
           { index: yongheMiningPerimeterLayout.storefronts.eateryIndex, portalId: 'yonghe-street-entry', mode: 'door' },
           undefined,
           'content',
@@ -1870,11 +1885,12 @@ const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
       initialPlayerPosition: yongheMiningPerimeterLayout.initialPlayerPosition,
     },
   portals: [
-    {
+      {
       id: 'yonghe-street-entry',
       entity: {
         id: 'yonghe-street-entry',
         label: '永和小馆',
+        displayLabel: '门',
         kind: 'door',
         weight: 'gateway',
         surface: 'wall',
@@ -1884,7 +1900,7 @@ const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
         doorPosition: yongheMiningPerimeterLayout.entry.doorPosition,
         threshold: yongheMiningPerimeterLayout.entry.threshold,
         crossingTarget: yongheMiningPerimeterLayout.entry.crossingTarget,
-        entryPosition: yongheMiningPerimeterLayout.entry.eateryEntryPosition,
+        entryPosition: yongheMiningPerimeterLayout.entry.roomSafeEntryPosition,
       },
       targetSceneId: 'yonghe-eatery',
       wallOpenings: [],
@@ -1908,29 +1924,30 @@ const yongheEateryBlueprint: MainlineSceneBlueprint = {
   presentation: { mode: 'fixed', anchor: authoredPoint(40, 34) },
   areaLabel: '永和小馆',
   scene: {
-      walkBounds: box(8, 26, 88, 60),
+      walkBounds: box(yongheMiningPerimeterLayout.entry.roomWalkBounds.x, yongheMiningPerimeterLayout.entry.roomWalkBounds.y, yongheMiningPerimeterLayout.entry.roomWalkBounds.width, yongheMiningPerimeterLayout.entry.roomWalkBounds.height),
       viewport: 'fixed-frame',
       wallDensity: { horizontalBaselineEvery: 2, verticalBaselineEvery: 2 },
       walls: [{
         id: 'yonghe-room',
         type: 'room',
-        bounds: box(10, 28, 84, 56),
+        bounds: box(yongheMiningPerimeterLayout.entry.roomBounds.x, yongheMiningPerimeterLayout.entry.roomBounds.y, yongheMiningPerimeterLayout.entry.roomBounds.width, yongheMiningPerimeterLayout.entry.roomBounds.height),
         variant: 'eatery',
         edges: ['top', 'right', 'bottom', 'left'],
       }],
       floorEntities: [
         ...yongheDiningFurniture.flatMap(({ entities }) => entities),
-        floor({ id: 'yonghe-survey-central-lane', label: '中央通道', kind: 'landmark', weight: 'minor', position: { x: 45, y: 60 } }),
-        floor({ id: 'yonghe-counter', label: '柜台', kind: 'fixture', weight: 'fixture', position: { x: 78, y: 38 }, collision: box(68, 34, 20, 7), shape: box(68, 34, 20, 7), groupId: 'yonghe-service-group' }),
-        floor({ id: 'yonghe-stove', label: '灶台', kind: 'fixture', weight: 'fixture', position: { x: 84, y: 46 }, collision: box(80, 43, 8, 6), shape: box(80, 43, 8, 6), groupId: 'yonghe-service-group' }),
+        floor({ id: 'yonghe-survey-central-lane', label: '中央通道', kind: 'landmark', weight: 'minor', position: { x: 40, y: 35 } }),
+        floor({ id: 'yonghe-counter', label: '柜台', kind: 'fixture', weight: 'fixture', position: { x: 39.5, y: 24.25 }, collision: box(31, 22.5, 17, 3.5), shape: box(31, 22.5, 17, 3.5), movementCollision: 'physical', visualProfile: 'counter', groupId: 'yonghe-service-group' }),
+        floor({ id: 'yonghe-stove', label: '灶台', kind: 'fixture', weight: 'fixture', position: { x: 14, y: 31 }, collision: box(12, 29, 4, 4), shape: box(12, 29, 4, 4), movementCollision: 'physical', groupId: 'yonghe-service-group' }),
+        floor({ id: 'yonghe-prep-board', label: '备菜台', kind: 'fixture', weight: 'fixture', position: { x: 14, y: 39 }, collision: box(12, 37, 4, 4), shape: box(12, 37, 4, 4), movementCollision: 'physical', groupId: 'yonghe-service-group' }),
       ],
-      airWalls: [{ id: 'yonghe-back-door-air-wall', ...box(70, 26, 16, 1.4), opensWithPassageId: 'yonghe-back-door' }],
+      airWalls: [{ id: 'yonghe-back-door-air-wall-top', ...box(10, 20.3, 38, 1.4) }, { id: 'yonghe-back-door-air-wall-bottom', ...box(10, 48.3, 38, 1.4) }],
       blockers: [],
       furnitureGroups: [
         ...yongheDiningFurniture.map(({ group }) => group),
-        { id: 'yonghe-service-group', anchor: { x: 82, y: 42 }, entityIds: ['yonghe-counter', 'yonghe-stove'] },
+        { id: 'yonghe-service-group', anchor: { x: 16, y: 35 }, entityIds: ['yonghe-counter', 'yonghe-stove', 'yonghe-prep-board'] },
       ],
-      initialPlayerPosition: { x: 20, y: 56 },
+      initialPlayerPosition: yongheMiningPerimeterLayout.entry.roomSafeEntryPosition,
     },
   portals: [
     {
@@ -1944,7 +1961,7 @@ const yongheEateryBlueprint: MainlineSceneBlueprint = {
         surface: 'wall',
         doorBehavior: { leafCount: 'single', openLeaves: 'both' },
       },
-      endpoint: { doorPosition: { x: 10, y: 56 }, threshold: { x: 14, y: 56 }, crossingTarget: { x: 8, y: 56 }, entryPosition: yongheMiningPerimeterLayout.entry.streetEntryPosition },
+      endpoint: { doorPosition: yongheMiningPerimeterLayout.entry.indoorDoorPosition, threshold: yongheMiningPerimeterLayout.entry.indoorDoorThreshold, crossingTarget: yongheMiningPerimeterLayout.entry.streetEntryPosition, entryPosition: yongheMiningPerimeterLayout.entry.streetEntryPosition },
       targetSceneId: 'yonghe-mining-perimeter',
       wallOpenings: [{ wallId: 'yonghe-room', opening: { edge: yongheMiningPerimeterLayout.entry.indoorWallOpening.edge, start: yongheMiningPerimeterLayout.entry.indoorWallOpening.start, end: yongheMiningPerimeterLayout.entry.indoorWallOpening.end, doorId: 'yonghe-street-entry' } }],
       transitionText: '修杰从矿区外围老街走进永和小馆，店里仍按平常的节奏营业。',
@@ -1954,14 +1971,15 @@ const yongheEateryBlueprint: MainlineSceneBlueprint = {
       id: 'yonghe-back-door',
       entity: {
         id: 'yonghe-back-door',
-        label: '后门',
+        label: '门',
+        displayLabel: '门',
         kind: 'door',
         weight: 'gateway',
         surface: 'wall',
         doorBehavior: { leafCount: 'single', openLeaves: 'both' },
       },
-      endpoint: { doorPosition: { x: 78, y: 28 }, threshold: { x: 78, y: 32 }, crossingTarget: { x: 78, y: 25 } },
-      wallOpenings: [{ wallId: 'yonghe-room', opening: { edge: 'top', start: 70, end: 86, doorId: 'yonghe-back-door' } }],
+      endpoint: { doorPosition: yongheMiningPerimeterLayout.entry.rearDoorPosition, threshold: yongheMiningPerimeterLayout.entry.rearDoorThreshold, crossingTarget: yongheMiningPerimeterLayout.entry.rearDoorCrossingTarget },
+      wallOpenings: [{ wallId: 'yonghe-room', opening: { edge: 'left', start: yongheMiningPerimeterLayout.entry.rearDoorOpening.start, end: yongheMiningPerimeterLayout.entry.rearDoorOpening.end, doorId: 'yonghe-back-door' } }],
       transitionText: '后门的通路尚未开放。',
       access: 'locked',
       lockedText: '后门暂未开启，当前权限不足。',

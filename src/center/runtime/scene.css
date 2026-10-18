@@ -876,6 +876,7 @@
 .scene-mainline-yard-tree-ring { color: var(--soft); opacity: .78; }
 .scene-mainline-yard-tree-ring.is-under-player { opacity: .28; }
 .scene-mainline-object--fixture { color: var(--ink); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); letter-spacing: 0; }
+.scene-mainline-object--counter { z-index: 4; border: 1px solid rgba(105, 77, 53, .72); border-radius: 2px; background: linear-gradient(90deg, rgba(107, 75, 48, .94), rgba(159, 119, 77, .96) 18%, rgba(119, 84, 54, .96) 82%, rgba(91, 62, 42, .94)); box-shadow: 0 2px 4px rgba(42, 29, 18, .22); color: #f7e8d2; font-size: clamp(9px, 1cqw, 14px); white-space: nowrap; }
 .scene-mainline-object--table,
 .scene-mainline-object--seat {
   color: var(--soft);
