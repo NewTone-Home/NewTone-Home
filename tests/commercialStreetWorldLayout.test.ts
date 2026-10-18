@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { findMainlinePath, isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
 import { mainlineSceneRoute, mainlineScenes, resolveMainlineSceneId } from '../src/center/runtime/mainlineScenes'
-import { resolveMainlineDisplayTransition } from '../src/center/runtime/sceneDisplayRegion'
 import {
   commercialStreetMerchantCount,
   commercialStreetModuleCount,
@@ -83,7 +82,7 @@ describe('commercial street world layout registry', () => {
     }
   })
 
-  it('has a legal street approach and an open-door path both in and out for every shop', () => {
+  it('keeps all fourteen storefront doors visible but locked from the continuous street', () => {
     const street = mainlineScenes['commercial-street']
     for (const shop of commercialStreetShops) {
       const passage = street.passages.find(candidate => candidate.id === commercialStreetShopPortalId(shop))!
@@ -91,24 +90,22 @@ describe('commercial street world layout registry', () => {
       const storefront = street.storefronts.find(candidate => candidate.id === storefrontId)!
       expect(storefront.portalId, `${shop.id} storefront portal`).toBe(passage.id)
       expect(storefront.characterSwitch, `${shop.id} exposes an approach door`).toBe(true)
+      expect(passage.access, `${shop.id} remains closed in this exterior-only phase`).toBe('locked')
+      expect(passage.lockedText).toBe('本期暂未开放。')
       expect(street.geometry.some(unit => unit.ownerId === storefront.id
         && unit.entityId === passage.entityId
         && unit.visual.cells.some(cell => cell.kind === 'door' && cell.entityId === passage.entityId)), `${shop.id} door geometry`).toBe(true)
-      const open = { actorId: 'protagonist', openPassageIds: new Set([passage.id]) }
       const [outside, inside] = [passage.thresholds[0], passage.crossingTargets[0]]
-      expect(isWalkableMainlinePoint(outside, street, {}, open), shop.id).toBe(true)
-      expect(isWalkableMainlinePoint(inside, street, {}, open), shop.id).toBe(true)
-      expect(findMainlinePath(street.initialPlayerPosition, outside, street, {}, open), shop.id).not.toBeNull()
-      expect(findMainlinePath(outside, inside, street, {}, open), `${shop.id} enter`).not.toBeNull()
-      expect(findMainlinePath(inside, outside, street, {}, open), `${shop.id} exit`).not.toBeNull()
+      const closed = { actorId: 'protagonist', openPassageIds: new Set<string>() }
+      expect(isWalkableMainlinePoint(outside, street, {}, closed), shop.id).toBe(true)
+      expect(isWalkableMainlinePoint(inside, street, {}, closed), `${shop.id} crossing target`).toBe(false)
+      expect(findMainlinePath(street.initialPlayerPosition, outside, street, {}, closed), shop.id).not.toBeNull()
     }
   }, 30_000)
 
   it('keeps Cafe interior as a region of the shared commercial-street runtime', () => {
     const street = mainlineScenes['commercial-street']
     const passage = street.passages.find(candidate => candidate.id === 'street-cafe-entry')!
-    const streetRegion = street.displayRegions.find(region => region.id === 'commercial-street-east')!
-    const cafeRegion = street.displayRegions.find(region => region.id === 'commercial-cafe-interior')!
 
     expect(street.id).toBe('commercial-street')
     expect(mainlineScenes['commercial-cafe'].id).toBe('commercial-cafe')
@@ -116,38 +113,19 @@ describe('commercial street world layout registry', () => {
     expect(mainlineSceneRoute('commercial-cafe')).toBe('/?scene=commercial-street')
     expect(mainlineScenes['commercial-milktea-interior']).toBe(street)
     expect(mainlineScenes['commercial-milktea-shop']).toBe(street)
-    expect(passage.targetSceneId).toBeUndefined()
-    expect(passage.routeThrough).toBe(true)
-    expect(passage.fromRoomId).toBe('commercial-street-east')
-    expect(passage.toRoomId).toBe('commercial-cafe-interior')
-    expect(streetRegion.passageLinks).toContainEqual({ passageId: passage.id, targetRegionId: cafeRegion.id })
-    expect(cafeRegion.passageLinks).toContainEqual({ passageId: passage.id, targetRegionId: streetRegion.id })
+    expect(passage.access).toBe('locked')
+    expect(street.displayRegions).toEqual([])
     expect(street.objects.some(entity => entity.id === 'commercial-cafe-right-window-upper-group-table')).toBe(true)
     expect(street.objects.some(entity => entity.id === 'commercial-cafe-counter')).toBe(true)
     expect(street.accessRegions.some(region => region.id === 'commercial-cafe-staff-area')).toBe(true)
   })
 
-  it('reaches the lakeside from the street and keeps the Cafe lake side non-traversable', () => {
+  it('keeps lake entry and lakeside geometry out of the exterior runtime', () => {
     const street = mainlineScenes['commercial-street']
-    const cafe = street.displayRegions.find(region => region.id === 'commercial-cafe-interior')!
-    const east = street.displayRegions.find(region => region.id === 'commercial-street-east')!
-    const lake = street.displayRegions.find(region => region.id === 'commercial-lakeside')!
-    const portal = street.passages.find(candidate => candidate.id === 'commercial-street-lakefront-entry')!
-
-    expect(mainlineScenes['commercial-cafe'].id).toBe('commercial-cafe')
-    expect(street.passages.some(candidate => candidate.id === 'commercial-cafe-lakefront-entry')).toBe(false)
-    expect(portal.targetSceneId).toBeUndefined()
-    expect(portal.routeThrough).toBe(true)
-    expect(portal.fromRoomId).toBe(east.id)
-    expect(portal.toRoomId).toBe(lake.id)
-    expect(cafe.passageLinks).not.toContainEqual({ passageId: portal.id, targetRegionId: lake.id })
-    expect(east.passageLinks).toContainEqual({ passageId: portal.id, targetRegionId: lake.id })
-    expect(resolveMainlineDisplayTransition(street.displayRegions, east.id, portal.id, { crossed: true })).toBe(lake)
-    expect(resolveMainlineDisplayTransition(street.displayRegions, lake.id, portal.id, { crossed: true })).toBe(east)
-    expect(street.objects.some(entity => entity.id === 'commercial-lakeside-water')).toBe(true)
-    const openEast = { displayRegionId: east.id, openPassageIds: new Set([portal.id]) }
-    const openLake = { displayRegionId: lake.id, openPassageIds: new Set([portal.id]) }
-    expect(findMainlinePath({ x: 178, y: 50 }, { x: 184, y: 50 }, street, {}, openEast)).not.toBeNull()
-    expect(findMainlinePath({ x: 194, y: 50 }, { x: 205, y: 50 }, street, {}, openLake)).not.toBeNull()
+    expect(street.portals.some(candidate => candidate.id === 'commercial-street-lakefront-entry')).toBe(false)
+    expect(street.passages.some(candidate => candidate.id === 'commercial-street-lakefront-entry')).toBe(false)
+    expect(street.objects.some(entity => entity.id.startsWith('commercial-lakeside-'))).toBe(false)
+    expect(street.geometry.some(unit => unit.id.includes('commercial-lakeside') || unit.id.includes('commercial-lakefront-street-gate'))).toBe(false)
+    expect(street.walkBounds).toMatchObject({ x: 8, y: 36, width: 176, height: 28 })
   })
 })

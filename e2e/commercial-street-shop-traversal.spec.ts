@@ -2,20 +2,10 @@ import { expect, test, type Page } from '@playwright/test'
 import {
   commercialStreetShopEntry,
   commercialStreetShopPortalId,
-  commercialStreetShopRegionId,
   commercialStreetShops,
 } from '../src/center/runtime/commercialStreetWorldLayout'
-import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 
-const regularShops = commercialStreetShops.filter((shop) => shop.kind !== 'cafe' && shop.kind !== 'milk-tea')
-const streetScene = mainlineScenes['commercial-street']
-
-function streetRegionFor(shop: (typeof regularShops)[number]) {
-  const x = commercialStreetShopEntry(shop).x
-  return x < 72 ? 'commercial-street-west' : x < 136 ? 'commercial-street-center' : 'commercial-street-east'
-}
-
-async function verifyShop(page: Page, shop: (typeof regularShops)[number], testInfo: import('@playwright/test').TestInfo) {
+async function verifyShopDoor(page: Page, shop: (typeof commercialStreetShops)[number]) {
   const entry = commercialStreetShopEntry(shop)
   await page.addInitScript(({ startPoint }) => {
     localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
@@ -35,62 +25,44 @@ async function verifyShop(page: Page, shop: (typeof regularShops)[number], testI
   const street = page.locator('.scene-shell[data-mainline-scene="commercial-street"]')
   await expect(street).toBeVisible()
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').currentSceneId)).toBe('commercial-street')
+
+  const portalId = commercialStreetShopPortalId(shop)
+  const group = `door:${portalId}`
+  const storefrontId = shop.kind === 'cafe' ? 'commercial-cafe-slot' : shop.storefrontIds[0]!
+  const labelSelector = `[data-storefront-label-slot="true"][data-storefront-id="${storefrontId}"]`
+  const doorSelector = `.scene-mainline-door-button[data-focus-target-group="${group}"]`
+  const label = page.locator(labelSelector)
+  const door = page.locator(doorSelector)
+  await expect(label).toBeVisible()
+  await expect(door).toBeVisible()
+
+  const overlaps = await page.evaluate(({ labelSelector, doorSelector }) => {
+    const labelRect = document.querySelector(labelSelector)?.getBoundingClientRect()
+    const doorRect = document.querySelector(doorSelector)?.getBoundingClientRect()
+    if (!labelRect || !doorRect) return null
+    return Math.min(labelRect.right, doorRect.right) - Math.max(labelRect.left, doorRect.left) > 2
+      && Math.min(labelRect.bottom, doorRect.bottom) - Math.max(labelRect.top, doorRect.top) > 2
+  }, { labelSelector, doorSelector })
+  expect(overlaps, `${shop.id} sign label must not overlap its door`).toBe(false)
+
   const actor = street.locator('[data-actor-id="protagonist"]')
+  const startPosition = await actor.evaluate((node) => {
+    const element = node as HTMLElement
+    return { x: Number(element.dataset.runtimeX), y: Number(element.dataset.runtimeY) }
+  })
+  await door.click()
+  await expect(page.getByText('本期暂未开放。')).toBeVisible()
+  await expect(street).not.toHaveAttribute('data-active-display-region')
   await expect.poll(() => actor.evaluate((node) => {
     const element = node as HTMLElement
     return { x: Number(element.dataset.runtimeX), y: Number(element.dataset.runtimeY) }
-  })).toEqual(entry.streetApproach)
-
-  const portalId = commercialStreetShopPortalId(shop)
-  const exteriorDoorGroup = `door:${portalId}`
-  const storefrontId = shop.storefrontIds[0]!
-  const sign = page.locator(`.scene-portal-characters[data-storefront-id="${storefrontId}"]`)
-  const doorButton = page.locator(`.scene-mainline-door-button[data-focus-target-group="${exteriorDoorGroup}"]`)
-  await expect(sign).toBeVisible()
-  await expect(doorButton).toContainText('门')
-  await expect(doorButton).toBeVisible()
-  await expect(page.locator(`[data-focus-target-group="${exteriorDoorGroup}"]`)).toBeVisible({ timeout: 30_000 })
-  await page.locator(`[data-focus-target-group="${exteriorDoorGroup}"]`).click()
-  await expect(street).toHaveAttribute('data-active-display-region', commercialStreetShopRegionId(shop), { timeout: 30_000 })
-
-  const furniture = streetScene.objects.filter((entity) => entity.id.startsWith(`${shop.id}-`) && entity.shopFurnitureVisual)
-  expect(furniture.length, `${shop.id} should define three class-specific fixtures`).toBe(3)
-  for (const entity of furniture) {
-    const object = page.locator(`[data-object-id="${entity.id}"]`)
-    await expect(object).toBeVisible()
-    await expect(object.locator('.scene-shop-furniture-art')).toBeVisible()
-    await expect(object.locator('.scene-shop-furniture-label')).toHaveText(entity.label)
-  }
-  const furnitureOverlaps = await page.locator('.scene-shop-furniture-label').evaluateAll((nodes) => {
-    const boxes = nodes.map((node) => {
-      const rect = node.getBoundingClientRect()
-      return { id: node.closest<HTMLElement>('[data-object-id]')?.dataset.objectId ?? '', left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }
-    })
-    const overlaps: Array<[string, string]> = []
-    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
-      const a = boxes[i]!, b = boxes[j]!
-      if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2) overlaps.push([a.id, b.id])
-    }
-    return overlaps
-  })
-  expect(furnitureOverlaps).toEqual([])
-
-  if (shop.kind === 'bookstore') {
-    await expect(page.locator(`[data-object-id="${shop.id}-fixture-a"] .scene-shop-furniture-art`)).toBeVisible()
-    expect(furniture.find((entity) => entity.id.endsWith('-fixture-a'))?.shopFurnitureVisual).toBe('bookshelf')
-    expect(furniture.find((entity) => entity.id.endsWith('-fixture-b'))?.shopFurnitureVisual).toBe('table')
-    await page.screenshot({ path: testInfo.outputPath('bookstore-interior.png') })
-  }
-
-  await expect(page.locator(`[data-focus-target-group="door:${portalId}"]`)).toBeVisible({ timeout: 30_000 })
-  await page.locator(`[data-focus-target-group="door:${portalId}"]`).click()
-  await expect(street).toHaveAttribute('data-active-display-region', streetRegionFor(shop), { timeout: 30_000 })
+  })).toEqual(startPosition)
 }
 
-for (const shop of regularShops) {
-  test(`${shop.id}: street door enters, class-specific fixtures render, and the door returns to street`, async ({ page }, testInfo) => {
-    test.setTimeout(90_000)
+for (const shop of commercialStreetShops) {
+  test(`${shop.id}: storefront label clears the door and entry is locked`, async ({ page }) => {
+    test.setTimeout(60_000)
     await page.setViewportSize({ width: 1280, height: 720 })
-    await verifyShop(page, shop, testInfo)
+    await verifyShopDoor(page, shop)
   })
 }

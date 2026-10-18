@@ -1779,10 +1779,18 @@ export function MainlineScenePage({
 
   const startPassageTraversal = useCallback((passage: MainlineScenePassage, requestedTarget: Point, plannedApproachPath?: Point[] | null, continuationPath?: Point[] | null, passageQueue: readonly MainlineScenePassage[] = [passage], passageIndex = 0) => {
     if (sceneAction?.phase === 'committing') return
+    if (passage.access === 'locked') {
+      stopMovement()
+      setPassageDestination(null)
+      setRequestedWorldTarget(null)
+      setActiveObjectId(passage.entityId)
+      showLockedPassageText(passage)
+      return
+    }
     dismissSceneAction()
     dismissSceneEcho()
     beginPassageLeg(passage, requestedTarget, plannedApproachPath, continuationPath, passageQueue, passageIndex)
-  }, [beginPassageLeg, dismissSceneAction, dismissSceneEcho, sceneAction?.phase])
+  }, [beginPassageLeg, dismissSceneAction, dismissSceneEcho, sceneAction?.phase, setRequestedWorldTarget, showLockedPassageText, stopMovement])
 
   const interact = useCallback((entityId: string, requestAlreadyRecorded = false) => {
     if (readingActive || sceneAction?.phase === 'committing') return

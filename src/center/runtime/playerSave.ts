@@ -1,5 +1,5 @@
 import type { MainlineSceneId } from './mainlineSceneModel'
-import { commercialStreetMilkTeaInteriorId, commercialStreetMilkTeaShopSceneId, remapLegacyMilkTeaInteriorPosition } from './commercialStreetMilkTeaInterior'
+import { commercialStreetMilkTeaInteriorId, commercialStreetMilkTeaShopSceneId } from './commercialStreetMilkTeaInterior'
 import { cleanPhoneNotifications, type PhoneNotification } from './phoneNotifications'
 import type { PhoneDevice } from './phoneState'
 import { createInitialMainlineStoryClock, storyClockForStage, type MainlineStoryClock, type MainlineStoryStage } from './mainlineStoryClock'
@@ -138,6 +138,7 @@ export function remapLegacyCafePosition(position: PlayerPoint | null | undefined
     y: Math.max(-27, Math.min(31, position.y - 62)),
   }
 }
+
 export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineSceneId): PlayerSave {
   const source = value && typeof value === 'object' ? value as Partial<PlayerSave> : {}
   const sourceSceneId = typeof source.currentSceneId === 'string' && source.currentSceneId.length > 0
@@ -147,31 +148,30 @@ export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineScen
   const rawInteriorPosition = rawCurrentPosition ?? cleanScenePositions(source.scenePositions)[commercialStreetMilkTeaInteriorId] ?? null
   const preCleanedPositions = cleanScenePositions(source.scenePositions)
   const wasLegacyCafe = sourceSceneId === 'commercial-cafe'
+  const wasLegacyLakeside = String(source.currentSceneId ?? '') === 'commercial-lakeside'
   const legacyCafePosition = rawCurrentPosition ?? preCleanedPositions['commercial-cafe'] ?? null
-  // Saves from the retired, long-corridor preview used coordinates beyond the
-  // new room's 52-unit depth. Keep valid positions in the current room intact.
+  // Legacy indoor/lakeside save IDs are relocated to the legal exterior lane.
   const wasLegacyMilkTeaInterior = sourceSceneId === commercialStreetMilkTeaInteriorId
-    && rawInteriorPosition !== null
-    && rawInteriorPosition.y > 59
   const wasDetachedMilkTeaShop = sourceSceneId === commercialStreetMilkTeaShopSceneId
-  const currentSceneId: MainlineSceneId = wasLegacyMilkTeaInterior || wasDetachedMilkTeaShop || wasLegacyCafe ? 'commercial-street' : sourceSceneId
+  const currentSceneId: MainlineSceneId = wasLegacyMilkTeaInterior || wasDetachedMilkTeaShop || wasLegacyCafe || wasLegacyLakeside ? 'commercial-street' : sourceSceneId
   const cleanedPositions = cleanScenePositions(source.scenePositions)
   const legacyInteriorPosition = wasLegacyMilkTeaInterior
     ? cleanPoint(source.currentPosition) ?? cleanedPositions[commercialStreetMilkTeaInteriorId]
     : null
-  const migratedInteriorPosition = wasLegacyMilkTeaInterior
-    ? remapLegacyMilkTeaInteriorPosition(legacyInteriorPosition)
-    : wasDetachedMilkTeaShop ? { x: 111, y: 69 } : wasLegacyCafe ? remapLegacyCafePosition(legacyCafePosition) : null
-  const scenePositions = wasLegacyMilkTeaInterior || wasDetachedMilkTeaShop || wasLegacyCafe
+  const legacyPosition = legacyInteriorPosition ?? rawCurrentPosition ?? legacyCafePosition
+  const migratedInteriorPosition = wasLegacyMilkTeaInterior || wasDetachedMilkTeaShop || wasLegacyCafe || wasLegacyLakeside
+    ? { x: Math.max(12, Math.min(180, legacyPosition?.x ?? 111)), y: 50 }
+    : null
+  const scenePositions = wasLegacyMilkTeaInterior || wasDetachedMilkTeaShop || wasLegacyCafe || wasLegacyLakeside
     ? { ...cleanedPositions, 'commercial-street': migratedInteriorPosition! }
     : cleanedPositions
   const cleanedSceneState = cleanSceneState(source.sceneState)
   const hasCafeState = Boolean(cleanedSceneState['commercial-cafe'] && Object.keys(cleanedSceneState['commercial-cafe']).length)
-  const shouldMergeStreetState = wasLegacyMilkTeaInterior || wasDetachedMilkTeaShop || wasLegacyCafe || hasCafeState
+  const shouldMergeStreetState = wasLegacyMilkTeaInterior || wasDetachedMilkTeaShop || wasLegacyCafe || wasLegacyLakeside || hasCafeState
   const sceneState = shouldMergeStreetState
     ? {
       ...cleanedSceneState,
-      'commercial-street': { ...cleanedSceneState[commercialStreetMilkTeaInteriorId], ...cleanedSceneState[commercialStreetMilkTeaShopSceneId], ...cleanedSceneState['commercial-cafe'], ...cleanedSceneState['commercial-street'] },
+      'commercial-street': { ...cleanedSceneState[commercialStreetMilkTeaInteriorId], ...cleanedSceneState[commercialStreetMilkTeaShopSceneId], ...cleanedSceneState['commercial-cafe'], ...cleanedSceneState['commercial-lakeside' as MainlineSceneId], ...cleanedSceneState['commercial-street'] },
     }
     : cleanedSceneState
   const phoneDevice = source.phoneDevice === 'inner' ? 'inner' : 'surface'

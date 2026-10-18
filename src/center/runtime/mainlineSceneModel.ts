@@ -1151,7 +1151,8 @@ const commercialStreetShopPortals: readonly MainlineScenePortalBlueprint[] = com
       }] : []),
     ],
     transitionText: `走进${shop.label.zh}。`,
-    access: 'open',
+    access: 'locked',
+    lockedText: '本期暂未开放。',
   }
 })
 
@@ -2587,7 +2588,7 @@ const commercialStreetWithContinuousMilkTeaBlueprint: MainlineSceneBlueprint = {
   ...commercialStreetBlueprint,
   scene: {
     ...commercialStreetBlueprint.scene,
-    walkBounds: box(8, -68, 224, 184),
+    walkBounds: box(8, 36, 176, 28),
     walls: [
       ...(commercialStreetBlueprint.scene.walls ?? []).flatMap((wall) => wall.id !== 'commercial-south-facade'
         ? [wall]
@@ -2598,8 +2599,6 @@ const commercialStreetWithContinuousMilkTeaBlueprint: MainlineSceneBlueprint = {
           { id: 'milk-tea-kitchen-warehouse-wall', type: 'room' as const, bounds: milkTeaContinuousLayout.kitchenWarehouseDivider, variant: 'milk-tea-back-divider', wallGlyphs: [String.fromCharCode(0x5899)], edges: ['left'] as const },
         ]),
       ...(commercialCafeWorldScene.walls ?? []),
-      { id: 'commercial-lakeside-shore', type: 'room' as const, bounds: commercialLakefrontBounds, variant: 'lakefront', edges: ['top', 'right', 'bottom'] as const },
-      { id: commercialLakefrontStreetGateWallId, type: 'room' as const, bounds: box(184, 36, 4, 28), variant: 'lakefront-street-gate', edges: ['right'] as const },
     ],
     storefronts: commercialStreetBlueprint.scene.storefronts ?? [],
     airWalls: [...commercialStreetSouthExpansionAirWalls(), ...commercialStreetNorthExpansionAirWalls()],
@@ -2613,8 +2612,6 @@ const commercialStreetWithContinuousMilkTeaBlueprint: MainlineSceneBlueprint = {
       floor({ id: 'milk-tea-warehouse-label', label: '仓库', kind: 'fixture', weight: 'minor', position: authoredPoint(milkTeaContinuousLayout.warehouseLabel.x, milkTeaContinuousLayout.warehouseLabel.y), visualVisibility: 'baseline' }),
       ...milkTeaContinuousFurnitureEntities,
       ...commercialCafeWorldScene.floorEntities,
-      floor({ id: 'commercial-lakeside-water', label: '湖面', kind: 'landmark', weight: 'minor', position: authoredPoint(210, 50), interactive: false, visualVisibility: 'baseline' }),
-      floor({ id: 'commercial-lakeside-bench', label: '长椅', kind: 'fixture', weight: 'minor', position: authoredPoint(205, 62), approach: authoredPoint(205, 59), visualVisibility: 'baseline' }),
     ],
     npcs: [...(commercialStreetBlueprint.scene.npcs ?? []).filter((npc) => npc.id !== commercialStreetMilkTeaClerkId && npc.id !== commercialStreetShopClerkId(commercialCafeShop)), milkTeaClerk, ...(commercialCafeWorldScene.npcs ?? [])],
     npcPlacements: [...(commercialStreetBlueprint.scene.npcPlacements ?? []).filter(({ npcId }) => npcId !== commercialStreetMilkTeaClerkId && npcId !== commercialStreetShopClerkId(commercialCafeShop)), { npcId: commercialStreetMilkTeaClerkId, position: milkTeaContinuousLayout.clerk }, ...(commercialCafeWorldScene.npcPlacements ?? [])],
@@ -2625,24 +2622,14 @@ const commercialStreetWithContinuousMilkTeaBlueprint: MainlineSceneBlueprint = {
     actorAccess: { ...(commercialStreetBlueprint.scene.actorAccess ?? {}), ...(commercialCafeWorldScene.actorAccess ?? {}), protagonist: ['public'], [commercialStreetMilkTeaClerkId]: ['public', 'staff'] },
     continuousStructures: [...(commercialStreetBlueprint.scene.continuousStructures ?? []).filter(({ id }) => !id.startsWith('commercial-milktea-counter-')), ...milkTeaContinuousCounterStructures, ...(commercialCafeWorldScene.continuousStructures ?? [])],
     furnitureGroups: [...(commercialStreetBlueprint.scene.furnitureGroups ?? []), ...milkTeaContinuousFurniture.map(({ group }) => group), ...commercialCafeWorldScene.furnitureGroups],
-    rooms: [...(commercialStreetBlueprint.scene.rooms ?? []), { id: commercialCafeDisplayRegionId, bounds: box(144, -27, 44, 58), kind: 'room' as const }, { id: 'commercial-lakeside', bounds: commercialLakefrontBounds, kind: 'corridor' as const }, ...(commercialCafeWorldScene.rooms ?? [])],
+    rooms: [...(commercialStreetBlueprint.scene.rooms ?? []), { id: commercialCafeDisplayRegionId, bounds: box(144, -27, 44, 58), kind: 'room' as const }, ...(commercialCafeWorldScene.rooms ?? [])],
     curves: [...(commercialStreetBlueprint.scene.curves ?? []), ...(commercialCafeWorldScene.curves ?? [])],
     accessPortals: [...(commercialStreetBlueprint.scene.accessPortals ?? []), ...(commercialCafeWorldScene.accessPortals ?? [])],
     navigationBarriers: [...(commercialStreetBlueprint.scene.navigationBarriers ?? []), ...(commercialCafeWorldScene.navigationBarriers ?? [])],
     blockers: [...(commercialStreetBlueprint.scene.blockers ?? []), ...(commercialCafeWorldScene.blockers ?? [])],
-    displayRegions: [...commercialStreetDisplayRegions.map((region) => region.id === commercialCafeDisplayRegionId
-      ? { ...region, bounds: box(144, -27, 44, 58), visibleGeometryGroupIds: ['commercial-cafe-room', 'commercial-cafe-counter-body', 'commercial-cafe-glass-front', ...commercialCafeWorldScene.floorEntities.map((entity) => entity.id), ...commercialCafeWorldScene.furnitureGroups.map((group) => group.id)], cameraAnchor: authoredPoint(166, 2), passageLinks: region.passageLinks }
-      : region.id === commercialStreetShopRegionId(commercialStreetMilkTeaShop)
-      ? {
-        ...region,
-        bounds: milkTeaContinuousLayout.bounds,
-        visibleGeometryGroupIds: [commercialStreetShopVisibleStorefrontId(commercialStreetMilkTeaShop), 'milk-tea-continuous-shop-shell', 'milk-tea-rear-area-wall', 'milk-tea-kitchen-warehouse-wall'],
-        cameraAnchor: authoredPoint(111, 90),
-        passageLinks: [{ passageId: commercialStreetShopPortalId(commercialStreetMilkTeaShop), targetRegionId: commercialStreetStreetRegionForShop(commercialStreetMilkTeaShop) }],
-      }
-      : region), { id: 'commercial-lakeside', bounds: commercialLakefrontBounds, visibleGeometryGroupIds: ['commercial-lakeside-shore', 'commercial-lakeside-water', 'commercial-lakeside-bench', commercialLakefrontStreetGateWallId], cameraAnchor: authoredPoint(210, 56), passageLinks: [{ passageId: commercialLakefrontPortalId, targetRegionId: 'commercial-street-east' }] }],
+    displayRegions: [],
   },
-  portals: [...(commercialStreetBlueprint.portals ?? []), commercialLakefrontPortal],
+  portals: [...(commercialStreetBlueprint.portals ?? [])],
   interactionText: {
     ...commercialStreetBlueprint.interactionText,
     ...commercialCafeBlueprint.interactionText,

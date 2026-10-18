@@ -90,7 +90,7 @@ describe('player local save contract', () => {
     }
     const migrated = sanitizePlayerSave(legacy, 'commercial-street')
     expect(migrated.currentSceneId).toBe('commercial-street')
-    expect(migrated.currentPosition).toEqual({ x: 166.4889, y: 22 })
+    expect(migrated.currentPosition).toEqual({ x: 54, y: 50 })
     expect(migrated.scenePositions['commercial-street']).toEqual(migrated.currentPosition)
     expect(migrated.sceneState['commercial-street']).toMatchObject({
       commercialCafeNarrativeCursor: 4,
@@ -99,6 +99,24 @@ describe('player local save contract', () => {
     })
     expect(migrated.sceneState['commercial-cafe']).toMatchObject({ commercialCafeNarrativeCursor: 4 })
     expect(sanitizePlayerSave(migrated, 'commercial-street')).toEqual(migrated)
+  })
+  it('relocates a lakeside save to the legal street lane while retaining story state', () => {
+    const migrated = sanitizePlayerSave({
+      currentSceneId: 'commercial-lakeside',
+      currentPosition: { x: 211, y: 58 },
+      sceneState: {
+        'commercial-lakeside': { lakeStoryThread: 'remember-me' },
+        'commercial-street': { commercialStreetQuestionNarrativeCompleted: true },
+      },
+      storyClock: { stage: 'commercial-street', minute: 12 },
+    }, 'commercial-street')
+    expect(migrated.currentSceneId).toBe('commercial-street')
+    expect(migrated.currentPosition).toEqual({ x: 180, y: 50 })
+    expect(migrated.sceneState['commercial-street']).toMatchObject({
+      commercialStreetQuestionNarrativeCompleted: true,
+      lakeStoryThread: 'remember-me',
+    })
+    expect(migrated.storyClock).toMatchObject({ stage: 'commercial-street', minute: 12 })
   })
   it('clears only the player save key', () => {
     const storage = createStorage()

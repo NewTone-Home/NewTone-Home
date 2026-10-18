@@ -25,7 +25,7 @@ describe('commercial street storefront presentation', () => {
     expect(storefrontRestoreDelayMs(100, 3100)).toBe(0)
     expect(storefrontRestoreDelayMs(100, 4100)).toBe(0)
   })
-  it('builds fourteen enterable merchants across sixteen standard modules', () => {
+  it('builds fourteen locked storefront doors across sixteen standard modules', () => {
     expect(street.storefronts).toHaveLength(14)
     expect(commercialStreetShops).toHaveLength(14)
     expect(commercialStreetShops.reduce((sum, shop) => sum + shop.moduleCount, 0)).toBe(16)
@@ -36,9 +36,9 @@ describe('commercial street storefront presentation', () => {
       'commercial-south-slot-4', 'commercial-south-slot-5', 'commercial-south-slot-6',
       'commercial-south-slot-7', 'commercial-south-slot-8',
     ])
-    expect(street.portals).toHaveLength(15)
+    expect(street.portals).toHaveLength(14)
     expect(street.portals.filter((portal) => commercialStreetShops.some((shop) => commercialStreetShopPortalId(shop) === portal.id))).toHaveLength(14)
-    expect(street.portals.some((portal) => portal.id === 'commercial-street-lakefront-entry')).toBe(true)
+    expect(street.portals.some((portal) => portal.id === 'commercial-street-lakefront-entry')).toBe(false)
     for (const shop of commercialStreetShops) {
       const passage = street.passages.find((candidate) => candidate.id === commercialStreetShopPortalId(shop))!
       const entry = commercialStreetShopEntry(shop)
@@ -48,6 +48,8 @@ describe('commercial street storefront presentation', () => {
       expect(storefront.portalId).toBe(passage.id)
       expect(storefront.characterSwitch).toBe(true)
       expect(passage, shop.id).toBeDefined()
+      expect(passage.access, shop.id).toBe('locked')
+      expect(passage.lockedText).toBe('本期暂未开放。')
       if (shop.kind === 'cafe') {
         expect(passage.targetSceneId).toBeUndefined()
         expect(passage.routeThrough).toBe(true)
