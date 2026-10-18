@@ -38,17 +38,21 @@ describe('commercial shop text geometry', () => {
     }
   })
 
-  it('places the Cafe blackboard away from the non-traversable curved window and omits wall glyphs behind the glass', () => {
+  it('keeps Cafe wall glyphs around actual openings and places the blackboard below the curved window', () => {
     const scene = mainlineScenes['commercial-street']
     const units = mainlineSceneGeometryUnits(scene, { x: 166, y: 2 })
     const window = scene.curves.find(({ id }) => id === 'commercial-cafe-glass-front')!
-    const topWallGlyphs = units.filter((unit) => unit.ownerId.startsWith('commercial-cafe-room-top'))
-      .flatMap((unit) => unit.visual.cells).filter((cell) => cell.glyph === '墙')
+    const topWallGlyphs = units.filter((unit) => unit.id.startsWith('commercial-cafe-room-top'))
+      .flatMap((unit) => unit.visual.cells).filter((cell) => cell.kind === 'wall' && cell.glyph === '墙')
+    const otherCafeWallGlyphs = units.filter((unit) => /commercial-cafe-room-(bottom|left)/.test(unit.id))
+      .flatMap((unit) => unit.visual.cells).filter((cell) => cell.kind === 'wall' && cell.glyph === '墙')
     const blackboardCells = units.flatMap((unit) => unit.visual.cells)
       .filter((cell) => cell.featureId === 'commercial-cafe-blackboard-feature' && cell.glyph)
 
     expect(blackboardCells.map((cell) => cell.glyph)).toEqual(['黑', '板'])
-    expect(topWallGlyphs).toHaveLength(0)
+    expect(topWallGlyphs.length).toBeGreaterThan(8)
+    expect(otherCafeWallGlyphs.length).toBeGreaterThan(24)
+    expect(topWallGlyphs.every((cell) => cell.x < window.start.x - .5 || cell.x > window.end.x + .5)).toBe(true)
     expect(Math.min(...blackboardCells.map((cell) => cell.y))).toBeGreaterThan(window.start.y)
     expect(window.blocksPlayer).toBe(true)
   })

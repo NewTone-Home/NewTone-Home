@@ -7,7 +7,7 @@ const middleTableId = 'commercial-cafe-right-inner-middle-group-table'
 
 test('Cafe window, blackboard, and moving server text keep clear bounds', async ({ page }, testInfo) => {
   test.setTimeout(90_000)
-  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.setViewportSize({ width: 1180, height: 757 })
   await page.addInitScript(({ startPoint }) => {
     localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
     localStorage.setItem('newtone-progress-v4', JSON.stringify({ _version: 4, language: 'zh', hasInitializedLanguage: true }))
@@ -59,26 +59,30 @@ test('Cafe window, blackboard, and moving server text keep clear bounds', async 
   }
 
   const server = page.locator('[data-npc-id="cafe-floor-server"]')
+  const serverText = server.locator(':scope > span')
   await expect(server).toBeVisible()
   await expect(server).toHaveAttribute('data-npc-target-id', middleTableId, { timeout: 30_000 })
   const tableLabels = page.locator(`[data-object-id^="commercial-cafe-right-inner-middle-group-"] .scene-mainline-object__label`)
   await expect(tableLabels.first()).toBeVisible()
   const sampledPositions = new Set<string>()
-  for (let index = 0; index < 40; index++) {
-    const serverBox = await server.boundingBox()
+  let middleTableServiceSamples = 0
+  for (let index = 0; index < 180; index++) {
+    const serverBox = await serverText.boundingBox()
     expect(serverBox).not.toBeNull()
     const labelBoxes = await tableLabels.evaluateAll((nodes) => nodes.map((node) => {
       const rect = node.getBoundingClientRect()
       return { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom }
     }))
     for (const label of labelBoxes) {
-      const overlapX = Math.min(serverBox!.x + serverBox!.width, label.right) - Math.max(serverBox!.x, label.x)
-      const overlapY = Math.min(serverBox!.y + serverBox!.height, label.bottom) - Math.max(serverBox!.y, label.y)
-      expect(overlapX <= 2 || overlapY <= 2, 'moving service label intersects table/chair text').toBe(true)
+      const gapX = Math.max(0, label.x - (serverBox!.x + serverBox!.width), serverBox!.x - label.right)
+      const gapY = Math.max(0, label.y - (serverBox!.y + serverBox!.height), serverBox!.y - label.bottom)
+      expect(gapX >= 8 || gapY >= 8, 'moving service text needs a readable gap from every table/chair label').toBe(true)
     }
-    sampledPositions.add(`${await server.getAttribute('data-runtime-x')},${await server.getAttribute('data-runtime-y')}`)
+    if (await server.getAttribute('data-npc-target-id') === middleTableId) middleTableServiceSamples += 1
+    sampledPositions.add(`${Math.round(serverBox!.x)},${Math.round(serverBox!.y)}`)
     await page.waitForTimeout(150)
   }
   expect(sampledPositions.size).toBeGreaterThan(2)
-  await page.screenshot({ path: testInfo.outputPath('commercial-cafe-1280x720.png') })
+  expect(middleTableServiceSamples).toBeGreaterThan(1)
+  await page.screenshot({ path: testInfo.outputPath('commercial-cafe-1180x757.png') })
 })

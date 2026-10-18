@@ -246,6 +246,9 @@ export type MainlineWallOpening = {
   edge: 'top' | 'right' | 'bottom' | 'left'
   start: number
   end: number
+  kind?: 'reserved'
+  /** Number of adjacent wall cells to reserve inside this interval. */
+  cellCount?: number
   doorId?: string
   /** Number of neighbouring frame cells reserved around a door. */
   doorFlankCount?: number
@@ -772,8 +775,8 @@ const commercialCafeLayout = {
   entranceCorridor: box(8, 66, 22, 18),
   glass: {
     start: authoredPoint(54, 35),
-    control: authoredPoint(71, 32),
-    end: authoredPoint(88, 35),
+    control: authoredPoint(69.75, 32),
+    end: authoredPoint(85.5, 35),
   },
   bottomFourSeatTables: [],
   rightTwoSeatTables: [
@@ -1450,7 +1453,11 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
   scene: {
     walkBounds: commercialCafeBounds, wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
     viewport: 'fixed-frame',
-    walls: [{ id: 'commercial-cafe-room', type: 'room', bounds: commercialCafeStraightFrameBounds, variant: 'cafe', wallGlyphs: [''], edges: ['top', 'bottom', 'left'], features: [
+    walls: [{ id: 'commercial-cafe-room', type: 'room', bounds: commercialCafeStraightFrameBounds, variant: 'cafe', edges: ['top', 'bottom', 'left'], openings: [
+      // Reserve the wall cells beneath the curved glass and its half-cell
+      // margins so facade text cannot print through the window outline.
+      { edge: 'top', start: commercialCafeLayout.glass.start.x - 2, end: commercialCafeLayout.glass.end.x + 2, kind: 'reserved', cellCount: 16 },
+    ], features: [
       { id: 'commercial-cafe-menu-feature', edge: 'top', start: 15, end: 21, glyphs: ['菜', '单'], layout: 'inline', entity: commercialCafeMenu },
       { id: 'commercial-cafe-blackboard-feature', edge: 'bottom', start: 14, end: 40.7, glyphs: ['黑', '板'], layout: 'inline', entity: commercialCafeBlackboard },
     ] }],
