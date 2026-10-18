@@ -127,23 +127,27 @@ describe('commercial street world layout registry', () => {
     expect(street.accessRegions.some(region => region.id === 'commercial-cafe-staff-area')).toBe(true)
   })
 
-  it('crosses from the Cafe to a lakeside display region without changing runtime world', () => {
+  it('reaches the lakeside from the street and keeps the Cafe lake side non-traversable', () => {
     const street = mainlineScenes['commercial-street']
     const cafe = street.displayRegions.find(region => region.id === 'commercial-cafe-interior')!
+    const east = street.displayRegions.find(region => region.id === 'commercial-street-east')!
     const lake = street.displayRegions.find(region => region.id === 'commercial-lakeside')!
-    const portal = street.passages.find(candidate => candidate.id === 'commercial-cafe-lakefront-entry')!
+    const portal = street.passages.find(candidate => candidate.id === 'commercial-street-lakefront-entry')!
 
     expect(mainlineScenes['commercial-cafe'].id).toBe('commercial-cafe')
+    expect(street.passages.some(candidate => candidate.id === 'commercial-cafe-lakefront-entry')).toBe(false)
     expect(portal.targetSceneId).toBeUndefined()
     expect(portal.routeThrough).toBe(true)
-    expect(portal.fromRoomId).toBe(cafe.id)
+    expect(portal.fromRoomId).toBe(east.id)
     expect(portal.toRoomId).toBe(lake.id)
-    expect(cafe.passageLinks).toContainEqual({ passageId: portal.id, targetRegionId: lake.id })
-    expect(resolveMainlineDisplayTransition(street.displayRegions, cafe.id, portal.id, { crossed: true })).toBe(lake)
+    expect(cafe.passageLinks).not.toContainEqual({ passageId: portal.id, targetRegionId: lake.id })
+    expect(east.passageLinks).toContainEqual({ passageId: portal.id, targetRegionId: lake.id })
+    expect(resolveMainlineDisplayTransition(street.displayRegions, east.id, portal.id, { crossed: true })).toBe(lake)
+    expect(resolveMainlineDisplayTransition(street.displayRegions, lake.id, portal.id, { crossed: true })).toBe(east)
     expect(street.objects.some(entity => entity.id === 'commercial-lakeside-water')).toBe(true)
-    const openCafe = { displayRegionId: cafe.id, openPassageIds: new Set([portal.id]) }
+    const openEast = { displayRegionId: east.id, openPassageIds: new Set([portal.id]) }
     const openLake = { displayRegionId: lake.id, openPassageIds: new Set([portal.id]) }
-    expect(findMainlinePath({ x: 166, y: -22 }, { x: 166, y: -32 }, street, {}, openCafe)).not.toBeNull()
-    expect(findMainlinePath({ x: 166, y: -32 }, { x: 166, y: -22 }, street, {}, openLake)).not.toBeNull()
+    expect(findMainlinePath({ x: 178, y: 50 }, { x: 184, y: 50 }, street, {}, openEast)).not.toBeNull()
+    expect(findMainlinePath({ x: 194, y: 50 }, { x: 205, y: 50 }, street, {}, openLake)).not.toBeNull()
   })
 })

@@ -107,18 +107,12 @@ const commercialStreetEnglishLabels: Readonly<Record<string, string>> = {
   ...Object.fromEntries(commercialStreetShops.flatMap((shop) => shop.storefrontIds.map((id) => [id, shop.label.en]))),
   'commercial-cafe-slot': 'Café',
 }
-const commercialStreetShopEnglishEntityLabels: Readonly<Record<string, string>> = Object.fromEntries(commercialStreetShops.flatMap((shop) => [
-  [shop.id + '-display', shop.label.en + ' interior'],
-  [shop.id + '-fixture-a', shop.label.en + ' display'],
-  [shop.id + '-fixture-b', shop.label.en + ' products'],
-  [shop.id + '-counter-contact', shop.label.en + ' counter'],
-]))
+
 
 function localizedMilkTeaScene(scene: MainlineSceneDefinition, language?: string): MainlineSceneDefinition {
   const copy = commercialStreetMilkTeaCopy(language)
   if (scene.id === 'commercial-street') {
     const labelById: Record<string, string> = {
-      ...commercialStreetShopEnglishEntityLabels,
       [commercialStreetMilkTeaClerkContactId]: copy.clerk,
       [commercialStreetMilkTeaQrId]: copy.qr,
       'milk-tea-shop-menu': copy.menu,

@@ -66,11 +66,21 @@ async function journey(page: Page, testInfo: import('@playwright/test').TestInfo
   }, undefined, { timeout: 30_000 })
   await enterMilkTeaShopFromStreet(page)
   const visibleObjectLabels = page.locator('.scene-mainline-object__label')
-  const visibleCounterLabels = await visibleObjectLabels.filter({ hasText: /^Counter$/ }).evaluateAll((nodes) => nodes.filter((node) => getComputedStyle(node).visibility !== 'hidden').length)
-  expect(visibleCounterLabels).toBe(1)
-  await expect(page.locator('[data-object-id="milk-tea-pickup-3"] .scene-mainline-object__label')).toHaveCSS('visibility', 'hidden')
+  const counterIds = new Set(['milk-tea-pickup-1', 'milk-tea-pickup-3', 'milk-tea-pickup-4', 'milk-tea-counter-return-label-a', 'milk-tea-counter-return-label-b'])
+  const counterLabels = await visibleObjectLabels.evaluateAll((nodes, ids) => nodes
+    .filter((node) => ids.includes(node.closest<HTMLElement>('[data-object-id]')?.dataset.objectId ?? '') && getComputedStyle(node).display !== 'none' && getComputedStyle(node).visibility !== 'hidden')
+    .map((node) => { const r = node.getBoundingClientRect(); return { id: node.closest<HTMLElement>('[data-object-id]')?.dataset.objectId ?? '', left: r.left, right: r.right, top: r.top, bottom: r.bottom, cx: (r.left + r.right) / 2, cy: (r.top + r.bottom) / 2 } }), [...counterIds])
+  expect(counterLabels).toHaveLength(5)
+  const maxCluster = (key: 'cx' | 'cy') => Math.max(...counterLabels.map((a) => counterLabels.filter((b) => Math.abs(b[key] - a[key]) <= 18).length))
+  expect(maxCluster('cx')).toBeGreaterThanOrEqual(3)
+  expect(maxCluster('cy')).toBeGreaterThanOrEqual(2)
+  for (let i = 0; i < counterLabels.length; i++) for (let j = i + 1; j < counterLabels.length; j++) {
+    const a = counterLabels[i]!, b = counterLabels[j]!
+    const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left)
+    const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+    expect(overlapX <= 2 || overlapY <= 2, `${a.id} overlaps ${b.id}`).toBe(true)
+  }
   await expect(page.locator('[data-object-id="milk-tea-clerk-contact"] .scene-mainline-object__label')).toHaveCSS('visibility', 'hidden')
-  await expect(page.locator('[data-object-id="milk-tea-pickup-4"] .scene-mainline-object__label')).toHaveCSS('visibility', 'hidden')
   const labelOverlaps = await visibleObjectLabels.evaluateAll((nodes) => {
     const rects = nodes.map((node) => {
       const style = getComputedStyle(node)
@@ -195,7 +205,7 @@ test('Chinese UI: shared street opens Milk Tea ordering in Chinese', async ({ pa
   await expect(phone.locator('.world-phone__calendar-grid small').first()).toHaveText('一')
 })
 
-test('legacy Cafe save migrates into the continuous world and crosses to the lakeside region', async ({ page }) => {
+test('legacy Cafe save migrates, returns by the street door, and reaches lakefront only from the street', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.addInitScript(() => {
     localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
@@ -205,7 +215,7 @@ test('legacy Cafe save migrates into the continuous world and crosses to the lak
       currentSceneId: 'commercial-cafe',
       currentPosition: { x: 54, y: 84 },
       scenePositions: { 'commercial-cafe': { x: 54, y: 84 } },
-      sceneState: { 'commercial-cafe': { commercialCafeNarrativeCursor: 4, commercialCafeCoffeeStatus: 'ready' } },
+      sceneState: { 'commercial-cafe': { commercialCafeNarrativeCursor: 99, commercialCafeCoffeeStatus: 'ready' } },
       storyClock: { stage: 'cafe' },
       phoneNotifications: [], phoneNotes: [], phoneContactNotes: {}, phoneCallHistory: [], updatedAt: Date.now(),
     }))
@@ -226,7 +236,88 @@ test('legacy Cafe save migrates into the continuous world and crosses to the lak
   })).toMatchObject({ save: { x: expect.any(Number), y: 22 }, x: expect.any(Number), y: 22 })
   expect(await page.locator('.scene-shell[data-mainline-scene="commercial-street"] [data-actor-id="protagonist"]').getAttribute('data-runtime-x')).toContain('166')
   await finishReading(page)
-  await page.locator('[data-focus-target-group="door:commercial-cafe-lakefront-entry"]').click()
+  await expect(page.locator('[data-focus-target-group="door:commercial-cafe-lakefront-entry"]')).toHaveCount(0)
+  await clickSceneWorldPoint(page, { x: 166, y: 28 })
+  await expect(page.locator('[data-focus-target-group="door:street-cafe-entry"]')).toBeVisible({ timeout: 30_000 })
+  await page.locator('[data-focus-target-group="door:street-cafe-entry"]').click()
+  await expect(street).toHaveAttribute('data-active-display-region', 'commercial-street-east', { timeout: 30_000 })
+  await clickSceneWorldPoint(page, { x: 178, y: 50 })
+  await clickSceneWorldPoint(page, { x: 184, y: 50 })
+  await expect(page.locator('[data-focus-target-group="door:commercial-street-lakefront-entry"]')).toBeVisible({ timeout: 30_000 })
+  await page.locator('[data-focus-target-group="door:commercial-street-lakefront-entry"]').click()
   await expect(street).toHaveAttribute('data-active-display-region', 'commercial-lakeside', { timeout: 30_000 })
+  await expect(page.locator('[data-focus-target-group="door:commercial-street-lakefront-entry"]')).toBeVisible({ timeout: 30_000 })
+  await page.locator('[data-focus-target-group="door:commercial-street-lakefront-entry"]').click()
+  await expect(street).toHaveAttribute('data-active-display-region', 'commercial-street-east', { timeout: 30_000 })
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').currentSceneId)).toBe('commercial-street')
+})
+
+async function clickSceneWorldPoint(page: Page, point: { x: number; y: number }) {
+  const stage = page.locator('.mainline-scene-stage')
+  const screenPoint = await stage.evaluate((element, target) => {
+    const rect = element.getBoundingClientRect()
+    const cameraX = Number(element.getAttribute('data-camera-offset-x') ?? 0)
+    const cameraY = Number(element.getAttribute('data-camera-offset-y') ?? 0)
+    return { x: rect.left + ((target.x + cameraX) / 100) * rect.width, y: rect.top + ((target.y + cameraY) / 100) * rect.height }
+  }, point)
+  await page.mouse.click(screenPoint.x, screenPoint.y)
+}
+
+async function freshStreetCafeWalkthrough(page: Page, testInfo: import('@playwright/test').TestInfo) {
+  // Isolated, newly created street save. The fixture never writes a Cafe scene ID or Cafe coordinates.
+  await seedStreetStart(page)
+  await page.goto('/?scene=commercial-street&debugRuntimeEvidence=1')
+  const street = page.locator('.scene-shell[data-mainline-scene="commercial-street"]')
+  const actor = street.locator('[data-actor-id="protagonist"]')
+  await expect(street).toBeVisible()
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').currentSceneId)).toBe('commercial-street')
+  await page.screenshot({ path: testInfo.outputPath('fresh-commercial-street.png') })
+  await finishReading(page)
+  await clickSceneWorldPoint(page, { x: 143, y: 38 })
+  await expect.poll(() => actor.evaluate((node) => Number((node as HTMLElement).dataset.runtimeX)), { timeout: 30_000 }).toBeGreaterThan(140)
+  await clickSceneWorldPoint(page, { x: 166, y: 38 })
+  await expect.poll(() => actor.evaluate((node) => {
+    const e = node as HTMLElement
+    return Math.abs(Number(e.dataset.runtimeX) - 166) < 2 && Math.abs(Number(e.dataset.runtimeY) - 38) < 3
+  }), { timeout: 30_000 }).toBe(true)
+  await clickSceneWorldPoint(page, { x: 166, y: 33 })
+  await expect(street).toHaveAttribute('data-active-display-region', 'commercial-cafe-interior', { timeout: 30_000 })
+  await expect.poll(() => actor.evaluate((node) => {
+    const e = node as HTMLElement
+    return { x: Number(e.dataset.runtimeX), y: Number(e.dataset.runtimeY) }
+  })).toMatchObject({ x: expect.any(Number), y: expect.any(Number) })
+  const entry = await actor.evaluate((node) => {
+    const e = node as HTMLElement
+    return { x: Number(e.dataset.runtimeX), y: Number(e.dataset.runtimeY) }
+  })
+  expect(entry.x).toBeGreaterThanOrEqual(144)
+  expect(entry.x).toBeLessThanOrEqual(188)
+  expect(entry.y).toBeGreaterThanOrEqual(-27)
+  // Passage arrival can sit on the inner side of the storefront threshold before the next movement step.
+  expect(entry.y).toBeLessThanOrEqual(34)
+  await page.screenshot({ path: testInfo.outputPath('fresh-cafe-entry.png') })
+  await clickSceneWorldPoint(page, { x: 171, y: 22 })
+  await expect.poll(() => actor.evaluate((node) => {
+    const e = node as HTMLElement
+    return { x: Number(e.dataset.runtimeX), y: Number(e.dataset.runtimeY) }
+  })).not.toEqual(entry)
+  await expect(street).toHaveAttribute('data-active-display-region', 'commercial-cafe-interior')
+  await clickSceneWorldPoint(page, { x: 166, y: 28 })
+  await expect(page.locator('[data-focus-target-group="door:street-cafe-entry"]')).toBeVisible({ timeout: 30_000 })
+  await page.locator('[data-focus-target-group="door:street-cafe-entry"]').click()
+  await expect(street).toHaveAttribute('data-active-display-region', 'commercial-street-east', { timeout: 30_000 })
+  await expect.poll(() => actor.evaluate((node) => Number((node as HTMLElement).dataset.runtimeX))).not.toBe(entry.x)
+  await page.screenshot({ path: testInfo.outputPath('fresh-cafe-returned-to-street.png') })
+}
+
+test('fresh isolated street save walks to Cafe and returns through the front door on desktop', async ({ page }, testInfo) => {
+  test.setTimeout(120_000)
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await freshStreetCafeWalkthrough(page, testInfo)
+})
+
+test('fresh isolated street save walks to Cafe and returns through the front door at 390x844', async ({ page }, testInfo) => {
+  test.setTimeout(120_000)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await freshStreetCafeWalkthrough(page, testInfo)
 })

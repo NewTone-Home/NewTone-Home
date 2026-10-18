@@ -36,7 +36,8 @@ describe('commercial street storefront presentation', () => {
       'commercial-south-slot-7', 'commercial-south-slot-8',
     ])
     expect(street.portals).toHaveLength(15)
-    expect(street.portals.filter((portal) => portal.id !== 'commercial-cafe-lakefront-entry')).toHaveLength(14)
+    expect(street.portals.filter((portal) => commercialStreetShops.some((shop) => commercialStreetShopPortalId(shop) === portal.id))).toHaveLength(14)
+    expect(street.portals.some((portal) => portal.id === 'commercial-street-lakefront-entry')).toBe(true)
     for (const shop of commercialStreetShops) {
       const passage = street.passages.find((candidate) => candidate.id === commercialStreetShopPortalId(shop))!
       const entry = commercialStreetShopEntry(shop)

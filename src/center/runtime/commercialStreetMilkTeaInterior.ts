@@ -54,8 +54,8 @@ export const commercialStreetMilkTeaContinuousLayout = {
   ],
   rearDivider: { x: 100, y: 98, width: 16, height: 1.4 },
   kitchenWarehouseDivider: { x: 111, y: 99, width: 1.4, height: 17 },
-  kitchenLabel: { x: 102.5, y: 100.5 },
-  warehouseLabel: { x: 119.5, y: 100.5 },
+  kitchenLabel: { x: 105, y: 100.5 },
+  warehouseLabel: { x: 117, y: 100.5 },
   walkBounds: { x: 8, y: -16, width: 180, height: 132 },
   oldInteriorFallback: { x: 111, y: 69 },
 } as const

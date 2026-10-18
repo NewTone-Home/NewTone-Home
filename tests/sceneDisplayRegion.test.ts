@@ -68,7 +68,7 @@ describe('mainline scene display regions', () => {
     expect(streetRegions[2]!.visibleGeometryGroupIds).toContain('commercial-cafe-slot')
     for (const shop of commercialStreetShops) {
       const region = streetRegions.find(candidate => candidate.id === commercialStreetShopRegionId(shop))!
-      expect(region.passageLinks).toHaveLength(shop.kind === 'cafe' ? 2 : 1)
+      expect(region.passageLinks).toHaveLength(1)
       expect(region.bounds.width).toBe(shop.moduleCount * 22)
       expect(region.bounds.height).toBe(shop.kind === 'cafe' ? 58 : 52)
     }

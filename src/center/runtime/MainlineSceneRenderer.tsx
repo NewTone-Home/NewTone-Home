@@ -5,7 +5,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import EntryButtonSurface from '../../components/EntryButtonSurface'
 import type { CollisionBox, Point } from './sceneGeometry'
 import { mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
-import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
+import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation, MainlineShopFurnitureVisual } from './mainlineSceneModel'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { SceneCharacters, SceneCharacterSwitch } from './SceneCharacters'
@@ -507,6 +507,29 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   return <span {...commonProps} aria-hidden="true">{content}{renderFrame(first.focusGroup)}</span>
 }
 
+function ShopFurnitureIllustration({ visual }: { visual: MainlineShopFurnitureVisual }) {
+  const frame = <path d="M5 4H43V25H5zM9 9H39M9 15H39M9 21H39" />
+  const display = <><path d="M4 12H44V23H4zM8 12V5H40V12M9 17H39" /><path d="M7 23H41" /></>
+  const table = <><path d="M6 11H42V15H6zM10 15V26M38 15V26" /><path d="M4 27H44" /></>
+  const rack = <><path d="M5 5H43M8 6V26M40 6V26" /><path d="M13 8L16 12L19 8M23 8L26 12L29 8M33 8L36 12L39 8M14 12V24M26 12V24M38 12V24" /></>
+  const objects: Record<MainlineShopFurnitureVisual, ReactNode> = {
+    'menu-board': <>{frame}<path d="M13 11H35M13 16H32M13 21H36" /></>,
+    'produce-display': <><path d="M6 18H42V25H6zM10 18V14H38V18" /><circle cx="15" cy="12" r="3" /><circle cx="24" cy="11" r="3" /><circle cx="33" cy="12" r="3" /></>,
+    jar: <><path d="M15 5H33V9L36 12V25H12V12L15 9zM15 9H33M13 18H35" /><circle cx="19" cy="14" r="2" /><circle cx="27" cy="15" r="2" /></>,
+    bookshelf: <>{frame}<path d="M13 7V15M20 7V15M29 7V15M36 7V15M12 17V24M19 17V24M28 17V24M36 17V24" /></>,
+    table,
+    'display-case': display,
+    'makeup-display': <><path d="M6 19H42V25H6z" /><path d="M11 18V8L14 5L17 8V18M22 18V10L25 7L28 10V18M33 18V8L36 5L39 8V18" /></>,
+    rack,
+    'perfume-display': <><path d="M6 20H42V25H6z" /><path d="M12 19V10H20V19M14 10V7H18V10M26 19V8H34V19M28 8V5H32V8" /></>,
+    'shoe-display': <><path d="M6 22H42M10 21V17L17 17L23 13L28 18L38 19V22zM13 10L20 10L27 6L34 11L40 12V15H13z" /></>,
+    stack: <><path d="M8 7H38V15H8zM12 16H42V24H12zM5 25H40V29H5z" /></>,
+    'service-display': <>{display}<path d="M15 10V7M24 10V7M33 10V7" /></>,
+    mannequin: <><circle cx="24" cy="6" r="3" /><path d="M24 9V17M18 13L24 11L30 13M24 17L19 26M24 17L29 26" /></>,
+  }
+  return <svg className="scene-shop-furniture-art" viewBox="0 0 48 32" aria-hidden="true" focusable="false">{objects[visual]}</svg>
+}
+
 function MainlineObject({ entity, scene, position, collision, focusGroup, renderFrame, visibility, active, explored, tutorialCompleted, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false, debugRuntimeEvidence = false }: {
   entity: MainlineSceneEntity
   scene: MainlineSceneDefinition
@@ -581,7 +604,9 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
     if (!sharedBreathingClock || !registerBreathingNode) return
     registerBreathingNode(entity.id, node)
   }, [entity.id, registerBreathingNode, sharedBreathingClock])
-  const label = <SceneCharacters className="scene-mainline-object__label" ref={labelRef} style={{ ...labelStyle, visibility: suppressLabel ? 'hidden' : undefined }} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters>
+  const label = entity.shopFurnitureVisual
+    ? <span className="scene-mainline-object__label scene-shop-furniture-label" style={{ ...labelStyle, visibility: suppressLabel ? 'hidden' : undefined }} data-focus-visual-group={focusGroup}><ShopFurnitureIllustration visual={entity.shopFurnitureVisual} /><SceneCharacters ref={labelRef}>{entity.label}</SceneCharacters></span>
+    : <SceneCharacters className="scene-mainline-object__label" ref={labelRef} style={{ ...labelStyle, visibility: suppressLabel ? 'hidden' : undefined }} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters>
   const frame = focusGroup && renderFrame
     ? focusContent
       ? <span
@@ -1274,7 +1299,8 @@ export function MainlineSceneRenderer({
               if (cell.kind === 'feature') {
                 return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-feature ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{cell.glyph}</SceneCharacters></span>
               }
-              return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} {...portalGlyphAttributes} aria-hidden="true"><SceneCharacters>{cell.glyph ?? '墙'}</SceneCharacters></span>
+              const milkTeaWallCell = unit.id.startsWith('milk-tea-')
+              return <span key={cell.id} data-wall-id={unit.id} className={'scene-spatial-glyph scene-mainline-wall ' + visibilityClass + (milkTeaWallCell ? ' scene-milktea-wall-cell' : '')} style={{ left: cell.x + '%', top: cell.y + '%', ...portalGlyphStyle }} {...portalGlyphAttributes} aria-hidden="true">{milkTeaWallCell ? null : <SceneCharacters>{cell.glyph}</SceneCharacters>}</span>
             })}
           </div>
 
@@ -1310,7 +1336,7 @@ export function MainlineSceneRenderer({
               breathingAnimationDelay={synchronizedBreathingDelay}
               sharedBreathingClock={isAltarEntity(scene, entity.id)}
               registerBreathingNode={registerBreathingNode}
-              suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds) || (scene.id === 'commercial-street' && ['milk-tea-pickup-3', 'milk-tea-clerk-contact', 'milk-tea-pickup-4'].includes(entity.id))}
+              suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds) || (scene.id === 'commercial-street' && entity.id === 'milk-tea-clerk-contact')}
               prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}
               debugRuntimeEvidence={debugRuntimeEvidence}
             />

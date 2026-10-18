@@ -675,6 +675,9 @@
 }
 .scene-mainline-wall-labels { inset: 0; z-index: 1; }
 .scene-mainline-wall { color: var(--soft); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); line-height: 1; }
+/* Milk Tea perimeter walls render as continuous wall tiles, not repeated text glyphs. */
+.scene-milktea-wall-cell { width: 1em; height: 1em; min-width: 0; line-height: 0; color: transparent; }
+.scene-milktea-wall-cell::before { content: ""; position: absolute; inset: 0; border: 1px solid color-mix(in srgb, var(--soft) 48%, transparent); border-radius: 2px; background: color-mix(in srgb, var(--soft) 12%, transparent); }
 .scene-mainline-wall-door {
   position: relative;
   z-index: 6;
@@ -1354,3 +1357,7 @@
 @keyframes phone-app-enter { from { opacity: .6; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
 @keyframes phone-call-pulse { 0%, 60%, 100% { opacity: .28; transform: scale(.8); } 30% { opacity: .9; transform: scale(1.2); } }
 @keyframes phone-place-card-enter { from { opacity: .7; transform: translateX(10px) scale(.94); } to { opacity: 1; transform: translateX(0) scale(1); } }
+
+.scene-shop-furniture-label { display: flex; flex-direction: column; align-items: center; gap: 2px; line-height: 1; }
+.scene-shop-furniture-art { display: block; width: clamp(30px, 3.6cqw, 52px); height: clamp(18px, 2.3cqh, 32px); overflow: visible; fill: rgba(132, 94, 62, .14); stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.scene-shop-furniture-label > span { white-space: nowrap; }
