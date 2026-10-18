@@ -373,7 +373,7 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
         className="scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door is-baseline"
         style={style} doorLabel={entity.displayLabel ?? entity.label} glyph={cell.glyph} doorPhase={doorPhase}
         focusGroup={doorGroup} focusPolicy="passage" gateTriggered={false} frameRetracting={frameRetracting}
-        active={false} closeHint="接近时自动开门，进入门洞后继续路线" ariaLabel="门，点击门后目标会在接近时自动开门并穿过"
+        active={false} closeHint="接近时自动开门，进入门洞后继续路线" ariaLabel={storefront.label} appendCloseHint={false}
         renderFocusFrame={renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete}
         dataAttributes={attributes} characterPresentation={characters} />
       return <span key={cell.id} className="scene-spatial-glyph scene-mainline-wall is-baseline" style={style} {...attributes} aria-hidden="true">{characters}</span>
