@@ -762,14 +762,14 @@ export function MainlineScenePage({
     return { width: box.width, height: box.height }
   }, [laoZhouInitialPosition, screenMetrics])
   const cafeCoffeeOwnerMovement = useNpcMovement({
-    enabled: !presentationSnapshot && isCommercialCafeWorld && scene.npcs.some((npc) => npc.id === commercialCafeCoffeeOwnerNpcId),
+    enabled: !presentationSnapshot && isCommercialCafeRegion && scene.npcs.some((npc) => npc.id === commercialCafeCoffeeOwnerNpcId),
     npcId: commercialCafeCoffeeOwnerNpcId,
     initialPosition: coffeeOwnerInitialPosition,
     navigationRuntime,
     footprint: cafeCoffeeOwnerFootprint,
   })
   const cafeFloorServerMovement = useNpcMovement({
-    enabled: !presentationSnapshot && isCommercialCafeWorld && scene.npcs.some((npc) => npc.id === commercialCafeFloorServerNpcId),
+    enabled: !presentationSnapshot && isCommercialCafeRegion && scene.npcs.some((npc) => npc.id === commercialCafeFloorServerNpcId),
     npcId: commercialCafeFloorServerNpcId,
     initialPosition: floorServerInitialPosition,
     navigationRuntime,
@@ -1107,7 +1107,7 @@ export function MainlineScenePage({
     return () => window.clearTimeout(timer)
   }, [cafeFloorServerMovement.snapshot.phase, cafeFloorServerMovement.snapshot.retryCount, scene.id])
   useEffect(() => {
-    if (!isCommercialCafeWorld) {
+    if (!isCommercialCafeRegion) {
       commercialCafeCoffeeBehavior.reset()
       commercialCafeFloorBehavior.reset()
       return
@@ -1154,7 +1154,7 @@ export function MainlineScenePage({
     if (!started) commercialCafeCoffeeBehavior.block()
   }, [cafeCoffeeMoveRetryTick, cafeCounterAmbientWakeTick, cafeCoffeeOwnerMovement, cafeCoffeeOwnerLocomotionOptions, commercialCafeCoffeeBehavior, commercialCafeStory.coffeeStatus, commercialCafeStory.narrativePhase, initialSceneState, layout, navigationOptions, recordSceneStatePatch, scene])
   useEffect(() => {
-    if (!isCommercialCafeWorld) {
+    if (!isCommercialCafeRegion) {
       commercialCafeFloorBehavior.reset()
       return
     }
@@ -1176,7 +1176,7 @@ export function MainlineScenePage({
       }, dwellMs)
     })
     if (!started) commercialCafeFloorBehavior.block()
-  }, [cafeFloorDwellWake, cafeFloorMoveRetryTick, cafeFloorServerMovement, commercialCafeFloorBehavior, layout, locomotionOptions, navigationOptions, scene])
+  }, [cafeFloorDwellWake, cafeFloorMoveRetryTick, cafeFloorServerMovement, commercialCafeFloorBehavior, isCommercialCafeRegion, layout, locomotionOptions, navigationOptions, scene])
   const runDebugFloorServerMovement = useCallback(() => {
     if (!isCommercialCafeWorld || !cafeFloorServerMovement.position || cafeFloorServerMovement.snapshot.phase === 'moving') return
     cafeFloorServerMovement.requestMove({

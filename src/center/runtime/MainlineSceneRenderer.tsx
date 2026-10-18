@@ -421,7 +421,7 @@ function mainlineWallCellVisibility(cell: MainlineGeometryCellEntry['cell'], uni
   return (cell.baselineVisible ?? cell.baseline ?? true) ? 'is-baseline' : 'is-hidden'
 }
 
-export function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontGeometry, active = false, explored = false }: {
+export function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontGeometry, storefrontSignOffset, active = false, explored = false }: {
   entries: readonly MainlineGeometryCellEntry[]
   className: string
   visibilityClass: string
@@ -440,6 +440,7 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   storefrontCenter?: Point
   storefrontLabel?: string
   storefrontGeometry?: StorefrontContactGeometry
+  storefrontSignOffset?: number
   active?: boolean
   explored?: boolean
 }) {
@@ -474,6 +475,13 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   if (storefrontGeometry) {
     const { center, visualBounds, fontSizePx } = storefrontGeometry
     Object.assign(style, { left: `${center.x}%`, top: `${center.y}%`, width: `${visualBounds.width}%`, height: `${visualBounds.height}%`, fontSize: `${fontSizePx}px` })
+  }
+  // Portal signs sit to the left of the real doorway on horizontal street
+  // facades. Their text no longer shares the portal's clickable glyph cell.
+  if (storefrontLabel && storefrontCenter && storefrontSignOffset !== undefined && !storefrontGeometry) {
+    Object.assign(style, vertical
+      ? { left: `${storefrontCenter.x}%`, top: `${storefrontCenter.y - storefrontSignOffset}%` }
+      : { left: `${storefrontCenter.x - storefrontSignOffset}%`, top: `${storefrontCenter.y}%` })
   }
   const glyphs = entries.map(({ cell }) => cell.glyph ?? '')
   const content = hideGlyphs ? null : storefrontLabel ? (
@@ -1224,6 +1232,7 @@ export function MainlineSceneRenderer({
                     storefrontId={storefrontRole === 'sign' ? storefront?.id : undefined}
                     storefrontSpan={storefront ? storefront.end - storefront.start : undefined}
                     storefrontCenter={storefront ? mainlineStorefrontAnchor(scene, storefront) : undefined}
+                    storefrontSignOffset={storefront?.portalId ? (storefront.end - storefront.start) * .25 : undefined}
                     storefrontLabel={storefrontRole === 'sign' ? storefront?.label : undefined}
                     storefrontGeometry={storefrontRole === 'sign' && storefront ? geometrySnapshot.storefronts.get(storefront.id) : undefined}
                     passagePhase={storefrontPhase}
@@ -1299,8 +1308,7 @@ export function MainlineSceneRenderer({
               if (cell.kind === 'feature') {
                 return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-feature ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{cell.glyph}</SceneCharacters></span>
               }
-              const milkTeaWallCell = unit.id.startsWith('milk-tea-')
-              return <span key={cell.id} data-wall-id={unit.id} className={'scene-spatial-glyph scene-mainline-wall ' + visibilityClass + (milkTeaWallCell ? ' scene-milktea-wall-cell' : '')} style={{ left: cell.x + '%', top: cell.y + '%', ...portalGlyphStyle }} {...portalGlyphAttributes} aria-hidden="true">{milkTeaWallCell ? null : <SceneCharacters>{cell.glyph}</SceneCharacters>}</span>
+              return <span key={cell.id} data-wall-id={unit.id} className={'scene-spatial-glyph scene-mainline-wall ' + visibilityClass} style={{ left: cell.x + '%', top: cell.y + '%', ...portalGlyphStyle }} {...portalGlyphAttributes} aria-hidden="true"><SceneCharacters>{cell.glyph}</SceneCharacters></span>
             })}
           </div>
 
@@ -1336,7 +1344,7 @@ export function MainlineSceneRenderer({
               breathingAnimationDelay={synchronizedBreathingDelay}
               sharedBreathingClock={isAltarEntity(scene, entity.id)}
               registerBreathingNode={registerBreathingNode}
-              suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds) || (scene.id === 'commercial-street' && entity.id === 'milk-tea-clerk-contact')}
+              suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds) || (scene.id === 'commercial-street' && (entity.id === 'milk-tea-clerk-contact' || entity.id.startsWith('milk-tea-pickup-')))}
               prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}
               debugRuntimeEvidence={debugRuntimeEvidence}
             />

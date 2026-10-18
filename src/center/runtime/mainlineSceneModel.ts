@@ -778,7 +778,10 @@ const commercialCafeLayout = {
   bottomFourSeatTables: [],
   rightTwoSeatTables: [
     { id: 'commercial-cafe-right-window-upper-group', anchor: authoredPoint(72, 46), approach: authoredPoint(64, 46) },
-    { id: 'commercial-cafe-right-inner-middle-group', anchor: authoredPoint(51, 67), approach: authoredPoint(43, 67) },
+    // The table and its bottom chair form a narrow pocket after the Cafe is
+    // fitted into the shared street. Use the open lower-right aisle as the
+    // explicit service stand, keeping the actor clear of the chair footprint.
+    { id: 'commercial-cafe-right-inner-middle-group', anchor: authoredPoint(51, 67), approach: authoredPoint(59, 75) },
     { id: 'commercial-cafe-right-window-lower-group', anchor: authoredPoint(80, 68), approach: authoredPoint(72, 68) },
   ],
   plants: {
@@ -877,8 +880,8 @@ const commercialCafeMenu = wallEntity({
   interactionContactAnchor: authoredPoint(18, commercialCafeCounterCustomerApproachY),
 })
 const commercialCafeBlackboard = wallEntity({
-  id: 'commercial-cafe-blackboard', label: '黑板', kind: 'fixture', weight: 'fixture', position: authoredPoint(32,  35), interactive: true,
-  interactionContactAnchor: authoredPoint(32, commercialCafeCounterCustomerApproachY),
+  id: 'commercial-cafe-blackboard', label: '黑板', kind: 'fixture', weight: 'fixture', position: authoredPoint(27.35, 93), interactive: true,
+  interactionContactAnchor: authoredPoint(27.35, 88),
 })
 const commercialCafeCounterLabelHeight = commercialCafeCounterFixtureFontPx * 1.2 / defaultSceneScreenMetrics.height * 100
 // A staff actor has both a physical contact radius and a rendered text label.
@@ -1447,9 +1450,9 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
   scene: {
     walkBounds: commercialCafeBounds, wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
     viewport: 'fixed-frame',
-    walls: [{ id: 'commercial-cafe-room', type: 'room', bounds: commercialCafeStraightFrameBounds, variant: 'cafe', edges: ['top', 'bottom', 'left'], features: [
+    walls: [{ id: 'commercial-cafe-room', type: 'room', bounds: commercialCafeStraightFrameBounds, variant: 'cafe', wallGlyphs: [''], edges: ['top', 'bottom', 'left'], features: [
       { id: 'commercial-cafe-menu-feature', edge: 'top', start: 15, end: 21, glyphs: ['菜', '单'], layout: 'inline', entity: commercialCafeMenu },
-      { id: 'commercial-cafe-blackboard-feature', edge: 'top', start: 29, end: 35, glyphs: ['黑', '板'], layout: 'inline', entity: commercialCafeBlackboard },
+      { id: 'commercial-cafe-blackboard-feature', edge: 'bottom', start: 14, end: 40.7, glyphs: ['黑', '板'], layout: 'inline', entity: commercialCafeBlackboard },
     ] }],
     floorEntities: [
       ...commercialCafeCounterEntities,
@@ -2401,13 +2404,17 @@ const milkTeaContinuousCounterStructures: readonly MainlineContinuousStructure[]
 ]
 const milkTeaContinuousFurniture = [mainlineTwoSeatFurniture(
   'milk-tea-continuous-table',
-  authoredPoint(106, 107.2),
-  authoredPoint(108.8, 107.2),
+  authoredPoint(104, 86),
+  authoredPoint(106.8, 86),
   {},
   { seatGap: 2.8, pulledSeatGap: 3.8, sitSeatGap: 2.4 },
 )]
 const milkTeaContinuousFurnitureEntities = milkTeaContinuousFurniture.flatMap(({ entities }) => entities)
   .map((entity) => ({ ...entity, visualVisibility: 'baseline' as const }))
+const milkTeaCounterTextEntities: readonly MainlineSceneEntity[] = [
+  floor({ id: 'milk-tea-counter-word-run', label: '柜台'.repeat(5), kind: 'fixture', weight: 'minor', position: authoredPoint(117, 82), interactive: false, visualVisibility: 'baseline' }),
+  floor({ id: 'milk-tea-counter-word-return', label: '柜台'.repeat(3), kind: 'fixture', weight: 'minor', position: authoredPoint(112, 93), interactive: false, visualVisibility: 'baseline' }),
+]
 const milkTeaContinuousCounterEntities: readonly MainlineSceneEntity[] = milkTeaContinuousLayout.counterContacts.map((contact) => {
   const clerkContact = contact.id === commercialStreetMilkTeaClerkContactId
   return floor({
@@ -2529,8 +2536,8 @@ const commercialCafeWorldScene = {
       const isMenu = feature.id === 'commercial-cafe-menu-feature'
       const isBlackboard = feature.id === 'commercial-cafe-blackboard-feature'
       if (!isMenu && !isBlackboard) return feature
-      const start = isMenu ? 147 : 169
-      const end = isMenu ? 160 : 182
+      const start = isMenu ? 147 : 147
+      const end = isMenu ? 160 : 160
       return {
         ...feature,
         start,
@@ -2541,14 +2548,13 @@ const commercialCafeWorldScene = {
         // the anchor also lost its Cafe region context during route planning.
         entity: feature.entity ? {
           ...feature.entity,
-          position: { x: (start + end) / 2, y: feature.entity.position.y },
+          position: { x: (start + end) / 2, y: isBlackboard ? 31 : feature.entity.position.y },
           interactionContactAnchor: {
             x: (start + end) / 2,
           // Reserve the same customer-side aisle in portrait and landscape:
           // landscape actor footprints are taller and otherwise overlap the
           // counter/menu contact or the neighboring chair collision.
-          y: (feature.entity.interactionContactAnchor?.y ?? feature.entity.position.y + 15)
-            + (isBlackboard ? 4.5 : 1.5),
+          y: isBlackboard ? 26 : (feature.entity.interactionContactAnchor?.y ?? feature.entity.position.y + 15) + 1.5,
           },
         } : undefined,
       }
@@ -2592,9 +2598,8 @@ const commercialStreetWithContinuousMilkTeaBlueprint: MainlineSceneBlueprint = {
     floorEntities: [
       ...(commercialStreetBlueprint.scene.floorEntities ?? []).filter((entity) => ![commercialStreetMilkTeaClerkContactId, commercialStreetMilkTeaQrId, 'milk-tea-shop-menu', 'milk-tea-pickup-1', 'milk-tea-pickup-3', 'milk-tea-pickup-4'].includes(entity.id) && !entity.id.startsWith('commercial-south-slot-5-') && !entity.id.startsWith('commercial-milktea-')),
       ...milkTeaContinuousCounterEntities,
-      floor({ id: 'milk-tea-counter-return-label-a', label: milkTeaCopy.counter.toLowerCase() === 'counter' ? 'C' : '柜', kind: 'fixture', weight: 'minor', position: authoredPoint(107.4, 92), interactive: false, visualVisibility: 'baseline' }),
-      floor({ id: 'milk-tea-counter-return-label-b', label: milkTeaCopy.counter.toLowerCase() === 'counter' ? 'T' : '台', kind: 'fixture', weight: 'minor', position: authoredPoint(112.2, 91), interactive: false, visualVisibility: 'baseline' }),
-      floor({ id: commercialStreetMilkTeaQrId, label: milkTeaCopy.qr, kind: 'fixture', weight: 'fixture', position: authoredPoint(110, milkTeaContinuousLayout.qr.y), approach: authoredPoint(108.5, milkTeaContinuousLayout.qr.y), interactive: true, interactionBehavior: 'milk-tea-qr', interactionRange: 10, visualVisibility: 'baseline' }),
+      ...milkTeaCounterTextEntities,
+      floor({ id: commercialStreetMilkTeaQrId, label: milkTeaCopy.qr, kind: 'fixture', weight: 'fixture', position: authoredPoint(milkTeaContinuousLayout.qr.x, milkTeaContinuousLayout.qr.y), approach: authoredPoint(milkTeaContinuousLayout.qr.x - 1.5, milkTeaContinuousLayout.qr.y), interactive: true, interactionBehavior: 'milk-tea-qr', interactionRange: 10, visualVisibility: 'baseline' }),
       floor({ id: 'milk-tea-shop-menu', label: milkTeaCopy.menu, kind: 'fixture', weight: 'minor', position: authoredPoint(milkTeaContinuousLayout.menu.x, milkTeaContinuousLayout.menu.y), interactive: true, interactionRange: 8, visualVisibility: 'baseline' }),
       floor({ id: 'milk-tea-kitchen-label', label: '厨房', kind: 'fixture', weight: 'minor', position: authoredPoint(milkTeaContinuousLayout.kitchenLabel.x, milkTeaContinuousLayout.kitchenLabel.y), visualVisibility: 'baseline' }),
       floor({ id: 'milk-tea-warehouse-label', label: '仓库', kind: 'fixture', weight: 'minor', position: authoredPoint(milkTeaContinuousLayout.warehouseLabel.x, milkTeaContinuousLayout.warehouseLabel.y), visualVisibility: 'baseline' }),

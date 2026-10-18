@@ -184,7 +184,7 @@ test('a first physical visit unlocks the Phone app, while ordering stays remote 
   await expect(page.locator('.scene-protagonist__drink-icon--milk-tea')).toHaveCount(0)
   await finishReading(page)
   await enterMilkTeaShopFromStreet(page)
-  await page.getByRole('button', { name: /Scan to Order|扫码点单/ }).click()
+  await page.getByRole('button', { name: /Scan QR|Scan to Order|扫码点单/ }).click()
   await expect(phone.locator('[data-app-view="milk-tea"]')).toBeVisible({ timeout: 30_000 })
   await phone.getByRole('button', { name: '原味奶茶', exact: true }).click()
   await phone.getByRole('button', { name: '少糖', exact: true }).click()

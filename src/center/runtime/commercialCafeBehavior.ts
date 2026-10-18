@@ -1,6 +1,7 @@
 import type { NpcIntent, NpcRuntimeSnapshot } from './npcCore'
 import type { MainlineSceneDefinition } from './mainlineScenes'
-import { resolveMainlineServiceContact, type MainlineNavigationOptions } from './mainlineNavigation'
+import { findMainlinePath, resolveMainlineServiceContact, type MainlineNavigationOptions } from './mainlineNavigation'
+import { mainlineLabelFootprint } from './sceneLayout'
 import type { Point } from './sceneGeometry'
 import type { SceneLayout } from './sceneLayout'
 import { commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId } from './commercialCafeStory'
@@ -121,6 +122,20 @@ export function commercialCafeFloorServiceDwellMs(random = Math.random) {
 /** Resolve the authored work surface through shared legality, rather than table contacts. */
 export function commercialCafeFloorServiceTarget(scene: MainlineSceneDefinition, from: Point, intent: NpcIntent, layout: SceneLayout, options: MainlineNavigationOptions): Point | null {
   if (!intent.target || !intent.targetId) return null
-  const route = resolveMainlineServiceContact(scene, intent.targetId, intent.target, from, layout, { ...options, actorId: commercialCafeFloorServerNpcId, actorFootprint: undefined })
+  const npcLabel = scene.npcs.find((npc) => npc.id === commercialCafeFloorServerNpcId)?.label ?? '店员'
+  const visibleLabel = mainlineLabelFootprint(npcLabel, from, options.screenMetrics, { lineHeight: 1 })
+  const routeOptions = {
+    ...options,
+    actorId: commercialCafeFloorServerNpcId,
+    actorFootprint: visibleLabel,
+  }
+  // Cafe table approaches are authored as customer-floor standing points.
+  // Prefer that exact point when it is legal; resolving another edge contact
+  // can put the server behind the middle table's bottom chair after scaling.
+  const authoredApproachPath = scene.id === 'commercial-street' && intent.targetId === 'commercial-cafe-right-inner-middle-group-table'
+    ? findMainlinePath(from, intent.target, scene, layout, routeOptions)
+    : null
+  if (authoredApproachPath) return authoredApproachPath.at(-1) ?? null
+  const route = resolveMainlineServiceContact(scene, intent.targetId, intent.target, from, layout, routeOptions)
   return route.path ? route.target : null
 }

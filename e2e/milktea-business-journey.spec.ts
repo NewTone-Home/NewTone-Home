@@ -66,20 +66,41 @@ async function journey(page: Page, testInfo: import('@playwright/test').TestInfo
   }, undefined, { timeout: 30_000 })
   await enterMilkTeaShopFromStreet(page)
   const visibleObjectLabels = page.locator('.scene-mainline-object__label')
-  const counterIds = new Set(['milk-tea-pickup-1', 'milk-tea-pickup-3', 'milk-tea-pickup-4', 'milk-tea-counter-return-label-a', 'milk-tea-counter-return-label-b'])
-  const counterLabels = await visibleObjectLabels.evaluateAll((nodes, ids) => nodes
-    .filter((node) => ids.includes(node.closest<HTMLElement>('[data-object-id]')?.dataset.objectId ?? '') && getComputedStyle(node).display !== 'none' && getComputedStyle(node).visibility !== 'hidden')
-    .map((node) => { const r = node.getBoundingClientRect(); return { id: node.closest<HTMLElement>('[data-object-id]')?.dataset.objectId ?? '', left: r.left, right: r.right, top: r.top, bottom: r.bottom, cx: (r.left + r.right) / 2, cy: (r.top + r.bottom) / 2 } }), [...counterIds])
-  expect(counterLabels).toHaveLength(5)
-  const maxCluster = (key: 'cx' | 'cy') => Math.max(...counterLabels.map((a) => counterLabels.filter((b) => Math.abs(b[key] - a[key]) <= 18).length))
-  expect(maxCluster('cx')).toBeGreaterThanOrEqual(3)
-  expect(maxCluster('cy')).toBeGreaterThanOrEqual(2)
-  for (let i = 0; i < counterLabels.length; i++) for (let j = i + 1; j < counterLabels.length; j++) {
-    const a = counterLabels[i]!, b = counterLabels[j]!
-    const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left)
-    const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
-    expect(overlapX <= 2 || overlapY <= 2, `${a.id} overlaps ${b.id}`).toBe(true)
+  const counterRun = page.locator('[data-object-id="milk-tea-counter-word-run"] .scene-mainline-object__label')
+  const counterReturn = page.locator('[data-object-id="milk-tea-counter-word-return"] .scene-mainline-object__label')
+  await expect(counterRun).toHaveText('柜台'.repeat(5))
+  await expect(counterReturn).toHaveText('柜台'.repeat(3))
+  const counterTextBoxes = await Promise.all([counterRun, counterReturn].map(async (node) => {
+    const rect = await node.boundingBox()
+    expect(rect).not.toBeNull()
+    return rect!
+  }))
+  expect(counterTextBoxes[0]!.height).toBeGreaterThan(counterTextBoxes[0]!.width * 2)
+  expect(counterTextBoxes[1]!.width).toBeGreaterThan(counterTextBoxes[1]!.height * 2)
+  const clerkLabel = page.locator('.scene-mainline-npc[data-npc-id="milk-tea-clerk"] > span')
+  const clerkLabelBox = await clerkLabel.boundingBox()
+  expect(clerkLabelBox).not.toBeNull()
+  const counterRunBox = counterTextBoxes[0]!
+  expect(Math.min(counterRunBox.x + counterRunBox.width, clerkLabelBox!.x + clerkLabelBox!.width) <= Math.max(counterRunBox.x, clerkLabelBox!.x) + 2
+    || Math.min(counterRunBox.y + counterRunBox.height, clerkLabelBox!.y + clerkLabelBox!.height) <= Math.max(counterRunBox.y, clerkLabelBox!.y) + 2,
+  'Milk Tea clerk label overlaps the vertical counter text').toBe(true)
+  const wallGlyphs = page.locator('.scene-spatial-glyph.scene-mainline-wall[data-wall-id^="milk-tea-"]')
+  const visibleWallTexts = await wallGlyphs.evaluateAll((nodes) => nodes
+    .filter((node) => getComputedStyle(node).visibility !== 'hidden' && Number(getComputedStyle(node).opacity) > 0)
+    .map((node) => node.textContent?.trim() ?? '').filter(Boolean))
+  expect(visibleWallTexts.length).toBeGreaterThan(20)
+  expect(visibleWallTexts.every((text) => text === '墙')).toBe(true)
+  for (const id of ['milk-tea-pickup-1', 'milk-tea-pickup-3', 'milk-tea-pickup-4']) {
+    await expect(page.locator(`[data-object-id="${id}"] .scene-mainline-object__label`)).toHaveCSS('visibility', 'hidden')
+    await expect(page.locator(`[data-object-id="${id}"]`)).toBeVisible()
   }
+  const table = page.locator('[data-object-id="milk-tea-continuous-table-table"]')
+  await expect(table).toBeVisible()
+  expect(Number(await table.getAttribute('data-rendered-y'))).toBeLessThan(milkTeaBounds.y + 34)
+  for (const id of ['milk-tea-continuous-table-chair-top', 'milk-tea-continuous-table-chair-bottom']) {
+    expect(Number(await page.locator(`[data-object-id="${id}"]`).getAttribute('data-rendered-y'))).toBeLessThan(milkTeaBounds.y + 34)
+  }
+  await expect(page.locator('[data-object-id="milk-tea-counter-return-label-a"], [data-object-id="milk-tea-counter-return-label-b"]')).toHaveCount(0)
   await expect(page.locator('[data-object-id="milk-tea-clerk-contact"] .scene-mainline-object__label')).toHaveCSS('visibility', 'hidden')
   const labelOverlaps = await visibleObjectLabels.evaluateAll((nodes) => {
     const rects = nodes.map((node) => {

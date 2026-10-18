@@ -32,7 +32,8 @@ describe('follow-up experience contracts', () => {
       expect(target).not.toBeNull()
       expect(isWalkableMainlinePoint(target,scene,{},options)).toBe(true)
       expect(findMainlinePath(start,target,scene,{},options)).not.toBeNull()
-      if(tables[index].id.startsWith('commercial-cafe-right-')) expect(target.x).toBeLessThan(tables[index].position.x)
+      if(tables[index].id==='commercial-cafe-right-inner-middle-group-table') expect(target.x).toBeGreaterThan(tables[index].position.x)
+      else if(tables[index].id.startsWith('commercial-cafe-right-')) expect(target.x).toBeLessThan(tables[index].position.x)
       start=target
     }
   })

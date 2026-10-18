@@ -264,7 +264,9 @@ export function resolveCommercialCafeReturnToCounterIntent(scene: MainlineSceneD
 }
 export function resolveCommercialCafeFloorServiceIntent(scene: MainlineSceneDefinition, rotation = 0): NpcIntent | null {
   if (scene.id !== 'commercial-cafe' && !(scene.id === 'commercial-street' && scene.objects.some((entity) => entity.id === 'commercial-cafe-counter'))) return null
-  const publicTables = scene.objects.filter((entity) => entity.kind === 'table' && entity.id !== commercialCafeStoryTableId)
+  const publicTables = scene.objects.filter((entity) => entity.kind === 'table'
+    && entity.id.startsWith('commercial-cafe-right-')
+    && entity.id !== commercialCafeStoryTableId)
   const table = publicTables.length ? publicTables[rotation % publicTables.length] : undefined
   return table?.approach ? { dutyId: npcRoles.cafeFloorServer.duties.tableService.id, targetId: table.id, target: { ...table.approach } } : null
 }
