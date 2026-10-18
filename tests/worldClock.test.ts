@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { migrateLegacyOrderFixture } from './fixtures/legacyOrderClockAdapter'
 import {
   WORLD_CLOCK_QUANTIZATION_BOUND_TICKS,
+  WORLD_CLOCK_MODES,
+  type WorldClockConfiguration,
   WORLD_CLOCK_TICKS_PER_GAME_MINUTE,
   WorldClockRuntime,
   createWorldClockConfiguration,
@@ -118,6 +120,59 @@ describe('world clock runtime', () => {
     time.advance(86_400_000)
     const reopened = new WorldClockRuntime(time, trialConfig, saved)
     expect(reopened.read().worldTimeTicks).toBe(saved.worldTimeTicks)
+  })
+
+  it('rejects same-session monotonic rollback when resuming from suspend', () => {
+    const time = new ManualMonotonicClock(100)
+    const runtime = new WorldClockRuntime(time, trialConfig)
+    time.advance(10)
+    const suspended = runtime.suspend()
+    time.advance(-20)
+
+    expect(() => runtime.resume()).toThrow('must not move backwards')
+    expect(runtime.snapshot()).toEqual(suspended)
+
+    time.advance(20)
+    expect(runtime.resume().suspended).toBe(false)
+    expect(runtime.snapshot().worldTimeTicks).toBe(suspended.worldTimeTicks)
+  })
+
+  it('validates every constructor rate and snapshots mutable configuration input', () => {
+    for (const mode of WORLD_CLOCK_MODES) {
+      for (const invalidRate of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+        const rates = { ...trialConfig.rates, [mode]: invalidRate }
+        const directConfiguration = { rates } as WorldClockConfiguration
+        expect(() => new WorldClockRuntime(new ManualMonotonicClock(), directConfiguration))
+          .toThrow('finite, non-negative')
+      }
+    }
+
+    const time = new ManualMonotonicClock()
+    const mutableRates = { ...trialConfig.rates }
+    const directConfiguration: WorldClockConfiguration = { rates: mutableRates }
+    const runtime = new WorldClockRuntime(time, directConfiguration)
+    mutableRates.normal = -5
+    time.advance(1_000)
+    expect(runtime.read().worldTimeTicks).toBe(3_000_000)
+
+    const created = createWorldClockConfiguration()
+    expect(Object.isFrozen(created)).toBe(true)
+    expect(Object.isFrozen(created.rates)).toBe(true)
+  })
+
+  it('leaves both clock state and sampling anchor unchanged when overflow rejects an advance', () => {
+    const time = new ManualMonotonicClock()
+    const runtime = new WorldClockRuntime(time, trialConfig, {
+      worldTimeTicks: Number.MAX_SAFE_INTEGER - 1_000,
+      fractionalTickRemainder: 0,
+    })
+    const before = runtime.snapshot()
+
+    expect(() => runtime.advanceTo(1)).toThrow('safe integer range')
+    expect(runtime.snapshot()).toEqual(before)
+    // Repeating the same failed sample must fail again; the first error must not consume it.
+    expect(() => runtime.advanceTo(1)).toThrow('safe integer range')
+    expect(runtime.snapshot()).toEqual(before)
   })
 
   it('rejects backwards monotonic timestamps and invalid trial rates', () => {

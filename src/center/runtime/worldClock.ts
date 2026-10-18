@@ -5,27 +5,42 @@ export const WORLD_CLOCK_TICK_GAME_MICROSECONDS = 1
 export const WORLD_CLOCK_QUANTIZATION_BOUND_TICKS = 1
 
 export type WorldClockMode = 'normal' | 'phone' | 'dialogue' | 'background' | 'idle'
-export const WORLD_CLOCK_MODES: readonly WorldClockMode[] = ['normal', 'phone', 'dialogue', 'background', 'idle']
+export const WORLD_CLOCK_MODES: readonly WorldClockMode[] = Object.freeze([
+  'normal', 'phone', 'dialogue', 'background', 'idle',
+])
 
 export type WorldClockRates = Readonly<Record<WorldClockMode, number>>
 export type WorldClockConfiguration = Readonly<{ rates: WorldClockRates }>
 
 /** Trial-only candidate rates in game seconds per real second; these are not canon settings. */
-export const WORLD_CLOCK_TRIAL_RATES: WorldClockRates = {
+export const WORLD_CLOCK_TRIAL_RATES: WorldClockRates = Object.freeze({
   normal: 3, phone: 0.3, dialogue: 0.3, background: 0.009, idle: 0.009,
+})
+
+function snapshotWorldClockConfiguration(configuration: WorldClockConfiguration): WorldClockConfiguration {
+  if (!configuration || typeof configuration !== 'object'
+    || !configuration.rates || typeof configuration.rates !== 'object') {
+    throw new TypeError('World clock configuration must provide a rates object')
+  }
+
+  const sourceRates = configuration.rates as Record<WorldClockMode, unknown>
+  const rates = {} as Record<WorldClockMode, number>
+  for (const mode of WORLD_CLOCK_MODES) {
+    const rate = sourceRates[mode]
+    if (typeof rate !== 'number' || !Number.isFinite(rate) || rate < 0) {
+      throw new RangeError('World clock rate for ' + mode + ' must be a finite, non-negative number')
+    }
+    rates[mode] = rate
+  }
+  return Object.freeze({ rates: Object.freeze(rates) })
 }
 
 export function createWorldClockConfiguration(
   rates: Partial<Record<WorldClockMode, number>> = {},
 ): WorldClockConfiguration {
-  const merged = { ...WORLD_CLOCK_TRIAL_RATES, ...rates }
-  for (const mode of WORLD_CLOCK_MODES) {
-    const rate = merged[mode]
-    if (!Number.isFinite(rate) || rate < 0) {
-      throw new RangeError('World clock rate for ' + mode + ' must be a finite, non-negative number')
-    }
-  }
-  return { rates: merged }
+  return snapshotWorldClockConfiguration({
+    rates: { ...WORLD_CLOCK_TRIAL_RATES, ...rates },
+  })
 }
 
 export interface MonotonicTimeSource {
@@ -75,12 +90,14 @@ function validateInitialState(state: WorldClockInitialState | undefined) {
 export class WorldClockRuntime {
   private state: WorldClockSnapshot
   private lastSampleMilliseconds: number
+  private readonly configuration: WorldClockConfiguration
 
   constructor(
     private readonly timeSource: MonotonicTimeSource,
-    private readonly configuration: WorldClockConfiguration,
+    configuration: WorldClockConfiguration,
     initialState?: WorldClockInitialState,
   ) {
+    this.configuration = snapshotWorldClockConfiguration(configuration)
     this.state = validateInitialState(initialState)
     // Restored runtimes get a fresh anchor; no saved wall time is used to catch up.
     this.lastSampleMilliseconds = this.readNow()
@@ -99,8 +116,10 @@ export class WorldClockRuntime {
     }
 
     const elapsedMilliseconds = nowMilliseconds - this.lastSampleMilliseconds
-    this.lastSampleMilliseconds = nowMilliseconds
-    if (this.state.suspended || elapsedMilliseconds === 0) return this.snapshot()
+    if (this.state.suspended || elapsedMilliseconds === 0) {
+      this.lastSampleMilliseconds = nowMilliseconds
+      return this.snapshot()
+    }
 
     // 1 game second = 1,000,000 ticks; real milliseconds convert with * 1,000.
     // Keep fractional ticks so small 0.009x samples are not truncated away.
@@ -117,6 +136,8 @@ export class WorldClockRuntime {
       worldTimeTicks: nextWorldTimeTicks,
       fractionalTickRemainder: exactTicks - wholeTicks,
     }
+    // Commit the anchor only after all calculations and validation succeed.
+    this.lastSampleMilliseconds = nowMilliseconds
     return this.snapshot()
   }
 
@@ -138,6 +159,9 @@ export class WorldClockRuntime {
   /** Resume from a fresh monotonic anchor; closed-session time is never added. */
   resume(mode?: WorldClockMode): WorldClockSnapshot {
     const now = this.readNow()
+    if (now < this.lastSampleMilliseconds) {
+      throw new RangeError('monotonic time must not move backwards')
+    }
     if (mode !== undefined && !isWorldClockMode(mode)) throw new TypeError('Unknown world clock mode')
     if (!this.state.suspended) {
       const advanced = this.advanceTo(now)
