@@ -4,7 +4,7 @@ import { mainlineRidePickupPositions } from '../src/center/runtime/mainlineRide'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 
 const playerSaveKey = 'newtone-player-save-v1'
-const eatery = '.scene-shell[data-mainline-scene="yonghe-eatery"]'
+const eatery = '.scene-shell[data-mainline-scene="yonghe-eatery"][data-world-scene="yonghe-mining-perimeter"]'
 
 async function openEatery(page: Page, width = 1280, height = 800) {
   await page.setViewportSize({ width, height })
@@ -16,7 +16,7 @@ async function openEatery(page: Page, width = 1280, height = 800) {
 async function waitForPoint(page: Page, point: string, status: 'in-progress' | 'complete') {
   await expect.poll(() => page.evaluate(({ playerSaveKey, point }) => {
     const save = JSON.parse(localStorage.getItem(playerSaveKey) ?? '{}')
-    return save.sceneState?.['yonghe-eatery']?.[point]
+    return save.sceneState?.['yonghe-mining-perimeter']?.[point]
   }, { playerSaveKey, point })).toBe(true)
   await expect(page.locator(eatery)).toHaveAttribute('data-yonghe-survey-status', status)
 }
@@ -27,14 +27,14 @@ async function closeObservation(page: Page) {
   for (let index = 0; index < 8; index += 1) {
     if (await echo.count() === 0) return
     if (await shield.count() === 0) {
-      await expect(echo).toHaveCount(0, { timeout: 5_000 })
-      return
+      await page.waitForTimeout(100)
+      continue
     }
     if (await echo.getAttribute('data-scene-observation-typing') === 'true') {
-      await shield.click({ force: true })
-      await expect(echo).toHaveAttribute('data-scene-observation-typing', 'false', { timeout: 10_000 })
+      await shield.click({ force: true, timeout: 1_000 }).catch(() => undefined)
+      await expect(page.locator('[data-scene-observation-typing="true"]')).toHaveCount(0, { timeout: 10_000 })
     }
-    await shield.click({ force: true })
+    if (await shield.count()) await shield.click({ force: true, timeout: 1_000 }).catch(() => undefined)
   }
   await expect(echo).toHaveCount(0, { timeout: 5_000 })
 }
@@ -62,27 +62,41 @@ async function clickWorldPoint(page: Page, target: { x: number; y: number }) {
   await page.mouse.click(screen.x, screen.y)
 }
 
-async function walkToWorldPoint(page: Page, target: { x: number; y: number }) {
+async function walkToWorldPoint(page: Page, target: { x: number; y: number }, reachTarget = false) {
   const actor = page.locator('[data-actor-id="protagonist"]')
   for (let step = 0; step < 24; step += 1) {
+    const distance = await actor.evaluate((element, point) => Math.hypot(
+      Number((element as HTMLElement).dataset.runtimeX) - point.x,
+      Number((element as HTMLElement).dataset.runtimeY) - point.y,
+    ), target)
+    if (distance < 1.25) return
     const stage = page.locator('.mainline-scene-stage')
     const projected = await stage.evaluate((element, point) => {
       const rect = element.getBoundingClientRect()
       const world = element.querySelector<HTMLElement>('.scene-mainline-world')
       if (!world) throw new Error('Mainline world layer is missing')
       const offset = world.style.transform.match(/translate\(([-\d.]+)%, ([-\d.]+)%\)/)
-      if (!offset) throw new Error('Mainline camera offset is unavailable')
-      const x = rect.x + rect.width * (point.x + Number(offset[1])) / 100
-      const y = rect.y + rect.height * (point.y + Number(offset[2])) / 100
+      const x = rect.x + rect.width * (point.x + Number(offset?.[1] ?? 0)) / 100
+      const y = rect.y + rect.height * (point.y + Number(offset?.[2] ?? 0)) / 100
       return {
         x: Math.max(rect.x + 20, Math.min(rect.right - 20, x)),
         y: Math.max(rect.y + 20, Math.min(rect.bottom - 30, y)),
         targetVisible: x >= rect.x && x <= rect.right && y >= rect.y && y <= rect.bottom,
       }
     }, target)
+    if (projected.targetVisible && !reachTarget) return
+    const sourceSceneId = await page.locator('.scene-shell[data-mainline-scene]').getAttribute('data-mainline-scene')
     await page.mouse.click(projected.x, projected.y)
-    if (projected.targetVisible) return
-    await expect(actor).toHaveClass(/is-moving/, { timeout: 5_000 })
+    await expect.poll(async () => {
+      const nextSceneId = await page.locator('.scene-shell[data-mainline-scene]').getAttribute('data-mainline-scene')
+      const moving = await page.locator('[data-actor-id="protagonist"]').getAttribute('class')
+      const travelVisible = await page.locator('.center-long-distance-travel').count() > 0
+      const travelPhase = await page.locator('.center-experience').getAttribute('data-long-distance-phase')
+      return nextSceneId !== sourceSceneId || /is-moving/.test(moving ?? '') || travelVisible || Boolean(travelPhase)
+    }, { timeout: 5_000 }).toBe(true)
+    if (await page.locator('.center-long-distance-travel').count() > 0
+      || await page.locator('.center-experience').getAttribute('data-long-distance-phase')) return
+    if (await page.locator('.scene-shell[data-mainline-scene]').getAttribute('data-mainline-scene') !== sourceSceneId) return
     await expect(actor).not.toHaveClass(/is-moving/, { timeout: 15_000 })
   }
   throw new Error('Walking did not reach the ride pickup exit')
@@ -113,19 +127,19 @@ test('desktop: fresh and legacy saves, early exit, and reentry persistence', asy
   await inspect(page, 'yonghe-upper-left-group-table', 'yongheSurveyPoint:tables', 'in-progress')
   await inspect(page, 'yonghe-upper-left-group-table', 'yongheSurveyPoint:tables', 'in-progress')
   await expect.poll(() => page.evaluate(() => {
-    const state = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').sceneState?.['yonghe-eatery'] ?? {}
+    const state = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').sceneState?.['yonghe-mining-perimeter'] ?? {}
     return Object.entries(state).filter(([key, value]) => key.startsWith('yongheSurveyPoint:') && value === true).length
   })).toBe(1)
   await page.reload()
   await expect(page.locator(eatery)).toHaveAttribute('data-yonghe-survey-status', 'in-progress')
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').sceneState?.['yonghe-eatery']?.['yongheSurveyPoint:tables'])).toBe(true)
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').sceneState?.['yonghe-mining-perimeter']?.['yongheSurveyPoint:tables'])).toBe(true)
 
   const frontDoor = page.locator('[data-focus-target-group="door:yonghe-street-entry"]')
   await expect(frontDoor).toBeVisible()
   await frontDoor.click()
-  await expect(page.locator('.scene-shell[data-mainline-scene="yonghe-mining-perimeter"]')).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('.scene-shell[data-mainline-scene="yonghe-mining-perimeter"][data-world-scene="yonghe-mining-perimeter"]')).toBeVisible({ timeout: 15_000 })
 
-  const streetEntry = page.locator('.scene-shell[data-mainline-scene="yonghe-mining-perimeter"] [data-storefront-cell-id][data-focus-target-policy="passage"]')
+  const streetEntry = page.locator('.scene-shell[data-mainline-scene="yonghe-mining-perimeter"][data-world-scene="yonghe-mining-perimeter"] [data-storefront-cell-id][data-focus-target-policy="passage"]')
   await expect(streetEntry).toBeVisible()
   await streetEntry.click()
   await expect(page.locator(eatery)).toHaveAttribute('data-yonghe-survey-status', 'in-progress', { timeout: 15_000 })
@@ -163,7 +177,7 @@ test('390x844 mobile: all four observations complete in any order and survive re
         : entityId === 'yonghe-lower-right-group-table' ? 'central-lane'
           : 'back-door'
     const seen = await page.evaluate(({ playerSaveKey, point }) =>
-      JSON.parse(localStorage.getItem(playerSaveKey) ?? '{}').sceneState?.['yonghe-eatery']?.['yongheSurveyPoint:' + point] === true,
+      JSON.parse(localStorage.getItem(playerSaveKey) ?? '{}').sceneState?.['yonghe-mining-perimeter']?.['yongheSurveyPoint:' + point] === true,
     { playerSaveKey, point })
     const currentStatus = entityId === 'yonghe-upper-left-group-table' ? 'complete' : 'in-progress'
     if (!seen) await inspect(page, entityId, 'yongheSurveyPoint:' + point, currentStatus)
@@ -196,12 +210,22 @@ test('legal isolated save: perimeter, eatery round trip, ride map, and Café ent
     }))
   }, playerSaveKey)
   await page.goto('/')
-  const perimeter = page.locator('.scene-shell[data-mainline-scene="yonghe-mining-perimeter"]')
+  const perimeter = page.locator('.scene-shell[data-mainline-scene="yonghe-mining-perimeter"][data-world-scene="yonghe-mining-perimeter"]')
   await expect(perimeter).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('yonghe-route-perimeter-start.png') })
 
-  await perimeter.locator('[data-storefront-cell-id][data-focus-target-policy="passage"]').click()
+  await walkToWorldPoint(page, { x: 42, y: 35 })
+  if (!await page.locator(eatery).isVisible()) {
+    const entrance = perimeter.locator('[data-storefront-cell-id][data-focus-target-policy="passage"]').first()
+    await expect(entrance).toBeInViewport()
+    await entrance.click()
+  }
   await expect(page.locator(eatery)).toHaveAttribute('data-yonghe-survey-status', 'not-started', { timeout: 15_000 })
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').currentPosition)).toMatchObject({ x: expect.any(Number), y: expect.any(Number) })
+  await expect.poll(() => page.evaluate(() => {
+    const { x, y } = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').currentPosition
+    return x >= 32 && x <= 38 && y >= 30 && y <= 40
+  })).toBe(true)
   await page.screenshot({ path: testInfo.outputPath('yonghe-route-eatery-first-entry.png') })
   await inspect(page, 'yonghe-upper-left-group-table', 'yongheSurveyPoint:tables', 'in-progress')
 
@@ -211,7 +235,7 @@ test('legal isolated save: perimeter, eatery round trip, ride map, and Café ent
   await page.screenshot({ path: testInfo.outputPath('yonghe-route-early-exit.png') })
   await perimeter.locator('[data-storefront-cell-id][data-focus-target-policy="passage"]').click()
   await expect(page.locator(eatery)).toHaveAttribute('data-yonghe-survey-status', 'in-progress', { timeout: 15_000 })
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').sceneState?.['yonghe-eatery']?.['yongheSurveyPoint:tables'])).toBe(true)
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').sceneState?.['yonghe-mining-perimeter']?.['yongheSurveyPoint:tables'])).toBe(true)
 
   for (const [entity, point, status] of [
     ['yonghe-back-door', 'back-door', 'in-progress'],
@@ -243,6 +267,7 @@ test('legal isolated save: perimeter, eatery round trip, ride map, and Café ent
   await rideArrival.click()
   await page.keyboard.press('Escape')
   await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase', 'closed')
+  await closeObservation(page)
 
   const pickupSceneId = await page.locator('.scene-shell[data-mainline-scene]').getAttribute('data-mainline-scene')
   if (!pickupSceneId || !(pickupSceneId in mainlineScenes)) throw new Error('Ride pickup scene is unavailable')
@@ -250,7 +275,7 @@ test('legal isolated save: perimeter, eatery round trip, ride map, and Café ent
   const pickupExit = pickupScene.externalExits[0]
   const pickupPosition = mainlineRidePickupPositions(pickupScene.id)[0]
   if (!pickupExit || !pickupPosition) throw new Error('Ride pickup exit is unavailable')
-  await walkToWorldPoint(page, { ...pickupPosition, [pickupExit.axis]: pickupPosition[pickupExit.axis] + pickupExit.direction })
+  await walkToWorldPoint(page, { ...pickupPosition, [pickupExit.axis]: pickupPosition[pickupExit.axis] + pickupExit.direction }, true)
   await expect(page.locator('.center-long-distance-travel')).toBeVisible({ timeout: 20_000 })
   await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible({ timeout: 20_000 })
   await expect(page.locator('.center-long-distance-travel')).toHaveCount(0, { timeout: 20_000 })
@@ -264,7 +289,7 @@ test('legal isolated save: perimeter, eatery round trip, ride map, and Café ent
   await cafeDoor.click()
   const cafe = page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')
   await expect(cafe).toBeVisible({ timeout: 15_000 })
-  await expect(page.locator('.scene-shell[data-mainline-scene="yonghe-eatery"]')).toHaveCount(0)
+  await expect(page.locator('.scene-shell[data-mainline-scene="yonghe-eatery"][data-world-scene="yonghe-mining-perimeter"]')).toHaveCount(0)
   await expect(page.locator('[data-scene-dialogue-shield]')).toHaveCount(0)
   await expect(cafe).toHaveAttribute('data-commercial-cafe-narrative-phase', 'not-started')
   await expect(cafe).toHaveAttribute('data-commercial-cafe-status', 'available')
@@ -275,8 +300,9 @@ test('rapid front-door round trips keep one scene active and preserve survey sta
   await page.addInitScript(() => localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1'))
   await page.goto('/?scene=yonghe-mining-perimeter')
 
-  const perimeter = page.locator('.scene-shell[data-mainline-scene="yonghe-mining-perimeter"]')
+  const perimeter = page.locator('.scene-shell[data-mainline-scene="yonghe-mining-perimeter"][data-world-scene="yonghe-mining-perimeter"]')
   const inside = page.locator(eatery)
+  const sharedWorldNode = await perimeter.evaluateHandle((element) => element)
   await expect(perimeter).toBeVisible()
 
   // Walk up the normal mine-side lane with actual stage input. The doorway
@@ -296,13 +322,15 @@ test('rapid front-door round trips keep one scene active and preserve survey sta
   await entry.click()
   await expect(inside).toHaveAttribute('data-yonghe-survey-status', 'not-started', { timeout: 15_000 })
   await expect(perimeter).toHaveCount(0)
+  expect(await sharedWorldNode.evaluate((element) => element === document.querySelector('.scene-shell[data-world-scene="yonghe-mining-perimeter"]'))).toBe(true)
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').currentSceneId)).toBe('yonghe-mining-perimeter')
 
   await inspect(page, 'yonghe-upper-left-group-table', 'yongheSurveyPoint:tables', 'in-progress')
   for (let round = 0; round < 2; round += 1) {
     await page.locator('[data-focus-target-group="door:yonghe-street-entry"]').click()
     await expect(perimeter).toBeVisible({ timeout: 15_000 })
     await expect(inside).toHaveCount(0)
-    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').sceneState?.['yonghe-eatery']?.['yongheSurveyPoint:tables'])).toBe(true)
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').sceneState?.['yonghe-mining-perimeter']?.['yongheSurveyPoint:tables'])).toBe(true)
 
     const returningEntry = perimeter.locator('[data-storefront-cell-id][data-focus-target-policy="passage"]')
     await expect(returningEntry).toBeInViewport()

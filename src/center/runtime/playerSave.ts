@@ -1,4 +1,5 @@
 import type { MainlineSceneId } from './mainlineSceneModel'
+import { migrateYongheSurveyState, yongheCurrentRegionStateKey, yongheEateryLegacySceneId, yongheLegacyPositionToWorld, yongheWorldSceneId } from './yongheUnifiedWorld'
 import { cleanPhoneNotifications, type PhoneNotification } from './phoneNotifications'
 import type { PhoneDevice } from './phoneState'
 import { createInitialMainlineStoryClock, storyClockForStage, type MainlineStoryClock, type MainlineStoryStage } from './mainlineStoryClock'
@@ -141,20 +142,34 @@ export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineScen
     ? storyClockForStage(storyStage as MainlineStoryStage)
     : createInitialMainlineStoryClock(currentSceneId)
   const updatedAt = Number(source.updatedAt)
-  return {
+  const cleanPositions = cleanScenePositions(source.scenePositions)
+  const cleanState = cleanSceneState(source.sceneState)
+  if (currentSceneId === yongheEateryLegacySceneId) {
+    cleanState[yongheWorldSceneId] = { ...cleanState[yongheWorldSceneId], [yongheCurrentRegionStateKey]: 'eatery' }
+  }
+  const normalizedCurrentSceneId = currentSceneId === yongheEateryLegacySceneId ? yongheWorldSceneId : currentSceneId
+  const currentPosition = cleanPoint(source.currentPosition)
+  if (currentSceneId === yongheEateryLegacySceneId) {
+    const legacyPosition = currentPosition ?? cleanPositions[yongheEateryLegacySceneId] ?? null
+    if (legacyPosition) cleanPositions[yongheWorldSceneId] = yongheLegacyPositionToWorld(legacyPosition)
+  }
+  const base: PlayerSave = {
     _version: PLAYER_SAVE_VERSION,
-    currentSceneId,
-    currentPosition: cleanPoint(source.currentPosition),
-    scenePositions: cleanScenePositions(source.scenePositions),
+    currentSceneId: normalizedCurrentSceneId,
+    currentPosition: currentSceneId === yongheEateryLegacySceneId
+      ? ((currentPosition ?? cleanPositions[yongheEateryLegacySceneId]) ? yongheLegacyPositionToWorld(currentPosition ?? cleanPositions[yongheEateryLegacySceneId]!) : null)
+      : currentPosition,
+    scenePositions: cleanPositions,
     phoneDevice,
     storyClock,
-    sceneState: cleanSceneState(source.sceneState),
+    sceneState: cleanState,
     phoneNotifications: cleanPhoneNotifications(source.phoneNotifications),
     phoneNotes: cleanPhoneNotes(source.phoneNotes),
     phoneContactNotes: cleanPhoneContactNotes(source.phoneContactNotes),
     phoneCallHistory: cleanPhoneCallHistory(source.phoneCallHistory),
     updatedAt: Number.isFinite(updatedAt) && updatedAt >= 0 ? Math.round(updatedAt) : 0,
   }
+  return migrateYongheSurveyState(base)
 }
 
 export function loadPlayerSave(
@@ -217,9 +232,9 @@ export function recordPlayerScenePosition(
     && stored?.x === position.x && stored?.y === position.y) return save
   return {
     ...save,
-    currentSceneId: sceneId,
+    currentSceneId: sceneId === yongheEateryLegacySceneId ? yongheWorldSceneId : sceneId,
     currentPosition: { ...position },
-    scenePositions: { ...save.scenePositions, [sceneId]: { ...position } },
+    scenePositions: { ...save.scenePositions, [sceneId]: { ...position }, ...(sceneId === yongheEateryLegacySceneId ? { [yongheWorldSceneId]: yongheLegacyPositionToWorld(position) } : {}) },
   }
 }
 
@@ -233,7 +248,7 @@ export function recordPlayerSceneState(
     ...save,
     sceneState: {
       ...save.sceneState,
-      [sceneId]: { ...save.sceneState[sceneId], [key]: value },
+      [sceneId === yongheEateryLegacySceneId ? yongheWorldSceneId : sceneId]: { ...save.sceneState[sceneId === yongheEateryLegacySceneId ? yongheWorldSceneId : sceneId], [key]: value },
     },
   }
 }
@@ -248,7 +263,7 @@ export function recordPlayerSceneStatePatch(
     ...save,
     sceneState: {
       ...save.sceneState,
-      [sceneId]: { ...save.sceneState[sceneId], ...patch },
+      [sceneId === yongheEateryLegacySceneId ? yongheWorldSceneId : sceneId]: { ...save.sceneState[sceneId === yongheEateryLegacySceneId ? yongheWorldSceneId : sceneId], ...patch },
     },
   }
 }

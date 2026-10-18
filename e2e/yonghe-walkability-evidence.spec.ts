@@ -53,29 +53,47 @@ async function readGeometry(page: Page, scene: string): Promise<{ colliders: Col
 }
 
 async function clickLogicalPoint(page: Page, x: number, y: number) {
-  const stage = page.locator('.scene-stage')
-  const box = await stage.boundingBox()
-  if (!box) throw new Error('Scene stage is not visible')
-  const offset = await stage.evaluate((element) => ({
-    x: Number(element.getAttribute('data-camera-offset-x') ?? 0),
-    y: Number(element.getAttribute('data-camera-offset-y') ?? 0),
-  }))
-  await stage.click({ position: {
-    x: (x + offset.x) / 100 * box.width,
-    y: (y + offset.y) / 100 * box.height,
-  } })
+  const actor = page.locator('[data-actor-id="protagonist"]')
+  for (let step = 0; step < 24; step += 1) {
+    const distance = await actor.evaluate((element, point) => Math.hypot(
+      Number((element as HTMLElement).dataset.runtimeX) - point.x,
+      Number((element as HTMLElement).dataset.runtimeY) - point.y,
+    ), { x, y })
+    if (distance < 1.5) return
+    const stage = page.locator('.scene-stage').last()
+    const box = await stage.boundingBox()
+    if (!box) throw new Error('Scene stage is not visible')
+    const projected = await stage.evaluate((element, point) => {
+      const rect = element.getBoundingClientRect()
+      const offsetX = Number(element.getAttribute('data-camera-offset-x') ?? 0)
+      const offsetY = Number(element.getAttribute('data-camera-offset-y') ?? 0)
+      const targetX = rect.x + rect.width * (point.x + offsetX) / 100
+      const targetY = rect.y + rect.height * (point.y + offsetY) / 100
+      return { x: Math.max(rect.x + 16, Math.min(rect.right - 16, targetX)), y: Math.max(rect.y + 16, Math.min(rect.bottom - 24, targetY)) }
+    }, { x, y })
+    const sceneBefore = await page.locator('.scene-shell[data-mainline-scene]').getAttribute('data-mainline-scene')
+    await page.mouse.click(projected.x, projected.y)
+    await expect.poll(async () => {
+      const sceneAfter = await page.locator('.scene-shell[data-mainline-scene]').getAttribute('data-mainline-scene')
+      const moving = await page.locator('[data-actor-id="protagonist"]').getAttribute('class')
+      return sceneAfter !== sceneBefore || /is-moving/.test(moving ?? '')
+    }, { timeout: 5_000 }).toBe(true)
+    if (await page.locator('.scene-shell[data-mainline-scene]').getAttribute('data-mainline-scene') !== sceneBefore) return
+    await expect(actor).not.toHaveClass(/is-moving/, { timeout: 15_000 })
+  }
+  throw new Error(`Player did not reach logical point ${x}, ${y}`)
 }
 
 async function clearObservation(page: Page, selector: string, point: string) {
   await page.locator(selector).click()
   await expect.poll(() => page.evaluate(({ saveKey, point }) =>
-    JSON.parse(localStorage.getItem(saveKey) ?? '{}').sceneState?.['yonghe-eatery']?.[point] === true,
+    JSON.parse(localStorage.getItem(saveKey) ?? '{}').sceneState?.['yonghe-mining-perimeter']?.[point] === true,
   { saveKey, point })).toBe(true)
   const shield = page.locator('[data-scene-dialogue-shield]')
   for (let attempt = 0; attempt < 6 && await shield.count(); attempt += 1) {
     if (await page.locator('[data-scene-observation-typing="true"]').count()) {
       await shield.click({ force: true })
-      await expect(page.locator('[data-scene-observation-typing="false"]')).toBeVisible({ timeout: 5_000 })
+      await expect(page.locator('[data-scene-observation-typing="true"]')).toHaveCount(0, { timeout: 5_000 })
     }
     await shield.click({ force: true })
   }
@@ -189,7 +207,17 @@ test('captures measured Yonghe doorway, aisle, counter and locked-door routes wi
   await expect.poll(() => page.locator('[data-actor-id="protagonist"]').getAttribute('data-runtime-x')).not.toBeNull()
 
   await clearTrace(page)
-  await street.locator('[data-storefront-cell-id][data-focus-target-policy="passage"]').click()
+  const streetStage = street.locator('.mainline-scene-stage')
+  for (const yRatio of [0.4, 0.2]) {
+    const beforeY = Number(await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '{}').currentPosition?.y, saveKey))
+    const stageBox = await streetStage.boundingBox()
+    if (!stageBox) throw new Error('Mining street stage is not visible')
+    await streetStage.click({ position: { x: stageBox.width * 0.45, y: stageBox.height * yRatio } })
+    await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '{}').currentPosition?.y, saveKey)).toBeLessThan(beforeY)
+  }
+  const streetDoor = street.locator('[data-storefront-cell-id][data-focus-target-policy="passage"]').first()
+  await expect(streetDoor).toBeInViewport()
+  await streetDoor.click()
   await expect(eatery).toBeVisible({ timeout: 15_000 })
   const approachTrace = await readTrace(page, 'yonghe-mining-perimeter')
   expect(approachTrace.length).toBeGreaterThan(3)
@@ -219,20 +247,21 @@ test('captures measured Yonghe doorway, aisle, counter and locked-door routes wi
   const indoorActorHeight = 11 / indoorGeometry.stageHeight * 100
   const openingWidth = perimeter.entry.indoorWallOpening.end - perimeter.entry.indoorWallOpening.start
   await clearTrace(page)
-  await clickLogicalPoint(page, 45, 60)
-  await waitForActorNear(page, eaterySelector, 45, 60)
+  await clickLogicalPoint(page, 28.5, 36)
+  await waitForActorNear(page, eaterySelector, 28.5, 36)
   const aisleTrace = await readTrace(page, 'yonghe-eatery')
   expect(aisleTrace.length).toBeGreaterThan(3)
   assertTraceClear(aisleTrace, indoorGeometry.colliders, indoorActorWidth, indoorActorHeight)
   await clearTrace(page)
-  await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '{}').sceneState?.['yonghe-eatery']?.['yongheSurveyPoint:central-lane'] === true, saveKey)).toBe(true)
+  await clearObservation(page, '[data-object-id="yonghe-lower-right-group-table"]', 'yongheSurveyPoint:central-lane')
+  await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '{}').sceneState?.['yonghe-mining-perimeter']?.['yongheSurveyPoint:central-lane'] === true, saveKey)).toBe(true)
   await expect(eatery).toBeVisible()
   await dismissSceneEcho(page)
-  const centralPoint = { x: 45, y: 60 }
+  const centralPoint = { x: 28.5, y: 36 }
   await clearTrace(page)
 
-  await clickLogicalPoint(page, 66, 43)
-  await waitForActorNear(page, eaterySelector, 66, 43)
+  await clickLogicalPoint(page, 27, 36)
+  await waitForActorNear(page, eaterySelector, 27, 36)
   const counterTrace = await readTrace(page, 'yonghe-eatery')
   expect(counterTrace.length).toBeGreaterThan(2)
   assertTraceClear(counterTrace, indoorGeometry.colliders, indoorActorWidth, indoorActorHeight)
@@ -242,8 +271,8 @@ test('captures measured Yonghe doorway, aisle, counter and locked-door routes wi
 
   // Walk to a legal point just inside the locked door, then inspect it from there.
   // The locked-door interaction itself is intentionally non-traversable.
-  await clickLogicalPoint(page, 76, 33)
-  await waitForActorNear(page, eaterySelector, 76, 33)
+  await clickLogicalPoint(page, 16, 45)
+  await waitForActorNear(page, eaterySelector, 16, 45)
   const doorApproachTrace = await readTrace(page, 'yonghe-eatery')
   expect(doorApproachTrace.length).toBeGreaterThan(2)
   assertTraceClear(doorApproachTrace, indoorGeometry.colliders, indoorActorWidth, indoorActorHeight)
@@ -260,8 +289,8 @@ test('captures measured Yonghe doorway, aisle, counter and locked-door routes wi
   expect(returnTrace.length).toBeGreaterThan(3)
   assertTraceClear(returnTrace, indoorGeometry.colliders, indoorActorWidth, indoorActorHeight)
   const survey = JSON.parse(await page.evaluate((key) => localStorage.getItem(key) ?? '{}', saveKey))
-  expect(survey.sceneState['yonghe-eatery']['yongheSurveyPoint:back-door']).toBe(true)
-  expect(survey.sceneState['yonghe-eatery']['yongheSurveyPoint:counter']).toBe(true)
+  expect(survey.sceneState['yonghe-mining-perimeter']['yongheSurveyPoint:back-door']).toBe(true)
+  expect(survey.sceneState['yonghe-mining-perimeter']['yongheSurveyPoint:counter']).toBe(true)
 
   // The scene crossing lands at the existing authored street entry point. From
   // that legal landing, walk outward on the street to record the reverse leg.
@@ -280,8 +309,8 @@ test('captures measured Yonghe doorway, aisle, counter and locked-door routes wi
   await dismissSceneEcho(page)
   const returnedStreetGeometry = await readGeometry(page, 'yonghe-mining-perimeter')
   await clearTrace(page)
-  await clickLogicalPoint(page, 50, 56)
-  await waitForActorNear(page, streetSelector, 50, 56)
+  await clickLogicalPoint(page, 48, 56)
+  await waitForActorNear(page, streetSelector, 48, 56)
   const doorToStreetTrace = await readTrace(page, 'yonghe-mining-perimeter')
   expect(doorToStreetTrace.length).toBeGreaterThan(3)
 
@@ -291,7 +320,7 @@ test('captures measured Yonghe doorway, aisle, counter and locked-door routes wi
   assertTraceClear(doorToStreetTrace, returnedStreetGeometry.colliders.filter((box) => box.id.includes('outdoor')), actorWidth, actorHeight)
   assertTraceClear(aisleTrace, indoorGeometry.colliders, indoorActorWidth, indoorActorHeight)
   assertTraceClear(counterTrace, indoorGeometry.colliders, indoorActorWidth, indoorActorHeight)
-  const indoorBounds = { x: 6, y: 24, width: 90, height: 66 }
+  const indoorBounds = { x: 8, y: 19, width: 32, height: 32 }
   const indoorObjects = indoorGeometry.colliders.filter((box) => /upper-left|upper-right|lower-left|lower-right|yonghe-counter|yonghe-stove/.test(box.id))
   const outsideSvg = diagramSvg({
     title: '永和门外：家具边界与实走进门路线',
@@ -308,11 +337,11 @@ test('captures measured Yonghe doorway, aisle, counter and locked-door routes wi
   const indoorSvg = diagramSvg({
     title: '永和室内：入口转中央通路',
     subtitle: '从前门落点后点击中央通道观察点；路径来自真实运行时角色采样。',
-    bounds: { x: 6, y: 24, width: 90, height: 66 },
+    bounds: indoorBounds,
     colliders: indoorObjects,
     paths: [{ label: '入口→中央通道', color: '#73d5f0', points: [{ scene: 'yonghe-eatery', ...entryPoint }, ...aisleTrace] }],
-    doors: [{ label: '前门', x: 10, y: 56 }, { label: '后门', x: 78, y: 28, locked: true, axis: 'x' }],
-    extra: ({ X, Y, scale }) => `<rect x="${X(10)}" y="${Y(28)}" width="${84 * scale}" height="${56 * scale}" fill="none" stroke="#bac8b7" stroke-width="2"/><circle cx="${X(centralPoint.x)}" cy="${Y(centralPoint.y)}" r="10" fill="#f7d35f"/><text x="${X(centralPoint.x) + 12}" y="${Y(centralPoint.y)}" class="small">中央通道</text>`,
+    doors: [{ label: 'Front', x: perimeter.entry.indoorDoorPosition.x, y: perimeter.entry.indoorDoorPosition.y }, { label: 'Locked rear', x: perimeter.entry.rearDoorPosition.x, y: perimeter.entry.rearDoorPosition.y, locked: true, axis: 'x' }],
+    extra: ({ X, Y, scale }) => `<rect x="${X(perimeter.entry.roomBounds.x)}" y="${Y(perimeter.entry.roomBounds.y)}" width="${perimeter.entry.roomBounds.width * scale}" height="${perimeter.entry.roomBounds.height * scale}" fill="none" stroke="#bac8b7" stroke-width="2"/><circle cx="${X(centralPoint.x)}" cy="${Y(centralPoint.y)}" r="1.2" fill="#f7d35f"/><text x="${X(centralPoint.x) + 1.5}" y="${Y(centralPoint.y)}" class="small">中央通道</text>`,
   })
   const interiorRouteSvg = diagramSvg({
     title: '右侧柜台与锁后门：接近观察后回前门',
@@ -324,7 +353,7 @@ test('captures measured Yonghe doorway, aisle, counter and locked-door routes wi
       { label: '柜台→锁门前接近点', color: '#d889db', points: doorApproachTrace },
       { label: '锁门观察→前门退出', color: '#73d5f0', points: [...backDoorTrace, ...returnTrace] },
     ],
-    doors: [{ label: '前门', x: 10, y: 56 }, { label: '锁后门', x: 78, y: 28, locked: true, axis: 'x' }],
+    doors: [{ label: 'Front', x: perimeter.entry.indoorDoorPosition.x, y: perimeter.entry.indoorDoorPosition.y }, { label: 'Locked rear', x: perimeter.entry.rearDoorPosition.x, y: perimeter.entry.rearDoorPosition.y, locked: true, axis: 'x' }],
   })
 
   const evidencePage = await page.context().newPage()

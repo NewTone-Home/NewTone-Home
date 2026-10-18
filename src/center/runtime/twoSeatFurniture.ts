@@ -81,9 +81,10 @@ export function createTableGeometry<Id extends string>(
   radius: number,
   approach: Point,
   orientation: SharedFurnitureOrientation = 'horizontal',
+  tableWidth?: number,
 ): SharedTableGeometry<Id> {
   const footprint = sharedFurnitureGeometry.tableFootprint
-  const width = radius >= 4 ? footprint.wideWidth : footprint.compactWidth
+  const width = tableWidth ?? (radius >= 4 ? footprint.wideWidth : footprint.compactWidth)
   const height = footprint.height
   return {
     id,
@@ -122,6 +123,7 @@ export function createTwoSeatFurniture({
   seatGap = sharedFurnitureGeometry.seatGap,
   pulledSeatGap,
   sitSeatGap = seatGap + (sharedFurnitureGeometry.sitSeatGap - sharedFurnitureGeometry.seatGap),
+  tableWidth,
 }: {
   groupId: string
   anchor: Point
@@ -129,6 +131,7 @@ export function createTwoSeatFurniture({
   seatIds?: readonly [string, string]
   tableApproach?: Point
   tableRadius?: number
+  tableWidth?: number
   seatGap?: number
   pulledSeatGap?: number
   sitSeatGap?: number
@@ -154,7 +157,7 @@ export function createTwoSeatFurniture({
     pulled: { x: anchor.x, y: anchor.y + resolvedPulledSeatGap },
     sit: { x: anchor.x, y: anchor.y + sitSeatGap },
   })
-  const table = createTableGeometry(tableId, anchor, tableRadius, tableApproach)
+  const table = createTableGeometry(tableId, anchor, tableRadius, tableApproach, 'horizontal', tableWidth)
   return {
     groupId,
     anchor,

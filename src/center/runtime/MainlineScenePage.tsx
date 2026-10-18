@@ -187,6 +187,7 @@ type SceneFrameExitLifecycle =
 
 export function MainlineScenePage({
   sceneId,
+  worldSceneId = sceneId,
   onExternalExit,
   onExternalReturn,
   embedded = false,
@@ -226,6 +227,7 @@ export function MainlineScenePage({
   resumePosition,
 }: {
   sceneId: MainlineSceneId
+  worldSceneId?: MainlineSceneId
   onExternalExit?: () => void
   onExternalReturn?: () => void
   embedded?: boolean
@@ -587,6 +589,13 @@ export function MainlineScenePage({
   }, [dismissSceneAction, dismissSceneEcho, onPhoneDismiss, phoneOpen, readingActive])
   const internalMovement = useFreeRoamMovement(initialPosition)
   const { position, moving, moveAlong: rawMoveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
+  const movementSceneIdRef = useRef(sceneId)
+  useEffect(() => {
+    if (movementSceneIdRef.current === sceneId) return
+    movementSceneIdRef.current = sceneId
+    resetMovement(initialPosition)
+    onPositionChange?.(initialPosition)
+  }, [initialPosition, onPositionChange, resetMovement, sceneId])
   const cameraOffset = useMainlineCamera(scene, position, embedded)
   const storefrontPresentation = useStorefrontPresentation(scene, position)
   const reportedCafeRevealRef = useRef(false)
@@ -2324,6 +2333,7 @@ export function MainlineScenePage({
       {...sceneInteractionHandlers}
       className={`scene-shell mainline-scene ${embedded ? 'mainline-scene--embedded' : ''} ${!showSceneChrome ? 'mainline-scene--map-only' : ''}`}
       data-mainline-scene={scene.id}
+      data-world-scene={worldSceneId}
       data-yonghe-survey-status={yongheSurveyStatus}
       data-commercial-cafe-status={scene.id === 'commercial-cafe' ? commercialCafeStory.status : undefined}
       data-commercial-cafe-cursor={scene.id === 'commercial-cafe' ? commercialCafeStory.narrativeCursor : undefined}

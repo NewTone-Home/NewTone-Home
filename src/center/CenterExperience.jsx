@@ -10,6 +10,7 @@ import {
   resolveMainlineSceneId,
 } from './runtime/mainlineScenes'
 import { mainlineCameraOffset } from './runtime/mainlineViewport'
+import { yongheCurrentRegionFromSave, yongheCurrentRegionStateKey, yongheRegionForSceneId, yongheWorldSceneIdFor } from './runtime/yongheUnifiedWorld'
 import { createMainlineSceneGeometrySnapshot } from './runtime/mainlineSceneGeometrySnapshot'
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
@@ -59,8 +60,18 @@ import {
 } from './runtime/commercialStreetMilkTea'
 
 const initialSceneId = mainlineRespawnSceneId
-function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
-  return { sceneId, entryPosition, spawnMode }
+function createRoute(contentSceneId, entryPosition, spawnMode = 'resume') {
+  return { sceneId: yongheWorldSceneIdFor(contentSceneId), contentSceneId, entryPosition, spawnMode }
+}
+
+function restoredRoute() {
+  const requestedSceneId = resolveMainlineSceneId()
+  const save = loadPlayerSave()
+  const contentSceneId = requestedSceneId
+    ?? (save.currentSceneId === 'yonghe-mining-perimeter' && yongheCurrentRegionFromSave(save) === 'eatery'
+      ? 'yonghe-eatery'
+      : save.currentSceneId)
+  return createRoute(contentSceneId)
 }
 
 function screenPositionForScene(sceneId, position, liveCameraOffset) {
@@ -79,7 +90,7 @@ export default function CenterExperience({
   const reducedMotion = useReducedMotion()
   const [playerSave, setPlayerSave] = useState(() => loadPlayerSave())
   const playerSaveRef = useRef(playerSave)
-  const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId))
+  const [route, setRoute] = useState(restoredRoute)
   const [phoneOpen, setPhoneOpen] = useState(false)
   const sceneReadingActiveRef = useRef(false)
   const [, setSceneReadingActive] = useState(false)
@@ -91,10 +102,10 @@ export default function CenterExperience({
     const current = latestWorldPositionRef.current
     if (!current || current.sceneId !== route.sceneId) return null
     return createMainlineSceneGeometrySnapshot(
-      mainlineScenes[current.sceneId], current.position,
+      mainlineScenes[current.contentSceneId ?? route.contentSceneId], current.position,
       current.context.layout, current.context.screenMetrics,
     )
-  }, [route.sceneId])
+  }, [route.contentSceneId, route.sceneId])
   const pendingInteractionRequestsRef = useRef(new Map())
   currentSceneIdRef.current = route.sceneId
   if (!positionSamplerRef.current) {
@@ -316,9 +327,10 @@ export default function CenterExperience({
     setResumeSceneId(null)
     setResumePosition(undefined)
     if (route.spawnMode === 'ride' || route.entryPosition) return
-    setResumePosition(loadPlayerSave(undefined, route.sceneId).scenePositions[route.sceneId])
+    const saved = loadPlayerSave(undefined, route.sceneId)
+    setResumePosition(saved.scenePositions[route.sceneId])
     setResumeSceneId(route.sceneId)
-  }, [route.sceneId, route.entryPosition?.x, route.entryPosition?.y, route.spawnMode])
+  }, [route.sceneId, route.contentSceneId, route.entryPosition?.x, route.entryPosition?.y, route.spawnMode])
 
   const switchCarriedPhone = useCallback((device) => {
     setPhoneDevice(device)
@@ -340,7 +352,9 @@ export default function CenterExperience({
       positionSamplerRef.current?.sample(route.sceneId, lastPosition.position, { boundary: true })
     }
     const nextRoute = createRoute(nextSceneId, nextEntryPosition, nextSpawnMode || 'resume')
-    const startsLocalSlide = isLocalSlidePrototypeIntent(transitionIntent) && !reducedMotion
+    const isYongheRegionCrossing = route.sceneId === 'yonghe-mining-perimeter'
+      && yongheRegionForSceneId(nextSceneId) !== null
+    const startsLocalSlide = isLocalSlidePrototypeIntent(transitionIntent) && !reducedMotion && !isYongheRegionCrossing
     if (startsLocalSlide) {
       setSceneSlot(1 - sceneSlot)
       setLocalSlide({
@@ -362,23 +376,28 @@ export default function CenterExperience({
     if (route.sceneId === 'commercial-street' && nextSceneId === 'commercial-cafe') {
       trackEvent('cafe_entered', { sceneId: nextSceneId })
     }
-    sceneEnteredAtRef.current = null
+    if (!isYongheRegionCrossing) sceneEnteredAtRef.current = null
     commitPlayerSave((current) => {
       const next = {
         ...current,
-        currentSceneId: nextSceneId,
+        currentSceneId: nextRoute.sceneId,
         currentPosition: nextEntryPosition
-          ?? (nextRoute.spawnMode === 'ride' ? mainlineScenes[nextSceneId].rideArrivalPosition : current.scenePositions[nextSceneId])
+          ?? (nextRoute.spawnMode === 'ride' ? mainlineScenes[nextRoute.contentSceneId].rideArrivalPosition : current.scenePositions[nextRoute.sceneId])
           ?? null,
+      }
+      if (nextRoute.sceneId === 'yonghe-mining-perimeter') {
+        return recordPlayerSceneStatePatch(next, nextRoute.sceneId, {
+          [yongheCurrentRegionStateKey]: nextRoute.contentSceneId === 'yonghe-eatery' ? 'eatery' : 'perimeter',
+        })
       }
       return isTutorialCompletionTransition(route.sceneId, nextSceneId, nextRoute.spawnMode)
         ? recordPlayerSceneState(next, 'commercial-street', interactionTutorialCompletedStateKey, true)
         : next
     })
     window.history.pushState(
-      { newtoneCenterScene: nextSceneId },
+      { newtoneCenterScene: nextRoute.sceneId },
       '',
-      mainlineSceneRoute(nextSceneId, nextEntryPosition, nextRoute.spawnMode),
+      mainlineSceneRoute(nextRoute.contentSceneId, nextEntryPosition, nextRoute.spawnMode),
     )
     setRoute(nextRoute)
   }, [commitPlayerSave, reducedMotion, resumePosition, route, sceneSlot])
@@ -441,14 +460,14 @@ export default function CenterExperience({
   const handleSafeSpawnCorrection = useCallback((position) => {
     if (!route.entryPosition && route.spawnMode !== 'ride') return
     commitPlayerSave((current) => recordPlayerScenePosition(current, route.sceneId, position))
-    const nextRoute = createRoute(route.sceneId, position, route.spawnMode)
+    const nextRoute = createRoute(route.contentSceneId, position, route.spawnMode)
     window.history.replaceState(
       { newtoneCenterScene: route.sceneId },
       '',
-      mainlineSceneRoute(route.sceneId, position, route.spawnMode),
+      mainlineSceneRoute(route.contentSceneId, position, route.spawnMode),
     )
     setRoute(nextRoute)
-  }, [commitPlayerSave, route.entryPosition, route.sceneId, route.spawnMode])
+  }, [commitPlayerSave, route.contentSceneId, route.entryPosition, route.sceneId, route.spawnMode])
 
   const handleObjectInteraction = useCallback((entity, dwellMs) => {
     trackEvent('center_object_interacted', {
@@ -567,9 +586,10 @@ export default function CenterExperience({
   }, [canPersistScenePosition, route.sceneId])
 
   const handleRuntimePositionChange = useCallback((sceneId, position, context) => {
-    latestWorldPositionRef.current = { sceneId, position, context }
-    rideBoardingRef.current(sceneId, position, context)
-    positionSamplerRef.current?.sample(sceneId, position)
+    const worldSceneId = yongheWorldSceneIdFor(sceneId)
+    latestWorldPositionRef.current = { sceneId: worldSceneId, contentSceneId: sceneId, position, context }
+    rideBoardingRef.current(worldSceneId, position, context)
+    positionSamplerRef.current?.sample(worldSceneId, position)
   }, [])
 
   const handlePlayerMovementStateChange = useCallback((moving) => {
@@ -583,8 +603,9 @@ export default function CenterExperience({
     resumePosition: sceneResumePosition = resumePosition,
   } = {}) => (
     <MainlineScenePage
-      key={key ?? `${sceneRoute.sceneId}:${sceneRoute.entryPosition?.x ?? ''}:${sceneRoute.entryPosition?.y ?? ''}:${sceneRoute.spawnMode}:${sceneResumePosition?.x ?? ''}:${sceneResumePosition?.y ?? ''}`}
-      sceneId={sceneRoute.sceneId}
+      key={key ?? (sceneRoute.sceneId === 'yonghe-mining-perimeter' ? 'yonghe-unified-world-runtime' : `${sceneRoute.sceneId}:${sceneRoute.entryPosition?.x ?? ''}:${sceneRoute.entryPosition?.y ?? ''}:${sceneRoute.spawnMode}:${sceneResumePosition?.x ?? ''}:${sceneResumePosition?.y ?? ''}`)}
+      sceneId={sceneRoute.contentSceneId}
+      worldSceneId={sceneRoute.sceneId}
       onExternalExit={snapshot ? undefined : () => {
         const current = latestWorldPositionRef.current
         if (current && mainlineRideSuppressExternalPhoneReveal(rideOrder, current.sceneId, current.position)) return
@@ -605,7 +626,7 @@ export default function CenterExperience({
       onMilkTeaAppOpen={snapshot ? undefined : openMilkTeaApp}
       onMilkTeaOrderReady={snapshot ? undefined : handleMilkTeaOrderReady}
       onChapterAnalytics={snapshot ? undefined : trackChapterEvent}
-      initialSceneState={playerSave.sceneState[sceneRoute.sceneId] ?? {}}
+      initialSceneState={playerSave.sceneState[sceneRoute.sceneId] ?? playerSave.sceneState[sceneRoute.contentSceneId] ?? {}}
       carriedMilkTea={commercialStreetMilkTeaHeld(playerSave.sceneState['commercial-street'])}
       interactionTutorialCompleted={isInteractionTutorialCompleted(playerSave.sceneState['commercial-street'])}
       onPlayerSceneStateChange={snapshot ? undefined : recordSceneState}

@@ -1,5 +1,6 @@
 import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import { mainlineSceneBlueprints } from './mainlineSceneModel'
+import { yongheWorldSceneId, yongheRegionForSceneId } from './yongheUnifiedWorld'
 import { boundaryGridCellRange, boundaryGridStepsFromScreenSpacing, compileSharedFrame, defaultSceneScreenMetrics, sharedBoundaryScreenSpacingPx, type SceneScreenMetrics, type SharedBoundaryCell, type SharedBoundaryFrame, type SharedBoundaryOpening } from './sceneBoundaryGrid'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
 import type { StorefrontPresentationPhase } from './storefrontPresentation'
@@ -1433,7 +1434,9 @@ export const mainlineMapLandmarksByWorld: Record<MainlineMapWorld, readonly Main
 export type MainlineSpawnMode = 'resume' | 'ride'
 
 export function mainlineSceneRoute(sceneId: MainlineSceneId, entryPosition?: Point, spawnMode?: MainlineSpawnMode) {
-  const route = '/?scene=' + sceneId
+  const region = yongheRegionForSceneId(sceneId)
+  const runtimeSceneId = region ? yongheWorldSceneId : sceneId
+  const route = '/?scene=' + runtimeSceneId + (region === 'eatery' ? '&region=eatery' : '')
   const entry = entryPosition ? '&entryX=' + entryPosition.x + '&entryY=' + entryPosition.y : ''
   const spawn = spawnMode === 'ride' ? '&spawn=ride' : ''
   return route + entry + spawn
@@ -1442,6 +1445,7 @@ export function mainlineSceneRoute(sceneId: MainlineSceneId, entryPosition?: Poi
 export function resolveMainlineSceneId(search?: string): MainlineSceneId | null {
   const query = new URLSearchParams(search ?? (typeof window === 'undefined' ? '' : window.location.search))
   const value = query.get('scene')
+  if (value === yongheWorldSceneId && query.get('region') === 'eatery') return 'yonghe-eatery'
   return value && value in mainlineScenes ? value as MainlineSceneId : null
 }
 

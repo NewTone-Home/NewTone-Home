@@ -489,14 +489,16 @@ type MainlineFurnitureGeometryOverrides = {
   sitSeatGap?: number
   seatPairOffset?: number
 }
+type MainlineTwoSeatGeometryOverrides = MainlineFurnitureGeometryOverrides & { tableWidth?: number; tableLabel?: string }
 
 function mainlineTwoSeatFurniture(
   groupId: string,
   anchor: Point,
   tableApproach: Point,
   ids: { tableId?: string; seatIds?: readonly [string, string] } = {},
-  geometry: MainlineFurnitureGeometryOverrides = {},
+  geometry: MainlineTwoSeatGeometryOverrides = {},
 ) {
+  const { tableWidth, tableLabel, ...furnitureGeometry } = geometry
   const tableId = ids.tableId ?? `${groupId}-table`
   const seatIds = ids.seatIds ?? [`${groupId}-chair-top`, `${groupId}-chair-bottom`] as [string, string]
   const furniture = createTwoSeatFurniture({
@@ -505,11 +507,12 @@ function mainlineTwoSeatFurniture(
     tableId,
     seatIds,
     tableApproach,
-    ...geometry,
+    ...furnitureGeometry,
+    tableWidth,
   })
   const table = floor({
     id: furniture.table.id,
-    label: '桌子',
+    label: tableLabel ?? '桌子',
     kind: 'table',
     weight: 'anchor',
     position: furniture.table.position,
@@ -1777,8 +1780,8 @@ const yongheFacadeAirWalls: readonly MainlineAirWall[] = yongheMiningPerimeterLa
 }))
 
 const yongheDiningFurniture = [
-  mainlineTwoSeatFurniture('yonghe-upper-left-group', { x: 30.5, y: 29.5 }, { x: 35.5, y: 29.5 }, {}, { seatGap: 3.2, pulledSeatGap: 4.2, sitSeatGap: 4.2 }),
-  mainlineTwoSeatFurniture('yonghe-lower-right-group', { x: 33, y: 43 }, { x: 36.5, y: 43 }, {}, { seatGap: 3.2, pulledSeatGap: 4.2, sitSeatGap: 4.2 }),
+  mainlineTwoSeatFurniture('yonghe-upper-left-group', { x: 30.5, y: 29.5 }, { x: 35.5, y: 29.5 }, {}, { seatGap: 3.2, pulledSeatGap: 4.2, sitSeatGap: 4.2, tableWidth: 3.45, tableLabel: '桌　子' }),
+  mainlineTwoSeatFurniture('yonghe-lower-right-group', { x: 33, y: 43 }, { x: 36.5, y: 43 }, {}, { seatGap: 3.2, pulledSeatGap: 4.2, sitSeatGap: 4.2, tableWidth: 3.45, tableLabel: '桌　子' }),
 ]
 
 const yongheCounterTextPositions = Array.from({ length: 9 }, (_, index) => ({
@@ -1973,11 +1976,11 @@ const yongheEateryBlueprint: MainlineSceneBlueprint = {
         bounds: box(yongheMiningPerimeterLayout.entry.roomBounds.x, yongheMiningPerimeterLayout.entry.roomBounds.y, yongheMiningPerimeterLayout.entry.roomBounds.width, yongheMiningPerimeterLayout.entry.roomBounds.height),
         variant: 'eatery',
         edges: ['top', 'right', 'bottom', 'left'],
+        features: [{ id: 'yonghe-menu-feature', edge: 'right', start: 24, end: 28, glyphs: ['菜', '单'], layout: 'inline', entity: yongheMenu }],
       }],
       floorEntities: [
         ...yongheDiningFurniture.flatMap(({ entities }) => entities),
         ...yongheCounterEntities,
-        yongheMenu,
         floor({ id: 'yonghe-stove', label: '灶台', kind: 'fixture', weight: 'fixture', position: { x: 19, y: 38 }, collision: box(17, 36, 4, 4), shape: box(17, 36, 4, 4), movementCollision: 'physical', groupId: 'yonghe-service-group' }),
         floor({ id: 'yonghe-prep-board', label: '备菜台', kind: 'fixture', weight: 'fixture', position: { x: 14, y: 30 }, collision: box(12, 28, 4, 4), shape: box(12, 28, 4, 4), movementCollision: 'physical', groupId: 'yonghe-service-group' }),
       ],
