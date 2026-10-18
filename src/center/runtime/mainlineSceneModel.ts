@@ -1062,7 +1062,6 @@ const commercialStreetStorefronts: readonly MainlineStorefrontSlotBlueprint[] = 
     label: shop.label.zh,
     style: 'modern',
     mode: 'commercial',
-    composition: shop.kind === 'cafe' ? { baseline: ['sign'], near: ['sign'] } : { baseline: ['sign'] },
     characterSwitch: true,
     portalId,
     approach: commercialStreetShopEntry(shop).streetApproach,

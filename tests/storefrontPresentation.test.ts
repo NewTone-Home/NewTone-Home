@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { commercialStreetShopBounds, commercialStreetShopEntry, commercialStreetShopPortalId, commercialStreetShops } from '../src/center/runtime/commercialStreetWorldLayout'
-import { isMainlineStorefrontNear, isMainlineStorefrontPresentationInRange, mainlineSceneGeometryUnits, mainlineScenePassageCollision, mainlineScenes, mainlineStorefrontAnchor, mainlineStorefrontApproach, mainlineStorefrontDepartureRadius } from '../src/center/runtime/mainlineScenes'
+import { isMainlineStorefrontNear, isMainlineStorefrontPresentationInRange, mainlineSceneGeometryUnits, mainlineScenePassageCollision, mainlineScenes, mainlineStorefrontAnchor, mainlineStorefrontApproach, mainlineStorefrontDepartureRadius, projectedSceneGeometry } from '../src/center/runtime/mainlineScenes'
 import {
   nextStorefrontPresentationPhase,
   storefrontRollDirection,
@@ -12,6 +12,7 @@ import {
   activeStorefrontPresentationOwner,
   storefrontPresentationHandoffSource,
   storefrontPresentationShouldReveal,
+  storefrontCharacterCells,
 } from '../src/center/runtime/storefrontPresentation'
 
 const street = mainlineScenes['commercial-street']
@@ -96,6 +97,24 @@ describe('commercial street storefront presentation', () => {
     expect(storefrontLabelRollDurationMs).toBe(700)
     const baseline = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, undefined, new Map())
     expect(baseline.some((unit) => unit.storefrontId === cafe.id && unit.variant === 'baseline')).toBe(true)
+  })
+
+  it('keeps all fourteen near projections anchored to complete real door cells', () => {
+    for (const metrics of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
+      for (const shop of commercialStreetShops) {
+        const storefrontId = shop.kind === 'cafe' ? 'commercial-cafe-slot' : shop.storefrontIds[0]!
+        const storefront = street.storefronts.find(candidate => candidate.id === storefrontId)!
+        const cells = storefrontCharacterCells(street, storefront, projectedSceneGeometry(street, metrics))
+        expect(cells.length, `${shop.id} at ${metrics.width}px`).toBeGreaterThan(0)
+        if (metrics.width > 390) {
+          expect(cells.map(cell => cell.role), shop.id).toEqual(['glass', 'glass', 'wall', 'door', 'wall', 'glass', 'glass'])
+        }
+        expect(cells.filter(cell => cell.role === 'door'), shop.id).toHaveLength(1)
+        expect(cells.find(cell => cell.role === 'door')?.entityId, shop.id).toBe(commercialStreetShopPortalId(shop))
+        if (metrics.width > 390) expect(cells.map(cell => cell.baselineGlyph).join(''), shop.id).toContain(shop.label.zh)
+        expect(cells.map(cell => cell.id).filter(Boolean).length, shop.id).toBe(cells.length)
+      }
+    }
   })
 
   it('uses the real three authored visual positions and door identity across responsive viewports', () => {

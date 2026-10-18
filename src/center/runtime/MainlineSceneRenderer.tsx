@@ -4,7 +4,7 @@ import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import type { CSSProperties, ReactNode } from 'react'
 import EntryButtonSurface from '../../components/EntryButtonSurface'
 import type { CollisionBox, Point } from './sceneGeometry'
-import { mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
+import { mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, projectedSceneGeometry, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation, MainlineShopFurnitureVisual } from './mainlineSceneModel'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -206,6 +206,7 @@ type MainlineDoorButtonProps = {
   active: boolean
   closeHint: string
   ariaLabel: string
+  appendCloseHint?: boolean
   renderFocusFrame: (group: string) => ReactNode
   onInteract: (id: string) => void
   onDoorTransitionComplete?: (entityId: string, completion: SceneDoorTransitionCompletion) => void
@@ -291,7 +292,7 @@ function DialogueText({ group, text, onReadyChange }: { group: string; text: str
   </span>
 }
 
-function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph, doorPhase, focusGroup, focusPolicy, gateTriggered, frameRetracting, active, closeHint, ariaLabel, renderFocusFrame, onInteract, onDoorTransitionComplete, dataAttributes, characterPresentation }: MainlineDoorButtonProps) {
+function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph, doorPhase, focusGroup, focusPolicy, gateTriggered, frameRetracting, active, closeHint, ariaLabel, appendCloseHint = true, renderFocusFrame, onInteract, onDoorTransitionComplete, dataAttributes, characterPresentation }: MainlineDoorButtonProps) {
   const visualOpen = sceneDoorIsVisuallyOpen(cell.doorBehavior, doorPhase)
   return (
     <button
@@ -299,7 +300,7 @@ function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph
       type="button"
       style={style}
       onClick={(event) => { event.stopPropagation(); onInteract(entityId) }}
-      aria-label={`${ariaLabel}；${closeHint}`}
+      aria-label={appendCloseHint ? `${ariaLabel}◦${closeHint}` : ariaLabel}
       data-focus-target-id={cell.id}
       data-focus-target-group={focusGroup}
       data-focus-target-policy={focusPolicy}
@@ -908,10 +909,10 @@ export function MainlineSceneRenderer({
   // swaps visual projections as the player approaches; deriving these cells
   // from that changing snapshot made the glyphs jump between source cells.
   const switchCells = useMemo(() => new Map(switchableStorefronts.map(slot => {
-    const presentationGeometry = mainlineSceneGeometryUnits(scene, mainlineStorefrontApproach(scene, slot), geometrySnapshot.screenMetrics)
+    const presentationGeometry = projectedSceneGeometry(scene, geometrySnapshot.screenMetrics)
     return [slot.id, storefrontCharacterCells(scene, slot, presentationGeometry)] as const
   })), [geometrySnapshot.screenMetrics, scene, switchableStorefronts])
-  const activeSwitchableStorefronts = useMemo(() => switchableStorefronts.filter(slot => switchCells.get(slot.id)?.length === 3), [switchCells, switchableStorefronts])
+  const activeSwitchableStorefronts = useMemo(() => switchableStorefronts.filter(slot => (switchCells.get(slot.id)?.length ?? 0) > 0), [switchCells, switchableStorefronts])
   // Player movement only invalidates frame targets when crossing a storefront
   // approach boundary. Keep ordinary walking out of the measured-frame path.
   const approachedStorefrontIds = useMemo(
@@ -1229,6 +1230,7 @@ export function MainlineSceneRenderer({
                     renderFrame={focusFrames.renderFrame}
                     onStorefrontInteract={onStorefrontInteract}
                     storefrontInteractionId={commercialStreetStorefrontInteractionFor(storefront?.id ?? '') ? storefront?.id : undefined}
+                    ariaLabel={storefront?.label}
                     storefrontId={storefrontRole === 'sign' ? storefront?.id : undefined}
                     storefrontSpan={storefront ? storefront.end - storefront.start : undefined}
                     storefrontCenter={storefront ? mainlineStorefrontAnchor(scene, storefront) : undefined}
@@ -1271,19 +1273,20 @@ export function MainlineSceneRenderer({
                   const doorLabel = cell.label ?? cell.glyph ?? '门'
                   const doorPhase = doorPhases.get(entityId) ?? 'closed'
                   const closeHint = cell.access === 'locked' ? (cell.lockedText ?? '当前权限不足') : '接近时自动开门，进入门洞后继续路线'
-                  return <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={storefrontClass} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} doorLabel={doorLabel} glyph={cell.glyph ?? '门'} doorPhase={doorPhase} focusGroup={passageFocusGroup} focusPolicy="passage" gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId} closeHint={closeHint} ariaLabel={`${doorLabel}，点击门后目标会在接近时自动开门并穿过`} renderFocusFrame={focusFrames.renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} dataAttributes={{ 'data-storefront-cell-id': cell.id, 'data-storefront-state': storefrontState, 'data-storefront-presentation-phase': storefrontPresentationPhase, ...storefrontGlyphAttributes }} />
+                  return <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={storefrontClass} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} doorLabel={doorLabel} glyph={cell.glyph ?? '门'} doorPhase={doorPhase} focusGroup={passageFocusGroup} focusPolicy="passage" gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId} closeHint={closeHint} ariaLabel={storefront?.label ?? `${doorLabel}，点击门后目标会在接近时自动开门并穿过`} appendCloseHint={!storefront} renderFocusFrame={focusFrames.renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} dataAttributes={{ 'data-storefront-cell-id': cell.id, 'data-storefront-state': storefrontState, 'data-storefront-presentation-phase': storefrontPresentationPhase, ...storefrontGlyphAttributes }} />
                 }
                 const storefrontPhase = storefrontPassageEntityId ? doorPhases.get(storefrontPassageEntityId) ?? 'closed' : 'closed'
                 return <span key={cell.id} className={storefrontClass} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} data-storefront-cell-id={cell.id} data-storefront-state={storefrontState} data-storefront-presentation-phase={storefrontPresentationPhase} {...storefrontGlyphAttributes} data-focus-target-id={focusGroup ? cell.id : undefined} data-focus-target-group={focusGroup} data-focus-target-policy={focusGroup ? 'passage' : undefined} data-focus-passage-phase={focusGroup ? storefrontPhase : undefined} data-focus-passage-retracting={focusGroup && storefrontPassageEntityId && sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === storefrontPassageEntityId ? 'true' : undefined} aria-hidden="true">{cell.glyph}{focusGroup && focusFrames.renderFrame(focusGroup)}</span>
               }
               if (cell.kind === 'door' && entityId) {
+                const storefront = scene.storefronts.find((candidate) => candidate.id === unit.storefrontId || candidate.portalId === entityId)
                 const doorLabel = cell.displayLabel ?? cell.label ?? '门'
                 const doorPhase = doorPhases.get(entityId) ?? 'closed'
                 const closeHint = cell.access === 'locked' ? (cell.lockedText ?? '当前权限不足') : '接近时自动开门，进入门洞后继续路线'
                 const yardGatePart = cell.doorLabelPart
                 const focusGroup = yardGatePart ? `gate:${entityId}:${yardGatePart}` : `door:${entityId}`
                 const focusPolicy = yardGatePart ? 'gate' : 'passage' as const
-                return <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} doorLabel={doorLabel} glyph={cell.doorLabelPart ?? doorLabel} doorPhase={doorPhase} focusGroup={focusGroup} focusPolicy={focusPolicy} gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId} closeHint={closeHint} ariaLabel={`${doorLabel}，点击门后目标会在接近时自动开门并穿过`} renderFocusFrame={focusFrames.renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} dataAttributes={portalGlyphAttributes} />
+                return <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} doorLabel={doorLabel} glyph={cell.doorLabelPart ?? doorLabel} doorPhase={doorPhase} focusGroup={focusGroup} focusPolicy={focusPolicy} gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId} closeHint={closeHint} ariaLabel={storefront?.label ?? `${doorLabel}，点击门后目标会在接近时自动开门并穿过`} appendCloseHint={!storefront} renderFocusFrame={focusFrames.renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} dataAttributes={portalGlyphAttributes} />
               }
               if (cell.kind === 'opening') {
                 return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-opening ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{cell.label ?? cell.glyph}</SceneCharacters></span>

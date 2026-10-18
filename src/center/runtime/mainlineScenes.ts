@@ -493,6 +493,17 @@ function compileMainlineFrameUnits(
         .filter((cell): cell is NonNullable<typeof cell> => cell !== null)
       if (canonicalStorefrontCells.length === 0) return
       const hasNearProjection = storefrontHasNearProjection(storefront)
+      const portal = storefront.portalId ? objects.find((entity) => entity.id === storefront.portalId) : undefined
+      const portalAxis = portal ? (vertical ? portal.position.y : portal.position.x) : undefined
+      const nearStorefrontCells = hasNearProjection && portalAxis !== undefined
+        ? canonicalStorefrontCells
+          .slice()
+          .sort((first, second) => Math.abs(first.center.x * (vertical ? 0 : 1) + first.center.y * (vertical ? 1 : 0) - portalAxis)
+            - Math.abs(second.center.x * (vertical ? 0 : 1) + second.center.y * (vertical ? 1 : 0) - portalAxis)
+            || first.gridIndex - second.gridIndex)
+          .slice(0, 3)
+          .sort((first, second) => first.gridIndex - second.gridIndex)
+        : canonicalStorefrontCells
 
       // A storefront portal owns one real wall-door-wall base. The distant
       // shop sign is only painted over that base; it must never replace the
@@ -500,7 +511,7 @@ function compileMainlineFrameUnits(
       if (hasNearProjection && door && passageId) {
         const baseRoles: readonly MainlineStorefrontRole[] = ['wall', 'door', 'wall']
         baseRoles.forEach((role, index) => {
-          const canonicalCell = canonicalStorefrontCells[index]
+          const canonicalCell = nearStorefrontCells[index]
           if (!canonicalCell) return
           const cell = {
             id: `${storefront.id}-base-cell-${index}`,
@@ -535,7 +546,6 @@ function compileMainlineFrameUnits(
         roles.forEach((role, index) => {
           const canonicalCell = canonicalStorefrontCells[index]
           if (!canonicalCell) return
-          const overlayHidden = hasNearProjection && variant === 'near'
           const glyph = storefrontGlyph(role, storefront.label, roles, index)
           const cell = {
             id: `${storefront.id}-cell-${index}`,
@@ -563,9 +573,7 @@ function compileMainlineFrameUnits(
             geometryKind: 'boundary',
             surface: hasNearProjection ? 'storefront' : role === 'door' ? 'door' : 'storefront',
             ...(hasNearProjection ? { visualOnly: true } : {}),
-            visual: overlayHidden
-              ? { kind: 'none', cells: [] }
-              : { kind: hasNearProjection ? 'storefront' : role === 'door' ? 'door' : 'storefront', cells: [cell] },
+            visual: { kind: hasNearProjection ? 'storefront' : role === 'door' ? 'door' : 'storefront', cells: [cell] },
             ...(hasNearProjection
               ? { navigation: { blocked: false } }
               : { navigation: { blocked: true, ...(passage ? { passageId: passage.id } : {}) } }),
@@ -1138,7 +1146,7 @@ export function mainlineSceneWalkBounds(scene: MainlineSceneDefinition, screenMe
   }
 }
 
-function projectedSceneGeometry(scene: MainlineSceneDefinition, screenMetrics: SceneScreenMetrics): readonly MainlineSceneGeometryUnit[] {
+export function projectedSceneGeometry(scene: MainlineSceneDefinition, screenMetrics: SceneScreenMetrics): readonly MainlineSceneGeometryUnit[] {
   const key = `${screenMetrics.width.toFixed(2)}x${screenMetrics.height.toFixed(2)}`
   const sceneCache = projectedGeometryCache.get(scene) ?? new Map<string, readonly MainlineSceneGeometryUnit[]>()
   const cached = sceneCache.get(key)
