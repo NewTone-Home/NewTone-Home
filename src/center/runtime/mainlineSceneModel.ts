@@ -940,7 +940,9 @@ const commercialCafeStaffAccessPortal = {
   ),
 } as const satisfies MainlineSceneAccessPortal
 const commercialCafeFloorServicePosition = authoredPoint(
-  commercialCafeLayout.centralWaitingFloor.x + commercialCafeLayout.centralWaitingFloor.width / 2,
+  // Start on the left side of the waiting aisle so refreshes and first entry
+  // never render the server on top of the middle table's label.
+  commercialCafeLayout.centralWaitingFloor.x + 0.75,
   commercialCafeLayout.centralWaitingFloor.y + commercialCafeLayout.centralWaitingFloor.height / 2,
 )
 const commercialCafeCounterEntities = commercialCafeCounterPositions.map((x, index) => floor({

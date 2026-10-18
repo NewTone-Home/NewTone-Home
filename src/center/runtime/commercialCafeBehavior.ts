@@ -130,9 +130,13 @@ export function commercialCafeFloorServiceTarget(scene: MainlineSceneDefinition,
     actorFootprint: visibleLabel,
   }
   // Cafe table approaches are authored as customer-floor standing points.
-  // Prefer that exact point when it is legal; resolving another edge contact
-  // can put the server behind the middle table's bottom chair after scaling.
-  const authoredApproachPath = scene.id === 'commercial-street' && intent.targetId === 'commercial-cafe-right-inner-middle-group-table'
+  // Prefer those exact points when legal; a generic edge contact can put the
+  // rendered server label on the table text after the street transform.
+  const authoredApproachTableIds = new Set([
+    'commercial-cafe-right-inner-middle-group-table',
+    'commercial-cafe-right-window-lower-group-table',
+  ])
+  const authoredApproachPath = scene.id === 'commercial-street' && authoredApproachTableIds.has(intent.targetId)
     ? findMainlinePath(from, intent.target, scene, layout, routeOptions)
     : null
   if (authoredApproachPath) return authoredApproachPath.at(-1) ?? null

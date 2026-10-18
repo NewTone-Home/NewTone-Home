@@ -4,11 +4,20 @@ import { commercialStreetShopEntry, commercialStreetShops } from '../src/center/
 const cafe = commercialStreetShops.find((shop) => shop.kind === 'cafe')!
 const cafeEntry = commercialStreetShopEntry(cafe)
 const middleTableId = 'commercial-cafe-right-inner-middle-group-table'
+const lowerTableId = 'commercial-cafe-right-window-lower-group-table'
+
+function minimumTextGap(first: { x: number; y: number; right: number; bottom: number }, second: { x: number; y: number; right: number; bottom: number }) {
+  const gapX = Math.max(0, second.x - first.right, first.x - second.right)
+  const gapY = Math.max(0, second.y - first.bottom, first.y - second.bottom)
+  return Math.max(gapX, gapY)
+}
 
 test('Cafe window, blackboard, and moving server text keep clear bounds', async ({ page }, testInfo) => {
-  test.setTimeout(90_000)
+  test.setTimeout(120_000)
   await page.setViewportSize({ width: 1180, height: 757 })
   await page.addInitScript(({ startPoint }) => {
+    if (sessionStorage.getItem('commercial-cafe-e2e-save-seeded') === 'true') return
+    sessionStorage.setItem('commercial-cafe-e2e-save-seeded', 'true')
     localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
     localStorage.setItem('newtone-progress-v4', JSON.stringify({ _version: 4, language: 'zh', hasInitializedLanguage: true }))
     localStorage.setItem('newtone-player-save-v1', JSON.stringify({
@@ -60,29 +69,134 @@ test('Cafe window, blackboard, and moving server text keep clear bounds', async 
 
   const server = page.locator('[data-npc-id="cafe-floor-server"]')
   const serverText = server.locator(':scope > span')
-  await expect(server).toBeVisible()
-  await expect(server).toHaveAttribute('data-npc-target-id', middleTableId, { timeout: 30_000 })
-  const tableLabels = page.locator(`[data-object-id^="commercial-cafe-right-inner-middle-group-"] .scene-mainline-object__label`)
-  await expect(tableLabels.first()).toBeVisible()
-  const sampledPositions = new Set<string>()
-  let middleTableServiceSamples = 0
-  for (let index = 0; index < 180; index++) {
+  const tableLabels = page.locator('[data-object-id^="commercial-cafe-right-"][data-object-id*="-group-"] .scene-mainline-object__label')
+  const expectCurrentServiceSpacing = async () => {
     const serverBox = await serverText.boundingBox()
     expect(serverBox).not.toBeNull()
     const labelBoxes = await tableLabels.evaluateAll((nodes) => nodes.map((node) => {
       const rect = node.getBoundingClientRect()
       return { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom }
     }))
+    expect(Math.min(...labelBoxes.map((label) => minimumTextGap({
+      x: serverBox!.x,
+      y: serverBox!.y,
+      right: serverBox!.x + serverBox!.width,
+      bottom: serverBox!.y + serverBox!.height,
+    }, label)))).toBeGreaterThanOrEqual(12)
+  }
+  await expect(server).toBeVisible()
+  await expect(tableLabels.first()).toBeVisible()
+  await expectCurrentServiceSpacing()
+
+  const sampledPositions = new Set<string>()
+  const visitedTargets = new Set<string>()
+  let startingTarget: string | null = null
+  let completedRoundTrip = false
+  for (let index = 0; index < 600; index++) {
+    const serverBox = await serverText.boundingBox()
+    expect(serverBox).not.toBeNull()
+    const targetId = await server.getAttribute('data-npc-target-id')
+    const labelBoxes = await tableLabels.evaluateAll((nodes) => nodes.map((node) => {
+      const rect = node.getBoundingClientRect()
+      return { text: node.textContent?.trim(), objectId: node.closest('[data-object-id]')?.getAttribute('data-object-id'), x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom }
+    }))
     for (const label of labelBoxes) {
-      const gapX = Math.max(0, label.x - (serverBox!.x + serverBox!.width), serverBox!.x - label.right)
-      const gapY = Math.max(0, label.y - (serverBox!.y + serverBox!.height), serverBox!.y - label.bottom)
-      expect(gapX >= 8 || gapY >= 8, 'moving service text needs a readable gap from every table/chair label').toBe(true)
+      expect(minimumTextGap({
+        x: serverBox!.x,
+        y: serverBox!.y,
+        right: serverBox!.x + serverBox!.width,
+        bottom: serverBox!.y + serverBox!.height,
+      }, label), `Cafe server target ${targetId}; nearby label ${label.text} (${label.objectId})`).toBeGreaterThanOrEqual(12)
     }
-    if (await server.getAttribute('data-npc-target-id') === middleTableId) middleTableServiceSamples += 1
+    if (targetId) {
+      if (startingTarget === null) startingTarget = targetId
+      visitedTargets.add(targetId)
+      if (targetId === startingTarget && visitedTargets.has(middleTableId) && visitedTargets.has(lowerTableId) && index > 10) {
+        completedRoundTrip = true
+        break
+      }
+    }
     sampledPositions.add(`${Math.round(serverBox!.x)},${Math.round(serverBox!.y)}`)
     await page.waitForTimeout(150)
   }
   expect(sampledPositions.size).toBeGreaterThan(2)
-  expect(middleTableServiceSamples).toBeGreaterThan(1)
+  expect(visitedTargets.has(middleTableId)).toBe(true)
+  expect(visitedTargets.has(lowerTableId)).toBe(true)
+  expect(completedRoundTrip).toBe(true)
+
+  const savedCafeStory = await page.evaluate(() => {
+    const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
+    return save.sceneState?.['commercial-street'] ?? {}
+  })
+  await page.locator('[data-focus-target-group="door:street-cafe-entry"]').click()
+  await expect(street).not.toHaveAttribute('data-active-display-region', 'commercial-cafe-interior', { timeout: 30_000 })
+  await page.locator('[data-focus-target-group="door:street-cafe-entry"]').click()
+  await expect(street).toHaveAttribute('data-active-display-region', 'commercial-cafe-interior', { timeout: 30_000 })
+  await expect(server).toBeVisible()
+  await expectCurrentServiceSpacing()
+  await expect.poll(() => page.evaluate(() => {
+    const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
+    return save.sceneState?.['commercial-street'] ?? {}
+  })).toEqual(savedCafeStory)
+
+  await page.locator('[data-focus-target-group="door:street-cafe-entry"]').click()
+  await expect(street).toHaveAttribute('data-active-display-region', 'commercial-street-east', { timeout: 30_000 })
+  await page.locator('[data-focus-target-group="door:street-cafe-entry"]').click()
+  await expect(street).toHaveAttribute('data-active-display-region', 'commercial-cafe-interior', { timeout: 30_000 })
+  await expect(server).toBeVisible()
+  await expectCurrentServiceSpacing()
   await page.screenshot({ path: testInfo.outputPath('commercial-cafe-1180x757.png') })
+})
+
+test('Cafe floor server restores safely from an older save already inside the continuous world', async ({ page }) => {
+  await page.setViewportSize({ width: 1180, height: 757 })
+  await page.addInitScript(() => {
+    const resumePoint = { x: 166.5, y: 22 }
+    localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
+    localStorage.setItem('newtone-progress-v4', JSON.stringify({ _version: 4, language: 'zh', hasInitializedLanguage: true }))
+    localStorage.setItem('newtone-player-save-v1', JSON.stringify({
+      _version: 1,
+      currentSceneId: 'commercial-street',
+      currentPosition: resumePoint,
+      scenePositions: { 'commercial-street': resumePoint },
+      phoneDevice: 'surface',
+      storyClock: { stage: 'commercial-street' },
+      sceneState: {
+        'commercial-street': {
+          commercialStreetQuestionNarrativeCompleted: true,
+          commercialCafeStoryStatus: 'available',
+          commercialCafeNarrativeCursor: 4,
+          commercialCafeCoffeeStatus: 'delivered',
+          commercialCafeNarrativePhase: 'dialogue',
+          commercialCafeLaoZhouDeparture: 'seated',
+          commercialCafeCompletedAt: null,
+        },
+      },
+      phoneNotifications: [], phoneNotes: [], phoneContactNotes: {}, phoneCallHistory: [], updatedAt: Date.now(),
+    }))
+  })
+  await page.goto('/?scene=commercial-street&debugRuntimeEvidence=1')
+  const street = page.locator('.scene-shell[data-mainline-scene="commercial-street"]')
+  const server = page.locator('[data-npc-id="cafe-floor-server"]')
+  const serverText = server.locator(':scope > span')
+  const tableLabels = page.locator('[data-object-id^="commercial-cafe-right-"][data-object-id*="-group-"] .scene-mainline-object__label')
+  await expect(street).toHaveAttribute('data-active-display-region', 'commercial-cafe-interior')
+  await expect(server).toBeVisible()
+  await expect(tableLabels.first()).toBeVisible()
+  const serverBox = await serverText.boundingBox()
+  expect(serverBox).not.toBeNull()
+  const labelBoxes = await tableLabels.evaluateAll((nodes) => nodes.map((node) => {
+    const rect = node.getBoundingClientRect()
+    return { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom }
+  }))
+  expect(Math.min(...labelBoxes.map((label) => minimumTextGap({
+    x: serverBox!.x,
+    y: serverBox!.y,
+    right: serverBox!.x + serverBox!.width,
+    bottom: serverBox!.y + serverBox!.height,
+  }, label)))).toBeGreaterThanOrEqual(12)
+  await expect.poll(() => page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}').sceneState?.['commercial-street'] ?? {}
+    return [state.commercialCafeStoryStatus, state.commercialCafeNarrativeCursor, state.commercialCafeCoffeeStatus, state.commercialCafeNarrativePhase]
+  })).toEqual(['available', 4, 'delivered', 'dialogue'])
 })
