@@ -1,4 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
+import { openRideArrivalNotification } from './phoneRideNotification'
+import { mainlineRidePickupPositions } from '../src/center/runtime/mainlineRide'
+import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 
 const playerSaveKey = 'newtone-player-save-v1'
 const eatery = '.scene-shell[data-mainline-scene="yonghe-eatery"]'
@@ -42,6 +45,64 @@ async function inspect(page: Page, entityId: string, point: string, status: 'in-
   await observation.click()
   await waitForPoint(page, point, status)
   await closeObservation(page)
+}
+
+async function clickWorldPoint(page: Page, target: { x: number; y: number }) {
+  const screen = await page.locator('.mainline-scene-stage').evaluate((element, point) => {
+    const rect = element.getBoundingClientRect()
+    const world = element.querySelector<HTMLElement>('.scene-mainline-world')
+    if (!world) throw new Error('Mainline world layer is missing')
+    const offset = world.style.transform.match(/translate\(([-\d.]+)%, ([-\d.]+)%\)/)
+    if (!offset) throw new Error('Mainline camera offset is unavailable')
+    return {
+      x: rect.x + rect.width * (point.x + Number(offset[1])) / 100,
+      y: rect.y + rect.height * (point.y + Number(offset[2])) / 100,
+    }
+  }, target)
+  await page.mouse.click(screen.x, screen.y)
+}
+
+async function walkToWorldPoint(page: Page, target: { x: number; y: number }) {
+  const actor = page.locator('[data-actor-id="protagonist"]')
+  for (let step = 0; step < 24; step += 1) {
+    const stage = page.locator('.mainline-scene-stage')
+    const projected = await stage.evaluate((element, point) => {
+      const rect = element.getBoundingClientRect()
+      const world = element.querySelector<HTMLElement>('.scene-mainline-world')
+      if (!world) throw new Error('Mainline world layer is missing')
+      const offset = world.style.transform.match(/translate\(([-\d.]+)%, ([-\d.]+)%\)/)
+      if (!offset) throw new Error('Mainline camera offset is unavailable')
+      const x = rect.x + rect.width * (point.x + Number(offset[1])) / 100
+      const y = rect.y + rect.height * (point.y + Number(offset[2])) / 100
+      return {
+        x: Math.max(rect.x + 20, Math.min(rect.right - 20, x)),
+        y: Math.max(rect.y + 20, Math.min(rect.bottom - 30, y)),
+        targetVisible: x >= rect.x && x <= rect.right && y >= rect.y && y <= rect.bottom,
+      }
+    }, target)
+    await page.mouse.click(projected.x, projected.y)
+    if (projected.targetVisible) return
+    await expect(actor).toHaveClass(/is-moving/, { timeout: 5_000 })
+    await expect(actor).not.toHaveClass(/is-moving/, { timeout: 15_000 })
+  }
+  throw new Error('Walking did not reach the ride pickup exit')
+}
+
+async function walkAcrossStreet(page: Page, targetX: number) {
+  const actor = page.locator('[data-actor-id="protagonist"]')
+  for (let step = 0; step < 30; step += 1) {
+    if (!await page.locator('.scene-shell[data-mainline-scene="commercial-street"]').count()) return
+    const x = await actor.evaluate(element => parseFloat((element as HTMLElement).style.left))
+    if (Math.abs(x - targetX) < 2) return
+    await clickWorldPoint(page, { x: x + Math.sign(targetX - x) * Math.min(22, Math.abs(targetX - x)), y: 46 })
+    await expect.poll(async () => {
+      if (!await page.locator('.scene-shell[data-mainline-scene="commercial-street"]').count()) return 1
+      return Math.abs(await actor.evaluate(element => parseFloat((element as HTMLElement).style.left)) - x)
+    }, { timeout: 15_000 }).toBeGreaterThan(0.1)
+    if (!await page.locator('.scene-shell[data-mainline-scene="commercial-street"]').count()) return
+    await expect(actor).not.toHaveClass(/is-moving/, { timeout: 15_000 })
+  }
+  throw new Error('Street walking did not reach the Cafe approach')
 }
 
 test('desktop: fresh and legacy saves, early exit, and reentry persistence', async ({ page }, testInfo) => {
@@ -121,7 +182,7 @@ test('390x844 mobile: all four observations complete in any order and survive re
 })
 
 test('legal isolated save: perimeter, eatery round trip, ride map, and Café entry', async ({ page }, testInfo) => {
-  test.setTimeout(90_000)
+  test.setTimeout(150_000)
   await page.addInitScript((key) => {
     localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
     localStorage.setItem(key, JSON.stringify({
@@ -172,36 +233,35 @@ test('legal isolated save: perimeter, eatery round trip, ride map, and Café ent
   await destination.click()
   await phone.locator('.world-phone__vehicles button').first().click()
   await phone.locator('.world-phone__list-action').click()
-  await expect(page.locator('.world-phone__ride-order-state')).toBeVisible({ timeout: 10_000 })
+  const rideOrderState = page.locator('.world-phone__ride-order-state')
+  await expect(rideOrderState).toContainText('司机正在路上', { timeout: 10_000 })
   await page.keyboard.press('Escape')
-  await expect(page.locator('.world-phone[data-phone-open="false"]')).toBeVisible({ timeout: 5_000 })
-  for (let step = 0; step < 8; step += 1) {
-    const currentScene = await page.locator('.scene-shell').getAttribute('data-mainline-scene')
-    if (currentScene === 'commercial-street') break
-    const stage = page.locator('.scene-stage')
-    const box = await stage.boundingBox()
-    if (!box) {
-      await page.waitForTimeout(800)
-      continue
-    }
-    await stage.click({ position: { x: box.width / 2, y: box.height * 0.96 } })
-    await page.waitForTimeout(800)
-  }
-  await expect.poll(() => page.locator('.scene-shell').getAttribute('data-mainline-scene'), { timeout: 20_000 }).toBe('commercial-street')
+  await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase', 'closed')
+  await openRideArrivalNotification(page, 45_000)
+  const rideArrival = page.locator('[data-notification-app="ride"]')
+  await expect(rideArrival).toContainText('请前往上车点')
+  await rideArrival.click()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.world-phone')).toHaveAttribute('data-phone-phase', 'closed')
+
+  const pickupSceneId = await page.locator('.scene-shell[data-mainline-scene]').getAttribute('data-mainline-scene')
+  if (!pickupSceneId || !(pickupSceneId in mainlineScenes)) throw new Error('Ride pickup scene is unavailable')
+  const pickupScene = mainlineScenes[pickupSceneId as keyof typeof mainlineScenes]
+  const pickupExit = pickupScene.externalExits[0]
+  const pickupPosition = mainlineRidePickupPositions(pickupScene.id)[0]
+  if (!pickupExit || !pickupPosition) throw new Error('Ride pickup exit is unavailable')
+  await walkToWorldPoint(page, { ...pickupPosition, [pickupExit.axis]: pickupPosition[pickupExit.axis] + pickupExit.direction })
+  await expect(page.locator('.center-long-distance-travel')).toBeVisible({ timeout: 20_000 })
+  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible({ timeout: 20_000 })
+  await expect(page.locator('.center-long-distance-travel')).toHaveCount(0, { timeout: 20_000 })
+  await expect(page.locator('.center-experience')).not.toHaveAttribute('data-long-distance-phase', /.+/)
   await page.screenshot({ path: testInfo.outputPath('yonghe-route-commercial-street-arrival.png') })
 
   const cafeDoor = page.locator('.scene-shell[data-mainline-scene="commercial-street"] [data-focus-target-group="door:street-cafe-entry"]')
   await expect(cafeDoor).toBeVisible({ timeout: 15_000 })
-  const streetStage = page.locator('.scene-stage')
-  for (const xRatio of [0.6, 0.8, 0.94]) {
-    if (await page.locator('.scene-shell').getAttribute('data-mainline-scene') === 'commercial-cafe') break
-    const stageBox = await streetStage.boundingBox()
-    if (!stageBox) throw new Error('Commercial street stage is unavailable near the Café')
-    const beforePosition = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '{}').currentPosition, playerSaveKey)
-    await streetStage.click({ position: { x: stageBox.width * xRatio, y: stageBox.height * 0.5 } })
-    await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '{}').currentPosition, playerSaveKey), { timeout: 6_000 }).not.toEqual(beforePosition)
-  }
-  if (await page.locator('.scene-shell').getAttribute('data-mainline-scene') !== 'commercial-cafe') await cafeDoor.click()
+  await walkAcrossStreet(page, 185)
+  await expect(page.locator('[data-actor-id="protagonist"]')).not.toHaveClass(/is-moving/)
+  await cafeDoor.click()
   const cafe = page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')
   await expect(cafe).toBeVisible({ timeout: 15_000 })
   await expect(page.locator('.scene-shell[data-mainline-scene="yonghe-eatery"]')).toHaveCount(0)
