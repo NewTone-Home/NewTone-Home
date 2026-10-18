@@ -1777,11 +1777,51 @@ const yongheFacadeAirWalls: readonly MainlineAirWall[] = yongheMiningPerimeterLa
 }))
 
 const yongheDiningFurniture = [
-  mainlineTwoSeatFurniture('yonghe-upper-left-group', { x: 25, y: 27 }, { x: 31, y: 27 }, {}, { seatGap: 4.5, pulledSeatGap: 5.5, sitSeatGap: 5.5 }),
-  mainlineTwoSeatFurniture('yonghe-upper-right-group', { x: 32, y: 27 }, { x: 36, y: 27 }, {}, { seatGap: 4.5, pulledSeatGap: 5.5, sitSeatGap: 5.5 }),
-  mainlineTwoSeatFurniture('yonghe-lower-left-group', { x: 25, y: 39 }, { x: 31, y: 39 }, {}, { seatGap: 4.5, pulledSeatGap: 5.5, sitSeatGap: 5.5 }),
-  mainlineTwoSeatFurniture('yonghe-lower-right-group', { x: 32, y: 39 }, { x: 36, y: 39 }, {}, { seatGap: 4.5, pulledSeatGap: 5.5, sitSeatGap: 5.5 }),
+  mainlineTwoSeatFurniture('yonghe-upper-left-group', { x: 30.5, y: 29.5 }, { x: 35.5, y: 29.5 }, {}, { seatGap: 3.2, pulledSeatGap: 4.2, sitSeatGap: 4.2 }),
+  mainlineTwoSeatFurniture('yonghe-lower-right-group', { x: 33, y: 43 }, { x: 36.5, y: 43 }, {}, { seatGap: 3.2, pulledSeatGap: 4.2, sitSeatGap: 4.2 }),
 ]
+
+const yongheCounterTextPositions = Array.from({ length: 9 }, (_, index) => ({
+  x: yongheMiningPerimeterLayout.entry.counterBounds.x + yongheMiningPerimeterLayout.entry.counterBounds.width / 2,
+  y: 27.15 + index * 2.45,
+}))
+const yongheCounterStructure = {
+  id: 'yonghe-counter-body',
+  kind: 'counter' as const,
+  ...box(
+    yongheMiningPerimeterLayout.entry.counterBounds.x,
+    yongheMiningPerimeterLayout.entry.counterBounds.y,
+    yongheMiningPerimeterLayout.entry.counterBounds.width,
+    yongheMiningPerimeterLayout.entry.counterBounds.height,
+  ),
+}
+const yongheCounterEntities = yongheCounterTextPositions.map((position, index) => floor({
+  id: index === 4 ? 'yonghe-counter' : `yonghe-counter-segment-${index + 1}`,
+  label: '柜台',
+  kind: 'fixture',
+  weight: 'fixture',
+  position,
+  interactive: true,
+  interactionStructureId: yongheCounterStructure.id,
+  interactionContactSides: ['right'] as const,
+  visualVisibility: 'baseline' as const,
+}))
+const yongheCounterExplorationText = '柜台与灶台靠在一起，里面的工作区域没有向外延伸。'
+const yongheCounterExplorationEntries = Object.fromEntries(
+  yongheCounterEntities.map(({ id }) => [id, [yongheCounterExplorationText]]),
+)
+const yongheCounterInteractionEntries = Object.fromEntries(
+  yongheCounterEntities.map(({ id }) => [id, '柜台把顾客区和工作区分开，上端留着一处可通行的开口。']),
+)
+const yongheMenu = wallEntity({
+  id: 'yonghe-menu',
+  label: '菜单',
+  kind: 'fixture',
+  weight: 'fixture',
+  position: yongheMiningPerimeterLayout.entry.menuPosition,
+  interactive: true,
+  interactionContactAnchor: yongheMiningPerimeterLayout.entry.menuApproach,
+})
 
 const yongheOutdoorFurniture = [
   mainlineTwoSeatFurniture(
@@ -1920,7 +1960,7 @@ const yongheEateryBlueprint: MainlineSceneBlueprint = {
   title: '第三章 · 永和小馆',
   subtitle: '永和小馆是独立场景；门、墙、桌椅和后门都直接由主线场景契约编译。',
   statusLabel: '永和小馆',
-  hint: '入口在左侧，店内中央留出通道；柜台和灶台在右侧，后门暂未开放。',
+  hint: '前门在右侧；柜台左边是工作区，右边是顾客区。柜台上端留有通口，后门暂未开放。',
   presentation: { mode: 'fixed', anchor: authoredPoint(40, 34) },
   areaLabel: '永和小馆',
   scene: {
@@ -1936,17 +1976,18 @@ const yongheEateryBlueprint: MainlineSceneBlueprint = {
       }],
       floorEntities: [
         ...yongheDiningFurniture.flatMap(({ entities }) => entities),
-        floor({ id: 'yonghe-survey-central-lane', label: '中央通道', kind: 'landmark', weight: 'minor', position: { x: 40, y: 35 } }),
-        floor({ id: 'yonghe-counter', label: '柜台', kind: 'fixture', weight: 'fixture', position: { x: 39.5, y: 24.25 }, collision: box(31, 22.5, 17, 3.5), shape: box(31, 22.5, 17, 3.5), movementCollision: 'physical', visualProfile: 'counter', groupId: 'yonghe-service-group' }),
-        floor({ id: 'yonghe-stove', label: '灶台', kind: 'fixture', weight: 'fixture', position: { x: 14, y: 31 }, collision: box(12, 29, 4, 4), shape: box(12, 29, 4, 4), movementCollision: 'physical', groupId: 'yonghe-service-group' }),
-        floor({ id: 'yonghe-prep-board', label: '备菜台', kind: 'fixture', weight: 'fixture', position: { x: 14, y: 39 }, collision: box(12, 37, 4, 4), shape: box(12, 37, 4, 4), movementCollision: 'physical', groupId: 'yonghe-service-group' }),
+        ...yongheCounterEntities,
+        yongheMenu,
+        floor({ id: 'yonghe-stove', label: '灶台', kind: 'fixture', weight: 'fixture', position: { x: 19, y: 38 }, collision: box(17, 36, 4, 4), shape: box(17, 36, 4, 4), movementCollision: 'physical', groupId: 'yonghe-service-group' }),
+        floor({ id: 'yonghe-prep-board', label: '备菜台', kind: 'fixture', weight: 'fixture', position: { x: 14, y: 30 }, collision: box(12, 28, 4, 4), shape: box(12, 28, 4, 4), movementCollision: 'physical', groupId: 'yonghe-service-group' }),
       ],
-      airWalls: [{ id: 'yonghe-back-door-air-wall-top', ...box(10, 20.3, 38, 1.4) }, { id: 'yonghe-back-door-air-wall-bottom', ...box(10, 48.3, 38, 1.4) }],
+      airWalls: [{ id: 'yonghe-back-door-air-wall-top', ...box(10, 20.3, 28, 1.4) }, { id: 'yonghe-back-door-air-wall-bottom', ...box(10, 48.3, 28, 1.4) }],
       blockers: [],
       furnitureGroups: [
         ...yongheDiningFurniture.map(({ group }) => group),
-        { id: 'yonghe-service-group', anchor: { x: 16, y: 35 }, entityIds: ['yonghe-counter', 'yonghe-stove', 'yonghe-prep-board'] },
+        { id: 'yonghe-service-group', anchor: { x: 16.5, y: 34 }, entityIds: ['yonghe-stove', 'yonghe-prep-board'] },
       ],
+      continuousStructures: [yongheCounterStructure],
       initialPlayerPosition: yongheMiningPerimeterLayout.entry.roomSafeEntryPosition,
     },
   portals: [
@@ -1995,8 +2036,9 @@ const yongheEateryBlueprint: MainlineSceneBlueprint = {
         [bottomChairId, '椅子贴着桌边摆放，保持着小馆紧凑但可通行的布局。'],
       ]
     })),
-    'yonghe-counter': '柜台靠在店内后侧，灶台就在旁边，热气和声音都从这里出来。',
-    'yonghe-stove': '灶台在柜台旁边，留在小馆内部，不占用门外通道。',
+    ...yongheCounterInteractionEntries,
+    'yonghe-menu': '墙上挂着菜单。',
+    'yonghe-stove': '灶台和备菜台都在柜台另一侧的工作区内。',
     'yonghe-back-door': '后门暂未开启，当前权限不足。',
     'yonghe-outdoor-table-1': '小桌摆在永和小馆门外，主通道仍然留着。',
     'yonghe-outdoor-table-2': '另一张门外小桌靠着旧店面，行人可以从侧边绕过。',
@@ -2004,8 +2046,8 @@ const yongheEateryBlueprint: MainlineSceneBlueprint = {
   explorationText: {
   // Preview proposal copy only; pending author review and not canon.
     'yonghe-upper-left-group-table': ['店里的桌椅摆得紧凑，但桌与桌之间仍留着通行的空隙。'],
-    'yonghe-counter': ['柜台与灶台靠在一起，里面的工作区域没有向外延伸。'],
-    'yonghe-survey-central-lane': ['通道足够让人走过。桌椅虽然靠得近，却没有完全挡住去路。'],
+    ...yongheCounterExplorationEntries,
+    'yonghe-lower-right-group-table': ['通道足够让人走过。桌椅虽然靠得近，却没有完全挡住去路。'],
     'yonghe-back-door': ['后门目前无法通行。仅凭眼前的情况，还看不出门后通向哪里。'],
   },
 }

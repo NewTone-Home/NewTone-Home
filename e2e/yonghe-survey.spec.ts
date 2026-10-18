@@ -93,26 +93,30 @@ test('390x844 mobile: all four observations complete in any order and survive re
   await page.screenshot({ path: testInfo.outputPath('yonghe-mobile-start.png') })
   for (const entityId of [
     'yonghe-counter',
-    'yonghe-survey-central-lane',
+    'yonghe-lower-right-group-table',
     'yonghe-back-door',
     'yonghe-upper-left-group-table',
   ]) {
     const point = entityId === 'yonghe-upper-left-group-table' ? 'tables'
       : entityId === 'yonghe-counter' ? 'counter'
-        : entityId === 'yonghe-survey-central-lane' ? 'central-lane'
+        : entityId === 'yonghe-lower-right-group-table' ? 'central-lane'
           : 'back-door'
     const seen = await page.evaluate(({ playerSaveKey, point }) =>
       JSON.parse(localStorage.getItem(playerSaveKey) ?? '{}').sceneState?.['yonghe-eatery']?.['yongheSurveyPoint:' + point] === true,
     { playerSaveKey, point })
     const currentStatus = entityId === 'yonghe-upper-left-group-table' ? 'complete' : 'in-progress'
     if (!seen) await inspect(page, entityId, 'yongheSurveyPoint:' + point, currentStatus)
+    if (entityId === 'yonghe-counter') {
+      const customerSidePosition = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '{}').currentPosition, playerSaveKey)
+      expect(customerSidePosition.x).toBeGreaterThan(25.75)
+    }
   }
 
   await expect(page.locator(eatery)).toHaveAttribute('data-yonghe-survey-status', 'complete')
   await page.screenshot({ path: testInfo.outputPath('yonghe-mobile-complete.png') })
   await page.reload()
   await expect(page.locator(eatery)).toHaveAttribute('data-yonghe-survey-status', 'complete')
-  await expect(page.locator('[data-object-id="yonghe-survey-central-lane"]')).toBeVisible()
+  await expect(page.locator('[data-object-id="yonghe-lower-right-group-table"]')).toBeVisible()
   await expect(page.locator('[data-object-id="yonghe-counter"]')).toBeVisible()
 })
 
@@ -151,7 +155,7 @@ test('legal isolated save: perimeter, eatery round trip, ride map, and Café ent
   for (const [entity, point, status] of [
     ['yonghe-back-door', 'back-door', 'in-progress'],
     ['yonghe-counter', 'counter', 'in-progress'],
-    ['yonghe-survey-central-lane', 'central-lane', 'complete'],
+    ['yonghe-lower-right-group-table', 'central-lane', 'complete'],
   ] as const) await inspect(page, entity, 'yongheSurveyPoint:' + point, status)
   await expect(page.locator(eatery)).toHaveAttribute('data-yonghe-survey-status', 'complete')
   await page.screenshot({ path: testInfo.outputPath('yonghe-route-survey-complete.png') })
@@ -193,8 +197,9 @@ test('legal isolated save: perimeter, eatery round trip, ride map, and Café ent
     if (await page.locator('.scene-shell').getAttribute('data-mainline-scene') === 'commercial-cafe') break
     const stageBox = await streetStage.boundingBox()
     if (!stageBox) throw new Error('Commercial street stage is unavailable near the Café')
+    const beforePosition = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '{}').currentPosition, playerSaveKey)
     await streetStage.click({ position: { x: stageBox.width * xRatio, y: stageBox.height * 0.5 } })
-    await page.waitForTimeout(1_000)
+    await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '{}').currentPosition, playerSaveKey), { timeout: 6_000 }).not.toEqual(beforePosition)
   }
   if (await page.locator('.scene-shell').getAttribute('data-mainline-scene') !== 'commercial-cafe') await cafeDoor.click()
   const cafe = page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')
@@ -250,6 +255,6 @@ test('rapid front-door round trips keep one scene active and preserve survey sta
 })
 test('Chinese observation copy is presented as an in-scene observation', async ({ page }) => {
   await openEatery(page)
-  await page.locator('[data-object-id="yonghe-survey-central-lane"]').click()
+  await page.locator('[data-object-id="yonghe-lower-right-group-table"]').click()
   await expect(page.locator('[data-scene-text-mode="observation"]')).toContainText('通道足够让人走过', { timeout: 15_000 })
 })

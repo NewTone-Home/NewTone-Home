@@ -38,9 +38,9 @@ export function yongheSurveyStatePatch(
 export function yongheSurveyPointForEntity(entityId: string): YongheSurveyPointId | null {
   switch (entityId) {
     case 'yonghe-upper-left-group-table': return 'tables'
+    case 'yonghe-lower-right-group-table': return 'central-lane'
     case 'yonghe-counter': return 'counter'
-    case 'yonghe-survey-central-lane': return 'central-lane'
     case 'yonghe-back-door': return 'back-door'
-    default: return null
+    default: return entityId.startsWith('yonghe-counter-segment-') ? 'counter' : null
   }
 }
