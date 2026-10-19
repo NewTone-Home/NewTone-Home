@@ -53,6 +53,30 @@ describe('commercial street storefront presentation', () => {
     expect(street.passages.find((passage) => passage.id === 'street-cafe-entry')?.targetSceneId).toBeUndefined()
   })
 
+  it('derives equal row and east boundary spans from the authored storefront grid', () => {
+    const pitch = 18 / 7
+    const rows = (['top', 'bottom'] as const).map(edge => street.storefronts.filter(storefront => storefront.edge === edge))
+    const rowCellCounts = rows.map(row => row.reduce((cells, storefront) => (
+      cells + storefront.composition!.fixedCellCount!
+    ), 0) + Math.max(0, row.length - 1))
+    expect(rowCellCounts).toEqual([103, 103])
+    expect(rows[0]![0]!.start).toBe(rows[1]![0]!.start)
+    const lastStorefrontEnd = Math.max(...street.storefronts.map(storefront => storefront.end))
+    expect(rows[0]!.at(-1)!.end).toBeCloseTo(lastStorefrontEnd)
+    expect(rows[1]!.at(-1)!.end).toBeCloseTo(lastStorefrontEnd)
+
+    const facadeRight = street.structures.find(structure => structure.id === 'commercial-north-facade')!.bounds!.x
+      + street.structures.find(structure => structure.id === 'commercial-north-facade')!.bounds!.width
+    const lane = street.structures.find(structure => structure.id === 'commercial-main-lane')!.bounds!
+    const walkRight = street.walkBounds.x + street.walkBounds.width
+    const northAirWallRight = street.airWalls!.find(airWall => airWall.id === 'commercial-north-facade-air-wall')!.x
+      + street.airWalls!.find(airWall => airWall.id === 'commercial-north-facade-air-wall')!.width
+    expect(facadeRight).toBeCloseTo(lastStorefrontEnd + 6.01)
+    expect(lane.x + lane.width).toBeCloseTo(lastStorefrontEnd + 2.01)
+    expect(walkRight).toBeCloseTo(lastStorefrontEnd + 14.01)
+    expect(northAirWallRight).toBeCloseTo(walkRight)
+  })
+
   it('projects one window per character without adding world entities', () => {
     expect(storefrontPresentationLabelSlots(cafe.label)).toEqual(['咖', '啡', '馆'])
     expect(storefrontLabelRollDurationMs).toBe(700)

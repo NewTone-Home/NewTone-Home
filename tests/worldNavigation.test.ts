@@ -24,6 +24,13 @@ describe('ordinary world navigation and passage intent', () => {
     const route = resolveMainlineWorldNavigation(street, point(18, 50), point(190, 50), {}, options)
     expect(route?.reachedRequestedTarget).toBe(true)
     expect(route?.resolvedNavigableTarget).toEqual(point(190, 50))
+
+    const rightmostWalkPoint = point(street.walkBounds.x + street.walkBounds.width - 1, 50)
+    const rightEndRoute = resolveMainlineWorldNavigation(street, point(18, 50), rightmostWalkPoint, {}, options)
+    expect(street.externalExits?.every(exit => exit.axis === 'x' && exit.direction === -1)).toBe(true)
+    expect(isWalkableMainlinePoint(rightmostWalkPoint, street, {}, options)).toBe(true)
+    expect(rightEndRoute?.reachedRequestedTarget).toBe(true)
+    expect(rightEndRoute?.resolvedNavigableTarget).toEqual(rightmostWalkPoint)
   })
 
   it('resolves the 1180x757 stage click used to cross the storefront row', () => {

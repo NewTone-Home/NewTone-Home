@@ -980,18 +980,6 @@ const commercialCafeWindow: MainlineSceneCurve = { id: 'commercial-cafe-glass-fr
 // only deliberate gap is the terminal's cafe doorway corridor.
 const commercialStreetLaneExpansion = boundaryGridStepsFromScreenSpacing().vertical
 const commercialStreetCellPitch = 18 / 7
-const commercialStreetNorthRowCellCount = 6 * 12 + 25 + 6
-const commercialStreetSouthRowCellCount = 7 * 12 + 25 + 7
-const commercialStreetRowCellCount = Math.max(commercialStreetNorthRowCellCount, commercialStreetSouthRowCellCount)
-const commercialStreetPreviousRowSpan = 6 * 18 + 40 + 6 * 4
-const commercialStreetLongitudinalExpansion = commercialStreetRowCellCount * commercialStreetCellPitch - commercialStreetPreviousRowSpan + .01
-const commercialStreetSceneRight = 192 + commercialStreetLongitudinalExpansion
-const commercialStreetWorldRight = 200 + commercialStreetLongitudinalExpansion
-
-const commercialStreetFacadeAirWalls: readonly MainlineAirWall[] = [
-  { id: 'commercial-north-facade-air-wall', ...box(8, 10, 192 + commercialStreetLongitudinalExpansion, 25.3 - commercialStreetLaneExpansion) },
-  { id: 'commercial-south-facade-air-wall-left', ...box(8, 64.7 + commercialStreetLaneExpansion, 180 + commercialStreetLongitudinalExpansion, 25.3 - commercialStreetLaneExpansion) },
-]
 
 const commercialStreetAmbientNpcs = [
   { id: 'commercial-street-pedestrian-west-north', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
@@ -1069,6 +1057,27 @@ const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
     approach: authoredPoint(portalTangent, approachY) }
 })
 
+// Size the shared street grid from the storefront compositions actually
+// authored on each side, plus one separator cell between adjacent stores.
+// Both rows use this same count, so a row inventory edit cannot silently
+// stretch only one side of the scene.
+const commercialStreetRowCellCount = Math.max(...(['top', 'bottom'] as const).map((edge) => {
+  const row = commercialStreetStorefronts.filter((storefront) => storefront.edge === edge)
+  const storefrontCells = row.reduce((total, storefront) => (
+    total + (storefront.composition?.fixedCellCount ?? storefront.composition?.baseline.length ?? 0)
+  ), 0)
+  return storefrontCells + Math.max(0, row.length - 1)
+}))
+const commercialStreetPreviousRowSpan = 6 * 18 + 40 + 6 * 4
+const commercialStreetLongitudinalExpansion = commercialStreetRowCellCount * commercialStreetCellPitch - commercialStreetPreviousRowSpan + .01
+const commercialStreetSceneRight = 192 + commercialStreetLongitudinalExpansion
+const commercialStreetWorldRight = 200 + commercialStreetLongitudinalExpansion
+
+const commercialStreetFacadeAirWalls: readonly MainlineAirWall[] = [
+  { id: 'commercial-north-facade-air-wall', ...box(8, 10, commercialStreetWorldRight - 8, 25.3 - commercialStreetLaneExpansion) },
+  { id: 'commercial-south-facade-air-wall-left', ...box(8, 64.7 + commercialStreetLaneExpansion, 180 + commercialStreetLongitudinalExpansion, 25.3 - commercialStreetLaneExpansion) },
+]
+
 const commercialStreetStorefrontApproach = (storefrontId: string) => commercialStreetStorefronts.find(storefront => storefront.id === storefrontId)?.approach ?? authoredPoint(14, 50)
 
 const commercialStreetAmbientNpcRoutes = [
@@ -1100,7 +1109,7 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
   presentation: { mode: 'actor-relative', offset: authoredPoint(0, 0), readingRail: { centerY: 50, minX: 16, maxX: commercialStreetSceneRight - 8, gap: 6 } },
   areaLabel: (position) => position.x >= 140 ? '商业街尾端' : '里世界',
   scene: {
-    walkBounds: box(8, 10, 192 + commercialStreetLongitudinalExpansion, 80),
+    walkBounds: box(8, 10, commercialStreetWorldRight - 8, 80),
     externalExit: { axis: 'x', direction: -1, threshold: 12 },
     wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
     walls: [
