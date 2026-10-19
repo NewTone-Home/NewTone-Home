@@ -22,7 +22,8 @@ import {
   worldLayerForScene,
 } from './runtime/phoneState'
 import {
-  createPositionSaveBuffer,
+  attachPositionSaveLifecycle,
+  createPositionSaveCoordinator,
   loadPlayerSave,
   recordPlayerScenePosition,
   recordPlayerSceneState,
@@ -88,7 +89,16 @@ export default function CenterExperience({
   const positionSamplerRef = useRef(null)
   const currentSceneIdRef = useRef(route.sceneId)
   const latestWorldPositionRef = useRef(null)
-  const pendingPersistedPositionRef = useRef(createPositionSaveBuffer())
+  const positionSaveCoordinatorRef = useRef(null)
+  if (!positionSaveCoordinatorRef.current) {
+    positionSaveCoordinatorRef.current = createPositionSaveCoordinator({
+      getSave: () => playerSaveRef.current,
+      setSave: next => { playerSaveRef.current = next },
+      getCurrentSceneId: () => currentSceneIdRef.current,
+      recordPosition: recordPlayerScenePosition,
+      persist: persistPlayerSave,
+    })
+  }
   const getRideMapSnapshot = useCallback(() => {
     const current = latestWorldPositionRef.current
     if (!current || current.sceneId !== route.sceneId) return null
@@ -129,15 +139,9 @@ export default function CenterExperience({
 
 
   const commitPlayerSave = useCallback((update) => {
-    const pending = pendingPersistedPositionRef.current.take(currentSceneIdRef.current)
-    let current = playerSaveRef.current
-    if (pending) {
-      current = recordPlayerScenePosition(current, pending.sceneId, pending.position)
-    }
-    const next = update(current)
-    if (next === playerSaveRef.current) return
-    playerSaveRef.current = persistPlayerSave(next)
-    setPlayerSave(playerSaveRef.current)
+    const previous = playerSaveRef.current
+    const next = positionSaveCoordinatorRef.current.commit(update)
+    if (next !== previous) setPlayerSave(next)
   }, [])
 
   useEffect(() => {
@@ -566,27 +570,15 @@ export default function CenterExperience({
   )
   const handlePositionChange = useCallback((position) => {
     if (!canPersistScenePosition) return
-    pendingPersistedPositionRef.current.queue(route.sceneId, position)
+    positionSaveCoordinatorRef.current.queue(route.sceneId, position)
   }, [canPersistScenePosition, route.sceneId])
 
   const flushPositionSave = useCallback((sceneId) => {
-    const pending = pendingPersistedPositionRef.current.take(sceneId)
-    if (!pending) return
-    const current = playerSaveRef.current
-    const next = recordPlayerScenePosition(current, sceneId, pending.position)
-    if (next !== current) playerSaveRef.current = persistPlayerSave(next)
+    positionSaveCoordinatorRef.current.flush(sceneId)
   }, [])
 
   useEffect(() => {
-    const flush = () => flushPositionSave(route.sceneId)
-    const flushWhenHidden = () => { if (document.visibilityState === 'hidden') flush() }
-    window.addEventListener('pagehide', flush)
-    document.addEventListener('visibilitychange', flushWhenHidden)
-    return () => {
-      window.removeEventListener('pagehide', flush)
-      document.removeEventListener('visibilitychange', flushWhenHidden)
-      flush()
-    }
+    return attachPositionSaveLifecycle(flushPositionSave, () => route.sceneId)
   }, [flushPositionSave, route.sceneId])
 
   const handleRuntimePositionChange = useCallback((sceneId, position, context) => {

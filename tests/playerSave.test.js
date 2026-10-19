@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  createPositionSaveBuffer,
+  attachPositionSaveLifecycle,
+  createPositionSaveCoordinator,
   PLAYER_SAVE_STORAGE_KEY,
   clearPlayerSave,
   createInitialPlayerSave,
@@ -23,17 +24,109 @@ function createStorage() {
 }
 
 describe('player local save contract', () => {
-  it('coalesces movement samples and rejects stale scene flushes', () => {
-    const buffer = createPositionSaveBuffer()
-    const writes = []
-    for (let x = 0; x < 120; x += 1) buffer.queue('commercial-street', { x, y: 24 })
-    const stale = buffer.take('commercial-cafe')
-    if (stale) writes.push(stale)
-    expect(writes).toHaveLength(0)
-    const latest = buffer.take('commercial-street')
-    if (latest) writes.push(latest)
-    expect(writes).toEqual([{ sceneId: 'commercial-street', position: { x: 119, y: 24 } }])
-    expect(buffer.take('commercial-street')).toBeNull()
+  it('coalesces RAF samples and persists the latest position on stop', () => {
+    const storage = createStorage()
+    let save = createInitialPlayerSave('commercial-street')
+    let writes = 0
+    const coordinator = createPositionSaveCoordinator({
+      getSave: () => save,
+      setSave: next => { save = next },
+      getCurrentSceneId: () => save.currentSceneId,
+      recordPosition: recordPlayerScenePosition,
+      persist: next => { writes += 1; return savePlayerSave(next, storage, writes) },
+    })
+    for (let frame = 0; frame < 120; frame += 1) coordinator.queue('commercial-street', { x: frame, y: 24 })
+    expect(writes).toBe(0)
+    coordinator.flush('commercial-street') // movement stopped
+    expect(writes).toBe(1)
+    expect(loadPlayerSave(storage).currentPosition).toEqual({ x: 119, y: 24 })
+  })
+
+  it('merges the latest position into a critical story commit without losing story state', () => {
+    const storage = createStorage()
+    let save = createInitialPlayerSave('commercial-street')
+    let writes = 0
+    const coordinator = createPositionSaveCoordinator({
+      getSave: () => save,
+      setSave: next => { save = next },
+      getCurrentSceneId: () => save.currentSceneId,
+      recordPosition: recordPlayerScenePosition,
+      persist: next => { writes += 1; return savePlayerSave(next, storage, writes) },
+    })
+    coordinator.queue('commercial-street', { x: 88, y: 31 })
+    coordinator.commit(current => recordPlayerSceneState(current, 'commercial-street', 'orderStatus', 'ready'))
+    expect(writes).toBe(1)
+    expect(loadPlayerSave(storage)).toMatchObject({
+      currentPosition: { x: 88, y: 31 },
+      scenePositions: { 'commercial-street': { x: 88, y: 31 } },
+      sceneState: { 'commercial-street': { orderStatus: 'ready' } },
+    })
+  })
+
+  it('flushes on scene change before switching and makes later old-scene cleanup harmless', () => {
+    const storage = createStorage()
+    let save = createInitialPlayerSave('commercial-street')
+    let writes = 0
+    const coordinator = createPositionSaveCoordinator({
+      getSave: () => save,
+      setSave: next => { save = next },
+      getCurrentSceneId: () => save.currentSceneId,
+      recordPosition: recordPlayerScenePosition,
+      persist: next => { writes += 1; return savePlayerSave(next, storage, writes) },
+    })
+    coordinator.queue('commercial-street', { x: 91, y: 32 })
+    coordinator.commit(current => ({ ...current, currentSceneId: 'commercial-cafe', currentPosition: { x: 12, y: 18 } }))
+    expect(loadPlayerSave(storage)).toMatchObject({
+      currentSceneId: 'commercial-cafe',
+      currentPosition: { x: 12, y: 18 },
+      scenePositions: { 'commercial-street': { x: 91, y: 32 } },
+    })
+    const writesAfterTransition = writes
+    coordinator.flush('commercial-street') // outgoing scene effect cleanup
+    expect(writes).toBe(writesAfterTransition)
+    expect(loadPlayerSave(storage).currentSceneId).toBe('commercial-cafe')
+  })
+
+  it('flushes the last queued sample from hidden and pagehide lifecycle callbacks', () => {
+    const storage = createStorage()
+    let save = createInitialPlayerSave('commercial-street')
+    let writes = 0
+    const coordinator = createPositionSaveCoordinator({
+      getSave: () => save,
+      setSave: next => { save = next },
+      getCurrentSceneId: () => save.currentSceneId,
+      recordPosition: recordPlayerScenePosition,
+      persist: next => { writes += 1; return savePlayerSave(next, storage, writes) },
+    })
+    const listeners = new Map()
+    const windowTarget = {
+      addEventListener: (event, callback) => listeners.set(`window:${event}`, callback),
+      removeEventListener: event => listeners.delete(`window:${event}`),
+    }
+    let visibilityState = 'visible'
+    const documentTarget = {
+      get visibilityState() { return visibilityState },
+      addEventListener: (event, callback) => listeners.set(`document:${event}`, callback),
+      removeEventListener: event => listeners.delete(`document:${event}`),
+    }
+    const cleanup = attachPositionSaveLifecycle(
+      sceneId => coordinator.flush(sceneId),
+      () => save.currentSceneId,
+      windowTarget,
+      documentTarget,
+    )
+    coordinator.queue('commercial-street', { x: 44, y: 20 })
+    visibilityState = 'hidden'
+    listeners.get('document:visibilitychange')()
+    expect(loadPlayerSave(storage).currentPosition).toEqual({ x: 44, y: 20 })
+    coordinator.queue('commercial-street', { x: 45, y: 20 })
+    listeners.get('window:pagehide')()
+    expect(loadPlayerSave(storage).currentPosition).toEqual({ x: 45, y: 20 })
+    coordinator.queue('commercial-street', { x: 46, y: 20 })
+    cleanup()
+    expect(loadPlayerSave(storage).currentPosition).toEqual({ x: 46, y: 20 })
+    expect(writes).toBe(3)
+    expect(listeners.size).toBe(0)
   })
   it('returns the same save for an unchanged persisted position', () => {
     const initial = createInitialPlayerSave('jijia-ancestral-home')

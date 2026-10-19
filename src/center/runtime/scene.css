@@ -768,7 +768,8 @@
 .scene-mainline-storefront--horizontal { writing-mode: horizontal-tb; text-orientation: mixed; }
 .scene-mainline-storefront--vertical { writing-mode: vertical-rl; text-orientation: upright; }
 .scene-mainline-storefront--wall { color: var(--soft); }
-.scene-mainline-storefront--glass { color: rgba(161, 194, 194, .78); }
+.scene-mainline-storefront--glass,
+.scene-mainline-storefront--window { color: rgba(161, 194, 194, .78); }
 .scene-mainline-storefront--sign { color: var(--ink); letter-spacing: .08em; }
 .scene-mainline-storefront--sign .scene-mainline-storefront__label-slot {
   position: absolute;
@@ -831,6 +832,7 @@
 .scene-mainline-storefront--blank { color: transparent; }
 .scene-mainline-storefront--worn { color: rgba(232, 190, 117, .88); }
 .scene-mainline-storefront--worn.scene-mainline-storefront--glass { color: rgba(188, 158, 105, .65); }
+.scene-mainline-storefront--worn.scene-mainline-storefront--window { color: rgba(161, 194, 194, .78); }
 .scene-mainline-storefront--worn.scene-mainline-storefront--sign { color: rgba(232, 190, 117, .9); }
 .scene-mainline-storefront--near { color: var(--active); }
 .scene-mainline-storefront--door {

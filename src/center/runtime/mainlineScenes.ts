@@ -626,7 +626,7 @@ const defaultStorefrontComposition: MainlineStorefrontComposition = {
 function expandStorefrontRoles(roles: readonly MainlineStorefrontRole[], label: string): MainlineStorefrontRole[] {
   return roles.flatMap((role) => {
     if (role === 'sign') return Array.from(label, () => 'sign' as const)
-    if (role === 'glass') return ['glass', 'glass'] as const
+    if (role === 'glass' || role === 'window') return [role, role] as const
     return [role]
   })
 }
@@ -669,17 +669,17 @@ function fitStorefrontRoles(roles: readonly MainlineStorefrontRole[], cellCount:
   if (cellCount <= 0) return []
   if (roles.length <= cellCount) return roles.slice(0, cellCount)
 
-  // Preserve the authored glass / sign / glass order while a responsive
-  // storefront has enough cells for every sign glyph and at least one glass
+  // Preserve the authored window / sign / window order while a responsive
+  // storefront has enough cells for every sign glyph and at least one window
   // glyph on each side. Narrower projections still prioritize the sign.
   const signStart = roles.indexOf('sign')
   const signEnd = roles.lastIndexOf('sign')
-  const isGlassSignGlass = signStart > 0
+  const isWindowSignWindow = signStart > 0
     && signEnd < roles.length - 1
-    && roles.slice(0, signStart).every((role) => role === 'glass')
+    && roles.slice(0, signStart).every((role) => role === 'glass' || role === 'window')
     && roles.slice(signStart, signEnd + 1).every((role) => role === 'sign')
-    && roles.slice(signEnd + 1).every((role) => role === 'glass')
-  if (isGlassSignGlass) {
+    && roles.slice(signEnd + 1).every((role) => role === 'glass' || role === 'window')
+  if (isWindowSignWindow) {
     const signs = roles.slice(signStart, signEnd + 1)
     if (cellCount <= signs.length) return signs.slice(0, cellCount)
     const glassCount = cellCount - signs.length
@@ -718,6 +718,7 @@ function storefrontGlyph(role: MainlineStorefrontRole, label: string, roles: rea
   }
   if (role === 'door') return '门'
   if (role === 'wall') return '墙'
+  if (role === 'window') return '\u7a97'
   if (role === 'glass') {
     const glassIndex = roles.slice(0, index).filter((candidate) => candidate === 'glass').length
     return ['玻', '璃'][glassIndex % 2]
@@ -914,7 +915,9 @@ export function validateMainlineSceneGeometry(scene: Pick<MainlineSceneDefinitio
     if (unit.width <= 0 || unit.height <= 0) issues.push(`${unit.id}: geometry must have positive dimensions`)
     if (unit.visual.kind !== 'none' && unit.visual.cells.length === 0) issues.push(`${unit.id}: visual geometry has no cells`)
     unit.visual.cells.forEach((cell) => {
-      if (cell.x < unit.x || cell.x > unit.x + unit.width || cell.y < unit.y || cell.y > unit.y + unit.height) {
+      const cellBoundsTolerance = .001
+      if (cell.x < unit.x - cellBoundsTolerance || cell.x > unit.x + unit.width + cellBoundsTolerance
+        || cell.y < unit.y - cellBoundsTolerance || cell.y > unit.y + unit.height + cellBoundsTolerance) {
         issues.push(`${unit.id}: visual cell ${cell.id} is outside its collision rectangle`)
       }
     })
@@ -1132,6 +1135,15 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
       collision,
     }
   })
+  const ambientNpcRoutes = (data.ambientNpcRoutes ?? []).map((route) => ({
+    ...route,
+    steps: route.steps.map((step) => {
+      if (step.kind !== 'storefront-visit') return step
+      const storefront = storefronts.find((candidate) => candidate.id === step.storefrontId)
+      if (!storefront?.approach) return step
+      return { ...step, target: storefront.approach, reentry: storefront.approach }
+    }),
+  }))
 
   const compiledScene = {
     walkBounds: data.walkBounds,
@@ -1167,7 +1179,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     objects: [...objectById.values()],
     npcs: data.npcs ?? [],
     npcPlacements: data.npcPlacements ?? [],
-    ambientNpcRoutes: data.ambientNpcRoutes ?? [],
+    ambientNpcRoutes,
     npcBehaviorTargets: data.npcBehaviorTargets ?? [],
     npcBehaviors: data.npcBehaviors ?? [],
     furnitureGroups: data.furnitureGroups,

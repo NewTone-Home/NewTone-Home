@@ -23,7 +23,7 @@ import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagon
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import type { NpcRuntimeSnapshot } from './npcCore'
 import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisualState'
-import { storefrontCellVisualState, storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDirection, storefrontLabelRollDurationMs, storefrontPresentationRetractsFrame, type StorefrontPresentationPhase } from './storefrontPresentation'
+import { storefrontCellVisualState, storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDirection, storefrontLabelRollDurationMs, storefrontPresentationRetractsFrame, storefrontGeometryCellShouldRender, type StorefrontPresentationPhase } from './storefrontPresentation'
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 import { storefrontContactGeometry } from './storefrontContactGeometry'
@@ -889,10 +889,7 @@ export function MainlineSceneRenderer({
     .filter(cell => {
       const slot = unit.storefrontId ? activeSwitchableStorefronts.find(candidate => candidate.id === unit.storefrontId) : undefined
       if (!slot) return true
-      if (unit.id.startsWith(`${slot.id}-base-`)) return false
-      if (cell.kind === 'door' && (cell.entityId === slot.portalId || unit.entityId === slot.portalId)) return false
-      return !(cell.kind === 'storefront' && (cell.storefrontRole === 'sign'
-        || slot.composition?.fixedCellCount && cell.storefrontRole === 'door'))
+      return storefrontGeometryCellShouldRender(slot, unit, cell, switchCells.get(slot.id))
     }).map((cell) => ({
     unit,
     // The compiled geometry unit owns storefront identity. Carry it into
@@ -901,7 +898,7 @@ export function MainlineSceneRenderer({
     cell: cell.kind === 'storefront' && unit.storefrontId
       ? { ...cell, storefrontId: unit.storefrontId }
       : cell,
-  }))), [activeSwitchableStorefronts, geometryUnits])
+  }))), [activeSwitchableStorefronts, geometryUnits, switchCells])
 
   const focusGroupCells = useMemo(() => {
     const groups = new Map<string, MainlineGeometryCellEntry[]>()

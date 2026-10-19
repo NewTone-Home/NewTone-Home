@@ -13,6 +13,20 @@ export function storefrontRestoreDelayMs(departedAt: number, now: number) {
   return Math.max(0, storefrontLingerDurationMs - (now - departedAt))
 }
 
+/** Keeps entry-animation-owned cells in the animated layer while leaving adjacent facade and glass cells in geometry. */
+export function storefrontGeometryCellShouldRender(
+  storefront: MainlineStorefrontSlot,
+  unit: MainlineSceneGeometryUnit,
+  cell: MainlineSceneGeometryUnit['visual']['cells'][number],
+  animatedCells: ReturnType<typeof storefrontCharacterCells> = [],
+) {
+  if (unit.id.startsWith(`${storefront.id}-base-`)) return false
+  if (cell.kind === 'door' && (cell.entityId === storefront.portalId || unit.entityId === storefront.portalId)) return false
+  if (animatedCells.some(animated => Math.abs(animated.x - cell.x) < .0001 && Math.abs(animated.y - cell.y) < .0001)) return false
+  return !(cell.kind === 'storefront' && (cell.storefrontRole === 'sign'
+    || storefront.composition?.fixedCellCount && cell.storefrontRole === 'door'))
+}
+
 /** The inward normal is independent of horizontal/vertical typography. */
 export function storefrontRollDirection(edge: MainlineStorefrontSlot['edge']): Point {
   return edge === 'left' ? { x: -1, y: 0 } : edge === 'right' ? { x: 1, y: 0 }

@@ -238,6 +238,64 @@ export function createPositionSaveBuffer<T>() {
   }
 }
 
+export function createPositionSaveCoordinator<TPosition, TSave>({
+  getSave,
+  setSave,
+  getCurrentSceneId,
+  recordPosition,
+  persist,
+}: {
+  getSave: () => TSave
+  setSave: (save: TSave) => void
+  getCurrentSceneId: () => string
+  recordPosition: (save: TSave, sceneId: string, position: TPosition) => TSave
+  persist: (save: TSave) => TSave
+}) {
+  const buffer = createPositionSaveBuffer<TPosition>()
+  const apply = (save: TSave, pending: { sceneId: string; position: TPosition }) => recordPosition(save, pending.sceneId, pending.position)
+  const publish = (next: TSave, current: TSave) => {
+    if (next === current) return current
+    const persisted = persist(next)
+    setSave(persisted)
+    return persisted
+  }
+  return {
+    queue: buffer.queue,
+    flush(sceneId: string) {
+      const pending = buffer.take(sceneId)
+      if (!pending) return getSave()
+      const current = getSave()
+      return publish(apply(current, pending), current)
+    },
+    commit(update: (save: TSave) => TSave) {
+      const current = getSave()
+      const pending = buffer.take(getCurrentSceneId())
+      const positioned = pending ? apply(current, pending) : current
+      return publish(update(positioned), current)
+    },
+    clear: buffer.clear,
+  }
+}
+
+export function attachPositionSaveLifecycle(
+  flush: (sceneId: string) => void,
+  getSceneId: () => string,
+  windowTarget: Pick<Window, 'addEventListener' | 'removeEventListener'> = window,
+  documentTarget: Pick<Document, 'addEventListener' | 'removeEventListener' | 'visibilityState'> = document,
+) {
+  const flushCurrent = () => flush(getSceneId())
+  const flushWhenHidden = () => {
+    if (documentTarget.visibilityState === 'hidden') flushCurrent()
+  }
+  windowTarget.addEventListener('pagehide', flushCurrent)
+  documentTarget.addEventListener('visibilitychange', flushWhenHidden)
+  return () => {
+    windowTarget.removeEventListener('pagehide', flushCurrent)
+    documentTarget.removeEventListener('visibilitychange', flushWhenHidden)
+    flushCurrent()
+  }
+}
+
 export function recordPlayerSceneState(
   save: PlayerSave,
   sceneId: MainlineSceneId,
