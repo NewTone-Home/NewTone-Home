@@ -1,5 +1,5 @@
 import type { Point } from './sceneGeometry'
-import { isMainlineStorefrontPresentationInRange, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneGeometryUnit, type MainlineStorefrontSlot } from './mainlineScenes'
+import { isMainlineStorefrontPresentationInRange, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneGeometryUnit, type MainlineStorefrontRole, type MainlineStorefrontSlot } from './mainlineScenes'
 
 /** Presentation-only state for a portal storefront. It never changes passage or collision state. */
 export type StorefrontPresentationPhase = 'baseline' | 'retracting' | 'revealing' | 'revealed' | 'lingering' | 'restoring'
@@ -22,6 +22,17 @@ export function storefrontRollDirection(edge: MainlineStorefrontSlot['edge']): P
 /** The label remains retracted throughout its leave grace period. */
 export function storefrontPresentationRetractsFrame(phase: StorefrontPresentationPhase) {
   return phase !== 'baseline'
+}
+
+/** Fixed storefront grids animate only their four-cell entrance; outer panes and wall caps keep their authored colors. */
+export function storefrontCellVisualState(
+  storefront: MainlineStorefrontSlot | undefined,
+  geometryVariant: 'baseline' | 'near' | undefined,
+  role: MainlineStorefrontRole | undefined,
+): 'baseline' | 'near' {
+  if (!geometryVariant) return 'baseline'
+  if (storefront?.composition?.fixedCellCount && role !== 'door') return 'baseline'
+  return geometryVariant
 }
 
 export type StorefrontPresentationEvent =

@@ -1015,14 +1015,18 @@ function commercialStreetStorefrontComposition(label: string, wide: boolean): Ma
   if (wide) {
     return {
       fixedCellCount: 17,
-      baseline: [...signZone, ...Array.from({ length: 13 }, () => 'glass' as const)],
-      near: ['wall', 'door', 'wall', 'wall', ...Array.from({ length: 13 }, () => 'glass' as const)],
+      // Twelve panes form six complete 玻璃 pairs; the final cell is a
+      // stable wall cap so an odd single-character pane is never emitted.
+      baseline: [...signZone, ...Array.from({ length: 12 }, () => 'glass' as const), 'wall'],
+      near: ['wall', 'door', 'wall', 'wall', ...Array.from({ length: 12 }, () => 'glass' as const), 'wall'],
     }
   }
   return {
     fixedCellCount: 7,
-    baseline: ['glass', ...signZone, 'glass', 'glass'],
-    near: ['glass', 'wall', 'door', 'wall', 'wall', 'glass', 'glass'],
+    // The isolated leading pane becomes a stable wall cap; the two panes
+    // beside the sign remain one complete glass pair.
+    baseline: ['wall', ...signZone, 'glass', 'glass'],
+    near: ['wall', 'wall', 'door', 'wall', 'wall', 'glass', 'glass'],
   }
 }
 

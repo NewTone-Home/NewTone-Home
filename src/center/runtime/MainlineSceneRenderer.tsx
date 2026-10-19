@@ -23,7 +23,7 @@ import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagon
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import type { NpcRuntimeSnapshot } from './npcCore'
 import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisualState'
-import { storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDirection, storefrontLabelRollDurationMs, storefrontPresentationRetractsFrame, type StorefrontPresentationPhase } from './storefrontPresentation'
+import { storefrontCellVisualState, storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDirection, storefrontLabelRollDurationMs, storefrontPresentationRetractsFrame, type StorefrontPresentationPhase } from './storefrontPresentation'
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 import { storefrontContactGeometry } from './storefrontContactGeometry'
@@ -417,9 +417,13 @@ function mainlineCellFocusTarget(scene: MainlineSceneDefinition, cell: MainlineG
   return { group: `interactive:${cell.featureId ?? entityId}`, policy: 'interactive' as const }
 }
 
-function mainlineWallCellVisibility(cell: MainlineGeometryCellEntry['cell'], unit: MainlineSceneGeometryUnit) {
+function mainlineWallCellVisibility(scene: MainlineSceneDefinition, cell: MainlineGeometryCellEntry['cell'], unit: MainlineSceneGeometryUnit) {
   if (cell.kind === 'wall') return 'is-baseline'
-  if (cell.kind === 'storefront') return unit.variant === 'near' ? 'is-near' : 'is-baseline'
+  if (cell.kind === 'storefront') {
+    const storefrontId = cell.storefrontId ?? unit.storefrontId
+    const storefront = storefrontId ? scene.storefronts.find(candidate => candidate.id === storefrontId) : undefined
+    return storefrontCellVisualState(storefront, unit.variant, cell.storefrontRole) === 'near' ? 'is-near' : 'is-baseline'
+  }
   return (cell.baselineVisible ?? cell.baseline ?? true) ? 'is-baseline' : 'is-hidden'
 }
 
@@ -1167,7 +1171,7 @@ export function MainlineSceneRenderer({
               }} />)}
             {geometryCells.map(({ unit, cell }) => {
               if (cell.glyph === '') return null
-              const visibilityClass = mainlineWallCellVisibility(cell, unit)
+              const visibilityClass = mainlineWallCellVisibility(scene, cell, unit)
               const portalGlyphStyle = {}
               const portalGlyphAttributes = {}
               const entityId = cell.entityId ?? unit.entityId
@@ -1175,16 +1179,16 @@ export function MainlineSceneRenderer({
               const focusEntries = focusTarget ? focusGroupCells.get(focusTarget.group) : undefined
       if (focusTarget && focusEntries && (focusEntries.length > 1 || cell.kind === 'storefront' && cell.storefrontRole === 'sign')) {
                 if (focusEntries[0]?.cell.id !== cell.id) return null
-                const groupVisibilityClass = focusEntries.some((entry) => mainlineWallCellVisibility(entry.cell, entry.unit) === 'is-near')
+                const groupVisibilityClass = focusEntries.some((entry) => mainlineWallCellVisibility(scene, entry.cell, entry.unit) === 'is-near')
                   ? 'is-near'
-                  : focusEntries.some((entry) => mainlineWallCellVisibility(entry.cell, entry.unit) === 'is-baseline')
+                  : focusEntries.some((entry) => mainlineWallCellVisibility(scene, entry.cell, entry.unit) === 'is-baseline')
                   ? 'is-baseline'
                   : 'is-hidden'
                 const firstEntry = focusEntries[0]
                 if (cell.kind === 'storefront') {
                   const storefront = (cell.storefrontId ?? unit.storefrontId) ? scene.storefronts.find((candidate) => candidate.id === (cell.storefrontId ?? unit.storefrontId)) : undefined
-                  const storefrontState = firstEntry.unit.variant === 'near' ? 'near' : 'baseline'
                   const storefrontRole = cell.storefrontRole ?? 'sign'
+                  const storefrontState = storefrontCellVisualState(storefront, firstEntry.unit.variant, storefrontRole)
                   const storefrontPassageEntityId = storefront?.portalId
                     ? scene.passages.find((passage) => passage.portalId === storefront.portalId)?.entityId
                     : undefined
@@ -1219,10 +1223,10 @@ export function MainlineSceneRenderer({
                 }
               }
               if (cell.kind === 'storefront') {
-                const storefrontState = unit.variant === 'near' ? 'near' : 'baseline'
-                const storefrontStateClass = `is-${storefrontState}`
                 const storefrontRole = cell.storefrontRole ?? 'wall'
                 const storefront = (cell.storefrontId ?? unit.storefrontId) ? scene.storefronts.find((candidate) => candidate.id === (cell.storefrontId ?? unit.storefrontId)) : undefined
+                const storefrontState = storefrontCellVisualState(storefront, unit.variant, storefrontRole)
+                const storefrontStateClass = `is-${storefrontState}`
                 const storefrontPresentationPhase = storefront ? storefrontPresentation.get(storefront.id) ?? 'baseline' : 'baseline'
                 const portalClass = storefront?.portalId ? 'scene-mainline-storefront--portal' : ''
                 const storefrontClass = `scene-spatial-glyph scene-mainline-storefront-cell scene-mainline-wall scene-mainline-storefront scene-mainline-storefront--${cell.storefrontStyle ?? 'modern'} scene-mainline-storefront--${storefrontRole} scene-mainline-storefront--${cell.orientation ?? 'horizontal'} ${portalClass} ${storefrontRole === 'door' ? 'scene-spatial-glyph--door' : ''} ${storefrontStateClass}`
