@@ -205,7 +205,6 @@ type MainlineDoorButtonProps = {
   active: boolean
   closeHint: string
   ariaLabel: string
-  ariaHintAsDescription?: boolean
   renderFocusFrame: (group: string) => ReactNode
   onInteract: (id: string) => void
   onDoorTransitionComplete?: (entityId: string, completion: SceneDoorTransitionCompletion) => void
@@ -291,7 +290,7 @@ function DialogueText({ group, text, onReadyChange }: { group: string; text: str
   </span>
 }
 
-function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph, doorPhase, focusGroup, focusPolicy, gateTriggered, frameRetracting, active, closeHint, ariaLabel, ariaHintAsDescription = false, renderFocusFrame, onInteract, onDoorTransitionComplete, dataAttributes, characterPresentation }: MainlineDoorButtonProps) {
+function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph, doorPhase, focusGroup, focusPolicy, gateTriggered, frameRetracting, active, closeHint, ariaLabel, renderFocusFrame, onInteract, onDoorTransitionComplete, dataAttributes, characterPresentation }: MainlineDoorButtonProps) {
   const visualOpen = sceneDoorIsVisuallyOpen(cell.doorBehavior, doorPhase)
   return (
     <button
@@ -299,8 +298,7 @@ function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph
       type="button"
       style={style}
       onClick={(event) => { event.stopPropagation(); onInteract(entityId) }}
-      aria-label={ariaHintAsDescription ? ariaLabel : `${ariaLabel}；${closeHint}`}
-      aria-description={ariaHintAsDescription ? closeHint : undefined}
+      aria-label={`${ariaLabel}；${closeHint}`}
       data-focus-target-id={cell.id}
       data-focus-target-group={focusGroup}
       data-focus-target-policy={focusPolicy}
@@ -376,9 +374,8 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
         className="scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door is-baseline"
         style={style} doorLabel={entity.displayLabel ?? entity.label} glyph={cell.glyph} doorPhase={doorPhase}
         focusGroup={doorGroup} focusPolicy="passage" gateTriggered={false} frameRetracting={frameRetracting}
-        active={false} closeHint={closeHint} ariaLabel={storefront.label} ariaHintAsDescription
-        renderFocusFrame={renderFrame} onInteract={commercialStreetStorefrontInteractionFor(storefront.id)?.kind === 'action' && onStorefrontInteract
-          ? () => onStorefrontInteract(storefront.id) : onInteract} onDoorTransitionComplete={onDoorTransitionComplete}
+        active={false} closeHint={closeHint} ariaLabel={cell.access === 'locked' ? `门，${closeHint}` : '门，点击门后目标会在接近时自动开门并穿过'}
+        renderFocusFrame={renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete}
         dataAttributes={attributes} characterPresentation={characters} />
       return <span key={cell.id} className="scene-spatial-glyph scene-mainline-wall is-baseline" style={style} {...attributes} aria-hidden="true">{characters}</span>
     })}

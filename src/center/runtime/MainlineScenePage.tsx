@@ -1633,8 +1633,21 @@ export function MainlineScenePage({
     if (sceneAction?.phase === 'committing') return
     dismissSceneAction()
     dismissSceneEcho()
+    if (passage.access !== 'open') {
+      pendingTraversalRef.current = null
+      pendingInteractionAfterTraversalRef.current = null
+      cancelPassageLifecycle('protagonist', passage.id)
+      stopMovement()
+      setPassageDestination(null)
+      setRequestedWorldTarget(null)
+      setActiveObjectId(null)
+      setSceneFrameExit({ phase: 'idle' })
+      onDoorEvent?.('blocked', passage)
+      showLockedPassageText(passage)
+      return
+    }
     beginPassageLeg(passage, requestedTarget, plannedApproachPath, continuationPath, passageQueue, passageIndex)
-  }, [beginPassageLeg, dismissSceneAction, dismissSceneEcho, sceneAction?.phase])
+  }, [beginPassageLeg, cancelPassageLifecycle, dismissSceneAction, dismissSceneEcho, onDoorEvent, sceneAction?.phase, showLockedPassageText, stopMovement])
 
   const interact = useCallback((entityId: string, requestAlreadyRecorded = false) => {
     if (readingActive || sceneAction?.phase === 'committing') return
@@ -1698,6 +1711,12 @@ export function MainlineScenePage({
     }
     leavePlayerSeat()
     if (passage) {
+      if (passage.access !== 'open') {
+        stopMovement()
+        onDoorEvent?.('blocked', passage)
+        showLockedPassageText(passage)
+        return
+      }
       // A direct door click is an explicit request to use that door. Resolve
       // the opposite side from the same projected doorway used by movement,
       // then let the shared lifecycle open and complete the crossing.
@@ -1796,7 +1815,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
