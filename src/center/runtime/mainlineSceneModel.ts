@@ -1002,6 +1002,11 @@ const commercialStreetAmbientNpcRoutes = [
   { npcId: 'commercial-street-pedestrian-shopper', initialDelayMs: 5100, steps: [{ target: authoredPoint(110, 40), dwellMs: 3500 }, { kind: 'storefront-visit', target: authoredPoint(156, 58), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-7', reentry: authoredPoint(156, 58), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(96, 58), dwellMs: 1400 }, { target: authoredPoint(116, 58), dwellMs: 2600 }] },
 ] as const satisfies readonly MainlineAmbientNpcRoute[]
 
+// The wider simple-meal bay uses a world-grid offset so its revealed door
+// stays on the first glyph of 简餐 at desktop and mobile projections.
+const commercialStreetPortalTangent = (storefront: Pick<MainlineStorefrontSlotBlueprint, 'id' | 'start' | 'end'>) =>
+  (storefront.start + storefront.end) / 2 - (storefront.id === 'commercial-south-slot-2' ? 8 : 0)
+
 const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
   ...[
     ['commercial-north-slot-1', 'commercial-north-facade', 'bottom', '果茶店', 14, 32],
@@ -1022,13 +1027,18 @@ const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
 ].map(([id, wallId, edge, label, start, end]): MainlineStorefrontSlotBlueprint => {
   const portalId = id === 'commercial-cafe-slot' ? 'street-cafe-entry' : `${id}-entry`
   const approachY = edge === 'bottom' ? 42 : 58
+  const simpleMeal = id === 'commercial-south-slot-2'
+  const portalTangent = commercialStreetPortalTangent({ id, start, end })
   return { id, wallId, edge, label, style: 'modern', mode: 'commercial', start, end,
-    composition: { baseline: ['glass', 'sign', 'glass'], near: ['wall', 'door', 'wall'] }, characterSwitch: true,
-    portalId, nearRadius: 10, approach: authoredPoint((start + end) / 2, approachY) }
+    composition: simpleMeal
+      ? { baseline: ['glass', 'glass', 'sign', 'glass', 'glass'], near: ['glass', 'wall', 'door', 'wall', 'glass'] }
+      : { baseline: ['glass', 'sign', 'glass'], near: ['wall', 'door', 'wall'] }, characterSwitch: true,
+    portalId, nearRadius: 10,
+    approach: authoredPoint(portalTangent, approachY) }
 })
 
 const commercialStreetPortals: MainlineScenePortalBlueprint[] = commercialStreetStorefronts.map((storefront): MainlineScenePortalBlueprint => {
-  const x = (storefront.start + storefront.end) / 2
+  const x = commercialStreetPortalTangent(storefront)
   const y = storefront.edge === 'bottom' ? 36 : 64
   const laneY = storefront.edge === 'bottom' ? 41 : 59
   const portalId = storefront.portalId!

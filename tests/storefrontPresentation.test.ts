@@ -126,6 +126,41 @@ describe('commercial street storefront presentation', () => {
     }
   })
 
+  it('gives the double-width simple-meal frontage a left-side entry and a glass-heavy character grid', () => {
+    const storefront = street.storefronts.find(slot => slot.id === 'commercial-south-slot-2')!
+    expect(storefront.start).toBe(36)
+    expect(storefront.end).toBe(76)
+    expect(storefront.composition?.baseline).toEqual(['glass', 'glass', 'sign', 'glass', 'glass'])
+    expect(storefront.composition?.near).toEqual(['glass', 'wall', 'door', 'wall', 'glass'])
+
+    for (const metrics of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
+      const canonical = mainlineCanonicalSceneGeometryUnits(street, metrics)
+      const baseline = canonical.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline')
+        .flatMap(unit => unit.visual.cells)
+      expect(baseline.filter(cell => cell.storefrontRole === 'glass')).toHaveLength(metrics.width < 600 ? 3 : 8)
+      expect(baseline.filter(cell => cell.storefrontRole === 'sign').map(cell => cell.glyph).join('')).toBe('简餐')
+
+      const characters = storefrontCharacterCells(street, storefront, canonical)
+      const doorCharacter = characters.find(cell => cell.role === 'door')!
+      const realDoor = canonical.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
+        .find(({ unit, cell }) => unit.storefrontId === storefront.id && cell.kind === 'door' && cell.entityId === storefront.portalId)!
+      expect(characters).toHaveLength(2)
+      expect(doorCharacter.baselineGlyph).toBe('简')
+      expect(doorCharacter.x).toBeCloseTo(realDoor.cell.x)
+      if (metrics.width < 600) expect(doorCharacter.x).toBeCloseTo(doorCharacter.baselineX)
+      else expect(doorCharacter.x).toBeLessThan(doorCharacter.baselineX)
+      expect(realDoor.cell.access).toBe('locked')
+
+      const approach = mainlineStorefrontApproach(street, storefront)
+      const anchor = mainlineStorefrontAnchor(street, storefront)
+      expect(approach.x).toBeCloseTo(anchor.x)
+      const baselineUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[storefront.id, 'baseline']]))
+      const revealedUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[storefront.id, 'revealed']]))
+      const blockers = (units: typeof baselineUnits) => units.filter(unit => unit.navigation.blocked).map(({ id, x, y, width, height }) => ({ id, x, y, width, height }))
+      expect(blockers(revealedUnits)).toEqual(blockers(baselineUnits))
+    }
+  })
+
   it('keeps baseline glyphs in their own sign slots instead of spanning adjacent glass', () => {
     const metrics = { width: 1180, height: 844, viewportWidth: 1180 }
     const canonical = mainlineCanonicalSceneGeometryUnits(street, metrics)
