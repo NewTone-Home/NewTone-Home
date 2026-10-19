@@ -221,7 +221,7 @@ const cafeLocalCell = (point: { x: number; y: number }) => ({
     const counter = cafe.objects.filter((entity) => /^commercial-cafe-counter(?:-\d+)?$/.test(entity.id))
     const counterCells = counter.map((entity) => ({ entity, local: cafeLocalCell(entity.position) }))
     const main = counterCells.filter(({ local }) => Math.abs(local.row - 16) < 0.01).sort((a, b) => a.local.column - b.local.column)
-    const returned = counterCells.filter(({ local }) => Math.abs(local.column - 11) < 0.01 && local.row >= 17 && local.row <= 19)
+    const returned = counterCells.filter(({ local }) => Math.abs(local.column - 6) < 0.01 && local.row >= 17 && local.row <= 19)
       .sort((a, b) => a.entity.position.y - b.entity.position.y)
     const mainBody = cafe.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-body')!
     const returnBody = cafe.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-return-body')!
@@ -229,7 +229,7 @@ const cafeLocalCell = (point: { x: number; y: number }) => ({
 
     expect(main).toHaveLength(6)
     expect(main.map(({ entity }) => entity.label).join('')).toBe('柜台柜台柜台')
-    expect(main.map(({ local }) => Math.round(local.column))).toEqual([6, 7, 8, 9, 10, 11])
+    expect(main.map(({ local }) => Math.round(local.column))).toEqual([1, 2, 3, 4, 5, 6])
     expect(returned).toHaveLength(3)
     expect(returned.map(({ entity }) => entity.label).join('')).toBe('柜台柜')
     expect(new Set(cellKeys).size).toBe(9)
@@ -239,8 +239,8 @@ const cafeLocalCell = (point: { x: number; y: number }) => ({
     expect(mainBody.kind).toBe('counter')
     expect(returnBody.kind).toBe('counter')
     expect(returnBody.y + returnBody.height).toBeCloseTo(mainBody.y, 5)
-    expect(mainBody.x).toBeCloseTo(cafeCell(6, 16).x - cafe.walkBounds.width / 44, 5)
-    expect(mainBody.width).toBeCloseTo(cafe.walkBounds.width / 22 * 6, 5)
+    expect(mainBody.x).toBeCloseTo(8.7, 4)
+    expect(mainBody.x + mainBody.width).toBeCloseTo(cafeCell(6, 16).x + cafe.walkBounds.width / 44, 5)
 
     for (const [id, text, column, row] of [
       ['commercial-cafe-service-menu', '菜单', 4, 3],
@@ -261,7 +261,7 @@ const cafeLocalCell = (point: { x: number; y: number }) => ({
     const frontPortal = cafe.portals.find((portal) => portal.id === 'street-cafe-entry')!
     const rearPortal = cafe.portals.find((portal) => portal.id === 'cafe-back-door')!
     const customerPoint = cafeCell(6, 4)
-    const staffPoint = cafeCell(8.5, 18)
+    const staffPoint = cafeCell(10, 18)
     const ownerOptions = { actorId: commercialCafeCoffeeOwnerNpcId }
 
     expect(frontPortal.access).toBe('open')
@@ -308,7 +308,7 @@ const cafeLocalCell = (point: { x: number; y: number }) => ({
     expect(coffeeOwnerPosition.x).toBeLessThan(staffZone.x + staffZone.width)
     expect(coffeeOwnerPosition.y).toBeGreaterThan(staffZone.y)
     expect(coffeeOwnerPosition.y).toBeLessThan(staffZone.y + staffZone.height)
-    expect(coffeeOwnerPosition.x).toBeCloseTo((counterLeft + counterRight) / 2)
+    expect(coffeeOwnerPosition.x).toBeCloseTo(staffZone.x + staffZone.width / 2)
     expect(coffeeOwnerPosition.y).toBeLessThan(counterCollision.y - clearance)
     expect(floorServerPosition.x === coffeeOwnerPosition.x && floorServerPosition.y === coffeeOwnerPosition.y).toBe(false)
     expect(floorServerPosition.x < staffZone.x || floorServerPosition.x > staffZone.x + staffZone.width

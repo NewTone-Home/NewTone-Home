@@ -801,14 +801,25 @@ const commercialCafeFurnitureEntities = commercialCafeFurniture
 const commercialCafeNavigationBarriers = commercialCafeFurniture.flatMap(({ group, entities }) => (
   mainlineTableChairBarriers(group.id, entities[0]!.id, entities.slice(1).map((entity) => entity.id))
 ))
-const commercialCafeCounterMainCells = Array.from({ length: 6 }, (_, index) => ({ column: 6 + index, row: 16, glyph: index % 2 === 0 ? '柜' : '台' }))
-const commercialCafeCounterReturnCells = [17, 18, 19].map((row, index) => ({ column: 11, row, glyph: index % 2 === 0 ? '柜' : '台' }))
+const commercialCafeCounterMainCells = Array.from({ length: 6 }, (_, index) => ({ column: 1 + index, row: 16, glyph: index % 2 === 0 ? '柜' : '台' }))
+const commercialCafeCounterReturnCells = [17, 18, 19].map((row, index) => ({ column: 6, row, glyph: index % 2 === 0 ? '柜' : '台' }))
 const commercialCafeCounterCells = [
   ...commercialCafeCounterMainCells.map((cell) => ({ ...cell, interactive: true, structureId: 'commercial-cafe-counter-body' })),
   ...commercialCafeCounterReturnCells.map((cell) => ({ ...cell, interactive: false, structureId: 'commercial-cafe-counter-return-body' })),
 ]
-const commercialCafeCounterMainCollision = commercialCafeGridCellsBox(6, 16, 6, 1)
-const commercialCafeCounterReturnCollision = commercialCafeGridCellsBox(11, 17, 1, 3)
+const commercialCafeCounterGlyphSpan = commercialCafeGridCellsBox(1, 16, 6, 1)
+const commercialCafeCounterMainStartX = commercialCafeStraightFrameBounds.x + mainlineWallThickness / 2
+const commercialCafeCounterMainEndX = commercialCafeGridPoint(6, 16).x + commercialCafeGrid.horizontalStep / 2
+// Close the counter's western end against the existing room wall. Its text
+// glyphs stay on the lattice while the single continuous body prevents a
+// public route from leaking behind the L through the entrance-side gap.
+const commercialCafeCounterMainCollision = box(
+  commercialCafeCounterMainStartX,
+  commercialCafeCounterGlyphSpan.y,
+  commercialCafeCounterMainEndX - commercialCafeCounterMainStartX,
+  commercialCafeCounterGlyphSpan.height,
+)
+const commercialCafeCounterReturnCollision = commercialCafeGridCellsBox(6, 17, 1, 3)
 const commercialCafeCounterStructure = {
   id: 'commercial-cafe-counter-body',
   kind: 'counter' as const,
@@ -856,18 +867,28 @@ const commercialCafeStorageLabel = Array.from('储物', (glyph, index) => floor(
   visualVisibility: 'baseline',
 }))
 // The staff region sits behind the counter and clear of the entrance lane.
-const commercialCafeStaffArea = commercialCafeGridCellsBox(6, 17, 4, 4)
+const commercialCafeStaffRows = commercialCafeGridCellsBox(0, 17, 1, 4)
+const commercialCafeStaffAreaStartX = commercialCafeCounterMainCollision.x + commercialCafeCounterMainCollision.width
+const commercialCafeStaffArea = box(
+  commercialCafeStaffAreaStartX,
+  commercialCafeStaffRows.y,
+  authoredPoint(50, 0).x - commercialCafeStaffAreaStartX,
+  commercialCafeStaffRows.height,
+)
 const commercialCafeServiceLayout = {
-  staffHome: commercialCafeGridPoint(8.5, 18),
+  staffHome: authoredPoint(
+    commercialCafeStaffArea.x + commercialCafeStaffArea.width / 2,
+    commercialCafeGridPoint(0, 18).y,
+  ),
   staffCounterStops: [
     commercialCafeGridPoint(7, 18),
     commercialCafeGridPoint(8, 19),
     commercialCafeGridPoint(9, 20),
   ],
-  staffApproach: commercialCafeGridPoint(9, 20),
+  staffApproach: commercialCafeGridPoint(10, 20),
   staffArea: commercialCafeStaffArea,
 } as const
-const commercialCafeStaffPortalInside = commercialCafeGridPoint(9, 20)
+const commercialCafeStaffPortalInside = commercialCafeGridPoint(10, 20)
 const commercialCafeStaffPortalOutside = commercialCafeGridPoint(12, 20)
 const commercialCafeStaffBoundaryX = commercialCafeStaffArea.x + commercialCafeStaffArea.width
 const commercialCafeStaffAccessPortal = {
@@ -1600,6 +1621,10 @@ const commercialCafeBlueprint: MainlineSceneBlueprint = {
       id: 'commercial-cafe-staff-right-access-boundary',
       regionId: 'commercial-cafe-staff-area',
       edge: 'right',
+    }, {
+      id: 'commercial-cafe-staff-bottom-access-boundary',
+      regionId: 'commercial-cafe-staff-area',
+      edge: 'bottom',
     }],
     navigationBarriers: commercialCafeNavigationBarriers,
     actorAccess: {

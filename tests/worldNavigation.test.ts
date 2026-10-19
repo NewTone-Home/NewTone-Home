@@ -96,7 +96,11 @@ describe('ordinary world navigation and passage intent', () => {
     const denied = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, options)!
     expect(denied.reachedRequestedTarget).toBe(false)
     expect(denied.deniedAccessRegion?.id).toBe(staff.id)
-    expect(denied.resolvedNavigableTarget.x).toBeGreaterThan(staff.x + staff.width)
+    const resolvedInsideStaff = denied.resolvedNavigableTarget.x >= staff.x
+      && denied.resolvedNavigableTarget.x <= staff.x + staff.width
+      && denied.resolvedNavigableTarget.y >= staff.y
+      && denied.resolvedNavigableTarget.y <= staff.y + staff.height
+    expect(resolvedInsideStaff).toBe(false)
     expect(mainlineNavigationCollisionBoxes(cafe, {}, options)).not.toContainEqual({ x: staff.x, y: staff.y, width: staff.width, height: staff.height })
     expect(denied.resolvedNavigableTarget).not.toEqual(staffTarget)
     const allowed = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, { actorId: commercialCafeCoffeeOwnerNpcId })!
