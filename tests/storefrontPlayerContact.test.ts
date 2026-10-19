@@ -11,14 +11,14 @@ const viewports = [
   { width: 834, height: 1194 }, { width: 1194, height: 834 },
 ]
 
-describe('locked commercial street storefront passages', () => {
-  it.each(viewports)('keeps all 14 storefront signs outside player interaction routing at $width x $height', metrics => {
+describe('commercial street storefront passages', () => {
+  it.each(viewports)('keeps all 14 storefront signs outside player contact routing at $width x $height', metrics => {
     const snapshot = createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, metrics)
     expect(street.storefronts).toHaveLength(14)
     for (const storefront of street.storefronts) {
       expect(storefront.portalId, storefront.id).toBeTruthy()
       expect(storefront.characterSwitch, storefront.id).toBe(true)
-      expect(street.passages.find(passage => passage.portalId === storefront.portalId)?.access).toBe('locked')
+      expect(street.passages.find(passage => passage.portalId === storefront.portalId)?.access).toBe('open')
       expect(snapshot.storefronts.has(storefront.id)).toBe(false)
       expect(mainlineStorefrontPlayerContact(street, storefront, street.initialPlayerPosition, {}, { screenMetrics: metrics, geometrySnapshot: snapshot })).toBeNull()
       expect(resolveMainlineStorefrontInteraction(street, storefront, street.initialPlayerPosition, {}, { screenMetrics: metrics, geometrySnapshot: snapshot }).path).toBeNull()

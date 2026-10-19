@@ -83,7 +83,7 @@ describe('commercial street storefront interactions', () => {
         expect(command.kind, `${storefrontId} click ${target.x},${target.y}`).toBe('passage')
         if (command.kind !== 'passage') continue
         expect(command.passage.id, `${storefrontId} click ${target.x},${target.y}`).toBe(passage.id)
-        expect(command.passage.access).toBe(storefrontId === 'commercial-north-slot-2' || storefrontId === 'commercial-south-slot-2' ? 'open' : 'locked')
+        expect(command.passage.access).toBe('open')
         expect(command.approachPath).not.toBeNull()
         const approachEnd = command.approachPath!.at(-1)!
         expect(isWalkableMainlinePoint(approachEnd, street)).toBe(true)
@@ -103,21 +103,30 @@ describe('commercial street storefront interactions', () => {
     }
   })
 
-  it('routes only the two sample empty shells through the continuous street room and preserves the 22-cell depth', () => {
+  it('routes all fourteen empty shells through the continuous street room and preserves the shared 22-cell depth', () => {
     const steps = boundaryGridStepsFromScreenSpacing()
-    const roomSamples = [
-      ['commercial-north-slot-2', 'commercial-north-n2-interior', 11],
-      ['commercial-south-slot-2', 'commercial-south-s2-interior', 23],
-    ] as const
+    const roomSamples = street.storefronts.map((storefront) => {
+      const side = storefront.edge === 'bottom' ? 'north' as const : 'south' as const
+      const slotNumber = storefront.id.match(/-slot-(\d+)$/)?.[1]
+      const roomId = storefront.id === 'commercial-cafe-slot'
+        ? 'commercial-north-cafe-interior'
+        : `commercial-${side}-${side === 'north' ? 'n' : 's'}${slotNumber}-interior`
+      return { storefront, roomId, widthCells: storefront.composition!.fixedCellCount!, side }
+    })
+    expect(roomSamples).toHaveLength(14)
+    expect(street.rooms.filter((room) => room.id.endsWith('-interior'))).toHaveLength(14)
+    expect(new Set(roomSamples.map((sample) => sample.roomId)).size).toBe(14)
 
-    for (const [storefrontId, roomId, widthCells] of roomSamples) {
-      const storefront = street.storefronts.find((candidate) => candidate.id === storefrontId)!
+    for (const { storefront, roomId, widthCells, side } of roomSamples) {
+      const storefrontId = storefront.id
       const room = street.rooms.find((candidate) => candidate.id === roomId)!
       const entry = street.passages.find((candidate) => candidate.portalId === storefront.portalId)!
       const rear = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
       const shell = street.structures.find((candidate) => candidate.id === `${roomId}-shell`)!
       const expectedDepth = steps.vertical * 21
       const interior = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+      const approach = mainlineStorefrontApproach(street, storefront)
+      const entryPath = findMainlinePath(approach, interior, street)
       const command = classifyMainlineWorldCommand(street, street.initialPlayerPosition, interior)
 
       expect(room.bounds.width).toBeCloseTo(steps.horizontal * (widthCells - 1))
@@ -131,13 +140,16 @@ describe('commercial street storefront interactions', () => {
       const rearCommand = classifyMainlineWorldCommand(street, interior, rear.crossingTargets[0])
       expect(rearCommand.kind).toBe('passage')
       if (rearCommand.kind === 'passage') expect(rearCommand.passage.id).toBe(rear.id)
-      expect(shell?.wallEdges).toEqual(widthCells === 11 ? ['top', 'left', 'right'] : ['bottom', 'left', 'right'])
+      expect(shell?.wallEdges).toEqual(side === 'north' ? ['top', 'left', 'right'] : ['bottom', 'left', 'right'])
       expect(isWalkableMainlinePoint(interior, street)).toBe(true)
+      expect(entryPath, `${storefrontId} front-to-room path`).not.toBeNull()
+      expect(entryPath?.length).toBeGreaterThan(1)
       expect(findMainlinePath(entry.crossingTargets[0], interior, street)).not.toBeNull()
       expect(findMainlinePath(interior, entry.thresholds[0], street)).not.toBeNull()
-      expect(isWalkableMainlinePoint({ x: room.bounds.x - steps.horizontal, y: interior.y }, street)).toBe(false)
       expect(street.walkBounds.y).toBeLessThan(room.bounds.y)
       expect(street.walkBounds.y + street.walkBounds.height).toBeGreaterThan(room.bounds.y + room.bounds.height)
+      expect(storefront.id === 'commercial-cafe-slot' ? roomId : entry.toRoomId).toBe(roomId)
+      expect(room.bounds.height / steps.vertical).toBeCloseTo(21)
     }
 
     const northRoom = street.rooms.find((candidate) => candidate.id === 'commercial-north-n2-interior')!
@@ -154,13 +166,24 @@ describe('commercial street storefront interactions', () => {
       { width: 1180, height: 757 },
       { width: 390, height: 844 },
     ]
-    const samples = [
-      ['commercial-north-slot-2', 'commercial-north-n2-interior', 11, 'top', 'commercial-north-facade', 'bottom'],
-      ['commercial-south-slot-2', 'commercial-south-s2-interior', 23, 'bottom', 'commercial-south-facade', 'top'],
-    ] as const
+    const samples = street.storefronts.map((storefront) => {
+      const side = storefront.edge === 'bottom' ? 'north' as const : 'south' as const
+      const slotNumber = storefront.id.match(/-slot-(\d+)$/)?.[1]
+      const roomId = storefront.id === 'commercial-cafe-slot'
+        ? 'commercial-north-cafe-interior'
+        : `commercial-${side}-${side === 'north' ? 'n' : 's'}${slotNumber}-interior`
+      return {
+        storefront,
+        roomId,
+        characterCount: storefront.composition!.fixedCellCount!,
+        rearEdge: side === 'north' ? 'top' as const : 'bottom' as const,
+        facadeId: side === 'north' ? 'commercial-north-facade' : 'commercial-south-facade',
+        facadeEdge: side === 'north' ? 'bottom' as const : 'top' as const,
+      }
+    })
 
-    for (const [storefrontId, roomId, characterCount, rearEdge, facadeId, facadeEdge] of samples) {
-      const storefront = street.storefronts.find((candidate) => candidate.id === storefrontId)!
+    for (const { storefront, roomId, characterCount, rearEdge, facadeId, facadeEdge } of samples) {
+      const storefrontId = storefront.id
       const shellId = `${roomId}-shell`
       const room = street.rooms.find((candidate) => candidate.id === roomId)!
       const canonicalFacadeXs = mainlineSceneGeometryUnits(

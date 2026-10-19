@@ -1,13 +1,14 @@
 import { expect, test } from '@playwright/test'
 import { mainlineStorefrontApproach, mainlineScenes } from '../src/center/runtime/mainlineScenes'
 
-test('clicking the locked milk tea portal shows its locked passage text without starting the order action', async ({ page }) => {
+test('clicking the milk tea portal enters its same-scene shell without starting an order action', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.goto('/?scene=commercial-street&debugRuntimeEvidence=1')
 
   const street = mainlineScenes['commercial-street']
   const milkTea = street.storefronts.find((storefront) => storefront.id === 'commercial-south-slot-5')!
   const passage = street.passages.find((candidate) => candidate.portalId === milkTea.portalId)!
+  const room = street.rooms.find((candidate) => candidate.id === 'commercial-south-s5-interior')!
   const stage = page.locator('.mainline-scene-stage')
   const approach = mainlineStorefrontApproach(street, milkTea)
   const approachPoint = await stage.evaluate((element, target) => {
@@ -22,13 +23,18 @@ test('clicking the locked milk tea portal shows its locked passage text without 
     return Boolean(player && Math.hypot(Number(player.dataset.runtimeX) - x, Number(player.dataset.runtimeY) - y) < .6)
   }, approach, { timeout: 20_000 })
   const door = page.locator(`button[data-storefront-cell-id="${milkTea.id}-cell-2"]`)
-  const echo = page.locator(`[data-scene-echo="${passage.entityId}"]`)
   const phone = page.locator('.world-phone')
 
   await expect(door).toHaveCount(1)
   await door.click()
-  await expect(echo).toBeVisible({ timeout: 20_000 })
-  await expect(echo).toContainText(passage.lockedText!.replace(/[。.!！?？]+$/, ''))
+  await page.waitForFunction(({ x, y, width, height }) => {
+    const player = document.querySelector<HTMLElement>('[data-actor-id="protagonist"]')
+    const px = Number(player?.dataset.runtimeX)
+    const py = Number(player?.dataset.runtimeY)
+    return Boolean(player && px >= x && px <= x + width && py >= y && py <= y + height)
+  }, room.bounds, { timeout: 20_000 })
+  await expect(stage).toHaveAttribute('data-mainline-scene', 'commercial-street')
+  expect(passage).toMatchObject({ access: 'open', toRoomId: room.id })
   await expect(phone).not.toHaveClass(/is-open/)
 })
 

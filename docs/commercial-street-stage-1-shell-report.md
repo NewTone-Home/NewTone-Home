@@ -86,7 +86,67 @@ const commercialStreetFacadeAirWalls: readonly MainlineAirWall[] = [
 ]
 ```
 
-Only the two selected front doors are open and linked to the public lane; the rear door has no scene destination and remains locked:
+## Stage 2: all fourteen empty storefront shells
+
+Stage 1 opened only N2 and S2; this Stage 2 update extends same-scene empty shells to all 14 existing storefronts. It does not add furniture, interior activity, or Cafe story interactions. All storefront fronts now lead to their shell using `routeThrough` passages in `commercial-street`; all 14 rear doors remain locked and have no destination. The old `commercial-cafe` scene blueprint, persistent keys, story content, dialogue cursor, and NPCs remain available unchanged. Entering the street Cafe shell does not load that scene or trigger its plot.
+
+The storefront order, facade labels, authored grid, door coordinates, and 14 merchant identities remain unchanged. Width comes from each storefront's authored `fixedCellCount` (11 centers for a regular bay, 23 for a two-bay unit). Every room is 22 vertical centers / 21 pitch intervals deep. The two-bay units keep the original double-bay footprint and separator; no storefront characters, font size, or pitch were compressed. Room IDs preserve the earlier N2/S2 IDs; other ordinary slots derive from their existing slot IDs, and Cafe uses `commercial-north-cafe-interior`.
+
+### Source change: generated room and portal inventory
+
+Before Stage 2, shell selection was a fixed two-room list:
+
+```ts
+const commercialStreetInteriorSamples = [
+  { storefrontId: 'commercial-north-slot-2', roomId: 'commercial-north-n2-interior', side: 'north' as const, horizontalCellCount: 11 },
+  { storefrontId: 'commercial-south-slot-2', roomId: 'commercial-south-s2-interior', side: 'south' as const, horizontalCellCount: 23 },
+].map((sample) => {
+```
+
+Now the same room/portal generation derives every shell from the frozen storefront model:
+
+```ts
+const commercialStreetInteriorSamples = commercialStreetStorefronts.map((storefront) => {
+  const side = storefront.edge === 'bottom' ? 'north' as const : 'south' as const
+  const slotNumber = storefront.id.match(/-slot-(\d+)$/)?.[1]
+  if (storefront.id !== 'commercial-cafe-slot' && !slotNumber) {
+    throw new Error(`Commercial storefront ${storefront.id} must keep its numbered slot ID`)
+  }
+  const roomId = storefront.id === 'commercial-cafe-slot'
+    ? 'commercial-north-cafe-interior'
+    : `commercial-${side}-${side === 'north' ? 'n' : 's'}${slotNumber}-interior`
+  const horizontalCellCount = storefront.composition?.fixedCellCount
+    ?? storefront.composition?.baseline.length
+    ?? 0
+```
+
+The existing open/locked route distinction is expressed by whether a storefront has a generated shell. For Stage 2 all 14 fronts map to their shell while rear doors remain locked:
+
+```ts
+const interior = commercialStreetInteriorSamples.find((sample) => sample.storefrontId === storefront.id)
+return { id: portalId,
+  entity: { id: portalId, label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
+  endpoint: { doorPosition: authoredPoint(x, y), threshold: authoredPoint(x, laneY), crossingTarget: authoredPoint(x, laneY) },
+  wallOpenings: [], transitionText: '此店铺尚未开放。', access: interior ? 'open' : 'locked',
+  ...(interior ? { routeThrough: true, fromRoomId: 'commercial-street-public-lane', toRoomId: interior.roomId } : {}),
+  ...(!interior ? { lockedText: '此店铺尚未开放。' } : {}) }
+```
+
+Each shell still owns only its sides and back, sharing the existing front facade and common glyph-center lattice. Segmented air walls remove only the shell spans from the lane/back barriers; the surrounding barriers and extension bands keep the street continuous without opening unrelated storefront backs. No room creates a new scene transition or moves the facade/camera coordinates.
+
+### Verification
+
+- Focused Vitest: storefront presentation, all-shell interactions/navigation, and player-contact coverage — 47 passed.
+- The initial east-boundary assertion still looked up the pre-segmentation single air-wall ID. The shell openings split that barrier into segments, so the assertion now compares the easternmost endpoint across those segments; the facade span and storefront coordinates were not changed to satisfy the test.
+- `npm run typecheck` — passed.
+- `npm run build` — passed; Vite emitted the existing large-chunk advisory.
+- Playwright all-14 live browser traversal was attempted, but the local web server/browser invocation produced no result in the restricted environment and was stopped; no screenshots were captured. Treat live browser traversal as pending review.
+- Existing `phone-v1-round3` and `p1-experience` screenshot-producing flows were not run. The Cafe route assertions in the related compatibility specs were updated to enter the new shell before explicitly addressing the preserved legacy Cafe scene.
+- Performance was not profiled; this stage makes no measured frame-time claim.
+
+The committed Stage 2 code, tests, and full source comparison will be linked from the accompanying Notion review note after the preview commit is pushed and its deployment is verified.
+
+The following source detail records the Stage 1 baseline; its two-room scope is superseded by Stage 2 above. At Stage 1, only the two selected front doors were open and linked to the public lane; rear doors had no destination and remained locked:
 
 ```ts
 const interior = commercialStreetInteriorSamples.find((sample) => sample.storefrontId === storefront.id)

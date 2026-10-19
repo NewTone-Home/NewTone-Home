@@ -27,7 +27,7 @@ describe('commercial street storefront presentation', () => {
     expect(storefrontRestoreDelayMs(100, 3100)).toBe(0)
     expect(storefrontRestoreDelayMs(100, 4100)).toBe(0)
   })
-  it('keeps the approved 14-shop order, grid spans, and locked storefront doors', () => {
+  it('keeps the approved 14-shop order and grid spans while routing each front door into its same-scene shell', () => {
     expect(street.storefronts.map(({ id }) => id)).toEqual([
       'commercial-north-slot-1', 'commercial-north-slot-2', 'commercial-north-slot-3',
       'commercial-north-slot-4', 'commercial-north-slot-5', 'commercial-north-slot-6', 'commercial-cafe-slot',
@@ -53,9 +53,26 @@ describe('commercial street storefront presentation', () => {
     expect(street.storefronts.find(storefront => storefront.id === 'commercial-cafe-slot')?.label).toBe('咖啡馆')
     expect(street.storefronts.find(storefront => storefront.id === 'commercial-south-slot-2')?.label).toBe('快餐店')
     expect(street.storefronts.every((storefront) => storefront.portalId && storefront.characterSwitch)).toBe(true)
-    expect(street.passages).toHaveLength(14)
-    expect(street.passages.every((passage) => passage.access === 'locked' && !passage.targetSceneId)).toBe(true)
+    expect(street.rooms.filter((room) => room.id.endsWith('-interior'))).toHaveLength(14)
+    expect(street.passages).toHaveLength(28)
+    for (const storefront of street.storefronts) {
+      const passage = street.passages.find((candidate) => candidate.portalId === storefront.portalId)!
+      expect(passage, storefront.id).toMatchObject({
+        access: 'open',
+        routeThrough: true,
+        fromRoomId: 'commercial-street-public-lane',
+        targetSceneId: undefined,
+      })
+      expect(passage.toRoomId, storefront.id).toMatch(/-interior$/)
+    }
+    const rearPassages = street.passages.filter((passage) => passage.id.endsWith('-rear-door'))
+    expect(rearPassages).toHaveLength(14)
+    expect(rearPassages.every((passage) => passage.access === 'locked' && !passage.targetSceneId)).toBe(true)
+    expect(street.passages.find((passage) => passage.id === 'street-cafe-entry')?.toRoomId)
+      .toBe('commercial-north-cafe-interior')
     expect(street.passages.find((passage) => passage.id === 'street-cafe-entry')?.targetSceneId).toBeUndefined()
+    expect(mainlineScenes['commercial-cafe'].objects.some((object) => object.id === 'commercial-cafe-counter')).toBe(true)
+    expect(mainlineScenes['commercial-cafe'].npcs.length).toBeGreaterThan(0)
   })
 
   it('derives equal row and east boundary spans from the authored storefront grid', () => {
@@ -73,8 +90,9 @@ describe('commercial street storefront presentation', () => {
       + street.structures.find(structure => structure.id === 'commercial-north-facade')!.bounds!.width
     const lane = street.structures.find(structure => structure.id === 'commercial-main-lane')!.bounds!
     const walkRight = street.walkBounds.x + street.walkBounds.width
-    const northAirWallRight = street.airWalls!.find(airWall => airWall.id === 'commercial-north-facade-air-wall')!.x
-      + street.airWalls!.find(airWall => airWall.id === 'commercial-north-facade-air-wall')!.width
+    const northAirWallRight = Math.max(...street.airWalls!
+      .filter(airWall => airWall.id.startsWith('commercial-north-facade-air-wall'))
+      .map(airWall => airWall.x + airWall.width))
     expect(facadeRight - lastStorefrontEnd).toBeCloseTo(1.5 * pitch)
     expect(lane.x + lane.width).toBeCloseTo(facadeRight - 4)
     expect(walkRight).toBeGreaterThan(facadeRight)
@@ -131,7 +149,7 @@ describe('commercial street storefront presentation', () => {
       expect(near.slice(0, 5).map(cell => cell.storefrontRole)).toEqual(['wall', 'wall', 'door', 'wall', 'wall'])
       expect(near.filter(cell => (cell.storefrontRole === 'glass' || cell.storefrontRole === 'window'))).toHaveLength(14)
       expect(near[2]?.entityId).toBe(cafe.portalId)
-      expect(near[2]?.access).toBe('locked')
+      expect(near[2]?.access).toBe('open')
       expect(near[2]?.lockedText).toBe(street.passages.find(passage => passage.portalId === cafe.portalId)?.lockedText)
       expect(new Set(near.filter(cell => (cell.storefrontRole === 'glass' || cell.storefrontRole === 'window')).map(cell => cell.x)).size).toBe(14)
       const revealedUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[cafe.id, 'revealed']]))
@@ -180,7 +198,7 @@ describe('commercial street storefront presentation', () => {
       const doorCharacter = cells.find(cell => cell.role === 'door')!
       expect(doorCharacter.x).toBeCloseTo(realDoor!.cell.x)
       expect(doorCharacter.y).toBeCloseTo(realDoor!.cell.y)
-      expect(doorCharacter.access).toBe('locked')
+      expect(doorCharacter.access).toBe('open')
       expect(doorCharacter.lockedText).toBe(street.passages.find(passage => passage.portalId === storefront.portalId)?.lockedText)
     }
   })
@@ -309,7 +327,7 @@ describe('commercial street storefront presentation', () => {
           const doorIndex = 2
           expect(near.filter(cell => cell.storefrontRole === 'door')).toHaveLength(1)
           expect(near[doorIndex]?.entityId).toBe(slot.portalId)
-          expect(near[doorIndex]?.access).toBe('locked')
+          expect(near[doorIndex]?.access).toBe('open')
           expect(near[doorIndex]?.lockedText).toBe(street.passages.find(passage => passage.portalId === slot.portalId)?.lockedText)
         } else {
           expect(baseline.filter(cell => (cell.storefrontRole === 'glass' || cell.storefrontRole === 'window'))).toHaveLength(4)
@@ -432,7 +450,7 @@ describe('commercial street storefront presentation', () => {
       expect(farFacade.filter(cell => cell.storefrontRole === 'sign').map(cell => cell.glyph).join('')).toBe(storefront.label)
       expect(door).toHaveLength(1)
       expect(door[0].entityId).toBe(storefront.portalId)
-      expect(door[0].access).toBe('locked')
+      expect(door[0].access).toBe('open')
       expect(door[0].lockedText).toBe(street.passages.find(passage => passage.portalId === storefront.portalId)?.lockedText)
       expect(nearUnitsForStore).toHaveLength(count)
       expect(leaveUnits.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline')).toEqual(farUnitsForStore)
@@ -464,7 +482,7 @@ describe('commercial street storefront presentation', () => {
     }
   })
 
-  it('keeps each locked portal reveal inside its authored approach radius', () => {
+  it('keeps each storefront reveal inside its authored approach radius', () => {
     for (const storefront of street.storefronts) {
       const approach = mainlineStorefrontApproach(street, storefront)
       expect(isMainlineStorefrontPresentationInRange(street, storefront, approach)).toBe(true)
@@ -549,7 +567,7 @@ describe('commercial street storefront presentation', () => {
 
   it('does not make the presentation part of traversal completion', () => {
     const passage = street.passages.find((candidate) => candidate.id === 'street-cafe-entry')!
-    expect(passage.access).toBe('locked')
+    expect(passage.access).toBe('open')
     expect(passage.targetSceneId).toBeUndefined()
     expect(nextStorefrontPresentationPhase('revealing', 'reveal-motion-complete')).toBe('revealed')
   })

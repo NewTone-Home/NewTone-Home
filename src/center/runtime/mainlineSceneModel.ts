@@ -1086,20 +1086,35 @@ const commercialStreetLongitudinalExpansion = (commercialStreetRowCellCount + 3)
 const commercialStreetSceneRight = 192 + commercialStreetLongitudinalExpansion
 const commercialStreetWorldRight = 200 + commercialStreetLongitudinalExpansion
 
-// Two first-stage interiors are part of this scene's coordinate space. Their
-// front wall is the already-authored shop facade; these shells own only the
-// sides and back, on the same measured glyph lattice as the storefronts.
-// Twenty-two character centers include the facade wall and rear wall, hence
-// twenty-one pitch intervals from front center to rear center.
+// Every storefront receives an empty shell in the existing street scene. The
+// front wall remains the frozen storefront row; each shell owns only its sides
+// and back. Cafe's former scene blueprint remains available for saved state,
+// but its street entrance now routes into this empty same-scene shell.
+// Twenty-two character centers include the facade and rear wall, so each room
+// spans twenty-one shared-grid pitch intervals from front center to rear.
 const commercialStreetInteriorVerticalCoordinateCount = 22
 const commercialStreetInteriorDepth = boundaryGridStepsFromScreenSpacing().vertical * (commercialStreetInteriorVerticalCoordinateCount - 1)
 const commercialStreetFacadeNorthY = 14 + 22 - commercialStreetLaneExpansion
 const commercialStreetFacadeSouthY = 64 + commercialStreetLaneExpansion
-const commercialStreetInteriorSamples = [
-  { storefrontId: 'commercial-north-slot-2', roomId: 'commercial-north-n2-interior', side: 'north' as const, horizontalCellCount: 11 },
-  { storefrontId: 'commercial-south-slot-2', roomId: 'commercial-south-s2-interior', side: 'south' as const, horizontalCellCount: 23 },
-].map((sample) => {
-  const storefront = commercialStreetStorefronts.find((candidate) => candidate.id === sample.storefrontId)!
+const commercialStreetInteriorSamples = commercialStreetStorefronts.map((storefront) => {
+  const side = storefront.edge === 'bottom' ? 'north' as const : 'south' as const
+  const slotNumber = storefront.id.match(/-slot-(\d+)$/)?.[1]
+  if (storefront.id !== 'commercial-cafe-slot' && !slotNumber) {
+    throw new Error(`Commercial storefront ${storefront.id} must keep its numbered slot ID`)
+  }
+  const roomId = storefront.id === 'commercial-cafe-slot'
+    ? 'commercial-north-cafe-interior'
+    : `commercial-${side}-${side === 'north' ? 'n' : 's'}${slotNumber}-interior`
+  const horizontalCellCount = storefront.composition?.fixedCellCount
+    ?? storefront.composition?.baseline.length
+    ?? 0
+  if (horizontalCellCount < 2) throw new Error(`Commercial storefront ${storefront.id} has no usable facade grid`)
+  const sample = {
+    storefrontId: storefront.id,
+    roomId,
+    side,
+    horizontalCellCount,
+  }
   const facade = sample.side === 'north' ? commercialStreetFacadeNorthY : commercialStreetFacadeSouthY
   const back = facade + (sample.side === 'north' ? -commercialStreetInteriorDepth : commercialStreetInteriorDepth)
   // Facade glyphs sit at the centers of their authored cells. Reuse those
