@@ -22,13 +22,13 @@ describe('mainline ordinary-object spatial migration', () => {
     const yongheCounter = eatery.objects.find((entity) => entity.id === 'yonghe-counter')!
     const yongheStove = eatery.objects.find((entity) => entity.id === 'yonghe-stove')!
     const cafe = mainlineScenes['commercial-cafe']
-    const cafeTable = cafe.objects.find((entity) => entity.id === 'commercial-cafe-preview-middle-reserved-group-table')!
-    const cafeChair = cafe.objects.find((entity) => entity.id === 'commercial-cafe-preview-middle-reserved-group-chair-top')!
+    const cafeFourSeatTable = cafe.objects.find((entity) => entity.id === 'commercial-cafe-bottom-center-group-table')!
+    const cafeFourSeatChair = cafe.objects.find((entity) => entity.id === 'commercial-cafe-bottom-center-group-chair-top')!
 
     for (const [scene, entity] of [
       [yonghe, interiorTable], [yonghe, interiorChair], [shrine, offeringTable], [shrine, incense], [yard, oldTree],
       [office, officeDesk], [office, officeChair], [office, officePlant], [eatery, yongheCounter], [eatery, yongheStove],
-      [cafe, cafeTable], [cafe, cafeChair],
+      [cafe, cafeFourSeatTable], [cafe, cafeFourSeatChair],
     ] as const) {
       const snapshot = createMainlineSceneGeometrySnapshot(scene, scene.initialPlayerPosition, {}, defaultSceneScreenMetrics)
       expect(entity.movementCollision).not.toBe('physical')

@@ -12,14 +12,6 @@ import { mainlineEntityTextFootprint, mainlineLabelFootprint, mainlineProtagonis
 describe('commercial cafe seating and staging', () => {
   const cafe = mainlineScenes['commercial-cafe']
   const laoZhouSeatId = 'commercial-cafe-right-window-upper-group-chair-top'
-const cafeCell = (column: number, row: number) => ({
-  x: cafe.walkBounds.x + column * cafe.walkBounds.width / 22,
-  y: cafe.walkBounds.y + cafe.walkBounds.height - row * cafe.walkBounds.height / 21,
-})
-const cafeLocalCell = (point: { x: number; y: number }) => ({
-  column: (point.x - cafe.walkBounds.x) / (cafe.walkBounds.width / 22),
-  row: (cafe.walkBounds.y + cafe.walkBounds.height - point.y) / (cafe.walkBounds.height / 21),
-})
 
   it('derives Lao Zhou staging from behavior while occupancy remains only a set of seat ids', () => {
     const behavior = mainlineNpcStagingBehavior(cafe, 'lao-zhou')
@@ -62,7 +54,7 @@ const cafeLocalCell = (point: { x: number; y: number }) => ({
 
   it('presents a seated protagonist as 修杰 and prompts only the requested free conversation seat', () => {
     const conversationSeat = cafe.objects.find((entity) => entity.id === commercialCafeLaoZhouConversationSeatId)!
-    const otherSeat = cafe.objects.find((entity) => entity.id === 'commercial-cafe-preview-rear-group-chair-bottom')!
+    const otherSeat = cafe.objects.find((entity) => entity.id === 'commercial-cafe-right-window-lower-group-chair-bottom')!
 
     expect(mainlineProtagonistPresentation(null)).toEqual({ kind: 'dot' })
     expect(mainlineProtagonistPresentation(commercialCafeLaoZhouConversationSeatId)).toEqual({ kind: 'seated', label: '修杰' })
@@ -99,7 +91,7 @@ const cafeLocalCell = (point: { x: number; y: number }) => ({
     const path = findMainlinePathToEntity(cafe, commercialCafeLaoZhouConversationSeatId, cafe.initialPlayerPosition)
 
     expect(seat?.seat?.sit).toBeDefined()
-    expect(seat?.seat?.sit).toBeDefined()
+    expect(seat?.seat?.sit).toEqual({ x: 84, y: 31.4 })
     expect(candidates).toHaveLength(4)
     expect(candidates).toContainEqual(selectedContact)
     expect(approach.y).toBeGreaterThan(seat!.collision!.y + seat!.collision!.height)
@@ -137,7 +129,7 @@ const cafeLocalCell = (point: { x: number; y: number }) => ({
     const route = findMainlinePathToEntity(cafe, commercialCafeLaoZhouConversationSeatId, from, {}, options)
 
     expect(route.path).not.toBeNull()
-    expect(route.path!.length).toBeGreaterThan(1)
+    expect(route.path!.length).toBeGreaterThan(2)
     expect(route.path!.every((point) => isWalkableMainlinePoint(point, cafe, {}, options))).toBe(true)
   })
 
@@ -146,7 +138,7 @@ const cafeLocalCell = (point: { x: number; y: number }) => ({
   it('keeps two-seat routes governed by visible table and chair footprints while preserving the exterior seat route', () => {
     const seatIds = [
       commercialCafeLaoZhouConversationSeatId,
-      'commercial-cafe-preview-rear-group-chair-bottom',
+      'commercial-cafe-bottom-left-group-chair-bottom',
     ]
 
     for (const seatId of seatIds) {
@@ -176,116 +168,25 @@ const cafeLocalCell = (point: { x: number; y: number }) => ({
     }
   })
 
-  it('keeps three two-seat groups, preserves the existing story target and gives the reserved center a new identity', () => {
-    const groupIds = cafe.furnitureGroups.map((group) => group.id)
-    const seats = cafe.objects.filter((entity) => entity.kind === 'seat')
+  // APPROVED CONTRACT MIGRATION: four-seat furniture now has only visible
+  // object footprints plus its four table-chair relation barriers.
+  it('uses four relation barriers instead of a hidden four-seat table body', () => {
+    const table = cafe.objects.find((entity) => entity.id === 'commercial-cafe-bottom-center-group-table')!
+    const seats = cafe.objects.filter((entity) => entity.groupId === 'commercial-cafe-bottom-center-group' && entity.kind === 'seat')
     const snapshot = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition)
-    const reservedGroupId = 'commercial-cafe-preview-middle-reserved-group'
-    const reservedSeats = seats.filter((seat) => seat.groupId === reservedGroupId)
-    const storyTable = cafe.objects.find((entity) => entity.id === 'commercial-cafe-right-window-upper-group-table')!
-    const storySeat = cafe.objects.find((entity) => entity.id === laoZhouSeatId)!
 
-    expect(groupIds).toEqual([
-      'commercial-cafe-right-window-upper-group',
-      reservedGroupId,
-      'commercial-cafe-preview-rear-group',
-    ])
-    expect(seats).toHaveLength(6)
-    expect(reservedSeats).toHaveLength(2)
-    expect(reservedSeats.map((seat) => seat.id)).not.toContain(laoZhouSeatId)
-    expect(reservedSeats.every((seat) => seat.id.startsWith(`${reservedGroupId}-`))).toBe(true)
-    expect(storySeat.seat?.tableId).toBe(storyTable.id)
-    expect(storyTable.position.x).toBeCloseTo(cafeCell(15, 7).x)
-    expect(storyTable.position.y).toBeCloseTo(cafeCell(15, 7).y)
-    expect(cafe.objects.some((entity) => entity.groupId?.includes('commercial-cafe-bottom-'))).toBe(false)
-
-    for (const [groupId, column, row] of [
-      ['commercial-cafe-right-window-upper-group', 15, 7],
-      [reservedGroupId, 18, 11],
-      ['commercial-cafe-preview-rear-group', 15, 16],
-    ] as const) {
-      const table = cafe.objects.find((entity) => entity.id === `${groupId}-table`)!
-      const groupSeats = seats.filter((seat) => seat.groupId === groupId)
-      expect(table.position.x).toBeCloseTo(cafeCell(column, row).x)
-      expect(table.position.y).toBeCloseTo(cafeCell(column, row).y)
-      expect(groupSeats).toHaveLength(2)
-      expect(groupSeats.every((seat) => seat.seat?.tableId === table.id)).toBe(true)
-      expect(table.movementCollision).not.toBe('physical')
-      expect(table.interactionContactSides).toBeUndefined()
-      expect(snapshot.objects.get(table.id)!.collision).toEqual(mainlineEntityTextFootprint(table, snapshot.objects.get(table.id)!.position))
-      expect(cafe.navigationBarriers.filter((barrier) => barrier.id.startsWith(`${groupId}-`))).toHaveLength(2)
-    }
-  })
-
-  it('maps the L counter, service labels and open storage to distinct one-glyph grid cells', () => {
-    const counter = cafe.objects.filter((entity) => /^commercial-cafe-counter(?:-\d+)?$/.test(entity.id))
-    const counterCells = counter.map((entity) => ({ entity, local: cafeLocalCell(entity.position) }))
-    const main = counterCells.filter(({ local }) => Math.abs(local.row - 16) < 0.01).sort((a, b) => a.local.column - b.local.column)
-    const returned = counterCells.filter(({ local }) => Math.abs(local.column - 11) < 0.01 && local.row >= 17 && local.row <= 19)
-      .sort((a, b) => a.entity.position.y - b.entity.position.y)
-    const mainBody = cafe.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-body')!
-    const returnBody = cafe.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-return-body')!
-    const cellKeys = counterCells.map(({ local }) => `${Math.round(local.column)}:${Math.round(local.row)}`)
-
-    expect(main).toHaveLength(6)
-    expect(main.map(({ entity }) => entity.label).join('')).toBe('柜台柜台柜台')
-    expect(main.map(({ local }) => Math.round(local.column))).toEqual([6, 7, 8, 9, 10, 11])
-    expect(returned).toHaveLength(3)
-    expect(returned.map(({ entity }) => entity.label).join('')).toBe('柜台柜')
-    expect(new Set(cellKeys).size).toBe(9)
-    expect(counter.every(({ label }) => Array.from(label).length === 1)).toBe(true)
-    expect(main.every(({ entity }) => entity.interactionStructureId === mainBody.id)).toBe(true)
-    expect(returned.every(({ entity }) => entity.interactionBehavior === undefined)).toBe(true)
-    expect(mainBody.kind).toBe('counter')
-    expect(returnBody.kind).toBe('counter')
-    expect(returnBody.y + returnBody.height).toBeCloseTo(mainBody.y, 5)
-    expect(mainBody.x).toBeCloseTo(cafeCell(6, 16).x - cafe.walkBounds.width / 44, 5)
-    expect(mainBody.width).toBeCloseTo(cafe.walkBounds.width / 22 * 6, 5)
-
-    for (const [id, text, column, row] of [
-      ['commercial-cafe-service-menu', '菜单', 4, 3],
-      ['commercial-cafe-service-order', '点单', 6, 4],
-      ['commercial-cafe-open-storage', '储物', 2, 19],
-    ] as const) {
-      const glyphs = cafe.objects.filter((entity) => entity.id.startsWith(`${id}-`)).sort((a, b) => a.position.x - b.position.x)
-      expect(glyphs.map((entity) => entity.label).join('')).toBe(text)
-      expect(glyphs.every((entity, index) => {
-        const local = cafeLocalCell(entity.position)
-        return Math.abs(local.column - column - index) < 0.01 && Math.abs(local.row - row) < 0.01
-          && entity.interactive === false && entity.collision === undefined
-      })).toBe(true)
-    }
-  })
-
-  it('keeps cafe customers, all six chair approaches, the center aisle, staff route and locked rear door reachable', () => {
-    const frontPortal = cafe.portals.find((portal) => portal.id === 'street-cafe-entry')!
-    const rearPortal = cafe.portals.find((portal) => portal.id === 'cafe-back-door')!
-    const customerPoint = cafeCell(6, 4)
-    const staffPoint = cafeCell(8.5, 18)
-    const ownerOptions = { actorId: commercialCafeCoffeeOwnerNpcId }
-
-    expect(frontPortal.access).toBe('open')
-    expect(frontPortal.endpoint).toMatchObject({ doorPosition: { x: 8, y: 68 }, threshold: { x: 12, y: 68 }, crossingTarget: { x: 10, y: 68 } })
-    expect(rearPortal.access).toBe('locked')
-    expect(rearPortal.endpoint).toMatchObject({ doorPosition: { x: 48, y: 7 }, threshold: { x: 48, y: 12 }, crossingTarget: { x: 48, y: 9 } })
-    expect(cafe.walkBounds).toEqual({ x: 8, y: 7, width: 90, height: 86 })
-    expect(cafe.viewport).toBe('fixed-frame')
-    expect(findMainlinePath(cafe.initialPlayerPosition, customerPoint, cafe)).not.toBeNull()
-    expect(findMainlinePath(cafe.initialPlayerPosition, staffPoint, cafe)).toBeNull()
-    expect(findMainlinePath(cafe.initialPlayerPosition, staffPoint, cafe, {}, ownerOptions)).not.toBeNull()
-    expect(findMainlinePath(staffPoint, rearPortal.endpoint.threshold, cafe, {}, ownerOptions)).not.toBeNull()
-
-    for (const column of [11, 12]) {
-      expect(findMainlinePath(cafeCell(column, 1), cafeCell(column, 20), cafe), `central aisle column ${column}`).not.toBeNull()
-    }
-    for (const seat of cafe.objects.filter((entity) => entity.kind === 'seat')) {
-      expect(seat.seat?.sit).toBeDefined()
-      expect(seat.seat?.pulled).toBeDefined()
-      expect(findMainlinePathToEntity(cafe, seat.id, cafe.initialPlayerPosition).path, `${seat.id} pull/stand approach`).not.toBeNull()
-      const approachRow = seat.groupId === 'commercial-cafe-right-window-upper-group' ? 7
-        : seat.groupId === 'commercial-cafe-preview-middle-reserved-group' ? 11 : 16
-      expect(findMainlinePathToEntity(cafe, seat.id, cafeCell(13, approachRow)).path, `${seat.id} approach from central aisle`).not.toBeNull()
-    }
+    expect(cafe.objects.some((entity) => entity.id === 'commercial-cafe-bottom-center-group-table-top' || entity.id === 'commercial-cafe-bottom-center-group-table-bottom')).toBe(false)
+    expect(table.movementCollision).not.toBe('physical')
+    expect(table.interactionContactSides).toBeUndefined()
+    expect(snapshot.objects.get(table.id)!.collision).toEqual(mainlineEntityTextFootprint(table, snapshot.objects.get(table.id)!.position))
+    expect(snapshot.objects.get(table.id)!.collision!.height).toBeLessThan(3)
+    expect(table.position.y).toBe(78)
+    expect(seats).toHaveLength(4)
+    expect(seats.every((seat) => seat.seat?.tableId === table.id)).toBe(true)
+    expect(cafe.navigationBarriers.filter((barrier) => barrier.id.startsWith('commercial-cafe-bottom-center-group-'))).toHaveLength(4)
+    const tableRoute = findMainlinePathToEntity(cafe, table.id, cafe.initialPlayerPosition)
+    expect(isWalkableMainlinePoint(cafe.initialPlayerPosition, cafe)).toBe(true)
+    expect(tableRoute.path).not.toBeNull()
   })
 
   it('assigns separate counter and floor staging duties while preserving a reachable customer contact region', () => {

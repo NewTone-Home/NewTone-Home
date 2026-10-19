@@ -49,7 +49,7 @@ describe('navigation barrier segments', () => {
     const topBarrier = barriers.find((barrier) => barrier.id === 'commercial-cafe-right-window-upper-group-chair-top-table-barrier')!
     const bottomBarrier = barriers.find((barrier) => barrier.id === 'commercial-cafe-right-window-upper-group-chair-bottom-table-barrier')!
 
-    expect(barriers.filter((barrier) => barrier.kind !== 'access-boundary')).toHaveLength(6)
+    expect(barriers.filter((barrier) => barrier.kind !== 'access-boundary')).toHaveLength(22)
     for (const [chair, barrier] of [[topChair, topBarrier], [bottomChair, bottomBarrier] as const]) {
       const gapCenter = { x: table.position.x, y: (chair.collision!.y + chair.collision!.height + table.collision!.y) / 2 }
       expect(isWalkableMainlinePoint(gapCenter, cafe, {}, protagonistOptions)).toBe(true)
@@ -113,29 +113,37 @@ describe('navigation barrier segments', () => {
     expect(tableRight.path).not.toBeNull()
   })
 
-  it('uses six visible two-seat relation barriers across exactly three Cafe tables', () => {
+  it('migrates every two-seat group and every four-seat group through the same relation contract', () => {
     const twoSeatGroups = [
+      'commercial-cafe-right-inner-upper-group',
+      'commercial-cafe-right-inner-middle-group',
+      'commercial-cafe-right-inner-lower-group',
       'commercial-cafe-right-window-upper-group',
-      'commercial-cafe-preview-middle-reserved-group',
-      'commercial-cafe-preview-rear-group',
+      'commercial-cafe-right-window-lower-group',
+    ]
+    const fourSeatGroups = [
+      'commercial-cafe-bottom-left-group',
+      'commercial-cafe-bottom-center-group',
+      'commercial-cafe-bottom-right-group',
     ]
     const barriers = mainlineNavigationBarriers(cafe)
 
     for (const groupId of twoSeatGroups) {
       expect(barriers.filter((barrier) => barrier.id.startsWith(`${groupId}-`))).toHaveLength(2)
+    }
+    for (const groupId of fourSeatGroups) {
       const table = cafe.objects.find((entity) => entity.id === `${groupId}-table`)!
       const snapshot = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition)
       expect(table.movementCollision).not.toBe('physical')
       expect(table.interactionContactSides).toBeUndefined()
       expect(snapshot.objects.get(table.id)!.collision).toEqual(mainlineEntityTextFootprint(table, snapshot.objects.get(table.id)!.position))
       expect(snapshot.objects.get(table.id)!.collision!.height).toBeLessThan(3)
+      expect(barriers.filter((barrier) => barrier.id.startsWith(`${groupId}-`))).toHaveLength(4)
       for (const chair of cafe.objects.filter((entity) => entity.groupId === groupId && entity.kind === 'seat')) {
         expect(chair.movementCollision).not.toBe('physical')
         expect(snapshot.objects.get(chair.id)!.collision).toEqual(mainlineEntityTextFootprint(chair, snapshot.objects.get(chair.id)!.position))
       }
     }
-    expect(cafe.objects.filter((entity) => entity.kind === 'seat')).toHaveLength(6)
-    expect(barriers.filter((barrier) => barrier.kind !== 'access-boundary')).toHaveLength(6)
   })
 
   it('uses the same non-occupying relation barriers for the office workstation and ancestral altar', () => {
