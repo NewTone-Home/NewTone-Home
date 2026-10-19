@@ -205,6 +205,7 @@ type MainlineDoorButtonProps = {
   active: boolean
   closeHint: string
   ariaLabel: string
+  ariaHintAsDescription?: boolean
   renderFocusFrame: (group: string) => ReactNode
   onInteract: (id: string) => void
   onDoorTransitionComplete?: (entityId: string, completion: SceneDoorTransitionCompletion) => void
@@ -290,7 +291,7 @@ function DialogueText({ group, text, onReadyChange }: { group: string; text: str
   </span>
 }
 
-function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph, doorPhase, focusGroup, focusPolicy, gateTriggered, frameRetracting, active, closeHint, ariaLabel, renderFocusFrame, onInteract, onDoorTransitionComplete, dataAttributes, characterPresentation }: MainlineDoorButtonProps) {
+function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph, doorPhase, focusGroup, focusPolicy, gateTriggered, frameRetracting, active, closeHint, ariaLabel, ariaHintAsDescription = false, renderFocusFrame, onInteract, onDoorTransitionComplete, dataAttributes, characterPresentation }: MainlineDoorButtonProps) {
   const visualOpen = sceneDoorIsVisuallyOpen(cell.doorBehavior, doorPhase)
   return (
     <button
@@ -298,7 +299,8 @@ function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph
       type="button"
       style={style}
       onClick={(event) => { event.stopPropagation(); onInteract(entityId) }}
-      aria-label={`${ariaLabel}；${closeHint}`}
+      aria-label={ariaHintAsDescription ? ariaLabel : `${ariaLabel}；${closeHint}`}
+      aria-description={ariaHintAsDescription ? closeHint : undefined}
       data-focus-target-id={cell.id}
       data-focus-target-group={focusGroup}
       data-focus-target-policy={focusPolicy}
@@ -315,7 +317,7 @@ function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph
 
 /** The facade is a presentation of its authored cells, not a second doorway.
  * One clock updates all windows; the original button/SceneDoor owns input. */
-function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase, screenMetrics, renderFrame, onInteract, onDoorTransitionComplete, onMotionComplete, frameRetracting }: {
+function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase, screenMetrics, renderFrame, onInteract, onStorefrontInteract, onDoorTransitionComplete, onMotionComplete, frameRetracting }: {
   scene: MainlineSceneDefinition
   storefront: MainlineSceneDefinition['storefronts'][number]
   cells: ReturnType<typeof storefrontCharacterCells>
@@ -324,6 +326,7 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
   screenMetrics: SceneScreenMetrics
   renderFrame: (group: string) => ReactNode
   onInteract: (id: string) => void
+  onStorefrontInteract?: (storefrontId: string) => void
   onDoorTransitionComplete?: MainlineDoorButtonProps['onDoorTransitionComplete']
   onMotionComplete: (phase: 'revealing' | 'restoring') => void
   frameRetracting: boolean
@@ -373,8 +376,9 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
         className="scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door is-baseline"
         style={style} doorLabel={entity.displayLabel ?? entity.label} glyph={cell.glyph} doorPhase={doorPhase}
         focusGroup={doorGroup} focusPolicy="passage" gateTriggered={false} frameRetracting={frameRetracting}
-        active={false} closeHint={closeHint} ariaLabel={cell.access === 'locked' ? `门，${closeHint}` : '门，点击门后目标会在接近时自动开门并穿过'}
-        renderFocusFrame={renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete}
+        active={false} closeHint={closeHint} ariaLabel={storefront.label} ariaHintAsDescription
+        renderFocusFrame={renderFrame} onInteract={commercialStreetStorefrontInteractionFor(storefront.id)?.kind === 'action' && onStorefrontInteract
+          ? () => onStorefrontInteract(storefront.id) : onInteract} onDoorTransitionComplete={onDoorTransitionComplete}
         dataAttributes={attributes} characterPresentation={characters} />
       return <span key={cell.id} className="scene-spatial-glyph scene-mainline-wall is-baseline" style={style} {...attributes} aria-hidden="true">{characters}</span>
     })}
@@ -1000,10 +1004,15 @@ export function MainlineSceneRenderer({
       const callback = phase === 'revealing' ? onStorefrontRevealMotionComplete : onStorefrontRestoreMotionComplete
       if (!callback) return
       const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      timers.push(setTimeout(() => callback(slot.id), reducedMotion ? 1 : storefrontLabelRollDurationMs))
+      timers.push(setTimeout(() => {
+        callback(slot.id)
+        if (phase === 'revealing' && typeof window !== 'undefined') {
+          window.requestAnimationFrame(() => window.requestAnimationFrame(() => focusFrames.remeasureGroup(`door:${slot.portalId}`)))
+        }
+      }, reducedMotion ? 1 : storefrontLabelRollDurationMs))
     })
     return () => timers.forEach(clearTimeout)
-  }, [onStorefrontRestoreMotionComplete, onStorefrontRevealMotionComplete, storefrontPresentation, switchableStorefronts])
+  }, [focusFrames.remeasureGroup, onStorefrontRestoreMotionComplete, onStorefrontRevealMotionComplete, storefrontPresentation, switchableStorefronts])
   // Reading and an immediately following local Action are one interaction
   // lifecycle for the source content. Focus-frame targets intentionally keep
   // their neutral contract; this helper is only for the object/glyph content.
@@ -1150,7 +1159,7 @@ export function MainlineSceneRenderer({
             {activeSwitchableStorefronts.map(slot => <PortalStorefrontCharacters key={slot.id} scene={scene} storefront={slot}
               cells={switchCells.get(slot.id)!} phase={storefrontPresentation.get(slot.id) ?? 'baseline'}
               doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'} screenMetrics={renderScreenMetrics} renderFrame={focusFrames.renderFrame}
-              onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete}
+              onInteract={onInteract} onStorefrontInteract={onStorefrontInteract} onDoorTransitionComplete={onDoorTransitionComplete}
               frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === slot.portalId}
               onMotionComplete={phase => {
                 if (phase === 'revealing') {

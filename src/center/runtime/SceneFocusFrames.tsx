@@ -286,6 +286,33 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     }
   }, [frameNodesRevision, freezeMeasurements, targetGroups])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const timers: ReturnType<typeof setTimeout>[] = []
+    targetMap.forEach((target, group) => {
+      const runtime = runtimeRef.current.get(group)
+      if (!runtime || !runtime.transitionDirection) return
+      const direction = runtime.transitionDirection
+      const transitionStartedAt = runtime.transitionStartedAt
+      const duration = frameMeasurements.get(group)?.duration ?? sceneFrameDefaultMotionMs
+      const elapsed = window.performance.now() - transitionStartedAt
+      timers.push(window.setTimeout(() => {
+        const currentRuntime = runtimeRef.current.get(group)
+        const currentTarget = targetMap.get(group)
+        if (!currentRuntime || !currentTarget || currentRuntime.transitionDirection !== direction
+          || currentRuntime.transitionStartedAt !== transitionStartedAt) return
+        if (completeFrameTransition(
+          currentRuntime,
+          frameShouldCollapse(currentTarget, currentRuntime),
+          window.performance.now(),
+          duration,
+          true,
+        )) bump()
+      }, Math.max(0, duration - elapsed) + 50))
+    })
+    return () => timers.forEach(timer => window.clearTimeout(timer))
+  }, [bump, frameMeasurements, revision, targetMap])
+
   const onPointerDownCapture = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const element = targetElement(event)
     const group = element?.dataset.focusTargetGroup
@@ -342,7 +369,17 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     const runtime = runtimeSnapshot.get(group)
     if (!target || !runtime) return null
     const measurement = frameMeasurements.get(group)
-    if (!measurement) return null
+    if (!measurement) return (
+      <span
+        className="scene-focus-frame scene-focus-frame--measuring"
+        style={{ width: 0, height: 0, visibility: 'hidden', '--scene-focus-stroke-offset': 1, '--scene-focus-frame-duration': `${sceneFrameDefaultMotionMs}ms` } as CSSProperties}
+        data-focus-frame-group={group}
+        data-focus-frame-policy={target.policy}
+        data-focus-frame-phase={frameVisualPhase(runtime)}
+        aria-hidden="true"
+        ref={frameRefFor(group)}
+      ><svg viewBox={defaultFrameGeometry.viewBox} preserveAspectRatio="none"><path pathLength="1" d={defaultFrameGeometry.paths[runtime.corner]} onTransitionEnd={(event) => handleTransitionEnd(group, event)} /></svg></span>
+    )
     const collapsed = runtime.phase === 'hidden' || runtime.phase === 'retracting'
     const duration = measurement.duration
     const geometry = measurement.geometry

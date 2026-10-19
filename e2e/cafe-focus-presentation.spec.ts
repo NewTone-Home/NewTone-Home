@@ -6,18 +6,19 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
     await page.goto('/e2e/fixtures/center-presentation.html')
-    const host = page.locator('.scene-portal-characters')
-    const cells = host.locator('[data-storefront-cell-id]')
+    const host = page.locator('.scene-portal-characters[data-storefront-id="commercial-cafe-slot"]')
+    const cells = host.locator('[data-storefront-cell-id^="commercial-cafe-slot-"]')
+    const cafeDoor = host.locator('button[data-storefront-cell-id^="commercial-cafe-slot-"]')
     const large = host.locator('[data-focus-frame-group="storefront:commercial-cafe-slot:baseline"]')
     const small = host.locator('[data-focus-frame-group="door:street-cafe-entry"]')
     await expect(large).toHaveAttribute('data-focus-frame-phase', 'visible')
     await expect(cells).toHaveCount(3)
-    await expect(host.locator('button')).toHaveCount(1)
+    await expect(cafeDoor).toHaveCount(1)
     await expect(page.locator('.scene-mainline-storefront__replacement,.scene-storefront-door-character')).toHaveCount(0)
     const initial = await cells.evaluateAll(nodes => nodes.map(node => ({ id: (node as HTMLElement).dataset.storefrontCellId, left: (node as HTMLElement).style.left, top: (node as HTMLElement).style.top, width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height })))
     expect(new Set(initial.map(cell => cell.id)).size).toBe(3)
-    expect(new Set(initial.map(cell => cell.top)).size).toBe(3)
-    expect(await host.locator('.scene-character-switch__before').allTextContents()).toEqual(['咖', '啡', '馆'])
+    expect(new Set(initial.map(cell => cell.left)).size).toBe(3)
+    expect(await cells.locator('.scene-character-switch__before').allTextContents()).toEqual(['咖', '啡', '馆'])
     await page.screenshot({ path: info.outputPath('baseline.png') })
     await page.locator('[data-fixture-approach]').click()
     await expect(host).toHaveAttribute('data-storefront-label-phase', 'revealing')
@@ -27,7 +28,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
     const samples: number[] = []
     for (const [index, threshold] of [0.14, 0.48, 0.82].entries()) {
       const sampled = await page.waitForFunction(minimum => {
-        const progress = Number(document.querySelector<HTMLElement>('.scene-portal-characters')?.dataset.characterProgress)
+        const progress = Number(document.querySelector<HTMLElement>('.scene-portal-characters[data-storefront-id="commercial-cafe-slot"]')?.dataset.characterProgress)
         return progress >= minimum && progress < 1 ? progress : false
       }, threshold)
       const value = await sampled.jsonValue() as number
@@ -67,14 +68,14 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
     const final = await cells.evaluateAll(nodes => nodes.map(node => ({ id: (node as HTMLElement).dataset.storefrontCellId, left: (node as HTMLElement).style.left, top: (node as HTMLElement).style.top, width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height })))
     expect(final).toEqual(initial)
     expect(await host.locator('.scene-character-switch__after').allTextContents()).toEqual(['墙', '门', '墙'])
-    await host.locator('button').click()
+    await cafeDoor.click()
     expect(await page.evaluate(() => (window as Window & { fixtureInteractionId?: string }).fixtureInteractionId)).toBe('street-cafe-entry')
     await page.locator('[data-fixture-approach]').click()
     await expect(host).toHaveAttribute('data-storefront-label-phase', 'lingering')
     await expect(small).toHaveAttribute('data-focus-frame-phase', 'retracting')
     const departedAt = await page.evaluate(() => performance.now())
     await page.waitForFunction(start => {
-      const current = document.querySelector<HTMLElement>('.scene-portal-characters')
+      const current = document.querySelector<HTMLElement>('.scene-portal-characters[data-storefront-id="commercial-cafe-slot"]')
       return performance.now() - start >= 2_200 && current?.dataset.storefrontLabelPhase === 'lingering'
     }, departedAt)
     await page.locator('[data-fixture-approach]').click()
@@ -82,7 +83,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
     await page.locator('[data-fixture-approach]').click()
     await expect(host).toHaveAttribute('data-storefront-label-phase', 'restoring')
     await expect(small).toHaveAttribute('data-focus-frame-phase', 'collapsed')
-    await page.waitForFunction(() => Number(document.querySelector<HTMLElement>('.scene-portal-characters')?.dataset.characterProgress) <= .7)
+    await page.waitForFunction(() => Number(document.querySelector<HTMLElement>('.scene-portal-characters[data-storefront-id="commercial-cafe-slot"]')?.dataset.characterProgress) <= .7)
     await page.screenshot({ path: info.outputPath('restore-middle.png') })
     await page.locator('[data-fixture-approach]').click()
     await expect(host).toHaveAttribute('data-storefront-label-phase', 'revealing')
@@ -94,7 +95,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
       await page.waitForFunction(({ selector, threshold }) => {
         const node = document.querySelector<HTMLElement>(selector)
         return node && Number(node.dataset.characterProgress) <= threshold
-      }, { selector: '.scene-portal-characters', threshold: progress })
+      }, { selector: '.scene-portal-characters[data-storefront-id="commercial-cafe-slot"]', threshold: progress })
       expect(await host.getAttribute('data-storefront-label-phase')).toBe('restoring')
       await page.screenshot({ path: info.outputPath(`restore-${[25, 50, 75][index]}pct.png`) })
     }
@@ -108,7 +109,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
 test('reduced motion shortens glyph motion while preserving the departure state', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/e2e/fixtures/center-presentation.html')
-  const host = page.locator('.scene-portal-characters')
+  const host = page.locator('.scene-portal-characters[data-storefront-id="commercial-cafe-slot"]')
   await page.locator('[data-fixture-approach]').click()
   await expect(host).toHaveAttribute('data-storefront-label-phase', 'revealed')
   await expect(host).toHaveAttribute('data-character-motion-duration', '1')
