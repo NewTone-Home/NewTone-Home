@@ -863,6 +863,11 @@ export function MainlineSceneRenderer({
   const renderScreenMetrics = geometrySnapshot.screenMetrics
   const geometryUnits = geometrySnapshot.units
   const switchableStorefronts = useMemo(() => scene.storefronts.filter(slot => slot.portalId && slot.characterSwitch), [scene.storefronts])
+  const switchCells = useMemo(() => new Map(switchableStorefronts.map(slot => {
+    const projected = mainlineSceneGeometryUnits(scene, mainlineStorefrontApproach(scene, slot), renderScreenMetrics, new Map([[slot.id, 'revealed']]))
+    return [slot.id, storefrontCharacterCells(scene, slot, projected)] as const
+  })), [renderScreenMetrics, scene, switchableStorefronts])
+  const activeSwitchableStorefronts = useMemo(() => switchableStorefronts.filter(slot => (switchCells.get(slot.id)?.length ?? 0) > 0), [switchCells, switchableStorefronts])
   const storefrontLabelGeometry = useMemo(() => new Map(switchableStorefronts.flatMap(slot => {
     const geometry = storefrontContactGeometry(slot, geometryUnits, renderScreenMetrics, true)
     return geometry ? [[slot.id, geometry] as const] : []
@@ -873,7 +878,14 @@ export function MainlineSceneRenderer({
     () => new Set(activeStorefrontId ? [activeStorefrontId] : []),
     [activeStorefrontId],
   )
-  const geometryCells = useMemo(() => geometryUnits.flatMap((unit) => unit.visual.cells.map((cell) => ({
+  const geometryCells = useMemo(() => geometryUnits.flatMap((unit) => unit.visual.cells
+    .filter(cell => {
+      const slot = unit.storefrontId ? activeSwitchableStorefronts.find(candidate => candidate.id === unit.storefrontId) : undefined
+      if (!slot) return true
+      if (unit.id.startsWith(`${slot.id}-base-`)) return false
+      if (cell.kind === 'door' && (cell.entityId === slot.portalId || unit.entityId === slot.portalId)) return false
+      return !(cell.kind === 'storefront' && cell.storefrontRole === 'sign')
+    }).map((cell) => ({
     unit,
     // The compiled geometry unit owns storefront identity. Carry it into
     // every visual cell so a vertical label cannot split into one focus group
@@ -881,7 +893,7 @@ export function MainlineSceneRenderer({
     cell: cell.kind === 'storefront' && unit.storefrontId
       ? { ...cell, storefrontId: unit.storefrontId }
       : cell,
-  }))), [geometryUnits])
+  }))), [activeSwitchableStorefronts, geometryUnits])
 
   const focusGroupCells = useMemo(() => {
     const groups = new Map<string, MainlineGeometryCellEntry[]>()
@@ -1133,6 +1145,17 @@ export function MainlineSceneRenderer({
         <div className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''}`} style={{ transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%)` }}>
           <>
           <div className="scene-spatial-labels scene-spatial-labels--wall scene-mainline-wall-labels">
+            {activeSwitchableStorefronts.map(slot => <PortalStorefrontCharacters key={slot.id} scene={scene} storefront={slot}
+              cells={switchCells.get(slot.id)!} phase={storefrontPresentation.get(slot.id) ?? 'baseline'}
+              doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'} renderFrame={focusFrames.renderFrame}
+              onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete}
+              frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === slot.portalId}
+              onMotionComplete={phase => {
+                if (phase === 'revealing') {
+                  onStorefrontRevealMotionComplete?.(slot.id)
+                  focusFrames.remeasureGroup(`door:${slot.portalId}`)
+                } else onStorefrontRestoreMotionComplete?.(slot.id)
+              }} />)}
             {geometryCells.map(({ unit, cell }) => {
               if (cell.glyph === '') return null
               const visibilityClass = mainlineWallCellVisibility(cell, unit)

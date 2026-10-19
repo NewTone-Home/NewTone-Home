@@ -81,10 +81,10 @@ describe('commercial street storefront presentation', () => {
         .sort((first, second) => along(second) - along(first))[0]
       const wallAfter = source.filter(({ cell }) => cell.kind === 'wall' && along({ unit: passageAnchor, cell }) > doorTangent)
         .sort((first, second) => along(first) - along(second))[0]
-      expect(cells.map(({ id, x, y }) => [id, x, y])).toEqual([
-        [wallBefore.cell.id, wallBefore.cell.x, wallBefore.cell.y],
-        [sourceDoor?.cell.id ?? `${cafe.id}-base-cell-1`, doorPosition.x, doorPosition.y],
-        [wallAfter.cell.id, wallAfter.cell.x, wallAfter.cell.y],
+      expect(cells.map(({ x, y }) => [x, y])).toEqual([
+        [wallBefore.cell.x, wallBefore.cell.y],
+        [doorPosition.x, doorPosition.y],
+        [wallAfter.cell.x, wallAfter.cell.y],
       ])
       expect(new Set(cells.map(cell => `${cell.x},${cell.y}`)).size).toBe(3)
       const baselineUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[cafe.id, 'baseline']]))
@@ -92,6 +92,24 @@ describe('commercial street storefront presentation', () => {
       const physical = (units: typeof baselineUnits) => units.filter(unit => unit.navigation.blocked).map(({ id, x, y, width, height, navigation }) => ({ id, x, y, width, height, navigation }))
       expect(physical(revealedUnits)).toEqual(physical(baselineUnits))
       expect(projected.some(unit => unit.navigation.passageId === cafe.portalId)).toBe(true)
+    }
+  })
+
+  it('projects every label length onto one unique compiled door', () => {
+    const fourCharacter = { ...cafe, id: cafe.id, label: '春日茶饮' }
+    for (const storefront of [...street.storefronts, fourCharacter]) {
+      const projected = mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, storefront), { width: 1280, height: 720 }, new Map([[storefront.id, 'revealed']]))
+      const cells = storefrontCharacterCells(street, storefront, projected)
+      expect(cells.map(cell => cell.baselineGlyph).join('')).toBe(storefront.label)
+      expect(cells).toHaveLength(Array.from(storefront.label).length)
+      expect(cells.filter(cell => cell.role === 'door')).toHaveLength(1)
+      expect(cells.filter(cell => cell.entityId === storefront.portalId)).toHaveLength(1)
+      const realDoor = projected.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
+        .find(({ unit, cell }) => unit.storefrontId === storefront.id && cell.kind === 'door' && cell.entityId === storefront.portalId)
+      expect(realDoor, storefront.id).toBeDefined()
+      const doorCharacter = cells.find(cell => cell.role === 'door')!
+      expect(doorCharacter.x).toBeCloseTo(realDoor!.cell.x)
+      expect(doorCharacter.y).toBeCloseTo(realDoor!.cell.y)
     }
   })
 

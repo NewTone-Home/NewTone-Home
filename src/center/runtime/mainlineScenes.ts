@@ -493,8 +493,16 @@ function compileMainlineFrameUnits(
       // shop sign is only painted over that base; it must never replace the
       // door or become a second navigation/collision source.
       if (hasNearProjection && door && passageId) {
-        const baseRoles: readonly MainlineStorefrontRole[] = ['wall', 'door', 'wall']
-        baseRoles.forEach((role, index) => {
+        const doorCoordinate = vertical ? door.position.y : door.position.x
+        const doorIndex = canonicalStorefrontCells.reduce((bestIndex, cell, index) => {
+          const bestDistance = Math.abs(canonicalStorefrontCells[bestIndex]!.center[vertical ? 'y' : 'x'] - doorCoordinate)
+          const distance = Math.abs(cell.center[vertical ? 'y' : 'x'] - doorCoordinate)
+          return distance < bestDistance ? index : bestIndex
+        }, 0)
+        const baseIndices = [doorIndex - 1, doorIndex, doorIndex + 1]
+          .filter(index => index >= 0 && index < canonicalStorefrontCells.length)
+        baseIndices.forEach((index) => {
+          const role: MainlineStorefrontRole = index === doorIndex ? 'door' : 'wall'
           const canonicalCell = canonicalStorefrontCells[index]
           if (!canonicalCell) return
           const cell = {

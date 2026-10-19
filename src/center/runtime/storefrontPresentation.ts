@@ -98,7 +98,7 @@ export function storefrontCharacterCells(
 ) {
   const roles = storefront.composition?.near ?? []
   const labels = Array.from(storefront.label)
-  if (!storefront.characterSwitch || roles.length !== 3 || roles[0] !== 'wall' || roles[1] !== 'door' || roles[2] !== 'wall' || labels.length !== roles.length) return []
+  if (!storefront.characterSwitch || labels.length === 0 || !roles.includes('door')) return []
 
   const entries = geometryUnits.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
   const onStorefrontEdge = ({ unit }: typeof entries[number]) => unit.sourceWallId === storefront.wallId && unit.edge === storefront.edge
@@ -137,15 +137,34 @@ export function storefrontCharacterCells(
     .sort((first, second) => tangent(first) - tangent(second))[0]
   if (!before || !after) return []
 
-  return [before, resolvedDoor, after].map((entry, index) => ({
-    id: entry.cell.id,
-    x: entry.cell.x,
-    y: entry.cell.y,
-    role: roles[index],
-    baselineGlyph: labels[index],
-    glyph: entry.cell.glyph ?? (roles[index] === 'door' ? '门' : '墙'),
-    ...(entry.cell.kind === 'door' ? { entityId: entry.cell.entityId ?? entry.unit.entityId } : {}),
-  }))
+  const anchors = [before, resolvedDoor, after]
+  const doorIndex = Math.floor((labels.length - 1) / 2)
+  return labels.map((baselineGlyph, index) => {
+    const position = labels.length === 1 ? resolvedDoor
+      : index <= doorIndex && doorIndex > 0
+        ? interpolateStorefrontEntry(before, resolvedDoor, index / doorIndex)
+        : interpolateStorefrontEntry(resolvedDoor, after, (index - doorIndex) / Math.max(1, labels.length - 1 - doorIndex))
+    const role = index === doorIndex ? 'door' : 'wall'
+    const nearest = anchors.reduce((best, entry) => {
+      const distance = Math.hypot(entry.cell.x - position.cell.x, entry.cell.y - position.cell.y)
+      const bestDistance = Math.hypot(best.cell.x - position.cell.x, best.cell.y - position.cell.y)
+      return distance < bestDistance ? entry : best
+    })
+    return {
+      id: `${storefront.id}-character-${index}`,
+      x: position.cell.x,
+      y: position.cell.y,
+      role,
+      baselineGlyph,
+      glyph: role === 'door' ? (resolvedDoor.cell.glyph ?? '') : (nearest.cell.glyph ?? ''),
+      ...(role === 'door' ? { entityId: resolvedDoor.cell.entityId ?? resolvedDoor.unit.entityId ?? storefront.portalId } : {}),
+    }
+  })
+}
+
+function interpolateStorefrontEntry<T extends { cell: { x: number; y: number } }>(start: T, end: T, progress: number): T {
+  const t = Math.max(0, Math.min(1, progress))
+  return { ...start, cell: { ...start.cell, x: start.cell.x + (end.cell.x - start.cell.x) * t, y: start.cell.y + (end.cell.y - start.cell.y) * t } }
 }
 
 /** All cells consume the same normalized animation clock. */
