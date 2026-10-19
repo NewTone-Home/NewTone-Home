@@ -6,7 +6,7 @@ import EntryButtonSurface from '../../components/EntryButtonSurface'
 import type { CollisionBox, Point } from './sceneGeometry'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import { mainlineEntityBelongsToActiveRoom, type MainlineSceneDialogueLine, type MainlineSceneDialoguePresentation } from './mainlineSceneModel'
-import { mainlineGeometryUnitShouldRender } from './mainlineSceneVisibility'
+import { mainlineGeometryCellWithinViewport, mainlineGeometryUnitShouldRender } from './mainlineSceneVisibility'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { SceneCharacters, SceneCharacterSwitch } from './SceneCharacters'
@@ -907,11 +907,13 @@ export function MainlineSceneRenderer({
   }))), [activeSwitchableStorefronts, geometryUnits, switchCells])
 
   // In the continuous commercial street, room ownership only controls room
-  // contents. Shell walls stay mounted across doorway transitions so their
-  // visual ownership matches the persistent collision/navigation geometry.
-  const renderedGeometryCells = useMemo(() => geometryCells.filter(({ unit }) => (
-    mainlineGeometryUnitShouldRender(scene.id, unit, activeShellRoomId, layoutMode)
-  )), [activeShellRoomId, geometryCells, layoutMode, scene.id])
+  // contents. Shell glyphs are culled by camera visibility, never by room
+  // transitions, while their collision/navigation geometry stays persistent.
+  const renderedGeometryCells = useMemo(() => geometryCells.filter(({ unit, cell }) => {
+    if (!mainlineGeometryUnitShouldRender(scene.id, unit, activeShellRoomId, layoutMode)) return false
+    if (scene.id !== 'commercial-street' || !unit.sourceWallId?.endsWith('-shell')) return true
+    return mainlineGeometryCellWithinViewport(cell, cameraOffset)
+  }), [activeShellRoomId, cameraOffset, geometryCells, layoutMode, scene.id])
 
   const focusGroupCells = useMemo(() => {
     const groups = new Map<string, MainlineGeometryCellEntry[]>()

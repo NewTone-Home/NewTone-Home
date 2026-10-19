@@ -156,18 +156,18 @@ The committed Stage 2 code, tests, and full source comparison were linked from t
 
 ### What changed
 
-- `src/center/runtime/mainlineSceneVisibility.ts` now makes every `commercial-street` shell geometry unit render independent of active room. Other scenes retain their prior shell ownership filter.
+- `src/center/runtime/mainlineSceneVisibility.ts` keeps every `commercial-street` shell geometry unit eligible independent of active room, then culls individual glyphs only when their camera-translated world position is outside the viewport plus 5% text overscan. Other scenes retain their prior shell ownership filter.
 - `src/center/runtime/MainlineSceneRenderer.tsx` uses that policy for the visual geometry list. Room furniture remains gated by `mainlineEntityBelongsToActiveRoom`; the scene geometry snapshot, collision, passages and walk graph are not conditionally removed.
 - `src/center/runtime/storefrontPresentation.ts` only selects a near-sign owner while the player is within `commercial-street-public-lane`.
 - `src/center/runtime/useStorefrontPresentation.ts` restores all sign phases to baseline immediately when the player is within a shop room, avoiding the leave linger from leaving the public lane.
-- `tests/mainlineSceneVisibility.test.ts` checks that all 14 shell owners stay mounted across lane/N2/S5 ownership, and that a S5 fixture remains visible only in S5. `tests/storefrontPresentation.test.ts` checks public-lane sign ownership and no owner inside a shop.
+- `tests/mainlineSceneVisibility.test.ts` checks that all 14 shell owners remain scene-owned across lane/N2/S5 ownership, viewport-only glyph culling, and that a S5 fixture remains visible only in S5. `tests/storefrontPresentation.test.ts` checks public-lane sign ownership and no owner inside a shop.
 - `scripts/profile-commercial-street-door.mjs` records page-clock `PerformanceObserver` long tasks, request-animation-frame deltas, DOM/shell snapshots and a CDP timeline trace. It captures no screenshots.
 
 ### Before/after evidence
 
 Same-device baseline was measured against the 1180x757, scale-1 `commercial-street` preview before this change. Entering N1 changed wall glyphs from 198 to 249 and total DOM nodes from 628 to 760; returning changed them back to 198 and 627. Shop objects changed 0 -> 13 -> 0. The local sample recorded three long tasks during the approach/entry interval (225, 310, 116 ms) and three during return (196, 307, 67 ms). Those intervals include walking and door presentation, so the measurements do not attribute the delay to one component. The trace/profile does not provide a verified per-frame CPU cause.
 
-After this change, the focused unit runs pass (49 tests across four files). The structural regression asserts all 14 shell source-wall IDs remain rendered for no room, N2 and S5 ownership. Browser profile after-change data is still pending until this branch's deployment is available; no post-change latency improvement is claimed here.
+The first persistent-shell Preview (f621d9d) measured a stable 936 wall glyphs and 42 focus groups outside and inside, with furniture 0/13/0. Its high offscreen DOM count prompted the viewport-only cull below. On that intermediate build, return had 0 >32ms rAF deltas/0 LongTasks, while entry still saw 227/346ms LongTasks; one run per build is not enough to claim a reliable performance improvement. The final viewport-cull build still needs a same-device browser profile. Across the focused unit suite, 49 tests across four files passed before adding the viewport-cull assertion; the final run result is recorded at release below.
 
 ### Focused code delta
 
@@ -193,6 +193,17 @@ export function mainlineGeometryUnitShouldRender(sceneId, unit, activeRoomId, la
   if (!shellRoomId) return true
   if (sceneId === 'commercial-street') return true
   return shellRoomId === activeRoomId
+}
+```
+
+The renderer additionally culls shell cells against their camera-translated viewport coordinates (with 5% overscan), never against `activeShellRoomId`:
+
+```ts
+export function mainlineGeometryCellWithinViewport(cell, cameraOffset, overscan = 5) {
+  const viewportX = cell.x + cameraOffset.x
+  const viewportY = cell.y + cameraOffset.y
+  return viewportX >= -overscan && viewportX <= 100 + overscan
+    && viewportY >= -overscan && viewportY <= 100 + overscan
 }
 ```
 

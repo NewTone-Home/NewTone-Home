@@ -1,4 +1,5 @@
 import type { MainlineSceneGeometryUnit } from './mainlineScenes'
+import type { Point } from './sceneGeometry'
 
 /**
  * Storefront shell geometry belongs to the continuous commercial-street
@@ -18,4 +19,16 @@ export function mainlineGeometryUnitShouldRender(
   if (!shellRoomId) return true
   if (sceneId === 'commercial-street') return true
   return shellRoomId === activeRoomId
+}
+
+/** Cull only shell glyphs outside the translated viewport, with small text overdraw. */
+export function mainlineGeometryCellWithinViewport(
+  cell: { x: number; y: number },
+  cameraOffset: Point,
+  overscan = 5,
+) {
+  const viewportX = cell.x + cameraOffset.x
+  const viewportY = cell.y + cameraOffset.y
+  return viewportX >= -overscan && viewportX <= 100 + overscan
+    && viewportY >= -overscan && viewportY <= 100 + overscan
 }

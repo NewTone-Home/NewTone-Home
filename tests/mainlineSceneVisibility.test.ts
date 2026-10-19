@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineCanonicalSceneGeometryUnits, mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineEntityBelongsToActiveRoom } from '../src/center/runtime/mainlineSceneModel'
-import { mainlineGeometryUnitShouldRender } from '../src/center/runtime/mainlineSceneVisibility'
+import { mainlineGeometryCellWithinViewport, mainlineGeometryUnitShouldRender } from '../src/center/runtime/mainlineSceneVisibility'
 
 describe('continuous commercial-street shell visibility', () => {
-  it('keeps every shell wall mounted across street and room ownership changes', () => {
+  it('keeps all 14 shell owners scene-owned across street and room ownership changes', () => {
     const street = mainlineScenes['commercial-street']
     const units = mainlineCanonicalSceneGeometryUnits(street, { width: 1180, height: 757 })
     const shellUnits = units.filter((unit) => unit.sourceWallId?.endsWith('-shell'))
@@ -13,6 +13,12 @@ describe('continuous commercial-street shell visibility', () => {
     for (const activeRoomId of [undefined, 'commercial-north-n2-interior', 'commercial-south-s5-interior']) {
       expect(shellUnits.every((unit) => mainlineGeometryUnitShouldRender(street.id, unit, activeRoomId, false))).toBe(true)
     }
+  })
+
+  it('culls shell glyphs by the translated viewport with overscan, not active room', () => {
+    expect(mainlineGeometryCellWithinViewport({ x: 102, y: 50 }, { x: -4, y: 0 })).toBe(true)
+    expect(mainlineGeometryCellWithinViewport({ x: 110, y: 50 }, { x: -4, y: 0 })).toBe(false)
+    expect(mainlineGeometryCellWithinViewport({ x: 22, y: -7 }, { x: 0, y: 0 })).toBe(false)
   })
 
   it('still scopes room furniture independently of shell geometry visibility', () => {
