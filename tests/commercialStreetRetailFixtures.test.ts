@@ -8,15 +8,15 @@ const street = mainlineScenes['commercial-street']
 const steps = boundaryGridStepsFromScreenSpacing()
 
 const retailStores = [
-  { key: 'n2-creative', storefrontId: 'commercial-north-slot-2', roomId: 'commercial-north-n2-interior', counterRow: 8 },
-  { key: 'n3-beauty', storefrontId: 'commercial-north-slot-3', roomId: 'commercial-north-n3-interior', counterRow: 10 },
-  { key: 'n4-eyewear', storefrontId: 'commercial-north-slot-4', roomId: 'commercial-north-n4-interior', counterRow: 9 },
-  { key: 'n5-toys', storefrontId: 'commercial-north-slot-5', roomId: 'commercial-north-n5-interior', counterRow: 9 },
-  { key: 'n6-fragrance', storefrontId: 'commercial-north-slot-6', roomId: 'commercial-north-n6-interior', counterRow: 10 },
-  { key: 's1-fashion', storefrontId: 'commercial-south-slot-1', roomId: 'commercial-south-s1-interior', counterRow: 11 },
-  { key: 's4-clothing', storefrontId: 'commercial-south-slot-4', roomId: 'commercial-south-s4-interior', counterRow: 10 },
-  { key: 's7-jewelry', storefrontId: 'commercial-south-slot-7', roomId: 'commercial-south-s7-interior', counterRow: 8 },
-  { key: 's8-clothing', storefrontId: 'commercial-south-slot-8', roomId: 'commercial-south-s8-interior', counterRow: 9 },
+  { key: 'n2-creative', storefrontId: 'commercial-north-slot-2', roomId: 'commercial-north-n2-interior', counterRow: 9, counterLength: 4 },
+  { key: 'n3-beauty', storefrontId: 'commercial-north-slot-3', roomId: 'commercial-north-n3-interior', counterRow: 8, counterLength: 5 },
+  { key: 'n4-eyewear', storefrontId: 'commercial-north-slot-4', roomId: 'commercial-north-n4-interior', counterRow: 7, counterLength: 4 },
+  { key: 'n5-toys', storefrontId: 'commercial-north-slot-5', roomId: 'commercial-north-n5-interior', counterRow: 7, counterLength: 4 },
+  { key: 'n6-fragrance', storefrontId: 'commercial-north-slot-6', roomId: 'commercial-north-n6-interior', counterRow: 8, counterLength: 5 },
+  { key: 's1-fashion', storefrontId: 'commercial-south-slot-1', roomId: 'commercial-south-s1-interior', counterRow: 8, counterLength: 5 },
+  { key: 's4-clothing', storefrontId: 'commercial-south-slot-4', roomId: 'commercial-south-s4-interior', counterRow: 7, counterLength: 4 },
+  { key: 's7-jewelry', storefrontId: 'commercial-south-slot-7', roomId: 'commercial-south-s7-interior', counterRow: 8, counterLength: 4 },
+  { key: 's8-clothing', storefrontId: 'commercial-south-slot-8', roomId: 'commercial-south-s8-interior', counterRow: 7, counterLength: 5 },
 ] as const
 
 function localCell(roomId: string, point: { x: number; y: number }) {
@@ -93,7 +93,7 @@ describe('commercial street ordinary retail shell fixtures', () => {
       const entry = mainlineStorefrontApproach(street, storefront)
       const browsePoint = storeCell(store.roomId, 4, 7)
       const customerCounterPoint = storeCell(store.roomId, 7, store.counterRow + 0.5)
-      const employeePoint = storeCell(store.roomId, 9, store.counterRow + 0.5)
+      const employeePoint = storeCell(store.roomId, 9, store.counterRow + store.counterLength + 0.5)
       const storageLabel = street.objects.find((entity) => entity.id === `commercial-retail-${store.key}-storage-label-1`)!
       expect(findMainlinePath(entry, browsePoint, street), `${store.key} entry to browse`).not.toBeNull()
       expect(findMainlinePath(entry, customerCounterPoint, street), `${store.key} entry to counter customer side`).not.toBeNull()
@@ -103,7 +103,7 @@ describe('commercial street ordinary retail shell fixtures', () => {
     }
   })
 
-  it('matches every retail character fixture to continuous barrier collision while keeping counters two cells wide', () => {
+  it('matches fixture glyphs to continuous barriers and keeps counters 4–5 cells long with readable north/south order', () => {
     const retailRuns = street.continuousStructures.filter((structure) => structure.id.startsWith('commercial-retail-'))
     const retailEntities = street.objects.filter((entity) => entity.id.startsWith('commercial-retail-') && !entity.id.includes('-storage-label-'))
     expect(retailRuns.every((run) => run.kind === 'barrier')).toBe(true)
@@ -119,13 +119,41 @@ describe('commercial street ordinary retail shell fixtures', () => {
 
     for (const store of retailStores) {
       const counter = street.objects.filter((entity) => entity.id.startsWith(`commercial-retail-${store.key}-counter-`))
-        .sort((a, b) => localCell(store.roomId, a.position).row - localCell(store.roomId, b.position).row)
-      expect(counter.map((entity) => entity.label).join(''), store.key).toBe('柜台')
+        .sort((a, b) => a.position.y - b.position.y)
+      const expected = Array.from({ length: store.counterLength }, (_, index) => index % 2 === 0 ? '柜' : '台').join('')
+      expect(counter.map((entity) => entity.label).join(''), store.key).toBe(expected)
+      expect(counter).toHaveLength(store.counterLength)
       expect(counter.every((entity) => Array.from(entity.label).length === 1)).toBe(true)
       expect(counter.every((entity) => Math.abs(localCell(store.roomId, entity.position).column - 8) < 0.01)).toBe(true)
-      expect(Math.abs(localCell(store.roomId, counter[1]!.position).row - localCell(store.roomId, counter[0]!.position).row)).toBeCloseTo(1)
+      const rows = counter.map((entity) => localCell(store.roomId, entity.position).row).sort((a, b) => a - b)
+      expect(rows.every((row, index) => index === 0 || Math.abs(row - rows[index - 1]! - 1) < 0.01)).toBe(true)
       const body = retailRuns.find((candidate) => candidate.id === `commercial-retail-${store.key}-counter-body`)!
-      expect(body.height).toBeCloseTo(2 * steps.vertical)
+      expect(body.height).toBeCloseTo(store.counterLength * steps.vertical)
+    }
+  })
+
+  it('connects three open storage nooks to their side walls without double glyphs at corners', () => {
+    for (const { key, roomId, storefrontId, side } of [
+      { key: 'n2-creative', roomId: 'commercial-north-n2-interior', storefrontId: 'commercial-north-slot-2', side: 'west' },
+      { key: 's4-clothing', roomId: 'commercial-south-s4-interior', storefrontId: 'commercial-south-slot-4', side: 'west' },
+      { key: 's7-jewelry', roomId: 'commercial-south-s7-interior', storefrontId: 'commercial-south-slot-7', side: 'east' },
+    ] as const) {
+      const fixtures = street.objects.filter((entity) => entity.roomId === roomId && entity.id.startsWith(`commercial-retail-${key}-storage-`))
+      const connector = street.continuousStructures.find((body) => body.id === `commercial-retail-${key}-storage-connector-body`)!
+      const ret = street.continuousStructures.find((body) => body.id === `commercial-retail-${key}-storage-return-body`)!
+      const sideCol = side === 'west' ? 0 : 10
+      const innerCol = side === 'west' ? 2 : 8
+      const elbow = storeCell(roomId, innerCol, 17)
+      const sidePoint = storeCell(roomId, sideCol, 17)
+      expect(fixtures.filter((entity) => Math.abs(entity.position.x - elbow.x) < 0.01 && Math.abs(entity.position.y - elbow.y) < 0.01)).toHaveLength(1)
+      expect(fixtures.filter((entity) => Math.abs(entity.position.x - sidePoint.x) < 0.01 && Math.abs(entity.position.y - sidePoint.y) < 0.01)).toHaveLength(0)
+      expect(connector.x).toBeLessThanOrEqual(sidePoint.x)
+      expect(connector.x + connector.width).toBeGreaterThanOrEqual(sidePoint.x)
+      expect(ret.x + ret.width / 2).toBeCloseTo(elbow.x, 1)
+      const storage = street.objects.find((entity) => entity.id === `commercial-retail-${key}-storage-label-1`)!
+      const entry = mainlineStorefrontApproach(street, street.storefronts.find((item) => item.id === storefrontId)!)
+      expect(findMainlinePath(storeCell(roomId, 4, 7), storage.position, street), `${key} open nook route`).not.toBeNull()
+      expect(findMainlinePath(entry, storage.position, street), `${key} entry to nook`).not.toBeNull()
     }
   })
 

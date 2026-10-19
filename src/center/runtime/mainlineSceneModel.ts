@@ -1297,13 +1297,16 @@ const commercialStreetShellFurniture = (() => {
     id: string,
     cells: readonly { column: number; row: number; glyph: string }[],
     orientation: 'horizontal' | 'vertical',
+    omittedGlyphIndexes: readonly number[] = [],
   ) => {
     if (cells.length === 0) throw new Error(`Retail run ${id} has no cells`)
     const points = cells.map(({ column, row }) => cell(sample, column, row))
     if (cells.some(({ glyph }) => Array.from(glyph).length !== 1)) {
       throw new Error(`Retail run ${id} must use one character per grid cell`)
     }
+    const omitted = new Set(omittedGlyphIndexes)
     points.forEach((position, index) => {
+      if (omitted.has(index)) return
       entities.push(floor({
         id: `${id}-${index + 1}`,
         label: cells[index]!.glyph,
@@ -1346,8 +1349,10 @@ const commercialStreetShellFurniture = (() => {
     storefrontId: string
     key: string
     counterRow: number
+    counterLength: 4 | 5
     storageColumn: number
-    partitionColumn?: number
+    storageSide: 'west' | 'east'
+    storageNook?: 'west' | 'east'
     displays: readonly {
       id: string
       orientation: 'horizontal' | 'vertical'
@@ -1356,7 +1361,7 @@ const commercialStreetShellFurniture = (() => {
   }
   const retailPlans: readonly CommercialRetailPlan[] = [
     {
-      storefrontId: 'commercial-north-slot-2', key: 'n2-creative', counterRow: 8, partitionColumn: 1, storageColumn: 3,
+      storefrontId: 'commercial-north-slot-2', key: 'n2-creative', counterRow: 9, counterLength: 4, storageColumn: 1, storageSide: 'west', storageNook: 'west',
       displays: [
         { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }] },
         { id: 'east-wall', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }] },
@@ -1365,21 +1370,21 @@ const commercialStreetShellFurniture = (() => {
       ],
     },
     {
-      storefrontId: 'commercial-north-slot-3', key: 'n3-beauty', counterRow: 10, storageColumn: 6,
+      storefrontId: 'commercial-north-slot-3', key: 'n3-beauty', counterRow: 8, counterLength: 5, storageColumn: 7, storageSide: 'east',
       displays: [
         { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }] },
         { id: 'east-wall', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }, { column: 9, row: 8, glyph: '架' }] },
       ],
     },
     {
-      storefrontId: 'commercial-north-slot-4', key: 'n4-eyewear', counterRow: 9, storageColumn: 3,
+      storefrontId: 'commercial-north-slot-4', key: 'n4-eyewear', counterRow: 7, counterLength: 4, storageColumn: 1, storageSide: 'west',
       displays: [
         { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }] },
         { id: 'east-wall-front', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }] },
       ],
     },
     {
-      storefrontId: 'commercial-north-slot-5', key: 'n5-toys', counterRow: 9, storageColumn: 6,
+      storefrontId: 'commercial-north-slot-5', key: 'n5-toys', counterRow: 7, counterLength: 4, storageColumn: 7, storageSide: 'east',
       displays: [
         { id: 'display-a', orientation: 'horizontal', cells: [{ column: 2, row: 7, glyph: '架' }] },
         { id: 'display-b', orientation: 'horizontal', cells: [{ column: 8, row: 6, glyph: '架' }] },
@@ -1388,35 +1393,35 @@ const commercialStreetShellFurniture = (() => {
       ],
     },
     {
-      storefrontId: 'commercial-north-slot-6', key: 'n6-fragrance', counterRow: 10, storageColumn: 3,
+      storefrontId: 'commercial-north-slot-6', key: 'n6-fragrance', counterRow: 8, counterLength: 5, storageColumn: 1, storageSide: 'west',
       displays: [
         { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }] },
         { id: 'east-wall', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }] },
       ],
     },
     {
-      storefrontId: 'commercial-south-slot-1', key: 's1-fashion', counterRow: 11, storageColumn: 6,
+      storefrontId: 'commercial-south-slot-1', key: 's1-fashion', counterRow: 8, counterLength: 5, storageColumn: 7, storageSide: 'east',
       displays: [
         { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }] },
         { id: 'east-wall-rear', orientation: 'vertical', cells: [{ column: 9, row: 9, glyph: '架' }, { column: 9, row: 10, glyph: '架' }] },
       ],
     },
     {
-      storefrontId: 'commercial-south-slot-4', key: 's4-clothing', counterRow: 10, partitionColumn: 1, storageColumn: 3,
+      storefrontId: 'commercial-south-slot-4', key: 's4-clothing', counterRow: 7, counterLength: 4, storageColumn: 1, storageSide: 'west', storageNook: 'west',
       displays: [
         { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }, { column: 1, row: 9, glyph: '架' }] },
         { id: 'east-wall', orientation: 'vertical', cells: [{ column: 9, row: 7, glyph: '架' }, { column: 9, row: 8, glyph: '架' }, { column: 9, row: 9, glyph: '架' }] },
       ],
     },
     {
-      storefrontId: 'commercial-south-slot-7', key: 's7-jewelry', counterRow: 8, partitionColumn: 9, storageColumn: 6,
+      storefrontId: 'commercial-south-slot-7', key: 's7-jewelry', counterRow: 8, counterLength: 4, storageColumn: 8, storageSide: 'east', storageNook: 'east',
       displays: [
         { id: 'near-counter-a', orientation: 'horizontal', cells: [{ column: 5, row: 7, glyph: '架' }, { column: 6, row: 7, glyph: '架' }] },
         { id: 'near-counter-b', orientation: 'horizontal', cells: [{ column: 6, row: 10, glyph: '架' }] },
       ],
     },
     {
-      storefrontId: 'commercial-south-slot-8', key: 's8-clothing', counterRow: 9, storageColumn: 3,
+      storefrontId: 'commercial-south-slot-8', key: 's8-clothing', counterRow: 7, counterLength: 5, storageColumn: 1, storageSide: 'west',
       displays: [
         { id: 'west-wall-rear', orientation: 'vertical', cells: [{ column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }, { column: 1, row: 9, glyph: '架' }] },
         { id: 'east-wall-front', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }] },
@@ -1426,15 +1431,24 @@ const commercialStreetShellFurniture = (() => {
   retailPlans.forEach((plan) => {
     const sample = commercialStreetInteriorSamples.find((candidate) => candidate.storefrontId === plan.storefrontId)!
     plan.displays.forEach((display) => addRetailRun(sample, `commercial-retail-${plan.key}-display-${display.id}`, display.cells, display.orientation))
-    addRetailRun(sample, `commercial-retail-${plan.key}-counter`, [
-      { column: 8, row: plan.counterRow, glyph: '柜' },
-      { column: 8, row: plan.counterRow + 1, glyph: '台' },
-    ], 'vertical')
-    if (plan.partitionColumn !== undefined) {
-      addRetailRun(sample, `commercial-retail-${plan.key}-storage-partition`, [
-        { column: plan.partitionColumn, row: 17, glyph: '墙' },
-        { column: plan.partitionColumn, row: 18, glyph: '墙' },
-      ], 'vertical')
+    const canonicalCounterGlyphs = Array.from({ length: plan.counterLength }, (_, index) => index % 2 === 0 ? '柜' : '台')
+    const counterCells = Array.from({ length: plan.counterLength }, (_, index) => ({
+      column: 8,
+      row: plan.counterRow + index,
+      glyph: sample.side === 'north' ? canonicalCounterGlyphs[plan.counterLength - index - 1]! : canonicalCounterGlyphs[index]!,
+    }))
+    addRetailRun(sample, `commercial-retail-${plan.key}-counter`, counterCells, 'vertical')
+    if (plan.storageNook) {
+      const sideColumn = plan.storageNook === 'west' ? 0 : 10
+      const innerColumn = plan.storageNook === 'west' ? 2 : 8
+      const connector = Array.from({ length: Math.abs(innerColumn - sideColumn) + 1 }, (_, index) => {
+        const column = plan.storageNook === 'west' ? sideColumn + index : sideColumn - index
+        return { column, row: 17, glyph: '墙' }
+      })
+      const connectorId = `commercial-retail-${plan.key}-storage-connector`
+      addRetailRun(sample, connectorId, connector, 'horizontal', [0])
+      const returnCells = [17, 18].map((row) => ({ column: innerColumn, row, glyph: '墙' }))
+      addRetailRun(sample, `commercial-retail-${plan.key}-storage-return`, returnCells, 'vertical', [0])
     }
     addRetailText(sample, `commercial-retail-${plan.key}-storage-label`, '储物', plan.storageColumn, 19)
   })
