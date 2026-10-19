@@ -887,7 +887,8 @@ export function MainlineSceneRenderer({
       if (!slot) return true
       if (unit.id.startsWith(`${slot.id}-base-`)) return false
       if (cell.kind === 'door' && (cell.entityId === slot.portalId || unit.entityId === slot.portalId)) return false
-      return !(cell.kind === 'storefront' && cell.storefrontRole === 'sign')
+      return !(cell.kind === 'storefront' && (cell.storefrontRole === 'sign'
+        || slot.composition?.fixedCellCount && cell.storefrontRole === 'door'))
     }).map((cell) => ({
     unit,
     // The compiled geometry unit owns storefront identity. Carry it into
@@ -1200,8 +1201,8 @@ export function MainlineSceneRenderer({
                     storefrontId={storefrontRole === 'sign' ? storefront?.id : undefined}
                     storefrontSpan={storefront ? storefront.end - storefront.start : undefined}
                     storefrontCenter={storefront ? mainlineStorefrontAnchor(scene, storefront) : undefined}
-                    storefrontLabel={storefrontRole === 'sign' ? storefront?.label : undefined}
-                    storefrontGeometry={storefrontRole === 'sign' && storefront ? (geometrySnapshot.storefronts.get(storefront.id) ?? storefrontLabelGeometry.get(storefront.id)) : undefined}
+                    storefrontLabel={storefrontRole === 'sign' && storefront && !storefront.composition?.fixedCellCount ? storefront.label : undefined}
+                    storefrontGeometry={storefrontRole === 'sign' && storefront && !storefront.composition?.fixedCellCount ? (geometrySnapshot.storefronts.get(storefront.id) ?? storefrontLabelGeometry.get(storefront.id)) : undefined}
                     storefrontPresentationPhase={storefront ? storefrontPresentation.get(storefront.id) ?? 'baseline' : 'baseline'}
                     passagePhase={storefrontPhase}
                     frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === storefrontPassageEntityId}

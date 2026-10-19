@@ -99,10 +99,6 @@ export function storefrontCharacterCells(
   const labels = Array.from(storefront.label)
   if (!storefront.characterSwitch || labels.length === 0 || !(storefront.composition?.near ?? []).includes('door')) return []
 
-  // Fixed-grid storefronts switch their authored 4-slot row in place. Their
-  // sign glyphs and portal must not be relocated onto a second entrance grid.
-  if (storefront.composition?.fixedCellCount) return []
-
   const ownedEntries = geometryUnits.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
     .filter(({ unit }) => unit.storefrontId === storefront.id && unit.sourceWallId === storefront.wallId && unit.edge === storefront.edge)
   const vertical = storefront.edge === 'left' || storefront.edge === 'right'
@@ -114,8 +110,9 @@ export function storefrontCharacterCells(
   const baselineSigns = ownedEntries
     .filter(({ unit, cell }) => unit.variant === 'baseline' && cell.kind === 'storefront' && cell.storefrontRole === 'sign')
     .sort((a, b) => tangentCenter(a.cell) - tangentCenter(b.cell))
-  const door = ownedEntries.find(({ unit, cell }) => cell.kind === 'door'
-    && (cell.entityId === storefront.portalId || unit.entityId === storefront.portalId))
+  const door = ownedEntries.find(({ unit, cell }) => storefront.composition?.fixedCellCount
+    ? unit.variant === 'near' && cell.kind === 'storefront' && cell.storefrontRole === 'door'
+    : cell.kind === 'door' && (cell.entityId === storefront.portalId || unit.entityId === storefront.portalId))
   if (!door || baselineSigns.length < labels.length) return []
 
   const doorTangent = vertical ? door.cell.y : door.cell.x
@@ -148,7 +145,7 @@ export function storefrontCharacterCells(
       y,
       role,
       baselineGlyph,
-      glyph: role === 'door' ? (door.cell.glyph ?? '\u95e8') : (entry?.cell.glyph ?? '\u5899'),
+      glyph: role === 'door' ? (door.cell.glyph ?? '\u95e8') : (entry?.cell.kind === 'wall' ? (entry.cell.glyph ?? '\u5899') : '\u5899'),
       ...(role === 'door' ? {
         entityId: door.cell.entityId ?? door.unit.entityId ?? storefront.portalId,
         access: door.cell.access,

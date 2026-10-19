@@ -68,7 +68,10 @@ describe('commercial street storefront presentation', () => {
         .flatMap(unit => unit.visual.cells).filter(cell => cell.kind === 'storefront')
       const near = nearUnits.filter(unit => unit.storefrontId === cafe.id && unit.variant === 'near')
         .flatMap(unit => unit.visual.cells).filter(cell => cell.kind === 'storefront')
-      expect(storefrontCharacterCells(street, cafe, projected)).toEqual([])
+      const animatedCells = storefrontCharacterCells(street, cafe, projected)
+      expect(animatedCells.map(cell => cell.baselineGlyph).join('')).toBe(cafe.label)
+      expect(animatedCells).toHaveLength(Array.from(cafe.label).length)
+      expect(animatedCells.filter(cell => cell.role === 'door')).toHaveLength(1)
       expect(baseline.map(cell => [cell.x, cell.y])).toEqual(near.map(cell => [cell.x, cell.y]))
       expect(baseline.filter(cell => cell.storefrontRole === 'sign').map(cell => cell.glyph).join('')).toBe(cafe.label)
       expect(near.filter(cell => cell.storefrontRole === 'sign')).toHaveLength(0)
@@ -102,18 +105,24 @@ describe('commercial street storefront presentation', () => {
       }
       const cells = storefrontCharacterCells(street, storefront, projected)
       if (storefront.composition?.fixedCellCount) {
-        expect(cells).toEqual([])
+        expect(cells.map(cell => cell.baselineGlyph).join('')).toBe(storefront.label)
+        expect(cells).toHaveLength(Array.from(storefront.label).length)
+        expect(cells.filter(cell => cell.role === 'door')).toHaveLength(1)
+        expect(cells.filter(cell => cell.entityId === storefront.portalId)).toHaveLength(1)
         const signs = projected.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline')
           .flatMap(unit => unit.visual.cells).filter(cell => cell.storefrontRole === 'sign')
         expect(signs.map(cell => cell.glyph).join('')).toBe(storefront.label)
-        continue
       }
       expect(cells.map(cell => cell.baselineGlyph).join('')).toBe(storefront.label)
       expect(cells).toHaveLength(Array.from(storefront.label).length)
       expect(cells.filter(cell => cell.role === 'door')).toHaveLength(1)
       expect(cells.filter(cell => cell.entityId === storefront.portalId)).toHaveLength(1)
       const realDoor = projected.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
-        .find(({ unit, cell }) => unit.storefrontId === storefront.id && cell.kind === 'door' && cell.entityId === storefront.portalId)
+        .find(({ unit, cell }) => unit.storefrontId === storefront.id && (
+          storefront.composition?.fixedCellCount
+            ? unit.variant === 'near' && cell.storefrontRole === 'door' && cell.entityId === storefront.portalId
+            : cell.kind === 'door' && cell.entityId === storefront.portalId
+        ))
       expect(realDoor, storefront.id).toBeDefined()
       const doorCharacter = cells.find(cell => cell.role === 'door')!
       expect(doorCharacter.x).toBeCloseTo(realDoor!.cell.x)
@@ -156,7 +165,10 @@ describe('commercial street storefront presentation', () => {
           .flatMap(unit => unit.visual.cells).filter(cell => cell.kind === 'storefront')
         const near = nearUnits.filter(unit => unit.storefrontId === slot.id && unit.variant === 'near')
           .flatMap(unit => unit.visual.cells).filter(cell => cell.kind === 'storefront')
-        expect(storefrontCharacterCells(street, slot, canonical)).toEqual([])
+      const animatedCells = storefrontCharacterCells(street, slot, canonical)
+      expect(animatedCells.map(cell => cell.baselineGlyph).join('')).toBe(slot.label)
+      expect(animatedCells).toHaveLength(Array.from(slot.label).length)
+      expect(animatedCells.filter(cell => cell.role === 'door')).toHaveLength(1)
         expect(baseline).toHaveLength(slot.composition?.fixedCellCount)
         expect(near).toHaveLength(slot.composition?.fixedCellCount)
         expect(baseline.map(cell => cell.x)).toEqual(near.map(cell => cell.x))
@@ -195,7 +207,7 @@ describe('commercial street storefront presentation', () => {
       expect(cells.slice(1, 5).filter(cell => cell.storefrontRole === 'wall')).toHaveLength(4 - Array.from(storefront.label).length)
       expect(cells[0]?.storefrontRole).toBe('glass')
       expect(cells.slice(5).every(cell => cell.storefrontRole === 'glass')).toBe(true)
-      expect(storefrontCharacterCells(street, storefront, projected)).toEqual([])
+      expect(storefrontCharacterCells(street, storefront, projected).map(cell => cell.baselineGlyph).join('')).toBe(storefront.label)
     }
   })
   it('uses one reversible normalized progress rather than per-cell timers', () => {

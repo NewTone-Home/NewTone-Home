@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createPolygonNavigationMesh } from '../src/center/runtime/scenePathfinding'
-import { canActorReachPassageApproach, canTravelAlongMainlineSegment, classifyMainlineWorldCommand, findMainlineRoomPassageSequence, mainlineNavigationCollisionBoxes, mainlinePassageCollisionForNavigation, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from '../src/center/runtime/mainlineNavigation'
+import { canActorReachPassageApproach, canTravelAlongMainlineSegment, classifyMainlineWorldCommand, findMainlineRoomPassageSequence, isWalkableMainlinePoint, mainlineNavigationCollisionBoxes, mainlinePassageCollisionForNavigation, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { mainlineLabelFootprint, mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 import { defaultSceneScreenMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId } from '../src/center/runtime/commercialCafeStory'
@@ -11,6 +12,20 @@ import { mainlineNpcStagedSeatId } from '../src/center/runtime/mainlineNpcStagin
 const point = (x: number, y: number) => ({ x, y })
 
 describe('ordinary world navigation and passage intent', () => {
+  it('keeps the public street lane continuously walkable west to east', () => {
+    const street = mainlineScenes['commercial-street']
+    const snapshot = createMainlineSceneGeometrySnapshot(street, point(18, 50))
+    const options = { actorFootprint: { width: 1.2, height: 1.2 }, geometrySnapshot: snapshot }
+    for (const y of [42, 50, 58]) {
+      const blocked = Array.from({ length: 18 }, (_, index) => 20 + index * 10)
+        .filter(x => !isWalkableMainlinePoint(point(x, y), street, {}, options))
+      expect(blocked, `blocked x coordinates on y=${y}`).toEqual([])
+    }
+    const route = resolveMainlineWorldNavigation(street, point(18, 50), point(190, 50), {}, options)
+    expect(route?.reachedRequestedTarget).toBe(true)
+    expect(route?.resolvedNavigableTarget).toEqual(point(190, 50))
+  })
+
   it('projects only onto the start component while keeping an exact reachable target', () => {
     const gridUnit = 20
     const halfGrid = gridUnit / 2
