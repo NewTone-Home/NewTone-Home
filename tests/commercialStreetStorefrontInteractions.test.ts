@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { classifyMainlineWorldCommand, findMainlinePath, isWalkableMainlinePoint, mainlinePassageSide, resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
-import { mainlineCanonicalSceneGeometryUnits, mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
+import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 import {
@@ -129,6 +129,73 @@ describe('commercial street storefront interactions', () => {
     const cafe = street.storefronts.find((candidate) => candidate.id === 'commercial-cafe-slot')!
     expect(cafe.portalId).toBe('street-cafe-entry')
     expect(commercialStreetStorefrontInteractionFor(cafe.id)).toBeUndefined()
+  })
+
+  it('uses each shop name as its exact sign width and keeps the facade lattice fixed across viewports', () => {
+    const metrics = [
+      { width: 2048, height: 788 },
+      { width: 1180, height: 757 },
+      { width: 390, height: 844 },
+    ]
+    const expectedRoles = (label: string, wide: boolean) => {
+      const sign = Array.from(label, () => 'sign')
+      return wide
+        ? ['wall', ...sign, 'wall', ...Array.from({ length: 6 }, () => 'window'), 'wall', 'wall', ...Array.from({ length: 10 }, () => 'window'), 'wall']
+        : ['wall', 'window', 'window', 'wall', ...sign, 'wall', 'window', 'window', 'wall']
+    }
+    const phases = new Map(street.storefronts.map((storefront) => [storefront.id, 'baseline' as const]))
+    const firstGrid = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, metrics[0], phases)
+      .flatMap((unit) => unit.visual.cells)
+      .filter((cell) => cell.storefrontId)
+      .map((cell) => `${cell.storefrontId}:${cell.x}:${cell.glyph}`)
+    for (const viewport of metrics.slice(1)) {
+      const projected = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, viewport, phases)
+        .flatMap((unit) => unit.visual.cells)
+        .filter((cell) => cell.storefrontId)
+        .map((cell) => `${cell.storefrontId}:${cell.x}:${cell.glyph}`)
+      expect(projected).toEqual(firstGrid)
+    }
+
+    for (const storefront of street.storefronts) {
+      const wide = storefront.id === 'commercial-cafe-slot' || storefront.id === 'commercial-south-slot-2'
+      const expected = expectedRoles(storefront.label, wide)
+      expect(storefront.composition?.baseline).toEqual(expected)
+      expect(storefront.composition?.fixedCellCount).toBe(expected.length)
+      const active = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, metrics[0], phases)
+        .flatMap((unit) => unit.visual.cells)
+        .filter((cell) => cell.storefrontId === storefront.id)
+      expect(active).toHaveLength(expected.length)
+      expect(new Set(active.map((cell) => cell.x)).size).toBe(expected.length)
+      expect(active.filter((cell) => cell.storefrontRole === 'sign').map((cell) => cell.glyph).join('')).toBe(storefront.label)
+      expect(active.filter((cell) => cell.storefrontRole === 'window')).toHaveLength(wide ? 16 : 4)
+
+      const near = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, metrics[0], new Map([[storefront.id, 'revealed']]))
+        .flatMap((unit) => unit.visual.cells)
+        .filter((cell) => cell.storefrontId === storefront.id)
+      expect(near).toHaveLength(expected.length)
+      expect(near.filter((cell) => cell.storefrontRole === 'door')).toHaveLength(1)
+      expect(near.filter((cell) => cell.storefrontRole === 'sign')).toHaveLength(0)
+      expect(near.filter((cell) => cell.storefrontRole === 'window').map((cell) => cell.x))
+        .toEqual(active.filter((cell) => cell.storefrontRole === 'window').map((cell) => cell.x))
+    }
+
+    for (const edge of ['top', 'bottom'] as const) {
+      const row = street.storefronts.filter((storefront) => storefront.edge === edge)
+      for (const [index, storefront] of row.slice(0, -1).entries()) {
+        const next = row[index + 1]!
+        expect(next.start - storefront.end).toBeCloseTo(18 / 7)
+        const activeCells = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, metrics[0], phases)
+          .flatMap((unit) => unit.visual.cells)
+        const previousCells = activeCells.filter((cell) => cell.storefrontId === storefront.id).sort((a, b) => a.x - b.x)
+        const nextCells = activeCells.filter((cell) => cell.storefrontId === next.id).sort((a, b) => a.x - b.x)
+        const boundaryGapWalls = activeCells.filter((cell) => (
+          !cell.storefrontId && cell.glyph === '墙'
+          && cell.x > previousCells.at(-1)!.x && cell.x < nextCells[0]!.x
+          && Math.abs(cell.y - previousCells.at(-1)!.y) < .001
+        ))
+        expect(boundaryGapWalls).toHaveLength(1)
+      }
+    }
   })
 
   it('re-resolves a continuous facade when a live actor occupies the nearest projected contact', () => {
