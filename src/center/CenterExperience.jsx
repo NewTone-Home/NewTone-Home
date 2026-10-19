@@ -22,6 +22,7 @@ import {
   worldLayerForScene,
 } from './runtime/phoneState'
 import {
+  createPositionSaveBuffer,
   loadPlayerSave,
   recordPlayerScenePosition,
   recordPlayerSceneState,
@@ -87,6 +88,7 @@ export default function CenterExperience({
   const positionSamplerRef = useRef(null)
   const currentSceneIdRef = useRef(route.sceneId)
   const latestWorldPositionRef = useRef(null)
+  const pendingPersistedPositionRef = useRef(createPositionSaveBuffer())
   const getRideMapSnapshot = useCallback(() => {
     const current = latestWorldPositionRef.current
     if (!current || current.sceneId !== route.sceneId) return null
@@ -127,9 +129,13 @@ export default function CenterExperience({
 
 
   const commitPlayerSave = useCallback((update) => {
-    const current = playerSaveRef.current
+    const pending = pendingPersistedPositionRef.current.take(currentSceneIdRef.current)
+    let current = playerSaveRef.current
+    if (pending) {
+      current = recordPlayerScenePosition(current, pending.sceneId, pending.position)
+    }
     const next = update(current)
-    if (next === current) return
+    if (next === playerSaveRef.current) return
     playerSaveRef.current = persistPlayerSave(next)
     setPlayerSave(playerSaveRef.current)
   }, [])
@@ -560,11 +566,28 @@ export default function CenterExperience({
   )
   const handlePositionChange = useCallback((position) => {
     if (!canPersistScenePosition) return
-    const current = playerSaveRef.current
-    const next = recordPlayerScenePosition(current, route.sceneId, position)
-    // Position is persisted continuously; only scene state needs a React publication.
-    if (next !== current) playerSaveRef.current = persistPlayerSave(next)
+    pendingPersistedPositionRef.current.queue(route.sceneId, position)
   }, [canPersistScenePosition, route.sceneId])
+
+  const flushPositionSave = useCallback((sceneId) => {
+    const pending = pendingPersistedPositionRef.current.take(sceneId)
+    if (!pending) return
+    const current = playerSaveRef.current
+    const next = recordPlayerScenePosition(current, sceneId, pending.position)
+    if (next !== current) playerSaveRef.current = persistPlayerSave(next)
+  }, [])
+
+  useEffect(() => {
+    const flush = () => flushPositionSave(route.sceneId)
+    const flushWhenHidden = () => { if (document.visibilityState === 'hidden') flush() }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', flushWhenHidden)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', flushWhenHidden)
+      flush()
+    }
+  }, [flushPositionSave, route.sceneId])
 
   const handleRuntimePositionChange = useCallback((sceneId, position, context) => {
     latestWorldPositionRef.current = { sceneId, position, context }
@@ -574,7 +597,8 @@ export default function CenterExperience({
 
   const handlePlayerMovementStateChange = useCallback((moving) => {
     setCenterMovementActive(moving)
-  }, [])
+    if (!moving) flushPositionSave(route.sceneId)
+  }, [flushPositionSave, route.sceneId])
 
   const renderScenePage = (sceneRoute, {
     key,

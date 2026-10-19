@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  createPositionSaveBuffer,
   PLAYER_SAVE_STORAGE_KEY,
   clearPlayerSave,
   createInitialPlayerSave,
@@ -22,6 +23,18 @@ function createStorage() {
 }
 
 describe('player local save contract', () => {
+  it('coalesces movement samples and rejects stale scene flushes', () => {
+    const buffer = createPositionSaveBuffer()
+    const writes = []
+    for (let x = 0; x < 120; x += 1) buffer.queue('commercial-street', { x, y: 24 })
+    const stale = buffer.take('commercial-cafe')
+    if (stale) writes.push(stale)
+    expect(writes).toHaveLength(0)
+    const latest = buffer.take('commercial-street')
+    if (latest) writes.push(latest)
+    expect(writes).toEqual([{ sceneId: 'commercial-street', position: { x: 119, y: 24 } }])
+    expect(buffer.take('commercial-street')).toBeNull()
+  })
   it('returns the same save for an unchanged persisted position', () => {
     const initial = createInitialPlayerSave('jijia-ancestral-home')
     const next = recordPlayerScenePosition(initial, 'jijia-ancestral-home', { x: 12, y: 24 })

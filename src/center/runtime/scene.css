@@ -674,7 +674,7 @@
   .scene-mainline-world { animation: none; }
 }
 .scene-mainline-wall-labels { inset: 0; z-index: 1; }
-.scene-mainline-wall { color: var(--soft); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); line-height: 1; }
+.scene-mainline-wall { color: var(--soft); font-size: clamp(12px, 1.2vw, 16px); line-height: 1; }
 .scene-mainline-wall-door {
   display: inline-flex;
   align-items: center;
@@ -743,7 +743,7 @@
 .scene-mainline-exploration--steady > .scene-mainline-focus-group__glyph {
   transition: color 160ms ease-out;
 }
-.scene-mainline-wall-feature.is-baseline { opacity: .78; }
+.scene-mainline-wall-feature.is-baseline { opacity: .88; }
 .scene-mainline-wall-feature.is-near { color: var(--active); opacity: 1; }
 .scene-mainline-wall-door:focus-visible,
 .mainline-scene-stage .scene-mainline-object:focus-visible {
@@ -755,16 +755,19 @@
 .scene-mainline-storefront-cell {
   z-index: 3;
   color: var(--soft);
+  font-size: clamp(12px, 1.2vw, 16px);
+  line-height: 1;
   white-space: nowrap;
   pointer-events: none;
 }
+.scene-mainline-storefront-cell:not(.scene-mainline-storefront--glass) { opacity: .88; }
 .scene-mainline-storefront-cell.is-near {
   color: var(--active);
 }
 .scene-mainline-storefront { font: inherit; }
 .scene-mainline-storefront--horizontal { writing-mode: horizontal-tb; text-orientation: mixed; }
 .scene-mainline-storefront--vertical { writing-mode: vertical-rl; text-orientation: upright; }
-.scene-mainline-storefront--wall { color: var(--muted); }
+.scene-mainline-storefront--wall { color: var(--soft); }
 .scene-mainline-storefront--glass { color: rgba(161, 194, 194, .78); }
 .scene-mainline-storefront--sign { color: var(--ink); letter-spacing: .08em; }
 .scene-mainline-storefront--sign .scene-mainline-storefront__label-slot {
@@ -826,7 +829,7 @@
   opacity: 1;
 }
 .scene-mainline-storefront--blank { color: transparent; }
-.scene-mainline-storefront--worn { color: rgba(214, 179, 119, .82); }
+.scene-mainline-storefront--worn { color: rgba(232, 190, 117, .88); }
 .scene-mainline-storefront--worn.scene-mainline-storefront--glass { color: rgba(188, 158, 105, .65); }
 .scene-mainline-storefront--worn.scene-mainline-storefront--sign { color: rgba(232, 190, 117, .9); }
 .scene-mainline-storefront--near { color: var(--active); }

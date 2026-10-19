@@ -223,6 +223,21 @@ export function recordPlayerScenePosition(
   }
 }
 
+/** Keeps only the latest movement sample until a save boundary flushes it. */
+export function createPositionSaveBuffer<T>() {
+  let pending: { sceneId: string; position: T } | null = null
+  return {
+    queue(sceneId: string, position: T) { pending = { sceneId, position } },
+    take(sceneId: string) {
+      if (!pending || pending.sceneId !== sceneId) return null
+      const latest = pending
+      pending = null
+      return latest
+    },
+    clear() { pending = null },
+  }
+}
+
 export function recordPlayerSceneState(
   save: PlayerSave,
   sceneId: MainlineSceneId,
