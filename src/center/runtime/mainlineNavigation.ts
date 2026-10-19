@@ -41,16 +41,34 @@ type CachedNavigationMesh = {
   mesh: PolygonNavigationMesh
 }
 
-// Geometry snapshots are immutable render/navigation transactions. Reusing
-// their static mesh keeps multiple contact candidates in one interaction from
-// recompiling the same scene, without caching dynamic actor occupancy.
+// Geometry snapshots are immutable render/navigation transactions. Storefront
+// presentation can replace visual near/baseline units while leaving the
+// collision inputs unchanged, so key meshes by their exact static inputs and
+// scene identity rather than by snapshot identity. Dynamic actor occupancy is
+// still excluded.
 const physicalIntentMeshCache = new WeakMap<PolygonNavigationMesh, PolygonNavigationMesh>()
 const staticNavigationMeshCache = new WeakMap<MainlineSceneGeometrySnapshot, Map<string, CachedNavigationMesh>>()
+const preparedWorldNavigationMeshCache = new WeakMap<MainlineSceneDefinition, Map<string, CachedNavigationMesh>>()
+const MAX_STATIC_NAVIGATION_MESHES_PER_SCENE = 8
 
 function cacheStaticNavigationMesh(snapshot: MainlineSceneGeometrySnapshot, key: string, mesh: PolygonNavigationMesh) {
   const meshes = staticNavigationMeshCache.get(snapshot) ?? new Map<string, CachedNavigationMesh>()
   meshes.set(key, { key, mesh })
   staticNavigationMeshCache.set(snapshot, meshes)
+}
+
+function cachePreparedWorldNavigationMesh(scene: MainlineSceneDefinition, key: string, mesh: PolygonNavigationMesh) {
+  const meshes = preparedWorldNavigationMeshCache.get(scene) ?? new Map<string, CachedNavigationMesh>()
+  meshes.delete(key)
+  meshes.set(key, { key, mesh })
+  // Keep only a small LRU per authored scene so responsive layouts and actor
+  // footprints do not accumulate an unbounded set of large navigation meshes.
+  while (meshes.size > MAX_STATIC_NAVIGATION_MESHES_PER_SCENE) {
+    const oldest = meshes.keys().next().value
+    if (oldest === undefined) break
+    meshes.delete(oldest)
+  }
+  preparedWorldNavigationMeshCache.set(scene, meshes)
 }
 
 // Compatibility-only default for non-Page callers: it is the renderer's
@@ -1202,20 +1220,26 @@ export function prepareMainlineWorldNavigation(scene: MainlineSceneDefinition, l
     [...(options.openPassageIds ?? [])].sort().join(','),
     [...occupiedSeatIdsForNavigation(scene, options)].sort().join(','),
   ].join('|')
-  const cached = staticNavigationMeshCache.get(snapshot)?.get(cacheKey)
-  const navigationMesh = cached?.key === cacheKey
+  const bounds = insetBounds(snapshot.walkBounds, actorFootprint)
+  const meshCacheKey = JSON.stringify({ cacheKey, bounds, obstacles, barriers, actorFootprint })
+  const meshes = preparedWorldNavigationMeshCache.get(scene)
+  const cached = meshes?.get(meshCacheKey)
+  const navigationMesh = cached
     ? cached.mesh
     : createPolygonNavigationMesh({
-      bounds: insetBounds(snapshot.walkBounds, actorFootprint),
+      bounds,
       obstacles,
       obstacleInset: { x: actorFootprint.width / 2, y: actorFootprint.height / 2 },
       barriers,
       actorFootprint,
     })
-  if (cached?.key !== cacheKey) cacheStaticNavigationMesh(snapshot, cacheKey, navigationMesh)
-  return {
-    bounds: insetBounds(snapshot.walkBounds, actorFootprint), obstacles, actorFootprint, barriers, navigationMesh,
+  if (!cached) cachePreparedWorldNavigationMesh(scene, meshCacheKey, navigationMesh)
+  else {
+    // Refresh insertion order so frequently reused dimensions stay in the LRU.
+    meshes!.delete(meshCacheKey)
+    meshes!.set(meshCacheKey, cached)
   }
+  return { bounds, obstacles, actorFootprint, barriers, navigationMesh }
 }
 
 /** Declared permission edge with a public normal and actor contact clearance. */

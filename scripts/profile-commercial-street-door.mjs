@@ -39,6 +39,49 @@ function windowSamples(samples, start, end) {
   return samples.filter((sample) => sample.t >= start && sample.t <= end)
 }
 
+function summarizeCpuProfile(profile) {
+  const nodes = new Map(profile.nodes.map((node) => [node.id, node]))
+  const parents = new Map()
+  for (const node of profile.nodes) {
+    for (const child of node.children ?? []) parents.set(child, node.id)
+  }
+  const selfTimeByNode = new Map()
+  const selfTimeByStack = new Map()
+  profile.samples.forEach((nodeId, index) => {
+    const delta = profile.timeDeltas[index] ?? 0
+    selfTimeByNode.set(nodeId, (selfTimeByNode.get(nodeId) ?? 0) + delta)
+    const stack = []
+    let current = nodeId
+    while (current != null) {
+      const node = nodes.get(current)
+      if (!node) break
+      const frame = node.callFrame
+      stack.push(`${frame.functionName || '(anonymous)'} @ ${frame.url || '<runtime>'}:${(frame.lineNumber ?? -1) + 1}:${(frame.columnNumber ?? -1) + 1}`)
+      current = parents.get(current)
+    }
+    const key = stack.reverse().join(' <- ')
+    selfTimeByStack.set(key, (selfTimeByStack.get(key) ?? 0) + delta)
+  })
+  const describeNode = (nodeId, selfTimeUs) => {
+    const frame = nodes.get(nodeId)?.callFrame
+    return {
+      functionName: frame?.functionName || '(anonymous)',
+      url: frame?.url || '<runtime>',
+      line: frame?.lineNumber == null ? null : frame.lineNumber + 1,
+      column: frame?.columnNumber == null ? null : frame.columnNumber + 1,
+      selfTimeMs: Number((selfTimeUs / 1000).toFixed(2)),
+    }
+  }
+  return {
+    sampleCount: profile.samples.length,
+    sampledMs: Number((profile.timeDeltas.reduce((sum, delta) => sum + delta, 0) / 1000).toFixed(2)),
+    topFunctions: [...selfTimeByNode.entries()].sort((a, b) => b[1] - a[1]).slice(0, 25)
+      .map(([nodeId, duration]) => describeNode(nodeId, duration)),
+    topStacks: [...selfTimeByStack.entries()].sort((a, b) => b[1] - a[1]).slice(0, 25)
+      .map(([stack, duration]) => ({ sampledMs: Number((duration / 1000).toFixed(2)), stack })),
+  }
+}
+
 async function snapshot(page) {
   return page.evaluate((objectSelector) => {
     const stage = document.querySelector('.mainline-scene-stage')
@@ -72,6 +115,19 @@ const browser = await chromium.launch({ headless: true, executablePath: chromePa
 const context = await browser.newContext({ viewport: { width: 1180, height: 757 }, deviceScaleFactor: 1 })
 const page = await context.newPage()
 const cdp = await context.newCDPSession(page)
+await cdp.send('Profiler.enable')
+const cpuProfiles = {}
+async function startCpuProfile(label) {
+  await cdp.send('Profiler.start')
+  await page.evaluate((name) => window.__commercialStreetProfile.mark(`cpu-profile-${name}-start`), label)
+}
+async function stopCpuProfile(label) {
+  await page.evaluate((name) => window.__commercialStreetProfile.mark(`cpu-profile-${name}-end`), label)
+  const { profile } = await cdp.send('Profiler.stop')
+  const profilePath = path.join(outDir, `commercial-street-door-${label}.cpuprofile`)
+  await writeFile(profilePath, JSON.stringify(profile))
+  cpuProfiles[label] = { path: profilePath, ...summarizeCpuProfile(profile) }
+}
 
 await page.addInitScript(({ selector, cellId }) => {
   const sample = { raf: [], longTasks: [], milestones: [], supportedEntryTypes: [] }
@@ -138,14 +194,18 @@ await cdp.send('Tracing.start', {
 })
 const traceComplete = new Promise((resolve) => cdp.once('Tracing.tracingComplete', resolve))
 
+await startCpuProfile('entry')
 await page.locator(`[data-storefront-cell-id="${targetCellId}"]`).click({ timeout: 15_000 })
 await page.waitForFunction((selector) => document.querySelectorAll(selector).length > 0, targetObjectSelector, { timeout: 45_000, polling: 100 })
+await stopCpuProfile('entry')
 await page.evaluate(() => window.__commercialStreetProfile.mark('interior-fixtures-ready'))
 await page.waitForTimeout(1_000)
 const inside = await snapshot(page)
 
+await startCpuProfile('return')
 await page.locator(`[data-storefront-cell-id="${targetCellId}"]`).click({ timeout: 15_000 })
 await page.waitForFunction((selector) => document.querySelectorAll(selector).length === 0, targetObjectSelector, { timeout: 45_000, polling: 100 })
+await stopCpuProfile('return')
 await page.evaluate(() => window.__commercialStreetProfile.mark('street-fixtures-cleared'))
 await page.waitForTimeout(1_000)
 const returned = await snapshot(page)
@@ -175,7 +235,7 @@ const results = {
   url,
   viewport: { width: 1180, height: 757, deviceScaleFactor: 1 },
   browser: await browser.version(),
-  source: 'page performance.now + requestAnimationFrame + PerformanceObserver longtask; CDP timeline trace; no screenshots',
+  source: 'page performance.now + requestAnimationFrame + PerformanceObserver longtask; CDP timeline trace + per-interval CPU sampling profiles; no screenshots',
   snapshots: { streetBefore: before, inside: inside, streetReturned: returned },
   intervals: {
     streetWalkAndEntry: {
@@ -190,6 +250,7 @@ const results = {
     },
   },
   milestones: measurements.milestones,
+  cpuProfiles,
   supportedEntryTypes: measurements.supportedEntryTypes,
   tracePath,
 }

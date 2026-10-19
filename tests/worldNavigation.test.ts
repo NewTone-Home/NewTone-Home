@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createPolygonNavigationMesh } from '../src/center/runtime/scenePathfinding'
-import { canActorReachPassageApproach, canTravelAlongMainlineSegment, classifyMainlineWorldCommand, findMainlineRoomPassageSequence, isWalkableMainlinePoint, mainlineNavigationCollisionBoxes, mainlinePassageCollisionForNavigation, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from '../src/center/runtime/mainlineNavigation'
+import { canActorReachPassageApproach, canTravelAlongMainlineSegment, classifyMainlineWorldCommand, findMainlineRoomPassageSequence, isWalkableMainlinePoint, mainlineNavigationCollisionBoxes, mainlinePassageCollisionForNavigation, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, prepareMainlineWorldNavigation, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { mainlineLabelFootprint, mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
@@ -44,6 +44,58 @@ describe('ordinary world navigation and passage intent', () => {
     const route = resolveMainlineWorldNavigation(street, from, target, {}, options)
     expect(route?.reachedRequestedTarget).toBe(true)
     expect(route?.resolvedNavigableTarget).toEqual(target)
+  })
+
+  it('reuses a street navigation mesh across storefront visual phases with identical collision inputs', () => {
+    const street = mainlineScenes['commercial-street']
+    const storefrontId = 'commercial-north-slot-1'
+    const screenMetrics = { width: 1180, height: 757, viewportWidth: 1180 }
+    const makeSnapshot = (phase: 'baseline' | 'revealing' | 'revealed' | 'lingering' | 'restoring') => (
+      createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, screenMetrics, new Map([[storefrontId, phase]]))
+    )
+    const baseline = prepareMainlineWorldNavigation(street, {}, {
+      screenMetrics,
+      geometrySnapshot: makeSnapshot('baseline'),
+    })
+    for (const phase of ['revealing', 'revealed', 'lingering', 'restoring'] as const) {
+      const candidate = prepareMainlineWorldNavigation(street, {}, {
+        screenMetrics,
+        geometrySnapshot: makeSnapshot(phase),
+      })
+      expect(candidate.obstacles).toEqual(baseline.obstacles)
+      expect(candidate.barriers).toEqual(baseline.barriers)
+      expect(candidate.navigationMesh).toBe(baseline.navigationMesh)
+    }
+  })
+
+  it('invalidates the prepared static mesh when actor, passage, seat, or bounds inputs change', () => {
+    const street = mainlineScenes['commercial-street']
+    const screenMetrics = { width: 1180, height: 757, viewportWidth: 1180 }
+    const snapshot = () => createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, screenMetrics)
+    const baseline = prepareMainlineWorldNavigation(street, {}, {
+      screenMetrics,
+      actorFootprint: { width: 1.2, height: 1.2 },
+      geometrySnapshot: snapshot(),
+    }).navigationMesh
+    const seatId = street.objects.find(object => object.kind === 'seat')!.id
+    const passageId = street.passages[0]!.id
+    const variants = [
+      prepareMainlineWorldNavigation(street, {}, {
+        screenMetrics, actorFootprint: { width: 1.4, height: 1.2 }, geometrySnapshot: snapshot(),
+      }).navigationMesh,
+      prepareMainlineWorldNavigation(street, {}, {
+        screenMetrics, actorFootprint: { width: 1.2, height: 1.2 }, openPassageIds: new Set([passageId]), geometrySnapshot: snapshot(),
+      }).navigationMesh,
+      prepareMainlineWorldNavigation(street, {}, {
+        screenMetrics, actorFootprint: { width: 1.2, height: 1.2 }, occupiedSeatIds: new Set([seatId]), geometrySnapshot: snapshot(),
+      }).navigationMesh,
+      prepareMainlineWorldNavigation(street, {}, {
+        screenMetrics: { ...screenMetrics, width: 1181, viewportWidth: 1181 },
+        actorFootprint: { width: 1.2, height: 1.2 },
+        geometrySnapshot: createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, { ...screenMetrics, width: 1181, viewportWidth: 1181 }),
+      }).navigationMesh,
+    ]
+    variants.forEach(mesh => expect(mesh).not.toBe(baseline))
   })
 
   it('projects only onto the start component while keeping an exact reachable target', () => {
