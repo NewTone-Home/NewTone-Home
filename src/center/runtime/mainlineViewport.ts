@@ -7,13 +7,6 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.max(minimum, Math.min(maximum, value))
 }
 
-function cameraOffsetRange(start: number, length: number) {
-  const fitMinimum = 2 - start
-  const fitMaximum = 98 - (start + length)
-  if (fitMinimum <= fitMaximum) return { minimum: fitMinimum, maximum: fitMaximum }
-  return { minimum: Math.min(0, 100 - (start + length) - 2), maximum: 0 }
-}
-
 /** Center a complete room frame as one visual unit, leaving a safe edge for glyphs. */
 export function fixedFrameCameraOffset(scene: Pick<MainlineSceneDefinition, 'walkBounds'>): Point {
   return {
@@ -24,11 +17,12 @@ export function fixedFrameCameraOffset(scene: Pick<MainlineSceneDefinition, 'wal
 
 function followPlayerCameraOffset(scene: Pick<MainlineSceneDefinition, 'walkBounds'>, position: Point): Point {
   const followAnchor = normalizedViewportCenter
-  const xRange = cameraOffsetRange(scene.walkBounds.x, scene.walkBounds.width)
-  const yRange = cameraOffsetRange(scene.walkBounds.y, scene.walkBounds.height)
+  const cameraEdgePadding = 2
+  const minX = Math.min(0, 100 - (scene.walkBounds.x + scene.walkBounds.width) - cameraEdgePadding)
+  const minY = Math.min(0, 100 - (scene.walkBounds.y + scene.walkBounds.height) - cameraEdgePadding)
   return {
-    x: clamp(followAnchor - position.x, xRange.minimum, xRange.maximum),
-    y: clamp(followAnchor - position.y, yRange.minimum, yRange.maximum),
+    x: clamp(followAnchor - position.x, minX, 0),
+    y: clamp(followAnchor - position.y, minY, 0),
   }
 }
 
@@ -53,9 +47,9 @@ export function mainlineCameraTarget(scene: Pick<MainlineSceneDefinition, 'viewp
     if (screen < 35) desired[axis] += 35 - screen
     if (screen > 65) desired[axis] += 65 - screen
   }
-  const xRange = cameraOffsetRange(scene.walkBounds.x, scene.walkBounds.width)
-  const yRange = cameraOffsetRange(scene.walkBounds.y, scene.walkBounds.height)
-  return { x: clamp(desired.x, xRange.minimum, xRange.maximum), y: clamp(desired.y, yRange.minimum, yRange.maximum) }
+  const minX = Math.min(0, 100 - (scene.walkBounds.x + scene.walkBounds.width) - 2)
+  const minY = Math.min(0, 100 - (scene.walkBounds.y + scene.walkBounds.height) - 2)
+  return { x: clamp(desired.x, minX, 0), y: clamp(desired.y, minY, 0) }
 }
 
 export function advanceMainlineCamera(current: Point, target: Point, elapsedMs: number): Point {

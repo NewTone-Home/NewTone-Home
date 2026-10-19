@@ -106,14 +106,13 @@ describe('commercial street storefront presentation', () => {
       for (const shop of commercialStreetShops) {
         const storefrontId = shop.kind === 'cafe' ? 'commercial-cafe-slot' : shop.storefrontIds[0]!
         const storefront = street.storefronts.find(candidate => candidate.id === storefrontId)!
-        const cells = storefrontCharacterCells(street, storefront, projectedSceneGeometry(street, metrics))
+        const cells = storefrontCharacterCells(street, storefront, mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, storefront), metrics))
         expect(cells.length, `${shop.id} at ${metrics.width}px`).toBeGreaterThan(0)
         if (metrics.width > 390) {
-          expect(cells.map(cell => cell.role), shop.id).toEqual(['glass', 'glass', 'wall', 'door', 'wall', 'glass', 'glass'])
+          expect(cells.map(cell => cell.role), shop.id).toEqual(['wall', 'door', 'wall'])
         }
         expect(cells.filter(cell => cell.role === 'door'), shop.id).toHaveLength(1)
         expect(cells.find(cell => cell.role === 'door')?.entityId, shop.id).toBe(commercialStreetShopPortalId(shop))
-        if (metrics.width > 390) expect(cells.map(cell => cell.baselineGlyph).join(''), shop.id).toContain(shop.label.zh)
         expect(cells.map(cell => cell.id).filter(Boolean).length, shop.id).toBe(cells.length)
       }
     }

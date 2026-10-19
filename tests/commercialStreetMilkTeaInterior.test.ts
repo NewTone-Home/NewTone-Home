@@ -58,7 +58,7 @@ describe('commercial street milk tea interior', () => {
     expect(passage.crossingTargets[0]!.y).toBe(entry.crossingTarget.y)
     expect(Math.abs(passage.thresholds[0]!.x - entry.doorX)).toBeLessThan(1.5)
     expect(Math.abs(passage.crossingTargets[0]!.x - entry.doorX)).toBeLessThan(1.5)
-    expect(street.walkBounds.y + street.walkBounds.height).toBe(64)
+    expect(street.walkBounds.y + street.walkBounds.height).toBe(90)
     expect(street.objects).toHaveLength(14)
     expect(street.objects.every(({ kind }) => kind === 'door')).toBe(true)
     expect(street.npcs.some(({ id }) => id === 'milk-tea-clerk')).toBe(false)

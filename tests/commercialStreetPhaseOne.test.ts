@@ -11,7 +11,7 @@ const street = mainlineScenes['commercial-street']
 describe('commercial street phase-one projection', () => {
   it('keeps the complete shared exterior and projects out room-owned content by ownership', () => {
     expect(street.displayRegions).toEqual([])
-    expect(street.walkBounds).toMatchObject({ x: 8, y: 36, width: 184, height: 28 })
+    expect(street.walkBounds).toMatchObject({ x: 8, y: 10, width: 192, height: 80 })
     expect(street.structures.map(({ id }) => id)).toEqual(expect.arrayContaining([
       'commercial-north-facade', 'commercial-main-lane', 'commercial-south-facade',
     ]))

@@ -128,6 +128,6 @@ describe('commercial street world layout registry', () => {
     expect(street.passages.some(candidate => candidate.id === 'commercial-street-lakefront-entry')).toBe(false)
     expect(street.objects.some(entity => entity.id.startsWith('commercial-lakeside-'))).toBe(false)
     expect(street.geometry.some(unit => unit.id.includes('commercial-lakeside') || unit.id.includes('commercial-lakefront-street-gate'))).toBe(false)
-    expect(street.walkBounds).toMatchObject({ x: 8, y: 36, width: 184, height: 28 })
+    expect(street.walkBounds).toMatchObject({ x: 8, y: 10, width: 192, height: 80 })
   })
 })

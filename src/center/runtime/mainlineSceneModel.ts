@@ -1073,6 +1073,7 @@ const commercialStreetStorefronts: readonly MainlineStorefrontSlotBlueprint[] = 
     style: 'modern',
     mode: 'commercial',
     characterSwitch: true,
+    composition: { baseline: ['glass', 'sign', 'glass'], near: ['wall', 'door', 'wall'] },
     portalId,
     approach: commercialStreetShopEntry(shop).streetApproach,
     nearRadius: 10,
@@ -2629,20 +2630,24 @@ export const commercialStreetContinuousWorldSourceBlueprint: MainlineSceneBluepr
   interactionText: { ...commercialStreetBlueprint.interactionText, ...commercialCafeBlueprint.interactionText },
 }
 
-const commercialStreetWithContinuousMilkTeaBlueprint: MainlineSceneBlueprint = {
-  ...commercialStreetContinuousWorldSourceBlueprint,
+const commercialStreetPhaseOneBlueprint: MainlineSceneBlueprint = {
+  ...commercialStreetBlueprint,
   scene: {
-    ...commercialStreetContinuousWorldSourceBlueprint.scene,
-    // Include legal approach contacts for the far-right storefronts while
-    // keeping the player in the street lane vertically.
-    walkBounds: box(8, 36, 184, 28),
-    walls: commercialStreetContinuousWorldSourceBlueprint.scene.walls!.filter((wall) => ['commercial-north-facade', 'commercial-main-lane', 'commercial-south-facade'].includes(wall.id)),
-    storefronts: commercialStreetBlueprint.scene.storefronts ?? [],
-    airWalls: [...commercialStreetSouthExpansionAirWalls(), ...commercialStreetNorthExpansionAirWalls()],
-    // Active phase-one projection: retain the continuous outer street while
-    // leaving all shop-owned interiors in their source blueprints.
+    ...commercialStreetBlueprint.scene,
+    // Restore the a586 exterior frame and camera bounds. The old terminal Cafe
+    // is replaced by the v5 storefront mapped to north modules 7–8.
+    walkBounds: box(8, 10, 192, 80),
+    walls: [
+      { id: 'commercial-north-facade', type: 'room', bounds: box(12, 14, 180, 22), variant: 'shop-row', edges: ['bottom'] },
+      { id: 'commercial-main-lane', type: 'lane', bounds: box(12, 36, 176, 28), edges: [] },
+      { id: 'commercial-south-facade', type: 'room', bounds: box(12, 64, 180, 22), variant: 'shop-row', edges: ['top'] },
+    ],
+    storefronts: commercialStreetStorefronts,
+    airWalls: commercialStreetFacadeAirWalls,
+    // Keep only the original street pedestrians. Interior shop content stays
+    // in its retained source blueprints and is not compiled into phase one.
     floorEntities: [],
-    npcs: [...commercialStreetAmbientNpcs],
+    npcs: commercialStreetAmbientNpcs,
     npcPlacements: (commercialStreetBlueprint.scene.npcPlacements ?? []).filter(({ npcId }) => npcId.startsWith('commercial-street-pedestrian-')),
     npcBehaviorTargets: [],
     npcBehaviors: [],
@@ -2651,7 +2656,7 @@ const commercialStreetWithContinuousMilkTeaBlueprint: MainlineSceneBlueprint = {
     actorAccess: { protagonist: ['public'] },
     continuousStructures: [],
     furnitureGroups: [],
-    rooms: (commercialStreetBlueprint.scene.rooms ?? []).filter(({ id }) => ['commercial-street-west', 'commercial-street-center', 'commercial-street-east'].includes(id)),
+    rooms: [],
     curves: [],
     accessPortals: [],
     navigationBarriers: [],
@@ -2659,24 +2664,14 @@ const commercialStreetWithContinuousMilkTeaBlueprint: MainlineSceneBlueprint = {
     displayRegions: [],
     ambientNpcRoutes: commercialStreetPublicAmbientNpcRoutes,
   },
-  portals: [...(commercialStreetBlueprint.portals ?? [])],
-  interactionText: {
-    ...commercialStreetBlueprint.interactionText,
-    ...commercialCafeBlueprint.interactionText,
-    [commercialStreetMilkTeaQrId]: milkTeaCopy.qrPrompt,
-    'milk-tea-shop-menu': milkTeaCopy.menu,
-    [commercialStreetMilkTeaClerkContactId]: milkTeaCopy.clerkAgain,
-    [commercialStreetMilkTeaPickupId + '-1']: milkTeaCopy.noOrder,
-    [commercialStreetMilkTeaPickupId + '-3']: milkTeaCopy.noOrder,
-    [commercialStreetMilkTeaPickupId + '-4']: milkTeaCopy.noOrder,
-    'street-milktea-threshold': milkTeaCopy.door,
-  },
+  portals: commercialStreetShopPortals,
+  interactionText: {},
 }
 
 export const mainlineSceneBlueprints: Record<MainlineSceneId, MainlineSceneBlueprint> = {
   'jijia-ancestral-home': jijiaYardBlueprint,
   'jijia-ancestral-interior': jijiaAncestralInteriorBlueprint,
-  'commercial-street': commercialStreetWithContinuousMilkTeaBlueprint,
+  'commercial-street': commercialStreetPhaseOneBlueprint,
   'commercial-cafe': commercialCafeBlueprint,
   'commercial-milktea-interior': milkTeaInteriorBlueprint,
   'commercial-milktea-shop': { ...milkTeaInteriorBlueprint, id: commercialStreetMilkTeaShopSceneId },

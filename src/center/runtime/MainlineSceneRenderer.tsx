@@ -4,7 +4,7 @@ import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import type { CSSProperties, ReactNode } from 'react'
 import EntryButtonSurface from '../../components/EntryButtonSurface'
 import type { CollisionBox, Point } from './sceneGeometry'
-import { mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, projectedSceneGeometry, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
+import { mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation, MainlineShopFurnitureVisual } from './mainlineSceneModel'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -422,7 +422,7 @@ function mainlineWallCellVisibility(cell: MainlineGeometryCellEntry['cell'], uni
   return (cell.baselineVisible ?? cell.baseline ?? true) ? 'is-baseline' : 'is-hidden'
 }
 
-export function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontGeometry, storefrontSignOffset, active = false, explored = false }: {
+export function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontGeometry, active = false, explored = false }: {
   entries: readonly MainlineGeometryCellEntry[]
   className: string
   visibilityClass: string
@@ -441,7 +441,6 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   storefrontCenter?: Point
   storefrontLabel?: string
   storefrontGeometry?: StorefrontContactGeometry
-  storefrontSignOffset?: number
   active?: boolean
   explored?: boolean
 }) {
@@ -476,13 +475,6 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   if (storefrontGeometry) {
     const { center, visualBounds, fontSizePx } = storefrontGeometry
     Object.assign(style, { left: `${center.x}%`, top: `${center.y}%`, width: `${visualBounds.width}%`, height: `${visualBounds.height}%`, fontSize: `${fontSizePx}px` })
-  }
-  // Portal signs sit to the left of the real doorway on horizontal street
-  // facades. Their text no longer shares the portal's clickable glyph cell.
-  if (storefrontLabel && storefrontCenter && storefrontSignOffset !== undefined && !storefrontGeometry) {
-    Object.assign(style, vertical
-      ? { left: `${storefrontCenter.x}%`, top: `${storefrontCenter.y - storefrontSignOffset}%` }
-      : { left: `${storefrontCenter.x - storefrontSignOffset}%`, top: `${storefrontCenter.y}%` })
   }
   const glyphs = entries.map(({ cell }) => cell.glyph ?? '')
   const content = hideGlyphs ? null : storefrontLabel ? (
@@ -909,10 +901,10 @@ export function MainlineSceneRenderer({
   // swaps visual projections as the player approaches; deriving these cells
   // from that changing snapshot made the glyphs jump between source cells.
   const switchCells = useMemo(() => new Map(switchableStorefronts.map(slot => {
-    const presentationGeometry = projectedSceneGeometry(scene, geometrySnapshot.screenMetrics)
+    const presentationGeometry = mainlineSceneGeometryUnits(scene, mainlineStorefrontApproach(scene, slot), geometrySnapshot.screenMetrics)
     return [slot.id, storefrontCharacterCells(scene, slot, presentationGeometry)] as const
   })), [geometrySnapshot.screenMetrics, scene, switchableStorefronts])
-  const activeSwitchableStorefronts = useMemo(() => switchableStorefronts.filter(slot => (switchCells.get(slot.id)?.length ?? 0) > 0), [switchCells, switchableStorefronts])
+  const activeSwitchableStorefronts = useMemo(() => switchableStorefronts.filter(slot => switchCells.get(slot.id)?.length === 3), [switchCells, switchableStorefronts])
   // Player movement only invalidates frame targets when crossing a storefront
   // approach boundary. Keep ordinary walking out of the measured-frame path.
   const approachedStorefrontIds = useMemo(
@@ -1234,7 +1226,6 @@ export function MainlineSceneRenderer({
                     storefrontId={storefrontRole === 'sign' ? storefront?.id : undefined}
                     storefrontSpan={storefront ? storefront.end - storefront.start : undefined}
                     storefrontCenter={storefront ? mainlineStorefrontAnchor(scene, storefront) : undefined}
-                    storefrontSignOffset={storefront?.portalId ? (storefront.end - storefront.start) * .25 : undefined}
                     storefrontLabel={storefrontRole === 'sign' ? storefront?.label : undefined}
                     storefrontGeometry={storefrontRole === 'sign' && storefront ? geometrySnapshot.storefronts.get(storefront.id) : undefined}
                     passagePhase={storefrontPhase}

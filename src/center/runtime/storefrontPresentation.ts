@@ -90,59 +90,42 @@ export function storefrontPresentationShouldReveal(
   return isMainlineStorefrontPresentationInRange(scene, storefront, position)
 }
 
-function baselineStorefrontGlyphs(label: string, cellCount: number) {
-  const labelGlyphs = Array.from(label)
-  const glyphs = Array.from({ length: cellCount }, () => '窗')
-  if (cellCount === 0 || labelGlyphs.length === 0) return glyphs
-  const doorIndex = Math.floor(cellCount / 2)
-  const cellsBeforeDoor = doorIndex
-  const putLabelBeforeDoor = labelGlyphs.length <= cellsBeforeDoor
-  const labelStart = putLabelBeforeDoor ? doorIndex - labelGlyphs.length : doorIndex + 1
-  labelGlyphs.forEach((glyph, index) => {
-    const target = labelStart + index
-    if (target >= 0 && target < cellCount && target !== doorIndex) glyphs[target] = glyph
-  })
-  return glyphs
-}
-
-/** Project the authored glass/sign/glass and glass/wall/door/wall/glass cells. */
+/** Reveal one physical wall/door/wall entrance beneath the centered shop sign. */
 export function storefrontCharacterCells(
   scene: MainlineSceneDefinition,
   storefront: MainlineStorefrontSlot,
   geometryUnits: readonly MainlineSceneGeometryUnit[] = scene.geometry,
 ) {
   if (!storefront.characterSwitch || !storefront.portalId) return []
-  const nearCells = geometryUnits
-    .filter(unit => unit.storefrontId === storefront.id && unit.variant === 'near')
-    .flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
-    .filter(({ cell }) => cell.kind === 'storefront' && cell.storefrontRole)
-    .sort((first, second) => (first.cell.cellStart ?? first.cell.x) - (second.cell.cellStart ?? second.cell.x))
-  if (nearCells.length === 0) return []
-
-  const door = geometryUnits.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell }))).find(entry => (
-    entry.unit.storefrontId === storefront.id
-      && entry.cell.kind === 'door'
-      && (entry.cell.entityId === storefront.portalId || entry.unit.entityId === storefront.portalId)
-  ))
-  if (!door) return []
-
-  const baselineGlyphs = baselineStorefrontGlyphs(storefront.label, nearCells.length)
-  return nearCells.map(({ cell }, index) => {
-    const role = cell.storefrontRole!
-    const isDoor = role === 'door'
-    const anchor = isDoor ? door.cell : cell
-    return {
-      id: anchor.id,
-      x: anchor.x,
-      y: anchor.y,
-      role,
-      baselineGlyph: baselineGlyphs[index] ?? '',
-      glyph: cell.glyph ?? (isDoor ? '门' : role === 'wall' ? '墙' : '窗'),
-      ...(isDoor ? { entityId: door.cell.entityId ?? door.unit.entityId } : {}),
-      cellStart: anchor.cellStart,
-      cellEnd: anchor.cellEnd,
-    }
-  })
+  const entries = geometryUnits.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
+  const onFacade = ({ unit }: typeof entries[number]) => unit.sourceWallId === storefront.wallId && unit.edge === storefront.edge
+  const door = entries.find(entry => onFacade(entry) && entry.cell.kind === 'door'
+    && (entry.cell.entityId === storefront.portalId || entry.unit.entityId === storefront.portalId))
+  const passageAnchor = door ? undefined : geometryUnits.find(unit => unit.storefrontId === storefront.id
+    && unit.navigation.passageId === storefront.portalId)
+  const resolvedDoor = door ?? (passageAnchor ? {
+    unit: passageAnchor,
+    cell: { id: `${storefront.id}-door-anchor`, x: passageAnchor.x + passageAnchor.width / 2,
+      y: passageAnchor.y + passageAnchor.height / 2, kind: 'door' as const, entityId: storefront.portalId },
+  } : undefined)
+  if (!resolvedDoor) return []
+  const vertical = storefront.edge === 'left' || storefront.edge === 'right'
+  const tangent = ({ cell }: typeof resolvedDoor) => vertical ? cell.y : cell.x
+  const normal = ({ cell }: typeof resolvedDoor) => vertical ? cell.x : cell.y
+  const doorTangent = tangent(resolvedDoor)
+  const walls = entries.filter(entry => onFacade(entry) && entry.cell.kind === 'wall'
+    && Math.abs(normal(entry) - normal(resolvedDoor)) < .01)
+  const before = walls.filter(entry => tangent(entry) < doorTangent).sort((a, b) => tangent(b) - tangent(a))[0]
+  const after = walls.filter(entry => tangent(entry) > doorTangent).sort((a, b) => tangent(a) - tangent(b))[0]
+  if (!before || !after) return []
+  return [before, resolvedDoor, after].map((entry, index) => ({
+    id: entry.cell.id, x: entry.cell.x, y: entry.cell.y,
+    role: (['wall', 'door', 'wall'] as const)[index]!,
+    baselineGlyph: '',
+    glyph: entry.cell.glyph ?? (index === 1 ? '门' : '墙'),
+    ...(index === 1 ? { entityId: entry.cell.entityId ?? entry.unit.entityId ?? storefront.portalId } : {}),
+    cellStart: entry.cell.cellStart, cellEnd: entry.cell.cellEnd,
+  }))
 }
 
 /** All cells consume the same normalized animation clock. */
