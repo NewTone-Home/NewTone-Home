@@ -4,7 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-const defaultUrl = 'https://new-tone-md827t9ca-newtone-homes-projects.vercel.app/?scene=commercial-street'
+const defaultUrl = 'https://new-tone-8jf1b8sek-newtone-homes-projects.vercel.app/?scene=commercial-street'
 const args = new Map(process.argv.slice(2).map((arg) => {
   const [key, ...rest] = arg.replace(/^--/, '').split('=')
   return [key, rest.join('=')]
@@ -152,6 +152,8 @@ await page.addInitScript(({ selector, cellId, roomBounds, approach }) => {
   let previousFrame = null
   let previousRoomMembership = null
   let markedFirstRoomFrame = false
+  let approachTrackingActive = false
+  let activeRoomObservationRecorded = false
   const mark = (name, detail = {}) => {
     const t = performance.now()
     sample.milestones.push({ name, t, ...detail })
@@ -170,13 +172,18 @@ await page.addInitScript(({ selector, cellId, roomBounds, approach }) => {
     const objectCount = document.querySelectorAll(selector).length
     if (previousRoomMembership === null) previousRoomMembership = inTargetRoom
     else if (inTargetRoom !== previousRoomMembership) {
-      mark(inTargetRoom ? 'active-room-entered' : 'active-room-left', { x, y, roomBounds })
+      if (inTargetRoom && !activeRoomObservationRecorded) {
+        mark('active-room-position-first-observed', { x, y, roomBounds })
+        activeRoomObservationRecorded = true
+      }
+      mark(inTargetRoom ? 'active-room-position-entered-observed' : 'active-room-position-left-observed', { x, y, roomBounds })
       previousRoomMembership = inTargetRoom
     }
-    if (!sample.approachReached && Number.isFinite(x) && Number.isFinite(y)
+    if (approachTrackingActive && !sample.approachReached && Number.isFinite(x) && Number.isFinite(y)
       && Math.hypot(x - approach.x, y - approach.y) <= 1.25) {
       sample.approachReached = true
       mark('street-approach-reached', { x, y, approach })
+      approachTrackingActive = false
     }
     if (objectCount > 0 && !markedFirstRoomFrame) {
       markedFirstRoomFrame = true
@@ -195,7 +202,16 @@ await page.addInitScript(({ selector, cellId, roomBounds, approach }) => {
 
   document.addEventListener('pointerdown', (event) => {
     const target = event.target instanceof Element ? event.target.closest('[data-storefront-cell-id]') : null
-    if (target?.getAttribute('data-storefront-cell-id') === cellId) mark('door-pointerdown', { cellId })
+    if (target?.getAttribute('data-storefront-cell-id') === cellId) {
+      const actor = document.querySelector('[data-actor-id="protagonist"]')
+      const x = Number.parseFloat(actor?.style.left ?? '')
+      const y = Number.parseFloat(actor?.style.top ?? '')
+      previousRoomMembership = Number.isFinite(x) && Number.isFinite(y)
+        && x >= roomBounds.x && x <= roomBounds.x + roomBounds.width
+        && y >= roomBounds.y && y <= roomBounds.y + roomBounds.height
+      approachTrackingActive = sample.milestones.every((milestone) => milestone.name !== 'room-items-mounted')
+      mark('door-pointerdown', { cellId, x, y })
+    }
   }, true)
 
   const inspect = () => {
@@ -204,7 +220,16 @@ await page.addInitScript(({ selector, cellId, roomBounds, approach }) => {
     const present = count > 0
     if (present !== sample.roomItemsPresent) {
       sample.roomItemsPresent = present
-      mark(present ? 'room-items-mounted' : 'room-items-unmounted', { objectCount: count })
+      if (present) {
+        approachTrackingActive = false
+        const actor = document.querySelector('[data-actor-id="protagonist"]')
+        const x = Number.parseFloat(actor?.style.left ?? '')
+        const y = Number.parseFloat(actor?.style.top ?? '')
+        const actorInsideRoomBounds = Number.isFinite(x) && Number.isFinite(y)
+          && x >= roomBounds.x && x <= roomBounds.x + roomBounds.width
+          && y >= roomBounds.y && y <= roomBounds.y + roomBounds.height
+        mark('room-items-mounted', { objectCount: count, actorX: x, actorY: y, actorInsideRoomBounds, roomBounds })
+      } else mark('room-items-unmounted', { objectCount: count })
     }
   }
   const observer = new MutationObserver(inspect)
@@ -274,17 +299,21 @@ await writeFile(tracePath, traceText)
 const doorInputs = measurements.milestones.filter((event) => event.name === 'door-pointerdown')
 const mounted = measurements.milestones.find((event) => event.name === 'room-items-mounted')
 const approachReached = measurements.milestones.find((event) => event.name === 'street-approach-reached')
-const activeRoomEntered = measurements.milestones.find((event) => event.name === 'active-room-entered')
+const activeRoomObserved = measurements.milestones.find((event) => event.name === 'active-room-position-first-observed')
 const firstItemsFrame = measurements.milestones.find((event) => event.name === 'room-items-first-raf')
 const unmounted = measurements.milestones.find((event) => event.name === 'room-items-unmounted' && mounted && event.t > mounted.t)
 const entryInput = doorInputs[0]?.t
 const returnInput = doorInputs[1]?.t
-const entryPhaseBounds = [
-  ['walk-to-approach', entryInput, approachReached?.t],
-  ['approach-to-active-room', approachReached?.t, activeRoomEntered?.t],
-  ['active-room-to-dom-mount', activeRoomEntered?.t, mounted?.t],
-  ['dom-mount-to-first-frame', mounted?.t, firstItemsFrame?.t],
-].filter(([, start, end]) => start != null && end != null)
+const entryPhaseBounds = (approachReached && mounted && approachReached.t < mounted.t
+  ? [
+    ['click-to-approach', entryInput, approachReached.t],
+    ['approach-to-dom-mount', approachReached.t, mounted?.t],
+    ['dom-mount-to-first-frame', mounted?.t, firstItemsFrame?.t],
+  ]
+  : [
+    ['click-to-dom-mount', entryInput, mounted?.t],
+    ['dom-mount-to-first-frame', mounted?.t, firstItemsFrame?.t],
+  ]).filter(([, start, end]) => start != null && end != null)
 const entryTasks = measurements.longTasks
   .filter((task) => entryInput != null && task.t >= entryInput && firstItemsFrame && task.t <= firstItemsFrame.t)
   .map((task) => {
@@ -310,10 +339,9 @@ const results = {
     streetWalkAndEntry: {
       clickToRoomItemsMountedMs: entryInput != null && mounted ? Number((mounted.t - entryInput).toFixed(2)) : null,
       clickToFirstRoomItemsFrameMs: entryInput != null && firstItemsFrame ? Number((firstItemsFrame.t - entryInput).toFixed(2)) : null,
-      clickToApproachMs: entryInput != null && approachReached ? Number((approachReached.t - entryInput).toFixed(2)) : null,
-      clickToActiveRoomMs: entryInput != null && activeRoomEntered ? Number((activeRoomEntered.t - entryInput).toFixed(2)) : null,
-      approachToActiveRoomMs: approachReached && activeRoomEntered ? Number((activeRoomEntered.t - approachReached.t).toFixed(2)) : null,
-      activeRoomToMountMs: activeRoomEntered && mounted ? Number((mounted.t - activeRoomEntered.t).toFixed(2)) : null,
+      clickToApproachObservedBeforeMountMs: entryInput != null && approachReached && mounted && approachReached.t < mounted.t ? Number((approachReached.t - entryInput).toFixed(2)) : null,
+      clickToActiveRoomPositionFirstObservedMs: entryInput != null && activeRoomObserved ? Number((activeRoomObserved.t - entryInput).toFixed(2)) : null,
+      activeRoomPositionObservationRelativeToMountMs: activeRoomObserved && mounted ? Number((activeRoomObserved.t - mounted.t).toFixed(2)) : null,
       mountToFirstFrameMs: mounted && firstItemsFrame ? Number((firstItemsFrame.t - mounted.t).toFixed(2)) : null,
       frameDeltas: summarize(windowSamples(measurements.raf, entryInput, firstItemsFrame?.t)),
       longTasks: entryTasks,
