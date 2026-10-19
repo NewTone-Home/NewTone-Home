@@ -59,7 +59,7 @@ describe('commercial street storefront presentation', () => {
     const rowCellCounts = rows.map(row => row.reduce((cells, storefront) => (
       cells + storefront.composition!.fixedCellCount!
     ), 0) + Math.max(0, row.length - 1))
-    expect(rowCellCounts).toEqual([76, 77])
+    expect(rowCellCounts).toEqual([92, 93])
     expect(rows[0]![0]!.start).toBe(rows[1]![0]!.start)
     const lastStorefrontEnd = Math.max(...street.storefronts.map(storefront => storefront.end))
     expect(Math.max(rows[0]!.at(-1)!.end, rows[1]!.at(-1)!.end)).toBeCloseTo(lastStorefrontEnd)
@@ -122,11 +122,11 @@ describe('commercial street storefront presentation', () => {
       expect(baseline.map(cell => [cell.x, cell.y])).toEqual(near.map(cell => [cell.x, cell.y]))
       expect(baseline.filter(cell => cell.storefrontRole === 'sign').map(cell => cell.glyph).join('')).toBe(cafe.label)
       expect(near.filter(cell => cell.storefrontRole === 'sign')).toHaveLength(0)
-      expect(near.slice(0, 5).map(cell => cell.storefrontRole)).toEqual(['wall', 'window', 'window', 'wall', 'door'])
+      expect(near.slice(0, 6).map(cell => cell.storefrontRole)).toEqual(['wall', 'window', 'window', 'wall', 'wall', 'door'])
       expect(near.filter(cell => (cell.storefrontRole === 'glass' || cell.storefrontRole === 'window'))).toHaveLength(10)
-      expect(near[4]?.entityId).toBe(cafe.portalId)
-      expect(near[4]?.access).toBe('locked')
-      expect(near[4]?.lockedText).toBe(street.passages.find(passage => passage.portalId === cafe.portalId)?.lockedText)
+      expect(near[5]?.entityId).toBe(cafe.portalId)
+      expect(near[5]?.access).toBe('locked')
+      expect(near[5]?.lockedText).toBe(street.passages.find(passage => passage.portalId === cafe.portalId)?.lockedText)
       expect(new Set(near.filter(cell => (cell.storefrontRole === 'glass' || cell.storefrontRole === 'window')).map(cell => cell.x)).size).toBe(10)
       const revealedUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[cafe.id, 'revealed']]))
       const physical = (units: typeof baselineUnits) => units.filter(unit => unit.navigation.blocked).map(({ id, x, y, width, height, navigation }) => ({ id, x, y, width, height, navigation }))
@@ -242,7 +242,7 @@ describe('commercial street storefront presentation', () => {
     for (const storefront of street.storefronts) {
       const wide = storefront.id === 'commercial-cafe-slot' || storefront.id === 'commercial-south-slot-2'
       const signCount = Array.from(storefront.label).length
-      const count = wide ? signCount + 15 : signCount + 6
+      const count = wide ? signCount + 19 : signCount + 8
       expect(storefront.composition?.fixedCellCount).toBe(count)
       expect(storefront.composition?.baseline).toHaveLength(count)
       expect(storefront.composition?.near).toHaveLength(count)
@@ -251,32 +251,32 @@ describe('commercial street storefront presentation', () => {
       const baseline = storefront.composition!.baseline
       const near = storefront.composition!.near!
       expect(baseline.filter(role => role === 'sign')).toHaveLength(signCount)
-      expect(baseline.slice(3, 3 + signCount)).toEqual(signZone)
+      expect(baseline.slice(4, 4 + signCount)).toEqual(signZone)
       expect(near.filter(role => role === 'door')).toHaveLength(1)
       if (wide) {
-        const moduleB = ['wall', 'window', 'window', 'window', 'window', 'window', 'window', 'wall'] as const
-        const moduleA = ['wall', 'window', 'window', ...signZone, 'window', 'window', 'wall']
-        const nearModuleA = ['wall', 'window', 'window', ...nearSignZone, 'window', 'window', 'wall']
+        const moduleB = ['wall', 'window', 'window', 'wall', 'window', 'window', 'wall', 'window', 'window', 'wall'] as const
+        const moduleA = ['wall', 'window', 'window', 'wall', ...signZone, 'wall', 'window', 'window', 'wall']
+        const nearModuleA = ['wall', 'window', 'window', 'wall', ...nearSignZone, 'wall', 'window', 'window', 'wall']
         expect(baseline).toEqual([...moduleA, 'wall', ...moduleB])
         expect(near).toEqual([...nearModuleA, 'wall', ...moduleB])
-        expect(baseline).toHaveLength(signCount === 2 ? 17 : 18)
+        expect(baseline).toHaveLength(signCount === 2 ? 21 : 22)
         expect(near.filter(role => role === 'door')).toHaveLength(1)
-        expect(near[3 + Math.floor(signCount / 2)]).toBe('door')
-        expect(near.slice(signCount + 7)).toEqual(moduleB)
+        expect(near[4 + Math.floor(signCount / 2)]).toBe('door')
+        expect(near.slice(signCount + 9)).toEqual(moduleB)
       } else {
-        expect(baseline).toEqual(['wall', 'window', 'window', ...signZone, 'window', 'window', 'wall'])
-        expect(near).toEqual(['wall', 'window', 'window', ...nearSignZone, 'window', 'window', 'wall'])
+        expect(baseline).toEqual(['wall', 'window', 'window', 'wall', ...signZone, 'wall', 'window', 'window', 'wall'])
+        expect(near).toEqual(['wall', 'window', 'window', 'wall', ...nearSignZone, 'wall', 'window', 'window', 'wall'])
       }
     }
 
     const storefront = street.storefronts.find(slot => slot.id === 'commercial-south-slot-2')!
     const cafe = street.storefronts.find(slot => slot.id === 'commercial-cafe-slot')!
     expect(storefront.end - storefront.start).toBeCloseTo(storefront.composition!.fixedCellCount! * boundaryGridStepsFromScreenSpacing().horizontal)
-    expect(storefront.composition?.baseline?.slice(0, 4)).toEqual(['wall', 'window', 'window', 'sign'])
-    expect(storefront.composition?.baseline?.slice(0, 5)).toEqual(['wall', 'window', 'window', 'sign', 'sign'])
-    expect(storefront.composition?.near?.slice(3, 5)).toEqual(['wall', 'door'])
-    expect(cafe.composition?.baseline?.slice(0, 6)).toEqual(['wall', 'window', 'window', 'sign', 'sign', 'sign'])
-    expect(cafe.composition?.near?.slice(3, 6)).toEqual(['wall', 'door', 'wall'])
+    expect(storefront.composition?.baseline?.slice(0, 5)).toEqual(['wall', 'window', 'window', 'wall', 'sign'])
+    expect(storefront.composition?.baseline?.slice(0, 6)).toEqual(['wall', 'window', 'window', 'wall', 'sign', 'sign'])
+    expect(storefront.composition?.near?.slice(4, 6)).toEqual(['wall', 'door'])
+    expect(cafe.composition?.baseline?.slice(0, 7)).toEqual(['wall', 'window', 'window', 'wall', 'sign', 'sign', 'sign'])
+    expect(cafe.composition?.near?.slice(4, 7)).toEqual(['wall', 'door', 'wall'])
 
     for (const metrics of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
       for (const slot of [storefront, cafe, street.storefronts.find(candidate => candidate.id === 'commercial-north-slot-2')!]) {
@@ -300,7 +300,7 @@ describe('commercial street storefront presentation', () => {
           expect(near.filter(cell => cell.storefrontRole === 'sign')).toHaveLength(0)
           expect(baseline.filter(cell => (cell.storefrontRole === 'glass' || cell.storefrontRole === 'window'))).toHaveLength(10)
           expect(near.filter(cell => (cell.storefrontRole === 'glass' || cell.storefrontRole === 'window'))).toHaveLength(10)
-          const doorIndex = 3 + Math.floor(Array.from(slot.label).length / 2)
+          const doorIndex = 4 + Math.floor(Array.from(slot.label).length / 2)
           expect(near.filter(cell => cell.storefrontRole === 'door')).toHaveLength(1)
           expect(near[doorIndex]?.entityId).toBe(slot.portalId)
           expect(near[doorIndex]?.access).toBe('locked')
@@ -309,7 +309,7 @@ describe('commercial street storefront presentation', () => {
           expect(baseline.filter(cell => (cell.storefrontRole === 'glass' || cell.storefrontRole === 'window'))).toHaveLength(4)
           expect(near.filter(cell => (cell.storefrontRole === 'glass' || cell.storefrontRole === 'window')).map(cell => cell.x)).toEqual(baseline.filter(cell => (cell.storefrontRole === 'glass' || cell.storefrontRole === 'window')).map(cell => cell.x))
           const signCount = Array.from(slot.label).length
-          expect(near.slice(3, 3 + signCount).map(cell => cell.storefrontRole))
+          expect(near.slice(4, 4 + signCount).map(cell => cell.storefrontRole))
             .toEqual(Array.from({ length: signCount }, (_, index) => index === Math.floor(signCount / 2) ? 'door' : 'wall'))
         }
         const approach = mainlineStorefrontApproach(street, slot, metrics)
@@ -357,7 +357,7 @@ describe('commercial street storefront presentation', () => {
 
     expect(nearUnits.some((unit) => unit.variant === 'near' && unit.visual.cells.some((cell) => cell.storefrontRole === 'sign'))).toBe(false)
     expect(roles.filter(role => (role === 'glass' || role === 'window'))).toHaveLength(10)
-    expect(roles.slice(0, 5)).toEqual(['wall', 'window', 'window', 'wall', 'door'])
+    expect(roles.slice(0, 6)).toEqual(['wall', 'window', 'window', 'wall', 'wall', 'door'])
   })
 
   it('limits near emphasis on fixed storefront grids to the entrance cell', () => {
@@ -433,15 +433,15 @@ describe('commercial street storefront presentation', () => {
       if (wide) {
         expect(nearFacade.filter(cell => cell.storefrontRole === 'sign')).toHaveLength(0)
         const signCount = Array.from(storefront.label).length
-        expect(nearFacade.slice(3, 3 + signCount).map(cell => cell.storefrontRole))
+        expect(nearFacade.slice(4, 4 + signCount).map(cell => cell.storefrontRole))
           .toEqual(Array.from({ length: signCount }, (_, index) => index === Math.floor(signCount / 2) ? 'door' : 'wall'))
-        expect(nearFacade.slice(signCount + 7).map(cell => cell.storefrontRole)).toEqual(storefront.composition!.near!.slice(signCount + 7))
+        expect(nearFacade.slice(signCount + 9).map(cell => cell.storefrontRole)).toEqual(storefront.composition!.near!.slice(signCount + 9))
         expect(nearFacade.filter(cell => (cell.storefrontRole === 'glass' || cell.storefrontRole === 'window'))).toHaveLength(10)
       } else {
         expect(nearFacade.filter(cell => (cell.storefrontRole === 'glass' || cell.storefrontRole === 'window')).map(cell => cell.x))
           .toEqual(farFacade.filter(cell => (cell.storefrontRole === 'glass' || cell.storefrontRole === 'window')).map(cell => cell.x))
         const signCount = Array.from(storefront.label).length
-        expect(nearFacade.slice(3, 3 + signCount).map(cell => cell.storefrontRole))
+        expect(nearFacade.slice(4, 4 + signCount).map(cell => cell.storefrontRole))
           .toEqual(Array.from({ length: signCount }, (_, index) => index === Math.floor(signCount / 2) ? 'door' : 'wall'))
       }
     }

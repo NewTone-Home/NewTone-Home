@@ -999,7 +999,7 @@ const commercialStreetAmbientNpcs = [
 
 const commercialStreetPortalTangent = (storefront: Pick<MainlineStorefrontSlotBlueprint, 'id' | 'start' | 'end' | 'label'>) => {
   const signLength = Array.from(storefront.label).length
-  const doorGlyphIndex = 3 + Math.floor(signLength / 2)
+  const doorGlyphIndex = 4 + Math.floor(signLength / 2)
   return storefront.start + (doorGlyphIndex + .4995) * commercialStreetCellPitch
 }
 
@@ -1007,18 +1007,18 @@ function commercialStreetStorefrontComposition(label: string, wide: boolean): Ma
   const labelLength = Array.from(label).length
   const signZone: MainlineStorefrontRole[] = Array.from({ length: labelLength }, () => 'sign')
   const nearSignZone: MainlineStorefrontRole[] = signZone.map((_, index) => index === Math.floor(labelLength / 2) ? 'door' : 'wall')
-  const moduleA: MainlineStorefrontRole[] = ['wall', 'window', 'window', ...signZone, 'window', 'window', 'wall']
-  const nearModuleA: MainlineStorefrontRole[] = ['wall', 'window', 'window', ...nearSignZone, 'window', 'window', 'wall']
+  const moduleA: MainlineStorefrontRole[] = ['wall', 'window', 'window', 'wall', ...signZone, 'wall', 'window', 'window', 'wall']
+  const nearModuleA: MainlineStorefrontRole[] = ['wall', 'window', 'window', 'wall', ...nearSignZone, 'wall', 'window', 'window', 'wall']
   if (wide) {
-    const moduleB: MainlineStorefrontRole[] = ['wall', 'window', 'window', 'window', 'window', 'window', 'window', 'wall']
+    const moduleB: MainlineStorefrontRole[] = ['wall', 'window', 'window', 'wall', 'window', 'window', 'wall', 'window', 'window', 'wall']
     return {
-      fixedCellCount: labelLength + 15,
+      fixedCellCount: labelLength + 19,
       baseline: [...moduleA, 'wall', ...moduleB],
       near: [...nearModuleA, 'wall', ...moduleB],
     }
   }
   return {
-    fixedCellCount: labelLength + 6,
+    fixedCellCount: labelLength + 8,
     baseline: moduleA,
     near: nearModuleA,
   }

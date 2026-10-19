@@ -141,8 +141,8 @@ describe('commercial street storefront interactions', () => {
     const expectedRoles = (label: string, wide: boolean) => {
       const sign = Array.from(label, () => 'sign')
       return wide
-        ? ['wall', 'window', 'window', ...sign, 'window', 'window', 'wall', 'wall', 'wall', 'window', 'window', 'window', 'window', 'window', 'window', 'wall']
-        : ['wall', 'window', 'window', ...sign, 'window', 'window', 'wall']
+        ? ['wall', 'window', 'window', 'wall', ...sign, 'wall', 'window', 'window', 'wall', 'wall', 'wall', 'window', 'window', 'wall', 'window', 'window', 'wall', 'window', 'window', 'wall']
+        : ['wall', 'window', 'window', 'wall', ...sign, 'wall', 'window', 'window', 'wall']
     }
     const phases = new Map(street.storefronts.map((storefront) => [storefront.id, 'baseline' as const]))
     const firstGrid = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, metrics[0], phases)
