@@ -80,6 +80,8 @@ export type MainlineContinuousStructure = CollisionBox & {
 export type MainlineSceneEntity = {
   id: string
   label: string
+  /** Optional shell ownership for furniture that only renders inside its room. */
+  roomId?: string
   /** Initial visibility follows the original scene story snapshot. */
   visible?: boolean
   /** Stable semantic name; user-facing rendering may provide a shorter display label. */
@@ -119,6 +121,10 @@ export type MainlineSceneEntity = {
   facing?: MainlineFacing
   seat?: SharedSeatDefinition
   doorBehavior?: MainlineDoorBehavior
+}
+
+export function mainlineEntityBelongsToActiveRoom(entity: Pick<MainlineSceneEntity, 'roomId'>, activeRoomId?: string): boolean {
+  return !entity.roomId || entity.roomId === activeRoomId
 }
 
 /** A scene resident with an NPC role; NPCs are not spatial furniture entities. */
@@ -1131,6 +1137,126 @@ const commercialStreetInteriorSamples = commercialStreetStorefronts.map((storefr
   }
 })
 
+const commercialStreetShellFurniture = (() => {
+  const verticalStep = boundaryGridStepsFromScreenSpacing().vertical
+  const groupIds: string[] = []
+  const entities: MainlineSceneEntity[] = []
+  const structures: MainlineContinuousStructure[] = []
+  const cell = (sample: typeof commercialStreetInteriorSamples[number], column: number, row: number): Point => ({
+    x: sample.x + column * commercialStreetCellPitch,
+    y: sample.facade + row * verticalStep * (sample.side === 'north' ? -1 : 1),
+  })
+  const addFurniture = (sample: typeof commercialStreetInteriorSamples[number], furniture: ReturnType<typeof mainlineTwoSeatFurniture>) => {
+    groupIds.push(furniture.group.id)
+    entities.push(...furniture.entities.map((entity) => ({ ...entity, roomId: sample.roomId, visualVisibility: 'static' as const })))
+  }
+  const addCounter = (
+    sample: typeof commercialStreetInteriorSamples[number],
+    prefix: string,
+    paths: readonly (readonly Point[])[],
+  ) => paths.forEach((positions, pathIndex) => {
+    const first = positions[0]!
+    const last = positions.at(-1)!
+    const vertical = Math.abs(first.y - last.y) >= Math.abs(first.x - last.x)
+    positions.forEach((position, index) => entities.push(floor({
+      id: `${prefix}-${pathIndex + 1}-${index + 1}`,
+      label: vertical && positions.length > 1 ? index % 2 === 0 ? '柜' : '台' : '柜台',
+      kind: 'fixture',
+      weight: 'fixture',
+      position,
+      roomId: sample.roomId,
+      visualVisibility: 'static',
+    })))
+    const width = vertical ? commercialStreetCellPitch * .4 : Math.max(commercialStreetCellPitch * 2, Math.abs(last.x - first.x) + commercialStreetCellPitch)
+    const height = vertical ? Math.abs(last.y - first.y) + verticalStep : verticalStep
+    structures.push({
+      id: `${prefix}-${pathIndex + 1}-body`,
+      kind: 'counter',
+      ...box((first.x + last.x - width) / 2, (first.y + last.y - height) / 2, width, height),
+    })
+  })
+  const addWallGlyph = (
+    sample: typeof commercialStreetInteriorSamples[number],
+    id: string,
+    position: Point,
+  ) => {
+    entities.push(floor({
+      id,
+      label: '墙',
+      kind: 'fixture',
+      weight: 'fixture',
+      position,
+      roomId: sample.roomId,
+      visualVisibility: 'static',
+    }))
+  }
+  const addWallRun = (
+    sample: typeof commercialStreetInteriorSamples[number],
+    id: string,
+    positions: readonly Point[],
+    orientation: 'horizontal' | 'vertical',
+  ) => {
+    positions.forEach((position, index) => addWallGlyph(sample, `${id}-${index + 1}`, position))
+    const first = positions[0]!
+    const last = positions.at(-1)!
+    const thickness = Math.max(.8, commercialStreetCellPitch * .18)
+    const collision = orientation === 'horizontal'
+      ? box(first.x - commercialStreetCellPitch / 2, first.y - thickness / 2, positions.length * commercialStreetCellPitch, thickness)
+      : box(first.x - thickness / 2, first.y - verticalStep / 2, thickness, positions.length * verticalStep)
+    structures.push({ id: `${id}-body`, kind: 'barrier', ...collision })
+  }
+  const addInternalDoorGlyph = (sample: typeof commercialStreetInteriorSamples[number], id: string, position: Point) => {
+    entities.push(floor({
+      id,
+      label: '门',
+      kind: 'fixture',
+      weight: 'fixture',
+      position,
+      roomId: sample.roomId,
+      visualVisibility: 'static',
+    }))
+  }
+
+  const milkTea = commercialStreetInteriorSamples.find((sample) => sample.roomId === 'commercial-south-s5-interior')!
+  // One compact two-seat table leaves the whole front entry turn and the
+  // narrow west customer lane clear; the service counter is on the east.
+  addFurniture(milkTea, mainlineTwoSeatFurniture(
+    'commercial-s5-milk-tea-table-group', cell(milkTea, 2, 9), cell(milkTea, 1, 9),
+    { tableId: 'commercial-s5-milk-tea-table', seatIds: ['commercial-s5-milk-tea-seat-a', 'commercial-s5-milk-tea-seat-b'] },
+  ))
+  addCounter(milkTea, 'commercial-s5-milk-tea-counter', [
+    Array.from({ length: 9 }, (_, index) => cell(milkTea, 6, 5 + index)),
+    [cell(milkTea, 7, 14)],
+  ])
+  const milkTeaRearWallRuns = [[0, 1, 2], [7], [10]]
+  milkTeaRearWallRuns.forEach((columns, runIndex) => {
+    addWallRun(milkTea, `commercial-s5-milk-tea-rear-partition-${runIndex}`, columns.map((column) => cell(milkTea, column, 16)), 'horizontal')
+  })
+  addInternalDoorGlyph(milkTea, 'commercial-s5-milk-tea-warehouse-door', cell(milkTea, 3.5, 16))
+  addInternalDoorGlyph(milkTea, 'commercial-s5-milk-tea-kitchen-door', cell(milkTea, 8.5, 16))
+  addWallRun(milkTea, 'commercial-s5-milk-tea-kitchen-divider', Array.from({ length: 4 }, (_, index) => cell(milkTea, 6, 17 + index)), 'vertical')
+
+  const fastFood = commercialStreetInteriorSamples.find((sample) => sample.roomId === 'commercial-south-s2-interior')!
+  addFurniture(fastFood, mainlineTwoSeatFurniture(
+    'commercial-s2-fast-food-table-group-a', cell(fastFood, 5, 7), cell(fastFood, 3, 7),
+    { tableId: 'commercial-s2-fast-food-table-a', seatIds: ['commercial-s2-fast-food-seat-a1', 'commercial-s2-fast-food-seat-a2'] },
+  ))
+  addFurniture(fastFood, mainlineTwoSeatFurniture(
+    'commercial-s2-fast-food-table-group-b', cell(fastFood, 9, 12), cell(fastFood, 7, 12),
+    { tableId: 'commercial-s2-fast-food-table-b', seatIds: ['commercial-s2-fast-food-seat-b1', 'commercial-s2-fast-food-seat-b2'] },
+  ))
+  addCounter(fastFood, 'commercial-s2-fast-food-counter', [Array.from({ length: 10 }, (_, index) => cell(fastFood, 14, 5 + index))])
+  const fastFoodRearWallRuns = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [14, 15], [18, 19], [22]]
+  fastFoodRearWallRuns.forEach((columns, runIndex) => {
+    addWallRun(fastFood, `commercial-s2-fast-food-rear-partition-${runIndex}`, columns.map((column) => cell(fastFood, column, 16)), 'horizontal')
+  })
+  addInternalDoorGlyph(fastFood, 'commercial-s2-fast-food-kitchen-door', cell(fastFood, 16.5, 16))
+  addInternalDoorGlyph(fastFood, 'commercial-s2-fast-food-warehouse-door', cell(fastFood, 20.5, 16))
+  addWallRun(fastFood, 'commercial-s2-fast-food-kitchen-warehouse-divider', Array.from({ length: 4 }, (_, index) => cell(fastFood, 18, 17 + index)), 'vertical')
+
+  return { groupIds, entities, structures }
+})()
+
 const commercialStreetAirWallSegments = (id: string, bounds: CollisionBox, samples: typeof commercialStreetInteriorSamples) => {
   const cuts = samples.map(({ x, width }) => ({ start: x, end: x + width }))
     .filter(({ start, end }) => end > bounds.x && start < bounds.x + bounds.width)
@@ -1236,9 +1362,10 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
       })),
     ],
     storefronts: commercialStreetStorefronts,
-    floorEntities: [],
+    floorEntities: commercialStreetShellFurniture.entities,
     airWalls: commercialStreetFacadeAirWalls,
     blockers: [],
+    continuousStructures: commercialStreetShellFurniture.structures,
     npcs: commercialStreetAmbientNpcs,
     npcPlacements: [
       { npcId: 'commercial-street-pedestrian-west-north', position: authoredPoint(22, 42 - commercialStreetLaneExpansion) },
@@ -1249,7 +1376,10 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
       { npcId: 'commercial-street-pedestrian-shopper', position: authoredPoint(110, 58 + commercialStreetLaneExpansion) },
     ],
     ambientNpcRoutes: commercialStreetAmbientNpcRoutes,
-    furnitureGroups: [],
+    furnitureGroups: commercialStreetShellFurniture.groupIds.map((id) => {
+      const first = commercialStreetShellFurniture.entities.find((entity) => entity.groupId === id)!
+      return { id, anchor: first.position, entityIds: commercialStreetShellFurniture.entities.filter((entity) => entity.groupId === id).map((entity) => entity.id) }
+    }),
     initialPlayerPosition: authoredPoint(34, 50),
   },
   portals: [...commercialStreetPortals, ...commercialStreetRearDoorPortals],

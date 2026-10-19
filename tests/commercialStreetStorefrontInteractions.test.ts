@@ -140,7 +140,7 @@ describe('commercial street storefront interactions', () => {
       expect(rear).toMatchObject({ access: 'locked' })
       expect(rear.targetSceneId).toBeUndefined()
       const rearCommand = classifyMainlineWorldCommand(street, interior, rear.crossingTargets[0])
-      expect(rearCommand.kind).toBe('passage')
+      expect(rearCommand.kind, `${storefrontId} rear-door approach`).toBe('passage')
       if (rearCommand.kind === 'passage') expect(rearCommand.passage.id).toBe(rear.id)
       expect(shell?.wallEdges).toEqual(side === 'north' ? ['top', 'left', 'right'] : ['bottom', 'left', 'right'])
       expect(isWalkableMainlinePoint(interior, street)).toBe(true)

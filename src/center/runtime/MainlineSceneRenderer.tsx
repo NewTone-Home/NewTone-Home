@@ -5,7 +5,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import EntryButtonSurface from '../../components/EntryButtonSurface'
 import type { CollisionBox, Point } from './sceneGeometry'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
-import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
+import { mainlineEntityBelongsToActiveRoom, type MainlineSceneDialogueLine, type MainlineSceneDialoguePresentation } from './mainlineSceneModel'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { SceneCharacters, SceneCharacterSwitch } from './SceneCharacters'
@@ -1297,7 +1297,10 @@ export function MainlineSceneRenderer({
             })}
           </div>
 
-          {scene.objects.filter((entity) => entity.visible !== false && entity.kind !== 'door' && !wallFeatureEntityIds.has(entity.id)).map((entity) => {
+          {scene.objects.filter((entity) => entity.visible !== false
+            && entity.kind !== 'door'
+            && !wallFeatureEntityIds.has(entity.id)
+            && mainlineEntityBelongsToActiveRoom(entity, activeShellRoomId)).map((entity) => {
             const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
             const focusGroup = !layoutMode && entity.focusFrame === 'interactive' ? `interactive:${entity.id}` : undefined
             const underPlayer = entity.visualProfile === 'tree-ring' && entity.interactive === false && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8
