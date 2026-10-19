@@ -885,19 +885,13 @@ export function MainlineSceneRenderer({
     () => new Set(activeStorefrontId ? [activeStorefrontId] : []),
     [activeStorefrontId],
   )
+  const activeShellRoomId = scene.rooms.find((room) => room.id.endsWith('-interior')
+    && position.x >= room.bounds.x
+    && position.x <= room.bounds.x + room.bounds.width
+    && position.y >= room.bounds.y
+    && position.y <= room.bounds.y + room.bounds.height)?.id
   const geometryCells = useMemo(() => geometryUnits.flatMap((unit) => unit.visual.cells
     .filter(cell => {
-      // Empty-shell walls belong to the room they bound. Keep their visual
-      // glyphs out of the frozen street view until the player is inside that
-      // shell; the compiled geometry remains present for nav and collision.
-      const shellRoomId = unit.sourceWallId?.endsWith('-shell')
-        ? unit.sourceWallId.slice(0, -'-shell'.length)
-        : undefined
-      const shellRoom = shellRoomId ? scene.rooms.find(room => room.id === shellRoomId) : undefined
-      if (!layoutMode && shellRoom && !(position.x >= shellRoom.bounds.x
-        && position.x <= shellRoom.bounds.x + shellRoom.bounds.width
-        && position.y >= shellRoom.bounds.y
-        && position.y <= shellRoom.bounds.y + shellRoom.bounds.height)) return false
       const slot = unit.storefrontId ? activeSwitchableStorefronts.find(candidate => candidate.id === unit.storefrontId) : undefined
       if (!slot) return true
       return storefrontGeometryCellShouldRender(slot, unit, cell, switchCells.get(slot.id))
@@ -909,7 +903,17 @@ export function MainlineSceneRenderer({
     cell: cell.kind === 'storefront' && unit.storefrontId
       ? { ...cell, storefrontId: unit.storefrontId }
       : cell,
-  }))), [activeSwitchableStorefronts, geometryUnits, layoutMode, position.x, position.y, scene.rooms, switchCells])
+  }))), [activeSwitchableStorefronts, geometryUnits, switchCells])
+
+  // Shell visibility is a discrete room transition. Keep it out of the
+  // geometry/focus graph so ordinary movement does not rebuild every group.
+  const renderedGeometryCells = useMemo(() => geometryCells.filter(({ unit }) => {
+    if (layoutMode) return true
+    const shellRoomId = unit.sourceWallId?.endsWith('-shell')
+      ? unit.sourceWallId.slice(0, -'-shell'.length)
+      : undefined
+    return !shellRoomId || shellRoomId === activeShellRoomId
+  }), [activeShellRoomId, geometryCells, layoutMode])
 
   const focusGroupCells = useMemo(() => {
     const groups = new Map<string, MainlineGeometryCellEntry[]>()
@@ -1177,7 +1181,7 @@ export function MainlineSceneRenderer({
                   focusFrames.remeasureGroup(`door:${slot.portalId}`)
                 } else onStorefrontRestoreMotionComplete?.(slot.id)
               }} />)}
-            {geometryCells.map(({ unit, cell }) => {
+            {renderedGeometryCells.map(({ unit, cell }) => {
               if (cell.glyph === '') return null
               const visibilityClass = mainlineWallCellVisibility(scene, cell, unit)
               const portalGlyphStyle = {}

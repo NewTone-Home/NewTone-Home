@@ -11,11 +11,11 @@ Both entry portals have no `targetSceneId`: passage lifecycle crosses the facade
 
 ## Grid dimensions and ownership
 
-The implementation uses `boundaryGridStepsFromScreenSpacing()` for both axes. At the standard 1280 × 720 screen metrics, a character pitch is 2.1875% horizontally and 3.8889% vertically. The two bay widths come from the storefront cell spans (11 and 23 horizontal cells). A 22-center depth has 21 vertical pitch intervals between the facade and rear-wall centers, so the depth is `verticalPitch * 21` (about 81.67 stage units). N2 runs north from its existing facade; S2 runs south. The existing facade is the room's front wall and is not recreated by either shell.
+The implementation uses `boundaryGridStepsFromScreenSpacing()` for both axes. At the standard 1280 x 720 screen metrics, a character pitch is 2.1875% horizontally and 3.8889% vertically. The facade contains 11 and 23 horizontal character centers for N2 and S2. Each shell pins compiled frame coordinates to those same anchors: rear edges have 11/23 anchors and side edges have 22 anchors including both ends. The 22 centers are 21 vertical pitch intervals between the existing facade center and rear-wall center, so the depth is `verticalPitch * 21` (about 81.67 stage units). N2 runs north from its existing facade; S2 runs south. The existing facade is the room front wall and is not recreated by either shell.
 
-Each shell adds only left, right and rear boundary edges. The rear edge contains the locked rear-door opening. The sample room bounds are registered in `scene.rooms` and linked bidirectionally to the public lane using `routeThrough` passages. The larger y walk bounds let the same scene camera and navmesh reach the rooms. Segmented air walls preserve the established off-storefront barriers and close the new north/south extension everywhere except the two authored bay spans. Thus the expansion does not make unselected store backs walkable.
+Shell corners use the first and last frozen storefront glyph centers. The rear row therefore aligns with the facade at 1280x720, 1180x757, and 390x844 instead of overhanging by half a cell. Room bounds and portal positions stay at their authored world coordinates across screen metrics. The side rows include the rear endpoint and meet the existing facade at the front endpoint; the facade owns that shared front glyph visually. Each shell adds only left, right and rear boundary edges. The rear edge contains the locked rear-door opening. The sample room bounds are registered in `scene.rooms` and linked bidirectionally to the public lane using `routeThrough` passages. The larger y walk bounds let the same scene camera and navmesh reach the rooms. Segmented air walls preserve the established off-storefront barriers and close the new north/south extension everywhere except the two authored bay spans. Thus the expansion does not make unselected store backs walkable.
 
-Shell wall glyphs are filtered at the renderer by their owning room: they remain hidden while the player is on the street and become visible while inside that shell. This is a visual projection only; the same compiled units remain in collision, route and room geometry. Storefront fronts, neighboring shop walls and the Cafe are not hidden by that filter.
+Shell wall glyphs are filtered at the renderer by their owning room. Visibility uses the discrete active shell room; compiled geometry and focus groups no longer depend on player x/y. Ordinary movement therefore does not rebuild focus groups via this filter. This removes an avoidable per-step invalidation path; no standalone frame-time performance measurement was made. The visual filter leaves compiled units in collision, route and room geometry. Storefront fronts, neighboring shop walls and the Cafe are not hidden by that filter.
 
 ## Changed files and source evidence
 
@@ -39,18 +39,25 @@ walkBounds: box(8, 10, commercialStreetWorldRight - 8, 80),
 Current grid and shell span:
 
 ```ts
-const commercialStreetInteriorDepth = boundaryGridStepsFromScreenSpacing().vertical * 21
+const commercialStreetInteriorVerticalCoordinateCount = 22
+const commercialStreetInteriorDepth = boundaryGridStepsFromScreenSpacing().vertical * (commercialStreetInteriorVerticalCoordinateCount - 1)
 const commercialStreetFacadeNorthY = 14 + 22 - commercialStreetLaneExpansion
 const commercialStreetFacadeSouthY = 64 + commercialStreetLaneExpansion
 const commercialStreetInteriorSamples = [
-  { storefrontId: 'commercial-north-slot-2', roomId: 'commercial-north-n2-interior', side: 'north' as const },
-  { storefrontId: 'commercial-south-slot-2', roomId: 'commercial-south-s2-interior', side: 'south' as const },
+  { storefrontId: 'commercial-north-slot-2', roomId: 'commercial-north-n2-interior', side: 'north' as const, horizontalCellCount: 11 },
+  { storefrontId: 'commercial-south-slot-2', roomId: 'commercial-south-s2-interior', side: 'south' as const, horizontalCellCount: 23 },
 ].map((sample) => {
   const storefront = commercialStreetStorefronts.find((candidate) => candidate.id === sample.storefrontId)!
   const facade = sample.side === 'north' ? commercialStreetFacadeNorthY : commercialStreetFacadeSouthY
   const back = facade + (sample.side === 'north' ? -commercialStreetInteriorDepth : commercialStreetInteriorDepth)
-  return { ...sample, storefront, facade, back, x: storefront.start, width: storefront.end - storefront.start }
+  const x = storefront.start + commercialStreetCellPitch / 2
+  return { ...sample, storefront, facade, back, x, width: storefront.end - storefront.start - commercialStreetCellPitch }
 })
+// Each sample shell structure uses:
+boundaryCoordinateCount: {
+  horizontal: sample.horizontalCellCount,
+  vertical: commercialStreetInteriorVerticalCoordinateCount,
+}
 ```
 
 The air-wall helper subtracts exactly each sample bay interval from its source barrier, then the extension bands prevent the expanded walk bounds opening the remaining shop backs:
@@ -173,24 +180,30 @@ const geometryCells = useMemo(() => geometryUnits.flatMap((unit) => unit.visual.
     const slot = unit.storefrontId ? activeSwitchableStorefronts.find(candidate => candidate.id === unit.storefrontId) : undefined
 ```
 
-The added owner-room filter only removes shell cells from the rendered list while outside their room. The `geometryUnits` snapshot consumed by collision and routing is unchanged:
+The shell visibility projection is now separate and keyed by the discrete active room. `geometryCells` remains independent of player position, allowing focus groups and focus-frame targets to reuse stable inputs during ordinary walking:
 
 ```ts
-const shellRoomId = unit.sourceWallId?.endsWith('-shell')
-  ? unit.sourceWallId.slice(0, -'-shell'.length)
-  : undefined
-const shellRoom = shellRoomId ? scene.rooms.find(room => room.id === shellRoomId) : undefined
-if (!layoutMode && shellRoom && !(position.x >= shellRoom.bounds.x
-  && position.x <= shellRoom.bounds.x + shellRoom.bounds.width
-  && position.y >= shellRoom.bounds.y
-  && position.y <= shellRoom.bounds.y + shellRoom.bounds.height)) return false
+const activeShellRoomId = scene.rooms.find((room) => room.id.endsWith('-interior')
+  && position.x >= room.bounds.x
+  && position.x <= room.bounds.x + room.bounds.width
+  && position.y >= room.bounds.y
+  && position.y <= room.bounds.y + room.bounds.height)?.id
+const geometryCells = useMemo(() => geometryUnits.flatMap((unit) => unit.visual.cells
+  .filter(/* storefront projection only; no position or room-visibility check */)),
+  [activeSwitchableStorefronts, geometryUnits, switchCells])
+const renderedGeometryCells = useMemo(() => geometryCells.filter(({ unit }) => {
+  if (layoutMode) return true
+  const shellRoomId = unit.sourceWallId?.endsWith('-shell')
+    ? unit.sourceWallId.slice(0, -'-shell'.length)
+    : undefined
+  return !shellRoomId || shellRoomId === activeShellRoomId
+}), [activeShellRoomId, geometryCells, layoutMode])
 ```
 
-The memo now also keys on player position and room bounds. This hides only shell-owned side/rear wall glyphs. It never suppresses the shared facade, neighbor walls, Cafe, room bounds or collision geometry.
-
+Only the rendered list is filtered. The focus graph uses `geometryCells`, not the rendered list; no per-frame performance measurement was made.
 ### `tests/commercialStreetStorefrontInteractions.test.ts`
 
-The earlier storefront assertion required every door to be locked. It now distinguishes the two explicit sample portals. New assertions check exact 11/23-cell widths, 22 wall centers/21 pitch intervals, same-scene route ownership, locked rear doors, room entry/return paths, blocked adjacent back space and camera following:
+The earlier storefront assertion required every door to be locked. It now distinguishes the two explicit sample portals. Tests check same-scene route ownership, locked rear doors, room entry/return paths, blocked adjacent back space and camera following. A new actual compiler test runs at 1280x720, 1180x757 and 390x844, checks 11/23 rear anchors against the facade glyph centers, verifies the fixed door and geometry signature across viewports, and checks 22 continuous side anchors including the shared facade/rear corners:
 
 ```ts
 const roomSamples = [
@@ -198,7 +211,7 @@ const roomSamples = [
   ['commercial-south-slot-2', 'commercial-south-s2-interior', 23],
 ] as const
 // ...
-expect(room.bounds.width).toBeCloseTo(steps.horizontal * widthCells)
+expect(room.bounds.width).toBeCloseTo(steps.horizontal * (widthCells - 1))
 expect(room.bounds.height).toBeCloseTo(steps.vertical * 21)
 expect(entry).toMatchObject({ access: 'open', routeThrough: true, fromRoomId: 'commercial-street-public-lane', toRoomId: roomId })
 expect(entry.targetSceneId).toBeUndefined()
@@ -226,8 +239,8 @@ expect(passage.targetSceneId).toBeUndefined()
 
 ## Validation and limitations
 
-- Focused Vitest file: `tests/commercialStreetStorefrontInteractions.test.ts` — 14 passed.
-- Related regression set: commercial street storefronts, Cafe behavior/story, scene transitions, navigation barriers and player saves — 6 files, 60 passed.
+- Focused Vitest file: `tests/commercialStreetStorefrontInteractions.test.ts` — 15 passed, including the three-viewport compiled anchor and corner checks.
+- Related regression set: commercial street storefronts, Cafe behavior/story, scene transitions, navigation barriers and player saves — 6 files, 61 passed.
 - `npm run typecheck` — passed.
 - `npm run build` — passed. Vite emitted a large-chunk advisory (803 kB main JS); no build errors.
 - `git diff --check` — passed after whitespace cleanup.

@@ -120,7 +120,7 @@ describe('commercial street storefront interactions', () => {
       const interior = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
       const command = classifyMainlineWorldCommand(street, street.initialPlayerPosition, interior)
 
-      expect(room.bounds.width).toBeCloseTo(steps.horizontal * widthCells)
+      expect(room.bounds.width).toBeCloseTo(steps.horizontal * (widthCells - 1))
       expect(room.bounds.height).toBeCloseTo(expectedDepth)
       expect(entry).toMatchObject({ access: 'open', routeThrough: true, fromRoomId: 'commercial-street-public-lane', toRoomId: roomId })
       expect(entry.targetSceneId).toBeUndefined()
@@ -146,6 +146,77 @@ describe('commercial street storefront interactions', () => {
     const target = mainlineCameraTarget(street, northInterior, offset)
     expect(offset.y).toBeGreaterThan(0)
     expect(target.y).toBeGreaterThan(0)
+  })
+
+  it('compiles fixed shell anchors that align front, rear, and side corners at every supported viewport', () => {
+    const metrics = [
+      { width: 1280, height: 720 },
+      { width: 1180, height: 757 },
+      { width: 390, height: 844 },
+    ]
+    const samples = [
+      ['commercial-north-slot-2', 'commercial-north-n2-interior', 11, 'top', 'commercial-north-facade', 'bottom'],
+      ['commercial-south-slot-2', 'commercial-south-s2-interior', 23, 'bottom', 'commercial-south-facade', 'top'],
+    ] as const
+
+    for (const [storefrontId, roomId, characterCount, rearEdge, facadeId, facadeEdge] of samples) {
+      const storefront = street.storefronts.find((candidate) => candidate.id === storefrontId)!
+      const shellId = `${roomId}-shell`
+      const room = street.rooms.find((candidate) => candidate.id === roomId)!
+      const canonicalFacadeXs = mainlineSceneGeometryUnits(
+        street,
+        street.initialPlayerPosition,
+        metrics[0],
+        new Map([[storefrontId, 'baseline']]),
+      ).flatMap((unit) => unit.visual.cells)
+        .filter((cell) => cell.storefrontId === storefrontId)
+        .map((cell) => cell.x)
+        .sort((left, right) => left - right)
+      expect(canonicalFacadeXs).toHaveLength(characterCount)
+
+      const anchorSignatures: string[] = []
+      for (const viewport of metrics) {
+        const units = mainlineCanonicalSceneGeometryUnits(street, viewport)
+        const shellUnits = units.filter((unit) => unit.sourceWallId === shellId)
+        const rearCells = shellUnits.filter((unit) => unit.edge === rearEdge).flatMap((unit) => unit.visual.cells)
+        const rearPassage = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
+        const rearDoorPosition = street.objects.find((candidate) => candidate.id === rearPassage.entityId)!.position
+        const rearXs = [...new Set(rearCells.map((cell) => Number(cell.x.toFixed(3))))].sort((left, right) => left - right)
+        expect(rearXs).toHaveLength(characterCount)
+        rearXs.forEach((x, index) => expect(x).toBeCloseTo(canonicalFacadeXs[index]!, 2))
+        const rearDoorCell = rearCells.find((cell) => cell.kind === 'door')!
+        expect(rearDoorCell.x).toBeCloseTo(rearDoorPosition.x, 2)
+        expect(rearDoorCell.y).toBeCloseTo(rearDoorPosition.y, 2)
+
+        const facadeUnits = units.filter((unit) => unit.sourceWallId === facadeId && unit.edge === facadeEdge)
+        const facadeCells = facadeUnits.flatMap((unit) => unit.visual.cells)
+        const viewportSignature: string[] = []
+        const sideEdges = ['left', 'right'] as const
+        for (const sideEdge of sideEdges) {
+          const sideUnits = shellUnits.filter((unit) => unit.edge === sideEdge)
+          const sideCells = sideUnits.flatMap((unit) => unit.visual.cells)
+          const sideX = sideEdge === 'left' ? canonicalFacadeXs[0] : canonicalFacadeXs.at(-1)!
+          const sideYs = new Set(sideCells.filter((cell) => Math.abs(cell.x - sideX) < .01).map((cell) => Number(cell.y.toFixed(3))))
+          const frontCorner = facadeCells.find((cell) => Math.abs(cell.x - sideX) < .01)
+          const rearCorner = rearCells.find((cell) => Math.abs(cell.x - sideX) < .01)
+          expect(frontCorner, `${viewport.width}x${viewport.height} ${sideEdge} front corner`).toBeDefined()
+          expect(rearCorner, `${viewport.width}x${viewport.height} ${sideEdge} rear corner`).toBeDefined()
+          sideYs.add(Number(frontCorner!.y.toFixed(3)))
+          sideYs.add(Number(rearCorner!.y.toFixed(3)))
+          const continuousSide = [...sideYs].sort((left, right) => left - right)
+          expect(continuousSide).toHaveLength(22)
+          const pitch = room.bounds.height / 21
+          continuousSide.slice(1).forEach((y, index) => expect(y - continuousSide[index]).toBeCloseTo(pitch, 2))
+          viewportSignature.push(`${sideEdge}:${continuousSide.join(',')}`)
+        }
+        viewportSignature.push(`rear:${rearXs.join(',')}`)
+        anchorSignatures.push(viewportSignature.join('|'))
+        expect(room.bounds.width).toBeCloseTo((characterCount - 1) * (canonicalFacadeXs[1]! - canonicalFacadeXs[0]!))
+      }
+
+      expect(anchorSignatures[1]).toBe(anchorSignatures[0])
+      expect(anchorSignatures[2]).toBe(anchorSignatures[0])
+    }
   })
 
 

@@ -1091,17 +1091,29 @@ const commercialStreetWorldRight = 200 + commercialStreetLongitudinalExpansion
 // sides and back, on the same measured glyph lattice as the storefronts.
 // Twenty-two character centers include the facade wall and rear wall, hence
 // twenty-one pitch intervals from front center to rear center.
-const commercialStreetInteriorDepth = boundaryGridStepsFromScreenSpacing().vertical * 21
+const commercialStreetInteriorVerticalCoordinateCount = 22
+const commercialStreetInteriorDepth = boundaryGridStepsFromScreenSpacing().vertical * (commercialStreetInteriorVerticalCoordinateCount - 1)
 const commercialStreetFacadeNorthY = 14 + 22 - commercialStreetLaneExpansion
 const commercialStreetFacadeSouthY = 64 + commercialStreetLaneExpansion
 const commercialStreetInteriorSamples = [
-  { storefrontId: 'commercial-north-slot-2', roomId: 'commercial-north-n2-interior', side: 'north' as const },
-  { storefrontId: 'commercial-south-slot-2', roomId: 'commercial-south-s2-interior', side: 'south' as const },
+  { storefrontId: 'commercial-north-slot-2', roomId: 'commercial-north-n2-interior', side: 'north' as const, horizontalCellCount: 11 },
+  { storefrontId: 'commercial-south-slot-2', roomId: 'commercial-south-s2-interior', side: 'south' as const, horizontalCellCount: 23 },
 ].map((sample) => {
   const storefront = commercialStreetStorefronts.find((candidate) => candidate.id === sample.storefrontId)!
   const facade = sample.side === 'north' ? commercialStreetFacadeNorthY : commercialStreetFacadeSouthY
   const back = facade + (sample.side === 'north' ? -commercialStreetInteriorDepth : commercialStreetInteriorDepth)
-  return { ...sample, storefront, facade, back, x: storefront.start, width: storefront.end - storefront.start }
+  // Facade glyphs sit at the centers of their authored cells. Reuse those
+  // frozen centers for shell corners instead of using the outer half-cell
+  // bounds, which would make the rear row wider than the storefront.
+  const x = storefront.start + commercialStreetCellPitch / 2
+  return {
+    ...sample,
+    storefront,
+    facade,
+    back,
+    x,
+    width: storefront.end - storefront.start - commercialStreetCellPitch,
+  }
 })
 
 const commercialStreetAirWallSegments = (id: string, bounds: CollisionBox, samples: typeof commercialStreetInteriorSamples) => {
@@ -1195,6 +1207,12 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
         id: `${sample.roomId}-shell`, type: 'room' as const,
         bounds: box(sample.x, Math.min(sample.facade, sample.back), sample.width, commercialStreetInteriorDepth),
         variant: 'commercial-empty-shell', boundaryGeometrySource: 'cell-range' as const,
+        // Counts are glyph anchors, so N cells span N - 1 intervals. Keep
+        // both shell axes on the authored facade contract at every viewport.
+        boundaryCoordinateCount: {
+          horizontal: sample.horizontalCellCount,
+          vertical: commercialStreetInteriorVerticalCoordinateCount,
+        },
         boundaryVisualEndpoints: { vertical: sample.side === 'north' ? { end: 'omit' as const } : { start: 'omit' as const } },
         edges: [sample.side === 'north' ? 'top' as const : 'bottom' as const, 'left' as const, 'right' as const],
         openings: [{ edge: sample.side === 'north' ? 'top' as const : 'bottom' as const, start: sample.x + sample.width / 2 - commercialStreetCellPitch, end: sample.x + sample.width / 2 + commercialStreetCellPitch, doorId: `${sample.roomId}-rear-door`, labelLayout: 'center' as const }],
