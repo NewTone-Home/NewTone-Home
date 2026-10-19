@@ -16,9 +16,10 @@ export function storefrontContactGeometry(
   storefront: MainlineStorefrontSlot,
   units: readonly MainlineSceneGeometryUnit[],
   metrics: SceneScreenMetrics,
+  includePortal = false,
 ): StorefrontContactGeometry | null {
-  if (storefront.portalId) return null
-  const facade = units.filter(unit => unit.storefrontId === storefront.id && !unit.visualOnly)
+  if (storefront.portalId && !includePortal) return null
+  const facade = units.filter(unit => unit.storefrontId === storefront.id && (includePortal || !unit.visualOnly))
   const cells = facade.flatMap(unit => unit.visual.cells).filter(cell => cell.storefrontRole === 'sign')
   if (!cells.length) return null
   const horizontal = storefront.edge === 'top' || storefront.edge === 'bottom'

@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { MainlineFocusGroup } from '../src/center/runtime/MainlineSceneRenderer'
+import { storefrontContactGeometry } from '../src/center/runtime/storefrontContactGeometry'
 import { isMainlineStorefrontNear, isMainlineStorefrontPresentationInRange, mainlineSceneGeometryUnits, mainlineScenePassageCollision, mainlineScenes, mainlineStorefrontAnchor, mainlineStorefrontApproach, mainlineStorefrontDepartureRadius } from '../src/center/runtime/mainlineScenes'
 import {
   nextStorefrontPresentationPhase,
@@ -34,7 +38,7 @@ describe('commercial street storefront presentation', () => {
       { id: 'commercial-north-slot-6', label: '香氛店', start: 124, end: 142 },
       { id: 'commercial-cafe-slot', label: '咖啡馆', start: 146, end: 186 },
       { id: 'commercial-south-slot-1', label: '鞋店', start: 14, end: 32 },
-      { id: 'commercial-south-slot-2', label: '永和小馆', start: 36, end: 76 },
+      { id: 'commercial-south-slot-2', label: '简餐', start: 36, end: 76 },
       { id: 'commercial-south-slot-4', label: '服装店', start: 80, end: 98 },
       { id: 'commercial-south-slot-5', label: '奶茶店', start: 102, end: 120 },
       { id: 'commercial-south-slot-6', label: '甜品店', start: 124, end: 142 },
@@ -142,6 +146,58 @@ describe('commercial street storefront presentation', () => {
         expect(cells.slice(firstSign, lastSign + 1).map((cell) => cell.glyph).join('')).toBe(storefront.label)
         expect(cells.slice(firstSign, lastSign + 1).every((cell) => cell.storefrontRole === 'sign')).toBe(true)
       }
+    }
+  })
+
+  it('renders one complete label across 2/3/4-character signs and preserves portal glass and real doors in every phase', () => {
+    const twoCharacter = street.storefronts.find(storefront => Array.from(storefront.label).length === 2)!
+    const threeCharacter = cafe
+    const fourCharacter = { ...twoCharacter, label: '四字招牌' }
+    expect([twoCharacter.end - twoCharacter.start, cafe.end - cafe.start]).toEqual([18, 40])
+
+    for (const storefront of [twoCharacter, threeCharacter, fourCharacter]) {
+      const label = storefront.label
+      const farUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, undefined, new Map([[storefront.id, 'baseline']]))
+      const revealedUnits = mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, storefront), undefined, new Map([[storefront.id, 'revealed']]))
+      const proximityUnits = mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, storefront))
+      const leaveUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, undefined, new Map([[storefront.id, 'baseline']]))
+      const farFacade = farUnits.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline')
+      const revealedFacade = revealedUnits.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline')
+      const glassRoles = (units: typeof farUnits) => units.flatMap(unit => unit.visual.cells
+        .filter(cell => cell.storefrontRole === 'glass').map(cell => cell.storefrontRole))
+      expect(glassRoles(farFacade).length).toBeGreaterThanOrEqual(2)
+      expect(glassRoles(revealedFacade).length).toBeGreaterThanOrEqual(2)
+      expect(farFacade.flatMap(unit => unit.visual.cells).map(cell => cell.storefrontRole)).toContain('sign')
+      expect(revealedFacade.flatMap(unit => unit.visual.cells).map(cell => cell.storefrontRole)).toContain('sign')
+      expect(revealedUnits.some(unit => unit.storefrontId === storefront.id && unit.variant === 'near')).toBe(false)
+      expect(leaveUnits.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline'))
+        .toEqual(farFacade)
+
+      const realDoors = revealedUnits.flatMap(unit => unit.visual.cells
+        .filter(cell => cell.kind === 'door' && cell.entityId === storefront.portalId)
+        .map(cell => ({ unit, cell })))
+      expect(realDoors).toHaveLength(1)
+      expect(realDoors[0].unit.navigation.passageId).toBe(storefront.portalId)
+      expect(proximityUnits.flatMap(unit => unit.visual.cells)
+        .filter(cell => cell.kind === 'door' && cell.entityId === storefront.portalId)).toHaveLength(1)
+      expect(farUnits.flatMap(unit => unit.visual.cells)
+        .filter(cell => cell.kind === 'door' && cell.entityId === storefront.portalId)).toHaveLength(0)
+
+      const signEntries = farFacade.flatMap(unit => unit.visual.cells
+        .filter(cell => cell.storefrontRole === 'sign')
+        .map(cell => ({ unit, cell: { ...cell, storefrontId: storefront.id }, entityId: undefined, focusGroup: `storefront:${storefront.id}:baseline`, focusPolicy: 'passage' as const })))
+      const markup = renderToStaticMarkup(createElement(MainlineFocusGroup, {
+        entries: signEntries,
+        className: 'scene-mainline-storefront scene-mainline-storefront--sign scene-mainline-storefront--portal',
+        visibilityClass: 'is-baseline',
+        renderFrame: () => null,
+        storefrontId: storefront.id,
+        storefrontLabel: label,
+        storefrontPresentationPhase: 'baseline',
+        storefrontGeometry: storefrontContactGeometry(storefront, farUnits, { width: 1280, height: 720 }, true) ?? undefined,
+      }))
+      expect(markup).toContain(`>${label}</span>`)
+      expect(markup).toContain('data-storefront-label-phase="baseline"')
     }
   })
 

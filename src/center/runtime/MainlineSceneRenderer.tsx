@@ -26,6 +26,7 @@ import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisu
 import { storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDirection, storefrontLabelRollDurationMs, storefrontPresentationRetractsFrame, type StorefrontPresentationPhase } from './storefrontPresentation'
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
+import { storefrontContactGeometry } from './storefrontContactGeometry'
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
 
 type MainlineSceneRendererProps = {
@@ -393,8 +394,8 @@ function mainlineCellFocusTarget(scene: MainlineSceneDefinition, cell: MainlineG
   if (cell.kind === 'storefront' && cell.storefrontRole === 'sign') {
     return {
       group: storefrontFocusGroup(cell, variant),
-      policy: commercialStreetStorefrontInteractionFor(cell.storefrontId ?? '') ? 'interactive' as const : 'passage' as const,
-      storefrontInteractionId: commercialStreetStorefrontInteractionFor(cell.storefrontId ?? '') ? cell.storefrontId : undefined,
+      policy: commercialStreetStorefrontInteractionFor(cell.storefrontId ?? '') && !scene.storefronts.some(storefront => storefront.id === cell.storefrontId && storefront.portalId) ? 'interactive' as const : 'passage' as const,
+      storefrontInteractionId: commercialStreetStorefrontInteractionFor(cell.storefrontId ?? '') && !scene.storefronts.some(storefront => storefront.id === cell.storefrontId && storefront.portalId) ? cell.storefrontId : undefined,
     }
   }
   if (cell.kind === 'storefront' && cell.storefrontRole === 'door' && entityId) {
@@ -419,7 +420,7 @@ function mainlineWallCellVisibility(cell: MainlineGeometryCellEntry['cell'], uni
   return (cell.baselineVisible ?? cell.baseline ?? true) ? 'is-baseline' : 'is-hidden'
 }
 
-export function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontGeometry, active = false, explored = false }: {
+export function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontGeometry, storefrontPresentationPhase = 'baseline', active = false, explored = false }: {
   entries: readonly MainlineGeometryCellEntry[]
   className: string
   visibilityClass: string
@@ -438,6 +439,7 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   storefrontCenter?: Point
   storefrontLabel?: string
   storefrontGeometry?: StorefrontContactGeometry
+  storefrontPresentationPhase?: StorefrontPresentationPhase
   active?: boolean
   explored?: boolean
 }) {
@@ -475,7 +477,7 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   }
   const glyphs = entries.map(({ cell }) => cell.glyph ?? '')
   const content = hideGlyphs ? null : storefrontLabel ? (
-    <span className="scene-mainline-storefront__label-slot" data-storefront-label-slot="true" data-storefront-id={storefrontId} style={{ '--storefront-label-length': Array.from(storefrontLabel).length * 1.08 } as CSSProperties}>
+    <span className="scene-mainline-storefront__label-slot" data-storefront-label-slot="true" data-storefront-id={storefrontId} data-storefront-label-phase={storefrontPresentationPhase} style={{ '--storefront-label-length': Array.from(storefrontLabel).length * 1.08 } as CSSProperties}>
       <span className="scene-mainline-storefront__label-track">
         <span className="scene-mainline-storefront__label-text"><SceneCharacters data-focus-visual-group={first.focusGroup}>{storefrontLabel}</SceneCharacters></span>
       </span>
@@ -861,41 +863,17 @@ export function MainlineSceneRenderer({
   const renderScreenMetrics = geometrySnapshot.screenMetrics
   const geometryUnits = geometrySnapshot.units
   const switchableStorefronts = useMemo(() => scene.storefronts.filter(slot => slot.portalId && slot.characterSwitch), [scene.storefronts])
-  // Keep the three glyph anchors tied to the storefront's real near geometry
-  // for the full presentation lifecycle. The render snapshot intentionally
-  // swaps visual projections as the player approaches; deriving these cells
-  // from that changing snapshot made the glyphs jump between source cells.
-  const switchCells = useMemo(() => new Map(switchableStorefronts.map(slot => {
-    const presentationGeometry = mainlineSceneGeometryUnits(scene, mainlineStorefrontApproach(scene, slot), geometrySnapshot.screenMetrics)
-    return [slot.id, storefrontCharacterCells(scene, slot, presentationGeometry)] as const
-  })), [geometrySnapshot.screenMetrics, scene, switchableStorefronts])
-  const activeSwitchableStorefronts = useMemo(() => switchableStorefronts.filter(slot => switchCells.get(slot.id)?.length === 3), [switchCells, switchableStorefronts])
+  const storefrontLabelGeometry = useMemo(() => new Map(switchableStorefronts.flatMap(slot => {
+    const geometry = storefrontContactGeometry(slot, geometryUnits, renderScreenMetrics, true)
+    return geometry ? [[slot.id, geometry] as const] : []
+  })), [geometryUnits, renderScreenMetrics, switchableStorefronts])
   // Player movement only invalidates frame targets when crossing a storefront
   // approach boundary. Keep ordinary walking out of the measured-frame path.
   const approachedStorefrontIds = useMemo(
     () => new Set(activeStorefrontId ? [activeStorefrontId] : []),
     [activeStorefrontId],
   )
-  const replacedWallCellIds = useMemo(() => {
-    const ids = new Set<string>()
-    activeSwitchableStorefronts.forEach(slot => {
-      const cells = switchCells.get(slot.id) ?? []
-      const vertical = slot.edge === 'left' || slot.edge === 'right'
-      const position = ({ x, y }: { x: number; y: number }) => vertical ? y : x
-      const start = Math.min(...cells.map(position))
-      const end = Math.max(...cells.map(position))
-      geometryUnits.forEach(unit => {
-        if (unit.sourceWallId !== slot.wallId || unit.edge !== slot.edge || unit.storefrontId) return
-        unit.visual.cells.forEach(cell => {
-          if (cell.kind !== 'wall' || cell.cellStart === undefined || cell.cellEnd === undefined) return
-          if (cell.cellStart <= end && cell.cellEnd >= start) ids.add(cell.id)
-        })
-      })
-    })
-    return ids
-  }, [activeSwitchableStorefronts, geometryUnits, switchCells])
-  const geometryCells = useMemo(() => geometryUnits.filter(unit => !activeSwitchableStorefronts.some(slot => slot.id === unit.storefrontId)).flatMap((unit) => unit.visual.cells
-    .filter(cell => !replacedWallCellIds.has(cell.id)).map((cell) => ({
+  const geometryCells = useMemo(() => geometryUnits.flatMap((unit) => unit.visual.cells.map((cell) => ({
     unit,
     // The compiled geometry unit owns storefront identity. Carry it into
     // every visual cell so a vertical label cannot split into one focus group
@@ -903,7 +881,7 @@ export function MainlineSceneRenderer({
     cell: cell.kind === 'storefront' && unit.storefrontId
       ? { ...cell, storefrontId: unit.storefrontId }
       : cell,
-  }))), [activeSwitchableStorefronts, geometryUnits, replacedWallCellIds])
+  }))), [geometryUnits])
 
   const focusGroupCells = useMemo(() => {
     const groups = new Map<string, MainlineGeometryCellEntry[]>()
@@ -966,7 +944,7 @@ export function MainlineSceneRenderer({
         suppressed: false,
       })
     })
-    activeSwitchableStorefronts.forEach(slot => {
+    switchableStorefronts.forEach(slot => {
       const phase = storefrontPresentation.get(slot.id) ?? 'baseline'
       addTarget({ group: 'storefront:' + slot.id + ':baseline', policy: 'passage', phase: 'closed', gateTriggered: false, interactionBusy: false, interactionActive: false, retractRequested: phase !== 'baseline' || sceneFrameExit.phase === 'retracting', suppressed: false })
       const entityId = scene.passages.find(passage => passage.portalId === slot.portalId)?.entityId ?? slot.portalId!
@@ -989,7 +967,7 @@ export function MainlineSceneRenderer({
       })
     })
     return [...targetMap.values()]
-  }, [activeObjectId, activeSwitchableStorefronts, approachedStorefrontIds, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation, occupiedSeatIds])
+  }, [activeObjectId, switchableStorefronts, approachedStorefrontIds, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation, occupiedSeatIds])
   const focusFrames = useSceneFocusFrameController({
     targets: focusFrameTargets,
     freezeMeasurements: freezeFrameMeasurements,
@@ -1000,6 +978,18 @@ export function MainlineSceneRenderer({
       if (focusFrames.isCollapsed('storefront:' + storefront.id + ':baseline')) onStorefrontFrameRetractionComplete?.(storefront.id)
     })
   }, [focusFrames.isCollapsed, geometryCells, onStorefrontFrameRetractionComplete, scene.storefronts, storefrontPresentation])
+  useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = []
+    switchableStorefronts.forEach(slot => {
+      const phase = storefrontPresentation.get(slot.id)
+      if (phase !== 'revealing' && phase !== 'restoring') return
+      const callback = phase === 'revealing' ? onStorefrontRevealMotionComplete : onStorefrontRestoreMotionComplete
+      if (!callback) return
+      const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      timers.push(setTimeout(() => callback(slot.id), reducedMotion ? 1 : storefrontLabelRollDurationMs))
+    })
+    return () => timers.forEach(clearTimeout)
+  }, [onStorefrontRestoreMotionComplete, onStorefrontRevealMotionComplete, storefrontPresentation, switchableStorefronts])
   // Reading and an immediately following local Action are one interaction
   // lifecycle for the source content. Focus-frame targets intentionally keep
   // their neutral contract; this helper is only for the object/glyph content.
@@ -1143,17 +1133,6 @@ export function MainlineSceneRenderer({
         <div className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''}`} style={{ transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%)` }}>
           <>
           <div className="scene-spatial-labels scene-spatial-labels--wall scene-mainline-wall-labels">
-            {activeSwitchableStorefronts.map(slot => <PortalStorefrontCharacters key={slot.id} scene={scene} storefront={slot} cells={switchCells.get(slot.id)!}
-              phase={storefrontPresentation.get(slot.id) ?? 'baseline'} doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'}
-              renderFrame={focusFrames.renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete}
-              frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === slot.portalId}
-              onMotionComplete={phase => {
-                if (phase === 'revealing') {
-                  onStorefrontRevealMotionComplete?.(slot.id)
-                  focusFrames.remeasureGroup(`door:${slot.portalId}`)
-                } else onStorefrontRestoreMotionComplete?.(slot.id)
-              }} />)}
-
             {geometryCells.map(({ unit, cell }) => {
               if (cell.glyph === '') return null
               const visibilityClass = mainlineWallCellVisibility(cell, unit)
@@ -1186,12 +1165,13 @@ export function MainlineSceneRenderer({
                     visibilityClass={groupVisibilityClass}
                     renderFrame={focusFrames.renderFrame}
                     onStorefrontInteract={onStorefrontInteract}
-                    storefrontInteractionId={commercialStreetStorefrontInteractionFor(storefront?.id ?? '') ? storefront?.id : undefined}
+                    storefrontInteractionId={storefront?.portalId ? undefined : commercialStreetStorefrontInteractionFor(storefront?.id ?? '') ? storefront?.id : undefined}
                     storefrontId={storefrontRole === 'sign' ? storefront?.id : undefined}
                     storefrontSpan={storefront ? storefront.end - storefront.start : undefined}
                     storefrontCenter={storefront ? mainlineStorefrontAnchor(scene, storefront) : undefined}
                     storefrontLabel={storefrontRole === 'sign' ? storefront?.label : undefined}
-                    storefrontGeometry={storefrontRole === 'sign' && storefront ? geometrySnapshot.storefronts.get(storefront.id) : undefined}
+                    storefrontGeometry={storefrontRole === 'sign' && storefront ? (geometrySnapshot.storefronts.get(storefront.id) ?? storefrontLabelGeometry.get(storefront.id)) : undefined}
+                    storefrontPresentationPhase={storefront ? storefrontPresentation.get(storefront.id) ?? 'baseline' : 'baseline'}
                     passagePhase={storefrontPhase}
                     frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === storefrontPassageEntityId}
                     active={activeObjectId === storefront?.id && Boolean(commercialStreetStorefrontInteractionFor(storefront.id))}

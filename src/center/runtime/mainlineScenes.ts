@@ -1201,6 +1201,20 @@ export function mainlineSceneGeometryUnits(
     const hasNearProjection = scene.geometry.some((candidate) => (
       candidate.storefrontId === unit.storefrontId && candidate.variant === 'near'
     ))
+    // Portal storefronts keep their authored compact facade in every view.
+    // Proximity only uncovers the one compiled, traversable door; it must not
+    // replace the sign/glass with a second wall-door-wall facade.
+    if (storefront.portalId && storefront.characterSwitch && hasNearProjection) {
+      const phase = storefrontPresentation?.get(storefront.id)
+      const near = phase
+        ? phase === 'revealed' || phase === 'lingering'
+        : isMainlineStorefrontNear(scene, storefront, position)
+      if (unit.variant === 'baseline') return [unit]
+      if (unit.variant === 'near') return []
+      const doorCell = unit.visual.cells.some(cell => cell.kind === 'door' && (cell.entityId === storefront.portalId || unit.entityId === storefront.portalId))
+      if (!near || !doorCell) return [{ ...unit, visual: { kind: 'none' as const, cells: [] } }]
+      return [unit]
+    }
     if (!hasNearProjection) return unit.variant === 'baseline' ? [unit] : []
     const presentationPhase = storefrontPresentation?.get(storefront.id)
     if (presentationPhase) {

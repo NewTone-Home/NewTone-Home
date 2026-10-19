@@ -810,6 +810,15 @@
   transform: translate3d(0, 0, 0);
   transition: transform var(--storefront-label-roll-duration) cubic-bezier(.4, 0, .2, 1);
 }
+.scene-mainline-storefront--portal .scene-mainline-storefront__label-slot[data-storefront-label-phase="revealing"] .scene-mainline-storefront__label-track,
+.scene-mainline-storefront--portal .scene-mainline-storefront__label-slot[data-storefront-label-phase="revealed"] .scene-mainline-storefront__label-track,
+.scene-mainline-storefront--portal .scene-mainline-storefront__label-slot[data-storefront-label-phase="lingering"] .scene-mainline-storefront__label-track {
+  transform: scaleX(0);
+}
+.scene-mainline-storefront--portal .scene-mainline-storefront__label-slot[data-storefront-label-phase="restoring"] .scene-mainline-storefront__label-track,
+.scene-mainline-storefront--portal .scene-mainline-storefront__label-slot[data-storefront-label-phase="baseline"] .scene-mainline-storefront__label-track {
+  transform: scaleX(1);
+}
 .scene-mainline-storefront__label-text {
   display: block;
   width: max-content;

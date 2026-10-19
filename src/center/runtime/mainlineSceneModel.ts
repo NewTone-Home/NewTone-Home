@@ -1012,7 +1012,7 @@ const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
     ['commercial-north-slot-6', 'commercial-north-facade', 'bottom', '香氛店', 124, 142],
     ['commercial-cafe-slot', 'commercial-north-facade', 'bottom', '咖啡馆', 146, 186],
     ['commercial-south-slot-1', 'commercial-south-facade', 'top', '鞋店', 14, 32],
-    ['commercial-south-slot-2', 'commercial-south-facade', 'top', '永和小馆', 36, 76],
+    ['commercial-south-slot-2', 'commercial-south-facade', 'top', '简餐', 36, 76],
     ['commercial-south-slot-4', 'commercial-south-facade', 'top', '服装店', 80, 98],
     ['commercial-south-slot-5', 'commercial-south-facade', 'top', '奶茶店', 102, 120],
     ['commercial-south-slot-6', 'commercial-south-facade', 'top', '甜品店', 124, 142],
