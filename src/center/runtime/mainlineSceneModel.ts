@@ -1153,28 +1153,37 @@ const commercialStreetShellFurniture = (() => {
   const addCounter = (
     sample: typeof commercialStreetInteriorSamples[number],
     prefix: string,
-    paths: readonly (readonly Point[])[],
-  ) => paths.forEach((positions, pathIndex) => {
-    const first = positions[0]!
-    const last = positions.at(-1)!
-    const vertical = Math.abs(first.y - last.y) >= Math.abs(first.x - last.x)
-    positions.forEach((position, index) => entities.push(floor({
-      id: `${prefix}-${pathIndex + 1}-${index + 1}`,
-      label: vertical && positions.length > 1 ? index % 2 === 0 ? '柜' : '台' : '柜台',
-      kind: 'fixture',
-      weight: 'fixture',
-      position,
-      roomId: sample.roomId,
-      visualVisibility: 'static',
-    })))
-    const width = vertical ? commercialStreetCellPitch * .4 : Math.max(commercialStreetCellPitch * 2, Math.abs(last.x - first.x) + commercialStreetCellPitch)
-    const height = vertical ? Math.abs(last.y - first.y) + verticalStep : verticalStep
-    structures.push({
-      id: `${prefix}-${pathIndex + 1}-body`,
-      kind: 'counter',
-      ...box((first.x + last.x - width) / 2, (first.y + last.y - height) / 2, width, height),
+    paths: readonly { orientation: 'horizontal' | 'vertical'; positions: readonly Point[] }[],
+  ) => {
+    const glyphPositions = new Set<string>()
+    paths.forEach(({ positions, orientation }, pathIndex) => {
+      const first = positions[0]!
+      const last = positions.at(-1)!
+      const vertical = orientation === 'vertical'
+      positions.forEach((position, index) => {
+        const key = `${position.x.toFixed(4)}:${position.y.toFixed(4)}`
+        if (glyphPositions.has(key)) return
+        glyphPositions.add(key)
+        entities.push(floor({
+          id: `${prefix}-${pathIndex + 1}-${index + 1}`,
+          label: vertical && positions.length > 1 ? index % 2 === 0 ? '柜' : '台' : '柜台',
+          kind: 'fixture',
+          weight: 'fixture',
+          position,
+          roomId: sample.roomId,
+          interactionStructureId: `${prefix}-${pathIndex + 1}-body`,
+          visualVisibility: 'static',
+        }))
+      })
+      const width = vertical ? commercialStreetCellPitch * .4 : Math.abs(last.x - first.x) + commercialStreetCellPitch
+      const height = vertical ? Math.abs(last.y - first.y) + verticalStep : verticalStep
+      structures.push({
+        id: `${prefix}-${pathIndex + 1}-body`,
+        kind: 'counter',
+        ...box((first.x + last.x - width) / 2, (first.y + last.y - height) / 2, width, height),
+      })
     })
-  })
+  }
   const addWallGlyph = (
     sample: typeof commercialStreetInteriorSamples[number],
     id: string,
@@ -1216,6 +1225,18 @@ const commercialStreetShellFurniture = (() => {
       visualVisibility: 'static',
     }))
   }
+  const addBackOfHouseSign = (sample: typeof commercialStreetInteriorSamples[number], id: string, label: string, position: Point) => {
+    entities.push(floor({
+      id,
+      label,
+      kind: 'fixture',
+      weight: 'minor',
+      position,
+      roomId: sample.roomId,
+      interactive: false,
+      visualVisibility: 'static',
+    }))
+  }
 
   const milkTea = commercialStreetInteriorSamples.find((sample) => sample.roomId === 'commercial-south-s5-interior')!
   // One compact two-seat table leaves the whole front entry turn and the
@@ -1225,16 +1246,18 @@ const commercialStreetShellFurniture = (() => {
     { tableId: 'commercial-s5-milk-tea-table', seatIds: ['commercial-s5-milk-tea-seat-a', 'commercial-s5-milk-tea-seat-b'] },
   ))
   addCounter(milkTea, 'commercial-s5-milk-tea-counter', [
-    Array.from({ length: 9 }, (_, index) => cell(milkTea, 6, 5 + index)),
-    [cell(milkTea, 7, 14)],
+    { orientation: 'vertical', positions: Array.from({ length: 10 }, (_, index) => cell(milkTea, 6, 5 + index)) },
+    { orientation: 'horizontal', positions: [cell(milkTea, 6, 14), cell(milkTea, 7, 14)] },
   ])
-  const milkTeaRearWallRuns = [[0, 1, 2], [7], [10]]
+  const milkTeaRearWallRuns = [[0, 1, 2], [5, 6, 7], [10]]
   milkTeaRearWallRuns.forEach((columns, runIndex) => {
     addWallRun(milkTea, `commercial-s5-milk-tea-rear-partition-${runIndex}`, columns.map((column) => cell(milkTea, column, 16)), 'horizontal')
   })
   addInternalDoorGlyph(milkTea, 'commercial-s5-milk-tea-warehouse-door', cell(milkTea, 3.5, 16))
   addInternalDoorGlyph(milkTea, 'commercial-s5-milk-tea-kitchen-door', cell(milkTea, 8.5, 16))
-  addWallRun(milkTea, 'commercial-s5-milk-tea-kitchen-divider', Array.from({ length: 4 }, (_, index) => cell(milkTea, 6, 17 + index)), 'vertical')
+  addBackOfHouseSign(milkTea, 'commercial-s5-milk-tea-warehouse-sign', '仓库', cell(milkTea, 2, 18))
+  addBackOfHouseSign(milkTea, 'commercial-s5-milk-tea-kitchen-sign', '厨房', cell(milkTea, 8.5, 18))
+  addWallRun(milkTea, 'commercial-s5-milk-tea-kitchen-divider', Array.from({ length: 6 }, (_, index) => cell(milkTea, 6, 16 + index)), 'vertical')
 
   const fastFood = commercialStreetInteriorSamples.find((sample) => sample.roomId === 'commercial-south-s2-interior')!
   addFurniture(fastFood, mainlineTwoSeatFurniture(
@@ -1245,14 +1268,16 @@ const commercialStreetShellFurniture = (() => {
     'commercial-s2-fast-food-table-group-b', cell(fastFood, 9, 12), cell(fastFood, 7, 12),
     { tableId: 'commercial-s2-fast-food-table-b', seatIds: ['commercial-s2-fast-food-seat-b1', 'commercial-s2-fast-food-seat-b2'] },
   ))
-  addCounter(fastFood, 'commercial-s2-fast-food-counter', [Array.from({ length: 10 }, (_, index) => cell(fastFood, 14, 5 + index))])
-  const fastFoodRearWallRuns = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [14, 15], [18, 19], [22]]
+  addCounter(fastFood, 'commercial-s2-fast-food-counter', [{ orientation: 'vertical', positions: Array.from({ length: 10 }, (_, index) => cell(fastFood, 14, 5 + index)) }])
+  const fastFoodRearWallRuns = [Array.from({ length: 16 }, (_, index) => index), [18, 19], [22]]
   fastFoodRearWallRuns.forEach((columns, runIndex) => {
     addWallRun(fastFood, `commercial-s2-fast-food-rear-partition-${runIndex}`, columns.map((column) => cell(fastFood, column, 16)), 'horizontal')
   })
   addInternalDoorGlyph(fastFood, 'commercial-s2-fast-food-kitchen-door', cell(fastFood, 16.5, 16))
   addInternalDoorGlyph(fastFood, 'commercial-s2-fast-food-warehouse-door', cell(fastFood, 20.5, 16))
-  addWallRun(fastFood, 'commercial-s2-fast-food-kitchen-warehouse-divider', Array.from({ length: 4 }, (_, index) => cell(fastFood, 18, 17 + index)), 'vertical')
+  addBackOfHouseSign(fastFood, 'commercial-s2-fast-food-kitchen-sign', '厨房', cell(fastFood, 15, 18))
+  addBackOfHouseSign(fastFood, 'commercial-s2-fast-food-warehouse-sign', '仓库', cell(fastFood, 20.5, 18))
+  addWallRun(fastFood, 'commercial-s2-fast-food-kitchen-warehouse-divider', Array.from({ length: 6 }, (_, index) => cell(fastFood, 18, 16 + index)), 'vertical')
 
   return { groupIds, entities, structures }
 })()
