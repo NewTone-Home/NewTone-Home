@@ -167,7 +167,19 @@ The committed Stage 2 code, tests, and full source comparison were linked from t
 
 Same-device baseline was measured against the 1180x757, scale-1 `commercial-street` preview before this change. Entering N1 changed wall glyphs from 198 to 249 and total DOM nodes from 628 to 760; returning changed them back to 198 and 627. Shop objects changed 0 -> 13 -> 0. The local sample recorded three long tasks during the approach/entry interval (225, 310, 116 ms) and three during return (196, 307, 67 ms). Those intervals include walking and door presentation, so the measurements do not attribute the delay to one component. The trace/profile does not provide a verified per-frame CPU cause.
 
-The first persistent-shell Preview (f621d9d) measured a stable 936 wall glyphs and 42 focus groups outside and inside, with furniture 0/13/0. Its high offscreen DOM count prompted the viewport-only cull below. On that intermediate build, return had 0 >32ms rAF deltas/0 LongTasks, while entry still saw 227/346ms LongTasks; one run per build is not enough to claim a reliable performance improvement. The final viewport-cull build still needs a same-device browser profile. Across the focused unit suite, 49 tests across four files passed before adding the viewport-cull assertion; the final run result is recorded at release below.
+The first persistent-shell Preview (f621d9d) measured 936 wall glyphs and 42 focus groups outside and inside, with furniture 0/13/0. That showed the geometry was present but also revealed unnecessary offscreen DOM, prompting the viewport-only cull below. This intermediate result is not the final implementation.
+
+On the final Preview (9d5b726), the same Chrome 155.0.8059.80 profile at 1180x757 scale 1 measured wall glyphs 306/310/310, focus groups 28/28/28, DOM nodes 844/877/851, and room objects 0/13/0. The wall count depends on the camera viewport while moving; it no longer depends on active room, and the test asserts all 14 shell owner IDs remain scene-owned. Entry interval: 960.4 ms from input to room items mounted, rAF p50 16.7 ms / p95 200 ms / max 333.3 ms, two >32 ms deltas, with 221/304/523 ms LongTasks. Return interval: 317.4 ms, rAF p50 16.7 ms / p95 and max 16.8 ms, zero >32 ms deltas and no LongTasks. The same-script baseline at exact SHA bce0b1c had wall glyphs 198/249/198, focus groups 28/29/28, DOM 628/760/627 and objects 0/13/0; entry was 1074.3 ms with rAF p50 16.7 ms / p95 216.7 ms / max 316.6 ms and LongTasks 223/307/116 ms; return was 707.1 ms with p95/max 333.3 ms and LongTasks 199/322/64 ms.
+
+These are single-path, one-run observations, not a repeated benchmark or FPS result. Entry still has long app-JS tasks. Chrome traces show long `FunctionCall` events in the minified app bundle on both baseline and final, but the sampled function/source is not resolved; no camera, NPC or component root cause is asserted. The f621 intermediate build also had 227/346 ms entry tasks and no return tasks; because the input path, camera and actor timing can vary, this does not establish causality or a general performance win. The final focused Vitest run passes 50 tests across four files; full 14-store browser E2E was not rerun, and no screenshots were captured.
+
+### Preview and commit
+
+- Branch: `preview/commercial-street-restore-20261019`
+- Final runtime commit: `9d5b72695abb74f8724e8adecca25a1c7d5160e1`
+- Vercel `new-tone`: **READY**, exact branch/SHA; [fixed Preview](https://new-tone-cdjnkg8q3-newtone-homes-projects.vercel.app)
+- Commit source: [9d5b726](https://github.com/NewTone-Home/NewTone-Home/commit/9d5b72695abb74f8724e8adecca25a1c7d5160e1); [baseline-to-runtime diff](https://github.com/NewTone-Home/NewTone-Home/compare/bce0b1c9b1f4a9069a581177dbdf1378f0ae9ec1...9d5b72695abb74f8724e8adecca25a1c7d5160e1)
+- Local `npm run build` (typecheck + Vite build) and Vercel build passed. The existing >500 kB main bundle warning remains.
 
 ### Focused code delta
 
