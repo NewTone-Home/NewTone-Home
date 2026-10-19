@@ -141,7 +141,7 @@ Verification completed before commit:
 - `npm run build` — passed. Vite emitted its existing warning that the main JavaScript chunk exceeds 500 kB (814.34 kB uncompressed).
 - `git diff --check` — passed.
 
-The implementation is awaiting the requested independent double review and dot acceptance. Browser E2E, exhaustive contact with every shelf, exhaustive collision review, and mobile FPS measurement are outside the acceptance boundary supplied for Stage 3b/3c. No Notion write was made, per the explicit instruction.
+At final acceptance, the user reported that the original chat performed the independent source review and actual full-scene review, and that dot checked the commercial-street scene. Stage-specific limits and the exact Cafe interactions covered in that review are recorded in the final acceptance ledger below. Browser E2E, exhaustive contact with every shelf, exhaustive collision review, and mobile FPS measurement are outside the recorded acceptance boundary.
 
 
 #### Complete Stage 3c source and test diff
@@ -388,3 +388,30 @@ The frozen storefront composition function and 14-slot storefront list are uncha
 - `git diff --check` passed. No browser E2E or screenshots were run, per the no-screenshot acceptance workflow and the known localhost permission restriction.
 
 The corrected Cafe shell changes are limited to the three files listed above. The old standalone Cafe, its story module, and the 14 storefront slot/facade generator remain unchanged from the corrected baseline.
+
+## Final acceptance ledger and delivery
+
+The following ledger distinguishes implementation/test coverage from the actual acceptance evidence reported by the user. Actual-review entries mean evidence relayed by the user; they do not claim that this agent operated the browser or independently captured a panorama.
+
+| Stage | Code commits / SHA | Implementation and automated coverage | Actual acceptance evidence and limits |
+| --- | --- | --- | --- |
+| 3a | `64165fc4087a11529b23bb1cf28351ef95404e88`, `75f14d79bbd0bdde3e188d014344be3e1ecc3d04`, `06781aa68a808f769bb09124834ad1e4f10cd690`, `07eaa345321288b4dc7004d39c09091a894b7858`, `afc856e97d97c8d6396ad8de61a6d38f32ab1dca` | Initial milk-tea and fast-food shell furniture, counter/rear-partition circulation, ordering labels, junction-glyph de-duplication, and cell-spaced counter glyphs. Covered by shell furniture and storefront interaction regression tests. | The user reports final integrated `commercial-street` scene review; no separate Stage 3a per-fixture contact audit is itemized. Mobile FPS was not measured. |
+| 3b | `4676496168ba4452b4e021cc4477e6488c06dbc2`, `7754ba19f0d9ce20db2369eedc73bb2fc3e583e5` | Nine ordinary retail shell layouts; counter length/order and connected open storage nooks. Fixture tests cover authored glyph/collision ownership and entry-to-browse/customer/staff/storage/rear-threshold routes. | User-reported source review and dot review covered all nine ordinary stores' east-side staff circulation, return to street with fixtures cleared, and N2/S4/S7 side-connected nook entries. This did not claim every shelf touch or exhaustive collision review. |
+| 3c | `37455efce96f26219beae0b723bc7b98cc0fe432` | N1 fruit-tea and S6 dessert fixture plans, service markers, displays, counter lengths, storage and route assertions; six focused test files, typecheck and build were recorded as passing at that stage. | Included in the user's later whole-scene acceptance report. No separate report of touching every N1/S6 glyph or measuring phone FPS. |
+| 3d | Corrected runtime: `635ac6465064094db398017c628e39bcf8118198`; final docs-only follow-up: `52212273296087429c1f2b80e8a50348d515dbbe`. Mistaken-target commits `5a91928f6d7e9196bc6876c4590db0e8cbf26684` and `a4203a3e0214c815d233a3b29aefaa2d19f765e4` were reverted by `4592d491d35de7d7d4af85bdf9febeca1c1bc595` and `2b150e23b6c7c6ddc5d0889cc4b764024239ed44`, respectively. | New static Cafe-shell tables/seats, counter, menu/order labels, staff opening and storage marker; shell grid, static state, collision ownership, seat/staff/rear-door reachability and legacy-Cafe invariants. Focused shell suite 15/15, retail route fixture 6/6, build/typecheck passed. | User reports original-chat source review and actual full-scene review, with dot confirming the correct `commercial-street` Cafe: all six seats could be sat in; customer-side menu/order, employee route through the L counter to storage, locked back door, and return through the front door to the street with furniture cleared were checked. This is user-reported acceptance, not a claim that this agent operated the browser. |
+
+### Baseline failure, revert proof, and remaining limits
+
+- `npcFoundation.test.ts` was run in an isolated detached worktree at exact baseline `37455efce96f26219beae0b723bc7b98cc0fe432` and again at final code SHA `52212273296087429c1f2b80e8a50348d515dbbe`. Both runs were 8/9 passing and failed at the same assertion, `tests/npcFoundation.test.ts:127`: expected the protagonist to reach `coffeeOwnerPosition`, received `false`. The baseline invocation was `vitest run tests/npcFoundation.test.ts --pool=forks --maxWorkers=1 --testTimeout=30000`. It was reproduced at baseline; no old story/runtime code or test was changed to fix it.
+- After the two ordinary reverts, the tracked tree equality check `git diff --quiet 37455efce96f26219beae0b723bc7b98cc0fe432 4592d491d35de7d7d4af85bdf9febeca1c1bc595` exited 0. This records that the post-revert tree exactly matched 37455 before adding the corrected Cafe-shell-only implementation. `.tmp/` and `.vitest-stage3d/` were preserved and not committed.
+- Not measured: phone FPS and exhaustive collision/contact against every surface. Not implemented: business operations, orders/sales, or Lao Zhou story content in the new shell. The Cafe lake-window placement conflicts with the currently frozen rear-door canon and remains an author decision; it was not changed here.
+- Notion was not written back. The user explicitly said to wait for new authorization before any Notion write.
+
+### Preview delivery
+
+The docs-only commit at `52212273296087429c1f2b80e8a50348d515dbbe` was pushed to `preview/commercial-street-restore-20261019`; remote `ls-remote` returned the same full SHA. Vercel reported READY for the same SHA in both projects:
+
+- Original `new-tone` project: https://new-tone-okz39rzft-newtone-homes-projects.vercel.app (deployment `dpl_3NXGXBwZXAn3y1nefk8h4hyw6s1D`).
+- `newtone-staging` project: https://newtone-staging-c9d6ccz9g-newtone-homes-projects.vercel.app (deployment `dpl_4r8CahSgWLYtohiw6GpVqqMN8Bkb`).
+
+No production alias, merge, or deployment was requested or performed. Further code and story work is paused pending author acceptance and a new authorization.
