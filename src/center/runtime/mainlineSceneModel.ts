@@ -1004,7 +1004,7 @@ const commercialStreetAmbientNpcRoutes = [
 
 const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
   ...[
-    ['commercial-north-slot-1', 'commercial-north-facade', 'bottom', '水果茶店', 14, 32],
+    ['commercial-north-slot-1', 'commercial-north-facade', 'bottom', '果茶店', 14, 32],
     ['commercial-north-slot-2', 'commercial-north-facade', 'bottom', '书店', 36, 54],
     ['commercial-north-slot-3', 'commercial-north-facade', 'bottom', '美妆店', 58, 76],
     ['commercial-north-slot-4', 'commercial-north-facade', 'bottom', '眼镜店', 80, 98],

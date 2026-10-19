@@ -26,7 +26,7 @@ describe('commercial street storefront presentation', () => {
   })
   it('keeps the approved 14-shop continuous street inventory and locks every storefront door', () => {
     expect(street.storefronts.map(({ id, label, start, end }) => ({ id, label, start, end }))).toEqual([
-      { id: 'commercial-north-slot-1', label: '水果茶店', start: 14, end: 32 },
+      { id: 'commercial-north-slot-1', label: '果茶店', start: 14, end: 32 },
       { id: 'commercial-north-slot-2', label: '书店', start: 36, end: 54 },
       { id: 'commercial-north-slot-3', label: '美妆店', start: 58, end: 76 },
       { id: 'commercial-north-slot-4', label: '眼镜店', start: 80, end: 98 },
