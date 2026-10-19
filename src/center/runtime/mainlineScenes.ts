@@ -949,6 +949,10 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
   })
   data.storefronts?.forEach((storefront) => {
     if (!storefront.portalId) return
+    const portal = portals.find(({ id }) => id === storefront.portalId)
+    // A portal's explicit wall opening is the physical door. Do not also
+    // turn the entire storefront span into a second, overlapping opening.
+    if (portal?.wallOpenings?.some(({ wallId }) => wallId === storefront.wallId)) return
     addPortalOpening(storefront.wallId, {
       edge: storefront.edge,
       start: storefront.start,
@@ -1185,6 +1189,11 @@ function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneD
     dialogue: blueprint.dialogue,
     ...compiledScene,
   }
+}
+
+/** Compile a retained source layout for regression tests without activating it at runtime. */
+export function compileMainlineSceneSource(blueprint: MainlineSceneBlueprint): MainlineSceneDefinition {
+  return compileMainlineScene(blueprint)
 }
 
 const compiledMainlineScenes = Object.fromEntries(

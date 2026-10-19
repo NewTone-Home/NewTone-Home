@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialPlayerSave, recordPlayerSceneStatePatch, sanitizePlayerSave } from '../src/center/runtime/playerSave'
-import { mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { compileMainlineSceneSource, mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { commercialStreetContinuousWorldSourceBlueprint } from '../src/center/runtime/mainlineSceneModel'
 import { worldLayerForScene } from '../src/center/runtime/phoneState'
 import {
   commercialStreetMilkTeaClerkContactId,
@@ -15,6 +16,7 @@ import {
 import { findMainlinePath, isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
 import { commercialStreetMilkTeaInteriorLayout, commercialStreetMilkTeaContinuousLayout, remapLegacyMilkTeaInteriorPosition } from '../src/center/runtime/commercialStreetMilkTeaInterior'
 import { commercialStreetShopBounds, commercialStreetShopEntry, commercialStreetShopPortalId, commercialStreetShops } from '../src/center/runtime/commercialStreetWorldLayout'
+import { commercialStreetMilkTeaOrderFromSceneState, commercialStreetMilkTeaOrderNumberKey, commercialStreetMilkTeaLastOrderNumberKey, commercialStreetMilkTeaDrinkKey, commercialStreetMilkTeaSugarKey, commercialStreetMilkTeaIceKey, commercialStreetMilkTeaReadyAtKey, commercialStreetMilkTeaCreatedAtKey, commercialStreetMilkTeaQueueAheadKey, milkTeaDrinks, milkTeaSugarOptions, milkTeaIceOptions } from '../src/center/runtime/commercialStreetMilkTea'
 
 describe('commercial street milk tea interior', () => {
   it('uses a safe default for legacy saves and persists the first-visit tutorial flag', () => {
@@ -56,17 +58,21 @@ describe('commercial street milk tea interior', () => {
     expect(passage.crossingTargets[0]!.y).toBe(entry.crossingTarget.y)
     expect(Math.abs(passage.thresholds[0]!.x - entry.doorX)).toBeLessThan(1.5)
     expect(Math.abs(passage.crossingTargets[0]!.x - entry.doorX)).toBeLessThan(1.5)
-    expect(street.walkBounds.y + street.walkBounds.height).toBe(116)
+    expect(street.walkBounds.y + street.walkBounds.height).toBe(64)
+    expect(street.objects).toHaveLength(14)
+    expect(street.objects.every(({ kind }) => kind === 'door')).toBe(true)
+    expect(street.npcs.some(({ id }) => id === 'milk-tea-clerk')).toBe(false)
     expect(isWalkableMainlinePoint(passage.thresholds[0], street)).toBe(true)
-    expect(mainlineScenes[commercialStreetMilkTeaShopSceneId]).toBeDefined()
-    expect(mainlineScenes[commercialStreetMilkTeaInteriorId]).toBeDefined()
-    expect(isWalkableMainlinePoint(commercialStreetMilkTeaInteriorLayout.interiorEntry, mainlineScenes[commercialStreetMilkTeaInteriorId])).toBe(true)
+    expect(mainlineScenes[commercialStreetMilkTeaShopSceneId].id).toBe('commercial-street')
+    expect(mainlineScenes[commercialStreetMilkTeaInteriorId].id).toBe('commercial-street')
+    const retainedInterior = compileMainlineSceneSource(commercialStreetContinuousWorldSourceBlueprint)
+    expect(isWalkableMainlinePoint(commercialStreetMilkTeaInteriorLayout.interiorEntry, retainedInterior)).toBe(true)
     expect(worldLayerForScene(commercialStreetMilkTeaInteriorId)).toBe('inner')
     expect(worldLayerForScene(commercialStreetMilkTeaShopSceneId)).toBe('inner')
   })
 
   it('keeps the L counter in the front, staff-only work space behind it, and kitchen and warehouse behind a full wall', () => {
-    const interior = mainlineScenes['commercial-street']
+    const interior = compileMainlineSceneSource(commercialStreetContinuousWorldSourceBlueprint)
     const clerkContact = interior.objects.find((entity) => entity.id === commercialStreetMilkTeaClerkContactId)!
     const qr = interior.objects.find((entity) => entity.id === commercialStreetMilkTeaQrId)!
     const pickupPoints = interior.objects.filter((entity) => entity.id.startsWith(commercialStreetMilkTeaPickupId))
@@ -80,8 +86,9 @@ describe('commercial street milk tea interior', () => {
     expect(interior.continuousStructures.some((structure) => structure.id.startsWith('milk-tea-continuous-counter-'))).toBe(true)
     const street = mainlineScenes['commercial-street']
     const shopRoom = mainlineScenes[commercialStreetMilkTeaShopSceneId]
-    expect(street.npcs.some((npc) => npc.id === 'milk-tea-clerk')).toBe(true)
-    expect(street.objects.some((entity) => entity.id.startsWith('commercial-milktea-') || entity.id === commercialStreetMilkTeaQrId)).toBe(true)
+    expect(street.npcs.some((npc) => npc.id === 'milk-tea-clerk')).toBe(false)
+    expect(street.objects.some((entity) => entity.id.startsWith('commercial-milktea-') || entity.id === commercialStreetMilkTeaQrId)).toBe(false)
+    expect(shopRoom.id).toBe('commercial-street')
     expect(interior.furnitureGroups.map((group) => group.id)).toEqual(expect.arrayContaining([
       'milk-tea-continuous-table',
       'commercial-cafe-right-window-upper-group',
@@ -107,14 +114,28 @@ describe('commercial street milk tea interior', () => {
         'commercial-street': { commercialStreetMilkTeaLastOrderNumber: 12 },
       },
     }
+    legacySave.sceneState[commercialStreetMilkTeaInteriorId] = {
+      legacyTutorialFlag: true,
+      [commercialStreetMilkTeaOrderNumberKey]: 12,
+      [commercialStreetMilkTeaLastOrderNumberKey]: 12,
+      [commercialStreetMilkTeaDrinkKey]: milkTeaDrinks[1],
+      [commercialStreetMilkTeaSugarKey]: milkTeaSugarOptions[1],
+      [commercialStreetMilkTeaIceKey]: milkTeaIceOptions[1],
+      [commercialStreetMilkTeaReadyAtKey]: 60_010,
+      [commercialStreetMilkTeaCreatedAtKey]: 10,
+      [commercialStreetMilkTeaQueueAheadKey]: 1,
+      storyProgress: 'tutorial-complete',
+    }
     const migrated = sanitizePlayerSave(legacySave, 'commercial-street')
     const expectedPosition = remapLegacyMilkTeaInteriorPosition(legacyPosition)
 
     expect(migrated.currentSceneId).toBe('commercial-street')
-    expect(migrated.currentPosition).toEqual(expectedPosition)
+    expect(migrated.currentPosition).toEqual({ x: 47, y: 50 })
+    expect(expectedPosition).not.toEqual(legacyPosition)
     expect(migrated.scenePositions[commercialStreetMilkTeaInteriorId]).toEqual(legacyPosition)
-    expect(migrated.scenePositions['commercial-street']).toEqual(expectedPosition)
-    expect(migrated.sceneState['commercial-street']).toEqual({ legacyTutorialFlag: true, commercialStreetMilkTeaLastOrderNumber: 12 })
+    expect(migrated.scenePositions['commercial-street']).toEqual({ x: 47, y: 50 })
+    expect(migrated.sceneState['commercial-street']).toMatchObject({ legacyTutorialFlag: true, storyProgress: 'tutorial-complete' })
+    expect(commercialStreetMilkTeaOrderFromSceneState(migrated.sceneState['commercial-street'])).toMatchObject({ number: 12, drink: milkTeaDrinks[1], sugar: milkTeaSugarOptions[1], ice: milkTeaIceOptions[1], createdAt: 10, readyAt: 60_010, queueAhead: 1 })
     expect(isWalkableMainlinePoint(expectedPosition, mainlineScenes['commercial-street'])).toBe(true)
   })
 })

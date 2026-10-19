@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
 import { isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
-import { mainlineScenes, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
+import { compileMainlineSceneSource, mainlineScenes, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
+import { commercialStreetContinuousWorldSourceBlueprint } from '../src/center/runtime/mainlineSceneModel'
 
 const street = mainlineScenes['commercial-street']
+const sourceStreet = compileMainlineSceneSource(commercialStreetContinuousWorldSourceBlueprint)
 const ambientNpcs = street.npcs.filter((npc) => npc.id.startsWith('commercial-street-pedestrian-'))
 const ambientRoutes = street.ambientNpcRoutes.filter((route) => route.npcId.startsWith('commercial-street-pedestrian-'))
-const shopClerks = street.npcs.filter((npc) => npc.id.endsWith('-clerk'))
-const shopCustomers = street.npcs.filter((npc) => npc.id.endsWith('-customer'))
+const shopClerks = sourceStreet.npcs.filter((npc) => npc.id.endsWith('-clerk'))
+const shopCustomers = sourceStreet.npcs.filter((npc) => npc.id.endsWith('-customer'))
 
 describe('Commercial Street ambient pedestrians', () => {
   it('authors six non-interactive street pedestrians in the shared world', () => {
@@ -16,19 +18,19 @@ describe('Commercial Street ambient pedestrians', () => {
     expect(mainlineScenes['commercial-cafe'].npcs.some((npc) => npc.id.startsWith('commercial-street-pedestrian-'))).toBe(false)
     expect(shopClerks).toHaveLength(13)
     expect(shopClerks.every((npc) => npc.interactive && Boolean(npc.interactionTargetEntityId))).toBe(true)
-    const cafeOwner = street.npcs.find((npc) => npc.id === 'cafe-coffee-owner')
+    const cafeOwner = sourceStreet.npcs.find((npc) => npc.id === 'cafe-coffee-owner')
     expect(cafeOwner?.interactive).not.toBe(false)
     expect(cafeOwner?.interactionTargetEntityId).toBe('commercial-cafe-counter')
-    expect(street.npcBehaviors.some((behavior) => behavior.npcId === 'cafe-coffee-owner' && behavior.targetKind === 'point')).toBe(true)
+    expect(sourceStreet.npcBehaviors.some((behavior) => behavior.npcId === 'cafe-coffee-owner' && behavior.targetKind === 'point')).toBe(true)
     expect(shopCustomers).toHaveLength(12)
   })
 
   it('gives every pedestrian a distinct startup phase and a fixed legal route', () => {
     expect(ambientRoutes).toHaveLength(6)
-    expect(street.ambientNpcRoutes).toHaveLength(18)
+    expect(sourceStreet.ambientNpcRoutes).toHaveLength(18)
     expect(new Set(ambientRoutes.map((route) => route.npcId))).toEqual(new Set(ambientNpcs.map((npc) => npc.id)))
     expect(new Set(ambientRoutes.map((route) => route.initialDelayMs)).size).toBe(6)
-    expect(street.ambientNpcRoutes.filter((route) => route.npcId.endsWith('-customer'))).toHaveLength(12)
+    expect(sourceStreet.ambientNpcRoutes.filter((route) => route.npcId.endsWith('-customer'))).toHaveLength(12)
     ambientRoutes.forEach((route) => {
       expect(route.steps.length).toBeGreaterThan(1)
       route.steps.forEach(({ target, dwellMs }) => {
@@ -42,7 +44,7 @@ describe('Commercial Street ambient pedestrians', () => {
   })
 
   it('lets pedestrians visit ordinary storefronts or leave through the west boundary, never Café or drinks', () => {
-    const activities = street.ambientNpcRoutes.flatMap((route) => route.steps)
+    const activities = sourceStreet.ambientNpcRoutes.flatMap((route) => route.steps)
       .filter((step) => step.kind === 'storefront-visit' || step.kind === 'offstreet')
     const visits = activities.filter((step) => step.kind === 'storefront-visit')
     const offstreet = activities.filter((step) => step.kind === 'offstreet')
@@ -58,18 +60,18 @@ describe('Commercial Street ambient pedestrians', () => {
   })
 
   it('keeps pedestrian storefront visits routed through legal existing storefront candidates', () => {
-    const visit = street.ambientNpcRoutes.flatMap((route) => route.steps)
+    const visit = sourceStreet.ambientNpcRoutes.flatMap((route) => route.steps)
       .find((step) => step.kind === 'storefront-visit')
     expect(visit?.kind).toBe('storefront-visit')
     if (!visit || visit.kind !== 'storefront-visit') return
 
-    const storefront = street.storefronts.find((candidate) => candidate.id === visit.storefrontId)!
-    const candidates = mainlineStorefrontInteractionCandidates(street, storefront, visit.target)
-    const resolved = resolveMainlineInteractionCandidates(street, visit.target, candidates, .35, {}, {})
+    const storefront = sourceStreet.storefronts.find((candidate) => candidate.id === visit.storefrontId)!
+    const candidates = mainlineStorefrontInteractionCandidates(sourceStreet, storefront, visit.target)
+    const resolved = resolveMainlineInteractionCandidates(sourceStreet, visit.target, candidates, .35, {}, {})
 
     expect(candidates.length).toBeGreaterThan(0)
     expect(resolved.path).not.toBeNull()
     expect(candidates).toContainEqual(resolved.target)
-    expect(isWalkableMainlinePoint(resolved.target, street)).toBe(true)
+    expect(isWalkableMainlinePoint(resolved.target, sourceStreet)).toBe(true)
   })
 })
