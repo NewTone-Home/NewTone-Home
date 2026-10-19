@@ -1,0 +1,239 @@
+# Commercial Street Stage 1: Empty Storefront Shells
+
+## Scope and state
+
+This stage implements two empty, walkable shop shells in the existing `commercial-street` scene:
+
+- North N2, `commercial-north-slot-2` (11 character cells wide).
+- South S2, `commercial-south-slot-2` (the 23-cell fast-food double bay).
+
+Both entry portals have no `targetSceneId`: passage lifecycle crosses the facade in the existing world coordinates. The Cafe scene, its story and save keys are unchanged. No other shop entrance was opened. Rear doors are authored as locked passages with no destination. The storefront facade, glyph arrangement, door locations, storefront order and lane arrangement are unchanged.
+
+## Grid dimensions and ownership
+
+The implementation uses `boundaryGridStepsFromScreenSpacing()` for both axes. At the standard 1280 × 720 screen metrics, a character pitch is 2.1875% horizontally and 3.8889% vertically. The two bay widths come from the storefront cell spans (11 and 23 horizontal cells). A 22-center depth has 21 vertical pitch intervals between the facade and rear-wall centers, so the depth is `verticalPitch * 21` (about 81.67 stage units). N2 runs north from its existing facade; S2 runs south. The existing facade is the room's front wall and is not recreated by either shell.
+
+Each shell adds only left, right and rear boundary edges. The rear edge contains the locked rear-door opening. The sample room bounds are registered in `scene.rooms` and linked bidirectionally to the public lane using `routeThrough` passages. The larger y walk bounds let the same scene camera and navmesh reach the rooms. Segmented air walls preserve the established off-storefront barriers and close the new north/south extension everywhere except the two authored bay spans. Thus the expansion does not make unselected store backs walkable.
+
+Shell wall glyphs are filtered at the renderer by their owning room: they remain hidden while the player is on the street and become visible while inside that shell. This is a visual projection only; the same compiled units remain in collision, route and room geometry. Storefront fronts, neighboring shop walls and the Cafe are not hidden by that filter.
+
+## Changed files and source evidence
+
+### `src/center/runtime/mainlineSceneModel.ts`
+
+Adds measured room spans, shell-owned air-wall cuts, open sample-entry passages, locked rear doors, room bounds and side/rear walls. The exterior wall remains the only front wall.
+
+Previous exterior-only barrier and locked entry behavior:
+
+```ts
+const commercialStreetFacadeAirWalls: readonly MainlineAirWall[] = [
+  { id: 'commercial-north-facade-air-wall', ...box(8, 10, commercialStreetWorldRight - 8, 25.3 - commercialStreetLaneExpansion) },
+  { id: 'commercial-south-facade-air-wall-left', ...box(8, 64.7 + commercialStreetLaneExpansion, 180 + commercialStreetLongitudinalExpansion, 25.3 - commercialStreetLaneExpansion) },
+]
+// ...
+wallOpenings: [], transitionText: '此店铺尚未开放。', access: 'locked', lockedText: '此店铺尚未开放。'
+// ...
+walkBounds: box(8, 10, commercialStreetWorldRight - 8, 80),
+```
+
+Current grid and shell span:
+
+```ts
+const commercialStreetInteriorDepth = boundaryGridStepsFromScreenSpacing().vertical * 21
+const commercialStreetFacadeNorthY = 14 + 22 - commercialStreetLaneExpansion
+const commercialStreetFacadeSouthY = 64 + commercialStreetLaneExpansion
+const commercialStreetInteriorSamples = [
+  { storefrontId: 'commercial-north-slot-2', roomId: 'commercial-north-n2-interior', side: 'north' as const },
+  { storefrontId: 'commercial-south-slot-2', roomId: 'commercial-south-s2-interior', side: 'south' as const },
+].map((sample) => {
+  const storefront = commercialStreetStorefronts.find((candidate) => candidate.id === sample.storefrontId)!
+  const facade = sample.side === 'north' ? commercialStreetFacadeNorthY : commercialStreetFacadeSouthY
+  const back = facade + (sample.side === 'north' ? -commercialStreetInteriorDepth : commercialStreetInteriorDepth)
+  return { ...sample, storefront, facade, back, x: storefront.start, width: storefront.end - storefront.start }
+})
+```
+
+The air-wall helper subtracts exactly each sample bay interval from its source barrier, then the extension bands prevent the expanded walk bounds opening the remaining shop backs:
+
+```ts
+const commercialStreetAirWallSegments = (id: string, bounds: CollisionBox, samples: typeof commercialStreetInteriorSamples) => {
+  const cuts = samples.map(({ x, width }) => ({ start: x, end: x + width }))
+    .filter(({ start, end }) => end > bounds.x && start < bounds.x + bounds.width)
+    .sort((left, right) => left.start - right.start)
+  const segments: MainlineAirWall[] = []
+  let cursor = bounds.x
+  cuts.forEach(({ start, end }, index) => {
+    const clippedStart = Math.max(bounds.x, start)
+    const clippedEnd = Math.min(bounds.x + bounds.width, end)
+    if (clippedStart > cursor) segments.push({ id: `${id}-${index}-left`, ...box(cursor, bounds.y, clippedStart - cursor, bounds.height) })
+    cursor = Math.max(cursor, clippedEnd)
+  })
+  if (cursor < bounds.x + bounds.width) segments.push({ id: `${id}-right`, ...box(cursor, bounds.y, bounds.x + bounds.width - cursor, bounds.height) })
+  return segments
+}
+const commercialStreetFacadeAirWalls: readonly MainlineAirWall[] = [
+  ...commercialStreetAirWallSegments('commercial-north-facade-air-wall', box(8, 10, commercialStreetWorldRight - 8, 25.3 - commercialStreetLaneExpansion), commercialStreetInteriorSamples.filter((sample) => sample.side === 'north')),
+  ...commercialStreetAirWallSegments('commercial-south-facade-air-wall-left', box(8, 64.7 + commercialStreetLaneExpansion, 180 + commercialStreetLongitudinalExpansion, 25.3 - commercialStreetLaneExpansion), commercialStreetInteriorSamples.filter((sample) => sample.side === 'south')),
+  ...commercialStreetAirWallSegments('commercial-north-shell-extension-air-wall', box(8, -56, commercialStreetWorldRight - 8, 66), commercialStreetInteriorSamples.filter((sample) => sample.side === 'north')),
+  ...commercialStreetAirWallSegments('commercial-south-shell-extension-air-wall', box(8, 90, commercialStreetWorldRight - 8, 66), commercialStreetInteriorSamples.filter((sample) => sample.side === 'south')),
+]
+```
+
+Only the two selected front doors are open and linked to the public lane; the rear door has no scene destination and remains locked:
+
+```ts
+const interior = commercialStreetInteriorSamples.find((sample) => sample.storefrontId === storefront.id)
+return { id: portalId,
+  entity: { id: portalId, label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
+  endpoint: { doorPosition: authoredPoint(x, y), threshold: authoredPoint(x, laneY), crossingTarget: authoredPoint(x, laneY) },
+  wallOpenings: [], transitionText: '\u6b64\u5e97\u94fa\u5c1a\u672a\u5f00\u653e\u3002', access: interior ? 'open' : 'locked',
+  ...(interior ? { routeThrough: true, fromRoomId: 'commercial-street-public-lane', toRoomId: interior.roomId } : {}),
+  ...(!interior ? { lockedText: '\u6b64\u5e97\u94fa\u5c1a\u672a\u5f00\u653e\u3002' } : {}) }
+// Rear portals use a separate locked passage and an opening in the shell's rear edge.
+const commercialStreetRearDoorPortals: MainlineScenePortalBlueprint[] = commercialStreetInteriorSamples.map((sample) => {
+  const north = sample.side === 'north'
+  const edge = north ? 'top' : 'bottom'
+  const centerX = sample.x + sample.width / 2
+  const doorId = `${sample.roomId}-rear-door`
+  return {
+    id: doorId,
+    entity: { id: doorId, label: '\u95e8', displayLabel: '\u95e8', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
+    endpoint: {
+      doorPosition: authoredPoint(centerX, sample.back),
+      threshold: authoredPoint(centerX, sample.back + (north ? commercialStreetLaneExpansion : -commercialStreetLaneExpansion)),
+      crossingTarget: authoredPoint(centerX, sample.back + (north ? -commercialStreetLaneExpansion : commercialStreetLaneExpansion)),
+    },
+    wallOpenings: [{ wallId: `${sample.roomId}-shell`, opening: { edge, start: centerX - commercialStreetCellPitch, end: centerX + commercialStreetCellPitch, doorId, labelLayout: 'center' } }],
+    transitionText: '\u540e\u95e8\u5c1a\u672a\u63a5\u901a\u3002', access: 'locked', lockedText: '\u540e\u95e8\u5c1a\u672a\u5f00\u653e\u3002',
+  }
+})
+```
+
+The room/wall arrangement and enlarged bounds are:
+
+```ts
+walkBounds: box(8, -56, commercialStreetWorldRight - 8, 212),
+rooms: [
+  { id: 'commercial-street-public-lane', kind: 'corridor', bounds: box(8, 36 - commercialStreetLaneExpansion, commercialStreetWorldRight - 8, 28 + 2 * commercialStreetLaneExpansion) },
+  ...commercialStreetInteriorSamples.map((sample) => ({ id: sample.roomId, bounds: box(sample.x, Math.min(sample.facade, sample.back), sample.width, commercialStreetInteriorDepth) })),
+],
+// Existing north/south facade boundaries are unchanged. Each shell adds only three edges:
+...commercialStreetInteriorSamples.map((sample) => ({
+  id: `${sample.roomId}-shell`, type: 'room' as const,
+  bounds: box(sample.x, Math.min(sample.facade, sample.back), sample.width, commercialStreetInteriorDepth),
+  variant: 'commercial-empty-shell', boundaryGeometrySource: 'cell-range' as const,
+  boundaryVisualEndpoints: { vertical: sample.side === 'north' ? { end: 'omit' as const } : { start: 'omit' as const } },
+  edges: [sample.side === 'north' ? 'top' as const : 'bottom' as const, 'left' as const, 'right' as const],
+  openings: [{ edge: sample.side === 'north' ? 'top' as const : 'bottom' as const, start: sample.x + sample.width / 2 - commercialStreetCellPitch, end: sample.x + sample.width / 2 + commercialStreetCellPitch, doorId: `${sample.roomId}-rear-door`, labelLayout: 'center' as const }],
+})),
+```
+
+### `src/center/runtime/mainlineNavigation.ts`
+
+The previous shop intent classified all clicks behind a commercial facade as an entry intent only while its portal remained locked:
+
+```ts
+const storefrontIntent = Boolean((passage.targetSceneId || scene.id === 'commercial-street' && passage.access === 'locked')
+  && targetIsInsideStorefrontFrame(scene, passage, requestedTarget))
+```
+
+Open sample entry intent is now scoped to the street-to-room direction. This preserves exterior storefront intent while inside-room clicks can select the independently locked rear door:
+
+```ts
+const openStorefrontEntryIntent = passage.fromRoomId === 'commercial-street-public-lane'
+  && roomForPoint(scene, from)?.id === passage.fromRoomId
+const storefrontIntent = Boolean((passage.targetSceneId || scene.id === 'commercial-street' && (passage.access === 'locked' || openStorefrontEntryIntent))
+  && targetIsInsideStorefrontFrame(scene, passage, requestedTarget))
+```
+
+### `src/center/runtime/mainlineViewport.ts`
+
+The old follow camera clamped y-offset at zero, which cannot follow a negative-y north interior. It now allows positive y translation only as far as needed to keep the expanded world's top edge within its two-unit screen padding:
+
+```ts
+const maxY = Math.max(0, cameraEdgePadding - scene.walkBounds.y)
+return {
+  x: clamp(followAnchor - position.x, minX, 0),
+  y: clamp(followAnchor - position.y, minY, maxY),
+}
+// In mainlineCameraTarget:
+const maxY = Math.max(0, 2 - scene.walkBounds.y)
+return { x: clamp(desired.x, minX, 0), y: clamp(desired.y, minY, maxY) }
+```
+
+No scale or font changes were made. The same follow camera remains attached to the protagonist.
+
+### `src/center/runtime/MainlineSceneRenderer.tsx`
+
+The previous projection rendered every wall cell in every room:
+
+```ts
+const geometryCells = useMemo(() => geometryUnits.flatMap((unit) => unit.visual.cells
+  .filter(cell => {
+    const slot = unit.storefrontId ? activeSwitchableStorefronts.find(candidate => candidate.id === unit.storefrontId) : undefined
+```
+
+The added owner-room filter only removes shell cells from the rendered list while outside their room. The `geometryUnits` snapshot consumed by collision and routing is unchanged:
+
+```ts
+const shellRoomId = unit.sourceWallId?.endsWith('-shell')
+  ? unit.sourceWallId.slice(0, -'-shell'.length)
+  : undefined
+const shellRoom = shellRoomId ? scene.rooms.find(room => room.id === shellRoomId) : undefined
+if (!layoutMode && shellRoom && !(position.x >= shellRoom.bounds.x
+  && position.x <= shellRoom.bounds.x + shellRoom.bounds.width
+  && position.y >= shellRoom.bounds.y
+  && position.y <= shellRoom.bounds.y + shellRoom.bounds.height)) return false
+```
+
+The memo now also keys on player position and room bounds. This hides only shell-owned side/rear wall glyphs. It never suppresses the shared facade, neighbor walls, Cafe, room bounds or collision geometry.
+
+### `tests/commercialStreetStorefrontInteractions.test.ts`
+
+The earlier storefront assertion required every door to be locked. It now distinguishes the two explicit sample portals. New assertions check exact 11/23-cell widths, 22 wall centers/21 pitch intervals, same-scene route ownership, locked rear doors, room entry/return paths, blocked adjacent back space and camera following:
+
+```ts
+const roomSamples = [
+  ['commercial-north-slot-2', 'commercial-north-n2-interior', 11],
+  ['commercial-south-slot-2', 'commercial-south-s2-interior', 23],
+] as const
+// ...
+expect(room.bounds.width).toBeCloseTo(steps.horizontal * widthCells)
+expect(room.bounds.height).toBeCloseTo(steps.vertical * 21)
+expect(entry).toMatchObject({ access: 'open', routeThrough: true, fromRoomId: 'commercial-street-public-lane', toRoomId: roomId })
+expect(entry.targetSceneId).toBeUndefined()
+expect(rear).toMatchObject({ access: 'locked' })
+expect(findMainlinePath(entry.crossingTargets[0], interior, street)).not.toBeNull()
+expect(findMainlinePath(interior, entry.thresholds[0], street)).not.toBeNull()
+expect(isWalkableMainlinePoint({ x: room.bounds.x - steps.horizontal, y: interior.y }, street)).toBe(false)
+```
+
+### `e2e/commercial-street-locked-storefront.spec.ts`
+
+The former S2 assertion clicked the entrance and expected a locked-door echo. It now clicks the same visible entrance control and waits for the protagonist to land inside the S2 room bounds while the scene ID remains `commercial-street`. A corresponding N2 case does the same. The milk-tea locked-door test is unchanged.
+
+```ts
+await page.locator(`button[data-storefront-cell-id="${storefront.id}-character-1"]`).click()
+await page.waitForFunction(({ x, y, width, height }) => {
+  const player = document.querySelector<HTMLElement>('[data-actor-id="protagonist"]')
+  const px = Number(player?.dataset.runtimeX)
+  const py = Number(player?.dataset.runtimeY)
+  return Boolean(player && px >= x && px <= x + width && py >= y && py <= y + height)
+}, room.bounds, { timeout: 20_000 })
+await expect(stage).toHaveAttribute('data-mainline-scene', 'commercial-street')
+expect(passage.targetSceneId).toBeUndefined()
+```
+
+## Validation and limitations
+
+- Focused Vitest file: `tests/commercialStreetStorefrontInteractions.test.ts` — 14 passed.
+- Related regression set: commercial street storefronts, Cafe behavior/story, scene transitions, navigation barriers and player saves — 6 files, 60 passed.
+- `npm run typecheck` — passed.
+- `npm run build` — passed. Vite emitted a large-chunk advisory (803 kB main JS); no build errors.
+- `git diff --check` — passed after whitespace cleanup.
+- Browser E2E could not start its configured Vite server: Windows returned `listen EACCES` on `127.0.0.1:5182`. No alternate port or host was used to bypass that restriction. The N2/S2 E2E cases are in the repository for execution in a permitted browser environment.
+- No screenshot was captured or included. The author should inspect the fixed Preview URL and decide whether the in-room shell presentation matches the agreed visual rule.
+
+## Explicitly out of scope
+
+No furniture, NPC, narrative, Cafe migration, additional shop interior, save migration, door unlock, milk-tea action or public release was added. Review Stage 1 before authorizing more shops or interior content.

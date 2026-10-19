@@ -1086,9 +1086,46 @@ const commercialStreetLongitudinalExpansion = (commercialStreetRowCellCount + 3)
 const commercialStreetSceneRight = 192 + commercialStreetLongitudinalExpansion
 const commercialStreetWorldRight = 200 + commercialStreetLongitudinalExpansion
 
+// Two first-stage interiors are part of this scene's coordinate space. Their
+// front wall is the already-authored shop facade; these shells own only the
+// sides and back, on the same measured glyph lattice as the storefronts.
+// Twenty-two character centers include the facade wall and rear wall, hence
+// twenty-one pitch intervals from front center to rear center.
+const commercialStreetInteriorDepth = boundaryGridStepsFromScreenSpacing().vertical * 21
+const commercialStreetFacadeNorthY = 14 + 22 - commercialStreetLaneExpansion
+const commercialStreetFacadeSouthY = 64 + commercialStreetLaneExpansion
+const commercialStreetInteriorSamples = [
+  { storefrontId: 'commercial-north-slot-2', roomId: 'commercial-north-n2-interior', side: 'north' as const },
+  { storefrontId: 'commercial-south-slot-2', roomId: 'commercial-south-s2-interior', side: 'south' as const },
+].map((sample) => {
+  const storefront = commercialStreetStorefronts.find((candidate) => candidate.id === sample.storefrontId)!
+  const facade = sample.side === 'north' ? commercialStreetFacadeNorthY : commercialStreetFacadeSouthY
+  const back = facade + (sample.side === 'north' ? -commercialStreetInteriorDepth : commercialStreetInteriorDepth)
+  return { ...sample, storefront, facade, back, x: storefront.start, width: storefront.end - storefront.start }
+})
+
+const commercialStreetAirWallSegments = (id: string, bounds: CollisionBox, samples: typeof commercialStreetInteriorSamples) => {
+  const cuts = samples.map(({ x, width }) => ({ start: x, end: x + width }))
+    .filter(({ start, end }) => end > bounds.x && start < bounds.x + bounds.width)
+    .sort((left, right) => left.start - right.start)
+  const segments: MainlineAirWall[] = []
+  let cursor = bounds.x
+  cuts.forEach(({ start, end }, index) => {
+    const clippedStart = Math.max(bounds.x, start)
+    const clippedEnd = Math.min(bounds.x + bounds.width, end)
+    if (clippedStart > cursor) segments.push({ id: `${id}-${index}-left`, ...box(cursor, bounds.y, clippedStart - cursor, bounds.height) })
+    cursor = Math.max(cursor, clippedEnd)
+  })
+  if (cursor < bounds.x + bounds.width) segments.push({ id: `${id}-right`, ...box(cursor, bounds.y, bounds.x + bounds.width - cursor, bounds.height) })
+  return segments
+}
 const commercialStreetFacadeAirWalls: readonly MainlineAirWall[] = [
-  { id: 'commercial-north-facade-air-wall', ...box(8, 10, commercialStreetWorldRight - 8, 25.3 - commercialStreetLaneExpansion) },
-  { id: 'commercial-south-facade-air-wall-left', ...box(8, 64.7 + commercialStreetLaneExpansion, 180 + commercialStreetLongitudinalExpansion, 25.3 - commercialStreetLaneExpansion) },
+  ...commercialStreetAirWallSegments('commercial-north-facade-air-wall', box(8, 10, commercialStreetWorldRight - 8, 25.3 - commercialStreetLaneExpansion), commercialStreetInteriorSamples.filter((sample) => sample.side === 'north')),
+  ...commercialStreetAirWallSegments('commercial-south-facade-air-wall-left', box(8, 64.7 + commercialStreetLaneExpansion, 180 + commercialStreetLongitudinalExpansion, 25.3 - commercialStreetLaneExpansion), commercialStreetInteriorSamples.filter((sample) => sample.side === 'south')),
+  // The enlarged scene bounds must not turn unselected storefront backs into
+  // new public paths. Keep only the authored shell-width gaps walkable.
+  ...commercialStreetAirWallSegments('commercial-north-shell-extension-air-wall', box(8, -56, commercialStreetWorldRight - 8, 66), commercialStreetInteriorSamples.filter((sample) => sample.side === 'north')),
+  ...commercialStreetAirWallSegments('commercial-south-shell-extension-air-wall', box(8, 90, commercialStreetWorldRight - 8, 66), commercialStreetInteriorSamples.filter((sample) => sample.side === 'south')),
 ]
 
 const commercialStreetStorefrontApproach = (storefrontId: string) => commercialStreetStorefronts.find(storefront => storefront.id === storefrontId)?.approach ?? authoredPoint(14, 50)
@@ -1107,10 +1144,31 @@ const commercialStreetPortals: MainlineScenePortalBlueprint[] = commercialStreet
   const y = storefront.edge === 'bottom' ? 36 - commercialStreetLaneExpansion : 64 + commercialStreetLaneExpansion
   const laneY = storefront.edge === 'bottom' ? 41 - commercialStreetLaneExpansion : 59 + commercialStreetLaneExpansion
   const portalId = storefront.portalId!
+  const interior = commercialStreetInteriorSamples.find((sample) => sample.storefrontId === storefront.id)
   return { id: portalId,
     entity: { id: portalId, label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
     endpoint: { doorPosition: authoredPoint(x, y), threshold: authoredPoint(x, laneY), crossingTarget: authoredPoint(x, laneY) },
-    wallOpenings: [], transitionText: '此店铺尚未开放。', access: 'locked', lockedText: '此店铺尚未开放。' }
+    wallOpenings: [], transitionText: '\u6b64\u5e97\u94fa\u5c1a\u672a\u5f00\u653e\u3002', access: interior ? 'open' : 'locked', ...(interior ? { routeThrough: true, fromRoomId: 'commercial-street-public-lane', toRoomId: interior.roomId } : {}), ...(!interior ? { lockedText: '\u6b64\u5e97\u94fa\u5c1a\u672a\u5f00\u653e\u3002' } : {}) }
+})
+
+const commercialStreetRearDoorPortals: MainlineScenePortalBlueprint[] = commercialStreetInteriorSamples.map((sample) => {
+  const north = sample.side === 'north'
+  const edge = north ? 'top' : 'bottom'
+  const centerX = sample.x + sample.width / 2
+  const doorId = `${sample.roomId}-rear-door`
+  return {
+    id: doorId,
+    entity: { id: doorId, label: '\u95e8', displayLabel: '\u95e8', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
+    endpoint: {
+      doorPosition: authoredPoint(centerX, sample.back),
+      threshold: authoredPoint(centerX, sample.back + (north ? commercialStreetLaneExpansion : -commercialStreetLaneExpansion)),
+      crossingTarget: authoredPoint(centerX, sample.back + (north ? -commercialStreetLaneExpansion : commercialStreetLaneExpansion)),
+    },
+    wallOpenings: [{ wallId: `${sample.roomId}-shell`, opening: { edge, start: centerX - commercialStreetCellPitch, end: centerX + commercialStreetCellPitch, doorId, labelLayout: 'center' } }],
+    transitionText: '\u540e\u95e8\u5c1a\u672a\u63a5\u901a\u3002',
+    access: 'locked',
+    lockedText: '\u540e\u95e8\u5c1a\u672a\u5f00\u653e\u3002',
+  }
 })
 
 const commercialStreetBlueprint: MainlineSceneBlueprint = {
@@ -1122,13 +1180,25 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
   presentation: { mode: 'actor-relative', offset: authoredPoint(0, 0), readingRail: { centerY: 50, minX: 16, maxX: commercialStreetSceneRight - 8, gap: 6 } },
   areaLabel: (position) => position.x >= 140 ? '商业街尾端' : '里世界',
   scene: {
-    walkBounds: box(8, 10, commercialStreetWorldRight - 8, 80),
+    walkBounds: box(8, -56, commercialStreetWorldRight - 8, 212),
+    rooms: [
+      { id: 'commercial-street-public-lane', kind: 'corridor', bounds: box(8, 36 - commercialStreetLaneExpansion, commercialStreetWorldRight - 8, 28 + 2 * commercialStreetLaneExpansion) },
+      ...commercialStreetInteriorSamples.map((sample) => ({ id: sample.roomId, bounds: box(sample.x, Math.min(sample.facade, sample.back), sample.width, commercialStreetInteriorDepth) })),
+    ],
     externalExit: { axis: 'x', direction: -1, threshold: 12 },
     wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
     walls: [
       { id: 'commercial-north-facade', type: 'room', bounds: box(12, 14, (commercialStreetRowCellCounts.bottom + 3) * commercialStreetCellPitch, 22 - commercialStreetLaneExpansion), variant: 'shop-row', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { horizontal: commercialStreetRowCellCounts.bottom + 4 }, edges: ['bottom'] },
       { id: 'commercial-main-lane', type: 'lane', bounds: box(12, 36 - commercialStreetLaneExpansion, 176 + commercialStreetLongitudinalExpansion, 28 + commercialStreetLaneExpansion * 2), edges: [] },
       { id: 'commercial-south-facade', type: 'room', bounds: box(12, 64 + commercialStreetLaneExpansion, (commercialStreetRowCellCounts.top + 3) * commercialStreetCellPitch, 22 - commercialStreetLaneExpansion), variant: 'shop-row', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { horizontal: commercialStreetRowCellCounts.top + 4 }, edges: ['top'] },
+      ...commercialStreetInteriorSamples.map((sample) => ({
+        id: `${sample.roomId}-shell`, type: 'room' as const,
+        bounds: box(sample.x, Math.min(sample.facade, sample.back), sample.width, commercialStreetInteriorDepth),
+        variant: 'commercial-empty-shell', boundaryGeometrySource: 'cell-range' as const,
+        boundaryVisualEndpoints: { vertical: sample.side === 'north' ? { end: 'omit' as const } : { start: 'omit' as const } },
+        edges: [sample.side === 'north' ? 'top' as const : 'bottom' as const, 'left' as const, 'right' as const],
+        openings: [{ edge: sample.side === 'north' ? 'top' as const : 'bottom' as const, start: sample.x + sample.width / 2 - commercialStreetCellPitch, end: sample.x + sample.width / 2 + commercialStreetCellPitch, doorId: `${sample.roomId}-rear-door`, labelLayout: 'center' as const }],
+      })),
     ],
     storefronts: commercialStreetStorefronts,
     floorEntities: [],
@@ -1147,7 +1217,7 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
     furnitureGroups: [],
     initialPlayerPosition: authoredPoint(34, 50),
   },
-  portals: commercialStreetPortals,
+  portals: [...commercialStreetPortals, ...commercialStreetRearDoorPortals],
   interactionText: { 'street-cafe-entry': '咖啡馆是独立场景，入口沿用主线门和寻路契约。' },
 }
 

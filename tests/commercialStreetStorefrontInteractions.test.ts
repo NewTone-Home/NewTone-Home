@@ -4,6 +4,7 @@ import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainli
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 import { boundaryGridStepsFromScreenSpacing } from '../src/center/runtime/sceneBoundaryGrid'
+import { mainlineCameraOffset, mainlineCameraTarget } from '../src/center/runtime/mainlineViewport'
 import {
   commercialStreetStorefrontInteractionDebounceMs,
   commercialStreetStorefrontInteractions,
@@ -82,7 +83,7 @@ describe('commercial street storefront interactions', () => {
         expect(command.kind, `${storefrontId} click ${target.x},${target.y}`).toBe('passage')
         if (command.kind !== 'passage') continue
         expect(command.passage.id, `${storefrontId} click ${target.x},${target.y}`).toBe(passage.id)
-        expect(command.passage.access).toBe('locked')
+        expect(command.passage.access).toBe(storefrontId === 'commercial-north-slot-2' || storefrontId === 'commercial-south-slot-2' ? 'open' : 'locked')
         expect(command.approachPath).not.toBeNull()
         const approachEnd = command.approachPath!.at(-1)!
         expect(isWalkableMainlinePoint(approachEnd, street)).toBe(true)
@@ -101,6 +102,52 @@ describe('commercial street storefront interactions', () => {
       if (storefront.edge === 'top') expect(crossing.y).toBeGreaterThan(threshold.y)
     }
   })
+
+  it('routes only the two sample empty shells through the continuous street room and preserves the 22-cell depth', () => {
+    const steps = boundaryGridStepsFromScreenSpacing()
+    const roomSamples = [
+      ['commercial-north-slot-2', 'commercial-north-n2-interior', 11],
+      ['commercial-south-slot-2', 'commercial-south-s2-interior', 23],
+    ] as const
+
+    for (const [storefrontId, roomId, widthCells] of roomSamples) {
+      const storefront = street.storefronts.find((candidate) => candidate.id === storefrontId)!
+      const room = street.rooms.find((candidate) => candidate.id === roomId)!
+      const entry = street.passages.find((candidate) => candidate.portalId === storefront.portalId)!
+      const rear = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
+      const shell = street.structures.find((candidate) => candidate.id === `${roomId}-shell`)!
+      const expectedDepth = steps.vertical * 21
+      const interior = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+      const command = classifyMainlineWorldCommand(street, street.initialPlayerPosition, interior)
+
+      expect(room.bounds.width).toBeCloseTo(steps.horizontal * widthCells)
+      expect(room.bounds.height).toBeCloseTo(expectedDepth)
+      expect(entry).toMatchObject({ access: 'open', routeThrough: true, fromRoomId: 'commercial-street-public-lane', toRoomId: roomId })
+      expect(entry.targetSceneId).toBeUndefined()
+      expect(command.kind).toBe('passage')
+      if (command.kind === 'passage') expect(command.passage.id).toBe(entry.id)
+      expect(rear).toMatchObject({ access: 'locked' })
+      expect(rear.targetSceneId).toBeUndefined()
+      const rearCommand = classifyMainlineWorldCommand(street, interior, rear.crossingTargets[0])
+      expect(rearCommand.kind).toBe('passage')
+      if (rearCommand.kind === 'passage') expect(rearCommand.passage.id).toBe(rear.id)
+      expect(shell?.wallEdges).toEqual(widthCells === 11 ? ['top', 'left', 'right'] : ['bottom', 'left', 'right'])
+      expect(isWalkableMainlinePoint(interior, street)).toBe(true)
+      expect(findMainlinePath(entry.crossingTargets[0], interior, street)).not.toBeNull()
+      expect(findMainlinePath(interior, entry.thresholds[0], street)).not.toBeNull()
+      expect(isWalkableMainlinePoint({ x: room.bounds.x - steps.horizontal, y: interior.y }, street)).toBe(false)
+      expect(street.walkBounds.y).toBeLessThan(room.bounds.y)
+      expect(street.walkBounds.y + street.walkBounds.height).toBeGreaterThan(room.bounds.y + room.bounds.height)
+    }
+
+    const northRoom = street.rooms.find((candidate) => candidate.id === 'commercial-north-n2-interior')!
+    const northInterior = { x: northRoom.bounds.x + northRoom.bounds.width / 2, y: northRoom.bounds.y + northRoom.bounds.height / 2 }
+    const offset = mainlineCameraOffset(street, northInterior)
+    const target = mainlineCameraTarget(street, northInterior, offset)
+    expect(offset.y).toBeGreaterThan(0)
+    expect(target.y).toBeGreaterThan(0)
+  })
+
 
   it('projects the contact onto the continuous facade span from left, centre, and right approaches', () => {
     const storefront = street.storefronts.find((candidate) => candidate.id === 'commercial-north-slot-2')!

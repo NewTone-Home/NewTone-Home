@@ -887,6 +887,17 @@ export function MainlineSceneRenderer({
   )
   const geometryCells = useMemo(() => geometryUnits.flatMap((unit) => unit.visual.cells
     .filter(cell => {
+      // Empty-shell walls belong to the room they bound. Keep their visual
+      // glyphs out of the frozen street view until the player is inside that
+      // shell; the compiled geometry remains present for nav and collision.
+      const shellRoomId = unit.sourceWallId?.endsWith('-shell')
+        ? unit.sourceWallId.slice(0, -'-shell'.length)
+        : undefined
+      const shellRoom = shellRoomId ? scene.rooms.find(room => room.id === shellRoomId) : undefined
+      if (!layoutMode && shellRoom && !(position.x >= shellRoom.bounds.x
+        && position.x <= shellRoom.bounds.x + shellRoom.bounds.width
+        && position.y >= shellRoom.bounds.y
+        && position.y <= shellRoom.bounds.y + shellRoom.bounds.height)) return false
       const slot = unit.storefrontId ? activeSwitchableStorefronts.find(candidate => candidate.id === unit.storefrontId) : undefined
       if (!slot) return true
       return storefrontGeometryCellShouldRender(slot, unit, cell, switchCells.get(slot.id))
@@ -898,7 +909,7 @@ export function MainlineSceneRenderer({
     cell: cell.kind === 'storefront' && unit.storefrontId
       ? { ...cell, storefrontId: unit.storefrontId }
       : cell,
-  }))), [activeSwitchableStorefronts, geometryUnits, switchCells])
+  }))), [activeSwitchableStorefronts, geometryUnits, layoutMode, position.x, position.y, scene.rooms, switchCells])
 
   const focusGroupCells = useMemo(() => {
     const groups = new Map<string, MainlineGeometryCellEntry[]>()

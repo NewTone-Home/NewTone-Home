@@ -895,7 +895,9 @@ export function classifyMainlineWorldCommand(
       const collision = mainlinePassageCollisionForNavigation(scene, passage, options)
       const doorway = mainlinePassageDoorwayForNavigation(scene, passage, options)
       const region = mainlinePassageDoorRegion(passage, collision, doorway, footprint)
-      const storefrontIntent = Boolean((passage.targetSceneId || scene.id === 'commercial-street' && passage.access === 'locked')
+      const openStorefrontEntryIntent = passage.fromRoomId === 'commercial-street-public-lane'
+        && roomForPoint(scene, from)?.id === passage.fromRoomId
+      const storefrontIntent = Boolean((passage.targetSceneId || scene.id === 'commercial-street' && (passage.access === 'locked' || openStorefrontEntryIntent))
         && targetIsInsideStorefrontFrame(scene, passage, requestedTarget))
       const crossesDoorway = targetCrossesCompiledDoorway(region, from, requestedTarget, footprint)
       if (!storefrontIntent && !crossesDoorway) return null

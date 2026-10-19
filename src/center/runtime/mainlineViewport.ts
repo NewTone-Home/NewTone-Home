@@ -20,9 +20,10 @@ function followPlayerCameraOffset(scene: Pick<MainlineSceneDefinition, 'walkBoun
   const cameraEdgePadding = 2
   const minX = Math.min(0, 100 - (scene.walkBounds.x + scene.walkBounds.width) - cameraEdgePadding)
   const minY = Math.min(0, 100 - (scene.walkBounds.y + scene.walkBounds.height) - cameraEdgePadding)
+  const maxY = Math.max(0, cameraEdgePadding - scene.walkBounds.y)
   return {
     x: clamp(followAnchor - position.x, minX, 0),
-    y: clamp(followAnchor - position.y, minY, 0),
+    y: clamp(followAnchor - position.y, minY, maxY),
   }
 }
 
@@ -49,7 +50,8 @@ export function mainlineCameraTarget(scene: Pick<MainlineSceneDefinition, 'viewp
   }
   const minX = Math.min(0, 100 - (scene.walkBounds.x + scene.walkBounds.width) - 2)
   const minY = Math.min(0, 100 - (scene.walkBounds.y + scene.walkBounds.height) - 2)
-  return { x: clamp(desired.x, minX, 0), y: clamp(desired.y, minY, 0) }
+  const maxY = Math.max(0, 2 - scene.walkBounds.y)
+  return { x: clamp(desired.x, minX, 0), y: clamp(desired.y, minY, maxY) }
 }
 
 export function advanceMainlineCamera(current: Point, target: Point, elapsedMs: number): Point {
