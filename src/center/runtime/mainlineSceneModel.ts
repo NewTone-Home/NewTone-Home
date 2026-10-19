@@ -1201,9 +1201,9 @@ const commercialStreetRearDoorPortals: MainlineScenePortalBlueprint[] = commerci
 const commercialStreetBlueprint: MainlineSceneBlueprint = {
   id: 'commercial-street',
   title: '第一章 · 商业街',
-  subtitle: '两侧连续的现代临街店面夹出一条主通道，尽头接入独立的咖啡馆场景。',
+  subtitle: '当前预览：商业街保持连续通行，14家店铺均为可进入的空壳；咖啡馆旧内容尚待迁移。',
   statusLabel: '里世界',
-  hint: '沿中间主通道前进；右侧尾端的咖啡馆是独立场景，门只在路线真正通过时打开。',
+  hint: '沿街14家店铺可从前门进入同场景空壳，后门暂不开放。咖啡馆旧场景内容尚待迁移；当前街门只进入空壳。',
   presentation: { mode: 'actor-relative', offset: authoredPoint(0, 0), readingRail: { centerY: 50, minX: 16, maxX: commercialStreetSceneRight - 8, gap: 6 } },
   areaLabel: (position) => position.x >= 140 ? '商业街尾端' : '里世界',
   scene: {
@@ -1253,7 +1253,7 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
     initialPlayerPosition: authoredPoint(34, 50),
   },
   portals: [...commercialStreetPortals, ...commercialStreetRearDoorPortals],
-  interactionText: { 'street-cafe-entry': '咖啡馆是独立场景，入口沿用主线门和寻路契约。' },
+  interactionText: { 'street-cafe-entry': '咖啡馆旧内容尚待迁移；当前街门进入的是沿街空壳。' },
 }
 
 const commercialCafeBlueprint: MainlineSceneBlueprint = {

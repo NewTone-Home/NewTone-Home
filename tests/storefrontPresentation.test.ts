@@ -71,6 +71,11 @@ describe('commercial street storefront presentation', () => {
     expect(street.passages.find((passage) => passage.id === 'street-cafe-entry')?.toRoomId)
       .toBe('commercial-north-cafe-interior')
     expect(street.passages.find((passage) => passage.id === 'street-cafe-entry')?.targetSceneId).toBeUndefined()
+    const streetStatusCopy = `${street.subtitle} ${street.hint} ${street.interactionText['street-cafe-entry']}`
+    expect(streetStatusCopy).toContain('14')
+    expect(streetStatusCopy).toContain('\u7a7a\u58f3')
+    expect(streetStatusCopy).toContain('\u5496\u5561\u9986\u65e7\u5185\u5bb9\u5c1a\u5f85\u8fc1\u79fb')
+    expect(streetStatusCopy).not.toContain('\u5496\u5561\u9986\u662f\u72ec\u7acb\u573a\u666f')
     expect(mainlineScenes['commercial-cafe'].objects.some((object) => object.id === 'commercial-cafe-counter')).toBe(true)
     expect(mainlineScenes['commercial-cafe'].npcs.length).toBeGreaterThan(0)
   })
