@@ -214,8 +214,8 @@ describe('commercial street shell furniture samples', () => {
       const storefront = street.storefronts.find((candidate) => candidate.id === `commercial-south-slot-${slotNumber}`)!
       const front = street.passages.find((candidate) => candidate.portalId === storefront.portalId)!
       const rear = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
-      expect(front.access).toBe('locked')
-      expect(front.routeThrough).toBeUndefined()
+      expect(front.access).toBe('open')
+      expect(front.routeThrough).toBe(true)
       expect(front.toRoomId).toBe(roomId)
       expect(rear.access).toBe('locked')
     }

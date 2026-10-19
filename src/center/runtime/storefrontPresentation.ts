@@ -38,6 +38,17 @@ export function storefrontPresentationRetractsFrame(phase: StorefrontPresentatio
   return phase !== 'baseline'
 }
 
+/** Keep the real portal frame mounted for the storefront that owns the current interior. */
+export function storefrontDoorFrameShouldRetract(
+  storefrontId: string,
+  interiorStorefrontId: string | null,
+  phase: StorefrontPresentationPhase,
+  approached: boolean,
+) {
+  if (storefrontId === interiorStorefrontId) return false
+  return phase !== 'revealed' || !approached
+}
+
 /** Fixed storefront grids animate only their four-cell entrance; outer panes and wall caps keep their authored colors. */
 export function storefrontCellVisualState(
   storefront: MainlineStorefrontSlot | undefined,

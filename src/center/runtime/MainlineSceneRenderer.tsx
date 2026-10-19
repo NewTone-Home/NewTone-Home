@@ -24,7 +24,7 @@ import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagon
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import type { NpcRuntimeSnapshot } from './npcCore'
 import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisualState'
-import { storefrontCellVisualState, storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDirection, storefrontLabelRollDurationMs, storefrontPresentationRetractsFrame, storefrontGeometryCellShouldRender, type StorefrontPresentationPhase } from './storefrontPresentation'
+import { activeStorefrontInteriorOwner, storefrontCellVisualState, storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDirection, storefrontLabelRollDurationMs, storefrontPresentationRetractsFrame, storefrontDoorFrameShouldRetract, storefrontGeometryCellShouldRender, type StorefrontPresentationPhase } from './storefrontPresentation'
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 import { storefrontContactGeometry } from './storefrontContactGeometry'
@@ -891,6 +891,7 @@ export function MainlineSceneRenderer({
     && position.x <= room.bounds.x + room.bounds.width
     && position.y >= room.bounds.y
     && position.y <= room.bounds.y + room.bounds.height)?.id
+  const interiorStorefrontId = activeStorefrontInteriorOwner(scene, position)
   const geometryCells = useMemo(() => geometryUnits.flatMap((unit) => unit.visual.cells
     .filter(cell => {
       const slot = unit.storefrontId ? activeSwitchableStorefronts.find(candidate => candidate.id === unit.storefrontId) : undefined
@@ -972,7 +973,7 @@ export function MainlineSceneRenderer({
         interactionActive: target.policy === 'interactive' && (activeObjectId === interactionId || sceneEcho?.entityId === interactionId),
         retractRequested: Boolean(retractRequested
           || (cell.kind === 'storefront' && cell.storefrontRole === 'sign' && storefrontPresentationRetractsFrame(storefrontPresentationPhase))
-          || (cell.kind === 'door' && storefront?.characterSwitch && (storefrontPresentationPhase !== 'revealed' || !approachedStorefrontIds.has(storefront.id)))),
+          || (cell.kind === 'door' && storefront?.characterSwitch && storefrontDoorFrameShouldRetract(storefront.id, interiorStorefrontId, storefrontPresentationPhase, approachedStorefrontIds.has(storefront.id)))),
         suppressed: false,
       })
     })
@@ -981,7 +982,7 @@ export function MainlineSceneRenderer({
       addTarget({ group: 'storefront:' + slot.id + ':baseline', policy: 'passage', phase: 'closed', gateTriggered: false, interactionBusy: false, interactionActive: false, retractRequested: phase !== 'baseline' || sceneFrameExit.phase === 'retracting', suppressed: false })
       const entityId = scene.passages.find(passage => passage.portalId === slot.portalId)?.entityId ?? slot.portalId!
       addTarget({ group: `door:${entityId}`, policy: 'passage', phase: doorPhases.get(entityId) ?? 'closed', gateTriggered: false,
-        interactionBusy: false, interactionActive: false, retractRequested: phase !== 'revealed' || !approachedStorefrontIds.has(slot.id)
+        interactionBusy: false, interactionActive: false, retractRequested: storefrontDoorFrameShouldRetract(slot.id, interiorStorefrontId, phase, approachedStorefrontIds.has(slot.id))
           || (sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === entityId), suppressed: false })
     })
     scene.objects.forEach((entity) => {
@@ -999,7 +1000,7 @@ export function MainlineSceneRenderer({
       })
     })
     return [...targetMap.values()]
-  }, [activeObjectId, switchableStorefronts, approachedStorefrontIds, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation, occupiedSeatIds])
+  }, [activeObjectId, switchableStorefronts, approachedStorefrontIds, interiorStorefrontId, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation, occupiedSeatIds])
   const focusFrames = useSceneFocusFrameController({
     targets: focusFrameTargets,
     freezeMeasurements: freezeFrameMeasurements,
