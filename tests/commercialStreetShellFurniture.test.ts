@@ -23,7 +23,7 @@ function overlaps(first: { x: number; y: number; width: number; height: number }
 
 describe('commercial street shell furniture samples', () => {
   it('adds room-scoped furnishings only to the milk-tea and fast-food shells', () => {
-    const scoped = street.objects.filter((entity) => entity.roomId)
+    const scoped = street.objects.filter((entity) => sampleRoomIds.includes(entity.roomId as typeof sampleRoomIds[number]))
     expect(new Set(scoped.map((entity) => entity.roomId))).toEqual(new Set(sampleRoomIds))
     expect(scoped.every((entity) => entity.visible !== false)).toBe(true)
 
@@ -97,7 +97,8 @@ describe('commercial street shell furniture samples', () => {
   })
 
   it('renders repeated cabinet glyphs over matching continuous counter collision segments', () => {
-    const counters = street.objects.filter((entity) => ['柜台', '柜', '台'].includes(entity.label))
+    const counters = street.objects.filter((entity) => ['柜台', '柜', '台'].includes(entity.label)
+      && sampleRoomIds.includes(entity.roomId as typeof sampleRoomIds[number]))
     const bodies = street.continuousStructures.filter((structure) => structure.kind === 'counter')
     expect(bodies).toHaveLength(3)
     for (const counter of counters) {
@@ -142,14 +143,17 @@ describe('commercial street shell furniture samples', () => {
     expect(findMainlinePath(mainlineStorefrontApproach(street, milkTeaSlot), eastEmployeeAisle, street), 'east employee aisle remains walkable beside the extended counter').not.toBeNull()
     expect(fastFoodCounter.sort((a, b) => a.position.y - b.position.y).map((entity) => entity.label).join('')).toBe('柜台'.repeat(5))
     const furniture = street.objects.filter((entity) => entity.roomId && (entity.kind === 'table' || entity.kind === 'seat') && entity.collision)
-    const barriers = street.continuousStructures.filter((structure) => structure.kind === 'barrier')
+    const barriers = street.continuousStructures.filter((structure) => structure.kind === 'barrier'
+      && (structure.id.includes('s5-milk-tea-') || structure.id.includes('s2-fast-food-')))
     for (const fixture of furniture) {
       for (const structure of [...bodies, ...barriers]) expect(overlaps(fixture.collision!, structure)).toBe(false)
     }
   })
 
   it('keeps internal wall glyphs collidable and leaves independent warehouse/kitchen door gaps', () => {
-    const walls = street.objects.filter((entity) => entity.label === '墙' && entity.roomId)
+    const walls = street.objects.filter((entity) => entity.label === '墙' && entity.roomId
+      && (entity.id.startsWith('commercial-s5-milk-tea-') || entity.id.startsWith('commercial-s2-fast-food-'))
+      && (entity.id.includes('rear-partition-') || entity.id.includes('divider-')))
     const internalDoors = street.objects.filter((entity) => entity.label === '门' && entity.roomId)
     expect(walls).toHaveLength(30)
     expect(internalDoors.map((entity) => entity.id).sort()).toEqual([
@@ -158,7 +162,8 @@ describe('commercial street shell furniture samples', () => {
       'commercial-s5-milk-tea-kitchen-door',
       'commercial-s5-milk-tea-warehouse-door',
     ])
-    expect(street.continuousStructures.filter((structure) => structure.kind === 'barrier')).toHaveLength(8)
+    expect(street.continuousStructures.filter((structure) => structure.kind === 'barrier'
+      && (structure.id.includes('s5-milk-tea-') || structure.id.includes('s2-fast-food-')))).toHaveLength(8)
     expect(walls.every((wall) => !wall.collision)).toBe(true)
     expect(internalDoors.every((door) => !door.collision)).toBe(true)
     expect(street.blockers).toHaveLength(0)
@@ -190,7 +195,8 @@ describe('commercial street shell furniture samples', () => {
       expect(shellGlyphs.length + furnitureGlyphs.length, `${roomId} unique wall glyph at ${column},${row}`).toBe(1)
     }
 
-    const barriers = street.continuousStructures.filter((structure) => structure.kind === 'barrier')
+    const barriers = street.continuousStructures.filter((structure) => structure.kind === 'barrier'
+      && (structure.id.includes('s5-milk-tea-') || structure.id.includes('s2-fast-food-')))
     expect(barriers).toHaveLength(8)
     for (const [id, length] of [
       ['commercial-s5-milk-tea-kitchen-divider-body', 6],

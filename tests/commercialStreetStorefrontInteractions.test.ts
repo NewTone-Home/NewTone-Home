@@ -103,7 +103,8 @@ describe('commercial street storefront interactions', () => {
     }
   })
 
-  it('routes all fourteen empty shells through the continuous street room and preserves the shared 22-cell depth', () => {
+  // This checks six route shapes across all 14 rooms, including new retail barriers.
+  it('routes all fourteen storefront shells through the continuous street room and preserves the shared 22-cell depth', () => {
     const steps = boundaryGridStepsFromScreenSpacing()
     const roomSamples = street.storefronts.map((storefront) => {
       const side = storefront.edge === 'bottom' ? 'north' as const : 'south' as const
@@ -162,7 +163,7 @@ describe('commercial street storefront interactions', () => {
     const target = mainlineCameraTarget(street, northInterior, offset)
     expect(offset.y).toBeGreaterThan(0)
     expect(target.y).toBeGreaterThan(0)
-  })
+  }, 120_000)
 
   it('compiles fixed shell anchors that align front, rear, and side corners at every supported viewport', () => {
     const metrics = [

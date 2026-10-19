@@ -1292,6 +1292,153 @@ const commercialStreetShellFurniture = (() => {
   addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-pickup-service-label', '取餐', cell(fastFood, 12, 12))
   addWallRun(fastFood, 'commercial-s2-fast-food-kitchen-warehouse-divider', Array.from({ length: 6 }, (_, index) => cell(fastFood, 18, 16 + index)), 'vertical', [0, 5])
 
+  const addRetailRun = (
+    sample: typeof commercialStreetInteriorSamples[number],
+    id: string,
+    cells: readonly { column: number; row: number; glyph: string }[],
+    orientation: 'horizontal' | 'vertical',
+  ) => {
+    if (cells.length === 0) throw new Error(`Retail run ${id} has no cells`)
+    const points = cells.map(({ column, row }) => cell(sample, column, row))
+    if (cells.some(({ glyph }) => Array.from(glyph).length !== 1)) {
+      throw new Error(`Retail run ${id} must use one character per grid cell`)
+    }
+    points.forEach((position, index) => {
+      entities.push(floor({
+        id: `${id}-${index + 1}`,
+        label: cells[index]!.glyph,
+        kind: 'fixture',
+        weight: 'fixture',
+        position,
+        roomId: sample.roomId,
+        interactive: false,
+        visualVisibility: 'static',
+      }))
+    })
+
+    const first = points[0]!
+    const last = points.at(-1)!
+    const thickness = Math.max(.8, commercialStreetCellPitch * .18)
+    const collision = orientation === 'horizontal'
+      ? box(Math.min(first.x, last.x) - commercialStreetCellPitch / 2, first.y - thickness / 2, cells.length * commercialStreetCellPitch, thickness)
+      : box(first.x - thickness / 2, Math.min(first.y, last.y) - verticalStep / 2, thickness, cells.length * verticalStep)
+    structures.push({ id: `${id}-body`, kind: 'barrier', ...collision })
+  }
+  const addRetailText = (
+    sample: typeof commercialStreetInteriorSamples[number],
+    id: string,
+    text: string,
+    startColumn: number,
+    row: number,
+  ) => {
+    Array.from(text).forEach((glyph, index) => entities.push(floor({
+      id: `${id}-${index + 1}`,
+      label: glyph,
+      kind: 'fixture',
+      weight: 'minor',
+      position: cell(sample, startColumn + index, row),
+      roomId: sample.roomId,
+      interactive: false,
+      visualVisibility: 'static',
+    })))
+  }
+  type CommercialRetailPlan = {
+    storefrontId: string
+    key: string
+    counterRow: number
+    storageColumn: number
+    partitionColumn?: number
+    displays: readonly {
+      id: string
+      orientation: 'horizontal' | 'vertical'
+      cells: readonly { column: number; row: number; glyph: string }[]
+    }[]
+  }
+  const retailPlans: readonly CommercialRetailPlan[] = [
+    {
+      storefrontId: 'commercial-north-slot-2', key: 'n2-creative', counterRow: 8, partitionColumn: 1, storageColumn: 3,
+      displays: [
+        { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }] },
+        { id: 'east-wall', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }] },
+        { id: 'central-group-a', orientation: 'horizontal', cells: [{ column: 3, row: 8, glyph: '架' }, { column: 4, row: 8, glyph: '架' }] },
+        { id: 'central-group-b', orientation: 'horizontal', cells: [{ column: 6, row: 11, glyph: '架' }, { column: 7, row: 11, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-north-slot-3', key: 'n3-beauty', counterRow: 10, storageColumn: 6,
+      displays: [
+        { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }] },
+        { id: 'east-wall', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }, { column: 9, row: 8, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-north-slot-4', key: 'n4-eyewear', counterRow: 9, storageColumn: 3,
+      displays: [
+        { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }] },
+        { id: 'east-wall-front', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-north-slot-5', key: 'n5-toys', counterRow: 9, storageColumn: 6,
+      displays: [
+        { id: 'display-a', orientation: 'horizontal', cells: [{ column: 2, row: 7, glyph: '架' }] },
+        { id: 'display-b', orientation: 'horizontal', cells: [{ column: 8, row: 6, glyph: '架' }] },
+        { id: 'display-c', orientation: 'horizontal', cells: [{ column: 3, row: 11, glyph: '架' }] },
+        { id: 'display-d', orientation: 'horizontal', cells: [{ column: 6, row: 13, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-north-slot-6', key: 'n6-fragrance', counterRow: 10, storageColumn: 3,
+      displays: [
+        { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }] },
+        { id: 'east-wall', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-south-slot-1', key: 's1-fashion', counterRow: 11, storageColumn: 6,
+      displays: [
+        { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }] },
+        { id: 'east-wall-rear', orientation: 'vertical', cells: [{ column: 9, row: 9, glyph: '架' }, { column: 9, row: 10, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-south-slot-4', key: 's4-clothing', counterRow: 10, partitionColumn: 1, storageColumn: 3,
+      displays: [
+        { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }, { column: 1, row: 9, glyph: '架' }] },
+        { id: 'east-wall', orientation: 'vertical', cells: [{ column: 9, row: 7, glyph: '架' }, { column: 9, row: 8, glyph: '架' }, { column: 9, row: 9, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-south-slot-7', key: 's7-jewelry', counterRow: 8, partitionColumn: 9, storageColumn: 6,
+      displays: [
+        { id: 'near-counter-a', orientation: 'horizontal', cells: [{ column: 5, row: 7, glyph: '架' }, { column: 6, row: 7, glyph: '架' }] },
+        { id: 'near-counter-b', orientation: 'horizontal', cells: [{ column: 6, row: 10, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-south-slot-8', key: 's8-clothing', counterRow: 9, storageColumn: 3,
+      displays: [
+        { id: 'west-wall-rear', orientation: 'vertical', cells: [{ column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }, { column: 1, row: 9, glyph: '架' }] },
+        { id: 'east-wall-front', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }] },
+      ],
+    },
+  ]
+  retailPlans.forEach((plan) => {
+    const sample = commercialStreetInteriorSamples.find((candidate) => candidate.storefrontId === plan.storefrontId)!
+    plan.displays.forEach((display) => addRetailRun(sample, `commercial-retail-${plan.key}-display-${display.id}`, display.cells, display.orientation))
+    addRetailRun(sample, `commercial-retail-${plan.key}-counter`, [
+      { column: 8, row: plan.counterRow, glyph: '柜' },
+      { column: 8, row: plan.counterRow + 1, glyph: '台' },
+    ], 'vertical')
+    if (plan.partitionColumn !== undefined) {
+      addRetailRun(sample, `commercial-retail-${plan.key}-storage-partition`, [
+        { column: plan.partitionColumn, row: 17, glyph: '墙' },
+        { column: plan.partitionColumn, row: 18, glyph: '墙' },
+      ], 'vertical')
+    }
+    addRetailText(sample, `commercial-retail-${plan.key}-storage-label`, '储物', plan.storageColumn, 19)
+  })
+
   return { groupIds, entities, structures }
 })()
 
