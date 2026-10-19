@@ -26,6 +26,19 @@ describe('ordinary world navigation and passage intent', () => {
     expect(route?.resolvedNavigableTarget).toEqual(point(190, 50))
   })
 
+  it('resolves the 1180x757 stage click used to cross the storefront row', () => {
+    const street = mainlineScenes['commercial-street']
+    const screenMetrics = { width: 1180, height: 757, viewportWidth: 1180 }
+    const from = point(34, 50)
+    const target = point((1100 / 1180) * 100, (378 / 757) * 100)
+    const dot = mainlineProtagonistDotFootprint(from, screenMetrics)
+    const geometrySnapshot = createMainlineSceneGeometrySnapshot(street, from, {}, screenMetrics)
+    const options = { actorId: 'protagonist', actorFootprint: { width: dot.width, height: dot.height }, screenMetrics, geometrySnapshot }
+    const route = resolveMainlineWorldNavigation(street, from, target, {}, options)
+    expect(route?.reachedRequestedTarget).toBe(true)
+    expect(route?.resolvedNavigableTarget).toEqual(target)
+  })
+
   it('projects only onto the start component while keeping an exact reachable target', () => {
     const gridUnit = 20
     const halfGrid = gridUnit / 2

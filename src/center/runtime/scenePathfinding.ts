@@ -147,7 +147,17 @@ export function navigationBarriersAllowTravel(
 }
 
 function uniqueSorted(values: number[]) {
-  return [...new Set(values.map((value) => Number(value.toFixed(4))))].sort((first, second) => first - second)
+  const sorted = [...new Set(values.map((value) => Number(value.toFixed(4))))].sort((first, second) => first - second)
+  const normalized: number[] = []
+  for (const value of sorted) {
+    const previous = normalized.at(-1)
+    // The cell builder discards widths at or below epsilon. Merge those
+    // rounded boundaries first so their neighboring cells use one edge key
+    // instead of leaving a topological gap where the sliver was skipped.
+    if (previous !== undefined && value - previous <= epsilon) continue
+    normalized.push(value)
+  }
+  return normalized
 }
 
 function clippedObstacle(box: CollisionBox, bounds: CollisionBox, inset: { x: number; y: number }): CollisionBox | null {
