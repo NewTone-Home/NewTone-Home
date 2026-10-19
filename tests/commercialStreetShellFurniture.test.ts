@@ -208,6 +208,33 @@ describe('commercial street shell furniture samples', () => {
     }
   })
 
+  it('places menu, order and pickup labels separately on the customer side', () => {
+    const serviceLabels = street.objects.filter((entity) => entity.id.endsWith('-service-label'))
+    expect(serviceLabels).toHaveLength(6)
+    expect(serviceLabels.map((entity) => entity.label).sort()).toEqual(['取餐', '取餐', '点单', '点单', '菜单', '菜单'])
+    expect(serviceLabels.every((entity) => entity.interactive === false && entity.visualVisibility === 'static')).toBe(true)
+    for (const [roomId, slotId, counterColumn] of [
+      [sampleRoomIds[0], 'commercial-south-slot-5', 6],
+      [sampleRoomIds[1], 'commercial-south-slot-2', 14],
+    ] as const) {
+      const slot = street.storefronts.find((candidate) => candidate.id === slotId)!
+      const entry = mainlineStorefrontApproach(street, slot)
+      const labels = serviceLabels.filter((entity) => entity.roomId === roomId)
+      expect(labels).toHaveLength(3)
+      expect(labels.every((entity) => localCell(roomId, entity.position).column < counterColumn)).toBe(true)
+      for (const label of labels) {
+        expect(findMainlinePath(entry, label.position, street), `${label.id} is reachable from the customer entry`).not.toBeNull()
+        const overlapsNearbyLabel = street.objects.some((entity) => entity.roomId === roomId && entity.id !== label.id
+          && Math.abs(entity.position.y - label.position.y) < steps.vertical * .75
+          && Math.abs(entity.position.x - label.position.x) < steps.horizontal * 1.4)
+        expect(overlapsNearbyLabel, `${label.id} has clear text space`).toBe(false)
+      }
+      const order = labels.find((entity) => entity.id.includes('-order-'))!
+      const pickup = labels.find((entity) => entity.id.includes('-pickup-'))!
+      expect(Math.abs(localCell(roomId, order.position).row - localCell(roomId, pickup.position).row)).toBeGreaterThan(3)
+    }
+  })
+
   it('keeps each chair rest, pull, sit and stand-up approach reachable in all three groups', () => {
     const tableEntryByGroup = new Map([
       ['commercial-s5-milk-tea-table-group', 'commercial-south-slot-5'],

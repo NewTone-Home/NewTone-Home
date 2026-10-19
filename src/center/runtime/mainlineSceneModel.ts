@@ -1225,7 +1225,7 @@ const commercialStreetShellFurniture = (() => {
       visualVisibility: 'static',
     }))
   }
-  const addBackOfHouseSign = (sample: typeof commercialStreetInteriorSamples[number], id: string, label: string, position: Point) => {
+  const addStaticRoomLabel = (sample: typeof commercialStreetInteriorSamples[number], id: string, label: string, position: Point) => {
     entities.push(floor({
       id,
       label,
@@ -1255,8 +1255,11 @@ const commercialStreetShellFurniture = (() => {
   })
   addInternalDoorGlyph(milkTea, 'commercial-s5-milk-tea-warehouse-door', cell(milkTea, 3.5, 16))
   addInternalDoorGlyph(milkTea, 'commercial-s5-milk-tea-kitchen-door', cell(milkTea, 8.5, 16))
-  addBackOfHouseSign(milkTea, 'commercial-s5-milk-tea-warehouse-sign', '仓库', cell(milkTea, 2, 18))
-  addBackOfHouseSign(milkTea, 'commercial-s5-milk-tea-kitchen-sign', '厨房', cell(milkTea, 8.5, 18))
+  addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-warehouse-sign', '仓库', cell(milkTea, 2, 18))
+  addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-kitchen-sign', '厨房', cell(milkTea, 8.5, 18))
+  addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-menu-service-label', '菜单', cell(milkTea, 2, 3))
+  addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-order-service-label', '点单', cell(milkTea, 4, 5))
+  addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-pickup-service-label', '取餐', cell(milkTea, 4, 12))
   addWallRun(milkTea, 'commercial-s5-milk-tea-kitchen-divider', Array.from({ length: 6 }, (_, index) => cell(milkTea, 6, 16 + index)), 'vertical')
 
   const fastFood = commercialStreetInteriorSamples.find((sample) => sample.roomId === 'commercial-south-s2-interior')!
@@ -1275,8 +1278,11 @@ const commercialStreetShellFurniture = (() => {
   })
   addInternalDoorGlyph(fastFood, 'commercial-s2-fast-food-kitchen-door', cell(fastFood, 16.5, 16))
   addInternalDoorGlyph(fastFood, 'commercial-s2-fast-food-warehouse-door', cell(fastFood, 20.5, 16))
-  addBackOfHouseSign(fastFood, 'commercial-s2-fast-food-kitchen-sign', '厨房', cell(fastFood, 15, 18))
-  addBackOfHouseSign(fastFood, 'commercial-s2-fast-food-warehouse-sign', '仓库', cell(fastFood, 20.5, 18))
+  addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-kitchen-sign', '厨房', cell(fastFood, 15, 18))
+  addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-warehouse-sign', '仓库', cell(fastFood, 20.5, 18))
+  addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-menu-service-label', '菜单', cell(fastFood, 7, 3))
+  addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-order-service-label', '点单', cell(fastFood, 12, 5))
+  addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-pickup-service-label', '取餐', cell(fastFood, 12, 12))
   addWallRun(fastFood, 'commercial-s2-fast-food-kitchen-warehouse-divider', Array.from({ length: 6 }, (_, index) => cell(fastFood, 18, 16 + index)), 'vertical')
 
   return { groupIds, entities, structures }
