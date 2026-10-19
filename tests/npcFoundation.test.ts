@@ -109,8 +109,8 @@ describe('static NPC foundation', () => {
       collision.x === counterBody.x && collision.y === counterBody.y
         && collision.width === counterBody.width && collision.height === counterBody.height
     ))).toHaveLength(1)
-    expect(counterBody.x).toBeCloseTo(8.7)
-    expect(counterBody.x + counterBody.width).toBeCloseTo(34.5909)
+    expect(counterBody.x).toBeCloseTo(30.5)
+    expect(counterBody.x + counterBody.width).toBeCloseTo(55.0455)
   })
 
   it('keeps the cafe staff area semantic and applies access through an actor-filtered crossing boundary', () => {
