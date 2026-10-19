@@ -1023,7 +1023,7 @@ const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
   const portalId = id === 'commercial-cafe-slot' ? 'street-cafe-entry' : `${id}-entry`
   const approachY = edge === 'bottom' ? 42 : 58
   return { id, wallId, edge, label, style: 'modern', mode: 'commercial', start, end,
-    composition: { baseline: ['sign'], near: ['wall', 'door', 'wall'] }, characterSwitch: true,
+    composition: { baseline: ['glass', 'sign', 'glass'], near: ['wall', 'door', 'wall'] }, characterSwitch: true,
     portalId, nearRadius: 10, approach: authoredPoint((start + end) / 2, approachY) }
 })
 
