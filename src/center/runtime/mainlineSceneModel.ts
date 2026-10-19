@@ -1154,6 +1154,7 @@ const commercialStreetShellFurniture = (() => {
     sample: typeof commercialStreetInteriorSamples[number],
     prefix: string,
     paths: readonly { orientation: 'horizontal' | 'vertical'; positions: readonly Point[]; glyphs?: readonly string[] }[],
+    interactive?: boolean,
   ) => {
     const glyphPositions = new Set<string>()
     paths.forEach(({ positions, orientation, glyphs }, pathIndex) => {
@@ -1173,6 +1174,7 @@ const commercialStreetShellFurniture = (() => {
           position,
           roomId: sample.roomId,
           interactionStructureId: `${prefix}-${pathIndex + 1}-body`,
+          ...(interactive === undefined ? {} : { interactive }),
           visualVisibility: 'static',
         }))
       })
@@ -1345,6 +1347,44 @@ const commercialStreetShellFurniture = (() => {
       visualVisibility: 'static',
     })))
   }
+
+  const northCafe = commercialStreetInteriorSamples.find((sample) => sample.roomId === 'commercial-north-cafe-interior')!
+  // Static furniture in the same-street shell; these entities do not reuse
+  // the legacy Cafe order flow or Lao Zhou's story furniture IDs.
+  for (const [suffix, column, row, approachColumn] of [
+    ['front', 15, 7, 13],
+    ['middle', 18, 11, 16],
+    ['rear', 15, 16, 13],
+  ] as const) {
+    const groupId = `commercial-north-cafe-table-group-${suffix}`
+    const tableId = `commercial-north-cafe-table-${suffix}`
+    addFurniture(northCafe, mainlineTwoSeatFurniture(
+      groupId,
+      cell(northCafe, column, row),
+      cell(northCafe, approachColumn, row),
+      { tableId, seatIds: [`commercial-north-cafe-seat-${suffix}-a`, `commercial-north-cafe-seat-${suffix}-b`] },
+    ))
+  }
+  addCounter(northCafe, 'commercial-north-cafe-counter', [
+    {
+      orientation: 'horizontal',
+      positions: Array.from({ length: 6 }, (_, index) => cell(northCafe, 4 + index, 5)),
+      glyphs: ['柜', '台', '柜', '台', '柜', '台'],
+    },
+    {
+      // Include the elbow in the collision run; addCounter deduplicates its
+      // glyph against the horizontal run, leaving visible cells only at
+      // x9,y6..8 on the return.
+      orientation: 'vertical',
+      positions: Array.from({ length: 4 }, (_, index) => cell(northCafe, 9, 5 + index)),
+      glyphs: ['台', '柜', '台', '柜'],
+    },
+  ], false)
+  addRetailText(northCafe, 'commercial-north-cafe-menu-label', '菜单', 4, 3)
+  addRetailText(northCafe, 'commercial-north-cafe-order-label', '点单', 6, 4)
+  addInternalDoorGlyph(northCafe, 'commercial-north-cafe-staff-opening', cell(northCafe, 9, 9))
+  addRetailText(northCafe, 'commercial-north-cafe-storage-label', '储物', 2, 19)
+
   type CommercialRetailPlan = {
     storefrontId: string
     key: string

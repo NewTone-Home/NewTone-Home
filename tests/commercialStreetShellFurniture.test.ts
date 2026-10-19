@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineEntityBelongsToActiveRoom, type MainlineSceneEntity } from '../src/center/runtime/mainlineSceneModel'
+import { commercialCafeLaoZhouConversationSeatId, commercialCafeStoryTableId } from '../src/center/runtime/commercialCafeStory'
 import { canTravelAlongMainlineSegment, findMainlinePath, findMainlinePathToEntity, isWalkableMainlinePoint, resolveMainlineSeatSitPosition } from '../src/center/runtime/mainlineNavigation'
 import { mainlineSceneGeometryUnits, mainlineScenes, mainlineStorefrontApproach, validateMainlineSceneGeometry } from '../src/center/runtime/mainlineScenes'
 import { boundaryGridStepsFromScreenSpacing } from '../src/center/runtime/sceneBoundaryGrid'
 
 const street = mainlineScenes['commercial-street']
 const sampleRoomIds = ['commercial-south-s5-interior', 'commercial-south-s2-interior'] as const
+const northCafeRoomId = 'commercial-north-cafe-interior'
 const steps = boundaryGridStepsFromScreenSpacing()
 
 function localCell(roomId: string, point: { x: number; y: number }) {
@@ -16,13 +18,154 @@ function localCell(roomId: string, point: { x: number; y: number }) {
   }
 }
 
+function northCafeCell(column: number, row: number) {
+  const room = street.rooms.find((candidate) => candidate.id === northCafeRoomId)!
+  return { x: room.bounds.x + column * steps.horizontal, y: room.bounds.y + room.bounds.height - row * steps.vertical }
+}
+
+function northCafeLocalCell(point: { x: number; y: number }) {
+  const room = street.rooms.find((candidate) => candidate.id === northCafeRoomId)!
+  return {
+    column: Number(((point.x - room.bounds.x) / steps.horizontal).toFixed(4)),
+    row: Number(((room.bounds.y + room.bounds.height - point.y) / steps.vertical).toFixed(4)),
+  }
+}
+
 function overlaps(first: { x: number; y: number; width: number; height: number }, second: { x: number; y: number; width: number; height: number }) {
   return first.x < second.x + second.width && first.x + first.width > second.x
     && first.y < second.y + second.height && first.y + first.height > second.y
 }
 
 describe('commercial street shell furniture samples', () => {
-  it('adds room-scoped furnishings only to the milk-tea and fast-food shells', () => {
+  it('keeps the new Cafe furniture in the 23x22 north shell and preserves the legacy Cafe blueprint', () => {
+    const shell = street.rooms.find((room) => room.id === northCafeRoomId)!
+    const storefront = street.storefronts.find((slot) => slot.id === 'commercial-cafe-slot')!
+    const shellObjects = street.objects.filter((entity) => entity.roomId === northCafeRoomId)
+    const legacyCafe = mainlineScenes['commercial-cafe']
+    const storyTable = legacyCafe.objects.find((entity) => entity.id === commercialCafeStoryTableId)!
+
+    expect(storefront.composition?.baseline).toHaveLength(23)
+    expect(storefront.composition?.near).toHaveLength(23)
+    expect(shell.bounds.width).toBeCloseTo(steps.horizontal * 22)
+    expect(shell.bounds.height).toBeCloseTo(steps.vertical * 21)
+    expect(shellObjects.length).toBeGreaterThan(0)
+    expect(shellObjects.every((entity) => entity.visualVisibility === 'static')).toBe(true)
+    expect(shellObjects.every((entity) => entity.interactionBehavior === undefined)).toBe(true)
+    expect(shellObjects.every((entity) => entity.id !== commercialCafeStoryTableId && entity.id !== commercialCafeLaoZhouConversationSeatId)).toBe(true)
+    expect(street.npcs.some((npc) => npc.id === 'lao-zhou')).toBe(false)
+    expect(street.furnitureGroups.filter((group) => group.id.startsWith('commercial-north-cafe-')).map((group) => group.id)).toEqual([
+      'commercial-north-cafe-table-group-front',
+      'commercial-north-cafe-table-group-middle',
+      'commercial-north-cafe-table-group-rear',
+    ])
+
+    expect(legacyCafe.walkBounds).toEqual({ x: 8, y: 7, width: 90, height: 86 })
+    expect(legacyCafe.furnitureGroups.map((group) => group.id)).toEqual([
+      'commercial-cafe-bottom-left-group',
+      'commercial-cafe-bottom-center-group',
+      'commercial-cafe-bottom-right-group',
+      'commercial-cafe-right-inner-upper-group',
+      'commercial-cafe-right-inner-middle-group',
+      'commercial-cafe-right-inner-lower-group',
+      'commercial-cafe-right-window-upper-group',
+      'commercial-cafe-right-window-lower-group',
+    ])
+    expect(storyTable.position).toEqual({ x: 84, y: 26 })
+    expect(legacyCafe.objects.find((entity) => entity.id === commercialCafeLaoZhouConversationSeatId)?.seat?.tableId).toBe(storyTable.id)
+    expect(legacyCafe.portals.map((portal) => [portal.id, portal.access])).toEqual([
+      ['street-cafe-entry', 'open'],
+      ['cafe-back-door', 'locked'],
+    ])
+  })
+
+  it('adds three new two-seat groups at the requested shell cells with six new seat IDs', () => {
+    const groupIds = [
+      'commercial-north-cafe-table-group-front',
+      'commercial-north-cafe-table-group-middle',
+      'commercial-north-cafe-table-group-rear',
+    ]
+    const tables = street.objects.filter((entity) => entity.roomId === northCafeRoomId && entity.kind === 'table')
+    const seats = street.objects.filter((entity) => entity.roomId === northCafeRoomId && entity.kind === 'seat')
+    expect(tables.map((table) => [table.id, northCafeLocalCell(table.position).column, northCafeLocalCell(table.position).row])).toEqual([
+      ['commercial-north-cafe-table-front', 15, 7],
+      ['commercial-north-cafe-table-middle', 18, 11],
+      ['commercial-north-cafe-table-rear', 15, 16],
+    ])
+    expect(seats).toHaveLength(6)
+    expect(seats.map((seat) => seat.id).sort()).toEqual([
+      'commercial-north-cafe-seat-front-a',
+      'commercial-north-cafe-seat-front-b',
+      'commercial-north-cafe-seat-middle-a',
+      'commercial-north-cafe-seat-middle-b',
+      'commercial-north-cafe-seat-rear-a',
+      'commercial-north-cafe-seat-rear-b',
+    ])
+    for (const groupId of groupIds) {
+      const groupSeats = seats.filter((seat) => seat.groupId === groupId)
+      expect(groupSeats).toHaveLength(2)
+      expect(tables.find((table) => table.id === `commercial-north-cafe-table-${groupId.split('-').at(-1)}`)).toBeDefined()
+    }
+    expect(seats.some((seat) => seat.id.includes('commercial-cafe-right-window'))).toBe(false)
+  })
+
+  it('keeps the Cafe counter, service labels, staff opening and open storage on distinct cells', () => {
+    const counter = street.objects.filter((entity) => entity.roomId === northCafeRoomId && entity.id.startsWith('commercial-north-cafe-counter-'))
+    const main = counter.filter((entity) => Math.abs(northCafeLocalCell(entity.position).row - 5) < .01)
+      .sort((a, b) => northCafeLocalCell(a.position).column - northCafeLocalCell(b.position).column)
+    const returned = counter.filter((entity) => Math.abs(northCafeLocalCell(entity.position).column - 9) < .01
+      && northCafeLocalCell(entity.position).row >= 6 && northCafeLocalCell(entity.position).row <= 8)
+      .sort((a, b) => northCafeLocalCell(a.position).row - northCafeLocalCell(b.position).row)
+    const bodies = street.continuousStructures.filter((structure) => structure.kind === 'counter'
+      && structure.id.startsWith('commercial-north-cafe-counter-'))
+
+    expect(main.map((entity) => northCafeLocalCell(entity.position).column)).toEqual([4, 5, 6, 7, 8, 9])
+    expect(returned).toHaveLength(3)
+    expect(new Set(counter.map((entity) => `${northCafeLocalCell(entity.position).column}:${northCafeLocalCell(entity.position).row}`)).size).toBe(9)
+    expect(counter.every((entity) => entity.interactive === false && entity.interactionBehavior === undefined && Array.from(entity.label).length === 1)).toBe(true)
+    expect(bodies).toHaveLength(2)
+    expect(overlaps(bodies[0]!, bodies[1]!)).toBe(true)
+
+    const labels = street.objects.filter((entity) => entity.roomId === northCafeRoomId
+      && (entity.id.startsWith('commercial-north-cafe-menu-label-')
+        || entity.id.startsWith('commercial-north-cafe-order-label-')
+        || entity.id.startsWith('commercial-north-cafe-storage-label-')))
+    expect(labels.filter((entity) => entity.id.startsWith('commercial-north-cafe-menu-label-')).map((entity) => [entity.label, northCafeLocalCell(entity.position).column, northCafeLocalCell(entity.position).row])).toEqual([
+      ['菜', 4, 3], ['单', 5, 3],
+    ])
+    expect(labels.filter((entity) => entity.id.startsWith('commercial-north-cafe-order-label-')).map((entity) => [entity.label, northCafeLocalCell(entity.position).column, northCafeLocalCell(entity.position).row])).toEqual([
+      ['点', 6, 4], ['单', 7, 4],
+    ])
+    expect(labels.filter((entity) => entity.id.startsWith('commercial-north-cafe-storage-label-')).map((entity) => [entity.label, northCafeLocalCell(entity.position).column, northCafeLocalCell(entity.position).row])).toEqual([
+      ['储', 2, 19], ['物', 3, 19],
+    ])
+    expect(labels.every((entity) => entity.interactive === false && entity.interactionBehavior === undefined && entity.visualVisibility === 'static')).toBe(true)
+    const staffOpening = street.objects.find((entity) => entity.id === 'commercial-north-cafe-staff-opening')!
+    expect(northCafeLocalCell(staffOpening.position)).toEqual({ column: 9, row: 9 })
+    expect(staffOpening.interactionBehavior).toBeUndefined()
+  })
+
+  it('leaves all Cafe seats and the locked rear-door approach reachable', () => {
+    const room = street.rooms.find((candidate) => candidate.id === northCafeRoomId)!
+    const slot = street.storefronts.find((candidate) => candidate.id === 'commercial-cafe-slot')!
+    const entry = mainlineStorefrontApproach(street, slot)
+    const seats = street.objects.filter((entity) => entity.kind === 'seat' && entity.roomId === northCafeRoomId)
+    const rear = street.passages.find((passage) => passage.id === `${northCafeRoomId}-rear-door`)!
+    const staffArea = northCafeCell(6, 8)
+    const staffOpening = northCafeCell(9, 9)
+
+    expect(rear.access).toBe('locked')
+    for (const seat of seats) {
+      expect(findMainlinePathToEntity(street, seat.id, entry).path, seat.id).not.toBeNull()
+      expect(resolveMainlineSeatSitPosition(street, seat.id)).not.toBeNull()
+    }
+    expect(findMainlinePath(entry, northCafeCell(6, 4), street)).not.toBeNull()
+    expect(findMainlinePath(staffArea, staffOpening, street)).not.toBeNull()
+    expect(findMainlinePath(staffOpening, rear.thresholds[0]!, street)).not.toBeNull()
+    expect(findMainlinePath(northCafeCell(11, 19), rear.thresholds[0]!, street)).not.toBeNull()
+    expect(room.id).toBe(northCafeRoomId)
+  })
+
+  it('keeps the existing milk-tea and fast-food furnishings scoped to their shells', () => {
     const scoped = street.objects.filter((entity) => sampleRoomIds.includes(entity.roomId as typeof sampleRoomIds[number]))
     expect(new Set(scoped.map((entity) => entity.roomId))).toEqual(new Set(sampleRoomIds))
     expect(scoped.every((entity) => entity.visible !== false)).toBe(true)
@@ -35,6 +178,9 @@ describe('commercial street shell furniture samples', () => {
       'commercial-s5-milk-tea-table-group',
       'commercial-s2-fast-food-table-group-a',
       'commercial-s2-fast-food-table-group-b',
+      'commercial-north-cafe-table-group-front',
+      'commercial-north-cafe-table-group-middle',
+      'commercial-north-cafe-table-group-rear',
     ])
     for (const entity of scoped.filter((candidate) => candidate.kind === 'table' || candidate.kind === 'seat')) {
       const local = localCell(entity.roomId!, entity.position)
@@ -99,7 +245,8 @@ describe('commercial street shell furniture samples', () => {
   it('renders repeated cabinet glyphs over matching continuous counter collision segments', () => {
     const counters = street.objects.filter((entity) => ['柜台', '柜', '台'].includes(entity.label)
       && sampleRoomIds.includes(entity.roomId as typeof sampleRoomIds[number]))
-    const bodies = street.continuousStructures.filter((structure) => structure.kind === 'counter')
+    const bodies = street.continuousStructures.filter((structure) => structure.kind === 'counter'
+      && (structure.id.startsWith('commercial-s5-milk-tea-counter-') || structure.id.startsWith('commercial-s2-fast-food-counter-')))
     expect(bodies).toHaveLength(3)
     for (const counter of counters) {
       expect(counter.roomId).toMatch(/commercial-(south-s5|south-s2)-interior/)
@@ -154,7 +301,8 @@ describe('commercial street shell furniture samples', () => {
     const walls = street.objects.filter((entity) => entity.label === '墙' && entity.roomId
       && (entity.id.startsWith('commercial-s5-milk-tea-') || entity.id.startsWith('commercial-s2-fast-food-'))
       && (entity.id.includes('rear-partition-') || entity.id.includes('divider-')))
-    const internalDoors = street.objects.filter((entity) => entity.label === '门' && entity.roomId)
+    const internalDoors = street.objects.filter((entity) => entity.label === '门'
+      && sampleRoomIds.includes(entity.roomId as typeof sampleRoomIds[number]))
     expect(walls).toHaveLength(30)
     expect(internalDoors.map((entity) => entity.id).sort()).toEqual([
       'commercial-s2-fast-food-kitchen-door',
@@ -258,7 +406,8 @@ describe('commercial street shell furniture samples', () => {
     const signs = street.objects.filter((entity) => entity.id.endsWith('-sign'))
     expect(signs.map((entity) => entity.label).sort()).toEqual(['仓库', '仓库', '厨房', '厨房'])
     expect(signs.every((entity) => entity.interactive === false && entity.roomId)).toBe(true)
-    const internalDoors = street.objects.filter((entity) => entity.id.endsWith('-door') && entity.roomId)
+    const internalDoors = street.objects.filter((entity) => entity.id.endsWith('-door')
+      && sampleRoomIds.includes(entity.roomId as typeof sampleRoomIds[number]))
     expect(internalDoors).toHaveLength(4)
     expect(internalDoors.every((entity) => entity.label === '门')).toBe(true)
     for (const sign of signs) {
@@ -302,7 +451,8 @@ describe('commercial street shell furniture samples', () => {
       ['commercial-s2-fast-food-table-group-a', 'commercial-south-slot-2'],
       ['commercial-s2-fast-food-table-group-b', 'commercial-south-slot-2'],
     ])
-    const seats = street.objects.filter((entity) => entity.kind === 'seat' && entity.seat && entity.roomId)
+    const seats = street.objects.filter((entity) => entity.kind === 'seat' && entity.seat
+      && sampleRoomIds.includes(entity.roomId as typeof sampleRoomIds[number]))
     expect(seats).toHaveLength(6)
     for (const seat of seats) {
       const slotId = tableEntryByGroup.get(seat.groupId!)!

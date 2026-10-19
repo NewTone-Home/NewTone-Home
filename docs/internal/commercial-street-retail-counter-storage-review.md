@@ -330,3 +330,52 @@ index e61ff71..8e95c7b 100644
        .filter((entity) => entity.roomId === store.roomId && entity.id.includes('-display-'))
        .map((entity) => `${localCell(store.roomId, entity.position).column.toFixed(1)}:${localCell(store.roomId, entity.position).row.toFixed(1)}`)
 ```
+
+## Stage 3d correction record: Cafe shell furniture
+
+### Baseline and mistaken target
+
+The requested baseline is `37455efce96f26219beae0b723bc7b98cc0fe432`. The actual parent chain was:
+
+```text
+37455ef Add fruit tea and dessert retail layouts
+└─ 5a91928 Re-layout cafe counter and seating
+   └─ a4203a3 Close cafe staff route behind counter
+```
+
+`37455ef` is an ancestor of `a4203a3`; `5a91928` is its direct intermediate parent. The mistaken Stage 3d work changed the legacy standalone `mainlinescenes['commercial-cafe']` geometry in `src/center/runtime/mainlineSceneModel.ts`, not the intended Cafe shell in the `commercial-street` scene. Commit `5a91928` touched six files: that model, `tests/cafeSeating.test.ts`, `tests/mainlineSpatialMigration.test.ts`, `tests/navigationBarrier.test.ts`, `tests/npcFoundation.test.ts`, and this review document. Commit `a4203a3` touched four files: that model, `tests/cafeSeating.test.ts`, `tests/npcFoundation.test.ts`, and `tests/worldNavigation.test.ts`.
+
+Those changes were reversed with ordinary revert commits, retaining history rather than resetting it:
+
+- `2b150e2` reverts `a4203a3e0214c815d233a3b29aefaa2d19f765e4`.
+- `4592d49` reverts `5a91928f6d7e9196bc6876c4590db0e8cbf26684`.
+
+After both reverts and before the corrected shell edit, `git diff 37455ef... HEAD` was empty for tracked files. `.tmp/` and `.vitest-stage3d/` were left in place. The error came from following the old `commercial-cafe` furniture/seat test surface instead of first selecting `commercialStreetInteriorSamples` by `roomId`.
+
+The misplaced Cafe work had changed the legacy Cafe's eight furniture groups to three two-seat groups. It retained the existing story group ID, table ID, and Lao Zhou seat binding, but moved that table from `(84,26)` to a Cafe-local lattice cell. It also replaced the legacy counter layout with an L counter, added static menu/order/storage labels, and altered the staff region. Thus the story source file itself was not migrated, but the legacy Cafe scene configuration was not untouched. The old `commercialCafeStory.ts` module is byte-for-byte unchanged from the baseline; its table and conversation-seat IDs still point at `commercial-cafe-right-window-upper-group-table` and `commercial-cafe-right-window-upper-group-chair-bottom`.
+
+### Correct target
+
+The intended sample is the `commercialStreetInteriorSamples` record whose `roomId` is `commercial-north-cafe-interior`, consumed by `commercialStreetShellFurniture`. Its `cell(sample, column, row)` maps x using `sample.x + column * commercialStreetCellPitch` and maps north-shell rows toward negative world y from `sample.facade`. The Cafe facade's 23 glyph centers determine the 23-by-22 shell lattice; no Cafe-specific pixel width or old standalone Cafe grid is used.
+
+Before this Stage 3d correction, the shell-furniture builder had no Cafe furniture plan. After it, the builder adds static furniture under that exact `roomId`:
+
+```ts
+const northCafe = commercialStreetInteriorSamples.find(
+  (sample) => sample.roomId === 'commercial-north-cafe-interior',
+)!
+```
+
+Three new two-seat groups use table centers `(15,7)`, `(18,11)`, and `(15,16)`. Their six seat IDs all begin `commercial-north-cafe-seat-`; none reuse the old Cafe story group, table, or chair IDs. The new static L counter draws its main cells at `x4..9,y5`; its return glyphs are at `x9,y6..8`. Its collision run includes the shared elbow cell, while `addCounter` draws that shared glyph once. Static `菜单`/`点单` labels use `x4..5,y3` and `x6..7,y4`; the open `储物` marker is at `x2..3,y19` within the requested `x2..4,y18..20` storage zone. A static staff-opening glyph at `(9,9)` leads around the counter return toward the rear corridor. No Cafe NPC, dialogue, order behavior, story trigger, or access-region system is added to this shell.
+
+All new shell entities carry `roomId: 'commercial-north-cafe-interior'` and static visual visibility. Their counter collisions are kept in the shared street scene's continuous-structure list, so geometry remains present independently of the active room renderer filter. The rear passage remains locked and its approach is covered by the new reachability assertion.
+
+The frozen storefront composition function and 14-slot storefront list are unchanged by these Stage 3d edits. The Lao Zhou story module and the legacy `commercial-cafe` blueprint are also unchanged from `37455`; `tests/commercialStreetShellFurniture.test.ts` now pins the old Cafe bounds, eight furniture-group IDs, story table position/binding, and front/rear access states while separately asserting that the new Cafe furniture exists only in the same-street Cafe shell. A `git diff 37455ef... HEAD` of the model shows additions inside `commercialStreetShellFurniture` and no hunk in the standalone Cafe blueprint, storefront composition, or merchant slot list.
+
+### Corrected Stage 3d files
+
+- `src/center/runtime/mainlineSceneModel.ts` — shell-only static Cafe furniture, cell-mapped via the selected north Cafe sample.
+- `tests/commercialStreetShellFurniture.test.ts` — exact shell grid, table and seat IDs, unique L-counter glyph cells, joined collision, static labels, staff/rear-door route, and legacy Cafe baseline assertions.
+- `docs/internal/commercial-street-retail-counter-storage-review.md` — this correction record and the mistaken-target/revert evidence.
+
+The detailed Stage 3d test/build, commit, push, and Preview results are recorded below after verification completes.
