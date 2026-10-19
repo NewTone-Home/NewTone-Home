@@ -1021,6 +1021,16 @@ const commercialStreetAmbientNpcRoutes = [
   { npcId: 'commercial-street-pedestrian-shopper', initialDelayMs: 5100, steps: [{ target: authoredPoint(110, 40), dwellMs: 3500 }, { kind: 'storefront-visit', target: authoredPoint(156, 58), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-7', reentry: authoredPoint(156, 58), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(96, 58), dwellMs: 1400 }, { target: authoredPoint(116, 58), dwellMs: 2600 }] },
 ] as const satisfies readonly MainlineAmbientNpcRoute[]
 
+// Phase one keeps the existing street walkers, but their ordinary routes must
+// stay outside locked storefronts. Preserve the authored return contact as a
+// short pause instead of routing an ambient actor through a closed door.
+const commercialStreetPublicAmbientNpcRoutes: readonly MainlineAmbientNpcRoute[] = commercialStreetAmbientNpcRoutes.map((route) => ({
+  ...route,
+  steps: route.steps.map((step) => 'kind' in step && step.kind === 'storefront-visit'
+    ? { target: step.reentry, dwellMs: step.minDwellMs }
+    : step),
+}))
+
 function commercialStreetShopDividerId(row: 'north' | 'south', boundaryIndex: number) {
   return `commercial-${row}-shop-divider-${boundaryIndex}`
 }
@@ -1139,16 +1149,6 @@ const commercialStreetShopPortals: readonly MainlineScenePortalBlueprint[] = com
           labelLayout: 'center',
         },
       },
-      ...(shop.kind === 'cafe' ? [{
-        wallId: 'commercial-cafe-room',
-        opening: {
-          edge: 'bottom' as const,
-          start: commercialCafeWorldTransform.x + (commercialCafeEntryX - 3.5 - commercialCafeBounds.x) * commercialCafeWorldTransform.scaleX,
-          end: commercialCafeWorldTransform.x + (commercialCafeEntryX + 3.5 - commercialCafeBounds.x) * commercialCafeWorldTransform.scaleX,
-          doorId: portalId,
-          labelLayout: 'center' as const,
-        },
-      }] : []),
     ],
     transitionText: `走进${shop.label.zh}。`,
     access: 'locked',
@@ -2584,50 +2584,80 @@ const commercialLakefrontPortal: MainlineScenePortalBlueprint = {
   transitionText: '沿商业街通道走到湖畔。',
   access: 'open',
 }
-const commercialStreetWithContinuousMilkTeaBlueprint: MainlineSceneBlueprint = {
+/** Full retained layout source used for interior regression coverage and a later phase. */
+export const commercialStreetContinuousWorldSourceBlueprint: MainlineSceneBlueprint = {
   ...commercialStreetBlueprint,
   scene: {
     ...commercialStreetBlueprint.scene,
-    walkBounds: box(8, 36, 176, 28),
+    walkBounds: box(8, -27, 192, 143),
     walls: [
       ...(commercialStreetBlueprint.scene.walls ?? []).flatMap((wall) => wall.id !== 'commercial-south-facade'
         ? [wall]
-        : [
-          wall,
+        : [wall,
           { id: 'milk-tea-continuous-shop-shell', type: 'room' as const, bounds: milkTeaContinuousLayout.bounds, variant: 'milk-tea-long-narrow', wallGlyphs: [String.fromCharCode(0x5899)], edges: ['left', 'right', 'bottom'] as const },
           { id: 'milk-tea-rear-area-wall', type: 'room' as const, bounds: milkTeaContinuousLayout.rearDivider, variant: 'milk-tea-back-area', wallGlyphs: [String.fromCharCode(0x5899)], edges: ['top'] as const },
           { id: 'milk-tea-kitchen-warehouse-wall', type: 'room' as const, bounds: milkTeaContinuousLayout.kitchenWarehouseDivider, variant: 'milk-tea-back-divider', wallGlyphs: [String.fromCharCode(0x5899)], edges: ['left'] as const },
         ]),
       ...(commercialCafeWorldScene.walls ?? []),
     ],
-    storefronts: commercialStreetBlueprint.scene.storefronts ?? [],
-    airWalls: [...commercialStreetSouthExpansionAirWalls(), ...commercialStreetNorthExpansionAirWalls()],
     floorEntities: [
       ...(commercialStreetBlueprint.scene.floorEntities ?? []).filter((entity) => ![commercialStreetMilkTeaClerkContactId, commercialStreetMilkTeaQrId, 'milk-tea-shop-menu', 'milk-tea-pickup-1', 'milk-tea-pickup-3', 'milk-tea-pickup-4'].includes(entity.id) && !entity.id.startsWith('commercial-south-slot-5-') && !entity.id.startsWith('commercial-milktea-')),
-      ...milkTeaContinuousCounterEntities,
-      ...milkTeaCounterTextEntities,
+      ...milkTeaContinuousCounterEntities, ...milkTeaCounterTextEntities,
       floor({ id: commercialStreetMilkTeaQrId, label: milkTeaCopy.qr, kind: 'fixture', weight: 'fixture', position: authoredPoint(milkTeaContinuousLayout.qr.x, milkTeaContinuousLayout.qr.y), approach: authoredPoint(milkTeaContinuousLayout.qr.x - 1.5, milkTeaContinuousLayout.qr.y), interactive: true, interactionBehavior: 'milk-tea-qr', interactionRange: 10, visualVisibility: 'baseline' }),
       floor({ id: 'milk-tea-shop-menu', label: milkTeaCopy.menu, kind: 'fixture', weight: 'minor', position: authoredPoint(milkTeaContinuousLayout.menu.x, milkTeaContinuousLayout.menu.y), interactive: true, interactionRange: 8, visualVisibility: 'baseline' }),
       floor({ id: 'milk-tea-kitchen-label', label: '厨房', kind: 'fixture', weight: 'minor', position: authoredPoint(milkTeaContinuousLayout.kitchenLabel.x, milkTeaContinuousLayout.kitchenLabel.y), visualVisibility: 'baseline' }),
       floor({ id: 'milk-tea-warehouse-label', label: '仓库', kind: 'fixture', weight: 'minor', position: authoredPoint(milkTeaContinuousLayout.warehouseLabel.x, milkTeaContinuousLayout.warehouseLabel.y), visualVisibility: 'baseline' }),
-      ...milkTeaContinuousFurnitureEntities,
-      ...commercialCafeWorldScene.floorEntities,
+      ...milkTeaContinuousFurnitureEntities, ...commercialCafeWorldScene.floorEntities,
     ],
     npcs: [...(commercialStreetBlueprint.scene.npcs ?? []).filter((npc) => npc.id !== commercialStreetMilkTeaClerkId && npc.id !== commercialStreetShopClerkId(commercialCafeShop)), milkTeaClerk, ...(commercialCafeWorldScene.npcs ?? [])],
     npcPlacements: [...(commercialStreetBlueprint.scene.npcPlacements ?? []).filter(({ npcId }) => npcId !== commercialStreetMilkTeaClerkId && npcId !== commercialStreetShopClerkId(commercialCafeShop)), { npcId: commercialStreetMilkTeaClerkId, position: milkTeaContinuousLayout.clerk }, ...(commercialCafeWorldScene.npcPlacements ?? [])],
     npcBehaviorTargets: [...(commercialStreetBlueprint.scene.npcBehaviorTargets ?? []), { id: 'milk-tea-clerk-counter', position: milkTeaContinuousLayout.clerk }, ...(commercialCafeWorldScene.npcBehaviorTargets ?? [])],
     npcBehaviors: [...(commercialStreetBlueprint.scene.npcBehaviors ?? []), { npcId: commercialStreetMilkTeaClerkId, dutyId: npcRoles.milkTeaClerk.duties.counterService.id, targetId: 'milk-tea-clerk-counter', targetKind: 'point' as const, interactionContactEntityId: commercialStreetMilkTeaClerkContactId }, ...(commercialCafeWorldScene.npcBehaviors ?? [])],
-    accessRegions: [...(commercialStreetBlueprint.scene.accessRegions ?? []).filter(({ id }) => id !== 'commercial-south-slot-5-staff-area'), { id: 'milk-tea-staff-area', ...milkTeaContinuousLayout.staffArea, requiredAccess: 'staff' as const, deniedText: milkTeaCopy.deniedStaff }, ...(commercialCafeWorldScene.accessRegions ?? []).map((region) => region.id === 'commercial-cafe-staff-area' ? { ...region, y: region.y - 4, height: region.height + 4 } : region)],
-    accessBoundaries: [...(commercialStreetBlueprint.scene.accessBoundaries ?? []).filter(({ id }) => id !== 'commercial-south-slot-5-staff-boundary'), { id: 'milk-tea-staff-boundary', regionId: 'milk-tea-staff-area', edge: 'left' as const }, ...(commercialCafeWorldScene.accessBoundaries ?? [])],
+    accessRegions: [...(commercialStreetBlueprint.scene.accessRegions ?? []), { id: 'milk-tea-staff-area', ...milkTeaContinuousLayout.staffArea, requiredAccess: 'staff' as const, deniedText: milkTeaCopy.deniedStaff }, ...(commercialCafeWorldScene.accessRegions ?? [])],
+    accessBoundaries: [...(commercialStreetBlueprint.scene.accessBoundaries ?? []), { id: 'milk-tea-staff-boundary', regionId: 'milk-tea-staff-area', edge: 'left' as const }, ...(commercialCafeWorldScene.accessBoundaries ?? [])],
     actorAccess: { ...(commercialStreetBlueprint.scene.actorAccess ?? {}), ...(commercialCafeWorldScene.actorAccess ?? {}), protagonist: ['public'], [commercialStreetMilkTeaClerkId]: ['public', 'staff'] },
-    continuousStructures: [...(commercialStreetBlueprint.scene.continuousStructures ?? []).filter(({ id }) => !id.startsWith('commercial-milktea-counter-')), ...milkTeaContinuousCounterStructures, ...(commercialCafeWorldScene.continuousStructures ?? [])],
+    continuousStructures: [...(commercialStreetBlueprint.scene.continuousStructures ?? []), ...milkTeaContinuousCounterStructures, ...(commercialCafeWorldScene.continuousStructures ?? [])],
     furnitureGroups: [...(commercialStreetBlueprint.scene.furnitureGroups ?? []), ...milkTeaContinuousFurniture.map(({ group }) => group), ...commercialCafeWorldScene.furnitureGroups],
     rooms: [...(commercialStreetBlueprint.scene.rooms ?? []), { id: commercialCafeDisplayRegionId, bounds: box(144, -27, 44, 58), kind: 'room' as const }, ...(commercialCafeWorldScene.rooms ?? [])],
     curves: [...(commercialStreetBlueprint.scene.curves ?? []), ...(commercialCafeWorldScene.curves ?? [])],
     accessPortals: [...(commercialStreetBlueprint.scene.accessPortals ?? []), ...(commercialCafeWorldScene.accessPortals ?? [])],
     navigationBarriers: [...(commercialStreetBlueprint.scene.navigationBarriers ?? []), ...(commercialCafeWorldScene.navigationBarriers ?? [])],
     blockers: [...(commercialStreetBlueprint.scene.blockers ?? []), ...(commercialCafeWorldScene.blockers ?? [])],
+    ambientNpcRoutes: [...commercialStreetAmbientNpcRoutes, ...commercialStreetShopCustomerRoutes],
+  },
+  portals: [...(commercialStreetBlueprint.portals ?? [])],
+  interactionText: { ...commercialStreetBlueprint.interactionText, ...commercialCafeBlueprint.interactionText },
+}
+
+const commercialStreetWithContinuousMilkTeaBlueprint: MainlineSceneBlueprint = {
+  ...commercialStreetContinuousWorldSourceBlueprint,
+  scene: {
+    ...commercialStreetContinuousWorldSourceBlueprint.scene,
+    // Include legal approach contacts for the far-right storefronts while
+    // keeping the player in the street lane vertically.
+    walkBounds: box(8, 36, 184, 28),
+    walls: commercialStreetContinuousWorldSourceBlueprint.scene.walls!.filter((wall) => ['commercial-north-facade', 'commercial-main-lane', 'commercial-south-facade'].includes(wall.id)),
+    storefronts: commercialStreetBlueprint.scene.storefronts ?? [],
+    airWalls: [...commercialStreetSouthExpansionAirWalls(), ...commercialStreetNorthExpansionAirWalls()],
+    // Active phase-one projection: retain the continuous outer street while
+    // leaving all shop-owned interiors in their source blueprints.
+    floorEntities: [],
+    npcs: [...commercialStreetAmbientNpcs],
+    npcPlacements: (commercialStreetBlueprint.scene.npcPlacements ?? []).filter(({ npcId }) => npcId.startsWith('commercial-street-pedestrian-')),
+    npcBehaviorTargets: [],
+    npcBehaviors: [],
+    accessRegions: [],
+    accessBoundaries: [],
+    actorAccess: { protagonist: ['public'] },
+    continuousStructures: [],
+    furnitureGroups: [],
+    rooms: (commercialStreetBlueprint.scene.rooms ?? []).filter(({ id }) => ['commercial-street-west', 'commercial-street-center', 'commercial-street-east'].includes(id)),
+    curves: [],
+    accessPortals: [],
+    navigationBarriers: [],
+    blockers: [],
     displayRegions: [],
+    ambientNpcRoutes: commercialStreetPublicAmbientNpcRoutes,
   },
   portals: [...(commercialStreetBlueprint.portals ?? [])],
   interactionText: {

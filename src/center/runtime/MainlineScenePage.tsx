@@ -1793,7 +1793,11 @@ export function MainlineScenePage({
   }, [beginPassageLeg, dismissSceneAction, dismissSceneEcho, sceneAction?.phase, setRequestedWorldTarget, showLockedPassageText, stopMovement])
 
   const interact = useCallback((entityId: string, requestAlreadyRecorded = false) => {
-    if (readingActive || sceneAction?.phase === 'committing') return
+    const lockedPassageNotice = sceneEcho?.phase !== 'leaving'
+      && sceneEcho?.entityId
+      && scene.passages.some((passage) => passage.entityId === sceneEcho.entityId && passage.access === 'locked')
+    if (readingActive && !lockedPassageNotice || sceneAction?.phase === 'committing') return
+    if (lockedPassageNotice) dismissSceneEcho()
     dismissSceneAction()
     npcInteractionRequestRef.current += 1
     setRequestedWorldTarget(null)
@@ -2215,7 +2219,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', npc.id, 'npc', 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
+  }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction?.phase, sceneEcho, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
 
   const chooseSceneEchoOption = useCallback((index: number) => {
     const option = sceneAction?.options[index]
@@ -2361,7 +2365,11 @@ export function MainlineScenePage({
   }, [activeDialogue, commercialCafeNarrative, commercialCafeStory, commercialStreetQuestionNarrative, dialogueLineIndex, dialogueSegmentIndex, npcDialogue, onChapterAnalytics, onMeaningfulActivity, recordCafeAnalyticsMilestone, recordSceneState, recordSceneStatePatch, scene.id])
 
   const walk = useCallback((point: Point) => {
-    if (readingActive) return
+    const lockedPassageNotice = sceneEcho?.phase !== 'leaving'
+      && sceneEcho?.entityId
+      && scene.passages.some((passage) => passage.entityId === sceneEcho.entityId && passage.access === 'locked')
+    if (readingActive && !lockedPassageNotice) return
+    if (lockedPassageNotice) dismissSceneEcho()
     if (sceneAction?.phase === 'committing') return
     onMeaningfulActivity?.()
     pendingInteractionAfterTraversalRef.current = null
@@ -2403,7 +2411,7 @@ export function MainlineScenePage({
       : undefined
     const started = moveTo(resolution.resolvedNavigableTarget, showDeniedFeedback, resolution.path, undefined, showDeniedFeedback)
     if (!started) showDeniedFeedback?.()
-  }, [debugCafeSpatialQa, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, moveTo, navigationOptions, onMeaningfulActivity, onPhoneDismiss, phoneOpen, readingActive, sceneAction?.phase, sceneDefinition, setDialogueLineIndex, showAccessRegionDeniedText, startPassageTraversal, stopMovement])
+  }, [debugCafeSpatialQa, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, moveTo, navigationOptions, onMeaningfulActivity, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction?.phase, sceneDefinition, sceneEcho, setDialogueLineIndex, showAccessRegionDeniedText, startPassageTraversal, stopMovement])
 
   const completeCommercialStreetQuestionNarrativeExit = useCallback(() => {
     if (commercialStreetQuestionNarrative?.phase !== 'leaving') return

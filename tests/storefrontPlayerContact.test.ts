@@ -129,14 +129,17 @@ describe('player storefront edge contacts', () => {
       visual: { ...unit.visual, cells: unit.visual.cells.map(cell => ({ ...cell, x: cell.y, y: cell.x, orientation: 'vertical' as const })) },
     })
     const geometry = storefrontContactGeometry(store, units, metrics)!
-    const scene = { ...street, storefronts: [store], objects: [], passages: [], accessRegions: [], accessBoundaries: [], navigationBarriers: [] }
-    const snapshot = { ...original, units, storefronts: new Map([[store.id, geometry]]), objects: new Map(), passages: new Map(), navigationBarriers: [] }
+    // Exercise the generic projected contact contract on a synthetic full
+    // facade; the active Commercial Street phase-one lane intentionally keeps
+    // the player outside the storefront depth.
+    const scene = { ...street, walkBounds: { x: 0, y: -200, width: 400, height: 400 }, storefronts: [store], structures: [], continuousStructures: [], objects: [], passages: [], accessRegions: [], accessBoundaries: [], navigationBarriers: [] }
+    const snapshot = { ...original, walkBounds: { x: 0, y: -200, width: 400, height: 400 }, units, storefronts: new Map([[store.id, geometry]]), objects: new Map(), passages: new Map(), navigationBarriers: [] }
     const options = { screenMetrics: metrics, geometrySnapshot: snapshot }
-    const region = mainlineStorefrontInteractionRegion(street, clothing)
+    const region = { center: geometry.center, outward: geometry.outward, radius: 6 }
     for (const side of [-1, 0, 1]) {
       const from = { x: geometry.center.x + geometry.outward.x * region.radius + geometry.outward.y * region.radius * side, y: geometry.center.y + geometry.outward.y * region.radius + geometry.outward.x * region.radius * side }
       const result = resolveMainlineStorefrontInteraction(scene, store, from, {}, options)
-      expect(result.path).not.toBeNull()
+      expect(result.path, `${edge} facade from side ${side}: ${JSON.stringify(from)}`).not.toBeNull()
       expect(isWalkableMainlinePoint(result.target, scene, {}, options)).toBe(true)
       const contact = mainlineStorefrontPlayerContact(scene, store, from, {}, options)!
       expect(gapPixels(result.target, contact, metrics)).toBeCloseTo(contact.footprint.width * metrics.width / 100 * .25, 3)

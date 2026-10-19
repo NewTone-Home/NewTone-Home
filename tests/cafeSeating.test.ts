@@ -3,18 +3,19 @@ import { commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId, commerc
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { findMainlinePath, findMainlinePathToEntity, isWalkableMainlinePoint, mainlineEntityInteractionCandidates, mainlineInteractionTarget, mainlineNpcInteractionTarget, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition } from '../src/center/runtime/mainlineNavigation'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
-import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { compileMainlineSceneSource, mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { commercialStreetContinuousWorldSourceBlueprint } from '../src/center/runtime/mainlineSceneModel'
 import { isMainlineSeatAvailable, isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds, mainlineSeatedActorVisualPosition, nextMainlinePlayerSeatId } from '../src/center/runtime/mainlineSeating'
 import { sharedFurnitureGeometry } from '../src/center/runtime/twoSeatFurniture'
 import { mainlineNpcStagedSeatId, mainlineNpcStagingBehavior } from '../src/center/runtime/mainlineNpcStaging'
 import { mainlineEntityTextFootprint, mainlineLabelFootprint, mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 
 describe('commercial cafe seating and staging', () => {
-  const cafe = mainlineScenes['commercial-street']
-  // Legacy Cafe keys now alias the full commercial street. Exercise Cafe-local
-  // seating from the shared-world arrival point instead of the street spawn.
-  const cafeInterior = { ...cafe, initialPlayerPosition: { x: 166, y: 20 } }
-  const cafeNavigationOptions = { displayRegionId: cafe.displayRegions.find(({ id }) => id.includes('cafe'))?.id }
+  // Keep the independent Cafe source-room regression tests separate from the
+  // exterior-only phase-one street projection.
+  const cafe = compileMainlineSceneSource(commercialStreetContinuousWorldSourceBlueprint)
+  const cafeInterior = { ...cafe }
+  const cafeNavigationOptions = {}
   const laoZhouSeatId = 'commercial-cafe-right-window-upper-group-chair-top'
 
   it('derives Lao Zhou staging from behavior while occupancy remains only a set of seat ids', () => {

@@ -23,18 +23,17 @@ export type CommercialStreetQuestionNarrativeState = {
  * with the real scene bounds without adding collision or navigation geometry.
  */
 export function commercialStreetQuestionNarrativeAnchor(scene: MainlineSceneDefinition): Point {
-  return {
-    x: scene.walkBounds.x + scene.walkBounds.width / 2,
-    y: scene.walkBounds.y + scene.walkBounds.height / 2,
-  }
+  // Keep the story beat at its authored street position. Walk bounds are a
+  // movement constraint and may change independently of narrative placement.
+  void scene
+  return { x: 104, y: 50 }
 }
 
 export function commercialStreetQuestionNarrativeShouldTrigger(scene: MainlineSceneDefinition, position: Point) {
   if (scene.id !== 'commercial-street') return false
   const anchor = commercialStreetQuestionNarrativeAnchor(scene)
-  // The narrow trigger is one twentieth of the authored lane height. It is a
-  // presentation region, not collision or an additional navigation target.
-  const triggerRadius = scene.walkBounds.height / 20
+  // This authored radius is intentionally independent of the active walk area.
+  const triggerRadius = 4
   return Math.hypot(position.x - anchor.x, position.y - anchor.y) <= triggerRadius
 }
 

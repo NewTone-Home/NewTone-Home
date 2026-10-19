@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { findMainlinePath, isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
-import { mainlineSceneRoute, mainlineScenes, resolveMainlineSceneId } from '../src/center/runtime/mainlineScenes'
+import { compileMainlineSceneSource, mainlineSceneRoute, mainlineScenes, resolveMainlineSceneId } from '../src/center/runtime/mainlineScenes'
+import { commercialStreetContinuousWorldSourceBlueprint } from '../src/center/runtime/mainlineSceneModel'
 import {
   commercialStreetMerchantCount,
   commercialStreetModuleCount,
@@ -105,6 +106,7 @@ describe('commercial street world layout registry', () => {
 
   it('keeps Cafe interior as a region of the shared commercial-street runtime', () => {
     const street = mainlineScenes['commercial-street']
+    const source = compileMainlineSceneSource(commercialStreetContinuousWorldSourceBlueprint)
     const passage = street.passages.find(candidate => candidate.id === 'street-cafe-entry')!
 
     expect(street.id).toBe('commercial-street')
@@ -115,9 +117,9 @@ describe('commercial street world layout registry', () => {
     expect(mainlineScenes['commercial-milktea-shop']).toBe(street)
     expect(passage.access).toBe('locked')
     expect(street.displayRegions).toEqual([])
-    expect(street.objects.some(entity => entity.id === 'commercial-cafe-right-window-upper-group-table')).toBe(true)
-    expect(street.objects.some(entity => entity.id === 'commercial-cafe-counter')).toBe(true)
-    expect(street.accessRegions.some(region => region.id === 'commercial-cafe-staff-area')).toBe(true)
+    expect(source.objects.some(entity => entity.id === 'commercial-cafe-right-window-upper-group-table')).toBe(true)
+    expect(source.objects.some(entity => entity.id === 'commercial-cafe-counter')).toBe(true)
+    expect(source.accessRegions.some(region => region.id === 'commercial-cafe-staff-area')).toBe(true)
   })
 
   it('keeps lake entry and lakeside geometry out of the exterior runtime', () => {
@@ -126,6 +128,6 @@ describe('commercial street world layout registry', () => {
     expect(street.passages.some(candidate => candidate.id === 'commercial-street-lakefront-entry')).toBe(false)
     expect(street.objects.some(entity => entity.id.startsWith('commercial-lakeside-'))).toBe(false)
     expect(street.geometry.some(unit => unit.id.includes('commercial-lakeside') || unit.id.includes('commercial-lakefront-street-gate'))).toBe(false)
-    expect(street.walkBounds).toMatchObject({ x: 8, y: 36, width: 176, height: 28 })
+    expect(street.walkBounds).toMatchObject({ x: 8, y: 36, width: 184, height: 28 })
   })
 })

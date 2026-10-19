@@ -5,14 +5,11 @@ import { commercialStreetQuestionNarrativeAnchor, commercialStreetQuestionNarrat
 describe('Commercial Street question-mark narration', () => {
   const street = mainlineScenes['commercial-street']
 
-  it('anchors at the actual centre of the navigable street lane without adding geometry', () => {
+  it('keeps the authored question position independent of movement bounds without adding geometry', () => {
     const anchor = commercialStreetQuestionNarrativeAnchor(street)
-    expect(anchor).toEqual({
-      x: street.walkBounds.x + street.walkBounds.width / 2,
-      y: street.walkBounds.y + street.walkBounds.height / 2,
-    })
+    expect(anchor).toEqual({ x: 104, y: 50 })
     expect(commercialStreetQuestionNarrativeShouldTrigger(street, anchor)).toBe(true)
-    expect(commercialStreetQuestionNarrativeShouldTrigger(street, { x: anchor.x + street.walkBounds.height / 16, y: anchor.y })).toBe(false)
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street, { x: anchor.x + 4.01, y: anchor.y })).toBe(false)
     expect(street.passages).not.toContainEqual(expect.objectContaining({ entityId: 'commercial-street-question-mark' }))
   })
 
