@@ -1228,7 +1228,9 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
           horizontal: sample.horizontalCellCount,
           vertical: commercialStreetInteriorVerticalCoordinateCount,
         },
-        boundaryVisualEndpoints: { vertical: sample.side === 'north' ? { end: 'omit' as const } : { start: 'omit' as const } },
+        // The street facade owns each front corner and the rear wall owns
+        // each back corner; side rows render only their 20 interior anchors.
+        boundaryVisualEndpoints: { vertical: { start: 'omit' as const, end: 'omit' as const } },
         edges: [sample.side === 'north' ? 'top' as const : 'bottom' as const, 'left' as const, 'right' as const],
         openings: [{ edge: sample.side === 'north' ? 'top' as const : 'bottom' as const, start: sample.x + sample.width / 2 - commercialStreetCellPitch, end: sample.x + sample.width / 2 + commercialStreetCellPitch, doorId: `${sample.roomId}-rear-door`, labelLayout: 'center' as const }],
       })),

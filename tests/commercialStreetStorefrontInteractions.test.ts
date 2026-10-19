@@ -126,7 +126,9 @@ describe('commercial street storefront interactions', () => {
       const expectedDepth = steps.vertical * 21
       const interior = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
       const approach = mainlineStorefrontApproach(street, storefront)
+      const publicLanePath = findMainlinePath(street.initialPlayerPosition, approach, street)
       const entryPath = findMainlinePath(approach, interior, street)
+      const rearDoorApproachPath = findMainlinePath(interior, rear.thresholds[0], street)
       const command = classifyMainlineWorldCommand(street, street.initialPlayerPosition, interior)
 
       expect(room.bounds.width).toBeCloseTo(steps.horizontal * (widthCells - 1))
@@ -142,8 +144,10 @@ describe('commercial street storefront interactions', () => {
       if (rearCommand.kind === 'passage') expect(rearCommand.passage.id).toBe(rear.id)
       expect(shell?.wallEdges).toEqual(side === 'north' ? ['top', 'left', 'right'] : ['bottom', 'left', 'right'])
       expect(isWalkableMainlinePoint(interior, street)).toBe(true)
+      expect(publicLanePath, `${storefrontId} street-to-approach path`).not.toBeNull()
       expect(entryPath, `${storefrontId} front-to-room path`).not.toBeNull()
       expect(entryPath?.length).toBeGreaterThan(1)
+      expect(rearDoorApproachPath, `${storefrontId} path to locked rear threshold`).not.toBeNull()
       expect(findMainlinePath(entry.crossingTargets[0], interior, street)).not.toBeNull()
       expect(findMainlinePath(interior, entry.thresholds[0], street)).not.toBeNull()
       expect(street.walkBounds.y).toBeLessThan(room.bounds.y)
@@ -201,6 +205,15 @@ describe('commercial street storefront interactions', () => {
       for (const viewport of metrics) {
         const units = mainlineCanonicalSceneGeometryUnits(street, viewport)
         const shellUnits = units.filter((unit) => unit.sourceWallId === shellId)
+        const allShellCells = shellUnits.flatMap((unit) => unit.visual.cells).filter((cell) => cell.glyph !== '')
+        const cellsByCoordinate = new Map<string, (typeof allShellCells)[number][]>()
+        for (const cell of allShellCells) {
+          const key = `${cell.x.toFixed(3)}:${cell.y.toFixed(3)}`
+          cellsByCoordinate.set(key, [...(cellsByCoordinate.get(key) ?? []), cell])
+        }
+        const duplicateShellCoordinates = [...cellsByCoordinate.entries()].filter(([, cells]) => cells.length > 1)
+        expect(duplicateShellCoordinates.map(([coordinate, cells]) => ({ coordinate, cells: cells.map(cell => ({ glyph: cell.glyph, edge: cell.edge, id: cell.entityId })) })))
+          .toEqual([])
         const rearCells = shellUnits.filter((unit) => unit.edge === rearEdge).flatMap((unit) => unit.visual.cells)
         const rearPassage = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
         const rearDoorPosition = street.objects.find((candidate) => candidate.id === rearPassage.entityId)!.position
@@ -224,6 +237,8 @@ describe('commercial street storefront interactions', () => {
           const rearCorner = rearCells.find((cell) => Math.abs(cell.x - sideX) < .01)
           expect(frontCorner, `${viewport.width}x${viewport.height} ${sideEdge} front corner`).toBeDefined()
           expect(rearCorner, `${viewport.width}x${viewport.height} ${sideEdge} rear corner`).toBeDefined()
+          expect(sideCells.some((cell) => cell.glyph !== '' && Math.abs(cell.x - frontCorner!.x) < .01 && Math.abs(cell.y - frontCorner!.y) < .01))
+            .toBe(false)
           sideYs.add(Number(frontCorner!.y.toFixed(3)))
           sideYs.add(Number(rearCorner!.y.toFixed(3)))
           const continuousSide = [...sideYs].sort((left, right) => left - right)

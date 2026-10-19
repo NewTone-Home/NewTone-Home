@@ -92,6 +92,8 @@ Stage 1 opened only N2 and S2; this Stage 2 update extends same-scene empty shel
 
 The storefront order, facade labels, authored grid, door coordinates, and 14 merchant identities remain unchanged. Width comes from each storefront's authored `fixedCellCount` (11 centers for a regular bay, 23 for a two-bay unit). Every room is 22 vertical centers / 21 pitch intervals deep. The two-bay units keep the original double-bay footprint and separator; no storefront characters, font size, or pitch were compressed. Room IDs preserve the earlier N2/S2 IDs; other ordinary slots derive from their existing slot IDs, and Cafe uses `commercial-north-cafe-interior`.
 
+The facade owns each shell's front corners and the shell's rear edge owns its back corners; the side runs omit both endpoint glyphs. The geometry test checks compiled visible glyph coordinates for duplicate ownership at all three viewports, including the touching facade corner.
+
 ### Source change: generated room and portal inventory
 
 Before Stage 2, shell selection was a fixed two-room list:
@@ -138,6 +140,7 @@ Each shell still owns only its sides and back, sharing the existing front facade
 
 - Focused Vitest: storefront presentation, all-shell interactions/navigation, and player-contact coverage — 47 passed.
 - The initial east-boundary assertion still looked up the pre-segmentation single air-wall ID. The shell openings split that barrier into segments, so the assertion now compares the easternmost endpoint across those segments; the facade span and storefront coordinates were not changed to satisfy the test.
+- Navigation checks cover all 14 public-lane-to-approach routes, front-door crossings, paths into each room, and paths to each locked rear-door threshold.
 - `npm run typecheck` — passed.
 - `npm run build` — passed; Vite emitted the existing large-chunk advisory.
 - Playwright all-14 live browser traversal was attempted, but the local web server/browser invocation produced no result in the restricted environment and was stopped; no screenshots were captured. Treat live browser traversal as pending review.
