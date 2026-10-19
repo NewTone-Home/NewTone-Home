@@ -389,3 +389,8 @@ expect(passage.targetSceneId).toBeUndefined()
 ## Explicitly out of scope
 
 No furniture, NPC, narrative, Cafe migration, additional shop interior, save migration, door unlock, milk-tea action or public release was added. Review Stage 1 before authorizing more shops or interior content.
+## Latest review correction
+
+- Front entrances remain locked across all 14 storefronts. Shell rooms stay authored for layout, geometry, and future work, but facade portals have `access: 'locked'` and no `routeThrough` navigation edge; their room linkage is retained only for ownership mapping. This Preview does not open a shop.
+- The near-sign presentation is gated to the public lane. If the player's position is already inside a shell, only that room's owning storefront remains in its fixed `wall-door-wall` glyph state; the other 13 signs remain at their baseline labels. Returning to the street restores normal approach/leave presentation behavior. The new focused tests cover owner mapping for all 14 rooms, the owner's fixed doorway glyph, the other baseline signs, and street approach eligibility.
+- The prior profile script sampled `doorPhases` from the room-fixture selector, so that field did not measure a door and has been removed. Earlier profile outputs cannot be used as evidence of door phase transitions. DOM, wall/glyph counts, frame deltas, long tasks, milestones, and CDP traces remain the valid recorded fields.

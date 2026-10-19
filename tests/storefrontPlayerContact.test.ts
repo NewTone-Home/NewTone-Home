@@ -18,7 +18,7 @@ describe('commercial street storefront passages', () => {
     for (const storefront of street.storefronts) {
       expect(storefront.portalId, storefront.id).toBeTruthy()
       expect(storefront.characterSwitch, storefront.id).toBe(true)
-      expect(street.passages.find(passage => passage.portalId === storefront.portalId)?.access).toBe('open')
+      expect(street.passages.find(passage => passage.portalId === storefront.portalId)?.access).toBe('locked')
       expect(snapshot.storefronts.has(storefront.id)).toBe(false)
       expect(mainlineStorefrontPlayerContact(street, storefront, street.initialPlayerPosition, {}, { screenMetrics: metrics, geometrySnapshot: snapshot })).toBeNull()
       expect(resolveMainlineStorefrontInteraction(street, storefront, street.initialPlayerPosition, {}, { screenMetrics: metrics, geometrySnapshot: snapshot }).path).toBeNull()

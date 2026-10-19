@@ -102,6 +102,23 @@ export function activeStorefrontPresentationOwner(
     .sort((first, second) => first.distance - second.distance || first.index - second.index)[0]?.storefront.id ?? null
 }
 
+/** The shell whose facade is nearest to the current storefront interior. */
+export function activeStorefrontInteriorOwner(
+  scene: MainlineSceneDefinition,
+  position: Point,
+) {
+  if (scene.id !== 'commercial-street') return null
+  const room = scene.rooms.find((candidate) => candidate.id.endsWith('-interior')
+    && position.x >= candidate.bounds.x
+    && position.x <= candidate.bounds.x + candidate.bounds.width
+    && position.y >= candidate.bounds.y
+    && position.y <= candidate.bounds.y + candidate.bounds.height)
+  if (!room) return null
+  const entry = scene.passages.find((passage) => passage.fromRoomId === 'commercial-street-public-lane'
+    && passage.toRoomId === room.id)
+  return scene.storefronts.find((storefront) => storefront.portalId === entry?.portalId)?.id ?? null
+}
+
 /** A grace-period presentation still owns the visual entrance after the player leaves its trigger. */
 export function storefrontPresentationHandoffSource(
   phases: ReadonlyMap<string, StorefrontPresentationPhase>,

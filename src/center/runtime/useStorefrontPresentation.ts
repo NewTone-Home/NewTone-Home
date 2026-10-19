@@ -5,6 +5,7 @@ import type { Point } from './sceneGeometry'
 import type { MainlineSceneDefinition } from './mainlineScenes'
 import {
   activeStorefrontPresentationOwner,
+  activeStorefrontInteriorOwner,
   nextStorefrontPresentationPhase,
   storefrontPresentationHandoffSource,
   storefrontRestoreDelayMs,
@@ -23,9 +24,7 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
     [scene.storefronts],
   )
   const activeStorefrontId = activeStorefrontPresentationOwner(scene, position)
-  const playerInsideStore = scene.id === 'commercial-street' && scene.rooms.some((room) => room.id.endsWith('-interior')
-    && position.x >= room.bounds.x && position.x <= room.bounds.x + room.bounds.width
-    && position.y >= room.bounds.y && position.y <= room.bounds.y + room.bounds.height)
+  const interiorStorefrontId = activeStorefrontInteriorOwner(scene, position)
   const handledOwnerRef = useRef<string | null | undefined>(undefined)
   const nearRef = useRef(new Map<string, boolean>())
   const departedAtRef = useRef(new Map<string, number>())
@@ -45,10 +44,12 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
   }, [])
 
   useEffect(() => {
-    if (playerInsideStore) {
+    if (interiorStorefrontId) {
       handledOwnerRef.current = null
       departedAtRef.current.clear()
-      setPhaseByStorefront((current) => current.size === 0 ? current : new Map())
+      setPhaseByStorefront((current) => current.size === 1 && current.get(interiorStorefrontId) === 'revealed'
+        ? current
+        : new Map([[interiorStorefrontId, 'revealed']]))
       return
     }
     if (handledOwnerRef.current === activeStorefrontId) return
@@ -78,7 +79,7 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
 
     if (previousPhase !== 'baseline') departedAtRef.current.set(previousOwner, performance.now())
     transition(previousOwner, 'leave')
-  }, [activeStorefrontId, phaseByStorefront, playerInsideStore, transition])
+  }, [activeStorefrontId, interiorStorefrontId, phaseByStorefront, transition])
 
   // Product grace period belongs to presentation, not a CSS animation clock.
   useEffect(() => {

@@ -81,7 +81,7 @@ describe('commercial street ordinary retail shell fixtures', () => {
       const storefront = street.storefronts.find((candidate) => candidate.id === store.storefrontId)!
       const front = street.passages.find((candidate) => candidate.portalId === storefront.portalId)!
       const rear = street.passages.find((candidate) => candidate.id === `${store.roomId}-rear-door`)!
-      expect(front.access, `${store.key} front access`).toBe('open')
+      expect(front.access, `${store.key} front access`).toBe('locked')
       expect(rear.access, `${store.key} rear stays locked`).toBe('locked')
       expect(room.bounds.width).toBeCloseTo(steps.horizontal * 10)
       expect(room.bounds.height).toBeCloseTo(steps.vertical * 21)

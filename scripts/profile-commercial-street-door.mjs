@@ -74,7 +74,7 @@ const page = await context.newPage()
 const cdp = await context.newCDPSession(page)
 
 await page.addInitScript(({ selector, cellId }) => {
-  const sample = { raf: [], longTasks: [], milestones: [], doorPhases: [], supportedEntryTypes: [] }
+  const sample = { raf: [], longTasks: [], milestones: [], supportedEntryTypes: [] }
   Object.defineProperty(window, '__commercialStreetProfile', { value: sample })
   let previousFrame = null
   const mark = (name, detail = {}) => sample.milestones.push({ name, t: performance.now(), ...detail })
@@ -105,14 +105,6 @@ await page.addInitScript(({ selector, cellId }) => {
     if (present !== sample.roomItemsPresent) {
       sample.roomItemsPresent = present
       mark(present ? 'room-items-mounted' : 'room-items-unmounted', { objectCount: count })
-    }
-    const phase = target?.getAttribute('data-focus-passage-phase')
-      ?? target?.getAttribute('data-door-phase')
-      ?? target?.getAttribute('data-storefront-presentation-phase')
-      ?? null
-    if (phase && phase !== sample.lastDoorPhase) {
-      sample.lastDoorPhase = phase
-      sample.doorPhases.push({ t: performance.now(), phase })
     }
   }
   const observer = new MutationObserver(inspect)
@@ -198,7 +190,6 @@ const results = {
     },
   },
   milestones: measurements.milestones,
-  doorPhases: measurements.doorPhases,
   supportedEntryTypes: measurements.supportedEntryTypes,
   tracePath,
 }
