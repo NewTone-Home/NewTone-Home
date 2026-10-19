@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineEntityBelongsToActiveRoom, type MainlineSceneEntity } from '../src/center/runtime/mainlineSceneModel'
 import { canTravelAlongMainlineSegment, findMainlinePath, findMainlinePathToEntity, isWalkableMainlinePoint, resolveMainlineSeatSitPosition } from '../src/center/runtime/mainlineNavigation'
-import { mainlineScenes, mainlineStorefrontApproach, validateMainlineSceneGeometry } from '../src/center/runtime/mainlineScenes'
+import { mainlineSceneGeometryUnits, mainlineScenes, mainlineStorefrontApproach, validateMainlineSceneGeometry } from '../src/center/runtime/mainlineScenes'
 import { boundaryGridStepsFromScreenSpacing } from '../src/center/runtime/sceneBoundaryGrid'
 
 const street = mainlineScenes['commercial-street']
@@ -139,7 +139,7 @@ describe('commercial street shell furniture samples', () => {
   it('keeps internal wall glyphs collidable and leaves independent warehouse/kitchen door gaps', () => {
     const walls = street.objects.filter((entity) => entity.label === '墙' && entity.roomId)
     const internalDoors = street.objects.filter((entity) => entity.label === '门' && entity.roomId)
-    expect(walls).toHaveLength(38)
+    expect(walls).toHaveLength(30)
     expect(internalDoors.map((entity) => entity.id).sort()).toEqual([
       'commercial-s2-fast-food-kitchen-door',
       'commercial-s2-fast-food-warehouse-door',
@@ -151,6 +151,49 @@ describe('commercial street shell furniture samples', () => {
     expect(internalDoors.every((door) => !door.collision)).toBe(true)
     expect(street.blockers).toHaveLength(0)
     expect(validateMainlineSceneGeometry(street)).toEqual([])
+  })
+
+  it('draws one glyph at each shared shell/furniture wall junction without shortening collision runs', () => {
+    const shellWallCells = mainlineSceneGeometryUnits(street, street.initialPlayerPosition)
+      .filter((unit) => unit.sourceWallId?.endsWith('-shell'))
+      .flatMap((unit) => unit.visual.cells)
+      .filter((cell) => cell.kind === 'wall')
+    const wallGlyphEntities = street.objects.filter((entity) => entity.roomId
+      && (entity.id.includes('rear-partition-') || entity.id.includes('divider-')))
+    const junctions = [
+      [sampleRoomIds[0], 0, 16, true], [sampleRoomIds[0], 6, 16, false], [sampleRoomIds[0], 10, 16, true], [sampleRoomIds[0], 6, 21, true],
+      [sampleRoomIds[1], 0, 16, true], [sampleRoomIds[1], 18, 16, false], [sampleRoomIds[1], 22, 16, true], [sampleRoomIds[1], 18, 21, true],
+    ] as const
+
+    for (const [roomId, column, row, shellOwnsGlyph] of junctions) {
+      const shellGlyphs = shellWallCells.filter((cell) => {
+        const local = localCell(roomId, cell)
+        return Math.abs(local.column - column) < 0.01 && Math.abs(local.row - row) < 0.01
+      })
+      const furnitureGlyphs = wallGlyphEntities.filter((entity) => entity.roomId === roomId
+        && Math.abs(localCell(roomId, entity.position).column - column) < 0.01
+        && Math.abs(localCell(roomId, entity.position).row - row) < 0.01)
+      expect(shellGlyphs, `${roomId} shell ownership at ${column},${row}`).toHaveLength(shellOwnsGlyph ? 1 : 0)
+      expect(furnitureGlyphs, `${roomId} furniture ownership at ${column},${row}`).toHaveLength(shellOwnsGlyph ? 0 : 1)
+      expect(shellGlyphs.length + furnitureGlyphs.length, `${roomId} unique wall glyph at ${column},${row}`).toBe(1)
+    }
+
+    const barriers = street.continuousStructures.filter((structure) => structure.kind === 'barrier')
+    expect(barriers).toHaveLength(8)
+    for (const [id, length] of [
+      ['commercial-s5-milk-tea-kitchen-divider-body', 6],
+      ['commercial-s2-fast-food-kitchen-warehouse-divider-body', 6],
+      ['commercial-s5-milk-tea-rear-partition-0-body', 3],
+      ['commercial-s5-milk-tea-rear-partition-1-body', 3],
+      ['commercial-s5-milk-tea-rear-partition-2-body', 1],
+      ['commercial-s2-fast-food-rear-partition-0-body', 16],
+      ['commercial-s2-fast-food-rear-partition-1-body', 2],
+      ['commercial-s2-fast-food-rear-partition-2-body', 1],
+    ] as const) {
+      const body = barriers.find((candidate) => candidate.id === id)!
+      const expected = id.includes('divider') ? length * steps.vertical : length * steps.horizontal
+      expect(id.includes('divider') ? body.height : body.width, id).toBeCloseTo(expected)
+    }
   })
 
   it('keeps rear partitions sealed except at the two marked staff door openings', () => {

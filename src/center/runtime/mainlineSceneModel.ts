@@ -1204,8 +1204,12 @@ const commercialStreetShellFurniture = (() => {
     id: string,
     positions: readonly Point[],
     orientation: 'horizontal' | 'vertical',
+    omittedGlyphIndexes: readonly number[] = [],
   ) => {
-    positions.forEach((position, index) => addWallGlyph(sample, `${id}-${index + 1}`, position))
+    const omitted = new Set(omittedGlyphIndexes)
+    positions.forEach((position, index) => {
+      if (!omitted.has(index)) addWallGlyph(sample, `${id}-${index + 1}`, position)
+    })
     const first = positions[0]!
     const last = positions.at(-1)!
     const thickness = Math.max(.8, commercialStreetCellPitch * .18)
@@ -1251,7 +1255,8 @@ const commercialStreetShellFurniture = (() => {
   ])
   const milkTeaRearWallRuns = [[0, 1, 2], [5, 6, 7], [10]]
   milkTeaRearWallRuns.forEach((columns, runIndex) => {
-    addWallRun(milkTea, `commercial-s5-milk-tea-rear-partition-${runIndex}`, columns.map((column) => cell(milkTea, column, 16)), 'horizontal')
+    const omittedJunctionGlyphIndexes = runIndex === 0 ? [0] : runIndex === 2 ? [0] : []
+    addWallRun(milkTea, `commercial-s5-milk-tea-rear-partition-${runIndex}`, columns.map((column) => cell(milkTea, column, 16)), 'horizontal', omittedJunctionGlyphIndexes)
   })
   addInternalDoorGlyph(milkTea, 'commercial-s5-milk-tea-warehouse-door', cell(milkTea, 3.5, 16))
   addInternalDoorGlyph(milkTea, 'commercial-s5-milk-tea-kitchen-door', cell(milkTea, 8.5, 16))
@@ -1260,7 +1265,7 @@ const commercialStreetShellFurniture = (() => {
   addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-menu-service-label', '菜单', cell(milkTea, 2, 3))
   addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-order-service-label', '点单', cell(milkTea, 4, 5))
   addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-pickup-service-label', '取餐', cell(milkTea, 4, 12))
-  addWallRun(milkTea, 'commercial-s5-milk-tea-kitchen-divider', Array.from({ length: 6 }, (_, index) => cell(milkTea, 6, 16 + index)), 'vertical')
+  addWallRun(milkTea, 'commercial-s5-milk-tea-kitchen-divider', Array.from({ length: 6 }, (_, index) => cell(milkTea, 6, 16 + index)), 'vertical', [0, 5])
 
   const fastFood = commercialStreetInteriorSamples.find((sample) => sample.roomId === 'commercial-south-s2-interior')!
   addFurniture(fastFood, mainlineTwoSeatFurniture(
@@ -1274,7 +1279,8 @@ const commercialStreetShellFurniture = (() => {
   addCounter(fastFood, 'commercial-s2-fast-food-counter', [{ orientation: 'vertical', positions: Array.from({ length: 10 }, (_, index) => cell(fastFood, 14, 5 + index)) }])
   const fastFoodRearWallRuns = [Array.from({ length: 16 }, (_, index) => index), [18, 19], [22]]
   fastFoodRearWallRuns.forEach((columns, runIndex) => {
-    addWallRun(fastFood, `commercial-s2-fast-food-rear-partition-${runIndex}`, columns.map((column) => cell(fastFood, column, 16)), 'horizontal')
+    const omittedJunctionGlyphIndexes = runIndex === 0 ? [0] : runIndex === 2 ? [0] : []
+    addWallRun(fastFood, `commercial-s2-fast-food-rear-partition-${runIndex}`, columns.map((column) => cell(fastFood, column, 16)), 'horizontal', omittedJunctionGlyphIndexes)
   })
   addInternalDoorGlyph(fastFood, 'commercial-s2-fast-food-kitchen-door', cell(fastFood, 16.5, 16))
   addInternalDoorGlyph(fastFood, 'commercial-s2-fast-food-warehouse-door', cell(fastFood, 20.5, 16))
@@ -1283,7 +1289,7 @@ const commercialStreetShellFurniture = (() => {
   addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-menu-service-label', '菜单', cell(fastFood, 7, 3))
   addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-order-service-label', '点单', cell(fastFood, 12, 5))
   addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-pickup-service-label', '取餐', cell(fastFood, 12, 12))
-  addWallRun(fastFood, 'commercial-s2-fast-food-kitchen-warehouse-divider', Array.from({ length: 6 }, (_, index) => cell(fastFood, 18, 16 + index)), 'vertical')
+  addWallRun(fastFood, 'commercial-s2-fast-food-kitchen-warehouse-divider', Array.from({ length: 6 }, (_, index) => cell(fastFood, 18, 16 + index)), 'vertical', [0, 5])
 
   return { groupIds, entities, structures }
 })()
