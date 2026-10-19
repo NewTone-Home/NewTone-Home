@@ -267,6 +267,26 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     if (typeof ResizeObserver === 'undefined') return undefined
     const observer = new ResizeObserver(measureAll)
     const characterChanges = new MutationObserver(measureAll)
+    const characterProgressChanges = new MutationObserver((records) => {
+      const changedGroups = new Set<string>()
+      records.forEach((record) => {
+        if (record.attributeName !== 'data-character-progress') return
+        const host = record.target as HTMLElement
+        const progress = Number.parseFloat(host.dataset.characterProgress ?? '')
+        // A storefront rolls the replacement glyph across the baseline door.
+        // Intermediate positions are intentionally animated; remeasure only
+        // after the glyph has reached either stable endpoint.
+        if (progress !== 0 && progress !== 1) return
+        host.querySelectorAll<HTMLElement>('[data-focus-visual-group]').forEach((element) => {
+          const group = element.dataset.focusVisualGroup
+          if (group && targetGroups.has(group)) changedGroups.add(group)
+        })
+      })
+      if (changedGroups.size === 0) return
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => measure(changedGroups))
+      })
+    })
     frameNodesRef.current.forEach((node, group) => {
       if (!targetGroups.has(group)) return
       if (node.parentElement) observer.observe(node.parentElement)
@@ -277,10 +297,23 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         }
       })
     })
+    const stages = new Set([...frameNodesRef.current.entries()]
+      .filter(([group]) => targetGroups.has(group))
+      .map(([, node]) => node.closest('.mainline-scene-stage'))
+      .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement))
+    stages.forEach((stage) => {
+      stage.querySelectorAll<HTMLElement>('[data-character-progress]').forEach((host) => {
+        if ([...host.querySelectorAll<HTMLElement>('[data-focus-visual-group]')]
+          .some((element) => targetGroups.has(element.dataset.focusVisualGroup ?? ''))) {
+          characterProgressChanges.observe(host, { attributes: true, attributeFilter: ['data-character-progress'] })
+        }
+      })
+    })
     document.fonts?.addEventListener('loadingdone', measureAll)
     return () => {
       observer.disconnect()
       characterChanges.disconnect()
+      characterProgressChanges.disconnect()
       document.fonts?.removeEventListener('loadingdone', measureAll)
       measureGroupRef.current = () => {}
     }

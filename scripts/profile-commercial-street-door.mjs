@@ -1,9 +1,10 @@
 import { chromium } from '@playwright/test'
+import { createServer } from 'vite'
 import { mkdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-const defaultUrl = 'https://new-tone-p9axim4lz-newtone-homes-projects.vercel.app/?scene=commercial-street'
+const defaultUrl = 'https://new-tone-md827t9ca-newtone-homes-projects.vercel.app/?scene=commercial-street'
 const args = new Map(process.argv.slice(2).map((arg) => {
   const [key, ...rest] = arg.replace(/^--/, '').split('=')
   return [key, rest.join('=')]
@@ -13,7 +14,23 @@ const outDir = path.resolve(args.get('out-dir') ?? path.join(os.tmpdir(), 'newto
 const chromePath = process.env.NEW_TONE_CHROME_PATH
   ?? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
 const targetCellId = 'commercial-north-slot-1-character-1'
+const targetStorefrontId = 'commercial-north-slot-1'
 const targetObjectSelector = '[data-object-id^="commercial-retail-n1-fruit-tea-"]'
+
+const viteServer = await createServer({ configFile: 'vite.config.js', server: { middlewareMode: true }, appType: 'custom' })
+let targetRoomBounds
+let targetApproach
+try {
+  const { mainlineScenes } = await viteServer.ssrLoadModule('/src/center/runtime/mainlineScenes.ts')
+  const street = mainlineScenes['commercial-street']
+  const storefront = street.storefronts.find((candidate) => candidate.id === targetStorefrontId)
+  const passage = street.passages.find((candidate) => candidate.portalId === storefront?.portalId)
+  targetRoomBounds = street.rooms.find((room) => room.id === passage?.toRoomId)?.bounds
+  targetApproach = passage?.thresholds[0]
+} finally {
+  await viteServer.close()
+}
+if (!targetRoomBounds || !targetApproach) throw new Error(`Could not resolve the authored room and threshold for ${targetStorefrontId}`)
 
 function percentile(values, p) {
   if (!values.length) return null
@@ -129,15 +146,42 @@ async function stopCpuProfile(label) {
   cpuProfiles[label] = { path: profilePath, ...summarizeCpuProfile(profile) }
 }
 
-await page.addInitScript(({ selector, cellId }) => {
+await page.addInitScript(({ selector, cellId, roomBounds, approach }) => {
   const sample = { raf: [], longTasks: [], milestones: [], supportedEntryTypes: [] }
   Object.defineProperty(window, '__commercialStreetProfile', { value: sample })
   let previousFrame = null
-  const mark = (name, detail = {}) => sample.milestones.push({ name, t: performance.now(), ...detail })
+  let previousRoomMembership = null
+  let markedFirstRoomFrame = false
+  const mark = (name, detail = {}) => {
+    const t = performance.now()
+    sample.milestones.push({ name, t, ...detail })
+    performance.mark(name, { detail })
+  }
   sample.mark = mark
   const tick = (t) => {
     if (previousFrame != null) sample.raf.push({ t, deltaMs: t - previousFrame })
     previousFrame = t
+    const actor = document.querySelector('[data-actor-id="protagonist"]')
+    const x = Number.parseFloat(actor?.style.left ?? '')
+    const y = Number.parseFloat(actor?.style.top ?? '')
+    const inTargetRoom = Number.isFinite(x) && Number.isFinite(y)
+      && x >= roomBounds.x && x <= roomBounds.x + roomBounds.width
+      && y >= roomBounds.y && y <= roomBounds.y + roomBounds.height
+    const objectCount = document.querySelectorAll(selector).length
+    if (previousRoomMembership === null) previousRoomMembership = inTargetRoom
+    else if (inTargetRoom !== previousRoomMembership) {
+      mark(inTargetRoom ? 'active-room-entered' : 'active-room-left', { x, y, roomBounds })
+      previousRoomMembership = inTargetRoom
+    }
+    if (!sample.approachReached && Number.isFinite(x) && Number.isFinite(y)
+      && Math.hypot(x - approach.x, y - approach.y) <= 1.25) {
+      sample.approachReached = true
+      mark('street-approach-reached', { x, y, approach })
+    }
+    if (objectCount > 0 && !markedFirstRoomFrame) {
+      markedFirstRoomFrame = true
+      mark('room-items-first-raf', { x, y, objectCount })
+    }
     requestAnimationFrame(tick)
   }
   requestAnimationFrame(tick)
@@ -145,7 +189,7 @@ await page.addInitScript(({ selector, cellId }) => {
   sample.supportedEntryTypes = PerformanceObserver.supportedEntryTypes ?? []
   if (sample.supportedEntryTypes.includes('longtask')) {
     new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) sample.longTasks.push({ t: entry.startTime, durationMs: entry.duration })
+      for (const entry of list.getEntries()) sample.longTasks.push({ t: entry.startTime, durationMs: entry.duration, end: entry.startTime + entry.duration })
     }).observe({ type: 'longtask', buffered: true })
   }
 
@@ -178,7 +222,7 @@ await page.addInitScript(({ selector, cellId }) => {
   }
   if (!attachObserver()) document.addEventListener('DOMContentLoaded', attachObserver, { once: true })
   sample.pollTimer = window.setInterval(inspect, 50)
-}, { selector: targetObjectSelector, cellId: targetCellId })
+}, { selector: targetObjectSelector, cellId: targetCellId, roomBounds: targetRoomBounds, approach: targetApproach })
 
 await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 })
 await page.waitForSelector('.mainline-scene-stage[data-mainline-scene="commercial-street"]', { timeout: 30_000 })
@@ -197,6 +241,7 @@ const traceComplete = new Promise((resolve) => cdp.once('Tracing.tracingComplete
 await startCpuProfile('entry')
 await page.locator(`[data-storefront-cell-id="${targetCellId}"]`).click({ timeout: 15_000 })
 await page.waitForFunction((selector) => document.querySelectorAll(selector).length > 0, targetObjectSelector, { timeout: 45_000, polling: 100 })
+await page.waitForFunction(() => window.__commercialStreetProfile.milestones.some(event => event.name === 'room-items-first-raf'), undefined, { timeout: 45_000, polling: 16 })
 await stopCpuProfile('entry')
 await page.evaluate(() => window.__commercialStreetProfile.mark('interior-fixtures-ready'))
 await page.waitForTimeout(1_000)
@@ -228,9 +273,33 @@ await writeFile(tracePath, traceText)
 
 const doorInputs = measurements.milestones.filter((event) => event.name === 'door-pointerdown')
 const mounted = measurements.milestones.find((event) => event.name === 'room-items-mounted')
+const approachReached = measurements.milestones.find((event) => event.name === 'street-approach-reached')
+const activeRoomEntered = measurements.milestones.find((event) => event.name === 'active-room-entered')
+const firstItemsFrame = measurements.milestones.find((event) => event.name === 'room-items-first-raf')
 const unmounted = measurements.milestones.find((event) => event.name === 'room-items-unmounted' && mounted && event.t > mounted.t)
 const entryInput = doorInputs[0]?.t
 const returnInput = doorInputs[1]?.t
+const entryPhaseBounds = [
+  ['walk-to-approach', entryInput, approachReached?.t],
+  ['approach-to-active-room', approachReached?.t, activeRoomEntered?.t],
+  ['active-room-to-dom-mount', activeRoomEntered?.t, mounted?.t],
+  ['dom-mount-to-first-frame', mounted?.t, firstItemsFrame?.t],
+].filter(([, start, end]) => start != null && end != null)
+const entryTasks = measurements.longTasks
+  .filter((task) => entryInput != null && task.t >= entryInput && firstItemsFrame && task.t <= firstItemsFrame.t)
+  .map((task) => {
+    const taskEnd = task.end ?? task.t + task.durationMs
+    const overlapByPhaseMs = Object.fromEntries(entryPhaseBounds.map(([phase, start, end]) => [
+      phase,
+      Number(Math.max(0, Math.min(taskEnd, end) - Math.max(task.t, start)).toFixed(2)),
+    ]))
+    return {
+      ...task,
+      relativeToClickMs: Number((task.t - entryInput).toFixed(2)),
+      relativeToRoomMountMs: mounted ? Number((task.t - mounted.t).toFixed(2)) : null,
+      overlapByPhaseMs,
+    }
+  })
 const results = {
   url,
   viewport: { width: 1180, height: 757, deviceScaleFactor: 1 },
@@ -239,9 +308,15 @@ const results = {
   snapshots: { streetBefore: before, inside: inside, streetReturned: returned },
   intervals: {
     streetWalkAndEntry: {
-      durationMs: entryInput != null && mounted ? Number((mounted.t - entryInput).toFixed(2)) : null,
-      frameDeltas: summarize(windowSamples(measurements.raf, entryInput, mounted?.t)),
-      longTasks: measurements.longTasks.filter((task) => entryInput != null && mounted && task.t >= entryInput && task.t <= mounted.t),
+      clickToRoomItemsMountedMs: entryInput != null && mounted ? Number((mounted.t - entryInput).toFixed(2)) : null,
+      clickToFirstRoomItemsFrameMs: entryInput != null && firstItemsFrame ? Number((firstItemsFrame.t - entryInput).toFixed(2)) : null,
+      clickToApproachMs: entryInput != null && approachReached ? Number((approachReached.t - entryInput).toFixed(2)) : null,
+      clickToActiveRoomMs: entryInput != null && activeRoomEntered ? Number((activeRoomEntered.t - entryInput).toFixed(2)) : null,
+      approachToActiveRoomMs: approachReached && activeRoomEntered ? Number((activeRoomEntered.t - approachReached.t).toFixed(2)) : null,
+      activeRoomToMountMs: activeRoomEntered && mounted ? Number((mounted.t - activeRoomEntered.t).toFixed(2)) : null,
+      mountToFirstFrameMs: mounted && firstItemsFrame ? Number((firstItemsFrame.t - mounted.t).toFixed(2)) : null,
+      frameDeltas: summarize(windowSamples(measurements.raf, entryInput, firstItemsFrame?.t)),
+      longTasks: entryTasks,
     },
     indoorExitAndReturn: {
       durationMs: returnInput != null && unmounted ? Number((unmounted.t - returnInput).toFixed(2)) : null,

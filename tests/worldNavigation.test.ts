@@ -98,6 +98,57 @@ describe('ordinary world navigation and passage intent', () => {
     variants.forEach(mesh => expect(mesh).not.toBe(baseline))
   })
 
+  it('invalidates the prepared static mesh when a compiled obstacle or navigation barrier changes', () => {
+    const street = mainlineScenes['commercial-street']
+    const screenMetrics = { width: 1180, height: 757, viewportWidth: 1180 }
+    const snapshot = createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, screenMetrics)
+    const options = { screenMetrics, actorFootprint: { width: 1.2, height: 1.2 } }
+    const baseline = prepareMainlineWorldNavigation(street, {}, { ...options, geometrySnapshot: snapshot })
+
+    const blockerIndex = snapshot.units.findIndex(unit => unit.navigation.blocked && !unit.navigation.passageId && !unit.navigation.opensWithPassageId)
+    expect(blockerIndex).toBeGreaterThanOrEqual(0)
+    const shiftedUnits = snapshot.units.map((unit, index) => index === blockerIndex ? { ...unit, x: unit.x + .5 } : unit)
+    const withShiftedObstacle = prepareMainlineWorldNavigation(street, {}, {
+      ...options,
+      geometrySnapshot: { ...snapshot, units: shiftedUnits },
+    })
+    expect(withShiftedObstacle.obstacles).not.toEqual(baseline.obstacles)
+    expect(withShiftedObstacle.navigationMesh).not.toBe(baseline.navigationMesh)
+
+    const extraBarrier = {
+      id: 'cache-invalidation-test-barrier',
+      start: point(20, 20),
+      end: point(24, 20),
+      kind: 'relation' as const,
+    }
+    const withExtraBarrier = prepareMainlineWorldNavigation(street, {}, {
+      ...options,
+      geometrySnapshot: { ...snapshot, navigationBarriers: [...snapshot.navigationBarriers, extraBarrier] },
+    })
+    expect(withExtraBarrier.barriers).not.toEqual(baseline.barriers)
+    expect(withExtraBarrier.navigationMesh).not.toBe(baseline.navigationMesh)
+  })
+
+  it('bounds prepared static meshes to an eight-entry per-scene LRU', () => {
+    const street = mainlineScenes['commercial-street']
+    const screenMetrics = { width: 1180, height: 757, viewportWidth: 1180 }
+    const geometrySnapshot = createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, screenMetrics)
+    const prepare = (width: number) => prepareMainlineWorldNavigation(street, {}, {
+      screenMetrics,
+      actorFootprint: { width, height: 1.2 },
+      geometrySnapshot,
+    }).navigationMesh
+
+    const first = prepare(1.2)
+    const second = prepare(1.3)
+    for (let index = 2; index < 8; index += 1) prepare(1.2 + index / 10)
+    expect(prepare(1.2)).toBe(first) // Refresh the oldest entry before inserting a ninth key.
+    prepare(2.0)
+
+    expect(prepare(1.3)).not.toBe(second) // The least recently used entry was evicted.
+    expect(prepare(1.2)).toBe(first)
+  })
+
   it('projects only onto the start component while keeping an exact reachable target', () => {
     const gridUnit = 20
     const halfGrid = gridUnit / 2
