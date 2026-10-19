@@ -1153,10 +1153,10 @@ const commercialStreetShellFurniture = (() => {
   const addCounter = (
     sample: typeof commercialStreetInteriorSamples[number],
     prefix: string,
-    paths: readonly { orientation: 'horizontal' | 'vertical'; positions: readonly Point[] }[],
+    paths: readonly { orientation: 'horizontal' | 'vertical'; positions: readonly Point[]; glyphs?: readonly string[] }[],
   ) => {
     const glyphPositions = new Set<string>()
-    paths.forEach(({ positions, orientation }, pathIndex) => {
+    paths.forEach(({ positions, orientation, glyphs }, pathIndex) => {
       const first = positions[0]!
       const last = positions.at(-1)!
       const vertical = orientation === 'vertical'
@@ -1164,9 +1164,10 @@ const commercialStreetShellFurniture = (() => {
         const key = `${position.x.toFixed(4)}:${position.y.toFixed(4)}`
         if (glyphPositions.has(key)) return
         glyphPositions.add(key)
+        const label = glyphs?.[index] ?? (vertical && positions.length > 1 ? index % 2 === 0 ? '柜' : '台' : '柜台')
         entities.push(floor({
           id: `${prefix}-${pathIndex + 1}-${index + 1}`,
-          label: vertical && positions.length > 1 ? index % 2 === 0 ? '柜' : '台' : '柜台',
+          label,
           kind: 'fixture',
           weight: 'fixture',
           position,
@@ -1251,7 +1252,7 @@ const commercialStreetShellFurniture = (() => {
   ))
   addCounter(milkTea, 'commercial-s5-milk-tea-counter', [
     { orientation: 'vertical', positions: Array.from({ length: 10 }, (_, index) => cell(milkTea, 6, 5 + index)) },
-    { orientation: 'horizontal', positions: [cell(milkTea, 6, 14), cell(milkTea, 7, 14)] },
+    { orientation: 'horizontal', positions: [cell(milkTea, 6, 14), cell(milkTea, 7, 14), cell(milkTea, 8, 14)], glyphs: ['台', '柜', '台'] },
   ])
   const milkTeaRearWallRuns = [[0, 1, 2], [5, 6, 7], [10]]
   milkTeaRearWallRuns.forEach((columns, runIndex) => {

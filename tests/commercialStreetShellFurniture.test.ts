@@ -113,21 +113,33 @@ describe('commercial street shell furniture samples', () => {
     }
     const milkTeaCounter = counters.filter((entity) => entity.roomId === sampleRoomIds[0])
     const fastFoodCounter = counters.filter((entity) => entity.roomId === sampleRoomIds[1])
-    expect(milkTeaCounter).toHaveLength(11)
+    expect(milkTeaCounter).toHaveLength(12)
     expect(fastFoodCounter).toHaveLength(10)
     expect(new Set(milkTeaCounter.map((entity) => `${entity.position.x}:${entity.position.y}`)).size).toBe(milkTeaCounter.length)
     const milkTeaVertical = bodies.find((body) => body.id === 'commercial-s5-milk-tea-counter-1-body')!
     const milkTeaHorizontal = bodies.find((body) => body.id === 'commercial-s5-milk-tea-counter-2-body')!
     expect(overlaps(milkTeaVertical, milkTeaHorizontal)).toBe(true)
-    expect(milkTeaHorizontal.width).toBeCloseTo(2 * steps.horizontal)
+    expect(milkTeaHorizontal.width).toBeCloseTo(3 * steps.horizontal)
     expect(milkTeaHorizontal.height).toBeCloseTo(steps.vertical)
-    expect(milkTeaCounter.filter((entity) => entity.label === '柜台')).toHaveLength(1)
-    expect(milkTeaCounter.find((entity) => entity.label === '柜台')!.position.x).toBeGreaterThan(milkTeaHorizontal.x)
+    const horizontalMilkTeaGlyphs = milkTeaCounter.filter((entity) => entity.interactionStructureId === milkTeaHorizontal.id).sort((a, b) => a.position.x - b.position.x)
+    expect(horizontalMilkTeaGlyphs.map((entity) => entity.label).join('')).toBe('柜台')
+    expect(horizontalMilkTeaGlyphs.every((entity) => Array.from(entity.label).length === 1)).toBe(true)
+    expect(horizontalMilkTeaGlyphs[1]!.position.x - horizontalMilkTeaGlyphs[0]!.position.x).toBeCloseTo(steps.horizontal)
+    for (const glyph of horizontalMilkTeaGlyphs) {
+      expect(glyph.position.x).toBeGreaterThanOrEqual(milkTeaHorizontal.x)
+      expect(glyph.position.x).toBeLessThanOrEqual(milkTeaHorizontal.x + milkTeaHorizontal.width)
+      expect(glyph.position.y).toBeGreaterThanOrEqual(milkTeaHorizontal.y)
+      expect(glyph.position.y).toBeLessThanOrEqual(milkTeaHorizontal.y + milkTeaHorizontal.height)
+    }
     expect(new Set(fastFoodCounter.map((entity) => entity.position.x)).size).toBe(1)
     expect(new Set(milkTeaCounter.map((entity) => entity.interactionStructureId)).size).toBe(2)
     expect(new Set(fastFoodCounter.map((entity) => entity.interactionStructureId)).size).toBe(1)
     const verticalMilkTea = milkTeaCounter.filter((entity) => Math.abs(localCell(sampleRoomIds[0], entity.position).column - 6) < 0.1).sort((a, b) => a.position.y - b.position.y)
     expect(verticalMilkTea.map((entity) => entity.label).join('')).toBe('柜台柜台柜台柜台柜台')
+    const milkTeaRoom = street.rooms.find((candidate) => candidate.id === sampleRoomIds[0])!
+    const milkTeaSlot = street.storefronts.find((candidate) => candidate.id === 'commercial-south-slot-5')!
+    const eastEmployeeAisle = { x: milkTeaRoom.bounds.x + 8 * steps.horizontal, y: milkTeaRoom.bounds.y + 10 * steps.vertical }
+    expect(findMainlinePath(mainlineStorefrontApproach(street, milkTeaSlot), eastEmployeeAisle, street), 'east employee aisle remains walkable beside the extended counter').not.toBeNull()
     expect(fastFoodCounter.sort((a, b) => a.position.y - b.position.y).map((entity) => entity.label).join('')).toBe('柜台'.repeat(5))
     const furniture = street.objects.filter((entity) => entity.roomId && (entity.kind === 'table' || entity.kind === 'seat') && entity.collision)
     const barriers = street.continuousStructures.filter((structure) => structure.kind === 'barrier')
