@@ -24,43 +24,28 @@ describe('commercial street storefront presentation', () => {
     expect(storefrontRestoreDelayMs(100, 3100)).toBe(0)
     expect(storefrontRestoreDelayMs(100, 4100)).toBe(0)
   })
-  it('keeps the approved 16-slot commercial street inventory while Café remains the only portal storefront', () => {
-    const ordinaryStorefronts = street.storefronts.filter((storefront) => storefront.id !== 'commercial-cafe-slot')
-
-    expect(ordinaryStorefronts.map(({ id, label }) => ({ id, label }))).toEqual([
-      { id: 'commercial-north-slot-1', label: '果茶店' },
-      { id: 'commercial-north-slot-2', label: '服装店' },
-      { id: 'commercial-north-slot-3', label: '花店' },
-      { id: 'commercial-north-slot-4', label: '眼镜店' },
-      { id: 'commercial-north-slot-5', label: '美妆店' },
-      { id: 'commercial-north-slot-6', label: '服装店' },
-      { id: 'commercial-north-slot-7', label: '书店' },
-      { id: 'commercial-north-slot-8', label: '甜品店' },
-      { id: 'commercial-south-slot-1', label: '鞋店' },
-      { id: 'commercial-south-slot-2', label: '潮玩店' },
-      { id: 'commercial-south-slot-3', label: '香氛店' },
-      { id: 'commercial-south-slot-4', label: '服装店' },
-      { id: 'commercial-south-slot-5', label: '奶茶店' },
-      { id: 'commercial-south-slot-6', label: '周边店' },
-      { id: 'commercial-south-slot-7', label: '首饰店' },
-      { id: 'commercial-south-slot-8', label: '服装店' },
+  it('keeps the approved 14-shop continuous street inventory and locks every storefront door', () => {
+    expect(street.storefronts.map(({ id, label, start, end }) => ({ id, label, start, end }))).toEqual([
+      { id: 'commercial-north-slot-1', label: '水果茶店', start: 14, end: 32 },
+      { id: 'commercial-north-slot-2', label: '书店', start: 36, end: 54 },
+      { id: 'commercial-north-slot-3', label: '美妆店', start: 58, end: 76 },
+      { id: 'commercial-north-slot-4', label: '眼镜店', start: 80, end: 98 },
+      { id: 'commercial-north-slot-5', label: '玩具店', start: 102, end: 120 },
+      { id: 'commercial-north-slot-6', label: '香氛店', start: 124, end: 142 },
+      { id: 'commercial-cafe-slot', label: '咖啡馆', start: 146, end: 186 },
+      { id: 'commercial-south-slot-1', label: '鞋店', start: 14, end: 32 },
+      { id: 'commercial-south-slot-2', label: '永和小馆', start: 36, end: 76 },
+      { id: 'commercial-south-slot-4', label: '服装店', start: 80, end: 98 },
+      { id: 'commercial-south-slot-5', label: '奶茶店', start: 102, end: 120 },
+      { id: 'commercial-south-slot-6', label: '甜品店', start: 124, end: 142 },
+      { id: 'commercial-south-slot-7', label: '珠宝店', start: 146, end: 164 },
+      { id: 'commercial-south-slot-8', label: '服装店', start: 168, end: 186 },
     ])
-    expect(ordinaryStorefronts).toHaveLength(16)
-    expect(ordinaryStorefronts.filter((storefront) => storefront.label === '服装店').map((storefront) => storefront.id)).toEqual([
-      'commercial-north-slot-2',
-      'commercial-north-slot-6',
-      'commercial-south-slot-4',
-      'commercial-south-slot-8',
-    ])
-    expect(ordinaryStorefronts.every((storefront) => storefront.portalId === undefined)).toBe(true)
-    expect(ordinaryStorefronts.find((storefront) => storefront.label === '奶茶店')?.id).toBe('commercial-south-slot-5')
-    expect(ordinaryStorefronts.find((storefront) => storefront.label === '果茶店')?.id).toBe('commercial-north-slot-1')
-    expect(ordinaryStorefronts.find((storefront) => storefront.label === '甜品店')?.id).toBe('commercial-north-slot-8')
-    expect(cafe).toMatchObject({ id: 'commercial-cafe-slot', label: '咖啡馆', portalId: 'street-cafe-entry' })
-    expect(street.passages.find((passage) => passage.id === 'street-cafe-entry')).toMatchObject({
-      entityId: 'street-cafe-entry',
-      targetSceneId: 'commercial-cafe',
-    })
+    expect(street.storefronts).toHaveLength(14)
+    expect(street.storefronts.every((storefront) => storefront.portalId && storefront.characterSwitch)).toBe(true)
+    expect(street.passages).toHaveLength(14)
+    expect(street.passages.every((passage) => passage.access === 'locked' && !passage.targetSceneId)).toBe(true)
+    expect(street.passages.find((passage) => passage.id === 'street-cafe-entry')?.targetSceneId).toBeUndefined()
   })
 
   it('projects one window per character without adding world entities', () => {
@@ -160,40 +145,24 @@ describe('commercial street storefront presentation', () => {
     }
   })
 
-  it('enters revealing and then revealed only for the portal storefront approach', () => {
+  it('enters revealing and then revealed at every storefront approach', () => {
     expect(storefrontPresentationShouldReveal(street, cafe, mainlineStorefrontApproach(street, cafe))).toBe(true)
     expect(nextStorefrontPresentationPhase('baseline', 'approach')).toBe('retracting')
     expect(nextStorefrontPresentationPhase('retracting', 'frame-retracted')).toBe('revealing')
     expect(nextStorefrontPresentationPhase('retracting', 'leave')).toBe('baseline')
     expect(nextStorefrontPresentationPhase('revealing', 'leave')).toBe('revealing')
     expect(nextStorefrontPresentationPhase('revealing', 'reveal-motion-complete')).toBe('revealed')
-    const nonPortal = street.storefronts.find((storefront) => !storefront.portalId)!
-    expect(storefrontPresentationShouldReveal(street, nonPortal, mainlineStorefrontApproach(street, nonPortal))).toBe(false)
+    for (const storefront of street.storefronts) {
+      expect(storefrontPresentationShouldReveal(street, storefront, mainlineStorefrontApproach(street, storefront))).toBe(true)
+    }
   })
 
-  it('bounds only Café outward departure by the neighboring compiled glass edge', () => {
-    const departureRadius = mainlineStorefrontDepartureRadius(street, cafe)
-    const approach = mainlineStorefrontApproach(street, cafe)
-    expect(departureRadius).toBeDefined()
-    const glassBoundary = { x: approach.x - departureRadius!, y: approach.y }
-    const inwardDoor = mainlineStorefrontAnchor(street, cafe)
-    const nearestCompiledGlassEdge = Math.max(...street.geometry.flatMap((unit) => (
-      unit.edge === 'top' || unit.edge === 'bottom'
-        ? unit.visual.cells.filter((cell) => cell.storefrontRole === 'glass' && cell.cellEnd !== undefined && cell.cellEnd < approach.x).map((cell) => cell.cellEnd!)
-        : []
-    )))
-
-    expect(departureRadius).toBeCloseTo(approach.x - nearestCompiledGlassEdge, 8)
-    expect(isMainlineStorefrontPresentationInRange(street, cafe, glassBoundary)).toBe(true)
-    expect(isMainlineStorefrontPresentationInRange(street, cafe, { x: glassBoundary.x - .02, y: approach.y })).toBe(false)
-    expect(isMainlineStorefrontPresentationInRange(street, cafe, approach)).toBe(true)
-    expect(isMainlineStorefrontPresentationInRange(street, cafe, inwardDoor)).toBe(true)
-
-    const ordinary = street.storefronts.find((storefront) => storefront.id === 'commercial-north-slot-8')!
-    expect(mainlineStorefrontDepartureRadius(street, ordinary)).toBeUndefined()
-    const ordinaryPortal = { ...ordinary, id: 'ordinary-portal', portalId: 'ordinary-entry' }
-    expect(isMainlineStorefrontPresentationInRange(street, ordinaryPortal, mainlineStorefrontApproach(street, ordinary))).toBe(true)
-    expect(isMainlineStorefrontNear(street, ordinaryPortal, mainlineStorefrontAnchor(street, ordinary))).toBe(true)
+  it('keeps each locked portal reveal inside its authored approach radius', () => {
+    for (const storefront of street.storefronts) {
+      const approach = mainlineStorefrontApproach(street, storefront)
+      expect(isMainlineStorefrontPresentationInRange(street, storefront, approach)).toBe(true)
+      expect(isMainlineStorefrontPresentationInRange(street, storefront, { x: approach.x + 20, y: approach.y })).toBe(false)
+    }
   })
 
   it('assigns one entrance owner to the nearest eligible storefront and releases ownership on exit', () => {
@@ -241,7 +210,8 @@ describe('commercial street storefront presentation', () => {
 
   it('does not make the presentation part of traversal completion', () => {
     const passage = street.passages.find((candidate) => candidate.id === 'street-cafe-entry')!
-    expect(passage.targetSceneId).toBe('commercial-cafe')
+    expect(passage.access).toBe('locked')
+    expect(passage.targetSceneId).toBeUndefined()
     expect(nextStorefrontPresentationPhase('revealing', 'reveal-motion-complete')).toBe('revealed')
   })
 })

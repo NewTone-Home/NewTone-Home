@@ -1002,6 +1002,42 @@ const commercialStreetAmbientNpcRoutes = [
   { npcId: 'commercial-street-pedestrian-shopper', initialDelayMs: 5100, steps: [{ target: authoredPoint(110, 40), dwellMs: 3500 }, { kind: 'storefront-visit', target: authoredPoint(156, 58), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-7', reentry: authoredPoint(156, 58), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(96, 58), dwellMs: 1400 }, { target: authoredPoint(116, 58), dwellMs: 2600 }] },
 ] as const satisfies readonly MainlineAmbientNpcRoute[]
 
+const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
+  ...[
+    ['commercial-north-slot-1', 'commercial-north-facade', 'bottom', '水果茶店', 14, 32],
+    ['commercial-north-slot-2', 'commercial-north-facade', 'bottom', '书店', 36, 54],
+    ['commercial-north-slot-3', 'commercial-north-facade', 'bottom', '美妆店', 58, 76],
+    ['commercial-north-slot-4', 'commercial-north-facade', 'bottom', '眼镜店', 80, 98],
+    ['commercial-north-slot-5', 'commercial-north-facade', 'bottom', '玩具店', 102, 120],
+    ['commercial-north-slot-6', 'commercial-north-facade', 'bottom', '香氛店', 124, 142],
+    ['commercial-cafe-slot', 'commercial-north-facade', 'bottom', '咖啡馆', 146, 186],
+    ['commercial-south-slot-1', 'commercial-south-facade', 'top', '鞋店', 14, 32],
+    ['commercial-south-slot-2', 'commercial-south-facade', 'top', '永和小馆', 36, 76],
+    ['commercial-south-slot-4', 'commercial-south-facade', 'top', '服装店', 80, 98],
+    ['commercial-south-slot-5', 'commercial-south-facade', 'top', '奶茶店', 102, 120],
+    ['commercial-south-slot-6', 'commercial-south-facade', 'top', '甜品店', 124, 142],
+    ['commercial-south-slot-7', 'commercial-south-facade', 'top', '珠宝店', 146, 164],
+    ['commercial-south-slot-8', 'commercial-south-facade', 'top', '服装店', 168, 186],
+  ] as const
+].map(([id, wallId, edge, label, start, end]): MainlineStorefrontSlotBlueprint => {
+  const portalId = id === 'commercial-cafe-slot' ? 'street-cafe-entry' : `${id}-entry`
+  const approachY = edge === 'bottom' ? 42 : 58
+  return { id, wallId, edge, label, style: 'modern', mode: 'commercial', start, end,
+    composition: { baseline: ['sign'], near: ['wall', 'door', 'wall'] }, characterSwitch: true,
+    portalId, nearRadius: 10, approach: authoredPoint((start + end) / 2, approachY) }
+})
+
+const commercialStreetPortals: MainlineScenePortalBlueprint[] = commercialStreetStorefronts.map((storefront): MainlineScenePortalBlueprint => {
+  const x = (storefront.start + storefront.end) / 2
+  const y = storefront.edge === 'bottom' ? 36 : 64
+  const laneY = storefront.edge === 'bottom' ? 41 : 59
+  const portalId = storefront.portalId!
+  return { id: portalId,
+    entity: { id: portalId, label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
+    endpoint: { doorPosition: authoredPoint(x, y), threshold: authoredPoint(x, laneY), crossingTarget: authoredPoint(x, laneY) },
+    wallOpenings: [], transitionText: '此店铺尚未开放。', access: 'locked', lockedText: '此店铺尚未开放。' }
+})
+
 const commercialStreetBlueprint: MainlineSceneBlueprint = {
   id: 'commercial-street',
   title: '第一章 · 商业街',
@@ -1018,13 +1054,8 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
       { id: 'commercial-north-facade', type: 'room', bounds: box(12, 14, 180, 22), variant: 'shop-row', edges: ['bottom'] },
       { id: 'commercial-main-lane', type: 'lane', bounds: box(12, 36, 176, 28), edges: [] },
       { id: 'commercial-south-facade', type: 'room', bounds: box(12, 64, 180, 22), variant: 'shop-row', edges: ['top'] },
-      { id: 'commercial-cafe-terminal', type: 'frame', bounds: box(188, 36, 4, 28), variant: 'terminal', edges: ['right'] },
     ],
-    storefronts: [
-      ...storefrontRow('commercial-north', 'commercial-north-facade', 'bottom', ['果茶店', '服装店', '花店', '眼镜店', '美妆店', '服装店', '书店', '甜品店'], 'modern', commercialStorefrontStarts, 18),
-      ...storefrontRow('commercial-south', 'commercial-south-facade', 'top', ['鞋店', '潮玩店', '香氛店', '服装店', '奶茶店', '周边店', '首饰店', '服装店'], 'modern', commercialStorefrontStarts, 18),
-      { id: 'commercial-cafe-slot', wallId: 'commercial-cafe-terminal', edge: 'right', label: '咖啡馆', style: 'modern', composition: { baseline: ['sign'], near: ['wall', 'door', 'wall'] }, characterSwitch: true, portalId: 'street-cafe-entry', nearRadius: 10, start: commercialStreetCafeDoorStart, end: commercialStreetCafeDoorEnd, approach: authoredPoint(186, commercialStreetCafeDoorY) },
-    ],
+    storefronts: commercialStreetStorefronts,
     floorEntities: [],
     airWalls: commercialStreetFacadeAirWalls,
     blockers: [],
@@ -1041,12 +1072,7 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
     furnitureGroups: [],
     initialPlayerPosition: authoredPoint(34, 50),
   },
-  portals: [{
-    id: 'street-cafe-entry',
-    entity: { id: 'street-cafe-entry', label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
-    endpoint: { doorPosition: authoredPoint(192, commercialStreetCafeDoorY), threshold: authoredPoint(188, commercialStreetCafeDoorY), crossingTarget: authoredPoint(190, commercialStreetCafeDoorY), entryPosition: authoredPoint(14, commercialCafeDoorY) },
-    targetSceneId: 'commercial-cafe', wallOpenings: [], transitionText: '修杰穿过商业街尾端的门，进入咖啡馆。', access: 'open',
-  }],
+  portals: commercialStreetPortals,
   interactionText: { 'street-cafe-entry': '咖啡馆是独立场景，入口沿用主线门和寻路契约。' },
 }
 
