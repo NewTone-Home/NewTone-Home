@@ -998,8 +998,8 @@ const commercialStreetAmbientNpcs = [
 
 
 const commercialStreetPortalTangent = (storefront: Pick<MainlineStorefrontSlotBlueprint, 'id' | 'start' | 'end' | 'label'>) => {
-  const signLength = Array.from(storefront.label).length
-  const doorGlyphIndex = 4 + Math.floor(signLength / 2)
+  const doubleBay = storefront.id === 'commercial-cafe-slot' || storefront.id === 'commercial-south-slot-2'
+  const doorGlyphIndex = doubleBay ? 2 : 5
   return storefront.start + (doorGlyphIndex + .4995) * commercialStreetCellPitch
 }
 
@@ -1007,16 +1007,18 @@ function commercialStreetStorefrontComposition(label: string, wide: boolean): Ma
   const labelLength = Array.from(label).length
   const signZone: MainlineStorefrontRole[] = Array.from({ length: labelLength }, () => 'sign')
   const nearSignZone: MainlineStorefrontRole[] = signZone.map((_, index) => index === Math.floor(labelLength / 2) ? 'door' : 'wall')
-  const moduleA: MainlineStorefrontRole[] = ['wall', 'window', 'window', 'wall', ...signZone, 'wall', 'window', 'window', 'wall']
-  const nearModuleA: MainlineStorefrontRole[] = ['wall', 'window', 'window', 'wall', ...nearSignZone, 'wall', 'window', 'window', 'wall']
+  const wideModuleA: MainlineStorefrontRole[] = ['wall', ...signZone, 'wall', 'window', 'window', 'window', 'window', 'window', 'wall']
+  const nearWideModuleA: MainlineStorefrontRole[] = ['wall', ...nearSignZone, 'wall', 'window', 'window', 'window', 'window', 'window', 'wall']
   if (wide) {
-    const moduleB: MainlineStorefrontRole[] = ['wall', 'window', 'window', 'wall', 'window', 'window', 'wall', 'window', 'window', 'wall']
+    const moduleB: MainlineStorefrontRole[] = ['wall', 'window', 'window', 'window', 'window', 'window', 'window', 'window', 'window', 'window', 'wall']
     return {
-      fixedCellCount: labelLength + 19,
-      baseline: [...moduleA, 'wall', ...moduleB],
-      near: [...nearModuleA, 'wall', ...moduleB],
+      fixedCellCount: labelLength + 20,
+      baseline: [...wideModuleA, 'wall', ...moduleB],
+      near: [...nearWideModuleA, 'wall', ...moduleB],
     }
   }
+  const moduleA: MainlineStorefrontRole[] = ['wall', 'window', 'window', 'wall', ...signZone, 'wall', 'window', 'window', 'wall']
+  const nearModuleA: MainlineStorefrontRole[] = ['wall', 'window', 'window', 'wall', ...nearSignZone, 'wall', 'window', 'window', 'wall']
   return {
     fixedCellCount: labelLength + 8,
     baseline: moduleA,
@@ -1025,22 +1027,22 @@ function commercialStreetStorefrontComposition(label: string, wide: boolean): Ma
 }
 
 const commercialStreetRowCursor: Record<'top' | 'bottom', number> = {
-  // One shared-grid interval at the outside edge plus the storefront's own cap
-  // gives exactly two visible wall glyphs at either end of each row.
-  top: 12 + commercialStreetCellPitch,
-  bottom: 12 + commercialStreetCellPitch,
+  // Two shared-grid intervals outside the storefront's own cap give exactly
+  // three visible terminal wall glyphs at either end of each row.
+  top: 12 + 2 * commercialStreetCellPitch,
+  bottom: 12 + 2 * commercialStreetCellPitch,
 }
 const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
   ...[
     ['commercial-north-slot-1', 'commercial-north-facade', 'bottom', '果茶店', 14, 32],
-    ['commercial-north-slot-2', 'commercial-north-facade', 'bottom', '书店', 36, 54],
+    ['commercial-north-slot-2', 'commercial-north-facade', 'bottom', '文创店', 36, 54],
     ['commercial-north-slot-3', 'commercial-north-facade', 'bottom', '美妆店', 58, 76],
     ['commercial-north-slot-4', 'commercial-north-facade', 'bottom', '眼镜店', 80, 98],
     ['commercial-north-slot-5', 'commercial-north-facade', 'bottom', '玩具店', 102, 120],
     ['commercial-north-slot-6', 'commercial-north-facade', 'bottom', '香氛店', 124, 142],
     ['commercial-cafe-slot', 'commercial-north-facade', 'bottom', '咖啡馆', 146, 186],
-    ['commercial-south-slot-1', 'commercial-south-facade', 'top', '鞋店', 14, 32],
-    ['commercial-south-slot-2', 'commercial-south-facade', 'top', '简餐', 36, 76],
+    ['commercial-south-slot-1', 'commercial-south-facade', 'top', '潮牌店', 14, 32],
+    ['commercial-south-slot-2', 'commercial-south-facade', 'top', '快餐店', 36, 76],
     ['commercial-south-slot-4', 'commercial-south-facade', 'top', '服装店', 80, 98],
     ['commercial-south-slot-5', 'commercial-south-facade', 'top', '奶茶店', 102, 120],
     ['commercial-south-slot-6', 'commercial-south-facade', 'top', '甜品店', 124, 142],
@@ -1079,8 +1081,8 @@ const commercialStreetRowCellCounts = {
   bottom: commercialStreetCellsForEdge('bottom'),
 }
 const commercialStreetRowCellCount = Math.max(commercialStreetRowCellCounts.top, commercialStreetRowCellCounts.bottom)
-// Add only the one outside interval needed for the terminal wall cap.
-const commercialStreetLongitudinalExpansion = (commercialStreetRowCellCount + 1) * commercialStreetCellPitch - 180
+// Include two outside intervals beyond each storefront end cap.
+const commercialStreetLongitudinalExpansion = (commercialStreetRowCellCount + 3) * commercialStreetCellPitch - 180
 const commercialStreetSceneRight = 192 + commercialStreetLongitudinalExpansion
 const commercialStreetWorldRight = 200 + commercialStreetLongitudinalExpansion
 
@@ -1124,9 +1126,9 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
     externalExit: { axis: 'x', direction: -1, threshold: 12 },
     wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
     walls: [
-      { id: 'commercial-north-facade', type: 'room', bounds: box(12, 14, (commercialStreetRowCellCounts.bottom + 1) * commercialStreetCellPitch, 22 - commercialStreetLaneExpansion), variant: 'shop-row', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { horizontal: commercialStreetRowCellCounts.bottom + 2 }, edges: ['bottom'] },
+      { id: 'commercial-north-facade', type: 'room', bounds: box(12, 14, (commercialStreetRowCellCounts.bottom + 3) * commercialStreetCellPitch, 22 - commercialStreetLaneExpansion), variant: 'shop-row', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { horizontal: commercialStreetRowCellCounts.bottom + 4 }, edges: ['bottom'] },
       { id: 'commercial-main-lane', type: 'lane', bounds: box(12, 36 - commercialStreetLaneExpansion, 176 + commercialStreetLongitudinalExpansion, 28 + commercialStreetLaneExpansion * 2), edges: [] },
-      { id: 'commercial-south-facade', type: 'room', bounds: box(12, 64 + commercialStreetLaneExpansion, (commercialStreetRowCellCounts.top + 1) * commercialStreetCellPitch, 22 - commercialStreetLaneExpansion), variant: 'shop-row', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { horizontal: commercialStreetRowCellCounts.top + 2 }, edges: ['top'] },
+      { id: 'commercial-south-facade', type: 'room', bounds: box(12, 64 + commercialStreetLaneExpansion, (commercialStreetRowCellCounts.top + 3) * commercialStreetCellPitch, 22 - commercialStreetLaneExpansion), variant: 'shop-row', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { horizontal: commercialStreetRowCellCounts.top + 4 }, edges: ['top'] },
     ],
     storefronts: commercialStreetStorefronts,
     floorEntities: [],
