@@ -1349,10 +1349,13 @@ const commercialStreetShellFurniture = (() => {
     storefrontId: string
     key: string
     counterRow: number
-    counterLength: 4 | 5
+    counterLength: 4 | 5 | 7
+    counterColumn?: number
     storageColumn: number
+    storageRow?: number
     storageSide: 'west' | 'east'
     storageNook?: 'west' | 'east'
+    markers?: readonly { id: string; text: string; column: number; row: number }[]
     displays: readonly {
       id: string
       orientation: 'horizontal' | 'vertical'
@@ -1360,6 +1363,14 @@ const commercialStreetShellFurniture = (() => {
     }[]
   }
   const retailPlans: readonly CommercialRetailPlan[] = [
+    {
+      storefrontId: 'commercial-north-slot-1', key: 'n1-fruit-tea', counterRow: 5, counterLength: 7, storageColumn: 7, storageRow: 18, storageSide: 'west',
+      markers: [
+        { id: 'order', text: '点单', column: 6, row: 5 },
+        { id: 'pickup', text: '取货', column: 6, row: 9 },
+      ],
+      displays: [],
+    },
     {
       storefrontId: 'commercial-north-slot-2', key: 'n2-creative', counterRow: 9, counterLength: 4, storageColumn: 1, storageSide: 'west', storageNook: 'west',
       displays: [
@@ -1414,6 +1425,19 @@ const commercialStreetShellFurniture = (() => {
       ],
     },
     {
+      storefrontId: 'commercial-south-slot-6', key: 's6-dessert', counterRow: 6, counterLength: 5, storageColumn: 7, storageRow: 18, storageSide: 'west',
+      markers: [
+        { id: 'menu', text: '菜单', column: 6, row: 6 },
+        { id: 'pickup', text: '取货', column: 6, row: 9 },
+        { id: 'organization', text: '整理', column: 7, row: 17 },
+      ],
+      displays: [
+        { id: 'west-display-front', orientation: 'horizontal', cells: [{ column: 2, row: 6, glyph: '架' }, { column: 3, row: 6, glyph: '架' }, { column: 4, row: 6, glyph: '架' }] },
+        { id: 'west-display-mid', orientation: 'horizontal', cells: [{ column: 2, row: 8, glyph: '架' }, { column: 3, row: 8, glyph: '架' }, { column: 4, row: 8, glyph: '架' }] },
+        { id: 'west-display-rear', orientation: 'horizontal', cells: [{ column: 2, row: 10, glyph: '架' }, { column: 3, row: 10, glyph: '架' }, { column: 4, row: 10, glyph: '架' }] },
+      ],
+    },
+    {
       storefrontId: 'commercial-south-slot-7', key: 's7-jewelry', counterRow: 8, counterLength: 4, storageColumn: 8, storageSide: 'east', storageNook: 'east',
       displays: [
         { id: 'near-counter-a', orientation: 'horizontal', cells: [{ column: 5, row: 7, glyph: '架' }, { column: 6, row: 7, glyph: '架' }] },
@@ -1433,7 +1457,7 @@ const commercialStreetShellFurniture = (() => {
     plan.displays.forEach((display) => addRetailRun(sample, `commercial-retail-${plan.key}-display-${display.id}`, display.cells, display.orientation))
     const canonicalCounterGlyphs = Array.from({ length: plan.counterLength }, (_, index) => index % 2 === 0 ? '柜' : '台')
     const counterCells = Array.from({ length: plan.counterLength }, (_, index) => ({
-      column: 8,
+      column: plan.counterColumn ?? 8,
       row: plan.counterRow + index,
       glyph: sample.side === 'north' ? canonicalCounterGlyphs[plan.counterLength - index - 1]! : canonicalCounterGlyphs[index]!,
     }))
@@ -1450,7 +1474,8 @@ const commercialStreetShellFurniture = (() => {
       const returnCells = [17, 18].map((row) => ({ column: innerColumn, row, glyph: '墙' }))
       addRetailRun(sample, `commercial-retail-${plan.key}-storage-return`, returnCells, 'vertical', [0])
     }
-    addRetailText(sample, `commercial-retail-${plan.key}-storage-label`, '储物', plan.storageColumn, 19)
+    addRetailText(sample, `commercial-retail-${plan.key}-storage-label`, '储物', plan.storageColumn, plan.storageRow ?? 19)
+    plan.markers?.forEach((marker) => addRetailText(sample, `commercial-retail-${plan.key}-${marker.id}`, marker.text, marker.column, marker.row))
   })
 
   return { groupIds, entities, structures }

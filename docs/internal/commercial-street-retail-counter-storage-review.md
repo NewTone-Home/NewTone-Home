@@ -74,3 +74,259 @@ The focused storefront fixture suite covers all nine ordinary shops, their brows
 - `git diff --check` — passed.
 - Browser E2E was not run in this environment; interactive browser access is unavailable here.
 
+## Stage 3b acceptance record
+
+The user reports Stage 3b passed the original chat's source review and dot's final review: all nine ordinary stores were checked for east-side staff circulation, storefront return-to-street behavior, and the N2/S4/S7 open storage-nook entries. Returning to the street leaves the active scene at `commercial-street` with interior fixtures cleared. This acceptance does not imply every display fixture was individually touched, every collision surface was exhaustively audited, or phone FPS was measured. The side-connected storage corner remains open rather than a closed warehouse. No products, sales, or story were added.
+
+## Stage 3c: N1 fruit tea and S6 dessert
+
+### Before
+
+The Stage 3b `retailPlans` array covered nine ordinary storefronts. It contained no `commercial-north-slot-1` or `commercial-south-slot-6` interior fixture plan, so these shells had no ordinary-retail counter, customer service markers, or scoped rear storage labels. Cafe and fast-food layouts were separate and are outside this change.
+
+### After
+
+Two scoped plans have been added to the existing single-glyph fixture pipeline:
+
+```ts
+{
+  storefrontId: 'commercial-north-slot-1',
+  key: 'n1-fruit-tea',
+  counterRow: 5,
+  counterLength: 7,
+  storageColumn: 7,
+  storageRow: 18,
+  markers: [
+    { id: 'order', text: '点单', column: 6, row: 5 },
+    { id: 'pickup', text: '取货', column: 6, row: 9 },
+  ],
+  displays: [],
+}
+```
+
+The shared counter builder expands each run to its authored length and preserves screen reading order by reversing local-row assignment on the north side. Thus N1 renders `柜台柜台柜` from top to bottom on column 8. The west cells remain the customer side and the east aisle remains available to staff. N1 storage uses the open rear band at row 18, columns 7–8, leaving column 9 clear.
+
+```ts
+{
+  storefrontId: 'commercial-south-slot-6',
+  key: 's6-dessert',
+  counterRow: 6,
+  counterLength: 5,
+  storageColumn: 7,
+  storageRow: 18,
+  markers: [
+    { id: 'menu', text: '菜单', column: 6, row: 6 },
+    { id: 'pickup', text: '取货', column: 6, row: 9 },
+    { id: 'organization', text: '整理', column: 7, row: 17 },
+  ],
+  displays: [/* three static, 3-cell display runs at rows 6, 8 and 10 */],
+}
+```
+
+S6 display fixtures stay at columns 2–4 on rows 6, 8 and 10, leaving the central browse strip at columns 5–7 clear. Its customer-side menu/pickup markers are static labels. Its employee organization marker and open storage label occupy the rear work band at rows 17–18. Both storefront counters use the same continuous collision body and one glyph per cell. No menu items, prices, sales actions, baking equipment, kitchen enclosure, seating, or plot were introduced. Facade composition, doors, shell dimensions, camera, Cafe and Old Zhou are unchanged.
+
+### Stage 3c changed files
+
+- `src/center/runtime/mainlineSceneModel.ts` — add only N1/S6 plans and support their 7/5-cell counters, markers and rear storage locations through the existing fixture functions.
+- `tests/commercialStreetRetailFixtures.test.ts` — include N1/S6 in static fixture, collision and north/south reading-order regression checks; verify S6's display/browse separation, service markers, full east staff aisle, storage and locked rear route.
+- `docs/internal/commercial-street-retail-counter-storage-review.md` — preserve Stage 3b acceptance scope and this Stage 3c before/after rationale.
+
+### Stage 3c verification
+
+Verification completed before commit:
+
+- Focused `commercialStreetRetailFixtures.test.ts` — 6 tests passed.
+- Six-file commercial-street, world-navigation and storefront-presentation regression run — 78 tests passed across 6 files.
+- `npm run typecheck` — passed.
+- `npm run build` — passed. Vite emitted its existing warning that the main JavaScript chunk exceeds 500 kB (814.34 kB uncompressed).
+- `git diff --check` — passed.
+
+The implementation is awaiting the requested independent double review and dot acceptance. Browser E2E, exhaustive contact with every shelf, exhaustive collision review, and mobile FPS measurement are outside the acceptance boundary supplied for Stage 3b/3c. No Notion write was made, per the explicit instruction.
+
+
+#### Complete Stage 3c source and test diff
+
+```diff
+diff --git a/src/center/runtime/mainlineSceneModel.ts b/src/center/runtime/mainlineSceneModel.ts
+index 6ac47ff..959d583 100644
+--- a/src/center/runtime/mainlineSceneModel.ts
++++ b/src/center/runtime/mainlineSceneModel.ts
+@@ -1349,10 +1349,13 @@ const commercialStreetShellFurniture = (() => {
+     storefrontId: string
+     key: string
+     counterRow: number
+-    counterLength: 4 | 5
++    counterLength: 4 | 5 | 7
++    counterColumn?: number
+     storageColumn: number
++    storageRow?: number
+     storageSide: 'west' | 'east'
+     storageNook?: 'west' | 'east'
++    markers?: readonly { id: string; text: string; column: number; row: number }[]
+     displays: readonly {
+       id: string
+       orientation: 'horizontal' | 'vertical'
+@@ -1360,6 +1363,14 @@ const commercialStreetShellFurniture = (() => {
+     }[]
+   }
+   const retailPlans: readonly CommercialRetailPlan[] = [
++    {
++      storefrontId: 'commercial-north-slot-1', key: 'n1-fruit-tea', counterRow: 5, counterLength: 7, storageColumn: 7, storageRow: 18, storageSide: 'west',
++      markers: [
++        { id: 'order', text: '点单', column: 6, row: 5 },
++        { id: 'pickup', text: '取货', column: 6, row: 9 },
++      ],
++      displays: [],
++    },
+     {
+       storefrontId: 'commercial-north-slot-2', key: 'n2-creative', counterRow: 9, counterLength: 4, storageColumn: 1, storageSide: 'west', storageNook: 'west',
+       displays: [
+@@ -1413,6 +1424,19 @@ const commercialStreetShellFurniture = (() => {
+         { id: 'east-wall', orientation: 'vertical', cells: [{ column: 9, row: 7, glyph: '架' }, { column: 9, row: 8, glyph: '架' }, { column: 9, row: 9, glyph: '架' }] },
+       ],
+     },
++    {
++      storefrontId: 'commercial-south-slot-6', key: 's6-dessert', counterRow: 6, counterLength: 5, storageColumn: 7, storageRow: 18, storageSide: 'west',
++      markers: [
++        { id: 'menu', text: '菜单', column: 6, row: 6 },
++        { id: 'pickup', text: '取货', column: 6, row: 9 },
++        { id: 'organization', text: '整理', column: 7, row: 17 },
++      ],
++      displays: [
++        { id: 'west-display-front', orientation: 'horizontal', cells: [{ column: 2, row: 6, glyph: '架' }, { column: 3, row: 6, glyph: '架' }, { column: 4, row: 6, glyph: '架' }] },
++        { id: 'west-display-mid', orientation: 'horizontal', cells: [{ column: 2, row: 8, glyph: '架' }, { column: 3, row: 8, glyph: '架' }, { column: 4, row: 8, glyph: '架' }] },
++        { id: 'west-display-rear', orientation: 'horizontal', cells: [{ column: 2, row: 10, glyph: '架' }, { column: 3, row: 10, glyph: '架' }, { column: 4, row: 10, glyph: '架' }] },
++      ],
++    },
+     {
+       storefrontId: 'commercial-south-slot-7', key: 's7-jewelry', counterRow: 8, counterLength: 4, storageColumn: 8, storageSide: 'east', storageNook: 'east',
+       displays: [
+@@ -1433,7 +1457,7 @@ const commercialStreetShellFurniture = (() => {
+     plan.displays.forEach((display) => addRetailRun(sample, `commercial-retail-${plan.key}-display-${display.id}`, display.cells, display.orientation))
+     const canonicalCounterGlyphs = Array.from({ length: plan.counterLength }, (_, index) => index % 2 === 0 ? '柜' : '台')
+     const counterCells = Array.from({ length: plan.counterLength }, (_, index) => ({
+-      column: 8,
++      column: plan.counterColumn ?? 8,
+       row: plan.counterRow + index,
+       glyph: sample.side === 'north' ? canonicalCounterGlyphs[plan.counterLength - index - 1]! : canonicalCounterGlyphs[index]!,
+     }))
+@@ -1450,7 +1474,8 @@ const commercialStreetShellFurniture = (() => {
+       const returnCells = [17, 18].map((row) => ({ column: innerColumn, row, glyph: '墙' }))
+       addRetailRun(sample, `commercial-retail-${plan.key}-storage-return`, returnCells, 'vertical', [0])
+     }
+-    addRetailText(sample, `commercial-retail-${plan.key}-storage-label`, '储物', plan.storageColumn, 19)
++    addRetailText(sample, `commercial-retail-${plan.key}-storage-label`, '储物', plan.storageColumn, plan.storageRow ?? 19)
++    plan.markers?.forEach((marker) => addRetailText(sample, `commercial-retail-${plan.key}-${marker.id}`, marker.text, marker.column, marker.row))
+   })
+
+   return { groupIds, entities, structures }
+diff --git a/tests/commercialStreetRetailFixtures.test.ts b/tests/commercialStreetRetailFixtures.test.ts
+index e61ff71..8e95c7b 100644
+--- a/tests/commercialStreetRetailFixtures.test.ts
++++ b/tests/commercialStreetRetailFixtures.test.ts
+@@ -8,6 +8,7 @@ const street = mainlineScenes['commercial-street']
+ const steps = boundaryGridStepsFromScreenSpacing()
+
+ const retailStores = [
++  { key: 'n1-fruit-tea', storefrontId: 'commercial-north-slot-1', roomId: 'commercial-north-n1-interior', counterRow: 5, counterLength: 7 },
+   { key: 'n2-creative', storefrontId: 'commercial-north-slot-2', roomId: 'commercial-north-n2-interior', counterRow: 9, counterLength: 4 },
+   { key: 'n3-beauty', storefrontId: 'commercial-north-slot-3', roomId: 'commercial-north-n3-interior', counterRow: 8, counterLength: 5 },
+   { key: 'n4-eyewear', storefrontId: 'commercial-north-slot-4', roomId: 'commercial-north-n4-interior', counterRow: 7, counterLength: 4 },
+@@ -15,6 +16,7 @@ const retailStores = [
+   { key: 'n6-fragrance', storefrontId: 'commercial-north-slot-6', roomId: 'commercial-north-n6-interior', counterRow: 8, counterLength: 5 },
+   { key: 's1-fashion', storefrontId: 'commercial-south-slot-1', roomId: 'commercial-south-s1-interior', counterRow: 8, counterLength: 5 },
+   { key: 's4-clothing', storefrontId: 'commercial-south-slot-4', roomId: 'commercial-south-s4-interior', counterRow: 7, counterLength: 4 },
++  { key: 's6-dessert', storefrontId: 'commercial-south-slot-6', roomId: 'commercial-south-s6-interior', counterRow: 6, counterLength: 5 },
+   { key: 's7-jewelry', storefrontId: 'commercial-south-slot-7', roomId: 'commercial-south-s7-interior', counterRow: 8, counterLength: 4 },
+   { key: 's8-clothing', storefrontId: 'commercial-south-slot-8', roomId: 'commercial-south-s8-interior', counterRow: 7, counterLength: 5 },
+ ] as const
+@@ -41,12 +43,12 @@ function storeCell(roomId: string, column: number, row: number) {
+ }
+
+ describe('commercial street ordinary retail shell fixtures', () => {
+-  it('adds static, room-scoped, one-character fixtures only to the nine requested stores', () => {
++  it('adds static, room-scoped, one-character fixtures only to the eleven selected storefronts', () => {
+     const retail = street.objects.filter((entity) => entity.id.startsWith('commercial-retail-'))
+     expect(new Set(retail.map((entity) => entity.roomId))).toEqual(new Set(retailStores.map((store) => store.roomId)))
+     expect(retail.every((entity) => entity.interactive === false && entity.visualVisibility === 'static')).toBe(true)
+     expect(retail.every((entity) => Array.from(entity.label).length === 1)).toBe(true)
+-    expect(retail.every((entity) => ['架', '柜', '台', '墙', '储', '物'].includes(entity.label))).toBe(true)
++    expect(retail.every((entity) => ['架', '柜', '台', '墙', '储', '物', '点', '单', '取', '货', '菜', '整', '理'].includes(entity.label))).toBe(true)
+     expect(street.npcs.map((npc) => npc.id).sort()).toEqual([
+       'commercial-street-pedestrian-long',
+       'commercial-street-pedestrian-mid-east-north',
+@@ -103,9 +105,9 @@ describe('commercial street ordinary retail shell fixtures', () => {
+     }
+   })
+
+-  it('matches fixture glyphs to continuous barriers and keeps counters 4–5 cells long with readable north/south order', () => {
++  it('matches fixture glyphs to continuous barriers and keeps authored counter lengths with readable north/south order', () => {
+     const retailRuns = street.continuousStructures.filter((structure) => structure.id.startsWith('commercial-retail-'))
+-    const retailEntities = street.objects.filter((entity) => entity.id.startsWith('commercial-retail-') && !entity.id.includes('-storage-label-'))
++    const retailEntities = street.objects.filter((entity) => entity.id.startsWith('commercial-retail-') && entity.weight === 'fixture')
+     expect(retailRuns.every((run) => run.kind === 'barrier')).toBe(true)
+     for (const entity of retailEntities) {
+       const runId = entity.id.replace(/-\d+$/, '')
+@@ -157,7 +159,60 @@ describe('commercial street ordinary retail shell fixtures', () => {
+     }
+   })
+
+-  it('gives the nine businesses distinct display layouts without inventing stock or try-on interactions', () => {
++  it('lays out the fruit-tea and dessert counters, customer service points, staff aisle and open rear storage', () => {
++    const fruitTea = retailStores.find((store) => store.key === 'n1-fruit-tea')!
++    const dessert = retailStores.find((store) => store.key === 's6-dessert')!
++    for (const store of [fruitTea, dessert]) {
++      const fixtureId = `commercial-retail-${store.key}-`
++      const counter = street.objects.filter((entity) => entity.id.startsWith(`${fixtureId}counter-`))
++      const counterCells = counter.map((entity) => localCell(store.roomId, entity.position))
++      expect(counterCells).toHaveLength(store.counterLength)
++      expect(counterCells.every(({ column }) => Math.abs(column - 8) < 0.01)).toBe(true)
++      const staffAccess = storeCell(store.roomId, 9, store.counterRow + store.counterLength + 0.5)
++      for (let offset = 0; offset < store.counterLength; offset += 1) {
++        const staffWorkCell = storeCell(store.roomId, 9, store.counterRow + offset)
++        expect(findMainlinePath(staffAccess, staffWorkCell, street), `${store.key} east staff cell ${offset + 1}`).not.toBeNull()
++      }
++
++      const storefront = street.storefronts.find((candidate) => candidate.id === store.storefrontId)!
++      const entry = mainlineStorefrontApproach(street, storefront)
++      const storage = street.objects.filter((entity) => entity.id.startsWith(`${fixtureId}storage-label-`))
++      expect(storage).toHaveLength(2)
++      expect(storage.map((entity) => Math.round(localCell(store.roomId, entity.position).column)).sort((a, b) => a - b)).toEqual([7, 8])
++      expect(storage.every((entity) => Math.abs(localCell(store.roomId, entity.position).row - 18) < 0.01)).toBe(true)
++      expect(findMainlinePath(entry, storeCell(store.roomId, 5, 14), street), `${store.key} customer browse aisle`).not.toBeNull()
++      const rear = street.passages.find((passage) => passage.id === `${store.roomId}-rear-door`)!
++      expect(rear.access).toBe('locked')
++      expect(findMainlinePath(staffAccess, rear.thresholds[0]!, street), `${store.key} reaches locked rear`).not.toBeNull()
++    }
++
++    const fruitFixtures = street.objects.filter((entity) => entity.id.startsWith('commercial-retail-n1-fruit-tea-'))
++    expect(fruitFixtures.filter((entity) => entity.id.startsWith('commercial-retail-n1-fruit-tea-display-'))).toHaveLength(0)
++    const fruitCounter = fruitFixtures.filter((entity) => entity.id.startsWith('commercial-retail-n1-fruit-tea-counter-'))
++      .sort((a, b) => a.position.y - b.position.y)
++    expect(fruitCounter.map((entity) => entity.label).join('')).toBe('柜台柜台柜台柜')
++    for (const [marker, expectedText, row] of [['order', '点单', 5], ['pickup', '取货', 9]] as const) {
++      const glyphs = fruitFixtures.filter((entity) => entity.id.startsWith(`commercial-retail-n1-fruit-tea-${marker}-`))
++        .sort((a, b) => a.position.x - b.position.x)
++      expect(glyphs.map((entity) => entity.label).join('')).toBe(expectedText)
++      expect(glyphs.every((entity) => Math.abs(localCell(fruitTea.roomId, entity.position).row - row) < 0.01)).toBe(true)
++    }
++
++    const dessertFixtures = street.objects.filter((entity) => entity.id.startsWith('commercial-retail-s6-dessert-'))
++    const dessertDisplays = dessertFixtures.filter((entity) => entity.id.includes('-display-')).map((entity) => localCell(dessert.roomId, entity.position))
++    expect(dessertDisplays).toHaveLength(9)
++    expect(dessertDisplays.every(({ column, row }) => column >= 1.99 && column <= 4.01 && row >= 5.99 && row <= 10.01)).toBe(true)
++    expect(dessertDisplays.some(({ column }) => column >= 5 && column <= 7)).toBe(false)
++    for (const [marker, expectedText, row] of [['menu', '菜单', 6], ['pickup', '取货', 9], ['organization', '整理', 17]] as const) {
++      const glyphs = dessertFixtures.filter((entity) => entity.id.startsWith(`commercial-retail-s6-dessert-${marker}-`))
++        .sort((a, b) => a.position.x - b.position.x)
++      expect(glyphs.map((entity) => entity.label).join('')).toBe(expectedText)
++      expect(glyphs.every((entity) => Math.abs(localCell(dessert.roomId, entity.position).row - row) < 0.01)).toBe(true)
++    }
++    expect(dessertFixtures.some((entity) => /烤|炉|厨房|价格|购买/.test(entity.label))).toBe(false)
++  })
++
++  it('gives the selected businesses distinct display layouts without inventing stock or try-on interactions', () => {
+     const layouts = retailStores.map((store) => street.objects
+       .filter((entity) => entity.roomId === store.roomId && entity.id.includes('-display-'))
+       .map((entity) => `${localCell(store.roomId, entity.position).column.toFixed(1)}:${localCell(store.roomId, entity.position).row.toFixed(1)}`)
+```

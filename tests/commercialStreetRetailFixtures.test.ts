@@ -8,6 +8,7 @@ const street = mainlineScenes['commercial-street']
 const steps = boundaryGridStepsFromScreenSpacing()
 
 const retailStores = [
+  { key: 'n1-fruit-tea', storefrontId: 'commercial-north-slot-1', roomId: 'commercial-north-n1-interior', counterRow: 5, counterLength: 7 },
   { key: 'n2-creative', storefrontId: 'commercial-north-slot-2', roomId: 'commercial-north-n2-interior', counterRow: 9, counterLength: 4 },
   { key: 'n3-beauty', storefrontId: 'commercial-north-slot-3', roomId: 'commercial-north-n3-interior', counterRow: 8, counterLength: 5 },
   { key: 'n4-eyewear', storefrontId: 'commercial-north-slot-4', roomId: 'commercial-north-n4-interior', counterRow: 7, counterLength: 4 },
@@ -15,6 +16,7 @@ const retailStores = [
   { key: 'n6-fragrance', storefrontId: 'commercial-north-slot-6', roomId: 'commercial-north-n6-interior', counterRow: 8, counterLength: 5 },
   { key: 's1-fashion', storefrontId: 'commercial-south-slot-1', roomId: 'commercial-south-s1-interior', counterRow: 8, counterLength: 5 },
   { key: 's4-clothing', storefrontId: 'commercial-south-slot-4', roomId: 'commercial-south-s4-interior', counterRow: 7, counterLength: 4 },
+  { key: 's6-dessert', storefrontId: 'commercial-south-slot-6', roomId: 'commercial-south-s6-interior', counterRow: 6, counterLength: 5 },
   { key: 's7-jewelry', storefrontId: 'commercial-south-slot-7', roomId: 'commercial-south-s7-interior', counterRow: 8, counterLength: 4 },
   { key: 's8-clothing', storefrontId: 'commercial-south-slot-8', roomId: 'commercial-south-s8-interior', counterRow: 7, counterLength: 5 },
 ] as const
@@ -41,12 +43,12 @@ function storeCell(roomId: string, column: number, row: number) {
 }
 
 describe('commercial street ordinary retail shell fixtures', () => {
-  it('adds static, room-scoped, one-character fixtures only to the nine requested stores', () => {
+  it('adds static, room-scoped, one-character fixtures only to the eleven selected storefronts', () => {
     const retail = street.objects.filter((entity) => entity.id.startsWith('commercial-retail-'))
     expect(new Set(retail.map((entity) => entity.roomId))).toEqual(new Set(retailStores.map((store) => store.roomId)))
     expect(retail.every((entity) => entity.interactive === false && entity.visualVisibility === 'static')).toBe(true)
     expect(retail.every((entity) => Array.from(entity.label).length === 1)).toBe(true)
-    expect(retail.every((entity) => ['架', '柜', '台', '墙', '储', '物'].includes(entity.label))).toBe(true)
+    expect(retail.every((entity) => ['架', '柜', '台', '墙', '储', '物', '点', '单', '取', '货', '菜', '整', '理'].includes(entity.label))).toBe(true)
     expect(street.npcs.map((npc) => npc.id).sort()).toEqual([
       'commercial-street-pedestrian-long',
       'commercial-street-pedestrian-mid-east-north',
@@ -103,9 +105,9 @@ describe('commercial street ordinary retail shell fixtures', () => {
     }
   })
 
-  it('matches fixture glyphs to continuous barriers and keeps counters 4–5 cells long with readable north/south order', () => {
+  it('matches fixture glyphs to continuous barriers and keeps authored counter lengths with readable north/south order', () => {
     const retailRuns = street.continuousStructures.filter((structure) => structure.id.startsWith('commercial-retail-'))
-    const retailEntities = street.objects.filter((entity) => entity.id.startsWith('commercial-retail-') && !entity.id.includes('-storage-label-'))
+    const retailEntities = street.objects.filter((entity) => entity.id.startsWith('commercial-retail-') && entity.weight === 'fixture')
     expect(retailRuns.every((run) => run.kind === 'barrier')).toBe(true)
     for (const entity of retailEntities) {
       const runId = entity.id.replace(/-\d+$/, '')
@@ -157,7 +159,60 @@ describe('commercial street ordinary retail shell fixtures', () => {
     }
   })
 
-  it('gives the nine businesses distinct display layouts without inventing stock or try-on interactions', () => {
+  it('lays out the fruit-tea and dessert counters, customer service points, staff aisle and open rear storage', () => {
+    const fruitTea = retailStores.find((store) => store.key === 'n1-fruit-tea')!
+    const dessert = retailStores.find((store) => store.key === 's6-dessert')!
+    for (const store of [fruitTea, dessert]) {
+      const fixtureId = `commercial-retail-${store.key}-`
+      const counter = street.objects.filter((entity) => entity.id.startsWith(`${fixtureId}counter-`))
+      const counterCells = counter.map((entity) => localCell(store.roomId, entity.position))
+      expect(counterCells).toHaveLength(store.counterLength)
+      expect(counterCells.every(({ column }) => Math.abs(column - 8) < 0.01)).toBe(true)
+      const staffAccess = storeCell(store.roomId, 9, store.counterRow + store.counterLength + 0.5)
+      for (let offset = 0; offset < store.counterLength; offset += 1) {
+        const staffWorkCell = storeCell(store.roomId, 9, store.counterRow + offset)
+        expect(findMainlinePath(staffAccess, staffWorkCell, street), `${store.key} east staff cell ${offset + 1}`).not.toBeNull()
+      }
+
+      const storefront = street.storefronts.find((candidate) => candidate.id === store.storefrontId)!
+      const entry = mainlineStorefrontApproach(street, storefront)
+      const storage = street.objects.filter((entity) => entity.id.startsWith(`${fixtureId}storage-label-`))
+      expect(storage).toHaveLength(2)
+      expect(storage.map((entity) => Math.round(localCell(store.roomId, entity.position).column)).sort((a, b) => a - b)).toEqual([7, 8])
+      expect(storage.every((entity) => Math.abs(localCell(store.roomId, entity.position).row - 18) < 0.01)).toBe(true)
+      expect(findMainlinePath(entry, storeCell(store.roomId, 5, 14), street), `${store.key} customer browse aisle`).not.toBeNull()
+      const rear = street.passages.find((passage) => passage.id === `${store.roomId}-rear-door`)!
+      expect(rear.access).toBe('locked')
+      expect(findMainlinePath(staffAccess, rear.thresholds[0]!, street), `${store.key} reaches locked rear`).not.toBeNull()
+    }
+
+    const fruitFixtures = street.objects.filter((entity) => entity.id.startsWith('commercial-retail-n1-fruit-tea-'))
+    expect(fruitFixtures.filter((entity) => entity.id.startsWith('commercial-retail-n1-fruit-tea-display-'))).toHaveLength(0)
+    const fruitCounter = fruitFixtures.filter((entity) => entity.id.startsWith('commercial-retail-n1-fruit-tea-counter-'))
+      .sort((a, b) => a.position.y - b.position.y)
+    expect(fruitCounter.map((entity) => entity.label).join('')).toBe('柜台柜台柜台柜')
+    for (const [marker, expectedText, row] of [['order', '点单', 5], ['pickup', '取货', 9]] as const) {
+      const glyphs = fruitFixtures.filter((entity) => entity.id.startsWith(`commercial-retail-n1-fruit-tea-${marker}-`))
+        .sort((a, b) => a.position.x - b.position.x)
+      expect(glyphs.map((entity) => entity.label).join('')).toBe(expectedText)
+      expect(glyphs.every((entity) => Math.abs(localCell(fruitTea.roomId, entity.position).row - row) < 0.01)).toBe(true)
+    }
+
+    const dessertFixtures = street.objects.filter((entity) => entity.id.startsWith('commercial-retail-s6-dessert-'))
+    const dessertDisplays = dessertFixtures.filter((entity) => entity.id.includes('-display-')).map((entity) => localCell(dessert.roomId, entity.position))
+    expect(dessertDisplays).toHaveLength(9)
+    expect(dessertDisplays.every(({ column, row }) => column >= 1.99 && column <= 4.01 && row >= 5.99 && row <= 10.01)).toBe(true)
+    expect(dessertDisplays.some(({ column }) => column >= 5 && column <= 7)).toBe(false)
+    for (const [marker, expectedText, row] of [['menu', '菜单', 6], ['pickup', '取货', 9], ['organization', '整理', 17]] as const) {
+      const glyphs = dessertFixtures.filter((entity) => entity.id.startsWith(`commercial-retail-s6-dessert-${marker}-`))
+        .sort((a, b) => a.position.x - b.position.x)
+      expect(glyphs.map((entity) => entity.label).join('')).toBe(expectedText)
+      expect(glyphs.every((entity) => Math.abs(localCell(dessert.roomId, entity.position).row - row) < 0.01)).toBe(true)
+    }
+    expect(dessertFixtures.some((entity) => /烤|炉|厨房|价格|购买/.test(entity.label))).toBe(false)
+  })
+
+  it('gives the selected businesses distinct display layouts without inventing stock or try-on interactions', () => {
     const layouts = retailStores.map((store) => street.objects
       .filter((entity) => entity.roomId === store.roomId && entity.id.includes('-display-'))
       .map((entity) => `${localCell(store.roomId, entity.position).column.toFixed(1)}:${localCell(store.roomId, entity.position).row.toFixed(1)}`)
