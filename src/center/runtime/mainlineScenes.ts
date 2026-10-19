@@ -475,17 +475,31 @@ function compileMainlineFrameUnits(
         : undefined
       const door = passageId ? objects.find((entity) => entity.id === passageId) : undefined
       const vertical = edge === 'left' || edge === 'right'
-      const canonicalStorefrontCells = placement.gridIndices
-        .map((gridIndex) => {
-          const cellRange = boundaryGridCellRange(edgeCompilation.coordinates, gridIndex)
-          if (!cellRange) return null
+      const fixedCellCount = storefront.composition?.fixedCellCount
+      const canonicalStorefrontCells = fixedCellCount
+        ? Array.from({ length: fixedCellCount }, (_, gridIndex) => {
+          const step = (placement.resolvedEnd - placement.resolvedStart) / fixedCellCount
+          const cellRange = {
+            start: placement.resolvedStart + step * gridIndex,
+            end: placement.resolvedStart + step * (gridIndex + 1),
+          }
           return {
             gridIndex,
             cellRange,
             center: edgeGeometryCenter(structure.bounds!, edge, cellRange.start, cellRange.end),
           }
         })
-        .filter((cell): cell is NonNullable<typeof cell> => cell !== null)
+        : placement.gridIndices
+          .map((gridIndex) => {
+            const cellRange = boundaryGridCellRange(edgeCompilation.coordinates, gridIndex)
+            if (!cellRange) return null
+            return {
+              gridIndex,
+              cellRange,
+              center: edgeGeometryCenter(structure.bounds!, edge, cellRange.start, cellRange.end),
+            }
+          })
+          .filter((cell): cell is NonNullable<typeof cell> => cell !== null)
       if (canonicalStorefrontCells.length === 0) return
       const hasNearProjection = storefrontHasNearProjection(storefront)
 
@@ -505,7 +519,22 @@ function compileMainlineFrameUnits(
           const role: MainlineStorefrontRole = index === doorIndex ? 'door' : 'wall'
           const canonicalCell = canonicalStorefrontCells[index]
           if (!canonicalCell) return
-          const cell = {
+          const cell = fixedCellCount && role === 'door'
+            ? {
+              id: `${storefront.id}-base-cell-${index}`,
+              x: canonicalCell.center.x,
+              y: canonicalCell.center.y,
+              kind: 'storefront' as const,
+              glyph: '',
+              storefrontId: storefront.id,
+              storefrontRole: 'blank' as const,
+              orientation: vertical ? 'vertical' as const : 'horizontal' as const,
+              cellStart: canonicalCell.cellRange.start,
+              cellEnd: canonicalCell.cellRange.end,
+              access: passage?.access,
+              lockedText: passage?.lockedText,
+            }
+            : {
             id: `${storefront.id}-base-cell-${index}`,
             x: canonicalCell.center.x,
             y: canonicalCell.center.y,
@@ -524,7 +553,12 @@ function compileMainlineFrameUnits(
             edge,
             geometryKind: 'boundary',
             surface: role === 'door' ? 'door' : 'wall',
-            visual: { kind: role === 'door' ? 'door' : 'wall', cells: [cell] },
+            // Fixed-grid storefronts render their entrance from the same
+            // character slot as the facade. Keep this base unit solely as
+            // passage/collision geometry so it cannot paint a second door.
+            visual: fixedCellCount && role !== 'door'
+              ? { kind: 'none' as const, cells: [] }
+              : { kind: role === 'door' ? 'door' : 'storefront', cells: [cell] },
             navigation: { blocked: true, passageId },
             ...(role === 'door' ? { entityId: door.id } : {}),
             storefrontId: storefront.id,
@@ -534,11 +568,12 @@ function compileMainlineFrameUnits(
 
       const variants: Array<'baseline' | 'near'> = hasNearProjection ? ['baseline', 'near'] : ['baseline']
       variants.forEach((variant) => {
-        const roles = fitStorefrontRoles(storefrontRolesForVariant(storefront, variant), canonicalStorefrontCells.length)
+        const authoredRoles = storefrontRolesForVariant(storefront, variant)
+        const roles = fixedCellCount ? authoredRoles : fitStorefrontRoles(authoredRoles, canonicalStorefrontCells.length)
         roles.forEach((role, index) => {
           const canonicalCell = canonicalStorefrontCells[index]
           if (!canonicalCell) return
-          const overlayHidden = hasNearProjection && variant === 'near'
+          const overlayHidden = hasNearProjection && !fixedCellCount && variant === 'near'
           const glyph = storefrontGlyph(role, storefront.label, roles, index)
           const cell = {
             id: `${storefront.id}-cell-${index}`,
@@ -547,7 +582,7 @@ function compileMainlineFrameUnits(
             kind: 'storefront' as const,
             ...(glyph ? { glyph } : {}),
             ...(role === 'door' ? { label: storefront.label } : {}),
-            ...(role === 'door' && !hasNearProjection && door
+            ...(role === 'door' && (fixedCellCount || !hasNearProjection) && door
               ? { entityId: door.id, doorBehavior: door.doorBehavior, access: passage?.access, lockedText: passage?.lockedText }
               : {}),
             storefrontId: storefront.id,
@@ -601,6 +636,9 @@ function storefrontRolesForVariant(storefront: MainlineStorefrontSlot, variant: 
   if (mode === 'content') return ['blank', ...Array.from(storefront.label, () => 'sign' as const), 'blank']
   if (mode === 'door') return ['wall', 'door', 'wall']
   const composition = storefront.composition ?? defaultStorefrontComposition
+  if (composition.fixedCellCount) {
+    return [...(variant === 'baseline' ? composition.baseline : composition.near ?? composition.baseline)]
+  }
   const baseline = expandStorefrontRoles(composition.baseline, storefront.label)
   if (variant === 'baseline') return baseline
   const near = expandStorefrontRoles(composition.near ?? composition.baseline, storefront.label)
@@ -961,7 +999,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     )))
   })
 
-  const storefronts = (data.storefronts ?? []).map((storefront): MainlineStorefrontSlot => ({
+  let storefronts = (data.storefronts ?? []).map((storefront): MainlineStorefrontSlot => ({
     ...storefront,
     mode: storefront.mode ?? 'commercial',
   }))
@@ -1003,7 +1041,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     })
   })
 
-  const passageGeometry = portals.flatMap((portal): (MainlinePassageGeometry & Omit<MainlineScenePassage, keyof MainlinePassageGeometry | 'collision' | 'doorway'>)[] => {
+  let passageGeometry = portals.flatMap((portal): (MainlinePassageGeometry & Omit<MainlineScenePassage, keyof MainlinePassageGeometry | 'collision' | 'doorway'>)[] => {
     const endpoint = portal.endpoint
     return [{
       id: portal.id,
@@ -1025,16 +1063,59 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     }]
   })
 
-  const geometry = compileMainlineGeometry(
+  const sceneObjects = [...objectById.values()]
+  let geometry = compileMainlineGeometry(
     structures,
     storefronts,
-    [...objectById.values()],
+    sceneObjects,
     data.wallDensity,
     data.airWalls,
     [...data.blockers, ...(data.continuousStructures ?? [])],
     data.curves ?? [],
     passageGeometry,
   )
+  // Fixed character grids are fitted to the shared frame lattice. Resolve
+  // each portal from the actual revealed door cell, then reuse that point for
+  // the portal entity, threshold and approach so the visual entrance and
+  // navigation target cannot drift apart.
+  let portalsAdjusted = false
+  const portalDoorPositions = new Map<string, Point>()
+  storefronts = storefronts.map((storefront) => {
+    if (!storefront.composition?.fixedCellCount || !storefront.portalId) return storefront
+    const doorCell = geometry
+      .filter((unit) => unit.storefrontId === storefront.id && unit.variant === 'near')
+      .flatMap((unit) => unit.visual.cells)
+      .find((cell) => cell.storefrontRole === 'door')
+    if (!doorCell) return storefront
+    const outward = storefront.edge === 'top' ? { x: 0, y: -1 }
+      : storefront.edge === 'bottom' ? { x: 0, y: 1 }
+        : storefront.edge === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 }
+    const approach = { x: doorCell.x + outward.x * 6, y: doorCell.y + outward.y * 6 }
+    portalDoorPositions.set(storefront.portalId, { x: doorCell.x, y: doorCell.y })
+    const entity = objectById.get(storefront.portalId)
+    if (entity) objectById.set(storefront.portalId, { ...entity, position: { x: doorCell.x, y: doorCell.y } })
+    portalsAdjusted = true
+    return { ...storefront, approach }
+  })
+  if (portalsAdjusted) {
+    passageGeometry = passageGeometry.map((passage) => {
+      const position = portalDoorPositions.get(passage.portalId)
+      if (!position) return passage
+      const storefront = storefronts.find((slot) => slot.portalId === passage.portalId)
+      const approach = storefront?.approach ?? position
+      return { ...passage, thresholds: [approach, approach], crossingTargets: [approach, approach] }
+    })
+    geometry = compileMainlineGeometry(
+      structures,
+      storefronts,
+      [...objectById.values()],
+      data.wallDensity,
+      data.airWalls,
+      [...data.blockers, ...(data.continuousStructures ?? [])],
+      data.curves ?? [],
+      passageGeometry,
+    )
+  }
   const passages: MainlineScenePassage[] = passageGeometry.map((passage) => {
     const collision = geometryCollisionForPassage(geometry, passage.id)
     const doorway = geometryDoorwayForPassage(geometry, passage)
@@ -1163,6 +1244,21 @@ function projectedSceneGeometry(scene: MainlineSceneDefinition, screenMetrics: S
 
 function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneDefinition {
   const compiledScene = compileMainlineSceneData(blueprint.scene, blueprint.portals)
+  const portals = blueprint.portals.map((portal) => {
+    const storefront = compiledScene.storefronts.find((slot) => slot.portalId === portal.id)
+    const entity = compiledScene.objects.find((candidate) => candidate.id === portal.entity.id)
+    if (!storefront?.composition?.fixedCellCount || !entity) return portal
+    const approach = storefront.approach ?? entity.position
+    return {
+      ...portal,
+      endpoint: {
+        ...portal.endpoint,
+        doorPosition: entity.position,
+        threshold: approach,
+        crossingTarget: approach,
+      },
+    }
+  })
 
   return {
     id: blueprint.id,
@@ -1172,7 +1268,7 @@ function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneD
     hint: blueprint.hint,
     areaLabel: blueprint.areaLabel,
     presentation: blueprint.presentation,
-    portals: blueprint.portals,
+    portals,
     interactionText: blueprint.interactionText,
     explorationText: blueprint.explorationText,
     echoPool: blueprint.echoPool,
@@ -1209,6 +1305,13 @@ export function mainlineSceneGeometryUnits(
     const hasNearProjection = scene.geometry.some((candidate) => (
       candidate.storefrontId === unit.storefrontId && candidate.variant === 'near'
     ))
+    if (storefront.composition?.fixedCellCount && unit.variant) {
+      const phase = storefrontPresentation?.get(storefront.id)
+      const near = phase
+        ? phase === 'revealed' || phase === 'lingering'
+        : isMainlineStorefrontNear(scene, storefront, position)
+      return unit.variant === (near ? 'near' : 'baseline') ? [unit] : []
+    }
     // Portal storefronts keep their authored compact facade in every view.
     // Proximity only uncovers the one compiled, traversable door; it must not
     // replace the sign/glass with a second wall-door-wall facade.
@@ -1299,7 +1402,19 @@ export function mainlineStorefrontAnchor(scene: MainlineSceneDefinition, storefr
   return { x: structure.bounds.x, y: (storefront.start + storefront.end) / 2 }
 }
 
-export function mainlineStorefrontApproach(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot): Point {
+export function mainlineStorefrontApproach(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot, screenMetrics?: SceneScreenMetrics): Point {
+  if (storefront.composition?.fixedCellCount) {
+    const door = mainlineCanonicalSceneGeometryUnits(scene, screenMetrics)
+      .filter((unit) => unit.storefrontId === storefront.id && unit.variant === 'near')
+      .flatMap((unit) => unit.visual.cells)
+      .find((cell) => cell.storefrontRole === 'door')
+    if (door) {
+      const outward = storefront.edge === 'top' ? { x: 0, y: -1 }
+        : storefront.edge === 'bottom' ? { x: 0, y: 1 }
+          : storefront.edge === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 }
+      return { x: door.x + outward.x * 6, y: door.y + outward.y * 6 }
+    }
+  }
   if (storefront.approach) return storefront.approach
   const anchor = mainlineStorefrontAnchor(scene, storefront)
   const approachDistance = 6

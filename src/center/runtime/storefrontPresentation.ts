@@ -99,6 +99,10 @@ export function storefrontCharacterCells(
   const labels = Array.from(storefront.label)
   if (!storefront.characterSwitch || labels.length === 0 || !(storefront.composition?.near ?? []).includes('door')) return []
 
+  // Fixed-grid storefronts switch their authored 4-slot row in place. Their
+  // sign glyphs and portal must not be relocated onto a second entrance grid.
+  if (storefront.composition?.fixedCellCount) return []
+
   const ownedEntries = geometryUnits.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
     .filter(({ unit }) => unit.storefrontId === storefront.id && unit.sourceWallId === storefront.wallId && unit.edge === storefront.edge)
   const vertical = storefront.edge === 'left' || storefront.edge === 'right'

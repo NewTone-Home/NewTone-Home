@@ -1,8 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
-import { MainlineFocusGroup } from '../src/center/runtime/MainlineSceneRenderer'
-import { storefrontContactGeometry } from '../src/center/runtime/storefrontContactGeometry'
 import { isMainlineStorefrontNear, isMainlineStorefrontPresentationInRange, mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineScenePassageCollision, mainlineScenes, mainlineStorefrontAnchor, mainlineStorefrontApproach, mainlineStorefrontDepartureRadius } from '../src/center/runtime/mainlineScenes'
 import {
   nextStorefrontPresentationPhase,
@@ -59,35 +55,29 @@ describe('commercial street storefront presentation', () => {
     expect(baseline.some((unit) => unit.storefrontId === cafe.id && unit.variant === 'baseline')).toBe(true)
   })
 
-  it('uses the real three authored visual positions and door identity across responsive viewports', () => {
+  it('keeps the cafe sign, biased entry and right-side glass on stable authored slots', () => {
     expect(cafe.characterSwitch).toBe(true)
     const yonghePortal = Object.values(mainlineScenes).flatMap(scene => scene.storefronts).find(storefront => storefront.portalId === 'yonghe-street-entry')
     expect(yonghePortal).toBeDefined()
     expect(yonghePortal?.characterSwitch).not.toBe(true)
     for (const metrics of [{ width: 1280, height: 720 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
       const projected = mainlineCanonicalSceneGeometryUnits(street, metrics)
-      const cells = storefrontCharacterCells(street, cafe, projected)
-      expect(cells.map(cell => [cell.baselineGlyph, cell.glyph])).toEqual([['咖', '墙'], ['啡', '门'], ['馆', '墙']])
-      expect(cells).toHaveLength(3)
-      expect(cells[1].entityId).toBe(cafe.portalId)
-      const source = projected.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
-        .filter(({ unit, cell }) => unit.sourceWallId === cafe.wallId && unit.edge === cafe.edge && (cell.kind === 'wall' || cell.kind === 'door'))
-      const along = ({ cell }: typeof source[number]) => cafe.edge === 'left' || cafe.edge === 'right' ? cell.y : cell.x
-      const sourceDoor = source.find(({ unit, cell }) => cell.kind === 'door' && (cell.entityId === cafe.portalId || unit.entityId === cafe.portalId))
-      const passageAnchor = projected.find(unit => unit.storefrontId === cafe.id && unit.navigation.passageId === cafe.portalId)!
-      const doorPosition = sourceDoor?.cell ?? { x: passageAnchor.x + passageAnchor.width / 2, y: passageAnchor.y + passageAnchor.height / 2 }
-      const doorTangent = cafe.edge === 'left' || cafe.edge === 'right' ? doorPosition.y : doorPosition.x
-      const wallBefore = source.filter(({ cell }) => cell.kind === 'wall' && along({ unit: passageAnchor, cell }) < doorTangent)
-        .sort((first, second) => along(second) - along(first))[0]
-      const wallAfter = source.filter(({ cell }) => cell.kind === 'wall' && along({ unit: passageAnchor, cell }) > doorTangent)
-        .sort((first, second) => along(first) - along(second))[0]
-      expect(cells.map(({ x, y }) => [x, y])).toEqual([
-        [wallBefore.cell.x, wallBefore.cell.y],
-        [doorPosition.x, doorPosition.y],
-        [wallAfter.cell.x, wallAfter.cell.y],
-      ])
-      expect(new Set(cells.map(cell => `${cell.x},${cell.y}`)).size).toBe(3)
       const baselineUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[cafe.id, 'baseline']]))
+      const nearUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[cafe.id, 'revealed']]))
+      const baseline = baselineUnits.filter(unit => unit.storefrontId === cafe.id && unit.variant === 'baseline')
+        .flatMap(unit => unit.visual.cells).filter(cell => cell.kind === 'storefront')
+      const near = nearUnits.filter(unit => unit.storefrontId === cafe.id && unit.variant === 'near')
+        .flatMap(unit => unit.visual.cells).filter(cell => cell.kind === 'storefront')
+      expect(storefrontCharacterCells(street, cafe, projected)).toEqual([])
+      expect(baseline.map(cell => [cell.x, cell.y])).toEqual(near.map(cell => [cell.x, cell.y]))
+      expect(baseline.filter(cell => cell.storefrontRole === 'sign').map(cell => cell.glyph).join('')).toBe(cafe.label)
+      expect(near.filter(cell => cell.storefrontRole === 'sign')).toHaveLength(0)
+      expect(near.slice(0, 4).map(cell => cell.storefrontRole)).toEqual(['wall', 'door', 'wall', 'wall'])
+      expect(near.filter(cell => cell.storefrontRole === 'glass')).toHaveLength(13)
+      expect(near[1]?.entityId).toBe(cafe.portalId)
+      expect(near[1]?.access).toBe('locked')
+      expect(near[1]?.lockedText).toBe(street.passages.find(passage => passage.portalId === cafe.portalId)?.lockedText)
+      expect(new Set(near.filter(cell => cell.storefrontRole === 'glass').map(cell => cell.x)).size).toBe(13)
       const revealedUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[cafe.id, 'revealed']]))
       const physical = (units: typeof baselineUnits) => units.filter(unit => unit.navigation.blocked).map(({ id, x, y, width, height, navigation }) => ({ id, x, y, width, height, navigation }))
       expect(physical(revealedUnits)).toEqual(physical(baselineUnits))
@@ -97,7 +87,7 @@ describe('commercial street storefront presentation', () => {
 
   it('projects every label length onto one unique compiled door', () => {
     const fourCharacter = { ...cafe, id: cafe.id, label: '春日茶饮' }
-    for (const storefront of [...street.storefronts, fourCharacter]) {
+    for (const storefront of street.storefronts) {
       let projected = mainlineCanonicalSceneGeometryUnits(street, { width: 1280, height: 720 })
       if (storefront === fourCharacter) {
         const signUnitIndex = projected.findIndex(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline'
@@ -111,6 +101,13 @@ describe('commercial street storefront presentation', () => {
           : unit)
       }
       const cells = storefrontCharacterCells(street, storefront, projected)
+      if (storefront.composition?.fixedCellCount) {
+        expect(cells).toEqual([])
+        const signs = projected.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline')
+          .flatMap(unit => unit.visual.cells).filter(cell => cell.storefrontRole === 'sign')
+        expect(signs.map(cell => cell.glyph).join('')).toBe(storefront.label)
+        continue
+      }
       expect(cells.map(cell => cell.baselineGlyph).join('')).toBe(storefront.label)
       expect(cells).toHaveLength(Array.from(storefront.label).length)
       expect(cells.filter(cell => cell.role === 'door')).toHaveLength(1)
@@ -126,63 +123,81 @@ describe('commercial street storefront presentation', () => {
     }
   })
 
-  it('gives the double-width simple-meal frontage a left-side entry and a glass-heavy character grid', () => {
+  it('keeps all storefront labels, entry frames and glazing on fixed four-slot grids', () => {
+    expect(street.storefronts).toHaveLength(14)
+    for (const storefront of street.storefronts) {
+      const wide = storefront.end - storefront.start >= 30
+      const count = wide ? 17 : 7
+      expect(storefront.composition?.fixedCellCount).toBe(count)
+      expect(storefront.composition?.baseline).toHaveLength(count)
+      expect(storefront.composition?.near).toHaveLength(count)
+      expect(storefront.composition?.baseline?.filter(role => role === 'sign')).toHaveLength(Array.from(storefront.label).length)
+      const signZone = storefront.composition?.baseline?.slice(wide ? 0 : 1, wide ? 4 : 5)
+      expect(signZone?.filter(role => role === 'wall')).toHaveLength(4 - Array.from(storefront.label).length)
+      expect(storefront.composition?.near?.filter(role => role === 'door')).toHaveLength(1)
+    }
+
     const storefront = street.storefronts.find(slot => slot.id === 'commercial-south-slot-2')!
+    const cafe = street.storefronts.find(slot => slot.id === 'commercial-cafe-slot')!
     expect(storefront.start).toBe(36)
     expect(storefront.end).toBe(76)
-    expect(storefront.composition?.baseline).toEqual(['glass', 'glass', 'sign', 'glass', 'glass'])
-    expect(storefront.composition?.near).toEqual(['glass', 'wall', 'door', 'wall', 'glass'])
+    expect(storefront.composition?.fixedCellCount).toBe(17)
+    expect(storefront.composition?.baseline?.slice(0, 4)).toEqual(['sign', 'sign', 'wall', 'wall'])
+    expect(storefront.composition?.near?.slice(0, 4)).toEqual(['wall', 'door', 'wall', 'wall'])
+    expect(cafe.composition?.baseline?.slice(0, 4)).toEqual(['sign', 'sign', 'sign', 'wall'])
+    expect(cafe.composition?.near?.slice(0, 4)).toEqual(['wall', 'door', 'wall', 'wall'])
 
     for (const metrics of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
-      const canonical = mainlineCanonicalSceneGeometryUnits(street, metrics)
-      const baseline = canonical.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline')
-        .flatMap(unit => unit.visual.cells)
-      expect(baseline.filter(cell => cell.storefrontRole === 'glass')).toHaveLength(metrics.width < 600 ? 3 : 8)
-      expect(baseline.filter(cell => cell.storefrontRole === 'sign').map(cell => cell.glyph).join('')).toBe('简餐')
-
-      const characters = storefrontCharacterCells(street, storefront, canonical)
-      const doorCharacter = characters.find(cell => cell.role === 'door')!
-      const realDoor = canonical.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
-        .find(({ unit, cell }) => unit.storefrontId === storefront.id && cell.kind === 'door' && cell.entityId === storefront.portalId)!
-      expect(characters).toHaveLength(2)
-      expect(doorCharacter.baselineGlyph).toBe('简')
-      expect(doorCharacter.x).toBeCloseTo(realDoor.cell.x)
-      if (metrics.width < 600) expect(doorCharacter.x).toBeCloseTo(doorCharacter.baselineX)
-      else expect(doorCharacter.x).toBeLessThan(doorCharacter.baselineX)
-      expect(realDoor.cell.access).toBe('locked')
-
-      const approach = mainlineStorefrontApproach(street, storefront)
-      const anchor = mainlineStorefrontAnchor(street, storefront)
-      expect(approach.x).toBeCloseTo(anchor.x)
-      const baselineUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[storefront.id, 'baseline']]))
-      const revealedUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[storefront.id, 'revealed']]))
-      const blockers = (units: typeof baselineUnits) => units.filter(unit => unit.navigation.blocked).map(({ id, x, y, width, height }) => ({ id, x, y, width, height }))
-      expect(blockers(revealedUnits)).toEqual(blockers(baselineUnits))
+      for (const slot of [storefront, cafe, street.storefronts.find(candidate => candidate.id === 'commercial-north-slot-2')!]) {
+        const canonical = mainlineCanonicalSceneGeometryUnits(street, metrics)
+        const baselineUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[slot.id, 'baseline']]))
+        const nearUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[slot.id, 'revealed']]))
+        const baseline = baselineUnits.filter(unit => unit.storefrontId === slot.id && unit.variant === 'baseline')
+          .flatMap(unit => unit.visual.cells).filter(cell => cell.kind === 'storefront')
+        const near = nearUnits.filter(unit => unit.storefrontId === slot.id && unit.variant === 'near')
+          .flatMap(unit => unit.visual.cells).filter(cell => cell.kind === 'storefront')
+        expect(storefrontCharacterCells(street, slot, canonical)).toEqual([])
+        expect(baseline).toHaveLength(slot.composition?.fixedCellCount)
+        expect(near).toHaveLength(slot.composition?.fixedCellCount)
+        expect(baseline.map(cell => cell.x)).toEqual(near.map(cell => cell.x))
+        expect(baseline.map(cell => cell.y)).toEqual(near.map(cell => cell.y))
+        expect(baseline.filter(cell => cell.storefrontRole === 'sign').map(cell => cell.glyph).join('')).toBe(slot.label)
+        if (slot.id === 'commercial-south-slot-2' || slot.id === 'commercial-cafe-slot') {
+          expect(near.filter(cell => cell.storefrontRole === 'sign')).toHaveLength(0)
+          expect(baseline.filter(cell => cell.storefrontRole === 'glass')).toHaveLength(13)
+          expect(near.filter(cell => cell.storefrontRole === 'glass')).toHaveLength(13)
+          expect(near.slice(0, 4).map(cell => cell.storefrontRole)).toEqual(['wall', 'door', 'wall', 'wall'])
+          expect(near[1]?.entityId).toBe(slot.portalId)
+          expect(near[1]?.access).toBe('locked')
+          expect(near[1]?.lockedText).toBe(street.passages.find(passage => passage.portalId === slot.portalId)?.lockedText)
+        } else {
+          expect(baseline.filter(cell => cell.storefrontRole === 'glass')).toHaveLength(3)
+          expect(near.filter(cell => cell.storefrontRole === 'glass').map(cell => cell.x)).toEqual(baseline.filter(cell => cell.storefrontRole === 'glass').map(cell => cell.x))
+          expect(near.slice(1, 5).map(cell => cell.storefrontRole)).toEqual(['wall', 'door', 'wall', 'wall'])
+        }
+        const approach = mainlineStorefrontApproach(street, slot, metrics)
+        const entry = near.find(cell => cell.storefrontRole === 'door')!
+        expect(approach.x).toBeCloseTo(entry.x)
+        const blockers = (units: typeof baselineUnits) => units.filter(unit => unit.navigation.blocked).map(({ id, x, y, width, height }) => ({ id, x, y, width, height }))
+        expect(blockers(nearUnits)).toEqual(blockers(baselineUnits))
+      }
     }
   })
 
-  it('keeps baseline glyphs in their own sign slots instead of spanning adjacent glass', () => {
+  it('keeps four authored sign slots separate from glass on the standard storefront row', () => {
     const metrics = { width: 1180, height: 844, viewportWidth: 1180 }
-    const canonical = mainlineCanonicalSceneGeometryUnits(street, metrics)
-    const cases = [
-      { id: 'commercial-north-slot-1', expected: [21.47375, 23.84225, 26.21075] },
-      { id: 'commercial-north-slot-2', expected: [42.78925, 45.15775] },
-    ]
-    for (const { id, expected } of cases) {
-      const storefront = street.storefronts.find(slot => slot.id === id)!
-      const signCells = canonical.filter(unit => unit.storefrontId === id && unit.variant === 'baseline')
-        .flatMap(unit => unit.visual.cells).filter(cell => cell.storefrontRole === 'sign')
-        .sort((a, b) => ((a.cellStart ?? a.x) + (a.cellEnd ?? a.x)) - ((b.cellStart ?? b.x) + (b.cellEnd ?? b.x)))
-      const characters = storefrontCharacterCells(street, storefront, canonical)
-      const signCenters = signCells.map(cell => ((cell.cellStart ?? cell.x) + (cell.cellEnd ?? cell.x)) / 2)
-      expect(signCenters.map(value => Number(value.toFixed(5)))).toEqual(expected)
-      expect(characters.map(cell => Number(cell.baselineX.toFixed(5)))).toEqual(expected)
-      expect(characters.map(cell => cell.baselineGlyph).join('')).toBe(storefront.label)
-      expect(characters.every(cell => signCenters.includes(cell.baselineX))).toBe(true)
-      expect(characters.filter(cell => cell.role === 'door')).toHaveLength(1)
+    const projected = mainlineCanonicalSceneGeometryUnits(street, metrics)
+    for (const storefront of street.storefronts.filter(slot => slot.end - slot.start < 30)) {
+      const cells = projected.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline')
+        .flatMap(unit => unit.visual.cells).filter(cell => cell.kind === 'storefront')
+      expect(cells).toHaveLength(7)
+      expect(cells.slice(1, 5).filter(cell => cell.storefrontRole === 'sign').map(cell => cell.glyph).join('')).toBe(storefront.label)
+      expect(cells.slice(1, 5).filter(cell => cell.storefrontRole === 'wall')).toHaveLength(4 - Array.from(storefront.label).length)
+      expect(cells[0]?.storefrontRole).toBe('glass')
+      expect(cells.slice(5).every(cell => cell.storefrontRole === 'glass')).toBe(true)
+      expect(storefrontCharacterCells(street, storefront, projected)).toEqual([])
     }
   })
-
   it('uses one reversible normalized progress rather than per-cell timers', () => {
     expect(storefrontCharacterProgress(0, 1, 0, 700)).toBe(0)
     expect(storefrontCharacterProgress(0, 1, 350, 700)).toBe(.5)
@@ -198,18 +213,19 @@ describe('commercial street storefront presentation', () => {
     expect(storefrontLingerDurationMs).toBe(3000)
   })
 
-  it('keeps the complete storefront sign visible alongside the near wall and door projection', () => {
+  it('switches the wide shop 4-slot sign to the entrance frame while leaving its glass row intact', () => {
     const nearUnits = mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, cafe))
       .filter((unit) => unit.storefrontId === cafe.id)
     const roles = nearUnits.flatMap((unit) => unit.visual.cells.map((cell) => cell.storefrontRole))
 
-    expect(nearUnits.some((unit) => unit.variant === 'baseline' && unit.visual.cells.some((cell) => cell.storefrontRole === 'sign'))).toBe(true)
-    expect(roles).toContain('sign')
+    expect(nearUnits.some((unit) => unit.variant === 'near' && unit.visual.cells.some((cell) => cell.storefrontRole === 'sign'))).toBe(false)
+    expect(roles.filter(role => role === 'glass')).toHaveLength(13)
+    expect(roles.slice(0, 4)).toEqual(['wall', 'door', 'wall', 'wall'])
   })
 
   it('preserves a sign owner when narrow projection provides fewer cells than label characters', () => {
     const clothing = street.storefronts.find((storefront) => storefront.id === 'commercial-north-slot-2')!
-    const projected = mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, clothing), { width: 390, height: 844 })
+    const projected = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, { width: 390, height: 844 }, new Map([[clothing.id, 'baseline']]))
     const cells = projected.filter((unit) => unit.storefrontId === clothing.id).flatMap((unit) => unit.visual.cells)
 
     expect(cells.some((cell) => cell.storefrontRole === 'sign')).toBe(true)
@@ -218,7 +234,7 @@ describe('commercial street storefront presentation', () => {
   it('keeps ordinary storefront glass on both sides of each sign when the projected cells allow it', () => {
     for (const metrics of [{ width: 1280, height: 720 }, { width: 844, height: 390 }]) {
       const projected = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics)
-      const rowStorefronts = street.storefronts.filter((storefront) => storefront.edge === 'top' || storefront.edge === 'bottom')
+      const rowStorefronts = street.storefronts.filter((storefront) => (storefront.edge === 'top' || storefront.edge === 'bottom') && storefront.end - storefront.start < 30)
       for (const storefront of rowStorefronts) {
         const cells = projected
           .filter((unit) => unit.storefrontId === storefront.id && unit.variant === 'baseline')
@@ -237,58 +253,40 @@ describe('commercial street storefront presentation', () => {
     }
   })
 
-  it('renders one complete label across 2/3/4-character signs and preserves portal glass and real doors in every phase', () => {
-    const twoCharacter = street.storefronts.find(storefront => Array.from(storefront.label).length === 2)!
-    const threeCharacter = cafe
-    const fourCharacter = { ...twoCharacter, label: '四字招牌' }
-    expect([twoCharacter.end - twoCharacter.start, cafe.end - cafe.start]).toEqual([18, 40])
+  it('renders complete far labels and only the fixed 4-slot near entrance changes before restoring', () => {
+    for (const storefront of street.storefronts) {
+      const wide = storefront.end - storefront.start >= 30
+      const count = wide ? 17 : 7
+      const farUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, { width: 1280, height: 720 }, new Map([[storefront.id, 'baseline']]))
+      const nearUnits = mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, storefront), { width: 1280, height: 720 }, new Map([[storefront.id, 'revealed']]))
+      const leaveUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, { width: 1280, height: 720 }, new Map([[storefront.id, 'baseline']]))
+      const farUnitsForStore = farUnits.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline')
+      const nearUnitsForStore = nearUnits.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'near')
+      const farFacade = farUnitsForStore.flatMap(unit => unit.visual.cells).filter(cell => cell.kind === 'storefront')
+      const nearFacade = nearUnitsForStore.flatMap(unit => unit.visual.cells).filter(cell => cell.kind === 'storefront')
+      const door = nearFacade.filter(cell => cell.storefrontRole === 'door')
 
-    for (const storefront of [twoCharacter, threeCharacter, fourCharacter]) {
-      const label = storefront.label
-      const farUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, undefined, new Map([[storefront.id, 'baseline']]))
-      const revealedUnits = mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, storefront), undefined, new Map([[storefront.id, 'revealed']]))
-      const proximityUnits = mainlineSceneGeometryUnits(street, mainlineStorefrontApproach(street, storefront))
-      const leaveUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, undefined, new Map([[storefront.id, 'baseline']]))
-      const farFacade = farUnits.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline')
-      const revealedFacade = revealedUnits.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline')
-      const glassRoles = (units: typeof farUnits) => units.flatMap(unit => unit.visual.cells
-        .filter(cell => cell.storefrontRole === 'glass').map(cell => cell.storefrontRole))
-      expect(glassRoles(farFacade).length).toBeGreaterThanOrEqual(2)
-      expect(glassRoles(revealedFacade).length).toBeGreaterThanOrEqual(2)
-      expect(farFacade.flatMap(unit => unit.visual.cells).map(cell => cell.storefrontRole)).toContain('sign')
-      expect(revealedFacade.flatMap(unit => unit.visual.cells).map(cell => cell.storefrontRole)).toContain('sign')
-      expect(revealedUnits.some(unit => unit.storefrontId === storefront.id && unit.variant === 'near')).toBe(false)
-      expect(leaveUnits.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline'))
-        .toEqual(farFacade)
-
-      const realDoors = revealedUnits.flatMap(unit => unit.visual.cells
-        .filter(cell => cell.kind === 'door' && cell.entityId === storefront.portalId)
-        .map(cell => ({ unit, cell })))
-      expect(realDoors).toHaveLength(1)
-      expect(realDoors[0].unit.navigation.passageId).toBe(storefront.portalId)
-      expect(proximityUnits.flatMap(unit => unit.visual.cells)
-        .filter(cell => cell.kind === 'door' && cell.entityId === storefront.portalId)).toHaveLength(1)
-      expect(farUnits.flatMap(unit => unit.visual.cells)
-        .filter(cell => cell.kind === 'door' && cell.entityId === storefront.portalId)).toHaveLength(0)
-
-      const signEntries = farFacade.flatMap(unit => unit.visual.cells
-        .filter(cell => cell.storefrontRole === 'sign')
-        .map(cell => ({ unit, cell: { ...cell, storefrontId: storefront.id }, entityId: undefined, focusGroup: `storefront:${storefront.id}:baseline`, focusPolicy: 'passage' as const })))
-      const markup = renderToStaticMarkup(createElement(MainlineFocusGroup, {
-        entries: signEntries,
-        className: 'scene-mainline-storefront scene-mainline-storefront--sign scene-mainline-storefront--portal',
-        visibilityClass: 'is-baseline',
-        renderFrame: () => null,
-        storefrontId: storefront.id,
-        storefrontLabel: label,
-        storefrontPresentationPhase: 'baseline',
-        storefrontGeometry: storefrontContactGeometry(storefront, farUnits, { width: 1280, height: 720 }, true) ?? undefined,
-      }))
-      expect(markup).toContain(`>${label}</span>`)
-      expect(markup).toContain('data-storefront-label-phase="baseline"')
+      expect(farFacade).toHaveLength(count)
+      expect(nearFacade).toHaveLength(count)
+      expect(farFacade.map(cell => [cell.x, cell.y])).toEqual(nearFacade.map(cell => [cell.x, cell.y]))
+      expect(farFacade.filter(cell => cell.storefrontRole === 'sign').map(cell => cell.glyph).join('')).toBe(storefront.label)
+      expect(door).toHaveLength(1)
+      expect(door[0].entityId).toBe(storefront.portalId)
+      expect(door[0].access).toBe('locked')
+      expect(door[0].lockedText).toBe(street.passages.find(passage => passage.portalId === storefront.portalId)?.lockedText)
+      expect(nearUnitsForStore).toHaveLength(count)
+      expect(leaveUnits.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline')).toEqual(farUnitsForStore)
+      if (wide) {
+        expect(nearFacade.filter(cell => cell.storefrontRole === 'sign')).toHaveLength(0)
+        expect(nearFacade.slice(0, 4).map(cell => cell.storefrontRole)).toEqual(['wall', 'door', 'wall', 'wall'])
+        expect(nearFacade.filter(cell => cell.storefrontRole === 'glass')).toHaveLength(13)
+      } else {
+        expect(nearFacade.filter(cell => cell.storefrontRole === 'glass').map(cell => cell.x))
+          .toEqual(farFacade.filter(cell => cell.storefrontRole === 'glass').map(cell => cell.x))
+        expect(nearFacade.slice(1, 5).map(cell => cell.storefrontRole)).toEqual(['wall', 'door', 'wall', 'wall'])
+      }
     }
   })
-
   it('enters revealing and then revealed at every storefront approach', () => {
     expect(storefrontPresentationShouldReveal(street, cafe, mainlineStorefrontApproach(street, cafe))).toBe(true)
     expect(nextStorefrontPresentationPhase('baseline', 'approach')).toBe('retracting')

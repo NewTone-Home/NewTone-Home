@@ -75,10 +75,10 @@ describe('commercial street storefront interactions', () => {
     const storefront = street.storefronts.find((candidate) => candidate.id === 'commercial-north-slot-2')!
     const approach = mainlineStorefrontApproach(street, storefront)
     const candidates = mainlineStorefrontInteractionCandidates(street, storefront, { x: (storefront.start + storefront.end) / 2, y: approach.y + 8 })
-    const centerX = (storefront.start + storefront.end) / 2
-    expect(candidates[0]).toEqual({ x: centerX, y: approach.y })
-    expect(candidates[18]).toEqual({ x: centerX, y: approach.y - 1.8 })
-    expect(candidates[36]).toEqual({ x: centerX, y: approach.y - 3.6 })
+    const anchor = street.objects.find(entity => entity.id === storefront.portalId)!.position
+    expect(Math.hypot(candidates[0]!.x - anchor.x, candidates[0]!.y - anchor.y)).toBeCloseTo(6)
+    expect(Math.hypot(candidates[18]!.x - anchor.x, candidates[18]!.y - anchor.y)).toBeCloseTo(4.2)
+    expect(Math.hypot(candidates[36]!.x - anchor.x, candidates[36]!.y - anchor.y)).toBeCloseTo(2.4)
   })
 
   it('keeps Café on the separate portal and reveal contract', () => {

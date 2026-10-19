@@ -55,6 +55,8 @@ export type MainlineStorefrontRole = 'wall' | 'glass' | 'sign' | 'door' | 'blank
 export type MainlineStorefrontComposition = {
   baseline: readonly MainlineStorefrontRole[]
   near?: readonly MainlineStorefrontRole[]
+  /** Use the authored roles as a fixed character grid across viewport sizes. */
+  fixedCellCount?: number
 }
 export type MainlineDoorBehavior = SceneDoorBehavior
 
@@ -1005,7 +1007,24 @@ const commercialStreetAmbientNpcRoutes = [
 // The wider simple-meal bay uses a world-grid offset so its revealed door
 // stays on the first glyph of 简餐 at desktop and mobile projections.
 const commercialStreetPortalTangent = (storefront: Pick<MainlineStorefrontSlotBlueprint, 'id' | 'start' | 'end'>) =>
-  (storefront.start + storefront.end) / 2 - (storefront.id === 'commercial-south-slot-2' ? 8 : 0)
+  storefront.start + (storefront.end - storefront.start) * ((storefront.end - storefront.start) >= 30 ? 1.5 / 17 : 2.5 / 7)
+
+function commercialStreetStorefrontComposition(label: string, wide: boolean): MainlineStorefrontComposition {
+  const labelLength = Array.from(label).length
+  const signZone: MainlineStorefrontRole[] = Array.from({ length: 4 }, (_, index) => index < labelLength ? 'sign' : 'wall')
+  if (wide) {
+    return {
+      fixedCellCount: 17,
+      baseline: [...signZone, ...Array.from({ length: 13 }, () => 'glass' as const)],
+      near: ['wall', 'door', 'wall', 'wall', ...Array.from({ length: 13 }, () => 'glass' as const)],
+    }
+  }
+  return {
+    fixedCellCount: 7,
+    baseline: ['glass', ...signZone, 'glass', 'glass'],
+    near: ['glass', 'wall', 'door', 'wall', 'wall', 'glass', 'glass'],
+  }
+}
 
 const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
   ...[
@@ -1027,12 +1046,10 @@ const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
 ].map(([id, wallId, edge, label, start, end]): MainlineStorefrontSlotBlueprint => {
   const portalId = id === 'commercial-cafe-slot' ? 'street-cafe-entry' : `${id}-entry`
   const approachY = edge === 'bottom' ? 42 : 58
-  const simpleMeal = id === 'commercial-south-slot-2'
+  const wideStorefront = end - start >= 30
   const portalTangent = commercialStreetPortalTangent({ id, start, end })
   return { id, wallId, edge, label, style: 'modern', mode: 'commercial', start, end,
-    composition: simpleMeal
-      ? { baseline: ['glass', 'glass', 'sign', 'glass', 'glass'], near: ['glass', 'wall', 'door', 'wall', 'glass'] }
-      : { baseline: ['glass', 'sign', 'glass'], near: ['wall', 'door', 'wall'] }, characterSwitch: true,
+    composition: commercialStreetStorefrontComposition(label, wideStorefront), characterSwitch: true,
     portalId, nearRadius: 10,
     approach: authoredPoint(portalTangent, approachY) }
 })
