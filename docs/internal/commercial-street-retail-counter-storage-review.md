@@ -378,4 +378,13 @@ The frozen storefront composition function and 14-slot storefront list are uncha
 - `tests/commercialStreetShellFurniture.test.ts` — exact shell grid, table and seat IDs, unique L-counter glyph cells, joined collision, static labels, staff/rear-door route, and legacy Cafe baseline assertions.
 - `docs/internal/commercial-street-retail-counter-storage-review.md` — this correction record and the mistaken-target/revert evidence.
 
-The detailed Stage 3d test/build, commit, push, and Preview results are recorded below after verification completes.
+### Stage 3d verification result
+
+- `tests/commercialStreetShellFurniture.test.ts`: 15/15 passed, including unique Cafe-shell glyph positions, shared counter-elbow collision, all three two-seat groups, static-only interaction state, and reachable seat/staff-opening/rear-door paths.
+- `tests/commercialStreetRetailFixtures.test.ts`: 6/6 passed when rerun with a 90-second timeout. The first combined run used a 30-second per-test timeout and timed out this route-heavy case; it passed on the longer rerun.
+- Six other focused suites passed: storefront interactions, ambient NPCs, storefront presentation, world navigation, navigation barriers, and mainline spatial migration.
+- `tests/npcFoundation.test.ts`: 8/9 passed. Its remaining assertion is in the legacy standalone Cafe staff-area access test (`coffeeOwnerPosition` must be walkable to the protagonist); neither that old blueprint nor this test was changed in Stage 3d.
+- `npm run build` passed (`tsc --noEmit` and Vite production build). Vite emitted its existing large-chunk advisory for the 815.20 kB main JS asset.
+- `git diff --check` passed. No browser E2E or screenshots were run, per the no-screenshot acceptance workflow and the known localhost permission restriction.
+
+The corrected Cafe shell changes are limited to the three files listed above. The old standalone Cafe, its story module, and the 14 storefront slot/facade generator remain unchanged from the corrected baseline.
