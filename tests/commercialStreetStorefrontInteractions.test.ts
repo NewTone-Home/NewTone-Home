@@ -3,6 +3,7 @@ import { classifyMainlineWorldCommand, findMainlinePath, isWalkableMainlinePoint
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
+import { boundaryGridStepsFromScreenSpacing } from '../src/center/runtime/sceneBoundaryGrid'
 import {
   commercialStreetStorefrontInteractionDebounceMs,
   commercialStreetStorefrontInteractions,
@@ -140,7 +141,7 @@ describe('commercial street storefront interactions', () => {
     const expectedRoles = (label: string, wide: boolean) => {
       const sign = Array.from(label, () => 'sign')
       return wide
-        ? ['wall', ...sign, 'wall', ...Array.from({ length: 6 }, () => 'window'), 'wall', 'wall', ...Array.from({ length: 10 }, () => 'window'), 'wall']
+        ? ['wall', ...sign, 'wall', ...Array.from({ length: 8 }, () => 'window'), 'wall', 'wall', ...Array.from({ length: 8 }, () => 'window'), 'wall']
         : ['wall', 'window', 'window', 'wall', ...sign, 'wall', 'window', 'window', 'wall']
     }
     const phases = new Map(street.storefronts.map((storefront) => [storefront.id, 'baseline' as const]))
@@ -183,7 +184,7 @@ describe('commercial street storefront interactions', () => {
       const row = street.storefronts.filter((storefront) => storefront.edge === edge)
       for (const [index, storefront] of row.slice(0, -1).entries()) {
         const next = row[index + 1]!
-        expect(next.start - storefront.end).toBeCloseTo(18 / 7)
+        expect(next.start - storefront.end).toBeCloseTo(boundaryGridStepsFromScreenSpacing().horizontal)
         const activeCells = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, metrics[0], phases)
           .flatMap((unit) => unit.visual.cells)
         const previousCells = activeCells.filter((cell) => cell.storefrontId === storefront.id).sort((a, b) => a.x - b.x)

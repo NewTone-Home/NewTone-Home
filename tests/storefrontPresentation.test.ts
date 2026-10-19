@@ -35,7 +35,7 @@ describe('commercial street storefront presentation', () => {
       'commercial-south-slot-5', 'commercial-south-slot-6', 'commercial-south-slot-7', 'commercial-south-slot-8',
     ])
     expect(street.storefronts).toHaveLength(14)
-    const pitch = 18 / 7
+    const pitch = boundaryGridStepsFromScreenSpacing().horizontal
     for (const side of ['top', 'bottom'] as const) {
       const row = street.storefronts.filter(storefront => storefront.edge === side)
       for (let index = 0; index < row.length; index += 1) {
@@ -54,7 +54,7 @@ describe('commercial street storefront presentation', () => {
   })
 
   it('derives equal row and east boundary spans from the authored storefront grid', () => {
-    const pitch = 18 / 7
+    const pitch = boundaryGridStepsFromScreenSpacing().horizontal
     const rows = (['top', 'bottom'] as const).map(edge => street.storefronts.filter(storefront => storefront.edge === edge))
     const rowCellCounts = rows.map(row => row.reduce((cells, storefront) => (
       cells + storefront.composition!.fixedCellCount!
@@ -235,8 +235,8 @@ describe('commercial street storefront presentation', () => {
       expect(baseline.slice(wide ? 1 : 4, (wide ? 1 : 4) + signCount)).toEqual(signZone)
       expect(near.filter(role => role === 'door')).toHaveLength(1)
       if (wide) {
-        expect(baseline).toEqual(['wall', ...signZone, 'wall', ...Array.from({ length: 6 }, () => 'window'), 'wall', 'wall', ...Array.from({ length: 10 }, () => 'window'), 'wall'])
-        expect(near).toEqual(['wall', ...nearSignZone, 'wall', ...Array.from({ length: 6 }, () => 'window'), 'wall', 'wall', ...Array.from({ length: 10 }, () => 'window'), 'wall'])
+        expect(baseline).toEqual(['wall', ...signZone, 'wall', ...Array.from({ length: 8 }, () => 'window'), 'wall', 'wall', ...Array.from({ length: 8 }, () => 'window'), 'wall'])
+        expect(near).toEqual(['wall', ...nearSignZone, 'wall', ...Array.from({ length: 8 }, () => 'window'), 'wall', 'wall', ...Array.from({ length: 8 }, () => 'window'), 'wall'])
       } else {
         expect(baseline).toEqual(['wall', 'window', 'window', 'wall', ...signZone, 'wall', 'window', 'window', 'wall'])
         expect(near).toEqual(['wall', 'window', 'window', 'wall', ...nearSignZone, 'wall', 'window', 'window', 'wall'])
@@ -245,11 +245,21 @@ describe('commercial street storefront presentation', () => {
 
     const storefront = street.storefronts.find(slot => slot.id === 'commercial-south-slot-2')!
     const cafe = street.storefronts.find(slot => slot.id === 'commercial-cafe-slot')!
-    expect(storefront.end - storefront.start).toBeCloseTo(storefront.composition!.fixedCellCount! * (18 / 7))
+    expect(storefront.end - storefront.start).toBeCloseTo(storefront.composition!.fixedCellCount! * boundaryGridStepsFromScreenSpacing().horizontal)
     expect(storefront.composition?.baseline?.slice(0, 4)).toEqual(['wall', 'sign', 'sign', 'wall'])
     expect(storefront.composition?.near?.slice(0, 4)).toEqual(['wall', 'wall', 'door', 'wall'])
     expect(cafe.composition?.baseline?.slice(0, 5)).toEqual(['wall', 'sign', 'sign', 'sign', 'wall'])
     expect(cafe.composition?.near?.slice(0, 5)).toEqual(['wall', 'wall', 'door', 'wall', 'wall'])
+
+    for (const wideSlot of [storefront, cafe]) {
+      const baseline = wideSlot.composition!.baseline
+      const firstWindowStart = baseline.indexOf('window')
+      const dividerStart = firstWindowStart + 8
+      expect(baseline.slice(firstWindowStart, dividerStart)).toEqual(Array(8).fill('window'))
+      expect(baseline.slice(dividerStart, dividerStart + 2)).toEqual(['wall', 'wall'])
+      expect(baseline.slice(dividerStart + 2, dividerStart + 10)).toEqual(Array(8).fill('window'))
+      expect(baseline.filter(role => role === 'window')).toHaveLength(16)
+    }
 
     for (const metrics of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
       for (const slot of [storefront, cafe, street.storefronts.find(candidate => candidate.id === 'commercial-north-slot-2')!]) {

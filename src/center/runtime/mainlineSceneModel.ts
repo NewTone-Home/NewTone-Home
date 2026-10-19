@@ -979,7 +979,9 @@ const commercialCafeWindow: MainlineSceneCurve = { id: 'commercial-cafe-glass-fr
 // as air walls so a click behind a facade walks to the facade and stops. The
 // only deliberate gap is the terminal's cafe doorway corridor.
 const commercialStreetLaneExpansion = boundaryGridStepsFromScreenSpacing().vertical
-const commercialStreetCellPitch = 18 / 7
+// Use the same screen-derived character lattice as the office and ancestral-home walls.
+// The full street length remains content-sized: each authored cell contributes one pitch.
+const commercialStreetCellPitch = boundaryGridStepsFromScreenSpacing().horizontal
 
 const commercialStreetAmbientNpcs = [
   { id: 'commercial-street-pedestrian-west-north', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
@@ -1011,10 +1013,9 @@ function commercialStreetStorefrontComposition(label: string, wide: boolean): Ma
   if (wide) {
     return {
       fixedCellCount: labelLength + 21,
-      // Twelve panes form six complete 玻璃 pairs; the final cell is a
-      // stable wall cap so an odd single-character pane is never emitted.
-      baseline: ['wall', ...signZone, 'wall', ...Array.from({ length: 6 }, () => 'window' as const), 'wall', 'wall', ...Array.from({ length: 10 }, () => 'window' as const), 'wall'],
-      near: ['wall', ...nearSignZone, 'wall', ...Array.from({ length: 6 }, () => 'window' as const), 'wall', 'wall', ...Array.from({ length: 10 }, () => 'window' as const), 'wall'],
+      // Equal pane runs flank the two-cell masonry divider symmetrically.
+      baseline: ['wall', ...signZone, 'wall', ...Array.from({ length: 8 }, () => 'window' as const), 'wall', 'wall', ...Array.from({ length: 8 }, () => 'window' as const), 'wall'],
+      near: ['wall', ...nearSignZone, 'wall', ...Array.from({ length: 8 }, () => 'window' as const), 'wall', 'wall', ...Array.from({ length: 8 }, () => 'window' as const), 'wall'],
     }
   }
   return {
