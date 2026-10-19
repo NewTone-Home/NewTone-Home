@@ -978,9 +978,11 @@ const commercialCafeWindow: MainlineSceneCurve = { id: 'commercial-cafe-glass-fr
 // lines is still part of the scene's click surface. Compile that hidden side
 // as air walls so a click behind a facade walks to the facade and stops. The
 // only deliberate gap is the terminal's cafe doorway corridor.
+const commercialStreetLaneExpansion = boundaryGridStepsFromScreenSpacing().vertical
+
 const commercialStreetFacadeAirWalls: readonly MainlineAirWall[] = [
-  { id: 'commercial-north-facade-air-wall', ...box(8, 10, 192, 25.3) },
-  { id: 'commercial-south-facade-air-wall-left', ...box(8, 64.7, 180, 25.3) },
+  { id: 'commercial-north-facade-air-wall', ...box(8, 10, 192, 25.3 - commercialStreetLaneExpansion) },
+  { id: 'commercial-south-facade-air-wall-left', ...box(8, 64.7 + commercialStreetLaneExpansion, 180, 25.3 - commercialStreetLaneExpansion) },
 ]
 
 const commercialStreetAmbientNpcs = [
@@ -996,12 +998,12 @@ const commercialStreetAmbientNpcs = [
 // differently phased starts and dwell times keep the first street visit from
 // reading as a synchronized stage cue.
 const commercialStreetAmbientNpcRoutes = [
-  { npcId: 'commercial-street-pedestrian-west-north', initialDelayMs: 0, steps: [{ target: authoredPoint(60, 42), dwellMs: 1100 }, { kind: 'storefront-visit', target: authoredPoint(42, 42), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-north-slot-2', reentry: authoredPoint(42, 42), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(22, 42), dwellMs: 1800 }] },
-  { npcId: 'commercial-street-pedestrian-west-south', initialDelayMs: 900, steps: [{ target: authoredPoint(28, 58), dwellMs: 1700 }, { kind: 'offstreet', target: authoredPoint(12, 58), dwellMs: ambientNpcOffstreetMinimumMs, reentry: authoredPoint(18, 58), minDwellMs: ambientNpcOffstreetMinimumMs, maxDwellMs: ambientNpcOffstreetMaximumMs }, { target: authoredPoint(72, 58), dwellMs: 1200 }] },
-  { npcId: 'commercial-street-pedestrian-mid-east-north', initialDelayMs: 1700, steps: [{ target: authoredPoint(142, 42), dwellMs: 1300 }, { kind: 'storefront-visit', target: authoredPoint(150, 42), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-north-slot-7', reentry: authoredPoint(150, 42), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(88, 42), dwellMs: 2000 }] },
-  { npcId: 'commercial-street-pedestrian-mid-east-south', initialDelayMs: 2700, steps: [{ target: authoredPoint(174, 58), dwellMs: 1600 }, { kind: 'storefront-visit', target: authoredPoint(140, 58), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-6', reentry: authoredPoint(140, 58), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(124, 58), dwellMs: 900 }] },
+  { npcId: 'commercial-street-pedestrian-west-north', initialDelayMs: 0, steps: [{ target: authoredPoint(60, 42 - commercialStreetLaneExpansion), dwellMs: 1100 }, { kind: 'storefront-visit', target: authoredPoint(42, 42), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-north-slot-2', reentry: authoredPoint(42, 42), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(22, 42 - commercialStreetLaneExpansion), dwellMs: 1800 }] },
+  { npcId: 'commercial-street-pedestrian-west-south', initialDelayMs: 900, steps: [{ target: authoredPoint(28, 58 + commercialStreetLaneExpansion), dwellMs: 1700 }, { kind: 'offstreet', target: authoredPoint(12, 58 + commercialStreetLaneExpansion), dwellMs: ambientNpcOffstreetMinimumMs, reentry: authoredPoint(18, 58 + commercialStreetLaneExpansion), minDwellMs: ambientNpcOffstreetMinimumMs, maxDwellMs: ambientNpcOffstreetMaximumMs }, { target: authoredPoint(72, 58 + commercialStreetLaneExpansion), dwellMs: 1200 }] },
+  { npcId: 'commercial-street-pedestrian-mid-east-north', initialDelayMs: 1700, steps: [{ target: authoredPoint(142, 42 - commercialStreetLaneExpansion), dwellMs: 1300 }, { kind: 'storefront-visit', target: authoredPoint(150, 42), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-north-slot-7', reentry: authoredPoint(150, 42), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(88, 42 - commercialStreetLaneExpansion), dwellMs: 2000 }] },
+  { npcId: 'commercial-street-pedestrian-mid-east-south', initialDelayMs: 2700, steps: [{ target: authoredPoint(174, 58 + commercialStreetLaneExpansion), dwellMs: 1600 }, { kind: 'storefront-visit', target: authoredPoint(140, 58), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-6', reentry: authoredPoint(140, 58), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(124, 58 + commercialStreetLaneExpansion), dwellMs: 900 }] },
   { npcId: 'commercial-street-pedestrian-long', initialDelayMs: 3900, steps: [{ target: authoredPoint(166, 50), dwellMs: 2400 }, { kind: 'offstreet', target: authoredPoint(12, 50), dwellMs: ambientNpcOffstreetMinimumMs, reentry: authoredPoint(18, 50), minDwellMs: ambientNpcOffstreetMinimumMs, maxDwellMs: ambientNpcOffstreetMaximumMs }, { target: authoredPoint(20, 50), dwellMs: 1600 }] },
-  { npcId: 'commercial-street-pedestrian-shopper', initialDelayMs: 5100, steps: [{ target: authoredPoint(110, 40), dwellMs: 3500 }, { kind: 'storefront-visit', target: authoredPoint(156, 58), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-7', reentry: authoredPoint(156, 58), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(96, 58), dwellMs: 1400 }, { target: authoredPoint(116, 58), dwellMs: 2600 }] },
+  { npcId: 'commercial-street-pedestrian-shopper', initialDelayMs: 5100, steps: [{ target: authoredPoint(110, 40), dwellMs: 3500 }, { kind: 'storefront-visit', target: authoredPoint(156, 58), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-7', reentry: authoredPoint(156, 58), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(96, 58 + commercialStreetLaneExpansion), dwellMs: 1400 }, { target: authoredPoint(116, 58 + commercialStreetLaneExpansion), dwellMs: 2600 }] },
 ] as const satisfies readonly MainlineAmbientNpcRoute[]
 
 // The wider simple-meal bay uses a world-grid offset so its revealed door
@@ -1049,7 +1051,7 @@ const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
   ] as const
 ].map(([id, wallId, edge, label, start, end]): MainlineStorefrontSlotBlueprint => {
   const portalId = id === 'commercial-cafe-slot' ? 'street-cafe-entry' : `${id}-entry`
-  const approachY = edge === 'bottom' ? 42 : 58
+  const approachY = edge === 'bottom' ? 42 - commercialStreetLaneExpansion : 58 + commercialStreetLaneExpansion
   const wideStorefront = end - start >= 30
   const portalTangent = commercialStreetPortalTangent({ id, start, end })
   return { id, wallId, edge, label, style: 'modern', mode: 'commercial', start, end,
@@ -1060,8 +1062,8 @@ const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
 
 const commercialStreetPortals: MainlineScenePortalBlueprint[] = commercialStreetStorefronts.map((storefront): MainlineScenePortalBlueprint => {
   const x = commercialStreetPortalTangent(storefront)
-  const y = storefront.edge === 'bottom' ? 36 : 64
-  const laneY = storefront.edge === 'bottom' ? 41 : 59
+  const y = storefront.edge === 'bottom' ? 36 - commercialStreetLaneExpansion : 64 + commercialStreetLaneExpansion
+  const laneY = storefront.edge === 'bottom' ? 41 - commercialStreetLaneExpansion : 59 + commercialStreetLaneExpansion
   const portalId = storefront.portalId!
   return { id: portalId,
     entity: { id: portalId, label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
@@ -1082,9 +1084,9 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
     externalExit: { axis: 'x', direction: -1, threshold: 12 },
     wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
     walls: [
-      { id: 'commercial-north-facade', type: 'room', bounds: box(12, 14, 180, 22), variant: 'shop-row', edges: ['bottom'] },
-      { id: 'commercial-main-lane', type: 'lane', bounds: box(12, 36, 176, 28), edges: [] },
-      { id: 'commercial-south-facade', type: 'room', bounds: box(12, 64, 180, 22), variant: 'shop-row', edges: ['top'] },
+      { id: 'commercial-north-facade', type: 'room', bounds: box(12, 14, 180, 22 - commercialStreetLaneExpansion), variant: 'shop-row', edges: ['bottom'] },
+      { id: 'commercial-main-lane', type: 'lane', bounds: box(12, 36 - commercialStreetLaneExpansion, 176, 28 + commercialStreetLaneExpansion * 2), edges: [] },
+      { id: 'commercial-south-facade', type: 'room', bounds: box(12, 64 + commercialStreetLaneExpansion, 180, 22 - commercialStreetLaneExpansion), variant: 'shop-row', edges: ['top'] },
     ],
     storefronts: commercialStreetStorefronts,
     floorEntities: [],
@@ -1092,12 +1094,12 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
     blockers: [],
     npcs: commercialStreetAmbientNpcs,
     npcPlacements: [
-      { npcId: 'commercial-street-pedestrian-west-north', position: authoredPoint(22, 42) },
-      { npcId: 'commercial-street-pedestrian-west-south', position: authoredPoint(64, 58) },
-      { npcId: 'commercial-street-pedestrian-mid-east-north', position: authoredPoint(88, 42) },
-      { npcId: 'commercial-street-pedestrian-mid-east-south', position: authoredPoint(132, 58) },
+      { npcId: 'commercial-street-pedestrian-west-north', position: authoredPoint(22, 42 - commercialStreetLaneExpansion) },
+      { npcId: 'commercial-street-pedestrian-west-south', position: authoredPoint(64, 58 + commercialStreetLaneExpansion) },
+      { npcId: 'commercial-street-pedestrian-mid-east-north', position: authoredPoint(88, 42 - commercialStreetLaneExpansion) },
+      { npcId: 'commercial-street-pedestrian-mid-east-south', position: authoredPoint(132, 58 + commercialStreetLaneExpansion) },
       { npcId: 'commercial-street-pedestrian-long', position: authoredPoint(20, 50) },
-      { npcId: 'commercial-street-pedestrian-shopper', position: authoredPoint(110, 58) },
+      { npcId: 'commercial-street-pedestrian-shopper', position: authoredPoint(110, 58 + commercialStreetLaneExpansion) },
     ],
     ambientNpcRoutes: commercialStreetAmbientNpcRoutes,
     furnitureGroups: [],

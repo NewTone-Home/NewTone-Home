@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { boundaryGridStepsFromScreenSpacing } from '../src/center/runtime/sceneBoundaryGrid'
 import { isMainlineStorefrontNear, isMainlineStorefrontPresentationInRange, mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineScenePassageCollision, mainlineScenes, mainlineStorefrontAnchor, mainlineStorefrontApproach, mainlineStorefrontDepartureRadius } from '../src/center/runtime/mainlineScenes'
 import {
   nextStorefrontPresentationPhase,
@@ -342,6 +343,29 @@ describe('commercial street storefront presentation', () => {
     }
   })
 
+  it('widens the street lane by one shared wall-character cell on each side', () => {
+    const cell = boundaryGridStepsFromScreenSpacing().vertical
+    const north = street.structures.find((structure) => structure.id === 'commercial-north-facade')!
+    const lane = street.structures.find((structure) => structure.id === 'commercial-main-lane')!
+    const south = street.structures.find((structure) => structure.id === 'commercial-south-facade')!
+    expect(north.bounds!.y + north.bounds!.height).toBeCloseTo(36 - cell)
+    expect(lane.bounds!.y).toBeCloseTo(36 - cell)
+    expect(lane.bounds!.height).toBeCloseTo(28 + 2 * cell)
+    expect(south.bounds!.y).toBeCloseTo(64 + cell)
+    const northApproach = mainlineStorefrontApproach(street, street.storefronts[0]!)
+    const southApproach = mainlineStorefrontApproach(street, street.storefronts.find((storefront) => storefront.edge === 'top')!)
+    expect(Math.abs(southApproach.y - northApproach.y)).toBeGreaterThan(20)
+    expect(Math.abs(southApproach.y - northApproach.y)).toBeCloseTo(16 + 2 * cell)
+    for (const first of street.storefronts.filter((storefront) => storefront.edge === 'bottom')) {
+      const firstApproach = mainlineStorefrontApproach(street, first)
+      for (const second of street.storefronts.filter((storefront) => storefront.edge === 'top')) {
+        const secondApproach = mainlineStorefrontApproach(street, second)
+        expect(Math.hypot(secondApproach.x - firstApproach.x, secondApproach.y - firstApproach.y))
+          .toBeGreaterThan((first.nearRadius ?? 10) + (second.nearRadius ?? 10))
+      }
+    }
+  })
+
   it('assigns one entrance owner to the nearest eligible storefront and releases ownership on exit', () => {
     const firstApproach = mainlineStorefrontApproach(street, cafe)
     const distantStorefront = street.storefronts
@@ -367,6 +391,15 @@ describe('commercial street storefront presentation', () => {
     expect(nextStorefrontPresentationPhase('baseline', 'handoff')).toBe('baseline')
     expect(storefrontPresentationHandoffSource(new Map([['cafe-a', 'lingering'], ['cafe-b', 'baseline']]), 'cafe-b')).toBe('cafe-a')
     expect(storefrontPresentationHandoffSource(new Map([['cafe-a', 'baseline']]), 'cafe-b')).toBeNull()
+  })
+
+  it('runs the old restoration and new reveal in parallel and allows an immediate reversal', () => {
+    const outgoing = nextStorefrontPresentationPhase('revealed', 'handoff')
+    const incoming = nextStorefrontPresentationPhase('baseline', 'approach')
+    expect(outgoing).toBe('restoring')
+    expect(incoming).toBe('retracting')
+    expect(nextStorefrontPresentationPhase(outgoing, 'approach')).toBe('revealing')
+    expect(nextStorefrontPresentationPhase(incoming, 'handoff')).toBe('baseline')
   })
 
   it('keeps real passage collision unchanged while the visual cover reveals', () => {

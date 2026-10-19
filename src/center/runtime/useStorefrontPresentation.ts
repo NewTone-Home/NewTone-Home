@@ -24,11 +24,8 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
   )
   const activeStorefrontId = activeStorefrontPresentationOwner(scene, position)
   const handledOwnerRef = useRef<string | null | undefined>(undefined)
-  const activeOwnerRef = useRef<string | null>(activeStorefrontId)
-  const pendingOwnerRef = useRef<string | null>(null)
   const nearRef = useRef(new Map<string, boolean>())
   const departedAtRef = useRef(new Map<string, number>())
-  activeOwnerRef.current = activeStorefrontId
   nearRef.current = new Map(switchableStorefronts.map(storefront => [storefront.id, storefront.id === activeStorefrontId]))
 
   const transition = useCallback((storefrontId: string, event: StorefrontPresentationEvent) => {
@@ -51,21 +48,12 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
     if (previousOwner == null) {
       if (activeStorefrontId) {
         const outgoingOwner = storefrontPresentationHandoffSource(phaseByStorefront, activeStorefrontId)
-        const outgoingPhase = outgoingOwner ? phaseByStorefront.get(outgoingOwner) ?? 'baseline' : 'baseline'
         if (outgoingOwner) {
-          pendingOwnerRef.current = activeStorefrontId
           departedAtRef.current.delete(outgoingOwner)
           transition(outgoingOwner, 'handoff')
-          if (outgoingPhase === 'baseline' || outgoingPhase === 'retracting') {
-            pendingOwnerRef.current = null
-            departedAtRef.current.delete(activeStorefrontId)
-            transition(activeStorefrontId, 'approach')
-          }
-        } else {
-          pendingOwnerRef.current = null
-          departedAtRef.current.delete(activeStorefrontId)
-          transition(activeStorefrontId, 'approach')
         }
+        departedAtRef.current.delete(activeStorefrontId)
+        transition(activeStorefrontId, 'approach')
       }
       return
     }
@@ -73,17 +61,12 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
     const previousPhase = phaseByStorefront.get(previousOwner) ?? 'baseline'
     departedAtRef.current.delete(previousOwner)
     if (activeStorefrontId) {
-      pendingOwnerRef.current = activeStorefrontId
       transition(previousOwner, 'handoff')
-      if (previousPhase === 'baseline' || previousPhase === 'retracting') {
-        pendingOwnerRef.current = null
-        departedAtRef.current.delete(activeStorefrontId)
-        transition(activeStorefrontId, 'approach')
-      }
+      departedAtRef.current.delete(activeStorefrontId)
+      transition(activeStorefrontId, 'approach')
       return
     }
 
-    pendingOwnerRef.current = null
     if (previousPhase !== 'baseline') departedAtRef.current.set(previousOwner, performance.now())
     transition(previousOwner, 'leave')
   }, [activeStorefrontId, phaseByStorefront, transition])
@@ -101,12 +84,6 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
 
   const completeRestoreMotion = useCallback((storefrontId: string) => {
     transition(storefrontId, 'restore-motion-complete')
-    const pendingOwner = pendingOwnerRef.current
-    if (pendingOwner && pendingOwner !== storefrontId && activeOwnerRef.current === pendingOwner) {
-      pendingOwnerRef.current = null
-      departedAtRef.current.delete(pendingOwner)
-      transition(pendingOwner, 'approach')
-    }
   }, [transition])
 
   return {
