@@ -791,6 +791,17 @@ function targetIsInsideStorefrontFrame(scene: MainlineSceneDefinition, passage: 
     ? target.y >= storefront.start && target.y <= storefront.end
     : target.x >= storefront.start && target.x <= storefront.end
   if (!withinStorefrontSpan) return false
+  if (scene.id === 'commercial-street') {
+    // A click beyond the commercial facade belongs to that storefront only
+    // on its inward side. The outward half-plane is the public street and
+    // must stay ordinary navigation so walking along a row does not snap to
+    // a nearby locked door.
+    if (storefront.edge === 'left') return target.x >= bounds.x + bounds.width
+    if (storefront.edge === 'right') return target.x <= bounds.x
+    if (storefront.edge === 'top') return target.y >= bounds.y
+    return target.y <= bounds.y + bounds.height
+  }
+  // Legacy storefront portals use their authored public-side approach plane.
   if (storefront.edge === 'left') return target.x <= bounds.x
   if (storefront.edge === 'right') return target.x >= bounds.x + bounds.width
   if (storefront.edge === 'top') return target.y <= bounds.y
@@ -884,15 +895,16 @@ export function classifyMainlineWorldCommand(
       const collision = mainlinePassageCollisionForNavigation(scene, passage, options)
       const doorway = mainlinePassageDoorwayForNavigation(scene, passage, options)
       const region = mainlinePassageDoorRegion(passage, collision, doorway, footprint)
-      const storefrontIntent = Boolean(passage.targetSceneId && targetIsInsideStorefrontFrame(scene, passage, requestedTarget))
+      const storefrontIntent = Boolean((passage.targetSceneId || scene.id === 'commercial-street' && passage.access === 'locked')
+        && targetIsInsideStorefrontFrame(scene, passage, requestedTarget))
       const crossesDoorway = targetCrossesCompiledDoorway(region, from, requestedTarget, footprint)
       if (!storefrontIntent && !crossesDoorway) return null
       const approachPath = canActorReachPassageApproach(scene, passage, from, layout, options)?.path
       if (!approachPath) return null
-      return { passage, approachPath, distance: mainlinePathLength(approachPath) }
+      return { passage, approachPath, storefrontIntent, distance: mainlinePathLength(approachPath) }
     })
-    .filter((candidate): candidate is { passage: MainlineScenePassage; approachPath: Point[]; distance: number } => Boolean(candidate))
-    .sort((first, second) => first.distance - second.distance)
+    .filter((candidate): candidate is { passage: MainlineScenePassage; approachPath: Point[]; storefrontIntent: boolean; distance: number } => Boolean(candidate))
+    .sort((first, second) => Number(second.storefrontIntent) - Number(first.storefrontIntent) || first.distance - second.distance)
   const selected = candidates[0]
   if (selected) {
     return {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { findMainlinePath, isWalkableMainlinePoint, resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
-import { mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
+import { classifyMainlineWorldCommand, findMainlinePath, isWalkableMainlinePoint, mainlinePassageSide, resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
+import { mainlineCanonicalSceneGeometryUnits, mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 import {
@@ -55,6 +55,50 @@ describe('commercial street storefront interactions', () => {
       expect(findMainlinePath(street.initialPlayerPosition, approach, street)).not.toBeNull()
       expect(Math.hypot(street.initialPlayerPosition.x - approach.x, street.initialPlayerPosition.y - approach.y)).toBeGreaterThan(.35)
     })
+  })
+
+  it('routes sign, door and behind-facade clicks to the matching locked northern, southern and side shop portals', () => {
+    const targets = ['commercial-north-slot-2', 'commercial-south-slot-5', 'commercial-cafe-slot', 'commercial-south-slot-2']
+    const canonical = mainlineCanonicalSceneGeometryUnits(street, { width: 1280, height: 720 })
+    for (const storefrontId of targets) {
+      const storefront = street.storefronts.find((candidate) => candidate.id === storefrontId)!
+      const passage = street.passages.find((candidate) => candidate.portalId === storefront.portalId)!
+      const door = canonical.flatMap((unit) => unit.visual.cells)
+        .find((cell) => cell.storefrontId === storefront.id && cell.storefrontRole === 'door')!
+      const sign = canonical.flatMap((unit) => unit.visual.cells)
+        .find((cell) => cell.storefrontId === storefront.id && cell.storefrontRole === 'sign')!
+      const bounds = street.structures.find((candidate) => candidate.id === storefront.wallId)!.bounds!
+      const behind = storefront.edge === 'top'
+        ? { x: door.x, y: bounds.y + 3 }
+        : storefront.edge === 'bottom'
+          ? { x: door.x, y: bounds.y + bounds.height - 3 }
+          : storefront.edge === 'left'
+            ? { x: bounds.x + 3, y: door.y }
+            : { x: bounds.x + bounds.width - 3, y: door.y }
+
+      for (const target of [{ x: sign.x, y: sign.y }, { x: door.x, y: door.y }, behind]) {
+        const command = classifyMainlineWorldCommand(street, street.initialPlayerPosition, target)
+        expect(command.kind, `${storefrontId} click ${target.x},${target.y}`).toBe('passage')
+        if (command.kind !== 'passage') continue
+        expect(command.passage.id, `${storefrontId} click ${target.x},${target.y}`).toBe(passage.id)
+        expect(command.passage.access).toBe('locked')
+        expect(command.approachPath).not.toBeNull()
+        const approachEnd = command.approachPath!.at(-1)!
+        expect(isWalkableMainlinePoint(approachEnd, street)).toBe(true)
+        expect(mainlinePassageSide(command.passage, approachEnd)).toBe(0)
+      }
+
+      const threshold = passage.thresholds[0]
+      const crossing = passage.crossingTargets[0]
+      const authoredApproach = mainlineStorefrontApproach(street, storefront)
+      expect(threshold.x).toBeCloseTo(authoredApproach.x)
+      expect(threshold.y).toBeCloseTo(authoredApproach.y)
+      expect(Math.abs(crossing.x - threshold.x) + Math.abs(crossing.y - threshold.y)).toBeGreaterThan(1)
+      expect(Math.abs(crossing.x - threshold.x) > Math.abs(crossing.y - threshold.y) ? 'x' : 'y')
+        .toBe(storefront.edge === 'left' || storefront.edge === 'right' ? 'x' : 'y')
+      if (storefront.edge === 'bottom') expect(crossing.y).toBeLessThan(threshold.y)
+      if (storefront.edge === 'top') expect(crossing.y).toBeGreaterThan(threshold.y)
+    }
   })
 
   it('projects the contact onto the continuous facade span from left, centre, and right approaches', () => {

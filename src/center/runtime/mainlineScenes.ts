@@ -1103,7 +1103,14 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
       if (!position) return passage
       const storefront = storefronts.find((slot) => slot.portalId === passage.portalId)
       const approach = storefront?.approach ?? position
-      return { ...passage, thresholds: [approach, approach], crossingTargets: [approach, approach] }
+      const outward = storefront?.edge === 'top' ? { x: 0, y: -1 }
+        : storefront?.edge === 'bottom' ? { x: 0, y: 1 }
+          : storefront?.edge === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 }
+      const interiorTarget = { x: position.x - outward.x * 6, y: position.y - outward.y * 6 }
+      // The first endpoint is the safe public-side approach; the paired
+      // crossing target lies beyond the door on the interior side. This keeps
+      // the real facade normal non-zero for passage-side and footprint math.
+      return { ...passage, thresholds: [approach, interiorTarget], crossingTargets: [interiorTarget, approach] }
     })
     geometry = compileMainlineGeometry(
       structures,
@@ -1249,13 +1256,17 @@ function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneD
     const entity = compiledScene.objects.find((candidate) => candidate.id === portal.entity.id)
     if (!storefront?.composition?.fixedCellCount || !entity) return portal
     const approach = storefront.approach ?? entity.position
+    const outward = storefront.edge === 'top' ? { x: 0, y: -1 }
+      : storefront.edge === 'bottom' ? { x: 0, y: 1 }
+        : storefront.edge === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 }
+    const interiorTarget = { x: entity.position.x - outward.x * 6, y: entity.position.y - outward.y * 6 }
     return {
       ...portal,
       endpoint: {
         ...portal.endpoint,
         doorPosition: entity.position,
         threshold: approach,
-        crossingTarget: approach,
+        crossingTarget: interiorTarget,
       },
     }
   })
