@@ -997,12 +997,9 @@ const commercialStreetAmbientNpcs = [
 // reading as a synchronized stage cue.
 
 
-// The wider simple-meal bay uses a world-grid offset so its revealed door
-// stays on the first glyph of 简餐 at desktop and mobile projections.
 const commercialStreetPortalTangent = (storefront: Pick<MainlineStorefrontSlotBlueprint, 'id' | 'start' | 'end' | 'label'>) => {
-  const wide = storefront.id === 'commercial-cafe-slot' || storefront.id === 'commercial-south-slot-2'
   const signLength = Array.from(storefront.label).length
-  const doorGlyphIndex = wide ? 1 + Math.floor(signLength / 2) : 4 + Math.floor(signLength / 2)
+  const doorGlyphIndex = 3 + Math.floor(signLength / 2)
   return storefront.start + (doorGlyphIndex + .4995) * commercialStreetCellPitch
 }
 
@@ -1010,26 +1007,28 @@ function commercialStreetStorefrontComposition(label: string, wide: boolean): Ma
   const labelLength = Array.from(label).length
   const signZone: MainlineStorefrontRole[] = Array.from({ length: labelLength }, () => 'sign')
   const nearSignZone: MainlineStorefrontRole[] = signZone.map((_, index) => index === Math.floor(labelLength / 2) ? 'door' : 'wall')
+  const moduleA: MainlineStorefrontRole[] = ['wall', 'window', 'window', ...signZone, 'window', 'window', 'wall']
+  const nearModuleA: MainlineStorefrontRole[] = ['wall', 'window', 'window', ...nearSignZone, 'window', 'window', 'wall']
   if (wide) {
+    const moduleB: MainlineStorefrontRole[] = ['wall', 'window', 'window', 'window', 'window', 'window', 'window', 'wall']
     return {
-      fixedCellCount: labelLength + 21,
-      // Equal pane runs flank the two-cell masonry divider symmetrically.
-      baseline: ['wall', ...signZone, 'wall', ...Array.from({ length: 8 }, () => 'window' as const), 'wall', 'wall', ...Array.from({ length: 8 }, () => 'window' as const), 'wall'],
-      near: ['wall', ...nearSignZone, 'wall', ...Array.from({ length: 8 }, () => 'window' as const), 'wall', 'wall', ...Array.from({ length: 8 }, () => 'window' as const), 'wall'],
+      fixedCellCount: labelLength + 15,
+      baseline: [...moduleA, 'wall', ...moduleB],
+      near: [...nearModuleA, 'wall', ...moduleB],
     }
   }
   return {
-    fixedCellCount: labelLength + 8,
-    // The isolated leading pane becomes a stable wall cap; the two panes
-    // beside the sign remain one complete glass pair.
-    baseline: ['wall', 'window', 'window', 'wall', ...signZone, 'wall', 'window', 'window', 'wall'],
-    near: ['wall', 'window', 'window', 'wall', ...nearSignZone, 'wall', 'window', 'window', 'wall'],
+    fixedCellCount: labelLength + 6,
+    baseline: moduleA,
+    near: nearModuleA,
   }
 }
 
 const commercialStreetRowCursor: Record<'top' | 'bottom', number> = {
-  top: 12 + commercialStreetCellPitch * 3,
-  bottom: 12 + commercialStreetCellPitch * 3,
+  // One shared-grid interval at the outside edge plus the storefront's own cap
+  // gives exactly two visible wall glyphs at either end of each row.
+  top: 12 + commercialStreetCellPitch,
+  bottom: 12 + commercialStreetCellPitch,
 }
 const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
   ...[
@@ -1065,18 +1064,23 @@ const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
     approach: authoredPoint(portalTangent, approachY) }
 })
 
-// Size the shared street grid from the storefront compositions actually
-// authored on each side, plus one separator cell between adjacent stores.
-// Both rows use this same count, so a row inventory edit cannot silently
-// stretch only one side of the scene.
-const commercialStreetRowCellCount = Math.max(...(['top', 'bottom'] as const).map((edge) => {
+// Size each facade from its actual modules and inter-shop separators. The
+// shorter row keeps its own right endpoint, so it does not accumulate extra
+// blank wall cells beside the longer row.
+const commercialStreetCellsForEdge = (edge: 'top' | 'bottom') => {
   const row = commercialStreetStorefronts.filter((storefront) => storefront.edge === edge)
   const storefrontCells = row.reduce((total, storefront) => (
     total + (storefront.composition?.fixedCellCount ?? storefront.composition?.baseline.length ?? 0)
   ), 0)
   return storefrontCells + Math.max(0, row.length - 1)
-}))
-const commercialStreetLongitudinalExpansion = (commercialStreetRowCellCount + 5) * commercialStreetCellPitch - 180
+}
+const commercialStreetRowCellCounts = {
+  top: commercialStreetCellsForEdge('top'),
+  bottom: commercialStreetCellsForEdge('bottom'),
+}
+const commercialStreetRowCellCount = Math.max(commercialStreetRowCellCounts.top, commercialStreetRowCellCounts.bottom)
+// Add only the one outside interval needed for the terminal wall cap.
+const commercialStreetLongitudinalExpansion = (commercialStreetRowCellCount + 1) * commercialStreetCellPitch - 180
 const commercialStreetSceneRight = 192 + commercialStreetLongitudinalExpansion
 const commercialStreetWorldRight = 200 + commercialStreetLongitudinalExpansion
 
@@ -1120,9 +1124,9 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
     externalExit: { axis: 'x', direction: -1, threshold: 12 },
     wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
     walls: [
-      { id: 'commercial-north-facade', type: 'room', bounds: box(12, 14, 180 + commercialStreetLongitudinalExpansion, 22 - commercialStreetLaneExpansion), variant: 'shop-row', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { horizontal: commercialStreetRowCellCount + 6 }, edges: ['bottom'] },
+      { id: 'commercial-north-facade', type: 'room', bounds: box(12, 14, (commercialStreetRowCellCounts.bottom + 1) * commercialStreetCellPitch, 22 - commercialStreetLaneExpansion), variant: 'shop-row', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { horizontal: commercialStreetRowCellCounts.bottom + 2 }, edges: ['bottom'] },
       { id: 'commercial-main-lane', type: 'lane', bounds: box(12, 36 - commercialStreetLaneExpansion, 176 + commercialStreetLongitudinalExpansion, 28 + commercialStreetLaneExpansion * 2), edges: [] },
-      { id: 'commercial-south-facade', type: 'room', bounds: box(12, 64 + commercialStreetLaneExpansion, 180 + commercialStreetLongitudinalExpansion, 22 - commercialStreetLaneExpansion), variant: 'shop-row', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { horizontal: commercialStreetRowCellCount + 6 }, edges: ['top'] },
+      { id: 'commercial-south-facade', type: 'room', bounds: box(12, 64 + commercialStreetLaneExpansion, (commercialStreetRowCellCounts.top + 1) * commercialStreetCellPitch, 22 - commercialStreetLaneExpansion), variant: 'shop-row', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { horizontal: commercialStreetRowCellCounts.top + 2 }, edges: ['top'] },
     ],
     storefronts: commercialStreetStorefronts,
     floorEntities: [],

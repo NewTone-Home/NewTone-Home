@@ -141,8 +141,8 @@ describe('commercial street storefront interactions', () => {
     const expectedRoles = (label: string, wide: boolean) => {
       const sign = Array.from(label, () => 'sign')
       return wide
-        ? ['wall', ...sign, 'wall', ...Array.from({ length: 8 }, () => 'window'), 'wall', 'wall', ...Array.from({ length: 8 }, () => 'window'), 'wall']
-        : ['wall', 'window', 'window', 'wall', ...sign, 'wall', 'window', 'window', 'wall']
+        ? ['wall', 'window', 'window', ...sign, 'window', 'window', 'wall', 'wall', 'wall', 'window', 'window', 'window', 'window', 'window', 'window', 'wall']
+        : ['wall', 'window', 'window', ...sign, 'window', 'window', 'wall']
     }
     const phases = new Map(street.storefronts.map((storefront) => [storefront.id, 'baseline' as const]))
     const firstGrid = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, metrics[0], phases)
@@ -168,7 +168,7 @@ describe('commercial street storefront interactions', () => {
       expect(active).toHaveLength(expected.length)
       expect(new Set(active.map((cell) => cell.x)).size).toBe(expected.length)
       expect(active.filter((cell) => cell.storefrontRole === 'sign').map((cell) => cell.glyph).join('')).toBe(storefront.label)
-      expect(active.filter((cell) => cell.storefrontRole === 'window')).toHaveLength(wide ? 16 : 4)
+      expect(active.filter((cell) => cell.storefrontRole === 'window')).toHaveLength(wide ? 10 : 4)
 
       const near = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, metrics[0], new Map([[storefront.id, 'revealed']]))
         .flatMap((unit) => unit.visual.cells)
