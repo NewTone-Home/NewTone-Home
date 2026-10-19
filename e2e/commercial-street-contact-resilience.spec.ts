@@ -170,6 +170,7 @@ test('Commercial Street storefront names remain complete and legible at desktop 
   ]) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
     await page.goto('/?scene=commercial-street&debugRuntimeEvidence=1')
+    const stage = page.locator('.mainline-scene-stage')
     const approachScreenPoint = await stage.evaluate((element, target) => {
       const rect = element.getBoundingClientRect()
       const cameraX = Number(element.getAttribute('data-camera-offset-x') ?? 0)

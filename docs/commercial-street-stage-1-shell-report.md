@@ -143,7 +143,7 @@ Each shell still owns only its sides and back, sharing the existing front facade
 - Navigation checks cover all 14 public-lane-to-approach routes, front-door crossings, paths into each room, and paths to each locked rear-door threshold.
 - `npm run typecheck` — passed.
 - `npm run build` — passed; Vite emitted the existing large-chunk advisory.
-- Playwright all-14 live browser traversal was attempted, but the local web server/browser invocation produced no result in the restricted environment and was stopped; no screenshots were captured. Treat live browser traversal as pending review.
+- The first Playwright all-14 traversal attempt produced no result and was stopped; no screenshots were captured. A later script review found two E2E defects: the storefront-label test referenced `stage` after its local declaration had been removed, and the all-shell test issued one coordinate click to the authored approach instead of stepping the actor there. The contact-resilience test now declares its stage locator locally. The all-shell traversal now moves through on-screen 8-unit waypoints, waits for each real actor position, walks to each interior center and back to the inside door threshold before clicking to exit. This is input-driven walking, not teleportation. The fixed E2E scripts have not yet been rerun in a live browser; do not treat them as passed.
 - Existing `phone-v1-round3` and `p1-experience` screenshot-producing flows were not run. The Cafe route assertions in the related compatibility specs were updated to enter the new shell before explicitly addressing the preserved legacy Cafe scene.
 - Performance was not profiled; this stage makes no measured frame-time claim.
 
