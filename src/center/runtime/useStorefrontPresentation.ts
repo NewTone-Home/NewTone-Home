@@ -23,6 +23,9 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
     [scene.storefronts],
   )
   const activeStorefrontId = activeStorefrontPresentationOwner(scene, position)
+  const playerInsideStore = scene.id === 'commercial-street' && scene.rooms.some((room) => room.id.endsWith('-interior')
+    && position.x >= room.bounds.x && position.x <= room.bounds.x + room.bounds.width
+    && position.y >= room.bounds.y && position.y <= room.bounds.y + room.bounds.height)
   const handledOwnerRef = useRef<string | null | undefined>(undefined)
   const nearRef = useRef(new Map<string, boolean>())
   const departedAtRef = useRef(new Map<string, number>())
@@ -42,6 +45,12 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
   }, [])
 
   useEffect(() => {
+    if (playerInsideStore) {
+      handledOwnerRef.current = null
+      departedAtRef.current.clear()
+      setPhaseByStorefront((current) => current.size === 0 ? current : new Map())
+      return
+    }
     if (handledOwnerRef.current === activeStorefrontId) return
     const previousOwner = handledOwnerRef.current
     handledOwnerRef.current = activeStorefrontId
@@ -69,7 +78,7 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
 
     if (previousPhase !== 'baseline') departedAtRef.current.set(previousOwner, performance.now())
     transition(previousOwner, 'leave')
-  }, [activeStorefrontId, phaseByStorefront, transition])
+  }, [activeStorefrontId, phaseByStorefront, playerInsideStore, transition])
 
   // Product grace period belongs to presentation, not a CSS animation clock.
   useEffect(() => {

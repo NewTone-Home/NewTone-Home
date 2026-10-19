@@ -15,7 +15,7 @@ The implementation uses `boundaryGridStepsFromScreenSpacing()` for both axes. At
 
 Shell corners use the first and last frozen storefront glyph centers. The rear row therefore aligns with the facade at 1280x720, 1180x757, and 390x844 instead of overhanging by half a cell. Room bounds and portal positions stay at their authored world coordinates across screen metrics. The side rows include the rear endpoint and meet the existing facade at the front endpoint; the facade owns that shared front glyph visually. Each shell adds only left, right and rear boundary edges. The rear edge contains the locked rear-door opening. The sample room bounds are registered in `scene.rooms` and linked bidirectionally to the public lane using `routeThrough` passages. The larger y walk bounds let the same scene camera and navmesh reach the rooms. Segmented air walls preserve the established off-storefront barriers and close the new north/south extension everywhere except the two authored bay spans. Thus the expansion does not make unselected store backs walkable.
 
-Shell wall glyphs are filtered at the renderer by their owning room. Visibility uses the discrete active shell room; compiled geometry and focus groups no longer depend on player x/y. Ordinary movement therefore does not rebuild focus groups via this filter. This removes an avoidable per-step invalidation path; no standalone frame-time performance measurement was made. The visual filter leaves compiled units in collision, route and room geometry. Storefront fronts, neighboring shop walls and the Cafe are not hidden by that filter.
+Historical implementation note (corrected by the room-transition stability update below): shell wall glyphs were initially filtered at the renderer by the active room. Although compiled geometry, collision and navigation remained present, this changed the visual glyph set on each doorway crossing.
 
 ## Changed files and source evidence
 
@@ -148,9 +148,59 @@ Each shell still owns only its sides and back, sharing the existing front facade
 - `npm run build` — passed; Vite emitted the existing large-chunk advisory.
 - The first Playwright all-14 traversal attempt produced no result and was stopped; no screenshots were captured. A later script review found two E2E defects: the storefront-label test referenced `stage` after its local declaration had been removed, and the all-shell test issued one coordinate click to the authored approach instead of stepping the actor there. The contact-resilience test now declares its stage locator locally. The all-shell traversal now moves through on-screen 8-unit waypoints, waits for each real actor position, walks to each interior center and back to the inside door threshold before clicking to exit. This is input-driven walking, not teleportation. The fixed E2E scripts have not yet been rerun in a live browser; do not treat them as passed.
 - Existing `phone-v1-round3` and `p1-experience` screenshot-producing flows were not run. The Cafe route assertions in the related compatibility specs were updated to enter the new shell before explicitly addressing the preserved legacy Cafe scene.
-- Performance was not profiled; this stage makes no measured frame-time claim.
+- At the original Stage 2 cut, performance was not profiled; the room-transition stability update below adds a same-device baseline profile and explicitly separates measured observations from component-level attribution.
 
-The committed Stage 2 code, tests, and full source comparison will be linked from the accompanying Notion review note after the preview commit is pushed and its deployment is verified.
+The committed Stage 2 code, tests, and full source comparison were linked from the accompanying Notion review note after its preview deployment was verified.
+
+## Room-transition stability update
+
+### What changed
+
+- `src/center/runtime/mainlineSceneVisibility.ts` now makes every `commercial-street` shell geometry unit render independent of active room. Other scenes retain their prior shell ownership filter.
+- `src/center/runtime/MainlineSceneRenderer.tsx` uses that policy for the visual geometry list. Room furniture remains gated by `mainlineEntityBelongsToActiveRoom`; the scene geometry snapshot, collision, passages and walk graph are not conditionally removed.
+- `src/center/runtime/storefrontPresentation.ts` only selects a near-sign owner while the player is within `commercial-street-public-lane`.
+- `src/center/runtime/useStorefrontPresentation.ts` restores all sign phases to baseline immediately when the player is within a shop room, avoiding the leave linger from leaving the public lane.
+- `tests/mainlineSceneVisibility.test.ts` checks that all 14 shell owners stay mounted across lane/N2/S5 ownership, and that a S5 fixture remains visible only in S5. `tests/storefrontPresentation.test.ts` checks public-lane sign ownership and no owner inside a shop.
+- `scripts/profile-commercial-street-door.mjs` records page-clock `PerformanceObserver` long tasks, request-animation-frame deltas, DOM/shell snapshots and a CDP timeline trace. It captures no screenshots.
+
+### Before/after evidence
+
+Same-device baseline was measured against the 1180x757, scale-1 `commercial-street` preview before this change. Entering N1 changed wall glyphs from 198 to 249 and total DOM nodes from 628 to 760; returning changed them back to 198 and 627. Shop objects changed 0 -> 13 -> 0. The local sample recorded three long tasks during the approach/entry interval (225, 310, 116 ms) and three during return (196, 307, 67 ms). Those intervals include walking and door presentation, so the measurements do not attribute the delay to one component. The trace/profile does not provide a verified per-frame CPU cause.
+
+After this change, the focused unit runs pass (49 tests across four files). The structural regression asserts all 14 shell source-wall IDs remain rendered for no room, N2 and S5 ownership. Browser profile after-change data is still pending until this branch's deployment is available; no post-change latency improvement is claimed here.
+
+### Focused code delta
+
+Before, the renderer selected shell cells by `activeShellRoomId`:
+
+```ts
+const renderedGeometryCells = useMemo(() => geometryCells.filter(({ unit }) => {
+  const shellRoomId = unit.sourceWallId?.endsWith('-shell')
+    ? unit.sourceWallId.slice(0, -'-shell'.length)
+    : undefined
+  return !shellRoomId || shellRoomId === activeShellRoomId
+}), [activeShellRoomId, geometryCells, layoutMode])
+```
+
+Now the room-specific visual rule is explicit and keeps all continuous-street shell units mounted:
+
+```ts
+export function mainlineGeometryUnitShouldRender(sceneId, unit, activeRoomId, layoutMode) {
+  if (layoutMode) return true
+  const shellRoomId = unit.sourceWallId?.endsWith('-shell')
+    ? unit.sourceWallId.slice(0, -'-shell'.length)
+    : undefined
+  if (!shellRoomId) return true
+  if (sceneId === 'commercial-street') return true
+  return shellRoomId === activeRoomId
+}
+```
+
+`scene.objects` are still projected with `mainlineEntityBelongsToActiveRoom(entity, activeShellRoomId)`, so room fixtures switch by their owner while the geometry snapshot and passage/collision units remain present. The sign owner now also has an authored region gate: only a player inside `commercial-street-public-lane` can own the near presentation. When the position enters a `*-interior` room, the presentation hook clears linger state to baseline. Existing entrance/rear access, room dimensions, objects, save state, font sizing and pedestrian actor placements are unchanged.
+
+### Scene ownership checks
+
+The top “orphan” pedestrian observed in the prior browser review is the real ambient actor `commercial-street-pedestrian-west-north`, rendered under `scene-mainline-world`. The nearby entrance frame belongs to `storefront:commercial-south-slot-1:baseline` in `scene-portal-characters`; it is not furniture or a duplicate storefront wall. Neither object was deleted. The existing room-scoped object predicate hides indoor fixtures outside their owning room while the fixed world geometry, door/air-wall collision, passages and public-lane pedestrian actors remain independent of that predicate.
 
 The following source detail records the Stage 1 baseline; its two-room scope is superseded by Stage 2 above. At Stage 1, only the two selected front doors were open and linked to the public lane; rear doors had no destination and remained locked:
 
@@ -246,7 +296,7 @@ const geometryCells = useMemo(() => geometryUnits.flatMap((unit) => unit.visual.
     const slot = unit.storefrontId ? activeSwitchableStorefronts.find(candidate => candidate.id === unit.storefrontId) : undefined
 ```
 
-The shell visibility projection is now separate and keyed by the discrete active room. `geometryCells` remains independent of player position, allowing focus groups and focus-frame targets to reuse stable inputs during ordinary walking:
+The following renderer filter was the behavior before the room-transition stability update. It mounted a room's shell only while that room was active:
 
 ```ts
 const activeShellRoomId = scene.rooms.find((room) => room.id.endsWith('-interior')
@@ -266,7 +316,7 @@ const renderedGeometryCells = useMemo(() => geometryCells.filter(({ unit }) => {
 }), [activeShellRoomId, geometryCells, layoutMode])
 ```
 
-Only the rendered list is filtered. The focus graph uses `geometryCells`, not the rendered list; no per-frame performance measurement was made.
+This historic filter left the collision/navigation graph intact, but caused room transitions to mount and unmount shell glyphs. The update below removes that active-room dependency for the continuous street.
 ### `tests/commercialStreetStorefrontInteractions.test.ts`
 
 The earlier storefront assertion required every door to be locked. It now distinguishes the two explicit sample portals. Tests check same-scene route ownership, locked rear doors, room entry/return paths, blocked adjacent back space and camera following. A new actual compiler test runs at 1280x720, 1180x757 and 390x844, checks 11/23 rear anchors against the facade glyph centers, verifies the fixed door and geometry signature across viewports, and checks 22 continuous side anchors including the shared facade/rear corners:

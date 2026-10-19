@@ -535,6 +535,17 @@ describe('commercial street storefront presentation', () => {
     expect(activeStorefrontPresentationOwner(pairedScene, street.initialPlayerPosition)).toBeNull()
   })
 
+  it('activates the near storefront presentation only while the player is in the public lane', () => {
+    const slot = street.storefronts.find((storefront) => storefront.id === 'commercial-north-slot-2')!
+    const approach = mainlineStorefrontApproach(street, slot)
+    expect(activeStorefrontPresentationOwner(street, approach)).toBe(slot.id)
+    const room = street.rooms.find((candidate) => candidate.id === 'commercial-north-n2-interior')!
+    expect(activeStorefrontPresentationOwner(street, {
+      x: room.bounds.x + room.bounds.width / 2,
+      y: room.bounds.y + room.bounds.height / 2,
+    })).toBeNull()
+  })
+
   it('restores the outgoing entrance immediately on an A-to-B handoff', () => {
     expect(nextStorefrontPresentationPhase('revealed', 'handoff')).toBe('restoring')
     expect(nextStorefrontPresentationPhase('lingering', 'handoff')).toBe('restoring')

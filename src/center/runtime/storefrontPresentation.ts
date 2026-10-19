@@ -80,6 +80,14 @@ export function activeStorefrontPresentationOwner(
   scene: MainlineSceneDefinition,
   position: Point,
 ) {
+  if (scene.id === 'commercial-street') {
+    const publicLane = scene.rooms.find((room) => room.id === 'commercial-street-public-lane')
+    const inPublicLane = publicLane && position.x >= publicLane.bounds.x
+      && position.x <= publicLane.bounds.x + publicLane.bounds.width
+      && position.y >= publicLane.bounds.y
+      && position.y <= publicLane.bounds.y + publicLane.bounds.height
+    if (!inPublicLane) return null
+  }
   return scene.storefronts
     .filter((storefront) => storefront.portalId && storefront.characterSwitch
       && storefrontPresentationShouldReveal(scene, storefront, position))

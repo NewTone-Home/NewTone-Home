@@ -6,6 +6,7 @@ import EntryButtonSurface from '../../components/EntryButtonSurface'
 import type { CollisionBox, Point } from './sceneGeometry'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import { mainlineEntityBelongsToActiveRoom, type MainlineSceneDialogueLine, type MainlineSceneDialoguePresentation } from './mainlineSceneModel'
+import { mainlineGeometryUnitShouldRender } from './mainlineSceneVisibility'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { SceneCharacters, SceneCharacterSwitch } from './SceneCharacters'
@@ -905,15 +906,12 @@ export function MainlineSceneRenderer({
       : cell,
   }))), [activeSwitchableStorefronts, geometryUnits, switchCells])
 
-  // Shell visibility is a discrete room transition. Keep it out of the
-  // geometry/focus graph so ordinary movement does not rebuild every group.
-  const renderedGeometryCells = useMemo(() => geometryCells.filter(({ unit }) => {
-    if (layoutMode) return true
-    const shellRoomId = unit.sourceWallId?.endsWith('-shell')
-      ? unit.sourceWallId.slice(0, -'-shell'.length)
-      : undefined
-    return !shellRoomId || shellRoomId === activeShellRoomId
-  }), [activeShellRoomId, geometryCells, layoutMode])
+  // In the continuous commercial street, room ownership only controls room
+  // contents. Shell walls stay mounted across doorway transitions so their
+  // visual ownership matches the persistent collision/navigation geometry.
+  const renderedGeometryCells = useMemo(() => geometryCells.filter(({ unit }) => (
+    mainlineGeometryUnitShouldRender(scene.id, unit, activeShellRoomId, layoutMode)
+  )), [activeShellRoomId, geometryCells, layoutMode, scene.id])
 
   const focusGroupCells = useMemo(() => {
     const groups = new Map<string, MainlineGeometryCellEntry[]>()
