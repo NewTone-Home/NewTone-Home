@@ -4,7 +4,7 @@ import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import type { CSSProperties, ReactNode } from 'react'
 import EntryButtonSurface from '../../components/EntryButtonSurface'
 import type { CollisionBox, Point } from './sceneGeometry'
-import { mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
+import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -315,12 +315,13 @@ function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph
 
 /** The facade is a presentation of its authored cells, not a second doorway.
  * One clock updates all windows; the original button/SceneDoor owns input. */
-function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase, renderFrame, onInteract, onDoorTransitionComplete, onMotionComplete, frameRetracting }: {
+function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase, screenMetrics, renderFrame, onInteract, onDoorTransitionComplete, onMotionComplete, frameRetracting }: {
   scene: MainlineSceneDefinition
   storefront: MainlineSceneDefinition['storefronts'][number]
   cells: ReturnType<typeof storefrontCharacterCells>
   phase: StorefrontPresentationPhase
   doorPhase: SceneDoorRuntimePhase
+  screenMetrics: SceneScreenMetrics
   renderFrame: (group: string) => ReactNode
   onInteract: (id: string) => void
   onDoorTransitionComplete?: MainlineDoorButtonProps['onDoorTransitionComplete']
@@ -363,15 +364,16 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
     data-storefront-label-phase={phase} data-focus-target-group={largeGroup} data-focus-target-policy="passage"
     style={{ '--roll-x': direction.x, '--roll-y': direction.y } as CSSProperties}>
     {cells.map(cell => {
-      const characters = <SceneCharacterSwitch before={cell.baselineGlyph} after={cell.glyph} beforeGroup={largeGroup} afterGroup={cell.role === 'door' ? doorGroup : undefined} />
+      const characters = <SceneCharacterSwitch before={cell.baselineGlyph} after={cell.glyph} beforeGroup={largeGroup} afterGroup={cell.role === 'door' ? doorGroup : undefined} beforeOffsetPx={{ x: ((cell.baselineX ?? cell.x) - cell.x) * screenMetrics.width / 100, y: ((cell.baselineY ?? cell.y) - cell.y) * screenMetrics.height / 100 }} />
       const attributes = { 'data-storefront-cell-id': cell.id, 'data-storefront-presentation-phase': phase }
       const style = { left: `${cell.x}%`, top: `${cell.y}%` }
+      const closeHint = cell.access === 'locked' ? (cell.lockedText ?? '当前权限不足') : '接近时自动开门，进入门洞后继续路线'
       if (cell.role === 'door') return <MainlineDoorButton key={cell.id}
         cell={{ ...cell, kind: 'door', doorBehavior: entity.doorBehavior }} entityId={entity.id}
         className="scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door is-baseline"
         style={style} doorLabel={entity.displayLabel ?? entity.label} glyph={cell.glyph} doorPhase={doorPhase}
         focusGroup={doorGroup} focusPolicy="passage" gateTriggered={false} frameRetracting={frameRetracting}
-        active={false} closeHint="接近时自动开门，进入门洞后继续路线" ariaLabel="门，点击门后目标会在接近时自动开门并穿过"
+        active={false} closeHint={closeHint} ariaLabel={cell.access === 'locked' ? `门，${closeHint}` : '门，点击门后目标会在接近时自动开门并穿过'}
         renderFocusFrame={renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete}
         dataAttributes={attributes} characterPresentation={characters} />
       return <span key={cell.id} className="scene-spatial-glyph scene-mainline-wall is-baseline" style={style} {...attributes} aria-hidden="true">{characters}</span>
@@ -864,7 +866,7 @@ export function MainlineSceneRenderer({
   const geometryUnits = geometrySnapshot.units
   const switchableStorefronts = useMemo(() => scene.storefronts.filter(slot => slot.portalId && slot.characterSwitch), [scene.storefronts])
   const switchCells = useMemo(() => new Map(switchableStorefronts.map(slot => {
-    const projected = mainlineSceneGeometryUnits(scene, mainlineStorefrontApproach(scene, slot), renderScreenMetrics, new Map([[slot.id, 'revealed']]))
+    const projected = mainlineCanonicalSceneGeometryUnits(scene, renderScreenMetrics)
     return [slot.id, storefrontCharacterCells(scene, slot, projected)] as const
   })), [renderScreenMetrics, scene, switchableStorefronts])
   const activeSwitchableStorefronts = useMemo(() => switchableStorefronts.filter(slot => (switchCells.get(slot.id)?.length ?? 0) > 0), [switchCells, switchableStorefronts])
@@ -1147,7 +1149,7 @@ export function MainlineSceneRenderer({
           <div className="scene-spatial-labels scene-spatial-labels--wall scene-mainline-wall-labels">
             {activeSwitchableStorefronts.map(slot => <PortalStorefrontCharacters key={slot.id} scene={scene} storefront={slot}
               cells={switchCells.get(slot.id)!} phase={storefrontPresentation.get(slot.id) ?? 'baseline'}
-              doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'} renderFrame={focusFrames.renderFrame}
+              doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'} screenMetrics={renderScreenMetrics} renderFrame={focusFrames.renderFrame}
               onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete}
               frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === slot.portalId}
               onMotionComplete={phase => {

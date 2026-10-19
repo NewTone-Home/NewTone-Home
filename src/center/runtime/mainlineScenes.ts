@@ -1201,7 +1201,7 @@ export function mainlineSceneGeometryUnits(
   screenMetrics?: SceneScreenMetrics,
   storefrontPresentation?: ReadonlyMap<string, StorefrontPresentationPhase>,
 ): MainlineSceneGeometryUnit[] {
-  const geometry = screenMetrics ? projectedSceneGeometry(scene, screenMetrics) : scene.geometry
+  const geometry = mainlineCanonicalSceneGeometryUnits(scene, screenMetrics)
   return geometry.flatMap((unit) => {
     if (!unit.storefrontId) return [unit]
     const storefront = scene.storefronts.find((candidate) => candidate.id === unit.storefrontId)
@@ -1253,6 +1253,14 @@ export function mainlineSceneGeometryUnits(
     // become visible again.
     return near ? [unit] : [{ ...unit, visual: { kind: 'none' as const, cells: [] } }]
   })
+}
+
+/** Screen-specific canonical geometry before storefront presentation filtering. */
+export function mainlineCanonicalSceneGeometryUnits(
+  scene: MainlineSceneDefinition,
+  screenMetrics?: SceneScreenMetrics,
+): readonly MainlineSceneGeometryUnit[] {
+  return screenMetrics ? projectedSceneGeometry(scene, screenMetrics) : scene.geometry
 }
 
 /**

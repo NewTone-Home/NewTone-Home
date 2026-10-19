@@ -341,10 +341,11 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     const target = targetMap.get(group)
     const runtime = runtimeSnapshot.get(group)
     if (!target || !runtime) return null
-    const collapsed = runtime.phase === 'hidden' || runtime.phase === 'retracting'
     const measurement = frameMeasurements.get(group)
-    const duration = measurement?.duration ?? sceneFrameDefaultMotionMs
-    const geometry = measurement?.geometry ?? defaultFrameGeometry
+    if (!measurement) return null
+    const collapsed = runtime.phase === 'hidden' || runtime.phase === 'retracting'
+    const duration = measurement.duration
+    const geometry = measurement.geometry
     const style = {
       ...measurement?.bounds,
       '--scene-focus-stroke-offset': collapsed ? 1 : 0,
