@@ -874,6 +874,10 @@ export function MainlineScenePage({
     },
   })
   const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics, geometrySnapshot, navigationRuntime, actorId: 'protagonist', actorFootprint: protagonistFootprint, npcRuntimePositions, occupiedSeatIds }), [geometrySnapshot, getOpenPassageIds, navigationRuntime, npcRuntimePositions, occupiedSeatIds, protagonistFootprint, screenMetrics])
+  const getLiveNavigationOptions = useCallback(() => ({
+    ...navigationOptions,
+    openPassageIds: getOpenPassageIds(),
+  }), [getOpenPassageIds, navigationOptions])
   const storefrontNavigationRef = useRef({ scene, layout, options: navigationOptions })
   storefrontNavigationRef.current = { scene, layout, options: navigationOptions }
   useEffect(() => {
@@ -1111,8 +1115,8 @@ export function MainlineScenePage({
     setActiveObjectId(passage.entityId)
     const approachMovementOptions = {
       ...protagonistLocomotionOptions,
-      canOccupy: (point: Point) => isWalkableMainlinePoint(point, scene, layout, { ...navigationOptions, openPassageIds: getOpenPassageIds() }),
-      canTraverse: (start: Point, end: Point) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
+      canOccupy: (point: Point) => isWalkableMainlinePoint(point, scene, layout, getLiveNavigationOptions()),
+      canTraverse: (start: Point, end: Point) => isMainlineNavigationBarrierClear(start, end, scene, layout, getLiveNavigationOptions()),
     }
     const approachDurationMs = movementDurationMsForPath(resolvedPath, traversalStart, approachMovementOptions)
     pendingTraversalRef.current = { passage, passageQueue, passageIndex, requestedTarget, approachPath: resolvedPath, continuationPath, requestIssued: false, approachArrived: false }
@@ -1167,7 +1171,7 @@ export function MainlineScenePage({
         onDoorEvent?.('blocked', passage)
       },
     })
-  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getOpenPassageIds, getPassagePhase, getRemainingDurationMs, layout, lifecycleMainlinePassages, protagonistLocomotionOptions, moveAlong, navigationOptions, onDoorEvent, protagonistFootprint, requestPassageLifecycle, scene, screenMetrics, stopMovement])
+  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getLiveNavigationOptions, getOpenPassageIds, getPassagePhase, getRemainingDurationMs, layout, lifecycleMainlinePassages, protagonistLocomotionOptions, moveAlong, navigationOptions, onDoorEvent, protagonistFootprint, requestPassageLifecycle, scene, screenMetrics, stopMovement])
 
   const continuePendingTraversal = useCallback((entityId: string) => {
     const pending = pendingTraversalRef.current
@@ -1177,7 +1181,7 @@ export function MainlineScenePage({
     // Consume approach arrival before crossing; lifecycle updates cannot restart this leg.
     pending.approachArrived = false
     const traversalStart = getCurrentPosition()
-    const openNavigationOptions = { ...navigationOptions, openPassageIds: getOpenPassageIds() }
+    const openNavigationOptions = getLiveNavigationOptions()
     if (pending.passage.targetSceneId) {
       const collision = mainlinePassageCollisionForNavigation(scene, pending.passage, openNavigationOptions)
       const doorway = mainlinePassageDoorwayForNavigation(scene, pending.passage, openNavigationOptions)
@@ -1245,9 +1249,13 @@ export function MainlineScenePage({
           if (!crossedDoorway) return
           transitionScene(point, previousPoint)
         },
-        canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, { ...navigationOptions, openPassageIds: getOpenPassageIds() })
-          || isMainlinePassageInTransitZone(pending.passage, point, protagonistFootprint, doorway),
-        canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
+        canOccupy: (point) => {
+          const liveOptions = getLiveNavigationOptions()
+          return isWalkableMainlinePoint(point, scene, layout, liveOptions)
+            || (liveOptions.openPassageIds.has(pending.passage.id)
+              && isMainlinePassageInTransitZone(pending.passage, point, protagonistFootprint, doorway))
+        },
+        canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, getLiveNavigationOptions()),
           onBlocked: () => {
             if (sceneTransitioned) {
               setSceneFrameExit({ phase: 'idle' })
@@ -1298,8 +1306,8 @@ export function MainlineScenePage({
         if (pendingInteractionId) resumeInteractionRef.current(pendingInteractionId)
       }, {
         ...protagonistLocomotionOptions,
-        canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, openNavigationOptions),
-        canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
+        canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, getLiveNavigationOptions()),
+        canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, getLiveNavigationOptions()),
         onBlocked: () => {
           setPassageDestination(null)
           setActiveObjectId(null)
@@ -1312,16 +1320,20 @@ export function MainlineScenePage({
     const exitPoint = mainlinePassageExitPoint(pending.passage, traversalStart, protagonistFootprint, collision, doorway)
     moveAlong([traversalStart, exitPoint], completeSameSceneLeg, {
       ...protagonistLocomotionOptions,
-      canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, openNavigationOptions)
-        || isMainlinePassageInTransitZone(pending.passage, point, protagonistFootprint, doorway),
-      canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
+      canOccupy: (point) => {
+        const liveOptions = getLiveNavigationOptions()
+        return isWalkableMainlinePoint(point, scene, layout, liveOptions)
+          || (liveOptions.openPassageIds.has(pending.passage.id)
+            && isMainlinePassageInTransitZone(pending.passage, point, protagonistFootprint, doorway))
+      },
+      canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, getLiveNavigationOptions()),
       onBlocked: () => {
         pendingTraversalRef.current = null
         setPassageDestination(null)
         setActiveObjectId(null)
       },
     })
-  }, [beginPassageLeg, commercialCafeStory, getCurrentPosition, getOpenPassageIds, isPassageActorActive, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, protagonistFootprint, recordCafeAnalyticsMilestone, recordSceneStatePatch, scene])
+  }, [beginPassageLeg, commercialCafeStory, getCurrentPosition, getLiveNavigationOptions, getOpenPassageIds, isPassageActorActive, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, notifySceneTransition, onDoorEvent, protagonistFootprint, recordCafeAnalyticsMilestone, recordSceneStatePatch, scene])
 
   continuePendingTraversalRef.current = continuePendingTraversal
 
@@ -1571,15 +1583,16 @@ export function MainlineScenePage({
     setSceneFrameExit({ phase: 'idle' })
     cancelPassageLifecycle('protagonist')
     setPassageDestination(null)
-    const path = plannedPath ?? findMainlinePath(getCurrentPosition(), target, scene, layout, navigationOptions)
+    const liveOptions = getLiveNavigationOptions()
+    const path = plannedPath ?? findMainlinePath(getCurrentPosition(), target, scene, layout, liveOptions)
     if (!path) {
       stopMovement()
       return false
     }
     const movementOptions = {
       ...protagonistLocomotionOptions,
-      canOccupy: (point: Point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
-      canTraverse: (start: Point, end: Point) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
+      canOccupy: (point: Point) => isWalkableMainlinePoint(point, scene, layout, getLiveNavigationOptions()),
+      canTraverse: (start: Point, end: Point) => isMainlineNavigationBarrierClear(start, end, scene, layout, getLiveNavigationOptions()),
     }
     if (framePassage) {
       const movementDurationMs = movementDurationMsForPath(path, getCurrentPosition(), movementOptions)
@@ -1597,7 +1610,7 @@ export function MainlineScenePage({
       },
     })
     return true
-  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getRemainingDurationMs, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, scene, stopMovement])
+  }, [armPassageFrameExit, cancelPassageLifecycle, getCurrentPosition, getLiveNavigationOptions, getRemainingDurationMs, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, scene, stopMovement])
 
   const leavePlayerSeat = useCallback(() => {
     if (!activePlayerSeatId) return false

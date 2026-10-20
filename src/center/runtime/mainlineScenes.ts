@@ -1321,28 +1321,50 @@ export function mainlineSceneGeometryUnits(
   storefrontPresentation?: ReadonlyMap<string, StorefrontPresentationPhase>,
 ): MainlineSceneGeometryUnit[] {
   const geometry = mainlineCanonicalSceneGeometryUnits(scene, screenMetrics)
+  const storefrontsById = new Map(scene.storefronts.map((storefront) => [storefront.id, storefront] as const))
+  const storefrontsWithNearProjection = new Set(scene.geometry.flatMap((unit) => (
+    unit.storefrontId && unit.variant === 'near' ? [unit.storefrontId] : []
+  )))
+  type StorefrontProjection = {
+    storefront: MainlineStorefrontSlot
+    hasNearProjection: boolean
+    phase: StorefrontPresentationPhase | undefined
+    near?: boolean
+  }
+  const storefrontProjectionCache = new Map<string, StorefrontProjection>()
+  const projectionFor = (storefrontId: string) => {
+    const cached = storefrontProjectionCache.get(storefrontId)
+    if (cached) return cached
+    const storefront = storefrontsById.get(storefrontId)
+    if (!storefront) return undefined
+    const projection = {
+      storefront,
+      hasNearProjection: storefrontsWithNearProjection.has(storefrontId),
+      phase: storefrontPresentation?.get(storefrontId),
+    }
+    storefrontProjectionCache.set(storefrontId, projection)
+    return projection
+  }
+  const nearFor = (projection: StorefrontProjection) => {
+    if (projection.near !== undefined) return projection.near
+    projection.near = projection.phase
+      ? projection.phase === 'revealed' || projection.phase === 'lingering'
+      : isMainlineStorefrontNear(scene, projection.storefront, position)
+    return projection.near
+  }
   return geometry.flatMap((unit) => {
     if (!unit.storefrontId) return [unit]
-    const storefront = scene.storefronts.find((candidate) => candidate.id === unit.storefrontId)
-    if (!storefront) return []
-    const hasNearProjection = scene.geometry.some((candidate) => (
-      candidate.storefrontId === unit.storefrontId && candidate.variant === 'near'
-    ))
+    const projection = projectionFor(unit.storefrontId)
+    if (!projection) return []
+    const { storefront, hasNearProjection, phase } = projection
     if (storefront.composition?.fixedCellCount && unit.variant) {
-      const phase = storefrontPresentation?.get(storefront.id)
-      const near = phase
-        ? phase === 'revealed' || phase === 'lingering'
-        : isMainlineStorefrontNear(scene, storefront, position)
-      return unit.variant === (near ? 'near' : 'baseline') ? [unit] : []
+      return unit.variant === (nearFor(projection) ? 'near' : 'baseline') ? [unit] : []
     }
     // Portal storefronts keep their authored compact facade in every view.
     // Proximity only uncovers the one compiled, traversable door; it must not
     // replace the sign/glass with a second wall-door-wall facade.
     if (storefront.portalId && storefront.characterSwitch && hasNearProjection) {
-      const phase = storefrontPresentation?.get(storefront.id)
-      const near = phase
-        ? phase === 'revealed' || phase === 'lingering'
-        : isMainlineStorefrontNear(scene, storefront, position)
+      const near = nearFor(projection)
       if (unit.variant === 'baseline') return [unit]
       if (unit.variant === 'near') return []
       const doorCell = unit.visual.cells.some(cell => cell.kind === 'door' && (cell.entityId === storefront.portalId || unit.entityId === storefront.portalId))
@@ -1350,7 +1372,7 @@ export function mainlineSceneGeometryUnits(
       return [unit]
     }
     if (!hasNearProjection) return unit.variant === 'baseline' ? [unit] : []
-    const presentationPhase = storefrontPresentation?.get(storefront.id)
+    const presentationPhase = phase
     if (presentationPhase) {
       // The base wall-door-wall geometry is already canonical. Presentation
       // chooses only whether the distant sign cover is painted above it.
@@ -1360,7 +1382,7 @@ export function mainlineSceneGeometryUnits(
         ? [{ ...unit, visual: { kind: 'none' as const, cells: [] } }]
         : [unit]
     }
-    const near = storefront.portalId ? isMainlineStorefrontNear(scene, storefront, position) : false
+    const near = storefront.portalId ? nearFor(projection) : false
     if (unit.variant) {
       if (near && unit.variant === 'baseline') {
         // The close-up wall/door projection must not make the storefront's

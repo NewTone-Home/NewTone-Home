@@ -281,15 +281,23 @@ export function useAutomaticPassages({ passages, canOpen, canUse, onDenied }: Au
   ), [stateFor])
 
   const passableSignature = doorPassagePassableSignature(passageStates)
+  const openPassageIdsCacheRef = useRef<{
+    snapshot: ReadonlyMap<string, DoorPassageRuntime>
+    signature: string
+    ids: ReadonlySet<string>
+  } | null>(null)
   const getOpenPassageIds = useCallback(() => {
     const states = passageStore.getSnapshot()
+    const cached = openPassageIdsCacheRef.current
+    if (cached?.snapshot === states) return cached.ids
     const currentSignature = doorPassagePassableSignature(states)
-    if (currentSignature === passableSignature) {
-      return new Set(passableSignature ? passableSignature.split('\u001f') : [])
-    }
-    return new Set(optionsRef.current.passages
-      .filter((passage) => doorPassageIsPassable(states.get(passage.id)?.phase ?? 'closed'))
-      .map((passage) => passage.id))
+    const ids = cached?.signature === currentSignature
+      ? cached.ids
+      : new Set(optionsRef.current.passages
+        .filter((passage) => doorPassageIsPassable(states.get(passage.id)?.phase ?? 'closed'))
+        .map((passage) => passage.id))
+    openPassageIdsCacheRef.current = { snapshot: states, signature: currentSignature, ids }
+    return ids
   }, [passableSignature, passageStore])
 
   return { requestPassage, cancelPassage, updateActor, completeOpen, completeClose, getPassagePhase, isPassageActorActive, getOpenPassageIds, passageStates }

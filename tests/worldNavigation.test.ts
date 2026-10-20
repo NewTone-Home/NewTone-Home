@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { doorPassageIsPassable, type DoorPassagePhase } from '../src/center/runtime/doorPassageModel'
+import { createFreeRoamController } from '../src/center/runtime/useFreeRoamMovement'
 import { createPolygonNavigationMesh } from '../src/center/runtime/scenePathfinding'
-import { canActorReachPassageApproach, canTravelAlongMainlineSegment, classifyMainlineWorldCommand, findMainlineRoomPassageSequence, isWalkableMainlinePoint, mainlineNavigationCollisionBoxes, mainlinePassageCollisionForNavigation, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, prepareMainlineWorldNavigation, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from '../src/center/runtime/mainlineNavigation'
+import { canActorReachPassageApproach, canTravelAlongMainlineSegment, classifyMainlineWorldCommand, findMainlinePath, findMainlineRoomPassageSequence, isMainlineNavigationBarrierClear, isWalkableMainlinePoint, mainlineNavigationCollisionBoxes, mainlinePassageCollisionForNavigation, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, prepareMainlineWorldNavigation, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { mainlineLabelFootprint, mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
@@ -107,6 +109,141 @@ describe('ordinary world navigation and passage intent', () => {
     ]
     variants.forEach(mesh => expect(mesh).not.toBe(baseline.navigationMesh))
   })
+
+  it('stops a running route at a front door that changes from open to closing', () => {
+    const street = mainlineScenes['commercial-street']
+    const screenMetrics = { width: 1180, height: 757, viewportWidth: 1180 }
+    const geometrySnapshot = createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, screenMetrics)
+    const passage = street.passages.find(candidate => candidate.id === 'commercial-north-slot-1-entry')!
+    const start = passage.thresholds[0]!
+    let phase: DoorPassagePhase = 'open'
+    const currentOptions = () => ({
+      actorId: 'protagonist',
+      actorFootprint: { width: 1.2, height: 1.2 },
+      screenMetrics,
+      geometrySnapshot,
+      openPassageIds: new Set(doorPassageIsPassable(phase) ? [passage.id] : []),
+    })
+    const doorway = mainlinePassageDoorwayForNavigation(street, passage, currentOptions())
+    const collision = mainlinePassageCollisionForNavigation(street, passage, currentOptions())
+    const exitPoint = mainlinePassageExitPoint(passage, start, { width: 1.2, height: 1.2 }, collision, doorway)
+    const movement = createFreeRoamController(start)
+    let arrived = 0
+    let blocked = 0
+    movement.moveAlong([start, exitPoint], () => { arrived += 1 }, {
+      maxSpeed: .012,
+      canOccupy: position => isWalkableMainlinePoint(position, street, {}, currentOptions()),
+      canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, street, {}, currentOptions()),
+      onBlocked: () => { blocked += 1 },
+    })
+
+    const center = { x: collision.x + collision.width / 2, y: collision.y + collision.height / 2 }
+    const sourceSide = mainlinePassageSide(passage, start, collision, doorway)
+    for (let now = 16; now < 30_000 && movement.isMoving(); now += 16) {
+      const position = movement.getCurrentPosition()
+      const distanceToDoor = Math.hypot(position.x - center.x, position.y - center.y)
+      if (phase === 'open' && mainlinePassageSide(passage, position, collision, doorway) === sourceSide && distanceToDoor <= 2.5) {
+        phase = 'closing'
+      }
+      movement.tick(now)
+      if (phase === 'closing' && !movement.isMoving()) break
+    }
+
+    expect(phase).toBe('closing')
+    expect(blocked).toBe(1)
+    expect(arrived).toBe(0)
+    expect(mainlinePassageSide(passage, movement.getCurrentPosition(), collision, doorway)).toBe(sourceSide)
+    expect(isWalkableMainlinePoint(movement.getCurrentPosition(), street, {}, currentOptions())).toBe(true)
+  }, 30_000)
+
+  it('rechecks a later storefront door when a route crosses from one interior to another', () => {
+    const street = mainlineScenes['commercial-street']
+    const screenMetrics = { width: 1180, height: 757, viewportWidth: 1180 }
+    const geometrySnapshot = createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, screenMetrics)
+    const northPassage = street.passages.find(candidate => candidate.id === 'commercial-north-slot-1-entry')!
+    const southPassage = street.passages.find(candidate => candidate.id === 'commercial-south-slot-1-entry')!
+    const northRoom = street.rooms.find(candidate => candidate.id === northPassage.toRoomId)!
+    const southRoom = street.rooms.find(candidate => candidate.id === southPassage.toRoomId)!
+    const start = { x: northRoom.bounds.x + northRoom.bounds.width / 2, y: northRoom.bounds.y + northRoom.bounds.height / 2 }
+    const target = { x: southRoom.bounds.x + southRoom.bounds.width / 2, y: southRoom.bounds.y + southRoom.bounds.height / 2 }
+    let southPhase: DoorPassagePhase = 'open'
+    const currentOptions = () => ({
+      actorId: 'protagonist',
+      actorFootprint: { width: 1.2, height: 1.2 },
+      screenMetrics,
+      geometrySnapshot,
+      openPassageIds: new Set([northPassage.id, ...(doorPassageIsPassable(southPhase) ? [southPassage.id] : [])]),
+    })
+    const path = findMainlinePath(start, target, street, {}, currentOptions())
+    expect(path).not.toBeNull()
+
+    const movement = createFreeRoamController(start)
+    let arrived = 0
+    let blocked = 0
+    movement.moveAlong(path!, () => { arrived += 1 }, {
+      maxSpeed: .018,
+      canOccupy: position => isWalkableMainlinePoint(position, street, {}, currentOptions()),
+      canTraverse: (from, to) => isMainlineNavigationBarrierClear(from, to, street, {}, currentOptions()),
+      onBlocked: () => { blocked += 1 },
+    })
+    const sourceSide = mainlinePassageSide(southPassage, start)
+    const doorway = southPassage.collision
+    const center = { x: doorway.x + doorway.width / 2, y: doorway.y + doorway.height / 2 }
+    for (let now = 16; now < 60_000 && movement.isMoving(); now += 16) {
+      const position = movement.getCurrentPosition()
+      if (southPhase === 'open'
+        && mainlinePassageSide(southPassage, position) === sourceSide
+        && Math.hypot(position.x - center.x, position.y - center.y) <= 4) {
+        southPhase = 'closing'
+      }
+      movement.tick(now)
+      if (southPhase === 'closing' && !movement.isMoving()) break
+    }
+
+    expect(southPhase).toBe('closing')
+    expect(blocked).toBe(1)
+    expect(arrived).toBe(0)
+    expect(mainlinePassageSide(southPassage, movement.getCurrentPosition())).toBe(sourceSide)
+  }, 60_000)
+
+  it('keeps locked rear-door collision and access denial in the live movement checks', () => {
+    const street = mainlineScenes['commercial-street']
+    const screenMetrics = { width: 1180, height: 757, viewportWidth: 1180 }
+    const geometrySnapshot = createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, screenMetrics)
+    const entry = street.passages.find(candidate => candidate.id === 'commercial-north-slot-1-entry')!
+    const rear = street.passages.find(candidate => candidate.id === `${entry.toRoomId}-rear-door`)!
+    const room = street.rooms.find(candidate => candidate.id === entry.toRoomId)!
+    const interior = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+    const options = { actorId: 'protagonist', actorFootprint: { width: 1.2, height: 1.2 }, screenMetrics, geometrySnapshot, openPassageIds: new Set([entry.id]) }
+    const rearCenter = { x: rear.collision.x + rear.collision.width / 2, y: rear.collision.y + rear.collision.height / 2 }
+    expect(rear.access).toBe('locked')
+    expect(rear.routeThrough).not.toBe(true)
+    expect(isWalkableMainlinePoint(rearCenter, street, {}, options)).toBe(false)
+    expect(findMainlinePath(interior, rear.crossingTargets[0], street, {}, options)).toBeNull()
+    const rearCommand = classifyMainlineWorldCommand(street, interior, rear.crossingTargets[0], {}, options)
+    expect(rearCommand.kind).toBe('passage')
+    if (rearCommand.kind === 'passage') expect(rearCommand.passage.access).toBe('locked')
+
+    const cafe = mainlineScenes['commercial-cafe']
+    const staff = cafe.accessRegions.find(region => region.id === 'commercial-cafe-staff-area')!
+    const staffTarget = { x: staff.x + staff.width / 2, y: staff.y + staff.height / 2 }
+    const cafeGeometry = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition, {})
+    const cafeOptions = { actorId: 'protagonist', geometrySnapshot: cafeGeometry }
+    const movement = createFreeRoamController(cafe.initialPlayerPosition)
+    let arrived = 0
+    let blocked = 0
+    movement.moveAlong([cafe.initialPlayerPosition, staffTarget], () => { arrived += 1 }, {
+      maxSpeed: .018,
+      canOccupy: position => isWalkableMainlinePoint(position, cafe, {}, cafeOptions),
+      canTraverse: (from, to) => isMainlineNavigationBarrierClear(from, to, cafe, {}, cafeOptions),
+      onBlocked: () => { blocked += 1 },
+    })
+    for (let now = 16; now < 30_000 && movement.isMoving(); now += 16) movement.tick(now)
+    expect(blocked).toBe(1)
+    expect(arrived).toBe(0)
+    expect(movement.getCurrentPosition()).not.toEqual(staffTarget)
+    expect(isWalkableMainlinePoint(movement.getCurrentPosition(), cafe, {}, cafeOptions)).toBe(true)
+  }, 60_000)
 
   it('invalidates the prepared static mesh when a compiled obstacle or navigation barrier changes', () => {
     const street = mainlineScenes['commercial-street']
