@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { sceneFrameDefaultMotionMs, sceneFrameMotionMsForRect } from './sceneMotion'
 import { measureSceneCharacterRects, measureSceneCharacters, sceneFocusVisualGapPx, sceneFocusStrokeInsetPx } from './sceneVisualBounds'
 import { beginFrameAppearance, beginFrameRetraction, completeFrameTransition, frameShouldCollapse, frameVisualPhase, preserveFrameRetractCorner, resumeFrameAppearance, type SceneFrameRuntime, type SceneFrameTarget } from './sceneFrameLifecycle'
+import { createEndpointMeasurementScheduler } from './sceneFocusFrameEndpointMeasure'
 
 type FocusFrameCorner = SceneFrameRuntime['corner']
 
@@ -267,24 +268,25 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     if (typeof ResizeObserver === 'undefined') return undefined
     const observer = new ResizeObserver(measureAll)
     const characterChanges = new MutationObserver(measureAll)
+    const endpointSchedulers = new Map<HTMLElement, ReturnType<typeof createEndpointMeasurementScheduler>>()
     const characterProgressChanges = new MutationObserver((records) => {
-      const changedGroups = new Set<string>()
       records.forEach((record) => {
         if (record.attributeName !== 'data-character-progress') return
         const host = record.target as HTMLElement
-        const progress = Number.parseFloat(host.dataset.characterProgress ?? '')
+        let scheduler = endpointSchedulers.get(host)
+        if (!scheduler) {
+          scheduler = createEndpointMeasurementScheduler(window, () => Number.parseFloat(host.dataset.characterProgress ?? ''), () => {
+            const groups = [...host.querySelectorAll<HTMLElement>('[data-focus-visual-group]')]
+              .map((element) => element.dataset.focusVisualGroup ?? '')
+              .filter((group) => targetGroups.has(group))
+            measure(groups)
+          })
+          endpointSchedulers.set(host, scheduler)
+        }
+        scheduler.progressChanged()
         // A storefront rolls the replacement glyph across the baseline door.
-        // Intermediate positions are intentionally animated; remeasure only
-        // after the glyph has reached either stable endpoint.
-        if (progress !== 0 && progress !== 1) return
-        host.querySelectorAll<HTMLElement>('[data-focus-visual-group]').forEach((element) => {
-          const group = element.dataset.focusVisualGroup
-          if (group && targetGroups.has(group)) changedGroups.add(group)
-        })
-      })
-      if (changedGroups.size === 0) return
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => measure(changedGroups))
+        // The scheduler ignores intermediate positions and measures only if
+        // the same endpoint remains current through both animation frames.
       })
     })
     frameNodesRef.current.forEach((node, group) => {
@@ -314,6 +316,8 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
       observer.disconnect()
       characterChanges.disconnect()
       characterProgressChanges.disconnect()
+      endpointSchedulers.forEach((scheduler) => scheduler.dispose())
+      endpointSchedulers.clear()
       document.fonts?.removeEventListener('loadingdone', measureAll)
       measureGroupRef.current = () => {}
     }
