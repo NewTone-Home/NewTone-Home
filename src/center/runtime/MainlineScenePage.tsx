@@ -874,10 +874,12 @@ export function MainlineScenePage({
     },
   })
   const navigationOptions = useMemo(() => ({ openPassageIds: getOpenPassageIds(), screenMetrics, geometrySnapshot, navigationRuntime, actorId: 'protagonist', actorFootprint: protagonistFootprint, npcRuntimePositions, occupiedSeatIds }), [geometrySnapshot, getOpenPassageIds, navigationRuntime, npcRuntimePositions, occupiedSeatIds, protagonistFootprint, screenMetrics])
+  const navigationOptionsRef = useRef(navigationOptions)
+  navigationOptionsRef.current = navigationOptions
   const getLiveNavigationOptions = useCallback(() => ({
-    ...navigationOptions,
+    ...navigationOptionsRef.current,
     openPassageIds: getOpenPassageIds(),
-  }), [getOpenPassageIds, navigationOptions])
+  }), [getOpenPassageIds])
   const storefrontNavigationRef = useRef({ scene, layout, options: navigationOptions })
   storefrontNavigationRef.current = { scene, layout, options: navigationOptions }
   useEffect(() => {
@@ -1713,8 +1715,8 @@ export function MainlineScenePage({
         // pulled/sit transition; generic smoothing must not straighten that
         // legal route back through furniture.
         preserveNavigationRoute: true,
-        canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
-        canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
+        canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, getLiveNavigationOptions()),
+        canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, getLiveNavigationOptions()),
         onBlocked: () => {
           setActiveObjectId(null)
           onInteractionAnalytics?.('blocked', entity.id, 'seat', 'movement-blocked')
@@ -1820,15 +1822,15 @@ export function MainlineScenePage({
     setActiveObjectId(entityId)
     moveAlong(resolved.path, revealInteraction, {
       ...protagonistLocomotionOptions,
-      canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
-      canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
+      canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, getLiveNavigationOptions()),
+      canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, getLiveNavigationOptions()),
       onBlocked: () => {
         interactionStartedAtRef.current = null
         setActiveObjectId(null)
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
@@ -1951,11 +1953,11 @@ export function MainlineScenePage({
         ...protagonistLocomotionOptions,
         canOccupy: (point) => {
           const live = storefrontNavigationRef.current
-          return isWalkableMainlinePoint(point, live.scene, live.layout, live.options)
+          return isWalkableMainlinePoint(point, live.scene, live.layout, getLiveNavigationOptions())
         },
         canTraverse: (start, end) => {
           const live = storefrontNavigationRef.current
-          return isMainlineNavigationBarrierClear(start, end, live.scene, live.layout, live.options)
+          return isMainlineNavigationBarrierClear(start, end, live.scene, live.layout, getLiveNavigationOptions())
         },
         onBlocked: () => {
           if (requestId !== storefrontRequestIdRef.current) return
@@ -1968,7 +1970,7 @@ export function MainlineScenePage({
       })
     }
     attemptContact(0)
-  }, [beginMilkTeaStorefrontAction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, onChapterAnalytics, onInteractionAnalytics, onPhoneDismiss, onStorefrontAction, phoneOpen, presentSceneEcho, protagonistFootprint, readingActive, scene, sceneAction?.phase, screenMetrics, stopMovement])
+  }, [beginMilkTeaStorefrontAction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, onChapterAnalytics, onInteractionAnalytics, onPhoneDismiss, onStorefrontAction, phoneOpen, presentSceneEcho, protagonistFootprint, readingActive, scene, sceneAction?.phase, screenMetrics, stopMovement])
 
   const interactNpc = useCallback((npcId: string) => {
     if (readingActive || sceneAction?.phase === 'committing') return
@@ -2037,15 +2039,15 @@ export function MainlineScenePage({
     }
     moveAlong(resolved.path, completeInteraction, {
       ...protagonistLocomotionOptions,
-      canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, navigationOptions),
-      canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, navigationOptions),
+      canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, getLiveNavigationOptions()),
+      canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, getLiveNavigationOptions()),
       onBlocked: () => {
         if (npcInteractionRequestRef.current !== requestId) return
         npcInteractionRequestRef.current += 1
         onInteractionAnalytics?.('blocked', npc.id, 'npc', 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
+  }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, layout, leavePlayerSeat, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
 
   const chooseSceneEchoOption = useCallback((index: number) => {
     const option = sceneAction?.options[index]
