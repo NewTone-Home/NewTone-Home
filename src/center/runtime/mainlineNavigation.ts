@@ -1162,11 +1162,9 @@ export function findMainlinePathThroughPassage(scene: MainlineSceneDefinition, p
 export function findMainlinePath(start: Point, target: Point, scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): Point[] | null {
   options = { ...options, geometrySnapshot: sceneGeometrySnapshot(scene, layout, options) }
   if (!isWalkableMainlinePoint(start, scene, layout, options)) return null
-  const staticOptions = { ...options, navigationRuntime: undefined }
   const targetIsWalkable = isWalkableMainlinePoint(target, scene, layout, options)
-  // A live actor occupying the requested endpoint must not make it a legal
-  // local detour target, but preserve the historical full-mesh fallback.
-  if (!targetIsWalkable && !isWalkableMainlinePoint(target, scene, layout, staticOptions)) return null
+  if (!targetIsWalkable) return null
+  const staticOptions = { ...options, navigationRuntime: undefined }
   const actorFootprint = mainlineActorFootprint(scene, options, start)
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const barriers = mainlineNavigationBarriers(scene, layout, { ...options, geometrySnapshot: snapshot })

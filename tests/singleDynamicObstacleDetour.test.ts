@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { findSingleDynamicObstacleDetour, createNavigationRuntime } from '../src/center/runtime/navigationCore'
-import { findMainlinePath } from '../src/center/runtime/mainlineNavigation'
+import { findMainlinePath, isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
+import * as scenePathfinding from '../src/center/runtime/scenePathfinding'
 
 const start = { x: 0, y: 0 }
 const target = { x: 10, y: 0 }
@@ -85,4 +86,23 @@ describe('bounded single dynamic obstacle detour', () => {
     runtime.updateActor('commercial-street-pedestrian-west-north', { x: 60, y: 38.1111 })
     expect(findMainlinePath(from, destination, street, {}, options)).toEqual([from, destination])
   }, 30_000)
+
+  it('returns immediately when a live NPC occupies the requested destination', () => {
+    const street = mainlineScenes['commercial-street']
+    const from = { x: 34, y: 50 }
+    const occupiedTarget = { x: 50, y: 50 }
+    const runtime = createNavigationRuntime()
+    runtime.registerActor('target-occupant', occupiedTarget, { width: 1.2, height: 1.2 })
+    const options = { actorId: 'protagonist', actorFootprint: { width: 1.2, height: 1.2 }, navigationRuntime: runtime }
+    expect(isWalkableMainlinePoint(occupiedTarget, street, {}, options)).toBe(false)
+    expect(isWalkableMainlinePoint(occupiedTarget, street, {}, { ...options, navigationRuntime: undefined })).toBe(true)
+    const createMesh = vi.spyOn(scenePathfinding, 'createPolygonNavigationMesh')
+
+    try {
+      expect(findMainlinePath(from, occupiedTarget, street, {}, options)).toBeNull()
+      expect(createMesh).not.toHaveBeenCalled()
+    } finally {
+      createMesh.mockRestore()
+    }
+  })
 })
