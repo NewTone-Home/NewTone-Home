@@ -216,7 +216,9 @@
   fill: none;
   stroke: currentColor;
   stroke-width: 1;
-  vector-effect: non-scaling-stroke;
+  /* Frame viewBox dimensions are measured in viewport pixels; the host bounds
+     already compensate world scale. Keep stroke and normalized dash length in
+     that same SVG space: non-scaling-stroke truncates dashes under world scale. */
   stroke-linecap: square;
   stroke-linejoin: miter;
   stroke-dasharray: 1;

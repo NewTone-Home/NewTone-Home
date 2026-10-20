@@ -60,8 +60,10 @@ function cameraOffsetForView(scene: CameraScene, position: Point, viewport: Scen
     const size = axis === 'x' ? scene.walkBounds.width : scene.walkBounds.height
     const span = visible[axis]
     const padding = Math.min(2, span * .04)
-    const centerMin = start + Math.min(size / 2, span / 2 + (size > span ? padding : 0))
-    const centerMax = start + size - Math.min(size / 2, span / 2 + (size > span ? padding : 0))
+    // Overscan outside the authored bounds so edge walls and their frames fit.
+    // Adding padding to the minimum center instead clips that outer edge.
+    const centerMin = start + span / 2 - padding
+    const centerMax = start + size - span / 2 + padding
     const preferredCenter = follow ? position[axis] : start + size / 2
     const center = size <= span ? start + size / 2 : clamp(preferredCenter, centerMin, centerMax)
     output[axis] = normalizedViewportCenter - center
