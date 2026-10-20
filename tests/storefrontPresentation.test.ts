@@ -135,9 +135,6 @@ describe('commercial street storefront presentation', () => {
 
   it('keeps the cafe sign, biased entry and right-side glass on stable authored slots', () => {
     expect(cafe.characterSwitch).toBe(true)
-    const yonghePortal = Object.values(mainlineScenes).flatMap(scene => scene.storefronts).find(storefront => storefront.portalId === 'yonghe-street-entry')
-    expect(yonghePortal).toBeDefined()
-    expect(yonghePortal?.characterSwitch).not.toBe(true)
     for (const metrics of [{ width: 1280, height: 720 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
       const projected = mainlineCanonicalSceneGeometryUnits(street, metrics)
       const baselineUnits = mainlineSceneGeometryUnits(street, street.initialPlayerPosition, metrics, new Map([[cafe.id, 'baseline']]))

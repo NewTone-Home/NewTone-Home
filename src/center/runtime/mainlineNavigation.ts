@@ -8,6 +8,7 @@ import { createPolygonNavigationMesh, navigationBarrierIntersectsActor, navigati
 import { containsDoorRegion, doorRegionSide, doorwayBoundaryPoint, doorwayLegalTangent, isDoorTargetBehind, type DoorPassageRegion, type DoorRegionNormal } from './doorPassageModel'
 import { sharedFurnitureGeometry } from './twoSeatFurniture'
 import { mainlineNpcStagedInteractionContactEntityId, mainlineNpcStagedPoint, mainlineNpcStagedSeatId } from './mainlineNpcStaging'
+import { pointInStorefrontRoom, storefrontRoomConnection } from './storefrontRoomConnection'
 
 /** Screen-space gap as a fraction of the protagonist's visible width. */
 export const MAINLINE_STOREFRONT_CONTACT_GAP = .25
@@ -819,15 +820,13 @@ function targetIsInsideStorefrontFrame(scene: MainlineSceneDefinition, passage: 
     ? target.y >= storefront.start && target.y <= storefront.end
     : target.x >= storefront.start && target.x <= storefront.end
   if (!withinStorefrontSpan) return false
-  if (scene.id === 'commercial-street') {
-    // A click beyond the commercial facade belongs to that storefront only
-    // on its inward side. The outward half-plane is the public street and
+  const connection = storefrontRoomConnection(scene, storefront)
+  if (connection) {
+    // A click belongs to a connected shop only inside its authored room.
+    // The outward half-plane is the public street and
     // must stay ordinary navigation so walking along a row does not snap to
     // a nearby locked door.
-    if (storefront.edge === 'left') return target.x >= bounds.x + bounds.width
-    if (storefront.edge === 'right') return target.x <= bounds.x
-    if (storefront.edge === 'top') return target.y >= bounds.y
-    return target.y <= bounds.y + bounds.height
+    return pointInStorefrontRoom(target, connection.interiorRoom)
   }
   // Legacy storefront portals use their authored public-side approach plane.
   if (storefront.edge === 'left') return target.x <= bounds.x
@@ -923,9 +922,10 @@ export function classifyMainlineWorldCommand(
       const collision = mainlinePassageCollisionForNavigation(scene, passage, options)
       const doorway = mainlinePassageDoorwayForNavigation(scene, passage, options)
       const region = mainlinePassageDoorRegion(passage, collision, doorway, footprint)
-      const openStorefrontEntryIntent = passage.fromRoomId === 'commercial-street-public-lane'
-        && roomForPoint(scene, from)?.id === passage.fromRoomId
-      const storefrontIntent = Boolean((passage.targetSceneId || scene.id === 'commercial-street' && (passage.access === 'locked' || openStorefrontEntryIntent))
+      const storefront = scene.storefronts.find(candidate => candidate.portalId === passage.portalId)
+      const connection = storefront && storefrontRoomConnection(scene, storefront)
+      const openStorefrontEntryIntent = connection && pointInStorefrontRoom(from, connection.publicRoom)
+      const storefrontIntent = Boolean((passage.targetSceneId || connection && (passage.access === 'locked' || openStorefrontEntryIntent))
         && targetIsInsideStorefrontFrame(scene, passage, requestedTarget))
       const crossesDoorway = targetCrossesCompiledDoorway(region, from, requestedTarget, footprint)
       if (!storefrontIntent && !crossesDoorway) return null

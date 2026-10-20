@@ -1,4 +1,5 @@
 import type { Point } from './sceneGeometry'
+import { pointInStorefrontRoom, storefrontRoomConnection } from './storefrontRoomConnection'
 import { isMainlineStorefrontPresentationInRange, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneGeometryUnit, type MainlineStorefrontRole, type MainlineStorefrontSlot } from './mainlineScenes'
 
 /** Presentation-only state for a portal storefront. It never changes passage or collision state. */
@@ -91,17 +92,13 @@ export function activeStorefrontPresentationOwner(
   scene: MainlineSceneDefinition,
   position: Point,
 ) {
-  if (scene.id === 'commercial-street') {
-    const publicLane = scene.rooms.find((room) => room.id === 'commercial-street-public-lane')
-    const inPublicLane = publicLane && position.x >= publicLane.bounds.x
-      && position.x <= publicLane.bounds.x + publicLane.bounds.width
-      && position.y >= publicLane.bounds.y
-      && position.y <= publicLane.bounds.y + publicLane.bounds.height
-    if (!inPublicLane) return null
-  }
   return scene.storefronts
-    .filter((storefront) => storefront.portalId && storefront.characterSwitch
-      && storefrontPresentationShouldReveal(scene, storefront, position))
+    .filter((storefront) => {
+      const connection = storefrontRoomConnection(scene, storefront)
+      return storefront.portalId && storefront.characterSwitch
+        && (!connection || pointInStorefrontRoom(position, connection.publicRoom))
+        && storefrontPresentationShouldReveal(scene, storefront, position)
+    })
     .map((storefront, index) => ({
       storefront,
       index,
@@ -118,16 +115,10 @@ export function activeStorefrontInteriorOwner(
   scene: MainlineSceneDefinition,
   position: Point,
 ) {
-  if (scene.id !== 'commercial-street') return null
-  const room = scene.rooms.find((candidate) => candidate.id.endsWith('-interior')
-    && position.x >= candidate.bounds.x
-    && position.x <= candidate.bounds.x + candidate.bounds.width
-    && position.y >= candidate.bounds.y
-    && position.y <= candidate.bounds.y + candidate.bounds.height)
-  if (!room) return null
-  const entry = scene.passages.find((passage) => passage.fromRoomId === 'commercial-street-public-lane'
-    && passage.toRoomId === room.id)
-  return scene.storefronts.find((storefront) => storefront.portalId === entry?.portalId)?.id ?? null
+  return scene.storefronts.find(storefront => {
+    const connection = storefrontRoomConnection(scene, storefront)
+    return connection && pointInStorefrontRoom(position, connection.interiorRoom)
+  })?.id ?? null
 }
 
 /** A grace-period presentation still owns the visual entrance after the player leaves its trigger. */
