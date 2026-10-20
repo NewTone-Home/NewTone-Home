@@ -204,6 +204,7 @@
   opacity: .62;
   pointer-events: none;
 }
+.scene-focus-frame[data-focus-frame-phase="collapsed"] { visibility: hidden; }
 .scene-focus-frame svg {
   display: block;
   width: 100%;

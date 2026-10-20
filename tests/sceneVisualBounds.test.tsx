@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { SceneCharacters } from '../src/center/runtime/SceneCharacters'
-import { unionVisualRects, sceneFocusVisualGapPx } from '../src/center/runtime/sceneVisualBounds'
+import { baselineAlignedInkTop, intersectVisualRectWithClip, unionVisualRects, sceneFocusVisualGapPx } from '../src/center/runtime/sceneVisualBounds'
 import { mainlineEntityCollision } from '../src/center/runtime/sceneLayout'
 import { mainlineScenes, mainlineScenePassageCollision } from '../src/center/runtime/mainlineScenes'
 
@@ -17,6 +17,17 @@ describe('characters, visual frames and world boundaries', () => {
     expect(unionVisualRects([{ left: 10, top: 4, right: 20, bottom: 14 }, { left: 30, top: 7, right: 45, bottom: 17 }])).toEqual({ left: 10, top: 4, right: 45, bottom: 17 })
     expect(unionVisualRects([{ left: 0, top: 0, right: 0, bottom: 0 }])).toBeNull()
     expect(sceneFocusVisualGapPx).toBe(2)
+  })
+  it('uses font baseline metrics for ink bounds and clips overflow-hidden glyphs', () => {
+    expect(baselineAlignedInkTop(10, 21, 17, 4, 13)).toBe(14)
+    expect(intersectVisualRectWithClip(
+      { left: 4, top: -3, right: 14, bottom: 7 },
+      { left: 0, top: 0, right: 20, bottom: 20 },
+    )).toEqual({ left: 4, top: 0, right: 14, bottom: 7 })
+    expect(intersectVisualRectWithClip(
+      { left: 4, top: -12, right: 14, bottom: -2 },
+      { left: 0, top: 0, right: 20, bottom: 20 },
+    )).toBeNull()
   })
   it('preserves growing text occupancy while a physical doorway ignores its displayed glyph', () => {
     const scene = mainlineScenes['jijia-ancestral-home']

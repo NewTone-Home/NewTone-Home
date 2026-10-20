@@ -13,6 +13,57 @@ export function unionVisualRects(rects: readonly VisualRect[]): VisualRect | nul
   }
 }
 
+/** Clip one glyph's measured ink to CSS overflow ancestors. */
+export function intersectVisualRectWithClip(
+  rect: VisualRect,
+  clip: VisualRect,
+  clipX = true,
+  clipY = true,
+): VisualRect | null {
+  const clipped = {
+    left: clipX ? Math.max(rect.left, clip.left) : rect.left,
+    top: clipY ? Math.max(rect.top, clip.top) : rect.top,
+    right: clipX ? Math.min(rect.right, clip.right) : rect.right,
+    bottom: clipY ? Math.min(rect.bottom, clip.bottom) : rect.bottom,
+  }
+  return clipped.right > clipped.left && clipped.bottom > clipped.top ? clipped : null
+}
+
+export function baselineAlignedInkTop(
+  layoutTop: number,
+  layoutHeight: number,
+  fontAscent: number,
+  fontDescent: number,
+  inkAscent: number,
+): number | null {
+  const fontHeight = fontAscent + fontDescent
+  if (![layoutTop, layoutHeight, fontAscent, fontDescent, inkAscent].every(Number.isFinite) || fontHeight <= 0) return null
+  return layoutTop + (layoutHeight - fontHeight) / 2 + fontAscent - inkAscent
+}
+
+function clipToOverflowAncestors(rect: VisualRect, node: HTMLElement): VisualRect | null {
+  let clipped: VisualRect | null = rect
+  for (let ancestor = node.parentElement; ancestor && clipped; ancestor = ancestor.parentElement) {
+    const style = getComputedStyle(ancestor)
+    const clipX = style.overflowX !== 'visible'
+    const clipY = style.overflowY !== 'visible'
+    if (!clipX && !clipY) continue
+    const bounds = ancestor.getBoundingClientRect()
+    const scaleX = ancestor.offsetWidth > 0 ? bounds.width / ancestor.offsetWidth : 1
+    const scaleY = ancestor.offsetHeight > 0 ? bounds.height / ancestor.offsetHeight : 1
+    const left = bounds.left + ancestor.clientLeft * scaleX
+    const top = bounds.top + ancestor.clientTop * scaleY
+    const clip = {
+      left,
+      top,
+      right: left + ancestor.clientWidth * scaleX,
+      bottom: top + ancestor.clientHeight * scaleY,
+    }
+    clipped = intersectVisualRectWithClip(clipped, clip, clipX, clipY)
+  }
+  return clipped
+}
+
 /**
  * A DOM Range describes the font's advance/line box, not the visible ink. Use
  * the same browser font metrics to tighten each glyph inside its own range;
@@ -48,12 +99,18 @@ export function measureSceneCharacterRects(nodes: readonly HTMLElement[]) {
         const verticalSideways = style.writingMode.startsWith('vertical') && style.textOrientation !== 'upright'
         const width = Math.min(layout.width, verticalSideways ? inkHeight : inkWidth)
         const height = Math.min(layout.height, verticalSideways ? inkWidth : inkHeight)
-        rects.push({
+        const baselineTop = metrics && !style.writingMode.startsWith('vertical')
+          ? baselineAlignedInkTop(layout.top, layout.height, metrics.fontBoundingBoxAscent, metrics.fontBoundingBoxDescent, metrics.actualBoundingBoxAscent)
+          : null
+        const top = baselineTop === null ? layout.top + (layout.height - height) / 2 : Math.max(layout.top, Math.min(layout.bottom, baselineTop))
+        const measured = {
           left: layout.left + (layout.width - width) / 2,
-          top: layout.top + (layout.height - height) / 2,
+          top,
           right: layout.left + (layout.width + width) / 2,
-          bottom: layout.top + (layout.height + height) / 2,
-        })
+          bottom: top + height,
+        }
+        const visible = clipToOverflowAncestors(measured, text.parentElement ?? root)
+        if (visible) rects.push(visible)
       }
     }
   }
