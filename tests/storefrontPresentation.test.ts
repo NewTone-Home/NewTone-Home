@@ -497,6 +497,35 @@ describe('commercial street storefront presentation', () => {
     }
   })
 
+  it('halves visual approach ranges without moving centers or shrinking click regions', () => {
+    for (const storefront of street.storefronts) {
+      const approach = mainlineStorefrontApproach(street, storefront)
+      const oldRadius = storefront.nearRadius ?? 10
+      expect(isMainlineStorefrontPresentationInRange(street, storefront, { x: approach.x + oldRadius * .49, y: approach.y })).toBe(true)
+      expect(isMainlineStorefrontPresentationInRange(street, storefront, { x: approach.x + oldRadius * .51, y: approach.y })).toBe(false)
+      expect(isMainlineStorefrontPresentationInRange(street, storefront, { x: approach.x, y: 50 })).toBe(false)
+      expect(storefront.nearRadius).toBe(10)
+    }
+    const approach = mainlineStorefrontApproach(street, cafe)
+    const anchor = mainlineStorefrontAnchor(street, cafe)
+    // Current facade cells use `window`; the legacy cafe-only `glass`
+    // departure helper therefore falls back to the authored radius today.
+    expect(mainlineStorefrontDepartureRadius(street, cafe)).toBeUndefined()
+    // Exercise that existing optional branch too, without altering real glass
+    // geometry or activating a new trigger policy as part of this reduction.
+    const glassScene = { ...street, geometry: street.geometry.map(unit => ({
+      ...unit, visual: { ...unit.visual, cells: unit.visual.cells.map(cell => ({
+        ...cell, storefrontRole: cell.storefrontRole === 'window' ? 'glass' as const : cell.storefrontRole,
+      })) },
+    })) }
+    const radius = mainlineStorefrontDepartureRadius(glassScene, cafe)!
+    expect(radius).toBeGreaterThan(0)
+    const length = Math.hypot(approach.x - anchor.x, approach.y - anchor.y)
+    const outward = { x: (approach.x - anchor.x) / length, y: (approach.y - anchor.y) / length }
+    expect(isMainlineStorefrontPresentationInRange(glassScene, cafe, { x: approach.x + outward.x * radius * .49, y: approach.y + outward.y * radius * .49 })).toBe(true)
+    expect(isMainlineStorefrontPresentationInRange(glassScene, cafe, { x: approach.x + outward.x * radius * .51, y: approach.y + outward.y * radius * .51 })).toBe(false)
+  })
+
   it('widens the street lane by one shared wall-character cell on each side', () => {
     const cell = boundaryGridStepsFromReferenceSpacing().vertical
     const north = street.structures.find((structure) => structure.id === 'commercial-north-facade')!

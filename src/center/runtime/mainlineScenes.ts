@@ -1506,7 +1506,10 @@ export function isMainlineStorefrontPresentationInRange(
     : 0
   const authoredRadius = storefront.nearRadius ?? 10
   const departureRadius = mainlineStorefrontDepartureRadius(scene, storefront)
-  const radius = departureRadius !== undefined && alongInward < 0 ? departureRadius : authoredRadius
+  const previousRadius = departureRadius !== undefined && alongInward < 0 ? departureRadius : authoredRadius
+  // Keep the authored approach center and interaction/collision geometry.
+  // The cafe's separate outward departure radius follows the same reduction.
+  const radius = previousRadius * (scene.id === 'commercial-street' ? .5 : 1)
   return Math.hypot(position.x - approach.x, position.y - approach.y) <= radius
 }
 
