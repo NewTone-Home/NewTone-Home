@@ -1,5 +1,7 @@
 import type { Point } from './sceneGeometry'
 import type { MainlineSceneDefinition } from './mainlineScenes'
+import { projectCommercialStreetX } from './commercialStreetGridProjection'
+import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 
 const normalizedViewportCenter = 50
 
@@ -15,43 +17,66 @@ export function fixedFrameCameraOffset(scene: Pick<MainlineSceneDefinition, 'wal
   }
 }
 
-function followPlayerCameraOffset(scene: Pick<MainlineSceneDefinition, 'walkBounds'>, position: Point): Point {
+type CameraScene = Pick<MainlineSceneDefinition, 'walkBounds'> & Partial<Pick<MainlineSceneDefinition, 'id'>>
+
+function projectedX(scene: CameraScene, x: number, screenMetrics: SceneScreenMetrics) {
+  return scene.id === 'commercial-street' ? projectCommercialStreetX(x, screenMetrics) : x
+}
+
+function followPlayerCameraOffset(scene: CameraScene, position: Point, screenMetrics: SceneScreenMetrics): Point {
   const followAnchor = normalizedViewportCenter
   const cameraEdgePadding = 2
-  const minX = Math.min(0, 100 - (scene.walkBounds.x + scene.walkBounds.width) - cameraEdgePadding)
+  const left = projectedX(scene, scene.walkBounds.x, screenMetrics)
+  const right = projectedX(scene, scene.walkBounds.x + scene.walkBounds.width, screenMetrics)
+  const minX = Math.min(0, 100 - right - cameraEdgePadding)
+  const maxX = Math.max(0, cameraEdgePadding - left)
   const minY = Math.min(0, 100 - (scene.walkBounds.y + scene.walkBounds.height) - cameraEdgePadding)
   const maxY = Math.max(0, cameraEdgePadding - scene.walkBounds.y)
   return {
-    x: clamp(followAnchor - position.x, minX, 0),
+    x: clamp(followAnchor - projectedX(scene, position.x, screenMetrics), minX, maxX),
     y: clamp(followAnchor - position.y, minY, maxY),
   }
 }
 
 /** The only camera-policy selector for every mainline scene. */
 export function mainlineCameraOffset(
-  scene: Pick<MainlineSceneDefinition, 'viewport' | 'walkBounds'>,
+  scene: Pick<MainlineSceneDefinition, 'viewport' | 'walkBounds'> & Partial<Pick<MainlineSceneDefinition, 'id'>>,
   position: Point,
   embedded = false,
+  screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
 ): Point {
   if (embedded) return { x: 0, y: 0 }
-  return scene.viewport === 'fixed-frame'
-    ? fixedFrameCameraOffset(scene)
-    : followPlayerCameraOffset(scene, position)
+  if (scene.viewport === 'fixed-frame') {
+    const offset = fixedFrameCameraOffset(scene)
+    return scene.id === 'commercial-street'
+      ? { ...offset, x: normalizedViewportCenter - projectedX(scene, scene.walkBounds.x + scene.walkBounds.width / 2, screenMetrics) }
+      : offset
+  }
+  return followPlayerCameraOffset(scene, position, screenMetrics)
 }
 
 /** Keep the central 30% free of camera motion; clamp against scene edges. */
-export function mainlineCameraTarget(scene: Pick<MainlineSceneDefinition, 'viewport' | 'walkBounds'>, position: Point, current: Point, embedded = false): Point {
-  if (embedded || scene.viewport === 'fixed-frame') return mainlineCameraOffset(scene, position, embedded)
+export function mainlineCameraTarget(
+  scene: Pick<MainlineSceneDefinition, 'viewport' | 'walkBounds'> & Partial<Pick<MainlineSceneDefinition, 'id'>>,
+  position: Point,
+  current: Point,
+  embedded = false,
+  screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
+): Point {
+  if (embedded || scene.viewport === 'fixed-frame') return mainlineCameraOffset(scene, position, embedded, screenMetrics)
   const desired = { ...current }
   for (const axis of ['x', 'y'] as const) {
-    const screen = position[axis] + current[axis]
+    const screen = (axis === 'x' ? projectedX(scene, position.x, screenMetrics) : position.y) + current[axis]
     if (screen < 35) desired[axis] += 35 - screen
     if (screen > 65) desired[axis] += 65 - screen
   }
-  const minX = Math.min(0, 100 - (scene.walkBounds.x + scene.walkBounds.width) - 2)
+  const left = projectedX(scene, scene.walkBounds.x, screenMetrics)
+  const right = projectedX(scene, scene.walkBounds.x + scene.walkBounds.width, screenMetrics)
+  const minX = Math.min(0, 100 - right - 2)
+  const maxX = Math.max(0, 2 - left)
   const minY = Math.min(0, 100 - (scene.walkBounds.y + scene.walkBounds.height) - 2)
   const maxY = Math.max(0, 2 - scene.walkBounds.y)
-  return { x: clamp(desired.x, minX, 0), y: clamp(desired.y, minY, maxY) }
+  return { x: clamp(desired.x, minX, maxX), y: clamp(desired.y, minY, maxY) }
 }
 
 export function advanceMainlineCamera(current: Point, target: Point, elapsedMs: number): Point {

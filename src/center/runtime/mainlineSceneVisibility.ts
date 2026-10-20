@@ -1,5 +1,7 @@
 import type { MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { Point } from './sceneGeometry'
+import { projectCommercialStreetX } from './commercialStreetGridProjection'
+import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 
 /**
  * Storefront shell geometry belongs to the continuous commercial-street
@@ -26,8 +28,11 @@ export function mainlineGeometryCellWithinViewport(
   cell: { x: number; y: number },
   cameraOffset: Point,
   overscan = 5,
+  sceneId?: string,
+  screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
 ) {
-  const viewportX = cell.x + cameraOffset.x
+  const worldX = sceneId === 'commercial-street' ? projectCommercialStreetX(cell.x, screenMetrics) : cell.x
+  const viewportX = worldX + cameraOffset.x
   const viewportY = cell.y + cameraOffset.y
   return viewportX >= -overscan && viewportX <= 100 + overscan
     && viewportY >= -overscan && viewportY <= 100 + overscan

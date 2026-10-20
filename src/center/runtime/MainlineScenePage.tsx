@@ -580,7 +580,7 @@ export function MainlineScenePage({
   }, [dismissSceneAction, dismissSceneEcho, onPhoneDismiss, phoneOpen, readingActive])
   const internalMovement = useFreeRoamMovement(initialPosition)
   const { position, moving, moveAlong: rawMoveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
-  const cameraOffset = useMainlineCamera(scene, position, embedded)
+  const cameraOffset = useMainlineCamera(scene, position, embedded, screenMetrics)
   const storefrontPresentation = useStorefrontPresentation(scene, position)
   const reportedCafeRevealRef = useRef(false)
   const cafeStorefrontPhase = scene.id === 'commercial-street'

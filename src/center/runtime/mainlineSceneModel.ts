@@ -1262,9 +1262,13 @@ const commercialStreetShellFurniture = (() => {
     { orientation: 'vertical', positions: Array.from({ length: 10 }, (_, index) => cell(milkTea, 6, 5 + index)) },
     { orientation: 'horizontal', positions: [cell(milkTea, 6, 14), cell(milkTea, 7, 14), cell(milkTea, 8, 14)], glyphs: ['台', '柜', '台'] },
   ])
-  const milkTeaRearWallRuns = [[0, 1, 2], [5, 6, 7], [10]]
-  milkTeaRearWallRuns.forEach((columns, runIndex) => {
-    addWallRun(milkTea, `commercial-s5-milk-tea-rear-partition-${runIndex}`, columns.map((column) => cell(milkTea, column, 16)), 'horizontal')
+  const milkTeaRearWallRuns = [
+    { columns: [-1, 0, 1, 2], omitted: [0] },
+    { columns: [5, 6, 7], omitted: [] },
+    { columns: [10, 11], omitted: [1] },
+  ]
+  milkTeaRearWallRuns.forEach(({ columns, omitted }, runIndex) => {
+    addWallRun(milkTea, `commercial-s5-milk-tea-rear-partition-${runIndex}`, columns.map((column) => cell(milkTea, column, 16)), 'horizontal', omitted)
   })
   addInternalDoorGlyph(milkTea, 'commercial-s5-milk-tea-warehouse-door', cell(milkTea, 3.5, 16))
   addInternalDoorGlyph(milkTea, 'commercial-s5-milk-tea-kitchen-door', cell(milkTea, 8.5, 16))
@@ -1273,7 +1277,7 @@ const commercialStreetShellFurniture = (() => {
   addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-menu-service-label', '菜单', cell(milkTea, 2, 3))
   addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-order-service-label', '点单', cell(milkTea, 4, 5))
   addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-pickup-service-label', '取餐', cell(milkTea, 4, 12))
-  addWallRun(milkTea, 'commercial-s5-milk-tea-kitchen-divider', Array.from({ length: 6 }, (_, index) => cell(milkTea, 6, 16 + index)), 'vertical', [0])
+  addWallRun(milkTea, 'commercial-s5-milk-tea-kitchen-divider', Array.from({ length: 10 }, (_, index) => cell(milkTea, 6, 16 + index)), 'vertical', [0, 9])
 
   const fastFood = commercialStreetInteriorSamples.find((sample) => sample.roomId === 'commercial-south-s2-interior')!
   addFurniture(fastFood, mainlineTwoSeatFurniture(
@@ -1285,9 +1289,13 @@ const commercialStreetShellFurniture = (() => {
     { tableId: 'commercial-s2-fast-food-table-b', seatIds: ['commercial-s2-fast-food-seat-b1', 'commercial-s2-fast-food-seat-b2'] },
   ))
   addCounter(fastFood, 'commercial-s2-fast-food-counter', [{ orientation: 'vertical', positions: Array.from({ length: 10 }, (_, index) => cell(fastFood, 14, 5 + index)) }])
-  const fastFoodRearWallRuns = [Array.from({ length: 16 }, (_, index) => index), [18, 19], [22]]
-  fastFoodRearWallRuns.forEach((columns, runIndex) => {
-    addWallRun(fastFood, `commercial-s2-fast-food-rear-partition-${runIndex}`, columns.map((column) => cell(fastFood, column, 16)), 'horizontal')
+  const fastFoodRearWallRuns = [
+    { columns: Array.from({ length: 17 }, (_, index) => index - 1), omitted: [0] },
+    { columns: [18, 19], omitted: [] },
+    { columns: [22, 23], omitted: [1] },
+  ]
+  fastFoodRearWallRuns.forEach(({ columns, omitted }, runIndex) => {
+    addWallRun(fastFood, `commercial-s2-fast-food-rear-partition-${runIndex}`, columns.map((column) => cell(fastFood, column, 16)), 'horizontal', omitted)
   })
   addInternalDoorGlyph(fastFood, 'commercial-s2-fast-food-kitchen-door', cell(fastFood, 16.5, 16))
   addInternalDoorGlyph(fastFood, 'commercial-s2-fast-food-warehouse-door', cell(fastFood, 20.5, 16))
@@ -1296,7 +1304,7 @@ const commercialStreetShellFurniture = (() => {
   addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-menu-service-label', '菜单', cell(fastFood, 7, 3))
   addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-order-service-label', '点单', cell(fastFood, 12, 5))
   addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-pickup-service-label', '取餐', cell(fastFood, 12, 12))
-  addWallRun(fastFood, 'commercial-s2-fast-food-kitchen-warehouse-divider', Array.from({ length: 6 }, (_, index) => cell(fastFood, 18, 16 + index)), 'vertical', [0])
+  addWallRun(fastFood, 'commercial-s2-fast-food-kitchen-warehouse-divider', Array.from({ length: 10 }, (_, index) => cell(fastFood, 18, 16 + index)), 'vertical', [0, 9])
 
   const addRetailRun = (
     sample: typeof commercialStreetInteriorSamples[number],

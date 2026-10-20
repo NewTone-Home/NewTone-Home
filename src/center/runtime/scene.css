@@ -665,16 +665,21 @@
   min-height: 100dvh;
 }
 .scene-mainline-world { z-index: 0; position: absolute; inset: 0; will-change: transform; animation: mainline-world-enter 180ms ease both; }
-.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-spatial-glyph,
-.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-object,
-.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-npc,
-.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-focus-group__glyph,
-.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-storefront__label-text,
-.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-protagonist,
-.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-commercial-question-mark {
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-object__grid-content,
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-npc__grid-content,
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-focus-group__glyph-visual,
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-storefront__label-text > [data-scene-characters],
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-protagonist__grid-content,
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-commercial-question-mark__visual,
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-spatial-glyph > .scene-character-switch,
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-spatial-glyph > [data-scene-characters],
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-spatial-glyph > .scene-door {
   scale: var(--scene-horizontal-grid-counter-scale, 1) 1;
   transform-origin: center;
 }
+.scene-mainline-object__grid-content,
+.scene-mainline-npc__grid-content,
+.scene-protagonist__grid-content { display: inline-block; }
 .scene-mainline-world.is-local-slide-handoff { animation: none; }
 @keyframes mainline-world-enter {
   from { opacity: 0; }
@@ -1136,6 +1141,7 @@
   transform: translate(-50%, -50%);
   animation: scene-commercial-question-mark-pulse 1600ms ease-in-out infinite;
 }
+.scene-commercial-question-mark__visual { display: inline-block; }
 @keyframes scene-commercial-question-mark-pulse {
   0%, 100% { opacity: .7; transform: translate(-50%, -50%) scale(.94); }
   50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }

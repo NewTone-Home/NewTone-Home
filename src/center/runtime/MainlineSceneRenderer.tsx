@@ -250,7 +250,7 @@ function MainlineAmbientNpcActorView({ sceneId, npc, position, snapshot, screenM
     data-visual-width={debugRuntimeEvidence ? visualFootprint.width : undefined}
     data-visual-height={debugRuntimeEvidence ? visualFootprint.height : undefined}
     aria-hidden="true"
-  >{npc.label}</span>
+  ><span className="scene-mainline-npc__grid-content">{npc.label}</span></span>
 }
 
 export const MainlineAmbientNpcActor = memo(MainlineAmbientNpcActorView)
@@ -496,7 +496,7 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
     const cell = entries[index]?.cell
     if (!cell) return null
     const offset = vertical ? ((cell.y - centerY) / Math.max(.001, span)) * 100 + 50 : ((cell.x - centerX) / Math.max(.001, span)) * 100 + 50
-    return <SceneCharacters key={cell.id} data-focus-visual-group={first.focusGroup} className="scene-mainline-focus-group__glyph" style={{ left: vertical ? '50%' : offset + '%', top: vertical ? offset + '%' : '50%' }} aria-hidden="true">{glyph}</SceneCharacters>
+    return <span key={cell.id} data-focus-visual-group={first.focusGroup} className="scene-mainline-focus-group__glyph" style={{ left: vertical ? '50%' : offset + '%', top: vertical ? offset + '%' : '50%' }} aria-hidden="true"><SceneCharacters className="scene-mainline-focus-group__glyph-visual">{glyph}</SceneCharacters></span>
   })
   const commonProps = {
     className: `scene-mainline-focus-group ${className} ${visibilityClass} scene-mainline-interaction--${resolveMainlineInteractionVisualState({ active, explored, tutorialCompleted: true, tutorialEligible: false })}`,
@@ -606,7 +606,7 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
     : null
 
   if (entity.interactive === false) {
-    return <>{focusContent && frame}<span {...commonProps} aria-hidden="true">{!suppressLabel && <SceneCharacters className="scene-mainline-object__label" ref={labelRef} style={labelStyle} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters>}{!focusContent && frame}</span></>
+    return <>{focusContent && frame}<span {...commonProps} aria-hidden="true">{!suppressLabel && <span className="scene-mainline-object__grid-content"><SceneCharacters className="scene-mainline-object__label" ref={labelRef} style={labelStyle} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters></span>}{!focusContent && frame}</span></>
   }
 
   return (
@@ -631,7 +631,7 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
         if (event.target === event.currentTarget && event.animationName === 'scene-incense-burn-lifecycle') onIncenseBurnComplete?.()
       }}
     >
-      {!suppressLabel && <SceneCharacters className="scene-mainline-object__label" ref={labelRef} style={labelStyle} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters>}
+      {!suppressLabel && <span className="scene-mainline-object__grid-content"><SceneCharacters className="scene-mainline-object__label" ref={labelRef} style={labelStyle} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters></span>}
       {!focusContent && frame}
       </button>
     </>
@@ -685,8 +685,8 @@ function MainlineNpcActor({ sceneId, npc, position, snapshot, seatId, seatPositi
     'data-visual-height': debugRuntimeEvidence ? visualFootprint.height : undefined,
   }
   return interactive
-    ? <button {...attributes} type="button" onClick={(event) => { event.stopPropagation(); onInteract?.(npc.id) }} aria-label={`${npc.label}，点击让主角前往互动`}><SceneCharacters>{npc.label}</SceneCharacters></button>
-    : <span {...attributes} aria-hidden="true"><SceneCharacters>{npc.label}</SceneCharacters></span>
+    ? <button {...attributes} type="button" onClick={(event) => { event.stopPropagation(); onInteract?.(npc.id) }} aria-label={`${npc.label}，点击让主角前往互动`}><span className="scene-mainline-npc__grid-content"><SceneCharacters>{npc.label}</SceneCharacters></span></button>
+    : <span {...attributes} aria-hidden="true"><span className="scene-mainline-npc__grid-content"><SceneCharacters>{npc.label}</SceneCharacters></span></span>
 }
 
 const MemoMainlineNpcActor = memo(MainlineNpcActor)
@@ -917,8 +917,8 @@ export function MainlineSceneRenderer({
   const renderedGeometryCells = useMemo(() => geometryCells.filter(({ unit, cell }) => {
     if (!mainlineGeometryUnitShouldRender(scene.id, unit, activeShellRoomId, layoutMode)) return false
     if (scene.id !== 'commercial-street' || !unit.sourceWallId?.endsWith('-shell')) return true
-    return mainlineGeometryCellWithinViewport(cell, cameraOffset)
-  }), [activeShellRoomId, cameraOffset, geometryCells, layoutMode, scene.id])
+    return mainlineGeometryCellWithinViewport(cell, cameraOffset, 5, scene.id, renderScreenMetrics)
+  }), [activeShellRoomId, cameraOffset, geometryCells, layoutMode, renderScreenMetrics, scene.id])
 
   const focusGroupCells = useMemo(() => {
     const groups = new Map<string, MainlineGeometryCellEntry[]>()
@@ -1403,9 +1403,11 @@ export function MainlineSceneRenderer({
           </div>}
           {destination && <div className={`scene-walk-target ${moving ? 'is-active' : ''}`} style={{ left: `${destination.x}%`, top: `${destination.y}%` }} aria-hidden="true" />}
           {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%`, '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? scene.id === 'commercial-street' ? projectCommercialStreetX(protagonistVisualPosition.x, renderScreenMetrics) : protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined}>
+            <span className="scene-protagonist__grid-content">
             {protagonistPresentation.kind === 'dot'
               ? <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
               : <span className="scene-protagonist__seat-label" aria-label="修杰，已坐下">{protagonistPresentation.label}</span>}
+            </span>
             {carriedMilkTea && !playerSeatId && <button type="button" className="scene-protagonist__drink-icon scene-protagonist__drink-icon--milk-tea" aria-label="修杰带着奶茶，点击饮用" onClick={(event) => { event.stopPropagation(); onMilkTeaInteract?.() }} />}
           </div>}
           {worldQuestionMark?.visible && <span
@@ -1415,7 +1417,7 @@ export function MainlineSceneRenderer({
             data-world-anchor-x={worldQuestionMark.anchor.x}
             data-world-anchor-y={worldQuestionMark.anchor.y}
             aria-hidden="true"
-          >?</span>}
+          ><span className="scene-commercial-question-mark__visual">?</span></span>}
           </>
         </div>
         <div className="scene-mainline-reading-layer">

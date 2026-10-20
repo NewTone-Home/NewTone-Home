@@ -303,7 +303,7 @@ describe('commercial street shell furniture samples', () => {
       && (entity.id.includes('rear-partition-') || entity.id.includes('divider-')))
     const internalDoors = street.objects.filter((entity) => entity.label === '门'
       && sampleRoomIds.includes(entity.roomId as typeof sampleRoomIds[number]))
-    expect(walls).toHaveLength(36)
+    expect(walls).toHaveLength(42)
     expect(internalDoors.map((entity) => entity.id).sort()).toEqual([
       'commercial-s2-fast-food-kitchen-door',
       'commercial-s2-fast-food-warehouse-door',
@@ -347,14 +347,14 @@ describe('commercial street shell furniture samples', () => {
       && (structure.id.includes('s5-milk-tea-') || structure.id.includes('s2-fast-food-')))
     expect(barriers).toHaveLength(8)
     for (const [id, length] of [
-      ['commercial-s5-milk-tea-kitchen-divider-body', 6],
-      ['commercial-s2-fast-food-kitchen-warehouse-divider-body', 6],
-      ['commercial-s5-milk-tea-rear-partition-0-body', 3],
+      ['commercial-s5-milk-tea-kitchen-divider-body', 10],
+      ['commercial-s2-fast-food-kitchen-warehouse-divider-body', 10],
+      ['commercial-s5-milk-tea-rear-partition-0-body', 4],
       ['commercial-s5-milk-tea-rear-partition-1-body', 3],
-      ['commercial-s5-milk-tea-rear-partition-2-body', 1],
-      ['commercial-s2-fast-food-rear-partition-0-body', 16],
+      ['commercial-s5-milk-tea-rear-partition-2-body', 2],
+      ['commercial-s2-fast-food-rear-partition-0-body', 17],
       ['commercial-s2-fast-food-rear-partition-1-body', 2],
-      ['commercial-s2-fast-food-rear-partition-2-body', 1],
+      ['commercial-s2-fast-food-rear-partition-2-body', 2],
     ] as const) {
       const body = barriers.find((candidate) => candidate.id === id)!
       const expected = id.includes('divider') ? length * steps.vertical : length * steps.horizontal
@@ -395,10 +395,16 @@ describe('commercial street shell furniture samples', () => {
       const localTop = (divider.y - room.bounds.y) / steps.vertical
       const localBottom = (divider.y + divider.height - room.bounds.y) / steps.vertical
       expect(localTop).toBeCloseTo(15.5)
-      expect(localBottom).toBeCloseTo(21.5)
+      expect(localBottom).toBeCloseTo(25.5)
       const rear = street.passages.find((passage) => passage.id === `${roomId}-rear-door`)!
       const interior = fromFor(roomId === sampleRoomIds[0] ? 3.5 : 16.5, 17)
       expect(findMainlinePath(interior, rear.thresholds[0], street), `${roomId} rear-door threshold`).not.toBeNull()
+
+      const rearPartitionCrossing = [fromFor(roomId === sampleRoomIds[0] ? 4 : 17, 22), fromFor(roomId === sampleRoomIds[0] ? 9 : 21, 22)]
+      expect(canTravelAlongMainlineSegment(rearPartitionCrossing[0], rearPartitionCrossing[1], street), `${roomId} closed divider blocks the rear zone`).toBe(false)
+      const warehouseDoor = street.objects.find((entity) => entity.id === `${roomId === sampleRoomIds[0] ? 'commercial-s5-milk-tea' : 'commercial-s2-fast-food'}-warehouse-door`)!
+      const warehouseApproach = fromFor(roomId === sampleRoomIds[0] ? 3.5 : 20.5, 15)
+      expect(findMainlinePath(warehouseApproach, warehouseDoor.position, street), `${roomId} marked warehouse doorway remains reachable`).not.toBeNull()
     }
   })
 
