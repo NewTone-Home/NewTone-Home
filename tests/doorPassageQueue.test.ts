@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createDoorPassageRuntime, doorPassageActorIsActive, reduceDoorPassageRuntime } from '../src/center/runtime/doorPassageModel'
+import { createDoorPassageRuntime, doorPassageActorIsActive, doorPassagePassableSignature, reduceDoorPassageRuntime } from '../src/center/runtime/doorPassageModel'
 import type { Point } from '../src/center/runtime/sceneGeometry'
 
 // The reducer does not inspect crossing coordinates; geometry is owned by the
@@ -21,6 +21,19 @@ function request(state: ReturnType<typeof createDoorPassageRuntime>, actorId: st
 }
 
 describe('door passage FIFO reservations', () => {
+  it('changes the passable-set signature only when a passage can physically be crossed', () => {
+    const closed = new Map([['front', 'closed' as const]])
+    const opening = new Map([['front', 'opening' as const]])
+    const open = new Map([['front', 'open' as const]])
+    const crossing = new Map([['front', 'crossing' as const]])
+    const closing = new Map([['front', 'closing' as const]])
+
+    expect(doorPassagePassableSignature(opening)).toBe(doorPassagePassableSignature(closed))
+    expect(doorPassagePassableSignature(open)).toBe('front')
+    expect(doorPassagePassableSignature(crossing)).toBe(doorPassagePassableSignature(open))
+    expect(doorPassagePassableSignature(closing)).toBe(doorPassagePassableSignature(closed))
+  })
+
   it('allows only the first reservation to cross and promotes the next actor on release', () => {
     let state = request(createDoorPassageRuntime(), 'protagonist')
     state = request(state, 'ambient-1')

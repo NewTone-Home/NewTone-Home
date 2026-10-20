@@ -10,6 +10,7 @@ import {
   doorPassageActorIsActive,
   doorPassageIsOpen,
   doorPassageIsPassable,
+  doorPassagePassableSignature,
   doorRegionSide,
   reduceDoorPassageRuntime,
   type DoorPassagePhase,
@@ -279,9 +280,17 @@ export function useAutomaticPassages({ passages, canOpen, canUse, onDenied }: Au
     doorPassageActorIsActive(stateFor(passageId), actorId)
   ), [stateFor])
 
-  const getOpenPassageIds = useCallback(() => new Set(optionsRef.current.passages
-    .filter((passage) => doorPassageIsPassable(passageStore.getSnapshot().get(passage.id)?.phase ?? 'closed'))
-    .map((passage) => passage.id)), [passageStore])
+  const passableSignature = doorPassagePassableSignature(passageStates)
+  const getOpenPassageIds = useCallback(() => {
+    const states = passageStore.getSnapshot()
+    const currentSignature = doorPassagePassableSignature(states)
+    if (currentSignature === passableSignature) {
+      return new Set(passableSignature ? passableSignature.split('\u001f') : [])
+    }
+    return new Set(optionsRef.current.passages
+      .filter((passage) => doorPassageIsPassable(states.get(passage.id)?.phase ?? 'closed'))
+      .map((passage) => passage.id))
+  }, [passableSignature, passageStore])
 
   return { requestPassage, cancelPassage, updateActor, completeOpen, completeClose, getPassagePhase, isPassageActorActive, getOpenPassageIds, passageStates }
 }

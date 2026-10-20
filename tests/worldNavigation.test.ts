@@ -68,7 +68,7 @@ describe('ordinary world navigation and passage intent', () => {
     }
   })
 
-  it('invalidates the prepared static mesh when actor, passage, seat, or bounds inputs change', () => {
+  it('keeps route-through door geometry stable while invalidating actor, seat, and bounds changes', () => {
     const street = mainlineScenes['commercial-street']
     const screenMetrics = { width: 1180, height: 757, viewportWidth: 1180 }
     const snapshot = () => createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, screenMetrics)
@@ -76,15 +76,25 @@ describe('ordinary world navigation and passage intent', () => {
       screenMetrics,
       actorFootprint: { width: 1.2, height: 1.2 },
       geometrySnapshot: snapshot(),
-    }).navigationMesh
+    })
     const seatId = street.objects.find(object => object.kind === 'seat')!.id
-    const passageId = street.passages[0]!.id
+    const passage = street.passages.find(candidate => candidate.id === 'commercial-north-slot-1-entry')!
+    const openOptions = { screenMetrics, actorFootprint: { width: 1.2, height: 1.2 }, openPassageIds: new Set([passage.id]), geometrySnapshot: snapshot() }
+    const openDoor = prepareMainlineWorldNavigation(street, {}, openOptions)
+    expect(openDoor.navigationMesh).toBe(baseline.navigationMesh)
+    expect(openDoor.obstacles).toEqual(baseline.obstacles)
+    expect(openDoor.physicalObstacles).not.toEqual(baseline.physicalObstacles)
+    const doorwayCenter = { x: passage.collision.x + passage.collision.width / 2, y: passage.collision.y + passage.collision.height / 2 }
+    expect(isWalkableMainlinePoint(doorwayCenter, street, {}, { ...openOptions, openPassageIds: new Set() })).toBe(false)
+    expect(isWalkableMainlinePoint(doorwayCenter, street, {}, openOptions)).toBe(true)
+    expect(passage.routeThrough).toBe(true)
+    const closedOptions = { ...openOptions, openPassageIds: new Set<string>() }
+    const approach = canActorReachPassageApproach(street, passage, street.initialPlayerPosition, {}, closedOptions)
+    expect(approach?.path).not.toBeNull()
+    expect(classifyMainlineWorldCommand(street, street.initialPlayerPosition, passage.crossingTargets[0], {}, closedOptions).kind).toBe('passage')
     const variants = [
       prepareMainlineWorldNavigation(street, {}, {
         screenMetrics, actorFootprint: { width: 1.4, height: 1.2 }, geometrySnapshot: snapshot(),
-      }).navigationMesh,
-      prepareMainlineWorldNavigation(street, {}, {
-        screenMetrics, actorFootprint: { width: 1.2, height: 1.2 }, openPassageIds: new Set([passageId]), geometrySnapshot: snapshot(),
       }).navigationMesh,
       prepareMainlineWorldNavigation(street, {}, {
         screenMetrics, actorFootprint: { width: 1.2, height: 1.2 }, occupiedSeatIds: new Set([seatId]), geometrySnapshot: snapshot(),
@@ -95,7 +105,7 @@ describe('ordinary world navigation and passage intent', () => {
         geometrySnapshot: createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, { ...screenMetrics, width: 1181, viewportWidth: 1181 }),
       }).navigationMesh,
     ]
-    variants.forEach(mesh => expect(mesh).not.toBe(baseline))
+    variants.forEach(mesh => expect(mesh).not.toBe(baseline.navigationMesh))
   })
 
   it('invalidates the prepared static mesh when a compiled obstacle or navigation barrier changes', () => {

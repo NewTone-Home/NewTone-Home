@@ -46,7 +46,7 @@ type CachedNavigationMesh = {
 // collision inputs unchanged, so key meshes by their exact static inputs and
 // scene identity rather than by snapshot identity. Dynamic actor occupancy is
 // still excluded.
-const physicalIntentMeshCache = new WeakMap<PolygonNavigationMesh, PolygonNavigationMesh>()
+const physicalIntentMeshCache = new WeakMap<PolygonNavigationMesh, Map<string, PolygonNavigationMesh>>()
 const staticNavigationMeshCache = new WeakMap<MainlineSceneGeometrySnapshot, Map<string, CachedNavigationMesh>>()
 const preparedWorldNavigationMeshCache = new WeakMap<MainlineSceneDefinition, Map<string, CachedNavigationMesh>>()
 const MAX_STATIC_NAVIGATION_MESHES_PER_SCENE = 8
@@ -184,7 +184,13 @@ function occupiedSeatIdsForNavigation(scene: MainlineSceneDefinition, options: M
   }))
 }
 
-function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, options: MainlineNavigationOptions, includeDynamicActors = true) {
+function collisionBoxes(
+  scene: MainlineSceneDefinition,
+  layout: SceneLayout,
+  options: MainlineNavigationOptions,
+  includeDynamicActors = true,
+  excludeRouteThroughDoorCellsFromMesh = false,
+) {
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const openPassageIds = options.openPassageIds
     ? new Set(scene.passages.filter((passage) => options.openPassageIds!.has(passage.id)).map((passage) => passage.id))
@@ -197,6 +203,10 @@ function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, opt
     ...geometry
       .filter((unit) => {
         if (!unit.navigation.blocked) return false
+        if (excludeRouteThroughDoorCellsFromMesh && unit.navigation.passageId && unit.entityId) {
+          const passage = scene.passages.find(candidate => candidate.id === unit.navigation.passageId && candidate.entityId === unit.entityId)
+          if (passage?.routeThrough && passage.access === 'open') return false
+        }
         const passageOpen = unit.navigation.passageId
           ? openPassageIds.has(unit.navigation.passageId)
           : unit.navigation.opensWithPassageId
@@ -1211,13 +1221,18 @@ export function prepareMainlineWorldNavigation(scene: MainlineSceneDefinition, l
   // The target component belongs to the stable world. Runtime actors are
   // deliberately excluded here: they may block this movement attempt, but
   // cannot turn a raw click into a different permanent destination.
-  const obstacles = collisionBoxes(scene, layout, options, false)
+  const physicalObstacles = collisionBoxes(scene, layout, options, false)
+  // A traversable passage is a permanent topological portal in the static
+  // mesh. Its lifecycle-owned door remains a live physical blocker in
+  // collisionBoxes/canOccupy until the passage becomes passable. Keeping the
+  // door cell out of the mesh avoids rebuilding the large graph at the
+  // crossing while preserving closed-door movement and permission checks.
+  const obstacles = collisionBoxes(scene, layout, options, false, true)
   const cacheKey = [
     'world',
     options.actorId ?? 'protagonist',
     actorFootprint.width.toFixed(4),
     actorFootprint.height.toFixed(4),
-    [...(options.openPassageIds ?? [])].sort().join(','),
     [...occupiedSeatIdsForNavigation(scene, options)].sort().join(','),
   ].join('|')
   const bounds = insetBounds(snapshot.walkBounds, actorFootprint)
@@ -1239,7 +1254,7 @@ export function prepareMainlineWorldNavigation(scene: MainlineSceneDefinition, l
     meshes!.delete(meshCacheKey)
     meshes!.set(meshCacheKey, cached)
   }
-  return { bounds, obstacles, actorFootprint, barriers, navigationMesh }
+  return { bounds, obstacles, physicalObstacles, actorFootprint, barriers, navigationMesh }
 }
 
 /** Declared permission edge with a public normal and actor contact clearance. */
@@ -1272,13 +1287,21 @@ export function resolveMainlineWorldNavigation(
     // Resolve the attempted physical route with the same mesh owner. This
     // route supplies intent only; it is never handed to the movement controller.
     const physicalBarriers = adapter.barriers.filter(barrier => barrier.kind !== 'access-boundary')
-    let physicalMesh = physicalIntentMeshCache.get(adapter.navigationMesh)
+    const physicalKey = JSON.stringify({ bounds: adapter.bounds, obstacles: adapter.physicalObstacles, barriers: physicalBarriers, actorFootprint: footprint })
+    const physicalMeshes = physicalIntentMeshCache.get(adapter.navigationMesh) ?? new Map<string, PolygonNavigationMesh>()
+    let physicalMesh = physicalMeshes.get(physicalKey)
     if (!physicalMesh) {
       physicalMesh = createPolygonNavigationMesh({
-        bounds: adapter.bounds, obstacles: adapter.obstacles, barriers: physicalBarriers,
+        bounds: adapter.bounds, obstacles: adapter.physicalObstacles, barriers: physicalBarriers,
         obstacleInset: { x: footprint.width / 2, y: footprint.height / 2 }, actorFootprint: footprint,
       })
-      physicalIntentMeshCache.set(adapter.navigationMesh, physicalMesh)
+      physicalMeshes.set(physicalKey, physicalMesh)
+      while (physicalMeshes.size > MAX_STATIC_NAVIGATION_MESHES_PER_SCENE) {
+        const oldest = physicalMeshes.keys().next().value
+        if (oldest === undefined) break
+        physicalMeshes.delete(oldest)
+      }
+      physicalIntentMeshCache.set(adapter.navigationMesh, physicalMeshes)
     }
     const attempted = resolveNavigationPath(from, requestedTarget, {
       ...adapter, barriers: physicalBarriers, navigationMesh: physicalMesh,
