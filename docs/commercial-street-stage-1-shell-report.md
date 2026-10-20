@@ -484,3 +484,30 @@ The code change has **not** been benchmarked in a current-code browser preview y
 After pushing `d064ec26`, the Vercel Git integration had not created a deployment for that exact SHA; the newest `new-tone` entry still corresponded to `7d252641`. Localhost profiling is unavailable in this sandbox. A direct `new-tone` project deployment request with `target:"preview"` was rejected by Vercel API validation (only production, staging, or custom environment IDs are accepted); omitting the target was then rejected by automatic review as environmentally ambiguous given the explicit no-staging/no-production scope. No workaround was attempted. Therefore there are no post-change browser timings, no claim of a performance improvement, and no exact-SHA READY deployment for `d064ec26` yet. The geometry optimization remains pending the same-device, same-route profile on an explicitly authorized preview environment.
 
 The push also triggered a separate automatic `newtone-staging` deployment workflow; per the previous task status, cancellation was explicitly denied as an irreversible staging mutation. It was not altered or promoted. No production deployment was requested or performed.
+
+## Review follow-up: complete live checks for player-initiated routes
+
+A second source review found that the first live-door patch still left ordinary seat/object routes and player travel to an NPC using the render-time `navigationOptions` object. These routes can span storefront doors in the continuous `commercial-street`, so they are not guaranteed to remain in one room. The follow-up uses a `navigationOptionsRef` updated on each render; the stable `getLiveNavigationOptions()` accessor combines its newest geometry, NPC occupancy, and scene options with a fresh physical `openPassageIds` set on each point and segment check. Seat, ordinary entity, storefront-contact, player-to-NPC, generic movement, and passage traversal callbacks now use that accessor. Planning still uses the options current when the command is issued, while each actual movement step revalidates current state.
+
+NPC simulation movement was not changed. Lao Zhou's existing route continues to use its actor-specific `passageOptions`. This remains compatible with the static route-through mesh: the reusable mesh only holds route topology; the physical obstacle list continues to include the actual door until the passage is passable. The passage lifecycle's `beginClosingPassage` and `closeReadyPassage` both refuse to close while an actor holds a reservation, and `updateActor` releases that reservation only after the actor reaches its reserved target side. The existing Lao Zhou reachability and dynamic-NPC movement regressions remain; an executable source contract now checks the active-reservation close guards and confirms the NPC route code was not redirected to player options.
+
+Validation after this follow-up: six focused Vitest files, 44 tests passed, including `dynamicMovementRegression.test.ts`; `npm run build` (TypeScript plus Vite) passed with the existing large bundle advisory; `git diff --check` passed. Exact paths are recorded in `.tmp/profile-048b13a-run1/` through `run3/`.
+
+### Same-device profile of the geometry optimization
+
+The automatically created `new-tone` deployment for `048b13a848fdb45769437677401b6639cf4d81eb` is READY at `https://new-tone-2mrzdowpg-newtone-homes-projects.vercel.app/`. This commit adds only this report to `d064ec26a2ec3bf58e0a96263343155c0a8d42c4`; the runtime bundle therefore contains the geometry optimization from `d064ec2`.
+
+Three fresh Chrome 155.0.8059.80 contexts used the same 1180×757, 1x viewport and N1 fruit-tea entry/return route:
+
+| Measure | Run 1 | Run 2 | Run 3 | Median |
+|---|---:|---:|---:|---:|
+| Click → 13 room items mounted | 497.8 ms | 499.9 ms | 495.5 ms | 497.8 ms |
+| Click → first room-items frame | 522.3 ms | 521.9 ms | 520.0 ms | 521.9 ms |
+| Mount → first frame | 24.5 ms | 22.0 ms | 24.5 ms | 24.5 ms |
+| Entry rAF p95 / max | 16.7 / 16.8 ms | 16.8 / 16.8 ms | 16.7 / 16.7 ms | 16.7 / 16.8 ms |
+| Entry Long Tasks | 0 | 0 | 0 | 0 |
+| Return to street | 295.7 ms | 299.0 ms | 296.7 ms | 296.7 ms |
+
+The entry median is 196.3 ms (28.3%) lower than the prior same-path `efc7889` median of 694.1 ms. Each run mounted 13 interior objects and returned to 0; glyph/wall counts were 306 outside and 310 inside, focus-group count stayed at 28, and the pedestrian remained in `scene-mainline-world`. These measurements are from the exact report SHA above and its unchanged `d064ec2` runtime.
+
+The broader live-options fix is in `1d4006a70107bd9578739b9f4707835e5499ba63` and was pushed after these profiles. At the time of this report update Vercel had not yet listed an automatic Preview for `1d4006a`; the three measurements above do not claim to profile that later source SHA. Repeat the same three profiles on the first automatic READY descendant of `1d4006a` before treating the final all-player-path build as fully performance-verified.
