@@ -3,7 +3,7 @@ import { mainlineScenePassageCollision, mainlineScenePassageDoorway, type Mainli
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import { mainlineEntityCollision, mainlineLabelFootprint, mainlineLayoutOffsetForEntity, mainlineProtagonistDotFootprint, type SceneLayout } from './sceneLayout'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
-import { canTravelAlongSegment, edgeContactPoint, findNavigationPath, navigationActorBox, resolveNavigationPath, sharedNavigationTraversalStep, type NavigationActorFootprint, type NavigationRuntime } from './navigationCore'
+import { canTravelAlongSegment, edgeContactPoint, findNavigationPath, findSingleDynamicObstacleDetour, navigationActorBox, resolveNavigationPath, sharedNavigationTraversalStep, type NavigationActorFootprint, type NavigationRuntime } from './navigationCore'
 import { createPolygonNavigationMesh, navigationBarrierIntersectsActor, navigationBarriersAllowTravel, type PolygonNavigationMesh } from './scenePathfinding'
 import { containsDoorRegion, doorRegionSide, doorwayBoundaryPoint, doorwayLegalTangent, isDoorTargetBehind, type DoorPassageRegion, type DoorRegionNormal } from './doorPassageModel'
 import { sharedFurnitureGeometry } from './twoSeatFurniture'
@@ -1162,12 +1162,32 @@ export function findMainlinePathThroughPassage(scene: MainlineSceneDefinition, p
 export function findMainlinePath(start: Point, target: Point, scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): Point[] | null {
   options = { ...options, geometrySnapshot: sceneGeometrySnapshot(scene, layout, options) }
   if (!isWalkableMainlinePoint(start, scene, layout, options)) return null
-  if (!isWalkableMainlinePoint(target, scene, layout, options)) return null
+  const staticOptions = { ...options, navigationRuntime: undefined }
+  const targetIsWalkable = isWalkableMainlinePoint(target, scene, layout, options)
+  // A live actor occupying the requested endpoint must not make it a legal
+  // local detour target, but preserve the historical full-mesh fallback.
+  if (!targetIsWalkable && !isWalkableMainlinePoint(target, scene, layout, staticOptions)) return null
   const actorFootprint = mainlineActorFootprint(scene, options, start)
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const barriers = mainlineNavigationBarriers(scene, layout, { ...options, geometrySnapshot: snapshot })
   const canOccupy = (point: Point) => isWalkableMainlinePoint(point, scene, layout, options)
-  if (isMainlineNavigationBarrierClear(start, target, scene, layout, options) && canTravelAlongSegment(start, target, canOccupy)) return [start, target]
+  if (targetIsWalkable && isMainlineNavigationBarrierClear(start, target, scene, layout, options) && canTravelAlongSegment(start, target, canOccupy)) return [start, target]
+  const canTravel = (from: Point, to: Point) => isMainlineNavigationBarrierClear(from, to, scene, layout, options)
+    && canTravelAlongSegment(from, to, canOccupy)
+  const canTravelStatic = (from: Point, to: Point) => isMainlineNavigationBarrierClear(from, to, scene, layout, staticOptions)
+    && canTravelAlongSegment(from, to, point => isWalkableMainlinePoint(point, scene, layout, staticOptions))
+  if (targetIsWalkable
+    && options.navigationRuntime
+    && canTravelStatic(start, target)) {
+    const detour = findSingleDynamicObstacleDetour(
+      start,
+      target,
+      options.navigationRuntime.dynamicObstaclesFor(options.actorId),
+      actorFootprint,
+      canTravel,
+    )
+    if (detour) return detour
+  }
   const obstacles = collisionBoxes(scene, layout, options)
   const cacheKey = [
     options.actorId ?? 'protagonist',
@@ -1194,8 +1214,7 @@ export function findMainlinePath(start: Point, target: Point, scene: MainlineSce
     actorFootprint,
     barriers,
     navigationMesh,
-    canTravel: (segmentStart, segmentEnd) => isMainlineNavigationBarrierClear(segmentStart, segmentEnd, scene, layout, options)
-      && canTravelAlongSegment(segmentStart, segmentEnd, canOccupy),
+    canTravel,
   })
 }
 
