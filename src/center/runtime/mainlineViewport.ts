@@ -1,12 +1,44 @@
 import type { Point } from './sceneGeometry'
 import type { MainlineSceneDefinition } from './mainlineScenes'
-import { projectCommercialStreetX } from './commercialStreetGridProjection'
-import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
+import { sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 
 const normalizedViewportCenter = 50
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.max(minimum, Math.min(maximum, value))
+}
+
+/** Uniform CSS-pixel projection from the fixed authored world to the stage. */
+export function mainlineWorldScale(viewport: SceneScreenMetrics) {
+  const width = Math.max(1, viewport.width)
+  const height = Math.max(1, viewport.height)
+  const referenceAspect = sceneDesignReferenceMetrics.width / sceneDesignReferenceMetrics.height
+  return width / height < referenceAspect
+    ? height / sceneDesignReferenceMetrics.height
+    : Math.min(width / sceneDesignReferenceMetrics.width, height / sceneDesignReferenceMetrics.height)
+}
+
+/** Logical percentage span visible through the uniformly projected world. */
+export function mainlineVisibleWorldSpan(viewport: SceneScreenMetrics) {
+  const scale = mainlineWorldScale(viewport)
+  return {
+    x: viewport.width / (sceneDesignReferenceMetrics.width * scale) * 100,
+    y: viewport.height / (sceneDesignReferenceMetrics.height * scale) * 100,
+  }
+}
+
+/** Map a stage pointer back through the single world projection and camera. */
+export function mainlineWorldPointFromClient(
+  client: Point,
+  stage: { left: number; top: number; width: number; height: number },
+  viewport: SceneScreenMetrics,
+  cameraOffset: Point,
+): Point {
+  const scale = mainlineWorldScale(viewport)
+  return {
+    x: ((client.x - stage.left - stage.width / 2) / scale / sceneDesignReferenceMetrics.width + .5) * 100 - cameraOffset.x,
+    y: ((client.y - stage.top - stage.height / 2) / scale / sceneDesignReferenceMetrics.height + .5) * 100 - cameraOffset.y,
+  }
 }
 
 /** Center a complete room frame as one visual unit, leaving a safe edge for glyphs. */
@@ -19,23 +51,22 @@ export function fixedFrameCameraOffset(scene: Pick<MainlineSceneDefinition, 'wal
 
 type CameraScene = Pick<MainlineSceneDefinition, 'walkBounds'> & Partial<Pick<MainlineSceneDefinition, 'id'>>
 
-function projectedX(scene: CameraScene, x: number, screenMetrics: SceneScreenMetrics) {
-  return scene.id === 'commercial-street' ? projectCommercialStreetX(x, screenMetrics) : x
-}
-
-function followPlayerCameraOffset(scene: CameraScene, position: Point, screenMetrics: SceneScreenMetrics): Point {
-  const followAnchor = normalizedViewportCenter
-  const cameraEdgePadding = 2
-  const left = projectedX(scene, scene.walkBounds.x, screenMetrics)
-  const right = projectedX(scene, scene.walkBounds.x + scene.walkBounds.width, screenMetrics)
-  const minX = Math.min(0, 100 - right - cameraEdgePadding)
-  const maxX = Math.max(0, cameraEdgePadding - left)
-  const minY = Math.min(0, 100 - (scene.walkBounds.y + scene.walkBounds.height) - cameraEdgePadding)
-  const maxY = Math.max(0, cameraEdgePadding - scene.walkBounds.y)
-  return {
-    x: clamp(followAnchor - projectedX(scene, position.x, screenMetrics), minX, maxX),
-    y: clamp(followAnchor - position.y, minY, maxY),
-  }
+function cameraOffsetForView(scene: CameraScene, position: Point, viewport: SceneScreenMetrics, follow: boolean): Point {
+  const visible = mainlineVisibleWorldSpan(viewport)
+  const axes = ['x', 'y'] as const
+  const output = {} as Point
+  axes.forEach((axis) => {
+    const start = scene.walkBounds[axis]
+    const size = axis === 'x' ? scene.walkBounds.width : scene.walkBounds.height
+    const span = visible[axis]
+    const padding = Math.min(2, span * .04)
+    const centerMin = start + Math.min(size / 2, span / 2 + (size > span ? padding : 0))
+    const centerMax = start + size - Math.min(size / 2, span / 2 + (size > span ? padding : 0))
+    const preferredCenter = follow ? position[axis] : start + size / 2
+    const center = size <= span ? start + size / 2 : clamp(preferredCenter, centerMin, centerMax)
+    output[axis] = normalizedViewportCenter - center
+  })
+  return output
 }
 
 /** The only camera-policy selector for every mainline scene. */
@@ -43,40 +74,32 @@ export function mainlineCameraOffset(
   scene: Pick<MainlineSceneDefinition, 'viewport' | 'walkBounds'> & Partial<Pick<MainlineSceneDefinition, 'id'>>,
   position: Point,
   embedded = false,
-  screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
+  viewport: SceneScreenMetrics = sceneDesignReferenceMetrics,
 ): Point {
   if (embedded) return { x: 0, y: 0 }
-  if (scene.viewport === 'fixed-frame') {
-    const offset = fixedFrameCameraOffset(scene)
-    return scene.id === 'commercial-street'
-      ? { ...offset, x: normalizedViewportCenter - projectedX(scene, scene.walkBounds.x + scene.walkBounds.width / 2, screenMetrics) }
-      : offset
-  }
-  return followPlayerCameraOffset(scene, position, screenMetrics)
+  // Fixed-frame scenes remain fully centered when they fit; on a smaller
+  // viewport, follow the actor on whichever axis no longer fits.
+  return cameraOffsetForView(scene, position, viewport, scene.viewport !== 'fixed-frame' || mainlineVisibleWorldSpan(viewport).x < scene.walkBounds.width || mainlineVisibleWorldSpan(viewport).y < scene.walkBounds.height)
 }
 
-/** Keep the central 30% free of camera motion; clamp against scene edges. */
+/** Keep the central 30% free of camera motion, then clamp to authored bounds. */
 export function mainlineCameraTarget(
   scene: Pick<MainlineSceneDefinition, 'viewport' | 'walkBounds'> & Partial<Pick<MainlineSceneDefinition, 'id'>>,
   position: Point,
   current: Point,
   embedded = false,
-  screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
+  viewport: SceneScreenMetrics = sceneDesignReferenceMetrics,
 ): Point {
-  if (embedded || scene.viewport === 'fixed-frame') return mainlineCameraOffset(scene, position, embedded, screenMetrics)
-  const desired = { ...current }
+  if (embedded) return { x: 0, y: 0 }
+  const visible = mainlineVisibleWorldSpan(viewport)
+  const offset = { ...current }
   for (const axis of ['x', 'y'] as const) {
-    const screen = (axis === 'x' ? projectedX(scene, position.x, screenMetrics) : position.y) + current[axis]
-    if (screen < 35) desired[axis] += 35 - screen
-    if (screen > 65) desired[axis] += 65 - screen
+    const screen = 50 + (position[axis] + current[axis] - 50) / visible[axis] * 100
+    if (screen < 35) offset[axis] += (35 - screen) / 100 * visible[axis]
+    if (screen > 65) offset[axis] -= (screen - 65) / 100 * visible[axis]
   }
-  const left = projectedX(scene, scene.walkBounds.x, screenMetrics)
-  const right = projectedX(scene, scene.walkBounds.x + scene.walkBounds.width, screenMetrics)
-  const minX = Math.min(0, 100 - right - 2)
-  const maxX = Math.max(0, 2 - left)
-  const minY = Math.min(0, 100 - (scene.walkBounds.y + scene.walkBounds.height) - 2)
-  const maxY = Math.max(0, 2 - scene.walkBounds.y)
-  return { x: clamp(desired.x, minX, maxX), y: clamp(desired.y, minY, maxY) }
+  const targetCenter = { x: 50 - offset.x, y: 50 - offset.y }
+  return cameraOffsetForView(scene, targetCenter, viewport, true)
 }
 
 export function advanceMainlineCamera(current: Point, target: Point, elapsedMs: number): Point {

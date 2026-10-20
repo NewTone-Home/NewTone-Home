@@ -3,7 +3,7 @@ import { classifyMainlineWorldCommand, findMainlinePath, isWalkableMainlinePoint
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
-import { boundaryGridStepsFromScreenSpacing } from '../src/center/runtime/sceneBoundaryGrid'
+import { boundaryGridStepsFromReferenceSpacing, sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { mainlineCameraOffset, mainlineCameraTarget } from '../src/center/runtime/mainlineViewport'
 import {
   commercialStreetStorefrontInteractionDebounceMs,
@@ -17,6 +17,7 @@ import {
 } from '../src/center/runtime/commercialStreetStorefrontInteractions'
 
 const street = mainlineScenes['commercial-street']
+const referenceNavigation = { screenMetrics: sceneDesignReferenceMetrics }
 
 describe('commercial street storefront interactions', () => {
   it('defines exactly the 15 echo-capable storefronts plus the milk-tea order action, never Café', () => {
@@ -105,7 +106,7 @@ describe('commercial street storefront interactions', () => {
 
   // This checks six route shapes across all 14 rooms, including new retail barriers.
   it('routes all fourteen storefront shells through the continuous street room with 13/25-wide shells and 26-cell depth', () => {
-    const steps = boundaryGridStepsFromScreenSpacing()
+    const steps = boundaryGridStepsFromReferenceSpacing()
     const roomSamples = street.storefronts.map((storefront) => {
       const side = storefront.edge === 'bottom' ? 'north' as const : 'south' as const
       const slotNumber = storefront.id.match(/-slot-(\d+)$/)?.[1]
@@ -127,9 +128,9 @@ describe('commercial street storefront interactions', () => {
       const expectedDepth = steps.vertical * 25
       const interior = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
       const approach = mainlineStorefrontApproach(street, storefront)
-      const publicLanePath = findMainlinePath(street.initialPlayerPosition, approach, street)
-      const entryPath = findMainlinePath(approach, interior, street)
-      const rearDoorApproachPath = findMainlinePath(interior, rear.thresholds[0], street)
+      const publicLanePath = findMainlinePath(street.initialPlayerPosition, approach, street, {}, referenceNavigation)
+      const entryPath = findMainlinePath(approach, interior, street, {}, referenceNavigation)
+      const rearDoorApproachPath = findMainlinePath(interior, rear.thresholds[0], street, {}, referenceNavigation)
       const command = classifyMainlineWorldCommand(street, street.initialPlayerPosition, interior)
 
       expect(room.bounds.width).toBeCloseTo(steps.horizontal * (widthCells + 1))
@@ -154,8 +155,8 @@ describe('commercial street storefront interactions', () => {
       expect(entryPath, `${storefrontId} front-to-room path`).not.toBeNull()
       expect(entryPath?.length).toBeGreaterThan(1)
       expect(rearDoorApproachPath, `${storefrontId} path to locked rear threshold`).not.toBeNull()
-      expect(findMainlinePath(entry.crossingTargets[0], interior, street)).not.toBeNull()
-      expect(findMainlinePath(interior, entry.thresholds[0], street)).not.toBeNull()
+      expect(findMainlinePath(entry.crossingTargets[0], interior, street, {}, referenceNavigation)).not.toBeNull()
+      expect(findMainlinePath(interior, entry.thresholds[0], street, {}, referenceNavigation)).not.toBeNull()
       expect(street.walkBounds.y).toBeLessThan(room.bounds.y)
       expect(street.walkBounds.y + street.walkBounds.height).toBeGreaterThan(room.bounds.y + room.bounds.height)
       expect(storefront.id === 'commercial-cafe-slot' ? roomId : entry.toRoomId).toBe(roomId)
@@ -186,7 +187,7 @@ describe('commercial street storefront interactions', () => {
   }, 120_000)
 
   it('compiles extended shell anchors and one shared separator at every supported viewport', () => {
-    const steps = boundaryGridStepsFromScreenSpacing()
+    const steps = boundaryGridStepsFromReferenceSpacing()
     const metrics = [
       { width: 1280, height: 720 },
       { width: 1180, height: 757 },
@@ -371,7 +372,7 @@ describe('commercial street storefront interactions', () => {
       const row = street.storefronts.filter((storefront) => storefront.edge === edge)
       for (const [index, storefront] of row.slice(0, -1).entries()) {
         const next = row[index + 1]!
-        expect(next.start - storefront.end).toBeCloseTo(boundaryGridStepsFromScreenSpacing().horizontal)
+        expect(next.start - storefront.end).toBeCloseTo(boundaryGridStepsFromReferenceSpacing().horizontal)
         const activeCells = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, metrics[0], phases)
           .flatMap((unit) => unit.visual.cells)
         const previousCells = activeCells.filter((cell) => cell.storefrontId === storefront.id).sort((a, b) => a.x - b.x)

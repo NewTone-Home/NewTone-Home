@@ -29,39 +29,24 @@ export function intersectVisualRectWithClip(
   return clipped.right > clipped.left && clipped.bottom > clipped.top ? clipped : null
 }
 
-export function baselineAlignedInkTop(
-  layoutTop: number,
-  layoutHeight: number,
-  fontAscent: number,
-  fontDescent: number,
-  inkAscent: number,
-): number | null {
-  const fontHeight = fontAscent + fontDescent
-  if (![layoutTop, layoutHeight, fontAscent, fontDescent, inkAscent].every(Number.isFinite) || fontHeight <= 0) return null
-  return layoutTop + (layoutHeight - fontHeight) / 2 + fontAscent - inkAscent
-}
-
-function clipToOverflowAncestors(rect: VisualRect, node: HTMLElement): VisualRect | null {
-  let clipped: VisualRect | null = rect
-  for (let ancestor = node.parentElement; ancestor && clipped; ancestor = ancestor.parentElement) {
-    const style = getComputedStyle(ancestor)
-    const clipX = style.overflowX !== 'visible'
-    const clipY = style.overflowY !== 'visible'
-    if (!clipX && !clipY) continue
-    const bounds = ancestor.getBoundingClientRect()
-    const scaleX = ancestor.offsetWidth > 0 ? bounds.width / ancestor.offsetWidth : 1
-    const scaleY = ancestor.offsetHeight > 0 ? bounds.height / ancestor.offsetHeight : 1
-    const left = bounds.left + ancestor.clientLeft * scaleX
-    const top = bounds.top + ancestor.clientTop * scaleY
-    const clip = {
-      left,
-      top,
-      right: left + ancestor.clientWidth * scaleX,
-      bottom: top + ancestor.clientHeight * scaleY,
-    }
-    clipped = intersectVisualRectWithClip(clipped, clip, clipX, clipY)
-  }
-  return clipped
+function clipToCharacterSwitch(rect: VisualRect, node: HTMLElement): VisualRect | null {
+  const slot = node.closest<HTMLElement>('.scene-character-switch')
+  if (!slot) return rect
+  const style = getComputedStyle(slot)
+  const clipX = style.overflowX !== 'visible'
+  const clipY = style.overflowY !== 'visible'
+  if (!clipX && !clipY) return rect
+  const bounds = slot.getBoundingClientRect()
+  const scaleX = slot.offsetWidth > 0 ? bounds.width / slot.offsetWidth : 1
+  const scaleY = slot.offsetHeight > 0 ? bounds.height / slot.offsetHeight : 1
+  const left = bounds.left + slot.clientLeft * scaleX
+  const top = bounds.top + slot.clientTop * scaleY
+  return intersectVisualRectWithClip(rect, {
+    left,
+    top,
+    right: left + slot.clientWidth * scaleX,
+    bottom: top + slot.clientHeight * scaleY,
+  }, clipX, clipY)
 }
 
 /**
@@ -99,17 +84,14 @@ export function measureSceneCharacterRects(nodes: readonly HTMLElement[]) {
         const verticalSideways = style.writingMode.startsWith('vertical') && style.textOrientation !== 'upright'
         const width = Math.min(layout.width, verticalSideways ? inkHeight : inkWidth)
         const height = Math.min(layout.height, verticalSideways ? inkWidth : inkHeight)
-        const baselineTop = metrics && !style.writingMode.startsWith('vertical')
-          ? baselineAlignedInkTop(layout.top, layout.height, metrics.fontBoundingBoxAscent, metrics.fontBoundingBoxDescent, metrics.actualBoundingBoxAscent)
-          : null
-        const top = baselineTop === null ? layout.top + (layout.height - height) / 2 : Math.max(layout.top, Math.min(layout.bottom, baselineTop))
+        const top = layout.top + (layout.height - height) / 2
         const measured = {
           left: layout.left + (layout.width - width) / 2,
           top,
           right: layout.left + (layout.width + width) / 2,
           bottom: top + height,
         }
-        const visible = clipToOverflowAncestors(measured, text.parentElement ?? root)
+        const visible = clipToCharacterSwitch(measured, text.parentElement ?? root)
         if (visible) rects.push(visible)
       }
     }

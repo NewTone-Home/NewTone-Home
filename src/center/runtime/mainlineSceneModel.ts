@@ -1,6 +1,6 @@
 import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
-import { boundaryGridStepsFromScreenSpacing, defaultSceneScreenMetrics } from './sceneBoundaryGrid'
+import { boundaryGridStepsFromReferenceSpacing, boundaryGridStepsFromScreenSpacing, defaultSceneScreenMetrics, sharedFurnitureGlyphSpacingPx } from './sceneBoundaryGrid'
 import { createFourSeatFurniture, createSeatGeometry, createTableGeometry, sharedFurnitureGeometry, createTwoSeatFurniture, type SharedSeatDefinition } from './twoSeatFurniture'
 import { npcRoles, type NpcRoleDefinition } from './npcRoles'
 import {
@@ -653,7 +653,7 @@ function altarTableEntity(
   const isHorizontal = Math.abs(base.offset.x) >= Math.abs(base.offset.y)
   const direction = isHorizontal ? Math.sign(base.offset.x) : Math.sign(base.offset.y)
   const configuredDistance = altar.tableDistance ?? Math.hypot(base.offset.x, base.offset.y)
-  const gridSteps = boundaryGridStepsFromScreenSpacing()
+  const gridSteps = boundaryGridStepsFromReferenceSpacing()
   const gridStep = isHorizontal ? gridSteps.horizontal : gridSteps.vertical
   const clearanceDistance = tableDepth / 2 + burnerSize / 2 + (altar.tableGap ?? gridStep)
   const distance = altar.tableGap === undefined ? Math.max(configuredDistance, clearanceDistance) : configuredDistance + altar.tableGap
@@ -984,10 +984,10 @@ const commercialCafeWindow: MainlineSceneCurve = { id: 'commercial-cafe-glass-fr
 // lines is still part of the scene's click surface. Compile that hidden side
 // as air walls so a click behind a facade walks to the facade and stops. The
 // only deliberate gap is the terminal's cafe doorway corridor.
-const commercialStreetLaneExpansion = boundaryGridStepsFromScreenSpacing().vertical
+const commercialStreetLaneExpansion = boundaryGridStepsFromReferenceSpacing().vertical
 // Use the same screen-derived character lattice as the office and ancestral-home walls.
 // The full street length remains content-sized: each authored cell contributes one pitch.
-const commercialStreetCellPitch = boundaryGridStepsFromScreenSpacing().horizontal
+const commercialStreetCellPitch = boundaryGridStepsFromReferenceSpacing().horizontal
 
 const commercialStreetAmbientNpcs = [
   { id: 'commercial-street-pedestrian-west-north', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
@@ -1099,7 +1099,10 @@ const commercialStreetWorldRight = 200 + commercialStreetLongitudinalExpansion
 // Twenty-six wall anchors include the facade and rear wall, so each room
 // spans twenty-five shared-grid pitch intervals from front center to rear.
 const commercialStreetInteriorVerticalCoordinateCount = 26
-const commercialStreetInteriorDepth = boundaryGridStepsFromScreenSpacing().vertical * (commercialStreetInteriorVerticalCoordinateCount - 1)
+const commercialStreetInteriorDepth = boundaryGridStepsFromReferenceSpacing().vertical * (commercialStreetInteriorVerticalCoordinateCount - 1)
+// Keep passage endpoints clear of the fixed actor footprint while preserving
+// the previous 1.5-cell approach depth after switching the wall lattice.
+const commercialStreetRearDoorApproachDepth = boundaryGridStepsFromReferenceSpacing().vertical * 1.5
 const commercialStreetFacadeNorthY = 14 + 22 - commercialStreetLaneExpansion
 const commercialStreetFacadeSouthY = 64 + commercialStreetLaneExpansion
 const commercialStreetInteriorSamples = commercialStreetStorefronts.map((storefront) => {
@@ -1144,7 +1147,8 @@ const commercialStreetWorldTop = Math.min(-56, commercialStreetNorthBack - comme
 const commercialStreetWorldBottom = Math.max(156, commercialStreetSouthBack + commercialStreetLaneExpansion)
 
 const commercialStreetShellFurniture = (() => {
-  const verticalStep = boundaryGridStepsFromScreenSpacing().vertical
+  const verticalStep = boundaryGridStepsFromReferenceSpacing().vertical
+  const glyphSteps = boundaryGridStepsFromReferenceSpacing(sharedFurnitureGlyphSpacingPx)
   const groupIds: string[] = []
   const entities: MainlineSceneEntity[] = []
   const structures: MainlineContinuousStructure[] = []
@@ -1163,12 +1167,39 @@ const commercialStreetShellFurniture = (() => {
     interactive?: boolean,
   ) => {
     const glyphPositions = new Set<string>()
+    const placedPaths: { anchors: readonly Point[]; rendered: readonly Point[] }[] = []
     paths.forEach(({ positions, orientation, glyphs }, pathIndex) => {
       const first = positions[0]!
       const last = positions.at(-1)!
       const vertical = orientation === 'vertical'
-      positions.forEach((position, index) => {
-        const key = `${position.x.toFixed(4)}:${position.y.toFixed(4)}`
+      const isTightGlyphSequence = glyphs?.every((glyph) => Array.from(glyph).length === 1)
+        ?? (vertical && positions.length > 1)
+      const center = { x: (first.x + last.x) / 2, y: (first.y + last.y) / 2 }
+      const direction = Math.sign(vertical ? last.y - first.y : last.x - first.x) || 1
+      const axisStep = vertical ? glyphSteps.vertical : glyphSteps.horizontal
+      const textPositions = positions.map((position, index) => !isTightGlyphSequence
+        ? position
+        : vertical
+          ? { ...position, y: center.y + direction * (index - (positions.length - 1) / 2) * axisStep }
+          : { ...position, x: center.x + direction * (index - (positions.length - 1) / 2) * axisStep })
+      if (isTightGlyphSequence) {
+        const anchorKeys = positions.map((position) => `${position.x.toFixed(4)}:${position.y.toFixed(4)}`)
+        const shared = placedPaths.flatMap((previous) => anchorKeys.flatMap((key, index) => {
+          const previousIndex = previous.anchors.findIndex((anchor) => `${anchor.x.toFixed(4)}:${anchor.y.toFixed(4)}` === key)
+          return previousIndex >= 0 ? [{ index, previous: previous.rendered[previousIndex]! }] : []
+        }))[0]
+        if (shared) {
+          const dx = shared.previous.x - textPositions[shared.index]!.x
+          const dy = shared.previous.y - textPositions[shared.index]!.y
+          textPositions.forEach((position, index) => { textPositions[index] = { x: position.x + dx, y: position.y + dy } })
+        }
+      }
+      placedPaths.push({ anchors: positions, rendered: textPositions })
+      textPositions.forEach((position, index) => {
+        // Keep shared elbows deduplicated by their authored anchor even when
+        // the visible glyphs are tightened along their respective runs.
+        const anchor = positions[index]!
+        const key = `${anchor.x.toFixed(4)}:${anchor.y.toFixed(4)}`
         if (glyphPositions.has(key)) return
         glyphPositions.add(key)
         const label = glyphs?.[index] ?? (vertical && positions.length > 1 ? index % 2 === 0 ? '柜' : '台' : '柜台')
@@ -1184,13 +1215,21 @@ const commercialStreetShellFurniture = (() => {
           visualVisibility: 'static',
         }))
       })
-      const width = vertical ? commercialStreetCellPitch * .4 : Math.abs(last.x - first.x) + commercialStreetCellPitch
-      const height = vertical ? Math.abs(last.y - first.y) + verticalStep : verticalStep
-      structures.push({
-        id: `${prefix}-${pathIndex + 1}-body`,
-        kind: 'counter',
-        ...box((first.x + last.x - width) / 2, (first.y + last.y - height) / 2, width, height),
-      })
+      if (isTightGlyphSequence) {
+        const left = Math.min(...textPositions.map((position) => position.x)) - glyphSteps.horizontal / 2
+        const top = Math.min(...textPositions.map((position) => position.y)) - glyphSteps.vertical / 2
+        const right = Math.max(...textPositions.map((position) => position.x)) + glyphSteps.horizontal / 2
+        const bottom = Math.max(...textPositions.map((position) => position.y)) + glyphSteps.vertical / 2
+        structures.push({ id: `${prefix}-${pathIndex + 1}-body`, kind: 'counter', ...box(left, top, right - left, bottom - top) })
+      } else {
+        const width = vertical ? commercialStreetCellPitch * .4 : Math.abs(last.x - first.x) + commercialStreetCellPitch
+        const height = vertical ? Math.abs(last.y - first.y) + verticalStep : verticalStep
+        structures.push({
+          id: `${prefix}-${pathIndex + 1}-body`,
+          kind: 'counter',
+          ...box((first.x + last.x - width) / 2, (first.y + last.y - height) / 2, width, height),
+        })
+      }
     })
   }
   const addWallGlyph = (
@@ -1319,7 +1358,17 @@ const commercialStreetShellFurniture = (() => {
       throw new Error(`Retail run ${id} must use one character per grid cell`)
     }
     const omitted = new Set(omittedGlyphIndexes)
-    points.forEach((position, index) => {
+    const isCounterWord = id.includes('-counter')
+    const first = points[0]!
+    const last = points.at(-1)!
+    const center = { x: (first.x + last.x) / 2, y: (first.y + last.y) / 2 }
+    const direction = orientation === 'vertical' ? Math.sign(last.y - first.y) || 1 : Math.sign(last.x - first.x) || 1
+    const glyphPositions = points.map((position, index) => !isCounterWord
+      ? position
+      : orientation === 'vertical'
+        ? { ...position, y: center.y + direction * (index - (points.length - 1) / 2) * glyphSteps.vertical }
+        : { ...position, x: center.x + direction * (index - (points.length - 1) / 2) * glyphSteps.horizontal })
+    glyphPositions.forEach((position, index) => {
       if (omitted.has(index)) return
       entities.push(floor({
         id: `${id}-${index + 1}`,
@@ -1333,12 +1382,18 @@ const commercialStreetShellFurniture = (() => {
       }))
     })
 
-    const first = points[0]!
-    const last = points.at(-1)!
     const thickness = Math.max(.8, commercialStreetCellPitch * .18)
-    const collision = orientation === 'horizontal'
-      ? box(Math.min(first.x, last.x) - commercialStreetCellPitch / 2, first.y - thickness / 2, cells.length * commercialStreetCellPitch, thickness)
-      : box(first.x - thickness / 2, Math.min(first.y, last.y) - verticalStep / 2, thickness, cells.length * verticalStep)
+    const visibleGlyphPositions = glyphPositions.filter((_position, index) => !omitted.has(index))
+    const collision = isCounterWord
+      ? box(
+          Math.min(...visibleGlyphPositions.map((position) => position.x)) - glyphSteps.horizontal / 2,
+          Math.min(...visibleGlyphPositions.map((position) => position.y)) - glyphSteps.vertical / 2,
+          Math.max(...visibleGlyphPositions.map((position) => position.x)) - Math.min(...visibleGlyphPositions.map((position) => position.x)) + glyphSteps.horizontal,
+          Math.max(...visibleGlyphPositions.map((position) => position.y)) - Math.min(...visibleGlyphPositions.map((position) => position.y)) + glyphSteps.vertical,
+        )
+      : orientation === 'horizontal'
+        ? box(Math.min(first.x, last.x) - commercialStreetCellPitch / 2, first.y - thickness / 2, cells.length * commercialStreetCellPitch, thickness)
+        : box(first.x - thickness / 2, Math.min(first.y, last.y) - verticalStep / 2, thickness, cells.length * verticalStep)
     structures.push({ id: `${id}-body`, kind: 'barrier', ...collision })
   }
   const addRetailText = (
@@ -1348,12 +1403,15 @@ const commercialStreetShellFurniture = (() => {
     startColumn: number,
     row: number,
   ) => {
-    Array.from(text).forEach((glyph, index) => entities.push(floor({
+    const characters = Array.from(text)
+    const centerColumn = startColumn + (characters.length - 1) / 2
+    const anchor = cell(sample, centerColumn, row)
+    characters.forEach((glyph, index) => entities.push(floor({
       id: `${id}-${index + 1}`,
       label: glyph,
       kind: 'fixture',
       weight: 'minor',
-      position: cell(sample, startColumn + index, row),
+      position: { ...anchor, x: anchor.x + (index - (characters.length - 1) / 2) * glyphSteps.horizontal },
       roomId: sample.roomId,
       interactive: false,
       visualVisibility: 'static',
@@ -1590,8 +1648,8 @@ const commercialStreetRearDoorPortals: MainlineScenePortalBlueprint[] = commerci
     entity: { id: doorId, label: '\u95e8', displayLabel: '\u95e8', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
     endpoint: {
       doorPosition: authoredPoint(centerX, sample.back),
-      threshold: authoredPoint(centerX, sample.back + (north ? commercialStreetLaneExpansion : -commercialStreetLaneExpansion)),
-      crossingTarget: authoredPoint(centerX, sample.back + (north ? -commercialStreetLaneExpansion : commercialStreetLaneExpansion)),
+      threshold: authoredPoint(centerX, sample.back + (north ? commercialStreetRearDoorApproachDepth : -commercialStreetRearDoorApproachDepth)),
+      crossingTarget: authoredPoint(centerX, sample.back + (north ? -commercialStreetRearDoorApproachDepth : commercialStreetRearDoorApproachDepth)),
     },
     wallOpenings: [{ wallId: `${sample.roomId}-shell`, opening: { edge, start: centerX - commercialStreetCellPitch, end: centerX + commercialStreetCellPitch, doorId, labelLayout: 'center' } }],
     transitionText: '\u540e\u95e8\u5c1a\u672a\u63a5\u901a\u3002',
@@ -1763,7 +1821,7 @@ const jijiaYardCenter = {
   y: jijiaYardBounds.y + jijiaYardBounds.height / 2,
 }
 const jijiaOldTreeCollision = box(jijiaYardCenter.x - 2, jijiaYardCenter.y - 2, 4, 4)
-const jijiaYardWallSteps = boundaryGridStepsFromScreenSpacing()
+const jijiaYardWallSteps = boundaryGridStepsFromReferenceSpacing()
 const jijiaOldTreeStoneOffsets = ([
   ['n-2', -2, -1], ['n-1', -1, -1], ['n', 0, -1], ['n+1', 1, -1], ['n+2', 2, -1],
   ['e', 2, 0],
@@ -1915,7 +1973,7 @@ const jijiaAncestralInteriorBlueprint: MainlineSceneBlueprint = {
   },
 }
 
-const zhongshuyuanPassageWallSteps = boundaryGridStepsFromScreenSpacing()
+const zhongshuyuanPassageWallSteps = boundaryGridStepsFromReferenceSpacing()
 // The complete vertical boundary has five fixed positions, including its two
 // corner endpoints. The shared frame renderer assigns those endpoints to the
 // horizontal edges, so the complete side still reads: wall, wall, door, wall,
@@ -2006,7 +2064,7 @@ const zhongshuyuanOfficeRooms = [
 ] as const
 const zhongshuyuanOfficeProtagonistRoom = zhongshuyuanOfficeSouthCells[0]
 const zhongshuyuanOfficeProtagonistRoomCenterY = zhongshuyuanOfficeProtagonistRoom.y + zhongshuyuanOfficeProtagonistRoom.height / 2
-const zhongshuyuanOfficeWallSteps = boundaryGridStepsFromScreenSpacing()
+const zhongshuyuanOfficeWallSteps = boundaryGridStepsFromReferenceSpacing()
 const zhongshuyuanOfficeWallCellStep = zhongshuyuanOfficeWallSteps.horizontal
 const zhongshuyuanOfficeChairX = zhongshuyuanOfficeProtagonistRoom.x + zhongshuyuanOfficeWallCellStep * 2
 const zhongshuyuanOfficeDeskX = zhongshuyuanOfficeChairX

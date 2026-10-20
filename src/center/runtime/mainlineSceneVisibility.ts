@@ -2,6 +2,7 @@ import type { MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { Point } from './sceneGeometry'
 import { projectCommercialStreetX } from './commercialStreetGridProjection'
 import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
+import { mainlineVisibleWorldSpan } from './mainlineViewport'
 
 /**
  * Storefront shell geometry belongs to the continuous commercial-street
@@ -19,8 +20,7 @@ export function mainlineGeometryUnitShouldRender(
     ? unit.sourceWallId.slice(0, -'-shell'.length)
     : undefined
   if (!shellRoomId) return true
-  if (sceneId === 'commercial-street') return true
-  return shellRoomId === activeRoomId
+  return true
 }
 
 /** Cull only shell glyphs outside the translated viewport, with small text overdraw. */
@@ -30,10 +30,12 @@ export function mainlineGeometryCellWithinViewport(
   overscan = 5,
   sceneId?: string,
   screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
+  viewportMetrics: SceneScreenMetrics = screenMetrics,
 ) {
   const worldX = sceneId === 'commercial-street' ? projectCommercialStreetX(cell.x, screenMetrics) : cell.x
-  const viewportX = worldX + cameraOffset.x
-  const viewportY = cell.y + cameraOffset.y
+  const span = mainlineVisibleWorldSpan(viewportMetrics)
+  const viewportX = 50 + (worldX + cameraOffset.x - 50) / span.x * 100
+  const viewportY = 50 + (cell.y + cameraOffset.y - 50) / span.y * 100
   return viewportX >= -overscan && viewportX <= 100 + overscan
     && viewportY >= -overscan && viewportY <= 100 + overscan
 }

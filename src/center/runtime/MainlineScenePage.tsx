@@ -13,8 +13,9 @@ import { movementDurationMsForPath, protagonistCharacterMovementOptions, sharedC
 import type { PhoneDevice } from './phoneState'
 import { sceneInteractionHandlers } from './sceneInteraction'
 import { useAutomaticPassages } from './useAutomaticPassages'
-import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
+import { defaultSceneScreenMetrics, sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { useMainlineCamera } from './useMainlineCamera'
+import { mainlineWorldScale } from './mainlineViewport'
 import type { MainlineRideWalkingContext } from './mainlineRide'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
@@ -313,10 +314,15 @@ export function MainlineScenePage({
   const continuePendingTraversalRef = useRef<(entityId: string) => void>(() => {})
   const pendingInteractionAfterTraversalRef = useRef<string | null>(null)
   const resumeInteractionRef = useRef<(entityId: string) => void>(() => {})
-  const [screenMetrics, setScreenMetrics] = useState<SceneScreenMetrics>(defaultSceneScreenMetrics)
+  const [viewportMetrics, setViewportMetrics] = useState<SceneScreenMetrics>(defaultSceneScreenMetrics)
+  const screenMetrics = sceneDesignReferenceMetrics
+  const movementMetrics = useMemo(() => {
+    const scale = mainlineWorldScale(viewportMetrics)
+    return { width: sceneDesignReferenceMetrics.width * scale, height: sceneDesignReferenceMetrics.height * scale }
+  }, [viewportMetrics])
   const sceneReadyRef = useRef(false)
   const handleScreenMetricsChange = useCallback((next: SceneScreenMetrics) => {
-    setScreenMetrics((previous) => previous.width === next.width && previous.height === next.height && previous.viewportWidth === next.viewportWidth ? previous : next)
+    setViewportMetrics((previous) => previous.width === next.width && previous.height === next.height && previous.viewportWidth === next.viewportWidth ? previous : next)
     if (!sceneReadyRef.current) {
       sceneReadyRef.current = true
       onSceneReady?.()
@@ -580,7 +586,7 @@ export function MainlineScenePage({
   }, [dismissSceneAction, dismissSceneEcho, onPhoneDismiss, phoneOpen, readingActive])
   const internalMovement = useFreeRoamMovement(initialPosition)
   const { position, moving, moveAlong: rawMoveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
-  const cameraOffset = useMainlineCamera(scene, position, embedded, screenMetrics)
+  const cameraOffset = useMainlineCamera(scene, position, embedded, viewportMetrics)
   const storefrontPresentation = useStorefrontPresentation(scene, position)
   const reportedCafeRevealRef = useRef(false)
   const cafeStorefrontPhase = scene.id === 'commercial-street'
@@ -886,13 +892,13 @@ export function MainlineScenePage({
     if (!presentationSnapshot) prepareMainlineWorldNavigation(scene, layout, navigationOptions)
   }, [scene, layout, navigationOptions, presentationSnapshot])
   const locomotionOptions = useMemo(() => ({
-    ...sharedCharacterMovementOptions(screenMetrics),
+    ...sharedCharacterMovementOptions(movementMetrics),
     speedMultiplier: () => sceneTextSlowdownActiveRef.current ? .45 : 1,
-  }), [screenMetrics])
+  }), [movementMetrics])
   const protagonistLocomotionOptions = useMemo(() => ({
-    ...protagonistCharacterMovementOptions(screenMetrics),
+    ...protagonistCharacterMovementOptions(movementMetrics),
     speedMultiplier: () => sceneTextSlowdownActiveRef.current ? .45 : 1,
-  }), [screenMetrics])
+  }), [movementMetrics])
   const cafeCoffeeOwnerLocomotionOptions = useMemo(() => ({
     ...locomotionOptions,
     speedMultiplier: () => commercialCafeDutySpeedMultiplier(commercialCafeCoffeeOwnerNpcId, cafeCoffeeOwnerCurrentDutyRef.current, sceneTextSlowdownActiveRef.current),
@@ -2396,6 +2402,7 @@ export function MainlineScenePage({
               onStorefrontRestoreMotionComplete={storefrontPresentation.completeRestoreMotion}
               gateTriggered={gateTriggered}
               geometrySnapshot={geometrySnapshot}
+              viewportMetrics={viewportMetrics}
               freezeFrameMeasurements={presentationSnapshot}
               onScreenMetricsChange={handleScreenMetricsChange}
               cameraOffset={cameraOffset}

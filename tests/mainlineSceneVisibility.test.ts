@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mainlineCanonicalSceneGeometryUnits, mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineEntityBelongsToActiveRoom } from '../src/center/runtime/mainlineSceneModel'
 import { mainlineGeometryCellWithinViewport, mainlineGeometryUnitShouldRender } from '../src/center/runtime/mainlineSceneVisibility'
-import { mainlineCameraOffset, mainlineCameraTarget } from '../src/center/runtime/mainlineViewport'
+import { mainlineCameraOffset, mainlineCameraTarget, mainlineVisibleWorldSpan } from '../src/center/runtime/mainlineViewport'
 import { projectCommercialStreetX } from '../src/center/runtime/commercialStreetGridProjection'
 
 describe('continuous commercial-street shell visibility', () => {
@@ -31,22 +31,25 @@ describe('continuous commercial-street shell visibility', () => {
     const offset = mainlineCameraOffset(street, position, false, metrics)
     const target = mainlineCameraTarget(street, position, { x: 0, y: 0 }, false, metrics)
 
-    expect(projectedX).toBeGreaterThan(170)
-    expect(offset.x).toBeLessThan(-100)
-    expect(projectedX + offset.x).toBeCloseTo(50)
-    expect(projectedX + target.x).toBeCloseTo(65)
+    const visible = mainlineVisibleWorldSpan(metrics)
+    const screenX = (worldX: number, cameraX: number) => 50 + (worldX + cameraX - 50) / visible.x * 100
+    expect(projectedX).toBe(100)
+    expect(offset.x).toBeLessThan(0)
+    expect(screenX(projectedX, offset.x)).toBeCloseTo(50)
+    expect(screenX(projectedX, target.x)).toBeCloseTo(65)
     expect(mainlineGeometryCellWithinViewport(position, offset, 5, street.id, metrics)).toBe(true)
-    // Without projecting the shell anchor, this same camera offset incorrectly
-    // classifies its on-screen cell as far outside the viewport.
-    expect(mainlineGeometryCellWithinViewport(position, offset)).toBe(false)
+    // With the fixed world projection, culling converts through the viewport's
+    // visible world span instead of using a second X-only projection.
+    expect(mainlineGeometryCellWithinViewport(position, offset, 5, street.id, metrics, metrics)).toBe(true)
   })
 
-  it('leaves non-commercial camera coordinates unchanged', () => {
+  it('applies the live viewport camera to non-commercial mainline scenes too', () => {
     const scene = mainlineScenes['commercial-cafe']
     const position = { x: 100, y: 50 }
     const current = { x: -10, y: 0 }
-    expect(mainlineCameraTarget(scene, position, current, false, { width: 390, height: 560 }))
-      .toEqual(mainlineCameraTarget(scene, position, current))
+    const smallViewportTarget = mainlineCameraTarget(scene, position, current, false, { width: 390, height: 560 })
+    const referenceTarget = mainlineCameraTarget(scene, position, current)
+    expect(smallViewportTarget).not.toEqual(referenceTarget)
   })
 
   it('still scopes room furniture independently of shell geometry visibility', () => {

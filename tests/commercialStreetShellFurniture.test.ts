@@ -3,12 +3,13 @@ import { mainlineEntityBelongsToActiveRoom, type MainlineSceneEntity } from '../
 import { commercialCafeLaoZhouConversationSeatId, commercialCafeStoryTableId } from '../src/center/runtime/commercialCafeStory'
 import { canTravelAlongMainlineSegment, findMainlinePath, findMainlinePathToEntity, isWalkableMainlinePoint, resolveMainlineSeatSitPosition } from '../src/center/runtime/mainlineNavigation'
 import { mainlineSceneGeometryUnits, mainlineScenes, mainlineStorefrontApproach, validateMainlineSceneGeometry } from '../src/center/runtime/mainlineScenes'
-import { boundaryGridStepsFromScreenSpacing } from '../src/center/runtime/sceneBoundaryGrid'
+import { boundaryGridStepsFromReferenceSpacing, sceneDesignReferenceMetrics, sharedFurnitureGlyphSpacingPx } from '../src/center/runtime/sceneBoundaryGrid'
 
 const street = mainlineScenes['commercial-street']
 const sampleRoomIds = ['commercial-south-s5-interior', 'commercial-south-s2-interior'] as const
 const northCafeRoomId = 'commercial-north-cafe-interior'
-const steps = boundaryGridStepsFromScreenSpacing()
+const steps = boundaryGridStepsFromReferenceSpacing()
+const glyphSteps = boundaryGridStepsFromReferenceSpacing(sharedFurnitureGlyphSpacingPx)
 
 function localCell(roomId: string, point: { x: number; y: number }) {
   const room = street.rooms.find((candidate) => candidate.id === roomId)!
@@ -112,14 +113,17 @@ describe('commercial street shell furniture samples', () => {
     const counter = street.objects.filter((entity) => entity.roomId === northCafeRoomId && entity.id.startsWith('commercial-north-cafe-counter-'))
     const main = counter.filter((entity) => Math.abs(northCafeLocalCell(entity.position).row - 5) < .01)
       .sort((a, b) => northCafeLocalCell(a.position).column - northCafeLocalCell(b.position).column)
-    const returned = counter.filter((entity) => Math.abs(northCafeLocalCell(entity.position).column - 9) < .01
-      && northCafeLocalCell(entity.position).row >= 6 && northCafeLocalCell(entity.position).row <= 8)
-      .sort((a, b) => northCafeLocalCell(a.position).row - northCafeLocalCell(b.position).row)
+    const returned = counter.filter((entity) => entity.interactionStructureId === 'commercial-north-cafe-counter-2-body')
+      .sort((a, b) => a.position.y - b.position.y)
     const bodies = street.continuousStructures.filter((structure) => structure.kind === 'counter'
       && structure.id.startsWith('commercial-north-cafe-counter-'))
 
-    expect(main.map((entity) => northCafeLocalCell(entity.position).column)).toEqual([4, 5, 6, 7, 8, 9])
+    expect(main).toHaveLength(6)
+    const mainColumns = main.map((entity) => northCafeLocalCell(entity.position).column)
+    expect((mainColumns[0]! + mainColumns.at(-1)!) / 2).toBeCloseTo(6.5)
+    expect((main[1]!.position.x - main[0]!.position.x) * sceneDesignReferenceMetrics.width / 100).toBeCloseTo(sharedFurnitureGlyphSpacingPx)
     expect(returned).toHaveLength(3)
+    expect(Math.abs(returned[1]!.position.y - returned[0]!.position.y) * sceneDesignReferenceMetrics.height / 100).toBeCloseTo(sharedFurnitureGlyphSpacingPx)
     expect(new Set(counter.map((entity) => `${northCafeLocalCell(entity.position).column}:${northCafeLocalCell(entity.position).row}`)).size).toBe(9)
     expect(counter.every((entity) => entity.interactive === false && entity.interactionBehavior === undefined && Array.from(entity.label).length === 1)).toBe(true)
     expect(bodies).toHaveLength(2)
@@ -129,15 +133,18 @@ describe('commercial street shell furniture samples', () => {
       && (entity.id.startsWith('commercial-north-cafe-menu-label-')
         || entity.id.startsWith('commercial-north-cafe-order-label-')
         || entity.id.startsWith('commercial-north-cafe-storage-label-')))
-    expect(labels.filter((entity) => entity.id.startsWith('commercial-north-cafe-menu-label-')).map((entity) => [entity.label, northCafeLocalCell(entity.position).column, northCafeLocalCell(entity.position).row])).toEqual([
-      ['菜', 4, 3], ['单', 5, 3],
-    ])
-    expect(labels.filter((entity) => entity.id.startsWith('commercial-north-cafe-order-label-')).map((entity) => [entity.label, northCafeLocalCell(entity.position).column, northCafeLocalCell(entity.position).row])).toEqual([
-      ['点', 6, 4], ['单', 7, 4],
-    ])
-    expect(labels.filter((entity) => entity.id.startsWith('commercial-north-cafe-storage-label-')).map((entity) => [entity.label, northCafeLocalCell(entity.position).column, northCafeLocalCell(entity.position).row])).toEqual([
-      ['储', 2, 19], ['物', 3, 19],
-    ])
+    for (const expected of [
+      { suffix: 'menu-label', centerColumn: 4.5, row: 3 },
+      { suffix: 'order-label', centerColumn: 6.5, row: 4 },
+      { suffix: 'storage-label', centerColumn: 2.5, row: 19 },
+    ]) {
+      const glyphs = labels.filter((entity) => entity.id.startsWith(`commercial-north-cafe-${expected.suffix}-`)).sort((a, b) => a.position.x - b.position.x)
+      expect(glyphs).toHaveLength(2)
+      expect((glyphs[1]!.position.x - glyphs[0]!.position.x) * sceneDesignReferenceMetrics.width / 100).toBeCloseTo(sharedFurnitureGlyphSpacingPx)
+      expect((northCafeLocalCell(glyphs[0]!.position).column + northCafeLocalCell(glyphs[1]!.position).column) / 2).toBeCloseTo(expected.centerColumn)
+      expect(northCafeLocalCell(glyphs[0]!.position).row).toBeCloseTo(expected.row)
+      expect(northCafeLocalCell(glyphs[1]!.position).row).toBeCloseTo(expected.row)
+    }
     expect(labels.every((entity) => entity.interactive === false && entity.interactionBehavior === undefined && entity.visualVisibility === 'static')).toBe(true)
     const staffOpening = street.objects.find((entity) => entity.id === 'commercial-north-cafe-staff-opening')!
     expect(northCafeLocalCell(staffOpening.position)).toEqual({ column: 9, row: 9 })
@@ -205,7 +212,7 @@ describe('commercial street shell furniture samples', () => {
   })
 
   it('keeps the 13x26 milk-tea and 25x26 fast-food shells and both front/rear access states', () => {
-    const steps = boundaryGridStepsFromScreenSpacing()
+    const steps = boundaryGridStepsFromReferenceSpacing()
     for (const [roomId, columns] of [[sampleRoomIds[0], 11], [sampleRoomIds[1], 23]] as const) {
       const room = street.rooms.find((candidate) => candidate.id === roomId)!
       expect(room.bounds.width).toBeCloseTo(steps.horizontal * (columns + 1))
@@ -226,7 +233,7 @@ describe('commercial street shell furniture samples', () => {
       const room = street.rooms.find((candidate) => candidate.id === roomId)!
       const rear = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
       const interior = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
-      expect(findMainlinePath(interior, rear.thresholds[0], street), `${roomId} to rear threshold`).not.toBeNull()
+      expect(findMainlinePath(interior, rear.thresholds[0], street, {}, { screenMetrics: sceneDesignReferenceMetrics }), `${roomId} to rear threshold`).not.toBeNull()
     }
   })
 
@@ -267,12 +274,13 @@ describe('commercial street shell furniture samples', () => {
     const milkTeaVertical = bodies.find((body) => body.id === 'commercial-s5-milk-tea-counter-1-body')!
     const milkTeaHorizontal = bodies.find((body) => body.id === 'commercial-s5-milk-tea-counter-2-body')!
     expect(overlaps(milkTeaVertical, milkTeaHorizontal)).toBe(true)
-    expect(milkTeaHorizontal.width).toBeCloseTo(3 * steps.horizontal)
-    expect(milkTeaHorizontal.height).toBeCloseTo(steps.vertical)
+    expect(milkTeaHorizontal.width).toBeCloseTo(3 * glyphSteps.horizontal)
+    expect(milkTeaHorizontal.height).toBeCloseTo(glyphSteps.vertical)
     const horizontalMilkTeaGlyphs = milkTeaCounter.filter((entity) => entity.interactionStructureId === milkTeaHorizontal.id).sort((a, b) => a.position.x - b.position.x)
     expect(horizontalMilkTeaGlyphs.map((entity) => entity.label).join('')).toBe('柜台')
     expect(horizontalMilkTeaGlyphs.every((entity) => Array.from(entity.label).length === 1)).toBe(true)
-    expect(horizontalMilkTeaGlyphs[1]!.position.x - horizontalMilkTeaGlyphs[0]!.position.x).toBeCloseTo(steps.horizontal)
+    expect(horizontalMilkTeaGlyphs[1]!.position.x - horizontalMilkTeaGlyphs[0]!.position.x).toBeCloseTo(glyphSteps.horizontal)
+    expect((horizontalMilkTeaGlyphs[1]!.position.x - horizontalMilkTeaGlyphs[0]!.position.x) * sceneDesignReferenceMetrics.width / 100).toBeCloseTo(sharedFurnitureGlyphSpacingPx)
     for (const glyph of horizontalMilkTeaGlyphs) {
       expect(glyph.position.x).toBeGreaterThanOrEqual(milkTeaHorizontal.x)
       expect(glyph.position.x).toBeLessThanOrEqual(milkTeaHorizontal.x + milkTeaHorizontal.width)
@@ -283,6 +291,9 @@ describe('commercial street shell furniture samples', () => {
     expect(new Set(milkTeaCounter.map((entity) => entity.interactionStructureId)).size).toBe(2)
     expect(new Set(fastFoodCounter.map((entity) => entity.interactionStructureId)).size).toBe(1)
     const verticalMilkTea = milkTeaCounter.filter((entity) => Math.abs(localCell(sampleRoomIds[0], entity.position).column - 6) < 0.1).sort((a, b) => a.position.y - b.position.y)
+    expect(Math.abs(verticalMilkTea[1]!.position.y - verticalMilkTea[0]!.position.y) * sceneDesignReferenceMetrics.height / 100).toBeCloseTo(sharedFurnitureGlyphSpacingPx)
+    expect(Math.abs(verticalMilkTea[1]!.position.y - verticalMilkTea[0]!.position.y)).toBeCloseTo(glyphSteps.vertical)
+    expect(milkTeaVertical.height).toBeCloseTo(10 * glyphSteps.vertical)
     expect(verticalMilkTea.map((entity) => entity.label).join('')).toBe('柜台柜台柜台柜台柜台')
     const milkTeaRoom = street.rooms.find((candidate) => candidate.id === sampleRoomIds[0])!
     const milkTeaSlot = street.storefronts.find((candidate) => candidate.id === 'commercial-south-slot-5')!
@@ -398,7 +409,7 @@ describe('commercial street shell furniture samples', () => {
       expect(localBottom).toBeCloseTo(25.5)
       const rear = street.passages.find((passage) => passage.id === `${roomId}-rear-door`)!
       const interior = fromFor(roomId === sampleRoomIds[0] ? 3.5 : 16.5, 17)
-      expect(findMainlinePath(interior, rear.thresholds[0], street), `${roomId} rear-door threshold`).not.toBeNull()
+      expect(findMainlinePath(interior, rear.thresholds[0], street, {}, { screenMetrics: sceneDesignReferenceMetrics }), `${roomId} rear-door threshold`).not.toBeNull()
 
       const rearPartitionCrossing = [fromFor(roomId === sampleRoomIds[0] ? 4 : 17, 22), fromFor(roomId === sampleRoomIds[0] ? 9 : 21, 22)]
       expect(canTravelAlongMainlineSegment(rearPartitionCrossing[0], rearPartitionCrossing[1], street), `${roomId} closed divider blocks the rear zone`).toBe(false)

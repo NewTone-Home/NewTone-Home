@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { mainlineEntityBelongsToActiveRoom } from '../src/center/runtime/mainlineSceneModel'
 import { findMainlinePath } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes, mainlineStorefrontApproach } from '../src/center/runtime/mainlineScenes'
-import { boundaryGridStepsFromScreenSpacing } from '../src/center/runtime/sceneBoundaryGrid'
+import { boundaryGridStepsFromReferenceSpacing, sceneDesignReferenceMetrics, sharedFurnitureGlyphSpacingPx } from '../src/center/runtime/sceneBoundaryGrid'
 
 const street = mainlineScenes['commercial-street']
-const steps = boundaryGridStepsFromScreenSpacing()
+const steps = boundaryGridStepsFromReferenceSpacing()
+const objectGlyphSteps = boundaryGridStepsFromReferenceSpacing(sharedFurnitureGlyphSpacingPx)
 
 const retailStores = [
   { key: 'n1-fruit-tea', storefrontId: 'commercial-north-slot-1', roomId: 'commercial-north-n1-interior', counterRow: 5, counterLength: 7 },
@@ -127,10 +128,11 @@ describe('commercial street ordinary retail shell fixtures', () => {
       expect(counter).toHaveLength(store.counterLength)
       expect(counter.every((entity) => Array.from(entity.label).length === 1)).toBe(true)
       expect(counter.every((entity) => Math.abs(localCell(store.roomId, entity.position).column - 8) < 0.01)).toBe(true)
-      const rows = counter.map((entity) => localCell(store.roomId, entity.position).row).sort((a, b) => a - b)
-      expect(rows.every((row, index) => index === 0 || Math.abs(row - rows[index - 1]! - 1) < 0.01)).toBe(true)
+      const rows = counter.map((entity) => entity.position.y).sort((a, b) => a - b)
+      expect(rows.every((row, index) => index === 0 || Math.abs((row - rows[index - 1]!) * sceneDesignReferenceMetrics.height / 100 - sharedFurnitureGlyphSpacingPx) < 0.01)).toBe(true)
       const body = retailRuns.find((candidate) => candidate.id === `commercial-retail-${store.key}-counter-body`)!
-      expect(body.height).toBeCloseTo(store.counterLength * steps.vertical)
+      expect(body.height).toBeCloseTo(store.counterLength * objectGlyphSteps.vertical)
+      expect(Math.abs(counter.at(-1)!.position.y - counter[0]!.position.y) / Math.max(1, store.counterLength - 1)).toBeCloseTo(objectGlyphSteps.vertical)
     }
   })
 

@@ -1,6 +1,6 @@
 import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import { mainlineSceneBlueprints } from './mainlineSceneModel'
-import { boundaryGridCellRange, boundaryGridStepsFromScreenSpacing, compileSharedFrame, defaultSceneScreenMetrics, sharedBoundaryScreenSpacingPx, type SceneScreenMetrics, type SharedBoundaryCell, type SharedBoundaryFrame, type SharedBoundaryOpening } from './sceneBoundaryGrid'
+import { boundaryGridCellRange, boundaryGridStepsFromReferenceSpacing, compileSharedFrame, defaultSceneScreenMetrics, sharedBoundaryScreenSpacingPx, type SceneScreenMetrics, type SharedBoundaryCell, type SharedBoundaryFrame, type SharedBoundaryOpening } from './sceneBoundaryGrid'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
 import type { StorefrontPresentationPhase } from './storefrontPresentation'
 import type {
@@ -770,7 +770,7 @@ function compileMainlineGeometry(
   passages: readonly MainlinePassageGeometry[],
   screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
 ): MainlineSceneGeometryUnit[] {
-  const steps = boundaryGridStepsFromScreenSpacing(sharedBoundaryScreenSpacingPx, screenMetrics)
+  const steps = boundaryGridStepsFromReferenceSpacing(sharedBoundaryScreenSpacingPx)
   const projectedStructures = structures.map((structure) => {
     if (structure.boundaryProjection !== 'screen-spacing' || !structure.bounds) return structure
     const verticalCoordinateCount = structure.boundaryCoordinateCount?.vertical
@@ -1212,7 +1212,7 @@ function projectedBoundaryStructure(structure: MainlineStructure, screenMetrics:
   if (structure.boundaryProjection !== 'screen-spacing' || !structure.bounds) return structure
   const verticalCoordinateCount = structure.boundaryCoordinateCount?.vertical
   if (!verticalCoordinateCount || verticalCoordinateCount < 2) return structure
-  const steps = boundaryGridStepsFromScreenSpacing(sharedBoundaryScreenSpacingPx, screenMetrics)
+  const steps = boundaryGridStepsFromReferenceSpacing(sharedBoundaryScreenSpacingPx)
   const height = steps.vertical * (verticalCoordinateCount - 1)
   const centerY = structure.bounds.y + structure.bounds.height / 2
   return {

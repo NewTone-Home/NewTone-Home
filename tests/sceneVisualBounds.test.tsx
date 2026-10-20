@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { SceneCharacters } from '../src/center/runtime/SceneCharacters'
-import { baselineAlignedInkTop, intersectVisualRectWithClip, unionVisualRects, sceneFocusVisualGapPx } from '../src/center/runtime/sceneVisualBounds'
+import { intersectVisualRectWithClip, unionVisualRects, sceneFocusVisualGapPx } from '../src/center/runtime/sceneVisualBounds'
 import { mainlineEntityCollision } from '../src/center/runtime/sceneLayout'
 import { mainlineScenes, mainlineScenePassageCollision } from '../src/center/runtime/mainlineScenes'
 
@@ -18,8 +18,7 @@ describe('characters, visual frames and world boundaries', () => {
     expect(unionVisualRects([{ left: 0, top: 0, right: 0, bottom: 0 }])).toBeNull()
     expect(sceneFocusVisualGapPx).toBe(2)
   })
-  it('uses font baseline metrics for ink bounds and clips overflow-hidden glyphs', () => {
-    expect(baselineAlignedInkTop(10, 21, 17, 4, 13)).toBe(14)
+  it('clips overflow-hidden glyphs to their local switch slot', () => {
     expect(intersectVisualRectWithClip(
       { left: 4, top: -3, right: 14, bottom: 7 },
       { left: 0, top: 0, right: 20, bottom: 20 },

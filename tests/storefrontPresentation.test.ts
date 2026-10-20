@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { boundaryGridStepsFromScreenSpacing } from '../src/center/runtime/sceneBoundaryGrid'
+import { boundaryGridStepsFromReferenceSpacing } from '../src/center/runtime/sceneBoundaryGrid'
 import { isMainlineStorefrontNear, isMainlineStorefrontPresentationInRange, mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineScenePassageCollision, mainlineScenes, mainlineStorefrontAnchor, mainlineStorefrontApproach, mainlineStorefrontDepartureRadius } from '../src/center/runtime/mainlineScenes'
 import {
   nextStorefrontPresentationPhase,
@@ -42,7 +42,7 @@ describe('commercial street storefront presentation', () => {
       '\u6f6e\u724c\u5e97', '\u5feb\u9910\u5e97', '\u670d\u88c5\u5e97', '\u5976\u8336\u5e97', '\u751c\u54c1\u5e97', '\u73e0\u5b9d\u5e97', '\u670d\u88c5\u5e97',
     ])
     expect(street.storefronts.every(storefront => Array.from(storefront.label).length === 3)).toBe(true)
-    const pitch = boundaryGridStepsFromScreenSpacing().horizontal
+    const pitch = boundaryGridStepsFromReferenceSpacing().horizontal
     for (const side of ['top', 'bottom'] as const) {
       const row = street.storefronts.filter(storefront => storefront.edge === side)
       for (let index = 0; index < row.length; index += 1) {
@@ -83,7 +83,7 @@ describe('commercial street storefront presentation', () => {
   })
 
   it('derives equal row and east boundary spans from the authored storefront grid', () => {
-    const pitch = boundaryGridStepsFromScreenSpacing().horizontal
+    const pitch = boundaryGridStepsFromReferenceSpacing().horizontal
     const rows = (['top', 'bottom'] as const).map(edge => street.storefronts.filter(storefront => storefront.edge === edge))
     const rowCellCounts = rows.map(row => row.reduce((cells, storefront) => (
       cells + storefront.composition!.fixedCellCount!
@@ -302,7 +302,7 @@ describe('commercial street storefront presentation', () => {
 
     const storefront = street.storefronts.find(slot => slot.id === 'commercial-south-slot-2')!
     const cafe = street.storefronts.find(slot => slot.id === 'commercial-cafe-slot')!
-    expect(storefront.end - storefront.start).toBeCloseTo(storefront.composition!.fixedCellCount! * boundaryGridStepsFromScreenSpacing().horizontal)
+    expect(storefront.end - storefront.start).toBeCloseTo(storefront.composition!.fixedCellCount! * boundaryGridStepsFromReferenceSpacing().horizontal)
     expect(storefront.composition?.baseline?.slice(0, 5)).toEqual(['wall', 'sign', 'sign', 'sign', 'wall'])
     expect(storefront.composition?.baseline?.slice(0, 11)).toEqual(['wall', 'sign', 'sign', 'sign', 'wall', 'window', 'window', 'window', 'window', 'window', 'wall'])
     expect(storefront.composition?.near?.slice(0, 4)).toEqual(['wall', 'wall', 'door', 'wall'])
@@ -498,7 +498,7 @@ describe('commercial street storefront presentation', () => {
   })
 
   it('widens the street lane by one shared wall-character cell on each side', () => {
-    const cell = boundaryGridStepsFromScreenSpacing().vertical
+    const cell = boundaryGridStepsFromReferenceSpacing().vertical
     const north = street.structures.find((structure) => structure.id === 'commercial-north-facade')!
     const lane = street.structures.find((structure) => structure.id === 'commercial-main-lane')!
     const south = street.structures.find((structure) => structure.id === 'commercial-south-facade')!

@@ -24,6 +24,10 @@ export type SceneScreenMetrics = {
 }
 
 export const sharedBoundaryScreenSpacingPx = 28
+export const sharedFurnitureGlyphSpacingPx = 16
+/** Logical scene authoring reference. Distances are CSS px at 1:1. */
+export const sceneDesignReferenceMetrics: SceneScreenMetrics = { width: 1920, height: 1080 }
+/** Existing runtime fallback metrics remain separate from authored design scale. */
 export const defaultSceneScreenMetrics: SceneScreenMetrics = { width: 1280, height: 720 }
 
 function positiveScreenDimension(value: number, fallback: number) {
@@ -37,6 +41,20 @@ export function boundaryGridStepsFromScreenSpacing(
   const spacing = positiveScreenDimension(screenSpacingPx, sharedBoundaryScreenSpacingPx)
   const width = positiveScreenDimension(metrics.width, defaultSceneScreenMetrics.width)
   const height = positiveScreenDimension(metrics.height, defaultSceneScreenMetrics.height)
+  return {
+    horizontal: Number(((spacing / width) * 100).toFixed(4)),
+    vertical: Number(((spacing / height) * 100).toFixed(4)),
+  }
+}
+
+/** Convert a design-reference CSS-pixel distance to logical stage percentages. */
+export function boundaryGridStepsFromReferenceSpacing(
+  referenceSpacingPx = sharedBoundaryScreenSpacingPx,
+  reference: SceneScreenMetrics = sceneDesignReferenceMetrics,
+) {
+  const spacing = positiveScreenDimension(referenceSpacingPx, sharedBoundaryScreenSpacingPx)
+  const width = positiveScreenDimension(reference.width, sceneDesignReferenceMetrics.width)
+  const height = positiveScreenDimension(reference.height, sceneDesignReferenceMetrics.height)
   return {
     horizontal: Number(((spacing / width) * 100).toFixed(4)),
     vertical: Number(((spacing / height) * 100).toFixed(4)),

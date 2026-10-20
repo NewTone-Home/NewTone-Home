@@ -12,8 +12,9 @@ import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnaps
 import { SceneCharacters, SceneCharacterSwitch } from './SceneCharacters'
 import { SceneDoor, type SceneDoorTransitionCompletion } from './SceneDoor'
 import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoorConfig'
-import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
-import { commercialStreetHorizontalScale, projectCommercialStreetX, unprojectCommercialStreetX } from './commercialStreetGridProjection'
+import { readSceneScreenMetrics, sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
+import { commercialStreetHorizontalScale, projectCommercialStreetX } from './commercialStreetGridProjection'
+import { mainlineWorldPointFromClient, mainlineWorldScale } from './mainlineViewport'
 import { useSceneFocusFrameController } from './SceneFocusFrames'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
@@ -50,6 +51,7 @@ type MainlineSceneRendererProps = {
   geometrySnapshot: MainlineSceneGeometrySnapshot
   freezeFrameMeasurements?: boolean
   onScreenMetricsChange?: (metrics: SceneScreenMetrics) => void
+  viewportMetrics: SceneScreenMetrics
   cameraOffset: Point
   showProtagonist?: boolean
   suppressWorldEnterAnimation?: boolean
@@ -707,6 +709,7 @@ export function MainlineSceneRenderer({
   onStorefrontRevealMotionComplete,
   onStorefrontRestoreMotionComplete,
   onScreenMetricsChange,
+  viewportMetrics,
   cameraOffset,
   gateTriggered = false,
   showProtagonist = true,
@@ -873,6 +876,7 @@ export function MainlineSceneRenderer({
   // collision against another.
   const renderScreenMetrics = geometrySnapshot.screenMetrics
   const horizontalGridScale = scene.id === 'commercial-street' ? commercialStreetHorizontalScale(renderScreenMetrics) : 1
+  const worldScale = mainlineWorldScale(viewportMetrics)
   const geometryUnits = geometrySnapshot.units
   const switchableStorefronts = useMemo(() => scene.storefronts.filter(slot => slot.portalId && slot.characterSwitch), [scene.storefronts])
   const switchCells = useMemo(() => new Map(switchableStorefronts.map(slot => {
@@ -916,9 +920,9 @@ export function MainlineSceneRenderer({
   // transitions, while their collision/navigation geometry stays persistent.
   const renderedGeometryCells = useMemo(() => geometryCells.filter(({ unit, cell }) => {
     if (!mainlineGeometryUnitShouldRender(scene.id, unit, activeShellRoomId, layoutMode)) return false
-    if (scene.id !== 'commercial-street' || !unit.sourceWallId?.endsWith('-shell')) return true
-    return mainlineGeometryCellWithinViewport(cell, cameraOffset, 5, scene.id, renderScreenMetrics)
-  }), [activeShellRoomId, cameraOffset, geometryCells, layoutMode, renderScreenMetrics, scene.id])
+    if (!unit.sourceWallId?.endsWith('-shell')) return true
+    return mainlineGeometryCellWithinViewport(cell, cameraOffset, 5, scene.id, renderScreenMetrics, viewportMetrics)
+  }), [activeShellRoomId, cameraOffset, geometryCells, layoutMode, renderScreenMetrics, scene.id, viewportMetrics])
 
   const focusGroupCells = useMemo(() => {
     const groups = new Map<string, MainlineGeometryCellEntry[]>()
@@ -1057,13 +1061,8 @@ export function MainlineSceneRenderer({
   const pointFromPointer = useCallback((clientX: number, clientY: number) => {
     const rect = stageRef.current?.getBoundingClientRect()
     if (!rect || rect.width === 0 || rect.height === 0) return null
-    return {
-      x: scene.id === 'commercial-street'
-        ? unprojectCommercialStreetX(((clientX - rect.left) / rect.width) * 100 - cameraOffset.x, renderScreenMetrics)
-        : ((clientX - rect.left) / rect.width) * 100 - cameraOffset.x,
-      y: ((clientY - rect.top) / rect.height) * 100 - cameraOffset.y,
-    }
-  }, [cameraOffset.x, cameraOffset.y, renderScreenMetrics, scene.id])
+    return mainlineWorldPointFromClient({ x: clientX, y: clientY }, rect, viewportMetrics, cameraOffset)
+  }, [cameraOffset, viewportMetrics])
 
   const startLayoutDrag = useCallback((itemId: LayoutItemId, event: React.PointerEvent<HTMLElement>) => {
     if (!layoutMode) return
@@ -1126,12 +1125,7 @@ export function MainlineSceneRenderer({
       x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
       y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
     }
-    const point = {
-      x: scene.id === 'commercial-street'
-        ? unprojectCommercialStreetX(screenPoint.x - cameraOffset.x, renderScreenMetrics)
-        : screenPoint.x - cameraOffset.x,
-      y: screenPoint.y - cameraOffset.y,
-    }
+    const point = mainlineWorldPointFromClient({ x: clientX, y: clientY }, rect, viewportMetrics, cameraOffset)
     onInputDiagnostic?.({
       ...input,
       client: { x: clientX, y: clientY },
@@ -1148,7 +1142,7 @@ export function MainlineSceneRenderer({
       return
     }
     onWalk(point)
-  }, [cameraOffset.x, cameraOffset.y, layoutMode, onInputDiagnostic, onLayoutChange, onWalk, renderScreenMetrics, scene, selectedLayoutItemId])
+  }, [cameraOffset, layoutMode, onInputDiagnostic, onLayoutChange, onWalk, scene, selectedLayoutItemId, viewportMetrics])
 
   const walkToEmptySpace = (event: React.MouseEvent<HTMLDivElement>) => {
     const touchWalk = touchWalkRef.current
@@ -1187,8 +1181,14 @@ export function MainlineSceneRenderer({
           data-commercial-street-grid={scene.id === 'commercial-street' ? 'equal-pitch' : undefined}
           data-commercial-street-grid-scale={scene.id === 'commercial-street' ? horizontalGridScale : undefined}
           style={{
-            transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%) scaleX(${horizontalGridScale})`,
-            transformOrigin: '50% 50%',
+            left: '50%',
+            top: '50%',
+            width: `${sceneDesignReferenceMetrics.width}px`,
+            height: `${sceneDesignReferenceMetrics.height}px`,
+            marginLeft: `${-sceneDesignReferenceMetrics.width * worldScale / 2}px`,
+            marginTop: `${-sceneDesignReferenceMetrics.height * worldScale / 2}px`,
+            transform: `scale(${worldScale}) translate(${cameraOffset.x}%, ${cameraOffset.y}%)`,
+            transformOrigin: 'top left',
             '--scene-horizontal-grid-counter-scale': String(1 / horizontalGridScale),
           } as CSSProperties}
         >
