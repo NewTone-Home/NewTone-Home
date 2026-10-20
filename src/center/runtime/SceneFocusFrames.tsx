@@ -13,6 +13,8 @@ type SceneFocusFramesProps = {
   /** A short transition snapshot keeps its already-computed frames, rather
    * than measuring transformed DOM on every presentation frame. */
   freezeMeasurements?: boolean
+  /** World transforms do not emit ResizeObserver notifications. */
+  projectionScale?: number
 }
 
 const frameCorners: readonly FocusFrameCorner[] = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
@@ -68,7 +70,7 @@ function targetElement(event: { target: EventTarget | null }) {
  * Owns only frame lifecycle and pointer emphasis. Navigation, scene exploration,
  * and route transitions provide explicit target metadata from above.
  */
-export function useSceneFocusFrameController({ targets, freezeMeasurements = false }: SceneFocusFramesProps) {
+export function useSceneFocusFrameController({ targets, freezeMeasurements = false, projectionScale = 1 }: SceneFocusFramesProps) {
   const targetMap = useMemo(() => new Map(targets.map((target) => [target.group, target] as const)), [targets])
   const targetGroupSignature = JSON.stringify(targets.map((target) => target.group).sort())
   const targetGroups = useMemo(() => new Set(targets.map((target) => target.group)), [targetGroupSignature])
@@ -271,7 +273,14 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
       })
     }
 
-    const measureAll = () => measure()
+    let measurementFrame: number | null = null
+    const measureAll = () => {
+      if (measurementFrame !== null) return
+      measurementFrame = window.requestAnimationFrame(() => {
+        measurementFrame = null
+        measure()
+      })
+    }
     measureGroupRef.current = (group) => measure([group])
     measure()
     if (typeof ResizeObserver === 'undefined') return undefined
@@ -300,7 +309,14 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     })
     frameNodesRef.current.forEach((node, group) => {
       if (!targetGroups.has(group)) return
-      if (node.parentElement) observer.observe(node.parentElement)
+      if (node.parentElement) {
+        observer.observe(node.parentElement)
+        // Local focus-host position/font changes can move text relative to
+        // the frame. Do not observe the translating world or paint wrapper.
+        if (node.parentElement.matches('.scene-mainline-object__focus-host, .scene-mainline-focus-group')) {
+          characterChanges.observe(node.parentElement, { attributes: true, attributeFilter: ['style', 'class'] })
+        }
+      }
       node.closest('.mainline-scene-stage')?.querySelectorAll<HTMLElement>('[data-focus-visual-group]').forEach(element => {
         if (element.dataset.focusVisualGroup === group) {
           observer.observe(element)
@@ -313,6 +329,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
       .map(([, node]) => node.closest('.mainline-scene-stage'))
       .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement))
     stages.forEach((stage) => {
+      observer.observe(stage)
       stage.querySelectorAll<HTMLElement>('[data-character-progress]').forEach((host) => {
         if ([...host.querySelectorAll<HTMLElement>('[data-focus-visual-group]')]
           .some((element) => targetGroups.has(element.dataset.focusVisualGroup ?? ''))) {
@@ -322,6 +339,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     })
     document.fonts?.addEventListener('loadingdone', measureAll)
     return () => {
+      if (measurementFrame !== null) window.cancelAnimationFrame(measurementFrame)
       observer.disconnect()
       characterChanges.disconnect()
       characterProgressChanges.disconnect()
@@ -330,7 +348,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
       document.fonts?.removeEventListener('loadingdone', measureAll)
       measureGroupRef.current = () => {}
     }
-  }, [frameNodesRevision, freezeMeasurements, targetGroups])
+  }, [frameNodesRevision, freezeMeasurements, projectionScale, targetGroups])
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined

@@ -941,23 +941,6 @@
   0%, 100% { color: var(--interaction-tutorial-low); opacity: .86; }
   50% { color: var(--interaction-tutorial-high); opacity: .98; }
 }
-.scene-mainline-altar-table.scene-mainline-exploration--breathing > span {
-  /* The altar clock is written once by the renderer and read by every
-     member. No table owns an independent CSS animation anymore. */
-  animation: none;
-  color: color-mix(in srgb, var(--interaction-tutorial-high) calc(var(--scene-breathing-progress, .5) * 100%), var(--interaction-tutorial-low));
-  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
-}
-.scene-mainline-incense--lit.scene-mainline-exploration--breathing > span {
-  animation: none;
-  color: color-mix(in srgb, var(--interaction-tutorial-high) calc(var(--scene-breathing-progress, .5) * 100%), var(--interaction-tutorial-low));
-  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
-}
-.scene-mainline-altar-table.scene-mainline-interaction--active > span,
-.scene-mainline-incense--lit.scene-mainline-interaction--active > span {
-  color: var(--active) !important;
-  opacity: 1 !important;
-}
 .scene-mainline-incense--burning {
   animation: scene-incense-burn-lifecycle var(--incense-burn-remaining, 0ms) linear;
 }
@@ -1021,19 +1004,34 @@
   color: var(--interaction-dynamic);
   opacity: 1;
 }
-.scene-mainline-incense--burning.scene-mainline-interaction--dynamic > span {
-  animation: none;
-  color: color-mix(in srgb, var(--interaction-dynamic) calc(60% + var(--scene-breathing-progress, .5) * 40%), var(--interaction-normal));
-  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
-}
 .scene-mainline-object.scene-mainline-interaction--normal-unexplored > span,
 .scene-mainline-object.scene-mainline-interaction--explored > span,
 .scene-mainline-object.scene-mainline-interaction--active > span {
   color: inherit;
 }
-.scene-mainline-object.scene-mainline-incense--unlit.scene-mainline-interaction--normal-unexplored {
-  color: var(--muted);
-  opacity: .3;
+.scene-mainline-object.scene-mainline-altar-table {
+  color: var(--interaction-normal);
+  opacity: 1;
+}
+.scene-mainline-object.scene-mainline-altar-table > .scene-mainline-object__grid-content,
+.scene-mainline-object.scene-mainline-incense--unlit > .scene-mainline-object__grid-content {
+  animation: none;
+  color: inherit;
+  opacity: 1;
+}
+/* Viewing, hover and explored/tutorial state never light an unlit burner. */
+.scene-mainline-object.scene-mainline-incense--unlit {
+  color: var(--interaction-normal);
+  opacity: .5;
+}
+.scene-mainline-object.scene-mainline-incense--lit {
+  color: var(--interaction-dynamic);
+  opacity: 1;
+}
+.scene-mainline-object.scene-mainline-incense--lit > .scene-mainline-object__grid-content {
+  animation: none;
+  color: color-mix(in srgb, var(--interaction-dynamic) calc(60% + var(--scene-breathing-progress, .5) * 40%), var(--interaction-normal));
+  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
 }
 .scene-mainline-object.is-mid {
   opacity: .34;

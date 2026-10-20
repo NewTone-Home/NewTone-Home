@@ -134,24 +134,17 @@ function objectVisibility(entity: MainlineSceneEntity, layoutMode: boolean) {
   return 'is-baseline'
 }
 
-function isAltarEntity(scene: MainlineSceneDefinition, entityId: string) {
-  return scene.altars.some((altar) => altar.incenseBurnerId === entityId)
-    || scene.furnitureGroups.some((group) => group.layout === 'altar-ring' && group.entityIds.includes(entityId))
-}
-
-export function mainlineEntityUsesBreathing(scene: MainlineSceneDefinition, entity: MainlineSceneEntity) {
-  const isOfferingTable = entity.kind === 'table' && scene.furnitureGroups.some((group) => group.layout === 'altar-ring' && group.entityIds.includes(entity.id))
+export function mainlineEntityUsesBreathing(_scene: MainlineSceneDefinition, entity: MainlineSceneEntity, incenseLit = false) {
   const isIncense = entity.visualProfile === 'incense'
   return (entity.visualProfile === 'tree-ring' && entity.interactive !== false)
-    || isIncense
-    || isOfferingTable
+    || isIncense && incenseLit
     || entity.animationGroup === 'office-breathing'
 }
 
 function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, tutorialCompleted: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean) {
   const isOfferingTable = entity.kind === 'table' && scene.furnitureGroups.some((group) => group.layout === 'altar-ring' && group.entityIds.includes(entity.id))
   const isIncense = entity.visualProfile === 'incense'
-  const tutorialEligible = mainlineEntityUsesBreathing(scene, entity)
+  const tutorialEligible = mainlineEntityUsesBreathing(scene, entity, incenseLit)
   const interactionVisualState = entity.interactive === false
     ? null
     : resolveMainlineInteractionVisualState({
@@ -589,7 +582,9 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
     '--scene-exploration-animation-delay': breathingAnimationDelay,
     transform: visualScale === 1 ? undefined : `scale(${visualScale})`,
   } as CSSProperties
-  const labelRef = useCallback((node: HTMLSpanElement | null) => {
+  // Paint-only breathing belongs above the measured text subtree. Updating
+  // the label's style would notify every focus-frame character observer.
+  const paintRef = useCallback((node: HTMLSpanElement | null) => {
     if (!sharedBreathingClock || !registerBreathingNode) return
     registerBreathingNode(entity.id, node)
   }, [entity.id, registerBreathingNode, sharedBreathingClock])
@@ -608,7 +603,7 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
     : null
 
   if (entity.interactive === false) {
-    return <>{focusContent && frame}<span {...commonProps} aria-hidden="true">{!suppressLabel && <span className="scene-mainline-object__grid-content"><SceneCharacters className="scene-mainline-object__label" ref={labelRef} style={labelStyle} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters></span>}{!focusContent && frame}</span></>
+    return <>{focusContent && frame}<span {...commonProps} aria-hidden="true">{!suppressLabel && <span className="scene-mainline-object__grid-content" ref={paintRef}><SceneCharacters className="scene-mainline-object__label" style={labelStyle} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters></span>}{!focusContent && frame}</span></>
   }
 
   return (
@@ -633,7 +628,7 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
         if (event.target === event.currentTarget && event.animationName === 'scene-incense-burn-lifecycle') onIncenseBurnComplete?.()
       }}
     >
-      {!suppressLabel && <span className="scene-mainline-object__grid-content"><SceneCharacters className="scene-mainline-object__label" ref={labelRef} style={labelStyle} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters></span>}
+      {!suppressLabel && <span className="scene-mainline-object__grid-content" ref={paintRef}><SceneCharacters className="scene-mainline-object__label" style={labelStyle} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters></span>}
       {!focusContent && frame}
       </button>
     </>
@@ -800,7 +795,7 @@ export function MainlineSceneRenderer({
   const cafeQaStaffArea = cafeSpatialQa ? scene.accessRegions.find((region) => region.id === 'commercial-cafe-staff-area') : undefined
   const cafeQaAccessBoundary = cafeSpatialQa ? geometrySnapshot.navigationBarriers.find((barrier) => barrier.id === 'commercial-cafe-staff-right-access-boundary') : undefined
   const cafeQaBackDoor = cafeSpatialQa ? geometrySnapshot.passages.get('cafe-back-door') : undefined
-  const hasAltarBreathing = scene.objects.some((entity) => isAltarEntity(scene, entity.id))
+  const hasAltarBreathing = incenseLit && scene.objects.some((entity) => entity.visualProfile === 'incense')
   useIsomorphicLayoutEffect(() => {
     const dimmer = dimmerRef.current
     if (!dimmer) return
@@ -1015,6 +1010,7 @@ export function MainlineSceneRenderer({
   const focusFrames = useSceneFocusFrameController({
     targets: focusFrameTargets,
     freezeMeasurements: freezeFrameMeasurements,
+    projectionScale: worldScale,
   })
   useEffect(() => {
     scene.storefronts.forEach(storefront => {
@@ -1353,7 +1349,7 @@ export function MainlineSceneRenderer({
               onSelectLayoutItem={setSelectedLayoutItemId}
               onInteract={onInteract}
               breathingAnimationDelay={synchronizedBreathingDelay}
-              sharedBreathingClock={isAltarEntity(scene, entity.id)}
+              sharedBreathingClock={entity.visualProfile === 'incense' && incenseLit}
               registerBreathingNode={registerBreathingNode}
               suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds)}
               prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}

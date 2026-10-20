@@ -14,15 +14,16 @@ describe('mainline renderer breathing semantics', () => {
     expect(stone && mainlineEntityUsesBreathing(yard, stone)).toBe(false)
   })
 
-  it('does not change breathing for incense, offering tables, or office furniture', () => {
+  it('keeps offering tables steady and only breathes for actually lit incense', () => {
     const interior = mainlineScenes['jijia-ancestral-interior']
     const incense = interior.objects.find((entity) => entity.id === 'jijia-incense-burner')
     const offeringTable = interior.objects.find((entity) => entity.id === 'jijia-offering-table-north')
     const office = mainlineScenes['zhongshuyuan-office']
     const desk = office.objects.find((entity) => entity.id === 'zhongshuyuan-office-desk')
 
-    expect(incense && mainlineEntityUsesBreathing(interior, incense)).toBe(true)
-    expect(offeringTable && mainlineEntityUsesBreathing(interior, offeringTable)).toBe(true)
+    expect(incense && mainlineEntityUsesBreathing(interior, incense)).toBe(false)
+    expect(incense && mainlineEntityUsesBreathing(interior, incense, true)).toBe(true)
+    expect(offeringTable && mainlineEntityUsesBreathing(interior, offeringTable, true)).toBe(false)
     expect(desk && mainlineEntityUsesBreathing(office, desk)).toBe(true)
   })
 })
