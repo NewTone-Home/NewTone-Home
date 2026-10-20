@@ -70,3 +70,16 @@ The earlier C: worktree is intact and clean on preview/mining-continuous-2026102
 Git 2.54 Windows worktree move delegates to rename. Windows directory rename/move is same-volume. Thus the cross-volume operation is unsuitable, but that does not prove the sole origin of this particular generic error. Creating a NEW E: worktree from the same baseline with a NEW branch succeeded and resolves the operational blocker, without changing ACLs, copying/removing the C: worktree, or touching the shared street worktree.
 
 Primary references: https://raw.githubusercontent.com/git-for-windows/git/v2.54.0.windows.1/builtin/worktree.c (move_worktree rename), https://raw.githubusercontent.com/git-for-windows/git/v2.54.0.windows.1/compat/mingw.c (mingw_rename), https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw (directory target must be same drive).
+
+## Supplemental all-door smoke and resource identity
+
+The remaining five shops were checked on desktop and phone. The first shop was initially outside the viewport from the true street-arrival spawn; the direct door click timed out. This is not proof of an inaccessible door. The helper now performs ordinary visible-street ground clicks until that door is in view, then clicks the real door. Only this first-shop case was repeated. Latest records per shop/viewport combine to 16/16 boundary round trips for all eight shops; see .mining-evidence/door-browser-summary.json with source evidence names. The first failed attempts remain in door-browser-remaining.json; the corrected first-shop results are in door-browser-first.json. This does not resolve or hide the separately reproduced deep-interior frame failure.
+
+Re-run the three representative names with node scripts/mining-shell-preview-doors.mjs, the other five with --remaining, or just the first shop with --first. Screenshot names now include shop index for future runs so two-letter shops do not overwrite each other. Existing earlier screenshots with length-only names are not claimed as unique per-shop visual evidence.
+
+Application files did not change after 742694c. Candidate 4175 serves Vite dev modules from this worktree, not the static bundle below. Independently built .mining-build assets:
+
+- index-ZCxAMm_7.js — 823454 bytes — SHA256 cecbbf919164047016c23253bb79a48a3470ec979e15c98272d910bd810872f4.
+- index-oIqil_8F.css — 200101 bytes — SHA256 1218fd0bc039fd10d5b850899db4918b38716898a78d7d795a648cac93a91771.
+
+No additional shared code has been integrated. Local application cherry-pick is 742694c (only miningStreetShell.ts plus the import/Yonghe block in mainlineSceneModel.ts). Test/report commit c4e6817 and this supplemental evidence commit are separate. Shared writer must not overwrite commercial sections of the large scene model when combining branches. This candidate remains unaccepted pending the shared adapter commit and final QA.

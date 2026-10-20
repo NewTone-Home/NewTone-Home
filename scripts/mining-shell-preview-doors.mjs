@@ -7,7 +7,7 @@ const names=['修鞋','永和小馆','药店','五金店','小吃','面馆','修
 let cursor=8
 const shops=names.map((label,index)=>{const n=Array.from(label).length;const top=cursor;cursor+=(n+3)*gy;return {label,index,n,y:top+(2+Math.floor(n/2))*gy,id:index===1?'yonghe-street-entry':`mining-shop-door-${index+1}`}})
 for(const viewport of [{width:1280,height:800},{width:390,height:844}]){
- for(const shop of [shops[1],shops[2],shops[3]]){
+ for(const shop of (process.argv.includes('--first') ? [shops[0]] : process.argv.includes('--remaining') ? shops.filter(shop=>![1,2,3].includes(shop.index)) : [shops[1],shops[2],shops[3]])){
   const context=await browser.newContext({viewport})
   const page=await context.newPage()
   const row={viewport,label:shop.label}
@@ -18,22 +18,44 @@ for(const viewport of [{width:1280,height:800},{width:390,height:844}]){
    const pos=async()=>({x:Number(await actor.getAttribute('data-runtime-x')),y:Number(await actor.getAttribute('data-runtime-y'))})
    row.before=await pos()
    row.phase=await page.locator(`[data-storefront-id="yonghe-slot-${shop.index+1}"][data-storefront-label-phase]`).getAttribute('data-storefront-label-phase')
-   await page.screenshot({path:`.mining-evidence/near-${shop.n}-${viewport.width}.png`})
+   await page.screenshot({path:`.mining-evidence/near-${shop.index+1}-${shop.n}-${viewport.width}.png`})
    const door=page.locator(`button[data-focus-target-group="door:${shop.id}"]`).first()
+   row.approachSteps ??= []
+   for(let attempt=0;attempt<8;attempt++){
+    const box=await door.boundingBox()
+    if(box && box.y>=2 && box.y+box.height<viewport.height-2)break
+    const world=await page.locator('.scene-mainline-world').first().boundingBox()
+    const actorPosition=await pos()
+    const streetX=world.x+actorPosition.x/100*world.width
+    await page.mouse.click(streetX,box && box.y<2?viewport.height*.22:viewport.height*.68)
+    await page.waitForTimeout(1600)
+    row.approachSteps.push(await pos())
+   }
    await door.click({timeout:5000})
    await page.waitForFunction(()=>Number(document.querySelector('.scene-protagonist[data-runtime-x]')?.getAttribute('data-runtime-x'))<39.8,{},{timeout:12000})
    row.inside=await pos()
    row.scene=await page.locator('.mainline-scene-stage').first().getAttribute('data-mainline-scene')
-   await page.screenshot({path:`.mining-evidence/inside-${shop.n}-${viewport.width}.png`})
+   await page.screenshot({path:`.mining-evidence/inside-${shop.index+1}-${shop.n}-${viewport.width}.png`})
+   row.approachSteps ??= []
+   for(let attempt=0;attempt<8;attempt++){
+    const box=await door.boundingBox()
+    if(box && box.y>=2 && box.y+box.height<viewport.height-2)break
+    const world=await page.locator('.scene-mainline-world').first().boundingBox()
+    const actorPosition=await pos()
+    const streetX=world.x+actorPosition.x/100*world.width
+    await page.mouse.click(streetX,box && box.y<2?viewport.height*.22:viewport.height*.68)
+    await page.waitForTimeout(1600)
+    row.approachSteps.push(await pos())
+   }
    await door.click({timeout:5000})
    await page.waitForFunction(()=>Number(document.querySelector('.scene-protagonist[data-runtime-x]')?.getAttribute('data-runtime-x'))>40.2,{},{timeout:12000})
    row.outside=await pos()
    row.pass=true
-  }catch(e){row.error=e.message;row.pass=false;await page.screenshot({path:`.mining-evidence/failure-${shop.n}-${viewport.width}.png`}).catch(()=>{})}
+  }catch(e){row.error=e.message;row.pass=false;await page.screenshot({path:`.mining-evidence/failure-${shop.index+1}-${shop.n}-${viewport.width}.png`}).catch(()=>{})}
   results.push(row)
   console.log(JSON.stringify(row))
   await context.close()
  }
 }
 await browser.close()
-fs.writeFileSync('.mining-evidence/door-browser.json',JSON.stringify(results,null,2))
+fs.writeFileSync(process.argv.includes('--first')?'.mining-evidence/door-browser-first.json':process.argv.includes('--remaining')?'.mining-evidence/door-browser-remaining.json':'.mining-evidence/door-browser.json',JSON.stringify(results,null,2))
