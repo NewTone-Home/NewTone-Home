@@ -4,6 +4,58 @@ export type VisualRect = { left: number; top: number; right: number; bottom: num
 export const sceneFocusVisualGapPx = 2
 export const sceneFocusStrokeInsetPx = 1
 
+export type VisualScale = { x: number; y: number }
+
+/**
+ * Resolve the screen-to-local scale from the nearest ancestor with a real
+ * layout box. getBoundingClientRect is in viewport pixels while canvas font
+ * metrics and absolutely positioned focus-frame bounds are in local CSS px.
+ */
+export function sceneElementVisualScale(element: HTMLElement | null): VisualScale {
+  let x = 0
+  let y = 0
+  for (let current = element; current; current = current.parentElement) {
+    const bounds = current.getBoundingClientRect()
+    if (!(x > 0) && current.offsetWidth > 0) x = bounds.width / current.offsetWidth
+    if (!(y > 0) && current.offsetHeight > 0) y = bounds.height / current.offsetHeight
+    if (x > 0 && y > 0) break
+  }
+  return { x: x > 0 ? x : 1, y: y > 0 ? y : 1 }
+}
+
+export function sceneGlyphVisualRect(
+  layout: VisualRect,
+  inkWidth: number,
+  inkHeight: number,
+  scale: VisualScale,
+  verticalSideways = false,
+): VisualRect | null {
+  const layoutWidth = layout.right - layout.left
+  const layoutHeight = layout.bottom - layout.top
+  const width = Math.min(layoutWidth, (verticalSideways ? inkHeight : inkWidth) * scale.x)
+  const height = Math.min(layoutHeight, (verticalSideways ? inkWidth : inkHeight) * scale.y)
+  if (!(width > 0 && height > 0)) return null
+  const left = layout.left + (layoutWidth - width) / 2
+  const top = layout.top + (layoutHeight - height) / 2
+  return { left, top, right: left + width, bottom: top + height }
+}
+
+export function sceneFrameBoundsInLocalSpace(
+  rect: VisualRect,
+  origin: { left: number; top: number },
+  margins: { left: number; top: number; right: number; bottom: number },
+  scale: VisualScale,
+) {
+  const width = rect.right - rect.left + margins.left + margins.right
+  const height = rect.bottom - rect.top + margins.top + margins.bottom
+  return {
+    left: (rect.left - origin.left - margins.left) / scale.x,
+    top: (rect.top - origin.top - margins.top) / scale.y,
+    width: width / scale.x,
+    height: height / scale.y,
+  }
+}
+
 export function unionVisualRects(rects: readonly VisualRect[]): VisualRect | null {
   const valid = rects.filter(rect => rect.right > rect.left && rect.bottom > rect.top)
   if (!valid.length) return null
@@ -82,15 +134,15 @@ export function measureSceneCharacterRects(nodes: readonly HTMLElement[]) {
         const inkHeight = metrics ? metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent : layout.height
         if (!(inkWidth > 0 && inkHeight > 0)) continue
         const verticalSideways = style.writingMode.startsWith('vertical') && style.textOrientation !== 'upright'
-        const width = Math.min(layout.width, verticalSideways ? inkHeight : inkWidth)
-        const height = Math.min(layout.height, verticalSideways ? inkWidth : inkHeight)
-        const top = layout.top + (layout.height - height) / 2
-        const measured = {
-          left: layout.left + (layout.width - width) / 2,
-          top,
-          right: layout.left + (layout.width + width) / 2,
-          bottom: top + height,
-        }
+        const visualScale = context ? sceneElementVisualScale(text.parentElement ?? root) : { x: 1, y: 1 }
+        const measured = sceneGlyphVisualRect(
+          { left: layout.left, top: layout.top, right: layout.right, bottom: layout.bottom },
+          inkWidth,
+          inkHeight,
+          visualScale,
+          verticalSideways,
+        )
+        if (!measured) continue
         const visible = clipToCharacterSwitch(measured, text.parentElement ?? root)
         if (visible) rects.push(visible)
       }

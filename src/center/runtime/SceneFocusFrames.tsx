@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TransitionEvent as ReactTransitionEvent } from 'react'
 import { sceneFrameDefaultMotionMs, sceneFrameMotionMsForRect } from './sceneMotion'
-import { measureSceneCharacterRects, measureSceneCharacters, sceneFocusVisualGapPx, sceneFocusStrokeInsetPx } from './sceneVisualBounds'
+import { measureSceneCharacterRects, measureSceneCharacters, sceneElementVisualScale, sceneFrameBoundsInLocalSpace, sceneFocusVisualGapPx, sceneFocusStrokeInsetPx } from './sceneVisualBounds'
 import { beginFrameAppearance, beginFrameRetraction, completeFrameTransition, frameShouldCollapse, frameVisualPhase, preserveFrameRetractCorner, resumeFrameAppearance, type SceneFrameRuntime, type SceneFrameTarget } from './sceneFrameLifecycle'
 import { createEndpointMeasurementScheduler } from './sceneFocusFrameEndpointMeasure'
 
@@ -216,6 +216,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         const neighbors = measureSceneCharacterRects(otherCharacters)
         const origin = parent.getBoundingClientRect()
         const parentStyle = getComputedStyle(parent)
+        const worldScale = sceneElementVisualScale(parent.closest<HTMLElement>('.scene-mainline-world'))
         const borderSize = (axis: 'x' | 'y') => {
           const sides = axis === 'x' ? ['Left', 'Right'] : ['Top', 'Bottom']
           const extra = parentStyle.boxSizing === 'border-box' ? 0 : sides.reduce((sum, side) => sum
@@ -223,8 +224,10 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
             + (Number.parseFloat(parentStyle.getPropertyValue(`border-${side.toLowerCase()}-width`)) || 0), 0)
           return (Number.parseFloat(axis === 'x' ? parentStyle.width : parentStyle.height) || 0) + extra
         }
-        const scaleX = origin.width > 0 ? origin.width / (borderSize('x') || origin.width) : 1
-        const scaleY = origin.height > 0 ? origin.height / (borderSize('y') || origin.height) : 1
+        const localWidth = borderSize('x')
+        const localHeight = borderSize('y')
+        const scaleX = origin.width > 0 && localWidth > 0 ? origin.width / localWidth : worldScale.x
+        const scaleY = origin.height > 0 && localHeight > 0 ? origin.height / localHeight : worldScale.y
         const nominalMargin = sceneFocusVisualGapPx + sceneFocusStrokeInsetPx
         const minMargin = sceneFocusStrokeInsetPx + .5
         const crowdingMargin = (distance: number) => Math.min(nominalMargin, Math.max(minMargin, minMargin + (distance - 1) / 2))
@@ -242,10 +245,16 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         })
         const width = rect.right - rect.left + leftMargin + rightMargin
         const height = rect.bottom - rect.top + topMargin + bottomMargin
+        const bounds = sceneFrameBoundsInLocalSpace(rect, origin, {
+          left: leftMargin,
+          top: topMargin,
+          right: rightMargin,
+          bottom: bottomMargin,
+        }, { x: scaleX, y: scaleY })
         updates.set(group, {
           duration: sceneFrameMotionMsForRect(width, height),
           geometry: sceneFocusFrameGeometry(width, height),
-          bounds: { left: (rect.left - origin.left - leftMargin) / scaleX, top: (rect.top - origin.top - topMargin) / scaleY, width: width / scaleX, height: height / scaleY },
+          bounds,
         })
       }
       setFrameMeasurements((current) => {

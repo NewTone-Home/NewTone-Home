@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { SceneCharacters } from '../src/center/runtime/SceneCharacters'
-import { intersectVisualRectWithClip, unionVisualRects, sceneFocusVisualGapPx } from '../src/center/runtime/sceneVisualBounds'
+import { intersectVisualRectWithClip, unionVisualRects, sceneElementVisualScale, sceneFocusVisualGapPx, sceneFrameBoundsInLocalSpace, sceneGlyphVisualRect } from '../src/center/runtime/sceneVisualBounds'
 import { mainlineEntityCollision } from '../src/center/runtime/sceneLayout'
 import { mainlineScenes, mainlineScenePassageCollision } from '../src/center/runtime/mainlineScenes'
 
@@ -27,6 +27,47 @@ describe('characters, visual frames and world boundaries', () => {
       { left: 4, top: -12, right: 14, bottom: -2 },
       { left: 0, top: 0, right: 20, bottom: 20 },
     )).toBeNull()
+  })
+  it.each([2 / 3, 1, 1.5])('keeps ink and frame bounds in matching units at world scale %s, including a zero-size host', worldScale => {
+    const world = {
+      offsetWidth: 1920,
+      offsetHeight: 1080,
+      parentElement: null,
+      getBoundingClientRect: () => ({ width: 1920 * worldScale, height: 1080 * worldScale }),
+    } as unknown as HTMLElement
+    const zeroSizeHost = {
+      offsetWidth: 0,
+      offsetHeight: 0,
+      parentElement: world,
+      getBoundingClientRect: () => ({ width: 0, height: 0 }),
+    } as unknown as HTMLElement
+    const glyph = {
+      offsetWidth: 100,
+      offsetHeight: 40,
+      parentElement: world,
+      getBoundingClientRect: () => ({ width: 100 * worldScale * 1.12, height: 40 * worldScale * 1.12 }),
+    } as unknown as HTMLElement
+
+    const hostScale = sceneElementVisualScale(zeroSizeHost)
+    expect(hostScale.x).toBeCloseTo(worldScale)
+    expect(hostScale.y).toBeCloseTo(worldScale)
+    const glyphScale = sceneElementVisualScale(glyph)
+    expect(glyphScale.x).toBeCloseTo(worldScale * 1.12)
+    expect(glyphScale.y).toBeCloseTo(worldScale * 1.12)
+
+    const ink = sceneGlyphVisualRect(
+      { left: 100, top: 200, right: 180, bottom: 260 },
+      20,
+      10,
+      glyphScale,
+    )!
+    expect(ink.right - ink.left).toBeCloseTo(22.4 * worldScale)
+    expect(ink.bottom - ink.top).toBeCloseTo(11.2 * worldScale)
+
+    const margins = { left: 3, top: 3, right: 3, bottom: 3 }
+    const frame = sceneFrameBoundsInLocalSpace(ink, { left: 100, top: 200 }, margins, hostScale)
+    expect(frame.width).toBeCloseTo(22.4 + 6 / worldScale)
+    expect(frame.height).toBeCloseTo(11.2 + 6 / worldScale)
   })
   it('preserves growing text occupancy while a physical doorway ignores its displayed glyph', () => {
     const scene = mainlineScenes['jijia-ancestral-home']
