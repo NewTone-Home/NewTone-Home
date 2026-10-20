@@ -2,7 +2,7 @@ import { canTravelAlongMainlineSegment, isWalkableMainlinePoint, resolveMainline
 import { describe, expect, it } from 'vitest'
 import { miningGrid, miningShopShells } from '../src/center/runtime/miningStreetShell'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineScenes, validateMainlineSceneGeometry } from '../src/center/runtime/mainlineScenes'
-import { storefrontCharacterCells } from '../src/center/runtime/storefrontPresentation'
+import { activeStorefrontInteriorOwner, activeStorefrontPresentationOwner, storefrontCharacterCells } from '../src/center/runtime/storefrontPresentation'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 
 const scene = mainlineScenes['yonghe-mining-perimeter']
@@ -65,6 +65,16 @@ describe('mining continuous empty shells', () => {
     const legacy = mainlineScenes['yonghe-eatery']
     expect(legacy.rooms.map(r => r.id)).toEqual(scene.rooms.map(r => r.id))
     expect(legacy.passages.filter(p => p.routeThrough)).toHaveLength(8)
+  })
+  it('keeps the actual owning entrance while deep inside all eight shells on both scene URLs', () => {
+    for (const candidate of [scene, mainlineScenes['yonghe-eatery']]) {
+      for (const shop of miningShopShells) {
+        const room = candidate.rooms.find(room => room.id === shop.roomId)!
+        const deep = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+        expect(activeStorefrontInteriorOwner(candidate, deep), shop.label).toBe(shop.storefront.id)
+        expect(activeStorefrontPresentationOwner(candidate, deep), shop.label).toBeNull()
+      }
+    }
   })
   it('walks the whole street and crosses every real doorway in both directions only when open', () => {
     for (const shop of miningShopShells) {
