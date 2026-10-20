@@ -14,7 +14,7 @@ import { SceneDoor, type SceneDoorTransitionCompletion } from './SceneDoor'
 import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoorConfig'
 import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { useSceneFocusFrameController } from './SceneFocusFrames'
-import type { SceneFrameTarget } from './sceneFrameLifecycle'
+import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import { mainlineEchoLayout, mainlineSpeakerAnchor } from './mainlineEchoLayout'
 import { DialogueSpeaker } from './DialogueSpeaker'
@@ -959,11 +959,11 @@ export function MainlineSceneRenderer({
         : undefined
       const passageEntityId = storefrontPassageEntityId ?? entityId
       const interactionId = target.storefrontInteractionId ?? entityId
-      const sceneExitMatchesTarget = sceneFrameExit.scope === 'scene'
-        || (target.policy === 'passage' && sceneFrameExit.passageEntityId === passageEntityId)
-      const retractRequested = sceneFrameExit.phase === 'retracting'
-        && sceneExitMatchesTarget
-        && (!sceneFrameExit.requestedGroups || sceneFrameExit.requestedGroups.includes(target.group))
+      const retractRequested = sceneFrameExitRequestsTarget(
+        sceneFrameExit,
+        target.group,
+        target.policy === 'passage' ? passageEntityId : undefined,
+      )
       addTarget({
         group: target.group,
         policy: target.policy,
@@ -979,11 +979,14 @@ export function MainlineSceneRenderer({
     })
     switchableStorefronts.forEach(slot => {
       const phase = storefrontPresentation.get(slot.id) ?? 'baseline'
-      addTarget({ group: 'storefront:' + slot.id + ':baseline', policy: 'passage', phase: 'closed', gateTriggered: false, interactionBusy: false, interactionActive: false, retractRequested: phase !== 'baseline' || sceneFrameExit.phase === 'retracting', suppressed: false })
       const entityId = scene.passages.find(passage => passage.portalId === slot.portalId)?.entityId ?? slot.portalId!
-      addTarget({ group: `door:${entityId}`, policy: 'passage', phase: doorPhases.get(entityId) ?? 'closed', gateTriggered: false,
+      const baselineGroup = 'storefront:' + slot.id + ':baseline'
+      const doorGroup = `door:${entityId}`
+      addTarget({ group: baselineGroup, policy: 'passage', phase: 'closed', gateTriggered: false, interactionBusy: false, interactionActive: false,
+        retractRequested: phase !== 'baseline' || sceneFrameExitRequestsTarget(sceneFrameExit, baselineGroup, entityId), suppressed: false })
+      addTarget({ group: doorGroup, policy: 'passage', phase: doorPhases.get(entityId) ?? 'closed', gateTriggered: false,
         interactionBusy: false, interactionActive: false, retractRequested: storefrontDoorFrameShouldRetract(slot.id, interiorStorefrontId, phase, approachedStorefrontIds.has(slot.id))
-          || (sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === entityId), suppressed: false })
+          || sceneFrameExitRequestsTarget(sceneFrameExit, doorGroup, entityId), suppressed: false })
     })
     scene.objects.forEach((entity) => {
       if (entity.focusFrame !== 'interactive' || entity.visible === false) return

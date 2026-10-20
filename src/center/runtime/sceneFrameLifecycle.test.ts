@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { beginFrameRetraction, completeFrameTransition, preserveFrameRetractCorner, resumeFrameAppearance, type SceneFrameRuntime } from './sceneFrameLifecycle'
+import { beginFrameRetraction, completeFrameTransition, preserveFrameRetractCorner, resumeFrameAppearance, sceneFrameExitRequestsTarget, type SceneFrameRuntime } from './sceneFrameLifecycle'
 
 function runtime(overrides: Partial<SceneFrameRuntime> = {}): SceneFrameRuntime {
   return {
@@ -18,6 +18,16 @@ function runtime(overrides: Partial<SceneFrameRuntime> = {}): SceneFrameRuntime 
 }
 
 describe('frame retract cancellation', () => {
+  it('limits a passage exit to that passage and requested groups while retaining full scene exits', () => {
+    const passageExit = { phase: 'retracting' as const, scope: 'passage' as const, passageEntityId: 'north-door', requestedGroups: ['door:north-door'] }
+    const sceneExit = { phase: 'retracting' as const, scope: 'scene' as const, passageEntityId: 'north-door' }
+
+    expect(sceneFrameExitRequestsTarget(passageExit, 'door:north-door', 'north-door')).toBe(true)
+    expect(sceneFrameExitRequestsTarget(passageExit, 'storefront:north:baseline', 'north-door')).toBe(false)
+    expect(sceneFrameExitRequestsTarget(passageExit, 'door:south-door', 'south-door')).toBe(false)
+    expect(sceneFrameExitRequestsTarget(sceneExit, 'storefront:south:baseline', 'south-door')).toBe(true)
+  })
+
   it('returns a requested retract along its existing corner instead of randomizing it', () => {
     const current = runtime()
 
