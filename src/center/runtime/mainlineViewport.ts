@@ -1,6 +1,8 @@
 import type { Point } from './sceneGeometry'
 import type { MainlineSceneDefinition } from './mainlineScenes'
 import { sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
+import { mainlineLabelFootprint } from './sceneLayout'
+import { sceneFocusStrokeInsetPx, sceneFocusVisualGapPx } from './sceneVisualBounds'
 
 const normalizedViewportCenter = 50
 
@@ -51,21 +53,34 @@ export function fixedFrameCameraOffset(scene: Pick<MainlineSceneDefinition, 'wal
 
 type CameraScene = Pick<MainlineSceneDefinition, 'walkBounds'> & Partial<Pick<MainlineSceneDefinition, 'id'>>
 
-function cameraOffsetForView(scene: CameraScene, position: Point, viewport: SceneScreenMetrics, follow: boolean): Point {
+/** Boundary anchors are glyph centers. Include their text box and focus frame
+ * when deciding whether the complete scene fits, without changing world scale. */
+export function mainlineCameraVisualOutset(viewport: SceneScreenMetrics): Point {
+  const glyph = mainlineLabelFootprint('字', { x: 0, y: 0 }, sceneDesignReferenceMetrics)
+  const scale = mainlineWorldScale(viewport)
+  const frameGap = sceneFocusVisualGapPx + sceneFocusStrokeInsetPx
+  return {
+    x: glyph.width / 2 + frameGap / (sceneDesignReferenceMetrics.width * scale) * 100,
+    y: glyph.height / 2 + frameGap / (sceneDesignReferenceMetrics.height * scale) * 100,
+  }
+}
+
+function cameraOffsetForView(scene: CameraScene, position: Point, viewport: SceneScreenMetrics): Point {
   const visible = mainlineVisibleWorldSpan(viewport)
+  const visualOutset = mainlineCameraVisualOutset(viewport)
   const axes = ['x', 'y'] as const
   const output = {} as Point
   axes.forEach((axis) => {
     const start = scene.walkBounds[axis]
     const size = axis === 'x' ? scene.walkBounds.width : scene.walkBounds.height
     const span = visible[axis]
-    const padding = Math.min(2, span * .04)
+    const padding = Math.max(visualOutset[axis], Math.min(2, span * .04))
     // Overscan outside the authored bounds so edge walls and their frames fit.
     // Adding padding to the minimum center instead clips that outer edge.
     const centerMin = start + span / 2 - padding
     const centerMax = start + size - span / 2 + padding
-    const preferredCenter = follow ? position[axis] : start + size / 2
-    const center = size <= span ? start + size / 2 : clamp(preferredCenter, centerMin, centerMax)
+    const fits = size + 2 * visualOutset[axis] <= span
+    const center = fits ? start + size / 2 : clamp(position[axis], centerMin, centerMax)
     output[axis] = normalizedViewportCenter - center
   })
   return output
@@ -79,9 +94,9 @@ export function mainlineCameraOffset(
   viewport: SceneScreenMetrics = sceneDesignReferenceMetrics,
 ): Point {
   if (embedded) return { x: 0, y: 0 }
-  // Fixed-frame scenes remain fully centered when they fit; on a smaller
-  // viewport, follow the actor on whichever axis no longer fits.
-  return cameraOffsetForView(scene, position, viewport, scene.viewport !== 'fixed-frame' || mainlineVisibleWorldSpan(viewport).x < scene.walkBounds.width || mainlineVisibleWorldSpan(viewport).y < scene.walkBounds.height)
+  // Center only when the full boundary glyphs/frames fit. Otherwise follow on
+  // the overflowing axis, including a small pan for an almost-fitting scene.
+  return cameraOffsetForView(scene, position, viewport)
 }
 
 /** Keep the central 30% free of camera motion, then clamp to authored bounds. */
@@ -101,7 +116,7 @@ export function mainlineCameraTarget(
     if (screen > 65) offset[axis] -= (screen - 65) / 100 * visible[axis]
   }
   const targetCenter = { x: 50 - offset.x, y: 50 - offset.y }
-  return cameraOffsetForView(scene, targetCenter, viewport, true)
+  return cameraOffsetForView(scene, targetCenter, viewport)
 }
 
 export function advanceMainlineCamera(current: Point, target: Point, elapsedMs: number): Point {
