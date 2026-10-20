@@ -13,20 +13,20 @@ const steps = boundaryGridStepsFromScreenSpacing()
 function localCell(roomId: string, point: { x: number; y: number }) {
   const room = street.rooms.find((candidate) => candidate.id === roomId)!
   return {
-    column: (point.x - room.bounds.x) / steps.horizontal,
+    column: (point.x - room.bounds.x) / steps.horizontal - 1,
     row: (point.y - room.bounds.y) / steps.vertical,
   }
 }
 
 function northCafeCell(column: number, row: number) {
   const room = street.rooms.find((candidate) => candidate.id === northCafeRoomId)!
-  return { x: room.bounds.x + column * steps.horizontal, y: room.bounds.y + room.bounds.height - row * steps.vertical }
+  return { x: room.bounds.x + (column + 1) * steps.horizontal, y: room.bounds.y + room.bounds.height - row * steps.vertical }
 }
 
 function northCafeLocalCell(point: { x: number; y: number }) {
   const room = street.rooms.find((candidate) => candidate.id === northCafeRoomId)!
   return {
-    column: Number(((point.x - room.bounds.x) / steps.horizontal).toFixed(4)),
+    column: Number(((point.x - room.bounds.x) / steps.horizontal - 1).toFixed(4)),
     row: Number(((room.bounds.y + room.bounds.height - point.y) / steps.vertical).toFixed(4)),
   }
 }
@@ -37,7 +37,7 @@ function overlaps(first: { x: number; y: number; width: number; height: number }
 }
 
 describe('commercial street shell furniture samples', () => {
-  it('keeps the new Cafe furniture in the 23x22 north shell and preserves the legacy Cafe blueprint', () => {
+  it('keeps the new Cafe furniture in the 25x26 north shell and preserves the legacy Cafe blueprint', () => {
     const shell = street.rooms.find((room) => room.id === northCafeRoomId)!
     const storefront = street.storefronts.find((slot) => slot.id === 'commercial-cafe-slot')!
     const shellObjects = street.objects.filter((entity) => entity.roomId === northCafeRoomId)
@@ -46,8 +46,8 @@ describe('commercial street shell furniture samples', () => {
 
     expect(storefront.composition?.baseline).toHaveLength(23)
     expect(storefront.composition?.near).toHaveLength(23)
-    expect(shell.bounds.width).toBeCloseTo(steps.horizontal * 22)
-    expect(shell.bounds.height).toBeCloseTo(steps.vertical * 21)
+    expect(shell.bounds.width).toBeCloseTo(steps.horizontal * 24)
+    expect(shell.bounds.height).toBeCloseTo(steps.vertical * 25)
     expect(shellObjects.length).toBeGreaterThan(0)
     expect(shellObjects.every((entity) => entity.visualVisibility === 'static')).toBe(true)
     expect(shellObjects.every((entity) => entity.interactionBehavior === undefined)).toBe(true)
@@ -204,12 +204,12 @@ describe('commercial street shell furniture samples', () => {
     expect(mainlineEntityBelongsToActiveRoom(scoped[0], undefined)).toBe(false)
   })
 
-  it('keeps the 11x22 milk-tea and 23x22 fast-food grids and both front/rear access states', () => {
+  it('keeps the 13x26 milk-tea and 25x26 fast-food shells and both front/rear access states', () => {
     const steps = boundaryGridStepsFromScreenSpacing()
     for (const [roomId, columns] of [[sampleRoomIds[0], 11], [sampleRoomIds[1], 23]] as const) {
       const room = street.rooms.find((candidate) => candidate.id === roomId)!
-      expect(room.bounds.width).toBeCloseTo(steps.horizontal * (columns - 1))
-      expect(room.bounds.height).toBeCloseTo(steps.vertical * 21)
+      expect(room.bounds.width).toBeCloseTo(steps.horizontal * (columns + 1))
+      expect(room.bounds.height).toBeCloseTo(steps.vertical * 25)
       const slotNumber = roomId.includes('-s5-') ? '5' : '2'
       const storefront = street.storefronts.find((candidate) => candidate.id === `commercial-south-slot-${slotNumber}`)!
       const front = street.passages.find((candidate) => candidate.portalId === storefront.portalId)!
@@ -303,7 +303,7 @@ describe('commercial street shell furniture samples', () => {
       && (entity.id.includes('rear-partition-') || entity.id.includes('divider-')))
     const internalDoors = street.objects.filter((entity) => entity.label === '门'
       && sampleRoomIds.includes(entity.roomId as typeof sampleRoomIds[number]))
-    expect(walls).toHaveLength(30)
+    expect(walls).toHaveLength(36)
     expect(internalDoors.map((entity) => entity.id).sort()).toEqual([
       'commercial-s2-fast-food-kitchen-door',
       'commercial-s2-fast-food-warehouse-door',
@@ -318,7 +318,7 @@ describe('commercial street shell furniture samples', () => {
     expect(validateMainlineSceneGeometry(street)).toEqual([])
   })
 
-  it('draws one glyph at each shared shell/furniture wall junction without shortening collision runs', () => {
+  it('keeps internal partition glyphs visible at the expanded shell edges without shortening collision runs', () => {
     const shellWallCells = mainlineSceneGeometryUnits(street, street.initialPlayerPosition)
       .filter((unit) => unit.sourceWallId?.endsWith('-shell'))
       .flatMap((unit) => unit.visual.cells)
@@ -326,11 +326,11 @@ describe('commercial street shell furniture samples', () => {
     const wallGlyphEntities = street.objects.filter((entity) => entity.roomId
       && (entity.id.includes('rear-partition-') || entity.id.includes('divider-')))
     const junctions = [
-      [sampleRoomIds[0], 0, 16, true], [sampleRoomIds[0], 6, 16, false], [sampleRoomIds[0], 10, 16, true], [sampleRoomIds[0], 6, 21, true],
-      [sampleRoomIds[1], 0, 16, true], [sampleRoomIds[1], 18, 16, false], [sampleRoomIds[1], 22, 16, true], [sampleRoomIds[1], 18, 21, true],
+      [sampleRoomIds[0], 0, 16], [sampleRoomIds[0], 6, 16], [sampleRoomIds[0], 10, 16], [sampleRoomIds[0], 6, 21],
+      [sampleRoomIds[1], 0, 16], [sampleRoomIds[1], 18, 16], [sampleRoomIds[1], 22, 16], [sampleRoomIds[1], 18, 21],
     ] as const
 
-    for (const [roomId, column, row, shellOwnsGlyph] of junctions) {
+    for (const [roomId, column, row] of junctions) {
       const shellGlyphs = shellWallCells.filter((cell) => {
         const local = localCell(roomId, cell)
         return Math.abs(local.column - column) < 0.01 && Math.abs(local.row - row) < 0.01
@@ -338,8 +338,8 @@ describe('commercial street shell furniture samples', () => {
       const furnitureGlyphs = wallGlyphEntities.filter((entity) => entity.roomId === roomId
         && Math.abs(localCell(roomId, entity.position).column - column) < 0.01
         && Math.abs(localCell(roomId, entity.position).row - row) < 0.01)
-      expect(shellGlyphs, `${roomId} shell ownership at ${column},${row}`).toHaveLength(shellOwnsGlyph ? 1 : 0)
-      expect(furnitureGlyphs, `${roomId} furniture ownership at ${column},${row}`).toHaveLength(shellOwnsGlyph ? 0 : 1)
+      expect(shellGlyphs, `${roomId} extended shell at ${column},${row}`).toHaveLength(0)
+      expect(furnitureGlyphs, `${roomId} internal partition at ${column},${row}`).toHaveLength(1)
       expect(shellGlyphs.length + furnitureGlyphs.length, `${roomId} unique wall glyph at ${column},${row}`).toBe(1)
     }
 

@@ -26,8 +26,8 @@ function localCell(roomId: string, point: { x: number; y: number }) {
   const storefront = street.storefronts.find((candidate) => candidate.id === retailStores.find((store) => store.roomId === roomId)!.storefrontId)!
   const localRowFromTop = (point.y - room.bounds.y) / steps.vertical
   return {
-    column: (point.x - room.bounds.x) / steps.horizontal,
-    row: storefront.edge === 'bottom' ? 21 - localRowFromTop : localRowFromTop,
+    column: (point.x - room.bounds.x) / steps.horizontal - 1,
+    row: storefront.edge === 'bottom' ? 25 - localRowFromTop : localRowFromTop,
   }
 }
 
@@ -35,9 +35,9 @@ function storeCell(roomId: string, column: number, row: number) {
   const room = street.rooms.find((candidate) => candidate.id === roomId)!
   const storefront = street.storefronts.find((candidate) => candidate.id === retailStores.find((store) => store.roomId === roomId)!.storefrontId)!
   return {
-    x: room.bounds.x + column * steps.horizontal,
+    x: room.bounds.x + (column + 1) * steps.horizontal,
     y: storefront.edge === 'bottom'
-      ? room.bounds.y + (21 - row) * steps.vertical
+      ? room.bounds.y + (25 - row) * steps.vertical
       : room.bounds.y + row * steps.vertical,
   }
 }
@@ -83,8 +83,8 @@ describe('commercial street ordinary retail shell fixtures', () => {
       const rear = street.passages.find((candidate) => candidate.id === `${store.roomId}-rear-door`)!
       expect(front.access, `${store.key} front access`).toBe('open')
       expect(rear.access, `${store.key} rear stays locked`).toBe('locked')
-      expect(room.bounds.width).toBeCloseTo(steps.horizontal * 10)
-      expect(room.bounds.height).toBeCloseTo(steps.vertical * 21)
+      expect(room.bounds.width).toBeCloseTo(steps.horizontal * 12)
+      expect(room.bounds.height).toBeCloseTo(steps.vertical * 25)
 
       const fixtures = street.objects.filter((entity) => entity.roomId === store.roomId && entity.id.startsWith('commercial-retail-'))
       expect(fixtures.some((entity) => {

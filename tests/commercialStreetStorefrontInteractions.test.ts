@@ -104,7 +104,7 @@ describe('commercial street storefront interactions', () => {
   })
 
   // This checks six route shapes across all 14 rooms, including new retail barriers.
-  it('routes all fourteen storefront shells through the continuous street room and preserves the shared 22-cell depth', () => {
+  it('routes all fourteen storefront shells through the continuous street room with 13/25-wide shells and 26-cell depth', () => {
     const steps = boundaryGridStepsFromScreenSpacing()
     const roomSamples = street.storefronts.map((storefront) => {
       const side = storefront.edge === 'bottom' ? 'north' as const : 'south' as const
@@ -124,7 +124,7 @@ describe('commercial street storefront interactions', () => {
       const entry = street.passages.find((candidate) => candidate.portalId === storefront.portalId)!
       const rear = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
       const shell = street.structures.find((candidate) => candidate.id === `${roomId}-shell`)!
-      const expectedDepth = steps.vertical * 21
+      const expectedDepth = steps.vertical * 25
       const interior = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
       const approach = mainlineStorefrontApproach(street, storefront)
       const publicLanePath = findMainlinePath(street.initialPlayerPosition, approach, street)
@@ -132,7 +132,7 @@ describe('commercial street storefront interactions', () => {
       const rearDoorApproachPath = findMainlinePath(interior, rear.thresholds[0], street)
       const command = classifyMainlineWorldCommand(street, street.initialPlayerPosition, interior)
 
-      expect(room.bounds.width).toBeCloseTo(steps.horizontal * (widthCells - 1))
+      expect(room.bounds.width).toBeCloseTo(steps.horizontal * (widthCells + 1))
       expect(room.bounds.height).toBeCloseTo(expectedDepth)
       expect(entry).toMatchObject({ access: 'open', routeThrough: true, fromRoomId: 'commercial-street-public-lane', toRoomId: roomId })
       expect(entry.targetSceneId).toBeUndefined()
@@ -143,7 +143,12 @@ describe('commercial street storefront interactions', () => {
       const rearCommand = classifyMainlineWorldCommand(street, interior, rear.crossingTargets[0])
       expect(rearCommand.kind, `${storefrontId} rear-door approach`).toBe('passage')
       if (rearCommand.kind === 'passage') expect(rearCommand.passage.id).toBe(rear.id)
-      expect(shell?.wallEdges).toEqual(side === 'north' ? ['top', 'left', 'right'] : ['bottom', 'left', 'right'])
+      const hasLaterShell = roomSamples.some((candidate) => candidate.side === side && candidate.storefront.start > storefront.start)
+      expect(shell?.wallEdges).toEqual([
+        side === 'north' ? 'top' : 'bottom',
+        'left',
+        ...(!hasLaterShell ? ['right'] : []),
+      ])
       expect(isWalkableMainlinePoint(interior, street)).toBe(true)
       expect(publicLanePath, `${storefrontId} street-to-approach path`).not.toBeNull()
       expect(entryPath, `${storefrontId} front-to-room path`).not.toBeNull()
@@ -154,7 +159,22 @@ describe('commercial street storefront interactions', () => {
       expect(street.walkBounds.y).toBeLessThan(room.bounds.y)
       expect(street.walkBounds.y + street.walkBounds.height).toBeGreaterThan(room.bounds.y + room.bounds.height)
       expect(storefront.id === 'commercial-cafe-slot' ? roomId : entry.toRoomId).toBe(roomId)
-      expect(room.bounds.height / steps.vertical).toBeCloseTo(21)
+      expect(room.bounds.height / steps.vertical).toBeCloseTo(25)
+    }
+
+    for (const side of ['north', 'south'] as const) {
+      const row = roomSamples.filter((sample) => sample.side === side).sort((left, right) => left.storefront.start - right.storefront.start)
+      for (let index = 0; index < row.length - 1; index += 1) {
+        const current = row[index]!
+        const next = row[index + 1]!
+        const currentRoom = street.rooms.find((candidate) => candidate.id === current.roomId)!
+        const nextRoom = street.rooms.find((candidate) => candidate.id === next.roomId)!
+        const currentShell = street.structures.find((candidate) => candidate.id === `${current.roomId}-shell`)!
+        const nextShell = street.structures.find((candidate) => candidate.id === `${next.roomId}-shell`)!
+        expect(currentRoom.bounds.x + currentRoom.bounds.width).toBeCloseTo(nextRoom.bounds.x)
+        expect(currentShell.wallEdges).not.toContain('right')
+        expect(nextShell.wallEdges).toContain('left')
+      }
     }
 
     const northRoom = street.rooms.find((candidate) => candidate.id === 'commercial-north-n2-interior')!
@@ -165,7 +185,8 @@ describe('commercial street storefront interactions', () => {
     expect(target.y).toBeGreaterThan(0)
   }, 120_000)
 
-  it('compiles fixed shell anchors that align front, rear, and side corners at every supported viewport', () => {
+  it('compiles extended shell anchors and one shared separator at every supported viewport', () => {
+    const steps = boundaryGridStepsFromScreenSpacing()
     const metrics = [
       { width: 1280, height: 720 },
       { width: 1180, height: 757 },
@@ -219,8 +240,10 @@ describe('commercial street storefront interactions', () => {
         const rearPassage = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
         const rearDoorPosition = street.objects.find((candidate) => candidate.id === rearPassage.entityId)!.position
         const rearXs = [...new Set(rearCells.map((cell) => Number(cell.x.toFixed(3))))].sort((left, right) => left - right)
-        expect(rearXs).toHaveLength(characterCount)
-        rearXs.forEach((x, index) => expect(x).toBeCloseTo(canonicalFacadeXs[index]!, 2))
+        expect(rearXs).toHaveLength(characterCount + 2)
+        expect(rearXs[0]).toBeCloseTo(canonicalFacadeXs[0]! - steps.horizontal, 2)
+        expect(rearXs.at(-1)).toBeCloseTo(canonicalFacadeXs.at(-1)! + steps.horizontal, 2)
+        rearXs.slice(1, -1).forEach((x, index) => expect(x).toBeCloseTo(canonicalFacadeXs[index]!, 2))
         const rearDoorCell = rearCells.find((cell) => cell.kind === 'door')!
         expect(rearDoorCell.x).toBeCloseTo(rearDoorPosition.x, 2)
         expect(rearDoorCell.y).toBeCloseTo(rearDoorPosition.y, 2)
@@ -229,10 +252,17 @@ describe('commercial street storefront interactions', () => {
         const facadeCells = facadeUnits.flatMap((unit) => unit.visual.cells)
         const viewportSignature: string[] = []
         const sideEdges = ['left', 'right'] as const
+        const rightWallOwner = samples
+          .filter((sample) => sample.storefront.edge === storefront.edge && sample.storefront.start > storefront.start)
+          .sort((left, right) => left.storefront.start - right.storefront.start)[0]
         for (const sideEdge of sideEdges) {
-          const sideUnits = shellUnits.filter((unit) => unit.edge === sideEdge)
+          const sideWallSourceId = sideEdge === 'right' && rightWallOwner ? `${rightWallOwner.roomId}-shell` : shellId
+          const sideWallEdge = sideEdge === 'right' && rightWallOwner ? 'left' : sideEdge
+          const sideUnits = units.filter((unit) => unit.sourceWallId === sideWallSourceId && unit.edge === sideWallEdge)
           const sideCells = sideUnits.flatMap((unit) => unit.visual.cells)
-          const sideX = sideEdge === 'left' ? canonicalFacadeXs[0] : canonicalFacadeXs.at(-1)!
+          const sideX = sideEdge === 'left'
+            ? canonicalFacadeXs[0]! - steps.horizontal
+            : canonicalFacadeXs.at(-1)! + steps.horizontal
           const sideYs = new Set(sideCells.filter((cell) => Math.abs(cell.x - sideX) < .01).map((cell) => Number(cell.y.toFixed(3))))
           const frontCorner = facadeCells.find((cell) => Math.abs(cell.x - sideX) < .01)
           const rearCorner = rearCells.find((cell) => Math.abs(cell.x - sideX) < .01)
@@ -243,14 +273,14 @@ describe('commercial street storefront interactions', () => {
           sideYs.add(Number(frontCorner!.y.toFixed(3)))
           sideYs.add(Number(rearCorner!.y.toFixed(3)))
           const continuousSide = [...sideYs].sort((left, right) => left - right)
-          expect(continuousSide).toHaveLength(22)
-          const pitch = room.bounds.height / 21
+          expect(continuousSide).toHaveLength(26)
+          const pitch = room.bounds.height / 25
           continuousSide.slice(1).forEach((y, index) => expect(y - continuousSide[index]).toBeCloseTo(pitch, 2))
           viewportSignature.push(`${sideEdge}:${continuousSide.join(',')}`)
         }
         viewportSignature.push(`rear:${rearXs.join(',')}`)
         anchorSignatures.push(viewportSignature.join('|'))
-        expect(room.bounds.width).toBeCloseTo((characterCount - 1) * (canonicalFacadeXs[1]! - canonicalFacadeXs[0]!))
+        expect(room.bounds.width).toBeCloseTo((characterCount + 1) * (canonicalFacadeXs[1]! - canonicalFacadeXs[0]!))
       }
 
       expect(anchorSignatures[1]).toBe(anchorSignatures[0])
