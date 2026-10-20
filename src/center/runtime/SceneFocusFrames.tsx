@@ -19,6 +19,12 @@ type SceneFocusFramesProps = {
 
 const frameCorners: readonly FocusFrameCorner[] = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
 
+/** Ignore only the paint clock, preserving every geometry-bearing style. */
+export function sceneFocusPaintGeometryStyle(style: string | null) {
+  return (style ?? '').split(';').map(part => part.trim())
+    .filter(part => part && !/^--scene-breathing-progress\s*:/.test(part)).join(';')
+}
+
 export type SceneFocusFrameGeometry = {
   viewBox: string
   paths: Record<FocusFrameCorner, string>
@@ -286,6 +292,10 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     if (typeof ResizeObserver === 'undefined') return undefined
     const observer = new ResizeObserver(measureAll)
     const characterChanges = new MutationObserver(measureAll)
+    const paintChanges = new MutationObserver((records) => {
+      if (records.some(record => record.attributeName !== 'style'
+        || sceneFocusPaintGeometryStyle(record.oldValue) !== sceneFocusPaintGeometryStyle((record.target as HTMLElement).getAttribute('style')))) measureAll()
+    })
     const endpointSchedulers = new Map<HTMLElement, ReturnType<typeof createEndpointMeasurementScheduler>>()
     const characterProgressChanges = new MutationObserver((records) => {
       records.forEach((record) => {
@@ -321,6 +331,12 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         if (element.dataset.focusVisualGroup === group) {
           observer.observe(element)
           characterChanges.observe(element, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] })
+          const object = element.closest<HTMLElement>('.scene-mainline-object')
+          if (object) {
+            characterChanges.observe(object, { attributes: true, attributeFilter: ['style', 'class'] })
+            const paint = element.closest<HTMLElement>('.scene-mainline-object__grid-content')
+            if (paint) paintChanges.observe(paint, { attributes: true, attributeOldValue: true, attributeFilter: ['style', 'class'] })
+          }
         }
       })
     })
@@ -342,6 +358,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
       if (measurementFrame !== null) window.cancelAnimationFrame(measurementFrame)
       observer.disconnect()
       characterChanges.disconnect()
+      paintChanges.disconnect()
       characterProgressChanges.disconnect()
       endpointSchedulers.forEach((scheduler) => scheduler.dispose())
       endpointSchedulers.clear()
