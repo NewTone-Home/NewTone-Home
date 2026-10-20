@@ -1,7 +1,7 @@
 import { createPoint, defaultEdgeContactDirection, mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import { mainlineScenePassageCollision, mainlineScenePassageDoorway, type MainlineStorefrontSlot, type MainlineSceneAccessRegion, type MainlineSceneDefinition, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
-import { mainlineEntityCollision, mainlineLabelFootprint, mainlineLayoutOffsetForEntity, mainlineProtagonistDotFootprint, type SceneLayout } from './sceneLayout'
+import { mainlineEntityCollision, mainlineLabelFootprint, mainlineLayoutOffsetForEntity, mainlineProtagonistDotFootprint, mainlineSceneFootprint, type SceneLayout } from './sceneLayout'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { canTravelAlongSegment, edgeContactPoint, findNavigationPath, findSingleDynamicObstacleDetour, navigationActorBox, resolveNavigationPath, sharedNavigationTraversalStep, type NavigationActorFootprint, type NavigationRuntime } from './navigationCore'
 import { createPolygonNavigationMesh, navigationBarrierIntersectsActor, navigationBarriersAllowTravel, type PolygonNavigationMesh } from './scenePathfinding'
@@ -82,8 +82,8 @@ function mainlineActorFootprint(scene: MainlineSceneDefinition, options: Mainlin
   if (options.actorRadius !== undefined) return { width: options.actorRadius * 2, height: options.actorRadius * 2 }
   const metrics = options.screenMetrics
   const npc = options.actorId ? scene.npcs.find((candidate) => candidate.id === options.actorId) : undefined
-  if (npc) return footprintFromBox(mainlineLabelFootprint(npc.label, position, metrics, { lineHeight: 1 }))
-  return footprintFromBox(mainlineProtagonistDotFootprint(position, metrics))
+  if (npc) return footprintFromBox(mainlineSceneFootprint(scene, mainlineLabelFootprint(npc.label, position, metrics, { lineHeight: 1 }), metrics))
+  return footprintFromBox(mainlineProtagonistDotFootprint(position, metrics, scene.id))
 }
 
 function normalClearance(footprint: NavigationActorFootprint, axis: 'x' | 'y') {

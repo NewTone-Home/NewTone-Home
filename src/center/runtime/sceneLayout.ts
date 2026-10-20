@@ -1,6 +1,7 @@
 import type { CollisionBox, Point } from './sceneGeometry'
 import type { MainlineSceneDefinition, MainlineSceneEntity } from './mainlineScenes'
 import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
+import { expandCommercialStreetBoxForProjection } from './commercialStreetGridProjection'
 
 export type LayoutItemId = string
 export type SceneLayout = Readonly<Record<LayoutItemId, Point>>
@@ -216,11 +217,14 @@ export function mainlineLabelFootprint(
 export function mainlineProtagonistDotFootprint(
   position: Point,
   screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
+  sceneId?: MainlineSceneDefinition['id'],
 ): CollisionBox {
   const sizePx = 11
-  const width = Number(((sizePx / screenMetrics.width) * 100).toFixed(4))
+  const authored = { x: position.x - (sizePx / screenMetrics.width) * 50, width: Number(((sizePx / screenMetrics.width) * 100).toFixed(4)) }
+  const projected = sceneId === 'commercial-street' ? expandCommercialStreetBoxForProjection(authored, screenMetrics) : authored
+  const width = projected.width
   const height = Number(((sizePx / screenMetrics.height) * 100).toFixed(4))
-  return { x: position.x - width / 2, y: position.y - height / 2, width, height }
+  return { x: projected.x, y: position.y - height / 2, width, height }
 }
 
 function isNarrowMainlineViewport(screenMetrics: SceneScreenMetrics) {
@@ -325,13 +329,13 @@ export function mainlineEntityCollision(
       const actualPosition = mainlineEntityPosition(scene, entity, layout, screenMetrics)
       const collision = sceneLayoutEntityCollision(scene, entity, layout)
       if (!collision) return null
-      return {
+      return expandSceneFootprint(scene, screenMetrics, {
         ...collision,
         x: collision.x + actualPosition.x - authoredPosition.x,
         y: collision.y + actualPosition.y - authoredPosition.y,
-      }
+      })
     }
-    return mainlineEntityTextFootprint(entity, mainlineEntityPosition(scene, entity, layout, screenMetrics), screenMetrics)
+    return expandSceneFootprint(scene, screenMetrics, mainlineEntityTextFootprint(entity, mainlineEntityPosition(scene, entity, layout, screenMetrics), screenMetrics))
   }
   return sceneLayoutEntityCollision(scene, entity, layout)
 }
@@ -343,7 +347,7 @@ export function mainlineEntityInteractionBounds(
   screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
 ): CollisionBox | null {
   if (entity.surface !== 'floor' || entity.interactive === false) return null
-  return mainlineEntityTextFootprint(entity, mainlineEntityPosition(scene, entity, layout, screenMetrics), screenMetrics)
+  return expandSceneFootprint(scene, screenMetrics, mainlineEntityTextFootprint(entity, mainlineEntityPosition(scene, entity, layout, screenMetrics), screenMetrics))
 }
 
 /**
@@ -360,13 +364,21 @@ export function mainlineEntityVisualBounds(
   if (entity.surface !== 'floor' || entity.visible === false) return null
   const offset = mainlineLayoutOffsetForEntity(scene, entity.id, layout)
   if (entity.visualBounds) {
-    return {
+    return expandSceneFootprint(scene, screenMetrics, {
       ...entity.visualBounds,
       x: entity.visualBounds.x + offset.x,
       y: entity.visualBounds.y + offset.y,
-    }
+    })
   }
-  return mainlineEntityTextFootprint(entity, mainlineEntityPosition(scene, entity, layout, screenMetrics), screenMetrics)
+  return expandSceneFootprint(scene, screenMetrics, mainlineEntityTextFootprint(entity, mainlineEntityPosition(scene, entity, layout, screenMetrics), screenMetrics))
+}
+
+export function mainlineSceneFootprint<T extends CollisionBox>(scene: MainlineSceneDefinition, footprint: T, screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics): T {
+  return scene.id === 'commercial-street' ? expandCommercialStreetBoxForProjection(footprint, screenMetrics) : footprint
+}
+
+function expandSceneFootprint<T extends CollisionBox>(scene: MainlineSceneDefinition, screenMetrics: SceneScreenMetrics, footprint: T): T {
+  return mainlineSceneFootprint(scene, footprint, screenMetrics)
 }
 
 export function mainlineEntityShape(

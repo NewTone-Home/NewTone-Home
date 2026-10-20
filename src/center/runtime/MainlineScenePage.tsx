@@ -7,7 +7,7 @@ import type { Point } from './sceneGeometry'
 import { MainlineAmbientNpcActor, MainlineSceneRenderer, type MainlineInputDiagnostic } from './MainlineSceneRenderer'
 import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneAreaLabel, mainlineScenes, mainlineStorefrontInteractionCandidates, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
 import { prepareMainlineWorldNavigation, canActorReachPassageApproach, classifyMainlineWorldCommand, findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, isMainlineEntityWithinInteractionRange, isMainlineNavigationBarrierClear, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlineInteractionTarget, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineEntityInteraction, resolveMainlineInteractionCandidates, resolveMainlineStorefrontInteraction, mainlineStorefrontArrivalDecision, resolveMainlineNpcInteraction, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from './mainlineNavigation'
-import { layoutGridSize, mainlineLabelFootprint, mainlineProtagonistDotFootprint, type SceneLayout } from './sceneLayout'
+import { layoutGridSize, mainlineLabelFootprint, mainlineProtagonistDotFootprint, mainlineSceneFootprint, type SceneLayout } from './sceneLayout'
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
 import { movementDurationMsForPath, protagonistCharacterMovementOptions, sharedCharacterMovementOptions, useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
 import type { PhoneDevice } from './phoneState'
@@ -651,7 +651,7 @@ export function MainlineScenePage({
   const ambientNpcFootprints = useMemo(() => new Map(scene.ambientNpcRoutes.map((schedule) => {
     const npc = scene.npcs.find((candidate) => candidate.id === schedule.npcId)
     const position = stagedNpcPositions.get(schedule.npcId) ?? scene.initialPlayerPosition
-    const box = mainlineLabelFootprint(npc?.label ?? '', position, screenMetrics, { lineHeight: 1 })
+    const box = mainlineSceneFootprint(scene, mainlineLabelFootprint(npc?.label ?? '', position, screenMetrics, { lineHeight: 1 }), screenMetrics)
     return [schedule.npcId, { width: box.width, height: box.height }] as const
   })), [scene, screenMetrics, stagedNpcPositions])
   const handleAmbientNpcRuntimeChange = useCallback((npcId: string, hidden: boolean, snapshot: NpcRuntimeSnapshot) => {
@@ -718,14 +718,14 @@ export function MainlineScenePage({
   const protagonistFootprint = useMemo(() => {
     const seatedPosition = seatedProtagonistPosition
     const box = seatedPosition
-      ? mainlineLabelFootprint('修杰', seatedPosition, screenMetrics, { lineHeight: 1 })
+      ? mainlineSceneFootprint(scene, mainlineLabelFootprint('修杰', seatedPosition, screenMetrics, { lineHeight: 1 }), screenMetrics)
       // The walking marker's dimensions are independent of its live world
       // position. Keeping this footprint stable lets the separate position
       // effect update occupancy without unregistering the protagonist between
       // movement frames.
-      : mainlineProtagonistDotFootprint(initialPosition, screenMetrics)
+      : mainlineProtagonistDotFootprint(initialPosition, screenMetrics, scene.id)
     return { width: box.width, height: box.height }
-  }, [activePlayerSeatId, initialPosition, screenMetrics, seatedProtagonistPosition?.x, seatedProtagonistPosition?.y])
+  }, [activePlayerSeatId, initialPosition, scene.id, screenMetrics, seatedProtagonistPosition?.x, seatedProtagonistPosition?.y])
   useEffect(() => {
     navigationRuntime.registerActor('protagonist', getCurrentPosition(), protagonistFootprint)
     return () => navigationRuntime.removeActor('protagonist')
@@ -736,7 +736,7 @@ export function MainlineScenePage({
   useEffect(() => {
     staticNpcPositions.forEach((npcPosition, npcId) => {
       const npc = scene.npcs.find((candidate) => candidate.id === npcId)
-      const box = mainlineLabelFootprint(npc?.label ?? '', npcPosition, screenMetrics, { lineHeight: 1 })
+      const box = mainlineSceneFootprint(scene, mainlineLabelFootprint(npc?.label ?? '', npcPosition, screenMetrics, { lineHeight: 1 }), screenMetrics)
       navigationRuntime.registerActor(npcId, npcPosition, { width: box.width, height: box.height })
     })
     return () => staticNpcPositions.forEach((_npcPosition, npcId) => navigationRuntime.removeActor(npcId))
@@ -2317,6 +2317,7 @@ export function MainlineScenePage({
       protagonistPosition={position}
       onRuntimeChange={handleAmbientNpcRuntimeChange}
       renderActor={(npcPosition, snapshot) => <MainlineAmbientNpcActor
+        sceneId={scene.id}
         npc={npc}
         position={npcPosition}
         snapshot={snapshot}

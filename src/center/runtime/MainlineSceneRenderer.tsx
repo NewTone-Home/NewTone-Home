@@ -13,6 +13,7 @@ import { SceneCharacters, SceneCharacterSwitch } from './SceneCharacters'
 import { SceneDoor, type SceneDoorTransitionCompletion } from './SceneDoor'
 import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoorConfig'
 import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
+import { commercialStreetHorizontalScale, projectCommercialStreetX, unprojectCommercialStreetX } from './commercialStreetGridProjection'
 import { useSceneFocusFrameController } from './SceneFocusFrames'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
@@ -214,6 +215,7 @@ type MainlineDoorButtonProps = {
 }
 
 type MainlineAmbientNpcActorProps = {
+  sceneId: MainlineSceneDefinition['id']
   npc: MainlineSceneDefinition['npcs'][number]
   position: Point
   snapshot: NpcRuntimeSnapshot
@@ -222,7 +224,7 @@ type MainlineAmbientNpcActorProps = {
 }
 
 /** Ambient locomotion owns its live point; this component only projects it into the scene. */
-function MainlineAmbientNpcActorView({ npc, position, snapshot, screenMetrics, debugRuntimeEvidence }: MainlineAmbientNpcActorProps) {
+function MainlineAmbientNpcActorView({ sceneId, npc, position, snapshot, screenMetrics, debugRuntimeEvidence }: MainlineAmbientNpcActorProps) {
   const visualFootprint = mainlineLabelFootprint(npc.label, position, screenMetrics, { lineHeight: 1 })
   return <span
     className="scene-mainline-npc scene-mainline-npc--ambient"
@@ -241,7 +243,7 @@ function MainlineAmbientNpcActorView({ npc, position, snapshot, screenMetrics, d
     data-npc-target-y={debugRuntimeEvidence ? snapshot.target?.y : undefined}
     data-runtime-x={debugRuntimeEvidence ? position.x : undefined}
     data-runtime-y={debugRuntimeEvidence ? position.y : undefined}
-    data-rendered-x={debugRuntimeEvidence ? position.x : undefined}
+    data-rendered-x={debugRuntimeEvidence ? sceneId === 'commercial-street' ? projectCommercialStreetX(position.x, screenMetrics) : position.x : undefined}
     data-rendered-y={debugRuntimeEvidence ? position.y : undefined}
     data-visual-x={debugRuntimeEvidence ? visualFootprint.x : undefined}
     data-visual-y={debugRuntimeEvidence ? visualFootprint.y : undefined}
@@ -572,7 +574,7 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
     'data-focus-target-policy': focusGroup ? 'interactive' : undefined,
     'data-layout-item-id': layoutItemId ?? undefined,
     'data-story-seat-prompt': prompted ? 'true' : undefined,
-    'data-rendered-x': debugRuntimeEvidence ? position.x : undefined,
+    'data-rendered-x': debugRuntimeEvidence ? scene.id === 'commercial-street' ? projectCommercialStreetX(position.x, screenMetrics) : position.x : undefined,
     'data-rendered-y': debugRuntimeEvidence ? position.y : undefined,
     'data-collision-x': debugRuntimeEvidence && collision ? collision.x : undefined,
     'data-collision-y': debugRuntimeEvidence && collision ? collision.y : undefined,
@@ -639,6 +641,7 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
 const MemoMainlineObject = memo(MainlineObject)
 
 type MainlineNpcActorProps = {
+  sceneId: MainlineSceneDefinition['id']
   npc: MainlineSceneDefinition['npcs'][number]
   position: Point
   snapshot?: NpcRuntimeSnapshot
@@ -650,7 +653,7 @@ type MainlineNpcActorProps = {
   onInteract?: (npcId: string) => void
 }
 
-function MainlineNpcActor({ npc, position, snapshot, seatId, seatPosition, screenMetrics, interactive, debugRuntimeEvidence, onInteract }: MainlineNpcActorProps) {
+function MainlineNpcActor({ sceneId, npc, position, snapshot, seatId, seatPosition, screenMetrics, interactive, debugRuntimeEvidence, onInteract }: MainlineNpcActorProps) {
   const visualPosition = mainlineSeatedActorVisualPosition(position, seatId, seatPosition)
   const visualFootprint = mainlineLabelFootprint(npc.label, visualPosition, screenMetrics, { lineHeight: 1 })
   const className = `scene-mainline-npc ${interactive ? '' : 'scene-mainline-npc--ambient'}`
@@ -674,7 +677,7 @@ function MainlineNpcActor({ npc, position, snapshot, seatId, seatPosition, scree
     'data-npc-target-y': debugRuntimeEvidence ? snapshot?.target?.y : undefined,
     'data-runtime-x': debugRuntimeEvidence ? position.x : undefined,
     'data-runtime-y': debugRuntimeEvidence ? position.y : undefined,
-    'data-rendered-x': debugRuntimeEvidence ? visualPosition.x : undefined,
+    'data-rendered-x': debugRuntimeEvidence ? sceneId === 'commercial-street' ? projectCommercialStreetX(visualPosition.x, screenMetrics) : visualPosition.x : undefined,
     'data-rendered-y': debugRuntimeEvidence ? visualPosition.y : undefined,
     'data-visual-x': debugRuntimeEvidence ? visualFootprint.x : undefined,
     'data-visual-y': debugRuntimeEvidence ? visualFootprint.y : undefined,
@@ -682,8 +685,8 @@ function MainlineNpcActor({ npc, position, snapshot, seatId, seatPosition, scree
     'data-visual-height': debugRuntimeEvidence ? visualFootprint.height : undefined,
   }
   return interactive
-    ? <button {...attributes} type="button" onClick={(event) => { event.stopPropagation(); onInteract?.(npc.id) }} aria-label={`${npc.label}，点击让主角前往互动`}><span>{npc.label}</span></button>
-    : <span {...attributes} aria-hidden="true">{npc.label}</span>
+    ? <button {...attributes} type="button" onClick={(event) => { event.stopPropagation(); onInteract?.(npc.id) }} aria-label={`${npc.label}，点击让主角前往互动`}><SceneCharacters>{npc.label}</SceneCharacters></button>
+    : <span {...attributes} aria-hidden="true"><SceneCharacters>{npc.label}</SceneCharacters></span>
 }
 
 const MemoMainlineNpcActor = memo(MainlineNpcActor)
@@ -869,6 +872,7 @@ export function MainlineSceneRenderer({
   // stage from projecting visible cells with one size while navigation tests
   // collision against another.
   const renderScreenMetrics = geometrySnapshot.screenMetrics
+  const horizontalGridScale = scene.id === 'commercial-street' ? commercialStreetHorizontalScale(renderScreenMetrics) : 1
   const geometryUnits = geometrySnapshot.units
   const switchableStorefronts = useMemo(() => scene.storefronts.filter(slot => slot.portalId && slot.characterSwitch), [scene.storefronts])
   const switchCells = useMemo(() => new Map(switchableStorefronts.map(slot => {
@@ -1054,10 +1058,12 @@ export function MainlineSceneRenderer({
     const rect = stageRef.current?.getBoundingClientRect()
     if (!rect || rect.width === 0 || rect.height === 0) return null
     return {
-      x: ((clientX - rect.left) / rect.width) * 100 - cameraOffset.x,
+      x: scene.id === 'commercial-street'
+        ? unprojectCommercialStreetX(((clientX - rect.left) / rect.width) * 100 - cameraOffset.x, renderScreenMetrics)
+        : ((clientX - rect.left) / rect.width) * 100 - cameraOffset.x,
       y: ((clientY - rect.top) / rect.height) * 100 - cameraOffset.y,
     }
-  }, [cameraOffset.x, cameraOffset.y])
+  }, [cameraOffset.x, cameraOffset.y, renderScreenMetrics, scene.id])
 
   const startLayoutDrag = useCallback((itemId: LayoutItemId, event: React.PointerEvent<HTMLElement>) => {
     if (!layoutMode) return
@@ -1120,7 +1126,12 @@ export function MainlineSceneRenderer({
       x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
       y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
     }
-    const point = { x: screenPoint.x - cameraOffset.x, y: screenPoint.y - cameraOffset.y }
+    const point = {
+      x: scene.id === 'commercial-street'
+        ? unprojectCommercialStreetX(screenPoint.x - cameraOffset.x, renderScreenMetrics)
+        : screenPoint.x - cameraOffset.x,
+      y: screenPoint.y - cameraOffset.y,
+    }
     onInputDiagnostic?.({
       ...input,
       client: { x: clientX, y: clientY },
@@ -1137,7 +1148,7 @@ export function MainlineSceneRenderer({
       return
     }
     onWalk(point)
-  }, [cameraOffset.x, cameraOffset.y, layoutMode, onInputDiagnostic, onLayoutChange, onWalk, scene, selectedLayoutItemId])
+  }, [cameraOffset.x, cameraOffset.y, layoutMode, onInputDiagnostic, onLayoutChange, onWalk, renderScreenMetrics, scene, selectedLayoutItemId])
 
   const walkToEmptySpace = (event: React.MouseEvent<HTMLDivElement>) => {
     const touchWalk = touchWalkRef.current
@@ -1171,7 +1182,16 @@ export function MainlineSceneRenderer({
       <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-scene-dialogue-state={dialoguePhase}>
         {layoutMode && <div className="scene-layout-grid" aria-hidden="true" />}
 
-        <div className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''}`} style={{ transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%)` }}>
+        <div
+          className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''}`}
+          data-commercial-street-grid={scene.id === 'commercial-street' ? 'equal-pitch' : undefined}
+          data-commercial-street-grid-scale={scene.id === 'commercial-street' ? horizontalGridScale : undefined}
+          style={{
+            transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%) scaleX(${horizontalGridScale})`,
+            transformOrigin: '50% 50%',
+            '--scene-horizontal-grid-counter-scale': String(1 / horizontalGridScale),
+          } as CSSProperties}
+        >
           <>
           <div className="scene-spatial-labels scene-spatial-labels--wall scene-mainline-wall-labels">
             {activeSwitchableStorefronts.map(slot => <PortalStorefrontCharacters key={slot.id} scene={scene} storefront={slot}
@@ -1349,6 +1369,7 @@ export function MainlineSceneRenderer({
             const npcSeatId = mainlineNpcStagedSeatId(scene, npc.id)
             return <MemoMainlineNpcActor
               key={npc.id}
+              sceneId={scene.id}
               npc={npc}
               position={npcPosition}
               snapshot={npcSnapshot}
@@ -1381,7 +1402,7 @@ export function MainlineSceneRenderer({
             </div>
           </div>}
           {destination && <div className={`scene-walk-target ${moving ? 'is-active' : ''}`} style={{ left: `${destination.x}%`, top: `${destination.y}%` }} aria-hidden="true" />}
-          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%`, '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined}>
+          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%`, '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? scene.id === 'commercial-street' ? projectCommercialStreetX(protagonistVisualPosition.x, renderScreenMetrics) : protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined}>
             {protagonistPresentation.kind === 'dot'
               ? <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
               : <span className="scene-protagonist__seat-label" aria-label="修杰，已坐下">{protagonistPresentation.label}</span>}
@@ -1429,7 +1450,9 @@ export function MainlineSceneRenderer({
               key={sceneEcho?.id ?? dialogueLine!.id}
               className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${isLeaving ? 'is-leaving' : ''}`}
               style={{
-                left: `${speakerAnchor ? speakerAnchor.left + (speakerAnchor.widthPx / renderScreenMetrics.width) * 50 : Math.max((echoLayout.widthPx / renderScreenMetrics.width) * 50 + 2, Math.min(98 - (echoLayout.widthPx / renderScreenMetrics.width) * 50, position.x + cameraOffset.x))}%`,
+                left: `${speakerAnchor
+                  ? (scene.id === 'commercial-street' ? projectCommercialStreetX(speakerAnchor.left - cameraOffset.x, renderScreenMetrics) + cameraOffset.x : speakerAnchor.left) + (speakerAnchor.widthPx / renderScreenMetrics.width) * 50
+                  : Math.max((echoLayout.widthPx / renderScreenMetrics.width) * 50 + 2, Math.min(98 - (echoLayout.widthPx / renderScreenMetrics.width) * 50, (scene.id === 'commercial-street' ? projectCommercialStreetX(position.x, renderScreenMetrics) : position.x) + cameraOffset.x))}%`,
                 top: `${speakerAnchor?.top ?? Math.max(10, Math.min(85, position.y + cameraOffset.y))}%`,
                 '--scene-mainline-text-width': `${echoLayout.widthPx}px`,
                 '--scene-mainline-text-height': `${echoLayout.heightPx}px`,
@@ -1460,7 +1483,7 @@ export function MainlineSceneRenderer({
           })()}
           {sceneAction && <div
             className="scene-mainline-action"
-            style={{ left: `${Math.max(12, Math.min(88, sceneAction.position.x + cameraOffset.x))}%`, top: `${Math.max(10, Math.min(85, sceneAction.position.y + cameraOffset.y))}%` }}
+            style={{ left: `${Math.max(12, Math.min(88, (scene.id === 'commercial-street' ? projectCommercialStreetX(sceneAction.position.x, renderScreenMetrics) : sceneAction.position.x) + cameraOffset.x))}%`, top: `${Math.max(10, Math.min(85, sceneAction.position.y + cameraOffset.y))}%` }}
             data-scene-action={sceneAction.entityId ?? 'scene'}
             onClick={(event) => event.stopPropagation()}
           >
