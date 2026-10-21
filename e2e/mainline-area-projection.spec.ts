@@ -80,6 +80,51 @@ test('CDP pinch and ambiguous DPI changes preserve the auto basis rather than ca
   await cdp.detach()
 })
 
+test('pinch recovery resumes phone, rotation and ultrawide adaptation without refresh',async({page},info)=>{
+  await page.setViewportSize({width:1920,height:1080});await isolatedEntry(page)
+  await expect.poll(async()=>(await readProjection(page)).scale).toBe(1)
+  const cdp=await page.context().newCDPSession(page),observations=[]
+  await cdp.send('Emulation.setPageScaleFactor',{pageScaleFactor:2})
+  await expect.poll(async()=>(await readProjection(page)).policy).toBe('preserved')
+  expect((await readProjection(page)).scale).toBe(1)
+  observations.push(await readProjection(page))
+  await cdp.send('Emulation.setPageScaleFactor',{pageScaleFactor:1})
+  await expect.poll(async()=>(await readProjection(page)).policy).toBe('area')
+  for(const [width,height,scale] of [[390,844,.75],[844,390,.75],[3440,1440,1.125]]){
+    await page.setViewportSize({width,height})
+    await expect.poll(async()=>Number((await readProjection(page)).scale.toFixed(5))).toBe(scale)
+    observations.push(await readProjection(page))
+  }
+  await info.attach('pinch-recovery.json',{body:JSON.stringify(observations,null,2),contentType:'application/json'})
+  await cdp.detach()
+})
+
+test('DPR guard recovers on distinct resize and baseline reset without cancelling immediate page zoom',async({page},info)=>{
+  await page.setViewportSize({width:1920,height:1080});await isolatedEntry(page)
+  await expect.poll(async()=>(await readProjection(page)).scale).toBe(1)
+  const cdp=await page.context().newCDPSession(page),observations=[]
+  // Split DPR and reciprocal CSS resize to exercise non-atomic event delivery.
+  await cdp.send('Emulation.setDeviceMetricsOverride',{width:1920,height:1080,deviceScaleFactor:1.25,mobile:false})
+  // Pure CDP DPR override changes the value without dispatching resize/media
+  // events until layout changes. Explicitly simulate the browser notification
+  // for this ordering test; this is not a real OS-DPI-switch claim.
+  await page.evaluate(()=>window.dispatchEvent(new Event('resize')))
+  await expect.poll(async()=>(await readProjection(page)).policy).toBe('preserved')
+  await cdp.send('Emulation.setDeviceMetricsOverride',{width:1536,height:864,deviceScaleFactor:1.25,mobile:false})
+  await page.waitForTimeout(250)
+  const active=await readProjection(page);expect(active.scale).toBe(1);expect(active.policy).toBe('preserved');observations.push(active)
+  for(const [width,height,scale] of [[390,844,.75],[844,390,.75],[3440,1440,1.125]]){
+    await cdp.send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1.25,mobile:false})
+    await expect.poll(async()=>Number((await readProjection(page)).scale.toFixed(5))).toBe(scale)
+    expect((await readProjection(page)).policy).toBe('area');observations.push(await readProjection(page))
+  }
+  await cdp.send('Emulation.setDeviceMetricsOverride',{width:1600,height:1000,deviceScaleFactor:1,mobile:false})
+  await expect.poll(async()=>Number((await readProjection(page)).scale.toFixed(5))).toBe(.87841)
+  expect((await readProjection(page)).policy).toBe('area');observations.push(await readProjection(page))
+  await info.attach('dpi-recovery.json',{body:JSON.stringify(observations,null,2),contentType:'application/json'})
+  await cdp.detach()
+})
+
 for(const width of [1280,390]) test(`courtyard door crossing keeps the shared scale at ${width}`,async({page},info)=>{
   await page.setViewportSize({width,height:width===390?844:800})
   await isolatedEntry(page,'jijia-ancestral-home',{x:96,y:51.28})

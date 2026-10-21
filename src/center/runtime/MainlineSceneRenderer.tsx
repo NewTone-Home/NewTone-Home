@@ -865,10 +865,22 @@ export function MainlineSceneRenderer({
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reportMetrics)
     observer?.observe(stage)
     observer?.observe(stableViewport)
+    let dpiQuery: MediaQueryList | undefined
+    const watchDpi = () => {
+      dpiQuery?.removeEventListener('change', onDpiChange)
+      dpiQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`)
+      dpiQuery.addEventListener('change', onDpiChange)
+    }
+    const onDpiChange = () => {
+      reportMetrics()
+      watchDpi()
+    }
+    watchDpi()
     window.addEventListener('resize', reportMetrics)
     window.visualViewport?.addEventListener('resize', reportMetrics)
     return () => {
       observer?.disconnect()
+      dpiQuery?.removeEventListener('change', onDpiChange)
       window.removeEventListener('resize', reportMetrics)
       window.visualViewport?.removeEventListener('resize', reportMetrics)
     }
