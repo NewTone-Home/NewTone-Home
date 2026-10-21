@@ -1,10 +1,16 @@
 export type VisualRect = { left: number; top: number; right: number; bottom: number }
 
-/** One screen-space gap for every frame; the SVG stroke has its own 1px inset. */
+/** World-local CSS units: gap 2 + stroke inset 1 = outer expansion 3; project once. */
 export const sceneFocusVisualGapPx = 2
 export const sceneFocusStrokeInsetPx = 1
 
 export type VisualScale = { x: number; y: number }
+
+/** Convert measured ink/neighbors before applying world-unit frame margins. */
+export function sceneVisualRectInLocalSpace(rect: VisualRect, origin: { left: number; top: number }, scale: VisualScale): VisualRect {
+  return { left: (rect.left - origin.left) / scale.x, right: (rect.right - origin.left) / scale.x,
+    top: (rect.top - origin.top) / scale.y, bottom: (rect.bottom - origin.top) / scale.y }
+}
 
 /**
  * Resolve the screen-to-local scale from the nearest ancestor with a real

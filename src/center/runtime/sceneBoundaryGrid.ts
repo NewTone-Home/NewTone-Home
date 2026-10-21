@@ -12,17 +12,18 @@ export type BoundaryGridCell = {
 }
 
 /**
- * The stage is authored in percentage coordinates, but glyph spacing is a
- * physical screen concern. Keep one spacing source and project it onto the
- * stage's two dimensions instead of authoring independent x/y steps.
+ * The mainline world is authored against one 1920×1080 reference. Viewport
+ * projection scales its fixed text, lattice and frames together. The legacy
+ * screen-spacing helper remains available to non-world callers.
  */
 export type SceneScreenMetrics = {
   width: number
   height: number
-  /** Viewport-based storefront typography; stage percentages still use width/height. */
+  /** Legacy viewport metadata; mainline world typography uses a fixed reference. */
   viewportWidth?: number
 }
 
+export const mainlineWorldFontSizePx = 14
 export const sharedBoundaryScreenSpacingPx = 28
 export const sharedFurnitureGlyphSpacingPx = 16
 /** Logical scene authoring reference. Distances are CSS px at 1:1. */

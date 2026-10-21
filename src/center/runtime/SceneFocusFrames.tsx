@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TransitionEvent as ReactTransitionEvent } from 'react'
 import { sceneFrameDefaultMotionMs, sceneFrameMotionMsForRect } from './sceneMotion'
-import { measureSceneCharacterRects, measureSceneCharacters, sceneElementVisualScale, sceneFrameBoundsInLocalSpace, sceneFocusVisualGapPx, sceneFocusStrokeInsetPx } from './sceneVisualBounds'
+import { measureSceneCharacterRects, measureSceneCharacters, sceneElementVisualScale, sceneVisualRectInLocalSpace, sceneFrameBoundsInLocalSpace, sceneFocusVisualGapPx, sceneFocusStrokeInsetPx } from './sceneVisualBounds'
 import { beginFrameAppearance, beginFrameRetraction, completeFrameTransition, frameShouldCollapse, frameVisualPhase, preserveFrameRetractCorner, resumeFrameAppearance, type SceneFrameRuntime, type SceneFrameTarget } from './sceneFrameLifecycle'
 import { createEndpointMeasurementScheduler } from './sceneFocusFrameEndpointMeasure'
 
@@ -217,11 +217,11 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         if (!parent || !stage) continue
         const characters = [...stage.querySelectorAll<HTMLElement>('[data-focus-visual-group]')]
           .filter(element => element.dataset.focusVisualGroup === group)
-        const rect = measureSceneCharacters(characters)
-        if (!rect) continue
+        const viewportRect = measureSceneCharacters(characters)
+        if (!viewportRect) continue
         const otherCharacters = [...stage.querySelectorAll<HTMLElement>('[data-scene-characters]')]
           .filter(element => !characters.some(target => target === element || target.contains(element) || element.contains(target)))
-        const neighbors = measureSceneCharacterRects(otherCharacters)
+        const viewportNeighbors = measureSceneCharacterRects(otherCharacters)
         const origin = parent.getBoundingClientRect()
         const parentStyle = getComputedStyle(parent)
         const worldScale = sceneElementVisualScale(parent.closest<HTMLElement>('.scene-mainline-world'))
@@ -236,6 +236,11 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         const localHeight = borderSize('y')
         const scaleX = origin.width > 0 && localWidth > 0 ? origin.width / localWidth : worldScale.x
         const scaleY = origin.height > 0 && localHeight > 0 ? origin.height / localHeight : worldScale.y
+        // Measurements arrive in viewport px. Convert once before computing
+        // margins and SVG geometry so gap/stroke scale with the world too.
+        const toLocal = (rect: Parameters<typeof sceneVisualRectInLocalSpace>[0]) => sceneVisualRectInLocalSpace(rect, origin, { x: scaleX, y: scaleY })
+        const rect = toLocal(viewportRect)
+        const neighbors = viewportNeighbors.map(toLocal)
         const nominalMargin = sceneFocusVisualGapPx + sceneFocusStrokeInsetPx
         const minMargin = sceneFocusStrokeInsetPx + .5
         const crowdingMargin = (distance: number) => Math.min(nominalMargin, Math.max(minMargin, minMargin + (distance - 1) / 2))
@@ -253,12 +258,12 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         })
         const width = rect.right - rect.left + leftMargin + rightMargin
         const height = rect.bottom - rect.top + topMargin + bottomMargin
-        const bounds = sceneFrameBoundsInLocalSpace(rect, origin, {
+        const bounds = sceneFrameBoundsInLocalSpace(rect, { left: 0, top: 0 }, {
           left: leftMargin,
           top: topMargin,
           right: rightMargin,
           bottom: bottomMargin,
-        }, { x: scaleX, y: scaleY })
+        }, { x: 1, y: 1 })
         updates.set(group, {
           duration: sceneFrameMotionMsForRect(width, height),
           geometry: sceneFocusFrameGeometry(width, height),
@@ -507,3 +512,4 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
   }, [runtimeSnapshot])
   return { renderFrame, remeasureGroup, motionDurationMs, maxMotionDurationMs, onPointerDownCapture, onPointerOverCapture, onPointerOutCapture, onClickCapture, requestedRetractionsComplete, isCollapsed }
 }
+

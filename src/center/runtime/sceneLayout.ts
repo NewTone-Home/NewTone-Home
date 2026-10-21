@@ -1,3 +1,4 @@
+import { mainlineWorldFontSizePx, sharedFurnitureGlyphSpacingPx } from './sceneBoundaryGrid'
 import type { CollisionBox, Point } from './sceneGeometry'
 import type { MainlineSceneDefinition, MainlineSceneEntity } from './mainlineScenes'
 import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
@@ -177,12 +178,9 @@ function mainlineEntityUsesVerticalText(entity: MainlineSceneEntity) {
   return (entity.kind === 'table' || entity.kind === 'seat') && (entity.facing === 'east' || entity.facing === 'west')
 }
 
-export function mainlineEntityFontSizePx(_entity: MainlineSceneEntity | null, screenMetrics: SceneScreenMetrics) {
-  // Keep the interaction footprint in lockstep with the mainline object CSS.
-  // The rendered object consumes the same measured stage-width basis through
-  // a CSS custom property. This keeps the footprint and focus frame aligned
-  // on responsive landscape tablet layouts as well as portrait layouts.
-  return Math.max(9, Math.min(16, screenMetrics.width * .0115))
+export function mainlineEntityFontSizePx(_entity: MainlineSceneEntity | null, _screenMetrics: SceneScreenMetrics) {
+  // The world projection scales text and geometry together exactly once.
+  return mainlineWorldFontSizePx
 }
 
 /**
@@ -194,15 +192,16 @@ export function mainlineLabelFootprint(
   label: string,
   position: Point,
   screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
-  options: { vertical?: boolean; visualScale?: number; lineHeight?: number } = {},
+  options: { vertical?: boolean; visualScale?: number; lineHeight?: number; glyphPitchPx?: number } = {},
 ): CollisionBox {
   const glyphCount = Math.max(1, Array.from(label).length)
   const fontSizePx = mainlineEntityFontSizePx(null, screenMetrics)
   const vertical = options.vertical ?? false
   const lineHeight = options.lineHeight ?? (vertical ? 1 : 1.2)
   const scale = Number.isFinite(options.visualScale) && (options.visualScale ?? 0) > 0 ? options.visualScale! : 1
-  const widthPx = vertical ? fontSizePx : glyphCount * fontSizePx
-  const heightPx = vertical ? glyphCount * fontSizePx : fontSizePx * lineHeight
+  const textExtent = glyphCount * (options.glyphPitchPx ?? fontSizePx)
+  const widthPx = vertical ? fontSizePx : textExtent
+  const heightPx = vertical ? textExtent : fontSizePx * lineHeight
   const width = Number(((widthPx * scale / screenMetrics.width) * 100).toFixed(4))
   const height = Number(((heightPx * scale / screenMetrics.height) * 100).toFixed(4))
   return {
@@ -308,6 +307,7 @@ export function mainlineEntityTextFootprint(
   return mainlineLabelFootprint(entity.label, position, screenMetrics, {
     vertical: mainlineEntityUsesVerticalText(entity),
     visualScale: entity.visualScale,
+    glyphPitchPx: ['fixture', 'table', 'seat'].includes(entity.kind) ? sharedFurnitureGlyphSpacingPx : undefined,
     lineHeight: entity.kind === 'table' || entity.kind === 'seat' ? 1 : 1.2,
   })
 }

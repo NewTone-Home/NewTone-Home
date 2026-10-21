@@ -55,13 +55,12 @@ type CameraScene = Pick<MainlineSceneDefinition, 'walkBounds'> & Partial<Pick<Ma
 
 /** Boundary anchors are glyph centers. Include their text box and focus frame
  * when deciding whether the complete scene fits, without changing world scale. */
-export function mainlineCameraVisualOutset(viewport: SceneScreenMetrics): Point {
+export function mainlineCameraVisualOutset(_viewport: SceneScreenMetrics): Point {
   const glyph = mainlineLabelFootprint('字', { x: 0, y: 0 }, sceneDesignReferenceMetrics)
-  const scale = mainlineWorldScale(viewport)
   const frameGap = sceneFocusVisualGapPx + sceneFocusStrokeInsetPx
   return {
-    x: glyph.width / 2 + frameGap / (sceneDesignReferenceMetrics.width * scale) * 100,
-    y: glyph.height / 2 + frameGap / (sceneDesignReferenceMetrics.height * scale) * 100,
+    x: glyph.width / 2 + frameGap / (sceneDesignReferenceMetrics.width) * 100,
+    y: glyph.height / 2 + frameGap / (sceneDesignReferenceMetrics.height) * 100,
   }
 }
 
