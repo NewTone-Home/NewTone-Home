@@ -16,6 +16,9 @@ describe('Cafe NPC rendered departure position',()=>{
  it('retains the chair-centered label while the actual sitting duty is active',()=>{
   const html=npcMarkup(135,12,'idle','lao-zhou.seated')
   expect(html).toContain('data-seat-entity-id="commercial-cafe-right-window-upper-group-chair-top"')
-  expect(html).toContain('left:141.79166666666666%;top:8.259066666666676%')
+  // The layout trial moved this same story chair. Keep the anchor contract,
+  // rather than asserting the previous three-table layout's numeric position.
+  const seat=snapshot.objects.get('commercial-cafe-right-window-upper-group-chair-top')!.position
+  expect(html).toContain(`left:${seat.x}%;top:${seat.y}%`)
  })
 })

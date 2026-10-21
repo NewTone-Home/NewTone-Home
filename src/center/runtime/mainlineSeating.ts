@@ -18,15 +18,15 @@ export function mainlineSceneOccupiedSeatIds(scene: MainlineSceneDefinition, pla
   return occupiedSeatIds
 }
 
-export function isMainlineSeatAvailable(scene: MainlineSceneDefinition, seatId: string, playerSeatId: string | null = null) {
+export function isMainlineSeatAvailable(scene: MainlineSceneDefinition, seatId: string, playerSeatId: string | null = null, occupiedSeatIds: ReadonlySet<string> = mainlineSceneOccupiedSeatIds(scene, playerSeatId)) {
   const seat = scene.objects.find((entity) => entity.id === seatId)
-  return Boolean(seat?.seat) && !mainlineSceneOccupiedSeatIds(scene, playerSeatId).has(seatId)
+  return Boolean(seat?.seat) && !occupiedSeatIds.has(seatId)
 }
 
 /** The page owns this transient value; no player seating state is saved. */
-export function nextMainlinePlayerSeatId(scene: MainlineSceneDefinition, currentSeatId: string | null, requestedSeatId: string | null) {
+export function nextMainlinePlayerSeatId(scene: MainlineSceneDefinition, currentSeatId: string | null, requestedSeatId: string | null, occupiedSeatIds: ReadonlySet<string> = mainlineSceneOccupiedSeatIds(scene, currentSeatId)) {
   if (!requestedSeatId) return null
-  return isMainlineSeatAvailable(scene, requestedSeatId, currentSeatId) ? requestedSeatId : currentSeatId
+  return isMainlineSeatAvailable(scene, requestedSeatId, currentSeatId, occupiedSeatIds) ? requestedSeatId : currentSeatId
 }
 
 export function isMainlineSeatLabelSuppressed(entity: MainlineSceneEntity, occupiedSeatIds: ReadonlySet<string>) {

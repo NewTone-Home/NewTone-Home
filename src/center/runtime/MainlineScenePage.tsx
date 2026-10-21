@@ -1707,7 +1707,7 @@ export function MainlineScenePage({
     if (!requestAlreadyRecorded) pendingInteractionAfterTraversalRef.current = null
     if (!requestAlreadyRecorded) onInteractionAnalytics?.('requested', entityId, passage ? 'door' : entity.kind)
     if (entity.kind === 'seat' && entity.seat) {
-      const nextSeatId = nextMainlinePlayerSeatId(scene, activePlayerSeatId, entity.id)
+      const nextSeatId = nextMainlinePlayerSeatId(scene, activePlayerSeatId, entity.id, occupiedSeatIds)
       if (nextSeatId !== entity.id) {
         stopMovement()
         onInteractionAnalytics?.('blocked', entity.id, 'seat', 'already-seated')
@@ -1858,7 +1858,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
