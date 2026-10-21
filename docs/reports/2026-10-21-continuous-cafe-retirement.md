@@ -47,3 +47,18 @@ B 未发布、未 push；4173/隧道未改。矿区尺寸/颜色、四店新内�
 - CSS `index-BsDrr4lS.css` 200381 bytes，SHA256 `67dbb36fb235e8f7493fda38992e06ed6f9b88cfb724e7b928fefe6c4aa5664e`。
 - 最新定向（含时钟）46/46；最新全量（权限绕行与时钟修正后）725/785，60 失败，详见 `.tmp/cafe-retirement-nav-all-tests.json`。不得把旧实体断言直接全部标为无效，需要逐项迁移与复核后再收口。独立 QA 待进行，不能发布。
 - Notion 原板子页已正文追加实际 diff、函数原因、测试与 A 发布拒绝，并回读确认 SHA、资源哈希和 CreateProcess 拒绝记录可见： https://app.notion.com/p/400b138d1e11816da99bc4b4d90f873d 。
+## 独立QA后两项真实问题修复（4200未换包）
+
+父QA指出此前实际离店说法不成立：Renderer始终传配置座位，visualPosition无条件椅中心，运行位置变化被遮盖。已收回旧结论。
+
+- `mainlineSeating/mainlineNpcVisualSeatId`：初始/当前坐席行为才返回视觉seat锚；移动或不同duty（含等待/阻塞）使用真实运行位置。Renderer接此函数。原座位占用释放、门预约和剧情权限未改。
+- `mainlineScenes/compileMainlineFrameUnits`：此前Cafe只有门及左右一格物理base，其余可见窗墙为visualOnly。B员工区绕行暴露这段误判可走的窗墙带。本次仅Cafe补全现有canonical字符格的常驻物理base，门/旧flank IDs及passage collision范围不变；额外窗墙格不挂passageId、不会随开门变可穿。不是加虚构房体或放宽窗墙。
+- `continuousCafeRenderedDeparture.test.tsx` 实际Renderer HTML回归：两个不同离座运行点必须渲染两个位置，不只是辅助函数测试；坐席行为仍绘在椅中心。`continuousCafeActualDeparture` 验窗墙采样开/关门均不可占、远窗侧到真门路线逐段在室内。
+- 5条存档契约只更新已退役scene规范化期待，保进度/手机及旧cleanup不回写检查，未删除测试。家具/人数/旧独立几何契约留待最终布局批次，不为凑绿批删。
+
+真实浏览器 `.tmp/cafe-visible-window-browser/results.json`：相同QA窗侧存档点向外街道点击，异常窗墙带采样0，最终(147.903,42.8025)；离店记录52个不同老周DOM可见位置，经门中心x122.833、y31.886→34.968后门生命周期结束再departed，非原椅静止消失。两组无pageerror。
+
+一度用普通findMainlinePath的null误判两字NPC过28门必阻塞；已撤回该判断和改“人”提案。原门生命周期专用过门流程在获准/开门后用既有transit zone，本次未改，真实可见过门已采到。保留老周文本/角色/原足迹，不偷偷缩碰撞或扩窗墙。
+
+7文件定向40/40、typecheck和Vite build通过；未重跑完整剧情和全量套件，不能把原60失败按算术直接宣称剩55已测。实体手机/Safari未测，独立QA待复验。
+候选4203使用 `index-dOp1fzrV.js` 837728 bytes，SHA256 47aaceb1d2e95228b76dc6aea32ce8964c2365a7871e60d93261376ade59167b；CSS仍index-BsDrr4lS.css200381。清理未用import后重建与4203字节哈希一致。矿区独立4202未混入；A发布继续停止，公网不变。

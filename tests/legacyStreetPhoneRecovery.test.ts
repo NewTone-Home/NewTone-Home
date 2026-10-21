@@ -6,7 +6,9 @@ const storage=()=>{const data=new Map([['newtone-public-release-cutover-v1','cen
 describe('one-time legacy street phone compatibility without restarting progress',()=>{
  it.each([undefined,1])('repairs old version %s while retaining every other save field',version=>{
   const source={...createInitialPlayerSave(),_version:version,currentSceneId:'commercial-street',phoneDevice:'surface',currentPosition:{x:135,y:-20},scenePositions:{'commercial-street':{x:135,y:-20},'jijia-ancestral-home':{x:25,y:50},'commercial-cafe':{x:58,y:68}},sceneState:{'commercial-street':{commercialStreetMilkTeaHeldDrink:'milk-tea',commercialStreetMilkTeaAppUnlocked:true,orderStatus:'ready'},'commercial-cafe':{commercialCafeStoryStatus:'complete',narrativeCursor:7}},phoneContactNotes:{'lao-zhou':'kept'},updatedAt:1234}
-  expect(sanitizePlayerSave(source,'commercial-cafe')).toEqual({...source,_version:PLAYER_SAVE_VERSION,phoneDevice:'inner'})
+  const { 'commercial-cafe': _legacyPosition, ...livePositions } = source.scenePositions
+  expect(sanitizePlayerSave(source,'commercial-cafe')).toEqual({...source,_version:PLAYER_SAVE_VERSION,phoneDevice:'inner',scenePositions:livePositions})
+  expect(sanitizePlayerSave(source,'commercial-cafe').sceneState).toEqual(source.sceneState)
   expect(commercialStreetMilkTeaHeld(sanitizePlayerSave(source,'commercial-cafe').sceneState['commercial-street'])).toBe(true)
  })
  it('persists the repair and does not rewrite subsequent intentional surface-phone choices',()=>{

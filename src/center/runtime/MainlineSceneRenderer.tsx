@@ -23,8 +23,7 @@ import { mainlineEchoLayout, mainlineSpeakerAnchor } from './mainlineEchoLayout'
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
-import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds, mainlineSeatedActorVisualPosition } from './mainlineSeating'
-import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
+import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds, mainlineSeatedActorVisualPosition, mainlineNpcVisualSeatId } from './mainlineSeating'
 import type { NpcRuntimeSnapshot } from './npcCore'
 import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisualState'
 import { activeStorefrontInteriorOwner, storefrontCellVisualState, storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDirection, storefrontLabelRollDurationMs, storefrontPresentationRetractsFrame, storefrontDoorFrameShouldRetract, storefrontGeometryCellShouldRender, type StorefrontPresentationPhase } from './storefrontPresentation'
@@ -1387,7 +1386,7 @@ export function MainlineSceneRenderer({
             if (npc.roomId && npc.roomId !== activeShellRoomId) return null
             const npcPosition = npcPositions?.get(npc.id) ?? resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
             const npcSnapshot = npcRuntimeSnapshots?.get(npc.id)
-            const npcSeatId = mainlineNpcStagedSeatId(scene, npc.id)
+            const npcSeatId = mainlineNpcVisualSeatId(scene, npc.id, npcSnapshot)
             return <MemoMainlineNpcActor
               key={npc.id}
               sceneId={scene.id}

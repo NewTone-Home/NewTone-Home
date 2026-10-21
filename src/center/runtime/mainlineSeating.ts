@@ -1,7 +1,8 @@
 import type { MainlineSceneDefinition } from './mainlineScenes'
 import type { MainlineSceneEntity } from './mainlineScenes'
 import type { Point } from './sceneGeometry'
-import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
+import type { NpcRuntimeSnapshot } from './npcCore'
+import { mainlineNpcStagedSeatId, mainlineNpcStagingBehavior } from './mainlineNpcStaging'
 
 /**
  * Occupancy is a scene condition rather than chair or NPC identity. NPC scene
@@ -47,6 +48,16 @@ export function mainlineSeatedActorVisualPosition(
   renderedSeatCenter: Point | undefined,
 ): Point {
   return seatId && renderedSeatCenter ? renderedSeatCenter : runtimePosition
+}
+
+/** Staging is an initial sitting pose, not a permanent visual constraint on
+ * a different live duty. Occupancy release remains owned by movement. */
+export function mainlineNpcVisualSeatId(scene: MainlineSceneDefinition, npcId: string, snapshot?: Pick<NpcRuntimeSnapshot, 'phase' | 'dutyId'>) {
+  const seatId = mainlineNpcStagedSeatId(scene, npcId)
+  if (!seatId) return undefined
+  const staging = mainlineNpcStagingBehavior(scene, npcId)
+  if (snapshot?.phase === 'moving' || snapshot?.dutyId && snapshot.dutyId !== staging?.dutyId) return undefined
+  return seatId
 }
 
 /** A seat hint belongs to this moment's interaction state, never to the chair itself. */

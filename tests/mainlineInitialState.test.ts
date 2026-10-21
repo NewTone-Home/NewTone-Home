@@ -26,9 +26,16 @@ describe('paired mainline initial state without resetting valid journeys', () =>
     expect(result.scenePositions['commercial-street']).toBeUndefined()
     expect(result.scenePositions['zhongshuyuan-office']).toEqual(migratePreGridPosition('zhongshuyuan-office',{x:20,y:80}))
   })
-  it.each(['inner', 'surface'] as const)('preserves valid saved position and %s phone, even if a test URL selects another scene', phoneDevice => {
+  it.each(['inner', 'surface'] as const)('canonicalizes a valid legacy Cafe position while preserving the %s phone and other progress', phoneDevice => {
     const saved = { ...createInitialPlayerSave('commercial-cafe'), phoneDevice, currentPosition: { x: 58, y: 68 }, scenePositions: { 'commercial-cafe': { x: 58, y: 68 } }, updatedAt: 1000 }
-    expect(sanitizePlayerSave(saved, 'commercial-street')).toMatchObject(saved)
+    const migrated = sanitizePlayerSave(saved, 'commercial-street')
+    const { currentSceneId: _scene, currentPosition: _point, scenePositions: _positions, ...progress } = saved
+    expect(migrated).toMatchObject(progress)
+    expect(migrated.currentSceneId).toBe('commercial-street')
+    expect(migrated.currentPosition!.x).toBeCloseTo(139.96875, 5)
+    expect(migrated.currentPosition!.y).toBeCloseTo(13.48043, 5)
+    expect(migrated.scenePositions['commercial-street']).toEqual(migrated.currentPosition)
+    expect(migrated.scenePositions['commercial-cafe']).toBeUndefined()
     expect(resolveMainlineSceneId('?scene=jijia-ancestral-home')).toBe('jijia-ancestral-home')
     expect(resolveMainlineSceneId('?scene=missing-scene')).toBeNull()
   })

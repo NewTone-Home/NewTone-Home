@@ -11,7 +11,7 @@ import {
   recordPlayerSceneState,
   savePlayerSave,
 } from '../src/center/runtime/playerSave'
-import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { mainlineScenes, legacyCafeEntryPosition } from '../src/center/runtime/mainlineScenes'
 import { PUBLIC_RELEASE_CUTOVER_ID, PUBLIC_RELEASE_CUTOVER_STORAGE_KEY } from '../src/services/publicReleaseMigration'
 
 function createStorage() {
@@ -76,15 +76,16 @@ describe('player local save contract', () => {
     })
     coordinator.queue('commercial-street', { x: 91, y: 32 })
     coordinator.commit(current => ({ ...current, currentSceneId: 'commercial-cafe', currentPosition: { x: 12, y: 18 } }))
+    const arrived = legacyCafeEntryPosition({ x: 12, y: 18 })
     expect(loadPlayerSave(storage)).toMatchObject({
-      currentSceneId: 'commercial-cafe',
-      currentPosition: { x: 12, y: 18 },
-      scenePositions: { 'commercial-street': { x: 91, y: 32 } },
+      currentSceneId: 'commercial-street',
+      currentPosition: arrived,
+      scenePositions: { 'commercial-street': arrived },
     })
     const writesAfterTransition = writes
     coordinator.flush('commercial-street') // outgoing scene effect cleanup
     expect(writes).toBe(writesAfterTransition)
-    expect(loadPlayerSave(storage).currentSceneId).toBe('commercial-cafe')
+    expect(loadPlayerSave(storage)).toMatchObject({ currentSceneId: 'commercial-street', currentPosition: arrived })
   })
 
   it('flushes the last queued sample from hidden and pagehide lifecycle callbacks', () => {
