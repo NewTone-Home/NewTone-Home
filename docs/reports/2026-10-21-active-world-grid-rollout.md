@@ -71,3 +71,55 @@ Full actual code diff: `git show 9ace6ee`; prototype and final evidence are pres
 HTML and all four referenced assets read back HTTP200, exact byte/SHA match (`.tmp/grid-review-http.json`). Normal sandbox localhost access returned EACCES; the authorized read-only escalated check succeeded. No outstanding permission denial.
 
 Public4173/QuickTunnel remains027f31. No push/main/staging/Vercel or real save modification. Candidate is ready for independent QA; known baseline failures and untested items prevent calling this full acceptance or publishing it now.
+
+## Follow-up: one first-shop entrance for new games, restart and taxi
+
+Application commit **bae6afb20ce8955d4e3a25a30f008b49e76c4197** follows the batch grid candidate. Parent confirmed normal taxi arrival on027f31 was `(34,50)`, horizontally near the second shop. Author explicitly requires both new-game birth and taxi arrival at the first fruit-tea shop's public road; ordinary continuation keeps its saved location.
+
+### Actual code diff and paths
+
+Only `mainlineSceneModel.ts` runtime data changed (20 additions/1 deletion), plus47 lines of new `tests/commercialStreetEntrance.test.ts`:
+
+```diff
+- initialPlayerPosition: authoredPoint(34, 50),
++ initialPlayerPosition: commercialStreetEntrance,
++ rideArrivalPosition: commercialStreetEntrance,
+```
+
+The authored entrance uses the first storefront's portal tangent and the midpoint between north/south facades. After `alignSceneBlueprint` has produced the actual grid geometry, the final entrance is resolved from that first portal and its public room, rather than copying an old numeric x:
+
+```ts
+const entrancePortal = alignedStreet.portals.find(portal => portal.id === commercialStreetStorefronts[0]!.portalId)!
+const entranceLane = alignedStreet.scene.rooms!.find(room => room.id === entrancePortal.fromRoomId)!
+const alignedStreetEntrance = {
+  x: entrancePortal.endpoint.doorPosition.x,
+  y: entranceLane.bounds.y + entranceLane.bounds.height / 2,
+}
+alignedStreet.scene.initialPlayerPosition = alignedStreetEntrance
+alignedStreet.scene.rideArrivalPosition = alignedStreetEntrance
+```
+
+Result: **(22.2083333333,50.2590666667)**, first fruit-tea frontage/public-road center. No door, room, wall, furniture, navigation algorithm or scale changed by this follow-up.
+
+- Missing save/new game: paired default remains commercial-street+inner phone; `currentPosition:null` makes `MainlineScenePage.initialPositionForEntry` select this scene entrance.
+- Explicit restart: existing `clearPlayerSave` removes current/legacy coordinates; subsequent normal Landing entry takes the same initial path. No new automatic reset is added.
+- Normal taxi: existing `CenterExperience.handleSceneTransition` and Page `spawnMode==='ride'` select the now-explicit `rideArrivalPosition`, overriding a remembered street location only for that trip.
+- Ordinary continuation: Page still selects `resumePosition`; neither save sanitization nor grid migration was changed here. Test-grid marker1 positions remain exactly as saved. Older unmarked positions still receive only the previously documented one-time geometry migration.
+- Explicit test URLs/explicit entry positions retain their existing semantics; not repurposed as forced new-game birth.
+
+### Validation and frozen replacement QA candidate
+
+- **4 existing test files /32 tests pass**, including6 new entrance cases,13 batch-grid cases,8 paired-initial-state cases and5 street-camera cases (`.tmp/entrance-tests.json`). The command also named nonexistent `tests/playerSave.test.ts`; Vitest did not run that name, and it is not counted as coverage.
+- TypeScript `tsc --noEmit`, isolated Vite build and `git diff --check` pass. Only the existing large-chunk advisory remains. Whole-suite753/770 with17 control-reproduced failures above was not rerun for this two-file entrance follow-up; it remains an explicit limitation, not a green full-suite claim.
+- Actual fresh Chrome/DSF1 at1280x800 and390x844: normal Landing entry, isolated restart, and normal Office phone buttons (open phone -> ride -> commercial street -> vehicle -> confirm) all reach the exact entrance and camera page one. Office test starts at its real pickup exit; no order, boarding callback or street route is injected.
+- New-game/taxi arrivals accept a real click on nearby public road; refresh retains the walked position. Separate ordinary continuation at(80,50) retains that point across refresh, plus Cafe completion and contact note. Six contexts have no page errors. Screenshot/DOM/save evidence: `.tmp/entrance-browser/results.json` and six PNGs. Restart browser smoke mirrors only `clearPlayerSave` keys inside its own fresh context; the real clearing function is separately unit-tested. No user browser storage was accessed.
+- Initial exploratory browser runs clicked before the Landing/travel curtain finished; these were not recorded as successful walking tests. Final evidence waits for transitions to finish. The continuation check does not claim a road click through the phone overlay as navigation evidence.
+
+**New frozen candidate: http://127.0.0.1:4192/**, PID47012, output `.tmp/grid-entrance-review-dist`. Application SHAbae6afb above.4191 remains unchanged for comparison.
+
+| File | bytes | SHA256 |
+| --- | ---: | --- |
+| index-4KS_-7ar.js |840516|bb3d95f51d47ea9c22b89c1d9792ad52e2c27b040d48dd78805183ed7dfccae6|
+| index-BsDrr4lS.css |200381|67dbb36fb235e8f7493fda38992e06ed6f9b88cfb724e7b928fefe6c4aa5664e|
+
+HTML and all four referenced assets read back HTTP200 with matching bytes/SHA (`.tmp/entrance-review-http.json`). Browser processes closed after checks. Public4173/QuickTunnel stays027f31; no push or publication. Ready for combined independent QA, not overall acceptance. Physical devices/Safari, full story and inherited baseline failures remain as listed above.
