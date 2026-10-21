@@ -512,4 +512,3 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
   }, [runtimeSnapshot])
   return { renderFrame, remeasureGroup, motionDurationMs, maxMotionDurationMs, onPointerDownCapture, onPointerOverCapture, onPointerOutCapture, onClickCapture, requestedRetractionsComplete, isCollapsed }
 }
-

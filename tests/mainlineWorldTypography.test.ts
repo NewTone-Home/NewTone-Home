@@ -34,4 +34,3 @@ describe('fixed world typography and focus units',()=>{
     expect(css).not.toContain('vector-effect: non-scaling-stroke')
   })
 })
-

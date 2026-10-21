@@ -61,6 +61,3 @@ describe('navigation query reuse and obstacle broad phase',()=>{
     }finally{spy.mockRestore()}
   })
 })
-
-
-
