@@ -8,7 +8,7 @@ import { applyPublicReleaseCutover } from '../../services/publicReleaseMigration
 import { cleanPhoneCallHistory, cleanPhoneContactNotes, cleanPhoneNotes, createInitialPhoneNotes, type PhoneCallRecord, type PhoneNote } from './phonePersonalData'
 
 export const PLAYER_SAVE_STORAGE_KEY = 'newtone-player-save-v1'
-export const PLAYER_SAVE_VERSION = 1
+export const PLAYER_SAVE_VERSION = 2
 const LEGACY_PHONE_STORAGE_KEYS = ['newtone.mainline.carried-phone.v2', 'newtone.mainline.carried-phone.v1']
 const LEGACY_POSITION_STORAGE_KEY = 'newtone.mainline.scene-positions.v2'
 
@@ -140,7 +140,9 @@ function readLegacyPlayerSave(storage: PlayerSaveStorage | null, fallbackSceneId
     migrated.currentSceneId = initialMainlineSceneId
     migrated.phoneDevice = initialMainlinePhoneDevice
   }
-  return hasLegacyValue ? migrated : createInitialPlayerSave(fallbackSceneId)
+  return hasLegacyValue
+    ? sanitizePlayerSave({ ...migrated, _version: 1 }, fallbackSceneId)
+    : createInitialPlayerSave(fallbackSceneId)
 }
 
 export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSceneId): PlayerSave {
@@ -151,7 +153,14 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
   const currentSceneId = validCore
     ? source.currentSceneId as MainlineSceneId
     : initialMainlineSceneId
-  const phoneDevice = validCore ? source.phoneDevice as PhoneDevice : initialMainlinePhoneDevice
+  const savedVersion = Number(source._version ?? 0)
+  // Version1 treated a valid street + surface-phone pair as resumable, even
+  // though that phone is offline here and the street has no swap terminal.
+  // Repair only that old combination; keep position/progression and respect
+  // deliberate phone choices made after this migration has been saved.
+  const repairLegacyStreetPhone = validCore && currentSceneId === 'commercial-street'
+    && source.phoneDevice === 'surface' && (!Number.isFinite(savedVersion) || savedVersion < 2)
+  const phoneDevice = repairLegacyStreetPhone ? 'inner' : validCore ? source.phoneDevice as PhoneDevice : initialMainlinePhoneDevice
   const scenePositions = cleanScenePositions(source.scenePositions)
   if (!validCore) delete scenePositions[initialMainlineSceneId]
   const storyStage = source.storyClock?.stage
