@@ -1664,6 +1664,12 @@ const commercialStreetRearDoorPortals: MainlineScenePortalBlueprint[] = commerci
   }
 })
 
+// The first fruit-tea frontage is the district entrance. Keep a separate
+// ride arrival so a remembered journey never overrides a taxi drop-off.
+const commercialStreetEntrance = authoredPoint(
+  commercialStreetPortalTangent(commercialStreetStorefronts[0]!),
+  (commercialStreetFacadeNorthY + commercialStreetFacadeSouthY) / 2,
+)
 const commercialStreetBlueprint: MainlineSceneBlueprint = {
   id: 'commercial-street',
   title: '第一章 · 商业街',
@@ -1720,7 +1726,8 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
       const first = commercialStreetShellFurniture.entities.find((entity) => entity.groupId === id)!
       return { id, anchor: first.position, entityIds: commercialStreetShellFurniture.entities.filter((entity) => entity.groupId === id).map((entity) => entity.id) }
     }),
-    initialPlayerPosition: authoredPoint(34, 50),
+    initialPlayerPosition: commercialStreetEntrance,
+    rideArrivalPosition: commercialStreetEntrance,
   },
   portals: [...commercialStreetPortals, ...commercialStreetRearDoorPortals],
   interactionText: { 'street-cafe-entry': '咖啡馆旧内容尚待迁移；当前街门进入的是沿街空壳。' },
@@ -2455,6 +2462,18 @@ const authoredMainlineSceneBlueprints: Record<MainlineSceneId, MainlineSceneBlue
 }
 
 export const mainlineSceneBlueprints = Object.fromEntries(Object.entries(authoredMainlineSceneBlueprints).map(([id,blueprint])=>[id,alignSceneBlueprint(blueprint)])) as Record<MainlineSceneId,MainlineSceneBlueprint>
+
+// Resolve the entrance from aligned geometry, rather than retaining the old
+// rounded facade coordinate. The lane midpoint is outside all shop interiors.
+const alignedStreet = mainlineSceneBlueprints['commercial-street']
+const entrancePortal = alignedStreet.portals.find(portal => portal.id === commercialStreetStorefronts[0]!.portalId)!
+const entranceLane = alignedStreet.scene.rooms!.find(room => room.id === entrancePortal.fromRoomId)!
+const alignedStreetEntrance = {
+  x: entrancePortal.endpoint.doorPosition.x,
+  y: entranceLane.bounds.y + entranceLane.bounds.height / 2,
+}
+alignedStreet.scene.initialPlayerPosition = alignedStreetEntrance
+alignedStreet.scene.rideArrivalPosition = alignedStreetEntrance
 
 // A cross-scene arrival belongs to the destination doorway, not to the
 // source scene's coordinate transform. Resolve after every scene is aligned.
