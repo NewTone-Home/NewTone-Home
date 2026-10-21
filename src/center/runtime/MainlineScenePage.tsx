@@ -200,6 +200,7 @@ export function MainlineScenePage({
   onRuntimePositionChange,
   onPlayerMovementStateChange,
   onSceneReady,
+  presentationReady = true,
   walkRequest,
   phoneOpen = false,
   onPhoneDismiss,
@@ -239,6 +240,7 @@ export function MainlineScenePage({
   onRuntimePositionChange?: (sceneId: MainlineSceneId, position: Point, context: MainlineRideWalkingContext) => void
   onPlayerMovementStateChange?: (moving: boolean) => void
   onSceneReady?: () => void
+  presentationReady?: boolean
   walkRequest?: { id: number; point: Point } | null
   phoneOpen?: boolean
   onPhoneDismiss?: () => void
@@ -588,7 +590,7 @@ export function MainlineScenePage({
   const internalMovement = useFreeRoamMovement(initialPosition)
   const { position, moving, moveAlong: rawMoveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
   const cameraOffset = useMainlineCamera(scene, position, embedded, viewportMetrics)
-  const storefrontPresentation = useStorefrontPresentation(scene, position)
+  const storefrontPresentation = useStorefrontPresentation(scene, position, presentationReady)
   const reportedCafeRevealRef = useRef(false)
   const cafeStorefrontPhase = scene.id === 'commercial-street'
     ? storefrontPresentation.phaseByStorefront.get('commercial-cafe-slot')

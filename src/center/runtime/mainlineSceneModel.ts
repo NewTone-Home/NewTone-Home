@@ -1668,7 +1668,7 @@ const commercialStreetRearDoorPortals: MainlineScenePortalBlueprint[] = commerci
 // ride arrival so a remembered journey never overrides a taxi drop-off.
 const commercialStreetEntrance = authoredPoint(
   commercialStreetPortalTangent(commercialStreetStorefronts[0]!),
-  (commercialStreetFacadeNorthY + commercialStreetFacadeSouthY) / 2,
+  commercialStreetFacadeNorthY + 6,
 )
 const commercialStreetBlueprint: MainlineSceneBlueprint = {
   id: 'commercial-street',
@@ -2464,13 +2464,12 @@ const authoredMainlineSceneBlueprints: Record<MainlineSceneId, MainlineSceneBlue
 export const mainlineSceneBlueprints = Object.fromEntries(Object.entries(authoredMainlineSceneBlueprints).map(([id,blueprint])=>[id,alignSceneBlueprint(blueprint)])) as Record<MainlineSceneId,MainlineSceneBlueprint>
 
 // Resolve the entrance from aligned geometry, rather than retaining the old
-// rounded facade coordinate. The lane midpoint is outside all shop interiors.
+// rounded facade coordinate. Use the existing public-side approach threshold.
 const alignedStreet = mainlineSceneBlueprints['commercial-street']
 const entrancePortal = alignedStreet.portals.find(portal => portal.id === commercialStreetStorefronts[0]!.portalId)!
-const entranceLane = alignedStreet.scene.rooms!.find(room => room.id === entrancePortal.fromRoomId)!
 const alignedStreetEntrance = {
   x: entrancePortal.endpoint.doorPosition.x,
-  y: entranceLane.bounds.y + entranceLane.bounds.height / 2,
+  y: entrancePortal.endpoint.threshold.y,
 }
 alignedStreet.scene.initialPlayerPosition = alignedStreetEntrance
 alignedStreet.scene.rideArrivalPosition = alignedStreetEntrance

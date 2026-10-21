@@ -9,6 +9,7 @@ import {
   nextStorefrontPresentationPhase,
   storefrontPresentationHandoffSource,
   storefrontRestoreDelayMs,
+  storefrontEntryRevealDelayMs,
   type StorefrontPresentationEvent,
   type StorefrontPresentationPhase,
 } from './storefrontPresentation'
@@ -17,13 +18,19 @@ import {
  * Owns only the visual cover over portal storefronts. Passage traversal,
  * navigation, collision, and door lifecycle remain outside this hook.
  */
-export function useStorefrontPresentation(scene: MainlineSceneDefinition, position: Point) {
+export function useStorefrontPresentation(scene: MainlineSceneDefinition, position: Point, presentationReady = true) {
+  const [approachReady, setApproachReady] = useState(presentationReady)
+  useEffect(() => {
+    if (!presentationReady) { setApproachReady(false); return }
+    const timer = window.setTimeout(() => setApproachReady(true), storefrontEntryRevealDelayMs)
+    return () => window.clearTimeout(timer)
+  }, [presentationReady])
   const [phaseByStorefront, setPhaseByStorefront] = useState<ReadonlyMap<string, StorefrontPresentationPhase>>(new Map())
   const switchableStorefronts = useMemo(
     () => scene.storefronts.filter((storefront) => storefront.portalId && storefront.characterSwitch),
     [scene.storefronts],
   )
-  const activeStorefrontId = activeStorefrontPresentationOwner(scene, position)
+  const activeStorefrontId = activeStorefrontPresentationOwner(scene, position, presentationReady && approachReady)
   const interiorStorefrontId = activeStorefrontInteriorOwner(scene, position)
   const handledOwnerRef = useRef<string | null | undefined>(undefined)
   const nearRef = useRef(new Map<string, boolean>())

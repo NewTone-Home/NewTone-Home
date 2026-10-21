@@ -608,6 +608,7 @@ export default function CenterExperience({
       }}
       onExternalReturn={snapshot ? undefined : retractPhone}
       onSceneReady={snapshot ? undefined : handleSceneReady}
+      presentationReady={!snapshot && entryPhase === 'active' && !longDistanceTravel}
       phoneOpen={phoneOpen}
       onPhoneDismiss={snapshot ? undefined : retractPhone}
       onReadingStateChange={snapshot ? undefined : handleSceneReadingStateChange}

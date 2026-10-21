@@ -5,19 +5,27 @@ import { commercialStreetCameraPages, commercialStreetPageIndex } from '../src/c
 import { isWalkableMainlinePoint, resolveMainlineSafeSpawnPosition } from '../src/center/runtime/mainlineNavigation'
 import { clearPlayerSave, createInitialPlayerSave, loadPlayerSave, sanitizePlayerSave } from '../src/center/runtime/playerSave'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
+import { activeStorefrontPresentationOwner, activeStorefrontInteriorOwner } from '../src/center/runtime/storefrontPresentation'
 
 const scene = mainlineScenes['commercial-street']
 const options = { screenMetrics: sceneDesignReferenceMetrics }
 
 describe('first fruit-tea frontage district entrance', () => {
-  it('derives both arrivals from the aligned first door and the public lane midpoint', () => {
+  it('derives both arrivals from the aligned first door public-side approach', () => {
     const blueprint = mainlineSceneBlueprints['commercial-street']
     const front = blueprint.portals.find(portal => portal.id === 'commercial-north-slot-1-entry')!
     const lane = scene.rooms.find(room => room.id === front.fromRoomId)!
-    expect(scene.initialPlayerPosition).toEqual({ x: front.endpoint.doorPosition.x, y: lane.bounds.y + lane.bounds.height / 2 })
+    expect(scene.initialPlayerPosition).toEqual({ x: front.endpoint.doorPosition.x, y: front.endpoint.threshold.y })
+    expect(scene.initialPlayerPosition.y).toBeLessThan(lane.bounds.y + lane.bounds.height / 2)
+    expect(activeStorefrontInteriorOwner(scene, scene.initialPlayerPosition)).toBeNull()
     expect(scene.rideArrivalPosition).toEqual(scene.initialPlayerPosition)
     expect(isWalkableMainlinePoint(scene.initialPlayerPosition, scene, {}, options)).toBe(true)
     expect(resolveMainlineSafeSpawnPosition(scene, scene.initialPlayerPosition, {}, options)).toEqual(scene.initialPlayerPosition)
+  })
+
+  it('holds the visible first facade baseline until entry is ready, then uses its normal proximity owner', () => {
+    expect(activeStorefrontPresentationOwner(scene, scene.initialPlayerPosition, false)).toBeNull()
+    expect(activeStorefrontPresentationOwner(scene, scene.initialPlayerPosition, true)).toBe('commercial-north-slot-1')
   })
 
   for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 800 }, { width: 1920, height: 1080 }]) {

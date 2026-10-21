@@ -8,6 +8,9 @@ export type StorefrontPresentationPhase = 'baseline' | 'retracting' | 'revealing
 /** Shared duration for the storefront label's reveal and restoration motion. */
 export const storefrontLabelRollDurationMs = 700
 
+/** Briefly show the loaded facade before its existing proximity animation. */
+export const storefrontEntryRevealDelayMs = 350
+
 export const storefrontLingerDurationMs = 3000
 
 export function storefrontRestoreDelayMs(departedAt: number, now: number) {
@@ -91,7 +94,9 @@ export function nextStorefrontPresentationPhase(
 export function activeStorefrontPresentationOwner(
   scene: MainlineSceneDefinition,
   position: Point,
+  presentationReady = true,
 ) {
+  if (!presentationReady) return null
   return scene.storefronts
     .filter((storefront) => {
       const connection = storefrontRoomConnection(scene, storefront)
