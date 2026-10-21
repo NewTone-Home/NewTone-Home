@@ -1395,9 +1395,10 @@
   font-size: var(--scene-mainline-object-font-size, 16px);
 }
 
-/* Adjacent letters inside furniture use the 16-unit center pitch: 14 type + 2 tracking. */
+/* At 16-unit type, adjacent furniture glyphs already have a 16-unit advance.
+   Extra tracking would enlarge both horizontal and upright vertical runs. */
 .scene-mainline-world .scene-mainline-object--fixture .scene-mainline-object__label,
 .scene-mainline-world .scene-mainline-object--table .scene-mainline-object__label,
 .scene-mainline-world .scene-mainline-object--seat .scene-mainline-object__label {
-  letter-spacing: 2px;
+  letter-spacing: 0;
 }

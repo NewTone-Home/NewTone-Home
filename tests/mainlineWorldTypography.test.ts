@@ -32,5 +32,6 @@ describe('fixed world typography and focus units',()=>{
     expect(css).not.toMatch(/font-size:\s*min\(1em, calc\(\(100cq/)
     expect(css).toMatch(/\.scene-commercial-question-mark\s*\{[^}]*font-size: 38px/s)
     expect(css).not.toContain('vector-effect: non-scaling-stroke')
+    expect(css).toMatch(/\.scene-mainline-world \.scene-mainline-object--seat \.scene-mainline-object__label\s*\{\s*letter-spacing: 0;/)
   })
 })
