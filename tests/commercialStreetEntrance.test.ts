@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { mainlineScenes, mainlineStorefrontApproach } from '../src/center/runtime/mainlineScenes'
 import { mainlineSceneBlueprints } from '../src/center/runtime/mainlineSceneModel'
 import { commercialStreetCameraPages, commercialStreetPageIndex } from '../src/center/runtime/commercialStreetCamera'
 import { isWalkableMainlinePoint, resolveMainlineSafeSpawnPosition } from '../src/center/runtime/mainlineNavigation'
@@ -15,7 +15,7 @@ describe('first fruit-tea frontage district entrance', () => {
     const blueprint = mainlineSceneBlueprints['commercial-street']
     const front = blueprint.portals.find(portal => portal.id === 'commercial-north-slot-1-entry')!
     const lane = scene.rooms.find(room => room.id === front.fromRoomId)!
-    expect(scene.initialPlayerPosition).toEqual({ x: front.endpoint.doorPosition.x, y: front.endpoint.threshold.y })
+    expect(scene.initialPlayerPosition).toEqual(mainlineStorefrontApproach(scene, scene.storefronts.find(storefront => storefront.id === 'commercial-north-slot-1')!))
     expect(scene.initialPlayerPosition.y).toBeLessThan(lane.bounds.y + lane.bounds.height / 2)
     expect(activeStorefrontInteriorOwner(scene, scene.initialPlayerPosition)).toBeNull()
     expect(scene.rideArrivalPosition).toEqual(scene.initialPlayerPosition)
