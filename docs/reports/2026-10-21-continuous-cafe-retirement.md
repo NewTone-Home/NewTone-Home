@@ -40,3 +40,10 @@
 ## 范围
 
 B 未发布、未 push；4173/隧道未改。矿区尺寸/颜色、四店新内装、手机新倍率均未混入。独立 QA 和旧测试契约迁移尚待收口，不冒称整体签收。
+## 冻结候选补充
+
+- 应用 SHA `cbf170072d8bb05420ffc60d5070aef1358ba57e`，隔离 `http://127.0.0.1:4200/`，PID 12108。
+- JS `index-CZIFlAET.js` 837522 bytes，SHA256 `87193f02fe25faa19ca3463cd7243752d1158a7d8e73a2f2f52c10c4055dccde`。
+- CSS `index-BsDrr4lS.css` 200381 bytes，SHA256 `67dbb36fb235e8f7493fda38992e06ed6f9b88cfb724e7b928fefe6c4aa5664e`。
+- 最新定向（含时钟）46/46；最新全量（权限绕行与时钟修正后）725/785，60 失败，详见 `.tmp/cafe-retirement-nav-all-tests.json`。不得把旧实体断言直接全部标为无效，需要逐项迁移与复核后再收口。独立 QA 待进行，不能发布。
+- Notion 原板子页已正文追加实际 diff、函数原因、测试与 A 发布拒绝，并回读确认 SHA、资源哈希和 CreateProcess 拒绝记录可见： https://app.notion.com/p/400b138d1e11816da99bc4b4d90f873d 。
