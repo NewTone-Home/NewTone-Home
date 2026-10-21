@@ -1384,6 +1384,7 @@ export function MainlineSceneRenderer({
           {scene.npcs.map((npc) => {
             if (scene.ambientNpcRoutes.some((schedule) => schedule.npcId === npc.id)) return null
             if (hiddenNpcIds?.has(npc.id)) return null
+            if (npc.roomId && npc.roomId !== activeShellRoomId) return null
             const npcPosition = npcPositions?.get(npc.id) ?? resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
             const npcSnapshot = npcRuntimeSnapshots?.get(npc.id)
             const npcSeatId = mainlineNpcStagedSeatId(scene, npc.id)

@@ -2,6 +2,7 @@ import { fixedMainlineWallGlyphGrid } from './mainlineWallGlyphGrid'
 import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import { mainlineSceneBlueprints } from './mainlineSceneModel'
 import { initialMainlineSceneId } from './mainlineInitialState'
+import { mapLegacyCafePoint, canonicalCafeEntityId } from './continuousCafe'
 import { boundaryGridCellRange, boundaryGridStepsFromReferenceSpacing, compileSharedFrame, defaultSceneScreenMetrics, sharedBoundaryScreenSpacingPx, type SceneScreenMetrics, type SharedBoundaryCell, type SharedBoundaryFrame, type SharedBoundaryOpening } from './sceneBoundaryGrid'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
 import type { StorefrontPresentationPhase } from './storefrontPresentation'
@@ -1319,6 +1320,23 @@ export const mainlineScenes: Record<MainlineSceneId, MainlineSceneDefinition> = 
   Object.entries(mainlineSceneBlueprints).map(([id, blueprint]) => [id, compileMainlineScene(blueprint)]),
 ) as Record<MainlineSceneId, MainlineSceneDefinition>
 
+// Compatibility lookup only: the legacy ID shares the exact live world object.
+Object.defineProperty(mainlineScenes, 'commercial-cafe', { get: () => mainlineScenes['commercial-street'] })
+
+export function legacyCafeEntryPosition(point?: Point): Point {
+  const street = mainlineScenes['commercial-street']
+  const room = street.rooms.find(room => room.id === 'commercial-north-cafe-interior')!
+  if (point) return mapLegacyCafePoint(point, room.bounds)
+  return { ...street.passages.find(passage => passage.id === 'street-cafe-entry')!.crossingTargets[0] }
+}
+
+export function resolveLegacyCafeEntryPosition(search?: string): Point | undefined {
+  const query = new URLSearchParams(search ?? (typeof window === 'undefined' ? '' : window.location.search))
+  if (query.get('scene') !== 'commercial-cafe') return undefined
+  const x = Number(query.get('entryX')), y = Number(query.get('entryY'))
+  return legacyCafeEntryPosition(query.has('entryX') && query.has('entryY') && Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined)
+}
+
 export function mainlineSceneAreaLabel(scene: MainlineSceneDefinition, position: Point) {
   if (typeof scene.areaLabel === 'function') return scene.areaLabel(position)
   return scene.areaLabel ?? scene.statusLabel
@@ -1583,16 +1601,16 @@ function createMainlineSceneSlice(scene: MainlineSceneDefinition): MainlineScene
   }
 }
 
-export const mainlineSceneSlices: Record<MainlineSceneId, MainlineSceneSliceDefinition> = {
+export const mainlineSceneSlices = {
   'jijia-ancestral-home': createMainlineSceneSlice(mainlineScenes['jijia-ancestral-home']),
   'jijia-ancestral-interior': { ...createMainlineSceneSlice(mainlineScenes['jijia-ancestral-interior']), id: 'jijia-ancestral-interior-slice' },
   'commercial-street': createMainlineSceneSlice(mainlineScenes['commercial-street']),
-  'commercial-cafe': createMainlineSceneSlice(mainlineScenes['commercial-cafe']),
   'yonghe-mining-perimeter': createMainlineSceneSlice(mainlineScenes['yonghe-mining-perimeter']),
   'yonghe-eatery': createMainlineSceneSlice(mainlineScenes['yonghe-eatery']),
   'zhongshuyuan-passage': createMainlineSceneSlice(mainlineScenes['zhongshuyuan-passage']),
   'zhongshuyuan-office': createMainlineSceneSlice(mainlineScenes['zhongshuyuan-office']),
-}
+} as Record<MainlineSceneId, MainlineSceneSliceDefinition>
+Object.defineProperty(mainlineSceneSlices, 'commercial-cafe', { get: () => mainlineSceneSlices['commercial-street'] })
 
 /**
  * The world map has one canonical destination for each playable landmark.
@@ -1641,6 +1659,7 @@ export const mainlineMapLandmarksByWorld: Record<MainlineMapWorld, readonly Main
 export type MainlineSpawnMode = 'resume' | 'ride'
 
 export function mainlineSceneRoute(sceneId: MainlineSceneId, entryPosition?: Point, spawnMode?: MainlineSpawnMode) {
+  if (sceneId === 'commercial-cafe') return mainlineSceneRoute('commercial-street', legacyCafeEntryPosition(entryPosition), spawnMode)
   const route = '/?scene=' + sceneId
   const entry = entryPosition ? '&entryX=' + entryPosition.x + '&entryY=' + entryPosition.y : ''
   const spawn = spawnMode === 'ride' ? '&spawn=ride' : ''
@@ -1650,11 +1669,12 @@ export function mainlineSceneRoute(sceneId: MainlineSceneId, entryPosition?: Poi
 export function resolveMainlineSceneId(search?: string): MainlineSceneId | null {
   const query = new URLSearchParams(search ?? (typeof window === 'undefined' ? '' : window.location.search))
   const value = query.get('scene')
+  if (value === 'commercial-cafe') return 'commercial-street'
   return value && value in mainlineScenes ? value as MainlineSceneId : null
 }
 
 export function getMainlineSceneEntity(scene: MainlineSceneDefinition, id: string) {
-  const entity = scene.objects.find((object) => object.id === id)
+  const entity = scene.objects.find((object) => object.id === (scene.id === 'commercial-street' ? canonicalCafeEntityId(id) : id))
   if (!entity) throw new Error(`Unknown ${scene.id} scene entity: ${id}`)
   return entity
 }

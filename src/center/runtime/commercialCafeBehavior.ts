@@ -1,3 +1,4 @@
+import { hasContinuousCafe } from './continuousCafe'
 import type { NpcIntent, NpcRuntimeSnapshot } from './npcCore'
 import type { MainlineSceneDefinition } from './mainlineScenes'
 import { resolveMainlineServiceContact, type MainlineNavigationOptions } from './mainlineNavigation'
@@ -51,7 +52,7 @@ export function createCommercialCafeCoffeeOwnerBehaviorCoordinator() {
     narrativePhase: CommercialCafeNarrativePhase
     snapshot: NpcRuntimeSnapshot
   }): NpcIntent | null => {
-    if (scene.id !== 'commercial-cafe') return null
+    if (!hasContinuousCafe(scene)) return null
     const ambientMoving = snapshot.dutyId === 'cafe-coffee-owner.counter-ambient'
     if (snapshot.phase === 'moving' && !ambientMoving) return null
     if (phase === 'blocked') return null
@@ -98,7 +99,7 @@ export function createCommercialCafeFloorServerBehaviorCoordinator() {
   const arrived = () => { phase = 'dwelling'; tableRotation += 1; return commercialCafeFloorServiceDwellMs() }
   const finishDwell = () => { if (phase === 'dwelling') phase = 'serving' }
   const request = (scene: MainlineSceneDefinition, snapshot: NpcRuntimeSnapshot): NpcIntent | null => {
-    if (scene.id !== 'commercial-cafe' || snapshot.phase === 'moving' || phase === 'blocked' || phase === 'dwelling') return null
+    if (!hasContinuousCafe(scene) || snapshot.phase === 'moving' || phase === 'blocked' || phase === 'dwelling') return null
     const intent = resolveCommercialCafeFloorServiceIntent(scene, tableRotation)
     if (intent) phase = 'serving'
     return intent

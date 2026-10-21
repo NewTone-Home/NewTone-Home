@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MainlineScenePage } from './runtime/MainlineScenePage'
 import { LongDistanceTravel } from './runtime/LongDistanceTravel'
 import { enqueuePhoneNotification, readPhoneNotifications } from './runtime/phoneNotifications'
@@ -8,6 +8,8 @@ import {
   mainlineSceneRoute,
   mainlineScenes,
   resolveMainlineSceneId,
+  resolveLegacyCafeEntryPosition,
+  legacyCafeEntryPosition,
 } from './runtime/mainlineScenes'
 import { mainlineCameraOffset, mainlineViewportPointFromWorld, mainlineWorldScale } from './runtime/mainlineViewport'
 import { currentMainlineViewportMetrics } from './runtime/mainlineViewportProjection'
@@ -15,6 +17,7 @@ import { sceneDesignReferenceMetrics } from './runtime/sceneBoundaryGrid'
 import { createMainlineSceneGeometrySnapshot } from './runtime/mainlineSceneGeometrySnapshot'
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
+import { isPointInContinuousCafe } from './runtime/continuousCafe'
 import { advanceMainlineStoryClock } from './runtime/mainlineStoryClock'
 import { advancePhoneStoryNotes, createPlayerPhoneNote, ensurePhoneYongheLead, pinPhoneStoryNote, updatePhoneNote } from './runtime/phonePersonalData'
 import { commercialCafeStoryStatusKey } from './runtime/commercialCafeStory'
@@ -81,7 +84,12 @@ export default function CenterExperience({
   const reducedMotion = useReducedMotion()
   const [playerSave, setPlayerSave] = useState(() => loadPlayerSave())
   const playerSaveRef = useRef(playerSave)
-  const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId))
+  const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId, resolveLegacyCafeEntryPosition()))
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('scene') === 'commercial-cafe') {
+      window.history.replaceState({ newtoneCenterScene: 'commercial-street' }, '', mainlineSceneRoute('commercial-street', route.entryPosition ?? legacyCafeEntryPosition()))
+    }
+  }, [route.entryPosition])
   const [phoneOpen, setPhoneOpen] = useState(false)
   const sceneReadingActiveRef = useRef(false)
   const [, setSceneReadingActive] = useState(false)
@@ -135,6 +143,7 @@ export default function CenterExperience({
   const sceneEnteredAtRef = useRef(null)
   const milkTeaReadyAnalyticsMarkerRef = useRef(null)
   const commercialStreetState = playerSave.sceneState['commercial-street'] ?? {}
+  const cafeWorldSceneState = useMemo(() => ({ ...playerSave.sceneState['commercial-street'], ...playerSave.sceneState['commercial-cafe'] }), [playerSave.sceneState['commercial-street'], playerSave.sceneState['commercial-cafe']])
   const milkTeaOrder = commercialStreetMilkTeaOrderFromSceneState(commercialStreetState)
 
 
@@ -345,6 +354,7 @@ export default function CenterExperience({
   }, [commitPlayerSave])
 
   const handleSceneTransition = useCallback((nextSceneId, nextEntryPosition, nextSpawnMode, transitionIntent) => {
+    if (nextSceneId === 'commercial-cafe') { nextSceneId = 'commercial-street'; nextEntryPosition = legacyCafeEntryPosition(nextEntryPosition) }
     const lastPosition = latestWorldPositionRef.current
     if (lastPosition?.sceneId === route.sceneId) {
       positionSamplerRef.current?.sample(route.sceneId, lastPosition.position, { boundary: true })
@@ -581,11 +591,20 @@ export default function CenterExperience({
     return attachPositionSaveLifecycle(flushPositionSave, () => route.sceneId)
   }, [flushPositionSave, route.sceneId])
 
+  const cafeClockInsideRef = useRef(false)
   const handleRuntimePositionChange = useCallback((sceneId, position, context) => {
+    const insideCafe = sceneId === 'commercial-street' && isPointInContinuousCafe(mainlineScenes[sceneId], position)
+    if (insideCafe && !cafeClockInsideRef.current) {
+      commitPlayerSave(current => {
+        const storyClock = advanceMainlineStoryClock(current.storyClock, 'commercial-cafe')
+        return storyClock === current.storyClock ? current : { ...current, storyClock, phoneNotes: advancePhoneStoryNotes(current.phoneNotes, storyClock.stage) }
+      })
+    }
+    cafeClockInsideRef.current = insideCafe
     latestWorldPositionRef.current = { sceneId, position, context }
     rideBoardingRef.current(sceneId, position, context)
     positionSamplerRef.current?.sample(sceneId, position)
-  }, [])
+  }, [commitPlayerSave])
 
   const handlePlayerMovementStateChange = useCallback((moving) => {
     setCenterMovementActive(moving)
@@ -622,7 +641,7 @@ export default function CenterExperience({
       onMilkTeaAppOpen={snapshot ? undefined : openMilkTeaApp}
       onMilkTeaOrderReady={snapshot ? undefined : handleMilkTeaOrderReady}
       onChapterAnalytics={snapshot ? undefined : trackChapterEvent}
-      initialSceneState={playerSave.sceneState[sceneRoute.sceneId] ?? {}}
+      initialSceneState={sceneRoute.sceneId === 'commercial-street' ? cafeWorldSceneState : playerSave.sceneState[sceneRoute.sceneId] ?? {}}
       carriedMilkTea={commercialStreetMilkTeaHeld(playerSave.sceneState['commercial-street'])}
       interactionTutorialCompleted={isInteractionTutorialCompleted(playerSave.sceneState['commercial-street'])}
       onPlayerSceneStateChange={snapshot ? undefined : recordSceneState}

@@ -1,5 +1,7 @@
 import type { MainlineSceneId } from './mainlineSceneModel'
 import { migratePreGridPosition } from './sceneGridRollout'
+import { mainlineSceneBlueprints } from './mainlineSceneModel'
+import { continuousCafeRoomId, mapLegacyCafePoint } from './continuousCafe'
 import { cleanPhoneNotifications, type PhoneNotification } from './phoneNotifications'
 import type { PhoneDevice } from './phoneState'
 import { mainlineSceneWorldLayers } from './phoneState'
@@ -156,7 +158,7 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
   const validScene = typeof source.currentSceneId === 'string' && Object.hasOwn(mainlineSceneWorldLayers, source.currentSceneId)
   const validPhone = source.phoneDevice === 'inner' || source.phoneDevice === 'surface'
   const validCore = validScene && validPhone && (source.currentPosition == null || isPoint(source.currentPosition))
-  const currentSceneId = validCore
+  let currentSceneId = validCore
     ? source.currentSceneId as MainlineSceneId
     : initialMainlineSceneId
   const savedVersion = Number(source._version ?? 0)
@@ -174,16 +176,29 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
     }
   }
   if (!validCore) delete scenePositions[initialMainlineSceneId]
+  let currentPosition = validCore && isPoint(source.currentPosition)
+    ? source.worldGridVersion === 1 ? cleanPoint(source.currentPosition) : migratePreGridPosition(currentSceneId, source.currentPosition)
+    : null
+  const cafeBounds = mainlineSceneBlueprints['commercial-street'].scene.rooms!.find(room => room.id === continuousCafeRoomId)!.bounds
+  const rememberedCafe = scenePositions['commercial-cafe']
+  if (currentSceneId === 'commercial-cafe') {
+    currentSceneId = 'commercial-street'
+    currentPosition = mapLegacyCafePoint(currentPosition, cafeBounds)
+    scenePositions['commercial-street'] = currentPosition
+  } else if (rememberedCafe && !scenePositions['commercial-street']) {
+    scenePositions['commercial-street'] = mapLegacyCafePoint(rememberedCafe, cafeBounds)
+  }
+  delete scenePositions['commercial-cafe']
   const storyStage = source.storyClock?.stage
   const storyClock: MainlineStoryClock = storyStage === 'commercial-street' || storyStage === 'cafe' || storyStage === 'yonghe' || storyStage === 'opening'
     ? storyClockForStage(storyStage as MainlineStoryStage)
-    : createInitialMainlineStoryClock(currentSceneId)
+    : createInitialMainlineStoryClock(validCore && source.currentSceneId === 'commercial-cafe' ? 'commercial-cafe' : currentSceneId)
   const updatedAt = Number(source.updatedAt)
   return {
     worldGridVersion: 1,
     _version: PLAYER_SAVE_VERSION,
     currentSceneId,
-    currentPosition: validCore && isPoint(source.currentPosition) ? source.worldGridVersion===1?cleanPoint(source.currentPosition):migratePreGridPosition(currentSceneId,source.currentPosition) : null,
+    currentPosition,
     scenePositions,
     phoneDevice,
     storyClock,

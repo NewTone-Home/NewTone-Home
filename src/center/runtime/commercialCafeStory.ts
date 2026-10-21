@@ -1,3 +1,4 @@
+import { hasContinuousCafe, isCafeWorldId } from './continuousCafe'
 import type { PlayerSceneState } from './playerSave'
 import type { MainlineSceneDialoguePresentation, MainlineSceneId } from './mainlineSceneModel'
 import type { MainlineSceneDefinition } from './mainlineScenes'
@@ -243,35 +244,36 @@ export function commercialCafeLaoZhouIsPresent(story: CommercialCafeStoryState, 
 export function commercialCafeStoryWithLaoZhouDeparture(story: CommercialCafeStoryState, departure: CommercialCafeLaoZhouDeparture): CommercialCafeStoryState {
   return { ...story, laoZhouDeparture: departure }
 }
-export function shouldCompleteCommercialCafeStoryOnTransition({ sceneId, story, targetSceneId }: { sceneId: string; story: CommercialCafeStoryState; targetSceneId?: string }) {
-  return sceneId === 'commercial-cafe' && story.status === 'ready-to-leave' && targetSceneId === 'commercial-street'
+export function shouldCompleteCommercialCafeStoryOnTransition({ sceneId, story, targetSceneId, passageId, leavingRoom }: { sceneId: string; story: CommercialCafeStoryState; targetSceneId?: string; passageId?: string; leavingRoom?: boolean }) {
+  return story.status === 'ready-to-leave' && targetSceneId === 'commercial-street'
+    && (sceneId === 'commercial-cafe' || sceneId === 'commercial-street' && passageId === 'street-cafe-entry' && leavingRoom === true)
 }
 
 export function resolveCommercialCafeCoffeePrepIntent(scene: MainlineSceneDefinition): NpcIntent | null {
-  if (scene.id !== 'commercial-cafe') return null
+  if (!hasContinuousCafe(scene)) return null
   const target = scene.npcBehaviorTargets?.find((candidate) => candidate.id === commercialCafePrepTargetId)
   return target ? { dutyId: npcRoles.cafeCoffeeOwner.duties.prepare.id, targetId: commercialCafePrepTargetId, target: { ...target.position } } : null
 }
 export function resolveCommercialCafeCoffeeDeliveryIntent({ scene, coffeeStatus, narrativePhase }: { scene: MainlineSceneDefinition; coffeeStatus: CommercialCafeCoffeeStatus; narrativePhase: CommercialCafeNarrativePhase }): NpcIntent | null {
-  if (scene.id !== 'commercial-cafe' || coffeeStatus !== 'ready' || narrativePhase !== 'coffee-delivery') return null
+  if (!hasContinuousCafe(scene) || coffeeStatus !== 'ready' || narrativePhase !== 'coffee-delivery') return null
   const table = scene.objects.find((entity) => entity.id === commercialCafeStoryTableId)
   return table ? { dutyId: npcRoles.cafeCoffeeOwner.duties.deliverCoffee.id, targetId: table.id, targetEntityId: table.id } : null
 }
 export function resolveCommercialCafeReturnToCounterIntent(scene: MainlineSceneDefinition): NpcIntent | null {
-  if (scene.id !== 'commercial-cafe') return null
+  if (!hasContinuousCafe(scene)) return null
   const target = mainlineNpcStagedPoint(scene, commercialCafeCoffeeOwnerNpcId)
   return target ? { dutyId: npcRoles.cafeCoffeeOwner.duties.returnToCounter.id, targetId: commercialCafeCounterTargetId, target: { ...target } } : null
 }
 export function resolveCommercialCafeFloorServiceIntent(scene: MainlineSceneDefinition, rotation = 0): NpcIntent | null {
-  if (scene.id !== 'commercial-cafe') return null
-  const publicTables = scene.objects.filter((entity) => entity.kind === 'table' && entity.id !== commercialCafeStoryTableId)
+  if (!hasContinuousCafe(scene)) return null
+  const publicTables = scene.objects.filter((entity) => entity.kind === 'table' && entity.roomId === 'commercial-north-cafe-interior' && entity.id !== commercialCafeStoryTableId)
   const table = publicTables.length ? publicTables[rotation % publicTables.length] : undefined
   return table?.approach ? { dutyId: npcRoles.cafeFloorServer.duties.tableService.id, targetId: table.id, target: { ...table.approach } } : null
 }
 
 export type CommercialCafeNpcInteractionResolution = { kind: 'dialogue'; dialogue: MainlineSceneDialoguePresentation; promptSeatId?: string } | { kind: 'start-narrative' }
 export function resolveCommercialCafeNpcInteraction({ sceneId, npcId, story, playerSeatId }: { sceneId: MainlineSceneId; npcId: string; story: CommercialCafeStoryState; playerSeatId?: string | null }): CommercialCafeNpcInteractionResolution | null {
-  if (sceneId !== 'commercial-cafe' || npcId !== 'lao-zhou') return null
+  if (!isCafeWorldId(sceneId) || npcId !== 'lao-zhou') return null
   if (story.status === 'complete' || story.status === 'ready-to-leave' || story.laoZhouDeparture !== 'seated') return null
   if (playerSeatId !== commercialCafeLaoZhouConversationSeatId) return { kind: 'dialogue', dialogue: commercialCafeSeatGuideDialogue, promptSeatId: commercialCafeLaoZhouConversationSeatId }
   return { kind: 'start-narrative' }

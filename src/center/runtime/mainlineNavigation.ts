@@ -182,6 +182,13 @@ function actorCanEnterRegion(scene: MainlineSceneDefinition, actorId: string | u
   return actorAccessFor(scene, actorId).has(region.requiredAccess)
 }
 
+// Permissions stay semantic movement checks. Give route construction the same
+// forbidden interiors so it can find a detour rather than reject its only path.
+function deniedRegionRouteObstacles(scene: MainlineSceneDefinition, options: MainlineNavigationOptions): CollisionBox[] {
+  return scene.accessRegions.filter(region => !actorCanEnterRegion(scene, options.actorId, region))
+    .map(({ x, y, width, height }) => ({ x, y, width, height }))
+}
+
 function occupiedSeatIdsForNavigation(scene: MainlineSceneDefinition, options: MainlineNavigationOptions) {
   if (options.occupiedSeatIds) return options.occupiedSeatIds
   return new Set(scene.npcs.flatMap((npc) => {
@@ -1221,7 +1228,8 @@ export function findMainlinePath(start: Point, target: Point, scene: MainlineSce
     if (detour) return detour
   }
   const bounds = insetBounds(snapshot.walkBounds, actorFootprint)
-  const inputs = { bounds, obstacles: staticObstacles,
+  const permissionObstacles = deniedRegionRouteObstacles(scene, options)
+  const inputs = { bounds, obstacles: [...staticObstacles, ...permissionObstacles],
     obstacleInset: { x: actorFootprint.width / 2, y: actorFootprint.height / 2 }, barriers, actorFootprint }
   // Player and NPC requests share immutable physical geometry. A moving actor
   // never poisons that cache: validate every returned segment against live
@@ -1230,7 +1238,7 @@ export function findMainlinePath(start: Point, target: Point, scene: MainlineSce
     ...inputs, navigationMesh: routeNavigationMesh(scene, inputs), canTravel,
   })
   if (staticPath || !options.navigationRuntime) return staticPath
-  const dynamicInputs = { ...inputs, obstacles }
+  const dynamicInputs = { ...inputs, obstacles: [...obstacles, ...permissionObstacles] }
   return findNavigationPath(start, target, {
     ...dynamicInputs, navigationMesh: routeNavigationMesh(scene, dynamicInputs), canTravel,
   })
@@ -1264,7 +1272,7 @@ export function prepareMainlineWorldNavigation(scene: MainlineSceneDefinition, l
   // collisionBoxes/canOccupy until the passage becomes passable. Keeping the
   // door cell out of the mesh avoids rebuilding the large graph at the
   // crossing while preserving closed-door movement and permission checks.
-  const obstacles = collisionBoxes(scene, layout, options, false, true)
+  const obstacles = [...collisionBoxes(scene, layout, options, false, true), ...deniedRegionRouteObstacles(scene, options)]
   const cacheKey = [
     'world',
     options.actorId ?? 'protagonist',
