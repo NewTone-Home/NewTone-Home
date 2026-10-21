@@ -37,6 +37,7 @@ export const miningShopShells = miningShopNames.map((label, index) => {
     composition: { fixedCellCount: baseline.length, baseline, near },
     // Use the existing presentation trigger, anchored to the same real door.
     approach: { x: facadeX + 1.5 * miningGrid.horizontal, y: doorY }, nearRadius: 5,
+    presentationFrontage: { depthCells: 2, halfSpanCells: 2 },
   }
   return { label, letters, widthCells, depthCells, top, bottom: boundaryCursor, back, firstCenter, doorY, portalId, roomId, storefront }
 })

@@ -3,7 +3,7 @@ import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeo
 import { mainlineSceneBlueprints } from './mainlineSceneModel'
 import { initialMainlineSceneId } from './mainlineInitialState'
 import { mapLegacyCafePoint, canonicalCafeEntityId } from './continuousCafe'
-import { boundaryGridCellRange, boundaryGridStepsFromReferenceSpacing, compileSharedFrame, defaultSceneScreenMetrics, sharedBoundaryScreenSpacingPx, type SceneScreenMetrics, type SharedBoundaryCell, type SharedBoundaryFrame, type SharedBoundaryOpening } from './sceneBoundaryGrid'
+import { boundaryGridCellRange, boundaryGridStepsFromReferenceSpacing, compileSharedFrame, defaultSceneScreenMetrics, sharedBoundaryScreenSpacingPx, sceneDesignReferenceMetrics, type SceneScreenMetrics, type SharedBoundaryCell, type SharedBoundaryFrame, type SharedBoundaryOpening } from './sceneBoundaryGrid'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
 import type { StorefrontPresentationPhase } from './storefrontPresentation'
 import type {
@@ -1550,7 +1550,22 @@ export function isMainlineStorefrontPresentationInRange(
   // Keep the authored approach center and interaction/collision geometry.
   // The cafe's separate outward departure radius follows the same reduction.
   const radius = previousRadius * (scene.id === 'commercial-street' ? .5 : 1)
-  return Math.hypot(position.x - approach.x, position.y - approach.y) <= radius
+  if (storefront.presentationFrontage) {
+    // The reduced radius is measured from the true doorway for this opt-in
+    // frontage. The old road-centered approach otherwise leaves a dead strip
+    // immediately in front of the door. Navigation approach is unchanged.
+    // Restrict it to the actual doorway's public-side two-cell frontage;
+    // a six-cell lane's third-cell center and neighboring shop fronts cannot
+    // trigger this shop. This is presentation only, never collision/click area.
+    const step = { horizontal: sharedBoundaryScreenSpacingPx / sceneDesignReferenceMetrics.width * 100, vertical: sharedBoundaryScreenSpacingPx / sceneDesignReferenceMetrics.height * 100 }
+    const vertical = storefront.edge === 'left' || storefront.edge === 'right'
+    const outward = storefront.edge === 'right' || storefront.edge === 'bottom' ? 1 : -1
+    const normal = ((vertical ? position.x - anchor.x : position.y - anchor.y) * outward) / (vertical ? step.horizontal : step.vertical)
+    const tangent = Math.abs(vertical ? position.y - anchor.y : position.x - anchor.x) / (vertical ? step.vertical : step.horizontal)
+    if (normal < -1e-6 || normal > storefront.presentationFrontage.depthCells + 1e-6 || tangent > storefront.presentationFrontage.halfSpanCells + 1e-6) return false
+  }
+  const triggerCenter = storefront.presentationFrontage ? anchor : approach
+  return Math.hypot(position.x - triggerCenter.x, position.y - triggerCenter.y) <= radius
 }
 
 /** A storefront interaction is the outward half-disc of its authored facade. */

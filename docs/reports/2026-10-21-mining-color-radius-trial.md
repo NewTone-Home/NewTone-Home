@@ -79,3 +79,22 @@ miningStreetShell 的 widthCells=N+7，composition 为3普通墙+N招牌+3普通
 ### 尚未验收
 
 半径5仍有中线触发；精确门前区域待决定。旧矿区存档的房间局部位置迁移未做（门面Y已重排），不能将此试作发布。未测实体手机/Edge/Safari和完整剧情。全部是空壳尺寸，不包含永和或其他店的新内装，不是作者审美签收。A发布继续停止，B4200冻结，无push/main/staging/Vercel。
+## 第三阶段：真门前约束与负例（最终矿区范围包）
+
+半径保留5，新增可选数据 `presentationFrontage:{depthCells:2,halfSpanCells:2}`，仅矿区8店配置；商业街及其他数据不配置，因此不改变其他场景。mainlineScenes 以真门 anchor 和精确28/1920、28/1080步距计算法线/切向范围，限制到门外两格、沿立面上下各两格；1e-6格仅用于数值边界误差，非额外玩法buffer。
+
+最初试验保留门外6单位旧中心，发现门边19.2px以内有不触发死带，故最终只对这项可选门前数据，把视觉半径的参考点改为真门。半径数值仍5，导航approach/碰撞/点击区域全部不变。实际范围是半径5与门前矩形的交集，不声称矩形每个角都在圆内。
+
+根因数字：旧圆在百分比世界坐标直接hypot，无额外buffer/横纵换算，X1单位19.2px、Y1单位10.8px。旧中心距门115.2px，中线距门84px，二者仅31.2px，而半径5横向96px，所以减半仍中线触发。新区域向外仅56px，中线第3格84px被排除；邻门至少9格，沿立面上下各2格不重叠。真门作视觉参考也去掉近门死带。
+
+`.tmp/mining-door-front-true-browser/results.json`：桌面1280x800和手机390x844，初始中线全部baseline；向永和门前真实点地/触屏后仅永和revealed；真门进入；返街走到两店间全部baseline；无pageerror。关联45/45、typecheck/build通过。未测实体手机/Edge/Safari；首次漏墙仍待观察，未声称归因修复；旧矿区位置迁移仍未完成，不发布。
+
+### 截图交付与Library阻塞
+
+四张已存在、实际看过的截图：
+- `.tmp/mining-expanded-comparison/4201-full-map.png`（旧尺寸同倍率）
+- `.tmp/mining-expanded-comparison/4202-full-map.png`（700深/三墙同倍率）
+- `.tmp/mining-expanded-browser/1-desktop-inside.png`（永和桌面深处）
+- `.tmp/mining-expanded-mobile-browser/0-mobile-inside.png`（永和手机深处）
+
+完整本机父目录 `E:\小说\NewTone-Workspace\preview-mining-scale-trial-20261021`。遵循Library技能，用当前下载的官方批量助手上传四图。第一次在stdin JSON解析前失败，确定未调用上传；用校验UTF8字节修正输入后，助手返回 `library upload failed: prepare_uploads failed`。未返回file/library ID，未进入finalize；停止重试，不切换直传路径绕过所需流程。Library只读list成功，但准备上传的更深失败原因未提供，不能编造为缺授权或上传成功。没有Library IDs可交，需父端协助可用上传流程。本机图完整，不影响继续四店隔离试作。

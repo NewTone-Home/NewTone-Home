@@ -295,6 +295,8 @@ export type MainlineStorefrontSlotBlueprint = {
   characterSwitch?: boolean
   portalId?: string
   nearRadius?: number
+  /** Optional visual-only public doorway frontage, measured in 28px cells. */
+  presentationFrontage?: { depthCells: number; halfSpanCells: number }
   approach?: Point
 }
 
