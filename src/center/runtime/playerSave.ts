@@ -12,6 +12,9 @@ export const PLAYER_SAVE_STORAGE_KEY = 'newtone-player-save-v1'
 export const PLAYER_SAVE_VERSION = 2
 const LEGACY_PHONE_STORAGE_KEYS = ['newtone.mainline.carried-phone.v2', 'newtone.mainline.carried-phone.v1']
 const LEGACY_POSITION_STORAGE_KEY = 'newtone.mainline.scene-positions.v2'
+// Explicit reset invalidates writers still mounted in the departing document.
+// A new coordinator after reset captures the new generation normally.
+let playerSaveResetGeneration = 0
 
 export type PlayerPoint = { x: number; y: number }
 export type PlayerChoiceValue = string | number | boolean | null
@@ -238,6 +241,7 @@ export function savePlayerSave(save: PlayerSave, storage = defaultStorage(), now
 }
 
 export function clearPlayerSave(storage = defaultStorage()) {
+  playerSaveResetGeneration += 1
   try {
     storage?.removeItem(PLAYER_SAVE_STORAGE_KEY)
     LEGACY_PHONE_STORAGE_KEYS.forEach(key => storage?.removeItem(key))
@@ -293,6 +297,7 @@ export function createPositionSaveCoordinator<TPosition, TSave>({
   persist: (save: TSave) => TSave
 }) {
   const buffer = createPositionSaveBuffer<TPosition>()
+  const generation = playerSaveResetGeneration
   const apply = (save: TSave, pending: { sceneId: string; position: TPosition }) => recordPosition(save, pending.sceneId, pending.position)
   const publish = (next: TSave, current: TSave) => {
     if (next === current) return current
@@ -303,12 +308,14 @@ export function createPositionSaveCoordinator<TPosition, TSave>({
   return {
     queue: buffer.queue,
     flush(sceneId: string) {
+      if (generation !== playerSaveResetGeneration) { buffer.clear(); return getSave() }
       const pending = buffer.take(sceneId)
       if (!pending) return getSave()
       const current = getSave()
       return publish(apply(current, pending), current)
     },
     commit(update: (save: TSave) => TSave) {
+      if (generation !== playerSaveResetGeneration) { buffer.clear(); return getSave() }
       const current = getSave()
       const pending = buffer.take(getCurrentSceneId())
       const positioned = pending ? apply(current, pending) : current

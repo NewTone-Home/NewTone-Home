@@ -3,7 +3,7 @@ import { mainlineScenes, mainlineStorefrontApproach } from '../src/center/runtim
 import { mainlineSceneBlueprints } from '../src/center/runtime/mainlineSceneModel'
 import { commercialStreetCameraPages, commercialStreetPageIndex } from '../src/center/runtime/commercialStreetCamera'
 import { isWalkableMainlinePoint, resolveMainlineSafeSpawnPosition } from '../src/center/runtime/mainlineNavigation'
-import { clearPlayerSave, createInitialPlayerSave, loadPlayerSave, sanitizePlayerSave } from '../src/center/runtime/playerSave'
+import { clearPlayerSave, createInitialPlayerSave, loadPlayerSave, sanitizePlayerSave, createPositionSaveCoordinator, recordPlayerScenePosition, savePlayerSave } from '../src/center/runtime/playerSave'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { activeStorefrontPresentationOwner, activeStorefrontInteriorOwner } from '../src/center/runtime/storefrontPresentation'
 
@@ -51,5 +51,22 @@ describe('first fruit-tea frontage district entrance', () => {
     expect(continued.scenePositions).toEqual(old.scenePositions)
     expect(continued.sceneState).toEqual(old.sceneState)
     expect(continued.phoneContactNotes).toEqual(old.phoneContactNotes)
+  })
+
+  it('does not let pagehide or pending state commits resurrect a deliberately reset save', () => {
+    const values = new Map<string, string>([['newtone-public-release-cutover-v1', 'center-v1']])
+    const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value) }, removeItem: (key: string) => { values.delete(key) } }
+    let current = createInitialPlayerSave()
+    const create = () => createPositionSaveCoordinator({ getSave: () => current, setSave: save => { current = save }, getCurrentSceneId: () => 'commercial-street', recordPosition: recordPlayerScenePosition, persist: save => savePlayerSave(save, storage, 1000) })
+    const departing = create()
+    departing.queue('commercial-street', { x: 80, y: 50 })
+    clearPlayerSave(storage)
+    departing.flush('commercial-street')
+    departing.commit(save => ({ ...save, updatedAt: 3 }))
+    expect(storage.getItem('newtone-player-save-v1')).toBeNull()
+    const restarted = create()
+    restarted.queue('commercial-street', scene.initialPlayerPosition)
+    restarted.flush('commercial-street')
+    expect(loadPlayerSave(storage).currentPosition).toEqual(scene.initialPlayerPosition)
   })
 })
