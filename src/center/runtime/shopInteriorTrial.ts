@@ -92,6 +92,12 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
       accessRegions: [...(data.accessRegions ?? []).filter(region => region.id !== 'commercial-cafe-staff-area'),
         { id: 'commercial-cafe-staff-area', ...point(0, 112), width: 168 / 1920 * 100, height: 448 / 1080 * 100, requiredAccess: 'staff', deniedText: '这里是柜台员工区。' },
         { id: 'cafe-trial-rear-work-area', ...point(0, 0), width: 400 / 1920 * 100, height: 112 / 1080 * 100, requiredAccess: 'staff', deniedText: '这里是柜台员工区。' }],
+      // Declare the actual public-facing work openings. The regions already
+      // deny public occupation; these edges also retain the attempted click's
+      // access reason instead of silently projecting it onto the counter.
+      accessBoundaries: [...(data.accessBoundaries ?? []).filter(boundary => boundary.regionId !== 'commercial-cafe-staff-area' && boundary.regionId !== 'cafe-trial-rear-work-area'),
+        { id: 'commercial-cafe-staff-bottom-access-boundary', regionId: 'commercial-cafe-staff-area', edge: 'bottom' },
+        { id: 'cafe-trial-rear-right-access-boundary', regionId: 'cafe-trial-rear-work-area', edge: 'right' }],
       npcBehaviorTargets: [...(data.npcBehaviorTargets ?? []).filter(target => !targets.some(next => next.id === target.id)), ...targets],
       npcs: data.npcs?.map(npc => npc.roomId === room.id ? { ...npc, label: '人' } : npc),
     },
