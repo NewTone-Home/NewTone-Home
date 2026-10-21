@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
-import { resolveMainlineWorldNavigation, resolveMainlineNpcPosition, canTravelAlongMainlineSegment, mainlineNavigationCollisionBoxes } from '../src/center/runtime/mainlineNavigation'
+import { resolveMainlineWorldNavigation, resolveMainlineNpcPosition, canTravelAlongMainlineSegment, mainlineNavigationCollisionBoxes, isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { mainlineNpcLabelFootprint } from '../src/center/runtime/sceneLayout'
 
@@ -33,5 +33,16 @@ describe('Cafe trial retains real work-opening access feedback', () => {
     expect(scene.accessBoundaries.filter(b => b.regionId === staff.id)).toEqual([{ id: 'commercial-cafe-staff-bottom-access-boundary', regionId: staff.id, edge: 'bottom' }])
     expect(scene.accessBoundaries.find(b => b.regionId === 'cafe-trial-rear-work-area')?.edge).toBe('right')
     for (const region of scene.accessRegions.filter(r => r.id.includes('cafe'))) expect(mainlineNavigationCollisionBoxes(scene, {}, options).some(b => b.x === region.x && b.y === region.y && b.width === region.width && b.height === region.height)).toBe(false)
+  })
+  it('does not extend the rear-right permission edge through unrelated northern shops', () => {
+    for (const slot of [2, 3, 4, 5, 6]) {
+      const front = scene.passages.find(p => p.id === `commercial-north-slot-${slot}-entry`)!
+      const rear = scene.objects.find(o => o.id === `${front.toRoomId}-rear-door`)!
+      const point = { x: rear.position.x, y: rear.position.y + 5 }
+      expect(isWalkableMainlinePoint(point, scene, {}, options), `shop ${slot} is outside the Cafe permission region`).toBe(true)
+    }
+    const publicPoint = { x: staff.x + staff.width / 2, y: staff.y + staff.height + 3 }
+    const insidePoint = { ...publicPoint, y: staff.y + staff.height - 3 }
+    expect(canTravelAlongMainlineSegment(publicPoint, insidePoint, scene, {}, options)).toBe(false)
   })
 })

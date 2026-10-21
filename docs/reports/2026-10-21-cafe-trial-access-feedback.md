@@ -1,5 +1,7 @@
 # Cafe trial: restore feedback at the actual employee openings
 
+**Superseded for integration:** later full-contract checks found that the shared occupancy check interprets the added right edge as an infinite half-plane, affecting other northern shops. Do not publish this 4216 package. See `2026-10-21-bounded-access-region-followup.md` for the finite-region correction and new isolated 4217 candidate. 4215 remains unchanged.
+
 ## Why this is a runtime fix, not an assertion removed to turn tests green
 
 The full run on mine migration commit `5cfac1f` completed **832 tests: 746 pass, 86 fail** (`.tmp/integrated-before-contract-reconciliation.json`). That supersedes the older pre-layout failure inventory; it is not a green suite. Contract reconciliation is being handled separately and is not part of this runtime commit.

@@ -264,7 +264,12 @@ function mainlineOccupancyQuery(scene: MainlineSceneDefinition, layout: SceneLay
     if (deniedRegions.some(region => containsPoint(region, point))) return false
     for (const contact of deniedEdges) {
       const tangent = point[contact.tangentAxis]
-      if (tangent >= contact.min && tangent <= contact.max && (point[contact.axis] - contact.line) * contact.direction <= contact.clearance) return false
+      const normalDistance = (point[contact.axis] - contact.line) * contact.direction
+      // A permission edge belongs to this finite region. Its contact band must
+      // not reject unrelated rooms farther behind the same edge in a shared world.
+      if (tangent >= contact.min && tangent <= contact.max
+        && normalDistance >= -contact.depth - contact.clearance
+        && normalDistance <= contact.clearance) return false
     }
     const actorBox = navigationActorBox(point, footprint)
     return obstacles.every(collision => !overlaps(actorBox, collision))
@@ -1309,7 +1314,7 @@ function accessBoundaryGeometry(region: MainlineSceneAccessRegion, edge: 'top' |
   const direction = edge === 'right' || edge === 'bottom' ? 1 : -1
   const line = axis === 'x' ? region.x + (edge === 'right' ? region.width : 0) : region.y + (edge === 'bottom' ? region.height : 0)
   const tangentHalf = axis === 'x' ? footprint.height / 2 : footprint.width / 2
-  return { axis, tangentAxis, direction, line, clearance: axis === 'x' ? footprint.width / 2 : footprint.height / 2,
+  return { axis, tangentAxis, direction, line, depth: axis === 'x' ? region.width : region.height, clearance: axis === 'x' ? footprint.width / 2 : footprint.height / 2,
     min: region[tangentAxis] - tangentHalf, max: region[tangentAxis] + (axis === 'x' ? region.height : region.width) + tangentHalf } as const
 }
 
