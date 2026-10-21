@@ -1,3 +1,4 @@
+import { fixedMainlineWallGlyphGrid } from './mainlineWallGlyphGrid'
 import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import { mainlineSceneBlueprints } from './mainlineSceneModel'
 import { initialMainlineSceneId } from './mainlineInitialState'
@@ -837,7 +838,14 @@ function compileMainlineGeometry(
     navigation: { blocked: true },
   }))
   units.push(...curveGeometryUnits(curves))
-  return units
+  // Fixed-count retail frames already derive their extent from 28-unit
+  // cells. Other frames keep their authored doors/physical endpoints and
+  // receive fixed world glyph coordinates instead of fitted wall labels.
+  const fixedGlyphOwners = new Set(frameEdgeConfigs.filter(config => {
+    const orientation = config.edge === 'top' || config.edge === 'bottom' ? 'horizontal' : 'vertical'
+    return !config.structure.boundaryCoordinateCount?.[orientation]
+  }).map(config => config.structure.id))
+  return fixedMainlineWallGlyphGrid(units, fixedGlyphOwners)
 }
 
 function geometryCollisionForPassage(units: readonly MainlineSceneGeometryUnit[], passageId: string): CollisionBox {
