@@ -179,7 +179,8 @@ describe('player local save contract', () => {
 
     expect(loadPlayerSave(storage)).toMatchObject({
       currentPosition: null,
-      phoneDevice: 'surface',
+      currentSceneId: 'commercial-street',
+      phoneDevice: 'inner',
     })
   })
 

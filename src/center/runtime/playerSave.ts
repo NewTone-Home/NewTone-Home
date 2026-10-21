@@ -1,6 +1,8 @@
 import type { MainlineSceneId } from './mainlineSceneModel'
 import { cleanPhoneNotifications, type PhoneNotification } from './phoneNotifications'
 import type { PhoneDevice } from './phoneState'
+import { mainlineSceneWorldLayers } from './phoneState'
+import { initialMainlinePhoneDevice, initialMainlineSceneId } from './mainlineInitialState'
 import { createInitialMainlineStoryClock, storyClockForStage, type MainlineStoryClock, type MainlineStoryStage } from './mainlineStoryClock'
 import { applyPublicReleaseCutover } from '../../services/publicReleaseMigration'
 import { cleanPhoneCallHistory, cleanPhoneContactNotes, cleanPhoneNotes, createInitialPhoneNotes, type PhoneCallRecord, type PhoneNote } from './phonePersonalData'
@@ -76,13 +78,13 @@ function cleanSceneState(value: unknown): Partial<Record<MainlineSceneId, Player
   ) as Partial<Record<MainlineSceneId, PlayerSceneState>>
 }
 
-export function createInitialPlayerSave(sceneId: MainlineSceneId): PlayerSave {
+export function createInitialPlayerSave(sceneId: MainlineSceneId = initialMainlineSceneId): PlayerSave {
   return {
     _version: PLAYER_SAVE_VERSION,
     currentSceneId: sceneId,
     currentPosition: null,
     scenePositions: {},
-    phoneDevice: 'surface',
+    phoneDevice: initialMainlinePhoneDevice,
     storyClock: createInitialMainlineStoryClock(sceneId),
     sceneState: {},
     phoneNotifications: [],
@@ -127,15 +129,31 @@ function readLegacyPlayerSave(storage: PlayerSaveStorage | null, fallbackSceneId
     // Ignore malformed legacy state and start with the normal defaults.
   }
 
+  if (hasLegacyValue && !migrated.currentPosition && migrated.phoneDevice === 'surface'
+    && migrated.scenePositions['jijia-ancestral-home']) {
+    // The legacy map has no current-scene field. Preserve an identifiable
+    // surface-world position instead of pairing its phone with a new street.
+    migrated.currentSceneId = 'jijia-ancestral-home'
+    migrated.currentPosition = migrated.scenePositions['jijia-ancestral-home']!
+  }
+  if (hasLegacyValue && !migrated.currentPosition && migrated.phoneDevice === 'surface') {
+    migrated.currentSceneId = initialMainlineSceneId
+    migrated.phoneDevice = initialMainlinePhoneDevice
+  }
   return hasLegacyValue ? migrated : createInitialPlayerSave(fallbackSceneId)
 }
 
-export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineSceneId): PlayerSave {
+export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSceneId): PlayerSave {
   const source = value && typeof value === 'object' ? value as Partial<PlayerSave> : {}
-  const currentSceneId = typeof source.currentSceneId === 'string' && source.currentSceneId.length > 0
+  const validScene = typeof source.currentSceneId === 'string' && Object.hasOwn(mainlineSceneWorldLayers, source.currentSceneId)
+  const validPhone = source.phoneDevice === 'inner' || source.phoneDevice === 'surface'
+  const validCore = validScene && validPhone && (source.currentPosition == null || isPoint(source.currentPosition))
+  const currentSceneId = validCore
     ? source.currentSceneId as MainlineSceneId
-    : fallbackSceneId
-  const phoneDevice = source.phoneDevice === 'inner' ? 'inner' : 'surface'
+    : initialMainlineSceneId
+  const phoneDevice = validCore ? source.phoneDevice as PhoneDevice : initialMainlinePhoneDevice
+  const scenePositions = cleanScenePositions(source.scenePositions)
+  if (!validCore) delete scenePositions[initialMainlineSceneId]
   const storyStage = source.storyClock?.stage
   const storyClock: MainlineStoryClock = storyStage === 'commercial-street' || storyStage === 'cafe' || storyStage === 'yonghe' || storyStage === 'opening'
     ? storyClockForStage(storyStage as MainlineStoryStage)
@@ -144,8 +162,8 @@ export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineScen
   return {
     _version: PLAYER_SAVE_VERSION,
     currentSceneId,
-    currentPosition: cleanPoint(source.currentPosition),
-    scenePositions: cleanScenePositions(source.scenePositions),
+    currentPosition: validCore ? cleanPoint(source.currentPosition) : null,
+    scenePositions,
     phoneDevice,
     storyClock,
     sceneState: cleanSceneState(source.sceneState),
@@ -159,7 +177,7 @@ export function sanitizePlayerSave(value: unknown, fallbackSceneId: MainlineScen
 
 export function loadPlayerSave(
   storage = defaultStorage(),
-  fallbackSceneId: MainlineSceneId = 'jijia-ancestral-home',
+  fallbackSceneId: MainlineSceneId = initialMainlineSceneId,
 ): PlayerSave {
   applyPublicReleaseCutover(storage)
   try {
@@ -168,7 +186,7 @@ export function loadPlayerSave(
       ? sanitizePlayerSave(JSON.parse(raw), fallbackSceneId)
       : readLegacyPlayerSave(storage, fallbackSceneId)
   } catch {
-    return createInitialPlayerSave(fallbackSceneId)
+    return createInitialPlayerSave()
   }
 }
 
@@ -179,10 +197,15 @@ export function loadPlayerSave(
  */
 export function hasResumablePlayerSave(storage = defaultStorage()): boolean {
   const save = loadPlayerSave(storage)
+  let storedPhoneState = false
+  try {
+    storedPhoneState = [PLAYER_SAVE_STORAGE_KEY, ...LEGACY_PHONE_STORAGE_KEYS]
+      .some(key => storage?.getItem(key) != null)
+  } catch { /* Unavailable storage is a fresh in-memory session. */ }
   return save.updatedAt > 0
     || save.currentPosition !== null
     || Object.keys(save.scenePositions).length > 0
-    || save.phoneDevice === 'inner'
+    || (save.phoneDevice === 'inner' && storedPhoneState)
     || Object.values(save.sceneState).some((state) => Object.keys(state ?? {}).length > 0)
 }
 

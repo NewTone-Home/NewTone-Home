@@ -1,5 +1,6 @@
 import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import { mainlineSceneBlueprints } from './mainlineSceneModel'
+import { initialMainlineSceneId } from './mainlineInitialState'
 import { boundaryGridCellRange, boundaryGridStepsFromReferenceSpacing, compileSharedFrame, defaultSceneScreenMetrics, sharedBoundaryScreenSpacingPx, type SceneScreenMetrics, type SharedBoundaryCell, type SharedBoundaryFrame, type SharedBoundaryOpening } from './sceneBoundaryGrid'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
 import type { StorefrontPresentationPhase } from './storefrontPresentation'
@@ -1585,7 +1586,7 @@ export const mainlineSceneSlices: Record<MainlineSceneId, MainlineSceneSliceDefi
  * the map always returns to the yard so a map jump never respawns inside a
  * building.
  */
-export const mainlineRespawnSceneId: MainlineSceneId = 'jijia-ancestral-home'
+export const mainlineRespawnSceneId: MainlineSceneId = initialMainlineSceneId
 
 export type MainlineMapWorld = 'surface' | 'inner'
 
