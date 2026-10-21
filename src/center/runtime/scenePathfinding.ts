@@ -1,6 +1,8 @@
 import { createPoint, type CollisionBox, type NavigationBarrierSegment, type Point } from './sceneGeometry'
 
 export type PolygonNavigationOptions = {
+  /** Route-only meshes defer free-cell topology until projection is requested. */
+  deferTopology?: boolean
   /** The actor-clear walkable rectangle, before obstacle clearance is applied. */
   bounds: CollisionBox
   /** Raw static collision boxes from the shared scene contract. */
@@ -343,54 +345,63 @@ export function createPolygonNavigationMesh(options: PolygonNavigationOptions): 
     height: (options.obstacleInset?.y ?? 0) * 2,
   }
 
-  const xLines = uniqueSorted([
-    bounds.x,
-    bounds.x + bounds.width,
-    ...obstacles.flatMap((obstacle) => [obstacle.x, obstacle.x + obstacle.width]),
-    ...barriers.flatMap((barrier) => [barrier.start.x, barrier.end.x]),
-  ]).filter((value) => value >= bounds.x - epsilon && value <= bounds.x + bounds.width + epsilon)
-  const yLines = uniqueSorted([
-    bounds.y,
-    bounds.y + bounds.height,
-    ...obstacles.flatMap((obstacle) => [obstacle.y, obstacle.y + obstacle.height]),
-    ...barriers.flatMap((barrier) => [barrier.start.y, barrier.end.y]),
-  ]).filter((value) => value >= bounds.y - epsilon && value <= bounds.y + bounds.height + epsilon)
-
   const cells: FreeCell[] = []
-  for (let xIndex = 0; xIndex < xLines.length - 1; xIndex += 1) {
-    for (let yIndex = 0; yIndex < yLines.length - 1; yIndex += 1) {
-      const left = xLines[xIndex]!
-      const right = xLines[xIndex + 1]!
-      const top = yLines[yIndex]!
-      const bottom = yLines[yIndex + 1]!
-      if (right - left <= epsilon || bottom - top <= epsilon) continue
-      const cell: CollisionBox = { x: left, y: top, width: right - left, height: bottom - top }
-      const center = { x: (left + right) / 2, y: (top + bottom) / 2 }
-      if (obstacles.some((obstacle) => containsPoint(obstacle, center) || overlaps(cell, obstacle))) continue
-      cells.push({ ...cell, index: cells.length })
-    }
-  }
-
-  const verticalEdges = new Map<string, CellEdge[]>()
-  const horizontalEdges = new Map<string, CellEdge[]>()
-  const addEdge = (map: Map<string, CellEdge[]>, coordinate: number, start: number, end: number, cell: number) => {
-    const key = coordinate.toFixed(4)
-    const group = map.get(key) ?? []
-    group.push({ cell, start, end })
-    map.set(key, group)
-  }
-  cells.forEach((cell) => {
-    addEdge(verticalEdges, cell.x, cell.y, cell.y + cell.height, cell.index)
-    addEdge(verticalEdges, cell.x + cell.width, cell.y, cell.y + cell.height, cell.index)
-    addEdge(horizontalEdges, cell.y, cell.x, cell.x + cell.width, cell.index)
-    addEdge(horizontalEdges, cell.y + cell.height, cell.x, cell.x + cell.width, cell.index)
-  })
   const links = new Map<number, CellLink[]>()
-  connectEdgeGroups(verticalEdges, cells, links, obstacles, barriers, actorFootprint)
-  connectEdgeGroups(horizontalEdges, cells, links, obstacles, barriers, actorFootprint)
+  let topologyReady = false
+  const ensureTopology = () => {
+    if (topologyReady) return
+    const xLines = uniqueSorted([
+      bounds.x,
+      bounds.x + bounds.width,
+      ...obstacles.flatMap((obstacle) => [obstacle.x, obstacle.x + obstacle.width]),
+      ...barriers.flatMap((barrier) => [barrier.start.x, barrier.end.x]),
+    ]).filter((value) => value >= bounds.x - epsilon && value <= bounds.x + bounds.width + epsilon)
+    const yLines = uniqueSorted([
+      bounds.y,
+      bounds.y + bounds.height,
+      ...obstacles.flatMap((obstacle) => [obstacle.y, obstacle.y + obstacle.height]),
+      ...barriers.flatMap((barrier) => [barrier.start.y, barrier.end.y]),
+    ]).filter((value) => value >= bounds.y - epsilon && value <= bounds.y + bounds.height + epsilon)
 
-  const cellContaining = (point: Point) => cells.find((cell) => containsPoint(cell, point))
+    for (let xIndex = 0; xIndex < xLines.length - 1; xIndex += 1) {
+      for (let yIndex = 0; yIndex < yLines.length - 1; yIndex += 1) {
+        const left = xLines[xIndex]!
+        const right = xLines[xIndex + 1]!
+        const top = yLines[yIndex]!
+        const bottom = yLines[yIndex + 1]!
+        if (right - left <= epsilon || bottom - top <= epsilon) continue
+        const cell: CollisionBox = { x: left, y: top, width: right - left, height: bottom - top }
+        const center = { x: (left + right) / 2, y: (top + bottom) / 2 }
+        if (obstacles.some((obstacle) => containsPoint(obstacle, center) || overlaps(cell, obstacle))) continue
+        cells.push({ ...cell, index: cells.length })
+      }
+    }
+
+    const verticalEdges = new Map<string, CellEdge[]>()
+    const horizontalEdges = new Map<string, CellEdge[]>()
+    const addEdge = (map: Map<string, CellEdge[]>, coordinate: number, start: number, end: number, cell: number) => {
+      const key = coordinate.toFixed(4)
+      const group = map.get(key) ?? []
+      group.push({ cell, start, end })
+      map.set(key, group)
+    }
+    cells.forEach((cell) => {
+      addEdge(verticalEdges, cell.x, cell.y, cell.y + cell.height, cell.index)
+      addEdge(verticalEdges, cell.x + cell.width, cell.y, cell.y + cell.height, cell.index)
+      addEdge(horizontalEdges, cell.y, cell.x, cell.x + cell.width, cell.index)
+      addEdge(horizontalEdges, cell.y + cell.height, cell.x, cell.x + cell.width, cell.index)
+    })
+    connectEdgeGroups(verticalEdges, cells, links, obstacles, barriers, actorFootprint)
+    connectEdgeGroups(horizontalEdges, cells, links, obstacles, barriers, actorFootprint)
+    topologyReady = true
+  }
+  // findPath uses visibility only. World projection still builds topology
+  // eagerly by default; deferred meshes build the exact same graph on demand.
+  if (!options.deferTopology) ensureTopology()
+
+  const cellContaining = (point: Point) => { ensureTopology(); return cells.find((cell) => containsPoint(cell, point)) }
   const nearestPoint = (point: Point): Point | null => {
+    ensureTopology()
     let closest: Point | null = null
     let closestDistance = Infinity
     for (const cell of cells) {
@@ -476,32 +487,29 @@ export function createPolygonNavigationMesh(options: PolygonNavigationOptions): 
     && obstacles.every((obstacle) => !containsPoint(obstacle, node))
   ))
   const staticVisibilityDistances = staticVisibilityNodes.map(() => new Map<number, number>())
-  let visibilityGraphReady = false
-  const ensureVisibilityGraph = () => {
-    if (visibilityGraphReady) return
-    visibilityGraphReady = true
-    staticVisibilityNodes.forEach((node, nodeIndex) => {
-      for (let candidateIndex = nodeIndex + 1; candidateIndex < staticVisibilityNodes.length; candidateIndex += 1) {
-        const candidate = staticVisibilityNodes[candidateIndex]!
-        if (!segmentIsClear(node, candidate, obstacles, barriers, actorFootprint)) continue
-        const distance = pointDistance(node, candidate)
-        staticVisibilityDistances[nodeIndex]!.set(candidateIndex, distance)
-        staticVisibilityDistances[candidateIndex]!.set(nodeIndex, distance)
-      }
-    })
+  const visibilityNeighborsReady = new Set<number>()
+  const ensureVisibilityNeighbors = (nodeIndex: number) => {
+    if (visibilityNeighborsReady.has(nodeIndex)) return
+    const node = staticVisibilityNodes[nodeIndex]!
+    for (let candidateIndex = 0; candidateIndex < staticVisibilityNodes.length; candidateIndex += 1) {
+      // A completed opposite row already tested this undirected edge, even
+      // when blocked. Retain both legal and blocked results without another
+      // scene-wide all-pairs build on the first route.
+      if (candidateIndex === nodeIndex || visibilityNeighborsReady.has(candidateIndex)) continue
+      const candidate = staticVisibilityNodes[candidateIndex]!
+      if (!segmentIsClear(node, candidate, obstacles, barriers, actorFootprint)) continue
+      const distance = pointDistance(node, candidate)
+      staticVisibilityDistances[nodeIndex]!.set(candidateIndex, distance)
+      staticVisibilityDistances[candidateIndex]!.set(nodeIndex, distance)
+    }
+    visibilityNeighborsReady.add(nodeIndex)
   }
 
   const findPathToGoal = (start: Point, goal: Point): Point[] | null => {
     if (segmentIsClear(start, goal, obstacles, barriers, actorFootprint)) return [start, goal]
-    ensureVisibilityGraph()
 
     const visibilityNodes = [start, goal, ...staticVisibilityNodes]
     const visibilityDistances = visibilityNodes.map(() => new Map<number, number>())
-    staticVisibilityDistances.forEach((links, nodeIndex) => {
-      links.forEach((distance, candidateIndex) => {
-        visibilityDistances[nodeIndex + 2]!.set(candidateIndex + 2, distance)
-      })
-    })
     for (let dynamicIndex = 0; dynamicIndex < 2; dynamicIndex += 1) {
       const node = visibilityNodes[dynamicIndex]!
       for (let candidateIndex = dynamicIndex + 1; candidateIndex < visibilityNodes.length; candidateIndex += 1) {
@@ -520,10 +528,19 @@ export function createPolygonNavigationMesh(options: PolygonNavigationOptions): 
       let current = -1
       for (let index = 0; index < visibilityCost.length; index += 1) {
         if (visited.has(index) || visibilityCost[index] === Infinity) continue
-        if (current < 0 || visibilityCost[index]! < visibilityCost[current]!) current = index
+        // Euclidean distance is a consistent lower bound for these Euclidean
+        // visibility edges: A* preserves shortest legal routes while avoiding
+        // expansion (and neighbor construction) of unrelated stores.
+        if (current < 0 || visibilityCost[index]! + pointDistance(visibilityNodes[index]!, goal)
+          < visibilityCost[current]! + pointDistance(visibilityNodes[current]!, goal)) current = index
       }
       if (current < 0) break
+      if (current === 1) break
       visited.add(current)
+      if (current >= 2) {
+        ensureVisibilityNeighbors(current - 2)
+        staticVisibilityDistances[current - 2]!.forEach((distance, candidate) => visibilityDistances[current]!.set(candidate + 2, distance))
+      }
       for (const [candidate, edgeCost] of visibilityDistances[current]!) {
         const nextCost = visibilityCost[current]! + edgeCost
         if (nextCost < visibilityCost[candidate]!) {

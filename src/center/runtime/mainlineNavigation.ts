@@ -59,7 +59,7 @@ function routeNavigationMesh(scene: MainlineSceneDefinition, inputs: Parameters<
   const key = JSON.stringify(inputs)
   const meshes = routeNavigationMeshCache.get(scene) ?? new Map<string, CachedNavigationMesh>()
   const cached = meshes.get(key)
-  const mesh = cached?.mesh ?? createPolygonNavigationMesh(inputs)
+  const mesh = cached?.mesh ?? createPolygonNavigationMesh({ ...inputs, deferTopology: true })
   meshes.delete(key); meshes.set(key, { key, mesh })
   while (meshes.size > MAX_STATIC_NAVIGATION_MESHES_PER_SCENE) meshes.delete(meshes.keys().next().value!)
   routeNavigationMeshCache.set(scene, meshes)
@@ -163,7 +163,7 @@ export function canTravelAlongMainlineSegment(
   maxStep = sharedNavigationTraversalStep,
 ) {
   return isMainlineNavigationBarrierClear(start, end, scene, layout, options)
-    && canTravelAlongSegment(start, end, (point) => isWalkableMainlinePoint(point, scene, layout, options), maxStep)
+    && canTravelAlongSegment(start, end, mainlineOccupancyQuery(scene, layout, options, start), maxStep)
 }
 
 function overlaps(first: { x: number; y: number; width: number; height: number }, second: { x: number; y: number; width: number; height: number }) {
@@ -173,9 +173,6 @@ function overlaps(first: { x: number; y: number; width: number; height: number }
     && first.y + first.height > second.y
 }
 
-function expanded(box: { x: number; y: number; width: number; height: number }, radius: number) {
-  return { x: box.x - radius, y: box.y - radius, width: box.width + radius * 2, height: box.height + radius * 2 }
-}
 
 function actorAccessFor(scene: MainlineSceneDefinition, actorId?: string) {
   return new Set(scene.actorAccess[actorId ?? 'protagonist'] ?? ['public'])
@@ -208,6 +205,7 @@ function collisionBoxes(
   // A closed passage stays a physical gate until its lifecycle marks it open;
   // planning may approach its boundary, but cannot plan through the doorway.
   const geometry = snapshot.units
+  const occupiedSeats = occupiedSeatIdsForNavigation(scene, options)
   const staticBoxes = [
     ...geometry
       .filter((unit) => {
@@ -231,7 +229,7 @@ function collisionBoxes(
       })
       .map((unit) => ({ x: unit.x, y: unit.y, width: unit.width, height: unit.height })),
     ...scene.objects
-      .filter((entity) => entity.visible !== false && !(entity.kind === 'seat' && occupiedSeatIdsForNavigation(scene, options).has(entity.id)))
+      .filter((entity) => entity.visible !== false && !(entity.kind === 'seat' && occupiedSeats.has(entity.id)))
       .map((entity) => snapshot.objects.get(entity.id)?.collision ?? mainlineEntityCollision(scene, entity, layout, options.screenMetrics))
       .filter((collision): collision is NonNullable<typeof collision> => Boolean(collision)),
   ]
@@ -243,21 +241,31 @@ export function mainlineNavigationCollisionBoxes(scene: MainlineSceneDefinition,
   return collisionBoxes(scene, layout, options)
 }
 
-export function isWalkableMainlinePoint(point: Point, scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
-  const footprint = mainlineActorFootprint(scene, options, point)
+/** One synchronous query owns one current occupancy snapshot. Movement ticks
+ * still call the public predicate afresh, so later NPC/door changes are live. */
+function mainlineOccupancyQuery(scene: MainlineSceneDefinition, layout: SceneLayout, options: MainlineNavigationOptions, position: Point, obstacles = collisionBoxes(scene, layout, options)) {
+  const footprint = mainlineActorFootprint(scene, options, position)
   const bounds = insetBounds(sceneGeometrySnapshot(scene, layout, options).walkBounds, footprint)
-  if (point.x < bounds.x || point.x > bounds.x + bounds.width || point.y < bounds.y || point.y > bounds.y + bounds.height) return false
-  // Access is a semantic occupancy policy, never a physical scene obstacle.
-  if (scene.accessRegions.some(region => !actorCanEnterRegion(scene, options.actorId, region) && containsPoint(region, point))) return false
-  for (const boundary of scene.accessBoundaries) {
+  const access = actorAccessFor(scene, options.actorId)
+  const deniedRegions = scene.accessRegions.filter(region => !access.has(region.requiredAccess))
+  const deniedEdges = scene.accessBoundaries.flatMap(boundary => {
     const region = scene.accessRegions.find(candidate => candidate.id === boundary.regionId)
-    if (!region || actorCanEnterRegion(scene, options.actorId, region)) continue
-    const contact = accessBoundaryGeometry(region, boundary.edge, footprint)
-    const tangent = point[contact.tangentAxis]
-    if (tangent >= contact.min && tangent <= contact.max && (point[contact.axis] - contact.line) * contact.direction <= contact.clearance) return false
+    return region && !access.has(region.requiredAccess) ? [accessBoundaryGeometry(region, boundary.edge, footprint)] : []
+  })
+  return (point: Point) => {
+    if (point.x < bounds.x || point.x > bounds.x + bounds.width || point.y < bounds.y || point.y > bounds.y + bounds.height) return false
+    if (deniedRegions.some(region => containsPoint(region, point))) return false
+    for (const contact of deniedEdges) {
+      const tangent = point[contact.tangentAxis]
+      if (tangent >= contact.min && tangent <= contact.max && (point[contact.axis] - contact.line) * contact.direction <= contact.clearance) return false
+    }
+    const actorBox = navigationActorBox(point, footprint)
+    return obstacles.every(collision => !overlaps(actorBox, collision))
   }
-  const actorBox = navigationActorBox(point, footprint)
-  return collisionBoxes(scene, layout, options).every((collision) => !overlaps(actorBox, expanded(collision, 0)))
+}
+
+export function isWalkableMainlinePoint(point: Point, scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
+  return mainlineOccupancyQuery(scene, layout, options, point)(point)
 }
 
 function distance(first: Point, second: Point) {
@@ -1169,19 +1177,21 @@ export function findMainlinePathThroughPassage(scene: MainlineSceneDefinition, p
 
 export function findMainlinePath(start: Point, target: Point, scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): Point[] | null {
   options = { ...options, geometrySnapshot: sceneGeometrySnapshot(scene, layout, options) }
-  if (!isWalkableMainlinePoint(start, scene, layout, options)) return null
-  const targetIsWalkable = isWalkableMainlinePoint(target, scene, layout, options)
-  if (!targetIsWalkable) return null
   const staticOptions = { ...options, navigationRuntime: undefined }
   const actorFootprint = mainlineActorFootprint(scene, options, start)
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const barriers = mainlineNavigationBarriers(scene, layout, { ...options, geometrySnapshot: snapshot })
-  const canOccupy = (point: Point) => isWalkableMainlinePoint(point, scene, layout, options)
-  if (targetIsWalkable && isMainlineNavigationBarrierClear(start, target, scene, layout, options) && canTravelAlongSegment(start, target, canOccupy)) return [start, target]
-  const canTravel = (from: Point, to: Point) => isMainlineNavigationBarrierClear(from, to, scene, layout, options)
-    && canTravelAlongSegment(from, to, canOccupy)
-  const canTravelStatic = (from: Point, to: Point) => isMainlineNavigationBarrierClear(from, to, scene, layout, staticOptions)
-    && canTravelAlongSegment(from, to, point => isWalkableMainlinePoint(point, scene, layout, staticOptions))
+  const staticObstacles = collisionBoxes(scene, layout, staticOptions)
+  const obstacles = [...staticObstacles, ...(options.navigationRuntime?.dynamicObstaclesFor(options.actorId) ?? [])]
+  const canOccupy = mainlineOccupancyQuery(scene, layout, options, start, obstacles)
+  const canOccupyStatic = mainlineOccupancyQuery(scene, layout, staticOptions, start, staticObstacles)
+  if (!canOccupy(start)) return null
+  const targetIsWalkable = canOccupy(target)
+  if (!targetIsWalkable) return null
+  const barriersClear = (from: Point, to: Point) => navigationBarriersAllowTravel(from, to, barriers, actorFootprint)
+  const canTravel = (from: Point, to: Point) => barriersClear(from, to) && canTravelAlongSegment(from, to, canOccupy)
+  if (canTravel(start, target)) return [start, target]
+  const canTravelStatic = (from: Point, to: Point) => barriersClear(from, to) && canTravelAlongSegment(from, to, canOccupyStatic)
   if (targetIsWalkable
     && options.navigationRuntime
     && canTravelStatic(start, target)) {
@@ -1195,7 +1205,6 @@ export function findMainlinePath(start: Point, target: Point, scene: MainlineSce
     if (detour) return detour
   }
   const bounds = insetBounds(snapshot.walkBounds, actorFootprint)
-  const staticObstacles = collisionBoxes(scene, layout, staticOptions)
   const inputs = { bounds, obstacles: staticObstacles,
     obstacleInset: { x: actorFootprint.width / 2, y: actorFootprint.height / 2 }, barriers, actorFootprint }
   // Player and NPC requests share immutable physical geometry. A moving actor
@@ -1205,7 +1214,6 @@ export function findMainlinePath(start: Point, target: Point, scene: MainlineSce
     ...inputs, navigationMesh: routeNavigationMesh(scene, inputs), canTravel,
   })
   if (staticPath || !options.navigationRuntime) return staticPath
-  const obstacles = collisionBoxes(scene, layout, options)
   const dynamicInputs = { ...inputs, obstacles }
   return findNavigationPath(start, target, {
     ...dynamicInputs, navigationMesh: routeNavigationMesh(scene, dynamicInputs), canTravel,
