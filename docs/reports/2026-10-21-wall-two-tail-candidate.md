@@ -1,4 +1,6 @@
-# 固定墙格与极短尾格：556a45b / 4181候选，等待独立QA
+# 固定墙格与极短尾格：556a45b / 已验收并发布原临时预览
+
+最新状态：独立QA通过指定范围，作者明确批准后已发布至原4173/QuickTunnel，公开资源与正常入口烟测通过。下文保留候选阶段记录和限制；最终发布、回滚及实测范围见文末。
 
 Notion Codex板原生子页正文：https://app.notion.com/p/400b138d1e1181daa884f2a7e8afed70 。创建后回读已确认提交SHA、4181资源、111测试、12组尾格、实际diff与未测限制均存在；不是只写评论。
 
@@ -326,3 +328,40 @@ index b86266a..5e3f989 100644
 + })
  })
 ```
+
+## 2026-10-21 最终发布与回滚记录
+
+作者03:24:58 UTC明确批准后，已于03:27:42 UTC将原4173切换到固定验收应用556a45bd99b17c719655040b1f684441f5a45013的原构建。公开地址仍为 https://charts-lips-explaining-survivors.trycloudflare.com/ ，原QuickTunnel PID15248未改；新4173服务PID44564。未push、未改main/staging/Vercel，未重新构建，未包含两店新内装。
+
+### 独立QA范围（父端确认）
+
+- 12组极短尾距消除重叠；正常直段28，仅极端墙尾末两段分摊。
+- 普通世界字14、家具字距16的比例；门旁、墙尾与转角覆盖。
+- 11处额外门洞清除，14个合法后门保留；普通墙无门身份。
+- 新档商业街＋里世界手机，3类有效旧档保留。
+- 正常Cafe近街/远街/正门起步52/48/48ms，另69项定向测试通过。
+- 上述是指定范围验收，不扩写为全游戏、所有旧档、真实手机性能或新内装验收。
+
+### 发布实测
+
+直接复制4181已验收outDir到E:/NewTone-Preview/published-builds/556a45bd99b17c719655040b1f684441f5a45013；8个文件逐项复制校验通过。03:28:21 UTC从原公开URL及本地4173读回全部8文件，16/16均HTTP200且字节/SHA256与固定候选完全一致。
+
+- HTML：2277 bytes，SHA256 62122BFA826FB337AD51A387A614711D261D42BA99F3D4207D409319E049998B。
+- JS index-CRQ9tLb0.js：828796 bytes，SHA256 2DF2D6144E238B62FE4A2887BD838FFFEDB2779FC27C960785667258DDFA59A6。
+- CSS index-DqwytlUi.css：200263 bytes，SHA256 8037B3161155B4BD755F467A08FC895B2A38EBAA6A21E30C7F8CC89513EB913A。
+
+公开正常入口烟测：Chrome155.0.8059.85，1280×800、390×844，均使用全新隔离context；没有注入存档、没有测试scene URL。正常点击进入世界，等待真实data-entry-phase=active再操作：初始commercial-street、inner手机、(34,50)；点击街道后分别到(39.9658,50)/(39.9887,50)，重新打开原根URL恢复同一位置及inner手机。两组pageErrors均为空。
+
+烟测脚本早期因定位器重复、假设重载必回Landing、固定等待早于covering动画完成而中断；均只修正测试等待/定位器，没有改发布应用。诊断证实covering正常到active、pointer-events恢复auto；并非开场阅读层阻塞，早期这一推测已撤回。最终烟测2/2通过，不以早期中断冒称产品故障或通过。
+
+### 回滚与存档保护
+
+旧运行构建E:/NewTone-Preview/published-builds/cea7f141efb8b3756f09788c125ab2231d56f74a完整保留，原8d工作树及dist亦未改。发布只切换服务的outDir，未改Git checkout、浏览器配置或真实用户localStorage。启动失败自动恢复旧构建的保护已写入本次切换脚本；本次启动成功，未执行回滚。
+
+回滚辅助脚本保留在本施工目录.tmp/publish-556a45b/rollback-preview.ps1，执行前会校验当前运行SHA、PID和完整命令行，不会停止未知进程；回滚后仍须重新读回原公开链接，不以启动旧进程代替回滚完成。此次未演练真实切回旧版，以免覆盖已获批准的新预览。
+
+### 证据
+
+本施工目录.tmp/publish-556a45b/中保留copied-build-manifest.json、publication.json、previous-preview.pid.json、http-verification.json、public-smoke.json、entry-phase-diagnostic.json、桌面/手机初始及行走截图、切换和回滚脚本。烟测浏览器已关闭，4173与原QuickTunnel继续运行。
+
+Notion发布正文及标题回读已确认：原公开URL、03:27:42发布时刻、固定资源哈希、实际行走/重载位置、回滚路径与独立QA范围均存在。
