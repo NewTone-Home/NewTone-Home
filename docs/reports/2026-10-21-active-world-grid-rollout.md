@@ -123,3 +123,14 @@ Result: **(22.2083333333,50.2590666667)**, first fruit-tea frontage/public-road 
 | index-BsDrr4lS.css |200381|67dbb36fb235e8f7493fda38992e06ed6f9b88cfb724e7b928fefe6c4aa5664e|
 
 HTML and all four referenced assets read back HTTP200 with matching bytes/SHA (`.tmp/entrance-review-http.json`). Browser processes closed after checks. Public4173/QuickTunnel stays027f31; no push or publication. Ready for combined independent QA, not overall acceptance. Physical devices/Safari, full story and inherited baseline failures remain as listed above.
+
+## Reboot recovery, 2026-10-21 07:28 UTC
+
+Author requested restoration after restarting the computer. Neither4173 nor4192 had a listener; no node/cloudflared process was found. Frozen files remained intact. Restored the existing builds without rebuilding or changing application code:
+
+- Public4173:027f31, PID33904, directory `E:/NewTone-Preview/published-builds/027f31ba08dcea6dca728af82fea09291eaddfb3`.
+- QA4192:bae6afb, PID30508, existing `.tmp/grid-entrance-review-dist`.
+- New same-purpose QuickTunnel PID26780: https://dishes-entertainment-regional-applicant.trycloudflare.com/ pointing only to4173. The former random hostname could not be retained after reboot. No persistent credentials or DNS configuration were created.
+- First public request returned Vite403 identifying the new Host as disallowed. Restarted only the verified4173 process with process-scoped `__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS` set to this exact hostname. No wildcard, app/config source edit, or authorization bypass was used.
+- Final readback:15/15 checks (HTML and4 referenced assets for local4173/public URL/local4192) HTTP200, exact bytes/SHA match frozen files. Evidence `.tmp/restore-check.json`; startup logs `.tmp/restore-*.log`.
+- Public JS `index-CqIUcgw7.js`,831477 bytes, SHA256 `546a461fb8868fa3799825e0b8dd010ed6cdb96d81d33e0bf069e5b3e5dd7f81`; QA JS and shared CSS remain as the4192 table above. No new scale formula, grid candidate publication, push, main/staging/Vercel or real-save access. No browser/performance run was started, avoiding independent QA interference.
