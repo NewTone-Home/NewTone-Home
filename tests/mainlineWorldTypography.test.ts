@@ -8,7 +8,7 @@ import { sceneFocusFrameGeometry } from '../src/center/runtime/SceneFocusFrames'
 
 describe('fixed world typography and focus units',()=>{
   it.each([{width:1920,height:1080},{width:1280,height:800},{width:390,height:844},{width:844,height:390}])('keeps ordinary type and authoring pitches independent of viewport %o',metrics=>{
-    expect(mainlineEntityFontSizePx(null,metrics)).toBe(14)
+    expect(mainlineEntityFontSizePx(null,metrics)).toBe(16)
     const wall=boundaryGridStepsFromReferenceSpacing(),furniture=boundaryGridStepsFromReferenceSpacing(16)
     expect(wall.horizontal*sceneDesignReferenceMetrics.width/100).toBeCloseTo(28,2)
     expect(wall.vertical*sceneDesignReferenceMetrics.height/100).toBeCloseTo(28,2)

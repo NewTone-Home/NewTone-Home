@@ -692,7 +692,7 @@
   .scene-mainline-world { animation: none; }
 }
 .scene-mainline-wall-labels { inset: 0; z-index: 1; }
-.scene-mainline-wall { color: var(--soft); font-size: var(--scene-mainline-object-font-size, 14px); line-height: 1; }
+.scene-mainline-wall { color: var(--soft); font-size: var(--scene-mainline-object-font-size, 16px); line-height: 1; }
 .scene-mainline-wall-door {
   display: inline-flex;
   align-items: center;
@@ -745,7 +745,7 @@
 }
 .scene-mainline-wall-feature {
   color: var(--soft);
-  font-size: var(--scene-mainline-object-font-size, 14px);
+  font-size: var(--scene-mainline-object-font-size, 16px);
   letter-spacing: normal;
   white-space: nowrap;
 }
@@ -773,7 +773,7 @@
 .scene-mainline-storefront-cell {
   z-index: 3;
   color: var(--soft);
-  font-size: var(--scene-mainline-object-font-size, 14px);
+  font-size: var(--scene-mainline-object-font-size, 16px);
   line-height: 1;
   white-space: nowrap;
   pointer-events: none;
@@ -820,13 +820,13 @@
   transition: color 120ms ease-out, visibility 0s linear 140ms;
 }
 .scene-mainline-storefront--vertical.scene-mainline-storefront--sign .scene-mainline-storefront__label-track {
-  font-size: var(--scene-mainline-object-font-size, 14px);
+  font-size: var(--scene-mainline-object-font-size, 16px);
 }
 .scene-mainline-storefront__label-track {
   display: block;
   width: max-content;
   max-width: 100%;
-  font-size: var(--scene-mainline-object-font-size, 14px);
+  font-size: var(--scene-mainline-object-font-size, 16px);
   white-space: nowrap;
   will-change: transform;
   transform: translate3d(0, 0, 0);
@@ -885,7 +885,7 @@
   z-index: 5;
   transform: translate(-50%, -50%);
   color: var(--ink);
-  font-size: var(--scene-mainline-object-font-size, 14px);
+  font-size: var(--scene-mainline-object-font-size, 16px);
   line-height: 1;
   white-space: nowrap;
 }
@@ -902,19 +902,19 @@
 }
 .scene-mainline-npc:focus-visible { outline: 1px solid var(--active); outline-offset: 4px; }
 .scene-mainline-npc--ambient { pointer-events: none; cursor: default; }
-.scene-mainline-object--door { color: var(--active); font-size: var(--scene-mainline-object-font-size, 14px); }
+.scene-mainline-object--door { color: var(--active); font-size: var(--scene-mainline-object-font-size, 16px); }
 .scene-mainline-object--landmark,
-.scene-mainline-object--direction { color: var(--soft); font-size: var(--scene-mainline-object-font-size, 14px); }
+.scene-mainline-object--direction { color: var(--soft); font-size: var(--scene-mainline-object-font-size, 16px); }
 .scene-mainline-yard-tree-ring { color: var(--soft); opacity: .78; }
 .scene-mainline-yard-tree-ring.is-under-player { opacity: .28; }
-.scene-mainline-object--fixture { color: var(--ink); font-size: var(--scene-mainline-object-font-size, 14px); letter-spacing: 0; }
+.scene-mainline-object--fixture { color: var(--ink); font-size: var(--scene-mainline-object-font-size, 16px); letter-spacing: 0; }
 .scene-mainline-object--table,
 .scene-mainline-object--seat {
   color: var(--soft);
   min-width: 0;
   min-height: 0;
   padding: 0;
-  font-size: var(--scene-mainline-object-font-size, 14px);
+  font-size: var(--scene-mainline-object-font-size, 16px);
   line-height: 1;
 }
 .scene-mainline-exploration--breathing > .scene-mainline-object__label {
@@ -955,7 +955,7 @@
 [data-mainline-scene="commercial-cafe"] .scene-mainline-object--fixture,
 [data-mainline-scene="commercial-cafe"] .scene-mainline-object--table,
 [data-mainline-scene="commercial-cafe"] .scene-mainline-object--seat {
-  font-size: var(--scene-mainline-object-font-size, 14px);
+  font-size: var(--scene-mainline-object-font-size, 16px);
 }
 .scene-mainline-object--table.scene-mainline-object--facing-east > span,
 .scene-mainline-object--table.scene-mainline-object--facing-west > span,
@@ -1325,14 +1325,14 @@
     width: max-content;
     max-width: calc(100% - 8px);
     padding: 0;
-    font-size: var(--scene-mainline-object-font-size, 14px);
+    font-size: var(--scene-mainline-object-font-size, 16px);
     letter-spacing: 0;
   }
   .scene-mainline-wall,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--fixture,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--table,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--seat {
-    font-size: var(--scene-mainline-object-font-size, 14px);
+    font-size: var(--scene-mainline-object-font-size, 16px);
   }
   .scene-mainline-text { max-width: calc(100% - 24px); max-height: 38%; padding: 2px 0; }
   .scene-mainline-text, .scene-mainline-speaker-anchor { font-size: 12px; line-height: 1.5; }
@@ -1347,12 +1347,12 @@
   .scene-shell__state { min-width: 70px; padding-left: 8px; font-size: 9px; }
   .scene-shell__state strong { font-size: 12px; }
   .scene-stage { height: clamp(300px, calc(100svh - 100px), 560px); min-height: 300px; }
-  .scene-mainline-object { min-width: 0; min-height: 0; width: max-content; padding: 0; font-size: var(--scene-mainline-object-font-size, 14px); }
+  .scene-mainline-object { min-width: 0; min-height: 0; width: max-content; padding: 0; font-size: var(--scene-mainline-object-font-size, 16px); }
   .scene-mainline-wall,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--fixture,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--table,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--seat {
-    font-size: var(--scene-mainline-object-font-size, 14px);
+    font-size: var(--scene-mainline-object-font-size, 16px);
   }
   .scene-spatial-glyph--door { min-width: 42px; }
   .scene-object--fixture,
@@ -1392,7 +1392,7 @@
 .scene-mainline-world .scene-actor__label,
 .scene-mainline-world .scene-table-text,
 .scene-mainline-world .scene-chair-text {
-  font-size: var(--scene-mainline-object-font-size, 14px);
+  font-size: var(--scene-mainline-object-font-size, 16px);
 }
 
 /* Adjacent letters inside furniture use the 16-unit center pitch: 14 type + 2 tracking. */

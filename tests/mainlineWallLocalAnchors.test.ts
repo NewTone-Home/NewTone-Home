@@ -26,9 +26,9 @@ describe('local door anchors and approved short wall tail',()=>{
   const source=[unit('same-owner-fixed-edge',0,80,[cell(0),cell(40),cell(80)])]
   expect(fixedMainlineWallGlyphGrid(source,new Set(['frame:left']))).toEqual(source)
  })
- it('shares only an extreme 0.96px end remainder over the final two intervals',()=>{
+ it('shares an extreme 0.96px end remainder over only the last three intervals at font16',()=>{
   const source=[unit('office-tail',115.2,284.16,Array.from({length:7},(_,i)=>cell(115.2+i*28)).concat(cell(284.16)))]
-  expect(centers(fixedMainlineWallGlyphGrid(source,new Set(['frame:top'])))).toEqual([115.2,143.2,171.2,199.2,227.2,255.2,269.68,284.16])
+  expect(centers(fixedMainlineWallGlyphGrid(source,new Set(['frame:top'])))).toEqual([115.2,143.2,171.2,199.2,227.2,246.186667,265.173333,284.16])
  })
  it('shares the leading tail when growing away from a fixed far door',()=>{
   const source=[unit('far-door',0,130,[cell(0),cell(25),cell(50),cell(75),cell(102),cell(130,'door')])]

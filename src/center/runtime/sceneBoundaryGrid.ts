@@ -23,7 +23,7 @@ export type SceneScreenMetrics = {
   viewportWidth?: number
 }
 
-export const mainlineWorldFontSizePx = 14
+export const mainlineWorldFontSizePx = 16
 export const sharedBoundaryScreenSpacingPx = 28
 export const sharedFurnitureGlyphSpacingPx = 16
 /** Logical scene authoring reference. Distances are CSS px at 1:1. */
