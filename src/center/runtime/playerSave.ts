@@ -2,6 +2,7 @@ import type { MainlineSceneId } from './mainlineSceneModel'
 import { migratePreGridPosition } from './sceneGridRollout'
 import { mainlineSceneBlueprints } from './mainlineSceneModel'
 import { continuousCafeRoomId, mapLegacyCafePoint } from './continuousCafe'
+import { cleanMiningPositionBackup, cleanMiningPositionRooms, currentMiningLayoutVersion, currentMiningRoomId, isMiningSceneId, migrateMiningPositions, type MiningPositionBackup, type MiningPositionRooms } from './miningLayoutMigration'
 import { cleanPhoneNotifications, type PhoneNotification } from './phoneNotifications'
 import type { PhoneDevice } from './phoneState'
 import { mainlineSceneWorldLayers } from './phoneState'
@@ -24,6 +25,9 @@ export type PlayerSceneState = Record<string, PlayerChoiceValue>
 
 export type PlayerSave = {
   worldGridVersion?: 1
+  miningLayoutVersion?: number
+  miningPositionRooms?: MiningPositionRooms
+  miningPositionBackup?: MiningPositionBackup
   _version: typeof PLAYER_SAVE_VERSION
   currentSceneId: MainlineSceneId
   currentPosition: PlayerPoint | null
@@ -88,6 +92,7 @@ function cleanSceneState(value: unknown): Partial<Record<MainlineSceneId, Player
 export function createInitialPlayerSave(sceneId: MainlineSceneId = initialMainlineSceneId): PlayerSave {
   return {
     worldGridVersion: 1,
+    miningLayoutVersion: currentMiningLayoutVersion,
     _version: PLAYER_SAVE_VERSION,
     currentSceneId: sceneId,
     currentPosition: null,
@@ -149,7 +154,7 @@ function readLegacyPlayerSave(storage: PlayerSaveStorage | null, fallbackSceneId
     migrated.phoneDevice = initialMainlinePhoneDevice
   }
   return hasLegacyValue
-    ? sanitizePlayerSave({ ...migrated, _version: 1, worldGridVersion: undefined }, fallbackSceneId)
+    ? sanitizePlayerSave({ ...migrated, _version: 1, worldGridVersion: undefined, miningLayoutVersion: undefined }, fallbackSceneId)
     : createInitialPlayerSave(fallbackSceneId)
 }
 
@@ -169,16 +174,23 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
   const repairLegacyStreetPhone = validCore && currentSceneId === 'commercial-street'
     && source.phoneDevice === 'surface' && (!Number.isFinite(savedVersion) || savedVersion < 2)
   const phoneDevice = repairLegacyStreetPhone ? 'inner' : validCore ? source.phoneDevice as PhoneDevice : initialMainlinePhoneDevice
-  const scenePositions = cleanScenePositions(source.scenePositions)
+  let scenePositions = cleanScenePositions(source.scenePositions)
   if(source.worldGridVersion !== 1) {
     for(const [id,position] of Object.entries(scenePositions)) {
-      if(Object.hasOwn(mainlineSceneWorldLayers,id)) scenePositions[id as MainlineSceneId]=migratePreGridPosition(id as MainlineSceneId,position!)
+      if(Object.hasOwn(mainlineSceneWorldLayers,id)&&!isMiningSceneId(id)) scenePositions[id as MainlineSceneId]=migratePreGridPosition(id as MainlineSceneId,position!)
     }
   }
   if (!validCore) delete scenePositions[initialMainlineSceneId]
   let currentPosition = validCore && isPoint(source.currentPosition)
-    ? source.worldGridVersion === 1 ? cleanPoint(source.currentPosition) : migratePreGridPosition(currentSceneId, source.currentPosition)
+    ? source.worldGridVersion === 1 || isMiningSceneId(currentSceneId) ? cleanPoint(source.currentPosition) : migratePreGridPosition(currentSceneId, source.currentPosition)
     : null
+  const mining = migrateMiningPositions({
+    layoutVersion: source.miningLayoutVersion, worldGridVersion: source.worldGridVersion,
+    currentSceneId, currentPosition, scenePositions,
+    rooms: cleanMiningPositionRooms(source.miningPositionRooms), backup: cleanMiningPositionBackup(source.miningPositionBackup),
+  })
+  currentPosition = mining.currentPosition
+  scenePositions = mining.scenePositions
   const cafeBounds = mainlineSceneBlueprints['commercial-street'].scene.rooms!.find(room => room.id === continuousCafeRoomId)!.bounds
   const rememberedCafe = scenePositions['commercial-cafe']
   if (currentSceneId === 'commercial-cafe') {
@@ -196,6 +208,9 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
   const updatedAt = Number(source.updatedAt)
   return {
     worldGridVersion: 1,
+    miningLayoutVersion: mining.version,
+    ...(mining.rooms ? { miningPositionRooms: mining.rooms } : {}),
+    ...(mining.backup ? { miningPositionBackup: mining.backup } : {}),
     _version: PLAYER_SAVE_VERSION,
     currentSceneId,
     currentPosition,
@@ -275,11 +290,19 @@ export function recordPlayerScenePosition(
   if (save.currentSceneId === sceneId
     && save.currentPosition?.x === position.x && save.currentPosition?.y === position.y
     && stored?.x === position.x && stored?.y === position.y) return save
+  const rememberedRooms = { ...save.miningPositionRooms?.scenes }
+  const currentRoom = isMiningSceneId(sceneId) && save.miningLayoutVersion === currentMiningLayoutVersion
+    ? currentMiningRoomId(sceneId, position) ?? rememberedRooms[sceneId]
+    : undefined
+  if (isMiningSceneId(sceneId) && currentRoom) rememberedRooms[sceneId] = currentRoom
   return {
     ...save,
     currentSceneId: sceneId,
     currentPosition: { ...position },
     scenePositions: { ...save.scenePositions, [sceneId]: { ...position } },
+    miningPositionRooms: currentRoom || Object.keys(rememberedRooms).length
+      ? { ...(currentRoom ? { current: currentRoom } : {}), ...(Object.keys(rememberedRooms).length ? { scenes: rememberedRooms } : {}) }
+      : undefined,
   }
 }
 

@@ -1,0 +1,290 @@
+[
+  {
+    "name": "old-yonghe-center",
+    "expectedRoom": "mining-shop-2-interior",
+    "source": {
+      "_version": 2,
+      "currentSceneId": "yonghe-eatery",
+      "currentPosition": {
+        "x": 30,
+        "y": 30
+      },
+      "scenePositions": {
+        "yonghe-eatery": {
+          "x": 30,
+          "y": 30
+        }
+      },
+      "phoneDevice": "inner",
+      "storyClock": {
+        "dayId": "story-day-001",
+        "stage": "commercial-street",
+        "month": 4,
+        "day": 12,
+        "weekday": 6,
+        "hour": 11,
+        "minute": 0,
+        "weatherCycle": "sunny"
+      },
+      "sceneState": {
+        "commercial-cafe": {
+          "commercialCafeStoryStatus": "complete",
+          "qaMarker": "keep-story"
+        },
+        "commercial-street": {
+          "commercialStreetMilkTeaHeldDrink": "milk-tea",
+          "commercialStreetQuestionNarrativeCompleted": true,
+          "interactionTutorialCompleted": true
+        },
+        "zhongshuyuan-office": {
+          "plantWateredAt:zhongshuyuan-office-port-plant-left-bottom": 1792565064700.898,
+          "plantWateredAt:zhongshuyuan-office-port-plant-left-top": 1792565076804.614,
+          "plantWateredAt:zhongshuyuan-office-port-plant-right-bottom": 0,
+          "plantWateredAt:zhongshuyuan-office-port-plant-right-top": 0,
+          "rideDestination": null,
+          "rideDriverArrivesAt": null,
+          "rideVehicle": null,
+          "rideRequestedAt": null,
+          "rideArrivalLabel": null
+        },
+        "yonghe-eatery": {
+          "qaProgress": "retain"
+        }
+      },
+      "phoneNotifications": [
+        {
+          "id": "ride:zhongshuyuan-office:commercial-street:1792565094356",
+          "app": "ride",
+          "title": "司机已到达",
+          "body": "请前往上车点",
+          "unread": false,
+          "presented": true
+        }
+      ],
+      "phoneNotes": [
+        {
+          "id": "story-opening",
+          "kind": "story",
+          "title": "当前事项",
+          "body": "去里世界商业街咖啡馆找老周。",
+          "status": "history",
+          "pinned": false,
+          "pinAvailable": false,
+          "storyStage": "opening",
+          "createdAt": 0,
+          "updatedAt": 0
+        },
+        {
+          "id": "story-yonghe-lead",
+          "kind": "story",
+          "title": "永和线索",
+          "body": "查不到去了哪里。不过我在那边有个线人，据说有人好像在永和小馆那块见过陈副部长。",
+          "status": "current",
+          "pinned": false,
+          "pinAvailable": true,
+          "storyStage": "cafe",
+          "createdAt": 0,
+          "updatedAt": 0
+        }
+      ],
+      "phoneContactNotes": {
+        "qa": "keep-old-mining"
+      },
+      "phoneCallHistory": [],
+      "updatedAt": 1792565099149,
+      "worldGridVersion": 1
+    }
+  },
+  {
+    "name": "old-pharmacy",
+    "expectedRoom": "mining-shop-3-interior",
+    "source": {
+      "_version": 2,
+      "currentSceneId": "yonghe-mining-perimeter",
+      "currentPosition": {
+        "x": 30,
+        "y": 46.888974
+      },
+      "scenePositions": {
+        "yonghe-mining-perimeter": {
+          "x": 30,
+          "y": 46.888974
+        }
+      },
+      "phoneDevice": "inner",
+      "storyClock": {
+        "dayId": "story-day-001",
+        "stage": "commercial-street",
+        "month": 4,
+        "day": 12,
+        "weekday": 6,
+        "hour": 11,
+        "minute": 0,
+        "weatherCycle": "sunny"
+      },
+      "sceneState": {
+        "commercial-cafe": {
+          "commercialCafeStoryStatus": "complete",
+          "qaMarker": "keep-story"
+        },
+        "commercial-street": {
+          "commercialStreetMilkTeaHeldDrink": "milk-tea",
+          "commercialStreetQuestionNarrativeCompleted": true,
+          "interactionTutorialCompleted": true
+        },
+        "zhongshuyuan-office": {
+          "plantWateredAt:zhongshuyuan-office-port-plant-left-bottom": 1792565064700.898,
+          "plantWateredAt:zhongshuyuan-office-port-plant-left-top": 1792565076804.614,
+          "plantWateredAt:zhongshuyuan-office-port-plant-right-bottom": 0,
+          "plantWateredAt:zhongshuyuan-office-port-plant-right-top": 0,
+          "rideDestination": null,
+          "rideDriverArrivesAt": null,
+          "rideVehicle": null,
+          "rideRequestedAt": null,
+          "rideArrivalLabel": null
+        },
+        "yonghe-mining-perimeter": {
+          "qaProgress": "retain"
+        }
+      },
+      "phoneNotifications": [
+        {
+          "id": "ride:zhongshuyuan-office:commercial-street:1792565094356",
+          "app": "ride",
+          "title": "司机已到达",
+          "body": "请前往上车点",
+          "unread": false,
+          "presented": true
+        }
+      ],
+      "phoneNotes": [
+        {
+          "id": "story-opening",
+          "kind": "story",
+          "title": "当前事项",
+          "body": "去里世界商业街咖啡馆找老周。",
+          "status": "history",
+          "pinned": false,
+          "pinAvailable": false,
+          "storyStage": "opening",
+          "createdAt": 0,
+          "updatedAt": 0
+        },
+        {
+          "id": "story-yonghe-lead",
+          "kind": "story",
+          "title": "永和线索",
+          "body": "查不到去了哪里。不过我在那边有个线人，据说有人好像在永和小馆那块见过陈副部长。",
+          "status": "current",
+          "pinned": false,
+          "pinAvailable": true,
+          "storyStage": "cafe",
+          "createdAt": 0,
+          "updatedAt": 0
+        }
+      ],
+      "phoneContactNotes": {
+        "qa": "keep-old-mining"
+      },
+      "phoneCallHistory": [],
+      "updatedAt": 1792565099149,
+      "worldGridVersion": 1
+    }
+  },
+  {
+    "name": "old-yonghe-near-counter",
+    "expectedRoom": "mining-shop-2-interior",
+    "source": {
+      "_version": 2,
+      "currentSceneId": "yonghe-eatery",
+      "currentPosition": {
+        "x": 31,
+        "y": 31.3334
+      },
+      "scenePositions": {
+        "yonghe-eatery": {
+          "x": 31,
+          "y": 31.3334
+        }
+      },
+      "phoneDevice": "inner",
+      "storyClock": {
+        "dayId": "story-day-001",
+        "stage": "commercial-street",
+        "month": 4,
+        "day": 12,
+        "weekday": 6,
+        "hour": 11,
+        "minute": 0,
+        "weatherCycle": "sunny"
+      },
+      "sceneState": {
+        "commercial-cafe": {
+          "commercialCafeStoryStatus": "complete",
+          "qaMarker": "keep-story"
+        },
+        "commercial-street": {
+          "commercialStreetMilkTeaHeldDrink": "milk-tea",
+          "commercialStreetQuestionNarrativeCompleted": true,
+          "interactionTutorialCompleted": true
+        },
+        "zhongshuyuan-office": {
+          "plantWateredAt:zhongshuyuan-office-port-plant-left-bottom": 1792565064700.898,
+          "plantWateredAt:zhongshuyuan-office-port-plant-left-top": 1792565076804.614,
+          "plantWateredAt:zhongshuyuan-office-port-plant-right-bottom": 0,
+          "plantWateredAt:zhongshuyuan-office-port-plant-right-top": 0,
+          "rideDestination": null,
+          "rideDriverArrivesAt": null,
+          "rideVehicle": null,
+          "rideRequestedAt": null,
+          "rideArrivalLabel": null
+        },
+        "yonghe-eatery": {
+          "qaProgress": "retain"
+        }
+      },
+      "phoneNotifications": [
+        {
+          "id": "ride:zhongshuyuan-office:commercial-street:1792565094356",
+          "app": "ride",
+          "title": "司机已到达",
+          "body": "请前往上车点",
+          "unread": false,
+          "presented": true
+        }
+      ],
+      "phoneNotes": [
+        {
+          "id": "story-opening",
+          "kind": "story",
+          "title": "当前事项",
+          "body": "去里世界商业街咖啡馆找老周。",
+          "status": "history",
+          "pinned": false,
+          "pinAvailable": false,
+          "storyStage": "opening",
+          "createdAt": 0,
+          "updatedAt": 0
+        },
+        {
+          "id": "story-yonghe-lead",
+          "kind": "story",
+          "title": "永和线索",
+          "body": "查不到去了哪里。不过我在那边有个线人，据说有人好像在永和小馆那块见过陈副部长。",
+          "status": "current",
+          "pinned": false,
+          "pinAvailable": true,
+          "storyStage": "cafe",
+          "createdAt": 0,
+          "updatedAt": 0
+        }
+      ],
+      "phoneContactNotes": {
+        "qa": "keep-old-mining"
+      },
+      "phoneCallHistory": [],
+      "updatedAt": 1792565099149,
+      "worldGridVersion": 1
+    }
+  }
+]
