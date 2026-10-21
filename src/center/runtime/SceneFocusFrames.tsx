@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TransitionEvent as ReactTransitionEvent } from 'react'
 import { sceneFrameDefaultMotionMs, sceneFrameMotionMsForRect } from './sceneMotion'
-import { measureSceneCharacterRects, measureSceneCharacters, sceneElementVisualScale, sceneVisualRectInLocalSpace, sceneFrameBoundsInLocalSpace, sceneFocusVisualGapPx, sceneFocusStrokeInsetPx } from './sceneVisualBounds'
+import { measureSceneCharacterRects, createSceneCharacterRectBatch, unionVisualRects, sceneElementVisualScale, sceneVisualRectInLocalSpace, sceneFrameBoundsInLocalSpace, sceneFocusVisualGapPx, sceneFocusStrokeInsetPx } from './sceneVisualBounds'
 import { beginFrameAppearance, beginFrameRetraction, completeFrameTransition, frameShouldCollapse, frameVisualPhase, preserveFrameRetractCorner, resumeFrameAppearance, type SceneFrameRuntime, type SceneFrameTarget } from './sceneFrameLifecycle'
 import { createEndpointMeasurementScheduler } from './sceneFocusFrameEndpointMeasure'
 
@@ -209,19 +209,32 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     if (freezeMeasurements) return undefined
     const measure = (groups: Iterable<string> = targetGroups) => {
       const updates = new Map<string, { duration: number; geometry: SceneFocusFrameGeometry; bounds: CSSProperties }>()
+      const context = document.createElement('canvas').getContext('2d')
+      const measureRects = createSceneCharacterRectBatch(nodes => measureSceneCharacterRects(nodes, context))
+      const stages = new Map<Element, { groups: Map<string, HTMLElement[]>; characters: HTMLElement[] }>()
       for (const group of groups) {
         const node = frameNodesRef.current.get(group)
         if (!node) continue
         const parent = node.parentElement
         const stage = node.closest('.mainline-scene-stage')
         if (!parent || !stage) continue
-        const characters = [...stage.querySelectorAll<HTMLElement>('[data-focus-visual-group]')]
-          .filter(element => element.dataset.focusVisualGroup === group)
-        const viewportRect = measureSceneCharacters(characters)
+        let stageNodes = stages.get(stage)
+        if (!stageNodes) {
+          const groups = new Map<string, HTMLElement[]>()
+          stage.querySelectorAll<HTMLElement>('[data-focus-visual-group]').forEach(element => {
+            const id = element.dataset.focusVisualGroup ?? ''
+            const roots = groups.get(id) ?? []
+            roots.push(element); groups.set(id, roots)
+          })
+          stageNodes = { groups, characters: [...stage.querySelectorAll<HTMLElement>('[data-scene-characters]')] }
+          stages.set(stage, stageNodes)
+        }
+        const characters = stageNodes.groups.get(group) ?? []
+        const viewportRect = unionVisualRects(measureRects(characters))
         if (!viewportRect) continue
-        const otherCharacters = [...stage.querySelectorAll<HTMLElement>('[data-scene-characters]')]
+        const otherCharacters = stageNodes.characters
           .filter(element => !characters.some(target => target === element || target.contains(element) || element.contains(target)))
-        const viewportNeighbors = measureSceneCharacterRects(otherCharacters)
+        const viewportNeighbors = measureRects(otherCharacters)
         const origin = parent.getBoundingClientRect()
         const parentStyle = getComputedStyle(parent)
         const worldScale = sceneElementVisualScale(parent.closest<HTMLElement>('.scene-mainline-world'))

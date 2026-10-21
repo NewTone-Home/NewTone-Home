@@ -113,9 +113,7 @@ function clipToCharacterSwitch(rect: VisualRect, node: HTMLElement): VisualRect 
  * preserve Range coordinates so CSS layout, writing mode and transforms still
  * determine where that glyph lives in the scene.
  */
-export function measureSceneCharacterRects(nodes: readonly HTMLElement[]) {
-  const canvas = document.createElement('canvas')
-  const context = canvas.getContext('2d')
+export function measureSceneCharacterRects(nodes: readonly HTMLElement[], context: CanvasRenderingContext2D | null = document.createElement('canvas').getContext('2d')) {
   const rects: VisualRect[] = []
   for (const root of nodes) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
@@ -159,4 +157,15 @@ export function measureSceneCharacterRects(nodes: readonly HTMLElement[]) {
 
 export function measureSceneCharacters(nodes: readonly HTMLElement[]) {
   return unionVisualRects(measureSceneCharacterRects(nodes))
+}
+
+/** Reuse immutable ink rectangles only inside one synchronous measurement
+ * pass. A new pass must use a new batch after any layout/font/projection edit. */
+export function createSceneCharacterRectBatch(measure: (nodes: readonly HTMLElement[]) => VisualRect[]) {
+  const measured = new Map<HTMLElement, VisualRect[]>()
+  return (nodes: readonly HTMLElement[]) => nodes.flatMap(root => {
+    let rects = measured.get(root)
+    if (!rects) { rects = measure([root]); measured.set(root, rects) }
+    return rects
+  })
 }
