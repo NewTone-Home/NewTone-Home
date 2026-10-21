@@ -71,11 +71,11 @@ describe('commercial café story contract', () => {
     expect(story.coffeeStatus).toBe('none')
   })
 
-  it('keeps the two staff actors canonically distinct while presenting both as 店员', () => {
+  it('keeps the two staff actors canonically distinct while displaying both as 人 and retaining their distinct roles', () => {
     const cafe = mainlineScenes['commercial-cafe']
     expect(commercialCafeCoffeeOwnerNpcId).not.toBe(commercialCafeFloorServerNpcId)
     expect(cafe.npcs.filter(({ id }) => [commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId].includes(id as never))).toHaveLength(2)
-    expect(cafe.npcs.filter(({ id }) => [commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId].includes(id as never)).map(({ label }) => label)).toEqual(['店员', '店员'])
+    expect(cafe.npcs.filter(({ id }) => [commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId].includes(id as never)).map(({ label }) => label)).toEqual(['人', '人'])
     expect(npcRoles.cafeCoffeeOwner.duties).toHaveProperty('prepare')
     expect(npcRoles.cafeCoffeeOwner.duties).toHaveProperty('deliverCoffee')
     expect(npcRoles.cafeCoffeeOwner.duties).not.toHaveProperty('tableService')

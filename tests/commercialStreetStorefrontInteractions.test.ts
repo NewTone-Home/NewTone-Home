@@ -131,11 +131,15 @@ describe('commercial street storefront interactions', () => {
       const rear = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
       const shell = street.structures.find((candidate) => candidate.id === `${roomId}-shell`)!
       const expectedDepth = steps.vertical * 25
-      const interior = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+      const interior = entry.crossingTargets[0]
+      const rearActorId=street.npcs.find(n=>n.roomId===room.id&&street.actorAccess[n.id]?.includes('staff'))?.id??'protagonist'
+      const rearSize=rearActorId==='protagonist'?11:16
+      const rearNavigation={...referenceNavigation,actorId:rearActorId,actorFootprint:{width:rearSize/19.2,height:rearSize/10.8}}
       const approach = mainlineStorefrontApproach(street, storefront)
       const publicLanePath = findMainlinePath(street.initialPlayerPosition, approach, street, {}, referenceNavigation)
-      const entryPath = findMainlinePath(approach, interior, street, {}, referenceNavigation)
-      const rearDoorApproachPath = findMainlinePath(interior, rear.thresholds[0], street, {}, referenceNavigation)
+      const openFrontNavigation={...referenceNavigation,openPassageIds:new Set([entry.id])}
+      const entryPath = findMainlinePath(approach, interior, street, {}, openFrontNavigation)
+      const rearDoorApproachPath = findMainlinePath(interior, rear.thresholds[0], street, {}, rearNavigation)
       const command = classifyMainlineWorldCommand(street, street.initialPlayerPosition, interior)
 
       expect(room.bounds.width).toBeCloseTo(steps.horizontal * (widthCells + 1))
@@ -146,7 +150,7 @@ describe('commercial street storefront interactions', () => {
       expect(rear.targetSceneId).toBeUndefined()
       expect(command.kind).toBe('passage')
       if (command.kind === 'passage') expect(command.passage.id).toBe(entry.id)
-      const rearCommand = classifyMainlineWorldCommand(street, interior, rear.crossingTargets[0])
+      const rearCommand = classifyMainlineWorldCommand(street, rear.thresholds[0], rear.crossingTargets[0], {}, rearNavigation)
       expect(rearCommand.kind, `${storefrontId} rear-door approach`).toBe('passage')
       if (rearCommand.kind === 'passage') expect(rearCommand.passage.id).toBe(rear.id)
       const hasLaterShell = roomSamples.some((candidate) => candidate.side === side && candidate.storefront.start > storefront.start)
@@ -161,7 +165,7 @@ describe('commercial street storefront interactions', () => {
       expect(entryPath?.length).toBeGreaterThan(1)
       expect(rearDoorApproachPath, `${storefrontId} path to locked rear threshold`).not.toBeNull()
       expect(findMainlinePath(entry.crossingTargets[0], interior, street, {}, referenceNavigation)).not.toBeNull()
-      expect(findMainlinePath(interior, entry.thresholds[0], street, {}, referenceNavigation)).not.toBeNull()
+      expect(findMainlinePath(interior, entry.thresholds[0], street, {}, openFrontNavigation)).not.toBeNull()
       expect(street.walkBounds.y).toBeLessThan(room.bounds.y)
       expect(street.walkBounds.y + street.walkBounds.height).toBeGreaterThan(room.bounds.y + room.bounds.height)
       expect(storefront.id === 'commercial-cafe-slot' ? roomId : entry.toRoomId).toBe(roomId)

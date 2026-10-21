@@ -11,10 +11,25 @@ import {gridSemanticContract} from './helpers/gridSemanticContract'
 
 const ids=Object.keys(mainlineScenes).filter(id=>id!=='commercial-cafe') as MainlineSceneId[]
 describe('one world lattice per active continuous space',()=>{
- it('preserves the pre-grid story, object identities, door permissions and room graph',()=>{
-  const baseline=JSON.parse(readFileSync('tests/fixtures/pre-grid-semantic-027f31.json','utf8'))
-  for(const id of ids)expect(JSON.parse(JSON.stringify(gridSemanticContract(mainlineScenes[id]))),id).toEqual(baseline[id])
- })
+ it('preserves pre-grid semantics outside the explicitly authorized Cafe, tea and Yonghe layout trials',()=>{
+ const baseline=JSON.parse(readFileSync('tests/fixtures/pre-grid-semantic-027f31.json','utf8'))
+ const trialRooms=new Set(['commercial-north-cafe-interior','commercial-north-n1-interior','commercial-south-s5-interior','mining-shop-2-interior'])
+ for(const id of ids){
+  const before=baseline[id],now=JSON.parse(JSON.stringify(gridSemanticContract(mainlineScenes[id])))
+  const changedIds=new Set([...before.objects,...now.objects].filter(o=>trialRooms.has(o.roomId)||o.id.startsWith('yonghe-outdoor-')).map(o=>o.id))
+  for(const key of ['cafe-trial-customer-toilet-door','street-cafe-entry','yonghe-menu','yonghe-back-door','yonghe-survey-central-lane'])changedIds.add(key)
+  const originalNpcIds=new Set(before.npcs.map(n=>n.id))
+  const omitTrial=(contract)=>({...contract,
+   objects:contract.objects.filter(o=>!changedIds.has(o.id)),
+   portals:contract.portals.filter(p=>p.id!=='cafe-trial-customer-toilet-door').map(p=>p.id==='yonghe-street-entry'?{...p,transitionText:undefined}:p.id==='yonghe-back-door'?{...p,lockedText:undefined}:p),
+   npcs:contract.npcs.filter(n=>originalNpcIds.has(n.id)),
+   npcBehaviors:contract.npcBehaviors.filter(n=>originalNpcIds.has(n.npcId)),
+   interactionText:Object.fromEntries(Object.entries(contract.interactionText??{}).filter(([id])=>!changedIds.has(id))),
+   explorationText:Object.fromEntries(Object.entries(contract.explorationText??{}).filter(([id])=>!changedIds.has(id))),
+  })
+  expect(omitTrial(now),id).toEqual(omitTrial(before))
+ }
+})
  for(const id of ids)it(`${id}: walls and corners use its single 28px lattice`,()=>{
   const s=mainlineScenes[id],g=sceneGridTransform(id)?.grid??officeGrid
   expect(validateMainlineSceneGeometry(s)).toEqual([])
@@ -42,10 +57,12 @@ describe('one world lattice per active continuous space',()=>{
   expect(s.passages.filter(p=>p.routeThrough).every(p=>p.access==='open')).toBe(true)
   expect(s.passages.filter(p=>p.id.endsWith('-rear-door')).every(p=>p.access==='locked')).toBe(true)
  })
- it('does not move the excluded legacy Cafe geometry in the grid batch',()=>{
-  expect(sceneGridTransform('commercial-cafe')).toBeNull()
-  expect(mainlineScenes['commercial-cafe'].structures[0]!.bounds).toEqual({x:8,y:7,width:80,height:86})
- })
+ it('keeps only the continuous Cafe lattice when the old scene alias is requested',()=>{
+ expect(sceneGridTransform('commercial-cafe')).toBeNull()
+ expect(mainlineScenes['commercial-cafe']).toBe(mainlineScenes['commercial-street'])
+ expect(mainlineScenes['commercial-cafe'].structures.some(w=>w.id==='commercial-cafe-room')).toBe(false)
+ expect(Object.keys(mainlineScenes)).not.toContain('commercial-cafe')
+})
  it('migrates old office positions within the same room once and preserves progression',()=>{
   const old={_version:2,currentSceneId:'zhongshuyuan-office',currentPosition:{x:17,y:20},scenePositions:{'zhongshuyuan-office':{x:17,y:20}},phoneDevice:'inner',sceneState:{'zhongshuyuan-office':{fixtureExplored:true}},phoneContactNotes:{a:'retained'}}
   const migrated=sanitizePlayerSave(old,'commercial-street')

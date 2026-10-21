@@ -11,9 +11,10 @@ import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundary
 
 const street = mainlineScenes['commercial-street']
 const options = { screenMetrics: sceneDesignReferenceMetrics }
+const counterPublicContact = mainlineScenes['commercial-street'].objects.find(o => o.id === 'cafe-trial-order')!.position
 describe('retired standalone Cafe compatibility in one continuous world', () => {
   it('keeps the actual conversation chair reachable from the customer counter contact', () => {
-    const result = findMainlinePathToEntity(street, cafeConversationSeatId, { x: 127.313, y: 19.1343 }, {}, options)
+    const result = findMainlinePathToEntity(street, cafeConversationSeatId, counterPublicContact, {}, options)
     expect(result?.path).not.toBeNull()
     expect(result?.path?.length).toBeGreaterThan(1)
   })

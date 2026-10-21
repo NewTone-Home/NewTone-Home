@@ -1,13 +1,33 @@
 import type {MainlineSceneDefinition,MainlineSceneGeometryUnit} from '../../src/center/runtime/mainlineScenes'
 /** Full edge coverage: no min/max distance filter that can hide missing cells. */
 export function wallVisualCoverage(scene:MainlineSceneDefinition,units:readonly MainlineSceneGeometryUnit[]){
- const groups=new Map<string,{owner:string;edge:string;axis:'x'|'y';start:number;end:number;nodes:{axis:number;wall:boolean;door?:string}[]}>()
+ const groups=new Map<string,{owner:string;edge:string;axis:'x'|'y';normal?:number;start:number;end:number;nodes:{axis:number;wall:boolean;door?:string}[]}>()
  for(const u of units){if(u.geometryKind!=='boundary'||!u.edge||u.variant==='near'||u.visualOnly)continue
   const axis=u.edge==='top'||u.edge==='bottom'?'x':'y',dimension=axis==='x'?1920:1080,key=`${u.ownerId}:${u.edge}`
   const group=groups.get(key)??{owner:u.ownerId,edge:u.edge,axis,start:Infinity,end:-Infinity,nodes:[]}
   group.start=Math.min(group.start,u[axis]*dimension/100);group.end=Math.max(group.end,(u[axis]+u[axis==='x'?'width':'height'])*dimension/100)
-  for(const c of u.visual.cells){if(!c.glyph)continue;group.nodes.push({axis:c[axis]*dimension/100,wall:c.kind==='wall'||c.storefrontRole==='wall',door:c.kind==='door'||c.storefrontRole==='door'?c.entityId??u.entityId:undefined})}
+  for(const c of u.visual.cells){if(!c.glyph)continue;group.normal??=c[axis==='x'?'y':'x'];group.nodes.push({axis:c[axis]*dimension/100,wall:c.kind==='wall'||c.storefrontRole==='wall',door:c.kind==='door'||c.storefrontRole==='door'?c.entityId??u.entityId:undefined})}
   groups.set(key,group)
+ }
+ // Storefront composition replaces the parent facade cells with visual-only
+ // baseline glyph units. They are still visible wall/sign coverage; omitting
+ // them incorrectly measures the whole widened shop frontage as an empty gap.
+ // Keep the physical-owner groups and add these glyphs to their actual facade.
+ for(const u of units){if(!u.visualOnly||u.variant!=='baseline'||!u.sourceWallId||!u.edge)continue
+  const group=groups.get(`${u.sourceWallId}:${u.edge}`);if(!group)continue
+  const dimension=group.axis==='x'?1920:1080
+  for(const c of u.visual.cells){if(!c.glyph)continue;group.nodes.push({axis:c[group.axis]*dimension/100,wall:c.kind==='wall'||c.storefrontRole==='wall',door:c.kind==='door'||c.storefrontRole==='door'?c.entityId??u.entityId:undefined})}
+ }
+ // A shared corner can be painted by the neighboring edge or adjacent frame.
+ // Count it only at the exact normal coordinate, never a remote glyph on that
+ // other edge. This preserves a strict zero-distance corner-cap check.
+ for(const group of groups.values()){if(group.normal===undefined)continue
+  const other=group.axis==='x'?'y':'x',dimension=group.axis==='x'?1920:1080
+  for(const unit of units){if(unit.geometryKind!=='boundary'||unit.variant==='near')continue
+   for(const cell of unit.visual.cells){if(!cell.glyph||Math.abs(cell[other]-group.normal)>.00001||cell[group.axis]*dimension/100<group.start-.00001||cell[group.axis]*dimension/100>group.end+.00001)continue
+    group.nodes.push({axis:cell[group.axis]*dimension/100,wall:cell.kind==='wall'||cell.storefrontRole==='wall',door:cell.kind==='door'||cell.storefrontRole==='door'?cell.entityId??unit.entityId:undefined})
+   }
+  }
  }
  return [...groups].map(([key,g])=>{
   const coords=[...new Set(g.nodes.map(n=>n.axis))].sort((a,b)=>a-b),walls=g.nodes.filter(n=>n.wall).map(n=>n.axis),doors=new Map<string,number[]>()

@@ -7,10 +7,14 @@ import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundary
 
 const scene = mainlineScenes['yonghe-mining-perimeter']
 describe('mining continuous empty shells', () => {
-  it('compiles all eight rooms in the same scene without furniture or cross-scene shop doors', () => {
+  it('compiles all eight continuous rooms, permits only the authorized Yonghe furniture and has no cross-scene shop doors', () => {
     expect(scene.rooms).toHaveLength(9)
     expect(scene.storefronts).toHaveLength(8)
-    expect(scene.objects.filter(o => o.kind === 'table' || o.kind === 'seat')).toHaveLength(0)
+    const dining=scene.objects.filter(o => o.kind === 'table' || o.kind === 'seat')
+    expect(dining).toHaveLength(18)
+    expect(dining.every(o=>o.id.startsWith('yonghe-'))).toBe(true)
+    expect(dining.filter(o=>o.roomId==='mining-shop-2-interior'&&o.kind==='seat')).toHaveLength(8)
+    for(const room of scene.rooms.filter(r=>r.id!=='mining-shop-2-interior'&&r.id!=='mining-street-public-lane'))expect(scene.objects.filter(o=>o.roomId===room.id&&(o.kind==='seat'||o.kind==='table'))).toHaveLength(0)
     for (const shop of miningShopShells) {
       const passage = scene.passages.find(p => p.portalId === shop.portalId)!
       expect(passage).toMatchObject({ access: 'open', routeThrough: true, fromRoomId: 'mining-street-public-lane', toRoomId: shop.roomId })

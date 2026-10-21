@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineEntityBelongsToActiveRoom } from '../src/center/runtime/mainlineSceneModel'
-import { findMainlinePath } from '../src/center/runtime/mainlineNavigation'
+import { findMainlinePath, findMainlinePathToEntity, isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes, mainlineStorefrontApproach } from '../src/center/runtime/mainlineScenes'
 import { boundaryGridStepsFromReferenceSpacing, sceneDesignReferenceMetrics, sharedFurnitureGlyphSpacingPx } from '../src/center/runtime/sceneBoundaryGrid'
 
 const street = mainlineScenes['commercial-street']
+const referenceNavigation={screenMetrics:sceneDesignReferenceMetrics,actorFootprint:{width:11/19.2,height:11/10.8}}
 const steps = boundaryGridStepsFromReferenceSpacing()
 const objectGlyphSteps = boundaryGridStepsFromReferenceSpacing(sharedFurnitureGlyphSpacingPx)
 
 const retailStores = [
-  { key: 'n1-fruit-tea', storefrontId: 'commercial-north-slot-1', roomId: 'commercial-north-n1-interior', counterRow: 5, counterLength: 7 },
   { key: 'n2-creative', storefrontId: 'commercial-north-slot-2', roomId: 'commercial-north-n2-interior', counterRow: 9, counterLength: 4 },
   { key: 'n3-beauty', storefrontId: 'commercial-north-slot-3', roomId: 'commercial-north-n3-interior', counterRow: 8, counterLength: 5 },
   { key: 'n4-eyewear', storefrontId: 'commercial-north-slot-4', roomId: 'commercial-north-n4-interior', counterRow: 7, counterLength: 4 },
@@ -44,13 +44,13 @@ function storeCell(roomId: string, column: number, row: number) {
 }
 
 describe('commercial street ordinary retail shell fixtures', () => {
-  it('adds static, room-scoped, one-character fixtures only to the eleven selected storefronts', () => {
+  it('adds static, room-scoped, one-character fixtures to the ten unchanged retail shells while fruit-tea uses its separate authorized trial', () => {
     const retail = street.objects.filter((entity) => entity.id.startsWith('commercial-retail-'))
     expect(new Set(retail.map((entity) => entity.roomId))).toEqual(new Set(retailStores.map((store) => store.roomId)))
     expect(retail.every((entity) => entity.interactive === false && entity.visualVisibility === 'static')).toBe(true)
     expect(retail.every((entity) => Array.from(entity.label).length === 1)).toBe(true)
     expect(retail.every((entity) => ['架', '柜', '台', '墙', '储', '物', '点', '单', '取', '货', '菜', '整', '理'].includes(entity.label))).toBe(true)
-    expect(street.npcs.map((npc) => npc.id).sort()).toEqual([
+    expect(street.npcs.filter(npc=>street.ambientNpcRoutes.some(route=>route.npcId===npc.id)).map((npc) => npc.id).sort()).toEqual([
       'commercial-street-pedestrian-long',
       'commercial-street-pedestrian-mid-east-north',
       'commercial-street-pedestrian-mid-east-south',
@@ -98,11 +98,11 @@ describe('commercial street ordinary retail shell fixtures', () => {
       const customerCounterPoint = storeCell(store.roomId, 7, store.counterRow + 0.5)
       const employeePoint = storeCell(store.roomId, 9, store.counterRow + store.counterLength + 0.5)
       const storageLabel = street.objects.find((entity) => entity.id === `commercial-retail-${store.key}-storage-label-1`)!
-      expect(findMainlinePath(entry, browsePoint, street), `${store.key} entry to browse`).not.toBeNull()
-      expect(findMainlinePath(entry, customerCounterPoint, street), `${store.key} entry to counter customer side`).not.toBeNull()
-      expect(findMainlinePath(browsePoint, employeePoint, street), `${store.key} east staff route`).not.toBeNull()
-      expect(findMainlinePath(employeePoint, storageLabel.position, street), `${store.key} staff reaches storage`).not.toBeNull()
-      expect(findMainlinePath(employeePoint, rear.thresholds[0]!, street), `${store.key} staff route to locked rear door`).not.toBeNull()
+      expect(findMainlinePath(entry, browsePoint, street, {}, referenceNavigation), `${store.key} entry to browse`).not.toBeNull()
+      expect(findMainlinePath(entry, customerCounterPoint, street, {}, referenceNavigation), `${store.key} entry to counter customer side`).not.toBeNull()
+      expect(findMainlinePath(browsePoint, employeePoint, street, {}, referenceNavigation), `${store.key} east staff route`).not.toBeNull()
+      expect(findMainlinePath(employeePoint, storageLabel.position, street, {}, referenceNavigation), `${store.key} staff reaches storage`).not.toBeNull()
+      expect(findMainlinePath(employeePoint, rear.thresholds[0]!, street, {}, referenceNavigation), `${store.key} staff route to locked rear door`).not.toBeNull()
     }
   })
 
@@ -156,15 +156,14 @@ describe('commercial street ordinary retail shell fixtures', () => {
       expect(ret.x + ret.width / 2).toBeCloseTo(elbow.x, 1)
       const storage = street.objects.find((entity) => entity.id === `commercial-retail-${key}-storage-label-1`)!
       const entry = mainlineStorefrontApproach(street, street.storefronts.find((item) => item.id === storefrontId)!)
-      expect(findMainlinePath(storeCell(roomId, 4, 7), storage.position, street), `${key} open nook route`).not.toBeNull()
-      expect(findMainlinePath(entry, storage.position, street), `${key} entry to nook`).not.toBeNull()
+      expect(findMainlinePath(storeCell(roomId, 4, 7), storage.position, street, {}, referenceNavigation), `${key} open nook route`).not.toBeNull()
+      expect(findMainlinePath(entry, storage.position, street, {}, referenceNavigation), `${key} entry to nook`).not.toBeNull()
     }
   })
 
   it('lays out the fruit-tea and dessert counters, customer service points, staff aisle and open rear storage', () => {
-    const fruitTea = retailStores.find((store) => store.key === 'n1-fruit-tea')!
     const dessert = retailStores.find((store) => store.key === 's6-dessert')!
-    for (const store of [fruitTea, dessert]) {
+    for (const store of [dessert]) {
       const fixtureId = `commercial-retail-${store.key}-`
       const counter = street.objects.filter((entity) => entity.id.startsWith(`${fixtureId}counter-`))
       const counterCells = counter.map((entity) => localCell(store.roomId, entity.position))
@@ -173,7 +172,7 @@ describe('commercial street ordinary retail shell fixtures', () => {
       const staffAccess = storeCell(store.roomId, 9, store.counterRow + store.counterLength + 0.5)
       for (let offset = 0; offset < store.counterLength; offset += 1) {
         const staffWorkCell = storeCell(store.roomId, 9, store.counterRow + offset)
-        expect(findMainlinePath(staffAccess, staffWorkCell, street), `${store.key} east staff cell ${offset + 1}`).not.toBeNull()
+        expect(findMainlinePath(staffAccess, staffWorkCell, street, {}, referenceNavigation), `${store.key} east staff cell ${offset + 1}`).not.toBeNull()
       }
 
       const storefront = street.storefronts.find((candidate) => candidate.id === store.storefrontId)!
@@ -182,23 +181,22 @@ describe('commercial street ordinary retail shell fixtures', () => {
       expect(storage).toHaveLength(2)
       expect(storage.map((entity) => Math.round(localCell(store.roomId, entity.position).column)).sort((a, b) => a - b)).toEqual([7, 8])
       expect(storage.every((entity) => Math.abs(localCell(store.roomId, entity.position).row - 18) < 0.01)).toBe(true)
-      expect(findMainlinePath(entry, storeCell(store.roomId, 5, 14), street), `${store.key} customer browse aisle`).not.toBeNull()
+      expect(findMainlinePath(entry, storeCell(store.roomId, 5, 14), street, {}, referenceNavigation), `${store.key} customer browse aisle`).not.toBeNull()
       const rear = street.passages.find((passage) => passage.id === `${store.roomId}-rear-door`)!
       expect(rear.access).toBe('locked')
-      expect(findMainlinePath(staffAccess, rear.thresholds[0]!, street), `${store.key} reaches locked rear`).not.toBeNull()
+      expect(findMainlinePath(staffAccess, rear.thresholds[0]!, street, {}, referenceNavigation), `${store.key} reaches locked rear`).not.toBeNull()
     }
 
-    const fruitFixtures = street.objects.filter((entity) => entity.id.startsWith('commercial-retail-n1-fruit-tea-'))
-    expect(fruitFixtures.filter((entity) => entity.id.startsWith('commercial-retail-n1-fruit-tea-display-'))).toHaveLength(0)
-    const fruitCounter = fruitFixtures.filter((entity) => entity.id.startsWith('commercial-retail-n1-fruit-tea-counter-'))
-      .sort((a, b) => a.position.y - b.position.y)
-    expect(fruitCounter.map((entity) => entity.label).join('')).toBe('柜台柜台柜台柜')
-    for (const [marker, expectedText, row] of [['order', '点单', 5], ['pickup', '取货', 9]] as const) {
-      const glyphs = fruitFixtures.filter((entity) => entity.id.startsWith(`commercial-retail-n1-fruit-tea-${marker}-`))
-        .sort((a, b) => a.position.x - b.position.x)
-      expect(glyphs.map((entity) => entity.label).join('')).toBe(expectedText)
-      expect(glyphs.every((entity) => Math.abs(localCell(fruitTea.roomId, entity.position).row - row) < 0.01)).toBe(true)
-    }
+    const fruit=street.rooms.find(r=>r.id==='commercial-north-n1-interior')!,front=street.passages.find(p=>p.toRoomId===fruit.id&&p.routeThrough)!,inside=front.crossingTargets[0],options={screenMetrics:sceneDesignReferenceMetrics,actorId:'protagonist',actorFootprint:{width:11/19.2,height:11/10.8}}
+    expect(street.objects.some(o=>o.id.startsWith('commercial-retail-n1-fruit-tea-'))).toBe(false)
+    expect(street.continuousStructures.filter(b=>b.id.startsWith('fruit-tea-trial-'))).toHaveLength(2)
+    expect(street.objects.filter(o=>o.roomId===fruit.id&&(o.kind==='seat'||o.kind==='table'))).toHaveLength(0)
+    for(const id of ['fruit-tea-trial-order','fruit-tea-trial-pickup']){const marker=street.objects.find(o=>o.id===id)!;expect(marker.interactive).toBe(true);expect(findMainlinePathToEntity(street,id,inside,{},options).path,id).not.toBeNull()}
+    expect(street.objects.some(o=>o.roomId===fruit.id&&(o.id.includes('storage')||o.id.includes('warehouse')))).toBe(false)
+    const worker=street.npcPlacements.find(n=>n.npcId==='fruit-tea-trial-worker')!.position,rear=street.passages.find(p=>p.id===fruit.id+'-rear-door')!
+    expect(isWalkableMainlinePoint(worker,street,{},options)).toBe(false)
+    expect(findMainlinePath(worker,rear.thresholds[0],street,{}, {...options,actorId:'fruit-tea-trial-worker'})).not.toBeNull()
+    expect(rear.access).toBe('locked')
 
     const dessertFixtures = street.objects.filter((entity) => entity.id.startsWith('commercial-retail-s6-dessert-'))
     const dessertDisplays = dessertFixtures.filter((entity) => entity.id.includes('-display-')).map((entity) => localCell(dessert.roomId, entity.position))

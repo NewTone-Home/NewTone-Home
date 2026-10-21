@@ -11,18 +11,16 @@ for(const scene of Object.values(mainlineScenes))for(const unit of mainlineCanon
 }
 for(const[key,values]of Object.entries(groups))groups[key]=values.sort((a,b)=>a-b).map(n=>Number(n.toFixed(7)))
 const legacyKey=(key:string)=>key.startsWith('commercial-cafe/')
-describe('font16 changes only the eight individually approved wall tails',()=>{
- it('keeps every unapproved run pixel-for-pixel unchanged',()=>{
-  expect(Object.keys(groups).sort()).toEqual([...Object.keys(reference.approved),...Object.keys(reference.unchanged)].filter(legacyKey).sort())
-  for(const[key,hash]of Object.entries(reference.unchanged).filter(([key])=>legacyKey(key)))expect(createHash('sha256').update(JSON.stringify(groups[key])).digest('hex'),key).toBe(hash)
+describe('retired standalone Cafe wall-tail metadata is not a second live world',()=>{
+ it('enumerates only active lattice worlds and never renders a retired anchored wall run',()=>{
+  expect(Object.keys(mainlineScenes)).not.toContain('commercial-cafe')
+  expect(mainlineScenes['commercial-cafe']).toBe(mainlineScenes['commercial-street'])
+  expect(Object.keys(groups).filter(legacyKey)).toEqual([])
+  for(const scene of Object.values(mainlineScenes))expect(scene.structures.some(s=>s.id==='commercial-cafe-room')).toBe(false)
  })
- it.each(Object.entries(reference.approved).filter(([key])=>legacyKey(key)))('%s retains endpoints and count, moves only two tail interiors', (key,before)=>{
-  const now=groups[key]!,last=now.length-1;expect(now.length).toBe(before.length);expect(now[0]).toBe(before[0]);expect(now[last]).toBe(before[last])
-  const changed=now.flatMap((v,i)=>Math.abs(v-before[i]!)>.000001?[i]:[])
-  expect(changed.length).toBe(2)
-  expect(JSON.stringify(changed)===JSON.stringify([1,2])||JSON.stringify(changed)===JSON.stringify([last-2,last-1])).toBe(true)
-  const first=changed[0]===1?0:last-3,steps=Array.from({length:3},(_,i)=>now[first+i+1]!-now[first+i]!)
-  expect(Math.min(...steps)).toBeGreaterThanOrEqual(16);expect(Math.max(...steps)-Math.min(...steps)).toBeLessThan(.000001)
-  expect(steps.reduce((a,b)=>a+b,0)).toBeLessThan(60)
+ it.each(Object.entries(reference.approved).filter(([key])=>legacyKey(key)))('%s is retained as historical evidence but absent from actual geometry',(key,before)=>{
+  expect(before.length).toBeGreaterThan(3)
+  expect(groups[key]).toBeUndefined()
+  expect(mainlineCanonicalSceneGeometryUnits(mainlineScenes['commercial-cafe'],{width:1920,height:1080}).some(u=>u.ownerId==='commercial-cafe-room')).toBe(false)
  })
 })

@@ -104,7 +104,7 @@ describe('commercial café staff duty ownership', () => {
     expect(coffeeOwner).not.toEqual(floorServer)
     const staff = cafe.npcs.filter(({ id }) => id === commercialCafeCoffeeOwnerNpcId || id === commercialCafeFloorServerNpcId)
     expect(staff).toHaveLength(2)
-    expect(staff.map(({ label }) => label)).toEqual(['店员', '店员'])
+    expect(staff.map(({ label }) => label)).toEqual(['人', '人'])
     expect(cafe.actorAccess[commercialCafeCoffeeOwnerNpcId]).toEqual(['public', 'staff'])
     expect(cafe.actorAccess[commercialCafeFloorServerNpcId]).toEqual(['public'])
   })

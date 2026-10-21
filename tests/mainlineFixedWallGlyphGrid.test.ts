@@ -9,14 +9,12 @@ describe('fixed wall glyph pitch with unchanged physical/story anchors',()=>{
  // Physical immutability applied to the old visual-only tail patch. Active
  // spaces now intentionally migrate geometry; their semantic contract and
  // exact lattice are checked in sceneGridRollout.test.ts. Cafe is excluded.
- it.each([mainlineScenes['commercial-cafe']])('$id retains every physical unit, door, feature and story object',scene=>{
-  const units=mainlineCanonicalSceneGeometryUnits(scene,metrics),saved=baseline[scene.id]
-  expect(digest(units.map(({visual,...u})=>u))).toBe(saved.physical)
-  expect(digest(units.flatMap(u=>u.visual.cells.filter(c=>c.kind!=='wall')))).toBe(saved.doorAndFeature)
-  expect(digest(scene.passages)).toBe(saved.passages)
-  expect(digest(scene.walkBounds)).toBe(saved.bounds)
-  expect(digest(scene.objects)).toBe(saved.objects)
-  expect(validateMainlineSceneGeometry(scene)).toEqual([])
+ it('resolves the retired Cafe alias to the same physical world rather than retaining its old immutable room',()=>{
+  const alias=mainlineScenes['commercial-cafe'],street=mainlineScenes['commercial-street']
+  expect(alias).toBe(street)
+  expect(mainlineCanonicalSceneGeometryUnits(alias,metrics)).toEqual(mainlineCanonicalSceneGeometryUnits(street,metrics))
+  expect(alias.structures.some(s=>s.id==='commercial-cafe-room')).toBe(false)
+  expect(validateMainlineSceneGeometry(alias)).toEqual([])
  })
  it.each(Object.values(mainlineScenes))('$id keeps 28 reference px except its approved local tail',scene=>{
   const units=mainlineCanonicalSceneGeometryUnits(scene,metrics)

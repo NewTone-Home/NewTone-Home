@@ -8,6 +8,7 @@ import { isMainlineSeatAvailable, isMainlineSeatLabelSuppressed, isMainlineSeatP
 import { sharedFurnitureGeometry } from '../src/center/runtime/twoSeatFurniture'
 import { mainlineNpcStagedSeatId, mainlineNpcStagingBehavior } from '../src/center/runtime/mainlineNpcStaging'
 import { mainlineEntityTextFootprint, mainlineLabelFootprint, mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
+import { currentCafeStart, currentCafeOptions, currentCafeRoom } from './helpers/currentCafe'
 
 describe('commercial cafe seating and staging', () => {
   const cafe = mainlineScenes['commercial-cafe']
@@ -17,7 +18,7 @@ describe('commercial cafe seating and staging', () => {
     const behavior = mainlineNpcStagingBehavior(cafe, 'lao-zhou')
     const occupiedSeatIds = mainlineSceneOccupiedSeatIds(cafe)
 
-    expect(cafe.npcPlacements).toEqual([])
+    expect(cafe.npcPlacements.filter(p => ['lao-zhou', commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId].includes(p.npcId))).toEqual([])
     expect(behavior).toEqual({ npcId: 'lao-zhou', dutyId: 'lao-zhou.seated', targetId: laoZhouSeatId, targetKind: 'seat' })
     expect(mainlineNpcStagedSeatId(cafe, 'lao-zhou')).toBe(laoZhouSeatId)
     expect(occupiedSeatIds).toEqual(new Set([laoZhouSeatId]))
@@ -54,7 +55,7 @@ describe('commercial cafe seating and staging', () => {
 
   it('presents a seated protagonist as 修杰 and prompts only the requested free conversation seat', () => {
     const conversationSeat = cafe.objects.find((entity) => entity.id === commercialCafeLaoZhouConversationSeatId)!
-    const otherSeat = cafe.objects.find((entity) => entity.id === 'commercial-cafe-right-window-lower-group-chair-bottom')!
+    const otherSeat = cafe.objects.find((entity) => entity.id === 'cafe-trial-table-group-4-chair-bottom')!
 
     expect(mainlineProtagonistPresentation(null)).toEqual({ kind: 'dot' })
     expect(mainlineProtagonistPresentation(commercialCafeLaoZhouConversationSeatId)).toEqual({ kind: 'seated', label: '修杰' })
@@ -67,7 +68,7 @@ describe('commercial cafe seating and staging', () => {
   // share one final center; `sit` is transition metadata only.
   it('uses the rendered seat center as the one stable seated runtime and visual anchor', () => {
     const seat = cafe.objects.find((entity) => entity.id === commercialCafeLaoZhouConversationSeatId)!
-    const snapshot = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition, {
+    const snapshot = createMainlineSceneGeometrySnapshot(cafe, currentCafeStart, {
       [seat.groupId!]: seat.seat!.pulled,
     })
     const renderedSeatCenter = snapshot.objects.get(seat.id)!.position
@@ -83,15 +84,15 @@ describe('commercial cafe seating and staging', () => {
   // chair + actor footprints instead of one authored pulled coordinate.
   it('keeps a free seat reachable through a shared legal edge contact while final seating resolves to its rendered center', () => {
     const seat = cafe.objects.find((entity) => entity.id === commercialCafeLaoZhouConversationSeatId)
-    const dot = mainlineProtagonistDotFootprint(cafe.initialPlayerPosition)
+    const dot = mainlineProtagonistDotFootprint(currentCafeStart)
     const options = { actorId: 'protagonist', actorFootprint: { width: dot.width, height: dot.height } }
-    const candidates = mainlineEntityInteractionCandidates(cafe, commercialCafeLaoZhouConversationSeatId, cafe.initialPlayerPosition, {}, options.actorFootprint, options)
+    const candidates = mainlineEntityInteractionCandidates(cafe, commercialCafeLaoZhouConversationSeatId, currentCafeStart, {}, options.actorFootprint, options)
     const approach = candidates.find((candidate) => candidate.y > seat!.collision!.y + seat!.collision!.height)!
-    const selectedContact = mainlineInteractionTarget(cafe, commercialCafeLaoZhouConversationSeatId, cafe.initialPlayerPosition, {}, undefined, options)
-    const path = findMainlinePathToEntity(cafe, commercialCafeLaoZhouConversationSeatId, cafe.initialPlayerPosition)
+    const selectedContact = mainlineInteractionTarget(cafe, commercialCafeLaoZhouConversationSeatId, currentCafeStart, {}, undefined, options)
+    const path = findMainlinePathToEntity(cafe, commercialCafeLaoZhouConversationSeatId, currentCafeStart)
 
     expect(seat?.seat?.sit).toBeDefined()
-    expect(seat?.seat?.sit).toEqual({ x: 84, y: 31.4 })
+    expect(seat?.seat?.sit).toEqual(seat?.position)
     expect(candidates).toHaveLength(4)
     expect(candidates).toContainEqual(selectedContact)
     expect(approach.y).toBeGreaterThan(seat!.collision!.y + seat!.collision!.height)
@@ -101,7 +102,7 @@ describe('commercial cafe seating and staging', () => {
   })
 
   it('routes from Lao Zhou\'s table-side contact around the table before reaching the opposite free seat', () => {
-    const screenMetrics = { width: 834, height: 1194 }
+    const screenMetrics = currentCafeOptions.screenMetrics
     const runtime = createNavigationRuntime()
     for (const npcId of ['lao-zhou', commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId]) {
       const npc = cafe.npcs.find((candidate) => candidate.id === npcId)!
@@ -109,7 +110,7 @@ describe('commercial cafe seating and staging', () => {
       const footprint = mainlineLabelFootprint(npc.label, position, screenMetrics, { lineHeight: 1 })
       runtime.registerActor(npcId, position, { width: footprint.width, height: footprint.height })
     }
-    const initialDot = mainlineProtagonistDotFootprint(cafe.initialPlayerPosition, screenMetrics)
+    const initialDot = mainlineProtagonistDotFootprint(currentCafeStart, screenMetrics)
     const initialOptions = {
       actorId: 'protagonist',
       navigationRuntime: runtime,
@@ -118,7 +119,7 @@ describe('commercial cafe seating and staging', () => {
     }
     // This is the shared NPC resolver's current table-side contact, not an
     // individually tuned café coordinate.
-    const from = mainlineNpcInteractionTarget(cafe, 'lao-zhou', cafe.initialPlayerPosition, {}, undefined, initialOptions)
+    const from = mainlineNpcInteractionTarget(cafe, 'lao-zhou', currentCafeStart, {}, undefined, initialOptions)
     const options = {
       ...initialOptions,
       actorFootprint: (() => {
@@ -135,86 +136,51 @@ describe('commercial cafe seating and staging', () => {
 
   // APPROVED CONTRACT MIGRATION: no invisible corridor closure. Passability
   // comes from visible table/chair gap versus the active actor footprint.
-  it('keeps two-seat routes governed by visible table and chair footprints while preserving the exterior seat route', () => {
-    const seatIds = [
-      commercialCafeLaoZhouConversationSeatId,
-      'commercial-cafe-bottom-left-group-chair-bottom',
-    ]
-
-    for (const seatId of seatIds) {
-      const seat = cafe.objects.find((entity) => entity.id === seatId)!
-      const table = cafe.objects.find((entity) => entity.id === seat.seat!.tableId)!
-      const snapshot = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition)
-      const seatCollision = snapshot.objects.get(seat.id)!.collision!
-      const tableCollision = snapshot.objects.get(table.id)!.collision!
-      const gapCenter = seat.seat!.side === 'bottom' || seat.seat!.side === 'top'
-        ? { x: tableCollision.x + tableCollision.width / 2, y: (tableCollision.y + tableCollision.height + seatCollision.y) / 2 }
-        : { x: (tableCollision.x + tableCollision.width + seatCollision.x) / 2, y: tableCollision.y + tableCollision.height / 2 }
-
-      expect(isWalkableMainlinePoint(gapCenter, cafe)).toBe(true)
-      const visualGap = seat.seat!.side === 'bottom' || seat.seat!.side === 'top'
-        ? Math.abs(seatCollision.y - (tableCollision.y + tableCollision.height))
-        : Math.abs(seatCollision.x - (tableCollision.x + tableCollision.width))
-      const oversizedFootprint = seat.seat!.side === 'bottom' || seat.seat!.side === 'top'
-        ? { width: 1, height: visualGap + .01 }
-        : { width: visualGap + .01, height: 1 }
-      expect(isWalkableMainlinePoint(gapCenter, cafe, {}, { actorFootprint: oversizedFootprint })).toBe(false)
-      expect(findMainlinePathToEntity(cafe, seatId, cafe.initialPlayerPosition).path).not.toBeNull()
-      const exteriorStart = { x: tableCollision.x - 5, y: gapCenter.y }
-      const exteriorEnd = { x: tableCollision.x + tableCollision.width + 5, y: gapCenter.y }
-      const exteriorRoute = findMainlinePath(exteriorStart, exteriorEnd, cafe)
-      expect(exteriorRoute).not.toBeNull()
-      expect(exteriorRoute?.every((point) => isWalkableMainlinePoint(point, cafe))).toBe(true)
-    }
-  })
+  it('keeps the approved six-pixel table-chair gaps visibly open but impassable, with legal outer seat routes', () => {
+ const seats = cafe.objects.filter(o => o.roomId === currentCafeRoom.id && o.seat)
+ expect(seats).toHaveLength(8)
+ const snapshot = createMainlineSceneGeometrySnapshot(cafe, currentCafeStart, {}, currentCafeOptions.screenMetrics)
+ for (const seat of seats) {
+  const table = snapshot.objects.get(seat.seat!.tableId)!, chair = snapshot.objects.get(seat.id)!
+  const gap = Math.abs(chair.position.y - table.position.y) - (chair.collision!.height + table.collision!.height) / 2
+  expect(gap * 10.8).toBeCloseTo(6, 3)
+  const center = { x: table.position.x, y: (chair.position.y + table.position.y) / 2 }
+  for (const size of [11,16]) expect(isWalkableMainlinePoint(center,cafe,{}, { ...currentCafeOptions, actorFootprint:{width:size/19.2,height:size/10.8} })).toBe(false)
+  expect(findMainlinePathToEntity(cafe,seat.id,currentCafeStart,{},currentCafeOptions).path,seat.id).not.toBeNull()
+ }
+})
 
   // APPROVED CONTRACT MIGRATION: four-seat furniture now has only visible
   // object footprints plus its four table-chair relation barriers.
-  it('uses four relation barriers instead of a hidden four-seat table body', () => {
-    const table = cafe.objects.find((entity) => entity.id === 'commercial-cafe-bottom-center-group-table')!
-    const seats = cafe.objects.filter((entity) => entity.groupId === 'commercial-cafe-bottom-center-group' && entity.kind === 'seat')
-    const snapshot = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition)
-
-    expect(cafe.objects.some((entity) => entity.id === 'commercial-cafe-bottom-center-group-table-top' || entity.id === 'commercial-cafe-bottom-center-group-table-bottom')).toBe(false)
-    expect(table.movementCollision).not.toBe('physical')
-    expect(table.interactionContactSides).toBeUndefined()
-    expect(snapshot.objects.get(table.id)!.collision).toEqual(mainlineEntityTextFootprint(table, snapshot.objects.get(table.id)!.position))
-    expect(snapshot.objects.get(table.id)!.collision!.height).toBeLessThan(3)
-    expect(table.position.y).toBe(78)
-    expect(seats).toHaveLength(4)
-    expect(seats.every((seat) => seat.seat?.tableId === table.id)).toBe(true)
-    expect(cafe.navigationBarriers.filter((barrier) => barrier.id.startsWith('commercial-cafe-bottom-center-group-'))).toHaveLength(4)
-    const tableRoute = findMainlinePathToEntity(cafe, table.id, cafe.initialPlayerPosition)
-    expect(isWalkableMainlinePoint(cafe.initialPlayerPosition, cafe)).toBe(true)
-    expect(tableRoute.path).not.toBeNull()
-  })
+  it('uses four current two-seat groups with character-sized table bodies and no retired four-seat or invisible relation objects', () => {
+ const tables = cafe.objects.filter(o => o.roomId === currentCafeRoom.id && o.kind === 'table')
+ expect(tables).toHaveLength(4)
+ const snapshot = createMainlineSceneGeometrySnapshot(cafe,currentCafeStart,{},currentCafeOptions.screenMetrics)
+ for (const table of tables) {
+  const seats = cafe.objects.filter(o => o.seat?.tableId === table.id)
+  expect(seats).toHaveLength(2)
+  expect(snapshot.objects.get(table.id)!.collision).toEqual(mainlineEntityTextFootprint(table,table.position,currentCafeOptions.screenMetrics))
+  expect(snapshot.objects.get(table.id)!.collision!.width*19.2).toBeCloseTo(32,2)
+  expect(snapshot.objects.get(table.id)!.collision!.height*10.8).toBeCloseTo(16,2)
+  expect(findMainlinePathToEntity(cafe,table.id,currentCafeStart,{},currentCafeOptions).path).not.toBeNull()
+ }
+ expect(cafe.objects.some(o=>o.id.startsWith('commercial-cafe-bottom-center-group'))).toBe(false)
+ expect(cafe.navigationBarriers.filter(b=>b.id.includes('cafe')&&b.kind!=='access-boundary')).toHaveLength(0)
+})
 
   it('assigns separate counter and floor staging duties while preserving a reachable customer contact region', () => {
-    const staffZone = cafe.accessRegions.find((region) => region.id === 'commercial-cafe-staff-area')!
-    const coffeeOwnerBehavior = mainlineNpcStagingBehavior(cafe, commercialCafeCoffeeOwnerNpcId)!
-    const floorServerBehavior = mainlineNpcStagingBehavior(cafe, commercialCafeFloorServerNpcId)!
-    const coffeeOwnerPosition = resolveMainlineNpcPosition(cafe, commercialCafeCoffeeOwnerNpcId)!
-    const floorServerPosition = resolveMainlineNpcPosition(cafe, commercialCafeFloorServerNpcId)!
-    const counterContact = mainlineNpcInteractionTarget(cafe, commercialCafeCoffeeOwnerNpcId, cafe.initialPlayerPosition)
-    const counterCollision = cafe.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-body')!
-    const counterLeft = counterCollision.x
-    const counterRight = counterCollision.x + counterCollision.width
-    const protagonist = mainlineProtagonistDotFootprint(cafe.initialPlayerPosition)
-    const clearance = protagonist.height / 2 + sharedFurnitureGeometry.actorContactGap
-
-    expect(cafe.blockers.some((blocker) => blocker.id === 'commercial-cafe-staff-only')).toBe(false)
-    expect(coffeeOwnerBehavior).toMatchObject({ dutyId: 'cafe-coffee-owner.counter-service', targetId: 'commercial-cafe-counter-service', targetKind: 'point' })
-    expect(floorServerBehavior).toMatchObject({ dutyId: 'cafe-floor-server.table-service', targetId: 'commercial-cafe-floor-service-staging', targetKind: 'point' })
-    expect(coffeeOwnerPosition.x).toBeGreaterThan(staffZone.x)
-    expect(coffeeOwnerPosition.x).toBeLessThan(staffZone.x + staffZone.width)
-    expect(coffeeOwnerPosition.y).toBeGreaterThan(staffZone.y)
-    expect(coffeeOwnerPosition.y).toBeLessThan(staffZone.y + staffZone.height)
-    expect(coffeeOwnerPosition.x).toBeCloseTo((counterLeft + counterRight) / 2)
-    expect(coffeeOwnerPosition.y).toBeLessThan(counterCollision.y - clearance)
-    expect(floorServerPosition.x === coffeeOwnerPosition.x && floorServerPosition.y === coffeeOwnerPosition.y).toBe(false)
-    expect(floorServerPosition.x < staffZone.x || floorServerPosition.x > staffZone.x + staffZone.width
-      || floorServerPosition.y < staffZone.y || floorServerPosition.y > staffZone.y + staffZone.height).toBe(true)
-    expect(counterContact.y).toBeGreaterThan(counterCollision.y + counterCollision.height)
-    expect(isWalkableMainlinePoint(counterContact, cafe)).toBe(true)
-  })
+ const staff = cafe.accessRegions.find(r=>r.id==='commercial-cafe-staff-area')!
+ const owner = resolveMainlineNpcPosition(cafe,commercialCafeCoffeeOwnerNpcId)
+ const floor = resolveMainlineNpcPosition(cafe,commercialCafeFloorServerNpcId)
+ const body = cafe.continuousStructures.find(s=>s.id==='cafe-trial-counter-long-body')!
+ expect(mainlineNpcStagingBehavior(cafe,commercialCafeCoffeeOwnerNpcId)).toMatchObject({dutyId:'cafe-coffee-owner.counter-service',targetId:'commercial-cafe-counter-service',targetKind:'point'})
+ expect(mainlineNpcStagingBehavior(cafe,commercialCafeFloorServerNpcId)).toMatchObject({dutyId:'cafe-floor-server.table-service',targetId:'commercial-cafe-floor-service-staging',targetKind:'point'})
+ expect(owner.x).toBeGreaterThan(staff.x);expect(owner.x).toBeLessThan(staff.x+staff.width)
+ expect(floor.x).toBeGreaterThan(staff.x+staff.width)
+ expect(isWalkableMainlinePoint(owner,cafe,{}, {...currentCafeOptions,actorId:commercialCafeCoffeeOwnerNpcId})).toBe(true)
+ const contact = mainlineNpcInteractionTarget(cafe,commercialCafeCoffeeOwnerNpcId,currentCafeStart,{},undefined,currentCafeOptions)
+ expect(contact.x).toBeGreaterThan(body.x+body.width)
+ expect(isWalkableMainlinePoint(contact,cafe,{},currentCafeOptions)).toBe(true)
+ expect(findMainlinePath(currentCafeStart,contact,cafe,{},currentCafeOptions)).not.toBeNull()
+})
 })

@@ -31,7 +31,10 @@ describe('commercial rear walls have one real door and no former extra door', ()
     expect(rear.targetSceneId).toBeUndefined()
     expect(doorway.width).toBeCloseTo(pitch, 2)
     const door = doorCells[0]!, inward = slot.edge === 'bottom' ? 1 : -1
-    const command = (x: number) => classifyMainlineWorldCommand(scene, { x, y: door.y + inward * 5 }, { x, y: door.y - inward * .9 }, {}, options)
+    const actorId=scene.npcs.find(n=>n.roomId===room.id&&scene.actorAccess[n.id]?.includes('staff'))?.id??'protagonist'
+    const size=actorId==='protagonist'?11:16
+    const rearOptions={...options,actorId,actorFootprint:{width:size/19.2,height:size/10.8}}
+    const command = (x: number) => classifyMainlineWorldCommand(scene, { x, y: door.y + inward * 5 }, { x, y: door.y - inward * .9 }, {}, rearOptions)
     expect(command(door.x)).toMatchObject({ kind: 'passage', passage: { id: rear.id, access: 'locked' } })
     // Even the adjacent wall owned by the old door unit is now just a wall.
     expect(command(door.x + pitch).kind).toBe('ordinary')

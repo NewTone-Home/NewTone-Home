@@ -1,6 +1,7 @@
+import { currentCafeOptions, currentCafeStart } from './helpers/currentCafe'
 import { describe, expect, it } from 'vitest'
 import {
-  findMainlinePath,
+  canTravelAlongMainlineSegment, findMainlinePath,
   isMainlineNavigationBarrierClear,
   mainlineEntityInteractionCandidates,
   mainlineInteractionTarget,
@@ -11,9 +12,9 @@ import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 import { commercialCafeCoffeeOwnerNpcId } from '../src/center/runtime/commercialCafeStory'
 
-const protagonistFootprint = mainlineProtagonistDotFootprint(mainlineScenes['commercial-cafe'].initialPlayerPosition)
+const protagonistFootprint = mainlineProtagonistDotFootprint(currentCafeStart,currentCafeOptions.screenMetrics)
 const protagonistOptions = {
-  actorId: 'protagonist',
+  ...currentCafeOptions, actorId: 'protagonist',
   actorFootprint: { width: protagonistFootprint.width, height: protagonistFootprint.height },
 } as const
 
@@ -30,8 +31,8 @@ function sourcesAround(position: { x: number; y: number }) {
 describe('ordinary floor interaction and access-boundary contracts', () => {
   it('removes authored approaches from ordinary floor-object candidates in every direction', () => {
     const targets = [
-      [mainlineScenes['commercial-cafe'], 'commercial-cafe-plant-upper'],
-      [mainlineScenes['commercial-cafe'], 'commercial-cafe-plant-lower'],
+      [mainlineScenes['commercial-cafe'], 'cafe-trial-table-group-1-table'],
+      [mainlineScenes['commercial-cafe'], 'cafe-trial-table-group-4-table'],
       [mainlineScenes['zhongshuyuan-office'], 'zhongshuyuan-office-plant'],
       [mainlineScenes['zhongshuyuan-office'], 'zhongshuyuan-office-rack'],
     ] as const
@@ -56,23 +57,20 @@ describe('ordinary floor interaction and access-boundary contracts', () => {
       [shrine, 'jijia-incense-burner'],
     ] as const) {
       const entity = scene.objects.find((candidate) => candidate.id === entityId)!
-      const snapshot = createMainlineSceneGeometrySnapshot(scene, scene.initialPlayerPosition)
+      const snapshot = createMainlineSceneGeometrySnapshot(scene, scene.initialPlayerPosition,{},currentCafeOptions.screenMetrics)
       const collision = snapshot.objects.get(entity.id)!.collision!
       const target = mainlineInteractionTarget(scene, entity.id, scene.initialPlayerPosition, {}, undefined, protagonistOptions)
       expect(target.x < collision.x || target.x > collision.x + collision.width || target.y < collision.y || target.y > collision.y + collision.height).toBe(true)
     }
   })
 
-  it('uses the same access boundary for planner, route traversal, and live-movement legality', () => {
-    const cafe = mainlineScenes['commercial-cafe']
-    const boundary = mainlineNavigationBarriers(cafe, {}, protagonistOptions).find((candidate) => candidate.kind === 'access-boundary')!
-    const midpoint = (boundary.start.y + boundary.end.y) / 2
-    const publicPoint = { x: boundary.start.x + 1, y: midpoint }
-    const staffPoint = { x: boundary.start.x - 1, y: midpoint }
-
-    expect(isMainlineNavigationBarrierClear(publicPoint, staffPoint, cafe, {}, protagonistOptions)).toBe(false)
-    expect(findMainlinePath(publicPoint, staffPoint, cafe, {}, protagonistOptions)).toBeNull()
-    expect(isMainlineNavigationBarrierClear(publicPoint, staffPoint, cafe, {}, { actorId: commercialCafeCoffeeOwnerNpcId })).toBe(true)
-    expect(findMainlinePath(publicPoint, staffPoint, cafe, {}, { actorId: commercialCafeCoffeeOwnerNpcId })).not.toBeNull()
-  })
+  it('uses the same real staff region for planner, route traversal, and live-movement legality at the actual lower opening', () => {
+ const cafe=mainlineScenes['commercial-street'],staff=cafe.accessRegions.find(r=>r.id==='commercial-cafe-staff-area')!
+ const publicPoint={x:staff.x+staff.width/2,y:staff.y+staff.height+3},staffPoint={...publicPoint,y:staff.y+staff.height-3}
+ const staffOptions={...protagonistOptions,actorId:commercialCafeCoffeeOwnerNpcId}
+ expect(canTravelAlongMainlineSegment(publicPoint,staffPoint,cafe,{},protagonistOptions)).toBe(false)
+ expect(findMainlinePath(publicPoint,staffPoint,cafe,{},protagonistOptions)).toBeNull()
+ expect(canTravelAlongMainlineSegment(publicPoint,staffPoint,cafe,{},staffOptions)).toBe(true)
+ expect(findMainlinePath(publicPoint,staffPoint,cafe,{},staffOptions)).not.toBeNull()
+})
 })

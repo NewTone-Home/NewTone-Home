@@ -56,7 +56,8 @@ describe('commercial street storefront presentation', () => {
     expect(street.storefronts.find(storefront => storefront.id === 'commercial-south-slot-2')?.label).toBe('快餐店')
     expect(street.storefronts.every((storefront) => storefront.portalId && storefront.characterSwitch)).toBe(true)
     expect(street.rooms.filter((room) => room.id.endsWith('-interior'))).toHaveLength(14)
-    expect(street.passages).toHaveLength(28)
+    expect(street.passages).toHaveLength(29)
+    expect(street.passages.find(p=>p.id==='cafe-trial-customer-toilet-door')).toMatchObject({access:'locked'})
     for (const storefront of street.storefronts) {
       const passage = street.passages.find((candidate) => candidate.portalId === storefront.portalId)!
       expect(passage, storefront.id).toMatchObject({

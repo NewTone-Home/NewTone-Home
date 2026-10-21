@@ -1,3 +1,5 @@
+import { currentCafeStart, currentCafeOptions } from './helpers/currentCafe'
+import { mainlineNpcLabelFootprint } from '../src/center/runtime/sceneLayout'
 import { describe, expect, it } from 'vitest'
 import { doorPassageIsPassable, type DoorPassagePhase } from '../src/center/runtime/doorPassageModel'
 import { createFreeRoamController } from '../src/center/runtime/useFreeRoamMovement'
@@ -42,7 +44,7 @@ describe('ordinary world navigation and passage intent', () => {
     const target = point((1100 / 1180) * 100, (378 / 757) * 100)
     const dot = mainlineProtagonistDotFootprint(from, screenMetrics)
     const geometrySnapshot = createMainlineSceneGeometrySnapshot(street, from, {}, screenMetrics)
-    const options = { actorId: 'protagonist', actorFootprint: { width: dot.width, height: dot.height }, screenMetrics, geometrySnapshot }
+    const options = { ...currentCafeOptions, actorId: 'protagonist', actorFootprint: { width: dot.width, height: dot.height }, screenMetrics, geometrySnapshot }
     const route = resolveMainlineWorldNavigation(street, from, target, {}, options)
     expect(route?.reachedRequestedTarget).toBe(true)
     expect(route?.resolvedNavigableTarget).toEqual(target)
@@ -158,18 +160,18 @@ describe('ordinary world navigation and passage intent', () => {
 
   it('rechecks a later storefront door when a route crosses from one interior to another', () => {
     const street = mainlineScenes['commercial-street']
-    const screenMetrics = { width: 1180, height: 757, viewportWidth: 1180 }
+    const screenMetrics = currentCafeOptions.screenMetrics
     const geometrySnapshot = createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, screenMetrics)
     const northPassage = street.passages.find(candidate => candidate.id === 'commercial-north-slot-1-entry')!
     const southPassage = street.passages.find(candidate => candidate.id === 'commercial-south-slot-1-entry')!
     const northRoom = street.rooms.find(candidate => candidate.id === northPassage.toRoomId)!
     const southRoom = street.rooms.find(candidate => candidate.id === southPassage.toRoomId)!
-    const start = { x: northRoom.bounds.x + northRoom.bounds.width / 2, y: northRoom.bounds.y + northRoom.bounds.height / 2 }
-    const target = { x: southRoom.bounds.x + southRoom.bounds.width / 2, y: southRoom.bounds.y + southRoom.bounds.height / 2 }
+    const start = northPassage.crossingTargets[0]
+    const target = southPassage.crossingTargets[0]
     let southPhase: DoorPassagePhase = 'open'
     const currentOptions = () => ({
       actorId: 'protagonist',
-      actorFootprint: { width: 1.2, height: 1.2 },
+      actorFootprint: currentCafeOptions.actorFootprint,
       screenMetrics,
       geometrySnapshot,
       openPassageIds: new Set([northPassage.id, ...(doorPassageIsPassable(southPhase) ? [southPassage.id] : [])]),
@@ -208,13 +210,13 @@ describe('ordinary world navigation and passage intent', () => {
 
   it('keeps locked rear-door collision and access denial in the live movement checks', () => {
     const street = mainlineScenes['commercial-street']
-    const screenMetrics = { width: 1180, height: 757, viewportWidth: 1180 }
+    const screenMetrics = currentCafeOptions.screenMetrics
     const geometrySnapshot = createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, screenMetrics)
     const entry = street.passages.find(candidate => candidate.id === 'commercial-north-slot-1-entry')!
     const rear = street.passages.find(candidate => candidate.id === `${entry.toRoomId}-rear-door`)!
     const room = street.rooms.find(candidate => candidate.id === entry.toRoomId)!
-    const interior = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
-    const options = { actorId: 'protagonist', actorFootprint: { width: 1.2, height: 1.2 }, screenMetrics, geometrySnapshot, openPassageIds: new Set([entry.id]) }
+    const interior = resolveMainlineNpcPosition(street,'fruit-tea-trial-worker')
+    const options = { ...currentCafeOptions, actorId: 'fruit-tea-trial-worker', actorFootprint: { width:16/19.2, height:16/10.8 }, screenMetrics, geometrySnapshot, openPassageIds: new Set([entry.id]) }
     const rearCenter = { x: rear.collision.x + rear.collision.width / 2, y: rear.collision.y + rear.collision.height / 2 }
     expect(rear.access).toBe('locked')
     expect(rear.routeThrough).not.toBe(true)
@@ -227,12 +229,12 @@ describe('ordinary world navigation and passage intent', () => {
     const cafe = mainlineScenes['commercial-cafe']
     const staff = cafe.accessRegions.find(region => region.id === 'commercial-cafe-staff-area')!
     const staffTarget = { x: staff.x + staff.width / 2, y: staff.y + staff.height / 2 }
-    const cafeGeometry = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition, {})
-    const cafeOptions = { actorId: 'protagonist', geometrySnapshot: cafeGeometry }
-    const movement = createFreeRoamController(cafe.initialPlayerPosition)
+    const cafeGeometry = createMainlineSceneGeometrySnapshot(cafe, currentCafeStart, {},currentCafeOptions.screenMetrics)
+    const cafeOptions = { ...currentCafeOptions, actorId: 'protagonist', geometrySnapshot: cafeGeometry }
+    const movement = createFreeRoamController(currentCafeStart)
     let arrived = 0
     let blocked = 0
-    movement.moveAlong([cafe.initialPlayerPosition, staffTarget], () => { arrived += 1 }, {
+    movement.moveAlong([currentCafeStart, staffTarget], () => { arrived += 1 }, {
       maxSpeed: .018,
       canOccupy: position => isWalkableMainlinePoint(position, cafe, {}, cafeOptions),
       canTraverse: (from, to) => isMainlineNavigationBarrierClear(from, to, cafe, {}, cafeOptions),
@@ -328,48 +330,44 @@ describe('ordinary world navigation and passage intent', () => {
 
   it('keeps a reachable world click raw, projects blocked/access targets once, and honors actor access', () => {
     const cafe = mainlineScenes['commercial-cafe']
-    const dot = mainlineProtagonistDotFootprint(cafe.initialPlayerPosition)
-    const options = { actorId: 'protagonist', actorFootprint: { width: dot.width, height: dot.height } } as const
-    const openGround = cafe.initialPlayerPosition
-    const open = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, openGround, {}, options)!
+    const dot = mainlineProtagonistDotFootprint(currentCafeStart,currentCafeOptions.screenMetrics)
+    const options = { ...currentCafeOptions, actorId: 'protagonist', actorFootprint: { width: dot.width, height: dot.height } } as const
+    const openGround = currentCafeStart
+    const open = resolveMainlineWorldNavigation(cafe, currentCafeStart, openGround, {}, options)!
     expect(open.reachedRequestedTarget).toBe(true)
     expect(open.resolvedNavigableTarget).toEqual(openGround)
 
-    const counter = cafe.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-body')!
+    const counter = cafe.continuousStructures.find((structure) => structure.id === 'cafe-trial-counter-long-body')!
     const insideCounter = { x: counter.x + counter.width / 2, y: counter.y + counter.height / 2 }
-    const projected = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, insideCounter, {}, options)!
+    const projected = resolveMainlineWorldNavigation(cafe, currentCafeStart, insideCounter, {}, options)!
     expect(projected.reachedRequestedTarget).toBe(false)
     expect(projected.resolvedNavigableTarget).not.toEqual(insideCounter)
 
     const staff = cafe.accessRegions.find((region) => region.id === 'commercial-cafe-staff-area')!
     const staffTarget = { x: staff.x + staff.width / 2, y: staff.y + staff.height / 2 }
-    const denied = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, options)!
+    const denied = resolveMainlineWorldNavigation(cafe, currentCafeStart, staffTarget, {}, options)!
     expect(denied.reachedRequestedTarget).toBe(false)
     expect(denied.deniedAccessRegion?.id).toBe(staff.id)
-    expect(denied.resolvedNavigableTarget.x).toBeGreaterThan(staff.x + staff.width)
+    expect(denied.resolvedNavigableTarget.y).toBeGreaterThan(staff.y + staff.height)
     expect(mainlineNavigationCollisionBoxes(cafe, {}, options)).not.toContainEqual({ x: staff.x, y: staff.y, width: staff.width, height: staff.height })
     expect(denied.resolvedNavigableTarget).not.toEqual(staffTarget)
-    const allowed = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, { actorId: commercialCafeCoffeeOwnerNpcId })!
+    const allowed = resolveMainlineWorldNavigation(cafe, currentCafeStart, staffTarget, {}, { ...currentCafeOptions, actorId: commercialCafeCoffeeOwnerNpcId })!
     expect(allowed.reachedRequestedTarget).toBe(true)
-    const floorServerDenied = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, staffTarget, {}, { actorId: commercialCafeFloorServerNpcId })!
+    const floorServerDenied = resolveMainlineWorldNavigation(cafe, currentCafeStart, staffTarget, {}, { ...currentCafeOptions, actorId: commercialCafeFloorServerNpcId })!
     expect(floorServerDenied.reachedRequestedTarget).toBe(false)
   })
 
-  it('derives distinct public contacts along the declared access boundary, including the top wall', () => {
-    const cafe = mainlineScenes['commercial-cafe']
-    const staff = cafe.accessRegions[0]!
-    const from = { x: staff.x + staff.width + 7, y: staff.y + 1 }
-    const dot = mainlineProtagonistDotFootprint(from)
-    const options = { actorId: 'protagonist', actorFootprint: { width: dot.width, height: dot.height } }
-    const contacts = [staff.y - .2, staff.y + 1, staff.y + staff.height / 2, staff.y + staff.height - 1].map(y => {
-      const result = resolveMainlineWorldNavigation(cafe, from, { x: staff.x + staff.width - 2, y }, {}, options)!
-      expect(result.deniedAccessRegion?.id).toBe(staff.id)
-      expect(result.resolvedNavigableTarget.x).toBeGreaterThan(staff.x + staff.width + dot.width / 2)
-      for (let i = 1; i < result.path.length; i++) expect(canTravelAlongMainlineSegment(result.path[i - 1]!, result.path[i]!, cafe, {}, options)).toBe(true)
-      return result.resolvedNavigableTarget.y
-    })
-    expect(new Set(contacts).size).toBeGreaterThan(2)
-  })
+  it('derives distinct public contacts at the actual lower employee opening without projecting through the counter',()=>{
+ const cafe=mainlineScenes['commercial-street'],staff=cafe.accessRegions.find(r=>r.id==='commercial-cafe-staff-area')!,from={x:staff.x+staff.width/2,y:staff.y+staff.height+5}
+ const contacts=[.2,.4,.6,.8].map(fraction=>{
+  const result=resolveMainlineWorldNavigation(cafe,from,{x:staff.x+staff.width*fraction,y:staff.y+staff.height-1},{},currentCafeOptions)!
+  expect(result).not.toBeNull();expect(result.deniedAccessRegion?.id).toBe(staff.id)
+  expect(result.resolvedNavigableTarget.y).toBeGreaterThan(staff.y+staff.height+currentCafeOptions.actorFootprint.height/2)
+  for(let i=1;i<result.path.length;i++)expect(canTravelAlongMainlineSegment(result.path[i-1],result.path[i],cafe,{},currentCafeOptions)).toBe(true)
+  return result.resolvedNavigableTarget.x
+ })
+ expect(new Set(contacts).size).toBeGreaterThan(2)
+})
 
   it('preserves distinct incoming tangents on the usable Office doorway span', () => {
     const office = mainlineScenes['zhongshuyuan-office']
@@ -402,11 +400,11 @@ describe('ordinary world navigation and passage intent', () => {
 
   it('uses the same closed-passage geometry for world resolution and live travel', () => {
     const cafe = mainlineScenes['commercial-cafe']
-    const dot = mainlineProtagonistDotFootprint(cafe.initialPlayerPosition)
-    const options = { actorId: 'protagonist', actorFootprint: { width: dot.width, height: dot.height } } as const
+    const dot = mainlineProtagonistDotFootprint(currentCafeStart,currentCafeOptions.screenMetrics)
+    const options = { ...currentCafeOptions, actorId: 'protagonist', actorFootprint: { width: dot.width, height: dot.height } } as const
     const staff = cafe.accessRegions.find((region) => region.id === 'commercial-cafe-staff-area')!
     const requestedTarget = { x: staff.x + staff.width / 2, y: staff.y + staff.height / 2 }
-    const resolution = resolveMainlineWorldNavigation(cafe, cafe.initialPlayerPosition, requestedTarget, {}, options)!
+    const resolution = resolveMainlineWorldNavigation(cafe, currentCafeStart, requestedTarget, {}, options)!
 
     expect(resolution.reachedRequestedTarget).toBe(false)
     expect(resolution.path.at(-1)).toEqual(resolution.resolvedNavigableTarget)
@@ -433,17 +431,17 @@ describe('ordinary world navigation and passage intent', () => {
 
   it('requires exact actor-specific reachability before a passage can participate', () => {
     const cafe = mainlineScenes['commercial-cafe']
-    const backDoor = cafe.passages.find((passage) => passage.id === 'cafe-back-door')!
-    const protagonistDot = mainlineProtagonistDotFootprint(cafe.initialPlayerPosition)
+    const backDoor = cafe.passages.find((passage) => passage.id === 'commercial-north-cafe-interior-rear-door')!
+    const protagonistDot = mainlineProtagonistDotFootprint(currentCafeStart,currentCafeOptions.screenMetrics)
     const protagonistOptions = { actorId: 'protagonist', actorFootprint: { width: protagonistDot.width, height: protagonistDot.height } } as const
     const coffeeOwnerPosition = resolveMainlineNpcPosition(cafe, commercialCafeCoffeeOwnerNpcId)
 
-    expect(canActorReachPassageApproach(cafe, backDoor, cafe.initialPlayerPosition, {}, protagonistOptions)).toBeNull()
+    expect(canActorReachPassageApproach(cafe, backDoor, currentCafeStart, {}, protagonistOptions)).toBeNull()
     expect(coffeeOwnerPosition).toBeDefined()
     expect(canActorReachPassageApproach(cafe, backDoor, coffeeOwnerPosition!, {}, { actorId: commercialCafeCoffeeOwnerNpcId })).not.toBeNull()
 
-    const backDoorTarget = mainlinePassageExitPoint(backDoor, cafe.initialPlayerPosition)
-    expect(classifyMainlineWorldCommand(cafe, cafe.initialPlayerPosition, backDoorTarget, {}, protagonistOptions)).toMatchObject({ kind: 'ordinary' })
+    const backDoorTarget = mainlinePassageExitPoint(backDoor, currentCafeStart)
+    expect(classifyMainlineWorldCommand(cafe, currentCafeStart, backDoorTarget, {}, protagonistOptions)).toMatchObject({ kind: 'ordinary' })
     expect(classifyMainlineWorldCommand(cafe, coffeeOwnerPosition!, backDoorTarget, {}, { actorId: commercialCafeCoffeeOwnerNpcId })).toMatchObject({ kind: 'passage', passage: { id: backDoor.id } })
   })
 
@@ -453,15 +451,15 @@ describe('ordinary world navigation and passage intent', () => {
     const seatId = 'commercial-cafe-right-window-upper-group-chair-top'
     const seated = resolveMainlineSeatSitPosition(cafe, seatId)
     expect(seated).not.toBeNull()
-    expect(canActorReachPassageApproach(cafe, exit, seated!, {}, { actorId: 'lao-zhou' })).not.toBeNull()
+    expect(canActorReachPassageApproach(cafe, exit, seated!, {}, { screenMetrics:currentCafeOptions.screenMetrics, actorId:'lao-zhou', actorFootprint:{width:16/19.2,height:16/10.8}, occupiedSeatIds:mainlineSceneOccupiedSeatIds(cafe) })).not.toBeNull()
   })
 
   it('routes Lao Zhou from his authored Café conversation seat to the opposite side of the street passage', () => {
     const cafe = mainlineScenes['commercial-cafe']
     const exit = cafe.passages.find((passage) => passage.id === 'street-cafe-entry')!
-    const seated = resolveMainlineNpcPosition(cafe, 'lao-zhou', {}, { screenMetrics: defaultSceneScreenMetrics })
-    const footprint = mainlineLabelFootprint('老周', seated, defaultSceneScreenMetrics, { lineHeight: 1 })
-    const options = { actorId: 'lao-zhou', screenMetrics: defaultSceneScreenMetrics, actorFootprint: { width: footprint.width, height: footprint.height } }
+    const seated = resolveMainlineNpcPosition(cafe, 'lao-zhou', {}, { screenMetrics: currentCafeOptions.screenMetrics })
+    const footprint = mainlineNpcLabelFootprint(cafe, 'lao-zhou', seated, currentCafeOptions.screenMetrics)
+    const options = { actorId: 'lao-zhou', screenMetrics: currentCafeOptions.screenMetrics, actorFootprint: { width: footprint.width, height: footprint.height } }
     const collision = mainlinePassageCollisionForNavigation(cafe, exit, options)
     const doorway = mainlinePassageDoorwayForNavigation(cafe, exit, options)
     const outsideTarget = mainlinePassageExitPoint(exit, seated, options.actorFootprint, collision, doorway)
@@ -473,11 +471,11 @@ describe('ordinary world navigation and passage intent', () => {
   it('keeps the seated NPC route valid until its occupied chair is released', () => {
     const cafe = mainlineScenes['commercial-cafe']
     const exit = cafe.passages.find((passage) => passage.id === 'street-cafe-entry')!
-    const from = resolveMainlineNpcPosition(cafe, 'lao-zhou', {}, { screenMetrics: defaultSceneScreenMetrics })
-    const footprint = mainlineLabelFootprint('老周', from, defaultSceneScreenMetrics, { lineHeight: 1 })
+    const from = resolveMainlineNpcPosition(cafe, 'lao-zhou', {}, { screenMetrics: currentCafeOptions.screenMetrics })
+    const footprint = mainlineNpcLabelFootprint(cafe, 'lao-zhou', from, currentCafeOptions.screenMetrics)
     const laoZhouSeatId = mainlineNpcStagedSeatId(cafe, 'lao-zhou')!
     const occupiedSeatIds = mainlineSceneOccupiedSeatIds(cafe)
-    const options = { actorId: 'lao-zhou', screenMetrics: defaultSceneScreenMetrics, actorFootprint: { width: footprint.width, height: footprint.height }, occupiedSeatIds }
+    const options = { actorId: 'lao-zhou', screenMetrics: currentCafeOptions.screenMetrics, actorFootprint: { width: footprint.width, height: footprint.height }, occupiedSeatIds }
     expect(occupiedSeatIds.has(laoZhouSeatId)).toBe(true)
     expect(canActorReachPassageApproach(cafe, exit, from, {}, options)).not.toBeNull()
     const releasedSeatIds = new Set(occupiedSeatIds)
@@ -487,12 +485,12 @@ describe('ordinary world navigation and passage intent', () => {
 
   it('classifies passages before ordinary target resolution, including a locked non-routeThrough back door', () => {
     const cafe = mainlineScenes['commercial-cafe']
-    const ordinary = classifyMainlineWorldCommand(cafe, cafe.initialPlayerPosition, cafe.initialPlayerPosition)
+    const ordinary = classifyMainlineWorldCommand(cafe, currentCafeStart, currentCafeStart)
     expect(ordinary.kind).toBe('ordinary')
 
     const street = cafe.passages.find((passage) => passage.id === 'street-cafe-entry')!
-    const streetTarget = mainlinePassageExitPoint(street, cafe.initialPlayerPosition)
-    const crossScene = classifyMainlineWorldCommand(cafe, cafe.initialPlayerPosition, streetTarget)
+    const streetTarget = mainlinePassageExitPoint(street, currentCafeStart)
+    const crossScene = classifyMainlineWorldCommand(cafe, currentCafeStart, streetTarget)
     expect(crossScene).toMatchObject({ kind: 'passage', passage: { id: street.id }, requestedTarget: streetTarget })
 
     const eatery = mainlineScenes['yonghe-eatery']

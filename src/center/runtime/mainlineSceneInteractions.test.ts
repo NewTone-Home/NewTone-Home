@@ -103,20 +103,17 @@ describe('mainline scene interaction policies', () => {
     })
 
     expect(counter).toMatchObject({ kind: 'fixture', interactionBehavior: 'cafe-order' })
-    expect(counterSegments).toHaveLength(17)
+    expect(counterSegments).toHaveLength(1)
     expect(counterSegments.every((segment) => segment.interactionBehavior === 'cafe-order')).toBe(true)
-    const counterBody = cafe.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-body')!
+    const counterBody = cafe.continuousStructures.find((structure) => structure.id === 'cafe-trial-counter-long-body')!
     // APPROVED CONTRACT MIGRATION: cells retain individual customer-side
     // contacts but share one continuous physical counter body.
-    counterSegments.forEach((segment) => {
-      const customerY = counterBody.y + counterBody.height * 2
-      const left = mainlineInteractionTarget(cafe, segment.id, { x: counterBody.x - counterBody.width, y: customerY })
-      const right = mainlineInteractionTarget(cafe, segment.id, { x: counterBody.x + counterBody.width * 2, y: customerY })
-      expect(left.y).toBeGreaterThan(counterBody.y + counterBody.height)
-      expect(right.y).toBeGreaterThan(counterBody.y + counterBody.height)
-      expect(left.x).toBeLessThanOrEqual(segment.position.x)
-      expect(right.x).toBeGreaterThanOrEqual(segment.position.x)
-    })
+    const inside=cafe.passages.find(p=>p.id==='street-cafe-entry')!.crossingTargets[0]
+    for (const segment of counterSegments) {
+      const target=mainlineInteractionTarget(cafe,segment.id,inside,{},undefined,{screenMetrics:{width:1920,height:1080}})
+      expect(target.x).toBeGreaterThan(counterBody.x+counterBody.width)
+      expect(segment.id).toBe('commercial-cafe-counter')
+    }
     expect(entered.choice).toEqual({ text: '要点一杯咖啡吗？', options: ['点一杯咖啡'] })
     expect(resolveMainlineSceneEchoChoice(cafe, counter, '点一杯咖啡', 0, { commercialCafeCoffeeOrdered: false, carriedMilkTea: false })).toMatchObject({
       stateChange: { key: commercialCafeCoffeeStatusKey, value: 'ordered' },
