@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { mainlineScenes, mainlineStorefrontApproach } from '../src/center/runtime/mainlineScenes'
 import { mainlineSceneBlueprints } from '../src/center/runtime/mainlineSceneModel'
 import { commercialStreetCameraPages, commercialStreetPageIndex } from '../src/center/runtime/commercialStreetCamera'
-import { isWalkableMainlinePoint, resolveMainlineSafeSpawnPosition } from '../src/center/runtime/mainlineNavigation'
+import { isWalkableMainlinePoint, resolveMainlineSafeSpawnPosition, findMainlinePath, resolveMainlineNpcPosition, canActorReachPassageApproach } from '../src/center/runtime/mainlineNavigation'
+import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
+import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
+import { mainlineProtagonistDotFootprint, mainlineLabelFootprint, mainlineSceneFootprint } from '../src/center/runtime/sceneLayout'
 import { clearPlayerSave, createInitialPlayerSave, loadPlayerSave, sanitizePlayerSave, createPositionSaveCoordinator, recordPlayerScenePosition, savePlayerSave } from '../src/center/runtime/playerSave'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { activeStorefrontPresentationOwner, activeStorefrontInteriorOwner } from '../src/center/runtime/storefrontPresentation'
@@ -15,12 +18,34 @@ describe('first fruit-tea frontage district entrance', () => {
     const blueprint = mainlineSceneBlueprints['commercial-street']
     const front = blueprint.portals.find(portal => portal.id === 'commercial-north-slot-1-entry')!
     const lane = scene.rooms.find(room => room.id === front.fromRoomId)!
-    expect(scene.initialPlayerPosition).toEqual(mainlineStorefrontApproach(scene, scene.storefronts.find(storefront => storefront.id === 'commercial-north-slot-1')!))
+    const approach = mainlineStorefrontApproach(scene, scene.storefronts.find(storefront => storefront.id === 'commercial-north-slot-1')!)
+    expect(scene.initialPlayerPosition).toEqual({ x: approach.x, y: approach.y + 2 })
     expect(scene.initialPlayerPosition.y).toBeLessThan(lane.bounds.y + lane.bounds.height / 2)
     expect(activeStorefrontInteriorOwner(scene, scene.initialPlayerPosition)).toBeNull()
     expect(scene.rideArrivalPosition).toEqual(scene.initialPlayerPosition)
     expect(isWalkableMainlinePoint(scene.initialPlayerPosition, scene, {}, options)).toBe(true)
     expect(resolveMainlineSafeSpawnPosition(scene, scene.initialPlayerPosition, {}, options)).toEqual(scene.initialPlayerPosition)
+  })
+
+  it('clears real startup actor footprints and can leave or reach the actual door with live occupancy', () => {
+    const start = scene.initialPlayerPosition
+    const geometrySnapshot = createMainlineSceneGeometrySnapshot(scene, start, {}, sceneDesignReferenceMetrics, new Map([['commercial-north-slot-1', 'revealed']]))
+    const navigationRuntime = createNavigationRuntime()
+    for (const npc of scene.npcs) {
+      const position = resolveMainlineNpcPosition(scene, npc.id, {}, { geometrySnapshot, screenMetrics: sceneDesignReferenceMetrics })
+      const box = mainlineSceneFootprint(scene, mainlineLabelFootprint(npc.label, position, sceneDesignReferenceMetrics, { lineHeight: 1 }), sceneDesignReferenceMetrics)
+      navigationRuntime.registerActor(npc.id, position, { width: box.width, height: box.height })
+    }
+    const actorFootprint = mainlineProtagonistDotFootprint(start, sceneDesignReferenceMetrics, scene.id)
+    navigationRuntime.registerActor('protagonist', start, actorFootprint)
+    const live = { ...options, geometrySnapshot, navigationRuntime, actorId: 'protagonist', actorFootprint }
+    const approach = mainlineStorefrontApproach(scene, scene.storefronts.find(storefront => storefront.id === 'commercial-north-slot-1')!)
+    // This is the missed regression: static legality alone approved the old birth point.
+    expect(isWalkableMainlinePoint(approach, scene, {}, { ...live, navigationRuntime: undefined })).toBe(true)
+    expect(isWalkableMainlinePoint(approach, scene, {}, live)).toBe(false)
+    expect(isWalkableMainlinePoint(start, scene, {}, live)).toBe(true)
+    expect(findMainlinePath(start, { x: start.x + 4, y: 50.259 }, scene, {}, live)).not.toBeNull()
+    expect(canActorReachPassageApproach(scene, scene.passages.find(passage => passage.id === 'commercial-north-slot-1-entry')!, start, {}, live)?.path).not.toBeNull()
   })
 
   it('holds the visible first facade baseline until entry is ready, then uses its normal proximity owner', () => {

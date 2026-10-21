@@ -2464,12 +2464,13 @@ const authoredMainlineSceneBlueprints: Record<MainlineSceneId, MainlineSceneBlue
 export const mainlineSceneBlueprints = Object.fromEntries(Object.entries(authoredMainlineSceneBlueprints).map(([id,blueprint])=>[id,alignSceneBlueprint(blueprint)])) as Record<MainlineSceneId,MainlineSceneBlueprint>
 
 // Resolve the entrance from aligned geometry, rather than retaining the old
-// rounded facade coordinate. Match the compiled facade's public-side 6-unit approach.
+// rounded facade coordinate. The 6-unit approach is on the north pedestrian's
+// startup lane; stand 2 units farther out while remaining inside its reveal range.
 const alignedStreet = mainlineSceneBlueprints['commercial-street']
 const entrancePortal = alignedStreet.portals.find(portal => portal.id === commercialStreetStorefronts[0]!.portalId)!
 const alignedStreetEntrance = {
   x: entrancePortal.endpoint.doorPosition.x,
-  y: entrancePortal.endpoint.doorPosition.y + 6,
+  y: entrancePortal.endpoint.doorPosition.y + 8,
 }
 alignedStreet.scene.initialPlayerPosition = alignedStreetEntrance
 alignedStreet.scene.rideArrivalPosition = alignedStreetEntrance
