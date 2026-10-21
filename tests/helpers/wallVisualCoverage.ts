@@ -1,0 +1,21 @@
+import type {MainlineSceneDefinition,MainlineSceneGeometryUnit} from '../../src/center/runtime/mainlineScenes'
+/** Full edge coverage: no min/max distance filter that can hide missing cells. */
+export function wallVisualCoverage(scene:MainlineSceneDefinition,units:readonly MainlineSceneGeometryUnit[]){
+ const groups=new Map<string,{owner:string;edge:string;axis:'x'|'y';start:number;end:number;nodes:{axis:number;wall:boolean;door?:string}[]}>()
+ for(const u of units){if(u.geometryKind!=='boundary'||!u.edge||u.variant==='near'||u.visualOnly)continue
+  const axis=u.edge==='top'||u.edge==='bottom'?'x':'y',dimension=axis==='x'?1920:1080,key=`${u.ownerId}:${u.edge}`
+  const group=groups.get(key)??{owner:u.ownerId,edge:u.edge,axis,start:Infinity,end:-Infinity,nodes:[]}
+  group.start=Math.min(group.start,u[axis]*dimension/100);group.end=Math.max(group.end,(u[axis]+u[axis==='x'?'width':'height'])*dimension/100)
+  for(const c of u.visual.cells){if(!c.glyph)continue;group.nodes.push({axis:c[axis]*dimension/100,wall:c.kind==='wall'||c.storefrontRole==='wall',door:c.kind==='door'||c.storefrontRole==='door'?c.entityId??u.entityId:undefined})}
+  groups.set(key,group)
+ }
+ return [...groups].map(([key,g])=>{
+  const coords=[...new Set(g.nodes.map(n=>n.axis))].sort((a,b)=>a-b),walls=g.nodes.filter(n=>n.wall).map(n=>n.axis),doors=new Map<string,number[]>()
+  for(const n of g.nodes){if(n.door){const a=doors.get(n.door)??[];a.push(n.axis);doors.set(n.door,a)}}
+  const doorNeighbors=Object.fromEntries([...doors].map(([id,a])=>{const first=Math.min(...a),last=Math.max(...a),before=walls.filter(x=>x<first-.001),after=walls.filter(x=>x>last+.001);return[id,{before:before.length?first-Math.max(...before):null,after:after.length?Math.min(...after)-last:null}]}))
+  return{key,doorNeighbors,startDistance:coords.length?Math.min(...coords.map(x=>Math.abs(x-g.start))):null,endDistance:coords.length?Math.min(...coords.map(x=>Math.abs(x-g.end))):null,maxGap:coords.length>1?Math.max(...coords.slice(1).map((x,i)=>x-coords[i]!)):0}
+ })
+}
+export function wallCornerCoverage(scene:MainlineSceneDefinition,units:readonly MainlineSceneGeometryUnit[]){
+ return scene.structures.flatMap(s=>{if(!s.bounds)return[];const nodes=units.filter(u=>u.ownerId===s.id&&u.geometryKind==='boundary').flatMap(u=>u.visual.cells.filter(c=>c.glyph));if(!nodes.length)return[];const b=s.bounds;return[{key:s.id,distances:[{x:b.x,y:b.y},{x:b.x+b.width,y:b.y},{x:b.x+b.width,y:b.y+b.height},{x:b.x,y:b.y+b.height}].map(p=>Math.min(...nodes.map(c=>Math.hypot((c.x-p.x)*19.2,(c.y-p.y)*10.8))))}]})
+}

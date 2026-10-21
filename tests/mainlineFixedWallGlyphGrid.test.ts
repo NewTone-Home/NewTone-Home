@@ -22,7 +22,7 @@ describe('fixed wall glyph pitch with unchanged physical/story anchors',()=>{
    for(const c of u.visual.cells){if(c.kind!=='wall'||!c.glyph)continue;const key=`${u.ownerId}:${axis}:${c[other].toFixed(6)}`;const values=groups.get(key)??[];values.push(c[axis]*dimension/100);groups.set(key,values)}
   }
   let checked=0
-  for(const [key,values] of groups){const ordered=[...new Set(values)].sort((a,b)=>a-b);for(let i=1;i<ordered.length;i++){const gap=ordered[i]!-ordered[i-1]!;if(gap>24&&gap<32){expect(Math.abs(gap-28),`${key} gap=${gap}`).toBeLessThan(.04);checked++}}}
+  for(const [key,values] of groups){const ordered=[...new Set(values)].sort((a,b)=>a-b);for(let i=1;i<ordered.length;i++){const gap=ordered[i]!-ordered[i-1]!;expect(Math.abs(gap-Math.round(gap/28)*28),`${key} gap=${gap}`).toBeLessThan(.04);checked++}}
   expect(checked).toBeGreaterThan(10)
  })
 })
