@@ -93,6 +93,7 @@ export type MainlineStructure = {
   variant?: string
   boundaryGeometrySource?: 'anchor' | 'cell-range'
   boundaryCoordinateCount?: { horizontal?: number; vertical?: number }
+  boundaryWorldGrid?: { origin: Point; pitchPx: number }
   /** Refit fixed boundary coordinates to the measured stage spacing. */
   boundaryProjection?: 'screen-spacing'
   boundaryVisualEndpoints?: {
@@ -392,6 +393,10 @@ function compileMainlineFrameUnits(
         length: axisEnd - axisStart,
         geometrySource: structure.boundaryGeometrySource ?? 'anchor',
         coordinateCount: structure.boundaryCoordinateCount?.[orientation],
+        grid: structure.boundaryWorldGrid ? {
+          origin: structure.boundaryWorldGrid.origin[horizontal ? 'x' : 'y'],
+          step: structure.boundaryWorldGrid.pitchPx / (horizontal ? 1920 : 1080) * 100,
+        } : undefined,
         visualEndpoints: structure.boundaryVisualEndpoints?.[orientation],
         baselineEvery: config.baselineEvery,
         openings: sharedOpenings,
@@ -843,7 +848,7 @@ function compileMainlineGeometry(
   // receive fixed world glyph coordinates instead of fitted wall labels.
   const fixedGlyphOwners = new Set(frameEdgeConfigs.filter(config => {
     const orientation = config.edge === 'top' || config.edge === 'bottom' ? 'horizontal' : 'vertical'
-    return !config.structure.boundaryCoordinateCount?.[orientation]
+    return !config.structure.boundaryCoordinateCount?.[orientation] && !config.structure.boundaryWorldGrid
   }).map(config => `${config.structure.id}:${config.edge}`))
   return fixedMainlineWallGlyphGrid(units, fixedGlyphOwners)
 }
@@ -1029,6 +1034,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
       variant: wall.variant,
        boundaryGeometrySource: wall.boundaryGeometrySource,
        boundaryCoordinateCount: wall.boundaryCoordinateCount,
+      boundaryWorldGrid: wall.boundaryWorldGrid,
        boundaryProjection: wall.boundaryProjection,
       boundaryVisualEndpoints: wall.boundaryVisualEndpoints,
       wallGlyphs: wall.wallGlyphs,

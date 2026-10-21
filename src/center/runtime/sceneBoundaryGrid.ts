@@ -99,6 +99,13 @@ export function fixedBoundaryGridCoordinates(start: number, end: number, cellCou
   ))
 }
 
+/** A true shared lattice: no endpoint fitting, rounding or compressed tail. */
+export function latticeBoundaryGridCoordinates(start: number, end: number, origin: number, step: number): number[] {
+  const first=Math.round((start-origin)/step), last=Math.round((end-origin)/step)
+  if(!(step>0)||last<=first||Math.abs(origin+first*step-start)>.000001||Math.abs(origin+last*step-end)>.000001)throw new Error('Boundary endpoints do not belong to the declared world grid')
+  return Array.from({length:last-first+1},(_,index)=>origin+(first+index)*step)
+}
+
 export function boundaryGridCells(start: number, end: number, targetStep: number): BoundaryGridCell[] {
   const coordinates = boundaryGridCoordinates(start, end, targetStep)
   return coordinates.slice(0, -1).map((cellStart, index) => {
@@ -252,6 +259,7 @@ export type SharedBoundaryFrameEdge = {
   /** Use each fixed cell's owned interval for geometry instead of anchor spans. */
   geometrySource?: 'anchor' | 'cell-range'
   coordinateCount?: number
+  grid?: { origin: number; step: number }
   baselineEvery?: number
   visualEndpoints?: { start?: 'omit'; end?: 'omit' }
   openings?: readonly SharedBoundaryOpening[]
@@ -631,7 +639,9 @@ function compileSharedFrameEdge(
   replacementClaims: Map<string, string>,
 ): SharedBoundaryFrameEdgeCompilation {
   const axisStart = sharedBoundaryAxisStart(edge)
-  const coordinates = edge.coordinateCount
+  const coordinates = edge.grid
+    ? latticeBoundaryGridCoordinates(axisStart,axisStart+edge.length,edge.grid.origin,edge.grid.step)
+    : edge.coordinateCount
     ? fixedBoundaryGridCoordinates(axisStart, axisStart + edge.length, edge.coordinateCount)
     : boundaryGridCoordinates(axisStart, axisStart + edge.length, frame.steps[edge.orientation])
   const openings = [...(edge.openings ?? [])]

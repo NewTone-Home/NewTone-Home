@@ -4,6 +4,7 @@ import type { SceneDoorBehavior } from './sceneDoorConfig'
 import { boundaryGridStepsFromReferenceSpacing, boundaryGridStepsFromScreenSpacing, defaultSceneScreenMetrics, sharedFurnitureGlyphSpacingPx } from './sceneBoundaryGrid'
 import { createFourSeatFurniture, createSeatGeometry, createTableGeometry, sharedFurnitureGeometry, createTwoSeatFurniture, type SharedSeatDefinition } from './twoSeatFurniture'
 import { npcRoles, type NpcRoleDefinition } from './npcRoles'
+import { officeGrid, officeGridFloor, officeGridCorridor, officeGridNorthRooms, officeGridSouthRooms, officeGridDoorColumns } from './officeGrid'
 import {
   ambientNpcOffstreetMaximumMs,
   ambientNpcOffstreetMinimumMs,
@@ -385,6 +386,7 @@ type MainlineWallBlueprint = {
   variant?: string
   boundaryGeometrySource?: 'anchor' | 'cell-range'
   boundaryCoordinateCount?: { horizontal?: number; vertical?: number }
+  boundaryWorldGrid?: { origin: Point; pitchPx: number }
   /** Refit fixed boundary coordinates to the measured stage spacing. */
   boundaryProjection?: 'screen-spacing'
   boundaryVisualEndpoints?: {
@@ -1996,7 +1998,7 @@ const zhongshuyuanPassageDoorStart = 50 - zhongshuyuanPassageWallSteps.vertical 
 const zhongshuyuanPassageDoorEnd = 50 + zhongshuyuanPassageWallSteps.vertical / 2
 // Arrive just inside the office doorway, clear of the workstation row. This
 // authored point is shared by every viewport instead of being screen-tuned.
-const zhongshuyuanOfficePassageEntryPosition = authoredPoint(8.5, 76.5)
+const zhongshuyuanOfficePassageEntryPosition = officeGrid.point(6, 27)
 const zhongshuyuanPassageBlueprint: MainlineSceneBlueprint = {
   id: 'zhongshuyuan-passage',
   title: '里世界·中枢院窄暗道',
@@ -2029,36 +2031,27 @@ const zhongshuyuanPassageBlueprint: MainlineSceneBlueprint = {
   interactionText: { 'jijia-secret-door': '这扇门回到祖宅内堂。', 'zhongshuyuan-office-secret-door': '这扇门通向中枢院办公室。' },
 }
 
-const zhongshuyuanOfficeFloorBounds = box(6, 8, 88, 84)
-const zhongshuyuanOfficeCorridor = box(8, 39, 86, 22)
+const zhongshuyuanOfficeFloorBounds = officeGridFloor
+const zhongshuyuanOfficeCorridor = officeGridCorridor
+const zhongshuyuanOfficeBoundaryGrid = { origin: officeGrid.origin, pitchPx: officeGrid.pitchPx }
 const zhongshuyuanOfficeCorridorEndOpenings = [
-  { edge: 'left' as const, start: 39, end: 61 },
-  { edge: 'right' as const, start: 39, end: 61 },
+  { edge: 'left' as const, start: officeGrid.point(0,12.5).y, end: officeGrid.point(0,20.5).y },
+  { edge: 'right' as const, start: officeGrid.point(0,12.5).y, end: officeGrid.point(0,20.5).y },
 ] as const
-const zhongshuyuanOfficeNorthGlassWall = box(7, 39, 86, 1)
-const zhongshuyuanOfficeSouthGlassWall = box(7, 60, 86, 1)
+const zhongshuyuanOfficeNorthGlassWall = officeGrid.box(1,12,62,1)
+const zhongshuyuanOfficeSouthGlassWall = officeGrid.box(1,20,62,1)
 const zhongshuyuanOfficeNorthDividerBounds = [
-  box(28, 8, 1, 31),
-  box(50, 8, 1, 31),
-  box(72, 8, 1, 31),
+  officeGrid.box(16,0,1,12),
+  officeGrid.box(32,0,1,12),
+  officeGrid.box(48,0,1,12),
 ] as const
 const zhongshuyuanOfficeSouthDividerBounds = [
-  box(28, 61, 1, 31),
-  box(50, 61, 1, 31),
-  box(72, 61, 1, 31),
+  officeGrid.box(16,21,1,12),
+  officeGrid.box(32,21,1,12),
+  officeGrid.box(48,21,1,12),
 ] as const
-const zhongshuyuanOfficeNorthCells = [
-  box(6, 8, 22, 31),
-  box(28, 8, 22, 31),
-  box(50, 8, 22, 31),
-  box(72, 8, 22, 31),
-] as const
-const zhongshuyuanOfficeSouthCells = [
-  box(6, 61, 22, 31),
-  box(28, 61, 22, 31),
-  box(50, 61, 22, 31),
-  box(72, 61, 22, 31),
-] as const
+const zhongshuyuanOfficeNorthCells = officeGridNorthRooms
+const zhongshuyuanOfficeSouthCells = officeGridSouthRooms
 const zhongshuyuanOfficeRooms = [
   { id: 'zhongshuyuan-office-corridor', bounds: zhongshuyuanOfficeCorridor, kind: 'corridor' as const },
   ...zhongshuyuanOfficeNorthCells.map((bounds, index) => ({ id: `zhongshuyuan-office-north-room-${index + 1}`, bounds, kind: 'room' as const })),
@@ -2066,17 +2059,17 @@ const zhongshuyuanOfficeRooms = [
 ] as const
 const zhongshuyuanOfficeProtagonistRoom = zhongshuyuanOfficeSouthCells[0]
 const zhongshuyuanOfficeProtagonistRoomCenterY = zhongshuyuanOfficeProtagonistRoom.y + zhongshuyuanOfficeProtagonistRoom.height / 2
-const zhongshuyuanOfficeWallSteps = boundaryGridStepsFromReferenceSpacing()
+const zhongshuyuanOfficeWallSteps = { horizontal: officeGrid.step.x, vertical: officeGrid.step.y }
 const zhongshuyuanOfficeWallCellStep = zhongshuyuanOfficeWallSteps.horizontal
 const zhongshuyuanOfficeChairX = zhongshuyuanOfficeProtagonistRoom.x + zhongshuyuanOfficeWallCellStep * 2
 const zhongshuyuanOfficeDeskX = zhongshuyuanOfficeChairX
   + sharedFurnitureGeometry.textFootprint.height / 2
   + sharedFurnitureGeometry.tableFootprint.height / 2
   + sharedFurnitureGeometry.actorContactGap
-const zhongshuyuanOfficeWindowX = zhongshuyuanOfficeProtagonistRoom.x + zhongshuyuanOfficeProtagonistRoom.width / 2
+const zhongshuyuanOfficeWindowX = officeGrid.point(8.5,33).x
 const zhongshuyuanOfficeCornerInset = 1.5
 const zhongshuyuanOfficeFixtureX = zhongshuyuanOfficeProtagonistRoom.x + zhongshuyuanOfficeProtagonistRoom.width - zhongshuyuanOfficeCornerInset
-const zhongshuyuanOfficeProtagonistDoorX = zhongshuyuanOfficeProtagonistRoom.x + zhongshuyuanOfficeProtagonistRoom.width - zhongshuyuanOfficeWallCellStep * 2
+const zhongshuyuanOfficeProtagonistDoorX = officeGrid.point(officeGridDoorColumns[0],21).x
 // The plant sits just inside the glass, to the left-rear of the room door;
 // keep its collision out of the doorway approach.
 const zhongshuyuanOfficePlantPosition = authoredPoint(
@@ -2097,8 +2090,8 @@ const zhongshuyuanOfficeWindow = wallEntity({
 const zhongshuyuanOfficeWindowFeature: MainlineWallFeatureBlueprint = {
   id: 'zhongshuyuan-office-window-feature',
   edge: 'bottom',
-  start: zhongshuyuanOfficeWindowX - 1,
-  end: zhongshuyuanOfficeWindowX + 1,
+  start: officeGrid.point(7.5,33).x,
+  end: officeGrid.point(9.5,33).x,
   glyphs: ['窗', '户'],
   layout: 'inline',
   entity: zhongshuyuanOfficeWindow,
@@ -2201,7 +2194,7 @@ const zhongshuyuanOfficeRack = floor({
   animationGroup: 'office-breathing',
 })
 
-const zhongshuyuanOfficeDoorXs = [24, 32, 68, 76] as const
+const zhongshuyuanOfficeDoorXs = officeGridDoorColumns.map(column=>officeGrid.point(column,0).x)
 const zhongshuyuanOfficeDoorBehavior = { leafCount: 'single', openLeaves: 'both' } as const
 const zhongshuyuanOfficeLockedDoorTextPool = ['这道门锁上了。', '周末没有人在办公室。'] as const
 const zhongshuyuanOfficeLockedDoorText = zhongshuyuanOfficeLockedDoorTextPool[0]
@@ -2221,9 +2214,9 @@ const zhongshuyuanOfficeDoorPortals: readonly MainlineScenePortalBlueprint[] = [
         doorBehavior: zhongshuyuanOfficeDoorBehavior,
       },
       endpoint: {
-        doorPosition: authoredPoint(x, 39),
-        threshold: authoredPoint(x, 43),
-        crossingTarget: authoredPoint(x, 37),
+        doorPosition: authoredPoint(x, officeGrid.point(0,12).y),
+        threshold: authoredPoint(x, officeGrid.point(0,14).y),
+        crossingTarget: authoredPoint(x, officeGrid.point(0,11).y),
       },
       routeThrough: true,
       frameBehavior: 'independent' as const,
@@ -2233,8 +2226,8 @@ const zhongshuyuanOfficeDoorPortals: readonly MainlineScenePortalBlueprint[] = [
         wallId: 'zhongshuyuan-office-glass-north',
         opening: {
           edge: 'top' as const,
-          start: x - 1,
-          end: x + 1,
+          start: x - officeGrid.step.x/2,
+          end: x + officeGrid.step.x/2,
           doorId: id,
           labelLayout: 'center' as const,
           doorFlankCount: 0,
@@ -2261,9 +2254,9 @@ const zhongshuyuanOfficeDoorPortals: readonly MainlineScenePortalBlueprint[] = [
         doorBehavior: zhongshuyuanOfficeDoorBehavior,
       },
       endpoint: {
-        doorPosition: authoredPoint(x, 60),
-        threshold: authoredPoint(x, 56),
-        crossingTarget: authoredPoint(x, 64),
+        doorPosition: authoredPoint(x, officeGrid.point(0,21).y),
+        threshold: authoredPoint(x, officeGrid.point(0,19).y),
+        crossingTarget: authoredPoint(x, officeGrid.point(0,22).y),
       },
       routeThrough: true,
       frameBehavior: 'independent' as const,
@@ -2273,8 +2266,8 @@ const zhongshuyuanOfficeDoorPortals: readonly MainlineScenePortalBlueprint[] = [
         wallId: 'zhongshuyuan-office-glass-south',
         opening: {
           edge: 'bottom' as const,
-          start: x - 1,
-          end: x + 1,
+          start: x - officeGrid.step.x/2,
+          end: x + officeGrid.step.x/2,
           doorId: id,
           labelLayout: 'center' as const,
           doorFlankCount: 0,
@@ -2299,15 +2292,15 @@ const zhongshuyuanOfficeDoorPortals: readonly MainlineScenePortalBlueprint[] = [
     },
     endpoint: {
       doorPosition: authoredPoint(zhongshuyuanOfficeFloorBounds.x, zhongshuyuanOfficeProtagonistSecretDoorY),
-      threshold: authoredPoint(zhongshuyuanOfficeFloorBounds.x + 4, zhongshuyuanOfficeProtagonistSecretDoorY),
-      crossingTarget: authoredPoint(zhongshuyuanOfficeFloorBounds.x - 2, zhongshuyuanOfficeProtagonistSecretDoorY),
+      threshold: officeGrid.point(6,27),
+      crossingTarget: officeGrid.point(-1,27),
     },
     wallOpenings: [{
       wallId: 'zhongshuyuan-office-floor-frame',
       opening: {
         edge: 'left',
-        start: zhongshuyuanOfficeProtagonistSecretDoorY - 1,
-        end: zhongshuyuanOfficeProtagonistSecretDoorY + 1,
+        start: officeGrid.point(0,26.5).y,
+        end: officeGrid.point(0,27.5).y,
         doorId: 'zhongshuyuan-office-secret-door',
         labelLayout: 'center',
         doorFlankCount: 1,
@@ -2329,14 +2322,14 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
   subtitle: '中枢院内部的一层办公区，中央长廊连接数间办公室。',
   statusLabel: '中枢院 / 内部楼层',
   hint: '左下办公室是当前办公点；玻璃门通向中央长廊，实体墙上的暗道门通向中枢院窄暗道。中央长廊左右两端都是外部出口，走到任一端手机都会弹出。',
-  presentation: { mode: 'fixed', anchor: authoredPoint(51, 50) },
+  presentation: { mode: 'fixed', anchor: officeGrid.point(32,16.5) },
   areaLabel: '中枢院办公室',
   scene: {
       walkBounds: zhongshuyuanOfficeFloorBounds,
       viewport: 'fixed-frame',
       externalExits: [
-        { id: 'zhongshuyuan-office-left-endpoint', axis: 'x', direction: -1, threshold: zhongshuyuanOfficeFloorBounds.x + 4, frameBehavior: 'scene-retract', transitionBehavior: 'phone', triggerSpan: { start: zhongshuyuanOfficeCorridorEndOpenings[0].start, end: zhongshuyuanOfficeCorridorEndOpenings[0].end } },
-        { id: 'zhongshuyuan-office-right-endpoint', axis: 'x', direction: 1, threshold: zhongshuyuanOfficeFloorBounds.x + zhongshuyuanOfficeFloorBounds.width - 4, frameBehavior: 'scene-retract', transitionBehavior: 'phone', triggerSpan: { start: zhongshuyuanOfficeCorridorEndOpenings[1].start, end: zhongshuyuanOfficeCorridorEndOpenings[1].end } },
+        { id: 'zhongshuyuan-office-left-endpoint', axis: 'x', direction: -1, threshold: officeGrid.point(2,0).x, frameBehavior: 'scene-retract', transitionBehavior: 'phone', triggerSpan: { start: zhongshuyuanOfficeCorridorEndOpenings[0].start, end: zhongshuyuanOfficeCorridorEndOpenings[0].end } },
+        { id: 'zhongshuyuan-office-right-endpoint', axis: 'x', direction: 1, threshold: officeGrid.point(62,0).x, frameBehavior: 'scene-retract', transitionBehavior: 'phone', triggerSpan: { start: zhongshuyuanOfficeCorridorEndOpenings[1].start, end: zhongshuyuanOfficeCorridorEndOpenings[1].end } },
       ],
       rooms: zhongshuyuanOfficeRooms,
       wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
@@ -2346,6 +2339,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
           type: 'frame',
           bounds: zhongshuyuanOfficeFloorBounds,
           variant: 'zhongshuyuan-office',
+          boundaryWorldGrid: zhongshuyuanOfficeBoundaryGrid,
           edges: ['top', 'right', 'bottom', 'left'],
           features: [zhongshuyuanOfficeWindowFeature],
           openings: [
@@ -2359,6 +2353,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
           type: 'room',
           bounds: zhongshuyuanOfficeNorthGlassWall,
           variant: 'corridor-glass',
+          boundaryWorldGrid: zhongshuyuanOfficeBoundaryGrid,
           boundaryGeometrySource: 'cell-range',
           wallGlyphs: ['玻', '璃'],
           edges: ['top'],
@@ -2368,6 +2363,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
           type: 'room',
           bounds: zhongshuyuanOfficeSouthGlassWall,
           variant: 'corridor-glass',
+          boundaryWorldGrid: zhongshuyuanOfficeBoundaryGrid,
           boundaryGeometrySource: 'cell-range',
           wallGlyphs: ['玻', '璃'],
           edges: ['bottom'],
@@ -2377,6 +2373,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
           type: 'room' as const,
           bounds,
           variant: 'office-partition',
+          boundaryWorldGrid: zhongshuyuanOfficeBoundaryGrid,
           boundaryVisualEndpoints: { vertical: { end: 'omit' as const } },
           edges: ['left' as const],
         })),
@@ -2385,6 +2382,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
           type: 'room' as const,
           bounds,
           variant: 'office-partition',
+          boundaryWorldGrid: zhongshuyuanOfficeBoundaryGrid,
           boundaryVisualEndpoints: { vertical: { start: 'omit' as const } },
           edges: ['left' as const],
         })),
@@ -2421,7 +2419,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
         anchor: authoredPoint((zhongshuyuanOfficeChairX + zhongshuyuanOfficeDeskX) / 2, zhongshuyuanOfficeProtagonistRoomCenterY),
         entityIds: [zhongshuyuanOfficeDesk.id, zhongshuyuanOfficeChair.id],
       }],
-      initialPlayerPosition: authoredPoint(16, 82),
+      initialPlayerPosition: officeGrid.point(7,29),
     },
   portals: zhongshuyuanOfficeDoorPortals,
   interactionText: {
