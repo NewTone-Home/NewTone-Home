@@ -844,7 +844,7 @@ function compileMainlineGeometry(
   const fixedGlyphOwners = new Set(frameEdgeConfigs.filter(config => {
     const orientation = config.edge === 'top' || config.edge === 'bottom' ? 'horizontal' : 'vertical'
     return !config.structure.boundaryCoordinateCount?.[orientation]
-  }).map(config => config.structure.id))
+  }).map(config => `${config.structure.id}:${config.edge}`))
   return fixedMainlineWallGlyphGrid(units, fixedGlyphOwners)
 }
 

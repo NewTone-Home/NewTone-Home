@@ -5,8 +5,8 @@ import {wallVisualCoverage,wallCornerCoverage} from './helpers/wallVisualCoverag
 const baseline=JSON.parse(readFileSync('tests/fixtures/wall-visual-coverage-0906541.json','utf8'))
 const measured=Object.fromEntries(Object.values(mainlineScenes).map(scene=>{const units=mainlineCanonicalSceneGeometryUnits(scene,{width:1920,height:1080});return[scene.id,{edges:wallVisualCoverage(scene,units),corners:wallCornerCoverage(scene,units)}]}))
 writeFileSync('.tmp/wall-current-visual-coverage.json',JSON.stringify(measured,null,2))
-// This intentionally fails against rejected11c06 until the anchored layout is
-// fixed. Do not relax the bounds or filter out large/small distances.
+// Keep the original full-coverage bounds after fixing rejected11c06. The
+// approved short tail is tested separately; no distance-band filtering here.
 describe('all door neighbors, complete edge gaps and corner coverage',()=>{
  it.each(Object.values(mainlineScenes))('$id retains complete door-adjacent and endpoint coverage',scene=>{
   const units=mainlineCanonicalSceneGeometryUnits(scene,{width:1920,height:1080}),actual=wallVisualCoverage(scene,units)
@@ -20,5 +20,12 @@ describe('all door neighbors, complete edge gaps and corner coverage',()=>{
  it.each(Object.values(mainlineScenes))('$id retains every physical corner visual cap',scene=>{
   const units=mainlineCanonicalSceneGeometryUnits(scene,{width:1920,height:1080}),actual=wallCornerCoverage(scene,units)
   for(const before of baseline[scene.id].corners){const now=actual.find(e=>e.key===before.key);expect.soft(now,before.key).toBeDefined();if(!now)continue;before.distances.forEach((distance:number,index:number)=>expect.soft(now!.distances[index],`${before.key} corner${index}`).toBeLessThanOrEqual(distance+1))}
+ })
+ it.each(Object.values(mainlineScenes))('$id has a wall exactly one reference pitch outside each door group',scene=>{
+  const edges=wallVisualCoverage(scene,mainlineCanonicalSceneGeometryUnits(scene,{width:1920,height:1080}))
+  for(const edge of edges)for(const[id,sides]of Object.entries(edge.doorNeighbors))for(const side of ['before','after']as const){
+   expect(sides[side],`${id} ${side} wall exists`).not.toBeNull()
+   expect(Math.abs(sides[side]!-28),`${id} ${side} reference pitch`).toBeLessThan(.04)
+  }
  })
 })

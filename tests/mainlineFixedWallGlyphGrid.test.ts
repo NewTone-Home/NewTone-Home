@@ -15,14 +15,24 @@ describe('fixed wall glyph pitch with unchanged physical/story anchors',()=>{
   expect(digest(scene.objects)).toBe(saved.objects)
   expect(validateMainlineSceneGeometry(scene)).toEqual([])
  })
- it.each(Object.values(mainlineScenes))('$id uses 28 reference px between ordinary wall centers, without fitted remainder',scene=>{
+ it.each(Object.values(mainlineScenes))('$id keeps 28 reference px except its approved one- or two-interval tail',scene=>{
   const units=mainlineCanonicalSceneGeometryUnits(scene,metrics)
   const groups=new Map<string,number[]>()
   for(const u of units){if(u.geometryKind!=='boundary'||!u.edge)continue;const axis=u.edge==='top'||u.edge==='bottom'?'x':'y',other=axis==='x'?'y':'x',dimension=axis==='x'?1920:1080
-   for(const c of u.visual.cells){if(c.kind!=='wall'||!c.glyph)continue;const key=`${u.ownerId}:${axis}:${c[other].toFixed(6)}`;const values=groups.get(key)??[];values.push(c[axis]*dimension/100);groups.set(key,values)}
+   for(const c of u.visual.cells){if(c.kind!=='wall'||!c.glyph)continue;const run=c.id.match(/^(.*-anchored-wall-\d+)-\d+$/)?.[1];const key=run??`${u.ownerId}:${axis}:${c[other].toFixed(6)}`;const values=groups.get(key)??[];values.push(c[axis]*dimension/100);groups.set(key,values)}
   }
   let checked=0
-  for(const [key,values] of groups){const ordered=[...new Set(values)].sort((a,b)=>a-b);for(let i=1;i<ordered.length;i++){const gap=ordered[i]!-ordered[i-1]!;expect(Math.abs(gap-Math.round(gap/28)*28),`${key} gap=${gap}`).toBeLessThan(.04);checked++}}
+  for(const [key,values] of groups){const ordered=[...new Set(values)].sort((a,b)=>a-b);const short:{index:number;gap:number}[]=[];for(let i=1;i<ordered.length;i++){const gap=ordered[i]!-ordered[i-1]!;
+   if(key.includes('-anchored-wall-')){
+    expect(gap,`${key} gap=${gap}`).toBeLessThanOrEqual(28.04)
+    expect(gap,`${key} glyphs must not squeeze below their 14px base size`).toBeGreaterThanOrEqual(13.99)
+    if(gap<27.96)short.push({index:i,gap})
+   }else expect(Math.abs(gap-Math.round(gap/28)*28),`${key} gap=${gap}`).toBeLessThan(.04)
+   checked++}
+   expect(short.length,`${key} must not distribute remainder through the run`).toBeLessThanOrEqual(2)
+   if(short.length===1)expect(short[0]!.index===1||short[0]!.index===ordered.length-1,`${key} single cap stays at a tail`).toBe(true)
+   if(short.length===2){const[a,b]=short;expect((a!.index===1&&b!.index===2)||(a!.index===ordered.length-2&&b!.index===ordered.length-1),`${key} only the final two intervals may share`).toBe(true);expect(Math.abs(a!.gap-b!.gap),`${key} shares the short remainder equally`).toBeLessThan(.04);expect(a!.gap+b!.gap,`${key} only an extreme remainder below 14 can activate two intervals`).toBeLessThan(42.04)}
+  }
   expect(checked).toBeGreaterThan(10)
  })
 })

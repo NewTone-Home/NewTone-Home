@@ -1,44 +1,77 @@
 import type { MainlineSceneGeometryUnit, MainlineSceneVisualCell } from './mainlineScenes'
-import { sceneDesignReferenceMetrics, sharedBoundaryScreenSpacingPx } from './sceneBoundaryGrid'
+import { mainlineWorldFontSizePx, sceneDesignReferenceMetrics, sharedBoundaryScreenSpacingPx } from './sceneBoundaryGrid'
 
-/** Fixed reference-grid glyphs inside existing solid boundary ranges. Door,
- * feature and collision ranges are immutable; endpoint remainder stays solid
- * and never becomes another opening or an extra compressed glyph. */
-export function fixedMainlineWallGlyphGrid(units: readonly MainlineSceneGeometryUnit[], owners: ReadonlySet<string>): MainlineSceneGeometryUnit[] {
-  const pitch = { x: sharedBoundaryScreenSpacingPx / sceneDesignReferenceMetrics.width * 100,
-    y: sharedBoundaryScreenSpacingPx / sceneDesignReferenceMetrics.height * 100 }
-  const seen = new Set<string>()
-  return units.map(unit => {
-    if (!owners.has(unit.ownerId) || !unit.edge || unit.geometryKind !== 'boundary' || unit.storefrontId) return unit
-    const axis = unit.edge === 'top' || unit.edge === 'bottom' ? 'x' : 'y'
-    const extent = axis === 'x' ? 'width' : 'height'
-    const walls = unit.visual.cells.filter(c => c.kind === 'wall' && c.glyph)
-    if (!walls.length) return unit
-    const protectedCells = unit.visual.cells.filter(c => c.kind !== 'wall')
-    // Keep old endpoint omissions and replacement flanks as reserved ranges.
-    const ranges = walls.map(c => ({ start: Math.max(unit[axis],c.cellStart ?? c[axis]-pitch[axis]/2),
-      end: Math.min(unit[axis]+unit[extent],c.cellEnd ?? c[axis]+pitch[axis]/2) }))
-      .sort((a,b)=>a.start-b.start)
-    const runs: {start:number;end:number}[]=[]
-    for(const range of ranges){const last=runs.at(-1);if(last && range.start<=last.end+.00001)last.end=Math.max(last.end,range.end);else runs.push({...range})}
-    const glyphs: MainlineSceneVisualCell[]=[]
-    for(const run of runs){
-      const first=Math.ceil((run.start-.000001)/pitch[axis]),last=Math.floor((run.end+.000001)/pitch[axis])
-      for(let n=first;n<=last;n++){
-        const coordinate=Number((n*pitch[axis]).toFixed(8))
-        const point={x:axis==='x'?coordinate:walls[0]!.x,y:axis==='y'?coordinate:walls[0]!.y}
-        if(protectedCells.some(c=>coordinate>=(c.cellStart??c[axis]-pitch[axis]/2)-.000001&&coordinate<=(c.cellEnd??c[axis]+pitch[axis]/2)+.000001))continue
-        const key=`${unit.ownerId}:${point.x.toFixed(7)}:${point.y.toFixed(7)}`
-        if(seen.has(key))continue
-        seen.add(key)
-        const nearest=walls.reduce((best,c)=>Math.abs(c[axis]-coordinate)<Math.abs(best[axis]-coordinate)?c:best,walls[0]!)
-        glyphs.push({...nearest,id:`${unit.id}-fixed-wall-${n}`,...point,
-          cellStart:Math.max(run.start,coordinate-pitch[axis]/2),cellEnd:Math.min(run.end,coordinate+pitch[axis]/2)})
-      }
+/** Lay out each complete visual wall run, never clip glyphs by collision-unit
+ * endpoints. Doors/features and physical geometry retain their authored values.
+ * Only a tail interval may be shorter than the reference pitch. If that tail
+ * cannot fit an ordinary glyph, share its remainder with the preceding interval. */
+export function fixedMainlineWallGlyphGrid(units: readonly MainlineSceneGeometryUnit[], edges: ReadonlySet<string>): MainlineSceneGeometryUnit[] {
+  const replacements = new Map<MainlineSceneGeometryUnit, MainlineSceneVisualCell[]>()
+  for (const edge of edges) {
+    const members = units.filter(u => `${u.ownerId}:${u.edge}` === edge && u.geometryKind === 'boundary' && !u.storefrontId)
+    if (!members.length) continue
+    const axis = members[0]!.edge === 'top' || members[0]!.edge === 'bottom' ? 'x' : 'y'
+    const pitch = sharedBoundaryScreenSpacingPx / (axis === 'x' ? sceneDesignReferenceMetrics.width : sceneDesignReferenceMetrics.height) * 100
+    const nodes = members.flatMap(unit => unit.visual.cells.filter(cell => cell.glyph).map(cell => ({ unit, cell })))
+      .sort((a, b) => a.cell[axis] - b.cell[axis])
+    const walls = nodes.filter(n => n.cell.kind === 'wall')
+    if (!walls.length) continue
+    for (const unit of members) replacements.set(unit, unit.visual.cells.filter(c => c.kind !== 'wall' || !c.glyph))
+    const runs: typeof walls[] = []
+    for (const wall of walls) {
+      const run = runs.at(-1), previous = run?.at(-1)
+      const separated = previous && (wall.cell[axis] - previous.cell[axis] > pitch * 1.6 || nodes.some(n => n.cell.kind !== 'wall' && n.cell[axis] > previous.cell[axis] && n.cell[axis] < wall.cell[axis]))
+      if (!run || separated) runs.push([wall]); else run.push(wall)
     }
-    // A sub-cell solid end cap can legitimately have no character center.
-    // Keep a non-painted canonical cell so it remains an explicit wall range.
-    if(!glyphs.length && !protectedCells.length)glyphs.push({...walls[0]!,glyph:''})
-    return {...unit,visual:{...unit.visual,cells:[...protectedCells,...glyphs]}}
-  })
+    runs.forEach((run, runIndex) => {
+      const first = run[0]!, last = run.at(-1)!
+      const before = nodes.filter(n => n.cell.kind !== 'wall' && n.cell[axis] < first.cell[axis]).at(-1)
+      const after = nodes.find(n => n.cell.kind !== 'wall' && n.cell[axis] > last.cell[axis])
+      const startsAtDoor = before?.cell.kind === 'door' && first.cell[axis] - before.cell[axis] < pitch * 1.6
+      const endsAtDoor = after?.cell.kind === 'door' && after.cell[axis] - last.cell[axis] < pitch * 1.6
+      const start = startsAtDoor ? before.cell[axis] + pitch : first.cell[axis]
+      const end = endsAtDoor ? after.cell[axis] - pitch : last.cell[axis]
+      if (end < start - .000001) throw new Error(`Wall run cannot fit between immutable anchors: ${edge}`)
+      const coordinates: number[] = []
+      // With a door at the far end, grow away from that door so its immediate
+      // neighbor stays exactly one pitch away; the short cap belongs at the tail.
+      if (endsAtDoor && !startsAtDoor) {
+        for (let p = end; p > start + .000001; p -= pitch) coordinates.push(p)
+        coordinates.push(start)
+        coordinates.reverse()
+      } else {
+        for (let p = start; p < end - .000001; p += pitch) coordinates.push(p)
+        coordinates.push(end)
+      }
+      // Authored coordinates were rounded to .001 percent. A near-zero
+      // rounding remainder is one endpoint, not two overlapping glyphs.
+      const tolerance = pitch * .02 / sharedBoundaryScreenSpacingPx
+      for (let i = coordinates.length - 1; i > 0; i--) {
+        if (coordinates[i]! - coordinates[i - 1]! < tolerance) coordinates.splice(i - 1, 1)
+      }
+      // Never refit the full wall: only the final pair at the short tail moves.
+      // A 14px glyph needs at least 14 reference pixels between its centers.
+      // Door-neighbor anchors and both visual endpoints stay unchanged.
+      const minimumGlyphPitch = pitch * mainlineWorldFontSizePx / sharedBoundaryScreenSpacingPx
+      if (coordinates.length >= 3) {
+        if (coordinates[1]! - coordinates[0]! < minimumGlyphPitch) {
+          coordinates[1] = (coordinates[0]! + coordinates[2]!) / 2
+        } else {
+          const lastIndex = coordinates.length - 1
+          if (coordinates[lastIndex]! - coordinates[lastIndex - 1]! < minimumGlyphPitch) {
+            coordinates[lastIndex - 1] = (coordinates[lastIndex - 2]! + coordinates[lastIndex]!) / 2
+          }
+        }
+      }
+      coordinates.forEach((coordinate, index) => {
+        const nearest = run.reduce((best, n) => Math.abs(n.cell[axis] - coordinate) < Math.abs(best.cell[axis] - coordinate) ? n : best, first)
+        const target = members.find(u => coordinate >= u[axis] - .001 && coordinate <= u[axis] + u[axis === 'x' ? 'width' : 'height'] + .001
+          && u.visual.cells.some(c => c.kind === 'wall'))
+        if (!target) throw new Error(`Wall glyph has no physical wall owner: ${edge} at ${coordinate}`)
+        replacements.get(target)!.push({ ...nearest.cell, id: `${edge}-anchored-wall-${runIndex}-${index}`,
+          [axis]: coordinate, cellStart: coordinate - pitch / 2, cellEnd: coordinate + pitch / 2 })
+      })
+    })
+  }
+  return units.map(unit => replacements.has(unit) ? { ...unit, visual: { ...unit.visual, cells: replacements.get(unit)! } } : unit)
 }
