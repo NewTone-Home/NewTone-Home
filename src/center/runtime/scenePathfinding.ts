@@ -233,26 +233,49 @@ function connectEdgeGroups(
   }
 }
 
+// A conservative broad phase: it only removes boxes outside the segment AABB.
+// The original open-interior slab test below still decides every candidate.
+type ObstacleTree = { bounds: CollisionBox; boxes?: readonly CollisionBox[]; left?: ObstacleTree; right?: ObstacleTree }
+const obstacleTrees = new WeakMap<readonly CollisionBox[], ObstacleTree>()
+function obstacleTree(boxes: readonly CollisionBox[]): ObstacleTree {
+  const left = Math.min(...boxes.map(box => box.x)), top = Math.min(...boxes.map(box => box.y))
+  const right = Math.max(...boxes.map(box => box.x + box.width)), bottom = Math.max(...boxes.map(box => box.y + box.height))
+  const bounds = { x: left, y: top, width: right - left, height: bottom - top }
+  if (boxes.length <= 8) return { bounds, boxes }
+  const axis = bounds.width >= bounds.height ? 'x' : 'y'
+  const ordered = [...boxes].sort((a, b) => a[axis] - b[axis])
+  const middle = Math.floor(ordered.length / 2)
+  return { bounds, left: obstacleTree(ordered.slice(0, middle)), right: obstacleTree(ordered.slice(middle)) }
+}
 function segmentCrossesInterior(start: Point, end: Point, box: CollisionBox) {
-  let entry = 0
-  let exit = 1
-  const axes = [
-    [start.x, end.x, box.x, box.x + box.width],
-    [start.y, end.y, box.y, box.y + box.height],
-  ] as const
-  for (const [startValue, endValue, minimum, maximum] of axes) {
-    const delta = endValue - startValue
-    if (Math.abs(delta) <= epsilon) {
-      if (startValue <= minimum + epsilon || startValue >= maximum - epsilon) return false
-      continue
-    }
-    const first = (minimum - startValue) / delta
-    const second = (maximum - startValue) / delta
-    entry = Math.max(entry, Math.min(first, second))
-    exit = Math.min(exit, Math.max(first, second))
+  // Reject disjoint boxes before divisions, without allocating axis arrays in
+  // the graph's innermost pair loop. Equality remains a candidate.
+  if (Math.max(start.x, end.x) < box.x || Math.min(start.x, end.x) > box.x + box.width
+    || Math.max(start.y, end.y) < box.y || Math.min(start.y, end.y) > box.y + box.height) return false
+  let entry = 0, exit = 1
+  const dx = end.x - start.x, dy = end.y - start.y
+  if (Math.abs(dx) <= epsilon) {
+    if (start.x <= box.x + epsilon || start.x >= box.x + box.width - epsilon) return false
+  } else {
+    const first = (box.x - start.x) / dx, second = (box.x + box.width - start.x) / dx
+    entry = Math.max(entry, Math.min(first, second)); exit = Math.min(exit, Math.max(first, second))
+    if (entry >= exit - epsilon) return false
+  }
+  if (Math.abs(dy) <= epsilon) {
+    if (start.y <= box.y + epsilon || start.y >= box.y + box.height - epsilon) return false
+  } else {
+    const first = (box.y - start.y) / dy, second = (box.y + box.height - start.y) / dy
+    entry = Math.max(entry, Math.min(first, second)); exit = Math.min(exit, Math.max(first, second))
     if (entry >= exit - epsilon) return false
   }
   return entry < 1 - epsilon && exit > epsilon && entry < exit - epsilon
+}
+function treeBlocksSegment(tree: ObstacleTree, start: Point, end: Point): boolean {
+  const box = tree.bounds
+  if (Math.max(start.x, end.x) < box.x || Math.min(start.x, end.x) > box.x + box.width
+    || Math.max(start.y, end.y) < box.y || Math.min(start.y, end.y) > box.y + box.height) return false
+  if (tree.boxes) return tree.boxes.some(box => segmentCrossesInterior(start, end, box))
+  return treeBlocksSegment(tree.left!, start, end) || treeBlocksSegment(tree.right!, start, end)
 }
 
 function segmentIsClear(
@@ -262,7 +285,9 @@ function segmentIsClear(
   barriers: readonly NavigationBarrierSegment[] = [],
   footprint: { width: number; height: number } = { width: 0, height: 0 },
 ) {
-  return obstacles.every((obstacle) => !segmentCrossesInterior(start, end, obstacle))
+  let tree = obstacleTrees.get(obstacles)
+  if (!tree && obstacles.length) { tree = obstacleTree(obstacles); obstacleTrees.set(obstacles, tree) }
+  return (!tree || !treeBlocksSegment(tree, start, end))
     && navigationBarriersAllowTravel(start, end, barriers, footprint)
 }
 

@@ -48,14 +48,22 @@ type CachedNavigationMesh = {
 // scene identity rather than by snapshot identity. Dynamic actor occupancy is
 // still excluded.
 const physicalIntentMeshCache = new WeakMap<PolygonNavigationMesh, Map<string, PolygonNavigationMesh>>()
-const staticNavigationMeshCache = new WeakMap<MainlineSceneGeometrySnapshot, Map<string, CachedNavigationMesh>>()
+const routeNavigationMeshCache = new WeakMap<MainlineSceneDefinition, Map<string, CachedNavigationMesh>>()
 const preparedWorldNavigationMeshCache = new WeakMap<MainlineSceneDefinition, Map<string, CachedNavigationMesh>>()
 const MAX_STATIC_NAVIGATION_MESHES_PER_SCENE = 8
 
-function cacheStaticNavigationMesh(snapshot: MainlineSceneGeometrySnapshot, key: string, mesh: PolygonNavigationMesh) {
-  const meshes = staticNavigationMeshCache.get(snapshot) ?? new Map<string, CachedNavigationMesh>()
-  meshes.set(key, { key, mesh })
-  staticNavigationMeshCache.set(snapshot, meshes)
+function routeNavigationMesh(scene: MainlineSceneDefinition, inputs: Parameters<typeof createPolygonNavigationMesh>[0]) {
+  // Exact physical inputs include live door/seat/layout state and footprint.
+  // No snapshot identity, rounding or actor-name heuristic can make stale
+  // geometry reusable. Moving actors are checked below on every route.
+  const key = JSON.stringify(inputs)
+  const meshes = routeNavigationMeshCache.get(scene) ?? new Map<string, CachedNavigationMesh>()
+  const cached = meshes.get(key)
+  const mesh = cached?.mesh ?? createPolygonNavigationMesh(inputs)
+  meshes.delete(key); meshes.set(key, { key, mesh })
+  while (meshes.size > MAX_STATIC_NAVIGATION_MESHES_PER_SCENE) meshes.delete(meshes.keys().next().value!)
+  routeNavigationMeshCache.set(scene, meshes)
+  return mesh
 }
 
 function cachePreparedWorldNavigationMesh(scene: MainlineSceneDefinition, key: string, mesh: PolygonNavigationMesh) {
@@ -1186,33 +1194,21 @@ export function findMainlinePath(start: Point, target: Point, scene: MainlineSce
     )
     if (detour) return detour
   }
+  const bounds = insetBounds(snapshot.walkBounds, actorFootprint)
+  const staticObstacles = collisionBoxes(scene, layout, staticOptions)
+  const inputs = { bounds, obstacles: staticObstacles,
+    obstacleInset: { x: actorFootprint.width / 2, y: actorFootprint.height / 2 }, barriers, actorFootprint }
+  // Player and NPC requests share immutable physical geometry. A moving actor
+  // never poisons that cache: validate every returned segment against live
+  // occupancy, then use a complete dynamic mesh only if a detour is needed.
+  const staticPath = findNavigationPath(start, target, {
+    ...inputs, navigationMesh: routeNavigationMesh(scene, inputs), canTravel,
+  })
+  if (staticPath || !options.navigationRuntime) return staticPath
   const obstacles = collisionBoxes(scene, layout, options)
-  const cacheKey = [
-    options.actorId ?? 'protagonist',
-    actorFootprint.width.toFixed(4),
-    actorFootprint.height.toFixed(4),
-    [...(options.openPassageIds ?? [])].sort().join(','),
-    [...occupiedSeatIdsForNavigation(scene, options)].sort().join(','),
-  ].join('|')
-  const canReuseStaticMesh = !options.navigationRuntime
-  const cached = canReuseStaticMesh ? staticNavigationMeshCache.get(snapshot)?.get(cacheKey) : undefined
-  const navigationMesh = cached?.key === cacheKey
-    ? cached.mesh
-    : createPolygonNavigationMesh({
-      bounds: insetBounds(snapshot.walkBounds, actorFootprint),
-      obstacles,
-      obstacleInset: { x: actorFootprint.width / 2, y: actorFootprint.height / 2 },
-      barriers,
-      actorFootprint,
-    })
-  if (canReuseStaticMesh && cached?.key !== cacheKey) cacheStaticNavigationMesh(snapshot, cacheKey, navigationMesh)
+  const dynamicInputs = { ...inputs, obstacles }
   return findNavigationPath(start, target, {
-    bounds: insetBounds(snapshot.walkBounds, actorFootprint),
-    obstacles,
-    actorFootprint,
-    barriers,
-    navigationMesh,
-    canTravel,
+    ...dynamicInputs, navigationMesh: routeNavigationMesh(scene, dynamicInputs), canTravel,
   })
 }
 
