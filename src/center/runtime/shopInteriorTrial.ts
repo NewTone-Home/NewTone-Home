@@ -102,7 +102,7 @@ type TakeawayTrial = {
   roomId: string
   prefix: string
   oldStructurePrefix: string
-  runs: readonly { id: string; cells: readonly [number, number][] }[]
+  runs: readonly { id: string; cells: readonly [number, number][]; glyphOffset?: 0 | 1 }[]
   stations: readonly { id: string; label: string; x: number; y: number; bodyId?: string; side?: 'left' | 'bottom' }[]
   equipment: readonly { label: string; x: number; y: number }[]
   worker: readonly [number, number]
@@ -120,7 +120,7 @@ function buildTakeawayTrial(blueprint: MainlineSceneBlueprint, trial: TakeawayTr
     const x = Math.min(...xs) - 8, y = Math.min(...ys) - 8
     const bodyId = `${trial.prefix}-${run.id}-body`
     structures.push({ id: bodyId, kind: 'counter', ...point(x, y), width: (Math.max(...xs) + 8 - x) / 1920 * 100, height: (Math.max(...ys) + 8 - y) / 1080 * 100 })
-    run.cells.forEach(([x, y], index) => entities.push({ id: `${trial.prefix}-${run.id}-${index}`, label: index % 2 ? '台' : '柜', kind: 'fixture', weight: 'fixture', surface: 'floor', roomId: room.id, position: point(x, y), visualVisibility: 'static', interactive: false }))
+    run.cells.forEach(([x, y], index) => entities.push({ id: `${trial.prefix}-${run.id}-${index}`, label: (index + (run.glyphOffset ?? 0)) % 2 ? '台' : '柜', kind: 'fixture', weight: 'fixture', surface: 'floor', roomId: room.id, position: point(x, y), visualVisibility: 'static', interactive: false }))
   })
   trial.equipment.forEach(({ label, x, y }, index) => entities.push({
     id: `${trial.prefix}-equipment-${index + 1}`, label, kind: 'fixture', weight: 'fixture', surface: 'floor', roomId: room.id,
@@ -157,16 +157,18 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     // Front is at y0. A long right counter separates ordering and collection along the shop.
     runs: [
       { id: 'long-counter', cells: Array.from({ length: 29 }, (_, i) => [224, 112 + i * 16] as [number, number]) },
-      { id: 'rear-return', cells: Array.from({ length: 7 }, (_, i) => [112 + i * 16, 560] as [number, number]) },
+      { id: 'rear-return', cells: [[208, 560], [192, 560]], glyphOffset: 1 },
     ],
     stations: [
       { id: 'commercial-s5-milk-tea-menu-service-label', label: '菜单', x: 56, y: 56 },
       { id: 'commercial-s5-milk-tea-order-service-label', label: '点单', x: 176, y: 168, bodyId: 'long-counter', side: 'left' },
-      { id: 'commercial-s5-milk-tea-pickup-service-label', label: '取餐', x: 176, y: 448, bodyId: 'long-counter', side: 'left' },
+      { id: 'commercial-s5-milk-tea-pickup-service-label', label: '取餐', x: 176, y: 528, bodyId: 'long-counter', side: 'left' },
     ],
     equipment: [{ label: '制茶机', x: 280, y: 224 }, { label: '封口机', x: 280, y: 336 }, { label: '清洗台', x: 280, y: 476 }],
     worker: [264, 392],
-    regions: [{ x: 224, y: 112, width: 112, height: 448 }, { x: 0, y: 560, width: 336, height: 140 }],
+    // Only the actual right work lane is restricted; the open rear turning floor
+    // is not an invisible warehouse partition. The true warehouse door is locked.
+    regions: [{ x: 224, y: 112, width: 112, height: 448 }],
   })
   return buildTakeawayTrial(milkTea, {
     roomId: 'commercial-north-n1-interior', prefix: 'fruit-tea-trial', oldStructurePrefix: 'commercial-retail-n1-fruit-tea-',
@@ -174,14 +176,14 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     // leaving the front half for waiting rather than copying the long milk-tea queue.
     runs: [
       { id: 'left-return', cells: Array.from({ length: 15 }, (_, i) => [112, 112 + i * 16] as [number, number]) },
-      { id: 'service-counter', cells: Array.from({ length: 10 }, (_, i) => [128 + i * 16, 336] as [number, number]) },
+      { id: 'service-counter', cells: Array.from({ length: 10 }, (_, i) => [128 + i * 16, 336] as [number, number]), glyphOffset: 1 },
     ],
     stations: [
       { id: 'fruit-tea-trial-menu', label: '菜单', x: 280, y: 588 },
       { id: 'fruit-tea-trial-order', label: '点单', x: 144, y: 384, bodyId: 'service-counter', side: 'bottom' },
       { id: 'fruit-tea-trial-pickup', label: '取货', x: 240, y: 384, bodyId: 'service-counter', side: 'bottom' },
     ],
-    equipment: [{ label: '清洗台', x: 56, y: 168 }, { label: '切果台', x: 224, y: 168 }, { label: '打包台', x: 224, y: 252 }, { label: '冷藏', x: 252, y: 56 }],
+    equipment: [{ label: '清洗台', x: 56, y: 168 }, { label: '切果台', x: 224, y: 224 }, { label: '打包台', x: 224, y: 280 }, { label: '冷藏', x: 252, y: 56 }],
     worker: [168, 252], regions: [{ x: 0, y: 0, width: 336, height: 336 }],
   })
 }
