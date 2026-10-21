@@ -28,3 +28,37 @@ The32px body overlaps the table edge where the16px contact keeps the normal shar
 ## Remaining restrictions
 
 No public replacement or push. A publication denial remains unresolved; publicbae6afb and old review ports remain unchanged. Cafe service/whole narrative, mine room-identity migration, B contracts and Yonghe survey counting remain pending. Tea layout review changes are still queued, not silently included.
+
+## 2. Floor-server movement uses the same visible-label footprint as its contact
+
+### Root cause established before editing
+
+The exact same world, static geometry, live actor registry and target were tested in `.tmp/floor-service-footprint-diagnosis.mjs/.json`. The table service resolver already derived its body from `scene.npcs[].label` (the trial's visible 人) and returned a16px-body contact. Page actor registration independently hardcoded 店员, giving the movement adapter a32px-wide body. At(140.4816667,-13.25945185), that32px body overlaps the table edge, so requestMove reports blocked before moving. The16px body is legal and has a path. The ordinary service contact gap remains unchanged. This is not a collision-size guess or proof based only on a static path.
+
+### Actual fix and scope
+
+- `sceneLayout.ts/mainlineNpcLabelFootprint` is a small shared derivation from the existing scene NPC's actual rendered label, existing16font/lineHeight1, and the existing scene projection. It returns the same character box used by navigation; it does not change labels, roles, fonts or layout.
+- `mainlineNavigation.ts/mainlineActorFootprint` delegates its previously equivalent NPC-label expression to that helper. Explicit footprint/radius callers and protagonist behavior remain unchanged.
+- `MainlineScenePage.tsx` computes coffee-owner, floor-server and Lao Zhou movement bodies using that same helper instead of three hardcoded role-name strings. These actors are all currently drawn as 人 in the author-review layout, so actual registration is16px, matching their contact resolver. A scene that actually displays 店员 or 老周 still receives32px. No identity, speaker name, story state machine, actor removal, furniture obstacle, access region, passage permission or movement speed changes.
+
+`tests/cafeRuntimeLabelFootprint.test.ts` reproduces the32px rejection, runs the real `createNpcMovementAdapter`/free-roam controller with a live registry and16px body to the same contact, checks every sampled actor point remains walkable, confirms the registered body and real arrival callback, and protects32px when a scene really draws a two-character label. Together with runtime seat and layout checks:9/9; typecheck/build/diff-check pass. This does not imply the old full-suite fixture contracts are migrated.
+
+### Actual final browser evidence, combined with seat release
+
+Frozen **http://127.0.0.1:4213/?scene=commercial-street**, `.tmp/cafe-label-body-dist`. Stage1/4212 stays unchanged. New and completed-story isolated saves each run12seconds in actual Chrome1920×1300. `cafe-floor-server` has74/87 distinct visible positions, phasesmoving/idle and service stateserving/dwelling. In both runs it really stops at all three public-table contacts:
+
+- (140.482,-13.2595)
+- (147.773,-13.2595)
+- (147.773,10.0739)
+
+No blocked state or pageerror in those sampled windows. `.tmp/cafe-label-body-browser/results.json` plus fresh/complete PNGs preserve every50ms sample. Counts are functional trajectory evidence, not FPS/performance statistics. Browser closed.
+
+A second sequential isolated context on4213 waits for Lao Zhou's actual existing walk-out/disappearance, then normally clicks his original chair, stands/walks out, refreshes, and sits there again. Seat attributes match and no pageerrors. `.tmp/cafe-label-body-release-browser/results.json`/4PNGs. This confirms the two fixes together for this path; it is not a full narrative/coffee delivery replay or mobile acceptance.
+
+Resources: JS `index-CN7dGcVm.js`850549bytes/SHA256 `416cabeed27614752f7f573cf0587819bcddf3677554f2c5e79edd692e76e089`; CSS `index-CGh3wNIs.css`200573bytes/SHA256 `2d1e58d828b388fe280461c6df36351b83657fbbe32c14763870d44f77afe039`. HTML and both resources read backHTTP200 with matching bytes/SHA. No push/public release or replacement of frozen review builds.
+
+### Yonghe central label clarification, no change yet
+
+The visible 观察 at the centre of4211 is **normal player-visible text**, not a debug overlay. It comes from the historical central-lane observation landmark, restored in `yongheInteriorTrial.ts` under `yonghe-survey-central-lane`; the longer historical label通道观察 was shortened to观察. That still presents an abstract observation as a floor object, contrary to the author's stated preference. No further change has been made while the reviewed4211 image stays frozen.
+
+Suggested smallest expression change: retain the stable semantic ID, original observation copy and saved survey fields, remove the world-space text, and expose an explicit 查看周围 action through the existing outside-world interaction UI while near a legal central point. It must not add an invisible collision object or automatically mark the observation complete merely by walking past. The precise existing-UI entry remains to confirm; no new gesture, survey count or narrative has been implemented under this suggestion. The already missing historical survey coordinator remains a separate compatibility item.

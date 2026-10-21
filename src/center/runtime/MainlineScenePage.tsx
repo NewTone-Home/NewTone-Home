@@ -9,7 +9,7 @@ import type { Point } from './sceneGeometry'
 import { MainlineAmbientNpcActor, MainlineSceneRenderer, type MainlineInputDiagnostic } from './MainlineSceneRenderer'
 import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneAreaLabel, mainlineScenes, mainlineStorefrontInteractionCandidates, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
 import { prepareMainlineWorldNavigation, canActorReachPassageApproach, classifyMainlineWorldCommand, findMainlinePath, findMainlinePathThroughPassage, findMainlinePathToEntity, isMainlineEntityWithinInteractionRange, isMainlineNavigationBarrierClear, isMainlinePassageInTransitZone, isWalkableMainlinePoint, mainlineInteractionTarget, mainlinePassageCollisionForNavigation, mainlinePassageCrossesToSide, mainlinePassageDoorRegion, mainlinePassageDoorwayForNavigation, mainlinePassageExitPoint, mainlinePassageSide, resolveMainlineEntityInteraction, resolveMainlineInteractionCandidates, resolveMainlineStorefrontInteraction, mainlineStorefrontArrivalDecision, resolveMainlineNpcInteraction, resolveMainlineNpcPosition, resolveMainlineSafeEntryPosition, resolveMainlineSafeSpawnPosition, resolveMainlineSeatSitPosition, resolveMainlineWorldNavigation } from './mainlineNavigation'
-import { layoutGridSize, mainlineLabelFootprint, mainlineProtagonistDotFootprint, mainlineSceneFootprint, type SceneLayout } from './sceneLayout'
+import { layoutGridSize, mainlineLabelFootprint, mainlineNpcLabelFootprint, mainlineProtagonistDotFootprint, mainlineSceneFootprint, type SceneLayout } from './sceneLayout'
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
 import { movementDurationMsForPath, protagonistCharacterMovementOptions, sharedCharacterMovementOptions, useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
 import type { PhoneDevice } from './phoneState'
@@ -639,17 +639,17 @@ export function MainlineScenePage({
   const floorServerInitialPosition = stagedNpcPositions.get(commercialCafeFloorServerNpcId) ?? scene.initialPlayerPosition
   const laoZhouInitialPosition = stagedNpcPositions.get('lao-zhou') ?? scene.initialPlayerPosition
   const cafeCoffeeOwnerFootprint = useMemo(() => {
-    const box = mainlineLabelFootprint('店员', coffeeOwnerInitialPosition, screenMetrics, { lineHeight: 1 })
+    const box = mainlineNpcLabelFootprint(scene, commercialCafeCoffeeOwnerNpcId, coffeeOwnerInitialPosition, screenMetrics)
     return { width: box.width, height: box.height }
-  }, [coffeeOwnerInitialPosition, screenMetrics])
+  }, [coffeeOwnerInitialPosition, scene, screenMetrics])
   const cafeFloorServerFootprint = useMemo(() => {
-    const box = mainlineLabelFootprint('店员', floorServerInitialPosition, screenMetrics, { lineHeight: 1 })
+    const box = mainlineNpcLabelFootprint(scene, commercialCafeFloorServerNpcId, floorServerInitialPosition, screenMetrics)
     return { width: box.width, height: box.height }
-  }, [floorServerInitialPosition, screenMetrics])
+  }, [floorServerInitialPosition, scene, screenMetrics])
   const laoZhouFootprint = useMemo(() => {
-    const box = mainlineLabelFootprint('老周', laoZhouInitialPosition, screenMetrics, { lineHeight: 1 })
+    const box = mainlineNpcLabelFootprint(scene, 'lao-zhou', laoZhouInitialPosition, screenMetrics)
     return { width: box.width, height: box.height }
-  }, [laoZhouInitialPosition, screenMetrics])
+  }, [laoZhouInitialPosition, scene, screenMetrics])
   const cafeCoffeeOwnerMovement = useNpcMovement({
     enabled: !presentationSnapshot && hasContinuousCafe(scene) && scene.npcs.some((npc) => npc.id === commercialCafeCoffeeOwnerNpcId),
     npcId: commercialCafeCoffeeOwnerNpcId,

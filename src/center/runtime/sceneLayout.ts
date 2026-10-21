@@ -212,6 +212,12 @@ export function mainlineLabelFootprint(
   }
 }
 
+/** Moving registration and contact planning must measure the same rendered label. */
+export function mainlineNpcLabelFootprint(scene: MainlineSceneDefinition, npcId: string, position: Point, screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics): CollisionBox {
+  const label = scene.npcs.find(npc => npc.id === npcId)?.label ?? ''
+  return mainlineSceneFootprint(scene, mainlineLabelFootprint(label, position, screenMetrics, { lineHeight: 1 }), screenMetrics)
+}
+
 /** The walking marker is a real 11px square, not a hidden navigation radius. */
 export function mainlineProtagonistDotFootprint(
   position: Point,
