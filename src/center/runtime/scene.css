@@ -790,7 +790,7 @@
   white-space: nowrap;
   pointer-events: none;
 }
-.scene-mainline-storefront-cell:not(.scene-mainline-storefront--glass) { opacity: .88; }
+.scene-mainline-storefront-cell:not(.scene-mainline-storefront--glass):not(.scene-mainline-wall--ordinary) { opacity: .88; }
 .scene-mainline-storefront-cell.is-near {
   color: var(--active);
 }
@@ -864,6 +864,14 @@
 .scene-mainline-storefront--worn.scene-mainline-storefront--glass { color: rgba(188, 158, 105, .65); }
 .scene-mainline-storefront--worn.scene-mainline-storefront--window { color: rgba(161, 194, 194, .78); }
 .scene-mainline-storefront--worn.scene-mainline-storefront--sign { color: rgba(232, 190, 117, .9); }
+/* Trial: ordinary wall reference is #ad966c at .78 over #050505.
+   #caaf7e at 1 gives about 1.50x that RGB contrast above the same backdrop;
+   it is a visual target, not a claim of 1.50x photometric luminance. */
+.scene-spatial-glyph.scene-mainline-industrial-facility.is-baseline,
+.scene-spatial-glyph.scene-mainline-industrial-facility.is-near {
+  color: #caaf7e;
+  opacity: 1;
+}
 .scene-mainline-storefront--near { color: var(--active); }
 .scene-mainline-storefront--door {
   color: var(--active);

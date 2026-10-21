@@ -381,6 +381,12 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
   </div>
 }
 
+/** A facade wall cap is ordinary masonry, not a worn shop sign. */
+function storefrontMaterialClass(sceneId: string, style: string | undefined, role: string) {
+  const mining = sceneId === 'yonghe-mining-perimeter' || sceneId === 'yonghe-eatery'
+  return mining && role === 'wall' ? 'scene-mainline-wall--ordinary' : `scene-mainline-storefront--${style ?? 'modern'}`
+}
+
 function storefrontFocusGroup(cell: MainlineGeometryCellEntry['cell'], variant?: MainlineSceneGeometryUnit['variant']) {
   const variantSuffix = variant ? `:${variant}` : ''
   return `storefront:${cell.storefrontId ?? cell.id}${variantSuffix}`
@@ -1248,7 +1254,7 @@ export function MainlineSceneRenderer({
                     ? scene.passages.find((passage) => passage.portalId === storefront.portalId)?.entityId
                     : undefined
                   const storefrontPhase = storefrontPassageEntityId ? doorPhases.get(storefrontPassageEntityId) ?? 'closed' : 'closed'
-                  const groupClass = `scene-mainline-storefront scene-mainline-storefront--${cell.storefrontStyle ?? 'modern'} scene-mainline-storefront--${storefrontRole} scene-mainline-storefront--${cell.orientation ?? 'horizontal'} ${storefront?.portalId ? 'scene-mainline-storefront--portal' : ''} is-${storefrontState}`
+                  const groupClass = `scene-mainline-storefront ${storefrontMaterialClass(scene.id, cell.storefrontStyle, storefrontRole)} scene-mainline-storefront--${storefrontRole} scene-mainline-storefront--${cell.orientation ?? 'horizontal'} ${storefront?.portalId ? 'scene-mainline-storefront--portal' : ''} is-${storefrontState}`
                   return <MainlineFocusGroup
                     key={`focus-${focusTarget.group}`}
                     entries={focusEntries}
@@ -1284,7 +1290,7 @@ export function MainlineSceneRenderer({
                 const storefrontStateClass = `is-${storefrontState}`
                 const storefrontPresentationPhase = storefront ? storefrontPresentation.get(storefront.id) ?? 'baseline' : 'baseline'
                 const portalClass = storefront?.portalId ? 'scene-mainline-storefront--portal' : ''
-                const storefrontClass = `scene-spatial-glyph scene-mainline-storefront-cell scene-mainline-wall scene-mainline-storefront scene-mainline-storefront--${cell.storefrontStyle ?? 'modern'} scene-mainline-storefront--${storefrontRole} scene-mainline-storefront--${cell.orientation ?? 'horizontal'} ${portalClass} ${storefrontRole === 'door' ? 'scene-spatial-glyph--door' : ''} ${storefrontStateClass}`
+                const storefrontClass = `scene-spatial-glyph scene-mainline-storefront-cell scene-mainline-wall scene-mainline-storefront ${storefrontMaterialClass(scene.id, cell.storefrontStyle, storefrontRole)} scene-mainline-storefront--${storefrontRole} scene-mainline-storefront--${cell.orientation ?? 'horizontal'} ${portalClass} ${storefrontRole === 'door' ? 'scene-spatial-glyph--door' : ''} ${storefrontStateClass}`
                 const storefrontGlyphAttributes = portalGlyphAttributes
                 const storefrontPassageEntityId = storefront?.portalId
                   ? scene.passages.find((passage) => passage.portalId === storefront.portalId)?.entityId
@@ -1334,7 +1340,7 @@ export function MainlineSceneRenderer({
                 }
               }
               if (cell.kind === 'feature') {
-                return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-feature ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{cell.glyph}</SceneCharacters></span>
+                return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-feature ${unit.sourceWallId === 'mining-industrial-edge' ? 'scene-mainline-industrial-facility' : ''} ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{cell.glyph}</SceneCharacters></span>
               }
               return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} {...portalGlyphAttributes} aria-hidden="true"><SceneCharacters>{cell.glyph ?? '墙'}</SceneCharacters></span>
             })}

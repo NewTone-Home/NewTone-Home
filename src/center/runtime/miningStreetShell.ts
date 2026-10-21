@@ -33,7 +33,7 @@ export const miningShopShells = miningShopNames.map((label, index) => {
     end: firstCenter + (letters + 1 + .4995) * miningGrid.vertical,
     composition: { fixedCellCount: letters + 2, baseline, near },
     // Use the existing presentation trigger, anchored to the same real door.
-    approach: { x: facadeX + 1.5 * miningGrid.horizontal, y: doorY }, nearRadius: 10,
+    approach: { x: facadeX + 1.5 * miningGrid.horizontal, y: doorY }, nearRadius: 5,
   }
   return { label, letters, widthCells, depthCells, top, bottom: boundaryCursor, back, firstCenter, doorY, portalId, roomId, storefront }
 })
