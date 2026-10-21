@@ -18,25 +18,40 @@ describe('mining continuous empty shells', () => {
     }
     expect(validateMainlineSceneGeometry(scene)).toEqual([])
   })
-  it('uses center-to-center width N+3 and twice that depth, counting intervals rather than anchors', () => {
+  it('uses three facade wall cells on each side plus shared separators and the same fixed 25-interval Cafe depth', () => {
     for (const shop of miningShopShells) {
       const room = scene.rooms.find(r => r.id === shop.roomId)!
-      expect(room.bounds.height / (28/1080*100)).toBeCloseTo(shop.letters + 3, 8)
-      expect(room.bounds.width / (28/1920*100)).toBeCloseTo((shop.letters + 3) * 2, 8)
+      expect(room.bounds.height / (28/1080*100)).toBeCloseTo(shop.letters + 7, 8)
+      expect(room.bounds.width / (28/1920*100)).toBeCloseTo(25, 8)
     }
   })
-  it('keeps exactly three wall glyphs between the last sign of a shop and the first of its neighbor', () => {
+  it('keeps three private walls per side plus one shared separator between neighboring signs', () => {
     const units = mainlineSceneGeometryUnits(scene, scene.initialPlayerPosition, sceneDesignReferenceMetrics, new Map(scene.storefronts.map(s => [s.id, 'baseline'])))
     const cells = units.filter(u => u.sourceWallId === 'mining-street-facade').flatMap(u => u.visual.cells)
     for (let index = 0; index < miningShopShells.length - 1; index++) {
       const a = miningShopShells[index]!, b = miningShopShells[index + 1]!
-      const lastSign = a.firstCenter + a.letters * miningGrid.vertical
-      const nextSign = b.firstCenter + miningGrid.vertical
+      const lastSign = a.firstCenter + (a.letters + 2) * miningGrid.vertical
+      const nextSign = b.firstCenter + 3 * miningGrid.vertical
       const between = cells.filter(c => c.y > lastSign + .01 && c.y < nextSign - .01)
       const wallCenters = new Set(between.filter(c => c.kind === 'wall' || c.storefrontRole === 'wall').map(c => c.y.toFixed(2)))
-      expect([...wallCenters], `${a.label} / ${b.label}`).toHaveLength(3)
+      expect([...wallCenters], `${a.label} / ${b.label}`).toHaveLength(7)
     }
   })
+  it('extends only the industrial boundary length while retaining its X, lane width and feature anchors', () => {
+    const edge = scene.structures.find(wall => wall.id === 'mining-industrial-edge')!
+    const lane = scene.rooms.find(room => room.id === 'mining-street-public-lane')!
+    expect(lane.bounds.width * 1920 / 100).toBeCloseTo(168, 8)
+    expect(edge.bounds!.x).toBeCloseTo(lane.bounds.x + lane.bounds.width, 8)
+    const industrial = scene.geometry.filter(unit => unit.sourceWallId === edge.id).flatMap(unit => unit.visual.cells)
+    for (const glyph of ['管', '线', '铁', '栅', '金', '属']) expect(industrial.filter(cell => cell.glyph === glyph)).toHaveLength(1)
+    expect(scene.passages.find(p => p.id === 'yonghe-back-door')!.access).toBe('locked')
+    const cafe = mainlineScenes['commercial-street'].rooms.find(room => room.id === 'commercial-north-cafe-interior')!
+    for (const shop of miningShopShells) {
+      const room = scene.rooms.find(room => room.id === shop.roomId)!
+      expect(room.bounds.width * 1920).toBeCloseTo(cafe.bounds.height * 1080, 5)
+    }
+  })
+
   it('has no window/glass glyph roles in any shop state', () => {
     for (const unit of scene.geometry) for (const cell of unit.visual.cells) {
       expect(['glass', 'window']).not.toContain(cell.storefrontRole)

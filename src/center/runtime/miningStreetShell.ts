@@ -14,24 +14,27 @@ const laneRight = facadeX + laneCells * miningGrid.horizontal
 let boundaryCursor = rowTop
 export const miningShopShells = miningShopNames.map((label, index) => {
   const letters = Array.from(label).length
-  const widthCells = letters + 3
-  const depthCells = widthCells * 2
+  const sideWallCells = 3
+  const widthCells = letters + sideWallCells * 2 + 1
+  // Same fixed depth rule as Cafe: 26 wall anchors, 25 pitch intervals.
+  const depthCells = 25
   const top = boundaryCursor
   boundaryCursor += widthCells * miningGrid.vertical
   const back = facadeX - depthCells * miningGrid.horizontal
   const firstCenter = top + miningGrid.vertical
-  const doorIndex = 1 + Math.floor(letters / 2)
+  const doorIndex = sideWallCells + Math.floor(letters / 2)
   const doorY = firstCenter + doorIndex * miningGrid.vertical
   const portalId = index === 1 ? 'yonghe-street-entry' : `mining-shop-door-${index + 1}`
   const roomId = `mining-shop-${index + 1}-interior`
-  const baseline: MainlineStorefrontRole[] = ['wall', ...Array.from({ length: letters }, () => 'sign' as const), 'wall']
+  const sideWalls = Array.from({ length: sideWallCells }, () => 'wall' as const)
+  const baseline: MainlineStorefrontRole[] = [...sideWalls, ...Array.from({ length: letters }, () => 'sign' as const), ...sideWalls]
   const near = baseline.map((role, cellIndex) => role === 'sign' ? cellIndex === doorIndex ? 'door' as const : 'wall' as const : role)
   const storefront: MainlineStorefrontSlotBlueprint = {
     id: `yonghe-slot-${index + 1}`, wallId: 'mining-street-facade', edge: 'right', label,
     style: 'worn', mode: 'commercial', characterSwitch: true, portalId,
     start: firstCenter - .4995 * miningGrid.vertical,
-    end: firstCenter + (letters + 1 + .4995) * miningGrid.vertical,
-    composition: { fixedCellCount: letters + 2, baseline, near },
+    end: firstCenter + (baseline.length - 1 + .4995) * miningGrid.vertical,
+    composition: { fixedCellCount: baseline.length, baseline, near },
     // Use the existing presentation trigger, anchored to the same real door.
     approach: { x: facadeX + 1.5 * miningGrid.horizontal, y: doorY }, nearRadius: 5,
   }
