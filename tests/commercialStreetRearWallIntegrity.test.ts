@@ -1,0 +1,55 @@
+import { describe, expect, it } from 'vitest'
+import { mainlineScenes, mainlineCanonicalSceneGeometryUnits } from '../src/center/runtime/mainlineScenes'
+import { classifyMainlineWorldCommand, isWalkableMainlinePoint, mainlinePassageDoorwayForNavigation } from '../src/center/runtime/mainlineNavigation'
+import { boundaryGridStepsFromReferenceSpacing, sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
+
+const scene = mainlineScenes['commercial-street']
+const options = { screenMetrics: sceneDesignReferenceMetrics }
+const units = mainlineCanonicalSceneGeometryUnits(scene, sceneDesignReferenceMetrics)
+const pitch = boundaryGridStepsFromReferenceSpacing().horizontal
+// Actual extra door positions captured on cea7f14. These must become walls,
+// with no invisible door volume, opening, passage identity or focus target.
+const formerExtraDoors: Record<string, number> = {
+  'commercial-north-slot-1': 17.834, 'commercial-north-slot-4': 70.333,
+  'commercial-north-slot-5': 96.582, 'commercial-north-slot-6': 105.332,
+  'commercial-cafe-slot': 140.331, 'commercial-south-slot-1': 17.834,
+  'commercial-south-slot-4': 70.333, 'commercial-south-slot-5': 96.582,
+  'commercial-south-slot-6': 105.332, 'commercial-south-slot-7': 122.832,
+  'commercial-south-slot-8': 149.081,
+}
+
+describe('commercial rear walls have one real door and no former extra door', () => {
+  it.each(scene.storefronts)('$id retains only its legal locked rear doorway', slot => {
+    const front = scene.passages.find(p => p.portalId === slot.portalId)!
+    const room = scene.rooms.find(r => r.id === front.toRoomId)!
+    const rear = scene.passages.find(p => p.id === `${room.id}-rear-door`)!
+    const doorway = mainlinePassageDoorwayForNavigation(scene, rear, options)
+    const doorCells = units.flatMap(u => u.visual.cells).filter(c => c.kind === 'door' && c.entityId === rear.entityId)
+    expect(doorCells).toHaveLength(1)
+    expect(rear.access).toBe('locked')
+    expect(rear.targetSceneId).toBeUndefined()
+    expect(doorway.width).toBeCloseTo(pitch, 2)
+    const door = doorCells[0]!, inward = slot.edge === 'bottom' ? 1 : -1
+    const command = (x: number) => classifyMainlineWorldCommand(scene, { x, y: door.y + inward * 5 }, { x, y: door.y - inward * .9 }, {}, options)
+    expect(command(door.x)).toMatchObject({ kind: 'passage', passage: { id: rear.id, access: 'locked' } })
+    // Even the adjacent wall owned by the old door unit is now just a wall.
+    expect(command(door.x + pitch).kind).toBe('ordinary')
+    expect(command(door.x - pitch).kind).toBe('ordinary')
+    expect(isWalkableMainlinePoint({ x: door.x + pitch, y: door.y }, scene, {}, options)).toBe(false)
+    const former = formerExtraDoors[slot.id]
+    if (former !== undefined) {
+      const cellsHere = units.flatMap(u => u.visual.cells.map(cell => ({ unit: u, cell })))
+        .filter(({ cell }) => Math.abs(cell.x - former) < .002 && Math.abs(cell.y - door.y) < .002 && cell.glyph)
+      expect(cellsHere.length).toBeGreaterThan(0)
+      expect(cellsHere.every(({ unit, cell }) => cell.kind === 'wall' && !cell.entityId && !unit.navigation.passageId)).toBe(true)
+      expect(isWalkableMainlinePoint({ x: former, y: door.y }, scene, {}, options)).toBe(false)
+      expect(command(former).kind).toBe('ordinary')
+    }
+    expect(front).toMatchObject({ access: 'open', routeThrough: true })
+  })
+  it('covers all eleven former extra doors and three original single-door controls', () => {
+    expect(Object.keys(formerExtraDoors)).toHaveLength(11)
+    expect(scene.storefronts.filter(s => formerExtraDoors[s.id] === undefined).map(s => s.id))
+      .toEqual(['commercial-north-slot-2', 'commercial-north-slot-3', 'commercial-south-slot-2'])
+  })
+})

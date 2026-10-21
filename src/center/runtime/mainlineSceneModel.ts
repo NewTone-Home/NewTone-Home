@@ -1652,7 +1652,9 @@ const commercialStreetRearDoorPortals: MainlineScenePortalBlueprint[] = commerci
       threshold: authoredPoint(centerX, sample.back + (north ? commercialStreetRearDoorApproachDepth : -commercialStreetRearDoorApproachDepth)),
       crossingTarget: authoredPoint(centerX, sample.back + (north ? -commercialStreetRearDoorApproachDepth : commercialStreetRearDoorApproachDepth)),
     },
-    wallOpenings: [{ wallId: `${sample.roomId}-shell`, opening: { edge, start: centerX - commercialStreetCellPitch, end: centerX + commercialStreetCellPitch, doorId, labelLayout: 'center' } }],
+    // The portal alone owns this opening. Flanking lattice cells are ordinary
+    // walls, so they cannot become part of a rear-door navigation volume.
+    wallOpenings: [{ wallId: `${sample.roomId}-shell`, opening: { edge, start: centerX - commercialStreetCellPitch, end: centerX + commercialStreetCellPitch, doorId, labelLayout: 'center', doorFlankCount: 0 } }],
     transitionText: '\u540e\u95e8\u5c1a\u672a\u63a5\u901a\u3002',
     access: 'locked',
     lockedText: '\u540e\u95e8\u5c1a\u672a\u5f00\u653e\u3002',
@@ -1694,7 +1696,6 @@ const commercialStreetBlueprint: MainlineSceneBlueprint = {
         boundaryVisualEndpoints: { vertical: { start: 'omit' as const, end: 'omit' as const } },
         edges: [sample.side === 'north' ? 'top' as const : 'bottom' as const, 'left' as const,
           ...(!commercialStreetInteriorSamples.some((other) => other.side === sample.side && other.x > sample.x) ? ['right' as const] : [])],
-        openings: [{ edge: sample.side === 'north' ? 'top' as const : 'bottom' as const, start: sample.x + sample.width / 2 - 2 * commercialStreetCellPitch, end: sample.x + sample.width / 2, doorId: `${sample.roomId}-rear-door`, labelLayout: 'center' as const }],
       })),
     ],
     storefronts: commercialStreetStorefronts,
