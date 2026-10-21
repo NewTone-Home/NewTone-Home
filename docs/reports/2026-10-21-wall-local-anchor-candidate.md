@@ -67,7 +67,7 @@ index 462d0af..281b1ed 100644
 +  }).map(config => `${config.structure.id}:${config.edge}`))
    return fixedMainlineWallGlyphGrid(units, fixedGlyphOwners)
  }
- 
+
 diff --git a/src/center/runtime/mainlineWallGlyphGrid.ts b/src/center/runtime/mainlineWallGlyphGrid.ts
 index 712a034..f2e2b41 100644
 --- a/src/center/runtime/mainlineWallGlyphGrid.ts
@@ -75,7 +75,7 @@ index 712a034..f2e2b41 100644
 @@ -1,44 +1,62 @@
  import type { MainlineSceneGeometryUnit, MainlineSceneVisualCell } from './mainlineScenes'
  import { sceneDesignReferenceMetrics, sharedBoundaryScreenSpacingPx } from './sceneBoundaryGrid'
- 
+
 -/** Fixed reference-grid glyphs inside existing solid boundary ranges. Door,
 - * feature and collision ranges are immutable; endpoint remainder stays solid
 - * and never becomes another opening or an extra compressed glyph. */
