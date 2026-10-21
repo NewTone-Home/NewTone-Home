@@ -51,12 +51,16 @@ describe('commercial street storefront interactions', () => {
   })
 
   it('uses existing legal navigation to reach representative storefront approaches before interaction', () => {
+    // New games deliberately begin at the fruit-tea approach. Keep this
+    // movement test starting on the public lane, away from every sampled door.
+    const lane = street.rooms.find(room => room.id === 'commercial-street-public-lane')!
+    const from = { x: street.initialPlayerPosition.x, y: lane.bounds.y + lane.bounds.height / 2 }
     ['commercial-north-slot-1', 'commercial-north-slot-2', 'commercial-south-slot-5'].forEach((storefrontId) => {
       const storefront = street.storefronts.find((candidate) => candidate.id === storefrontId)!
       const approach = mainlineStorefrontApproach(street, storefront)
       expect(isWalkableMainlinePoint(approach, street)).toBe(true)
-      expect(findMainlinePath(street.initialPlayerPosition, approach, street)).not.toBeNull()
-      expect(Math.hypot(street.initialPlayerPosition.x - approach.x, street.initialPlayerPosition.y - approach.y)).toBeGreaterThan(.35)
+      expect(findMainlinePath(from, approach, street)).not.toBeNull()
+      expect(Math.hypot(from.x - approach.x, from.y - approach.y)).toBeGreaterThan(.35)
     })
   })
 
