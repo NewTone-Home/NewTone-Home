@@ -77,7 +77,7 @@ Independent QA correctly found that4195 could reveal the door but the newly born
 - Click/tap the actual fruit-tea door button: actor crosses inside to y28.5–29.7 (room front boundary33.4072).
 - Click/tap the street from inside: actor crosses back to y42.7–42.9. Door lifecycle reachedholding during these crossings. These are real coordinates resulting from input, not injected movement.
 - Saved interior occupant(22.2083,10) remains in place with revealed doorway and retained Cafe completion/contact note. Six contexts, no page errors. Browser closed. Full event/actor/NPC traces and18 journey PNGs plus6 final PNGs: `.tmp/fruit-safe-browser/results.json` and directory. Ordinary public continuation at(80,50) was already covered by prior publication smoke; no save migration changed in860d070.
--64/64 focused tests, typecheck, build and diff-check pass. Final whole-suite result is recorded in `.tmp/fruit-safe-all-tests.json`; see subsequent completion note. No FPS claim.
+-64/64 focused tests, typecheck, build and diff-check pass. Final whole suite **762/779 pass,17 fail**, every failing full test name matches the recorded baseline; no new failures (`.tmp/fruit-safe-all-tests.json`). Not all-green. No FPS claim.
 
 **Corrected frozen candidate: http://127.0.0.1:4196/**, PID27084, directory `.tmp/fruit-safe-dist`. This port now serves a frozen build, not the stopped source integration server previously using4196.
 
