@@ -16,6 +16,7 @@ import { useAutomaticPassages } from './useAutomaticPassages'
 import { defaultSceneScreenMetrics, sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { useMainlineCamera } from './useMainlineCamera'
 import { mainlineWorldScale } from './mainlineViewport'
+import { currentMainlineViewportMetrics, type MainlineViewportMetrics } from './mainlineViewportProjection'
 import type { MainlineRideWalkingContext } from './mainlineRide'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
@@ -314,15 +315,15 @@ export function MainlineScenePage({
   const continuePendingTraversalRef = useRef<(entityId: string) => void>(() => {})
   const pendingInteractionAfterTraversalRef = useRef<string | null>(null)
   const resumeInteractionRef = useRef<(entityId: string) => void>(() => {})
-  const [viewportMetrics, setViewportMetrics] = useState<SceneScreenMetrics>(defaultSceneScreenMetrics)
+  const [viewportMetrics, setViewportMetrics] = useState<MainlineViewportMetrics>(() => currentMainlineViewportMetrics() ?? defaultSceneScreenMetrics)
   const screenMetrics = sceneDesignReferenceMetrics
   const movementMetrics = useMemo(() => {
     const scale = mainlineWorldScale(viewportMetrics)
     return { width: sceneDesignReferenceMetrics.width * scale, height: sceneDesignReferenceMetrics.height * scale }
   }, [viewportMetrics])
   const sceneReadyRef = useRef(false)
-  const handleScreenMetricsChange = useCallback((next: SceneScreenMetrics) => {
-    setViewportMetrics((previous) => previous.width === next.width && previous.height === next.height && previous.viewportWidth === next.viewportWidth ? previous : next)
+  const handleScreenMetricsChange = useCallback((next: MainlineViewportMetrics) => {
+    setViewportMetrics((previous) => previous.width === next.width && previous.height === next.height && previous.viewportWidth === next.viewportWidth && previous.stableHeight === next.stableHeight && previous.projectionScale === next.projectionScale && previous.projectionPolicy === next.projectionPolicy ? previous : next)
     if (!sceneReadyRef.current) {
       sceneReadyRef.current = true
       onSceneReady?.()

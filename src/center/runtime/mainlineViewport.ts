@@ -3,6 +3,7 @@ import type { MainlineSceneDefinition } from './mainlineScenes'
 import { sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { mainlineLabelFootprint } from './sceneLayout'
 import { sceneFocusStrokeInsetPx, sceneFocusVisualGapPx } from './sceneVisualBounds'
+import { mainlineAreaProjectionScale, type MainlineViewportMetrics } from './mainlineViewportProjection'
 
 const normalizedViewportCenter = 50
 
@@ -11,13 +12,10 @@ function clamp(value: number, minimum: number, maximum: number) {
 }
 
 /** Uniform CSS-pixel projection from the fixed authored world to the stage. */
-export function mainlineWorldScale(viewport: SceneScreenMetrics) {
-  const width = Math.max(1, viewport.width)
-  const height = Math.max(1, viewport.height)
-  const referenceAspect = sceneDesignReferenceMetrics.width / sceneDesignReferenceMetrics.height
-  return width / height < referenceAspect
-    ? height / sceneDesignReferenceMetrics.height
-    : Math.min(width / sceneDesignReferenceMetrics.width, height / sceneDesignReferenceMetrics.height)
+export function mainlineWorldScale(viewport: MainlineViewportMetrics) {
+  // The applied basis also serves camera/culling/input, even while browser
+  // chrome changes the current drawable height or user zoom is preserved.
+  return viewport.projectionScale ?? mainlineAreaProjectionScale(viewport)
 }
 
 /** Logical percentage span visible through the uniformly projected world. */
@@ -26,6 +24,15 @@ export function mainlineVisibleWorldSpan(viewport: SceneScreenMetrics) {
   return {
     x: viewport.width / (sceneDesignReferenceMetrics.width * scale) * 100,
     y: viewport.height / (sceneDesignReferenceMetrics.height * scale) * 100,
+  }
+}
+
+/** Overlay coordinates (percent of the live viewport), including local slides. */
+export function mainlineViewportPointFromWorld(point: Point, viewport: SceneScreenMetrics, cameraOffset: Point): Point {
+  const span = mainlineVisibleWorldSpan(viewport)
+  return {
+    x: 50 + (point.x + cameraOffset.x - 50) / span.x * 100,
+    y: 50 + (point.y + cameraOffset.y - 50) / span.y * 100,
   }
 }
 

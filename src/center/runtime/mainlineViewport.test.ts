@@ -9,9 +9,9 @@ describe('fixed mainline world projection', () => {
   })
 
   it.each([
-    [{ width: 1920, height: 900 }, 900 / 1080],
-    [{ width: 1280, height: 800 }, 800 / 1080],
-    [{ width: 390, height: 844 }, 844 / 1080],
+    [{ width: 1920, height: 900 }, Math.sqrt(900 / 1080)],
+    [{ width: 1280, height: 800 }, .75],
+    [{ width: 390, height: 844 }, .75],
   ] as const)('uses one uniform projection at %ix%i', (viewport, expectedScale) => {
     const scale = mainlineWorldScale(viewport)
     expect(scale).toBeCloseTo(expectedScale, 8)
@@ -85,7 +85,7 @@ describe('fixed mainline world projection', () => {
 
   it('keeps a truly fitting office centered despite player movement', () => {
     const scene = { viewport: 'fixed-frame', walkBounds: { x: 6, y: 8, width: 88, height: 84 } } as Parameters<typeof mainlineCameraOffset>[0]
-    const viewport = { width: 1280, height: 800 }
+    const viewport = { width: 1920, height: 1080 }
     expect(mainlineCameraOffset(scene, { x: 7, y: 10 }, false, viewport)).toEqual({ x: 0, y: 0 })
     expect(mainlineCameraOffset(scene, { x: 93, y: 90 }, false, viewport)).toEqual({ x: 0, y: 0 })
   })

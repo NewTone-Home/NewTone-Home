@@ -12,7 +12,8 @@ import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnaps
 import { SceneCharacters, SceneCharacterSwitch } from './SceneCharacters'
 import { SceneDoor, type SceneDoorTransitionCompletion } from './SceneDoor'
 import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoorConfig'
-import { readSceneScreenMetrics, sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
+import { sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
+import { readMainlineViewportMetrics, type MainlineViewportMetrics } from './mainlineViewportProjection'
 import { commercialStreetHorizontalScale, projectCommercialStreetX } from './commercialStreetGridProjection'
 import { mainlineWorldPointFromClient, mainlineWorldScale } from './mainlineViewport'
 import { useSceneFocusFrameController } from './SceneFocusFrames'
@@ -50,7 +51,7 @@ type MainlineSceneRendererProps = {
   gateTriggered?: boolean
   geometrySnapshot: MainlineSceneGeometrySnapshot
   freezeFrameMeasurements?: boolean
-  onScreenMetricsChange?: (metrics: SceneScreenMetrics) => void
+  onScreenMetricsChange?: (metrics: MainlineViewportMetrics) => void
   viewportMetrics: SceneScreenMetrics
   cameraOffset: Point
   showProtagonist?: boolean
@@ -767,6 +768,7 @@ export function MainlineSceneRenderer({
   const currentDialogueGroupRef = useRef<string | null>(null)
   const dialogueAdvanceConsumedGroupRef = useRef<string | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
+  const stableViewportRef = useRef<HTMLSpanElement>(null)
   const dimmerRef = useRef<HTMLDivElement>(null)
   const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
   const registerBreathingNode = useCallback((entityId: string, node: HTMLSpanElement | null) => {
@@ -852,17 +854,24 @@ export function MainlineSceneRenderer({
   const suppressNextLayoutStageClickRef = useRef(false)
   useIsomorphicLayoutEffect(() => {
     const stage = stageRef.current
-    if (!stage) return undefined
+    const stableViewport = stableViewportRef.current
+    if (!stage || !stableViewport) return undefined
     const reportMetrics = () => {
-      const metrics = readSceneScreenMetrics(stage)
+      const metrics = readMainlineViewportMetrics(stage, stableViewport)
       if (!metrics) return
       onScreenMetricsChange?.(metrics)
     }
     reportMetrics()
-    if (typeof ResizeObserver === 'undefined') return undefined
-    const observer = new ResizeObserver(reportMetrics)
-    observer.observe(stage)
-    return () => observer.disconnect()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reportMetrics)
+    observer?.observe(stage)
+    observer?.observe(stableViewport)
+    window.addEventListener('resize', reportMetrics)
+    window.visualViewport?.addEventListener('resize', reportMetrics)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', reportMetrics)
+      window.visualViewport?.removeEventListener('resize', reportMetrics)
+    }
   }, [onScreenMetricsChange])
 
   // The page owns the stage measurement and passes the same snapshot to
@@ -1171,11 +1180,14 @@ export function MainlineSceneRenderer({
     <section className="scene-wrap" aria-label={`${scene.title}可探索场景`}>
       <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-scene-dialogue-state={dialoguePhase}>
         {layoutMode && <div className="scene-layout-grid" aria-hidden="true" />}
+        <span ref={stableViewportRef} className="scene-mainline-stable-viewport" aria-hidden="true" />
 
         <div
           className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''}`}
           data-commercial-street-grid={scene.id === 'commercial-street' ? 'equal-pitch' : undefined}
           data-commercial-street-grid-scale={scene.id === 'commercial-street' ? horizontalGridScale : undefined}
+          data-world-projection-scale={worldScale}
+          data-world-projection-policy={(viewportMetrics as MainlineViewportMetrics).projectionPolicy}
           style={{
             left: '50%',
             top: '50%',

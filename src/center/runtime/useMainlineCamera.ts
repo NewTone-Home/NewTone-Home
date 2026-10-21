@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { advanceMainlineCamera, mainlineCameraOffset, mainlineCameraTarget } from './mainlineViewport'
+import { advanceMainlineCamera, mainlineCameraOffset, mainlineCameraTarget, mainlineWorldScale } from './mainlineViewport'
 import type { MainlineSceneDefinition } from './mainlineScenes'
 import type { Point } from './sceneGeometry'
 import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
@@ -25,7 +25,7 @@ export function useMainlineCamera(
     let pageTarget: Point | undefined
     if (!embedded && usesCommercialStreetPages(scene, position)) {
       const pages = commercialStreetCameraPages(scene, screenMetrics)
-      const key = `${scene.id}:${screenMetrics.width}:${screenMetrics.height}`
+      const key = `${scene.id}:${screenMetrics.width}:${screenMetrics.height}:${mainlineWorldScale(screenMetrics)}`
       const index = commercialStreetPageIndex(pages.centers, position.x, pages.span,
         streetPage.current?.key === key ? streetPage.current.index : undefined)
       streetPage.current = { key, index }

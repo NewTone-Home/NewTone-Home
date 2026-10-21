@@ -9,7 +9,9 @@ import {
   mainlineScenes,
   resolveMainlineSceneId,
 } from './runtime/mainlineScenes'
-import { mainlineCameraOffset } from './runtime/mainlineViewport'
+import { mainlineCameraOffset, mainlineViewportPointFromWorld, mainlineWorldScale } from './runtime/mainlineViewport'
+import { currentMainlineViewportMetrics } from './runtime/mainlineViewportProjection'
+import { sceneDesignReferenceMetrics } from './runtime/sceneBoundaryGrid'
 import { createMainlineSceneGeometrySnapshot } from './runtime/mainlineSceneGeometrySnapshot'
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
@@ -66,11 +68,9 @@ function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
 }
 
 function screenPositionForScene(sceneId, position, liveCameraOffset) {
-  const cameraOffset = liveCameraOffset ?? mainlineCameraOffset(mainlineScenes[sceneId], position)
-  return {
-    x: position.x + cameraOffset.x,
-    y: position.y + cameraOffset.y,
-  }
+  const viewport = currentMainlineViewportMetrics() ?? sceneDesignReferenceMetrics
+  const cameraOffset = liveCameraOffset ?? mainlineCameraOffset(mainlineScenes[sceneId], position, false, viewport)
+  return mainlineViewportPointFromWorld(position, viewport, cameraOffset)
 }
 
 export default function CenterExperience({
@@ -685,7 +685,7 @@ export default function CenterExperience({
               })}
             </div>
           })}
-          {localSlide && localSlideActor && <div className="scene-protagonist center-local-slide__actor" aria-hidden="true"><span className="scene-protagonist__dot" /></div>}
+          {localSlide && localSlideActor && <div className="scene-protagonist center-local-slide__actor" aria-hidden="true"><span className="scene-protagonist__dot" style={{ transform: `scale(${mainlineWorldScale(currentMainlineViewportMetrics() ?? sceneDesignReferenceMetrics)})` }} /></div>}
         </div>
         <WorldPhone
           getPlayerPosition={() => latestWorldPositionRef.current?.sceneId === route.sceneId ? latestWorldPositionRef.current.position : null}

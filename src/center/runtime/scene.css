@@ -668,6 +668,18 @@
   min-height: 100dvh;
 }
 .scene-mainline-world { z-index: 0; position: absolute; inset: 0; will-change: transform; animation: mainline-world-enter 180ms ease both; }
+/* A non-layout probe separates stable browser-chrome height from live 100dvh.
+   Unsupported svh falls back to vh; no UA or physical-screen guess is used. */
+.scene-mainline-stable-viewport {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 100vh;
+  height: 100svh;
+  visibility: hidden;
+  pointer-events: none;
+}
 .scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-object__grid-content,
 .scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-npc__grid-content,
 .scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-focus-group__glyph-visual,
