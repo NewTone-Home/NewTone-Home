@@ -55,7 +55,8 @@ describe('commercial street storefront interactions', () => {
     // movement test starting on the public lane, away from every sampled door.
     const lane = street.rooms.find(room => room.id === 'commercial-street-public-lane')!
     const from = { x: street.initialPlayerPosition.x, y: lane.bounds.y + lane.bounds.height / 2 }
-    ['commercial-north-slot-1', 'commercial-north-slot-2', 'commercial-south-slot-5'].forEach((storefrontId) => {
+    const representativeStorefrontIds = ['commercial-north-slot-1', 'commercial-north-slot-2', 'commercial-south-slot-5']
+    representativeStorefrontIds.forEach((storefrontId) => {
       const storefront = street.storefronts.find((candidate) => candidate.id === storefrontId)!
       const approach = mainlineStorefrontApproach(street, storefront)
       expect(isWalkableMainlinePoint(approach, street)).toBe(true)
