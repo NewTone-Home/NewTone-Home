@@ -1,4 +1,5 @@
 import { createMiningStreetShellBlueprint } from './miningStreetShell'
+import { alignSceneBlueprint } from './sceneGridRollout'
 import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
 import { boundaryGridStepsFromReferenceSpacing, boundaryGridStepsFromScreenSpacing, defaultSceneScreenMetrics, sharedFurnitureGlyphSpacingPx } from './sceneBoundaryGrid'
@@ -2442,7 +2443,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
 const yongheMiningPerimeterBlueprint = createMiningStreetShellBlueprint()
 const yongheEateryBlueprint = createMiningStreetShellBlueprint('yonghe-eatery')
 
-export const mainlineSceneBlueprints: Record<MainlineSceneId, MainlineSceneBlueprint> = {
+const authoredMainlineSceneBlueprints: Record<MainlineSceneId, MainlineSceneBlueprint> = {
   'jijia-ancestral-home': jijiaYardBlueprint,
   'jijia-ancestral-interior': jijiaAncestralInteriorBlueprint,
   'commercial-street': commercialStreetBlueprint,
@@ -2451,4 +2452,16 @@ export const mainlineSceneBlueprints: Record<MainlineSceneId, MainlineSceneBluep
   'yonghe-eatery': yongheEateryBlueprint,
   'zhongshuyuan-passage': zhongshuyuanPassageBlueprint,
   'zhongshuyuan-office': zhongshuyuanOfficeBlueprint,
+}
+
+export const mainlineSceneBlueprints = Object.fromEntries(Object.entries(authoredMainlineSceneBlueprints).map(([id,blueprint])=>[id,alignSceneBlueprint(blueprint)])) as Record<MainlineSceneId,MainlineSceneBlueprint>
+
+// A cross-scene arrival belongs to the destination doorway, not to the
+// source scene's coordinate transform. Resolve after every scene is aligned.
+for (const blueprint of Object.values(mainlineSceneBlueprints)) {
+  blueprint.portals = blueprint.portals.map(portal => {
+    if (!portal.targetSceneId || !portal.endpoint.entryPosition) return portal
+    const reverse = mainlineSceneBlueprints[portal.targetSceneId].portals.find(candidate => candidate.id === portal.id && candidate.targetSceneId === blueprint.id)
+    return reverse ? { ...portal, endpoint: { ...portal.endpoint, entryPosition: reverse.endpoint.threshold } } : portal
+  })
 }

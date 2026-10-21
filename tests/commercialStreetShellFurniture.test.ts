@@ -27,8 +27,10 @@ function northCafeCell(column: number, row: number) {
 function northCafeLocalCell(point: { x: number; y: number }) {
   const room = street.rooms.find((candidate) => candidate.id === northCafeRoomId)!
   return {
-    column: Number(((point.x - room.bounds.x) / steps.horizontal - 1).toFixed(4)),
-    row: Number(((room.bounds.y + room.bounds.height - point.y) / steps.vertical).toFixed(4)),
+    // Furniture is translated without stretching its 16px internal geometry;
+    // the former rounded wall pitch contributes <.02 reference px here.
+    column: Number(((point.x - room.bounds.x) / steps.horizontal - 1).toFixed(3)),
+    row: Number(((room.bounds.y + room.bounds.height - point.y) / steps.vertical).toFixed(3)),
   }
 }
 

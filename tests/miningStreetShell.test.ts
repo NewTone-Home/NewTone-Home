@@ -21,8 +21,8 @@ describe('mining continuous empty shells', () => {
   it('uses center-to-center width N+3 and twice that depth, counting intervals rather than anchors', () => {
     for (const shop of miningShopShells) {
       const room = scene.rooms.find(r => r.id === shop.roomId)!
-      expect(room.bounds.height / miningGrid.vertical).toBeCloseTo(shop.letters + 3, 5)
-      expect(room.bounds.width / miningGrid.horizontal).toBeCloseTo((shop.letters + 3) * 2, 5)
+      expect(room.bounds.height / (28/1080*100)).toBeCloseTo(shop.letters + 3, 8)
+      expect(room.bounds.width / (28/1920*100)).toBeCloseTo((shop.letters + 3) * 2, 8)
     }
   })
   it('keeps exactly three wall glyphs between the last sign of a shop and the first of its neighbor', () => {

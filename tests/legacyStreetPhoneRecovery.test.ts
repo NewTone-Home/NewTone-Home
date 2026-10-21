@@ -1,6 +1,7 @@
 import {describe,it,expect} from 'vitest'
 import {createInitialPlayerSave,loadPlayerSave,sanitizePlayerSave,savePlayerSave,PLAYER_SAVE_STORAGE_KEY,PLAYER_SAVE_VERSION} from '../src/center/runtime/playerSave'
 import {commercialStreetMilkTeaHeld} from '../src/center/runtime/commercialStreetMilkTea'
+import {migratePreGridPosition} from '../src/center/runtime/sceneGridRollout'
 const storage=()=>{const data=new Map([['newtone-public-release-cutover-v1','center-v1']]);return{getItem:(key:string)=>data.get(key)??null,setItem:(key:string,value:string)=>{data.set(key,value)},removeItem:(key:string)=>{data.delete(key)}}}
 describe('one-time legacy street phone compatibility without restarting progress',()=>{
  it.each([undefined,1])('repairs old version %s while retaining every other save field',version=>{
@@ -20,6 +21,9 @@ describe('one-time legacy street phone compatibility without restarting progress
  })
  it('also repairs the identifiable pre-unified street position format',()=>{
   const store=storage();store.setItem('newtone.mainline.carried-phone.v2',JSON.stringify('surface'));store.setItem('newtone.mainline.scene-positions.v2',JSON.stringify({'commercial-street':{x:135,y:-20},'jijia-ancestral-home':{x:25,y:50}}))
-  expect(loadPlayerSave(store)).toMatchObject({_version:2,currentSceneId:'commercial-street',currentPosition:{x:135,y:-20},phoneDevice:'inner',scenePositions:{'jijia-ancestral-home':{x:25,y:50}}})
+  const recovered=loadPlayerSave(store)
+  expect(recovered).toMatchObject({_version:2,worldGridVersion:1,currentSceneId:'commercial-street',phoneDevice:'inner'})
+  expect(recovered.currentPosition).toEqual(migratePreGridPosition('commercial-street',{x:135,y:-20}))
+  expect(recovered.scenePositions['jijia-ancestral-home']).toEqual(migratePreGridPosition('jijia-ancestral-home',{x:25,y:50}))
  })
 })

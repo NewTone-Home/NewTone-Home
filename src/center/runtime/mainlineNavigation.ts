@@ -610,6 +610,22 @@ export function resolveMainlineSafeSpawnPosition(
   options: MainlineNavigationOptions = {},
 ): Point | null {
   options = { ...options, geometrySnapshot: sceneGeometrySnapshot(scene, layout, options) }
+  if (preferred && scene.structures.some(structure => structure.boundaryWorldGrid)) {
+    // A restored occupant of a locked room is valid even when the initial
+    // spawn lies on the other side of its locked door. Never use that door
+    // as a reason to relocate the player into a different room.
+    const room = scene.rooms.find(candidate => pointInsideBounds(preferred, candidate.bounds))
+    if (room) {
+      if (isWalkableMainlinePoint(preferred, scene, layout, options)) return preferred
+      const nearby: Point[] = []
+      const stepX = 14 / 1920 * 100, stepY = 14 / 1080 * 100
+      for(let x=room.bounds.x+stepX;x<room.bounds.x+room.bounds.width;x+=stepX) {
+        for(let y=room.bounds.y+stepY;y<room.bounds.y+room.bounds.height;y+=stepY) nearby.push({x,y})
+      }
+      nearby.sort((a,b)=>Math.hypot((a.x-preferred.x)*19.2,(a.y-preferred.y)*10.8)-Math.hypot((b.x-preferred.x)*19.2,(b.y-preferred.y)*10.8))
+      return nearby.find(candidate=>isWalkableMainlinePoint(candidate,scene,layout,options))??null
+    }
+  }
   const candidates = [
     ...(preferred ? [preferred] : []),
     scene.initialPlayerPosition,

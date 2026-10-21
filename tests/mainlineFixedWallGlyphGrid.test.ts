@@ -6,7 +6,10 @@ const baseline=JSON.parse(readFileSync('tests/fixtures/mainline-wall-physical-co
 const digest=(v:unknown)=>createHash('sha256').update(JSON.stringify(v)).digest('hex')
 const metrics={width:1920,height:1080}
 describe('fixed wall glyph pitch with unchanged physical/story anchors',()=>{
- it.each(Object.values(mainlineScenes))('$id retains every physical unit, door, feature and story object',scene=>{
+ // Physical immutability applied to the old visual-only tail patch. Active
+ // spaces now intentionally migrate geometry; their semantic contract and
+ // exact lattice are checked in sceneGridRollout.test.ts. Cafe is excluded.
+ it.each([mainlineScenes['commercial-cafe']])('$id retains every physical unit, door, feature and story object',scene=>{
   const units=mainlineCanonicalSceneGeometryUnits(scene,metrics),saved=baseline[scene.id]
   expect(digest(units.map(({visual,...u})=>u))).toBe(saved.physical)
   expect(digest(units.flatMap(u=>u.visual.cells.filter(c=>c.kind!=='wall')))).toBe(saved.doorAndFeature)

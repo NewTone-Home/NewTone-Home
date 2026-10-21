@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mainlineScenes, mainlineCanonicalSceneGeometryUnits } from '../src/center/runtime/mainlineScenes'
 import { classifyMainlineWorldCommand, isWalkableMainlinePoint, mainlinePassageDoorwayForNavigation } from '../src/center/runtime/mainlineNavigation'
 import { boundaryGridStepsFromReferenceSpacing, sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
+import {sceneGridTransform} from '../src/center/runtime/sceneGridRollout'
 
 const scene = mainlineScenes['commercial-street']
 const options = { screenMetrics: sceneDesignReferenceMetrics }
@@ -36,7 +37,8 @@ describe('commercial rear walls have one real door and no former extra door', ()
     expect(command(door.x + pitch).kind).toBe('ordinary')
     expect(command(door.x - pitch).kind).toBe('ordinary')
     expect(isWalkableMainlinePoint({ x: door.x + pitch, y: door.y }, scene, {}, options)).toBe(false)
-    const former = formerExtraDoors[slot.id]
+    const oldFormer = formerExtraDoors[slot.id]
+    const former = oldFormer===undefined?undefined:sceneGridTransform('commercial-street')!.snap({x:oldFormer,y:0}).x
     if (former !== undefined) {
       const cellsHere = units.flatMap(u => u.visual.cells.map(cell => ({ unit: u, cell })))
         .filter(({ cell }) => Math.abs(cell.x - former) < .002 && Math.abs(cell.y - door.y) < .002 && cell.glyph)

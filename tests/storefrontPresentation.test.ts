@@ -101,7 +101,7 @@ describe('commercial street storefront presentation', () => {
       .filter(airWall => airWall.id.startsWith('commercial-north-facade-air-wall'))
       .map(airWall => airWall.x + airWall.width))
     expect(facadeRight - lastStorefrontEnd).toBeCloseTo(1.5 * pitch)
-    expect(lane.x + lane.width).toBeCloseTo(facadeRight - 4)
+    expect(lane.x + lane.width).toBeCloseTo(facadeRight - 3 * (28/1920*100))
     expect(walkRight).toBeGreaterThan(facadeRight)
     expect(northAirWallRight).toBeCloseTo(walkRight)
 
@@ -524,18 +524,18 @@ describe('commercial street storefront presentation', () => {
   })
 
   it('widens the street lane by one shared wall-character cell on each side', () => {
-    const cell = boundaryGridStepsFromReferenceSpacing().vertical
+    const cell = 28/1080*100
     const north = street.structures.find((structure) => structure.id === 'commercial-north-facade')!
     const lane = street.structures.find((structure) => structure.id === 'commercial-main-lane')!
     const south = street.structures.find((structure) => structure.id === 'commercial-south-facade')!
-    expect(north.bounds!.y + north.bounds!.height).toBeCloseTo(36 - cell)
-    expect(lane.bounds!.y).toBeCloseTo(36 - cell)
-    expect(lane.bounds!.height).toBeCloseTo(28 + 2 * cell)
-    expect(south.bounds!.y).toBeCloseTo(64 + cell)
+    expect(north.bounds!.y + north.bounds!.height).toBeCloseTo(-31.4076 + 25 * cell)
+    expect(lane.bounds!.y).toBeCloseTo(north.bounds!.y + north.bounds!.height)
+    expect(lane.bounds!.height).toBeCloseTo(13 * cell)
+    expect(south.bounds!.y).toBeCloseTo(lane.bounds!.y + lane.bounds!.height)
     const northApproach = mainlineStorefrontApproach(street, street.storefronts[0]!)
     const southApproach = mainlineStorefrontApproach(street, street.storefronts.find((storefront) => storefront.edge === 'top')!)
     expect(Math.abs(southApproach.y - northApproach.y)).toBeGreaterThan(20)
-    expect(Math.abs(southApproach.y - northApproach.y)).toBeCloseTo(16 + 2 * cell)
+    expect(Math.abs(southApproach.y - northApproach.y)).toBeCloseTo(13 * cell - 12)
     for (const first of street.storefronts.filter((storefront) => storefront.edge === 'bottom')) {
       const firstApproach = mainlineStorefrontApproach(street, first)
       for (const second of street.storefronts.filter((storefront) => storefront.edge === 'top')) {

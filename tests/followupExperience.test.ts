@@ -16,7 +16,7 @@ describe('follow-up experience contracts', () => {
     const burner=mainlineEntityCollision(scene,scene.objects.find(o=>o.id==='jijia-incense-burner')!,{},metrics)!
     const gaps=[(burner.y-boxes[0].y-boxes[0].height)*metrics.height/100,(boxes[1].x-burner.x-burner.width)*metrics.width/100,(boxes[2].y-burner.y-burner.height)*metrics.height/100,(burner.x-boxes[3].x-boxes[3].width)*metrics.width/100]
     expect(Math.max(...gaps)-Math.min(...gaps)).toBeLessThan(.02)
-    expect(mainlineEntityPosition(scene,scene.objects.find(o=>o.id==='jijia-offering-table-north')!,{},metrics).y).toBe(47.2)
+    expect(mainlineEntityPosition(scene,scene.objects.find(o=>o.id==='jijia-offering-table-north')!,{},metrics).y).toBeCloseTo(scene.altars[0]!.anchor.y-2.8,8)
     expect(createMainlineSceneGeometrySnapshot(scene,scene.initialPlayerPosition,{},metrics).navigationBarriers).toHaveLength(4)
   })
   it('uses authored service sides for every ordinary table with legal shared routes', () => {

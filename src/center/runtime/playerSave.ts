@@ -1,4 +1,5 @@
 import type { MainlineSceneId } from './mainlineSceneModel'
+import { migratePreGridPosition } from './sceneGridRollout'
 import { cleanPhoneNotifications, type PhoneNotification } from './phoneNotifications'
 import type { PhoneDevice } from './phoneState'
 import { mainlineSceneWorldLayers } from './phoneState'
@@ -17,6 +18,7 @@ export type PlayerChoiceValue = string | number | boolean | null
 export type PlayerSceneState = Record<string, PlayerChoiceValue>
 
 export type PlayerSave = {
+  worldGridVersion?: 1
   _version: typeof PLAYER_SAVE_VERSION
   currentSceneId: MainlineSceneId
   currentPosition: PlayerPoint | null
@@ -80,6 +82,7 @@ function cleanSceneState(value: unknown): Partial<Record<MainlineSceneId, Player
 
 export function createInitialPlayerSave(sceneId: MainlineSceneId = initialMainlineSceneId): PlayerSave {
   return {
+    worldGridVersion: 1,
     _version: PLAYER_SAVE_VERSION,
     currentSceneId: sceneId,
     currentPosition: null,
@@ -141,7 +144,7 @@ function readLegacyPlayerSave(storage: PlayerSaveStorage | null, fallbackSceneId
     migrated.phoneDevice = initialMainlinePhoneDevice
   }
   return hasLegacyValue
-    ? sanitizePlayerSave({ ...migrated, _version: 1 }, fallbackSceneId)
+    ? sanitizePlayerSave({ ...migrated, _version: 1, worldGridVersion: undefined }, fallbackSceneId)
     : createInitialPlayerSave(fallbackSceneId)
 }
 
@@ -162,6 +165,11 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
     && source.phoneDevice === 'surface' && (!Number.isFinite(savedVersion) || savedVersion < 2)
   const phoneDevice = repairLegacyStreetPhone ? 'inner' : validCore ? source.phoneDevice as PhoneDevice : initialMainlinePhoneDevice
   const scenePositions = cleanScenePositions(source.scenePositions)
+  if(source.worldGridVersion !== 1) {
+    for(const [id,position] of Object.entries(scenePositions)) {
+      if(Object.hasOwn(mainlineSceneWorldLayers,id)) scenePositions[id as MainlineSceneId]=migratePreGridPosition(id as MainlineSceneId,position!)
+    }
+  }
   if (!validCore) delete scenePositions[initialMainlineSceneId]
   const storyStage = source.storyClock?.stage
   const storyClock: MainlineStoryClock = storyStage === 'commercial-street' || storyStage === 'cafe' || storyStage === 'yonghe' || storyStage === 'opening'
@@ -169,9 +177,10 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
     : createInitialMainlineStoryClock(currentSceneId)
   const updatedAt = Number(source.updatedAt)
   return {
+    worldGridVersion: 1,
     _version: PLAYER_SAVE_VERSION,
     currentSceneId,
-    currentPosition: validCore ? cleanPoint(source.currentPosition) : null,
+    currentPosition: validCore && isPoint(source.currentPosition) ? source.worldGridVersion===1?cleanPoint(source.currentPosition):migratePreGridPosition(currentSceneId,source.currentPosition) : null,
     scenePositions,
     phoneDevice,
     storyClock,
