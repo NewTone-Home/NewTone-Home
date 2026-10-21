@@ -1,7 +1,7 @@
 import { createMiningStreetShellBlueprint } from './miningStreetShell'
 import { alignSceneBlueprint } from './sceneGridRollout'
 import { bindContinuousCafe } from './continuousCafe'
-import { trialCafeInterior } from './shopInteriorTrial'
+import { trialCafeInterior, trialTakeawayInteriors } from './shopInteriorTrial'
 import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
 import { boundaryGridStepsFromReferenceSpacing, boundaryGridStepsFromScreenSpacing, defaultSceneScreenMetrics, sharedFurnitureGlyphSpacingPx } from './sceneBoundaryGrid'
@@ -2180,7 +2180,7 @@ const authoredMainlineSceneBlueprints: Record<Exclude<MainlineSceneId, 'commerci
   'zhongshuyuan-office': zhongshuyuanOfficeBlueprint,
 }
 
-export const mainlineSceneBlueprints = Object.fromEntries(Object.entries(authoredMainlineSceneBlueprints).map(([id,blueprint])=>[id,id === 'commercial-street' ? trialCafeInterior(bindContinuousCafe(alignSceneBlueprint(blueprint))) : alignSceneBlueprint(blueprint)])) as Record<MainlineSceneId,MainlineSceneBlueprint>
+export const mainlineSceneBlueprints = Object.fromEntries(Object.entries(authoredMainlineSceneBlueprints).map(([id,blueprint])=>[id,id === 'commercial-street' ? trialTakeawayInteriors(trialCafeInterior(bindContinuousCafe(alignSceneBlueprint(blueprint)))) : alignSceneBlueprint(blueprint)])) as Record<MainlineSceneId,MainlineSceneBlueprint>
 
 // Non-enumerable compatibility lookup: no second blueprint, room or geometry.
 Object.defineProperty(mainlineSceneBlueprints, 'commercial-cafe', { get: () => mainlineSceneBlueprints['commercial-street'] })

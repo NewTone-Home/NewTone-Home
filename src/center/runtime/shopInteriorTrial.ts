@@ -97,3 +97,91 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
     },
   }
 }
+
+type TakeawayTrial = {
+  roomId: string
+  prefix: string
+  oldStructurePrefix: string
+  runs: readonly { id: string; cells: readonly [number, number][] }[]
+  stations: readonly { id: string; label: string; x: number; y: number; bodyId?: string; side?: 'left' | 'bottom' }[]
+  equipment: readonly { label: string; x: number; y: number }[]
+  worker: readonly [number, number]
+  regions: readonly { x: number; y: number; width: number; height: number }[]
+}
+
+/** Shared character/body construction; each shop supplies its own work sequence and geometry. */
+function buildTakeawayTrial(blueprint: MainlineSceneBlueprint, trial: TakeawayTrial): MainlineSceneBlueprint {
+  const data = blueprint.scene, room = data.rooms!.find(candidate => candidate.id === trial.roomId)!
+  const point = (x: number, y: number): Point => ({ x: room.bounds.x + x / 1920 * 100, y: room.bounds.y + y / 1080 * 100 })
+  const oldIds = new Set(data.floorEntities.filter(entity => entity.roomId === room.id).map(entity => entity.id))
+  const entities: MainlineSceneEntity[] = [], structures: MainlineContinuousStructure[] = []
+  trial.runs.forEach(run => {
+    const xs = run.cells.map(([x]) => x), ys = run.cells.map(([, y]) => y)
+    const x = Math.min(...xs) - 8, y = Math.min(...ys) - 8
+    const bodyId = `${trial.prefix}-${run.id}-body`
+    structures.push({ id: bodyId, kind: 'counter', ...point(x, y), width: (Math.max(...xs) + 8 - x) / 1920 * 100, height: (Math.max(...ys) + 8 - y) / 1080 * 100 })
+    run.cells.forEach(([x, y], index) => entities.push({ id: `${trial.prefix}-${run.id}-${index}`, label: index % 2 ? '台' : '柜', kind: 'fixture', weight: 'fixture', surface: 'floor', roomId: room.id, position: point(x, y), visualVisibility: 'static', interactive: false }))
+  })
+  trial.equipment.forEach(({ label, x, y }, index) => entities.push({
+    id: `${trial.prefix}-equipment-${index + 1}`, label, kind: 'fixture', weight: 'fixture', surface: 'floor', roomId: room.id,
+    position: point(x, y), visualVisibility: 'static', interactive: false,
+    collision: { ...point(x - Array.from(label).length * 8, y - 8), width: Array.from(label).length * 16 / 1920 * 100, height: 16 / 1080 * 100 },
+  }))
+  const text: Record<string, string> = {}
+  trial.stations.forEach(({ id, label, x, y, bodyId, side }) => {
+    entities.push({ id, label, kind: 'fixture', weight: 'minor', surface: 'floor', roomId: room.id, position: point(x, y), visualVisibility: 'static', interactive: true,
+      ...(bodyId ? { interactionStructureId: `${trial.prefix}-${bodyId}-body`, interactionContactSides: [side!] } : {}),
+    })
+    text[id] = label === '菜单' ? '菜单在客人侧，进门后可以先看。' : label === '点单' ? '这里是点单位置，制作在柜台里面。' : '这里是取货位置，与点单位置分开。'
+  })
+  const workerId = `${trial.prefix}-worker`
+  return { ...blueprint, interactionText: { ...blueprint.interactionText, ...text },
+    explorationText: { ...blueprint.explorationText, ...Object.fromEntries(Object.entries(text).map(([id, value]) => [id, [value]])) },
+    scene: { ...data,
+    floorEntities: [...data.floorEntities.filter(entity => !oldIds.has(entity.id)), ...entities],
+    furnitureGroups: data.furnitureGroups.filter(group => !group.entityIds.some(id => oldIds.has(id))),
+    continuousStructures: [...(data.continuousStructures ?? []).filter(body => !body.id.startsWith(trial.oldStructurePrefix)), ...structures],
+    blockers: data.blockers.filter(body => !body.id.startsWith(trial.oldStructurePrefix)),
+    navigationBarriers: data.navigationBarriers?.filter(relation => !oldIds.has(relation.firstEntityId) && !oldIds.has(relation.secondEntityId)),
+    accessRegions: [...(data.accessRegions ?? []), ...trial.regions.map((region, index) => ({ id: `${trial.prefix}-staff-${index}`, ...point(region.x, region.y), width: region.width / 1920 * 100, height: region.height / 1080 * 100, requiredAccess: 'staff' as const, deniedText: '这里是柜台员工区。' }))],
+    actorAccess: { ...data.actorAccess, [workerId]: ['public', 'staff'] },
+    // A stationary anonymous layout occupant, with no new dialogue or commerce duty.
+    npcs: [...(data.npcs ?? []), { id: workerId, roleId: 'pedestrian', label: '人', roomId: room.id, interactive: false }],
+    npcPlacements: [...(data.npcPlacements ?? []), { npcId: workerId, position: point(...trial.worker) }],
+  } }
+}
+
+export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): MainlineSceneBlueprint {
+  const milkTea = buildTakeawayTrial(blueprint, {
+    roomId: 'commercial-south-s5-interior', prefix: 'milk-tea-trial', oldStructurePrefix: 'commercial-s5-milk-tea-',
+    // Front is at y0. A long right counter separates ordering and collection along the shop.
+    runs: [
+      { id: 'long-counter', cells: Array.from({ length: 29 }, (_, i) => [224, 112 + i * 16] as [number, number]) },
+      { id: 'rear-return', cells: Array.from({ length: 7 }, (_, i) => [112 + i * 16, 560] as [number, number]) },
+    ],
+    stations: [
+      { id: 'commercial-s5-milk-tea-menu-service-label', label: '菜单', x: 56, y: 56 },
+      { id: 'commercial-s5-milk-tea-order-service-label', label: '点单', x: 176, y: 168, bodyId: 'long-counter', side: 'left' },
+      { id: 'commercial-s5-milk-tea-pickup-service-label', label: '取餐', x: 176, y: 448, bodyId: 'long-counter', side: 'left' },
+    ],
+    equipment: [{ label: '制茶机', x: 280, y: 224 }, { label: '封口机', x: 280, y: 336 }, { label: '清洗台', x: 280, y: 476 }],
+    worker: [264, 392],
+    regions: [{ x: 224, y: 112, width: 112, height: 448 }, { x: 0, y: 560, width: 336, height: 140 }],
+  })
+  return buildTakeawayTrial(milkTea, {
+    roomId: 'commercial-north-n1-interior', prefix: 'fruit-tea-trial', oldStructurePrefix: 'commercial-retail-n1-fruit-tea-',
+    // Front is at y700. A shorter left L wraps a rear fruit preparation area,
+    // leaving the front half for waiting rather than copying the long milk-tea queue.
+    runs: [
+      { id: 'left-return', cells: Array.from({ length: 15 }, (_, i) => [112, 112 + i * 16] as [number, number]) },
+      { id: 'service-counter', cells: Array.from({ length: 10 }, (_, i) => [128 + i * 16, 336] as [number, number]) },
+    ],
+    stations: [
+      { id: 'fruit-tea-trial-menu', label: '菜单', x: 280, y: 588 },
+      { id: 'fruit-tea-trial-order', label: '点单', x: 144, y: 384, bodyId: 'service-counter', side: 'bottom' },
+      { id: 'fruit-tea-trial-pickup', label: '取货', x: 240, y: 384, bodyId: 'service-counter', side: 'bottom' },
+    ],
+    equipment: [{ label: '清洗台', x: 56, y: 168 }, { label: '切果台', x: 224, y: 168 }, { label: '打包台', x: 224, y: 252 }, { label: '冷藏', x: 252, y: 56 }],
+    worker: [168, 252], regions: [{ x: 0, y: 0, width: 336, height: 336 }],
+  })
+}
