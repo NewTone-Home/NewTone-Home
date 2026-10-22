@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineAvailableReadingWidthPx, mainlineDialogueParticipantNpcIds, mainlineInteractionSpace, mainlineIsInteriorSpace, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingBounds, mainlineReadingCameraOffset, mainlineReadingFontSizePx, mainlineReadingStaticOpacity } from '../src/center/runtime/mainlineTextReading'
+import { mainlineAvailableReadingWidthPx, mainlineCanRenderFirstReadingGlyph, mainlineDialogueParticipantNpcIds, mainlineInteractionSpace, mainlineIsInteriorSpace, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingBounds, mainlineReadingCameraOffset, mainlineReadingFontSizePx, mainlineReadingStaticOpacity } from '../src/center/runtime/mainlineTextReading'
 import type { MainlineSceneDialogue } from '../src/center/runtime/mainlineSceneModel'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
@@ -72,5 +72,27 @@ describe('mainline reading-space effects', () => {
 
   it('keeps every character in the DOM segment sequence when even one glyph cannot fit', () => {
     expect(splitMainlineInteractionTextToFit('甲乙', 0, 16, () => 16)).toEqual(['甲', '乙'])
+  })
+})
+
+describe('complete-glyph reading gate', () => {
+  const measure = (glyph: string) => glyph === 'W' ? 8.25 : 16
+
+  it('hides zero-width and sub-glyph reading areas, accepts exact glyph width, and resumes without losing the current segment', () => {
+    let segmentIndex = 3
+    const advanceIfRenderable = (width: number) => {
+      if (mainlineCanRenderFirstReadingGlyph('中XYZ', width, 16, measure)) segmentIndex += 1
+    }
+
+    expect(mainlineCanRenderFirstReadingGlyph('中XYZ', 0, 16, measure)).toBe(false)
+    expect(mainlineCanRenderFirstReadingGlyph('中XYZ', 15.99, 16, measure)).toBe(false)
+    expect(mainlineCanRenderFirstReadingGlyph('中XYZ', 16, 16, measure)).toBe(true)
+    expect(mainlineCanRenderFirstReadingGlyph('WXYZ', 8.25, 16, measure)).toBe(true)
+
+    advanceIfRenderable(0)
+    advanceIfRenderable(15.99)
+    expect(segmentIndex).toBe(3)
+    advanceIfRenderable(28)
+    expect(segmentIndex).toBe(4)
   })
 })

@@ -32,7 +32,7 @@ import { activeStorefrontInteriorOwner, storefrontCellVisualState, storefrontCha
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 import { storefrontContactGeometry } from './storefrontContactGeometry'
-import { mainlineAvailableReadingWidthPx, mainlineDialogueParticipantNpcIds, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingStaticOpacity } from './mainlineTextReading'
+import { mainlineAvailableReadingWidthPx, mainlineCanRenderFirstReadingGlyph, mainlineDialogueParticipantNpcIds, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingStaticOpacity } from './mainlineTextReading'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -921,6 +921,11 @@ export function MainlineSceneRenderer({
   const activeReadingLayout = activeReadingPosition
     ? mainlineEchoLayout(activeReadingText, renderScreenMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: activeReadingWidthPx })
     : null
+  const activeReadingCanRender = Boolean(activeReadingLayout && mainlineCanRenderFirstReadingGlyph(
+    activeReadingText,
+    activeReadingWidthPx,
+    activeReadingLayout.fontSizePx,
+  ))
   const readingVisualActive = Boolean(readingMode && activeReadingPosition && activeReadingLayout)
   const projectReadingX = (x: number) => scene.id === 'commercial-street' ? projectCommercialStreetX(x, renderScreenMetrics) : x
   const staticReadingFilter = (point: Point) => {
@@ -1580,7 +1585,7 @@ export function MainlineSceneRenderer({
               key={`speaker:${scene.id}:${dialogue!.triggerEntityId}`}
               className={`scene-mainline-speaker-anchor ${isLeaving ? 'is-leaving' : ''}`}
               aria-live="polite"
-              style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.worldWidthPx}px`, minHeight: `${echoLayout.heightPx / worldScale}px`, fontSize: `${echoLayout.fontSizePx / worldScale}px`, visibility: activeReadingWidthPx <= 0 ? 'hidden' : undefined }}
+              style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.worldWidthPx}px`, minHeight: `${echoLayout.heightPx / worldScale}px`, fontSize: `${echoLayout.fontSizePx / worldScale}px`, visibility: activeReadingCanRender ? undefined : 'hidden' }}
             ><DialogueSpeaker speaker={dialogueLine!.speaker} /></div>}
             <div
               key={sceneEcho?.id ?? dialogueLine!.id}
@@ -1595,7 +1600,7 @@ export function MainlineSceneRenderer({
                 fontSize: `${echoLayout.fontSizePx / worldScale}px`,
                 maxWidth: `${Math.max(1, activeReadingWidthPx / worldScale)}px`,
                 overflow: 'hidden',
-                visibility: activeReadingWidthPx <= 0 ? 'hidden' : undefined,
+                visibility: activeReadingCanRender ? undefined : 'hidden',
               } as CSSProperties}
               aria-live="polite"
               data-scene-interaction-text={sceneEcho?.entityId ?? dialogue?.triggerEntityId ?? 'scene'}
@@ -1607,6 +1612,7 @@ export function MainlineSceneRenderer({
               data-scene-segment-index={sceneEcho?.segmentIndex ?? dialogueSegmentIndex}
               data-scene-segment-count={sceneEcho?.segments.length ?? dialogueSegmentCount}
               data-scene-segment-advance={hasNextSegment ? 'available' : 'complete'}
+              data-scene-reading-paused-for-glyph={activeReadingCanRender ? undefined : 'true'}
               data-scene-dialogue-ready={isDialogue ? String(dialogueReady) : undefined}
               onAnimationEnd={(event) => {
                 if (!isLeaving || event.target !== event.currentTarget) return
@@ -1653,6 +1659,7 @@ export function MainlineSceneRenderer({
               onPointerUp={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation()
+                if (!activeReadingCanRender) return
                 if (readingMode === 'dialogue') {
                   if (currentDialogueGroupRef.current !== null
                     && dialogueAdvanceConsumedGroupRef.current !== currentDialogueGroupRef.current

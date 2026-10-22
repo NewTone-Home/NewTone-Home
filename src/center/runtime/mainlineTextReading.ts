@@ -6,6 +6,23 @@ import type { MainlineSceneDialogue } from './mainlineSceneModel'
 import type { MainlineSceneNpc } from './mainlineSceneModel'
 import type { Point, CollisionBox } from './sceneGeometry'
 import { projectCommercialStreetX } from './commercialStreetGridProjection'
+import { mainlineMeasuredTextWidth } from './mainlineTextSegments'
+
+/** Avoid drawing a clipped fragment when the current room/viewport cannot hold
+ * even the first complete glyph. The same canvas font measurement is used by
+ * the segmenter and the CSS reading surface. */
+export function mainlineCanRenderFirstReadingGlyph(
+  text: string,
+  availableWidthPx: number,
+  fontSizePx: number,
+  measure = (value: string) => mainlineMeasuredTextWidth(value, fontSizePx),
+) {
+  if (!(availableWidthPx > 0) || !(fontSizePx > 0)) return false
+  const firstGlyph = Array.from(text.trimStart())[0]
+  if (!firstGlyph) return false
+  const glyphWidth = measure(firstGlyph)
+  return Number.isFinite(glyphWidth) && glyphWidth > 0 && availableWidthPx >= glyphWidth
+}
 
 export function mainlineReadingFontSizePx(metrics: SceneScreenMetrics) {
   if (metrics.width <= 600 && metrics.height > metrics.width) return 12
