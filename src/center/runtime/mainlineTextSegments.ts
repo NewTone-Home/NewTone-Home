@@ -43,3 +43,38 @@ export function longestMainlineInteractionSegment(text: string) {
     Array.from(segment).length > Array.from(longest).length ? segment : longest
   ), '')
 }
+
+/** Measure the rendered Chinese serif face in browsers. The fallback is only
+ * used in non-browser callers; the scene renderer always has Canvas metrics. */
+export function mainlineMeasuredTextWidth(text: string, fontSizePx: number, fontFamily = '"Noto Serif SC", Georgia, serif') {
+  if (typeof document !== 'undefined') {
+    const context = document.createElement('canvas').getContext('2d')
+    if (context) {
+      context.font = `${fontSizePx}px ${fontFamily}`
+      return context.measureText(text).width
+    }
+  }
+  return Array.from(text).length * fontSizePx
+}
+
+/** Split only when the real rendered line is wider than its available box.
+ * Keeps every original character and punctuation mark in display order. */
+export function splitMainlineInteractionTextToFit(text: string, maxWidthPx: number, fontSizePx: number, measure = (value: string) => mainlineMeasuredTextWidth(value, fontSizePx)): readonly string[] {
+  if (measure(text) <= maxWidthPx) return [text]
+  const characters = Array.from(text)
+  const preferredBreaks = new Set(['。', '！', '!', '？', '?', '；', ';', '，', ',', '、', '：', ':', '\n'])
+  const output: string[] = []
+  let start = 0
+  while (start < characters.length) {
+    let end = start + 1
+    while (end <= characters.length && measure(characters.slice(start, end).join('')) <= maxWidthPx) end += 1
+    const fitEnd = Math.max(start + 1, end - 1)
+    let breakEnd = fitEnd
+    for (let index = fitEnd - 1; index > start; index -= 1) {
+      if (preferredBreaks.has(characters[index]!)) { breakEnd = index + 1; break }
+    }
+    output.push(characters.slice(start, breakEnd).join(''))
+    start = breakEnd
+  }
+  return output.length ? output : [text]
+}

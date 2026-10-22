@@ -25,7 +25,7 @@ describe('speaker presentation', () => {
     const lines = [{ speaker: '一个较长的中文名字', text: '长句中的文字用来定义整个对话的阅读范围。短句。' }, { speaker: 'English Speaker', text: '好。' }]
     const anchor = mainlineSpeakerAnchor(lines, metrics, { x: 50, y: 50 }, { x: 0, y: 0 })
     expect(anchor.left).toBeGreaterThanOrEqual(2)
-    expect(anchor.left + anchor.widthPx / metrics.width * 100).toBeLessThanOrEqual(98)
+    expect(anchor.left + anchor.worldWidthPx / 1920 * 100).toBeLessThanOrEqual(98)
     expect(mainlineEchoLayout('短句', metrics).widthPx).toBeLessThan(anchor.widthPx)
   })
 })

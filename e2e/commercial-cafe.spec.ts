@@ -192,6 +192,31 @@ test('no-coffee narrative advances through story with the table label retained a
     * Math.max(0, Math.min(staffBounds[0]!.y + staffBounds[0]!.height, staffBounds[1]!.y + staffBounds[1]!.height) - Math.max(staffBounds[0]!.y, staffBounds[1]!.y))).toBe(0)
   await meetLaoZhouAndStartNarrativeFromSeat(page)
   await expect(page.locator('[data-dialogue-speaker="修杰"]')).toBeVisible()
+  const cafeRoom = mainlineScenes['commercial-street'].rooms.find(room => room.id === 'commercial-north-cafe-interior')
+  if (!cafeRoom) throw new Error('Commercial Street must keep its continuous cafe room bounds.')
+  const readingBounds = await page.locator('[data-scene-dialogue]').evaluate((dialogue, roomBounds) => {
+    const world = document.querySelector<HTMLElement>('.scene-mainline-world')
+    const speaker = document.querySelector<HTMLElement>('.scene-mainline-speaker-anchor')
+    if (!world || !speaker) throw new Error('Cafe dialogue needs one transformed world and one speaker anchor.')
+    const worldBox = world.getBoundingClientRect()
+    const roomBox = {
+      left: worldBox.left + worldBox.width * roomBounds.x / 100,
+      right: worldBox.left + worldBox.width * (roomBounds.x + roomBounds.width) / 100,
+      top: worldBox.top + worldBox.height * roomBounds.y / 100,
+      bottom: worldBox.top + worldBox.height * (roomBounds.y + roomBounds.height) / 100,
+    }
+    const inside = (element: Element) => {
+      const rect = element.getBoundingClientRect()
+      return rect.left >= roomBox.left - 1 && rect.right <= roomBox.right + 1
+        && rect.top >= roomBox.top - 1 && rect.bottom <= roomBox.bottom + 1
+    }
+    return { dialogueInside: inside(dialogue), speakerInside: inside(speaker) }
+  }, cafeRoom.bounds)
+  expect(readingBounds).toEqual({ dialogueInside: true, speakerInside: true })
+  await expect(page.locator('.scene-dialogue-dimmer')).toHaveCount(0)
+  const locallyFadedFurniture = await page.locator('.scene-mainline-object').evaluateAll(elements =>
+    elements.filter(element => getComputedStyle(element).filter !== 'none').length)
+  expect(locallyFadedFurniture).toBeGreaterThan(0)
   expect(commercialCafeNarrativeDialogue.lines[0]?.text).toBe('陈副部长还是没有消息吗？')
   const renderedDialogue = page.locator('[data-scene-text-mode="dialogue"]')
   await expect(renderedDialogue).toContainText('陈副部长还是没有消息吗')

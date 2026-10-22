@@ -883,7 +883,6 @@
 @media (prefers-reduced-motion: reduce) {
   .scene-mainline-storefront__label-track { transition-duration: 1ms; }
   .scene-focus-frame path { transition-duration: 1ms; }
-  .scene-dialogue-dimmer { transition-duration: 1ms; }
 }
 
 .scene-mainline-object {
@@ -922,6 +921,7 @@
 }
 .scene-mainline-npc:focus-visible { outline: 1px solid var(--active); outline-offset: 4px; }
 .scene-mainline-npc--ambient { pointer-events: none; cursor: default; }
+.scene-mainline-npc.is-reading-through { z-index: 15; transition: filter 180ms linear; }
 .scene-mainline-object--door { color: var(--active); font-size: var(--scene-mainline-object-font-size, 16px); }
 .scene-mainline-object--landmark,
 .scene-mainline-object--direction { color: var(--soft); font-size: var(--scene-mainline-object-font-size, 16px); }
@@ -1179,17 +1179,6 @@
 .scene-mainline-action .shared-entry-control {
   padding: 0;
 }
-.scene-dialogue-dimmer {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  background: rgb(5, 5, 5);
-  opacity: 0;
-  pointer-events: none;
-  transition: none;
-}
-.scene-dialogue-dimmer--observation { opacity: .18; }
-.scene-dialogue-dimmer--dialogue { opacity: .42; }
 .scene-dialogue-shield {
   position: absolute;
   inset: 0;

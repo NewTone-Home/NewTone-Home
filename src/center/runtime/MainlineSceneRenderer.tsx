@@ -32,7 +32,7 @@ import { activeStorefrontInteriorOwner, storefrontCellVisualState, storefrontCha
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 import { storefrontContactGeometry } from './storefrontContactGeometry'
-import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
+import { mainlineAvailableReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingStaticOpacity } from './mainlineTextReading'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -221,16 +221,20 @@ type MainlineAmbientNpcActorProps = {
   snapshot: NpcRuntimeSnapshot
   screenMetrics: SceneScreenMetrics
   debugRuntimeEvidence: boolean
+  readingOpacity?: number
 }
 
 /** Ambient locomotion owns its live point; this component only projects it into the scene. */
-function MainlineAmbientNpcActorView({ sceneId, npc, position, snapshot, screenMetrics, debugRuntimeEvidence }: MainlineAmbientNpcActorProps) {
+function MainlineAmbientNpcActorView({ sceneId, npc, position, snapshot, screenMetrics, debugRuntimeEvidence, readingOpacity = 1 }: MainlineAmbientNpcActorProps) {
   const visualFootprint = mainlineLabelFootprint(npc.label, position, screenMetrics, { lineHeight: 1 })
   return <span
-    className="scene-mainline-npc scene-mainline-npc--ambient"
+    className={`scene-mainline-npc scene-mainline-npc--ambient ${readingOpacity < 1 ? 'is-reading-through' : ''}`}
     style={{
       left: `${position.x}%`,
       top: `${position.y}%`,
+      filter: readingOpacity < 1 ? `opacity(${readingOpacity})` : undefined,
+      zIndex: readingOpacity < 1 ? 15 : undefined,
+      transition: 'filter 180ms linear',
       '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, screenMetrics)}px`,
     } as CSSProperties}
     data-actor-id={npc.id}
@@ -439,7 +443,7 @@ function mainlineWallCellVisibility(scene: MainlineSceneDefinition, cell: Mainli
   return (cell.baselineVisible ?? cell.baseline ?? true) ? 'is-baseline' : 'is-hidden'
 }
 
-export function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontGeometry, storefrontPresentationPhase = 'baseline', active = false, explored = false, interiorPresentationActive }: {
+export function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontGeometry, storefrontPresentationPhase = 'baseline', active = false, explored = false, interiorPresentationActive, readingFilter }: {
   entries: readonly MainlineGeometryCellEntry[]
   className: string
   visibilityClass: string
@@ -462,6 +466,7 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   active?: boolean
   explored?: boolean
   interiorPresentationActive?: boolean
+  readingFilter?: string
 }) {
   const first = entries[0]
   if (!first) return null
@@ -495,6 +500,7 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
     const { center, visualBounds, fontSizePx } = storefrontGeometry
     Object.assign(style, { left: `${center.x}%`, top: `${center.y}%`, width: `${visualBounds.width}%`, height: `${visualBounds.height}%`, fontSize: `${fontSizePx}px` })
   }
+  if (readingFilter) Object.assign(style, { filter: readingFilter, transition: 'filter 180ms linear' })
   const glyphs = entries.map(({ cell }) => cell.glyph ?? '')
   const content = hideGlyphs ? null : storefrontLabel ? (
     <span className="scene-mainline-storefront__label-slot" data-storefront-label-slot="true" data-storefront-id={storefrontId} data-storefront-label-phase={storefrontPresentationPhase} style={{ '--storefront-label-length': Array.from(storefrontLabel).length * 1.08 } as CSSProperties}>
@@ -531,7 +537,7 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   return <span {...commonProps} aria-hidden="true">{presentedContent}{renderFrame(first.focusGroup, interiorPresentationActive)}</span>
 }
 
-function MainlineObject({ entity, scene, position, collision, focusGroup, renderFrame, visibility, active, explored, tutorialCompleted, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false, debugRuntimeEvidence = false, interiorPresentationActive }: {
+function MainlineObject({ entity, scene, position, collision, focusGroup, renderFrame, visibility, active, explored, tutorialCompleted, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false, debugRuntimeEvidence = false, interiorPresentationActive, readingFilter }: {
   entity: MainlineSceneEntity
   scene: MainlineSceneDefinition
   position: Point
@@ -561,6 +567,7 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
   prompted?: boolean
   debugRuntimeEvidence?: boolean
   interiorPresentationActive?: boolean
+  readingFilter?: string
 }) {
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
   const className = objectClass(scene, entity, visibility, active, explored, tutorialCompleted, underPlayer, selected, dragging, incenseLit)
@@ -584,7 +591,8 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
       justifyContent: 'center',
       transform: 'translate(-50%, -50%)',
       opacity: presentedInterior ? 1 : 0,
-      transition: interiorPresentationActive === undefined ? undefined : 'opacity 180ms linear',
+      filter: readingFilter,
+      transition: [interiorPresentationActive === undefined ? '' : 'opacity 180ms linear', 'filter 180ms linear'].filter(Boolean).join(', ') || undefined,
     } as CSSProperties,
     'data-object-id': entity.id,
     'data-focus-target-id': focusGroup ? entity.id : undefined,
@@ -674,19 +682,22 @@ type MainlineNpcActorProps = {
   screenMetrics: SceneScreenMetrics
   interactive: boolean
   presentationActive?: boolean
+  readingOpacity?: number
   debugRuntimeEvidence: boolean
   onInteract?: (npcId: string) => void
 }
 
-function MainlineNpcActor({ sceneId, npc, position, snapshot, seatId, seatPosition, screenMetrics, interactive, presentationActive = true, debugRuntimeEvidence, onInteract }: MainlineNpcActorProps) {
+function MainlineNpcActor({ sceneId, npc, position, snapshot, seatId, seatPosition, screenMetrics, interactive, presentationActive = true, readingOpacity = 1, debugRuntimeEvidence, onInteract }: MainlineNpcActorProps) {
   const visualPosition = mainlineSeatedActorVisualPosition(position, seatId, seatPosition)
   const visualFootprint = mainlineLabelFootprint(npc.label, visualPosition, screenMetrics, { lineHeight: 1 })
-  const className = `scene-mainline-npc ${interactive ? '' : 'scene-mainline-npc--ambient'}`
+  const className = `scene-mainline-npc ${interactive ? '' : 'scene-mainline-npc--ambient'} ${readingOpacity < 1 ? 'is-reading-through' : ''}`
   const style = {
     left: `${visualPosition.x}%`,
     top: `${visualPosition.y}%`,
     opacity: presentationActive ? 1 : 0,
-    transition: 'opacity 180ms linear',
+    filter: readingOpacity < 1 ? `opacity(${readingOpacity})` : undefined,
+    zIndex: readingOpacity < 1 ? 15 : undefined,
+    transition: 'opacity 180ms linear, filter 180ms linear',
     '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, screenMetrics)}px`,
   } as CSSProperties
   const attributes = {
@@ -800,7 +811,6 @@ export function MainlineSceneRenderer({
   const dialogueAdvanceConsumedGroupRef = useRef<string | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const stableViewportRef = useRef<HTMLSpanElement>(null)
-  const dimmerRef = useRef<HTMLDivElement>(null)
   const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
   const registerBreathingNode = useCallback((entityId: string, node: HTMLSpanElement | null) => {
     if (node) altarBreathingNodesRef.current.set(entityId, node)
@@ -829,33 +839,6 @@ export function MainlineSceneRenderer({
   const cafeQaAccessBoundary = cafeSpatialQa ? geometrySnapshot.navigationBarriers.find((barrier) => barrier.id === 'commercial-cafe-staff-right-access-boundary') : undefined
   const cafeQaBackDoor = cafeSpatialQa ? geometrySnapshot.passages.get('cafe-back-door') : undefined
   const hasAltarBreathing = incenseLit && scene.objects.some((entity) => entity.visualProfile === 'incense')
-  useIsomorphicLayoutEffect(() => {
-    const dimmer = dimmerRef.current
-    if (!dimmer) return
-    const currentOpacity = Number(getComputedStyle(dimmer).opacity)
-    const targetOpacity = readingMode ? centerReadingDimmerTargets[readingMode] : 0
-    dimmer.getAnimations().forEach((animation) => animation.cancel())
-    dimmer.style.opacity = String(currentOpacity)
-    const duration = centerReadingDimmerTransitionDurationMs(
-      currentOpacity,
-      targetOpacity,
-      readingMode ? centerReadingDimmerTargets[readingMode] : currentOpacity,
-    )
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (duration <= 0.5 || reducedMotion) {
-      dimmer.style.opacity = String(targetOpacity)
-      return
-    }
-    const animation = dimmer.animate(
-      [{ opacity: currentOpacity }, { opacity: targetOpacity }],
-      { duration, easing: 'linear', fill: 'forwards' },
-    )
-    animation.onfinish = () => {
-      if (dimmerRef.current !== dimmer) return
-      dimmer.style.opacity = String(targetOpacity)
-      animation.cancel()
-    }
-  }, [readingMode])
   useEffect(() => {
     if (!hasAltarBreathing || typeof window === 'undefined') return undefined
     const startedAt = performance.now()
@@ -924,6 +907,22 @@ export function MainlineSceneRenderer({
   const renderScreenMetrics = geometrySnapshot.screenMetrics
   const horizontalGridScale = scene.id === 'commercial-street' ? commercialStreetHorizontalScale(renderScreenMetrics) : 1
   const worldScale = mainlineWorldScale(viewportMetrics)
+  const activeReadingPosition = sceneEcho?.position ?? dialoguePosition
+  const activeReadingText = sceneEcho?.text ?? dialogueText ?? dialogueLine?.text ?? ''
+  const activeReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, renderScreenMetrics, worldScale) : renderScreenMetrics.width - 24
+  const activeReadingLayout = activeReadingPosition
+    ? mainlineEchoLayout(activeReadingText, renderScreenMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: activeReadingWidthPx })
+    : null
+  const readingVisualActive = Boolean(readingMode && activeReadingPosition && activeReadingLayout)
+  const projectReadingX = (x: number) => scene.id === 'commercial-street' ? projectCommercialStreetX(x, renderScreenMetrics) : x
+  const staticReadingFilter = (point: Point) => {
+    if (!readingVisualActive || !activeReadingPosition || !activeReadingLayout) return undefined
+    const opacity = mainlineReadingStaticOpacity(point, activeReadingPosition, activeReadingLayout, worldScale, projectReadingX)
+    return opacity < .999 ? `opacity(${opacity})` : undefined
+  }
+  const actorReadingOpacity = (point: Point) => readingVisualActive && activeReadingPosition && activeReadingLayout
+    ? mainlineReadingActorOpacity(point, activeReadingPosition, activeReadingLayout, worldScale, projectReadingX)
+    : 1
   const geometryUnits = geometrySnapshot.units
   const switchableStorefronts = useMemo(() => scene.storefronts.filter(slot => slot.portalId && slot.characterSwitch), [scene.storefronts])
   const switchCells = useMemo(() => new Map(switchableStorefronts.map(slot => {
@@ -1290,6 +1289,8 @@ export function MainlineSceneRenderer({
               }} />)}
             {renderedGeometryCells.map(({ unit, cell }) => {
               if (cell.glyph === '') return null
+              const readingFilter = staticReadingFilter({ x: cell.x, y: cell.y })
+              const readingStyle = readingFilter ? { filter: readingFilter, transition: 'filter 180ms linear' } : {}
               const shellRoomId = unit.sourceWallId?.endsWith('-shell') ? unit.sourceWallId.slice(0, -'-shell'.length) : undefined
               const visibilityClass = mainlineWallCellVisibility(scene, cell, unit)
               const portalGlyphStyle = {}
@@ -1346,12 +1347,12 @@ export function MainlineSceneRenderer({
                   if (entity) {
                     const featureRoomOwner = interiorRoomOwner(interiorWallRoomId)
                     if (featureRoomOwner && !visibleInteriorRoomIds.has(interiorWallRoomId!)) {
-                      return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${groupVisibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>
+                      return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${groupVisibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, filter: readingFilter, transition: 'filter 180ms linear' }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>
                     }
                     const featureOpacity = storefrontInteriorFeatureOpacity(featureRoomOwner, visibleInteriorStorefrontIds, paintedInteriorStorefrontId)
                     return <Fragment key={`focus-${focusTarget.group}`}>
-                      {featureRoomOwner && focusEntries.map(entry => <span key={`wall-${entry.cell.id}`} className={`scene-spatial-glyph scene-mainline-wall ${groupVisibilityClass}`} style={{ left: `${entry.cell.x}%`, top: `${entry.cell.y}%`, opacity: featureOpacity.wall, transition: 'opacity 180ms linear' }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>)}
-                      <MainlineFocusGroup entries={focusEntries} className="scene-mainline-wall scene-mainline-wall-feature scene-mainline-wall-feature--interaction scene-mainline-exploration--steady" visibilityClass={groupVisibilityClass} renderFrame={focusFrames.renderFrame} onInteract={onInteract} interactionEntityId={entityId} ariaLabel={`${entity.label}，点击让主角前往互动`} active={isCurrentInteractionSource(entityId)} explored={exploredObjectIds.has(entityId)} interiorPresentationActive={interiorRoomPresentationActive(interiorWallRoomId)} />
+                      {featureRoomOwner && focusEntries.map(entry => <span key={`wall-${entry.cell.id}`} className={`scene-spatial-glyph scene-mainline-wall ${groupVisibilityClass}`} style={{ left: `${entry.cell.x}%`, top: `${entry.cell.y}%`, opacity: featureOpacity.wall, filter: staticReadingFilter({ x: entry.cell.x, y: entry.cell.y }), transition: 'opacity 180ms linear, filter 180ms linear' }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>)}
+                      <MainlineFocusGroup entries={focusEntries} className="scene-mainline-wall scene-mainline-wall-feature scene-mainline-wall-feature--interaction scene-mainline-exploration--steady" visibilityClass={groupVisibilityClass} renderFrame={focusFrames.renderFrame} onInteract={onInteract} interactionEntityId={entityId} ariaLabel={`${entity.label}，点击让主角前往互动`} active={isCurrentInteractionSource(entityId)} explored={exploredObjectIds.has(entityId)} interiorPresentationActive={interiorRoomPresentationActive(interiorWallRoomId)} readingFilter={readingFilter} />
                     </Fragment>
                   }
                 }
@@ -1393,13 +1394,13 @@ export function MainlineSceneRenderer({
                 return <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} doorLabel={doorLabel} glyph={cell.doorLabelPart ?? doorLabel} doorPhase={doorPhase} focusGroup={focusGroup} focusPolicy={focusPolicy} gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId} closeHint={closeHint} ariaLabel={`${doorLabel}，点击门后目标会在接近时自动开门并穿过`} renderFocusFrame={focusFrames.renderFrame} presentationActive={interiorRoomPresentationActive(interiorWallRoomId)} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} dataAttributes={portalGlyphAttributes} />
               }
               if (cell.kind === 'opening') {
-                return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-opening ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{cell.label ?? cell.glyph}</SceneCharacters></span>
+                return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-opening ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...readingStyle }} aria-hidden="true"><SceneCharacters>{cell.label ?? cell.glyph}</SceneCharacters></span>
               }
               if (cell.kind === 'feature' && entityId) {
                 const entity = featureEntity
                 const featureRoomOwner = interiorRoomOwner(interiorWallRoomId)
                 if (featureRoomOwner && !visibleInteriorRoomIds.has(interiorWallRoomId!)) {
-                  return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>墙</SceneCharacters></span>
+                  return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...readingStyle }} aria-hidden="true"><SceneCharacters>墙</SceneCharacters></span>
                 }
                 const directWallFeature = entity?.interactionBehavior === 'direct-wall'
                 if (entity && (entity.interactive !== false || directWallFeature)) {
@@ -1425,7 +1426,7 @@ export function MainlineSceneRenderer({
               if (cell.kind === 'feature') {
                 const featureRoomOwner = interiorRoomOwner(interiorWallRoomId)
                 if (featureRoomOwner && !visibleInteriorRoomIds.has(interiorWallRoomId!)) {
-                  return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>
+                  return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...readingStyle }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>
                 }
                 const featureOpacity = storefrontInteriorFeatureOpacity(featureRoomOwner, visibleInteriorStorefrontIds, paintedInteriorStorefrontId)
                 const feature = <span className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-feature ${unit.sourceWallId === 'mining-industrial-edge' ? 'scene-mainline-industrial-facility' : ''} ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, opacity: featureRoomOwner ? featureOpacity.feature : 1, transition: 'opacity 180ms linear' }} data-interior-active={interiorWallActive ? 'true' : 'false'} aria-hidden="true"><SceneCharacters>{cell.glyph}</SceneCharacters></span>
@@ -1439,7 +1440,7 @@ export function MainlineSceneRenderer({
             })}
           </div>
 
-          {counterSurfaces.filter(parts => !parts[0].counterSurface?.roomId || visibleInteriorRoomIds.has(parts[0].counterSurface.roomId)).map(parts => <MainlineCounterSurface key={parts[0].counterSurface!.groupId} parts={parts} objects={scene.objects} onInteract={onInteract} presentationActive={interiorRoomPresentationActive(parts[0].counterSurface?.roomId)}/>) }
+          {counterSurfaces.filter(parts => !parts[0].counterSurface?.roomId || visibleInteriorRoomIds.has(parts[0].counterSurface.roomId)).map(parts => <MainlineCounterSurface key={parts[0].counterSurface!.groupId} parts={parts} objects={scene.objects} onInteract={onInteract} presentationActive={interiorRoomPresentationActive(parts[0].counterSurface?.roomId)} readingFilter={staticReadingFilter({ x: parts[0].x + parts[0].width / 2, y: parts[0].y + parts[0].height / 2 })}/>) }
           {scene.objects.filter((entity) => entity.visible !== false
             && !entity.counterSurfaceId
             && entity.kind !== 'door'
@@ -1479,6 +1480,7 @@ export function MainlineSceneRenderer({
               prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}
               debugRuntimeEvidence={debugRuntimeEvidence}
               interiorPresentationActive={interiorRoomPresentationActive(entity.roomId)}
+              readingFilter={entity.visualVisibility === 'static' || entity.interactive === false ? staticReadingFilter(entityPosition) : undefined}
             />
           })}
 
@@ -1500,6 +1502,7 @@ export function MainlineSceneRenderer({
               screenMetrics={renderScreenMetrics}
               interactive={npc.interactive !== false}
               presentationActive={interiorRoomIsVisuallyActive(npc.roomId)}
+              readingOpacity={dialogue?.triggerEntityId !== npc.id ? actorReadingOpacity(npcPosition) : 1}
               debugRuntimeEvidence={debugRuntimeEvidence}
               onInteract={onNpcInteract}
             />
@@ -1542,7 +1545,6 @@ export function MainlineSceneRenderer({
             aria-hidden="true"
           ><span className="scene-commercial-question-mark__visual">?</span></span>}
           </>
-        </div>
         <div className="scene-mainline-reading-layer">
           {(sceneEcho || (dialogue && dialogueLine && dialoguePosition)) && (() => {
             const isDialogue = !sceneEcho && Boolean(dialogue && dialogueLine && dialoguePosition)
@@ -1555,12 +1557,13 @@ export function MainlineSceneRenderer({
               : dialogueSegmentIndex + 1 < dialogueSegmentCount || Boolean(dialogue && dialogueLineIndex! + 1 < dialogue.lines.length)
             const echoLayout = mainlineEchoLayout(text, renderScreenMetrics, {
               speaker: isDialogue ? dialogueLine!.speaker : undefined,
+              maxWidthPx: activeReadingWidthPx,
             })
             if (isDialogue) {
               const session = `${scene.id}:${dialogue!.triggerEntityId}`
-              const metrics = `${renderScreenMetrics.width}:${renderScreenMetrics.height}:${renderScreenMetrics.viewportWidth}`
+              const metrics = `${renderScreenMetrics.width}:${renderScreenMetrics.height}:${renderScreenMetrics.viewportWidth}:${worldScale}:${activeReadingWidthPx}`
               if (speakerPlacementRef.current?.session !== session || speakerPlacementRef.current.metrics !== metrics) {
-                speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, renderScreenMetrics, position, cameraOffset) }
+                speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, renderScreenMetrics, { x: projectReadingX(position.x), y: position.y }, { x: 0, y: 0 }, worldScale, activeReadingWidthPx) }
               }
             }
             const speakerAnchor = isDialogue ? speakerPlacementRef.current!.anchor : null
@@ -1569,18 +1572,20 @@ export function MainlineSceneRenderer({
               key={`speaker:${scene.id}:${dialogue!.triggerEntityId}`}
               className={`scene-mainline-speaker-anchor ${isLeaving ? 'is-leaving' : ''}`}
               aria-live="polite"
-              style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.widthPx}px`, minHeight: `${echoLayout.heightPx}px` }}
+              style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.worldWidthPx}px`, minHeight: `${echoLayout.heightPx / worldScale}px`, fontSize: `${echoLayout.fontSizePx / worldScale}px` }}
             ><DialogueSpeaker speaker={dialogueLine!.speaker} /></div>}
             <div
               key={sceneEcho?.id ?? dialogueLine!.id}
               className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${isLeaving ? 'is-leaving' : ''}`}
               style={{
                 left: `${speakerAnchor
-                  ? (scene.id === 'commercial-street' ? projectCommercialStreetX(speakerAnchor.left - cameraOffset.x, renderScreenMetrics) + cameraOffset.x : speakerAnchor.left) + (speakerAnchor.widthPx / renderScreenMetrics.width) * 50
-                  : Math.max((echoLayout.widthPx / renderScreenMetrics.width) * 50 + 2, Math.min(98 - (echoLayout.widthPx / renderScreenMetrics.width) * 50, (scene.id === 'commercial-street' ? projectCommercialStreetX(position.x, renderScreenMetrics) : position.x) + cameraOffset.x))}%`,
-                top: `${speakerAnchor?.top ?? Math.max(10, Math.min(85, position.y + cameraOffset.y))}%`,
-                '--scene-mainline-text-width': `${echoLayout.widthPx}px`,
-                '--scene-mainline-text-height': `${echoLayout.heightPx}px`,
+                  ? speakerAnchor.left + speakerAnchor.worldWidthPx / sceneDesignReferenceMetrics.width * 50
+                  : projectReadingX(position.x)}%`,
+                top: `${speakerAnchor?.top ?? position.y}%`,
+                '--scene-mainline-text-width': `${echoLayout.widthPx / worldScale}px`,
+                '--scene-mainline-text-height': `${echoLayout.heightPx / worldScale}px`,
+                fontSize: `${echoLayout.fontSizePx / worldScale}px`,
+                maxWidth: `${Math.max(1, activeReadingWidthPx / worldScale)}px`,
               } as CSSProperties}
               aria-live="polite"
               data-scene-interaction-text={sceneEcho?.entityId ?? dialogue?.triggerEntityId ?? 'scene'}
@@ -1628,7 +1633,7 @@ export function MainlineSceneRenderer({
             ))}
           </div>}
         </div>
-          <div ref={dimmerRef} className={`scene-dialogue-dimmer${readingMode ? ` scene-dialogue-dimmer--${readingMode}` : ''}`} style={{ opacity: 0 }} aria-hidden="true" />
+        </div>
           {readingMode && <>
             <button
               type="button"

@@ -20,11 +20,10 @@ async function expectFixedObservation(page: Page, sceneId: MainlineSceneId, targ
 
   const policy = mainlineScenes[sceneId].presentation
   if (policy.mode !== 'fixed') throw new Error(`${sceneId} must use a fixed text policy`)
-  // The existing scene camera may translate the whole world. The authored
-  // anchor itself remains the stable contract, so inspect its world values.
-  const camera = await page.locator('.mainline-scene-stage').evaluate(e => ({ x:Number(e.getAttribute('data-camera-offset-x')??0), y:Number(e.getAttribute('data-camera-offset-y')??0) }))
-  expect(await text.evaluate((element) => element.style.left)).toBe(`${policy.anchor.x+camera.x}%`)
-  expect(await text.evaluate((element) => element.style.top)).toBe(`${policy.anchor.y+camera.y}%`)
+  // The text now shares the transformed world with its actors. Its authored
+  // world anchor remains fixed while the enclosing world camera moves.
+  expect(await text.evaluate((element) => element.style.left)).toBe(`${policy.anchor.x}%`)
+  expect(await text.evaluate((element) => element.style.top)).toBe(`${policy.anchor.y}%`)
   await page.screenshot({ path: testInfo.outputPath(screenshotName) })
 }
 
@@ -99,7 +98,8 @@ test('scene text typography matches the layout contract at desktop, landscape, a
     await page.locator('[data-object-id="zhongshuyuan-office-desk"]').click()
     const text = page.locator('[data-scene-echo="zhongshuyuan-office-desk"]')
     await expect(text).toBeVisible({ timeout: 15_000 })
-    const fontSize = await text.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))
+    const fontSize = await text.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)
+      * Number(document.querySelector<HTMLElement>('.scene-mainline-world')?.dataset.worldProjectionScale ?? 1))
     expect(fontSize).toBeCloseTo(expectedPx, 1)
   }
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { longestMainlineInteractionSegment, splitMainlineInteractionText } from '../src/center/runtime/mainlineTextSegments'
+import { longestMainlineInteractionSegment, splitMainlineInteractionText, splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
 
 describe('mainline interaction text segments', () => {
   it('uses natural comma boundaries and preserves visible punctuation', () => {
@@ -46,5 +46,19 @@ describe('mainline interaction text segments', () => {
       '无法确认那个人的身份。',
     ])
     expect(longestMainlineInteractionSegment(text)).toBe('矿区外围旧摄像头曾多次疑似拍到陈副部长，')
+  })
+
+  it('uses measured width for an unpunctuated narrow-space split and preserves every original character', () => {
+    const text = '一二三四五六七八九十'
+    const segments = splitMainlineInteractionTextToFit(text, 80, 16, value => Array.from(value).length * 16)
+    expect(segments).toEqual(['一二三四五', '六七八九十'])
+    expect(segments.join('')).toBe(text)
+  })
+
+  it('keeps punctuation at the end of the preceding width-fitted segment', () => {
+    const text = '一二三四五，六七八九十。'
+    const segments = splitMainlineInteractionTextToFit(text, 96, 16, value => Array.from(value).length * 16)
+    expect(segments.join('')).toBe(text)
+    expect(segments[0]).toBe('一二三四五，')
   })
 })

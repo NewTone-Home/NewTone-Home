@@ -32,4 +32,20 @@ describe('scene text presentation policy', () => {
     expect(left.y).toBe(rail.centerY)
     expect(left.x).toBeLessThan(rail.maxX - 2)
   })
+
+  it('centers Cafe dialogue in the cafe room while keeping observations near the protagonist', () => {
+    const scene = mainlineScenes['commercial-street']
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')
+    if (!room) throw new Error('Commercial Street must contain its continuous cafe room.')
+    const protagonist = { x: room.bounds.x + room.bounds.width * .72, y: room.bounds.y + room.bounds.height * .27 }
+    const dialogue = sceneTextPresentationPosition(scene, protagonist, '一段正式对话', desktop, 'dialogue', .65)
+    const observation = sceneTextPresentationPosition(scene, protagonist, '角落短观察', desktop, 'observation', .65)
+    expect(dialogue).toEqual({ x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 })
+    expect(observation.x).toBe(protagonist.x)
+    expect(observation.y).toBe(protagonist.y)
+    expect(observation.x).toBeGreaterThanOrEqual(room.bounds.x)
+    expect(observation.x).toBeLessThanOrEqual(room.bounds.x + room.bounds.width)
+    expect(observation.y).toBeGreaterThanOrEqual(room.bounds.y)
+    expect(observation.y).toBeLessThanOrEqual(room.bounds.y + room.bounds.height)
+  })
 })
