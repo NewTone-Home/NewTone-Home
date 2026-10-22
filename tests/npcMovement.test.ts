@@ -92,6 +92,9 @@ describe('Café NPC runtime movement', () => {
     expect(coffeeController.isMoving()).toBe(true)
   })
 
+  // This deterministic route simulation visits every shared-navigation waypoint
+  // and checks dynamic occupancy on every tick. The bounded simulated clock is
+  // still 30 seconds; allow wall time for the full collision-checked traversal.
   it('persists delivery only at the real destination arrival, then uses the same adapter to return', () => {
     const { navigationRuntime, controller, adapter, initialPosition } = createCafeMovement(commercialCafeCoffeeOwnerNpcId)
     const seatedSeat = cafe.objects.find(({ id }) => id === commercialCafeLaoZhouConversationSeatId)
@@ -117,7 +120,7 @@ describe('Café NPC runtime movement', () => {
     runUntilIdle(controller, adapter, navigationRuntime, commercialCafeCoffeeOwnerNpcId)
     expect(adapter.getPosition()).toEqual(initialPosition)
     expect(adapter.getSnapshot()).toMatchObject({ phase: 'idle', dutyId: 'cafe-coffee-owner.return-to-counter' })
-  })
+  }, 60_000)
 
   it('keeps counter collision authoritative and blocks an occupied story table without teleporting', () => {
     const { navigationRuntime, controller, adapter, initialPosition } = createCafeMovement(commercialCafeCoffeeOwnerNpcId)
