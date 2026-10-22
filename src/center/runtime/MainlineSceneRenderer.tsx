@@ -32,7 +32,7 @@ import { activeStorefrontInteriorOwner, storefrontCellVisualState, storefrontCha
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 import { storefrontContactGeometry } from './storefrontContactGeometry'
-import { mainlineAvailableReadingWidthPx, mainlineCanRenderFirstReadingGlyph, mainlineDialogueParticipantNpcIds, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingStaticOpacity } from './mainlineTextReading'
+import { mainlineAvailableReadingWidthPx, mainlineCanRenderFirstReadingGlyph, mainlineDialogueParticipantNpcIds, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingStaticOpacity } from './mainlineTextReading'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -907,19 +907,31 @@ export function MainlineSceneRenderer({
   const renderScreenMetrics = geometrySnapshot.screenMetrics
   const horizontalGridScale = scene.id === 'commercial-street' ? commercialStreetHorizontalScale(renderScreenMetrics) : 1
   const worldScale = mainlineWorldScale(viewportMetrics)
+  const readingMetrics = viewportMetrics
   const activeReadingPosition = sceneEcho?.position ?? dialoguePosition
   const activeReadingText = sceneEcho?.text ?? dialogueText ?? dialogueLine?.text ?? ''
   const dialogueParticipantNpcIds = mainlineDialogueParticipantNpcIds(scene, dialogue)
-  const currentReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, renderScreenMetrics, worldScale, cameraOffset) : renderScreenMetrics.width - 24
-  const maximumReadingWidthPx = activeReadingPosition ? mainlineMaximumReadingWidthPx(scene, activeReadingPosition, renderScreenMetrics, worldScale) : currentReadingWidthPx
-  const maximumReadingLayout = activeReadingPosition ? mainlineEchoLayout(activeReadingText, renderScreenMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: maximumReadingWidthPx }) : null
-  const shouldPanForReading = Boolean(readingMode && activeReadingPosition && maximumReadingLayout && maximumReadingLayout.widthPx > currentReadingWidthPx + 1)
+  const currentReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset) : readingMetrics.width - 24
+  const maximumReadingWidthPx = activeReadingPosition ? mainlineMaximumReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale) : currentReadingWidthPx
+  const maximumReadingLayout = activeReadingPosition ? mainlineEchoLayout(activeReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: maximumReadingWidthPx }) : null
+  const dialogueSpeakerEnvelope = readingMode === 'dialogue' && dialogue && activeReadingPosition
+    ? mainlineSpeakerAnchor(dialogue.lines, readingMetrics, {
+      x: scene.id === 'commercial-street' ? projectCommercialStreetX(activeReadingPosition.x, readingMetrics) : activeReadingPosition.x,
+      y: activeReadingPosition.y,
+    }, { x: 0, y: 0 }, worldScale, maximumReadingWidthPx)
+    : null
+  const dialogueEnvelopeNeedsPan = dialogueSpeakerEnvelope
+    ? mainlineReadingEnvelopeNeedsCameraPan(dialogueSpeakerEnvelope.left, dialogueSpeakerEnvelope.widthPx, readingMetrics, worldScale, cameraOffset)
+    : false
+  const shouldPanForReading = Boolean(readingMode && activeReadingPosition && maximumReadingLayout && (
+    maximumReadingLayout.widthPx > currentReadingWidthPx + 1 || dialogueEnvelopeNeedsPan
+  ))
   const renderCameraOffset = shouldPanForReading && activeReadingPosition
-    ? mainlineReadingCameraOffset(scene, activeReadingPosition, renderScreenMetrics, worldScale, cameraOffset)
+    ? mainlineReadingCameraOffset(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset)
     : cameraOffset
-  const activeReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, renderScreenMetrics, worldScale, renderCameraOffset) : renderScreenMetrics.width - 24
+  const activeReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, renderCameraOffset) : readingMetrics.width - 24
   const activeReadingLayout = activeReadingPosition
-    ? mainlineEchoLayout(activeReadingText, renderScreenMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: activeReadingWidthPx })
+    ? mainlineEchoLayout(activeReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: activeReadingWidthPx })
     : null
   const activeReadingCanRender = Boolean(activeReadingLayout && mainlineCanRenderFirstReadingGlyph(
     activeReadingText,
@@ -1568,15 +1580,15 @@ export function MainlineSceneRenderer({
             const hasNextSegment = sceneEcho
               ? sceneEcho.segmentIndex + 1 < sceneEcho.segments.length
               : dialogueSegmentIndex + 1 < dialogueSegmentCount || Boolean(dialogue && dialogueLineIndex! + 1 < dialogue.lines.length)
-            const echoLayout = mainlineEchoLayout(text, renderScreenMetrics, {
+            const echoLayout = mainlineEchoLayout(text, readingMetrics, {
               speaker: isDialogue ? dialogueLine!.speaker : undefined,
               maxWidthPx: activeReadingWidthPx,
             })
             if (isDialogue) {
               const session = `${scene.id}:${dialogue!.triggerEntityId}`
-              const metrics = `${renderScreenMetrics.width}:${renderScreenMetrics.height}:${renderScreenMetrics.viewportWidth}:${worldScale}:${activeReadingWidthPx}`
+              const metrics = `${readingMetrics.width}:${readingMetrics.height}:${readingMetrics.viewportWidth}:${worldScale}:${activeReadingWidthPx}`
               if (speakerPlacementRef.current?.session !== session || speakerPlacementRef.current.metrics !== metrics) {
-                speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, renderScreenMetrics, { x: projectReadingX(position.x), y: position.y }, { x: 0, y: 0 }, worldScale, activeReadingWidthPx) }
+                speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, readingMetrics, { x: projectReadingX(position.x), y: position.y }, { x: 0, y: 0 }, worldScale, activeReadingWidthPx) }
               }
             }
             const speakerAnchor = isDialogue ? speakerPlacementRef.current!.anchor : null

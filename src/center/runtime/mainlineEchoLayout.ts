@@ -44,6 +44,9 @@ export function mainlineSpeakerAnchor(lines: readonly { text: string; speaker: s
     .map(text => mainlineEchoLayout(text, screenMetrics, { speaker: line.speaker, maxWidthPx }).widthPx)))
   const worldWidthPx = widthPx / worldScale
   const halfWidth = worldWidthPx / sceneDesignReferenceMetrics.width * 50
-  const center = Math.max(halfWidth + 2, Math.min(98 - halfWidth, position.x + cameraOffset.x))
-  return { left: center - halfWidth, top: Math.max(10, Math.min(85, position.y + cameraOffset.y)), widthPx, worldWidthPx }
+  // `position` is a world coordinate inside the transformed world layer. The
+  // viewport camera is applied by that layer, so clamp-to-viewport here would
+  // clamp before the camera translation and can move interior dialogue offscreen.
+  const center = position.x + cameraOffset.x
+  return { left: center - halfWidth, top: position.y + cameraOffset.y, widthPx, worldWidthPx }
 }

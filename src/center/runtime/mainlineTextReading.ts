@@ -73,6 +73,14 @@ export function mainlineMaximumReadingWidthPx(scene: MainlineSceneDefinition, po
   return Math.max(0, Math.min(metrics.width, spaceWidthPx) - 24)
 }
 
+/** Whether a world-anchored reading envelope would be clipped before its
+ * room camera is recentered. Width is expressed in CSS pixels after projection. */
+export function mainlineReadingEnvelopeNeedsCameraPan(leftWorldX: number, widthPx: number, metrics: SceneScreenMetrics, worldScale: number, cameraOffset: Point, marginPx = 12) {
+  const leftPx = metrics.width / 2 + (leftWorldX + cameraOffset.x - 50) / 100 * sceneDesignReferenceMetrics.width * worldScale
+  const roundingTolerancePx = 1
+  return leftPx < marginPx - roundingTolerancePx || leftPx + widthPx > metrics.width - marginPx + roundingTolerancePx
+}
+
 /** Measure the current viewport/space overlap; page setup uses the maximum to avoid needless paging before a legal pan. */
 export function mainlineAvailableReadingWidthPx(scene: MainlineSceneDefinition, position: Point, metrics: SceneScreenMetrics, worldScale: number, cameraOffset: Point = { x: 0, y: 0 }) {
   const bounds = mainlineReadingBounds(scene, position, metrics, worldScale, cameraOffset)
