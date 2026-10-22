@@ -169,7 +169,7 @@ type TakeawayTrial = {
   oldStructurePrefix: string
   runs: readonly { id: string; bounds: CollisionBox; outlineBounds?: CollisionBox; orientation: 'horizontal' | 'vertical'; publicSide: 'top' | 'bottom' | 'left' | 'right' }[]
   stations: readonly { id: string; x: number; y: number }[]
-  menu: { id: string; y: number; edge: 'left' | 'right'; publicX: number }
+  menu: { id: string; y: number; edge: 'left' | 'right'; publicX?: number }
   publicSide: 'left' | 'right'
   rearX: number
   /** Legacy device names retain IDs only; they no longer author separate bodies. */
@@ -231,7 +231,7 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
       { id: 'commercial-s5-milk-tea-order-service-label', x: 168, y: 224 },
       { id: 'commercial-s5-milk-tea-pickup-service-label', x: 168, y: 432 },
     ],
-    publicSide: 'left', menu: { id: 'commercial-s5-milk-tea-menu-service-label', y: 56, edge: 'right', publicX: 280 }, rearX: 280,
+    publicSide: 'left', menu: { id: 'commercial-s5-milk-tea-menu-service-label', y: 56, edge: 'left' }, rearX: 280,
     equipment: ['制茶机', '封口机', '清洗台', '煮料台'],
     worktop: { x: 296, y: 196, width: 24, height: 336 }, worker: [216, 392],
     // The right work lane continues to its one locked rear door. There is no
@@ -250,7 +250,7 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
       { id: 'fruit-tea-trial-order', x: 168, y: 432 },
       { id: 'fruit-tea-trial-pickup', x: 168, y: 336 },
     ],
-    publicSide: 'right', menu: { id: 'fruit-tea-trial-menu', y: 616, edge: 'right', publicX: 160 }, rearX: 56,
+    publicSide: 'right', menu: { id: 'fruit-tea-trial-menu', y: 588, edge: 'right' }, rearX: 56,
     equipment: ['清洗台', '切果台', '打包台', '冷藏', '煮料台'],
     worktop: { x: 16, y: 112, width: 24, height: 336 }, worker: [112, 252], regions: [{ x: 0, y: 0, width: 168, height: 560 }],
   })

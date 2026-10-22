@@ -1290,12 +1290,19 @@ export function MainlineSceneRenderer({
               }} />)}
             {renderedGeometryCells.map(({ unit, cell }) => {
               if (cell.glyph === '') return null
-              const interiorWallRoomId = unit.sourceWallId?.endsWith('-shell') ? unit.sourceWallId.slice(0, -'-shell'.length) : undefined
-              const interiorWallActive = interiorRoomIsVisuallyActive(interiorWallRoomId)
+              const shellRoomId = unit.sourceWallId?.endsWith('-shell') ? unit.sourceWallId.slice(0, -'-shell'.length) : undefined
               const visibilityClass = mainlineWallCellVisibility(scene, cell, unit)
               const portalGlyphStyle = {}
               const portalGlyphAttributes = {}
               const entityId = cell.entityId ?? unit.entityId
+              // A menu can replace a shared boundary cell owned geometrically
+              // by the neighboring shell. Its display still belongs to the
+              // shop named by the wall feature entity.
+              const featureEntity = cell.kind === 'feature' && entityId
+                ? scene.objects.find((candidate) => candidate.id === entityId)
+                : undefined
+              const interiorWallRoomId = featureEntity?.roomId ?? shellRoomId
+              const interiorWallActive = interiorRoomIsVisuallyActive(interiorWallRoomId)
               const focusTarget = mainlineCellFocusTarget(scene, cell, entityId, unit.variant)
               const focusEntries = focusTarget ? focusGroupCells.get(focusTarget.group) : undefined
       if (focusTarget && focusEntries && (focusEntries.length > 1 || cell.kind === 'storefront' && cell.storefrontRole === 'sign')) {
@@ -1335,7 +1342,7 @@ export function MainlineSceneRenderer({
                   />
                 }
                 if (cell.kind === 'feature' && entityId) {
-                  const entity = scene.objects.find((candidate) => candidate.id === entityId)
+                  const entity = featureEntity
                   if (entity) {
                     const featureRoomOwner = interiorRoomOwner(interiorWallRoomId)
                     if (featureRoomOwner && !visibleInteriorRoomIds.has(interiorWallRoomId!)) {
@@ -1389,7 +1396,7 @@ export function MainlineSceneRenderer({
                 return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-opening ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{cell.label ?? cell.glyph}</SceneCharacters></span>
               }
               if (cell.kind === 'feature' && entityId) {
-                const entity = scene.objects.find((candidate) => candidate.id === entityId)
+                const entity = featureEntity
                 const featureRoomOwner = interiorRoomOwner(interiorWallRoomId)
                 if (featureRoomOwner && !visibleInteriorRoomIds.has(interiorWallRoomId!)) {
                   return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>墙</SceneCharacters></span>

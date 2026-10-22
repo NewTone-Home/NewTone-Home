@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifyMainlineWorldCommand, findMainlinePath, resolveMainlineNpcPosition, isWalkableMainlinePoint, mainlinePassageSide, resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
+import { classifyMainlineWorldCommand, findMainlinePath, findMainlinePathThroughPassage, resolveMainlineNpcPosition, isWalkableMainlinePoint, mainlinePassageSide, resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
@@ -69,6 +69,30 @@ describe('commercial street storefront interactions', () => {
     })
   })
 
+  it('has a static street-to-fruit-door and return route, with exactly three enterable storefronts', () => {
+    const openStorefrontIds = street.storefronts
+      .filter((storefront) => storefront.id !== 'cafe-restroom-sign' && street.passages.some((passage) => passage.portalId === storefront.portalId && passage.access === 'open'))
+      .map((storefront) => storefront.id)
+      .sort()
+    expect(openStorefrontIds).toEqual(['commercial-cafe-slot', 'commercial-north-slot-1', 'commercial-south-slot-5'])
+
+    const fruit = street.storefronts.find((storefront) => storefront.id === 'commercial-north-slot-1')!
+    const frontPassage = street.passages.find((passage) => passage.portalId === fruit.portalId)!
+    const approach = findMainlinePathThroughPassage(street, frontPassage.id, street.initialPlayerPosition, {}, referenceNavigation)
+    expect(approach.path).not.toBeNull()
+    expect(approach.path!.at(-1)).toEqual(approach.target)
+    expect(isWalkableMainlinePoint(approach.target, street, {}, referenceNavigation)).toBe(true)
+
+    const outsideThreshold = frontPassage.thresholds[0]!
+    const insideThreshold = frontPassage.thresholds[1]!
+    const openDoorOptions = { ...referenceNavigation, openPassageIds: new Set([frontPassage.id]) }
+    const enterPath = findMainlinePath(outsideThreshold, insideThreshold, street, {}, openDoorOptions)
+    const returnPath = findMainlinePath(insideThreshold, outsideThreshold, street, {}, openDoorOptions)
+    expect(enterPath).not.toBeNull()
+    expect(returnPath).not.toBeNull()
+    expect(isWalkableMainlinePoint(outsideThreshold, street, {}, referenceNavigation)).toBe(true)
+    expect(isWalkableMainlinePoint(insideThreshold, street, {}, referenceNavigation)).toBe(true)
+  }, 120_000)
   it('routes sign, door and behind-facade clicks to the matching locked northern, southern and side shop portals', () => {
     const targets = ['commercial-north-slot-2', 'commercial-south-slot-5', 'commercial-cafe-slot', 'commercial-south-slot-2']
     const canonical = mainlineCanonicalSceneGeometryUnits(street, { width: 1280, height: 720 })
