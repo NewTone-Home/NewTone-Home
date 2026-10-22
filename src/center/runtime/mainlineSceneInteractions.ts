@@ -86,6 +86,7 @@ export function resolveMainlineSceneExploration(
   entity: MainlineSceneEntity,
   context: MainlineSceneInteractionContext,
 ): MainlineExplorationResolution {
+  entity = entity.interactionAliasId ? scene.objects.find(candidate => candidate.id === entity.interactionAliasId) ?? entity : entity
   const behavior = interactionBehavior(entity)
 
   if (behavior === 'incense') {
@@ -143,6 +144,8 @@ export function resolveMainlineSceneEchoChoice(
   now: number,
   context: Partial<Pick<MainlineSceneInteractionContext, 'commercialCafeCoffeeOrdered' | 'carriedMilkTea' | 'plantWaterStateKey' | 'carriedPhoneDevice'>> = {},
 ): MainlineSceneEchoChoiceResolution | null {
+  const aliasId = entity?.interactionAliasId
+  entity = aliasId ? scene.objects.find(candidate => candidate.id === aliasId) ?? entity : entity
   const behavior = entity ? interactionBehavior(entity) : undefined
 
   if (behavior === 'desk-device') {

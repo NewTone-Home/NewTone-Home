@@ -87,6 +87,9 @@ export type MainlineContinuousStructure = CollisionBox & {
     interactionEntityId: string
     labelEntityId: string
     orientation: 'horizontal' | 'vertical'
+    label?: string
+    hideLabel?: boolean
+    role?: 'counter' | 'worktop'
   }
 }
 
@@ -129,6 +132,8 @@ export type MainlineSceneEntity = {
   /** Counter surfaces draw/hit the complete solid; these entities retain semantic IDs. */
   counterSurfaceId?: string
   counterService?: boolean
+  /** Share existing behavior while keeping a distinct legal physical contact. */
+  interactionAliasId?: string
   /** A small set of authored interaction behaviors used by the generic page flow. */
   interactionBehavior?: MainlineInteractionBehavior
   /** Semantic visual treatment; keeps the renderer independent of authored IDs. */
