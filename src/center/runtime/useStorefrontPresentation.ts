@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { storefrontRoomConnection } from './storefrontRoomConnection'
 import type { Point } from './sceneGeometry'
 import type { MainlineSceneDefinition } from './mainlineScenes'
 import {
@@ -32,6 +33,12 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
   )
   const activeStorefrontId = activeStorefrontPresentationOwner(scene, position, presentationReady && approachReady)
   const interiorStorefrontId = activeStorefrontInteriorOwner(scene, position)
+  const nestedStorefrontIds = useMemo(() => {
+    const parent = scene.storefronts.find(slot => slot.id === interiorStorefrontId)
+    const room = parent && storefrontRoomConnection(scene, parent)?.interiorRoom
+    return new Set(room ? scene.storefronts.filter(slot => storefrontRoomConnection(scene, slot)?.publicRoom.id === room.id).map(slot => slot.id) : [])
+  }, [scene, interiorStorefrontId])
+  const pinnedStorefrontId = nestedStorefrontIds.size ? interiorStorefrontId : null
   const handledOwnerRef = useRef<string | null | undefined>(undefined)
   const nearRef = useRef(new Map<string, boolean>())
   const departedAtRef = useRef(new Map<string, number>())
@@ -51,7 +58,7 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
   }, [])
 
   useEffect(() => {
-    if (interiorStorefrontId) {
+    if (interiorStorefrontId && !pinnedStorefrontId) {
       handledOwnerRef.current = null
       departedAtRef.current.clear()
       setPhaseByStorefront((current) => current.size === 1 && current.get(interiorStorefrontId) === 'revealed'
@@ -59,12 +66,22 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
         : new Map([[interiorStorefrontId, 'revealed']]))
       return
     }
+    if (pinnedStorefrontId) {
+      // Keep the outer shop revealed while a nested frontage uses the normal
+      // approach/linger/restore lifecycle. Never hand the parent's frame off.
+      setPhaseByStorefront(current => {
+        const next = new Map([...current].filter(([id]) => id === pinnedStorefrontId || nestedStorefrontIds.has(id)))
+        next.set(pinnedStorefrontId, 'revealed')
+        return next.size === current.size && [...next].every(([id, phase]) => current.get(id) === phase) ? current : next
+      })
+      if (handledOwnerRef.current && !nestedStorefrontIds.has(handledOwnerRef.current)) handledOwnerRef.current = null
+    }
     if (handledOwnerRef.current === activeStorefrontId) return
     const previousOwner = handledOwnerRef.current
     handledOwnerRef.current = activeStorefrontId
     if (previousOwner == null) {
       if (activeStorefrontId) {
-        const outgoingOwner = storefrontPresentationHandoffSource(phaseByStorefront, activeStorefrontId)
+        const outgoingOwner = storefrontPresentationHandoffSource(new Map([...phaseByStorefront].filter(([id]) => id !== pinnedStorefrontId)), activeStorefrontId)
         if (outgoingOwner) {
           departedAtRef.current.delete(outgoingOwner)
           transition(outgoingOwner, 'handoff')
@@ -86,7 +103,7 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
 
     if (previousPhase !== 'baseline') departedAtRef.current.set(previousOwner, performance.now())
     transition(previousOwner, 'leave')
-  }, [activeStorefrontId, interiorStorefrontId, phaseByStorefront, transition])
+  }, [activeStorefrontId, interiorStorefrontId, pinnedStorefrontId, nestedStorefrontIds, phaseByStorefront, transition])
 
   // Product grace period belongs to presentation, not a CSS animation clock.
   useEffect(() => {

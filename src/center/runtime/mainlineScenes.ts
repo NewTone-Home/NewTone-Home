@@ -1108,6 +1108,8 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
   const portalDoorPositions = new Map<string, Point>()
   storefronts = storefronts.map((storefront) => {
     if (!storefront.composition?.fixedCellCount || !storefront.portalId) return storefront
+    const sourceRoomId = portals.find(portal => portal.id === storefront.portalId)?.fromRoomId
+    if (data.rooms?.some(room => room.id === sourceRoomId && room.kind !== 'corridor')) return storefront
     const doorCell = geometry
       .filter((unit) => unit.storefrontId === storefront.id && unit.variant === 'near')
       .flatMap((unit) => unit.visual.cells)
@@ -1290,6 +1292,7 @@ function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneD
     const storefront = compiledScene.storefronts.find((slot) => slot.portalId === portal.id)
     const entity = compiledScene.objects.find((candidate) => candidate.id === portal.entity.id)
     if (!storefront?.composition?.fixedCellCount || !entity) return portal
+    if (blueprint.scene.rooms?.some(room => room.id === portal.fromRoomId && room.kind !== 'corridor')) return portal
     const approach = storefront.approach ?? entity.position
     const outward = storefront.edge === 'top' ? { x: 0, y: -1 }
       : storefront.edge === 'bottom' ? { x: 0, y: 1 }
@@ -1488,6 +1491,11 @@ export function mainlineStorefrontAnchor(scene: MainlineSceneDefinition, storefr
 }
 
 export function mainlineStorefrontApproach(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot, screenMetrics?: SceneScreenMetrics): Point {
+  const sourceRoomId = scene.passages.find(passage => passage.portalId === storefront.portalId)?.fromRoomId
+  const sourceRoom = scene.rooms.find(room => room.id === sourceRoomId)
+  // An attached room is approached from inside its parent, not outward from
+  // the outer facade normal. Keep the actual authored public threshold.
+  if (sourceRoom && sourceRoom.kind !== 'corridor' && storefront.approach) return storefront.approach
   if (storefront.composition?.fixedCellCount) {
     const door = mainlineCanonicalSceneGeometryUnits(scene, screenMetrics)
       .filter((unit) => unit.storefrontId === storefront.id && unit.variant === 'near')
@@ -1571,6 +1579,10 @@ export function isMainlineStorefrontPresentationInRange(
 /** A storefront interaction is the outward half-disc of its authored facade. */
 export function mainlineStorefrontInteractionRegion(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot) {
   const center = mainlineStorefrontAnchor(scene, storefront)
+  const approach = mainlineStorefrontApproach(scene, storefront)
+  const length = Math.hypot(approach.x - center.x, approach.y - center.y)
+  const sourceRoomId = scene.passages.find(passage => passage.portalId === storefront.portalId)?.fromRoomId
+  if (scene.rooms.some(room => room.id === sourceRoomId && room.kind !== 'corridor') && length > 0) return { center, outward: { x: (approach.x - center.x) / length, y: (approach.y - center.y) / length }, radius: 6 }
   const outward = storefront.edge === 'top' ? { x: 0, y: -1 }
     : storefront.edge === 'bottom' ? { x: 0, y: 1 }
       : storefront.edge === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 }

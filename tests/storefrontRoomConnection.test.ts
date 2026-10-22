@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mainlineScenes, mainlineStorefrontApproach, type MainlineSceneDefinition } from '../src/center/runtime/mainlineScenes'
 import { activeStorefrontInteriorOwner, activeStorefrontPresentationOwner } from '../src/center/runtime/storefrontPresentation'
 import { storefrontRoomConnection } from '../src/center/runtime/storefrontRoomConnection'
-import { classifyMainlineWorldCommand } from '../src/center/runtime/mainlineNavigation'
+import { classifyMainlineWorldCommand, isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 
 const street = mainlineScenes['commercial-street']
@@ -32,13 +32,16 @@ describe('data-driven same-world storefront rooms', () => {
     }
   })
   it('uses connected room data to distinguish street walking from shop entry', () => {
-    const storefront = connected.storefronts[0]!
+    const storefront = connected.storefronts.find(slot => storefrontRoomConnection(connected, slot)?.publicRoom.kind === 'corridor')!
     const connection = storefrontRoomConnection(connected, storefront)!
     const approach = mainlineStorefrontApproach(connected, storefront)
     const options = { screenMetrics: sceneDesignReferenceMetrics }
     const alongStreet = { x: approach.x + 2, y: 50 }
     expect(classifyMainlineWorldCommand(connected, { x: approach.x, y: 50 }, alongStreet, {}, options).kind).toBe('ordinary')
-    const inside = { x: connection.interiorRoom.bounds.x + connection.interiorRoom.bounds.width / 2, y: connection.interiorRoom.bounds.y + connection.interiorRoom.bounds.height / 2 }
+    // Widened fruit counter now occupies the geometric room center. Use the
+    // actual public interior landing, not a fabricated start inside a solid.
+    const inside = connection.passage.crossingTargets[0]
+    expect(isWalkableMainlinePoint(inside, connected, {}, options)).toBe(true)
     expect(classifyMainlineWorldCommand(connected, approach, inside, {}, options)).toMatchObject({ kind: 'passage', passage: { id: connection.passage.id } })
     expect(classifyMainlineWorldCommand(connected, inside, approach, {}, options)).toMatchObject({ kind: 'passage', passage: { id: connection.passage.id } })
   })

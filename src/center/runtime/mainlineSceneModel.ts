@@ -90,6 +90,8 @@ export type MainlineContinuousStructure = CollisionBox & {
     label?: string
     hideLabel?: boolean
     role?: 'counter' | 'worktop'
+    /** Stroke-only wall wrap; never used as a collision or hit box. */
+    outlineBounds?: CollisionBox
   }
 }
 

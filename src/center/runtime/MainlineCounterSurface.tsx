@@ -11,7 +11,11 @@ type Props = {
 
 function CounterSurface({ parts, onInteract }: Props) {
   const rectangles = useMemo(() => parts.map(part => ({ x: part.x * 19.2, y: part.y * 10.8, width: part.width * 19.2, height: part.height * 10.8 })), [parts])
-  const geometry = useMemo(() => counterOutlineGeometry(rectangles), [rectangles])
+  const outlineRectangles = useMemo(() => parts.map((part, index) => {
+    const box = part.counterSurface!.outlineBounds
+    return box ? { x: box.x * 19.2, y: box.y * 10.8, width: box.width * 19.2, height: box.height * 10.8 } : rectangles[index]
+  }), [parts, rectangles])
+  const geometry = useMemo(() => counterOutlineGeometry(outlineRectangles), [outlineRectangles])
   const { bounds } = geometry
   const activate = (event: { stopPropagation: () => void }, id: string) => { event.stopPropagation(); onInteract(id) }
   const keyboard = (event: KeyboardEvent, id: string) => {

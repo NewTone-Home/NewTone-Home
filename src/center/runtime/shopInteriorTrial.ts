@@ -1,5 +1,6 @@
 import type { MainlineSceneBlueprint, MainlineSceneEntity, MainlineFurnitureGroup, MainlineContinuousStructure } from './mainlineSceneModel'
 import type { CollisionBox, Point } from './sceneGeometry'
+import { attachCafeRestroom } from './cafeRestroom'
 import { continuousCafeRoomId, cafeConversationSeatId, cafeStoryTableId } from './continuousCafe'
 
 type WallFeature = NonNullable<MainlineSceneBlueprint['scene']['walls'][number]['features']>[number]
@@ -47,12 +48,12 @@ function employeeRearDoor(blueprint: MainlineSceneBlueprint, roomId: string, loc
 /** One real body per leg, one exterior contour per connected counter. */
 function addCounterSurface(entities: MainlineSceneEntity[], structures: MainlineContinuousStructure[], point: (x: number, y: number) => Point, roomId: string, spec: {
   id: string; groupId: string; bounds: CollisionBox; orientation: 'horizontal' | 'vertical'; publicSide: 'top' | 'bottom' | 'left' | 'right'
-  label?: string; hideLabel?: boolean; role?: 'counter' | 'worktop'; entryId?: string
+  label?: string; hideLabel?: boolean; role?: 'counter' | 'worktop'; entryId?: string; outlineBounds?: CollisionBox
   services?: readonly { id: string; x: number; y: number; order?: boolean }[]
 }) {
   const { bounds } = spec, bodyId = `${spec.id}-body`, genericId = `${spec.id}-0`
   structures.push({ id: bodyId, kind: 'counter', ...point(bounds.x, bounds.y), width: bounds.width / 19.2, height: bounds.height / 10.8,
-    counterSurface: { groupId: spec.groupId, roomId, interactionEntityId: genericId, labelEntityId: genericId, orientation: spec.orientation, label: spec.label, hideLabel: spec.hideLabel, role: spec.role } })
+    counterSurface: { groupId: spec.groupId, roomId, interactionEntityId: genericId, labelEntityId: genericId, orientation: spec.orientation, label: spec.label, hideLabel: spec.hideLabel, role: spec.role, outlineBounds: spec.outlineBounds ? { ...point(spec.outlineBounds.x, spec.outlineBounds.y), width: spec.outlineBounds.width / 19.2, height: spec.outlineBounds.height / 10.8 } : undefined } })
   const anchor = (id: string, x: number, y: number, service = false, order = false): MainlineSceneEntity => ({
     id, label: spec.label ?? '柜台', kind: 'fixture', weight: 'fixture', surface: 'floor', roomId, position: point(x, y),
     interactive: true, visualVisibility: 'static', interactionStructureId: bodyId, interactionContactSides: [spec.publicSide],
@@ -84,12 +85,12 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
   addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-long', groupId: lowerGroup, bounds: { x: 185, y: 72, width: 22, height: 416 }, orientation: 'vertical', publicSide: 'right', entryId: 'commercial-cafe-counter', services: [
     { id: 'commercial-cafe-counter', x: 196, y: 336, order: true }, { id: 'cafe-trial-pickup', x: 196, y: 224 }, { id: 'cafe-trial-order', x: 196, y: 432 },
   ] })
-  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-front', groupId: lowerGroup, bounds: { x: 8, y: 466, width: 177, height: 22 }, orientation: 'horizontal', publicSide: 'bottom', entryId: 'commercial-cafe-counter' })
+  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-front', groupId: lowerGroup, bounds: { x: 8, y: 466, width: 177, height: 22 }, outlineBounds: { x: -14, y: 466, width: 199, height: 22 }, orientation: 'horizontal', publicSide: 'bottom', entryId: 'commercial-cafe-counter' })
   // This is physically separate above the32px employee exit: never bridge it.
-  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-upper', groupId: 'cafe-trial-counter-upper', bounds: { x: 185, y: 8, width: 22, height: 32 }, orientation: 'vertical', publicSide: 'right', hideLabel: true, entryId: 'commercial-cafe-counter' })
+  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-upper', groupId: 'cafe-trial-counter-upper', bounds: { x: 185, y: 8, width: 22, height: 32 }, outlineBounds: { x: 185, y: -14, width: 22, height: 54 }, orientation: 'vertical', publicSide: 'right', hideLabel: true, entryId: 'commercial-cafe-counter' })
   addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-worktop', groupId: 'cafe-trial-worktop', bounds: { x: 16, y: 144, width: 24, height: 280 }, orientation: 'vertical', publicSide: 'right', label: '工作台', role: 'worktop' })
   for (const id of ['cafe-trial-coffee-machine', 'cafe-trial-prep-table', 'cafe-trial-wash', 'cafe-trial-cold']) entities.push({ ...fixture(id, '工作台', 28, 284, false), counterSurfaceId: 'cafe-trial-worktop', interactionStructureId: 'cafe-trial-worktop-body', interactionContactSides: ['right'], interactionAliasId: 'cafe-trial-worktop-0' })
-  const tables = [[448, 196], [588, 196], [448, 448], [588, 448]] as const
+  const tables = [[448, 196], [588, 196], [448, 448], [588, 448], [448, 322], [588, 322]] as const
   tables.forEach(([x, y], index) => {
     const story = index === 2
     const groupId = story ? 'commercial-cafe-right-window-upper-group' : `cafe-trial-table-group-${index + 1}`
@@ -99,15 +100,18 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
     const chairIds = story ? ['commercial-cafe-right-window-upper-group-chair-top', cafeConversationSeatId] : [`${groupId}-chair-top`, `${groupId}-chair-bottom`]
     chairIds.forEach((id, sideIndex) => {
       const direction = sideIndex === 0 ? -1 : 1
-      const rest = point(x, y + direction * 22)
-      const pulled = point(x, y + direction * 44)
-      entities.push({ ...fixture(id, '椅子', x, y + direction * 22), kind: 'seat', weight: 'minor', groupId,
-        approach: pulled, shape: footprint(x, y + direction * 22, 32, 16),
+      const rest = point(x, y + direction * 30)
+      const pulled = point(x, y + direction * 52)
+      entities.push({ ...fixture(id, '椅子', x, y + direction * 30), kind: 'seat', weight: 'minor', groupId,
+        approach: pulled, shape: footprint(x, y + direction * 30, 32, 16),
         seat: { id, tableId, side: sideIndex === 0 ? 'top' : 'bottom', rest, pulled, sit: rest },
       })
     })
     groups.push({ id: groupId, anchor: table.position, entityIds: [table.id, ...chairIds] })
   })
+
+  // Sparse corner plants: no watering system, only the existing view interaction.
+  entities.push(fixture('cafe-trial-corner-plant-rear', '绿植', 644, 84), fixture('cafe-trial-corner-plant-front', '绿植', 644, 644))
 
   const rear = blueprint.portals.find(portal => portal.id === `${room.id}-rear-door`)!
   const toiletId = 'cafe-trial-customer-toilet-door'
@@ -138,7 +142,8 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
       floorEntities: [...data.floorEntities.filter(entity => !oldIds.has(entity.id)), ...entities],
       furnitureGroups: [...data.furnitureGroups.filter(group => !group.entityIds.some(id => oldIds.has(id))), ...groups],
       continuousStructures: [...(data.continuousStructures ?? []).filter(body => !body.id.startsWith('commercial-north-cafe-')), ...structures],
-      navigationBarriers: data.navigationBarriers?.filter(relation => !oldIds.has(relation.firstEntityId) && !oldIds.has(relation.secondEntityId)),
+      navigationBarriers: [...(data.navigationBarriers ?? []).filter(relation => !oldIds.has(relation.firstEntityId) && !oldIds.has(relation.secondEntityId)),
+        ...groups.flatMap(group => group.entityIds.slice(1).map(id => ({ id: `${id}-table-gap`, firstEntityId: group.entityIds[0], secondEntityId: id })))],
       // These are role permissions inside the actual counter, not extra physical collision.
       accessRegions: [...(data.accessRegions ?? []).filter(region => region.id !== 'commercial-cafe-staff-area' && region.id !== 'cafe-trial-rear-work-area'),
         { id: 'commercial-cafe-staff-area', ...point(0, 0), width: 196 / 1920 * 100, height: 480 / 1080 * 100, requiredAccess: 'staff' as const, deniedText: '这里是柜台员工区。' }],
@@ -149,17 +154,17 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
       npcs: data.npcs?.map(npc => npc.roomId === room.id ? { ...npc, label: '人' } : npc),
     },
   }
-  return embedCustomerWallText(employeeRearDoor(result, room.id, 84), room.id, [
+  return attachCafeRestroom(embedCustomerWallText(employeeRearDoor(result, room.id, 84), room.id, [
     { id: 'commercial-cafe-menu', label: '菜单', y: 392, edge: 'left', publicX: 224 },
     { id: 'commercial-cafe-blackboard', label: '黑板', y: 252, edge: 'left', publicX: 224 },
-  ])
+  ]))
 }
 
 type TakeawayTrial = {
   roomId: string
   prefix: string
   oldStructurePrefix: string
-  runs: readonly { id: string; bounds: CollisionBox; orientation: 'horizontal' | 'vertical'; publicSide: 'top' | 'bottom' | 'left' | 'right' }[]
+  runs: readonly { id: string; bounds: CollisionBox; outlineBounds?: CollisionBox; orientation: 'horizontal' | 'vertical'; publicSide: 'top' | 'bottom' | 'left' | 'right' }[]
   stations: readonly { id: string; x: number; y: number }[]
   menu: { id: string; y: number; edge: 'left' | 'right'; publicX: number }
   publicSide: 'left' | 'right'
@@ -178,7 +183,7 @@ function buildTakeawayTrial(blueprint: MainlineSceneBlueprint, trial: TakeawayTr
   const oldIds = new Set(data.floorEntities.filter(entity => entity.roomId === room.id).map(entity => entity.id))
   const entities: MainlineSceneEntity[] = [], structures: MainlineContinuousStructure[] = []
   trial.runs.forEach((run, index) => addCounterSurface(entities, structures, point, room.id, {
-    id: `${trial.prefix}-${run.id}`, groupId: `${trial.prefix}-L-counter`, bounds: run.bounds, orientation: run.orientation, publicSide: run.publicSide,
+    id: `${trial.prefix}-${run.id}`, groupId: `${trial.prefix}-L-counter`, bounds: run.bounds, outlineBounds: run.outlineBounds, orientation: run.orientation, publicSide: run.publicSide,
     services: index === 0 ? trial.stations : undefined, entryId: trial.stations[0].id,
   }))
   const worktopId = `${trial.prefix}-worktop`
@@ -216,8 +221,8 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     roomId: 'commercial-south-s5-interior', prefix: 'milk-tea-trial', oldStructurePrefix: 'commercial-s5-milk-tea-',
     // Front is at y0. A long right counter separates ordering and collection along the shop.
     runs: [
-      { id: 'long-counter', bounds: { x: 157, y: 101, width: 22, height: 591 }, orientation: 'vertical', publicSide: 'left' },
-      { id: 'front-return', bounds: { x: 179, y: 101, width: 149, height: 22 }, orientation: 'horizontal', publicSide: 'top' },
+      { id: 'long-counter', bounds: { x: 157, y: 101, width: 22, height: 591 }, outlineBounds: { x: 157, y: 101, width: 22, height: 613 }, orientation: 'vertical', publicSide: 'left' },
+      { id: 'front-return', bounds: { x: 179, y: 101, width: 149, height: 22 }, outlineBounds: { x: 179, y: 101, width: 171, height: 22 }, orientation: 'horizontal', publicSide: 'top' },
     ],
     stations: [
       { id: 'commercial-s5-milk-tea-order-service-label', x: 168, y: 224 },
@@ -235,8 +240,8 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     // Front is at y700. The left work line closes into the wall at its front
     // end; the other terminal now meets the rear wall too.
     runs: [
-      { id: 'long-counter', bounds: { x: 157, y: 8, width: 22, height: 563 }, orientation: 'vertical', publicSide: 'right' },
-      { id: 'front-return', bounds: { x: 8, y: 549, width: 149, height: 22 }, orientation: 'horizontal', publicSide: 'bottom' },
+      { id: 'long-counter', bounds: { x: 157, y: 8, width: 22, height: 563 }, outlineBounds: { x: 157, y: -14, width: 22, height: 585 }, orientation: 'vertical', publicSide: 'right' },
+      { id: 'front-return', bounds: { x: 8, y: 549, width: 149, height: 22 }, outlineBounds: { x: -14, y: 549, width: 171, height: 22 }, orientation: 'horizontal', publicSide: 'bottom' },
     ],
     stations: [
       { id: 'fruit-tea-trial-order', x: 168, y: 432 },

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId, commercialCafeLaoZhouConversationSeatId } from '../src/center/runtime/commercialCafeStory'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
-import { findMainlinePath, findMainlinePathToEntity, isWalkableMainlinePoint, mainlineEntityInteractionCandidates, mainlineInteractionTarget, mainlineNpcInteractionTarget, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition } from '../src/center/runtime/mainlineNavigation'
+import { canTravelAlongMainlineSegment, findMainlinePath, findMainlinePathToEntity, isWalkableMainlinePoint, mainlineEntityInteractionCandidates, mainlineInteractionTarget, mainlineNpcInteractionTarget, resolveMainlineNpcPosition, resolveMainlineSeatSitPosition } from '../src/center/runtime/mainlineNavigation'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { isMainlineSeatAvailable, isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds, mainlineSeatedActorVisualPosition, nextMainlinePlayerSeatId } from '../src/center/runtime/mainlineSeating'
@@ -134,27 +134,31 @@ describe('commercial cafe seating and staging', () => {
     expect(route.path!.every((point) => isWalkableMainlinePoint(point, cafe, {}, options))).toBe(true)
   })
 
-  // APPROVED CONTRACT MIGRATION: no invisible corridor closure. Passability
-  // comes from visible table/chair gap versus the active actor footprint.
-  it('keeps the approved six-pixel table-chair gaps visibly open but impassable, with legal outer seat routes', () => {
+  // Author-approved14px visible gaps exceed the11px protagonist marker.
+  // Explicit non-occupying table-chair relations keep these crevices out of routes.
+  it('keeps the approved fourteen-pixel table-chair gaps visibly open but impassable, with legal outer seat routes', () => {
  const seats = cafe.objects.filter(o => o.roomId === currentCafeRoom.id && o.seat)
- expect(seats).toHaveLength(8)
+ expect(seats).toHaveLength(12)
  const snapshot = createMainlineSceneGeometrySnapshot(cafe, currentCafeStart, {}, currentCafeOptions.screenMetrics)
  for (const seat of seats) {
   const table = snapshot.objects.get(seat.seat!.tableId)!, chair = snapshot.objects.get(seat.id)!
   const gap = Math.abs(chair.position.y - table.position.y) - (chair.collision!.height + table.collision!.height) / 2
-  expect(gap * 10.8).toBeCloseTo(6, 3)
+  expect(gap * 10.8).toBeCloseTo(14, 3)
   const center = { x: table.position.x, y: (chair.position.y + table.position.y) / 2 }
-  for (const size of [11,16]) expect(isWalkableMainlinePoint(center,cafe,{}, { ...currentCafeOptions, actorFootprint:{width:size/19.2,height:size/10.8} })).toBe(false)
+  // Physical14px clearance admits the11px marker, but the explicit relation
+  // disallows crossing the grouped crevice for either real actor footprint.
+  expect(isWalkableMainlinePoint(center,cafe,{}, { ...currentCafeOptions, actorFootprint:{width:11/19.2,height:11/10.8} })).toBe(true)
+  expect(isWalkableMainlinePoint(center,cafe,{}, { ...currentCafeOptions, actorFootprint:{width:16/19.2,height:16/10.8} })).toBe(false)
+  for (const size of [11,16]) expect(canTravelAlongMainlineSegment({x:center.x-40/19.2,y:center.y},{x:center.x+40/19.2,y:center.y},cafe,{}, { ...currentCafeOptions, actorFootprint:{width:size/19.2,height:size/10.8} })).toBe(false)
   expect(findMainlinePathToEntity(cafe,seat.id,currentCafeStart,{},currentCafeOptions).path,seat.id).not.toBeNull()
  }
 })
 
   // APPROVED CONTRACT MIGRATION: four-seat furniture now has only visible
   // object footprints plus its four table-chair relation barriers.
-  it('uses four current two-seat groups with character-sized table bodies and no retired four-seat or invisible relation objects', () => {
+  it('uses six current two-seat groups with character-sized table bodies and no retired four-seat or invisible relation objects', () => {
  const tables = cafe.objects.filter(o => o.roomId === currentCafeRoom.id && o.kind === 'table')
- expect(tables).toHaveLength(4)
+ expect(tables).toHaveLength(6)
  const snapshot = createMainlineSceneGeometrySnapshot(cafe,currentCafeStart,{},currentCafeOptions.screenMetrics)
  for (const table of tables) {
   const seats = cafe.objects.filter(o => o.seat?.tableId === table.id)
@@ -165,7 +169,7 @@ describe('commercial cafe seating and staging', () => {
   expect(findMainlinePathToEntity(cafe,table.id,currentCafeStart,{},currentCafeOptions).path).not.toBeNull()
  }
  expect(cafe.objects.some(o=>o.id.startsWith('commercial-cafe-bottom-center-group'))).toBe(false)
- expect(cafe.navigationBarriers.filter(b=>b.id.includes('cafe')&&b.kind!=='access-boundary')).toHaveLength(0)
+ expect(cafe.navigationBarriers.filter(b=>b.id.endsWith('-table-gap'))).toHaveLength(12)
 })
 
   it('assigns separate counter and floor staging duties while preserving a reachable customer contact region', () => {
