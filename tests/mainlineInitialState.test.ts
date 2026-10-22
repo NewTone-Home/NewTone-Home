@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { createInitialPlayerSave, hasResumablePlayerSave, loadPlayerSave, sanitizePlayerSave, PLAYER_SAVE_STORAGE_KEY } from '../src/center/runtime/playerSave'
 import { mainlineRespawnSceneId, resolveMainlineSceneId } from '../src/center/runtime/mainlineScenes'
 import {migratePreGridPosition} from '../src/center/runtime/sceneGridRollout'
+import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { isPointInContinuousCafe } from '../src/center/runtime/continuousCafe'
+import { isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
+import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 const storage = () => {
   const data = new Map([['newtone-public-release-cutover-v1', 'center-v1']])
   return { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => { data.set(key, value) }, removeItem: (key: string) => { data.delete(key) } }
@@ -33,9 +37,14 @@ describe('paired mainline initial state without resetting valid journeys', () =>
     expect(migrated).toMatchObject(progress)
     expect(migrated.currentSceneId).toBe('commercial-street')
     expect(migrated.currentPosition!.x).toBeCloseTo(139.96875, 5)
-    expect(migrated.currentPosition!.y).toBeCloseTo(13.48043, 5)
+    // The approved 22-row street depth moved the Cafe's room bounds. Preserve
+    // the old position by mapping it into the live Cafe room, not to a frozen
+    // y coordinate from the previous room height.
+    expect(isPointInContinuousCafe(mainlineScenes['commercial-street'], migrated.currentPosition!)).toBe(true)
+    expect(isWalkableMainlinePoint(migrated.currentPosition!, mainlineScenes['commercial-street'], {}, { screenMetrics: sceneDesignReferenceMetrics })).toBe(true)
     expect(migrated.scenePositions['commercial-street']).toEqual(migrated.currentPosition)
     expect(migrated.scenePositions['commercial-cafe']).toBeUndefined()
+    expect(sanitizePlayerSave(migrated, 'commercial-street')).toEqual(migrated)
     expect(resolveMainlineSceneId('?scene=jijia-ancestral-home')).toBe('jijia-ancestral-home')
     expect(resolveMainlineSceneId('?scene=missing-scene')).toBeNull()
   })

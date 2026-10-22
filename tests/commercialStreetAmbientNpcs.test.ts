@@ -27,6 +27,7 @@ describe('Commercial Street ambient pedestrians', () => {
         expect(target.x).toBeLessThanOrEqual(street.walkBounds.x + street.walkBounds.width)
         expect(target.y).toBeGreaterThanOrEqual(street.walkBounds.y)
         expect(target.y).toBeLessThanOrEqual(street.walkBounds.y + street.walkBounds.height)
+        expect(isWalkableMainlinePoint(target, street), `${route.npcId} target ${target.x},${target.y}`).toBe(true)
       })
     })
   })

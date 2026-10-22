@@ -14,15 +14,22 @@ const viewports = [
 describe('commercial street storefront passages', () => {
   it.each(viewports)('keeps all 14 storefront signs outside player contact routing at $width x $height', metrics => {
     const snapshot = createMainlineSceneGeometrySnapshot(street, street.initialPlayerPosition, {}, metrics)
-    expect(street.storefronts).toHaveLength(14)
-    for (const storefront of street.storefronts) {
+    const shops = street.storefronts.filter(storefront => /-slot(?:-\d+)?$/.test(storefront.id))
+    const openShopIds = new Set(['commercial-north-slot-1', 'commercial-south-slot-5', 'commercial-cafe-slot'])
+    expect(shops).toHaveLength(14)
+    expect(street.storefronts).toHaveLength(15) // the separate restroom portal also has a sign
+    for (const storefront of shops) {
       expect(storefront.portalId, storefront.id).toBeTruthy()
       expect(storefront.characterSwitch, storefront.id).toBe(true)
-      expect(street.passages.find(passage => passage.portalId === storefront.portalId)?.access).toBe('open')
+      expect(street.passages.find(passage => passage.portalId === storefront.portalId)?.access)
+        .toBe(openShopIds.has(storefront.id) ? 'open' : 'locked')
       expect(snapshot.storefronts.has(storefront.id)).toBe(false)
       expect(mainlineStorefrontPlayerContact(street, storefront, street.initialPlayerPosition, {}, { screenMetrics: metrics, geometrySnapshot: snapshot })).toBeNull()
       expect(resolveMainlineStorefrontInteraction(street, storefront, street.initialPlayerPosition, {}, { screenMetrics: metrics, geometrySnapshot: snapshot }).path).toBeNull()
     }
+    const restroom = street.storefronts.find(storefront => storefront.id === 'cafe-restroom-sign')!
+    expect(restroom).toBeTruthy()
+    expect(street.passages.find(passage => passage.portalId === restroom.portalId)?.access).toBe('open')
   })
 
   it('keeps label presentation geometry available without adding it to player contact geometry', () => {

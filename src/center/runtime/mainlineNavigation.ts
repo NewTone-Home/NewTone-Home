@@ -1507,6 +1507,23 @@ export function isMainlineInteractionPositionLegal(position: Point, scene: Mainl
 export function resolveMainlineServiceContact(scene: MainlineSceneDefinition, entityId: string, approach: Point, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): MainlineInteractionResolution {
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const geometry = snapshot.objects.get(entityId)
+  const entity = scene.objects.find(candidate => candidate.id === entityId)
+  if (!entity) return { target: from, path: null, inRange: false }
+  if (entity?.interactionStructureId) {
+    // Equipment labels on a shared worktop are visual/semantic contacts for
+    // the whole counter body. Routing to the label's tiny glyph box can put
+    // the employee destination inside the collidable worktop itself.
+    const interactionOptions = { ...options, geometrySnapshot: snapshot }
+    const candidates = mainlineEntityInteractionCandidates(
+      scene,
+      entityId,
+      approach,
+      layout,
+      mainlineActorFootprint(scene, options, from),
+      interactionOptions,
+    )
+    return resolveMainlineInteractionCandidates(scene, from, candidates, 0, layout, interactionOptions)
+  }
   if (!geometry?.collision) return { target: from, path: null, inRange: false }
   const contact = edgeContactPoint(geometry.position, geometry.collision, approach, mainlineActorFootprint(scene, options, from))
   return resolveMainlineInteractionCandidates(scene, from, [contact], 0, layout, { ...options, geometrySnapshot: snapshot })

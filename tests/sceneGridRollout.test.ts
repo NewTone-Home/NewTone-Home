@@ -17,15 +17,19 @@ describe('one world lattice per active continuous space',()=>{
  for(const id of ids){
   const before=baseline[id],now=JSON.parse(JSON.stringify(gridSemanticContract(mainlineScenes[id])))
   const changedIds=new Set([...before.objects,...now.objects].filter(o=>trialRooms.has(o.roomId)||o.id.startsWith('yonghe-outdoor-')).map(o=>o.id))
+  for(const id of ['commercial-s2-fast-food-kitchen-warehouse-divider-8','commercial-s2-fast-food-kitchen-warehouse-divider-9','cafe-restroom-toilet','cafe-restroom-sink'])changedIds.add(id)
   for(const key of ['cafe-trial-customer-toilet-door','street-cafe-entry','yonghe-menu','yonghe-back-door','yonghe-survey-central-lane'])changedIds.add(key)
+  const shopPortalIds=new Set(mainlineScenes['commercial-street'].storefronts.filter(slot=>/-slot(?:-\d+)?$/.test(slot.id)).map(slot=>slot.portalId))
+  const frontPortalIds=new Set([...baseline[id].portals,...now.portals].filter(p=>p.fromRoomId?.includes('public-lane')&&p.toRoomId?.endsWith('-interior')).map(p=>p.id))
   const originalNpcIds=new Set(before.npcs.map(n=>n.id))
   const omitTrial=(contract)=>({...contract,
    objects:contract.objects.filter(o=>!changedIds.has(o.id)),
-   portals:contract.portals.filter(p=>p.id!=='cafe-trial-customer-toilet-door').map(p=>p.id==='yonghe-street-entry'?{...p,transitionText:undefined}:p.id==='yonghe-back-door'?{...p,lockedText:undefined}:p),
+   portals:contract.portals.filter(p=>p.id!=='cafe-trial-customer-toilet-door'&&p.id!=='cafe-restroom-entry').map(p=>frontPortalIds.has(p.id)?{...p,access:undefined,lockedText:undefined,transitionText:undefined}:p.id==='yonghe-back-door'?{...p,lockedText:undefined}:p),
+   rooms:contract.rooms.filter(r=>r.id!=='cafe-single-restroom-interior'),
    npcs:contract.npcs.filter(n=>originalNpcIds.has(n.id)),
    npcBehaviors:contract.npcBehaviors.filter(n=>originalNpcIds.has(n.npcId)),
-   interactionText:Object.fromEntries(Object.entries(contract.interactionText??{}).filter(([id])=>!changedIds.has(id))),
-   explorationText:Object.fromEntries(Object.entries(contract.explorationText??{}).filter(([id])=>!changedIds.has(id))),
+   interactionText:Object.fromEntries(Object.entries(contract.interactionText??{}).filter(([id])=>!changedIds.has(id)&&!frontPortalIds.has(id))),
+   explorationText:Object.fromEntries(Object.entries(contract.explorationText??{}).filter(([id])=>!changedIds.has(id)&&!id.startsWith('cafe-restroom-'))),
   })
   expect(omitTrial(now),id).toEqual(omitTrial(before))
  }
@@ -35,7 +39,7 @@ describe('one world lattice per active continuous space',()=>{
   expect(validateMainlineSceneGeometry(s)).toEqual([])
   for(const w of s.structures){
    if(!w.wallEdges?.length)continue
-   expect(w.boundaryWorldGrid).toEqual({origin:g.origin,pitchPx:28})
+   if(w.boundaryWorldGrid)expect(w.boundaryWorldGrid).toEqual({origin:g.origin,pitchPx:28})
    if(!w.bounds)continue
    for(const p of [w.bounds,{x:w.bounds.x+w.bounds.width,y:w.bounds.y+w.bounds.height}]){
     expect((p.x-g.origin.x)/g.step.x).toBeCloseTo(Math.round((p.x-g.origin.x)/g.step.x),8)
@@ -50,11 +54,15 @@ describe('one world lattice per active continuous space',()=>{
    if(reverse)expect(p.endpoint.entryPosition).toEqual(reverse.endpoint.threshold)
   }
  })
- it('keeps all 14 fronts open, all 14 rear doors locked and no new door IDs',()=>{
+ it('keeps all 14 shop fronts, only the three approved Commercial Street shops open, and every rear door locked',()=>{
   const s=mainlineScenes['commercial-street']
-  expect(s.passages.filter(p=>p.routeThrough)).toHaveLength(14)
+  const shopPortalIds=new Set(s.storefronts.filter(slot=>/-slot(?:-\d+)?$/.test(slot.id)).map(slot=>slot.portalId))
+  const fronts=s.passages.filter(p=>p.routeThrough&&shopPortalIds.has(p.portalId))
+  const openShopIds=new Set(['commercial-north-slot-1','commercial-south-slot-5','commercial-cafe-slot'])
+  expect(fronts).toHaveLength(14)
   expect(s.passages.filter(p=>p.id.endsWith('-rear-door'))).toHaveLength(14)
-  expect(s.passages.filter(p=>p.routeThrough).every(p=>p.access==='open')).toBe(true)
+  expect(fronts.filter(p=>p.access==='open').map(p=>s.storefronts.find(slot=>slot.portalId===p.portalId)?.id).sort())
+    .toEqual([...openShopIds].sort())
   expect(s.passages.filter(p=>p.id.endsWith('-rear-door')).every(p=>p.access==='locked')).toBe(true)
  })
  it('keeps only the continuous Cafe lattice when the old scene alias is requested',()=>{

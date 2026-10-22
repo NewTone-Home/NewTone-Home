@@ -20,7 +20,10 @@ const formerExtraDoors: Record<string, number> = {
 }
 
 describe('commercial rear walls have one real door and no former extra door', () => {
-  it.each(scene.storefronts)('$id retains only its legal locked rear doorway', slot => {
+  const shops = scene.storefronts.filter(slot => /-slot(?:-\d+)?$/.test(slot.id))
+  const enterableShopIds = new Set(['commercial-north-slot-1', 'commercial-south-slot-5', 'commercial-cafe-slot'])
+
+  it.each(shops)('$id retains only its legal rear doorway and current front access state', slot => {
     const front = scene.passages.find(p => p.portalId === slot.portalId)!
     const room = scene.rooms.find(r => r.id === front.toRoomId)!
     const rear = scene.passages.find(p => p.id === `${room.id}-rear-door`)!
@@ -50,11 +53,15 @@ describe('commercial rear walls have one real door and no former extra door', ()
       expect(isWalkableMainlinePoint({ x: former, y: door.y }, scene, {}, options)).toBe(false)
       expect(command(former).kind).toBe('ordinary')
     }
-    expect(front).toMatchObject({ access: 'open', routeThrough: true })
+    expect(front).toMatchObject({ access: enterableShopIds.has(slot.id) ? 'open' : 'locked', routeThrough: true })
   })
-  it('covers all eleven former extra doors and three original single-door controls', () => {
+  it('keeps all fourteen shop shells, the three approved open fronts, the separate open restroom, and eleven former gaps as walls', () => {
     expect(Object.keys(formerExtraDoors)).toHaveLength(11)
-    expect(scene.storefronts.filter(s => formerExtraDoors[s.id] === undefined).map(s => s.id))
-      .toEqual(['commercial-north-slot-2', 'commercial-north-slot-3', 'commercial-south-slot-2'])
+    expect(shops).toHaveLength(14)
+    expect(shops.filter(s => enterableShopIds.has(s.id)).map(s => s.id).sort())
+      .toEqual([...enterableShopIds].sort())
+    const restroom = scene.storefronts.find(s => s.id === 'cafe-restroom-sign')!
+    expect(scene.passages.find(p => p.portalId === restroom.portalId)?.access).toBe('open')
+    expect(scene.passages.filter(p => p.id.endsWith('-rear-door'))).toHaveLength(14)
   })
 })

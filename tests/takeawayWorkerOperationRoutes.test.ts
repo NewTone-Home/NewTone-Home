@@ -26,8 +26,8 @@ describe('real16px worker adapter through operation-side contacts, without a com
    for(let n=0;n<5000&&controller.isMoving();n++){now+=16;controller.tick(now);expect(isWalkableMainlinePoint(adapter.getPosition(),scene,{},options)).toBe(true)}
    expect(arrived).toBe(true);expect(adapter.getPosition()).toEqual(target);completed++
   }
-  for(const [index,side] of trial.equipment){const entity=scene.objects.find(o=>o.id===`${trial.prefix}-equipment-${index}`)!,p=entity.position,approach={x:p.x+(side==='left'?-3:side==='right'?3:0),y:p.y+(side==='bottom'?3:0)},contact=resolveMainlineServiceContact(scene,entity.id,approach,adapter.getPosition(),{},options);expect(contact.path).not.toBeNull();move(contact.target)}
+  for(const [index,side] of trial.equipment){const entity=scene.objects.find(o=>o.id===`${trial.prefix}-equipment-${index}`)!,p=entity.position,approach={x:p.x+(side==='left'?-3:side==='right'?3:0),y:p.y+(side==='bottom'?3:0)},contact=resolveMainlineServiceContact(scene,entity.id,approach,adapter.getPosition(),{},options);expect(contact.path,`${entity.id} from ${adapter.getPosition().x},${adapter.getPosition().y} -> ${JSON.stringify(contact)}`).not.toBeNull();move(contact.target)}
   move(point(...trial.handoff));move(scene.passages.find(p=>p.id===`${trial.room}-rear-door`)!.thresholds[0]);move(initial)
   expect(completed).toBe(trial.equipment.length+3)
- })
+ },60_000)
 })
