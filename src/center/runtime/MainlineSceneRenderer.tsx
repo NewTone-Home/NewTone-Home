@@ -32,7 +32,7 @@ import { activeStorefrontInteriorOwner, storefrontCellVisualState, storefrontCha
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 import { storefrontContactGeometry } from './storefrontContactGeometry'
-import { mainlineAvailableReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingStaticOpacity } from './mainlineTextReading'
+import { mainlineAvailableReadingWidthPx, mainlineDialogueParticipantNpcIds, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingStaticOpacity } from './mainlineTextReading'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -909,7 +909,15 @@ export function MainlineSceneRenderer({
   const worldScale = mainlineWorldScale(viewportMetrics)
   const activeReadingPosition = sceneEcho?.position ?? dialoguePosition
   const activeReadingText = sceneEcho?.text ?? dialogueText ?? dialogueLine?.text ?? ''
-  const activeReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, renderScreenMetrics, worldScale) : renderScreenMetrics.width - 24
+  const dialogueParticipantNpcIds = mainlineDialogueParticipantNpcIds(scene, dialogue)
+  const currentReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, renderScreenMetrics, worldScale, cameraOffset) : renderScreenMetrics.width - 24
+  const maximumReadingWidthPx = activeReadingPosition ? mainlineMaximumReadingWidthPx(scene, activeReadingPosition, renderScreenMetrics, worldScale) : currentReadingWidthPx
+  const maximumReadingLayout = activeReadingPosition ? mainlineEchoLayout(activeReadingText, renderScreenMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: maximumReadingWidthPx }) : null
+  const shouldPanForReading = Boolean(readingMode && activeReadingPosition && maximumReadingLayout && maximumReadingLayout.widthPx > currentReadingWidthPx + 1)
+  const renderCameraOffset = shouldPanForReading && activeReadingPosition
+    ? mainlineReadingCameraOffset(scene, activeReadingPosition, renderScreenMetrics, worldScale, cameraOffset)
+    : cameraOffset
+  const activeReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, renderScreenMetrics, worldScale, renderCameraOffset) : renderScreenMetrics.width - 24
   const activeReadingLayout = activeReadingPosition
     ? mainlineEchoLayout(activeReadingText, renderScreenMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: activeReadingWidthPx })
     : null
@@ -983,8 +991,8 @@ export function MainlineSceneRenderer({
   const renderedGeometryCells = useMemo(() => geometryCells.filter(({ unit, cell }) => {
     if (!mainlineGeometryUnitShouldRender(scene.id, unit, activeShellRoomId, layoutMode)) return false
     if (!unit.sourceWallId?.endsWith('-shell')) return true
-    return mainlineGeometryCellWithinViewport(cell, cameraOffset, 5, scene.id, renderScreenMetrics, viewportMetrics)
-  }), [activeShellRoomId, cameraOffset, geometryCells, layoutMode, renderScreenMetrics, scene.id, viewportMetrics])
+    return mainlineGeometryCellWithinViewport(cell, renderCameraOffset, 5, scene.id, renderScreenMetrics, viewportMetrics)
+  }), [activeShellRoomId, renderCameraOffset, geometryCells, layoutMode, renderScreenMetrics, scene.id, viewportMetrics])
 
   const focusGroupCells = useMemo(() => {
     const groups = new Map<string, MainlineGeometryCellEntry[]>()
@@ -1140,8 +1148,8 @@ export function MainlineSceneRenderer({
   const pointFromPointer = useCallback((clientX: number, clientY: number) => {
     const rect = stageRef.current?.getBoundingClientRect()
     if (!rect || rect.width === 0 || rect.height === 0) return null
-    return mainlineWorldPointFromClient({ x: clientX, y: clientY }, rect, viewportMetrics, cameraOffset)
-  }, [cameraOffset, viewportMetrics])
+    return mainlineWorldPointFromClient({ x: clientX, y: clientY }, rect, viewportMetrics, renderCameraOffset)
+  }, [renderCameraOffset, viewportMetrics])
 
   const startLayoutDrag = useCallback((itemId: LayoutItemId, event: React.PointerEvent<HTMLElement>) => {
     if (!layoutMode) return
@@ -1204,7 +1212,7 @@ export function MainlineSceneRenderer({
       x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
       y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
     }
-    const point = mainlineWorldPointFromClient({ x: clientX, y: clientY }, rect, viewportMetrics, cameraOffset)
+    const point = mainlineWorldPointFromClient({ x: clientX, y: clientY }, rect, viewportMetrics, renderCameraOffset)
     onInputDiagnostic?.({
       ...input,
       client: { x: clientX, y: clientY },
@@ -1221,7 +1229,7 @@ export function MainlineSceneRenderer({
       return
     }
     onWalk(point)
-  }, [cameraOffset, layoutMode, onInputDiagnostic, onLayoutChange, onWalk, scene, selectedLayoutItemId, viewportMetrics])
+  }, [renderCameraOffset, layoutMode, onInputDiagnostic, onLayoutChange, onWalk, scene, selectedLayoutItemId, viewportMetrics])
 
   const walkToEmptySpace = (event: React.MouseEvent<HTMLDivElement>) => {
     const touchWalk = touchWalkRef.current
@@ -1269,7 +1277,7 @@ export function MainlineSceneRenderer({
             height: `${sceneDesignReferenceMetrics.height}px`,
             marginLeft: `${-sceneDesignReferenceMetrics.width * worldScale / 2}px`,
             marginTop: `${-sceneDesignReferenceMetrics.height * worldScale / 2}px`,
-            transform: `scale(${worldScale}) translate(${cameraOffset.x}%, ${cameraOffset.y}%)`,
+          transform: `scale(${worldScale}) translate(${renderCameraOffset.x}%, ${renderCameraOffset.y}%)`,
             transformOrigin: 'top left',
             '--scene-horizontal-grid-counter-scale': String(1 / horizontalGridScale),
           } as CSSProperties}
@@ -1502,7 +1510,7 @@ export function MainlineSceneRenderer({
               screenMetrics={renderScreenMetrics}
               interactive={npc.interactive !== false}
               presentationActive={interiorRoomIsVisuallyActive(npc.roomId)}
-              readingOpacity={dialogue?.triggerEntityId !== npc.id ? actorReadingOpacity(npcPosition) : 1}
+              readingOpacity={!dialogueParticipantNpcIds.has(npc.id) ? actorReadingOpacity(npcPosition) : 1}
               debugRuntimeEvidence={debugRuntimeEvidence}
               onInteract={onNpcInteract}
             />
@@ -1572,7 +1580,7 @@ export function MainlineSceneRenderer({
               key={`speaker:${scene.id}:${dialogue!.triggerEntityId}`}
               className={`scene-mainline-speaker-anchor ${isLeaving ? 'is-leaving' : ''}`}
               aria-live="polite"
-              style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.worldWidthPx}px`, minHeight: `${echoLayout.heightPx / worldScale}px`, fontSize: `${echoLayout.fontSizePx / worldScale}px` }}
+              style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.worldWidthPx}px`, minHeight: `${echoLayout.heightPx / worldScale}px`, fontSize: `${echoLayout.fontSizePx / worldScale}px`, visibility: activeReadingWidthPx <= 0 ? 'hidden' : undefined }}
             ><DialogueSpeaker speaker={dialogueLine!.speaker} /></div>}
             <div
               key={sceneEcho?.id ?? dialogueLine!.id}
@@ -1586,6 +1594,8 @@ export function MainlineSceneRenderer({
                 '--scene-mainline-text-height': `${echoLayout.heightPx / worldScale}px`,
                 fontSize: `${echoLayout.fontSizePx / worldScale}px`,
                 maxWidth: `${Math.max(1, activeReadingWidthPx / worldScale)}px`,
+                overflow: 'hidden',
+                visibility: activeReadingWidthPx <= 0 ? 'hidden' : undefined,
               } as CSSProperties}
               aria-live="polite"
               data-scene-interaction-text={sceneEcho?.entityId ?? dialogue?.triggerEntityId ?? 'scene'}

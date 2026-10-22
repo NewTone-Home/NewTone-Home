@@ -35,7 +35,7 @@ import { npcRoles } from './npcRoles'
 import { useStorefrontPresentation } from './useStorefrontPresentation'
 import { splitMainlineInteractionText, splitMainlineInteractionTextToFit } from './mainlineTextSegments'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
-import { mainlineAvailableReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingFontSizePx } from './mainlineTextReading'
+import { mainlineAvailableReadingWidthPx, mainlineDialogueParticipantNpcIds, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingFontSizePx } from './mainlineTextReading'
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
 import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, plantIsWatered, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
@@ -601,8 +601,9 @@ export function MainlineScenePage({
   }, [dismissSceneAction, dismissSceneEcho, onPhoneDismiss, phoneOpen, readingActive])
   const internalMovement = useFreeRoamMovement(initialPosition)
   const { position, moving, moveAlong: rawMoveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
+  const cameraOffset = useMainlineCamera(scene, position, embedded, activeViewportMetrics)
   const activeDialogueSegments = activeDialogueLine
-    ? splitMainlineInteractionTextToFit(activeDialogueLine.text, mainlineAvailableReadingWidthPx(scene, position, screenMetrics, mainlineWorldScale(activeViewportMetrics)), mainlineReadingFontSizePx(screenMetrics))
+    ? splitMainlineInteractionTextToFit(activeDialogueLine.text, mainlineAvailableReadingWidthPx(scene, position, screenMetrics, mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, position, screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)), mainlineReadingFontSizePx(screenMetrics))
     : []
   const activeDialogueText = activeDialogueSegments[dialogueSegmentIndex] ?? activeDialogueSegments[0] ?? ''
   const cafeInsideRef = useRef(false)
@@ -614,7 +615,6 @@ export function MainlineScenePage({
     } else if (!inside && cafeInsideRef.current) setCommercialCafeNarrative(null)
     cafeInsideRef.current = inside
   }, [position.x, position.y, scene, sceneId, initialSceneState])
-  const cameraOffset = useMainlineCamera(scene, position, embedded, activeViewportMetrics)
   const storefrontPresentation = useStorefrontPresentation(scene, position, presentationReady)
   const reportedCafeRevealRef = useRef(false)
   const cafeStorefrontPhase = scene.id === 'commercial-street'
@@ -846,7 +846,7 @@ export function MainlineScenePage({
   } else if (dialogueAnchorSessionRef.current?.key !== dialogueAnchorSessionKey) {
     dialogueAnchorSessionRef.current = {
       key: dialogueAnchorSessionKey,
-      position: sceneTextPresentationPosition(scene, position, dialogueAnchorText, screenMetrics, 'dialogue', mainlineWorldScale(activeViewportMetrics)),
+      position: sceneTextPresentationPosition(scene, position, dialogueAnchorText, screenMetrics, 'dialogue', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, position, screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
     }
   }
   const activeDialoguePosition = activeDialogueLine ? dialogueAnchorSessionRef.current?.position ?? null : null
@@ -883,24 +883,24 @@ export function MainlineScenePage({
       sceneEchoIdRef.current,
       passage.entityId,
       text,
-      sceneTextPresentationPosition(scene, getCurrentPosition(), text, screenMetrics, 'observation', mainlineWorldScale(activeViewportMetrics)),
+      sceneTextPresentationPosition(scene, getCurrentPosition(), text, screenMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
       undefined,
-      mainlineAvailableReadingWidthPx(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics)),
+      mainlineAvailableReadingWidthPx(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
       mainlineReadingFontSizePx(screenMetrics),
     ))
-  }, [activeViewportMetrics, getCurrentPosition, presentSceneEcho, scene, screenMetrics])
+  }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, scene, screenMetrics])
   const showAccessRegionDeniedText = useCallback((text: string) => {
     sceneEchoIdRef.current += 1
     presentSceneEcho(createMainlineSceneEcho(
       sceneEchoIdRef.current,
       undefined,
       text,
-      sceneTextPresentationPosition(scene, getCurrentPosition(), text, screenMetrics, 'observation', mainlineWorldScale(activeViewportMetrics)),
+      sceneTextPresentationPosition(scene, getCurrentPosition(), text, screenMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
       undefined,
-      mainlineAvailableReadingWidthPx(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics)),
+      mainlineAvailableReadingWidthPx(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
       mainlineReadingFontSizePx(screenMetrics),
     ))
-  }, [activeViewportMetrics, getCurrentPosition, presentSceneEcho, scene, screenMetrics])
+  }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, scene, screenMetrics])
   const { requestPassage: requestPassageLifecycle, cancelPassage: cancelPassageLifecycle, updateActor: updatePassageLifecycle, getPassagePhase, isPassageActorActive, getOpenPassageIds, passageStates } = useAutomaticPassages({
     passages: passageLifecycleDefinitions,
     canOpen: (_actorId, passage) => lifecycleMainlinePassages.find((candidate) => candidate.id === passage.id)?.access === 'open',
@@ -1826,9 +1826,9 @@ export function MainlineScenePage({
           sceneEchoIdRef.current,
           entity.id,
           text,
-          sceneTextPresentationPosition(scene, getCurrentPosition(), text, screenMetrics, 'observation', mainlineWorldScale(activeViewportMetrics)),
+          sceneTextPresentationPosition(scene, getCurrentPosition(), text, screenMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
           explorationChoice?.options,
-          mainlineAvailableReadingWidthPx(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics)),
+          mainlineAvailableReadingWidthPx(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
           mainlineReadingFontSizePx(screenMetrics),
         ))
       }
@@ -1877,7 +1877,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, activeViewportMetrics, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
@@ -1887,19 +1887,19 @@ export function MainlineScenePage({
       sceneEchoIdRef.current,
       commercialStreetMilkTeaStorefrontId,
       text,
-      sceneTextPresentationPosition(scene, getCurrentPosition(), text, screenMetrics, 'observation', mainlineWorldScale(activeViewportMetrics)),
+      sceneTextPresentationPosition(scene, getCurrentPosition(), text, screenMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
       options,
-      mainlineAvailableReadingWidthPx(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics)),
+      mainlineAvailableReadingWidthPx(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
       mainlineReadingFontSizePx(screenMetrics),
     ))
-  }, [activeViewportMetrics, getCurrentPosition, presentSceneEcho, scene, screenMetrics])
+  }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, scene, screenMetrics])
 
   const showHeldMilkTeaAction = useCallback(() => {
     if (readingActive) return
     dismissSceneAction()
     if (phoneOpen) onPhoneDismiss?.()
-    setSceneAction({ entityId: commercialStreetMilkTeaStorefrontId, options: ['喝掉奶茶'], position: sceneTextPresentationPosition(scene, getCurrentPosition(), '喝掉奶茶', screenMetrics) })
-  }, [dismissSceneAction, getCurrentPosition, onPhoneDismiss, phoneOpen, readingActive, scene, screenMetrics])
+    setSceneAction({ entityId: commercialStreetMilkTeaStorefrontId, options: ['喝掉奶茶'], position: sceneTextPresentationPosition(scene, getCurrentPosition(), '喝掉奶茶', screenMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)) })
+  }, [activeViewportMetrics, cameraOffset, dismissSceneAction, getCurrentPosition, onPhoneDismiss, phoneOpen, readingActive, scene, screenMetrics])
 
   const beginMilkTeaStorefrontAction = useCallback(() => {
     const currentOrder = commercialStreetMilkTeaOrderFromSceneState(initialSceneState)
@@ -1962,9 +1962,9 @@ export function MainlineScenePage({
         sceneEchoIdRef.current,
         storefrontId,
         resolution.text,
-        sceneTextPresentationPosition(scene, getCurrentPosition(), resolution.text, screenMetrics, 'observation', mainlineWorldScale(activeViewportMetrics)),
+        sceneTextPresentationPosition(scene, getCurrentPosition(), resolution.text, screenMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
         undefined,
-        mainlineAvailableReadingWidthPx(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics)),
+        mainlineAvailableReadingWidthPx(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
         mainlineReadingFontSizePx(screenMetrics),
       ))
     }
@@ -2022,7 +2022,7 @@ export function MainlineScenePage({
       })
     }
     attemptContact(0)
-  }, [activeViewportMetrics, beginMilkTeaStorefrontAction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, onChapterAnalytics, onInteractionAnalytics, onPhoneDismiss, onStorefrontAction, phoneOpen, presentSceneEcho, protagonistFootprint, readingActive, scene, sceneAction?.phase, screenMetrics, stopMovement])
+  }, [activeViewportMetrics, beginMilkTeaStorefrontAction, cameraOffset, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, onChapterAnalytics, onInteractionAnalytics, onPhoneDismiss, onStorefrontAction, phoneOpen, presentSceneEcho, protagonistFootprint, readingActive, scene, sceneAction?.phase, screenMetrics, stopMovement])
 
   const interactNpc = useCallback((npcId: string) => {
     if (readingActive || sceneAction?.phase === 'committing') return
@@ -2197,7 +2197,7 @@ export function MainlineScenePage({
       }
       const line = commercialCafeNarrativeDialogue.lines[commercialCafeStory.narrativeCursor]
       if (!line) return
-      const segments = splitMainlineInteractionTextToFit(line.text, mainlineAvailableReadingWidthPx(scene, position, screenMetrics, mainlineWorldScale(activeViewportMetrics)), mainlineReadingFontSizePx(screenMetrics))
+      const segments = splitMainlineInteractionTextToFit(line.text, mainlineAvailableReadingWidthPx(scene, position, screenMetrics, mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, position, screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)), mainlineReadingFontSizePx(screenMetrics))
       if (dialogueSegmentIndex + 1 < segments.length) {
         setDialogueSegmentIndex((current) => current + 1)
         return
@@ -2231,7 +2231,7 @@ export function MainlineScenePage({
       return
     }
     if (dialogueLineIndex === null || !activeDialogue) return
-    const segments = splitMainlineInteractionTextToFit(activeDialogue.lines[dialogueLineIndex]?.text ?? '', mainlineAvailableReadingWidthPx(scene, position, screenMetrics, mainlineWorldScale(activeViewportMetrics)), mainlineReadingFontSizePx(screenMetrics))
+    const segments = splitMainlineInteractionTextToFit(activeDialogue.lines[dialogueLineIndex]?.text ?? '', mainlineAvailableReadingWidthPx(scene, position, screenMetrics, mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, position, screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)), mainlineReadingFontSizePx(screenMetrics))
     if (dialogueSegmentIndex + 1 < segments.length) {
       setDialogueSegmentIndex((current) => current + 1)
       return
@@ -2242,7 +2242,7 @@ export function MainlineScenePage({
       return
     }
     setGenericDialoguePhase('leaving')
-  }, [activeDialogue, activeViewportMetrics, commercialCafeNarrative, commercialCafeStory, commercialStreetQuestionNarrative, dialogueLineIndex, dialogueSegmentIndex, npcDialogue, onChapterAnalytics, onMeaningfulActivity, position, recordCafeAnalyticsMilestone, recordSceneState, recordSceneStatePatch, scene, screenMetrics])
+  }, [activeDialogue, activeViewportMetrics, cameraOffset, commercialCafeNarrative, commercialCafeStory, commercialStreetQuestionNarrative, dialogueLineIndex, dialogueSegmentIndex, npcDialogue, onChapterAnalytics, onMeaningfulActivity, position, recordCafeAnalyticsMilestone, recordSceneState, recordSceneStatePatch, scene, screenMetrics])
 
   const walk = useCallback((point: Point) => {
     if (readingActive) return
@@ -2347,9 +2347,10 @@ export function MainlineScenePage({
   const currentAreaLabel = mainlineSceneAreaLabel(scene, position)
   const ambientReadingPosition = sceneEcho?.position ?? activeDialoguePosition
   const ambientReadingText = sceneEcho?.text ?? activeDialogueText
-  const ambientReadingLayout = ambientReadingPosition ? mainlineEchoLayout(ambientReadingText, screenMetrics, { speaker: sceneEcho ? undefined : activeDialogueLine?.speaker }) : null
+  const dialogueParticipantNpcIds = mainlineDialogueParticipantNpcIds(scene, activeDialogue)
+  const ambientReadingLayout = ambientReadingPosition ? mainlineEchoLayout(ambientReadingText, screenMetrics, { speaker: sceneEcho ? undefined : activeDialogueLine?.speaker, maxWidthPx: mainlineAvailableReadingWidthPx(scene, position, screenMetrics, mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, position, screenMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)) }) : null
   const ambientReadingOpacity = (actorPosition: Point, npcId: string) => {
-    if (!readingActive || !ambientReadingPosition || !ambientReadingLayout || activeDialogue?.triggerEntityId === npcId) return 1
+    if (!readingActive || !ambientReadingPosition || !ambientReadingLayout || dialogueParticipantNpcIds.has(npcId)) return 1
     return mainlineReadingActorOpacity(actorPosition, ambientReadingPosition, ambientReadingLayout, mainlineWorldScale(activeViewportMetrics), value => scene.id === 'commercial-street' ? projectCommercialStreetX(value, screenMetrics) : value)
   }
   const debugCafeCounterStructure = debugRuntimeEvidence && hasContinuousCafe(scene)

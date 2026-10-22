@@ -1,18 +1,27 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { sceneTextPresentationPosition } from '../src/center/runtime/sceneTextPresentation'
+import { mainlineInteractionSpace } from '../src/center/runtime/mainlineTextReading'
 
 const desktop = { width: 1280, height: 720 }
 
+function expectInsideCurrentSpace(scene: typeof mainlineScenes[keyof typeof mainlineScenes], actor: { x: number; y: number }, point: { x: number; y: number }) {
+  const bounds = mainlineInteractionSpace(scene, actor)
+  expect(point.x).toBeGreaterThanOrEqual(bounds.x)
+  expect(point.x).toBeLessThanOrEqual(bounds.x + bounds.width)
+  expect(point.y).toBeGreaterThanOrEqual(bounds.y)
+  expect(point.y).toBeLessThanOrEqual(bounds.y + bounds.height)
+}
+
 describe('scene text presentation policy', () => {
-  it('keeps fixed scenes at their authored anchor regardless of the interaction object', () => {
+  it('keeps fixed-scene reading text inside the protagonist\'s current room', () => {
     const scene = mainlineScenes['zhongshuyuan-office']
     expect(scene.presentation.mode).toBe('fixed')
     if (scene.presentation.mode !== 'fixed') throw new Error('Office needs a fixed text presentation policy.')
     const lowerLeft = { x: scene.walkBounds.x, y: scene.walkBounds.y + scene.walkBounds.height }
     const upperRight = { x: scene.walkBounds.x + scene.walkBounds.width, y: scene.walkBounds.y }
-    expect(sceneTextPresentationPosition(scene, lowerLeft, '办公桌上的文件整齐地摆着。', desktop)).toEqual(scene.presentation.anchor)
-    expect(sceneTextPresentationPosition(scene, upperRight, '窗边没有人。', desktop)).toEqual(scene.presentation.anchor)
+    expectInsideCurrentSpace(scene, lowerLeft, sceneTextPresentationPosition(scene, lowerLeft, '办公桌上的文件整齐地摆着。', desktop))
+    expectInsideCurrentSpace(scene, upperRight, sceneTextPresentationPosition(scene, upperRight, '窗边没有人。', desktop))
   })
 
   it('pins Commercial Street text to the authored road reading rail', () => {
