@@ -111,7 +111,10 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
   })
 
   // Sparse corner plants: no watering system, only the existing view interaction.
-  entities.push(fixture('cafe-trial-corner-plant-rear', '绿植', 644, 84), fixture('cafe-trial-corner-plant-front', '绿植', 644, 588))
+    entities.push(
+      { ...fixture('cafe-trial-corner-plant-rear', '绿植', 644, 84), focusFrame: 'interactive' },
+      { ...fixture('cafe-trial-corner-plant-front', '绿植', 644, 588), focusFrame: 'interactive' },
+    )
 
   const rear = blueprint.portals.find(portal => portal.id === `${room.id}-rear-door`)!
   const toiletId = 'cafe-trial-customer-toilet-door'

@@ -15,11 +15,14 @@ export function attachCafeRestroom(blueprint: MainlineSceneBlueprint): MainlineS
     id: 'cafe-restroom-sign', wallId, edge: 'top', label: '卫生间', style: 'modern', mode: 'commercial', characterSwitch: true, portalId: cafeRestroomDoorId,
     start: center.x - 1.4995 * 28 / 19.2, end: center.x + 1.4995 * 28 / 19.2,
     composition: { fixedCellCount: 3, baseline: ['sign', 'sign', 'sign'], near: ['wall', 'door', 'wall'] },
-    approach: point(560, 42), nearRadius: 2,
+    approach: point(560, 42), nearRadius: 4,
   }
   const fixture = (id: string, label: string, x: number, y: number): MainlineSceneEntity => ({
     id, label, roomId: cafeRestroomRoomId, kind: 'fixture', weight: 'fixture', surface: 'floor', position: point(x,y), interactive: true, visualVisibility: 'static', focusFrame: 'interactive',
-    collision: { ...point(x - Array.from(label).length * 8, y - 8), width: Array.from(label).length * 16 / 19.2, height: 16 / 10.8 },
+    ...(id === 'cafe-restroom-sink' ? { textLayout: 'vertical' as const } : {}),
+    collision: id === 'cafe-restroom-sink'
+      ? { ...point(x - 8, y - Array.from(label).length * 8), width: 16 / 19.2, height: Array.from(label).length * 16 / 10.8 }
+      : { ...point(x - Array.from(label).length * 8, y - 8), width: Array.from(label).length * 16 / 19.2, height: 16 / 10.8 },
   })
   return { ...blueprint,
     portals: blueprint.portals.map(portal => portal.id !== cafeRestroomDoorId ? portal : {
@@ -31,9 +34,9 @@ export function attachCafeRestroom(blueprint: MainlineSceneBlueprint): MainlineS
       rooms: [...blueprint.scene.rooms!, { id: cafeRestroomRoomId, bounds }],
       walls: [...blueprint.scene.walls, { id: 'cafe-single-restroom-shell', type: 'room', bounds, variant: 'commercial-empty-shell', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { horizontal: 7, vertical: 7 }, edges: ['left', 'top', 'right'] }],
       storefronts: [...(blueprint.scene.storefronts ?? []), slot],
-      floorEntities: [...blueprint.scene.floorEntities, fixture('cafe-restroom-toilet', '便器', 532, -126), fixture('cafe-restroom-sink', '洗手盆', 608, -70)],
+      floorEntities: [...blueprint.scene.floorEntities, fixture('cafe-restroom-toilet', '马桶', 532, -126), fixture('cafe-restroom-sink', '洗手盆', 608, -70)],
     },
-    explorationText: { ...blueprint.explorationText, 'cafe-restroom-toilet': ['单人卫生间里的便器。'], 'cafe-restroom-sink': ['卫生间里的洗手盆。'] },
+    explorationText: { ...blueprint.explorationText, 'cafe-restroom-toilet': ['单人卫生间里的马桶。'], 'cafe-restroom-sink': ['卫生间里的洗手盆。'] },
     interactionText: { ...blueprint.interactionText, [cafeRestroomDoorId]: '卫生间通往咖啡馆。' },
   }
 }

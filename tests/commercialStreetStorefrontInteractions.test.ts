@@ -5,6 +5,7 @@ import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 import { boundaryGridStepsFromReferenceSpacing, sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { mainlineCameraOffset, mainlineCameraTarget } from '../src/center/runtime/mainlineViewport'
+import { storefrontAccessDeniedText } from '../src/center/runtime/storefrontAccess'
 import {
   commercialStreetStorefrontInteractionDebounceMs,
   commercialStreetStorefrontInteractions,
@@ -17,6 +18,7 @@ import {
 } from '../src/center/runtime/commercialStreetStorefrontInteractions'
 
 const street = mainlineScenes['commercial-street']
+const enterableStreetPortalIds = new Set(['commercial-north-slot-1-entry', 'commercial-south-slot-5-entry', 'street-cafe-entry'])
 const referenceNavigation = { screenMetrics: sceneDesignReferenceMetrics }
 
 describe('commercial street storefront interactions', () => {
@@ -89,7 +91,8 @@ describe('commercial street storefront interactions', () => {
         expect(command.kind, `${storefrontId} click ${target.x},${target.y}`).toBe('passage')
         if (command.kind !== 'passage') continue
         expect(command.passage.id, `${storefrontId} click ${target.x},${target.y}`).toBe(passage.id)
-        expect(command.passage.access).toBe('open')
+        expect(command.passage.access).toBe(enterableStreetPortalIds.has(command.passage.portalId!) ? 'open' : 'locked')
+        if (!enterableStreetPortalIds.has(command.passage.portalId!)) expect(command.passage.lockedText).toBe(storefrontAccessDeniedText)
         expect(command.approachPath).not.toBeNull()
         const approachEnd = command.approachPath!.at(-1)!
         expect(isWalkableMainlinePoint(approachEnd, street)).toBe(true)

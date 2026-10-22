@@ -2,7 +2,7 @@ import { describe,expect,it } from 'vitest'
 import { cafeStoryTableId } from '../src/center/runtime/continuousCafe'
 import { mainlineScenes,validateMainlineSceneGeometry } from '../src/center/runtime/mainlineScenes'
 import { mainlineNpcLabelFootprint } from '../src/center/runtime/sceneLayout'
-import { findMainlinePath,findMainlinePathToEntity,isWalkableMainlinePoint,canTravelAlongMainlineSegment,resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
+import { classifyMainlineWorldCommand,findMainlinePath,findMainlinePathToEntity,isWalkableMainlinePoint,canTravelAlongMainlineSegment,resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { storefrontRoomConnection } from '../src/center/runtime/storefrontRoomConnection'
 import { activeStorefrontPresentationOwner,activeStorefrontInteriorOwner } from '../src/center/runtime/storefrontPresentation'
@@ -22,10 +22,15 @@ describe('wall wrap, six Cafe tables and the real single restroom',()=>{
   const plants=scene.objects.filter(o=>o.id.startsWith('cafe-trial-corner-plant-'));expect(plants).toHaveLength(2);for(const p of plants){expect(p.interactionBehavior).toBeUndefined();expect(p.collision!.width*19.2).toBeCloseTo(32,5);expect(p.collision!.height*10.8).toBeCloseTo(16,5)}
  })
  it('connects Cafe and a168px square room through one open same-world door',()=>{
-  const restroom=scene.rooms.find(r=>r.id==='cafe-single-restroom-interior')!,door=scene.passages.find(p=>p.id==='cafe-trial-customer-toilet-door')!;expect(restroom.bounds.width*19.2).toBeCloseTo(168,5);expect(restroom.bounds.height*10.8).toBeCloseTo(168,5);expect(door).toMatchObject({access:'open',routeThrough:true,fromRoomId:room.id,toRoomId:restroom.id});expect(door.targetSceneId).toBeUndefined();expect(validateMainlineSceneGeometry(scene)).toEqual([]);expect(scene.objects.filter(o=>o.roomId===restroom.id).map(o=>o.label)).toEqual(['便器','洗手盆']);expect(scene.passages.find(p=>p.id===room.id+'-rear-door')!.access).toBe('locked')
+  const restroom=scene.rooms.find(r=>r.id==='cafe-single-restroom-interior')!,door=scene.passages.find(p=>p.id==='cafe-trial-customer-toilet-door')!;expect(restroom.bounds.width*19.2).toBeCloseTo(168,5);expect(restroom.bounds.height*10.8).toBeCloseTo(168,5);expect(door).toMatchObject({access:'open',routeThrough:true,fromRoomId:room.id,toRoomId:restroom.id});expect(door.targetSceneId).toBeUndefined();expect(validateMainlineSceneGeometry(scene)).toEqual([]);expect(scene.objects.filter(o=>o.roomId===restroom.id).map(o=>o.label)).toEqual(['马桶','洗手盆']);expect(scene.objects.find(o=>o.id==='cafe-restroom-sink')).toMatchObject({textLayout:'vertical'});expect(scene.passages.find(p=>p.id===room.id+'-rear-door')!.access).toBe('locked')
  })
  it('uses a nested approach room for the sign and keeps interior ownership',()=>{
-  const sign=scene.storefronts.find(s=>s.id==='cafe-restroom-sign')!,connection=storefrontRoomConnection(scene,sign)!;expect(connection.publicRoom.id).toBe(room.id);expect(activeStorefrontPresentationOwner(scene,point(560,42))).toBe(sign.id);expect(activeStorefrontPresentationOwner(scene,point(336,350))).toBeNull();expect(activeStorefrontInteriorOwner(scene,point(560,-84))).toBe(sign.id)
+  const sign=scene.storefronts.find(s=>s.id==='cafe-restroom-sign')!,connection=storefrontRoomConnection(scene,sign)!;expect(sign.nearRadius).toBe(4);expect(connection.publicRoom.id).toBe(room.id);expect(activeStorefrontPresentationOwner(scene,point(560,42))).toBe(sign.id);expect(activeStorefrontPresentationOwner(scene,point(560,58))).toBe(sign.id);expect(activeStorefrontPresentationOwner(scene,point(560,69))).toBeNull();expect(activeStorefrontPresentationOwner(scene,point(336,350))).toBeNull();expect(activeStorefrontInteriorOwner(scene,point(560,-84))).toBe(sign.id)
+ })
+ it('keeps a click on the ground in front of the restroom as a walk target, while the door itself remains an explicit passage target',()=>{
+  expect(classifyMainlineWorldCommand(scene,point(500,120),point(560,58),{},options).kind).toBe('ordinary')
+  const door=classifyMainlineWorldCommand(scene,point(500,120),point(560,0),{},options)
+  expect(door.kind).toBe('passage');if(door.kind==='passage')expect(door.passage.id).toBe('cafe-trial-customer-toilet-door')
  })
  it('allows repeated enter/return paths and saves the real interior position without a new scene ID',()=>{
   const inside=point(560,-84),outside=point(560,84);for(const [from,to] of [[outside,inside],[inside,outside],[outside,inside]]){const opened={...options,openPassageIds:new Set(['cafe-trial-customer-toilet-door'])};const path=findMainlinePath(from,to,scene,{},opened);expect(path).not.toBeNull();for(let i=1;i<path!.length;i++)expect(canTravelAlongMainlineSegment(path![i-1],path![i],scene,{},opened)).toBe(true)}

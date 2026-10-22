@@ -20,6 +20,7 @@ import {
 } from '../src/center/runtime/storefrontPresentation'
 
 const street = mainlineScenes['commercial-street']
+const enterableStreetStorefrontIds = new Set(['commercial-north-slot-1', 'commercial-south-slot-5', 'commercial-cafe-slot', 'cafe-restroom-sign'])
 const cafe = street.storefronts.find((storefront) => storefront.id === 'commercial-cafe-slot')!
 
 describe('commercial street storefront presentation', () => {
@@ -61,7 +62,7 @@ describe('commercial street storefront presentation', () => {
     for (const storefront of street.storefronts) {
       const passage = street.passages.find((candidate) => candidate.portalId === storefront.portalId)!
       expect(passage, storefront.id).toMatchObject({
-        access: 'open',
+        access: enterableStreetStorefrontIds.has(storefront.id) ? 'open' : 'locked',
         routeThrough: true,
         fromRoomId: 'commercial-street-public-lane',
         targetSceneId: undefined,
@@ -203,7 +204,7 @@ describe('commercial street storefront presentation', () => {
       const doorCharacter = cells.find(cell => cell.role === 'door')!
       expect(doorCharacter.x).toBeCloseTo(realDoor!.cell.x)
       expect(doorCharacter.y).toBeCloseTo(realDoor!.cell.y)
-      expect(doorCharacter.access).toBe('open')
+      expect(doorCharacter.access).toBe(enterableStreetStorefrontIds.has(storefront.id) ? 'open' : 'locked')
       expect(doorCharacter.lockedText).toBe(street.passages.find(passage => passage.portalId === storefront.portalId)?.lockedText)
     }
   })
@@ -455,7 +456,7 @@ describe('commercial street storefront presentation', () => {
       expect(farFacade.filter(cell => cell.storefrontRole === 'sign').map(cell => cell.glyph).join('')).toBe(storefront.label)
       expect(door).toHaveLength(1)
       expect(door[0].entityId).toBe(storefront.portalId)
-      expect(door[0].access).toBe('open')
+      expect(door[0].access).toBe(enterableStreetStorefrontIds.has(storefront.id) ? 'open' : 'locked')
       expect(door[0].lockedText).toBe(street.passages.find(passage => passage.portalId === storefront.portalId)?.lockedText)
       expect(nearUnitsForStore).toHaveLength(count)
       expect(leaveUnits.filter(unit => unit.storefrontId === storefront.id && unit.variant === 'baseline')).toEqual(farUnitsForStore)
@@ -502,7 +503,7 @@ describe('commercial street storefront presentation', () => {
       expect(isMainlineStorefrontPresentationInRange(street, storefront, { x: approach.x + oldRadius * .49, y: approach.y })).toBe(true)
       expect(isMainlineStorefrontPresentationInRange(street, storefront, { x: approach.x + oldRadius * .51, y: approach.y })).toBe(false)
       expect(isMainlineStorefrontPresentationInRange(street, storefront, { x: approach.x, y: 50 })).toBe(false)
-      expect(storefront.nearRadius).toBe(10)
+      expect(storefront.nearRadius).toBe(storefront.id === 'cafe-restroom-sign' ? 4 : 10)
     }
     const approach = mainlineStorefrontApproach(street, cafe)
     const anchor = mainlineStorefrontAnchor(street, cafe)

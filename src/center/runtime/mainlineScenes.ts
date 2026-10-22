@@ -2,6 +2,7 @@ import { fixedMainlineWallGlyphGrid } from './mainlineWallGlyphGrid'
 import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import { mainlineSceneBlueprints } from './mainlineSceneModel'
 import { initialMainlineSceneId } from './mainlineInitialState'
+import { restrictStorefrontPortalAccess } from './storefrontAccess'
 import { mapLegacyCafePoint, canonicalCafeEntityId } from './continuousCafe'
 import { boundaryGridCellRange, boundaryGridStepsFromReferenceSpacing, compileSharedFrame, defaultSceneScreenMetrics, sharedBoundaryScreenSpacingPx, sceneDesignReferenceMetrics, type SceneScreenMetrics, type SharedBoundaryCell, type SharedBoundaryFrame, type SharedBoundaryOpening } from './sceneBoundaryGrid'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
@@ -1287,8 +1288,10 @@ function projectedSceneGeometry(scene: MainlineSceneDefinition, screenMetrics: S
 }
 
 function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneDefinition {
-  const compiledScene = compileMainlineSceneData(blueprint.scene, blueprint.portals)
-  const portals = blueprint.portals.map((portal) => {
+  const storefrontPortalIds = new Set((blueprint.scene.storefronts ?? []).flatMap(storefront => storefront.portalId ? [storefront.portalId] : []))
+  const authorizedPortals = restrictStorefrontPortalAccess(blueprint.id, blueprint.portals, storefrontPortalIds)
+  const compiledScene = compileMainlineSceneData(blueprint.scene, authorizedPortals)
+  const portals = authorizedPortals.map((portal) => {
     const storefront = compiledScene.storefronts.find((slot) => slot.portalId === portal.id)
     const entity = compiledScene.objects.find((candidate) => candidate.id === portal.entity.id)
     if (!storefront?.composition?.fixedCellCount || !entity) return portal
