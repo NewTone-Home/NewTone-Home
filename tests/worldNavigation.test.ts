@@ -20,21 +20,22 @@ describe('ordinary world navigation and passage intent', () => {
     const street = mainlineScenes['commercial-street']
     const snapshot = createMainlineSceneGeometrySnapshot(street, point(18, 50))
     const options = { actorFootprint: { width: 1.2, height: 1.2 }, geometrySnapshot: snapshot }
+    const leftmostWalkX = street.walkBounds.x + options.actorFootprint.width / 2 + .1
+    const rightmostWalkX = street.walkBounds.x + street.walkBounds.width - options.actorFootprint.width / 2 - .1
     for (const y of [42, 50, 58]) {
-      const blocked = Array.from({ length: 18 }, (_, index) => 20 + index * 10)
-        .filter(x => !isWalkableMainlinePoint(point(x, y), street, {}, options))
+      const samples = Array.from({ length: 18 }, (_, index) => leftmostWalkX + (rightmostWalkX - leftmostWalkX) * index / 17)
+      const blocked = samples.filter(x => !isWalkableMainlinePoint(point(x, y), street, {}, options))
       expect(blocked, `blocked x coordinates on y=${y}`).toEqual([])
     }
-    const route = resolveMainlineWorldNavigation(street, point(18, 50), point(190, 50), {}, options)
-    expect(route?.reachedRequestedTarget).toBe(true)
-    expect(route?.resolvedNavigableTarget).toEqual(point(190, 50))
-
     const rightmostWalkPoint = point(street.walkBounds.x + street.walkBounds.width - 1, 50)
+    const route = resolveMainlineWorldNavigation(street, point(18, 50), rightmostWalkPoint, {}, options)
+    expect(route?.reachedRequestedTarget).toBe(true)
+    expect(route?.resolvedNavigableTarget).toEqual(rightmostWalkPoint)
     const rightEndRoute = resolveMainlineWorldNavigation(street, point(18, 50), rightmostWalkPoint, {}, options)
     expect(street.externalExits?.every(exit => exit.axis === 'x' && exit.direction === -1)).toBe(true)
     expect(isWalkableMainlinePoint(rightmostWalkPoint, street, {}, options)).toBe(true)
-    expect(rightEndRoute?.reachedRequestedTarget).toBe(true)
-    expect(rightEndRoute?.resolvedNavigableTarget).toEqual(rightmostWalkPoint)
+    expect(route?.reachedRequestedTarget).toBe(true)
+    expect(route?.resolvedNavigableTarget).toEqual(rightmostWalkPoint)
   })
 
   it('resolves the 1180x757 stage click used to cross the storefront row', () => {

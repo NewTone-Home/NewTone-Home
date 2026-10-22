@@ -78,6 +78,15 @@ describe('commercial street storefront interactions', () => {
 
     const fruit = street.storefronts.find((storefront) => storefront.id === 'commercial-north-slot-1')!
     const frontPassage = street.passages.find((passage) => passage.portalId === fruit.portalId)!
+    const qaActorStart = { x: 22.2083, y: 39.4072 }
+    const fruitDoor = mainlineCanonicalSceneGeometryUnits(street, sceneDesignReferenceMetrics)
+      .flatMap((unit) => unit.visual.cells)
+      .find((cell) => cell.storefrontId === fruit.id && cell.storefrontRole === 'door')!
+    const clickedDoorCommand = classifyMainlineWorldCommand(street, qaActorStart, { x: fruitDoor.x, y: fruitDoor.y }, {}, referenceNavigation)
+    expect(clickedDoorCommand).toMatchObject({ kind: 'passage', passage: { id: frontPassage.id, access: 'open' } })
+    if (clickedDoorCommand.kind !== 'passage') throw new Error('Fruit door click must stay a passage command')
+    expect(clickedDoorCommand.approachPath).not.toBeNull()
+
     const approach = findMainlinePathThroughPassage(street, frontPassage.id, street.initialPlayerPosition, {}, referenceNavigation)
     expect(approach.path).not.toBeNull()
     expect(approach.path!.at(-1)).toEqual(approach.target)
