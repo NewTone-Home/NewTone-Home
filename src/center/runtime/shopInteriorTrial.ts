@@ -6,7 +6,7 @@ type WallFeature = NonNullable<MainlineSceneBlueprint['scene']['walls'][number][
 
 /** Replace real boundary cells, including a side painted by the adjacent shell.
  * The feature is not an opening: the underlying wall remains collision-solid. */
-function embedCustomerWallText(blueprint: MainlineSceneBlueprint, roomId: string, labels: readonly { id: string; label: string; y: number; edge: 'left' | 'right' }[]) {
+function embedCustomerWallText(blueprint: MainlineSceneBlueprint, roomId: string, labels: readonly { id: string; label: string; y: number; edge: 'left' | 'right'; publicX?: number }[]) {
   const room = blueprint.scene.rooms!.find(candidate => candidate.id === roomId)!
   const walls = blueprint.scene.walls.map(wall => ({ ...wall, features: [...(wall.features ?? [])] }))
   for (const label of labels) {
@@ -20,7 +20,7 @@ function embedCustomerWallText(blueprint: MainlineSceneBlueprint, roomId: string
     const entity: MainlineSceneEntity = {
       id: label.id, label: label.label, kind: 'fixture', weight: 'fixture', surface: 'wall', roomId,
       position: { x, y }, interactive: true, visualVisibility: 'static',
-      interactionContactAnchor: { x: x + (label.edge === 'right' ? -1 : 1) * 28 / 1920 * 100, y },
+      interactionContactAnchor: { x: label.publicX === undefined ? x + (label.edge === 'right' ? -1 : 1) * 28 / 1920 * 100 : room.bounds.x + label.publicX / 1920 * 100, y },
     }
     const feature: WallFeature = { id: `${label.id}-wall`, edge, start: y - 14 / 1080 * 100, end: y + 14 / 1080 * 100, glyphs: Array.from(label.label), layout: 'inline', entity }
     wall.features.push(feature)
@@ -71,7 +71,9 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
       const entity = fixture(index === orderIndex ? 'commercial-cafe-counter' : serviceId ?? `${id}-${index}`, index % 2 ? '台' : '柜', x, y, false)
       entity.interactionStructureId = bodyId
       entity.interactionContactSides = ['right']
-      entity.interactive = index === orderIndex || Boolean(serviceId)
+      entity.interactive = true
+      entity.focusFrame = 'interactive'
+      entity.focusFrameGroup = bodyId
       if (index === orderIndex) entity.interactionBehavior = 'cafe-order'
       entities.push(entity)
     })
@@ -82,10 +84,10 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
   counterRun('cafe-trial-counter-upper', Array.from({ length: 4 }, (_, index) => [176, 16 + index * 16] as [number, number]))
   counterRun('cafe-trial-counter-front', Array.from({ length: 10 }, (_, index) => [160 - index * 16, 496] as [number, number]))
   entities.push(
-    fixture('cafe-trial-coffee-machine', '咖啡机', 48, 224),
-    fixture('cafe-trial-prep-table', '备餐台', 48, 336),
-    fixture('cafe-trial-wash', '清洗台', 48, 448),
-    fixture('cafe-trial-cold', '冷藏', 48, 168),
+    { ...fixture('cafe-trial-coffee-machine', '咖啡机', 48, 224), collision: footprint(48, 224, 16, 48), textLayout: 'vertical', focusFrame: 'interactive' },
+    { ...fixture('cafe-trial-prep-table', '备餐台', 48, 336), collision: footprint(48, 336, 16, 48), textLayout: 'vertical', focusFrame: 'interactive' },
+    { ...fixture('cafe-trial-wash', '清洗台', 48, 448), collision: footprint(48, 448, 16, 48), textLayout: 'vertical', focusFrame: 'interactive' },
+    { ...fixture('cafe-trial-cold', '冷藏', 48, 168), collision: footprint(48, 168, 16, 32), textLayout: 'vertical', focusFrame: 'interactive' },
   )
   const tables = [[448, 196], [588, 196], [448, 448], [588, 448]] as const
   tables.forEach(([x, y], index) => {
@@ -125,9 +127,9 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
   ]
   const result: MainlineSceneBlueprint = { ...blueprint,
     portals: [...blueprint.portals, toilet],
-    interactionText: { ...blueprint.interactionText, 'commercial-cafe-menu': '菜单嵌在客人侧墙里。', 'commercial-cafe-blackboard': '黑板嵌在客人侧墙里。' },
-    explorationText: { ...blueprint.explorationText,
-      'commercial-cafe-menu': ['菜单嵌在客人侧墙里。'], 'commercial-cafe-blackboard': ['黑板嵌在客人侧墙里。'],
+    interactionText: { ...blueprint.interactionText, ...Object.fromEntries(entities.filter(e=>e.interactionStructureId&&!e.interactionBehavior).map(e=>[e.id,'柜台。'])), 'commercial-cafe-menu': '菜单嵌在柜台侧墙里。', 'commercial-cafe-blackboard': '黑板嵌在柜台侧墙里。' },
+    explorationText: { ...blueprint.explorationText, ...Object.fromEntries(entities.filter(e=>e.interactionStructureId&&!e.interactionBehavior).map(e=>[e.id,['柜台。']])),
+      'commercial-cafe-menu': ['菜单嵌在柜台侧墙里。'], 'commercial-cafe-blackboard': ['黑板嵌在柜台侧墙里。'],
       'cafe-trial-order': ['这里仍是原柜台的点单接触位置。'], 'cafe-trial-pickup': ['这里是柜台交付饮品的一侧。'],
       'cafe-trial-coffee-machine': ['咖啡机放在员工工作线上。'], 'cafe-trial-prep-table': ['备餐台与咖啡机共用员工侧通道。'],
       'cafe-trial-wash': ['清洗台在柜台里面。'], 'cafe-trial-cold': ['冷藏设备在后方准备区。'],
@@ -148,8 +150,8 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
     },
   }
   return embedCustomerWallText(employeeRearDoor(result, room.id, 84), room.id, [
-    { id: 'commercial-cafe-menu', label: '菜单', y: 560, edge: 'right' },
-    { id: 'commercial-cafe-blackboard', label: '黑板', y: 252, edge: 'right' },
+    { id: 'commercial-cafe-menu', label: '菜单', y: 560, edge: 'left', publicX: 208 },
+    { id: 'commercial-cafe-blackboard', label: '黑板', y: 252, edge: 'left', publicX: 208 },
   ])
 }
 
@@ -159,7 +161,8 @@ type TakeawayTrial = {
   oldStructurePrefix: string
   runs: readonly { id: string; cells: readonly [number, number][]; glyphOffset?: 0 | 1 }[]
   stations: readonly { id: string; cell: number }[]
-  menu: { id: string; y: number; edge: 'left' | 'right' }
+  menu: { id: string; y: number; edge: 'left' | 'right'; publicX: number }
+  publicSide: 'left' | 'right'
   rearX: number
   equipment: readonly { label: string; x: number; y: number }[]
   worker: readonly [number, number]
@@ -179,16 +182,16 @@ function buildTakeawayTrial(blueprint: MainlineSceneBlueprint, trial: TakeawayTr
     structures.push({ id: bodyId, kind: 'counter', ...point(x, y), width: (Math.max(...xs) + 8 - x) / 1920 * 100, height: (Math.max(...ys) + 8 - y) / 1080 * 100 })
     run.cells.forEach(([x, y], index) => {
       const station = run.id === trial.runs[0]!.id ? trial.stations.find(candidate => candidate.cell === index) : undefined
-      entities.push({ id: station?.id ?? `${trial.prefix}-${run.id}-${index}`, label: (index + (run.glyphOffset ?? 0)) % 2 ? '台' : '柜', kind: 'fixture', weight: 'fixture', surface: 'floor', roomId: room.id, position: point(x, y), visualVisibility: 'static', interactive: Boolean(station), interactionStructureId: bodyId, interactionContactSides: [trial.menu.edge] })
+      entities.push({ id: station?.id ?? `${trial.prefix}-${run.id}-${index}`, label: (index + (run.glyphOffset ?? 0)) % 2 ? '台' : '柜', kind: 'fixture', weight: 'fixture', surface: 'floor', roomId: room.id, position: point(x, y), visualVisibility: 'static', interactive: true, focusFrame: 'interactive', focusFrameGroup: bodyId, interactionStructureId: bodyId, interactionContactSides: [trial.publicSide] })
     })
   })
   trial.equipment.forEach(({ label, x, y }, index) => entities.push({
     id: `${trial.prefix}-equipment-${index + 1}`, label, kind: 'fixture', weight: 'fixture', surface: 'floor', roomId: room.id,
-    position: point(x, y), visualVisibility: 'static', interactive: true,
-    collision: { ...point(x - Array.from(label).length * 8, y - 8), width: Array.from(label).length * 16 / 1920 * 100, height: 16 / 1080 * 100 },
+    position: point(x, y), visualVisibility: 'static', interactive: true, textLayout: 'vertical', focusFrame: 'interactive',
+    collision: { ...point(x - 8, y - Array.from(label).length * 8), width: 16 / 1920 * 100, height: Array.from(label).length * 16 / 1080 * 100 },
   }))
-  const text: Record<string, string> = {}
-  text[trial.menu.id] = '菜单嵌在客人侧墙里，进门可以先看。'
+  const text: Record<string, string> = Object.fromEntries(entities.filter(e=>e.interactionStructureId).map(e=>[e.id,'柜台。']))
+  text[trial.menu.id] = '菜单嵌在柜台侧墙里，进门可以先看。'
   trial.stations.forEach(({ id }, index) => { text[id] = index === 0 ? '这里是原柜台的点单接触位置。' : '这里是原柜台的取货接触位置。' })
   trial.equipment.forEach(({ label }, index) => { text[`${trial.prefix}-equipment-${index + 1}`] = `${label}位于员工工作线上。当前可查看，制作操作尚未开放。` })
   const workerId = `${trial.prefix}-worker`
@@ -201,7 +204,7 @@ function buildTakeawayTrial(blueprint: MainlineSceneBlueprint, trial: TakeawayTr
     blockers: data.blockers.filter(body => !body.id.startsWith(trial.oldStructurePrefix)),
     navigationBarriers: data.navigationBarriers?.filter(relation => !oldIds.has(relation.firstEntityId) && !oldIds.has(relation.secondEntityId)),
     accessRegions: [...(data.accessRegions ?? []), ...trial.regions.map((region, index) => ({ id: `${trial.prefix}-staff-${index}`, ...point(region.x, region.y), width: region.width / 1920 * 100, height: region.height / 1080 * 100, requiredAccess: 'staff' as const, deniedText: '这里是柜台员工区。' }))],
-    accessBoundaries: [...(data.accessBoundaries ?? []), ...trial.regions.map((_, index) => ({ id: `${trial.prefix}-staff-boundary-${index}`, regionId: `${trial.prefix}-staff-${index}`, edge: trial.menu.edge }))],
+    accessBoundaries: [...(data.accessBoundaries ?? []), ...trial.regions.map((_, index) => ({ id: `${trial.prefix}-staff-boundary-${index}`, regionId: `${trial.prefix}-staff-${index}`, edge: trial.publicSide }))],
     actorAccess: { ...data.actorAccess, [workerId]: ['public', 'staff'] },
     // A stationary anonymous layout occupant, with no new dialogue or commerce duty.
     npcs: [...(data.npcs ?? []), { id: workerId, roleId: 'pedestrian', label: '人', roomId: room.id, interactive: false }],
@@ -222,7 +225,7 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
       { id: 'commercial-s5-milk-tea-order-service-label', cell: 7 },
       { id: 'commercial-s5-milk-tea-pickup-service-label', cell: 20 },
     ],
-    menu: { id: 'commercial-s5-milk-tea-menu-service-label', y: 168, edge: 'left' }, rearX: 280,
+    publicSide: 'left', menu: { id: 'commercial-s5-milk-tea-menu-service-label', y: 168, edge: 'right', publicX: 176 }, rearX: 280,
     equipment: [{ label: '制茶机', x: 280, y: 336 }, { label: '封口机', x: 280, y: 448 }, { label: '清洗台', x: 280, y: 560 }, { label: '煮料台', x: 280, y: 224 }],
     worker: [240, 392],
     // The right work lane continues to its one locked rear door. There is no
@@ -241,7 +244,7 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
       { id: 'fruit-tea-trial-order', cell: 26 },
       { id: 'fruit-tea-trial-pickup', cell: 20 },
     ],
-    menu: { id: 'fruit-tea-trial-menu', y: 560, edge: 'right' }, rearX: 56,
+    publicSide: 'right', menu: { id: 'fruit-tea-trial-menu', y: 560, edge: 'left', publicX: 160 }, rearX: 56,
     equipment: [{ label: '清洗台', x: 48, y: 308 }, { label: '切果台', x: 48, y: 392 }, { label: '打包台', x: 48, y: 476 }, { label: '冷藏', x: 48, y: 140 }, { label: '煮料台', x: 48, y: 224 }],
     worker: [96, 252], regions: [{ x: 0, y: 0, width: 128, height: 560 }],
   })

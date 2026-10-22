@@ -175,7 +175,7 @@ export function mainlineEntityPosition(
 }
 
 function mainlineEntityUsesVerticalText(entity: MainlineSceneEntity) {
-  return (entity.kind === 'table' || entity.kind === 'seat') && (entity.facing === 'east' || entity.facing === 'west')
+  return entity.textLayout === 'vertical' || (entity.kind === 'table' || entity.kind === 'seat') && (entity.facing === 'east' || entity.facing === 'west')
 }
 
 export function mainlineEntityFontSizePx(_entity: MainlineSceneEntity | null, _screenMetrics: SceneScreenMetrics) {
@@ -314,7 +314,7 @@ export function mainlineEntityTextFootprint(
     vertical: mainlineEntityUsesVerticalText(entity),
     visualScale: entity.visualScale,
     glyphPitchPx: ['fixture', 'table', 'seat'].includes(entity.kind) ? sharedFurnitureGlyphSpacingPx : undefined,
-    lineHeight: entity.kind === 'table' || entity.kind === 'seat' ? 1 : 1.2,
+    lineHeight: mainlineEntityUsesVerticalText(entity) || entity.kind === 'table' || entity.kind === 'seat' ? 1 : 1.2,
   })
 }
 

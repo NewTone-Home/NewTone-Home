@@ -106,6 +106,10 @@ export type MainlineSceneEntity = {
   visualBounds?: CollisionBox
   /** Visual-only object emphasis. It never changes collision, navigation, or contacts. */
   focusFrame?: 'interactive'
+  /** Several visible characters may share one continuous interaction frame. */
+  focusFrameGroup?: string
+  /** Authored writing direction, shared by visible text and collision footprint. */
+  textLayout?: 'vertical'
   visualScale?: number
   /** Maximum authored distance for direct exploration of a wall feature. */
   interactionRange?: number

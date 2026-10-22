@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifyMainlineWorldCommand, findMainlinePath, isWalkableMainlinePoint, mainlinePassageSide, resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
+import { classifyMainlineWorldCommand, findMainlinePath, resolveMainlineNpcPosition, isWalkableMainlinePoint, mainlinePassageSide, resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
@@ -139,7 +139,12 @@ describe('commercial street storefront interactions', () => {
       const publicLanePath = findMainlinePath(street.initialPlayerPosition, approach, street, {}, referenceNavigation)
       const openFrontNavigation={...referenceNavigation,openPassageIds:new Set([entry.id])}
       const entryPath = findMainlinePath(approach, interior, street, {}, openFrontNavigation)
-      const rearDoorApproachPath = findMainlinePath(interior, rear.thresholds[0], street, {}, rearNavigation)
+      const rearStart=rearActorId==='protagonist'?interior:resolveMainlineNpcPosition(street,rearActorId,{},rearNavigation)
+      const rearDoorApproachPath = findMainlinePath(rearStart, rear.thresholds[0], street, {}, rearNavigation)
+      if(rearActorId!=='protagonist'){
+        expect(isWalkableMainlinePoint(rearStart,street,{},rearNavigation)).toBe(true)
+        expect(findMainlinePath(interior,rear.thresholds[0],street,{},referenceNavigation)).toBeNull()
+      }
       const command = classifyMainlineWorldCommand(street, street.initialPlayerPosition, interior)
 
       expect(room.bounds.width).toBeCloseTo(steps.horizontal * (widthCells + 1))

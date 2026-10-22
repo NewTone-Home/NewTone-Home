@@ -72,9 +72,9 @@ describe('mainline visual footprint contract', () => {
     })
   })
 
-  it('keeps both visible Cafe counter runs as immutable world bodies and retains the public coffee-order contact',()=>{
+  it('keeps all three visible Cafe counter runs as immutable world bodies and retains the public coffee-order contact',()=>{
  const cafe=mainlineScenes['commercial-street'],bodies=cafe.continuousStructures.filter(b=>b.id.startsWith('cafe-trial-counter-'))
- expect(bodies).toHaveLength(2)
+ expect(bodies).toHaveLength(3)
  const viewports=[{width:390,height:844},{width:1280,height:800}]
  const snapshots=viewports.map(()=>createMainlineSceneGeometrySnapshot(cafe,currentCafeStart,{},currentCafeOptions.screenMetrics))
  for(const body of bodies){

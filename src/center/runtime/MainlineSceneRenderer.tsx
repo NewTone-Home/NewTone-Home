@@ -586,6 +586,9 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
   }
   const labelStyle = {
     '--scene-exploration-animation-delay': breathingAnimationDelay,
+    writingMode: entity.textLayout === 'vertical' ? 'vertical-rl' : undefined,
+    textOrientation: entity.textLayout === 'vertical' ? 'upright' : undefined,
+    lineHeight: entity.textLayout === 'vertical' ? 1 : undefined,
     transform: visualScale === 1 ? undefined : `scale(${visualScale})`,
   } as CSSProperties
   // Paint-only breathing belongs above the measured text subtree. Updating
@@ -960,6 +963,13 @@ export function MainlineSceneRenderer({
   const wallFeatureEntityIds = useMemo(() => new Set(geometryUnits.flatMap((unit) => unit.visual.cells
     .filter((cell) => cell.kind === 'feature' && cell.entityId)
     .flatMap((cell) => cell.entityId ? [cell.entityId] : []))), [geometryUnits])
+  const objectFrameOwners = useMemo(() => {
+    const owners = new Map<string, string>()
+    scene.objects.forEach(entity => {
+      if (entity.focusFrameGroup && !owners.has(entity.focusFrameGroup)) owners.set(entity.focusFrameGroup, entity.id)
+    })
+    return owners
+  }, [scene.objects])
   const focusFrameTargets = useMemo<readonly SceneFrameTarget[]>(() => {
     if (layoutMode) return []
     const targetMap = new Map<string, SceneFrameTarget>()
@@ -1019,7 +1029,7 @@ export function MainlineSceneRenderer({
     })
     scene.objects.forEach((entity) => {
       if (entity.focusFrame !== 'interactive' || entity.visible === false) return
-      const group = `interactive:${entity.id}`
+      const group = `interactive:${entity.focusFrameGroup ?? entity.id}`
       addTarget({
         group,
         policy: 'interactive',
@@ -1351,7 +1361,7 @@ export function MainlineSceneRenderer({
             && !wallFeatureEntityIds.has(entity.id)
             && mainlineEntityBelongsToActiveRoom(entity, activeShellRoomId)).map((entity) => {
             const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
-            const focusGroup = !layoutMode && entity.focusFrame === 'interactive' ? `interactive:${entity.id}` : undefined
+            const focusGroup = !layoutMode && entity.focusFrame === 'interactive' ? `interactive:${entity.focusFrameGroup ?? entity.id}` : undefined
             const underPlayer = entity.visualProfile === 'tree-ring' && entity.interactive === false && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8
             return <MemoMainlineObject
               key={entity.id}
@@ -1361,7 +1371,7 @@ export function MainlineSceneRenderer({
               collision={geometrySnapshot.objects.get(entity.id)?.collision ?? undefined}
               visualBounds={geometrySnapshot.objects.get(entity.id)?.visualBounds}
               focusGroup={focusGroup}
-              renderFrame={focusFrames.renderFrame}
+              renderFrame={!entity.focusFrameGroup || objectFrameOwners.get(entity.focusFrameGroup) === entity.id ? focusFrames.renderFrame : undefined}
               visibility={objectVisibility(entity, layoutMode)}
               active={isCurrentInteractionSource(entity.id)}
               explored={exploredObjectIds.has(entity.id)}
