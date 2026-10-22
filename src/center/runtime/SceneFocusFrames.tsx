@@ -18,13 +18,11 @@ type SceneFocusFramesProps = {
 }
 
 const frameCorners: readonly FocusFrameCorner[] = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
-export const interiorFocusFrameMotionMs = 180
-
-export function interiorFocusFramePresentation(active: boolean) {
+export function interiorFocusFramePresentation(active: boolean, durationMs: number) {
   return {
     strokeOffset: active ? 0 : 1,
     phase: active ? 'interior-drawing' : 'interior-retracting',
-    durationMs: interiorFocusFrameMotionMs,
+    durationMs,
   } as const
 }
 
@@ -505,7 +503,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
       : runtime.phase === 'hidden' || runtime.phase === 'retracting'
     const duration = measurement.duration
     const geometry = measurement.geometry
-    const presentation = presentationOverride ? interiorFocusFramePresentation(presentationActive === true) : null
+    const presentation = presentationOverride ? interiorFocusFramePresentation(presentationActive === true, duration) : null
     const phase = presentation?.phase ?? frameVisualPhase(runtime)
     const style = {
       ...measurement?.bounds,

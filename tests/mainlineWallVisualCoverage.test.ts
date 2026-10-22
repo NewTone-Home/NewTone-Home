@@ -1,10 +1,8 @@
 import {describe,it,expect} from 'vitest'
-import {readFileSync,writeFileSync} from 'node:fs'
+import {readFileSync} from 'node:fs'
 import {mainlineScenes,mainlineCanonicalSceneGeometryUnits} from '../src/center/runtime/mainlineScenes'
 import {wallVisualCoverage,wallCornerCoverage} from './helpers/wallVisualCoverage'
 const baseline=JSON.parse(readFileSync('tests/fixtures/wall-visual-coverage-0906541.json','utf8'))
-const measured=Object.fromEntries(Object.values(mainlineScenes).map(scene=>{const units=mainlineCanonicalSceneGeometryUnits(scene,{width:1920,height:1080});return[scene.id,{edges:wallVisualCoverage(scene,units),corners:wallCornerCoverage(scene,units)}]}))
-writeFileSync('.tmp/wall-current-visual-coverage.json',JSON.stringify(measured,null,2))
 const miningExpectedEdges=[
  'mining-street-facade:bottom',
  ...Array.from({length:8},(_,i)=>[`mining-shop-${i+1}-interior-shell:top`,`mining-shop-${i+1}-interior-shell:right`]).flat(),
@@ -14,6 +12,17 @@ const miningExpectedCoverageKeys=[...miningExpectedEdges,...Array.from({length:8
 // Keep the original full-coverage bounds after fixing rejected11c06. The
 // approved short tail is tested separately; no distance-band filtering here.
 describe('all door neighbors, complete edge gaps and corner coverage',()=>{
+ it.each(Object.values(mainlineScenes))('$id retains an exact hidden wall glyph beneath menu cells and rear doors',scene=>{
+  const units=mainlineCanonicalSceneGeometryUnits(scene,{width:1920,height:1080})
+  const replacedCells=units.filter(unit=>unit.sourceWallId?.endsWith('-shell')).flatMap(unit=>unit.visual.cells.filter(cell=>cell.kind==='feature'||cell.kind==='door'))
+  expect(replacedCells.every(cell=>Boolean(cell.baselineGlyph)),`${scene.id} can repaint every replaced menu cell and rear door as its wall`).toBe(true)
+  for(const unit of units.filter(candidate=>candidate.sourceWallId?.endsWith('-shell'))){
+   for(const cell of unit.visual.cells.filter(candidate=>candidate.kind==='door')){
+    expect(cell.baselineGlyph,`${unit.sourceWallId}:${cell.id} restores wall behind inactive door`).toBeTruthy()
+    expect(unit.navigation.blocked,`${unit.id} passage geometry remains blocked in its authored state`).toBe(true)
+   }
+  }
+ })
  it.each(Object.values(mainlineScenes))('$id retains complete door-adjacent and endpoint coverage',scene=>{
   const units=mainlineCanonicalSceneGeometryUnits(scene,{width:1920,height:1080}),actual=wallVisualCoverage(scene,units)
   if(scene.id==='yonghe-mining-perimeter'||scene.id==='yonghe-eatery'){
@@ -24,32 +33,31 @@ describe('all door neighbors, complete edge gaps and corner coverage',()=>{
    expect(boundaryEdges.map(edge=>edge.key).sort()).toEqual([...miningExpectedEdges].sort())
    for(const key of miningExpectedEdges){
     const edge=boundaryEdges.find(candidate=>candidate.key===key)!
-    // The Yonghe menu's one blank panel cell lies on its right wall. This
-    // exact 56px interval is allowed only there; every other boundary stays 28.
-    const allowedMaxGap=key==='mining-shop-2-interior-shell:right'?56.01:28.01
-    expect(edge.maxGap,`${key} maximum visual interval`).toBeLessThanOrEqual(allowedMaxGap)
+    expect(edge.maxGap,`${key} maximum hidden-wall visual interval`).toBeLessThanOrEqual(28.01)
     expect(edge.startDistance,`${key} first endpoint cap`).toBeLessThanOrEqual(28.01)
     expect(edge.endDistance,`${key} last endpoint cap`).toBeLessThanOrEqual(28.01)
    }
    const yongheRight=units.filter(unit=>unit.ownerId==='mining-shop-2-interior-shell'&&unit.edge==='right'&&unit.geometryKind==='boundary')
    const yongheRightCells=yongheRight.flatMap(unit=>unit.visual.cells)
    expect(yongheRightCells.some(cell=>cell.entityId==='yonghe-menu'&&cell.glyph),'Yonghe wall menu remains mounted on its right wall').toBe(true)
-   expect(yongheRightCells.some(cell=>cell.kind==='feature'&&!cell.glyph&&Math.abs(cell.y-34.8148148148)<.01),'the known menu panel cell accounts for the sole 56px visual interval').toBe(true)
+   const menuFlanks=yongheRightCells.filter(cell=>cell.kind==='feature'&&cell.featureCellRole==='flank'&&cell.entityId==='yonghe-menu')
+   expect(menuFlanks,'both blank menu margins retain their owning feature').toHaveLength(2)
+   expect(menuFlanks.every(cell=>cell.glyph===''&&Boolean(cell.baselineGlyph)),'both menu margins restore their ordinary wall glyph while the menu is hidden').toBe(true)
+   const menuContent=yongheRightCells.filter(cell=>cell.kind==='feature'&&cell.featureCellRole==='content'&&cell.entityId==='yonghe-menu')
+   expect(menuContent.length,'menu replaces only its authored wall cells').toBeGreaterThan(0)
+   expect(menuContent.every(cell=>Boolean(cell.baselineGlyph)),'every menu cell restores its wall glyph while hidden').toBe(true)
    const sharedMenuWallCorner=units.filter(unit=>unit.ownerId==='mining-shop-1-interior-shell'&&unit.edge==='top'&&unit.geometryKind==='boundary')
     .flatMap(unit=>unit.visual.cells).find(cell=>cell.glyph&&cell.kind==='wall'&&Math.abs(cell.x-104.25)<.001&&Math.abs(cell.y*10.8+72)<.01)
    expect(sharedMenuWallCorner,'the adjacent shell paints Yonghe wall at the shared upper corner').toBeDefined()
    const rightWallGlyphY=[...new Set([
-    ...yongheRightCells.filter(cell=>cell.glyph).map(cell=>Number((cell.y*10.8).toFixed(4))),
+    ...yongheRightCells.filter(cell=>cell.baselineGlyph??cell.glyph).map(cell=>Number((cell.y*10.8).toFixed(4))),
     Number((sharedMenuWallCorner!.y*10.8).toFixed(4)),
    ])].sort((a,b)=>a-b)
    const wideIntervals=rightWallGlyphY.slice(1).flatMap((end,index)=>{
     const start=rightWallGlyphY[index]!,gap=end-start
     return gap>28.01?[{start,end,gap}]:[]
    })
-   expect(wideIntervals,'only the embedded menu may interrupt the right-wall glyph pitch').toHaveLength(1)
-   expect(wideIntervals[0]!.start).toBeCloseTo(348,2)
-   expect(wideIntervals[0]!.end).toBeCloseTo(404,2)
-   expect(wideIntervals[0]!.gap).toBeCloseTo(56,2)
+   expect(wideIntervals,'hidden menus leave no oversized wall gap').toHaveLength(0)
    for(const storefront of scene.storefronts){
     const nearCells=units.filter(unit=>unit.storefrontId===storefront.id&&unit.variant==='near').flatMap(unit=>unit.visual.cells)
     const doors=nearCells.filter(cell=>cell.storefrontRole==='door')

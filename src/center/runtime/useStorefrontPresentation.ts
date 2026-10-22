@@ -4,6 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { storefrontRoomConnection } from './storefrontRoomConnection'
 import type { Point } from './sceneGeometry'
 import type { MainlineSceneDefinition } from './mainlineScenes'
+import { sceneFrameDefaultMotionMs, sceneFrameMotionMsForRect } from './sceneMotion'
+import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 import {
   activeStorefrontPresentationOwner,
   activeStorefrontInteriorOwner,
@@ -38,21 +40,56 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
   const [retainedInteriorStorefrontIds, setRetainedInteriorStorefrontIds] = useState<string[]>(() => interiorStorefrontId ? [interiorStorefrontId] : [])
   const [paintedInteriorStorefrontId, setPaintedInteriorStorefrontId] = useState<string | null>(null)
   const previousInteriorStorefrontIdRef = useRef<string | null>(interiorStorefrontId)
+  const currentInteriorStorefrontIdRef = useRef<string | null>(interiorStorefrontId)
+  const interiorRetentionTimersRef = useRef(new Map<string, number>())
+  const interiorMotionDuration = (storefrontId: string | null) => {
+    if (!storefrontId) return sceneFrameDefaultMotionMs
+    const storefront = scene.storefronts.find(candidate => candidate.id === storefrontId)
+    const bounds = storefront && storefrontRoomConnection(scene, storefront)?.interiorRoom.bounds
+    if (!bounds) return sceneFrameDefaultMotionMs
+    // A room-level perimeter is an upper bound for every frame and label
+    // contained by it, so the old room stays mounted until its slowest
+    // interior animation can finish.
+    return sceneFrameMotionMsForRect(
+      bounds.width * sceneDesignReferenceMetrics.width / 100,
+      bounds.height * sceneDesignReferenceMetrics.height / 100,
+    )
+  }
   useIsomorphicLayoutEffect(() => {
+    currentInteriorStorefrontIdRef.current = interiorStorefrontId
     const previous = previousInteriorStorefrontIdRef.current
     previousInteriorStorefrontIdRef.current = interiorStorefrontId
-    // Mount incoming room content with its frame paths collapsed first. The
-    // next paint changes the path offset, so SVG strokes draw from their
-    // starting point instead of appearing already complete.
-    setPaintedInteriorStorefrontId(null)
-    setRetainedInteriorStorefrontIds([...new Set([previous, interiorStorefrontId].filter((id): id is string => Boolean(id)))])
-    const frame = window.requestAnimationFrame(() => setPaintedInteriorStorefrontId(interiorStorefrontId))
-    const timer = window.setTimeout(() => setRetainedInteriorStorefrontIds(interiorStorefrontId ? [interiorStorefrontId] : []), 220)
-    return () => {
-      window.cancelAnimationFrame(frame)
-      window.clearTimeout(timer)
+    if (interiorStorefrontId) {
+      const existingTimer = interiorRetentionTimersRef.current.get(interiorStorefrontId)
+      if (existingTimer !== undefined) {
+        window.clearTimeout(existingTimer)
+        interiorRetentionTimersRef.current.delete(interiorStorefrontId)
+      }
     }
-  }, [interiorStorefrontId])
+    setRetainedInteriorStorefrontIds(current => [...new Set([...current, previous, interiorStorefrontId].filter((id): id is string => Boolean(id)))])
+    // Paint the collapsed/new owner state for one frame before changing the
+    // owner. That gives CSS a real start point and lets rapid reversals keep
+    // animating from the currently painted progress.
+    const initialFrame = window.requestAnimationFrame(() => {
+      setPaintedInteriorStorefrontId(interiorStorefrontId)
+    })
+    if (previous && previous !== interiorStorefrontId && !interiorRetentionTimersRef.current.has(previous)) {
+      const timer = window.setTimeout(() => {
+        interiorRetentionTimersRef.current.delete(previous)
+        if (currentInteriorStorefrontIdRef.current !== previous) {
+          setRetainedInteriorStorefrontIds(current => current.filter(id => id !== previous))
+        }
+      }, interiorMotionDuration(previous))
+      interiorRetentionTimersRef.current.set(previous, timer)
+    }
+    return () => {
+      if (initialFrame !== undefined) window.cancelAnimationFrame(initialFrame)
+    }
+  }, [interiorStorefrontId, scene])
+  useEffect(() => () => {
+    for (const timer of interiorRetentionTimersRef.current.values()) window.clearTimeout(timer)
+    interiorRetentionTimersRef.current.clear()
+  }, [])
   const visibleInteriorStorefrontIds = [...new Set([...retainedInteriorStorefrontIds, ...(interiorStorefrontId ? [interiorStorefrontId] : [])])]
   const nestedStorefrontIds = useMemo(() => {
     const parent = scene.storefronts.find(slot => slot.id === interiorStorefrontId)

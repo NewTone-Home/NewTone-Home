@@ -287,6 +287,7 @@ export type SharedBoundaryCell = SpatialLabel & {
   cellStart: number
   cellEnd: number
   featureCellRole?: 'content' | 'flank'
+  baselineGlyph?: string
   doorLabelPart?: string
 }
 
@@ -730,7 +731,8 @@ function compileSharedFrameEdge(
         layoutOrientation: edge.orientation,
         glyphOrientation: 'horizontal',
         glyph: featureSlot.glyph,
-        ...(featureSlot.featureCellRole === 'content' && featureSlot.feature.interactionId
+        baselineGlyph: '\u5899',
+        ...(featureSlot.feature.interactionId
           ? { interactionId: featureSlot.feature.interactionId }
           : {}),
         frameId: frame.id,

@@ -115,6 +115,8 @@ export type MainlineSceneVisualCell = {
   y: number
   kind: 'wall' | 'door' | 'opening' | 'feature' | 'storefront'
   glyph?: string
+  /** Wall glyph restored when an embedded feature is not being shown. */
+  baselineGlyph?: string
   label?: string
   displayLabel?: string
   doorLabelPart?: string
@@ -296,8 +298,11 @@ type MainlinePassageGeometry = Pick<MainlineScenePassage, 'id' | 'portalId' | 'e
 
 function mainlineBoundaryCell(cell: SharedBoundaryCell, structure: MainlineStructure): MainlineSceneVisualCell {
   const kind = cell.role === 'door' ? 'door' : cell.role === 'opening' ? 'opening' : cell.role === 'feature' ? 'feature' : 'wall'
-  const glyph = kind === 'wall' && structure.wallGlyphs?.length
+  const structuralWallGlyph = structure.wallGlyphs?.length
     ? structure.wallGlyphs[cell.gridIndex % structure.wallGlyphs.length]
+    : structure.wallGlyph ?? 'ǽ'
+  const glyph = kind === 'wall' && structure.wallGlyphs?.length
+    ? structuralWallGlyph
     : cell.glyph
   return {
     id: `${structure.id}-${cell.boundaryId}-${cell.gridIndex}`,
@@ -305,10 +310,11 @@ function mainlineBoundaryCell(cell: SharedBoundaryCell, structure: MainlineStruc
     y: cell.y,
     kind,
     glyph,
+    baselineGlyph: kind === 'feature' || kind === 'door' ? structuralWallGlyph : cell.baselineGlyph,
     label: kind === 'door' ? (cell.label ?? cell.glyph) : undefined,
     displayLabel: kind === 'door' ? cell.displayLabel : undefined,
     doorLabelPart: kind === 'door' ? cell.doorLabelPart : undefined,
-    entityId: cell.featureCellRole === 'flank' ? cell.doorId : cell.interactionId ?? cell.doorId,
+    entityId: cell.interactionId ?? cell.doorId,
     doorBehavior: cell.doorBehavior,
     access: cell.access,
     lockedText: cell.lockedText,
