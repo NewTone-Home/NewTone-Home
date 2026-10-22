@@ -495,8 +495,10 @@ describe('ordinary world navigation and passage intent', () => {
 
     const eatery = mainlineScenes['yonghe-eatery']
     const locked = eatery.passages.find((passage) => passage.id === 'yonghe-back-door')!
-    const lockedTarget = mainlinePassageExitPoint(locked, eatery.initialPlayerPosition)
-    const lockedPlan = classifyMainlineWorldCommand(eatery, eatery.initialPlayerPosition, lockedTarget)
+    const eateryRoom = eatery.rooms.find(room => room.id === 'mining-shop-2-interior')!
+    const insideYonghe = locked.crossingTargets.find(point => point.x > eateryRoom.bounds.x && point.x < eateryRoom.bounds.x + eateryRoom.bounds.width && point.y > eateryRoom.bounds.y && point.y < eateryRoom.bounds.y + eateryRoom.bounds.height)!
+    const lockedTarget = mainlinePassageExitPoint(locked, insideYonghe)
+    const lockedPlan = classifyMainlineWorldCommand(eatery, insideYonghe, lockedTarget, {}, { actorId: 'yonghe-trial-worker' })
     expect(lockedPlan).toMatchObject({ kind: 'passage', passage: { id: locked.id }, requestedTarget: lockedTarget })
   })
 
@@ -506,8 +508,9 @@ describe('ordinary world navigation and passage intent', () => {
     const storefront = perimeter.storefronts.find((candidate) => candidate.portalId === entrance.portalId)!
     const sourceThreshold = entrance.thresholds[0]
     const slotSpan = storefront.end - storefront.start
-    const outsideSlot = { x: sourceThreshold.x, y: storefront.end + slotSpan }
-    const insideSlot = { x: sourceThreshold.x, y: (storefront.start + storefront.end) / 2 }
+    const outsideSlot = { x: storefront.end + slotSpan, y: sourceThreshold.y }
+    const shopRoom = perimeter.rooms.find(room => room.id === 'mining-shop-2-interior')!
+    const insideSlot = entrance.crossingTargets.find(point => point.x > shopRoom.bounds.x && point.x < shopRoom.bounds.x + shopRoom.bounds.width && point.y > shopRoom.bounds.y && point.y < shopRoom.bounds.y + shopRoom.bounds.height)!
 
     expect(classifyMainlineWorldCommand(perimeter, perimeter.initialPlayerPosition, outsideSlot)).toMatchObject({ kind: 'ordinary' })
     expect(classifyMainlineWorldCommand(perimeter, perimeter.initialPlayerPosition, insideSlot)).toMatchObject({ kind: 'passage', passage: { id: entrance.id } })

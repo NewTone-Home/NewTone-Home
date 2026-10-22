@@ -7,10 +7,11 @@ import { createMainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnap
 import { findMainlinePath, isWalkableMainlinePoint } from './mainlineNavigation'
 import { mainlineProtagonistDotFootprint } from './sceneLayout'
 
-export const currentMiningLayoutVersion = 2
+export const currentMiningLayoutVersion = 3
 export type MiningSceneId = 'yonghe-mining-perimeter' | 'yonghe-eatery'
 export type MiningPositionRooms = { current?: string; scenes?: Partial<Record<MiningSceneId, string>> }
-export type MiningPositionBackup = { sourceLayout: 'grid-v1' | 'unknown-legacy'; current?: { sceneId: MiningSceneId; position: Point }; scenes?: Partial<Record<MiningSceneId, Point>> }
+type MiningPositionSnapshot = { current?: { sceneId: MiningSceneId; position: Point }; scenes?: Partial<Record<MiningSceneId, Point>> }
+export type MiningPositionBackup = MiningPositionSnapshot & { sourceLayout: 'grid-v1' | 'grid-v2' | 'unknown-legacy'; layout2?: MiningPositionSnapshot }
 export const isMiningSceneId = (id: string): id is MiningSceneId => id === 'yonghe-mining-perimeter' || id === 'yonghe-eatery'
 
 /** Frozen geometry metadata from published bae6afb, not a second scene implementation. */
@@ -26,6 +27,19 @@ export const legacyMiningGridRooms = [
 ] as const
 const laneId = 'mining-street-public-lane'
 const legacyLane = { x:40.00046666666667,y:2.8148,width:8.749999999999993,height:124.44434445015857 }
+/** Frozen version2/4217 metadata. It must not be inferred from the new rooms:
+ * a version2 position needs its old owner before any coordinate recovery. */
+export const expandedMiningGridRooms = [
+  [8.000085185185185,23.333333333333336],
+  [31.33341851851852,28.51851851851852],
+  [59.85193703703704,23.33333333333332],
+  [83.18527037037036,25.925925925925924],
+  [109.11119629629628,23.33333333333333],
+  [132.4445296296296,23.333333333333343],
+  [155.77786296296296,23.333333333333343],
+  [179.1111962962963,23.333333333333314],
+].map(([y,height],index)=>({id:`mining-shop-${index+1}-interior`,bounds:{x:3.542133333333336,y:y!,width:36.45833333333333,height:height!}}))
+const expandedLane = { ...legacyLane, height:207.40754444444454 }
 const ownedRoomIds = new Set<string>([laneId, ...legacyMiningGridRooms.map(room => room.id)])
 const inside = (p:Point,b:CollisionBox) => p.x>=b.x&&p.x<=b.x+b.width&&p.y>b.y+.000001&&p.y<b.y+b.height-.000001
 const closedInside = (p:Point,b:CollisionBox) => p.x>=b.x-.000001&&p.x<=b.x+b.width+.000001&&p.y>=b.y-.000001&&p.y<=b.y+b.height+.000001
@@ -41,10 +55,14 @@ export function cleanMiningPositionRooms(value:unknown):MiningPositionRooms|unde
 export function cleanMiningPositionBackup(value:unknown):MiningPositionBackup|undefined {
   if(!value||typeof value!=='object')return undefined
   const source=value as MiningPositionBackup
-  if(source.sourceLayout!=='grid-v1'&&source.sourceLayout!=='unknown-legacy')return undefined
+  if(source.sourceLayout!=='grid-v1'&&source.sourceLayout!=='grid-v2'&&source.sourceLayout!=='unknown-legacy')return undefined
   const current=source.current&&isMiningSceneId(source.current.sceneId)&&validPoint(source.current.position)?{sceneId:source.current.sceneId,position:{...source.current.position}}:undefined
   const scenes=Object.fromEntries(Object.entries(source.scenes??{}).filter(([id,p])=>isMiningSceneId(id)&&validPoint(p)).map(([id,p])=>[id,{...p!}]))
-  return {sourceLayout:source.sourceLayout,...(current?{current}:{}),...(Object.keys(scenes).length?{scenes}:{})}
+  const layout2=source.layout2&&typeof source.layout2==='object'?source.layout2:undefined
+  const layout2Current=layout2?.current&&isMiningSceneId(layout2.current.sceneId)&&validPoint(layout2.current.position)?{sceneId:layout2.current.sceneId,position:{...layout2.current.position}}:undefined
+  const layout2Scenes=Object.fromEntries(Object.entries(layout2?.scenes??{}).filter(([id,p])=>isMiningSceneId(id)&&validPoint(p)).map(([id,p])=>[id,{...p!}]))
+  const snapshot=layout2Current||Object.keys(layout2Scenes).length?{...(layout2Current?{current:layout2Current}:{}),...(Object.keys(layout2Scenes).length?{scenes:layout2Scenes}:{})}:undefined
+  return {sourceLayout:source.sourceLayout,...(current?{current}:{}),...(Object.keys(scenes).length?{scenes}:{}),...(snapshot?{layout2:snapshot}:{})}
 }
 
 export function currentMiningRoomId(id:MiningSceneId,p:Point):string|undefined {
@@ -73,20 +91,22 @@ function recoverOwned(scene:MainlineSceneDefinition,owner:string,preferred:Point
   return {...seed}
 }
 
-function mapLaneY(scene:MainlineSceneDefinition,y:number) {
+function mapLanePosition(scene:MainlineSceneDefinition,p:Point,sourceLane:CollisionBox):Point {
   const nextLane=scene.rooms.find(room=>room.id===laneId)!.bounds
-  const old=[legacyLane.y,legacyMiningGridRooms[0]!.bounds.y,...legacyMiningGridRooms.map(room=>room.bounds.y+room.bounds.height),legacyLane.y+legacyLane.height]
-  const next=[nextLane.y,scene.rooms.find(room=>room.id===legacyMiningGridRooms[0]!.id)!.bounds.y,...legacyMiningGridRooms.map(room=>{const b=scene.rooms.find(r=>r.id===room.id)!.bounds;return b.y+b.height}),nextLane.y+nextLane.height]
-  const v=Math.max(old[0]!,Math.min(old.at(-1)!,y)),index=Math.max(0,Math.min(old.length-2,old.findIndex((end,i)=>i>0&&v<=end)-1))
-  return next[index]!+fraction(v,old[index]!,old[index+1]!-old[index]!)*(next[index+1]!-next[index]!)
+  return {
+    x: nextLane.x + (1 - fraction(p.y,sourceLane.y,sourceLane.height)) * nextLane.width,
+    y: nextLane.y + fraction(p.x,sourceLane.x,sourceLane.width) * nextLane.height,
+  }
 }
-
 export function migrateMiningPositions({layoutVersion,worldGridVersion,currentSceneId,currentPosition,scenePositions,rooms:previousRooms,backup:previousBackup}:{layoutVersion:unknown;worldGridVersion:unknown;currentSceneId:MainlineSceneId;currentPosition:Point|null;scenePositions:Partial<Record<MainlineSceneId,Point>>;rooms?:MiningPositionRooms;backup?:MiningPositionBackup}) {
   const version=typeof layoutVersion==='number'&&Number.isInteger(layoutVersion)&&layoutVersion>=currentMiningLayoutVersion?layoutVersion:currentMiningLayoutVersion
   const currentSchema=typeof layoutVersion==='number'&&Number.isInteger(layoutVersion)&&layoutVersion>=currentMiningLayoutVersion
-  const knownGridLegacy=layoutVersion===1||worldGridVersion===1
+  const fromLayout2=layoutVersion===2
+  const knownGridLegacy=fromLayout2||layoutVersion===1||worldGridVersion===1
+  const sourceRooms=fromLayout2?expandedMiningGridRooms:legacyMiningGridRooms
+  const sourceLane=fromLayout2?expandedLane:legacyLane
   const scenes={...scenePositions},owners:MiningPositionRooms={scenes:{...previousRooms?.scenes}},memo=new Map<string,{point:Point;owner:string}>()
-  const backup:MiningPositionBackup|undefined=currentSchema?previousBackup:{sourceLayout:knownGridLegacy?'grid-v1':'unknown-legacy',...previousBackup,scenes:{...previousBackup?.scenes}}
+  const backup:MiningPositionBackup|undefined=currentSchema?previousBackup:{sourceLayout:fromLayout2?'grid-v2':knownGridLegacy?'grid-v1':'unknown-legacy',...previousBackup,...(previousBackup?.scenes?{scenes:{...previousBackup.scenes}}:{}),...(fromLayout2?{layout2:{...previousBackup?.layout2,...(previousBackup?.layout2?.scenes?{scenes:{...previousBackup.layout2.scenes}}:{})}}:{})}
   const migrate=(id:MiningSceneId,source:Point,hint?:string)=>{
     const key=`${id}:${source.x}:${source.y}:${hint??''}`,cached=memo.get(key);if(cached)return cached
     const scene=mainlineScenes[id]
@@ -96,19 +116,21 @@ export function migrateMiningPositions({layoutVersion,worldGridVersion,currentSc
       // No reliable coordinate epoch: use the named scene/explicit ownership,
       // never infer an arbitrary room from ambiguous numbers.
       owner=hint&&ownedRoomIds.has(hint)?hint:id==='yonghe-eatery'?'mining-shop-2-interior':laneId
-      mapped=owner===laneId?scene.initialPlayerPosition:scene.passages.find(p=>p.toRoomId===owner&&p.access==='open')!.crossingTargets[0]
+      const entrance=scene.passages.find(p=>p.toRoomId===owner)
+      if(owner!==laneId&&entrance?.access!=='open'){owner=laneId;mapped=entrance?.thresholds[0]??scene.initialPlayerPosition}
+      else mapped=owner===laneId?scene.initialPlayerPosition:entrance!.crossingTargets[0]
     }else{
-      const old=worldGridVersion===1?source:migratePreGridPosition(id,source)
-      const hinted=legacyMiningGridRooms.find(room=>room.id===hint&&closedInside(old,room.bounds))
-      const room=hinted??(old.x<legacyLane.x?legacyMiningGridRooms.find(room=>inside(old,room.bounds)):undefined)
-      if(room){const next=scene.rooms.find(candidate=>candidate.id===room.id)!.bounds;owner=room.id;mapped={x:next.x+fraction(old.x,room.bounds.x,room.bounds.width)*next.width,y:next.y+fraction(old.y,room.bounds.y,room.bounds.height)*next.height}}
-      else{owner=laneId;const next=scene.rooms.find(room=>room.id===laneId)!.bounds;mapped={x:next.x+fraction(old.x,legacyLane.x,legacyLane.width)*next.width,y:mapLaneY(scene,old.y)}}
+      const old=fromLayout2||worldGridVersion===1?source:migratePreGridPosition(id,source)
+      const hinted=sourceRooms.find(room=>room.id===hint&&closedInside(old,room.bounds))
+      const room=hinted??(old.x<sourceLane.x?sourceRooms.find(room=>inside(old,room.bounds)):undefined)
+      if(room){const next=scene.rooms.find(candidate=>candidate.id===room.id)!.bounds;const entrance=scene.passages.find(p=>p.toRoomId===room.id);if(entrance?.access!=='open'){owner=laneId;mapped=entrance?.thresholds[0]??scene.initialPlayerPosition}else{owner=room.id;mapped={x:next.x+(1-fraction(old.y,room.bounds.y,room.bounds.height))*next.width,y:next.y+fraction(old.x,room.bounds.x,room.bounds.width)*next.height}}}
+      else{owner=laneId;mapped=mapLanePosition(scene,old,sourceLane)}
     }
     const result={point:recoverOwned(scene,owner,mapped),owner};memo.set(key,result);return result
   }
-  for(const id of ['yonghe-mining-perimeter','yonghe-eatery'] as const){const source=scenes[id];if(!source)continue;const result=migrate(id,source,previousRooms?.scenes?.[id]);scenes[id]=result.point;owners.scenes![id]=result.owner;if(!currentSchema)backup!.scenes![id]??={...source}}
+  for(const id of ['yonghe-mining-perimeter','yonghe-eatery'] as const){const source=scenes[id];if(!source)continue;const result=migrate(id,source,previousRooms?.scenes?.[id]);scenes[id]=result.point;owners.scenes![id]=result.owner;if(!currentSchema){backup!.scenes??={};backup!.scenes[id]??={...source};if(fromLayout2){backup!.layout2??={};backup!.layout2!.scenes??={};backup!.layout2!.scenes![id]??={...source}}}}
   let current=currentPosition
-  if(isMiningSceneId(currentSceneId)&&current){const result=migrate(currentSceneId,current,previousRooms?.current);owners.current=result.owner;if(!currentSchema)backup!.current??={sceneId:currentSceneId,position:{...current}};current=result.point}
+  if(isMiningSceneId(currentSceneId)&&current){const result=migrate(currentSceneId,current,previousRooms?.current);owners.current=result.owner;if(!currentSchema){backup!.current??={sceneId:currentSceneId,position:{...current}};if(fromLayout2)backup!.layout2!.current??={sceneId:currentSceneId,position:{...current}}};current=result.point}
   const hasOwners=!!owners.current||Object.keys(owners.scenes??{}).length>0
   const hasBackup=!!backup?.current||Object.keys(backup?.scenes??{}).length>0
   return {version,currentPosition:current,scenePositions:scenes,rooms:hasOwners?owners:undefined,backup:hasBackup?backup:undefined}

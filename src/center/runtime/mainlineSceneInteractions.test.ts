@@ -90,7 +90,7 @@ describe('mainline scene interaction policies', () => {
         expect(room).toBeDefined()
         expect(mainlineSceneAreaLabel(scene, { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 })).toBe(name)
         const door = scene.passages.find(candidate => candidate.toRoomId === roomId)!
-        expect(door).toMatchObject({ access: 'open', routeThrough: true, fromRoomId: 'mining-street-public-lane' })
+        expect(door).toMatchObject({ access: index === 1 ? 'open' : 'locked', routeThrough: true, fromRoomId: 'mining-street-public-lane' })
         expect(door.targetSceneId).toBeUndefined()
       }
       expect(scene.passages.find(candidate => candidate.id === 'yonghe-back-door')).toMatchObject({ access: 'locked' })
