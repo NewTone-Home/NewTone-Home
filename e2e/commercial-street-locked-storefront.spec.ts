@@ -101,3 +101,33 @@ test('clicking the north N2 entry crosses into its same-scene shell', async ({ p
   await expect(stage).toHaveAttribute('data-mainline-scene', 'commercial-street')
   expect(passage.targetSceneId).toBeUndefined()
 })
+
+test('a far locked shop click walks to its legal doorway before showing the permission message', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.goto('/?scene=commercial-street&debugRuntimeEvidence=1')
+
+  const street = mainlineScenes['commercial-street']
+  const stage = page.locator('.mainline-scene-stage')
+  const start = await page.locator('[data-actor-id="protagonist"]').evaluate((element) => ({
+    x: Number((element as HTMLElement).dataset.runtimeX),
+    y: Number((element as HTMLElement).dataset.runtimeY),
+  }))
+  const lockedStorefront = street.storefronts
+    .filter((storefront) => storefront.portalId && street.passages.find((passage) => passage.portalId === storefront.portalId)?.access === 'locked')
+    .map((storefront) => ({ storefront, approach: mainlineStorefrontApproach(street, storefront) }))
+    .sort((a, b) => Math.hypot(b.approach.x - start.x, b.approach.y - start.y) - Math.hypot(a.approach.x - start.x, a.approach.y - start.y))[0]!
+  const door = page.locator(`button[data-storefront-cell-id^="${lockedStorefront.storefront.id}-"]`).first()
+  await expect(door).toBeVisible()
+  await expect(page.locator('[data-scene-echo]')).toHaveCount(0)
+  await door.click()
+
+  // The denial is tied to reaching the legal approach point, not the distant
+  // click itself. A locked shop never transitions to its room.
+  await page.waitForFunction(({ x, y }) => {
+    const player = document.querySelector<HTMLElement>('[data-actor-id="protagonist"]')
+    return Boolean(player && Math.hypot(Number(player.dataset.runtimeX) - x, Number(player.dataset.runtimeY) - y) < .8)
+  }, lockedStorefront.approach, { timeout: 20_000 })
+  await expect(page.locator('[data-scene-echo]')).toBeVisible()
+  await expect(stage).toHaveAttribute('data-mainline-scene', 'commercial-street')
+  expect(street.passages.find((passage) => passage.portalId === lockedStorefront.storefront.portalId)?.access).toBe('locked')
+})

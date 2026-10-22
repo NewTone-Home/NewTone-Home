@@ -1137,6 +1137,51 @@ export function MainlineScenePage({
       : { phase: 'retracting', passageEntityId: passage.entityId, scope })
   }, [])
 
+  const denyLockedPassageAfterApproach = useCallback((passage: MainlineScenePassage, approachPath: readonly Point[] | null | undefined) => {
+    const deny = () => {
+      pendingTraversalRef.current = null
+      pendingInteractionAfterTraversalRef.current = null
+      stopMovement()
+      setPassageDestination(null)
+      setRequestedWorldTarget(null)
+      setActiveObjectId(null)
+      setSceneFrameExit({ phase: 'idle' })
+      onDoorEvent?.('blocked', passage)
+      showLockedPassageText(passage)
+    }
+    if (!approachPath?.length) {
+      stopMovement()
+      setPassageDestination(null)
+      setRequestedWorldTarget(null)
+      setActiveObjectId(null)
+      return
+    }
+    const routeLength = approachPath.slice(1).reduce((distance, point, index) => distance + Math.hypot(
+      point.x - approachPath[index]!.x,
+      point.y - approachPath[index]!.y,
+    ), 0)
+    // One actor footprint is the near-door zone. Far clicks walk to the same
+    // legal approach point used by open passages before checking access.
+    if (routeLength <= Math.max(protagonistFootprint.width, protagonistFootprint.height)) {
+      deny()
+      return
+    }
+    setPassageDestination(null)
+    setActiveObjectId(null)
+    moveAlong([...approachPath], deny, {
+      ...protagonistLocomotionOptions,
+      canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, getLiveNavigationOptions()),
+      canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, getLiveNavigationOptions()),
+      onBlocked: () => {
+        pendingTraversalRef.current = null
+        setPassageDestination(null)
+        setRequestedWorldTarget(null)
+        setActiveObjectId(null)
+        stopMovement()
+      },
+    })
+  }, [getLiveNavigationOptions, layout, moveAlong, onDoorEvent, protagonistFootprint.height, protagonistFootprint.width, protagonistLocomotionOptions, scene, showLockedPassageText, stopMovement])
+
   const beginPassageLeg = useCallback(function beginPassageLeg(passage: MainlineScenePassage, requestedTarget: Point, plannedApproachPath: Point[] | null | undefined, continuationPath: Point[] | null | undefined, passageQueue: readonly MainlineScenePassage[], passageIndex: number, replanCount = 0) {
     pendingTraversalRef.current = null
     setSceneFrameExit({ phase: 'idle' })
@@ -1695,20 +1740,13 @@ export function MainlineScenePage({
     dismissSceneAction()
     dismissSceneEcho()
     if (passage.access !== 'open') {
-      pendingTraversalRef.current = null
-      pendingInteractionAfterTraversalRef.current = null
       cancelPassageLifecycle('protagonist', passage.id)
-      stopMovement()
-      setPassageDestination(null)
-      setRequestedWorldTarget(null)
-      setActiveObjectId(null)
-      setSceneFrameExit({ phase: 'idle' })
-      onDoorEvent?.('blocked', passage)
-      showLockedPassageText(passage)
+      const path = plannedApproachPath ?? canActorReachPassageApproach(scene, passage, getCurrentPosition(), layout, navigationOptions)?.path
+      denyLockedPassageAfterApproach(passage, path)
       return
     }
     beginPassageLeg(passage, requestedTarget, plannedApproachPath, continuationPath, passageQueue, passageIndex)
-  }, [beginPassageLeg, cancelPassageLifecycle, dismissSceneAction, dismissSceneEcho, onDoorEvent, sceneAction?.phase, showLockedPassageText, stopMovement])
+  }, [beginPassageLeg, cancelPassageLifecycle, denyLockedPassageAfterApproach, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, navigationOptions, scene, sceneAction?.phase])
 
   const interact = useCallback((entityId: string, requestAlreadyRecorded = false) => {
     if (readingActive || sceneAction?.phase === 'committing') return
@@ -1773,9 +1811,8 @@ export function MainlineScenePage({
     leavePlayerSeat()
     if (passage) {
       if (passage.access !== 'open') {
-        stopMovement()
-        onDoorEvent?.('blocked', passage)
-        showLockedPassageText(passage)
+        const approach = canActorReachPassageApproach(scene, passage, getCurrentPosition(), layout, navigationOptions)
+        denyLockedPassageAfterApproach(passage, approach?.path)
         return
       }
       // A direct door click is an explicit request to use that door. Resolve
@@ -1878,7 +1915,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, denyLockedPassageAfterApproach, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 

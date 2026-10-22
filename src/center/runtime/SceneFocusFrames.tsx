@@ -204,7 +204,18 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     const existing = frameNodeRefsRef.current.get(group)
     if (existing) return existing
     const ref = (node: HTMLSpanElement | null) => {
-      if (node) frameNodesRef.current.set(group, node)
+      if (node) {
+        frameNodesRef.current.set(group, node)
+        // Interior frames can mount only after their room becomes visible.
+        // Re-measure once the newly mounted glyph subtree has completed a
+        // browser layout pass, so first entry does not retain a zero-size
+        // placeholder until a later visit happens to trigger another resize.
+        if (typeof window !== 'undefined') {
+          window.requestAnimationFrame(() => {
+            if (frameNodesRef.current.get(group) === node) measureGroupRef.current(group)
+          })
+        }
+      }
       else frameNodesRef.current.delete(group)
       setFrameNodesRevision((value) => value + 1)
     }

@@ -312,6 +312,9 @@
   pointer-events: none;
 }
 .scene-spatial-glyph--counter.is-ordered { color: var(--active); }
+.scene-counter-label { -webkit-tap-highlight-color: transparent; }
+.scene-counter-label:focus:not(:focus-visible) { outline: none; }
+[data-counter-outline-group] { -webkit-tap-highlight-color: transparent; }
 
 .scene-mark { height: 1px; background: var(--faint); transform-origin: left center; }
 .scene-mark--threshold { background: var(--line); opacity: .75; }
@@ -1193,6 +1196,10 @@
   color: transparent;
   cursor: pointer;
   touch-action: manipulation;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 .scene-dialogue-shield:focus-visible { outline: 1px solid rgba(240, 204, 123, .48); outline-offset: -5px; }/* Commercial street keeps the same text-first language as the other mainline
    locations; its wall/storefront composition comes from compiled geometry. */
