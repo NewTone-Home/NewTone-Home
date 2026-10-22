@@ -35,8 +35,8 @@ describe('simple drink workspaces: one visible worktop and shared counter entry'
  it('retains Cafe32px opening and renders its upper short counter without a label',()=>{
   const upper=scene.continuousStructures.find(p=>p.id==='cafe-trial-counter-upper-body')!,long=scene.continuousStructures.find(p=>p.id==='cafe-trial-counter-long-body')!;expect((long.y-upper.y-upper.height)*10.8).toBeCloseTo(32,5);const html=renderToStaticMarkup(<MainlineCounterSurface parts={[upper]} objects={scene.objects} onInteract={()=>{}}/>);expect(html).not.toContain('data-counter-label=');expect(html).toContain('data-counter-part-id=')
  })
- it('frames only the four existing Cafe tables without changing their32x16 shape',()=>{
-  const tables=scene.objects.filter(o=>o.roomId===configs[0][1]&&o.kind==='table');expect(tables).toHaveLength(4);for(const t of tables){expect(t.focusFrame).toBe('interactive');expect(t.shape!.width*19.2).toBeCloseTo(32,5);expect(t.shape!.height*10.8).toBeCloseTo(16,5)}
+ it('frames all six Cafe tables without changing their32x16 shape',()=>{
+  const tables=scene.objects.filter(o=>o.roomId===configs[0][1]&&o.kind==='table');expect(tables).toHaveLength(6);for(const t of tables){expect(t.focusFrame).toBe('interactive');expect(t.shape!.width*19.2).toBeCloseTo(32,5);expect(t.shape!.height*10.8).toBeCloseTo(16,5)}
  })
  it('uses the original coffee-order state change from every Cafe counter leg, never a duplicate order',()=>{
   for(const body of scene.continuousStructures.filter(p=>p.counterSurface?.roomId===configs[0][1]&&p.counterSurface.role!=='worktop')){const entity=scene.objects.find(o=>o.id===body.counterSurface!.interactionEntityId)!;expect(resolveMainlineSceneEchoChoice(scene,entity,'点一杯咖啡',1,{commercialCafeCoffeeOrdered:false})?.stateChange?.value).toBe('ordered');expect(resolveMainlineSceneEchoChoice(scene,entity,'点一杯咖啡',1,{commercialCafeCoffeeOrdered:true})).toEqual({dismiss:true})}

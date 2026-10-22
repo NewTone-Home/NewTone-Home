@@ -907,9 +907,10 @@ const commercialStreetWorldRight = 200 + commercialStreetLongitudinalExpansion
 // front wall remains the frozen storefront row; each shell owns only its sides
 // and back. Cafe's former scene blueprint remains available for saved state,
 // but its street entrance now routes into this empty same-scene shell.
-// Twenty-six wall anchors include the facade and rear wall, so each room
-// spans twenty-five shared-grid pitch intervals from front center to rear.
-const commercialStreetInteriorVerticalCoordinateCount = 26
+// Eleven net frontage cells define22 internal rows for every street shop.
+// Front and rear walls add two anchors:24 centers across23 intervals.
+// Double-front shops expand width only, never this single-module depth.
+const commercialStreetInteriorVerticalCoordinateCount = 24
 const commercialStreetInteriorDepth = boundaryGridStepsFromReferenceSpacing().vertical * (commercialStreetInteriorVerticalCoordinateCount - 1)
 // Keep passage endpoints clear of the fixed actor footprint while preserving
 // the previous 1.5-cell approach depth after switching the wall lattice.
@@ -1154,7 +1155,8 @@ const commercialStreetShellFurniture = (() => {
   addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-menu-service-label', '菜单', cell(fastFood, 7, 3))
   addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-order-service-label', '点单', cell(fastFood, 12, 5))
   addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-pickup-service-label', '取餐', cell(fastFood, 12, 12))
-  addWallRun(fastFood, 'commercial-s2-fast-food-kitchen-warehouse-divider', Array.from({ length: 10 }, (_, index) => cell(fastFood, 18, 16 + index)), 'vertical', [0, 9])
+  const fastFoodRearDividerRows = commercialStreetInteriorVerticalCoordinateCount - 16
+  addWallRun(fastFood, 'commercial-s2-fast-food-kitchen-warehouse-divider', Array.from({ length: fastFoodRearDividerRows }, (_, index) => cell(fastFood, 18, 16 + index)), 'vertical', [0, fastFoodRearDividerRows - 1])
 
   const addRetailRun = (
     sample: typeof commercialStreetInteriorSamples[number],

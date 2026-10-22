@@ -1,3 +1,4 @@
+import { currentCommercialDepthVersion, migrateCommercialDepthPoint, type CommercialDepthBackup } from './commercialDepthMigration'
 import type { MainlineSceneId } from './mainlineSceneModel'
 import { migratePreGridPosition } from './sceneGridRollout'
 import { mainlineSceneBlueprints } from './mainlineSceneModel'
@@ -25,6 +26,8 @@ export type PlayerSceneState = Record<string, PlayerChoiceValue>
 
 export type PlayerSave = {
   worldGridVersion?: 1
+  commercialDepthVersion?: number
+  commercialDepthBackup?: CommercialDepthBackup
   miningLayoutVersion?: number
   miningPositionRooms?: MiningPositionRooms
   miningPositionBackup?: MiningPositionBackup
@@ -92,6 +95,7 @@ function cleanSceneState(value: unknown): Partial<Record<MainlineSceneId, Player
 export function createInitialPlayerSave(sceneId: MainlineSceneId = initialMainlineSceneId): PlayerSave {
   return {
     worldGridVersion: 1,
+    commercialDepthVersion: currentCommercialDepthVersion,
     miningLayoutVersion: currentMiningLayoutVersion,
     _version: PLAYER_SAVE_VERSION,
     currentSceneId: sceneId,
@@ -201,6 +205,24 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
     scenePositions['commercial-street'] = mapLegacyCafePoint(rememberedCafe, cafeBounds)
   }
   delete scenePositions['commercial-cafe']
+  let commercialDepthBackup: CommercialDepthBackup | undefined
+  const priorDepthBackup = source.commercialDepthBackup && typeof source.commercialDepthBackup === 'object' ? source.commercialDepthBackup : undefined
+  if (priorDepthBackup) commercialDepthBackup = {
+    ...(isPoint(priorDepthBackup.currentPosition) ? { currentPosition: cleanPoint(priorDepthBackup.currentPosition)! } : {}),
+    ...(isPoint(priorDepthBackup.rememberedPosition) ? { rememberedPosition: cleanPoint(priorDepthBackup.rememberedPosition)! } : {}),
+  }
+  const savedDepthVersion = Number(source.commercialDepthVersion)
+  if (!Number.isFinite(savedDepthVersion) || savedDepthVersion < currentCommercialDepthVersion) {
+    const rooms = mainlineSceneBlueprints['commercial-street'].scene.rooms!
+    const oldCurrent = currentSceneId === 'commercial-street' && source.currentSceneId !== 'commercial-cafe' ? currentPosition : null
+    const oldRemembered = source.currentSceneId !== 'commercial-cafe' && source.scenePositions && typeof source.scenePositions === 'object' && isPoint(source.scenePositions['commercial-street']) ? scenePositions['commercial-street'] : undefined
+    if (oldCurrent) currentPosition = migrateCommercialDepthPoint(oldCurrent, rooms)
+    if (oldRemembered) scenePositions['commercial-street'] = migrateCommercialDepthPoint(oldRemembered, rooms)!
+    if (!commercialDepthBackup && (oldCurrent || oldRemembered)) commercialDepthBackup = {
+      ...(oldCurrent ? { currentPosition: oldCurrent } : {}), ...(oldRemembered ? { rememberedPosition: oldRemembered } : {}),
+    }
+  }
+
   const storyStage = source.storyClock?.stage
   const storyClock: MainlineStoryClock = storyStage === 'commercial-street' || storyStage === 'cafe' || storyStage === 'yonghe' || storyStage === 'opening'
     ? storyClockForStage(storyStage as MainlineStoryStage)
@@ -208,6 +230,8 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
   const updatedAt = Number(source.updatedAt)
   return {
     worldGridVersion: 1,
+    commercialDepthVersion: Math.max(currentCommercialDepthVersion, Number.isFinite(savedDepthVersion) ? savedDepthVersion : currentCommercialDepthVersion),
+    ...(commercialDepthBackup ? { commercialDepthBackup } : {}),
     miningLayoutVersion: mining.version,
     ...(mining.rooms ? { miningPositionRooms: mining.rooms } : {}),
     ...(mining.backup ? { miningPositionBackup: mining.backup } : {}),

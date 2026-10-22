@@ -111,7 +111,7 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
   })
 
   // Sparse corner plants: no watering system, only the existing view interaction.
-  entities.push(fixture('cafe-trial-corner-plant-rear', '绿植', 644, 84), fixture('cafe-trial-corner-plant-front', '绿植', 644, 644))
+  entities.push(fixture('cafe-trial-corner-plant-rear', '绿植', 644, 84), fixture('cafe-trial-corner-plant-front', '绿植', 644, 588))
 
   const rear = blueprint.portals.find(portal => portal.id === `${room.id}-rear-door`)!
   const toiletId = 'cafe-trial-customer-toilet-door'
@@ -221,7 +221,7 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     roomId: 'commercial-south-s5-interior', prefix: 'milk-tea-trial', oldStructurePrefix: 'commercial-s5-milk-tea-',
     // Front is at y0. A long right counter separates ordering and collection along the shop.
     runs: [
-      { id: 'long-counter', bounds: { x: 157, y: 101, width: 22, height: 591 }, outlineBounds: { x: 157, y: 101, width: 22, height: 613 }, orientation: 'vertical', publicSide: 'left' },
+      { id: 'long-counter', bounds: { x: 157, y: 101, width: 22, height: 535 }, outlineBounds: { x: 157, y: 101, width: 22, height: 557 }, orientation: 'vertical', publicSide: 'left' },
       { id: 'front-return', bounds: { x: 179, y: 101, width: 149, height: 22 }, outlineBounds: { x: 179, y: 101, width: 171, height: 22 }, orientation: 'horizontal', publicSide: 'top' },
     ],
     stations: [
@@ -233,7 +233,7 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     worktop: { x: 296, y: 196, width: 24, height: 336 }, worker: [216, 392],
     // The right work lane continues to its one locked rear door. There is no
     // interior warehouse or public-side employee exit: the long end meets the rear wall.
-    regions: [{ x: 168, y: 112, width: 168, height: 588 }],
+    regions: [{ x: 168, y: 112, width: 168, height: 532 }],
   })
   return buildTakeawayTrial(milkTea, {
     roomId: 'commercial-north-n1-interior', prefix: 'fruit-tea-trial', oldStructurePrefix: 'commercial-retail-n1-fruit-tea-',

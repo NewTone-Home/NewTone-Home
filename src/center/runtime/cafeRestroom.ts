@@ -31,7 +31,7 @@ export function attachCafeRestroom(blueprint: MainlineSceneBlueprint): MainlineS
       rooms: [...blueprint.scene.rooms!, { id: cafeRestroomRoomId, bounds }],
       walls: [...blueprint.scene.walls, { id: 'cafe-single-restroom-shell', type: 'room', bounds, variant: 'commercial-empty-shell', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { horizontal: 7, vertical: 7 }, edges: ['left', 'top', 'right'] }],
       storefronts: [...(blueprint.scene.storefronts ?? []), slot],
-      floorEntities: [...blueprint.scene.floorEntities, fixture('cafe-restroom-toilet', '便器', 532, -126), fixture('cafe-restroom-sink', '洗手盆', 616, -70)],
+      floorEntities: [...blueprint.scene.floorEntities, fixture('cafe-restroom-toilet', '便器', 532, -126), fixture('cafe-restroom-sink', '洗手盆', 608, -70)],
     },
     explorationText: { ...blueprint.explorationText, 'cafe-restroom-toilet': ['单人卫生间里的便器。'], 'cafe-restroom-sink': ['卫生间里的洗手盆。'] },
     interactionText: { ...blueprint.interactionText, [cafeRestroomDoorId]: '卫生间通往咖啡馆。' },
