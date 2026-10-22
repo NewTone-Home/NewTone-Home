@@ -2,6 +2,7 @@
 
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
+import { MainlineCounterSurface } from './MainlineCounterSurface'
 import EntryButtonSurface from '../../components/EntryButtonSurface'
 import type { CollisionBox, Point } from './sceneGeometry'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
@@ -963,6 +964,15 @@ export function MainlineSceneRenderer({
   const wallFeatureEntityIds = useMemo(() => new Set(geometryUnits.flatMap((unit) => unit.visual.cells
     .filter((cell) => cell.kind === 'feature' && cell.entityId)
     .flatMap((cell) => cell.entityId ? [cell.entityId] : []))), [geometryUnits])
+  const counterSurfaces = useMemo(() => {
+    const groups = new Map<string, typeof scene.continuousStructures[number][]>()
+    scene.continuousStructures.forEach(body => {
+      if (!body.counterSurface) return
+      const group = body.counterSurface.groupId
+      groups.set(group, [...(groups.get(group) ?? []), body])
+    })
+    return [...groups.values()]
+  }, [scene.continuousStructures])
   const objectFrameOwners = useMemo(() => {
     const owners = new Map<string, string>()
     scene.objects.forEach(entity => {
@@ -1356,7 +1366,9 @@ export function MainlineSceneRenderer({
             })}
           </div>
 
+          {counterSurfaces.filter(parts => !parts[0].counterSurface?.roomId || parts[0].counterSurface.roomId === activeShellRoomId).map(parts => <MainlineCounterSurface key={parts[0].counterSurface!.groupId} parts={parts} objects={scene.objects} onInteract={onInteract}/>) }
           {scene.objects.filter((entity) => entity.visible !== false
+            && !entity.counterSurfaceId
             && entity.kind !== 'door'
             && !wallFeatureEntityIds.has(entity.id)
             && mainlineEntityBelongsToActiveRoom(entity, activeShellRoomId)).map((entity) => {

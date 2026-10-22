@@ -1,5 +1,5 @@
 import type { MainlineSceneBlueprint, MainlineSceneEntity, MainlineFurnitureGroup, MainlineContinuousStructure } from './mainlineSceneModel'
-import type { Point } from './sceneGeometry'
+import type { CollisionBox, Point } from './sceneGeometry'
 import { continuousCafeRoomId, cafeConversationSeatId, cafeStoryTableId } from './continuousCafe'
 
 type WallFeature = NonNullable<MainlineSceneBlueprint['scene']['walls'][number]['features']>[number]
@@ -43,6 +43,24 @@ function employeeRearDoor(blueprint: MainlineSceneBlueprint, roomId: string, loc
   }) }
 }
 
+
+/** One real body per leg, one exterior contour per connected counter. */
+function addCounterSurface(entities: MainlineSceneEntity[], structures: MainlineContinuousStructure[], point: (x: number, y: number) => Point, roomId: string, spec: {
+  id: string; groupId: string; bounds: CollisionBox; orientation: 'horizontal' | 'vertical'; publicSide: 'top' | 'bottom' | 'left' | 'right'
+  services?: readonly { id: string; x: number; y: number; order?: boolean }[]
+}) {
+  const { bounds } = spec, bodyId = `${spec.id}-body`, genericId = `${spec.id}-0`
+  structures.push({ id: bodyId, kind: 'counter', ...point(bounds.x, bounds.y), width: bounds.width / 19.2, height: bounds.height / 10.8,
+    counterSurface: { groupId: spec.groupId, roomId, interactionEntityId: genericId, labelEntityId: spec.services?.[0]?.id ?? genericId, orientation: spec.orientation } })
+  const anchor = (id: string, x: number, y: number, service = false, order = false): MainlineSceneEntity => ({
+    id, label: '柜台', kind: 'fixture', weight: 'fixture', surface: 'floor', roomId, position: point(x, y),
+    interactive: true, visualVisibility: 'static', interactionStructureId: bodyId, interactionContactSides: [spec.publicSide],
+    counterSurfaceId: spec.groupId, counterService: service, ...(order ? { interactionBehavior: 'cafe-order' as const } : {}),
+  })
+  entities.push(anchor(genericId, bounds.x + bounds.width / 2, bounds.y + bounds.height / 2))
+  spec.services?.forEach(service => entities.push(anchor(service.id, service.x, service.y, true, service.order)))
+}
+
 /** Isolated layout trial: dimensions are reference-world pixels, not viewport pixels. */
 export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSceneBlueprint {
   const data = blueprint.scene
@@ -59,31 +77,13 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
     ...(solid ? { collision: footprint(x, y, Array.from(label).length * 16, 16) } : {}),
   })
 
-  // Counter bodies end at the visible 16px glyph cells; no old 28px anchor body remains.
-  const counterRun = (id: string, coordinates: readonly [number, number][], orderIndex = -1) => {
-    if (coordinates.length % 2) throw new Error(`Counter ${id} must contain complete pairs`)
-    const xs = coordinates.map(([x]) => x), ys = coordinates.map(([, y]) => y)
-    const left = Math.min(...xs) - 8, top = Math.min(...ys) - 8
-    const right = Math.max(...xs) + 8, bottom = Math.max(...ys) + 8
-    const bodyId = `${id}-body`
-    structures.push({ id: bodyId, kind: 'counter', ...point(left, top), width: (right - left) / 1920 * 100, height: (bottom - top) / 1080 * 100 })
-    coordinates.forEach(([x, y], index) => {
-      const serviceId = id === 'cafe-trial-counter-long' ? ({ 9: 'cafe-trial-pickup', 22: 'cafe-trial-order' } as Record<number, string>)[index] : undefined
-      const entity = fixture(index === orderIndex ? 'commercial-cafe-counter' : serviceId ?? `${id}-${index}`, index % 2 ? '台' : '柜', x, y, false)
-      entity.interactionStructureId = bodyId
-      entity.interactionContactSides = ['right']
-      entity.interactive = true
-      entity.focusFrame = 'interactive'
-      entity.focusFrameGroup = bodyId
-      if (index === orderIndex) entity.interactionBehavior = 'cafe-order'
-      entities.push(entity)
-    })
-  }
-  counterRun('cafe-trial-counter-long', Array.from({ length: 26 }, (_, index) => [196, 80 + index * 16] as [number, number]), 16)
-  // Both L terminals meet real walls. A separate32px opening at y40..72
-  // admits the16px employee; no invisible blocker closes any counter end.
-  counterRun('cafe-trial-counter-upper', Array.from({ length: 2 }, (_, index) => [196, 16 + index * 16] as [number, number]))
-  counterRun('cafe-trial-counter-front', [16, 32, 58, 74, 100, 116, 132, 148, 164, 180].map(x => [x, 476] as [number, number]))
+  const lowerGroup = 'cafe-trial-L-counter'
+  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-long', groupId: lowerGroup, bounds: { x: 188, y: 72, width: 16, height: 416 }, orientation: 'vertical', publicSide: 'right', services: [
+    { id: 'commercial-cafe-counter', x: 196, y: 336, order: true }, { id: 'cafe-trial-pickup', x: 196, y: 224 }, { id: 'cafe-trial-order', x: 196, y: 432 },
+  ] })
+  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-front', groupId: lowerGroup, bounds: { x: 8, y: 468, width: 180, height: 16 }, orientation: 'horizontal', publicSide: 'bottom' })
+  // This is physically separate above the32px employee exit: never bridge it.
+  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-upper', groupId: 'cafe-trial-counter-upper', bounds: { x: 188, y: 8, width: 16, height: 32 }, orientation: 'vertical', publicSide: 'right' })
   entities.push(
     { ...fixture('cafe-trial-coffee-machine', '咖啡机', 48, 224), collision: footprint(48, 224, 16, 48), textLayout: 'vertical', focusFrame: 'interactive' },
     { ...fixture('cafe-trial-prep-table', '备餐台', 48, 336), collision: footprint(48, 336, 16, 48), textLayout: 'vertical', focusFrame: 'interactive' },
@@ -160,8 +160,8 @@ type TakeawayTrial = {
   roomId: string
   prefix: string
   oldStructurePrefix: string
-  runs: readonly { id: string; cells: readonly [number, number][]; glyphOffset?: 0 | 1 }[]
-  stations: readonly { id: string; cell: number }[]
+  runs: readonly { id: string; bounds: CollisionBox; orientation: 'horizontal' | 'vertical'; publicSide: 'top' | 'bottom' | 'left' | 'right' }[]
+  stations: readonly { id: string; x: number; y: number }[]
   menu: { id: string; y: number; edge: 'left' | 'right'; publicX: number }
   publicSide: 'left' | 'right'
   rearX: number
@@ -176,17 +176,10 @@ function buildTakeawayTrial(blueprint: MainlineSceneBlueprint, trial: TakeawayTr
   const point = (x: number, y: number): Point => ({ x: room.bounds.x + x / 1920 * 100, y: room.bounds.y + y / 1080 * 100 })
   const oldIds = new Set(data.floorEntities.filter(entity => entity.roomId === room.id).map(entity => entity.id))
   const entities: MainlineSceneEntity[] = [], structures: MainlineContinuousStructure[] = []
-  trial.runs.forEach(run => {
-    if (run.cells.length % 2) throw new Error(`Counter ${trial.prefix}-${run.id} must contain complete pairs`)
-    const xs = run.cells.map(([x]) => x), ys = run.cells.map(([, y]) => y)
-    const x = Math.min(...xs) - 8, y = Math.min(...ys) - 8
-    const bodyId = `${trial.prefix}-${run.id}-body`
-    structures.push({ id: bodyId, kind: 'counter', ...point(x, y), width: (Math.max(...xs) + 8 - x) / 1920 * 100, height: (Math.max(...ys) + 8 - y) / 1080 * 100 })
-    run.cells.forEach(([x, y], index) => {
-      const station = run.id === trial.runs[0]!.id ? trial.stations.find(candidate => candidate.cell === index) : undefined
-      entities.push({ id: station?.id ?? `${trial.prefix}-${run.id}-${index}`, label: (index + (run.glyphOffset ?? 0)) % 2 ? '台' : '柜', kind: 'fixture', weight: 'fixture', surface: 'floor', roomId: room.id, position: point(x, y), visualVisibility: 'static', interactive: true, focusFrame: 'interactive', focusFrameGroup: bodyId, interactionStructureId: bodyId, interactionContactSides: [trial.publicSide] })
-    })
-  })
+  trial.runs.forEach((run, index) => addCounterSurface(entities, structures, point, room.id, {
+    id: `${trial.prefix}-${run.id}`, groupId: `${trial.prefix}-L-counter`, bounds: run.bounds, orientation: run.orientation, publicSide: run.publicSide,
+    services: index === 0 ? trial.stations : undefined,
+  }))
   trial.equipment.forEach(({ label, x, y }, index) => entities.push({
     id: `${trial.prefix}-equipment-${index + 1}`, label, kind: 'fixture', weight: 'fixture', surface: 'floor', roomId: room.id,
     position: point(x, y), visualVisibility: 'static', interactive: true, textLayout: 'vertical', focusFrame: 'interactive',
@@ -220,12 +213,12 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     roomId: 'commercial-south-s5-interior', prefix: 'milk-tea-trial', oldStructurePrefix: 'commercial-s5-milk-tea-',
     // Front is at y0. A long right counter separates ordering and collection along the shop.
     runs: [
-      { id: 'long-counter', cells: Array.from({ length: 36 }, (_, i) => [224, 112 + i * 16 + (i >= 34 ? 12 : i >= 32 ? 6 : 0)] as [number, number]) },
-      { id: 'front-return', cells: Array.from({ length: 6 }, (_, i) => [320 - i * 16, 112] as [number, number]) },
+      { id: 'long-counter', bounds: { x: 216, y: 104, width: 16, height: 588 }, orientation: 'vertical', publicSide: 'left' },
+      { id: 'front-return', bounds: { x: 232, y: 104, width: 96, height: 16 }, orientation: 'horizontal', publicSide: 'top' },
     ],
     stations: [
-      { id: 'commercial-s5-milk-tea-order-service-label', cell: 7 },
-      { id: 'commercial-s5-milk-tea-pickup-service-label', cell: 20 },
+      { id: 'commercial-s5-milk-tea-order-service-label', x: 224, y: 224 },
+      { id: 'commercial-s5-milk-tea-pickup-service-label', x: 224, y: 432 },
     ],
     publicSide: 'left', menu: { id: 'commercial-s5-milk-tea-menu-service-label', y: 168, edge: 'right', publicX: 176 }, rearX: 280,
     equipment: [{ label: '制茶机', x: 280, y: 336 }, { label: '封口机', x: 280, y: 448 }, { label: '清洗台', x: 280, y: 560 }, { label: '煮料台', x: 280, y: 224 }],
@@ -239,12 +232,12 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     // Front is at y700. The left work line closes into the wall at its front
     // end; the other terminal now meets the rear wall too.
     runs: [
-      { id: 'long-counter', cells: Array.from({ length: 34 }, (_, i) => [112, 16 + i * 16 + (i >= 32 ? 16 : i >= 30 ? 8 : 0)] as [number, number]) },
-      { id: 'front-return', cells: Array.from({ length: 6 }, (_, i) => [16 + i * 16, 560] as [number, number]) },
+      { id: 'long-counter', bounds: { x: 104, y: 8, width: 16, height: 560 }, orientation: 'vertical', publicSide: 'right' },
+      { id: 'front-return', bounds: { x: 8, y: 552, width: 96, height: 16 }, orientation: 'horizontal', publicSide: 'bottom' },
     ],
     stations: [
-      { id: 'fruit-tea-trial-order', cell: 26 },
-      { id: 'fruit-tea-trial-pickup', cell: 20 },
+      { id: 'fruit-tea-trial-order', x: 112, y: 432 },
+      { id: 'fruit-tea-trial-pickup', x: 112, y: 336 },
     ],
     publicSide: 'right', menu: { id: 'fruit-tea-trial-menu', y: 616, edge: 'left', publicX: 160 }, rearX: 56,
     equipment: [{ label: '清洗台', x: 48, y: 308 }, { label: '切果台', x: 48, y: 392 }, { label: '打包台', x: 48, y: 476 }, { label: '冷藏', x: 48, y: 140 }, { label: '煮料台', x: 48, y: 224 }],

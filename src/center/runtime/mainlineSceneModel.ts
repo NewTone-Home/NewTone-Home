@@ -81,6 +81,13 @@ export type MainlineSceneCurve = {
 export type MainlineContinuousStructure = CollisionBox & {
   id: string
   kind: 'counter' | 'barrier'
+  counterSurface?: {
+    groupId: string
+    roomId: string
+    interactionEntityId: string
+    labelEntityId: string
+    orientation: 'horizontal' | 'vertical'
+  }
 }
 
 export type MainlineSceneEntity = {
@@ -119,6 +126,9 @@ export type MainlineSceneEntity = {
   interactionContactAnchor?: Point
   /** A visual cell delegates physical contact to this continuous body. */
   interactionStructureId?: string
+  /** Counter surfaces draw/hit the complete solid; these entities retain semantic IDs. */
+  counterSurfaceId?: string
+  counterService?: boolean
   /** A small set of authored interaction behaviors used by the generic page flow. */
   interactionBehavior?: MainlineInteractionBehavior
   /** Semantic visual treatment; keeps the renderer independent of authored IDs. */
