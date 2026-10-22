@@ -34,6 +34,7 @@ import { commercialStreetStorefrontInteractionFor } from './commercialStreetStor
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 import { storefrontContactGeometry } from './storefrontContactGeometry'
 import { mainlineAvailableReadingWidthPx, mainlineCanRenderFirstReadingGlyph, mainlineDialogueParticipantNpcIds, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingStaticOpacity } from './mainlineTextReading'
+import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -827,6 +828,7 @@ export function MainlineSceneRenderer({
   const dialogueAdvanceConsumedGroupRef = useRef<string | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const stableViewportRef = useRef<HTMLSpanElement>(null)
+  const dimmerRef = useRef<HTMLDivElement>(null)
   const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
   const registerBreathingNode = useCallback((entityId: string, node: HTMLSpanElement | null) => {
     if (node) altarBreathingNodesRef.current.set(entityId, node)
@@ -855,6 +857,33 @@ export function MainlineSceneRenderer({
   const cafeQaAccessBoundary = cafeSpatialQa ? geometrySnapshot.navigationBarriers.find((barrier) => barrier.id === 'commercial-cafe-staff-right-access-boundary') : undefined
   const cafeQaBackDoor = cafeSpatialQa ? geometrySnapshot.passages.get('cafe-back-door') : undefined
   const hasAltarBreathing = incenseLit && scene.objects.some((entity) => entity.visualProfile === 'incense')
+  useIsomorphicLayoutEffect(() => {
+    const dimmer = dimmerRef.current
+    if (!dimmer) return
+    const currentOpacity = Number(getComputedStyle(dimmer).opacity)
+    const targetOpacity = readingMode ? centerReadingDimmerTargets[readingMode] : 0
+    dimmer.getAnimations().forEach((animation) => animation.cancel())
+    dimmer.style.opacity = String(currentOpacity)
+    const duration = centerReadingDimmerTransitionDurationMs(
+      currentOpacity,
+      targetOpacity,
+      readingMode ? centerReadingDimmerTargets[readingMode] : currentOpacity,
+    )
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (duration <= 0.5 || reducedMotion) {
+      dimmer.style.opacity = String(targetOpacity)
+      return
+    }
+    const animation = dimmer.animate(
+      [{ opacity: currentOpacity }, { opacity: targetOpacity }],
+      { duration, easing: 'linear', fill: 'forwards' },
+    )
+    animation.onfinish = () => {
+      if (dimmerRef.current !== dimmer) return
+      dimmer.style.opacity = String(targetOpacity)
+      animation.cancel()
+    }
+  }, [readingMode])
   useEffect(() => {
     if (!hasAltarBreathing || typeof window === 'undefined') return undefined
     const startedAt = performance.now()
@@ -1687,6 +1716,7 @@ export function MainlineSceneRenderer({
             ))}
           </div>}
         </div>
+          <div ref={dimmerRef} className={`scene-dialogue-dimmer${readingMode ? ` scene-dialogue-dimmer--${readingMode}` : ''}`} style={{ opacity: 0 }} aria-hidden="true" />
         </div>
           {readingMode && <>
             <button
