@@ -18,6 +18,15 @@ type SceneFocusFramesProps = {
 }
 
 const frameCorners: readonly FocusFrameCorner[] = ['top-left', 'top-right', 'bottom-right', 'bottom-left']
+export const interiorFocusFrameMotionMs = 180
+
+export function interiorFocusFramePresentation(active: boolean) {
+  return {
+    strokeOffset: active ? 0 : 1,
+    phase: active ? 'interior-drawing' : 'interior-retracting',
+    durationMs: interiorFocusFrameMotionMs,
+  } as const
+}
 
 /** Ignore only the paint clock, preserving every geometry-bearing style. */
 export function sceneFocusPaintGeometryStyle(style: string | null) {
@@ -463,7 +472,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
     if (completeFrameTransition(runtime, target ? frameShouldCollapse(target, runtime) : true, event.timeStamp, elapsedMs, reachedCurrentEndpoint)) bump()
   }, [bump, targetMap])
 
-  const renderFrame = useCallback((group: string): ReactNode => {
+  const renderFrame = useCallback((group: string, presentationActive?: boolean): ReactNode => {
     const target = targetMap.get(group)
     const runtime = runtimeSnapshot.get(group)
     if (!target || !runtime) return null
@@ -479,27 +488,32 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         ref={frameRefFor(group)}
       ><svg viewBox={defaultFrameGeometry.viewBox} preserveAspectRatio="none"><path pathLength="1" d={defaultFrameGeometry.paths[runtime.corner]} onTransitionEnd={(event) => handleTransitionEnd(group, event)} /></svg></span>
     )
-    const collapsed = runtime.phase === 'hidden' || runtime.phase === 'retracting'
+    const presentationOverride = presentationActive !== undefined
+    const collapsed = presentationOverride
+      ? !presentationActive
+      : runtime.phase === 'hidden' || runtime.phase === 'retracting'
     const duration = measurement.duration
     const geometry = measurement.geometry
+    const presentation = presentationOverride ? interiorFocusFramePresentation(presentationActive === true) : null
+    const phase = presentation?.phase ?? frameVisualPhase(runtime)
     const style = {
       ...measurement?.bounds,
-      '--scene-focus-stroke-offset': collapsed ? 1 : 0,
-      '--scene-focus-frame-duration': `${duration}ms`,
+      '--scene-focus-stroke-offset': presentation?.strokeOffset ?? (collapsed ? 1 : 0),
+      '--scene-focus-frame-duration': `${presentation?.durationMs ?? duration}ms`,
     } as CSSProperties
     return (
       <span
-        className={`scene-focus-frame ${target.policy === 'exploration' ? 'scene-focus-frame--exploration' : ''} ${collapsed ? 'is-collapsed' : 'is-visible'} ${target.retractRequested ? 'is-requested-retraction' : ''}`}
+        className={`scene-focus-frame ${target.policy === 'exploration' ? 'scene-focus-frame--exploration' : ''} ${collapsed && !presentationOverride ? 'is-collapsed' : 'is-visible'} ${target.retractRequested ? 'is-requested-retraction' : ''}`}
         style={style}
         data-focus-frame-group={group}
         data-focus-frame-policy={target.policy}
-        data-focus-frame-phase={frameVisualPhase(runtime)}
+        data-focus-frame-phase={phase}
         data-focus-frame-corner={runtime.corner}
         aria-hidden="true"
         ref={frameRefFor(group)}
       >
         <svg viewBox={geometry.viewBox} preserveAspectRatio="none">
-          <path pathLength="1" d={geometry.paths[runtime.corner]} onTransitionEnd={(event) => handleTransitionEnd(group, event)} />
+          <path pathLength="1" d={geometry.paths[runtime.corner]} onTransitionEnd={presentationOverride ? undefined : (event) => handleTransitionEnd(group, event)} />
         </svg>
       </span>
     )

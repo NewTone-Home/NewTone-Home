@@ -4,7 +4,7 @@ import { mainlineEntityFontSizePx } from '../src/center/runtime/sceneLayout'
 import { boundaryGridStepsFromReferenceSpacing, sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { mainlineCameraVisualOutset } from '../src/center/runtime/mainlineViewport'
 import { sceneVisualRectInLocalSpace, sceneFrameBoundsInLocalSpace } from '../src/center/runtime/sceneVisualBounds'
-import { sceneFocusFrameGeometry } from '../src/center/runtime/SceneFocusFrames'
+import { interiorFocusFramePresentation, sceneFocusFrameGeometry } from '../src/center/runtime/SceneFocusFrames'
 
 describe('fixed world typography and focus units',()=>{
   it.each([{width:1920,height:1080},{width:1280,height:800},{width:390,height:844},{width:844,height:390}])('keeps ordinary type and authoring pitches independent of viewport %o',metrics=>{
@@ -25,6 +25,11 @@ describe('fixed world typography and focus units',()=>{
     const geometry=sceneFocusFrameGeometry(Number(bounds.width),Number(bounds.height))
     expect(geometry.viewBox).toBe('0 0 20 20')
     expect(geometry.paths['top-left']).toBe('M1 1 H19 V19 H1 V1 Z')
+  })
+  it('draws interior frame paths on entry and reverses their stroke offset on exit',()=>{
+    expect(interiorFocusFramePresentation(true)).toEqual({strokeOffset:0,phase:'interior-drawing',durationMs:180})
+    expect(interiorFocusFramePresentation(false)).toEqual({strokeOffset:1,phase:'interior-retracting',durationMs:180})
+    expect(interiorFocusFramePresentation(false).phase).not.toBe('collapsed')
   })
   it('keeps world rules fixed while retaining the special question marker',()=>{
     const css=readFileSync('src/center/runtime/scene.css','utf8')

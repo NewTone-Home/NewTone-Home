@@ -41,10 +41,17 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
   useIsomorphicLayoutEffect(() => {
     const previous = previousInteriorStorefrontIdRef.current
     previousInteriorStorefrontIdRef.current = interiorStorefrontId
-    setPaintedInteriorStorefrontId(interiorStorefrontId)
+    // Mount incoming room content with its frame paths collapsed first. The
+    // next paint changes the path offset, so SVG strokes draw from their
+    // starting point instead of appearing already complete.
+    setPaintedInteriorStorefrontId(null)
     setRetainedInteriorStorefrontIds([...new Set([previous, interiorStorefrontId].filter((id): id is string => Boolean(id)))])
+    const frame = window.requestAnimationFrame(() => setPaintedInteriorStorefrontId(interiorStorefrontId))
     const timer = window.setTimeout(() => setRetainedInteriorStorefrontIds(interiorStorefrontId ? [interiorStorefrontId] : []), 220)
-    return () => window.clearTimeout(timer)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
   }, [interiorStorefrontId])
   const visibleInteriorStorefrontIds = [...new Set([...retainedInteriorStorefrontIds, ...(interiorStorefrontId ? [interiorStorefrontId] : [])])]
   const nestedStorefrontIds = useMemo(() => {
