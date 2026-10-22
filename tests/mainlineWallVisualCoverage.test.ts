@@ -7,6 +7,7 @@ const miningExpectedEdges=[
  'mining-street-facade:bottom',
  ...Array.from({length:8},(_,i)=>[`mining-shop-${i+1}-interior-shell:top`,`mining-shop-${i+1}-interior-shell:right`]).flat(),
  'mining-shop-8-interior-shell:left','mining-industrial-edge:top',
+ 'mining-shop-3-interior-shared-right-tail:left','mining-shop-5-interior-shared-right-tail:left',
 ]
 const miningExpectedCoverageKeys=[...miningExpectedEdges,...Array.from({length:8},(_,i)=>`yonghe-slot-${i+1}:bottom`)]
 // Keep the original full-coverage bounds after fixing rejected11c06. The

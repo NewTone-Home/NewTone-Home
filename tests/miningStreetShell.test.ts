@@ -61,6 +61,34 @@ describe('mining clockwise continuous street shell', () => {
     expect(new Set(miningShopShells.map(shop => shop.depthCells)).size).toBeGreaterThan(1)
   })
 
+  it('fills each deeper shared divider exactly once at the reference wall pitch', () => {
+    const units = mainlineCanonicalSceneGeometryUnits(scene, sceneDesignReferenceMetrics)
+    const boundaryCells = units
+      .filter(unit => unit.geometryKind === 'boundary' && unit.variant !== 'near')
+      .flatMap(unit => unit.visual.cells)
+      .filter(cell => cell.kind === 'wall' && cell.glyph)
+    const ordered = [...miningShopShells].sort((a, b) => a.left - b.left)
+
+    for (let index = 0; index < ordered.length - 1; index++) {
+      const leftShop = ordered[index]!
+      const rightShop = ordered[index + 1]!
+      expect(leftShop.right).toBeCloseTo(rightShop.left, 8)
+      const rear = Math.min(leftShop.back, rightShop.back)
+      const front = Math.max(leftShop.back, rightShop.back)
+      if (front - rear < .001) continue
+
+      const xPx = leftShop.right * 19.2
+      const expectedYPx = Array.from(
+        { length: Math.round((front - rear) * 10.8 / 28) + 1 },
+        (_, cellIndex) => rear * 10.8 + cellIndex * 28,
+      )
+      for (const yPx of expectedYPx) {
+        const matches = boundaryCells.filter(cell => Math.abs(cell.x * 19.2 - xPx) < .05 && Math.abs(cell.y * 10.8 - yPx) < .01)
+        expect(matches, `shared divider x=${xPx}, y=${yPx}`).toHaveLength(1)
+      }
+    }
+  })
+
   it('retains three owned wall slots on both sides and one shared separator between signboards', () => {
     const units = mainlineSceneGeometryUnits(scene, scene.initialPlayerPosition, sceneDesignReferenceMetrics, new Map(scene.storefronts.map(slot => [slot.id, 'baseline'])))
     const cells = units.filter(unit => unit.sourceWallId === 'mining-street-facade').flatMap(unit => unit.visual.cells)

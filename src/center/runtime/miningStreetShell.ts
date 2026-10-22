@@ -107,6 +107,19 @@ function rotateRect(rect: { x: number; y: number; width: number; height: number 
 
 export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' | 'yonghe-eatery' = 'yonghe-mining-perimeter'): MainlineSceneBlueprint {
   const shops = oldShopMetrics
+  const sharedWallTails: MainlineWallBlueprint[] = shops.slice(0, -1).flatMap((rightShop, index) => {
+    const leftShop = shops[index + 1]!
+    if (rightShop.back >= leftShop.back) return []
+    const intervalCount = Math.round((leftShop.back - rightShop.back) / vertical)
+    return [{
+      id: leftShop.roomId + '-shared-right-tail', type: 'room',
+      bounds: { x: leftShop.right, y: rightShop.back, width: horizontal, height: leftShop.back - rightShop.back },
+      variant: 'mining-empty-shell', boundaryGeometrySource: 'cell-range',
+      boundaryCoordinateCount: { vertical: intervalCount + 1 },
+      boundaryVisualEndpoints: { vertical: { start: 'omit', end: 'omit' } },
+      edges: ['left'],
+    }]
+  })
   const walls: MainlineWallBlueprint[] = [
     {
       id: 'mining-street-facade', type: 'room',
@@ -123,6 +136,7 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
       boundaryVisualEndpoints: { vertical: { start: 'omit', end: 'omit' } },
       edges: ['top', 'right', ...(index === shops.length - 1 ? ['left' as const] : [])],
     })),
+    ...sharedWallTails,
     {
       id: 'mining-industrial-edge', type: 'room',
       bounds: { x: laneLeft, y: laneBottom, width: laneRight - laneLeft, height: 3 * vertical },

@@ -31,6 +31,11 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       expect(isWalkableMainlinePoint(old, scene, {}, options)).toBe(false)
     })
 
+    it('does not expose the removed central-lane survey placeholder or its test description', () => {
+      expect(scene.objects.some(object => object.id === 'yonghe-survey-central-lane')).toBe(false)
+      expect(scene.explorationText?.['yonghe-survey-central-lane']).toBeUndefined()
+    })
+
     it('reaches each seat and menu from the customer aisle while chair-table gaps stay blocked', () => {
       const from = point(364, 154)
       for (const entity of scene.objects.filter(object => object.seat && object.id.startsWith('yonghe-'))) {

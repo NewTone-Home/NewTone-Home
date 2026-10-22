@@ -32,7 +32,6 @@ export function trialYongheInterior(blueprint: MainlineSceneBlueprint): Mainline
     entities.push(entity)
   }
   entities.push(fixture('yonghe-stove','灶台',84,224),fixture('yonghe-trial-board','菜板',140,224))
-  entities.push({id:'yonghe-survey-central-lane',label:'观察',kind:'landmark',weight:'minor',surface:'floor',roomId:room.id,position:point(336,154),interactive:true,interactionRange:1,visualVisibility:'static'})
   const menu:MainlineSceneEntity={id:'yonghe-menu',label:'菜单',kind:'fixture',weight:'fixture',surface:'wall',roomId:room.id,position:point(616,0),interactive:true,interactionContactAnchor:point(616,28),visualVisibility:'static'}
   const rearPosition=point(0,252)
   const rearStep=28/1080*100
@@ -48,7 +47,6 @@ export function trialYongheInterior(blueprint: MainlineSceneBlueprint): Mainline
     explorationText:{...blueprint.explorationText,
       'yonghe-upper-left-group-table':['店里的桌椅摆得紧凑，但桌与桌之间仍留着通行的空隙。'],
       'yonghe-counter':['柜台与灶台靠在一起，里面的工作区域没有向外延伸。'],
-      'yonghe-survey-central-lane':['通道足够让人走过。桌椅虽然靠得近，却没有完全挡住去路。'],
       'yonghe-back-door':[backText],
       'yonghe-menu':['菜单在进门右手的墙上。'],
     },
