@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineAreaProjectionScale, resolveMainlineViewportProjection, type MainlineViewportSample } from '../src/center/runtime/mainlineViewportProjection'
+import { mainlineDeviceProjectionScale, resolveMainlineViewportProjection, type MainlineViewportSample } from '../src/center/runtime/mainlineViewportProjection'
 import { mainlineVisibleWorldSpan, mainlineWorldPointFromClient, mainlineWorldScale, mainlineCameraOffset, mainlineViewportPointFromWorld } from '../src/center/runtime/mainlineViewport'
 import { commercialStreetCameraPages } from '../src/center/runtime/commercialStreetCamera'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
@@ -8,14 +8,13 @@ import { mainlineGeometryCellWithinViewport } from '../src/center/runtime/mainli
 const sample = (width: number, height: number, more: Partial<MainlineViewportSample> = {}): MainlineViewportSample => ({
   width, height, stableHeight: height, devicePixelRatio: 1, visualViewportScale: 1, ...more,
 })
-const sizes = [[390,844,.75],[412,915,.75],[844,390,.75],[768,1024,.75],[1280,800,.75],[1920,1080,1],[3440,1440,1.125]] as const
+const sizes = [[390,844,.65],[412,915,.65],[844,390,.65],[768,1024,.7257142857142858],[1280,800,1],[1920,1080,1],[3440,1440,1]] as const
 
-describe('shared area projection and actual visible span', () => {
+describe('shared device viewport projection and actual visible span', () => {
   it.each(sizes)('%sx%s applies %s once to all world units and inverse', (width,height,expected) => {
     const viewport = resolveMainlineViewportProjection(undefined, sample(width,height))
-    expect(mainlineWorldScale(viewport)).toBe(expected)
-    expect(16*expected).toBeGreaterThanOrEqual(12)
-    expect(16*expected).toBeLessThanOrEqual(18)
+    expect(mainlineWorldScale(viewport)).toBeCloseTo(expected, 8)
+    expect(16*expected).toBeCloseTo(mainlineWorldScale(viewport) * 16, 8)
     const span = mainlineVisibleWorldSpan(viewport)
     expect(span.x*19.2).toBeCloseTo(width/expected,8)
     expect(span.y*10.8).toBeCloseTo(height/expected,8)
@@ -28,9 +27,14 @@ describe('shared area projection and actual visible span', () => {
     expect(stage.top+overlay.y/100*height).toBeCloseTo(client.y,8)
     expect(mainlineGeometryCellWithinViewport(world,camera,0,'commercial-street',undefined,viewport)).toBe(Math.abs(world.x+camera.x-50)<=span.x/2&&Math.abs(world.y+camera.y-50)<=span.y/2)
   })
-  it('uses width and height symmetrically away from limits',()=>{
-    expect(mainlineAreaProjectionScale({width:1600,height:1000})).toBeCloseTo(Math.sqrt(1600000/2073600),8)
-    expect(mainlineAreaProjectionScale({width:1000,height:1600})).toBe(mainlineAreaProjectionScale({width:1600,height:1000}))
+  it('uses width as the scale basis and height only as an upper viewport constraint',()=>{
+    expect(mainlineDeviceProjectionScale({width:1600,height:1000})).toBe(1)
+    expect(mainlineDeviceProjectionScale({width:1000,height:1600})).toBeCloseTo(.85,8)
+  })
+  it('caps wide desktop viewports at 1.0 while retaining the phone floor',()=>{
+    expect(mainlineDeviceProjectionScale({width:1920,height:1080})).toBe(1)
+    expect(mainlineDeviceProjectionScale({width:3440,height:1440})).toBe(1)
+    expect(mainlineDeviceProjectionScale({width:1600,height:500})).toBeCloseTo(.6944444444,8)
   })
   it('browser-chrome expansion changes visible height but not stable scale',()=>{
     const small=resolveMainlineViewportProjection(undefined,sample(1200,1000,{stableHeight:900}))
@@ -39,7 +43,7 @@ describe('shared area projection and actual visible span', () => {
     expect(mainlineVisibleWorldSpan(expanded).y).toBeGreaterThan(mainlineVisibleWorldSpan(small).y)
   })
   it('does not multiply absolute DPR into a fresh device basis',()=>{
-    expect(resolveMainlineViewportProjection(undefined,sample(1280,800,{devicePixelRatio:3})).projectionScale).toBe(.75)
+    expect(resolveMainlineViewportProjection(undefined,sample(1280,800,{devicePixelRatio:3})).projectionScale).toBe(1)
   })
   it('protects ambiguous page zoom but recovers after a distinct resize and baseline DPR reset',()=>{
     const before=resolveMainlineViewportProjection(undefined,sample(1920,1080))
@@ -48,10 +52,10 @@ describe('shared area projection and actual visible span', () => {
     expect(zoom.projectionPolicy).toBe('preserved')
     const remount=resolveMainlineViewportProjection(zoom,sample(960,540,{devicePixelRatio:2}))
     const resize=resolveMainlineViewportProjection(remount,sample(800,600,{devicePixelRatio:2}))
-    expect(resize.projectionScale).toBe(.75)
-    expect(resize.projectionPolicy).toBe('area')
+    expect(resize.projectionScale).toBeCloseTo(.7428571428571429,8)
+    expect(resize.projectionPolicy).toBe('device')
     const reset=resolveMainlineViewportProjection(zoom,sample(3440,1440))
-    expect(reset.projectionScale).toBe(1.125)
+    expect(reset.projectionScale).toBe(1)
     expect(reset.projectionDpiGuard).toBeUndefined()
   })
   it('protects active pinch across resize, then resumes normal adaptation when it returns to one',()=>{
@@ -61,9 +65,9 @@ describe('shared area projection and actual visible span', () => {
     expect(rotated.projectionScale).toBe(before.projectionScale)
     const restored=resolveMainlineViewportProjection(rotated,sample(390,844))
     expect(zoom.projectionScale).toBe(before.projectionScale)
-    expect(restored.projectionPolicy).toBe('area')
-    expect(restored.projectionScale).toBe(.75)
-    expect(resolveMainlineViewportProjection(restored,sample(3440,1440)).projectionScale).toBe(1.125)
+    expect(restored.projectionPolicy).toBe('device')
+    expect(restored.projectionScale).toBe(.65)
+    expect(resolveMainlineViewportProjection(restored,sample(3440,1440)).projectionScale).toBe(1)
   })
   it('does not mistake delayed reciprocal CSS resizing for a real resize during active page zoom',()=>{
     const before=resolveMainlineViewportProjection(undefined,sample(1920,1080,{outerWidth:1920,outerHeight:1160}))
@@ -72,15 +76,15 @@ describe('shared area projection and actual visible span', () => {
     expect(layoutLater.projectionScale).toBe(1)
     expect(layoutLater.projectionPolicy).toBe('preserved')
     const sameAspectWindow=resolveMainlineViewportProjection(layoutLater,sample(1280,720,{devicePixelRatio:1.25,outerWidth:1600,outerHeight:980}))
-    expect(sameAspectWindow.projectionScale).toBe(.75)
-    expect(sameAspectWindow.projectionPolicy).toBe('area')
+    expect(sameAspectWindow.projectionScale).toBe(1)
+    expect(sameAspectWindow.projectionPolicy).toBe('device')
   })
   it('releases the guard after cumulative one-pixel window drags',()=>{
     let next=resolveMainlineViewportProjection(undefined,sample(1920,1080,{outerWidth:1920,outerHeight:1160}))
     next=resolveMainlineViewportProjection(next,sample(1536,864,{devicePixelRatio:1.25,outerWidth:1920,outerHeight:1160}))
     for(let i=1;i<=12;i++) next=resolveMainlineViewportProjection(next,sample(1536-i,864,{devicePixelRatio:1.25,outerWidth:1920-i,outerHeight:1160}))
-    expect(next.projectionPolicy).toBe('area')
-    expect(next.projectionScale).toBe(mainlineAreaProjectionScale(next))
+    expect(next.projectionPolicy).toBe('device')
+    expect(next.projectionScale).toBe(mainlineDeviceProjectionScale(next))
   })
   it.each(sizes)('%sx%s pages and independent boundaries use this same visible span', (width,height)=>{
     const viewport=resolveMainlineViewportProjection(undefined,sample(width,height))

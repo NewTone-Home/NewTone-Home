@@ -18,7 +18,7 @@ import { useAutomaticPassages } from './useAutomaticPassages'
 import { defaultSceneScreenMetrics, sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { useMainlineCamera } from './useMainlineCamera'
 import { mainlineWorldScale } from './mainlineViewport'
-import { currentMainlineViewportMetrics, type MainlineViewportMetrics } from './mainlineViewportProjection'
+import { currentMainlineViewportMetrics, mainlineDeviceProjectionScale, mainlineLegacyAreaProjectionScale, type MainlineViewportMetrics } from './mainlineViewportProjection'
 import type { MainlineRideWalkingContext } from './mainlineRide'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
@@ -320,6 +320,7 @@ export function MainlineScenePage({
   const pendingInteractionAfterTraversalRef = useRef<string | null>(null)
   const resumeInteractionRef = useRef<(entityId: string) => void>(() => {})
   const [viewportMetrics, setViewportMetrics] = useState<MainlineViewportMetrics>(() => currentMainlineViewportMetrics() ?? defaultSceneScreenMetrics)
+  const [viewportFormulaMode, setViewportFormulaMode] = useState<'device' | 'legacy'>('device')
   const screenMetrics = sceneDesignReferenceMetrics
   const movementMetrics = useMemo(() => {
     const scale = mainlineWorldScale(viewportMetrics)
@@ -367,6 +368,14 @@ export function MainlineScenePage({
     storefrontExecutionRuntimeRef.current = createCommercialStreetStorefrontExecutionRuntime()
   }, [sceneId])
   const debugInputSearch = useSyncExternalStore(emptyExternalStoreSubscribe, getDebugInputSnapshot, getServerDebugInputSnapshot)
+  const viewportFormulaLab = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('viewportFormulaLab') === '1'
+  const activeViewportMetrics = useMemo(() => {
+    if (!viewportFormulaLab) return viewportMetrics
+    const projectionScale = viewportFormulaMode === 'legacy'
+      ? mainlineLegacyAreaProjectionScale(viewportMetrics)
+      : mainlineDeviceProjectionScale(viewportMetrics)
+    return { ...viewportMetrics, projectionScale, projectionPolicy: viewportFormulaMode }
+  }, [viewportFormulaMode, viewportFormulaLab, viewportMetrics])
   const debugInput = new URLSearchParams(debugInputSearch).get('debugInput') === '1'
   const debugNpcMovement = new URLSearchParams(debugInputSearch).get('debugNpcMovement') === '1'
   const debugCafeStageValue = new URLSearchParams(debugInputSearch).get('debugCafeStage')
@@ -603,7 +612,7 @@ export function MainlineScenePage({
     } else if (!inside && cafeInsideRef.current) setCommercialCafeNarrative(null)
     cafeInsideRef.current = inside
   }, [position.x, position.y, scene, sceneId, initialSceneState])
-  const cameraOffset = useMainlineCamera(scene, position, embedded, viewportMetrics)
+  const cameraOffset = useMainlineCamera(scene, position, embedded, activeViewportMetrics)
   const storefrontPresentation = useStorefrontPresentation(scene, position, presentationReady)
   const reportedCafeRevealRef = useRef(false)
   const cafeStorefrontPhase = scene.id === 'commercial-street'
@@ -2424,7 +2433,7 @@ export function MainlineScenePage({
               onStorefrontRestoreMotionComplete={storefrontPresentation.completeRestoreMotion}
               gateTriggered={gateTriggered}
               geometrySnapshot={geometrySnapshot}
-              viewportMetrics={viewportMetrics}
+              viewportMetrics={activeViewportMetrics}
               freezeFrameMeasurements={presentationSnapshot}
               onScreenMetricsChange={handleScreenMetricsChange}
               cameraOffset={cameraOffset}
@@ -2492,6 +2501,14 @@ export function MainlineScenePage({
             </div>
           </div>
         </>}
+        {viewportFormulaLab && !embedded && <aside data-viewport-formula-lab="true" style={{ position: 'fixed', zIndex: 10000, right: 12, top: 12, padding: 12, borderRadius: 8, background: 'rgba(16, 19, 24, .94)', color: '#fff', font: '14px/1.4 system-ui, sans-serif', boxShadow: '0 4px 18px rgba(0,0,0,.35)' }}>
+          <div>游戏视口 {viewportMetrics.width} × {viewportMetrics.height} CSS px</div>
+          <div>倍率 {mainlineWorldScale(activeViewportMetrics).toFixed(4)}</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button type="button" aria-pressed={viewportFormulaMode === 'legacy'} onClick={() => setViewportFormulaMode('legacy')}>旧公式</button>
+            <button type="button" aria-pressed={viewportFormulaMode === 'device'} onClick={() => setViewportFormulaMode('device')}>新公式</button>
+          </div>
+        </aside>}
       </main>
     </div>
     </>

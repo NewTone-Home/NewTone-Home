@@ -3,21 +3,42 @@ import { mainlineCameraOffset, mainlineCameraTarget, mainlineCameraVisualOutset,
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 
 describe('fixed mainline world projection', () => {
-  it('keeps the 1920x1080 reference at 1:1', () => {
-    expect(mainlineWorldScale(sceneDesignReferenceMetrics)).toBe(1)
-    expect(mainlineVisibleWorldSpan(sceneDesignReferenceMetrics)).toEqual({ x: 100, y: 100 })
+  it('applies the candidate scale at the authored reference viewport', () => {
+    const scale = mainlineWorldScale(sceneDesignReferenceMetrics)
+    expect(mainlineWorldScale(sceneDesignReferenceMetrics)).toBeCloseTo(scale, 8)
+    const span = mainlineVisibleWorldSpan(sceneDesignReferenceMetrics)
+    expect(span.x).toBeCloseTo(100 / scale, 8)
+    expect(span.y).toBeCloseTo(100 / scale, 8)
   })
 
   it.each([
-    [{ width: 1920, height: 900 }, Math.sqrt(900 / 1080)],
-    [{ width: 1280, height: 800 }, .75],
-    [{ width: 390, height: 844 }, .75],
+    [{ width: 1920, height: 900 }, 1],
+    [{ width: 1280, height: 800 }, 1],
+    [{ width: 390, height: 844 }, .65],
   ] as const)('uses one uniform projection at %ix%i', (viewport, expectedScale) => {
     const scale = mainlineWorldScale(viewport)
     expect(scale).toBeCloseTo(expectedScale, 8)
     const xPitch = 28 * scale
     const yPitch = 28 * scale
     expect(xPitch).toBeCloseTo(yPitch, 8)
+  })
+
+  it.each([
+    [{ width: 360, height: 800 }, .65],
+    [{ width: 375, height: 550 }, .65],
+    [{ width: 375, height: 667 }, .65],
+    [{ width: 411.4, height: 913.9 }, .65],
+    [{ width: 480, height: 800 }, .65],
+    [{ width: 600, height: 900 }, .675],
+    [{ width: 720, height: 900 }, .7],
+    [{ width: 1024, height: 768 }, .8628571428571429],
+    [{ width: 1280, height: 800 }, 1],
+    [{ width: 528, height: 392.5 }, .65],
+    [{ width: 707, height: 823 }, .6972916666666666],
+    [{ width: 1920, height: 1080 }, 1],
+    [{ width: 3440, height: 1440 }, 1],
+  ] as const)('applies the device-width candidate at %ix%i', (viewport, expectedScale) => {
+    expect(mainlineWorldScale(viewport)).toBeCloseTo(expectedScale, 8)
   })
 
   it('maps a stage pointer through scale and camera exactly once', () => {
@@ -83,18 +104,20 @@ describe('fixed mainline world projection', () => {
     expect(right.y).toBe(0)
   })
 
-  it('keeps a truly fitting office centered despite player movement', () => {
+  it('centers a scene that fits at the capped desktop viewport scale', () => {
     const scene = { viewport: 'fixed-frame', walkBounds: { x: 6, y: 8, width: 88, height: 84 } } as Parameters<typeof mainlineCameraOffset>[0]
     const viewport = { width: 1920, height: 1080 }
-    expect(mainlineCameraOffset(scene, { x: 7, y: 10 }, false, viewport)).toEqual({ x: 0, y: 0 })
-    expect(mainlineCameraOffset(scene, { x: 93, y: 90 }, false, viewport)).toEqual({ x: 0, y: 0 })
+    const near = mainlineCameraOffset(scene, { x: 7, y: 10 }, false, viewport)
+    const far = mainlineCameraOffset(scene, { x: 93, y: 90 }, false, viewport)
+    expect(near.x).toBeCloseTo(far.x, 8)
+    expect(near.y).toBeCloseTo(far.y, 8)
   })
 
-  it('keeps the same courtyard centered at reference size and scrollable on phone', () => {
+  it('centers a fitting desktop courtyard and follows it when the phone view overflows', () => {
     const scene = { viewport: 'fixed-frame', walkBounds: { x: 10, y: 18, width: 90, height: 64 } } as Parameters<typeof mainlineCameraOffset>[0]
-    for (const x of [14, 96]) {
-      expect(mainlineCameraOffset(scene, { x, y: 50 }, false, sceneDesignReferenceMetrics)).toEqual({ x: -5, y: 0 })
-    }
+    const referenceNear = mainlineCameraOffset(scene, { x: 14, y: 50 }, false, sceneDesignReferenceMetrics)
+    const referenceFar = mainlineCameraOffset(scene, { x: 96, y: 50 }, false, sceneDesignReferenceMetrics)
+    expect(referenceNear.x).toBeCloseTo(referenceFar.x, 8)
     const phone = { width: 390, height: 844 }
     expect(mainlineCameraOffset(scene, { x: 14, y: 50 }, false, phone).x).toBeGreaterThan(mainlineCameraOffset(scene, { x: 96, y: 50 }, false, phone).x)
   })

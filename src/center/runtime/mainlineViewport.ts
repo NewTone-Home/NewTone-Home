@@ -3,7 +3,7 @@ import type { MainlineSceneDefinition } from './mainlineScenes'
 import { sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { mainlineLabelFootprint } from './sceneLayout'
 import { sceneFocusStrokeInsetPx, sceneFocusVisualGapPx } from './sceneVisualBounds'
-import { mainlineAreaProjectionScale, type MainlineViewportMetrics } from './mainlineViewportProjection'
+import { mainlineDeviceProjectionScale, type MainlineViewportMetrics } from './mainlineViewportProjection'
 
 const normalizedViewportCenter = 50
 
@@ -15,7 +15,7 @@ function clamp(value: number, minimum: number, maximum: number) {
 export function mainlineWorldScale(viewport: MainlineViewportMetrics) {
   // The applied basis also serves camera/culling/input, even while browser
   // chrome changes the current drawable height or user zoom is preserved.
-  return viewport.projectionScale ?? mainlineAreaProjectionScale(viewport)
+  return viewport.projectionScale ?? mainlineDeviceProjectionScale(viewport)
 }
 
 /** Logical percentage span visible through the uniformly projected world. */

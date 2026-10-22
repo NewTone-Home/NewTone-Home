@@ -3,7 +3,7 @@ import { sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBou
 export type MainlineViewportMetrics = SceneScreenMetrics & {
   stableHeight?: number
   projectionScale?: number
-  projectionPolicy?: 'area' | 'preserved'
+  projectionPolicy?: 'device' | 'legacy' | 'preserved'
 }
 
 export type MainlineViewportSample = MainlineViewportMetrics & {
@@ -15,12 +15,24 @@ export type MainlineViewportSample = MainlineViewportMetrics & {
   projectionDpiGuard?: { expectedWidth: number; expectedHeight: number; outerWidth?: number; outerHeight?: number }
 }
 
-/** Readability is a CSS-pixel policy, not a measurement of physical distance. */
-export function mainlineAreaProjectionScale(viewport: MainlineViewportMetrics) {
+/** Historical area-based scale retained for the in-session comparison tool. */
+export function mainlineLegacyAreaProjectionScale(viewport: MainlineViewportMetrics) {
   const width = Math.max(1, viewport.width)
   const height = Math.max(1, viewport.stableHeight ?? viewport.height)
   const area = sceneDesignReferenceMetrics.width * sceneDesignReferenceMetrics.height
   return Math.max(.75, Math.min(1.125, Math.sqrt(width * height / area)))
+}
+
+/** Width-led device viewport scale, capped by the available CSS height. */
+export function mainlineDeviceProjectionScale(viewport: MainlineViewportMetrics) {
+  const width = Math.max(1, viewport.width)
+  const height = Math.max(1, viewport.stableHeight ?? viewport.height)
+  const widthScale = width <= 480
+    ? .65
+    : width <= 720
+      ? .65 + (width - 480) * .05 / 240
+      : Math.min(1, .70 + (width - 720) * .30 / 560)
+  return Math.min(widthScale, Math.max(.65, height / 720))
 }
 
 /** Pinch protection lasts only while zoom is active. DPR is ambiguous (page
@@ -56,8 +68,8 @@ export function resolveMainlineViewportProjection(
     ...sample,
     projectionBaselineDpr: baselineDpr,
     projectionDpiGuard: dpiGuard,
-    projectionScale: preserve ? previous.projectionScale ?? mainlineAreaProjectionScale(previous) : mainlineAreaProjectionScale(sample),
-    projectionPolicy: preserve ? 'preserved' : 'area',
+    projectionScale: preserve ? previous.projectionScale ?? mainlineDeviceProjectionScale(previous) : mainlineDeviceProjectionScale(sample),
+    projectionPolicy: preserve ? 'preserved' : 'device',
   }
 }
 
