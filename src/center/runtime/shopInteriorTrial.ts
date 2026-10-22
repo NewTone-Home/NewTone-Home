@@ -2,6 +2,47 @@ import type { MainlineSceneBlueprint, MainlineSceneEntity, MainlineFurnitureGrou
 import type { Point } from './sceneGeometry'
 import { continuousCafeRoomId, cafeConversationSeatId, cafeStoryTableId } from './continuousCafe'
 
+type WallFeature = NonNullable<MainlineSceneBlueprint['scene']['walls'][number]['features']>[number]
+
+/** Replace real boundary cells, including a side painted by the adjacent shell.
+ * The feature is not an opening: the underlying wall remains collision-solid. */
+function embedCustomerWallText(blueprint: MainlineSceneBlueprint, roomId: string, labels: readonly { id: string; label: string; y: number; edge: 'left' | 'right' }[]) {
+  const room = blueprint.scene.rooms!.find(candidate => candidate.id === roomId)!
+  const walls = blueprint.scene.walls.map(wall => ({ ...wall, features: [...(wall.features ?? [])] }))
+  for (const label of labels) {
+    const x = room.bounds.x + (label.edge === 'right' ? room.bounds.width : 0)
+    const y = room.bounds.y + label.y / 1080 * 100
+    const candidates = walls.flatMap(wall => (['left', 'right'] as const).filter(edge => (wall.edges ?? ['left', 'right', 'top', 'bottom']).includes(edge)
+      && Math.abs(wall.bounds.x + (edge === 'right' ? wall.bounds.width : 0) - x) < .001
+      && y > wall.bounds.y && y < wall.bounds.y + wall.bounds.height).map(edge => ({ wall, edge })))
+    if (candidates.length !== 1) throw new Error(`Wall text ${label.id} needs one real boundary owner, got ${candidates.length}`)
+    const { wall, edge } = candidates[0]!
+    const entity: MainlineSceneEntity = {
+      id: label.id, label: label.label, kind: 'fixture', weight: 'fixture', surface: 'wall', roomId,
+      position: { x, y }, interactive: true, visualVisibility: 'static',
+      interactionContactAnchor: { x: x + (label.edge === 'right' ? -1 : 1) * 28 / 1920 * 100, y },
+    }
+    const feature: WallFeature = { id: `${label.id}-wall`, edge, start: y - 14 / 1080 * 100, end: y + 14 / 1080 * 100, glyphs: Array.from(label.label), layout: 'inline', entity }
+    wall.features.push(feature)
+  }
+  return { ...blueprint, scene: { ...blueprint.scene, walls } }
+}
+
+/** Move the one existing rear passage and its one opening together. */
+function employeeRearDoor(blueprint: MainlineSceneBlueprint, roomId: string, localX: number) {
+  const room = blueprint.scene.rooms!.find(candidate => candidate.id === roomId)!
+  const id = `${roomId}-rear-door`
+  const x = room.bounds.x + localX / 1920 * 100
+  return { ...blueprint, portals: blueprint.portals.map(portal => {
+    if (portal.id !== id) return portal
+    const dx = x - portal.endpoint.doorPosition.x
+    const shift = (point: Point) => ({ ...point, x: point.x + dx })
+    return { ...portal, endpoint: { doorPosition: shift(portal.endpoint.doorPosition), threshold: shift(portal.endpoint.threshold), crossingTarget: shift(portal.endpoint.crossingTarget) },
+      wallOpenings: portal.wallOpenings?.map(entry => ({ ...entry, opening: { ...entry.opening, start: entry.opening.start + dx, end: entry.opening.end + dx } })),
+    }
+  }) }
+}
+
 /** Isolated layout trial: dimensions are reference-world pixels, not viewport pixels. */
 export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSceneBlueprint {
   const data = blueprint.scene
@@ -26,23 +67,24 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
     const bodyId = `${id}-body`
     structures.push({ id: bodyId, kind: 'counter', ...point(left, top), width: (right - left) / 1920 * 100, height: (bottom - top) / 1080 * 100 })
     coordinates.forEach(([x, y], index) => {
-      const entity = fixture(index === orderIndex ? 'commercial-cafe-counter' : `${id}-${index}`, index % 2 ? '台' : '柜', x, y, false)
+      const serviceId = id === 'cafe-trial-counter-long' ? ({ 7: 'cafe-trial-pickup', 20: 'cafe-trial-order' } as Record<number, string>)[index] : undefined
+      const entity = fixture(index === orderIndex ? 'commercial-cafe-counter' : serviceId ?? `${id}-${index}`, index % 2 ? '台' : '柜', x, y, false)
       entity.interactionStructureId = bodyId
       entity.interactionContactSides = ['right']
-      entity.interactive = index === orderIndex
+      entity.interactive = index === orderIndex || Boolean(serviceId)
       if (index === orderIndex) entity.interactionBehavior = 'cafe-order'
       entities.push(entity)
     })
   }
-  counterRun('cafe-trial-counter-long', Array.from({ length: 29 }, (_, index) => [168, 112 + index * 16] as [number, number]), 14)
-  // The elbow shares one glyph with the long run, so start one cell to its right.
-  counterRun('cafe-trial-counter-rear', Array.from({ length: 14 }, (_, index) => [184 + index * 16, 112] as [number, number]))
+  counterRun('cafe-trial-counter-long', Array.from({ length: 29 }, (_, index) => [176, 112 + index * 16] as [number, number]), 14)
+  // Street entrance is at y700. The short front arm ends against the left wall;
+  // the upper end remains the employee opening into the rear preparation line.
+  counterRun('cafe-trial-counter-front', Array.from({ length: 10 }, (_, index) => [160 - index * 16, 560] as [number, number]))
   entities.push(
-    fixture('cafe-trial-coffee-machine', '咖啡机', 56, 168),
-    fixture('commercial-cafe-menu', '菜单', 616, 112),
-    fixture('commercial-cafe-blackboard', '黑板', 616, 560),
-    fixture('cafe-trial-order', '点单', 216, 336, false),
-    fixture('cafe-trial-pickup', '取餐', 216, 224, false),
+    fixture('cafe-trial-coffee-machine', '咖啡机', 48, 224),
+    fixture('cafe-trial-prep-table', '备餐台', 48, 336),
+    fixture('cafe-trial-wash', '清洗台', 48, 448),
+    fixture('cafe-trial-cold', '冷藏', 48, 168),
   )
   const tables = [[448, 196], [588, 196], [448, 448], [588, 448]] as const
   tables.forEach(([x, y], index) => {
@@ -80,28 +122,35 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
     ...[224, 336, 448].map((y, index) => ({ id: `commercial-cafe-counter-ambient-${index + 1}`, position: point(128, y) })),
     { id: 'commercial-cafe-floor-service-staging', position: point(336, 560) },
   ]
-  return { ...blueprint,
+  const result: MainlineSceneBlueprint = { ...blueprint,
     portals: [...blueprint.portals, toilet],
-    interactionText: { ...blueprint.interactionText, 'commercial-cafe-menu': '菜单在客人区右侧墙边。', 'commercial-cafe-blackboard': '黑板在客人区右侧墙边。' },
+    interactionText: { ...blueprint.interactionText, 'commercial-cafe-menu': '菜单嵌在客人侧墙里。', 'commercial-cafe-blackboard': '黑板嵌在客人侧墙里。' },
+    explorationText: { ...blueprint.explorationText,
+      'commercial-cafe-menu': ['菜单嵌在客人侧墙里。'], 'commercial-cafe-blackboard': ['黑板嵌在客人侧墙里。'],
+      'cafe-trial-order': ['这里仍是原柜台的点单接触位置。'], 'cafe-trial-pickup': ['这里是柜台交付饮品的一侧。'],
+      'cafe-trial-coffee-machine': ['咖啡机放在员工工作线上。'], 'cafe-trial-prep-table': ['备餐台与咖啡机共用员工侧通道。'],
+      'cafe-trial-wash': ['清洗台在柜台里面。'], 'cafe-trial-cold': ['冷藏设备在后方准备区。'],
+    },
     scene: { ...data,
       floorEntities: [...data.floorEntities.filter(entity => !oldIds.has(entity.id)), ...entities],
       furnitureGroups: [...data.furnitureGroups.filter(group => !group.entityIds.some(id => oldIds.has(id))), ...groups],
       continuousStructures: [...(data.continuousStructures ?? []).filter(body => !body.id.startsWith('commercial-north-cafe-')), ...structures],
       navigationBarriers: data.navigationBarriers?.filter(relation => !oldIds.has(relation.firstEntityId) && !oldIds.has(relation.secondEntityId)),
       // These are role permissions inside the actual counter, not extra physical collision.
-      accessRegions: [...(data.accessRegions ?? []).filter(region => region.id !== 'commercial-cafe-staff-area'),
-        { id: 'commercial-cafe-staff-area', ...point(0, 112), width: 168 / 1920 * 100, height: 448 / 1080 * 100, requiredAccess: 'staff', deniedText: '这里是柜台员工区。' },
-        { id: 'cafe-trial-rear-work-area', ...point(0, 0), width: 400 / 1920 * 100, height: 112 / 1080 * 100, requiredAccess: 'staff', deniedText: '这里是柜台员工区。' }],
-      // Declare the actual public-facing work openings. The regions already
-      // deny public occupation; these edges also retain the attempted click's
-      // access reason instead of silently projecting it onto the counter.
+      accessRegions: [...(data.accessRegions ?? []).filter(region => region.id !== 'commercial-cafe-staff-area' && region.id !== 'cafe-trial-rear-work-area'),
+        { id: 'commercial-cafe-staff-area', ...point(0, 0), width: 176 / 1920 * 100, height: 560 / 1080 * 100, requiredAccess: 'staff' as const, deniedText: '这里是柜台员工区。' }],
+      // One finite work strip owns the counter and its open rear preparation
+      // end. The front arm is physical; employee access is at the upper end.
       accessBoundaries: [...(data.accessBoundaries ?? []).filter(boundary => boundary.regionId !== 'commercial-cafe-staff-area' && boundary.regionId !== 'cafe-trial-rear-work-area'),
-        { id: 'commercial-cafe-staff-bottom-access-boundary', regionId: 'commercial-cafe-staff-area', edge: 'bottom' },
-        { id: 'cafe-trial-rear-right-access-boundary', regionId: 'cafe-trial-rear-work-area', edge: 'right' }],
+        { id: 'commercial-cafe-staff-right-access-boundary', regionId: 'commercial-cafe-staff-area', edge: 'right' as const }],
       npcBehaviorTargets: [...(data.npcBehaviorTargets ?? []).filter(target => !targets.some(next => next.id === target.id)), ...targets],
       npcs: data.npcs?.map(npc => npc.roomId === room.id ? { ...npc, label: '人' } : npc),
     },
   }
+  return embedCustomerWallText(employeeRearDoor(result, room.id, 84), room.id, [
+    { id: 'commercial-cafe-menu', label: '菜单', y: 560, edge: 'right' },
+    { id: 'commercial-cafe-blackboard', label: '黑板', y: 252, edge: 'right' },
+  ])
 }
 
 type TakeawayTrial = {
@@ -109,7 +158,9 @@ type TakeawayTrial = {
   prefix: string
   oldStructurePrefix: string
   runs: readonly { id: string; cells: readonly [number, number][]; glyphOffset?: 0 | 1 }[]
-  stations: readonly { id: string; label: string; x: number; y: number; bodyId?: string; side?: 'left' | 'bottom' }[]
+  stations: readonly { id: string; cell: number }[]
+  menu: { id: string; y: number; edge: 'left' | 'right' }
+  rearX: number
   equipment: readonly { label: string; x: number; y: number }[]
   worker: readonly [number, number]
   regions: readonly { x: number; y: number; width: number; height: number }[]
@@ -126,22 +177,22 @@ function buildTakeawayTrial(blueprint: MainlineSceneBlueprint, trial: TakeawayTr
     const x = Math.min(...xs) - 8, y = Math.min(...ys) - 8
     const bodyId = `${trial.prefix}-${run.id}-body`
     structures.push({ id: bodyId, kind: 'counter', ...point(x, y), width: (Math.max(...xs) + 8 - x) / 1920 * 100, height: (Math.max(...ys) + 8 - y) / 1080 * 100 })
-    run.cells.forEach(([x, y], index) => entities.push({ id: `${trial.prefix}-${run.id}-${index}`, label: (index + (run.glyphOffset ?? 0)) % 2 ? '台' : '柜', kind: 'fixture', weight: 'fixture', surface: 'floor', roomId: room.id, position: point(x, y), visualVisibility: 'static', interactive: false }))
+    run.cells.forEach(([x, y], index) => {
+      const station = run.id === trial.runs[0]!.id ? trial.stations.find(candidate => candidate.cell === index) : undefined
+      entities.push({ id: station?.id ?? `${trial.prefix}-${run.id}-${index}`, label: (index + (run.glyphOffset ?? 0)) % 2 ? '台' : '柜', kind: 'fixture', weight: 'fixture', surface: 'floor', roomId: room.id, position: point(x, y), visualVisibility: 'static', interactive: Boolean(station), interactionStructureId: bodyId, interactionContactSides: [trial.menu.edge] })
+    })
   })
   trial.equipment.forEach(({ label, x, y }, index) => entities.push({
     id: `${trial.prefix}-equipment-${index + 1}`, label, kind: 'fixture', weight: 'fixture', surface: 'floor', roomId: room.id,
-    position: point(x, y), visualVisibility: 'static', interactive: false,
+    position: point(x, y), visualVisibility: 'static', interactive: true,
     collision: { ...point(x - Array.from(label).length * 8, y - 8), width: Array.from(label).length * 16 / 1920 * 100, height: 16 / 1080 * 100 },
   }))
   const text: Record<string, string> = {}
-  trial.stations.forEach(({ id, label, x, y, bodyId, side }) => {
-    entities.push({ id, label, kind: 'fixture', weight: 'minor', surface: 'floor', roomId: room.id, position: point(x, y), visualVisibility: 'static', interactive: true,
-      ...(bodyId ? { interactionStructureId: `${trial.prefix}-${bodyId}-body`, interactionContactSides: [side!] } : {}),
-    })
-    text[id] = label === '菜单' ? '菜单在客人侧，进门后可以先看。' : label === '点单' ? '这里是点单位置，制作在柜台里面。' : '这里是取货位置，与点单位置分开。'
-  })
+  text[trial.menu.id] = '菜单嵌在客人侧墙里，进门可以先看。'
+  trial.stations.forEach(({ id }, index) => { text[id] = index === 0 ? '这里是原柜台的点单接触位置。' : '这里是原柜台的取货接触位置。' })
+  trial.equipment.forEach(({ label }, index) => { text[`${trial.prefix}-equipment-${index + 1}`] = `${label}位于员工工作线上。当前可查看，制作操作尚未开放。` })
   const workerId = `${trial.prefix}-worker`
-  return { ...blueprint, interactionText: { ...blueprint.interactionText, ...text },
+  const result: MainlineSceneBlueprint = { ...blueprint, interactionText: { ...blueprint.interactionText, ...text },
     explorationText: { ...blueprint.explorationText, ...Object.fromEntries(Object.entries(text).map(([id, value]) => [id, [value]])) },
     scene: { ...data,
     floorEntities: [...data.floorEntities.filter(entity => !oldIds.has(entity.id)), ...entities],
@@ -150,11 +201,13 @@ function buildTakeawayTrial(blueprint: MainlineSceneBlueprint, trial: TakeawayTr
     blockers: data.blockers.filter(body => !body.id.startsWith(trial.oldStructurePrefix)),
     navigationBarriers: data.navigationBarriers?.filter(relation => !oldIds.has(relation.firstEntityId) && !oldIds.has(relation.secondEntityId)),
     accessRegions: [...(data.accessRegions ?? []), ...trial.regions.map((region, index) => ({ id: `${trial.prefix}-staff-${index}`, ...point(region.x, region.y), width: region.width / 1920 * 100, height: region.height / 1080 * 100, requiredAccess: 'staff' as const, deniedText: '这里是柜台员工区。' }))],
+    accessBoundaries: [...(data.accessBoundaries ?? []), ...trial.regions.map((_, index) => ({ id: `${trial.prefix}-staff-boundary-${index}`, regionId: `${trial.prefix}-staff-${index}`, edge: trial.menu.edge }))],
     actorAccess: { ...data.actorAccess, [workerId]: ['public', 'staff'] },
     // A stationary anonymous layout occupant, with no new dialogue or commerce duty.
     npcs: [...(data.npcs ?? []), { id: workerId, roleId: 'pedestrian', label: '人', roomId: room.id, interactive: false }],
     npcPlacements: [...(data.npcPlacements ?? []), { npcId: workerId, position: point(...trial.worker) }],
   } }
+  return embedCustomerWallText(employeeRearDoor(result, room.id, trial.rearX), room.id, [{ ...trial.menu, label: '菜单' }])
 }
 
 export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): MainlineSceneBlueprint {
@@ -162,34 +215,34 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     roomId: 'commercial-south-s5-interior', prefix: 'milk-tea-trial', oldStructurePrefix: 'commercial-s5-milk-tea-',
     // Front is at y0. A long right counter separates ordering and collection along the shop.
     runs: [
-      { id: 'long-counter', cells: Array.from({ length: 29 }, (_, i) => [224, 112 + i * 16] as [number, number]) },
-      { id: 'rear-return', cells: [[208, 560], [192, 560]], glyphOffset: 1 },
+      { id: 'long-counter', cells: Array.from({ length: 29 }, (_, i) => [208, 112 + i * 16] as [number, number]) },
+      { id: 'front-return', cells: Array.from({ length: 7 }, (_, i) => [224 + i * 16, 112] as [number, number]), glyphOffset: 1 },
     ],
     stations: [
-      { id: 'commercial-s5-milk-tea-menu-service-label', label: '菜单', x: 56, y: 56 },
-      { id: 'commercial-s5-milk-tea-order-service-label', label: '点单', x: 176, y: 168, bodyId: 'long-counter', side: 'left' },
-      { id: 'commercial-s5-milk-tea-pickup-service-label', label: '取餐', x: 176, y: 528, bodyId: 'long-counter', side: 'left' },
+      { id: 'commercial-s5-milk-tea-order-service-label', cell: 7 },
+      { id: 'commercial-s5-milk-tea-pickup-service-label', cell: 20 },
     ],
-    equipment: [{ label: '制茶机', x: 280, y: 224 }, { label: '封口机', x: 280, y: 336 }, { label: '清洗台', x: 280, y: 476 }],
-    worker: [264, 392],
-    // Only the actual right work lane is restricted; the open rear turning floor
-    // is not an invisible warehouse partition. The true warehouse door is locked.
-    regions: [{ x: 224, y: 112, width: 112, height: 448 }],
+    menu: { id: 'commercial-s5-milk-tea-menu-service-label', y: 168, edge: 'left' }, rearX: 280,
+    equipment: [{ label: '制茶机', x: 280, y: 336 }, { label: '封口机', x: 280, y: 448 }, { label: '清洗台', x: 280, y: 560 }, { label: '煮料台', x: 280, y: 224 }],
+    worker: [240, 392],
+    // The right work lane continues to its one locked rear door. There is no
+    // interior warehouse: employees enter around the lower counter end.
+    regions: [{ x: 208, y: 112, width: 128, height: 588 }],
   })
   return buildTakeawayTrial(milkTea, {
     roomId: 'commercial-north-n1-interior', prefix: 'fruit-tea-trial', oldStructurePrefix: 'commercial-retail-n1-fruit-tea-',
-    // Front is at y700. A shorter left L wraps a rear fruit preparation area,
-    // leaving the front half for waiting rather than copying the long milk-tea queue.
+    // Front is at y700. The left work line closes into the wall at its front
+    // end; the upper opening connects its preparation equipment and rear door.
     runs: [
-      { id: 'left-return', cells: Array.from({ length: 15 }, (_, i) => [112, 112 + i * 16] as [number, number]) },
-      { id: 'service-counter', cells: Array.from({ length: 10 }, (_, i) => [128 + i * 16, 336] as [number, number]), glyphOffset: 1 },
+      { id: 'long-counter', cells: Array.from({ length: 29 }, (_, i) => [128, 112 + i * 16] as [number, number]) },
+      { id: 'front-return', cells: Array.from({ length: 7 }, (_, i) => [112 - i * 16, 560] as [number, number]), glyphOffset: 1 },
     ],
     stations: [
-      { id: 'fruit-tea-trial-menu', label: '菜单', x: 280, y: 588 },
-      { id: 'fruit-tea-trial-order', label: '点单', x: 144, y: 384, bodyId: 'service-counter', side: 'bottom' },
-      { id: 'fruit-tea-trial-pickup', label: '取货', x: 240, y: 384, bodyId: 'service-counter', side: 'bottom' },
+      { id: 'fruit-tea-trial-order', cell: 20 },
+      { id: 'fruit-tea-trial-pickup', cell: 14 },
     ],
-    equipment: [{ label: '清洗台', x: 56, y: 168 }, { label: '切果台', x: 224, y: 224 }, { label: '打包台', x: 224, y: 280 }, { label: '冷藏', x: 252, y: 56 }],
-    worker: [168, 252], regions: [{ x: 0, y: 0, width: 336, height: 336 }],
+    menu: { id: 'fruit-tea-trial-menu', y: 560, edge: 'right' }, rearX: 56,
+    equipment: [{ label: '清洗台', x: 48, y: 308 }, { label: '切果台', x: 48, y: 392 }, { label: '打包台', x: 48, y: 476 }, { label: '冷藏', x: 48, y: 140 }, { label: '煮料台', x: 48, y: 224 }],
+    worker: [96, 252], regions: [{ x: 0, y: 0, width: 128, height: 560 }],
   })
 }

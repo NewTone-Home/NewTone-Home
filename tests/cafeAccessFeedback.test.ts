@@ -29,9 +29,10 @@ describe('Cafe trial retains real work-opening access feedback', () => {
     expect(result.resolvedNavigableTarget).toEqual(requested)
     expect(result.deniedAccessRegion).toBeUndefined()
   })
-  it('declares the actual bottom and rear-right work openings, without adding a region-sized collision body', () => {
-    expect(scene.accessBoundaries.filter(b => b.regionId === staff.id)).toEqual([{ id: 'commercial-cafe-staff-bottom-access-boundary', regionId: staff.id, edge: 'bottom' }])
-    expect(scene.accessBoundaries.find(b => b.regionId === 'cafe-trial-rear-work-area')?.edge).toBe('right')
+  it('guards the finite work strip at its open upper-right end, without adding a region-sized collision body', () => {
+    expect(scene.accessBoundaries.filter(b => b.regionId === staff.id)).toEqual([{ id: 'commercial-cafe-staff-right-access-boundary', regionId: staff.id, edge: 'right' }])
+    expect(scene.accessRegions.some(r => r.id === 'cafe-trial-rear-work-area')).toBe(false)
+    expect(staff.y).toBe(scene.rooms.find(r => r.id === 'commercial-north-cafe-interior')!.bounds.y)
     for (const region of scene.accessRegions.filter(r => r.id.includes('cafe'))) expect(mainlineNavigationCollisionBoxes(scene, {}, options).some(b => b.x === region.x && b.y === region.y && b.width === region.width && b.height === region.height)).toBe(false)
   })
   it('does not extend the rear-right permission edge through unrelated northern shops', () => {
