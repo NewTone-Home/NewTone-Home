@@ -77,18 +77,20 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
     ...(solid ? { collision: footprint(x, y, Array.from(label).length * 16, 16) } : {}),
   })
 
+  //16px text +3px reference-world padding on both transverse sides.
+  //Join both legs at the same bottom edge instead of retaining the old4px step.
   const lowerGroup = 'cafe-trial-L-counter'
-  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-long', groupId: lowerGroup, bounds: { x: 188, y: 72, width: 16, height: 416 }, orientation: 'vertical', publicSide: 'right', services: [
+  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-long', groupId: lowerGroup, bounds: { x: 185, y: 72, width: 22, height: 416 }, orientation: 'vertical', publicSide: 'right', services: [
     { id: 'commercial-cafe-counter', x: 196, y: 336, order: true }, { id: 'cafe-trial-pickup', x: 196, y: 224 }, { id: 'cafe-trial-order', x: 196, y: 432 },
   ] })
-  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-front', groupId: lowerGroup, bounds: { x: 8, y: 468, width: 180, height: 16 }, orientation: 'horizontal', publicSide: 'bottom' })
+  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-front', groupId: lowerGroup, bounds: { x: 8, y: 466, width: 177, height: 22 }, orientation: 'horizontal', publicSide: 'bottom' })
   // This is physically separate above the32px employee exit: never bridge it.
-  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-upper', groupId: 'cafe-trial-counter-upper', bounds: { x: 188, y: 8, width: 16, height: 32 }, orientation: 'vertical', publicSide: 'right' })
+  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-upper', groupId: 'cafe-trial-counter-upper', bounds: { x: 185, y: 8, width: 22, height: 32 }, orientation: 'vertical', publicSide: 'right' })
   entities.push(
-    { ...fixture('cafe-trial-coffee-machine', '咖啡机', 48, 224), collision: footprint(48, 224, 16, 48), textLayout: 'vertical', focusFrame: 'interactive' },
-    { ...fixture('cafe-trial-prep-table', '备餐台', 48, 336), collision: footprint(48, 336, 16, 48), textLayout: 'vertical', focusFrame: 'interactive' },
-    { ...fixture('cafe-trial-wash', '清洗台', 48, 432), collision: footprint(48, 432, 16, 48), textLayout: 'vertical', focusFrame: 'interactive' },
-    { ...fixture('cafe-trial-cold', '冷藏', 48, 168), collision: footprint(48, 168, 16, 32), textLayout: 'vertical', focusFrame: 'interactive' },
+    { ...fixture('cafe-trial-coffee-machine', '咖啡机', 24, 224), collision: footprint(24, 224, 16, 48), textLayout: 'vertical', focusFrame: 'interactive' },
+    { ...fixture('cafe-trial-prep-table', '备餐台', 24, 336), collision: footprint(24, 336, 16, 48), textLayout: 'vertical', focusFrame: 'interactive' },
+    { ...fixture('cafe-trial-wash', '清洗台', 24, 432), collision: footprint(24, 432, 16, 48), textLayout: 'vertical', focusFrame: 'interactive' },
+    { ...fixture('cafe-trial-cold', '冷藏', 24, 168), collision: footprint(24, 168, 16, 32), textLayout: 'vertical', focusFrame: 'interactive' },
   )
   const tables = [[448, 196], [588, 196], [448, 448], [588, 448]] as const
   tables.forEach(([x, y], index) => {
@@ -151,7 +153,7 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
     },
   }
   return embedCustomerWallText(employeeRearDoor(result, room.id, 84), room.id, [
-    { id: 'commercial-cafe-menu', label: '菜单', y: 560, edge: 'left', publicX: 224 },
+    { id: 'commercial-cafe-menu', label: '菜单', y: 392, edge: 'left', publicX: 224 },
     { id: 'commercial-cafe-blackboard', label: '黑板', y: 252, edge: 'left', publicX: 224 },
   ])
 }
@@ -213,16 +215,16 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     roomId: 'commercial-south-s5-interior', prefix: 'milk-tea-trial', oldStructurePrefix: 'commercial-s5-milk-tea-',
     // Front is at y0. A long right counter separates ordering and collection along the shop.
     runs: [
-      { id: 'long-counter', bounds: { x: 216, y: 104, width: 16, height: 588 }, orientation: 'vertical', publicSide: 'left' },
-      { id: 'front-return', bounds: { x: 232, y: 104, width: 96, height: 16 }, orientation: 'horizontal', publicSide: 'top' },
+      { id: 'long-counter', bounds: { x: 213, y: 101, width: 22, height: 591 }, orientation: 'vertical', publicSide: 'left' },
+      { id: 'front-return', bounds: { x: 235, y: 101, width: 93, height: 22 }, orientation: 'horizontal', publicSide: 'top' },
     ],
     stations: [
       { id: 'commercial-s5-milk-tea-order-service-label', x: 224, y: 224 },
       { id: 'commercial-s5-milk-tea-pickup-service-label', x: 224, y: 432 },
     ],
     publicSide: 'left', menu: { id: 'commercial-s5-milk-tea-menu-service-label', y: 168, edge: 'right', publicX: 176 }, rearX: 280,
-    equipment: [{ label: '制茶机', x: 280, y: 336 }, { label: '封口机', x: 280, y: 448 }, { label: '清洗台', x: 280, y: 560 }, { label: '煮料台', x: 280, y: 224 }],
-    worker: [240, 392],
+    equipment: [{ label: '制茶机', x: 312, y: 336 }, { label: '封口机', x: 312, y: 448 }, { label: '清洗台', x: 312, y: 560 }, { label: '煮料台', x: 312, y: 224 }],
+    worker: [248, 392],
     // The right work lane continues to its one locked rear door. There is no
     // interior warehouse or public-side employee exit: the long end meets the rear wall.
     regions: [{ x: 224, y: 112, width: 112, height: 588 }],
@@ -232,15 +234,15 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     // Front is at y700. The left work line closes into the wall at its front
     // end; the other terminal now meets the rear wall too.
     runs: [
-      { id: 'long-counter', bounds: { x: 104, y: 8, width: 16, height: 560 }, orientation: 'vertical', publicSide: 'right' },
-      { id: 'front-return', bounds: { x: 8, y: 552, width: 96, height: 16 }, orientation: 'horizontal', publicSide: 'bottom' },
+      { id: 'long-counter', bounds: { x: 101, y: 8, width: 22, height: 563 }, orientation: 'vertical', publicSide: 'right' },
+      { id: 'front-return', bounds: { x: 8, y: 549, width: 93, height: 22 }, orientation: 'horizontal', publicSide: 'bottom' },
     ],
     stations: [
       { id: 'fruit-tea-trial-order', x: 112, y: 432 },
       { id: 'fruit-tea-trial-pickup', x: 112, y: 336 },
     ],
     publicSide: 'right', menu: { id: 'fruit-tea-trial-menu', y: 616, edge: 'left', publicX: 160 }, rearX: 56,
-    equipment: [{ label: '清洗台', x: 48, y: 308 }, { label: '切果台', x: 48, y: 392 }, { label: '打包台', x: 48, y: 476 }, { label: '冷藏', x: 48, y: 140 }, { label: '煮料台', x: 48, y: 224 }],
-    worker: [96, 252], regions: [{ x: 0, y: 0, width: 112, height: 560 }],
+    equipment: [{ label: '清洗台', x: 24, y: 308 }, { label: '切果台', x: 24, y: 392 }, { label: '打包台', x: 24, y: 476 }, { label: '冷藏', x: 24, y: 140 }, { label: '煮料台', x: 24, y: 224 }],
+    worker: [88, 252], regions: [{ x: 0, y: 0, width: 112, height: 560 }],
   })
 }
