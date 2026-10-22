@@ -129,3 +129,27 @@ export function advanceMainlineCamera(current: Point, target: Point, elapsedMs: 
   const blend = 1 - Math.exp(-Math.max(0, elapsedMs) / 140)
   return { x: current.x + (target.x - current.x) * blend, y: current.y + (target.y - current.y) * blend }
 }
+
+/** Limit a camera-policy handoff by its visible screen movement, without
+ * changing the target, world position, or the shared input projection. */
+export function advanceMainlineCameraHandoff(
+  current: Point,
+  target: Point,
+  elapsedMs: number,
+  viewport: SceneScreenMetrics,
+  maxScreenDeltaPx = 6,
+): Point {
+  const eased = advanceMainlineCamera(current, target, elapsedMs)
+  const scale = mainlineWorldScale(viewport as MainlineViewportMetrics)
+  const screenDelta = {
+    x: (eased.x - current.x) / 100 * sceneDesignReferenceMetrics.width * scale,
+    y: (eased.y - current.y) / 100 * sceneDesignReferenceMetrics.height * scale,
+  }
+  const distance = Math.hypot(screenDelta.x, screenDelta.y)
+  if (distance <= maxScreenDeltaPx || distance === 0) return eased
+  const ratio = maxScreenDeltaPx / distance
+  return {
+    x: current.x + (eased.x - current.x) * ratio,
+    y: current.y + (eased.y - current.y) * ratio,
+  }
+}

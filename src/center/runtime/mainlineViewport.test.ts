@@ -1,8 +1,31 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineCameraOffset, mainlineCameraTarget, mainlineCameraVisualOutset, mainlineWorldPointFromClient, mainlineWorldScale, mainlineVisibleWorldSpan } from './mainlineViewport'
+import { advanceMainlineCamera, advanceMainlineCameraHandoff, mainlineCameraOffset, mainlineCameraTarget, mainlineCameraVisualOutset, mainlineWorldPointFromClient, mainlineWorldScale, mainlineVisibleWorldSpan } from './mainlineViewport'
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 
 describe('fixed mainline world projection', () => {
+  it('caps the visible movement during a street/interior camera handoff', () => {
+    const viewport = { width: 390, height: 844, projectionScale: .65 }
+    // The measured exit frame moved 28.17 CSS px. With the existing 140ms
+    // easing, that corresponds to a camera target about 254px away.
+    const current = { x: 0, y: 0 }
+    const target = { x: 0, y: 254 / (1080 * .65 / 100) }
+    const ordinary = advanceMainlineCamera(current, target, 16.4)
+    const handedOff = advanceMainlineCameraHandoff(current, target, 16.4, viewport)
+    const screenDelta = Math.hypot(
+      (handedOff.x - current.x) / 100 * 1920 * .65,
+      (handedOff.y - current.y) / 100 * 1080 * .65,
+    )
+    const ordinaryScreenDelta = Math.hypot(
+      (ordinary.x - current.x) / 100 * 1920 * .65,
+      (ordinary.y - current.y) / 100 * 1080 * .65,
+    )
+
+    expect(screenDelta).toBeLessThanOrEqual(6.000001)
+    expect(ordinaryScreenDelta).toBeGreaterThan(6)
+    expect(handedOff.x).toBe(current.x)
+    expect(handedOff.y).toBeGreaterThan(current.y)
+  })
+
   it('applies the candidate scale at the authored reference viewport', () => {
     const scale = mainlineWorldScale(sceneDesignReferenceMetrics)
     expect(mainlineWorldScale(sceneDesignReferenceMetrics)).toBeCloseTo(scale, 8)
