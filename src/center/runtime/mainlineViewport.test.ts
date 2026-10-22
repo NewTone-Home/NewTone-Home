@@ -3,27 +3,49 @@ import { advanceMainlineCamera, advanceMainlineCameraHandoff, mainlineCameraOffs
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 
 describe('fixed mainline world projection', () => {
-  it('caps the visible movement during a street/interior camera handoff', () => {
+  it('limits street/interior handoff speed consistently across common refresh rates', () => {
     const viewport = { width: 390, height: 844, projectionScale: .65 }
     // The measured exit frame moved 28.17 CSS px. With the existing 140ms
-    // easing, that corresponds to a camera target about 254px away.
+    // easing, that corresponds to a camera target about 254px away. Keep the
+    // reference cap near 6px at 60Hz but normalize it to elapsed time.
     const current = { x: 0, y: 0 }
-    const target = { x: 0, y: 254 / (1080 * .65 / 100) }
-    const ordinary = advanceMainlineCamera(current, target, 16.4)
-    const handedOff = advanceMainlineCameraHandoff(current, target, 16.4, viewport)
-    const screenDelta = Math.hypot(
-      (handedOff.x - current.x) / 100 * 1920 * .65,
-      (handedOff.y - current.y) / 100 * 1080 * .65,
-    )
-    const ordinaryScreenDelta = Math.hypot(
-      (ordinary.x - current.x) / 100 * 1920 * .65,
-      (ordinary.y - current.y) / 100 * 1080 * .65,
-    )
+    const target = { x: 0, y: 3000 / (1080 * .65 / 100) }
+    const runForOneSecond = (hz: number) => {
+      let offset = current
+      let distance = 0
+      for (let frame = 0; frame < hz; frame += 1) {
+        const next = advanceMainlineCameraHandoff(offset, target, 1000 / hz, viewport)
+        distance += Math.hypot(
+          (next.x - offset.x) / 100 * 1920 * .65,
+          (next.y - offset.y) / 100 * 1080 * .65,
+        )
+        offset = next
+      }
+      return { distance, offset }
+    }
+    const at30 = runForOneSecond(30)
+    const at60 = runForOneSecond(60)
+    const at120 = runForOneSecond(120)
 
-    expect(screenDelta).toBeLessThanOrEqual(6.000001)
-    expect(ordinaryScreenDelta).toBeGreaterThan(6)
-    expect(handedOff.x).toBe(current.x)
-    expect(handedOff.y).toBeGreaterThan(current.y)
+    expect(at30.distance).toBeCloseTo(360, 6)
+    expect(at60.distance).toBeCloseTo(360, 6)
+    expect(at120.distance).toBeCloseTo(360, 6)
+    expect(at60.offset.y).toBeGreaterThan(current.y)
+  })
+
+  it('uses only one 60Hz step after a long pause, then follows a reversed target', () => {
+    const viewport = { width: 390, height: 844, projectionScale: .65 }
+    const scaleY = 1080 * .65 / 100
+    const current = { x: 0, y: 0 }
+    const farTarget = { x: 0, y: 3000 / scaleY }
+    const afterPause = advanceMainlineCameraHandoff(current, farTarget, 10_000, viewport)
+    const firstStepPx = Math.abs(afterPause.y * scaleY)
+    expect(firstStepPx).toBeCloseTo(6, 6)
+
+    const reversedTarget = { x: 0, y: -3000 / scaleY }
+    const afterReverse = advanceMainlineCameraHandoff(afterPause, reversedTarget, 1000 / 60, viewport)
+    expect(afterReverse.y).toBeLessThan(afterPause.y)
+    expect(Math.abs((afterReverse.y - afterPause.y) * scaleY)).toBeCloseTo(6, 6)
   })
 
   it('applies the candidate scale at the authored reference viewport', () => {

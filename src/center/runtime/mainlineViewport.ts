@@ -137,7 +137,7 @@ export function advanceMainlineCameraHandoff(
   target: Point,
   elapsedMs: number,
   viewport: SceneScreenMetrics,
-  maxScreenDeltaPx = 6,
+  maxScreenSpeedPxPerSecond = 360,
 ): Point {
   const eased = advanceMainlineCamera(current, target, elapsedMs)
   const scale = mainlineWorldScale(viewport as MainlineViewportMetrics)
@@ -146,7 +146,13 @@ export function advanceMainlineCameraHandoff(
     y: (eased.y - current.y) / 100 * sceneDesignReferenceMetrics.height * scale,
   }
   const distance = Math.hypot(screenDelta.x, screenDelta.y)
-  if (distance <= maxScreenDeltaPx || distance === 0) return eased
+  if (distance === 0) return eased
+  // Ordinary 30/60/120Hz frames use their real duration. If the tab was
+  // backgrounded or rendering stalled, consume at most one 60Hz step on
+  // resume so a stale RAF delta cannot finish the whole handoff at once.
+  const safeElapsedMs = elapsedMs > 50 ? 1000 / 60 : Math.max(0, elapsedMs)
+  const maxScreenDeltaPx = maxScreenSpeedPxPerSecond * safeElapsedMs / 1000
+  if (distance <= maxScreenDeltaPx) return eased
   const ratio = maxScreenDeltaPx / distance
   return {
     x: current.x + (eased.x - current.x) * ratio,
