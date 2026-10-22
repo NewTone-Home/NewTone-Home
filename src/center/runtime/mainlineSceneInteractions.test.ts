@@ -72,7 +72,29 @@ describe('mainline scene interaction policies', () => {
     const commercial = mainlineScenes['commercial-street']
     expect(mainlineSceneAreaLabel(commercial, { ...commercial.initialPlayerPosition, x: commercial.walkBounds.x + commercial.walkBounds.width })).toBe('商业街尾端')
     const mining = mainlineScenes['yonghe-mining-perimeter']
-    expect(mainlineSceneAreaLabel(mining, mining.initialPlayerPosition)).toBe('矿区')
+    // f7236ee replaced the generic mine display with a continuous street.
+    // The legacy scene key is retained separately; this assertion is UI area text.
+    expect(mainlineSceneAreaLabel(mining, mining.initialPlayerPosition)).toBe('矿区外围老街')
+  })
+
+  it('retains both historic mine scene keys while reporting the real street and interior area', () => {
+    for (const key of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
+      const scene = mainlineScenes[key]
+      expect(scene).toBeDefined()
+      expect(scene.statusLabel).toBe('矿区外围老街')
+      expect(mainlineSceneAreaLabel(scene, scene.initialPlayerPosition)).toBe('矿区外围老街')
+      const names = ['修鞋', '永和小馆', '药店', '五金店', '小吃', '面馆', '修理', '早点']
+      for (const [index, name] of names.entries()) {
+        const roomId = `mining-shop-${index + 1}-interior`
+        const room = scene.rooms.find(candidate => candidate.id === roomId)!
+        expect(room).toBeDefined()
+        expect(mainlineSceneAreaLabel(scene, { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 })).toBe(name)
+        const door = scene.passages.find(candidate => candidate.toRoomId === roomId)!
+        expect(door).toMatchObject({ access: 'open', routeThrough: true, fromRoomId: 'mining-street-public-lane' })
+        expect(door.targetSceneId).toBeUndefined()
+      }
+      expect(scene.passages.find(candidate => candidate.id === 'yonghe-back-door')).toMatchObject({ access: 'locked' })
+    }
   })
 
   it('persists watering as a bounded plant state instead of feedback-only UI', () => {

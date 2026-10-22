@@ -53,3 +53,19 @@
 ## 限制 / 没做
 
 未跑全量，旧逐件设备/重复柜台标签等契约未在此扩修，不能推断全量只剩历史11。作者视觉尚待验收；实体手机/全座位/全剧情未重测。厨房生产交互未新增。未改其他场景桌子、相机、世界比例、门/剧情、矿区6文件、设备视距分支或真实存档。4224固定产物保留，4173未换；没有push/正式部署/Notion写入。
+
+
+## 后续收口：共享区域名断言与授权图片上传
+
+父要求不能把4过1失败仅标历史而跳过。已查明 `mainlineSceneAreaLabel` 返回 areaLabel 函数结果，不是 scene ID。`f7236eea92c011c731c4bc11d4d2e3b3b91c7003`（连续矿区街道引入提交）的 `miningStreetShell.ts` 已明确：街道区域名“矿区外围老街”、进入各室内显示对应店名。测试75行还期待旧独立矿区的“矿区”，是显示名契约未迁，不是布局候选破坏兼容。旧主场景键 `yonghe-mining-perimeter`、旧永和键 `yonghe-eatery` 在 mainlineSceneModel 仍各由同一 shell builder 创建；mainlineRide 拾取区仍覆盖两键，地图“矿区”简称也保留，不需为测试改运行时标题。
+
+正确最小修改仅 `mainlineSceneInteractions.test.ts`：保持办公室换手机/百叶窗及商业街区域断言，矿区初始路面期望改为明确“矿区外围老街”；新增遍历两个兼容场景键，逐一验证街道区域、8个既有店名（修鞋/永和小馆/药店/五金店/小吃/面馆/修理/早点）、8个开放同世界前门和锁定后门。没有删除、skip或放宽原有效断言。新增试验初稿店名写错与源码逐一核正后重跑，未改店名源码。
+
+最终三文件29/29通过：共享交互6、SimpleDrinkWorkspaces13、miningLayoutMigration10；输出 `.tmp/simple-area-contract-final-v2.json`。与前37定向有重叠，不相加宣称66项独立覆盖。仍未跑全量。本次仅测试/报告，运行时仍1b441a39520d6119f7dd05c8121be74cd41114e8，4225资源和截图不变，不重建或换包。
+
+作者另明确批准三张当前候选图上传自己的Library，已一次成功：
+- Cafe `libfile_e62d38fb261081919ff77abf428b4d85` / cafe-full-room(5).png /61166字节。
+- 奶茶 `libfile_7740f782ea0481918b334dac142e595e` / milk-full-room(5).png /42817字节。
+- 果茶 `libfile_b321daa2b7e48191bd5654a41d58af3f` / fruit-full-room(5).png /50355字节。
+
+这是前述本地文件的最终4225截图；未发送其他聊天、未发布公网、未重复上传。Windows本地文件未声称已写入工具返回的Unix xattr。
