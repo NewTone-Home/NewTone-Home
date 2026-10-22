@@ -1,4 +1,4 @@
-import { currentCafeStart, currentCafeOptions } from './helpers/currentCafe'
+import { currentCafeStart, currentCafeOptions, cafePoint } from './helpers/currentCafe'
 import { mainlineNpcLabelFootprint } from '../src/center/runtime/sceneLayout'
 import { describe, expect, it } from 'vitest'
 import { doorPassageIsPassable, type DoorPassagePhase } from '../src/center/runtime/doorPassageModel'
@@ -348,7 +348,7 @@ describe('ordinary world navigation and passage intent', () => {
     const denied = resolveMainlineWorldNavigation(cafe, currentCafeStart, staffTarget, {}, options)!
     expect(denied.reachedRequestedTarget).toBe(false)
     expect(denied.deniedAccessRegion?.id).toBe(staff.id)
-    expect(denied.resolvedNavigableTarget.y).toBeGreaterThan(staff.y + staff.height)
+    expect(denied.resolvedNavigableTarget.x).toBeGreaterThan(staff.x + staff.width)
     expect(mainlineNavigationCollisionBoxes(cafe, {}, options)).not.toContainEqual({ x: staff.x, y: staff.y, width: staff.width, height: staff.height })
     expect(denied.resolvedNavigableTarget).not.toEqual(staffTarget)
     const allowed = resolveMainlineWorldNavigation(cafe, currentCafeStart, staffTarget, {}, { ...currentCafeOptions, actorId: commercialCafeCoffeeOwnerNpcId })!
@@ -357,14 +357,14 @@ describe('ordinary world navigation and passage intent', () => {
     expect(floorServerDenied.reachedRequestedTarget).toBe(false)
   })
 
-  it('derives distinct public contacts at the actual lower employee opening without projecting through the counter',()=>{
- const cafe=mainlineScenes['commercial-street'],staff=cafe.accessRegions.find(r=>r.id==='commercial-cafe-staff-area')!,from={x:staff.x+staff.width/2,y:staff.y+staff.height+5}
+  it('derives distinct public contacts at the actual upper-right employee opening without projecting through the counter',()=>{
+ const cafe=mainlineScenes['commercial-street'],staff=cafe.accessRegions.find(r=>r.id==='commercial-cafe-staff-area')!,from=cafePoint(208,88)
  const contacts=[.2,.4,.6,.8].map(fraction=>{
-  const result=resolveMainlineWorldNavigation(cafe,from,{x:staff.x+staff.width*fraction,y:staff.y+staff.height-1},{},currentCafeOptions)!
+  const result=resolveMainlineWorldNavigation(cafe,from,cafePoint(160,76+fraction*24),{},currentCafeOptions)!
   expect(result).not.toBeNull();expect(result.deniedAccessRegion?.id).toBe(staff.id)
-  expect(result.resolvedNavigableTarget.y).toBeGreaterThan(staff.y+staff.height+currentCafeOptions.actorFootprint.height/2)
+  expect(result.resolvedNavigableTarget.x).toBeGreaterThan(staff.x+staff.width+currentCafeOptions.actorFootprint.width/2)
   for(let i=1;i<result.path.length;i++)expect(canTravelAlongMainlineSegment(result.path[i-1],result.path[i],cafe,{},currentCafeOptions)).toBe(true)
-  return result.resolvedNavigableTarget.x
+  return result.resolvedNavigableTarget.y
  })
  expect(new Set(contacts).size).toBeGreaterThan(2)
 })

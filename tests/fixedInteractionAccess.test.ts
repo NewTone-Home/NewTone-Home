@@ -1,4 +1,4 @@
-import { currentCafeOptions, currentCafeStart } from './helpers/currentCafe'
+import { currentCafeOptions, currentCafeStart, cafePoint } from './helpers/currentCafe'
 import { describe, expect, it } from 'vitest'
 import {
   canTravelAlongMainlineSegment, findMainlinePath,
@@ -64,13 +64,15 @@ describe('ordinary floor interaction and access-boundary contracts', () => {
     }
   })
 
-  it('uses the same real staff region for planner, route traversal, and live-movement legality at the actual lower opening', () => {
+  it('uses the same real staff region for planner, route traversal, and live-movement legality at the actual upper-right opening', () => {
  const cafe=mainlineScenes['commercial-street'],staff=cafe.accessRegions.find(r=>r.id==='commercial-cafe-staff-area')!
- const publicPoint={x:staff.x+staff.width/2,y:staff.y+staff.height+3},staffPoint={...publicPoint,y:staff.y+staff.height-3}
+ const publicPoint=cafePoint(208,88),staffPoint=cafePoint(144,88)
  const staffOptions={...protagonistOptions,actorId:commercialCafeCoffeeOwnerNpcId}
  expect(canTravelAlongMainlineSegment(publicPoint,staffPoint,cafe,{},protagonistOptions)).toBe(false)
  expect(findMainlinePath(publicPoint,staffPoint,cafe,{},protagonistOptions)).toBeNull()
  expect(canTravelAlongMainlineSegment(publicPoint,staffPoint,cafe,{},staffOptions)).toBe(true)
  expect(findMainlinePath(publicPoint,staffPoint,cafe,{},staffOptions)).not.toBeNull()
+ // The street-end L arm is physical even for employees.
+ expect(canTravelAlongMainlineSegment(cafePoint(96,472),cafePoint(96,520),cafe,{},staffOptions)).toBe(false)
 })
 })

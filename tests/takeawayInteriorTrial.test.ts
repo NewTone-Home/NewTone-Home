@@ -5,8 +5,8 @@ import { canActorReachPassageApproach, findMainlinePath, findMainlinePathToEntit
 
 const scene=mainlineScenes['commercial-street'], options={screenMetrics:sceneDesignReferenceMetrics}
 const trials=[
- {room:'commercial-south-s5-interior',prefix:'milk-tea-trial',front:'commercial-south-slot-5-entry',old:'commercial-s5-milk-tea-',center:[112,336],worker:[264,392],order:'commercial-s5-milk-tea-order-service-label',pickup:'commercial-s5-milk-tea-pickup-service-label'},
- {room:'commercial-north-n1-interior',prefix:'fruit-tea-trial',front:'commercial-north-slot-1-entry',old:'commercial-retail-n1-fruit-tea-',center:[168,560],worker:[168,252],order:'fruit-tea-trial-order',pickup:'fruit-tea-trial-pickup'},
+ {room:'commercial-south-s5-interior',prefix:'milk-tea-trial',front:'commercial-south-slot-5-entry',old:'commercial-s5-milk-tea-',center:[112,336],worker:[240,392],order:'commercial-s5-milk-tea-order-service-label',pickup:'commercial-s5-milk-tea-pickup-service-label'},
+ {room:'commercial-north-n1-interior',prefix:'fruit-tea-trial',front:'commercial-north-slot-1-entry',old:'commercial-retail-n1-fruit-tea-',center:[168,560],worker:[96,252],order:'fruit-tea-trial-order',pickup:'fruit-tea-trial-pickup'},
 ] as const
 describe('two distinct takeaway layout trials',()=>{
  for(const trial of trials){const room=scene.rooms.find(r=>r.id===trial.room)!,point=(x:number,y:number)=>({x:room.bounds.x+x/19.2,y:room.bounds.y+y/10.8})
@@ -38,7 +38,7 @@ describe('two distinct takeaway layout trials',()=>{
  }
  it('uses16px counter cells and matches each body to its visible glyph union',()=>{
   for(const body of scene.continuousStructures.filter(b=>b.id.startsWith('milk-tea-trial-')||b.id.startsWith('fruit-tea-trial-'))){
-   const prefix=body.id.slice(0,-5),cells=scene.objects.filter(o=>o.id.startsWith(`${prefix}-`))
+   const cells=scene.objects.filter(o=>o.interactionStructureId===body.id)
    const xs=cells.map(o=>o.position.x),ys=cells.map(o=>o.position.y)
    expect(cells.length).toBeGreaterThan(1)
    expect((body.width-(Math.max(...xs)-Math.min(...xs)))*19.2).toBeCloseTo(16,3)

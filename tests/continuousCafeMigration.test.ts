@@ -11,12 +11,22 @@ import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundary
 
 const street = mainlineScenes['commercial-street']
 const options = { screenMetrics: sceneDesignReferenceMetrics }
-const counterPublicContact = mainlineScenes['commercial-street'].objects.find(o => o.id === 'cafe-trial-order')!.position
+const counterCenter = street.objects.find(o => o.id === 'cafe-trial-order')!.position
+const cafeEntry = street.passages.find(p => p.id === 'street-cafe-entry')!.crossingTargets[0]
+const counterContact = findMainlinePathToEntity(street, 'cafe-trial-order', cafeEntry, {}, options)
+const counterPublicContact = counterContact.target
 describe('retired standalone Cafe compatibility in one continuous world', () => {
   it('keeps the actual conversation chair reachable from the customer counter contact', () => {
+    expect(isWalkableMainlinePoint(counterCenter, street, {}, options)).toBe(false)
+    expect(counterContact.path).not.toBeNull()
+    expect(counterContact.path!.length).toBeGreaterThan(1)
+    const body=street.continuousStructures.find(b=>b.id==='cafe-trial-counter-long-body')!
+    expect(counterPublicContact.x).toBeGreaterThan(body.x+body.width)
+    expect(isWalkableMainlinePoint(counterPublicContact, street, {}, options)).toBe(true)
     const result = findMainlinePathToEntity(street, cafeConversationSeatId, counterPublicContact, {}, options)
     expect(result?.path).not.toBeNull()
     expect(result?.path?.length).toBeGreaterThan(1)
+    for(const path of [counterContact.path!,result.path!])for(let i=1;i<path.length;i++)expect(canTravelAlongMainlineSegment(path[i-1],path[i],street,{},options)).toBe(true)
   })
   it('routes Lao Zhou around the semantic staff region instead of rejecting a path through it', () => {
     const npcOptions = { ...options, actorId: 'lao-zhou', occupiedSeatIds: mainlineSceneOccupiedSeatIds(street) }

@@ -67,20 +67,28 @@ describe('commercial street shell furniture samples', () => {
  expect(street.furnitureGroups.filter(g=>tables.some(t=>t.groupId===g.id))).toHaveLength(4)
 })
 
-  it('keeps the two 16px Cafe counter runs, distinct service markers and real employee opening without an interior storage label',()=>{
+  it('keeps the three 16px Cafe counter runs, distinct service markers and real employee opening without an interior storage label',()=>{
  const bodies=street.continuousStructures.filter(b=>b.id.startsWith('cafe-trial-counter-'))
- expect(bodies).toHaveLength(2)
- const cells=street.objects.filter(o=>bodies.some(b=>o.interactionStructureId===b.id));expect(cells).toHaveLength(43)
- expect(new Set(cells.map(o=>o.position.x+':'+o.position.y)).size).toBe(43)
- for(const body of bodies){const run=cells.filter(o=>o.interactionStructureId===body.id);for(const c of run){expect(Array.from(c.label)).toHaveLength(1);expect(c.position.x).toBeGreaterThanOrEqual(body.x);expect(c.position.x).toBeLessThanOrEqual(body.x+body.width);expect(c.position.y).toBeGreaterThanOrEqual(body.y);expect(c.position.y).toBeLessThanOrEqual(body.y+body.height)}}
- expect(overlaps(bodies[0],bodies[1])).toBe(false)
+ expect(bodies).toHaveLength(3)
+ const cells=street.objects.filter(o=>bodies.some(b=>o.interactionStructureId===b.id));expect(cells).toHaveLength(39)
+ expect(new Set(cells.map(o=>o.position.x+':'+o.position.y)).size).toBe(39)
+ for(const body of bodies){
+  const run=cells.filter(o=>o.interactionStructureId===body.id)
+  expect(Math.min(...run.map(c=>c.position.x))-8/19.2).toBeCloseTo(body.x,5)
+  expect(Math.max(...run.map(c=>c.position.x))+8/19.2).toBeCloseTo(body.x+body.width,5)
+  expect(Math.min(...run.map(c=>c.position.y))-8/10.8).toBeCloseTo(body.y,5)
+  expect(Math.max(...run.map(c=>c.position.y))+8/10.8).toBeCloseTo(body.y+body.height,5)
+  for(const c of run)expect(Array.from(c.label)).toHaveLength(1)
+  for(let i=1;i<run.length;i++)expect(Math.hypot((run[i].position.x-run[i-1].position.x)*19.2,(run[i].position.y-run[i-1].position.y)*10.8)).toBeCloseTo(16,5)
+ }
+ for(let i=0;i<bodies.length;i++)for(let j=i+1;j<bodies.length;j++)expect(overlaps(bodies[i],bodies[j])).toBe(false)
  for(const id of ['commercial-cafe-menu','cafe-trial-order','cafe-trial-pickup'])expect(street.objects.find(o=>o.id===id)?.roomId).toBe(northCafeRoomId)
  expect(street.objects.some(o=>o.roomId===northCafeRoomId&&(o.id.includes('storage')||o.id.includes('staff-opening')))).toBe(false)
  expect(street.passages.find(p=>p.id==='cafe-trial-customer-toilet-door')?.access).toBe('locked')
- const region=street.accessRegions.find(r=>r.id==='commercial-cafe-staff-area')!,lower={x:region.x+region.width/2,y:region.y+region.height+2}
+ const region=street.accessRegions.find(r=>r.id==='commercial-cafe-staff-area')!,lower=cafePoint(208,88),inside=cafePoint(144,88)
  expect(isWalkableMainlinePoint(lower,street,{},referenceOptions)).toBe(true)
- expect(findMainlinePath(lower,{...lower,y:region.y+region.height-2},street,{},referenceOptions)).toBeNull()
- expect(findMainlinePath(lower,{...lower,y:region.y+region.height-2},street,{}, {...referenceOptions,actorId:'cafe-coffee-owner'})).not.toBeNull()
+ expect(findMainlinePath(lower,inside,street,{},referenceOptions)).toBeNull()
+ expect(findMainlinePath(lower,inside,street,{}, {...referenceOptions,actorId:'cafe-coffee-owner'})).not.toBeNull()
 })
 
   it('reaches every Cafe chair from the public doorway and reserves the locked warehouse approach for staff',()=>{
@@ -142,12 +150,18 @@ describe('commercial street shell furniture samples', () => {
     }
   })
 
-  it('leaves the locked rear-door approaches reachable through the staff-side partition openings', () => {
+  it('reserves the enclosed milk rear approach for staff and retains fast-food partition access', () => {
     for (const roomId of sampleRoomIds) {
       const room = street.rooms.find((candidate) => candidate.id === roomId)!
       const rear = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
       const interior = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
-      expect(findMainlinePath(interior, rear.thresholds[0], street, {}, { screenMetrics: sceneDesignReferenceMetrics }), `${roomId} to rear threshold`).not.toBeNull()
+      const publicRoute=findMainlinePath(interior,rear.thresholds[0],street,{},referenceOptions)
+      expect(rear.access).toBe('locked')
+      if(roomId===sampleRoomIds[0]) {
+        expect(publicRoute).toBeNull()
+        const actorId='milk-tea-trial-worker',worker=resolveMainlineNpcPosition(street,actorId)
+        expect(findMainlinePath(worker,rear.thresholds[0],street,{}, {...referenceOptions,actorId,actorFootprint:{width:16/19.2,height:16/10.8}})).not.toBeNull()
+      } else expect(publicRoute).not.toBeNull()
     }
   })
 
@@ -164,14 +178,14 @@ describe('commercial street shell furniture samples', () => {
  const milkBodies=street.continuousStructures.filter(b=>b.id.startsWith('milk-tea-trial-'))
  expect(milkBodies).toHaveLength(2)
  let total=0
- for(const body of milkBodies){const cells=street.objects.filter(o=>o.id.startsWith(body.id.slice(0,-5)+'-'));total+=cells.length;expect(cells.length).toBeGreaterThan(1)
+ for(const body of milkBodies){const cells=street.objects.filter(o=>o.interactionStructureId===body.id);total+=cells.length;expect(cells.length).toBeGreaterThan(1)
   expect(Math.min(...cells.map(c=>c.position.x))-8/19.2).toBeCloseTo(body.x,5)
   expect(Math.max(...cells.map(c=>c.position.x))+8/19.2).toBeCloseTo(body.x+body.width,5)
   expect(Math.min(...cells.map(c=>c.position.y))-8/10.8).toBeCloseTo(body.y,5)
   expect(Math.max(...cells.map(c=>c.position.y))+8/10.8).toBeCloseTo(body.y+body.height,5)
   for(let i=1;i<cells.length;i++)expect(Math.hypot((cells[i].position.x-cells[i-1].position.x)*19.2,(cells[i].position.y-cells[i-1].position.y)*10.8)).toBeCloseTo(16,4)
  }
- expect(total).toBe(31);expect(overlaps(milkBodies[0],milkBodies[1])).toBe(false)
+ expect(total).toBe(44);expect(overlaps(milkBodies[0],milkBodies[1])).toBe(false)
  const fast=street.objects.filter(o=>o.id.startsWith('commercial-s2-fast-food-counter-'))
  expect(fast).toHaveLength(10);expect(fast.every(o=>o.interactionStructureId==='commercial-s2-fast-food-counter-1-body')).toBe(true)
  expect(new Set(fast.map(o=>o.position.x)).size).toBe(1)
@@ -298,31 +312,43 @@ describe('commercial street shell furniture samples', () => {
     }
   })
 
-  it('places menu, order and pickup labels separately on the customer side', () => {
-    const serviceLabels = street.objects.filter((entity) => entity.id.endsWith('-service-label'))
-    expect(serviceLabels).toHaveLength(6)
-    expect(serviceLabels.map((entity) => entity.label).sort()).toEqual(['取餐', '取餐', '点单', '点单', '菜单', '菜单'])
-    expect(serviceLabels.every(entity => entity.interactive === (entity.roomId===sampleRoomIds[0]) && entity.visualVisibility === 'static')).toBe(true)
-    for (const [roomId, slotId, counterColumn] of [
-      [sampleRoomIds[0], 'commercial-south-slot-5', 6],
-      [sampleRoomIds[1], 'commercial-south-slot-2', 14],
-    ] as const) {
-      const slot = street.storefronts.find((candidate) => candidate.id === slotId)!
-      const entry = shellInside(slot.id)
-      const labels = serviceLabels.filter((entity) => entity.roomId === roomId)
-      expect(labels).toHaveLength(3)
-      expect(labels.every((entity) => localCell(roomId, entity.position).column < counterColumn)).toBe(true)
-      for (const label of labels) {
-        expect(findMainlinePath(entry, label.position, street), `${label.id} is reachable from the customer entry`).not.toBeNull()
-        const overlapsNearbyLabel = street.objects.some((entity) => entity.roomId === roomId && entity.id !== label.id
-          && Math.abs(entity.position.y - label.position.y) < steps.vertical * .75
-          && Math.abs(entity.position.x - label.position.x) < steps.horizontal * 1.4)
-        expect(overlapsNearbyLabel, `${label.id} has clear text space`).toBe(false)
-      }
-      const order = labels.find((entity) => entity.id.includes('-order-'))!
-      const pickup = labels.find((entity) => entity.id.includes('-pickup-'))!
-      expect(Math.abs(localCell(roomId, order.position).row - localCell(roomId, pickup.position).row)).toBeGreaterThan(3)
+  it('retains six service identities with milk menu in the wall and order/pickup in the real counter', () => {
+    const labels=street.objects.filter(o=>o.id.endsWith('-service-label'))
+    expect(labels).toHaveLength(6)
+    const milk=labels.filter(o=>o.roomId===sampleRoomIds[0]),fast=labels.filter(o=>o.roomId===sampleRoomIds[1])
+    expect(milk.map(o=>o.id).sort()).toEqual(['menu','order','pickup'].map(k=>`commercial-s5-milk-tea-${k}-service-label`).sort())
+    expect(fast.map(o=>o.label).sort()).toEqual(['菜单','点单','取餐'].sort())
+    expect(milk).toHaveLength(3);expect(fast).toHaveLength(3)
+    expect(labels.every(o=>o.visualVisibility==='static')).toBe(true)
+    expect(milk.every(o=>o.interactive===true)).toBe(true)
+    expect(fast.every(o=>o.interactive===false)).toBe(true)
+    for(const label of milk){
+      const result=findMainlinePathToEntity(street,label.id,shellInside('commercial-south-slot-5'),{},referenceOptions)
+      expect(result.path,label.id).not.toBeNull()
+      expect(isWalkableMainlinePoint(result.target,street,{},referenceOptions)).toBe(true)
+      const room=street.rooms.find(r=>r.id===sampleRoomIds[0])!
+      expect((result.target.x-room.bounds.x)*19.2).toBeLessThan(200)
+      expect(street.explorationText?.[label.id]?.[0]).toBeTruthy()
     }
+    const menu=milk.find(o=>o.id.includes('-menu-'))!
+    expect(menu.surface).toBe('wall')
+    for(const label of milk.filter(o=>o!==menu)) {
+      expect(['柜','台']).toContain(label.label)
+      expect(label.interactionStructureId).toBe('milk-tea-trial-long-counter-body')
+      expect(isWalkableMainlinePoint(label.position,street,{},referenceOptions)).toBe(false)
+    }
+    expect(milk.some(o=>['点单','取餐','取货'].includes(o.label))).toBe(false)
+    const order=milk.find(o=>o.id.includes('-order-'))!,pickup=milk.find(o=>o.id.includes('-pickup-'))!
+    expect((pickup.position.y-order.position.y)*10.8).toBeCloseTo(208,5)
+    for(const label of fast){
+      expect(localCell(sampleRoomIds[1],label.position).column).toBeLessThan(14)
+      expect(findMainlinePath(shellInside('commercial-south-slot-2'),label.position,street)).not.toBeNull()
+      expect(street.objects.some(o=>o.roomId===sampleRoomIds[1]&&o.id!==label.id
+        &&Math.abs(o.position.y-label.position.y)<steps.vertical*.75
+        &&Math.abs(o.position.x-label.position.x)<steps.horizontal*1.4)).toBe(false)
+    }
+    expect(Math.abs(localCell(sampleRoomIds[1],fast.find(o=>o.id.includes('-order-'))!.position).row
+      -localCell(sampleRoomIds[1],fast.find(o=>o.id.includes('-pickup-'))!.position).row)).toBeGreaterThan(3)
   })
 
   it('keeps each chair rest, pull, sit and stand-up approach reachable in all three groups', () => {
