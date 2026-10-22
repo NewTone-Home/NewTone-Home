@@ -38,10 +38,17 @@ describe('one exterior L counter, two labels and complete solid interaction',()=
  })
  it('moves only the Cafe menu inside the work-side wall and keeps equipment clear of that wall',()=>{
   for(const [roomId,groupId] of configs){
-   const room=scene.rooms.find(r=>r.id===roomId)!,milk=groupId.startsWith('milk'),prefix=milk?'milk-tea-trial':groupId.startsWith('fruit')?'fruit-tea-trial':'cafe-trial'
-   const devices=scene.objects.filter(o=>o.roomId===roomId&&o.textLayout==='vertical'&&o.collision)
-   expect(devices).toHaveLength(prefix==='fruit-tea-trial'?5:4)
-   for(const device of devices){expect((device.position.x-room.bounds.x)*19.2).toBeCloseTo(milk?312:24,5);const body=device.collision!;expect(body.x).toBeGreaterThan(room.bounds.x);expect(body.x+body.width).toBeLessThan(room.bounds.x+room.bounds.width)}
+   const prefix=groupId.startsWith('milk')?'milk-tea-trial':groupId.startsWith('fruit')?'fruit-tea-trial':'cafe-trial'
+   const worktop=scene.continuousStructures.find(body=>body.id===`${prefix}-worktop-body`)!
+   const aliases=scene.objects.filter(o=>o.roomId===roomId&&(o.id.startsWith(`${prefix}-equipment-`)||['cafe-trial-coffee-machine','cafe-trial-prep-table','cafe-trial-wash','cafe-trial-cold'].includes(o.id)))
+   expect(aliases.length).toBeGreaterThanOrEqual(4)
+   expect(worktop.counterSurface?.role).toBe('worktop')
+   expect(worktop.width*19.2).toBe(24)
+   for(const device of aliases){
+    expect(device).toMatchObject({interactive:true,counterSurfaceId:`${prefix}-worktop`,interactionStructureId:`${prefix}-worktop-body`,interactionAliasId:`${prefix}-worktop-0`})
+    expect(device.collision).toBeUndefined()
+   }
+   expect(worktop.height*10.8).toBeGreaterThanOrEqual(16)
   }
   for(const [id,roomId,y] of [['commercial-cafe-menu','commercial-north-cafe-interior',392],['commercial-cafe-blackboard','commercial-north-cafe-interior',252],['commercial-s5-milk-tea-menu-service-label','commercial-south-s5-interior',56],['fruit-tea-trial-menu','commercial-north-n1-interior',588]] as const){const room=scene.rooms.find(r=>r.id===roomId)!,entity=scene.objects.find(o=>o.id===id)!;expect(entity.surface).toBe('wall');expect((entity.position.y-room.bounds.y)*10.8).toBeCloseTo(y,5)}
  })

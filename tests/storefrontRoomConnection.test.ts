@@ -21,7 +21,7 @@ const connected: MainlineSceneDefinition = {
 
 describe('data-driven same-world storefront rooms', () => {
   it('keeps each owning facade revealed deep inside any connected shop', () => {
-    for (const storefront of connected.storefronts) {
+    for (const storefront of connected.storefronts.filter(slot => storefrontRoomConnection(connected, slot)?.passage.access === 'open')) {
       const connection = storefrontRoomConnection(connected, storefront)!
       expect(connection).not.toBeNull()
       const bounds = connection.interiorRoom.bounds
@@ -29,6 +29,9 @@ describe('data-driven same-world storefront rooms', () => {
       expect(activeStorefrontInteriorOwner(connected, deep)).toBe(storefront.id)
       expect(activeStorefrontPresentationOwner(connected, deep)).toBeNull()
       expect(activeStorefrontPresentationOwner(connected, mainlineStorefrontApproach(connected, storefront))).toBe(storefront.id)
+    }
+    for (const storefront of connected.storefronts.filter(slot => storefrontRoomConnection(connected, slot)?.passage.access !== 'open')) {
+      expect(activeStorefrontInteriorOwner(connected, mainlineStorefrontApproach(connected, storefront))).toBeNull()
     }
   })
   it('uses connected room data to distinguish street walking from shop entry', () => {

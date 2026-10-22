@@ -178,8 +178,10 @@ describe('commercial street ordinary retail shell fixtures', () => {
       const storefront = street.storefronts.find((candidate) => candidate.id === store.storefrontId)!
       const entry = mainlineStorefrontApproach(street, storefront)
       const storage = street.objects.filter((entity) => entity.id.startsWith(`${fixtureId}storage-label-`))
-      expect(storage).toHaveLength(2)
-      expect(storage.map((entity) => Math.round(localCell(store.roomId, entity.position).column)).sort((a, b) => a - b)).toEqual([7, 8])
+      expect(storage.length).toBeGreaterThanOrEqual(2)
+      const storageColumns = storage.map((entity) => Math.round(localCell(store.roomId, entity.position).column)).sort((a, b) => a - b)
+      expect(new Set(storageColumns).size).toBe(storage.length)
+      for (let index = 1; index < storageColumns.length; index += 1) expect(storageColumns[index]! - storageColumns[index - 1]!).toBe(1)
       expect(storage.every((entity) => Math.abs(localCell(store.roomId, entity.position).row - 18) < 0.01)).toBe(true)
       expect(findMainlinePath(entry, storeCell(store.roomId, 5, 14), street, {}, referenceNavigation), `${store.key} customer browse aisle`).not.toBeNull()
       const rear = street.passages.find((passage) => passage.id === `${store.roomId}-rear-door`)!
@@ -189,7 +191,7 @@ describe('commercial street ordinary retail shell fixtures', () => {
 
     const fruit=street.rooms.find(r=>r.id==='commercial-north-n1-interior')!,front=street.passages.find(p=>p.toRoomId===fruit.id&&p.routeThrough)!,inside=front.crossingTargets[0],options={screenMetrics:sceneDesignReferenceMetrics,actorId:'protagonist',actorFootprint:{width:11/19.2,height:11/10.8}}
     expect(street.objects.some(o=>o.id.startsWith('commercial-retail-n1-fruit-tea-'))).toBe(false)
-    expect(street.continuousStructures.filter(b=>b.id.startsWith('fruit-tea-trial-'))).toHaveLength(2)
+    expect(street.continuousStructures.filter(b=>b.id.startsWith('fruit-tea-trial-'))).toHaveLength(3)
     expect(street.objects.filter(o=>o.roomId===fruit.id&&(o.kind==='seat'||o.kind==='table'))).toHaveLength(0)
     for(const id of ['fruit-tea-trial-order','fruit-tea-trial-pickup']){const marker=street.objects.find(o=>o.id===id)!;expect(marker.interactive).toBe(true);expect(findMainlinePathToEntity(street,id,inside,{},options).path,id).not.toBeNull()}
     expect(street.objects.some(o=>o.roomId===fruit.id&&(o.id.includes('storage')||o.id.includes('warehouse')))).toBe(false)

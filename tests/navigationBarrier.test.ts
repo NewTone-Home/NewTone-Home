@@ -45,18 +45,20 @@ describe('navigation barrier segments', () => {
     return prepared
   }
 
-  it('derives impassable six-pixel gaps from every visible Cafe table-chair pair without hidden relation barriers', () => {
+  it('keeps fourteen-pixel visible Cafe table-chair gaps out of routes with explicit relation barriers', () => {
  const snapshot=createMainlineSceneGeometrySnapshot(cafe,currentCafeStart,{},currentCafeOptions.screenMetrics)
  const seats=cafe.objects.filter(o=>o.roomId===currentCafeRoom.id&&o.seat)
- expect(seats).toHaveLength(8)
+ expect(seats).toHaveLength(12)
  for(const seat of seats){
   const chair=snapshot.objects.get(seat.id)!,table=snapshot.objects.get(seat.seat!.tableId)!
   const gap=Math.abs(chair.position.y-table.position.y)-(chair.collision!.height+table.collision!.height)/2
-  expect(gap*10.8).toBeCloseTo(6,3)
+  expect(gap*10.8).toBeCloseTo(14,3)
   const center={x:table.position.x,y:(chair.position.y+table.position.y)/2}
-  for(const size of [11,16])expect(isWalkableMainlinePoint(center,cafe,{}, {...protagonistOptions,actorFootprint:{width:size/19.2,height:size/10.8}})).toBe(false)
+  expect(isWalkableMainlinePoint(center,cafe,{}, {...protagonistOptions,actorFootprint:{width:11/19.2,height:11/10.8}})).toBe(true)
+  expect(isWalkableMainlinePoint(center,cafe,{}, {...protagonistOptions,actorFootprint:{width:16/19.2,height:16/10.8}})).toBe(false)
+  for(const size of [11,16])expect(canTravelAlongMainlineSegment({x:center.x-40/19.2,y:center.y},{x:center.x+40/19.2,y:center.y},cafe,{}, {...protagonistOptions,actorFootprint:{width:size/19.2,height:size/10.8}})).toBe(false)
  }
- expect(mainlineNavigationBarriers(cafe).filter(b=>seats.some(s=>b.id===s.id+'-table-barrier'))).toHaveLength(0)
+ expect(mainlineNavigationBarriers(cafe).filter(b=>seats.some(s=>b.id===s.id+'-table-gap'))).toHaveLength(12)
 })
 
   it('blocks direct table-chair crossings by real character bodies for protagonists and NPCs, while shared routes detour', () => {
@@ -95,7 +97,7 @@ describe('navigation barrier segments', () => {
 
   it('checks every current two-seat group using its exact visible object body and both reachable chairs', () => {
  const groups=cafe.furnitureGroups.filter(g=>g.entityIds.some(id=>cafe.objects.find(o=>o.id===id)?.roomId===currentCafeRoom.id))
- expect(groups).toHaveLength(4)
+ expect(groups).toHaveLength(6)
  const snapshot=createMainlineSceneGeometrySnapshot(cafe,currentCafeStart,{},currentCafeOptions.screenMetrics)
  for(const group of groups){
   const objects=group.entityIds.map(id=>cafe.objects.find(o=>o.id===id)!),tables=objects.filter(o=>o.kind==='table'),seats=objects.filter(o=>o.seat)

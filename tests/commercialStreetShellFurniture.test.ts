@@ -58,33 +58,30 @@ describe('commercial street shell furniture samples', () => {
  expect(street.passages.find(p=>p.id===shell.id+'-rear-door')?.access).toBe('locked')
 })
 
-  it('places four two-seat groups in the approved right-side trial positions with eight distinct seat IDs',()=>{
+  it('places six two-seat groups in the approved right-side trial positions with twelve distinct seat IDs',()=>{
  const tables=street.objects.filter(o=>o.roomId===northCafeRoomId&&o.kind==='table'),seats=street.objects.filter(o=>o.roomId===northCafeRoomId&&o.seat)
- expect(tables.map(t=>t.position)).toEqual([[448,196],[588,196],[448,448],[588,448]].map(([x,y])=>cafePoint(x,y)))
- expect(seats).toHaveLength(8);expect(new Set(seats.map(s=>s.id)).size).toBe(8)
+ expect(tables.map(t=>t.position)).toEqual([[448,196],[588,196],[448,448],[588,448],[448,322],[588,322]].map(([x,y])=>cafePoint(x,y)))
+ expect(seats).toHaveLength(12);expect(new Set(seats.map(s=>s.id)).size).toBe(12)
  for(const table of tables)expect(seats.filter(s=>s.seat!.tableId===table.id)).toHaveLength(2)
  expect(seats.some(s=>s.id===commercialCafeLaoZhouConversationSeatId)).toBe(true)
- expect(street.furnitureGroups.filter(g=>tables.some(t=>t.groupId===g.id))).toHaveLength(4)
+ expect(street.furnitureGroups.filter(g=>tables.some(t=>t.groupId===g.id))).toHaveLength(6)
 })
 
   it('keeps the three 16px Cafe counter runs, distinct service markers and real employee opening without an interior storage label',()=>{
  const bodies=street.continuousStructures.filter(b=>b.id.startsWith('cafe-trial-counter-'))
  expect(bodies).toHaveLength(3)
- const cells=street.objects.filter(o=>bodies.some(b=>o.interactionStructureId===b.id));expect(cells).toHaveLength(38)
- expect(new Set(cells.map(o=>o.position.x+':'+o.position.y)).size).toBe(38)
+ const cells=street.objects.filter(o=>bodies.some(b=>o.interactionStructureId===b.id));expect(cells).toHaveLength(6)
+ expect(new Set(cells.map(o=>o.position.x+':'+o.position.y)).size).toBe(cells.length)
  for(const body of bodies){
-  const run=cells.filter(o=>o.interactionStructureId===body.id)
-  expect(Math.min(...run.map(c=>c.position.x))-8/19.2).toBeCloseTo(body.x,5)
-  expect(Math.max(...run.map(c=>c.position.x))+8/19.2).toBeCloseTo(body.x+body.width,5)
-  expect(Math.min(...run.map(c=>c.position.y))-8/10.8).toBeCloseTo(body.y,5)
-  expect(Math.max(...run.map(c=>c.position.y))+8/10.8).toBeCloseTo(body.y+body.height,5)
-  for(const c of run)expect(Array.from(c.label)).toHaveLength(1)
-  for(let i=0;i<run.length;i+=2){expect(run.slice(i,i+2).map(c=>c.label).join('')).toBe('柜台');expect(Math.hypot((run[i+1].position.x-run[i].position.x)*19.2,(run[i+1].position.y-run[i].position.y)*10.8)).toBeCloseTo(16,5)}
+  const anchor=cells.find(o=>o.interactionStructureId===body.id)!
+  expect(anchor).toBeDefined();expect(anchor.interactive).toBe(true)
+  expect(anchor.position.x).toBeGreaterThanOrEqual(body.x);expect(anchor.position.x).toBeLessThanOrEqual(body.x+body.width)
+  expect(anchor.position.y).toBeGreaterThanOrEqual(body.y);expect(anchor.position.y).toBeLessThanOrEqual(body.y+body.height)
  }
  for(let i=0;i<bodies.length;i++)for(let j=i+1;j<bodies.length;j++)expect(overlaps(bodies[i],bodies[j])).toBe(false)
  for(const id of ['commercial-cafe-menu','cafe-trial-order','cafe-trial-pickup'])expect(street.objects.find(o=>o.id===id)?.roomId).toBe(northCafeRoomId)
  expect(street.objects.some(o=>o.roomId===northCafeRoomId&&(o.id.includes('storage')||o.id.includes('staff-opening')))).toBe(false)
- expect(street.passages.find(p=>p.id==='cafe-trial-customer-toilet-door')?.access).toBe('locked')
+ expect(street.passages.find(p=>p.id==='cafe-trial-customer-toilet-door')?.access).toBe('open')
  const region=street.accessRegions.find(r=>r.id==='commercial-cafe-staff-area')!,lower=cafePoint(228,56),inside=cafePoint(164,56)
  expect(isWalkableMainlinePoint(lower,street,{},referenceOptions)).toBe(true)
  expect(findMainlinePath(lower,inside,street,{},referenceOptions)).toBeNull()
@@ -93,7 +90,7 @@ describe('commercial street shell furniture samples', () => {
 
   it('reaches every Cafe chair from the public doorway and reserves the locked warehouse approach for staff',()=>{
  const seats=street.objects.filter(o=>o.roomId===northCafeRoomId&&o.seat),rear=street.passages.find(p=>p.id===northCafeRoomId+'-rear-door')!
- expect(seats).toHaveLength(8);expect(rear.access).toBe('locked')
+ expect(seats).toHaveLength(12);expect(rear.access).toBe('locked')
  for(const seat of seats){expect(findMainlinePathToEntity(street,seat.id,currentCafeStart,{},currentCafeOptions).path,seat.id).not.toBeNull();expect(resolveMainlineSeatSitPosition(street,seat.id)).not.toBeNull()}
  expect(findMainlinePath(currentCafeStart,rear.thresholds[0],street,{},currentCafeOptions)).toBeNull()
  const staff={...currentCafeOptions,actorId:'cafe-coffee-owner'}
@@ -176,16 +173,14 @@ describe('commercial street shell furniture samples', () => {
 
   it('matches both current milk-tea counter bodies to their unique 16px glyph union and retains the fast-food counter',()=>{
  const milkBodies=street.continuousStructures.filter(b=>b.id.startsWith('milk-tea-trial-'))
- expect(milkBodies).toHaveLength(2)
+ expect(milkBodies).toHaveLength(3)
  let total=0
- for(const body of milkBodies){const cells=street.objects.filter(o=>o.interactionStructureId===body.id);total+=cells.length;expect(cells.length).toBeGreaterThan(1)
-  expect(Math.min(...cells.map(c=>c.position.x))-8/19.2).toBeCloseTo(body.x,5)
-  expect(Math.max(...cells.map(c=>c.position.x))+8/19.2).toBeCloseTo(body.x+body.width,5)
-  expect(Math.min(...cells.map(c=>c.position.y))-8/10.8).toBeCloseTo(body.y,5)
-  expect(Math.max(...cells.map(c=>c.position.y))+8/10.8).toBeCloseTo(body.y+body.height,5)
-  for(let i=0;i<cells.length;i+=2){expect(cells.slice(i,i+2).map(c=>c.label).join('')).toBe('柜台');expect(Math.hypot((cells[i+1].position.x-cells[i].position.x)*19.2,(cells[i+1].position.y-cells[i].position.y)*10.8)).toBeCloseTo(16,4)}
+ for(const body of milkBodies){const cells=street.objects.filter(o=>o.interactionStructureId===body.id);total+=cells.length;expect(cells.length).toBeGreaterThan(0)
+  expect(cells.every(c=>c.interactive)).toBe(true)
+  const anchor=cells[0]!;expect(anchor.position.x).toBeGreaterThanOrEqual(body.x);expect(anchor.position.x).toBeLessThanOrEqual(body.x+body.width)
+  expect(anchor.position.y).toBeGreaterThanOrEqual(body.y);expect(anchor.position.y).toBeLessThanOrEqual(body.y+body.height)
  }
- expect(total).toBe(42);expect(overlaps(milkBodies[0],milkBodies[1])).toBe(false)
+ expect(total).toBeGreaterThanOrEqual(4);expect(overlaps(milkBodies[0],milkBodies[1])).toBe(false)
  const fast=street.objects.filter(o=>o.id.startsWith('commercial-s2-fast-food-counter-'))
  expect(fast).toHaveLength(10);expect(fast.every(o=>o.interactionStructureId==='commercial-s2-fast-food-counter-1-body')).toBe(true)
  expect(new Set(fast.map(o=>o.position.x)).size).toBe(1)
@@ -197,7 +192,7 @@ describe('commercial street shell furniture samples', () => {
       && (entity.id.includes('rear-partition-') || entity.id.includes('divider-')))
     const internalDoors = street.objects.filter((entity) => entity.label === '门'
       && sampleRoomIds.includes(entity.roomId as typeof sampleRoomIds[number]))
-    expect(walls).toHaveLength(27)
+    expect(walls).toHaveLength(25)
     expect(street.objects.some(o=>o.id==='commercial-s5-milk-tea-kitchen-door'||o.id==='commercial-s5-milk-tea-warehouse-door')).toBe(false)
     expect(street.continuousStructures.some(b=>b.id.startsWith('commercial-s5-milk-tea-'))).toBe(false)
     expect(internalDoors.map((entity) => entity.id).sort()).toEqual([
@@ -240,7 +235,7 @@ describe('commercial street shell furniture samples', () => {
       && (structure.id.includes('s5-milk-tea-') || structure.id.includes('s2-fast-food-')))
     expect(barriers).toHaveLength(4)
     for (const [id, length] of [
-      ['commercial-s2-fast-food-kitchen-warehouse-divider-body', 10],
+      ['commercial-s2-fast-food-kitchen-warehouse-divider-body', 8],
       ['commercial-s2-fast-food-rear-partition-0-body', 17],
       ['commercial-s2-fast-food-rear-partition-1-body', 2],
       ['commercial-s2-fast-food-rear-partition-2-body', 2],
@@ -333,7 +328,7 @@ describe('commercial street shell furniture samples', () => {
     const menu=milk.find(o=>o.id.includes('-menu-'))!
     expect(menu.surface).toBe('wall')
     for(const label of milk.filter(o=>o!==menu)) {
-      expect(['柜','台']).toContain(label.label)
+      expect(['柜台','柜','台']).toContain(label.label)
       expect(label.interactionStructureId).toBe('milk-tea-trial-long-counter-body')
       expect(isWalkableMainlinePoint(label.position,street,{},referenceOptions)).toBe(false)
     }

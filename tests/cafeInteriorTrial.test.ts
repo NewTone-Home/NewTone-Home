@@ -10,10 +10,10 @@ const point = (x: number, y: number) => ({ x: room.bounds.x + x / 1920 * 100, y:
 const options = { screenMetrics: sceneDesignReferenceMetrics }
 
 describe('isolated Cafe layout trial', () => {
-  it('has four real two-character tables and eight seats, retaining both story seat identities', () => {
+  it('has six real two-character tables and twelve seats, retaining both story seat identities', () => {
     const entities = scene.objects.filter(entity => entity.roomId === room.id)
-    expect(entities.filter(entity => entity.kind === 'table')).toHaveLength(4)
-    expect(entities.filter(entity => entity.kind === 'seat')).toHaveLength(8)
+    expect(entities.filter(entity => entity.kind === 'table')).toHaveLength(6)
+    expect(entities.filter(entity => entity.kind === 'seat')).toHaveLength(12)
     expect(entities.some(entity => entity.id === 'commercial-cafe-right-window-upper-group-chair-bottom')).toBe(true)
     for (const table of entities.filter(entity => entity.kind === 'table')) {
       const collision = mainlineEntityCollision(scene, table, {}, sceneDesignReferenceMetrics)!
@@ -22,15 +22,15 @@ describe('isolated Cafe layout trial', () => {
       expect(collision.height * 10.8).toBeCloseTo(16, 2)
     }
   })
-  it('keeps a positive six-pixel table-chair gap that neither an 11px protagonist nor a 16px NPC can traverse', () => {
+  it('keeps a positive fourteen-pixel table-chair gap out of routes for protagonists and NPCs', () => {
     for (const seat of scene.objects.filter(entity => entity.roomId === room.id && entity.seat)) {
       const table = scene.objects.find(entity => entity.id === seat.seat!.tableId)!
       const gap = Math.abs(seat.position.y - table.position.y) * 10.8 - 16
-      expect(gap).toBeCloseTo(6, 5)
+      expect(gap).toBeCloseTo(14, 5)
       const middle = { x: table.position.x, y: (seat.position.y + table.position.y) / 2 }
       for (const width of [11,16]) {
         const actorFootprint = {width:width/1920*100,height:width/1080*100}
-        expect(isWalkableMainlinePoint(middle, scene, {}, {...options,actorFootprint})).toBe(false)
+        expect(isWalkableMainlinePoint(middle, scene, {}, {...options,actorFootprint})).toBe(width === 11)
         expect(canTravelAlongMainlineSegment({...middle,x:middle.x-2}, {...middle,x:middle.x+2}, scene, {}, {...options,actorFootprint})).toBe(false)
       }
     }
@@ -45,9 +45,9 @@ describe('isolated Cafe layout trial', () => {
     const door=scene.passages.find(passage=>passage.id==='street-cafe-entry')!
     expect(canActorReachPassageApproach(scene,door,from,{}, {...options,actorFootprint})?.path).not.toBeNull()
   })
-  it('keeps the real warehouse door locked and adds a separate locked customer-side toilet without old decorative doors', () => {
+  it('keeps the real warehouse door locked and adds a separate open customer-side toilet without old decorative doors', () => {
     expect(scene.passages.find(passage=>passage.id==='commercial-north-cafe-interior-rear-door')!.access).toBe('locked')
-    expect(scene.passages.find(passage=>passage.id==='cafe-trial-customer-toilet-door')!.access).toBe('locked')
+    expect(scene.passages.find(passage=>passage.id==='cafe-trial-customer-toilet-door')!.access).toBe('open')
     expect(scene.objects.some(entity=>entity.id==='commercial-north-cafe-staff-opening')).toBe(false)
   })
 })

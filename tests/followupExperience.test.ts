@@ -44,7 +44,9 @@ describe('follow-up experience contracts', () => {
     expect(exits).toHaveLength(2)
     for(const exit of exits) expect(mainlineRideAtPickup(order,order.sourceSceneId,exit)).toBe(true)
     expect(mainlineRideAtPickup(order,order.sourceSceneId,mainlineScenes[order.sourceSceneId].initialPlayerPosition)).toBe(false)
-    for(const sceneId of ['commercial-street','yonghe-mining-perimeter'] as const) expect(mainlineRidePickupPositions(sceneId)[0][sceneId==='commercial-street'?'x':'y']).toBe(mainlineScenes[sceneId].externalExits[0].threshold)
+    // Both the continuous commercial street and the rotated mining street are
+    // horizontal now, so their pickup coordinate is x (not the old mining y).
+    for(const sceneId of ['commercial-street','yonghe-mining-perimeter'] as const) expect(mainlineRidePickupPositions(sceneId)[0].x).toBe(mainlineScenes[sceneId].externalExits[0].threshold)
     expect(mainlineRideWalkingEtaMs('commercial-cafe',mainlineScenes['commercial-cafe'].initialPlayerPosition,{layout:{},screenMetrics:{width:1280,height:720}})).toBeGreaterThan(0)
     expect(mainlineRideWaitingGuidance('commercial-cafe').guidanceText).toBe('请回到商业街口等车')
     expect(mainlineRideWaitingGuidance('yonghe-mining-perimeter').guidanceText).toBe('请到矿区入口等车')

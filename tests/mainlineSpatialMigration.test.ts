@@ -38,8 +38,10 @@ describe('mainline ordinary-object spatial migration', () => {
     // two-character object. Its collision belongs to that exact run once.
     const counterBody = eatery.continuousStructures.find(body => body.id === yongheCounter.interactionStructureId)!
     expect(counterBody).toBeDefined()
-    expect(counterBody.width * 19.2).toBeCloseTo(16, 3)
-    expect(counterBody.height * 10.8).toBeCloseTo(256, 3)
+    // The mining street is now horizontal, so Yonghe's long counter runs
+    // along X rather than down Y.
+    expect(counterBody.width * 19.2).toBeCloseTo(256, 3)
+    expect(counterBody.height * 10.8).toBeCloseTo(16, 3)
     const counterSnapshot = createMainlineSceneGeometrySnapshot(eatery, eatery.initialPlayerPosition, {}, sceneDesignReferenceMetrics)
     expect(counterSnapshot.objects.get(yongheCounter.id)!.collision).toBeNull()
   })

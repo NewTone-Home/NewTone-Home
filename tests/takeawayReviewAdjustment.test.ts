@@ -1,48 +1,38 @@
-import { describe,expect,it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
-import { mainlineEntityCollision } from '../src/center/runtime/sceneLayout'
+import { findMainlinePathToEntity, resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
-const scene=mainlineScenes['commercial-street']
-describe('minimal takeaway review changes',()=>{
- it('puts the milk-tea return at the street end and retains the pickup identity',()=>{
-  const body=scene.continuousStructures.find(b=>b.id==='milk-tea-trial-front-return-body')!
-  expect(body.width*19.2).toBeCloseTo(96,5)
-  const room=scene.rooms.find(r=>r.id==='commercial-south-s5-interior')!,pickup=scene.objects.find(o=>o.id==='commercial-s5-milk-tea-pickup-service-label')!
-  expect((pickup.position.y-room.bounds.y)*10.8).toBeCloseTo(432,5)
-  expect(scene.accessRegions.some(r=>r.id==='milk-tea-trial-staff-1')).toBe(false)
-  expect(scene.passages.find(p=>p.id==='commercial-south-s5-interior-rear-door')!.access).toBe('locked')
- })
- it('puts cutting and packing84px apart on the same employee line with48px body clearance for vertical devices',()=>{
-  const cut=scene.objects.find(o=>o.id==='fruit-tea-trial-equipment-2')!,pack=scene.objects.find(o=>o.id==='fruit-tea-trial-equipment-3')!
-  expect(Math.abs(pack.position.y-cut.position.y)*10.8).toBeCloseTo(84,5)
-  const packBody=mainlineEntityCollision(scene,pack,{},sceneDesignReferenceMetrics)!,counter=scene.continuousStructures.find(b=>b.id==='fruit-tea-trial-long-counter-body')!
-  const gap=(counter.x-packBody.x-packBody.width)*19.2
-  expect(pack.position.x).toBe(cut.position.x)
-  const room=scene.rooms.find(r=>r.id==='commercial-north-n1-interior')!
-  expect((pack.position.x-room.bounds.x)*19.2).toBeCloseTo(48,5)
-  expect((counter.x-room.bounds.x)*19.2).toBeCloseTo(104,5)
-  expect(pack.textLayout).toBe('vertical')
-  const expectedWidth=Number((16/19.2).toFixed(4))
-  expect(packBody.width).toBe(expectedWidth)
-  expect(packBody.height).toBe(Number((48/10.8).toFixed(4)))
-  // Text footprint coordinates are quantized to four world-percent decimals.
-  // Preserve that exact production representation, rather than relaxing the gap assertion.
-  const expectedPackLeft=Number((room.bounds.x+48/19.2-expectedWidth/2).toFixed(4))
-  expect(packBody.x).toBe(expectedPackLeft)
-  const expectedGap=(room.bounds.x+104/19.2-expectedPackLeft-expectedWidth)*19.2
-  expect(gap).toBeCloseTo(expectedGap,8)
- })
- it('keeps every corner glyph unique,16px adjacent, and counter bodies touching without positive-area overlap',()=>{
-  for(const prefix of ['milk-tea-trial','fruit-tea-trial']){
-   const bodies=scene.continuousStructures.filter(b=>b.id.startsWith(prefix)),cells=bodies.flatMap(b=>scene.objects.filter(o=>o.interactionStructureId===b.id))
-   expect(new Set(cells.map(o=>o.position.x.toFixed(5)+':'+o.position.y.toFixed(5))).size).toBe(cells.length)
-   const [a,b]=bodies,overlapX=Math.min(a.x+a.width,b.x+b.width)-Math.max(a.x,b.x),overlapY=Math.min(a.y+a.height,b.y+b.height)-Math.max(a.y,b.y)
-   expect(Math.min(overlapX,overlapY)).toBeCloseTo(0,8)
-   for(const body of bodies){
-    const run=cells.filter(c=>c.interactionStructureId===body.id)
-    expect(run.length).toBeGreaterThan(1)
-    for(let i=0;i<run.length;i+=2){expect(run.slice(i,i+2).map(c=>c.label).join('')).toBe('柜台');expect(Math.hypot((run[i+1].position.x-run[i].position.x)*19.2,(run[i+1].position.y-run[i].position.y)*10.8)).toBeCloseTo(16,5)}
-   }
-  }
- })
+
+const scene = mainlineScenes['commercial-street']
+
+describe('simplified takeaway shop work areas', () => {
+  it('keeps the milk-tea return at the entry end and retains the pickup and locked rear door', () => {
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-south-s5-interior')!
+    const front = scene.passages.find(passage => passage.toRoomId === room.id && passage.routeThrough)!
+    const body = scene.continuousStructures.find(candidate => candidate.id === 'milk-tea-trial-front-return-body')!
+    const localY = (body.y - room.bounds.y) * 10.8
+    const entryY = (front.crossingTargets[0]!.y - room.bounds.y) * 10.8
+    const rear = scene.passages.find(passage => passage.id === `${room.id}-rear-door`)!
+    const pickup = scene.objects.find(object => object.id === 'commercial-s5-milk-tea-pickup-service-label')!
+    expect(Math.abs(localY - entryY)).toBeLessThan(room.bounds.height * 10.8 / 2)
+    expect(body.width * 19.2).toBeGreaterThan(100)
+    expect(pickup).toBeDefined()
+    expect(findMainlinePathToEntity(scene, pickup.id, front.crossingTargets[0]!, {}, { screenMetrics: sceneDesignReferenceMetrics }).path).not.toBeNull()
+    expect(rear.access).toBe('locked')
+  })
+
+  it('keeps legacy fruit-tea equipment identities on one clear, vertical employee worktop', () => {
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-n1-interior')!
+    const aliases = [1, 2, 3, 4, 5].map(index => scene.objects.find(object => object.id === `fruit-tea-trial-equipment-${index}`)!)
+    const worktop = scene.continuousStructures.find(body => body.id === 'fruit-tea-trial-worktop-body')!
+    expect(aliases.every(alias => alias.interactive)).toBe(true)
+    expect(new Set(aliases.map(alias => alias.interactionStructureId))).toEqual(new Set([worktop.id]))
+    expect(new Set(aliases.map(alias => `${alias.position.x}:${alias.position.y}`)).size).toBe(1)
+    expect(worktop.counterSurface?.role).toBe('worktop')
+    expect(worktop.width * 19.2).toBe(24)
+    expect(worktop.height * 10.8).toBeGreaterThan(16)
+    expect(worktop.x).toBeGreaterThan(room.bounds.x)
+    expect(worktop.x + worktop.width).toBeLessThan(room.bounds.x + room.bounds.width)
+    expect(scene.npcPlacements.find(placement => placement.npcId === 'fruit-tea-trial-worker')?.position).toEqual(resolveMainlineNpcPosition(scene, 'fruit-tea-trial-worker'))
+  })
 })

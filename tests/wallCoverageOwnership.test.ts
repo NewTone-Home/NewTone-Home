@@ -6,11 +6,11 @@ describe('wall coverage counts actual shared-owner paint rather than relaxing ga
   const scene = mainlineScenes['yonghe-mining-perimeter']
   const units = mainlineCanonicalSceneGeometryUnits(scene, { width: 1920, height: 1080 })
   it('counts the storefront baseline composition in the physical facade', () => {
-    const edge = wallVisualCoverage(scene, units).find(e => e.key === 'mining-street-facade:right')!
+    const edge = wallVisualCoverage(scene, units).find(e => e.key === 'mining-street-facade:bottom')!
     expect(edge.maxGap).toBeLessThanOrEqual(28.01)
   })
   it('recognizes a corner painted by the adjacent shop but detects removal of that exact glyph', () => {
-    const key = 'mining-shop-2-interior-shell:left'
+    const key = 'mining-shop-2-interior-shell:top'
     const wall = scene.structures.find(w => w.id === 'mining-shop-2-interior-shell')!
     const corner = wall.bounds!
     expect(wallVisualCoverage(scene, units).find(e => e.key === key)!.startDistance).toBeLessThan(.001)

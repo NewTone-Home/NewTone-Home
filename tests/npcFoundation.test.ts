@@ -92,7 +92,7 @@ describe('static NPC foundation', () => {
   it('keeps all three visible counter runs continuous and preserves the original coffee-order identity without phantom order cells', () => {
  const counters=cafe.objects.filter(o=>o.roomId===currentCafeRoom.id&&o.interactionStructureId?.startsWith('cafe-trial-counter-'))
  const bodies=cafe.continuousStructures.filter(b=>b.id.startsWith('cafe-trial-counter-'))
- expect(counters).toHaveLength(38);expect(bodies).toHaveLength(3)
+ expect(counters).toHaveLength(6);expect(bodies).toHaveLength(3)
  expect(counters.filter(o=>o.interactionBehavior==='cafe-order').map(o=>o.id)).toEqual(['commercial-cafe-counter'])
  const snapshot=createMainlineSceneGeometrySnapshot(cafe,currentCafeStart,{},currentCafeOptions.screenMetrics)
  for(const counter of counters){
