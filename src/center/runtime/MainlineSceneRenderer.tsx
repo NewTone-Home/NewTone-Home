@@ -6,7 +6,7 @@ import { MainlineCounterSurface } from './MainlineCounterSurface'
 import EntryButtonSurface from '../../components/EntryButtonSurface'
 import type { CollisionBox, Point } from './sceneGeometry'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
-import { mainlineEntityBelongsToActiveRoom, type MainlineSceneDialogueLine, type MainlineSceneDialoguePresentation } from './mainlineSceneModel'
+import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
 import { mainlineGeometryCellWithinViewport, mainlineGeometryUnitShouldRender } from './mainlineSceneVisibility'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -24,10 +24,11 @@ import { mainlineEchoLayout, mainlineSpeakerAnchor } from './mainlineEchoLayout'
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
+import { storefrontRoomConnection } from './storefrontRoomConnection'
 import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds, mainlineSeatedActorVisualPosition, mainlineNpcVisualSeatId } from './mainlineSeating'
 import type { NpcRuntimeSnapshot } from './npcCore'
 import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisualState'
-import { activeStorefrontInteriorOwner, storefrontCellVisualState, storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDirection, storefrontLabelRollDurationMs, storefrontPresentationRetractsFrame, storefrontDoorFrameShouldRetract, storefrontGeometryCellShouldRender, type StorefrontPresentationPhase } from './storefrontPresentation'
+import { activeStorefrontInteriorOwner, storefrontCellVisualState, storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDirection, storefrontLabelRollDurationMs, storefrontPresentationRetractsFrame, storefrontDoorFrameShouldRetract, storefrontGeometryCellShouldRender, storefrontInteriorFeatureOpacity, type StorefrontPresentationPhase } from './storefrontPresentation'
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 import { storefrontContactGeometry } from './storefrontContactGeometry'
@@ -45,6 +46,8 @@ type MainlineSceneRendererProps = {
   sceneFrameExit?: { phase: 'idle' | 'retracting'; passageEntityId?: string; scope?: 'passage' | 'scene'; requestedGroups?: readonly string[] }
   storefrontPresentation?: ReadonlyMap<string, StorefrontPresentationPhase>
   activeStorefrontId?: string | null
+  visibleInteriorStorefrontIds?: readonly string[]
+  paintedInteriorStorefrontId?: string | null
   onStorefrontFrameRetractionComplete?: (storefrontId: string) => void
   onStorefrontRevealMotionComplete?: (storefrontId: string) => void
   onStorefrontRestoreMotionComplete?: (storefrontId: string) => void
@@ -345,17 +348,18 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
       node.style.setProperty('--character-progress', String(value))
       node.dataset.characterProgress = value.toFixed(4)
     }
-    if (phase !== 'revealing' && phase !== 'restoring') { paint(target); return }
     const from = progress.current
+    if (Math.abs(target - from) < .001) { paint(target); return }
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const duration = reduced ? 1 : storefrontLabelRollDurationMs * Math.abs(target - from)
+    if (reduced) { paint(target); completed.current(target > from ? 'revealing' : 'restoring'); return }
+    const duration = storefrontLabelRollDurationMs * Math.abs(target - from)
     node.dataset.characterMotionDuration = String(duration)
     const started = performance.now()
     let frame = 0
     const tick = (now: number) => {
       paint(storefrontCharacterProgress(from, target, now - started, duration))
       if (now - started < duration) frame = requestAnimationFrame(tick)
-      else completed.current(phase)
+      else completed.current(target > from ? 'revealing' : 'restoring')
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
@@ -432,7 +436,7 @@ function mainlineWallCellVisibility(scene: MainlineSceneDefinition, cell: Mainli
   return (cell.baselineVisible ?? cell.baseline ?? true) ? 'is-baseline' : 'is-hidden'
 }
 
-export function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontGeometry, storefrontPresentationPhase = 'baseline', active = false, explored = false }: {
+export function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontGeometry, storefrontPresentationPhase = 'baseline', active = false, explored = false, interiorPresentationActive = true }: {
   entries: readonly MainlineGeometryCellEntry[]
   className: string
   visibilityClass: string
@@ -454,6 +458,7 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   storefrontPresentationPhase?: StorefrontPresentationPhase
   active?: boolean
   explored?: boolean
+  interiorPresentationActive?: boolean
 }) {
   const first = entries[0]
   if (!first) return null
@@ -502,7 +507,8 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   })
   const commonProps = {
     className: `scene-mainline-focus-group ${className} ${visibilityClass} scene-mainline-interaction--${resolveMainlineInteractionVisualState({ active, explored, tutorialCompleted: true, tutorialEligible: false })}`,
-    style,
+    style: { ...style, opacity: interiorPresentationActive ? 1 : 0, transition: 'opacity 180ms linear' },
+    'data-interior-active': interiorPresentationActive ? 'true' : 'false',
     'data-focus-target-id': first.cell.id,
     'data-focus-target-group': first.focusGroup,
     'data-focus-target-policy': first.focusPolicy,
@@ -519,7 +525,7 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   return <span {...commonProps} aria-hidden="true">{content}{renderFrame(first.focusGroup)}</span>
 }
 
-function MainlineObject({ entity, scene, position, collision, focusGroup, renderFrame, visibility, active, explored, tutorialCompleted, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false, debugRuntimeEvidence = false }: {
+function MainlineObject({ entity, scene, position, collision, focusGroup, renderFrame, visibility, active, explored, tutorialCompleted, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false, debugRuntimeEvidence = false, interiorPresentationActive = true }: {
   entity: MainlineSceneEntity
   scene: MainlineSceneDefinition
   position: Point
@@ -548,6 +554,7 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
   suppressLabel?: boolean
   prompted?: boolean
   debugRuntimeEvidence?: boolean
+  interiorPresentationActive?: boolean
 }) {
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
   const className = objectClass(scene, entity, visibility, active, explored, tutorialCompleted, underPlayer, selected, dragging, incenseLit)
@@ -569,6 +576,8 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
       alignItems: 'center',
       justifyContent: 'center',
       transform: 'translate(-50%, -50%)',
+      opacity: interiorPresentationActive ? 1 : 0,
+      transition: 'opacity 180ms linear',
     } as CSSProperties,
     'data-object-id': entity.id,
     'data-focus-target-id': focusGroup ? entity.id : undefined,
@@ -606,6 +615,8 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
             left: `${renderedPosition.x}%`,
             top: `${renderedPosition.y}%`,
             fontSize: `${mainlineEntityFontSizePx(entity, screenMetrics) * visualScale}px`,
+            opacity: interiorPresentationActive ? 1 : 0,
+            transition: 'opacity 180ms linear',
           }}
           aria-hidden="true"
         >{renderFrame(focusGroup)}</span>
@@ -656,17 +667,20 @@ type MainlineNpcActorProps = {
   seatPosition?: Point
   screenMetrics: SceneScreenMetrics
   interactive: boolean
+  presentationActive?: boolean
   debugRuntimeEvidence: boolean
   onInteract?: (npcId: string) => void
 }
 
-function MainlineNpcActor({ sceneId, npc, position, snapshot, seatId, seatPosition, screenMetrics, interactive, debugRuntimeEvidence, onInteract }: MainlineNpcActorProps) {
+function MainlineNpcActor({ sceneId, npc, position, snapshot, seatId, seatPosition, screenMetrics, interactive, presentationActive = true, debugRuntimeEvidence, onInteract }: MainlineNpcActorProps) {
   const visualPosition = mainlineSeatedActorVisualPosition(position, seatId, seatPosition)
   const visualFootprint = mainlineLabelFootprint(npc.label, visualPosition, screenMetrics, { lineHeight: 1 })
   const className = `scene-mainline-npc ${interactive ? '' : 'scene-mainline-npc--ambient'}`
   const style = {
     left: `${visualPosition.x}%`,
     top: `${visualPosition.y}%`,
+    opacity: presentationActive ? 1 : 0,
+    transition: 'opacity 180ms linear',
     '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, screenMetrics)}px`,
   } as CSSProperties
   const attributes = {
@@ -710,6 +724,8 @@ export function MainlineSceneRenderer({
   sceneFrameExit = { phase: 'idle' },
   storefrontPresentation = new Map(),
   activeStorefrontId = null,
+  visibleInteriorStorefrontIds = [],
+  paintedInteriorStorefrontId = null,
   onStorefrontFrameRetractionComplete,
   onStorefrontRevealMotionComplete,
   onStorefrontRestoreMotionComplete,
@@ -919,12 +935,27 @@ export function MainlineSceneRenderer({
     () => new Set(activeStorefrontId ? [activeStorefrontId] : []),
     [activeStorefrontId],
   )
-  const activeShellRoomId = scene.rooms.find((room) => room.id.endsWith('-interior')
+  const activeShellRoom = scene.rooms.find((room) => room.id.endsWith('-interior')
     && position.x >= room.bounds.x
     && position.x <= room.bounds.x + room.bounds.width
     && position.y >= room.bounds.y
-    && position.y <= room.bounds.y + room.bounds.height)?.id
+    && position.y <= room.bounds.y + room.bounds.height)
+  const activeShellRoomConnection = activeShellRoom && scene.storefronts.map(slot => storefrontRoomConnection(scene, slot)).find(connection => connection?.interiorRoom.id === activeShellRoom.id)
+  const activeShellRoomId = activeShellRoomConnection && activeShellRoomConnection.passage.access !== 'open' ? undefined : activeShellRoom?.id
   const interiorStorefrontId = activeStorefrontInteriorOwner(scene, position)
+  const visibleInteriorRoomIds = new Set(visibleInteriorStorefrontIds.flatMap(storefrontId => {
+    const storefront = scene.storefronts.find(candidate => candidate.id === storefrontId)
+    const room = storefront && storefrontRoomConnection(scene, storefront)?.interiorRoom
+    return room ? [room.id] : []
+  }))
+  const interiorRoomOwner = (roomId: string | undefined) => roomId
+    ? scene.storefronts.find(storefront => storefrontRoomConnection(scene, storefront)?.interiorRoom.id === roomId)?.id ?? null
+    : null
+  const interiorRoomIsVisuallyActive = (roomId: string | undefined) => {
+    const owner = interiorRoomOwner(roomId)
+    return owner ? owner === paintedInteriorStorefrontId : true
+  }
+  const renderedRoomIds = new Set([...visibleInteriorRoomIds, ...(activeShellRoomId ? [activeShellRoomId] : [])])
   const geometryCells = useMemo(() => geometryUnits.flatMap((unit) => unit.visual.cells
     .filter(cell => {
       const slot = unit.storefrontId ? activeSwitchableStorefronts.find(candidate => candidate.id === unit.storefrontId) : undefined
@@ -1252,6 +1283,8 @@ export function MainlineSceneRenderer({
               }} />)}
             {renderedGeometryCells.map(({ unit, cell }) => {
               if (cell.glyph === '') return null
+              const interiorWallRoomId = unit.sourceWallId?.endsWith('-shell') ? unit.sourceWallId.slice(0, -'-shell'.length) : undefined
+              const interiorWallActive = interiorRoomIsVisuallyActive(interiorWallRoomId)
               const visibilityClass = mainlineWallCellVisibility(scene, cell, unit)
               const portalGlyphStyle = {}
               const portalGlyphAttributes = {}
@@ -1297,8 +1330,14 @@ export function MainlineSceneRenderer({
                 if (cell.kind === 'feature' && entityId) {
                   const entity = scene.objects.find((candidate) => candidate.id === entityId)
                   if (entity) {
-                    return <Fragment key={`feature-${focusTarget.group}`}>
-                      <MainlineFocusGroup key={`focus-${focusTarget.group}`} entries={focusEntries} className="scene-mainline-wall scene-mainline-wall-feature scene-mainline-wall-feature--interaction scene-mainline-exploration--steady" visibilityClass={groupVisibilityClass} renderFrame={focusFrames.renderFrame} onInteract={onInteract} interactionEntityId={entityId} ariaLabel={`${entity.label}，点击让主角前往互动`} active={isCurrentInteractionSource(entityId)} explored={exploredObjectIds.has(entityId)} />
+                    const featureRoomOwner = interiorRoomOwner(interiorWallRoomId)
+                    if (featureRoomOwner && !visibleInteriorRoomIds.has(interiorWallRoomId!)) {
+                      return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${groupVisibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>
+                    }
+                    const featureOpacity = storefrontInteriorFeatureOpacity(featureRoomOwner, visibleInteriorStorefrontIds, paintedInteriorStorefrontId)
+                    return <Fragment key={`focus-${focusTarget.group}`}>
+                      {featureRoomOwner && focusEntries.map(entry => <span key={`wall-${entry.cell.id}`} className={`scene-spatial-glyph scene-mainline-wall ${groupVisibilityClass}`} style={{ left: `${entry.cell.x}%`, top: `${entry.cell.y}%`, opacity: featureOpacity.wall, transition: 'opacity 180ms linear' }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>)}
+                      <MainlineFocusGroup entries={focusEntries} className="scene-mainline-wall scene-mainline-wall-feature scene-mainline-wall-feature--interaction scene-mainline-exploration--steady" visibilityClass={groupVisibilityClass} renderFrame={focusFrames.renderFrame} onInteract={onInteract} interactionEntityId={entityId} ariaLabel={`${entity.label}，点击让主角前往互动`} active={isCurrentInteractionSource(entityId)} explored={exploredObjectIds.has(entityId)} interiorPresentationActive={interiorWallActive} />
                     </Fragment>
                   }
                 }
@@ -1344,34 +1383,54 @@ export function MainlineSceneRenderer({
               }
               if (cell.kind === 'feature' && entityId) {
                 const entity = scene.objects.find((candidate) => candidate.id === entityId)
+                const featureRoomOwner = interiorRoomOwner(interiorWallRoomId)
+                if (featureRoomOwner && !visibleInteriorRoomIds.has(interiorWallRoomId!)) {
+                  return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>墙</SceneCharacters></span>
+                }
                 const directWallFeature = entity?.interactionBehavior === 'direct-wall'
                 if (entity && (entity.interactive !== false || directWallFeature)) {
                   const focusGroup = `interactive:${cell.featureId ?? entityId}`
+                  const featureOpacity = storefrontInteriorFeatureOpacity(featureRoomOwner, visibleInteriorStorefrontIds, paintedInteriorStorefrontId)
                   const featureVisualState = resolveMainlineInteractionVisualState({
                     active: isCurrentInteractionSource(entityId),
                     explored: exploredObjectIds.has(entityId),
                     tutorialCompleted: true,
                     tutorialEligible: false,
                   })
-                  return <button key={cell.id} className={`scene-spatial-glyph scene-spatial-glyph--feature scene-mainline-wall scene-mainline-wall-feature ${visibilityClass} scene-mainline-interaction--${featureVisualState}`} type="button" style={{ left: `${cell.x}%`, top: `${cell.y}%` }} onClick={(event) => { event.stopPropagation(); onInteract(entityId) }} aria-label={`${entity.label}，点击让主角前往互动`} data-focus-target-id={cell.id} data-focus-target-group={focusGroup} data-focus-target-policy="interactive" data-focus-interaction-busy={activeObjectId === entityId && moving ? 'true' : undefined}>
+                  const feature = <button className={`scene-spatial-glyph scene-spatial-glyph--feature scene-mainline-wall scene-mainline-wall-feature ${visibilityClass} scene-mainline-interaction--${featureVisualState}`} type="button" style={{ left: `${cell.x}%`, top: `${cell.y}%`, opacity: featureRoomOwner ? featureOpacity.feature : 1, transition: 'opacity 180ms linear', pointerEvents: featureRoomOwner && featureOpacity.feature === 0 ? 'none' : 'auto' }} data-interior-active={interiorWallActive ? 'true' : 'false'} onClick={(event) => { event.stopPropagation(); onInteract(entityId) }} aria-label={`${entity.label}，点击让主角前往互动`} data-focus-target-id={cell.id} data-focus-target-group={focusGroup} data-focus-target-policy="interactive" data-focus-interaction-busy={activeObjectId === entityId && moving ? 'true' : undefined}>
                     <SceneCharacters data-focus-visual-group={focusGroup}>{cell.glyph}</SceneCharacters>
                     {focusFrames.renderFrame(focusGroup)}
                   </button>
+                  if (!featureRoomOwner) return <Fragment key={cell.id}>{feature}</Fragment>
+                  return <Fragment key={cell.id}>
+                    <span className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, opacity: featureOpacity.wall, transition: 'opacity 180ms linear' }} aria-hidden="true"><SceneCharacters>墙</SceneCharacters></span>
+                    {feature}
+                  </Fragment>
                 }
               }
               if (cell.kind === 'feature') {
-                return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-feature ${unit.sourceWallId === 'mining-industrial-edge' ? 'scene-mainline-industrial-facility' : ''} ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{cell.glyph}</SceneCharacters></span>
+                const featureRoomOwner = interiorRoomOwner(interiorWallRoomId)
+                if (featureRoomOwner && !visibleInteriorRoomIds.has(interiorWallRoomId!)) {
+                  return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>
+                }
+                const featureOpacity = storefrontInteriorFeatureOpacity(featureRoomOwner, visibleInteriorStorefrontIds, paintedInteriorStorefrontId)
+                const feature = <span className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-feature ${unit.sourceWallId === 'mining-industrial-edge' ? 'scene-mainline-industrial-facility' : ''} ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, opacity: featureRoomOwner ? featureOpacity.feature : 1, transition: 'opacity 180ms linear' }} data-interior-active={interiorWallActive ? 'true' : 'false'} aria-hidden="true"><SceneCharacters>{cell.glyph}</SceneCharacters></span>
+                if (!featureRoomOwner) return <Fragment key={cell.id}>{feature}</Fragment>
+                return <Fragment key={cell.id}>
+                  <span className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, opacity: featureOpacity.wall, transition: 'opacity 180ms linear' }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>
+                  {feature}
+                </Fragment>
               }
               return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} {...portalGlyphAttributes} aria-hidden="true"><SceneCharacters>{cell.glyph ?? '墙'}</SceneCharacters></span>
             })}
           </div>
 
-          {counterSurfaces.filter(parts => !parts[0].counterSurface?.roomId || parts[0].counterSurface.roomId === activeShellRoomId).map(parts => <MainlineCounterSurface key={parts[0].counterSurface!.groupId} parts={parts} objects={scene.objects} onInteract={onInteract}/>) }
+          {counterSurfaces.filter(parts => !parts[0].counterSurface?.roomId || visibleInteriorRoomIds.has(parts[0].counterSurface.roomId)).map(parts => <MainlineCounterSurface key={parts[0].counterSurface!.groupId} parts={parts} objects={scene.objects} onInteract={onInteract} presentationActive={interiorRoomIsVisuallyActive(parts[0].counterSurface?.roomId)}/>) }
           {scene.objects.filter((entity) => entity.visible !== false
             && !entity.counterSurfaceId
             && entity.kind !== 'door'
             && !wallFeatureEntityIds.has(entity.id)
-            && mainlineEntityBelongsToActiveRoom(entity, activeShellRoomId)).map((entity) => {
+            && (!entity.roomId || renderedRoomIds.has(entity.roomId))).map((entity) => {
             const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
             const focusGroup = !layoutMode && entity.focusFrame === 'interactive' ? `interactive:${entity.focusFrameGroup ?? entity.id}` : undefined
             const underPlayer = entity.visualProfile === 'tree-ring' && entity.interactive === false && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8
@@ -1405,13 +1464,14 @@ export function MainlineSceneRenderer({
               suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds)}
               prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}
               debugRuntimeEvidence={debugRuntimeEvidence}
+              interiorPresentationActive={interiorRoomIsVisuallyActive(entity.roomId)}
             />
           })}
 
           {scene.npcs.map((npc) => {
             if (scene.ambientNpcRoutes.some((schedule) => schedule.npcId === npc.id)) return null
             if (hiddenNpcIds?.has(npc.id)) return null
-            if (npc.roomId && npc.roomId !== activeShellRoomId) return null
+            if (npc.roomId && !renderedRoomIds.has(npc.roomId)) return null
             const npcPosition = npcPositions?.get(npc.id) ?? resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
             const npcSnapshot = npcRuntimeSnapshots?.get(npc.id)
             const npcSeatId = mainlineNpcVisualSeatId(scene, npc.id, npcSnapshot)
@@ -1425,6 +1485,7 @@ export function MainlineSceneRenderer({
               seatPosition={npcSeatId ? geometrySnapshot.objects.get(npcSeatId)?.position : undefined}
               screenMetrics={renderScreenMetrics}
               interactive={npc.interactive !== false}
+              presentationActive={interiorRoomIsVisuallyActive(npc.roomId)}
               debugRuntimeEvidence={debugRuntimeEvidence}
               onInteract={onNpcInteract}
             />

@@ -2428,6 +2428,8 @@ export function MainlineScenePage({
               sceneFrameExit={sceneFrameExit}
               storefrontPresentation={storefrontPresentation.phaseByStorefront}
               activeStorefrontId={storefrontPresentation.activeStorefrontId}
+              visibleInteriorStorefrontIds={storefrontPresentation.visibleInteriorStorefrontIds}
+              paintedInteriorStorefrontId={storefrontPresentation.paintedInteriorStorefrontId}
               onStorefrontFrameRetractionComplete={storefrontPresentation.completeFrameRetraction}
               onStorefrontRevealMotionComplete={storefrontPresentation.completeRevealMotion}
               onStorefrontRestoreMotionComplete={storefrontPresentation.completeRestoreMotion}

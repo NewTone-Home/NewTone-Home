@@ -7,9 +7,10 @@ type Props = {
   parts: readonly MainlineContinuousStructure[]
   objects: readonly MainlineSceneEntity[]
   onInteract: (id: string) => void
+  presentationActive?: boolean
 }
 
-function CounterSurface({ parts, onInteract }: Props) {
+function CounterSurface({ parts, onInteract, presentationActive = true }: Props) {
   const rectangles = useMemo(() => parts.map(part => ({ x: part.x * 19.2, y: part.y * 10.8, width: part.width * 19.2, height: part.height * 10.8 })), [parts])
   const outlineRectangles = useMemo(() => parts.map((part, index) => {
     const box = part.counterSurface!.outlineBounds
@@ -23,7 +24,7 @@ function CounterSurface({ parts, onInteract }: Props) {
   }
   const group = parts[0].counterSurface!.groupId
   const labelStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 16, fontFamily: 'inherit', fontWeight: 'inherit', letterSpacing: 0, lineHeight: 1, color: 'inherit', background: 'none', border: 0, padding: 0, cursor: 'pointer' }
-  return <svg data-counter-outline-group={group} data-surface-role={parts[0].counterSurface!.role ?? 'counter'} aria-label={parts[0].counterSurface!.label ?? '柜台'} role="group" viewBox={`0 0 ${bounds.width} ${bounds.height}`} preserveAspectRatio="none" style={{ position: 'absolute', left: `${bounds.x / 19.2}%`, top: `${bounds.y / 10.8}%`, width: `${bounds.width / 19.2}%`, height: `${bounds.height / 10.8}%`, overflow: 'visible', pointerEvents: 'none', zIndex: 3, color: 'var(--interaction-normal)', opacity: .9 }}>
+  return <svg data-counter-outline-group={group} data-interior-active={presentationActive ? 'true' : 'false'} data-surface-role={parts[0].counterSurface!.role ?? 'counter'} aria-label={parts[0].counterSurface!.label ?? '柜台'} role="group" viewBox={`0 0 ${bounds.width} ${bounds.height}`} preserveAspectRatio="none" style={{ position: 'absolute', left: `${bounds.x / 19.2}%`, top: `${bounds.y / 10.8}%`, width: `${bounds.width / 19.2}%`, height: `${bounds.height / 10.8}%`, overflow: 'visible', pointerEvents: 'none', zIndex: 3, color: 'var(--interaction-normal)', opacity: presentationActive ? .9 : 0, transition: 'opacity 180ms linear' }}>
     {parts.map((part, index) => {
       const box = rectangles[index], meta = part.counterSurface!, vertical = meta.orientation === 'vertical'
       const label = meta.label ?? '柜台', length = Array.from(label).length

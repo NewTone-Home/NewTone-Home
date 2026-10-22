@@ -120,10 +120,23 @@ export function activeStorefrontInteriorOwner(
   scene: MainlineSceneDefinition,
   position: Point,
 ) {
-  return scene.storefronts.find(storefront => {
-    const connection = storefrontRoomConnection(scene, storefront)
-    return connection && pointInStorefrontRoom(position, connection.interiorRoom)
-  })?.id ?? null
+  return scene.storefronts.map(storefront => ({ storefront, connection: storefrontRoomConnection(scene, storefront) }))
+    .filter(({ connection }) => connection?.passage.access === 'open' && pointInStorefrontRoom(position, connection.interiorRoom))
+    .sort((left, right) => {
+      const leftRoom = left.connection!.interiorRoom.bounds
+      const rightRoom = right.connection!.interiorRoom.bounds
+      return leftRoom.width * leftRoom.height - rightRoom.width * rightRoom.height
+    })[0]?.storefront.id ?? null
+}
+
+/** Crossfade a wall glyph and the room feature occupying the same authored cell. */
+export function storefrontInteriorFeatureOpacity(
+  ownerId: string | null,
+  retainedOwnerIds: readonly string[],
+  paintedOwnerId: string | null,
+) {
+  if (!ownerId || !retainedOwnerIds.includes(ownerId)) return { wall: 1, feature: 0 }
+  return paintedOwnerId === ownerId ? { wall: 0, feature: 1 } : { wall: 1, feature: 0 }
 }
 
 /** A grace-period presentation still owns the visual entrance after the player leaves its trigger. */

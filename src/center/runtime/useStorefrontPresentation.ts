@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { storefrontRoomConnection } from './storefrontRoomConnection'
 import type { Point } from './sceneGeometry'
 import type { MainlineSceneDefinition } from './mainlineScenes'
@@ -14,6 +14,8 @@ import {
   type StorefrontPresentationEvent,
   type StorefrontPresentationPhase,
 } from './storefrontPresentation'
+
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
 /**
  * Owns only the visual cover over portal storefronts. Passage traversal,
@@ -33,6 +35,18 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
   )
   const activeStorefrontId = activeStorefrontPresentationOwner(scene, position, presentationReady && approachReady)
   const interiorStorefrontId = activeStorefrontInteriorOwner(scene, position)
+  const [retainedInteriorStorefrontIds, setRetainedInteriorStorefrontIds] = useState<string[]>(() => interiorStorefrontId ? [interiorStorefrontId] : [])
+  const [paintedInteriorStorefrontId, setPaintedInteriorStorefrontId] = useState<string | null>(null)
+  const previousInteriorStorefrontIdRef = useRef<string | null>(interiorStorefrontId)
+  useIsomorphicLayoutEffect(() => {
+    const previous = previousInteriorStorefrontIdRef.current
+    previousInteriorStorefrontIdRef.current = interiorStorefrontId
+    setPaintedInteriorStorefrontId(interiorStorefrontId)
+    setRetainedInteriorStorefrontIds([...new Set([previous, interiorStorefrontId].filter((id): id is string => Boolean(id)))])
+    const timer = window.setTimeout(() => setRetainedInteriorStorefrontIds(interiorStorefrontId ? [interiorStorefrontId] : []), 220)
+    return () => window.clearTimeout(timer)
+  }, [interiorStorefrontId])
+  const visibleInteriorStorefrontIds = [...new Set([...retainedInteriorStorefrontIds, ...(interiorStorefrontId ? [interiorStorefrontId] : [])])]
   const nestedStorefrontIds = useMemo(() => {
     const parent = scene.storefronts.find(slot => slot.id === interiorStorefrontId)
     const room = parent && storefrontRoomConnection(scene, parent)?.interiorRoom
@@ -40,6 +54,7 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
   }, [scene, interiorStorefrontId])
   const pinnedStorefrontId = nestedStorefrontIds.size ? interiorStorefrontId : null
   const handledOwnerRef = useRef<string | null | undefined>(undefined)
+  const interiorPhaseOwnerRef = useRef<string | null>(null)
   const nearRef = useRef(new Map<string, boolean>())
   const departedAtRef = useRef(new Map<string, number>())
   nearRef.current = new Map(switchableStorefronts.map(storefront => [storefront.id, storefront.id === activeStorefrontId]))
@@ -59,11 +74,20 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
 
   useEffect(() => {
     if (interiorStorefrontId && !pinnedStorefrontId) {
+      interiorPhaseOwnerRef.current = interiorStorefrontId
       handledOwnerRef.current = null
       departedAtRef.current.clear()
       setPhaseByStorefront((current) => current.size === 1 && current.get(interiorStorefrontId) === 'revealed'
         ? current
         : new Map([[interiorStorefrontId, 'revealed']]))
+      return
+    }
+    if (!interiorStorefrontId && interiorPhaseOwnerRef.current) {
+      const previousInterior = interiorPhaseOwnerRef.current
+      interiorPhaseOwnerRef.current = null
+      handledOwnerRef.current = null
+      departedAtRef.current.delete(previousInterior)
+      transition(previousInterior, 'handoff')
       return
     }
     if (pinnedStorefrontId) {
@@ -124,6 +148,8 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
     activeStorefrontId,
     phaseByStorefront,
     nearByStorefront: nearRef.current,
+    visibleInteriorStorefrontIds,
+    paintedInteriorStorefrontId,
     completeFrameRetraction: (storefrontId: string) => transition(storefrontId, 'frame-retracted'),
     completeRevealMotion: (storefrontId: string) => transition(storefrontId, 'reveal-motion-complete'),
     completeRestoreMotion,

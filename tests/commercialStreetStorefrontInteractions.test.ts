@@ -6,6 +6,7 @@ import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayo
 import { boundaryGridStepsFromReferenceSpacing, sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { mainlineCameraOffset, mainlineCameraTarget } from '../src/center/runtime/mainlineViewport'
 import { storefrontAccessDeniedText } from '../src/center/runtime/storefrontAccess'
+import { storefrontCharacterCells, storefrontGeometryCellShouldRender } from '../src/center/runtime/storefrontPresentation'
 import {
   commercialStreetStorefrontInteractionDebounceMs,
   commercialStreetStorefrontInteractions,
@@ -256,8 +257,32 @@ describe('commercial street storefront interactions', () => {
           cellsByCoordinate.set(key, [...(cellsByCoordinate.get(key) ?? []), cell])
         }
         const duplicateShellCoordinates = [...cellsByCoordinate.entries()].filter(([, cells]) => cells.length > 1)
-        expect(duplicateShellCoordinates.map(([coordinate, cells]) => ({ coordinate, cells: cells.map(cell => ({ glyph: cell.glyph, edge: cell.edge, id: cell.entityId })) })))
-          .toEqual([])
+        const switchableStorefronts = street.storefronts.filter(candidate => candidate.portalId && candidate.characterSwitch)
+        const animatedCells = new Map(switchableStorefronts.map(candidate => [
+          candidate.id,
+          storefrontCharacterCells(street, candidate, units),
+        ]))
+        // A switchable sign intentionally compiles baseline text and its near
+        // wall/door/wall replacement at the same three coordinates. The
+        // renderer draws those through one animated host and filters both
+        // alternatives out of static geometry; structural collision stays in
+        // the geometry units independently of this visual filter.
+        duplicateShellCoordinates.forEach(([, cells]) => {
+          const storefrontId = cells[0]?.storefrontId
+          expect(storefrontId).toBe('cafe-restroom-sign')
+          expect(cells.every(cell => cell.storefrontId === storefrontId)).toBe(true)
+          expect(new Set(cells.map(cell => cell.kind === 'storefront' ? cell.storefrontRole : cell.kind)).size).toBe(2)
+          const slot = street.storefronts.find(candidate => candidate.id === storefrontId)!
+          expect(cells.every(cell => {
+            const unit = shellUnits.find(candidate => candidate.visual.cells.includes(cell))!
+            return !storefrontGeometryCellShouldRender(slot, unit, cell, animatedCells.get(slot.id))
+          })).toBe(true)
+        })
+        expect(duplicateShellCoordinates).toHaveLength(storefrontId === 'commercial-cafe-slot' ? 3 : 0)
+        const restroomPassage = street.passages.find(candidate => candidate.id === 'cafe-trial-customer-toilet-door')!
+        expect(restroomPassage.access).toBe('open')
+        expect(restroomPassage.collision.width).toBeGreaterThan(0)
+        expect(restroomPassage.doorway.width).toBeGreaterThan(0)
         const rearCells = shellUnits.filter((unit) => unit.edge === rearEdge).flatMap((unit) => unit.visual.cells)
         const rearPassage = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
         const rearDoorPosition = street.objects.find((candidate) => candidate.id === rearPassage.entityId)!.position
