@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { findMainlinePathToEntity, isWalkableMainlinePoint, canTravelAlongMainlineSegment, canActorReachPassageApproach } from '../src/center/runtime/mainlineNavigation'
-import { mainlineEntityCollision, mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
+import { mainlineEntityCollision, mainlineNpcLabelFootprint, mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 
 const scene = mainlineScenes['commercial-street']
 const room = scene.rooms.find(room => room.id === 'commercial-north-cafe-interior')!
@@ -23,16 +23,25 @@ describe('isolated Cafe layout trial', () => {
     }
   })
   it('keeps a positive fourteen-pixel table-chair gap out of routes for protagonists and NPCs', () => {
+    const protagonistFootprint = mainlineProtagonistDotFootprint(scene.initialPlayerPosition, sceneDesignReferenceMetrics, scene.id)
+    const npc = scene.npcs.find(candidate => candidate.id === 'cafe-floor-server')!
     for (const seat of scene.objects.filter(entity => entity.roomId === room.id && entity.seat)) {
       const table = scene.objects.find(entity => entity.id === seat.seat!.tableId)!
       const gap = Math.abs(seat.position.y - table.position.y) * 10.8 - 16
       expect(gap).toBeCloseTo(14, 5)
       const middle = { x: table.position.x, y: (seat.position.y + table.position.y) / 2 }
-      for (const width of [11,16]) {
-        const actorFootprint = {width:width/1920*100,height:width/1080*100}
-        expect(isWalkableMainlinePoint(middle, scene, {}, {...options,actorFootprint})).toBe(width === 11)
-        expect(canTravelAlongMainlineSegment({...middle,x:middle.x-2}, {...middle,x:middle.x+2}, scene, {}, {...options,actorFootprint})).toBe(false)
-      }
+      const protagonistOptions = { ...options, actorId: 'protagonist', actorFootprint: protagonistFootprint }
+      const npcFootprint = mainlineNpcLabelFootprint(scene, npc.id, middle, sceneDesignReferenceMetrics)
+      const npcOptions = { ...options, actorId: npc.id }
+      expect(isWalkableMainlinePoint(middle, scene, {}, protagonistOptions)).toBe(true)
+      // The 11px protagonist marker can stand in the slit, but the relation
+      // barrier still prevents using it as a passage. NPC sizing comes from
+      // the actual rendered label and production navigation path.
+      expect(isWalkableMainlinePoint(middle, scene, {}, npcOptions)).toBe(false)
+      expect(npcFootprint.width).toBeGreaterThan(0)
+      expect(npcFootprint.height).toBeGreaterThan(0)
+      expect(canTravelAlongMainlineSegment({...middle,x:middle.x-2}, {...middle,x:middle.x+2}, scene, {}, protagonistOptions)).toBe(false)
+      expect(canTravelAlongMainlineSegment({...middle,x:middle.x-2}, {...middle,x:middle.x+2}, scene, {}, npcOptions)).toBe(false)
     }
   })
   it('reaches all seats from their open outer side and leaves the middle clear', () => {

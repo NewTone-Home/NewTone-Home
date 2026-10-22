@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { canTravelAlongMainlineSegment, findMainlinePath, findMainlinePathToEntity, isMainlineNavigationBarrierClear, isWalkableMainlinePoint, mainlineEntityInteractionCandidates, mainlineNavigationBarriers, resolveMainlineWorldNavigation } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
-import { mainlineEntityTextFootprint } from '../src/center/runtime/sceneLayout'
+import { mainlineEntityTextFootprint, mainlineNpcLabelFootprint } from '../src/center/runtime/sceneLayout'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 import { createFreeRoamController, prepareMovementPath } from '../src/center/runtime/useFreeRoamMovement'
 
@@ -48,15 +48,22 @@ describe('navigation barrier segments', () => {
   it('keeps fourteen-pixel visible Cafe table-chair gaps out of routes with explicit relation barriers', () => {
  const snapshot=createMainlineSceneGeometrySnapshot(cafe,currentCafeStart,{},currentCafeOptions.screenMetrics)
  const seats=cafe.objects.filter(o=>o.roomId===currentCafeRoom.id&&o.seat)
+ const npc=cafe.npcs.find(candidate=>candidate.id==='cafe-floor-server')!
+ const npcOptions={screenMetrics:currentCafeOptions.screenMetrics,actorId:npc.id}
  expect(seats).toHaveLength(12)
  for(const seat of seats){
   const chair=snapshot.objects.get(seat.id)!,table=snapshot.objects.get(seat.seat!.tableId)!
   const gap=Math.abs(chair.position.y-table.position.y)-(chair.collision!.height+table.collision!.height)/2
   expect(gap*10.8).toBeCloseTo(14,3)
   const center={x:table.position.x,y:(chair.position.y+table.position.y)/2}
-  expect(isWalkableMainlinePoint(center,cafe,{}, {...protagonistOptions,actorFootprint:{width:11/19.2,height:11/10.8}})).toBe(true)
-  expect(isWalkableMainlinePoint(center,cafe,{}, {...protagonistOptions,actorFootprint:{width:16/19.2,height:16/10.8}})).toBe(false)
-  for(const size of [11,16])expect(canTravelAlongMainlineSegment({x:center.x-40/19.2,y:center.y},{x:center.x+40/19.2,y:center.y},cafe,{}, {...protagonistOptions,actorFootprint:{width:size/19.2,height:size/10.8}})).toBe(false)
+  expect(isWalkableMainlinePoint(center,cafe,{},protagonistOptions)).toBe(true)
+  const npcFootprint=mainlineNpcLabelFootprint(cafe,npc.id,center,currentCafeOptions.screenMetrics)
+  expect(npcFootprint.width).toBeGreaterThan(0)
+  expect(npcFootprint.height).toBeGreaterThan(0)
+  expect(isWalkableMainlinePoint(center,cafe,{},npcOptions)).toBe(false)
+  const left={x:center.x-40/19.2,y:center.y},right={x:center.x+40/19.2,y:center.y}
+  expect(canTravelAlongMainlineSegment(left,right,cafe,{},protagonistOptions)).toBe(false)
+  expect(canTravelAlongMainlineSegment(left,right,cafe,{},npcOptions)).toBe(false)
  }
  expect(mainlineNavigationBarriers(cafe).filter(b=>seats.some(s=>b.id===s.id+'-table-gap'))).toHaveLength(12)
 })
@@ -66,7 +73,13 @@ describe('navigation barrier segments', () => {
  const left={x:table.collision!.x-2*dot.width,y},right={x:table.collision!.x+table.collision!.width+2*dot.width,y}
  expect(isWalkableMainlinePoint(left,cafe,{},protagonistOptions)).toBe(true)
  expect(isWalkableMainlinePoint(right,cafe,{},protagonistOptions)).toBe(true)
- for(const size of [11,16])expect(canTravelAlongMainlineSegment(left,right,cafe,{}, {...protagonistOptions,actorFootprint:{width:size/19.2,height:size/10.8}})).toBe(false)
+ const npc=cafe.npcs.find(candidate=>candidate.id==='cafe-floor-server')!
+ const npcOptions={screenMetrics:currentCafeOptions.screenMetrics,actorId:npc.id}
+ const npcFootprint=mainlineNpcLabelFootprint(cafe,npc.id,{x:table.position.x,y},currentCafeOptions.screenMetrics)
+ expect(npcFootprint.width).toBeGreaterThan(0)
+ expect(npcFootprint.height).toBeGreaterThan(0)
+ expect(canTravelAlongMainlineSegment(left,right,cafe,{},protagonistOptions)).toBe(false)
+ expect(canTravelAlongMainlineSegment(left,right,cafe,{},npcOptions)).toBe(false)
  const route=findMainlinePath(left,right,cafe,{},protagonistOptions)
  expect(route).not.toBeNull();expect(route!.length).toBeGreaterThan(2)
  for(let i=1;i<route!.length;i++)expect(canTravelAlongMainlineSegment(route![i-1],route![i],cafe,{},protagonistOptions)).toBe(true)

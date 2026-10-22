@@ -5,20 +5,50 @@ import {wallVisualCoverage,wallCornerCoverage} from './helpers/wallVisualCoverag
 const baseline=JSON.parse(readFileSync('tests/fixtures/wall-visual-coverage-0906541.json','utf8'))
 const measured=Object.fromEntries(Object.values(mainlineScenes).map(scene=>{const units=mainlineCanonicalSceneGeometryUnits(scene,{width:1920,height:1080});return[scene.id,{edges:wallVisualCoverage(scene,units),corners:wallCornerCoverage(scene,units)}]}))
 writeFileSync('.tmp/wall-current-visual-coverage.json',JSON.stringify(measured,null,2))
+const miningExpectedEdges=[
+ 'mining-street-facade:bottom',
+ ...Array.from({length:8},(_,i)=>[`mining-shop-${i+1}-interior-shell:top`,`mining-shop-${i+1}-interior-shell:right`]).flat(),
+ 'mining-shop-8-interior-shell:left','mining-industrial-edge:top',
+]
+const miningExpectedCoverageKeys=[...miningExpectedEdges,...Array.from({length:8},(_,i)=>`yonghe-slot-${i+1}:bottom`)]
 // Keep the original full-coverage bounds after fixing rejected11c06. The
 // approved short tail is tested separately; no distance-band filtering here.
 describe('all door neighbors, complete edge gaps and corner coverage',()=>{
  it.each(Object.values(mainlineScenes))('$id retains complete door-adjacent and endpoint coverage',scene=>{
   const units=mainlineCanonicalSceneGeometryUnits(scene,{width:1920,height:1080}),actual=wallVisualCoverage(scene,units)
   if(scene.id==='yonghe-mining-perimeter'||scene.id==='yonghe-eatery'){
-   // The mining facade was rotated from a vertical edge to a horizontal one.
-   // Keep full physical gap and door-neighbor checks against its current edges.
-   expect(actual.length).toBeGreaterThan(0)
-   const paintedEdges=actual.filter(edge=>edge.key==='mining-street-facade:bottom'||edge.key.endsWith(':top'))
-   expect(paintedEdges.length).toBeGreaterThan(0)
-   for(const edge of paintedEdges){expect(edge.maxGap,`${edge.key} max gap`).toBeLessThanOrEqual(28.01)
-    for(const[id,sides]of Object.entries(edge.doorNeighbors)){for(const side of ['before','after']as const){if(sides[side]===null)continue;const measured=edge.doorNeighbors[id]?.[side];expect(measured,`${id} ${side} wall`).not.toBeNull();expect(Math.abs(measured!-28),`${id} ${side} pitch`).toBeLessThan(.04)}}
+   // This literal set is the authored perimeter: facade, eight shop shells,
+   // and the industrial edge. Completeness is never inferred from actual data.
+   expect(actual.map(edge=>edge.key).sort()).toEqual([...miningExpectedCoverageKeys].sort())
+   const boundaryEdges=actual.filter(edge=>miningExpectedEdges.includes(edge.key))
+   expect(boundaryEdges.map(edge=>edge.key).sort()).toEqual([...miningExpectedEdges].sort())
+   for(const key of miningExpectedEdges){
+    const edge=boundaryEdges.find(candidate=>candidate.key===key)!
+    // The Yonghe menu's one blank panel cell lies on its right wall. This
+    // exact 56px interval is allowed only there; every other boundary stays 28.
+    const allowedMaxGap=key==='mining-shop-2-interior-shell:right'?56.01:28.01
+    expect(edge.maxGap,`${key} maximum visual interval`).toBeLessThanOrEqual(allowedMaxGap)
+    expect(edge.startDistance,`${key} first endpoint cap`).toBeLessThanOrEqual(28.01)
+    expect(edge.endDistance,`${key} last endpoint cap`).toBeLessThanOrEqual(28.01)
    }
+   const yongheRight=units.filter(unit=>unit.ownerId==='mining-shop-2-interior-shell'&&unit.edge==='right'&&unit.geometryKind==='boundary')
+   expect(yongheRight.flatMap(unit=>unit.visual.cells).some(cell=>cell.entityId==='yonghe-menu'&&cell.glyph),'Yonghe wall menu remains mounted on its right wall').toBe(true)
+   expect(yongheRight.flatMap(unit=>unit.visual.cells).some(cell=>cell.kind==='feature'&&!cell.glyph&&Math.abs(cell.y-34.8148148148)<.01),'the known menu panel cell accounts for the sole 56px visual interval').toBe(true)
+   for(const storefront of scene.storefronts){
+    const nearCells=units.filter(unit=>unit.storefrontId===storefront.id&&unit.variant==='near').flatMap(unit=>unit.visual.cells)
+    const doors=nearCells.filter(cell=>cell.storefrontRole==='door')
+    expect(doors,`${storefront.id} revealed facade has one door`).toHaveLength(1)
+    const door=doors[0]!
+    const doorIndex=storefront.composition!.near.findIndex(role=>role==='door')
+    expect(storefront.composition!.near[doorIndex-1],`${storefront.id} before-door role`).toBe('wall')
+    expect(storefront.composition!.near[doorIndex+1],`${storefront.id} after-door role`).toBe('wall')
+    const wallXs=nearCells.filter(cell=>cell.storefrontRole==='wall').map(cell=>cell.x)
+    expect(wallXs.some(x=>Math.abs(x-(door.x-28/19.2))<.001)).toBe(true)
+    expect(wallXs.some(x=>Math.abs(x-(door.x+28/19.2))<.001)).toBe(true)
+   }
+   const backDoorEdge=actual.find(edge=>edge.key==='mining-shop-2-interior-shell:top')!
+   expect(backDoorEdge.doorNeighbors['yonghe-back-door']?.before).toBeCloseTo(28,3)
+   expect(backDoorEdge.doorNeighbors['yonghe-back-door']?.after).toBeCloseTo(28,3)
    return
   }
   for(const before of baseline[scene.id].edges){const now=actual.find(e=>e.key===before.key);expect.soft(now, before.key).toBeDefined();if(!now)continue
