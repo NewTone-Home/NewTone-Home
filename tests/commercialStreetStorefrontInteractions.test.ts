@@ -20,6 +20,7 @@ import {
 const street = mainlineScenes['commercial-street']
 const enterableStreetPortalIds = new Set(['commercial-north-slot-1-entry', 'commercial-south-slot-5-entry', 'street-cafe-entry'])
 const referenceNavigation = { screenMetrics: sceneDesignReferenceMetrics }
+const commercialShopStorefronts = street.storefronts.filter((storefront) => /-slot(?:-\d+)?$/.test(storefront.id))
 
 describe('commercial street storefront interactions', () => {
   it('defines exactly the 15 echo-capable storefronts plus the milk-tea order action, never Café', () => {
@@ -112,10 +113,10 @@ describe('commercial street storefront interactions', () => {
     }
   })
 
-  // This checks six route shapes across all 14 rooms, including new retail barriers.
-  it('routes all fourteen storefront shells through the continuous street room with 13/25-wide shells and 26-cell depth', () => {
+  // The attached restroom sign is also a storefront presentation, but is not a fifteenth shop.
+  it('routes all fourteen shop shells through the continuous street room with 13/25-wide shells and 24 depth anchors', () => {
     const steps = boundaryGridStepsFromReferenceSpacing()
-    const roomSamples = street.storefronts.map((storefront) => {
+    const roomSamples = commercialShopStorefronts.map((storefront) => {
       const side = storefront.edge === 'bottom' ? 'north' as const : 'south' as const
       const slotNumber = storefront.id.match(/-slot-(\d+)$/)?.[1]
       const roomId = storefront.id === 'commercial-cafe-slot'
@@ -124,7 +125,8 @@ describe('commercial street storefront interactions', () => {
       return { storefront, roomId, widthCells: storefront.composition!.fixedCellCount!, side }
     })
     expect(roomSamples).toHaveLength(14)
-    expect(street.rooms.filter((room) => room.id.endsWith('-interior'))).toHaveLength(14)
+    expect(street.storefronts).toHaveLength(15) // fourteen commercial shops plus the restroom sign
+    expect(street.rooms.filter((room) => room.id.endsWith('-interior'))).toHaveLength(15) // includes the attached restroom
     expect(new Set(roomSamples.map((sample) => sample.roomId)).size).toBe(14)
 
     for (const { storefront, roomId, widthCells, side } of roomSamples) {
@@ -133,7 +135,7 @@ describe('commercial street storefront interactions', () => {
       const entry = street.passages.find((candidate) => candidate.portalId === storefront.portalId)!
       const rear = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
       const shell = street.structures.find((candidate) => candidate.id === `${roomId}-shell`)!
-      const expectedDepth = steps.vertical * 25
+      const expectedDepth = steps.vertical * 23
       const interior = entry.crossingTargets[0]
       const rearActorId=street.npcs.find(n=>n.roomId===room.id&&street.actorAccess[n.id]?.includes('staff'))?.id??'protagonist'
       const rearSize=rearActorId==='protagonist'?11:16
@@ -142,6 +144,7 @@ describe('commercial street storefront interactions', () => {
       const publicLanePath = findMainlinePath(street.initialPlayerPosition, approach, street, {}, referenceNavigation)
       const openFrontNavigation={...referenceNavigation,openPassageIds:new Set([entry.id])}
       const entryPath = findMainlinePath(approach, interior, street, {}, openFrontNavigation)
+      const storefrontIsOpen = enterableStreetPortalIds.has(entry.id)
       const rearStart=rearActorId==='protagonist'?interior:resolveMainlineNpcPosition(street,rearActorId,{},rearNavigation)
       const rearDoorApproachPath = findMainlinePath(rearStart, rear.thresholds[0], street, {}, rearNavigation)
       if(rearActorId!=='protagonist'){
@@ -152,7 +155,7 @@ describe('commercial street storefront interactions', () => {
 
       expect(room.bounds.width).toBeCloseTo(steps.horizontal * (widthCells + 1))
       expect(room.bounds.height).toBeCloseTo(expectedDepth)
-      expect(entry).toMatchObject({ access: 'open', routeThrough: true, fromRoomId: 'commercial-street-public-lane', toRoomId: roomId })
+      expect(entry).toMatchObject({ access: storefrontIsOpen ? 'open' : 'locked', routeThrough: true, fromRoomId: 'commercial-street-public-lane', toRoomId: roomId })
       expect(entry.targetSceneId).toBeUndefined()
       expect(rear).toMatchObject({ access: 'locked' })
       expect(rear.targetSceneId).toBeUndefined()
@@ -167,7 +170,8 @@ describe('commercial street storefront interactions', () => {
         'left',
         ...(!hasLaterShell ? ['right'] : []),
       ])
-      expect(isWalkableMainlinePoint(interior, street)).toBe(true)
+      expect(isWalkableMainlinePoint(interior, street, {}, openFrontNavigation)).toBe(true)
+      expect(isWalkableMainlinePoint(interior, street, {}, referenceNavigation)).toBe(true)
       expect(publicLanePath, `${storefrontId} street-to-approach path`).not.toBeNull()
       expect(entryPath, `${storefrontId} front-to-room path`).not.toBeNull()
       expect(entryPath?.length).toBeGreaterThan(1)
@@ -177,7 +181,7 @@ describe('commercial street storefront interactions', () => {
       expect(street.walkBounds.y).toBeLessThan(room.bounds.y)
       expect(street.walkBounds.y + street.walkBounds.height).toBeGreaterThan(room.bounds.y + room.bounds.height)
       expect(storefront.id === 'commercial-cafe-slot' ? roomId : entry.toRoomId).toBe(roomId)
-      expect(room.bounds.height / steps.vertical).toBeCloseTo(25)
+      expect(room.bounds.height / steps.vertical).toBeCloseTo(23)
     }
 
     for (const side of ['north', 'south'] as const) {
@@ -210,7 +214,7 @@ describe('commercial street storefront interactions', () => {
       { width: 1180, height: 757 },
       { width: 390, height: 844 },
     ]
-    const samples = street.storefronts.map((storefront) => {
+    const samples = commercialShopStorefronts.map((storefront) => {
       const side = storefront.edge === 'bottom' ? 'north' as const : 'south' as const
       const slotNumber = storefront.id.match(/-slot-(\d+)$/)?.[1]
       const roomId = storefront.id === 'commercial-cafe-slot'
@@ -291,8 +295,8 @@ describe('commercial street storefront interactions', () => {
           sideYs.add(Number(frontCorner!.y.toFixed(3)))
           sideYs.add(Number(rearCorner!.y.toFixed(3)))
           const continuousSide = [...sideYs].sort((left, right) => left - right)
-          expect(continuousSide).toHaveLength(26)
-          const pitch = room.bounds.height / 25
+          expect(continuousSide).toHaveLength(24)
+          const pitch = room.bounds.height / 23
           continuousSide.slice(1).forEach((y, index) => expect(y - continuousSide[index]).toBeCloseTo(pitch, 2))
           viewportSignature.push(`${sideEdge}:${continuousSide.join(',')}`)
         }
@@ -349,7 +353,7 @@ describe('commercial street storefront interactions', () => {
         ? ['wall', ...sign, 'wall', 'window', 'window', 'window', 'window', 'window', 'wall', 'wall', 'wall', 'window', 'window', 'window', 'window', 'window', 'window', 'window', 'window', 'window', 'wall']
         : ['wall', 'window', 'window', 'wall', ...sign, 'wall', 'window', 'window', 'wall']
     }
-    const phases = new Map(street.storefronts.map((storefront) => [storefront.id, 'baseline' as const]))
+    const phases = new Map(commercialShopStorefronts.map((storefront) => [storefront.id, 'baseline' as const]))
     const firstGrid = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, metrics[0], phases)
       .flatMap((unit) => unit.visual.cells)
       .filter((cell) => cell.storefrontId)
@@ -362,7 +366,7 @@ describe('commercial street storefront interactions', () => {
       expect(projected).toEqual(firstGrid)
     }
 
-    for (const storefront of street.storefronts) {
+    for (const storefront of commercialShopStorefronts) {
       const wide = storefront.id === 'commercial-cafe-slot' || storefront.id === 'commercial-south-slot-2'
       const expected = expectedRoles(storefront.label, wide)
       expect(storefront.composition?.baseline).toEqual(expected)
@@ -386,7 +390,7 @@ describe('commercial street storefront interactions', () => {
     }
 
     for (const edge of ['top', 'bottom'] as const) {
-      const row = street.storefronts.filter((storefront) => storefront.edge === edge)
+      const row = commercialShopStorefronts.filter((storefront) => storefront.edge === edge)
       for (const [index, storefront] of row.slice(0, -1).entries()) {
         const next = row[index + 1]!
         expect(next.start - storefront.end).toBeCloseTo(boundaryGridStepsFromReferenceSpacing().horizontal)

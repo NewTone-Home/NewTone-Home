@@ -45,9 +45,9 @@ function shellInside(slotId:string){const slot=street.storefronts.find(s=>s.id==
 const referenceOptions={screenMetrics:sceneDesignReferenceMetrics,actorId:'protagonist',actorFootprint:{width:11/19.2,height:11/10.8}}
 
 describe('commercial street shell furniture samples', () => {
-  it('keeps one 24-by-25-interval Cafe shell and moves original story identities into that live room',()=>{
+  it('keeps one 24-anchor / 23-interval Cafe shell and moves original story identities into that live room',()=>{
  const shell=currentCafeRoom,slot=street.storefronts.find(s=>s.id==='commercial-cafe-slot')!
- expect(shell.bounds.width*19.2).toBeCloseTo(672,3);expect(shell.bounds.height*10.8).toBeCloseTo(700,3)
+ expect(shell.bounds.width*19.2).toBeCloseTo(672,3);expect(shell.bounds.height*10.8).toBeCloseTo(644,3)
  expect(slot.composition?.baseline).toHaveLength(23);expect(slot.composition?.near).toHaveLength(23)
  expect(mainlineScenes['commercial-cafe']).toBe(street)
  expect(street.objects.find(o=>o.id===commercialCafeStoryTableId)?.roomId).toBe(shell.id)
@@ -133,17 +133,17 @@ describe('commercial street shell furniture samples', () => {
     expect(mainlineEntityBelongsToActiveRoom(scoped[0], undefined)).toBe(false)
   })
 
-  it('keeps the 13x26 milk-tea and 25x26 fast-food shells and both front/rear access states', () => {
+  it('keeps the 13/25-wide milk-tea and fast-food shells at 24 depth anchors with both access states', () => {
     const steps = boundaryGridStepsFromReferenceSpacing()
     for (const [roomId, columns] of [[sampleRoomIds[0], 11], [sampleRoomIds[1], 23]] as const) {
       const room = street.rooms.find((candidate) => candidate.id === roomId)!
       expect(room.bounds.width).toBeCloseTo(steps.horizontal * (columns + 1))
-      expect(room.bounds.height).toBeCloseTo(steps.vertical * 25)
+      expect(room.bounds.height).toBeCloseTo(steps.vertical * 23)
       const slotNumber = roomId.includes('-s5-') ? '5' : '2'
       const storefront = street.storefronts.find((candidate) => candidate.id === `commercial-south-slot-${slotNumber}`)!
       const front = street.passages.find((candidate) => candidate.portalId === storefront.portalId)!
       const rear = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
-      expect(front.access).toBe('open')
+      expect(front.access).toBe(slotNumber === '5' ? 'open' : 'locked')
       expect(front.routeThrough).toBe(true)
       expect(front.toRoomId).toBe(roomId)
       expect(rear.access).toBe('locked')
@@ -283,7 +283,7 @@ describe('commercial street shell furniture samples', () => {
       const localTop = (divider.y - room.bounds.y) / steps.vertical
       const localBottom = (divider.y + divider.height - room.bounds.y) / steps.vertical
       expect(localTop).toBeCloseTo(15.5)
-      expect(localBottom).toBeCloseTo(25.5)
+      expect(localBottom).toBeCloseTo(23.5)
       const rear = street.passages.find((passage) => passage.id === `${roomId}-rear-door`)!
       const interior = fromFor(roomId === sampleRoomIds[0] ? 3.5 : 16.5, 17)
       expect(findMainlinePath(interior, rear.thresholds[0], street, {}, { screenMetrics: sceneDesignReferenceMetrics }), `${roomId} rear-door threshold`).not.toBeNull()

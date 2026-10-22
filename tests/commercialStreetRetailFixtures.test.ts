@@ -28,7 +28,7 @@ function localCell(roomId: string, point: { x: number; y: number }) {
   const localRowFromTop = (point.y - room.bounds.y) / steps.vertical
   return {
     column: (point.x - room.bounds.x) / steps.horizontal - 1,
-    row: storefront.edge === 'bottom' ? 25 - localRowFromTop : localRowFromTop,
+    row: storefront.edge === 'bottom' ? 23 - localRowFromTop : localRowFromTop,
   }
 }
 
@@ -38,7 +38,7 @@ function storeCell(roomId: string, column: number, row: number) {
   return {
     x: room.bounds.x + (column + 1) * steps.horizontal,
     y: storefront.edge === 'bottom'
-      ? room.bounds.y + (25 - row) * steps.vertical
+      ? room.bounds.y + (23 - row) * steps.vertical
       : room.bounds.y + row * steps.vertical,
   }
 }
@@ -69,7 +69,7 @@ describe('commercial street ordinary retail shell fixtures', () => {
         expect(local.column, entity.id).toBeGreaterThanOrEqual(0)
         expect(local.column, entity.id).toBeLessThanOrEqual(10)
         expect(local.row, entity.id).toBeGreaterThanOrEqual(5)
-        expect(local.row, entity.id).toBeLessThanOrEqual(19.01)
+        expect(local.row, entity.id).toBeLessThanOrEqual(22.01)
         return `${local.column.toFixed(2)}:${local.row.toFixed(2)}`
       })
       expect(new Set(occupied).size, `${store.key} has no glyph overlap`).toBe(occupied.length)
@@ -85,7 +85,7 @@ describe('commercial street ordinary retail shell fixtures', () => {
       expect(front.access, `${store.key} trial interior access`).toBe('locked')
       expect(rear.access, `${store.key} rear stays locked`).toBe('locked')
       expect(room.bounds.width).toBeCloseTo(steps.horizontal * 12)
-      expect(room.bounds.height).toBeCloseTo(steps.vertical * 25)
+      expect(room.bounds.height).toBeCloseTo(steps.vertical * 23)
 
       const fixtures = street.objects.filter((entity) => entity.roomId === store.roomId && entity.id.startsWith('commercial-retail-'))
       expect(fixtures.some((entity) => {

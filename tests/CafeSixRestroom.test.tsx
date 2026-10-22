@@ -18,8 +18,13 @@ describe('wall wrap, six Cafe tables and the real single restroom',()=>{
   for(const seat of seats){const table=tables.find(t=>t.id===seat.seat!.tableId)!;expect(Math.abs(seat.position.y-table.position.y)*10.8-16).toBeCloseTo(14,5);expect(seat.shape!.width*19.2).toBeCloseTo(32,5);const gapY=(seat.position.y+table.position.y)/2;for(const width of [11,16])expect(canTravelAlongMainlineSegment({x:table.position.x-40/19.2,y:gapY},{x:table.position.x+40/19.2,y:gapY},scene,{}, {...options,actorFootprint:{width:width/19.2,height:width/10.8}})).toBe(false);expect(findMainlinePathToEntity(scene,seat.id,point(336,560),{},options).path).not.toBeNull()}
   const story=tables.find(t=>t.id===cafeStoryTableId)!;expect((story.position.x-room.bounds.x)*19.2).toBeCloseTo(448,5);expect((story.position.y-room.bounds.y)*10.8).toBeCloseTo(448,5)
  })
- it('keeps two small corner plants outside doors and chair pullouts',()=>{
-  const plants=scene.objects.filter(o=>o.id.startsWith('cafe-trial-corner-plant-'));expect(plants).toHaveLength(2);for(const p of plants){expect(p.interactionBehavior).toBeUndefined();expect(p.collision!.width*19.2).toBeCloseTo(32,5);expect(p.collision!.height*10.8).toBeCloseTo(16,5)}
+ it('moves the framed plants to the rear and frontage wall corners without covering either wall glyph row',()=>{
+  const plants=scene.objects.filter(o=>o.id.startsWith('cafe-trial-corner-plant-'));expect(plants).toHaveLength(2);for(const p of plants){expect(p.interactionBehavior).toBeUndefined();expect(p.focusFrame).toBe('interactive');expect(p.collision!.width*19.2).toBeCloseTo(32,5);expect(p.collision!.height*10.8).toBeCloseTo(16,5);expect((p.position.x-room.bounds.x)*19.2).toBeCloseTo(644,5)}
+  expect((plants.find(p=>p.id.endsWith('rear'))!.position.y-room.bounds.y)*10.8).toBeCloseTo(28,5)
+  expect((plants.find(p=>p.id.endsWith('front'))!.position.y-room.bounds.y)*10.8).toBeCloseTo(616,5)
+  expect(findMainlinePathToEntity(scene,plants[0]!.id,point(336,350),{},options).path).not.toBeNull();expect(findMainlinePathToEntity(scene,plants[1]!.id,point(336,350),{},options).path).not.toBeNull()
+  expect(672-644-16-8).toBe(4) // glyph ink edge clearance at the right wall
+  expect(644-616-16).toBe(12) // lower plant remains clear of the shortened-shell frontage glyph row
  })
  it('connects Cafe and a168px square room through one open same-world door',()=>{
   const restroom=scene.rooms.find(r=>r.id==='cafe-single-restroom-interior')!,door=scene.passages.find(p=>p.id==='cafe-trial-customer-toilet-door')!;expect(restroom.bounds.width*19.2).toBeCloseTo(168,5);expect(restroom.bounds.height*10.8).toBeCloseTo(168,5);expect(door).toMatchObject({access:'open',routeThrough:true,fromRoomId:room.id,toRoomId:restroom.id});expect(door.targetSceneId).toBeUndefined();expect(validateMainlineSceneGeometry(scene)).toEqual([]);expect(scene.objects.filter(o=>o.roomId===restroom.id).map(o=>o.label)).toEqual(['马桶','洗手盆']);expect(scene.objects.find(o=>o.id==='cafe-restroom-sink')).toMatchObject({textLayout:'vertical'});expect(scene.passages.find(p=>p.id===room.id+'-rear-door')!.access).toBe('locked')

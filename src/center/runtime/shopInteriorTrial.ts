@@ -112,8 +112,8 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
 
   // Sparse corner plants: no watering system, only the existing view interaction.
     entities.push(
-      { ...fixture('cafe-trial-corner-plant-rear', '绿植', 644, 84), focusFrame: 'interactive' },
-      { ...fixture('cafe-trial-corner-plant-front', '绿植', 644, 588), focusFrame: 'interactive' },
+      { ...fixture('cafe-trial-corner-plant-rear', '绿植', 644, 28), focusFrame: 'interactive' },
+      { ...fixture('cafe-trial-corner-plant-front', '绿植', 644, 616), focusFrame: 'interactive' },
     )
 
   const rear = blueprint.portals.find(portal => portal.id === `${room.id}-rear-door`)!
@@ -250,7 +250,7 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
       { id: 'fruit-tea-trial-order', x: 168, y: 432 },
       { id: 'fruit-tea-trial-pickup', x: 168, y: 336 },
     ],
-    publicSide: 'right', menu: { id: 'fruit-tea-trial-menu', y: 616, edge: 'left', publicX: 160 }, rearX: 56,
+    publicSide: 'right', menu: { id: 'fruit-tea-trial-menu', y: 616, edge: 'right', publicX: 160 }, rearX: 56,
     equipment: ['清洗台', '切果台', '打包台', '冷藏', '煮料台'],
     worktop: { x: 16, y: 112, width: 24, height: 336 }, worker: [112, 252], regions: [{ x: 0, y: 0, width: 168, height: 560 }],
   })
