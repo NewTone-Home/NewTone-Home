@@ -76,10 +76,11 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
       entities.push(entity)
     })
   }
-  counterRun('cafe-trial-counter-long', Array.from({ length: 29 }, (_, index) => [176, 112 + index * 16] as [number, number]), 14)
-  // Street entrance is at y700. The short front arm ends against the left wall;
-  // the upper end remains the employee opening into the rear preparation line.
-  counterRun('cafe-trial-counter-front', Array.from({ length: 10 }, (_, index) => [160 - index * 16, 560] as [number, number]))
+  counterRun('cafe-trial-counter-long', Array.from({ length: 25 }, (_, index) => [176, 112 + index * 16] as [number, number]), 14)
+  // Both L terminals meet real walls. A separate32px opening at y72..104
+  // admits the16px employee; no invisible blocker closes any counter end.
+  counterRun('cafe-trial-counter-upper', Array.from({ length: 4 }, (_, index) => [176, 16 + index * 16] as [number, number]))
+  counterRun('cafe-trial-counter-front', Array.from({ length: 10 }, (_, index) => [160 - index * 16, 496] as [number, number]))
   entities.push(
     fixture('cafe-trial-coffee-machine', '咖啡机', 48, 224),
     fixture('cafe-trial-prep-table', '备餐台', 48, 336),
@@ -138,9 +139,8 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
       navigationBarriers: data.navigationBarriers?.filter(relation => !oldIds.has(relation.firstEntityId) && !oldIds.has(relation.secondEntityId)),
       // These are role permissions inside the actual counter, not extra physical collision.
       accessRegions: [...(data.accessRegions ?? []).filter(region => region.id !== 'commercial-cafe-staff-area' && region.id !== 'cafe-trial-rear-work-area'),
-        { id: 'commercial-cafe-staff-area', ...point(0, 0), width: 176 / 1920 * 100, height: 560 / 1080 * 100, requiredAccess: 'staff' as const, deniedText: '这里是柜台员工区。' }],
-      // One finite work strip owns the counter and its open rear preparation
-      // end. The front arm is physical; employee access is at the upper end.
+        { id: 'commercial-cafe-staff-area', ...point(0, 0), width: 176 / 1920 * 100, height: 496 / 1080 * 100, requiredAccess: 'staff' as const, deniedText: '这里是柜台员工区。' }],
+      // One finite work strip owns the counter and its independent employee opening.
       accessBoundaries: [...(data.accessBoundaries ?? []).filter(boundary => boundary.regionId !== 'commercial-cafe-staff-area' && boundary.regionId !== 'cafe-trial-rear-work-area'),
         { id: 'commercial-cafe-staff-right-access-boundary', regionId: 'commercial-cafe-staff-area', edge: 'right' as const }],
       npcBehaviorTargets: [...(data.npcBehaviorTargets ?? []).filter(target => !targets.some(next => next.id === target.id)), ...targets],
@@ -215,7 +215,7 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     roomId: 'commercial-south-s5-interior', prefix: 'milk-tea-trial', oldStructurePrefix: 'commercial-s5-milk-tea-',
     // Front is at y0. A long right counter separates ordering and collection along the shop.
     runs: [
-      { id: 'long-counter', cells: Array.from({ length: 29 }, (_, i) => [208, 112 + i * 16] as [number, number]) },
+      { id: 'long-counter', cells: Array.from({ length: 37 }, (_, i) => [208, 112 + i * 16] as [number, number]) },
       { id: 'front-return', cells: Array.from({ length: 7 }, (_, i) => [224 + i * 16, 112] as [number, number]), glyphOffset: 1 },
     ],
     stations: [
@@ -226,20 +226,20 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     equipment: [{ label: '制茶机', x: 280, y: 336 }, { label: '封口机', x: 280, y: 448 }, { label: '清洗台', x: 280, y: 560 }, { label: '煮料台', x: 280, y: 224 }],
     worker: [240, 392],
     // The right work lane continues to its one locked rear door. There is no
-    // interior warehouse: employees enter around the lower counter end.
+    // interior warehouse or public-side employee exit: the long end meets the rear wall.
     regions: [{ x: 208, y: 112, width: 128, height: 588 }],
   })
   return buildTakeawayTrial(milkTea, {
     roomId: 'commercial-north-n1-interior', prefix: 'fruit-tea-trial', oldStructurePrefix: 'commercial-retail-n1-fruit-tea-',
     // Front is at y700. The left work line closes into the wall at its front
-    // end; the upper opening connects its preparation equipment and rear door.
+    // end; the other terminal now meets the rear wall too.
     runs: [
-      { id: 'long-counter', cells: Array.from({ length: 29 }, (_, i) => [128, 112 + i * 16] as [number, number]) },
+      { id: 'long-counter', cells: Array.from({ length: 35 }, (_, i) => [128, 16 + i * 16] as [number, number]) },
       { id: 'front-return', cells: Array.from({ length: 7 }, (_, i) => [112 - i * 16, 560] as [number, number]), glyphOffset: 1 },
     ],
     stations: [
-      { id: 'fruit-tea-trial-order', cell: 20 },
-      { id: 'fruit-tea-trial-pickup', cell: 14 },
+      { id: 'fruit-tea-trial-order', cell: 26 },
+      { id: 'fruit-tea-trial-pickup', cell: 20 },
     ],
     menu: { id: 'fruit-tea-trial-menu', y: 560, edge: 'right' }, rearX: 56,
     equipment: [{ label: '清洗台', x: 48, y: 308 }, { label: '切果台', x: 48, y: 392 }, { label: '打包台', x: 48, y: 476 }, { label: '冷藏', x: 48, y: 140 }, { label: '煮料台', x: 48, y: 224 }],

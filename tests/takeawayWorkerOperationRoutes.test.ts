@@ -10,8 +10,8 @@ import { mainlineSceneOccupiedSeatIds } from '../src/center/runtime/mainlineSeat
 import type { Point } from '../src/center/runtime/sceneGeometry'
 const scene=mainlineScenes['commercial-street']
 const trials=[
- {prefix:'milk-tea-trial',room:'commercial-south-s5-interior',equipment:[[1,'left'],[2,'left'],[3,'left']],handoff:[244,528],customer:[112,336]},
- {prefix:'fruit-tea-trial',room:'commercial-north-n1-interior',equipment:[[4,'bottom'],[1,'right'],[2,'left'],[3,'left']],handoff:[240,312],customer:[168,560]},
+ {prefix:'milk-tea-trial',room:'commercial-south-s5-interior',equipment:[[1,'left'],[2,'left'],[3,'left'],[4,'left']],handoff:[240,432],customer:[112,336]},
+ {prefix:'fruit-tea-trial',room:'commercial-north-n1-interior',equipment:[[4,'right'],[1,'right'],[2,'right'],[3,'right'],[5,'right']],handoff:[96,336],customer:[168,560]},
 ] as const
 describe('real16px worker adapter through operation-side contacts, without a commerce AI',()=>{
  for(const trial of trials)it(trial.prefix,()=>{
