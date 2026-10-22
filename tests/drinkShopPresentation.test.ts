@@ -4,7 +4,7 @@ import { mainlineEntityCollision } from '../src/center/runtime/sceneLayout'
 import { findMainlinePathToEntity, isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigation'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 const scene=mainlineScenes['commercial-street'],options={screenMetrics:sceneDesignReferenceMetrics,actorId:'protagonist'}
-const shops=[['commercial-north-cafe-interior','cafe-trial-counter-',0,208,['commercial-cafe-menu','commercial-cafe-blackboard']],['commercial-south-s5-interior','milk-tea-trial-',336,176,['commercial-s5-milk-tea-menu-service-label']],['commercial-north-n1-interior','fruit-tea-trial-',0,160,['fruit-tea-trial-menu']]] as const
+const shops=[['commercial-north-cafe-interior','cafe-trial-counter-',0,224,['commercial-cafe-menu','commercial-cafe-blackboard']],['commercial-south-s5-interior','milk-tea-trial-',336,176,['commercial-s5-milk-tea-menu-service-label']],['commercial-north-n1-interior','fruit-tea-trial-',0,160,['fruit-tea-trial-menu']]] as const
 
 describe('shop vertical machines, shared counter frames and same-side wall menus',()=>{
  for(const [roomId,prefix,wallX,contactX,menus] of shops){

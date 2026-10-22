@@ -358,9 +358,9 @@ describe('ordinary world navigation and passage intent', () => {
   })
 
   it('derives distinct public contacts at the actual upper-right employee opening without projecting through the counter',()=>{
- const cafe=mainlineScenes['commercial-street'],staff=cafe.accessRegions.find(r=>r.id==='commercial-cafe-staff-area')!,from=cafePoint(208,88)
+ const cafe=mainlineScenes['commercial-street'],staff=cafe.accessRegions.find(r=>r.id==='commercial-cafe-staff-area')!,from=cafePoint(228,56)
  const contacts=[.2,.4,.6,.8].map(fraction=>{
-  const result=resolveMainlineWorldNavigation(cafe,from,cafePoint(160,76+fraction*24),{},currentCafeOptions)!
+  const result=resolveMainlineWorldNavigation(cafe,from,cafePoint(180,44+fraction*24),{},currentCafeOptions)!
   expect(result).not.toBeNull();expect(result.deniedAccessRegion?.id).toBe(staff.id)
   expect(result.resolvedNavigableTarget.x).toBeGreaterThan(staff.x+staff.width+currentCafeOptions.actorFootprint.width/2)
   for(let i=1;i<result.path.length;i++)expect(canTravelAlongMainlineSegment(result.path[i-1],result.path[i],cafe,{},currentCafeOptions)).toBe(true)

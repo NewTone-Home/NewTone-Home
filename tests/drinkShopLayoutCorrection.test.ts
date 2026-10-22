@@ -7,9 +7,9 @@ import { commercialCafeLaoZhouConversationSeatId, commercialCafeStoryTableId } f
 const scene = mainlineScenes['commercial-street']
 const units = mainlineCanonicalSceneGeometryUnits(scene, sceneDesignReferenceMetrics)
 const shops = [
-  { room: 'commercial-north-cafe-interior', prefix: 'cafe-trial-counter', counterX: 176, frontY: 496, wallX: 0, employee: 'cafe-coffee-owner', rearX: 84, menu: ['commercial-cafe-menu', 'commercial-cafe-blackboard'], service: ['commercial-cafe-counter', 'cafe-trial-order', 'cafe-trial-pickup'], equipment: ['cafe-trial-coffee-machine', 'cafe-trial-prep-table', 'cafe-trial-wash', 'cafe-trial-cold'], count: 39 },
-  { room: 'commercial-south-s5-interior', prefix: 'milk-tea-trial', counterX: 208, frontY: 112, wallX: 336, employee: 'milk-tea-trial-worker', rearX: 280, menu: ['commercial-s5-milk-tea-menu-service-label'], service: ['commercial-s5-milk-tea-order-service-label', 'commercial-s5-milk-tea-pickup-service-label'], equipment: [1, 2, 3, 4].map(i => `milk-tea-trial-equipment-${i}`), count: 44 },
-  { room: 'commercial-north-n1-interior', prefix: 'fruit-tea-trial', counterX: 128, frontY: 560, wallX: 0, employee: 'fruit-tea-trial-worker', rearX: 56, menu: ['fruit-tea-trial-menu'], service: ['fruit-tea-trial-order', 'fruit-tea-trial-pickup'], equipment: [1, 2, 3, 4, 5].map(i => `fruit-tea-trial-equipment-${i}`), count: 42 },
+  { room: 'commercial-north-cafe-interior', prefix: 'cafe-trial-counter', counterX: 196, frontY: 476, wallX: 0, employee: 'cafe-coffee-owner', rearX: 84, menu: ['commercial-cafe-menu', 'commercial-cafe-blackboard'], service: ['commercial-cafe-counter', 'cafe-trial-order', 'cafe-trial-pickup'], equipment: ['cafe-trial-coffee-machine', 'cafe-trial-prep-table', 'cafe-trial-wash', 'cafe-trial-cold'], count: 38 },
+  { room: 'commercial-south-s5-interior', prefix: 'milk-tea-trial', counterX: 224, frontY: 112, wallX: 336, employee: 'milk-tea-trial-worker', rearX: 280, menu: ['commercial-s5-milk-tea-menu-service-label'], service: ['commercial-s5-milk-tea-order-service-label', 'commercial-s5-milk-tea-pickup-service-label'], equipment: [1, 2, 3, 4].map(i => `milk-tea-trial-equipment-${i}`), count: 42 },
+  { room: 'commercial-north-n1-interior', prefix: 'fruit-tea-trial', counterX: 112, frontY: 560, wallX: 0, employee: 'fruit-tea-trial-worker', rearX: 56, menu: ['fruit-tea-trial-menu'], service: ['fruit-tea-trial-order', 'fruit-tea-trial-pickup'], equipment: [1, 2, 3, 4, 5].map(i => `fruit-tea-trial-equipment-${i}`), count: 40 },
 ] as const
 const options = (actorId = 'protagonist') => ({ screenMetrics: sceneDesignReferenceMetrics, actorId, actorFootprint: { width: (actorId === 'protagonist' ? 11 : 16) / 19.2, height: (actorId === 'protagonist' ? 11 : 16) / 10.8 } })
 
@@ -27,10 +27,11 @@ describe('drink shops correct the entrance-end counter and real work side', () =
       expect(bodies).toHaveLength(shop.employee==='cafe-coffee-owner'?3:2)
       expect(cells).toHaveLength(shop.count)
       expect(new Set(cells.map(c => `${c.position.x}:${c.position.y}`)).size).toBe(cells.length)
-      const arm = cells.filter(c => Math.abs(local(c.position).y - shop.frontY) < .001)
+      const armBody=bodies.find(b=>b.id.endsWith('front-body')||b.id.endsWith('front-return-body'))!
+      const arm = cells.filter(c => c.interactionStructureId===armBody.id)
       expect(arm.length).toBeGreaterThan(5)
       const xs = arm.map(c => local(c.position).x).sort((a, b) => a - b)
-      for (let i = 1; i < xs.length; i++) expect(xs[i]! - xs[i - 1]!).toBeCloseTo(16, 5)
+      for (let i = 1; i < xs.length; i++) expect(xs[i]! - xs[i - 1]!).toBeCloseTo(shop.employee==='cafe-coffee-owner'&&[2,4].includes(i)?26:16, 5)
       expect(shop.wallX === 0 ? xs[0] : 336 - xs.at(-1)!).toBeCloseTo(16, 5)
       expect(Math.abs(local(front.crossingTargets[0]!).y - shop.frontY)).toBeLessThan(210)
       expect(cells.every(c => !['点单', '取餐', '取货'].includes(c.label))).toBe(true)

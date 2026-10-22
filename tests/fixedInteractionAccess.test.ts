@@ -66,13 +66,13 @@ describe('ordinary floor interaction and access-boundary contracts', () => {
 
   it('uses the same real staff region for planner, route traversal, and live-movement legality at the actual upper-right opening', () => {
  const cafe=mainlineScenes['commercial-street'],staff=cafe.accessRegions.find(r=>r.id==='commercial-cafe-staff-area')!
- const publicPoint=cafePoint(208,88),staffPoint=cafePoint(144,88)
+ const publicPoint=cafePoint(228,56),staffPoint=cafePoint(164,56)
  const staffOptions={...protagonistOptions,actorId:commercialCafeCoffeeOwnerNpcId}
  expect(canTravelAlongMainlineSegment(publicPoint,staffPoint,cafe,{},protagonistOptions)).toBe(false)
  expect(findMainlinePath(publicPoint,staffPoint,cafe,{},protagonistOptions)).toBeNull()
  expect(canTravelAlongMainlineSegment(publicPoint,staffPoint,cafe,{},staffOptions)).toBe(true)
  expect(findMainlinePath(publicPoint,staffPoint,cafe,{},staffOptions)).not.toBeNull()
  // The street-end L arm is physical even for employees.
- expect(canTravelAlongMainlineSegment(cafePoint(96,472),cafePoint(96,520),cafe,{},staffOptions)).toBe(false)
+ expect(canTravelAlongMainlineSegment(cafePoint(96,448),cafePoint(96,504),cafe,{},staffOptions)).toBe(false)
 })
 })
