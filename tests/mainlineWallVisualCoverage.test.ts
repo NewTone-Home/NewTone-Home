@@ -47,6 +47,7 @@ describe('all door neighbors, complete edge gaps and corner coverage',()=>{
    const menuContent=yongheRightCells.filter(cell=>cell.kind==='feature'&&cell.featureCellRole==='content'&&cell.entityId==='yonghe-menu')
    expect(menuContent.length,'menu replaces only its authored wall cells').toBeGreaterThan(0)
    expect(menuContent.every(cell=>Boolean(cell.baselineGlyph)),'every menu cell restores its wall glyph while hidden').toBe(true)
+   expect(yongheRightCells.some(cell=>cell.kind==='feature'&&!cell.glyph&&Math.abs(cell.y-37.4074074074)<.01),'the resized menu panel remains on its authored wall cell').toBe(true)
    const sharedMenuWallCorner=units.filter(unit=>unit.ownerId==='mining-shop-1-interior-shell'&&unit.edge==='top'&&unit.geometryKind==='boundary')
     .flatMap(unit=>unit.visual.cells).find(cell=>cell.glyph&&cell.kind==='wall'&&Math.abs(cell.x-104.25)<.001&&Math.abs(cell.y*10.8+72)<.01)
    expect(sharedMenuWallCorner,'the adjacent shell paints Yonghe wall at the shared upper corner').toBeDefined()

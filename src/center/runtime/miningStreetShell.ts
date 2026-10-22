@@ -4,6 +4,14 @@ import type { MainlineSceneBlueprint, MainlineStorefrontRole, MainlineStorefront
 /** Distances count lattice intervals. Shop-owned facade slots exclude the
  * separately counted public divider between adjacent shops. */
 export const miningShopNames = ['\u4fee\u978b', '\u6c38\u548c\u5c0f\u9986', '\u836f\u5e97', '\u4e94\u91d1\u5e97', '\u5c0f\u5403', '\u9762\u9986', '\u4fee\u7406', '\u65e9\u70b9'] as const
+type MiningShopName = typeof miningShopNames[number]
+const depthCoordinateCountOverrides: Partial<Record<MiningShopName, (netFrontageSlots: number) => number>> = {
+  '\u6c38\u548c\u5c0f\u9986': netFrontageSlots => {
+    const interiorRows = netFrontageSlots * 2
+    const endWallAnchors = 2
+    return interiorRows + endWallAnchors
+  },
+}
 export const miningGrid = boundaryGridStepsFromReferenceSpacing()
 type MainlineWallBlueprint = MainlineSceneBlueprint['scene']['walls'][number]
 
@@ -45,7 +53,8 @@ const oldShopMetrics = miningShopNames.map((label, index) => {
   const letters = Array.from(label).length
   const netFrontageSlots = letters + sideWallCells * 2
   const widthCells = netFrontageSlots + 1
-  const depthCoordinateCount = netFrontageSlots * 2 + 3 // twice the clear depth plus front/back wall slots
+  // Keep the seven legacy counts unchanged; Yonghe now uses its explicit net-depth plus end-wall count.
+  const depthCoordinateCount = depthCoordinateCountOverrides[label]?.(netFrontageSlots) ?? netFrontageSlots * 2 + 3
   const depthCells = depthCoordinateCount - 1
   const top = oldRowCursor
   const bottom = top + widthCells * vertical

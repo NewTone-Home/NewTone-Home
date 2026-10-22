@@ -32,7 +32,9 @@ export function trialYongheInterior(blueprint: MainlineSceneBlueprint): Mainline
     entities.push(entity)
   }
   entities.push(fixture('yonghe-stove','灶台',84,224),fixture('yonghe-trial-board','菜板',140,224))
-  const menu:MainlineSceneEntity={id:'yonghe-menu',label:'菜单',kind:'fixture',weight:'fixture',surface:'wall',roomId:room.id,position:point(616,0),interactive:true,interactionContactAnchor:point(616,28),visualVisibility:'static'}
+  const menuAnchorX = room.bounds.height * 1080 / 100 - 56
+  const menuHalfSpan = 28
+  const menu:MainlineSceneEntity={id:'yonghe-menu',label:'菜单',kind:'fixture',weight:'fixture',surface:'wall',roomId:room.id,position:point(menuAnchorX,0),interactive:true,interactionContactAnchor:point(menuAnchorX,28),visualVisibility:'static'}
   const rearPosition=point(0,252)
   const rearStep=28/1080*100
   const backText='后门目前无法通行。仅凭眼前的情况，还看不出门后通向哪里。'
@@ -52,7 +54,7 @@ export function trialYongheInterior(blueprint: MainlineSceneBlueprint): Mainline
     },
     scene:{...data,
       floorEntities:[...data.floorEntities,...entities],furnitureGroups:[...data.furnitureGroups,...groups],
-      walls:data.walls.map(wall=>wall.id===`${room.id}-shell`?{...wall,features:[...(wall.features??[]),{id:'yonghe-menu-wall',edge:'right',start:point(588,0).y,end:point(644,0).y,glyphs:['菜单'],layout:'content',entity:menu}]}:wall),
+      walls:data.walls.map(wall=>wall.id===`${room.id}-shell`?{...wall,features:[...(wall.features??[]),{id:'yonghe-menu-wall',edge:'right',start:point(menuAnchorX-menuHalfSpan,0).y,end:point(menuAnchorX+menuHalfSpan,0).y,glyphs:['菜单'],layout:'content',entity:menu}]}:wall),
       continuousStructures:[...(data.continuousStructures??[]),{id:counterId,kind:'counter',...footprint(224,136,16,256)}],
       accessRegions:[...(data.accessRegions??[]),{id:'yonghe-trial-kitchen',...point(0,308),width:308/1920*100,height:224/1080*100,requiredAccess:'staff',deniedText:'这里是柜台里面的工作区。'}],
       actorAccess:{...data.actorAccess,'yonghe-trial-worker':['public','staff']},

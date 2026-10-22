@@ -1,6 +1,6 @@
 import { canTravelAlongMainlineSegment, isWalkableMainlinePoint, resolveMainlineWorldNavigation } from '../src/center/runtime/mainlineNavigation'
 import { describe, expect, it } from 'vitest'
-import { miningGrid, miningShopShells } from '../src/center/runtime/miningStreetShell'
+import { createMiningStreetShellBlueprint, miningGrid, miningShopShells } from '../src/center/runtime/miningStreetShell'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineScenes, validateMainlineSceneGeometry } from '../src/center/runtime/mainlineScenes'
 import { activeStorefrontInteriorOwner, activeStorefrontPresentationOwner, storefrontCharacterCells } from '../src/center/runtime/storefrontPresentation'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
@@ -47,16 +47,26 @@ describe('mining clockwise continuous street shell', () => {
     expect(scene.externalExits[0]!.direction).toBe(-1)
   })
 
-  it('uses every shop-owned facade slot for width, doubles it for clear depth, then adds two end walls', () => {
+  it('preserves the seven other shop depths and sizes Yonghe as 20 rows plus two end anchors', () => {
     for (const shop of miningShopShells) {
       const room = scene.rooms.find(entry => entry.id === shop.roomId)!
       const ownSlots = shop.letters + 6
       expect(shop.netFrontageSlots).toBe(ownSlots)
       expect(shop.widthCells).toBe(ownSlots + 1) // the extra interval is the shared divider
-      expect(shop.depthCells).toBe(ownSlots * 2 + 2)
       expect(shop.depthCoordinateCount).toBe(shop.depthCells + 1)
       expect(room.bounds.width / (28 / 1920 * 100)).toBeCloseTo(shop.widthCells, 7)
       expect(room.bounds.height / (28 / 1080 * 100)).toBeCloseTo(shop.depthCells, 7)
+      if (shop.label === '永和小馆') {
+        const shell = createMiningStreetShellBlueprint().scene.walls.find(entry => entry.id === shop.roomId + '-shell')!
+        expect(shop.netFrontageSlots).toBe(10)
+        expect(shop.depthCoordinateCount).toBe(22)
+        expect(shop.depthCoordinateCount - 2).toBe(20) // 20 internal rows plus two end-wall anchors
+        expect(shop.depthCells).toBe(21) // 21 intervals between the 22 anchors
+        expect(shell.boundaryCoordinateCount?.vertical).toBe(22)
+      } else {
+        expect(shop.depthCoordinateCount).toBe(ownSlots * 2 + 3)
+        expect(shop.depthCells).toBe(ownSlots * 2 + 2)
+      }
     }
     expect(new Set(miningShopShells.map(shop => shop.depthCells)).size).toBeGreaterThan(1)
   })

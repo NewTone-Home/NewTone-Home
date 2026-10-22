@@ -13,8 +13,13 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
   describe(sceneId + ' rotated restaurant', () => {
     it('keeps the menu on the right wall and rotates the existing tables and kitchen with the room', () => {
       const menu = scene.objects.find(object => object.id === 'yonghe-menu')!
-      expect(menu.position.x).toBeCloseTo(point(616, 0).x, 10)
-      expect(menu.position.y).toBeCloseTo(point(616, 0).y, 10)
+      const menuLocalX = room.bounds.height * 1080 / 100 - 56
+      expect(menu.position.x).toBeCloseTo(point(menuLocalX, 0).x, 10)
+      expect(menu.position.y).toBeCloseTo(point(menuLocalX, 0).y, 10)
+      const menuFeature = scene.structures.find(structure => structure.id === `${room.id}-shell`)?.features?.find(feature => feature.id === 'yonghe-menu-wall')!
+      expect(menuFeature.start).toBeGreaterThanOrEqual(room.bounds.y - 0.001)
+      expect(menuFeature.end).toBeLessThanOrEqual(room.bounds.y + room.bounds.height + 0.001)
+      expect(menuFeature.end).toBeLessThan(room.bounds.y + room.bounds.height + 0.001)
       expect(scene.objects.filter(object => object.roomId === room.id && object.kind === 'table')).toHaveLength(4)
       expect(scene.objects.filter(object => object.roomId === room.id && object.seat)).toHaveLength(8)
       const stove = scene.objects.find(object => object.id === 'yonghe-stove')!
