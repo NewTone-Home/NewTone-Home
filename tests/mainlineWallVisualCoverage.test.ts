@@ -32,8 +32,24 @@ describe('all door neighbors, complete edge gaps and corner coverage',()=>{
     expect(edge.endDistance,`${key} last endpoint cap`).toBeLessThanOrEqual(28.01)
    }
    const yongheRight=units.filter(unit=>unit.ownerId==='mining-shop-2-interior-shell'&&unit.edge==='right'&&unit.geometryKind==='boundary')
-   expect(yongheRight.flatMap(unit=>unit.visual.cells).some(cell=>cell.entityId==='yonghe-menu'&&cell.glyph),'Yonghe wall menu remains mounted on its right wall').toBe(true)
-   expect(yongheRight.flatMap(unit=>unit.visual.cells).some(cell=>cell.kind==='feature'&&!cell.glyph&&Math.abs(cell.y-34.8148148148)<.01),'the known menu panel cell accounts for the sole 56px visual interval').toBe(true)
+   const yongheRightCells=yongheRight.flatMap(unit=>unit.visual.cells)
+   expect(yongheRightCells.some(cell=>cell.entityId==='yonghe-menu'&&cell.glyph),'Yonghe wall menu remains mounted on its right wall').toBe(true)
+   expect(yongheRightCells.some(cell=>cell.kind==='feature'&&!cell.glyph&&Math.abs(cell.y-34.8148148148)<.01),'the known menu panel cell accounts for the sole 56px visual interval').toBe(true)
+   const sharedMenuWallCorner=units.filter(unit=>unit.ownerId==='mining-shop-1-interior-shell'&&unit.edge==='top'&&unit.geometryKind==='boundary')
+    .flatMap(unit=>unit.visual.cells).find(cell=>cell.glyph&&cell.kind==='wall'&&Math.abs(cell.x-104.25)<.001&&Math.abs(cell.y*10.8+72)<.01)
+   expect(sharedMenuWallCorner,'the adjacent shell paints Yonghe wall at the shared upper corner').toBeDefined()
+   const rightWallGlyphY=[...new Set([
+    ...yongheRightCells.filter(cell=>cell.glyph).map(cell=>Number((cell.y*10.8).toFixed(4))),
+    Number((sharedMenuWallCorner!.y*10.8).toFixed(4)),
+   ])].sort((a,b)=>a-b)
+   const wideIntervals=rightWallGlyphY.slice(1).flatMap((end,index)=>{
+    const start=rightWallGlyphY[index]!,gap=end-start
+    return gap>28.01?[{start,end,gap}]:[]
+   })
+   expect(wideIntervals,'only the embedded menu may interrupt the right-wall glyph pitch').toHaveLength(1)
+   expect(wideIntervals[0]!.start).toBeCloseTo(348,2)
+   expect(wideIntervals[0]!.end).toBeCloseTo(404,2)
+   expect(wideIntervals[0]!.gap).toBeCloseTo(56,2)
    for(const storefront of scene.storefronts){
     const nearCells=units.filter(unit=>unit.storefrontId===storefront.id&&unit.variant==='near').flatMap(unit=>unit.visual.cells)
     const doors=nearCells.filter(cell=>cell.storefrontRole==='door')
