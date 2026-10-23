@@ -102,6 +102,8 @@ export type MainlineSceneEntity = {
   label: string
   /** Optional shell ownership for furniture that only renders inside its room. */
   roomId?: string
+  /** Optional ownership by a non-room scene space such as an outdoor public lane. */
+  spaceId?: string
   /** Initial visibility follows the original scene story snapshot. */
   visible?: boolean
   /** Stable semantic name; user-facing rendering may provide a shorter display label. */
@@ -154,6 +156,56 @@ export type MainlineSceneEntity = {
 
 export function mainlineEntityBelongsToActiveRoom(entity: Pick<MainlineSceneEntity, 'roomId'>, activeRoomId?: string): boolean {
   return !entity.roomId || entity.roomId === activeRoomId
+}
+
+export function mainlineEntityBelongsToActiveSpace(entity: Pick<MainlineSceneEntity, 'spaceId'>, activeSpaceId?: string): boolean {
+  return !entity.spaceId || entity.spaceId === activeSpaceId
+}
+
+export function mainlineEntityMatchesCurrentPresentation(
+  entity: Pick<MainlineSceneEntity, 'roomId' | 'spaceId'>,
+  renderedRoomIds: ReadonlySet<string>,
+  activeSpaceId?: string,
+) {
+  return (!entity.roomId || renderedRoomIds.has(entity.roomId))
+    && mainlineEntityBelongsToActiveSpace(entity, activeSpaceId)
+}
+
+/** Resolve the same concrete room/corridor used by interaction text and scoped floor entities. */
+export function mainlineSceneRoomAtPosition(
+  scene: { id: MainlineSceneId; rooms: readonly MainlineSceneRoom[] },
+  position: Point,
+) {
+  const candidates = scene.rooms.filter(room => room.kind !== 'boundary'
+    && position.x >= room.bounds.x && position.x <= room.bounds.x + room.bounds.width
+    && position.y >= room.bounds.y && position.y <= room.bounds.y + room.bounds.height)
+  const area = (room: MainlineSceneRoom) => room.bounds.width * room.bounds.height
+  const strictlyInside = candidates.filter(room => position.x > room.bounds.x && position.x < room.bounds.x + room.bounds.width
+    && position.y > room.bounds.y && position.y < room.bounds.y + room.bounds.height)
+  const room = strictlyInside.sort((a, b) => area(a) - area(b))[0]
+  if (room) return room
+  const corridor = candidates.find(candidate => candidate.kind === 'corridor')
+  if (corridor) return corridor
+  const boundaryRoom = candidates.sort((a, b) => area(a) - area(b))[0]
+  if (boundaryRoom) return boundaryRoom
+  const publicLaneIds = scene.id === 'commercial-street'
+    ? ['commercial-street-public-lane']
+    : scene.id === 'yonghe-mining-perimeter' || scene.id === 'yonghe-eatery'
+      ? ['mining-street-public-lane']
+      : []
+  if (publicLaneIds.length) return scene.rooms.find(candidate => publicLaneIds.includes(candidate.id))
+  return undefined
+}
+
+export function mainlineActiveSpatialSpaceId(
+  scene: { id: MainlineSceneId; rooms: readonly MainlineSceneRoom[] },
+  position: Point,
+) {
+  const room = mainlineSceneRoomAtPosition(scene, position)
+  if (!room) return undefined
+  const inside = position.x >= room.bounds.x && position.x <= room.bounds.x + room.bounds.width
+    && position.y >= room.bounds.y && position.y <= room.bounds.y + room.bounds.height
+  return inside ? room.id : undefined
 }
 
 /** A scene resident with an NPC role; NPCs are not spatial furniture entities. */

@@ -9,6 +9,7 @@ import { containsDoorRegion, doorRegionSide, doorwayBoundaryPoint, doorwayLegalT
 import { sharedFurnitureGeometry } from './twoSeatFurniture'
 import { mainlineNpcStagedInteractionContactEntityId, mainlineNpcStagedPoint, mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import { pointInStorefrontRoom, storefrontRoomConnection } from './storefrontRoomConnection'
+import { mainlineActiveSpatialSpaceId, mainlineEntityBelongsToActiveSpace } from './mainlineSceneModel'
 
 /** Screen-space gap as a fraction of the protagonist's visible width. */
 export const MAINLINE_STOREFRONT_CONTACT_GAP = .25
@@ -1654,6 +1655,9 @@ export function mainlineStorefrontArrivalDecision(scene: MainlineSceneDefinition
 /** One selected entity contact is shared by proximity, route and arrival. */
 export function resolveMainlineEntityInteraction(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): MainlineInteractionResolution {
   const entity = scene.objects.find((candidate) => candidate.id === entityId)
+  if (entity?.spaceId && !mainlineEntityBelongsToActiveSpace(entity, mainlineActiveSpatialSpaceId(scene, from))) {
+    return { target: from, path: null, inRange: false }
+  }
   const candidates = mainlineEntityInteractionCandidates(scene, entityId, from, layout, mainlineActorFootprint(scene, options, from), options)
   const range = entity?.interactionRange ?? .35
   const resolved = resolveMainlineInteractionCandidates(scene, from, candidates, range, layout, options)

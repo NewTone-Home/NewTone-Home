@@ -7,6 +7,7 @@ import EntryButtonSurface from '../../components/EntryButtonSurface'
 import type { CollisionBox, Point } from './sceneGeometry'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
+import { mainlineActiveSpatialSpaceId, mainlineEntityMatchesCurrentPresentation } from './mainlineSceneModel'
 import { mainlineGeometryCellWithinViewport, mainlineGeometryUnitShouldRender } from './mainlineSceneVisibility'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineEntityVisualBounds, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -1052,6 +1053,7 @@ export function MainlineSceneRenderer({
     && position.x <= room.bounds.x + room.bounds.width
     && position.y >= room.bounds.y
     && position.y <= room.bounds.y + room.bounds.height)
+  const activeSpatialSpaceId = mainlineActiveSpatialSpaceId(scene, position)
   const activeShellRoomConnection = activeShellRoom && scene.storefronts.map(slot => storefrontRoomConnection(scene, slot)).find(connection => connection?.interiorRoom.id === activeShellRoom.id)
   const activeShellRoomId = activeShellRoomConnection && activeShellRoomConnection.passage.access !== 'open' ? undefined : activeShellRoom?.id
   const interiorStorefrontId = activeStorefrontInteriorOwner(scene, position)
@@ -1270,6 +1272,7 @@ export function MainlineSceneRenderer({
     })
     scene.objects.forEach((entity) => {
       if (entity.focusFrame !== 'interactive' || entity.visible === false) return
+      if (!mainlineEntityMatchesCurrentPresentation(entity, renderedRoomIds, activeSpatialSpaceId)) return
       const group = `interactive:${entity.focusFrameGroup ?? entity.id}`
       addTarget({
         group,
@@ -1283,7 +1286,7 @@ export function MainlineSceneRenderer({
       })
     })
     return [...targetMap.values()]
-  }, [activeObjectId, switchableStorefronts, approachedStorefrontIds, interiorStorefrontId, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation, occupiedSeatIds])
+  }, [activeObjectId, switchableStorefronts, approachedStorefrontIds, interiorStorefrontId, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation, occupiedSeatIds, renderedRoomIds, activeSpatialSpaceId])
   const focusFrames = useSceneFocusFrameController({
     targets: focusFrameTargets,
     freezeMeasurements: freezeFrameMeasurements,
@@ -1659,7 +1662,7 @@ export function MainlineSceneRenderer({
             && !entity.counterSurfaceId
             && entity.kind !== 'door'
             && !wallFeatureEntityIds.has(entity.id)
-            && (!entity.roomId || renderedRoomIds.has(entity.roomId))).map((entity) => {
+            && mainlineEntityMatchesCurrentPresentation(entity, renderedRoomIds, activeSpatialSpaceId)).map((entity) => {
             const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
             const focusGroup = !layoutMode && entity.focusFrame === 'interactive' ? `interactive:${entity.focusFrameGroup ?? entity.id}` : undefined
             const underPlayer = entity.visualProfile === 'tree-ring' && entity.interactive === false && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8

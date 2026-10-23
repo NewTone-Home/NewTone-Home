@@ -4,6 +4,7 @@ import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 import { mainlineVisibleWorldSpan } from './mainlineViewport'
 import type { MainlineSceneDialogue, MainlineSceneDialogueLine } from './mainlineSceneModel'
 import type { MainlineSceneNpc } from './mainlineSceneModel'
+import { mainlineSceneRoomAtPosition } from './mainlineSceneModel'
 import type { Point, CollisionBox } from './sceneGeometry'
 import { projectCommercialStreetX } from './commercialStreetGridProjection'
 import { mainlineMeasuredTextWidth } from './mainlineTextSegments'
@@ -30,29 +31,7 @@ export function mainlineReadingFontSizePx(metrics: SceneScreenMetrics) {
 }
 
 export function mainlineInteractionRoom(scene: MainlineSceneDefinition, position: Point) {
-  const candidates = scene.rooms.filter(room => room.kind !== 'boundary'
-    && position.x >= room.bounds.x && position.x <= room.bounds.x + room.bounds.width
-    && position.y >= room.bounds.y && position.y <= room.bounds.y + room.bounds.height)
-  const area = (room: typeof scene.rooms[number]) => room.bounds.width * room.bounds.height
-  const strictlyInside = candidates.filter(room => position.x > room.bounds.x && position.x < room.bounds.x + room.bounds.width
-    && position.y > room.bounds.y && position.y < room.bounds.y + room.bounds.height)
-  const room = strictlyInside.sort((a, b) => area(a) - area(b))[0]
-  if (room) return room
-
-  // At a shared doorway edge, assign the exact edge to the public corridor.
-  // Once the actor crosses into a room, strict containment above takes over.
-  const corridor = candidates.find(candidate => candidate.kind === 'corridor')
-  if (corridor) return corridor
-  const boundaryRoom = candidates.sort((a, b) => area(a) - area(b))[0]
-  if (boundaryRoom) return boundaryRoom
-
-  const publicLaneIds = scene.id === 'commercial-street'
-    ? ['commercial-street-public-lane']
-    : scene.id === 'yonghe-mining-perimeter' || scene.id === 'yonghe-eatery'
-      ? ['mining-street-public-lane']
-      : []
-  if (publicLaneIds.length) return scene.rooms.find(candidate => publicLaneIds.includes(candidate.id))
-  return undefined
+  return mainlineSceneRoomAtPosition(scene, position)
 }
 
 export function mainlineInteractionSpace(scene: MainlineSceneDefinition, position: Point): CollisionBox {

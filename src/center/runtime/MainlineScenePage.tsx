@@ -41,6 +41,7 @@ import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, plant
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import { mainlineExploredObjectIdsFromSceneState, mainlineInteractionCompletesImmediately, mainlineInteractionExploredStateKey } from './mainlineInteractionVisualState'
+import { mainlineActiveSpatialSpaceId, mainlineEntityBelongsToActiveSpace } from './mainlineSceneModel'
 import { localSlideDirectionForCrossing, shouldUseLocalSlideForPassage, type MainlineWalkingPassageTransitionIntent } from './mainlineSceneTransition'
 import { createCommercialStreetStorefrontExecutionRuntime, createCommercialStreetStorefrontInteractionRuntime, commercialStreetStorefrontInteractionFor, executeCommercialStreetStorefrontInteraction, type CommercialStreetStorefrontAction } from './commercialStreetStorefrontInteractions'
 import { commercialStreetQuestionNarrativeAnchor, commercialStreetQuestionNarrativeCompleted, commercialStreetQuestionNarrativeCompletedKey, commercialStreetQuestionNarrativeLines, commercialStreetQuestionNarrativeShouldTrigger, nextCommercialStreetQuestionNarrative, type CommercialStreetQuestionNarrativeState } from './commercialStreetQuestionNarrative'
@@ -1756,6 +1757,11 @@ export function MainlineScenePage({
 
   const interact = useCallback((entityId: string, requestAlreadyRecorded = false) => {
     if (readingActive || sceneAction?.phase === 'committing') return
+    const entity = getMainlineSceneEntity(scene, entityId)
+    if (!mainlineEntityBelongsToActiveSpace(entity, mainlineActiveSpatialSpaceId(scene, getCurrentPosition()))) {
+      onInteractionAnalytics?.('blocked', entityId, entity.kind, 'outside-space')
+      return
+    }
     dismissSceneAction()
     npcInteractionRequestRef.current += 1
     setRequestedWorldTarget(null)
@@ -1764,7 +1770,6 @@ export function MainlineScenePage({
     setNpcDialogue(null)
     setCommercialCafeNarrative(null)
     dismissSceneEcho()
-    const entity = getMainlineSceneEntity(scene, entityId)
     const passage = scene.passages.find((candidate) => candidate.entityId === entityId)
     if (!requestAlreadyRecorded) pendingInteractionAfterTraversalRef.current = null
     if (!requestAlreadyRecorded) onInteractionAnalytics?.('requested', entityId, passage ? 'door' : entity.kind)
@@ -1785,6 +1790,11 @@ export function MainlineScenePage({
       }
       setActiveObjectId(entity.id)
       moveAlong(resolved.path, () => {
+        if (!mainlineEntityBelongsToActiveSpace(entity, mainlineActiveSpatialSpaceId(scene, sitPosition))) {
+          setActiveObjectId(null)
+          onInteractionAnalytics?.('blocked', entity.id, 'seat', 'outside-space')
+          return
+        }
         resetMovement(sitPosition)
         navigationRuntime.updateActor('protagonist', sitPosition)
         setPlayerSeatId(nextSeatId)
@@ -1839,6 +1849,12 @@ export function MainlineScenePage({
     }
 
     const revealInteraction = () => {
+      if (!mainlineEntityBelongsToActiveSpace(entity, mainlineActiveSpatialSpaceId(scene, getCurrentPosition()))) {
+        interactionStartedAtRef.current = null
+        setActiveObjectId(null)
+        onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'outside-space')
+        return
+      }
       const interactionStartedAt = interactionStartedAtRef.current
       interactionStartedAtRef.current = null
       onObjectInteraction?.(entity, Math.max(0, Date.now() - (interactionStartedAt ?? Date.now())))

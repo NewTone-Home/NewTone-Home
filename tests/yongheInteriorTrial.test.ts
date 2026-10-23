@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { mainlineEntityTextFootprint } from '../src/center/runtime/sceneLayout'
-import { findMainlinePathToEntity, canActorReachPassageApproach, isWalkableMainlinePoint, canTravelAlongMainlineSegment, findMainlinePath } from '../src/center/runtime/mainlineNavigation'
-import { mainlineSceneBlueprints } from '../src/center/runtime/mainlineSceneModel'
+import { findMainlinePathToEntity, canActorReachPassageApproach, isWalkableMainlinePoint, canTravelAlongMainlineSegment, findMainlinePath, resolveMainlineEntityInteraction } from '../src/center/runtime/mainlineNavigation'
+import { mainlineActiveSpatialSpaceId, mainlineEntityBelongsToActiveSpace, mainlineEntityMatchesCurrentPresentation, mainlineSceneBlueprints } from '../src/center/runtime/mainlineSceneModel'
 import { isMainlineSeatAvailable, mainlineSceneOccupiedSeatIds, nextMainlinePlayerSeatId } from '../src/center/runtime/mainlineSeating'
 import { counterOutlineGeometry } from '../src/center/runtime/counterOutlineGeometry'
 import { frameShouldCollapse } from '../src/center/runtime/sceneFrameLifecycle'
@@ -151,6 +151,45 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
         })).toBe(false)
       }
       expect(scene.continuousStructures.some(body => body.counterSurface?.groupId.startsWith('yonghe-outdoor-table-'))).toBe(false)
+    })
+
+    it('shows and permits outdoor tables only while the actor belongs to the public lane', () => {
+      const lane = scene.rooms.find(entry => entry.id === 'mining-street-public-lane')!
+      const lanePoint = { x: lane.bounds.x + lane.bounds.width / 2, y: lane.bounds.y + lane.bounds.height / 2 }
+      const yongheInterior = scene.rooms.find(entry => entry.id === 'mining-shop-2-interior')!
+      const interiorPoint = { x: yongheInterior.bounds.x + yongheInterior.bounds.width / 2, y: yongheInterior.bounds.y + yongheInterior.bounds.height / 2 }
+      const otherShop = scene.rooms.find(entry => entry.id === 'mining-shop-1-interior')!
+      const otherShopPoint = { x: otherShop.bounds.x + otherShop.bounds.width / 2, y: otherShop.bounds.y + otherShop.bounds.height / 2 }
+      const renderedRooms = new Set<string>()
+      const outdoorIds = scene.furnitureGroups.filter(group => group.id.startsWith('yonghe-outdoor-')).flatMap(group => group.entityIds)
+      const outdoorEntities = outdoorIds.map(id => scene.objects.find(entity => entity.id === id)!)
+
+      expect(outdoorEntities).toHaveLength(6)
+      expect(outdoorEntities.every(entity => entity.spaceId === lane.id && entity.roomId === undefined)).toBe(true)
+      expect(mainlineActiveSpatialSpaceId(scene, lanePoint)).toBe(lane.id)
+      expect(mainlineActiveSpatialSpaceId(scene, interiorPoint)).toBe(yongheInterior.id)
+      expect(mainlineActiveSpatialSpaceId(scene, otherShopPoint)).toBe(otherShop.id)
+      for (const entity of outdoorEntities) {
+        expect(mainlineEntityBelongsToActiveSpace(entity, lane.id)).toBe(true)
+        expect(mainlineEntityBelongsToActiveSpace(entity, yongheInterior.id)).toBe(false)
+        expect(mainlineEntityBelongsToActiveSpace(entity, otherShop.id)).toBe(false)
+        expect(mainlineEntityMatchesCurrentPresentation(entity, renderedRooms, lane.id)).toBe(true)
+        expect(mainlineEntityMatchesCurrentPresentation(entity, renderedRooms, yongheInterior.id)).toBe(false)
+        expect(mainlineEntityMatchesCurrentPresentation(entity, renderedRooms, otherShop.id)).toBe(false)
+      }
+
+      const table = outdoorEntities.find(entity => entity.kind === 'table')!
+      expect(resolveMainlineEntityInteraction(scene, table.id, lanePoint, {}, options).path).not.toBeNull()
+      for (const indoorPoint of [interiorPoint, otherShopPoint]) {
+        const blocked = resolveMainlineEntityInteraction(scene, table.id, indoorPoint, {}, options)
+        expect(blocked.path).toBeNull()
+        expect(blocked.inRange).toBe(false)
+      }
+
+      const streetDoor = scene.objects.find(entity => entity.id === 'yonghe-street-entry')!
+      expect(streetDoor.spaceId).toBeUndefined()
+      expect(scene.passages.find(passage => passage.id === 'yonghe-street-entry')?.access).toBe('open')
+      expect(scene.passages.find(passage => passage.id === 'yonghe-back-door')?.access).toBe('locked')
     })
 
     it('keeps the work zone staff-only, counter continuous, and rear door unreachable through the wall', () => {
