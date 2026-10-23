@@ -132,17 +132,23 @@ describe('reading target protection', () => {
     expect(html).toContain('data-scene-dialogue-shield="true"')
   })
 
-  it('punches only the protected counter legs out of the dimmer, not the empty L corner', () => {
-    const holes = mainlineReadingMaskRects({ x: 0, y: 0, width: 100, height: 100 }, [
-      { x: 10, y: 10, width: 5, height: 40 },
-      { x: 15, y: 45, width: 40, height: 5 },
-    ])
+  it('punches the real Cafe L counter segments out of the dimmer while its empty corner stays dimmed', () => {
+    const scene = mainlineScenes['commercial-street']
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
+    const parts = scene.continuousStructures.filter(part => part.counterSurface?.groupId === 'cafe-trial-L-counter')
+    expect(parts).toHaveLength(2)
+    const outlines = parts.map(part => part.counterSurface?.outlineBounds ?? part)
+    const holes = mainlineReadingMaskRects(room.bounds, outlines)
     expect(holes).toHaveLength(2)
-    expect(holes[0]).toMatchObject({ x: .1, y: .1, height: .4 })
-    expect(holes[0]!.width).toBeCloseTo(.05, 10)
-    expect(holes[1]).toMatchObject({ x: .15, y: .45, width: .4 })
-    expect(holes[1]!.height).toBeCloseTo(.05, 10)
-    expect(holes).toHaveLength(2)
+    const inDimmerHole = (x: number, y: number) => holes.some(hole => {
+      const px = (x - room.bounds.x) / room.bounds.width
+      const py = (y - room.bounds.y) / room.bounds.height
+      return px >= hole.x && px <= hole.x + hole.width && py >= hole.y && py <= hole.y + hole.height
+    })
+    const localPoint = (x: number, y: number) => ({ x: room.bounds.x + x / 1920 * 100, y: room.bounds.y + y / 1080 * 100 })
+    expect(inDimmerHole(localPoint(196, 300).x, localPoint(196, 300).y)).toBe(true)
+    expect(inDimmerHole(localPoint(100, 477).x, localPoint(100, 477).y)).toBe(true)
+    expect(inDimmerHole(localPoint(100, 300).x, localPoint(100, 300).y)).toBe(false)
   })
 
   it('protects the complete interactive L counter and keeps an active menu neutral and keyboard focusable', () => {
