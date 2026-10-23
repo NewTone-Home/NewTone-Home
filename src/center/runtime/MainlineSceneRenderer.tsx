@@ -392,7 +392,10 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
     data-storefront-label-phase={phase} data-focus-target-group={largeGroup} data-focus-target-policy="passage"
     style={{ '--roll-x': direction.x, '--roll-y': direction.y } as CSSProperties}>
     {cells.map(cell => {
-      const characters = <SceneCharacterSwitch before={cell.baselineGlyph} after={cell.glyph} beforeGroup={largeGroup} afterGroup={cell.role === 'door' ? doorGroup : undefined} beforeOffsetPx={{ x: ((cell.baselineX ?? cell.x) - cell.x) * screenMetrics.width / 100, y: ((cell.baselineY ?? cell.y) - cell.y) * screenMetrics.height / 100 }} />
+      const cellDoorGroup = cell.role === 'door' && hasMultipleDoorCells
+        ? storefrontDoorFocusGroup({ ...cell, storefrontId: storefront.id }, undefined, true)
+        : doorGroup
+      const characters = <SceneCharacterSwitch before={cell.baselineGlyph} after={cell.glyph} beforeGroup={largeGroup} afterGroup={cell.role === 'door' ? cellDoorGroup : undefined} beforeOffsetPx={{ x: ((cell.baselineX ?? cell.x) - cell.x) * screenMetrics.width / 100, y: ((cell.baselineY ?? cell.y) - cell.y) * screenMetrics.height / 100 }} />
       const attributes = { 'data-storefront-cell-id': cell.id, 'data-storefront-presentation-phase': phase }
       const style = { left: `${cell.x}%`, top: `${cell.y}%` }
       const closeHint = cell.access === 'locked' ? (cell.lockedText ?? '当前权限不足') : '接近时自动开门，进入门洞后继续路线'
@@ -401,7 +404,7 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
         className="scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door is-baseline"
         style={style} doorLabel={entity.displayLabel ?? entity.label} glyph={cell.glyph} doorPhase={doorPhase}
         focusGroup={doorGroup}
-        frameGroup={hasMultipleDoorCells ? storefrontDoorFocusGroup({ ...cell, storefrontId: storefront.id }, undefined, true) : doorGroup}
+        frameGroup={cellDoorGroup}
         focusPolicy="passage" gateTriggered={false} frameRetracting={frameRetracting}
         active={false} closeHint={closeHint} ariaLabel={cell.access === 'locked' ? `门，${closeHint}` : '门，点击门后目标会在接近时自动开门并穿过'}
         renderFocusFrame={renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete}

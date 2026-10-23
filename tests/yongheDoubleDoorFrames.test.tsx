@@ -29,7 +29,7 @@ describe('Yonghe double front doors', () => {
     />)
 
     const doorCellIds = new Set(doorCells.map(cell => cell.id))
-    const buttons = [...markup.matchAll(/<button\b[^>]*>/g)].map(match => match[0])
+    const buttons = [...markup.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(match => match[0])
       .filter(tag => [...doorCellIds].some(id => tag.includes(`data-storefront-cell-id="${id}"`))
         && tag.includes('data-storefront-presentation-phase="baseline"'))
     expect(buttons).toHaveLength(2)
@@ -37,6 +37,8 @@ describe('Yonghe double front doors', () => {
     expect(groups.every(Boolean)).toBe(true)
     expect(new Set(groups).size).toBe(2)
     expect(groups.every(group => group!.startsWith('storefront-door:yonghe-slot-2:cell:'))).toBe(true)
+    const afterGroups = buttons.map(tag => tag.match(/scene-character-switch__after" data-focus-visual-group="([^"]+)"/)?.[1])
+    expect(afterGroups).toEqual(groups)
     expect(buttons.every(tag => tag.includes('data-focus-passage-phase="closed"'))).toBe(true)
     expect(buttons.every(tag => tag.includes('data-focus-target-policy="passage"'))).toBe(true)
     expect(buttons.every(tag => tag.includes('aria-label='))).toBe(true)
