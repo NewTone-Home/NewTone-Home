@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineAvailableReadingWidthPx, mainlineCanRenderFirstReadingGlyph, mainlineInteractionSpace, mainlineIsInteriorSpace, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingBounds, mainlineReadingCameraOffset, mainlineReadingFontSizePx, mainlineReadingStaticOpacity, mainlineReadingOpacityForActor, resolveMainlineDialogueParticipants } from '../src/center/runtime/mainlineTextReading'
+import { mainlineAvailableReadingWidthPx, mainlineCanRenderFirstReadingGlyph, mainlineInteractionSpace, mainlineIsInteriorSpace, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingBounds, mainlineReadingCameraOffset, mainlineReadingFadeTransitionMs, mainlineReadingFontSizePx, mainlineReadingStaticOpacity, mainlineReadingStaticOpacityForBoundsUnion, mainlineObservationTypingIntervalMs, mainlineReadingOpacityForActor, resolveMainlineDialogueParticipants } from '../src/center/runtime/mainlineTextReading'
 import type { MainlineSceneDialogue } from '../src/center/runtime/mainlineSceneModel'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
@@ -9,6 +9,11 @@ describe('mainline reading-space effects', () => {
     expect(mainlineReadingFontSizePx({ width: 411, height: 914 })).toBe(12)
   })
 
+  it('uses the approved slower local fade and observation typing timings', () => {
+    expect(mainlineReadingFadeTransitionMs).toBe(400)
+    expect(mainlineObservationTypingIntervalMs).toBe(45)
+  })
+
   it('lets static objects reach full transparency at the text and recover outside its fade area', () => {
     const reading = { x: 50, y: 50 }
     const box = { widthPx: 180, heightPx: 40 }
@@ -16,6 +21,18 @@ describe('mainline reading-space effects', () => {
     expect(mainlineReadingStaticOpacity({ x: 50.5, y: 50 }, reading, box, 1)).toBe(0)
     expect(mainlineReadingStaticOpacity({ x: 55, y: 50 }, reading, box, 1)).toBeGreaterThan(0)
     expect(mainlineReadingStaticOpacity({ x: 80, y: 50 }, reading, box, 1)).toBe(1)
+  })
+
+  it('fades a whole L counter from the union of its legs without treating the empty corner as counter', () => {
+    const lCounter = [
+      { x: 40, y: 0, width: 4, height: 30 },
+      { x: 0, y: 28, width: 44, height: 4 },
+    ]
+    const box = { widthPx: 120, heightPx: 40 }
+
+    expect(mainlineReadingStaticOpacityForBoundsUnion(lCounter, { x: 10, y: 10 }, box, 1)).toBe(1)
+    expect(mainlineReadingStaticOpacityForBoundsUnion(lCounter, { x: 20, y: 30 }, box, 1)).toBe(0)
+    expect(mainlineReadingStaticOpacityForBoundsUnion(lCounter, { x: 42, y: 10 }, box, 1)).toBe(0)
   })
 
   it('keeps actors visible while marking actors crossing the reading surface semi-transparent', () => {

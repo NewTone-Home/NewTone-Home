@@ -3,6 +3,7 @@ import type { CSSProperties, KeyboardEvent } from 'react'
 import type { MainlineContinuousStructure, MainlineSceneEntity } from './mainlineSceneModel'
 import { counterOutlineGeometry } from './counterOutlineGeometry'
 import { sceneFrameMotionMsForRect } from './sceneMotion'
+import { mainlineReadingFadeTransitionMs } from './mainlineTextReading'
 
 type Props = {
   parts: readonly MainlineContinuousStructure[]
@@ -29,7 +30,7 @@ function CounterSurface({ parts, onInteract, presentationActive, readingFilter }
   const labelStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 16, fontFamily: 'inherit', fontWeight: 'inherit', letterSpacing: 0, lineHeight: 1, color: 'inherit', background: 'none', border: 0, padding: 0, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }
   const active = presentationActive !== false
   const animatedPresentation = presentationActive !== undefined
-  return <svg data-counter-outline-group={group} data-interior-active={animatedPresentation ? active ? 'true' : 'false' : undefined} data-surface-role={parts[0].counterSurface!.role ?? 'counter'} aria-label={parts[0].counterSurface!.label ?? '柜台'} role="group" viewBox={`0 0 ${bounds.width} ${bounds.height}`} preserveAspectRatio="none" style={{ position: 'absolute', left: `${bounds.x / 19.2}%`, top: `${bounds.y / 10.8}%`, width: `${bounds.width / 19.2}%`, height: `${bounds.height / 10.8}%`, overflow: 'visible', pointerEvents: 'none', zIndex: 3, color: 'var(--interaction-normal)', opacity: .9, filter: readingFilter, transition: 'filter 180ms linear' }}>
+  return <svg data-counter-outline-group={group} data-interior-active={animatedPresentation ? active ? 'true' : 'false' : undefined} data-surface-role={parts[0].counterSurface!.role ?? 'counter'} aria-label={parts[0].counterSurface!.label ?? '柜台'} role="group" viewBox={`0 0 ${bounds.width} ${bounds.height}`} preserveAspectRatio="none" style={{ position: 'absolute', left: `${bounds.x / 19.2}%`, top: `${bounds.y / 10.8}%`, width: `${bounds.width / 19.2}%`, height: `${bounds.height / 10.8}%`, overflow: 'visible', pointerEvents: 'none', zIndex: 3, color: 'var(--interaction-normal)', opacity: .9, filter: readingFilter, transition: `filter ${mainlineReadingFadeTransitionMs}ms linear` }}>
     {parts.map((part, index) => {
       const box = rectangles[index], meta = part.counterSurface!, vertical = meta.orientation === 'vertical'
       const label = meta.label ?? '柜台', length = Array.from(label).length
