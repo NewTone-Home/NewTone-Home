@@ -1192,6 +1192,29 @@
 }
 .scene-dialogue-dimmer--observation { opacity: .18; }
 .scene-dialogue-dimmer--dialogue { opacity: .42; }
+.scene-dialogue-dimmer-mask-defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+.scene-mainline-focus-group.scene-mainline-menu-feature,
+.scene-mainline-focus-group.scene-mainline-menu-feature.scene-mainline-interaction--normal-unexplored,
+.scene-mainline-focus-group.scene-mainline-menu-feature.scene-mainline-interaction--explored,
+.scene-mainline-focus-group.scene-mainline-menu-feature.scene-mainline-interaction--active {
+  color: var(--interaction-normal);
+  opacity: .9;
+}
+.scene-mainline-menu-feature:hover,
+.scene-mainline-menu-feature:focus-visible,
+.scene-mainline-menu-feature.is-active,
+.scene-mainline-menu-feature:hover > .scene-mainline-focus-group__glyph,
+.scene-mainline-menu-feature:focus-visible > .scene-mainline-focus-group__glyph,
+.scene-mainline-menu-feature.is-active > .scene-mainline-focus-group__glyph,
+.scene-mainline-menu-feature:hover .scene-mainline-focus-group__glyph-visual,
+.scene-mainline-menu-feature:focus-visible .scene-mainline-focus-group__glyph-visual,
+.scene-mainline-menu-feature.is-active .scene-mainline-focus-group__glyph-visual {
+  color: var(--interaction-normal);
+}
+.scene-mainline-menu-feature:focus-visible {
+  outline: 1px dashed currentColor;
+  outline-offset: 3px;
+}
 .scene-mainline-action .shared-entry-control {
   padding: 0;
 }
