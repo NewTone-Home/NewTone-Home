@@ -31,11 +31,11 @@ export function mainlineGeometryCellWithinViewport(
   sceneId?: string,
   screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
   viewportMetrics: SceneScreenMetrics = screenMetrics,
+  visibleWorldSpan = mainlineVisibleWorldSpan(viewportMetrics),
 ) {
   const worldX = sceneId === 'commercial-street' ? projectCommercialStreetX(cell.x, screenMetrics) : cell.x
-  const span = mainlineVisibleWorldSpan(viewportMetrics)
-  const viewportX = 50 + (worldX + cameraOffset.x - 50) / span.x * 100
-  const viewportY = 50 + (cell.y + cameraOffset.y - 50) / span.y * 100
+  const viewportX = 50 + (worldX + cameraOffset.x - 50) / visibleWorldSpan.x * 100
+  const viewportY = 50 + (cell.y + cameraOffset.y - 50) / visibleWorldSpan.y * 100
   return viewportX >= -overscan && viewportX <= 100 + overscan
     && viewportY >= -overscan && viewportY <= 100 + overscan
 }

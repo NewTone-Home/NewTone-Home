@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mainlineCanonicalSceneGeometryUnits, mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineEntityBelongsToActiveRoom } from '../src/center/runtime/mainlineSceneModel'
 import { mainlineGeometryCellWithinViewport, mainlineGeometryUnitShouldRender } from '../src/center/runtime/mainlineSceneVisibility'
+import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { mainlineCameraOffset, mainlineCameraTarget, mainlineVisibleWorldSpan } from '../src/center/runtime/mainlineViewport'
 import { projectCommercialStreetX } from '../src/center/runtime/commercialStreetGridProjection'
 
@@ -21,6 +22,27 @@ describe('continuous commercial-street shell visibility', () => {
     expect(mainlineGeometryCellWithinViewport({ x: 90, y: 50 }, { x: -4, y: 0 })).toBe(true)
     expect(mainlineGeometryCellWithinViewport({ x: 95, y: 50 }, { x: -4, y: 0 })).toBe(false)
     expect(mainlineGeometryCellWithinViewport({ x: 22, y: -7 }, { x: 0, y: 0 })).toBe(false)
+  })
+
+  it('keeps precomputed viewport-span culling identical across the full commercial shell', () => {
+    const street = mainlineScenes['commercial-street']
+    const viewports = [
+      { width: 390, height: 560 },
+      { width: 1280, height: 800 },
+      sceneDesignReferenceMetrics,
+    ]
+    const units = mainlineCanonicalSceneGeometryUnits(street, sceneDesignReferenceMetrics)
+      .filter(unit => unit.sourceWallId?.endsWith('-shell'))
+    const cells = units.flatMap(unit => unit.visual.cells)
+    expect(cells.length).toBeGreaterThan(500)
+    for (const viewport of viewports) {
+      const span = mainlineVisibleWorldSpan(viewport)
+      for (const cameraOffset of [{ x: 0, y: 0 }, { x: -18.25, y: 7.5 }]) {
+        const ordinary = cells.map(cell => mainlineGeometryCellWithinViewport(cell, cameraOffset, 5, street.id, sceneDesignReferenceMetrics, viewport))
+        const precomputed = cells.map(cell => mainlineGeometryCellWithinViewport(cell, cameraOffset, 5, street.id, sceneDesignReferenceMetrics, viewport, span))
+        expect(precomputed).toEqual(ordinary)
+      }
+    }
   })
 
   it('keeps the projected actor in the camera deadzone and culls shell cells in projected viewport coordinates', () => {

@@ -16,7 +16,7 @@ import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoor
 import { mainlineWorldFontSizePx, sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { readMainlineViewportMetrics, type MainlineViewportMetrics } from './mainlineViewportProjection'
 import { commercialStreetHorizontalScale, projectCommercialStreetX } from './commercialStreetGridProjection'
-import { mainlineWorldPointFromClient, mainlineWorldScale } from './mainlineViewport'
+import { mainlineWorldPointFromClient, mainlineWorldScale, mainlineVisibleWorldSpan } from './mainlineViewport'
 import { useSceneFocusFrameController } from './SceneFocusFrames'
 import { sceneFrameDefaultMotionMs } from './sceneMotion'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
@@ -968,7 +968,10 @@ export function MainlineSceneRenderer({
   // collision against another.
   const renderScreenMetrics = geometrySnapshot.screenMetrics
   const horizontalGridScale = scene.id === 'commercial-street' ? commercialStreetHorizontalScale(renderScreenMetrics) : 1
-  const sceneRenderBounds = mainlineSceneRenderBounds(scene, geometrySnapshot.layout, renderScreenMetrics, horizontalGridScale)
+  const sceneRenderBounds = useMemo(
+    () => mainlineSceneRenderBounds(scene, geometrySnapshot.layout, renderScreenMetrics, horizontalGridScale),
+    [geometrySnapshot.layout, horizontalGridScale, renderScreenMetrics, scene],
+  )
   const worldScale = mainlineWorldScale(viewportMetrics)
   const readingMetrics = viewportMetrics
   const activeReadingPosition = sceneEcho?.position ?? dialoguePosition
@@ -1074,11 +1077,12 @@ export function MainlineSceneRenderer({
   // In the continuous commercial street, room ownership only controls room
   // contents. Shell glyphs are culled by camera visibility, never by room
   // transitions, while their collision/navigation geometry stays persistent.
+  const visibleShellWorldSpan = useMemo(() => mainlineVisibleWorldSpan(viewportMetrics), [viewportMetrics])
   const renderedGeometryCells = useMemo(() => geometryCells.filter(({ unit, cell }) => {
     if (!mainlineGeometryUnitShouldRender(scene.id, unit, activeShellRoomId, layoutMode)) return false
     if (!unit.sourceWallId?.endsWith('-shell')) return true
-    return mainlineGeometryCellWithinViewport(cell, renderCameraOffset, 5, scene.id, renderScreenMetrics, viewportMetrics)
-  }), [activeShellRoomId, renderCameraOffset, geometryCells, layoutMode, renderScreenMetrics, scene.id, viewportMetrics])
+    return mainlineGeometryCellWithinViewport(cell, renderCameraOffset, 5, scene.id, renderScreenMetrics, viewportMetrics, visibleShellWorldSpan)
+  }), [activeShellRoomId, renderCameraOffset, geometryCells, layoutMode, renderScreenMetrics, scene.id, viewportMetrics, visibleShellWorldSpan])
 
   const focusGroupCells = useMemo(() => {
     const groups = new Map<string, MainlineGeometryCellEntry[]>()
