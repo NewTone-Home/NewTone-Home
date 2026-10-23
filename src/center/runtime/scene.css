@@ -1198,7 +1198,7 @@
 .scene-mainline-focus-group.scene-mainline-menu-feature.scene-mainline-interaction--explored,
 .scene-mainline-focus-group.scene-mainline-menu-feature.scene-mainline-interaction--active {
   color: var(--interaction-normal);
-  opacity: .9;
+  opacity: 1;
 }
 .scene-mainline-menu-feature:hover,
 .scene-mainline-menu-feature:focus-visible,

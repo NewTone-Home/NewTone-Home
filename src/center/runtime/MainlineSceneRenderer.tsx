@@ -33,10 +33,10 @@ import { activeStorefrontInteriorOwner, storefrontCellVisualState, storefrontCha
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 import { storefrontContactGeometry } from './storefrontContactGeometry'
-import { mainlineAvailableReadingWidthPx, mainlineCanRenderFirstReadingGlyph, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingStaticOpacity, mainlineReadingStaticOpacityForBoundsUnion, mainlineReadingOpacityForActor, mainlineObservationTypingIntervalMs, mainlineReadingFadeTransitionMs, resolveMainlineDialogueParticipants } from './mainlineTextReading'
+import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingStaticOpacity, mainlineReadingStaticOpacityForBoundsUnion, mainlineReadingOpacityForActor, mainlineObservationTypingIntervalMs, mainlineReadingFadeTransitionMs, resolveMainlineDialogueParticipants } from './mainlineTextReading'
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
 import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
-import { currentMainlineReadingTargetIds, mainlinePlaceReadingBox, mainlineReadingMaskRects } from './mainlineReadingProtection'
+import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingBox, mainlineReadingMaskRects } from './mainlineReadingProtection'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -838,6 +838,7 @@ export function MainlineSceneRenderer({
 }: MainlineSceneRendererProps) {
   const readingMaskId = `mainline-reading-mask-${useId().replace(/:/g, '')}`
   const [dialogueReady, setDialogueReady] = useState(false)
+  const [readingOverflowPage, setReadingOverflowPage] = useState<{ key: string; index: number } | null>(null)
   const speakerPlacementRef = useRef<{ session: string; metrics: string; anchor: ReturnType<typeof mainlineSpeakerAnchor> } | null>(null)
   if (!dialogue || !dialogueLine || !dialoguePosition || sceneEcho) speakerPlacementRef.current = null
   const dialogueReadyGroupRef = useRef<string | null>(null)
@@ -854,10 +855,6 @@ export function MainlineSceneRenderer({
   const altarLeaderIds = useMemo(() => new Set(scene.altars.map((altar) => altar.incenseBurnerId)), [scene.altars])
   const occupiedSeatIds = useMemo(() => runtimeOccupiedSeatIds ?? mainlineSceneOccupiedSeatIds(scene), [runtimeOccupiedSeatIds, scene])
   const protagonistPresentation = mainlineProtagonistPresentation(playerSeatId)
-  const currentDialogueGroup = dialogue && dialogueLine
-    ? `dialogue:${dialogueLine.id}:${dialogueSegmentIndex}`
-    : null
-  currentDialogueGroupRef.current = currentDialogueGroup
   const updateDialogueReady = useCallback((group: string, ready: boolean) => {
     if (ready) dialogueReadyGroupRef.current = group
     else if (dialogueReadyGroupRef.current === group) dialogueReadyGroupRef.current = null
@@ -973,6 +970,10 @@ export function MainlineSceneRenderer({
   const readingMetrics = viewportMetrics
   const activeReadingPosition = sceneEcho?.position ?? dialoguePosition
   const activeReadingText = sceneEcho?.text ?? dialogueText ?? dialogueLine?.text ?? ''
+  const readingOverflowKey = sceneEcho
+    ? `echo:${sceneEcho.id}:${sceneEcho.segmentIndex}:${activeReadingText}`
+    : `dialogue:${dialogueLine?.id ?? ''}:${dialogueSegmentIndex}:${activeReadingText}`
+  const readingOverflowIndex = readingOverflowPage?.key === readingOverflowKey ? readingOverflowPage.index : 0
   const dialogueParticipantResolution = resolveMainlineDialogueParticipants(scene, dialogue, dialogueLine)
   const dialogueParticipantNpcIds = dialogueParticipantResolution.npcIds
   const readingProtectedEntityIds = useMemo(() => {
@@ -1006,7 +1007,6 @@ export function MainlineSceneRenderer({
   const activeReadingLayout = activeReadingPosition
     ? mainlineEchoLayout(activeReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: activeReadingWidthPx })
     : null
-  const readingVisualActive = Boolean(readingMode && activeReadingPosition && activeReadingLayout)
   const projectReadingX = (x: number) => scene.id === 'commercial-street' ? projectCommercialStreetX(x, renderScreenMetrics) : x
   const geometryUnits = geometrySnapshot.units
   const switchableStorefronts = useMemo(() => scene.storefronts.filter(slot => slot.portalId && slot.characterSwitch), [scene.storefronts])
@@ -1129,30 +1129,39 @@ export function MainlineSceneRenderer({
     add(mainlineLabelFootprint(protagonistPresentation.kind === 'dot' ? '人' : protagonistPresentation.label, protagonistVisualPosition, renderScreenMetrics, { lineHeight: 1 }))
     return boxes
   }, [dialogueParticipantNpcIds, geometrySnapshot, horizontalGridScale, npcPositions, npcRuntimeSnapshots, protagonistPresentation.label, protagonistVisualPosition, readingMode, readingProtectedEntityIds, renderScreenMetrics, scene])
+  const readingFit = readingMode && activeReadingPosition
+    ? mainlineFitReadingText(scene, activeReadingPosition, activeReadingText, !sceneEcho ? dialogueLine?.speaker : undefined, activeReadingWidthPx, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset)
+    : null
+  const fittedReadingSegments = readingFit?.segments ?? [activeReadingText]
+  const displayOverflowIndex = Math.min(readingOverflowIndex, Math.max(0, fittedReadingSegments.length - 1))
+  const displayReadingText = fittedReadingSegments[displayOverflowIndex] ?? activeReadingText
+  const displayReadingLayout = readingFit
+    ? mainlineEchoLayout(displayReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: readingFit.maxWidthPx })
+    : activeReadingLayout
+  const currentDialogueGroup = dialogue && dialogueLine
+    ? `dialogue:${dialogueLine.id}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`
+    : null
+  currentDialogueGroupRef.current = currentDialogueGroup
+  const readingVisualActive = Boolean(readingMode && activeReadingPosition && displayReadingLayout)
   const readingMaskRects = useMemo(() => mainlineReadingMaskRects(sceneRenderBounds, readingProtectedVisuals), [readingProtectedVisuals, sceneRenderBounds])
-  const readingDisplayPosition = readingMode && activeReadingPosition && activeReadingLayout
-    ? mainlinePlaceReadingBox(scene, activeReadingPosition, { width: activeReadingLayout.widthPx, height: activeReadingLayout.heightPx }, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset)
+  const readingDisplayPosition = readingMode && activeReadingPosition && displayReadingLayout
+    ? mainlinePlaceReadingBox(scene, activeReadingPosition, { width: displayReadingLayout.widthPx, height: displayReadingLayout.heightPx }, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset) ?? readingFit?.position ?? activeReadingPosition
     : activeReadingPosition
-  const activeReadingCanRender = Boolean(readingDisplayPosition && activeReadingLayout && mainlineCanRenderFirstReadingGlyph(
-    activeReadingText,
-    activeReadingWidthPx,
-    activeReadingLayout.fontSizePx,
-  ))
   const readingDisplayShift = activeReadingPosition && readingDisplayPosition
     ? { x: projectReadingX(readingDisplayPosition.x) - projectReadingX(activeReadingPosition.x), y: readingDisplayPosition.y - activeReadingPosition.y }
     : { x: 0, y: 0 }
   const staticReadingFilter = (point: Point) => {
-    if (!readingVisualActive || !readingDisplayPosition || !activeReadingLayout) return undefined
-    const opacity = mainlineReadingStaticOpacity(point, readingDisplayPosition, activeReadingLayout, worldScale, projectReadingX)
+    if (!readingVisualActive || !readingDisplayPosition || !displayReadingLayout) return undefined
+    const opacity = mainlineReadingStaticOpacity(point, readingDisplayPosition, displayReadingLayout, worldScale, projectReadingX)
     return opacity < .999 ? `opacity(${opacity})` : undefined
   }
   const staticReadingFilterForBounds = (bounds: readonly CollisionBox[]) => {
-    if (!readingVisualActive || !readingDisplayPosition || !activeReadingLayout) return undefined
-    const opacity = mainlineReadingStaticOpacityForBoundsUnion(bounds, readingDisplayPosition, activeReadingLayout, worldScale, projectReadingX)
+    if (!readingVisualActive || !readingDisplayPosition || !displayReadingLayout) return undefined
+    const opacity = mainlineReadingStaticOpacityForBoundsUnion(bounds, readingDisplayPosition, displayReadingLayout, worldScale, projectReadingX)
     return opacity < .999 ? `opacity(${opacity})` : undefined
   }
-  const actorReadingOpacity = (point: Point) => readingVisualActive && readingDisplayPosition && activeReadingLayout
-    ? mainlineReadingActorOpacity(point, readingDisplayPosition, activeReadingLayout, worldScale, projectReadingX)
+  const actorReadingOpacity = (point: Point) => readingVisualActive && readingDisplayPosition && displayReadingLayout
+    ? mainlineReadingActorOpacity(point, readingDisplayPosition, displayReadingLayout, worldScale, projectReadingX)
     : 1
   const objectFrameOwners = useMemo(() => {
     const owners = new Map<string, string>()
@@ -1721,14 +1730,14 @@ export function MainlineSceneRenderer({
           {(sceneEcho || (dialogue && dialogueLine && dialoguePosition)) && (() => {
             const isDialogue = !sceneEcho && Boolean(dialogue && dialogueLine && dialoguePosition)
             const isLeaving = sceneEcho?.phase === 'leaving' || (isDialogue && dialoguePhase === 'leaving')
-            const text = sceneEcho?.text ?? dialogueText ?? dialogueLine?.text ?? ''
+            const text = displayReadingText
             const sourcePosition = sceneEcho?.position ?? dialoguePosition!
             const position = readingDisplayPosition ?? sourcePosition
             const group = sceneEcho ? `echo:${sceneEcho.id}` : `dialogue:${dialogueLine!.id}`
             const hasNextSegment = sceneEcho
               ? sceneEcho.segmentIndex + 1 < sceneEcho.segments.length
               : dialogueSegmentIndex + 1 < dialogueSegmentCount || Boolean(dialogue && dialogueLineIndex! + 1 < dialogue.lines.length)
-            const echoLayout = mainlineEchoLayout(text, readingMetrics, {
+            const echoLayout = displayReadingLayout ?? mainlineEchoLayout(text, readingMetrics, {
               speaker: isDialogue ? dialogueLine!.speaker : undefined,
               maxWidthPx: activeReadingWidthPx,
             })
@@ -1746,7 +1755,7 @@ export function MainlineSceneRenderer({
               key={`speaker:${scene.id}:${dialogue!.triggerEntityId}`}
               className={`scene-mainline-speaker-anchor ${isLeaving ? 'is-leaving' : ''}`}
               aria-live="polite"
-              style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.worldWidthPx}px`, minHeight: `${echoLayout.heightPx / worldScale}px`, fontSize: `${echoLayout.fontSizePx / worldScale}px`, visibility: activeReadingCanRender ? undefined : 'hidden' }}
+              style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.worldWidthPx}px`, minHeight: `${echoLayout.heightPx / worldScale}px`, fontSize: `${echoLayout.fontSizePx / worldScale}px` }}
             ><DialogueSpeaker speaker={dialogueLine!.speaker} /></div>}
             <div
               key={sceneEcho?.id ?? dialogueLine!.id}
@@ -1761,7 +1770,6 @@ export function MainlineSceneRenderer({
                 fontSize: `${echoLayout.fontSizePx / worldScale}px`,
                 maxWidth: `${Math.max(1, activeReadingWidthPx / worldScale)}px`,
                 overflow: 'hidden',
-                visibility: activeReadingCanRender ? undefined : 'hidden',
               } as CSSProperties}
               aria-live="polite"
               data-scene-interaction-text={sceneEcho?.entityId ?? dialogue?.triggerEntityId ?? 'scene'}
@@ -1770,10 +1778,10 @@ export function MainlineSceneRenderer({
               data-scene-dialogue={isDialogue ? dialogue?.triggerEntityId : undefined}
               data-dialogue-line-id={isDialogue ? dialogueLine?.id : undefined}
               data-dialogue-speaker={isDialogue ? dialogueLine?.speaker : undefined}
-              data-scene-segment-index={sceneEcho?.segmentIndex ?? dialogueSegmentIndex}
-              data-scene-segment-count={sceneEcho?.segments.length ?? dialogueSegmentCount}
-              data-scene-segment-advance={hasNextSegment ? 'available' : 'complete'}
-              data-scene-reading-paused-for-glyph={activeReadingCanRender ? undefined : 'true'}
+              data-scene-segment-index={(sceneEcho?.segmentIndex ?? dialogueSegmentIndex) + displayOverflowIndex}
+              data-scene-segment-count={(sceneEcho?.segments.length ?? dialogueSegmentCount) + fittedReadingSegments.length - 1}
+              data-scene-segment-advance={hasNextSegment || displayOverflowIndex + 1 < fittedReadingSegments.length ? 'available' : 'complete'}
+              data-scene-reading-page-fit={readingFit?.fits === false ? 'false' : 'true'}
               data-scene-dialogue-ready={isDialogue ? String(dialogueReady) : undefined}
               onAnimationEnd={(event) => {
                 if (!isLeaving || event.target !== event.currentTarget) return
@@ -1783,7 +1791,7 @@ export function MainlineSceneRenderer({
             >
               {isDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
-                ? <DialogueText group={`${group}:${dialogueSegmentIndex}`} text={text} onReadyChange={updateDialogueReady} />
+                ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} text={text} onReadyChange={updateDialogueReady} />
                 : <ObservationText echoId={sceneEcho!.id} text={text} typing={sceneEcho!.typing} onTypingComplete={onSceneEchoTypingComplete} />}
             </div>
             </Fragment>
@@ -1829,7 +1837,11 @@ export function MainlineSceneRenderer({
               onPointerUp={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation()
-                if (!activeReadingCanRender) return
+                if (displayOverflowIndex + 1 < fittedReadingSegments.length) {
+                  setReadingOverflowPage({ key: readingOverflowKey, index: displayOverflowIndex + 1 })
+                  return
+                }
+                setReadingOverflowPage(null)
                 if (readingMode === 'dialogue') {
                   if (currentDialogueGroupRef.current !== null
                     && dialogueAdvanceConsumedGroupRef.current !== currentDialogueGroupRef.current

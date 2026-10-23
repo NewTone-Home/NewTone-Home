@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { currentMainlineReadingTargetIds, mainlinePlaceReadingBox, mainlineReadingMaskRects } from '../src/center/runtime/mainlineReadingProtection'
+import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingBox, mainlineReadingMaskRects } from '../src/center/runtime/mainlineReadingProtection'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineReadingBounds, mainlineInteractionRoom } from '../src/center/runtime/mainlineTextReading'
 import { projectCommercialStreetX } from '../src/center/runtime/commercialStreetGridProjection'
@@ -60,7 +60,7 @@ describe('reading target protection', () => {
   it('finds legal narrow-screen reading positions at all four Cafe room corners around the player and target', () => {
     const scene = mainlineScenes['commercial-street']
     const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
-    const metrics = { width: 390, height: 550, viewportWidth: 390 }
+    const metrics = { width: 360, height: 550, viewportWidth: 360 }
     const scale = .65
     const insetX = 2 / 19.2 * 100
     const insetY = 2 / 10.8 * 100
@@ -82,12 +82,54 @@ describe('reading target protection', () => {
     }
   })
 
-  it('does not render text in a room too small for a complete non-overlapping reading box', () => {
-    const base = mainlineScenes['commercial-street']
-    const tinyRoom = { id: 'tiny-test-room', kind: 'room' as const, bounds: { x: 40, y: 40, width: 1, height: 1 } }
-    const scene = { ...base, rooms: [tinyRoom] }
-    const source = { x: 40.5, y: 40.5 }
-    expect(mainlinePlaceReadingBox(scene, source, { width: 120, height: 36 }, [{ x: 40.4, y: 40.4, width: .2, height: .2 }], { width: 390, height: 844 }, .65, { x: 9.5, y: 9.5 })).toBeNull()
+  it('shortens a real narrow-screen Cafe reading page around the player without shrinking the font or losing text', () => {
+    const scene = mainlineScenes['commercial-street']
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
+    const metrics = { width: 360, height: 550, viewportWidth: 360 }
+    const scale = .65
+    const source = { x: room.bounds.x + .7, y: room.bounds.y + .8 }
+    const cameraOffset = { x: 50 - source.x, y: 50 - source.y }
+    const text = '老周把咖啡放到桌上。你可以先看看店里的菜单，再决定要不要继续聊下去。'
+    const player = { x: source.x - .4, y: source.y - .65, width: .8, height: 1.3 }
+    const result = mainlineFitReadingText(scene, source, text, undefined, 180, [player], metrics, scale, cameraOffset)
+
+    expect(result.fits).toBe(true)
+    expect(result.segments.length).toBeGreaterThan(1)
+    expect(result.segments.join('')).toBe(text)
+    expect(result.layout.fontSizePx).toBe(12)
+    expect(mainlineInteractionRoom(scene, result.position)?.id).toBe(room.id)
+    const bounds = mainlineReadingBounds(scene, source, metrics, scale, cameraOffset)
+    const halfWidth = result.layout.widthPx / (1920 * scale) * 50
+    const halfHeight = result.layout.heightPx / (1080 * scale) * 50
+    expect(result.position.x - halfWidth).toBeGreaterThanOrEqual(bounds.x - 1e-5)
+    expect(result.position.x + halfWidth).toBeLessThanOrEqual(bounds.x + bounds.width + 1e-5)
+    expect(result.position.y - halfHeight).toBeGreaterThanOrEqual(bounds.y - 1e-5)
+    expect(result.position.y + halfHeight).toBeLessThanOrEqual(bounds.y + bounds.height + 1e-5)
+    expect(result.position).not.toEqual(source)
+  })
+
+  it('keeps the real renderer text visible and advances its fitted pages at the 360x550 support floor', () => {
+    const scene = mainlineScenes['commercial-street']
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
+    const source = { x: room.bounds.x + .7, y: room.bounds.y + .8 }
+    const metrics = { width: 360, height: 550, viewportWidth: 360 }
+    const owner = activeStorefrontInteriorOwner(scene, source)!
+    const geometrySnapshot = createMainlineSceneGeometrySnapshot(scene, source, {}, metrics, new Map())
+    const html = renderToStaticMarkup(<MainlineSceneRenderer
+      scene={scene} position={source} moving={false} destination={null} layoutMode={false} layout={{}} activeObjectId="commercial-cafe-menu"
+      geometrySnapshot={geometrySnapshot} viewportMetrics={metrics} cameraOffset={{ x: 50 - source.x, y: 50 - source.y }}
+      onLayoutChange={() => {}} onInteract={() => {}} onWalk={() => {}} freezeFrameMeasurements
+      readingMode="observation" sceneEcho={{ id: 88, entityId: 'commercial-cafe-menu', text: '老周把咖啡放到桌上。你可以先看看店里的菜单，再决定要不要继续聊下去。', segments: ['老周把咖啡放到桌上。你可以先看看店里的菜单，再决定要不要继续聊下去。'], segmentIndex: 0, position: source, typing: false }}
+      visibleInteriorStorefrontIds={[owner]} paintedInteriorStorefrontId={owner}
+    />)
+    const reading = html.match(/<div[^>]*data-scene-echo="commercial-cafe-menu"[^>]*>/)?.[0]
+    const segmentCount = Number(reading?.match(/data-scene-segment-count="(\d+)"/)?.[1])
+    expect(reading).toBeTruthy()
+    expect(reading).not.toContain('visibility:hidden')
+    expect(reading).toContain('data-scene-reading-page-fit="true"')
+    expect(segmentCount).toBe(2)
+    expect(reading).not.toContain('data-scene-reading-paused-for-glyph')
+    expect(html).toContain('data-scene-dialogue-shield="true"')
   })
 
   it('punches only the protected counter legs out of the dimmer, not the empty L corner', () => {

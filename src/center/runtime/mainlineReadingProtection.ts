@@ -4,6 +4,9 @@ import type { MainlineSceneDefinition } from './mainlineScenes'
 import { mainlineInteractionRoom, mainlineReadingBounds } from './mainlineTextReading'
 import { projectCommercialStreetX } from './commercialStreetGridProjection'
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
+import { mainlineEchoLayout, type MainlineEchoLayout } from './mainlineEchoLayout'
+import { mainlineReadingFontSizePx } from './mainlineTextReading'
+import { splitMainlineInteractionTextToFit } from './mainlineTextSegments'
 
 export function currentMainlineReadingTargetIds(input: {
   readingMode: boolean
@@ -37,9 +40,8 @@ function projectedBox(scene: MainlineSceneDefinition, box: CollisionBox, metrics
 /**
  * Keep a reading box beside its interaction target when the authored point
  * would cover that target. Candidate points are constrained to the current
- * room/corridor and current visible viewport; the source point is retained if
- * no legal non-overlapping point exists, return null so the reader can pause
- * without covering a protected object or consuming the current segment.
+ * room/corridor and current visible viewport. A null result tells the caller
+ * to try a shorter page; it must never hide text or block the continue action.
  */
 export function mainlinePlaceReadingBox(
   scene: MainlineSceneDefinition,
@@ -102,6 +104,36 @@ export function mainlinePlaceReadingBox(
   const projectedHundred = projectCommercialStreetX(100, metrics)
   const projectedRange = projectedHundred - projectedZero
   return { x: Math.abs(projectedRange) < 1e-6 ? source.x : (chosen.x - projectedZero) * 100 / projectedRange, y: chosen.y }
+}
+
+/** Find the longest first page that fits beside protected visuals and inside
+ * the current room. The caller keeps the remaining pages and advances them
+ * before advancing the authored dialogue/observation cursor. */
+export function mainlineFitReadingText(
+  scene: MainlineSceneDefinition,
+  source: Point,
+  text: string,
+  speaker: string | undefined,
+  maximumWidthPx: number,
+  protectedVisuals: readonly CollisionBox[],
+  metrics: SceneScreenMetrics,
+  worldScale: number,
+  cameraOffset: Point,
+): { segments: readonly string[]; position: Point; layout: MainlineEchoLayout; maxWidthPx: number; fits: boolean } {
+  const fontSizePx = mainlineReadingFontSizePx(metrics)
+  const minimumWidthPx = fontSizePx * 2 + 32
+  const stepPx = Math.max(4, fontSizePx / 2)
+  for (let widthPx = maximumWidthPx; widthPx >= minimumWidthPx; widthPx -= stepPx) {
+    const segments = splitMainlineInteractionTextToFit(text, Math.max(fontSizePx, widthPx - 40), fontSizePx)
+    const first = segments[0] ?? text
+    const layout = mainlineEchoLayout(first, metrics, { speaker, maxWidthPx: widthPx })
+    const position = mainlinePlaceReadingBox(scene, source, { width: layout.widthPx, height: layout.heightPx }, protectedVisuals, metrics, worldScale, cameraOffset)
+    if (position) return { segments, position, layout, maxWidthPx: widthPx, fits: true }
+  }
+  const segments = splitMainlineInteractionTextToFit(text, fontSizePx, fontSizePx)
+  const first = segments[0] ?? text
+  const layout = mainlineEchoLayout(first, metrics, { speaker, maxWidthPx: minimumWidthPx })
+  return { segments, position: source, layout, maxWidthPx: minimumWidthPx, fits: false }
 }
 
 /** Convert scene-space target bounds into mask coordinates relative to the full scene render bounds. */
