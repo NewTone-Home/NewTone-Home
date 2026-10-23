@@ -5,6 +5,7 @@ import { sceneFrameDefaultMotionMs, sceneFrameMotionMsForRect } from './sceneMot
 import { measureSceneCharacterRects, createSceneCharacterRectBatch, unionVisualRects, sceneElementVisualScale, sceneVisualRectInLocalSpace, sceneFrameBoundsInLocalSpace, sceneFocusVisualGapPx, sceneFocusStrokeInsetPx } from './sceneVisualBounds'
 import { beginFrameAppearance, beginFrameRetraction, completeFrameTransition, frameShouldCollapse, frameVisualPhase, preserveFrameRetractCorner, resumeFrameAppearance, type SceneFrameRuntime, type SceneFrameTarget } from './sceneFrameLifecycle'
 import { createEndpointMeasurementScheduler } from './sceneFocusFrameEndpointMeasure'
+import { createSceneFocusFrameDeferredMeasureScheduler } from './sceneFocusFrameDeferredMeasure'
 
 type FocusFrameCorner = SceneFrameRuntime['corner']
 
@@ -93,6 +94,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<ReadonlyMap<string, SceneFrameRuntime>>(new Map())
   const frameNodeRefsRef = useRef(new Map<string, (node: HTMLSpanElement | null) => void>())
   const frameNodesRef = useRef(new Map<string, HTMLSpanElement>())
+  const frameRefMeasurementFramesRef = useRef(new Map<string, number>())
   const measureGroupRef = useRef<(group: string) => void>(() => {})
   const [frameNodesRevision, setFrameNodesRevision] = useState(0)
   const [frameMeasurements, setFrameMeasurements] = useState<ReadonlyMap<string, { duration: number; geometry: SceneFocusFrameGeometry; bounds: CSSProperties }>>(new Map())
@@ -209,12 +211,21 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         // browser layout pass, so first entry does not retain a zero-size
         // placeholder until a later visit happens to trigger another resize.
         if (typeof window !== 'undefined') {
-          window.requestAnimationFrame(() => {
+          const existingFrame = frameRefMeasurementFramesRef.current.get(group)
+          if (existingFrame !== undefined) window.cancelAnimationFrame(existingFrame)
+          const frame = window.requestAnimationFrame(() => {
+            frameRefMeasurementFramesRef.current.delete(group)
             if (frameNodesRef.current.get(group) === node) measureGroupRef.current(group)
           })
+          frameRefMeasurementFramesRef.current.set(group, frame)
         }
       }
-      else frameNodesRef.current.delete(group)
+      else {
+        frameNodesRef.current.delete(group)
+        const pendingFrame = frameRefMeasurementFramesRef.current.get(group)
+        if (pendingFrame !== undefined && typeof window !== 'undefined') window.cancelAnimationFrame(pendingFrame)
+        frameRefMeasurementFramesRef.current.delete(group)
+      }
       setFrameNodesRevision((value) => value + 1)
     }
     frameNodeRefsRef.current.set(group, ref)
@@ -225,7 +236,10 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
 
   useLayoutEffect(() => {
     if (freezeMeasurements) return undefined
+    const pendingGroups = new Set(targetGroups)
+    const deferredMeasures = createSceneFocusFrameDeferredMeasureScheduler(window, 2)
     const measure = (groups: Iterable<string> = targetGroups) => {
+      const measuredGroups = new Set<string>()
       const updates = new Map<string, { duration: number; geometry: SceneFocusFrameGeometry; bounds: CSSProperties }>()
       const context = document.createElement('canvas').getContext('2d')
       const measureRects = createSceneCharacterRectBatch(nodes => measureSceneCharacterRects(nodes, context))
@@ -250,6 +264,8 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         const characters = stageNodes.groups.get(group) ?? []
         const viewportRect = unionVisualRects(measureRects(characters))
         if (!viewportRect) continue
+        measuredGroups.add(group)
+        pendingGroups.delete(group)
         const otherCharacters = stageNodes.characters
           .filter(element => !characters.some(target => target === element || target.contains(element) || element.contains(target)))
         const viewportNeighbors = measureRects(otherCharacters)
@@ -313,6 +329,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         }
         return changed ? next : current
       })
+      return measuredGroups
     }
 
     let measurementFrame: number | null = null
@@ -333,6 +350,19 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         || sceneFocusPaintGeometryStyle(record.oldValue) !== sceneFocusPaintGeometryStyle((record.target as HTMLElement).getAttribute('style')))) measureAll()
     })
     const endpointSchedulers = new Map<HTMLElement, ReturnType<typeof createEndpointMeasurementScheduler>>()
+    const observedVisualGroups = new WeakSet<HTMLElement>()
+    const observeVisualGroup = (element: HTMLElement, group: string) => {
+      if (!targetGroups.has(group) || observedVisualGroups.has(element)) return
+      observedVisualGroups.add(element)
+      observer.observe(element)
+      characterChanges.observe(element, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] })
+      const object = element.closest<HTMLElement>('.scene-mainline-object')
+      if (object) {
+        characterChanges.observe(object, { attributes: true, attributeFilter: ['style', 'class'] })
+        const paint = element.closest<HTMLElement>('.scene-mainline-object__grid-content')
+        if (paint) paintChanges.observe(paint, { attributes: true, attributeOldValue: true, attributeFilter: ['style', 'class'] })
+      }
+    }
     const characterProgressChanges = new MutationObserver((records) => {
       records.forEach((record) => {
         if (record.attributeName !== 'data-character-progress') return
@@ -365,14 +395,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
       }
       node.closest('.mainline-scene-stage')?.querySelectorAll<HTMLElement>('[data-focus-visual-group]').forEach(element => {
         if (element.dataset.focusVisualGroup === group) {
-          observer.observe(element)
-          characterChanges.observe(element, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] })
-          const object = element.closest<HTMLElement>('.scene-mainline-object')
-          if (object) {
-            characterChanges.observe(object, { attributes: true, attributeFilter: ['style', 'class'] })
-            const paint = element.closest<HTMLElement>('.scene-mainline-object__grid-content')
-            if (paint) paintChanges.observe(paint, { attributes: true, attributeOldValue: true, attributeFilter: ['style', 'class'] })
-          }
+          observeVisualGroup(element, group)
         }
       })
     })
@@ -380,8 +403,35 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
       .filter(([group]) => targetGroups.has(group))
       .map(([, node]) => node.closest('.mainline-scene-stage'))
       .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement))
+    const lateVisualChanges = new MutationObserver(records => {
+      const lateGroups = new Map<string, HTMLElement[]>()
+      const collect = (node: Node) => {
+        if (!(node instanceof HTMLElement)) return
+        const add = (element: HTMLElement) => {
+          const group = element.dataset.focusVisualGroup ?? ''
+          if (!targetGroups.has(group) || !pendingGroups.has(group)) return
+          const elements = lateGroups.get(group) ?? []
+          elements.push(element)
+          lateGroups.set(group, elements)
+        }
+        if (node.matches('[data-focus-visual-group]')) add(node)
+        node.querySelectorAll<HTMLElement>('[data-focus-visual-group]').forEach(add)
+        const ancestor = node.parentElement?.closest<HTMLElement>('[data-focus-visual-group]')
+        if (ancestor) add(ancestor)
+      }
+      records.forEach(record => record.addedNodes.forEach(collect))
+      lateGroups.forEach((elements, group) => {
+        elements.forEach(element => observeVisualGroup(element, group))
+        deferredMeasures.request(group, () => measure([group]).has(group))
+      })
+    })
     stages.forEach((stage) => {
       observer.observe(stage)
+      // A frame may mount before its visual glyph group (for example, a
+      // lazily painted outdoor table). Watch only structural additions, then
+      // measure the matching still-pending group at most twice. This is
+      // event-driven and does not scan the whole scene on every animation frame.
+      lateVisualChanges.observe(stage, { childList: true, subtree: true })
       stage.querySelectorAll<HTMLElement>('[data-character-progress]').forEach((host) => {
         if ([...host.querySelectorAll<HTMLElement>('[data-focus-visual-group]')]
           .some((element) => targetGroups.has(element.dataset.focusVisualGroup ?? ''))) {
@@ -396,6 +446,8 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
       characterChanges.disconnect()
       paintChanges.disconnect()
       characterProgressChanges.disconnect()
+      lateVisualChanges.disconnect()
+      deferredMeasures.dispose()
       endpointSchedulers.forEach((scheduler) => scheduler.dispose())
       endpointSchedulers.clear()
       document.fonts?.removeEventListener('loadingdone', measureAll)
