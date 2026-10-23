@@ -14,6 +14,7 @@ import {
   storefrontRestoreDelayMs,
   storefrontEntryRevealDelayMs,
   storefrontPresentationExitEvent,
+  storefrontSuppressedHandoffTargets,
   type StorefrontPresentationEvent,
   type StorefrontPresentationPhase,
 } from './storefrontPresentation'
@@ -150,6 +151,19 @@ export function useStorefrontPresentation(
         return next.size === current.size && [...next].every(([id, phase]) => current.get(id) === phase) ? current : next
       })
       if (handledOwnerRef.current && !nestedStorefrontIds.has(handledOwnerRef.current)) handledOwnerRef.current = null
+    }
+    const suppressedHandoffTargets = storefrontSuppressedHandoffTargets(
+      phaseByStorefront,
+      suppressedStorefrontIds,
+      handledOwnerRef.current,
+      activeStorefrontId,
+    )
+    if (suppressedHandoffTargets.length) {
+      for (const storefrontId of suppressedHandoffTargets) {
+        departedAtRef.current.delete(storefrontId)
+        transition(storefrontId, 'handoff')
+      }
+      return
     }
     if (handledOwnerRef.current === activeStorefrontId) return
     const previousOwner = handledOwnerRef.current

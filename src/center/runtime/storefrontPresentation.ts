@@ -155,6 +155,24 @@ export function storefrontPresentationExitEvent(storefrontId: string, suppressed
 }
 
 /**
+ * A newly suppressed entrance can already be outside its trigger owner while
+ * its visual grace period is still running. In that case the owner transition
+ * is already null, but the lingering presentation still needs a handoff.
+ */
+export function storefrontSuppressedHandoffTargets(
+  phases: ReadonlyMap<string, StorefrontPresentationPhase>,
+  suppressedStorefrontIds: ReadonlySet<string>,
+  handledOwnerId: string | null | undefined,
+  activeStorefrontId: string | null,
+) {
+  if (handledOwnerId !== activeStorefrontId || activeStorefrontId !== null) return []
+  return [...suppressedStorefrontIds].filter(storefrontId => {
+    const phase = phases.get(storefrontId) ?? 'baseline'
+    return phase !== 'baseline'
+  })
+}
+
+/**
  * The authored storefront approach point is the presentation trigger. The
  * existing nearRadius remains a small visual tolerance around that entrance
  * approach; it is not a second routing or door rule.

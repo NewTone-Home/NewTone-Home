@@ -19,6 +19,7 @@ import {
   storefrontDoorFrameShouldRetract,
   storefrontPresentationHandoffSource,
   storefrontPresentationExitEvent,
+  storefrontSuppressedHandoffTargets,
   storefrontPresentationShouldReveal,
 } from '../src/center/runtime/storefrontPresentation'
 
@@ -562,6 +563,23 @@ describe('commercial street storefront presentation', () => {
 
     const fruitTea = street.storefronts.find(storefront => storefront.id === 'commercial-north-slot-1')!
     expect(activeStorefrontPresentationOwner(street, mainlineStorefrontApproach(street, fruitTea), true, suppressed)).toBe(fruitTea.id)
+  })
+
+  it('hands off a suppressed restroom already lingering after its owner became null', () => {
+    const restroomId = 'cafe-restroom-sign'
+    const suppressed = new Set([restroomId])
+    const phases = new Map([[restroomId, 'lingering' as const]])
+
+    // Walking out of range first has already changed both owners to null;
+    // seating must still cancel the old leave grace period.
+    const targets = storefrontSuppressedHandoffTargets(phases, suppressed, null, null)
+    expect(targets).toEqual([restroomId])
+    expect(nextStorefrontPresentationPhase(phases.get(restroomId)!, 'handoff')).toBe('restoring')
+    expect(storefrontSuppressedHandoffTargets(new Map([[restroomId, 'baseline' as const]]), suppressed, null, null)).toEqual([])
+
+    // When the restroom was still the handled owner, the existing owner
+    // transition remains responsible and must not be processed twice.
+    expect(storefrontSuppressedHandoffTargets(phases, suppressed, restroomId, null)).toEqual([])
   })
 
   it('widens the street lane by one shared wall-character cell on each side', () => {
