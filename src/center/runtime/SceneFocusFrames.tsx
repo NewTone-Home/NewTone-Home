@@ -5,7 +5,7 @@ import { sceneFrameDefaultMotionMs, sceneFrameMotionMsForRect } from './sceneMot
 import { measureSceneCharacterRects, createSceneCharacterRectBatch, unionVisualRects, sceneElementVisualScale, sceneVisualRectInLocalSpace, sceneFrameBoundsInLocalSpace, sceneFocusVisualGapPx, sceneFocusStrokeInsetPx } from './sceneVisualBounds'
 import { beginFrameAppearance, beginFrameRetraction, completeFrameTransition, frameShouldCollapse, frameVisualPhase, preserveFrameRetractCorner, resumeFrameAppearance, type SceneFrameRuntime, type SceneFrameTarget } from './sceneFrameLifecycle'
 import { createEndpointMeasurementScheduler } from './sceneFocusFrameEndpointMeasure'
-import { createSceneFocusFrameDeferredMeasureScheduler } from './sceneFocusFrameDeferredMeasure'
+import { createSceneFocusFrameVisibilityObserver } from './sceneFocusFrameVisibilityObserver'
 
 type FocusFrameCorner = SceneFrameRuntime['corner']
 
@@ -236,8 +236,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
 
   useLayoutEffect(() => {
     if (freezeMeasurements) return undefined
-    const pendingGroups = new Set(targetGroups)
-    const deferredMeasures = createSceneFocusFrameDeferredMeasureScheduler(window, 2)
+    let observeHiddenAncestors: (roots: readonly HTMLElement[], stage: HTMLElement) => void = () => {}
     const measure = (groups: Iterable<string> = targetGroups) => {
       const measuredGroups = new Set<string>()
       const updates = new Map<string, { duration: number; geometry: SceneFocusFrameGeometry; bounds: CSSProperties }>()
@@ -248,7 +247,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         const node = frameNodesRef.current.get(group)
         if (!node) continue
         const parent = node.parentElement
-        const stage = node.closest('.mainline-scene-stage')
+        const stage = node.closest<HTMLElement>('.mainline-scene-stage')
         if (!parent || !stage) continue
         let stageNodes = stages.get(stage)
         if (!stageNodes) {
@@ -263,9 +262,11 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         }
         const characters = stageNodes.groups.get(group) ?? []
         const viewportRect = unionVisualRects(measureRects(characters))
-        if (!viewportRect) continue
+        if (!viewportRect) {
+          observeHiddenAncestors(characters, stage)
+          continue
+        }
         measuredGroups.add(group)
-        pendingGroups.delete(group)
         const otherCharacters = stageNodes.characters
           .filter(element => !characters.some(target => target === element || target.contains(element) || element.contains(target)))
         const viewportNeighbors = measureRects(otherCharacters)
@@ -341,8 +342,13 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
       })
     }
     measureGroupRef.current = (group) => measure([group])
+    if (typeof ResizeObserver === 'undefined') {
+      measure()
+      return undefined
+    }
+    const hiddenVisibilityObserver = createSceneFocusFrameVisibilityObserver(measureAll)
+    observeHiddenAncestors = (roots, stage) => hiddenVisibilityObserver.observeHiddenAncestors(roots, stage)
     measure()
-    if (typeof ResizeObserver === 'undefined') return undefined
     const observer = new ResizeObserver(measureAll)
     const characterChanges = new MutationObserver(measureAll)
     const paintChanges = new MutationObserver((records) => {
@@ -403,35 +409,8 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
       .filter(([group]) => targetGroups.has(group))
       .map(([, node]) => node.closest('.mainline-scene-stage'))
       .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement))
-    const lateVisualChanges = new MutationObserver(records => {
-      const lateGroups = new Map<string, HTMLElement[]>()
-      const collect = (node: Node) => {
-        if (!(node instanceof HTMLElement)) return
-        const add = (element: HTMLElement) => {
-          const group = element.dataset.focusVisualGroup ?? ''
-          if (!targetGroups.has(group) || !pendingGroups.has(group)) return
-          const elements = lateGroups.get(group) ?? []
-          elements.push(element)
-          lateGroups.set(group, elements)
-        }
-        if (node.matches('[data-focus-visual-group]')) add(node)
-        node.querySelectorAll<HTMLElement>('[data-focus-visual-group]').forEach(add)
-        const ancestor = node.parentElement?.closest<HTMLElement>('[data-focus-visual-group]')
-        if (ancestor) add(ancestor)
-      }
-      records.forEach(record => record.addedNodes.forEach(collect))
-      lateGroups.forEach((elements, group) => {
-        elements.forEach(element => observeVisualGroup(element, group))
-        deferredMeasures.request(group, () => measure([group]).has(group))
-      })
-    })
     stages.forEach((stage) => {
       observer.observe(stage)
-      // A frame may mount before its visual glyph group (for example, a
-      // lazily painted outdoor table). Watch only structural additions, then
-      // measure the matching still-pending group at most twice. This is
-      // event-driven and does not scan the whole scene on every animation frame.
-      lateVisualChanges.observe(stage, { childList: true, subtree: true })
       stage.querySelectorAll<HTMLElement>('[data-character-progress]').forEach((host) => {
         if ([...host.querySelectorAll<HTMLElement>('[data-focus-visual-group]')]
           .some((element) => targetGroups.has(element.dataset.focusVisualGroup ?? ''))) {
@@ -446,8 +425,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
       characterChanges.disconnect()
       paintChanges.disconnect()
       characterProgressChanges.disconnect()
-      lateVisualChanges.disconnect()
-      deferredMeasures.dispose()
+      hiddenVisibilityObserver.dispose()
       endpointSchedulers.forEach((scheduler) => scheduler.dispose())
       endpointSchedulers.clear()
       document.fonts?.removeEventListener('loadingdone', measureAll)
