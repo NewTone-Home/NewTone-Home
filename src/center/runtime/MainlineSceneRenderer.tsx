@@ -203,6 +203,7 @@ type MainlineDoorButtonProps = {
   glyph: string
   doorPhase: SceneDoorRuntimePhase
   focusGroup: string
+  frameGroup?: string
   focusPolicy: Exclude<MainlineFocusPolicy, 'interactive'>
   gateTriggered: boolean
   frameRetracting: boolean
@@ -302,7 +303,8 @@ function DialogueText({ group, text, onReadyChange }: { group: string; text: str
   </span>
 }
 
-function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph, doorPhase, focusGroup, focusPolicy, gateTriggered, frameRetracting, active, closeHint, ariaLabel, renderFocusFrame, presentationActive, presentationDurationMs = sceneFrameDefaultMotionMs, onInteract, onDoorTransitionComplete, dataAttributes, characterPresentation }: MainlineDoorButtonProps) {
+function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph, doorPhase, focusGroup, frameGroup, focusPolicy, gateTriggered, frameRetracting, active, closeHint, ariaLabel, renderFocusFrame, presentationActive, presentationDurationMs = sceneFrameDefaultMotionMs, onInteract, onDoorTransitionComplete, dataAttributes, characterPresentation }: MainlineDoorButtonProps) {
+  const resolvedFrameGroup = frameGroup ?? focusGroup
   const visualOpen = sceneDoorIsVisuallyOpen(cell.doorBehavior, doorPhase)
   const animatedInterior = presentationActive !== undefined
   const visualStyle = { opacity: presentationActive === false ? 0 : 1, transition: `opacity ${presentationDurationMs}ms ease-in-out` }
@@ -318,7 +320,7 @@ function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph
       onClick={(event) => { event.stopPropagation(); onInteract(entityId) }}
       aria-label={`${ariaLabel}；${closeHint}`}
       data-focus-target-id={cell.id}
-      data-focus-target-group={focusGroup}
+      data-focus-target-group={resolvedFrameGroup}
       data-focus-target-policy={focusPolicy}
       data-focus-passage-phase={focusPolicy === 'passage' ? doorPhase : undefined}
       data-focus-passage-retracting={frameRetracting ? 'true' : undefined}
@@ -329,7 +331,7 @@ function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph
       {animatedInterior
         ? <span style={visualStyle} aria-hidden={presentationActive === false}><SceneDoor phase={doorPhase} behavior={cell.doorBehavior} label={doorLabel} glyph={glyph} visualGroup={focusGroup} characters={characterPresentation} onTransitionComplete={(completion) => onDoorTransitionComplete?.(entityId, completion)} /></span>
         : <SceneDoor phase={doorPhase} behavior={cell.doorBehavior} label={doorLabel} glyph={glyph} visualGroup={focusGroup} characters={characterPresentation} onTransitionComplete={(completion) => onDoorTransitionComplete?.(entityId, completion)} />}
-      {renderFocusFrame(focusGroup, presentationActive)}
+      {renderFocusFrame(resolvedFrameGroup, presentationActive)}
     </button>
   )
 }
@@ -357,6 +359,7 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
   const entity = scene.objects.find(object => object.id === storefront.portalId)!
   const largeGroup = `storefront:${storefront.id}:baseline`
   const doorGroup = `door:${entity.id}`
+  const hasMultipleDoorCells = cells.filter(cell => cell.role === 'door').length > 1
   const direction = storefrontRollDirection(storefront.edge)
   useIsomorphicLayoutEffect(() => {
     const node = host.current
@@ -395,7 +398,9 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
         cell={{ ...cell, kind: 'door', doorBehavior: entity.doorBehavior }} entityId={entity.id}
         className="scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door is-baseline"
         style={style} doorLabel={entity.displayLabel ?? entity.label} glyph={cell.glyph} doorPhase={doorPhase}
-        focusGroup={doorGroup} focusPolicy="passage" gateTriggered={false} frameRetracting={frameRetracting}
+        focusGroup={doorGroup}
+        frameGroup={hasMultipleDoorCells ? storefrontDoorFocusGroup({ ...cell, storefrontId: storefront.id }, undefined, true) : doorGroup}
+        focusPolicy="passage" gateTriggered={false} frameRetracting={frameRetracting}
         active={false} closeHint={closeHint} ariaLabel={cell.access === 'locked' ? `门，${closeHint}` : '门，点击门后目标会在接近时自动开门并穿过'}
         renderFocusFrame={renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete}
         dataAttributes={attributes} characterPresentation={characters} />
@@ -416,8 +421,9 @@ function storefrontFocusGroup(cell: MainlineGeometryCellEntry['cell'], variant?:
   return `storefront:${cell.storefrontId ?? cell.id}${variantSuffix}`
 }
 
-function storefrontDoorFocusGroup(cell: MainlineGeometryCellEntry['cell'], variant?: MainlineSceneGeometryUnit['variant']) {
+function storefrontDoorFocusGroup(cell: { id: string; x: number; y: number; storefrontId?: string }, variant?: MainlineSceneGeometryUnit['variant'], independentCell = false) {
   const variantSuffix = variant ? `:${variant}` : ''
+  if (independentCell) return `storefront-door:${cell.storefrontId ?? cell.id}:cell:${cell.x.toFixed(4)}:${cell.y.toFixed(4)}`
   return `storefront-door:${cell.storefrontId ?? cell.id}${variantSuffix}`
 }
 
@@ -431,7 +437,9 @@ function mainlineCellFocusTarget(scene: MainlineSceneDefinition, cell: MainlineG
     }
   }
   if (cell.kind === 'storefront' && cell.storefrontRole === 'door' && entityId) {
-    return { group: storefrontDoorFocusGroup(cell, variant), policy: 'passage' as const }
+    const storefront = scene.storefronts.find(candidate => candidate.id === cell.storefrontId)
+    const independentCell = ((storefront?.composition?.near ?? []).filter(role => role === 'door').length) > 1
+    return { group: storefrontDoorFocusGroup(cell, variant, independentCell), policy: 'passage' as const }
   }
   if (cell.kind === 'door' && entityId) {
     const gatePart = cell.doorLabelPart
@@ -1150,9 +1158,14 @@ export function MainlineSceneRenderer({
       const doorGroup = `door:${entityId}`
       addTarget({ group: baselineGroup, policy: 'passage', phase: 'closed', gateTriggered: false, interactionBusy: false, interactionActive: false,
         retractRequested: phase !== 'baseline' || sceneFrameExitRequestsTarget(sceneFrameExit, baselineGroup, entityId), suppressed: false })
-      addTarget({ group: doorGroup, policy: 'passage', phase: doorPhases.get(entityId) ?? 'closed', gateTriggered: false,
+      const doorCells = (switchCells.get(slot.id) ?? []).filter(cell => cell.role === 'door')
+      const independentDoorCells = doorCells.length > 1
+      const frameGroups = independentDoorCells
+        ? doorCells.map(cell => storefrontDoorFocusGroup({ ...cell, storefrontId: slot.id }, undefined, true))
+        : [doorGroup]
+      frameGroups.forEach(group => addTarget({ group, policy: 'passage', phase: doorPhases.get(entityId) ?? 'closed', gateTriggered: false,
         interactionBusy: false, interactionActive: false, retractRequested: storefrontDoorFrameShouldRetract(slot.id, interiorStorefrontId, phase, approachedStorefrontIds.has(slot.id))
-          || sceneFrameExitRequestsTarget(sceneFrameExit, doorGroup, entityId), suppressed: false })
+          || sceneFrameExitRequestsTarget(sceneFrameExit, group, entityId), suppressed: false }))
     })
     scene.objects.forEach((entity) => {
       if (entity.focusFrame !== 'interactive' || entity.visible === false) return
@@ -1442,7 +1455,7 @@ export function MainlineSceneRenderer({
                     const featureOpacity = storefrontInteriorFeatureOpacity(featureRoomOwner ?? null, visibleInteriorStorefrontIds, paintedInteriorStorefrontId)
                     const featureMotionMs = focusFrames.motionDurationMs(focusTarget.group)
                     return <Fragment key={`focus-${focusTarget.group}`}>
-                      {featureRoomOwner && focusEntries.map(entry => <span key={`wall-${entry.cell.id}`} className={`scene-spatial-glyph scene-mainline-wall ${groupVisibilityClass}`} style={{ left: `${entry.cell.x}%`, top: `${entry.cell.y}%`, opacity: featureOpacity.wall, filter: staticReadingFilter({ x: entry.cell.x, y: entry.cell.y }), transition: `opacity ${featureMotionMs}ms ease-in-out, filter ${mainlineReadingFadeTransitionMs}ms linear` }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>)}
+                      {featureRoomOwner && focusEntries.map(entry => <span key={`wall-${entry.cell.id}`} className={`scene-spatial-glyph scene-mainline-wall ${groupVisibilityClass}`} style={{ left: `${entry.cell.x}%`, top: `${entry.cell.y}%`, opacity: featureOpacity.wall === 0 ? 0 : undefined, filter: staticReadingFilter({ x: entry.cell.x, y: entry.cell.y }), transition: `opacity ${featureMotionMs}ms ease-in-out, filter ${mainlineReadingFadeTransitionMs}ms linear` }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>)}
                       <MainlineFocusGroup entries={focusEntries} className="scene-mainline-wall scene-mainline-wall-feature scene-mainline-wall-feature--interaction scene-mainline-exploration--steady" visibilityClass={groupVisibilityClass} renderFrame={focusFrames.renderFrame} onInteract={onInteract} interactionEntityId={entityId} ariaLabel={`${entity.label}，点击让主角前往互动`} active={isCurrentInteractionSource(entityId)} explored={exploredObjectIds.has(entityId)} interiorPresentationActive={interiorRoomPresentationActive(interiorWallRoomId)} presentationDurationMs={focusFrames.motionDurationMs(focusTarget.group)} readingFilter={readingFilter} />
                     </Fragment>
                   }

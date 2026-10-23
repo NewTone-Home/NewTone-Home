@@ -154,6 +154,8 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
     })
 
     it('keeps the work zone staff-only, counter continuous, and rear door unreachable through the wall', () => {
+      const stove = scene.objects.find(object => object.id === 'yonghe-stove')!
+      const board = scene.objects.find(object => object.id === 'yonghe-trial-board')!
       const staff = { ...options, actorId: 'yonghe-trial-worker', actorFootprint: { width: 16 / 19.2, height: 16 / 10.8 } }
       const workerStart = point(168, 154)
       expect(isWalkableMainlinePoint(workerStart, scene, {}, options)).toBe(false)

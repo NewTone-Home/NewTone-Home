@@ -67,14 +67,16 @@ describe('all door neighbors, complete edge gaps and corner coverage',()=>{
    for(const storefront of scene.storefronts){
     const nearCells=units.filter(unit=>unit.storefrontId===storefront.id&&unit.variant==='near').flatMap(unit=>unit.visual.cells)
     const doors=nearCells.filter(cell=>cell.storefrontRole==='door')
-    expect(doors,`${storefront.id} revealed facade has one door`).toHaveLength(1)
-    const door=doors[0]!
-    const doorIndex=storefront.composition!.near.findIndex(role=>role==='door')
-    expect(storefront.composition!.near[doorIndex-1],`${storefront.id} before-door role`).toBe('wall')
-    expect(storefront.composition!.near[doorIndex+1],`${storefront.id} after-door role`).toBe('wall')
+    const expectedDoorCount = storefront.composition!.near.filter(role => role === 'door').length
+    expect(doors,`${storefront.id} revealed facade has its authored door cells`).toHaveLength(expectedDoorCount)
     const wallXs=nearCells.filter(cell=>cell.storefrontRole==='wall').map(cell=>cell.x)
-    expect(wallXs.some(x=>Math.abs(x-(door.x-28/19.2))<.001)).toBe(true)
-    expect(wallXs.some(x=>Math.abs(x-(door.x+28/19.2))<.001)).toBe(true)
+    const orderedDoors = [...doors].sort((a,b)=>a.x-b.x)
+    for (let index=1; index<orderedDoors.length; index++) {
+     expect(orderedDoors[index]!.x-orderedDoors[index-1]!.x,`${storefront.id} door cells are contiguous`).toBeCloseTo(28/19.2,3)
+    }
+    const firstDoor=orderedDoors[0]!,lastDoor=orderedDoors[orderedDoors.length-1]!
+    expect(wallXs.some(x=>Math.abs(x-(firstDoor.x-28/19.2))<.001),`${storefront.id} outer wall before doorway`).toBe(true)
+    expect(wallXs.some(x=>Math.abs(x-(lastDoor.x+28/19.2))<.001),`${storefront.id} outer wall after doorway`).toBe(true)
    }
    const backDoorEdge=actual.find(edge=>edge.key==='mining-shop-2-interior-shell:top')!
    expect(backDoorEdge.doorNeighbors['yonghe-back-door']?.before).toBeCloseTo(28,3)

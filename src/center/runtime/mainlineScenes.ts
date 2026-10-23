@@ -528,6 +528,10 @@ function compileMainlineFrameUnits(
           const distance = Math.abs(cell.center[vertical ? 'y' : 'x'] - doorCoordinate)
           return distance < bestDistance ? index : bestIndex
         }, 0)
+        const authoredDoorIndices = fixedCellCount
+          ? storefrontRolesForVariant(storefront, 'near').flatMap((role, index) => role === 'door' ? [index] : [])
+          : []
+        const baseDoorIndices = authoredDoorIndices.length ? authoredDoorIndices : [doorIndex]
         // The continuous Cafe has visible wall/window cells across its whole
         // facade. They are physical boundary cells too; visual-only overlays
         // must not leave a route behind the windows. Keep this fix scoped to
@@ -535,10 +539,10 @@ function compileMainlineFrameUnits(
         const completeCafeBoundary = Boolean(fixedCellCount && storefront.id === 'commercial-cafe-slot')
         const baseIndices = completeCafeBoundary
           ? canonicalStorefrontCells.map((_, index) => index)
-          : [doorIndex - 1, doorIndex, doorIndex + 1]
+          : [...new Set(baseDoorIndices.flatMap(index => [index - 1, index, index + 1]))]
             .filter(index => index >= 0 && index < canonicalStorefrontCells.length)
         baseIndices.forEach((index) => {
-          const role: MainlineStorefrontRole = index === doorIndex ? 'door' : 'wall'
+          const role: MainlineStorefrontRole = baseDoorIndices.includes(index) ? 'door' : 'wall'
           const canonicalCell = canonicalStorefrontCells[index]
           if (!canonicalCell) return
           const cell = fixedCellCount && role === 'door'
@@ -581,7 +585,7 @@ function compileMainlineFrameUnits(
             visual: fixedCellCount && role !== 'door'
               ? { kind: 'none' as const, cells: [] }
               : { kind: role === 'door' ? 'door' : 'storefront', cells: [cell] },
-            navigation: { blocked: true, ...(Math.abs(index - doorIndex) <= 1 ? { passageId } : {}) },
+            navigation: { blocked: true, ...(baseDoorIndices.some(doorIndex => Math.abs(index - doorIndex) <= 1) ? { passageId } : {}) },
             ...(role === 'door' ? { entityId: door.id } : {}),
             storefrontId: storefront.id,
           })

@@ -122,21 +122,30 @@ describe('mining clockwise continuous street shell', () => {
       expect(cells.map(cell => cell.baselineGlyph).join('')).toBe(slot.label)
       expect(cells).toHaveLength(slot.label.length)
       const door = cells.find(cell => cell.role === 'door')!
+      const doorCells = cells.filter(cell => cell.role === 'door')
       const passage = scene.passages.find(entry => entry.portalId === slot.portalId)!
       expect(door.entityId).toBe(passage.entityId)
-      expect(door.x).toBeCloseTo(passage.doorway.x + passage.doorway.width / 2, 2)
+      const renderedDoorCenterX = doorCells.reduce((sum, cell) => sum + cell.x / doorCells.length, 0)
+      expect(slot.portalId === 'yonghe-street-entry' ? renderedDoorCenterX : door.x)
+        .toBeCloseTo(passage.doorway.x + passage.doorway.width / 2, 2)
       expect(door.y).toBeCloseTo(passage.doorway.y + passage.doorway.height / 2, 2)
-      expect(slot.approach!.x).toBeCloseTo(passage.thresholds[0]!.x, 10)
-      expect(slot.approach!.y).toBeCloseTo(passage.thresholds[0]!.y, 10)
+      if (slot.portalId === 'yonghe-street-entry') {
+        expect(doorCells).toHaveLength(2)
+        expect(slot.approach!.x).toBeCloseTo(renderedDoorCenterX, 10)
+        expect(slot.approach!.y).toBeCloseTo(passage.thresholds[0]!.y, 10)
+      } else {
+        expect(slot.approach!.x).toBeCloseTo(passage.thresholds[0]!.x, 10)
+        expect(slot.approach!.y).toBeCloseTo(passage.thresholds[0]!.y, 10)
+      }
       expect(activeStorefrontPresentationOwner(scene, slot.approach!)).toBe(slot.id)
       if (slot.portalId === 'yonghe-street-entry') {
         expect(cells.map(cell => cell.role).join(',')).toBe('wall,door,door,wall')
         expect(cells.map(cell => cell.glyph).join('')).toBe('墙门门墙')
         expect(new Set(cells.map(cell => cell.id)).size).toBe(4)
-        expect(cells.filter(cell => cell.role === 'door').every(cell => cell.entityId === passage.entityId)).toBe(true)
-        expect(cells.filter(cell => cell.role === 'door')).toHaveLength(2)
+        expect(doorCells.every(cell => cell.entityId === passage.entityId)).toBe(true)
+        expect(doorCells).toHaveLength(2)
         expect(passage.doorway.width * 19.2).toBeCloseTo(56, 1)
-        expect(slot.approach!.x).toBeCloseTo(passage.doorway.x + passage.doorway.width / 2, 4)
+        expect(slot.approach!.x).toBeCloseTo(renderedDoorCenterX, 4)
       } else {
         expect(cells.filter(cell => cell.role === 'door')).toHaveLength(1)
       }
@@ -146,8 +155,9 @@ describe('mining clockwise continuous street shell', () => {
   it('allows street walking and permits only Yonghe passage crossing', () => {
     for (const shop of miningShopShells) {
       const passage = scene.passages.find(entry => entry.portalId === shop.portalId)!
-      const outside = { x: shop.doorX, y: shop.doorY + 2 * miningGrid.vertical }
-      const inside = { x: shop.doorX, y: shop.doorY - 2 * miningGrid.vertical }
+      const doorCenterX = shop.storefront.approach!.x
+      const outside = { x: doorCenterX, y: shop.doorY + 2 * miningGrid.vertical }
+      const inside = { x: doorCenterX, y: shop.doorY - 2 * miningGrid.vertical }
       const closed = { screenMetrics: sceneDesignReferenceMetrics, openPassageIds: new Set<string>() }
       const open = { ...closed, openPassageIds: new Set([passage.id]) }
       expect(resolveMainlineWorldNavigation(scene, scene.initialPlayerPosition, outside, {}, closed)?.reachedRequestedTarget, shop.label).toBe(true)
