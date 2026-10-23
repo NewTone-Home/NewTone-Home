@@ -222,11 +222,12 @@ function buildTakeawayTrial(blueprint: MainlineSceneBlueprint, trial: TakeawayTr
 export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): MainlineSceneBlueprint {
   const milkTea = buildTakeawayTrial(blueprint, {
     roomId: 'commercial-south-s5-interior', prefix: 'milk-tea-trial', oldStructurePrefix: 'commercial-s5-milk-tea-',
-    // The front wall's inner edge is y8. Keep five 28px cells to the customer
-    // edge of the return, one cell to the worktop, and two to the rear wall.
+    // Align the return/frame center with the adjacent shared-wall glyph at y168.
+    // The entrance clearance is 149px (140px + 9px alignment); the worktop gaps
+    // remain 28px at the counter and 56px at the rear wall.
     runs: [
-      { id: 'long-counter', bounds: { x: 157, y: 148, width: 22, height: 488 }, outlineBounds: { x: 157, y: 148, width: 22, height: 510 }, orientation: 'vertical', publicSide: 'left' },
-      { id: 'front-return', bounds: { x: 179, y: 148, width: 149, height: 22 }, outlineBounds: { x: 179, y: 148, width: 171, height: 22 }, orientation: 'horizontal', publicSide: 'top' },
+      { id: 'long-counter', bounds: { x: 157, y: 157, width: 22, height: 479 }, outlineBounds: { x: 157, y: 157, width: 22, height: 501 }, orientation: 'vertical', publicSide: 'left' },
+      { id: 'front-return', bounds: { x: 179, y: 157, width: 149, height: 22 }, outlineBounds: { x: 179, y: 157, width: 171, height: 22 }, orientation: 'horizontal', publicSide: 'top' },
     ],
     stations: [
       { id: 'commercial-s5-milk-tea-order-service-label', x: 168, y: 224 },
@@ -234,18 +235,18 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     ],
     publicSide: 'left', menu: { id: 'commercial-s5-milk-tea-menu-service-label', y: 56, edge: 'left' }, rearX: 280,
     equipment: ['制茶机', '封口机', '清洗台', '煮料台'],
-    worktop: { x: 296, y: 198, width: 24, height: 382 }, worker: [216, 392],
+    worktop: { x: 296, y: 207, width: 24, height: 373 }, worker: [216, 392],
     // The right work lane continues to its one locked rear door. There is no
     // interior warehouse or public-side employee exit: the long end meets the rear wall.
-    regions: [{ x: 168, y: 170, width: 168, height: 474 }],
+    regions: [{ x: 168, y: 179, width: 168, height: 465 }],
   })
   return buildTakeawayTrial(milkTea, {
     roomId: 'commercial-north-n1-interior', prefix: 'fruit-tea-trial', oldStructurePrefix: 'commercial-retail-n1-fruit-tea-',
-    // The front wall's inner edge is y636. The return stays five 28px cells
-    // inward; the worktop then keeps one cell at the return and two at the rear.
+    // Align the return/frame center with the wall glyph at y476. The entrance
+    // clearance is 149px (140px + 9px alignment); worktop gaps remain 28/56px.
     runs: [
-      { id: 'long-counter', bounds: { x: 157, y: 8, width: 22, height: 488 }, outlineBounds: { x: 157, y: -14, width: 22, height: 510 }, orientation: 'vertical', publicSide: 'right' },
-      { id: 'front-return', bounds: { x: 8, y: 474, width: 149, height: 22 }, outlineBounds: { x: -14, y: 474, width: 171, height: 22 }, orientation: 'horizontal', publicSide: 'bottom' },
+      { id: 'long-counter', bounds: { x: 157, y: 8, width: 22, height: 479 }, outlineBounds: { x: 157, y: -14, width: 22, height: 501 }, orientation: 'vertical', publicSide: 'right' },
+      { id: 'front-return', bounds: { x: 8, y: 465, width: 149, height: 22 }, outlineBounds: { x: -14, y: 465, width: 171, height: 22 }, orientation: 'horizontal', publicSide: 'bottom' },
     ],
     stations: [
       { id: 'fruit-tea-trial-order', x: 168, y: 432 },
@@ -253,6 +254,6 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     ],
     publicSide: 'right', menu: { id: 'fruit-tea-trial-menu', y: 588, edge: 'right' }, rearX: 56,
     equipment: ['清洗台', '切果台', '打包台', '冷藏', '煮料台'],
-    worktop: { x: 16, y: 64, width: 24, height: 382 }, worker: [112, 252], regions: [{ x: 0, y: 0, width: 168, height: 474 }],
+    worktop: { x: 16, y: 64, width: 24, height: 373 }, worker: [112, 252], regions: [{ x: 0, y: 0, width: 168, height: 465 }],
   })
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { mainlineCanonicalSceneGeometryUnits, mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { canTravelAlongMainlineSegment, findMainlinePath, findMainlinePathToEntity, resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
 import { currentCafeOptions, cafePoint } from './helpers/currentCafe'
 
@@ -7,6 +7,43 @@ const scene = mainlineScenes['commercial-street']
 const actorOptions = (actorId: string) => ({ ...currentCafeOptions, actorId, actorFootprint: { width: 16 / 19.2, height: 16 / 10.8 } })
 
 describe('visible counter terminals and Cafe employee opening', () => {
+  it('centers each takeaway counter return on its real wall glyph and preserves the work gaps', () => {
+    const expectations = [
+      { roomId: 'commercial-south-s5-interior', prefix: 'milk-tea-trial', wallX: 336, wallY: 168, front: 8, horizontalY: 157, worktopY: 207, worktopHeight: 373, rear: 636 },
+      { roomId: 'commercial-north-n1-interior', prefix: 'fruit-tea-trial', wallX: 0, wallY: 476, front: 636, horizontalY: 465, worktopY: 64, worktopHeight: 373, rear: 8 },
+    ] as const
+    const units = mainlineCanonicalSceneGeometryUnits(scene, currentCafeOptions.screenMetrics)
+    for (const expected of expectations) {
+      const room = scene.rooms.find(candidate => candidate.id === expected.roomId)!
+      const horizontal = scene.continuousStructures.find(body => body.id === `${expected.prefix}-front-return-body`)!
+      const outline = horizontal.counterSurface!.outlineBounds!
+      const frontGap = expected.front === 8 ? expected.horizontalY - expected.front : expected.front - (expected.horizontalY + 22)
+      const wallWorldX = room.bounds.x * 19.2 + expected.wallX
+      const wallWorldY = room.bounds.y * 10.8 + expected.wallY
+      const wallGlyphs = units.flatMap(unit => unit.visual.cells.filter(cell => cell.kind === 'wall'
+        && Math.abs(cell.x * 19.2 - wallWorldX) < .01
+        && Math.abs(cell.y * 10.8 - wallWorldY) < .01))
+      expect(wallGlyphs.length, `${expected.prefix} adjacent wall glyph`).toBeGreaterThan(0)
+      const horizontalCenterY = (horizontal.y - room.bounds.y + horizontal.height / 2) * 10.8
+      const outlineCenterY = (outline.y - room.bounds.y + outline.height / 2) * 10.8
+      expect(horizontalCenterY).toBeCloseTo(expected.wallY, 4)
+      expect(outlineCenterY).toBeCloseTo(expected.wallY, 4)
+      expect(frontGap).toBe(149)
+      const worktop = scene.continuousStructures.find(body => body.id === `${expected.prefix}-worktop-body`)!
+      const worktopStart = (worktop.y - room.bounds.y) * 10.8
+      const worktopEnd = worktopStart + worktop.height * 10.8
+      const counterStart = expected.horizontalY
+      const counterEnd = counterStart + 22
+      const counterToWorktop = expected.front === 8 ? worktopStart - counterEnd : counterStart - worktopEnd
+      const worktopToRear = expected.front === 8 ? expected.rear - worktopEnd : worktopStart - expected.rear
+      expect(counterToWorktop).toBeCloseTo(28, 4)
+      expect(worktopToRear).toBeCloseTo(56, 4)
+      const long = scene.continuousStructures.find(body => body.id === `${expected.prefix}-long-counter-body`)!
+      expect((long.y - room.bounds.y) * 10.8).toBeCloseTo(expected.front === 8 ? expected.horizontalY : 8, 4)
+      expect((long.y + long.height - room.bounds.y) * 10.8).toBeCloseTo(expected.front === 8 ? expected.rear : counterEnd, 4)
+    }
+  })
+
   for (const [roomId, prefix, worker, serviceIds] of [
     ['commercial-south-s5-interior', 'milk-tea-trial', 'milk-tea-trial-worker', ['commercial-s5-milk-tea-order-service-label', 'commercial-s5-milk-tea-pickup-service-label']],
     ['commercial-north-n1-interior', 'fruit-tea-trial', 'fruit-tea-trial-worker', ['fruit-tea-trial-order', 'fruit-tea-trial-pickup']],
