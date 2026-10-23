@@ -45,10 +45,13 @@ describe('all door neighbors, complete edge gaps and corner coverage',()=>{
    expect(menuFlanks,'both blank menu margins retain their owning feature').toHaveLength(2)
    expect(menuFlanks.every(cell=>cell.glyph===''&&Boolean(cell.baselineGlyph)),'both menu margins restore their ordinary wall glyph while the menu is hidden').toBe(true)
    const menuContent=yongheRightCells.filter(cell=>cell.kind==='feature'&&cell.featureCellRole==='content'&&cell.entityId==='yonghe-menu')
-   expect(menuContent.length,'menu replaces only its authored wall cells').toBeGreaterThan(0)
-   expect(menuContent.every(cell=>Boolean(cell.baselineGlyph)),'every menu cell restores its wall glyph while hidden').toBe(true)
-   const menuCenterY=menuContent.reduce((sum,cell)=>sum+cell.y,0)/menuContent.length
-   expect(Math.abs((menuCenterY-scene.rooms!.find(room=>room.id==='mining-shop-2-interior')!.bounds.y)*10.8-406),'the resized menu remains within half a 28px wall cell of its authored 406px point on the right wall').toBeLessThanOrEqual(14.01)
+   expect(menuContent.map(cell=>cell.glyph),'the menu is two independently rendered upright wall characters').toEqual(['\u83dc','\u5355'])
+   expect(menuContent.every(cell=>cell.baselineGlyph==='\u5899'),'both occupied characters restore their wall glyphs while hidden').toBe(true)
+   const menuRoom=scene.rooms!.find(room=>room.id==='mining-shop-2-interior')!
+   const menuGlyphCenters=menuContent.map(cell=>Number(((cell.y-menuRoom.bounds.y)*10.8).toFixed(3)))
+   expect(menuGlyphCenters,'each menu glyph occupies an exact 28px wall-grid center, symmetrically around 406px').toEqual([392,420])
+   const menuFlankCenters=menuFlanks.map(cell=>Number(((cell.y-menuRoom.bounds.y)*10.8).toFixed(3)))
+   expect(menuFlankCenters,'both margins of the two-glyph menu panel restore their own wall cells').toEqual([364,448])
    const sharedMenuWallCorner=units.filter(unit=>unit.ownerId==='mining-shop-1-interior-shell'&&unit.edge==='top'&&unit.geometryKind==='boundary')
     .flatMap(unit=>unit.visual.cells).find(cell=>cell.glyph&&cell.kind==='wall'&&Math.abs(cell.x-104.25)<.001&&Math.abs(cell.y*10.8+72)<.01)
    expect(sharedMenuWallCorner,'the adjacent shell paints Yonghe wall at the shared upper corner').toBeDefined()

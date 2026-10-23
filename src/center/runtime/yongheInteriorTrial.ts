@@ -63,7 +63,7 @@ export function trialYongheInterior(blueprint: MainlineSceneBlueprint): Mainline
     },
     scene:{...data,
       floorEntities:[...data.floorEntities,...entities],furnitureGroups:[...data.furnitureGroups,...groups],
-      walls:data.walls.map(wall=>wall.id===`${room.id}-shell`?{...wall,features:[...(wall.features??[]),{id:'yonghe-menu-wall',edge:'right',start:point(menuAnchorX-menuHalfSpan,0).y,end:point(menuAnchorX+menuHalfSpan,0).y,glyphs:['菜单'],layout:'content',entity:menu}]}:wall),
+      walls:data.walls.map(wall=>wall.id===`${room.id}-shell`?{...wall,features:[...(wall.features??[]),{id:'yonghe-menu-wall',edge:'right',start:point(menuAnchorX-menuHalfSpan,0).y,end:point(menuAnchorX+menuHalfSpan,0).y,glyphs:['菜','单'],layout:'content',entity:menu}]}:wall),
       continuousStructures:[...(data.continuousStructures??[]),...structures],
       accessRegions:[...(data.accessRegions??[]),{id:'yonghe-trial-kitchen',...point(0,308),width:308/1920*100,height:224/1080*100,requiredAccess:'staff',deniedText:'这里是柜台里面的工作区。'}],
       actorAccess:{...data.actorAccess,'yonghe-trial-worker':['public','staff']},
