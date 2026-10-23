@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { sceneTextPresentationPosition } from '../src/center/runtime/sceneTextPresentation'
-import { mainlineInteractionSpace } from '../src/center/runtime/mainlineTextReading'
+import { mainlineInteractionSpace, mainlineMaximumReadingWidthPx, mainlineReadingFontSizePx } from '../src/center/runtime/mainlineTextReading'
+import { mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
+import { splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
+import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 
 const desktop = { width: 1280, height: 720 }
 
@@ -11,6 +14,21 @@ function expectInsideCurrentSpace(scene: typeof mainlineScenes[keyof typeof main
   expect(point.x).toBeLessThanOrEqual(bounds.x + bounds.width)
   expect(point.y).toBeGreaterThanOrEqual(bounds.y)
   expect(point.y).toBeLessThanOrEqual(bounds.y + bounds.height)
+}
+
+function expectReadingFrameInsideCurrentSpace(scene: typeof mainlineScenes[keyof typeof mainlineScenes], actor: { x: number; y: number }, text: string, metrics: typeof desktop, kind: 'observation' | 'dialogue', worldScale: number, speaker?: string) {
+  const space = mainlineInteractionSpace(scene, actor)
+  const position = sceneTextPresentationPosition(scene, actor, text, metrics, kind, worldScale)
+  const maxWidthPx = mainlineMaximumReadingWidthPx(scene, actor, metrics, worldScale)
+  const segments = splitMainlineInteractionTextToFit(text, maxWidthPx, mainlineReadingFontSizePx(metrics))
+  const longest = segments.reduce((value, segment) => segment.length > value.length ? segment : value, '')
+  const layout = mainlineEchoLayout(longest || text, metrics, { speaker, maxWidthPx })
+  const halfWidth = layout.widthPx / worldScale / sceneDesignReferenceMetrics.width * 50
+  const halfHeight = layout.heightPx / worldScale / sceneDesignReferenceMetrics.height * 50
+  expect(position.x - halfWidth).toBeGreaterThanOrEqual(space.x - .0001)
+  expect(position.x + halfWidth).toBeLessThanOrEqual(space.x + space.width + .0001)
+  expect(position.y - halfHeight).toBeGreaterThanOrEqual(space.y - .0001)
+  expect(position.y + halfHeight).toBeLessThanOrEqual(space.y + space.height + .0001)
 }
 
 describe('scene text presentation policy', () => {
@@ -53,6 +71,24 @@ describe('scene text presentation policy', () => {
       expect(observation.y).toBe(protagonist.y)
       expectInsideCurrentSpace(scene, protagonist, dialogue)
       expectInsideCurrentSpace(scene, protagonist, observation)
+    }
+  })
+
+  it('keeps complete reading frames inside small office rooms at corners after long-text pagination', () => {
+    const scene = mainlineScenes['zhongshuyuan-office']
+    const room = scene.rooms.find(candidate => candidate.id === 'zhongshuyuan-office-north-room-2')
+    if (!room) throw new Error('Missing the small office room used for reading-frame bounds.')
+    const text = '办公室角落里的长句需要按当前房间可容纳的宽度分段显示，文字框也必须完整留在本间办公室里面。'
+    const actors = [
+      { x: room.bounds.x + .05, y: room.bounds.y + .05 },
+      { x: room.bounds.x + room.bounds.width - .05, y: room.bounds.y + room.bounds.height - .05 },
+    ]
+    expect(splitMainlineInteractionTextToFit(text, mainlineMaximumReadingWidthPx(scene, actors[0]!, desktop, .65), mainlineReadingFontSizePx(desktop)).length).toBeGreaterThan(1)
+    for (const metrics of [desktop, { width: 390, height: 844 }]) {
+      for (const actor of actors) {
+        expectReadingFrameInsideCurrentSpace(scene, actor, text, metrics, 'observation', .65)
+        expectReadingFrameInsideCurrentSpace(scene, actor, text, metrics, 'dialogue', .65, '修杰')
+      }
     }
   })
 
