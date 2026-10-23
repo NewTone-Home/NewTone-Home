@@ -222,10 +222,11 @@ function buildTakeawayTrial(blueprint: MainlineSceneBlueprint, trial: TakeawayTr
 export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): MainlineSceneBlueprint {
   const milkTea = buildTakeawayTrial(blueprint, {
     roomId: 'commercial-south-s5-interior', prefix: 'milk-tea-trial', oldStructurePrefix: 'commercial-s5-milk-tea-',
-    // Front is at y0. A long right counter separates ordering and collection along the shop.
+    // The front wall's inner edge is y8. Keep five 28px cells to the customer
+    // edge of the return, one cell to the worktop, and two to the rear wall.
     runs: [
-      { id: 'long-counter', bounds: { x: 157, y: 101, width: 22, height: 535 }, outlineBounds: { x: 157, y: 101, width: 22, height: 557 }, orientation: 'vertical', publicSide: 'left' },
-      { id: 'front-return', bounds: { x: 179, y: 101, width: 149, height: 22 }, outlineBounds: { x: 179, y: 101, width: 171, height: 22 }, orientation: 'horizontal', publicSide: 'top' },
+      { id: 'long-counter', bounds: { x: 157, y: 148, width: 22, height: 488 }, outlineBounds: { x: 157, y: 148, width: 22, height: 510 }, orientation: 'vertical', publicSide: 'left' },
+      { id: 'front-return', bounds: { x: 179, y: 148, width: 149, height: 22 }, outlineBounds: { x: 179, y: 148, width: 171, height: 22 }, orientation: 'horizontal', publicSide: 'top' },
     ],
     stations: [
       { id: 'commercial-s5-milk-tea-order-service-label', x: 168, y: 224 },
@@ -233,18 +234,18 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     ],
     publicSide: 'left', menu: { id: 'commercial-s5-milk-tea-menu-service-label', y: 56, edge: 'left' }, rearX: 280,
     equipment: ['制茶机', '封口机', '清洗台', '煮料台'],
-    worktop: { x: 296, y: 196, width: 24, height: 336 }, worker: [216, 392],
+    worktop: { x: 296, y: 198, width: 24, height: 382 }, worker: [216, 392],
     // The right work lane continues to its one locked rear door. There is no
     // interior warehouse or public-side employee exit: the long end meets the rear wall.
-    regions: [{ x: 168, y: 112, width: 168, height: 532 }],
+    regions: [{ x: 168, y: 170, width: 168, height: 474 }],
   })
   return buildTakeawayTrial(milkTea, {
     roomId: 'commercial-north-n1-interior', prefix: 'fruit-tea-trial', oldStructurePrefix: 'commercial-retail-n1-fruit-tea-',
-    // Front is at y700. The left work line closes into the wall at its front
-    // end; the other terminal now meets the rear wall too.
+    // The front wall's inner edge is y636. The return stays five 28px cells
+    // inward; the worktop then keeps one cell at the return and two at the rear.
     runs: [
-      { id: 'long-counter', bounds: { x: 157, y: 8, width: 22, height: 563 }, outlineBounds: { x: 157, y: -14, width: 22, height: 585 }, orientation: 'vertical', publicSide: 'right' },
-      { id: 'front-return', bounds: { x: 8, y: 549, width: 149, height: 22 }, outlineBounds: { x: -14, y: 549, width: 171, height: 22 }, orientation: 'horizontal', publicSide: 'bottom' },
+      { id: 'long-counter', bounds: { x: 157, y: 8, width: 22, height: 488 }, outlineBounds: { x: 157, y: -14, width: 22, height: 510 }, orientation: 'vertical', publicSide: 'right' },
+      { id: 'front-return', bounds: { x: 8, y: 474, width: 149, height: 22 }, outlineBounds: { x: -14, y: 474, width: 171, height: 22 }, orientation: 'horizontal', publicSide: 'bottom' },
     ],
     stations: [
       { id: 'fruit-tea-trial-order', x: 168, y: 432 },
@@ -252,6 +253,6 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     ],
     publicSide: 'right', menu: { id: 'fruit-tea-trial-menu', y: 588, edge: 'right' }, rearX: 56,
     equipment: ['清洗台', '切果台', '打包台', '冷藏', '煮料台'],
-    worktop: { x: 16, y: 112, width: 24, height: 336 }, worker: [112, 252], regions: [{ x: 0, y: 0, width: 168, height: 560 }],
+    worktop: { x: 16, y: 64, width: 24, height: 382 }, worker: [112, 252], regions: [{ x: 0, y: 0, width: 168, height: 474 }],
   })
 }
