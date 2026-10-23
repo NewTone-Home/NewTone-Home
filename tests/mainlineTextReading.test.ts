@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineAvailableReadingWidthPx, mainlineCanRenderFirstReadingGlyph, mainlineInteractionSpace, mainlineIsInteriorSpace, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingBounds, mainlineReadingCameraOffset, mainlineReadingFadeTransitionMs, mainlineReadingFontSizePx, mainlineReadingStaticOpacity, mainlineReadingStaticOpacityForBoundsUnion, mainlineObservationTypingIntervalMs, mainlineReadingOpacityForActor, resolveMainlineDialogueParticipants } from '../src/center/runtime/mainlineTextReading'
+import { mainlineAvailableReadingWidthPx, mainlineCanRenderFirstReadingGlyph, mainlineInteractionRoom, mainlineInteractionSpace, mainlineIsInteriorSpace, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingBounds, mainlineReadingCameraOffset, mainlineReadingFadeTransitionMs, mainlineReadingFontSizePx, mainlineReadingStaticOpacity, mainlineReadingStaticOpacityForBoundsUnion, mainlineObservationTypingIntervalMs, mainlineReadingOpacityForActor, resolveMainlineDialogueParticipants } from '../src/center/runtime/mainlineTextReading'
 import type { MainlineSceneDialogue } from '../src/center/runtime/mainlineSceneModel'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
@@ -49,6 +49,56 @@ describe('mainline reading-space effects', () => {
     const position = { x: 45, y: 55 }
     expect(mainlineInteractionSpace(scene, position)).toEqual(room.bounds)
     expect(mainlineIsInteriorSpace(scene, position)).toBe(true)
+  })
+
+  it('uses authored corridor and room bounds as exclusive text spaces, with public corridor ownership on shared edges', () => {
+    const city = mainlineScenes['commercial-street']
+    const lane = city.rooms.find(room => room.id === 'commercial-street-public-lane')!
+    const cityLanePoint = { x: lane.bounds.x + lane.bounds.width / 2, y: lane.bounds.y + lane.bounds.height / 2 }
+    expect(mainlineInteractionRoom(city, cityLanePoint)?.id).toBe(lane.id)
+    expect(mainlineInteractionSpace(city, cityLanePoint)).toEqual(lane.bounds)
+    for (const shop of city.rooms.filter(room => room.id.endsWith('-interior'))) {
+      const shopPoint = { x: shop.bounds.x + shop.bounds.width / 2, y: shop.bounds.y + shop.bounds.height / 2 }
+      expect(mainlineInteractionRoom(city, shopPoint)?.id).toBe(shop.id)
+      expect(mainlineInteractionSpace(city, shopPoint)).toEqual(shop.bounds)
+    }
+    const citySharedShop = city.rooms.find(room => room.id.endsWith('-interior')
+      && Math.abs(room.bounds.y + room.bounds.height - lane.bounds.y) < .001
+      && room.bounds.x < lane.bounds.x + lane.bounds.width && room.bounds.x + room.bounds.width > lane.bounds.x)
+    if (!citySharedShop) throw new Error('Commercial Street needs an authored shop-to-lane boundary.')
+    const cityDoorEdge = { x: Math.max(citySharedShop.bounds.x, lane.bounds.x), y: lane.bounds.y }
+    expect(mainlineInteractionRoom(city, cityDoorEdge)?.id).toBe(lane.id)
+
+    const office = mainlineScenes['zhongshuyuan-office']
+    const corridor = office.rooms.find(room => room.id === 'zhongshuyuan-office-corridor')!
+    const officeRoom = office.rooms.find(room => room.id === 'zhongshuyuan-office-north-room-1')!
+    const corridorPoint = { x: corridor.bounds.x + corridor.bounds.width / 2, y: corridor.bounds.y + corridor.bounds.height / 2 }
+    const officePoint = { x: officeRoom.bounds.x + officeRoom.bounds.width / 2, y: officeRoom.bounds.y + officeRoom.bounds.height / 2 }
+    expect(mainlineInteractionRoom(office, corridorPoint)?.id).toBe(corridor.id)
+    expect(mainlineInteractionRoom(office, officePoint)?.id).toBe(officeRoom.id)
+    expect(mainlineInteractionSpace(office, officePoint)).toEqual(officeRoom.bounds)
+  })
+
+  it('keeps mining street and each shop separate instead of falling back to the full walk bounds', () => {
+    for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
+      const scene = mainlineScenes[sceneId]
+      const lane = scene.rooms.find(room => room.id === 'mining-street-public-lane')!
+      const lanePoint = { x: lane.bounds.x + lane.bounds.width / 2, y: lane.bounds.y + lane.bounds.height / 2 }
+      expect(mainlineInteractionRoom(scene, lanePoint)?.id).toBe(lane.id)
+      expect(mainlineInteractionSpace(scene, lanePoint)).toEqual(lane.bounds)
+      expect(mainlineInteractionSpace(scene, lanePoint)).not.toEqual(scene.walkBounds)
+      for (const shop of scene.rooms.filter(room => room.id.startsWith('mining-shop-'))) {
+        const shopPoint = { x: shop.bounds.x + shop.bounds.width / 2, y: shop.bounds.y + shop.bounds.height / 2 }
+        expect(mainlineInteractionRoom(scene, shopPoint)?.id).toBe(shop.id)
+        expect(mainlineInteractionSpace(scene, shopPoint)).toEqual(shop.bounds)
+      }
+      const sharedShop = scene.rooms.find(room => room.id.startsWith('mining-shop-')
+        && Math.abs(room.bounds.y + room.bounds.height - lane.bounds.y) < .001
+        && room.bounds.x < lane.bounds.x + lane.bounds.width && room.bounds.x + room.bounds.width > lane.bounds.x)
+      if (!sharedShop) throw new Error(`${sceneId} needs an authored shop-to-lane boundary.`)
+      const doorEdge = { x: Math.max(sharedShop.bounds.x, lane.bounds.x), y: lane.bounds.y }
+      expect(mainlineInteractionRoom(scene, doorEdge)?.id).toBe(lane.id)
+    }
   })
 
   it('limits street text to the public-road viewport intersection and pans within the road to recover width', () => {

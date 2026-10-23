@@ -29,21 +29,44 @@ export function mainlineReadingFontSizePx(metrics: SceneScreenMetrics) {
   return Math.max(16, Math.min(20, (metrics.viewportWidth ?? metrics.width) * .0135))
 }
 
-export function mainlineInteractionSpace(scene: MainlineSceneDefinition, position: Point): CollisionBox {
-  const room = scene.rooms
-    .filter(room => room.kind !== 'boundary'
+export function mainlineInteractionRoom(scene: MainlineSceneDefinition, position: Point) {
+  const candidates = scene.rooms.filter(room => room.kind !== 'boundary'
     && position.x >= room.bounds.x && position.x <= room.bounds.x + room.bounds.width
     && position.y >= room.bounds.y && position.y <= room.bounds.y + room.bounds.height)
-    .sort((a, b) => a.bounds.width * a.bounds.height - b.bounds.width * b.bounds.height)[0]
+  const area = (room: typeof scene.rooms[number]) => room.bounds.width * room.bounds.height
+  const strictlyInside = candidates.filter(room => position.x > room.bounds.x && position.x < room.bounds.x + room.bounds.width
+    && position.y > room.bounds.y && position.y < room.bounds.y + room.bounds.height)
+  const room = strictlyInside.sort((a, b) => area(a) - area(b))[0]
+  if (room) return room
+
+  // At a shared doorway edge, assign the exact edge to the public corridor.
+  // Once the actor crosses into a room, strict containment above takes over.
+  const corridor = candidates.find(candidate => candidate.kind === 'corridor')
+  if (corridor) return corridor
+  const boundaryRoom = candidates.sort((a, b) => area(a) - area(b))[0]
+  if (boundaryRoom) return boundaryRoom
+
+  const publicLaneIds = scene.id === 'commercial-street'
+    ? ['commercial-street-public-lane']
+    : scene.id === 'yonghe-mining-perimeter' || scene.id === 'yonghe-eatery'
+      ? ['mining-street-public-lane']
+      : []
+  if (publicLaneIds.length) return scene.rooms.find(candidate => publicLaneIds.includes(candidate.id))
+  return undefined
+}
+
+export function mainlineInteractionSpace(scene: MainlineSceneDefinition, position: Point): CollisionBox {
+  const room = mainlineInteractionRoom(scene, position)
   if (room) return room.bounds
-  if (scene.id === 'commercial-street') return scene.rooms.find(room => room.id === 'commercial-street-public-lane')?.bounds ?? scene.walkBounds
+  if (scene.id === 'commercial-street' || scene.id === 'yonghe-mining-perimeter' || scene.id === 'yonghe-eatery') {
+    return { x: position.x, y: position.y, width: 0, height: 0 }
+  }
   return scene.walkBounds
 }
 
 export function mainlineIsInteriorSpace(scene: MainlineSceneDefinition, position: Point) {
-  return scene.rooms.some(room => room.kind !== 'boundary' && room.kind !== 'corridor'
-    && position.x >= room.bounds.x && position.x <= room.bounds.x + room.bounds.width
-    && position.y >= room.bounds.y && position.y <= room.bounds.y + room.bounds.height)
+  const room = mainlineInteractionRoom(scene, position)
+  return Boolean(room && room.kind !== 'boundary' && room.kind !== 'corridor')
 }
 
 function projectBoundsX(scene: MainlineSceneDefinition, bounds: CollisionBox, metrics: SceneScreenMetrics) {

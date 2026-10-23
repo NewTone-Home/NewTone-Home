@@ -1657,6 +1657,7 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
   areaLabel: '前院',
   scene: {
     walkBounds: jijiaYardBounds,
+    rooms: [{ id: 'jijia-yard-public-area', bounds: jijiaYardBounds, kind: 'room' }],
     viewport: 'fixed-frame',
     externalExit: { axis: 'x', direction: -1, threshold: 14, triggerEntityId: 'jijia-yard-gate' },
     wallDensity: { horizontalBaselineEvery: 2, verticalBaselineEvery: 2 },
@@ -1703,6 +1704,7 @@ const jijiaAncestralInteriorBlueprint: MainlineSceneBlueprint = {
   areaLabel: '祖宅内堂',
   scene: {
     walkBounds: jijiaInnerHouseBounds,
+    rooms: [{ id: 'jijia-inner-house-main-room', bounds: jijiaInnerHouseBounds, kind: 'room' }],
     viewport: 'fixed-frame',
     wallDensity: { horizontalBaselineEvery: 2, verticalBaselineEvery: 2 },
     walls: [{ id: 'jijia-inner-house', type: 'room', bounds: jijiaInnerHouseBounds, variant: 'interior', edges: ['top', 'right', 'bottom', 'left'], features: jijiaInnerPortraitFeatures,
@@ -1766,6 +1768,7 @@ const zhongshuyuanPassageBlueprint: MainlineSceneBlueprint = {
   hint: '沿窄暗道向右进入中枢院办公室；左侧门回到祖宅内堂。',
   scene: {
     walkBounds: zhongshuyuanPassageWalkBounds,
+    rooms: [{ id: 'zhongshuyuan-passage-walkable-space', bounds: zhongshuyuanPassageWalkBounds, kind: 'corridor' }],
     viewport: 'fixed-frame',
     wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
     walls: [{ id: 'zhongshuyuan-passage-frame', type: 'alley', bounds: zhongshuyuanPassageBounds, variant: 'narrow-corridor', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { vertical: zhongshuyuanPassageVerticalCoordinateCount }, boundaryProjection: 'screen-spacing', boundaryVisualEndpoints: { vertical: { start: 'omit', end: 'omit' } }, edges: ['top', 'right', 'bottom', 'left'], openings: [

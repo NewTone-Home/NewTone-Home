@@ -24,6 +24,38 @@ describe('scene text presentation policy', () => {
     expectInsideCurrentSpace(scene, upperRight, sceneTextPresentationPosition(scene, upperRight, '窗边没有人。', desktop))
   })
 
+  it('uses each authored single-space scene boundary for centered dialogue and protagonist-near observations', () => {
+    for (const sceneId of ['jijia-ancestral-home', 'jijia-ancestral-interior', 'zhongshuyuan-passage'] as const) {
+      const scene = mainlineScenes[sceneId]
+      const room = scene.rooms[0]
+      if (!room) throw new Error(`${sceneId} must have an authored text-space boundary.`)
+      const protagonist = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+      const dialogue = sceneTextPresentationPosition(scene, protagonist, 'һ����ʽ�Ի�', desktop, 'dialogue', .65)
+      const observation = sceneTextPresentationPosition(scene, protagonist, '����̹۲�', desktop, 'observation', .65)
+      expect(dialogue).toEqual({ x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 })
+      expect(observation.x).toBe(protagonist.x)
+      expect(Math.abs(observation.y - protagonist.y)).toBeLessThanOrEqual(14)
+      expectInsideCurrentSpace(scene, protagonist, dialogue)
+      expectInsideCurrentSpace(scene, protagonist, observation)
+    }
+  })
+
+  it('keeps an office dialogue in the current office or corridor and places observations near the player', () => {
+    const scene = mainlineScenes['zhongshuyuan-office']
+    for (const roomId of ['zhongshuyuan-office-corridor', 'zhongshuyuan-office-north-room-1', 'zhongshuyuan-office-south-room-1']) {
+      const room = scene.rooms.find(candidate => candidate.id === roomId)
+      if (!room) throw new Error(`Missing authored office text-space ${roomId}.`)
+      const protagonist = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+      const dialogue = sceneTextPresentationPosition(scene, protagonist, 'һ����ʽ�Ի�', desktop, 'dialogue', .65)
+      const observation = sceneTextPresentationPosition(scene, protagonist, '����̹۲�', desktop, 'observation', .65)
+      expect(dialogue).toEqual({ x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 })
+      expect(observation.x).toBe(protagonist.x)
+      expect(observation.y).toBe(protagonist.y)
+      expectInsideCurrentSpace(scene, protagonist, dialogue)
+      expectInsideCurrentSpace(scene, protagonist, observation)
+    }
+  })
+
   it('pins Commercial Street text to the authored road reading rail', () => {
     const scene = mainlineScenes['commercial-street']
     expect(scene.presentation.mode).toBe('actor-relative')
@@ -34,10 +66,10 @@ describe('scene text presentation policy', () => {
     }
     const rail = scene.presentation.readingRail
     if (!rail) throw new Error('Commercial Street must define a reading rail.')
-    const right = sceneTextPresentationPosition(scene, protagonist, '门边的木架上堆着几本薄薄的杂志。', desktop)
+    const right = sceneTextPresentationPosition(scene, protagonist, '门边的木架上堆着几本薄薄的杂志。', desktop, "dialogue")
     expect(right.y).toBe(rail.centerY)
     expect(right.x).toBeGreaterThan(protagonist.x)
-    const left = sceneTextPresentationPosition(scene, { x: rail.maxX - 2, y: rail.centerY }, '门边的木架上堆着几本薄薄的杂志。', desktop)
+    const left = sceneTextPresentationPosition(scene, { x: rail.maxX - 2, y: rail.centerY }, '门边的木架上堆着几本薄薄的杂志。', desktop, "dialogue")
     expect(left.y).toBe(rail.centerY)
     expect(left.x).toBeLessThan(rail.maxX - 2)
   })
