@@ -1386,11 +1386,17 @@ export function MainlineSceneRenderer({
                 ? scene.objects.find((candidate) => candidate.id === entityId)
                 : undefined
               const interiorWallRoomId = featureEntity?.roomId ?? shellRoomId
+              const featureRoomOwner = cell.kind === 'feature' ? interiorRoomOwner(interiorWallRoomId) : undefined
               const interiorWallActive = interiorRoomIsVisuallyActive(interiorWallRoomId)
               if (featureFlank) {
-                const owner = interiorRoomOwner(interiorWallRoomId)
-                const opacity = storefrontInteriorFeatureOpacity(owner, visibleInteriorStorefrontIds, paintedInteriorStorefrontId)
-                return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, opacity: opacity.wall, filter: readingFilter, transition: `opacity ${sceneFrameDefaultMotionMs}ms ease-in-out, filter ${mainlineReadingFadeTransitionMs}ms linear` }} aria-hidden="true"><SceneCharacters>{cell.baselineGlyph ?? '墙'}</SceneCharacters></span>
+                // Flanks are ordinary wall cells and keep their baseline styling.
+                return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{cell.baselineGlyph ?? '墙'}</SceneCharacters></span>
+              }
+              // A multi-glyph menu is rendered as one focus group, but each
+              // occupied wall cell must independently restore its glyph when
+              // its room is not visible. Do this before collapsing the group.
+              if (cell.kind === 'feature' && cell.featureCellRole === 'content' && interiorWallRoomId && !visibleInteriorRoomIds.has(interiorWallRoomId)) {
+                return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, filter: readingFilter, transition: `filter ${mainlineReadingFadeTransitionMs}ms linear` }} aria-hidden="true"><SceneCharacters>{cell.baselineGlyph ?? '\u5899'}</SceneCharacters></span>
               }
               const focusTarget = mainlineCellFocusTarget(scene, cell, entityId, unit.variant)
               const focusEntries = focusTarget ? focusGroupCells.get(focusTarget.group) : undefined
@@ -1433,11 +1439,7 @@ export function MainlineSceneRenderer({
                 if (cell.kind === 'feature' && entityId) {
                   const entity = featureEntity
                   if (entity) {
-                    const featureRoomOwner = interiorRoomOwner(interiorWallRoomId)
-                    if (featureRoomOwner && !visibleInteriorRoomIds.has(interiorWallRoomId!)) {
-                      return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${groupVisibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, filter: readingFilter, transition: `filter ${mainlineReadingFadeTransitionMs}ms linear` }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>
-                    }
-                    const featureOpacity = storefrontInteriorFeatureOpacity(featureRoomOwner, visibleInteriorStorefrontIds, paintedInteriorStorefrontId)
+                    const featureOpacity = storefrontInteriorFeatureOpacity(featureRoomOwner ?? null, visibleInteriorStorefrontIds, paintedInteriorStorefrontId)
                     const featureMotionMs = focusFrames.motionDurationMs(focusTarget.group)
                     return <Fragment key={`focus-${focusTarget.group}`}>
                       {featureRoomOwner && focusEntries.map(entry => <span key={`wall-${entry.cell.id}`} className={`scene-spatial-glyph scene-mainline-wall ${groupVisibilityClass}`} style={{ left: `${entry.cell.x}%`, top: `${entry.cell.y}%`, opacity: featureOpacity.wall, filter: staticReadingFilter({ x: entry.cell.x, y: entry.cell.y }), transition: `opacity ${featureMotionMs}ms ease-in-out, filter ${mainlineReadingFadeTransitionMs}ms linear` }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>)}
