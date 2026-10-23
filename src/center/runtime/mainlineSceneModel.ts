@@ -41,6 +41,8 @@ export type MainlineSceneDialogueSpeaker = '修杰' | '老周' | '店员'
 export type MainlineSceneDialogueLine = {
   id: string
   speaker: MainlineSceneDialogueSpeaker
+  /** Explicit actor identity when a display label is shared by several NPCs. */
+  speakerNpcId?: string
   text: string
 }
 export type MainlineSceneDialogue = {

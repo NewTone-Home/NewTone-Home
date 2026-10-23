@@ -35,7 +35,7 @@ import { npcRoles } from './npcRoles'
 import { useStorefrontPresentation } from './useStorefrontPresentation'
 import { splitMainlineInteractionText, splitMainlineInteractionTextToFit } from './mainlineTextSegments'
 import { mainlineEchoLayout } from './mainlineEchoLayout'
-import { mainlineAvailableReadingWidthPx, mainlineDialogueParticipantNpcIds, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingFontSizePx } from './mainlineTextReading'
+import { mainlineAvailableReadingWidthPx, mainlineDialogueParticipantNpcIds, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingFontSizePx, mainlineReadingOpacityForActor } from './mainlineTextReading'
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
 import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, plantIsWatered, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
@@ -2391,11 +2391,11 @@ export function MainlineScenePage({
   const currentAreaLabel = mainlineSceneAreaLabel(scene, position)
   const ambientReadingPosition = sceneEcho?.position ?? activeDialoguePosition
   const ambientReadingText = sceneEcho?.text ?? activeDialogueText
-  const dialogueParticipantNpcIds = mainlineDialogueParticipantNpcIds(scene, activeDialogue)
+  const dialogueParticipantNpcIds = mainlineDialogueParticipantNpcIds(scene, activeDialogue, activeDialogueLine)
   const ambientReadingLayout = ambientReadingPosition ? mainlineEchoLayout(ambientReadingText, readingMetrics, { speaker: sceneEcho ? undefined : activeDialogueLine?.speaker, maxWidthPx: mainlineAvailableReadingWidthPx(scene, position, readingMetrics, mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, position, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)) }) : null
   const ambientReadingOpacity = (actorPosition: Point, npcId: string) => {
-    if (!readingActive || !ambientReadingPosition || !ambientReadingLayout || dialogueParticipantNpcIds.has(npcId)) return 1
-    return mainlineReadingActorOpacity(actorPosition, ambientReadingPosition, ambientReadingLayout, mainlineWorldScale(activeViewportMetrics), value => scene.id === 'commercial-street' ? projectCommercialStreetX(value, screenMetrics) : value)
+    if (!readingActive || !ambientReadingPosition || !ambientReadingLayout) return 1
+    return mainlineReadingOpacityForActor(npcId, dialogueParticipantNpcIds, mainlineReadingActorOpacity(actorPosition, ambientReadingPosition, ambientReadingLayout, mainlineWorldScale(activeViewportMetrics), value => scene.id === 'commercial-street' ? projectCommercialStreetX(value, screenMetrics) : value))
   }
   const debugCafeCounterStructure = debugRuntimeEvidence && hasContinuousCafe(scene)
     ? scene.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-body')
@@ -2428,6 +2428,7 @@ export function MainlineScenePage({
         screenMetrics={screenMetrics}
         debugRuntimeEvidence={debugRuntimeEvidence}
         readingOpacity={ambientReadingOpacity(npcPosition, npc.id)}
+        readingProtected={Boolean(readingActive && dialogueParticipantNpcIds.has(npc.id))}
       />}
     />
   })

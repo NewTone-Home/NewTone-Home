@@ -33,8 +33,9 @@ import { activeStorefrontInteriorOwner, storefrontCellVisualState, storefrontCha
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 import { storefrontContactGeometry } from './storefrontContactGeometry'
-import { mainlineAvailableReadingWidthPx, mainlineCanRenderFirstReadingGlyph, mainlineDialogueParticipantNpcIds, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingStaticOpacity } from './mainlineTextReading'
+import { mainlineAvailableReadingWidthPx, mainlineCanRenderFirstReadingGlyph, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingStaticOpacity, mainlineReadingOpacityForActor, resolveMainlineDialogueParticipants } from './mainlineTextReading'
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
+import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -225,18 +226,19 @@ type MainlineAmbientNpcActorProps = {
   screenMetrics: SceneScreenMetrics
   debugRuntimeEvidence: boolean
   readingOpacity?: number
+  readingProtected?: boolean
 }
 
 /** Ambient locomotion owns its live point; this component only projects it into the scene. */
-function MainlineAmbientNpcActorView({ sceneId, npc, position, snapshot, screenMetrics, debugRuntimeEvidence, readingOpacity = 1 }: MainlineAmbientNpcActorProps) {
+function MainlineAmbientNpcActorView({ sceneId, npc, position, snapshot, screenMetrics, debugRuntimeEvidence, readingOpacity = 1, readingProtected = false }: MainlineAmbientNpcActorProps) {
   const visualFootprint = mainlineLabelFootprint(npc.label, position, screenMetrics, { lineHeight: 1 })
   return <span
-    className={`scene-mainline-npc scene-mainline-npc--ambient ${readingOpacity < 1 ? 'is-reading-through' : ''}`}
+    className={`scene-mainline-npc scene-mainline-npc--ambient ${readingOpacity < 1 ? 'is-reading-through' : ''} ${readingProtected ? 'is-reading-protected' : ''}`}
     style={{
       left: `${position.x}%`,
       top: `${position.y}%`,
       filter: readingOpacity < 1 ? `opacity(${readingOpacity})` : undefined,
-      zIndex: readingOpacity < 1 ? 15 : undefined,
+      zIndex: readingProtected ? 11 : readingOpacity < 1 ? 15 : undefined,
       transition: 'filter 180ms linear',
       '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, screenMetrics)}px`,
     } as CSSProperties}
@@ -699,21 +701,22 @@ type MainlineNpcActorProps = {
   interactive: boolean
   presentationActive?: boolean
   readingOpacity?: number
+  readingProtected?: boolean
   debugRuntimeEvidence: boolean
   onInteract?: (npcId: string) => void
 }
 
-function MainlineNpcActor({ sceneId, npc, position, snapshot, seatId, seatPosition, screenMetrics, interactive, presentationActive = true, readingOpacity = 1, debugRuntimeEvidence, onInteract }: MainlineNpcActorProps) {
+function MainlineNpcActor({ sceneId, npc, position, snapshot, seatId, seatPosition, screenMetrics, interactive, presentationActive = true, readingOpacity = 1, readingProtected = false, debugRuntimeEvidence, onInteract }: MainlineNpcActorProps) {
   const visualPosition = mainlineSeatedActorVisualPosition(position, seatId, seatPosition)
   const visualFootprint = mainlineLabelFootprint(npc.label, visualPosition, screenMetrics, { lineHeight: 1 })
-  const className = `scene-mainline-npc ${interactive ? '' : 'scene-mainline-npc--ambient'} ${readingOpacity < 1 ? 'is-reading-through' : ''}`
+  const className = `scene-mainline-npc ${interactive ? '' : 'scene-mainline-npc--ambient'} ${readingOpacity < 1 ? 'is-reading-through' : ''} ${readingProtected ? 'is-reading-protected' : ''}`
   const style = {
     left: `${visualPosition.x}%`,
     top: `${visualPosition.y}%`,
     opacity: presentationActive ? 1 : 0,
     pointerEvents: presentationActive ? undefined : 'none',
     filter: readingOpacity < 1 ? `opacity(${readingOpacity})` : undefined,
-    zIndex: readingOpacity < 1 ? 15 : undefined,
+    zIndex: readingProtected ? 11 : readingOpacity < 1 ? 15 : undefined,
     transition: `opacity ${sceneFrameDefaultMotionMs}ms ease-in-out, filter 180ms linear`,
     '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, screenMetrics)}px`,
   } as CSSProperties
@@ -951,11 +954,13 @@ export function MainlineSceneRenderer({
   // collision against another.
   const renderScreenMetrics = geometrySnapshot.screenMetrics
   const horizontalGridScale = scene.id === 'commercial-street' ? commercialStreetHorizontalScale(renderScreenMetrics) : 1
+  const sceneRenderBounds = mainlineSceneRenderBounds(scene, geometrySnapshot.layout, renderScreenMetrics, horizontalGridScale)
   const worldScale = mainlineWorldScale(viewportMetrics)
   const readingMetrics = viewportMetrics
   const activeReadingPosition = sceneEcho?.position ?? dialoguePosition
   const activeReadingText = sceneEcho?.text ?? dialogueText ?? dialogueLine?.text ?? ''
-  const dialogueParticipantNpcIds = mainlineDialogueParticipantNpcIds(scene, dialogue)
+  const dialogueParticipantResolution = resolveMainlineDialogueParticipants(scene, dialogue, dialogueLine)
+  const dialogueParticipantNpcIds = dialogueParticipantResolution.npcIds
   const currentReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset) : readingMetrics.width - 24
   const maximumReadingWidthPx = activeReadingPosition ? mainlineMaximumReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale) : currentReadingWidthPx
   const maximumReadingLayout = activeReadingPosition ? mainlineEchoLayout(activeReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: maximumReadingWidthPx }) : null
@@ -1320,9 +1325,21 @@ export function MainlineSceneRenderer({
     })
   }
 
+  const worldProjectionStyle = {
+    left: '50%',
+    top: '50%',
+    width: `${sceneDesignReferenceMetrics.width}px`,
+    height: `${sceneDesignReferenceMetrics.height}px`,
+    marginLeft: `${-sceneDesignReferenceMetrics.width * worldScale / 2}px`,
+    marginTop: `${-sceneDesignReferenceMetrics.height * worldScale / 2}px`,
+    transform: `scale(${worldScale}) translate(${renderCameraOffset.x}%, ${renderCameraOffset.y}%)`,
+    transformOrigin: 'top left',
+    '--scene-horizontal-grid-counter-scale': String(1 / horizontalGridScale),
+  } as CSSProperties
+
   return (
     <section className="scene-wrap" aria-label={`${scene.title}可探索场景`}>
-      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-scene-dialogue-state={dialoguePhase}>
+      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-scene-dialogue-state={dialoguePhase} data-scene-dialogue-unresolved-speakers={dialogueParticipantResolution.unresolvedSpeakers.join('|') || undefined}>
         {layoutMode && <div className="scene-layout-grid" aria-hidden="true" />}
         <span ref={stableViewportRef} className="scene-mainline-stable-viewport" aria-hidden="true" />
 
@@ -1332,17 +1349,7 @@ export function MainlineSceneRenderer({
           data-commercial-street-grid-scale={scene.id === 'commercial-street' ? horizontalGridScale : undefined}
           data-world-projection-scale={worldScale}
           data-world-projection-policy={(viewportMetrics as MainlineViewportMetrics).projectionPolicy}
-          style={{
-            left: '50%',
-            top: '50%',
-            width: `${sceneDesignReferenceMetrics.width}px`,
-            height: `${sceneDesignReferenceMetrics.height}px`,
-            marginLeft: `${-sceneDesignReferenceMetrics.width * worldScale / 2}px`,
-            marginTop: `${-sceneDesignReferenceMetrics.height * worldScale / 2}px`,
-          transform: `scale(${worldScale}) translate(${renderCameraOffset.x}%, ${renderCameraOffset.y}%)`,
-            transformOrigin: 'top left',
-            '--scene-horizontal-grid-counter-scale': String(1 / horizontalGridScale),
-          } as CSSProperties}
+          style={worldProjectionStyle}
         >
           <>
           <div className="scene-spatial-labels scene-spatial-labels--wall scene-mainline-wall-labels">
@@ -1582,7 +1589,8 @@ export function MainlineSceneRenderer({
               screenMetrics={renderScreenMetrics}
               interactive={npc.interactive !== false}
               presentationActive={interiorRoomIsVisuallyActive(npc.roomId)}
-              readingOpacity={!dialogueParticipantNpcIds.has(npc.id) ? actorReadingOpacity(npcPosition) : 1}
+              readingOpacity={mainlineReadingOpacityForActor(npc.id, dialogueParticipantNpcIds, actorReadingOpacity(npcPosition))}
+              readingProtected={Boolean(readingMode && dialogueParticipantNpcIds.has(npc.id))}
               debugRuntimeEvidence={debugRuntimeEvidence}
               onInteract={onNpcInteract}
             />
@@ -1608,7 +1616,7 @@ export function MainlineSceneRenderer({
             </div>
           </div>}
           {destination && <div className={`scene-walk-target ${moving ? 'is-active' : ''}`} style={{ left: `${destination.x}%`, top: `${destination.y}%` }} aria-hidden="true" />}
-          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%`, '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? scene.id === 'commercial-street' ? projectCommercialStreetX(protagonistVisualPosition.x, renderScreenMetrics) : protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined}>
+          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''} ${readingMode ? 'is-reading-protected' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%`, '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? scene.id === 'commercial-street' ? projectCommercialStreetX(protagonistVisualPosition.x, renderScreenMetrics) : protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined}>
             <span className="scene-protagonist__grid-content">
             {protagonistPresentation.kind === 'dot'
               ? <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
@@ -1716,7 +1724,7 @@ export function MainlineSceneRenderer({
             ))}
           </div>}
         </div>
-          <div ref={dimmerRef} className={`scene-dialogue-dimmer${readingMode ? ` scene-dialogue-dimmer--${readingMode}` : ''}`} style={{ opacity: 0 }} aria-hidden="true" />
+          <div ref={dimmerRef} className={`scene-dialogue-dimmer${readingMode ? ` scene-dialogue-dimmer--${readingMode}` : ''}`} style={{ opacity: 0, left: `${sceneRenderBounds.x}%`, top: `${sceneRenderBounds.y}%`, width: `${sceneRenderBounds.width}%`, height: `${sceneRenderBounds.height}%` }} aria-hidden="true" />
         </div>
           {readingMode && <>
             <button

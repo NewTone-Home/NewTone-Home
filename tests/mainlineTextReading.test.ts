@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineAvailableReadingWidthPx, mainlineCanRenderFirstReadingGlyph, mainlineDialogueParticipantNpcIds, mainlineInteractionSpace, mainlineIsInteriorSpace, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingBounds, mainlineReadingCameraOffset, mainlineReadingFontSizePx, mainlineReadingStaticOpacity } from '../src/center/runtime/mainlineTextReading'
+import { mainlineAvailableReadingWidthPx, mainlineCanRenderFirstReadingGlyph, mainlineInteractionSpace, mainlineIsInteriorSpace, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingBounds, mainlineReadingCameraOffset, mainlineReadingFontSizePx, mainlineReadingStaticOpacity, mainlineReadingOpacityForActor, resolveMainlineDialogueParticipants } from '../src/center/runtime/mainlineTextReading'
 import type { MainlineSceneDialogue } from '../src/center/runtime/mainlineSceneModel'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
@@ -52,22 +52,36 @@ describe('mainline reading-space effects', () => {
     expect(afterWidth).toBeLessThanOrEqual(maxWidth)
   })
 
-  it('protects every speaker-matched actor and conservatively protects all actors for an unknown voice', () => {
+  it('protects only identified speakers and never exempts every NPC for an unresolved label', () => {
     const scene = mainlineScenes['commercial-street']
     const dialogue: Pick<MainlineSceneDialogue, 'triggerEntityId' | 'lines'> = {
-      triggerEntityId: 'commercial-cafe-right-window-upper-group-table',
-      lines: [{ id: 'one', speaker: '老周', text: '你好。' }, { id: 'two', speaker: '店员', text: '请坐。' }],
+      triggerEntityId: 'lao-zhou',
+      lines: [{ id: 'one', speaker: '修杰', text: '你好' }, { id: 'two', speaker: '老周', speakerNpcId: 'lao-zhou', text: '好' }],
     }
-    const protectedIds = mainlineDialogueParticipantNpcIds(scene, dialogue)
-    expect(protectedIds.has('lao-zhou')).toBe(true)
-    expect(protectedIds.has('cafe-coffee-owner')).toBe(true)
-    expect(protectedIds.has('cafe-floor-server')).toBe(true)
+    const resolved = resolveMainlineDialogueParticipants(scene, dialogue)
+    expect(resolved.npcIds.has('lao-zhou')).toBe(true)
+    expect(resolved.npcIds.has('cafe-coffee-owner')).toBe(false)
+    expect(resolved.npcIds.has('cafe-floor-server')).toBe(false)
+    expect(resolved.unresolvedSpeakers).toEqual([])
+    expect(mainlineReadingOpacityForActor('lao-zhou', resolved.npcIds, .44)).toBe(1)
+    expect(mainlineReadingOpacityForActor('pedestrian', resolved.npcIds, .44)).toBe(.44)
 
-    const unknown = mainlineDialogueParticipantNpcIds(scene, {
+    const deliveryLine: MainlineSceneDialogue['lines'][number] = {
+      id: 'commercial-cafe-coffee-delivery',
+      speaker: '店员',
+      speakerNpcId: 'cafe-coffee-owner',
+      text: '咖啡',
+    }
+    const delivery = resolveMainlineDialogueParticipants(scene, { triggerEntityId: 'lao-zhou', lines: [] }, deliveryLine)
+    expect(delivery.npcIds.has('cafe-coffee-owner')).toBe(true)
+    expect(delivery.npcIds.has('cafe-floor-server')).toBe(false)
+
+    const unknown = resolveMainlineDialogueParticipants(scene, {
       triggerEntityId: 'unknown-trigger',
-      lines: [{ id: 'unknown', speaker: '不明角色' as MainlineSceneDialogue['lines'][number]['speaker'], text: '你好。' }],
+      lines: [{ id: 'unknown', speaker: '店员', text: '你好' }],
     })
-    expect(unknown.size).toBe(scene.npcs.length)
+    expect(unknown.npcIds.size).toBe(0)
+    expect(unknown.unresolvedSpeakers).toEqual(['店员'])
   })
 
   it('keeps every character in the DOM segment sequence when even one glyph cannot fit', () => {

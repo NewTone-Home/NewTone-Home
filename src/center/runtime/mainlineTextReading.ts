@@ -2,7 +2,7 @@ import type { MainlineSceneDefinition } from './mainlineScenes'
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 import { mainlineVisibleWorldSpan } from './mainlineViewport'
-import type { MainlineSceneDialogue } from './mainlineSceneModel'
+import type { MainlineSceneDialogue, MainlineSceneDialogueLine } from './mainlineSceneModel'
 import type { MainlineSceneNpc } from './mainlineSceneModel'
 import type { Point, CollisionBox } from './sceneGeometry'
 import { projectCommercialStreetX } from './commercialStreetGridProjection'
@@ -100,19 +100,57 @@ export function mainlineReadingCameraOffset(scene: MainlineSceneDefinition, posi
   return { x: 50 - centerX, y: 50 - centerY }
 }
 
-/** Speakers are matched against current scene actors. An unknown non-player voice conservatively protects every NPC. */
-export function mainlineDialogueParticipantNpcIds(scene: MainlineSceneDefinition, dialogue: Pick<MainlineSceneDialogue, 'triggerEntityId' | 'lines'> | null | undefined, npcs: readonly MainlineSceneNpc[] = scene.npcs) {
-  if (!dialogue) return new Set<string>()
-  const protectedIds = new Set<string>()
+export type MainlineDialogueParticipantResolution = {
+  npcIds: Set<string>
+  unresolvedSpeakers: string[]
+}
+
+/** Resolve only actors backed by an entity ID or an unambiguous speaker label. */
+export function resolveMainlineDialogueParticipants(
+  scene: MainlineSceneDefinition,
+  dialogue: Pick<MainlineSceneDialogue, 'triggerEntityId' | 'lines'> | null | undefined,
+  currentLine?: MainlineSceneDialogueLine | null,
+  npcs: readonly MainlineSceneNpc[] = scene.npcs,
+): MainlineDialogueParticipantResolution {
+  const npcIds = new Set<string>()
+  const unresolvedSpeakers = new Set<string>()
+  if (!dialogue) return { npcIds, unresolvedSpeakers: [] }
+
   const sourceNpc = npcs.find(npc => npc.id === dialogue.triggerEntityId || npc.interactionTargetEntityId === dialogue.triggerEntityId)
-  if (sourceNpc) protectedIds.add(sourceNpc.id)
-  const unresolvedSpeaker = dialogue.lines.some(line => {
+  if (sourceNpc) npcIds.add(sourceNpc.id)
+  const lines = currentLine ? [...dialogue.lines, currentLine] : dialogue.lines
+  lines.forEach(line => {
+    if (line.speaker === '修杰') return
+    if (line.speakerNpcId) {
+      if (npcs.some(npc => npc.id === line.speakerNpcId)) npcIds.add(line.speakerNpcId)
+      else unresolvedSpeakers.add(line.speaker)
+      return
+    }
     const matches = npcs.filter(npc => npc.label === line.speaker)
-    matches.forEach(npc => protectedIds.add(npc.id))
-    return line.speaker !== '修杰' && matches.length === 0
+    if (matches.length === 1) {
+      npcIds.add(matches[0]!.id)
+      return
+    }
+    if (sourceNpc && sourceNpc.label === line.speaker) {
+      npcIds.add(sourceNpc.id)
+      return
+    }
+    unresolvedSpeakers.add(line.speaker)
   })
-  if (unresolvedSpeaker) npcs.forEach(npc => protectedIds.add(npc.id))
-  return protectedIds
+  return { npcIds, unresolvedSpeakers: [...unresolvedSpeakers] }
+}
+
+export function mainlineDialogueParticipantNpcIds(
+  scene: MainlineSceneDefinition,
+  dialogue: Pick<MainlineSceneDialogue, 'triggerEntityId' | 'lines'> | null | undefined,
+  currentLine?: MainlineSceneDialogueLine | null,
+  npcs: readonly MainlineSceneNpc[] = scene.npcs,
+) {
+  return resolveMainlineDialogueParticipants(scene, dialogue, currentLine, npcs).npcIds
+}
+
+export function mainlineReadingOpacityForActor(actorId: string, participantNpcIds: ReadonlySet<string>, localOpacity: number) {
+  return participantNpcIds.has(actorId) ? 1 : localOpacity
 }
 
 /** Extra opacity applied to static marks only. Existing visibility/reveal state

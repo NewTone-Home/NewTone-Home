@@ -527,6 +527,7 @@
   pointer-events: none;
   will-change: left, top;
 }
+.scene-protagonist.is-reading-protected { z-index: 11; }
 
 .scene-protagonist__dot {
   display: block;
@@ -926,6 +927,7 @@
 .scene-mainline-npc:focus-visible { outline: 1px solid var(--active); outline-offset: 4px; }
 .scene-mainline-npc--ambient { pointer-events: none; cursor: default; }
 .scene-mainline-npc.is-reading-through { z-index: 15; transition: filter 180ms linear; }
+.scene-mainline-npc.is-reading-protected { z-index: 11; }
 .scene-mainline-object--door { color: var(--active); font-size: var(--scene-mainline-object-font-size, 16px); }
 .scene-mainline-object--landmark,
 .scene-mainline-object--direction { color: var(--soft); font-size: var(--scene-mainline-object-font-size, 16px); }
@@ -1182,7 +1184,6 @@
 }
 .scene-dialogue-dimmer {
   position: absolute;
-  inset: 0;
   z-index: 10;
   background: rgb(5, 5, 5);
   opacity: 0;

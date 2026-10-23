@@ -63,24 +63,25 @@ export const commercialCafeNarrativeDialogue = {
   triggerEntityId: 'lao-zhou',
   lines: [
     { id: 'commercial-cafe-lao-zhou-first-xiujie', speaker: '修杰', text: '陈副部长还是没有消息吗？' },
-    { id: 'commercial-cafe-lao-zhou-first-lao-zhou', speaker: '老周', text: '完全没有。' },
+    { id: 'commercial-cafe-lao-zhou-first-lao-zhou', speaker: '老周', speakerNpcId: 'lao-zhou', text: '完全没有。' },
     { id: 'commercial-cafe-coffee-xiujie', speaker: '修杰', text: '你还是不爱喝咖啡。' },
-    { id: 'commercial-cafe-coffee-lao-zhou', speaker: '老周', text: '是啊，我真喝不惯那玩意儿，而且上次喝完失眠了，我这把年纪了还是不要折腾比较好。' },
-    { id: 'commercial-cafe-intel-lao-zhou-document', speaker: '老周', text: '我昨天无意间看到了一份文件，不过我权限不够，只能看到一部分。' },
-    { id: 'commercial-cafe-intel-lao-zhou-camera', speaker: '老周', text: '说是在矿区附近的监控疑似拍到过陈副部长。不过没有照片，我也不能确定是不是真的。' },
+    { id: 'commercial-cafe-coffee-lao-zhou', speaker: '老周', speakerNpcId: 'lao-zhou', text: '是啊，我真喝不惯那玩意儿，而且上次喝完失眠了，我这把年纪了还是不要折腾比较好。' },
+    { id: 'commercial-cafe-intel-lao-zhou-document', speaker: '老周', speakerNpcId: 'lao-zhou', text: '我昨天无意间看到了一份文件，不过我权限不够，只能看到一部分。' },
+    { id: 'commercial-cafe-intel-lao-zhou-camera', speaker: '老周', speakerNpcId: 'lao-zhou', text: '说是在矿区附近的监控疑似拍到过陈副部长。不过没有照片，我也不能确定是不是真的。' },
     { id: 'commercial-cafe-intel-xiujie-mine', speaker: '修杰', text: '矿区？' },
-    { id: 'commercial-cafe-intel-lao-zhou-mine', speaker: '老周', text: '对，按照陈副部长的生活工作范围来推测，不大可能会出现在那边。' },
+    { id: 'commercial-cafe-intel-lao-zhou-mine', speaker: '老周', speakerNpcId: 'lao-zhou', text: '对，按照陈副部长的生活工作范围来推测，不大可能会出现在那边。' },
     { id: 'commercial-cafe-intel-xiujie-destination', speaker: '修杰', text: '整个矿区很大，能知道他去哪里了吗？' },
-    { id: 'commercial-cafe-intel-lao-zhou-eatery', speaker: '老周', text: '查不到去了哪里。不过我在那边有个线人，据说有人好像在永和小馆那块见过陈副部长。' },
+    { id: 'commercial-cafe-intel-lao-zhou-eatery', speaker: '老周', speakerNpcId: 'lao-zhou', text: '查不到去了哪里。不过我在那边有个线人，据说有人好像在永和小馆那块见过陈副部长。' },
     { id: 'commercial-cafe-intel-xiujie-eatery', speaker: '修杰', text: '永和小馆？' },
-    { id: 'commercial-cafe-intel-lao-zhou-eatery-detail', speaker: '老周', text: '对，永和小馆，我也查过，一家苍蝇馆子，平常都是些工友在那里吃饭什么的，没什么很特别的地方。所以也只是有人貌似见过，并不能完全确定。' },
+    { id: 'commercial-cafe-intel-lao-zhou-eatery-detail', speaker: '老周', speakerNpcId: 'lao-zhou', text: '对，永和小馆，我也查过，一家苍蝇馆子，平常都是些工友在那里吃饭什么的，没什么很特别的地方。所以也只是有人貌似见过，并不能完全确定。' },
     { id: 'commercial-cafe-resolution-xiujie', speaker: '修杰', text: '行，我知道了，有什么新信息再跟我说。' },
-    { id: 'commercial-cafe-resolution-lao-zhou', speaker: '老周', text: '好。' },
+    { id: 'commercial-cafe-resolution-lao-zhou', speaker: '老周', speakerNpcId: 'lao-zhou', text: '好。' },
   ],
 } as const satisfies MainlineSceneDialoguePresentation
 
 export const commercialCafeDeliveryDialogueLine = {
   id: 'commercial-cafe-coffee-delivery',
+  speakerNpcId: commercialCafeCoffeeOwnerNpcId,
   speaker: '店员',
   text: '您的咖啡。',
 } as const
@@ -110,7 +111,7 @@ export function commercialCafeAnalyticsMilestonePatch(sceneState: PlayerSceneSta
 
 export const commercialCafeSeatGuideDialogue = {
   triggerEntityId: 'lao-zhou',
-  lines: [{ id: 'commercial-cafe-lao-zhou-seat-guide', speaker: '老周', text: '你来了，坐吧。' }],
+  lines: [{ id: 'commercial-cafe-lao-zhou-seat-guide', speaker: '老周', speakerNpcId: 'lao-zhou', text: '你来了，坐吧。' }],
 } as const satisfies MainlineSceneDialoguePresentation
 
 const legacyCursorByStage: Record<CommercialCafeStoryStage, number> = {
