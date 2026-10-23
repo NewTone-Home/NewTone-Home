@@ -1150,7 +1150,7 @@
 }
 @keyframes mainline-text-leave {
   from { opacity: 1; transform: translate(-50%, -50%); }
-  to { opacity: 0; transform: translate(-50%, calc(-50% - 4px)); }
+  to { opacity: 0; transform: translate(-50%, -50%); }
 }
 @keyframes mainline-echo-segment-scroll-down {
   from { opacity: 0; transform: translateY(100%); }
