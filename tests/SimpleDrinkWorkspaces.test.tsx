@@ -6,7 +6,7 @@ import { findMainlinePath, findMainlinePathToEntity, resolveMainlineNpcPosition,
 import { resolveMainlineSceneExploration, resolveMainlineSceneEchoChoice } from '../src/center/runtime/mainlineSceneInteractions'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 const scene=mainlineScenes['commercial-street'], options={screenMetrics:sceneDesignReferenceMetrics,actorId:'protagonist',actorFootprint:{width:11/19.2,height:11/10.8}}
-const configs=[['cafe-trial','commercial-north-cafe-interior','cafe-coffee-owner',16,144,24,280],['milk-tea-trial','commercial-south-s5-interior','milk-tea-trial-worker',296,198,24,382],['fruit-tea-trial','commercial-north-n1-interior','fruit-tea-trial-worker',16,64,24,382]] as const
+const configs=[['cafe-trial','commercial-north-cafe-interior','cafe-coffee-owner',16,144,24,280],['milk-tea-trial','commercial-south-s5-interior','milk-tea-trial-worker',296,207,24,373],['fruit-tea-trial','commercial-north-n1-interior','fruit-tea-trial-worker',16,64,24,373]] as const
 const context={incensePhase:'unlit',plantWatered:false,officeBlindsOpen:false,carriedPhoneDevice:'inner',commercialCafeCoffeeOrdered:false} as const
 
 describe('simple drink workspaces: one visible worktop and shared counter entry',()=>{

@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { mainlineCanonicalSceneGeometryUnits, mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 
 const scene = mainlineScenes['commercial-street']
 const cases = [
-  { roomId: 'commercial-south-s5-interior', prefix: 'milk-tea-trial', facing: 'near' as const, rear: 'far' as const },
-  { roomId: 'commercial-north-n1-interior', prefix: 'fruit-tea-trial', facing: 'far' as const, rear: 'near' as const },
+  { roomId: 'commercial-south-s5-interior', prefix: 'milk-tea-trial', facing: 'near' as const, rear: 'far' as const, adjacentWallGlyph: { x: 336, y: 168 } },
+  { roomId: 'commercial-north-n1-interior', prefix: 'fruit-tea-trial', facing: 'far' as const, rear: 'near' as const, adjacentWallGlyph: { x: 0, y: 476 } },
 ] as const
 const localY = (roomY: number, y: number) => (y - roomY) * 10.8
 
 describe('takeaway counter and worktop 5/1/2 clearances', () => {
-  it.each(cases)('$roomId keeps exact wall-grid clearances and the staff partition connected', ({ roomId, prefix, facing, rear }) => {
+  it.each(cases)('$roomId keeps wall-glyph alignment, 5/1/2 clearances and the staff partition connected', ({ roomId, prefix, facing, rear, adjacentWallGlyph }) => {
     const room = scene.rooms.find(candidate => candidate.id === roomId)!
     const depth = room.bounds.height * 10.8
     const frontWallInner = facing === 'near' ? 8 : depth - 8
@@ -26,9 +27,23 @@ describe('takeaway counter and worktop 5/1/2 clearances', () => {
     const worktopFrontEdge = facing === 'near' ? worktopStart : worktopEnd
     const worktopRearEdge = rear === 'near' ? worktopStart : worktopEnd
 
-    expect(Math.abs(frontWallInner - counterStreetEdge), 'five wall-grid cells from the inside edge of the front wall').toBeCloseTo(140, 8)
+    // The return remains at the designed five-cell clearance plus the 9px
+    // adjustment needed to center it on the adjacent shared-wall glyph.
+    expect(Math.abs(frontWallInner - counterStreetEdge), 'five wall-grid cells plus the wall-glyph alignment offset').toBeCloseTo(149, 8)
     expect(Math.abs(counterStaffEdge - worktopFrontEdge), 'one wall-grid cell between counter and worktop').toBeCloseTo(28, 8)
     expect(Math.abs(worktopRearEdge - rearWallInner), 'two wall-grid cells between worktop and rear wall').toBeCloseTo(56, 8)
+
+    const horizontalCenterY = counterNear + counter.height * 10.8 / 2
+    const outline = counter.counterSurface?.outlineBounds!
+    const outlineCenterY = (outline.y - room.bounds.y) * 10.8 + outline.height * 10.8 / 2
+    const wallWorldX = room.bounds.x * 19.2 + adjacentWallGlyph.x
+    const wallWorldY = room.bounds.y * 10.8 + adjacentWallGlyph.y
+    const wallGlyphs = mainlineCanonicalSceneGeometryUnits(scene, sceneDesignReferenceMetrics).flatMap(unit => unit.visual.cells.filter(cell => cell.kind === 'wall'
+      && Math.abs(cell.x * 19.2 - wallWorldX) < .01
+      && Math.abs(cell.y * 10.8 - wallWorldY) < .01))
+    expect(wallGlyphs.length, 'the expected shared-wall glyph exists at the alignment point').toBeGreaterThan(0)
+    expect(horizontalCenterY).toBeCloseTo(adjacentWallGlyph.y, 5)
+    expect(outlineCenterY).toBeCloseTo(adjacentWallGlyph.y, 5)
 
     // The return and long run touch at their authored corner; neither collision body is an air-wall substitute.
     expect(counter.counterSurface?.roomId).toBe(roomId)
