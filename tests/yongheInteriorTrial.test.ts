@@ -32,8 +32,19 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       expect(menuFeature.end).toBeLessThan(room.bounds.y + room.bounds.height + 0.001)
       expect(scene.objects.filter(object => object.roomId === room.id && object.kind === 'table')).toHaveLength(4)
       expect(scene.objects.filter(object => object.roomId === room.id && object.seat)).toHaveLength(8)
+      const withinRoom = (box: { x:number;y:number;width:number;height:number }) => {
+        expect((box.x-room.bounds.x)*19.2).toBeGreaterThanOrEqual(-0.01)
+        expect((room.bounds.x+room.bounds.width-box.x-box.width)*19.2).toBeGreaterThanOrEqual(-0.01)
+        expect((box.y-room.bounds.y)*10.8).toBeGreaterThanOrEqual(-0.01)
+        expect((room.bounds.y+room.bounds.height-box.y-box.height)*10.8).toBeGreaterThanOrEqual(-0.01)
+      }
       for (const table of scene.objects.filter(object => object.roomId === room.id && object.kind === 'table')) {
+        const expectedDepth = table.id === 'yonghe-upper-left-group-table' || table.id === 'yonghe-lower-left-group-table' ? 420 : 532
+        expect((table.position.y-room.bounds.y)*10.8).toBeCloseTo(expectedDepth, 3)
         const tableBox = mainlineEntityTextFootprint(table, table.position, sceneDesignReferenceMetrics)
+        withinRoom(tableBox)
+        if (table.shape) withinRoom(table.shape)
+        if (table.collision) withinRoom(table.collision)
         const seats = scene.objects.filter(object => object.seat?.tableId === table.id)
         expect(seats).toHaveLength(2)
         for (const seat of seats) {
@@ -41,6 +52,9 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
           expect(seat.position.x).toBeCloseTo(table.position.x, 8)
           expect(Math.abs((seat.position.y - table.position.y) * 10.8)).toBeCloseTo(30, 3)
           const seatBox = mainlineEntityTextFootprint(seat, seat.position, sceneDesignReferenceMetrics)
+          withinRoom(seatBox)
+          if (seat.shape) withinRoom(seat.shape)
+          if (seat.collision) withinRoom(seat.collision)
           const gapPx = seat.position.y < table.position.y
             ? (tableBox.y - seatBox.y - seatBox.height) * 10.8
             : (seatBox.y - tableBox.y - tableBox.height) * 10.8
@@ -68,8 +82,13 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
 
     it('reaches each seat and menu from the customer aisle while chair-table gaps stay blocked', () => {
       const from = point(364, 154)
+      const streetEntry = scene.passages.find(passage => passage.id === 'yonghe-street-entry')!
+      const roomSideOfEntry = streetEntry.crossingTargets[0]
       for (const entity of scene.objects.filter(object => object.seat && object.roomId === room.id && object.id.startsWith('yonghe-'))) {
         expect(findMainlinePathToEntity(scene, entity.id, from, {}, options).path, entity.id).not.toBeNull()
+        if (entity.seat && (entity.seat.tableId === 'yonghe-upper-right-group-table' || entity.seat.tableId === 'yonghe-lower-right-group-table')) {
+          expect(findMainlinePathToEntity(scene, entity.id, roomSideOfEntry, {}, options).path, `${entity.id} from doorway`).not.toBeNull()
+        }
         expect(isMainlineSeatAvailable(scene, entity.id)).toBe(true)
         expect(nextMainlinePlayerSeatId(scene, null, entity.id)).toBe(entity.id)
         expect(mainlineSceneOccupiedSeatIds(scene, entity.id).has(entity.id)).toBe(true)
@@ -101,15 +120,23 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       }
       const entrance = scene.passages.find(passage => passage.id === 'yonghe-street-entry')!
       expect(isWalkableMainlinePoint(entrance.thresholds[0], scene, {}, options)).toBe(true)
-      for (const [groupIndex, centers] of [[1, [56, 28, 0]], [2, [280, 252, 224]]] as const) {
+      const ownedYongheWallCells = [...new Set(scene.geometry.flatMap(unit => unit.storefrontId === 'yonghe-slot-2' && unit.variant === 'baseline'
+        ? unit.visual.cells.filter(cell => cell.storefrontRole === 'wall').map(cell => Math.round(frontX - (cell.x-room.bounds.x)*19.2))
+        : []))].sort((a,b)=>a-b)
+      expect(ownedYongheWallCells).toEqual([28,56,84,224,252,280])
+      expect(ownedYongheWallCells).not.toContain(0)
+      for (const [groupIndex, centers] of [[1, [84, 56, 28]], [2, [280, 252, 224]]] as const) {
         const group = scene.furnitureGroups.find(entry => entry.id === `yonghe-outdoor-group-${groupIndex}`)!
         const objects = group.entityIds.map(id => scene.objects.find(entry => entry.id === id)!).sort((a, b) => a.position.x - b.position.x)
         expect(objects.map(object => object.label)).toEqual(['椅', '桌', '椅'])
         expect(objects.map(object => object.textLayout)).toEqual(['vertical', 'vertical', 'vertical'])
         const localAcross = objects.map(object => Math.round(frontX - (object.position.x - room.bounds.x) * 19.2))
         expect(localAcross).toEqual(centers)
+        expect(localAcross.every(center => ownedYongheWallCells.includes(center))).toBe(true)
+        const table = objects.find(object => object.kind === 'table')!
+        expect(table.focusFrame).toBe('interactive')
       }
-      expect(scene.continuousStructures.filter(body => body.id.startsWith('yonghe-outdoor-table-') && body.id.endsWith('-frame'))).toHaveLength(2)
+      expect(scene.continuousStructures.some(body => body.counterSurface?.groupId.startsWith('yonghe-outdoor-table-'))).toBe(false)
     })
 
     it('keeps the work zone staff-only, counter continuous, and rear door unreachable through the wall', () => {

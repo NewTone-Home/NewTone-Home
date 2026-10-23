@@ -9,13 +9,13 @@ export function trialYongheInterior(blueprint: MainlineSceneBlueprint): Mainline
   const entities:MainlineSceneEntity[]=[],groups:MainlineFurnitureGroup[]=[],structures:MainlineContinuousStructure[]=[]
   const rect=(x:number,y:number,width:number,height:number)=>{const center=point(x+width/2,y+height/2);return {x:center.x-height/1920*50,y:center.y-width/1080*50,width:height/1920*100,height:width/1080*100}}
   const addSurface=(id:string,groupId:string,box:{x:number;y:number;width:number;height:number},orientation:'horizontal'|'vertical',entityId:string,role:'counter'|'worktop',hideLabel=true,outline={x:box.x,y:box.y,width:box.width,height:box.height},surfaceRoomId=room.id)=>{
-    structures.push({id,kind:'counter',...rect(box.x,box.y,box.width,box.height),counterSurface:{groupId,roomId:surfaceRoomId,interactionEntityId:entityId,labelEntityId:entityId,orientation,role,hideLabel,outlineBounds:rect(outline.x,outline.y,outline.width,outline.height)}})
+    structures.push({id,kind:'counter',...rect(box.x,box.y,box.width,box.height),counterSurface:{groupId,roomId:surfaceRoomId,interactionEntityId:entityId,labelEntityId:entityId,orientation,role,label:role==='worktop'?'\u5de5\u4f5c\u53f0':undefined,hideLabel,outlineBounds:rect(outline.x,outline.y,outline.width,outline.height)}})
   }
   const fixture=(id:string,label:string,x:number,y:number):MainlineSceneEntity=>({id,label,kind:'fixture',weight:'fixture',surface:'floor',roomId:room.id,position:point(x,y),visualVisibility:'static',interactive:true,collision:footprint(x,y,Array.from(label).length*16)})
   const tableGroup=(groupId:string,x:number,y:number,outdoor=false,tableId=`${groupId}-table`,seatIds=[`${groupId}-chair-top`,`${groupId}-chair-bottom`])=>{
     const ownership=outdoor?undefined:room.id
     const tableLabel=outdoor?'\u684c':'\u684c\u5b50'
-    entities.push({...fixture(tableId,tableLabel,x,y),roomId:ownership,kind:'table',weight:'anchor',groupId,textLayout:outdoor?'vertical':undefined,shape:footprint(x,y,outdoor?16:32),approach:point(x+44,y)})
+    entities.push({...fixture(tableId,tableLabel,x,y),roomId:ownership,kind:'table',weight:'anchor',groupId,textLayout:outdoor?'vertical':undefined,focusFrame:outdoor?'interactive':undefined,shape:footprint(x,y,outdoor?16:32),approach:point(x+44,y)})
     seatIds.forEach((id,index)=>{const direction=index===0?-1:1,seatX=outdoor?x:x+direction*30,seatY=outdoor?y+direction*28:y,rest=point(seatX,seatY),pulled=outdoor?point(x+22,seatY):point(x+direction*52,y)
       entities.push({...fixture(id,outdoor?'\u6905':'\u6905\u5b50',seatX,seatY),roomId:ownership,kind:'seat',weight:'minor',groupId,textLayout:outdoor?'vertical':undefined,position:rest,approach:pulled,shape:footprint(seatX,seatY,outdoor?16:32),seat:{id,tableId,side:index===0?'top':'bottom',rest,pulled,sit:rest}})
     })
@@ -23,15 +23,12 @@ export function trialYongheInterior(blueprint: MainlineSceneBlueprint): Mainline
   }
   // Retain the original four table identities, not their obsolete independent-room positions.
   tableGroup('yonghe-upper-left-group',420,56)
-  tableGroup('yonghe-upper-right-group',560,56)
+  tableGroup('yonghe-upper-right-group',532,56)
   tableGroup('yonghe-lower-left-group',420,252)
-  tableGroup('yonghe-lower-right-group',560,252)
+  tableGroup('yonghe-lower-right-group',532,252)
   // The old two outdoor groups belong to this frontage; neither reaches a neighbour or lane centre.
-  tableGroup('yonghe-outdoor-group-1',616,28,true,'yonghe-outdoor-table-1',['yonghe-outdoor-chair-1-top','yonghe-outdoor-chair-1-bottom'])
+  tableGroup('yonghe-outdoor-group-1',616,56,true,'yonghe-outdoor-table-1',['yonghe-outdoor-chair-1-top','yonghe-outdoor-chair-1-bottom'])
   tableGroup('yonghe-outdoor-group-2',616,252,true,'yonghe-outdoor-table-2',['yonghe-outdoor-chair-2-top','yonghe-outdoor-chair-2-bottom'])
-  // No interior owner: the shared renderer keeps these exterior frames visible while the shop is closed.
-  addSurface('yonghe-outdoor-table-1-frame','yonghe-outdoor-table-1-frame',{x:608,y:20,width:16,height:16},'horizontal','yonghe-outdoor-table-1','counter',true,undefined,'')
-  addSurface('yonghe-outdoor-table-2-frame','yonghe-outdoor-table-2-frame',{x:608,y:244,width:16,height:16},'horizontal','yonghe-outdoor-table-2','counter',true,undefined,'')
   const counterId='yonghe-trial-counter-body'
   // The first16px cell meets the top wall; only the lower end is a staff opening.
   for(let index=0;index<16;index++){
