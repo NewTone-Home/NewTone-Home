@@ -6,6 +6,7 @@ import { findMainlinePathToEntity, canActorReachPassageApproach, isWalkableMainl
 import { mainlineSceneBlueprints } from '../src/center/runtime/mainlineSceneModel'
 import { isMainlineSeatAvailable, mainlineSceneOccupiedSeatIds, nextMainlinePlayerSeatId } from '../src/center/runtime/mainlineSeating'
 import { counterOutlineGeometry } from '../src/center/runtime/counterOutlineGeometry'
+import { frameShouldCollapse } from '../src/center/runtime/sceneFrameLifecycle'
 
 for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
   const scene = mainlineScenes[sceneId]
@@ -135,6 +136,15 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
         expect(localAcross.every(center => ownedYongheWallCells.includes(center))).toBe(true)
         const table = objects.find(object => object.kind === 'table')!
         expect(table.focusFrame).toBe('interactive')
+        expect(table.roomId).toBeUndefined()
+        expect(table.visible).not.toBe(false)
+        expect(frameShouldCollapse({
+          group: `interactive:${table.id}`, policy: 'interactive', phase: 'closed', gateTriggered: false,
+          interactionBusy: false, interactionActive: false, retractRequested: false, suppressed: false,
+        }, {
+          corner: 'top-left', phase: 'hidden', fullyCollapsed: true, preserveCornerOnResume: false, resumeCorner: null,
+          transitionDirection: null, transitionStartedAt: 0, initialized: false, hovered: false, locked: false,
+        })).toBe(false)
       }
       expect(scene.continuousStructures.some(body => body.counterSurface?.groupId.startsWith('yonghe-outdoor-table-'))).toBe(false)
     })
