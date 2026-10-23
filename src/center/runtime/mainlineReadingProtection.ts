@@ -8,6 +8,16 @@ import { mainlineEchoLayout, type MainlineEchoLayout } from './mainlineEchoLayou
 import { mainlineReadingFontSizePx } from './mainlineTextReading'
 import { splitMainlineInteractionTextToFit } from './mainlineTextSegments'
 
+export type MainlineReadingOverflowPageState = { sessionKey: string; key: string; index: number } | null
+
+export function mainlineReadingOverflowPageForSession(state: MainlineReadingOverflowPageState, sessionKey: string | null): MainlineReadingOverflowPageState {
+  return sessionKey && state?.sessionKey === sessionKey ? state : null
+}
+
+export function mainlineReadingOverflowPageIndex(state: MainlineReadingOverflowPageState, sessionKey: string | null, key: string) {
+  return sessionKey && state?.sessionKey === sessionKey && state.key === key ? state.index : 0
+}
+
 export function currentMainlineReadingTargetIds(input: {
   readingMode: boolean
   activeObjectId?: string | null

@@ -36,7 +36,7 @@ import { storefrontContactGeometry } from './storefrontContactGeometry'
 import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingStaticOpacity, mainlineReadingStaticOpacityForBoundsUnion, mainlineReadingOpacityForActor, mainlineObservationTypingIntervalMs, mainlineReadingFadeTransitionMs, resolveMainlineDialogueParticipants } from './mainlineTextReading'
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
 import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
-import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingBox, mainlineReadingMaskRects } from './mainlineReadingProtection'
+import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingBox, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from './mainlineReadingProtection'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -838,7 +838,7 @@ export function MainlineSceneRenderer({
 }: MainlineSceneRendererProps) {
   const readingMaskId = `mainline-reading-mask-${useId().replace(/:/g, '')}`
   const [dialogueReady, setDialogueReady] = useState(false)
-  const [readingOverflowPage, setReadingOverflowPage] = useState<{ key: string; index: number } | null>(null)
+  const [readingOverflowPage, setReadingOverflowPage] = useState<import('./mainlineReadingProtection').MainlineReadingOverflowPageState>(null)
   const speakerPlacementRef = useRef<{ session: string; metrics: string; anchor: ReturnType<typeof mainlineSpeakerAnchor> } | null>(null)
   if (!dialogue || !dialogueLine || !dialoguePosition || sceneEcho) speakerPlacementRef.current = null
   const dialogueReadyGroupRef = useRef<string | null>(null)
@@ -970,10 +970,16 @@ export function MainlineSceneRenderer({
   const readingMetrics = viewportMetrics
   const activeReadingPosition = sceneEcho?.position ?? dialoguePosition
   const activeReadingText = sceneEcho?.text ?? dialogueText ?? dialogueLine?.text ?? ''
+  const readingSessionKey = !readingMode ? null : sceneEcho
+    ? `${scene.id}:${readingMode}:echo:${sceneEcho.id}:${sceneEcho.entityId ?? ''}`
+    : `${scene.id}:${readingMode}:dialogue:${dialogue?.triggerEntityId ?? ''}:${dialogueLine?.id ?? ''}`
   const readingOverflowKey = sceneEcho
-    ? `echo:${sceneEcho.id}:${sceneEcho.segmentIndex}:${activeReadingText}`
-    : `dialogue:${dialogueLine?.id ?? ''}:${dialogueSegmentIndex}:${activeReadingText}`
-  const readingOverflowIndex = readingOverflowPage?.key === readingOverflowKey ? readingOverflowPage.index : 0
+    ? `${readingSessionKey}:echo:${sceneEcho.segmentIndex}:${activeReadingText}`
+    : `${readingSessionKey}:dialogue:${dialogueSegmentIndex}:${activeReadingText}`
+  const readingOverflowIndex = mainlineReadingOverflowPageIndex(readingOverflowPage, readingSessionKey, readingOverflowKey)
+  useEffect(() => {
+    setReadingOverflowPage(current => mainlineReadingOverflowPageForSession(current, readingSessionKey))
+  }, [readingSessionKey])
   const dialogueParticipantResolution = resolveMainlineDialogueParticipants(scene, dialogue, dialogueLine)
   const dialogueParticipantNpcIds = dialogueParticipantResolution.npcIds
   const readingProtectedEntityIds = useMemo(() => {
@@ -1838,7 +1844,7 @@ export function MainlineSceneRenderer({
               onClick={(event) => {
                 event.stopPropagation()
                 if (displayOverflowIndex + 1 < fittedReadingSegments.length) {
-                  setReadingOverflowPage({ key: readingOverflowKey, index: displayOverflowIndex + 1 })
+                  if (readingSessionKey) setReadingOverflowPage({ sessionKey: readingSessionKey, key: readingOverflowKey, index: displayOverflowIndex + 1 })
                   return
                 }
                 setReadingOverflowPage(null)

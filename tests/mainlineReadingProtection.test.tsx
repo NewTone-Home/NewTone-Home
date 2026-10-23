@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingBox, mainlineReadingMaskRects } from '../src/center/runtime/mainlineReadingProtection'
+import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingBox, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from '../src/center/runtime/mainlineReadingProtection'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineReadingBounds, mainlineInteractionRoom } from '../src/center/runtime/mainlineTextReading'
 import { projectCommercialStreetX } from '../src/center/runtime/commercialStreetGridProjection'
@@ -15,6 +15,16 @@ describe('reading target protection', () => {
     expect(currentMainlineReadingTargetIds({ readingMode: true, activeObjectId: 'old-target', sceneEchoEntityId: 'new-target' })).toEqual(new Set(['new-target']))
     expect(currentMainlineReadingTargetIds({ readingMode: true, activeObjectId: 'old-target' })).toEqual(new Set(['old-target']))
     expect(currentMainlineReadingTargetIds({ readingMode: false, activeObjectId: 'old-target', sceneEchoEntityId: 'new-target' })).toEqual(new Set())
+  })
+
+  it('clears locally fitted pages when reading is interrupted and reopened on the same target', () => {
+    const firstSession = 'commercial-street:observation:echo:88:commercial-cafe-menu'
+    const page = { sessionKey: firstSession, key: `${firstSession}:echo:0:long line`, index: 1 }
+    expect(mainlineReadingOverflowPageIndex(page, firstSession, page.key)).toBe(1)
+    const afterInterrupt = mainlineReadingOverflowPageForSession(page, null)
+    expect(afterInterrupt).toBeNull()
+    expect(mainlineReadingOverflowPageIndex(afterInterrupt, firstSession, page.key)).toBe(0)
+    expect(mainlineReadingOverflowPageForSession(afterInterrupt, firstSession)).toBeNull()
   })
 
   it('repositions a narrow-screen reading box inside the current Cafe room, clear of the target', () => {
