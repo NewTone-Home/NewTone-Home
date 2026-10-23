@@ -127,15 +127,15 @@ describe('mainline screen geometry snapshot', () => {
     const insideDoorOpening = eatery.structures
       .find((structure) => structure.id === 'yonghe-room')
       ?.openings.find((opening) => opening.doorId === 'yonghe-street-entry')
-    const insideDoorCell = doorCells(eatery, 'yonghe-street-entry')[0]
-    expect(doorCells(eatery, 'yonghe-street-entry')).toHaveLength(1)
+    const insideDoorCells = doorCells(eatery, 'yonghe-street-entry')
+    expect(insideDoorCells).toHaveLength(2)
     const outwardPassage = perimeter.passages.find((passage) => passage.id === 'yonghe-street-entry')
     const returnPassage = eatery.passages.find((passage) => passage.id === 'yonghe-street-entry')
 
     expect(storefront?.label).toBe('永和小馆')
     expect(insideDoor?.entity).toMatchObject({ label: '永和小馆', displayLabel: '门' })
     expect(insideDoorOpening?.label).toBeUndefined()
-    expect(renderedDoorLabel(insideDoorCell)).toBe('门')
+    expect(insideDoorCells.map(renderedDoorLabel)).toEqual(['门', '门'])
     expect(outwardPassage).toMatchObject({entityId:'yonghe-street-entry',routeThrough:true,fromRoomId:'mining-street-public-lane',toRoomId:'mining-shop-2-interior'})
     expect(outwardPassage.targetSceneId).toBeUndefined()
     expect(returnPassage).toEqual(outwardPassage)

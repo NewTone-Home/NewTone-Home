@@ -6,7 +6,7 @@ import { findMainlinePath, findMainlinePathToEntity, resolveMainlineNpcPosition,
 import { resolveMainlineSceneExploration, resolveMainlineSceneEchoChoice } from '../src/center/runtime/mainlineSceneInteractions'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 const scene=mainlineScenes['commercial-street'], options={screenMetrics:sceneDesignReferenceMetrics,actorId:'protagonist',actorFootprint:{width:11/19.2,height:11/10.8}}
-const configs=[['cafe-trial','commercial-north-cafe-interior','cafe-coffee-owner',16,144,24,280],['milk-tea-trial','commercial-south-s5-interior','milk-tea-trial-worker',296,196,24,336],['fruit-tea-trial','commercial-north-n1-interior','fruit-tea-trial-worker',16,112,24,336]] as const
+const configs=[['cafe-trial','commercial-north-cafe-interior','cafe-coffee-owner',16,144,24,280],['milk-tea-trial','commercial-south-s5-interior','milk-tea-trial-worker',296,198,24,382],['fruit-tea-trial','commercial-north-n1-interior','fruit-tea-trial-worker',16,64,24,382]] as const
 const context={incensePhase:'unlit',plantWatered:false,officeBlindsOpen:false,carriedPhoneDevice:'inner',commercialCafeCoffeeOrdered:false} as const
 
 describe('simple drink workspaces: one visible worktop and shared counter entry',()=>{
@@ -22,7 +22,7 @@ describe('simple drink workspaces: one visible worktop and shared counter entry'
    const staff={...options,actorId:worker,actorFootprint:{width:16/19.2,height:16/10.8}},start=resolveMainlineNpcPosition(scene,worker),rear=scene.passages.find(p=>p.id===roomId+'-rear-door')!
    expect(isWalkableMainlinePoint(start,scene,{},staff)).toBe(true);expect(rear.access).toBe('locked')
    const offset=prefix==='milk-tea-trial'?-24:width+24
-   for(const target of [point(x+offset,y-24),point(x+offset,y+height+24),rear.thresholds[0]]){const path=findMainlinePath(start,target,scene,{},staff);expect(path).not.toBeNull();for(let i=1;i<path!.length;i++)expect(canTravelAlongMainlineSegment(path![i-1],path![i],scene,{},staff)).toBe(true)}
+   for(const target of [point(x+offset,y+16),point(x+offset,y+height-16),rear.thresholds[0]]){const path=findMainlinePath(start,target,scene,{},staff);expect(path).not.toBeNull();expect(isWalkableMainlinePoint(target,scene,{},staff)).toBe(true);for(let i=1;i<path!.length;i++)expect(canTravelAlongMainlineSegment(path![i-1],path![i],scene,{},staff)).toBe(true)}
   })
   it(prefix+' front and long counter contacts have legal public routes and one existing behavior',()=>{
    const front=scene.passages.find(p=>p.toRoomId===roomId&&p.routeThrough)!,counters=parts.filter(p=>p.counterSurface?.role!=='worktop')
