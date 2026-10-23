@@ -205,17 +205,20 @@ export function storefrontCharacterCells(
   const baselineSigns = ownedEntries
     .filter(({ unit, cell }) => unit.variant === 'baseline' && cell.kind === 'storefront' && cell.storefrontRole === 'sign')
     .sort((a, b) => tangentCenter(a.cell) - tangentCenter(b.cell))
-  const door = ownedEntries.find(({ unit, cell }) => storefront.composition?.fixedCellCount
+  const doors = ownedEntries.filter(({ unit, cell }) => storefront.composition?.fixedCellCount
     ? unit.variant === 'near' && cell.kind === 'storefront' && cell.storefrontRole === 'door'
     : cell.kind === 'door' && (cell.entityId === storefront.portalId || unit.entityId === storefront.portalId))
-  if (!door || baselineSigns.length < labels.length) return []
+  if (!doors.length || baselineSigns.length < labels.length) return []
 
-  const doorTangent = vertical ? door.cell.y : door.cell.x
-  const doorIndex = baselineSigns.reduce((best, entry, index) => {
-    const bestDistance = Math.abs(tangentCenter(baselineSigns[best]!.cell) - doorTangent)
-    const distance = Math.abs(tangentCenter(entry.cell) - doorTangent)
-    return distance < bestDistance ? index : best
-  }, 0)
+  const doorByIndex = new Map(doors.map(door => {
+    const doorTangent = vertical ? door.cell.y : door.cell.x
+    const index = baselineSigns.reduce((best, entry, index) => {
+      const bestDistance = Math.abs(tangentCenter(baselineSigns[best]!.cell) - doorTangent)
+      const distance = Math.abs(tangentCenter(entry.cell) - doorTangent)
+      return distance < bestDistance ? index : best
+    }, 0)
+    return [index, door] as const
+  }))
   const cafeComposition = storefront.composition?.baseline?.length === 1 && storefront.composition.baseline[0] === 'sign'
   const localEntryCells = ownedEntries
     .filter(({ unit, cell }) => unit.id.startsWith(`${storefront.id}-base-`) && (cell.kind === 'wall' || cell.kind === 'door'))
@@ -229,9 +232,11 @@ export function storefrontCharacterCells(
     const baselineX = vertical ? signCell.x : baselineTangent
     const baselineY = vertical ? baselineTangent : signCell.y
     const entry = useCafeEntryAnchors ? localEntryCells[index] : undefined
-    const role = entry?.cell.kind === 'door' ? 'door' : index === doorIndex ? 'door' : 'wall'
-    const x = entry?.cell.x ?? (role === 'door' ? door.cell.x : baselineX)
-    const y = entry?.cell.y ?? (role === 'door' ? door.cell.y : baselineY)
+    const door = doorByIndex.get(index)
+    const role = entry?.cell.kind === 'door' ? 'door' : door ? 'door' : 'wall'
+    const doorData = door ?? doors[0]!
+    const x = entry?.cell.x ?? (role === 'door' ? doorData.cell.x : baselineX)
+    const y = entry?.cell.y ?? (role === 'door' ? doorData.cell.y : baselineY)
     return {
       id: `${storefront.id}-character-${index}`,
       baselineX,
@@ -240,11 +245,11 @@ export function storefrontCharacterCells(
       y,
       role,
       baselineGlyph,
-      glyph: role === 'door' ? (door.cell.glyph ?? '\u95e8') : (entry?.cell.kind === 'wall' ? (entry.cell.glyph ?? '\u5899') : '\u5899'),
+      glyph: role === 'door' ? (door?.cell.glyph ?? doors[0]!.cell.glyph ?? '\u95e8') : (entry?.cell.kind === 'wall' ? (entry.cell.glyph ?? '\u5899') : '\u5899'),
       ...(role === 'door' ? {
-        entityId: door.cell.entityId ?? door.unit.entityId ?? storefront.portalId,
-        access: door.cell.access,
-        lockedText: door.cell.lockedText,
+        entityId: doorData.cell.entityId ?? doorData.unit.entityId ?? storefront.portalId,
+        access: doorData.cell.access,
+        lockedText: doorData.cell.lockedText,
       } : {}),
     }
   })

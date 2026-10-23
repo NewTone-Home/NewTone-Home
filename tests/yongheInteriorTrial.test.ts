@@ -63,8 +63,12 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
         }
       }
       const stove = scene.objects.find(object => object.id === 'yonghe-stove')!
-      expect(stove.position.x).toBeCloseTo(point(84, 8).x, 10)
-      expect(stove.position.y).toBeCloseTo(point(84, 8).y, 10)
+      expect(stove.position.x).toBeCloseTo(point(102, 22).x, 10)
+      expect(stove.position.y).toBeCloseTo(point(102, 22).y, 10)
+      expect(stove.textLayout).toBe('vertical')
+      const board = scene.objects.find(object => object.id === 'yonghe-trial-board')!
+      expect(board.position.x).toBeCloseTo(point(22, 100).x, 10)
+      expect(board.position.y).toBeCloseTo(point(22, 100).y, 10)
       expect(scene.passages.find(passage => passage.id === 'yonghe-back-door')?.access).toBe('locked')
       const rear = scene.objects.find(object => object.id === 'yonghe-back-door')!
       expect(rear.position.x).toBeCloseTo(point(0, 252).x, 10)
@@ -168,7 +172,8 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       const counterCells = scene.objects.filter(object => object.id === 'yonghe-counter' || object.id.startsWith('yonghe-trial-counter-'))
       expect(counterCells).toHaveLength(16)
       expect(counterCells.every(cell => cell.counterSurfaceId === counter.id && cell.interactionStructureId === counter.id)).toBe(true)
-      expect(counter.counterSurface?.hideLabel).toBe(true)
+      expect(counter.counterSurface?.hideLabel).toBe(false)
+      expect(counter.counterSurface?.label).toBeUndefined() // the surface's existing default renders one centered 柜台 label
       expect(counter.counterSurface?.interactionEntityId).toBe('yonghe-counter')
       expect(counterCells.filter(cell => cell.interactive).map(cell => cell.id)).toEqual(['yonghe-counter'])
       expect(counter.width * 19.2).toBeCloseTo(256, 3)
@@ -179,6 +184,40 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       const worktop = scene.continuousStructures.filter(body => body.counterSurface?.groupId === 'yonghe-trial-worktop-L')
       expect(worktop).toHaveLength(2)
       expect(counterOutlineGeometry(worktop.map(body => ({ x:body.x*19.2,y:body.y*10.8,width:body.width*19.2,height:body.height*10.8 }))).loops).toHaveLength(1)
+      const topLeg = worktop.find(body => body.id.endsWith('back-body'))!
+      const rightLeg = worktop.find(body => body.id.endsWith('right-body'))!
+      expect(topLeg.width * 19.2).toBeCloseTo(180, 3)
+      expect(topLeg.height * 10.8).toBeCloseTo(24, 3)
+      expect(rightLeg.width * 19.2).toBeCloseTo(24, 3)
+      expect(rightLeg.height * 10.8).toBeCloseTo(180, 3)
+      const localBox = (body: typeof topLeg) => ({
+        x: (body.y - room.bounds.y) * 10.8,
+        y: frontX - (body.x + body.width - room.bounds.x) * 19.2,
+        width: body.height * 10.8,
+        height: body.width * 19.2,
+      })
+      const top = localBox(topLeg), right = localBox(rightLeg)
+      expect(top.x).toBeCloseTo(10, 2)
+      expect(top.x + top.width).toBeCloseTo(34, 2)
+      expect(right.y).toBeCloseTo(10, 2)
+      expect(right.y + right.height).toBeCloseTo(34, 2)
+      // Wall glyphs are 16px wide around the boundary anchors; the outline's 1px stroke leaves 1px clear.
+      expect(top.x - 1 - 8).toBeCloseTo(1, 2)
+      expect(right.y - 1 - 8).toBeCloseTo(1, 2)
+      const stoveBox = mainlineEntityTextFootprint(stove, stove.position, sceneDesignReferenceMetrics)
+      const stoveLocalX = (stoveBox.y - room.bounds.y) * 10.8
+      const stoveLocalY = frontX - (stoveBox.x + stoveBox.width - room.bounds.x) * 19.2
+      expect(stoveLocalX).toBeGreaterThanOrEqual(right.x)
+      expect(stoveLocalX + stoveBox.height * 10.8).toBeLessThanOrEqual(right.x + right.width)
+      expect(stoveLocalY).toBeGreaterThanOrEqual(right.y)
+      expect(stoveLocalY + stoveBox.width * 19.2).toBeLessThanOrEqual(right.y + right.height)
+      const boardBox = mainlineEntityTextFootprint(board, board.position, sceneDesignReferenceMetrics)
+      const boardLocalX = (boardBox.y - room.bounds.y) * 10.8
+      const boardLocalY = frontX - (boardBox.x + boardBox.width - room.bounds.x) * 19.2
+      expect(boardLocalX).toBeGreaterThanOrEqual(top.x)
+      expect(boardLocalX + boardBox.height * 10.8).toBeLessThanOrEqual(top.x + top.width)
+      expect(boardLocalY).toBeGreaterThanOrEqual(top.y)
+      expect(boardLocalY + boardBox.width * 19.2).toBeLessThanOrEqual(top.y + top.height)
     })
   })
 }

@@ -36,11 +36,13 @@ export function trialYongheInterior(blueprint: MainlineSceneBlueprint): Mainline
     delete entity.collision;entity.interactionStructureId=counterId;entity.counterSurfaceId=counterId;entity.interactionContactSides=['bottom'];entity.interactive=index===7
     entities.push(entity)
   }
-  addSurface(counterId,'yonghe-trial-counter-line',{x:216,y:0,width:16,height:256},'horizontal','yonghe-counter','counter',true,{x:212,y:-4,width:24,height:264})
+  addSurface(counterId,'yonghe-trial-counter-line',{x:216,y:0,width:16,height:256},'horizontal','yonghe-counter','counter',false,{x:212,y:-4,width:24,height:264})
   // The two framed legs overlap at the rear/right corner to form one continuous L.
-  addSurface('yonghe-trial-worktop-back-body','yonghe-trial-worktop-L',{x:0,y:16,width:16,height:180},'horizontal','yonghe-stove','worktop',true)
-  addSurface('yonghe-trial-worktop-right-body','yonghe-trial-worktop-L',{x:0,y:0,width:180,height:16},'vertical','yonghe-trial-board','worktop',true)
-  entities.push(fixture('yonghe-stove','灶台',84,8),fixture('yonghe-trial-board','菜板',16,100))
+  addSurface('yonghe-trial-worktop-back-body','yonghe-trial-worktop-L',{x:10,y:16,width:24,height:180},'horizontal','yonghe-stove','worktop',true)
+  addSurface('yonghe-trial-worktop-right-body','yonghe-trial-worktop-L',{x:10,y:10,width:180,height:24},'vertical','yonghe-trial-board','worktop',true)
+  const stove=fixture('yonghe-stove','灶台',102,22),board=fixture('yonghe-trial-board','菜板',22,100)
+  stove.textLayout='vertical'
+  entities.push(stove,board)
   const menuAnchorX = 406
   const menuHalfSpan = 28
   const menu:MainlineSceneEntity={id:'yonghe-menu',label:'菜单',kind:'fixture',weight:'fixture',surface:'wall',roomId:room.id,position:point(menuAnchorX,0),textLayout:'vertical',interactive:true,interactionContactAnchor:point(menuAnchorX,28),visualVisibility:'static'}

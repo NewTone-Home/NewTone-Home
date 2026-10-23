@@ -129,6 +129,17 @@ describe('mining clockwise continuous street shell', () => {
       expect(slot.approach!.x).toBeCloseTo(passage.thresholds[0]!.x, 10)
       expect(slot.approach!.y).toBeCloseTo(passage.thresholds[0]!.y, 10)
       expect(activeStorefrontPresentationOwner(scene, slot.approach!)).toBe(slot.id)
+      if (slot.portalId === 'yonghe-street-entry') {
+        expect(cells.map(cell => cell.role).join(',')).toBe('wall,door,door,wall')
+        expect(cells.map(cell => cell.glyph).join('')).toBe('墙门门墙')
+        expect(new Set(cells.map(cell => cell.id)).size).toBe(4)
+        expect(cells.filter(cell => cell.role === 'door').every(cell => cell.entityId === passage.entityId)).toBe(true)
+        expect(cells.filter(cell => cell.role === 'door')).toHaveLength(2)
+        expect(passage.doorway.width * 19.2).toBeCloseTo(56, 1)
+        expect(slot.approach!.x).toBeCloseTo(passage.doorway.x + passage.doorway.width / 2, 4)
+      } else {
+        expect(cells.filter(cell => cell.role === 'door')).toHaveLength(1)
+      }
     }
   })
 

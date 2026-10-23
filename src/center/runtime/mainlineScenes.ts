@@ -1117,18 +1117,19 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     if (!storefront.composition?.fixedCellCount || !storefront.portalId) return storefront
     const sourceRoomId = portals.find(portal => portal.id === storefront.portalId)?.fromRoomId
     if (data.rooms?.some(room => room.id === sourceRoomId && room.kind !== 'corridor')) return storefront
-    const doorCell = geometry
+    const doorCells = geometry
       .filter((unit) => unit.storefrontId === storefront.id && unit.variant === 'near')
       .flatMap((unit) => unit.visual.cells)
-      .find((cell) => cell.storefrontRole === 'door')
-    if (!doorCell) return storefront
+      .filter((cell) => cell.storefrontRole === 'door')
+    if (doorCells.length === 0) return storefront
+    const doorCenter = doorCells.reduce((center, cell) => ({ x: center.x + cell.x / doorCells.length, y: center.y + cell.y / doorCells.length }), { x: 0, y: 0 })
     const outward = storefront.edge === 'top' ? { x: 0, y: -1 }
       : storefront.edge === 'bottom' ? { x: 0, y: 1 }
         : storefront.edge === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 }
-    const approach = { x: doorCell.x + outward.x * 6, y: doorCell.y + outward.y * 6 }
-    portalDoorPositions.set(storefront.portalId, { x: doorCell.x, y: doorCell.y })
+    const approach = { x: doorCenter.x + outward.x * 6, y: doorCenter.y + outward.y * 6 }
+    portalDoorPositions.set(storefront.portalId, doorCenter)
     const entity = objectById.get(storefront.portalId)
-    if (entity) objectById.set(storefront.portalId, { ...entity, position: { x: doorCell.x, y: doorCell.y } })
+    if (entity) objectById.set(storefront.portalId, { ...entity, position: doorCenter })
     portalsAdjusted = true
     return { ...storefront, approach }
   })

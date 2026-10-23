@@ -67,7 +67,8 @@ const oldShopMetrics = miningShopNames.map((label, index) => {
   const right = left + widthCells * horizontal
   const firstCenter = left + horizontal
   const doorIndex = sideWallCells + Math.floor(letters / 2)
-  const doorX = firstCenter + doorIndex * horizontal
+  const isYonghe = index === 1
+  const doorX = firstCenter + (isYonghe ? doorIndex - 0.5 : doorIndex) * horizontal
   const portalId = index === 1 ? 'yonghe-street-entry' : 'mining-shop-door-' + (index + 1)
   const roomId = 'mining-shop-' + (index + 1) + '-interior'
   const baseline: MainlineStorefrontRole[] = [
@@ -76,7 +77,7 @@ const oldShopMetrics = miningShopNames.map((label, index) => {
     ...Array.from({ length: sideWallCells }, () => 'wall' as const),
   ]
   const near = baseline.map((role, cellIndex) => role === 'sign'
-    ? cellIndex === doorIndex ? 'door' as const : 'wall' as const
+    ? (isYonghe ? cellIndex === sideWallCells + 1 || cellIndex === sideWallCells + 2 : cellIndex === doorIndex) ? 'door' as const : 'wall' as const
     : role)
   const storefront: MainlineStorefrontSlotBlueprint = {
     id: 'yonghe-slot-' + (index + 1), wallId: 'mining-street-facade', edge: 'bottom', label,
