@@ -31,7 +31,32 @@ describe('one world lattice per active continuous space',()=>{
    interactionText:Object.fromEntries(Object.entries(contract.interactionText??{}).filter(([id])=>!changedIds.has(id)&&!frontPortalIds.has(id))),
    explorationText:Object.fromEntries(Object.entries(contract.explorationText??{}).filter(([id])=>!changedIds.has(id)&&!id.startsWith('cafe-restroom-'))),
   })
-  expect(omitTrial(now),id).toEqual(omitTrial(before))
+  const expected=omitTrial(before)
+  const authoredTextSpace={
+   'jijia-ancestral-home':{roomId:'jijia-yard-public-area',kind:'room',wallId:'jijia-yard'},
+   'jijia-ancestral-interior':{roomId:'jijia-inner-house-main-room',kind:'room',wallId:'jijia-inner-house'},
+   'zhongshuyuan-passage':{roomId:'zhongshuyuan-passage-walkable-space',kind:'corridor',wallId:'zhongshuyuan-passage-frame'},
+  } as const
+  const space=authoredTextSpace[id]
+  if(space){
+   const scene=mainlineSceneBlueprints[id].scene
+   const shell=scene.walls?.find(w=>w.id===space.wallId)
+   expect(scene.rooms).toEqual([{id:space.roomId,bounds:scene.walkBounds,kind:space.kind}])
+   if(id==='zhongshuyuan-passage'){
+    expect(shell?.bounds).toBeDefined()
+    expect(shell!.bounds!.x).toBeLessThan(scene.walkBounds!.x)
+    expect(shell!.bounds!.y).toBeLessThan(scene.walkBounds!.y)
+    expect(shell!.bounds!.x+shell!.bounds!.width).toBeGreaterThan(scene.walkBounds!.x+scene.walkBounds!.width)
+    expect(shell!.bounds!.y+shell!.bounds!.height).toBeGreaterThan(scene.walkBounds!.y+scene.walkBounds!.height)
+   }else{
+    expect(shell?.bounds?.x).toBe(scene.walkBounds?.x)
+    expect(shell?.bounds?.y).toBe(scene.walkBounds?.y)
+    expect(shell?.bounds?.width).toBeCloseTo(scene.walkBounds?.width,12)
+    expect(shell?.bounds?.height).toBe(scene.walkBounds?.height)
+   }
+   expected.rooms=[...expected.rooms,{id:space.roomId,kind:space.kind}]
+  }
+  expect(omitTrial(now),id).toEqual(expected)
  }
 })
  for(const id of ids)it(`${id}: walls and corners use its single 28px lattice`,()=>{
