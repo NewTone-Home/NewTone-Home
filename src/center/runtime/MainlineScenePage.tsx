@@ -49,6 +49,7 @@ import { commercialStreetMilkTeaConsumePatch, commercialStreetMilkTeaAppUnlockPa
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
 const emptyExplorationObjectIds: ReadonlySet<string> = new Set()
+const restroomPresentationSuppressionForSeatedPlayer: ReadonlySet<string> = new Set(['cafe-restroom-sign'])
 // Non-Café scenes still render this page. Keep their inactive story reference
 // stable so transient save writes (for example a ride arrival position) do not
 // repeatedly recreate the NPC registration and presentation dependencies.
@@ -616,7 +617,12 @@ export function MainlineScenePage({
     } else if (!inside && cafeInsideRef.current) setCommercialCafeNarrative(null)
     cafeInsideRef.current = inside
   }, [position.x, position.y, scene, sceneId, initialSceneState])
-  const storefrontPresentation = useStorefrontPresentation(scene, position, presentationReady)
+  const storefrontPresentation = useStorefrontPresentation(
+    scene,
+    position,
+    presentationReady,
+    scene.id === 'commercial-street' && activePlayerSeatId ? restroomPresentationSuppressionForSeatedPlayer : undefined,
+  )
   const reportedCafeRevealRef = useRef(false)
   const cafeStorefrontPhase = scene.id === 'commercial-street'
     ? storefrontPresentation.phaseByStorefront.get('commercial-cafe-slot')

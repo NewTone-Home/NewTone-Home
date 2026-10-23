@@ -13,17 +13,24 @@ import {
   storefrontPresentationHandoffSource,
   storefrontRestoreDelayMs,
   storefrontEntryRevealDelayMs,
+  storefrontPresentationExitEvent,
   type StorefrontPresentationEvent,
   type StorefrontPresentationPhase,
 } from './storefrontPresentation'
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
+const noSuppressedStorefronts: ReadonlySet<string> = new Set()
 
 /**
  * Owns only the visual cover over portal storefronts. Passage traversal,
  * navigation, collision, and door lifecycle remain outside this hook.
  */
-export function useStorefrontPresentation(scene: MainlineSceneDefinition, position: Point, presentationReady = true) {
+export function useStorefrontPresentation(
+  scene: MainlineSceneDefinition,
+  position: Point,
+  presentationReady = true,
+  suppressedStorefrontIds: ReadonlySet<string> = noSuppressedStorefronts,
+) {
   const [approachReady, setApproachReady] = useState(presentationReady)
   useEffect(() => {
     if (!presentationReady) { setApproachReady(false); return }
@@ -35,7 +42,7 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
     () => scene.storefronts.filter((storefront) => storefront.portalId && storefront.characterSwitch),
     [scene.storefronts],
   )
-  const activeStorefrontId = activeStorefrontPresentationOwner(scene, position, presentationReady && approachReady)
+  const activeStorefrontId = activeStorefrontPresentationOwner(scene, position, presentationReady && approachReady, suppressedStorefrontIds)
   const interiorStorefrontId = activeStorefrontInteriorOwner(scene, position)
   const [retainedInteriorStorefrontIds, setRetainedInteriorStorefrontIds] = useState<string[]>(() => interiorStorefrontId ? [interiorStorefrontId] : [])
   const [paintedInteriorStorefrontId, setPaintedInteriorStorefrontId] = useState<string | null>(null)
@@ -170,8 +177,8 @@ export function useStorefrontPresentation(scene: MainlineSceneDefinition, positi
     }
 
     if (previousPhase !== 'baseline') departedAtRef.current.set(previousOwner, performance.now())
-    transition(previousOwner, 'leave')
-  }, [activeStorefrontId, interiorStorefrontId, pinnedStorefrontId, nestedStorefrontIds, phaseByStorefront, transition])
+    transition(previousOwner, storefrontPresentationExitEvent(previousOwner, suppressedStorefrontIds))
+  }, [activeStorefrontId, interiorStorefrontId, pinnedStorefrontId, nestedStorefrontIds, phaseByStorefront, suppressedStorefrontIds, transition])
 
   // Product grace period belongs to presentation, not a CSS animation clock.
   useEffect(() => {

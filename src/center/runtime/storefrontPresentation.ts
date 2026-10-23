@@ -2,6 +2,8 @@ import type { Point } from './sceneGeometry'
 import { pointInStorefrontRoom, storefrontRoomConnection } from './storefrontRoomConnection'
 import { isMainlineStorefrontPresentationInRange, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneGeometryUnit, type MainlineStorefrontRole, type MainlineStorefrontSlot } from './mainlineScenes'
 
+const noSuppressedStorefronts: ReadonlySet<string> = new Set()
+
 /** Presentation-only state for a portal storefront. It never changes passage or collision state. */
 export type StorefrontPresentationPhase = 'baseline' | 'retracting' | 'revealing' | 'revealed' | 'lingering' | 'restoring'
 
@@ -95,12 +97,13 @@ export function activeStorefrontPresentationOwner(
   scene: MainlineSceneDefinition,
   position: Point,
   presentationReady = true,
+  suppressedStorefrontIds: ReadonlySet<string> = noSuppressedStorefronts,
 ) {
   if (!presentationReady) return null
   return scene.storefronts
     .filter((storefront) => {
       const connection = storefrontRoomConnection(scene, storefront)
-      return storefront.portalId && storefront.characterSwitch
+      return !suppressedStorefrontIds.has(storefront.id) && storefront.portalId && storefront.characterSwitch
         && (!connection || pointInStorefrontRoom(position, connection.publicRoom))
         && storefrontPresentationShouldReveal(scene, storefront, position)
     })
@@ -145,6 +148,10 @@ export function storefrontPresentationHandoffSource(
   incomingStorefrontId: string,
 ) {
   return [...phases].find(([storefrontId, phase]) => storefrontId !== incomingStorefrontId && phase !== 'baseline')?.[0] ?? null
+}
+
+export function storefrontPresentationExitEvent(storefrontId: string, suppressedStorefrontIds: ReadonlySet<string>): StorefrontPresentationEvent {
+  return suppressedStorefrontIds.has(storefrontId) ? 'handoff' : 'leave'
 }
 
 /**

@@ -18,6 +18,7 @@ import {
   activeStorefrontInteriorOwner,
   storefrontDoorFrameShouldRetract,
   storefrontPresentationHandoffSource,
+  storefrontPresentationExitEvent,
   storefrontPresentationShouldReveal,
 } from '../src/center/runtime/storefrontPresentation'
 
@@ -505,15 +506,20 @@ describe('commercial street storefront presentation', () => {
     }
   })
 
-  it('halves visual approach ranges without moving centers or shrinking click regions', () => {
+  it('keeps the restroom sign at its authored radius while halving other commercial street signs', () => {
     for (const storefront of street.storefronts) {
       const approach = mainlineStorefrontApproach(street, storefront)
       const oldRadius = storefront.nearRadius ?? 10
-      expect(isMainlineStorefrontPresentationInRange(street, storefront, { x: approach.x + oldRadius * .49, y: approach.y })).toBe(true)
-      expect(isMainlineStorefrontPresentationInRange(street, storefront, { x: approach.x + oldRadius * .51, y: approach.y })).toBe(false)
+      const effectiveRadius = storefront.id === 'cafe-restroom-sign' ? oldRadius : oldRadius * .5
+      expect(isMainlineStorefrontPresentationInRange(street, storefront, { x: approach.x + effectiveRadius * .99, y: approach.y })).toBe(true)
+      expect(isMainlineStorefrontPresentationInRange(street, storefront, { x: approach.x + effectiveRadius * 1.01, y: approach.y })).toBe(false)
       expect(isMainlineStorefrontPresentationInRange(street, storefront, { x: approach.x, y: 50 })).toBe(false)
       expect(storefront.nearRadius).toBe(storefront.id === 'cafe-restroom-sign' ? 4 : 10)
     }
+    const restroom = street.storefronts.find(storefront => storefront.id === 'cafe-restroom-sign')!
+    const restroomApproach = mainlineStorefrontApproach(street, restroom)
+    expect(isMainlineStorefrontPresentationInRange(street, restroom, { x: restroomApproach.x + 4, y: restroomApproach.y })).toBe(true)
+    expect(isMainlineStorefrontPresentationInRange(street, restroom, { x: restroomApproach.x + 4.001, y: restroomApproach.y })).toBe(false)
     const approach = mainlineStorefrontApproach(street, cafe)
     const anchor = mainlineStorefrontAnchor(street, cafe)
     // Current facade cells use `window`; the legacy cafe-only `glass`
@@ -532,6 +538,30 @@ describe('commercial street storefront presentation', () => {
     const outward = { x: (approach.x - anchor.x) / length, y: (approach.y - anchor.y) / length }
     expect(isMainlineStorefrontPresentationInRange(glassScene, cafe, { x: approach.x + outward.x * radius * .49, y: approach.y + outward.y * radius * .49 })).toBe(true)
     expect(isMainlineStorefrontPresentationInRange(glassScene, cafe, { x: approach.x + outward.x * radius * .51, y: approach.y + outward.y * radius * .51 })).toBe(false)
+  })
+
+  it('suppresses only the restroom presentation while the player is seated and reverses it on stand-up', () => {
+    const restroom = street.storefronts.find(storefront => storefront.id === 'cafe-restroom-sign')!
+    const restroomApproach = mainlineStorefrontApproach(street, restroom)
+    const suppressed = new Set([restroom.id])
+
+    expect(activeStorefrontPresentationOwner(street, restroomApproach)).toBe(restroom.id)
+    expect(activeStorefrontPresentationOwner(street, restroomApproach, true, suppressed)).toBeNull()
+    expect(storefrontPresentationExitEvent(restroom.id, suppressed)).toBe('handoff')
+    expect(storefrontPresentationExitEvent('commercial-cafe-slot', suppressed)).toBe('leave')
+    expect(nextStorefrontPresentationPhase('revealing', 'handoff')).toBe('restoring')
+    expect(nextStorefrontPresentationPhase('revealed', 'handoff')).toBe('restoring')
+    expect(nextStorefrontPresentationPhase('restoring', 'approach')).toBe('revealing')
+
+    const cafeRoom = street.rooms.find(room => room.id === 'commercial-north-cafe-interior')!
+    const plantInteractionLanding = { x: cafeRoom.bounds.x + 628.7 / 19.2, y: cafeRoom.bounds.y + 43.7 / 10.8 }
+    expect(isMainlineStorefrontPresentationInRange(street, restroom, plantInteractionLanding)).toBe(true)
+    expect(activeStorefrontPresentationOwner(street, plantInteractionLanding)).toBe(restroom.id)
+    expect(activeStorefrontPresentationOwner(street, plantInteractionLanding, true, suppressed)).toBeNull()
+    expect(activeStorefrontPresentationOwner(street, plantInteractionLanding)).toBe(restroom.id)
+
+    const fruitTea = street.storefronts.find(storefront => storefront.id === 'commercial-north-slot-1')!
+    expect(activeStorefrontPresentationOwner(street, mainlineStorefrontApproach(street, fruitTea), true, suppressed)).toBe(fruitTea.id)
   })
 
   it('widens the street lane by one shared wall-character cell on each side', () => {

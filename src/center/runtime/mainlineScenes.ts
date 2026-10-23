@@ -1565,8 +1565,10 @@ export function isMainlineStorefrontPresentationInRange(
   const departureRadius = mainlineStorefrontDepartureRadius(scene, storefront)
   const previousRadius = departureRadius !== undefined && alongInward < 0 ? departureRadius : authoredRadius
   // Keep the authored approach center and interaction/collision geometry.
-  // The cafe's separate outward departure radius follows the same reduction.
-  const radius = previousRadius * (scene.id === 'commercial-street' ? .5 : 1)
+  // Commercial shop signs keep their reduced range; the Cafe restroom keeps
+  // its authored radius so nearby seats and fixtures can still reveal it.
+  const radiusScale = scene.id === 'commercial-street' && storefront.id !== 'cafe-restroom-sign' ? .5 : 1
+  const radius = previousRadius * radiusScale
   if (storefront.presentationFrontage) {
     // The reduced radius is measured from the true doorway for this opt-in
     // frontage. The old road-centered approach otherwise leaves a dead strip
