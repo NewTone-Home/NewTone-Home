@@ -33,7 +33,7 @@ export function trialYongheInterior(blueprint: MainlineSceneBlueprint): Mainline
   // The first16px cell meets the top wall; only the lower end is a staff opening.
   for(let index=0;index<16;index++){
     const entity=fixture(index===7?'yonghe-counter':`yonghe-trial-counter-${index}`,index%2?'台':'柜',224,8+index*16)
-    delete entity.collision;entity.interactionStructureId=counterId;entity.interactionContactSides=['bottom'];entity.interactive=index===7
+    delete entity.collision;entity.interactionStructureId=counterId;entity.counterSurfaceId=counterId;entity.interactionContactSides=['bottom'];entity.interactive=index===7
     entities.push(entity)
   }
   addSurface(counterId,'yonghe-trial-counter-line',{x:216,y:0,width:16,height:256},'horizontal','yonghe-counter','counter',true,{x:212,y:-4,width:24,height:264})

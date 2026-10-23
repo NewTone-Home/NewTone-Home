@@ -165,6 +165,12 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
         })).toBe(false)
       }
       const counter = scene.continuousStructures.find(body => body.id === 'yonghe-trial-counter-body')!
+      const counterCells = scene.objects.filter(object => object.id === 'yonghe-counter' || object.id.startsWith('yonghe-trial-counter-'))
+      expect(counterCells).toHaveLength(16)
+      expect(counterCells.every(cell => cell.counterSurfaceId === counter.id && cell.interactionStructureId === counter.id)).toBe(true)
+      expect(counter.counterSurface?.hideLabel).toBe(true)
+      expect(counter.counterSurface?.interactionEntityId).toBe('yonghe-counter')
+      expect(counterCells.filter(cell => cell.interactive).map(cell => cell.id)).toEqual(['yonghe-counter'])
       expect(counter.width * 19.2).toBeCloseTo(256, 3)
       expect(counter.height * 10.8).toBeCloseTo(16, 3)
       expect(counter.x + counter.width).toBeCloseTo(room.bounds.x + room.bounds.width, 8)
