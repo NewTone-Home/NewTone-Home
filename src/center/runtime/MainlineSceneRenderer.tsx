@@ -22,6 +22,7 @@ import { sceneFrameDefaultMotionMs } from './sceneMotion'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import { mainlineEchoLayout, mainlineSpeakerAnchor } from './mainlineEchoLayout'
+import { mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
@@ -847,6 +848,7 @@ export function MainlineSceneRenderer({
   const dialogueReadyGroupRef = useRef<string | null>(null)
   const currentDialogueGroupRef = useRef<string | null>(null)
   const dialogueAdvanceConsumedGroupRef = useRef<string | null>(null)
+  const retainedReadingPresentationRef = useRef<MainlineReadingPresentationSnapshot | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const stableViewportRef = useRef<HTMLSpanElement>(null)
   const dimmerRef = useRef<HTMLDivElement>(null)
@@ -976,9 +978,17 @@ export function MainlineSceneRenderer({
   const readingMetrics = viewportMetrics
   const activeReadingPosition = sceneEcho?.position ?? dialoguePosition
   const activeReadingText = sceneEcho?.text ?? dialogueText ?? dialogueLine?.text ?? ''
-  const readingSessionKey = !readingMode ? null : sceneEcho
-    ? `${scene.id}:${readingMode}:echo:${sceneEcho.id}:${sceneEcho.entityId ?? ''}`
-    : `${scene.id}:${readingMode}:dialogue:${dialogue?.triggerEntityId ?? ''}:${dialogueLine?.id ?? ''}`
+  const readingIsLeaving = sceneEcho?.phase === 'leaving' || (!sceneEcho && dialoguePhase === 'leaving' && Boolean(dialogue && dialogueLine && dialoguePosition))
+  const readingPresentationPhase = readingMode ? 'active' : readingIsLeaving ? 'leaving' : 'inactive'
+  const readingPresentationMode = readingMode ?? (sceneEcho ? 'observation' : readingIsLeaving ? 'dialogue' : null)
+  const readingSessionKey = !readingPresentationMode ? null : sceneEcho
+    ? `${scene.id}:observation:echo:${sceneEcho.id}:${sceneEcho.entityId ?? ''}`
+    : `${scene.id}:dialogue:${dialogue?.triggerEntityId ?? ''}`
+  const retainedReadingPresentation = readingPresentationPhase === 'leaving'
+    && readingSessionKey
+    && retainedReadingPresentationRef.current?.sessionKey === readingSessionKey
+    ? retainedReadingPresentationRef.current
+    : null
   const readingOverflowKey = sceneEcho
     ? `${readingSessionKey}:echo:${sceneEcho.segmentIndex}:${activeReadingText}`
     : `${readingSessionKey}:dialogue:${dialogueSegmentIndex}:${activeReadingText}`
@@ -990,13 +1000,13 @@ export function MainlineSceneRenderer({
   const dialogueParticipantNpcIds = dialogueParticipantResolution.npcIds
   const readingProtectedEntityIds = useMemo(() => {
     return currentMainlineReadingTargetIds({
-      readingMode: Boolean(readingMode),
+      readingMode: readingPresentationPhase !== 'inactive',
       activeObjectId,
       sceneEchoEntityId: sceneEcho?.entityId,
       sceneActionEntityId: sceneAction?.entityId,
       dialogueTriggerEntityId: dialogue?.triggerEntityId,
     })
-  }, [activeObjectId, dialogue?.triggerEntityId, readingMode, sceneAction?.entityId, sceneEcho?.entityId])
+  }, [activeObjectId, dialogue?.triggerEntityId, readingPresentationPhase, sceneAction?.entityId, sceneEcho?.entityId])
   const currentReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset) : readingMetrics.width - 24
   const maximumReadingWidthPx = activeReadingPosition ? mainlineMaximumReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale) : currentReadingWidthPx
   const maximumReadingLayout = activeReadingPosition ? mainlineEchoLayout(activeReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: maximumReadingWidthPx }) : null
@@ -1012,9 +1022,9 @@ export function MainlineSceneRenderer({
   const shouldPanForReading = Boolean(readingMode && activeReadingPosition && maximumReadingLayout && (
     maximumReadingLayout.widthPx > currentReadingWidthPx + 1 || dialogueEnvelopeNeedsPan
   ))
-  const renderCameraOffset = shouldPanForReading && activeReadingPosition
+  const renderCameraOffset = retainedReadingPresentation?.cameraOffset ?? (shouldPanForReading && activeReadingPosition
     ? mainlineReadingCameraOffset(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset)
-    : cameraOffset
+    : cameraOffset)
   const activeReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, renderCameraOffset) : readingMetrics.width - 24
   const activeReadingLayout = activeReadingPosition
     ? mainlineEchoLayout(activeReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: activeReadingWidthPx })
@@ -1109,7 +1119,7 @@ export function MainlineSceneRenderer({
     return [...groups.values()]
   }, [scene.continuousStructures])
   const readingProtectedVisuals = useMemo<CollisionBox[]>(() => {
-    if (!readingMode) return []
+    if (readingPresentationPhase === 'inactive') return []
     const boxes: CollisionBox[] = []
     const add = (box: CollisionBox | null | undefined) => {
       if (box && Number.isFinite(box.x) && Number.isFinite(box.y) && box.width > 0 && box.height > 0) boxes.push(box)
@@ -1141,25 +1151,38 @@ export function MainlineSceneRenderer({
     })
     add(mainlineLabelFootprint(protagonistPresentation.kind === 'dot' ? '人' : protagonistPresentation.label, protagonistVisualPosition, renderScreenMetrics, { lineHeight: 1 }))
     return boxes
-  }, [dialogueParticipantNpcIds, geometrySnapshot, horizontalGridScale, npcPositions, npcRuntimeSnapshots, protagonistPresentation.label, protagonistVisualPosition, readingMode, readingProtectedEntityIds, renderScreenMetrics, scene])
+  }, [dialogueParticipantNpcIds, geometrySnapshot, horizontalGridScale, npcPositions, npcRuntimeSnapshots, protagonistPresentation.label, protagonistVisualPosition, readingPresentationPhase, readingProtectedEntityIds, renderScreenMetrics, scene])
   const readingFit = readingMode && activeReadingPosition
     ? mainlineFitReadingText(scene, activeReadingPosition, activeReadingText, !sceneEcho ? dialogueLine?.speaker : undefined, activeReadingWidthPx, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset)
     : null
   const fittedReadingSegments = readingFit?.segments ?? [activeReadingText]
-  const displayOverflowIndex = Math.min(readingOverflowIndex, Math.max(0, fittedReadingSegments.length - 1))
-  const displayReadingText = fittedReadingSegments[displayOverflowIndex] ?? activeReadingText
-  const displayReadingLayout = readingFit
-    ? mainlineEchoLayout(displayReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: readingFit.maxWidthPx })
+  const activeDisplayOverflowIndex = Math.min(readingOverflowIndex, Math.max(0, fittedReadingSegments.length - 1))
+  const activeDisplayReadingText = fittedReadingSegments[activeDisplayOverflowIndex] ?? activeReadingText
+  const activeDisplayReadingLayout = readingFit
+    ? mainlineEchoLayout(activeDisplayReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: readingFit.maxWidthPx })
     : activeReadingLayout
+  const activeDisplayReadingPosition = readingMode && activeReadingPosition && activeDisplayReadingLayout
+    ? mainlinePlaceReadingBox(scene, activeReadingPosition, { width: activeDisplayReadingLayout.widthPx, height: activeDisplayReadingLayout.heightPx }, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset) ?? readingFit?.position ?? activeReadingPosition
+    : activeReadingPosition
+  const currentReadingPresentation: MainlineReadingPresentationSnapshot | null = readingMode && readingSessionKey && activeDisplayReadingPosition && activeDisplayReadingLayout
+    ? { sessionKey: readingSessionKey, position: activeDisplayReadingPosition, cameraOffset: renderCameraOffset, layout: activeDisplayReadingLayout, maxWidthPx: readingFit?.maxWidthPx ?? activeReadingWidthPx, text: activeDisplayReadingText, overflowIndex: activeDisplayOverflowIndex }
+    : null
+  const readingPresentation = mainlineReadingPresentationForPhase(readingPresentationPhase, readingSessionKey, currentReadingPresentation, retainedReadingPresentation)
+  useIsomorphicLayoutEffect(() => {
+    if (readingPresentationPhase === 'active' && currentReadingPresentation) retainedReadingPresentationRef.current = currentReadingPresentation
+    else if (readingPresentationPhase === 'inactive') retainedReadingPresentationRef.current = null
+  }, [currentReadingPresentation, readingPresentationPhase])
+  const displayOverflowIndex = readingPresentation?.overflowIndex ?? activeDisplayOverflowIndex
+  const displayReadingText = readingPresentation?.text ?? activeDisplayReadingText
+  const displayReadingLayout = readingPresentation?.layout ?? activeDisplayReadingLayout
+  const displayReadingMaxWidthPx = readingPresentation?.maxWidthPx ?? activeReadingWidthPx
   const currentDialogueGroup = dialogue && dialogueLine
     ? `dialogue:${dialogueLine.id}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`
     : null
   currentDialogueGroupRef.current = currentDialogueGroup
-  const readingVisualActive = Boolean(readingMode && activeReadingPosition && displayReadingLayout)
+  const readingVisualActive = Boolean(readingPresentation && activeReadingPosition && displayReadingLayout)
   const readingMaskRects = useMemo(() => mainlineReadingMaskRects(sceneRenderBounds, readingProtectedVisuals), [readingProtectedVisuals, sceneRenderBounds])
-  const readingDisplayPosition = readingMode && activeReadingPosition && displayReadingLayout
-    ? mainlinePlaceReadingBox(scene, activeReadingPosition, { width: displayReadingLayout.widthPx, height: displayReadingLayout.heightPx }, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset) ?? readingFit?.position ?? activeReadingPosition
-    : activeReadingPosition
+  const readingDisplayPosition = readingPresentation?.position ?? activeReadingPosition
   const readingDisplayShift = activeReadingPosition && readingDisplayPosition
     ? { x: projectReadingX(readingDisplayPosition.x) - projectReadingX(activeReadingPosition.x), y: readingDisplayPosition.y - activeReadingPosition.y }
     : { x: 0, y: 0 }
@@ -1752,13 +1775,13 @@ export function MainlineSceneRenderer({
               : dialogueSegmentIndex + 1 < dialogueSegmentCount || Boolean(dialogue && dialogueLineIndex! + 1 < dialogue.lines.length)
             const echoLayout = displayReadingLayout ?? mainlineEchoLayout(text, readingMetrics, {
               speaker: isDialogue ? dialogueLine!.speaker : undefined,
-              maxWidthPx: activeReadingWidthPx,
+              maxWidthPx: displayReadingMaxWidthPx,
             })
             if (isDialogue) {
               const session = `${scene.id}:${dialogue!.triggerEntityId}`
-              const metrics = `${readingMetrics.width}:${readingMetrics.height}:${readingMetrics.viewportWidth}:${worldScale}:${activeReadingWidthPx}`
+              const metrics = `${readingMetrics.width}:${readingMetrics.height}:${readingMetrics.viewportWidth}:${worldScale}:${displayReadingMaxWidthPx}`
               if (speakerPlacementRef.current?.session !== session || speakerPlacementRef.current.metrics !== metrics) {
-                speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, readingMetrics, { x: projectReadingX(sourcePosition.x), y: sourcePosition.y }, { x: 0, y: 0 }, worldScale, activeReadingWidthPx) }
+                speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, readingMetrics, { x: projectReadingX(sourcePosition.x), y: sourcePosition.y }, { x: 0, y: 0 }, worldScale, displayReadingMaxWidthPx) }
               }
             }
             const baseSpeakerAnchor = isDialogue ? speakerPlacementRef.current!.anchor : null
@@ -1781,7 +1804,7 @@ export function MainlineSceneRenderer({
                 '--scene-mainline-text-width': `${echoLayout.widthPx / worldScale}px`,
                 '--scene-mainline-text-height': `${echoLayout.heightPx / worldScale}px`,
                 fontSize: `${echoLayout.fontSizePx / worldScale}px`,
-                maxWidth: `${Math.max(1, activeReadingWidthPx / worldScale)}px`,
+                maxWidth: `${Math.max(1, displayReadingMaxWidthPx / worldScale)}px`,
                 overflow: 'hidden',
               } as CSSProperties}
               aria-live="polite"
