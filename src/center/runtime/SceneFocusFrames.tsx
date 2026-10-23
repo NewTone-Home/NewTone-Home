@@ -236,7 +236,7 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
 
   useLayoutEffect(() => {
     if (freezeMeasurements) return undefined
-    let observeHiddenAncestors: (roots: readonly HTMLElement[], stage: HTMLElement) => void = () => {}
+    let observeHiddenAncestors: (roots: readonly HTMLElement[], boundary: HTMLElement) => void = () => {}
     const measure = (groups: Iterable<string> = targetGroups) => {
       const measuredGroups = new Set<string>()
       const updates = new Map<string, { duration: number; geometry: SceneFocusFrameGeometry; bounds: CSSProperties }>()
@@ -263,7 +263,10 @@ export function useSceneFocusFrameController({ targets, freezeMeasurements = fal
         const characters = stageNodes.groups.get(group) ?? []
         const viewportRect = unionVisualRects(measureRects(characters))
         if (!viewportRect) {
-          observeHiddenAncestors(characters, stage)
+          // Long-distance travel hides the whole scene layer, which is outside
+          // the stage. Observe only hidden ancestors up to the document root so
+          // its arrival visibility change can trigger this one-time remeasure.
+          observeHiddenAncestors(characters, document.documentElement)
           continue
         }
         measuredGroups.add(group)
