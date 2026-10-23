@@ -56,6 +56,13 @@ function tagsAt(html: string, cell: { x: number; y: number }, className: string)
     tag.includes(className) && tag.includes(`left:${cell.x}%`) && tag.includes(`top:${cell.y}%`))
 }
 
+function wallCellMarkup(html: string, cell: { x: number; y: number }) {
+  const tag = tagsAt(html, cell, 'scene-mainline-wall')[0]
+  if (!tag) return ''
+  const start = html.indexOf(tag)
+  return html.slice(start, start + 320)
+}
+
 describe('menu wall cells render independently through owner and portal states', () => {
   it.each(resolvedFixtures)('$menuId restores every occupied wall cell and keeps flanks ordinary', fixture => {
     const content = fixture.cells.filter(cell => cell.featureCellRole === 'content')
@@ -78,13 +85,18 @@ describe('menu wall cells render independently through owner and portal states',
 
       const retainedHtml = render(fixture, 'retained', phase)
       for (const cell of content) {
-        expect(tagsAt(retainedHtml, cell, 'scene-mainline-wall'), `${fixture.menuId}/${phase} retained wall at ${cell.x},${cell.y}`).toHaveLength(1)
+        const wallTags = tagsAt(retainedHtml, cell, 'scene-mainline-wall')
+        expect(wallTags, `${fixture.menuId}/${phase} retained wall at ${cell.x},${cell.y}`).toHaveLength(1)
+        expect(wallCellMarkup(retainedHtml, cell), `${fixture.menuId}/${phase} retained occupied menu slot paints its own wall glyph`).toContain('>墙<')
+        expect(wallTags[0]).not.toMatch(/opacity:\s*1(?:[;}]|$)/)
       }
 
       const unownedHtml = render(fixture, 'unowned', phase)
       for (const cell of content) {
         const wallTags = tagsAt(unownedHtml, cell, 'scene-mainline-wall')
         expect(wallTags, `${fixture.menuId}/${phase} unowned wall at ${cell.x},${cell.y}`).toHaveLength(1)
+        expect(wallCellMarkup(unownedHtml, cell), `${fixture.menuId}/${phase} unowned occupied menu slot paints its own wall glyph`).toContain('>墙<')
+        expect(wallTags[0]).not.toMatch(/opacity:\s*1(?:[;}]|$)/)
         expect(unownedHtml, `${fixture.menuId}/${phase} no orphan menu focus group`).not.toContain('scene-mainline-wall-feature--interaction')
       }
       for (const cell of flanks) {
