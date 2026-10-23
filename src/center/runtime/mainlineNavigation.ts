@@ -1335,6 +1335,14 @@ export function resolveMainlineWorldNavigation(
       ? [{ region, geometry: accessBoundaryGeometry(region, boundary.edge, footprint) }] : []
   })
   if (deniedBoundaries.length) {
+    // Most clicks in a scene with protected regions still target public,
+    // reachable ground. Resolve that ordinary route first; only build the
+    // physical-only intent mesh when the permission-aware route cannot reach
+    // the requested point. This keeps denied-access feedback intact without
+    // paying its cold topology-build cost for successful public movement.
+    const permittedResolution = resolveNavigationPath(from, requestedTarget, adapter)
+    if (permittedResolution?.reachedRequestedTarget) return permittedResolution
+
     // Resolve the attempted physical route with the same mesh owner. This
     // route supplies intent only; it is never handed to the movement controller.
     const physicalBarriers = adapter.barriers.filter(barrier => barrier.kind !== 'access-boundary')
@@ -1378,6 +1386,7 @@ export function resolveMainlineWorldNavigation(
         path: path ?? [{ ...from }], reachedRequestedTarget: false, deniedAccessRegion: contact.region,
       }
     }
+    return permittedResolution
   }
   return resolveNavigationPath(from, requestedTarget, adapter)
 }
