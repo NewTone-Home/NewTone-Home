@@ -1,51 +1,47 @@
 import { describe, expect, it } from 'vitest'
-import { advanceMainlineCamera, advanceMainlineCameraHandoff, mainlineCameraOffset, mainlineCameraTarget, mainlineCameraVisualOutset, mainlineWorldPointFromClient, mainlineWorldScale, mainlineVisibleWorldSpan } from './mainlineViewport'
+import { advanceMainlineCamera, mainlineCameraOffset, mainlineCameraTarget, mainlineCameraVisualOutset, mainlineWorldPointFromClient, mainlineWorldScale, mainlineVisibleWorldSpan } from './mainlineViewport'
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 
 describe('fixed mainline world projection', () => {
-  it('limits street/interior handoff speed consistently across common refresh rates', () => {
-    const viewport = { width: 390, height: 844, projectionScale: .65 }
-    // The measured exit frame moved 28.17 CSS px. With the existing 140ms
-    // easing, that corresponds to a camera target about 254px away. Keep the
-    // reference cap near 6px at 60Hz but normalize it to elapsed time.
+  it('keeps the regular exponential smoothing across common refresh rates', () => {
     const current = { x: 0, y: 0 }
-    const target = { x: 0, y: 3000 / (1080 * .65 / 100) }
+    const target = { x: 0, y: 254 / (1080 * .65 / 100) }
     const runForOneSecond = (hz: number) => {
       let offset = current
-      let distance = 0
       for (let frame = 0; frame < hz; frame += 1) {
-        const next = advanceMainlineCameraHandoff(offset, target, 1000 / hz, viewport)
-        distance += Math.hypot(
-          (next.x - offset.x) / 100 * 1920 * .65,
-          (next.y - offset.y) / 100 * 1080 * .65,
-        )
-        offset = next
+        offset = advanceMainlineCamera(offset, target, 1000 / hz)
       }
-      return { distance, offset }
+      return offset
     }
     const at30 = runForOneSecond(30)
     const at60 = runForOneSecond(60)
     const at120 = runForOneSecond(120)
 
-    expect(at30.distance).toBeCloseTo(360, 6)
-    expect(at60.distance).toBeCloseTo(360, 6)
-    expect(at120.distance).toBeCloseTo(360, 6)
-    expect(at60.offset.y).toBeGreaterThan(current.y)
+    expect(at30.y).toBeCloseTo(at60.y, 8)
+    expect(at60.y).toBeCloseTo(at120.y, 8)
+    const firstStep = advanceMainlineCamera(current, target, 1000 / 60)
+    const firstStepPx = firstStep.y * 1080 * .65 / 100
+    expect(firstStepPx).toBeGreaterThan(6)
+    expect(firstStepPx).toBeCloseTo(254 * (1 - Math.exp(-(1000 / 60) / 140)), 4)
   })
 
-  it('uses only one 60Hz step after a long pause, then follows a reversed target', () => {
-    const viewport = { width: 390, height: 844, projectionScale: .65 }
-    const scaleY = 1080 * .65 / 100
-    const current = { x: 0, y: 0 }
-    const farTarget = { x: 0, y: 3000 / scaleY }
-    const afterPause = advanceMainlineCameraHandoff(current, farTarget, 10_000, viewport)
-    const firstStepPx = Math.abs(afterPause.y * scaleY)
-    expect(firstStepPx).toBeCloseTo(6, 6)
+  it('follows changing targets, settles after input stops, and reverses from its current offset', () => {
+    let current = { x: 0, y: 0 }
+    const step = (target: typeof current) => {
+      const next = advanceMainlineCamera(current, target, 1000 / 60)
+      expect(next.y).toBeCloseTo(current.y + (target.y - current.y) * (1 - Math.exp(-(1000 / 60) / 140)), 10)
+      current = next
+    }
+    for (let frame = 0; frame < 12; frame += 1) step({ x: 0, y: 12 + frame * 2 })
+    const beforeStop = current.y
+    const fixedTarget = { x: 0, y: 100 }
+    for (let frame = 0; frame < 120; frame += 1) step(fixedTarget)
+    expect(Math.abs(fixedTarget.y - current.y)).toBeLessThan(.01)
 
-    const reversedTarget = { x: 0, y: -3000 / scaleY }
-    const afterReverse = advanceMainlineCameraHandoff(afterPause, reversedTarget, 1000 / 60, viewport)
-    expect(afterReverse.y).toBeLessThan(afterPause.y)
-    expect(Math.abs((afterReverse.y - afterPause.y) * scaleY)).toBeCloseTo(6, 6)
+    const beforeReverse = current.y
+    step({ x: 0, y: -100 })
+    expect(current.y).toBeLessThan(beforeReverse)
+    expect(beforeStop).toBeLessThan(beforeReverse)
   })
 
   it('applies the candidate scale at the authored reference viewport', () => {

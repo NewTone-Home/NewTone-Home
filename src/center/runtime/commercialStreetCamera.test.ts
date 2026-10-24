@@ -37,10 +37,12 @@ describe('commercial street camera pages', () => {
       expect(commercialStreetPageIndex(centers, x - span * .3, span, index)).toBe(index)
     })
   })
-  it('leaves storefront interiors and other scenes on their existing camera policy', () => {
-    expect(usesCommercialStreetPages(street, mainlineStorefrontApproach(street, street.storefronts[0]!))).toBe(true)
+  it('switches between public pages and interior follow on entry and exit', () => {
+    const approach = mainlineStorefrontApproach(street, street.storefronts[0]!)
     const room = street.rooms.find(room => room.id.endsWith('-interior'))!
-    expect(usesCommercialStreetPages(street, { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 })).toBe(false)
+    const inside = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+    expect([approach, inside, approach, inside].map(position => usesCommercialStreetPages(street, position)))
+      .toEqual([true, false, true, false])
     expect(usesCommercialStreetPages(mainlineScenes['zhongshuyuan-office'], { x: 50, y: 50 })).toBe(false)
   })
 })
