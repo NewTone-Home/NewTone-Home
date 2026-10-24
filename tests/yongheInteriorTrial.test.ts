@@ -85,6 +85,40 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       expect(scene.explorationText?.['yonghe-survey-central-lane']).toBeUndefined()
     })
 
+    it('frames the four indoor tables on entry and re-entry, and hides them outside the room', () => {
+      const indoorTables = scene.objects.filter(object => object.roomId === room.id && object.kind === 'table')
+      expect(indoorTables.map(table => table.id)).toEqual([
+        'yonghe-upper-left-group-table',
+        'yonghe-upper-right-group-table',
+        'yonghe-lower-left-group-table',
+        'yonghe-lower-right-group-table',
+      ])
+
+      const activeRooms = new Set([room.id])
+      const outsideRooms = new Set<string>()
+      const cafeTables = mainlineScenes['commercial-street'].objects.filter(object => object.id.startsWith('cafe-trial-table-group-') && object.kind === 'table')
+      expect(cafeTables.length).toBeGreaterThan(0)
+
+      for (const table of indoorTables) {
+        expect(table.focusFrame).toBe('interactive')
+        expect(table.label).toBe('桌子')
+        expect(table.shape?.width).toBeCloseTo(16 / 1920 * 100, 8)
+        expect(table.shape?.height).toBeCloseTo(32 / 1080 * 100, 8)
+        expect(mainlineEntityMatchesCurrentPresentation(table, activeRooms)).toBe(true)
+        expect(mainlineEntityMatchesCurrentPresentation(table, outsideRooms)).toBe(false)
+        // The same target is eligible again after leaving and re-entering.
+        expect(mainlineEntityMatchesCurrentPresentation(table, activeRooms)).toBe(true)
+        expect(frameShouldCollapse({
+          group: `interactive:${table.id}`, policy: 'interactive', phase: 'closed', gateTriggered: false,
+          interactionBusy: false, interactionActive: false, retractRequested: false, suppressed: false,
+        }, {
+          corner: 'top-left', phase: 'hidden', fullyCollapsed: true, preserveCornerOnResume: false, resumeCorner: null,
+          transitionDirection: null, transitionStartedAt: 0, initialized: false, hovered: false, locked: false,
+        })).toBe(false)
+      }
+      expect(indoorTables.every(table => cafeTables.some(cafeTable => cafeTable.focusFrame === table.focusFrame))).toBe(true)
+    })
+
     it('reaches each seat and menu from the customer aisle while chair-table gaps stay blocked', () => {
       const from = point(364, 154)
       const streetEntry = scene.passages.find(passage => passage.id === 'yonghe-street-entry')!

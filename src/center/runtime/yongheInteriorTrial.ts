@@ -16,7 +16,7 @@ export function trialYongheInterior(blueprint: MainlineSceneBlueprint): Mainline
     const ownership=outdoor?undefined:room.id
     const spaceOwnership=outdoor?'mining-street-public-lane':undefined
     const tableLabel=outdoor?'\u684c':'\u684c\u5b50'
-    entities.push({...fixture(tableId,tableLabel,x,y),roomId:ownership,spaceId:spaceOwnership,kind:'table',weight:'anchor',groupId,textLayout:outdoor?'vertical':undefined,focusFrame:outdoor?'interactive':undefined,shape:footprint(x,y,outdoor?16:32),approach:point(x+44,y)})
+    entities.push({...fixture(tableId,tableLabel,x,y),roomId:ownership,spaceId:spaceOwnership,kind:'table',weight:'anchor',groupId,textLayout:outdoor?'vertical':undefined,focusFrame:'interactive',shape:footprint(x,y,outdoor?16:32),approach:point(x+44,y)})
     seatIds.forEach((id,index)=>{const direction=index===0?-1:1,seatX=outdoor?x:x+direction*30,seatY=outdoor?y+direction*28:y,rest=point(seatX,seatY),pulled=outdoor?point(x+22,seatY):point(x+direction*52,y)
       entities.push({...fixture(id,outdoor?'\u6905':'\u6905\u5b50',seatX,seatY),roomId:ownership,spaceId:spaceOwnership,kind:'seat',weight:'minor',groupId,textLayout:outdoor?'vertical':undefined,position:rest,approach:pulled,shape:footprint(seatX,seatY,outdoor?16:32),seat:{id,tableId,side:index===0?'top':'bottom',rest,pulled,sit:rest}})
     })
