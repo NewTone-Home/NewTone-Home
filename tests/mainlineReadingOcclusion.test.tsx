@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MainlineReadingOcclusionMask } from '../src/center/runtime/MainlineReadingOcclusionMask'
+import { MainlineReadingIdentityPlane } from '../src/center/runtime/MainlineReadingIdentityPlane'
 import { mainlineReadingOcclusionAlpha, mainlineReadingOcclusionMaskRegion, mainlineReadingOcclusionRect } from '../src/center/runtime/mainlineReadingOcclusion'
 
 describe('mainline spatial reading occlusion', () => {
@@ -31,11 +32,10 @@ describe('mainline spatial reading occlusion', () => {
     expect(mainlineReadingOcclusionAlpha({ x: 416, y: 240 }, rect)).toBe(1)
   })
 
-  it('bounds the mask to scene, reading, and protected visuals instead of a huge full-world surface', () => {
+  it('bounds the shared mask to scene and reading rectangles instead of a huge full-world surface', () => {
     const region = mainlineReadingOcclusionMaskRegion(
       { x: -5, y: -2, width: 110, height: 104 },
       { x: 1900, y: 1050, width: 200, height: 100 },
-      [{ x: 400, y: 200, width: 32, height: 32 }],
     )
     expect(region.x).toBe(-128)
     expect(region.y).toBe(-53.6)
@@ -43,11 +43,10 @@ describe('mainline spatial reading occlusion', () => {
     expect(region.height).toBeCloseTo(1235.6)
   })
 
-  it('renders a shared world-space mask with smooth entry/exit and separate protected entity holes', () => {
+  it('renders a shared world-space mask with a fadeable shape and no spatial protection holes', () => {
     const html = renderToStaticMarkup(<MainlineReadingOcclusionMask
       id="reading-mask-test"
       readingRect={{ x: 100, y: 200, width: 300, height: 80 }}
-      protectedRects={[{ x: 500, y: 400, width: 32, height: 32 }, { x: 700, y: 400, width: 32, height: 32 }]}
       region={{ x: -100, y: -100, width: 1000, height: 1000 }}
       active={false}
     />)
@@ -56,10 +55,28 @@ describe('mainline spatial reading occlusion', () => {
     expect(html).toContain('data-reading-mask-core="true"')
     expect(html).toContain('data-reading-mask-progress="0"')
     expect(html).toContain('transition:opacity 400ms linear')
-    expect(html).toContain('data-reading-mask-protection="true"')
+    expect(html).not.toContain('data-reading-mask-protection')
     expect(html).toContain('reading-mask-test-top-left')
     expect(html).toContain('reading-mask-test-bottom-right')
     expect(html).toContain('data-reading-mask-feather-world-px="16"')
-    expect(html.match(/data-reading-mask-protection=/g)).toHaveLength(2)
+  })
+
+  it('protects only the active identity when target and neighbor occupy the same pixels', () => {
+    const html = renderToStaticMarkup(<>
+      <MainlineReadingIdentityPlane entityId="menu" protectedEntityIds={new Set(['menu'])} maskStyle={{ maskImage: 'url(#shared-reading-mask)' }}>
+        <span data-overlap="target-menu">菜单及其框</span>
+      </MainlineReadingIdentityPlane>
+      <MainlineReadingIdentityPlane entityId="neighbor-wall" protectedEntityIds={new Set(['menu'])} maskStyle={{ maskImage: 'url(#shared-reading-mask)' }}>
+        <span data-overlap="neighbor-wall">墙</span>
+      </MainlineReadingIdentityPlane>
+    </>)
+    const target = html.match(/<div[^>]*data-reading-occlusion-entity-id="menu"[^>]*>/)?.[0]
+    const neighbor = html.match(/<div[^>]*data-reading-occlusion-entity-id="neighbor-wall"[^>]*>/)?.[0]
+    expect(target).toContain('data-reading-occlusion-protected="true"')
+    expect(target).not.toContain('mask-image')
+    expect(neighbor).not.toContain('data-reading-occlusion-protected')
+    expect(neighbor).toContain('mask-image:url(#shared-reading-mask)')
+    expect(html).toContain('data-overlap="target-menu"')
+    expect(html).toContain('data-overlap="neighbor-wall"')
   })
 })

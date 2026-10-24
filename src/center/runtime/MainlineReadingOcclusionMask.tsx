@@ -5,13 +5,12 @@ type Props = {
   id: string
   readingRect: MainlineReadingOcclusionRect
   region: MainlineReadingOcclusionRect
-  protectedRects: readonly MainlineReadingOcclusionRect[]
   active: boolean
   fadeWidthWorldPx?: number
 }
 
 /** One shared world-space mask definition; full-world visual layers reference it. */
-export function MainlineReadingOcclusionMask({ id, readingRect, protectedRects, region, active, fadeWidthWorldPx = mainlineReadingOcclusionFadeWorldPx }: Props) {
+export function MainlineReadingOcclusionMask({ id, readingRect, region, active, fadeWidthWorldPx = mainlineReadingOcclusionFadeWorldPx }: Props) {
   const { x, y, width, height } = readingRect
   const right = x + width
   const bottom = y + height
@@ -47,7 +46,6 @@ export function MainlineReadingOcclusionMask({ id, readingRect, protectedRects, 
             <rect x={right} y={bottom} width={fade} height={fade} fill={`url(#${id}-bottom-right)`}/>
           </>}
         </g>
-        {protectedRects.map((rect, index) => <rect key={index} x={rect.x} y={rect.y} width={rect.width} height={rect.height} fill="white" data-reading-mask-protection="true"/>)}
       </mask>
     </defs>
   </svg>

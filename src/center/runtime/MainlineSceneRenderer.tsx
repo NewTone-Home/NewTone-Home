@@ -40,7 +40,8 @@ import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } f
 import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
 import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingBox, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from './mainlineReadingProtection'
 import { MainlineReadingOcclusionMask } from './MainlineReadingOcclusionMask'
-import { mainlineOcclusionWorldRect, mainlineReadingOcclusionMaskRegion, mainlineReadingOcclusionRect } from './mainlineReadingOcclusion'
+import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
+import { mainlineReadingOcclusionMaskRegion, mainlineReadingOcclusionRect } from './mainlineReadingOcclusion'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -123,6 +124,13 @@ type MainlineSceneRendererProps = {
     reachedRequestedTarget: boolean
     deniedAccessRegionId?: string
   } | null
+}
+
+type RetainedReadingOcclusion = {
+  sessionKey: string
+  rect: CollisionBox
+  region: CollisionBox
+  protectedEntityIds: ReadonlySet<string>
 }
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
@@ -843,6 +851,11 @@ export function MainlineSceneRenderer({
   const readingOcclusionMaskId = `mainline-reading-occlusion-${useId().replace(/:/g, '')}`
   const [dialogueReady, setDialogueReady] = useState(false)
   const [readingOverflowPage, setReadingOverflowPage] = useState<import('./mainlineReadingProtection').MainlineReadingOverflowPageState>(null)
+  const [retainedReadingOcclusion, setRetainedReadingOcclusion] = useState<RetainedReadingOcclusion | null>(null)
+  const [activeReadingOcclusionSession, setActiveReadingOcclusionSession] = useState<string | null>(null)
+  const readingOcclusionExitTimerRef = useRef<number | null>(null)
+  const readingOcclusionExitStartedAtRef = useRef<number | null>(null)
+  const readingOcclusionEntryRafRef = useRef<number | null>(null)
   const speakerPlacementRef = useRef<{ session: string; metrics: string; anchor: ReturnType<typeof mainlineSpeakerAnchor> } | null>(null)
   if (!dialogue || !dialogueLine || !dialoguePosition || sceneEcho) speakerPlacementRef.current = null
   const dialogueReadyGroupRef = useRef<string | null>(null)
@@ -1189,42 +1202,65 @@ export function MainlineSceneRenderer({
   const readingOcclusionRect = useMemo(() => readingVisualActive && readingDisplayPosition && displayReadingLayout
     ? mainlineReadingOcclusionRect(readingDisplayPosition, displayReadingLayout, worldScale, projectReadingX)
     : null, [displayReadingLayout, projectReadingX, readingDisplayPosition, readingVisualActive, worldScale])
-  const readingOcclusionProtectedRects = useMemo(() => {
-    if (!readingVisualActive) return []
-    const protectedRects: CollisionBox[] = []
-    const addSceneBounds = (bounds: CollisionBox | null | undefined, padding = 4) => {
-      if (!bounds || bounds.width <= 0 || bounds.height <= 0) return
-      protectedRects.push(mainlineOcclusionWorldRect(bounds, projectReadingX, padding))
-    }
-    const glyphWidth = mainlineWorldFontSizePx / Math.max(.01, horizontalGridScale)
-    const glyphHeight = mainlineWorldFontSizePx
-    scene.objects.forEach(entity => {
-      if (!readingProtectedEntityIds.has(entity.id)) return
-      addSceneBounds(geometrySnapshot.objects.get(entity.id)?.visualBounds
-        ?? mainlineEntityVisualBounds(scene, entity, geometrySnapshot.layout, renderScreenMetrics))
-    })
-    geometryCells.forEach(({ unit, cell }) => {
-      const entityId = cell.entityId ?? unit.entityId
-      if (!entityId || !readingProtectedEntityIds.has(entityId)) return
-      const centerX = projectReadingX(cell.x) / 100 * sceneDesignReferenceMetrics.width
-      const centerY = cell.y / 100 * sceneDesignReferenceMetrics.height
-      protectedRects.push({ x: centerX - glyphWidth / 2 - 4, y: centerY - glyphHeight / 2 - 4, width: glyphWidth + 8, height: glyphHeight + 8 })
-    })
-    scene.continuousStructures.forEach(structure => {
-      const surface = structure.counterSurface
-      if (!surface || !readingProtectedEntityIds.has(surface.interactionEntityId)) return
-      addSceneBounds(surface.outlineBounds ?? structure, 3)
-    })
-    return protectedRects
-  }, [geometryCells, geometrySnapshot, horizontalGridScale, projectReadingX, readingPresentationPhase, readingProtectedEntityIds, readingVisualActive, renderScreenMetrics, scene])
   const readingOcclusionMaskRegion = useMemo(() => readingOcclusionRect
-    ? mainlineReadingOcclusionMaskRegion(sceneRenderBounds, readingOcclusionRect, readingOcclusionProtectedRects)
-    : null, [readingOcclusionProtectedRects, readingOcclusionRect, sceneRenderBounds])
+    ? mainlineReadingOcclusionMaskRegion(sceneRenderBounds, readingOcclusionRect)
+    : null, [readingOcclusionRect, sceneRenderBounds])
+  useEffect(() => {
+    if (readingPresentationPhase !== 'active' || !readingSessionKey || !readingOcclusionRect || !readingOcclusionMaskRegion) return
+    setRetainedReadingOcclusion({ sessionKey: readingSessionKey, rect: readingOcclusionRect, region: readingOcclusionMaskRegion, protectedEntityIds: new Set(readingProtectedEntityIds) })
+  }, [readingOcclusionMaskRegion, readingOcclusionRect, readingPresentationPhase, readingProtectedEntityIds, readingSessionKey])
+  useEffect(() => {
+    if (readingPresentationPhase !== 'active' || !readingVisualActive || !readingSessionKey) return
+    if (activeReadingOcclusionSession === readingSessionKey) return
+    setActiveReadingOcclusionSession(null)
+    readingOcclusionEntryRafRef.current = window.requestAnimationFrame(() => {
+      readingOcclusionEntryRafRef.current = null
+      setActiveReadingOcclusionSession(readingSessionKey)
+    })
+    return () => {
+      if (readingOcclusionEntryRafRef.current !== null) window.cancelAnimationFrame(readingOcclusionEntryRafRef.current)
+      readingOcclusionEntryRafRef.current = null
+    }
+  }, [activeReadingOcclusionSession, readingPresentationPhase, readingSessionKey, readingVisualActive])
+  useEffect(() => {
+    if (readingPresentationPhase === 'active') {
+      if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
+      readingOcclusionExitTimerRef.current = null
+      readingOcclusionExitStartedAtRef.current = null
+      return
+    }
+    if (!retainedReadingOcclusion) return
+    if (readingOcclusionExitStartedAtRef.current === null) readingOcclusionExitStartedAtRef.current = performance.now()
+    if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
+    const elapsed = performance.now() - readingOcclusionExitStartedAtRef.current
+    const remaining = Math.max(0, mainlineReadingFadeTransitionMs - elapsed)
+    readingOcclusionExitTimerRef.current = window.setTimeout(() => {
+      readingOcclusionExitTimerRef.current = null
+      readingOcclusionExitStartedAtRef.current = null
+      setRetainedReadingOcclusion(null)
+      setActiveReadingOcclusionSession(null)
+    }, remaining)
+    return () => {
+      if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
+      readingOcclusionExitTimerRef.current = null
+    }
+  }, [readingPresentationPhase, retainedReadingOcclusion])
+  useEffect(() => () => {
+    if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
+    if (readingOcclusionEntryRafRef.current !== null) window.cancelAnimationFrame(readingOcclusionEntryRafRef.current)
+  }, [])
+  const retainedOcclusionSnapshot = readingVisualActive && readingOcclusionRect && readingOcclusionMaskRegion
+    ? { sessionKey: readingSessionKey ?? '', rect: readingOcclusionRect, region: readingOcclusionMaskRegion, protectedEntityIds: readingProtectedEntityIds }
+    : retainedReadingOcclusion
+  const readingOcclusionActive = readingPresentationPhase === 'active' && readingVisualActive && activeReadingOcclusionSession === readingSessionKey
+  const readingOcclusionProtectedEntityIds = readingPresentationPhase === 'inactive'
+    ? retainedReadingOcclusion?.protectedEntityIds ?? readingProtectedEntityIds
+    : readingProtectedEntityIds
   const readingOcclusionStyle = useMemo<CSSProperties | undefined>(() => {
-    if (!readingVisualActive) return undefined
+    if (!retainedOcclusionSnapshot) return undefined
     const maskUrl = `url(#${readingOcclusionMaskId})`
     return { maskImage: maskUrl, maskRepeat: 'no-repeat', WebkitMaskImage: maskUrl, WebkitMaskRepeat: 'no-repeat' }
-  }, [readingOcclusionMaskId, readingVisualActive])
+  }, [readingOcclusionMaskId, retainedOcclusionSnapshot])
   const readingDisplayShift = activeReadingPosition && readingDisplayPosition
     ? { x: projectReadingX(readingDisplayPosition.x) - projectReadingX(activeReadingPosition.x), y: readingDisplayPosition.y - activeReadingPosition.y }
     : { x: 0, y: 0 }
@@ -1492,6 +1528,58 @@ export function MainlineSceneRenderer({
     '--scene-horizontal-grid-counter-scale': String(1 / horizontalGridScale),
   } as CSSProperties
 
+  const readingProtectedWallNodes: ReactNode[] = []
+  const extractProtectedWallNode = (entityId: string, key: string, node: ReactNode): ReactNode => {
+    if (!readingOcclusionProtectedEntityIds.has(entityId)) return node
+    readingProtectedWallNodes.push(<Fragment key={`protected-${key}`}>{node}</Fragment>)
+    return null
+  }
+  const visibleObjectEntities = scene.objects.filter(entity => entity.visible !== false
+    && !entity.counterSurfaceId
+    && entity.kind !== 'door'
+    && !wallFeatureEntityIds.has(entity.id)
+    && (mainlineEntityMatchesCurrentPresentation(entity, renderedRoomIds, activeSpatialSpaceId)
+      || (streetSpaceContentRetained && mainlineEntityIsPublicStreetContent(scene.id, entity))))
+  const renderMainlineObject = (entity: MainlineSceneEntity) => {
+    const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
+    const focusGroup = !layoutMode && entity.focusFrame === 'interactive' ? `interactive:${entity.focusFrameGroup ?? entity.id}` : undefined
+    const streetContent = mainlineEntityIsPublicStreetContent(scene.id, entity)
+    const presentationActive = streetContent ? streetPresentationActive : interiorRoomPresentationActive(entity.roomId)
+    const underPlayer = entity.visualProfile === 'tree-ring' && entity.interactive === false && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8
+    return <MemoMainlineObject
+      entity={entity}
+      scene={scene}
+      position={entityPosition}
+      collision={geometrySnapshot.objects.get(entity.id)?.collision ?? undefined}
+      visualBounds={geometrySnapshot.objects.get(entity.id)?.visualBounds}
+      focusGroup={focusGroup}
+      renderFrame={!entity.focusFrameGroup || objectFrameOwners.get(entity.focusFrameGroup) === entity.id ? focusFrames.renderFrame : undefined}
+      visibility={objectVisibility(entity, layoutMode)}
+      active={isCurrentInteractionSource(entity.id) && !readingMode}
+      explored={exploredObjectIds.has(entity.id)}
+      tutorialCompleted={interactionTutorialCompleted}
+      underPlayer={underPlayer}
+      layoutMode={layoutMode}
+      screenMetrics={renderScreenMetrics}
+      incenseLit={incenseLit}
+      incenseBurnRemainingMs={incenseBurnRemainingMs}
+      onIncenseBurnComplete={onIncenseBurnComplete}
+      selected={selectedLayoutItemId === mainlineLayoutItemForEntity(scene, entity.id)}
+      dragging={draggingItemId === mainlineLayoutItemForEntity(scene, entity.id)}
+      onStartLayoutDrag={startLayoutDrag}
+      onSelectLayoutItem={setSelectedLayoutItemId}
+      onInteract={onInteract}
+      breathingAnimationDelay={synchronizedBreathingDelay}
+      sharedBreathingClock={entity.visualProfile === 'incense' && incenseLit}
+      registerBreathingNode={registerBreathingNode}
+      suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds)}
+      prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}
+      debugRuntimeEvidence={debugRuntimeEvidence}
+      interiorPresentationActive={presentationActive}
+      presentationDurationMs={focusGroup ? focusFrames.motionDurationMs(focusGroup) : sceneFrameDefaultMotionMs}
+      readingProtected={readingPresentationPhase !== 'inactive' && readingOcclusionProtectedEntityIds.has(entity.id)}
+    />
+  }
   return (
     <section className="scene-wrap" aria-label={`${scene.title}可探索场景`}>
       <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-scene-dialogue-state={dialoguePhase} data-scene-dialogue-unresolved-speakers={dialogueParticipantResolution.unresolvedSpeakers.join('|') || undefined}>
@@ -1507,25 +1595,13 @@ export function MainlineSceneRenderer({
           style={worldProjectionStyle}
         >
           <>
-          {readingOcclusionRect && readingOcclusionMaskRegion && <MainlineReadingOcclusionMask
+          {retainedOcclusionSnapshot && <MainlineReadingOcclusionMask
             id={readingOcclusionMaskId}
-            readingRect={readingOcclusionRect}
-            protectedRects={readingOcclusionProtectedRects}
-            region={readingOcclusionMaskRegion}
-            active={readingPresentationPhase === 'active'}
+            readingRect={retainedOcclusionSnapshot.rect}
+            region={retainedOcclusionSnapshot.region}
+            active={readingOcclusionActive}
           />}
           <div className="scene-spatial-labels scene-spatial-labels--wall scene-mainline-wall-labels" data-reading-occlusion-layer="wall" style={readingOcclusionStyle}>
-            {activeSwitchableStorefronts.map(slot => <PortalStorefrontCharacters key={slot.id} scene={scene} storefront={slot}
-              cells={switchCells.get(slot.id)!} phase={storefrontPresentation.get(slot.id) ?? 'baseline'}
-              doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'} screenMetrics={renderScreenMetrics} renderFrame={focusFrames.renderFrame}
-              onInteract={onInteract} onStorefrontInteract={onStorefrontInteract} onDoorTransitionComplete={onDoorTransitionComplete}
-              frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === slot.portalId}
-              onMotionComplete={phase => {
-                if (phase === 'revealing') {
-                  onStorefrontRevealMotionComplete?.(slot.id)
-                  focusFrames.remeasureGroup(`door:${slot.portalId}`)
-                } else onStorefrontRestoreMotionComplete?.(slot.id)
-              }} />)}
             {renderedGeometryCells.map(({ unit, cell }) => {
               const featureFlank = cell.kind === 'feature' && cell.featureCellRole === 'flank'
               if (cell.glyph === '' && !featureFlank) return null
@@ -1573,7 +1649,7 @@ export function MainlineSceneRenderer({
                     : undefined
                   const storefrontPhase = storefrontPassageEntityId ? doorPhases.get(storefrontPassageEntityId) ?? 'closed' : 'closed'
                   const groupClass = `scene-mainline-storefront ${storefrontMaterialClass(scene.id, cell.storefrontStyle, storefrontRole)} scene-mainline-storefront--${storefrontRole} scene-mainline-storefront--${cell.orientation ?? 'horizontal'} ${storefront?.portalId ? 'scene-mainline-storefront--portal' : ''} is-${storefrontState}`
-                  return <MainlineFocusGroup
+                  return extractProtectedWallNode(storefront?.id ?? entityId ?? cell.id, focusTarget.group, <MainlineFocusGroup
                     key={`focus-${focusTarget.group}`}
                     entries={focusEntries}
                     className={groupClass}
@@ -1591,19 +1667,23 @@ export function MainlineSceneRenderer({
                     frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === storefrontPassageEntityId}
                     active={activeObjectId === storefront?.id && Boolean(commercialStreetStorefrontInteractionFor(storefront.id)) && !readingMode}
                     suppressInteractionEmphasis={Boolean(readingMode && readingProtectedEntityIds.has(storefront?.id ?? ''))}
-                  />
+                  />)
                 }
                 if (cell.kind === 'feature' && entityId) {
                   const entity = featureEntity
                   if (entity) {
                     const menuFeature = entity.id.toLowerCase().includes('menu')
-                    const readingProtected = Boolean(readingMode && readingProtectedEntityIds.has(entityId))
+                    const readingProtected = readingPresentationPhase !== 'inactive' && readingOcclusionProtectedEntityIds.has(entityId)
                     const featureOpacity = storefrontInteriorFeatureOpacity(featureRoomOwner ?? null, visibleInteriorStorefrontIds, paintedInteriorStorefrontId)
                     const featureMotionMs = focusFrames.motionDurationMs(focusTarget.group)
-                    return <Fragment key={`focus-${focusTarget.group}`}>
+                    const renderedFeature = <Fragment key={`focus-${focusTarget.group}`}>
                       {featureRoomOwner && focusEntries.map(entry => <span key={`wall-${entry.cell.id}`} className={`scene-spatial-glyph scene-mainline-wall ${groupVisibilityClass}`} style={{ left: `${entry.cell.x}%`, top: `${entry.cell.y}%`, opacity: featureOpacity.wall === 0 ? 0 : undefined, transition: `opacity ${featureMotionMs}ms ease-in-out` }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>)}
                       <MainlineFocusGroup entries={focusEntries} className={`scene-mainline-wall scene-mainline-wall-feature scene-mainline-wall-feature--interaction scene-mainline-exploration--steady ${menuFeature ? 'scene-mainline-menu-feature' : ''}`} visibilityClass={groupVisibilityClass} renderFrame={focusFrames.renderFrame} onInteract={onInteract} interactionEntityId={entityId} ariaLabel={`${entity.label}，点击让主角前往互动`} active={isCurrentInteractionSource(entityId) && !readingMode} explored={exploredObjectIds.has(entityId)} suppressInteractionEmphasis={menuFeature || readingProtected} interiorPresentationActive={interiorRoomPresentationActive(interiorWallRoomId)} presentationDurationMs={focusFrames.motionDurationMs(focusTarget.group)} />
                     </Fragment>
+                    if (readingProtected) {
+                      return extractProtectedWallNode(entityId, focusTarget.group, renderedFeature)
+                    }
+                    return renderedFeature
                   }
                 }
               }
@@ -1629,7 +1709,7 @@ export function MainlineSceneRenderer({
                   const doorLabel = cell.label ?? cell.glyph ?? '门'
                   const doorPhase = doorPhases.get(entityId) ?? 'closed'
                   const closeHint = cell.access === 'locked' ? (cell.lockedText ?? '当前权限不足') : '接近时自动开门，进入门洞后继续路线'
-                  return <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={storefrontClass} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} doorLabel={doorLabel} glyph={cell.glyph ?? '门'} doorPhase={doorPhase} focusGroup={passageFocusGroup} focusPolicy="passage" gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId && !readingMode} closeHint={closeHint} ariaLabel={`${doorLabel}，点击门后目标会在接近时自动开门并穿过`} renderFocusFrame={focusFrames.renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} dataAttributes={{ 'data-storefront-cell-id': cell.id, 'data-storefront-state': storefrontState, 'data-storefront-presentation-phase': storefrontPresentationPhase, ...storefrontGlyphAttributes }} />
+                  return extractProtectedWallNode(entityId, cell.id, <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={storefrontClass} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} doorLabel={doorLabel} glyph={cell.glyph ?? '门'} doorPhase={doorPhase} focusGroup={passageFocusGroup} focusPolicy="passage" gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId && !readingMode} closeHint={closeHint} ariaLabel={`${doorLabel}，点击门后目标会在接近时自动开门并穿过`} renderFocusFrame={focusFrames.renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} dataAttributes={{ 'data-storefront-cell-id': cell.id, 'data-storefront-state': storefrontState, 'data-storefront-presentation-phase': storefrontPresentationPhase, ...storefrontGlyphAttributes }} />)
                 }
                 const storefrontPhase = storefrontPassageEntityId ? doorPhases.get(storefrontPassageEntityId) ?? 'closed' : 'closed'
                 return <span key={cell.id} className={storefrontClass} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} data-storefront-cell-id={cell.id} data-storefront-state={storefrontState} data-storefront-presentation-phase={storefrontPresentationPhase} {...storefrontGlyphAttributes} data-focus-target-id={focusGroup ? cell.id : undefined} data-focus-target-group={focusGroup} data-focus-target-policy={focusGroup ? 'passage' : undefined} data-focus-passage-phase={focusGroup ? storefrontPhase : undefined} data-focus-passage-retracting={focusGroup && storefrontPassageEntityId && sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === storefrontPassageEntityId ? 'true' : undefined} aria-hidden="true">{cell.glyph}{focusGroup && focusFrames.renderFrame(focusGroup)}</span>
@@ -1642,7 +1722,7 @@ export function MainlineSceneRenderer({
                 const focusGroup = yardGatePart ? `gate:${entityId}:${yardGatePart}` : `door:${entityId}`
                 const focusPolicy = yardGatePart ? 'gate' : 'passage' as const
                 const doorPresentationActive = interiorRoomPresentationActive(interiorWallRoomId)
-                return <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} doorLabel={doorLabel} glyph={cell.doorLabelPart ?? doorLabel} doorPhase={doorPhase} focusGroup={focusGroup} focusPolicy={focusPolicy} gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId && !readingMode} closeHint={closeHint} ariaLabel={`${doorLabel}，点击门后目标会在接近时自动开门并穿过`} renderFocusFrame={focusFrames.renderFrame} presentationActive={doorPresentationActive} presentationDurationMs={focusFrames.motionDurationMs(focusGroup)} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} dataAttributes={portalGlyphAttributes} />
+                return extractProtectedWallNode(entityId, cell.id, <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} doorLabel={doorLabel} glyph={cell.doorLabelPart ?? doorLabel} doorPhase={doorPhase} focusGroup={focusGroup} focusPolicy={focusPolicy} gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId && !readingMode} closeHint={closeHint} ariaLabel={`${doorLabel}，点击门后目标会在接近时自动开门并穿过`} renderFocusFrame={focusFrames.renderFrame} presentationActive={doorPresentationActive} presentationDurationMs={focusFrames.motionDurationMs(focusGroup)} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} dataAttributes={portalGlyphAttributes} />)
               }
               if (cell.kind === 'opening') {
                 return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-opening ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...readingStyle }} aria-hidden="true"><SceneCharacters>{cell.label ?? cell.glyph}</SceneCharacters></span>
@@ -1658,7 +1738,7 @@ export function MainlineSceneRenderer({
                   const focusGroup = `interactive:${cell.featureId ?? entityId}`
                   const featureOpacity = storefrontInteriorFeatureOpacity(featureRoomOwner, visibleInteriorStorefrontIds, paintedInteriorStorefrontId)
                   const presentationDurationMs = focusFrames.motionDurationMs(focusGroup)
-                  const readingProtected = Boolean(readingMode && readingProtectedEntityIds.has(entityId))
+              const readingProtected = readingPresentationPhase !== 'inactive' && readingOcclusionProtectedEntityIds.has(entityId)
                   const featureVisualState = resolveMainlineInteractionVisualState({
                     active: isCurrentInteractionSource(entityId) && !readingMode,
                     explored: exploredObjectIds.has(entityId) && !readingProtected,
@@ -1669,7 +1749,7 @@ export function MainlineSceneRenderer({
                     <SceneCharacters style={{ opacity: featureRoomOwner ? featureOpacity.feature : 1, transition: featureRoomOwner ? `opacity ${presentationDurationMs}ms ease-in-out` : undefined }} data-focus-visual-group={focusGroup}>{cell.glyph}</SceneCharacters>
                     {focusFrames.renderFrame(focusGroup, interiorRoomPresentationActive(interiorWallRoomId))}
                   </button>
-                  if (!featureRoomOwner) return <Fragment key={cell.id}>{feature}</Fragment>
+                  if (!featureRoomOwner) return extractProtectedWallNode(entityId, cell.id, <Fragment key={cell.id}>{feature}</Fragment>)
                   return <Fragment key={cell.id}>
                     <span className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, opacity: featureOpacity.wall, transition: `opacity ${sceneFrameDefaultMotionMs}ms ease-in-out` }} aria-hidden="true"><SceneCharacters>墙</SceneCharacters></span>
                     {feature}
@@ -1692,61 +1772,58 @@ export function MainlineSceneRenderer({
               return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} {...portalGlyphAttributes} aria-hidden="true"><SceneCharacters>{cell.glyph ?? '墙'}</SceneCharacters></span>
             })}
           </div>
+          {readingProtectedWallNodes.length > 0 && <div className="scene-mainline-protected-wall-layer" data-reading-occlusion-layer="wall-protected">{readingProtectedWallNodes}</div>}
+          <div className="scene-mainline-protected-wall-layer" data-reading-occlusion-layer="wall-portal">
+            <div className="scene-mainline-reading-mask-plane" data-reading-occlusion-plane="portals-masked" style={readingOcclusionStyle}>
+            {activeSwitchableStorefronts.filter(slot => !readingOcclusionProtectedEntityIds.has(slot.id) && !(slot.portalId && readingOcclusionProtectedEntityIds.has(slot.portalId))).map(slot => <PortalStorefrontCharacters key={slot.id} scene={scene} storefront={slot}
+              cells={switchCells.get(slot.id)!} phase={storefrontPresentation.get(slot.id) ?? 'baseline'}
+              doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'} screenMetrics={renderScreenMetrics} renderFrame={focusFrames.renderFrame}
+              onInteract={onInteract} onStorefrontInteract={onStorefrontInteract} onDoorTransitionComplete={onDoorTransitionComplete}
+              frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === slot.portalId}
+              onMotionComplete={phase => {
+                if (phase === 'revealing') {
+                  onStorefrontRevealMotionComplete?.(slot.id)
+                  focusFrames.remeasureGroup(`door:${slot.portalId}`)
+                } else onStorefrontRestoreMotionComplete?.(slot.id)
+              }} />)}
+            </div>
+            <div className="scene-mainline-reading-protected-plane" data-reading-occlusion-plane="portals-protected">
+            {activeSwitchableStorefronts.filter(slot => readingOcclusionProtectedEntityIds.has(slot.id) || Boolean(slot.portalId && readingOcclusionProtectedEntityIds.has(slot.portalId))).map(slot => <PortalStorefrontCharacters key={slot.id} scene={scene} storefront={slot}
+              cells={switchCells.get(slot.id)!} phase={storefrontPresentation.get(slot.id) ?? 'baseline'}
+              doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'} screenMetrics={renderScreenMetrics} renderFrame={focusFrames.renderFrame}
+              onInteract={onInteract} onStorefrontInteract={onStorefrontInteract} onDoorTransitionComplete={onDoorTransitionComplete}
+              frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === slot.portalId}
+              onMotionComplete={phase => {
+                if (phase === 'revealing') {
+                  onStorefrontRevealMotionComplete?.(slot.id)
+                  focusFrames.remeasureGroup(`door:${slot.portalId}`)
+                } else onStorefrontRestoreMotionComplete?.(slot.id)
+              }} />)}
+            </div>
+          </div>
 
-          <div className="scene-mainline-counter-layer" data-reading-occlusion-layer="counter" style={readingOcclusionStyle}>
-          {counterSurfaces.filter(parts => !parts[0].counterSurface?.roomId || visibleInteriorRoomIds.has(parts[0].counterSurface.roomId)).map(parts => {
-            const protectedSurface = Boolean(readingMode && parts.some(part => part.counterSurface && readingProtectedEntityIds.has(part.counterSurface.interactionEntityId)))
+          <div className="scene-mainline-counter-layer" data-reading-occlusion-layer="counter">
+          {(() => {
+            const visibleCounterSurfaces = counterSurfaces.filter(parts => !parts[0].counterSurface?.roomId || visibleInteriorRoomIds.has(parts[0].counterSurface.roomId))
+            const isProtectedCounter = (parts: typeof counterSurfaces[number]) => readingOcclusionProtectedEntityIds.has(parts[0].counterSurface!.interactionEntityId)
+            const renderCounter = (parts: typeof counterSurfaces[number]) => {
+            const entityId = parts[0].counterSurface!.interactionEntityId
             return <MainlineCounterSurface key={parts[0].counterSurface!.groupId} parts={parts} objects={scene.objects} onInteract={onInteract} presentationActive={interiorRoomPresentationActive(parts[0].counterSurface?.roomId)}/>
-          })}
+            }
+            return <>
+              <div className="scene-mainline-reading-mask-plane" data-reading-occlusion-plane="counters-masked" style={readingOcclusionStyle}>{visibleCounterSurfaces.filter(parts => !isProtectedCounter(parts)).map(renderCounter)}</div>
+              <div className="scene-mainline-reading-protected-plane" data-reading-occlusion-plane="counters-protected">{visibleCounterSurfaces.filter(isProtectedCounter).map(renderCounter)}</div>
+            </>
+          })()}
           </div>
           {/* Street lane objects stay rendered for the visual fade; their current-space targets and collisions remain unchanged. */}
-          <div className="scene-mainline-object-layer" data-reading-occlusion-layer="object" style={readingOcclusionStyle}>
-          {scene.objects.filter((entity) => entity.visible !== false
-            && !entity.counterSurfaceId
-            && entity.kind !== 'door'
-            && !wallFeatureEntityIds.has(entity.id)
-            && (mainlineEntityMatchesCurrentPresentation(entity, renderedRoomIds, activeSpatialSpaceId)
-              || (streetSpaceContentRetained && mainlineEntityIsPublicStreetContent(scene.id, entity)))).map((entity) => {
-            const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
-            const focusGroup = !layoutMode && entity.focusFrame === 'interactive' ? `interactive:${entity.focusFrameGroup ?? entity.id}` : undefined
-            const streetContent = mainlineEntityIsPublicStreetContent(scene.id, entity)
-            const presentationActive = streetContent ? streetPresentationActive : interiorRoomPresentationActive(entity.roomId)
-            const underPlayer = entity.visualProfile === 'tree-ring' && entity.interactive === false && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8
-            return <MemoMainlineObject
-              key={entity.id}
-              entity={entity}
-              scene={scene}
-              position={entityPosition}
-              collision={geometrySnapshot.objects.get(entity.id)?.collision ?? undefined}
-              visualBounds={geometrySnapshot.objects.get(entity.id)?.visualBounds}
-              focusGroup={focusGroup}
-              renderFrame={!entity.focusFrameGroup || objectFrameOwners.get(entity.focusFrameGroup) === entity.id ? focusFrames.renderFrame : undefined}
-              visibility={objectVisibility(entity, layoutMode)}
-              active={isCurrentInteractionSource(entity.id) && !readingMode}
-              explored={exploredObjectIds.has(entity.id)}
-              tutorialCompleted={interactionTutorialCompleted}
-              underPlayer={underPlayer}
-              layoutMode={layoutMode}
-              screenMetrics={renderScreenMetrics}
-              incenseLit={incenseLit}
-              incenseBurnRemainingMs={incenseBurnRemainingMs}
-              onIncenseBurnComplete={onIncenseBurnComplete}
-              selected={selectedLayoutItemId === mainlineLayoutItemForEntity(scene, entity.id)}
-              dragging={draggingItemId === mainlineLayoutItemForEntity(scene, entity.id)}
-              onStartLayoutDrag={startLayoutDrag}
-              onSelectLayoutItem={setSelectedLayoutItemId}
-              onInteract={onInteract}
-              breathingAnimationDelay={synchronizedBreathingDelay}
-              sharedBreathingClock={entity.visualProfile === 'incense' && incenseLit}
-              registerBreathingNode={registerBreathingNode}
-              suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds)}
-              prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}
-              debugRuntimeEvidence={debugRuntimeEvidence}
-              interiorPresentationActive={presentationActive}
-              presentationDurationMs={focusGroup ? focusFrames.motionDurationMs(focusGroup) : sceneFrameDefaultMotionMs}
-              readingProtected={Boolean(readingMode && readingProtectedEntityIds.has(entity.id))}
-            />
-          })}
+          <div className="scene-mainline-object-layer" data-reading-occlusion-layer="object">
+            <div className="scene-mainline-reading-mask-plane" data-reading-occlusion-plane="objects-masked" style={readingOcclusionStyle}>
+              {visibleObjectEntities.filter(entity => !readingOcclusionProtectedEntityIds.has(entity.id)).map(entity => <Fragment key={entity.id}>{renderMainlineObject(entity)}</Fragment>)}
+            </div>
+            <div className="scene-mainline-reading-protected-plane" data-reading-occlusion-plane="objects-protected">
+              {visibleObjectEntities.filter(entity => readingOcclusionProtectedEntityIds.has(entity.id)).map(entity => <MainlineReadingIdentityPlane key={entity.id} entityId={entity.id} protectedEntityIds={readingOcclusionProtectedEntityIds} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--object">{renderMainlineObject(entity)}</MainlineReadingIdentityPlane>)}
+            </div>
           </div>
 
           {scene.npcs.map((npc) => {

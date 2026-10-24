@@ -47,10 +47,9 @@ export function mainlineOcclusionWorldRect(
 export function mainlineReadingOcclusionMaskRegion(
   sceneBounds: CollisionBox,
   readingRect: MainlineReadingOcclusionRect,
-  protectedRects: readonly MainlineReadingOcclusionRect[] = [],
   paddingWorldPx = mainlineReadingOcclusionFadeWorldPx * 2,
 ) {
-  const bounds = [mainlineOcclusionWorldRect(sceneBounds), readingRect, ...protectedRects]
+  const bounds = [mainlineOcclusionWorldRect(sceneBounds), readingRect]
   const left = Math.min(...bounds.map(rect => rect.x)) - paddingWorldPx
   const top = Math.min(...bounds.map(rect => rect.y)) - paddingWorldPx
   const right = Math.max(...bounds.map(rect => rect.x + rect.width)) + paddingWorldPx

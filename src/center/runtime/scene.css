@@ -710,6 +710,20 @@
 .scene-mainline-wall-labels { inset: 0; z-index: 1; }
 .scene-mainline-counter-layer,
 .scene-mainline-object-layer { position: absolute; inset: 0; pointer-events: none; }
+.scene-mainline-reading-identity-plane { position: absolute; inset: 0; pointer-events: none; }
+.scene-mainline-reading-identity-plane > * { pointer-events: auto; }
+.scene-mainline-reading-mask-plane,
+.scene-mainline-reading-protected-plane { position: absolute; inset: 0; pointer-events: none; }
+.scene-mainline-object-layer > .scene-mainline-reading-mask-plane,
+.scene-mainline-object-layer > .scene-mainline-reading-protected-plane { pointer-events: none; }
+.scene-mainline-counter-layer > .scene-mainline-reading-mask-plane,
+.scene-mainline-counter-layer > .scene-mainline-reading-protected-plane,
+.scene-mainline-protected-wall-layer > .scene-mainline-reading-mask-plane,
+.scene-mainline-protected-wall-layer > .scene-mainline-reading-protected-plane { pointer-events: none; }
+.scene-mainline-reading-mask-plane > *,
+.scene-mainline-reading-protected-plane > * { pointer-events: auto; }
+.scene-mainline-protected-wall-layer { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.scene-mainline-protected-wall-layer > * { pointer-events: auto; }
 .scene-reading-occlusion-defs { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .scene-mainline-counter-layer > *,
 .scene-mainline-object-layer > * { pointer-events: auto; }

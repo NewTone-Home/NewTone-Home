@@ -192,4 +192,56 @@ describe('reading target protection', () => {
     expect(menuButton).not.toContain('opacity: 0.82')
     expect(menuButton).not.toContain('disabled=""')
   })
+
+  it('masks an overlapping neighbor by identity while leaving the current object group unmasked', () => {
+    const baseScene = mainlineScenes['commercial-street']
+    const cafe = baseScene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
+    const target = baseScene.objects.find(entity => entity.roomId === cafe.id && entity.interactive !== false && entity.focusFrame === 'interactive')!
+    const neighbor = { ...target, id: 'reading-overlap-neighbor', label: '邻物', interactive: false }
+    const scene = { ...baseScene, objects: [...baseScene.objects, neighbor] }
+    const source = { x: cafe.bounds.x + cafe.bounds.width / 2, y: cafe.bounds.y + cafe.bounds.height / 2 }
+    const geometrySnapshot = createMainlineSceneGeometrySnapshot(scene, source, {}, sceneDesignReferenceMetrics, new Map())
+    const html = renderToStaticMarkup(<MainlineSceneRenderer
+      scene={scene} position={source} moving={false} destination={null} layoutMode={false} layout={{}} activeObjectId={target.id}
+      geometrySnapshot={geometrySnapshot} viewportMetrics={sceneDesignReferenceMetrics} cameraOffset={{ x: 50 - source.x, y: 50 - source.y }}
+      onLayoutChange={() => {}} onInteract={() => {}} onWalk={() => {}} freezeFrameMeasurements debugRuntimeEvidence
+      readingMode="observation" sceneEcho={{ id: 91, entityId: target.id, text: '同一位置的文字', segments: ['同一位置的文字'], segmentIndex: 0, position: source, typing: false }}
+      visibleInteriorStorefrontIds={[activeStorefrontInteriorOwner(baseScene, source)!]} paintedInteriorStorefrontId={activeStorefrontInteriorOwner(baseScene, source)!}
+    />)
+    const targetPlane = html.match(new RegExp(`<div[^>]*data-reading-occlusion-entity-id="${target.id}"[^>]*>`))?.[0]
+    const neighborPlane = html.match(/<div[^>]*data-reading-occlusion-plane="objects-masked"[^>]*>/)?.[0]
+    const targetNode = html.match(new RegExp(`<button[^>]*data-object-id="${target.id}"[^>]*>`))?.[0]
+    const neighborNode = html.match(/<span[^>]*data-object-id="reading-overlap-neighbor"[^>]*>/)?.[0]
+    expect(targetPlane).toContain('data-reading-occlusion-protected="true"')
+    expect(targetPlane).not.toContain('mask-image')
+    expect(neighborPlane).toBeTruthy()
+    expect(neighborPlane).toContain('mask-image:url(#mainline-reading-occlusion-')
+    expect(html).not.toMatch(/data-reading-occlusion-entity-id="reading-overlap-neighbor"/)
+    expect(targetNode).toContain('data-rendered-x=')
+    expect(neighborNode).toContain(`data-rendered-x="${targetNode?.match(/data-rendered-x="([^"]+)/)?.[1]}"`)
+    expect(neighborNode).toContain(`data-rendered-y="${targetNode?.match(/data-rendered-y="([^"]+)/)?.[1]}"`)
+    expect(html).toContain('data-reading-mask-progress="0"')
+  })
+
+  it('routes the complete counter surface by its interaction identity into one of two shared planes', () => {
+    const scene = mainlineScenes['commercial-street']
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
+    const parts = scene.continuousStructures.filter(part => part.counterSurface?.groupId === 'cafe-trial-L-counter')
+    const targetId = parts[0].counterSurface!.interactionEntityId
+    const source = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+    const owner = activeStorefrontInteriorOwner(scene, source)!
+    const geometrySnapshot = createMainlineSceneGeometrySnapshot(scene, source, {}, sceneDesignReferenceMetrics, new Map())
+    const html = renderToStaticMarkup(<MainlineSceneRenderer
+      scene={scene} position={source} moving={false} destination={null} layoutMode={false} layout={{}} activeObjectId={targetId}
+      geometrySnapshot={geometrySnapshot} viewportMetrics={sceneDesignReferenceMetrics} cameraOffset={{ x: 50 - source.x, y: 50 - source.y }}
+      onLayoutChange={() => {}} onInteract={() => {}} onWalk={() => {}} freezeFrameMeasurements
+      readingMode="observation" sceneEcho={{ id: 94, entityId: targetId, text: '柜台文字', segments: ['柜台文字'], segmentIndex: 0, position: source, typing: false }}
+      visibleInteriorStorefrontIds={[owner]} paintedInteriorStorefrontId={owner}
+    />)
+    const protectedCounterPlane = html.match(/<div[^>]*data-reading-occlusion-plane="counters-protected"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? ''
+    const maskedCounterPlane = html.match(/<div[^>]*data-reading-occlusion-plane="counters-masked"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? ''
+    expect(protectedCounterPlane).toContain('data-counter-outline-group="cafe-trial-L-counter"')
+    expect(maskedCounterPlane).not.toContain('data-counter-outline-group="cafe-trial-L-counter"')
+    expect(html.match(/data-reading-occlusion-plane="counters-(?:masked|protected)"/g)).toHaveLength(2)
+  })
 })
