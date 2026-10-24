@@ -1876,6 +1876,13 @@ const zhongshuyuanOfficeCorridorEndOpenings = [
 ] as const
 const zhongshuyuanOfficeNorthGlassWall = officeGrid.box(1,12,62,1)
 const zhongshuyuanOfficeSouthGlassWall = officeGrid.box(1,20,62,1)
+const zhongshuyuanOfficeSouthGlassCornerLink = {
+  id: 'zhongshuyuan-office-south-glass-corner-link',
+  x: officeGrid.point(0, 0).x,
+  y: officeGrid.point(0, 21).y - mainlineWallThickness / 2,
+  width: officeGrid.step.x,
+  height: mainlineWallThickness,
+}
 const zhongshuyuanOfficeNorthDividerBounds = [
   officeGrid.box(16,0,1,12),
   officeGrid.box(32,0,1,12),
@@ -2249,7 +2256,9 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
         zhongshuyuanOfficeDesk.id,
         zhongshuyuanOfficeChair.id,
       )],
-      blockers: [],
+      // Join the south glass collision to the outer frame. This is collision-only:
+      // the shared corner already has its authored frame glyph.
+      blockers: [zhongshuyuanOfficeSouthGlassCornerLink],
       furnitureGroups: [{
         id: 'zhongshuyuan-office-workstation',
         anchor: authoredPoint((zhongshuyuanOfficeChairX + zhongshuyuanOfficeDeskX) / 2, zhongshuyuanOfficeProtagonistRoomCenterY),
