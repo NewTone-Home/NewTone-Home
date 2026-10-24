@@ -161,7 +161,7 @@ describe('reading target protection', () => {
     expect(inDimmerHole(localPoint(100, 300).x, localPoint(100, 300).y)).toBe(false)
   })
 
-  it('protects the complete interactive L counter and keeps an active menu neutral and keyboard focusable', () => {
+  it('keeps the active menu neutral and keyboard focusable while bounding the adjacent wall wrapper', () => {
     const scene = mainlineScenes['commercial-street']
     const cafe = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
     const source = { x: cafe.bounds.x + cafe.bounds.width / 2, y: cafe.bounds.y + cafe.bounds.height / 2 }
@@ -197,7 +197,9 @@ describe('reading target protection', () => {
     expect(neighboringWallEntry).toBeTruthy()
     const neighboringWallPlane = menuHtml.match(new RegExp(`<div[^>]*data-reading-occlusion-key="${neighboringWallEntry?.cell.id}"[^>]*>`))?.[0]
     expect(neighboringWallPlane).not.toContain('data-reading-occlusion-protected')
-    expect(neighboringWallPlane).toContain('mask-image:url(#mainline-reading-occlusion-')
+    expect(neighboringWallPlane).not.toContain('mask-image')
+    expect(neighboringWallPlane).toContain('data-reading-world-bounds=')
+    expect(neighboringWallPlane).toContain('width:0.8333333333333334%')
     const menuPosition = menuHtml.indexOf('data-reading-occlusion-entity-id="commercial-cafe-menu"')
     const neighborPosition = menuHtml.indexOf(`data-reading-occlusion-key="${neighboringWallEntry?.cell.id}"`)
     const menuSourceIndex = geometryCells.findIndex(({ cell }) => cell.id === menuEntry.cell.id)
@@ -212,7 +214,7 @@ describe('reading target protection', () => {
     expect(menuButton).not.toContain('disabled=""')
   })
 
-  it('keeps target and same-position neighbor in original object order while only masking the neighbor', () => {
+  it('keeps target and same-position neighbor in their source order with bounded identity wrappers', () => {
     const baseScene = mainlineScenes['commercial-street']
     const cafe = baseScene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
     const target = baseScene.objects.find(entity => entity.roomId === cafe.id && entity.interactive !== false && entity.focusFrame === 'interactive')!
@@ -234,9 +236,11 @@ describe('reading target protection', () => {
     expect(targetPlane).toContain('data-reading-occlusion-protected="true"')
     expect(targetPlane).not.toContain('mask-image')
     expect(neighborPlane).toBeTruthy()
-    expect(neighborPlane).toContain('mask-image:url(#mainline-reading-occlusion-')
-    expect(targetPlane).toContain('data-reading-occlusion-stack-level="4"')
-    expect(neighborPlane).toContain('data-reading-occlusion-stack-level="4"')
+    expect(neighborPlane).not.toContain('mask-image')
+    expect(neighborPlane).toContain('data-reading-world-bounds=')
+    expect(neighborPlane).not.toContain('inset:0')
+    expect(targetPlane).not.toContain('z-index:')
+    expect(neighborPlane).not.toContain('z-index:')
     expect(html.indexOf(`data-reading-occlusion-entity-id="${target.id}"`)).toBeLessThan(html.indexOf('data-reading-occlusion-entity-id="reading-overlap-neighbor"'))
     expect(targetNode).toContain('data-rendered-x=')
     expect(neighborNode).toContain(`data-rendered-x="${targetNode?.match(/data-rendered-x="([^"]+)/)?.[1]}"`)
@@ -260,9 +264,10 @@ describe('reading target protection', () => {
       visibleInteriorStorefrontIds={[owner]} paintedInteriorStorefrontId={owner}
     />)
     const counterPlane = html.match(new RegExp(`<div[^>]*data-reading-occlusion-entity-id="${targetId}"[^>]*>([\\s\\S]*?)<\\/div>`))
+    const counterPlaneOpening = counterPlane?.[0].match(/<div[^>]*>/)?.[0]
     expect(counterPlane?.[1]).toContain('data-counter-outline-group="cafe-trial-L-counter"')
     expect(counterPlane?.[0]).toContain('data-reading-occlusion-protected="true"')
     expect(counterPlane?.[0]).not.toContain('mask-image')
-    expect(counterPlane?.[0]).toContain('data-reading-occlusion-stack-level="3"')
+    expect(counterPlaneOpening).not.toContain('z-index:')
   })
 })

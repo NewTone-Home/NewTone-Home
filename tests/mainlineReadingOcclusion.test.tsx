@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MainlineReadingOcclusionMask } from '../src/center/runtime/MainlineReadingOcclusionMask'
 import { MainlineReadingIdentityPlane } from '../src/center/runtime/MainlineReadingIdentityPlane'
-import { mainlineReadingOcclusionAlpha, mainlineReadingOcclusionMaskRegion, mainlineReadingOcclusionRect, retainMainlineReadingOcclusionSnapshot } from '../src/center/runtime/mainlineReadingOcclusion'
+import { mainlineReadingOcclusionAlpha, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionMaskRegion, mainlineReadingOcclusionRect, mainlineReadingLocalMaskBounds, mainlineReadingLocalPercent, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot } from '../src/center/runtime/mainlineReadingOcclusion'
 
 describe('mainline spatial reading occlusion', () => {
   it('maps the CSS reading layout into the 1920×1080 world without changing its screen size', () => {
@@ -32,6 +32,21 @@ describe('mainline spatial reading occlusion', () => {
     expect(mainlineReadingOcclusionAlpha({ x: 416, y: 240 }, rect)).toBe(1)
   })
 
+  it('converts stage percentages into bounded wrapper coordinates without a second projection', () => {
+    const bounds = mainlineReadingWorldBox({ x: 20, y: 30, width: 4, height: 5 })
+    expect(bounds.x).toBe(384)
+    expect(bounds.y).toBe(324)
+    expect(bounds.width).toBeCloseTo(76.8)
+    expect(bounds.height).toBe(54)
+    expect(mainlineReadingLocalPercent({ x: 22, y: 32.5 }, bounds)).toEqual({ x: 50, y: 50 })
+    const localMask = mainlineReadingLocalMaskBounds(bounds, { x: 390, y: 330, width: 40, height: 24 })
+    expect(localMask.x).toBe(-384)
+    expect(localMask.y).toBe(-324)
+    expect(localMask.readingRect).toEqual({ x: 6, y: 6, width: 40, height: 24 })
+    expect(mainlineReadingOcclusionIntersects(bounds, { x: 480, y: 330, width: 20, height: 24 })).toBe(false)
+    expect(mainlineReadingOcclusionIntersects(bounds, { x: 480, y: 330, width: 20, height: 24 }, 16)).toBe(false)
+  })
+
   it('bounds the shared mask to scene and reading rectangles instead of a huge full-world surface', () => {
     const region = mainlineReadingOcclusionMaskRegion(
       { x: -5, y: -2, width: 110, height: 104 },
@@ -50,11 +65,10 @@ describe('mainline spatial reading occlusion', () => {
       region={{ x: -100, y: -100, width: 1000, height: 1000 }}
       active={false}
     />)
-    expect(html).toContain('maskUnits="userSpaceOnUse"')
-    expect(html).toContain('mask-type="luminance"')
+    expect(html).toContain('<g id="reading-mask-test-shape"')
     expect(html).toContain('data-reading-mask-core="true"')
     expect(html).toContain('data-reading-mask-progress="0"')
-    expect(html).toContain('transition:opacity 400ms linear')
+    expect(html).not.toContain('mask-image')
     expect(html).not.toContain('data-reading-mask-protection')
     expect(html).toContain('reading-mask-test-top-left')
     expect(html).toContain('reading-mask-test-bottom-right')
@@ -71,11 +85,13 @@ describe('mainline spatial reading occlusion', () => {
   })
 
   it('protects only the active identity when target and neighbor occupy the same pixels', () => {
+    const worldBounds = { x: 92, y: 192, width: 32, height: 32 }
+    const readingRect = { x: 100, y: 200, width: 24, height: 24 }
     const html = renderToStaticMarkup(<>
-      <MainlineReadingIdentityPlane entityId="menu" protectedEntityIds={new Set(['menu'])} maskStyle={{ maskImage: 'url(#shared-reading-mask)' }}>
+      <MainlineReadingIdentityPlane entityId="menu" identityKey="menu" worldBounds={worldBounds} readingRect={readingRect} maskBaseId="shared-reading-mask" protectedEntityIds={new Set(['menu'])}>
         <span data-overlap="target-menu">菜单及其框</span>
       </MainlineReadingIdentityPlane>
-      <MainlineReadingIdentityPlane entityId="neighbor-wall" protectedEntityIds={new Set(['menu'])} maskStyle={{ maskImage: 'url(#shared-reading-mask)' }}>
+      <MainlineReadingIdentityPlane entityId="neighbor-wall" identityKey="neighbor-wall" worldBounds={worldBounds} readingRect={readingRect} maskBaseId="shared-reading-mask" protectedEntityIds={new Set(['menu'])}>
         <span data-overlap="neighbor-wall">墙</span>
       </MainlineReadingIdentityPlane>
     </>)
@@ -84,7 +100,14 @@ describe('mainline spatial reading occlusion', () => {
     expect(target).toContain('data-reading-occlusion-protected="true"')
     expect(target).not.toContain('mask-image')
     expect(neighbor).not.toContain('data-reading-occlusion-protected')
-    expect(neighbor).toContain('mask-image:url(#shared-reading-mask)')
+    expect(neighbor).toContain('mask-image:url(#shared-reading-mask-id-6e_65_69_67_68_62_6f_72_2d_77_61_6c_6c)')
+    expect(neighbor).toContain('data-reading-occlusion-masked="true"')
+    expect(html).toContain('viewBox="0 0 32 32"')
+    expect(html).toContain('width="32" height="32"')
+    expect(html).toContain('maskUnits="userSpaceOnUse"')
+    expect(html).toContain('mask-type="luminance"')
+    expect(html).toContain('transform="translate(-92 -192)"')
+    expect(neighbor).not.toContain('inset:0')
     expect(html).toContain('data-overlap="target-menu"')
     expect(html).toContain('data-overlap="neighbor-wall"')
   })

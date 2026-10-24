@@ -1,8 +1,10 @@
 import type { CollisionBox, Point } from './sceneGeometry'
-import { mainlineWorldFontSizePx } from './sceneBoundaryGrid'
+import { mainlineWorldFontSizePx, sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 
 export type MainlineReadingOcclusionRect = CollisionBox
 export const mainlineReadingOcclusionFadeWorldPx = mainlineWorldFontSizePx
+export const mainlineReadingWorldWidthPx = sceneDesignReferenceMetrics.width
+export const mainlineReadingWorldHeightPx = sceneDesignReferenceMetrics.height
 
 export type MainlineReadingOcclusionSnapshot = {
   sessionKey: string
@@ -45,6 +47,40 @@ export function mainlineReadingOcclusionAlpha(point: Point, rect: MainlineReadin
   const outsideX = Math.max(rect.x - point.x, 0, point.x - (rect.x + rect.width))
   const outsideY = Math.max(rect.y - point.y, 0, point.y - (rect.y + rect.height))
   return Math.max(0, Math.min(1, Math.hypot(outsideX, outsideY) / Math.max(.01, fadeWidthWorldPx)))
+}
+
+export function mainlineReadingOcclusionIntersects(bounds: CollisionBox, rect: MainlineReadingOcclusionRect, featherWorldPx = mainlineReadingOcclusionFadeWorldPx) {
+  return bounds.x <= rect.x + rect.width + featherWorldPx
+    && bounds.x + bounds.width >= rect.x - featherWorldPx
+    && bounds.y <= rect.y + rect.height + featherWorldPx
+    && bounds.y + bounds.height >= rect.y - featherWorldPx
+}
+
+export function mainlineReadingWorldPoint(point: Point, projectedX: (value: number) => number = value => value) {
+  return { x: projectedX(point.x) / 100 * mainlineReadingWorldWidthPx, y: point.y / 100 * mainlineReadingWorldHeightPx }
+}
+
+export function mainlineReadingWorldBox(bounds: CollisionBox, projectedX: (value: number) => number = value => value, paddingWorldPx = 0) {
+  const x1 = projectedX(bounds.x) / 100 * mainlineReadingWorldWidthPx
+  const x2 = projectedX(bounds.x + bounds.width) / 100 * mainlineReadingWorldWidthPx
+  const y1 = bounds.y / 100 * mainlineReadingWorldHeightPx
+  const y2 = (bounds.y + bounds.height) / 100 * mainlineReadingWorldHeightPx
+  const padding = Math.max(0, paddingWorldPx)
+  return { x: Math.min(x1, x2) - padding, y: Math.min(y1, y2) - padding, width: Math.abs(x2 - x1) + padding * 2, height: Math.abs(y2 - y1) + padding * 2 }
+}
+
+/** Place an authored world point inside a bounded visual wrapper. */
+export function mainlineReadingLocalPercent(point: Point, bounds: CollisionBox, projectedX: (value: number) => number = value => value) {
+  const world = mainlineReadingWorldPoint(point, projectedX)
+  return {
+    x: bounds.width > 0 ? (world.x - bounds.x) / bounds.width * 100 : 50,
+    y: bounds.height > 0 ? (world.y - bounds.y) / bounds.height * 100 : 50,
+  }
+}
+
+export function mainlineReadingLocalMaskBounds(bounds: CollisionBox, rect: MainlineReadingOcclusionRect) {
+  return { x: -bounds.x, y: -bounds.y, width: bounds.width, height: bounds.height,
+    readingRect: { x: rect.x - bounds.x, y: rect.y - bounds.y, width: rect.width, height: rect.height } }
 }
 
 /** Convert normalized scene bounds to the renderer's 1920×1080 world coordinate system. */

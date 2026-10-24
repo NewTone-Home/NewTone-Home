@@ -9,9 +9,11 @@ type Props = {
   objects: readonly MainlineSceneEntity[]
   onInteract: (id: string) => void
   presentationActive?: boolean
+  boundedWrapper?: boolean
+  coordinateBounds?: { x: number; y: number; width: number; height: number }
 }
 
-function CounterSurface({ parts, onInteract, presentationActive }: Props) {
+function CounterSurface({ parts, onInteract, presentationActive, boundedWrapper = false, coordinateBounds }: Props) {
   const rectangles = useMemo(() => parts.map(part => ({ x: part.x * 19.2, y: part.y * 10.8, width: part.width * 19.2, height: part.height * 10.8 })), [parts])
   const outlineRectangles = useMemo(() => parts.map((part, index) => {
     const box = part.counterSurface!.outlineBounds
@@ -19,6 +21,7 @@ function CounterSurface({ parts, onInteract, presentationActive }: Props) {
   }), [parts, rectangles])
   const geometry = useMemo(() => counterOutlineGeometry(outlineRectangles), [outlineRectangles])
   const { bounds } = geometry
+  const frameBounds = coordinateBounds ?? bounds
   const presentationDurationMs = sceneFrameMotionMsForRect(bounds.width, bounds.height)
   const activate = (event: { stopPropagation: () => void }, id: string) => { event.stopPropagation(); onInteract(id) }
   const keyboard = (event: KeyboardEvent, id: string) => {
@@ -28,7 +31,7 @@ function CounterSurface({ parts, onInteract, presentationActive }: Props) {
   const labelStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 16, fontFamily: 'inherit', fontWeight: 'inherit', letterSpacing: 0, lineHeight: 1, color: 'inherit', background: 'none', border: 0, padding: 0, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }
   const active = presentationActive !== false
   const animatedPresentation = presentationActive !== undefined
-  return <svg data-counter-outline-group={group} data-interior-active={animatedPresentation ? active ? 'true' : 'false' : undefined} data-surface-role={parts[0].counterSurface!.role ?? 'counter'} aria-label={parts[0].counterSurface!.label ?? '柜台'} role="group" viewBox={`0 0 ${bounds.width} ${bounds.height}`} preserveAspectRatio="none" style={{ position: 'absolute', left: `${bounds.x / 19.2}%`, top: `${bounds.y / 10.8}%`, width: `${bounds.width / 19.2}%`, height: `${bounds.height / 10.8}%`, overflow: 'visible', pointerEvents: 'none', zIndex: 3, color: 'var(--interaction-normal)', opacity: .9 }}>
+  return <svg data-counter-outline-group={group} data-interior-active={animatedPresentation ? active ? 'true' : 'false' : undefined} data-surface-role={parts[0].counterSurface!.role ?? 'counter'} aria-label={parts[0].counterSurface!.label ?? '柜台'} role="group" viewBox={`0 0 ${bounds.width} ${bounds.height}`} preserveAspectRatio="none" style={{ position: 'absolute', left: boundedWrapper ? `${(bounds.x - frameBounds.x) / frameBounds.width * 100}%` : `${bounds.x / 19.2}%`, top: boundedWrapper ? `${(bounds.y - frameBounds.y) / frameBounds.height * 100}%` : `${bounds.y / 10.8}%`, width: boundedWrapper ? `${bounds.width / frameBounds.width * 100}%` : `${bounds.width / 19.2}%`, height: boundedWrapper ? `${bounds.height / frameBounds.height * 100}%` : `${bounds.height / 10.8}%`, overflow: 'visible', pointerEvents: 'none', zIndex: 3, color: 'var(--interaction-normal)', opacity: .9 }}>
     {parts.map((part, index) => {
       const box = rectangles[index], meta = part.counterSurface!, vertical = meta.orientation === 'vertical'
       const label = meta.label ?? '柜台', length = Array.from(label).length
