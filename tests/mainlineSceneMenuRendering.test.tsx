@@ -51,16 +51,65 @@ function render(fixture: Fixture, mode: 'active' | 'retained' | 'unowned', phase
   />)
 }
 
-function tagsAt(html: string, cell: { x: number; y: number }, className: string) {
-  return [...html.matchAll(/<span\b[^>]*>/g)].map(match => match[0]).filter(tag =>
-    tag.includes(className) && tag.includes(`left:${cell.x}%`) && tag.includes(`top:${cell.y}%`))
+function divSegmentAt(html: string, start: number, openEnd: number) {
+  let depth = 1
+  const divTags = /<\/?div\b[^>]*>/g
+  divTags.lastIndex = openEnd
+  let match: RegExpExecArray | null
+  while ((match = divTags.exec(html))) {
+    if (match[0].startsWith('</')) depth -= 1
+    else if (!match[0].endsWith('/>')) depth += 1
+    if (depth === 0) return html.slice(start, divTags.lastIndex)
+  }
+  return null
 }
 
-function wallCellMarkup(html: string, cell: { x: number; y: number }) {
-  const tag = tagsAt(html, cell, 'scene-mainline-wall')[0]
-  if (!tag) return ''
-  const start = html.indexOf(tag)
-  return html.slice(start, start + 320)
+function extractSpan(html: string, start: number) {
+  const spanTags = /<\/?span\b[^>]*>/g
+  spanTags.lastIndex = start
+  let depth = 0
+  let match: RegExpExecArray | null
+  while ((match = spanTags.exec(html))) {
+    if (match[0].startsWith('</')) depth -= 1
+    else if (!match[0].endsWith('/>')) depth += 1
+    if (depth === 0) return html.slice(start, spanTags.lastIndex)
+  }
+  return html.slice(start, html.indexOf('>', start) + 1)
+}
+
+function renderedWallGlyphs(html: string) {
+  const wrappers = [...html.matchAll(/<div\b[^>]*class="[^"]*scene-mainline-reading-identity-plane--wall[^"]*"[^>]*>/g)]
+  const glyphs: Array<{ x: number; y: number; tag: string }> = []
+  for (const match of wrappers) {
+    const wrapperStart = match.index!
+    const wrapperTag = match[0]
+    const wrapperEnd = wrapperStart + wrapperTag.length
+    const segment = divSegmentAt(html, wrapperStart, wrapperEnd)
+    const boundsValue = wrapperTag.match(/data-reading-world-bounds="([^"]+)"/)?.[1]
+    const bounds = boundsValue?.split(',').map(Number)
+    if (!segment || bounds?.length !== 4 || !bounds.every(Number.isFinite)) continue
+    const inner = segment.slice(wrapperTag.length)
+    for (const spanMatch of inner.matchAll(/<span\b[^>]*>/g)) {
+      const classes = spanMatch[0].match(/class="([^"]*)"/)?.[1]?.split(/\s+/) ?? []
+      if (!classes.includes('scene-mainline-wall')) continue
+      const style = spanMatch[0].match(/style="([^"]*)"/)?.[1] ?? ''
+      const left = Number(style.match(/(?:^|;)left:([-\d.]+)%/)?.[1])
+      const top = Number(style.match(/(?:^|;)top:([-\d.]+)%/)?.[1])
+      if (!Number.isFinite(left) || !Number.isFinite(top)) continue
+      glyphs.push({
+        x: bounds[0]! + bounds[2]! * left / 100,
+        y: bounds[1]! + bounds[3]! * top / 100,
+        tag: extractSpan(inner, spanMatch.index!),
+      })
+    }
+  }
+  return glyphs
+}
+
+function cellWallMarkup(html: string, cell: { x: number; y: number }) {
+  const x = cell.x / 100 * sceneDesignReferenceMetrics.width
+  const y = cell.y / 100 * sceneDesignReferenceMetrics.height
+  return renderedWallGlyphs(html).filter(glyph => Math.abs(glyph.x - x) < .05 && Math.abs(glyph.y - y) < .05)
 }
 
 describe('menu wall cells render independently through owner and portal states', () => {
@@ -72,37 +121,47 @@ describe('menu wall cells render independently through owner and portal states',
     for (const phase of phases) {
       const activeHtml = render(fixture, 'active', phase)
       for (const cell of content) {
-        const wallTags = tagsAt(activeHtml, cell, 'scene-mainline-wall')
-        expect(wallTags, `${fixture.menuId}/${phase} painted owner wall layer at ${cell.x},${cell.y}`).toHaveLength(1)
+        const wallTags = cellWallMarkup(activeHtml, cell)
+        expect(wallTags, `${fixture.menuId}/${phase} painted owner wall layer at cell ${cell.id}`).toHaveLength(1)
+        expect(wallTags[0]!.x).toBeCloseTo(cell.x / 100 * sceneDesignReferenceMetrics.width, 4)
+        expect(wallTags[0]!.y).toBeCloseTo(cell.y / 100 * sceneDesignReferenceMetrics.height, 4)
         expect(activeHtml, `${fixture.menuId}/${phase} shared menu focus group`).toContain('scene-mainline-wall-feature--interaction')
         expect(activeHtml, `${fixture.menuId}/${phase} menu focus group owns its first glyph cell`).toContain(`data-focus-target-id=\"${content[0]!.id}\"`)
       }
       for (const cell of flanks) {
-        const flankTags = tagsAt(activeHtml, cell, 'scene-mainline-wall')
-        expect(flankTags, `${fixture.menuId}/${phase} flank at ${cell.x},${cell.y}`).toHaveLength(1)
-        expect(flankTags[0]).not.toMatch(/(?:opacity|filter):/)
+        const wallTags = cellWallMarkup(activeHtml, cell)
+        expect(wallTags, `${fixture.menuId}/${phase} flank cell ${cell.id}`).toHaveLength(1)
+        expect(wallTags[0]!.x).toBeCloseTo(cell.x / 100 * sceneDesignReferenceMetrics.width, 4)
+        expect(wallTags[0]!.y).toBeCloseTo(cell.y / 100 * sceneDesignReferenceMetrics.height, 4)
+        expect(wallTags[0]!.tag).not.toMatch(/(?:opacity|filter):/)
       }
 
       const retainedHtml = render(fixture, 'retained', phase)
       for (const cell of content) {
-        const wallTags = tagsAt(retainedHtml, cell, 'scene-mainline-wall')
-        expect(wallTags, `${fixture.menuId}/${phase} retained wall at ${cell.x},${cell.y}`).toHaveLength(1)
-        expect(wallCellMarkup(retainedHtml, cell), `${fixture.menuId}/${phase} retained occupied menu slot paints its own wall glyph`).toContain('>墙<')
-        expect(wallTags[0]).not.toMatch(/opacity:\s*1(?:[;}]|$)/)
+        const wallTags = cellWallMarkup(retainedHtml, cell)
+        expect(wallTags, `${fixture.menuId}/${phase} retained wall cell ${cell.id}`).toHaveLength(1)
+        expect(wallTags[0]!.x).toBeCloseTo(cell.x / 100 * sceneDesignReferenceMetrics.width, 4)
+        expect(wallTags[0]!.y).toBeCloseTo(cell.y / 100 * sceneDesignReferenceMetrics.height, 4)
+        expect(wallTags[0]!.tag).toContain('>墙<')
+        expect(wallTags[0]!.tag).not.toMatch(/opacity:\s*1(?:[;}]|$)/)
       }
 
       const unownedHtml = render(fixture, 'unowned', phase)
       for (const cell of content) {
-        const wallTags = tagsAt(unownedHtml, cell, 'scene-mainline-wall')
-        expect(wallTags, `${fixture.menuId}/${phase} unowned wall at ${cell.x},${cell.y}`).toHaveLength(1)
-        expect(wallCellMarkup(unownedHtml, cell), `${fixture.menuId}/${phase} unowned occupied menu slot paints its own wall glyph`).toContain('>墙<')
-        expect(wallTags[0]).not.toMatch(/opacity:\s*1(?:[;}]|$)/)
+        const wallTags = cellWallMarkup(unownedHtml, cell)
+        expect(wallTags, `${fixture.menuId}/${phase} unowned wall cell ${cell.id}`).toHaveLength(1)
+        expect(wallTags[0]!.x).toBeCloseTo(cell.x / 100 * sceneDesignReferenceMetrics.width, 4)
+        expect(wallTags[0]!.y).toBeCloseTo(cell.y / 100 * sceneDesignReferenceMetrics.height, 4)
+        expect(wallTags[0]!.tag).toContain('>墙<')
+        expect(wallTags[0]!.tag).not.toMatch(/opacity:\s*1(?:[;}]|$)/)
         expect(unownedHtml, `${fixture.menuId}/${phase} no orphan menu focus group`).not.toContain('scene-mainline-wall-feature--interaction')
       }
       for (const cell of flanks) {
-        const wallTags = tagsAt(unownedHtml, cell, 'scene-mainline-wall')
-        expect(wallTags, `${fixture.menuId}/${phase} unowned flank at ${cell.x},${cell.y}`).toHaveLength(1)
-        expect(wallTags[0]).not.toMatch(/(?:opacity|filter):/)
+        const wallTags = cellWallMarkup(unownedHtml, cell)
+        expect(wallTags, `${fixture.menuId}/${phase} unowned flank cell ${cell.id}`).toHaveLength(1)
+        expect(wallTags[0]!.x).toBeCloseTo(cell.x / 100 * sceneDesignReferenceMetrics.width, 4)
+        expect(wallTags[0]!.y).toBeCloseTo(cell.y / 100 * sceneDesignReferenceMetrics.height, 4)
+        expect(wallTags[0]!.tag).not.toMatch(/(?:opacity|filter):/)
       }
     }
   })
