@@ -7,7 +7,7 @@ import EntryButtonSurface from '../../components/EntryButtonSurface'
 import type { CollisionBox, Point } from './sceneGeometry'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
-import { mainlineActiveSpatialSpaceId, mainlineEntityMatchesCurrentPresentation } from './mainlineSceneModel'
+import { mainlineActiveSpatialSpaceId, mainlineEntityIsPublicStreetContent, mainlineEntityMatchesCurrentPresentation, mainlinePublicStreetPresentationIsActive } from './mainlineSceneModel'
 import { mainlineGeometryCellWithinViewport, mainlineGeometryUnitShouldRender } from './mainlineSceneVisibility'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineEntityVisualBounds, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -1054,6 +1054,8 @@ export function MainlineSceneRenderer({
     && position.y >= room.bounds.y
     && position.y <= room.bounds.y + room.bounds.height)
   const activeSpatialSpaceId = mainlineActiveSpatialSpaceId(scene, position)
+  const streetPresentationActive = mainlinePublicStreetPresentationIsActive(scene, position)
+  const streetSpaceContentRetained = Boolean(scene.id === 'commercial-street' || scene.id === 'yonghe-mining-perimeter')
   const activeShellRoomConnection = activeShellRoom && scene.storefronts.map(slot => storefrontRoomConnection(scene, slot)).find(connection => connection?.interiorRoom.id === activeShellRoom.id)
   const activeShellRoomId = activeShellRoomConnection && activeShellRoomConnection.passage.access !== 'open' ? undefined : activeShellRoom?.id
   const interiorStorefrontId = activeStorefrontInteriorOwner(scene, position)
@@ -1272,7 +1274,10 @@ export function MainlineSceneRenderer({
     })
     scene.objects.forEach((entity) => {
       if (entity.focusFrame !== 'interactive' || entity.visible === false) return
-      if (!mainlineEntityMatchesCurrentPresentation(entity, renderedRoomIds, activeSpatialSpaceId)) return
+      const streetContent = mainlineEntityIsPublicStreetContent(scene.id, entity)
+      // Keep the focus-frame target mounted so it can collapse smoothly. The
+      // street entity itself is disabled and removed from active interaction.
+      if (!mainlineEntityMatchesCurrentPresentation(entity, renderedRoomIds, activeSpatialSpaceId) && !streetContent) return
       const group = `interactive:${entity.focusFrameGroup ?? entity.id}`
       addTarget({
         group,
@@ -1280,13 +1285,13 @@ export function MainlineSceneRenderer({
         phase: 'closed',
         gateTriggered: false,
         interactionBusy: activeObjectId === entity.id && moving,
-        interactionActive: activeObjectId === entity.id || sceneEcho?.entityId === entity.id,
-        retractRequested: false,
+        interactionActive: !streetContent && (activeObjectId === entity.id || sceneEcho?.entityId === entity.id),
+        retractRequested: streetContent && !streetPresentationActive,
         suppressed: isMainlineSeatLabelSuppressed(entity, occupiedSeatIds),
       })
     })
     return [...targetMap.values()]
-  }, [activeObjectId, switchableStorefronts, approachedStorefrontIds, interiorStorefrontId, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation, occupiedSeatIds, renderedRoomIds, activeSpatialSpaceId])
+  }, [activeObjectId, switchableStorefronts, approachedStorefrontIds, interiorStorefrontId, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation, occupiedSeatIds, renderedRoomIds, activeSpatialSpaceId, streetPresentationActive])
   const focusFrames = useSceneFocusFrameController({
     targets: focusFrameTargets,
     freezeMeasurements: freezeFrameMeasurements,
@@ -1658,13 +1663,17 @@ export function MainlineSceneRenderer({
             const protectedSurface = Boolean(readingMode && parts.some(part => part.counterSurface && readingProtectedEntityIds.has(part.counterSurface.interactionEntityId)))
             return <MainlineCounterSurface key={parts[0].counterSurface!.groupId} parts={parts} objects={scene.objects} onInteract={onInteract} presentationActive={interiorRoomPresentationActive(parts[0].counterSurface?.roomId)} readingFilter={protectedSurface ? undefined : staticReadingFilterForBounds(parts.map(part => part.counterSurface!.outlineBounds ?? part))}/>
           })}
+          {/* Street lane objects stay rendered for the visual fade; their current-space targets and collisions remain unchanged. */}
           {scene.objects.filter((entity) => entity.visible !== false
             && !entity.counterSurfaceId
             && entity.kind !== 'door'
             && !wallFeatureEntityIds.has(entity.id)
-            && mainlineEntityMatchesCurrentPresentation(entity, renderedRoomIds, activeSpatialSpaceId)).map((entity) => {
+            && (mainlineEntityMatchesCurrentPresentation(entity, renderedRoomIds, activeSpatialSpaceId)
+              || (streetSpaceContentRetained && mainlineEntityIsPublicStreetContent(scene.id, entity)))).map((entity) => {
             const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
             const focusGroup = !layoutMode && entity.focusFrame === 'interactive' ? `interactive:${entity.focusFrameGroup ?? entity.id}` : undefined
+            const streetContent = mainlineEntityIsPublicStreetContent(scene.id, entity)
+            const presentationActive = streetContent ? streetPresentationActive : interiorRoomPresentationActive(entity.roomId)
             const underPlayer = entity.visualProfile === 'tree-ring' && entity.interactive === false && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8
             return <MemoMainlineObject
               key={entity.id}
@@ -1696,7 +1705,7 @@ export function MainlineSceneRenderer({
               suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds)}
               prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}
               debugRuntimeEvidence={debugRuntimeEvidence}
-              interiorPresentationActive={interiorRoomPresentationActive(entity.roomId)}
+              interiorPresentationActive={presentationActive}
               presentationDurationMs={focusGroup ? focusFrames.motionDurationMs(focusGroup) : sceneFrameDefaultMotionMs}
               readingFilter={entity.visualVisibility === 'static' || entity.interactive === false ? staticReadingFilter(entityPosition) : undefined}
               readingProtected={Boolean(readingMode && readingProtectedEntityIds.has(entity.id))}
@@ -1708,6 +1717,7 @@ export function MainlineSceneRenderer({
             if (hiddenNpcIds?.has(npc.id)) return null
             if (npc.roomId && !renderedRoomIds.has(npc.roomId)) return null
             const npcPosition = npcPositions?.get(npc.id) ?? resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
+            const streetNpc = streetSpaceContentRetained && !npc.roomId
             const npcSnapshot = npcRuntimeSnapshots?.get(npc.id)
             const npcSeatId = mainlineNpcVisualSeatId(scene, npc.id, npcSnapshot)
             return <MemoMainlineNpcActor
@@ -1720,7 +1730,7 @@ export function MainlineSceneRenderer({
               seatPosition={npcSeatId ? geometrySnapshot.objects.get(npcSeatId)?.position : undefined}
               screenMetrics={renderScreenMetrics}
               interactive={npc.interactive !== false}
-              presentationActive={interiorRoomIsVisuallyActive(npc.roomId)}
+              presentationActive={streetNpc ? streetPresentationActive : interiorRoomIsVisuallyActive(npc.roomId)}
               readingOpacity={mainlineReadingOpacityForActor(npc.id, dialogueParticipantNpcIds, actorReadingOpacity(npcPosition))}
               readingProtected={Boolean(readingMode && (dialogueParticipantNpcIds.has(npc.id) || readingProtectedEntityIds.has(npc.id)))}
               debugRuntimeEvidence={debugRuntimeEvidence}
@@ -1728,7 +1738,13 @@ export function MainlineSceneRenderer({
             />
           })}
 
-          {ambientNpcActorLayer}
+          {ambientNpcActorLayer && (streetSpaceContentRetained
+            ? <div
+                className="scene-mainline-street-ambient-layer"
+                aria-hidden={!streetPresentationActive}
+                style={{ position: 'absolute', inset: 0, opacity: streetPresentationActive ? 1 : 0, pointerEvents: 'none', transition: `opacity ${sceneFrameDefaultMotionMs}ms ease-in-out` }}
+              >{ambientNpcActorLayer}</div>
+            : ambientNpcActorLayer)}
 
           {cafeSpatialQa && <div className="scene-spatial-qa" aria-hidden="true">
             <svg className="scene-spatial-qa__geometry" viewBox="0 0 100 100" preserveAspectRatio="none">

@@ -171,6 +171,30 @@ export function mainlineEntityMatchesCurrentPresentation(
     && mainlineEntityBelongsToActiveSpace(entity, activeSpaceId)
 }
 
+/** Public-lane scene space that owns outdoor furniture and street residents. */
+export function mainlinePublicStreetSpaceId(sceneId: MainlineSceneId): string | undefined {
+  if (sceneId === 'commercial-street') return 'commercial-street-public-lane'
+  if (sceneId === 'yonghe-mining-perimeter') return 'mining-street-public-lane'
+  return undefined
+}
+
+/** Only explicitly lane-owned entities participate; unowned scene content is not inferred. */
+export function mainlineEntityIsPublicStreetContent(
+  sceneId: MainlineSceneId,
+  entity: Pick<MainlineSceneEntity, 'roomId' | 'spaceId' | 'kind'>,
+): boolean {
+  const publicSpaceId = mainlinePublicStreetSpaceId(sceneId)
+  return Boolean(publicSpaceId && entity.kind !== 'door' && !entity.roomId && entity.spaceId === publicSpaceId)
+}
+
+export function mainlinePublicStreetPresentationIsActive(
+  scene: { id: MainlineSceneId; rooms: readonly MainlineSceneRoom[] },
+  position: Point,
+): boolean {
+  const publicSpaceId = mainlinePublicStreetSpaceId(scene.id)
+  return Boolean(publicSpaceId && mainlineActiveSpatialSpaceId(scene, position) === publicSpaceId)
+}
+
 /** Resolve the same concrete room/corridor used by interaction text and scoped floor entities. */
 export function mainlineSceneRoomAtPosition(
   scene: { id: MainlineSceneId; rooms: readonly MainlineSceneRoom[] },
