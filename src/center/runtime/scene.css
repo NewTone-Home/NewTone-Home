@@ -315,6 +315,8 @@
 .scene-counter-label { -webkit-tap-highlight-color: transparent; }
 .scene-counter-label:focus:not(:focus-visible) { outline: none; }
 [data-counter-outline-group] { -webkit-tap-highlight-color: transparent; }
+.scene-mainline-counter-layer [data-counter-part-id][role="button"]:focus:not(:focus-visible) { outline: none; }
+.scene-mainline-counter-layer [data-counter-part-id][role="button"]:focus-visible { outline: none; stroke: var(--active); stroke-width: 1; stroke-dasharray: 2 1; }
 
 .scene-mark { height: 1px; background: var(--faint); transform-origin: left center; }
 .scene-mark--threshold { background: var(--line); opacity: .75; }
