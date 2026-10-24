@@ -37,7 +37,7 @@ export function trialYongheInterior(blueprint: MainlineSceneBlueprint): Mainline
     delete entity.collision;entity.interactionStructureId=counterId;entity.counterSurfaceId=counterId;entity.interactionContactSides=['bottom'];entity.interactive=index===7
     entities.push(entity)
   }
-  addSurface(counterId,'yonghe-trial-counter-line',{x:216,y:0,width:16,height:256},'horizontal','yonghe-counter','counter',false,{x:212,y:-4,width:24,height:264})
+  addSurface(counterId,'yonghe-trial-counter-line',{x:216,y:0,width:16,height:256},'horizontal','yonghe-counter','counter',false,{x:212,y:-14,width:24,height:274})
   // The two framed legs overlap at the rear/right corner to form one continuous L.
   addSurface('yonghe-trial-worktop-back-body','yonghe-trial-worktop-L',{x:10,y:16,width:24,height:180},'horizontal','yonghe-stove','worktop',true)
   addSurface('yonghe-trial-worktop-right-body','yonghe-trial-worktop-L',{x:10,y:10,width:180,height:24},'vertical','yonghe-trial-board','worktop',true)

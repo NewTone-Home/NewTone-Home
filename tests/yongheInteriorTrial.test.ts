@@ -254,6 +254,18 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       expect(counter.width * 19.2).toBeCloseTo(256, 3)
       expect(counter.height * 10.8).toBeCloseTo(16, 3)
       expect(counter.x + counter.width).toBeCloseTo(room.bounds.x + room.bounds.width, 8)
+      const counterOutline = counter.counterSurface!.outlineBounds!
+      const outlineLocal = {
+        x: (counterOutline.y - room.bounds.y) * 10.8,
+        y: frontX - (counterOutline.x + counterOutline.width - room.bounds.x) * 19.2,
+        width: counterOutline.height * 10.8,
+        height: counterOutline.width * 19.2,
+      }
+      expect(outlineLocal.x).toBeCloseTo(212, 2)
+      expect(outlineLocal.y).toBeCloseTo(-14, 2)
+      expect(outlineLocal.width).toBeCloseTo(24, 2)
+      expect(outlineLocal.height).toBeCloseTo(274, 2)
+      expect(counter.width * 19.2).toBeCloseTo(256, 3) // visual outline expands independently of the clickable surface
       expect(308 - 256).toBe(52)
       expect(308 - 256 - 11).toBe(41)
       const worktop = scene.continuousStructures.filter(body => body.counterSurface?.groupId === 'yonghe-trial-worktop-L')
