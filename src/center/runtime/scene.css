@@ -708,6 +708,11 @@
   .scene-mainline-world { animation: none; }
 }
 .scene-mainline-wall-labels { inset: 0; z-index: 1; }
+.scene-mainline-counter-layer,
+.scene-mainline-object-layer { position: absolute; inset: 0; pointer-events: none; }
+.scene-reading-occlusion-defs { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.scene-mainline-counter-layer > *,
+.scene-mainline-object-layer > * { pointer-events: auto; }
 .scene-mainline-wall { color: var(--soft); font-size: var(--scene-mainline-object-font-size, 16px); line-height: 1; }
 .scene-mainline-wall-door {
   display: inline-flex;

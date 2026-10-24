@@ -155,40 +155,6 @@ export function mainlineReadingOpacityForActor(actorId: string, participantNpcId
   return participantNpcIds.has(actorId) ? 1 : localOpacity
 }
 
-/** Extra opacity applied to static marks only. Existing visibility/reveal state
- * remains in force and is multiplied by this local reading fade. */
-export function mainlineReadingStaticOpacity(point: Point, readingPoint: Point, readingBox: { widthPx: number; heightPx: number }, worldScale: number, projectedX: (value: number) => number = value => value) {
-  const dx = Math.abs(projectedX(point.x) - projectedX(readingPoint.x)) / 100 * sceneDesignReferenceMetrics.width * worldScale
-  const dy = Math.abs(point.y - readingPoint.y) / 100 * sceneDesignReferenceMetrics.height * worldScale
-  const outsideX = Math.max(0, dx - readingBox.widthPx / 2)
-  const outsideY = Math.max(0, dy - readingBox.heightPx / 2)
-  const t = Math.max(0, Math.min(1, Math.hypot(outsideX, outsideY) / 88))
-  return t * t * (3 - 2 * t)
-}
-
-/** Use the nearest point on a rendered rectangle, rather than its center, for local reading fades. */
-export function mainlineReadingStaticOpacityForBounds(bounds: CollisionBox, readingPoint: Point, readingBox: { widthPx: number; heightPx: number }, worldScale: number, projectedX: (value: number) => number = value => value) {
-  const x1 = projectedX(bounds.x) / 100 * sceneDesignReferenceMetrics.width * worldScale
-  const x2 = projectedX(bounds.x + bounds.width) / 100 * sceneDesignReferenceMetrics.width * worldScale
-  const readX = projectedX(readingPoint.x) / 100 * sceneDesignReferenceMetrics.width * worldScale
-  const left = Math.min(x1, x2)
-  const right = Math.max(x1, x2)
-  const partTop = bounds.y / 100 * sceneDesignReferenceMetrics.height * worldScale
-  const partBottom = (bounds.y + bounds.height) / 100 * sceneDesignReferenceMetrics.height * worldScale
-  const readY = readingPoint.y / 100 * sceneDesignReferenceMetrics.height * worldScale
-  const outsideX = Math.max(0, left - (readX + readingBox.widthPx / 2), (readX - readingBox.widthPx / 2) - right)
-  const outsideY = Math.max(0, partTop - (readY + readingBox.heightPx / 2), (readY - readingBox.heightPx / 2) - partBottom)
-  const t = Math.max(0, Math.min(1, Math.hypot(outsideX, outsideY) / 88))
-  return t * t * (3 - 2 * t)
-}
-
-/** Treat multiple rendered rectangles as one object: the nearest real piece controls one shared opacity. */
-export function mainlineReadingStaticOpacityForBoundsUnion(bounds: readonly CollisionBox[], readingPoint: Point, readingBox: { widthPx: number; heightPx: number }, worldScale: number, projectedX: (value: number) => number = value => value) {
-  return bounds.length === 0
-    ? 1
-    : Math.min(...bounds.map(bound => mainlineReadingStaticOpacityForBounds(bound, readingPoint, readingBox, worldScale, projectedX)))
-}
-
 export const mainlineReadingFadeTransitionMs = 400
 export const mainlineObservationTypingIntervalMs = 45
 

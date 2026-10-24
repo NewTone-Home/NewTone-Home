@@ -1,15 +1,17 @@
-import type { MainlineReadingOcclusionRect } from './mainlineReadingOcclusion'
+import { mainlineReadingOcclusionFadeWorldPx, type MainlineReadingOcclusionRect } from './mainlineReadingOcclusion'
+import { mainlineReadingFadeTransitionMs } from './mainlineTextReading'
 
 type Props = {
   id: string
   readingRect: MainlineReadingOcclusionRect
+  region: MainlineReadingOcclusionRect
   protectedRects: readonly MainlineReadingOcclusionRect[]
   active: boolean
   fadeWidthWorldPx?: number
 }
 
 /** One shared world-space mask definition; full-world visual layers reference it. */
-export function MainlineReadingOcclusionMask({ id, readingRect, protectedRects, active, fadeWidthWorldPx = 16 }: Props) {
+export function MainlineReadingOcclusionMask({ id, readingRect, protectedRects, region, active, fadeWidthWorldPx = mainlineReadingOcclusionFadeWorldPx }: Props) {
   const { x, y, width, height } = readingRect
   const right = x + width
   const bottom = y + height
@@ -22,7 +24,7 @@ export function MainlineReadingOcclusionMask({ id, readingRect, protectedRects, 
     </radialGradient>
   )
 
-  return <svg className="scene-reading-occlusion-defs" aria-hidden="true" width="1920" height="1080" focusable="false">
+  return <svg className="scene-reading-occlusion-defs" aria-hidden="true" width="1" height="1" focusable="false">
     <defs>
       <linearGradient id={`${id}-top`} gradientUnits="userSpaceOnUse" x1="0" x2="0" y1={y - fade} y2={y}>{whiteToBlack}</linearGradient>
       <linearGradient id={`${id}-bottom`} gradientUnits="userSpaceOnUse" x1="0" x2="0" y1={bottom} y2={bottom + fade}>{blackToWhite}</linearGradient>
@@ -30,9 +32,9 @@ export function MainlineReadingOcclusionMask({ id, readingRect, protectedRects, 
       <linearGradient id={`${id}-right`} gradientUnits="userSpaceOnUse" x1={right} x2={right + fade} y1="0" y2="0">{blackToWhite}</linearGradient>
       {radialGradient('top-left', x, y)}{radialGradient('top-right', right, y)}
       {radialGradient('bottom-left', x, bottom)}{radialGradient('bottom-right', right, bottom)}
-      <mask id={id} maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" mask-type="luminance" x="-8192" y="-8192" width="16384" height="16384">
-        <rect x="-8192" y="-8192" width="16384" height="16384" fill="white"/>
-        <g className="scene-reading-occlusion-mask-shape" style={{ opacity: active ? 1 : 0, transition: 'opacity 400ms linear' }} data-reading-mask-progress={active ? '1' : '0'}>
+      <mask id={id} maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" mask-type="luminance" x={region.x} y={region.y} width={region.width} height={region.height} data-reading-mask-feather-world-px={fade}>
+        <rect x={region.x} y={region.y} width={region.width} height={region.height} fill="white"/>
+        <g className="scene-reading-occlusion-mask-shape" style={{ opacity: active ? 1 : 0, transition: `opacity ${mainlineReadingFadeTransitionMs}ms linear` }} data-reading-mask-progress={active ? '1' : '0'}>
           <rect x={x} y={y} width={width} height={height} fill="black" data-reading-mask-core="true"/>
           {width > 0 && height > 0 && <>
             <rect x={x} y={y - fade} width={width} height={fade} fill={`url(#${id}-top)`}/>

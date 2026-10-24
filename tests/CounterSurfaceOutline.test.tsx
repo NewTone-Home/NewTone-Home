@@ -36,10 +36,10 @@ describe('one exterior L counter, two labels and complete solid interaction',()=
  it('keeps Cafe short counter separated above the32px employee opening',()=>{
   const upper=scene.continuousStructures.find(p=>p.id==='cafe-trial-counter-upper-body')!,long=scene.continuousStructures.find(p=>p.id==='cafe-trial-counter-long-body')!;expect(upper.counterSurface!.groupId).not.toBe(long.counterSurface!.groupId);expect((long.y-upper.y-upper.height)*10.8).toBeCloseTo(32,5)
  })
- it('applies one reading filter to the shared whole-L surface while keeping both part targets',()=>{
+ it('leaves spatial reading occlusion to the shared scene mask while keeping both part targets',()=>{
   const parts=scene.continuousStructures.filter(part=>part.counterSurface?.groupId==='cafe-trial-L-counter')
-  const html=renderToStaticMarkup(<MainlineCounterSurface parts={parts} objects={scene.objects} onInteract={()=>{}} readingFilter="opacity(0.25)"/>),svg=html.match(/<svg[^>]*data-counter-outline-group="cafe-trial-L-counter"[^>]*>/)?.[0]
-  expect(svg).toContain('filter:opacity(0.25)')
+  const html=renderToStaticMarkup(<MainlineCounterSurface parts={parts} objects={scene.objects} onInteract={()=>{}}/>),svg=html.match(/<svg[^>]*data-counter-outline-group="cafe-trial-L-counter"[^>]*>/)?.[0]
+  expect(svg).not.toContain('filter:')
   expect(html.match(/data-counter-part-id=/g)).toHaveLength(2)
   expect(html.match(/data-counter-outline-path=/g)).toHaveLength(1)
  })
