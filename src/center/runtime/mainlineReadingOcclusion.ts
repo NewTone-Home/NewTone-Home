@@ -4,6 +4,28 @@ import { mainlineWorldFontSizePx } from './sceneBoundaryGrid'
 export type MainlineReadingOcclusionRect = CollisionBox
 export const mainlineReadingOcclusionFadeWorldPx = mainlineWorldFontSizePx
 
+export type MainlineReadingOcclusionSnapshot = {
+  sessionKey: string
+  rect: CollisionBox
+  region: CollisionBox
+  protectedEntityIds: ReadonlySet<string>
+}
+
+function sameBox(a: CollisionBox, b: CollisionBox) {
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+}
+
+/** Preserve the old snapshot reference when a fresh layout has identical values. */
+export function retainMainlineReadingOcclusionSnapshot<T extends MainlineReadingOcclusionSnapshot>(current: T | null, next: T): T {
+  if (current
+    && current.sessionKey === next.sessionKey
+    && sameBox(current.rect, next.rect)
+    && sameBox(current.region, next.region)
+    && current.protectedEntityIds.size === next.protectedEntityIds.size
+    && [...current.protectedEntityIds].every(id => next.protectedEntityIds.has(id))) return current
+  return next
+}
+
 export function mainlineReadingOcclusionRect(
   position: Point,
   layout: { widthPx: number; heightPx: number },

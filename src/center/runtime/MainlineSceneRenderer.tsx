@@ -41,7 +41,7 @@ import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
 import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingBox, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from './mainlineReadingProtection'
 import { MainlineReadingOcclusionMask } from './MainlineReadingOcclusionMask'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
-import { mainlineReadingOcclusionMaskRegion, mainlineReadingOcclusionRect } from './mainlineReadingOcclusion'
+import { mainlineReadingOcclusionMaskRegion, mainlineReadingOcclusionRect, retainMainlineReadingOcclusionSnapshot } from './mainlineReadingOcclusion'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -1207,7 +1207,12 @@ export function MainlineSceneRenderer({
     : null, [readingOcclusionRect, sceneRenderBounds])
   useEffect(() => {
     if (readingPresentationPhase !== 'active' || !readingSessionKey || !readingOcclusionRect || !readingOcclusionMaskRegion) return
-    setRetainedReadingOcclusion({ sessionKey: readingSessionKey, rect: readingOcclusionRect, region: readingOcclusionMaskRegion, protectedEntityIds: new Set(readingProtectedEntityIds) })
+    setRetainedReadingOcclusion(current => retainMainlineReadingOcclusionSnapshot(current, {
+      sessionKey: readingSessionKey,
+      rect: readingOcclusionRect,
+      region: readingOcclusionMaskRegion,
+      protectedEntityIds: readingProtectedEntityIds,
+    }))
   }, [readingOcclusionMaskRegion, readingOcclusionRect, readingPresentationPhase, readingProtectedEntityIds, readingSessionKey])
   useEffect(() => {
     if (readingPresentationPhase !== 'active' || !readingVisualActive || !readingSessionKey) return
@@ -1528,12 +1533,7 @@ export function MainlineSceneRenderer({
     '--scene-horizontal-grid-counter-scale': String(1 / horizontalGridScale),
   } as CSSProperties
 
-  const readingProtectedWallNodes: ReactNode[] = []
-  const extractProtectedWallNode = (entityId: string, key: string, node: ReactNode): ReactNode => {
-    if (!readingOcclusionProtectedEntityIds.has(entityId)) return node
-    readingProtectedWallNodes.push(<Fragment key={`protected-${key}`}>{node}</Fragment>)
-    return null
-  }
+  const extractProtectedWallNode = (_entityId: string, _key: string, node: ReactNode): ReactNode => node
   const visibleObjectEntities = scene.objects.filter(entity => entity.visible !== false
     && !entity.counterSurfaceId
     && entity.kind !== 'door'
@@ -1601,8 +1601,22 @@ export function MainlineSceneRenderer({
             region={retainedOcclusionSnapshot.region}
             active={readingOcclusionActive}
           />}
-          <div className="scene-spatial-labels scene-spatial-labels--wall scene-mainline-wall-labels" data-reading-occlusion-layer="wall" style={readingOcclusionStyle}>
+          <div className="scene-spatial-labels scene-spatial-labels--wall scene-mainline-wall-labels" data-reading-occlusion-layer="wall">
+            {activeSwitchableStorefronts.map(slot => <MainlineReadingIdentityPlane key={`portal:${slot.id}`} identityKey={`portal:${slot.id}`} entityId={slot.id} relatedEntityIds={slot.portalId ? [slot.portalId] : []} protectedEntityIds={readingOcclusionProtectedEntityIds} maskStyle={readingOcclusionStyle} stackLevel={5} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">
+              <PortalStorefrontCharacters scene={scene} storefront={slot}
+                cells={switchCells.get(slot.id)!} phase={storefrontPresentation.get(slot.id) ?? 'baseline'}
+                doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'} screenMetrics={renderScreenMetrics} renderFrame={focusFrames.renderFrame}
+                onInteract={onInteract} onStorefrontInteract={onStorefrontInteract} onDoorTransitionComplete={onDoorTransitionComplete}
+                frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === slot.portalId}
+                onMotionComplete={phase => {
+                  if (phase === 'revealing') {
+                    onStorefrontRevealMotionComplete?.(slot.id)
+                    focusFrames.remeasureGroup(`door:${slot.portalId}`)
+                  } else onStorefrontRestoreMotionComplete?.(slot.id)
+                }} />
+            </MainlineReadingIdentityPlane>)}
             {renderedGeometryCells.map(({ unit, cell }) => {
+              const renderCell = () => {
               const featureFlank = cell.kind === 'feature' && cell.featureCellRole === 'flank'
               if (cell.glyph === '' && !featureFlank) return null
               const readingStyle = {}
@@ -1770,60 +1784,32 @@ export function MainlineSceneRenderer({
                 </Fragment>
               }
               return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} {...portalGlyphAttributes} aria-hidden="true"><SceneCharacters>{cell.glyph ?? '墙'}</SceneCharacters></span>
+              }
+              const node = renderCell()
+              if (!node) return null
+              const entityId = cell.kind === 'feature' && cell.featureCellRole === 'flank'
+                ? `wall-cell:${cell.id}`
+                : cell.entityId ?? unit.entityId ?? cell.storefrontId ?? unit.storefrontId ?? cell.id
+              const relatedEntityIds = [cell.storefrontId ?? unit.storefrontId, cell.entityId ?? unit.entityId].filter((id): id is string => Boolean(id) && id !== entityId)
+              const storefront = (cell.storefrontId ?? unit.storefrontId) ? scene.storefronts.find(candidate => candidate.id === (cell.storefrontId ?? unit.storefrontId)) : undefined
+              const stackLevel = cell.kind === 'storefront' ? storefront?.portalId ? 5 : mainlineCellFocusTarget(scene, cell, entityId, unit.variant) ? 4 : 3
+                : cell.kind === 'door' || mainlineCellFocusTarget(scene, cell, entityId, unit.variant) ? 4 : undefined
+              return <MainlineReadingIdentityPlane key={`cell:${cell.id}`} identityKey={cell.id} entityId={entityId} relatedEntityIds={relatedEntityIds} protectedEntityIds={readingOcclusionProtectedEntityIds} maskStyle={readingOcclusionStyle} stackLevel={stackLevel} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">{node}</MainlineReadingIdentityPlane>
             })}
           </div>
-          {readingProtectedWallNodes.length > 0 && <div className="scene-mainline-protected-wall-layer" data-reading-occlusion-layer="wall-protected">{readingProtectedWallNodes}</div>}
-          <div className="scene-mainline-protected-wall-layer" data-reading-occlusion-layer="wall-portal">
-            <div className="scene-mainline-reading-mask-plane" data-reading-occlusion-plane="portals-masked" style={readingOcclusionStyle}>
-            {activeSwitchableStorefronts.filter(slot => !readingOcclusionProtectedEntityIds.has(slot.id) && !(slot.portalId && readingOcclusionProtectedEntityIds.has(slot.portalId))).map(slot => <PortalStorefrontCharacters key={slot.id} scene={scene} storefront={slot}
-              cells={switchCells.get(slot.id)!} phase={storefrontPresentation.get(slot.id) ?? 'baseline'}
-              doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'} screenMetrics={renderScreenMetrics} renderFrame={focusFrames.renderFrame}
-              onInteract={onInteract} onStorefrontInteract={onStorefrontInteract} onDoorTransitionComplete={onDoorTransitionComplete}
-              frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === slot.portalId}
-              onMotionComplete={phase => {
-                if (phase === 'revealing') {
-                  onStorefrontRevealMotionComplete?.(slot.id)
-                  focusFrames.remeasureGroup(`door:${slot.portalId}`)
-                } else onStorefrontRestoreMotionComplete?.(slot.id)
-              }} />)}
-            </div>
-            <div className="scene-mainline-reading-protected-plane" data-reading-occlusion-plane="portals-protected">
-            {activeSwitchableStorefronts.filter(slot => readingOcclusionProtectedEntityIds.has(slot.id) || Boolean(slot.portalId && readingOcclusionProtectedEntityIds.has(slot.portalId))).map(slot => <PortalStorefrontCharacters key={slot.id} scene={scene} storefront={slot}
-              cells={switchCells.get(slot.id)!} phase={storefrontPresentation.get(slot.id) ?? 'baseline'}
-              doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'} screenMetrics={renderScreenMetrics} renderFrame={focusFrames.renderFrame}
-              onInteract={onInteract} onStorefrontInteract={onStorefrontInteract} onDoorTransitionComplete={onDoorTransitionComplete}
-              frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === slot.portalId}
-              onMotionComplete={phase => {
-                if (phase === 'revealing') {
-                  onStorefrontRevealMotionComplete?.(slot.id)
-                  focusFrames.remeasureGroup(`door:${slot.portalId}`)
-                } else onStorefrontRestoreMotionComplete?.(slot.id)
-              }} />)}
-            </div>
-          </div>
-
           <div className="scene-mainline-counter-layer" data-reading-occlusion-layer="counter">
           {(() => {
             const visibleCounterSurfaces = counterSurfaces.filter(parts => !parts[0].counterSurface?.roomId || visibleInteriorRoomIds.has(parts[0].counterSurface.roomId))
-            const isProtectedCounter = (parts: typeof counterSurfaces[number]) => readingOcclusionProtectedEntityIds.has(parts[0].counterSurface!.interactionEntityId)
             const renderCounter = (parts: typeof counterSurfaces[number]) => {
             const entityId = parts[0].counterSurface!.interactionEntityId
-            return <MainlineCounterSurface key={parts[0].counterSurface!.groupId} parts={parts} objects={scene.objects} onInteract={onInteract} presentationActive={interiorRoomPresentationActive(parts[0].counterSurface?.roomId)}/>
+            return <MainlineReadingIdentityPlane key={parts[0].counterSurface!.groupId} identityKey={parts[0].counterSurface!.groupId} entityId={entityId} protectedEntityIds={readingOcclusionProtectedEntityIds} maskStyle={readingOcclusionStyle} stackLevel={3} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--counter"><MainlineCounterSurface parts={parts} objects={scene.objects} onInteract={onInteract} presentationActive={interiorRoomPresentationActive(parts[0].counterSurface?.roomId)}/></MainlineReadingIdentityPlane>
             }
-            return <>
-              <div className="scene-mainline-reading-mask-plane" data-reading-occlusion-plane="counters-masked" style={readingOcclusionStyle}>{visibleCounterSurfaces.filter(parts => !isProtectedCounter(parts)).map(renderCounter)}</div>
-              <div className="scene-mainline-reading-protected-plane" data-reading-occlusion-plane="counters-protected">{visibleCounterSurfaces.filter(isProtectedCounter).map(renderCounter)}</div>
-            </>
+            return visibleCounterSurfaces.map(renderCounter)
           })()}
           </div>
           {/* Street lane objects stay rendered for the visual fade; their current-space targets and collisions remain unchanged. */}
           <div className="scene-mainline-object-layer" data-reading-occlusion-layer="object">
-            <div className="scene-mainline-reading-mask-plane" data-reading-occlusion-plane="objects-masked" style={readingOcclusionStyle}>
-              {visibleObjectEntities.filter(entity => !readingOcclusionProtectedEntityIds.has(entity.id)).map(entity => <Fragment key={entity.id}>{renderMainlineObject(entity)}</Fragment>)}
-            </div>
-            <div className="scene-mainline-reading-protected-plane" data-reading-occlusion-plane="objects-protected">
-              {visibleObjectEntities.filter(entity => readingOcclusionProtectedEntityIds.has(entity.id)).map(entity => <MainlineReadingIdentityPlane key={entity.id} entityId={entity.id} protectedEntityIds={readingOcclusionProtectedEntityIds} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--object">{renderMainlineObject(entity)}</MainlineReadingIdentityPlane>)}
-            </div>
+            {visibleObjectEntities.map(entity => <MainlineReadingIdentityPlane key={entity.id} identityKey={entity.id} entityId={entity.id} protectedEntityIds={readingOcclusionProtectedEntityIds} maskStyle={readingOcclusionStyle} stackLevel={4} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--object">{renderMainlineObject(entity)}</MainlineReadingIdentityPlane>)}
           </div>
 
           {scene.npcs.map((npc) => {

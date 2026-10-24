@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MainlineReadingOcclusionMask } from '../src/center/runtime/MainlineReadingOcclusionMask'
 import { MainlineReadingIdentityPlane } from '../src/center/runtime/MainlineReadingIdentityPlane'
-import { mainlineReadingOcclusionAlpha, mainlineReadingOcclusionMaskRegion, mainlineReadingOcclusionRect } from '../src/center/runtime/mainlineReadingOcclusion'
+import { mainlineReadingOcclusionAlpha, mainlineReadingOcclusionMaskRegion, mainlineReadingOcclusionRect, retainMainlineReadingOcclusionSnapshot } from '../src/center/runtime/mainlineReadingOcclusion'
 
 describe('mainline spatial reading occlusion', () => {
   it('maps the CSS reading layout into the 1920×1080 world without changing its screen size', () => {
@@ -59,6 +59,15 @@ describe('mainline spatial reading occlusion', () => {
     expect(html).toContain('reading-mask-test-top-left')
     expect(html).toContain('reading-mask-test-bottom-right')
     expect(html).toContain('data-reading-mask-feather-world-px="16"')
+  })
+
+  it('does not replace retained React state when per-render geometry has the same values', () => {
+    const current = { sessionKey: 'reading:1', rect: { x: 20, y: 30, width: 400, height: 80 }, region: { x: -32, y: -32, width: 500, height: 180 }, protectedEntityIds: new Set(['menu']) }
+    const recomputed = { sessionKey: 'reading:1', rect: { ...current.rect }, region: { ...current.region }, protectedEntityIds: new Set(['menu']) }
+    expect(retainMainlineReadingOcclusionSnapshot(current, recomputed)).toBe(current)
+    const changedRect = { ...recomputed, rect: { ...recomputed.rect, x: 21 } }
+    expect(retainMainlineReadingOcclusionSnapshot(current, changedRect)).toBe(changedRect)
+    expect(retainMainlineReadingOcclusionSnapshot(current, { ...recomputed, protectedEntityIds: new Set(['table']) })).not.toBe(current)
   })
 
   it('protects only the active identity when target and neighbor occupy the same pixels', () => {

@@ -185,7 +185,26 @@ describe('reading target protection', () => {
 
     const menuHtml = renderTarget('commercial-cafe-menu')
     const menuButton = menuHtml.match(/<button[^>]*scene-mainline-menu-feature[^>]*>/)?.[0]
+    const menuPlane = menuHtml.match(/<div[^>]*data-reading-occlusion-entity-id="commercial-cafe-menu"[^>]*>/)?.[0]
+    const geometryCells = geometrySnapshot.units.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
+    const menuEntry = geometryCells.find(({ cell }) => cell.kind === 'feature' && cell.entityId === 'commercial-cafe-menu')!
+    const neighboringWallEntry = geometryCells.filter(({ unit, cell }) => unit.sourceWallId === menuEntry.unit.sourceWallId && cell.kind === 'wall' && Math.abs(cell.y - menuEntry.cell.y) < .1 && Math.abs(cell.x - menuEntry.cell.x) > .01)
+      .sort((a, b) => Math.abs(a.cell.x - menuEntry.cell.x) - Math.abs(b.cell.x - menuEntry.cell.x))[0]
     expect(menuButton).toBeTruthy()
+    expect(menuPlane).toContain('data-reading-occlusion-protected="true"')
+    expect(menuPlane).not.toContain('mask-image')
+    expect(menuEntry).toBeTruthy()
+    expect(neighboringWallEntry).toBeTruthy()
+    const neighboringWallPlane = menuHtml.match(new RegExp(`<div[^>]*data-reading-occlusion-key="${neighboringWallEntry?.cell.id}"[^>]*>`))?.[0]
+    expect(neighboringWallPlane).not.toContain('data-reading-occlusion-protected')
+    expect(neighboringWallPlane).toContain('mask-image:url(#mainline-reading-occlusion-')
+    const menuPosition = menuHtml.indexOf('data-reading-occlusion-entity-id="commercial-cafe-menu"')
+    const neighborPosition = menuHtml.indexOf(`data-reading-occlusion-key="${neighboringWallEntry?.cell.id}"`)
+    const menuSourceIndex = geometryCells.findIndex(({ cell }) => cell.id === menuEntry.cell.id)
+    const neighborSourceIndex = geometryCells.findIndex(({ cell }) => cell.id === neighboringWallEntry?.cell.id)
+    expect(menuPosition).toBeGreaterThanOrEqual(0)
+    expect(neighborPosition).toBeGreaterThanOrEqual(0)
+    expect(menuPosition < neighborPosition).toBe(menuSourceIndex < neighborSourceIndex)
     expect(menuButton).toContain('scene-mainline-interaction--normal-unexplored')
     expect(menuButton).not.toMatch(/scene-mainline-interaction--(?:explored|active)/)
     expect(menuButton).not.toContain('filter:')
@@ -193,7 +212,7 @@ describe('reading target protection', () => {
     expect(menuButton).not.toContain('disabled=""')
   })
 
-  it('masks an overlapping neighbor by identity while leaving the current object group unmasked', () => {
+  it('keeps target and same-position neighbor in original object order while only masking the neighbor', () => {
     const baseScene = mainlineScenes['commercial-street']
     const cafe = baseScene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
     const target = baseScene.objects.find(entity => entity.roomId === cafe.id && entity.interactive !== false && entity.focusFrame === 'interactive')!
@@ -209,21 +228,23 @@ describe('reading target protection', () => {
       visibleInteriorStorefrontIds={[activeStorefrontInteriorOwner(baseScene, source)!]} paintedInteriorStorefrontId={activeStorefrontInteriorOwner(baseScene, source)!}
     />)
     const targetPlane = html.match(new RegExp(`<div[^>]*data-reading-occlusion-entity-id="${target.id}"[^>]*>`))?.[0]
-    const neighborPlane = html.match(/<div[^>]*data-reading-occlusion-plane="objects-masked"[^>]*>/)?.[0]
+    const neighborPlane = html.match(/<div[^>]*data-reading-occlusion-entity-id="reading-overlap-neighbor"[^>]*>/)?.[0]
     const targetNode = html.match(new RegExp(`<button[^>]*data-object-id="${target.id}"[^>]*>`))?.[0]
     const neighborNode = html.match(/<span[^>]*data-object-id="reading-overlap-neighbor"[^>]*>/)?.[0]
     expect(targetPlane).toContain('data-reading-occlusion-protected="true"')
     expect(targetPlane).not.toContain('mask-image')
     expect(neighborPlane).toBeTruthy()
     expect(neighborPlane).toContain('mask-image:url(#mainline-reading-occlusion-')
-    expect(html).not.toMatch(/data-reading-occlusion-entity-id="reading-overlap-neighbor"/)
+    expect(targetPlane).toContain('data-reading-occlusion-stack-level="4"')
+    expect(neighborPlane).toContain('data-reading-occlusion-stack-level="4"')
+    expect(html.indexOf(`data-reading-occlusion-entity-id="${target.id}"`)).toBeLessThan(html.indexOf('data-reading-occlusion-entity-id="reading-overlap-neighbor"'))
     expect(targetNode).toContain('data-rendered-x=')
     expect(neighborNode).toContain(`data-rendered-x="${targetNode?.match(/data-rendered-x="([^"]+)/)?.[1]}"`)
     expect(neighborNode).toContain(`data-rendered-y="${targetNode?.match(/data-rendered-y="([^"]+)/)?.[1]}"`)
     expect(html).toContain('data-reading-mask-progress="0"')
   })
 
-  it('routes the complete counter surface by its interaction identity into one of two shared planes', () => {
+  it('keeps the complete counter surface at its original draw position and masks it by interaction identity', () => {
     const scene = mainlineScenes['commercial-street']
     const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
     const parts = scene.continuousStructures.filter(part => part.counterSurface?.groupId === 'cafe-trial-L-counter')
@@ -238,10 +259,10 @@ describe('reading target protection', () => {
       readingMode="observation" sceneEcho={{ id: 94, entityId: targetId, text: '柜台文字', segments: ['柜台文字'], segmentIndex: 0, position: source, typing: false }}
       visibleInteriorStorefrontIds={[owner]} paintedInteriorStorefrontId={owner}
     />)
-    const protectedCounterPlane = html.match(/<div[^>]*data-reading-occlusion-plane="counters-protected"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? ''
-    const maskedCounterPlane = html.match(/<div[^>]*data-reading-occlusion-plane="counters-masked"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? ''
-    expect(protectedCounterPlane).toContain('data-counter-outline-group="cafe-trial-L-counter"')
-    expect(maskedCounterPlane).not.toContain('data-counter-outline-group="cafe-trial-L-counter"')
-    expect(html.match(/data-reading-occlusion-plane="counters-(?:masked|protected)"/g)).toHaveLength(2)
+    const counterPlane = html.match(new RegExp(`<div[^>]*data-reading-occlusion-entity-id="${targetId}"[^>]*>([\\s\\S]*?)<\\/div>`))
+    expect(counterPlane?.[1]).toContain('data-counter-outline-group="cafe-trial-L-counter"')
+    expect(counterPlane?.[0]).toContain('data-reading-occlusion-protected="true"')
+    expect(counterPlane?.[0]).not.toContain('mask-image')
+    expect(counterPlane?.[0]).toContain('data-reading-occlusion-stack-level="3"')
   })
 })
