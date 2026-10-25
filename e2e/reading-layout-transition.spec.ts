@@ -318,6 +318,23 @@ test('a delayed low-frame roll keeps the continue lock until its matching animat
   await expect(page.locator('.mainline-scene--map-only')).toHaveAttribute('data-fixture-page-index', '2')
 })
 
+test('replacing an observation session cancels its started flip lock without blocking the new session', async ({ page }) => {
+  await page.setViewportSize({ width: 411, height: 914 })
+  await page.goto('/e2e/fixtures/reading-layout-transition.html')
+  await page.locator('[data-reading-start]').click()
+  const oldText = page.locator('.scene-mainline-text[data-scene-echo]')
+  await page.locator('[data-scene-dialogue-shield]').evaluate(element => (element as HTMLButtonElement).click())
+  await expect(oldText.locator('[data-page-flip="running"]')).toHaveCount(1)
+
+  await page.locator('[data-reading-new-session]').click()
+  const newText = page.locator('.scene-mainline-text[data-scene-echo]')
+  await expect(newText).toHaveAttribute('data-scene-reading-page-index', '0')
+  await page.locator('[data-scene-dialogue-shield]').evaluate(element => (element as HTMLButtonElement).click())
+  await expect(page.locator('.mainline-scene--map-only')).toHaveAttribute('data-fixture-page-index', '1')
+  await expect(newText.locator('[data-page-flip="running"]')).toHaveCount(1)
+  await expect(newText.locator('[data-page-flip="settled"]')).toHaveCount(1, { timeout: 1500 })
+})
+
 test('overflowing observation completes typing before it advances to the next fitted page', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 844 })
   await page.goto('/e2e/fixtures/reading-layout-transition.html')

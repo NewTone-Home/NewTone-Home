@@ -301,13 +301,21 @@ function MainlineAmbientNpcActorView({ sceneId, npc, position, snapshot, screenM
 
 export const MainlineAmbientNpcActor = memo(MainlineAmbientNpcActorView)
 
-function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart, onFlipComplete }: { pageKey: string; text: string; children: React.ReactNode; mode: 'observation' | 'dialogue'; lockToken: number; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void }) {
+function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart, onFlipComplete, onFlipCancel }: { pageKey: string; text: string; children: React.ReactNode; mode: 'observation' | 'dialogue'; lockToken: number; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void }) {
   const [page, setPage] = useState<{ key: string; text: string; previousText: string | null; flipping: boolean }>({ key: pageKey, text, previousText: null, flipping: false })
   const stackRef = useRef<HTMLSpanElement>(null)
+  const activeFlipTokenRef = useRef<number | null>(null)
   const onFlipStartRef = useRef(onFlipStart)
   onFlipStartRef.current = onFlipStart
   const onFlipCompleteRef = useRef(onFlipComplete)
   onFlipCompleteRef.current = onFlipComplete
+  const onFlipCancelRef = useRef(onFlipCancel)
+  onFlipCancelRef.current = onFlipCancel
+  useEffect(() => () => {
+    const token = activeFlipTokenRef.current
+    activeFlipTokenRef.current = null
+    if (token !== null) onFlipCancelRef.current?.(token)
+  }, [])
   useIsomorphicLayoutEffect(() => {
     setPage(current => current.key === pageKey
       ? current
@@ -332,6 +340,7 @@ function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart
       return
     }
     const startedAt = performance.now()
+    activeFlipTokenRef.current = lockToken
     onFlipStartRef.current?.(lockToken)
     let frame = 0
     const advance = (now: number) => {
@@ -339,6 +348,7 @@ function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart
       const progress = storefrontCharacterProgress(0, 1, elapsed, storefrontLabelRollDurationMs)
       setProgress(progress)
       if (elapsed >= storefrontLabelRollDurationMs) {
+        if (activeFlipTokenRef.current === lockToken) activeFlipTokenRef.current = null
         onFlipCompleteRef.current?.(lockToken)
         setPage(current => current.key === pageKey ? { ...current, previousText: null, flipping: false } : current)
         return
@@ -358,7 +368,7 @@ function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart
   </span>
 }
 
-function ObservationText({ echoId, pageKey, text, typing, lockToken, onTypingComplete, onFlipStart, onFlipComplete }: { echoId: number; pageKey: string; text: string; typing: boolean; lockToken: number; onTypingComplete?: (echoId: number) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void }) {
+function ObservationText({ echoId, pageKey, text, typing, lockToken, onTypingComplete, onFlipStart, onFlipComplete, onFlipCancel }: { echoId: number; pageKey: string; text: string; typing: boolean; lockToken: number; onTypingComplete?: (echoId: number) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void }) {
   const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
   const [visibleCount, setVisibleCount] = useState(0)
 
@@ -382,19 +392,19 @@ function ObservationText({ echoId, pageKey, text, typing, lockToken, onTypingCom
   }, [characters, echoId, onTypingComplete, typing])
 
   return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">
-    <ReadingPageFlip pageKey={pageKey} text={text} mode="observation" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete}>
+    <ReadingPageFlip pageKey={pageKey} text={text} mode="observation" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel}>
       {characters.slice(0, visibleCount).join('')}
     </ReadingPageFlip>
   </span>
 }
 
-function DialogueText({ group, pageKey, text, lockToken, onReadyChange, onFlipStart, onFlipComplete }: { group: string; pageKey: string; text: string; lockToken: number; onReadyChange?: (group: string, ready: boolean) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void }) {
+function DialogueText({ group, pageKey, text, lockToken, onReadyChange, onFlipStart, onFlipComplete, onFlipCancel }: { group: string; pageKey: string; text: string; lockToken: number; onReadyChange?: (group: string, ready: boolean) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void }) {
   useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, onReadyChange])
   return <span
     className="scene-mainline-text__dialogue"
     data-scene-text-mode="dialogue"
   >
-    <ReadingPageFlip pageKey={pageKey} text={text} mode="dialogue" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={(token) => { onFlipComplete?.(token); onReadyChange?.(group, true) }}>
+    <ReadingPageFlip pageKey={pageKey} text={text} mode="dialogue" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={(token) => { onFlipComplete?.(token); onReadyChange?.(group, true) }} onFlipCancel={onFlipCancel}>
       {mainlineVisiblePresentationText(text)}
     </ReadingPageFlip>
   </span>
@@ -2408,8 +2418,8 @@ export function MainlineSceneRenderer({
             >
               {isDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
-                ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} pageKey={readingLayoutPageKey ?? group} text={text} lockToken={readingPageAdvanceLockTokenRef.current} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} />
-                : <ObservationText echoId={sceneEcho!.id} pageKey={`${sceneEcho!.id}:${sceneEcho!.segmentIndex}:${displayOverflowIndex}`} text={text} typing={sceneEcho!.typing} lockToken={readingPageAdvanceLockTokenRef.current} onTypingComplete={onSceneEchoTypingComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} />}
+                ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} pageKey={readingLayoutPageKey ?? group} text={text} lockToken={readingPageAdvanceLockTokenRef.current} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} />
+                : <ObservationText echoId={sceneEcho!.id} pageKey={`${sceneEcho!.id}:${sceneEcho!.segmentIndex}:${displayOverflowIndex}`} text={text} typing={sceneEcho!.typing} lockToken={readingPageAdvanceLockTokenRef.current} onTypingComplete={onSceneEchoTypingComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} />}
             </div>
             </Fragment>
           })()}

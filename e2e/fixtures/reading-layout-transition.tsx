@@ -22,6 +22,7 @@ function Fixture() {
   const [leaving, setLeaving] = useState(false)
   const [typing, setTyping] = useState(false)
   const [typingOverflow, setTypingOverflow] = useState(false)
+  const [echoSessionId, setEchoSessionId] = useState(810)
   const [metrics, setMetrics] = useState({ width: innerWidth, height: innerHeight, viewportWidth: innerWidth })
   const presentation = useStorefrontPresentation(scene, position)
   const geometry = createMainlineSceneGeometrySnapshot(scene, position, {}, metrics, presentation.phaseByStorefront)
@@ -37,6 +38,7 @@ function Fixture() {
       <button data-reading-start onClick={() => { setPageIndex(0); setTypingOverflow(false); setTyping(false); setLeaving(false); setMode('observation') }}>Start observation</button>
       <button data-reading-dialogue onClick={() => { setPageIndex(0); setTypingOverflow(false); setTyping(false); setLeaving(false); setMode('dialogue') }}>Start dialogue</button>
       <button data-reading-observation onClick={() => { setPageIndex(0); setTypingOverflow(false); setTyping(false); setLeaving(false); setMode('observation') }}>Start observation</button>
+      <button data-reading-new-session onClick={() => { setEchoSessionId(current => current + 1); setPageIndex(0); setTypingOverflow(false); setTyping(false); setLeaving(false); setMode('observation') }}>Replace observation session</button>
       <button data-reading-type onClick={() => setTyping(true)}>Type</button>
       <button data-reading-type-overflow onClick={() => { setPageIndex(0); setTypingOverflow(true); setTyping(true); setLeaving(false); setMode('observation') }}>Type long overflow</button>
       <button data-reading-next onClick={() => setPageIndex(current => (current + 1) % pages.length)}>Next page</button>
@@ -62,7 +64,7 @@ function Fixture() {
         onInteract={() => {}}
         onWalk={() => {}}
         readingMode={mode && !leaving ? mode : null}
-        sceneEcho={mode === 'observation' ? { id: 810, text: typingOverflow ? overflowTypingText : pageText, segments: typingOverflow ? [overflowTypingText] : pages, segmentIndex: typingOverflow ? 0 : pageIndex, position, typing, ...(leaving ? { phase: 'leaving' as const } : {}) } : null}
+        sceneEcho={mode === 'observation' ? { id: echoSessionId, text: typingOverflow ? overflowTypingText : pageText, segments: typingOverflow ? [overflowTypingText] : pages, segmentIndex: typingOverflow ? 0 : pageIndex, position, typing, ...(leaving ? { phase: 'leaving' as const } : {}) } : null}
         onSceneEchoAdvance={() => {
           if (typing) setTyping(false)
           else setPageIndex(current => Math.min(current + 1, pages.length - 1))
