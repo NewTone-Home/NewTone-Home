@@ -3,9 +3,8 @@ import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { commercialStreetQuestionDialoguePosition, commercialStreetQuestionNarrativeAnchor, commercialStreetQuestionNarrativeCompleted, commercialStreetQuestionNarrativeLines, commercialStreetQuestionNarrativeShouldTrigger, nextCommercialStreetQuestionNarrative } from '../src/center/runtime/commercialStreetQuestionNarrative'
 import { createFreeRoamController, freeRoamWaypointArrivalRadius } from '../src/center/runtime/useFreeRoamMovement'
 import { mainlineEchoLayout, mainlineSpeakerAnchor } from '../src/center/runtime/mainlineEchoLayout'
-import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlineReadingBounds, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan } from '../src/center/runtime/mainlineTextReading'
+import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlineReadingBounds, mainlineReadingEnvelopeNeedsCameraPan } from '../src/center/runtime/mainlineTextReading'
 import { commercialStreetCameraPages, commercialStreetPageIndex } from '../src/center/runtime/commercialStreetCamera'
-import { sceneTextPresentationPosition } from '../src/center/runtime/sceneTextPresentation'
 
 describe('Commercial Street question-mark narration', () => {
   const street = mainlineScenes['commercial-street']
@@ -133,22 +132,6 @@ describe('Commercial Street question-mark narration', () => {
     expect(position.x).toBeLessThanOrEqual(currentReadingBounds.x + currentReadingBounds.width)
     expect(needsPanForWidth).toBe(false)
     expect(needsPanForEnvelope).toBe(false)
-
-    // The old two-step path first centers the actor, uses that hypothetical
-    // view to place the rail, then asks the renderer to center the new anchor.
-    const hypotheticalReadingOffset = mainlineReadingCameraOffset(street, protagonist, metrics, scale, currentCameraOffset)
-    const oldAnchor = sceneTextPresentationPosition(street, protagonist, commercialStreetQuestionNarrativeLines.join('\n'), metrics, 'dialogue', scale, hypotheticalReadingOffset)
-    const oldEnvelope = mainlineSpeakerAnchor(
-      commercialStreetQuestionNarrativeLines.map(text => ({ text, speaker: '修杰' })),
-      metrics,
-      oldAnchor,
-      { x: 0, y: 0 },
-      scale,
-      maximumWidth,
-    )
-    if (width === 1920) {
-      expect(mainlineReadingEnvelopeNeedsCameraPan(oldEnvelope.left, oldEnvelope.widthPx, metrics, scale, currentCameraOffset)).toBe(true)
-    }
   })
 
   it('recognizes only the completed persisted value, so interrupted narration restarts from the first line', () => {

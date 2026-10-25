@@ -4,6 +4,7 @@ import { sceneTextPresentationPosition } from '../src/center/runtime/sceneTextPr
 import { mainlineInteractionSpace, mainlineMaximumReadingWidthPx, mainlineReadingFontSizePx } from '../src/center/runtime/mainlineTextReading'
 import { mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
 import { splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
+import { mainlineFitReadingText } from '../src/center/runtime/mainlineReadingProtection'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 
 const desktop = { width: 1280, height: 720 }
@@ -18,17 +19,19 @@ function expectInsideCurrentSpace(scene: typeof mainlineScenes[keyof typeof main
 
 function expectReadingFrameInsideCurrentSpace(scene: typeof mainlineScenes[keyof typeof mainlineScenes], actor: { x: number; y: number }, text: string, metrics: typeof desktop, kind: 'observation' | 'dialogue', worldScale: number, speaker?: string) {
   const space = mainlineInteractionSpace(scene, actor)
-  const position = sceneTextPresentationPosition(scene, actor, text, metrics, kind, worldScale)
-  const maxWidthPx = mainlineMaximumReadingWidthPx(scene, actor, metrics, worldScale)
-  const segments = splitMainlineInteractionTextToFit(text, maxWidthPx, mainlineReadingFontSizePx(metrics))
-  const longest = segments.reduce((value, segment) => segment.length > value.length ? segment : value, '')
-  const layout = mainlineEchoLayout(longest || text, metrics, { speaker, maxWidthPx })
-  const halfWidth = layout.widthPx / worldScale / sceneDesignReferenceMetrics.width * 50
-  const halfHeight = layout.heightPx / worldScale / sceneDesignReferenceMetrics.height * 50
-  expect(position.x - halfWidth).toBeGreaterThanOrEqual(space.x - .0001)
-  expect(position.x + halfWidth).toBeLessThanOrEqual(space.x + space.width + .0001)
-  expect(position.y - halfHeight).toBeGreaterThanOrEqual(space.y - .0001)
-  expect(position.y + halfHeight).toBeLessThanOrEqual(space.y + space.height + .0001)
+  const source = sceneTextPresentationPosition(scene, actor, text, metrics, kind, worldScale)
+  const maximumWidthPx = mainlineMaximumReadingWidthPx(scene, actor, metrics, worldScale)
+  const readingFit = mainlineFitReadingText(scene, source, text, speaker, maximumWidthPx, [], metrics, worldScale, { x: 0, y: 0 }, [text])
+  expect(readingFit.fits).toBe(true)
+  for (const page of readingFit.segments) {
+    const layout = mainlineEchoLayout(page, metrics, { speaker, maxWidthPx: readingFit.maxWidthPx })
+    const halfWidth = layout.widthPx / worldScale / sceneDesignReferenceMetrics.width * 50
+    const halfHeight = layout.heightPx / worldScale / sceneDesignReferenceMetrics.height * 50
+    expect(readingFit.position.x - halfWidth).toBeGreaterThanOrEqual(space.x - .0001)
+    expect(readingFit.position.x + halfWidth).toBeLessThanOrEqual(space.x + space.width + .0001)
+    expect(readingFit.position.y - halfHeight).toBeGreaterThanOrEqual(space.y - .0001)
+    expect(readingFit.position.y + halfHeight).toBeLessThanOrEqual(space.y + space.height + .0001)
+  }
 }
 
 describe('scene text presentation policy', () => {
