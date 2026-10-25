@@ -238,6 +238,17 @@ describe('commercial café story contract', () => {
       commercialCafeLaoZhouDeparture: 'departed',
     })
     expect(story).toMatchObject({ status: 'available', narrativeCursor: 3, laoZhouDeparture: 'seated' })
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story })).toMatchObject({
+      kind: 'dialogue', promptSeatId: commercialCafeLaoZhouConversationSeatId,
+    })
     expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story, playerSeatId: commercialCafeLaoZhouConversationSeatId })).toEqual({ kind: 'start-narrative' })
+  })
+
+  it('does not restart the story when a restored complete save interacts with Lao Zhou', () => {
+    const story = commercialCafeStoryStateFromSceneState({
+      commercialCafeStoryStatus: 'complete', commercialCafeNarrativeCursor: 14,
+      commercialCafeLaoZhouDeparture: 'departed', commercialCafeCompletedAt: 123456,
+    })
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story })).toBeNull()
   })
 })
