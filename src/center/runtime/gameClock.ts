@@ -10,9 +10,10 @@ export type GameClockSnapshot = {
 }
 
 export type GameClock = {
-  read(): GameClockSnapshot
-  setMultiplier(multiplier: number): GameClockSnapshot
-  setFrozen(reason: string, frozen: boolean): GameClockSnapshot
+  /** Optional explicit monotonic sample supports deterministic session orchestration. */
+  read(realTimeMs?: number): GameClockSnapshot
+  setMultiplier(multiplier: number, realTimeMs?: number): GameClockSnapshot
+  setFrozen(reason: string, frozen: boolean, realTimeMs?: number): GameClockSnapshot
 }
 
 export type CreateGameClockOptions = {
@@ -71,19 +72,19 @@ export function createGameClock(options: CreateGameClockOptions = {}): GameClock
   }
 
   return {
-    read() {
-      advanceTo(now())
+    read(realTimeMs = now()) {
+      advanceTo(realTimeMs)
       return snapshot()
     },
-    setMultiplier(nextMultiplier) {
+    setMultiplier(nextMultiplier, realTimeMs = now()) {
       validateMultiplier(nextMultiplier)
-      advanceTo(now())
+      advanceTo(realTimeMs)
       multiplier = nextMultiplier
       return snapshot()
     },
-    setFrozen(reason, frozen) {
+    setFrozen(reason, frozen, realTimeMs = now()) {
       validateReason(reason)
-      advanceTo(now())
+      advanceTo(realTimeMs)
       if (frozen) freezeReasons.add(reason)
       else freezeReasons.delete(reason)
       return snapshot()
