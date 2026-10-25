@@ -24,7 +24,7 @@ import { sceneFrameDefaultMotionMs } from './sceneMotion'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import { mainlineEchoLayout, mainlineSpeakerAnchor, type MainlineEchoLayout } from './mainlineEchoLayout'
-import { interpolateMainlineReadingLayout, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize, mainlineReadingPageTransitionDurationMs } from './mainlineReadingLayoutTransition'
+import { interpolateMainlineReadingLayout, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize } from './mainlineReadingLayoutTransition'
 import { mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
@@ -300,6 +300,34 @@ function MainlineAmbientNpcActorView({ sceneId, npc, position, snapshot, screenM
 
 export const MainlineAmbientNpcActor = memo(MainlineAmbientNpcActorView)
 
+function ReadingPageFlip({ pageKey, text, children, mode, onFlipComplete }: { pageKey: string; text: string; children: React.ReactNode; mode: 'observation' | 'dialogue'; onFlipComplete?: () => void }) {
+  const [page, setPage] = useState<{ key: string; text: string; previousText: string | null; flipping: boolean }>({ key: pageKey, text, previousText: null, flipping: false })
+  const onFlipCompleteRef = useRef(onFlipComplete)
+  onFlipCompleteRef.current = onFlipComplete
+  useIsomorphicLayoutEffect(() => {
+    setPage(current => current.key === pageKey
+      ? current
+      : { key: pageKey, text, previousText: current.text, flipping: true })
+  }, [pageKey, text])
+  useEffect(() => {
+    if (!page.flipping && page.key === pageKey) onFlipCompleteRef.current?.()
+  }, [page.flipping, page.key, pageKey])
+
+  const finishFlip = (event: React.AnimationEvent<HTMLSpanElement>) => {
+    if (event.target !== event.currentTarget || !page.flipping || event.animationName !== 'mainline-reading-page-open') return
+    setPage(current => current.key === pageKey ? { ...current, previousText: null, flipping: false } : current)
+  }
+
+  return <span className={`scene-mainline-page-stack scene-mainline-page-stack--${mode}`} data-page-flip={page.flipping ? 'running' : 'settled'}>
+    {page.flipping && page.previousText !== null && <span className="scene-mainline-page scene-mainline-page--outgoing" aria-hidden="true">{page.previousText}</span>}
+    <span
+      className={`scene-mainline-page ${page.flipping ? 'scene-mainline-page--incoming' : 'scene-mainline-page--current'}`}
+      data-reading-page-role={page.flipping ? 'incoming' : 'current'}
+      onAnimationEnd={finishFlip}
+    >{children}</span>
+  </span>
+}
+
 function ObservationText({ echoId, pageKey, text, typing, onTypingComplete }: { echoId: number; pageKey: string; text: string; typing: boolean; onTypingComplete?: (echoId: number) => void }) {
   const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
   const [visibleCount, setVisibleCount] = useState(0)
@@ -324,23 +352,21 @@ function ObservationText({ echoId, pageKey, text, typing, onTypingComplete }: { 
   }, [characters, echoId, onTypingComplete, typing])
 
   return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">
-    <span key={pageKey} style={{ animationDuration: `${mainlineReadingPageTransitionDurationMs}ms`, animationTimingFunction: 'cubic-bezier(.4, 0, .2, 1)' }}>
+    <ReadingPageFlip pageKey={pageKey} text={text} mode="observation">
       {characters.slice(0, visibleCount).join('')}
-    </span>
+    </ReadingPageFlip>
   </span>
 }
 
-function DialogueText({ group, text, onReadyChange }: { group: string; text: string; onReadyChange?: (group: string, ready: boolean) => void }) {
+function DialogueText({ group, pageKey, text, onReadyChange }: { group: string; pageKey: string; text: string; onReadyChange?: (group: string, ready: boolean) => void }) {
   useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, onReadyChange])
   return <span
     className="scene-mainline-text__dialogue"
     data-scene-text-mode="dialogue"
   >
-    <span key={group} onAnimationEnd={(event) => {
-      if (event.target === event.currentTarget) onReadyChange?.(group, true)
-    }} style={{ animationDuration: `${mainlineReadingPageTransitionDurationMs}ms`, animationTimingFunction: 'cubic-bezier(.4, 0, .2, 1)' }}>
+    <ReadingPageFlip pageKey={pageKey} text={text} mode="dialogue" onFlipComplete={() => onReadyChange?.(group, true)}>
       {mainlineVisiblePresentationText(text)}
-    </span>
+    </ReadingPageFlip>
   </span>
 }
 
@@ -2158,7 +2184,7 @@ export function MainlineSceneRenderer({
               style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.worldWidthPx}px`, minHeight: `${echoLayout.heightPx / worldScale}px`, fontSize: `${echoLayout.fontSizePx / worldScale}px` }}
             ><DialogueSpeaker speaker={dialogueLine!.speaker} /></div>}
             <div
-              key={sceneEcho?.id ?? dialogueLine!.id}
+              key={readingLayoutContinuityKey ?? sceneEcho?.id ?? dialogueLine!.id}
               className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${isLeaving ? 'is-leaving' : ''}`}
               style={{
                 left: `${speakerAnchor
@@ -2201,7 +2227,7 @@ export function MainlineSceneRenderer({
             >
               {isDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
-                ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} text={text} onReadyChange={updateDialogueReady} />
+                ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} pageKey={readingLayoutPageKey ?? group} text={text} onReadyChange={updateDialogueReady} />
                 : <ObservationText echoId={sceneEcho!.id} pageKey={`${sceneEcho!.id}:${sceneEcho!.segmentIndex}:${displayOverflowIndex}`} text={text} typing={sceneEcho!.typing} onTypingComplete={onSceneEchoTypingComplete} />}
             </div>
             </Fragment>

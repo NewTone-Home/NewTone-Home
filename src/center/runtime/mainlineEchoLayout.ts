@@ -30,9 +30,12 @@ export function mainlineEchoLayout(text: string, screenMetrics: SceneScreenMetri
   const paddingX = compact ? 16 : fontSizePx * 1.12
   const paddingY = compact ? 11 : fontSizePx * .8
   const speakerWidth = options.speaker ? textWidthPx(options.speaker, Math.max(12, fontSizePx * .74), 1.1) : 0
-  const contentWidth = Math.max(textWidthPx(text, fontSizePx), speakerWidth)
+  const textLinesContent = text.split(/\r\n|\r|\n/u)
+  const contentWidth = Math.max(speakerWidth, ...textLinesContent.map(line => textWidthPx(line, fontSizePx)))
   const widthPx = Math.min(Math.max(1, options.maxWidthPx ?? screenMetrics.width - 24), contentWidth + paddingX)
-  let heightPx = paddingY + fontSizePx * lineHeight
+  const lineWidthPx = Math.max(1, widthPx - paddingX)
+  const textLines = textLinesContent.reduce((count, line) => count + Math.max(1, Math.ceil(textWidthPx(line, fontSizePx) / lineWidthPx)), 0)
+  let heightPx = paddingY + fontSizePx * lineHeight * textLines
   if (options.speaker) heightPx += 3 + Math.max(12, fontSizePx * .74) * 1.62
   return { widthPx, heightPx: Math.max(fontSizePx * 2, heightPx), fontSizePx }
 }

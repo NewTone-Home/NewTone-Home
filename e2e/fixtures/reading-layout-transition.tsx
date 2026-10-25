@@ -17,16 +17,20 @@ function Fixture() {
   const cafe = scene.storefronts.find(slot => slot.id === 'commercial-cafe-slot')!
   const position = mainlineStorefrontAnchor(scene, cafe)
   const [pageIndex, setPageIndex] = useState(0)
-  const [reading, setReading] = useState(false)
+  const [mode, setMode] = useState<'observation' | 'dialogue' | null>(null)
   const [leaving, setLeaving] = useState(false)
   const [metrics, setMetrics] = useState({ width: innerWidth, height: innerHeight, viewportWidth: innerWidth })
   const presentation = useStorefrontPresentation(scene, position)
   const geometry = createMainlineSceneGeometrySnapshot(scene, position, {}, metrics, presentation.phaseByStorefront)
   const pageText = pages[pageIndex]
+  const dialogueLines = [{ id: 'fixture-line', speaker: '老周' as const, text: pages.join('') }]
+  const dialogueLine = { ...dialogueLines[0], text: pageText }
 
   return <div className="mainline-scene--map-only" style={{ '--room': '#0b0f12', '--active': '#f0cc7b', '--ink': '#b0bec5', '--soft': '#a1c2c2', '--muted': '#6c8088' } as React.CSSProperties}>
     <div style={{ position: 'fixed', zIndex: 100, top: 8, left: 8, display: 'flex', gap: 6 }}>
-      <button data-reading-start onClick={() => { setPageIndex(0); setLeaving(false); setReading(true) }}>Start</button>
+      <button data-reading-start onClick={() => { setPageIndex(0); setLeaving(false); setMode('observation') }}>Start observation</button>
+      <button data-reading-dialogue onClick={() => { setPageIndex(0); setLeaving(false); setMode('dialogue') }}>Start dialogue</button>
+      <button data-reading-observation onClick={() => { setPageIndex(0); setLeaving(false); setMode('observation') }}>Start observation</button>
       <button data-reading-next onClick={() => setPageIndex(current => (current + 1) % pages.length)}>Next page</button>
       <button data-reading-leave onClick={() => setLeaving(true)}>Leave</button>
     </div>
@@ -49,8 +53,16 @@ function Fixture() {
         onLayoutChange={() => {}}
         onInteract={() => {}}
         onWalk={() => {}}
-        readingMode={reading && !leaving ? 'observation' : null}
-        sceneEcho={reading ? { id: 810, text: pageText, segments: pages, segmentIndex: pageIndex, position, typing: false, ...(leaving ? { phase: 'leaving' as const } : {}) } : null}
+        readingMode={mode && !leaving ? mode : null}
+        sceneEcho={mode === 'observation' ? { id: 810, text: pageText, segments: pages, segmentIndex: pageIndex, position, typing: false, ...(leaving ? { phase: 'leaving' as const } : {}) } : null}
+        dialogue={mode === 'dialogue' ? { triggerEntityId: 'fixture-dialogue', lines: dialogueLines as import('../../src/center/runtime/mainlineSceneModel').MainlineSceneDialogueLine[] } : undefined}
+        dialogueLine={mode === 'dialogue' ? dialogueLine as import('../../src/center/runtime/mainlineSceneModel').MainlineSceneDialogueLine : null}
+        dialogueLineIndex={mode === 'dialogue' ? 0 : null}
+        dialogueSegmentIndex={pageIndex}
+        dialogueSegmentCount={pages.length}
+        dialoguePosition={mode === 'dialogue' ? position : null}
+        dialogueText={mode === 'dialogue' ? pageText : undefined}
+        dialoguePhase={leaving ? 'leaving' : 'active'}
       />
     </Profiler>
   </div>
