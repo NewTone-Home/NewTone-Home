@@ -1256,7 +1256,7 @@ export function MainlineSceneRenderer({
   const renderCameraOffset = questionExitCameraOffset ?? readingCameraOffset
   const sceneActionCameraOffset = sceneAction?.cameraOffset ?? cameraOffset
   const sceneActionMaxWidthPx = sceneAction
-    ? mainlineAvailableReadingWidthPx(scene, sceneAction.position, renderScreenMetrics, worldScale, sceneActionCameraOffset)
+    ? mainlineAvailableReadingWidthPx(scene, sceneAction.position, viewportMetrics, worldScale, sceneActionCameraOffset)
     : 0
   const sceneActionMeasureKey = sceneAction ? JSON.stringify([
     scene.id,
@@ -1310,7 +1310,7 @@ export function MainlineSceneRenderer({
     ? sceneActionMeasuredSize
     : null
   const sceneActionPlacement = sceneAction && matchingSceneActionSize
-    ? mainlinePlaceReadingAction(scene, sceneAction.position, matchingSceneActionSize, renderScreenMetrics, worldScale, sceneActionCameraOffset)
+    ? mainlinePlaceReadingAction(scene, sceneAction.position, matchingSceneActionSize, viewportMetrics, worldScale, sceneActionCameraOffset)
     : null
   const sceneActionPosition = sceneActionPlacement?.position ?? sceneAction?.position
   const sceneActionLayerPosition = sceneActionPosition && sceneAction

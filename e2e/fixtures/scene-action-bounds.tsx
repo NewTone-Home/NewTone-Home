@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { MainlineSceneRenderer } from '../../src/center/runtime/MainlineSceneRenderer'
 import { createMainlineSceneGeometrySnapshot } from '../../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { mainlineScenes } from '../../src/center/runtime/mainlineScenes'
+import { sceneDesignReferenceMetrics } from '../../src/center/runtime/sceneBoundaryGrid'
 import '../../src/center/runtime/scene.css'
 
 function Fixture() {
@@ -22,13 +23,16 @@ function Fixture() {
   }
   const cameraOffset = zeroSavedCamera ? { x: 0, y: 0 } : { x: 50 - position.x, y: 50 - position.y }
   const renderCameraOffset = renderCameraOffsetOverride ?? cameraOffset
-  const geometry = createMainlineSceneGeometrySnapshot(scene, position, {}, metrics, new Map())
+  // Match production: geometry stays on the authored design grid while live
+  // viewport metrics change independently after resize.
+  const geometry = createMainlineSceneGeometrySnapshot(scene, position, {}, sceneDesignReferenceMetrics, new Map())
   const shortOptions = ['One long option', 'Another long option']
   const longOptions = ['Long option content '.repeat(80), 'Second long option content '.repeat(80)]
   const scrollOptions = Array.from({ length: 10 }, (_, index) => `Scroll option ${index + 1}`)
   return <div className="mainline-scene--map-only" data-fixture-walk-count={walkCount} data-fixture-choice-index={choiceIndex ?? ''}
     data-fixture-saved-camera-x={cameraOffset.x} data-fixture-saved-camera-y={cameraOffset.y}
     data-fixture-render-camera-x={renderCameraOffset.x} data-fixture-render-camera-y={renderCameraOffset.y}
+    data-fixture-design-width={sceneDesignReferenceMetrics.width} data-fixture-design-height={sceneDesignReferenceMetrics.height}
     style={{ '--room': '#0b0f12', '--active': '#f0cc7b', '--ink': '#b0bec5', '--soft': '#a1c2c2', '--muted': '#6c8088' } as React.CSSProperties}>
     <div style={{ position: 'fixed', zIndex: 100, top: 8, left: 8, display: 'flex', flexWrap: 'wrap', gap: 6, maxWidth: 'calc(100vw - 16px)' }}>
       {(['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const).map(nextEdge =>
