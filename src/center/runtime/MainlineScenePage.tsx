@@ -117,6 +117,7 @@ function debugCafePoint(value: string | null): Point | null {
 type MainlineSceneEcho = {
   id: number
   entityId?: string
+  sourceText: string
   text: string
   segments: readonly string[]
   segmentIndex: number
@@ -142,6 +143,7 @@ function createMainlineSceneEcho(id: number, entityId: string | undefined, text:
   return {
     id,
     entityId,
+    sourceText: text,
     text: segments[0] ?? text.trim(),
     segments,
     segmentIndex: 0,
@@ -155,6 +157,7 @@ function replaceMainlineSceneEchoText(current: MainlineSceneEcho, text: string):
   const segments = splitMainlineInteractionText(text)
   return {
     ...current,
+    sourceText: text,
     text: segments[0] ?? text.trim(),
     segments,
     segmentIndex: 0,

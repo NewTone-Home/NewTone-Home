@@ -5,15 +5,25 @@ const closingMarks = new Set(['”', '’', '"', "'", '」', '』', '）', ')', 
 export const mainlineTextSegmentMinClauseLength = 5
 
 function normalized(value: string) { return value.replace(/\s+/g, ' ').trim() }
+
+/** Text shown in the reading UI may omit a terminal Chinese full stop. Keep
+ * the authored source elsewhere; normalize before either segmentation path
+ * measures or stores display pages. Internal punctuation is left untouched. */
+export function mainlineDisplaySourceText(source: string) {
+  const trailingWhitespace = source.match(/\s*$/u)?.[0] ?? ''
+  const content = trailingWhitespace ? source.slice(0, -trailingWhitespace.length) : source
+  return content.endsWith('。') ? `${content.slice(0, -1)}${trailingWhitespace}` : source
+}
 function characterLength(value: string) {
   return Array.from(value.replace(/[\s。！？!?；;，,、：:“”‘’"'「」『』（）()【】〔〕［］《》〈〉]+$/gu, '').replace(/\s/g, '')).length
 }
 
 /** Preserve punctuation while keeping short vocatives and particles attached. */
 export function splitMainlineInteractionText(text: string): readonly string[] {
+  const displayText = mainlineDisplaySourceText(text)
   const clauses: string[] = []
   let buffer = ''
-  for (const character of text.replace(/\r\n?/g, '\n')) {
+  for (const character of displayText.replace(/\r\n?/g, '\n')) {
     buffer += character
     if (character === '\n' || strongBoundaries.has(character) || weakBoundaries.has(character)) {
       if (normalized(buffer)) clauses.push(normalized(buffer))
@@ -35,7 +45,7 @@ export function splitMainlineInteractionText(text: string): readonly string[] {
   if (segments.length > 1 && characterLength(segments[segments.length - 1]!) < mainlineTextSegmentMinClauseLength) {
     segments[segments.length - 2] += segments.pop()!
   }
-  return segments.length ? segments : [normalized(text)]
+  return segments.length ? segments : [normalized(displayText)]
 }
 
 export function longestMainlineInteractionSegment(text: string) {
@@ -60,8 +70,9 @@ export function mainlineMeasuredTextWidth(text: string, fontSizePx: number, font
 /** Split only when the real rendered line is wider than its available box.
  * Keeps every original character and punctuation mark in display order. */
 export function splitMainlineInteractionTextToFit(text: string, maxWidthPx: number, fontSizePx: number, measure = (value: string) => mainlineMeasuredTextWidth(value, fontSizePx)): readonly string[] {
-  if (measure(text) <= maxWidthPx) return [text]
-  const characters = Array.from(text)
+  const displayText = mainlineDisplaySourceText(text)
+  if (measure(displayText) <= maxWidthPx) return [displayText]
+  const characters = Array.from(displayText)
   const preferredBreaks = new Set(['。', '！', '!', '？', '?', '；', ';', '，', ',', '、', '：', ':', '\n'])
   const output: string[] = []
   let start = 0
@@ -76,5 +87,5 @@ export function splitMainlineInteractionTextToFit(text: string, maxWidthPx: numb
     output.push(characters.slice(start, breakEnd).join(''))
     start = breakEnd
   }
-  return output.length ? output : [text]
+  return output.length ? output : [displayText]
 }
