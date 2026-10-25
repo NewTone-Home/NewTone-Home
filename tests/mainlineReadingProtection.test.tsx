@@ -9,6 +9,10 @@ import { MainlineSceneRenderer } from '../src/center/runtime/MainlineSceneRender
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { activeStorefrontInteriorOwner } from '../src/center/runtime/storefrontPresentation'
+import { mainlineDisplaySourceText } from '../src/center/runtime/mainlineTextSegments'
+import { mainlineReadingAnchorContextKey, mainlineReadingAnchorForSession } from '../src/center/runtime/mainlineReadingPresentation'
+import { mainlineAvailableReadingWidthPx } from '../src/center/runtime/mainlineTextReading'
+import { mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
 
 describe('reading target protection', () => {
   it('moves protection to the current reading source and removes it when reading ends', () => {
@@ -105,7 +109,7 @@ describe('reading target protection', () => {
 
     expect(result.fits).toBe(true)
     expect(result.segments.length).toBeGreaterThan(1)
-    expect(result.segments.join('')).toBe(text)
+    expect(result.segments.join('')).toBe(mainlineDisplaySourceText(text))
     expect(result.layout.fontSizePx).toBe(12)
     expect(mainlineInteractionRoom(scene, result.position)?.id).toBe(room.id)
     const bounds = mainlineReadingBounds(scene, source, metrics, scale, cameraOffset)
@@ -116,6 +120,105 @@ describe('reading target protection', () => {
     expect(result.position.y - halfHeight).toBeGreaterThanOrEqual(bounds.y - 1e-5)
     expect(result.position.y + halfHeight).toBeLessThanOrEqual(bounds.y + bounds.height + 1e-5)
     expect(result.position).not.toEqual(source)
+  })
+
+  it('fits every page against one stable maximum envelope so a later longer page keeps the same legal anchor', () => {
+    const scene = mainlineScenes['commercial-street']
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
+    const metrics = { width: 390, height: 844, viewportWidth: 390 }
+    const scale = .65
+    const source = { x: room.bounds.x + .7, y: room.bounds.y + .8 }
+    const cameraOffset = { x: 50 - source.x, y: 50 - source.y }
+    const protectedVisuals = [{ x: source.x - .4, y: source.y - .65, width: .8, height: 1.3 }]
+    const envelope = ['短句', '这里是原柜台的点单接触位置']
+    const firstPage = mainlineFitReadingText(scene, source, envelope[0]!, undefined, 210, protectedVisuals, metrics, scale, cameraOffset, envelope)
+    const laterLongerPage = mainlineFitReadingText(scene, source, envelope[1]!, undefined, 210, protectedVisuals, metrics, scale, cameraOffset, envelope)
+
+    expect(firstPage.fits).toBe(true)
+    expect(laterLongerPage.fits).toBe(true)
+    expect(firstPage.position).toEqual(laterLongerPage.position)
+    expect(firstPage.maxWidthPx).toBe(laterLongerPage.maxWidthPx)
+    expect(firstPage.segments.join('')).toBe(envelope[0])
+    expect(laterLongerPage.segments.join('')).toBe(envelope[1])
+    expect(mainlineInteractionRoom(scene, laterLongerPage.position)?.id).toBe(room.id)
+    const envelopeLayout = mainlineEchoLayout(envelope[1]!, metrics, { maxWidthPx: laterLongerPage.maxWidthPx })
+    const bounds = mainlineReadingBounds(scene, source, metrics, scale, cameraOffset)
+    const centerX = projectCommercialStreetX(laterLongerPage.position.x, metrics)
+    const halfWidth = envelopeLayout.widthPx / (1920 * scale) * 50
+    const halfHeight = envelopeLayout.heightPx / (1080 * scale) * 50
+    expect(centerX - halfWidth).toBeGreaterThanOrEqual(bounds.x - 1e-5)
+    expect(centerX + halfWidth).toBeLessThanOrEqual(bounds.x + bounds.width + 1e-5)
+    expect(laterLongerPage.position.y - halfHeight).toBeGreaterThanOrEqual(bounds.y - 1e-5)
+    expect(laterLongerPage.position.y + halfHeight).toBeLessThanOrEqual(bounds.y + bounds.height + 1e-5)
+  })
+
+  it('re-fits a retained session when the real viewport changes', () => {
+    const scene = mainlineScenes['commercial-street']
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
+    const source = { x: room.bounds.x + .7, y: room.bounds.y + .8 }
+    const scale = .65
+    const cameraOffset = { x: 50 - source.x, y: 50 - source.y }
+    const protectedVisuals = [{ x: source.x - .4, y: source.y - .65, width: .8, height: 1.3 }]
+    const envelope = ['这里是原柜台的点单接触位置', '稍短的后页']
+    const desktop = { width: 1280, height: 800, viewportWidth: 1280 }
+    const phone = { width: 390, height: 844, viewportWidth: 390 }
+    const desktopFit = mainlineFitReadingText(scene, source, envelope[0]!, undefined, 720, protectedVisuals, desktop, scale, cameraOffset, envelope)
+    const phoneFit = mainlineFitReadingText(scene, source, envelope[1]!, undefined, 210, protectedVisuals, phone, scale, cameraOffset, envelope)
+    const context = (viewport: typeof desktop) => mainlineReadingAnchorContextKey({ sceneId: scene.id, viewport, worldScale: scale, cameraOffset, source, protectedBoxes: protectedVisuals })
+    const sessionKey = 'commercial-street:observation:echo:viewport-test:counter'
+    const retained = {
+      sessionKey,
+      anchorContextKey: context(desktop),
+      position: desktopFit.position,
+      cameraOffset,
+      layout: desktopFit.layout,
+      maxWidthPx: desktopFit.maxWidthPx,
+      text: envelope[0]!,
+      overflowIndex: 0,
+    }
+
+    expect(desktopFit.fits).toBe(true)
+    expect(phoneFit.fits).toBe(true)
+    expect(context(phone)).not.toBe(context(desktop))
+    expect(mainlineReadingAnchorForSession(sessionKey, context(phone), phoneFit.position, retained)).toEqual(phoneFit.position)
+    expect(mainlineInteractionRoom(scene, phoneFit.position)?.id).toBe(room.id)
+  })
+
+  it('keeps renderer anchor and reading-pan decision stable when page width crosses the pan threshold', () => {
+    const scene = mainlineScenes['commercial-street']
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
+    const source = { x: room.bounds.x + .55, y: room.bounds.y + 1.2 }
+    const metrics = { width: 390, height: 844, viewportWidth: 390 }
+    const owner = activeStorefrontInteriorOwner(scene, source)!
+    const geometrySnapshot = createMainlineSceneGeometrySnapshot(scene, source, {}, metrics, new Map())
+    const pages = ['短句', '这里是原柜台的点单接触位置，客人可以在这里选择饮品并继续交谈']
+    const cameraOffset = { x: 50 - source.x + (40 - metrics.width / 2) / (1920 * .65) * 100, y: 50 - source.y }
+    const availableWidth = mainlineAvailableReadingWidthPx(scene, source, metrics, .65, cameraOffset)
+    const shortWidth = mainlineEchoLayout(pages[0]!, metrics).widthPx
+    const longWidth = mainlineEchoLayout(pages[1]!, metrics).widthPx
+    const renderPage = (text: string) => renderToStaticMarkup(<MainlineSceneRenderer
+      scene={scene} position={source} moving={false} destination={null} layoutMode={false} layout={{}} activeObjectId="commercial-cafe-menu"
+      geometrySnapshot={geometrySnapshot} viewportMetrics={metrics} cameraOffset={cameraOffset}
+      onLayoutChange={() => {}} onInteract={() => {}} onWalk={() => {}} freezeFrameMeasurements
+      readingMode="observation" sceneEcho={{ id: 93, entityId: 'commercial-cafe-menu', text, segments: pages, segmentIndex: pages.indexOf(text), position: source, typing: false }}
+      visibleInteriorStorefrontIds={[owner]} paintedInteriorStorefrontId={owner}
+    />)
+    const stableFields = (html: string) => {
+      const worldStyle = html.match(/<div(?=[^>]*class="scene-mainline-world[^\"]*")(?=[^>]*style="([^\"]+)")[^>]*>/)?.[1]
+      const textStyle = html.match(/<div(?=[^>]*data-scene-echo="commercial-cafe-menu")(?=[^>]*style="([^\"]+)")[^>]*>/)?.[1]
+      return {
+        world: worldStyle?.match(/transform:([^;]+);/)?.[1],
+        text: textStyle?.match(/^(left:[^;]+;top:[^;]+);/)?.[1],
+      }
+    }
+    const shortPage = stableFields(renderPage(pages[0]!))
+    const longerPage = stableFields(renderPage(pages[1]!))
+
+    expect(shortWidth).toBeLessThanOrEqual(availableWidth + 1)
+    expect(longWidth).toBeGreaterThan(availableWidth + 1)
+    expect(shortPage.world).toBeTruthy()
+    expect(shortPage.text).toBeTruthy()
+    expect(longerPage).toEqual(shortPage)
   })
 
   it('keeps the real renderer text visible and advances its fitted pages at the 360x550 support floor', () => {

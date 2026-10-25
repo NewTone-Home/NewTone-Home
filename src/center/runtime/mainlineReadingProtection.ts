@@ -129,6 +129,7 @@ export function mainlineFitReadingText(
   metrics: SceneScreenMetrics,
   worldScale: number,
   cameraOffset: Point,
+  envelopeTexts: readonly string[] = [text],
 ): { segments: readonly string[]; position: Point; layout: MainlineEchoLayout; maxWidthPx: number; fits: boolean } {
   const fontSizePx = mainlineReadingFontSizePx(metrics)
   const minimumWidthPx = fontSizePx * 2 + 32
@@ -137,7 +138,12 @@ export function mainlineFitReadingText(
     const segments = splitMainlineInteractionTextToFit(text, Math.max(fontSizePx, widthPx - 40), fontSizePx)
     const first = segments[0] ?? text
     const layout = mainlineEchoLayout(first, metrics, { speaker, maxWidthPx: widthPx })
-    const position = mainlinePlaceReadingBox(scene, source, { width: layout.widthPx, height: layout.heightPx }, protectedVisuals, metrics, worldScale, cameraOffset)
+    const envelopeLayouts = envelopeTexts.map(envelope => mainlineEchoLayout(envelope, metrics, { speaker, maxWidthPx: widthPx }))
+    const placementBox = {
+      width: Math.max(layout.widthPx, ...envelopeLayouts.map(candidate => candidate.widthPx)),
+      height: Math.max(layout.heightPx, ...envelopeLayouts.map(candidate => candidate.heightPx)),
+    }
+    const position = mainlinePlaceReadingBox(scene, source, placementBox, protectedVisuals, metrics, worldScale, cameraOffset)
     if (position) return { segments, position, layout, maxWidthPx: widthPx, fits: true }
   }
   const segments = splitMainlineInteractionTextToFit(text, fontSizePx, fontSizePx)

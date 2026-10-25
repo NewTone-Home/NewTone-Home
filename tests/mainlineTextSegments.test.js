@@ -36,6 +36,13 @@ describe('mainline interaction text segments', () => {
     ]))
   })
 
+  it('keeps every authored separator and mark in the same order across semantic pages', () => {
+    const source = '一二三四， 五六；\r\n七八！！九'
+    const pages = splitMainlineInteractionText(source)
+    expect(pages.join('')).toBe(mainlineDisplaySourceText(source))
+    expect(pages.join('')).toContain('四， 五六；\r\n七八！！九')
+  })
+
   it('does not leave closing quotes as their own segment', () => {
     expect(splitMainlineInteractionText('“先进去。”，再回头。')).toEqual(asDisplayedSegments(['“先进去。”，再回头。']))
   })
@@ -74,6 +81,20 @@ describe('mainline interaction text segments', () => {
     const tiny = splitMainlineInteractionTextToFit('甲乙丙丁', 16, 16, measure)
     expect(tiny).toEqual(['甲', '乙', '丙', '丁'])
     expect(tiny.join('')).toBe('甲乙丙丁')
+  })
+
+  it('rebalances punctuation without changing its order in the source', () => {
+    const measure = value => Array.from(value).length * 16
+    for (const [source, expected] of [
+      ['一二三四，五六', ['一二三', '四，五六']],
+      ['一二三四、五六', ['一二三', '四、五六']],
+      ['一二三四！！五六', ['一二三', '四！！五六']],
+    ]) {
+      const pages = splitMainlineInteractionTextToFit(source, 96, 16, measure)
+      expect(pages).toEqual(expected)
+      expect(pages.join('')).toBe(mainlineDisplaySourceText(source))
+      expect(pages.every(page => measure(page) <= 96)).toBe(true)
+    }
   })
 
   it('removes a terminal Chinese full stop before desktop and mobile width fitting', () => {

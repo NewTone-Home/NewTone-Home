@@ -14,6 +14,30 @@ export type MainlineReadingPresentationSnapshot = {
 
 export type MainlineReadingPresentationPhase = 'active' | 'leaving' | 'inactive'
 
+/** Context that can invalidate a fitted anchor. `cameraOffset` is the external
+ * scene camera; reading-induced text pan is intentionally not part of this key. */
+export function mainlineReadingAnchorContextKey(input: {
+  sceneId: string
+  viewport: { width: number; height: number; viewportWidth?: number }
+  worldScale: number
+  cameraOffset: Point
+  source: Point
+  protectedBoxes: readonly { x: number; y: number; width: number; height: number }[]
+}) {
+  return JSON.stringify([
+    input.sceneId,
+    input.viewport.width,
+    input.viewport.height,
+    input.viewport.viewportWidth ?? null,
+    input.worldScale,
+    input.cameraOffset.x,
+    input.cameraOffset.y,
+    input.source.x,
+    input.source.y,
+    ...input.protectedBoxes.flatMap(box => [box.x, box.y, box.width, box.height]),
+  ])
+}
+
 /** Keep the chosen legal display point across pages of one unchanged reading
  * session. A new session or changed viewport/scene context may choose again. */
 export function mainlineReadingAnchorForSession(

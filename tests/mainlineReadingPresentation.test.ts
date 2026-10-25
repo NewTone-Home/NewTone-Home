@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from '../src/center/runtime/mainlineReadingPresentation'
+import { mainlineReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from '../src/center/runtime/mainlineReadingPresentation'
 
 const active: MainlineReadingPresentationSnapshot = {
   sessionKey: 'scene:observation:echo:7:plant',
@@ -36,5 +36,22 @@ describe('mainline reading presentation retention', () => {
     expect(mainlineReadingAnchorForSession(active.sessionKey, fittedPageOne.anchorContextKey!, shorterPageCandidate, fittedPageOne)).toEqual(fittedPageOne.position)
     expect(mainlineReadingAnchorForSession('scene:observation:echo:8:plant', fittedPageOne.anchorContextKey!, shorterPageCandidate, fittedPageOne)).toEqual(shorterPageCandidate)
     expect(mainlineReadingAnchorForSession(active.sessionKey, 'scene:1280x800:scale=1', shorterPageCandidate, fittedPageOne)).toEqual(shorterPageCandidate)
+  })
+
+  it('uses external camera and viewport changes for invalidation, not reading-pan offsets', () => {
+    const context = {
+      sceneId: 'commercial-street',
+      viewport: { width: 411, height: 914, viewportWidth: 411 },
+      worldScale: .65,
+      cameraOffset: { x: -12, y: 4 },
+      source: { x: 42, y: 27 },
+      protectedBoxes: [{ x: 41, y: 26, width: 2, height: 2 }],
+    }
+    const key = mainlineReadingAnchorContextKey(context)
+    expect(mainlineReadingAnchorContextKey({ ...context, viewport: { ...context.viewport, width: 390, viewportWidth: 390 } })).not.toBe(key)
+    expect(mainlineReadingAnchorContextKey({ ...context, cameraOffset: { x: -11, y: 4 } })).not.toBe(key)
+    expect(mainlineReadingAnchorContextKey({ ...context, source: { x: 43, y: 27 } })).not.toBe(key)
+    // Page-specific renderCameraOffset is intentionally not an input to this key.
+    expect(mainlineReadingAnchorContextKey(context)).toBe(key)
   })
 })

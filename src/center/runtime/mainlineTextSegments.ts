@@ -4,8 +4,6 @@ const closingMarks = new Set(['”', '’', '"', "'", '」', '』', '）', ')', 
 
 export const mainlineTextSegmentMinClauseLength = 5
 
-function normalized(value: string) { return value.replace(/\s+/g, ' ').trim() }
-
 /** Text shown in the reading UI may omit a terminal Chinese full stop. Keep
  * the authored source elsewhere; normalize before either segmentation path
  * measures or stores display pages. Internal punctuation is left untouched. */
@@ -18,8 +16,6 @@ function characterLength(value: string) {
   return Array.from(value.replace(/[\s。！？!?；;，,、：:“”‘’"'「」『』（）()【】〔〕［］《》〈〉]+$/gu, '').replace(/\s/g, '')).length
 }
 
-const trailingPunctuation = /[\s。！？!?；;，,、：…:：“”‘’"'「」『』（）()【】〔〕［］《》〈〉]+$/u
-
 function rebalanceShortFinalPage(pages: readonly string[], maxWidthPx: number, measure: (value: string) => number) {
   if (pages.length < 2) return pages
   const previous = pages[pages.length - 2]!
@@ -28,19 +24,25 @@ function rebalanceShortFinalPage(pages: readonly string[], maxWidthPx: number, m
   const targetLength = 3
   if (lastLength < 1 || lastLength >= targetLength) return pages
 
-  const suffix = previous.match(trailingPunctuation)?.[0] ?? ''
-  const body = suffix ? previous.slice(0, -suffix.length) : previous
-  const bodyCharacters = Array.from(body)
   const transferCount = targetLength - lastLength
-  // If the preceding page cannot spare enough readable characters, preserve
-  // the short tail rather than overflow a page, drop text, or invent a phrase.
-  if (bodyCharacters.length - transferCount < targetLength) return pages
-
-  const moved = bodyCharacters.splice(bodyCharacters.length - transferCount).join('')
-  const balancedPrevious = `${bodyCharacters.join('')}${suffix}`
+  const previousCharacters = Array.from(previous)
+  let start = previousCharacters.length
+  let movedLength = 0
+  while (start > 0 && movedLength < transferCount) {
+    start -= 1
+    const character = previousCharacters[start]!
+    movedLength += character.trim() && !/[\p{P}\p{S}]/u.test(character) ? 1 : 0
+  }
+  // Move a literal suffix, including punctuation in its original place.
+  // If balancing cannot keep both pages readable and within width, retain the
+  // short tail rather than move punctuation across the characters it follows.
+  const moved = previousCharacters.slice(start).join('')
+  const balancedPrevious = previousCharacters.slice(0, start).join('')
   const balancedLast = `${moved}${last}`
   if (characterLength(balancedPrevious) < targetLength
     || characterLength(balancedLast) < targetLength
+    || Array.from(balancedPrevious.replace(/\s/gu, '')).length < targetLength
+    || measure(balancedPrevious) > maxWidthPx
     || measure(balancedLast) > maxWidthPx) return pages
 
   return [...pages.slice(0, -2), balancedPrevious, balancedLast]
@@ -51,14 +53,14 @@ export function splitMainlineInteractionText(text: string): readonly string[] {
   const displayText = mainlineDisplaySourceText(text)
   const clauses: string[] = []
   let buffer = ''
-  for (const character of displayText.replace(/\r\n?/g, '\n')) {
+  for (const character of displayText) {
     buffer += character
     if (character === '\n' || strongBoundaries.has(character) || weakBoundaries.has(character)) {
-      if (normalized(buffer)) clauses.push(normalized(buffer))
+      if (buffer) clauses.push(buffer)
       buffer = ''
     }
   }
-  if (normalized(buffer)) clauses.push(normalized(buffer))
+  if (buffer) clauses.push(buffer)
   const merged = clauses.reduce<string[]>((result, clause) => {
     const previous = result[result.length - 1]
     if (previous && characterLength(previous) < mainlineTextSegmentMinClauseLength) result[result.length - 1] = `${previous}${clause}`
@@ -73,7 +75,7 @@ export function splitMainlineInteractionText(text: string): readonly string[] {
   if (segments.length > 1 && characterLength(segments[segments.length - 1]!) < mainlineTextSegmentMinClauseLength) {
     segments[segments.length - 2] += segments.pop()!
   }
-  return segments.length ? segments : [normalized(displayText)]
+  return segments.length ? segments : [displayText]
 }
 
 export function longestMainlineInteractionSegment(text: string) {

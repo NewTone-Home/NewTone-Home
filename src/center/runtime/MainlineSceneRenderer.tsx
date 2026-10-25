@@ -23,7 +23,7 @@ import { sceneFrameDefaultMotionMs } from './sceneMotion'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import { mainlineEchoLayout, mainlineSpeakerAnchor } from './mainlineEchoLayout'
-import { mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
+import { mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
@@ -1044,7 +1044,18 @@ export function MainlineSceneRenderer({
   }, [activeObjectId, dialogue?.triggerEntityId, readingPresentationPhase, sceneAction?.entityId, sceneEcho?.entityId])
   const currentReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset) : readingMetrics.width - 24
   const maximumReadingWidthPx = activeReadingPosition ? mainlineMaximumReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale) : currentReadingWidthPx
-  const maximumReadingLayout = activeReadingPosition ? mainlineEchoLayout(activeReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: maximumReadingWidthPx }) : null
+  const readingEnvelopeTexts = useMemo(() => sceneEcho
+    ? (sceneEcho.segments.length ? sceneEcho.segments : [sceneEcho.text])
+    : dialogueLine ? [dialogueLine.text] : [activeReadingText],
+  [activeReadingText, dialogueLine?.text, sceneEcho?.segments, sceneEcho?.text])
+  const maximumReadingLayout = activeReadingPosition
+    ? readingEnvelopeTexts.map(text => mainlineEchoLayout(text, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: maximumReadingWidthPx }))
+      .reduce((largest, layout) => ({
+        widthPx: Math.max(largest.widthPx, layout.widthPx),
+        heightPx: Math.max(largest.heightPx, layout.heightPx),
+        fontSizePx: layout.fontSizePx,
+      }))
+    : null
   const dialogueSpeakerEnvelope = readingMode === 'dialogue' && dialogue && activeReadingPosition
     ? mainlineSpeakerAnchor(dialogue.lines, readingMetrics, {
       x: scene.id === 'commercial-street' ? projectCommercialStreetX(activeReadingPosition.x, readingMetrics) : activeReadingPosition.x,
@@ -1191,7 +1202,7 @@ export function MainlineSceneRenderer({
     return boxes
   }, [dialogueParticipantNpcIds, geometrySnapshot, horizontalGridScale, npcPositions, npcRuntimeSnapshots, protagonistPresentation.label, protagonistVisualPosition, readingPresentationPhase, readingProtectedEntityIds, renderScreenMetrics, scene])
   const readingFit = readingMode && activeReadingPosition
-    ? mainlineFitReadingText(scene, activeReadingPosition, activeReadingText, !sceneEcho ? dialogueLine?.speaker : undefined, activeReadingWidthPx, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset)
+    ? mainlineFitReadingText(scene, activeReadingPosition, activeReadingText, !sceneEcho ? dialogueLine?.speaker : undefined, activeReadingWidthPx, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset, readingEnvelopeTexts)
     : null
   const fittedReadingSegments = readingFit?.segments ?? [activeReadingText]
   const activeDisplayOverflowIndex = Math.min(readingOverflowIndex, Math.max(0, fittedReadingSegments.length - 1))
@@ -1199,20 +1210,16 @@ export function MainlineSceneRenderer({
   const activeDisplayReadingLayout = readingFit
     ? mainlineEchoLayout(activeDisplayReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: readingFit.maxWidthPx })
     : activeReadingLayout
-  const readingAnchorContextKey = useMemo(() => JSON.stringify([
-    scene.id,
-    readingMetrics.width,
-    readingMetrics.height,
-    readingMetrics.viewportWidth ?? null,
+  const readingAnchorContextKey = useMemo(() => activeReadingPosition ? createReadingAnchorContextKey({
+    sceneId: scene.id,
+    viewport: readingMetrics,
     worldScale,
-    renderCameraOffset.x,
-    renderCameraOffset.y,
-    activeReadingPosition?.x ?? null,
-    activeReadingPosition?.y ?? null,
-    ...readingProtectedVisuals.flatMap(box => [box.x, box.y, box.width, box.height]),
-  ]), [activeReadingPosition?.x, activeReadingPosition?.y, readingMetrics.height, readingMetrics.viewportWidth, readingMetrics.width, readingProtectedVisuals, renderCameraOffset.x, renderCameraOffset.y, scene.id, worldScale])
+    cameraOffset,
+    source: activeReadingPosition,
+    protectedBoxes: readingProtectedVisuals,
+  }) : '', [activeReadingPosition?.x, activeReadingPosition?.y, cameraOffset.x, cameraOffset.y, readingMetrics.height, readingMetrics.viewportWidth, readingMetrics.width, readingProtectedVisuals, scene.id, worldScale])
   const candidateReadingPosition = readingMode && activeReadingPosition && activeDisplayReadingLayout
-    ? mainlinePlaceReadingBox(scene, activeReadingPosition, { width: activeDisplayReadingLayout.widthPx, height: activeDisplayReadingLayout.heightPx }, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset) ?? readingFit?.position ?? activeReadingPosition
+    ? readingFit?.position ?? mainlinePlaceReadingBox(scene, activeReadingPosition, { width: activeDisplayReadingLayout.widthPx, height: activeDisplayReadingLayout.heightPx }, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset) ?? activeReadingPosition
     : activeReadingPosition
   const activeDisplayReadingPosition = readingMode && activeReadingPosition && activeDisplayReadingLayout
     ? readingSessionKey
