@@ -23,7 +23,8 @@ import { useSceneFocusFrameController } from './SceneFocusFrames'
 import { sceneFrameDefaultMotionMs } from './sceneMotion'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
-import { mainlineEchoLayout, mainlineSpeakerAnchor } from './mainlineEchoLayout'
+import { mainlineEchoLayout, mainlineSpeakerAnchor, type MainlineEchoLayout } from './mainlineEchoLayout'
+import { interpolateMainlineReadingLayout, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize, mainlineReadingPageTransitionDurationMs } from './mainlineReadingLayoutTransition'
 import { mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
@@ -299,7 +300,7 @@ function MainlineAmbientNpcActorView({ sceneId, npc, position, snapshot, screenM
 
 export const MainlineAmbientNpcActor = memo(MainlineAmbientNpcActorView)
 
-function ObservationText({ echoId, text, typing, onTypingComplete }: { echoId: number; text: string; typing: boolean; onTypingComplete?: (echoId: number) => void }) {
+function ObservationText({ echoId, pageKey, text, typing, onTypingComplete }: { echoId: number; pageKey: string; text: string; typing: boolean; onTypingComplete?: (echoId: number) => void }) {
   const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
   const [visibleCount, setVisibleCount] = useState(0)
 
@@ -322,7 +323,11 @@ function ObservationText({ echoId, text, typing, onTypingComplete }: { echoId: n
     return () => window.cancelAnimationFrame(frame)
   }, [characters, echoId, onTypingComplete, typing])
 
-  return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">{characters.slice(0, visibleCount).join('')}</span>
+  return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">
+    <span key={pageKey} style={{ animationDuration: `${mainlineReadingPageTransitionDurationMs}ms`, animationTimingFunction: 'cubic-bezier(.4, 0, .2, 1)' }}>
+      {characters.slice(0, visibleCount).join('')}
+    </span>
+  </span>
 }
 
 function DialogueText({ group, text, onReadyChange }: { group: string; text: string; onReadyChange?: (group: string, ready: boolean) => void }) {
@@ -333,8 +338,86 @@ function DialogueText({ group, text, onReadyChange }: { group: string; text: str
   >
     <span key={group} onAnimationEnd={(event) => {
       if (event.target === event.currentTarget) onReadyChange?.(group, true)
-    }}>{mainlineVisiblePresentationText(text)}</span>
+    }} style={{ animationDuration: `${mainlineReadingPageTransitionDurationMs}ms`, animationTimingFunction: 'cubic-bezier(.4, 0, .2, 1)' }}>
+      {mainlineVisiblePresentationText(text)}
+    </span>
   </span>
+}
+
+type ReadingLayoutTransitionMode = 'active' | 'leaving' | 'inactive'
+
+function useMainlineReadingLayoutTransition(
+  mode: ReadingLayoutTransitionMode,
+  continuityKey: string | null,
+  pageKey: string | null,
+  target: MainlineEchoLayout | null,
+) {
+  const [displayedLayout, setDisplayedLayout] = useState<MainlineEchoLayout | null>(null)
+  const [transitioning, setTransitioning] = useState(false)
+  const frameRef = useRef<number | null>(null)
+  const currentRef = useRef<{ mode: ReadingLayoutTransitionMode; continuityKey: string; pageKey: string; layout: MainlineEchoLayout } | null>(null)
+
+  useIsomorphicLayoutEffect(() => {
+    if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current)
+    frameRef.current = null
+
+    if (mode === 'inactive' || !target || !continuityKey || !pageKey) {
+      currentRef.current = null
+      setDisplayedLayout(null)
+      setTransitioning(false)
+      return
+    }
+
+    if (mode === 'leaving') {
+      if (currentRef.current) {
+        currentRef.current = { ...currentRef.current, mode: 'leaving' }
+        setDisplayedLayout(currentRef.current.layout)
+      }
+      setTransitioning(false)
+      return
+    }
+
+    const previous = currentRef.current
+    if (!previous || previous.continuityKey !== continuityKey) {
+      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: target }
+      setDisplayedLayout(target)
+      setTransitioning(false)
+      return
+    }
+
+    const from = previous.layout
+    currentRef.current = { mode: 'active', continuityKey, pageKey, layout: from }
+    if (mainlineReadingLayoutsHaveSameSize(from, target)) {
+      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: target }
+      setDisplayedLayout(target)
+      setTransitioning(false)
+      return
+    }
+
+    setDisplayedLayout(from)
+    setTransitioning(true)
+    const startedAt = performance.now()
+    const advance = (now: number) => {
+      const progress = mainlineReadingLayoutTransitionProgress(now - startedAt)
+      const next = interpolateMainlineReadingLayout(from, target, progress)
+      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: next }
+      setDisplayedLayout(next)
+      if (progress >= 1) {
+        frameRef.current = null
+        currentRef.current = { mode: 'active', continuityKey, pageKey, layout: target }
+        setTransitioning(false)
+        return
+      }
+      frameRef.current = window.requestAnimationFrame(advance)
+    }
+    frameRef.current = window.requestAnimationFrame(advance)
+  }, [continuityKey, mode, pageKey, target?.fontSizePx, target?.heightPx, target?.widthPx])
+
+  useEffect(() => () => {
+    if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current)
+  }, [])
+
+  return { layout: displayedLayout ?? target, transitioning }
 }
 
 function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph, doorPhase, focusGroup, frameGroup, focusPolicy, gateTriggered, frameRetracting, active, closeHint, ariaLabel, renderFocusFrame, presentationActive, presentationDurationMs = sceneFrameDefaultMotionMs, onInteract, onDoorTransitionComplete, dataAttributes, characterPresentation }: MainlineDoorButtonProps) {
@@ -1287,6 +1370,20 @@ export function MainlineSceneRenderer({
   const displayReadingText = readingPresentation?.text ?? activeDisplayReadingText
   const displayReadingLayout = readingPresentation?.layout ?? activeDisplayReadingLayout
   const displayReadingMaxWidthPx = readingPresentation?.maxWidthPx ?? activeReadingWidthPx
+  const readingLayoutContinuityKey = !readingSessionKey ? null : sceneEcho
+    ? `echo:${scene.id}:${sceneEcho.id}`
+    : `dialogue:${scene.id}:${dialogue?.triggerEntityId ?? dialogueLine?.id ?? ''}`
+  const readingLayoutPageKey = readingSessionKey && displayReadingLayout
+    ? `${readingSessionKey}:${sceneEcho?.segmentIndex ?? dialogueSegmentIndex}:${displayOverflowIndex}:${displayReadingText}`
+    : null
+  const readingLayoutTransition = useMainlineReadingLayoutTransition(
+    readingPresentationPhase,
+    readingLayoutContinuityKey,
+    readingLayoutPageKey,
+    displayReadingLayout,
+  )
+  const presentedReadingLayout = readingLayoutTransition.layout ?? displayReadingLayout
+  const readingLayoutTransitioning = readingLayoutTransition.transitioning
   const currentDialogueGroup = dialogue && dialogueLine
     ? `dialogue:${dialogueLine.id}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`
     : null
@@ -1294,21 +1391,22 @@ export function MainlineSceneRenderer({
   const readingVisualActive = Boolean(readingPresentation && activeReadingPosition && displayReadingLayout)
   const readingMaskRects = useMemo(() => mainlineReadingMaskRects(sceneRenderBounds, readingProtectedVisuals), [readingProtectedVisuals, sceneRenderBounds])
   const readingDisplayPosition = readingPresentation?.position ?? activeReadingPosition
-  const readingOcclusionRect = useMemo(() => readingVisualActive && readingDisplayPosition && displayReadingLayout
-    ? mainlineReadingOcclusionRect(readingDisplayPosition, displayReadingLayout, worldScale, projectReadingX)
-    : null, [displayReadingLayout, projectReadingX, readingDisplayPosition, readingVisualActive, worldScale])
+  const readingOcclusionRect = useMemo(() => readingVisualActive && readingDisplayPosition && presentedReadingLayout
+    ? mainlineReadingOcclusionRect(readingDisplayPosition, presentedReadingLayout, worldScale, projectReadingX)
+    : null, [presentedReadingLayout, projectReadingX, readingDisplayPosition, readingVisualActive, worldScale])
   const readingOcclusionMaskRegion = useMemo(() => readingOcclusionRect
     ? mainlineReadingOcclusionMaskRegion(sceneRenderBounds, readingOcclusionRect)
     : null, [readingOcclusionRect, sceneRenderBounds])
   useEffect(() => {
     if (readingPresentationPhase !== 'active' || !readingSessionKey || !readingOcclusionRect || !readingOcclusionMaskRegion) return
+    if (readingLayoutTransitioning) return
     setRetainedReadingOcclusion(current => retainMainlineReadingOcclusionSnapshot(current, {
       sessionKey: readingSessionKey,
       rect: readingOcclusionRect,
       region: readingOcclusionMaskRegion,
       protectedEntityIds: readingProtectedEntityIds,
     }))
-  }, [readingOcclusionMaskRegion, readingOcclusionRect, readingPresentationPhase, readingProtectedEntityIds, readingSessionKey])
+  }, [readingLayoutTransitioning, readingOcclusionMaskRegion, readingOcclusionRect, readingPresentationPhase, readingProtectedEntityIds, readingSessionKey])
   useEffect(() => {
     if (readingPresentationPhase !== 'active' || !readingVisualActive || !readingSessionKey) return
     if (activeReadingOcclusionSession === readingSessionKey) return
@@ -1359,8 +1457,8 @@ export function MainlineSceneRenderer({
   const readingDisplayShift = activeReadingPosition && readingDisplayPosition
     ? { x: projectReadingX(readingDisplayPosition.x) - projectReadingX(activeReadingPosition.x), y: readingDisplayPosition.y - activeReadingPosition.y }
     : { x: 0, y: 0 }
-  const actorReadingOpacity = (point: Point) => readingVisualActive && readingDisplayPosition && displayReadingLayout
-    ? mainlineReadingActorOpacity(point, readingDisplayPosition, displayReadingLayout, worldScale, projectReadingX)
+  const actorReadingOpacity = (point: Point) => readingVisualActive && readingDisplayPosition && presentedReadingLayout
+    ? mainlineReadingActorOpacity(point, readingDisplayPosition, presentedReadingLayout, worldScale, projectReadingX)
     : 1
   const objectFrameOwners = useMemo(() => {
     const owners = new Map<string, string>()
@@ -2039,7 +2137,7 @@ export function MainlineSceneRenderer({
             const hasNextSegment = sceneEcho
               ? sceneEcho.segmentIndex + 1 < sceneEcho.segments.length
               : dialogueSegmentIndex + 1 < dialogueSegmentCount || Boolean(dialogue && dialogueLineIndex! + 1 < dialogue.lines.length)
-            const echoLayout = displayReadingLayout ?? mainlineEchoLayout(text, readingMetrics, {
+            const echoLayout = presentedReadingLayout ?? mainlineEchoLayout(text, readingMetrics, {
               speaker: isDialogue ? dialogueLine!.speaker : undefined,
               maxWidthPx: displayReadingMaxWidthPx,
             })
@@ -2084,6 +2182,16 @@ export function MainlineSceneRenderer({
               data-scene-segment-count={(sceneEcho?.segments.length ?? dialogueSegmentCount) + fittedReadingSegments.length - 1}
               data-scene-segment-advance={hasNextSegment || displayOverflowIndex + 1 < fittedReadingSegments.length ? 'available' : 'complete'}
               data-scene-reading-page-fit={readingFit?.fits === false ? 'false' : 'true'}
+              data-scene-reading-layout-width={echoLayout.widthPx}
+              data-scene-reading-layout-height={echoLayout.heightPx}
+              data-scene-reading-layout-transitioning={String(readingLayoutTransitioning)}
+              data-scene-reading-world-scale={worldScale}
+              data-scene-reading-page-key={readingLayoutPageKey ?? undefined}
+              data-scene-reading-page-index={displayOverflowIndex}
+              data-scene-reading-position-x={readingDisplayPosition?.x}
+              data-scene-reading-position-y={readingDisplayPosition?.y}
+              data-scene-reading-occlusion-width={readingOcclusionRect?.width}
+              data-scene-reading-occlusion-height={readingOcclusionRect?.height}
               data-scene-dialogue-ready={isDialogue ? String(dialogueReady) : undefined}
               onAnimationEnd={(event) => {
                 if (!isLeaving || event.target !== event.currentTarget) return
@@ -2094,7 +2202,7 @@ export function MainlineSceneRenderer({
               {isDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
                 ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} text={text} onReadyChange={updateDialogueReady} />
-                : <ObservationText echoId={sceneEcho!.id} text={text} typing={sceneEcho!.typing} onTypingComplete={onSceneEchoTypingComplete} />}
+                : <ObservationText echoId={sceneEcho!.id} pageKey={`${sceneEcho!.id}:${sceneEcho!.segmentIndex}:${displayOverflowIndex}`} text={text} typing={sceneEcho!.typing} onTypingComplete={onSceneEchoTypingComplete} />}
             </div>
             </Fragment>
           })()}

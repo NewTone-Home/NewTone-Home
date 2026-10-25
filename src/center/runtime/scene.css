@@ -1142,6 +1142,7 @@
 @keyframes dialogue-speaker-entering { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dialogue-speaker-exiting { from { opacity: 1; } to { opacity: 0; } }
 .scene-mainline-text__observation { display: block; min-height: 1.6em; }
+.scene-mainline-text__observation > span { display: block; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.4, 0, .2, 1) both; }
 .scene-mainline-text__dialogue { display: block; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; }
 .scene-mainline-text__dialogue > span { display: block; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.22, .61, .36, 1) both; }
 .scene-mainline-text--dialogue { z-index: 14; isolation: isolate; color: var(--active); }
