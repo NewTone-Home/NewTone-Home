@@ -23,7 +23,7 @@ import { sceneFrameDefaultMotionMs } from './sceneMotion'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import { mainlineEchoLayout, mainlineSpeakerAnchor } from './mainlineEchoLayout'
-import { mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
+import { mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
@@ -1199,11 +1199,28 @@ export function MainlineSceneRenderer({
   const activeDisplayReadingLayout = readingFit
     ? mainlineEchoLayout(activeDisplayReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: readingFit.maxWidthPx })
     : activeReadingLayout
-  const activeDisplayReadingPosition = readingMode && activeReadingPosition && activeDisplayReadingLayout
+  const readingAnchorContextKey = useMemo(() => JSON.stringify([
+    scene.id,
+    readingMetrics.width,
+    readingMetrics.height,
+    readingMetrics.viewportWidth ?? null,
+    worldScale,
+    renderCameraOffset.x,
+    renderCameraOffset.y,
+    activeReadingPosition?.x ?? null,
+    activeReadingPosition?.y ?? null,
+    ...readingProtectedVisuals.flatMap(box => [box.x, box.y, box.width, box.height]),
+  ]), [activeReadingPosition?.x, activeReadingPosition?.y, readingMetrics.height, readingMetrics.viewportWidth, readingMetrics.width, readingProtectedVisuals, renderCameraOffset.x, renderCameraOffset.y, scene.id, worldScale])
+  const candidateReadingPosition = readingMode && activeReadingPosition && activeDisplayReadingLayout
     ? mainlinePlaceReadingBox(scene, activeReadingPosition, { width: activeDisplayReadingLayout.widthPx, height: activeDisplayReadingLayout.heightPx }, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset) ?? readingFit?.position ?? activeReadingPosition
     : activeReadingPosition
+  const activeDisplayReadingPosition = readingMode && activeReadingPosition && activeDisplayReadingLayout
+    ? readingSessionKey
+      ? mainlineReadingAnchorForSession(readingSessionKey, readingAnchorContextKey, candidateReadingPosition!, retainedReadingPresentationRef.current)
+      : candidateReadingPosition
+    : activeReadingPosition
   const currentReadingPresentation: MainlineReadingPresentationSnapshot | null = readingMode && readingSessionKey && activeDisplayReadingPosition && activeDisplayReadingLayout
-    ? { sessionKey: readingSessionKey, position: activeDisplayReadingPosition, cameraOffset: renderCameraOffset, layout: activeDisplayReadingLayout, maxWidthPx: readingFit?.maxWidthPx ?? activeReadingWidthPx, text: activeDisplayReadingText, overflowIndex: activeDisplayOverflowIndex }
+    ? { sessionKey: readingSessionKey, anchorContextKey: readingAnchorContextKey, position: activeDisplayReadingPosition, cameraOffset: renderCameraOffset, layout: activeDisplayReadingLayout, maxWidthPx: readingFit?.maxWidthPx ?? activeReadingWidthPx, text: activeDisplayReadingText, overflowIndex: activeDisplayOverflowIndex }
     : null
   const readingPresentation = mainlineReadingPresentationForPhase(readingPresentationPhase, readingSessionKey, currentReadingPresentation, retainedReadingPresentation)
   useIsomorphicLayoutEffect(() => {

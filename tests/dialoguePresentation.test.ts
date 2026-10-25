@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { dialoguePresentationText, mainlineVisiblePresentationText } from '../src/center/runtime/dialoguePresentation'
-import { splitMainlineInteractionText } from '../src/center/runtime/mainlineTextSegments'
+import { mainlineDisplaySourceText, splitMainlineInteractionText } from '../src/center/runtime/mainlineTextSegments'
 
 describe('dialogue presentation text', () => {
   it('preserves internal punctuation and quotes without changing its source', () => {
@@ -28,7 +28,7 @@ describe('dialogue presentation text', () => {
   })
   it('keeps authored segment boundaries and playback order intact', () => {
     const segments = splitMainlineInteractionText('桌上摆放着牌位，香炉里的火还没有熄灭。')
-    expect(segments).toEqual(['桌上摆放着牌位，', '香炉里的火还没有熄灭。'])
+    expect(segments).toEqual(['桌上摆放着牌位，', '香炉里的火还没有熄灭。'].map(mainlineDisplaySourceText))
     expect(segments.map(mainlineVisiblePresentationText)).toEqual(['桌上摆放着牌位', '香炉里的火还没有熄灭'])
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from '../src/center/runtime/mainlineReadingPresentation'
+import { mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from '../src/center/runtime/mainlineReadingPresentation'
 
 const active: MainlineReadingPresentationSnapshot = {
   sessionKey: 'scene:observation:echo:7:plant',
@@ -28,5 +28,13 @@ describe('mainline reading presentation retention', () => {
   it('keeps the captured dialogue segment, page and camera offset through its exit fade', () => {
     const dialogue = { ...active, sessionKey: 'scene:dialogue:conversation-seat:42', text: 'Current fitted dialogue segment' }
     expect(mainlineReadingPresentationForPhase('leaving', dialogue.sessionKey, null, dialogue)).toEqual(dialogue)
+  })
+
+  it('keeps one legal display anchor across shorter pages, but recalculates for a new session or viewport', () => {
+    const fittedPageOne = { ...active, anchorContextKey: 'scene:411x914:scale=.65', position: { x: 58, y: 32 } }
+    const shorterPageCandidate = { x: 41, y: 29 }
+    expect(mainlineReadingAnchorForSession(active.sessionKey, fittedPageOne.anchorContextKey!, shorterPageCandidate, fittedPageOne)).toEqual(fittedPageOne.position)
+    expect(mainlineReadingAnchorForSession('scene:observation:echo:8:plant', fittedPageOne.anchorContextKey!, shorterPageCandidate, fittedPageOne)).toEqual(shorterPageCandidate)
+    expect(mainlineReadingAnchorForSession(active.sessionKey, 'scene:1280x800:scale=1', shorterPageCandidate, fittedPageOne)).toEqual(shorterPageCandidate)
   })
 })

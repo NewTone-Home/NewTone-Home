@@ -18,6 +18,34 @@ function characterLength(value: string) {
   return Array.from(value.replace(/[\s。！？!?；;，,、：:“”‘’"'「」『』（）()【】〔〕［］《》〈〉]+$/gu, '').replace(/\s/g, '')).length
 }
 
+const trailingPunctuation = /[\s。！？!?；;，,、：…:：“”‘’"'「」『』（）()【】〔〕［］《》〈〉]+$/u
+
+function rebalanceShortFinalPage(pages: readonly string[], maxWidthPx: number, measure: (value: string) => number) {
+  if (pages.length < 2) return pages
+  const previous = pages[pages.length - 2]!
+  const last = pages[pages.length - 1]!
+  const lastLength = characterLength(last)
+  const targetLength = 3
+  if (lastLength < 1 || lastLength >= targetLength) return pages
+
+  const suffix = previous.match(trailingPunctuation)?.[0] ?? ''
+  const body = suffix ? previous.slice(0, -suffix.length) : previous
+  const bodyCharacters = Array.from(body)
+  const transferCount = targetLength - lastLength
+  // If the preceding page cannot spare enough readable characters, preserve
+  // the short tail rather than overflow a page, drop text, or invent a phrase.
+  if (bodyCharacters.length - transferCount < targetLength) return pages
+
+  const moved = bodyCharacters.splice(bodyCharacters.length - transferCount).join('')
+  const balancedPrevious = `${bodyCharacters.join('')}${suffix}`
+  const balancedLast = `${moved}${last}`
+  if (characterLength(balancedPrevious) < targetLength
+    || characterLength(balancedLast) < targetLength
+    || measure(balancedLast) > maxWidthPx) return pages
+
+  return [...pages.slice(0, -2), balancedPrevious, balancedLast]
+}
+
 /** Preserve punctuation while keeping short vocatives and particles attached. */
 export function splitMainlineInteractionText(text: string): readonly string[] {
   const displayText = mainlineDisplaySourceText(text)
@@ -87,5 +115,5 @@ export function splitMainlineInteractionTextToFit(text: string, maxWidthPx: numb
     output.push(characters.slice(start, breakEnd).join(''))
     start = breakEnd
   }
-  return output.length ? output : [displayText]
+  return output.length ? rebalanceShortFinalPage(output, maxWidthPx, measure) : [displayText]
 }

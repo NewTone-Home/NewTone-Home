@@ -3,6 +3,7 @@ import type { Point } from './sceneGeometry'
 
 export type MainlineReadingPresentationSnapshot = {
   sessionKey: string
+  anchorContextKey?: string
   position: Point
   cameraOffset: Point
   layout: MainlineEchoLayout
@@ -12,6 +13,19 @@ export type MainlineReadingPresentationSnapshot = {
 }
 
 export type MainlineReadingPresentationPhase = 'active' | 'leaving' | 'inactive'
+
+/** Keep the chosen legal display point across pages of one unchanged reading
+ * session. A new session or changed viewport/scene context may choose again. */
+export function mainlineReadingAnchorForSession(
+  sessionKey: string,
+  anchorContextKey: string,
+  candidate: Point,
+  retained: MainlineReadingPresentationSnapshot | null,
+): Point {
+  return retained?.sessionKey === sessionKey && retained.anchorContextKey === anchorContextKey
+    ? retained.position
+    : candidate
+}
 
 /**
  * Active reading uses the layout computed for the current line. During the
