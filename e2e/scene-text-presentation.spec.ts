@@ -142,6 +142,52 @@ test('an Observation completes into an unlocked Action that can be abandoned by 
   await expect(plant).not.toHaveClass(/scene-mainline-interaction--active/)
 })
 
+test('an observation action appears compactly at the final reading anchor on a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 844 })
+  await page.goto('/?scene=zhongshuyuan-office')
+  const plant = page.locator('[data-object-id="zhongshuyuan-office-plant"]')
+  const echo = page.locator('[data-scene-echo="zhongshuyuan-office-plant"]')
+  await plant.click()
+  await expect(echo).toBeVisible({ timeout: 15_000 })
+  await page.waitForTimeout(900)
+
+  const shield = page.locator('[data-scene-dialogue-shield="true"]')
+  const action = page.locator('[data-scene-action="zhongshuyuan-office-plant"]')
+  let lastReadingPosition: { x: number; y: number } | null = null
+  for (let attempt = 0; attempt < 6 && await action.count() === 0; attempt += 1) {
+    if (await echo.count()) {
+      lastReadingPosition = await echo.evaluate(element => ({
+        x: Number((element as HTMLElement).dataset.sceneReadingPositionX),
+        y: Number((element as HTMLElement).dataset.sceneReadingPositionY),
+      }))
+    }
+    await shield.click({ force: true })
+    await page.waitForTimeout(180)
+  }
+
+  await expect(action).toBeVisible()
+  await expect(action).toHaveClass(/scene-mainline-action--reading/)
+  expect(lastReadingPosition).not.toBeNull()
+  const actionDetails = await action.evaluate(element => {
+    const rect = element.getBoundingClientRect()
+    const node = element as HTMLElement
+    return {
+      x: Number(node.dataset.sceneActionPositionX),
+      y: Number(node.dataset.sceneActionPositionY),
+      rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
+      optionCount: element.querySelectorAll('.shared-entry-control').length,
+    }
+  })
+  expect(actionDetails.x).toBeCloseTo(lastReadingPosition!.x, 5)
+  expect(actionDetails.y).toBeCloseTo(lastReadingPosition!.y, 5)
+  expect(actionDetails.optionCount).toBe(1)
+  expect(actionDetails.rect.left).toBeGreaterThanOrEqual(0)
+  expect(actionDetails.rect.right).toBeLessThanOrEqual(360)
+  expect(actionDetails.rect.top).toBeGreaterThanOrEqual(0)
+  expect(actionDetails.rect.bottom).toBeLessThanOrEqual(844)
+  await expect(page.getByRole('button', { name: '浇水', exact: true })).toBeEnabled()
+})
+
 async function completeObservationIntoAction(page: Page, target: Locator, entityId: string, option: string) {
   await target.click()
   const echo = page.locator(`[data-scene-echo="${entityId}"]`)

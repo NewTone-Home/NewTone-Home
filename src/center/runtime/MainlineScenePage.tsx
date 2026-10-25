@@ -135,6 +135,7 @@ type MainlineSceneAction = {
   entityId?: string
   options: readonly string[]
   position: Point
+  cameraOffset?: Point
   phase?: 'active' | 'committing'
 }
 
@@ -536,7 +537,7 @@ export function MainlineScenePage({
     sceneEchoRef.current = next
     setSceneEcho(next)
   }, [])
-  const completeSceneEchoExit = useCallback((echoId: number) => {
+  const completeSceneEchoExit = useCallback((echoId: number, displayPosition: Point, displayCameraOffset: Point) => {
     const current = sceneEchoRef.current
     if (!current || current.id !== echoId || current.phase !== 'leaving') return
     sceneEchoRef.current = null
@@ -544,7 +545,7 @@ export function MainlineScenePage({
     setActiveObjectId(null)
     const nextAction = pendingSceneActionRef.current
     pendingSceneActionRef.current = null
-    if (nextAction) setSceneAction(nextAction)
+    if (nextAction) setSceneAction({ ...nextAction, position: displayPosition, cameraOffset: displayCameraOffset })
   }, [])
   useIsomorphicLayoutEffect(() => {
     sceneEchoRef.current = sceneEcho
@@ -1963,7 +1964,15 @@ export function MainlineScenePage({
     if (readingActive) return
     dismissSceneAction()
     if (phoneOpen) onPhoneDismiss?.()
-    setSceneAction({ entityId: commercialStreetMilkTeaStorefrontId, options: ['喝掉奶茶'], position: sceneTextPresentationPosition(scene, getCurrentPosition(), '喝掉奶茶', readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)) })
+    const currentPosition = getCurrentPosition()
+    const worldScale = mainlineWorldScale(activeViewportMetrics)
+    const actionCameraOffset = mainlineReadingCameraOffset(scene, currentPosition, readingMetrics, worldScale, cameraOffset)
+    setSceneAction({
+      entityId: commercialStreetMilkTeaStorefrontId,
+      options: ['喝掉奶茶'],
+      position: sceneTextPresentationPosition(scene, currentPosition, '喝掉奶茶', readingMetrics, 'observation', worldScale, actionCameraOffset),
+      cameraOffset: actionCameraOffset,
+    })
   }, [activeViewportMetrics, cameraOffset, dismissSceneAction, getCurrentPosition, onPhoneDismiss, phoneOpen, readingActive, scene, screenMetrics])
 
   const beginMilkTeaStorefrontAction = useCallback(() => {

@@ -95,8 +95,8 @@ type MainlineSceneRendererProps = {
   sceneEcho?: { id: number; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; typing: boolean; phase?: 'leaving' } | null
   onSceneEchoAdvance?: () => void
   onSceneEchoTypingComplete?: (echoId: number) => void
-  onSceneEchoExitComplete?: (echoId: number) => void
-  sceneAction?: { entityId?: string; options: readonly string[]; position: Point; phase?: 'active' | 'committing' } | null
+  onSceneEchoExitComplete?: (echoId: number, displayPosition: Point, displayCameraOffset: Point) => void
+  sceneAction?: { entityId?: string; options: readonly string[]; position: Point; cameraOffset?: Point; phase?: 'active' | 'committing' } | null
   onSceneActionStart?: (index: number) => void
   onSceneActionChoice?: (index: number) => void
   carriedMilkTea?: boolean
@@ -1254,6 +1254,10 @@ export function MainlineSceneRenderer({
     return () => window.cancelAnimationFrame(frame)
   }, [questionReadingActive, readingPresentationPhase, scene.id])
   const renderCameraOffset = questionExitCameraOffset ?? readingCameraOffset
+  const sceneActionCameraOffset = sceneAction?.cameraOffset ?? cameraOffset
+  const sceneActionMaxWidthPx = sceneAction
+    ? mainlineAvailableReadingWidthPx(scene, sceneAction.position, renderScreenMetrics, worldScale, sceneActionCameraOffset)
+    : 0
   const activeReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, renderCameraOffset) : readingMetrics.width - 24
   const activeReadingLayout = activeReadingPosition
     ? mainlineEchoLayout(activeReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: activeReadingWidthPx })
@@ -2246,7 +2250,7 @@ export function MainlineSceneRenderer({
               data-scene-dialogue-ready={isDialogue ? String(dialogueReady) : undefined}
               onAnimationEnd={(event) => {
                 if (!isLeaving || event.target !== event.currentTarget) return
-                if (sceneEcho) onSceneEchoExitComplete?.(sceneEcho.id)
+                if (sceneEcho) onSceneEchoExitComplete?.(sceneEcho.id, readingDisplayPosition ?? position, renderCameraOffset)
                 else onDialogueExitComplete?.()
               }}
             >
@@ -2258,9 +2262,15 @@ export function MainlineSceneRenderer({
             </Fragment>
           })()}
           {sceneAction && <div
-            className="scene-mainline-action"
-            style={{ left: `${Math.max(12, Math.min(88, (scene.id === 'commercial-street' ? projectCommercialStreetX(sceneAction.position.x, renderScreenMetrics) : sceneAction.position.x) + cameraOffset.x))}%`, top: `${Math.max(10, Math.min(85, sceneAction.position.y + cameraOffset.y))}%` }}
+            className="scene-mainline-action scene-mainline-action--reading"
+            style={{
+              left: `${(scene.id === 'commercial-street' ? projectCommercialStreetX(sceneAction.position.x, renderScreenMetrics) : sceneAction.position.x) + sceneActionCameraOffset.x}%`,
+              top: `${sceneAction.position.y + sceneActionCameraOffset.y}%`,
+              maxWidth: `${Math.max(1, sceneActionMaxWidthPx / worldScale)}px`,
+            }}
             data-scene-action={sceneAction.entityId ?? 'scene'}
+            data-scene-action-position-x={sceneAction.position.x}
+            data-scene-action-position-y={sceneAction.position.y}
             onClick={(event) => event.stopPropagation()}
           >
             {sceneAction.options.map((option, index) => (

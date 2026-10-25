@@ -373,4 +373,26 @@ describe('reading target protection', () => {
     expect(counterPlane?.[0]).not.toContain('mask-image')
     expect(counterPlaneOpening).not.toContain('z-index:')
   })
+
+  it('renders scene actions at their supplied final reading anchor with a bounded reading width', () => {
+    const scene = mainlineScenes['zhongshuyuan-office']
+    const position = { x: 42, y: 34 }
+    const cameraOffset = { x: 3, y: -2 }
+    const geometrySnapshot = createMainlineSceneGeometrySnapshot(scene, position, {}, sceneDesignReferenceMetrics, new Map())
+    const html = renderToStaticMarkup(<MainlineSceneRenderer
+      scene={scene} position={position} moving={false} destination={null} layoutMode={false} layout={{}} activeObjectId={null}
+      geometrySnapshot={geometrySnapshot} viewportMetrics={sceneDesignReferenceMetrics} cameraOffset={{ x: 0, y: 0 }}
+      onLayoutChange={() => {}} onInteract={() => {}} onWalk={() => {}} freezeFrameMeasurements
+      sceneAction={{ entityId: 'zhongshuyuan-office-plant', options: ['浇水'], position, cameraOffset }}
+      onSceneActionStart={() => {}} onSceneActionChoice={() => {}}
+    />)
+    const action = html.match(/<div[^>]*data-scene-action="zhongshuyuan-office-plant"[^>]*>/)?.[0]
+    expect(action).toContain('scene-mainline-action--reading')
+    expect(action).toContain('data-scene-action-position-x="42"')
+    expect(action).toContain('data-scene-action-position-y="34"')
+    expect(action).toContain('left:45%')
+    expect(action).toContain('top:32%')
+    expect(action).toMatch(/max-width:\d+(?:\.\d+)?px/)
+    expect(html).toContain('data-entry-id="scene-action:zhongshuyuan-office-plant:浇水"')
+  })
 })

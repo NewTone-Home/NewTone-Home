@@ -1238,6 +1238,34 @@
 .scene-mainline-action .shared-entry-control {
   padding: 0;
 }
+.scene-mainline-action--reading {
+  flex-wrap: wrap;
+  gap: 2px;
+  box-sizing: border-box;
+  animation: none;
+}
+.scene-mainline-action--reading .shared-entry-control.is-content-sized {
+  min-width: 0;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0;
+  font: inherit;
+}
+.scene-mainline-action--reading .shared-entry-control.is-content-sized .shared-entry-content {
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 4px 10px;
+}
+.scene-mainline-action--reading .shared-entry-control.is-content-sized .entry-text-flip__slot {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.scene-mainline-action--reading .shared-entry-frame {
+  stroke-width: .9;
+}
 .scene-dialogue-shield {
   position: absolute;
   inset: 0;
