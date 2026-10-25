@@ -272,6 +272,52 @@ for (const mode of ['observation', 'dialogue'] as const) {
   })
 }
 
+test('a delayed low-frame roll keeps the continue lock until its matching animation completes', async ({ page }) => {
+  await page.setViewportSize({ width: 411, height: 914 })
+  await page.addInitScript(() => {
+    const requestFrame = window.requestAnimationFrame.bind(window)
+    const cancelFrame = window.cancelAnimationFrame.bind(window)
+    let nextId = 1
+    const pending = new Map<number, { frame: number; timeout: number | null }>()
+    window.requestAnimationFrame = callback => {
+      const id = nextId++
+      const frame = requestFrame(() => {
+        const entry = pending.get(id)
+        if (!entry) return
+        entry.timeout = window.setTimeout(() => {
+          pending.delete(id)
+          callback(performance.now())
+        }, 1200)
+      })
+      pending.set(id, { frame, timeout: null })
+      return id
+    }
+    window.cancelAnimationFrame = id => {
+      const entry = pending.get(id)
+      if (!entry) return
+      cancelFrame(entry.frame)
+      if (entry.timeout !== null) window.clearTimeout(entry.timeout)
+      pending.delete(id)
+    }
+  })
+  await page.goto('/e2e/fixtures/reading-layout-transition.html')
+  await page.locator('[data-reading-start]').click()
+  const text = page.locator('.scene-mainline-text[data-scene-echo]')
+  await page.locator('[data-scene-dialogue-shield]').evaluate(element => (element as HTMLButtonElement).click())
+  await expect(text.locator('[data-page-flip="running"]')).toHaveCount(1)
+  await page.waitForTimeout(850)
+
+  // This click arrives after the old 720ms-from-click timeout, while the
+  // intentionally delayed animation has not reported its first frame yet.
+  await page.locator('[data-scene-dialogue-shield]').evaluate(element => (element as HTMLButtonElement).click())
+  await expect(page.locator('.mainline-scene--map-only')).toHaveAttribute('data-fixture-page-index', '1')
+  await expect(text.locator('[data-page-flip="running"]')).toHaveCount(1)
+  await expect(text.locator('[data-page-flip="settled"]')).toHaveCount(1, { timeout: 4000 })
+
+  await page.locator('[data-scene-dialogue-shield]').evaluate(element => (element as HTMLButtonElement).click())
+  await expect(page.locator('.mainline-scene--map-only')).toHaveAttribute('data-fixture-page-index', '2')
+})
+
 test('overflowing observation completes typing before it advances to the next fitted page', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 844 })
   await page.goto('/e2e/fixtures/reading-layout-transition.html')

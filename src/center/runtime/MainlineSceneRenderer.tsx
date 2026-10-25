@@ -24,8 +24,9 @@ import { sceneFrameDefaultMotionMs } from './sceneMotion'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import { mainlineEchoLayout, mainlineSpeakerAnchor, mainlineSpeakerPageAnchor, type MainlineEchoLayout } from './mainlineEchoLayout'
-import { interpolateMainlineReadingLayout, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize, mainlineReadingPageTransitionDurationMs } from './mainlineReadingLayoutTransition'
+import { interpolateMainlineReadingLayout, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize } from './mainlineReadingLayoutTransition'
 import { mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
+import { mainlineReadingPageAdvanceResumeGraceMs, mainlineReadingPageAdvanceStartupWatchdogMs, mainlineReadingPageAdvanceTokenIsCurrent, mainlineReadingPageAdvanceWatchdogMayRelease } from './mainlineReadingPageAdvance'
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
@@ -300,9 +301,11 @@ function MainlineAmbientNpcActorView({ sceneId, npc, position, snapshot, screenM
 
 export const MainlineAmbientNpcActor = memo(MainlineAmbientNpcActorView)
 
-function ReadingPageFlip({ pageKey, text, children, mode, onFlipComplete }: { pageKey: string; text: string; children: React.ReactNode; mode: 'observation' | 'dialogue'; onFlipComplete?: () => void }) {
+function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart, onFlipComplete }: { pageKey: string; text: string; children: React.ReactNode; mode: 'observation' | 'dialogue'; lockToken: number; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void }) {
   const [page, setPage] = useState<{ key: string; text: string; previousText: string | null; flipping: boolean }>({ key: pageKey, text, previousText: null, flipping: false })
   const stackRef = useRef<HTMLSpanElement>(null)
+  const onFlipStartRef = useRef(onFlipStart)
+  onFlipStartRef.current = onFlipStart
   const onFlipCompleteRef = useRef(onFlipComplete)
   onFlipCompleteRef.current = onFlipComplete
   useIsomorphicLayoutEffect(() => {
@@ -310,10 +313,6 @@ function ReadingPageFlip({ pageKey, text, children, mode, onFlipComplete }: { pa
       ? current
       : { key: pageKey, text, previousText: current.text, flipping: true })
   }, [pageKey, text])
-  useEffect(() => {
-    if (!page.flipping && page.key === pageKey) onFlipCompleteRef.current?.()
-  }, [page.flipping, page.key, pageKey])
-
   useEffect(() => {
     const node = stackRef.current
     if (!page.flipping || !node || page.key !== pageKey) return
@@ -328,16 +327,19 @@ function ReadingPageFlip({ pageKey, text, children, mode, onFlipComplete }: { pa
     setProgress(0)
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       setProgress(1)
+      onFlipCompleteRef.current?.(lockToken)
       setPage(current => current.key === pageKey ? { ...current, previousText: null, flipping: false } : current)
       return
     }
     const startedAt = performance.now()
+    onFlipStartRef.current?.(lockToken)
     let frame = 0
     const advance = (now: number) => {
       const elapsed = Math.max(0, now - startedAt)
       const progress = storefrontCharacterProgress(0, 1, elapsed, storefrontLabelRollDurationMs)
       setProgress(progress)
       if (elapsed >= storefrontLabelRollDurationMs) {
+        onFlipCompleteRef.current?.(lockToken)
         setPage(current => current.key === pageKey ? { ...current, previousText: null, flipping: false } : current)
         return
       }
@@ -345,7 +347,7 @@ function ReadingPageFlip({ pageKey, text, children, mode, onFlipComplete }: { pa
     }
     frame = window.requestAnimationFrame(advance)
     return () => window.cancelAnimationFrame(frame)
-  }, [page.flipping, page.key, pageKey])
+  }, [lockToken, page.flipping, page.key, pageKey])
 
   return <span ref={stackRef} className={`scene-mainline-page-stack scene-mainline-page-stack--${mode}`} data-page-flip={page.flipping ? 'running' : 'settled'} style={{ '--reading-page-out-y': '0%', '--reading-page-in-y': page.flipping ? '-100%' : '0%' } as CSSProperties}>
     {page.flipping && page.previousText !== null && <span className="scene-mainline-page scene-mainline-page--outgoing" data-reading-page-role="outgoing" aria-hidden="true">{page.previousText}</span>}
@@ -356,7 +358,7 @@ function ReadingPageFlip({ pageKey, text, children, mode, onFlipComplete }: { pa
   </span>
 }
 
-function ObservationText({ echoId, pageKey, text, typing, onTypingComplete, onFlipComplete }: { echoId: number; pageKey: string; text: string; typing: boolean; onTypingComplete?: (echoId: number) => void; onFlipComplete?: () => void }) {
+function ObservationText({ echoId, pageKey, text, typing, lockToken, onTypingComplete, onFlipStart, onFlipComplete }: { echoId: number; pageKey: string; text: string; typing: boolean; lockToken: number; onTypingComplete?: (echoId: number) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void }) {
   const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
   const [visibleCount, setVisibleCount] = useState(0)
 
@@ -380,19 +382,19 @@ function ObservationText({ echoId, pageKey, text, typing, onTypingComplete, onFl
   }, [characters, echoId, onTypingComplete, typing])
 
   return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">
-    <ReadingPageFlip pageKey={pageKey} text={text} mode="observation" onFlipComplete={onFlipComplete}>
+    <ReadingPageFlip pageKey={pageKey} text={text} mode="observation" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete}>
       {characters.slice(0, visibleCount).join('')}
     </ReadingPageFlip>
   </span>
 }
 
-function DialogueText({ group, pageKey, text, onReadyChange, onFlipComplete }: { group: string; pageKey: string; text: string; onReadyChange?: (group: string, ready: boolean) => void; onFlipComplete?: () => void }) {
+function DialogueText({ group, pageKey, text, lockToken, onReadyChange, onFlipStart, onFlipComplete }: { group: string; pageKey: string; text: string; lockToken: number; onReadyChange?: (group: string, ready: boolean) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void }) {
   useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, onReadyChange])
   return <span
     className="scene-mainline-text__dialogue"
     data-scene-text-mode="dialogue"
   >
-    <ReadingPageFlip pageKey={pageKey} text={text} mode="dialogue" onFlipComplete={() => { onFlipComplete?.(); onReadyChange?.(group, true) }}>
+    <ReadingPageFlip pageKey={pageKey} text={text} mode="dialogue" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={(token) => { onFlipComplete?.(token); onReadyChange?.(group, true) }}>
       {mainlineVisiblePresentationText(text)}
     </ReadingPageFlip>
   </span>
@@ -1015,17 +1017,74 @@ export function MainlineSceneRenderer({
   const [readingOverflowPage, setReadingOverflowPage] = useState<import('./mainlineReadingProtection').MainlineReadingOverflowPageState>(null)
   const readingPageAdvanceLockedRef = useRef(false)
   const readingPageAdvanceLockTimerRef = useRef<number | null>(null)
+  const readingPageAdvanceLockTokenRef = useRef(0)
+  const readingPageAdvanceFlipStartedTokenRef = useRef<number | null>(null)
+  const readingPageAdvanceVisibilityListenerRef = useRef<(() => void) | null>(null)
   const typingCompletionLockRef = useRef(false)
-  const releaseReadingPageAdvance = useCallback(() => {
+  const typingCompletionLockTokenRef = useRef<number | null>(null)
+  const releaseReadingPageAdvance = useCallback((token?: number) => {
+    if (token !== undefined && (!mainlineReadingPageAdvanceTokenIsCurrent(readingPageAdvanceLockTokenRef.current, token) || !readingPageAdvanceLockedRef.current)) return
+    readingPageAdvanceLockTokenRef.current += 1
     readingPageAdvanceLockedRef.current = false
+    readingPageAdvanceFlipStartedTokenRef.current = null
     if (readingPageAdvanceLockTimerRef.current !== null) window.clearTimeout(readingPageAdvanceLockTimerRef.current)
     readingPageAdvanceLockTimerRef.current = null
+    if (readingPageAdvanceVisibilityListenerRef.current) {
+      document.removeEventListener('visibilitychange', readingPageAdvanceVisibilityListenerRef.current)
+      readingPageAdvanceVisibilityListenerRef.current = null
+    }
   }, [])
-  const lockReadingPageAdvance = useCallback(() => {
-    readingPageAdvanceLockedRef.current = true
+  const scheduleReadingPageAdvanceFallback = useCallback((token: number, delayMs: number) => {
     if (readingPageAdvanceLockTimerRef.current !== null) window.clearTimeout(readingPageAdvanceLockTimerRef.current)
-    readingPageAdvanceLockTimerRef.current = window.setTimeout(releaseReadingPageAdvance, mainlineReadingPageTransitionDurationMs + 240)
+    readingPageAdvanceLockTimerRef.current = null
+
+    const waitForVisible = () => {
+      const onVisibilityChange = () => {
+        if (document.visibilityState === 'hidden') return
+        document.removeEventListener('visibilitychange', onVisibilityChange)
+        readingPageAdvanceVisibilityListenerRef.current = null
+        readingPageAdvanceLockTimerRef.current = window.setTimeout(() => {
+          readingPageAdvanceLockTimerRef.current = null
+          if (!mainlineReadingPageAdvanceWatchdogMayRelease(readingPageAdvanceLockTokenRef.current, token, readingPageAdvanceFlipStartedTokenRef.current) || !readingPageAdvanceLockedRef.current) return
+          if (document.visibilityState === 'hidden') {
+            waitForVisible()
+            return
+          }
+          releaseReadingPageAdvance(token)
+        }, mainlineReadingPageAdvanceResumeGraceMs)
+      }
+      if (readingPageAdvanceVisibilityListenerRef.current) document.removeEventListener('visibilitychange', readingPageAdvanceVisibilityListenerRef.current)
+      readingPageAdvanceVisibilityListenerRef.current = onVisibilityChange
+      document.addEventListener('visibilitychange', onVisibilityChange)
+    }
+
+    readingPageAdvanceLockTimerRef.current = window.setTimeout(() => {
+      readingPageAdvanceLockTimerRef.current = null
+      if (!mainlineReadingPageAdvanceWatchdogMayRelease(readingPageAdvanceLockTokenRef.current, token, readingPageAdvanceFlipStartedTokenRef.current) || !readingPageAdvanceLockedRef.current) return
+      if (document.visibilityState === 'hidden') {
+        waitForVisible()
+        return
+      }
+      releaseReadingPageAdvance(token)
+    }, delayMs)
   }, [releaseReadingPageAdvance])
+  const lockReadingPageAdvance = useCallback(() => {
+    const token = ++readingPageAdvanceLockTokenRef.current
+    readingPageAdvanceFlipStartedTokenRef.current = null
+    readingPageAdvanceLockedRef.current = true
+    scheduleReadingPageAdvanceFallback(token, mainlineReadingPageAdvanceStartupWatchdogMs)
+    return token
+  }, [scheduleReadingPageAdvanceFallback])
+  const startReadingPageAdvanceFlip = useCallback((token: number) => {
+    if (!mainlineReadingPageAdvanceTokenIsCurrent(readingPageAdvanceLockTokenRef.current, token) || !readingPageAdvanceLockedRef.current) return
+    readingPageAdvanceFlipStartedTokenRef.current = token
+    if (readingPageAdvanceLockTimerRef.current !== null) window.clearTimeout(readingPageAdvanceLockTimerRef.current)
+    readingPageAdvanceLockTimerRef.current = null
+    if (readingPageAdvanceVisibilityListenerRef.current) {
+      document.removeEventListener('visibilitychange', readingPageAdvanceVisibilityListenerRef.current)
+      readingPageAdvanceVisibilityListenerRef.current = null
+    }
+  }, [])
   useEffect(() => () => releaseReadingPageAdvance(), [releaseReadingPageAdvance])
   const [retainedReadingOcclusion, setRetainedReadingOcclusion] = useState<RetainedReadingOcclusion | null>(null)
   const [activeReadingOcclusionSession, setActiveReadingOcclusionSession] = useState<string | null>(null)
@@ -1172,13 +1231,16 @@ export function MainlineSceneRenderer({
   useIsomorphicLayoutEffect(() => {
     if (readingPresentationPhase !== 'active') {
       typingCompletionLockRef.current = false
+      typingCompletionLockTokenRef.current = null
       releaseReadingPageAdvance()
     }
   }, [readingPresentationPhase, releaseReadingPageAdvance])
   useEffect(() => {
     if (!typingCompletionLockRef.current || sceneEcho?.typing) return
     typingCompletionLockRef.current = false
-    releaseReadingPageAdvance()
+    const token = typingCompletionLockTokenRef.current
+    typingCompletionLockTokenRef.current = null
+    releaseReadingPageAdvance(token ?? undefined)
   }, [releaseReadingPageAdvance, sceneEcho?.typing])
   const readingPresentationMode = readingMode ?? (sceneEcho ? 'observation' : readingIsLeaving ? 'dialogue' : null)
   const readingSessionKey = !readingPresentationMode ? null : sceneEcho
@@ -2346,8 +2408,8 @@ export function MainlineSceneRenderer({
             >
               {isDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
-                ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} pageKey={readingLayoutPageKey ?? group} text={text} onReadyChange={updateDialogueReady} onFlipComplete={releaseReadingPageAdvance} />
-                : <ObservationText echoId={sceneEcho!.id} pageKey={`${sceneEcho!.id}:${sceneEcho!.segmentIndex}:${displayOverflowIndex}`} text={text} typing={sceneEcho!.typing} onTypingComplete={onSceneEchoTypingComplete} onFlipComplete={releaseReadingPageAdvance} />}
+                ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} pageKey={readingLayoutPageKey ?? group} text={text} lockToken={readingPageAdvanceLockTokenRef.current} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} />
+                : <ObservationText echoId={sceneEcho!.id} pageKey={`${sceneEcho!.id}:${sceneEcho!.segmentIndex}:${displayOverflowIndex}`} text={text} typing={sceneEcho!.typing} lockToken={readingPageAdvanceLockTokenRef.current} onTypingComplete={onSceneEchoTypingComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} />}
             </div>
             </Fragment>
           })()}
@@ -2415,7 +2477,7 @@ export function MainlineSceneRenderer({
                 if (readingPageAdvanceLockedRef.current) return
                 if (readingPresentationMode === 'observation' && sceneEcho?.typing) {
                   typingCompletionLockRef.current = true
-                  lockReadingPageAdvance()
+                  typingCompletionLockTokenRef.current = lockReadingPageAdvance()
                   onSceneEchoAdvance?.()
                   return
                 }
