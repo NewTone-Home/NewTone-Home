@@ -13,6 +13,7 @@ import {
 } from '../src/center/runtime/playerSave'
 import { mainlineScenes, legacyCafeEntryPosition } from '../src/center/runtime/mainlineScenes'
 import { PUBLIC_RELEASE_CUTOVER_ID, PUBLIC_RELEASE_CUTOVER_STORAGE_KEY } from '../src/services/publicReleaseMigration'
+import { defaultLaoZhouCafeSeatId, isLaoZhouCafeSeatId } from '../src/center/runtime/commercialCafeSeatSelection'
 
 function createStorage() {
   const values = new Map([[PUBLIC_RELEASE_CUTOVER_STORAGE_KEY, PUBLIC_RELEASE_CUTOVER_ID]])
@@ -24,6 +25,62 @@ function createStorage() {
 }
 
 describe('player local save contract', () => {
+  it('chooses and persists a fresh Cafe seat once without changing landing or story/phone defaults', () => {
+    const storage = createStorage()
+    let draws = 0
+    const first = loadPlayerSave(storage, undefined, () => { draws += 1; return 0.75 })
+    const second = loadPlayerSave(storage, undefined, () => { draws += 1; return 0 })
+
+    expect(first.laoZhouCafeSeatId).toBeTruthy()
+    expect(isLaoZhouCafeSeatId(first.laoZhouCafeSeatId)).toBe(true)
+    expect(second.laoZhouCafeSeatId).toBe(first.laoZhouCafeSeatId)
+    expect(draws).toBe(1)
+    expect(first.updatedAt).toBe(0)
+    expect(hasResumablePlayerSave(storage)).toBe(false)
+    expect(first.sceneState).toEqual({})
+    expect(first.phoneDevice).toBe(createInitialPlayerSave().phoneDevice)
+
+    const started = savePlayerSave(first, storage, 10)
+    expect(started).not.toHaveProperty('freshSeatOnly')
+    expect(hasResumablePlayerSave(storage)).toBe(true)
+  })
+
+  it('keeps legacy and pre-field saves on the original seat without changing completed-story or phone state', () => {
+    const legacyStorage = createStorage()
+    legacyStorage.setItem('newtone.mainline.carried-phone.v2', JSON.stringify({ device: 'inner' }))
+    let draws = 0
+    const migrated = loadPlayerSave(legacyStorage, undefined, () => { draws += 1; return 0.9 })
+    expect(migrated.laoZhouCafeSeatId).toBe(defaultLaoZhouCafeSeatId)
+    expect(migrated.phoneDevice).toBe('inner')
+    expect(draws).toBe(0)
+
+    const oldSaveStorage = createStorage()
+    const oldSave = createInitialPlayerSave('commercial-street')
+    delete oldSave.laoZhouCafeSeatId
+    oldSave.updatedAt = 123
+    oldSave.sceneState['commercial-street'] = {
+      commercialCafeStoryStatus: 'complete',
+      commercialCafeNarrativeCursor: 14,
+      commercialCafePhoneHandoff: 'shown',
+    }
+    oldSaveStorage.setItem(PLAYER_SAVE_STORAGE_KEY, JSON.stringify(oldSave))
+    const restored = loadPlayerSave(oldSaveStorage, undefined, () => { draws += 1; return 0.2 })
+    expect(restored.laoZhouCafeSeatId).toBe(defaultLaoZhouCafeSeatId)
+    expect(restored.sceneState['commercial-street']).toEqual(oldSave.sceneState['commercial-street'])
+    expect(restored.updatedAt).toBe(123)
+    expect(draws).toBe(0)
+  })
+
+  it('stabilizes invalid saved seat IDs to the old seat and preserves the other save fields', () => {
+    const storage = createStorage()
+    const save = { ...createInitialPlayerSave('commercial-street'), laoZhouCafeSeatId: 'broken-seat-id', updatedAt: 456 }
+    storage.setItem(PLAYER_SAVE_STORAGE_KEY, JSON.stringify(save))
+    const restored = loadPlayerSave(storage, undefined, () => { throw new Error('existing saves must not reroll') })
+    expect(restored.laoZhouCafeSeatId).toBe(defaultLaoZhouCafeSeatId)
+    expect(restored.updatedAt).toBe(456)
+    expect(restored.currentSceneId).toBe('commercial-street')
+  })
+
   it('coalesces RAF samples and persists the latest position on stop', () => {
     const storage = createStorage()
     let save = createInitialPlayerSave('commercial-street')

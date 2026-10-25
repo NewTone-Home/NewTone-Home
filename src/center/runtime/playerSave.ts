@@ -11,6 +11,7 @@ import { initialMainlinePhoneDevice, initialMainlineSceneId } from './mainlineIn
 import { createInitialMainlineStoryClock, storyClockForStage, type MainlineStoryClock, type MainlineStoryStage } from './mainlineStoryClock'
 import { applyPublicReleaseCutover } from '../../services/publicReleaseMigration'
 import { cleanPhoneCallHistory, cleanPhoneContactNotes, cleanPhoneNotes, createInitialPhoneNotes, type PhoneCallRecord, type PhoneNote } from './phonePersonalData'
+import { defaultLaoZhouCafeSeatId, isLaoZhouCafeSeatId, selectLaoZhouCafeSeat } from './commercialCafeSeatSelection'
 
 export const PLAYER_SAVE_STORAGE_KEY = 'newtone-player-save-v1'
 export const PLAYER_SAVE_VERSION = 2
@@ -42,6 +43,10 @@ export type PlayerSave = {
   phoneNotes: PhoneNote[]
   phoneContactNotes: Record<string, string>
   phoneCallHistory: PhoneCallRecord[]
+  /** Stable NPC seat chosen once for a genuinely new save; absent legacy values use the authored seat. */
+  laoZhouCafeSeatId: string
+  /** Distinguishes the immediately persisted seat seed from a player session that should resume Center. */
+  freshSeatOnly?: true
   updatedAt: number
 }
 
@@ -108,11 +113,12 @@ export function createInitialPlayerSave(sceneId: MainlineSceneId = initialMainli
     phoneNotes: createInitialPhoneNotes(),
     phoneContactNotes: {},
     phoneCallHistory: [],
+    laoZhouCafeSeatId: defaultLaoZhouCafeSeatId,
     updatedAt: 0,
   }
 }
 
-function readLegacyPlayerSave(storage: PlayerSaveStorage | null, fallbackSceneId: MainlineSceneId): PlayerSave {
+function readLegacyPlayerSave(storage: PlayerSaveStorage | null, fallbackSceneId: MainlineSceneId): { save: PlayerSave; hasLegacyValue: boolean } {
   const migrated = createInitialPlayerSave(fallbackSceneId)
   let hasLegacyValue = false
 
@@ -157,9 +163,12 @@ function readLegacyPlayerSave(storage: PlayerSaveStorage | null, fallbackSceneId
     migrated.currentSceneId = initialMainlineSceneId
     migrated.phoneDevice = initialMainlinePhoneDevice
   }
-  return hasLegacyValue
-    ? sanitizePlayerSave({ ...migrated, _version: 1, worldGridVersion: undefined, miningLayoutVersion: undefined }, fallbackSceneId)
-    : createInitialPlayerSave(fallbackSceneId)
+  return {
+    save: hasLegacyValue
+      ? sanitizePlayerSave({ ...migrated, _version: 1, worldGridVersion: undefined, miningLayoutVersion: undefined }, fallbackSceneId)
+      : createInitialPlayerSave(fallbackSceneId),
+    hasLegacyValue,
+  }
 }
 
 export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSceneId): PlayerSave {
@@ -246,6 +255,12 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
     phoneNotes: cleanPhoneNotes(source.phoneNotes),
     phoneContactNotes: cleanPhoneContactNotes(source.phoneContactNotes),
     phoneCallHistory: cleanPhoneCallHistory(source.phoneCallHistory),
+    laoZhouCafeSeatId: isLaoZhouCafeSeatId(source.laoZhouCafeSeatId) ? source.laoZhouCafeSeatId : defaultLaoZhouCafeSeatId,
+    ...(source.freshSeatOnly === true && Number(source.updatedAt) === 0
+      && source.currentPosition == null && Object.keys(cleanScenePositions(source.scenePositions)).length === 0
+      && Object.values(cleanSceneState(source.sceneState)).every((state) => Object.keys(state).length === 0)
+      ? { freshSeatOnly: true as const }
+      : {}),
     updatedAt: Number.isFinite(updatedAt) && updatedAt >= 0 ? Math.round(updatedAt) : 0,
   }
 }
@@ -253,13 +268,25 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
 export function loadPlayerSave(
   storage = defaultStorage(),
   fallbackSceneId: MainlineSceneId = initialMainlineSceneId,
+  random: () => number = Math.random,
 ): PlayerSave {
   applyPublicReleaseCutover(storage)
   try {
     const raw = storage?.getItem(PLAYER_SAVE_STORAGE_KEY)
-    return raw
-      ? sanitizePlayerSave(JSON.parse(raw), fallbackSceneId)
-      : readLegacyPlayerSave(storage, fallbackSceneId)
+    if (raw) return sanitizePlayerSave(JSON.parse(raw), fallbackSceneId)
+    const legacy = readLegacyPlayerSave(storage, fallbackSceneId)
+    if (legacy.hasLegacyValue || !storage) return legacy.save
+    const fresh = { ...legacy.save, laoZhouCafeSeatId: selectLaoZhouCafeSeat(random), freshSeatOnly: true as const }
+    try {
+      // Persist the seat choice immediately without changing updatedAt or the
+      // landing/resume contract. A StrictMode initializer will read this value.
+      storage.setItem(PLAYER_SAVE_STORAGE_KEY, JSON.stringify(fresh))
+      return fresh
+    } catch {
+      // If durable storage is unavailable, stay on the deterministic legacy seat
+      // rather than rerolling on every mount or reload.
+      return legacy.save
+    }
   } catch {
     return createInitialPlayerSave()
   }
@@ -277,15 +304,15 @@ export function hasResumablePlayerSave(storage = defaultStorage()): boolean {
     storedPhoneState = [PLAYER_SAVE_STORAGE_KEY, ...LEGACY_PHONE_STORAGE_KEYS]
       .some(key => storage?.getItem(key) != null)
   } catch { /* Unavailable storage is a fresh in-memory session. */ }
-  return save.updatedAt > 0
+  return !save.freshSeatOnly && (save.updatedAt > 0
     || save.currentPosition !== null
     || Object.keys(save.scenePositions).length > 0
     || (save.phoneDevice === 'inner' && storedPhoneState)
-    || Object.values(save.sceneState).some((state) => Object.keys(state ?? {}).length > 0)
+    || Object.values(save.sceneState).some((state) => Object.keys(state ?? {}).length > 0))
 }
 
 export function savePlayerSave(save: PlayerSave, storage = defaultStorage(), now = Date.now()): PlayerSave {
-  const clean = sanitizePlayerSave({ ...save, updatedAt: now }, save.currentSceneId)
+  const clean = sanitizePlayerSave({ ...save, freshSeatOnly: undefined, updatedAt: now }, save.currentSceneId)
   try {
     storage?.setItem(PLAYER_SAVE_STORAGE_KEY, JSON.stringify(clean))
   } catch {

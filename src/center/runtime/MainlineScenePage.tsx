@@ -24,7 +24,8 @@ import type { MainlineRideWalkingContext } from './mainlineRide'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
-import { commercialCafeAnalyticsMilestonePatch, commercialCafeAnalyticsMilestonesFromSceneState, commercialCafeAnalyticsStageForCursor, commercialCafeCoffeePreparationDurationMs, commercialCafeCoffeePreparationElapsed, commercialCafeCoffeePreparationStartedAtKey, commercialCafeCoffeeStatusKey, commercialCafeCoffeeArrivedAtPrep, commercialCafeCoffeeDelivered, commercialCafeCoffeeOrdered, commercialCafeCoffeeOrderedState, commercialCafeCoffeeReady, commercialCafeDeliveryDialogueLine, commercialCafeDepartureText, commercialCafeFinishCursorOne, commercialCafeFinishDeliveryLine, commercialCafeLaoZhouConversationSeatId, commercialCafeNarrativeDialogue, commercialCafeNarrativePhaseKey, commercialCafeNarrativeStarted, commercialCafeStoryCompleted, commercialCafeStoryNeedsMigration, commercialCafeStoryReadyToLeave, commercialCafeStoryStateFromSceneState, commercialCafeStoryStatePatch, commercialCafeStoryWithCursor, isCommercialCafeStoryStage, resolveCommercialCafeNpcInteraction, shouldCompleteCommercialCafeStoryOnTransition, commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId, commercialCafeStoryTableId, type CommercialCafeAnalyticsStage, type CommercialCafeNpcInteractionResolution, type CommercialCafeStoryStage } from './commercialCafeStory'
+import { defaultLaoZhouCafeSeatId, laoZhouCafeConversationSeatId, withLaoZhouCafeSeat } from './commercialCafeSeatSelection'
+import { commercialCafeAnalyticsMilestonePatch, commercialCafeAnalyticsMilestonesFromSceneState, commercialCafeAnalyticsStageForCursor, commercialCafeCoffeePreparationDurationMs, commercialCafeCoffeePreparationElapsed, commercialCafeCoffeePreparationStartedAtKey, commercialCafeCoffeeStatusKey, commercialCafeCoffeeArrivedAtPrep, commercialCafeCoffeeDelivered, commercialCafeCoffeeOrdered, commercialCafeCoffeeOrderedState, commercialCafeCoffeeReady, commercialCafeDeliveryDialogueLine, commercialCafeDepartureText, commercialCafeFinishCursorOne, commercialCafeFinishDeliveryLine, commercialCafeNarrativeDialogue, commercialCafeNarrativePhaseKey, commercialCafeNarrativeStarted, commercialCafeStoryCompleted, commercialCafeStoryNeedsMigration, commercialCafeStoryReadyToLeave, commercialCafeStoryStateFromSceneState, commercialCafeStoryStatePatch, commercialCafeStoryWithCursor, isCommercialCafeStoryStage, resolveCommercialCafeNpcInteraction, shouldCompleteCommercialCafeStoryOnTransition, commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId, commercialCafeStoryTableId, type CommercialCafeAnalyticsStage, type CommercialCafeNpcInteractionResolution, type CommercialCafeStoryStage } from './commercialCafeStory'
 import { commercialCafeFloorServiceTarget, commercialCafeDutySpeedMultiplier, createCommercialCafeCoffeeOwnerBehaviorCoordinator, createCommercialCafeFloorServerBehaviorCoordinator } from './commercialCafeBehavior'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { createNavigationRuntime } from './navigationCore'
@@ -238,6 +239,7 @@ export function MainlineScenePage({
   entryPosition,
   spawnMode = 'resume',
   resumePosition,
+  laoZhouCafeSeatId = defaultLaoZhouCafeSeatId,
 }: {
   sceneId: MainlineSceneId
   onExternalExit?: () => void
@@ -279,8 +281,14 @@ export function MainlineScenePage({
   entryPosition?: Point
   spawnMode?: 'resume' | 'ride'
   resumePosition?: Point
+  laoZhouCafeSeatId?: string
 }) {
-  const sceneDefinition: MainlineSceneDefinition = mainlineScenes[sceneId]
+  const baseSceneDefinition: MainlineSceneDefinition = mainlineScenes[sceneId]
+  const sceneDefinition: MainlineSceneDefinition = useMemo(() => {
+    if (sceneId !== 'commercial-street' && sceneId !== 'commercial-cafe') return baseSceneDefinition
+    return withLaoZhouCafeSeat(baseSceneDefinition, laoZhouCafeSeatId)
+  }, [baseSceneDefinition, laoZhouCafeSeatId, sceneId])
+  const cafeConversationSeatId = laoZhouCafeConversationSeatId(laoZhouCafeSeatId)
   // Entry resolution returns a point value. Stabilize that value across ordinary
   // scene re-renders so actor-footprint registration is an occupancy lifecycle,
   // not a fresh register/remove cycle whenever presentation state changes.
@@ -397,7 +405,7 @@ export function MainlineScenePage({
   const [playerSeatId, setPlayerSeatId] = useState<string | null>(null)
   // The isolated browser fixture mirrors the real conversation-seat state in
   // memory only. It never writes the user's save and is unavailable in production.
-  const activePlayerSeatId = debugCafeFixture ? commercialCafeLaoZhouConversationSeatId : playerSeatId
+  const activePlayerSeatId = debugCafeFixture ? cafeConversationSeatId : playerSeatId
   const [promptedSeatId, setPromptedSeatId] = useState<string | null>(null)
   const [sceneEcho, setSceneEcho] = useState<MainlineSceneEcho | null>(null)
   const sceneEchoRef = useRef<MainlineSceneEcho | null>(null)
@@ -921,7 +929,7 @@ export function MainlineScenePage({
   useEffect(() => {
     if (!debugCafeFixture || debugCafeFixtureAppliedRef.current || !hasContinuousCafe(scene)) return
     debugCafeFixtureAppliedRef.current = true
-    const sitPosition = resolveMainlineSeatSitPosition(scene, commercialCafeLaoZhouConversationSeatId, layout, navigationOptions)
+    const sitPosition = resolveMainlineSeatSitPosition(scene, cafeConversationSeatId, layout, navigationOptions)
     if (!sitPosition) return
     stopMovement()
     resetMovement(sitPosition)
@@ -1622,6 +1630,7 @@ export function MainlineScenePage({
           npcId: 'lao-zhou',
           story: commercialCafeStory,
           playerSeatId: nextSeatId,
+          conversationSeatId: cafeConversationSeatId,
         })
         if (resolution?.kind === 'start-narrative') startCommercialCafeNarrative()
       }, {
@@ -1923,6 +1932,7 @@ export function MainlineScenePage({
       npcId: npc.id,
       story: commercialCafeStory,
       playerSeatId: activePlayerSeatId,
+      conversationSeatId: cafeConversationSeatId,
     })
     if (activePlayerSeatId && seatedResolution) {
       stopMovement()
@@ -1946,6 +1956,7 @@ export function MainlineScenePage({
         npcId: npc.id,
         story: commercialCafeStory,
         playerSeatId: null,
+        conversationSeatId: cafeConversationSeatId,
       })
       if (!resolution) {
         onInteractionAnalytics?.('blocked', npc.id, 'npc', 'no-interaction-available')

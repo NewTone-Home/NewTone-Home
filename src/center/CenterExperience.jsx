@@ -678,6 +678,7 @@ export default function CenterExperience({
     <MainlineScenePage
       key={key ?? `${sceneRoute.sceneId}:${sceneRoute.entryPosition?.x ?? ''}:${sceneRoute.entryPosition?.y ?? ''}:${sceneRoute.spawnMode}:${sceneResumePosition?.x ?? ''}:${sceneResumePosition?.y ?? ''}`}
       sceneId={sceneRoute.sceneId}
+      laoZhouCafeSeatId={playerSave.laoZhouCafeSeatId}
       onExternalExit={snapshot ? undefined : () => {
         const current = latestWorldPositionRef.current
         if (current && mainlineRideSuppressExternalPhoneReveal(rideOrder, current.sceneId, current.position)) return

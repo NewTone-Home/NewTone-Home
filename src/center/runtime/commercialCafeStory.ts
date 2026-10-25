@@ -267,9 +267,9 @@ export function resolveCommercialCafeFloorServiceIntent(scene: MainlineSceneDefi
 }
 
 export type CommercialCafeNpcInteractionResolution = { kind: 'dialogue'; dialogue: MainlineSceneDialoguePresentation; promptSeatId?: string } | { kind: 'start-narrative' }
-export function resolveCommercialCafeNpcInteraction({ sceneId, npcId, story, playerSeatId }: { sceneId: MainlineSceneId; npcId: string; story: CommercialCafeStoryState; playerSeatId?: string | null }): CommercialCafeNpcInteractionResolution | null {
+export function resolveCommercialCafeNpcInteraction({ sceneId, npcId, story, playerSeatId, conversationSeatId = commercialCafeLaoZhouConversationSeatId }: { sceneId: MainlineSceneId; npcId: string; story: CommercialCafeStoryState; playerSeatId?: string | null; conversationSeatId?: string }): CommercialCafeNpcInteractionResolution | null {
   if (!isCafeWorldId(sceneId) || npcId !== 'lao-zhou') return null
   if (story.status === 'complete' || story.status === 'ready-to-leave' || story.laoZhouDeparture !== 'seated') return null
-  if (playerSeatId !== commercialCafeLaoZhouConversationSeatId) return { kind: 'dialogue', dialogue: commercialCafeSeatGuideDialogue, promptSeatId: commercialCafeLaoZhouConversationSeatId }
+  if (playerSeatId !== conversationSeatId) return { kind: 'dialogue', dialogue: commercialCafeSeatGuideDialogue, promptSeatId: conversationSeatId }
   return { kind: 'start-narrative' }
 }
