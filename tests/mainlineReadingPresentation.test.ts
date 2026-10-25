@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from '../src/center/runtime/mainlineReadingPresentation'
+import { mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from '../src/center/runtime/mainlineReadingPresentation'
 
 const active: MainlineReadingPresentationSnapshot = {
   sessionKey: 'scene:observation:echo:7:plant',
@@ -53,5 +53,20 @@ describe('mainline reading presentation retention', () => {
     expect(mainlineReadingAnchorContextKey({ ...context, source: { x: 43, y: 27 } })).not.toBe(key)
     // Page-specific renderCameraOffset is intentionally not an input to this key.
     expect(mainlineReadingAnchorContextKey(context)).toBe(key)
+  })
+
+  it('keeps pages of one dialogue line together and re-fits the next line', () => {
+    const firstLine = mainlineDialogueReadingSessionKey('commercial-street', 'cafe-counter', 'line-short', 0)
+    const sameLineNextPage = mainlineDialogueReadingSessionKey('commercial-street', 'cafe-counter', 'line-short', 0)
+    const nextLongLine = mainlineDialogueReadingSessionKey('commercial-street', 'cafe-counter', 'line-long', 1)
+    const context = 'commercial-street:390x844:camera=stable'
+    const firstPagePosition = { x: 58, y: 32 }
+    const nextLineCandidate = { x: 41, y: 29 }
+    const retainedLine = { ...active, sessionKey: firstLine, anchorContextKey: context, position: firstPagePosition }
+
+    expect(sameLineNextPage).toBe(firstLine)
+    expect(nextLongLine).not.toBe(firstLine)
+    expect(mainlineReadingAnchorForSession(sameLineNextPage, context, nextLineCandidate, retainedLine)).toEqual(firstPagePosition)
+    expect(mainlineReadingAnchorForSession(nextLongLine, context, nextLineCandidate, retainedLine)).toEqual(nextLineCandidate)
   })
 })

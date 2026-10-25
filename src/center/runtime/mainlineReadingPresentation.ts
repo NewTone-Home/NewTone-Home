@@ -14,6 +14,12 @@ export type MainlineReadingPresentationSnapshot = {
 
 export type MainlineReadingPresentationPhase = 'active' | 'leaving' | 'inactive'
 
+/** Keep one dialogue line's fitted pages together, but let the next authored
+ * line choose a fresh anchor against its own text envelope. */
+export function mainlineDialogueReadingSessionKey(sceneId: string, triggerEntityId: string | undefined, lineId: string | undefined, lineIndex: number | null | undefined) {
+  return `${sceneId}:dialogue:${triggerEntityId ?? ''}:line:${lineIndex ?? ''}:${lineId ?? ''}`
+}
+
 /** Context that can invalidate a fitted anchor. `cameraOffset` is the external
  * scene camera; reading-induced text pan is intentionally not part of this key. */
 export function mainlineReadingAnchorContextKey(input: {

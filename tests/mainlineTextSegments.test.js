@@ -97,6 +97,22 @@ describe('mainline interaction text segments', () => {
     }
   })
 
+  it('never leaves trailing punctuation or whitespace as a readable page by itself', () => {
+    const measure = value => Array.from(value).length * 16
+    const punctuationTail = splitMainlineInteractionTextToFit('一二三四五六！', 96, 16, measure)
+    expect(punctuationTail).toEqual(['一二三四五', '六！'])
+    expect(punctuationTail.join('')).toBe('一二三四五六！')
+    expect(punctuationTail.every(page => measure(page) <= 96)).toBe(true)
+
+    const whitespaceTail = splitMainlineInteractionTextToFit('一二三四五六   ', 96, 16, measure)
+    expect(whitespaceTail).toHaveLength(1)
+    expect(whitespaceTail.join('')).toBe('一二三四五六   ')
+
+    const impossibleWidth = splitMainlineInteractionTextToFit('甲！', 16, 16, measure)
+    expect(impossibleWidth).toEqual(['甲！'])
+    expect(impossibleWidth.join('')).toBe('甲！')
+  })
+
   it('removes a terminal Chinese full stop before desktop and mobile width fitting', () => {
     const source = '\u8fd9\u91cc\u662f\u539f\u67dc\u53f0\u7684\u70b9\u5355\u63a5\u89e6\u4f4d\u7f6e\u3002'
     const display = '\u8fd9\u91cc\u662f\u539f\u67dc\u53f0\u7684\u70b9\u5355\u63a5\u89e6\u4f4d\u7f6e'

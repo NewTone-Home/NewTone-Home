@@ -16,11 +16,39 @@ function characterLength(value: string) {
   return Array.from(value.replace(/[\s。！？!?；;，,、：:“”‘’"'「」『』（）()【】〔〕［］《》〈〉]+$/gu, '').replace(/\s/g, '')).length
 }
 
+function readableCharacter(value: string) {
+  return Boolean(value.trim()) && !/\p{P}/u.test(value)
+}
+
 function rebalanceShortFinalPage(pages: readonly string[], maxWidthPx: number, measure: (value: string) => number) {
   if (pages.length < 2) return pages
   const previous = pages[pages.length - 2]!
   const last = pages[pages.length - 1]!
-  const lastLength = characterLength(last)
+  const lastLength = Array.from(last).filter(readableCharacter).length
+  if (lastLength === 0) {
+    // A trailing whitespace-only fragment has no readable content. Keep it
+    // attached to the preceding page, where trailing spaces do not create a
+    // visible line of their own.
+    if (!last.trim()) return [...pages.slice(0, -2), `${previous}${last}`]
+
+    // A punctuation-only tail must travel with at least one readable source
+    // character. If the narrowest possible split still cannot fit, show the
+    // combined source as one page instead of making punctuation its own step.
+    const previousCharacters = Array.from(previous)
+    let start = previousCharacters.length
+    let movedReadable = 0
+    while (start > 0 && movedReadable < 1) {
+      start -= 1
+      movedReadable += readableCharacter(previousCharacters[start]!) ? 1 : 0
+    }
+    const balancedPrevious = previousCharacters.slice(0, start).join('')
+    const balancedLast = `${previousCharacters.slice(start).join('')}${last}`
+    if (movedReadable > 0 && characterLength(balancedPrevious) > 0
+      && measure(balancedPrevious) <= maxWidthPx && measure(balancedLast) <= maxWidthPx) {
+      return [...pages.slice(0, -2), balancedPrevious, balancedLast]
+    }
+    return [...pages.slice(0, -2), `${previous}${last}`]
+  }
   const targetLength = 3
   if (lastLength < 1 || lastLength >= targetLength) return pages
 
@@ -30,8 +58,7 @@ function rebalanceShortFinalPage(pages: readonly string[], maxWidthPx: number, m
   let movedLength = 0
   while (start > 0 && movedLength < transferCount) {
     start -= 1
-    const character = previousCharacters[start]!
-    movedLength += character.trim() && !/[\p{P}\p{S}]/u.test(character) ? 1 : 0
+    movedLength += readableCharacter(previousCharacters[start]!) ? 1 : 0
   }
   // Move a literal suffix, including punctuation in its original place.
   // If balancing cannot keep both pages readable and within width, retain the
