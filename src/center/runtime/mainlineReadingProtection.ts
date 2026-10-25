@@ -116,6 +116,61 @@ export function mainlinePlaceReadingBox(
   return { x: Math.abs(projectedRange) < 1e-6 ? source.x : (chosen.x - projectedZero) * 100 / projectedRange, y: chosen.y }
 }
 
+export type MainlineReadingActionPlacement = {
+  position: Point
+  availableWidthPx: number
+  availableHeightPx: number
+  overflowY: boolean
+}
+
+/** Place a measured scene-action group as close as possible to its reading
+ * anchor while keeping the complete scroll viewport inside the current room
+ * and visible world. Width/height are measured browser pixels (so wrapping,
+ * touch targets, padding and gaps are already included). */
+export function mainlinePlaceReadingAction(
+  scene: MainlineSceneDefinition,
+  source: Point,
+  measuredSizePx: { width: number; height: number },
+  metrics: SceneScreenMetrics,
+  worldScale: number,
+  cameraOffset: Point,
+): MainlineReadingActionPlacement | null {
+  if (!(worldScale > 0) || !(measuredSizePx.width > 0) || !(measuredSizePx.height > 0)) return null
+  const rawBounds = mainlineReadingBounds(scene, source, metrics, worldScale, cameraOffset)
+  const gutterX = 12 / (sceneDesignReferenceMetrics.width * worldScale) * 100
+  const gutterY = 12 / (sceneDesignReferenceMetrics.height * worldScale) * 100
+  const bounds = {
+    x: rawBounds.x + gutterX,
+    y: rawBounds.y + gutterY,
+    width: Math.max(0, rawBounds.width - gutterX * 2),
+    height: Math.max(0, rawBounds.height - gutterY * 2),
+  }
+  const availableWidthPx = bounds.width / 100 * sceneDesignReferenceMetrics.width * worldScale
+  const availableHeightPx = bounds.height / 100 * sceneDesignReferenceMetrics.height * worldScale
+  if (!(availableWidthPx > 0) || !(availableHeightPx > 0)) return null
+
+  // If the measured group is taller than this space, keep its scroll viewport
+  // within the space and expose every option through vertical scrolling.
+  const placedHeightPx = Math.min(measuredSizePx.height, availableHeightPx)
+  const halfWidth = Math.min(measuredSizePx.width, availableWidthPx) / (sceneDesignReferenceMetrics.width * worldScale) * 50
+  const halfHeight = placedHeightPx / (sceneDesignReferenceMetrics.height * worldScale) * 50
+  const projectedSourceX = scene.id === 'commercial-street' ? projectCommercialStreetX(source.x, metrics) : source.x
+  const clamp = (value: number, minimum: number, maximum: number) => minimum <= maximum
+    ? Math.max(minimum, Math.min(maximum, value))
+    : (minimum + maximum) / 2
+  const projectedX = clamp(projectedSourceX, bounds.x + halfWidth, bounds.x + bounds.width - halfWidth)
+  const y = clamp(source.y, bounds.y + halfHeight, bounds.y + bounds.height - halfHeight)
+  const position = scene.id === 'commercial-street'
+    ? (() => {
+        const projectedZero = projectCommercialStreetX(0, metrics)
+        const projectedHundred = projectCommercialStreetX(100, metrics)
+        const range = projectedHundred - projectedZero
+        return { x: Math.abs(range) < 1e-6 ? source.x : (projectedX - projectedZero) * 100 / range, y }
+      })()
+    : { x: projectedX, y }
+  return { position, availableWidthPx, availableHeightPx, overflowY: measuredSizePx.height > availableHeightPx + .5 }
+}
+
 /** Find the longest first page that fits beside protected visuals and inside
  * the current room. The caller keeps the remaining pages and advances them
  * before advancing the authored dialogue/observation cursor. */

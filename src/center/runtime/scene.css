@@ -1244,6 +1244,10 @@
   box-sizing: border-box;
   animation: none;
 }
+.scene-mainline-action--reading[data-scene-action-overflow-y="true"] {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
 .scene-mainline-action--reading .shared-entry-control.is-content-sized {
   min-width: 0;
   min-height: 44px;

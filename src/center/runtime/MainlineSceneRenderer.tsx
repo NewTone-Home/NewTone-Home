@@ -40,7 +40,7 @@ import { storefrontContactGeometry } from './storefrontContactGeometry'
 import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingOpacityForActor, mainlineObservationTypingIntervalMs, mainlineReadingFadeTransitionMs, resolveMainlineDialogueParticipants } from './mainlineTextReading'
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
 import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
-import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingBox, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from './mainlineReadingProtection'
+import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from './mainlineReadingProtection'
 import { MainlineReadingOcclusionMask } from './MainlineReadingOcclusionMask'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
 import { mainlineReadingLocalPercent, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionMaskRegion, mainlineReadingOcclusionRect, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot } from './mainlineReadingOcclusion'
@@ -1258,6 +1258,60 @@ export function MainlineSceneRenderer({
   const sceneActionMaxWidthPx = sceneAction
     ? mainlineAvailableReadingWidthPx(scene, sceneAction.position, renderScreenMetrics, worldScale, sceneActionCameraOffset)
     : 0
+  const sceneActionMeasureKey = sceneAction ? JSON.stringify([
+    scene.id,
+    sceneAction.entityId ?? 'scene',
+    sceneAction.options,
+    sceneAction.position.x,
+    sceneAction.position.y,
+    sceneActionCameraOffset.x,
+    sceneActionCameraOffset.y,
+    renderScreenMetrics.width,
+    renderScreenMetrics.height,
+    viewportMetrics.width,
+    viewportMetrics.height,
+    worldScale,
+    sceneActionMaxWidthPx,
+  ]) : null
+  const sceneActionRef = useRef<HTMLDivElement | null>(null)
+  const [sceneActionMeasuredSize, setSceneActionMeasuredSize] = useState<{ key: string; width: number; height: number } | null>(null)
+  useLayoutEffect(() => {
+    const node = sceneActionRef.current
+    if (!sceneActionMeasureKey || !node) {
+      setSceneActionMeasuredSize(current => current?.key === sceneActionMeasureKey ? null : current)
+      return
+    }
+    const measure = () => {
+      const rect = node.getBoundingClientRect()
+      if (!(rect.width > 0) || !(rect.height > 0)) return
+      const next = {
+        key: sceneActionMeasureKey,
+        width: rect.width,
+        // scrollHeight captures the full wrapped option content after the
+        // bounded viewport is applied; transform scale converts it to screen px.
+        height: Math.max(rect.height, node.scrollHeight * worldScale),
+      }
+      setSceneActionMeasuredSize(current => current?.key === next.key
+        && Math.abs(current.width - next.width) < .25
+        && Math.abs(current.height - next.height) < .25
+        ? current
+        : next)
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(node)
+    window.addEventListener('resize', measure)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [sceneActionMeasureKey, worldScale])
+  const matchingSceneActionSize = sceneActionMeasureKey && sceneActionMeasuredSize?.key === sceneActionMeasureKey
+    ? sceneActionMeasuredSize
+    : null
+  const sceneActionPlacement = sceneAction && matchingSceneActionSize
+    ? mainlinePlaceReadingAction(scene, sceneAction.position, matchingSceneActionSize, renderScreenMetrics, worldScale, sceneActionCameraOffset)
+    : null
   const activeReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, renderCameraOffset) : readingMetrics.width - 24
   const activeReadingLayout = activeReadingPosition
     ? mainlineEchoLayout(activeReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: activeReadingWidthPx })
@@ -2262,15 +2316,26 @@ export function MainlineSceneRenderer({
             </Fragment>
           })()}
           {sceneAction && <div
+            ref={sceneActionRef}
             className="scene-mainline-action scene-mainline-action--reading"
             style={{
-              left: `${(scene.id === 'commercial-street' ? projectCommercialStreetX(sceneAction.position.x, renderScreenMetrics) : sceneAction.position.x) + sceneActionCameraOffset.x}%`,
-              top: `${sceneAction.position.y + sceneActionCameraOffset.y}%`,
-              maxWidth: `${Math.max(1, sceneActionMaxWidthPx / worldScale)}px`,
+              left: `${(scene.id === 'commercial-street' ? projectCommercialStreetX(sceneActionPlacement?.position.x ?? sceneAction.position.x, renderScreenMetrics) : sceneActionPlacement?.position.x ?? sceneAction.position.x) + sceneActionCameraOffset.x}%`,
+              top: `${(sceneActionPlacement?.position.y ?? sceneAction.position.y) + sceneActionCameraOffset.y}%`,
+              maxWidth: `${Math.max(1, Math.min(sceneActionMaxWidthPx, sceneActionPlacement?.availableWidthPx ?? sceneActionMaxWidthPx) / worldScale)}px`,
+              maxHeight: sceneActionPlacement ? `${Math.max(1, sceneActionPlacement.availableHeightPx / worldScale)}px` : undefined,
+              overflowY: sceneActionPlacement?.overflowY ? 'auto' : 'visible',
+              visibility: matchingSceneActionSize && sceneActionPlacement ? 'visible' : 'hidden',
+              pointerEvents: matchingSceneActionSize && sceneActionPlacement ? undefined : 'none',
             }}
             data-scene-action={sceneAction.entityId ?? 'scene'}
             data-scene-action-position-x={sceneAction.position.x}
             data-scene-action-position-y={sceneAction.position.y}
+            data-scene-action-rendered-x={sceneActionPlacement?.position.x ?? sceneAction.position.x}
+            data-scene-action-rendered-y={sceneActionPlacement?.position.y ?? sceneAction.position.y}
+            data-scene-action-measured-width={matchingSceneActionSize?.width}
+            data-scene-action-measured-height={matchingSceneActionSize?.height}
+            data-scene-action-max-height={sceneActionPlacement?.availableHeightPx}
+            data-scene-action-overflow-y={String(sceneActionPlacement?.overflowY ?? false)}
             onClick={(event) => event.stopPropagation()}
           >
             {sceneAction.options.map((option, index) => (

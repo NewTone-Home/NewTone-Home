@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingBox, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from '../src/center/runtime/mainlineReadingProtection'
+import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from '../src/center/runtime/mainlineReadingProtection'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineReadingBounds, mainlineInteractionRoom } from '../src/center/runtime/mainlineTextReading'
 import { projectCommercialStreetX } from '../src/center/runtime/commercialStreetGridProjection'
@@ -394,5 +394,43 @@ describe('reading target protection', () => {
     expect(action).toContain('top:32%')
     expect(action).toMatch(/max-width:\d+(?:\.\d+)?px/)
     expect(html).toContain('data-entry-id="scene-action:zhongshuyuan-office-plant:浇水"')
+  })
+
+  it.each([
+    { name: 'desktop', metrics: { width: 1280, height: 800, viewportWidth: 1280 }, scale: 0.65 },
+    { name: 'narrow phone', metrics: { width: 360, height: 550, viewportWidth: 360 }, scale: 0.65 },
+  ])('fits the measured two-option group at both room edges on $name', ({ metrics, scale }) => {
+    const scene = mainlineScenes['zhongshuyuan-office']
+    const room = scene.rooms.find(candidate => candidate.kind !== 'boundary' && candidate.kind !== 'corridor')!
+    for (const edge of ['top', 'bottom'] as const) {
+      const position = {
+        x: room.bounds.x + room.bounds.width / 2,
+        y: edge === 'top' ? room.bounds.y + 1 : room.bounds.y + room.bounds.height - 1,
+      }
+      const cameraOffset = { x: 50 - position.x, y: 50 - position.y }
+      const measured = mainlinePlaceReadingAction(scene, position, { width: 250, height: 118 }, metrics, scale, cameraOffset)
+      expect(measured).not.toBeNull()
+      const safe = measured!
+      const bounds = mainlineReadingBounds(scene, position, metrics, scale, cameraOffset)
+      const widthPercent = Math.min(250, safe.availableWidthPx) / (sceneDesignReferenceMetrics.width * scale) * 100
+      const heightPercent = Math.min(118, safe.availableHeightPx) / (sceneDesignReferenceMetrics.height * scale) * 100
+      expect(safe.position.x - widthPercent / 2).toBeGreaterThanOrEqual(bounds.x - 1e-6)
+      expect(safe.position.x + widthPercent / 2).toBeLessThanOrEqual(bounds.x + bounds.width + 1e-6)
+      expect(safe.position.y - heightPercent / 2).toBeGreaterThanOrEqual(bounds.y - 1e-6)
+      expect(safe.position.y + heightPercent / 2).toBeLessThanOrEqual(bounds.y + bounds.height + 1e-6)
+      expect(safe.position.y).not.toBe(position.y)
+      expect(safe.overflowY).toBe(false)
+    }
+  })
+
+  it('bounds an oversized option list in the same room and exposes vertical scrolling', () => {
+    const scene = mainlineScenes['zhongshuyuan-office']
+    const room = scene.rooms.find(candidate => candidate.kind !== 'boundary' && candidate.kind !== 'corridor')!
+    const position = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + 1 }
+    const placement = mainlinePlaceReadingAction(scene, position, { width: 250, height: 900 }, { width: 360, height: 550, viewportWidth: 360 }, 0.65, { x: 50 - position.x, y: 50 - position.y })
+    expect(placement).not.toBeNull()
+    expect(placement!.overflowY).toBe(true)
+    expect(placement!.availableHeightPx).toBeGreaterThan(0)
+    expect(placement!.position.y).toBeGreaterThan(position.y)
   })
 })
