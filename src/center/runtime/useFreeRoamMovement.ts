@@ -15,6 +15,8 @@ const defaultFreeRoamSpeed = .018
  */
 export const sharedCharacterWalkSpeedPxPerSecond = 280
 export const protagonistCharacterWalkSpeedPxPerSecond = 340
+/** Shared finite tolerance used when locomotion consumes a waypoint. */
+export const freeRoamWaypointArrivalRadius = .22
 
 export type MovementOptions = {
   /** Called once when a non-empty movement actually starts. */
@@ -317,12 +319,11 @@ export function createFreeRoamController(initialPosition: Point): FreeRoamContro
     activeSession.lastFrameAt = now
     const speedMultiplier = activeSession.options.speedMultiplier?.() ?? 1
     const delta = rawDelta * Math.max(0, speedMultiplier)
-    const arrivalRadius = .22
     let current = position
 
     while (activeSession.waypointIndex < activeSession.waypoints.length) {
       const waypoint = activeSession.waypoints[activeSession.waypointIndex]
-      if (Math.hypot(waypoint.x - current.x, waypoint.y - current.y) > arrivalRadius) break
+      if (Math.hypot(waypoint.x - current.x, waypoint.y - current.y) > freeRoamWaypointArrivalRadius) break
       const occupancy = activeSession.waypointIndex === 0 && activeSession.preserveInitialExit
         ? activeSession.options.initialCanOccupy
         : activeSession.waypointIndex === activeSession.waypoints.length - 1

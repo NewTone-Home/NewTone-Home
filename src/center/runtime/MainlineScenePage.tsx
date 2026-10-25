@@ -427,6 +427,7 @@ export function MainlineScenePage({
   const [genericDialoguePhase, setGenericDialoguePhase] = useState<'active' | 'leaving'>('active')
   const [commercialStreetQuestionNarrativeCompletedLocally, setCommercialStreetQuestionNarrativeCompletedLocally] = useState(() => commercialStreetQuestionNarrativeCompleted(initialSceneState[commercialStreetQuestionNarrativeCompletedKey]))
   const commercialStreetQuestionNarrativeActiveRef = useRef(false)
+  const commercialStreetQuestionPreviousPositionRef = useRef<{ sceneId: string; position: Point } | null>(null)
   const sceneTextSlowdownActiveRef = useRef(false)
   const [officeBlindsOpen, setOfficeBlindsOpen] = useState(initialSceneState.blindsOpen !== false)
   const [incenseLitAt, setIncenseLitAt] = useState<number | null>(() => typeof initialSceneState.incenseLitAt === 'number' ? initialSceneState.incenseLitAt : null)
@@ -608,7 +609,11 @@ export function MainlineScenePage({
     dismissSceneAction()
   }, [dismissSceneAction, dismissSceneEcho, onPhoneDismiss, phoneOpen, readingActive])
   const internalMovement = useFreeRoamMovement(initialPosition)
-  const { position, moving, moveAlong: rawMoveAlong, stopMovement, resetMovement, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
+  const { position, moving, moveAlong: rawMoveAlong, stopMovement, resetMovement: resetMovementController, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
+  const resetMovement = useCallback((nextPosition?: Point) => {
+    resetMovementController(nextPosition)
+    commercialStreetQuestionPreviousPositionRef.current = { sceneId: scene.id, position: nextPosition ?? getCurrentPosition() }
+  }, [getCurrentPosition, resetMovementController, scene.id])
   const cameraOffset = useMainlineCamera(scene, position, embedded, activeViewportMetrics)
   const activeDialogueSegments = activeDialogueLine ? splitMainlineInteractionText(activeDialogueLine.text) : []
   const activeDialogueText = activeDialogueSegments[dialogueSegmentIndex] ?? activeDialogueSegments[0] ?? ''
@@ -845,8 +850,11 @@ export function MainlineScenePage({
     return () => window.clearTimeout(timer)
   }, [commercialCafeExpiryPassedBeforeEntry, commercialCafeStory, initialSceneState, recordSceneStatePatch, scene.id])
   useEffect(() => {
+    const previous = commercialStreetQuestionPreviousPositionRef.current
+    commercialStreetQuestionPreviousPositionRef.current = { sceneId: scene.id, position }
     if (commercialStreetQuestionNarrative || commercialStreetQuestionNarrativeIsCompleted) return
-    if (!commercialStreetQuestionNarrativeShouldTrigger(scene, position)) return
+    const previousPosition = previous?.sceneId === scene.id ? previous.position : undefined
+    if (!commercialStreetQuestionNarrativeShouldTrigger(scene, position, previousPosition, commercialStreetQuestionNarrativeIsCompleted)) return
     stopMovement()
     setRequestedWorldTarget(null)
     setCommercialStreetQuestionNarrative({ phase: 'active', segmentIndex: 0 })
