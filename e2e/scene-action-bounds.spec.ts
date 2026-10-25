@@ -98,11 +98,17 @@ test('zero saved and current camera offsets do not add a second translation', as
 test('a touch release on the option panel does not walk the scene; overflow scroll reaches and activates the last option', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 550 })
   await page.goto('/e2e/fixtures/scene-action-bounds.html')
-  await page.locator('[data-action-overflow]').click()
+  await page.locator('[data-action-scroll-overflow]').click()
   const action = page.locator('[data-scene-action="fixture-two-long-options"]')
   await expect(action).toBeVisible()
   await expect(action).toHaveAttribute('data-scene-action-overflow-y', 'true')
+  const measured = await action.evaluate(element => {
+    const node = element as HTMLElement
+    return { height: Number(node.dataset.sceneActionMeasuredHeight), maxHeight: Number(node.dataset.sceneActionMaxHeight) }
+  })
+  expect(measured.height).toBeGreaterThan(measured.maxHeight)
   await expect.poll(() => action.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
+  await expect(action.locator('[data-entry-id^="scene-action:fixture-two-long-options:"]')).toHaveCount(10)
 
   const root = page.locator('.mainline-scene--map-only').first()
   await action.evaluate(element => element.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch', isPrimary: true })))
@@ -118,10 +124,10 @@ test('a touch release on the option panel does not walk the scene; overflow scro
   expect(await page.evaluate(() => document.documentElement.scrollTop)).toBe(bodyScrollBefore)
 
   await action.evaluate(element => { element.scrollTop = element.scrollHeight })
-  const lastOption = action.locator('[data-scene-action-option-index="1"]')
+  const lastOption = action.locator('[data-scene-action-option-index="9"]')
   await lastOption.scrollIntoViewIfNeeded()
   await expect(lastOption).toBeInViewport()
   await lastOption.click()
-  await expect(root).toHaveAttribute('data-fixture-choice-index', '1', { timeout: 3000 })
+  await expect(root).toHaveAttribute('data-fixture-choice-index', '9', { timeout: 3000 })
   await expect(root).toHaveAttribute('data-fixture-walk-count', '0')
 })
