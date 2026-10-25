@@ -19,6 +19,7 @@ function Fixture() {
   const [pageIndex, setPageIndex] = useState(0)
   const [mode, setMode] = useState<'observation' | 'dialogue' | null>(null)
   const [leaving, setLeaving] = useState(false)
+  const [typing, setTyping] = useState(false)
   const [metrics, setMetrics] = useState({ width: innerWidth, height: innerHeight, viewportWidth: innerWidth })
   const presentation = useStorefrontPresentation(scene, position)
   const geometry = createMainlineSceneGeometrySnapshot(scene, position, {}, metrics, presentation.phaseByStorefront)
@@ -26,11 +27,12 @@ function Fixture() {
   const dialogueLines = [{ id: 'fixture-line', speaker: '老周' as const, text: pages.join('') }]
   const dialogueLine = { ...dialogueLines[0], text: pageText }
 
-  return <div className="mainline-scene--map-only" style={{ '--room': '#0b0f12', '--active': '#f0cc7b', '--ink': '#b0bec5', '--soft': '#a1c2c2', '--muted': '#6c8088' } as React.CSSProperties}>
+  return <div className="mainline-scene--map-only" data-fixture-page-index={pageIndex} data-fixture-typing={String(typing)} style={{ '--room': '#0b0f12', '--active': '#f0cc7b', '--ink': '#b0bec5', '--soft': '#a1c2c2', '--muted': '#6c8088' } as React.CSSProperties}>
     <div style={{ position: 'fixed', zIndex: 100, top: 8, left: 8, display: 'flex', gap: 6 }}>
-      <button data-reading-start onClick={() => { setPageIndex(0); setLeaving(false); setMode('observation') }}>Start observation</button>
-      <button data-reading-dialogue onClick={() => { setPageIndex(0); setLeaving(false); setMode('dialogue') }}>Start dialogue</button>
-      <button data-reading-observation onClick={() => { setPageIndex(0); setLeaving(false); setMode('observation') }}>Start observation</button>
+      <button data-reading-start onClick={() => { setPageIndex(0); setTyping(false); setLeaving(false); setMode('observation') }}>Start observation</button>
+      <button data-reading-dialogue onClick={() => { setPageIndex(0); setTyping(false); setLeaving(false); setMode('dialogue') }}>Start dialogue</button>
+      <button data-reading-observation onClick={() => { setPageIndex(0); setTyping(false); setLeaving(false); setMode('observation') }}>Start observation</button>
+      <button data-reading-type onClick={() => setTyping(true)}>Type</button>
       <button data-reading-next onClick={() => setPageIndex(current => (current + 1) % pages.length)}>Next page</button>
       <button data-reading-leave onClick={() => setLeaving(true)}>Leave</button>
     </div>
@@ -54,7 +56,12 @@ function Fixture() {
         onInteract={() => {}}
         onWalk={() => {}}
         readingMode={mode && !leaving ? mode : null}
-        sceneEcho={mode === 'observation' ? { id: 810, text: pageText, segments: pages, segmentIndex: pageIndex, position, typing: false, ...(leaving ? { phase: 'leaving' as const } : {}) } : null}
+        sceneEcho={mode === 'observation' ? { id: 810, text: pageText, segments: pages, segmentIndex: pageIndex, position, typing, ...(leaving ? { phase: 'leaving' as const } : {}) } : null}
+        onSceneEchoAdvance={() => {
+          if (typing) setTyping(false)
+          else setPageIndex(current => Math.min(current + 1, pages.length - 1))
+        }}
+        onSceneEchoTypingComplete={() => setTyping(false)}
         dialogue={mode === 'dialogue' ? { triggerEntityId: 'fixture-dialogue', lines: dialogueLines as import('../../src/center/runtime/mainlineSceneModel').MainlineSceneDialogueLine[] } : undefined}
         dialogueLine={mode === 'dialogue' ? dialogueLine as import('../../src/center/runtime/mainlineSceneModel').MainlineSceneDialogueLine : null}
         dialogueLineIndex={mode === 'dialogue' ? 0 : null}
@@ -62,6 +69,7 @@ function Fixture() {
         dialogueSegmentCount={pages.length}
         dialoguePosition={mode === 'dialogue' ? position : null}
         dialogueText={mode === 'dialogue' ? pageText : undefined}
+        onDialogueAdvance={() => setPageIndex(current => Math.min(current + 1, pages.length - 1))}
         dialoguePhase={leaving ? 'leaving' : 'active'}
       />
     </Profiler>

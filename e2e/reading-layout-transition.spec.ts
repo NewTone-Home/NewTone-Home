@@ -186,3 +186,46 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
     expect(leaving.height).toBeCloseTo(after.height, 0)
   })
 }
+
+for (const mode of ['observation', 'dialogue'] as const) {
+  test(`${mode} ignores repeated continue input during a page flip but accepts the next page afterward`, async ({ page }) => {
+    await page.setViewportSize({ width: 411, height: 914 })
+    await page.goto('/e2e/fixtures/reading-layout-transition.html')
+    await page.locator(mode === 'observation' ? '[data-reading-start]' : '[data-reading-dialogue]').click()
+    const text = page.locator(mode === 'observation' ? '.scene-mainline-text[data-scene-echo]' : '.scene-mainline-text[data-scene-dialogue]')
+    if (mode === 'dialogue') await expect(text).toHaveAttribute('data-scene-dialogue-ready', 'true')
+    if (mode === 'observation') {
+      await page.locator('[data-reading-type]').click()
+      await expect(page.locator('.mainline-scene--map-only')).toHaveAttribute('data-fixture-typing', 'true')
+      await page.locator('[data-scene-dialogue-shield]').evaluate(element => {
+        const shield = element as HTMLButtonElement
+        shield.click()
+        shield.click()
+      })
+      await expect(page.locator('.mainline-scene--map-only')).toHaveAttribute('data-fixture-typing', 'false')
+      await expect(page.locator('.mainline-scene--map-only')).toHaveAttribute('data-fixture-page-index', '0')
+    }
+    await page.locator('[data-scene-dialogue-shield]').evaluate(element => {
+      const shield = element as HTMLButtonElement
+      shield.click()
+      shield.click()
+      shield.click()
+    })
+    await expect(page.locator('.mainline-scene--map-only')).toHaveAttribute('data-fixture-page-index', '1')
+    await expect(text.locator('[data-page-flip="settled"]')).toHaveCount(1, { timeout: 1500 })
+    if (mode === 'dialogue') await expect(text).toHaveAttribute('data-scene-dialogue-ready', 'true')
+    await page.locator('[data-scene-dialogue-shield]').evaluate(element => (element as HTMLButtonElement).click())
+    await expect(page.locator('.mainline-scene--map-only')).toHaveAttribute('data-fixture-page-index', '2')
+  })
+}
+
+test('explicit leave remains available while a page flip is running', async ({ page }) => {
+  await page.setViewportSize({ width: 411, height: 914 })
+  await page.goto('/e2e/fixtures/reading-layout-transition.html')
+  await page.locator('[data-reading-start]').click()
+  const text = page.locator('.scene-mainline-text[data-scene-echo]')
+  await page.locator('[data-scene-dialogue-shield]').evaluate(element => (element as HTMLButtonElement).click())
+  await expect(text.locator('[data-page-flip="running"]')).toHaveCount(1)
+  await page.locator('[data-reading-leave]').click()
+  await expect(text).toHaveClass(/is-leaving/)
+})

@@ -24,7 +24,7 @@ import { sceneFrameDefaultMotionMs } from './sceneMotion'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import { mainlineEchoLayout, mainlineSpeakerAnchor, type MainlineEchoLayout } from './mainlineEchoLayout'
-import { interpolateMainlineReadingLayout, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize } from './mainlineReadingLayoutTransition'
+import { interpolateMainlineReadingLayout, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize, mainlineReadingPageTransitionDurationMs } from './mainlineReadingLayoutTransition'
 import { mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
@@ -328,7 +328,7 @@ function ReadingPageFlip({ pageKey, text, children, mode, onFlipComplete }: { pa
   </span>
 }
 
-function ObservationText({ echoId, pageKey, text, typing, onTypingComplete }: { echoId: number; pageKey: string; text: string; typing: boolean; onTypingComplete?: (echoId: number) => void }) {
+function ObservationText({ echoId, pageKey, text, typing, onTypingComplete, onFlipComplete }: { echoId: number; pageKey: string; text: string; typing: boolean; onTypingComplete?: (echoId: number) => void; onFlipComplete?: () => void }) {
   const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
   const [visibleCount, setVisibleCount] = useState(0)
 
@@ -352,19 +352,19 @@ function ObservationText({ echoId, pageKey, text, typing, onTypingComplete }: { 
   }, [characters, echoId, onTypingComplete, typing])
 
   return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">
-    <ReadingPageFlip pageKey={pageKey} text={text} mode="observation">
+    <ReadingPageFlip pageKey={pageKey} text={text} mode="observation" onFlipComplete={onFlipComplete}>
       {characters.slice(0, visibleCount).join('')}
     </ReadingPageFlip>
   </span>
 }
 
-function DialogueText({ group, pageKey, text, onReadyChange }: { group: string; pageKey: string; text: string; onReadyChange?: (group: string, ready: boolean) => void }) {
+function DialogueText({ group, pageKey, text, onReadyChange, onFlipComplete }: { group: string; pageKey: string; text: string; onReadyChange?: (group: string, ready: boolean) => void; onFlipComplete?: () => void }) {
   useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, onReadyChange])
   return <span
     className="scene-mainline-text__dialogue"
     data-scene-text-mode="dialogue"
   >
-    <ReadingPageFlip pageKey={pageKey} text={text} mode="dialogue" onFlipComplete={() => onReadyChange?.(group, true)}>
+    <ReadingPageFlip pageKey={pageKey} text={text} mode="dialogue" onFlipComplete={() => { onFlipComplete?.(); onReadyChange?.(group, true) }}>
       {mainlineVisiblePresentationText(text)}
     </ReadingPageFlip>
   </span>
@@ -985,6 +985,20 @@ export function MainlineSceneRenderer({
   const readingOcclusionMaskId = `mainline-reading-occlusion-${useId().replace(/:/g, '')}`
   const [dialogueReady, setDialogueReady] = useState(false)
   const [readingOverflowPage, setReadingOverflowPage] = useState<import('./mainlineReadingProtection').MainlineReadingOverflowPageState>(null)
+  const readingPageAdvanceLockedRef = useRef(false)
+  const readingPageAdvanceLockTimerRef = useRef<number | null>(null)
+  const typingCompletionLockRef = useRef(false)
+  const releaseReadingPageAdvance = useCallback(() => {
+    readingPageAdvanceLockedRef.current = false
+    if (readingPageAdvanceLockTimerRef.current !== null) window.clearTimeout(readingPageAdvanceLockTimerRef.current)
+    readingPageAdvanceLockTimerRef.current = null
+  }, [])
+  const lockReadingPageAdvance = useCallback(() => {
+    readingPageAdvanceLockedRef.current = true
+    if (readingPageAdvanceLockTimerRef.current !== null) window.clearTimeout(readingPageAdvanceLockTimerRef.current)
+    readingPageAdvanceLockTimerRef.current = window.setTimeout(releaseReadingPageAdvance, mainlineReadingPageTransitionDurationMs + 240)
+  }, [releaseReadingPageAdvance])
+  useEffect(() => () => releaseReadingPageAdvance(), [releaseReadingPageAdvance])
   const [retainedReadingOcclusion, setRetainedReadingOcclusion] = useState<RetainedReadingOcclusion | null>(null)
   const [activeReadingOcclusionSession, setActiveReadingOcclusionSession] = useState<string | null>(null)
   const readingOcclusionExitTimerRef = useRef<number | null>(null)
@@ -1127,6 +1141,17 @@ export function MainlineSceneRenderer({
   const activeReadingText = sceneEcho?.text ?? dialogueText ?? dialogueLine?.text ?? ''
   const readingIsLeaving = sceneEcho?.phase === 'leaving' || (!sceneEcho && dialoguePhase === 'leaving' && Boolean(dialogue && dialogueLine && dialoguePosition))
   const readingPresentationPhase = readingMode ? 'active' : readingIsLeaving ? 'leaving' : 'inactive'
+  useIsomorphicLayoutEffect(() => {
+    if (readingPresentationPhase !== 'active') {
+      typingCompletionLockRef.current = false
+      releaseReadingPageAdvance()
+    }
+  }, [readingPresentationPhase, releaseReadingPageAdvance])
+  useEffect(() => {
+    if (!typingCompletionLockRef.current || sceneEcho?.typing) return
+    typingCompletionLockRef.current = false
+    releaseReadingPageAdvance()
+  }, [releaseReadingPageAdvance, sceneEcho?.typing])
   const readingPresentationMode = readingMode ?? (sceneEcho ? 'observation' : readingIsLeaving ? 'dialogue' : null)
   const readingSessionKey = !readingPresentationMode ? null : sceneEcho
     ? `${scene.id}:observation:echo:${sceneEcho.id}:${sceneEcho.entityId ?? ''}`
@@ -2227,8 +2252,8 @@ export function MainlineSceneRenderer({
             >
               {isDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
-                ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} pageKey={readingLayoutPageKey ?? group} text={text} onReadyChange={updateDialogueReady} />
-                : <ObservationText echoId={sceneEcho!.id} pageKey={`${sceneEcho!.id}:${sceneEcho!.segmentIndex}:${displayOverflowIndex}`} text={text} typing={sceneEcho!.typing} onTypingComplete={onSceneEchoTypingComplete} />}
+                ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} pageKey={readingLayoutPageKey ?? group} text={text} onReadyChange={updateDialogueReady} onFlipComplete={releaseReadingPageAdvance} />
+                : <ObservationText echoId={sceneEcho!.id} pageKey={`${sceneEcho!.id}:${sceneEcho!.segmentIndex}:${displayOverflowIndex}`} text={text} typing={sceneEcho!.typing} onTypingComplete={onSceneEchoTypingComplete} onFlipComplete={releaseReadingPageAdvance} />}
             </div>
             </Fragment>
           })()}
@@ -2273,7 +2298,9 @@ export function MainlineSceneRenderer({
               onPointerUp={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation()
+                if (readingPageAdvanceLockedRef.current) return
                 if (displayOverflowIndex + 1 < fittedReadingSegments.length) {
+                  lockReadingPageAdvance()
                   if (readingSessionKey) setReadingOverflowPage({ sessionKey: readingSessionKey, key: readingOverflowKey, index: displayOverflowIndex + 1 })
                   return
                 }
@@ -2282,6 +2309,7 @@ export function MainlineSceneRenderer({
                   if (currentDialogueGroupRef.current !== null
                     && dialogueAdvanceConsumedGroupRef.current !== currentDialogueGroupRef.current
                     && dialogueReadyGroupRef.current === currentDialogueGroupRef.current) {
+                    lockReadingPageAdvance()
                     dialogueAdvanceConsumedGroupRef.current = currentDialogueGroupRef.current
                     dialogueReadyGroupRef.current = null
                     setDialogueReady(false)
@@ -2289,6 +2317,13 @@ export function MainlineSceneRenderer({
                   }
                   return
                 }
+                if (sceneEcho?.typing) {
+                  typingCompletionLockRef.current = true
+                  lockReadingPageAdvance()
+                  onSceneEchoAdvance?.()
+                  return
+                }
+                lockReadingPageAdvance()
                 onSceneEchoAdvance?.()
               }}
             />
