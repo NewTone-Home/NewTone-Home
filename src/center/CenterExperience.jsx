@@ -21,6 +21,7 @@ import { isPointInContinuousCafe } from './runtime/continuousCafe'
 import { advanceMainlineStoryClock } from './runtime/mainlineStoryClock'
 import { advancePhoneStoryNotes, createPlayerPhoneNote, ensurePhoneYongheLead, pinPhoneStoryNote, updatePhoneNote } from './runtime/phonePersonalData'
 import { commercialCafeStoryStatusKey } from './runtime/commercialCafeStory'
+import { commercialCafeCompletionPhonePatch } from './runtime/cafeCompletionPhone'
 import { mainlineRideAtPickup, mainlineRideOrderFromState, mainlineRideOrderPatch, mainlineRideSuppressExternalPhoneReveal, mainlineRideWalkingEtaMs, mainlineRideZone } from './runtime/mainlineRide'
 import {
   phoneRideAvailability,
@@ -215,6 +216,12 @@ export default function CenterExperience({
     if (sceneReadingActiveRef.current) return
     setPhoneNotificationScreen(playerSaveRef.current.phoneNotifications.some(n => n.unread))
     setRequestedPhoneApp(null)
+    setPhoneOpen(true)
+  }, [])
+  const revealCafeStoryPhone = useCallback(() => {
+    if (sceneReadingActiveRef.current) return
+    setPhoneNotificationScreen(false)
+    setRequestedPhoneApp('lao-zhou-messages')
     setPhoneOpen(true)
   }, [])
   const retractPhone = useCallback(() => {
@@ -602,9 +609,21 @@ export default function CenterExperience({
     }
     cafeClockInsideRef.current = insideCafe
     latestWorldPositionRef.current = { sceneId, position, context }
+    if (sceneId === 'commercial-street') {
+      const cafeState = playerSaveRef.current.sceneState['commercial-cafe']
+      const handoffPatch = commercialCafeCompletionPhonePatch(cafeState, {
+        insideCafe,
+        phoneDevice: playerSaveRef.current.phoneDevice,
+        readingActive: sceneReadingActiveRef.current,
+      })
+      if (handoffPatch) {
+        commitPlayerSave(current => recordPlayerSceneStatePatch(current, 'commercial-cafe', handoffPatch))
+        revealCafeStoryPhone()
+      }
+    }
     rideBoardingRef.current(sceneId, position, context)
     positionSamplerRef.current?.sample(sceneId, position)
-  }, [commitPlayerSave])
+  }, [commitPlayerSave, revealCafeStoryPhone])
 
   const handlePlayerMovementStateChange = useCallback((moving) => {
     setCenterMovementActive(moving)

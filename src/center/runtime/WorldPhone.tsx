@@ -68,7 +68,7 @@ type WorldPhoneProps = {
   milkTeaAppUnlocked?: boolean
   milkTeaOrder?: CommercialStreetMilkTeaOrder | null
   milkTeaHeld?: boolean
-  requestedApp?: 'milk-tea' | null
+  requestedApp?: 'milk-tea' | 'lao-zhou-messages' | null
   onRequestedAppHandled?: () => void
   onMilkTeaOrderConfirm?: (selection: { drink: MilkTeaDrink; sugar: MilkTeaSugar; ice: MilkTeaIce }) => void
   onMilkTeaOrderStarted?: () => void
@@ -400,6 +400,16 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
     setActiveApp('milk-tea')
     onRequestedAppHandled?.()
   }, [milkTeaAppUnlocked, onAppOpen, onRequestedAppHandled, open, requestedApp])
+
+  useEffect(() => {
+    if (!open || requestedApp !== 'lao-zhou-messages') return
+    onAppOpen?.('contacts')
+    setActiveApp('contacts')
+    setSelectedContactId('lao-zhou')
+    setContactDirection(1)
+    setContactView('messages')
+    onRequestedAppHandled?.()
+  }, [onAppOpen, onRequestedAppHandled, open, requestedApp])
 
   useEffect(() => {
     if (activeApp !== 'milk-tea') milkTeaOrderStartedRef.current = false
