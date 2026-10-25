@@ -12,12 +12,10 @@ import {
   commercialCafeCoffeeReady,
   commercialCafeCoffeeStatusKey,
   commercialCafeCoffeeOrdered,
-  commercialCafeCompletionPresenceMs,
   commercialCafeFinishCursorOne,
   commercialCafeFinishDeliveryLine,
   commercialCafeFloorServerNpcId,
   commercialCafeLaoZhouConversationSeatId,
-  commercialCafeLaoZhouDepartureDue,
   commercialCafeLaoZhouIsPresent,
   commercialCafeNarrativeDialogue,
   commercialCafeNarrativePhaseKey,
@@ -190,15 +188,56 @@ describe('commercial café story contract', () => {
     expect(cafe.objects.find(({ id }) => id === commercialCafeStoryTableId)?.label).toBe('桌子')
   })
 
-  it('completes only on public departure and starts Lao Zhou’s five-minute presence clock', () => {
+  it('completes only on public departure and keeps Lao Zhou present indefinitely', () => {
     const base = initialCommercialCafeStoryState()
     expect(shouldCompleteCommercialCafeStoryOnTransition({ sceneId: 'commercial-cafe', story: base, targetSceneId: 'commercial-street' })).toBe(false)
     const ready = commercialCafeStoryReadyToLeave(base)
     expect(shouldCompleteCommercialCafeStoryOnTransition({ sceneId: 'commercial-cafe', story: ready, targetSceneId: 'commercial-street' })).toBe(true)
     const complete = commercialCafeStoryCompleted(ready, 1_000)
     expect(complete).toMatchObject({ status: 'complete', completedAt: 1_000, laoZhouDeparture: 'seated' })
-    expect(commercialCafeLaoZhouIsPresent(complete, 1_000 + commercialCafeCompletionPresenceMs)).toBe(true)
-    expect(commercialCafeLaoZhouDepartureDue(complete, 1_000 + commercialCafeCompletionPresenceMs - 1)).toBe(false)
-    expect(commercialCafeLaoZhouDepartureDue(complete, 1_000 + commercialCafeCompletionPresenceMs)).toBe(true)
+    expect(commercialCafeLaoZhouIsPresent(complete, Number.MAX_SAFE_INTEGER)).toBe(true)
+  })
+
+  it.each(['walking-out', 'departed'] as const)('migrates legacy %s saves to the resident state without resetting progress', (departure) => {
+    const legacy = {
+      commercialCafeStoryStatus: 'complete',
+      commercialCafeNarrativeCursor: 14,
+      commercialCafeCoffeeStatus: 'delivered',
+      commercialCafeNarrativePhase: 'complete',
+      commercialCafeLaoZhouDeparture: departure,
+      commercialCafeCompletedAt: 123456,
+      commercialCafeCompletionPhonePending: true,
+      commercialCafeCompletionPhoneDisplayed: false,
+    }
+    const story = commercialCafeStoryStateFromSceneState(legacy)
+    expect(story).toMatchObject({
+      status: 'complete', narrativeCursor: 14, coffeeStatus: 'delivered',
+      narrativePhase: 'complete', laoZhouDeparture: 'seated', completedAt: 123456,
+    })
+    expect(commercialCafeStoryNeedsMigration(legacy)).toBe(true)
+    const patch = commercialCafeStoryStatePatch(story)
+    expect(patch).toMatchObject({
+      commercialCafeStoryStatus: 'complete', commercialCafeNarrativeCursor: 14,
+      commercialCafeLaoZhouDeparture: 'seated', commercialCafeCompletedAt: 123456,
+    })
+    expect(patch).not.toHaveProperty('commercialCafeCompletionPhonePending')
+    expect(patch).not.toHaveProperty('commercialCafeCompletionPhoneDisplayed')
+  })
+
+  it('keeps a missing completion time missing while restoring a departed legacy resident', () => {
+    const story = commercialCafeStoryStateFromSceneState({
+      commercialCafeStoryStatus: 'complete', commercialCafeNarrativeCursor: 14,
+      commercialCafeLaoZhouDeparture: 'departed',
+    })
+    expect(story).toMatchObject({ status: 'complete', narrativeCursor: 14, laoZhouDeparture: 'seated', completedAt: null })
+  })
+
+  it('keeps a legacy available story interactable after restoring Lao Zhou', () => {
+    const story = commercialCafeStoryStateFromSceneState({
+      commercialCafeStoryStatus: 'available', commercialCafeNarrativeCursor: 3,
+      commercialCafeLaoZhouDeparture: 'departed',
+    })
+    expect(story).toMatchObject({ status: 'available', narrativeCursor: 3, laoZhouDeparture: 'seated' })
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story, playerSeatId: commercialCafeLaoZhouConversationSeatId })).toEqual({ kind: 'start-narrative' })
   })
 })

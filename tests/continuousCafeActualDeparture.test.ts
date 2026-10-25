@@ -6,13 +6,15 @@ import {canActorReachPassageApproach,canTravelAlongMainlineSegment,isWalkableMai
 import {sceneDesignReferenceMetrics} from '../src/center/runtime/sceneBoundaryGrid'
 import {mainlineProtagonistDotFootprint} from '../src/center/runtime/sceneLayout'
 const scene=mainlineScenes['commercial-street'],door=scene.passages.find(p=>p.id==='street-cafe-entry')!,options={screenMetrics:sceneDesignReferenceMetrics}
-describe('continuous Cafe visible departure and real window boundary',()=>{
- it('releases only the visual seat anchor for moving/blocked/waiting departure duties',()=>{
+describe('continuous Cafe resident and real window boundary',()=>{
+ it('keeps Lao Zhou as an independent resident NPC with the chair only as pose and occupancy anchor',()=>{
   const id=mainlineNpcStagedSeatId(scene,'lao-zhou')!,seat=scene.objects.find(o=>o.id===id)!.position,runtime={x:seat.x-5,y:seat.y+3}
   expect(mainlineNpcVisualSeatId(scene,'lao-zhou',{phase:'idle',dutyId:'lao-zhou.seated'})).toBe(id)
-  for(const phase of ['moving','blocked','waiting','idle'] as const){const visualSeat=mainlineNpcVisualSeatId(scene,'lao-zhou',{phase,dutyId:'lao-zhou.exit-cafe'});expect(visualSeat).toBeUndefined();expect(mainlineSeatedActorVisualPosition(runtime,visualSeat,seat)).toEqual(runtime)}
+  expect(scene.npcs.find(npc=>npc.id==='lao-zhou')).toMatchObject({ id:'lao-zhou', roleId:'lao-zhou', interactionTargetEntityId:'commercial-cafe-right-window-upper-group-table' })
+  expect(scene.npcBehaviors.find(behavior=>behavior.npcId==='lao-zhou')).toMatchObject({ dutyId:'lao-zhou.seated', targetKind:'seat', targetId:id })
+  expect(mainlineSeatedActorVisualPosition(runtime,id,seat)).toEqual(seat)
   expect(mainlineSceneOccupiedSeatIds(scene).has(id)).toBe(true)
-  expect(mainlineSceneOccupiedSeatIds(scene,null,new Set(['lao-zhou'])).has(id)).toBe(false)
+  expect(mainlineSceneOccupiedSeatIds(scene,null,new Set()).has(id)).toBe(true)
  })
  it('keeps the actual window wall solid in open and closed door phases',()=>{
   for(const open of [false,true])for(const x of [142.993,141.107,139.211,137.327,135.434,133.548,131.662,129.768,127.88]){

@@ -1,7 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
   commercialCafeCompletedAtKey,
-  commercialCafeCompletionPresenceMs,
   commercialCafeCoffeePreparationDurationMs,
   commercialCafeCoffeePreparationStartedAtKey,
   commercialCafeCoffeeStatusKey,
@@ -655,156 +654,37 @@ test('a delivered coffee line resumes after reload and never repeats after ackno
   }, commercialCafeCoffeeStatusKey)).toBe('delivered')
 })
 
-test('post-story re-entry retains the story table label and Lao Zhou for five minutes, then expires by timestamp', async ({ page }) => {
-  await café(page)
+test('Lao Zhou remains visible after completion and restores legacy departed saves without replay', async ({ page }) => {
+  await enterCafeFromStreet(page)
   await page.evaluate((keys) => {
     const raw = localStorage.getItem('newtone-player-save-v1')
     if (!raw) throw new Error('Expected isolated player save')
     const save = JSON.parse(raw)
     save.sceneState['commercial-cafe'] = {
-      [keys.status]: 'complete', [keys.cursor]: 14, [keys.coffeeStatus]: 'none', [keys.phase]: 'complete', [keys.completedAt]: Date.now(),
+      [keys.status]: 'complete', [keys.cursor]: 14, [keys.coffeeStatus]: 'delivered',
+      [keys.phase]: 'complete', [keys.departure]: 'departed', [keys.completedAt]: 123456,
+      commercialCafeCompletionPhonePending: false,
+      commercialCafeCompletionPhoneDisplayed: true,
     }
     localStorage.setItem('newtone-player-save-v1', JSON.stringify(save))
-  }, { status: commercialCafeStoryStatusKey, cursor: commercialCafeNarrativeCursorKey, coffeeStatus: commercialCafeCoffeeStatusKey, phase: commercialCafeNarrativePhaseKey, completedAt: commercialCafeCompletedAtKey })
-  await page.reload()
-  await expect(page.getByRole('button', { name: '老周，点击让主角前往互动' })).toBeVisible()
-  await expect(page.locator('[data-attached-prop-id]')).toHaveCount(0)
-  await expect(page.locator('[data-object-id="commercial-cafe-right-window-upper-group-table"]')).toContainText('桌子')
-  await page.evaluate(({ key, presenceMs }) => {
-    const raw = localStorage.getItem('newtone-player-save-v1')!
-    const save = JSON.parse(raw)
-    save.sceneState['commercial-cafe'][key] = Date.now() - presenceMs
-    localStorage.setItem('newtone-player-save-v1', JSON.stringify(save))
-  }, { key: commercialCafeCompletedAtKey, presenceMs: commercialCafeCompletionPresenceMs })
-  await page.reload()
-  await expect(page.getByRole('button', { name: '老周，点击让主角前往互动' })).toHaveCount(0)
-  await page.waitForFunction((key) => {
-    const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
-    return save.sceneState?.['commercial-cafe']?.[key]
-  }, commercialCafeLaoZhouDepartureKey, { timeout: 5_000 })
-  expect(await page.evaluate((key) => {
-    const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
-    return save.sceneState?.['commercial-cafe']?.[key]
-  }, commercialCafeLaoZhouDepartureKey)).toBe('departed')
-})
-
-test('Lao Zhou completes a real in-Café walkout only after passage crossing closes', async ({ page }, testInfo) => {
-  await page.clock.install({ time: new Date('2026-10-01T12:00:00.000Z') })
-  await enterCafeFromStreet(page, 'debugRuntimeEvidence=1')
-  const stage = page.locator('.mainline-scene-stage')
-  const stageBounds = await stage.boundingBox()
-  expect(stageBounds).not.toBeNull()
-  // Keep the protagonist inside the Café but clear the doorway using ordinary
-  // movement, so Lao Zhou's route is tested against real actor occupancy.
-  await page.mouse.click(stageBounds!.x + stageBounds!.width * .75, stageBounds!.y + stageBounds!.height * .45)
-  await page.waitForFunction(() => {
-    const actor = document.querySelector<HTMLElement>('[data-actor-id="protagonist"]')
-    return actor && Number(actor.dataset.runtimeX) > 65
-  }, undefined, { timeout: 20_000 })
-  await page.addInitScript((keys) => {
-    const raw = localStorage.getItem('newtone-player-save-v1')
-    if (!raw) throw new Error('Expected isolated player save')
-    const save = JSON.parse(raw)
-    const completedAt = Date.now() - keys.presenceMs + 1_500
-    save.sceneState['commercial-cafe'] = {
-      [keys.status]: 'complete',
-      [keys.cursor]: 14,
-      [keys.coffeeStatus]: 'none',
-      [keys.phase]: 'complete',
-      [keys.departure]: 'seated',
-      [keys.completedAt]: completedAt,
-    }
-    localStorage.setItem('newtone-player-save-v1', JSON.stringify(save))
-  }, {
-    status: commercialCafeStoryStatusKey,
-    cursor: commercialCafeNarrativeCursorKey,
-    coffeeStatus: commercialCafeCoffeeStatusKey,
-    phase: commercialCafeNarrativePhaseKey,
-    departure: commercialCafeLaoZhouDepartureKey,
-    completedAt: commercialCafeCompletedAtKey,
-    presenceMs: commercialCafeCompletionPresenceMs,
-  })
+  }, { status: commercialCafeStoryStatusKey, cursor: commercialCafeNarrativeCursorKey, coffeeStatus: commercialCafeCoffeeStatusKey, phase: commercialCafeNarrativePhaseKey, departure: commercialCafeLaoZhouDepartureKey, completedAt: commercialCafeCompletedAtKey })
   await page.reload()
   const laoZhou = page.locator('[data-actor-id="lao-zhou"]')
   await expect(laoZhou).toBeVisible()
-  const completedAt = await page.evaluate((key) => {
+  expect(await page.evaluate((keys) => {
     const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
-    return save.sceneState?.['commercial-cafe']?.[key]
-  }, commercialCafeCompletedAtKey)
-  expect(completedAt).toBeLessThan(Date.now() - commercialCafeCompletionPresenceMs + 2_000)
-
-  await page.clock.runFor(1_600)
-  await page.waitForFunction((key) => {
-    const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
-    return save.sceneState?.['commercial-cafe']?.[key] === 'walking-out'
-  }, commercialCafeLaoZhouDepartureKey)
-  const shell = page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    if (await shell.getAttribute('data-e2e-lao-zhou-exit-attempt') === 'approach-moving') break
-    await page.clock.runFor(500)
-  }
-  const exitAttempt = await shell.getAttribute('data-e2e-lao-zhou-exit-attempt')
-  const actorPositions = await page.locator('[data-actor-id]').evaluateAll((actors) => actors.map((actor) => {
-    const element = actor as HTMLElement
-    return { id: element.dataset.actorId, x: element.dataset.runtimeX, y: element.dataset.runtimeY, phase: element.dataset.npcPhase }
-  }))
-  expect(exitAttempt, JSON.stringify(actorPositions)).toBe('approach-moving')
-  await expect(laoZhou).toHaveAttribute('data-npc-duty-id', 'lao-zhou.exit-cafe', { timeout: 10_000 })
-  await page.clock.resume()
-  await page.evaluate(() => {
-    const target = window as Window & { __cafeWalkoutSamples?: Array<Record<string, unknown>>; __cafeWalkoutRaf?: number }
-    target.__cafeWalkoutSamples = []
-    const sample = () => {
-      const actor = document.querySelector<HTMLElement>('[data-actor-id="lao-zhou"]')
-      const door = document.querySelector<HTMLElement>('[data-focus-target-group="door:street-cafe-entry"]')
-      target.__cafeWalkoutSamples!.push({
-        time: performance.now(),
-        exists: Boolean(actor),
-        duty: actor?.dataset.npcDutyId ?? null,
-        x: actor?.dataset.runtimeX ? Number(actor.dataset.runtimeX) : null,
-        y: actor?.dataset.runtimeY ? Number(actor.dataset.runtimeY) : null,
-        doorPhase: door?.dataset.focusPassagePhase ?? null,
-      })
-      if (target.__cafeWalkoutSamples!.length < 2400) target.__cafeWalkoutRaf = requestAnimationFrame(sample)
+    return {
+      status: save.sceneState?.['commercial-cafe']?.[keys.status],
+      cursor: save.sceneState?.['commercial-cafe']?.[keys.cursor],
+      departure: save.sceneState?.['commercial-cafe']?.[keys.departure],
+      completedAt: save.sceneState?.['commercial-cafe']?.[keys.completedAt],
+      pending: save.sceneState?.['commercial-cafe']?.commercialCafeCompletionPhonePending,
+      displayed: save.sceneState?.['commercial-cafe']?.commercialCafeCompletionPhoneDisplayed,
     }
-    target.__cafeWalkoutRaf = requestAnimationFrame(sample)
-  })
-  await page.screenshot({ path: testInfo.outputPath('cafe-lao-zhou-walkout-start.png') })
-  await page.waitForFunction(() => {
-    const target = window as Window & { __cafeWalkoutSamples?: unknown[] }
-    return (target.__cafeWalkoutSamples?.length ?? 0) >= 180
-  }, undefined, { timeout: 8_000 })
-  await testInfo.attach('lao-zhou-walkout-early-runtime-samples.json', {
-    body: JSON.stringify(await page.evaluate(() => {
-      const target = window as Window & { __cafeWalkoutSamples?: Array<Record<string, unknown>> }
-      const samples = target.__cafeWalkoutSamples ?? []
-      return { first: samples.slice(0, 5), latest: samples.slice(-10) }
-    }), null, 2),
-    contentType: 'application/json',
-  })
-  await expect(laoZhou).toHaveCount(0, { timeout: 20_000 })
-  await page.waitForFunction((key) => {
-    const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
-    return save.sceneState?.['commercial-cafe']?.[key]
-  }, commercialCafeLaoZhouDepartureKey, { timeout: 5_000 })
-  expect(await page.evaluate((key) => {
-    const save = JSON.parse(localStorage.getItem('newtone-player-save-v1') ?? '{}')
-    return save.sceneState?.['commercial-cafe']?.[key]
-  }, commercialCafeLaoZhouDepartureKey)).toBe('departed')
-  const samples = await page.evaluate(() => {
-    const target = window as Window & { __cafeWalkoutSamples?: Array<{ time: number; exists: boolean; duty: string | null; x: number | null; y: number | null; doorPhase: string | null }> }
-    return target.__cafeWalkoutSamples ?? []
-  })
-  expect(samples.some((sample) => sample.duty === 'lao-zhou.exit-cafe')).toBe(true)
-  expect(new Set(samples.flatMap((sample) => sample.x === null ? [] : [sample.x])).size).toBeGreaterThan(1)
-  const crossingIndex = samples.findIndex((sample) => sample.doorPhase === 'crossing')
-  const removedIndex = samples.findIndex((sample) => !sample.exists)
-  expect(crossingIndex).toBeGreaterThanOrEqual(0)
-  expect(removedIndex).toBeGreaterThan(crossingIndex)
-  expect(samples.slice(removedIndex).some((sample) => sample.doorPhase === 'closed')).toBe(true)
-  await testInfo.attach('lao-zhou-walkout-runtime-samples.json', { body: JSON.stringify(samples, null, 2), contentType: 'application/json' })
+  }, { status: commercialCafeStoryStatusKey, cursor: commercialCafeNarrativeCursorKey, departure: commercialCafeLaoZhouDepartureKey, completedAt: commercialCafeCompletedAtKey })).toEqual({ status: 'complete', cursor: 14, departure: 'seated', completedAt: 123456, pending: false, displayed: true })
+  await expect(page.locator('[data-commercial-cafe-cursor="14"]')).toHaveCount(1)
+  await expect(page.locator('[data-dialogue-line-id^="commercial-cafe-lao-zhou-"]')).toHaveCount(0)
 })
-
 test('Café keeps the story table label visible and renders no attached table props across story states', async ({ page }) => {
   await café(page, 'debugRuntimeEvidence=1')
   const states = [

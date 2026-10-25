@@ -20,7 +20,6 @@ export const commercialCafeNarrativePhaseKey = 'commercialCafeNarrativePhase'
 export const commercialCafeLaoZhouDepartureKey = 'commercialCafeLaoZhouDeparture'
 export const commercialCafeCompletedAtKey = 'commercialCafeCompletedAt'
 export const commercialCafeAnalyticsMilestonesKey = 'commercialCafeAnalyticsMilestones'
-export const commercialCafeCompletionPresenceMs = 5 * 60 * 1000
 export const commercialCafeCoffeePreparationDurationMs = 6000
 
 // These keys are migration inputs only. Patches clear them after translating
@@ -31,7 +30,7 @@ const legacyCommercialCafeCoffeeDeliveredKey = 'commercialCafeCoffeeDelivered'
 export type CommercialCafeStoryStatus = 'available' | 'ready-to-leave' | 'complete'
 export type CommercialCafeCoffeeStatus = 'none' | 'ordered' | 'preparing' | 'ready' | 'delivered'
 export type CommercialCafeNarrativePhase = 'not-started' | 'dialogue' | 'coffee-delivery' | 'complete'
-export type CommercialCafeLaoZhouDeparture = 'seated' | 'walking-out' | 'departed'
+export type CommercialCafeLaoZhouDeparture = 'seated'
 export type CommercialCafeStoryState = {
   status: CommercialCafeStoryStatus
   narrativeCursor: number
@@ -121,7 +120,6 @@ const legacyCursorByStage: Record<CommercialCafeStoryStage, number> = {
 function isStoryStatus(value: unknown): value is CommercialCafeStoryStatus { return value === 'available' || value === 'ready-to-leave' || value === 'complete' }
 function isCoffeeStatus(value: unknown): value is CommercialCafeCoffeeStatus { return value === 'none' || value === 'ordered' || value === 'preparing' || value === 'ready' || value === 'delivered' }
 function isNarrativePhase(value: unknown): value is CommercialCafeNarrativePhase { return value === 'not-started' || value === 'dialogue' || value === 'coffee-delivery' || value === 'complete' }
-function isDeparture(value: unknown): value is CommercialCafeLaoZhouDeparture { return value === 'seated' || value === 'walking-out' || value === 'departed' }
 function validCursor(value: unknown): value is number { return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= commercialCafeNarrativeDialogue.lines.length }
 
 function legacyCoffeeStatus(sceneState: PlayerSceneState | undefined, stage: CommercialCafeStoryStage): CommercialCafeCoffeeStatus {
@@ -145,8 +143,10 @@ export function commercialCafeStoryStateFromSceneState(sceneState: PlayerSceneSt
   const narrativePhase = isNarrativePhase(sceneState?.[commercialCafeNarrativePhaseKey])
     ? sceneState[commercialCafeNarrativePhaseKey] as CommercialCafeNarrativePhase
     : status === 'complete' || status === 'ready-to-leave' ? 'complete' : validCursor(storedCursor) && narrativeCursor > 0 ? 'dialogue' : 'not-started'
-  const laoZhouDeparture = isDeparture(sceneState?.[commercialCafeLaoZhouDepartureKey]) ? sceneState[commercialCafeLaoZhouDepartureKey] as CommercialCafeLaoZhouDeparture : 'seated'
-  const completedAt = typeof sceneState?.[commercialCafeCompletedAtKey] === 'number' ? sceneState[commercialCafeCompletedAtKey] as number : status === 'complete' ? 0 : null
+  // Lao Zhou is a resident Cafe NPC. Normalize old automatic-walkout saves
+  // without changing story progress or any phone handoff markers.
+  const laoZhouDeparture: CommercialCafeLaoZhouDeparture = 'seated'
+  const completedAt = typeof sceneState?.[commercialCafeCompletedAtKey] === 'number' ? sceneState[commercialCafeCompletedAtKey] as number : null
   const coffeePreparationStartedAt = typeof sceneState?.[commercialCafeCoffeePreparationStartedAtKey] === 'number' ? sceneState[commercialCafeCoffeePreparationStartedAtKey] as number : null
   return {
     status,
@@ -180,7 +180,7 @@ export function commercialCafeStoryNeedsMigration(sceneState: PlayerSceneState |
     || !isCoffeeStatus(sceneState?.[commercialCafeCoffeeStatusKey])
     || !(typeof sceneState?.[commercialCafeCoffeePreparationStartedAtKey] === 'number' || sceneState?.[commercialCafeCoffeePreparationStartedAtKey] === null)
     || !isNarrativePhase(sceneState?.[commercialCafeNarrativePhaseKey])
-    || !isDeparture(sceneState?.[commercialCafeLaoZhouDepartureKey])
+    || sceneState?.[commercialCafeLaoZhouDepartureKey] !== 'seated'
     || !(typeof sceneState?.[commercialCafeCompletedAtKey] === 'number' || sceneState?.[commercialCafeCompletedAtKey] === null)
     || sceneState?.[commercialCafeStoryStageKey] !== null
     || sceneState?.[legacyCommercialCafeCoffeeOrderedKey] !== null
@@ -236,14 +236,8 @@ export function commercialCafeStoryReadyToLeave(story: CommercialCafeStoryState)
 export function commercialCafeStoryCompleted(story: CommercialCafeStoryState, now: number): CommercialCafeStoryState {
   return { ...story, status: 'complete', narrativeCursor: commercialCafeNarrativeDialogue.lines.length, narrativePhase: 'complete', completedAt: now, laoZhouDeparture: 'seated' }
 }
-export function commercialCafeLaoZhouDepartureDue(story: CommercialCafeStoryState, now: number) {
-  return story.status === 'complete' && story.completedAt !== null && now - story.completedAt >= commercialCafeCompletionPresenceMs
-}
 export function commercialCafeLaoZhouIsPresent(story: CommercialCafeStoryState, _now: number) {
-  return story.laoZhouDeparture === 'seated'
-}
-export function commercialCafeStoryWithLaoZhouDeparture(story: CommercialCafeStoryState, departure: CommercialCafeLaoZhouDeparture): CommercialCafeStoryState {
-  return { ...story, laoZhouDeparture: departure }
+  return true
 }
 export function shouldCompleteCommercialCafeStoryOnTransition({ sceneId, story, targetSceneId, passageId, leavingRoom }: { sceneId: string; story: CommercialCafeStoryState; targetSceneId?: string; passageId?: string; leavingRoom?: boolean }) {
   return story.status === 'ready-to-leave' && targetSceneId === 'commercial-street'

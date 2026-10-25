@@ -17,7 +17,6 @@ export const npcRoles = {
       seated: { id: 'lao-zhou.seated', kind: 'ambient' },
       observeWindow: { id: 'lao-zhou.observe-window', kind: 'ambient' },
       returnToSeat: { id: 'lao-zhou.return-to-seat', kind: 'ambient' },
-      exitCafe: { id: 'lao-zhou.exit-cafe', kind: 'service' },
     },
   },
   cafeCoffeeOwner: {
