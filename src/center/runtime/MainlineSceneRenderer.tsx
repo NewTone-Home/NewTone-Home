@@ -301,7 +301,7 @@ function MainlineAmbientNpcActorView({ sceneId, npc, position, snapshot, screenM
 
 export const MainlineAmbientNpcActor = memo(MainlineAmbientNpcActorView)
 
-function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart, onFlipComplete, onFlipCancel }: { pageKey: string; text: string; children: React.ReactNode; mode: 'observation' | 'dialogue'; lockToken: number; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void }) {
+function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { pageKey: string; text: string; children: React.ReactNode; mode: 'observation' | 'dialogue'; lockToken: number; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: () => void }) {
   const [page, setPage] = useState<{ key: string; text: string; previousText: string | null; flipping: boolean }>({ key: pageKey, text, previousText: null, flipping: false })
   const stackRef = useRef<HTMLSpanElement>(null)
   const activeFlipTokenRef = useRef<number | null>(null)
@@ -311,6 +311,8 @@ function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart
   onFlipCompleteRef.current = onFlipComplete
   const onFlipCancelRef = useRef(onFlipCancel)
   onFlipCancelRef.current = onFlipCancel
+  const onSettledRef = useRef(onSettled)
+  onSettledRef.current = onSettled
   useEffect(() => () => {
     const token = activeFlipTokenRef.current
     activeFlipTokenRef.current = null
@@ -358,6 +360,9 @@ function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart
     frame = window.requestAnimationFrame(advance)
     return () => window.cancelAnimationFrame(frame)
   }, [lockToken, page.flipping, page.key, pageKey])
+  useEffect(() => {
+    if (!page.flipping && page.key === pageKey) onSettledRef.current?.()
+  }, [page.flipping, page.key, pageKey])
 
   return <span ref={stackRef} className={`scene-mainline-page-stack scene-mainline-page-stack--${mode}`} data-page-flip={page.flipping ? 'running' : 'settled'} style={{ '--reading-page-out-y': '0%', '--reading-page-in-y': page.flipping ? '-100%' : '0%' } as CSSProperties}>
     {page.flipping && page.previousText !== null && <span className="scene-mainline-page scene-mainline-page--outgoing" data-reading-page-role="outgoing" aria-hidden="true">{page.previousText}</span>}
@@ -399,12 +404,12 @@ function ObservationText({ echoId, pageKey, text, typing, lockToken, onTypingCom
 }
 
 function DialogueText({ group, pageKey, text, lockToken, onReadyChange, onFlipStart, onFlipComplete, onFlipCancel }: { group: string; pageKey: string; text: string; lockToken: number; onReadyChange?: (group: string, ready: boolean) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void }) {
-  useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, onReadyChange])
+  useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, pageKey, onReadyChange])
   return <span
     className="scene-mainline-text__dialogue"
     data-scene-text-mode="dialogue"
   >
-    <ReadingPageFlip pageKey={pageKey} text={text} mode="dialogue" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={(token) => { onFlipComplete?.(token); onReadyChange?.(group, true) }} onFlipCancel={onFlipCancel}>
+    <ReadingPageFlip pageKey={pageKey} text={text} mode="dialogue" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel} onSettled={() => onReadyChange?.(group, true)}>
       {mainlineVisiblePresentationText(text)}
     </ReadingPageFlip>
   </span>

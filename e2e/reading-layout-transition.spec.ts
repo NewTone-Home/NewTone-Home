@@ -240,6 +240,19 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
   })
 }
 
+test('the initially settled dialogue page becomes ready and accepts its first continue input', async ({ page }) => {
+  await page.setViewportSize({ width: 411, height: 914 })
+  await page.goto('/e2e/fixtures/reading-layout-transition.html')
+  await page.locator('[data-reading-dialogue]').click()
+
+  const text = page.locator('.scene-mainline-text[data-scene-dialogue]')
+  await expect(text.locator('[data-page-flip="settled"]')).toHaveCount(1)
+  await expect(text).toHaveAttribute('data-scene-dialogue-ready', 'true')
+  await page.locator('[data-scene-dialogue-shield]').evaluate(element => (element as HTMLButtonElement).click())
+  await expect(page.locator('.mainline-scene--map-only')).toHaveAttribute('data-fixture-page-index', '1')
+  await expect(text.locator('[data-page-flip="running"]')).toHaveCount(1)
+})
+
 for (const mode of ['observation', 'dialogue'] as const) {
   test(`${mode} ignores repeated continue input during a page flip but accepts the next page afterward`, async ({ page }) => {
     await page.setViewportSize({ width: 411, height: 914 })
