@@ -2336,6 +2336,8 @@ export function MainlineSceneRenderer({
             data-scene-action-measured-height={matchingSceneActionSize?.height}
             data-scene-action-max-height={sceneActionPlacement?.availableHeightPx}
             data-scene-action-overflow-y={String(sceneActionPlacement?.overflowY ?? false)}
+            onPointerUp={(event) => event.stopPropagation()}
+            onPointerCancel={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
             {sceneAction.options.map((option, index) => (
@@ -2348,6 +2350,7 @@ export function MainlineSceneRenderer({
                 materialMode="world"
                 worldLayer="surface"
                 disabled={sceneAction.phase === 'committing'}
+                dataAttributes={{ 'data-scene-action-option-index': index }}
                 onActionStart={() => onSceneActionStart?.(index)}
                 onActionComplete={() => onSceneActionChoice?.(index)}
               />
