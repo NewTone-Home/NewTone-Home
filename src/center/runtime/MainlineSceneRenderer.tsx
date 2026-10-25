@@ -2299,6 +2299,12 @@ export function MainlineSceneRenderer({
               onClick={(event) => {
                 event.stopPropagation()
                 if (readingPageAdvanceLockedRef.current) return
+                if (readingPresentationMode === 'observation' && sceneEcho?.typing) {
+                  typingCompletionLockRef.current = true
+                  lockReadingPageAdvance()
+                  onSceneEchoAdvance?.()
+                  return
+                }
                 if (displayOverflowIndex + 1 < fittedReadingSegments.length) {
                   lockReadingPageAdvance()
                   if (readingSessionKey) setReadingOverflowPage({ sessionKey: readingSessionKey, key: readingOverflowKey, index: displayOverflowIndex + 1 })
@@ -2315,12 +2321,6 @@ export function MainlineSceneRenderer({
                     setDialogueReady(false)
                     onDialogueAdvance?.()
                   }
-                  return
-                }
-                if (sceneEcho?.typing) {
-                  typingCompletionLockRef.current = true
-                  lockReadingPageAdvance()
-                  onSceneEchoAdvance?.()
                   return
                 }
                 lockReadingPageAdvance()

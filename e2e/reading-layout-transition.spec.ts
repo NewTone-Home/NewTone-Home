@@ -219,6 +219,28 @@ for (const mode of ['observation', 'dialogue'] as const) {
   })
 }
 
+test('overflowing observation completes typing before it advances to the next fitted page', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 844 })
+  await page.goto('/e2e/fixtures/reading-layout-transition.html')
+  await page.locator('[data-reading-type-overflow]').click()
+
+  const root = page.locator('.mainline-scene--map-only')
+  const text = page.locator('.scene-mainline-text[data-scene-echo]')
+  await expect(text).toBeVisible()
+  await expect.poll(async () => Number(await text.getAttribute('data-scene-segment-count'))).toBeGreaterThan(1)
+  await expect(text).toHaveAttribute('data-scene-observation-typing', 'true')
+  await expect(text).toHaveAttribute('data-scene-reading-page-index', '0')
+
+  await page.locator('[data-scene-dialogue-shield]').evaluate(element => (element as HTMLButtonElement).click())
+  await expect(text).toHaveAttribute('data-scene-observation-typing', 'false')
+  await expect(root).toHaveAttribute('data-fixture-page-index', '0')
+  await expect(text).toHaveAttribute('data-scene-reading-page-index', '0')
+
+  await page.locator('[data-scene-dialogue-shield]').evaluate(element => (element as HTMLButtonElement).click())
+  await expect(text).toHaveAttribute('data-scene-reading-page-index', '1')
+  await expect(text.locator('[data-page-flip="settled"]')).toHaveCount(1, { timeout: 1500 })
+})
+
 test('explicit leave remains available while a page flip is running', async ({ page }) => {
   await page.setViewportSize({ width: 411, height: 914 })
   await page.goto('/e2e/fixtures/reading-layout-transition.html')
