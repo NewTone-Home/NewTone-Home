@@ -532,8 +532,10 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   if (!first) return null
   const xs = entries.map(({ cell }) => cell.x)
   const ys = entries.map(({ cell }) => cell.y)
-  const vertical = first.cell.orientation === 'vertical'
-    || (entries.length > 1 && Math.max(...ys) - Math.min(...ys) > Math.max(...xs) - Math.min(...xs))
+  const vertical = first.cell.layoutOrientation
+    ? first.cell.layoutOrientation === 'vertical'
+    : first.cell.orientation === 'vertical'
+      || (entries.length > 1 && Math.max(...ys) - Math.min(...ys) > Math.max(...xs) - Math.min(...xs))
   const minX = Math.min(...xs)
   const maxX = Math.max(...xs)
   const minY = Math.min(...ys)
@@ -1686,7 +1688,9 @@ export function MainlineSceneRenderer({
               }
               const localizedFocusEntries = sourceFocusEntries?.map(entry => {
                 const local = localCellStyle(entry.cell)
-                const vertical = entry.cell.orientation === 'vertical'
+                const vertical = entry.cell.layoutOrientation
+                  ? entry.cell.layoutOrientation === 'vertical'
+                  : entry.cell.orientation === 'vertical'
                 return { ...entry, cell: { ...entry.cell, x: Number.parseFloat(local.left), y: Number.parseFloat(local.top),
                   ...(entry.cell.cellStart === undefined ? {} : { cellStart: localAxisValue(entry.cell.cellStart, vertical) }),
                   ...(entry.cell.cellEnd === undefined ? {} : { cellEnd: localAxisValue(entry.cell.cellEnd, vertical) }),

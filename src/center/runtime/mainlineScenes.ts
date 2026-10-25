@@ -127,6 +127,8 @@ export type MainlineSceneVisualCell = {
   storefrontId?: string
   storefrontStyle?: MainlineStorefrontSlot['style']
   storefrontRole?: MainlineStorefrontRole
+  /** Axis along the wall/grid that owns this cell; distinct from glyph writing direction. */
+  layoutOrientation?: 'horizontal' | 'vertical'
   orientation?: 'horizontal' | 'vertical'
   baseline?: boolean
   baselineVisible?: boolean
@@ -318,6 +320,7 @@ function mainlineBoundaryCell(cell: SharedBoundaryCell, structure: MainlineStruc
     doorBehavior: cell.doorBehavior,
     access: cell.access,
     lockedText: cell.lockedText,
+    layoutOrientation: cell.layoutOrientation,
     orientation: cell.glyphOrientation,
     baseline: cell.baseline,
     baselineVisible: cell.baselineVisible,

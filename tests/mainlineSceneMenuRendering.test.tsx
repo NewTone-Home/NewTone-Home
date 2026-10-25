@@ -22,7 +22,7 @@ type Fixture = typeof fixtures[number] & {
   ownerId: string
   inside: Point
   outside: Point
-  cells: Array<{ id: string; x: number; y: number; glyph: string; baselineGlyph?: string; featureCellRole?: string }>
+  cells: Array<{ id: string; x: number; y: number; glyph: string; baselineGlyph?: string; featureCellRole?: string; layoutOrientation?: 'horizontal' | 'vertical'; orientation?: 'horizontal' | 'vertical'; cellStart?: number; cellEnd?: number }>
 }
 const resolvedFixtures: Fixture[] = fixtures.map(fixture => {
   const scene = mainlineScenes[fixture.sceneId]
@@ -113,6 +113,39 @@ function cellWallMarkup(html: string, cell: { x: number; y: number }) {
 }
 
 describe('menu wall cells render independently through owner and portal states', () => {
+  it.each(resolvedFixtures)('$menuId keeps the transparent hit target on the wall-cell axis while glyphs stay upright', fixture => {
+    const content = fixture.cells.filter(cell => cell.featureCellRole === 'content')
+    expect(content.length).toBeGreaterThanOrEqual(2)
+    expect(content.every(cell => cell.layoutOrientation === 'vertical')).toBe(true)
+    expect(content.every(cell => cell.orientation === 'horizontal')).toBe(true)
+
+    const html = render(fixture, 'active', 'revealed')
+    const firstCell = content[0]!
+    const targetPattern = new RegExp(`<button\\b(?=[^>]*data-focus-target-id="${firstCell.id}")[^>]*>`)
+    const target = html.match(targetPattern)?.[0]
+    expect(target, `${fixture.menuId} renders an interactive group at its first menu cell`).toBeTruthy()
+    const style = target!.match(/style="([^"]+)"/)?.[1] ?? ''
+    const top = Number(style.match(/(?:^|;)top:([-\.\d]+)%/)?.[1])
+    const height = Number(style.match(/(?:^|;)height:([-\.\d]+)%/)?.[1])
+    expect(Number.isFinite(top), `${fixture.menuId} hit target has a vertical center`).toBe(true)
+    expect(Number.isFinite(height), `${fixture.menuId} hit target has a vertical extent`).toBe(true)
+
+    const marker = `data-reading-occlusion-entity-id="${fixture.menuId}"`
+    const markerIndex = html.indexOf(marker)
+    expect(markerIndex, `${fixture.menuId} has its bounded identity wrapper`).toBeGreaterThanOrEqual(0)
+    const wrapperStart = html.lastIndexOf('<div', markerIndex)
+    const wrapperTag = html.slice(wrapperStart, html.indexOf('>', markerIndex) + 1)
+    const worldBounds = wrapperTag.match(/data-reading-world-bounds="([^"]+)"/)?.[1]?.split(',').map(Number)
+    expect(worldBounds, `${fixture.menuId} wrapper exposes its world bounds`).toHaveLength(4)
+    const [, worldY, , worldHeight] = worldBounds!
+    const renderedCenterY = worldY! + worldHeight! * top! / 100
+    const renderedSpanY = worldHeight! * height! / 100
+    const expectedStartY = Math.min(...content.map(cell => cell.cellStart!)) / 100 * sceneDesignReferenceMetrics.height
+    const expectedEndY = Math.max(...content.map(cell => cell.cellEnd!)) / 100 * sceneDesignReferenceMetrics.height
+    expect(renderedCenterY).toBeCloseTo((expectedStartY + expectedEndY) / 2, 3)
+    expect(renderedSpanY).toBeCloseTo(expectedEndY - expectedStartY, 3)
+  })
+
   it.each(resolvedFixtures)('$menuId restores every occupied wall cell and keeps flanks ordinary', fixture => {
     const content = fixture.cells.filter(cell => cell.featureCellRole === 'content')
     const flanks = fixture.cells.filter(cell => cell.featureCellRole === 'flank')
