@@ -1,6 +1,8 @@
 import type { Point } from './sceneGeometry'
+import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import type { MainlineSceneDefinition } from './mainlineScenes'
 import { freeRoamWaypointArrivalRadius } from './useFreeRoamMovement'
+import { sceneTextPresentationPosition } from './sceneTextPresentation'
 
 /** Persisted only after the final internal-dialogue line has rolled away. */
 export const commercialStreetQuestionNarrativeCompletedKey = 'commercialStreetQuestionNarrativeCompleted'
@@ -10,6 +12,19 @@ export const commercialStreetQuestionNarrativeLines = [
   '不，不会认错的。',
   '那张脸修杰太过于熟悉。',
 ] as const
+
+/** Keep this short inner monologue in the currently visible street page. The
+ * renderer may still make a necessary pan for a viewport that cannot fit it. */
+export function commercialStreetQuestionDialoguePosition(
+  scene: MainlineSceneDefinition,
+  protagonist: Point,
+  text: string,
+  screenMetrics: SceneScreenMetrics,
+  worldScale: number,
+  currentCameraOffset: Point,
+) {
+  return sceneTextPresentationPosition(scene, protagonist, text, screenMetrics, 'dialogue', worldScale, currentCameraOffset)
+}
 
 export type CommercialStreetQuestionNarrativePhase = 'active' | 'leaving'
 
