@@ -31,11 +31,11 @@ describe('mainline visual footprint contract', () => {
     expect(plant.visualBounds).not.toEqual(plant.collision)
   })
 
-  it('measures the actual 人 NPC label at the shared 16px world base rather than retaining the retired two-character footprint',()=>{
+  it('measures Lao Zhou using the restored two-character role label and its rendered footprint',()=>{
  const cafe=mainlineScenes['commercial-street'],npc=cafe.npcs.find(n=>n.id==='lao-zhou')!
- expect(npc.label).toBe('人')
+ expect(npc.label).toBe('老周')
  const footprint=mainlineLabelFootprint(npc.label,resolveMainlineNpcPosition(cafe,npc.id),currentCafeOptions.screenMetrics,{lineHeight:1})
- expect(footprint.width*19.2).toBeCloseTo(16,2);expect(footprint.height*10.8).toBeCloseTo(16,2)
+ expect(footprint.width*19.2).toBeCloseTo(32,2);expect(footprint.height*10.8).toBeCloseTo(16,2)
 })
 
   it('uses one selected contact for entity and NPC proximity as well as their route destination', () => {

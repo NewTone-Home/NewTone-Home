@@ -154,7 +154,6 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
       accessBoundaries: [...(data.accessBoundaries ?? []).filter(boundary => boundary.regionId !== 'commercial-cafe-staff-area' && boundary.regionId !== 'cafe-trial-rear-work-area'),
         { id: 'commercial-cafe-staff-right-access-boundary', regionId: 'commercial-cafe-staff-area', edge: 'right' as const }],
       npcBehaviorTargets: [...(data.npcBehaviorTargets ?? []).filter(target => !targets.some(next => next.id === target.id)), ...targets],
-      npcs: data.npcs?.map(npc => npc.roomId === room.id ? { ...npc, label: '人' } : npc),
     },
   }
   return attachCafeRestroom(embedCustomerWallText(employeeRearDoor(result, room.id, 84), room.id, [

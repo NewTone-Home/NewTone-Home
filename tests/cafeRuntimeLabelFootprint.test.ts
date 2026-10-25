@@ -20,16 +20,10 @@ function setup(){
  return {runtime,from,options,intent,target}
 }
 describe('Cafe rendered-label body at contact and movement registration',()=>{
- it('reproduces the old32px movement body rejecting the real16px service contact',()=>{
-  const {from,options,target}=setup(),old=mainlineLabelFootprint('店员',from,metrics,{lineHeight:1})
-  expect(target).not.toBeNull()
-  const invalid={...options,actorId:id,actorFootprint:{width:old.width,height:old.height}}
-  expect(isWalkableMainlinePoint(target,scene,{},invalid)).toBe(false)
-  expect(findMainlinePath(from,target,scene,{},invalid)).toBeNull()
- })
- it('moves the actual registered16px actor to the service contact without entering table/chair collision',()=>{
+ it('moves the restored two-character employee label to its service contact without entering table/chair collision',()=>{
   const {runtime,from,options,intent,target}=setup(),body=mainlineNpcLabelFootprint(scene,id,from,metrics),controller=createFreeRoamController(from)
-  expect(body.width*19.2).toBeCloseTo(16,2)
+  expect(scene.npcs.find(npc=>npc.id===id)?.label).toBe('店员')
+  expect(body.width*19.2).toBeCloseTo(32,2)
   const adapter=createNpcMovementAdapter({npcId:id,initialPosition:from,movement:controller,navigationRuntime:runtime,getFootprint:()=>({width:body.width,height:body.height})})
   let arrived=false
   expect(adapter.requestMove({...intent,target},scene,{},options,{maxSpeed:1},()=>{arrived=true})).toBe(true)
@@ -38,9 +32,11 @@ describe('Cafe rendered-label body at contact and movement registration',()=>{
   expect(arrived).toBe(true);expect(adapter.getPosition()).toEqual(target);expect(adapter.getSnapshot().phase).toBe('idle')
   expect(runtime.getActor(id)?.footprint).toEqual({width:body.width,height:body.height})
  })
- it('retains a32px body when the scene really displays a two-character name',()=>{
+ it('uses each Cafe NPC’s actual visible role label as its 32px movement body',()=>{
   const legacy={...scene,npcs:scene.npcs.map(npc=>npc.id===id?{...npc,label:'店员'}:npc)}
   expect(mainlineNpcLabelFootprint(legacy,id,player,metrics).width*19.2).toBeCloseTo(32,2)
-  for(const npcId of ['lao-zhou','cafe-coffee-owner',id])expect(mainlineNpcLabelFootprint(scene,npcId,player,metrics).width*19.2).toBeCloseTo(16,2)
+  for(const npcId of ['lao-zhou','cafe-coffee-owner',id])expect(mainlineNpcLabelFootprint(scene,npcId,player,metrics).width*19.2).toBeCloseTo(32,2)
+  expect(scene.npcs.find(npc=>npc.id==='lao-zhou')?.label).toBe('老周')
+  expect(scene.npcs.find(npc=>npc.id==='cafe-coffee-owner')?.label).toBe('店员')
  })
 })
