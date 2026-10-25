@@ -42,10 +42,10 @@ function distanceToSegment(point: Point, start: Point, end: Point) {
 /** Trigger only when the actor reaches the mark's finite waypoint tolerance or crosses it while moving. */
 export function commercialStreetQuestionNarrativeShouldTrigger(scene: MainlineSceneDefinition, position: Point, previousPosition?: Point, completed = false) {
   if (completed || scene.id !== 'commercial-street') return false
+  if (!previousPosition || (previousPosition.x === position.x && previousPosition.y === position.y)) return false
   const anchor = commercialStreetQuestionNarrativeAnchor(scene)
   if (Math.hypot(position.x - anchor.x, position.y - anchor.y) <= freeRoamWaypointArrivalRadius) return true
-  return previousPosition !== undefined
-    && distanceToSegment(anchor, previousPosition, position) <= freeRoamWaypointArrivalRadius
+  return distanceToSegment(anchor, previousPosition, position) <= freeRoamWaypointArrivalRadius
 }
 
 export function nextCommercialStreetQuestionNarrative(state: CommercialStreetQuestionNarrativeState): CommercialStreetQuestionNarrativeState {

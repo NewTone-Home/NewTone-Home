@@ -12,9 +12,19 @@ describe('Commercial Street question-mark narration', () => {
       x: street.walkBounds.x + street.walkBounds.width / 2,
       y: street.walkBounds.y + street.walkBounds.height / 2,
     })
-    expect(commercialStreetQuestionNarrativeShouldTrigger(street, anchor)).toBe(true)
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street, anchor)).toBe(false)
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street, anchor, anchor)).toBe(false)
     expect(commercialStreetQuestionNarrativeShouldTrigger(street, { x: anchor.x + freeRoamWaypointArrivalRadius * 2, y: anchor.y })).toBe(false)
-    expect(commercialStreetQuestionNarrativeShouldTrigger(street, { x: anchor.x + freeRoamWaypointArrivalRadius, y: anchor.y })).toBe(true)
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street,
+      { x: anchor.x + freeRoamWaypointArrivalRadius * 2, y: anchor.y },
+      { x: anchor.x + freeRoamWaypointArrivalRadius * 3, y: anchor.y })).toBe(false)
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street,
+      { x: anchor.x + freeRoamWaypointArrivalRadius, y: anchor.y },
+      { x: anchor.x + freeRoamWaypointArrivalRadius * 2, y: anchor.y })).toBe(true)
+    // A position reset inside the tolerance does not consume the event; walking afterwards does.
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street,
+      { x: anchor.x + freeRoamWaypointArrivalRadius / 2, y: anchor.y },
+      { x: anchor.x + freeRoamWaypointArrivalRadius, y: anchor.y })).toBe(true)
     expect(street.passages).not.toContainEqual(expect.objectContaining({ entityId: 'commercial-street-question-mark' }))
   })
 
@@ -22,6 +32,10 @@ describe('Commercial Street question-mark narration', () => {
     const anchor = commercialStreetQuestionNarrativeAnchor(street)
     expect(commercialStreetQuestionNarrativeShouldTrigger(street,
       { x: anchor.x + 1, y: anchor.y }, { x: anchor.x - 1, y: anchor.y })).toBe(true)
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street,
+      { x: anchor.x, y: anchor.y + 1 }, { x: anchor.x, y: anchor.y - 1 })).toBe(true)
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street,
+      { x: anchor.x + 1, y: anchor.y + 1 }, { x: anchor.x - 1, y: anchor.y - 1 })).toBe(true)
     expect(commercialStreetQuestionNarrativeShouldTrigger(street,
       { x: anchor.x + 1, y: anchor.y + 1 }, { x: anchor.x - 1, y: anchor.y + 1 })).toBe(false)
     expect(commercialStreetQuestionNarrativeShouldTrigger(mainlineScenes['yonghe-eatery'], anchor,
@@ -31,7 +45,7 @@ describe('Commercial Street question-mark narration', () => {
   it('stops at the real movement position when crossing the mark and never restores the prior position on exit', () => {
     const anchor = commercialStreetQuestionNarrativeAnchor(street)
     const start = { x: anchor.x - .35, y: anchor.y }
-    const destination = { x: anchor.x + .35, y: anchor.y }
+    const destination = { x: anchor.x + 5, y: anchor.y }
     const movement = createFreeRoamController(start)
     let previous = start
     let triggeredAt: { x: number; y: number } | null = null
@@ -46,9 +60,11 @@ describe('Commercial Street question-mark narration', () => {
         previous = position
       },
     })
-    movement.tick(performance.now() + 40)
-    expect(triggeredAt).toEqual(destination)
-    expect(movement.getCurrentPosition()).toEqual(destination)
+    movement.tick(performance.now() + 30)
+    expect(triggeredAt).not.toBeNull()
+    expect(Math.hypot(triggeredAt!.x - anchor.x, triggeredAt!.y - anchor.y)).toBeLessThanOrEqual(freeRoamWaypointArrivalRadius)
+    expect(triggeredAt).not.toEqual(anchor)
+    expect(movement.getCurrentPosition()).toEqual(triggeredAt)
     expect(movement.isMoving()).toBe(false)
 
     let narrative = { phase: 'active' as const, segmentIndex: 0 }
@@ -56,7 +72,7 @@ describe('Commercial Street question-mark narration', () => {
     narrative = nextCommercialStreetQuestionNarrative(narrative)
     narrative = nextCommercialStreetQuestionNarrative(narrative)
     expect(narrative.phase).toBe('leaving')
-    expect(movement.getCurrentPosition()).toEqual(destination)
+    expect(movement.getCurrentPosition()).toEqual(triggeredAt)
   })
 
   it('keeps the approved lines intact and advances to an exit only after the final line', () => {
@@ -77,6 +93,7 @@ describe('Commercial Street question-mark narration', () => {
     expect(commercialStreetQuestionNarrativeCompleted(false)).toBe(false)
     expect(commercialStreetQuestionNarrativeCompleted(undefined)).toBe(false)
     const anchor = commercialStreetQuestionNarrativeAnchor(street)
-    expect(commercialStreetQuestionNarrativeShouldTrigger(street, anchor, undefined, true)).toBe(false)
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street, anchor,
+      { x: anchor.x + freeRoamWaypointArrivalRadius * 2, y: anchor.y }, true)).toBe(false)
   })
 })
