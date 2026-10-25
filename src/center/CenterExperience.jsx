@@ -21,7 +21,12 @@ import { isPointInContinuousCafe } from './runtime/continuousCafe'
 import { advanceMainlineStoryClock } from './runtime/mainlineStoryClock'
 import { advancePhoneStoryNotes, createPlayerPhoneNote, ensurePhoneYongheLead, pinPhoneStoryNote, updatePhoneNote } from './runtime/phonePersonalData'
 import { commercialCafeStoryStatusKey } from './runtime/commercialCafeStory'
-import { commercialCafeCompletionPhonePatch } from './runtime/cafeCompletionPhone'
+import {
+  commercialCafeCompletionPhoneCanRequest,
+  commercialCafeCompletionPhoneDisplayedPatch,
+  commercialCafeCompletionPhonePendingKey,
+  commercialCafeCompletionPhoneStoryPatch,
+} from './runtime/cafeCompletionPhone'
 import { mainlineRideAtPickup, mainlineRideOrderFromState, mainlineRideOrderPatch, mainlineRideSuppressExternalPhoneReveal, mainlineRideWalkingEtaMs, mainlineRideZone } from './runtime/mainlineRide'
 import {
   phoneRideAvailability,
@@ -92,12 +97,16 @@ export default function CenterExperience({
     }
   }, [route.entryPosition])
   const [phoneOpen, setPhoneOpen] = useState(false)
+  const [phonePanelRetracted, setPhonePanelRetracted] = useState(true)
   const sceneReadingActiveRef = useRef(false)
-  const [, setSceneReadingActive] = useState(false)
+  const [sceneReadingActive, setSceneReadingActive] = useState(false)
   const [phoneNotificationScreen, setPhoneNotificationScreen] = useState(false)
   const positionSamplerRef = useRef(null)
   const currentSceneIdRef = useRef(route.sceneId)
   const latestWorldPositionRef = useRef(null)
+  const cafeHandoffOutsideRef = useRef(null)
+  const rideBoardingHandoffRef = useRef(false)
+  const [cafeHandoffPositionRevision, setCafeHandoffPositionRevision] = useState(0)
   const positionSaveCoordinatorRef = useRef(null)
   if (!positionSaveCoordinatorRef.current) {
     positionSaveCoordinatorRef.current = createPositionSaveCoordinator({
@@ -137,7 +146,11 @@ export default function CenterExperience({
   const [rideOrder, setRideOrder] = useState(() => mainlineRideOrderFromState(loadPlayerSave().sceneState))
   const rideBoardingRef = useRef(() => {})
   const phoneRetractedRef = useRef(true)
-  useEffect(() => { if (phoneOpen) phoneRetractedRef.current = false }, [phoneOpen])
+  useEffect(() => {
+    if (!phoneOpen) return
+    phoneRetractedRef.current = false
+    setPhonePanelRetracted(false)
+  }, [phoneOpen])
   const [feedbackMode, setFeedbackMode] = useState(null)
   const [localSlide, setLocalSlide] = useState(null)
   const [longDistanceTravel, setLongDistanceTravel] = useState(null)
@@ -216,12 +229,6 @@ export default function CenterExperience({
     if (sceneReadingActiveRef.current) return
     setPhoneNotificationScreen(playerSaveRef.current.phoneNotifications.some(n => n.unread))
     setRequestedPhoneApp(null)
-    setPhoneOpen(true)
-  }, [])
-  const revealCafeStoryPhone = useCallback(() => {
-    if (sceneReadingActiveRef.current) return
-    setPhoneNotificationScreen(false)
-    setRequestedPhoneApp('lao-zhou-messages')
     setPhoneOpen(true)
   }, [])
   const retractPhone = useCallback(() => {
@@ -357,7 +364,22 @@ export default function CenterExperience({
   }, [commitPlayerSave])
 
   const recordSceneStatePatch = useCallback((sceneId, patch) => {
-    commitPlayerSave((current) => recordPlayerSceneStatePatch(current, sceneId, patch))
+    commitPlayerSave((current) => {
+      if (sceneId !== 'commercial-cafe' || patch[commercialCafeStoryStatusKey] !== 'complete') {
+        return recordPlayerSceneStatePatch(current, sceneId, patch)
+      }
+      const storyPatch = commercialCafeCompletionPhoneStoryPatch(current.sceneState[sceneId], patch)
+      return recordPlayerSceneStatePatch(current, sceneId, storyPatch)
+    })
+  }, [commitPlayerSave])
+
+  const acknowledgeCafeStoryMessagesDisplayed = useCallback(() => {
+    commitPlayerSave(current => {
+      const patch = commercialCafeCompletionPhoneDisplayedPatch(current.sceneState['commercial-cafe'])
+      return patch
+        ? recordPlayerSceneStatePatch(current, 'commercial-cafe', patch)
+        : current
+    })
   }, [commitPlayerSave])
 
   const handleSceneTransition = useCallback((nextSceneId, nextEntryPosition, nextSpawnMode, transitionIntent) => {
@@ -423,6 +445,7 @@ export default function CenterExperience({
 
   const handlePhoneCloseComplete = useCallback(() => {
     phoneRetractedRef.current = true
+    setPhonePanelRetracted(true)
     setLongDistanceTravel((current) => (
       current?.phase === 'phone-retracting'
         ? { ...current, phase: 'scene-fading' }
@@ -543,6 +566,7 @@ export default function CenterExperience({
     recordSceneStatePatch(order.sourceSceneId, mainlineRideOrderPatch(null))
     setFeedbackMode(null)
     setBoundaryNotice('')
+    rideBoardingHandoffRef.current = true
     setLongDistanceTravel({ phase: phoneRetractedRef.current ? 'scene-fading' : 'phone-retracting', intent, targetReady: false })
     setPhoneOpen(false)
   }, [readPhoneApp, recordSceneStatePatch])
@@ -609,21 +633,36 @@ export default function CenterExperience({
     }
     cafeClockInsideRef.current = insideCafe
     latestWorldPositionRef.current = { sceneId, position, context }
-    if (sceneId === 'commercial-street') {
-      const cafeState = playerSaveRef.current.sceneState['commercial-cafe']
-      const handoffPatch = commercialCafeCompletionPhonePatch(cafeState, {
-        insideCafe,
-        phoneDevice: playerSaveRef.current.phoneDevice,
-        readingActive: sceneReadingActiveRef.current,
-      })
-      if (handoffPatch) {
-        commitPlayerSave(current => recordPlayerSceneStatePatch(current, 'commercial-cafe', handoffPatch))
-        revealCafeStoryPhone()
-      }
-    }
     rideBoardingRef.current(sceneId, position, context)
+    if (sceneId === 'commercial-street') {
+      const wasOutsideCafe = cafeHandoffOutsideRef.current
+      cafeHandoffOutsideRef.current = !insideCafe
+      const pending = playerSaveRef.current.sceneState['commercial-cafe']?.[commercialCafeCompletionPhonePendingKey] === true
+      if (pending && !insideCafe && wasOutsideCafe !== true) setCafeHandoffPositionRevision(value => value + 1)
+    }
     positionSamplerRef.current?.sample(sceneId, position)
-  }, [commitPlayerSave, revealCafeStoryPhone])
+  }, [commitPlayerSave])
+
+  useEffect(() => {
+    if (longDistanceTravel === null) rideBoardingHandoffRef.current = false
+    if (route.sceneId !== 'commercial-street') return
+    const position = latestWorldPositionRef.current
+    if (!position || position.sceneId !== 'commercial-street') return
+    const cafeState = playerSave.sceneState['commercial-cafe']
+    const insideCafe = isPointInContinuousCafe(mainlineScenes['commercial-street'], position.position)
+    if (!commercialCafeCompletionPhoneCanRequest(cafeState, {
+      insideCafe,
+      phoneDevice,
+      readingActive: sceneReadingActive,
+      phoneOpen,
+      phoneRetracted: phonePanelRetracted && phoneRetractedRef.current,
+      traveling: longDistanceTravel !== null,
+      rideBoarding: rideBoardingHandoffRef.current,
+    })) return
+    setPhoneNotificationScreen(false)
+    setRequestedPhoneApp('lao-zhou-messages')
+    setPhoneOpen(true)
+  }, [cafeHandoffPositionRevision, longDistanceTravel, phoneDevice, phoneOpen, phonePanelRetracted, playerSave.sceneState, route.sceneId, sceneReadingActive])
 
   const handlePlayerMovementStateChange = useCallback((moving) => {
     setCenterMovementActive(moving)
@@ -748,6 +787,7 @@ export default function CenterExperience({
           milkTeaHeld={commercialStreetMilkTeaHeld(commercialStreetState)}
           requestedApp={requestedPhoneApp}
           onRequestedAppHandled={() => setRequestedPhoneApp(null)}
+          onLaoZhouMessagesDisplayed={acknowledgeCafeStoryMessagesDisplayed}
           onMilkTeaOrderConfirm={confirmMilkTeaOrder}
           onMilkTeaOrderStarted={handleMilkTeaOrderStarted}
           feedbackMode={feedbackMode}

@@ -16,6 +16,7 @@ import { PhoneMapCanvas } from './PhoneMapCanvas'
 import { PhoneRideApp } from './PhoneRideApp'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { PhonePlaceDetails } from './PhonePlaceDetails'
+import { commercialCafeCompletionPhoneMessageReadyForAck } from './cafeCompletionPhone'
 
 type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea' | 'notes'
 type FeedbackMode = 'phone'
@@ -70,6 +71,7 @@ type WorldPhoneProps = {
   milkTeaHeld?: boolean
   requestedApp?: 'milk-tea' | 'lao-zhou-messages' | null
   onRequestedAppHandled?: () => void
+  onLaoZhouMessagesDisplayed?: () => void
   onMilkTeaOrderConfirm?: (selection: { drink: MilkTeaDrink; sugar: MilkTeaSugar; ice: MilkTeaIce }) => void
   onMilkTeaOrderStarted?: () => void
   onMeaningfulActivity?: () => void
@@ -214,13 +216,14 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
+export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onLaoZhouMessagesDisplayed, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
   const [phase, setPhase] = useState<WorldPhonePhase>('closed')
   const [leavingApp, setLeavingApp] = useState<PhoneApp | 'home' | null>(null)
   const [appOrigin, setAppOrigin] = useState('50% 80%')
   const phoneRef = useRef<HTMLElement>(null)
+  const laoZhouMessageHandoffPendingRef = useRef(false)
   const [placeCall, setPlaceCall] = useState<string | null>(null)
   const [activeApp, setActiveApp] = useState<PhoneApp | null>(null)
   const [contactView, setContactView] = useState<ContactView>('list')
@@ -403,6 +406,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
 
   useEffect(() => {
     if (!open || requestedApp !== 'lao-zhou-messages') return
+    laoZhouMessageHandoffPendingRef.current = true
     onAppOpen?.('contacts')
     setActiveApp('contacts')
     setSelectedContactId('lao-zhou')
@@ -410,6 +414,20 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
     setContactView('messages')
     onRequestedAppHandled?.()
   }, [onAppOpen, onRequestedAppHandled, open, requestedApp])
+
+  useLayoutEffect(() => {
+    const messageThread = phoneRef.current?.querySelector('.world-phone__message-thread')
+    if (!commercialCafeCompletionPhoneMessageReadyForAck({
+      requested: laoZhouMessageHandoffPendingRef.current,
+      phoneOpen: open,
+      activeApp,
+      contactView,
+      selectedContactId,
+      messageThreadMounted: Boolean(messageThread),
+    })) return
+    laoZhouMessageHandoffPendingRef.current = false
+    onLaoZhouMessagesDisplayed?.()
+  }, [activeApp, contactView, onLaoZhouMessagesDisplayed, open, selectedContactId])
 
   useEffect(() => {
     if (activeApp !== 'milk-tea') milkTeaOrderStartedRef.current = false
