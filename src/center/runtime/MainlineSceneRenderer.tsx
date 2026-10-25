@@ -18,6 +18,7 @@ import { mainlineWorldFontSizePx, sceneDesignReferenceMetrics, type SceneScreenM
 import { readMainlineViewportMetrics, type MainlineViewportMetrics } from './mainlineViewportProjection'
 import { commercialStreetHorizontalScale, projectCommercialStreetX } from './commercialStreetGridProjection'
 import { mainlineWorldPointFromClient, mainlineWorldScale, mainlineVisibleWorldSpan } from './mainlineViewport'
+import { advanceCommercialStreetQuestionCameraHandoff, commercialStreetQuestionCameraHandoffSettled } from './commercialStreetQuestionCameraHandoff'
 import { useSceneFocusFrameController } from './SceneFocusFrames'
 import { sceneFrameDefaultMotionMs } from './sceneMotion'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
@@ -1070,9 +1071,55 @@ export function MainlineSceneRenderer({
   const shouldPanForReading = Boolean(readingMode && activeReadingPosition && maximumReadingLayout && (
     maximumReadingLayout.widthPx > currentReadingWidthPx + 1 || dialogueEnvelopeNeedsPan
   ))
-  const renderCameraOffset = retainedReadingPresentation?.cameraOffset ?? (shouldPanForReading && activeReadingPosition
+  const readingCameraOffset = retainedReadingPresentation?.cameraOffset ?? (shouldPanForReading && activeReadingPosition
     ? mainlineReadingCameraOffset(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset)
     : cameraOffset)
+  const questionDialogueActive = scene.id === 'commercial-street' && dialogue?.triggerEntityId === 'commercial-street-question'
+  const questionReadingActive = questionDialogueActive && readingPresentationPhase !== 'inactive'
+  const [questionExitCameraOffset, setQuestionExitCameraOffset] = useState<Point | null>(null)
+  const questionNormalCameraOffsetRef = useRef(cameraOffset)
+  questionNormalCameraOffsetRef.current = cameraOffset
+  const lastQuestionReadingCameraOffsetRef = useRef<Point | null>(null)
+  useLayoutEffect(() => {
+    if (questionReadingActive) lastQuestionReadingCameraOffsetRef.current = readingCameraOffset
+  }, [questionReadingActive, readingCameraOffset])
+  useLayoutEffect(() => {
+    if (questionReadingActive) {
+      setQuestionExitCameraOffset(null)
+      return
+    }
+
+    if (readingPresentationPhase !== 'inactive' || scene.id !== 'commercial-street') {
+      lastQuestionReadingCameraOffsetRef.current = null
+      setQuestionExitCameraOffset(null)
+      return
+    }
+
+    const retainedOffset = lastQuestionReadingCameraOffsetRef.current
+    lastQuestionReadingCameraOffsetRef.current = null
+    if (!retainedOffset) {
+      setQuestionExitCameraOffset(null)
+      return
+    }
+
+    let current = retainedOffset
+    let previousTime = performance.now()
+    let frame = 0
+    setQuestionExitCameraOffset(current)
+    const advance = (now: number) => {
+      current = advanceCommercialStreetQuestionCameraHandoff(current, questionNormalCameraOffsetRef.current, now - previousTime)
+      previousTime = now
+      if (commercialStreetQuestionCameraHandoffSettled(current, questionNormalCameraOffsetRef.current)) {
+        setQuestionExitCameraOffset(null)
+        return
+      }
+      setQuestionExitCameraOffset(current)
+      frame = window.requestAnimationFrame(advance)
+    }
+    frame = window.requestAnimationFrame(advance)
+    return () => window.cancelAnimationFrame(frame)
+  }, [questionReadingActive, readingPresentationPhase, scene.id])
+  const renderCameraOffset = questionExitCameraOffset ?? readingCameraOffset
   const activeReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, renderCameraOffset) : readingMetrics.width - 24
   const activeReadingLayout = activeReadingPosition
     ? mainlineEchoLayout(activeReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: activeReadingWidthPx })
