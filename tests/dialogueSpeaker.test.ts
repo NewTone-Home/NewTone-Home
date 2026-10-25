@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { completeSpeakerAnimation, dialogueSpeakerTransitionMs, requestSpeaker, type SpeakerPresentation } from '../src/center/runtime/DialogueSpeaker'
-import { mainlineSpeakerAnchor, mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
+import { mainlineSpeakerAnchor, mainlineSpeakerPageAnchor, mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
 
 describe('speaker presentation', () => {
   const initial: SpeakerPresentation = { name: '修杰', phase: 'steady' }
@@ -27,5 +27,28 @@ describe('speaker presentation', () => {
     expect(anchor.left).toBeGreaterThanOrEqual(2)
     expect(anchor.left + anchor.worldWidthPx / 1920 * 100).toBeLessThanOrEqual(98)
     expect(mainlineEchoLayout('短句', metrics).widthPx).toBeLessThan(anchor.widthPx)
+  })
+})
+
+describe('speaker page placement', () => {
+  it.each([{ width: 1280, height: 720, scale: 1 }, { width: 411, height: 914, scale: .65 }])('aligns the visible speaker box to the current page while preserving the envelope center at $width', viewport => {
+    const metrics = { width: viewport.width, height: viewport.height, viewportWidth: viewport.width }
+    const lines = [
+      { speaker: 'Speaker', text: 'A considerably longer dialogue page that defines the stable reading envelope.' },
+      { speaker: 'Speaker', text: 'Short.' },
+    ]
+    const envelope = mainlineSpeakerAnchor(lines, metrics, { x: 52, y: 44 }, { x: 0, y: 0 }, viewport.scale, 520)
+    const currentPage = mainlineEchoLayout('Short.', metrics, { speaker: 'Speaker', maxWidthPx: 520 })
+    const visible = mainlineSpeakerPageAnchor(envelope, currentPage, viewport.scale)
+    const envelopeCenter = envelope.left + envelope.worldWidthPx / 1920 * 50
+    const visibleCenter = visible.left + visible.worldWidthPx / 1920 * 50
+
+    expect(visibleCenter).toBeCloseTo(envelopeCenter, 8)
+    expect(visible.widthPx).toBe(currentPage.widthPx)
+    expect(visible.worldWidthPx).toBeCloseTo(currentPage.widthPx / viewport.scale, 8)
+    expect(visible.left).toBeCloseTo(envelopeCenter - currentPage.widthPx / viewport.scale / 1920 * 50, 8)
+    expect(visible.widthPx).toBeLessThan(envelope.widthPx)
+    const fullPage = mainlineSpeakerPageAnchor(envelope, mainlineEchoLayout(lines[0].text, metrics, { speaker: 'Speaker', maxWidthPx: 520 }), viewport.scale)
+    expect(fullPage.left).toBeCloseTo(envelope.left, 8)
   })
 })

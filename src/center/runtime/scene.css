@@ -1143,11 +1143,11 @@
 @keyframes dialogue-speaker-exiting { from { opacity: 1; } to { opacity: 0; } }
 .scene-mainline-text__observation { position: absolute; inset: 2px 0; display: block; }
 .scene-mainline-text__dialogue { position: absolute; inset: calc(5px + max(19.44px, 1.1988em)) 0 2px; display: block; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; }
-.scene-mainline-page-stack { position: relative; display: grid; width: 100%; height: 100%; }
-.scene-mainline-page { grid-area: 1 / 1; display: block; min-width: 0; white-space: pre-line; transform-origin: center center; backface-visibility: hidden; }
-.scene-mainline-page--outgoing { animation: mainline-reading-page-close 160ms cubic-bezier(.4, 0, .2, 1) both; }
-.scene-mainline-page--incoming { animation: mainline-reading-page-open 160ms cubic-bezier(.4, 0, .2, 1) 320ms both; }
-.scene-mainline-page--current { transform: scaleY(1); }
+.scene-mainline-page-stack { position: relative; display: grid; grid-template-rows: minmax(0, 1fr); width: 100%; height: 100%; overflow: hidden; }
+.scene-mainline-page { grid-area: 1 / 1; display: block; min-width: 0; min-height: 0; white-space: pre-line; transform: translate3d(0, 0, 0); }
+.scene-mainline-page--outgoing { transform: translate3d(0, var(--reading-page-out-y, 0%), 0); }
+.scene-mainline-page--incoming { transform: translate3d(0, var(--reading-page-in-y, -100%), 0); }
+.scene-mainline-page--current { transform: translate3d(0, 0, 0); }
 .scene-mainline-text--dialogue { z-index: 14; isolation: isolate; color: var(--active); }
 .scene-mainline-object__focus-host {
   position: absolute;
@@ -1168,14 +1168,7 @@
   from { opacity: 1; transform: translate(-50%, -50%); }
   to { opacity: 0; transform: translate(-50%, -50%); }
 }
-@keyframes mainline-reading-page-close {
-  from { opacity: 1; transform: scaleY(1); }
-  to { opacity: 0; transform: scaleY(0); }
-}
-@keyframes mainline-reading-page-open {
-  from { opacity: 0; transform: scaleY(0); }
-  to { opacity: 1; transform: scaleY(1); }
-}/* A one-shot world-space story trigger marker. */
+/* A one-shot world-space story trigger marker. */
 
 .scene-commercial-question-mark {
   position: absolute;

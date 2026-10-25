@@ -76,7 +76,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
     expect(samples.every(sample => sample.fontSize === before.fontSize)).toBe(true)
     expect(samples.every(sample => sample.transitioning === 'true' || sample.transitioning === 'false')).toBe(true)
     expect(samples.every(sample => sample.width > 0 && sample.height > 0 && sample.occlusionWidth > 0)).toBe(true)
-    expect(samples.every(sample => Math.abs(sample.height * sample.worldScale - sample.layoutHeight) < 1)).toBe(true)
+    // getBoundingClientRect is already in viewport CSS pixels; the rendered
+    // layout token is also CSS pixels after the world scale transform.
+    expect(samples.every(sample => Math.abs(sample.height - sample.layoutHeight) < 1)).toBe(true)
     expect(samples.every(sample => Math.abs(sample.occlusionWidth * sample.worldScale - sample.layoutWidth) < .1)).toBe(true)
     expect(samples.every(sample => Math.abs(sample.occlusionHeight * sample.worldScale - sample.layoutHeight) < .1)).toBe(true)
     expect(samples.every(sample => Math.abs(sample.x + sample.width / 2 - (before.x + before.width / 2)) < 1)).toBe(true)
@@ -128,7 +130,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
 }
 
 for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 }]) {
-  test(`dialogue page performs the same two-sided flip at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+  test(`dialogue page rolls old text down and new text in from above at ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport)
     await page.goto('/e2e/fixtures/reading-layout-transition.html')
     await page.locator('[data-reading-dialogue]').click()
@@ -152,16 +154,27 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
       const rect = element.getBoundingClientRect()
       const outgoing = element.querySelector<HTMLElement>('[data-reading-page-role="outgoing"]')!
       const incoming = element.querySelector<HTMLElement>('[data-reading-page-role="incoming"]')!
+      const outgoingMatrix = new DOMMatrixReadOnly(getComputedStyle(outgoing).transform)
+      const incomingMatrix = new DOMMatrixReadOnly(getComputedStyle(incoming).transform)
+      const stack = element.querySelector<HTMLElement>('.scene-mainline-page-stack')!
       return { height: rect.height, layoutHeight: Number(node.dataset.sceneReadingLayoutHeight),
         scale: Number(node.dataset.sceneReadingWorldScale), fontSize: getComputedStyle(element).fontSize,
-        outgoingOpacity: Number(getComputedStyle(outgoing).opacity), incomingOpacity: Number(getComputedStyle(incoming).opacity),
+        outgoingY: outgoingMatrix.m42, incomingY: incomingMatrix.m42,
+        progress: Number(stack.dataset.flipProgress),
+        outgoingText: outgoing.textContent, incomingText: incoming.textContent,
         worldX: node.dataset.sceneReadingPositionX, worldY: node.dataset.sceneReadingPositionY }
     })
-    expect(Math.abs(midFlip.height * midFlip.scale - midFlip.layoutHeight)).toBeLessThan(1)
+    expect(Math.abs(midFlip.height - midFlip.layoutHeight)).toBeLessThan(1)
     expect(midFlip.fontSize).toBe(before.fontSize)
     expect(midFlip.worldX).toBe(before.worldX)
     expect(midFlip.worldY).toBe(before.worldY)
-    expect(midFlip.outgoingOpacity + midFlip.incomingOpacity).toBeLessThan(1.01)
+    expect(midFlip.outgoingY).toBeGreaterThan(0)
+    expect(midFlip.incomingY).toBeLessThan(0)
+    expect(midFlip.progress).toBeGreaterThan(0)
+    expect(midFlip.progress).toBeLessThan(1)
+    expect(midFlip.outgoingText).not.toBe(midFlip.incomingText)
+    expect(midFlip.outgoingText.length).toBeGreaterThan(0)
+    expect(midFlip.incomingText.length).toBeGreaterThan(0)
 
     await expect(text.locator('[data-page-flip="settled"]')).toHaveCount(1, { timeout: 1500 })
     await expect(text).toHaveAttribute('data-scene-dialogue-ready', 'true')
@@ -184,6 +197,46 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
     expect(leaving.x).toBeCloseTo(after.x, 0)
     expect(leaving.y).toBeCloseTo(after.y, 0)
     expect(leaving.height).toBeCloseTo(after.height, 0)
+  })
+}
+
+for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 }]) {
+  test(`dialogue speaker label hugs the current body box at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    await page.goto('/e2e/fixtures/reading-layout-transition.html')
+    await page.locator('[data-reading-dialogue]').click()
+    const body = page.locator('.scene-mainline-text[data-scene-dialogue]')
+    const name = page.locator('.scene-mainline-speaker-anchor .scene-mainline-text__speaker:not(.scene-mainline-text__speaker-space)')
+    await expect(body.locator('[data-page-flip="settled"]')).toHaveCount(1)
+    const measure = async () => Promise.all([
+      body.evaluate(element => {
+        const rect = element.getBoundingClientRect()
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, centerX: rect.x + rect.width / 2 }
+      }),
+      name.evaluate(element => {
+        const rect = element.getBoundingClientRect()
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, bottom: rect.bottom }
+      }),
+      body.locator('.scene-mainline-page--current').evaluate(element => {
+        const range = document.createRange()
+        range.selectNodeContents(element)
+        const rect = range.getBoundingClientRect()
+        return { x: rect.x, y: rect.y, height: rect.height }
+      }),
+    ])
+    const before = await measure()
+    expect(Math.abs(before[1].x - before[0].x)).toBeLessThanOrEqual(2)
+    expect(before[2].height).toBeGreaterThan(0)
+    expect(before[2].y - before[1].bottom).toBeGreaterThanOrEqual(-2)
+    expect(before[2].y - before[1].bottom).toBeLessThanOrEqual(14)
+
+    await page.locator('[data-reading-next]').click()
+    await expect(body.locator('[data-page-flip="settled"]')).toHaveCount(1, { timeout: 1500 })
+    const after = await measure()
+    expect(Math.abs(after[1].x - after[0].x)).toBeLessThanOrEqual(2)
+    expect(after[0].centerX).toBeCloseTo(before[0].centerX, 0)
+    expect(after[2].y - after[1].bottom).toBeGreaterThanOrEqual(-2)
+    expect(after[2].y - after[1].bottom).toBeLessThanOrEqual(14)
   })
 }
 

@@ -23,7 +23,7 @@ import { useSceneFocusFrameController } from './SceneFocusFrames'
 import { sceneFrameDefaultMotionMs } from './sceneMotion'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
-import { mainlineEchoLayout, mainlineSpeakerAnchor, type MainlineEchoLayout } from './mainlineEchoLayout'
+import { mainlineEchoLayout, mainlineSpeakerAnchor, mainlineSpeakerPageAnchor, type MainlineEchoLayout } from './mainlineEchoLayout'
 import { interpolateMainlineReadingLayout, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize, mainlineReadingPageTransitionDurationMs } from './mainlineReadingLayoutTransition'
 import { mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
 import { DialogueSpeaker } from './DialogueSpeaker'
@@ -302,6 +302,7 @@ export const MainlineAmbientNpcActor = memo(MainlineAmbientNpcActorView)
 
 function ReadingPageFlip({ pageKey, text, children, mode, onFlipComplete }: { pageKey: string; text: string; children: React.ReactNode; mode: 'observation' | 'dialogue'; onFlipComplete?: () => void }) {
   const [page, setPage] = useState<{ key: string; text: string; previousText: string | null; flipping: boolean }>({ key: pageKey, text, previousText: null, flipping: false })
+  const stackRef = useRef<HTMLSpanElement>(null)
   const onFlipCompleteRef = useRef(onFlipComplete)
   onFlipCompleteRef.current = onFlipComplete
   useIsomorphicLayoutEffect(() => {
@@ -313,17 +314,44 @@ function ReadingPageFlip({ pageKey, text, children, mode, onFlipComplete }: { pa
     if (!page.flipping && page.key === pageKey) onFlipCompleteRef.current?.()
   }, [page.flipping, page.key, pageKey])
 
-  const finishFlip = (event: React.AnimationEvent<HTMLSpanElement>) => {
-    if (event.target !== event.currentTarget || !page.flipping || event.animationName !== 'mainline-reading-page-open') return
-    setPage(current => current.key === pageKey ? { ...current, previousText: null, flipping: false } : current)
-  }
+  useEffect(() => {
+    const node = stackRef.current
+    if (!page.flipping || !node || page.key !== pageKey) return
+    const setProgress = (progress: number) => {
+      const percent = progress * 100
+      // Match the Cafe storefront (bottom edge): the old glyph leaves down
+      // and the new glyph enters from above.
+      node.style.setProperty('--reading-page-out-y', `${percent}%`)
+      node.style.setProperty('--reading-page-in-y', `${percent - 100}%`)
+      node.dataset.flipProgress = progress.toFixed(4)
+    }
+    setProgress(0)
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setProgress(1)
+      setPage(current => current.key === pageKey ? { ...current, previousText: null, flipping: false } : current)
+      return
+    }
+    const startedAt = performance.now()
+    let frame = 0
+    const advance = (now: number) => {
+      const elapsed = Math.max(0, now - startedAt)
+      const progress = storefrontCharacterProgress(0, 1, elapsed, storefrontLabelRollDurationMs)
+      setProgress(progress)
+      if (elapsed >= storefrontLabelRollDurationMs) {
+        setPage(current => current.key === pageKey ? { ...current, previousText: null, flipping: false } : current)
+        return
+      }
+      frame = window.requestAnimationFrame(advance)
+    }
+    frame = window.requestAnimationFrame(advance)
+    return () => window.cancelAnimationFrame(frame)
+  }, [page.flipping, page.key, pageKey])
 
-  return <span className={`scene-mainline-page-stack scene-mainline-page-stack--${mode}`} data-page-flip={page.flipping ? 'running' : 'settled'}>
-    {page.flipping && page.previousText !== null && <span className="scene-mainline-page scene-mainline-page--outgoing" aria-hidden="true">{page.previousText}</span>}
+  return <span ref={stackRef} className={`scene-mainline-page-stack scene-mainline-page-stack--${mode}`} data-page-flip={page.flipping ? 'running' : 'settled'} style={{ '--reading-page-out-y': '0%', '--reading-page-in-y': page.flipping ? '-100%' : '0%' } as CSSProperties}>
+    {page.flipping && page.previousText !== null && <span className="scene-mainline-page scene-mainline-page--outgoing" data-reading-page-role="outgoing" aria-hidden="true">{page.previousText}</span>}
     <span
       className={`scene-mainline-page ${page.flipping ? 'scene-mainline-page--incoming' : 'scene-mainline-page--current'}`}
       data-reading-page-role={page.flipping ? 'incoming' : 'current'}
-      onAnimationEnd={finishFlip}
     >{children}</span>
   </span>
 }
@@ -2265,7 +2293,8 @@ export function MainlineSceneRenderer({
               }
             }
             const baseSpeakerAnchor = isDialogue ? speakerPlacementRef.current!.anchor : null
-            const speakerAnchor = baseSpeakerAnchor ? { ...baseSpeakerAnchor, left: baseSpeakerAnchor.left + readingDisplayShift.x, top: baseSpeakerAnchor.top + readingDisplayShift.y } : null
+            const speakerPageAnchor = baseSpeakerAnchor ? mainlineSpeakerPageAnchor(baseSpeakerAnchor, echoLayout, worldScale) : null
+            const speakerAnchor = speakerPageAnchor ? { ...speakerPageAnchor, left: speakerPageAnchor.left + readingDisplayShift.x, top: speakerPageAnchor.top + readingDisplayShift.y } : null
             return <Fragment>
             {isDialogue && speakerAnchor && <div
               key={`speaker:${scene.id}:${dialogue!.triggerEntityId}`}

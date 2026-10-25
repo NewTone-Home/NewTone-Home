@@ -53,3 +53,18 @@ export function mainlineSpeakerAnchor(lines: readonly { text: string; speaker: s
   const center = position.x + cameraOffset.x
   return { left: center - halfWidth, top: position.y + cameraOffset.y, widthPx, worldWidthPx }
 }
+
+/**
+ * Keep the dialogue's stable center, but align the visible speaker label to
+ * the current page box instead of the widest page in the full line envelope.
+ */
+export function mainlineSpeakerPageAnchor(envelope: ReturnType<typeof mainlineSpeakerAnchor>, layout: MainlineEchoLayout, worldScale = 1) {
+  const worldWidthPx = layout.widthPx / Math.max(.001, worldScale)
+  const center = envelope.left + envelope.worldWidthPx / sceneDesignReferenceMetrics.width * 50
+  return {
+    ...envelope,
+    left: center - worldWidthPx / sceneDesignReferenceMetrics.width * 50,
+    widthPx: layout.widthPx,
+    worldWidthPx,
+  }
+}

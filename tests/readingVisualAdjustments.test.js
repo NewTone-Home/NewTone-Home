@@ -6,19 +6,14 @@ const sceneCss = read('../src/center/runtime/scene.css')
 const surfaceCss = read('../src/components/EntryButtonSurface.css')
 
 describe('reading visual adjustments', () => {
-  it('flips reading pages vertically while preserving the page timing and frame-size transition contract', () => {
-    const close = sceneCss.match(/@keyframes mainline-reading-page-close\s*\{([\s\S]*?)\n\}/)?.[1] ?? ''
-    const open = sceneCss.match(/@keyframes mainline-reading-page-open\s*\{([\s\S]*?)\n\}/)?.[1] ?? ''
-
-    expect(sceneCss).toContain('.scene-mainline-page--outgoing { animation: mainline-reading-page-close 160ms')
-    expect(sceneCss).toContain('.scene-mainline-page--incoming { animation: mainline-reading-page-open 160ms cubic-bezier(.4, 0, .2, 1) 320ms')
-    expect(sceneCss).toContain('.scene-mainline-page--current { transform: scaleY(1); }')
-    expect(close).toContain('scaleY(1)')
-    expect(close).toContain('scaleY(0)')
-    expect(open).toContain('scaleY(0)')
-    expect(open).toContain('scaleY(1)')
-    expect(close).not.toContain('scaleX(')
-    expect(open).not.toContain('scaleX(')
+  it('rolls the old page down while the new page enters from above like the Cafe storefront', () => {
+    expect(sceneCss).toContain('.scene-mainline-page-stack { position: relative; display: grid; grid-template-rows: minmax(0, 1fr); width: 100%; height: 100%; overflow: hidden; }')
+    expect(sceneCss).toContain('.scene-mainline-page--outgoing { transform: translate3d(0, var(--reading-page-out-y, 0%), 0); }')
+    expect(sceneCss).toContain('.scene-mainline-page--incoming { transform: translate3d(0, var(--reading-page-in-y, -100%), 0); }')
+    expect(sceneCss).not.toContain('mainline-reading-page-close')
+    expect(sceneCss).not.toContain('mainline-reading-page-open')
+    expect(sceneCss).not.toContain('scaleY(')
+    expect(sceneCss).not.toContain('320ms')
     expect(sceneCss).toContain('.scene-mainline-text--dialogue { z-index: 14; isolation: isolate; color: var(--active); }')
   })
 

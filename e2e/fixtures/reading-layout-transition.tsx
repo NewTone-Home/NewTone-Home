@@ -27,7 +27,10 @@ function Fixture() {
   const geometry = createMainlineSceneGeometrySnapshot(scene, position, {}, metrics, presentation.phaseByStorefront)
   const pageText = pages[pageIndex]
   const dialogueLines = [{ id: 'fixture-line', speaker: '老周' as const, text: pages.join('') }]
-  const dialogueLine = { ...dialogueLines[0], text: pageText }
+  // Match production: dialogueLine is the complete authored line; dialogueText
+  // is only the currently presented page. The full line supplies a stable
+  // camera/placement envelope while page text changes.
+  const dialogueLine = dialogueLines[0]
 
   return <div className="mainline-scene--map-only" data-fixture-page-index={pageIndex} data-fixture-typing={String(typing)} style={{ '--room': '#0b0f12', '--active': '#f0cc7b', '--ink': '#b0bec5', '--soft': '#a1c2c2', '--muted': '#6c8088' } as React.CSSProperties}>
     <div style={{ position: 'fixed', zIndex: 100, top: 8, left: 8, display: 'flex', gap: 6 }}>
