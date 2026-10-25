@@ -1147,7 +1147,7 @@
 .scene-mainline-page { grid-area: 1 / 1; display: block; min-width: 0; white-space: pre-line; transform-origin: center center; backface-visibility: hidden; }
 .scene-mainline-page--outgoing { animation: mainline-reading-page-close 160ms cubic-bezier(.4, 0, .2, 1) both; }
 .scene-mainline-page--incoming { animation: mainline-reading-page-open 160ms cubic-bezier(.4, 0, .2, 1) 320ms both; }
-.scene-mainline-page--current { transform: scaleX(1); }
+.scene-mainline-page--current { transform: scaleY(1); }
 .scene-mainline-text--dialogue { z-index: 14; isolation: isolate; color: var(--active); }
 .scene-mainline-object__focus-host {
   position: absolute;
@@ -1169,12 +1169,12 @@
   to { opacity: 0; transform: translate(-50%, -50%); }
 }
 @keyframes mainline-reading-page-close {
-  from { opacity: 1; transform: scaleX(1); }
-  to { opacity: 0; transform: scaleX(0); }
+  from { opacity: 1; transform: scaleY(1); }
+  to { opacity: 0; transform: scaleY(0); }
 }
 @keyframes mainline-reading-page-open {
-  from { opacity: 0; transform: scaleX(0); }
-  to { opacity: 1; transform: scaleX(1); }
+  from { opacity: 0; transform: scaleY(0); }
+  to { opacity: 1; transform: scaleY(1); }
 }/* A one-shot world-space story trigger marker. */
 
 .scene-commercial-question-mark {
@@ -1254,6 +1254,14 @@
   max-width: 100%;
   padding: 0;
   font: inherit;
+  color: var(--active);
+}
+.scene-mainline-action--reading .shared-entry-control.is-content-sized .shared-entry-text { color: var(--active); }
+.scene-mainline-action--reading .shared-entry-control.is-content-sized:disabled { color: color-mix(in srgb, var(--active) 60%, var(--soft)); }
+.scene-mainline-action--reading .shared-entry-control.is-content-sized:disabled .shared-entry-text { color: color-mix(in srgb, var(--active) 60%, var(--soft)); }
+.scene-mainline-action--reading .shared-entry-control.is-content-sized:focus-visible {
+  outline-color: color-mix(in srgb, var(--active) 42%, transparent);
+  outline-offset: 3px;
 }
 .scene-mainline-action--reading .shared-entry-control.is-content-sized .shared-entry-content {
   box-sizing: border-box;
