@@ -171,6 +171,18 @@ export function mainlinePlaceReadingAction(
   return { position, availableWidthPx, availableHeightPx, overflowY: measuredSizePx.height > availableHeightPx + .5 }
 }
 
+/**
+ * Keep a scene action at the camera-space position where its reading ended,
+ * while rendering it inside the world layer that already applies the current
+ * camera transform. Both offsets use the same projected scene-percent space.
+ */
+export function mainlineReadingActionLayerPosition(position: Point, savedCameraOffset: Point, renderCameraOffset: Point): Point {
+  return {
+    x: position.x + savedCameraOffset.x - renderCameraOffset.x,
+    y: position.y + savedCameraOffset.y - renderCameraOffset.y,
+  }
+}
+
 /** Find the longest first page that fits beside protected visuals and inside
  * the current room. The caller keeps the remaining pages and advances them
  * before advancing the authored dialogue/observation cursor. */

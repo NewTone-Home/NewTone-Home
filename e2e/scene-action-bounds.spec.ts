@@ -1,11 +1,51 @@
 import { expect, test } from '@playwright/test'
 
-for (const viewport of [{ width: 1280, height: 800 }, { width: 360, height: 550 }]) {
-  for (const edge of ['top', 'bottom'] as const) {
-    test(`two long options stay in the current room at the ${edge} edge (${viewport.width}x${viewport.height})`, async ({ page }) => {
+const viewports = [{ width: 1280, height: 800 }, { width: 411, height: 914 }, { width: 360, height: 550 }]
+const edges = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const
+
+async function expectActionAtSavedCameraAnchor(page: import('@playwright/test').Page, viewport: { width: number; height: number }, requireViewportFit = true) {
+  const action = page.locator('[data-scene-action="fixture-two-long-options"]')
+  const projection = await action.evaluate(element => {
+    const rect = element.getBoundingClientRect()
+    const root = document.querySelector('.mainline-scene--map-only')!
+    const world = document.querySelector('.scene-mainline-world')!
+    const rootData = root as HTMLElement
+    const worldData = world as HTMLElement
+    const left = Number(element.getAttribute('data-scene-action-rendered-x'))
+    const top = Number(element.getAttribute('data-scene-action-rendered-y'))
+    const scale = Number(worldData.dataset.worldProjectionScale)
+    const savedX = Number(rootData.dataset.fixtureSavedCameraX)
+    const savedY = Number(rootData.dataset.fixtureSavedCameraY)
+    const currentX = Number(rootData.dataset.fixtureRenderCameraX)
+    const currentY = Number(rootData.dataset.fixtureRenderCameraY)
+    return {
+      rect: { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom, centerX: rect.x + rect.width / 2, centerY: rect.y + rect.height / 2, width: rect.width, height: rect.height },
+      expectedCenterX: innerWidth / 2 + (left + savedX - 50) / 100 * 1920 * scale,
+      expectedCenterY: innerHeight / 2 + (top + savedY - 50) / 100 * 1080 * scale,
+      scale,
+      offsetDelta: { x: savedX - currentX, y: savedY - currentY },
+    }
+  })
+  expect(Math.abs(projection.rect.centerX - projection.expectedCenterX)).toBeLessThanOrEqual(1)
+  expect(Math.abs(projection.rect.centerY - projection.expectedCenterY)).toBeLessThanOrEqual(1)
+  if (requireViewportFit) {
+    expect(projection.rect.x).toBeGreaterThanOrEqual(-1)
+    expect(projection.rect.y).toBeGreaterThanOrEqual(-1)
+    expect(projection.rect.right).toBeLessThanOrEqual(viewport.width + 1)
+    expect(projection.rect.bottom).toBeLessThanOrEqual(viewport.height + 1)
+  }
+  expect(projection.rect.width).toBeGreaterThan(0)
+  expect(projection.rect.height).toBeGreaterThan(0)
+  return projection
+}
+
+for (const viewport of viewports) {
+  for (const edge of edges) {
+    test(`two long options stay on their saved camera anchor at the ${edge} room edge (${viewport.width}x${viewport.height})`, async ({ page }) => {
       await page.setViewportSize(viewport)
       await page.goto('/e2e/fixtures/scene-action-bounds.html')
-      if (edge === 'bottom') await page.locator('[data-action-edge="bottom"]').click()
+      await page.locator(`[data-action-edge="${edge}"]`).click()
+      await page.locator('[data-action-overflow]').click()
       const action = page.locator('[data-scene-action="fixture-two-long-options"]')
       await expect(action).toBeVisible()
       await expect(action.locator('[data-entry-id^="scene-action:fixture-two-long-options:"]')).toHaveCount(2)
@@ -18,18 +58,42 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 360, height: 550 
           renderedY: Number(node.dataset.sceneActionRenderedY), sourceY: Number(node.dataset.sceneActionPositionY),
           overflow: node.dataset.sceneActionOverflowY === 'true', scrollHeight: node.scrollHeight, clientHeight: node.clientHeight }
       })
-      expect(box.x).toBeGreaterThanOrEqual(-1)
-      expect(box.y).toBeGreaterThanOrEqual(-1)
-      expect(box.right).toBeLessThanOrEqual(viewport.width + 1)
-      expect(box.bottom).toBeLessThanOrEqual(viewport.height + 1)
-      expect(box.width).toBeGreaterThan(0)
-      expect(box.height).toBeGreaterThan(0)
+      await expectActionAtSavedCameraAnchor(page, viewport)
       expect(box.renderedY).not.toBe(box.sourceY)
       expect(box.measuredHeight).toBeGreaterThan(0)
       if (box.overflow) expect(box.scrollHeight).toBeGreaterThan(box.clientHeight)
     })
   }
 }
+
+test('camera changes during reading-exit handoff do not move the saved option group', async ({ page }) => {
+  const viewport = { width: 411, height: 914 }
+  await page.setViewportSize(viewport)
+  await page.goto('/e2e/fixtures/scene-action-bounds.html')
+  await page.locator('[data-action-overflow]').click()
+  const initial = await expectActionAtSavedCameraAnchor(page, viewport)
+  const action = page.locator('[data-scene-action="fixture-two-long-options"]')
+  const initialRect = await action.boundingBox()
+  await page.locator('[data-camera-handoff-mid]').click()
+  const middle = await expectActionAtSavedCameraAnchor(page, viewport)
+  await page.locator('[data-camera-handoff]').click()
+  const final = await expectActionAtSavedCameraAnchor(page, viewport)
+  const finalRect = await action.boundingBox()
+  expect(middle.offsetDelta).not.toEqual({ x: 0, y: 0 })
+  expect(final.offsetDelta).not.toEqual({ x: 0, y: 0 })
+  expect(Math.abs((initialRect!.x + initialRect!.width / 2) - (finalRect!.x + finalRect!.width / 2))).toBeLessThanOrEqual(1)
+  expect(Math.abs((initialRect!.y + initialRect!.height / 2) - (finalRect!.y + finalRect!.height / 2))).toBeLessThanOrEqual(1)
+  expect(initial.scale).toBeGreaterThan(0)
+})
+
+test('zero saved and current camera offsets do not add a second translation', async ({ page }) => {
+  const viewport = { width: 411, height: 914 }
+  await page.setViewportSize(viewport)
+  await page.goto('/e2e/fixtures/scene-action-bounds.html')
+  await page.locator('[data-camera-zero]').click()
+  const projection = await expectActionAtSavedCameraAnchor(page, viewport, false)
+  expect(projection.offsetDelta).toEqual({ x: 0, y: 0 })
+})
 
 test('a touch release on the option panel does not walk the scene; overflow scroll reaches and activates the last option', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 550 })

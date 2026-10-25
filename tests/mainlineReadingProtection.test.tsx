@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from '../src/center/runtime/mainlineReadingProtection'
+import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionLayerPosition, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from '../src/center/runtime/mainlineReadingProtection'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineReadingBounds, mainlineInteractionRoom } from '../src/center/runtime/mainlineTextReading'
 import { projectCommercialStreetX } from '../src/center/runtime/commercialStreetGridProjection'
@@ -15,6 +15,34 @@ import { mainlineAvailableReadingWidthPx } from '../src/center/runtime/mainlineT
 import { mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
 
 describe('reading target protection', () => {
+  it('converts a saved action anchor into the current world-layer camera without applying pan twice', () => {
+    const anchor = { x: 34.5, y: 22.25 }
+    const saved = { x: 15.5, y: 27.75 }
+    const sameCamera = mainlineReadingActionLayerPosition(anchor, saved, saved)
+    expect(sameCamera).toEqual(anchor)
+    expect({ x: sameCamera.x + saved.x, y: sameCamera.y + saved.y }).toEqual({ x: 50, y: 50 })
+
+    const changingCamera = mainlineReadingActionLayerPosition(anchor, saved, { x: 22, y: 19 })
+    expect(changingCamera).toEqual({ x: 28, y: 31 })
+    expect({ x: changingCamera.x + 22, y: changingCamera.y + 19 }).toEqual({ x: 50, y: 50 })
+
+    const zeroCamera = mainlineReadingActionLayerPosition(anchor, { x: 0, y: 0 }, { x: 0, y: 0 })
+    expect(zeroCamera).toEqual(anchor)
+
+    // During a reading-exit camera handoff, the rendered world offset changes
+    // each frame while the choice stays at the reading's saved screen anchor.
+    const handoffFrames = [
+      { x: 15.5, y: 27.75 },
+      { x: 19, y: 24 },
+      { x: 26, y: 18 },
+      { x: 31, y: 10 },
+    ]
+    for (const current of handoffFrames) {
+      const local = mainlineReadingActionLayerPosition(anchor, saved, current)
+      expect({ x: local.x + current.x, y: local.y + current.y }).toEqual({ x: 50, y: 50 })
+    }
+  })
+
   it('moves protection to the current reading source and removes it when reading ends', () => {
     expect(currentMainlineReadingTargetIds({ readingMode: true, activeObjectId: 'old-target', sceneEchoEntityId: 'new-target' })).toEqual(new Set(['new-target']))
     expect(currentMainlineReadingTargetIds({ readingMode: true, activeObjectId: 'old-target' })).toEqual(new Set(['old-target']))

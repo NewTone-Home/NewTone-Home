@@ -40,7 +40,7 @@ import { storefrontContactGeometry } from './storefrontContactGeometry'
 import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingOpacityForActor, mainlineObservationTypingIntervalMs, mainlineReadingFadeTransitionMs, resolveMainlineDialogueParticipants } from './mainlineTextReading'
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
 import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
-import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from './mainlineReadingProtection'
+import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionLayerPosition, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from './mainlineReadingProtection'
 import { MainlineReadingOcclusionMask } from './MainlineReadingOcclusionMask'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
 import { mainlineReadingLocalPercent, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionMaskRegion, mainlineReadingOcclusionRect, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot } from './mainlineReadingOcclusion'
@@ -1312,6 +1312,13 @@ export function MainlineSceneRenderer({
   const sceneActionPlacement = sceneAction && matchingSceneActionSize
     ? mainlinePlaceReadingAction(scene, sceneAction.position, matchingSceneActionSize, renderScreenMetrics, worldScale, sceneActionCameraOffset)
     : null
+  const sceneActionPosition = sceneActionPlacement?.position ?? sceneAction?.position
+  const sceneActionLayerPosition = sceneActionPosition && sceneAction
+    ? mainlineReadingActionLayerPosition({
+      ...sceneActionPosition,
+      x: scene.id === 'commercial-street' ? projectCommercialStreetX(sceneActionPosition.x, renderScreenMetrics) : sceneActionPosition.x,
+    }, sceneActionCameraOffset, renderCameraOffset)
+    : null
   const activeReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, renderCameraOffset) : readingMetrics.width - 24
   const activeReadingLayout = activeReadingPosition
     ? mainlineEchoLayout(activeReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: activeReadingWidthPx })
@@ -2319,8 +2326,8 @@ export function MainlineSceneRenderer({
             ref={sceneActionRef}
             className="scene-mainline-action scene-mainline-action--reading"
             style={{
-              left: `${(scene.id === 'commercial-street' ? projectCommercialStreetX(sceneActionPlacement?.position.x ?? sceneAction.position.x, renderScreenMetrics) : sceneActionPlacement?.position.x ?? sceneAction.position.x) + sceneActionCameraOffset.x}%`,
-              top: `${(sceneActionPlacement?.position.y ?? sceneAction.position.y) + sceneActionCameraOffset.y}%`,
+              left: `${sceneActionLayerPosition?.x ?? sceneAction.position.x}%`,
+              top: `${sceneActionLayerPosition?.y ?? sceneAction.position.y}%`,
               maxWidth: `${Math.max(1, Math.min(sceneActionMaxWidthPx, sceneActionPlacement?.availableWidthPx ?? sceneActionMaxWidthPx) / worldScale)}px`,
               maxHeight: sceneActionPlacement ? `${Math.max(1, sceneActionPlacement.availableHeightPx / worldScale)}px` : undefined,
               overflowY: sceneActionPlacement?.overflowY ? 'auto' : 'visible',
