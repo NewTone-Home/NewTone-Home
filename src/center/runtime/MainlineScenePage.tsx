@@ -58,6 +58,16 @@ const restroomPresentationSuppressionForSeatedPlayer: ReadonlySet<string> = new 
 // repeatedly recreate the NPC registration and presentation dependencies.
 const inactiveCommercialCafeStory = commercialCafeStoryStateFromSceneState(undefined)
 type NpcDialogueResolution = Extract<CommercialCafeNpcInteractionResolution, { kind: 'dialogue' }>
+const debugClockTrialNpcDialogue: NpcDialogueResolution = {
+  kind: 'dialogue',
+  dialogue: {
+    triggerEntityId: 'e2e-clock-formal-dialogue',
+    lines: [
+      { id: 'e2e-clock-formal-dialogue-0', speaker: '\u8001\u5468', text: 'Clock integration dialogue test.' },
+      { id: 'e2e-clock-formal-dialogue-1', speaker: '\u8001\u5468', text: 'Clock integration dialogue continues.' },
+    ],
+  },
+}
 type CommercialCafeNarrativeRuntime = { phase: 'active' | 'coffee-delivery' | 'delivery-line' | 'leaving' }
 function commercialCafeNarrativeRuntimeFromSceneState(sceneId: MainlineSceneId, sceneState: PlayerSceneState, inside = true): CommercialCafeNarrativeRuntime | null {
   if (!isCafeWorldId(sceneId) || !inside) return null
@@ -399,6 +409,9 @@ export function MainlineScenePage({
     && new URLSearchParams(debugInputSearch).get('qaCafeSpatial') === '1'
   const debugCafeFixture = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('debugCafeFixture') === '1'
   const debugRuntimeEvidence = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('debugRuntimeEvidence') === '1'
+  const debugClockTrialMode = debugRuntimeEvidence ? new URLSearchParams(debugInputSearch).get('debugClockTrial') : null
+  const debugClockTrialActive = scene.id === 'commercial-street'
+    && (debugClockTrialMode === 'formal-dialogue' || debugClockTrialMode === 'inner-monologue')
   const debugCafeStoryInterruptMode = import.meta.env.DEV ? new URLSearchParams(debugInputSearch).get('debugCafeStoryInterrupt') : null
   const debugCafeStoryInterrupt = debugCafeStoryInterruptMode === '1' || debugCafeStoryInterruptMode === 'public'
   const debugCafeServerBlockerMode = import.meta.env.DEV ? new URLSearchParams(debugInputSearch).get('debugCafeServerBlocker') : null
@@ -596,7 +609,7 @@ export function MainlineScenePage({
     return () => onReadingStateChange?.(false)
   }, [onReadingStateChange, readingActive])
   const dialogueClockSource = activeDialogueLine && dialoguePresentationPhase !== 'leaving'
-    ? npcDialogue ? 'npc-dialogue' : 'scene-dialogue'
+    ? commercialStreetQuestionNarrative ? 'inner-monologue' : npcDialogue ? 'npc-dialogue' : 'scene-dialogue'
     : null
   const sceneClockSource = sceneEcho && sceneEcho.phase !== 'leaving'
     ? sceneEcho.clockActivitySource
@@ -824,6 +837,17 @@ export function MainlineScenePage({
     setIncenseClock(Date.now())
     stopMovement()
   }, [sceneDefinition, sceneId, stopMovement])
+  useEffect(() => {
+    if (!debugClockTrialActive) return
+    if (debugClockTrialMode === 'formal-dialogue') {
+      setNpcDialogue(debugClockTrialNpcDialogue)
+      setDialogueLineIndex(0)
+      return
+    }
+    if (debugClockTrialMode === 'inner-monologue') {
+      setCommercialStreetQuestionNarrative({ phase: 'active', segmentIndex: 0 })
+    }
+  }, [debugClockTrialActive, debugClockTrialMode])
   useEffect(() => {
     const persistedObjectIds = mainlineExploredObjectIdsFromSceneState(initialSceneState)
     setExplorationState((current) => {
@@ -2328,6 +2352,7 @@ export function MainlineScenePage({
       data-e2e-coffee-owner-speed={debugRuntimeEvidence && hasContinuousCafe(scene) ? cafeCoffeeOwnerLocomotionOptions.speedMultiplier() : undefined}
       data-e2e-floor-server-speed={debugRuntimeEvidence && hasContinuousCafe(scene) ? locomotionOptions.speedMultiplier() : undefined}
       data-commercial-question-narrative={commercialStreetQuestionNarrative?.phase}
+      data-e2e-clock-source={debugClockTrialActive ? dialogueClockSource ?? sceneClockSource ?? 'normal-play' : undefined}
       data-debug-cafe-fixture={debugCafeFixture ? 'true' : undefined}
       data-debug-runtime-evidence={debugRuntimeEvidence ? 'true' : undefined}
       data-e2e-access-region-x={debugCafeStaffRegion?.x}

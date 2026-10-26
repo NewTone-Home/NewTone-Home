@@ -153,3 +153,81 @@ test('a trusted touch on the phone is observed before its local propagation hand
   const afterKeyboard = await phoneMinutes(page)
   expect(minuteDelta(beforeKeyboard, afterKeyboard)).toBe(3) // Trusted keydown restores 15x.
 })
+
+async function startProductionDialogueClockTrial(page: import('@playwright/test').Page, mode: 'formal-dialogue' | 'inner-monologue') {
+  await page.clock.install()
+  const initialGameTimeMs = (10 * 60) * 60_000
+  await page.addInitScript(gameTimeMs => {
+    localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
+    localStorage.setItem('newtone-player-save-v1', JSON.stringify({
+      _version: 2,
+      currentSceneId: 'commercial-street',
+      currentPosition: null,
+      scenePositions: {},
+      phoneDevice: 'inner',
+      storyClock: { dayId: 'story-day-001', stage: 'opening', month: 4, day: 12, weekday: 6, hour: 10, minute: 0, weatherCycle: 'sunny' },
+      gameTimeMs,
+      sceneState: {},
+      phoneNotifications: [],
+      phoneNotes: [],
+      phoneContactNotes: {},
+      phoneCallHistory: [],
+      updatedAt: 1,
+    }))
+  }, initialGameTimeMs)
+  await startIsolatedWorld(page, `/?scene=commercial-street&debugRuntimeEvidence=1&debugClockTrial=${mode}`)
+  const center = page.locator('.center-experience')
+  const scene = page.locator('.mainline-scene[data-mainline-scene="commercial-street"]')
+  const expectedSource = mode === 'inner-monologue' ? 'inner-monologue' : 'npc-dialogue'
+  await expect(scene).toHaveAttribute('data-e2e-clock-source', expectedSource)
+  await expect(scene.locator('[data-scene-dialogue]')).toBeVisible()
+  await expect(center).toHaveAttribute('data-e2e-game-clock-activity', expectedSource)
+  await expect(center).toHaveAttribute('data-e2e-game-clock-mode', 'dialogue')
+  await expect(center).toHaveAttribute('data-e2e-game-clock-multiplier', '0')
+  const gameTimeAtDialogueStart = Number(await center.getAttribute('data-e2e-game-time-ms'))
+  return { center, scene, initialGameTimeMs, gameTimeAtDialogueStart }
+}
+
+for (const mode of ['formal-dialogue', 'inner-monologue'] as const) {
+  test(`production CenterExperience ${mode} freezes, idles at 5x, restores dialogue freeze, and carries time across scenes`, async ({ page }) => {
+    const { center, scene, gameTimeAtDialogueStart } = await startProductionDialogueClockTrial(page, mode)
+
+    await page.clock.fastForward(60_000)
+    await expect(center).toHaveAttribute('data-e2e-game-clock-idle', 'true')
+    await expect(center).toHaveAttribute('data-e2e-game-clock-multiplier', '5')
+    const gameTimeAtIdleStart = Number(await center.getAttribute('data-e2e-game-time-ms'))
+    // Allow the initial scene's source-registration turn to settle, then prove
+    // the dialogue rate remains effectively frozen up to the idle boundary.
+    expect(gameTimeAtIdleStart - gameTimeAtDialogueStart).toBeLessThanOrEqual(5_000)
+
+    await page.clock.fastForward(12_000)
+    const idleGameTimeMs = Number(await center.getAttribute('data-e2e-game-time-ms'))
+    expect(idleGameTimeMs).toBeGreaterThanOrEqual(gameTimeAtIdleStart + 60_000)
+    expect(idleGameTimeMs).toBeLessThanOrEqual(gameTimeAtIdleStart + 60_250)
+
+    const gameTimeBeforeTrustedInput = Number(await center.getAttribute('data-e2e-game-time-ms'))
+    await scene.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
+    await expect(center).toHaveAttribute('data-e2e-game-clock-activity', mode === 'inner-monologue' ? 'inner-monologue' : 'npc-dialogue')
+    await expect(center).toHaveAttribute('data-e2e-game-clock-idle', 'false')
+    await expect(center).toHaveAttribute('data-e2e-game-clock-multiplier', '0')
+    const gameTimeAfterTrustedInput = Number(await center.getAttribute('data-e2e-game-time-ms'))
+    expect(gameTimeAfterTrustedInput - gameTimeBeforeTrustedInput).toBeLessThanOrEqual(1_000)
+    await page.clock.fastForward(2_000)
+    const restoredDialogueGameTimeMs = Number(await center.getAttribute('data-e2e-game-time-ms'))
+    expect(restoredDialogueGameTimeMs - gameTimeAfterTrustedInput).toBeLessThanOrEqual(250)
+
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('newtone:e2e-clock-transition', { detail: { sceneId: 'jijia-ancestral-interior' } })))
+    await expect(page.locator('.mainline-scene[data-mainline-scene="jijia-ancestral-interior"]')).toBeVisible()
+    await expect(center).toHaveAttribute('data-e2e-game-clock-activity', 'normal-play')
+    await expect(center).toHaveAttribute('data-e2e-game-clock-mode', 'normal-play')
+    await expect(center).toHaveAttribute('data-e2e-game-clock-multiplier', '30')
+    const gameTimeAtNextScene = Number(await center.getAttribute('data-e2e-game-time-ms'))
+    expect(gameTimeAtNextScene).toBeGreaterThanOrEqual(restoredDialogueGameTimeMs)
+    expect(gameTimeAtNextScene - restoredDialogueGameTimeMs).toBeLessThanOrEqual(1_000)
+
+    await page.clock.fastForward(2_000)
+    const afterSceneChange = Number(await center.getAttribute('data-e2e-game-time-ms'))
+    expect(afterSceneChange - gameTimeAtNextScene).toBeGreaterThanOrEqual(60_000)
+    expect(afterSceneChange - gameTimeAtNextScene).toBeLessThanOrEqual(67_500)
+  })
+}

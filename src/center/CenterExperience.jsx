@@ -95,6 +95,7 @@ export default function CenterExperience({
   onRevealComplete,
 }) {
   const reducedMotion = useReducedMotion()
+  const [debugClockTrial] = useState(() => import.meta.env.DEV ? new URLSearchParams(window.location.search).get('debugClockTrial') : null)
   const [playerSave, setPlayerSave] = useState(() => loadPlayerSave())
   const sessionGameClockRef = useRef(null)
   if (!sessionGameClockRef.current) {
@@ -491,6 +492,16 @@ export default function CenterExperience({
     setRoute(nextRoute)
   }, [commitPlayerSave, reducedMotion, resumePosition, route, sceneSlot])
 
+  useEffect(() => {
+    if (!debugClockTrial) return
+    const handleClockTrialTransition = event => {
+      if (event.detail?.sceneId !== 'jijia-ancestral-interior') return
+      handleSceneTransition('jijia-ancestral-interior')
+    }
+    window.addEventListener('newtone:e2e-clock-transition', handleClockTrialTransition)
+    return () => window.removeEventListener('newtone:e2e-clock-transition', handleClockTrialTransition)
+  }, [debugClockTrial, handleSceneTransition])
+
   const handleLocalSlideTargetAnimationEnd = useCallback((event) => {
     if (event.target !== event.currentTarget) return
     if (
@@ -798,6 +809,11 @@ export default function CenterExperience({
       data-center-boundary="inner-phone-ride-ready"
       data-entry-phase={entryPhase}
       data-long-distance-phase={longDistanceTravel?.phase}
+      data-e2e-game-time-ms={debugClockTrial ? trialClockSnapshot.gameTimeMs : undefined}
+      data-e2e-game-clock-activity={debugClockTrial ? trialClockSnapshot.activity : undefined}
+      data-e2e-game-clock-mode={debugClockTrial ? trialClockSnapshot.activityMode : undefined}
+      data-e2e-game-clock-multiplier={debugClockTrial ? trialClockSnapshot.multiplier : undefined}
+      data-e2e-game-clock-idle={debugClockTrial ? String(trialClockSnapshot.idle) : undefined}
       aria-busy={entryPhase !== 'active' || Boolean(longDistanceTravel)}
     >
       <div
