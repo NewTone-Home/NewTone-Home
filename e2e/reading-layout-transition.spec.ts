@@ -185,6 +185,51 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
 }
 
 for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 }]) {
+  test(`observation page key settles its layout on the matching page at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    await page.goto('/e2e/fixtures/reading-layout-transition.html')
+    await page.locator('[data-reading-start]').click()
+    const text = page.locator('.scene-mainline-text[data-scene-echo]')
+    await expect(text).toHaveAttribute('data-scene-reading-layout-transitioning', 'false')
+    const firstPageKey = await text.getAttribute('data-scene-reading-page-key')
+    expect(firstPageKey).toContain(':0:0:')
+
+    await page.locator('[data-reading-next]').click()
+    await expect(text.locator('[data-reading-page-role="outgoing"]')).toHaveCount(1)
+    await expect(text.locator('[data-page-flip="settled"]')).toHaveCount(1, { timeout: 1500 })
+    await expect(text).toHaveAttribute('data-scene-reading-layout-transitioning', 'false', { timeout: 1500 })
+    const secondPageKey = await text.getAttribute('data-scene-reading-page-key')
+    expect(secondPageKey).toContain(':1:0:')
+    expect(secondPageKey).not.toBe(firstPageKey)
+
+    await page.locator('[data-reading-next]').click()
+    await expect(text.locator('[data-page-flip="settled"]')).toHaveCount(1, { timeout: 1500 })
+    await expect(text).toHaveAttribute('data-scene-reading-layout-transitioning', 'false', { timeout: 1500 })
+  })
+}
+
+test('an old observation page settlement cannot clear the new session page transition', async ({ page }) => {
+  await page.setViewportSize({ width: 411, height: 914 })
+  await page.goto('/e2e/fixtures/reading-layout-transition.html')
+  await page.locator('[data-reading-start]').click()
+  const oldText = page.locator('.scene-mainline-text[data-scene-echo]')
+  await expect(oldText).toHaveAttribute('data-scene-reading-layout-transitioning', 'false')
+  await page.locator('[data-reading-next]').click()
+  await expect(oldText.locator('[data-page-flip="running"]')).toHaveCount(1)
+
+  await page.locator('[data-reading-new-session]').click()
+  const newText = page.locator('.scene-mainline-text[data-scene-echo]')
+  await expect(newText).toHaveAttribute('data-scene-reading-layout-transitioning', 'false', { timeout: 1500 })
+  const newSessionPageKey = await newText.getAttribute('data-scene-reading-page-key')
+  expect(newSessionPageKey).toContain('echo:811:street-cafe-entry:0:0:')
+  await page.locator('[data-reading-next]').click()
+  await expect(newText.locator('[data-page-flip="running"]')).toHaveCount(1)
+  await expect(newText).toHaveAttribute('data-scene-reading-layout-transitioning', 'true')
+  await expect(newText.locator('[data-page-flip="settled"]')).toHaveCount(1, { timeout: 1500 })
+  await expect(newText).toHaveAttribute('data-scene-reading-layout-transitioning', 'false', { timeout: 1500 })
+})
+
+for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 }]) {
   test(`dialogue page rolls old text down and new text in from above at ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport)
     await page.goto('/e2e/fixtures/reading-layout-transition.html')
@@ -192,6 +237,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
     const text = page.locator('.scene-mainline-text[data-scene-dialogue]')
     await expect(text).toBeVisible()
     await expect(text.locator('[data-page-flip="settled"]')).toHaveCount(1)
+    await expect(text).toHaveAttribute('data-scene-reading-layout-transitioning', 'false')
     const before = await text.evaluate(element => {
       const rect = element.getBoundingClientRect()
       const node = element as HTMLElement
@@ -232,6 +278,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
     expect(midFlip.incomingText.length).toBeGreaterThan(0)
 
     await expect(text.locator('[data-page-flip="settled"]')).toHaveCount(1, { timeout: 1500 })
+    await expect(text).toHaveAttribute('data-scene-reading-layout-transitioning', 'false', { timeout: 1500 })
     await expect(text).toHaveAttribute('data-scene-dialogue-ready', 'true')
     const after = await text.evaluate(element => {
       const rect = element.getBoundingClientRect()

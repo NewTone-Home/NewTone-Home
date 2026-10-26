@@ -7,8 +7,17 @@ import {
   settleMainlineReadingPageFlip,
   snapshotMainlineReadingPage,
 } from '../src/center/runtime/mainlineReadingPageFlip'
+import { mainlineReadingPageKey } from '../src/center/runtime/mainlineReadingPageKey'
 
 describe('mainline reading page snapshot and roll envelope', () => {
+  it('uses one page identity for the current session, authored segment, fitted page, and displayed text', () => {
+    const current = mainlineReadingPageKey({ sessionKey: 'commercial-street:observation:echo:810:street-cafe-entry', segmentIndex: 1, overflowIndex: 0, text: '��ҳ' })
+    expect(current).toBe('commercial-street:observation:echo:810:street-cafe-entry:1:0:��ҳ')
+    expect(mainlineReadingPageKey({ sessionKey: 'commercial-street:observation:echo:811:street-cafe-entry', segmentIndex: 1, overflowIndex: 0, text: '��ҳ' })).not.toBe(current)
+    expect(mainlineReadingPageKey({ sessionKey: 'commercial-street:observation:echo:810:street-cafe-entry', segmentIndex: 2, overflowIndex: 0, text: '��ҳ' })).not.toBe(current)
+    expect(mainlineReadingPageKey({ sessionKey: 'commercial-street:observation:echo:810:street-cafe-entry', segmentIndex: 1, overflowIndex: 1, text: '��ҳ' })).not.toBe(current)
+  })
+
   it('uses the faster reading-only roll duration without changing storefront timing', () => {
     expect(mainlineReadingPageFlipDurationMs).toBe(500)
   })

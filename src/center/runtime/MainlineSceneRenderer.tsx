@@ -27,6 +27,7 @@ import { mainlineEchoLayout, mainlineSpeakerAnchor, mainlineSpeakerPageAnchor, t
 import { interpolateMainlineReadingPageLayout, mainlineReadingPageFlipDurationMs, mainlineReadingPageRollEnvelope, previousMainlineReadingPageForFlip, settleMainlineReadingPageFlip, snapshotMainlineReadingPage, type MainlineReadingPageSnapshot } from './mainlineReadingPageFlip'
 import { interpolateMainlineReadingLayout, mainlineReadingPageTransitionDurationMs, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize } from './mainlineReadingLayoutTransition'
 import { mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
+import { mainlineReadingPageKey } from './mainlineReadingPageKey'
 import { mainlineReadingPageAdvanceResumeGraceMs, mainlineReadingPageAdvanceStartupWatchdogMs, mainlineReadingPageAdvanceTokenIsCurrent, mainlineReadingPageAdvanceWatchdogMayRelease } from './mainlineReadingPageAdvance'
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
@@ -1707,7 +1708,7 @@ export function MainlineSceneRenderer({
     ? `echo:${scene.id}:${sceneEcho.id}`
     : `dialogue:${scene.id}:${dialogue?.triggerEntityId ?? dialogueLine?.id ?? ''}`
   const readingLayoutPageKey = readingSessionKey && displayReadingLayout
-    ? `${readingSessionKey}:${sceneEcho?.segmentIndex ?? dialogueSegmentIndex}:${displayOverflowIndex}:${displayReadingText}`
+    ? mainlineReadingPageKey({ sessionKey: readingSessionKey, segmentIndex: sceneEcho?.segmentIndex ?? dialogueSegmentIndex, overflowIndex: displayOverflowIndex, text: displayReadingText })
     : null
   const readingLayoutTransition = useMainlineReadingLayoutTransition(
     readingPresentationPhase,
@@ -2628,7 +2629,7 @@ export function MainlineSceneRenderer({
               {isDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
                 ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} layout={echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
-                : <ObservationText echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={`${sceneEcho!.id}:${sceneEcho!.segmentIndex}:${displayOverflowIndex}`} text={text} typing={sceneEcho!.typing} layout={echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onTypingComplete={onSceneEchoTypingComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
+                : <ObservationText echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} typing={sceneEcho!.typing} layout={echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onTypingComplete={onSceneEchoTypingComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
             </div>
             </Fragment>
           })()}
