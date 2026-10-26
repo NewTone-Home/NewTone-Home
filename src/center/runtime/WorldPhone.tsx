@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type AnimationEvent as ReactAnimationEvent, type FormEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type AnimationEvent as ReactAnimationEvent, type FormEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
 import { type MainlineSceneId } from './mainlineScenes'
 import { getPhoneMapRegions, type PhoneMapZoomLevel } from './phoneMapModel'
 import { phoneInputOwner, phoneIsOnline, phoneRideAvailability, type PhoneDevice, type WorldLayer, type WorldPhonePhase } from './phoneState'
@@ -17,6 +17,7 @@ import { PhoneRideApp } from './PhoneRideApp'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { PhonePlaceDetails } from './PhonePlaceDetails'
 import { commercialCafeCompletionPhoneMessageReadyForAck } from './cafeCompletionPhone'
+import type { SessionGameActivitySource } from './sessionGameClock'
 
 type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea' | 'notes'
 type FeedbackMode = 'phone'
@@ -58,6 +59,7 @@ type WorldPhoneProps = {
   rideOrder?: MainlineRideOrder | null
   notifications?: readonly PhoneNotification[]
   storyClock: MainlineStoryClock
+  gameTimeLabel?: string
   notificationScreen?: boolean
   onNotificationDismiss?: () => void
   onAppOpen?: (app: PhoneApp) => void
@@ -75,6 +77,7 @@ type WorldPhoneProps = {
   onMilkTeaOrderConfirm?: (selection: { drink: MilkTeaDrink; sugar: MilkTeaSugar; ice: MilkTeaIce }) => void
   onMilkTeaOrderStarted?: () => void
   onMeaningfulActivity?: () => void
+  onClockActivitySourceChange?: (sourceId: string, source: SessionGameActivitySource | null) => void
   notes?: readonly PhoneNote[]
   yongheLeadUnlocked?: boolean
   contactNotes?: Readonly<Record<string, string>>
@@ -216,7 +219,8 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onLaoZhouMessagesDisplayed, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
+export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, gameTimeLabel, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onLaoZhouMessagesDisplayed, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, onClockActivitySourceChange, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
+  const clockSourceId = useId()
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
   const [phase, setPhase] = useState<WorldPhonePhase>('closed')
@@ -227,6 +231,12 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const [placeCall, setPlaceCall] = useState<string | null>(null)
   const [activeApp, setActiveApp] = useState<PhoneApp | null>(null)
   const [contactView, setContactView] = useState<ContactView>('list')
+  const phoneReading = open && (notificationScreen || !['map', 'ride', 'feedback', 'milk-tea'].includes(activeApp ?? ''))
+  useEffect(() => {
+    const sourceId = `phone:${clockSourceId}:reading`
+    onClockActivitySourceChange?.(sourceId, phoneReading ? 'phone-reading' : null)
+    return () => onClockActivitySourceChange?.(sourceId, null)
+  }, [clockSourceId, onClockActivitySourceChange, phoneReading])
   const [selectedContactId, setSelectedContactId] = useState<ContactId>('lao-zhou')
   const [contactNoteDraft, setContactNoteDraft] = useState('')
   const [activeCallStartedAt, setActiveCallStartedAt] = useState<number | null>(null)
@@ -608,7 +618,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const selectedMapTitle = selectedMapPoi?.poi.label ?? selectedMapRegion?.label ?? null
 
   const storyDate = mainlineStoryDateLabel()
-  const storyTime = mainlineStoryTimeLabel(storyClock.stage)
+  const storyTime = gameTimeLabel ?? mainlineStoryTimeLabel(storyClock.stage)
   const worldWeather = mainlineWorldWeatherLabel(displayDevice, storyClock.weatherCycle)
 
 

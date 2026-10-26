@@ -112,6 +112,17 @@ describe('game clock', () => {
     expect(clock.read().gameTimeMs).toBe(4_500)
   })
 
+  it('validates explicit monotonic samples and keeps their high-water mark after invalid or backward samples', () => {
+    let realTimeMs = 0
+    const clock = createGameClock({ now: () => realTimeMs })
+
+    expect(clock.read(100).gameTimeMs).toBe(3_000)
+    expect(clock.read(90).gameTimeMs).toBe(3_000)
+    expect(() => clock.read(Number.NaN)).toThrow(RangeError)
+    expect(() => clock.setMultiplier(2, Number.POSITIVE_INFINITY)).toThrow(RangeError)
+    expect(clock.read(110).gameTimeMs).toBe(3_300)
+  })
+
   it('rejects non-finite multiplier, initial simulation time, and initial real-time anchor', () => {
     for (const multiplier of [Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(() => createGameClock({ multiplier, now: () => 0 })).toThrow(RangeError)

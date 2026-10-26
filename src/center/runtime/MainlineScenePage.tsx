@@ -4,7 +4,7 @@ import { hasContinuousCafe, isCafeWorldId, isPointInContinuousCafe, isCafeStoryK
 
 import { isMainlineExternalExitTriggered } from './mainlineExternalExit'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { Point } from './sceneGeometry'
 import { MainlineAmbientNpcActor, MainlineSceneRenderer, type MainlineInputDiagnostic } from './MainlineSceneRenderer'
 import { getMainlineSceneEntity, mainlineEntityDisplayLabel, mainlineSceneAreaLabel, mainlineScenes, mainlineStorefrontInteractionCandidates, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
@@ -47,6 +47,7 @@ import { localSlideDirectionForCrossing, shouldUseLocalSlideForPassage, type Mai
 import { createCommercialStreetStorefrontExecutionRuntime, createCommercialStreetStorefrontInteractionRuntime, commercialStreetStorefrontInteractionFor, executeCommercialStreetStorefrontInteraction, type CommercialStreetStorefrontAction } from './commercialStreetStorefrontInteractions'
 import { commercialStreetQuestionDialoguePosition, commercialStreetQuestionNarrativeAnchor, commercialStreetQuestionNarrativeCompleted, commercialStreetQuestionNarrativeCompletedKey, commercialStreetQuestionNarrativeLines, commercialStreetQuestionNarrativeShouldTrigger, nextCommercialStreetQuestionNarrative, type CommercialStreetQuestionNarrativeState } from './commercialStreetQuestionNarrative'
 import { commercialStreetMilkTeaConsumePatch, commercialStreetMilkTeaAppUnlockPatch, commercialStreetMilkTeaAppUnlocked, commercialStreetMilkTeaHeld, commercialStreetMilkTeaIsReady, commercialStreetMilkTeaOrderFromSceneState, commercialStreetMilkTeaPickupPatch, commercialStreetMilkTeaStorefrontId, formatCommercialStreetMilkTeaOrderNumber, type CommercialStreetMilkTeaOrder } from './commercialStreetMilkTea'
+import type { SessionGameActivitySource } from './sessionGameClock'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
@@ -117,6 +118,7 @@ function debugCafePoint(value: string | null): Point | null {
 
 type MainlineSceneEcho = {
   id: number
+  clockActivitySource: 'scene-observation' | 'menu-reading' | 'counter-observation' | 'plant-observation'
   entityId?: string
   sourceText: string
   text: string
@@ -132,6 +134,13 @@ type MainlineSceneEcho = {
   }
 }
 
+function clockActivityForExploration(entity: MainlineSceneEntity, hasOptions: boolean): MainlineSceneEcho['clockActivitySource'] {
+  if (hasOptions) return 'menu-reading'
+  if (entity.interactionBehavior === 'plant-choice') return 'plant-observation'
+  if (entity.interactionBehavior === 'cafe-order') return 'counter-observation'
+  return 'scene-observation'
+}
+
 type MainlineSceneAction = {
   entityId?: string
   options: readonly string[]
@@ -140,12 +149,13 @@ type MainlineSceneAction = {
   phase?: 'active' | 'committing'
 }
 
-function createMainlineSceneEcho(id: number, entityId: string | undefined, text: string, position: Point, options?: readonly string[]): MainlineSceneEcho {
+function createMainlineSceneEcho(id: number, entityId: string | undefined, text: string, position: Point, clockActivitySource: MainlineSceneEcho['clockActivitySource'], options?: readonly string[]): MainlineSceneEcho {
   // Split authored clauses here. The renderer applies the one width-fit pass
   // against the actual protected-object and viewport constraints.
   const segments = splitMainlineInteractionText(text)
   return {
     id,
+    clockActivitySource,
     entityId,
     sourceText: text,
     text: segments[0] ?? text.trim(),
@@ -218,6 +228,7 @@ export function MainlineScenePage({
   phoneOpen = false,
   onPhoneDismiss,
   onReadingStateChange,
+  onClockActivitySourceChange,
   onMeaningfulActivity,
   onDeskInteraction,
   onObjectInteraction,
@@ -259,6 +270,7 @@ export function MainlineScenePage({
   phoneOpen?: boolean
   onPhoneDismiss?: () => void
   onReadingStateChange?: (reading: boolean) => void
+  onClockActivitySourceChange?: (sourceId: string, source: SessionGameActivitySource | null) => void
   onMeaningfulActivity?: () => void
   onDeskInteraction?: (device: PhoneDevice) => void
   onObjectInteraction?: (entity: MainlineSceneEntity, dwellMs: number) => void
@@ -283,6 +295,7 @@ export function MainlineScenePage({
   resumePosition?: Point
   laoZhouCafeSeatId?: string
 }) {
+  const clockPageId = useId()
   const baseSceneDefinition: MainlineSceneDefinition = mainlineScenes[sceneId]
   const sceneDefinition: MainlineSceneDefinition = useMemo(() => {
     if (sceneId !== 'commercial-street' && sceneId !== 'commercial-cafe') return baseSceneDefinition
@@ -582,6 +595,22 @@ export function MainlineScenePage({
     onReadingStateChange?.(readingActive)
     return () => onReadingStateChange?.(false)
   }, [onReadingStateChange, readingActive])
+  const dialogueClockSource = activeDialogueLine && dialoguePresentationPhase !== 'leaving'
+    ? npcDialogue ? 'npc-dialogue' : 'scene-dialogue'
+    : null
+  const sceneClockSource = sceneEcho && sceneEcho.phase !== 'leaving'
+    ? sceneEcho.clockActivitySource
+    : sceneAction?.phase === 'active' ? 'menu-reading' : null
+  useEffect(() => {
+    const dialogueId = `${clockPageId}:dialogue`
+    const readingId = `${clockPageId}:reading`
+    onClockActivitySourceChange?.(dialogueId, dialogueClockSource)
+    onClockActivitySourceChange?.(readingId, sceneClockSource)
+    return () => {
+      onClockActivitySourceChange?.(dialogueId, null)
+      onClockActivitySourceChange?.(readingId, null)
+    }
+  }, [clockPageId, dialogueClockSource, onClockActivitySourceChange, sceneClockSource])
   useEffect(() => {
     if (!phoneOpen) return
     if (readingActive) {
@@ -865,6 +894,7 @@ export function MainlineScenePage({
       passage.entityId,
       text,
       sceneTextPresentationPosition(scene, getCurrentPosition(), text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
+      'scene-observation',
       undefined,
     ))
   }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, scene, screenMetrics])
@@ -875,6 +905,7 @@ export function MainlineScenePage({
       undefined,
       text,
       sceneTextPresentationPosition(scene, getCurrentPosition(), text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
+      'scene-observation',
       undefined,
     ))
   }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, scene, screenMetrics])
@@ -1712,6 +1743,7 @@ export function MainlineScenePage({
           entity.id,
           text,
           sceneTextPresentationPosition(scene, getCurrentPosition(), text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
+          clockActivityForExploration(entity, Boolean(explorationChoice?.options)),
           explorationChoice?.options,
         ))
       }
@@ -1771,6 +1803,7 @@ export function MainlineScenePage({
       commercialStreetMilkTeaStorefrontId,
       text,
       sceneTextPresentationPosition(scene, getCurrentPosition(), text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
+      options ? 'menu-reading' : 'scene-observation',
       options,
     ))
   }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, scene, screenMetrics])
@@ -1852,6 +1885,7 @@ export function MainlineScenePage({
         storefrontId,
         resolution.text,
         sceneTextPresentationPosition(scene, getCurrentPosition(), resolution.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
+        'scene-observation',
         undefined,
       ))
     }

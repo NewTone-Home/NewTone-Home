@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createSessionGameClock } from './runtime/sessionGameClock'
 import { MainlineScenePage } from './runtime/MainlineScenePage'
 import { LongDistanceTravel } from './runtime/LongDistanceTravel'
 import { enqueuePhoneNotification, readPhoneNotifications } from './runtime/phoneNotifications'
@@ -72,6 +73,16 @@ import {
 } from './runtime/commercialStreetMilkTea'
 
 const initialSceneId = mainlineRespawnSceneId
+const freeTrialClockRates = { normalPlay: 30, ordinaryReading: 15, idle: 5 }
+function formatTrialGameTime(gameTimeMs) {
+  const minuteOfDay = Math.floor(gameTimeMs / 60_000) % (24 * 60)
+  return `${String(Math.floor(minuteOfDay / 60)).padStart(2, '0')}:${String(minuteOfDay % 60).padStart(2, '0')}`
+}
+function gameTimeSeedFromStoryClock(storyClock) {
+  const label = mainlineStoryTimeLabel(storyClock.stage)
+  const [hour, minute] = label.split(':').map(Number)
+  return (hour * 60 + minute) * 60_000
+}
 function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
   return { sceneId, entryPosition, spawnMode }
 }
@@ -89,6 +100,15 @@ export default function CenterExperience({
 }) {
   const reducedMotion = useReducedMotion()
   const [playerSave, setPlayerSave] = useState(() => loadPlayerSave())
+  const sessionGameClockRef = useRef(null)
+  if (!sessionGameClockRef.current) {
+    sessionGameClockRef.current = createSessionGameClock({
+      rates: freeTrialClockRates,
+      idleAfterMs: 60_000,
+      initialGameTimeMs: gameTimeSeedFromStoryClock(playerSave.storyClock),
+    })
+  }
+  const [trialClockSnapshot, setTrialClockSnapshot] = useState(() => sessionGameClockRef.current.read())
   const playerSaveRef = useRef(playerSave)
   const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId, resolveLegacyCafeEntryPosition()))
   useEffect(() => {
@@ -337,6 +357,34 @@ export default function CenterExperience({
     if (!reading) {
       const current = latestWorldPositionRef.current
       if (current) rideBoardingRef.current(current.sceneId, current.position, current.context)
+    }
+  }, [])
+
+  const handleClockActivitySourceChange = useCallback((sourceId, source) => {
+    const snapshot = sessionGameClockRef.current.setActivitySource(sourceId, source)
+    setTrialClockSnapshot(snapshot)
+  }, [])
+
+  useEffect(() => {
+    const sessionClock = sessionGameClockRef.current
+    const recordTrustedInput = (event) => {
+      if (!event.isTrusted) return
+      setTrialClockSnapshot(sessionClock.markInput())
+    }
+    const inputEvents = ['pointerdown', 'touchstart', 'keydown', 'wheel', 'click']
+    inputEvents.forEach((name) => window.addEventListener(name, recordTrustedInput, { passive: true }))
+    const timer = window.setInterval(() => {
+      const next = sessionClock.read()
+      setTrialClockSnapshot((current) => {
+        const minuteChanged = Math.floor(current.gameTimeMs / 60_000) !== Math.floor(next.gameTimeMs / 60_000)
+        return minuteChanged || current.activityMode !== next.activityMode || current.idle !== next.idle || current.multiplier !== next.multiplier
+          ? next
+          : current
+      })
+    }, 250)
+    return () => {
+      inputEvents.forEach((name) => window.removeEventListener(name, recordTrustedInput))
+      window.clearInterval(timer)
     }
   }, [])
 
@@ -690,6 +738,7 @@ export default function CenterExperience({
       phoneOpen={phoneOpen}
       onPhoneDismiss={snapshot ? undefined : retractPhone}
       onReadingStateChange={snapshot ? undefined : handleSceneReadingStateChange}
+      onClockActivitySourceChange={snapshot ? undefined : handleClockActivitySourceChange}
       onMeaningfulActivity={snapshot ? undefined : handleMeaningfulActivity}
       onPlayerMovementStateChange={snapshot ? undefined : handlePlayerMovementStateChange}
       onRuntimePositionChange={snapshot ? undefined : handleRuntimePositionChange}
@@ -780,6 +829,7 @@ export default function CenterExperience({
           rideOrder={rideOrder}
           notifications={playerSave.phoneNotifications}
           storyClock={playerSave.storyClock}
+          gameTimeLabel={formatTrialGameTime(trialClockSnapshot.gameTimeMs)}
           notificationScreen={phoneNotificationScreen}
           onNotificationDismiss={() => setPhoneNotificationScreen(false)}
           onAppOpen={readPhoneApp}
@@ -796,6 +846,7 @@ export default function CenterExperience({
           onFeedbackOpen={handleFeedbackOpen}
           onFeedbackSubmit={handleFeedbackSubmit}
           onMeaningfulActivity={handleMeaningfulActivity}
+          onClockActivitySourceChange={handleClockActivitySourceChange}
           notes={playerSave.phoneNotes}
           yongheLeadUnlocked={cafeStoryStatus === 'complete'}
           contactNotes={playerSave.phoneContactNotes}

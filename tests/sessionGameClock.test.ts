@@ -2,19 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { createSessionGameClock } from '../src/center/runtime/sessionGameClock'
 import type { GameClockRateInputs } from '../src/center/runtime/gameClockActivity'
 
-// Synthetic harness inputs. They are deliberately not the pending proposed trial values.
+// Isolated in-memory fixture; it uses no player storage.
 const FIXTURE_RATES: GameClockRateInputs = {
-  normalPlay: 8,
-  ordinaryReading: 4,
-  paidDialogue: 2,
-  freeIdle: 6,
-  paidIdle: 1,
+  normalPlay: 30,
+  ordinaryReading: 15,
+  idle: 5,
 }
-const FIXTURE_IDLE_AFTER_MS = 1_000
+const FIXTURE_IDLE_AFTER_MS = 60_000
 
-function createFixture(now: () => number, edition: 'free' | 'paid' = 'free', initialGameTimeMs = 0) {
+function createFixture(now: () => number, initialGameTimeMs = 0) {
   return createSessionGameClock({
-    edition,
     rates: FIXTURE_RATES,
     idleAfterMs: FIXTURE_IDLE_AFTER_MS,
     now,
@@ -23,102 +20,190 @@ function createFixture(now: () => number, edition: 'free' | 'paid' = 'free', ini
 }
 
 describe('session game clock', () => {
-  it('uses explicit activity sources and keeps dialogue, monologue, and reading distinct', () => {
+  it('ordinary reading runs at 15x before 60 seconds and 5x afterward, even if first read is at 90 seconds', () => {
     let realTimeMs = 0
     const session = createFixture(() => realTimeMs)
+    session.setActivitySource('page-a:observation', 'counter-observation')
 
-    realTimeMs = 1_000
-    session.setActivity('inner-monologue')
-    realTimeMs = 4_000
-    expect(session.read()).toMatchObject({ gameTimeMs: 8_000, activity: 'inner-monologue', multiplier: 0 })
-
-    session.setActivity('phone-reading')
-    realTimeMs = 5_000
-    expect(session.read()).toMatchObject({ gameTimeMs: 12_000, activity: 'phone-reading', multiplier: 4 })
-  })
-
-  it('shares ordinary-reading input across editions without setting its product value', () => {
-    let freeRealTimeMs = 0
-    let paidRealTimeMs = 0
-    const free = createFixture(() => freeRealTimeMs, 'free')
-    const paid = createFixture(() => paidRealTimeMs, 'paid')
-
-    expect(free.setActivity('counter-observation').multiplier).toBe(FIXTURE_RATES.ordinaryReading)
-    expect(paid.setActivity('menu-reading').multiplier).toBe(FIXTURE_RATES.ordinaryReading)
-  })
-
-  it('enters idle at the injected threshold and partitions time at the threshold instant', () => {
-    let realTimeMs = 0
-    const session = createFixture(() => realTimeMs)
-
-    realTimeMs = 1_500
+    realTimeMs = 90_000
     expect(session.read()).toMatchObject({
-      gameTimeMs: 8_000 + 500 * FIXTURE_RATES.freeIdle,
-      activity: 'idle',
-      multiplier: FIXTURE_RATES.freeIdle,
+      gameTimeMs: 60_000 * 15 + 30_000 * 5,
+      activity: 'counter-observation',
+      activityMode: 'idle',
+      multiplier: 5,
+      idle: true,
     })
   })
 
-  it('restores normal-play timing on input and counts the preceding idle segment once', () => {
+  it('formal dialogue and inner monologue are 0x for 60 seconds then 5x, even if first read is at 90 seconds', () => {
     let realTimeMs = 0
     const session = createFixture(() => realTimeMs)
+    session.setActivitySource('page-a:dialogue', 'inner-monologue')
 
-    realTimeMs = 2_000
+    realTimeMs = 90_000
+    expect(session.read()).toMatchObject({
+      gameTimeMs: 30_000 * 5,
+      activity: 'inner-monologue',
+      activityMode: 'idle',
+      multiplier: 5,
+      idle: true,
+    })
+  })
+
+  it.each([
+    ['ordinary-reading', 'phone-reading', 60_000 * 15 + 30_000 * 5, 15],
+    ['dialogue', 'inner-monologue', 30_000 * 5, 0],
+  ] as const)('first input at 90 seconds settles %s, then restores its semantic rate', (_label, source, expectedBeforeInput, restoredRate) => {
+    let realTimeMs = 0
+    const session = createFixture(() => realTimeMs)
+    session.setActivitySource('active-page', source)
+    realTimeMs = 90_000
+
     expect(session.markInput()).toMatchObject({
-      gameTimeMs: FIXTURE_IDLE_AFTER_MS * FIXTURE_RATES.normalPlay
-        + FIXTURE_IDLE_AFTER_MS * FIXTURE_RATES.freeIdle,
-      activity: 'normal-play',
-      multiplier: FIXTURE_RATES.normalPlay,
+      gameTimeMs: expectedBeforeInput,
+      activity: source,
+      activityMode: restoredRate === 0 ? 'dialogue' : 'ordinary-reading',
+      multiplier: restoredRate,
+      idle: false,
     })
-    realTimeMs = 2_500
-    expect(session.read().gameTimeMs).toBe(18_000)
   })
 
-  it('does not treat ongoing reading as idle despite elapsed wall time or input', () => {
+  it('input after dialogue-idle restores 0x for the current dialogue, not 30x', () => {
     let realTimeMs = 0
     const session = createFixture(() => realTimeMs)
-    session.setActivity('plant-observation')
+    session.setActivitySource('page-a:dialogue', 'scene-dialogue')
 
-    realTimeMs = 5_000
+    realTimeMs = 90_000
+    session.read()
+    expect(session.markInput()).toMatchObject({
+      gameTimeMs: 150_000,
+      activity: 'scene-dialogue',
+      activityMode: 'dialogue',
+      multiplier: 0,
+      idle: false,
+    })
+    realTimeMs = 100_000
+    expect(session.read().gameTimeMs).toBe(150_000)
+  })
+
+  it('input after reading-idle restores 15x for the current phone reading state', () => {
+    let realTimeMs = 0
+    const session = createFixture(() => realTimeMs)
+    session.setActivitySource('phone:reading', 'phone-reading')
+
+    realTimeMs = 90_000
+    session.read()
     session.markInput()
+    realTimeMs = 100_000
     expect(session.read()).toMatchObject({
-      activity: 'plant-observation',
+      gameTimeMs: 60_000 * 15 + 30_000 * 5 + 10_000 * 15,
+      activity: 'phone-reading',
       activityMode: 'ordinary-reading',
-      multiplier: FIXTURE_RATES.ordinaryReading,
-      gameTimeMs: 5_000 * FIXTURE_RATES.ordinaryReading,
+      multiplier: 15,
+      idle: false,
     })
   })
 
-  it('keeps one session clock continuous across scene-specific activity changes', () => {
+  it('user input before the threshold restarts the 60-second deadline', () => {
     let realTimeMs = 0
     const session = createFixture(() => realTimeMs)
+    session.setActivitySource('page-a:observation', 'plant-observation')
 
-    realTimeMs = 500
-    session.setActivity('scene-dialogue')
-    realTimeMs = 1_000
-    expect(session.read().gameTimeMs).toBe(4_000)
-    session.setActivity('npc-dialogue')
-    realTimeMs = 2_000
-    expect(session.read()).toMatchObject({ gameTimeMs: 4_000, activity: 'npc-dialogue' })
+    realTimeMs = 50_000
+    session.markInput()
+    realTimeMs = 100_000
+    expect(session.read()).toMatchObject({ idle: false, multiplier: 15 })
+    realTimeMs = 110_000
+    expect(session.read()).toMatchObject({ idle: true, multiplier: 5 })
   })
 
-  it('freezes on close and resumes injected memory state from a fresh real-time anchor', () => {
+  it('automatic activity changes do not reset the last-input deadline', () => {
+    let realTimeMs = 0
+    const session = createFixture(() => realTimeMs)
+    session.setActivitySource('page-a:observation', 'counter-observation')
+
+    realTimeMs = 30_000
+    session.setActivitySource('page-a:observation', null)
+    session.setActivitySource('page-a:dialogue', 'inner-monologue')
+    realTimeMs = 90_000
+    expect(session.read()).toMatchObject({
+      gameTimeMs: 30_000 * 15 + 30_000 * 5,
+      activity: 'inner-monologue',
+      activityMode: 'idle',
+      idle: true,
+    })
+  })
+
+  it('keeps the new page activity when an old page cleanup removes its own source', () => {
+    let realTimeMs = 0
+    const session = createFixture(() => realTimeMs)
+    session.setActivitySource('old-page:dialogue', 'scene-dialogue')
+    session.setActivitySource('new-page:dialogue', 'inner-monologue')
+
+    session.setActivitySource('old-page:dialogue', null)
+    expect(session.read()).toMatchObject({ activity: 'inner-monologue', multiplier: 0 })
+    realTimeMs = 90_000
+    expect(session.read()).toMatchObject({ activity: 'inner-monologue', activityMode: 'idle', multiplier: 5 })
+  })
+
+  it('prioritizes an active dialogue source while ordinary reading is also present', () => {
+    let realTimeMs = 0
+    const session = createFixture(() => realTimeMs)
+    session.setActivitySource('page-a:observation', 'plant-observation')
+    session.setActivitySource('page-a:dialogue', 'npc-dialogue')
+
+    expect(session.read()).toMatchObject({ activity: 'npc-dialogue', multiplier: 0 })
+    session.setActivitySource('page-a:dialogue', null)
+    expect(session.read()).toMatchObject({ activity: 'plant-observation', multiplier: 15 })
+  })
+
+  it('keeps one clock continuous across scene-specific sources without resetting idle time', () => {
+    let realTimeMs = 0
+    const session = createFixture(() => realTimeMs)
+    session.setActivitySource('scene-1:dialogue', 'scene-dialogue')
+
+    realTimeMs = 30_000
+    session.setActivitySource('scene-1:dialogue', null)
+    session.setActivitySource('scene-2:observation', 'scene-observation')
+    realTimeMs = 90_000
+    expect(session.read()).toMatchObject({
+      gameTimeMs: 30_000 * 15 + 30_000 * 5,
+      activity: 'scene-observation',
+      activityMode: 'idle',
+      multiplier: 5,
+    })
+  })
+
+  it('freezes on close and resumes in-memory time from a fresh real-time anchor without offline catch-up', () => {
     let realTimeMs = 0
     const beforeClose = createFixture(() => realTimeMs)
-    realTimeMs = 1_000
+    realTimeMs = 30_000
+    beforeClose.setActivitySource('scene-a:observation', 'counter-observation')
+    realTimeMs = 60_000
     const closed = beforeClose.close()
-    expect(closed).toMatchObject({ gameTimeMs: 8_000, activity: 'closed', multiplier: 0, frozen: true })
+    expect(closed).toMatchObject({ gameTimeMs: 30_000 * 30 + 30_000 * 15, activityMode: 'closed', multiplier: 0, frozen: true })
 
     realTimeMs = 100_000_000
-    const reopened = createFixture(() => realTimeMs, 'free', closed.gameTimeMs)
+    const reopened = createFixture(() => realTimeMs, closed.gameTimeMs)
     expect(reopened.read().gameTimeMs).toBe(closed.gameTimeMs)
     realTimeMs += 500
     expect(reopened.read().gameTimeMs).toBe(closed.gameTimeMs + 500 * FIXTURE_RATES.normalPlay)
   })
 
+  it('does not let semantic activity changes clear an active idle override', () => {
+    let realTimeMs = 0
+    const session = createFixture(() => realTimeMs)
+    session.setActivitySource('page-a:dialogue', 'npc-dialogue')
+    realTimeMs = 90_000
+    session.read()
+    session.setActivitySource('page-b:observation', 'menu-reading')
+    expect(session.read()).toMatchObject({ activity: 'npc-dialogue', idle: true, multiplier: 5 })
+    session.setActivitySource('page-a:dialogue', null)
+    expect(session.read()).toMatchObject({ activity: 'menu-reading', idle: true, multiplier: 5 })
+  })
+
   it('requires callers to inject the idle threshold', () => {
     expect(() => createSessionGameClock({
-      edition: 'free',
       rates: FIXTURE_RATES,
       idleAfterMs: Number.NaN,
       now: () => 0,

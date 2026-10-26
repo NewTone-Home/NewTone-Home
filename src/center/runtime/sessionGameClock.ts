@@ -4,7 +4,6 @@ import {
   gameClockMultiplierForActivity,
   type GameClockActivityMode,
   type GameClockActivitySource,
-  type GameClockEdition,
   type GameClockRateInputs,
 } from './gameClockActivity'
 
@@ -13,11 +12,11 @@ export type SessionGameActivitySource = Exclude<GameClockActivitySource, 'idle' 
 export type SessionGameClockSnapshot = GameClockSnapshot & {
   activity: GameClockActivitySource
   activityMode: GameClockActivityMode
+  idle: boolean
 }
 
 export type CreateSessionGameClockOptions = {
-  edition: GameClockEdition
-  /** Product-undefined rates are mandatory inputs; this factory supplies none. */
+  /** Approved free-version rates are explicit inputs so tests can inject alternatives. */
   rates: GameClockRateInputs
   /** Inactivity threshold is also mandatory; no production threshold is assumed. */
   idleAfterMs: number
@@ -27,9 +26,9 @@ export type CreateSessionGameClockOptions = {
 
 export type SessionGameClock = {
   read(): SessionGameClockSnapshot
-  /** Set an explicit scene/UI activity category; ordinary reading suppresses idle. */
-  setActivity(source: SessionGameActivitySource): SessionGameClockSnapshot
-  /** Report a player input; it resets idle timing without overriding active reading. */
+  /** Add/update/remove one uniquely identified page activity; cleanup only removes that source. */
+  setActivitySource(sourceId: string, source: SessionGameActivitySource | null): SessionGameClockSnapshot
+  /** A trusted user action resets idle and restores the latest semantic activity rate. */
   markInput(): SessionGameClockSnapshot
   /** Freeze this in-memory session. A later session must be created separately. */
   close(): SessionGameClockSnapshot
@@ -54,11 +53,14 @@ export function createSessionGameClock(options: CreateSessionGameClockOptions): 
     return lastObservedTimeMs
   }
 
-  let activity: GameClockActivitySource = 'normal-play'
+  let activity: Exclude<GameClockActivitySource, 'closed'> = 'normal-play'
+  let isIdle = false
+  let isClosed = false
   let lastInputAtMs = lastObservedTimeMs
+  const activitySources = new Map<string, SessionGameActivitySource>()
   const clock: GameClock = createGameClock({
     now,
-    multiplier: gameClockMultiplierForActivity(options.edition, activity, options.rates),
+    multiplier: gameClockMultiplierForActivity(activity, options.rates),
     initialGameTimeMs: options.initialGameTimeMs,
   })
 
@@ -66,21 +68,34 @@ export function createSessionGameClock(options: CreateSessionGameClockOptions): 
     return {
       ...clockSnapshot,
       activity,
-      activityMode: gameClockActivityMode(activity),
+      activityMode: isClosed ? 'closed' : isIdle ? 'idle' : gameClockActivityMode(activity),
+      idle: isIdle,
     }
+  }
+
+  function prioritizedActivity(): Exclude<GameClockActivitySource, 'closed'> {
+    const sources = [...activitySources.values()]
+    return sources.find(source => gameClockActivityMode(source) === 'dialogue')
+      ?? sources.find(source => gameClockActivityMode(source) === 'ordinary-reading')
+      ?? 'normal-play'
+  }
+
+  function applyActivityRate(atMs: number) {
+    const rate = isIdle ? options.rates.idle : gameClockMultiplierForActivity(activity, options.rates)
+    clock.setMultiplier(rate, atMs)
   }
 
   function applyIdleDeadline(atMs: number) {
     validateTime(atMs)
-    if (activity !== 'normal-play') return
+    if (isClosed || isIdle) return
     const idleAtMs = lastInputAtMs + options.idleAfterMs
     if (atMs < idleAtMs) return
-    clock.setMultiplier(gameClockMultiplierForActivity(options.edition, 'idle', options.rates), idleAtMs)
-    activity = 'idle'
+    clock.setMultiplier(options.rates.idle, idleAtMs)
+    isIdle = true
   }
 
   function assertOpen() {
-    if (activity === 'closed') throw new Error('A closed session clock cannot change activity')
+    if (isClosed) throw new Error('A closed session clock cannot change activity')
   }
 
   return {
@@ -89,14 +104,18 @@ export function createSessionGameClock(options: CreateSessionGameClockOptions): 
       applyIdleDeadline(atMs)
       return snapshot(clock.read(atMs))
     },
-    setActivity(source) {
+    setActivitySource(sourceId, source) {
       assertOpen()
+      if (!sourceId.trim()) throw new TypeError('An activity source id is required')
       const atMs = now()
       applyIdleDeadline(atMs)
-      const rate = gameClockMultiplierForActivity(options.edition, source, options.rates)
-      clock.setMultiplier(rate, atMs)
-      activity = source
-      if (source === 'normal-play') lastInputAtMs = atMs
+      if (source === null) activitySources.delete(sourceId)
+      else activitySources.set(sourceId, source)
+      const nextActivity = prioritizedActivity()
+      if (nextActivity !== activity) {
+        activity = nextActivity
+        applyActivityRate(atMs)
+      }
       return snapshot(clock.read(atMs))
     },
     markInput() {
@@ -104,20 +123,19 @@ export function createSessionGameClock(options: CreateSessionGameClockOptions): 
       const atMs = now()
       applyIdleDeadline(atMs)
       lastInputAtMs = atMs
-      if (activity === 'idle') {
-        const rate = gameClockMultiplierForActivity(options.edition, 'normal-play', options.rates)
-        clock.setMultiplier(rate, atMs)
-        activity = 'normal-play'
+      if (isIdle) {
+        isIdle = false
+        applyActivityRate(atMs)
       }
       return snapshot(clock.read(atMs))
     },
     close() {
-      if (activity === 'closed') return snapshot(clock.read(now()))
+      if (isClosed) return snapshot(clock.read(now()))
       const atMs = now()
       applyIdleDeadline(atMs)
       clock.setMultiplier(0, atMs)
       clock.setFrozen('session-closed', true, atMs)
-      activity = 'closed'
+      isClosed = true
       return snapshot(clock.read(atMs))
     },
   }
