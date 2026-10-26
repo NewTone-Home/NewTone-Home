@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { createMainlineReadingSessionLayoutCache, mainlineReadingSessionMaxMeasuredWidths } from '../src/center/runtime/mainlineReadingLayoutSession'
+import { subscribeToMainlineReadingFontCompletion } from '../src/center/runtime/useMainlineReadingFontRevision'
 import { mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
 import { splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
 
@@ -120,21 +121,26 @@ describe('mainline reading session layout cache', () => {
     expect(measureCalls).toBeGreaterThan(afterFirst)
   })
 
-  it('bounds retained session text entries while keeping the active text available', () => {
+  it('retains all authored text entries for a long session without remeasuring old pages', () => {
     let measureCalls = 0
+    let splitCalls = 0
     const cache = createMainlineReadingSessionLayoutCache({
-      sessionKey: 'echo:bounded',
-      entries: [{ text: '初始。' }],
+      sessionKey: 'echo:long-session',
+      entries: [{ text: 'start' }],
       metrics: { width: 411, height: 914, viewportWidth: 411 },
       maximumWidthPx: 88,
       measureText: (text, fontSizePx) => { measureCalls += 1; return Array.from(text).length * fontSizePx },
+      splitTextToFit: (...args) => { splitCalls += 1; return splitMainlineInteractionTextToFit(...args) },
     })
-    for (let index = 0; index < 140; index += 1) cache.addEntries([{ text: `动态段落${index}。` }])
-    const retainedText = '当前可见页。'
+    const entries = Array.from({ length: 140 }, (_, index) => ({ text: `segment-${index}` }))
+    for (const entry of entries) cache.addEntries([entry])
+    const countsAfterFirstPass = { measureCalls, splitCalls, layoutCalls: cache.counts.layoutCalls }
+    const oldestText = entries[0]!.text
+    cache.addEntries([{ text: oldestText }])
     cache.fit({
       scene: mainlineScenes['commercial-street'],
       source: { x: 50, y: 50 },
-      text: retainedText,
+      text: oldestText,
       maximumWidthPx: 88,
       protectedVisuals: [],
       metrics: { width: 411, height: 914, viewportWidth: 411 },
@@ -142,9 +148,9 @@ describe('mainline reading session layout cache', () => {
       cameraOffset: { x: 0, y: 0 },
     })
 
-    expect(cache.cachedTextCount).toBe(128)
-    expect(cache.pageLayoutAtOrBelow(retainedText, undefined, 88)).toBeTruthy()
-    expect(measureCalls).toBeGreaterThan(0)
+    expect(cache.cachedTextCount).toBe(141)
+    expect(cache.pageLayoutAtOrBelow(oldestText, undefined, 88)).toBeTruthy()
+    expect({ measureCalls, splitCalls, layoutCalls: cache.counts.layoutCalls }).toEqual(countsAfterFirstPass)
   })
 
   it('bounds the per-session canvas width memo even when a splitter probes many unique strings', () => {
@@ -164,4 +170,58 @@ describe('mainline reading session layout cache', () => {
     expect(measureCalls).toBeGreaterThan(mainlineReadingSessionMaxMeasuredWidths)
     expect(cache.cachedMeasureCount).toBeLessThanOrEqual(mainlineReadingSessionMaxMeasuredWidths)
   })
+
+  it('rebuilds font metrics once when loading fonts complete and removes the listener', async () => {
+    const listeners = new Set<EventListener>()
+    let resolveReady!: (value: FontFaceSet) => void
+    const fakeFonts = {
+      status: 'loading',
+      ready: new Promise<FontFaceSet>(resolve => { resolveReady = resolve }),
+      addEventListener: (_type: string, listener: EventListenerOrEventListenerObject) => { listeners.add(listener as EventListener) },
+      removeEventListener: (_type: string, listener: EventListenerOrEventListenerObject) => { listeners.delete(listener as EventListener) },
+    } as unknown as FontFaceSet
+    let completed = 0
+    subscribeToMainlineReadingFontCompletion(true, () => { completed += 1 }, fakeFonts)
+    const listener = [...listeners][0]!
+    listener(new Event('loadingdone'))
+    resolveReady(fakeFonts)
+    await Promise.resolve()
+
+    expect(completed).toBe(1)
+    expect(listeners.size).toBe(0)
+  })
+
+  it('does not listen for font completion when inactive or fonts are already ready', () => {
+    const listeners = new Set<EventListener>()
+    const fakeFonts = {
+      status: 'loaded',
+      ready: Promise.resolve(null),
+      addEventListener: (_type: string, listener: EventListenerOrEventListenerObject) => { listeners.add(listener as EventListener) },
+      removeEventListener: (_type: string, listener: EventListenerOrEventListenerObject) => { listeners.delete(listener as EventListener) },
+    } as unknown as FontFaceSet
+
+    subscribeToMainlineReadingFontCompletion(true, () => undefined, fakeFonts)
+    subscribeToMainlineReadingFontCompletion(false, () => undefined, fakeFonts)
+    expect(listeners.size).toBe(0)
+  })
+
+  it('does not rebuild after a reading session ends before fonts finish loading', async () => {
+    const listeners = new Set<EventListener>()
+    let resolveReady!: (value: FontFaceSet) => void
+    const fakeFonts = {
+      status: 'loading',
+      ready: new Promise<FontFaceSet>(resolve => { resolveReady = resolve }),
+      addEventListener: (_type: string, listener: EventListenerOrEventListenerObject) => { listeners.add(listener as EventListener) },
+      removeEventListener: (_type: string, listener: EventListenerOrEventListenerObject) => { listeners.delete(listener as EventListener) },
+    } as unknown as FontFaceSet
+    let completed = 0
+    const cleanup = subscribeToMainlineReadingFontCompletion(true, () => { completed += 1 }, fakeFonts)
+    cleanup()
+    resolveReady(fakeFonts)
+    await Promise.resolve()
+
+    expect(completed).toBe(0)
+    expect(listeners.size).toBe(0)
+  })
+
 })

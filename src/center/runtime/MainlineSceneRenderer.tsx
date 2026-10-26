@@ -44,6 +44,7 @@ import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } f
 import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
 import { currentMainlineReadingTargetIds, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionLayerPosition, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from './mainlineReadingProtection'
 import { createMainlineReadingSessionLayoutCache, type MainlineReadingSessionLayoutCache, type MainlineReadingSessionTextEntry } from './mainlineReadingLayoutSession'
+import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
 import { mainlineReadingLocalPercent, mainlineReadingOcclusionCellIdentity, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot, type MainlineReadingOcclusionCandidate } from './mainlineReadingOcclusion'
 
@@ -80,6 +81,7 @@ type MainlineSceneRendererProps = {
   npcRuntimeSnapshots?: ReadonlyMap<string, NpcRuntimeSnapshot>
   hiddenNpcIds?: ReadonlySet<string>
   ambientNpcActorLayer?: ReactNode
+  readingSessionLayoutCache?: MainlineReadingSessionLayoutCache | null
   onDoorTransitionComplete?: (entityId: string, completion: SceneDoorTransitionCompletion) => void
   onWalk: (point: Point) => void
   worldQuestionMark?: { anchor: Point; visible: boolean }
@@ -1049,6 +1051,7 @@ export function MainlineSceneRenderer({
   npcRuntimeSnapshots,
   hiddenNpcIds,
   ambientNpcActorLayer,
+  readingSessionLayoutCache: sharedReadingSessionLayoutCache = null,
   onDoorTransitionComplete,
   onWalk,
   worldQuestionMark,
@@ -1361,14 +1364,19 @@ export function MainlineSceneRenderer({
       : dialogueLine ? [{ text: dialogueLine.text, speaker: dialogueLine.speaker }]
         : [{ text: activeReadingText }],
   [activeReadingText, dialogue?.lines, dialogueLine?.speaker, dialogueLine?.text, sceneEcho?.segments, sceneEcho?.text])
-  const readingLayoutFontFaceKey = typeof document === 'undefined' ? 'server' : document.fonts?.status ?? 'unknown'
+  const readingLayoutFontFaceKey = useMainlineReadingFontRevision(readingOcclusionSessionKey)
   let readingLayoutSessionCache = readingLayoutSessionCacheRef.current
   if (!readingOcclusionSessionKey) {
     readingLayoutSessionCacheRef.current = null
     readingLayoutSessionCache = null
   } else if (activeReadingPosition) {
     const sessionTextEntries = [...readingEnvelopeEntries, { text: activeReadingText, speaker: sceneEcho ? undefined : dialogueLine?.speaker }]
-    if (!readingLayoutSessionCache
+    if (sharedReadingSessionLayoutCache?.sessionKey === readingOcclusionSessionKey
+      && sharedReadingSessionLayoutCache.fontKey === readingLayoutFontFaceKey) {
+      readingLayoutSessionCache = sharedReadingSessionLayoutCache
+      readingLayoutSessionCache.addEntries(sessionTextEntries)
+      readingLayoutSessionCacheRef.current = readingLayoutSessionCache
+    } else if (!readingLayoutSessionCache
       || readingLayoutSessionCache.sessionKey !== readingOcclusionSessionKey
       || readingLayoutSessionCache.fontKey !== readingLayoutFontFaceKey) {
       const frozenMetrics = readingLayoutSessionCache?.sessionKey === readingOcclusionSessionKey ? readingLayoutSessionCache.metrics : readingMetrics

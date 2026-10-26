@@ -17,7 +17,6 @@ export type MainlineReadingSessionLayoutCounts = Readonly<{
   layoutCalls: number
   textMeasureCalls: number
 }>
-export const mainlineReadingSessionMaxCachedTexts = 128
 export const mainlineReadingSessionMaxMeasuredWidths = 32_768
 
 type WidthCandidate = {
@@ -131,13 +130,9 @@ export function createMainlineReadingSessionLayoutCache(input: {
     for (const entry of new Map(entries.map(value => [entryKey(value), value])).values()) {
       const key = entryKey(entry)
       if (knownEntries.has(key)) continue
-      if (knownEntries.size >= mainlineReadingSessionMaxCachedTexts) {
-        const oldestKey = knownEntries.keys().next().value as string | undefined
-        if (oldestKey !== undefined) {
-          knownEntries.delete(oldestKey)
-          for (const candidate of widths) candidate.pages.delete(oldestKey)
-        }
-      }
+      // Entries are scoped to one reading session and the cache is discarded
+      // when that session ends. Keep every authored line so revisiting a line
+      // in a long conversation cannot trigger layout work again.
       knownEntries.set(key, entry)
       added += 1
       for (const candidate of widths) populate(candidate, entry)

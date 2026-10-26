@@ -35,8 +35,10 @@ import { npcRetryDelay, type NpcRuntimeSnapshot } from './npcCore'
 import { npcRoles } from './npcRoles'
 import { useStorefrontPresentation } from './useStorefrontPresentation'
 import { splitMainlineInteractionText } from './mainlineTextSegments'
-import { mainlineEchoLayout } from './mainlineEchoLayout'
-import { mainlineAvailableReadingWidthPx, mainlineDialogueParticipantNpcIds, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingOpacityForActor } from './mainlineTextReading'
+import { mainlineDialogueParticipantNpcIds, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingOpacityForActor, mainlineMaximumReadingWidthPx } from './mainlineTextReading'
+import { createMainlineReadingSessionLayoutCache } from './mainlineReadingLayoutSession'
+import type { MainlineReadingSessionLayoutCache } from './mainlineReadingLayoutSession'
+import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
 import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, plantIsWatered, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
@@ -2299,9 +2301,42 @@ export function MainlineScenePage({
 
   const currentAreaLabel = mainlineSceneAreaLabel(scene, position)
   const ambientReadingPosition = sceneEcho?.position ?? activeDialoguePosition
-  const ambientReadingText = sceneEcho?.text ?? activeDialogueText
   const dialogueParticipantNpcIds = mainlineDialogueParticipantNpcIds(scene, activeDialogue, activeDialogueLine)
-  const ambientReadingLayout = ambientReadingPosition ? mainlineEchoLayout(ambientReadingText, readingMetrics, { speaker: sceneEcho ? undefined : activeDialogueLine?.speaker, maxWidthPx: mainlineAvailableReadingWidthPx(scene, position, readingMetrics, mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, position, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)) }) : null
+  const ambientReadingSessionKey = !readingActive ? null : sceneEcho
+    ? `${scene.id}:observation:echo:${sceneEcho.id}`
+    : `${scene.id}:dialogue:${activeDialogue?.triggerEntityId ?? ''}`
+  const ambientReadingFontKey = useMainlineReadingFontRevision(ambientReadingSessionKey)
+  const ambientReadingEntries = sceneEcho
+    ? (sceneEcho.segments.length ? sceneEcho.segments : [sceneEcho.text]).map(text => ({ text, speaker: undefined }))
+    : activeDialogue?.lines.length
+      ? activeDialogue.lines.map(line => ({ text: line.text, speaker: line.speaker }))
+      : [{ text: activeDialogueText, speaker: activeDialogueLine?.speaker }]
+  // Page and Renderer share one session cache. NPC motion rerenders only
+  // recompute actor-to-envelope geometry; authored text is laid out once.
+  const sharedReadingSessionLayoutCacheRef = useRef<MainlineReadingSessionLayoutCache | null>(null)
+  let sharedReadingSessionLayoutCache = sharedReadingSessionLayoutCacheRef.current
+  if (!ambientReadingSessionKey || !ambientReadingPosition) {
+    sharedReadingSessionLayoutCacheRef.current = null
+    sharedReadingSessionLayoutCache = null
+  } else if (!sharedReadingSessionLayoutCache
+    || sharedReadingSessionLayoutCache.sessionKey !== ambientReadingSessionKey
+    || sharedReadingSessionLayoutCache.fontKey !== ambientReadingFontKey) {
+    const worldScale = mainlineWorldScale(activeViewportMetrics)
+    sharedReadingSessionLayoutCache = createMainlineReadingSessionLayoutCache({
+      sessionKey: ambientReadingSessionKey,
+      entries: ambientReadingEntries,
+      metrics: readingMetrics,
+      maximumWidthPx: mainlineMaximumReadingWidthPx(scene, ambientReadingPosition, readingMetrics, worldScale),
+      fontKey: ambientReadingFontKey,
+    })
+    sharedReadingSessionLayoutCacheRef.current = sharedReadingSessionLayoutCache
+  } else {
+    // Newly authored text is measured as a delta; old entries remain cached.
+    sharedReadingSessionLayoutCache.addEntries(ambientReadingEntries)
+  }
+  const ambientReadingLayout = sharedReadingSessionLayoutCache
+    ? sharedReadingSessionLayoutCache.envelopeAtOrBelow(sharedReadingSessionLayoutCache.widths[0]?.widthPx ?? 0)
+    : null
   const ambientReadingOpacity = (actorPosition: Point, npcId: string) => {
     if (!readingActive || !ambientReadingPosition || !ambientReadingLayout) return 1
     return mainlineReadingOpacityForActor(npcId, dialogueParticipantNpcIds, mainlineReadingActorOpacity(actorPosition, ambientReadingPosition, ambientReadingLayout, mainlineWorldScale(activeViewportMetrics), value => scene.id === 'commercial-street' ? projectCommercialStreetX(value, screenMetrics) : value))
@@ -2427,6 +2462,7 @@ export function MainlineScenePage({
               npcRuntimeSnapshots={npcRuntimeSnapshots}
               hiddenNpcIds={hiddenNpcIds}
               ambientNpcActorLayer={ambientNpcActorLayer}
+              readingSessionLayoutCache={sharedReadingSessionLayoutCache}
               onWalk={walk}
               worldQuestionMark={scene.id === 'commercial-street' && !commercialStreetQuestionNarrativeIsCompleted ? { anchor: commercialStreetQuestionNarrativeAnchor(scene), visible: !commercialStreetQuestionNarrative } : undefined}
               dialogue={activeDialogue}
