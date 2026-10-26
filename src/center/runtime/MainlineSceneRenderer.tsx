@@ -396,11 +396,13 @@ function ReadingPageFlip({ pageKey, continuityKey, visibleText, layout, worldSca
     if (!presentedPage.flipping && presentedPage.key === pageKey) onSettledRef.current?.(pageKey)
   }, [presentedPage.flipping, presentedPage.key, pageKey])
 
-  return <span ref={stackRef} className={`scene-mainline-page-stack scene-mainline-page-stack--${mode}`} data-page-flip={presentedPage.flipping ? 'running' : 'settled'} style={{ '--reading-page-out-y': '0%', '--reading-page-in-y': presentedPage.flipping ? '-100%' : '0%' } as CSSProperties}>
+  const contentWidth = Math.max(layout.widthPx, presentedPage.previous?.layout.widthPx ?? 0) / Math.max(.001, worldScale)
+  return <span ref={stackRef} className={`scene-mainline-page-stack scene-mainline-page-stack--${mode}`} data-page-flip={presentedPage.flipping ? 'running' : 'settled'} style={{ width: `${contentWidth}px`, '--reading-page-out-y': '0%', '--reading-page-in-y': presentedPage.flipping ? '-100%' : '0%' } as CSSProperties}>
     {presentedPage.flipping && presentedPage.previous !== null && <span className="scene-mainline-page scene-mainline-page--outgoing" data-reading-page-role="outgoing" data-reading-page-outgoing-key={presentedPage.previous.pageKey} data-reading-page-outgoing-width={presentedPage.previous.layout.widthPx} data-reading-page-outgoing-height={presentedPage.previous.layout.heightPx} style={{ width: `${presentedPage.previous.layout.widthPx / Math.max(.001, worldScale)}px`, height: `${presentedPage.previous.layout.heightPx / Math.max(.001, worldScale)}px`, fontSize: `${presentedPage.previous.layout.fontSizePx / Math.max(.001, worldScale)}px` }} aria-hidden="true">{presentedPage.previous.visibleText}</span>}
     <span
       className={`scene-mainline-page ${presentedPage.flipping ? 'scene-mainline-page--incoming' : 'scene-mainline-page--current'}`}
       data-reading-page-role={presentedPage.flipping ? 'incoming' : 'current'}
+      style={{ width: `${layout.widthPx / Math.max(.001, worldScale)}px` }}
     >{children}</span>
   </span>
 }
@@ -2635,7 +2637,7 @@ export function MainlineSceneRenderer({
                 '--scene-mainline-text-height': `${echoLayout.heightPx / worldScale}px`,
                 fontSize: `${echoLayout.fontSizePx / worldScale}px`,
                 maxWidth: `${Math.max(1, displayReadingMaxWidthPx / worldScale)}px`,
-                overflow: 'hidden',
+                overflow: 'visible',
               } as CSSProperties}
               aria-live="polite"
               data-scene-interaction-text={sceneEcho?.entityId ?? dialogue?.triggerEntityId ?? 'scene'}
@@ -2667,8 +2669,8 @@ export function MainlineSceneRenderer({
             >
               {isDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
-                ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
-                : <ObservationText echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} layout={echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
+                ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
+                : <ObservationText echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
             </div>
             </Fragment>
           })()}
