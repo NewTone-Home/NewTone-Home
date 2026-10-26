@@ -38,6 +38,8 @@ export type PlayerSave = {
   scenePositions: Partial<Record<MainlineSceneId, PlayerPoint>>
   phoneDevice: PhoneDevice
   storyClock: MainlineStoryClock
+  /** Simulation milliseconds elapsed in-world; never derived from wall time on resume. */
+  gameTimeMs: number
   sceneState: Partial<Record<MainlineSceneId, PlayerSceneState>>
   phoneNotifications: PhoneNotification[]
   phoneNotes: PhoneNote[]
@@ -98,6 +100,7 @@ function cleanSceneState(value: unknown): Partial<Record<MainlineSceneId, Player
 }
 
 export function createInitialPlayerSave(sceneId: MainlineSceneId = initialMainlineSceneId): PlayerSave {
+  const storyClock = createInitialMainlineStoryClock(sceneId)
   return {
     worldGridVersion: 1,
     commercialDepthVersion: currentCommercialDepthVersion,
@@ -107,7 +110,8 @@ export function createInitialPlayerSave(sceneId: MainlineSceneId = initialMainli
     currentPosition: null,
     scenePositions: {},
     phoneDevice: initialMainlinePhoneDevice,
-    storyClock: createInitialMainlineStoryClock(sceneId),
+    storyClock,
+    gameTimeMs: storyClockTimeAsMilliseconds(storyClock),
     sceneState: {},
     phoneNotifications: [],
     phoneNotes: createInitialPhoneNotes(),
@@ -116,6 +120,26 @@ export function createInitialPlayerSave(sceneId: MainlineSceneId = initialMainli
     laoZhouCafeSeatId: defaultLaoZhouCafeSeatId,
     updatedAt: 0,
   }
+}
+
+function storyClockTimeAsMilliseconds(clock: Pick<MainlineStoryClock, 'hour' | 'minute'>): number {
+  const hour = clock.hour
+  const minute = clock.minute
+  if (!Number.isInteger(hour) || hour! < 0 || hour! > 23 || !Number.isInteger(minute) || minute! < 0 || minute! > 59) {
+    return 0
+  }
+  return (hour! * 60 + minute!) * 60_000
+}
+
+function savedStoryClockTimeAsMilliseconds(value: unknown, fallback: MainlineStoryClock): number {
+  if (value && typeof value === 'object') {
+    const clock = value as Partial<MainlineStoryClock>
+    if (Number.isInteger(clock.hour) && clock.hour! >= 0 && clock.hour! <= 23
+      && Number.isInteger(clock.minute) && clock.minute! >= 0 && clock.minute! <= 59) {
+      return (clock.hour! * 60 + clock.minute!) * 60_000
+    }
+  }
+  return storyClockTimeAsMilliseconds(fallback)
 }
 
 function readLegacyPlayerSave(storage: PlayerSaveStorage | null, fallbackSceneId: MainlineSceneId): { save: PlayerSave; hasLegacyValue: boolean } {
@@ -237,6 +261,10 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
     ? storyClockForStage(storyStage as MainlineStoryStage)
     : createInitialMainlineStoryClock(validCore && source.currentSceneId === 'commercial-cafe' ? 'commercial-cafe' : currentSceneId)
   const updatedAt = Number(source.updatedAt)
+  const savedGameTimeMs = source.gameTimeMs
+  const gameTimeMs = typeof savedGameTimeMs === 'number' && Number.isFinite(savedGameTimeMs) && savedGameTimeMs >= 0
+    ? savedGameTimeMs
+    : savedStoryClockTimeAsMilliseconds((source as { storyClock?: unknown }).storyClock, storyClock)
   return {
     worldGridVersion: 1,
     commercialDepthVersion: Math.max(currentCommercialDepthVersion, Number.isFinite(savedDepthVersion) ? savedDepthVersion : currentCommercialDepthVersion),
@@ -250,6 +278,7 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
     scenePositions,
     phoneDevice,
     storyClock,
+    gameTimeMs,
     sceneState: cleanSceneState(source.sceneState),
     phoneNotifications: cleanPhoneNotifications(source.phoneNotifications),
     phoneNotes: cleanPhoneNotes(source.phoneNotes),
@@ -311,8 +340,18 @@ export function hasResumablePlayerSave(storage = defaultStorage()): boolean {
     || Object.values(save.sceneState).some((state) => Object.keys(state ?? {}).length > 0))
 }
 
-export function savePlayerSave(save: PlayerSave, storage = defaultStorage(), now = Date.now()): PlayerSave {
-  const clean = sanitizePlayerSave({ ...save, freshSeatOnly: undefined, updatedAt: now }, save.currentSceneId)
+export function savePlayerSave(
+  save: PlayerSave,
+  storage = defaultStorage(),
+  now = Date.now(),
+  options: { preserveFreshSeatOnly?: boolean } = {},
+): PlayerSave {
+  const keepFreshSeatOnly = options.preserveFreshSeatOnly === true && save.freshSeatOnly === true
+  const clean = sanitizePlayerSave({
+    ...save,
+    ...(keepFreshSeatOnly ? {} : { freshSeatOnly: undefined }),
+    updatedAt: keepFreshSeatOnly ? save.updatedAt : now,
+  }, save.currentSceneId)
   try {
     storage?.setItem(PLAYER_SAVE_STORAGE_KEY, JSON.stringify(clean))
   } catch {
@@ -329,6 +368,30 @@ export function clearPlayerSave(storage = defaultStorage()) {
     storage?.removeItem(LEGACY_POSITION_STORAGE_KEY)
   } catch {
     // Clearing is best-effort; the in-memory runtime can still restart cleanly.
+  }
+}
+
+/** Persist a fresh clock sample into the latest save without replacing other progress. */
+export function createGameTimeSaveCheckpoint({
+  getSave,
+  setSave,
+  getGameTimeMs,
+  persist,
+}: {
+  getSave: () => PlayerSave
+  setSave: (save: PlayerSave) => void
+  getGameTimeMs: () => number
+  persist: (save: PlayerSave) => PlayerSave
+}) {
+  const generation = playerSaveResetGeneration
+  return () => {
+    if (generation !== playerSaveResetGeneration) return getSave()
+    const current = getSave()
+    const gameTimeMs = getGameTimeMs()
+    if (!Number.isFinite(gameTimeMs) || gameTimeMs < 0 || current.gameTimeMs === gameTimeMs) return current
+    const persisted = persist({ ...current, gameTimeMs })
+    setSave(persisted)
+    return persisted
   }
 }
 
@@ -419,8 +482,9 @@ export function attachPositionSaveLifecycle(
   getSceneId: () => string,
   windowTarget: Pick<Window, 'addEventListener' | 'removeEventListener'> = window,
   documentTarget: Pick<Document, 'addEventListener' | 'removeEventListener' | 'visibilityState'> = document,
+  checkpoint?: () => void,
 ) {
-  const flushCurrent = () => flush(getSceneId())
+  const flushCurrent = () => { flush(getSceneId()); checkpoint?.() }
   const flushWhenHidden = () => {
     if (documentTarget.visibilityState === 'hidden') flushCurrent()
   }

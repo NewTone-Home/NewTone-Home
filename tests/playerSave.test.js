@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   attachPositionSaveLifecycle,
   createPositionSaveCoordinator,
+  createGameTimeSaveCheckpoint,
   PLAYER_SAVE_STORAGE_KEY,
   clearPlayerSave,
   createInitialPlayerSave,
@@ -10,10 +11,12 @@ import {
   recordPlayerScenePosition,
   recordPlayerSceneState,
   savePlayerSave,
+  sanitizePlayerSave,
 } from '../src/center/runtime/playerSave'
+import { createGameClock } from '../src/center/runtime/gameClock'
 import { mainlineScenes, legacyCafeEntryPosition } from '../src/center/runtime/mainlineScenes'
 import { PUBLIC_RELEASE_CUTOVER_ID, PUBLIC_RELEASE_CUTOVER_STORAGE_KEY } from '../src/services/publicReleaseMigration'
-import { defaultLaoZhouCafeSeatId, isLaoZhouCafeSeatId } from '../src/center/runtime/commercialCafeSeatSelection'
+import { defaultLaoZhouCafeSeatId, isLaoZhouCafeSeatId, selectLaoZhouCafeSeat } from '../src/center/runtime/commercialCafeSeatSelection'
 
 function createStorage() {
   const values = new Map([[PUBLIC_RELEASE_CUTOVER_STORAGE_KEY, PUBLIC_RELEASE_CUTOVER_ID]])
@@ -36,6 +39,7 @@ describe('player local save contract', () => {
     expect(second.laoZhouCafeSeatId).toBe(first.laoZhouCafeSeatId)
     expect(draws).toBe(1)
     expect(first.updatedAt).toBe(0)
+    expect(first.gameTimeMs).toBe(createInitialPlayerSave().gameTimeMs)
     expect(hasResumablePlayerSave(storage)).toBe(false)
     expect(first.sceneState).toEqual({})
     expect(first.phoneDevice).toBe(createInitialPlayerSave().phoneDevice)
@@ -56,7 +60,10 @@ describe('player local save contract', () => {
 
     const oldSaveStorage = createStorage()
     const oldSave = createInitialPlayerSave('commercial-street')
-    delete oldSave.laoZhouCafeSeatId
+    delete oldSave.gameTimeMs
+    oldSave.laoZhouCafeSeatId = selectLaoZhouCafeSeat(() => 0.75)
+    oldSave.storyClock = { ...oldSave.storyClock, hour: 15, minute: 20 }
+    const seatBeforeMigration = oldSave.laoZhouCafeSeatId
     oldSave.updatedAt = 123
     oldSave.sceneState['commercial-street'] = {
       commercialCafeStoryStatus: 'complete',
@@ -65,10 +72,15 @@ describe('player local save contract', () => {
     }
     oldSaveStorage.setItem(PLAYER_SAVE_STORAGE_KEY, JSON.stringify(oldSave))
     const restored = loadPlayerSave(oldSaveStorage, undefined, () => { draws += 1; return 0.2 })
-    expect(restored.laoZhouCafeSeatId).toBe(defaultLaoZhouCafeSeatId)
+    expect(restored.laoZhouCafeSeatId).toBe(seatBeforeMigration)
     expect(restored.sceneState['commercial-street']).toEqual(oldSave.sceneState['commercial-street'])
     expect(restored.updatedAt).toBe(123)
+    expect(restored.gameTimeMs).toBe((15 * 60 + 20) * 60_000)
+    expect(restored.laoZhouCafeSeatId).toBe(seatBeforeMigration)
     expect(draws).toBe(0)
+    savePlayerSave(restored, oldSaveStorage, 234)
+    expect(loadPlayerSave(oldSaveStorage).gameTimeMs).toBe(restored.gameTimeMs)
+    expect(loadPlayerSave(oldSaveStorage).laoZhouCafeSeatId).toBe(seatBeforeMigration)
   })
 
   it('stabilizes invalid saved seat IDs to the old seat and preserves the other save fields', () => {
@@ -79,6 +91,137 @@ describe('player local save contract', () => {
     expect(restored.laoZhouCafeSeatId).toBe(defaultLaoZhouCafeSeatId)
     expect(restored.updatedAt).toBe(456)
     expect(restored.currentSceneId).toBe('commercial-street')
+  })
+
+  it('seeds new saves and migrates old saves from their saved story-clock time', () => {
+    const fresh = createInitialPlayerSave('commercial-street')
+    expect(fresh.gameTimeMs).toBe((11 * 60) * 60_000)
+
+    const oldSave = sanitizePlayerSave({
+      ...fresh,
+      gameTimeMs: undefined,
+      storyClock: { ...fresh.storyClock, hour: 15, minute: 20 },
+    }, 'commercial-street')
+    expect(oldSave.gameTimeMs).toBe((15 * 60 + 20) * 60_000)
+    expect(oldSave.storyClock.dayId).toBe(fresh.storyClock.dayId)
+  })
+
+  it('restores valid simulated time without adding offline wall time and falls back on invalid values', () => {
+    const storage = createStorage()
+    const saved = { ...createInitialPlayerSave('commercial-street'), gameTimeMs: 49_200_123 }
+    savePlayerSave(saved, storage, 1000)
+    const loaded = loadPlayerSave(storage)
+    expect(loaded.gameTimeMs).toBe(saved.gameTimeMs)
+
+    let realNow = 9_000_000
+    const resumedClock = createGameClock({ now: () => realNow, initialGameTimeMs: loaded.gameTimeMs, multiplier: 30 })
+    realNow += 1000
+    expect(resumedClock.read().gameTimeMs).toBe(saved.gameTimeMs + 30_000)
+
+    expect(sanitizePlayerSave({ ...saved, gameTimeMs: -1 }, 'commercial-street').gameTimeMs)
+      .toBe((11 * 60) * 60_000)
+    expect(sanitizePlayerSave({ ...saved, gameTimeMs: null }, 'commercial-street').gameTimeMs)
+      .toBe((11 * 60) * 60_000)
+  })
+
+  it('checkpoints into the latest save, preserving unrelated progress and honoring clear-save', () => {
+    const storage = createStorage()
+    const fresh = loadPlayerSave(storage, 'commercial-street', () => 0.55)
+    let save = {
+      ...fresh,
+      currentPosition: { x: 72, y: 38 },
+      scenePositions: { 'commercial-street': { x: 72, y: 38 } },
+      sceneState: {
+        'commercial-street': { commercialStreetMilkTeaHeldDrink: 'milk-tea', orderStatus: 'held' },
+        'commercial-cafe': { commercialCafeStoryStatus: 'complete', commercialCafeNarrativeCursor: 14 },
+      },
+      phoneDevice: 'surface',
+    }
+    let sampled = 55_000_000
+    let persisted = null
+    let writes = 0
+    const checkpoint = createGameTimeSaveCheckpoint({
+      getSave: () => save,
+      setSave: next => { save = next },
+      getGameTimeMs: () => sampled,
+      persist: next => { writes += 1; persisted = savePlayerSave(next, storage, writes); return persisted },
+    })
+    checkpoint()
+    expect(save).toMatchObject({
+      gameTimeMs: sampled,
+      currentPosition: { x: 72, y: 38 },
+      scenePositions: { 'commercial-street': { x: 72, y: 38 } },
+      phoneDevice: 'surface',
+      sceneState: {
+        'commercial-street': { commercialStreetMilkTeaHeldDrink: 'milk-tea', orderStatus: 'held' },
+        'commercial-cafe': { commercialCafeStoryStatus: 'complete', commercialCafeNarrativeCursor: 14 },
+      },
+      laoZhouCafeSeatId: fresh.laoZhouCafeSeatId,
+    })
+
+    expect(loadPlayerSave(storage)).toMatchObject({
+      gameTimeMs: sampled,
+      phoneDevice: 'surface',
+      currentPosition: { x: 72, y: 38 },
+      sceneState: save.sceneState,
+      laoZhouCafeSeatId: fresh.laoZhouCafeSeatId,
+    })
+    clearPlayerSave(storage)
+    const writesBeforeOldCallback = writes
+    sampled += 30_000
+    checkpoint()
+    expect(writes).toBe(writesBeforeOldCallback)
+    expect(storage.getItem(PLAYER_SAVE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('keeps freshSeatOnly during a time-only checkpoint until gameplay progress is saved', () => {
+    const storage = createStorage()
+    let save = loadPlayerSave(storage, undefined, () => 0.42)
+    const seat = save.laoZhouCafeSeatId
+    const checkpoint = createGameTimeSaveCheckpoint({
+      getSave: () => save,
+      setSave: next => { save = next },
+      getGameTimeMs: () => save.gameTimeMs + 30_000,
+      persist: next => savePlayerSave(next, storage, Date.now(), { preserveFreshSeatOnly: true }),
+    })
+
+    checkpoint()
+    expect(save).toMatchObject({ freshSeatOnly: true, updatedAt: 0, laoZhouCafeSeatId: seat })
+    expect(loadPlayerSave(storage)).toMatchObject({ freshSeatOnly: true, gameTimeMs: save.gameTimeMs, laoZhouCafeSeatId: seat })
+    expect(hasResumablePlayerSave(storage)).toBe(false)
+
+    const started = savePlayerSave({ ...save, currentPosition: { x: 12, y: 18 } }, storage, 123)
+    expect(started).not.toHaveProperty('freshSeatOnly')
+    expect(hasResumablePlayerSave(storage)).toBe(true)
+  })
+
+  it('keeps the in-memory game time when checkpoint storage is unavailable', () => {
+    const unavailable = {
+      getItem: () => null,
+      setItem: () => { throw new Error('storage denied') },
+      removeItem: () => { throw new Error('storage denied') },
+    }
+    let save = createInitialPlayerSave('commercial-street')
+    const checkpoint = createGameTimeSaveCheckpoint({
+      getSave: () => save,
+      setSave: next => { save = next },
+      getGameTimeMs: () => 48_000_000,
+      persist: next => savePlayerSave(next, unavailable, 200),
+    })
+    expect(() => checkpoint()).not.toThrow()
+    expect(save.gameTimeMs).toBe(48_000_000)
+    expect(() => loadPlayerSave(unavailable)).not.toThrow()
+  })
+
+  it('keeps the version-one phone migration while adding the clock fallback', () => {
+    const migrated = sanitizePlayerSave({
+      ...createInitialPlayerSave('commercial-street'),
+      _version: 1,
+      phoneDevice: 'surface',
+      gameTimeMs: undefined,
+    }, 'commercial-street')
+    expect(migrated.phoneDevice).toBe('inner')
+    expect(migrated.gameTimeMs).toBe((11 * 60) * 60_000)
   })
 
   it('coalesces RAF samples and persists the latest position on stop', () => {
@@ -102,13 +245,14 @@ describe('player local save contract', () => {
   it('merges the latest position into a critical story commit without losing story state', () => {
     const storage = createStorage()
     let save = createInitialPlayerSave('commercial-street')
+    const gameTimeMs = (13 * 60 + 45) * 60_000
     let writes = 0
     const coordinator = createPositionSaveCoordinator({
       getSave: () => save,
       setSave: next => { save = next },
       getCurrentSceneId: () => save.currentSceneId,
       recordPosition: recordPlayerScenePosition,
-      persist: next => { writes += 1; return savePlayerSave(next, storage, writes) },
+      persist: next => { writes += 1; return savePlayerSave({ ...next, gameTimeMs }, storage, writes) },
     })
     coordinator.queue('commercial-street', { x: 88, y: 31 })
     coordinator.commit(current => recordPlayerSceneState(current, 'commercial-street', 'orderStatus', 'ready'))
@@ -117,6 +261,7 @@ describe('player local save contract', () => {
       currentPosition: { x: 88, y: 31 },
       scenePositions: { 'commercial-street': { x: 88, y: 31 } },
       sceneState: { 'commercial-street': { orderStatus: 'ready' } },
+      gameTimeMs,
     })
   })
 
@@ -167,11 +312,13 @@ describe('player local save contract', () => {
       addEventListener: (event, callback) => listeners.set(`document:${event}`, callback),
       removeEventListener: event => listeners.delete(`document:${event}`),
     }
+    let checkpoints = 0
     const cleanup = attachPositionSaveLifecycle(
       sceneId => coordinator.flush(sceneId),
       () => save.currentSceneId,
       windowTarget,
       documentTarget,
+      () => { checkpoints += 1 },
     )
     coordinator.queue('commercial-street', { x: 44, y: 20 })
     visibilityState = 'hidden'
@@ -184,6 +331,7 @@ describe('player local save contract', () => {
     cleanup()
     expect(loadPlayerSave(storage).currentPosition).toEqual({ x: 46, y: 20 })
     expect(writes).toBe(3)
+    expect(checkpoints).toBe(3)
     expect(listeners.size).toBe(0)
   })
   it('returns the same save for an unchanged persisted position', () => {

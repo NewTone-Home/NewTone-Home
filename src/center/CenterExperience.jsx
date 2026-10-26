@@ -19,7 +19,7 @@ import { createMainlineSceneGeometrySnapshot } from './runtime/mainlineSceneGeom
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
 import { isPointInContinuousCafe } from './runtime/continuousCafe'
-import { advanceMainlineStoryClock, mainlineStoryTimeLabel } from './runtime/mainlineStoryClock'
+import { advanceMainlineStoryClock } from './runtime/mainlineStoryClock'
 import { advancePhoneStoryNotes, createPlayerPhoneNote, ensurePhoneYongheLead, pinPhoneStoryNote, updatePhoneNote } from './runtime/phonePersonalData'
 import { commercialCafeStoryStatusKey } from './runtime/commercialCafeStory'
 import {
@@ -35,6 +35,7 @@ import {
 } from './runtime/phoneState'
 import {
   attachPositionSaveLifecycle,
+  createGameTimeSaveCheckpoint,
   createPositionSaveCoordinator,
   loadPlayerSave,
   recordPlayerScenePosition,
@@ -78,11 +79,6 @@ function formatTrialGameTime(gameTimeMs) {
   const minuteOfDay = Math.floor(gameTimeMs / 60_000) % (24 * 60)
   return `${String(Math.floor(minuteOfDay / 60)).padStart(2, '0')}:${String(minuteOfDay % 60).padStart(2, '0')}`
 }
-function gameTimeSeedFromStoryClock(storyClock) {
-  const label = mainlineStoryTimeLabel(storyClock.stage)
-  const [hour, minute] = label.split(':').map(Number)
-  return (hour * 60 + minute) * 60_000
-}
 function createRoute(sceneId, entryPosition, spawnMode = 'resume') {
   return { sceneId, entryPosition, spawnMode }
 }
@@ -105,7 +101,7 @@ export default function CenterExperience({
     sessionGameClockRef.current = createSessionGameClock({
       rates: freeTrialClockRates,
       idleAfterMs: 60_000,
-      initialGameTimeMs: gameTimeSeedFromStoryClock(playerSave.storyClock),
+      initialGameTimeMs: playerSave.gameTimeMs,
     })
   }
   const [trialClockSnapshot, setTrialClockSnapshot] = useState(() => sessionGameClockRef.current.read())
@@ -134,7 +130,19 @@ export default function CenterExperience({
       setSave: next => { playerSaveRef.current = next },
       getCurrentSceneId: () => currentSceneIdRef.current,
       recordPosition: recordPlayerScenePosition,
-      persist: persistPlayerSave,
+      persist: next => persistPlayerSave({
+        ...next,
+        gameTimeMs: sessionGameClockRef.current.read().gameTimeMs,
+      }),
+    })
+  }
+  const gameTimeSaveCheckpointRef = useRef(null)
+  if (!gameTimeSaveCheckpointRef.current) {
+    gameTimeSaveCheckpointRef.current = createGameTimeSaveCheckpoint({
+      getSave: () => playerSaveRef.current,
+      setSave: next => { playerSaveRef.current = next; setPlayerSave(next) },
+      getGameTimeMs: () => sessionGameClockRef.current.read().gameTimeMs,
+      persist: next => persistPlayerSave(next, undefined, undefined, { preserveFreshSeatOnly: true }),
     })
   }
   const getRideMapSnapshot = useCallback(() => {
@@ -382,9 +390,12 @@ export default function CenterExperience({
           : current
       })
     }, 250)
+    const saveTimer = window.setInterval(() => gameTimeSaveCheckpointRef.current(), 10_000)
     return () => {
       inputEvents.forEach((name) => window.removeEventListener(name, recordTrustedInput, true))
       window.clearInterval(timer)
+      window.clearInterval(saveTimer)
+      gameTimeSaveCheckpointRef.current()
     }
   }, [])
 
@@ -667,7 +678,13 @@ export default function CenterExperience({
   }, [])
 
   useEffect(() => {
-    return attachPositionSaveLifecycle(flushPositionSave, () => route.sceneId)
+    return attachPositionSaveLifecycle(
+      flushPositionSave,
+      () => route.sceneId,
+      undefined,
+      undefined,
+      () => gameTimeSaveCheckpointRef.current(),
+    )
   }, [flushPositionSave, route.sceneId])
 
   const cafeClockInsideRef = useRef(false)

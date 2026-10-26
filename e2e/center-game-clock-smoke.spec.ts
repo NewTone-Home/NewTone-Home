@@ -35,6 +35,58 @@ test('mounts the real CenterExperience entry without runtime reference errors', 
   await startIsolatedWorld(page)
   expect(runtimeErrors).toEqual([])
 })
+
+test('restores only the synthetic saved game time after a stale wall-clock gap', async ({ page, browser }) => {
+  const gameTimeMs = (15 * 60 + 20) * 60_000
+  const syntheticSave = {
+    _version: 2,
+    currentSceneId: 'jijia-ancestral-home',
+    currentPosition: null,
+    scenePositions: {},
+    phoneDevice: 'inner',
+    storyClock: { dayId: 'story-day-001', stage: 'opening', month: 4, day: 12, weekday: 6, hour: 10, minute: 0, weatherCycle: 'sunny' },
+    gameTimeMs,
+    sceneState: {},
+    phoneNotifications: [],
+    phoneNotes: [],
+    phoneContactNotes: {},
+    phoneCallHistory: [],
+    updatedAt: 1,
+  }
+  await page.clock.install({ time: new Date('2020-01-01T00:00:00Z') })
+  await page.addInitScript((save) => {
+    localStorage.setItem('newtone-player-save-v1', JSON.stringify(save))
+    localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
+  }, syntheticSave)
+  await startIsolatedWorld(page)
+  const phone = page.locator('.world-phone')
+  await phone.locator('.world-phone__handle').click()
+  await expect.poll(() => phoneMinutes(page)).toBe(15 * 60 + 20)
+
+  await page.clock.runFor(10_000)
+  const firstSessionStoredTime = await page.evaluate(() => JSON.parse(localStorage.getItem('newtone-player-save-v1')!).gameTimeMs)
+  expect(firstSessionStoredTime).toBeGreaterThan(gameTimeMs + 60_000)
+  expect(firstSessionStoredTime).toBeLessThan(gameTimeMs + 600_000)
+
+  const storageState = await page.context().storageState()
+  const resumedContext = await browser.newContext({ storageState })
+  try {
+    const resumedPage = await resumedContext.newPage()
+    await resumedPage.clock.install({ time: new Date('2035-01-01T00:00:00Z') })
+    await resumedPage.route('**/*', route => {
+      const url = new URL(route.request().url())
+      if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') return route.continue()
+      return route.abort()
+    })
+    await resumedPage.goto('/?scene=jijia-ancestral-home')
+    await expect(resumedPage.locator('.center-experience')).toBeVisible()
+    const resumedPhone = resumedPage.locator('.world-phone')
+    await resumedPhone.locator('.world-phone__handle').click()
+    await expect.poll(() => phoneMinutes(resumedPage)).toBe(Math.floor(firstSessionStoredTime / 60_000) % (24 * 60))
+  } finally {
+    await resumedContext.close()
+  }
+})
 test('a real phone click restores 15x from idle, while a synthetic event does not', async ({ page }) => {
   await page.clock.install()
   await startIsolatedWorld(page)
