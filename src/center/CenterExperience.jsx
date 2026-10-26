@@ -19,7 +19,7 @@ import { createMainlineSceneGeometrySnapshot } from './runtime/mainlineSceneGeom
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
 import { isPointInContinuousCafe } from './runtime/continuousCafe'
-import { advanceMainlineStoryClock } from './runtime/mainlineStoryClock'
+import { advanceMainlineStoryClock, mainlineStoryTimeLabel } from './runtime/mainlineStoryClock'
 import { advancePhoneStoryNotes, createPlayerPhoneNote, ensurePhoneYongheLead, pinPhoneStoryNote, updatePhoneNote } from './runtime/phonePersonalData'
 import { commercialCafeStoryStatusKey } from './runtime/commercialCafeStory'
 import {
