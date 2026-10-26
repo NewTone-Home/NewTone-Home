@@ -5,6 +5,20 @@ export type MainlineSceneActionExitBarrier = Readonly<{
   committed: boolean
 }>
 
+export type MainlineSceneActionPhase = 'active' | 'committing' | 'exiting' | null
+export type MainlineSceneActionExitIntent = 'cancel' | 'replace'
+
+export function resolveMainlineSceneActionCancellation<T>(
+  phase: MainlineSceneActionPhase,
+  pendingAction: T | null,
+  intent: MainlineSceneActionExitIntent,
+): { phase: MainlineSceneActionPhase; pendingAction: T | null } {
+  return {
+    phase: phase === 'active' ? 'exiting' : phase,
+    pendingAction: intent === 'replace' ? pendingAction : null,
+  }
+}
+
 export function createMainlineSceneActionExitBarrier(actionId: number, optionCount: number): MainlineSceneActionExitBarrier {
   return { actionId, optionCount, completedOptionIndexes: new Set(), committed: false }
 }

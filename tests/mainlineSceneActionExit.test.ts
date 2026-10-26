@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createEntryExitSteps } from '../src/components/entryButtonTimeline'
-import { cancelMainlineSceneActionExit, commitMainlineSceneActionExit, completeMainlineSceneActionOptionExit, createMainlineSceneActionExitBarrier, mainlineSceneActionExitMayUnmount } from '../src/center/runtime/mainlineSceneActionExit'
+import { cancelMainlineSceneActionExit, commitMainlineSceneActionExit, completeMainlineSceneActionOptionExit, createMainlineSceneActionExitBarrier, mainlineSceneActionExitMayUnmount, resolveMainlineSceneActionCancellation } from '../src/center/runtime/mainlineSceneActionExit'
 
 const buttonExitDurationMs = createEntryExitSteps().reduce((duration, step) => duration + step.duration, 0)
 
@@ -89,5 +89,38 @@ describe('mainline scene option exit timing', () => {
     current = cancelMainlineSceneActionExit(current, 41)
     current = completeMainlineSceneActionOptionExit(current, 41, 0)
     expect(mainlineSceneActionExitMayUnmount(current)).toBe(true)
+  })
+
+  it('clears queued actions on explicit cancellation even after exit began', () => {
+    const queued = { entityId: 'milk-tea', options: ['drink'] }
+    expect(resolveMainlineSceneActionCancellation('active', queued, 'replace')).toEqual({
+      phase: 'exiting',
+      pendingAction: queued,
+    })
+    expect(resolveMainlineSceneActionCancellation('exiting', queued, 'cancel')).toEqual({
+      phase: 'exiting',
+      pendingAction: null,
+    })
+    expect(resolveMainlineSceneActionCancellation(null, queued, 'cancel')).toEqual({
+      phase: null,
+      pendingAction: null,
+    })
+
+    const replacement = { entityId: 'milk-tea', options: ['drink-again'] }
+    const latestQueued = resolveMainlineSceneActionCancellation('exiting', replacement, 'replace')
+    expect(latestQueued.pendingAction).toEqual(replacement)
+    const explicitlyCancelled = resolveMainlineSceneActionCancellation(latestQueued.phase, latestQueued.pendingAction, 'cancel')
+    expect(explicitlyCancelled.pendingAction).toBeNull()
+
+    let exitingBarrier = createMainlineSceneActionExitBarrier(42, 1)
+    exitingBarrier = cancelMainlineSceneActionExit(exitingBarrier, 42)
+    exitingBarrier = completeMainlineSceneActionOptionExit(exitingBarrier, 42, 0)
+    expect(mainlineSceneActionExitMayUnmount(exitingBarrier)).toBe(true)
+    const menuToShowAfterExit = explicitlyCancelled.pendingAction
+    expect(menuToShowAfterExit).toBeNull()
+
+    const newerActionBarrier = createMainlineSceneActionExitBarrier(43, 1)
+    const afterLateExit = completeMainlineSceneActionOptionExit(newerActionBarrier, 42, 0)
+    expect(mainlineSceneActionExitMayUnmount(afterLateExit)).toBe(false)
   })
 })

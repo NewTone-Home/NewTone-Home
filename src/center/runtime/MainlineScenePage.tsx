@@ -37,7 +37,7 @@ import { useStorefrontPresentation } from './useStorefrontPresentation'
 import { splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineDialogueParticipantNpcIds, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingOpacityForActor, mainlineMaximumReadingWidthPx } from './mainlineTextReading'
 import { createMainlineReadingSessionLayoutCache } from './mainlineReadingLayoutSession'
-import { cancelMainlineSceneActionExit, commitMainlineSceneActionExit, completeMainlineSceneActionOptionExit, createMainlineSceneActionExitBarrier, mainlineSceneActionExitMayUnmount, type MainlineSceneActionExitBarrier } from './mainlineSceneActionExit'
+import { cancelMainlineSceneActionExit, commitMainlineSceneActionExit, completeMainlineSceneActionOptionExit, createMainlineSceneActionExitBarrier, mainlineSceneActionExitMayUnmount, resolveMainlineSceneActionCancellation, type MainlineSceneActionExitBarrier } from './mainlineSceneActionExit'
 import type { MainlineReadingSessionLayoutCache } from './mainlineReadingLayoutSession'
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
@@ -544,28 +544,31 @@ export function MainlineScenePage({
     sceneEchoRef.current = next
     setSceneEcho(next)
   }, [])
-  const dismissSceneAction = useCallback(() => {
-    sceneActionExitBarrierRef.current = null
-    pendingSceneActionRef.current = null
-    pendingSceneActionAfterExitRef.current = null
-    setSceneAction(null)
-  }, [])
-  const cancelSceneAction = useCallback(() => {
-    const current = sceneAction
-    if (!current || current.phase !== 'active') return
-    const barrier = sceneActionExitBarrierRef.current
-    if (!barrier || barrier.actionId !== current.id) {
-      dismissSceneAction()
-      return
-    }
-    sceneActionExitBarrierRef.current = cancelMainlineSceneActionExit(barrier, current.id)
-    setSceneAction(value => value?.id === current.id && value.phase === 'active' ? { ...value, phase: 'exiting' } : value)
-  }, [dismissSceneAction, sceneAction])
   const createSceneAction = useCallback((action: Omit<MainlineSceneAction, 'id'>): MainlineSceneAction => {
     const id = ++sceneActionIdRef.current
     sceneActionExitBarrierRef.current = createMainlineSceneActionExitBarrier(id, action.options.length)
     return { ...action, id, phase: 'active' }
   }, [])
+  const cancelSceneAction = useCallback((intent: 'cancel' | 'replace' = 'cancel') => {
+    const current = sceneAction
+    const cancellation = resolveMainlineSceneActionCancellation(
+      current?.phase ?? null,
+      pendingSceneActionAfterExitRef.current,
+      intent,
+    )
+    pendingSceneActionAfterExitRef.current = cancellation.pendingAction
+    if (!current || current.phase !== 'active') return
+    const barrier = sceneActionExitBarrierRef.current
+    if (!barrier || barrier.actionId !== current.id) {
+      const pendingAction = pendingSceneActionAfterExitRef.current
+      pendingSceneActionAfterExitRef.current = null
+      const nextAction = pendingAction ? createSceneAction(pendingAction) : null
+      setSceneAction(value => value?.id === current.id ? nextAction : value)
+      return
+    }
+    sceneActionExitBarrierRef.current = cancelMainlineSceneActionExit(barrier, current.id)
+    setSceneAction(value => value?.id === current.id && value.phase === 'active' ? { ...value, phase: 'exiting' } : value)
+  }, [createSceneAction, sceneAction])
   const beginSceneActionChoice = useCallback((actionId: number, index: number) => {
     setSceneAction((current) => {
       if (!current || current.id !== actionId || current.phase !== 'active' || !current.options[index]) return current
@@ -1902,7 +1905,7 @@ export function MainlineScenePage({
     if (sceneAction?.phase === 'committing') return
     if (sceneAction) {
       pendingSceneActionAfterExitRef.current = nextAction
-      if (sceneAction.phase === 'active') cancelSceneAction()
+      if (sceneAction.phase === 'active') cancelSceneAction('replace')
       return
     }
     setSceneAction(createSceneAction(nextAction))
