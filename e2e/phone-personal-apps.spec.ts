@@ -57,28 +57,15 @@ test('Notes persist and the contact flow supports details, location cards, and a
   await messageBubble.hover()
   const placeCard = location.locator('.world-phone__place-card')
   await expect(placeCard).toBeVisible()
-  await expect(placeCard.locator('small')).toHaveText('位于矿区外围老街。')
-  const previewHost = await page.evaluate(() => {
-    const hostname = window.location.hostname
-    return hostname === 'duck-feel-rpm-barbara.trycloudflare.com'
-      || hostname === 'localhost'
-      || hostname === '127.0.0.1'
-  })
+  const miniMap = placeCard.locator('[data-yonghe-map-preview]')
+  await expect(miniMap.locator('[data-map-poi="yonghe-eatery"]')).toBeVisible()
   const desktopAlignment = await messageBubble.evaluate((bubble) => {
     const bubbleRect = bubble.getBoundingClientRect()
     const cardRect = bubble.parentElement!.querySelector('.world-phone__place-card')!.getBoundingClientRect()
     return { right: cardRect.left >= bubbleRect.right - 1, aligned: Math.abs((cardRect.top + cardRect.height / 2) - (bubbleRect.top + bubbleRect.height / 2)) < 12 }
   })
   expect(desktopAlignment).toEqual({ right: true, aligned: true })
-  if (previewHost) {
-    await expect(location.locator('[data-yonghe-card-preview]')).toBeVisible()
-    await location.getByRole('button', { name: 'B 版' }).click()
-    await expect(placeCard).toHaveAttribute('data-card-variant', 'b')
-    await expect(placeCard.locator('.world-phone__place-card-blur i')).toHaveCount(3)
-    await location.getByRole('button', { name: 'A 版' }).click()
-  } else {
-    await expect(location.locator('[data-yonghe-card-preview]')).toHaveCount(0)
-  }
+  await expect(location.locator('[data-yonghe-card-preview]')).toHaveCount(0)
   await page.mouse.move(0, 0)
   await expect(placeCard).toBeHidden()
 
@@ -95,11 +82,28 @@ test('Notes persist and the contact flow supports details, location cards, and a
     await placeCard.getByRole('button', { name: '关闭地点卡' }).click()
     await expect(placeCard).toBeHidden()
     await expect.poll(async () => messageBubble.evaluate((bubble) => bubble.getBoundingClientRect().width)).toBeGreaterThan(0)
-    await expect(phone.locator('[data-map-world="inner"]')).toHaveCount(0)
+    await expect(phone.locator('.world-phone__app-view[data-app-view="map"]')).toHaveCount(0)
   }
   await page.setViewportSize({ width: 1280, height: 900 })
   await messageBubble.click()
+  const sourceRect = await miniMap.boundingBox()
   await placeCard.getByRole('button', { name: '在地图中查看永和小馆' }).click()
+  await expect(phone).toHaveAttribute('data-yonghe-map-handoff', 'opening')
+  const handoffMap = phone.locator('[data-yonghe-handoff-map]')
+  await expect(handoffMap).toBeVisible()
+  const sourceStart = await handoffMap.boundingBox()
+  expect(Math.abs(sourceStart!.x - sourceRect!.x)).toBeLessThan(20)
+  expect(Math.abs(sourceStart!.y - sourceRect!.y)).toBeLessThan(20)
+  await expect(phone.locator('.world-phone__app-view[data-app-view="map"]')).toHaveCSS('opacity', '0')
+  await page.waitForTimeout(120)
+  const sourceMid = await handoffMap.boundingBox()
+  expect(sourceMid!.width).toBeGreaterThan(sourceStart!.width)
+  expect(sourceMid!.height).toBeGreaterThan(sourceStart!.height)
+  const transitionTarget = await phone.locator('.world-phone__app-view[data-app-view="map"] .world-phone__map-viewport').boundingBox()
+  await page.mouse.click(transitionTarget!.x + transitionTarget!.width / 2, transitionTarget!.y + transitionTarget!.height / 2)
+  await expect(phone).toHaveAttribute('data-yonghe-map-handoff', 'opening')
+  await expect(phone).toHaveAttribute('data-yonghe-map-handoff', 'settled', { timeout: 3000 })
+  await expect(handoffMap).toHaveCount(0)
   const map = phone.locator('[data-map-world="inner"]')
   await expect(map).toBeVisible()
   await expect(map).toHaveAttribute('data-map-zoom', '1.650')

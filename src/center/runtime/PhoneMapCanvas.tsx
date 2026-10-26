@@ -17,10 +17,11 @@ type Props = {
   focusId?: string | null; coveredHeight?: number; onBlank?: () => void
   restoreOnBlank?: boolean; regionsOnly?: boolean; slowDestinationTravel?: boolean
   followFocus?: boolean
+  followFocusZoom?: number
   unhideMarkerLabels?: readonly string[]
   hideMarkerLabels?: readonly string[]
 }
-export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, selectedMapPlaceId, onSelect, mapZoom, setMapZoom, mapPan, setMapPan, localViewBox, geometry, localMapObjects = [], localMapPassages = [], localPickupMarkers = [], focusId, coveredHeight = 0, onBlank, restoreOnBlank = false, regionsOnly = false, slowDestinationTravel = false, followFocus = false, unhideMarkerLabels = [], hideMarkerLabels = [] }: Props) {
+export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, selectedMapPlaceId, onSelect, mapZoom, setMapZoom, mapPan, setMapPan, localViewBox, geometry, localMapObjects = [], localMapPassages = [], localPickupMarkers = [], focusId, coveredHeight = 0, onBlank, restoreOnBlank = false, regionsOnly = false, slowDestinationTravel = false, followFocus = false, followFocusZoom = 1.6, unhideMarkerLabels = [], hideMarkerLabels = [] }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<HTMLDivElement>(null)
   const [controlBounds,setControlBounds]=useState({left:Infinity,top:0,bottom:0})
@@ -68,7 +69,7 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
       cancelAnimationFrame(cameraFrame.current)
       manualView.current = false
       previousFocus.current = focusId ?? null
-      const zoom = Math.max(1, Math.min(1.6, zoomRef.current))
+      const zoom = Math.max(1, Math.min(followFocusZoom, zoomRef.current))
       setMapZoom(zoom)
       setMapPan(boundPan([(vx + vw / 2 - focusPoint[0]) * scale * zoom, (vy + vh / 2 - focusPoint[1]) * scale * zoom - coveredHeightRef.current / 2], zoom))
       setCameraMoving(false)
@@ -110,7 +111,7 @@ export function PhoneMapCanvas({ mapRegions, displayDevice, currentLandmark, sel
     }
     cameraFrame.current=requestAnimationFrame(tick)
     return()=>cancelAnimationFrame(cameraFrame.current)
-  },[focusId,focusPoint?.[0],focusPoint?.[1],size.width,size.height,vx,vy,vw,vh,scale,setMapZoom,setMapPan,followFocus])
+  },[focusId,focusPoint?.[0],focusPoint?.[1],size.width,size.height,vx,vy,vw,vh,scale,setMapZoom,setMapPan,followFocus,followFocusZoom])
   // Sheet resizing only adjusts the visible-area offset, never restarts a destination journey.
   useLayoutEffect(() => {
     if (!focusPoint || size.width <= 1 || cameraMoving) return

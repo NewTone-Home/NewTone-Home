@@ -17,7 +17,6 @@ import { PhoneRideApp } from './PhoneRideApp'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { PhonePlaceDetails } from './PhonePlaceDetails'
 import { commercialCafeCompletionPhoneMessageReadyForAck } from './cafeCompletionPhone'
-import { isYongheCardPreviewHost } from './yongheCardPreview'
 
 type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea' | 'notes'
 type FeedbackMode = 'phone'
@@ -229,10 +228,16 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const [activeApp, setActiveApp] = useState<PhoneApp | null>(null)
   const [contactView, setContactView] = useState<ContactView>('list')
   const [selectedContactId, setSelectedContactId] = useState<ContactId>('lao-zhou')
-  const [yongheCardVariant, setYongheCardVariant] = useState<'a' | 'b'>('a')
   const [contactNoteDraft, setContactNoteDraft] = useState('')
   const [activeCallStartedAt, setActiveCallStartedAt] = useState<number | null>(null)
   const [locationCardOpen, setLocationCardOpen] = useState(false)
+  const [yonghePreviewMapZoom, setYonghePreviewMapZoom] = useState<PhoneMapZoomLevel>(1.65)
+  const [yonghePreviewMapPan, setYonghePreviewMapPan] = useState<MapPoint>([0, 0])
+  const [yongheMapHandoffPhase, setYongheMapHandoffPhase] = useState<'opening' | 'settled' | null>(null)
+  const placeMapPreviewRef = useRef<HTMLDivElement>(null)
+  const mapHandoffLayerRef = useRef<HTMLDivElement>(null)
+  const mapHandoffSourceRectRef = useRef<DOMRect | null>(null)
+  const mapHandoffAnimationsRef = useRef<Animation[]>([])
   const [selectedMapPlaceId, setSelectedMapPlaceId] = useState<string | null>(null)
   const [mapFocusRequestId, setMapFocusRequestId] = useState<string | null>(null)
   const [mapSheetHeight, setMapSheetHeight] = useState(0)
@@ -278,10 +283,6 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const handleIsInteractive = inputOwner === 'handle'
   const online = phoneIsOnline(displayDevice, worldLayer)
   const mapRegions = getPhoneMapRegions(displayDevice)
-  const yongheCardPreviewEnabled = typeof window !== 'undefined'
-    && (import.meta.env.DEV || isYongheCardPreviewHost(window.location.hostname))
-  const yongheEateryDescription = mapRegions.flatMap((region) => region.pois)
-    .find((place) => place.id === 'yonghe-eatery')?.detail ?? ''
   const rideAvailability = phoneRideAvailability(displayDevice, worldLayer)
   const activeAppLabel = activeApp === 'map' ? '地图' : activeApp === 'ride' ? '叫车' : activeApp === 'contacts' ? contactView === 'messages' ? '短信' : contactView === 'call' ? '电话' : contactView === 'detail' ? '联系人详情' : '联系人' : activeApp === 'feedback' ? '反馈' : activeApp === 'milk-tea' ? '奶茶' : activeApp === 'notes' ? '备忘录' : ''
   const batteryPercent = 72
@@ -357,12 +358,14 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
     onAppOpen?.(app)
     if (activeApp && activeApp !== app) setLeavingApp(app)
     else setActiveApp(app)
+    setYongheMapHandoffPhase(null)
     if (app !== 'contacts') setContactView('list')
     setLocationCardOpen(false)
   }
 
   const closeApp = () => {
     if (leavingApp) return
+    setYongheMapHandoffPhase(null)
     if (activeApp) setLeavingApp('home')
   }
 
@@ -383,9 +386,102 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const closePhone = useCallback(() => {
     setPlaceCall(null)
     setLeavingApp(null)
+    setYongheMapHandoffPhase(null)
     if (activeCallStartedAt !== null) finishCall()
     onClose()
   }, [activeCallStartedAt, finishCall, onClose])
+
+  const openYongheMapFromCard = (event: { stopPropagation: () => void }) => {
+    event.stopPropagation()
+    if (yongheMapHandoffPhase === 'opening' || leavingApp) return
+    const root = phoneRef.current
+    const preview = placeMapPreviewRef.current
+    const layer = mapHandoffLayerRef.current
+    const sourceRect = preview?.getBoundingClientRect() ?? null
+    if (root && preview && layer && sourceRect && sourceRect.width > 0 && sourceRect.height > 0) {
+      const clone = preview.cloneNode(true) as HTMLDivElement
+      clone.setAttribute('data-yonghe-handoff-map', 'true')
+      clone.setAttribute('aria-hidden', 'true')
+      clone.setAttribute('inert', '')
+      Object.assign(clone.style, {
+        position: 'absolute',
+        left: `${sourceRect.left - root.getBoundingClientRect().left}px`,
+        top: `${sourceRect.top - root.getBoundingClientRect().top}px`,
+        width: `${sourceRect.width}px`,
+        height: `${sourceRect.height}px`,
+        margin: '0',
+        transformOrigin: 'top left',
+        zIndex: '1',
+      })
+      layer.replaceChildren(clone)
+      mapHandoffSourceRectRef.current = sourceRect
+    }
+    onAppOpen?.('map')
+    setSelectedMapPlaceId('yonghe-eatery')
+    setMapFocusRequestId('yonghe-eatery')
+    setMapZoom(1.65)
+    setMapPan([0, 0])
+    setContactView('list')
+    setLocationCardOpen(false)
+    setActiveApp('map')
+    setYongheMapHandoffPhase(sourceRect && root && layer ? 'opening' : 'settled')
+  }
+
+  useLayoutEffect(() => {
+    if (yongheMapHandoffPhase !== 'opening') return undefined
+    const root = phoneRef.current
+    const layer = mapHandoffLayerRef.current
+    const clone = layer?.querySelector<HTMLElement>('[data-yonghe-handoff-map]')
+    const sourceRect = mapHandoffSourceRectRef.current
+    const mapView = root?.querySelector<HTMLElement>('.world-phone__app-view[data-app-view="map"]')
+    const target = mapView?.querySelector<HTMLElement>('.world-phone__map-viewport')
+    if (!root || !layer || !clone || !sourceRect || !target || !mapView) {
+      layer?.replaceChildren()
+      mapHandoffSourceRectRef.current = null
+      setYongheMapHandoffPhase('settled')
+      return undefined
+    }
+
+    const rootRect = root.getBoundingClientRect()
+    const targetRect = target.getBoundingClientRect()
+    const startLeft = sourceRect.left - rootRect.left
+    const startTop = sourceRect.top - rootRect.top
+    const targetLeft = targetRect.left - rootRect.left
+    const targetTop = targetRect.top - rootRect.top
+    const translateX = targetLeft - startLeft
+    const translateY = targetTop - startTop
+    const scaleX = targetRect.width / sourceRect.width
+    const scaleY = targetRect.height / sourceRect.height
+
+    const finishImmediately = () => {
+      layer.replaceChildren()
+      mapHandoffSourceRectRef.current = null
+      setYongheMapHandoffPhase('settled')
+    }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || typeof clone.animate !== 'function') {
+      finishImmediately()
+      return undefined
+    }
+
+    const duration = 560
+    const mapAnimation = clone.animate([
+      { transform: 'translate(0px, 0px) scale(1, 1)', opacity: 1, offset: 0 },
+      { transform: 'translate(0px, 0px) scale(1, 1)', opacity: 1, offset: 0.7 },
+      { transform: `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`, opacity: 0, offset: 1 },
+    ], { duration, easing: 'cubic-bezier(.22,.72,.25,1)', fill: 'forwards' })
+    const mapRevealAnimation = mapView.animate([
+      { opacity: 0, offset: 0 },
+      { opacity: 0, offset: 0.7 },
+      { opacity: 1, offset: 1 },
+    ], { duration, easing: 'linear', fill: 'forwards' })
+    mapHandoffAnimationsRef.current = [mapAnimation, mapRevealAnimation]
+    mapAnimation.onfinish = finishImmediately
+
+    return () => {
+      mapHandoffAnimationsRef.current.forEach((animation) => animation.cancel())
+      mapHandoffAnimationsRef.current = []
+    }
+  }, [yongheMapHandoffPhase])
 
   useEffect(() => {
     if (!isInteractive) return
@@ -510,6 +606,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
     <aside ref={phoneRef}
       className={`world-phone world-phone--${displayDevice} world-phone--phase-${renderedPhase} ${isInteractive ? 'is-open' : ''} ${isMapOpen ? 'world-phone--map-app' : ''}`}
       data-has-notifications={notifications.some(n => n.unread)}
+      data-yonghe-map-handoff={yongheMapHandoffPhase ?? 'idle'}
       data-phone-open={open}
       data-phone-phase={renderedPhase}
       data-phone-device={displayDevice}
@@ -531,7 +628,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
       >
       </button>
 
-      <div inert={!isInteractive} className="world-phone__body" onTransitionEnd={handleBodyTransitionEnd} onTransitionRun={handleBodyTransitionRun} onTransitionCancel={handleBodyTransitionCancel}>
+      <div inert={!isInteractive || yongheMapHandoffPhase === 'opening'} className="world-phone__body" onTransitionEnd={handleBodyTransitionEnd} onTransitionRun={handleBodyTransitionRun} onTransitionCancel={handleBodyTransitionCancel}>
         <section className={`world-phone__panel ${isMapOpen ? 'world-phone__panel--map' : ''}`} role="dialog" aria-label="手机" aria-hidden={!isInteractive}>
           <PhoneNotificationCapsule notifications={notifications} visible={handleIsInteractive && !open && !swapPending} />
           <header className="world-phone__header">
@@ -607,8 +704,8 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
             {activeApp === 'map' && (
               <div className="world-phone__map-frame">
                 <div className="world-phone__map-title">区域地图{!online ? ' · 离线' : ''}</div>
-                <PhoneMapCanvas mapRegions={mapRegions} displayDevice={displayDevice} currentLandmark={currentLandmark} selectedMapPlaceId={selectedMapPlaceId} onSelect={id => { setMapFocusRequestId(null); setSelectedMapPlaceId(id) }} mapZoom={mapZoom} setMapZoom={setMapZoom} mapPan={mapPan} setMapPan={setMapPan} focusId={mapFocusRequestId ?? selectedMapPlaceId} coveredHeight={mapSheetHeight} restoreOnBlank onBlank={() => { setSelectedMapPlaceId(null); setMapFocusRequestId(null) }} />
-                <PhonePlaceDetails id={selectedMapPlaceId} title={selectedMapTitle} onHeight={setMapSheetHeight} onRide={() => { setSelectedRideDestinationId(selectedMapRegion?.id ?? selectedMapPoi?.region.id ?? null); openApp('ride') }} onCall={() => setPlaceCall('中枢院 · 0000')} />
+                <PhoneMapCanvas mapRegions={mapRegions} displayDevice={displayDevice} currentLandmark={currentLandmark} selectedMapPlaceId={selectedMapPlaceId} onSelect={id => { setMapFocusRequestId(null); setSelectedMapPlaceId(id) }} mapZoom={mapZoom} setMapZoom={setMapZoom} mapPan={mapPan} setMapPan={setMapPan} focusId={mapFocusRequestId ?? selectedMapPlaceId} coveredHeight={mapSheetHeight} followFocus={yongheMapHandoffPhase === 'opening'} followFocusZoom={1.65} restoreOnBlank onBlank={() => { setSelectedMapPlaceId(null); setMapFocusRequestId(null) }} />
+                {yongheMapHandoffPhase !== 'opening' && <PhonePlaceDetails id={selectedMapPlaceId} title={selectedMapTitle} onHeight={setMapSheetHeight} onRide={() => { setSelectedRideDestinationId(selectedMapRegion?.id ?? selectedMapPoi?.region.id ?? null); openApp('ride') }} onCall={() => setPlaceCall('中枢院 · 0000')} />}
                 {!online && <p className="world-phone__offline-note">当前为离线地图，显示已缓存路线。</p>}
               </div>
             )}
@@ -656,20 +753,15 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
                       <div className="world-phone__message-bubble world-phone__message-bubble--received world-phone__message-bubble--place" role="button" tabIndex={0} aria-label="展开永和小馆地点卡" aria-expanded={locationCardOpen} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setLocationCardOpen(true) }}>
                         <p>永和小馆</p>
                       </div>
-                      <section className="world-phone__place-card" data-card-variant={yongheCardVariant} aria-label="永和小馆地点卡" aria-hidden={!locationCardOpen} inert={!locationCardOpen}>
-                        {yongheCardPreviewEnabled && <div className="world-phone__place-card-preview" role="group" aria-label="地点卡预览版本" data-yonghe-card-preview="true">
-                          <button type="button" aria-pressed={yongheCardVariant === 'a'} onClick={event => { event.stopPropagation(); setYongheCardVariant('a') }}>A 版</button>
-                          <button type="button" aria-pressed={yongheCardVariant === 'b'} onClick={event => { event.stopPropagation(); setYongheCardVariant('b') }}>B 版</button>
-                        </div>}
+                      <section className="world-phone__place-card" aria-label="永和小馆地点卡" aria-hidden={!locationCardOpen} inert={!locationCardOpen} onClick={openYongheMapFromCard}>
                         <div className="world-phone__place-card-content">
-                          <button type="button" className="world-phone__place-card-map-link" aria-label="在地图中查看永和小馆" onClick={event => { event.stopPropagation(); setSelectedMapPlaceId('yonghe-eatery'); setMapFocusRequestId('yonghe-eatery'); setLocationCardOpen(false); openApp('map') }}>
-                            <span className="world-phone__place-card-pin" aria-hidden="true">⌖</span>
-                            <span className="world-phone__place-card-copy"><strong>永和小馆</strong>
-                              {yongheCardVariant === 'a'
-                                ? <small>{yongheEateryDescription}</small>
-                                : <span className="world-phone__place-card-blur" aria-hidden="true"><i /><i /><i /></span>}
-                            </span>
-                          </button>
+                          {locationCardOpen && <div className="world-phone__place-map-preview" ref={placeMapPreviewRef} data-yonghe-map-preview aria-hidden="true">
+                            <PhoneMapCanvas mapRegions={mapRegions} displayDevice={displayDevice} currentLandmark={currentLandmark} selectedMapPlaceId="yonghe-eatery" onSelect={() => {}} mapZoom={yonghePreviewMapZoom} setMapZoom={setYonghePreviewMapZoom} mapPan={yonghePreviewMapPan} setMapPan={setYonghePreviewMapPan} focusId="yonghe-eatery" followFocus followFocusZoom={1.65} />
+                          </div>}
+                          <div className="world-phone__place-card-copy">
+                            <strong>永和小馆</strong>
+                            <button type="button" className="world-phone__place-card-map-link" aria-label="在地图中查看永和小馆" onClick={openYongheMapFromCard}>展开地图</button>
+                          </div>
                           <button type="button" className="world-phone__place-card-close" aria-label="关闭地点卡" onClick={event => { event.stopPropagation(); setLocationCardOpen(false) }}>×</button>
                         </div>
                       </section>
@@ -730,6 +822,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
           )}
         </section>
       </div>
+      <div ref={mapHandoffLayerRef} className={`world-phone__handoff-layer ${yongheMapHandoffPhase === 'opening' ? 'is-active' : ''}`} aria-hidden="true" />
     </aside>
     </>
   )
