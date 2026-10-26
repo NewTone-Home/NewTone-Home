@@ -1,5 +1,27 @@
 import { expect, test } from '@playwright/test'
 
+async function expectStableReadingRect(locator: import('@playwright/test').Locator) {
+  await expect.poll(() => locator.evaluate(async element => {
+    const nextFrame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    const samples: DOMRect[] = []
+    for (let index = 0; index < 5; index += 1) {
+      await nextFrame()
+      samples.push(element.getBoundingClientRect())
+    }
+    const node = element as HTMLElement
+    const ready = node.dataset.sceneReadingLayoutTransitioning === 'false'
+      && (node.dataset.sceneDialogueReady === undefined || node.dataset.sceneDialogueReady === 'true')
+    const stable = samples.slice(1).every((rect, index) => {
+      const previous = samples[index]
+      return Math.abs(rect.x - previous.x) < .05
+        && Math.abs(rect.y - previous.y) < .05
+        && Math.abs(rect.width - previous.width) < .05
+        && Math.abs(rect.height - previous.height) < .05
+    })
+    return ready && stable
+  }), { timeout: 3000 }).toBe(true)
+}
+
 for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 }]) {
   test(`fixed maximum reading envelope contains short pages and preserves whole-object occlusion at ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport)
@@ -238,6 +260,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
     await expect(text).toBeVisible()
     await expect(text.locator('[data-page-flip="settled"]')).toHaveCount(1)
     await expect(text).toHaveAttribute('data-scene-reading-layout-transitioning', 'false')
+    await expect(text).toHaveAttribute('data-scene-dialogue-ready', 'true')
+    await expectStableReadingRect(text)
     const before = await text.evaluate(element => {
       const rect = element.getBoundingClientRect()
       const node = element as HTMLElement
@@ -280,6 +304,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
     await expect(text.locator('[data-page-flip="settled"]')).toHaveCount(1, { timeout: 1500 })
     await expect(text).toHaveAttribute('data-scene-reading-layout-transitioning', 'false', { timeout: 1500 })
     await expect(text).toHaveAttribute('data-scene-dialogue-ready', 'true')
+    await expectStableReadingRect(text)
     const after = await text.evaluate(element => {
       const rect = element.getBoundingClientRect()
       const node = element as HTMLElement
@@ -310,6 +335,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
     const body = page.locator('.scene-mainline-text[data-scene-dialogue]')
     const name = page.locator('.scene-mainline-speaker-anchor .scene-mainline-text__speaker:not(.scene-mainline-text__speaker-space)')
     await expect(body.locator('[data-page-flip="settled"]')).toHaveCount(1)
+    await expect(body).toHaveAttribute('data-scene-reading-layout-transitioning', 'false')
+    await expect(body).toHaveAttribute('data-scene-dialogue-ready', 'true')
+    await expectStableReadingRect(body)
     const measure = async () => Promise.all([
       body.evaluate(element => {
         const rect = element.getBoundingClientRect()
@@ -334,6 +362,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
 
     await page.locator('[data-reading-next]').click()
     await expect(body.locator('[data-page-flip="settled"]')).toHaveCount(1, { timeout: 1500 })
+    await expect(body).toHaveAttribute('data-scene-reading-layout-transitioning', 'false', { timeout: 1500 })
+    await expect(body).toHaveAttribute('data-scene-dialogue-ready', 'true')
+    await expectStableReadingRect(body)
     const after = await measure()
     expect(Math.abs(after[1].x - after[0].x)).toBeLessThanOrEqual(2)
     expect(after[0].centerX).toBeCloseTo(before[0].centerX, 0)

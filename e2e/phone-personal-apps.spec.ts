@@ -69,23 +69,9 @@ test('Notes persist and the contact flow supports details, location cards, and a
   await page.mouse.move(0, 0)
   await expect(placeCard).toBeHidden()
 
-  for (const width of [411, 360]) {
-    await page.setViewportSize({ width, height: 914 })
-    await messageBubble.click()
-    await expect(placeCard).toBeVisible()
-    const fitsPhone = await placeCard.evaluate((card) => {
-      const bounds = card.getBoundingClientRect()
-      const content = card.closest('.world-phone__app-content')!.getBoundingClientRect()
-      return bounds.left >= content.left && bounds.right <= content.right && bounds.top >= content.top && bounds.bottom <= content.bottom
-    })
-    expect(fitsPhone).toBe(true)
-    await placeCard.getByRole('button', { name: '关闭地点卡' }).click()
-    await expect(placeCard).toBeHidden()
-    await expect.poll(async () => messageBubble.evaluate((bubble) => bubble.getBoundingClientRect().width)).toBeGreaterThan(0)
-    await expect(phone.locator('.world-phone__app-view[data-app-view="map"]')).toHaveCount(0)
-  }
   await page.setViewportSize({ width: 1280, height: 900 })
-  await messageBubble.click()
+  await messageBubble.hover()
+  await expect(placeCard).toBeVisible()
   const sourceRect = await miniMap.boundingBox()
   await placeCard.getByRole('button', { name: '在地图中查看永和小馆' }).click()
   await expect(phone).toHaveAttribute('data-yonghe-map-handoff', 'opening')
@@ -169,3 +155,59 @@ test('Notes persist and the contact flow supports details, location cards, and a
   await expect(phone.getByLabel('联系人备注')).toHaveValue('咖啡馆认识的联系人')
   await expect(phone.getByRole('region', { name: '老周联系人详情' })).toContainText('已挂断')
 })
+
+for (const width of [411, 360]) {
+  test(`Yonghe location card supports touch tap and restores the message on close at ${width}px`, async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width, height: 914 }, hasTouch: true, isMobile: true })
+    await context.route('**/phone-v1-validation.invalid/**', route => route.fulfill({
+      status: route.request().method() === 'GET' ? 200 : 201,
+      contentType: 'application/json',
+      body: route.request().method() === 'GET' ? '[]' : '',
+    }))
+    const page = await context.newPage()
+    await page.addInitScript(() => {
+      localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
+      localStorage.setItem('newtone-player-save-v1', JSON.stringify({
+        _version: 1,
+        currentSceneId: 'commercial-cafe',
+        currentPosition: null,
+        scenePositions: {},
+        phoneDevice: 'inner',
+        storyClock: { dayId: 'story-day-001', stage: 'cafe' },
+        sceneState: { 'commercial-cafe': { commercialCafeStoryStatus: 'complete' } },
+        phoneNotifications: [],
+        updatedAt: 100,
+      }))
+    })
+    await page.goto('/?scene=commercial-cafe')
+    const phone = page.locator('.world-phone')
+    await phone.locator('.world-phone__handle').tap()
+    await phone.locator('[data-app="contacts"]').tap()
+    await phone.locator('.world-phone__contact-row').tap()
+    await phone.getByRole('button', { name: '\u4fe1\u606f' }).tap()
+    const bubble = phone.locator('.world-phone__message-bubble--place')
+    const card = phone.locator('.world-phone__place-card')
+    await expect(bubble).toBeVisible()
+
+    await bubble.tap()
+    await expect(card).toBeVisible()
+    const fitsPhone = await card.evaluate(element => {
+      const rect = element.getBoundingClientRect()
+      const content = element.closest('.world-phone__app-content')!.getBoundingClientRect()
+      return rect.left >= content.left && rect.right <= content.right && rect.top >= content.top && rect.bottom <= content.bottom
+    })
+    expect(fitsPhone).toBe(true)
+    await card.locator('.world-phone__place-card-close').tap()
+    await expect(card).toBeHidden()
+    await expect(bubble).toHaveAttribute('aria-expanded', 'false')
+    await expect(phone.locator('.world-phone__app-view[data-app-view="map"]')).toHaveCount(0)
+
+    await bubble.tap()
+    await expect(card).toBeVisible()
+    await card.locator('.world-phone__place-card-map-link').tap()
+    await expect(phone).toHaveAttribute('data-yonghe-map-handoff', 'opening')
+    await expect(phone).toHaveAttribute('data-yonghe-map-handoff', 'settled', { timeout: 3000 })
+    await expect(phone.locator('[data-map-poi="yonghe-eatery"]')).toBeVisible()
+    await context.close()
+  })
+}

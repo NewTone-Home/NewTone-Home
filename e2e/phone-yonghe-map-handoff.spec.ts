@@ -28,7 +28,7 @@ async function openYongheCard(page: import('@playwright/test').Page) {
 
 registerPhoneTestNetwork()
 
-test('Yonghe mini map expands continuously into the selected map at desktop and phone widths', async ({ page }) => {
+test('Yonghe mini map expands continuously into the selected map after desktop hover', async ({ page }) => {
   test.setTimeout(90_000)
   await page.addInitScript(() => {
     localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
@@ -52,10 +52,10 @@ test('Yonghe mini map expands continuously into the selected map at desktop and 
   await phone.getByRole('button', { name: '信息' }).click()
   const messageBubble = phone.locator('.world-phone__message-bubble--place')
 
-  for (const width of [1280, 411, 360]) {
-    await page.setViewportSize({ width, height: 914 })
-    await messageBubble.click()
-    const card = phone.locator('.world-phone__place-card')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await messageBubble.hover()
+  const card = phone.locator('.world-phone__place-card')
+  await expect(card).toBeVisible()
     const miniMap = card.locator('[data-yonghe-map-preview]')
     await expect(miniMap.locator('[data-map-poi="yonghe-eatery"]')).toBeVisible()
     await expect.poll(async () => (await miniMap.boundingBox()) !== null).toBe(true)
@@ -100,7 +100,6 @@ test('Yonghe mini map expands continuously into the selected map at desktop and 
       await phone.locator('.world-phone__contact-row').click()
       await phone.getByRole('button', { name: '信息' }).click()
     }
-  }
 })
 
 test('Escape during Yonghe handoff closes cleanly and reopening retains an interactive map', async ({ page }) => {
