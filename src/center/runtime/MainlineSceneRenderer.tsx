@@ -24,7 +24,8 @@ import { sceneFrameDefaultMotionMs } from './sceneMotion'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import { mainlineEchoLayout, mainlineSpeakerAnchor, mainlineSpeakerPageAnchor, type MainlineEchoLayout } from './mainlineEchoLayout'
-import { interpolateMainlineReadingLayout, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize } from './mainlineReadingLayoutTransition'
+import { interpolateMainlineReadingPageLayout, mainlineReadingPageFlipDurationMs, mainlineReadingPageRollEnvelope, previousMainlineReadingPageForFlip, snapshotMainlineReadingPage, type MainlineReadingPageSnapshot } from './mainlineReadingPageFlip'
+import { interpolateMainlineReadingLayout, mainlineReadingPageTransitionDurationMs, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize } from './mainlineReadingLayoutTransition'
 import { mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
 import { mainlineReadingPageAdvanceResumeGraceMs, mainlineReadingPageAdvanceStartupWatchdogMs, mainlineReadingPageAdvanceTokenIsCurrent, mainlineReadingPageAdvanceWatchdogMayRelease } from './mainlineReadingPageAdvance'
 import { DialogueSpeaker } from './DialogueSpeaker'
@@ -301,13 +302,21 @@ function MainlineAmbientNpcActorView({ sceneId, npc, position, snapshot, screenM
 
 export const MainlineAmbientNpcActor = memo(MainlineAmbientNpcActorView)
 
-function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { pageKey: string; text: string; children: React.ReactNode; mode: 'observation' | 'dialogue'; lockToken: number; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: () => void }) {
-  const [page, setPage] = useState<{ key: string; text: string; previousText: string | null; flipping: boolean }>({ key: pageKey, text, previousText: null, flipping: false })
+function ReadingPageFlip({ pageKey, continuityKey, visibleText, layout, worldScale, children, mode, lockToken, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { pageKey: string; continuityKey: string; visibleText: string; layout: MainlineEchoLayout; worldScale: number; children: React.ReactNode; mode: 'observation' | 'dialogue'; lockToken: number; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
+  const [page, setPage] = useState<{ key: string; continuityKey: string; previous: MainlineReadingPageSnapshot | null; flipping: boolean }>({ key: pageKey, continuityKey, previous: null, flipping: false })
+  const latestPageSnapshotRef = useRef<MainlineReadingPageSnapshot | null>(null)
   // Derive the incoming state during render. Waiting for the layout effect to
   // copy new props into state paints the next sentence once at y=0 first.
   const presentedPage = page.key === pageKey
     ? page
-    : { key: pageKey, text, previousText: page.text, flipping: true }
+    : {
+      key: pageKey,
+      continuityKey,
+      previous: page.continuityKey === continuityKey
+        ? previousMainlineReadingPageForFlip(latestPageSnapshotRef.current, { continuityKey, pageKey })
+        : null,
+      flipping: page.continuityKey === continuityKey,
+    }
   const stackRef = useRef<HTMLSpanElement>(null)
   const activeFlipTokenRef = useRef<number | null>(null)
   const onFlipStartRef = useRef(onFlipStart)
@@ -324,10 +333,16 @@ function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart
     if (token !== null) onFlipCancelRef.current?.(token)
   }, [])
   useIsomorphicLayoutEffect(() => {
-    setPage(current => current.key === pageKey
-      ? current
-      : { key: pageKey, text, previousText: current.text, flipping: true })
-  }, [pageKey, text])
+    if (page.key !== pageKey) {
+      setPage({
+        key: pageKey,
+        continuityKey,
+        previous: presentedPage.previous,
+        flipping: presentedPage.flipping,
+      })
+    }
+    latestPageSnapshotRef.current = snapshotMainlineReadingPage({ continuityKey, pageKey, visibleText, layout, worldScale })
+  }, [continuityKey, layout.fontSizePx, layout.heightPx, layout.widthPx, page.key, pageKey, presentedPage.flipping, presentedPage.previous, visibleText, worldScale])
   useEffect(() => {
     const node = stackRef.current
     if (!presentedPage.flipping || !node || presentedPage.key !== pageKey) return
@@ -352,12 +367,12 @@ function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart
     let frame = 0
     const advance = (now: number) => {
       const elapsed = Math.max(0, now - startedAt)
-      const progress = storefrontCharacterProgress(0, 1, elapsed, storefrontLabelRollDurationMs)
+      const progress = storefrontCharacterProgress(0, 1, elapsed, mainlineReadingPageFlipDurationMs)
       setProgress(progress)
-      if (elapsed >= storefrontLabelRollDurationMs) {
+      if (elapsed >= mainlineReadingPageFlipDurationMs) {
         if (activeFlipTokenRef.current === lockToken) activeFlipTokenRef.current = null
         onFlipCompleteRef.current?.(lockToken)
-        setPage(current => current.key === pageKey ? { ...current, previousText: null, flipping: false } : current)
+      setPage(current => current.key === pageKey ? { ...current, previous: null, flipping: false } : current)
         return
       }
       frame = window.requestAnimationFrame(advance)
@@ -366,11 +381,11 @@ function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart
     return () => window.cancelAnimationFrame(frame)
   }, [lockToken, presentedPage.flipping, presentedPage.key, pageKey])
   useEffect(() => {
-    if (!presentedPage.flipping && presentedPage.key === pageKey) onSettledRef.current?.()
+    if (!presentedPage.flipping && presentedPage.key === pageKey) onSettledRef.current?.(pageKey)
   }, [presentedPage.flipping, presentedPage.key, pageKey])
 
   return <span ref={stackRef} className={`scene-mainline-page-stack scene-mainline-page-stack--${mode}`} data-page-flip={presentedPage.flipping ? 'running' : 'settled'} style={{ '--reading-page-out-y': '0%', '--reading-page-in-y': presentedPage.flipping ? '-100%' : '0%' } as CSSProperties}>
-    {presentedPage.flipping && presentedPage.previousText !== null && <span className="scene-mainline-page scene-mainline-page--outgoing" data-reading-page-role="outgoing" aria-hidden="true">{presentedPage.previousText}</span>}
+    {presentedPage.flipping && presentedPage.previous !== null && <span className="scene-mainline-page scene-mainline-page--outgoing" data-reading-page-role="outgoing" data-reading-page-outgoing-key={presentedPage.previous.pageKey} data-reading-page-outgoing-width={presentedPage.previous.layout.widthPx} data-reading-page-outgoing-height={presentedPage.previous.layout.heightPx} style={{ width: `${presentedPage.previous.layout.widthPx / Math.max(.001, worldScale)}px`, height: `${presentedPage.previous.layout.heightPx / Math.max(.001, worldScale)}px`, fontSize: `${presentedPage.previous.layout.fontSizePx / Math.max(.001, worldScale)}px` }} aria-hidden="true">{presentedPage.previous.visibleText}</span>}
     <span
       className={`scene-mainline-page ${presentedPage.flipping ? 'scene-mainline-page--incoming' : 'scene-mainline-page--current'}`}
       data-reading-page-role={presentedPage.flipping ? 'incoming' : 'current'}
@@ -378,14 +393,16 @@ function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart
   </span>
 }
 
-function ObservationText({ echoId, pageKey, text, typing, lockToken, onTypingComplete, onFlipStart, onFlipComplete, onFlipCancel }: { echoId: number; pageKey: string; text: string; typing: boolean; lockToken: number; onTypingComplete?: (echoId: number) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void }) {
+function ObservationText({ echoId, continuityKey, pageKey, text, typing, layout, worldScale, lockToken, onTypingComplete, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { echoId: number; continuityKey: string; pageKey: string; text: string; typing: boolean; layout: MainlineEchoLayout; worldScale: number; lockToken: number; onTypingComplete?: (echoId: number) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
   const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
-  const [visibleCount, setVisibleCount] = useState(0)
+  const [visiblePage, setVisiblePage] = useState<{ key: string; count: number }>({ key: pageKey, count: 0 })
+  const visibleCount = visiblePage.key === pageKey ? visiblePage.count : 0
+  const visibleText = characters.slice(0, visibleCount).join('')
 
   useEffect(() => {
-    setVisibleCount(0)
+    setVisiblePage({ key: pageKey, count: 0 })
     if (!typing || characters.length === 0) {
-      setVisibleCount(characters.length)
+      setVisiblePage({ key: pageKey, count: characters.length })
       return
     }
     let frame = 0
@@ -393,28 +410,28 @@ function ObservationText({ echoId, pageKey, text, typing, lockToken, onTypingCom
     const advance = (now: number) => {
       startedAt ??= now
       const next = Math.min(characters.length, Math.floor((now - startedAt) / mainlineObservationTypingIntervalMs) + 1)
-      setVisibleCount((current) => current === next ? current : next)
+      setVisiblePage(current => current.key === pageKey && current.count === next ? current : { key: pageKey, count: next })
       if (next < characters.length) frame = window.requestAnimationFrame(advance)
       else onTypingComplete?.(echoId)
     }
     frame = window.requestAnimationFrame(advance)
     return () => window.cancelAnimationFrame(frame)
-  }, [characters, echoId, onTypingComplete, typing])
+  }, [characters, echoId, onTypingComplete, pageKey, typing])
 
   return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">
-    <ReadingPageFlip pageKey={pageKey} text={text} mode="observation" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel}>
-      {characters.slice(0, visibleCount).join('')}
+    <ReadingPageFlip pageKey={pageKey} continuityKey={continuityKey} visibleText={visibleText} layout={layout} worldScale={worldScale} mode="observation" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel} onSettled={onSettled}>
+      {visibleText}
     </ReadingPageFlip>
   </span>
 }
 
-function DialogueText({ group, pageKey, text, lockToken, onReadyChange, onFlipStart, onFlipComplete, onFlipCancel }: { group: string; pageKey: string; text: string; lockToken: number; onReadyChange?: (group: string, ready: boolean) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void }) {
+function DialogueText({ group, continuityKey, pageKey, text, layout, worldScale, lockToken, onReadyChange, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { group: string; continuityKey: string; pageKey: string; text: string; layout: MainlineEchoLayout; worldScale: number; lockToken: number; onReadyChange?: (group: string, ready: boolean) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
   useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, pageKey, onReadyChange])
   return <span
     className="scene-mainline-text__dialogue"
     data-scene-text-mode="dialogue"
   >
-    <ReadingPageFlip pageKey={pageKey} text={text} mode="dialogue" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel} onSettled={() => onReadyChange?.(group, true)}>
+    <ReadingPageFlip pageKey={pageKey} continuityKey={continuityKey} visibleText={mainlineVisiblePresentationText(text)} layout={layout} worldScale={worldScale} mode="dialogue" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel} onSettled={(settledKey) => { onSettled?.(settledKey); onReadyChange?.(group, true) }}>
       {mainlineVisiblePresentationText(text)}
     </ReadingPageFlip>
   </span>
@@ -426,12 +443,13 @@ function useMainlineReadingLayoutTransition(
   mode: ReadingLayoutTransitionMode,
   continuityKey: string | null,
   pageKey: string | null,
+  settledPageKey: string | null,
   target: MainlineEchoLayout | null,
 ) {
   const [displayedLayout, setDisplayedLayout] = useState<MainlineEchoLayout | null>(null)
   const [transitioning, setTransitioning] = useState(false)
   const frameRef = useRef<number | null>(null)
-  const currentRef = useRef<{ mode: ReadingLayoutTransitionMode; continuityKey: string; pageKey: string; layout: MainlineEchoLayout } | null>(null)
+  const currentRef = useRef<{ mode: ReadingLayoutTransitionMode; continuityKey: string; pageKey: string; layout: MainlineEchoLayout; phase: 'steady' | 'rolling' | 'awaiting-settle' | 'settling' } | null>(null)
 
   useIsomorphicLayoutEffect(() => {
     if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current)
@@ -455,39 +473,79 @@ function useMainlineReadingLayoutTransition(
 
     const previous = currentRef.current
     if (!previous || previous.continuityKey !== continuityKey) {
-      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: target }
+      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: target, phase: 'steady' }
       setDisplayedLayout(target)
       setTransitioning(false)
+      return
+    }
+
+    const animate = (from: MainlineEchoLayout, to: MainlineEchoLayout, durationMs: number, phase: 'rolling' | 'settling', onComplete: () => void) => {
+      if (mainlineReadingLayoutsHaveSameSize(from, to)) {
+        setDisplayedLayout(to)
+        onComplete()
+        return
+      }
+      setDisplayedLayout(from)
+      setTransitioning(true)
+      const startedAt = performance.now()
+      const advance = (now: number) => {
+        const elapsed = Math.max(0, now - startedAt)
+        const progress = storefrontCharacterProgress(0, 1, elapsed, durationMs)
+        const next = interpolateMainlineReadingPageLayout(from, to, progress)
+        currentRef.current = { mode: 'active', continuityKey, pageKey, layout: next, phase }
+        setDisplayedLayout(next)
+        if (elapsed >= durationMs) {
+          frameRef.current = null
+          onComplete()
+          return
+        }
+        frameRef.current = window.requestAnimationFrame(advance)
+      }
+      frameRef.current = window.requestAnimationFrame(advance)
+    }
+
+    if (previous.phase === 'awaiting-settle' && previous.pageKey === pageKey && settledPageKey === pageKey) {
+      const from = previous.layout
+      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: from, phase: 'settling' }
+      animate(from, target, mainlineReadingPageTransitionDurationMs, 'settling', () => {
+        currentRef.current = { mode: 'active', continuityKey, pageKey, layout: target, phase: 'steady' }
+        setDisplayedLayout(target)
+        setTransitioning(false)
+      })
+      return
+    }
+
+    if (previous.pageKey !== pageKey) {
+      const envelope = mainlineReadingPageRollEnvelope(previous.layout, target)
+      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: previous.layout, phase: 'rolling' }
+      animate(previous.layout, envelope, mainlineReadingPageFlipDurationMs, 'rolling', () => {
+        currentRef.current = { mode: 'active', continuityKey, pageKey, layout: envelope, phase: 'awaiting-settle' }
+        setDisplayedLayout(envelope)
+        setTransitioning(true)
+      })
       return
     }
 
     const from = previous.layout
-    currentRef.current = { mode: 'active', continuityKey, pageKey, layout: from }
+    if (previous.phase === 'rolling' || previous.phase === 'settling') return
+    if (previous.phase === 'awaiting-settle') {
+      setDisplayedLayout(previous.layout)
+      setTransitioning(true)
+      return
+    }
+    currentRef.current = { mode: 'active', continuityKey, pageKey, layout: from, phase: 'steady' }
     if (mainlineReadingLayoutsHaveSameSize(from, target)) {
-      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: target }
+      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: target, phase: 'steady' }
       setDisplayedLayout(target)
       setTransitioning(false)
       return
     }
-
-    setDisplayedLayout(from)
-    setTransitioning(true)
-    const startedAt = performance.now()
-    const advance = (now: number) => {
-      const progress = mainlineReadingLayoutTransitionProgress(now - startedAt)
-      const next = interpolateMainlineReadingLayout(from, target, progress)
-      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: next }
-      setDisplayedLayout(next)
-      if (progress >= 1) {
-        frameRef.current = null
-        currentRef.current = { mode: 'active', continuityKey, pageKey, layout: target }
-        setTransitioning(false)
-        return
-      }
-      frameRef.current = window.requestAnimationFrame(advance)
-    }
-    frameRef.current = window.requestAnimationFrame(advance)
-  }, [continuityKey, mode, pageKey, target?.fontSizePx, target?.heightPx, target?.widthPx])
+    animate(from, target, mainlineReadingPageTransitionDurationMs, 'settling', () => {
+      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: target, phase: 'steady' }
+      setDisplayedLayout(target)
+      setTransitioning(false)
+    })
+  }, [continuityKey, mode, pageKey, settledPageKey, target?.fontSizePx, target?.heightPx, target?.widthPx])
 
   useEffect(() => () => {
     if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current)
@@ -1034,6 +1092,7 @@ export function MainlineSceneRenderer({
   const readingMaskId = `mainline-reading-mask-${useId().replace(/:/g, '')}`
   const [dialogueReady, setDialogueReady] = useState(false)
   const [readingOverflowPage, setReadingOverflowPage] = useState<import('./mainlineReadingProtection').MainlineReadingOverflowPageState>(null)
+  const [settledReadingPageKey, setSettledReadingPageKey] = useState<string | null>(null)
   const readingPageAdvanceLockedRef = useRef(false)
   const readingPageAdvanceLockTimerRef = useRef<number | null>(null)
   const readingPageAdvanceLockTokenRef = useRef(0)
@@ -1610,6 +1669,7 @@ export function MainlineSceneRenderer({
     readingPresentationPhase,
     readingLayoutContinuityKey,
     readingLayoutPageKey,
+    settledReadingPageKey,
     displayReadingLayout,
   )
   const presentedReadingLayout = readingLayoutTransition.layout ?? displayReadingLayout
@@ -2523,8 +2583,8 @@ export function MainlineSceneRenderer({
             >
               {isDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
-                ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} pageKey={readingLayoutPageKey ?? group} text={text} lockToken={readingPageAdvanceLockTokenRef.current} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} />
-                : <ObservationText echoId={sceneEcho!.id} pageKey={`${sceneEcho!.id}:${sceneEcho!.segmentIndex}:${displayOverflowIndex}`} text={text} typing={sceneEcho!.typing} lockToken={readingPageAdvanceLockTokenRef.current} onTypingComplete={onSceneEchoTypingComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} />}
+                ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} layout={echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
+                : <ObservationText echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={`${sceneEcho!.id}:${sceneEcho!.segmentIndex}:${displayOverflowIndex}`} text={text} typing={sceneEcho!.typing} layout={echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onTypingComplete={onSceneEchoTypingComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
             </div>
             </Fragment>
           })()}
