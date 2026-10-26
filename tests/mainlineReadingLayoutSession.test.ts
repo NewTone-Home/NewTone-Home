@@ -205,6 +205,26 @@ describe('mainline reading session layout cache', () => {
     expect(listeners.size).toBe(0)
   })
 
+  it('consumes a loading-to-loaded transition that happens before effect subscription exactly once', async () => {
+    const listeners = new Set<EventListener>()
+    let resolveReady!: (value: FontFaceSet) => void
+    let status: FontFaceSetLoadStatus = 'loading'
+    const fakeFonts = {
+      get status() { return status },
+      ready: new Promise<FontFaceSet>(resolve => { resolveReady = resolve }),
+      addEventListener: (_type: string, listener: EventListenerOrEventListenerObject) => { listeners.add(listener as EventListener) },
+      removeEventListener: (_type: string, listener: EventListenerOrEventListenerObject) => { listeners.delete(listener as EventListener) },
+    } as unknown as FontFaceSet
+    let completed = 0
+    status = 'loaded'
+    subscribeToMainlineReadingFontCompletion(true, () => { completed += 1 }, fakeFonts, 'loading')
+    resolveReady(fakeFonts)
+    await Promise.resolve()
+
+    expect(completed).toBe(1)
+    expect(listeners.size).toBe(0)
+  })
+
   it('does not rebuild after a reading session ends before fonts finish loading', async () => {
     const listeners = new Set<EventListener>()
     let resolveReady!: (value: FontFaceSet) => void

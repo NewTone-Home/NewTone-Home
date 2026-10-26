@@ -9,8 +9,17 @@ export function subscribeToMainlineReadingFontCompletion(
   sessionActive: boolean,
   onComplete: () => void,
   fontSet: FontFaceSet | null = typeof document === 'undefined' ? null : document.fonts,
+  observedStatus: FontFaceSetLoadStatus = fontSet?.status ?? 'loaded',
 ) {
-  if (!sessionActive || !fontSet || fontSet.status !== 'loading') return () => undefined
+  if (!sessionActive || !fontSet || observedStatus !== 'loading') return () => undefined
+
+  // The font may finish between render and this effect attaching its listener.
+  // Compare against the status observed during render and consume that race
+  // exactly once instead of waiting for a second event that will never arrive.
+  if (fontSet.status !== 'loading') {
+    onComplete()
+    return () => undefined
+  }
 
   let completed = false
   const finish = () => {
@@ -32,7 +41,7 @@ export function subscribeToMainlineReadingFontCompletion(
 
 export function useMainlineReadingFontRevision(sessionKey: string | null) {
   const [revision, setRevision] = useState(0)
-  useEffect(() => subscribeToMainlineReadingFontCompletion(Boolean(sessionKey), () => setRevision(value => value + 1)), [sessionKey])
   const status = typeof document === 'undefined' ? 'server' : document.fonts?.status ?? 'unknown'
+  useEffect(() => subscribeToMainlineReadingFontCompletion(Boolean(sessionKey), () => setRevision(value => value + 1), typeof document === 'undefined' ? null : document.fonts, status === 'loading' ? 'loading' : 'loaded'), [sessionKey])
   return `${status}:${revision}`
 }
