@@ -4,6 +4,7 @@ import {
   mainlineReadingPageFlipDurationMs,
   mainlineReadingPageRollEnvelope,
   previousMainlineReadingPageForFlip,
+  settleMainlineReadingPageFlip,
   snapshotMainlineReadingPage,
 } from '../src/center/runtime/mainlineReadingPageFlip'
 
@@ -56,5 +57,42 @@ describe('mainline reading page snapshot and roll envelope', () => {
     expect(midway.widthPx).toBeLessThan(nextLayout.widthPx)
     expect(midway.heightPx).toBeGreaterThan(oldLayout.heightPx)
     expect(midway.heightPx).toBeLessThan(nextLayout.heightPx)
+  })
+
+  it('keeps punctuation, multiline text, and outgoing dimensions immutable across the full roll', () => {
+    const old = snapshotMainlineReadingPage({
+      continuityKey: 'dialogue:session-a',
+      pageKey: 'dialogue:session-a:page-0',
+      visibleText: '第一行，旧句还在这里，\n第二行也保持原样。',
+      layout: { widthPx: 312, heightPx: 84, fontSizePx: 18 },
+      worldScale: .65,
+    })
+    const shorterNext = { continuityKey: old.continuityKey, pageKey: 'dialogue:session-a:page-1' }
+
+    for (let elapsed = 0; elapsed <= mainlineReadingPageFlipDurationMs; elapsed += 16) {
+      const outgoing = previousMainlineReadingPageForFlip(old, shorterNext)
+      expect(outgoing).toBe(old)
+      expect(outgoing?.visibleText).toBe('第一行，旧句还在这里，\n第二行也保持原样。')
+      expect(outgoing?.layout).toEqual({ widthPx: 312, heightPx: 84, fontSizePx: 18 })
+      expect(mainlineReadingPageRollEnvelope(outgoing!.layout, { widthPx: 80, heightPx: 38, fontSizePx: 18 })).toEqual(old.layout)
+    }
+  })
+
+  it('releases the immutable outgoing snapshot when the flip settles, including reduced-motion completion', () => {
+    const old = snapshotMainlineReadingPage({
+      continuityKey: 'dialogue:reduced',
+      pageKey: 'dialogue:reduced:0',
+      visibleText: '旧页内容。',
+      layout: { widthPx: 160, heightPx: 48, fontSizePx: 16 },
+      worldScale: 1,
+    })
+    const rolling = { key: 'dialogue:reduced:1', continuityKey: 'dialogue:reduced', previous: old, flipping: true }
+
+    expect(settleMainlineReadingPageFlip(rolling, 'dialogue:reduced:1')).toEqual({
+      ...rolling,
+      previous: null,
+      flipping: false,
+    })
+    expect(settleMainlineReadingPageFlip(rolling, 'dialogue:reduced:0')).toBe(rolling)
   })
 })

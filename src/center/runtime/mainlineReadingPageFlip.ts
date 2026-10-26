@@ -11,6 +11,18 @@ export type MainlineReadingPageSnapshot = Readonly<{
   worldScale: number
 }>
 
+export type MainlineReadingPageState = {
+  key: string
+  continuityKey: string
+  previous: MainlineReadingPageSnapshot | null
+  flipping: boolean
+}
+
+/** Release the outgoing snapshot after either a normal or reduced-motion roll. */
+export function settleMainlineReadingPageFlip(page: MainlineReadingPageState, pageKey: string): MainlineReadingPageState {
+  return page.key === pageKey ? { ...page, previous: null, flipping: false } : page
+}
+
 export function snapshotMainlineReadingPage(input: MainlineReadingPageSnapshot): MainlineReadingPageSnapshot {
   return Object.freeze({
     ...input,
