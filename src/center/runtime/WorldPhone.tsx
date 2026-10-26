@@ -238,6 +238,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const mapHandoffLayerRef = useRef<HTMLDivElement>(null)
   const mapHandoffSourceRectRef = useRef<DOMRect | null>(null)
   const mapHandoffAnimationsRef = useRef<Animation[]>([])
+  const mapHandoffOwnerRef = useRef<symbol | null>(null)
   const [selectedMapPlaceId, setSelectedMapPlaceId] = useState<string | null>(null)
   const [mapFocusRequestId, setMapFocusRequestId] = useState<string | null>(null)
   const [mapSheetHeight, setMapSheetHeight] = useState(0)
@@ -429,6 +430,8 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
 
   useLayoutEffect(() => {
     if (yongheMapHandoffPhase !== 'opening') return undefined
+    const owner = Symbol('yonghe-map-handoff')
+    mapHandoffOwnerRef.current = owner
     const root = phoneRef.current
     const layer = mapHandoffLayerRef.current
     const clone = layer?.querySelector<HTMLElement>('[data-yonghe-handoff-map]')
@@ -438,6 +441,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
     if (!root || !layer || !clone || !sourceRect || !target || !mapView) {
       layer?.replaceChildren()
       mapHandoffSourceRectRef.current = null
+      if (mapHandoffOwnerRef.current === owner) mapHandoffOwnerRef.current = null
       setYongheMapHandoffPhase('settled')
       return undefined
     }
@@ -454,6 +458,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
     const scaleY = targetRect.height / sourceRect.height
 
     const finishImmediately = () => {
+      if (mapHandoffOwnerRef.current !== owner) return
       layer.replaceChildren()
       mapHandoffSourceRectRef.current = null
       setYongheMapHandoffPhase('settled')
@@ -476,10 +481,17 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
     ], { duration, easing: 'linear', fill: 'forwards' })
     mapHandoffAnimationsRef.current = [mapAnimation, mapRevealAnimation]
     mapAnimation.onfinish = finishImmediately
+    window.addEventListener('resize', finishImmediately)
 
     return () => {
-      mapHandoffAnimationsRef.current.forEach((animation) => animation.cancel())
-      mapHandoffAnimationsRef.current = []
+      window.removeEventListener('resize', finishImmediately)
+      if (mapHandoffOwnerRef.current === owner) {
+        mapHandoffAnimationsRef.current.forEach((animation) => animation.cancel())
+        mapHandoffAnimationsRef.current = []
+        layer.replaceChildren()
+        mapHandoffSourceRectRef.current = null
+        mapHandoffOwnerRef.current = null
+      }
     }
   }, [yongheMapHandoffPhase])
 
