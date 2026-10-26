@@ -153,4 +153,3 @@ test('a trusted touch on the phone is observed before its local propagation hand
   const afterKeyboard = await phoneMinutes(page)
   expect(minuteDelta(beforeKeyboard, afterKeyboard)).toBe(3) // Trusted keydown restores 15x.
 })
-
