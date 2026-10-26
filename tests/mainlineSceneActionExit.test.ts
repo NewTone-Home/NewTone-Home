@@ -50,4 +50,25 @@ describe('mainline scene option exit timing', () => {
     barrier = completeMainlineSceneActionOptionExit(barrier, 22, 1)
     expect(mainlineSceneActionExitMayUnmount(barrier)).toBe(true)
   })
+
+  it('releases a null-result action after its buttons exit and ignores callbacks after a new action starts', () => {
+    let current = createMainlineSceneActionExitBarrier(30, 2)
+
+    // The page's null-resolution branch commits lifecycle completion without
+    // applying a choice side effect; each EntryButtonSurface still owns exit.
+    current = commitMainlineSceneActionExit(current, 30)
+    expect(mainlineSceneActionExitMayUnmount(current)).toBe(false)
+    current = completeMainlineSceneActionOptionExit(current, 30, 0)
+    expect(mainlineSceneActionExitMayUnmount(current)).toBe(false)
+    current = completeMainlineSceneActionOptionExit(current, 30, 1)
+    expect(mainlineSceneActionExitMayUnmount(current)).toBe(true)
+
+    current = createMainlineSceneActionExitBarrier(31, 1)
+    current = completeMainlineSceneActionOptionExit(current, 30, 0)
+    expect(mainlineSceneActionExitMayUnmount(current)).toBe(false)
+    current = commitMainlineSceneActionExit(current, 31)
+    expect(mainlineSceneActionExitMayUnmount(current)).toBe(false)
+    current = completeMainlineSceneActionOptionExit(current, 31, 0)
+    expect(mainlineSceneActionExitMayUnmount(current)).toBe(true)
+  })
 })

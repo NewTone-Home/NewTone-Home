@@ -2103,7 +2103,10 @@ export function MainlineScenePage({
       carriedMilkTea: carriedMilkTea || commercialStreetMilkTeaHeld(initialSceneState),
       plantWaterStateKey: entity?.id === 'zhongshuyuan-office-plant' ? undefined : entity ? `plantWateredAt:${entity.id}` : undefined,
     })
-    if (!resolution) return
+    if (!resolution) {
+      commitSceneActionExit(actionId)
+      return
+    }
     if (resolution.deskDevice) {
       onDeskInteraction?.(resolution.deskDevice)
       commitSceneActionExit(actionId)
