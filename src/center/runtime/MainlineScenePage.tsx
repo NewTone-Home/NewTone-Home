@@ -37,7 +37,7 @@ import { useStorefrontPresentation } from './useStorefrontPresentation'
 import { splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineDialogueParticipantNpcIds, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingOpacityForActor, mainlineMaximumReadingWidthPx } from './mainlineTextReading'
 import { createMainlineReadingSessionLayoutCache } from './mainlineReadingLayoutSession'
-import { commitMainlineSceneActionExit, completeMainlineSceneActionOptionExit, createMainlineSceneActionExitBarrier, mainlineSceneActionExitMayUnmount, type MainlineSceneActionExitBarrier } from './mainlineSceneActionExit'
+import { cancelMainlineSceneActionExit, commitMainlineSceneActionExit, completeMainlineSceneActionOptionExit, createMainlineSceneActionExitBarrier, mainlineSceneActionExitMayUnmount, type MainlineSceneActionExitBarrier } from './mainlineSceneActionExit'
 import type { MainlineReadingSessionLayoutCache } from './mainlineReadingLayoutSession'
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
@@ -448,6 +448,7 @@ export function MainlineScenePage({
   const [sceneAction, setSceneAction] = useState<MainlineSceneAction | null>(null)
   const sceneActionIdRef = useRef(0)
   const sceneActionExitBarrierRef = useRef<MainlineSceneActionExitBarrier | null>(null)
+  const pendingSceneActionAfterExitRef = useRef<Omit<MainlineSceneAction, 'id'> | null>(null)
   const pendingSceneActionRef = useRef<Omit<MainlineSceneAction, 'id'> | null>(null)
   const [commercialStreetQuestionNarrative, setCommercialStreetQuestionNarrative] = useState<CommercialStreetQuestionNarrativeState | null>(null)
   const [genericDialoguePhase, setGenericDialoguePhase] = useState<'active' | 'leaving'>('active')
@@ -546,8 +547,20 @@ export function MainlineScenePage({
   const dismissSceneAction = useCallback(() => {
     sceneActionExitBarrierRef.current = null
     pendingSceneActionRef.current = null
+    pendingSceneActionAfterExitRef.current = null
     setSceneAction(null)
   }, [])
+  const cancelSceneAction = useCallback(() => {
+    const current = sceneAction
+    if (!current || current.phase !== 'active') return
+    const barrier = sceneActionExitBarrierRef.current
+    if (!barrier || barrier.actionId !== current.id) {
+      dismissSceneAction()
+      return
+    }
+    sceneActionExitBarrierRef.current = cancelMainlineSceneActionExit(barrier, current.id)
+    setSceneAction(value => value?.id === current.id && value.phase === 'active' ? { ...value, phase: 'exiting' } : value)
+  }, [dismissSceneAction, sceneAction])
   const createSceneAction = useCallback((action: Omit<MainlineSceneAction, 'id'>): MainlineSceneAction => {
     const id = ++sceneActionIdRef.current
     sceneActionExitBarrierRef.current = createMainlineSceneActionExitBarrier(id, action.options.length)
@@ -566,8 +579,11 @@ export function MainlineScenePage({
     sceneActionExitBarrierRef.current = nextBarrier
     if (!mainlineSceneActionExitMayUnmount(nextBarrier)) return
     sceneActionExitBarrierRef.current = null
-    setSceneAction((current) => current?.id === actionId && current.phase === 'exiting' ? null : current)
-  }, [])
+    const pendingAction = pendingSceneActionAfterExitRef.current
+    pendingSceneActionAfterExitRef.current = null
+    const nextAction = pendingAction ? createSceneAction(pendingAction) : null
+    setSceneAction((current) => current?.id === actionId && current.phase === 'exiting' ? nextAction : current)
+  }, [createSceneAction])
   const commitSceneActionExit = useCallback((actionId: number) => {
     const currentBarrier = sceneActionExitBarrierRef.current
     if (!currentBarrier || currentBarrier.actionId !== actionId) return
@@ -668,8 +684,8 @@ export function MainlineScenePage({
       return
     }
     dismissSceneEcho()
-    dismissSceneAction()
-  }, [dismissSceneAction, dismissSceneEcho, onPhoneDismiss, phoneOpen, readingActive])
+    cancelSceneAction()
+  }, [cancelSceneAction, dismissSceneEcho, onPhoneDismiss, phoneOpen, readingActive])
   const internalMovement = useFreeRoamMovement(initialPosition)
   const { position, moving, moveAlong: rawMoveAlong, stopMovement, resetMovement: resetMovementController, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
   const resetMovement = useCallback((nextPosition?: Point) => {
@@ -865,6 +881,7 @@ export function MainlineScenePage({
     setSceneEcho(null)
     sceneEchoRef.current = null
     pendingSceneActionRef.current = null
+    pendingSceneActionAfterExitRef.current = null
     sceneActionExitBarrierRef.current = null
     setSceneAction(null)
     setCommercialStreetQuestionNarrative(null)
@@ -1661,7 +1678,7 @@ export function MainlineScenePage({
 
   const startPassageTraversal = useCallback((passage: MainlineScenePassage, requestedTarget: Point, plannedApproachPath?: Point[] | null, continuationPath?: Point[] | null, passageQueue: readonly MainlineScenePassage[] = [passage], passageIndex = 0) => {
     if (sceneAction?.phase === 'committing') return
-    dismissSceneAction()
+    cancelSceneAction()
     dismissSceneEcho()
     if (passage.access !== 'open') {
       cancelPassageLifecycle('protagonist', passage.id)
@@ -1670,7 +1687,7 @@ export function MainlineScenePage({
       return
     }
     beginPassageLeg(passage, requestedTarget, plannedApproachPath, continuationPath, passageQueue, passageIndex)
-  }, [beginPassageLeg, cancelPassageLifecycle, denyLockedPassageAfterApproach, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, navigationOptions, scene, sceneAction?.phase])
+  }, [beginPassageLeg, cancelPassageLifecycle, cancelSceneAction, denyLockedPassageAfterApproach, dismissSceneEcho, getCurrentPosition, layout, navigationOptions, scene, sceneAction?.phase])
 
   const interact = useCallback((entityId: string, requestAlreadyRecorded = false) => {
     if (readingActive || sceneAction?.phase === 'committing') return
@@ -1679,7 +1696,7 @@ export function MainlineScenePage({
       onInteractionAnalytics?.('blocked', entityId, entity.kind, 'outside-space')
       return
     }
-    dismissSceneAction()
+    cancelSceneAction()
     npcInteractionRequestRef.current += 1
     setRequestedWorldTarget(null)
     if (phoneOpen) onPhoneDismiss?.()
@@ -1854,7 +1871,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, denyLockedPassageAfterApproach, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, cancelSceneAction, carriedPhoneDevice, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, denyLockedPassageAfterApproach, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, resetMovement, scene, sceneAction?.phase, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startNpcDialogue, startPassageTraversal, stopMovement])
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
@@ -1872,18 +1889,24 @@ export function MainlineScenePage({
 
   const showHeldMilkTeaAction = useCallback(() => {
     if (readingActive) return
-    dismissSceneAction()
     if (phoneOpen) onPhoneDismiss?.()
     const currentPosition = getCurrentPosition()
     const worldScale = mainlineWorldScale(activeViewportMetrics)
     const actionCameraOffset = mainlineReadingCameraOffset(scene, currentPosition, readingMetrics, worldScale, cameraOffset)
-    setSceneAction(createSceneAction({
+    const nextAction = {
       entityId: commercialStreetMilkTeaStorefrontId,
       options: ['喝掉奶茶'],
       position: sceneTextPresentationPosition(scene, currentPosition, '喝掉奶茶', readingMetrics, 'observation', worldScale, actionCameraOffset),
       cameraOffset: actionCameraOffset,
-    }))
-  }, [activeViewportMetrics, cameraOffset, createSceneAction, dismissSceneAction, getCurrentPosition, onPhoneDismiss, phoneOpen, readingActive, scene, screenMetrics])
+    }
+    if (sceneAction?.phase === 'committing') return
+    if (sceneAction) {
+      pendingSceneActionAfterExitRef.current = nextAction
+      if (sceneAction.phase === 'active') cancelSceneAction()
+      return
+    }
+    setSceneAction(createSceneAction(nextAction))
+  }, [activeViewportMetrics, cameraOffset, cancelSceneAction, createSceneAction, getCurrentPosition, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction, screenMetrics])
 
   const beginMilkTeaStorefrontAction = useCallback(() => {
     const currentOrder = commercialStreetMilkTeaOrderFromSceneState(initialSceneState)
@@ -1911,7 +1934,7 @@ export function MainlineScenePage({
 
   const interactStorefront = useCallback((storefrontId: string) => {
     if (readingActive || sceneAction?.phase === 'committing') return
-    dismissSceneAction()
+    cancelSceneAction()
     const storefront = scene.storefronts.find((candidate) => candidate.id === storefrontId)
     if (!storefront || !commercialStreetStorefrontInteractionFor(storefrontId)) return
     onInteractionAnalytics?.('requested', storefrontId, 'storefront')
@@ -2005,11 +2028,11 @@ export function MainlineScenePage({
       })
     }
     attemptContact(0)
-  }, [activeViewportMetrics, beginMilkTeaStorefrontAction, cameraOffset, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, onChapterAnalytics, onInteractionAnalytics, onPhoneDismiss, onStorefrontAction, phoneOpen, presentSceneEcho, protagonistFootprint, readingActive, scene, sceneAction?.phase, screenMetrics, stopMovement])
+  }, [activeViewportMetrics, beginMilkTeaStorefrontAction, cameraOffset, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, layout, protagonistLocomotionOptions, moveAlong, navigationOptions, onChapterAnalytics, onInteractionAnalytics, onPhoneDismiss, onStorefrontAction, phoneOpen, presentSceneEcho, protagonistFootprint, readingActive, scene, sceneAction?.phase, screenMetrics, stopMovement])
 
   const interactNpc = useCallback((npcId: string) => {
     if (readingActive || sceneAction?.phase === 'committing') return
-    dismissSceneAction()
+    cancelSceneAction()
     const npc = scene.npcs.find((candidate) => candidate.id === npcId)
     if (!npc || npc.interactive === false) return
     onInteractionAnalytics?.('requested', npc.id, 'npc')
@@ -2084,7 +2107,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', npc.id, 'npc', 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, layout, leavePlayerSeat, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
+  }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, layout, leavePlayerSeat, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
 
   const chooseSceneEchoOption = useCallback((actionId: number, index: number) => {
     if (!sceneAction || sceneAction.id !== actionId || sceneAction.phase !== 'committing') return
@@ -2239,7 +2262,7 @@ export function MainlineScenePage({
     onMeaningfulActivity?.()
     pendingInteractionAfterTraversalRef.current = null
     storefrontRequestIdRef.current += 1
-    dismissSceneAction()
+    cancelSceneAction()
     npcInteractionRequestRef.current += 1
     if (phoneOpen) {
       onPhoneDismiss?.()
@@ -2276,7 +2299,7 @@ export function MainlineScenePage({
       : undefined
     const started = moveTo(resolution.resolvedNavigableTarget, showDeniedFeedback, resolution.path, undefined, showDeniedFeedback)
     if (!started) showDeniedFeedback?.()
-  }, [debugCafeSpatialQa, dismissSceneAction, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, moveTo, navigationOptions, onMeaningfulActivity, onPhoneDismiss, phoneOpen, readingActive, sceneAction?.phase, sceneDefinition, setDialogueLineIndex, showAccessRegionDeniedText, startPassageTraversal, stopMovement])
+  }, [cancelSceneAction, debugCafeSpatialQa, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, moveTo, navigationOptions, onMeaningfulActivity, onPhoneDismiss, phoneOpen, readingActive, sceneAction?.phase, sceneDefinition, setDialogueLineIndex, showAccessRegionDeniedText, startPassageTraversal, stopMovement])
 
   const completeCommercialStreetQuestionNarrativeExit = useCallback(() => {
     if (commercialStreetQuestionNarrative?.phase !== 'leaving') return
@@ -2322,6 +2345,7 @@ export function MainlineScenePage({
     setSceneEcho(null)
     sceneEchoRef.current = null
     pendingSceneActionRef.current = null
+    pendingSceneActionAfterExitRef.current = null
     sceneActionExitBarrierRef.current = null
     setSceneAction(null)
     setGenericDialoguePhase('active')

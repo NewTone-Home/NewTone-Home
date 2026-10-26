@@ -13,6 +13,10 @@ export function commitMainlineSceneActionExit(barrier: MainlineSceneActionExitBa
   return barrier.actionId === actionId ? { ...barrier, committed: true } : barrier
 }
 
+export function cancelMainlineSceneActionExit(barrier: MainlineSceneActionExitBarrier, actionId: number): MainlineSceneActionExitBarrier {
+  return commitMainlineSceneActionExit(barrier, actionId)
+}
+
 export function completeMainlineSceneActionOptionExit(barrier: MainlineSceneActionExitBarrier, actionId: number, optionIndex: number): MainlineSceneActionExitBarrier {
   if (barrier.actionId !== actionId || optionIndex < 0 || optionIndex >= barrier.optionCount || barrier.completedOptionIndexes.has(optionIndex)) return barrier
   return { ...barrier, completedOptionIndexes: new Set([...barrier.completedOptionIndexes, optionIndex]) }

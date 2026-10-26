@@ -29,6 +29,7 @@ import { interpolateMainlineReadingPageLayout, mainlineReadingPageFlipDurationMs
 import { interpolateMainlineReadingLayout, mainlineReadingPageTransitionDurationMs, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize } from './mainlineReadingLayoutTransition'
 import { mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
 import { mainlineReadingPageKey } from './mainlineReadingPageKey'
+import { mainlineObservationPageIsSettled } from './mainlineObservationTyping'
 import { mainlineReadingPageAdvanceResumeGraceMs, mainlineReadingPageAdvanceStartupWatchdogMs, mainlineReadingPageAdvanceTokenIsCurrent, mainlineReadingPageAdvanceWatchdogMayRelease } from './mainlineReadingPageAdvance'
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
@@ -402,11 +403,17 @@ function ReadingPageFlip({ pageKey, continuityKey, visibleText, layout, worldSca
 function ObservationText({ echoId, continuityKey, pageKey, text, typing, layout, worldScale, lockToken, onTypingComplete, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { echoId: number; continuityKey: string; pageKey: string; text: string; typing: boolean; layout: MainlineEchoLayout; worldScale: number; lockToken: number; onTypingComplete?: (echoId: number) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
   const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
   const [visiblePage, setVisiblePage] = useState<{ key: string; count: number }>({ key: pageKey, count: 0 })
+  const [settledPageKey, setSettledPageKey] = useState<string | null>(null)
   const visibleCount = visiblePage.key === pageKey ? visiblePage.count : 0
   const visibleText = characters.slice(0, visibleCount).join('')
+  const pageSettled = mainlineObservationPageIsSettled(pageKey, settledPageKey)
+  const handlePageSettled = useCallback((settledKey: string) => {
+    if (settledKey === pageKey) setSettledPageKey(settledKey)
+  }, [pageKey])
 
   useEffect(() => {
     setVisiblePage({ key: pageKey, count: 0 })
+    if (!pageSettled) return
     if (!typing || characters.length === 0) {
       setVisiblePage({ key: pageKey, count: characters.length })
       return
@@ -422,10 +429,10 @@ function ObservationText({ echoId, continuityKey, pageKey, text, typing, layout,
     }
     frame = window.requestAnimationFrame(advance)
     return () => window.cancelAnimationFrame(frame)
-  }, [characters, echoId, onTypingComplete, pageKey, typing])
+  }, [characters, echoId, onTypingComplete, pageKey, pageSettled, typing])
 
   return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">
-    <ReadingPageFlip pageKey={pageKey} continuityKey={continuityKey} visibleText={visibleText} layout={layout} worldScale={worldScale} mode="observation" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel} onSettled={onSettled}>
+    <ReadingPageFlip pageKey={pageKey} continuityKey={continuityKey} visibleText={visibleText} layout={layout} worldScale={worldScale} mode="observation" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel} onSettled={(settledKey) => { handlePageSettled(settledKey); onSettled?.(settledKey) }}>
       {visibleText}
     </ReadingPageFlip>
   </span>

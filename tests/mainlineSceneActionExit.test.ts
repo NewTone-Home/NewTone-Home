@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createEntryExitSteps } from '../src/components/entryButtonTimeline'
-import { commitMainlineSceneActionExit, completeMainlineSceneActionOptionExit, createMainlineSceneActionExitBarrier, mainlineSceneActionExitMayUnmount } from '../src/center/runtime/mainlineSceneActionExit'
+import { cancelMainlineSceneActionExit, commitMainlineSceneActionExit, completeMainlineSceneActionOptionExit, createMainlineSceneActionExitBarrier, mainlineSceneActionExitMayUnmount } from '../src/center/runtime/mainlineSceneActionExit'
 
 const buttonExitDurationMs = createEntryExitSteps().reduce((duration, step) => duration + step.duration, 0)
 
@@ -69,6 +69,25 @@ describe('mainline scene option exit timing', () => {
     current = commitMainlineSceneActionExit(current, 31)
     expect(mainlineSceneActionExitMayUnmount(current)).toBe(false)
     current = completeMainlineSceneActionOptionExit(current, 31, 0)
+    expect(mainlineSceneActionExitMayUnmount(current)).toBe(true)
+  })
+
+  it('keeps an unselected action mounted until every original option exits', () => {
+    let current = createMainlineSceneActionExitBarrier(40, 2)
+    const applyChoiceSideEffect = vi.fn()
+    current = cancelMainlineSceneActionExit(current, 40)
+    expect(applyChoiceSideEffect).not.toHaveBeenCalled()
+    expect(mainlineSceneActionExitMayUnmount(current)).toBe(false)
+    current = completeMainlineSceneActionOptionExit(current, 40, 0)
+    expect(mainlineSceneActionExitMayUnmount(current)).toBe(false)
+    current = completeMainlineSceneActionOptionExit(current, 40, 1)
+    expect(mainlineSceneActionExitMayUnmount(current)).toBe(true)
+
+    current = createMainlineSceneActionExitBarrier(41, 1)
+    current = completeMainlineSceneActionOptionExit(current, 40, 1)
+    expect(mainlineSceneActionExitMayUnmount(current)).toBe(false)
+    current = cancelMainlineSceneActionExit(current, 41)
+    current = completeMainlineSceneActionOptionExit(current, 41, 0)
     expect(mainlineSceneActionExitMayUnmount(current)).toBe(true)
   })
 })
