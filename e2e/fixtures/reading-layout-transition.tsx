@@ -34,7 +34,7 @@ function Fixture() {
   const dialogueLine = dialogueLines[0]
 
   return <div className="mainline-scene--map-only" data-fixture-page-index={pageIndex} data-fixture-typing={String(typing)} style={{ '--room': '#0b0f12', '--active': '#f0cc7b', '--ink': '#b0bec5', '--soft': '#a1c2c2', '--muted': '#6c8088' } as React.CSSProperties}>
-    <div style={{ position: 'fixed', zIndex: 100, top: 8, left: 8, display: 'flex', gap: 6 }}>
+    <div style={{ position: 'fixed', zIndex: 100, top: 8, left: 8, display: 'flex', flexWrap: 'wrap', gap: 6, maxWidth: 'calc(100vw - 16px)' }}>
       <button data-reading-start onClick={() => { setPageIndex(0); setTypingOverflow(false); setTyping(false); setLeaving(false); setMode('observation') }}>Start observation</button>
       <button data-reading-dialogue onClick={() => { setPageIndex(0); setTypingOverflow(false); setTyping(false); setLeaving(false); setMode('dialogue') }}>Start dialogue</button>
       <button data-reading-observation onClick={() => { setPageIndex(0); setTypingOverflow(false); setTyping(false); setLeaving(false); setMode('observation') }}>Start observation</button>

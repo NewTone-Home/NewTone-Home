@@ -140,7 +140,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
     const before = await text.evaluate(element => {
       const rect = element.getBoundingClientRect()
       const node = element as HTMLElement
-      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, fontSize: getComputedStyle(element).fontSize,
+      return { x: rect.x, y: rect.y, centerX: rect.x + rect.width / 2, width: rect.width, height: rect.height, fontSize: getComputedStyle(element).fontSize,
         worldX: node.dataset.sceneReadingPositionX, worldY: node.dataset.sceneReadingPositionY,
         scale: Number(node.dataset.sceneReadingWorldScale), layoutHeight: Number(node.dataset.sceneReadingLayoutHeight) }
     })
@@ -181,9 +181,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
     const after = await text.evaluate(element => {
       const rect = element.getBoundingClientRect()
       const node = element as HTMLElement
-      return { x: rect.x, y: rect.y, height: rect.height, worldX: node.dataset.sceneReadingPositionX, worldY: node.dataset.sceneReadingPositionY }
+      return { x: rect.x, y: rect.y, centerX: rect.x + rect.width / 2, height: rect.height, worldX: node.dataset.sceneReadingPositionX, worldY: node.dataset.sceneReadingPositionY }
     })
-    expect(after.x).toBeCloseTo(before.x, 0)
+    expect(after.centerX).toBeCloseTo(before.centerX, 0)
     expect(after.y).toBeCloseTo(before.y, 0)
     expect(after.worldX).toBe(before.worldX)
     expect(after.worldY).toBe(before.worldY)
