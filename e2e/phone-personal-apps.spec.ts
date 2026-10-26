@@ -17,7 +17,7 @@ test('Notes persist and the contact flow supports details, location cards, and a
       updatedAt: 100,
     }))
   })
-  await page.goto('/?scene=commercial-cafe')
+  await page.goto('/?scene=commercial-cafe&previewYongheCard=1')
   const phone = page.locator('.world-phone')
   await page.getByRole('button', { name: '打开手机' }).click()
 
@@ -52,10 +52,41 @@ test('Notes persist and the contact flow supports details, location cards, and a
   await expect(thread.locator('.world-phone__message-bubble').first()).toHaveText('陈副部长失踪了。')
   const location = thread.locator('.world-phone__message-place')
   await expect(location).toBeVisible()
-  await location.getByRole('button', { name: '展开永和小馆地点卡' }).click()
-  const placeCard = location.getByRole('button', { name: '永和小馆', exact: true })
+  const messageBubble = location.locator('.world-phone__message-bubble--place')
+  await expect(messageBubble).toHaveText('\u6c38\u548c\u5c0f\u9986')
+  await messageBubble.hover()
+  const placeCard = location.locator('.world-phone__place-card')
   await expect(placeCard).toBeVisible()
-  await placeCard.click()
+  await expect(placeCard.locator('small')).toHaveText('位于矿区外围老街。')
+  const desktopAlignment = await messageBubble.evaluate((bubble) => {
+    const bubbleRect = bubble.getBoundingClientRect()
+    const cardRect = bubble.parentElement!.querySelector('.world-phone__place-card')!.getBoundingClientRect()
+    return { right: cardRect.left >= bubbleRect.right - 1, aligned: Math.abs((cardRect.top + cardRect.height / 2) - (bubbleRect.top + bubbleRect.height / 2)) < 12 }
+  })
+  expect(desktopAlignment).toEqual({ right: true, aligned: true })
+  await location.getByRole('button', { name: 'B 版' }).click()
+  await expect(placeCard).toHaveAttribute('data-card-variant', 'b')
+  await expect(placeCard.locator('.world-phone__place-card-blur i')).toHaveCount(3)
+  await location.getByRole('button', { name: 'A 版' }).click()
+
+  for (const width of [411, 360]) {
+    await page.setViewportSize({ width, height: 914 })
+    await messageBubble.click()
+    await expect(placeCard).toBeVisible()
+    const fitsPhone = await placeCard.evaluate((card) => {
+      const bounds = card.getBoundingClientRect()
+      const content = card.closest('.world-phone__app-content')!.getBoundingClientRect()
+      return bounds.left >= content.left && bounds.right <= content.right && bounds.top >= content.top && bounds.bottom <= content.bottom
+    })
+    expect(fitsPhone).toBe(true)
+    await placeCard.getByRole('button', { name: '关闭地点卡' }).click()
+    await expect(placeCard).toBeHidden()
+    await expect.poll(async () => messageBubble.evaluate((bubble) => bubble.getBoundingClientRect().width)).toBeGreaterThan(0)
+    await expect(phone.locator('[data-map-world="inner"]')).toHaveCount(0)
+  }
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await messageBubble.click()
+  await placeCard.getByRole('button', { name: '在地图中查看永和小馆' }).click()
   const map = phone.locator('[data-map-world="inner"]')
   await expect(map).toBeVisible()
   await expect(map).toHaveAttribute('data-map-zoom', '1.650')

@@ -110,11 +110,27 @@
 .world-phone__message-date { text-align:center; color:var(--phone-muted); font-size:10px; }
 .world-phone__message-bubble { width:fit-content; max-width:87%; padding:10px 13px; background:#303138; border-radius:13px; margin:10px 0; font-size:12px; }
 .world-phone__message-bubble--sent { margin-left:auto; background:#43444b; }
-.world-phone__message-place { position:relative; }
-.world-phone__message-bubble--place { cursor:pointer; }
+.world-phone__message-place { position:relative; display:flex; align-items:center; gap:0; width:100%; max-width:100%; min-width:0; margin:10px 0; transition:gap 220ms ease; }
+.world-phone__message-place.is-expanded { gap:10px; }
+.world-phone__message-bubble--place { flex:0 1 auto; min-width:0; max-width:52%; margin:0; cursor:pointer; transition:flex-basis 220ms ease,width 220ms ease,max-width 220ms ease,max-height 220ms ease,padding 220ms ease,margin 220ms ease,opacity 160ms ease,transform 220ms ease; }
 .world-phone__message-bubble--place p { margin:0; }
-.world-phone__place-card { display:flex; align-items:center; gap:12px; width:90%; padding:18px; background:#eeeef0; color:#18191d!important; border:0; border-radius:12px; margin:8px 0 18px; box-shadow:0 8px 24px #0004; }
-.world-phone__place-card span { font-size:25px; }
+.world-phone__place-card { display:flex; flex:0 0 0; flex-direction:column; gap:8px; width:0; min-width:0; max-width:0; max-height:0; overflow:hidden; align-self:center; padding:0; margin:0; border:0; border-radius:12px; background:#eeeef0; color:#18191d!important; box-shadow:0 8px 24px #0004; opacity:0; pointer-events:none; transition:flex-basis 220ms ease,width 220ms ease,max-width 220ms ease,max-height 220ms ease,padding 220ms ease,opacity 160ms ease; }
+.world-phone__message-place.is-expanded .world-phone__place-card { flex:0 1 190px; width:190px; max-width:190px; max-height:160px; padding:10px; opacity:1; pointer-events:auto; }
+.world-phone__place-card-preview { display:flex; justify-content:flex-end; gap:4px; flex:none; }
+.world-phone__place-card-preview button { border:1px solid #18191d30; border-radius:6px; padding:2px 7px; color:#18191d; background:#18191d0a; font-size:10px; line-height:1.5; }
+.world-phone__place-card-preview button[aria-pressed="true"] { color:#eeeef0; background:#303138; }
+.world-phone__place-card-content { display:flex; align-items:center; gap:6px; min-width:0; }
+.world-phone__place-card-map-link { display:flex; flex:1 1 auto; align-items:center; gap:8px; min-width:0; padding:2px 0; border:0; background:none; color:#18191d; text-align:left; }
+.world-phone__place-card-pin { flex:none; font-size:22px; }
+.world-phone__place-card-copy { display:grid; min-width:0; gap:2px; }
+.world-phone__place-card-copy strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.world-phone__place-card-copy small { color:#54555b; font-size:10px; line-height:1.35; }
+.world-phone__place-card-blur { display:grid; gap:4px; width:100%; padding:2px 0; filter:blur(2px); opacity:.62; }
+.world-phone__place-card-blur i { display:block; height:5px; border-radius:4px; background:#777980; }
+.world-phone__place-card-blur i:nth-child(1) { width:92%; }
+.world-phone__place-card-blur i:nth-child(2) { width:76%; }
+.world-phone__place-card-blur i:nth-child(3) { width:48%; }
+.world-phone__place-card-close { flex:none; align-self:flex-start; width:24px; height:24px; padding:0; border:0; border-radius:50%; color:#383940!important; background:#18191d0b; font-size:18px; line-height:1; }
 .world-phone__call-screen { display:flex; align-items:center; flex-direction:column; gap:18px; padding:40px 0; }
 .world-phone__call-screen strong { font-size:24px; }
 .world-phone__call-avatar { font-size:50px; }
@@ -186,6 +202,7 @@
 .world-phone__milk-tea-field button { padding:10px; border:1px solid var(--phone-border); background:#ffffff08; border-radius:8px; }
 .world-phone [aria-pressed=true] { border-color:#c8c9ce; background:#ffffff1b; }
 @media(max-width:600px){.world-phone{right:8px;width:calc(100vw - 16px);height:min(730px,calc(100dvh - 16px))}.world-phone__apps{gap:16px}.world-phone__header{font-size:11px}}
+@media(max-width:440px){.world-phone__message-place.is-expanded{gap:0}.world-phone__message-place.is-expanded .world-phone__message-bubble--place{flex:0 0 0;width:0;max-width:0;max-height:0;overflow:hidden;margin:0;padding:0;border-width:0;opacity:0;transform:translateX(-8px)}.world-phone__message-place.is-expanded .world-phone__place-card{flex:1 1 0;width:auto;max-width:100%;max-height:160px}}
 @media(prefers-reduced-motion:reduce){.world-phone *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 .world-phone__detail-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .world-phone__detail-heading strong { font-size:20px; }
