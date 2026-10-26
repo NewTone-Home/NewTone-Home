@@ -61,7 +61,6 @@ test('Notes persist and the contact flow supports details, location cards, and a
   const previewHost = await page.evaluate(() => {
     const hostname = window.location.hostname
     return hostname === 'duck-feel-rpm-barbara.trycloudflare.com'
-      || hostname.endsWith('-newtone-homes-projects.vercel.app')
       || hostname === 'localhost'
       || hostname === '127.0.0.1'
   })

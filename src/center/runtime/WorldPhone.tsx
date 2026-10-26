@@ -17,6 +17,7 @@ import { PhoneRideApp } from './PhoneRideApp'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { PhonePlaceDetails } from './PhonePlaceDetails'
 import { commercialCafeCompletionPhoneMessageReadyForAck } from './cafeCompletionPhone'
+import { isYongheCardPreviewHost } from './yongheCardPreview'
 
 type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea' | 'notes'
 type FeedbackMode = 'phone'
@@ -277,13 +278,8 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const handleIsInteractive = inputOwner === 'handle'
   const online = phoneIsOnline(displayDevice, worldLayer)
   const mapRegions = getPhoneMapRegions(displayDevice)
-  const previewQaHost = typeof window !== 'undefined'
-    && (window.location.hostname.endsWith('-newtone-homes-projects.vercel.app')
-      || window.location.hostname === 'duck-feel-rpm-barbara.trycloudflare.com'
-      || window.location.hostname === 'localhost'
-      || window.location.hostname === '127.0.0.1')
   const yongheCardPreviewEnabled = typeof window !== 'undefined'
-    && (import.meta.env.DEV || previewQaHost)
+    && (import.meta.env.DEV || isYongheCardPreviewHost(window.location.hostname))
   const yongheEateryDescription = mapRegions.flatMap((region) => region.pois)
     .find((place) => place.id === 'yonghe-eatery')?.detail ?? ''
   const rideAvailability = phoneRideAvailability(displayDevice, worldLayer)
