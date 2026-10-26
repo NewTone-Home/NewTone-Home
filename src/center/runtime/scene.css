@@ -1197,6 +1197,20 @@
   transform: translate(-50%, -50%);
   animation: mainline-text-arrive 160ms ease-out both;
 }
+.scene-mainline-action-exit-frame {
+  z-index: 3;
+  pointer-events: none;
+}
+.scene-mainline-action-exit-frame .shared-entry-frame {
+  animation: scene-action-frame-retract 420ms ease-in forwards;
+}
+@keyframes scene-action-frame-retract {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene-mainline-action-exit-frame .shared-entry-frame { animation-duration: 1ms; }
+}
 .scene-dialogue-dimmer {
   position: absolute;
   z-index: 10;

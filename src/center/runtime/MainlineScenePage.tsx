@@ -158,7 +158,7 @@ type MainlineSceneAction = {
   options: readonly string[]
   position: Point
   cameraOffset?: Point
-  phase?: 'active' | 'committing'
+  phase?: 'active' | 'committing' | 'exiting'
 }
 
 function createMainlineSceneEcho(id: number, entityId: string | undefined, text: string, position: Point, clockActivitySource: MainlineSceneEcho['clockActivitySource'], options?: readonly string[]): MainlineSceneEcho {
@@ -548,6 +548,9 @@ export function MainlineScenePage({
       if (!current || current.phase === 'committing' || !current.options[index]) return current
       return { ...current, phase: 'committing' }
     })
+  }, [])
+  const finishSceneActionExit = useCallback(() => {
+    setSceneAction((current) => current?.phase === 'exiting' ? null : current)
   }, [])
   const presentSceneEcho = useCallback((next: MainlineSceneEcho) => {
     sceneEchoRef.current = next
@@ -2062,7 +2065,7 @@ export function MainlineScenePage({
     onMeaningfulActivity?.()
     if (sceneAction?.entityId === commercialStreetMilkTeaStorefrontId && option === '喝掉奶茶') {
       recordSceneStatePatch('commercial-street', commercialStreetMilkTeaConsumePatch())
-      dismissSceneAction()
+      setSceneAction((current) => current?.phase === 'committing' ? { ...current, phase: 'exiting' } : current)
       return
     }
     const entity = sceneAction?.entityId ? scene.objects.find((candidate) => candidate.id === sceneAction.entityId) : undefined
@@ -2093,8 +2096,8 @@ export function MainlineScenePage({
     if (resolution.stateChange?.key === 'plantWateredAt' && typeof resolution.stateChange.value === 'number') {
       setPlantWateredAt(resolution.stateChange.value)
     }
-    dismissSceneAction()
-  }, [carriedMilkTea, carriedPhoneDevice, commercialCafeStory, dismissSceneAction, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, recordSceneState, recordSceneStatePatch, scene, sceneAction])
+    setSceneAction((current) => current?.phase === 'committing' ? { ...current, phase: 'exiting' } : current)
+  }, [carriedMilkTea, carriedPhoneDevice, commercialCafeStory, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, recordSceneState, recordSceneStatePatch, scene, sceneAction])
 
   const advanceSceneEcho = useCallback(() => {
     const current = sceneEchoRef.current
@@ -2482,6 +2485,7 @@ export function MainlineScenePage({
               onSceneEchoTypingComplete={completeSceneEchoTyping}
               onSceneActionStart={beginSceneActionChoice}
               onSceneActionChoice={chooseSceneEchoOption}
+              onSceneActionExitComplete={finishSceneActionExit}
               onSceneEchoExitComplete={completeSceneEchoExit}
               onMilkTeaInteract={showHeldMilkTeaAction}
               carriedMilkTea={carryingMilkTea}

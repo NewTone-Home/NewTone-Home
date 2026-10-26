@@ -4,6 +4,7 @@ import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo
 import type { CSSProperties, ReactNode } from 'react'
 import { MainlineCounterSurface } from './MainlineCounterSurface'
 import EntryButtonSurface from '../../components/EntryButtonSurface'
+import EntryButtonFrame from '../../components/EntryButtonFrame'
 import type { CollisionBox, Point } from './sceneGeometry'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
@@ -101,9 +102,10 @@ type MainlineSceneRendererProps = {
   onSceneEchoAdvance?: () => void
   onSceneEchoTypingComplete?: (echoId: number) => void
   onSceneEchoExitComplete?: (echoId: number, displayPosition: Point, displayCameraOffset: Point) => void
-  sceneAction?: { entityId?: string; options: readonly string[]; position: Point; cameraOffset?: Point; phase?: 'active' | 'committing' } | null
+  sceneAction?: { entityId?: string; options: readonly string[]; position: Point; cameraOffset?: Point; phase?: 'active' | 'committing' | 'exiting' } | null
   onSceneActionStart?: (index: number) => void
   onSceneActionChoice?: (index: number) => void
+  onSceneActionExitComplete?: () => void
   carriedMilkTea?: boolean
   onMilkTeaInteract?: () => void
   onFrameMotionProfileChange?: (profile: readonly SceneFocusFrameMotionProfile[]) => void
@@ -1074,6 +1076,7 @@ export function MainlineSceneRenderer({
   sceneAction = null,
   onSceneActionStart,
   onSceneActionChoice,
+  onSceneActionExitComplete,
   carriedMilkTea = false,
   onMilkTeaInteract,
   onFrameMotionProfileChange,
@@ -2646,6 +2649,7 @@ export function MainlineSceneRenderer({
               pointerEvents: matchingSceneActionSize && sceneActionPlacement ? undefined : 'none',
             }}
             data-scene-action={sceneAction.entityId ?? 'scene'}
+            data-scene-action-phase={sceneAction.phase ?? 'active'}
             data-scene-action-position-x={sceneAction.position.x}
             data-scene-action-position-y={sceneAction.position.y}
             data-scene-action-rendered-x={sceneActionPlacement?.position.x ?? sceneAction.position.x}
@@ -2657,11 +2661,15 @@ export function MainlineSceneRenderer({
             onPointerUp={(event) => event.stopPropagation()}
             onPointerCancel={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
+            onAnimationEnd={(event) => {
+              if (event.animationName === 'scene-action-frame-retract') onSceneActionExitComplete?.()
+            }}
           >
+            {sceneAction.phase === 'exiting' && <EntryButtonFrame className="scene-mainline-action-exit-frame" frameProgress={1} fillEnabled={false} />}
             {sceneAction.options.map((option, index) => (
               <EntryButtonSurface
                 key={option}
-                visible
+                visible={sceneAction.phase !== 'exiting'}
                 entryId={`scene-action:${sceneAction.entityId ?? 'scene'}:${option}`}
                 label={option}
                 contentSized

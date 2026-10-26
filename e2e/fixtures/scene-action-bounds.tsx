@@ -16,6 +16,8 @@ function Fixture() {
   const [renderCameraOffsetOverride, setRenderCameraOffsetOverride] = useState<{ x: number; y: number } | null>(null)
   const [walkCount, setWalkCount] = useState(0)
   const [choiceIndex, setChoiceIndex] = useState<number | null>(null)
+  const [actionPhase, setActionPhase] = useState<'active' | 'committing' | 'exiting'>('active')
+  const [showAction, setShowAction] = useState(true)
   const [metrics, setMetrics] = useState({ width: innerWidth, height: innerHeight, viewportWidth: innerWidth })
   const position = {
     x: edge.endsWith('left') ? room.bounds.x + 1 : room.bounds.x + room.bounds.width - 1,
@@ -49,8 +51,10 @@ function Fixture() {
       geometrySnapshot={geometry} viewportMetrics={metrics}
       onScreenMetricsChange={next => setMetrics(current => current.width === next.width && current.height === next.height ? current : { ...next, viewportWidth: innerWidth })}
       cameraOffset={renderCameraOffset} onLayoutChange={() => {}} onInteract={() => {}} onWalk={() => setWalkCount(count => count + 1)}
-      sceneAction={{ entityId: 'fixture-two-long-options', options: scrollOverflowFixture ? scrollOptions : overflowFixture ? longOptions : shortOptions, position, cameraOffset }}
-      onSceneActionStart={() => {}} onSceneActionChoice={index => setChoiceIndex(index)}
+      sceneAction={showAction ? { entityId: 'fixture-two-long-options', options: scrollOverflowFixture ? scrollOptions : overflowFixture ? longOptions : shortOptions, position, cameraOffset, phase: actionPhase } : null}
+      onSceneActionStart={() => setActionPhase('committing')}
+      onSceneActionChoice={index => { setChoiceIndex(index); setActionPhase('exiting') }}
+      onSceneActionExitComplete={() => setShowAction(false)}
     />
   </div>
 }

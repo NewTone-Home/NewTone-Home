@@ -244,7 +244,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const [yonghePreviewMapZoom, setYonghePreviewMapZoom] = useState<PhoneMapZoomLevel>(1.65)
   const [yonghePreviewMapPan, setYonghePreviewMapPan] = useState<MapPoint>([0, 0])
   const [yongheMapHandoffPhase, setYongheMapHandoffPhase] = useState<'opening' | 'settled' | null>(null)
-  const placeMapPreviewRef = useRef<HTMLDivElement>(null)
+  const placeMapCardRef = useRef<HTMLElement>(null)
   const mapHandoffLayerRef = useRef<HTMLDivElement>(null)
   const mapHandoffSourceRectRef = useRef<DOMRect | null>(null)
   const mapHandoffAnimationsRef = useRef<Animation[]>([])
@@ -406,7 +406,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
     event.stopPropagation()
     if (yongheMapHandoffPhase === 'opening' || leavingApp) return
     const root = phoneRef.current
-    const preview = placeMapPreviewRef.current
+    const preview = placeMapCardRef.current
     const layer = mapHandoffLayerRef.current
     const sourceRect = preview?.getBoundingClientRect() ?? null
     if (root && preview && layer && sourceRect && sourceRect.width > 0 && sourceRect.height > 0) {
@@ -422,8 +422,14 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
         height: `${sourceRect.height}px`,
         margin: '0',
         transformOrigin: 'top left',
+        transform: 'none',
+        maxHeight: `${sourceRect.height}px`,
+        padding: '8px',
+        border: '1px solid #18191d35',
+        opacity: '1',
         zIndex: '1',
       })
+      clone.querySelector('.world-phone__place-card-close')?.remove()
       layer.replaceChildren(clone)
       mapHandoffSourceRectRef.current = sourceRect
     }
@@ -772,21 +778,20 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
                   ))}
                   {selectedContactId === 'lao-zhou' && displayDevice === 'inner' && yongheLeadUnlocked && (
                     <div className={`world-phone__message-place ${locationCardOpen ? 'is-expanded' : ''}`} onMouseEnter={() => setLocationCardOpen(true)} onMouseLeave={() => setLocationCardOpen(false)} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('.world-phone__place-card')) setLocationCardOpen(true) }}>
-                      <div className="world-phone__message-bubble world-phone__message-bubble--received world-phone__message-bubble--place" role="button" tabIndex={0} aria-label="展开永和小馆地点卡" aria-expanded={locationCardOpen} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setLocationCardOpen(true) }}>
-                        <p>永和小馆</p>
-                      </div>
-                      <section className="world-phone__place-card" aria-label="永和小馆地点卡" aria-hidden={!locationCardOpen} inert={!locationCardOpen} onClick={openYongheMapFromCard}>
-                        <div className="world-phone__place-card-content">
-                          {locationCardOpen && <div className="world-phone__place-map-preview" ref={placeMapPreviewRef} data-yonghe-map-preview aria-hidden="true">
-                            <PhoneMapCanvas mapRegions={mapRegions} displayDevice={displayDevice} currentLandmark={currentLandmark} selectedMapPlaceId="yonghe-eatery" onSelect={() => {}} mapZoom={yonghePreviewMapZoom} setMapZoom={setYonghePreviewMapZoom} mapPan={yonghePreviewMapPan} setMapPan={setYonghePreviewMapPan} focusId="yonghe-eatery" followFocus followFocusZoom={1.65} />
-                          </div>}
-                          <div className="world-phone__place-card-copy">
-                            <strong>永和小馆</strong>
-                            <button type="button" className="world-phone__place-card-map-link" aria-label="在地图中查看永和小馆" onClick={openYongheMapFromCard}>展开地图</button>
-                          </div>
-                          <button type="button" className="world-phone__place-card-close" aria-label="关闭地点卡" onClick={event => { event.stopPropagation(); setLocationCardOpen(false) }}>×</button>
+                      <div className="world-phone__place-anchor">
+                        <div className="world-phone__message-bubble world-phone__message-bubble--received world-phone__message-bubble--place" role="button" tabIndex={0} aria-label="打开永和小馆地点卡" aria-expanded={locationCardOpen} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setLocationCardOpen(true) }}>
+                          <p>永和小馆</p>
                         </div>
-                      </section>
+                        <section className="world-phone__place-card" ref={placeMapCardRef} data-yonghe-map-card aria-label="永和小馆地点卡" aria-hidden={!locationCardOpen} inert={!locationCardOpen} onClick={openYongheMapFromCard}>
+                          <div className="world-phone__place-card-content">
+                            {locationCardOpen && <div className="world-phone__place-map-preview" data-yonghe-map-preview aria-hidden="true">
+                              <PhoneMapCanvas mapRegions={mapRegions} displayDevice={displayDevice} currentLandmark={currentLandmark} selectedMapPlaceId="yonghe-eatery" onSelect={() => {}} mapZoom={yonghePreviewMapZoom} setMapZoom={setYonghePreviewMapZoom} mapPan={yonghePreviewMapPan} setMapPan={setYonghePreviewMapPan} focusId="yonghe-eatery" followFocus followFocusZoom={1.65} />
+                            </div>}
+                            <div className="world-phone__place-card-copy"><strong>永和小馆</strong></div>
+                            <button type="button" className="world-phone__place-card-close" aria-label="关闭地点卡" onClick={event => { event.stopPropagation(); setLocationCardOpen(false) }}>×</button>
+                          </div>
+                        </section>
+                      </div>
                     </div>
                   )}
                 </section>

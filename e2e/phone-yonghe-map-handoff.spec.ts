@@ -59,15 +59,22 @@ test('Yonghe mini map expands continuously into the selected map after desktop h
     const miniMap = card.locator('[data-yonghe-map-preview]')
     await expect(miniMap.locator('[data-map-poi="yonghe-eatery"]')).toBeVisible()
     await expect.poll(async () => (await miniMap.boundingBox()) !== null).toBe(true)
-    const source = await miniMap.boundingBox()
+    const cardBeforeHover = await card.boundingBox()
+    await card.hover()
+    await expect.poll(async () => (await card.boundingBox())!.width).toBeGreaterThan(cardBeforeHover!.width)
+    const source = await card.boundingBox()
     expect(source).not.toBeNull()
 
-    await card.getByRole('button', { name: '在地图中查看永和小馆' }).click()
+    await card.click()
     await expect(phone).toHaveAttribute('data-yonghe-map-handoff', 'opening')
     await expect(phone.locator('.world-phone__body')).toHaveAttribute('inert', '')
     const overlay = phone.locator('[data-yonghe-handoff-map]')
     await expect(overlay).toBeVisible()
     const start = await overlay.boundingBox()
+    expect(Math.abs(start!.x - source!.x)).toBeLessThan(1)
+    expect(Math.abs(start!.y - source!.y)).toBeLessThan(1)
+    expect(Math.abs(start!.width - source!.width)).toBeLessThan(1)
+    expect(Math.abs(start!.height - source!.height)).toBeLessThan(1)
     const mapView = phone.locator('.world-phone__app-view[data-app-view="map"]')
     await expect(mapView).toHaveCSS('opacity', '0')
     const zoomBeforeBackgroundClick = await mapView.locator('.world-phone__map').getAttribute('data-map-zoom')
@@ -104,7 +111,7 @@ test('Yonghe mini map expands continuously into the selected map after desktop h
 
 test('Escape during Yonghe handoff closes cleanly and reopening retains an interactive map', async ({ page }) => {
   const phone = await openYongheCard(page)
-  await phone.locator('.world-phone__place-card').getByRole('button', { name: '\u5728\u5730\u56fe\u4e2d\u67e5\u770b\u6c38\u548c\u5c0f\u9986' }).click()
+  await phone.locator('.world-phone__place-card').click()
   await expect(phone).toHaveAttribute('data-yonghe-map-handoff', 'opening')
   await page.keyboard.press('Escape')
   await expect(phone).toHaveAttribute('data-phone-open', 'false')
@@ -119,7 +126,7 @@ test('Escape during Yonghe handoff closes cleanly and reopening retains an inter
 
 test('resizing during Yonghe handoff clears the overlay and leaves the resized map usable', async ({ page }) => {
   const phone = await openYongheCard(page)
-  await phone.locator('.world-phone__place-card').getByRole('button', { name: '\u5728\u5730\u56fe\u4e2d\u67e5\u770b\u6c38\u548c\u5c0f\u9986' }).click()
+  await phone.locator('.world-phone__place-card').click()
   await expect(phone).toHaveAttribute('data-yonghe-map-handoff', 'opening')
   await expect(phone.locator('[data-yonghe-handoff-map]')).toHaveCount(1)
   await page.setViewportSize({ width: 360, height: 914 })
