@@ -43,7 +43,7 @@ import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } f
 import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
 import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionLayerPosition, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from './mainlineReadingProtection'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
-import { mainlineReadingLocalPercent, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot, type MainlineReadingOcclusionCandidate } from './mainlineReadingOcclusion'
+import { mainlineReadingLocalPercent, mainlineReadingOcclusionCellIdentity, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot, type MainlineReadingOcclusionCandidate } from './mainlineReadingOcclusion'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -1927,13 +1927,6 @@ export function MainlineSceneRenderer({
       const groupedFocus = Boolean(target && entries && (entries.length > 1 || cell.kind === 'storefront' && cell.storefrontRole === 'sign'))
       if (groupedFocus && entries?.[0]?.cell.id !== cell.id) continue
       if (cell.glyph === '' && !(cell.kind === 'feature' && cell.featureCellRole === 'flank')) continue
-      const boundsEntries = groupedFocus ? entries! : [{ unit, cell } as MainlineGeometryCellEntry]
-      const visualBoxes = boundsEntries.map(entry => cellGlyphWorldBounds(entry.cell, horizontalGridScale))
-      const cellStorefrontId = cell.storefrontId ?? unit.storefrontId
-      const cellStorefront = cellStorefrontId ? scene.storefronts.find(candidate => candidate.id === cellStorefrontId) : undefined
-      const storefrontVisual = cellStorefront ? storefrontLabelGeometry.get(cellStorefront.id) : undefined
-      if (groupedFocus && storefrontVisual) visualBoxes.push(mainlineReadingWorldBox(storefrontVisual.visualBounds))
-      const bounds = unionWorldBounds(visualBoxes, groupedFocus ? 3 : 0)
       const entityId = cell.kind === 'feature' && cell.featureCellRole === 'flank'
         ? `wall-cell:${cell.id}`
         : cell.entityId ?? unit.entityId ?? cell.storefrontId ?? unit.storefrontId ?? cell.id
@@ -1941,7 +1934,24 @@ export function MainlineSceneRenderer({
         ? scene.objects.find(candidate => candidate.id === entityId)
         : undefined
       const spaceId = featureOwner?.roomId ?? mainlineActiveSpatialSpaceId(scene, { x: cell.x, y: cell.y })
-      add(cell.id, entityId, bounds, spaceId)
+      const groupedOcclusion = Boolean(groupedFocus && entries?.every(entry => {
+        const entryEntityId = entry.cell.entityId ?? entry.unit.entityId
+        const entryRoomId = entry.cell.kind === 'feature' && entryEntityId
+          ? scene.objects.find(candidate => candidate.id === entryEntityId)?.roomId
+          : undefined
+        return (entryRoomId ?? mainlineActiveSpatialSpaceId(scene, { x: entry.cell.x, y: entry.cell.y })) === spaceId
+      }))
+      // A rendered focus group is one DOM visual. If its cells span spaces,
+      // do not let one room's reading envelope hide the combined visual.
+      if (groupedFocus && !groupedOcclusion) continue
+      const boundsEntries = groupedOcclusion ? entries! : [{ unit, cell } as MainlineGeometryCellEntry]
+      const visualBoxes = boundsEntries.map(entry => cellGlyphWorldBounds(entry.cell, horizontalGridScale))
+      const cellStorefrontId = cell.storefrontId ?? unit.storefrontId
+      const cellStorefront = cellStorefrontId ? scene.storefronts.find(candidate => candidate.id === cellStorefrontId) : undefined
+      const storefrontVisual = cellStorefront ? storefrontLabelGeometry.get(cellStorefront.id) : undefined
+      if (groupedOcclusion && storefrontVisual) visualBoxes.push(mainlineReadingWorldBox(storefrontVisual.visualBounds))
+      const bounds = unionWorldBounds(visualBoxes, groupedOcclusion ? 3 : 0)
+      add(mainlineReadingOcclusionCellIdentity(cell.id, groupedOcclusion ? target?.group : undefined, spaceId), entityId, bounds, spaceId)
     }
     for (const parts of visibleCounterSurfaces) {
       const meta = parts[0].counterSurface!
@@ -2319,7 +2329,17 @@ export function MainlineSceneRenderer({
                 : cell.entityId ?? unit.entityId ?? cell.storefrontId ?? unit.storefrontId ?? cell.id
               const relatedEntityIds = [cell.storefrontId ?? unit.storefrontId, cell.entityId ?? unit.entityId].filter((id): id is string => Boolean(id) && id !== entityId)
               const storefront = cellStorefront
-              return <MainlineReadingIdentityPlane key={`cell:${cell.id}`} identityKey={cell.id} entityId={entityId} relatedEntityIds={relatedEntityIds} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={cellWorldBounds} active={readingOcclusionActive} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">{node}</MainlineReadingIdentityPlane>
+              const featureSpaceId = cell.kind === 'feature' && entityId ? scene.objects.find(candidate => candidate.id === entityId)?.roomId : undefined
+              const occlusionSpaceId = featureSpaceId ?? mainlineActiveSpatialSpaceId(scene, { x: cell.x, y: cell.y })
+              const sameSpaceFocusGroup = Boolean(groupedFocus && sourceFocusEntries?.every(entry => {
+                const entryEntityId = entry.cell.entityId ?? entry.unit.entityId
+                const entryRoomId = entry.cell.kind === 'feature' && entryEntityId
+                  ? scene.objects.find(candidate => candidate.id === entryEntityId)?.roomId
+                  : undefined
+                return (entryRoomId ?? mainlineActiveSpatialSpaceId(scene, { x: entry.cell.x, y: entry.cell.y })) === occlusionSpaceId
+              }))
+              const occlusionIdentityKey = mainlineReadingOcclusionCellIdentity(cell.id, sameSpaceFocusGroup ? cellFocusTarget?.group : undefined, occlusionSpaceId)
+              return <MainlineReadingIdentityPlane key={`cell:${cell.id}`} identityKey={occlusionIdentityKey} entityId={entityId} relatedEntityIds={relatedEntityIds} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={cellWorldBounds} active={readingOcclusionActive} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">{node}</MainlineReadingIdentityPlane>
             })}
           </div>
           <div className="scene-mainline-counter-layer" data-reading-occlusion-layer="counter">

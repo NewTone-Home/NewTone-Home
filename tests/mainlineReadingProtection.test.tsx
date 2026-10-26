@@ -323,6 +323,7 @@ describe('reading target protection', () => {
       .sort((a, b) => Math.abs(a.cell.x - menuEntry.cell.x) - Math.abs(b.cell.x - menuEntry.cell.x))[0]
     expect(menuButton).toBeTruthy()
     expect(menuPlane).toContain('data-reading-occlusion-protected="true"')
+    expect(menuPlane).toContain('data-reading-occlusion-key="focus-group:interactive:commercial-cafe-menu-wall:space:commercial-north-cafe-interior"')
     expect(menuPlane).not.toContain('mask-image')
     expect(menuEntry).toBeTruthy()
     expect(neighboringWallEntry).toBeTruthy()
@@ -330,6 +331,7 @@ describe('reading target protection', () => {
     expect(neighboringWallPlane).not.toContain('data-reading-occlusion-protected')
     expect(neighboringWallPlane).not.toContain('mask-image')
     expect(neighboringWallPlane).toContain('data-reading-world-bounds=')
+    expect(neighboringWallPlane).toContain(`data-reading-occlusion-key="${neighboringWallEntry?.cell.id}"`)
     expect(neighboringWallPlane).toContain('width:0.8333333333333334%')
     const menuPosition = menuHtml.indexOf('data-reading-occlusion-entity-id="commercial-cafe-menu"')
     const neighborPosition = menuHtml.indexOf(`data-reading-occlusion-key="${neighboringWallEntry?.cell.id}"`)

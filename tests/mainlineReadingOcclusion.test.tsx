@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MainlineReadingIdentityPlane } from '../src/center/runtime/MainlineReadingIdentityPlane'
-import { mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingLocalPercent, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot } from '../src/center/runtime/mainlineReadingOcclusion'
+import { mainlineReadingOcclusionCellIdentity, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingLocalPercent, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot } from '../src/center/runtime/mainlineReadingOcclusion'
 
 describe('mainline whole-object reading occlusion', () => {
   it('maps a reading layout to the design world without changing its screen size', () => {
@@ -33,6 +33,37 @@ describe('mainline whole-object reading occlusion', () => {
       { identityKey: 'wall-cell:other-room', bounds: { x: 200, y: 220, width: 20, height: 20 }, spaceId: 'room-b' },
     ], rect, new Set(['counter-entity']), 'room-a')
     expect(keys).toEqual(new Set(['chair:one', 'wall-cell:neighbor']))
+  })
+
+  it('uses one space-scoped identity for every glyph and frame cell in a menu group', () => {
+    const menuGroup = 'interactive:cafe-menu'
+    const room = 'cafe-room'
+    const menuKey = mainlineReadingOcclusionCellIdentity('menu-cell-1', menuGroup, room)
+    expect(mainlineReadingOcclusionCellIdentity('menu-cell-2', menuGroup, room)).toBe(menuKey)
+    expect(mainlineReadingOcclusionCellIdentity('menu-frame', menuGroup, room)).toBe(menuKey)
+    expect(mainlineReadingOcclusionCellIdentity('neighbor-wall-cell')).toBe('neighbor-wall-cell')
+    expect(mainlineReadingOcclusionCellIdentity('menu-cell-1', menuGroup, 'other-room')).not.toBe(menuKey)
+
+    const rect = { x: 100, y: 100, width: 120, height: 48 }
+    const hidden = mainlineReadingOccludedIdentityKeys([
+      { identityKey: menuKey, entityId: 'cafe-menu', bounds: { x: 110, y: 110, width: 88, height: 28 }, spaceId: room },
+      { identityKey: 'neighbor-wall-cell', entityId: 'wall', bounds: { x: 110, y: 110, width: 16, height: 16 }, spaceId: room },
+      { identityKey: mainlineReadingOcclusionCellIdentity('menu-cell-1', menuGroup, 'other-room'), entityId: 'cafe-menu', bounds: { x: 110, y: 110, width: 88, height: 28 }, spaceId: 'other-room' },
+    ], rect, new Set(), room)
+    expect(hidden).toEqual(new Set([menuKey, 'neighbor-wall-cell']))
+    expect(hidden.has(mainlineReadingOcclusionCellIdentity('menu-cell-2', menuGroup, room))).toBe(true)
+    expect(hidden.has(mainlineReadingOcclusionCellIdentity('menu-frame', menuGroup, room))).toBe(true)
+    expect(hidden.has(mainlineReadingOcclusionCellIdentity('menu-cell-1', menuGroup, 'other-room'))).toBe(false)
+  })
+
+  it('protects the complete menu group while leaving a coincident neighboring wall eligible', () => {
+    const menuKey = mainlineReadingOcclusionCellIdentity('menu-first-cell', 'interactive:menu', 'cafe-room')
+    const neighborKey = 'wall-cell:adjacent'
+    const hidden = mainlineReadingOccludedIdentityKeys([
+      { identityKey: menuKey, entityId: 'menu', bounds: { x: 10, y: 10, width: 40, height: 30 }, spaceId: 'cafe-room' },
+      { identityKey: neighborKey, entityId: 'adjacent-wall', bounds: { x: 10, y: 10, width: 40, height: 30 }, spaceId: 'cafe-room' },
+    ], { x: 0, y: 0, width: 80, height: 60 }, new Set(['menu']), 'cafe-room')
+    expect(hidden).toEqual(new Set([neighborKey]))
   })
 
   it('converts scene bounds to the bounded wrapper coordinates without a second projection', () => {

@@ -34,6 +34,17 @@ export type MainlineReadingOcclusionCandidate = {
   spaceId?: string
 }
 
+/** Shared visual groups (for example a multi-cell menu) hide as one identity.
+ * The space suffix prevents unrelated groups in different rooms from sharing
+ * a reading hit identity. Ordinary wall cells keep their own cell IDs. */
+export function mainlineReadingOcclusionGroupIdentity(group: string, spaceId?: string) {
+  return `focus-group:${group}:space:${spaceId ?? 'unassigned'}`
+}
+
+export function mainlineReadingOcclusionCellIdentity(cellId: string, focusGroup?: string, spaceId?: string) {
+  return focusGroup ? mainlineReadingOcclusionGroupIdentity(focusGroup, spaceId) : cellId
+}
+
 /** Freeze whole-object hits for one reading envelope, excluding protected targets and other spaces. */
 export function mainlineReadingOccludedIdentityKeys(
   candidates: readonly MainlineReadingOcclusionCandidate[],
