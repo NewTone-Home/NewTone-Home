@@ -58,16 +58,28 @@ test('Notes persist and the contact flow supports details, location cards, and a
   const placeCard = location.locator('.world-phone__place-card')
   await expect(placeCard).toBeVisible()
   await expect(placeCard.locator('small')).toHaveText('位于矿区外围老街。')
+  const previewHost = await page.evaluate(() => {
+    const hostname = window.location.hostname
+    return hostname === 'duck-feel-rpm-barbara.trycloudflare.com'
+      || hostname.endsWith('-newtone-homes-projects.vercel.app')
+      || hostname === 'localhost'
+      || hostname === '127.0.0.1'
+  })
   const desktopAlignment = await messageBubble.evaluate((bubble) => {
     const bubbleRect = bubble.getBoundingClientRect()
     const cardRect = bubble.parentElement!.querySelector('.world-phone__place-card')!.getBoundingClientRect()
     return { right: cardRect.left >= bubbleRect.right - 1, aligned: Math.abs((cardRect.top + cardRect.height / 2) - (bubbleRect.top + bubbleRect.height / 2)) < 12 }
   })
   expect(desktopAlignment).toEqual({ right: true, aligned: true })
-  await location.getByRole('button', { name: 'B 版' }).click()
-  await expect(placeCard).toHaveAttribute('data-card-variant', 'b')
-  await expect(placeCard.locator('.world-phone__place-card-blur i')).toHaveCount(3)
-  await location.getByRole('button', { name: 'A 版' }).click()
+  if (previewHost) {
+    await expect(location.locator('[data-yonghe-card-preview]')).toBeVisible()
+    await location.getByRole('button', { name: 'B 版' }).click()
+    await expect(placeCard).toHaveAttribute('data-card-variant', 'b')
+    await expect(placeCard.locator('.world-phone__place-card-blur i')).toHaveCount(3)
+    await location.getByRole('button', { name: 'A 版' }).click()
+  } else {
+    await expect(location.locator('[data-yonghe-card-preview]')).toHaveCount(0)
+  }
   await page.mouse.move(0, 0)
   await expect(placeCard).toBeHidden()
 

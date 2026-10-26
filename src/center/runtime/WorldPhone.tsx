@@ -279,6 +279,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const mapRegions = getPhoneMapRegions(displayDevice)
   const previewQaHost = typeof window !== 'undefined'
     && (window.location.hostname.endsWith('-newtone-homes-projects.vercel.app')
+      || window.location.hostname === 'duck-feel-rpm-barbara.trycloudflare.com'
       || window.location.hostname === 'localhost'
       || window.location.hostname === '127.0.0.1')
   const yongheCardPreviewEnabled = typeof window !== 'undefined'
