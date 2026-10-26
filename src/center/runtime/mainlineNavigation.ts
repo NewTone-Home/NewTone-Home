@@ -35,6 +35,16 @@ export type MainlineNavigationOptions = {
   occupiedSeatIds?: ReadonlySet<string>
 }
 
+export function mainlineSafeSpawnValidationDecision(
+  sceneId: MainlineSceneId,
+  activePlayerSeatId: string | null,
+  lastValidatedKey: string | null,
+  currentKey: string,
+): 'defer-active-seat' | 'already-validated' | 'validate' {
+  if (sceneId === 'commercial-street' && activePlayerSeatId) return 'defer-active-seat'
+  return lastValidatedKey === currentKey ? 'already-validated' : 'validate'
+}
+
 function footprintFromBox(box: CollisionBox): NavigationActorFootprint {
   return { width: box.width, height: box.height }
 }
@@ -641,7 +651,8 @@ export function resolveMainlineSafeSpawnPosition(
           // cleared on reload, so walkability alone is not enough here.
           if (canReachCafeEntry(preferred)) return preferred
 
-          // Search a bounded 112px square around the saved point. Candidates
+          // Search a bounded square around the saved point: +/-112px on each
+          // axis (224px total span). Candidates
           // use the same 14px lattice as the existing room recovery scan; the
           // path check runs only for the nearest walkable points at spawn time.
           const stepX = 14 / 1920 * 100, stepY = 14 / 1080 * 100

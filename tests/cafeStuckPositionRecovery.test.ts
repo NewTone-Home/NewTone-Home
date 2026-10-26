@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { continuousCafeRoomId } from '../src/center/runtime/continuousCafe'
 import { defaultLaoZhouCafeSeatId, laoZhouCafeSeatPairs, withLaoZhouCafeSeat } from '../src/center/runtime/commercialCafeSeatSelection'
-import { findMainlinePath, isWalkableMainlinePoint, resolveMainlineSafeSpawnPosition } from '../src/center/runtime/mainlineNavigation'
+import { findMainlinePath, isWalkableMainlinePoint, mainlineSafeSpawnValidationDecision, resolveMainlineSafeSpawnPosition } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { createInitialPlayerSave, recordPlayerScenePosition } from '../src/center/runtime/playerSave'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
@@ -16,6 +16,15 @@ describe('Cafe resume-position recovery', () => {
     const safe = resolveMainlineSafeSpawnPosition(baseScene, cafeEntry, {}, options)
 
     expect(safe).toEqual(cafeEntry)
+  })
+
+  it('defers a resized Cafe spawn check while seated without consuming the pending key', () => {
+    const beforeResize = 'commercial-street:141.79:18.03:411:914'
+    const afterResize = 'commercial-street:141.79:18.03:360:800'
+
+    expect(mainlineSafeSpawnValidationDecision('commercial-street', 'commercial-cafe-right-window-upper-group-chair-bottom', beforeResize, afterResize)).toBe('defer-active-seat')
+    expect(mainlineSafeSpawnValidationDecision('commercial-street', null, beforeResize, afterResize)).toBe('validate')
+    expect(mainlineSafeSpawnValidationDecision('commercial-street', null, afterResize, afterResize)).toBe('already-validated')
   })
 
   it('moves the reported upper-right table pocket to a nearby walkable point connected to the door', () => {
