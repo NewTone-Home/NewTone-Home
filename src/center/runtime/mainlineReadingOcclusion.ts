@@ -8,9 +8,10 @@ export const mainlineReadingWorldHeightPx = sceneDesignReferenceMetrics.height
 
 export type MainlineReadingOcclusionSnapshot = {
   sessionKey: string
+  contextKey: string
   rect: CollisionBox
-  region: CollisionBox
   protectedEntityIds: ReadonlySet<string>
+  hiddenIdentityKeys: ReadonlySet<string>
 }
 
 function sameBox(a: CollisionBox, b: CollisionBox) {
@@ -21,11 +22,33 @@ function sameBox(a: CollisionBox, b: CollisionBox) {
 export function retainMainlineReadingOcclusionSnapshot<T extends MainlineReadingOcclusionSnapshot>(current: T | null, next: T): T {
   if (current
     && current.sessionKey === next.sessionKey
-    && sameBox(current.rect, next.rect)
-    && sameBox(current.region, next.region)
-    && current.protectedEntityIds.size === next.protectedEntityIds.size
-    && [...current.protectedEntityIds].every(id => next.protectedEntityIds.has(id))) return current
+    && current.contextKey === next.contextKey) return current
   return next
+}
+
+export type MainlineReadingOcclusionCandidate = {
+  identityKey: string
+  entityId?: string
+  relatedEntityIds?: readonly string[]
+  bounds: CollisionBox
+  spaceId?: string
+}
+
+/** Freeze whole-object hits for one reading envelope, excluding protected targets and other spaces. */
+export function mainlineReadingOccludedIdentityKeys(
+  candidates: readonly MainlineReadingOcclusionCandidate[],
+  rect: MainlineReadingOcclusionRect,
+  protectedIdentityKeys: ReadonlySet<string>,
+  activeSpaceId: string | undefined,
+  featherWorldPx = mainlineReadingOcclusionFadeWorldPx,
+) {
+  return new Set(candidates.filter(candidate =>
+    !protectedIdentityKeys.has(candidate.identityKey)
+    && !(candidate.entityId && protectedIdentityKeys.has(candidate.entityId))
+    && !(candidate.relatedEntityIds?.some(id => protectedIdentityKeys.has(id)))
+    && (!candidate.spaceId || candidate.spaceId === activeSpaceId)
+    && mainlineReadingOcclusionIntersects(candidate.bounds, rect, featherWorldPx))
+    .map(candidate => candidate.identityKey))
 }
 
 export function mainlineReadingOcclusionRect(

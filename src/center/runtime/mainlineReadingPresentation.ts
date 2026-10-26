@@ -3,6 +3,7 @@ import type { Point } from './sceneGeometry'
 
 export type MainlineReadingPresentationSnapshot = {
   sessionKey: string
+  anchorSessionKey?: string
   anchorContextKey?: string
   position: Point
   cameraOffset: Point
@@ -52,7 +53,9 @@ export function mainlineReadingAnchorForSession(
   candidate: Point,
   retained: MainlineReadingPresentationSnapshot | null,
 ): Point {
-  return retained?.sessionKey === sessionKey && retained.anchorContextKey === anchorContextKey
+  return retained !== null
+    && (retained.anchorSessionKey ?? retained.sessionKey) === sessionKey
+    && retained.anchorContextKey === anchorContextKey
     ? retained.position
     : candidate
 }

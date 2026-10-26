@@ -42,9 +42,8 @@ import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlin
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
 import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
 import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionLayerPosition, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from './mainlineReadingProtection'
-import { MainlineReadingOcclusionMask } from './MainlineReadingOcclusionMask'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
-import { mainlineReadingLocalPercent, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionMaskRegion, mainlineReadingOcclusionRect, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot } from './mainlineReadingOcclusion'
+import { mainlineReadingLocalPercent, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot, type MainlineReadingOcclusionCandidate } from './mainlineReadingOcclusion'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -131,9 +130,10 @@ type MainlineSceneRendererProps = {
 
 type RetainedReadingOcclusion = {
   sessionKey: string
+  contextKey: string
   rect: CollisionBox
-  region: CollisionBox
   protectedEntityIds: ReadonlySet<string>
+  hiddenIdentityKeys: ReadonlySet<string>
 }
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
@@ -303,6 +303,11 @@ export const MainlineAmbientNpcActor = memo(MainlineAmbientNpcActorView)
 
 function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { pageKey: string; text: string; children: React.ReactNode; mode: 'observation' | 'dialogue'; lockToken: number; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: () => void }) {
   const [page, setPage] = useState<{ key: string; text: string; previousText: string | null; flipping: boolean }>({ key: pageKey, text, previousText: null, flipping: false })
+  // Derive the incoming state during render. Waiting for the layout effect to
+  // copy new props into state paints the next sentence once at y=0 first.
+  const presentedPage = page.key === pageKey
+    ? page
+    : { key: pageKey, text, previousText: page.text, flipping: true }
   const stackRef = useRef<HTMLSpanElement>(null)
   const activeFlipTokenRef = useRef<number | null>(null)
   const onFlipStartRef = useRef(onFlipStart)
@@ -325,7 +330,7 @@ function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart
   }, [pageKey, text])
   useEffect(() => {
     const node = stackRef.current
-    if (!page.flipping || !node || page.key !== pageKey) return
+    if (!presentedPage.flipping || !node || presentedPage.key !== pageKey) return
     const setProgress = (progress: number) => {
       const percent = progress * 100
       // Match the Cafe storefront (bottom edge): the old glyph leaves down
@@ -359,16 +364,16 @@ function ReadingPageFlip({ pageKey, text, children, mode, lockToken, onFlipStart
     }
     frame = window.requestAnimationFrame(advance)
     return () => window.cancelAnimationFrame(frame)
-  }, [lockToken, page.flipping, page.key, pageKey])
+  }, [lockToken, presentedPage.flipping, presentedPage.key, pageKey])
   useEffect(() => {
-    if (!page.flipping && page.key === pageKey) onSettledRef.current?.()
-  }, [page.flipping, page.key, pageKey])
+    if (!presentedPage.flipping && presentedPage.key === pageKey) onSettledRef.current?.()
+  }, [presentedPage.flipping, presentedPage.key, pageKey])
 
-  return <span ref={stackRef} className={`scene-mainline-page-stack scene-mainline-page-stack--${mode}`} data-page-flip={page.flipping ? 'running' : 'settled'} style={{ '--reading-page-out-y': '0%', '--reading-page-in-y': page.flipping ? '-100%' : '0%' } as CSSProperties}>
-    {page.flipping && page.previousText !== null && <span className="scene-mainline-page scene-mainline-page--outgoing" data-reading-page-role="outgoing" aria-hidden="true">{page.previousText}</span>}
+  return <span ref={stackRef} className={`scene-mainline-page-stack scene-mainline-page-stack--${mode}`} data-page-flip={presentedPage.flipping ? 'running' : 'settled'} style={{ '--reading-page-out-y': '0%', '--reading-page-in-y': presentedPage.flipping ? '-100%' : '0%' } as CSSProperties}>
+    {presentedPage.flipping && presentedPage.previousText !== null && <span className="scene-mainline-page scene-mainline-page--outgoing" data-reading-page-role="outgoing" aria-hidden="true">{presentedPage.previousText}</span>}
     <span
-      className={`scene-mainline-page ${page.flipping ? 'scene-mainline-page--incoming' : 'scene-mainline-page--current'}`}
-      data-reading-page-role={page.flipping ? 'incoming' : 'current'}
+      className={`scene-mainline-page ${presentedPage.flipping ? 'scene-mainline-page--incoming' : 'scene-mainline-page--current'}`}
+      data-reading-page-role={presentedPage.flipping ? 'incoming' : 'current'}
     >{children}</span>
   </span>
 }
@@ -1027,7 +1032,6 @@ export function MainlineSceneRenderer({
   debugRuntimeEvidence = false,
 }: MainlineSceneRendererProps) {
   const readingMaskId = `mainline-reading-mask-${useId().replace(/:/g, '')}`
-  const readingOcclusionMaskId = `mainline-reading-occlusion-${useId().replace(/:/g, '')}`
   const [dialogueReady, setDialogueReady] = useState(false)
   const [readingOverflowPage, setReadingOverflowPage] = useState<import('./mainlineReadingProtection').MainlineReadingOverflowPageState>(null)
   const readingPageAdvanceLockedRef = useRef(false)
@@ -1261,6 +1265,10 @@ export function MainlineSceneRenderer({
   const readingSessionKey = !readingPresentationMode ? null : sceneEcho
     ? `${scene.id}:observation:echo:${sceneEcho.id}:${sceneEcho.entityId ?? ''}`
     : mainlineDialogueReadingSessionKey(scene.id, dialogue?.triggerEntityId, dialogueLine?.id, dialogueLineIndex)
+  const readingOcclusionSessionKey = !readingPresentationMode ? null : sceneEcho
+    ? `${scene.id}:observation:echo:${sceneEcho.id}`
+    : `${scene.id}:dialogue:${dialogue?.triggerEntityId ?? ''}`
+  const readingAnchorSessionKey = readingOcclusionSessionKey
   const retainedReadingPresentation = readingPresentationPhase === 'leaving'
     && readingSessionKey
     && retainedReadingPresentationRef.current?.sessionKey === readingSessionKey
@@ -1288,8 +1296,8 @@ export function MainlineSceneRenderer({
   const maximumReadingWidthPx = activeReadingPosition ? mainlineMaximumReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale) : currentReadingWidthPx
   const readingEnvelopeTexts = useMemo(() => sceneEcho
     ? (sceneEcho.segments.length ? sceneEcho.segments : [sceneEcho.text])
-    : dialogueLine ? [dialogueLine.text] : [activeReadingText],
-  [activeReadingText, dialogueLine?.text, sceneEcho?.segments, sceneEcho?.text])
+    : dialogue ? dialogue.lines.map(line => line.text) : dialogueLine ? [dialogueLine.text] : [activeReadingText],
+  [activeReadingText, dialogue?.lines, dialogueLine?.text, sceneEcho?.segments, sceneEcho?.text])
   const maximumReadingLayout = activeReadingPosition
     ? readingEnvelopeTexts.map(text => mainlineEchoLayout(text, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: maximumReadingWidthPx }))
       .reduce((largest, layout) => ({
@@ -1471,6 +1479,7 @@ export function MainlineSceneRenderer({
   }
   const interiorRoomIsVisuallyActive = (roomId: string | undefined) => interiorRoomPresentationActive(roomId) !== false
   const renderedRoomIds = new Set([...visibleInteriorRoomIds, ...(activeShellRoomId ? [activeShellRoomId] : [])])
+  const visibleInteriorRoomIdsKey = [...visibleInteriorRoomIds].sort().join('|')
   const geometryCells = useMemo(() => geometryUnits.flatMap((unit) => unit.visual.cells
     .filter(cell => {
       const slot = unit.storefrontId ? activeSwitchableStorefronts.find(candidate => candidate.id === unit.storefrontId) : undefined
@@ -1575,12 +1584,12 @@ export function MainlineSceneRenderer({
     ? readingFit?.position ?? mainlinePlaceReadingBox(scene, activeReadingPosition, { width: activeDisplayReadingLayout.widthPx, height: activeDisplayReadingLayout.heightPx }, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset) ?? activeReadingPosition
     : activeReadingPosition
   const activeDisplayReadingPosition = readingMode && activeReadingPosition && activeDisplayReadingLayout
-    ? readingSessionKey
-      ? mainlineReadingAnchorForSession(readingSessionKey, readingAnchorContextKey, candidateReadingPosition!, retainedReadingPresentationRef.current)
+    ? readingAnchorSessionKey
+      ? mainlineReadingAnchorForSession(readingAnchorSessionKey, readingAnchorContextKey, candidateReadingPosition!, retainedReadingPresentationRef.current)
       : candidateReadingPosition
     : activeReadingPosition
   const currentReadingPresentation: MainlineReadingPresentationSnapshot | null = readingMode && readingSessionKey && activeDisplayReadingPosition && activeDisplayReadingLayout
-    ? { sessionKey: readingSessionKey, anchorContextKey: readingAnchorContextKey, position: activeDisplayReadingPosition, cameraOffset: renderCameraOffset, layout: activeDisplayReadingLayout, maxWidthPx: readingFit?.maxWidthPx ?? activeReadingWidthPx, text: activeDisplayReadingText, overflowIndex: activeDisplayOverflowIndex }
+    ? { sessionKey: readingSessionKey, anchorSessionKey: readingAnchorSessionKey ?? undefined, anchorContextKey: readingAnchorContextKey, position: activeDisplayReadingPosition, cameraOffset: renderCameraOffset, layout: activeDisplayReadingLayout, maxWidthPx: readingFit?.maxWidthPx ?? activeReadingWidthPx, text: activeDisplayReadingText, overflowIndex: activeDisplayOverflowIndex }
     : null
   const readingPresentation = mainlineReadingPresentationForPhase(readingPresentationPhase, readingSessionKey, currentReadingPresentation, retainedReadingPresentation)
   useIsomorphicLayoutEffect(() => {
@@ -1612,69 +1621,6 @@ export function MainlineSceneRenderer({
   const readingVisualActive = Boolean(readingPresentation && activeReadingPosition && displayReadingLayout)
   const readingMaskRects = useMemo(() => mainlineReadingMaskRects(sceneRenderBounds, readingProtectedVisuals), [readingProtectedVisuals, sceneRenderBounds])
   const readingDisplayPosition = readingPresentation?.position ?? activeReadingPosition
-  const readingOcclusionRect = useMemo(() => readingVisualActive && readingDisplayPosition && presentedReadingLayout
-    ? mainlineReadingOcclusionRect(readingDisplayPosition, presentedReadingLayout, worldScale, projectReadingX)
-    : null, [presentedReadingLayout, projectReadingX, readingDisplayPosition, readingVisualActive, worldScale])
-  const readingOcclusionMaskRegion = useMemo(() => readingOcclusionRect
-    ? mainlineReadingOcclusionMaskRegion(sceneRenderBounds, readingOcclusionRect)
-    : null, [readingOcclusionRect, sceneRenderBounds])
-  useEffect(() => {
-    if (readingPresentationPhase !== 'active' || !readingSessionKey || !readingOcclusionRect || !readingOcclusionMaskRegion) return
-    if (readingLayoutTransitioning) return
-    setRetainedReadingOcclusion(current => retainMainlineReadingOcclusionSnapshot(current, {
-      sessionKey: readingSessionKey,
-      rect: readingOcclusionRect,
-      region: readingOcclusionMaskRegion,
-      protectedEntityIds: readingProtectedEntityIds,
-    }))
-  }, [readingLayoutTransitioning, readingOcclusionMaskRegion, readingOcclusionRect, readingPresentationPhase, readingProtectedEntityIds, readingSessionKey])
-  useEffect(() => {
-    if (readingPresentationPhase !== 'active' || !readingVisualActive || !readingSessionKey) return
-    if (activeReadingOcclusionSession === readingSessionKey) return
-    setActiveReadingOcclusionSession(null)
-    readingOcclusionEntryRafRef.current = window.requestAnimationFrame(() => {
-      readingOcclusionEntryRafRef.current = null
-      setActiveReadingOcclusionSession(readingSessionKey)
-    })
-    return () => {
-      if (readingOcclusionEntryRafRef.current !== null) window.cancelAnimationFrame(readingOcclusionEntryRafRef.current)
-      readingOcclusionEntryRafRef.current = null
-    }
-  }, [activeReadingOcclusionSession, readingPresentationPhase, readingSessionKey, readingVisualActive])
-  useEffect(() => {
-    if (readingPresentationPhase === 'active') {
-      if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
-      readingOcclusionExitTimerRef.current = null
-      readingOcclusionExitStartedAtRef.current = null
-      return
-    }
-    if (!retainedReadingOcclusion) return
-    if (readingOcclusionExitStartedAtRef.current === null) readingOcclusionExitStartedAtRef.current = performance.now()
-    if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
-    const elapsed = performance.now() - readingOcclusionExitStartedAtRef.current
-    const remaining = Math.max(0, mainlineReadingFadeTransitionMs - elapsed)
-    readingOcclusionExitTimerRef.current = window.setTimeout(() => {
-      readingOcclusionExitTimerRef.current = null
-      readingOcclusionExitStartedAtRef.current = null
-      setRetainedReadingOcclusion(null)
-      setActiveReadingOcclusionSession(null)
-    }, remaining)
-    return () => {
-      if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
-      readingOcclusionExitTimerRef.current = null
-    }
-  }, [readingPresentationPhase, retainedReadingOcclusion])
-  useEffect(() => () => {
-    if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
-    if (readingOcclusionEntryRafRef.current !== null) window.cancelAnimationFrame(readingOcclusionEntryRafRef.current)
-  }, [])
-  const retainedOcclusionSnapshot = readingVisualActive && readingOcclusionRect && readingOcclusionMaskRegion
-    ? { sessionKey: readingSessionKey ?? '', rect: readingOcclusionRect, region: readingOcclusionMaskRegion, protectedEntityIds: readingProtectedEntityIds }
-    : retainedReadingOcclusion
-  const readingOcclusionActive = readingPresentationPhase === 'active' && readingVisualActive && activeReadingOcclusionSession === readingSessionKey
-  const readingOcclusionProtectedEntityIds = readingPresentationPhase === 'inactive'
-    ? retainedReadingOcclusion?.protectedEntityIds ?? readingProtectedEntityIds
-    : readingProtectedEntityIds
   const readingDisplayShift = activeReadingPosition && readingDisplayPosition
     ? { x: projectReadingX(readingDisplayPosition.x) - projectReadingX(activeReadingPosition.x), y: readingDisplayPosition.y - activeReadingPosition.y }
     : { x: 0, y: 0 }
@@ -1943,12 +1889,153 @@ export function MainlineSceneRenderer({
   } as CSSProperties
 
   const extractProtectedWallNode = (_entityId: string, _key: string, node: ReactNode): ReactNode => node
-  const visibleObjectEntities = scene.objects.filter(entity => entity.visible !== false
+  const renderedRoomIdsKey = [...renderedRoomIds].sort().join('|')
+  const visibleObjectEntities = useMemo(() => scene.objects.filter(entity => entity.visible !== false
     && !entity.counterSurfaceId
     && entity.kind !== 'door'
     && !wallFeatureEntityIds.has(entity.id)
     && (mainlineEntityMatchesCurrentPresentation(entity, renderedRoomIds, activeSpatialSpaceId)
-      || (streetSpaceContentRetained && mainlineEntityIsPublicStreetContent(scene.id, entity))))
+      || (streetSpaceContentRetained && mainlineEntityIsPublicStreetContent(scene.id, entity)))),
+  [activeSpatialSpaceId, renderedRoomIdsKey, scene, streetSpaceContentRetained, wallFeatureEntityIds])
+  const visibleCounterSurfaces = useMemo(() => counterSurfaces.filter(parts => !parts[0].counterSurface?.roomId || visibleInteriorRoomIds.has(parts[0].counterSurface.roomId)),
+    [counterSurfaces, visibleInteriorRoomIdsKey])
+  const readingOcclusionRect = useMemo(() => readingVisualActive && readingDisplayPosition && maximumReadingLayout
+    ? mainlineReadingOcclusionRect(readingDisplayPosition, maximumReadingLayout, worldScale, projectReadingX)
+    : null, [maximumReadingLayout, projectReadingX, readingDisplayPosition, readingVisualActive, worldScale])
+  const readingOcclusionContextKey = JSON.stringify([scene.id, viewportMetrics.width, viewportMetrics.height, viewportMetrics.viewportWidth ?? null, worldScale, renderScreenMetrics.width, renderScreenMetrics.height, activeSpatialSpaceId ?? null])
+  const readingOcclusionSnapshotFrozen = Boolean(retainedReadingOcclusion
+    && retainedReadingOcclusion.sessionKey === readingOcclusionSessionKey
+    && retainedReadingOcclusion.contextKey === readingOcclusionContextKey)
+  const readingOcclusionCandidates = useMemo<MainlineReadingOcclusionCandidate[]>(() => {
+    if (!readingVisualActive || !readingOcclusionSessionKey || !readingOcclusionRect || readingOcclusionSnapshotFrozen) return []
+    const candidates: MainlineReadingOcclusionCandidate[] = []
+    const add = (identityKey: string, entityId: string | undefined, bounds: CollisionBox, spaceId?: string, relatedEntityIds?: readonly string[]) => {
+      candidates.push({ identityKey, entityId, relatedEntityIds, bounds, spaceId })
+    }
+    for (const slot of activeSwitchableStorefronts) {
+      const cells = switchCells.get(slot.id) ?? []
+      if (!cells.length) continue
+      const portalBoxes = cells.map(cell => cellGlyphWorldBounds({ ...cell, kind: cell.role === 'door' ? 'door' : 'storefront' } as MainlineSceneGeometryUnit['visual']['cells'][number], horizontalGridScale))
+      const bounds = unionWorldBounds(portalBoxes, 8)
+      const portalEntity = scene.objects.find(object => object.id === slot.portalId)
+      add(`portal:${slot.id}`, slot.id, bounds, portalEntity ? mainlineActiveSpatialSpaceId(scene, portalEntity.position) : undefined, slot.portalId ? [slot.portalId] : undefined)
+    }
+    for (const { unit, cell } of geometryCells) {
+      const sourceEntityId = cell.entityId ?? unit.entityId
+      const target = mainlineCellFocusTarget(scene, cell, sourceEntityId, unit.variant)
+      const entries = target ? focusGroupCells.get(target.group) : undefined
+      const groupedFocus = Boolean(target && entries && (entries.length > 1 || cell.kind === 'storefront' && cell.storefrontRole === 'sign'))
+      if (groupedFocus && entries?.[0]?.cell.id !== cell.id) continue
+      if (cell.glyph === '' && !(cell.kind === 'feature' && cell.featureCellRole === 'flank')) continue
+      const boundsEntries = groupedFocus ? entries! : [{ unit, cell } as MainlineGeometryCellEntry]
+      const visualBoxes = boundsEntries.map(entry => cellGlyphWorldBounds(entry.cell, horizontalGridScale))
+      const cellStorefrontId = cell.storefrontId ?? unit.storefrontId
+      const cellStorefront = cellStorefrontId ? scene.storefronts.find(candidate => candidate.id === cellStorefrontId) : undefined
+      const storefrontVisual = cellStorefront ? storefrontLabelGeometry.get(cellStorefront.id) : undefined
+      if (groupedFocus && storefrontVisual) visualBoxes.push(mainlineReadingWorldBox(storefrontVisual.visualBounds))
+      const bounds = unionWorldBounds(visualBoxes, groupedFocus ? 3 : 0)
+      const entityId = cell.kind === 'feature' && cell.featureCellRole === 'flank'
+        ? `wall-cell:${cell.id}`
+        : cell.entityId ?? unit.entityId ?? cell.storefrontId ?? unit.storefrontId ?? cell.id
+      const featureOwner = cell.kind === 'feature' && entityId
+        ? scene.objects.find(candidate => candidate.id === entityId)
+        : undefined
+      const spaceId = featureOwner?.roomId ?? mainlineActiveSpatialSpaceId(scene, { x: cell.x, y: cell.y })
+      add(cell.id, entityId, bounds, spaceId)
+    }
+    for (const parts of visibleCounterSurfaces) {
+      const meta = parts[0].counterSurface!
+      const boxes = parts.map(part => {
+        const outline = part.counterSurface?.outlineBounds
+        const bounds = outline ?? { x: part.x, y: part.y, width: part.width, height: part.height }
+        return { x: bounds.x * 19.2, y: bounds.y * 10.8, width: bounds.width * 19.2, height: bounds.height * 10.8 }
+      })
+      const labelBoxes = parts.map(part => {
+        const label = part.counterSurface!.label ?? '柜台'
+        const vertical = part.counterSurface!.orientation === 'vertical'
+        const width = (vertical ? 1 : Array.from(label).length) * 16
+        const height = (vertical ? Array.from(label).length : 1) * 16
+        const centerX = (part.x + part.width / 2) * 19.2
+        const centerY = (part.y + part.height / 2) * 10.8
+        return { x: centerX - width / 2, y: centerY - height / 2, width, height }
+      })
+      const bounds = unionWorldBounds([...boxes, ...labelBoxes], 1)
+      const first = parts[0]
+      const spaceId = meta.roomId ?? mainlineActiveSpatialSpaceId(scene, { x: first.x + first.width / 2, y: first.y + first.height / 2 })
+      add(`counter:${meta.groupId}`, meta.interactionEntityId, bounds, spaceId)
+    }
+    for (const entity of visibleObjectEntities) {
+      const object = geometrySnapshot.objects.get(entity.id)
+      const normalizedBounds = object?.visualBounds ?? mainlineEntityVisualBounds(scene, entity, geometrySnapshot.layout, renderScreenMetrics)
+        ?? mainlineLabelFootprint(entity.label, object?.position ?? entity.position, renderScreenMetrics, { vertical: entity.textLayout === 'vertical', visualScale: entity.visualScale, lineHeight: 1.2 })
+      const bounds = mainlineReadingWorldBox(normalizedBounds, value => value, entity.focusFrame === 'interactive' ? 5 : 0)
+      const entityPosition = object?.position ?? entity.position
+      add(`object:${entity.id}`, entity.id, bounds, entity.spaceId ?? entity.roomId ?? mainlineActiveSpatialSpaceId(scene, entityPosition))
+    }
+    return candidates
+  }, [activeSwitchableStorefronts, focusGroupCells, geometryCells, geometrySnapshot, horizontalGridScale, readingOcclusionRect, readingOcclusionSessionKey, readingOcclusionSnapshotFrozen, readingVisualActive, renderScreenMetrics, scene, storefrontLabelGeometry, switchCells, visibleCounterSurfaces, visibleObjectEntities])
+  const currentReadingOcclusion = useMemo<RetainedReadingOcclusion | null>(() => {
+    if (!readingVisualActive || !readingOcclusionSessionKey || !readingOcclusionRect) return null
+    if (readingOcclusionSnapshotFrozen && retainedReadingOcclusion) return retainedReadingOcclusion
+    return {
+      sessionKey: readingOcclusionSessionKey,
+      contextKey: readingOcclusionContextKey,
+      rect: readingOcclusionRect,
+      protectedEntityIds: readingProtectedEntityIds,
+      hiddenIdentityKeys: mainlineReadingOccludedIdentityKeys(readingOcclusionCandidates, readingOcclusionRect, readingProtectedEntityIds, activeSpatialSpaceId),
+    }
+  }, [activeSpatialSpaceId, readingOcclusionCandidates, readingOcclusionContextKey, readingOcclusionRect, readingOcclusionSessionKey, readingOcclusionSnapshotFrozen, readingProtectedEntityIds, readingVisualActive, retainedReadingOcclusion])
+  useEffect(() => {
+    if (readingPresentationPhase !== 'active' || !currentReadingOcclusion) return
+    setRetainedReadingOcclusion(current => retainMainlineReadingOcclusionSnapshot(current, currentReadingOcclusion))
+  }, [currentReadingOcclusion, readingPresentationPhase])
+  useEffect(() => {
+    if (readingPresentationPhase !== 'active' || !readingVisualActive || !readingOcclusionSessionKey) return
+    if (activeReadingOcclusionSession === readingOcclusionSessionKey) return
+    setActiveReadingOcclusionSession(null)
+    readingOcclusionEntryRafRef.current = window.requestAnimationFrame(() => {
+      readingOcclusionEntryRafRef.current = null
+      setActiveReadingOcclusionSession(readingOcclusionSessionKey)
+    })
+    return () => {
+      if (readingOcclusionEntryRafRef.current !== null) window.cancelAnimationFrame(readingOcclusionEntryRafRef.current)
+      readingOcclusionEntryRafRef.current = null
+    }
+  }, [activeReadingOcclusionSession, readingPresentationPhase, readingOcclusionSessionKey, readingVisualActive])
+  useEffect(() => {
+    if (readingPresentationPhase === 'active') {
+      if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
+      readingOcclusionExitTimerRef.current = null
+      readingOcclusionExitStartedAtRef.current = null
+      return
+    }
+    if (!retainedReadingOcclusion) return
+    if (readingOcclusionExitStartedAtRef.current === null) readingOcclusionExitStartedAtRef.current = performance.now()
+    if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
+    const elapsed = performance.now() - readingOcclusionExitStartedAtRef.current
+    const remaining = Math.max(0, mainlineReadingFadeTransitionMs - elapsed)
+    readingOcclusionExitTimerRef.current = window.setTimeout(() => {
+      readingOcclusionExitTimerRef.current = null
+      readingOcclusionExitStartedAtRef.current = null
+      setRetainedReadingOcclusion(null)
+      setActiveReadingOcclusionSession(null)
+    }, remaining)
+    return () => {
+      if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
+      readingOcclusionExitTimerRef.current = null
+    }
+  }, [readingPresentationPhase, retainedReadingOcclusion])
+  useEffect(() => () => {
+    if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
+    if (readingOcclusionEntryRafRef.current !== null) window.cancelAnimationFrame(readingOcclusionEntryRafRef.current)
+  }, [])
+  const retainedOcclusionSnapshot = readingVisualActive && currentReadingOcclusion
+    ? retainMainlineReadingOcclusionSnapshot(retainedReadingOcclusion, currentReadingOcclusion)
+    : retainedReadingOcclusion
+  const readingOcclusionActive = readingPresentationPhase === 'active' && readingVisualActive && activeReadingOcclusionSession === readingOcclusionSessionKey
+  const readingOcclusionProtectedEntityIds = readingPresentationPhase === 'inactive'
+    ? retainedReadingOcclusion?.protectedEntityIds ?? readingProtectedEntityIds
+    : readingProtectedEntityIds
   const renderMainlineObject = (entity: MainlineSceneEntity, coordinateBounds: CollisionBox) => {
     const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
     const localVisualPosition = localPointInWorldBounds(entityPosition, coordinateBounds)
@@ -2006,18 +2093,12 @@ export function MainlineSceneRenderer({
           style={worldProjectionStyle}
         >
           <>
-          {retainedOcclusionSnapshot && <MainlineReadingOcclusionMask
-            id={readingOcclusionMaskId}
-            readingRect={retainedOcclusionSnapshot.rect}
-            region={retainedOcclusionSnapshot.region}
-            active={readingOcclusionActive}
-          />}
           <div className="scene-spatial-labels scene-spatial-labels--wall scene-mainline-wall-labels" data-reading-occlusion-layer="wall">
             {activeSwitchableStorefronts.map(slot => {
               const cells = switchCells.get(slot.id)!
               const portalBoxes = cells.map(cell => cellGlyphWorldBounds({ ...cell, kind: cell.role === 'door' ? 'door' : 'storefront' } as MainlineSceneGeometryUnit['visual']['cells'][number], horizontalGridScale))
               const portalBounds = unionWorldBounds(portalBoxes, 8)
-              return <MainlineReadingIdentityPlane key={`portal:${slot.id}`} identityKey={`portal:${slot.id}`} entityId={slot.id} relatedEntityIds={slot.portalId ? [slot.portalId] : []} protectedEntityIds={readingOcclusionProtectedEntityIds} worldBounds={portalBounds} readingRect={retainedOcclusionSnapshot?.rect} maskBaseId={readingOcclusionMaskId} active={readingOcclusionActive} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">
+              return <MainlineReadingIdentityPlane key={`portal:${slot.id}`} identityKey={`portal:${slot.id}`} entityId={slot.id} relatedEntityIds={slot.portalId ? [slot.portalId] : []} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={portalBounds} active={readingOcclusionActive} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">
                 <PortalStorefrontCharacters scene={scene} storefront={slot}
                   cells={cells} coordinateBounds={portalBounds} phase={storefrontPresentation.get(slot.id) ?? 'baseline'}
                   doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'} screenMetrics={renderScreenMetrics} renderFrame={focusFrames.renderFrame}
@@ -2238,12 +2319,11 @@ export function MainlineSceneRenderer({
                 : cell.entityId ?? unit.entityId ?? cell.storefrontId ?? unit.storefrontId ?? cell.id
               const relatedEntityIds = [cell.storefrontId ?? unit.storefrontId, cell.entityId ?? unit.entityId].filter((id): id is string => Boolean(id) && id !== entityId)
               const storefront = cellStorefront
-              return <MainlineReadingIdentityPlane key={`cell:${cell.id}`} identityKey={cell.id} entityId={entityId} relatedEntityIds={relatedEntityIds} protectedEntityIds={readingOcclusionProtectedEntityIds} worldBounds={cellWorldBounds} readingRect={retainedOcclusionSnapshot?.rect} maskBaseId={readingOcclusionMaskId} active={readingOcclusionActive} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">{node}</MainlineReadingIdentityPlane>
+              return <MainlineReadingIdentityPlane key={`cell:${cell.id}`} identityKey={cell.id} entityId={entityId} relatedEntityIds={relatedEntityIds} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={cellWorldBounds} active={readingOcclusionActive} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">{node}</MainlineReadingIdentityPlane>
             })}
           </div>
           <div className="scene-mainline-counter-layer" data-reading-occlusion-layer="counter">
           {(() => {
-            const visibleCounterSurfaces = counterSurfaces.filter(parts => !parts[0].counterSurface?.roomId || visibleInteriorRoomIds.has(parts[0].counterSurface.roomId))
             const renderCounter = (parts: typeof counterSurfaces[number]) => {
             const meta = parts[0].counterSurface!
             const entityId = meta.interactionEntityId
@@ -2262,7 +2342,7 @@ export function MainlineSceneRenderer({
               return { x: centerX - width / 2, y: centerY - height / 2, width, height }
             })
             const counterBounds = unionWorldBounds([...boxes, ...labelBoxes], 1)
-            return <MainlineReadingIdentityPlane key={meta.groupId} identityKey={`counter:${meta.groupId}`} entityId={entityId} protectedEntityIds={readingOcclusionProtectedEntityIds} worldBounds={counterBounds} readingRect={retainedOcclusionSnapshot?.rect} maskBaseId={readingOcclusionMaskId} active={readingOcclusionActive} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--counter"><MainlineCounterSurface boundedWrapper coordinateBounds={counterBounds} parts={parts} objects={scene.objects} onInteract={onInteract} presentationActive={interiorRoomPresentationActive(meta.roomId)}/></MainlineReadingIdentityPlane>
+            return <MainlineReadingIdentityPlane key={meta.groupId} identityKey={`counter:${meta.groupId}`} entityId={entityId} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={counterBounds} active={readingOcclusionActive} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--counter"><MainlineCounterSurface boundedWrapper coordinateBounds={counterBounds} parts={parts} objects={scene.objects} onInteract={onInteract} presentationActive={interiorRoomPresentationActive(meta.roomId)}/></MainlineReadingIdentityPlane>
             }
             return visibleCounterSurfaces.map(renderCounter)
           })()}
@@ -2274,7 +2354,7 @@ export function MainlineSceneRenderer({
               const normalizedBounds = object?.visualBounds ?? mainlineEntityVisualBounds(scene, entity, geometrySnapshot.layout, renderScreenMetrics)
                 ?? mainlineLabelFootprint(entity.label, object?.position ?? entity.position, renderScreenMetrics, { vertical: entity.textLayout === 'vertical', visualScale: entity.visualScale, lineHeight: 1.2 })
               const objectBounds = mainlineReadingWorldBox(normalizedBounds, value => value, entity.focusFrame === 'interactive' ? 5 : 0)
-              return <MainlineReadingIdentityPlane key={entity.id} identityKey={`object:${entity.id}`} entityId={entity.id} protectedEntityIds={readingOcclusionProtectedEntityIds} worldBounds={objectBounds} readingRect={retainedOcclusionSnapshot?.rect} maskBaseId={readingOcclusionMaskId} active={readingOcclusionActive} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--object">{renderMainlineObject(entity, objectBounds)}</MainlineReadingIdentityPlane>
+              return <MainlineReadingIdentityPlane key={entity.id} identityKey={`object:${entity.id}`} entityId={entity.id} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={objectBounds} active={readingOcclusionActive} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--object">{renderMainlineObject(entity, objectBounds)}</MainlineReadingIdentityPlane>
             })}
           </div>
 

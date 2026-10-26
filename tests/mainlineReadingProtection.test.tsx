@@ -376,7 +376,7 @@ describe('reading target protection', () => {
     expect(targetNode).toContain('data-rendered-x=')
     expect(neighborNode).toContain(`data-rendered-x="${targetNode?.match(/data-rendered-x="([^"]+)/)?.[1]}"`)
     expect(neighborNode).toContain(`data-rendered-y="${targetNode?.match(/data-rendered-y="([^"]+)/)?.[1]}"`)
-    expect(html).toContain('data-reading-mask-progress="0"')
+    expect(html).not.toContain('data-reading-mask-progress')
   })
 
   it('keeps the complete counter surface at its original draw position and masks it by interaction identity', () => {

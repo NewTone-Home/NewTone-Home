@@ -714,6 +714,8 @@
 .scene-mainline-object-layer { position: absolute; inset: 0; pointer-events: none; }
 .scene-mainline-reading-identity-plane { position: absolute; pointer-events: none; }
 .scene-mainline-reading-identity-plane > * { pointer-events: auto; }
+.scene-mainline-reading-identity-plane[data-reading-occlusion-hidden="true"],
+.scene-mainline-reading-identity-plane[data-reading-occlusion-hidden="true"] * { pointer-events: none !important; }
 .scene-mainline-reading-identity-plane--wall > * { pointer-events: none; }
 .scene-mainline-reading-identity-plane--wall > .scene-mainline-focus-group,
 .scene-mainline-reading-identity-plane--wall > .scene-mainline-door-button { pointer-events: auto; }
