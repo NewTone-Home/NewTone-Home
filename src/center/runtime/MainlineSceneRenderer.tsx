@@ -102,10 +102,10 @@ type MainlineSceneRendererProps = {
   onSceneEchoAdvance?: () => void
   onSceneEchoTypingComplete?: (echoId: number) => void
   onSceneEchoExitComplete?: (echoId: number, displayPosition: Point, displayCameraOffset: Point) => void
-  sceneAction?: { entityId?: string; options: readonly string[]; position: Point; cameraOffset?: Point; phase?: 'active' | 'committing' | 'exiting' } | null
-  onSceneActionStart?: (index: number) => void
-  onSceneActionChoice?: (index: number) => void
-  onSceneActionExitComplete?: () => void
+  sceneAction?: { id: number; entityId?: string; options: readonly string[]; position: Point; cameraOffset?: Point; phase?: 'active' | 'committing' | 'exiting' } | null
+  onSceneActionStart?: (actionId: number, index: number) => void
+  onSceneActionChoice?: (actionId: number, index: number) => void
+  onSceneActionExitComplete?: (actionId: number, index: number) => void
   carriedMilkTea?: boolean
   onMilkTeaInteract?: () => void
   onFrameMotionProfileChange?: (profile: readonly SceneFocusFrameMotionProfile[]) => void
@@ -2661,24 +2661,22 @@ export function MainlineSceneRenderer({
             onPointerUp={(event) => event.stopPropagation()}
             onPointerCancel={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
-            onAnimationEnd={(event) => {
-              if (event.animationName === 'scene-action-frame-retract') onSceneActionExitComplete?.()
-            }}
           >
-            {sceneAction.phase === 'exiting' && <EntryButtonFrame className="scene-mainline-action-exit-frame" frameProgress={1} fillEnabled={false} />}
             {sceneAction.options.map((option, index) => (
               <EntryButtonSurface
                 key={option}
-                visible={sceneAction.phase !== 'exiting'}
+                visible={sceneAction.phase === 'active'}
                 entryId={`scene-action:${sceneAction.entityId ?? 'scene'}:${option}`}
+                actionScopeId={sceneAction.id}
                 label={option}
                 contentSized
                 materialMode="world"
                 worldLayer="surface"
-                disabled={sceneAction.phase === 'committing'}
+                disabled={sceneAction.phase !== 'active'}
                 dataAttributes={{ 'data-scene-action-option-index': index }}
-                onActionStart={() => onSceneActionStart?.(index)}
-                onActionComplete={() => onSceneActionChoice?.(index)}
+                onActionStart={(event: { actionScopeId?: number }) => onSceneActionStart?.(event.actionScopeId as number, index)}
+                onActionComplete={(event: { actionScopeId?: number }) => onSceneActionChoice?.(event.actionScopeId as number, index)}
+                onExitComplete={(event: { actionScopeId?: number }) => onSceneActionExitComplete?.(event.actionScopeId as number, index)}
               />
             ))}
           </div>}

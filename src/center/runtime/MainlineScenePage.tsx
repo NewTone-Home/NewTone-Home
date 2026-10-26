@@ -37,6 +37,7 @@ import { useStorefrontPresentation } from './useStorefrontPresentation'
 import { splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineDialogueParticipantNpcIds, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingOpacityForActor, mainlineMaximumReadingWidthPx } from './mainlineTextReading'
 import { createMainlineReadingSessionLayoutCache } from './mainlineReadingLayoutSession'
+import { commitMainlineSceneActionExit, completeMainlineSceneActionOptionExit, createMainlineSceneActionExitBarrier, mainlineSceneActionExitMayUnmount, type MainlineSceneActionExitBarrier } from './mainlineSceneActionExit'
 import type { MainlineReadingSessionLayoutCache } from './mainlineReadingLayoutSession'
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
@@ -154,6 +155,7 @@ function clockActivityForExploration(entity: MainlineSceneEntity, hasOptions: bo
 }
 
 type MainlineSceneAction = {
+  id: number
   entityId?: string
   options: readonly string[]
   position: Point
@@ -444,7 +446,9 @@ export function MainlineScenePage({
   const [sceneEcho, setSceneEcho] = useState<MainlineSceneEcho | null>(null)
   const sceneEchoRef = useRef<MainlineSceneEcho | null>(null)
   const [sceneAction, setSceneAction] = useState<MainlineSceneAction | null>(null)
-  const pendingSceneActionRef = useRef<MainlineSceneAction | null>(null)
+  const sceneActionIdRef = useRef(0)
+  const sceneActionExitBarrierRef = useRef<MainlineSceneActionExitBarrier | null>(null)
+  const pendingSceneActionRef = useRef<Omit<MainlineSceneAction, 'id'> | null>(null)
   const [commercialStreetQuestionNarrative, setCommercialStreetQuestionNarrative] = useState<CommercialStreetQuestionNarrativeState | null>(null)
   const [genericDialoguePhase, setGenericDialoguePhase] = useState<'active' | 'leaving'>('active')
   const [commercialStreetQuestionNarrativeCompletedLocally, setCommercialStreetQuestionNarrativeCompletedLocally] = useState(() => commercialStreetQuestionNarrativeCompleted(initialSceneState[commercialStreetQuestionNarrativeCompletedKey]))
@@ -540,17 +544,39 @@ export function MainlineScenePage({
     setSceneEcho(next)
   }, [])
   const dismissSceneAction = useCallback(() => {
+    sceneActionExitBarrierRef.current = null
     pendingSceneActionRef.current = null
     setSceneAction(null)
   }, [])
-  const beginSceneActionChoice = useCallback((index: number) => {
+  const createSceneAction = useCallback((action: Omit<MainlineSceneAction, 'id'>): MainlineSceneAction => {
+    const id = ++sceneActionIdRef.current
+    sceneActionExitBarrierRef.current = createMainlineSceneActionExitBarrier(id, action.options.length)
+    return { ...action, id, phase: 'active' }
+  }, [])
+  const beginSceneActionChoice = useCallback((actionId: number, index: number) => {
     setSceneAction((current) => {
-      if (!current || current.phase === 'committing' || !current.options[index]) return current
+      if (!current || current.id !== actionId || current.phase !== 'active' || !current.options[index]) return current
       return { ...current, phase: 'committing' }
     })
   }, [])
-  const finishSceneActionExit = useCallback(() => {
-    setSceneAction((current) => current?.phase === 'exiting' ? null : current)
+  const finishSceneActionExit = useCallback((actionId: number, optionIndex: number) => {
+    const currentBarrier = sceneActionExitBarrierRef.current
+    if (!currentBarrier || currentBarrier.actionId !== actionId) return
+    const nextBarrier = completeMainlineSceneActionOptionExit(currentBarrier, actionId, optionIndex)
+    sceneActionExitBarrierRef.current = nextBarrier
+    if (!mainlineSceneActionExitMayUnmount(nextBarrier)) return
+    sceneActionExitBarrierRef.current = null
+    setSceneAction((current) => current?.id === actionId && current.phase === 'exiting' ? null : current)
+  }, [])
+  const commitSceneActionExit = useCallback((actionId: number) => {
+    const currentBarrier = sceneActionExitBarrierRef.current
+    if (!currentBarrier || currentBarrier.actionId !== actionId) return
+    const nextBarrier = commitMainlineSceneActionExit(currentBarrier, actionId)
+    sceneActionExitBarrierRef.current = nextBarrier
+    setSceneAction((current) => current?.id === actionId && current.phase === 'committing' ? { ...current, phase: 'exiting' } : current)
+    if (!mainlineSceneActionExitMayUnmount(nextBarrier)) return
+    sceneActionExitBarrierRef.current = null
+    setSceneAction((current) => current?.id === actionId ? null : current)
   }, [])
   const presentSceneEcho = useCallback((next: MainlineSceneEcho) => {
     sceneEchoRef.current = next
@@ -564,8 +590,8 @@ export function MainlineScenePage({
     setActiveObjectId(null)
     const nextAction = pendingSceneActionRef.current
     pendingSceneActionRef.current = null
-    if (nextAction) setSceneAction({ ...nextAction, position: displayPosition, cameraOffset: displayCameraOffset })
-  }, [])
+    if (nextAction) setSceneAction(createSceneAction({ ...nextAction, position: displayPosition, cameraOffset: displayCameraOffset }))
+  }, [createSceneAction])
   useIsomorphicLayoutEffect(() => {
     sceneEchoRef.current = sceneEcho
   }, [sceneEcho])
@@ -839,6 +865,7 @@ export function MainlineScenePage({
     setSceneEcho(null)
     sceneEchoRef.current = null
     pendingSceneActionRef.current = null
+    sceneActionExitBarrierRef.current = null
     setSceneAction(null)
     setCommercialStreetQuestionNarrative(null)
     setCommercialStreetQuestionNarrativeCompletedLocally(commercialStreetQuestionNarrativeCompleted(initialSceneState[commercialStreetQuestionNarrativeCompletedKey]))
@@ -1850,13 +1877,13 @@ export function MainlineScenePage({
     const currentPosition = getCurrentPosition()
     const worldScale = mainlineWorldScale(activeViewportMetrics)
     const actionCameraOffset = mainlineReadingCameraOffset(scene, currentPosition, readingMetrics, worldScale, cameraOffset)
-    setSceneAction({
+    setSceneAction(createSceneAction({
       entityId: commercialStreetMilkTeaStorefrontId,
       options: ['喝掉奶茶'],
       position: sceneTextPresentationPosition(scene, currentPosition, '喝掉奶茶', readingMetrics, 'observation', worldScale, actionCameraOffset),
       cameraOffset: actionCameraOffset,
-    })
-  }, [activeViewportMetrics, cameraOffset, dismissSceneAction, getCurrentPosition, onPhoneDismiss, phoneOpen, readingActive, scene, screenMetrics])
+    }))
+  }, [activeViewportMetrics, cameraOffset, createSceneAction, dismissSceneAction, getCurrentPosition, onPhoneDismiss, phoneOpen, readingActive, scene, screenMetrics])
 
   const beginMilkTeaStorefrontAction = useCallback(() => {
     const currentOrder = commercialStreetMilkTeaOrderFromSceneState(initialSceneState)
@@ -2059,13 +2086,14 @@ export function MainlineScenePage({
     })
   }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, dismissSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, layout, leavePlayerSeat, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
 
-  const chooseSceneEchoOption = useCallback((index: number) => {
+  const chooseSceneEchoOption = useCallback((actionId: number, index: number) => {
+    if (!sceneAction || sceneAction.id !== actionId || sceneAction.phase !== 'committing') return
     const option = sceneAction?.options[index]
     if (!option) return
     onMeaningfulActivity?.()
     if (sceneAction?.entityId === commercialStreetMilkTeaStorefrontId && option === '喝掉奶茶') {
       recordSceneStatePatch('commercial-street', commercialStreetMilkTeaConsumePatch())
-      setSceneAction((current) => current?.phase === 'committing' ? { ...current, phase: 'exiting' } : current)
+      commitSceneActionExit(actionId)
       return
     }
     const entity = sceneAction?.entityId ? scene.objects.find((candidate) => candidate.id === sceneAction.entityId) : undefined
@@ -2078,7 +2106,7 @@ export function MainlineScenePage({
     if (!resolution) return
     if (resolution.deskDevice) {
       onDeskInteraction?.(resolution.deskDevice)
-      dismissSceneAction()
+      commitSceneActionExit(actionId)
       return
     }
     if (resolution.stateChange?.key === commercialCafeCoffeeStatusKey && resolution.stateChange.value === 'ordered') {
@@ -2096,8 +2124,8 @@ export function MainlineScenePage({
     if (resolution.stateChange?.key === 'plantWateredAt' && typeof resolution.stateChange.value === 'number') {
       setPlantWateredAt(resolution.stateChange.value)
     }
-    setSceneAction((current) => current?.phase === 'committing' ? { ...current, phase: 'exiting' } : current)
-  }, [carriedMilkTea, carriedPhoneDevice, commercialCafeStory, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, recordSceneState, recordSceneStatePatch, scene, sceneAction])
+    commitSceneActionExit(actionId)
+  }, [carriedMilkTea, carriedPhoneDevice, commercialCafeStory, commitSceneActionExit, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, recordSceneState, recordSceneStatePatch, scene, sceneAction])
 
   const advanceSceneEcho = useCallback(() => {
     const current = sceneEchoRef.current
@@ -2291,6 +2319,7 @@ export function MainlineScenePage({
     setSceneEcho(null)
     sceneEchoRef.current = null
     pendingSceneActionRef.current = null
+    sceneActionExitBarrierRef.current = null
     setSceneAction(null)
     setGenericDialoguePhase('active')
     setIncenseLitAt(null)
