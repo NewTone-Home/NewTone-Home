@@ -409,7 +409,13 @@ export function MainlineScenePage({
     && new URLSearchParams(debugInputSearch).get('qaCafeSpatial') === '1'
   const debugCafeFixture = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('debugCafeFixture') === '1'
   const debugRuntimeEvidence = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('debugRuntimeEvidence') === '1'
-  const debugClockTrialMode = debugRuntimeEvidence ? new URLSearchParams(debugInputSearch).get('debugClockTrial') : null
+  const hasSyntheticClockTrialStorage = import.meta.env.DEV
+    && import.meta.env.VITE_E2E_CLOCK_TRIAL === '1'
+    && typeof window !== 'undefined'
+    && window.localStorage.getItem('newtone-e2e-clock-trial-synthetic-save-v1') === '1'
+  const debugClockTrialMode = debugRuntimeEvidence && hasSyntheticClockTrialStorage
+    ? new URLSearchParams(debugInputSearch).get('debugClockTrial')
+    : null
   const debugClockTrialActive = scene.id === 'commercial-street'
     && (debugClockTrialMode === 'formal-dialogue' || debugClockTrialMode === 'inner-monologue')
   const debugCafeStoryInterruptMode = import.meta.env.DEV ? new URLSearchParams(debugInputSearch).get('debugCafeStoryInterrupt') : null

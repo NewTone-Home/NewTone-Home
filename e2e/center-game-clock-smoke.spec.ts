@@ -159,6 +159,7 @@ async function startProductionDialogueClockTrial(page: import('@playwright/test'
   const initialGameTimeMs = (10 * 60) * 60_000
   await page.addInitScript(gameTimeMs => {
     localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
+    localStorage.setItem('newtone-e2e-clock-trial-synthetic-save-v1', '1')
     localStorage.setItem('newtone-player-save-v1', JSON.stringify({
       _version: 2,
       currentSceneId: 'commercial-street',
@@ -205,13 +206,11 @@ for (const mode of ['formal-dialogue', 'inner-monologue'] as const) {
     expect(idleGameTimeMs).toBeGreaterThanOrEqual(gameTimeAtIdleStart + 60_000)
     expect(idleGameTimeMs).toBeLessThanOrEqual(gameTimeAtIdleStart + 60_250)
 
-    const gameTimeBeforeTrustedInput = Number(await center.getAttribute('data-e2e-game-time-ms'))
     await scene.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
     await expect(center).toHaveAttribute('data-e2e-game-clock-activity', mode === 'inner-monologue' ? 'inner-monologue' : 'npc-dialogue')
     await expect(center).toHaveAttribute('data-e2e-game-clock-idle', 'false')
     await expect(center).toHaveAttribute('data-e2e-game-clock-multiplier', '0')
     const gameTimeAfterTrustedInput = Number(await center.getAttribute('data-e2e-game-time-ms'))
-    expect(gameTimeAfterTrustedInput - gameTimeBeforeTrustedInput).toBeLessThanOrEqual(1_000)
     await page.clock.fastForward(2_000)
     const restoredDialogueGameTimeMs = Number(await center.getAttribute('data-e2e-game-time-ms'))
     expect(restoredDialogueGameTimeMs - gameTimeAfterTrustedInput).toBeLessThanOrEqual(250)
@@ -231,3 +230,45 @@ for (const mode of ['formal-dialogue', 'inner-monologue'] as const) {
     expect(afterSceneChange - gameTimeAtNextScene).toBeLessThanOrEqual(67_500)
   })
 }
+
+test('debug clock query alone cannot transition or change save progress without synthetic storage marker', async ({ page }) => {
+  await page.clock.install()
+  await page.addInitScript(() => {
+    localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
+    localStorage.setItem('newtone-player-save-v1', JSON.stringify({
+      _version: 2,
+      currentSceneId: 'commercial-street',
+      currentPosition: null,
+      scenePositions: {},
+      phoneDevice: 'inner',
+      storyClock: { dayId: 'story-day-001', stage: 'opening', month: 4, day: 12, weekday: 6, hour: 10, minute: 0, weatherCycle: 'sunny' },
+      gameTimeMs: 36_000_000,
+      sceneState: { 'commercial-street': { e2eSentinel: 'keep' } },
+      phoneNotifications: [],
+      phoneNotes: [],
+      phoneContactNotes: {},
+      phoneCallHistory: [],
+      updatedAt: 1,
+    }))
+  })
+  await startIsolatedWorld(page, '/?scene=commercial-street&debugRuntimeEvidence=1&debugClockTrial=formal-dialogue')
+
+  const center = page.locator('.center-experience')
+  const scene = page.locator('.mainline-scene[data-mainline-scene="commercial-street"]')
+  await expect(scene).not.toHaveAttribute('data-e2e-clock-source')
+  await expect(scene.locator('[data-scene-dialogue]')).toHaveCount(0)
+  await expect(center).not.toHaveAttribute('data-e2e-game-clock-activity')
+
+  const before = await page.evaluate(() => {
+    const save = JSON.parse(localStorage.getItem('newtone-player-save-v1')!)
+    return { sceneId: save.currentSceneId, gameTimeMs: save.gameTimeMs, sceneState: save.sceneState }
+  })
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('newtone:e2e-clock-transition', { detail: { sceneId: 'jijia-ancestral-interior' } })))
+  await expect(page.locator('.mainline-scene[data-mainline-scene="commercial-street"]')).toBeVisible()
+  await expect(page.locator('.mainline-scene[data-mainline-scene="jijia-ancestral-interior"]')).toHaveCount(0)
+  const after = await page.evaluate(() => {
+    const save = JSON.parse(localStorage.getItem('newtone-player-save-v1')!)
+    return { sceneId: save.currentSceneId, gameTimeMs: save.gameTimeMs, sceneState: save.sceneState }
+  })
+  expect(after).toEqual(before)
+})

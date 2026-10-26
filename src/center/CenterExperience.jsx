@@ -75,6 +75,15 @@ import {
 
 const initialSceneId = mainlineRespawnSceneId
 const freeTrialClockRates = { normalPlay: 30, ordinaryReading: 15, idle: 5 }
+const syntheticClockTrialStorageKey = 'newtone-e2e-clock-trial-synthetic-save-v1'
+function hasSyntheticClockTrialStorage() {
+  if (!import.meta.env.DEV || import.meta.env.VITE_E2E_CLOCK_TRIAL !== '1' || typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(syntheticClockTrialStorageKey) === '1'
+  } catch {
+    return false
+  }
+}
 function formatTrialGameTime(gameTimeMs) {
   const minuteOfDay = Math.floor(gameTimeMs / 60_000) % (24 * 60)
   return `${String(Math.floor(minuteOfDay / 60)).padStart(2, '0')}:${String(minuteOfDay % 60).padStart(2, '0')}`
@@ -95,7 +104,11 @@ export default function CenterExperience({
   onRevealComplete,
 }) {
   const reducedMotion = useReducedMotion()
-  const [debugClockTrial] = useState(() => import.meta.env.DEV ? new URLSearchParams(window.location.search).get('debugClockTrial') : null)
+  const [debugClockTrial] = useState(() => {
+    if (!hasSyntheticClockTrialStorage()) return null
+    const mode = new URLSearchParams(window.location.search).get('debugClockTrial')
+    return mode === 'formal-dialogue' || mode === 'inner-monologue' ? mode : null
+  })
   const [playerSave, setPlayerSave] = useState(() => loadPlayerSave())
   const sessionGameClockRef = useRef(null)
   if (!sessionGameClockRef.current) {
@@ -493,9 +506,9 @@ export default function CenterExperience({
   }, [commitPlayerSave, reducedMotion, resumePosition, route, sceneSlot])
 
   useEffect(() => {
-    if (!debugClockTrial) return
+    if (!debugClockTrial || !hasSyntheticClockTrialStorage()) return
     const handleClockTrialTransition = event => {
-      if (event.detail?.sceneId !== 'jijia-ancestral-interior') return
+      if (!hasSyntheticClockTrialStorage() || event.detail?.sceneId !== 'jijia-ancestral-interior') return
       handleSceneTransition('jijia-ancestral-interior')
     }
     window.addEventListener('newtone:e2e-clock-transition', handleClockTrialTransition)
