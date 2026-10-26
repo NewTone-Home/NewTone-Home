@@ -283,7 +283,6 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
       || window.location.hostname === '127.0.0.1')
   const yongheCardPreviewEnabled = typeof window !== 'undefined'
     && (import.meta.env.DEV || previewQaHost)
-    && new URLSearchParams(window.location.search).get('previewYongheCard') === '1'
   const yongheEateryDescription = mapRegions.flatMap((region) => region.pois)
     .find((place) => place.id === 'yonghe-eatery')?.detail ?? ''
   const rideAvailability = phoneRideAvailability(displayDevice, worldLayer)

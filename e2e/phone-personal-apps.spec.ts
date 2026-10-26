@@ -17,7 +17,7 @@ test('Notes persist and the contact flow supports details, location cards, and a
       updatedAt: 100,
     }))
   })
-  await page.goto('/?scene=commercial-cafe&previewYongheCard=1')
+  await page.goto('/?scene=commercial-cafe')
   const phone = page.locator('.world-phone')
   await page.getByRole('button', { name: '打开手机' }).click()
 
@@ -68,6 +68,8 @@ test('Notes persist and the contact flow supports details, location cards, and a
   await expect(placeCard).toHaveAttribute('data-card-variant', 'b')
   await expect(placeCard.locator('.world-phone__place-card-blur i')).toHaveCount(3)
   await location.getByRole('button', { name: 'A 版' }).click()
+  await page.mouse.move(0, 0)
+  await expect(placeCard).toBeHidden()
 
   for (const width of [411, 360]) {
     await page.setViewportSize({ width, height: 914 })
