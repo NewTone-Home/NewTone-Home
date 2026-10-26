@@ -64,13 +64,13 @@ function Fixture() {
         onInteract={() => {}}
         onWalk={() => {}}
         readingMode={mode && !leaving ? mode : null}
-        sceneEcho={mode === 'observation' ? { id: echoSessionId, text: typingOverflow ? overflowTypingText : pageText, segments: typingOverflow ? [overflowTypingText] : pages, segmentIndex: typingOverflow ? 0 : pageIndex, position, typing, ...(leaving ? { phase: 'leaving' as const } : {}) } : null}
+        sceneEcho={mode === 'observation' ? { id: echoSessionId, entityId: 'street-cafe-entry', text: typingOverflow ? overflowTypingText : pageText, segments: typingOverflow ? [overflowTypingText] : pages, segmentIndex: typingOverflow ? 0 : pageIndex, position, typing, ...(leaving ? { phase: 'leaving' as const } : {}) } : null}
         onSceneEchoAdvance={() => {
           if (typing) setTyping(false)
           else setPageIndex(current => Math.min(current + 1, pages.length - 1))
         }}
         onSceneEchoTypingComplete={() => setTyping(false)}
-        dialogue={mode === 'dialogue' ? { triggerEntityId: 'fixture-dialogue', lines: dialogueLines as import('../../src/center/runtime/mainlineSceneModel').MainlineSceneDialogueLine[] } : undefined}
+        dialogue={mode === 'dialogue' ? { triggerEntityId: 'street-cafe-entry', lines: dialogueLines as import('../../src/center/runtime/mainlineSceneModel').MainlineSceneDialogueLine[] } : undefined}
         dialogueLine={mode === 'dialogue' ? dialogueLine as import('../../src/center/runtime/mainlineSceneModel').MainlineSceneDialogueLine : null}
         dialogueLineIndex={mode === 'dialogue' ? 0 : null}
         dialogueSegmentIndex={pageIndex}

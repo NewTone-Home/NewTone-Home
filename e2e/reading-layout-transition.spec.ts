@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 }]) {
-  test(`reading box and occlusion boundary resize together at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+  test(`fixed maximum reading envelope contains short pages and preserves whole-object occlusion at ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport)
     await page.goto('/e2e/fixtures/reading-layout-transition.html')
     await page.locator('[data-reading-start]').click()
@@ -25,6 +25,26 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
         worldY: Number((element as HTMLElement).dataset.sceneReadingPositionY),
         pageKey: (element as HTMLElement).dataset.sceneReadingPageKey }
     })
+    const initialOcclusion = await page.evaluate(() => {
+      const hidden = [...document.querySelectorAll<HTMLElement>('[data-reading-occlusion-hidden="true"]')]
+      const protectedTarget = document.querySelector<HTMLElement>('[data-reading-occlusion-key="portal:commercial-cafe-slot"]')
+      return {
+        hiddenKeys: hidden.map(element => element.dataset.readingOcclusionKey ?? '').sort(),
+        hiddenWhole: hidden.every(element => element.getAttribute('aria-hidden') === 'true' && element.hasAttribute('inert') && getComputedStyle(element).opacity === '0'),
+        protectedKey: protectedTarget?.dataset.readingOcclusionKey ?? null,
+        protected: protectedTarget?.dataset.readingOcclusionProtected === 'true',
+        protectedHidden: protectedTarget?.dataset.readingOcclusionHidden === 'true',
+        protectedVisible: protectedTarget?.getAttribute('aria-hidden') !== 'true' && !protectedTarget?.hasAttribute('inert'),
+      }
+    })
+    expect(initialOcclusion.hiddenKeys.length).toBeGreaterThan(0)
+    expect(initialOcclusion.hiddenWhole).toBe(true)
+    expect(initialOcclusion.protectedKey).toBe('portal:commercial-cafe-slot')
+    expect(initialOcclusion.protected).toBe(true)
+    expect(initialOcclusion.protectedHidden).toBe(false)
+    expect(initialOcclusion.protectedVisible).toBe(true)
+    expect(before.layoutWidth).toBeLessThanOrEqual(before.occlusionWidth * before.worldScale + .1)
+    expect(before.layoutHeight).toBeLessThanOrEqual(before.occlusionHeight * before.worldScale + .1)
 
     await page.evaluate(() => {
       const target = window as Window & { __readingLayoutSamples?: Array<Record<string, number | string>> }
@@ -50,6 +70,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
             worldY: Number(element.dataset.sceneReadingPositionY),
             x: rect.x,
             y: rect.y,
+            hiddenKeys: [...document.querySelectorAll<HTMLElement>('[data-reading-occlusion-hidden="true"]')]
+              .map(hidden => hidden.dataset.readingOcclusionKey ?? '').sort().join('|'),
           })
         }
         if (performance.now() < stopAt) requestAnimationFrame(sample)
@@ -67,7 +89,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
       const pageKey = element?.dataset.sceneReadingPageKey
       return ((window as Window & { __readingLayoutSamples?: Array<Record<string, number | string>> }).__readingLayoutSamples ?? [])
         .filter(sample => sample.pageKey === pageKey)
-        .map(sample => sample as { width: number; height: number; layoutWidth: number; layoutHeight: number; occlusionWidth: number; occlusionHeight: number; worldScale: number; fontSize: string; transitioning: string; x: number; y: number; worldX: number; worldY: number })
+        .map(sample => sample as { width: number; height: number; layoutWidth: number; layoutHeight: number; occlusionWidth: number; occlusionHeight: number; worldScale: number; fontSize: string; transitioning: string; x: number; y: number; worldX: number; worldY: number; hiddenKeys: string })
     })
     expect(samples.length).toBeGreaterThan(8)
     expect(samples[0].width).toBeCloseTo(before.width, 0)
@@ -79,8 +101,11 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
     // getBoundingClientRect is already in viewport CSS pixels; the rendered
     // layout token is also CSS pixels after the world scale transform.
     expect(samples.every(sample => Math.abs(sample.height - sample.layoutHeight) < 1)).toBe(true)
-    expect(samples.every(sample => Math.abs(sample.occlusionWidth * sample.worldScale - sample.layoutWidth) < .1)).toBe(true)
-    expect(samples.every(sample => Math.abs(sample.occlusionHeight * sample.worldScale - sample.layoutHeight) < .1)).toBe(true)
+    expect(samples.every(sample => sample.layoutWidth <= sample.occlusionWidth * sample.worldScale + .1)).toBe(true)
+    expect(samples.every(sample => sample.layoutHeight <= sample.occlusionHeight * sample.worldScale + .1)).toBe(true)
+    expect(samples.every(sample => Math.abs(sample.occlusionWidth - before.occlusionWidth) < .1)).toBe(true)
+    expect(samples.every(sample => Math.abs(sample.occlusionHeight - before.occlusionHeight) < .1)).toBe(true)
+    expect(samples.every(sample => sample.hiddenKeys === initialOcclusion.hiddenKeys.join('|'))).toBe(true)
     expect(samples.every(sample => Math.abs(sample.x + sample.width / 2 - (before.x + before.width / 2)) < 1)).toBe(true)
     expect(samples.every(sample => Math.abs(sample.y + sample.height / 2 - (before.y + before.height / 2)) < 1.5)).toBe(true)
     expect(samples.every(sample => sample.worldX === before.worldX && sample.worldY === before.worldY)).toBe(true)
@@ -95,6 +120,35 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
     expect(idleAfter).toBe(idleBefore)
 
     await page.locator('[data-reading-next]').click()
+    await expect(text).toHaveAttribute('data-scene-reading-layout-transitioning', 'false', { timeout: 1500 })
+    const middlePage = await text.evaluate(element => {
+      const node = element as HTMLElement
+      const target = document.querySelector<HTMLElement>('[data-reading-occlusion-key="portal:commercial-cafe-slot"]')
+      return {
+        layoutWidth: Number(node.dataset.sceneReadingLayoutWidth),
+        layoutHeight: Number(node.dataset.sceneReadingLayoutHeight),
+        occlusionWidth: Number(node.dataset.sceneReadingOcclusionWidth),
+        occlusionHeight: Number(node.dataset.sceneReadingOcclusionHeight),
+        worldScale: Number(node.dataset.sceneReadingWorldScale),
+        hiddenKeys: [...document.querySelectorAll<HTMLElement>('[data-reading-occlusion-hidden="true"]')]
+          .map(hidden => hidden.dataset.readingOcclusionKey ?? '').sort().join('|'),
+        protected: target?.dataset.readingOcclusionProtected === 'true',
+        targetHidden: target?.dataset.readingOcclusionHidden === 'true',
+        targetVisible: target?.getAttribute('aria-hidden') !== 'true' && !target?.hasAttribute('inert'),
+      }
+    })
+    expect(middlePage.layoutWidth).toBeLessThanOrEqual(middlePage.occlusionWidth * middlePage.worldScale + .1)
+    expect(middlePage.layoutHeight).toBeLessThanOrEqual(middlePage.occlusionHeight * middlePage.worldScale + .1)
+    expect(middlePage.occlusionWidth).toBeCloseTo(before.occlusionWidth, 1)
+    expect(middlePage.occlusionHeight).toBeCloseTo(before.occlusionHeight, 1)
+    expect(middlePage.hiddenKeys).toBe(initialOcclusion.hiddenKeys.join('|'))
+    expect(middlePage.protected).toBe(true)
+    expect(middlePage.targetHidden).toBe(false)
+    expect(middlePage.targetVisible).toBe(true)
+    const envelopeMaxWidth = Math.max(before.layoutWidth, ...samples.map(sample => sample.layoutWidth), middlePage.layoutWidth)
+    const envelopeMaxHeight = Math.max(before.layoutHeight, ...samples.map(sample => sample.layoutHeight), middlePage.layoutHeight)
+    expect(middlePage.occlusionWidth * middlePage.worldScale).toBeCloseTo(envelopeMaxWidth, 0)
+    expect(middlePage.occlusionHeight * middlePage.worldScale).toBeCloseTo(envelopeMaxHeight, 0)
     await expect(text).toContainText('第三页比短页宽一些')
     await page.locator('[data-reading-next]').click()
     await expect(text).toContainText('比较宽的第一页')
@@ -109,6 +163,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 411, height: 914 
     })
     await page.locator('[data-reading-leave]').click()
     await expect(text).toHaveClass(/is-leaving/)
+    await expect.poll(() => page.locator('[data-reading-occlusion-hidden="true"]').count(), { timeout: 1500 }).toBe(0)
     const leaving = await text.evaluate(element => {
       const rect = element.getBoundingClientRect()
       const style = getComputedStyle(element)
