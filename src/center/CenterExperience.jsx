@@ -372,7 +372,7 @@ export default function CenterExperience({
       setTrialClockSnapshot(sessionClock.markInput())
     }
     const inputEvents = ['pointerdown', 'touchstart', 'keydown', 'wheel', 'click']
-    inputEvents.forEach((name) => window.addEventListener(name, recordTrustedInput, { passive: true }))
+    inputEvents.forEach((name) => window.addEventListener(name, recordTrustedInput, true))
     const timer = window.setInterval(() => {
       const next = sessionClock.read()
       setTrialClockSnapshot((current) => {
@@ -383,7 +383,7 @@ export default function CenterExperience({
       })
     }, 250)
     return () => {
-      inputEvents.forEach((name) => window.removeEventListener(name, recordTrustedInput))
+      inputEvents.forEach((name) => window.removeEventListener(name, recordTrustedInput, true))
       window.clearInterval(timer)
     }
   }, [])
