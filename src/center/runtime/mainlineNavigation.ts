@@ -10,6 +10,7 @@ import { sharedFurnitureGeometry } from './twoSeatFurniture'
 import { mainlineNpcStagedInteractionContactEntityId, mainlineNpcStagedPoint, mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import { pointInStorefrontRoom, storefrontRoomConnection } from './storefrontRoomConnection'
 import { mainlineActiveSpatialSpaceId, mainlineEntityBelongsToActiveSpace } from './mainlineSceneModel'
+import { continuousCafeRoomId } from './continuousCafe'
 
 /** Screen-space gap as a fraction of the protagonist's visible width. */
 export const MAINLINE_STOREFRONT_CONTACT_GAP = .25
@@ -629,6 +630,42 @@ export function resolveMainlineSafeSpawnPosition(
     // as a reason to relocate the player into a different room.
     const room = scene.rooms.find(candidate => pointInsideBounds(preferred, candidate.bounds))
     if (room) {
+      if (scene.id === 'commercial-street' && room.id === continuousCafeRoomId) {
+        const cafeEntry = scene.passages.find(passage => passage.id === 'street-cafe-entry')?.crossingTargets[0]
+        if (cafeEntry) {
+          const canReachCafeEntry = (candidate: Point) => isWalkableMainlinePoint(candidate, scene, layout, options)
+            && Boolean(findMainlinePath(candidate, cafeEntry, scene, layout, options))
+
+          // Keep a valid saved location exactly where it was. A Cafe save can
+          // point into a chair/table pocket after the runtime seat state is
+          // cleared on reload, so walkability alone is not enough here.
+          if (canReachCafeEntry(preferred)) return preferred
+
+          // Search a bounded 112px square around the saved point. Candidates
+          // use the same 14px lattice as the existing room recovery scan; the
+          // path check runs only for the nearest walkable points at spawn time.
+          const stepX = 14 / 1920 * 100, stepY = 14 / 1080 * 100
+          const localCandidates: Point[] = []
+          for (let xStep = -8; xStep <= 8; xStep += 1) {
+            for (let yStep = -8; yStep <= 8; yStep += 1) {
+              const candidate = { x: preferred.x + xStep * stepX, y: preferred.y + yStep * stepY }
+              if (pointInsideBounds(candidate, room.bounds)
+                && isWalkableMainlinePoint(candidate, scene, layout, options)) localCandidates.push(candidate)
+            }
+          }
+          localCandidates.sort((a, b) => Math.hypot((a.x - preferred.x) * 19.2, (a.y - preferred.y) * 10.8)
+            - Math.hypot((b.x - preferred.x) * 19.2, (b.y - preferred.y) * 10.8))
+          for (const candidate of localCandidates.slice(0, 64)) {
+            if (findMainlinePath(candidate, cafeEntry, scene, layout, options)) return candidate
+          }
+
+          // The authored inside target is the nearest safe fallback if a
+          // malformed/old position has no nearby connected point. Validate it
+          // against the same current geometry before returning it.
+          if (canReachCafeEntry(cafeEntry)) return cafeEntry
+          return null
+        }
+      }
       if (isWalkableMainlinePoint(preferred, scene, layout, options)) return preferred
       const nearby: Point[] = []
       const stepX = 14 / 1920 * 100, stepY = 14 / 1080 * 100
