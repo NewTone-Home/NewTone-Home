@@ -2,6 +2,15 @@ import type { MainlineSceneBlueprint, MainlineSceneEntity, MainlineStorefrontSlo
 
 export const cafeRestroomRoomId = 'cafe-single-restroom-interior'
 export const cafeRestroomDoorId = 'cafe-trial-customer-toilet-door'
+export const cafeRestroomToiletId = 'cafe-restroom-toilet'
+export const cafeRestroomFaucetId = 'cafe-restroom-sink'
+/** Initial tuning value within the author's requested one-to-two-second range. */
+export const cafeRestroomToiletUseDurationMs = 1500
+
+export function isPointInsideCafeRestroom(point: { x: number; y: number }, bounds: { x: number; y: number; width: number; height: number }) {
+  return point.x >= bounds.x && point.x <= bounds.x + bounds.width
+    && point.y >= bounds.y && point.y <= bounds.y + bounds.height
+}
 
 /** A real attached room in the existing continuous world, not a new save scene. */
 export function attachCafeRestroom(blueprint: MainlineSceneBlueprint): MainlineSceneBlueprint {
@@ -19,6 +28,7 @@ export function attachCafeRestroom(blueprint: MainlineSceneBlueprint): MainlineS
   }
   const fixture = (id: string, label: string, x: number, y: number): MainlineSceneEntity => ({
     id, label, roomId: cafeRestroomRoomId, kind: 'fixture', weight: 'fixture', surface: 'floor', position: point(x,y), interactive: true, visualVisibility: 'static', focusFrame: 'interactive',
+    interactionBehavior: id === cafeRestroomToiletId ? 'cafe-toilet-use' : 'cafe-faucet-toggle',
     ...(id === 'cafe-restroom-sink' ? { textLayout: 'vertical' as const } : {}),
     collision: id === 'cafe-restroom-sink'
       ? { ...point(x - 8, y - Array.from(label).length * 8), width: 16 / 19.2, height: Array.from(label).length * 16 / 10.8 }
