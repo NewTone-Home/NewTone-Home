@@ -3,6 +3,11 @@ import type { MainlineEchoLayout } from './mainlineEchoLayout'
 /** Reading pages roll faster than storefront labels; this does not affect doors or signs. */
 export const mainlineReadingPageFlipDurationMs = 500
 
+export function mainlineReadingRollOffsets(distance: number, progress: number) {
+  const p = Math.max(0, Math.min(1, progress))
+  return { outgoing: p * distance, incoming: (p - 1) * distance }
+}
+
 export type MainlineReadingPageSnapshot = Readonly<{
   continuityKey: string
   pageKey: string

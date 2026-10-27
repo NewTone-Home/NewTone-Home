@@ -34,7 +34,7 @@ import { AmbientNpcMotion } from './AmbientNpcMotion'
 import { npcRetryDelay, type NpcRuntimeSnapshot } from './npcCore'
 import { npcRoles } from './npcRoles'
 import { useStorefrontPresentation } from './useStorefrontPresentation'
-import { splitMainlineInteractionText } from './mainlineTextSegments'
+import { mainlineReadingSegmentDisplayText, splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineDialogueParticipantNpcIds, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingOpacityForActor, mainlineMaximumReadingWidthPx } from './mainlineTextReading'
 import { createMainlineReadingSessionLayoutCache } from './mainlineReadingLayoutSession'
 import { cancelMainlineSceneActionExit, commitMainlineSceneActionExit, completeMainlineSceneActionOptionExit, createMainlineSceneActionExitBarrier, mainlineSceneActionExitMayUnmount, resolveMainlineSceneActionCancellation, type MainlineSceneActionExitBarrier } from './mainlineSceneActionExit'
@@ -713,7 +713,7 @@ export function MainlineScenePage({
   }, [getCurrentPosition, resetMovementController, scene.id])
   const cameraOffset = useMainlineCamera(scene, position, embedded, activeViewportMetrics)
   const activeDialogueSegments = activeDialogueLine ? splitMainlineInteractionText(activeDialogueLine.text) : []
-  const activeDialogueText = activeDialogueSegments[dialogueSegmentIndex] ?? activeDialogueSegments[0] ?? ''
+  const activeDialogueText = mainlineReadingSegmentDisplayText(activeDialogueSegments, dialogueSegmentIndex)
   const cafeInsideRef = useRef(false)
   useEffect(() => {
     const inside = hasContinuousCafe(scene) && isPointInContinuousCafe(scene, position)
@@ -2205,7 +2205,7 @@ export function MainlineScenePage({
       const next = {
         ...current,
         segmentIndex: current.segmentIndex + 1,
-        text: current.segments[current.segmentIndex + 1] ?? current.text,
+        text: mainlineReadingSegmentDisplayText(current.segments, current.segmentIndex + 1),
         textMotion: mainlineReadingTextMotionAfterAdvance(current.textMotion, false),
       }
       sceneEchoRef.current = next

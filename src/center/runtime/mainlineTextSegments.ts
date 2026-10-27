@@ -4,6 +4,13 @@ const closingMarks = new Set(['”', '’', '"', "'", '」', '』', '）', ')', 
 
 export const mainlineTextSegmentMinClauseLength = 5
 
+/** Suppress only a single separator carried to a new display page after punctuation. */
+export function mainlineReadingSegmentDisplayText(segments: readonly string[], index: number): string {
+  const text = segments[index] ?? ''
+  if (index > 0 && /[。！？!?；;，,：:]$/u.test(segments[index - 1] ?? '') && /^\n(?=\S)/u.test(text)) return text.slice(1)
+  return text
+}
+
 /** Text shown in the reading UI may omit a terminal Chinese full stop. Keep
  * the authored source elsewhere; normalize before either segmentation path
  * measures or stores display pages. Internal punctuation is left untouched. */

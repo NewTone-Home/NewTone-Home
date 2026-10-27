@@ -25,7 +25,7 @@ import { sceneFrameDefaultMotionMs } from './sceneMotion'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import { mainlineEchoLayout, mainlineSpeakerAnchor, mainlineSpeakerPageAnchor, type MainlineEchoLayout } from './mainlineEchoLayout'
-import { interpolateMainlineReadingPageLayout, mainlineReadingPageFlipDurationMs, mainlineReadingPageRollEnvelope, previousMainlineReadingPageForFlip, settleMainlineReadingPageFlip, snapshotMainlineReadingPage, type MainlineReadingPageSnapshot } from './mainlineReadingPageFlip'
+import { interpolateMainlineReadingPageLayout, mainlineReadingPageFlipDurationMs, mainlineReadingPageRollEnvelope, mainlineReadingRollOffsets, previousMainlineReadingPageForFlip, settleMainlineReadingPageFlip, snapshotMainlineReadingPage, type MainlineReadingPageSnapshot } from './mainlineReadingPageFlip'
 import { interpolateMainlineReadingLayout, mainlineReadingPageTransitionDurationMs, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize } from './mainlineReadingLayoutTransition'
 import { mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
 import { mainlineReadingPageKey } from './mainlineReadingPageKey'
@@ -355,15 +355,18 @@ function ReadingPageFlip({ pageKey, continuityKey, visibleText, layout, worldSca
     }
     latestPageSnapshotRef.current = snapshotMainlineReadingPage({ continuityKey, pageKey, visibleText, layout, worldScale })
   }, [continuityKey, layout.fontSizePx, layout.heightPx, layout.widthPx, page.key, pageKey, presentedPage.flipping, presentedPage.previous, visibleText, worldScale])
+  const contentWidth = Math.max(layout.widthPx, presentedPage.previous?.layout.widthPx ?? 0) / Math.max(.001, worldScale)
+  const contentInset = mode === 'dialogue' ? 7 + Math.max(19.44, 1.1988 * layout.fontSizePx / Math.max(.001, worldScale)) : 4
+  const contentHeight = Math.max(1, Math.max(layout.heightPx, presentedPage.previous?.layout.heightPx ?? 0) / Math.max(.001, worldScale) - contentInset)
   useEffect(() => {
     const node = stackRef.current
     if (!presentedPage.flipping || !node || presentedPage.key !== pageKey) return
     const setProgress = (progress: number) => {
-      const percent = progress * 100
       // Match the Cafe storefront (bottom edge): the old glyph leaves down
       // and the new glyph enters from above.
-      node.style.setProperty('--reading-page-out-y', `${percent}%`)
-      node.style.setProperty('--reading-page-in-y', `${percent - 100}%`)
+      const offsets = mainlineReadingRollOffsets(contentHeight, progress)
+      node.style.setProperty('--reading-page-out-y', `${offsets.outgoing}px`)
+      node.style.setProperty('--reading-page-in-y', `${offsets.incoming}px`)
       node.dataset.flipProgress = progress.toFixed(4)
     }
     setProgress(0)
@@ -391,14 +394,13 @@ function ReadingPageFlip({ pageKey, continuityKey, visibleText, layout, worldSca
     }
     frame = window.requestAnimationFrame(advance)
     return () => window.cancelAnimationFrame(frame)
-  }, [lockToken, presentedPage.flipping, presentedPage.key, pageKey])
+  }, [contentHeight, lockToken, presentedPage.flipping, presentedPage.key, pageKey])
   useEffect(() => {
     if (!presentedPage.flipping && presentedPage.key === pageKey) onSettledRef.current?.(pageKey)
   }, [presentedPage.flipping, presentedPage.key, pageKey])
 
-  const contentWidth = Math.max(layout.widthPx, presentedPage.previous?.layout.widthPx ?? 0) / Math.max(.001, worldScale)
-  return <span ref={stackRef} className={`scene-mainline-page-stack scene-mainline-page-stack--${mode}`} data-page-flip={presentedPage.flipping ? 'running' : 'settled'} style={{ width: `${contentWidth}px`, '--reading-page-out-y': '0%', '--reading-page-in-y': presentedPage.flipping ? '-100%' : '0%' } as CSSProperties}>
-    {presentedPage.flipping && presentedPage.previous !== null && <span className="scene-mainline-page scene-mainline-page--outgoing" data-reading-page-role="outgoing" data-reading-page-outgoing-key={presentedPage.previous.pageKey} data-reading-page-outgoing-width={presentedPage.previous.layout.widthPx} data-reading-page-outgoing-height={presentedPage.previous.layout.heightPx} style={{ width: `${presentedPage.previous.layout.widthPx / Math.max(.001, worldScale)}px`, height: `${presentedPage.previous.layout.heightPx / Math.max(.001, worldScale)}px`, fontSize: `${presentedPage.previous.layout.fontSizePx / Math.max(.001, worldScale)}px` }} aria-hidden="true">{presentedPage.previous.visibleText}</span>}
+  return <span ref={stackRef} className={`scene-mainline-page-stack scene-mainline-page-stack--${mode}`} data-page-flip={presentedPage.flipping ? 'running' : 'settled'} style={{ width: `${contentWidth}px`, height: `${contentHeight}px`, '--reading-page-out-y': '0px', '--reading-page-in-y': presentedPage.flipping ? `${-contentHeight}px` : '0px' } as CSSProperties}>
+    {presentedPage.flipping && presentedPage.previous !== null && <span className="scene-mainline-page scene-mainline-page--outgoing" data-reading-page-role="outgoing" data-reading-page-outgoing-key={presentedPage.previous.pageKey} data-reading-page-outgoing-width={presentedPage.previous.layout.widthPx} data-reading-page-outgoing-height={presentedPage.previous.layout.heightPx} style={{ width: `${presentedPage.previous.layout.widthPx / Math.max(.001, worldScale)}px`, height: '100%', fontSize: `${presentedPage.previous.layout.fontSizePx / Math.max(.001, worldScale)}px` }} aria-hidden="true">{presentedPage.previous.visibleText}</span>}
     <span
       className={`scene-mainline-page ${presentedPage.flipping ? 'scene-mainline-page--incoming' : 'scene-mainline-page--current'}`}
       data-reading-page-role={presentedPage.flipping ? 'incoming' : 'current'}

@@ -3,13 +3,32 @@ import {
   interpolateMainlineReadingPageLayout,
   mainlineReadingPageFlipDurationMs,
   mainlineReadingPageRollEnvelope,
+  mainlineReadingRollOffsets,
   previousMainlineReadingPageForFlip,
   settleMainlineReadingPageFlip,
   snapshotMainlineReadingPage,
 } from '../src/center/runtime/mainlineReadingPageFlip'
 import { mainlineReadingPageKey } from '../src/center/runtime/mainlineReadingPageKey'
+import { mainlineReadingSegmentDisplayText, splitMainlineInteractionText } from '../src/center/runtime/mainlineTextSegments'
 
 describe('mainline reading page snapshot and roll envelope', () => {
+  it('removes only the single separator carried to an internal page, preserving source and intentional whitespace', () => {
+    const source = '外面的阳光白得有些刺眼。\n外面看起来跟表世界没什么区别。'
+    const segments = splitMainlineInteractionText(source)
+    expect(segments[1].startsWith('\n')).toBe(true)
+    expect(mainlineReadingSegmentDisplayText(segments, 1).startsWith('外面')).toBe(true)
+    expect(source).toContain('。\n外面')
+    expect(mainlineReadingSegmentDisplayText(['第一句。', '\n\n第二段'], 1)).toBe('\n\n第二段')
+    expect(mainlineReadingSegmentDisplayText(['第一句。', '\n  缩进'], 1)).toBe('\n  缩进')
+    expect(mainlineReadingSegmentDisplayText(['\n开头'], 0)).toBe('\n开头')
+  })
+
+  it('keeps outgoing and incoming page boxes one fixed clip height apart throughout the roll', () => {
+    for (const distance of [26.4, 44.4, 76]) for (const progress of [0, .1, .5, .9, 1]) {
+      const offsets = mainlineReadingRollOffsets(distance, progress)
+      expect(offsets.outgoing - offsets.incoming).toBeCloseTo(distance, 8)
+    }
+  })
   it('uses one page identity for the current session, authored segment, fitted page, and displayed text', () => {
     const current = mainlineReadingPageKey({ sessionKey: 'commercial-street:observation:echo:810:street-cafe-entry', segmentIndex: 1, overflowIndex: 0, text: '��ҳ' })
     expect(current).toBe('commercial-street:observation:echo:810:street-cafe-entry:1:0:��ҳ')
