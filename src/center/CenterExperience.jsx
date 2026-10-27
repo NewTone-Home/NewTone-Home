@@ -77,6 +77,7 @@ import { shopPreparationDurationGameMs } from './runtime/shopPreparationPolicy'
 import { placePaidShopOrder } from './runtime/shopOrderPayment'
 import { shopProductFor } from './runtime/shopOrderCatalog'
 import { notifyDueShopOrders } from './runtime/shopOrderCompletion'
+import { createCafeStoryOrderDeliveryController } from './runtime/cafeStoryOrderDelivery'
 import { unlockedCommercialDrinkShopIds } from './runtime/commercialStreetShopApps'
 import { yongheTakeawayCatalog } from './runtime/yongheTakeawayCatalog'
 
@@ -504,6 +505,16 @@ export default function CenterExperience({
       // separate shortcut inside the unified app.
       return false
     }
+    if (entity.id === 'commercial-cafe-counter') {
+      const order = playerSaveRef.current.shopOrders?.[crossShopIds.cafeTakeaway]
+      const gameTimeMs = sessionGameClockRef.current.read().gameTimeMs
+      if (order?.status === 'queued' && order.readyAtGameTimeMs !== null && gameTimeMs >= order.readyAtGameTimeMs) {
+        claimShopOrder(crossShopIds.cafeTakeaway)
+        return true
+      }
+      openShopOrderApp(crossShopIds.cafeTakeaway)
+      return true
+    }
     return false
   }, [claimShopOrder, openShopOrderApp])
 
@@ -578,6 +589,11 @@ export default function CenterExperience({
     setTrialClockSnapshot(snapshot)
   }, [])
   const readSessionGameTimeMs = useCallback(() => sessionGameClockRef.current.read().gameTimeMs, [])
+  const cafeStoryOrderDelivery = useMemo(() => createCafeStoryOrderDeliveryController({
+    readSave: () => playerSaveRef.current,
+    commitSave: update => commitPlayerSave(update),
+    readGameTimeMs: readSessionGameTimeMs,
+  }), [commitPlayerSave, readSessionGameTimeMs])
 
   useEffect(() => {
     const sessionClock = sessionGameClockRef.current
@@ -959,6 +975,7 @@ export default function CenterExperience({
     <MainlineScenePage
       key={key ?? `${sceneRoute.sceneId}:${sceneRoute.entryPosition?.x ?? ''}:${sceneRoute.entryPosition?.y ?? ''}:${sceneRoute.spawnMode}:${sceneResumePosition?.x ?? ''}:${sceneResumePosition?.y ?? ''}`}
       sceneId={sceneRoute.sceneId}
+      cafeStoryOrderDelivery={snapshot ? undefined : cafeStoryOrderDelivery}
       laoZhouCafeSeatId={playerSave.laoZhouCafeSeatId}
       onExternalExit={snapshot ? undefined : () => {
         const current = latestWorldPositionRef.current
