@@ -128,7 +128,7 @@ describe('cross-shop order and global hand model', () => {
     expect(restored.sceneState['commercial-street']?.unrelatedQuestFlag).toBe(true)
     expect(restored.sceneState['commercial-street']?.carriedStoryItem).toBe('kept')
     expect(restored.shopOrders[crossShopIds.milkTea]).toMatchObject({
-      status: 'queued', placedAtGameTimeMs: fresh.gameTimeMs, readyAtGameTimeMs: fresh.gameTimeMs + 30_000,
+      status: 'queued', placedAtGameTimeMs: fresh.gameTimeMs, readyAtGameTimeMs: fresh.gameTimeMs + 900_000,
     })
     expect(restored.heldConsumable?.kind).toBe('legacy-unknown')
   })
@@ -150,7 +150,7 @@ describe('cross-shop order and global hand model', () => {
       [commercialStreetMilkTeaCreatedAtKey]: 1_799_999_975_000,
     } }, { gameTimeMs: 600_000, updatedAtWallMs: 1_799_999_990_000 })
     const order = migrated.ordersByShop[crossShopIds.milkTea]
-    expect(order).toMatchObject({ status: 'queued', placedAtGameTimeMs: 600_000, readyAtGameTimeMs: 610_000 })
+    expect(order).toMatchObject({ status: 'queued', placedAtGameTimeMs: 600_000, readyAtGameTimeMs: 900_000 })
     expect(order.legacySnapshot?.[commercialStreetMilkTeaReadyAtKey]).toBe(1_800_000_000_000)
     expect(migrated.heldConsumable).toMatchObject({ productId: 'legacy-milk-tea', kind: 'legacy-unknown' })
     expect(claimCrossShopOrder(migrated, crossShopIds.milkTea, Number.MAX_SAFE_INTEGER)).toMatchObject({ ok: false, reason: 'hand-full' })

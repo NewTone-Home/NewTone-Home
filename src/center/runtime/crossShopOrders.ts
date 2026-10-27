@@ -49,7 +49,7 @@ export const emptyCrossShopOrderState: CrossShopOrderState = { ordersByShop: {},
 
 export type CrossShopResult<T> =
   | { ok: true; state: CrossShopOrderState; value: T }
-  | { ok: false; state: CrossShopOrderState; reason: 'invalid-order' | 'shop-already-has-order' | 'no-order' | 'not-ready' | 'hand-full' | 'nothing-to-consume' }
+  | { ok: false; state: CrossShopOrderState; reason: 'invalid-order' | 'preparation-not-configured' | 'shop-already-has-order' | 'no-order' | 'not-ready' | 'hand-full' | 'nothing-to-consume' }
 
 function isFiniteNonNegative(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
@@ -125,14 +125,15 @@ export function migrateLegacyShopState(
       && isFiniteNonNegative(checkpoint.updatedAtWallMs)
       && isFiniteNonNegative(readyAt)
     if (hasComparableCheckpoint) {
-      // Old code scheduled these orders for 15–30 seconds. This is only a
-      // conservative migration ceiling, not the new preparation duration.
-      // Re-anchor what remained at the last save; closed-app time is excluded.
+      // Legacy readyAt values were measured in real milliseconds. Convert the
+      // remaining real duration through the stable 30x baseline before
+      // re-anchoring to game time; time after the last save is excluded.
       const hasCreationAnchor = isFiniteNonNegative(createdAt) && readyAt >= createdAt
-      const duration = hasCreationAnchor ? Math.min(30_000, readyAt - createdAt) : 30_000
-      const remaining = hasCreationAnchor && checkpoint.updatedAtWallMs < createdAt
-        ? duration
-        : Math.max(0, Math.min(duration, readyAt - checkpoint.updatedAtWallMs))
+      const legacyDurationWallMs = hasCreationAnchor ? Math.min(30_000, readyAt - createdAt) : 30_000
+      const remainingWallMs = hasCreationAnchor && checkpoint.updatedAtWallMs < createdAt
+        ? legacyDurationWallMs
+        : Math.max(0, Math.min(legacyDurationWallMs, readyAt - checkpoint.updatedAtWallMs))
+      const remainingGameTimeMs = remainingWallMs * 30
       const legacyDrink = street[commercialStreetMilkTeaDrinkKey]
       const knownMilkTea = commercialStreetDrinkCatalog.slice(0, 4).find(product => product.name === legacyDrink)
       migrated.ordersByShop[crossShopIds.milkTea] = {
@@ -141,7 +142,7 @@ export function migrateLegacyShopState(
         productId: knownMilkTea?.id ?? 'legacy-milk-tea-order',
         status: 'queued',
         placedAtGameTimeMs: checkpoint.gameTimeMs,
-        readyAtGameTimeMs: checkpoint.gameTimeMs + remaining,
+        readyAtGameTimeMs: checkpoint.gameTimeMs + remainingGameTimeMs,
         ...(legacySnapshot[commercialStreetMilkTeaSugarKey] !== undefined || legacySnapshot[commercialStreetMilkTeaIceKey] !== undefined
           ? { options: {
             ...(legacySnapshot[commercialStreetMilkTeaSugarKey] !== undefined ? { sugar: legacySnapshot[commercialStreetMilkTeaSugarKey] as string } : {}),
@@ -173,8 +174,9 @@ export function migrateLegacyShopState(
 
 export function placeCrossShopOrder(
   state: CrossShopOrderState,
-  input: { shopId: string; productId: string; placedAtGameTimeMs: number; preparationDurationMs: number; id: string; options?: Record<string, string | number | boolean | null> },
+  input: { shopId: string; productId: string; placedAtGameTimeMs: number; preparationDurationMs?: number | null; id: string; options?: Record<string, string | number | boolean | null> },
 ): CrossShopResult<CrossShopOrder> {
+  if (input.preparationDurationMs == null) return { ok: false, state, reason: 'preparation-not-configured' }
   if (!input.shopId || !input.productId || !input.id || !isFiniteNonNegative(input.placedAtGameTimeMs)
     || !isFiniteNonNegative(input.preparationDurationMs)) return { ok: false, state, reason: 'invalid-order' }
   if (state.ordersByShop[input.shopId]) return { ok: false, state, reason: 'shop-already-has-order' }

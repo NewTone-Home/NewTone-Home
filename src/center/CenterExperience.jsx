@@ -72,10 +72,13 @@ import {
   commercialStreetMilkTeaReadyAnalyticsWasReported,
   createCommercialStreetMilkTeaOrder,
 } from './runtime/commercialStreetMilkTea'
+import { claimCrossShopOrder, consumeHeldConsumable, crossShopIds, placeCrossShopOrder } from './runtime/crossShopOrders'
+import { shopPreparationDurationGameMs } from './runtime/shopPreparationPolicy'
 
 const initialSceneId = mainlineRespawnSceneId
 const freeTrialClockRates = { normalPlay: 30, ordinaryReading: 15, idle: 5 }
 const syntheticClockTrialStorageKey = 'newtone-e2e-clock-trial-synthetic-save-v1'
+const syntheticShopOrderStorageKey = 'newtone-e2e-shop-orders-synthetic-save-v1'
 function hasSyntheticClockTrialStorage() {
   if (!import.meta.env.DEV || import.meta.env.VITE_E2E_CLOCK_TRIAL !== '1' || typeof window === 'undefined') return false
   try {
@@ -83,6 +86,11 @@ function hasSyntheticClockTrialStorage() {
   } catch {
     return false
   }
+}
+function syntheticShopOrderStorage() {
+  if (!import.meta.env.DEV || import.meta.env.VITE_E2E_SHOP_ORDERS !== '1' || typeof window === 'undefined'
+    || new URLSearchParams(window.location.search).get('e2eShopOrders') !== '1') return null
+  try { return window.sessionStorage.getItem(syntheticShopOrderStorageKey) === '1' ? window.sessionStorage : null } catch { return null }
 }
 function formatTrialGameTime(gameTimeMs) {
   const minuteOfDay = Math.floor(gameTimeMs / 60_000) % (24 * 60)
@@ -104,12 +112,13 @@ export default function CenterExperience({
   onRevealComplete,
 }) {
   const reducedMotion = useReducedMotion()
+  const fixtureStorage = syntheticShopOrderStorage()
   const [debugClockTrial] = useState(() => {
     if (!hasSyntheticClockTrialStorage()) return null
     const mode = new URLSearchParams(window.location.search).get('debugClockTrial')
     return mode === 'formal-dialogue' || mode === 'inner-monologue' ? mode : null
   })
-  const [playerSave, setPlayerSave] = useState(() => loadPlayerSave())
+  const [playerSave, setPlayerSave] = useState(() => loadPlayerSave(fixtureStorage ?? undefined))
   const sessionGameClockRef = useRef(null)
   if (!sessionGameClockRef.current) {
     sessionGameClockRef.current = createSessionGameClock({
@@ -120,13 +129,14 @@ export default function CenterExperience({
   }
   const [trialClockSnapshot, setTrialClockSnapshot] = useState(() => sessionGameClockRef.current.read())
   const playerSaveRef = useRef(playerSave)
-  const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave().currentSceneId ?? initialSceneId, resolveLegacyCafeEntryPosition()))
+  const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave(fixtureStorage ?? undefined).currentSceneId ?? initialSceneId, resolveLegacyCafeEntryPosition()))
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('scene') === 'commercial-cafe') {
       window.history.replaceState({ newtoneCenterScene: 'commercial-street' }, '', mainlineSceneRoute('commercial-street', route.entryPosition ?? legacyCafeEntryPosition()))
     }
   }, [route.entryPosition])
   const [phoneOpen, setPhoneOpen] = useState(false)
+  const [requestedShopId, setRequestedShopId] = useState(null)
   const [phonePanelRetracted, setPhonePanelRetracted] = useState(true)
   const sceneReadingActiveRef = useRef(false)
   const [sceneReadingActive, setSceneReadingActive] = useState(false)
@@ -144,10 +154,10 @@ export default function CenterExperience({
       setSave: next => { playerSaveRef.current = next },
       getCurrentSceneId: () => currentSceneIdRef.current,
       recordPosition: recordPlayerScenePosition,
-      persist: next => persistPlayerSave({
+        persist: next => persistPlayerSave({
         ...next,
         gameTimeMs: sessionGameClockRef.current.read().gameTimeMs,
-      }),
+      }, fixtureStorage ?? undefined),
     })
   }
   const gameTimeSaveCheckpointRef = useRef(null)
@@ -156,7 +166,7 @@ export default function CenterExperience({
       getSave: () => playerSaveRef.current,
       setSave: next => { playerSaveRef.current = next; setPlayerSave(next) },
       getGameTimeMs: () => sessionGameClockRef.current.read().gameTimeMs,
-      persist: next => persistPlayerSave(next, undefined, undefined, { preserveFreshSeatOnly: true }),
+      persist: next => persistPlayerSave(next, fixtureStorage ?? undefined, undefined, { preserveFreshSeatOnly: true }),
     })
   }
   const getRideMapSnapshot = useCallback(() => {
@@ -178,14 +188,14 @@ export default function CenterExperience({
       }, { deferred: true }).then(() => checkpointSessionActivityIfDue()),
     })
   }
-  const [phoneDevice, setPhoneDevice] = useState(() => loadPlayerSave().phoneDevice)
+  const [phoneDevice, setPhoneDevice] = useState(() => loadPlayerSave(fixtureStorage ?? undefined).phoneDevice)
   const [requestedPhoneApp, setRequestedPhoneApp] = useState(null)
   const [resumeSceneId, setResumeSceneId] = useState(null)
   const [resumePosition, setResumePosition] = useState(undefined)
   const [localSlideHandoffRoute, setLocalSlideHandoffRoute] = useState(null)
   const [sceneSlot, setSceneSlot] = useState(0)
   const [boundaryNotice, setBoundaryNotice] = useState('')
-  const [rideOrder, setRideOrder] = useState(() => mainlineRideOrderFromState(loadPlayerSave().sceneState))
+  const [rideOrder, setRideOrder] = useState(() => mainlineRideOrderFromState(loadPlayerSave(fixtureStorage ?? undefined).sceneState))
   const rideBoardingRef = useRef(() => {})
   const phoneRetractedRef = useRef(true)
   useEffect(() => {
@@ -296,7 +306,8 @@ export default function CenterExperience({
 
   const openMilkTeaApp = useCallback(() => {
     setPhoneNotificationScreen(false)
-    setRequestedPhoneApp('milk-tea')
+    setRequestedPhoneApp(null)
+    setRequestedShopId(crossShopIds.milkTea)
     setPhoneOpen(true)
   }, [])
 
@@ -315,6 +326,82 @@ export default function CenterExperience({
       },
     })
   }, [commercialStreetState, commitPlayerSave, milkTeaOrder, route.sceneId])
+
+  const openShopOrderApp = useCallback((shopId) => {
+    setPhoneNotificationScreen(false)
+    setRequestedPhoneApp(null)
+    setRequestedShopId(shopId)
+    setPhoneOpen(true)
+  }, [])
+
+  useEffect(() => {
+    if (!fixtureStorage) return
+    const shopId = new URLSearchParams(window.location.search).get('e2eShopId')
+    if (!shopId || !Object.values(crossShopIds).includes(shopId)) return
+    openShopOrderApp(shopId)
+  }, [fixtureStorage, openShopOrderApp])
+
+  const confirmShopOrder = useCallback(({ shopId, productId, options }) => {
+    const nowGameTimeMs = sessionGameClockRef.current.read().gameTimeMs
+    const preparationDurationMs = shopPreparationDurationGameMs(shopId, productId, { overrides: fixtureStorage ? {
+      [`${crossShopIds.fruitTea}:${productId}`]: 1000,
+      [`${crossShopIds.yonghe}:${productId}`]: 1000,
+    } : undefined })
+    let outcome = null
+    commitPlayerSave(current => {
+      const result = placeCrossShopOrder({ ordersByShop: current.shopOrders, heldConsumable: current.heldConsumable }, {
+        shopId, productId, id: `order-${shopId}-${Math.random().toString(36).slice(2, 10)}`,
+        placedAtGameTimeMs: nowGameTimeMs, preparationDurationMs, options,
+      })
+      outcome = result
+      if (!result.ok) return current
+      return { ...current, shopOrders: result.state.ordersByShop, heldConsumable: result.state.heldConsumable }
+    })
+    return outcome?.ok ? { ok: true } : { ok: false, reason: outcome?.reason ?? 'order-not-saved' }
+  }, [commitPlayerSave, fixtureStorage])
+
+  const claimShopOrder = useCallback((shopId) => {
+    const nowGameTimeMs = sessionGameClockRef.current.read().gameTimeMs
+    let outcome = null
+    commitPlayerSave(current => {
+      const kind = shopId === crossShopIds.yonghe ? 'meal' : 'drink'
+      const result = claimCrossShopOrder({ ordersByShop: current.shopOrders, heldConsumable: current.heldConsumable }, shopId, nowGameTimeMs, kind)
+      outcome = result
+      if (!result.ok) return current
+      return { ...current, shopOrders: result.state.ordersByShop, heldConsumable: result.state.heldConsumable }
+    })
+    if (outcome?.ok) return true
+    if (outcome?.reason === 'hand-full') setBoundaryNotice('\u624b\u91cc\u8fd8\u6709\u4e1c\u897f\uff0c\u62ff\u4e0d\u4e86\u8fd9\u4e48\u591a\u3002')
+    else if (outcome?.reason === 'not-ready') setBoundaryNotice('\u8fd8\u6ca1\u505a\u597d\uff0c\u7a0d\u540e\u518d\u6765\u53d6\u3002')
+    else setBoundaryNotice('\u73b0\u5728\u6ca1\u6709\u53ef\u4ee5\u9886\u53d6\u7684\u8ba2\u5355\u3002')
+    return false
+  }, [commitPlayerSave])
+
+  const consumeShopHeldItem = useCallback(() => {
+    commitPlayerSave(current => {
+      const result = consumeHeldConsumable({ ordersByShop: current.shopOrders, heldConsumable: current.heldConsumable })
+      if (!result.ok) return current
+      return { ...current, shopOrders: result.state.ordersByShop, heldConsumable: null }
+    })
+  }, [commitPlayerSave])
+
+  const handleCommerceEntity = useCallback((entity) => {
+    if (entity.id === 'commercial-s5-milk-tea-order-service-label') {
+      openShopOrderApp(crossShopIds.milkTea)
+      return true
+    }
+    if (entity.id === 'commercial-s5-milk-tea-pickup-service-label') { claimShopOrder(crossShopIds.milkTea); return true }
+    if (entity.id === 'fruit-tea-trial-order') {
+      openShopOrderApp(crossShopIds.fruitTea)
+      return true
+    }
+    if (entity.id === 'fruit-tea-trial-pickup') { claimShopOrder(crossShopIds.fruitTea); return true }
+    if (entity.id === 'yonghe-counter') {
+      openShopOrderApp(crossShopIds.yonghe)
+      return true
+    }
+    return false
+  }, [claimShopOrder, openShopOrderApp])
 
   const handleMilkTeaOrderStarted = useCallback(() => {
     trackEvent('milk_tea_order_started', { sceneId: route.sceneId })
@@ -337,13 +424,13 @@ export default function CenterExperience({
   }, [commitPlayerSave, notifyPhone, route.sceneId])
 
   useEffect(() => {
-    if (!milkTeaOrder) { milkTeaReadyAnalyticsMarkerRef.current = null; return }
+    if (!milkTeaOrder || playerSave.shopOrders[crossShopIds.milkTea]) { milkTeaReadyAnalyticsMarkerRef.current = null; return }
     const remaining = milkTeaOrder.readyAt - Date.now()
     if (remaining <= 0) { handleMilkTeaOrderReady(milkTeaOrder); return }
     // The order deadline owns readiness even when its app and Phone are closed.
     const timer = window.setTimeout(() => handleMilkTeaOrderReady(milkTeaOrder), remaining)
     return () => window.clearTimeout(timer)
-  }, [handleMilkTeaOrderReady, milkTeaOrder?.number, milkTeaOrder?.readyAt])
+  }, [handleMilkTeaOrderReady, milkTeaOrder?.number, milkTeaOrder?.readyAt, playerSave.shopOrders])
 
   const handleFeedbackModeChange = useCallback((mode) => {
     setFeedbackMode(mode)
@@ -422,7 +509,7 @@ export default function CenterExperience({
     setResumeSceneId(null)
     setResumePosition(undefined)
     if (route.spawnMode === 'ride' || route.entryPosition) return
-    setResumePosition(loadPlayerSave(undefined, route.sceneId).scenePositions[route.sceneId])
+    setResumePosition(loadPlayerSave(fixtureStorage ?? undefined, route.sceneId).scenePositions[route.sceneId])
     setResumeSceneId(route.sceneId)
   }, [route.sceneId, route.entryPosition?.x, route.entryPosition?.y, route.spawnMode])
 
@@ -785,13 +872,16 @@ export default function CenterExperience({
       onRuntimePositionChange={snapshot ? undefined : handleRuntimePositionChange}
       onDeskInteraction={snapshot ? undefined : switchCarriedPhone}
       onObjectInteraction={snapshot ? undefined : handleObjectInteraction}
+      onCommerceEntity={snapshot ? undefined : handleCommerceEntity}
       onDoorEvent={snapshot ? undefined : handleDoorEvent}
       onInteractionAnalytics={snapshot ? undefined : handleInteractionAnalytics}
       onMilkTeaAppOpen={snapshot ? undefined : openMilkTeaApp}
+      onStorefrontAction={snapshot ? undefined : (action) => { if (action === 'fruit-tea-order') openShopOrderApp(crossShopIds.fruitTea) }}
       onMilkTeaOrderReady={snapshot ? undefined : handleMilkTeaOrderReady}
       onChapterAnalytics={snapshot ? undefined : trackChapterEvent}
       initialSceneState={sceneRoute.sceneId === 'commercial-street' ? cafeWorldSceneState : playerSave.sceneState[sceneRoute.sceneId] ?? {}}
-      carriedMilkTea={commercialStreetMilkTeaHeld(playerSave.sceneState['commercial-street'])}
+      carriedMilkTea={Boolean(playerSave.heldConsumable)}
+      onConsumeHeldConsumable={snapshot ? undefined : consumeShopHeldItem}
       interactionTutorialCompleted={isInteractionTutorialCompleted(playerSave.sceneState['commercial-street'])}
       onPlayerSceneStateChange={snapshot ? undefined : recordSceneState}
       onPlayerSceneStatePatch={snapshot ? undefined : recordSceneStatePatch}
@@ -883,7 +973,13 @@ export default function CenterExperience({
           milkTeaOrder={milkTeaOrder}
           milkTeaHeld={commercialStreetMilkTeaHeld(commercialStreetState)}
           requestedApp={requestedPhoneApp}
-          onRequestedAppHandled={() => setRequestedPhoneApp(null)}
+          requestedShopId={requestedShopId}
+          shopOrders={playerSave.shopOrders}
+          heldConsumable={playerSave.heldConsumable}
+          gameTimeMs={trialClockSnapshot.gameTimeMs}
+          preparationConfiguredByShop={{ [crossShopIds.milkTea]: true, ...(fixtureStorage ? { [crossShopIds.fruitTea]: true, [crossShopIds.yonghe]: true } : {}) }}
+          onShopOrderConfirm={confirmShopOrder}
+          onRequestedAppHandled={() => { setRequestedPhoneApp(null); setRequestedShopId(null) }}
           onLaoZhouMessagesDisplayed={acknowledgeCafeStoryMessagesDisplayed}
           onMilkTeaOrderConfirm={confirmMilkTeaOrder}
           onMilkTeaOrderStarted={handleMilkTeaOrderStarted}
