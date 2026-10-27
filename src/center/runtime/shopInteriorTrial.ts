@@ -86,7 +86,7 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
   //Join both legs at the same bottom edge instead of retaining the old4px step.
   const lowerGroup = 'cafe-trial-L-counter'
   addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-long', groupId: lowerGroup, bounds: { x: 185, y: 72, width: 22, height: 416 }, orientation: 'vertical', publicSide: 'right', entryId: 'commercial-cafe-counter', services: [
-    { id: 'commercial-cafe-counter', x: 196, y: 336, order: true }, { id: 'cafe-trial-pickup', x: 196, y: 224 }, { id: 'cafe-trial-order', x: 196, y: 432 },
+    { id: 'commercial-cafe-counter', x: 196, y: 336, order: true },
   ] })
   addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-front', groupId: lowerGroup, bounds: { x: 8, y: 466, width: 177, height: 22 }, outlineBounds: { x: -14, y: 466, width: 199, height: 22 }, orientation: 'horizontal', publicSide: 'bottom', entryId: 'commercial-cafe-counter' })
   // This is physically separate above the32px employee exit: never bridge it.
@@ -142,7 +142,6 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
       'commercial-cafe-menu': ['菜单嵌在柜台侧墙里。'], 'commercial-cafe-blackboard': ['黑板嵌在柜台侧墙里。'],
       'cafe-trial-corner-plant-rear': ['这是店内的装饰，最好不要碰。'],
       'cafe-trial-corner-plant-front': ['叶片层层叠在一起，把墙边的一小块地方遮住了。'],
-      'cafe-trial-order': ['这里仍是原柜台的点单接触位置。'], 'cafe-trial-pickup': ['这里是柜台交付饮品的一侧。'],
       'cafe-trial-coffee-machine': ['咖啡机放在员工工作线上。'], 'cafe-trial-prep-table': ['备餐台与咖啡机共用员工侧通道。'],
       'cafe-trial-wash': ['清洗台在柜台里面。'], 'cafe-trial-cold': ['冷藏设备在后方准备区。'],
     },

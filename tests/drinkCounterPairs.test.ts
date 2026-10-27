@@ -5,7 +5,7 @@ import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundary
 
 const scene = mainlineScenes['commercial-street']
 const shops = [
-  ['commercial-north-cafe-interior', 'cafe-trial-counter', 3, ['commercial-cafe-counter', 'cafe-trial-order', 'cafe-trial-pickup']],
+  ['commercial-north-cafe-interior', 'cafe-trial-counter', 3, ['commercial-cafe-counter']],
   ['commercial-south-s5-interior', 'milk-tea-trial', 3, ['commercial-s5-milk-tea-order-service-label']],
   ['commercial-north-n1-interior', 'fruit-tea-trial', 3, ['fruit-tea-trial-order']],
 ] as const

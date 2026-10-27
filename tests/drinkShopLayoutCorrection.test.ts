@@ -7,7 +7,7 @@ import { createInitialPlayerSave, sanitizePlayerSave } from '../src/center/runti
 
 const scene = mainlineScenes['commercial-street']
 const shops = [
-  { room: 'commercial-north-cafe-interior', prefix: 'cafe-trial-', worker: 'cafe-coffee-owner', services: ['commercial-cafe-counter', 'cafe-trial-order', 'cafe-trial-pickup'], equipment: ['cafe-trial-coffee-machine', 'cafe-trial-prep-table', 'cafe-trial-wash', 'cafe-trial-cold'] },
+  { room: 'commercial-north-cafe-interior', prefix: 'cafe-trial-', worker: 'cafe-coffee-owner', services: ['commercial-cafe-counter'], equipment: ['cafe-trial-coffee-machine', 'cafe-trial-prep-table', 'cafe-trial-wash', 'cafe-trial-cold'] },
   { room: 'commercial-south-s5-interior', prefix: 'milk-tea-trial-', worker: 'milk-tea-trial-worker', services: ['commercial-s5-milk-tea-order-service-label'], equipment: [1, 2, 3, 4].map(i => `milk-tea-trial-equipment-${i}`) },
   { room: 'commercial-north-n1-interior', prefix: 'fruit-tea-trial-', worker: 'fruit-tea-trial-worker', services: ['fruit-tea-trial-order'], equipment: [1, 2, 3, 4, 5].map(i => `fruit-tea-trial-equipment-${i}`) },
 ] as const

@@ -9,7 +9,6 @@ import type { CommercialCafeCoffeeStatus, CommercialCafeNarrativePhase } from '.
 import { npcRoles } from './npcRoles'
 import {
   resolveCommercialCafeCoffeeDeliveryIntent,
-  resolveCommercialCafeCoffeePrepIntent,
   resolveCommercialCafeFloorServiceIntent,
   resolveCommercialCafeReturnToCounterIntent,
 } from './commercialCafeStory'
@@ -57,15 +56,6 @@ export function createCommercialCafeCoffeeOwnerBehaviorCoordinator() {
     if (snapshot.phase === 'moving' && !ambientMoving) return null
     if (phase === 'blocked') return null
 
-    if (coffeeStatus === 'ordered' && phase !== 'moving-to-prep') {
-      const intent = resolveCommercialCafeCoffeePrepIntent(scene)
-      if (intent) phase = 'moving-to-prep'
-      return intent
-    }
-    if (coffeeStatus === 'preparing') {
-      phase = 'preparing'
-      return null
-    }
     if (coffeeStatus === 'ready' && narrativePhase === 'coffee-delivery' && phase !== 'delivery-arrived') {
       const intent = resolveCommercialCafeCoffeeDeliveryIntent({ scene, coffeeStatus, narrativePhase })
       if (intent) phase = 'delivering'

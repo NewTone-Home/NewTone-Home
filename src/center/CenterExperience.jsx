@@ -63,7 +63,6 @@ import {
 import { createCenterPositionSampler } from '../services/centerPositionSampler'
 import { submitCenterFeedback } from '../services/centerFeedback'
 import {
-  commercialStreetMilkTeaAppUnlocked,
   commercialStreetMilkTeaHeld,
   commercialStreetMilkTeaIsReady,
   commercialStreetMilkTeaOrderNumberKey,
@@ -73,8 +72,12 @@ import {
   commercialStreetMilkTeaReadyAnalyticsWasReported,
   createCommercialStreetMilkTeaOrder,
 } from './runtime/commercialStreetMilkTea'
-import { cancelUnmappedLegacyOrder, claimCrossShopOrder, consumeHeldConsumable, crossShopIds, placeCrossShopOrder } from './runtime/crossShopOrders'
+import { cancelUnmappedLegacyOrder, claimCrossShopOrder, consumeHeldConsumable, crossShopIds } from './runtime/crossShopOrders'
 import { shopPreparationDurationGameMs } from './runtime/shopPreparationPolicy'
+import { placePaidShopOrder } from './runtime/shopOrderPayment'
+import { shopProductFor } from './runtime/shopOrderCatalog'
+import { notifyDueShopOrders } from './runtime/shopOrderCompletion'
+import { unlockedCommercialDrinkShopIds } from './runtime/commercialStreetShopApps'
 import { yongheTakeawayCatalog } from './runtime/yongheTakeawayCatalog'
 
 const initialSceneId = mainlineRespawnSceneId
@@ -215,8 +218,9 @@ export default function CenterExperience({
   const sceneEnteredAtRef = useRef(null)
   const milkTeaReadyAnalyticsMarkerRef = useRef(null)
   const commercialStreetState = playerSave.sceneState['commercial-street'] ?? {}
-  const drinkOrderingAppUnlocked = commercialStreetMilkTeaAppUnlocked(commercialStreetState)
-    || Boolean(fixtureStorage && new URLSearchParams(window.location.search).get('e2eUnlockDrinkApp') === '1')
+  const syntheticDrinkAppUnlock = Boolean(fixtureStorage && new URLSearchParams(window.location.search).get('e2eUnlockDrinkApp') === '1')
+  const availableDrinkShopIds = unlockedCommercialDrinkShopIds(commercialStreetState, syntheticDrinkAppUnlock)
+  const drinkOrderingAppUnlocked = availableDrinkShopIds.length > 0
   const cafeWorldSceneState = useMemo(() => ({ ...playerSave.sceneState['commercial-street'], ...playerSave.sceneState['commercial-cafe'] }), [playerSave.sceneState['commercial-street'], playerSave.sceneState['commercial-cafe']])
   const milkTeaOrder = commercialStreetMilkTeaOrderFromSceneState(commercialStreetState)
 
@@ -270,7 +274,7 @@ export default function CenterExperience({
   }, [commitPlayerSave])
   const readPhoneApp = useCallback((app) => {
     setPhoneNotificationScreen(false)
-    if (app !== 'ride' && app !== 'milk-tea') return
+    if (!['ride', 'milk-tea', 'yonghe-order', 'cafe-takeaway'].includes(app)) return
     commitPlayerSave(current => current.phoneNotifications.some(n => n.app === app && n.unread)
       ? { ...current, phoneNotifications: readPhoneNotifications(current.phoneNotifications, app) } : current)
   }, [commitPlayerSave])
@@ -375,28 +379,46 @@ export default function CenterExperience({
   }, [handleYongheOrderReady, playerSave.shopOrders?.[crossShopIds.yonghe]?.id, playerSave.shopOrders?.[crossShopIds.yonghe]?.productId, playerSave.shopOrders?.[crossShopIds.yonghe]?.readyAtGameTimeMs, playerSave.shopOrders?.[crossShopIds.yonghe]?.status])
 
   useEffect(() => {
+    const nowGameTimeMs = trialClockSnapshot.gameTimeMs
+    commitPlayerSave(current => {
+      const completion = notifyDueShopOrders(current.shopOrders, current.phoneNotifications, nowGameTimeMs)
+      return completion.changed ? { ...current, shopOrders: completion.orders, phoneNotifications: completion.notifications } : current
+    })
+  }, [commitPlayerSave, playerSave.shopOrders, trialClockSnapshot.gameTimeMs])
+
+  useEffect(() => {
     if (!fixtureStorage) return
     const shopId = new URLSearchParams(window.location.search).get('e2eShopId')
     if (!shopId || !Object.values(crossShopIds).includes(shopId)) return
     openShopOrderApp(shopId)
   }, [fixtureStorage, openShopOrderApp])
 
-  const confirmShopOrder = useCallback(({ shopId, productId, options }) => {
+  const confirmShopOrder = useCallback(({ shopId, productId, options, idempotencyKey }) => {
     const nowGameTimeMs = sessionGameClockRef.current.read().gameTimeMs
     const preparationDurationMs = shopPreparationDurationGameMs(shopId, productId, { overrides: fixtureStorage ? {
       [`${crossShopIds.milkTea}:${productId}`]: 1000,
       [`${crossShopIds.fruitTea}:${productId}`]: 1000,
       [`${crossShopIds.yonghe}:${productId}`]: 1000,
     } : undefined })
+    const product = shopProductFor(shopId, productId)
+    if (!product || !Number.isSafeInteger(product.price) || !idempotencyKey) return { ok: false, reason: 'invalid-payment' }
     let outcome = null
     commitPlayerSave(current => {
-      const result = placeCrossShopOrder({ ordersByShop: current.shopOrders, heldConsumable: current.heldConsumable }, {
-        shopId, productId, id: `order-${shopId}-${Math.random().toString(36).slice(2, 10)}`,
-        placedAtGameTimeMs: nowGameTimeMs, preparationDurationMs, options,
+      const result = placePaidShopOrder({ ordersByShop: current.shopOrders, heldConsumable: current.heldConsumable }, {
+        walletBalance: current.walletBalance, paymentReceipts: current.shopOrderPaymentReceipts,
+      }, {
+        shopId, productId, idempotencyKey, orderId: `order-${idempotencyKey}`,
+        price: product.price, placedAtGameTimeMs: nowGameTimeMs, preparationDurationMs, options,
       })
       outcome = result
       if (!result.ok) return current
-      return { ...current, shopOrders: result.state.ordersByShop, heldConsumable: result.state.heldConsumable }
+      return {
+        ...current,
+        shopOrders: result.orderState.ordersByShop,
+        heldConsumable: result.orderState.heldConsumable,
+        walletBalance: result.paymentState.walletBalance,
+        shopOrderPaymentReceipts: result.paymentState.paymentReceipts,
+      }
     })
     return outcome?.ok ? { ok: true } : { ok: false, reason: outcome?.reason ?? 'order-not-saved' }
   }, [commitPlayerSave, fixtureStorage])
@@ -1058,7 +1080,7 @@ export default function CenterExperience({
           onNotificationDismiss={() => setPhoneNotificationScreen(false)}
           onAppOpen={readPhoneApp}
           milkTeaAppUnlocked={drinkOrderingAppUnlocked}
-          availableShopIds={drinkOrderingAppUnlocked ? [crossShopIds.milkTea, crossShopIds.fruitTea] : []}
+          availableShopIds={availableDrinkShopIds}
           milkTeaOrder={milkTeaOrder}
           milkTeaHeld={commercialStreetMilkTeaHeld(commercialStreetState)}
           requestedApp={requestedPhoneApp}
@@ -1066,10 +1088,12 @@ export default function CenterExperience({
           requestedShopProductId={requestedShopProductId}
           onShopOrderPlaced={handleYongheOrderPlaced}
           onShopOrderReady={handleYongheOrderReady}
+          onShopNotificationOpen={openShopOrderApp}
           shopOrders={playerSave.shopOrders}
           heldConsumable={playerSave.heldConsumable}
+          walletBalance={playerSave.walletBalance}
           gameTimeMs={trialClockSnapshot.gameTimeMs}
-          preparationConfiguredByShop={{ [crossShopIds.milkTea]: true, ...(fixtureStorage ? { [crossShopIds.fruitTea]: true, [crossShopIds.yonghe]: true } : {}) }}
+          preparationConfiguredByShop={{ [crossShopIds.milkTea]: true, [crossShopIds.fruitTea]: true, [crossShopIds.yonghe]: true, [crossShopIds.cafeTakeaway]: true }}
           onShopOrderConfirm={confirmShopOrder}
           onLegacyShopOrderCancel={cancelLegacyShopOrder}
           onRequestedAppHandled={() => { setRequestedPhoneApp(null); setRequestedShopId(null); setRequestedShopProductId(null) }}

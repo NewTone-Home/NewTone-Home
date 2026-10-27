@@ -11,7 +11,7 @@ export type ShopOrderProduct = {
 }
 
 export function ShopOrderApp({
-  shopId, title, products, order, heldConsumable, gameTimeMs, preparationConfigured,
+  shopId, title, products, order, heldConsumable, walletBalance = 800, gameTimeMs, preparationConfigured,
   availableShops = [], onShopSelect, onConfirm, onCancelLegacy, initialProductId = null, onOrderPlaced, onOrderReady,
 }: {
   shopId: string
@@ -19,6 +19,7 @@ export function ShopOrderApp({
   products: readonly ShopOrderProduct[]
   order: CrossShopOrder | null
   heldConsumable: HeldConsumable | null
+  walletBalance?: number
   gameTimeMs: number
   preparationConfigured: boolean
   initialProductId?: string | null
@@ -26,7 +27,7 @@ export function ShopOrderApp({
   onOrderReady?: (order: { id: string; shopId: string; productId: string; productName: string }) => void
   availableShops?: readonly { id: string; label: string }[]
   onShopSelect?: (shopId: string) => void
-  onConfirm: (selection: { shopId: string; productId: string; options?: Record<string, string | number | boolean | null> }) => { ok: boolean; reason?: string }
+  onConfirm: (selection: { shopId: string; productId: string; idempotencyKey: string; options?: Record<string, string | number | boolean | null> }) => { ok: boolean; reason?: string }
   onCancelLegacy?: (shopId: string) => { ok: boolean; reason?: string }
 }) {
   const [productId, setProductId] = useState<string | null>(null)
@@ -34,6 +35,7 @@ export function ShopOrderApp({
   const [ice, setIce] = useState<string | null>(null)
   const [notice, setNotice] = useState('')
   const readyNotifiedOrderId = useRef<string | null>(null)
+  const requestIdRef = useRef<string | null>(null)
   const selected = useMemo(() => products.find(product => product.id === productId) ?? null, [productId, products])
   const readiness = order?.status === 'queued' && order.readyAtGameTimeMs !== null && gameTimeMs >= order.readyAtGameTimeMs
   useEffect(() => { setNotice(''); setProductId(initialProductId) }, [shopId, order?.id, initialProductId])
@@ -44,6 +46,7 @@ export function ShopOrderApp({
   }, [onOrderReady, order, products, readiness, shopId])
 
   return <section className="shop-order-app" aria-label={`${title}点单`} data-shop-id={shopId}>
+    <p className="shop-order-app__balance" aria-label={'\u4e2a\u4eba\u4f59\u989d'}>{'\u4e2a\u4eba\u4f59\u989d\uff1a'}{walletBalance}</p>
     {availableShops.length > 1 && <nav className="shop-order-app__shops" aria-label="Drink shops">{availableShops.map(shop => <button key={shop.id} type="button" data-shop-option={shop.id} aria-pressed={shop.id === shopId} onClick={() => onShopSelect?.(shop.id)}>{shop.label}</button>)}</nav>}
     {heldConsumable && <p className="shop-order-app__hand" role="status">手上已有一件物品；仍可下单，领取时检查手持状态。</p>}
     {order ? order.status === 'legacy-unmapped' ? <div className="shop-order-app__order" data-order-status="legacy-unmapped">
@@ -63,7 +66,7 @@ export function ShopOrderApp({
     </div> : <>
       <p className="shop-order-app__title">{title}</p>
       <div className="shop-order-app__products" aria-label="商品">
-        {products.map(product => <button key={product.id} type="button" data-shop-product-id={product.id} aria-pressed={productId === product.id} onClick={() => { setProductId(product.id); setSugar(null); setIce(null); setNotice('') }}>
+        {products.map(product => <button key={product.id} type="button" data-shop-product-id={product.id} aria-pressed={productId === product.id} onClick={() => { setProductId(product.id); requestIdRef.current = null; setSugar(null); setIce(null); setNotice('') }}>
           <span>{product.name}</span>{product.price !== undefined && <small>{product.price}</small>}
         </button>)}
       </div>
@@ -74,11 +77,17 @@ export function ShopOrderApp({
       <button className="shop-order-app__confirm" type="button" disabled={!selected || !preparationConfigured
         || Boolean(selected.customization?.sugar && !sugar) || Boolean(selected.customization?.ice && !ice)} onClick={() => {
         if (!selected) return
-        const result = onConfirm({ shopId, productId: selected.id, options: {
+        if (!requestIdRef.current) requestIdRef.current = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `shop-order-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const result = onConfirm({ shopId, productId: selected.id, idempotencyKey: requestIdRef.current, options: {
           ...(sugar ? { sugar } : {}), ...(ice ? { ice } : {}),
         } })
         if (result.ok) { setProductId(null); setSugar(null); setIce(null); setNotice('订单已提交。'); onOrderPlaced?.({ shopId, productId: selected.id }) }
-        else setNotice(result.reason ?? '订单暂时无法提交。')
+        else setNotice(result.reason === 'insufficient-funds' ? '\u4f59\u989d\u4e0d\u8db3\uff0c\u65e0\u6cd5\u4e0b\u5355\u3002'
+          : result.reason === 'preparation-not-configured' ? '\u5236\u4f5c\u65f6\u95f4\u5c1a\u672a\u914d\u7f6e\uff0c\u6682\u65f6\u4e0d\u80fd\u4e0b\u5355\u3002'
+            : result.reason === 'shop-already-has-order' ? '\u8fd9\u5bb6\u5e97\u8fd8\u6709\u4e00\u7b14\u672a\u9886\u53d6\u8ba2\u5355\u3002'
+              : result.reason ?? '\u8ba2\u5355\u6682\u65f6\u65e0\u6cd5\u63d0\u4ea4\u3002')
       }}>确认下单</button>
     </>}
   </section>

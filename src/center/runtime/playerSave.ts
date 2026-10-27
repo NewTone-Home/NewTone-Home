@@ -13,6 +13,8 @@ import { applyPublicReleaseCutover } from '../../services/publicReleaseMigration
 import { cleanPhoneCallHistory, cleanPhoneContactNotes, cleanPhoneNotes, createInitialPhoneNotes, type PhoneCallRecord, type PhoneNote } from './phonePersonalData'
 import { defaultLaoZhouCafeSeatId, isLaoZhouCafeSeatId, selectLaoZhouCafeSeat } from './commercialCafeSeatSelection'
 import { migrateLegacyShopState, sanitizeCrossShopOrderState, type CrossShopOrder, type HeldConsumable } from './crossShopOrders'
+import { sanitizeCafeStoryDeliveries, type CafeStoryDeliveryRecord } from './cafeStoryOrderDelivery'
+import { cleanShopOrderPaymentState, type ShopOrderPaymentReceipt } from './shopOrderPayment'
 
 export const PLAYER_SAVE_STORAGE_KEY = 'newtone-player-save-v1'
 export const PLAYER_SAVE_VERSION = 2
@@ -44,6 +46,12 @@ export type PlayerSave = {
   /** Cross-shop commerce state. Stored separately from scene state so rides and scene changes preserve one global hand. */
   shopOrders: Record<string, CrossShopOrder>
   heldConsumable: HeldConsumable | null
+  /** One shared prototype wallet; 800 is the approved test opening balance. */
+  walletBalance: number
+  /** Durable idempotency receipts prevent a retried purchase from charging twice. */
+  shopOrderPaymentReceipts: Record<string, ShopOrderPaymentReceipt>
+  /** Cafe story handoffs use normal cafe orders and persist presentation recovery. */
+  cafeStoryDeliveries: Record<string, CafeStoryDeliveryRecord>
   sceneState: Partial<Record<MainlineSceneId, PlayerSceneState>>
   phoneNotifications: PhoneNotification[]
   phoneNotes: PhoneNote[]
@@ -118,6 +126,9 @@ export function createInitialPlayerSave(sceneId: MainlineSceneId = initialMainli
     gameTimeMs: storyClockTimeAsMilliseconds(storyClock),
     shopOrders: {},
     heldConsumable: null,
+    walletBalance: 800,
+    shopOrderPaymentReceipts: {},
+    cafeStoryDeliveries: {},
     sceneState: {},
     phoneNotifications: [],
     phoneNotes: createInitialPhoneNotes(),
@@ -274,6 +285,9 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
   const commerceState = Object.hasOwn(source, 'shopOrders') || Object.hasOwn(source, 'heldConsumable')
     ? sanitizeCrossShopOrderState({ ordersByShop: source.shopOrders, heldConsumable: source.heldConsumable })
     : migrateLegacyShopState(cleanSceneState(source.sceneState), { gameTimeMs, updatedAtWallMs: Number.isFinite(updatedAt) && updatedAt >= 0 ? updatedAt : 0 })
+  const paymentState = Object.hasOwn(source, 'walletBalance') || Object.hasOwn(source, 'shopOrderPaymentReceipts')
+    ? cleanShopOrderPaymentState({ walletBalance: source.walletBalance, paymentReceipts: source.shopOrderPaymentReceipts })
+    : { walletBalance: 800, paymentReceipts: {} }
   return {
     worldGridVersion: 1,
     commercialDepthVersion: Math.max(currentCommercialDepthVersion, Number.isFinite(savedDepthVersion) ? savedDepthVersion : currentCommercialDepthVersion),
@@ -290,6 +304,9 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
     gameTimeMs,
     shopOrders: commerceState.ordersByShop,
     heldConsumable: commerceState.heldConsumable,
+    walletBalance: paymentState.walletBalance,
+    shopOrderPaymentReceipts: paymentState.paymentReceipts,
+    cafeStoryDeliveries: sanitizeCafeStoryDeliveries(source.cafeStoryDeliveries),
     sceneState: cleanSceneState(source.sceneState),
     phoneNotifications: cleanPhoneNotifications(source.phoneNotifications),
     phoneNotes: cleanPhoneNotes(source.phoneNotes),

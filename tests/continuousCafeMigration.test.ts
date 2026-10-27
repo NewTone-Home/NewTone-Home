@@ -11,9 +11,9 @@ import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundary
 
 const street = mainlineScenes['commercial-street']
 const options = { screenMetrics: sceneDesignReferenceMetrics }
-const counterCenter = street.objects.find(o => o.id === 'cafe-trial-order')!.position
+const counterCenter = street.objects.find(o => o.id === 'commercial-cafe-counter')!.position
 const cafeEntry = street.passages.find(p => p.id === 'street-cafe-entry')!.crossingTargets[0]
-const counterContact = findMainlinePathToEntity(street, 'cafe-trial-order', cafeEntry, {}, options)
+const counterContact = findMainlinePathToEntity(street, 'commercial-cafe-counter', cafeEntry, {}, options)
 const counterPublicContact = counterContact.target
 describe('retired standalone Cafe compatibility in one continuous world', () => {
   it('keeps the actual conversation chair reachable from the customer counter contact', () => {
