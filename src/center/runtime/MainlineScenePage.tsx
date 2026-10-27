@@ -14,6 +14,8 @@ import { layoutGridSize, mainlineLabelFootprint, mainlineNpcLabelFootprint, main
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
 import { movementDurationMsForPath, protagonistCharacterMovementOptions, sharedCharacterMovementOptions, useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
 import type { PhoneDevice } from './phoneState'
+import type { HeldConsumable } from './crossShopOrders'
+import { isTrueMilkTea } from './heldConsumablePresentation'
 import { sceneInteractionHandlers } from './sceneInteraction'
 import { useAutomaticPassages } from './useAutomaticPassages'
 import { defaultSceneScreenMetrics, sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
@@ -257,6 +259,8 @@ export function MainlineScenePage({
   onMeaningfulActivity,
   onDeskInteraction,
   onObjectInteraction,
+  onCommerceEntity,
+  onConsumeHeldConsumable,
   onStorefrontAction,
   onMilkTeaAppOpen,
   onMilkTeaOrderReady,
@@ -268,7 +272,7 @@ export function MainlineScenePage({
   interactionTutorialCompleted = false,
   onPlayerSceneStateChange,
   onPlayerSceneStatePatch,
-  carriedMilkTea = false,
+  heldConsumable,
   carriedPhoneDevice = 'surface',
   onSceneTransition,
   onSafeSpawnCorrection,
@@ -300,6 +304,8 @@ export function MainlineScenePage({
   onMeaningfulActivity?: () => void
   onDeskInteraction?: (device: PhoneDevice) => void
   onObjectInteraction?: (entity: MainlineSceneEntity, dwellMs: number) => void
+  onCommerceEntity?: (entity: MainlineSceneEntity) => boolean
+  onConsumeHeldConsumable?: () => void
   /** Reserved entry point for future storefront actions such as milk-tea ordering. */
   onStorefrontAction?: (action: CommercialStreetStorefrontAction, storefrontId: string) => void
   onMilkTeaAppOpen?: () => void
@@ -312,7 +318,7 @@ export function MainlineScenePage({
   interactionTutorialCompleted?: boolean
   onPlayerSceneStateChange?: (sceneId: MainlineSceneId, key: string, value: PlayerChoiceValue) => void
   onPlayerSceneStatePatch?: (sceneId: MainlineSceneId, patch: PlayerSceneState) => void
-  carriedMilkTea?: boolean
+  heldConsumable?: HeldConsumable | null
   carriedPhoneDevice?: PhoneDevice
   onSceneTransition: (sceneId: MainlineSceneId, entryPosition?: Point, spawnMode?: 'resume' | 'ride', transitionIntent?: MainlineWalkingPassageTransitionIntent) => void
   onSafeSpawnCorrection?: (position: Point) => void
@@ -516,7 +522,11 @@ export function MainlineScenePage({
       : commercialCafeStoryStateFromSceneState(initialSceneState)
   }, [debugCafeStoryStage, initialSceneState, scene.id])
   const laoZhouVisibleInCurrentVisit = hasContinuousCafe(scene)
-  const carryingMilkTea = carriedMilkTea || commercialStreetMilkTeaHeld(initialSceneState)
+  const legacyHeldDrinkFallback: HeldConsumable | null = heldConsumable === undefined && commercialStreetMilkTeaHeld(initialSceneState)
+    ? { id: 'legacy-milk-tea', shopId: commercialStreetMilkTeaStorefrontId, productId: 'legacy-milk-tea', kind: 'legacy-unknown', sourceOrderId: null }
+    : null
+  const resolvedHeldConsumable = heldConsumable === undefined ? legacyHeldDrinkFallback : heldConsumable
+  const carryingMilkTea = isTrueMilkTea(resolvedHeldConsumable)
   const commercialStreetQuestionNarrativeIsCompleted = commercialStreetQuestionNarrativeCompletedLocally || commercialStreetQuestionNarrativeCompleted(initialSceneState[commercialStreetQuestionNarrativeCompletedKey])
   commercialStreetQuestionNarrativeActiveRef.current = Boolean(commercialStreetQuestionNarrative)
   const recordSceneState = useCallback((targetSceneId: MainlineSceneId, key: string, value: PlayerChoiceValue) => {
@@ -2000,6 +2010,11 @@ export function MainlineScenePage({
       }
       const interactionStartedAt = interactionStartedAtRef.current
       interactionStartedAtRef.current = null
+      if (onCommerceEntity?.(entity)) {
+        onInteractionAnalytics?.('completed', entity.id, entity.kind, 'commerce-handled')
+        setActiveObjectId(null)
+        return
+      }
       onObjectInteraction?.(entity, Math.max(0, Date.now() - (interactionStartedAt ?? Date.now())))
       if (entity.interactionBehavior === 'cafe-faucet-toggle') {
         cafeRestroomFaucetOpenRef.current = !cafeRestroomFaucetOpenRef.current
@@ -2022,7 +2037,7 @@ export function MainlineScenePage({
         officeBlindsOpen,
         carriedPhoneDevice,
         commercialCafeCoffeeOrdered: commercialCafeCoffeeOrderedState(commercialCafeStory),
-        carriedMilkTea: carriedMilkTea || commercialStreetMilkTeaHeld(initialSceneState),
+        carriedMilkTea: carryingMilkTea,
       })
       const explorationChoice = exploration.choice
       const explorationPool = exploration.pool
@@ -2087,7 +2102,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, cancelSceneAction, carriedPhoneDevice, cafeRestroomToiletUseRef, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, createSceneAction, clearCafeRestroomToiletUse, denyLockedPassageAfterApproach, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, recordSceneStatePatch, resetMovement, scene, sceneAction, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startDialogueTextSession, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, cancelSceneAction, carriedPhoneDevice, cafeRestroomToiletUseRef, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, createSceneAction, clearCafeRestroomToiletUse, denyLockedPassageAfterApproach, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onCommerceEntity, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, recordSceneStatePatch, resetMovement, scene, sceneAction, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startDialogueTextSession, startNpcDialogue, startPassageTraversal, stopMovement])
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
@@ -2125,28 +2140,12 @@ export function MainlineScenePage({
   }, [activeViewportMetrics, cameraOffset, cancelSceneAction, createSceneAction, getCurrentPosition, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction, screenMetrics])
 
   const beginMilkTeaStorefrontAction = useCallback(() => {
-    const currentOrder = commercialStreetMilkTeaOrderFromSceneState(initialSceneState)
-    if (carriedMilkTea || commercialStreetMilkTeaHeld(initialSceneState)) {
-      showHeldMilkTeaAction()
-      return
-    }
-    if (currentOrder) {
-      if (commercialStreetMilkTeaIsReady(currentOrder)) {
-        onMilkTeaOrderReady?.(currentOrder)
-        recordSceneStatePatch('commercial-street', commercialStreetMilkTeaPickupPatch())
-        onChapterAnalytics?.('milk_tea_order_picked_up', { orderNumber: currentOrder.number })
-        showMilkTeaEcho('取到奶茶。')
-        return
-      }
-      onMilkTeaAppOpen?.()
-      return
-    }
     if (!commercialStreetMilkTeaAppUnlocked(initialSceneState)) {
       recordSceneStatePatch('commercial-street', commercialStreetMilkTeaAppUnlockPatch())
       onChapterAnalytics?.('milk_tea_app_unlocked')
     }
     onMilkTeaAppOpen?.()
-  }, [carriedMilkTea, initialSceneState, onChapterAnalytics, onMilkTeaAppOpen, onMilkTeaOrderReady, recordSceneStatePatch, showHeldMilkTeaAction, showMilkTeaEcho])
+  }, [initialSceneState, onChapterAnalytics, onMilkTeaAppOpen, recordSceneStatePatch])
 
   const interactStorefront = useCallback((storefrontId: string) => {
     if (readingActive || sceneAction?.phase === 'committing') return
@@ -2344,7 +2343,7 @@ export function MainlineScenePage({
     const resolution = resolveMainlineSceneEchoChoice(scene, entity, option, Date.now(), {
       carriedPhoneDevice,
       commercialCafeCoffeeOrdered: commercialCafeCoffeeOrderedState(commercialCafeStory),
-      carriedMilkTea: carriedMilkTea || commercialStreetMilkTeaHeld(initialSceneState),
+      carriedMilkTea: carryingMilkTea,
       plantWaterStateKey: entity?.id === 'zhongshuyuan-office-plant' ? undefined : entity ? `plantWateredAt:${entity.id}` : undefined,
     })
     if (!resolution) {
@@ -2373,7 +2372,7 @@ export function MainlineScenePage({
       setPlantWateredAt(resolution.stateChange.value)
     }
     commitSceneActionExit(actionId)
-  }, [carriedMilkTea, carriedPhoneDevice, commercialCafeStory, commitSceneActionExit, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, recordSceneState, recordSceneStatePatch, scene, sceneAction, startCafeRestroomToiletUse])
+  }, [carryingMilkTea, heldConsumable, carriedPhoneDevice, commercialCafeStory, commitSceneActionExit, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, recordSceneState, recordSceneStatePatch, scene, sceneAction, startCafeRestroomToiletUse])
 
   const finishSceneEchoReading = useCallback((current: MainlineSceneEcho) => {
     if (current.options && current.options.length > 0) {
@@ -2913,8 +2912,8 @@ export function MainlineScenePage({
               onSceneActionChoice={chooseSceneEchoOption}
               onSceneActionExitComplete={finishSceneActionExit}
               onSceneEchoExitComplete={completeSceneEchoExit}
-              onMilkTeaInteract={showHeldMilkTeaAction}
-              carriedMilkTea={carryingMilkTea}
+              onHeldConsumableInteract={onConsumeHeldConsumable ?? showHeldMilkTeaAction}
+              heldConsumable={resolvedHeldConsumable}
               onFrameMotionProfileChange={handleFrameMotionProfileChange}
               exploredObjectIds={exploredObjectIds}
               interactionTutorialCompleted={interactionTutorialCompleted}
@@ -2962,3 +2961,4 @@ export function MainlineScenePage({
     </>
   )
 }
+

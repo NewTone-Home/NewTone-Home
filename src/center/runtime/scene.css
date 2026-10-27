@@ -574,6 +574,26 @@
   transform: rotate(-18deg);
   transform-origin: bottom;
 }
+.scene-protagonist__held-action {
+  position: absolute;
+  left: 19px;
+  top: -8px;
+  min-width: 31px;
+  height: 16px;
+  padding: 0 3px;
+  pointer-events: auto;
+  cursor: pointer;
+  border: 1px solid var(--active);
+  border-radius: 5px;
+  color: var(--active);
+  background: rgba(18, 16, 13, .92);
+  font: 8px/1 system-ui, sans-serif;
+  white-space: nowrap;
+  box-shadow: 0 0 4px 1px rgba(240,204,123,.35);
+}
+.scene-protagonist__held-action--meal { border-radius: 2px; border-style: dashed; }
+.scene-protagonist__held-action:hover, .scene-protagonist__held-action:focus-visible { transform: scale(1.08); filter: brightness(1.25); }
+@media (prefers-reduced-motion: reduce) { .scene-protagonist__held-action { box-shadow: none; } }
 
 .scene-protagonist__seat-label {
   display: block;

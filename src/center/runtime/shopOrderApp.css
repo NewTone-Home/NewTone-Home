@@ -1,0 +1,15 @@
+.shop-order-app { display:grid; gap:12px; padding:12px 0; color:var(--phone-ink); }
+.shop-order-app__title { margin:0; font-weight:700; }
+.shop-order-app__products { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.shop-order-app__products button,.shop-order-app fieldset button { border:1px solid var(--phone-border); border-radius:9px; background:#ffffff08; color:inherit; padding:10px; }
+.shop-order-app__products button { display:flex; align-items:center; justify-content:space-between; gap:8px; text-align:left; }
+.shop-order-app__products button[aria-pressed=true],.shop-order-app fieldset button[aria-pressed=true] { border-color:#c8c9ce; background:#ffffff1b; }
+.shop-order-app__products small { color:var(--phone-muted); }
+.shop-order-app fieldset { display:flex; flex-wrap:wrap; gap:7px; border:0; margin:0; padding:0; }
+.shop-order-app fieldset legend { width:100%; margin-bottom:5px; color:var(--phone-muted); }
+.shop-order-app__hand,.shop-order-app__blocked { margin:0; color:var(--phone-muted); font-size:12px; }
+.shop-order-app__order { display:grid; gap:8px; border:1px solid var(--phone-border); border-radius:10px; padding:14px; }
+.shop-order-app__order p,.shop-order-app__order small { margin:0; color:var(--phone-muted); }
+.shop-order-app__confirm { justify-self:stretch; padding:12px; border:0; border-radius:9px; background:#d9d2c6; color:#27231d; font-weight:700; }
+.shop-order-app__confirm:disabled { opacity:.45; }
+.shop-order-app__cancel-legacy { justify-self:start; padding:9px 12px; border:1px solid var(--phone-border); border-radius:8px; background:#ffffff08; color:inherit; font-weight:600; }

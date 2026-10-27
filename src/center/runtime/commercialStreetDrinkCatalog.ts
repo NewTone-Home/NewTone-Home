@@ -11,6 +11,7 @@ export type DrinkCustomization = {
 
 export type CommercialStreetDrink = {
   id: string
+  storeId?: string
   name: string
   price: number
   customization: DrinkCustomization
@@ -21,7 +22,7 @@ export type CommercialStreetDrink = {
 const teaCustomization: DrinkCustomization = { sugar: drinkCustomizationOptions.sugar, ice: drinkCustomizationOptions.ice }
 const juiceCustomization: DrinkCustomization = { sugar: null, ice: drinkCustomizationOptions.ice }
 
-export const commercialStreetDrinkCatalog: readonly CommercialStreetDrink[] = [
+const drinkCatalogEntries: readonly CommercialStreetDrink[] = [
   { id: 'original-milk-tea', name: '原味奶茶', price: 3, customization: teaCustomization, description: '经典原味奶茶，茶香与奶香相互融合。', recommendation: null },
   { id: 'brown-sugar-pearl-milk-tea', name: '黑糖珍珠奶茶', price: 4, customization: teaCustomization, description: '浓郁黑糖风味，加入Q弹珍珠，甜香十足。', recommendation: null },
   { id: 'taro-milk-tea', name: '芋泥奶茶', price: 4, customization: teaCustomization, description: '加入细腻芋泥，奶香中带着淡淡芋香。', recommendation: { mood: '浓郁', line: '芋泥奶茶的口感会比较浓郁。' } },
@@ -31,6 +32,13 @@ export const commercialStreetDrinkCatalog: readonly CommercialStreetDrink[] = [
   { id: 'fresh-orange-juice', name: '鲜橙汁', price: 4, customization: juiceCustomization, description: '鲜橙酸甜，果香自然', recommendation: null },
   { id: 'strawberry-fruit-drink', name: '草莓果饮', price: 5, customization: juiceCustomization, description: '草莓香甜，果味浓郁', recommendation: { mood: '浓郁', line: '草莓果饮的果味会更浓郁一些。' } },
 ] as const
+
+/** Explicit shop binding for the approved eight-SKU catalogue. */
+export const commercialStreetDrinkCatalog = drinkCatalogEntries.map((product, index) => ({
+  ...product,
+  storeId: index < 4 ? 'commercial-south-slot-5' : 'commercial-north-slot-1',
+})) as readonly (CommercialStreetDrink & { storeId: string })[]
+export const commercialStreetDrinkCatalogWithStores = commercialStreetDrinkCatalog
 
 export const commercialStreetDrinkShopDialogue = {
   welcome: '欢迎光临，看看想喝什么？',
@@ -42,3 +50,4 @@ export const commercialStreetDrinkCatalogMissingCopy = {
   descriptions: [],
   recommendations: ['grape-jasmine-tea', 'fresh-orange-juice'],
 } as const
+

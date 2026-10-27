@@ -12,6 +12,7 @@ import { createInitialMainlineStoryClock, storyClockForStage, type MainlineStory
 import { applyPublicReleaseCutover } from '../../services/publicReleaseMigration'
 import { cleanPhoneCallHistory, cleanPhoneContactNotes, cleanPhoneNotes, createInitialPhoneNotes, type PhoneCallRecord, type PhoneNote } from './phonePersonalData'
 import { defaultLaoZhouCafeSeatId, isLaoZhouCafeSeatId, selectLaoZhouCafeSeat } from './commercialCafeSeatSelection'
+import { migrateLegacyShopState, sanitizeCrossShopOrderState, type CrossShopOrder, type HeldConsumable } from './crossShopOrders'
 
 export const PLAYER_SAVE_STORAGE_KEY = 'newtone-player-save-v1'
 export const PLAYER_SAVE_VERSION = 2
@@ -40,6 +41,9 @@ export type PlayerSave = {
   storyClock: MainlineStoryClock
   /** Simulation milliseconds elapsed in-world; never derived from wall time on resume. */
   gameTimeMs: number
+  /** Cross-shop commerce state. Stored separately from scene state so rides and scene changes preserve one global hand. */
+  shopOrders: Record<string, CrossShopOrder>
+  heldConsumable: HeldConsumable | null
   sceneState: Partial<Record<MainlineSceneId, PlayerSceneState>>
   phoneNotifications: PhoneNotification[]
   phoneNotes: PhoneNote[]
@@ -112,6 +116,8 @@ export function createInitialPlayerSave(sceneId: MainlineSceneId = initialMainli
     phoneDevice: initialMainlinePhoneDevice,
     storyClock,
     gameTimeMs: storyClockTimeAsMilliseconds(storyClock),
+    shopOrders: {},
+    heldConsumable: null,
     sceneState: {},
     phoneNotifications: [],
     phoneNotes: createInitialPhoneNotes(),
@@ -265,6 +271,9 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
   const gameTimeMs = typeof savedGameTimeMs === 'number' && Number.isFinite(savedGameTimeMs) && savedGameTimeMs >= 0
     ? savedGameTimeMs
     : savedStoryClockTimeAsMilliseconds((source as { storyClock?: unknown }).storyClock, storyClock)
+  const commerceState = Object.hasOwn(source, 'shopOrders') || Object.hasOwn(source, 'heldConsumable')
+    ? sanitizeCrossShopOrderState({ ordersByShop: source.shopOrders, heldConsumable: source.heldConsumable })
+    : migrateLegacyShopState(cleanSceneState(source.sceneState), { gameTimeMs, updatedAtWallMs: Number.isFinite(updatedAt) && updatedAt >= 0 ? updatedAt : 0 })
   return {
     worldGridVersion: 1,
     commercialDepthVersion: Math.max(currentCommercialDepthVersion, Number.isFinite(savedDepthVersion) ? savedDepthVersion : currentCommercialDepthVersion),
@@ -279,6 +288,8 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
     phoneDevice,
     storyClock,
     gameTimeMs,
+    shopOrders: commerceState.ordersByShop,
+    heldConsumable: commerceState.heldConsumable,
     sceneState: cleanSceneState(source.sceneState),
     phoneNotifications: cleanPhoneNotifications(source.phoneNotifications),
     phoneNotes: cleanPhoneNotes(source.phoneNotes),

@@ -14,7 +14,7 @@ export default defineConfig({
   },
   webServer: {
     command: `node node_modules/vite/bin/vite.js --host 127.0.0.1 --port ${playwrightTestPort} --strictPort`,
-    env: { VITE_E2E_CLOCK_TRIAL: '1' },
+    env: { VITE_E2E_CLOCK_TRIAL: '1', VITE_E2E_SHOP_ORDERS: '1' },
     url: playwrightTestUrl,
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === 'true',
     timeout: 30_000,
