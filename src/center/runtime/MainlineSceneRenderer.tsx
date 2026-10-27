@@ -1377,7 +1377,10 @@ export function MainlineSceneRenderer({
     ? `${scene.id}:observation:echo:${sceneEcho.id}`
     : `${scene.id}:dialogue:${dialogue?.triggerEntityId ?? ''}`
   const readingAnchorSessionKey = readingOcclusionSessionKey
-  const retainedReadingPresentation = readingPresentationPhase === 'leaving'
+  const readingTextDeleting = sceneEcho
+    ? sceneEcho.textMotion === 'deleting' || sceneEcho.textMotion === 'deleted'
+    : dialogueTextMotion === 'deleting' || dialogueTextMotion === 'deleted'
+  const retainedReadingPresentation = (readingPresentationPhase === 'leaving' || readingTextDeleting)
     && readingSessionKey
     && retainedReadingPresentationRef.current?.sessionKey === readingSessionKey
     ? retainedReadingPresentationRef.current
@@ -1759,11 +1762,11 @@ export function MainlineSceneRenderer({
   const currentReadingPresentation: MainlineReadingPresentationSnapshot | null = readingMode && readingSessionKey && activeDisplayReadingPosition && activeDisplayReadingLayout
     ? { sessionKey: readingSessionKey, anchorSessionKey: readingAnchorSessionKey ?? undefined, anchorContextKey: readingAnchorContextKey, position: activeDisplayReadingPosition, cameraOffset: renderCameraOffset, layout: activeDisplayReadingLayout, maxWidthPx: readingFit?.maxWidthPx ?? activeReadingWidthPx, text: activeDisplayReadingText, overflowIndex: activeDisplayOverflowIndex }
     : null
-  const readingPresentation = mainlineReadingPresentationForPhase(readingPresentationPhase, readingSessionKey, currentReadingPresentation, retainedReadingPresentation)
+  const readingPresentation = mainlineReadingPresentationForPhase(readingTextDeleting ? 'deleting' : readingPresentationPhase, readingSessionKey, currentReadingPresentation, retainedReadingPresentation)
   useIsomorphicLayoutEffect(() => {
-    if (readingPresentationPhase === 'active' && currentReadingPresentation) retainedReadingPresentationRef.current = currentReadingPresentation
+    if (readingPresentationPhase === 'active' && !readingTextDeleting && currentReadingPresentation) retainedReadingPresentationRef.current = currentReadingPresentation
     else if (readingPresentationPhase === 'inactive') retainedReadingPresentationRef.current = null
-  }, [currentReadingPresentation, readingPresentationPhase])
+  }, [currentReadingPresentation, readingPresentationPhase, readingTextDeleting])
   const displayOverflowIndex = readingPresentation?.overflowIndex ?? activeDisplayOverflowIndex
   const displayReadingText = readingPresentation?.text ?? activeDisplayReadingText
   const displayReadingLayout = readingPresentation?.layout ?? activeDisplayReadingLayout
@@ -2780,7 +2783,6 @@ export function MainlineSceneRenderer({
                   if (readingSessionKey) setReadingOverflowPage({ sessionKey: readingSessionKey, key: readingOverflowKey, index: displayOverflowIndex + 1 })
                   return
                 }
-                setReadingOverflowPage(null)
                 if (readingMode === 'dialogue') {
                   if (currentDialogueGroupRef.current !== null
                     && dialogueAdvanceConsumedGroupRef.current !== currentDialogueGroupRef.current

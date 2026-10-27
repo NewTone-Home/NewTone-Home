@@ -13,7 +13,7 @@ export type MainlineReadingPresentationSnapshot = {
   overflowIndex: number
 }
 
-export type MainlineReadingPresentationPhase = 'active' | 'leaving' | 'inactive'
+export type MainlineReadingPresentationPhase = 'active' | 'deleting' | 'leaving' | 'inactive'
 
 /** Keep one dialogue line's fitted pages together, but let the next authored
  * line choose a fresh anchor against its own text envelope. */
@@ -72,7 +72,7 @@ export function mainlineReadingPresentationForPhase(
   retained: MainlineReadingPresentationSnapshot | null,
 ): MainlineReadingPresentationSnapshot | null {
   if (phase === 'active') return current?.sessionKey === sessionKey ? current : null
-  if (phase === 'leaving' && sessionKey && retained?.sessionKey === sessionKey) return retained
+  if ((phase === 'deleting' || phase === 'leaving') && sessionKey && retained?.sessionKey === sessionKey) return retained
   return null
 }
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from '../src/center/runtime/mainlineReadingPresentation'
+import { mainlineReadingPageKey } from '../src/center/runtime/mainlineReadingPageKey'
+import { mainlineReadingOverflowPageIndex } from '../src/center/runtime/mainlineReadingProtection'
 
 const active: MainlineReadingPresentationSnapshot = {
   sessionKey: 'scene:observation:echo:7:plant',
@@ -12,6 +14,25 @@ const active: MainlineReadingPresentationSnapshot = {
 }
 
 describe('mainline reading presentation retention', () => {
+  it.each(['observation', 'dialogue'])('keeps the last fitted %s page through deletion and resize without a new flip key', (mode) => {
+    const sessionKey = `office:${mode}:session-1`
+    const overflowKey = `${sessionKey}:segment-1`
+    const page = { sessionKey, key: overflowKey, index: 1 }
+    const tail = { ...active, sessionKey, text: '的材料', overflowIndex: 1 }
+    const resizedFirstPage = { ...tail, text: '左下办公室的办公桌上', overflowIndex: 0, layout: { ...tail.layout, widthPx: 120 } }
+    const originalKey = mainlineReadingPageKey({ sessionKey, segmentIndex: 1, overflowIndex: tail.overflowIndex, text: tail.text })
+    expect(mainlineReadingOverflowPageIndex(page, sessionKey, overflowKey)).toBe(1)
+    for (const phase of ['deleting', 'deleting', 'leaving'] as const) {
+      const shown = mainlineReadingPresentationForPhase(phase, sessionKey, resizedFirstPage, tail)!
+      expect(shown.text).toBe('的材料')
+      expect(shown.overflowIndex).toBe(1)
+      expect(mainlineReadingPageKey({ sessionKey, segmentIndex: 1, overflowIndex: shown.overflowIndex, text: shown.text })).toBe(originalKey)
+    }
+    expect(mainlineReadingOverflowPageIndex(page, sessionKey, `${sessionKey}:segment-2`)).toBe(0)
+    expect(mainlineReadingOverflowPageIndex(page, 'office:new-session', overflowKey)).toBe(0)
+    expect(mainlineReadingPresentationForPhase('deleting', 'office:new-session', null, tail)).toBeNull()
+  })
+
   it('uses the fitted active placement and carries that exact placement into leaving', () => {
     const fitted = { ...active, position: { x: 48, y: 21 } }
     expect(mainlineReadingPresentationForPhase('active', active.sessionKey, fitted, null)).toBe(fitted)
