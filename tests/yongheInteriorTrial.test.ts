@@ -69,10 +69,10 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       const board = scene.objects.find(object => object.id === 'yonghe-trial-board')!
       expect(board.position.x).toBeCloseTo(point(22, 100).x, 10)
       expect(board.position.y).toBeCloseTo(point(22, 100).y, 10)
-      expect(scene.passages.find(passage => passage.id === 'yonghe-back-door')?.access).toBe('locked')
+      expect(scene.passages.find(passage => passage.id === 'yonghe-back-door')?.access).toBe('open')
       const rear = scene.objects.find(object => object.id === 'yonghe-back-door')!
-      expect(rear.position.x).toBeCloseTo(point(0, 252).x, 10)
-      expect(rear.position.y).toBeCloseTo(point(0, 252).y, 10)
+      expect(rear.position.x).toBeCloseTo(point(0, 280).x, 10)
+      expect(rear.position.y).toBeCloseTo(point(0, 280).y, 10)
       const old = point(0, 168)
       const atOld = scene.geometry.filter(unit => unit.x <= old.x && unit.x + unit.width >= old.x && unit.y <= old.y && unit.y + unit.height >= old.y)
       expect(atOld.some(unit => unit.navigation.passageId === 'yonghe-back-door')).toBe(false)
@@ -83,6 +83,18 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
     it('does not expose the removed central-lane survey placeholder or its test description', () => {
       expect(scene.objects.some(object => object.id === 'yonghe-survey-central-lane')).toBe(false)
       expect(scene.explorationText?.['yonghe-survey-central-lane']).toBeUndefined()
+    })
+
+    it('places a locked warehouse door to the right of the Yonghe back door without a destination', () => {
+      const rear = scene.objects.find(object => object.id === 'yonghe-back-door')!
+      const warehouse = scene.objects.find(object => object.id === 'yonghe-warehouse-door')!
+      const passage = scene.passages.find(candidate => candidate.id === 'yonghe-warehouse-door')!
+      expect(warehouse.position.x).toBeGreaterThan(rear.position.x)
+      expect(passage.access).toBe('locked')
+      expect(passage.routeThrough).not.toBe(true)
+      expect(passage.targetSceneId).toBeUndefined()
+      expect(passage.toRoomId).toBeUndefined()
+      expect(passage.lockedText).toBe('\u63a8\u4e00\u4e0b\u95e8\u3002\u95e8\u9501\u7740\uff0c\u6253\u4e0d\u5f00\u3002')
     })
 
     it('frames the four indoor tables on entry and re-entry, and hides them outside the room', () => {
@@ -223,10 +235,10 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       const streetDoor = scene.objects.find(entity => entity.id === 'yonghe-street-entry')!
       expect(streetDoor.spaceId).toBeUndefined()
       expect(scene.passages.find(passage => passage.id === 'yonghe-street-entry')?.access).toBe('open')
-      expect(scene.passages.find(passage => passage.id === 'yonghe-back-door')?.access).toBe('locked')
+      expect(scene.passages.find(passage => passage.id === 'yonghe-back-door')?.access).toBe('open')
     })
 
-    it('keeps the work zone staff-only, counter continuous, and rear door unreachable through the wall', () => {
+  it('keeps the work zone staff-only, counter continuous, and rear door connected to the alley', () => {
       const stove = scene.objects.find(object => object.id === 'yonghe-stove')!
       const board = scene.objects.find(object => object.id === 'yonghe-trial-board')!
       const staff = { ...options, actorId: 'yonghe-trial-worker', actorFootprint: { width: 16 / 19.2, height: 16 / 10.8 } }
@@ -235,9 +247,10 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       expect(isWalkableMainlinePoint(workerStart, scene, {}, staff)).toBe(true)
       expect(findMainlinePath(workerStart, point(280, 154), scene, {}, staff)).not.toBeNull()
       const rear = scene.passages.find(passage => passage.id === 'yonghe-back-door')!
-      expect(findMainlinePath(point(560, 282), rear.thresholds[0], scene, {}, staff)).not.toBeNull()
-      expect(findMainlinePath(workerStart, rear.thresholds[0], scene, {}, staff)).not.toBeNull()
-      expect(findMainlinePath(rear.thresholds[0], rear.crossingTargets[0]!, scene, {}, staff)).toBeNull()
+      const rearOpen = { ...staff, openPassageIds: new Set([rear.id]) }
+      expect(findMainlinePath(point(560, 282), rear.thresholds[1], scene, {}, rearOpen)).not.toBeNull()
+      expect(findMainlinePath(workerStart, rear.thresholds[1], scene, {}, rearOpen)).not.toBeNull()
+      expect(findMainlinePath(rear.thresholds[1], rear.thresholds[0], scene, {}, rearOpen)).not.toBeNull()
       for (const width of [11, 16]) {
         expect(canTravelAlongMainlineSegment(point(196, 14), point(252, 14), scene, {}, {
           ...staff, actorFootprint: { width: width / 19.2, height: width / 10.8 },

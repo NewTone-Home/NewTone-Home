@@ -10,11 +10,11 @@ describe('wall coverage counts actual shared-owner paint rather than relaxing ga
     expect(edge.maxGap).toBeLessThanOrEqual(28.01)
   })
   it('recognizes a corner painted by the adjacent shop but detects removal of that exact glyph', () => {
-    const key = 'mining-shop-2-interior-shell:top'
-    const wall = scene.structures.find(w => w.id === 'mining-shop-2-interior-shell')!
+    const key = 'mining-street-back-alley-frame:bottom'
+    const wall = scene.structures.find(w => w.id === 'mining-street-back-alley-frame')!
     const corner = wall.bounds!
     expect(wallVisualCoverage(scene, units).find(e => e.key === key)!.startDistance).toBeLessThan(.001)
-    const missing = units.map(unit => ({ ...unit, visual: { ...unit.visual, cells: unit.visual.cells.map(cell => Math.abs(cell.x - corner.x) < .00001 && Math.abs(cell.y - corner.y) < .00001 ? { ...cell, glyph: '' } : cell) } }))
+    const missing = units.map(unit => ({ ...unit, visual: { ...unit.visual, cells: unit.visual.cells.map(cell => Math.abs(cell.x - corner.x) < .00001 && Math.abs(cell.y - (corner.y + corner.height)) < .00001 ? { ...cell, glyph: '' } : cell) } }))
     expect(wallVisualCoverage(scene, missing).find(e => e.key === key)!.startDistance).toBeGreaterThanOrEqual(27.99)
   })
 })

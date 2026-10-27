@@ -93,7 +93,7 @@ describe('mainline scene interaction policies', () => {
         expect(door).toMatchObject({ access: index === 1 ? 'open' : 'locked', routeThrough: true, fromRoomId: 'mining-street-public-lane' })
         expect(door.targetSceneId).toBeUndefined()
       }
-      expect(scene.passages.find(candidate => candidate.id === 'yonghe-back-door')).toMatchObject({ access: 'locked' })
+      expect(scene.passages.find(candidate => candidate.id === 'yonghe-back-door')).toMatchObject({ access: 'open', fromRoomId: 'mining-street-back-alley', toRoomId: 'mining-shop-2-interior' })
     }
   })
 

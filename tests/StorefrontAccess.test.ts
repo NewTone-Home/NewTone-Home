@@ -21,7 +21,7 @@ describe('shop interior access', () => {
         const passage = scene.passages.find(candidate => candidate.portalId === storefront.portalId)!
         expect(passage.access, `${sceneId}:${storefront.id}`).toBe(storefront.id === 'yonghe-slot-2' ? 'open' : 'locked')
         if (storefront.id !== 'yonghe-slot-2') {
-          expect(passage.lockedText).toContain('\u6743\u9650')
+          expect(passage.lockedText).toContain('\u8fd8\u6ca1\u5f00\u95e8')
         }
       }
     }

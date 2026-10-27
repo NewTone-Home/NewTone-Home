@@ -175,6 +175,7 @@ export function mainlineEntityUsesBreathing(_scene: MainlineSceneDefinition, ent
   return (entity.visualProfile === 'tree-ring' && entity.interactive !== false)
     || isIncense && incenseLit
     || entity.animationGroup === 'office-breathing'
+    || entity.animationGroup === 'yonghe-stove-breathing'
 }
 
 function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, tutorialCompleted: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean, readingProtected = false) {
@@ -197,7 +198,7 @@ function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity
     entity.facing ? `scene-mainline-object--facing-${entity.facing}` : '',
     `scene-object--${entity.weight}`,
     entity.visualProfile === 'tree-ring' ? 'scene-mainline-yard-tree-ring' : '',
-    interactionVisualState === 'tutorial-unexplored' ? 'scene-mainline-exploration--breathing' : '',
+    interactionVisualState === 'tutorial-unexplored' || entity.animationGroup === 'yonghe-stove-breathing' ? 'scene-mainline-exploration--breathing' : '',
     interactionVisualState ? `scene-mainline-interaction--${interactionVisualState}` : '',
     entity.kind === 'table' ? 'scene-mainline-exploration--steady' : '',
     isOfferingTable ? 'scene-mainline-altar-table' : '',

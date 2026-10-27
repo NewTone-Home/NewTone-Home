@@ -22,7 +22,7 @@ export type MainlineEntityWeight = 'gateway' | 'fixture' | 'anchor' | 'minor'
 export type MainlineEntitySurface = 'wall' | 'floor'
 export type MainlineInteractionBehavior = 'echo-pool' | 'incense' | 'desk-device' | 'blinds-toggle' | 'plant-choice' | 'cafe-order' | 'direct-wall'
 export type MainlineVisualProfile = 'tree-ring' | 'incense'
-export type MainlineAnimationGroup = 'office-breathing'
+export type MainlineAnimationGroup = 'office-breathing' | 'yonghe-stove-breathing'
 export type MainlineSceneExternalExit = {
   id?: string
   axis: 'x' | 'y'

@@ -1,4 +1,4 @@
-import type { MainlineSceneBlueprint, MainlineSceneEntity, MainlineFurnitureGroup, MainlineContinuousStructure } from './mainlineSceneModel'
+import type { MainlineSceneBlueprint, MainlineSceneEntity, MainlineFurnitureGroup, MainlineContinuousStructure, MainlineScenePortalBlueprint } from './mainlineSceneModel'
 import type { Point } from './sceneGeometry'
 
 /** Visual trial only. From the right-hand front door the customer faces left. */
@@ -43,32 +43,36 @@ export function trialYongheInterior(blueprint: MainlineSceneBlueprint): Mainline
   addSurface('yonghe-trial-worktop-right-body','yonghe-trial-worktop-L',{x:10,y:10,width:180,height:24},'vertical','yonghe-trial-board','worktop',true)
   const stove=fixture('yonghe-stove','灶台',102,22),board=fixture('yonghe-trial-board','菜板',22,100)
   stove.textLayout='vertical'
+  stove.animationGroup='yonghe-stove-breathing'
   entities.push(stove,board)
   const menuAnchorX = 406
   const menuHalfSpan = 28
   const menu:MainlineSceneEntity={id:'yonghe-menu',label:'菜单',kind:'fixture',weight:'fixture',surface:'wall',roomId:room.id,position:point(menuAnchorX,0),textLayout:'vertical',interactive:true,interactionContactAnchor:point(menuAnchorX,28),visualVisibility:'static'}
-  const rearPosition=point(0,252)
+  const rearPosition=point(0,280)
   const rearStep=28/1080*100
-  const backText='后门目前无法通行。仅凭眼前的情况，还看不出门后通向哪里。'
+  const rearXStep=28/1920*100
+  const warehousePosition=point(0,224)
+  const warehousePortal:MainlineScenePortalBlueprint={id:'yonghe-warehouse-door',entity:{id:'yonghe-warehouse-door',label:'\u95e8',displayLabel:'\u95e8',kind:'door',weight:'gateway',surface:'wall',doorBehavior:{leafCount:'single',openLeaves:'both'}},endpoint:{doorPosition:warehousePosition,threshold:{x:warehousePosition.x,y:warehousePosition.y-1.5*rearStep},crossingTarget:{x:warehousePosition.x,y:warehousePosition.y+1.5*rearStep}},wallOpenings:[{wallId:'mining-street-back-alley-frame',opening:{edge:'bottom',start:warehousePosition.x-rearXStep,end:warehousePosition.x+rearXStep,doorId:'yonghe-warehouse-door',labelLayout:'center',doorFlankCount:0}}],transitionText:'',access:'locked',lockedText:'\u63a8\u4e00\u4e0b\u95e8\u3002\u95e8\u9501\u7740\uff0c\u6253\u4e0d\u5f00\u3002'}
   return {...blueprint,
-    portals:blueprint.portals.map(portal=>portal.id==='yonghe-back-door'?{...portal,
+    portals:[...blueprint.portals.map<MainlineScenePortalBlueprint>(portal=>portal.id==='yonghe-back-door'?{...portal,
       entity:{...portal.entity,displayLabel:'门'},
-      endpoint:{doorPosition:rearPosition,threshold:{x:rearPosition.x,y:rearPosition.y+1.5*rearStep},crossingTarget:{x:rearPosition.x,y:rearPosition.y-1.5*rearStep}},
+      endpoint:{doorPosition:rearPosition,threshold:{x:rearPosition.x,y:rearPosition.y-1.5*rearStep},crossingTarget:{x:rearPosition.x,y:rearPosition.y+1.5*rearStep}},
       // Replace the sole opening source; the previous centre is ordinary wall again.
-      wallOpenings:[{wallId:`${room.id}-shell`,opening:{edge:'top',start:rearPosition.x-rearStep,end:rearPosition.x+rearStep,doorId:portal.id,labelLayout:'center',doorFlankCount:0}}],
-      lockedText:backText,
-    }:portal.id==='yonghe-street-entry'?{...portal,transitionText:'进入永和小馆。'}:portal),
+      wallOpenings:[{wallId:'mining-street-back-alley-frame',opening:{edge:'bottom',start:rearPosition.x-rearXStep,end:rearPosition.x+rearXStep,doorId:portal.id,labelLayout:'center',doorFlankCount:0}}],
+      lockedText:undefined,
+      transitionText:'',
+    }:portal.id==='yonghe-street-entry'?{...portal,transitionText:'进入永和小馆。'}:portal),warehousePortal],
     explorationText:{...blueprint.explorationText,
       'yonghe-upper-left-group-table':['店里的桌椅摆得紧凑，但桌与桌之间仍留着通行的空隙。'],
       'yonghe-counter':['柜台与灶台靠在一起，里面的工作区域没有向外延伸。'],
-      'yonghe-back-door':[backText],
+      'yonghe-back-door':[],
       'yonghe-menu':['菜单在进门右手的墙上。'],
     },
     scene:{...data,
       floorEntities:[...data.floorEntities,...entities],furnitureGroups:[...data.furnitureGroups,...groups],
       walls:data.walls.map(wall=>wall.id===`${room.id}-shell`?{...wall,features:[...(wall.features??[]),{id:'yonghe-menu-wall',edge:'right',start:point(menuAnchorX-menuHalfSpan,0).y,end:point(menuAnchorX+menuHalfSpan,0).y,glyphs:['菜','单'],layout:'content',entity:menu}]}:wall),
       continuousStructures:[...(data.continuousStructures??[]),...structures],
-      accessRegions:[...(data.accessRegions??[]),{id:'yonghe-trial-kitchen',...point(0,308),width:308/1920*100,height:224/1080*100,requiredAccess:'staff',deniedText:'这里是柜台里面的工作区。'}],
+      accessRegions:[...(data.accessRegions??[]),{id:'yonghe-trial-kitchen',...point(0,216),width:216/1920*100,height:224/1080*100,requiredAccess:'staff',deniedText:'这里是柜台里面的工作区。'}],
       actorAccess:{...data.actorAccess,'yonghe-trial-worker':['public','staff']},
       npcs:[...(data.npcs??[]),{id:'yonghe-trial-worker',roleId:'pedestrian',label:'人',roomId:room.id,interactive:false}],
       npcPlacements:[...(data.npcPlacements??[]),{npcId:'yonghe-trial-worker',position:point(168,154)}],
