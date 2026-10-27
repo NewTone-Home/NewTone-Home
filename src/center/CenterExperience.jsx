@@ -75,6 +75,7 @@ import {
 } from './runtime/commercialStreetMilkTea'
 import { cancelUnmappedLegacyOrder, claimCrossShopOrder, consumeHeldConsumable, crossShopIds, placeCrossShopOrder } from './runtime/crossShopOrders'
 import { shopPreparationDurationGameMs } from './runtime/shopPreparationPolicy'
+import { yongheTakeawayCatalog } from './runtime/yongheTakeawayCatalog'
 
 const initialSceneId = mainlineRespawnSceneId
 const freeTrialClockRates = { normalPlay: 30, ordinaryReading: 15, idle: 5 }
@@ -138,6 +139,10 @@ export default function CenterExperience({
   }, [route.entryPosition])
   const [phoneOpen, setPhoneOpen] = useState(false)
   const [requestedShopId, setRequestedShopId] = useState(null)
+  const [requestedShopProductId, setRequestedShopProductId] = useState(null)
+  const [yongheOrderFeedback, setYongheOrderFeedback] = useState(0)
+  const [yongheReadyCue, setYongheReadyCue] = useState(null)
+  const yongheReadyCueMarkerRef = useRef(null)
   const [phonePanelRetracted, setPhonePanelRetracted] = useState(true)
   const sceneReadingActiveRef = useRef(false)
   const [sceneReadingActive, setSceneReadingActive] = useState(false)
@@ -330,12 +335,44 @@ export default function CenterExperience({
     })
   }, [commercialStreetState, commitPlayerSave, milkTeaOrder, route.sceneId])
 
-  const openShopOrderApp = useCallback((shopId) => {
+  const openShopOrderApp = useCallback((shopId, productId = null) => {
     setPhoneNotificationScreen(false)
     setRequestedPhoneApp(null)
     setRequestedShopId(shopId)
+    setRequestedShopProductId(productId)
     setPhoneOpen(true)
   }, [])
+
+  const handleYongheOrderPlaced = useCallback(({ shopId }) => {
+    if (shopId !== crossShopIds.yonghe) return
+    setPhoneOpen(false)
+    setYongheOrderFeedback(current => current + 1)
+  }, [])
+
+  const handleYongheOrderReady = useCallback((order) => {
+    if (yongheReadyCueMarkerRef.current === order.id) return
+    yongheReadyCueMarkerRef.current = order.id
+    setYongheReadyCue({ id: order.id, text: `${order.productName}好了。` })
+  }, [])
+
+  useEffect(() => {
+    const order = playerSave.shopOrders?.[crossShopIds.yonghe]
+    if (!order || order.status !== 'queued' || order.readyAtGameTimeMs === null) return
+    const productName = yongheTakeawayCatalog.find(product => product.id === order.productId)?.name ?? order.productId
+    let timer = null
+    const checkGameClock = () => {
+      const nowGameTimeMs = sessionGameClockRef.current.read().gameTimeMs
+      if (nowGameTimeMs >= order.readyAtGameTimeMs) {
+        if (timer !== null) window.clearInterval(timer)
+        handleYongheOrderReady({ id: order.id, shopId: crossShopIds.yonghe, productId: order.productId, productName })
+        return true
+      }
+      return false
+    }
+    if (checkGameClock()) return
+    timer = window.setInterval(checkGameClock, 250)
+    return () => { if (timer !== null) window.clearInterval(timer) }
+  }, [handleYongheOrderReady, playerSave.shopOrders?.[crossShopIds.yonghe]?.id, playerSave.shopOrders?.[crossShopIds.yonghe]?.productId, playerSave.shopOrders?.[crossShopIds.yonghe]?.readyAtGameTimeMs, playerSave.shopOrders?.[crossShopIds.yonghe]?.status])
 
   useEffect(() => {
     if (!fixtureStorage) return
@@ -899,6 +936,9 @@ export default function CenterExperience({
       onDeskInteraction={snapshot ? undefined : switchCarriedPhone}
       onObjectInteraction={snapshot ? undefined : handleObjectInteraction}
       onCommerceEntity={snapshot ? undefined : handleCommerceEntity}
+      onYongheOrderOpen={snapshot ? undefined : (productId) => openShopOrderApp(crossShopIds.yonghe, productId)}
+      yongheOrderFeedback={yongheOrderFeedback}
+      yongheReadyCue={yongheReadyCue}
       onDoorEvent={snapshot ? undefined : handleDoorEvent}
       onInteractionAnalytics={snapshot ? undefined : handleInteractionAnalytics}
       onMilkTeaAppOpen={snapshot ? undefined : openMilkTeaApp}
@@ -1001,13 +1041,16 @@ export default function CenterExperience({
           milkTeaHeld={commercialStreetMilkTeaHeld(commercialStreetState)}
           requestedApp={requestedPhoneApp}
           requestedShopId={requestedShopId}
+          requestedShopProductId={requestedShopProductId}
+          onShopOrderPlaced={handleYongheOrderPlaced}
+          onShopOrderReady={handleYongheOrderReady}
           shopOrders={playerSave.shopOrders}
           heldConsumable={playerSave.heldConsumable}
           gameTimeMs={trialClockSnapshot.gameTimeMs}
           preparationConfiguredByShop={{ [crossShopIds.milkTea]: true, ...(fixtureStorage ? { [crossShopIds.fruitTea]: true, [crossShopIds.yonghe]: true } : {}) }}
           onShopOrderConfirm={confirmShopOrder}
           onLegacyShopOrderCancel={cancelLegacyShopOrder}
-          onRequestedAppHandled={() => { setRequestedPhoneApp(null); setRequestedShopId(null) }}
+          onRequestedAppHandled={() => { setRequestedPhoneApp(null); setRequestedShopId(null); setRequestedShopProductId(null) }}
           onLaoZhouMessagesDisplayed={acknowledgeCafeStoryMessagesDisplayed}
           onMilkTeaOrderConfirm={confirmMilkTeaOrder}
           onMilkTeaOrderStarted={handleMilkTeaOrderStarted}

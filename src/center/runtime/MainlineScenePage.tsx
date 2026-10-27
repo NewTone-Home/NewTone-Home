@@ -57,6 +57,7 @@ import { commercialStreetQuestionDialoguePosition, commercialStreetQuestionNarra
 import { commercialStreetMilkTeaConsumePatch, commercialStreetMilkTeaAppUnlockPatch, commercialStreetMilkTeaAppUnlocked, commercialStreetMilkTeaHeld, commercialStreetMilkTeaIsReady, commercialStreetMilkTeaOrderFromSceneState, commercialStreetMilkTeaPickupPatch, commercialStreetMilkTeaStorefrontId, formatCommercialStreetMilkTeaOrderNumber, type CommercialStreetMilkTeaOrder } from './commercialStreetMilkTea'
 import type { SessionGameActivitySource } from './sessionGameClock'
 import { mainlineReadingSessionTextIsFinal, mainlineReadingTextMotionAfterAdvance, mainlineReadingTextMotionAfterAnimation, mainlineReadingTextMotionCompletionMatches, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
+import { yongheMenuForChoice, yongheMenuText, yongheTakeawayCatalog } from './yongheTakeawayCatalog'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
@@ -260,6 +261,9 @@ export function MainlineScenePage({
   onDeskInteraction,
   onObjectInteraction,
   onCommerceEntity,
+  onYongheOrderOpen,
+  yongheOrderFeedback = 0,
+  yongheReadyCue = null,
   onConsumeHeldConsumable,
   onStorefrontAction,
   onMilkTeaAppOpen,
@@ -305,6 +309,9 @@ export function MainlineScenePage({
   onDeskInteraction?: (device: PhoneDevice) => void
   onObjectInteraction?: (entity: MainlineSceneEntity, dwellMs: number) => void
   onCommerceEntity?: (entity: MainlineSceneEntity) => boolean
+  onYongheOrderOpen?: (productId?: string) => void
+  yongheOrderFeedback?: number
+  yongheReadyCue?: { id: string; text: string } | null
   onConsumeHeldConsumable?: () => void
   /** Reserved entry point for future storefront actions such as milk-tea ordering. */
   onStorefrontAction?: (action: CommercialStreetStorefrontAction, storefrontId: string) => void
@@ -1918,6 +1925,42 @@ export function MainlineScenePage({
     beginPassageLeg(passage, requestedTarget, plannedApproachPath, continuationPath, passageQueue, passageIndex)
   }, [beginPassageLeg, cancelPassageLifecycle, cancelSceneAction, denyLockedPassageAfterApproach, dismissSceneEcho, getCurrentPosition, layout, navigationOptions, scene, sceneAction?.phase])
 
+  const presentYongheEcho = useCallback((text: string, options?: readonly string[]) => {
+    sceneEchoIdRef.current += 1
+    const currentPosition = getCurrentPosition()
+    const worldScale = mainlineWorldScale(activeViewportMetrics)
+    const actionCameraOffset = mainlineReadingCameraOffset(scene, currentPosition, readingMetrics, worldScale, cameraOffset)
+    presentSceneEcho(createMainlineSceneEcho(
+      sceneEchoIdRef.current,
+      'yonghe-trial-worker',
+      text,
+      sceneTextPresentationPosition(scene, currentPosition, text, readingMetrics, 'observation', worldScale, actionCameraOffset),
+      options ? 'menu-reading' : 'scene-observation',
+      options,
+    ))
+  }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, readingMetrics, scene])
+  const lastYongheOrderFeedbackRef = useRef(0)
+  const lastYongheReadyCueRef = useRef<string | null>(null)
+  const pendingYongheReadyCueRef = useRef<{ id: string; text: string } | null>(null)
+  useEffect(() => {
+    if (scene.id !== 'yonghe-eatery') return
+    let orderFeedbackShown = false
+    if (yongheOrderFeedback > lastYongheOrderFeedbackRef.current) {
+      lastYongheOrderFeedbackRef.current = yongheOrderFeedback
+      presentYongheEcho('行，你找个地方坐会儿吧。')
+      orderFeedbackShown = true
+    }
+    if (yongheReadyCue && lastYongheReadyCueRef.current !== yongheReadyCue.id) {
+      lastYongheReadyCueRef.current = yongheReadyCue.id
+      pendingYongheReadyCueRef.current = yongheReadyCue
+    }
+    if (!orderFeedbackShown && !sceneEcho && pendingYongheReadyCueRef.current) {
+      const cue = pendingYongheReadyCueRef.current
+      pendingYongheReadyCueRef.current = null
+      presentYongheEcho(cue.text)
+    }
+  }, [presentYongheEcho, scene.id, sceneEcho, yongheOrderFeedback, yongheReadyCue])
+
   const interact = useCallback((entityId: string, requestAlreadyRecorded = false) => {
     if (readingActive || sceneAction?.phase === 'committing') return
     if (sceneAction?.entityId === entityId && sceneAction.phase === 'active') return
@@ -2030,6 +2073,13 @@ export function MainlineScenePage({
       }
       const interactionStartedAt = interactionStartedAtRef.current
       interactionStartedAtRef.current = null
+      if (entity.id === 'yonghe-menu' && scene.id === 'yonghe-eatery') {
+        const choices = yongheTakeawayCatalog.map(product => `${product.name} ${product.price}元`)
+        presentYongheEcho(yongheMenuText(), choices)
+        setActiveObjectId(null)
+        onInteractionAnalytics?.('completed', entity.id, entity.kind, 'menu-read')
+        return
+      }
       if (onCommerceEntity?.(entity)) {
         onInteractionAnalytics?.('completed', entity.id, entity.kind, 'commerce-handled')
         setActiveObjectId(null)
@@ -2122,7 +2172,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, cancelSceneAction, carriedPhoneDevice, cafeRestroomToiletUseRef, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, createSceneAction, clearCafeRestroomToiletUse, denyLockedPassageAfterApproach, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onCommerceEntity, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, readingActive, recordSceneState, recordSceneStatePatch, resetMovement, scene, sceneAction, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startDialogueTextSession, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, cancelSceneAction, carriedPhoneDevice, cafeRestroomToiletUseRef, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, createSceneAction, clearCafeRestroomToiletUse, denyLockedPassageAfterApproach, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onCommerceEntity, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, presentYongheEcho, readingActive, recordSceneState, recordSceneStatePatch, resetMovement, scene, sceneAction, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startDialogueTextSession, startNpcDialogue, startPassageTraversal, stopMovement])
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
@@ -2305,6 +2355,11 @@ export function MainlineScenePage({
     const completeInteraction = () => {
       if (npcInteractionRequestRef.current !== requestId) return
       onNpcInteraction?.(npc.id)
+      if (scene.id === 'yonghe-eatery' && npc.id === 'yonghe-trial-worker') {
+        onInteractionAnalytics?.('completed', npc.id, 'npc', 'dialogue-started')
+        presentYongheEcho('吃点什么？', ['点餐', '有什么推荐吗', '聊聊'])
+        return
+      }
       const resolution = resolveCommercialCafeNpcInteraction({
         sceneId: scene.id,
         npcId: npc.id,
@@ -2342,13 +2397,50 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', npc.id, 'npc', 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, layout, leavePlayerSeat, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
+  }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, layout, leavePlayerSeat, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, presentYongheEcho, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
 
   const chooseSceneEchoOption = useCallback((actionId: number, index: number) => {
     if (!sceneAction || sceneAction.id !== actionId || sceneAction.phase !== 'committing') return
     const option = sceneAction?.options[index]
     if (!option) return
     onMeaningfulActivity?.()
+    if (sceneAction.entityId === 'yonghe-trial-worker' && scene.id === 'yonghe-eatery') {
+      if (option === '点餐') onYongheOrderOpen?.()
+      else if (option === '有什么推荐吗') presentYongheEcho('你想吃面还是吃饭？', ['面', '饭'])
+      else if (option === '聊聊') {
+        const text = '你们平常都这么忙吗？\n后面那个门是通向哪儿？'
+        pendingSceneActionAfterExitRef.current = {
+          entityId: 'yonghe-trial-worker',
+          options: ['你们平常都这么忙吗？', '后面那个门是通向哪儿？'],
+          position: sceneTextPresentationPosition(scene, getCurrentPosition(), text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
+        }
+        commitSceneActionExit(actionId)
+        return
+      }
+      else if (option === '面' || option === '饭') {
+        const products = yongheMenuForChoice(option)
+        presentYongheEcho(yongheMenuText(products), [...products.map(product => `${product.name} ${product.price}元`), '全部菜品'])
+      } else if (option === '全部菜品') {
+        const choices = yongheTakeawayCatalog.map(product => `${product.name} ${product.price}元`)
+        presentYongheEcho(yongheMenuText(), choices)
+      } else {
+        const product = yongheTakeawayCatalog.find(candidate => `${candidate.name} ${candidate.price}元` === option)
+        if (product) onYongheOrderOpen?.(product.id)
+        else if (option === '你们平常都这么忙吗？') {
+          startNpcDialogue({ kind: 'dialogue', dialogue: { triggerEntityId: 'yonghe-trial-worker', lines: [
+            { id: 'yonghe-business-question', speaker: '修杰', text: '你们平常都这么忙吗？' },
+            { id: 'yonghe-business-answer', speaker: '店员', speakerNpcId: 'yonghe-trial-worker', text: '对啊，平常都这么忙。' },
+          ] } })
+        } else if (option === '后面那个门是通向哪儿？') {
+          startNpcDialogue({ kind: 'dialogue', dialogue: { triggerEntityId: 'yonghe-trial-worker', lines: [
+            { id: 'yonghe-backdoor-question', speaker: '修杰', text: '后面那个门是通向哪儿？' },
+            { id: 'yonghe-backdoor-answer', speaker: '店员', speakerNpcId: 'yonghe-trial-worker', text: '后面是后巷，顺着走也能出去。' },
+          ] } })
+        }
+      }
+      commitSceneActionExit(actionId)
+      return
+    }
     if (sceneAction?.entityId === commercialStreetMilkTeaStorefrontId && option === '喝掉奶茶') {
       recordSceneStatePatch('commercial-street', commercialStreetMilkTeaConsumePatch())
       commitSceneActionExit(actionId)

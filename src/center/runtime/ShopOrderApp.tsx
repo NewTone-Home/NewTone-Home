@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CrossShopOrder, HeldConsumable } from './crossShopOrders'
 import { milkTeaIceOptions, milkTeaSugarOptions } from './commercialStreetMilkTea'
 import './shopOrderApp.css'
@@ -12,7 +12,7 @@ export type ShopOrderProduct = {
 
 export function ShopOrderApp({
   shopId, title, products, order, heldConsumable, gameTimeMs, preparationConfigured,
-  availableShops = [], onShopSelect, onConfirm, onCancelLegacy,
+  availableShops = [], onShopSelect, onConfirm, onCancelLegacy, initialProductId = null, onOrderPlaced, onOrderReady,
 }: {
   shopId: string
   title: string
@@ -21,6 +21,9 @@ export function ShopOrderApp({
   heldConsumable: HeldConsumable | null
   gameTimeMs: number
   preparationConfigured: boolean
+  initialProductId?: string | null
+  onOrderPlaced?: (selection: { shopId: string; productId: string }) => void
+  onOrderReady?: (order: { id: string; shopId: string; productId: string; productName: string }) => void
   availableShops?: readonly { id: string; label: string }[]
   onShopSelect?: (shopId: string) => void
   onConfirm: (selection: { shopId: string; productId: string; options?: Record<string, string | number | boolean | null> }) => { ok: boolean; reason?: string }
@@ -30,9 +33,15 @@ export function ShopOrderApp({
   const [sugar, setSugar] = useState<string | null>(null)
   const [ice, setIce] = useState<string | null>(null)
   const [notice, setNotice] = useState('')
+  const readyNotifiedOrderId = useRef<string | null>(null)
   const selected = useMemo(() => products.find(product => product.id === productId) ?? null, [productId, products])
   const readiness = order?.status === 'queued' && order.readyAtGameTimeMs !== null && gameTimeMs >= order.readyAtGameTimeMs
-  useEffect(() => { setNotice('') }, [shopId, order?.id])
+  useEffect(() => { setNotice(''); setProductId(initialProductId) }, [shopId, order?.id, initialProductId])
+  useEffect(() => {
+    if (shopId !== 'yonghe-eatery' || !readiness || !order || readyNotifiedOrderId.current === order.id) return
+    readyNotifiedOrderId.current = order.id
+    onOrderReady?.({ id: order.id, shopId, productId: order.productId, productName: products.find(product => product.id === order.productId)?.name ?? order.productId })
+  }, [onOrderReady, order, products, readiness, shopId])
 
   return <section className="shop-order-app" aria-label={`${title}点单`} data-shop-id={shopId}>
     {availableShops.length > 1 && <nav className="shop-order-app__shops" aria-label="Drink shops">{availableShops.map(shop => <button key={shop.id} type="button" data-shop-option={shop.id} aria-pressed={shop.id === shopId} onClick={() => onShopSelect?.(shop.id)}>{shop.label}</button>)}</nav>}
@@ -50,7 +59,7 @@ export function ShopOrderApp({
     </div> : <div className="shop-order-app__order" data-order-status={readiness ? 'ready' : 'queued'}>
       <span>当前订单</span>
       <strong>{products.find(product => product.id === order.productId)?.name ?? order.productId}</strong>
-      <p>{readiness ? '已做好，可以到柜台领取。' : '正在制作中。'}</p>
+      <p>{readiness ? shopId === 'yonghe-eatery' ? `${products.find(product => product.id === order.productId)?.name ?? order.productId}好了。` : '已做好，可以到柜台领取。' : '正在制作中。'}</p>
     </div> : <>
       <p className="shop-order-app__title">{title}</p>
       <div className="shop-order-app__products" aria-label="商品">
@@ -68,7 +77,7 @@ export function ShopOrderApp({
         const result = onConfirm({ shopId, productId: selected.id, options: {
           ...(sugar ? { sugar } : {}), ...(ice ? { ice } : {}),
         } })
-        if (result.ok) { setProductId(null); setSugar(null); setIce(null); setNotice('订单已提交。') }
+        if (result.ok) { setProductId(null); setSugar(null); setIce(null); setNotice('订单已提交。'); onOrderPlaced?.({ shopId, productId: selected.id }) }
         else setNotice(result.reason ?? '订单暂时无法提交。')
       }}>确认下单</button>
     </>}

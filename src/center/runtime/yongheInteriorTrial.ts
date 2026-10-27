@@ -74,7 +74,9 @@ export function trialYongheInterior(blueprint: MainlineSceneBlueprint): Mainline
       continuousStructures:[...(data.continuousStructures??[]),...structures],
       accessRegions:[...(data.accessRegions??[]),{id:'yonghe-trial-kitchen',...point(0,216),width:216/1920*100,height:224/1080*100,requiredAccess:'staff',deniedText:'这里是柜台里面的工作区。'}],
       actorAccess:{...data.actorAccess,'yonghe-trial-worker':['public','staff']},
-      npcs:[...(data.npcs??[]),{id:'yonghe-trial-worker',roleId:'pedestrian',label:'人',roomId:room.id,interactive:false}],
+      npcBehaviorTargets:[...(data.npcBehaviorTargets??[]),{id:'yonghe-worker-counter-station',position:point(168,154)}],
+      npcBehaviors:[...(data.npcBehaviors??[]),{npcId:'yonghe-trial-worker',dutyId:'yonghe-counter-service',targetId:'yonghe-worker-counter-station',targetKind:'point',interactionContactEntityId:'yonghe-counter'}],
+      npcs:[...(data.npcs??[]),{id:'yonghe-trial-worker',roleId:'pedestrian',label:'店员',roomId:room.id,interactive:true}],
       npcPlacements:[...(data.npcPlacements??[]),{npcId:'yonghe-trial-worker',position:point(168,154)}],
     },
   }
