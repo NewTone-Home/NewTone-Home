@@ -42,6 +42,8 @@ import { cancelMainlineSceneActionExit, commitMainlineSceneActionExit, completeM
 import type { MainlineReadingSessionLayoutCache } from './mainlineReadingLayoutSession'
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
+import { mainlineInteractionRoom, mainlineInteractionSpace, mainlineIsInteriorSpace } from './mainlineTextReading'
+import { mainlineDialogueFurnitureGroupIds, mainlineDialogueHandoffDurationMs, mainlineDialogueShouldHandoff, mainlineDialogueSpeakerActorId, mainlineDialogueSpeakerOutsidePosition, mainlineDialogueStageHiddenEntityIds, mainlineDialogueStageActorOpacity } from './mainlineDialogueStage'
 import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, plantIsWatered, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
@@ -451,6 +453,13 @@ export function MainlineScenePage({
   const dialogueTextSessionSceneRef = useRef<string | null>(null)
   const [dialogueTextMotion, setDialogueTextMotion] = useState<MainlineReadingTextMotion>('static')
   const dialogueTextMotionRef = useRef<MainlineReadingTextMotion>('static')
+  const [dialogueHandoffActive, setDialogueHandoffActive] = useState(false)
+  const dialogueHandoffActiveRef = useRef(false)
+  const dialogueHandoffStartedAtRef = useRef<number | null>(null)
+  const dialogueHandoffTimerRef = useRef<number | null>(null)
+  useEffect(() => () => {
+    if (dialogueHandoffTimerRef.current !== null) window.clearTimeout(dialogueHandoffTimerRef.current)
+  }, [])
   const updateDialogueTextMotion = useCallback((motion: MainlineReadingTextMotion) => {
     dialogueTextMotionRef.current = motion
     setDialogueTextMotion(motion)
@@ -670,7 +679,7 @@ export function MainlineScenePage({
     : activeDialogue && dialogueLineIndex !== null
       ? activeDialogue.lines[dialogueLineIndex] ?? null
       : null)
-  const dialogueAnchorSessionRef = useRef<{ key: string; position: Point } | null>(null)
+  const dialogueAnchorSessionRef = useRef<{ key: string; positions: Map<string, Point> } | null>(null)
   const dialogueAnchorSessionKey = activeDialogueLine
     ? commercialStreetQuestionNarrative
       ? 'commercial-street-question'
@@ -940,6 +949,13 @@ export function MainlineScenePage({
     setExplorationState({ sceneId, objectIds: mainlineExploredObjectIdsFromSceneState(initialSceneState) })
     setDialogueLineIndex(null)
     setDialogueSegmentIndex(0)
+    dialogueHandoffActiveRef.current = false
+    dialogueHandoffStartedAtRef.current = null
+    setDialogueHandoffActive(false)
+    if (dialogueHandoffTimerRef.current !== null) {
+      window.clearTimeout(dialogueHandoffTimerRef.current)
+      dialogueHandoffTimerRef.current = null
+    }
     updateDialogueTextMotion('static')
     setNpcDialogue(null)
     setGenericDialoguePhase('active')
@@ -1003,17 +1019,29 @@ export function MainlineScenePage({
       || (dialogueTextSessionId !== 0 && dialogueTextSessionSceneRef.current === sceneId)) return
     startDialogueTextSession()
   }, [activeDialogueLine, dialoguePresentationPhase, dialogueTextSessionId, sceneId, startDialogueTextSession])
-  if (!dialogueAnchorSessionKey) {
-    dialogueAnchorSessionRef.current = null
-  } else if (dialogueAnchorSessionRef.current?.key !== dialogueAnchorSessionKey) {
-    dialogueAnchorSessionRef.current = {
-      key: dialogueAnchorSessionKey,
-      position: commercialStreetQuestionNarrative
-        ? commercialStreetQuestionDialoguePosition(scene, position, dialogueAnchorText, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)
-        : sceneTextPresentationPosition(scene, position, dialogueAnchorText, readingMetrics, 'dialogue', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, position, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
-    }
+  const activeDialogueSpeakerActorId = activeDialogueLine ? mainlineDialogueSpeakerActorId({
+      speaker: activeDialogueLine.speaker,
+      speakerNpcId: 'speakerNpcId' in activeDialogueLine ? activeDialogueLine.speakerNpcId : undefined,
+      npcs: scene.npcs,
+      protagonistLabel: '修杰',
+    }) : null
+  const activeDialogueSpeakerKey = activeDialogueSpeakerActorId ?? `speaker:${activeDialogueLine?.speaker ?? ''}`
+  if (!dialogueAnchorSessionKey) dialogueAnchorSessionRef.current = null
+  else if (dialogueAnchorSessionRef.current?.key !== dialogueAnchorSessionKey) dialogueAnchorSessionRef.current = { key: dialogueAnchorSessionKey, positions: new Map() }
+  if (dialogueAnchorSessionKey && activeDialogueLine && dialogueAnchorSessionRef.current && !dialogueAnchorSessionRef.current.positions.has(activeDialogueSpeakerKey)) {
+    const speakerPosition = activeDialogueSpeakerActorId === 'protagonist' ? position : resolvedNpcPositions.get(activeDialogueSpeakerActorId ?? '') ?? position
+    const otherActorPosition = activeDialogueSpeakerActorId === 'protagonist'
+      ? resolvedNpcPositions.get(scene.npcs.find(npc => npc.roomId === mainlineInteractionRoom(scene, position)?.id)?.id ?? '') ?? position
+      : position
+    const room = mainlineInteractionRoom(scene, position)
+    const stagePosition = activeDialogueSpeakerActorId && mainlineIsInteriorSpace(scene, position) && room
+      ? mainlineDialogueSpeakerOutsidePosition({ speaker: speakerPosition, other: otherActorPosition, bounds: room.bounds, verticalGap: Math.max(7, Math.min(12, room.bounds.height * .18)) })
+      : null
+    dialogueAnchorSessionRef.current.positions.set(activeDialogueSpeakerKey, commercialStreetQuestionNarrative
+      ? commercialStreetQuestionDialoguePosition(scene, position, dialogueAnchorText, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)
+      : stagePosition ?? sceneTextPresentationPosition(scene, position, dialogueAnchorText, readingMetrics, 'dialogue', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, position, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)))
   }
-  const activeDialoguePosition = activeDialogueLine ? dialogueAnchorSessionRef.current?.position ?? null : null
+  const activeDialoguePosition = activeDialogueLine ? dialogueAnchorSessionRef.current?.positions.get(activeDialogueSpeakerKey) ?? null : null
   const validatedSpawnKeyRef = useRef<string | null>(null)
   const spawnValidationKey = `${scene.id}:${initialPosition.x}:${initialPosition.y}:${screenMetrics.width}:${screenMetrics.height}`
   useIsomorphicLayoutEffect(() => {
@@ -2404,6 +2432,23 @@ export function MainlineScenePage({
         updateDialogueTextMotion('deleting')
         return
       }
+      const nextLine = commercialCafeNarrative
+        ? commercialCafeNarrative.phase === 'delivery-line' ? null : commercialCafeNarrativeDialogue.lines[commercialCafeStory.narrativeCursor + 1]
+        : activeDialogue && dialogueLineIndex !== null ? activeDialogue.lines[dialogueLineIndex + 1] : null
+      const currentSegments = splitMainlineInteractionText(activeDialogueLine?.text ?? '')
+      if (mainlineDialogueShouldHandoff({
+        currentSpeaker: activeDialogueLine?.speaker,
+        nextSpeaker: nextLine?.speaker,
+        currentSegmentIndex: dialogueSegmentIndex,
+        segmentCount: currentSegments.length,
+        isInterior: !commercialStreetQuestionNarrative && mainlineIsInteriorSpace(scene, position),
+      })) {
+        dialogueHandoffActiveRef.current = true
+        dialogueHandoffStartedAtRef.current = performance.now()
+        setDialogueHandoffActive(true)
+        updateDialogueTextMotion('deleting')
+        return
+      }
     }
     if (!tailDeletionComplete) updateDialogueTextMotion('static')
     if (commercialStreetQuestionNarrative) {
@@ -2420,6 +2465,11 @@ export function MainlineScenePage({
         setDialogueSegmentIndex(0)
         setDialogueLineIndex(acknowledged.narrativeCursor)
         setCommercialCafeNarrative({ phase: 'active' })
+        if (tailDeletionComplete && dialogueHandoffActiveRef.current) {
+          dialogueHandoffActiveRef.current = false
+          setDialogueHandoffActive(false)
+          startDialogueTextSession()
+        }
         return
       }
       const line = commercialCafeNarrativeDialogue.lines[commercialCafeStory.narrativeCursor]
@@ -2435,6 +2485,11 @@ export function MainlineScenePage({
         const nextStory = commercialCafeFinishCursorOne(commercialCafeStory)
         recordSceneStatePatch(scene.id, commercialCafeStoryStatePatch(nextStory))
         setDialogueLineIndex(nextStory.narrativeCursor)
+        if (tailDeletionComplete && dialogueHandoffActiveRef.current) {
+          dialogueHandoffActiveRef.current = false
+          setDialogueHandoffActive(false)
+          startDialogueTextSession()
+        }
         setCommercialCafeNarrative({
           phase: nextStory.narrativePhase !== 'coffee-delivery'
             ? 'active'
@@ -2447,6 +2502,11 @@ export function MainlineScenePage({
         const narrativeStory = { ...nextStory, narrativePhase: 'dialogue' as const }
         recordSceneStatePatch(scene.id, commercialCafeStoryStatePatch(narrativeStory))
         setDialogueLineIndex(nextCursor)
+        if (tailDeletionComplete && dialogueHandoffActiveRef.current) {
+          dialogueHandoffActiveRef.current = false
+          setDialogueHandoffActive(false)
+          startDialogueTextSession()
+        }
         const stage = commercialCafeAnalyticsStageForCursor(nextCursor)
         if (stage) recordCafeAnalyticsMilestone(stage)
         return
@@ -2466,10 +2526,15 @@ export function MainlineScenePage({
     setDialogueSegmentIndex(0)
     if (dialogueLineIndex + 1 < activeDialogue.lines.length) {
       setDialogueLineIndex(dialogueLineIndex + 1)
+      if (tailDeletionComplete && dialogueHandoffActiveRef.current) {
+        dialogueHandoffActiveRef.current = false
+        setDialogueHandoffActive(false)
+        startDialogueTextSession()
+      }
       return
     }
     setGenericDialoguePhase('leaving')
-  }, [activeDialogue, activeViewportMetrics, cameraOffset, commercialCafeNarrative, commercialCafeStory, commercialStreetQuestionNarrative, dialogueAtSessionEnd, dialogueLineIndex, dialogueSegmentIndex, dialogueTextMotion, npcDialogue, onChapterAnalytics, onMeaningfulActivity, position, recordCafeAnalyticsMilestone, recordSceneState, recordSceneStatePatch, scene, screenMetrics, updateDialogueTextMotion])
+  }, [activeDialogue, activeDialogueLine, activeViewportMetrics, cameraOffset, commercialCafeNarrative, commercialCafeStory, commercialStreetQuestionNarrative, dialogueAtSessionEnd, dialogueLineIndex, dialogueSegmentIndex, dialogueTextMotion, npcDialogue, onChapterAnalytics, onMeaningfulActivity, position, recordCafeAnalyticsMilestone, recordSceneState, recordSceneStatePatch, scene, screenMetrics, startDialogueTextSession, updateDialogueTextMotion])
 
   const skipDialogueTyping = useCallback((sessionId: number) => {
     if (sessionId !== dialogueTextSessionIdRef.current || dialogueTextMotionRef.current !== 'typing') return
@@ -2483,7 +2548,18 @@ export function MainlineScenePage({
     if (!mainlineReadingTextMotionCompletionMatches(`dialogue:${dialogueTextSessionIdRef.current}`, `dialogue:${sessionId}`) || dialogueTextMotionRef.current !== motion) return
     const nextMotion = mainlineReadingTextMotionAfterAnimation(dialogueTextMotionRef.current)
     updateDialogueTextMotion(nextMotion)
-    if (nextMotion === 'deleted') advanceDialogueRef.current(true)
+    if (nextMotion === 'deleted') {
+      if (dialogueHandoffActiveRef.current && dialogueHandoffStartedAtRef.current !== null) {
+        const remaining = Math.max(0, 300 - (performance.now() - dialogueHandoffStartedAtRef.current))
+        if (dialogueHandoffTimerRef.current !== null) window.clearTimeout(dialogueHandoffTimerRef.current)
+        dialogueHandoffTimerRef.current = window.setTimeout(() => {
+          dialogueHandoffTimerRef.current = null
+          if (sessionId !== dialogueTextSessionIdRef.current || !dialogueHandoffActiveRef.current) return
+          dialogueHandoffStartedAtRef.current = null
+          advanceDialogueRef.current(true)
+        }, remaining)
+      } else advanceDialogueRef.current(true)
+    }
   }, [updateDialogueTextMotion])
 
   const walk = useCallback((point: Point) => {
@@ -2594,6 +2670,37 @@ export function MainlineScenePage({
   const currentAreaLabel = mainlineSceneAreaLabel(scene, position)
   const ambientReadingPosition = sceneEcho?.position ?? activeDialoguePosition
   const dialogueParticipantNpcIds = mainlineDialogueParticipantNpcIds(scene, activeDialogue, activeDialogueLine)
+  const formalDialogueStageActive = Boolean(activeDialogueLine
+    && dialoguePresentationPhase !== 'leaving'
+    && !commercialStreetQuestionNarrative
+    && !sceneEcho
+    && mainlineIsInteriorSpace(scene, position))
+  const formalDialogueSpeakerActorId = activeDialogueLine ? mainlineDialogueSpeakerActorId({
+    speaker: activeDialogueLine.speaker,
+    speakerNpcId: 'speakerNpcId' in activeDialogueLine ? activeDialogueLine.speakerNpcId : undefined,
+    npcs: scene.npcs,
+    protagonistLabel: '修杰',
+  }) : null
+  const formalDialogueParticipantActorIds = useMemo(() => new Set(['protagonist', ...dialogueParticipantNpcIds]), [dialogueParticipantNpcIds])
+  const formalDialogueStage = useMemo(() => {
+    if (!formalDialogueStageActive) return null
+    const roomId = mainlineInteractionRoom(scene, position)?.id
+    if (!roomId) return null
+    const protectedEntityIds = new Set([activeObjectId, activeDialogue?.triggerEntityId].filter((id): id is string => Boolean(id)))
+    const furnitureGroupIds = mainlineDialogueFurnitureGroupIds(scene.objects, new Set([activePlayerSeatId, laoZhouCafeSeatId].filter((id): id is string => Boolean(id))))
+    return {
+      roomId,
+      speakerActorId: formalDialogueSpeakerActorId,
+      participantActorIds: formalDialogueParticipantActorIds,
+      hiddenEntityIds: mainlineDialogueStageHiddenEntityIds({
+        entities: scene.objects,
+        roomId,
+        protectedEntityIds,
+        protectedFurnitureGroupIds: furnitureGroupIds,
+        serviceRequired: commercialCafeNarrative?.phase === 'delivery-line',
+      }),
+    }
+  }, [activeDialogue?.triggerEntityId, activeObjectId, activePlayerSeatId, commercialCafeNarrative?.phase, formalDialogueParticipantActorIds, formalDialogueSpeakerActorId, formalDialogueStageActive, laoZhouCafeSeatId, position, scene])
   const ambientReadingSessionKey = !readingActive ? null : sceneEcho
     ? `${scene.id}:observation:echo:${sceneEcho.id}`
     : `${scene.id}:dialogue:${activeDialogue?.triggerEntityId ?? ''}`
@@ -2771,6 +2878,9 @@ export function MainlineScenePage({
               dialoguePhase={dialoguePresentationPhase}
               dialogueTextSessionId={dialogueTextSessionId}
               dialogueTextMotion={dialogueTextMotion}
+              dialogueStage={formalDialogueStage}
+              dialogueHandoffActive={dialogueHandoffActive}
+              dialogueHandoffFadeDurationMs={mainlineDialogueHandoffDurationMs(activeDialogueText.length)}
               readingMode={readingActive ? (sceneEcho ? 'observation' : 'dialogue') : null}
               onDialogueExitComplete={completeDialogueExit}
               onDialogueAdvance={advanceDialogue}
