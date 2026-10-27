@@ -427,6 +427,8 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
   const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
   const [settledPageKey, setSettledPageKey] = useState<string | null>(null)
   const [progress, setProgress] = useState<{ key: string; count: number } | null>(null)
+  const onCompleteRef = useRef(onComplete)
+  useEffect(() => { onCompleteRef.current = onComplete }, [onComplete])
   const pageSettled = mainlineObservationPageIsSettled(pageKey, settledPageKey)
   const animationKey = `${sessionKey}\u0000${motion}`
   const progressRef = useRef<{ key: string; count: number } | null>(null)
@@ -458,9 +460,11 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
         progressRef.current = { key: animationKey, count: next }
         setProgress(current => current?.key === animationKey && current.count === next ? current : { key: animationKey, count: next })
       },
-      onComplete: () => onComplete?.(sessionKey, motion),
+      onComplete: () => onCompleteRef.current?.(sessionKey, motion),
     })
-  }, [animationKey, characters, motion, onComplete, pageSettled, paused, sessionKey])
+  // Parent renders can recreate the callback while the outgoing page is being
+  // deleted. Keep the latest callback without restarting the elapsed-time loop.
+  }, [animationKey, characters, motion, pageSettled, paused, sessionKey])
 
   return { visibleText, onSettled: (settledKey: string) => {
     if (settledKey === pageKey) setSettledPageKey(settledKey)

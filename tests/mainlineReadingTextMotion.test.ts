@@ -59,6 +59,35 @@ describe('whole-session reading text motion', () => {
     expect(mainlineReadingTextMotionVisibleCount('deleting', 3, 80, 40)).toBe(0)
     expect(mainlineReadingTextMotionCanAnimate('static', true)).toBe(false)
   })
+
+  it('deletes a 21-character visible page against elapsed time, completing at 900 ms', () => {
+    let queued: ((now: number) => void) | null = null
+    let completedAt: number | null = null
+    let lastTick = 0
+    const counts: number[] = []
+    const stop = startMainlineReadingTextMotion({
+      motion: 'deleting', textLength: 21, visibleCount: 21, intervalMs: 45,
+      request: callback => { queued = callback; return 1 }, cancel: () => { queued = null },
+      isPaused: () => false,
+      onProgress: count => counts.push(count),
+      onComplete: () => { completedAt ??= lastTick },
+    })
+    const tick = (now: number) => {
+      lastTick = now
+      const callback = queued
+      queued = null
+      callback?.(now)
+    }
+
+    tick(0)
+    for (let now = 15; now <= 900; now += 15) tick(now)
+    stop()
+
+    expect(counts[0]).toBe(20)
+    expect(counts.at(-1)).toBe(0)
+    expect(completedAt).toBe(900)
+    expect(queued).toBeNull()
+  })
 })
 
 
