@@ -11,6 +11,7 @@ type Props = {
   active?: boolean
   className?: string
   identityKey: string
+  stageFaded?: boolean
   observationFade?: { rect: MainlineReadingOcclusionRect; innerMarginWorldPx: number; featherWorldPx: number }
   children: ReactNode
 }
@@ -18,7 +19,7 @@ type Props = {
 const emptyIdentityKeys: ReadonlySet<string> = new Set()
 
 /** Stable, object-bounded wrapper. Its child coordinates are local to worldBounds. */
-export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], protectedEntityIds, worldBounds, hiddenIdentityKeys = emptyIdentityKeys, active = true, className, identityKey, observationFade, children }: Props) {
+export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], protectedEntityIds, worldBounds, hiddenIdentityKeys = emptyIdentityKeys, active = true, className, identityKey, stageFaded, observationFade, children }: Props) {
   const protectedTarget = protectedEntityIds.has(entityId) || relatedEntityIds.some(id => protectedEntityIds.has(id))
   const localFadeMask = active && !protectedTarget && observationFade
     ? mainlineReadingLocalFadeMask(worldBounds, observationFade.rect, observationFade.innerMarginWorldPx, observationFade.featherWorldPx)
@@ -31,8 +32,8 @@ export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], 
     width: `${worldBounds.width / mainlineReadingWorldWidthPx * 100}%`,
     height: `${worldBounds.height / mainlineReadingWorldHeightPx * 100}%`,
     pointerEvents: 'none',
-    opacity: hidden ? 0 : 1,
-    transition: 'opacity 400ms ease-in-out',
+    opacity: hidden || stageFaded ? 0 : 1,
+    transition: `opacity ${stageFaded === undefined ? 400 : 380}ms ease-in-out`,
     ...(localFadeMask ? { maskImage: localFadeMask, WebkitMaskImage: localFadeMask, maskMode: 'alpha' } : {}),
   }
   return <div

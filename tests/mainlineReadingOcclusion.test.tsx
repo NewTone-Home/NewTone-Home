@@ -103,6 +103,16 @@ describe('mainline whole-object reading occlusion', () => {
     expect(neighbor).not.toContain('mask-image')
   })
 
+  it('applies the 380ms dialogue-stage fade to the identity wrapper itself', () => {
+    const bounds = { x: 92, y: 192, width: 32, height: 32 }
+    const html = renderToStaticMarkup(<MainlineReadingIdentityPlane entityId="table" identityKey="object:table" worldBounds={bounds} active protectedEntityIds={new Set()} stageFaded className="scene-mainline-dialogue-stage-object is-stage-faded">
+      <span>table</span>
+    </MainlineReadingIdentityPlane>)
+    const table = html.match(/<div[^>]*data-reading-occlusion-entity-id="table"[^>]*>/)?.[0]
+    expect(table).toContain('opacity:0')
+    expect(table).toContain('transition:opacity 380ms ease-in-out')
+  })
+
   it('uses an object-local transparent centre and a soft outer gradient for observations, while preserving protected targets', () => {
     const bounds = { x: 0, y: 0, width: 220, height: 120 }
     const rect = { x: 80, y: 40, width: 60, height: 24 }
