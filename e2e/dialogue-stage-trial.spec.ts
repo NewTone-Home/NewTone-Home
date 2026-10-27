@@ -22,7 +22,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 411, height: 914 
     await expect(dialogue).toHaveAttribute('data-scene-dialogue-ready', 'true')
     await page.locator('[data-fixture-fast-skip]').click()
     await expect(dialogue).toHaveAttribute('data-dialogue-stage-handoff', 'true')
-    await expect(dialogue).toHaveCSS('transition-duration', '0.3s')
+    await expect(dialogue).toHaveAttribute('data-dialogue-stage-fade-duration-ms', '300')
     await page.screenshot({ path: info.outputPath(`dialogue-stage-handoff-${viewport.width}.png`) })
     await expect(page.locator('[data-dialogue-line-id="fixture-second-line"]')).toBeVisible({ timeout: 3_000 })
   })

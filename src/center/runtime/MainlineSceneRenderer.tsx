@@ -2714,6 +2714,7 @@ export function MainlineSceneRenderer({
               data-dialogue-line-id={isDialogue ? dialogueLine?.id : undefined}
               data-dialogue-speaker={isDialogue ? dialogueLine?.speaker : undefined}
               data-dialogue-stage-handoff={stageDialogue ? String(dialogueHandoffActive) : undefined}
+              data-dialogue-stage-fade-duration-ms={stageDialogue ? dialogueHandoffFadeDurationMs : undefined}
               data-scene-segment-index={(sceneEcho?.segmentIndex ?? dialogueSegmentIndex) + displayOverflowIndex}
               data-scene-segment-count={(sceneEcho?.segments.length ?? dialogueSegmentCount) + fittedReadingSegments.length - 1}
               data-scene-segment-advance={hasNextSegment || displayOverflowIndex + 1 < fittedReadingSegments.length ? 'available' : 'complete'}
