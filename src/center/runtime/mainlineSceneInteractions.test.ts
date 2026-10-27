@@ -136,7 +136,7 @@ describe('mainline scene interaction policies', () => {
       expect(target.x).toBeGreaterThan(counterBody.x+counterBody.width)
       expect(segment.id).toBe('commercial-cafe-counter')
     }
-    expect(entered.choice).toEqual({ text: '要点一杯咖啡吗？', options: ['点一杯咖啡'] })
+    expect(entered.choice).toEqual({ text: '想喝点什么呢？', options: ['点一杯咖啡'] })
     expect(resolveMainlineSceneEchoChoice(cafe, counter, '点一杯咖啡', 0, { commercialCafeCoffeeOrdered: false, carriedMilkTea: false })).toMatchObject({
       stateChange: { key: commercialCafeCoffeeStatusKey, value: 'ordered' },
       dismiss: true,
@@ -148,10 +148,10 @@ describe('mainline scene interaction policies', () => {
       carriedPhoneDevice: 'surface',
       commercialCafeCoffeeOrdered: true,
       carriedMilkTea: false,
-    }).choice).toEqual({ text: '已经点过咖啡。' })
+    }).choice).toEqual({ text: '咖啡已经点过了。' })
     expect(resolveMainlineSceneExploration(cafe, counter, {
       incensePhase: 'unlit', plantWatered: false, officeBlindsOpen: true, carriedPhoneDevice: 'surface', commercialCafeCoffeeOrdered: false, carriedMilkTea: true,
-    }).choice).toEqual({ text: '已经有奶茶了，还要买咖啡吗？', options: ['是', '否'] })
+    }).choice).toEqual({ text: '手里已经有奶茶了，还要点咖啡吗？', options: ['是', '否'] })
     expect(resolveMainlineSceneEchoChoice(cafe, counter, '否', 0, { commercialCafeCoffeeOrdered: false, carriedMilkTea: true })?.stateChange).toBeUndefined()
     expect(resolveMainlineSceneEchoChoice(cafe, counter, '是', 0, { commercialCafeCoffeeOrdered: false, carriedMilkTea: true })?.stateChange).toEqual({ key: commercialCafeCoffeeStatusKey, value: 'ordered' })
   })

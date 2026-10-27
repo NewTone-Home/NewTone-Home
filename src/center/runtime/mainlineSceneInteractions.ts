@@ -122,10 +122,10 @@ export function resolveMainlineSceneExploration(
     }
   }
   if (behavior === 'cafe-order') {
-    if (context.commercialCafeCoffeeOrdered) return { choice: { text: '已经点过咖啡。' } }
+    if (context.commercialCafeCoffeeOrdered) return { choice: { text: '咖啡已经点过了。' } }
     return context.carriedMilkTea
-      ? { choice: { text: '已经有奶茶了，还要买咖啡吗？', options: ['是', '否'] } }
-      : { choice: { text: '要点一杯咖啡吗？', options: ['点一杯咖啡'] } }
+      ? { choice: { text: '手里已经有奶茶了，还要点咖啡吗？', options: ['是', '否'] } }
+      : { choice: { text: '想喝点什么呢？', options: ['点一杯咖啡'] } }
   }
 
   if (scene.explorationText?.[entity.id]) return { pool: scene.explorationText[entity.id] }
