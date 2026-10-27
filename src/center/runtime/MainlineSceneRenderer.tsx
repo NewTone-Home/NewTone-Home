@@ -50,7 +50,7 @@ import { currentMainlineReadingTargetIds, mainlinePlaceReadingAction, mainlinePl
 import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey, type MainlineReadingSessionLayoutCache, type MainlineReadingSessionTextEntry } from './mainlineReadingLayoutSession'
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
-import { mainlineDialogueHandoffDurationMs, mainlineDialogueStageActorOpacity, mainlineDialogueTurnAllowsOptions } from './mainlineDialogueStage'
+import { mainlineDialogueClickAction, mainlineDialogueHandoffDurationMs, mainlineDialogueStageActorOpacity, mainlineDialogueTurnAllowsOptions } from './mainlineDialogueStage'
 import { mainlineReadingLocalPercent, mainlineReadingOcclusionCellIdentity, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot, type MainlineReadingOcclusionCandidate } from './mainlineReadingOcclusion'
 import type { HeldConsumable } from './crossShopOrders'
 import { heldConsumablePresentation } from './heldConsumablePresentation'
@@ -2895,16 +2895,18 @@ export function MainlineSceneRenderer({
                 event.stopPropagation()
                 if (readingPageAdvanceLockedRef.current || (sceneEcho && readingFit?.fits === false)) return
                 if (sceneEcho?.textMotion === 'deleting' || sceneEcho?.textMotion === 'deleted' || dialogueTextMotion === 'deleting' || dialogueTextMotion === 'deleted') return
+                if (readingPresentationMode === 'dialogue') {
+                  const clickAction = mainlineDialogueClickAction({ motion: dialogueTextMotion, handoffActive: dialogueHandoffActive })
+                  if (clickAction === 'ignore') return
+                  if (clickAction === 'complete-typing') {
+                    onDialogueTypingSkip?.(dialogueTextSessionId)
+                    return
+                  }
+                }
                 if (readingPresentationMode === 'observation' && sceneEcho?.textMotion === 'typing') {
                   typingCompletionLockRef.current = true
                   typingCompletionLockTokenRef.current = lockReadingPageAdvance()
                   onSceneEchoAdvance?.()
-                  return
-                }
-                if (readingPresentationMode === 'dialogue' && dialogueTextMotion === 'typing') {
-                  typingCompletionLockRef.current = true
-                  typingCompletionLockTokenRef.current = lockReadingPageAdvance()
-                  onDialogueTypingSkip?.(dialogueTextSessionId)
                   return
                 }
                 if (displayOverflowIndex + 1 < fittedReadingSegments.length) {

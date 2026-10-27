@@ -1,8 +1,31 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineDialogueFurnitureGroupIds, mainlineDialogueHandoffDurationMs, mainlineDialogueShouldHandoff, mainlineDialogueSpeakerActorId, mainlineDialogueSpeakerOutsidePosition, mainlineDialogueStageActorOpacity, mainlineDialogueStageHiddenEntityIds, mainlineDialogueTurnAllowsOptions } from '../src/center/runtime/mainlineDialogueStage'
+import { mainlineDialogueClickAction, mainlineDialogueFurnitureGroupIds, mainlineDialogueHandoffDurationMs, mainlineDialogueShouldHandoff, mainlineDialogueSpeakerActorId, mainlineDialogueSpeakerOutsidePosition, mainlineDialogueStageActorOpacity, mainlineDialogueStageHiddenEntityIds, mainlineDialogueTurnAllowsOptions } from '../src/center/runtime/mainlineDialogueStage'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 
 describe('formal dialogue stage rules', () => {
+  it('lets a fresh click advance after typing was completed without consuming that page on the skip click', () => {
+    let motion: 'typing' | 'static' = 'typing'
+    let consumed = false
+
+    const firstClick = mainlineDialogueClickAction({ motion, handoffActive: false })
+    expect(firstClick).toBe('complete-typing')
+    if (firstClick === 'complete-typing') motion = 'static'
+    expect(consumed).toBe(false)
+
+    const freshClick = mainlineDialogueClickAction({ motion, handoffActive: false })
+    expect(freshClick).toBe('advance')
+    if (freshClick === 'advance') consumed = true
+    expect(consumed).toBe(true)
+  })
+
+  it('ignores rapid clicks during speaker handoff without queuing an advance for the incoming line', () => {
+    for (const motion of ['typing', 'static'] as const) {
+      expect(mainlineDialogueClickAction({ motion, handoffActive: true })).toBe('ignore')
+    }
+    expect(mainlineDialogueClickAction({ motion: 'static', handoffActive: false })).toBe('advance')
+    expect(mainlineDialogueClickAction({ motion: 'deleting', handoffActive: false })).toBe('ignore')
+  })
+
   it('resolves explicit NPC IDs and unambiguous authored names without mistaking the protagonist for an NPC', () => {
     const cafe = mainlineScenes['commercial-cafe']
     expect(mainlineDialogueSpeakerActorId({ speaker: '老周', speakerNpcId: 'lao-zhou', npcs: cafe.npcs, protagonistLabel: '修杰' })).toBe('lao-zhou')

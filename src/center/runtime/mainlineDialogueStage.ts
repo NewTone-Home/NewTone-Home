@@ -4,6 +4,14 @@ import type { Point } from './sceneGeometry'
 export const mainlineDialogueHandoffMinimumMs = 300
 export const mainlineDialogueTypingIntervalMs = 45
 
+export function mainlineDialogueClickAction(input: {
+  motion: 'typing' | 'static' | 'deleting' | 'deleted'
+  handoffActive: boolean
+}): 'ignore' | 'complete-typing' | 'advance' {
+  if (input.handoffActive || input.motion === 'deleting' || input.motion === 'deleted') return 'ignore'
+  return input.motion === 'typing' ? 'complete-typing' : 'advance'
+}
+
 /** A speaker handoff belongs after the last source segment, never between pages. */
 export function mainlineDialogueShouldHandoff(input: {
   currentSpeaker: string | null | undefined
