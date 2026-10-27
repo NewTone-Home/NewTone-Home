@@ -24,20 +24,21 @@ const juiceCustomization: DrinkCustomization = { sugar: null, ice: drinkCustomiz
 export const commercialStreetDrinkCatalog: readonly CommercialStreetDrink[] = [
   { id: 'original-milk-tea', name: '原味奶茶', price: 3, customization: teaCustomization, description: '经典原味奶茶，茶香与奶香相互融合。', recommendation: null },
   { id: 'brown-sugar-pearl-milk-tea', name: '黑糖珍珠奶茶', price: 4, customization: teaCustomization, description: '浓郁黑糖风味，加入Q弹珍珠，甜香十足。', recommendation: null },
-  { id: 'taro-milk-tea', name: '芋泥奶茶', price: 4, customization: teaCustomization, description: '加入细腻芋泥，奶香中带着淡淡芋香。', recommendation: { mood: '浓郁', line: '芋泥奶茶会浓郁一些。' } },
-  { id: 'jasmine-milk-green-tea', name: '茉莉奶绿', price: 3, customization: teaCustomization, description: '清新的茉莉茶香与奶香融合，口感轻盈。', recommendation: { mood: '清爽', line: '可以试试茉莉奶绿，茶香比较清爽。' } },
-  { id: 'passionfruit-green-tea', name: '百香果绿茶', price: 4, customization: teaCustomization, description: null, recommendation: null },
-  { id: 'grape-jasmine-tea', name: '葡萄茉莉', price: 4, customization: teaCustomization, description: null, recommendation: null },
-  { id: 'fresh-orange-juice', name: '鲜橙汁', price: 4, customization: juiceCustomization, description: null, recommendation: null },
-  { id: 'strawberry-fruit-drink', name: '草莓果饮', price: 5, customization: juiceCustomization, description: null, recommendation: null },
+  { id: 'taro-milk-tea', name: '芋泥奶茶', price: 4, customization: teaCustomization, description: '加入细腻芋泥，奶香中带着淡淡芋香。', recommendation: { mood: '浓郁', line: '芋泥奶茶的口感会比较浓郁。' } },
+  { id: 'jasmine-milk-green-tea', name: '茉莉奶绿', price: 3, customization: teaCustomization, description: '清新的茉莉茶香与奶香融合，口感轻盈。', recommendation: { mood: '清爽', line: '可以试试茉莉奶绿，花香比较清爽。' } },
+  { id: 'passionfruit-green-tea', name: '百香果绿茶', price: 4, customization: teaCustomization, description: '百香果酸香，绿茶清爽', recommendation: { mood: '清爽', line: '可以试试百香果绿茶，酸香比较清爽。' } },
+  { id: 'grape-jasmine-tea', name: '葡萄茉莉', price: 4, customization: teaCustomization, description: '葡萄果香，伴有茉莉花香', recommendation: null },
+  { id: 'fresh-orange-juice', name: '鲜橙汁', price: 4, customization: juiceCustomization, description: '鲜橙酸甜，果香自然', recommendation: null },
+  { id: 'strawberry-fruit-drink', name: '草莓果饮', price: 5, customization: juiceCustomization, description: '草莓香甜，果味浓郁', recommendation: { mood: '浓郁', line: '草莓果饮的果味会更浓郁一些。' } },
 ] as const
 
 export const commercialStreetDrinkShopDialogue = {
   welcome: '欢迎光临，看看想喝什么？',
   preferenceQuestion: '喜欢清爽一点，还是浓郁一点？',
+  recommendationOptions: ['就要这款', '看看其他饮品'],
 } as const
 
 export const commercialStreetDrinkCatalogMissingCopy = {
-  descriptions: ['passionfruit-green-tea', 'grape-jasmine-tea', 'fresh-orange-juice', 'strawberry-fruit-drink'],
-  recommendations: ['passionfruit-green-tea', 'grape-jasmine-tea', 'fresh-orange-juice', 'strawberry-fruit-drink'],
+  descriptions: [],
+  recommendations: ['grape-jasmine-tea', 'fresh-orange-juice'],
 } as const
