@@ -1280,6 +1280,11 @@ export function MainlineScenePage({
       setPassageDestination(null)
       setRequestedWorldTarget(null)
       setActiveObjectId(null)
+      // A directly clicked locked door is an explicit request. If no legal
+      // approach path can be found, still explain why the door cannot be used
+      // instead of leaving a clickable door with no response.
+      onDoorEvent?.('blocked', passage)
+      showLockedPassageText(passage)
       return
     }
     const routeLength = approachPath.slice(1).reduce((distance, point, index) => distance + Math.hypot(
