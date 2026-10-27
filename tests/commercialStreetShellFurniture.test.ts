@@ -168,7 +168,7 @@ describe('commercial street shell furniture samples', () => {
  const worker=street.npcPlacements.find(n=>n.npcId==='milk-tea-trial-worker')!.position
  expect(isWalkableMainlinePoint(worker,street,{},referenceOptions)).toBe(false)
  expect(isWalkableMainlinePoint(worker,street,{}, {...referenceOptions,actorId:'milk-tea-trial-worker'})).toBe(true)
- for(const id of ['commercial-s5-milk-tea-order-service-label','commercial-s5-milk-tea-pickup-service-label'])expect(findMainlinePathToEntity(street,id,shellInside('commercial-south-slot-5'),{},referenceOptions).path).not.toBeNull()
+ for(const id of ['commercial-s5-milk-tea-order-service-label'])expect(findMainlinePathToEntity(street,id,shellInside('commercial-south-slot-5'),{},referenceOptions).path).not.toBeNull()
 })
 
   it('matches both current milk-tea counter bodies to their unique 16px glyph union and retains the fast-food counter',()=>{
@@ -309,11 +309,11 @@ describe('commercial street shell furniture samples', () => {
 
   it('retains six service identities with milk menu in the wall and order/pickup in the real counter', () => {
     const labels=street.objects.filter(o=>o.id.endsWith('-service-label'))
-    expect(labels).toHaveLength(6)
+    expect(labels).toHaveLength(5)
     const milk=labels.filter(o=>o.roomId===sampleRoomIds[0]),fast=labels.filter(o=>o.roomId===sampleRoomIds[1])
-    expect(milk.map(o=>o.id).sort()).toEqual(['menu','order','pickup'].map(k=>`commercial-s5-milk-tea-${k}-service-label`).sort())
+    expect(milk.map(o=>o.id).sort()).toEqual(['menu','order'].map(k=>`commercial-s5-milk-tea-${k}-service-label`).sort())
     expect(fast.map(o=>o.label).sort()).toEqual(['菜单','点单','取餐'].sort())
-    expect(milk).toHaveLength(3);expect(fast).toHaveLength(3)
+    expect(milk).toHaveLength(2);expect(fast).toHaveLength(3)
     expect(labels.every(o=>o.visualVisibility==='static')).toBe(true)
     expect(milk.every(o=>o.interactive===true)).toBe(true)
     expect(fast.every(o=>o.interactive===false)).toBe(true)
@@ -333,8 +333,9 @@ describe('commercial street shell furniture samples', () => {
       expect(isWalkableMainlinePoint(label.position,street,{},referenceOptions)).toBe(false)
     }
     expect(milk.some(o=>['点单','取餐','取货'].includes(o.label))).toBe(false)
-    const order=milk.find(o=>o.id.includes('-order-'))!,pickup=milk.find(o=>o.id.includes('-pickup-'))!
-    expect((pickup.position.y-order.position.y)*10.8).toBeCloseTo(208,5)
+    const order=milk.find(o=>o.id.includes('-order-'))!
+    expect(order.interactive).toBe(true)
+    expect(street.objects.some(o=>o.id==='commercial-s5-milk-tea-pickup-service-label')).toBe(false)
     for(const label of fast){
       expect(localCell(sampleRoomIds[1],label.position).column).toBeLessThan(14)
       expect(findMainlinePath(shellInside('commercial-south-slot-2'),label.position,street)).not.toBeNull()

@@ -12,9 +12,14 @@ export function yongheMenuText(products: readonly typeof yongheTakeawayCatalog[n
   return products.map(({ name, price }) => `${name} ${price}元`).join('\n')
 }
 
+/** Recommendation choices name dishes only; prices remain on the full menu. */
+export function yongheRecommendedDishNames(choice: '面' | '饭') {
+  return yongheMenuForChoice(choice).map(product => product.name)
+}
+
 /** The choice narrows the existing menu without asserting a recommended dish. */
 export function yongheMenuForChoice(choice: '面' | '饭') {
   return choice === '面'
-    ? yongheTakeawayCatalog.filter(product => product.id === 'yonghe-minced-pork-noodles')
+    ? yongheTakeawayCatalog.filter(product => product.id === 'yonghe-fresh-pork-wontons' || product.id === 'yonghe-minced-pork-noodles')
     : yongheTakeawayCatalog.filter(product => product.id === 'yonghe-egg-fried-rice' || product.id === 'yonghe-pork-and-greens-rice')
 }

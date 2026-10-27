@@ -193,7 +193,7 @@ describe('commercial street ordinary retail shell fixtures', () => {
     expect(street.objects.some(o=>o.id.startsWith('commercial-retail-n1-fruit-tea-'))).toBe(false)
     expect(street.continuousStructures.filter(b=>b.id.startsWith('fruit-tea-trial-'))).toHaveLength(3)
     expect(street.objects.filter(o=>o.roomId===fruit.id&&(o.kind==='seat'||o.kind==='table'))).toHaveLength(0)
-    for(const id of ['fruit-tea-trial-order','fruit-tea-trial-pickup']){const marker=street.objects.find(o=>o.id===id)!;expect(marker.interactive).toBe(true);expect(findMainlinePathToEntity(street,id,inside,{},options).path,id).not.toBeNull()}
+    for(const id of ['fruit-tea-trial-order']){const marker=street.objects.find(o=>o.id===id)!;expect(marker.interactive).toBe(true);expect(findMainlinePathToEntity(street,id,inside,{},options).path,id).not.toBeNull()}
     expect(street.objects.some(o=>o.roomId===fruit.id&&(o.id.includes('storage')||o.id.includes('warehouse')))).toBe(false)
     const worker=street.npcPlacements.find(n=>n.npcId==='fruit-tea-trial-worker')!.position,rear=street.passages.find(p=>p.id===fruit.id+'-rear-door')!
     expect(isWalkableMainlinePoint(worker,street,{},options)).toBe(false)

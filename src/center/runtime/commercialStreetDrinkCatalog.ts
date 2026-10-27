@@ -1,4 +1,4 @@
-/** Product reference data only. This catalog is intentionally not wired to the phone or order flow. */
+/** Approved drink products used by wall menus, staff recommendations, and the shared ordering app. */
 export const drinkCustomizationOptions = {
   sugar: ['少糖', '正常', '多糖'] as const,
   ice: ['少冰', '正常冰', '去冰'] as const,
@@ -42,12 +42,28 @@ export const commercialStreetDrinkCatalogWithStores = commercialStreetDrinkCatal
 
 export const commercialStreetDrinkShopDialogue = {
   welcome: '欢迎光临，看看想喝什么？',
+  recommendationRequest: '有什么推荐？',
   preferenceQuestion: '喜欢清爽一点，还是浓郁一点？',
+  preferenceOptions: ['清爽一点', '浓郁一点'],
   recommendationOptions: ['就要这款', '看看其他饮品'],
 } as const
 
+export function recommendedCommercialStreetDrink(storeId: string, preference: string) {
+  const productId = storeId === 'commercial-south-slot-5'
+    ? preference === '清爽一点' ? 'jasmine-milk-green-tea' : 'taro-milk-tea'
+    : preference === '清爽一点' ? 'passionfruit-green-tea' : 'strawberry-fruit-drink'
+  return commercialStreetDrinkCatalog.find(product => product.id === productId) ?? null
+}
+
+export function commercialStreetDrinkMenuText(storeId: string) {
+  return commercialStreetDrinkCatalog
+    .filter(product => product.storeId === storeId)
+    .map(product => `${product.name}  ${product.price}元\n${product.description ?? ''}`)
+    .join('\n\n')
+}
+
 export const commercialStreetDrinkCatalogMissingCopy = {
   descriptions: [],
-  recommendations: ['grape-jasmine-tea', 'fresh-orange-juice'],
+  recommendations: ['original-milk-tea', 'brown-sugar-pearl-milk-tea', 'grape-jasmine-tea', 'fresh-orange-juice'],
 } as const
 

@@ -5,8 +5,8 @@ import { canActorReachPassageApproach, findMainlinePath, findMainlinePathToEntit
 
 const scene=mainlineScenes['commercial-street'], options={screenMetrics:sceneDesignReferenceMetrics}
 const trials=[
- {room:'commercial-south-s5-interior',prefix:'milk-tea-trial',front:'commercial-south-slot-5-entry',old:'commercial-s5-milk-tea-',worker:[240,392],order:'commercial-s5-milk-tea-order-service-label',pickup:'commercial-s5-milk-tea-pickup-service-label'},
- {room:'commercial-north-n1-interior',prefix:'fruit-tea-trial',front:'commercial-north-slot-1-entry',old:'commercial-retail-n1-fruit-tea-',worker:[96,252],order:'fruit-tea-trial-order',pickup:'fruit-tea-trial-pickup'},
+ {room:'commercial-south-s5-interior',prefix:'milk-tea-trial',front:'commercial-south-slot-5-entry',old:'commercial-s5-milk-tea-',worker:[240,392],order:'commercial-s5-milk-tea-order-service-label'},
+ {room:'commercial-north-n1-interior',prefix:'fruit-tea-trial',front:'commercial-north-slot-1-entry',old:'commercial-retail-n1-fruit-tea-',worker:[96,252],order:'fruit-tea-trial-order'},
 ] as const
 describe('two distinct takeaway layout trials',()=>{
  for(const trial of trials){const room=scene.rooms.find(r=>r.id===trial.room)!,point=(x:number,y:number)=>({x:room.bounds.x+x/19.2,y:room.bounds.y+y/10.8})
@@ -23,7 +23,7 @@ describe('two distinct takeaway layout trials',()=>{
    const from=front.crossingTargets.find(p=>p.x>=room.bounds.x&&p.x<=room.bounds.x+room.bounds.width&&p.y>=room.bounds.y&&p.y<=room.bounds.y+room.bounds.height)!
    expect(from).toBeTruthy()
    expect(isWalkableMainlinePoint(from,scene,{},options)).toBe(true)
-   for(const id of [trial.order,trial.pickup]) {
+   for(const id of [trial.order]) {
     expect(findMainlinePathToEntity(scene,id,from,{},options).path,id).not.toBeNull()
     expect(scene.explorationText?.[id]?.[0]).toBeTruthy()
    }

@@ -441,16 +441,31 @@ export default function CenterExperience({
   }, [commitPlayerSave])
 
   const handleCommerceEntity = useCallback((entity) => {
-    if (entity.id === 'commercial-s5-milk-tea-order-service-label' || entity.id === 'commercial-s5-milk-tea-app-square') {
+    const useShopCounter = (shopId) => {
+      const order = playerSaveRef.current.shopOrders?.[shopId]
+      const nowGameTimeMs = sessionGameClockRef.current.read().gameTimeMs
+      if (order?.status === 'queued' && order.readyAtGameTimeMs !== null && nowGameTimeMs >= order.readyAtGameTimeMs) {
+        claimShopOrder(shopId)
+        return
+      }
+      openShopOrderApp(shopId)
+    }
+    if (entity.id === 'commercial-s5-milk-tea-order-service-label') {
+      useShopCounter(crossShopIds.milkTea)
+      return true
+    }
+    if (entity.id === 'commercial-s5-milk-tea-app-square') {
       openShopOrderApp(crossShopIds.milkTea)
       return true
     }
-    if (entity.id === 'commercial-s5-milk-tea-pickup-service-label') { claimShopOrder(crossShopIds.milkTea); return true }
-    if (entity.id === 'fruit-tea-trial-order' || entity.id === 'fruit-tea-trial-app-square') {
+    if (entity.id === 'fruit-tea-trial-order') {
+      useShopCounter(crossShopIds.fruitTea)
+      return true
+    }
+    if (entity.id === 'fruit-tea-trial-app-square') {
       openShopOrderApp(crossShopIds.fruitTea)
       return true
     }
-    if (entity.id === 'fruit-tea-trial-pickup') { claimShopOrder(crossShopIds.fruitTea); return true }
     if (entity.id === 'yonghe-counter') {
       const order = playerSaveRef.current.shopOrders?.[crossShopIds.yonghe]
       const gameTimeMs = sessionGameClockRef.current.read().gameTimeMs
@@ -458,8 +473,14 @@ export default function CenterExperience({
         claimShopOrder(crossShopIds.yonghe)
         return true
       }
-      openShopOrderApp(crossShopIds.yonghe)
-      return true
+      if (order?.status === 'queued') {
+        setBoundaryNotice('餐食还在制作中。')
+        return true
+      }
+      // With no active order the player starts through the owner's opening,
+      // then chooses ordering or recommendation. The phone QR remains a
+      // separate shortcut inside the unified app.
+      return false
     }
     return false
   }, [claimShopOrder, openShopOrderApp])
@@ -936,6 +957,7 @@ export default function CenterExperience({
       onDeskInteraction={snapshot ? undefined : switchCarriedPhone}
       onObjectInteraction={snapshot ? undefined : handleObjectInteraction}
       onCommerceEntity={snapshot ? undefined : handleCommerceEntity}
+      onDrinkShopOrderOpen={snapshot ? undefined : (shopId, productId) => openShopOrderApp(shopId, productId)}
       onYongheOrderOpen={snapshot ? undefined : (productId) => openShopOrderApp(crossShopIds.yonghe, productId)}
       yongheOrderFeedback={yongheOrderFeedback}
       yongheReadyCue={yongheReadyCue}

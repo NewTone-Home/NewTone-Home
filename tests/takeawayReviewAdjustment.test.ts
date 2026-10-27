@@ -6,18 +6,18 @@ import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundary
 const scene = mainlineScenes['commercial-street']
 
 describe('simplified takeaway shop work areas', () => {
-  it('keeps the milk-tea return at the entry end and retains the pickup and locked rear door', () => {
+  it('keeps the milk-tea return at the entry end and retains one counter service point and locked rear door', () => {
     const room = scene.rooms.find(candidate => candidate.id === 'commercial-south-s5-interior')!
     const front = scene.passages.find(passage => passage.toRoomId === room.id && passage.routeThrough)!
     const body = scene.continuousStructures.find(candidate => candidate.id === 'milk-tea-trial-front-return-body')!
     const localY = (body.y - room.bounds.y) * 10.8
     const entryY = (front.crossingTargets[0]!.y - room.bounds.y) * 10.8
     const rear = scene.passages.find(passage => passage.id === `${room.id}-rear-door`)!
-    const pickup = scene.objects.find(object => object.id === 'commercial-s5-milk-tea-pickup-service-label')!
+    const counter = scene.objects.find(object => object.id === 'commercial-s5-milk-tea-order-service-label')!
     expect(Math.abs(localY - entryY)).toBeLessThan(room.bounds.height * 10.8 / 2)
     expect(body.width * 19.2).toBeGreaterThan(100)
-    expect(pickup).toBeDefined()
-    expect(findMainlinePathToEntity(scene, pickup.id, front.crossingTargets[0]!, {}, { screenMetrics: sceneDesignReferenceMetrics }).path).not.toBeNull()
+    expect(counter).toBeDefined()
+    expect(findMainlinePathToEntity(scene, counter.id, front.crossingTargets[0]!, {}, { screenMetrics: sceneDesignReferenceMetrics }).path).not.toBeNull()
     expect(rear.access).toBe('locked')
   })
 

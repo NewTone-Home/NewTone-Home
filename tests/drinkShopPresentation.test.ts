@@ -14,7 +14,7 @@ describe('shop vertical machines, shared counter frames and same-side wall menus
    for(const cell of cells){expect(cell.interactive).toBe(true);expect(cell.counterSurfaceId).toBeTruthy();expect(cell.interactionStructureId).toBeTruthy();expect(isWalkableMainlinePoint(cell.position,scene,{},options)).toBe(false)}
    // The two arms of each connected L share one group; the worktop is its own.
    expect(new Set(bodies.map(body=>body.counterSurface?.groupId)).size).toBe(2)
-   expect(cells.filter(c=>c.interactionBehavior==='cafe-order').map(c=>c.id)).toEqual(roomId.includes('cafe')?['commercial-cafe-counter']:[])
+   expect(cells.filter(c=>c.interactionBehavior==='cafe-order').map(c=>c.id)).toEqual(roomId.includes('cafe')?['commercial-cafe-counter']:[roomId.includes('south')?'commercial-s5-milk-tea-order-service-label':'fruit-tea-trial-order'])
   })
   it(`${roomId}: embeds menus on the employee wall but reads from a legal public contact`,()=>{
    for(const id of menus){const e=scene.objects.find(o=>o.id===id)!;expect(e.surface).toBe('wall');expect((e.position.x-room.bounds.x)*19.2).toBeCloseTo(wallX,5);expect((e.interactionContactAnchor!.x-room.bounds.x)*19.2).toBeCloseTo(contactX,5);expect(isWalkableMainlinePoint(e.interactionContactAnchor!,scene,{},options)).toBe(true);expect(findMainlinePathToEntity(scene,id,front.crossingTargets[0],{},options).path).not.toBeNull();expect(isWalkableMainlinePoint(e.position,scene,{},options)).toBe(false)}

@@ -45,8 +45,8 @@ describe('visible counter terminals and Cafe employee opening', () => {
   })
 
   for (const [roomId, prefix, worker, serviceIds] of [
-    ['commercial-south-s5-interior', 'milk-tea-trial', 'milk-tea-trial-worker', ['commercial-s5-milk-tea-order-service-label', 'commercial-s5-milk-tea-pickup-service-label']],
-    ['commercial-north-n1-interior', 'fruit-tea-trial', 'fruit-tea-trial-worker', ['fruit-tea-trial-order', 'fruit-tea-trial-pickup']],
+    ['commercial-south-s5-interior', 'milk-tea-trial', 'milk-tea-trial-worker', ['commercial-s5-milk-tea-order-service-label']],
+    ['commercial-north-n1-interior', 'fruit-tea-trial', 'fruit-tea-trial-worker', ['fruit-tea-trial-order']],
   ] as const) {
     it(`${prefix}: the closed L counter separates customers from staff while its service anchors remain reachable`, () => {
       const room = scene.rooms.find(candidate => candidate.id === roomId)!
