@@ -25,6 +25,30 @@ describe('shop wallet save migration', () => {
     expect(restored.walletBalance).toBe(795)
     expect(restored.shopOrderPaymentReceipts['wallet-save-key']).toMatchObject({ orderId: 'order-save', amount: 5 })
     expect(restored.shopOrders[crossShopIds.cafeTakeaway]).toMatchObject({ pricePaid: 5, readyAtGameTimeMs: 300_100 })
+    expect(sanitizePlayerSave(restored, fresh.currentSceneId).walletBalance).toBe(795)
+  })
+
+  it('restores two independent shop orders and their shared wallet after a save reload', () => {
+    const fresh = createInitialPlayerSave()
+    const first = placePaidShopOrder({ ordersByShop: {}, heldConsumable: null }, { walletBalance: 800, paymentReceipts: {} }, {
+      orderId: 'milk-order', idempotencyKey: 'milk-purchase', shopId: crossShopIds.milkTea,
+      productId: 'original-milk-tea', price: 5, placedAtGameTimeMs: 10_000, preparationDurationMs: 5 * 60_000,
+    })
+    if (!first.ok) throw new Error(first.reason)
+    const second = placePaidShopOrder(first.orderState, first.paymentState, {
+      orderId: 'fruit-order', idempotencyKey: 'fruit-purchase', shopId: crossShopIds.fruitTea,
+      productId: 'passionfruit-green-tea', price: 5, placedAtGameTimeMs: 20_000, preparationDurationMs: 5 * 60_000,
+    })
+    if (!second.ok) throw new Error(second.reason)
+    const restored = sanitizePlayerSave({
+      ...fresh, shopOrders: second.orderState.ordersByShop,
+      walletBalance: second.paymentState.walletBalance,
+      shopOrderPaymentReceipts: second.paymentState.paymentReceipts,
+    }, fresh.currentSceneId)
+    expect(restored.walletBalance).toBe(790)
+    expect(restored.shopOrders[crossShopIds.milkTea]).toMatchObject({ id: 'milk-order', pricePaid: 5, readyAtGameTimeMs: 310_000 })
+    expect(restored.shopOrders[crossShopIds.fruitTea]).toMatchObject({ id: 'fruit-order', pricePaid: 5, readyAtGameTimeMs: 320_000 })
+    expect(Object.keys(restored.shopOrderPaymentReceipts)).toEqual(['milk-purchase', 'fruit-purchase'])
   })
 
   it('does not turn malformed saved balance into free money', () => {
