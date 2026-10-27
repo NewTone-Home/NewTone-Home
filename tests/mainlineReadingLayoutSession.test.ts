@@ -3,6 +3,7 @@ import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { createMainlineReadingSessionLayoutCache, mainlineReadingSessionMaxMeasuredWidths } from '../src/center/runtime/mainlineReadingLayoutSession'
 import { subscribeToMainlineReadingFontCompletion } from '../src/center/runtime/useMainlineReadingFontRevision'
 import { mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
+import { mainlineReadingCameraOffset } from '../src/center/runtime/mainlineTextReading'
 import { splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
 
 describe('mainline reading session layout cache', () => {
@@ -244,4 +245,25 @@ describe('mainline reading session layout cache', () => {
     expect(listeners.size).toBe(0)
   })
 
+})
+
+
+describe('whole observation layout', () => {
+  it.each([{ width: 1920, height: 1080, viewportWidth: 1920 }, { width: 411, height: 914, viewportWidth: 411 }])('keeps short multi-line observations together on $width', metrics => {
+    const text = '第一句内容。\n第二句内容。'
+    const cache = createMainlineReadingSessionLayoutCache({ sessionKey: 'observation', entries: [{ text }], metrics, maximumWidthPx: 180, preferWholeText: true, measureText: (value, size) => Array.from(value).length * size })
+    const scene = mainlineScenes['zhongshuyuan-office']
+    const fit = cache.fit({ scene, source: scene.initialPlayerPosition, text, maximumWidthPx: 180, protectedVisuals: [], metrics, worldScale: .65, cameraOffset: mainlineReadingCameraOffset(scene, scene.initialPlayerPosition, metrics, .65, { x: 0, y: 0 }) })
+    expect(fit.segments).toEqual([text])
+    expect(fit.layout.heightPx).toBeGreaterThan(fit.layout.fontSizePx * 2)
+  })
+  it('splits a very long observation if the whole text does not fit', () => {
+    const metrics = { width: 411, height: 914, viewportWidth: 411 }
+    const text = '一段较长的合成观察文字，'.repeat(150)
+    const cache = createMainlineReadingSessionLayoutCache({ sessionKey: 'observation', entries: [{ text }], metrics, maximumWidthPx: 180, preferWholeText: true, measureText: (value, size) => Array.from(value).length * size })
+    const scene = mainlineScenes['zhongshuyuan-office']
+    const fit = cache.fit({ scene, source: scene.initialPlayerPosition, text, maximumWidthPx: 180, protectedVisuals: [], metrics, worldScale: .65, cameraOffset: mainlineReadingCameraOffset(scene, scene.initialPlayerPosition, metrics, .65, { x: 0, y: 0 }) })
+    expect(fit.segments.length).toBeGreaterThan(1)
+    expect(fit.segments.join('')).toBe(text)
+  })
 })

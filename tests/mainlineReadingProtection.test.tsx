@@ -249,7 +249,7 @@ describe('reading target protection', () => {
     expect(longerPage).toEqual(shortPage)
   })
 
-  it('keeps the real renderer text visible and advances its fitted pages at the 360x550 support floor', () => {
+  it('keeps the real renderer text visible and on one page when it fits at the 360x550 support floor', () => {
     const scene = mainlineScenes['commercial-street']
     const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
     const source = { x: room.bounds.x + .7, y: room.bounds.y + .8 }
@@ -268,7 +268,7 @@ describe('reading target protection', () => {
     expect(reading).toBeTruthy()
     expect(reading).not.toContain('visibility:hidden')
     expect(reading).toContain('data-scene-reading-page-fit="true"')
-    expect(segmentCount).toBe(2)
+    expect(segmentCount).toBe(1)
     expect(reading).not.toContain('data-scene-reading-paused-for-glyph')
     expect(html).toContain('data-scene-dialogue-shield="true"')
   })

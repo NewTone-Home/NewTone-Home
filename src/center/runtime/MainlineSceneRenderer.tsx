@@ -1436,6 +1436,7 @@ export function MainlineSceneRenderer({
         metrics: frozenMetrics,
         maximumWidthPx: frozenMaximumWidth,
         fontKey: readingLayoutFontFaceKey,
+        preferWholeText: Boolean(sceneEcho),
       })
       readingLayoutSessionCacheRef.current = readingLayoutSessionCache
     } else {

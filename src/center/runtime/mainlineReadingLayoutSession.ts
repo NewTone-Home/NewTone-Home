@@ -2,13 +2,15 @@ import type { CollisionBox, Point } from './sceneGeometry'
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import type { MainlineSceneDefinition } from './mainlineScenes'
 import { mainlineEchoLayout, type MainlineEchoLayout } from './mainlineEchoLayout'
-import { mainlineReadingFontSizePx } from './mainlineTextReading'
+import { mainlineReadingBounds, mainlineReadingFontSizePx } from './mainlineTextReading'
+import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 import { mainlinePlaceReadingBox } from './mainlineReadingProtection'
 import { mainlineMeasuredTextWidth, splitMainlineInteractionTextToFit } from './mainlineTextSegments'
 
 export type MainlineReadingCachedPages = Readonly<{
   segments: readonly string[]
   layouts: readonly MainlineEchoLayout[]
+  fullLayout: MainlineEchoLayout
 }>
 export type MainlineReadingSessionTextEntry = Readonly<{ text: string; speaker?: string }>
 export type MainlineReadingSessionLayoutCounts = Readonly<{
@@ -68,6 +70,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
   measureText?: (text: string, fontSizePx: number) => number
   layoutText?: typeof mainlineEchoLayout
   splitTextToFit?: typeof splitMainlineInteractionTextToFit
+  preferWholeText?: boolean
 }): MainlineReadingSessionLayoutCache {
   const metrics = { ...input.metrics }
   const fontSizePx = mainlineReadingFontSizePx(metrics)
@@ -116,7 +119,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
       maxWidthPx: candidate.widthPx,
       measureText: measure,
     })
-    candidate.pages.set(key, { segments, layouts })
+    candidate.pages.set(key, { segments, layouts, fullLayout })
     if (speaker) candidate.speakerWidthPx = Math.max(candidate.speakerWidthPx, ...layouts.map(layout => layout.widthPx))
     candidate.envelopeLayout = {
       widthPx: Math.max(candidate.envelopeLayout.widthPx, fullLayout.widthPx),
@@ -168,11 +171,28 @@ export function createMainlineReadingSessionLayoutCache(input: {
     fit(fitInput) {
       counts.fitCalls += 1
       addEntries([{ text: fitInput.text, speaker: fitInput.speaker }])
+      // For observations, first try the complete, naturally wrapped text.
+      // Placement checks the actual room, viewport and protected visuals.
+      if (input.preferWholeText) {
+        for (const candidate of widths) {
+          if (candidate.widthPx > fitInput.maximumWidthPx + .001) continue
+          const layout = candidate.pages.get(entryKey({ text: fitInput.text, speaker: fitInput.speaker }))!.fullLayout
+          const bounds = mainlineReadingBounds(fitInput.scene, fitInput.source, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset)
+          const availableWidth = bounds.width / 100 * sceneDesignReferenceMetrics.width * fitInput.worldScale
+          const availableHeight = bounds.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale
+          const envelope = candidate.envelopeLayout
+          if (envelope.widthPx > availableWidth || envelope.heightPx > availableHeight) continue
+          const position = mainlinePlaceReadingBox(fitInput.scene, fitInput.source, { width: envelope.widthPx, height: envelope.heightPx }, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset)
+          if (position) return { segments: [fitInput.text], pageLayouts: [layout], position, layout, maxWidthPx: candidate.widthPx, fits: true }
+        }
+      }
       for (const candidate of widths) {
         if (candidate.widthPx > fitInput.maximumWidthPx + .001) continue
         const page = candidate.pages.get(entryKey({ text: fitInput.text, speaker: fitInput.speaker }))!
         const layout = page.layouts[0] ?? layoutText(fitInput.text, metrics, { speaker: fitInput.speaker, maxWidthPx: candidate.widthPx, measureText: measure })
-        const envelope = candidate.envelopeLayout
+        const envelope = input.preferWholeText
+          ? { widthPx: Math.max(...page.layouts.map(item => item.widthPx)), heightPx: Math.max(...page.layouts.map(item => item.heightPx)) }
+          : candidate.envelopeLayout
         const position = mainlinePlaceReadingBox(fitInput.scene, fitInput.source, { width: envelope.widthPx, height: envelope.heightPx }, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset)
         if (position) return { segments: page.segments, pageLayouts: page.layouts, position, layout, maxWidthPx: candidate.widthPx, fits: true }
       }

@@ -34,7 +34,7 @@ import { AmbientNpcMotion } from './AmbientNpcMotion'
 import { npcRetryDelay, type NpcRuntimeSnapshot } from './npcCore'
 import { npcRoles } from './npcRoles'
 import { useStorefrontPresentation } from './useStorefrontPresentation'
-import { mainlineReadingSegmentDisplayText, splitMainlineInteractionText } from './mainlineTextSegments'
+import { mainlineDisplaySourceText, mainlineReadingSegmentDisplayText, splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineDialogueParticipantNpcIds, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingOpacityForActor, mainlineMaximumReadingWidthPx } from './mainlineTextReading'
 import { createMainlineReadingSessionLayoutCache } from './mainlineReadingLayoutSession'
 import { cancelMainlineSceneActionExit, commitMainlineSceneActionExit, completeMainlineSceneActionOptionExit, createMainlineSceneActionExitBarrier, mainlineSceneActionExitMayUnmount, resolveMainlineSceneActionCancellation, type MainlineSceneActionExitBarrier } from './mainlineSceneActionExit'
@@ -165,9 +165,9 @@ type MainlineSceneAction = {
 }
 
 function createMainlineSceneEcho(id: number, entityId: string | undefined, text: string, position: Point, clockActivitySource: MainlineSceneEcho['clockActivitySource'], options?: readonly string[]): MainlineSceneEcho {
-  // Split authored clauses here. The renderer applies the one width-fit pass
-  // against the actual protected-object and viewport constraints.
-  const segments = splitMainlineInteractionText(text)
+  // Keep this observation together; the reading layout decides its pages
+  // from the available space rather than sentence punctuation.
+  const segments = [mainlineDisplaySourceText(text)]
   return {
     id,
     clockActivitySource,
@@ -183,7 +183,7 @@ function createMainlineSceneEcho(id: number, entityId: string | undefined, text:
 }
 
 function replaceMainlineSceneEchoText(current: MainlineSceneEcho, text: string): MainlineSceneEcho {
-  const segments = splitMainlineInteractionText(text)
+  const segments = [mainlineDisplaySourceText(text)]
   return {
     ...current,
     sourceText: text,
@@ -2472,6 +2472,7 @@ export function MainlineScenePage({
       metrics: readingMetrics,
       maximumWidthPx: mainlineMaximumReadingWidthPx(scene, ambientReadingPosition, readingMetrics, worldScale),
       fontKey: ambientReadingFontKey,
+      preferWholeText: Boolean(sceneEcho),
     })
     sharedReadingSessionLayoutCacheRef.current = sharedReadingSessionLayoutCache
   } else {
