@@ -50,6 +50,7 @@ import { currentMainlineReadingTargetIds, mainlinePlaceReadingAction, mainlinePl
 import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey, type MainlineReadingSessionLayoutCache, type MainlineReadingSessionTextEntry } from './mainlineReadingLayoutSession'
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
+import { mainlineDialogueStageActorOpacity, mainlineDialogueTurnAllowsOptions } from './mainlineDialogueStage'
 import { mainlineReadingLocalPercent, mainlineReadingOcclusionCellIdentity, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot, type MainlineReadingOcclusionCandidate } from './mainlineReadingOcclusion'
 
 type MainlineSceneRendererProps = {
@@ -99,6 +100,9 @@ type MainlineSceneRendererProps = {
   dialoguePhase?: 'active' | 'leaving'
   dialogueTextSessionId?: number
   dialogueTextMotion?: MainlineReadingTextMotion
+  dialogueStage?: { roomId: string; speakerActorId: string | null; participantActorIds: ReadonlySet<string>; hiddenEntityIds: ReadonlySet<string> } | null
+  dialogueHandoffActive?: boolean
+  dialogueHandoffFadeDurationMs?: number
   readingMode?: 'observation' | 'dialogue' | null
   onDialogueExitComplete?: () => void
   onDialogueAdvance?: () => void
@@ -275,6 +279,7 @@ type MainlineAmbientNpcActorProps = {
   screenMetrics: SceneScreenMetrics
   debugRuntimeEvidence: boolean
   readingOpacity?: number
+  readingStageBrightness?: boolean
   readingProtected?: boolean
 }
 
@@ -1005,12 +1010,13 @@ type MainlineNpcActorProps = {
   interactive: boolean
   presentationActive?: boolean
   readingOpacity?: number
+  readingStageBrightness?: boolean
   readingProtected?: boolean
   debugRuntimeEvidence: boolean
   onInteract?: (npcId: string) => void
 }
 
-function MainlineNpcActor({ sceneId, npc, position, snapshot, seatId, seatPosition, screenMetrics, interactive, presentationActive = true, readingOpacity = 1, readingProtected = false, debugRuntimeEvidence, onInteract }: MainlineNpcActorProps) {
+function MainlineNpcActor({ sceneId, npc, position, snapshot, seatId, seatPosition, screenMetrics, interactive, presentationActive = true, readingOpacity = 1, readingProtected = false, readingStageBrightness = false, debugRuntimeEvidence, onInteract }: MainlineNpcActorProps) {
   const visualPosition = mainlineSeatedActorVisualPosition(position, seatId, seatPosition)
   const visualFootprint = mainlineLabelFootprint(npc.label, visualPosition, screenMetrics, { lineHeight: 1 })
   const effectiveReadingOpacity = readingProtected ? 1 : readingOpacity
@@ -1020,7 +1026,7 @@ function MainlineNpcActor({ sceneId, npc, position, snapshot, seatId, seatPositi
     top: `${visualPosition.y}%`,
     opacity: presentationActive ? 1 : 0,
     pointerEvents: presentationActive ? undefined : 'none',
-    filter: effectiveReadingOpacity < 1 ? `opacity(${effectiveReadingOpacity})` : undefined,
+    filter: effectiveReadingOpacity < 1 ? `${readingStageBrightness ? 'brightness' : 'opacity'}(${effectiveReadingOpacity})` : undefined,
     zIndex: readingProtected ? 11 : effectiveReadingOpacity < 1 ? 15 : undefined,
     transition: `opacity ${sceneFrameDefaultMotionMs}ms ease-in-out, filter ${mainlineReadingFadeTransitionMs}ms linear`,
     '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, screenMetrics)}px`,
@@ -1101,6 +1107,9 @@ export function MainlineSceneRenderer({
   dialoguePhase = 'active',
   dialogueTextSessionId = 0,
   dialogueTextMotion = 'static',
+  dialogueStage = null,
+  dialogueHandoffActive = false,
+  dialogueHandoffFadeDurationMs = 300,
   readingMode = null,
   onDialogueExitComplete,
   onDialogueAdvance,
@@ -1252,13 +1261,13 @@ export function MainlineSceneRenderer({
     const dimmer = dimmerRef.current
     if (!dimmer) return
     const currentOpacity = Number(getComputedStyle(dimmer).opacity)
-    const targetOpacity = readingMode ? centerReadingDimmerTargets[readingMode] : 0
+    const targetOpacity = readingMode === 'observation' ? centerReadingDimmerTargets.observation : dialogueStage ? 0 : readingMode ? centerReadingDimmerTargets.dialogue : 0
     dimmer.getAnimations().forEach((animation) => animation.cancel())
     dimmer.style.opacity = String(currentOpacity)
     const duration = centerReadingDimmerTransitionDurationMs(
       currentOpacity,
       targetOpacity,
-      readingMode ? centerReadingDimmerTargets[readingMode] : currentOpacity,
+      readingMode === 'observation' ? centerReadingDimmerTargets.observation : dialogueStage ? 0 : readingMode ? centerReadingDimmerTargets.dialogue : currentOpacity,
     )
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (duration <= 0.5 || reducedMotion) {
@@ -1274,7 +1283,7 @@ export function MainlineSceneRenderer({
       dimmer.style.opacity = String(targetOpacity)
       animation.cancel()
     }
-  }, [readingMode])
+  }, [dialogueStage, readingMode])
   useEffect(() => {
     if (!hasAltarBreathing || typeof window === 'undefined') return undefined
     const startedAt = performance.now()
@@ -1591,7 +1600,6 @@ export function MainlineSceneRenderer({
   }, [sceneAction, sceneActionLayerPosition?.x, sceneActionLayerPosition?.y, sceneActionPlacement, matchingSceneActionSize, sceneActionMaxWidthPx, worldScale])
   const frozenActionPlacement = sceneAction && sceneAction.phase !== 'active' && actionExitPlacementRef.current?.id === sceneAction.id
     ? actionExitPlacementRef.current : null
-  const actionVisible = Boolean(frozenActionPlacement || (matchingSceneActionSize && sceneActionPlacement))
   const activeReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, renderCameraOffset) : readingMetrics.width - 24
   const activeReadingLayout = activeReadingPosition
     ? readingLayoutSessionCache?.pageLayoutAtOrBelow(activeReadingText, sceneEcho ? undefined : dialogueLine?.speaker, activeReadingWidthPx)
@@ -1789,6 +1797,18 @@ export function MainlineSceneRenderer({
   )
   const presentedReadingLayout = readingLayoutTransition.layout ?? displayReadingLayout
   const readingLayoutTransitioning = readingLayoutTransition.transitioning
+  const dialogueOptionsAllowed = mainlineDialogueTurnAllowsOptions({
+    hasDialogue: Boolean(dialogue && dialogueLine && readingMode === 'dialogue'),
+    ready: dialogueReady,
+    motion: dialogueTextMotion,
+    handoffActive: dialogueHandoffActive,
+    currentSegmentIndex: dialogueSegmentIndex,
+    segmentCount: dialogueSegmentCount,
+    currentOverflowPageIndex: displayOverflowIndex,
+    overflowPageCount: fittedReadingSegments.length,
+    layoutTransitioning: readingLayoutTransitioning,
+  })
+  const actionVisible = Boolean(frozenActionPlacement || (matchingSceneActionSize && sceneActionPlacement && (sceneAction?.phase !== 'active' || dialogueOptionsAllowed)))
   const currentDialogueGroup = dialogue && dialogueLine
     ? `dialogue:${dialogueLine.id}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`
     : null
@@ -2522,6 +2542,7 @@ export function MainlineSceneRenderer({
             const renderCounter = (parts: typeof counterSurfaces[number]) => {
             const meta = parts[0].counterSurface!
             const entityId = meta.interactionEntityId
+            const stageHidden = Boolean(dialogueStage?.hiddenEntityIds.has(entityId))
             const boxes = parts.map(part => {
               const outline = part.counterSurface?.outlineBounds
               const bounds = outline ?? { x: part.x, y: part.y, width: part.width, height: part.height }
@@ -2537,7 +2558,7 @@ export function MainlineSceneRenderer({
               return { x: centerX - width / 2, y: centerY - height / 2, width, height }
             })
             const counterBounds = unionWorldBounds([...boxes, ...labelBoxes], 1)
-            return <MainlineReadingIdentityPlane key={meta.groupId} identityKey={`counter:${meta.groupId}`} entityId={entityId} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={counterBounds} active={readingOcclusionActive} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--counter"><MainlineCounterSurface boundedWrapper coordinateBounds={counterBounds} parts={parts} objects={scene.objects} onInteract={onInteract} presentationActive={interiorRoomPresentationActive(meta.roomId)}/></MainlineReadingIdentityPlane>
+            return <MainlineReadingIdentityPlane key={meta.groupId} identityKey={`counter:${meta.groupId}`} entityId={entityId} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={counterBounds} active={readingOcclusionActive} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--counter${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}><MainlineCounterSurface boundedWrapper coordinateBounds={counterBounds} parts={parts} objects={scene.objects} onInteract={onInteract} presentationActive={interiorRoomPresentationActive(meta.roomId)}/></MainlineReadingIdentityPlane>
             }
             return visibleCounterSurfaces.map(renderCounter)
           })()}
@@ -2549,7 +2570,8 @@ export function MainlineSceneRenderer({
               const normalizedBounds = object?.visualBounds ?? mainlineEntityVisualBounds(scene, entity, geometrySnapshot.layout, renderScreenMetrics)
                 ?? mainlineLabelFootprint(entity.label, object?.position ?? entity.position, renderScreenMetrics, { vertical: entity.textLayout === 'vertical', visualScale: entity.visualScale, lineHeight: 1.2 })
               const objectBounds = mainlineReadingWorldBox(normalizedBounds, value => value, entity.focusFrame === 'interactive' ? 5 : 0)
-              return <MainlineReadingIdentityPlane key={entity.id} identityKey={`object:${entity.id}`} entityId={entity.id} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={objectBounds} active={readingOcclusionActive} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--object">{renderMainlineObject(entity, objectBounds)}</MainlineReadingIdentityPlane>
+              const stageHidden = Boolean(dialogueStage?.hiddenEntityIds.has(entity.id))
+              return <MainlineReadingIdentityPlane key={entity.id} identityKey={`object:${entity.id}`} entityId={entity.id} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={objectBounds} active={readingOcclusionActive} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--object${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}>{renderMainlineObject(entity, objectBounds)}</MainlineReadingIdentityPlane>
             })}
           </div>
 
@@ -2572,8 +2594,11 @@ export function MainlineSceneRenderer({
               screenMetrics={renderScreenMetrics}
               interactive={npc.interactive !== false}
               presentationActive={streetNpc ? streetPresentationActive : interiorRoomIsVisuallyActive(npc.roomId)}
-              readingOpacity={mainlineReadingOpacityForActor(npc.id, dialogueParticipantNpcIds, actorReadingOpacity(npcPosition))}
-              readingProtected={Boolean(readingMode && (dialogueParticipantNpcIds.has(npc.id) || readingProtectedEntityIds.has(npc.id)))}
+              readingOpacity={dialogueStage
+                ? mainlineDialogueStageActorOpacity({ active: true, actorId: npc.id, currentSpeakerActorId: dialogueStage.speakerActorId, participantActorIds: dialogueStage.participantActorIds, actorRoomId: npc.roomId, stageRoomId: dialogueStage.roomId })
+                : mainlineReadingOpacityForActor(npc.id, dialogueParticipantNpcIds, actorReadingOpacity(npcPosition))}
+              readingStageBrightness={Boolean(dialogueStage)}
+              readingProtected={Boolean(readingMode && !dialogueStage && (dialogueParticipantNpcIds.has(npc.id) || readingProtectedEntityIds.has(npc.id)))}
               debugRuntimeEvidence={debugRuntimeEvidence}
               onInteract={onNpcInteract}
             />
@@ -2605,7 +2630,7 @@ export function MainlineSceneRenderer({
             </div>
           </div>}
           {destination && <div className={`scene-walk-target ${moving ? 'is-active' : ''}`} style={{ left: `${destination.x}%`, top: `${destination.y}%` }} aria-hidden="true" />}
-          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''} ${readingMode ? 'is-reading-protected' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%`, '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? scene.id === 'commercial-street' ? projectCommercialStreetX(protagonistVisualPosition.x, renderScreenMetrics) : protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined}>
+          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''} ${readingMode ? 'is-reading-protected' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%`, filter: dialogueStage ? `brightness(${mainlineDialogueStageActorOpacity({ active: true, actorId: 'protagonist', currentSpeakerActorId: dialogueStage.speakerActorId, participantActorIds: dialogueStage.participantActorIds, actorRoomId: dialogueStage.roomId, stageRoomId: dialogueStage.roomId })})` : undefined, transition: dialogueStage ? 'filter 380ms ease-in-out' : undefined, '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? scene.id === 'commercial-street' ? projectCommercialStreetX(protagonistVisualPosition.x, renderScreenMetrics) : protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined}>
             <span className="scene-protagonist__grid-content">
             {protagonistPresentation.kind === 'dot'
               ? <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
@@ -2630,21 +2655,22 @@ export function MainlineSceneRenderer({
             const sourcePosition = sceneEcho?.position ?? dialoguePosition!
             const position = readingDisplayPosition ?? sourcePosition
             const group = sceneEcho ? `echo:${sceneEcho.id}` : `dialogue:${dialogueLine!.id}`
+            const stageDialogue = Boolean(isDialogue && dialogueStage)
             const hasNextSegment = sceneEcho
               ? sceneEcho.segmentIndex + 1 < sceneEcho.segments.length
               : dialogueSegmentIndex + 1 < dialogueSegmentCount || Boolean(dialogue && dialogueLineIndex! + 1 < dialogue.lines.length)
             const echoLayout = presentedReadingLayout ?? mainlineEchoLayout(text, readingMetrics, {
-              speaker: isDialogue ? dialogueLine!.speaker : undefined,
+              speaker: isDialogue && !stageDialogue ? dialogueLine!.speaker : undefined,
               maxWidthPx: displayReadingMaxWidthPx,
             })
-            if (isDialogue) {
+            if (isDialogue && !stageDialogue) {
               const session = `${scene.id}:${dialogue!.triggerEntityId}`
               const metrics = `${readingMetrics.width}:${readingMetrics.height}:${readingMetrics.viewportWidth}:${worldScale}:${displayReadingMaxWidthPx}`
               if (speakerPlacementRef.current?.session !== session || speakerPlacementRef.current.metrics !== metrics) {
                 speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, readingMetrics, { x: projectReadingX(sourcePosition.x), y: sourcePosition.y }, { x: 0, y: 0 }, worldScale, displayReadingMaxWidthPx, readingLayoutSessionCache?.speakerWidthAtOrBelow(displayReadingMaxWidthPx)) }
               }
             }
-            const baseSpeakerAnchor = isDialogue ? speakerPlacementRef.current!.anchor : null
+            const baseSpeakerAnchor = isDialogue && !stageDialogue ? speakerPlacementRef.current!.anchor : null
             const speakerPageAnchor = baseSpeakerAnchor ? mainlineSpeakerPageAnchor(baseSpeakerAnchor, echoLayout, worldScale) : null
             const speakerAnchor = speakerPageAnchor ? { ...speakerPageAnchor, left: speakerPageAnchor.left + readingDisplayShift.x, top: speakerPageAnchor.top + readingDisplayShift.y } : null
             return <Fragment>
@@ -2656,7 +2682,7 @@ export function MainlineSceneRenderer({
             ><DialogueSpeaker speaker={dialogueLine!.speaker} /></div>}
             <div
               key={readingLayoutContinuityKey ?? sceneEcho?.id ?? dialogueLine!.id}
-              className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${isLeaving ? 'is-leaving' : ''}`}
+              className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${stageDialogue ? 'scene-mainline-text--stage-dialogue' : ''} ${isLeaving ? 'is-leaving' : ''}`}
               style={{
                 left: `${speakerAnchor
                   ? speakerAnchor.left + speakerAnchor.worldWidthPx / sceneDesignReferenceMetrics.width * 50
@@ -2668,6 +2694,8 @@ export function MainlineSceneRenderer({
                 maxWidth: `${Math.max(1, displayReadingMaxWidthPx / worldScale)}px`,
                 overflow: 'visible',
                 visibility: sceneEcho && readingFit?.fits === false ? 'hidden' : undefined,
+                opacity: stageDialogue && dialogueHandoffActive ? 0 : undefined,
+                transition: stageDialogue && dialogueHandoffActive ? `opacity ${dialogueHandoffFadeDurationMs}ms linear` : undefined,
               } as CSSProperties}
               aria-live="polite"
               data-scene-interaction-text={sceneEcho?.entityId ?? dialogue?.triggerEntityId ?? 'scene'}
@@ -2676,6 +2704,7 @@ export function MainlineSceneRenderer({
               data-scene-dialogue={isDialogue ? dialogue?.triggerEntityId : undefined}
               data-dialogue-line-id={isDialogue ? dialogueLine?.id : undefined}
               data-dialogue-speaker={isDialogue ? dialogueLine?.speaker : undefined}
+              data-dialogue-stage-handoff={stageDialogue ? String(dialogueHandoffActive) : undefined}
               data-scene-segment-index={(sceneEcho?.segmentIndex ?? dialogueSegmentIndex) + displayOverflowIndex}
               data-scene-segment-count={(sceneEcho?.segments.length ?? dialogueSegmentCount) + fittedReadingSegments.length - 1}
               data-scene-segment-advance={hasNextSegment || displayOverflowIndex + 1 < fittedReadingSegments.length ? 'available' : 'complete'}
@@ -2697,7 +2726,7 @@ export function MainlineSceneRenderer({
                 else onDialogueExitComplete?.()
               }}
             >
-              {isDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
+              {isDialogue && !stageDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
                 ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
                 : <ObservationText echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} paused={readingFit?.fits === false} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
@@ -2718,6 +2747,7 @@ export function MainlineSceneRenderer({
             }}
             data-scene-action={sceneAction.entityId ?? 'scene'}
             data-scene-action-phase={sceneAction.phase ?? 'active'}
+            data-scene-action-waiting-for-dialogue={sceneAction.phase === 'active' && !dialogueOptionsAllowed ? 'true' : 'false'}
             data-scene-action-position-x={sceneAction.position.x}
             data-scene-action-position-y={sceneAction.position.y}
             data-scene-action-rendered-x={sceneActionPlacement?.position.x ?? sceneAction.position.x}
