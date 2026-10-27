@@ -94,12 +94,14 @@ type WorldPhoneProps = {
   requestedShopProductId?: string | null
   onShopOrderPlaced?: (selection: { shopId: string; productId: string }) => void
   onShopOrderReady?: (order: { id: string; shopId: string; productId: string; productName: string }) => void
+  onShopNotificationOpen?: (shopId: string) => void
   availableShopIds?: readonly string[]
   shopOrders?: Readonly<Record<string, CrossShopOrder>>
   heldConsumable?: HeldConsumable | null
+  walletBalance?: number
   gameTimeMs?: number
   preparationConfiguredByShop?: Readonly<Record<string, boolean>>
-  onShopOrderConfirm?: (selection: { shopId: string; productId: string; options?: Record<string, string | number | boolean | null> }) => { ok: boolean; reason?: string }
+  onShopOrderConfirm?: (selection: { shopId: string; productId: string; idempotencyKey: string; options?: Record<string, string | number | boolean | null> }) => { ok: boolean; reason?: string }
   onLegacyShopOrderCancel?: (shopId: string) => { ok: boolean; reason?: string }
   onRequestedAppHandled?: () => void
   onLaoZhouMessagesDisplayed?: () => void
@@ -249,7 +251,7 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, gameTimeLabel, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, requestedShopId = null, requestedShopProductId = null, onShopOrderPlaced, onShopOrderReady, availableShopIds = [], shopOrders = {}, heldConsumable = null, gameTimeMs = 0, preparationConfiguredByShop = {}, onShopOrderConfirm, onLegacyShopOrderCancel, onRequestedAppHandled, onLaoZhouMessagesDisplayed, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, onClockActivitySourceChange, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
+export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, gameTimeLabel, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, requestedShopId = null, requestedShopProductId = null, onShopOrderPlaced, onShopOrderReady, onShopNotificationOpen, availableShopIds = [], shopOrders = {}, heldConsumable = null, walletBalance = 800, gameTimeMs = 0, preparationConfiguredByShop = {}, onShopOrderConfirm, onLegacyShopOrderCancel, onRequestedAppHandled, onLaoZhouMessagesDisplayed, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, onClockActivitySourceChange, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
   const clockSourceId = useId()
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
@@ -450,7 +452,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
       setAppOrigin(`${i.x + i.width / 2 - p.x}px ${i.y + i.height / 2 - p.y}px`)
     }
     onAppOpen?.(app)
-    if (app === 'milk-tea') setActiveShopId(availableShopIds.includes(crossShopIds.milkTea) ? crossShopIds.milkTea : availableShopIds[0] ?? crossShopIds.milkTea)
+    if (app === 'milk-tea') setActiveShopId(availableShopIds.includes(crossShopIds.milkTea) ? crossShopIds.milkTea : availableShopIds[0] ?? null)
     else if (app === 'fruit-tea') setActiveShopId(crossShopIds.fruitTea)
     else if (app === 'yonghe-order') setActiveShopId(crossShopIds.yonghe)
     else if (app === 'cafe-takeaway') setActiveShopId(crossShopIds.cafeTakeaway)
@@ -621,10 +623,10 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   useEffect(() => {
     if (!open || requestedApp !== 'milk-tea' || !milkTeaAppUnlocked) return
     onAppOpen?.('milk-tea')
-    setActiveShopId(crossShopIds.milkTea)
+    setActiveShopId(availableShopIds[0] ?? null)
     setActiveApp('milk-tea')
     onRequestedAppHandled?.()
-  }, [milkTeaAppUnlocked, onAppOpen, onRequestedAppHandled, open, requestedApp])
+  }, [availableShopIds, milkTeaAppUnlocked, onAppOpen, onRequestedAppHandled, open, requestedApp])
 
   useEffect(() => {
     if (!open || requestedApp !== 'lao-zhou-messages') return
@@ -639,6 +641,11 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
 
   useEffect(() => {
     if (!open || !requestedShopId) return
+    if ((requestedShopId === crossShopIds.milkTea || requestedShopId === crossShopIds.fruitTea)
+      && !availableShopIds.includes(requestedShopId)) {
+      onRequestedAppHandled?.()
+      return
+    }
     const app = phoneAppForShopId(requestedShopId)
     if (!app) return
     setActiveShopId(requestedShopId)
@@ -646,7 +653,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
     onAppOpen?.(app)
     setActiveApp(app)
     onRequestedAppHandled?.()
-  }, [onAppOpen, onRequestedAppHandled, open, requestedShopId, requestedShopProductId])
+  }, [availableShopIds, onAppOpen, onRequestedAppHandled, open, requestedShopId, requestedShopProductId])
 
   useLayoutEffect(() => {
     const messageThread = phoneRef.current?.querySelector('.world-phone__message-thread')
@@ -777,7 +784,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
                 <span>{storyDate}{displayDevice === 'inner' ? ` · ${worldWeather}` : ''}</span>
               </header>
               <span className="world-phone__lock-hint">点击空白进入手机</span>
-              {notifications.filter(n => n.unread).map(n => <button type="button" className="world-phone__notification" data-notification-app={n.app} key={n.id} onClick={event => { event.stopPropagation(); openApp(n.app) }}><strong>{n.title}</strong><span>{n.body}</span></button>)}
+              {notifications.filter(n => n.unread).map(n => <button type="button" className="world-phone__notification" data-notification-app={n.app} key={n.id} onClick={event => { event.stopPropagation(); n.shopId ? onShopNotificationOpen?.(n.shopId) : openApp(n.app) }}><strong>{n.title}</strong><span>{n.body}</span></button>)}
             </section>
           ) : activeApp === null ? (
             <section className="world-phone__home-screen" tabIndex={0} aria-label="手机主屏">
@@ -843,7 +850,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
 
             {activeApp === 'ride' && <PhoneRideApp regions={mapRegions} device={displayDevice} currentLandmark={currentLandmark} currentSceneId={currentSceneId as MainlineSceneId} order={rideOrder} clock={rideClock} storyClock={storyClock} available={rideAvailability === 'available'} online={online} destinationId={selectedRideDestinationId} onDestination={setSelectedRideDestinationId} onConfirm={(sceneId,presentation) => onRideRequest?.(displayDevice, sceneId,presentation)} getPosition={getPlayerPosition} getRideMapSnapshot={getRideMapSnapshot} />}
 
-            {activeShopId && activeApp && shopProducts.length > 0 && <ShopOrderApp key={activeShopId} shopId={activeShopId} title={shopTitle} products={shopProducts} initialProductId={preselectedShopProductId} availableShops={availableShopIds.filter(id => id === crossShopIds.milkTea || id === crossShopIds.fruitTea).map(id => ({ id, label: shopTitleForId(id) }))} onShopSelect={setActiveShopId} order={shopOrders[activeShopId] ?? null} heldConsumable={heldConsumable} gameTimeMs={gameTimeMs} preparationConfigured={Boolean(preparationConfiguredByShop[activeShopId])} onConfirm={selection => onShopOrderConfirm?.(selection) ?? { ok: false, reason: 'order-service-unavailable' }} onOrderPlaced={onShopOrderPlaced} onOrderReady={onShopOrderReady} onCancelLegacy={onLegacyShopOrderCancel} />}
+            {activeShopId && activeApp && shopProducts.length > 0 && <ShopOrderApp key={activeShopId} shopId={activeShopId} title={shopTitle} products={shopProducts} initialProductId={preselectedShopProductId} availableShops={availableShopIds.filter(id => id === crossShopIds.milkTea || id === crossShopIds.fruitTea).map(id => ({ id, label: shopTitleForId(id) }))} onShopSelect={setActiveShopId} order={shopOrders[activeShopId] ?? null} heldConsumable={heldConsumable} walletBalance={walletBalance} gameTimeMs={gameTimeMs} preparationConfigured={Boolean(preparationConfiguredByShop[activeShopId])} onConfirm={selection => onShopOrderConfirm?.(selection) ?? { ok: false, reason: 'order-service-unavailable' }} onOrderPlaced={onShopOrderPlaced} onOrderReady={onShopOrderReady} onCancelLegacy={onLegacyShopOrderCancel} />}
             {activeApp === 'milk-tea' && !activeShopId && <section className="world-phone__list-page world-phone__milk-tea" aria-label="奶茶">
               {milkTeaHeld ? <div className="world-phone__list-heading"><span>奶茶</span><strong>手里已有一杯饮料</strong><small>暂时不能再下单。</small></div>
                 : milkTeaOrder ? (() => {

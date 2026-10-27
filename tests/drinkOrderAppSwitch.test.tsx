@@ -27,6 +27,14 @@ describe('shared drink ordering app', () => {
     expect(markup).toContain(`data-shop-id="${crossShopIds.fruitTea}"`)
     expect(markup).toContain(`data-shop-option="${crossShopIds.fruitTea}" aria-pressed="true"`)
     expect(markup).toContain('data-shop-product-id="passionfruit-green-tea"')
+    const fruitOnlyMarkup = renderToStaticMarkup(<ShopOrderApp
+      shopId={crossShopIds.fruitTea} title="Fruit tea" products={[{ id: 'passionfruit-green-tea', name: 'Passionfruit green tea', price: 5 }]}
+      availableShops={[{ id: crossShopIds.fruitTea, label: 'Fruit tea' }]} onShopSelect={vi.fn()}
+      order={null} heldConsumable={null} walletBalance={1234} gameTimeMs={0} preparationConfigured onConfirm={() => ({ ok: false })}
+    />)
+    expect(fruitOnlyMarkup.match(/data-shop-option=/g)).toBeNull()
+    expect(fruitOnlyMarkup).not.toContain(`data-shop-option="${crossShopIds.milkTea}"`)
+    expect(fruitOnlyMarkup).toContain('1234')
     const lockedMarkup = renderToStaticMarkup(<ShopOrderApp
       shopId={crossShopIds.milkTea} title="Milk tea" products={[]} order={null} heldConsumable={null}
       gameTimeMs={0} preparationConfigured={false} onConfirm={() => ({ ok: false })}

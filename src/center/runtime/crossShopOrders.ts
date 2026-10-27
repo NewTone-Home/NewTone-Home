@@ -26,6 +26,11 @@ export type CrossShopOrder = {
   status: 'queued' | 'legacy-unmapped'
   placedAtGameTimeMs: number | null
   readyAtGameTimeMs: number | null
+  /** Paid amount and receipt identity; absent only on legacy orders. */
+  pricePaid?: number
+  paymentReceiptId?: string
+  /** Durable one-shot marker for the real game-clock completion notification. */
+  completionNotified?: boolean
   /** Optional adapter-owned product choices such as sugar, ice, or takeaway packaging. */
   options?: Record<string, string | number | boolean | null>
   /** Audit copy of old scene-state fields retained after mapping the legacy deadline. */
@@ -69,6 +74,9 @@ export function sanitizeCrossShopOrderState(value: unknown): CrossShopOrderState
         ordersByShop[shopId] = {
           id: order.id, shopId, productId: order.productId, status: 'legacy-unmapped',
           placedAtGameTimeMs: null, readyAtGameTimeMs: null,
+          ...(isFiniteNonNegative(order.pricePaid) ? { pricePaid: order.pricePaid } : {}),
+          ...(typeof order.paymentReceiptId === 'string' && order.paymentReceiptId ? { paymentReceiptId: order.paymentReceiptId } : {}),
+          ...(order.completionNotified === true ? { completionNotified: true } : {}),
           ...(cleanOptions(order.options) ? { options: cleanOptions(order.options) } : {}),
           ...(cleanLegacy(order.legacySnapshot) ? { legacySnapshot: cleanLegacy(order.legacySnapshot) } : {}),
         }
@@ -77,6 +85,9 @@ export function sanitizeCrossShopOrderState(value: unknown): CrossShopOrderState
         ordersByShop[shopId] = {
           id: order.id, shopId, productId: order.productId, status: 'queued',
           placedAtGameTimeMs: order.placedAtGameTimeMs, readyAtGameTimeMs: order.readyAtGameTimeMs,
+          ...(isFiniteNonNegative(order.pricePaid) ? { pricePaid: order.pricePaid } : {}),
+          ...(typeof order.paymentReceiptId === 'string' && order.paymentReceiptId ? { paymentReceiptId: order.paymentReceiptId } : {}),
+          ...(order.completionNotified === true ? { completionNotified: true } : {}),
           ...(cleanOptions(order.options) ? { options: cleanOptions(order.options) } : {}),
         }
       }
