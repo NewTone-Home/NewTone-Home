@@ -52,4 +52,23 @@ describe('mainline renderer breathing semantics', () => {
     expect(sceneStyles).toContain('.scene-mainline-exploration--breathing > .scene-mainline-object__grid-content > .scene-mainline-object__label {')
     expect(sceneStyles).not.toContain('.scene-mainline-exploration--breathing > .scene-mainline-object__label {')
   })
+
+  it('renders the active dialogue line in the stage renderer', () => {
+    const scene = mainlineScenes['commercial-street']
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
+    const position = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+    const line = { id: 'incoming-line', speaker: '老周' as const, text: '下一句正在打字' }
+    const markup = renderToStaticMarkup(<MainlineSceneRenderer
+      scene={scene} position={position} moving={false} destination={null} layoutMode={false} layout={{}} activeObjectId={null}
+      geometrySnapshot={createMainlineSceneGeometrySnapshot(scene, position, {}, sceneDesignReferenceMetrics)}
+      viewportMetrics={sceneDesignReferenceMetrics} cameraOffset={{ x: 50 - position.x, y: 50 - position.y }}
+      onLayoutChange={() => {}} onInteract={() => {}} onWalk={() => {}} freezeFrameMeasurements
+      dialogue={{ triggerEntityId: 'lao-zhou', lines: [line] }} dialogueLine={line} dialogueText={line.text}
+      dialogueLineIndex={0} dialoguePosition={position} dialogueTextSessionId={4} dialogueTextMotion="typing"
+      dialogueStage={{ roomId: room.id, speakerActorId: 'lao-zhou', participantActorIds: new Set(['protagonist', 'lao-zhou']), hiddenEntityIds: new Set() }}
+      readingMode="dialogue"
+    />)
+
+    expect(markup).toContain('data-dialogue-line-id="incoming-line"')
+  })
 })

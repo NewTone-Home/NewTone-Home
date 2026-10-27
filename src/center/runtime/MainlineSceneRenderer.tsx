@@ -27,7 +27,7 @@ import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import { mainlineEchoLayout, mainlineSpeakerAnchor, mainlineSpeakerPageAnchor, type MainlineEchoLayout } from './mainlineEchoLayout'
 import { interpolateMainlineReadingPageLayout, mainlineReadingPageFlipDurationMs, mainlineReadingPageRollEnvelope, mainlineReadingRollOffsets, previousMainlineReadingPageForFlip, settleMainlineReadingPageFlip, snapshotMainlineReadingPage, type MainlineReadingPageSnapshot } from './mainlineReadingPageFlip'
 import { interpolateMainlineReadingLayout, mainlineReadingPageTransitionDurationMs, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize } from './mainlineReadingLayoutTransition'
-import { mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
+import { mainlineDialogueHandoffPresentationForId, mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
 import { mainlineReadingPageKey } from './mainlineReadingPageKey'
 import { mainlineObservationPageIsSettled } from './mainlineObservationTyping'
 import { mainlineReadingTextMotionCanAnimate, startMainlineReadingTextMotion, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
@@ -50,7 +50,7 @@ import { currentMainlineReadingTargetIds, mainlinePlaceReadingAction, mainlinePl
 import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey, type MainlineReadingSessionLayoutCache, type MainlineReadingSessionTextEntry } from './mainlineReadingLayoutSession'
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
-import { mainlineDialogueStageActorOpacity, mainlineDialogueTurnAllowsOptions } from './mainlineDialogueStage'
+import { mainlineDialogueHandoffDurationMs, mainlineDialogueStageActorOpacity, mainlineDialogueTurnAllowsOptions } from './mainlineDialogueStage'
 import { mainlineReadingLocalPercent, mainlineReadingOcclusionCellIdentity, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot, type MainlineReadingOcclusionCandidate } from './mainlineReadingOcclusion'
 import type { HeldConsumable } from './crossShopOrders'
 import { heldConsumablePresentation } from './heldConsumablePresentation'
@@ -105,6 +105,8 @@ type MainlineSceneRendererProps = {
   dialogueStage?: { roomId: string; speakerActorId: string | null; participantActorIds: ReadonlySet<string>; hiddenEntityIds: ReadonlySet<string> } | null
   dialogueHandoffActive?: boolean
   dialogueHandoffFadeDurationMs?: number
+  dialogueHandoffOutgoing?: { id: number } | null
+  onDialogueHandoffOutgoingDeleted?: (id: number) => void
   readingMode?: 'observation' | 'dialogue' | null
   onDialogueExitComplete?: () => void
   onDialogueAdvance?: () => void
@@ -425,6 +427,8 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
   const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
   const [settledPageKey, setSettledPageKey] = useState<string | null>(null)
   const [progress, setProgress] = useState<{ key: string; count: number } | null>(null)
+  const onCompleteRef = useRef(onComplete)
+  useEffect(() => { onCompleteRef.current = onComplete }, [onComplete])
   const pageSettled = mainlineObservationPageIsSettled(pageKey, settledPageKey)
   const animationKey = `${sessionKey}\u0000${motion}`
   const progressRef = useRef<{ key: string; count: number } | null>(null)
@@ -456,9 +460,11 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
         progressRef.current = { key: animationKey, count: next }
         setProgress(current => current?.key === animationKey && current.count === next ? current : { key: animationKey, count: next })
       },
-      onComplete: () => onComplete?.(sessionKey, motion),
+      onComplete: () => onCompleteRef.current?.(sessionKey, motion),
     })
-  }, [animationKey, characters, motion, onComplete, pageSettled, paused, sessionKey])
+  // Parent renders can recreate the callback while the outgoing page is being
+  // deleted. Keep the latest callback without restarting the elapsed-time loop.
+  }, [animationKey, characters, motion, pageSettled, paused, sessionKey])
 
   return { visibleText, onSettled: (settledKey: string) => {
     if (settledKey === pageKey) setSettledPageKey(settledKey)
@@ -486,6 +492,43 @@ function DialogueText({ group, continuityKey, pageKey, text, sessionId, motion, 
       {textMotion.visibleText}
     </ReadingPageFlip>
   </span>
+}
+
+function DialogueHandoffOutgoingText({ id, text, position, overflowIndex, durationMs, layout, worldScale, lockToken, projectX, onDeleted }: { id: number; text: string; position: Point; overflowIndex?: number; durationMs: number; layout: MainlineEchoLayout; worldScale: number; lockToken: number; projectX: (value: number) => number; onDeleted: (id: number) => void }) {
+  const sessionId = -id
+  const pageKey = `dialogue-handoff:${id}`
+  const completeMotion = useCallback((completedSessionId: number, motion: MainlineReadingTextMotion) => {
+    if (completedSessionId === sessionId && motion === 'deleting') onDeleted(id)
+  }, [id, onDeleted, sessionId])
+  return <div
+    className="scene-mainline-text scene-mainline-text--stage-dialogue scene-mainline-text--handoff-outgoing"
+    data-dialogue-handoff-outgoing={id}
+    data-dialogue-handoff-page-index={overflowIndex}
+    style={{
+      left: `${projectX(position.x)}%`,
+      top: `${position.y}%`,
+      '--scene-mainline-text-width': `${layout.widthPx / worldScale}px`,
+      '--scene-mainline-text-height': `${layout.heightPx / worldScale}px`,
+      fontSize: `${layout.fontSizePx / worldScale}px`,
+      maxWidth: `${Math.max(1, layout.widthPx / worldScale)}px`,
+      overflow: 'visible',
+      animationDuration: `${durationMs}ms`,
+    } as CSSProperties}
+    aria-hidden="true"
+  >
+    <DialogueText
+      group={`dialogue-handoff:${id}`}
+      continuityKey={`dialogue-handoff:${id}`}
+      pageKey={pageKey}
+      text={text}
+      sessionId={sessionId}
+      motion="deleting"
+      layout={layout}
+      worldScale={worldScale}
+      lockToken={lockToken}
+      onMotionComplete={completeMotion}
+    />
+  </div>
 }
 
 type ReadingLayoutTransitionMode = 'active' | 'leaving' | 'inactive'
@@ -1119,6 +1162,8 @@ export function MainlineSceneRenderer({
   dialogueStage = null,
   dialogueHandoffActive = false,
   dialogueHandoffFadeDurationMs = 300,
+  dialogueHandoffOutgoing = null,
+  onDialogueHandoffOutgoingDeleted,
   readingMode = null,
   onDialogueExitComplete,
   onDialogueAdvance,
@@ -1242,6 +1287,7 @@ export function MainlineSceneRenderer({
   const currentDialogueGroupRef = useRef<string | null>(null)
   const dialogueAdvanceConsumedGroupRef = useRef<string | null>(null)
   const retainedReadingPresentationRef = useRef<MainlineReadingPresentationSnapshot | null>(null)
+  const dialogueHandoffPresentationRef = useRef<ReturnType<typeof mainlineDialogueHandoffPresentationForId>>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const stableViewportRef = useRef<HTMLSpanElement>(null)
   const dimmerRef = useRef<HTMLDivElement>(null)
@@ -1785,6 +1831,14 @@ export function MainlineSceneRenderer({
   const currentReadingPresentation: MainlineReadingPresentationSnapshot | null = readingMode && readingSessionKey && activeDisplayReadingPosition && activeDisplayReadingLayout
     ? { sessionKey: readingSessionKey, anchorSessionKey: readingAnchorSessionKey ?? undefined, anchorContextKey: readingAnchorContextKey, position: activeDisplayReadingPosition, cameraOffset: renderCameraOffset, layout: activeDisplayReadingLayout, maxWidthPx: readingFit?.maxWidthPx ?? activeReadingWidthPx, text: activeDisplayReadingText, overflowIndex: activeDisplayOverflowIndex }
     : null
+  dialogueHandoffPresentationRef.current = mainlineDialogueHandoffPresentationForId(
+    dialogueHandoffOutgoing?.id ?? null,
+    dialogueHandoffPresentationRef.current,
+    retainedReadingPresentationRef.current,
+  )
+  const dialogueHandoffPresentation = dialogueHandoffOutgoing && dialogueHandoffPresentationRef.current?.id === dialogueHandoffOutgoing.id
+    ? dialogueHandoffPresentationRef.current.presentation
+    : null
   const readingPresentation = mainlineReadingPresentationForPhase(readingTextDeleting ? 'deleting' : readingPresentationPhase, readingSessionKey, currentReadingPresentation, retainedReadingPresentation)
   useIsomorphicLayoutEffect(() => {
     if (readingPresentationPhase === 'active' && !readingTextDeleting && currentReadingPresentation) retainedReadingPresentationRef.current = currentReadingPresentation
@@ -1796,7 +1850,7 @@ export function MainlineSceneRenderer({
   const displayReadingMaxWidthPx = readingPresentation?.maxWidthPx ?? activeReadingWidthPx
   const readingLayoutContinuityKey = !readingSessionKey ? null : sceneEcho
     ? `echo:${scene.id}:${sceneEcho.id}`
-    : `dialogue:${scene.id}:${dialogue?.triggerEntityId ?? dialogueLine?.id ?? ''}`
+    : `dialogue:${scene.id}:${dialogue?.triggerEntityId ?? dialogueLine?.id ?? ''}:${dialogueLine?.speaker ?? ''}`
   const readingLayoutPageKey = readingSessionKey && displayReadingLayout
     ? mainlineReadingPageKey({ sessionKey: readingSessionKey, segmentIndex: sceneEcho?.segmentIndex ?? dialogueSegmentIndex, overflowIndex: displayOverflowIndex, text: displayReadingText })
     : null
@@ -2724,8 +2778,6 @@ export function MainlineSceneRenderer({
                 maxWidth: `${Math.max(1, displayReadingMaxWidthPx / worldScale)}px`,
                 overflow: 'visible',
                 visibility: sceneEcho && readingFit?.fits === false ? 'hidden' : undefined,
-                opacity: stageDialogue && dialogueHandoffActive ? 0 : undefined,
-                transition: stageDialogue && dialogueHandoffActive ? `opacity ${dialogueHandoffFadeDurationMs}ms linear` : undefined,
               } as CSSProperties}
               aria-live="polite"
               data-scene-interaction-text={sceneEcho?.entityId ?? dialogue?.triggerEntityId ?? 'scene'}
@@ -2762,6 +2814,18 @@ export function MainlineSceneRenderer({
                 ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
                 : <ObservationText echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} paused={readingFit?.fits === false} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
             </div>
+            {dialogueHandoffOutgoing && dialogueHandoffPresentation && stageDialogue && <DialogueHandoffOutgoingText
+              id={dialogueHandoffOutgoing.id}
+              text={dialogueHandoffPresentation.text}
+              position={dialogueHandoffPresentation.position}
+              overflowIndex={dialogueHandoffPresentation.overflowIndex}
+              durationMs={mainlineDialogueHandoffDurationMs(dialogueHandoffPresentation.text.length)}
+              layout={dialogueHandoffPresentation.layout}
+              worldScale={worldScale}
+              lockToken={readingPageAdvanceLockTokenRef.current}
+              projectX={projectReadingX}
+              onDeleted={(id) => onDialogueHandoffOutgoingDeleted?.(id)}
+            />}
             </Fragment>
           })()}
           {sceneAction && <div

@@ -463,6 +463,25 @@ export function MainlineScenePage({
   const dialogueHandoffActiveRef = useRef(false)
   const dialogueHandoffStartedAtRef = useRef<number | null>(null)
   const dialogueHandoffTimerRef = useRef<number | null>(null)
+  const dialogueHandoffOutgoingIdRef = useRef(0)
+  const [dialogueHandoffOutgoing, setDialogueHandoffOutgoing] = useState<{ id: number; startedAt: number; minimumVisibleMs: number; deleted: boolean } | null>(null)
+  const markDialogueHandoffOutgoingDeleted = useCallback((id: number) => {
+    setDialogueHandoffOutgoing(current => current?.id === id ? { ...current, deleted: true } : current)
+  }, [])
+  useEffect(() => {
+    if (!dialogueHandoffOutgoing?.deleted) return
+    const outgoing = dialogueHandoffOutgoing
+    const remaining = Math.max(0, outgoing.minimumVisibleMs - (performance.now() - outgoing.startedAt))
+    const timer = window.setTimeout(() => {
+      setDialogueHandoffOutgoing(current => current?.id === outgoing.id ? null : current)
+      if (dialogueHandoffOutgoingIdRef.current === outgoing.id) {
+        dialogueHandoffActiveRef.current = false
+        dialogueHandoffStartedAtRef.current = null
+        setDialogueHandoffActive(false)
+      }
+    }, remaining)
+    return () => window.clearTimeout(timer)
+  }, [dialogueHandoffOutgoing])
   useEffect(() => () => {
     if (dialogueHandoffTimerRef.current !== null) window.clearTimeout(dialogueHandoffTimerRef.current)
   }, [])
@@ -975,6 +994,7 @@ export function MainlineScenePage({
     dialogueHandoffActiveRef.current = false
     dialogueHandoffStartedAtRef.current = null
     setDialogueHandoffActive(false)
+    setDialogueHandoffOutgoing(null)
     if (dialogueHandoffTimerRef.current !== null) {
       window.clearTimeout(dialogueHandoffTimerRef.current)
       dialogueHandoffTimerRef.current = null
@@ -2440,6 +2460,10 @@ export function MainlineScenePage({
 
   const advanceDialogue = useCallback((tailDeletionComplete = false) => {
     onMeaningfulActivity?.()
+    if (!tailDeletionComplete && dialogueHandoffActiveRef.current) {
+      if (dialogueTextMotionRef.current === 'typing') updateDialogueTextMotion('static')
+      return
+    }
     if (!tailDeletionComplete) {
       if (dialogueTextMotion === 'typing') {
         updateDialogueTextMotion('static')
@@ -2462,9 +2486,19 @@ export function MainlineScenePage({
         isInterior: !commercialStreetQuestionNarrative && mainlineIsInteriorSpace(scene, position),
       })) {
         dialogueHandoffActiveRef.current = true
-        dialogueHandoffStartedAtRef.current = performance.now()
+        const startedAt = performance.now()
+        dialogueHandoffStartedAtRef.current = startedAt
+        const id = ++dialogueHandoffOutgoingIdRef.current
+        setDialogueHandoffOutgoing({
+          id,
+          startedAt,
+          minimumVisibleMs: 300,
+          deleted: false,
+        })
         setDialogueHandoffActive(true)
-        updateDialogueTextMotion('deleting')
+        // Advance the story exactly once. The outgoing visual now owns its
+        // own delete motion while the next speaker starts typing in parallel.
+        advanceDialogueRef.current(true)
         return
       }
     }
@@ -2484,8 +2518,6 @@ export function MainlineScenePage({
         setDialogueLineIndex(acknowledged.narrativeCursor)
         setCommercialCafeNarrative({ phase: 'active' })
         if (tailDeletionComplete && dialogueHandoffActiveRef.current) {
-          dialogueHandoffActiveRef.current = false
-          setDialogueHandoffActive(false)
           startDialogueTextSession()
         }
         return
@@ -2504,8 +2536,6 @@ export function MainlineScenePage({
         recordSceneStatePatch(scene.id, commercialCafeStoryStatePatch(nextStory))
         setDialogueLineIndex(nextStory.narrativeCursor)
         if (tailDeletionComplete && dialogueHandoffActiveRef.current) {
-          dialogueHandoffActiveRef.current = false
-          setDialogueHandoffActive(false)
           startDialogueTextSession()
         }
         setCommercialCafeNarrative({
@@ -2521,8 +2551,6 @@ export function MainlineScenePage({
         recordSceneStatePatch(scene.id, commercialCafeStoryStatePatch(narrativeStory))
         setDialogueLineIndex(nextCursor)
         if (tailDeletionComplete && dialogueHandoffActiveRef.current) {
-          dialogueHandoffActiveRef.current = false
-          setDialogueHandoffActive(false)
           startDialogueTextSession()
         }
         const stage = commercialCafeAnalyticsStageForCursor(nextCursor)
@@ -2545,14 +2573,12 @@ export function MainlineScenePage({
     if (dialogueLineIndex + 1 < activeDialogue.lines.length) {
       setDialogueLineIndex(dialogueLineIndex + 1)
       if (tailDeletionComplete && dialogueHandoffActiveRef.current) {
-        dialogueHandoffActiveRef.current = false
-        setDialogueHandoffActive(false)
         startDialogueTextSession()
       }
       return
     }
     setGenericDialoguePhase('leaving')
-  }, [activeDialogue, activeDialogueLine, activeViewportMetrics, cameraOffset, commercialCafeNarrative, commercialCafeStory, commercialStreetQuestionNarrative, dialogueAtSessionEnd, dialogueLineIndex, dialogueSegmentIndex, dialogueTextMotion, npcDialogue, onChapterAnalytics, onMeaningfulActivity, position, recordCafeAnalyticsMilestone, recordSceneState, recordSceneStatePatch, scene, screenMetrics, startDialogueTextSession, updateDialogueTextMotion])
+  }, [activeDialogue, activeDialogueLine, activeDialoguePosition, activeDialogueText, activeViewportMetrics, cameraOffset, commercialCafeNarrative, commercialCafeStory, commercialStreetQuestionNarrative, dialogueAtSessionEnd, dialogueLineIndex, dialogueSegmentIndex, dialogueTextMotion, npcDialogue, onChapterAnalytics, onMeaningfulActivity, position, recordCafeAnalyticsMilestone, recordSceneState, recordSceneStatePatch, scene, screenMetrics, startDialogueTextSession, updateDialogueTextMotion])
 
   const skipDialogueTyping = useCallback((sessionId: number) => {
     if (sessionId !== dialogueTextSessionIdRef.current || dialogueTextMotionRef.current !== 'typing') return
@@ -2899,6 +2925,8 @@ export function MainlineScenePage({
               dialogueStage={formalDialogueStage}
               dialogueHandoffActive={dialogueHandoffActive}
               dialogueHandoffFadeDurationMs={mainlineDialogueHandoffDurationMs(activeDialogueText.length)}
+              dialogueHandoffOutgoing={dialogueHandoffOutgoing}
+              onDialogueHandoffOutgoingDeleted={markDialogueHandoffOutgoingDeleted}
               readingMode={readingActive ? (sceneEcho ? 'observation' : 'dialogue') : null}
               onDialogueExitComplete={completeDialogueExit}
               onDialogueAdvance={advanceDialogue}
