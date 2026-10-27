@@ -464,14 +464,14 @@ export function MainlineScenePage({
   const dialogueHandoffStartedAtRef = useRef<number | null>(null)
   const dialogueHandoffTimerRef = useRef<number | null>(null)
   const dialogueHandoffOutgoingIdRef = useRef(0)
-  const [dialogueHandoffOutgoing, setDialogueHandoffOutgoing] = useState<{ id: number; text: string; position: Point; startedAt: number; durationMs: number; deleted: boolean } | null>(null)
+  const [dialogueHandoffOutgoing, setDialogueHandoffOutgoing] = useState<{ id: number; startedAt: number; minimumVisibleMs: number; deleted: boolean } | null>(null)
   const markDialogueHandoffOutgoingDeleted = useCallback((id: number) => {
     setDialogueHandoffOutgoing(current => current?.id === id ? { ...current, deleted: true } : current)
   }, [])
   useEffect(() => {
     if (!dialogueHandoffOutgoing?.deleted) return
     const outgoing = dialogueHandoffOutgoing
-    const remaining = Math.max(0, outgoing.durationMs - (performance.now() - outgoing.startedAt))
+    const remaining = Math.max(0, outgoing.minimumVisibleMs - (performance.now() - outgoing.startedAt))
     const timer = window.setTimeout(() => {
       setDialogueHandoffOutgoing(current => current?.id === outgoing.id ? null : current)
       if (dialogueHandoffOutgoingIdRef.current === outgoing.id) {
@@ -2491,10 +2491,8 @@ export function MainlineScenePage({
         const id = ++dialogueHandoffOutgoingIdRef.current
         setDialogueHandoffOutgoing({
           id,
-          text: activeDialogueText,
-          position: activeDialoguePosition ?? position,
           startedAt,
-          durationMs: mainlineDialogueHandoffDurationMs(activeDialogueText.length),
+          minimumVisibleMs: 300,
           deleted: false,
         })
         setDialogueHandoffActive(true)

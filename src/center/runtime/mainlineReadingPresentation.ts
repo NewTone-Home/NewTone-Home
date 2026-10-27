@@ -15,6 +15,22 @@ export type MainlineReadingPresentationSnapshot = {
 
 export type MainlineReadingPresentationPhase = 'active' | 'deleting' | 'leaving' | 'inactive'
 
+export type MainlineDialogueHandoffPresentation = {
+  id: number
+  presentation: MainlineReadingPresentationSnapshot | null
+}
+
+/** Capture the renderer's last retained visible page once per speaker handoff. */
+export function mainlineDialogueHandoffPresentationForId(
+  id: number | null,
+  previous: MainlineDialogueHandoffPresentation | null,
+  retained: MainlineReadingPresentationSnapshot | null,
+): MainlineDialogueHandoffPresentation | null {
+  if (id === null) return null
+  if (previous?.id === id) return previous
+  return { id, presentation: retained }
+}
+
 /** Keep one dialogue line's fitted pages together, but let the next authored
  * line choose a fresh anchor against its own text envelope. */
 export function mainlineDialogueReadingSessionKey(sceneId: string, triggerEntityId: string | undefined, lineId: string | undefined, lineIndex: number | null | undefined) {
