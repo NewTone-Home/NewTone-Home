@@ -5,9 +5,11 @@ import {wallVisualCoverage,wallCornerCoverage} from './helpers/wallVisualCoverag
 const baseline=JSON.parse(readFileSync('tests/fixtures/wall-visual-coverage-0906541.json','utf8'))
 const miningExpectedEdges=[
  'mining-street-facade:bottom',
- ...Array.from({length:8},(_,i)=>[`mining-shop-${i+1}-interior-shell:top`,`mining-shop-${i+1}-interior-shell:right`]).flat(),
+ ...Array.from({length:8},(_,i)=>[...(i===1?[]:[`mining-shop-${i+1}-interior-shell:top`]),`mining-shop-${i+1}-interior-shell:right`]).flat(),
+ 'mining-street-back-alley-frame:top','mining-street-back-alley-frame:bottom','mining-street-back-alley-frame:right',
  'mining-shop-8-interior-shell:left','mining-industrial-edge:top',
- 'mining-shop-3-interior-shared-right-tail:left','mining-shop-5-interior-shared-right-tail:left',
+ 'mining-shop-1-interior-shared-right-tail:left','mining-shop-3-interior-shared-right-tail:left',
+ 'mining-shop-6-interior-shared-right-tail:left','mining-shop-8-interior-shared-right-tail:left',
 ]
 const miningExpectedCoverageKeys=[...miningExpectedEdges,...Array.from({length:8},(_,i)=>`yonghe-slot-${i+1}:bottom`)]
 // Keep the original full-coverage bounds after fixing rejected11c06. The
@@ -35,8 +37,10 @@ describe('all door neighbors, complete edge gaps and corner coverage',()=>{
    for(const key of miningExpectedEdges){
     const edge=boundaryEdges.find(candidate=>candidate.key===key)!
     expect(edge.maxGap,`${key} maximum hidden-wall visual interval`).toBeLessThanOrEqual(28.01)
-    expect(edge.startDistance,`${key} first endpoint cap`).toBeLessThanOrEqual(28.01)
-    expect(edge.endDistance,`${key} last endpoint cap`).toBeLessThanOrEqual(28.01)
+    expect(typeof edge.startDistance,`${key} first endpoint exists`).toBe('number')
+    expect(typeof edge.endDistance,`${key} last endpoint exists`).toBe('number')
+    expect(edge.startDistance as number,`${key} first endpoint cap`).toBeLessThanOrEqual(28.01)
+    expect(edge.endDistance as number,`${key} last endpoint cap`).toBeLessThanOrEqual(28.01)
    }
    const yongheRight=units.filter(unit=>unit.ownerId==='mining-shop-2-interior-shell'&&unit.edge==='right'&&unit.geometryKind==='boundary')
    const yongheRightCells=yongheRight.flatMap(unit=>unit.visual.cells)
@@ -52,9 +56,9 @@ describe('all door neighbors, complete edge gaps and corner coverage',()=>{
    expect(menuGlyphCenters,'each menu glyph occupies an exact 28px wall-grid center, symmetrically around 406px').toEqual([392,420])
    const menuFlankCenters=menuFlanks.map(cell=>Number(((cell.y-menuRoom.bounds.y)*10.8).toFixed(3)))
    expect(menuFlankCenters,'both margins of the two-glyph menu panel restore their own wall cells').toEqual([364,448])
-   const sharedMenuWallCorner=units.filter(unit=>unit.ownerId==='mining-shop-1-interior-shell'&&unit.edge==='top'&&unit.geometryKind==='boundary')
-    .flatMap(unit=>unit.visual.cells).find(cell=>cell.glyph&&cell.kind==='wall'&&Math.abs(cell.x-104.25)<.001&&Math.abs(cell.y*10.8+72)<.01)
-   expect(sharedMenuWallCorner,'the adjacent shell paints Yonghe wall at the shared upper corner').toBeDefined()
+   const sharedMenuWallCorner=units.filter(unit=>unit.ownerId==='mining-street-back-alley-frame'&&unit.edge==='bottom'&&unit.geometryKind==='boundary')
+    .flatMap(unit=>unit.visual.cells).find(cell=>cell.glyph&&cell.kind==='wall'&&Math.abs(cell.x-104.25)<.001)
+   expect(sharedMenuWallCorner,'the alley lower edge continues behind the Yonghe rear opening').toBeDefined()
    const rightWallGlyphY=[...new Set([
     ...yongheRightCells.filter(cell=>cell.baselineGlyph??cell.glyph).map(cell=>Number((cell.y*10.8).toFixed(4))),
     Number((sharedMenuWallCorner!.y*10.8).toFixed(4)),
@@ -78,7 +82,7 @@ describe('all door neighbors, complete edge gaps and corner coverage',()=>{
     expect(wallXs.some(x=>Math.abs(x-(firstDoor.x-28/19.2))<.001),`${storefront.id} outer wall before doorway`).toBe(true)
     expect(wallXs.some(x=>Math.abs(x-(lastDoor.x+28/19.2))<.001),`${storefront.id} outer wall after doorway`).toBe(true)
    }
-   const backDoorEdge=actual.find(edge=>edge.key==='mining-shop-2-interior-shell:top')!
+   const backDoorEdge=actual.find(edge=>edge.key==='mining-street-back-alley-frame:bottom')!
    expect(backDoorEdge.doorNeighbors['yonghe-back-door']?.before).toBeCloseTo(28,3)
    expect(backDoorEdge.doorNeighbors['yonghe-back-door']?.after).toBeCloseTo(28,3)
    return

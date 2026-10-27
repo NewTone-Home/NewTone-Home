@@ -17,21 +17,26 @@ describe('one world lattice per active continuous space',()=>{
  for(const id of ids){
   const before=baseline[id],now=JSON.parse(JSON.stringify(gridSemanticContract(mainlineScenes[id])))
   const changedIds=new Set([...before.objects,...now.objects].filter(o=>trialRooms.has(o.roomId)||o.id.startsWith('yonghe-outdoor-')).map(o=>o.id))
+  for(const door of [...before.portals,...now.portals].filter(p=>p.id.endsWith('-back-door')||p.id==='yonghe-warehouse-door'))changedIds.add(door.id)
   for(const id of ['commercial-s2-fast-food-kitchen-warehouse-divider-8','commercial-s2-fast-food-kitchen-warehouse-divider-9','cafe-restroom-toilet','cafe-restroom-sink'])changedIds.add(id)
-  for(const key of ['cafe-trial-customer-toilet-door','street-cafe-entry','yonghe-menu','yonghe-back-door','yonghe-survey-central-lane'])changedIds.add(key)
+  for(const key of ['cafe-trial-customer-toilet-door','street-cafe-entry','yonghe-menu','yonghe-back-door','yonghe-warehouse-door','yonghe-survey-central-lane'])changedIds.add(key)
   const shopPortalIds=new Set(mainlineScenes['commercial-street'].storefronts.filter(slot=>/-slot(?:-\d+)?$/.test(slot.id)).map(slot=>slot.portalId))
   const frontPortalIds=new Set([...baseline[id].portals,...now.portals].filter(p=>p.fromRoomId?.includes('public-lane')&&p.toRoomId?.endsWith('-interior')).map(p=>p.id))
   const originalNpcIds=new Set(before.npcs.map(n=>n.id))
   const omitTrial=(contract)=>({...contract,
    objects:contract.objects.filter(o=>!changedIds.has(o.id)),
-   portals:contract.portals.filter(p=>p.id!=='cafe-trial-customer-toilet-door'&&p.id!=='cafe-restroom-entry').map(p=>frontPortalIds.has(p.id)?{...p,access:undefined,lockedText:undefined,transitionText:undefined}:p.id==='yonghe-back-door'?{...p,lockedText:undefined}:p),
-   rooms:contract.rooms.filter(r=>r.id!=='cafe-single-restroom-interior'),
+   portals:contract.portals.filter(p=>p.id!=='cafe-trial-customer-toilet-door'&&p.id!=='cafe-restroom-entry'&&!p.id.endsWith('-back-door')&&p.id!=='yonghe-back-door'&&p.id!=='yonghe-warehouse-door').map(p=>frontPortalIds.has(p.id)?{...p,access:undefined,lockedText:undefined,transitionText:undefined}:p.id==='yonghe-back-door'?{...p,lockedText:undefined}:p),
+   rooms:contract.rooms.filter(r=>r.id!=='cafe-single-restroom-interior'&&r.id!=='mining-street-back-alley'),
    npcs:contract.npcs.filter(n=>originalNpcIds.has(n.id)),
    npcBehaviors:contract.npcBehaviors.filter(n=>originalNpcIds.has(n.npcId)),
    interactionText:Object.fromEntries(Object.entries(contract.interactionText??{}).filter(([id])=>!changedIds.has(id)&&!frontPortalIds.has(id))),
    explorationText:Object.fromEntries(Object.entries(contract.explorationText??{}).filter(([id])=>!changedIds.has(id)&&!id.startsWith('cafe-restroom-'))),
   })
   const expected=omitTrial(before)
+  if(id==='yonghe-mining-perimeter'||id==='yonghe-eatery'){
+   const approvedNames=['\u6d17\u8863\u5e97','\u6c38\u548c\u5c0f\u9986','\u836f\u5e97','\u4e94\u91d1\u5e97','\u4fbf\u5229\u5e97','\u65c5\u5e97','\u7535\u5668\u7ef4\u4fee','\u7406\u53d1\u5e97']
+   expected.objects=expected.objects.map(o=>/^mining-shop-door-\d+$/.test(o.id)?{...o,label:approvedNames[Number(o.id.split('-').at(-1))-1]}:o)
+  }
   const authoredTextSpace={
    'jijia-ancestral-home':{roomId:'jijia-yard-public-area',kind:'room',wallId:'jijia-yard'},
    'jijia-ancestral-interior':{roomId:'jijia-inner-house-main-room',kind:'room',wallId:'jijia-inner-house'},

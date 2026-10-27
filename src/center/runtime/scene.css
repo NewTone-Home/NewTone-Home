@@ -957,13 +957,13 @@
   font-size: var(--scene-mainline-object-font-size, 16px);
   line-height: 1;
 }
-.scene-mainline-exploration--breathing > .scene-mainline-object__label {
+.scene-mainline-exploration--breathing > .scene-mainline-object__grid-content > .scene-mainline-object__label {
   animation: scene-exploration-breathe 2.8s ease-in-out infinite;
   animation-delay: var(--scene-exploration-animation-delay, 0s);
 }
-.scene-mainline-exploration--breathing:hover > .scene-mainline-object__label,
-.scene-mainline-exploration--breathing:focus-visible > .scene-mainline-object__label,
-.scene-mainline-exploration--breathing.is-active > .scene-mainline-object__label {
+.scene-mainline-exploration--breathing:hover > .scene-mainline-object__grid-content > .scene-mainline-object__label,
+.scene-mainline-exploration--breathing:focus-visible > .scene-mainline-object__grid-content > .scene-mainline-object__label,
+.scene-mainline-exploration--breathing.is-active > .scene-mainline-object__grid-content > .scene-mainline-object__label {
   animation: none;
   color: var(--active);
 }

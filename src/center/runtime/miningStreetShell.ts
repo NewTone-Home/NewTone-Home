@@ -1,9 +1,9 @@
-import { boundaryGridStepsFromReferenceSpacing } from './sceneBoundaryGrid'
+import { boundaryGridStepsFromReferenceSpacing, sharedNarrowPassageFrameHeight, sharedNarrowPassageFrameIntervals, sharedNarrowPassageWalkHeight, sharedNarrowPassageWalkInset } from './sceneBoundaryGrid'
 import type { MainlineSceneBlueprint, MainlineStorefrontRole, MainlineStorefrontSlotBlueprint, MainlineScenePortalBlueprint } from './mainlineSceneModel'
 
 /** Distances count lattice intervals. Shop-owned facade slots exclude the
  * separately counted public divider between adjacent shops. */
-export const miningShopNames = ['\u4fee\u978b', '\u6c38\u548c\u5c0f\u9986', '\u836f\u5e97', '\u4e94\u91d1\u5e97', '\u5c0f\u5403', '\u9762\u9986', '\u4fee\u7406', '\u65e9\u70b9'] as const
+export const miningShopNames = ['\u6d17\u8863\u5e97', '\u6c38\u548c\u5c0f\u9986', '\u836f\u5e97', '\u4e94\u91d1\u5e97', '\u4fbf\u5229\u5e97', '\u65c5\u5e97', '\u7535\u5668\u7ef4\u4fee', '\u7406\u53d1\u5e97'] as const
 type MiningShopName = typeof miningShopNames[number]
 const depthCoordinateCountOverrides: Partial<Record<MiningShopName, (netFrontageSlots: number) => number>> = {
   '\u6c38\u548c\u5c0f\u9986': netFrontageSlots => {
@@ -23,6 +23,9 @@ const rowStartX = 8
 const facadeY = 40
 const horizontal = miningGrid.horizontal
 const vertical = miningGrid.vertical
+// Spatial order is right-to-left. Keep each shop's source index and IDs stable
+// while placing Yonghe at the eastern end of the row.
+const shopRowRightToLeft = [1, 0, 2, 3, 4, 5, 6, 7] as const
 
 type ShopShell = {
   label: string
@@ -63,8 +66,12 @@ const oldShopMetrics = miningShopNames.map((label, index) => {
   const back = facadeY - oldDepth * vertical / horizontal
   const oldLeft = oldFacadeX - oldDepth
   const oldRight = oldFacadeX
-  const left = rowRight - (oldRowCursor - rowTop) * horizontal / vertical
-  const right = left + widthCells * horizontal
+  const spatialRank = shopRowRightToLeft.indexOf(index as typeof shopRowRightToLeft[number])
+  const occupiedCellsToRight = shopRowRightToLeft.slice(0, spatialRank).reduce((sum: number, shopIndex) => {
+    return sum + Array.from(miningShopNames[shopIndex]!).length + 7
+  }, 0)
+  const right = rowRight - occupiedCellsToRight * horizontal
+  const left = right - widthCells * horizontal
   const firstCenter = left + horizontal
   const doorIndex = sideWallCells + Math.floor(letters / 2)
   const isYonghe = index === 1
@@ -100,9 +107,24 @@ const oldWorldBottom = oldRowBottom + 3 * vertical
 const laneLeft = rowStartX - 3 * horizontal
 const laneRight = rowRight + 2 * horizontal
 const laneBottom = facadeY + laneCells * vertical
-const worldTop = Math.min(...oldShopMetrics.map(shop => shop.back))
-const worldBottom = laneBottom + 3 * vertical
 const eatery = oldShopMetrics[1]!
+// Match the narrow Zhongshuyuan passage: five boundary positions form a
+// four-cell (112 reference-pixel) frame, inset 1.4% on each side for walking.
+const backAlleyFrameHeight = sharedNarrowPassageFrameHeight
+const backAlleyWalkInset = sharedNarrowPassageWalkInset
+const backAlleyUpperWallY = eatery.back - backAlleyFrameHeight
+const backAlleyRoom = {
+  id: 'mining-street-back-alley',
+  kind: 'corridor' as const,
+  bounds: {
+    x: rowStartX,
+    y: backAlleyUpperWallY + backAlleyWalkInset,
+    width: rowRight - rowStartX,
+    height: sharedNarrowPassageWalkHeight,
+  },
+}
+const worldTop = Math.min(...oldShopMetrics.map(shop => shop.back), backAlleyUpperWallY)
+const worldBottom = laneBottom + 3 * vertical
 const arrival = { x: rowStartX - 2 * horizontal, y: facadeY + 3 * vertical }
 
 /** Rotate the map clockwise; keep glyph labels upright along the new facade. */
@@ -117,8 +139,9 @@ function rotateRect(rect: { x: number; y: number; width: number; height: number 
 
 export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' | 'yonghe-eatery' = 'yonghe-mining-perimeter'): MainlineSceneBlueprint {
   const shops = oldShopMetrics
-  const sharedWallTails: MainlineWallBlueprint[] = shops.slice(0, -1).flatMap((rightShop, index) => {
-    const leftShop = shops[index + 1]!
+  const shopsRightToLeft = [...shops].sort((a, b) => b.left - a.left)
+  const sharedWallTails: MainlineWallBlueprint[] = shopsRightToLeft.slice(0, -1).flatMap((rightShop, index) => {
+    const leftShop = shopsRightToLeft[index + 1]!
     if (rightShop.back >= leftShop.back) return []
     const intervalCount = Math.round((leftShop.back - rightShop.back) / vertical)
     return [{
@@ -126,7 +149,9 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
       bounds: { x: leftShop.right, y: rightShop.back, width: horizontal, height: leftShop.back - rightShop.back },
       variant: 'mining-empty-shell', boundaryGeometrySource: 'cell-range',
       boundaryCoordinateCount: { vertical: intervalCount + 1 },
-      boundaryVisualEndpoints: { vertical: { start: 'omit', end: 'omit' } },
+      // One-cell tails have no interior anchor, so keep their endpoints
+      // visible; longer tails let the adjoining shells own both corners.
+      ...(intervalCount > 1 ? { boundaryVisualEndpoints: { vertical: { start: 'omit' as const, end: 'omit' as const } } } : {}),
       edges: ['left'],
     }]
   })
@@ -144,9 +169,18 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
       variant: 'mining-empty-shell', boundaryGeometrySource: 'cell-range',
       boundaryCoordinateCount: { horizontal: shop.widthCells + 1, vertical: shop.depthCoordinateCount },
       boundaryVisualEndpoints: { vertical: { start: 'omit', end: 'omit' } },
-      edges: ['top', 'right', ...(index === shops.length - 1 ? ['left' as const] : [])],
+      edges: [...(shop.label === miningShopNames[1] ? [] : ['top' as const]), 'right', ...(index === shops.length - 1 ? ['left' as const] : [])],
     })),
     ...sharedWallTails,
+    {
+      id: 'mining-street-back-alley-frame', type: 'alley',
+      bounds: { x: rowStartX, y: backAlleyUpperWallY, width: rowRight - rowStartX, height: backAlleyFrameHeight },
+      variant: 'narrow-corridor', boundaryGeometrySource: 'cell-range',
+      boundaryCoordinateCount: { horizontal: Math.round((rowRight - rowStartX) / horizontal) + 1, vertical: sharedNarrowPassageFrameIntervals + 1 },
+      boundaryProjection: 'screen-spacing',
+      boundaryVisualEndpoints: { vertical: { start: 'omit', end: 'omit' } },
+      edges: ['top', 'right', 'bottom'],
+    },
     {
       id: 'mining-industrial-edge', type: 'room',
       bounds: { x: laneLeft, y: laneBottom, width: laneRight - laneLeft, height: 3 * vertical },
@@ -171,8 +205,27 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
     access: index === 1 ? 'open' : 'locked',
     ...(index === 1
       ? { transitionText: '\u8fdb\u5165\u6c38\u548c\u5c0f\u9986\u3002' }
-      : { lockedText: '\u6ca1\u6709\u6743\u9650\u8fdb\u53bb\u3002', transitionText: '\u6ca1\u6709\u6743\u9650\u8fdb\u53bb\u3002' }),
+    : { lockedText: '\u8fd9\u5bb6\u5e97\u8fd8\u6ca1\u5f00\u95e8\u3002', transitionText: '\u8fd9\u5bb6\u5e97\u8fd8\u6ca1\u5f00\u95e8\u3002' }),
   }))
+  portals.push(...shops.filter(shop => shop.label !== miningShopNames[1]).map(shop => ({
+    id: shop.portalId + '-back-door',
+    entity: { id: shop.portalId + '-back-door', label: '\u540e\u95e8', displayLabel: '\u95e8', kind: 'door' as const, weight: 'gateway' as const, surface: 'wall' as const, doorBehavior: { leafCount: 'single' as const, openLeaves: 'both' as const } },
+    endpoint: {
+      doorPosition: { x: shop.doorX, y: shop.back },
+      threshold: { x: shop.doorX, y: shop.back + 1.5 * vertical },
+      crossingTarget: { x: shop.doorX, y: shop.back - 1.5 * vertical },
+    },
+    routeThrough: true,
+    fromRoomId: backAlleyRoom.id,
+    toRoomId: shop.roomId,
+    wallOpenings: [{
+      wallId: shop.roomId + '-shell',
+      opening: { edge: 'top' as const, start: shop.doorX - horizontal / 2, end: shop.doorX + horizontal / 2, doorId: shop.portalId + '-back-door', labelLayout: 'center' as const },
+    }],
+    access: 'locked' as const,
+    lockedText: '\u8fd9\u5bb6\u5e97\u8fd8\u6ca1\u5f00\u95e8\u3002',
+    transitionText: '\u8fd9\u5bb6\u5e97\u8fd8\u6ca1\u5f00\u95e8\u3002',
+  })))
   portals.push({
     id: 'yonghe-back-door',
     entity: { id: 'yonghe-back-door', label: '\u540e\u95e8', displayLabel: '\u95e8', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
@@ -181,11 +234,15 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
       threshold: { x: eatery.doorX, y: eatery.back + 1.5 * vertical },
       crossingTarget: { x: eatery.doorX, y: eatery.back - 1.5 * vertical },
     },
+    routeThrough: true,
+    fromRoomId: backAlleyRoom.id,
+    toRoomId: eatery.roomId,
     wallOpenings: [{
-      wallId: eatery.roomId + '-shell',
-      opening: { edge: 'top', start: eatery.doorX - horizontal, end: eatery.doorX + horizontal, doorId: 'yonghe-back-door', labelLayout: 'center' },
+      wallId: 'mining-street-back-alley-frame',
+      opening: { edge: 'bottom', start: eatery.doorX - horizontal, end: eatery.doorX + horizontal, doorId: 'yonghe-back-door', labelLayout: 'center' },
     }],
-    access: 'locked', lockedText: '\u540e\u95e8\u6682\u672a\u5f00\u653e\u3002', transitionText: '\u540e\u95e8\u6682\u672a\u5f00\u653e\u3002',
+    access: 'open',
+    transitionText: '',
   })
   const lockedShops = shops.filter((_, index) => index !== 1)
   const oldIndustryStart = oldFacadeX + laneCells * horizontal
@@ -193,38 +250,37 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
   const airWalls = [
     { id: 'mining-industrial-limit', ...rotateRect({ x: oldIndustryStart, y: oldWorldTop, width: 3 * horizontal, height: oldWorldBottom - oldWorldTop }) },
     { id: 'mining-row-top-limit', ...rotateRect({ x: minOldLeft, y: oldWorldTop, width: oldFacadeX - minOldLeft, height: rowTop - oldWorldTop }) },
-    { id: 'mining-row-bottom-limit', ...rotateRect({ x: minOldLeft, y: oldRowBottom, width: oldFacadeX - minOldLeft, height: oldWorldBottom - oldRowBottom }) },
-    ...shops.filter(shop => shop.oldLeft > minOldLeft).map(shop => ({
-      id: shop.roomId + '-back-limit',
-      ...rotateRect({ x: minOldLeft, y: shop.top, width: shop.oldLeft - minOldLeft, height: shop.bottom - shop.top }),
-    })),
   ]
   return {
     id, title: '\u77ff\u533a\u5916\u56f4\u8001\u8857', subtitle: '\u5e97\u9762\u3001\u8857\u9053\u548c\u516b\u95f4\u5e97\u5185\u5171\u7528\u4e00\u5f20\u5730\u56fe\uff1b\u4ec5\u6c38\u548c\u5c0f\u9986\u5f00\u653e\u3002', statusLabel: '\u77ff\u533a\u5916\u56f4\u8001\u8857',
     hint: '\u6cbf\u8857\u884c\u8d70\u3002\u53ea\u6709\u6c38\u548c\u5c0f\u9986\u53ef\u4ee5\u8fdb\u5165\uff1b\u5176\u4f59\u5e97\u94fa\u6682\u672a\u5f00\u653e\u3002\u540e\u95e8\u6682\u672a\u5f00\u653e\u3002',
     presentation: { mode: 'actor-relative', offset: { x: 0, y: 0 } },
-    areaLabel: position => shops.find(shop =>
-      position.x >= shop.left && position.x <= shop.right && position.y >= shop.back && position.y <= facadeY
-    )?.label ?? '\u77ff\u533a\u5916\u56f4\u8001\u8857',
+    areaLabel: position => backAlleyRoom.bounds.x <= position.x && position.x <= backAlleyRoom.bounds.x + backAlleyRoom.bounds.width
+      && backAlleyRoom.bounds.y <= position.y && position.y <= backAlleyRoom.bounds.y + backAlleyRoom.bounds.height
+      ? '\u540e\u5df7'
+      : shops.find(shop =>
+        position.x >= shop.left && position.x <= shop.right && position.y >= shop.back && position.y <= facadeY
+      )?.label ?? '\u77ff\u533a\u5916\u56f4\u8001\u8857',
     scene: {
       walkBounds: { x: laneLeft, y: worldTop, width: laneRight - laneLeft, height: worldBottom - worldTop },
       viewport: 'follow-player',
       rooms: [
         { id: 'mining-street-public-lane', kind: 'corridor', bounds: { x: laneLeft, y: facadeY, width: laneRight - laneLeft, height: laneCells * vertical } },
+        backAlleyRoom,
         ...shops.map(shop => ({ id: shop.roomId, bounds: { x: shop.left, y: shop.back, width: shop.right - shop.left, height: facadeY - shop.back } })),
       ],
       externalExit: { axis: 'x', direction: -1, threshold: rowStartX - 2.5 * horizontal },
       wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 }, walls,
       storefronts: shops.map(shop => shop.storefront), floorEntities: [], furnitureGroups: [], blockers: [],
-      accessRegions: lockedShops.map(shop => ({ id: shop.roomId + '-prohibited', x: shop.left, y: shop.back, width: shop.right - shop.left, height: facadeY - shop.back, requiredAccess: 'staff' as const, deniedText: '\u6ca1\u6709\u6743\u9650\u8fdb\u53bb\u3002' })),
+      accessRegions: lockedShops.map(shop => ({ id: shop.roomId + '-prohibited', x: shop.left, y: shop.back, width: shop.right - shop.left, height: facadeY - shop.back, requiredAccess: 'staff' as const, deniedText: '\u8fd9\u5bb6\u5e97\u8fd8\u6ca1\u5f00\u95e8\u3002' })),
       accessBoundaries: lockedShops.map(shop => ({ id: shop.roomId + '-front-permission', regionId: shop.roomId + '-prohibited', edge: 'bottom' as const })),
       airWalls,
       initialPlayerPosition: arrival, rideArrivalPosition: arrival,
     },
     portals,
     interactionText: {
-      ...Object.fromEntries(shops.map((shop, index) => [shop.portalId, index === 1 ? '\u8fdb\u5165\u6c38\u548c\u5c0f\u9986\u3002' : '\u6ca1\u6709\u6743\u9650\u8fdb\u53bb\u3002'])),
-      'yonghe-back-door': '\u540e\u95e8\u6682\u672a\u5f00\u653e\u3002',
+      ...Object.fromEntries(shops.map((shop, index) => [shop.portalId, index === 1 ? '\u8fdb\u5165\u6c38\u548c\u5c0f\u9986\u3002' : '\u8fd9\u5bb6\u5e97\u8fd8\u6ca1\u5f00\u95e8\u3002'])),
+      ...Object.fromEntries(shops.filter(shop => shop.label !== miningShopNames[1]).map(shop => [shop.portalId + '-back-door', '\u8fd9\u5bb6\u5e97\u8fd8\u6ca1\u5f00\u95e8\u3002'])),
     },
   }
 }

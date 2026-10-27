@@ -7,6 +7,7 @@ export function wallVisualCoverage(scene:MainlineSceneDefinition,units:readonly 
   const group=groups.get(key)??{owner:u.ownerId,edge:u.edge,axis,start:Infinity,end:-Infinity,nodes:[]}
   group.start=Math.min(group.start,u[axis]*dimension/100);group.end=Math.max(group.end,(u[axis]+u[axis==='x'?'width':'height'])*dimension/100)
   for(const c of u.visual.cells){const hiddenGlyph=c.baselineGlyph??c.glyph;if(!hiddenGlyph)continue;group.normal??=c[axis==='x'?'y':'x'];group.nodes.push({axis:c[axis]*dimension/100,wall:c.kind==='wall'||c.storefrontRole==='wall'||Boolean(c.baselineGlyph),door:c.kind==='door'||c.storefrontRole==='door'?c.entityId??u.entityId:undefined})}
+  group.normal??=u.edge==='left'?u.x:u.edge==='right'?u.x+u.width:u.edge==='top'?u.y:u.y+u.height
   groups.set(key,group)
  }
  // Storefront composition replaces the parent facade cells with visual-only

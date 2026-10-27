@@ -5,7 +5,7 @@ import { trialCafeInterior, trialTakeawayInteriors } from './shopInteriorTrial'
 import { trialYongheInterior } from './yongheInteriorTrial'
 import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
-import { boundaryGridStepsFromReferenceSpacing, boundaryGridStepsFromScreenSpacing, defaultSceneScreenMetrics, sharedFurnitureGlyphSpacingPx } from './sceneBoundaryGrid'
+import { boundaryGridStepsFromReferenceSpacing, boundaryGridStepsFromScreenSpacing, defaultSceneScreenMetrics, sharedFurnitureGlyphSpacingPx, sharedNarrowPassageWalkInset, sharedNarrowPassageFrameHeight, sharedNarrowPassageFrameIntervals } from './sceneBoundaryGrid'
 import { createFourSeatFurniture, createSeatGeometry, createTableGeometry, sharedFurnitureGeometry, createTwoSeatFurniture, type SharedSeatDefinition } from './twoSeatFurniture'
 import { npcRoles, type NpcRoleDefinition } from './npcRoles'
 import { officeGrid, officeGridFloor, officeGridCorridor, officeGridNorthRooms, officeGridSouthRooms, officeGridDoorColumns } from './officeGrid'
@@ -20,9 +20,9 @@ export type MainlineSceneId = 'jijia-ancestral-home' | 'jijia-ancestral-interior
 export type MainlineEntityKind = 'door' | 'landmark' | 'table' | 'seat' | 'direction' | 'trace' | 'fixture'
 export type MainlineEntityWeight = 'gateway' | 'fixture' | 'anchor' | 'minor'
 export type MainlineEntitySurface = 'wall' | 'floor'
-export type MainlineInteractionBehavior = 'echo-pool' | 'incense' | 'desk-device' | 'blinds-toggle' | 'plant-choice' | 'cafe-order' | 'cafe-toilet-use' | 'cafe-faucet-toggle' | 'direct-wall'
+export type MainlineInteractionBehavior = 'echo-pool' | 'incense' | 'desk-device' | 'blinds-toggle' | 'plant-choice' | 'cafe-order' | 'cafe-toilet-use' | 'cafe-faucet-toggle' | 'direct-wall' | 'yonghe-warehouse'
 export type MainlineVisualProfile = 'tree-ring' | 'incense'
-export type MainlineAnimationGroup = 'office-breathing'
+export type MainlineAnimationGroup = 'office-breathing' | 'yonghe-stove-breathing'
 export type MainlineSceneExternalExit = {
   id?: string
   axis: 'x' | 'y'
@@ -1817,11 +1817,11 @@ const zhongshuyuanPassageWallSteps = boundaryGridStepsFromReferenceSpacing()
 // corner endpoints. The shared frame renderer assigns those endpoints to the
 // horizontal edges, so the complete side still reads: wall, wall, door, wall,
 // wall without generating a seventh position.
-export const zhongshuyuanPassageVerticalVisibleCellCount = 5
+export const zhongshuyuanPassageVerticalVisibleCellCount = sharedNarrowPassageFrameIntervals + 1
 export const zhongshuyuanPassageVerticalCoordinateCount = zhongshuyuanPassageVerticalVisibleCellCount
-const zhongshuyuanPassageHeight = zhongshuyuanPassageWallSteps.vertical * (zhongshuyuanPassageVerticalCoordinateCount - 1)
+const zhongshuyuanPassageHeight = sharedNarrowPassageFrameHeight
 const zhongshuyuanPassageBounds = box(3, 50 - zhongshuyuanPassageHeight / 2, 94, zhongshuyuanPassageHeight)
-const zhongshuyuanPassageWalkInset = 1.4
+const zhongshuyuanPassageWalkInset = sharedNarrowPassageWalkInset
 const zhongshuyuanPassageHorizontalWalkInset = .7
 const zhongshuyuanPassageWalkBounds = box(
   zhongshuyuanPassageBounds.x + zhongshuyuanPassageHorizontalWalkInset,

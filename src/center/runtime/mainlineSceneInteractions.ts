@@ -37,6 +37,7 @@ export type MainlineSceneStateChange = {
 
 export type MainlineSceneEchoChoiceResolution = {
   dismiss?: boolean
+  followupText?: string
   stateChange?: MainlineSceneStateChange
   deskDevice?: PhoneDevice
 }
@@ -121,6 +122,9 @@ export function resolveMainlineSceneExploration(
       },
     }
   }
+  if (behavior === 'yonghe-warehouse') {
+    return { choice: { text: '', options: ['\u63a8\u4e00\u4e0b\u95e8'] } }
+  }
   if (behavior === 'cafe-order') {
     if (context.commercialCafeCoffeeOrdered) return { choice: { text: '咖啡已经点过了。' } }
     return context.carriedMilkTea
@@ -148,6 +152,9 @@ export function resolveMainlineSceneEchoChoice(
   entity = aliasId ? scene.objects.find(candidate => candidate.id === aliasId) ?? entity : entity
   const behavior = entity ? interactionBehavior(entity) : undefined
 
+  if (behavior === 'yonghe-warehouse') {
+    return { dismiss: true, followupText: option === '\u63a8\u4e00\u4e0b\u95e8' ? '\u95e8\u9501\u7740\uff0c\u6253\u4e0d\u5f00\u3002' : undefined }
+  }
   if (behavior === 'desk-device') {
     return {
       dismiss: true,
