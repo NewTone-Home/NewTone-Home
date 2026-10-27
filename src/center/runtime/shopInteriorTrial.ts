@@ -137,6 +137,8 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
     interactionText: { ...blueprint.interactionText, ...Object.fromEntries(entities.filter(e=>e.interactionStructureId&&!e.interactionBehavior).map(e=>[e.id,e.label+'。'])), 'commercial-cafe-menu': '菜单嵌在柜台侧墙里。', 'commercial-cafe-blackboard': '黑板嵌在柜台侧墙里。' },
     explorationText: { ...blueprint.explorationText, ...Object.fromEntries(entities.filter(e=>e.interactionStructureId&&!e.interactionBehavior).map(e=>[e.id,[e.label+'。']])),
       'commercial-cafe-menu': ['菜单嵌在柜台侧墙里。'], 'commercial-cafe-blackboard': ['黑板嵌在柜台侧墙里。'],
+      'cafe-trial-corner-plant-rear': ['这是店内的装饰，最好不要碰。'],
+      'cafe-trial-corner-plant-front': ['叶片层层叠在一起，把墙边的一小块地方遮住了。'],
       'cafe-trial-order': ['这里仍是原柜台的点单接触位置。'], 'cafe-trial-pickup': ['这里是柜台交付饮品的一侧。'],
       'cafe-trial-coffee-machine': ['咖啡机放在员工工作线上。'], 'cafe-trial-prep-table': ['备餐台与咖啡机共用员工侧通道。'],
       'cafe-trial-wash': ['清洗台在柜台里面。'], 'cafe-trial-cold': ['冷藏设备在后方准备区。'],

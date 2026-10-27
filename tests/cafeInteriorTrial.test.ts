@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
+import { resolveMainlineSceneExploration } from '../src/center/runtime/mainlineSceneInteractions'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { findMainlinePathToEntity, isWalkableMainlinePoint, canTravelAlongMainlineSegment, canActorReachPassageApproach } from '../src/center/runtime/mainlineNavigation'
 import { mainlineEntityCollision, mainlineNpcLabelFootprint, mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
@@ -10,6 +11,18 @@ const point = (x: number, y: number) => ({ x: room.bounds.x + x / 1920 * 100, y:
 const options = { screenMetrics: sceneDesignReferenceMetrics }
 
 describe('isolated Cafe layout trial', () => {
+  it('shows one observation without options for each cafe plant', () => {
+    const context = { incensePhase: 'unlit' as const, plantWatered: false, officeBlindsOpen: false, carriedPhoneDevice: 'old' as const }
+    for (const [id, text] of [
+      ['cafe-trial-corner-plant-rear', '这是店内的装饰，最好不要碰。'],
+      ['cafe-trial-corner-plant-front', '叶片层层叠在一起，把墙边的一小块地方遮住了。'],
+    ] as const) {
+      const plant = scene.objects.find(entity => entity.id === id)!
+      expect(plant).toBeDefined()
+      expect(resolveMainlineSceneExploration(scene, plant, context)).toEqual({ pool: [text] })
+    }
+  })
+
   it('has six real two-character tables and twelve seats, retaining both story seat identities', () => {
     const entities = scene.objects.filter(entity => entity.roomId === room.id)
     expect(entities.filter(entity => entity.kind === 'table')).toHaveLength(6)
