@@ -1,17 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
 import { mainlineStorefrontApproach, mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { commercialStreetQuestionNarrativeCompletedKey } from '../src/center/runtime/commercialStreetQuestionNarrative'
-import { mainlineWorldScale } from '../src/center/runtime/mainlineViewport'
-import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
-import { mainlineRidePickupPositions } from '../src/center/runtime/mainlineRide'
 import { mainlineSceneRoomAtPosition } from '../src/center/runtime/mainlineSceneModel'
-import { openRideArrivalNotification } from './phoneRideNotification'
 
 test.use({ viewport: { width: 1280, height: 720 } })
 
 const street = mainlineScenes['commercial-street']
-let crossShopContinuationSession: Record<string, string> | null = null
-
 async function walkTo(page: Page, target: { x: number; y: number }) {
   const stage = page.locator('.mainline-scene-stage')
   const actor = page.locator('[data-actor-id="protagonist"]')
@@ -107,33 +103,7 @@ async function orderFromCounter(page: Page, entityId: string, productId: string,
   await expect(shop.locator('[data-order-status="ready"]')).toBeVisible({ timeout: 40_000 })
 }
 
-async function walkToRidePickup(page: Page) {
-  const scene = mainlineScenes['commercial-street']
-  const exit = scene.externalExits[0]!
-  const pickup = mainlineRidePickupPositions('commercial-street')[0]!
-  const target = { ...pickup, [exit.axis]: pickup[exit.axis] + exit.direction }
-  const stage = page.locator('.mainline-scene-stage')
-  const actor = page.locator('[data-actor-id="protagonist"]')
-  for (let step = 0; step < 12; step += 1) {
-    await closePhone(page)
-    const projected = await stage.evaluate((element, point) => {
-      const rect = element.getBoundingClientRect()
-      const world = element.querySelector<HTMLElement>('.scene-mainline-world')
-      const translate = world?.style.transform.match(/translate\(([-\d.]+)%, ([-\d.]+)%\)/)
-      if (!translate) throw new Error('Unable to resolve the visible world projection')
-      const x = rect.x + rect.width * (point.x + Number(translate[1])) / 100
-      const y = rect.y + rect.height * (point.y + Number(translate[2])) / 100
-      return { x: Math.max(rect.x + 20, Math.min(rect.right - 20, x)), y: Math.max(rect.y + 20, Math.min(rect.bottom - 30, y)), final: x >= rect.x && x <= rect.right && y >= rect.y && y <= rect.bottom }
-    }, target)
-    await page.mouse.click(projected.x, projected.y)
-    if (projected.final) return
-    await expect(actor).toHaveClass(/is-moving/)
-    await expect(actor).not.toHaveClass(/is-moving/, { timeout: 15_000 })
-  }
-  throw new Error('Could not reach the authored Commercial Street ride pickup')
-}
-
-test('physical storefronts keep separate orders and one global held item through claim, refusal, consume and reload', async ({ page }) => {
+test('physical storefront orders and held item persist through reload', async ({ page }) => {
   test.setTimeout(240_000)
   await page.addInitScript(({ completedKey }) => {
     sessionStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
@@ -194,9 +164,20 @@ test('physical storefronts keep separate orders and one global held item through
   await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem('newtone-player-save-v1') ?? '{}').heldConsumable?.shopId)).toBe('commercial-south-slot-5')
   expect(await actor.count()).toBe(1)
   expect(await page.evaluate(() => localStorage.getItem('newtone-player-save-v1'))).toBeNull()
-  crossShopContinuationSession = await page.evaluate(() => Object.fromEntries(Array.from({ length: sessionStorage.length }, (_, index) => {
+  const sessionSnapshot = await page.evaluate(() => Object.fromEntries(Array.from({ length: sessionStorage.length }, (_, index) => {
     const key = sessionStorage.key(index)!
     return [key, sessionStorage.getItem(key)!]
   })))
+  const saveKey = 'newtone-player-save-v1'
+  const savedPlayer = JSON.parse(sessionSnapshot[saveKey] ?? '{}')
+  expect(savedPlayer.heldConsumable).toMatchObject({ shopId: 'commercial-south-slot-5', productId: 'original-milk-tea', kind: 'drink' })
+  const storageStatePath = resolve('.test-tmp/a-held.storage.json')
+  const sessionStatePath = resolve('.test-tmp/a-held.session.json')
+  await mkdir(dirname(storageStatePath), { recursive: true })
+  await page.context().storageState({ path: storageStatePath })
+  await writeFile(sessionStatePath, JSON.stringify(sessionSnapshot, null, 2), 'utf8')
+  const persistedSession = JSON.parse(await readFile(sessionStatePath, 'utf8')) as Record<string, string>
+  const persistedHeld = JSON.parse(persistedSession[saveKey] ?? '{}').heldConsumable
+  expect(persistedHeld).toEqual(savedPlayer.heldConsumable)
+  console.log(`[A saved held state] ${JSON.stringify({ storageStatePath, sessionStatePath, held: persistedHeld, shopOrders: savedPlayer.shopOrders })}`)
 })
-
