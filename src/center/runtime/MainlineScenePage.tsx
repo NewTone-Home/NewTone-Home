@@ -466,6 +466,7 @@ export function MainlineScenePage({
   const sceneActionExitBarrierRef = useRef<MainlineSceneActionExitBarrier | null>(null)
   const pendingSceneActionAfterExitRef = useRef<Omit<MainlineSceneAction, 'id'> | null>(null)
   const pendingSceneActionRef = useRef<Omit<MainlineSceneAction, 'id'> | null>(null)
+  const pendingSceneEchoAfterActionRef = useRef<{ entityId: string; text: string } | null>(null)
   const [commercialStreetQuestionNarrative, setCommercialStreetQuestionNarrative] = useState<CommercialStreetQuestionNarrativeState | null>(null)
   const [genericDialoguePhase, setGenericDialoguePhase] = useState<'active' | 'leaving'>('active')
   const [commercialStreetQuestionNarrativeCompletedLocally, setCommercialStreetQuestionNarrativeCompletedLocally] = useState(() => commercialStreetQuestionNarrativeCompleted(initialSceneState[commercialStreetQuestionNarrativeCompletedKey]))
@@ -712,6 +713,18 @@ export function MainlineScenePage({
     commercialStreetQuestionPreviousPositionRef.current = { sceneId: scene.id, position: nextPosition ?? getCurrentPosition() }
   }, [getCurrentPosition, resetMovementController, scene.id])
   const cameraOffset = useMainlineCamera(scene, position, embedded, activeViewportMetrics)
+
+  useEffect(() => {
+    if (sceneAction !== null || !pendingSceneEchoAfterActionRef.current) return
+    const pending = pendingSceneEchoAfterActionRef.current
+    pendingSceneEchoAfterActionRef.current = null
+    const position = getCurrentPosition()
+    presentSceneEcho(createMainlineSceneEcho(
+      ++sceneEchoIdRef.current, pending.entityId, pending.text,
+      sceneTextPresentationPosition(scene, position, pending.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, position, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
+      'scene-observation',
+    ))
+  }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, readingMetrics, scene, sceneAction])
   const activeDialogueSegments = activeDialogueLine ? splitMainlineInteractionText(activeDialogueLine.text) : []
   const activeDialogueText = mainlineReadingSegmentDisplayText(activeDialogueSegments, dialogueSegmentIndex)
   const cafeInsideRef = useRef(false)
@@ -1789,7 +1802,7 @@ export function MainlineScenePage({
       return
     }
     leavePlayerSeat()
-    if (passage) {
+    if (passage && entityId !== 'yonghe-warehouse-door') {
       if (passage.access !== 'open') {
         const approach = canActorReachPassageApproach(scene, passage, getCurrentPosition(), layout, navigationOptions)
         denyLockedPassageAfterApproach(passage, approach?.path)
@@ -2160,6 +2173,7 @@ export function MainlineScenePage({
       commitSceneActionExit(actionId)
       return
     }
+    if (resolution.followupText && entity) pendingSceneEchoAfterActionRef.current = { entityId: entity.id, text: resolution.followupText }
     if (resolution.deskDevice) {
       onDeskInteraction?.(resolution.deskDevice)
       commitSceneActionExit(actionId)

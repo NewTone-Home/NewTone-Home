@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineSceneAreaLabel, mainlineScenes } from './mainlineScenes'
-import { mainlineInteractionTarget } from './mainlineNavigation'
+import { mainlineInteractionTarget, resolveMainlineEntityInteraction } from './mainlineNavigation'
+import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 import { commercialCafeCoffeeStatusKey } from './commercialCafeStory'
 import {
   plantIsWatered,
@@ -16,6 +17,25 @@ function entity(sceneId: keyof typeof mainlineScenes, entityId: string) {
 }
 
 describe('mainline scene interaction policies', () => {
+  it('gives the Yonghe warehouse one action and returns only its result after selection', () => {
+    const scene = mainlineScenes['yonghe-mining-perimeter']
+    const door = entity('yonghe-mining-perimeter', 'yonghe-warehouse-door')
+    const exploration = resolveMainlineSceneExploration(scene, door, {
+      incensePhase: 'unlit', plantWatered: false, officeBlindsOpen: true, carriedPhoneDevice: 'surface',
+    })
+    expect(exploration.choice).toEqual({ text: '', options: ['推一下门'] })
+    const alley = scene.rooms.find(room => room.id === 'mining-street-back-alley')!
+    const alleyCenter = { x: alley.bounds.x + alley.bounds.width / 2, y: alley.bounds.y + alley.bounds.height / 2 }
+    const approach = resolveMainlineEntityInteraction(scene, door.id, alleyCenter, {}, {
+      screenMetrics: sceneDesignReferenceMetrics, actorFootprint: { width: 16 / 19.2, height: 16 / 10.8 },
+    })
+    expect(approach.path, 'the locked warehouse door remains interactable from the alley side').not.toBeNull()
+    expect(resolveMainlineSceneEchoChoice(scene, door, '推一下门', 0)).toEqual({
+      dismiss: true, followupText: '门锁着，打不开。',
+    })
+    expect(resolveMainlineSceneEchoChoice(scene, door, '\u968f\u4fbf\u770b\u770b', 0)).toMatchObject({ dismiss: true, followupText: undefined })
+  })
+
   it('keeps incense phase choices and state effects independent of scene IDs', () => {
     const scene = mainlineScenes['jijia-ancestral-interior']
     const burner = entity('jijia-ancestral-interior', 'jijia-incense-burner')
@@ -83,7 +103,7 @@ describe('mainline scene interaction policies', () => {
       expect(scene).toBeDefined()
       expect(scene.statusLabel).toBe('矿区外围老街')
       expect(mainlineSceneAreaLabel(scene, scene.initialPlayerPosition)).toBe('矿区外围老街')
-      const names = ['修鞋', '永和小馆', '药店', '五金店', '小吃', '面馆', '修理', '早点']
+      const names = ['\u6d17\u8863\u5e97', '\u6c38\u548c\u5c0f\u9986', '\u836f\u5e97', '\u4e94\u91d1\u5e97', '\u4fbf\u5229\u5e97', '\u65c5\u5e97', '\u7535\u5668\u7ef4\u4fee', '\u7406\u53d1\u5e97']
       for (const [index, name] of names.entries()) {
         const roomId = `mining-shop-${index + 1}-interior`
         const room = scene.rooms.find(candidate => candidate.id === roomId)!

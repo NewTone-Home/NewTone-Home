@@ -1,9 +1,9 @@
-import { boundaryGridStepsFromReferenceSpacing } from './sceneBoundaryGrid'
+import { boundaryGridStepsFromReferenceSpacing, sharedNarrowPassageFrameHeight, sharedNarrowPassageFrameIntervals, sharedNarrowPassageWalkHeight, sharedNarrowPassageWalkInset } from './sceneBoundaryGrid'
 import type { MainlineSceneBlueprint, MainlineStorefrontRole, MainlineStorefrontSlotBlueprint, MainlineScenePortalBlueprint } from './mainlineSceneModel'
 
 /** Distances count lattice intervals. Shop-owned facade slots exclude the
  * separately counted public divider between adjacent shops. */
-export const miningShopNames = ['\u4fee\u978b', '\u6c38\u548c\u5c0f\u9986', '\u836f\u5e97', '\u4e94\u91d1\u5e97', '\u5c0f\u5403', '\u9762\u9986', '\u4fee\u7406', '\u65e9\u70b9'] as const
+export const miningShopNames = ['\u6d17\u8863\u5e97', '\u6c38\u548c\u5c0f\u9986', '\u836f\u5e97', '\u4e94\u91d1\u5e97', '\u4fbf\u5229\u5e97', '\u65c5\u5e97', '\u7535\u5668\u7ef4\u4fee', '\u7406\u53d1\u5e97'] as const
 type MiningShopName = typeof miningShopNames[number]
 const depthCoordinateCountOverrides: Partial<Record<MiningShopName, (netFrontageSlots: number) => number>> = {
   '\u6c38\u548c\u5c0f\u9986': netFrontageSlots => {
@@ -110,8 +110,8 @@ const laneBottom = facadeY + laneCells * vertical
 const eatery = oldShopMetrics[1]!
 // Match the narrow Zhongshuyuan passage: five boundary positions form a
 // four-cell (112 reference-pixel) frame, inset 1.4% on each side for walking.
-const backAlleyFrameHeight = vertical * 4
-const backAlleyWalkInset = 1.4
+const backAlleyFrameHeight = sharedNarrowPassageFrameHeight
+const backAlleyWalkInset = sharedNarrowPassageWalkInset
 const backAlleyUpperWallY = eatery.back - backAlleyFrameHeight
 const backAlleyRoom = {
   id: 'mining-street-back-alley',
@@ -120,7 +120,7 @@ const backAlleyRoom = {
     x: rowStartX,
     y: backAlleyUpperWallY + backAlleyWalkInset,
     width: rowRight - rowStartX,
-    height: backAlleyFrameHeight - backAlleyWalkInset * 2,
+    height: sharedNarrowPassageWalkHeight,
   },
 }
 const worldTop = Math.min(...oldShopMetrics.map(shop => shop.back), backAlleyUpperWallY)
@@ -149,7 +149,9 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
       bounds: { x: leftShop.right, y: rightShop.back, width: horizontal, height: leftShop.back - rightShop.back },
       variant: 'mining-empty-shell', boundaryGeometrySource: 'cell-range',
       boundaryCoordinateCount: { vertical: intervalCount + 1 },
-      boundaryVisualEndpoints: { vertical: { start: 'omit', end: 'omit' } },
+      // One-cell tails have no interior anchor, so keep their endpoints
+      // visible; longer tails let the adjoining shells own both corners.
+      ...(intervalCount > 1 ? { boundaryVisualEndpoints: { vertical: { start: 'omit' as const, end: 'omit' as const } } } : {}),
       edges: ['left'],
     }]
   })
@@ -174,7 +176,8 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
       id: 'mining-street-back-alley-frame', type: 'alley',
       bounds: { x: rowStartX, y: backAlleyUpperWallY, width: rowRight - rowStartX, height: backAlleyFrameHeight },
       variant: 'narrow-corridor', boundaryGeometrySource: 'cell-range',
-      boundaryCoordinateCount: { horizontal: Math.round((rowRight - rowStartX) / horizontal) + 1, vertical: 5 },
+      boundaryCoordinateCount: { horizontal: Math.round((rowRight - rowStartX) / horizontal) + 1, vertical: sharedNarrowPassageFrameIntervals + 1 },
+      boundaryProjection: 'screen-spacing',
       boundaryVisualEndpoints: { vertical: { start: 'omit', end: 'omit' } },
       edges: ['top', 'right', 'bottom'],
     },

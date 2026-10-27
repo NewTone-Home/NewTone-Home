@@ -94,7 +94,8 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       expect(passage.routeThrough).not.toBe(true)
       expect(passage.targetSceneId).toBeUndefined()
       expect(passage.toRoomId).toBeUndefined()
-      expect(passage.lockedText).toBe('\u63a8\u4e00\u4e0b\u95e8\u3002\u95e8\u9501\u7740\uff0c\u6253\u4e0d\u5f00\u3002')
+      expect(passage.lockedText).toBe('\u95e8\u9501\u7740\uff0c\u6253\u4e0d\u5f00\u3002')
+      expect(warehouse.interactionBehavior).toBe('yonghe-warehouse')
     })
 
     it('frames the four indoor tables on entry and re-entry, and hides them outside the room', () => {
@@ -243,9 +244,23 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       const board = scene.objects.find(object => object.id === 'yonghe-trial-board')!
       const staff = { ...options, actorId: 'yonghe-trial-worker', actorFootprint: { width: 16 / 19.2, height: 16 / 10.8 } }
       const workerStart = point(168, 154)
+      // The reduced staff-only rectangle is exactly the authored work zone;
+      // the customer aisle and the rear-door approach remain outside it.
+      const stovePoint = point(102, 22)
+      const worktopPoint = point(22, 100)
+      const legalRearAislePoint = point(280, 280)
       expect(isWalkableMainlinePoint(workerStart, scene, {}, options)).toBe(false)
+      expect(isWalkableMainlinePoint(stovePoint, scene, {}, options)).toBe(false)
+      expect(isWalkableMainlinePoint(worktopPoint, scene, {}, options)).toBe(false)
+      expect(isWalkableMainlinePoint(legalRearAislePoint, scene, {}, options)).toBe(true)
+      const rearDoorPassage = scene.passages.find(passage => passage.id === 'yonghe-back-door')!
+      const rearDoorOpen = { ...options, openPassageIds: new Set([rearDoorPassage.id]) }
+      expect(findMainlinePath(legalRearAislePoint, rearDoorPassage.thresholds[1], scene, {}, rearDoorOpen)).not.toBeNull()
       expect(isWalkableMainlinePoint(workerStart, scene, {}, staff)).toBe(true)
       expect(findMainlinePath(workerStart, point(280, 154), scene, {}, staff)).not.toBeNull()
+      const workZone = scene.accessRegions.find(region => region.id === 'yonghe-trial-kitchen')!
+      expect(workZone.width * 19.2).toBeCloseTo(216, 2)
+      expect(workZone.height * 10.8).toBeCloseTo(224, 2)
       const rear = scene.passages.find(passage => passage.id === 'yonghe-back-door')!
       const rearOpen = { ...staff, openPassageIds: new Set([rear.id]) }
       expect(findMainlinePath(point(560, 282), rear.thresholds[1], scene, {}, rearOpen)).not.toBeNull()

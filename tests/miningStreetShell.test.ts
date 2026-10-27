@@ -1,9 +1,9 @@
 import { canTravelAlongMainlineSegment, findMainlinePath, isWalkableMainlinePoint, resolveMainlineWorldNavigation } from '../src/center/runtime/mainlineNavigation'
 import { describe, expect, it } from 'vitest'
-import { createMiningStreetShellBlueprint, miningGrid, miningShopShells } from '../src/center/runtime/miningStreetShell'
+import { createMiningStreetShellBlueprint, miningGrid, miningShopNames, miningShopShells } from '../src/center/runtime/miningStreetShell'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineScenes, validateMainlineSceneGeometry } from '../src/center/runtime/mainlineScenes'
 import { activeStorefrontInteriorOwner, activeStorefrontPresentationOwner, storefrontCharacterCells } from '../src/center/runtime/storefrontPresentation'
-import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
+import { sceneDesignReferenceMetrics, sharedNarrowPassageWalkInset } from '../src/center/runtime/sceneBoundaryGrid'
 
 const scene = mainlineScenes['yonghe-mining-perimeter']
 const lane = scene.rooms.find(room => room.id === 'mining-street-public-lane')!
@@ -30,6 +30,13 @@ describe('mining clockwise continuous street shell', () => {
       expect(scene.objects.filter(object => object.roomId === room.id && (object.kind === 'seat' || object.kind === 'table'))).toHaveLength(0)
     }
     expect(validateMainlineSceneGeometry(scene)).toEqual([])
+  })
+
+  it('uses the eight author-approved shop types and keeps Yonghe far right with laundry beside it', () => {
+    expect(miningShopNames).toEqual(['洗衣店', '永和小馆', '药店', '五金店', '便利店', '旅店', '电器维修', '理发店'])
+    const rightToLeft = [...miningShopShells].sort((a, b) => b.left - a.left).map(shop => shop.label)
+    expect(rightToLeft).toEqual(['永和小馆', '洗衣店', '药店', '五金店', '便利店', '旅店', '电器维修', '理发店'])
+    expect(scene.storefronts).toHaveLength(8)
   })
 
   it('puts the shop row above a horizontal street and the industrial edge below it', () => {
@@ -181,6 +188,11 @@ describe('mining clockwise continuous street shell', () => {
     const alley = scene.rooms.find(room => room.id === 'mining-street-back-alley')!
     const tunnel = mainlineScenes['zhongshuyuan-passage'].rooms.find(room => room.id.includes('passage'))!
     expect(alley.bounds.height).toBeCloseTo(tunnel.bounds.height, 4)
+    expect(alley.bounds.height * 10.8).toBeCloseTo(81.76, 2)
+    const alleyFrame = scene.structures.find(structure => structure.id === 'mining-street-back-alley-frame')!
+    const tunnelFrame = mainlineScenes['zhongshuyuan-passage'].structures.find(structure => structure.id === 'zhongshuyuan-passage-frame')!
+    expect(alleyFrame.bounds!.height * 10.8 - 2 * sharedNarrowPassageWalkInset * 10.8).toBeCloseTo(alley.bounds.height * 10.8, 4)
+    expect(tunnelFrame.bounds!.height * 10.8 - 2 * sharedNarrowPassageWalkInset * 10.8).toBeCloseTo(tunnel.bounds.height * 10.8, 3)
     const rearPassages = scene.passages.filter(entry => entry.portalId.endsWith('-back-door'))
     expect(rearPassages).toHaveLength(8)
     expect(rearPassages.filter(entry => entry.access === 'locked')).toHaveLength(7)

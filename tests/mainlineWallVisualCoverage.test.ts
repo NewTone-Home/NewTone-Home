@@ -8,7 +8,8 @@ const miningExpectedEdges=[
  ...Array.from({length:8},(_,i)=>[...(i===1?[]:[`mining-shop-${i+1}-interior-shell:top`]),`mining-shop-${i+1}-interior-shell:right`]).flat(),
  'mining-street-back-alley-frame:top','mining-street-back-alley-frame:bottom','mining-street-back-alley-frame:right',
  'mining-shop-8-interior-shell:left','mining-industrial-edge:top',
- 'mining-shop-1-interior-shared-right-tail:left','mining-shop-5-interior-shared-right-tail:left',
+ 'mining-shop-1-interior-shared-right-tail:left','mining-shop-3-interior-shared-right-tail:left',
+ 'mining-shop-6-interior-shared-right-tail:left','mining-shop-8-interior-shared-right-tail:left',
 ]
 const miningExpectedCoverageKeys=[...miningExpectedEdges,...Array.from({length:8},(_,i)=>`yonghe-slot-${i+1}:bottom`)]
 // Keep the original full-coverage bounds after fixing rejected11c06. The
@@ -36,8 +37,10 @@ describe('all door neighbors, complete edge gaps and corner coverage',()=>{
    for(const key of miningExpectedEdges){
     const edge=boundaryEdges.find(candidate=>candidate.key===key)!
     expect(edge.maxGap,`${key} maximum hidden-wall visual interval`).toBeLessThanOrEqual(28.01)
-    expect(edge.startDistance,`${key} first endpoint cap`).toBeLessThanOrEqual(28.01)
-    expect(edge.endDistance,`${key} last endpoint cap`).toBeLessThanOrEqual(28.01)
+    expect(typeof edge.startDistance,`${key} first endpoint exists`).toBe('number')
+    expect(typeof edge.endDistance,`${key} last endpoint exists`).toBe('number')
+    expect(edge.startDistance as number,`${key} first endpoint cap`).toBeLessThanOrEqual(28.01)
+    expect(edge.endDistance as number,`${key} last endpoint cap`).toBeLessThanOrEqual(28.01)
    }
    const yongheRight=units.filter(unit=>unit.ownerId==='mining-shop-2-interior-shell'&&unit.edge==='right'&&unit.geometryKind==='boundary')
    const yongheRightCells=yongheRight.flatMap(unit=>unit.visual.cells)

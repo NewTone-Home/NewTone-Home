@@ -33,6 +33,10 @@ describe('one world lattice per active continuous space',()=>{
    explorationText:Object.fromEntries(Object.entries(contract.explorationText??{}).filter(([id])=>!changedIds.has(id)&&!id.startsWith('cafe-restroom-'))),
   })
   const expected=omitTrial(before)
+  if(id==='yonghe-mining-perimeter'||id==='yonghe-eatery'){
+   const approvedNames=['\u6d17\u8863\u5e97','\u6c38\u548c\u5c0f\u9986','\u836f\u5e97','\u4e94\u91d1\u5e97','\u4fbf\u5229\u5e97','\u65c5\u5e97','\u7535\u5668\u7ef4\u4fee','\u7406\u53d1\u5e97']
+   expected.objects=expected.objects.map(o=>/^mining-shop-door-\d+$/.test(o.id)?{...o,label:approvedNames[Number(o.id.split('-').at(-1))-1]}:o)
+  }
   const authoredTextSpace={
    'jijia-ancestral-home':{roomId:'jijia-yard-public-area',kind:'room',wallId:'jijia-yard'},
    'jijia-ancestral-interior':{roomId:'jijia-inner-house-main-room',kind:'room',wallId:'jijia-inner-house'},

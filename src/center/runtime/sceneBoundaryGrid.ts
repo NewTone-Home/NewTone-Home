@@ -25,9 +25,14 @@ export type SceneScreenMetrics = {
 
 export const mainlineWorldFontSizePx = 16
 export const sharedBoundaryScreenSpacingPx = 28
+/** Shared vertical inset used by framed narrow walking passages. */
+export const sharedNarrowPassageWalkInset = 1.4
 export const sharedFurnitureGlyphSpacingPx = 16
 /** Logical scene authoring reference. Distances are CSS px at 1:1. */
 export const sceneDesignReferenceMetrics: SceneScreenMetrics = { width: 1920, height: 1080 }
+export const sharedNarrowPassageFrameIntervals = 4
+export const sharedNarrowPassageFrameHeight = sharedBoundaryScreenSpacingPx / sceneDesignReferenceMetrics.height * 100 * sharedNarrowPassageFrameIntervals
+export const sharedNarrowPassageWalkHeight = sharedNarrowPassageFrameHeight - 2 * sharedNarrowPassageWalkInset
 /** Existing runtime fallback metrics remain separate from authored design scale. */
 export const defaultSceneScreenMetrics: SceneScreenMetrics = { width: 1280, height: 720 }
 
