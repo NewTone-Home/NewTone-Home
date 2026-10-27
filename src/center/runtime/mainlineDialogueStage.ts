@@ -12,6 +12,10 @@ export function mainlineDialogueClickAction(input: {
   return input.motion === 'typing' ? 'complete-typing' : 'advance'
 }
 
+export function mainlineDialogueHandoffLockShouldRelease(wasActive: boolean, isActive: boolean): boolean {
+  return wasActive && !isActive
+}
+
 /** A speaker handoff belongs after the last source segment, never between pages. */
 export function mainlineDialogueShouldHandoff(input: {
   currentSpeaker: string | null | undefined

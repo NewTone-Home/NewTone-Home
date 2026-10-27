@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineDialogueClickAction, mainlineDialogueFurnitureGroupIds, mainlineDialogueHandoffDurationMs, mainlineDialogueShouldHandoff, mainlineDialogueSpeakerActorId, mainlineDialogueSpeakerOutsidePosition, mainlineDialogueStageActorOpacity, mainlineDialogueStageHiddenEntityIds, mainlineDialogueTurnAllowsOptions } from '../src/center/runtime/mainlineDialogueStage'
+import { mainlineDialogueClickAction, mainlineDialogueFurnitureGroupIds, mainlineDialogueHandoffDurationMs, mainlineDialogueHandoffLockShouldRelease, mainlineDialogueShouldHandoff, mainlineDialogueSpeakerActorId, mainlineDialogueSpeakerOutsidePosition, mainlineDialogueStageActorOpacity, mainlineDialogueStageHiddenEntityIds, mainlineDialogueTurnAllowsOptions } from '../src/center/runtime/mainlineDialogueStage'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 
 describe('formal dialogue stage rules', () => {
+  it('releases the reading advance lock only when a speaker handoff finishes', () => {
+    expect(mainlineDialogueHandoffLockShouldRelease(false, true)).toBe(false)
+    expect(mainlineDialogueHandoffLockShouldRelease(true, true)).toBe(false)
+    expect(mainlineDialogueHandoffLockShouldRelease(true, false)).toBe(true)
+    expect(mainlineDialogueHandoffLockShouldRelease(false, false)).toBe(false)
+  })
+
   it('lets a fresh click advance after typing was completed without consuming that page on the skip click', () => {
     let motion: 'typing' | 'static' = 'typing'
     let consumed = false

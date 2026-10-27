@@ -50,7 +50,7 @@ import { currentMainlineReadingTargetIds, mainlinePlaceReadingAction, mainlinePl
 import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey, type MainlineReadingSessionLayoutCache, type MainlineReadingSessionTextEntry } from './mainlineReadingLayoutSession'
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
-import { mainlineDialogueClickAction, mainlineDialogueHandoffDurationMs, mainlineDialogueStageActorOpacity, mainlineDialogueTurnAllowsOptions } from './mainlineDialogueStage'
+import { mainlineDialogueClickAction, mainlineDialogueHandoffDurationMs, mainlineDialogueHandoffLockShouldRelease, mainlineDialogueStageActorOpacity, mainlineDialogueTurnAllowsOptions } from './mainlineDialogueStage'
 import { mainlineReadingLocalPercent, mainlineReadingOcclusionCellIdentity, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot, type MainlineReadingOcclusionCandidate } from './mainlineReadingOcclusion'
 import type { HeldConsumable } from './crossShopOrders'
 import { heldConsumablePresentation } from './heldConsumablePresentation'
@@ -1212,6 +1212,7 @@ export function MainlineSceneRenderer({
   const readingPageAdvanceVisibilityListenerRef = useRef<(() => void) | null>(null)
   const typingCompletionLockRef = useRef(false)
   const typingCompletionLockTokenRef = useRef<number | null>(null)
+  const dialogueHandoffWasActiveRef = useRef(false)
   const releaseReadingPageAdvance = useCallback((token?: number) => {
     if (token !== undefined && (!mainlineReadingPageAdvanceTokenIsCurrent(readingPageAdvanceLockTokenRef.current, token) || !readingPageAdvanceLockedRef.current)) return
     readingPageAdvanceLockTokenRef.current += 1
@@ -1276,6 +1277,13 @@ export function MainlineSceneRenderer({
     }
   }, [])
   useEffect(() => () => releaseReadingPageAdvance(), [releaseReadingPageAdvance])
+  useEffect(() => {
+    const wasActive = dialogueHandoffWasActiveRef.current
+    dialogueHandoffWasActiveRef.current = dialogueHandoffActive
+    if (mainlineDialogueHandoffLockShouldRelease(wasActive, dialogueHandoffActive)) {
+      releaseReadingPageAdvance()
+    }
+  }, [dialogueHandoffActive, releaseReadingPageAdvance])
   const [retainedReadingOcclusion, setRetainedReadingOcclusion] = useState<RetainedReadingOcclusion | null>(null)
   const [activeReadingOcclusionSession, setActiveReadingOcclusionSession] = useState<string | null>(null)
   const readingOcclusionExitTimerRef = useRef<number | null>(null)
