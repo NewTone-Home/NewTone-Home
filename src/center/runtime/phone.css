@@ -114,19 +114,23 @@
 .world-phone__place-anchor { position:relative; width:fit-content; max-width:100%; }
 .world-phone__message-bubble--place { width:fit-content; max-width:100%; margin:0; cursor:pointer; }
 .world-phone__message-bubble--place p { margin:0; }
-.world-phone__place-card { position:absolute; z-index:5; top:50%; left:calc(100% + 9px); display:flex; box-sizing:border-box; flex-direction:column; width:clamp(148px,calc(100vw - 190px),190px); min-width:0; max-width:calc(100vw - 130px); max-height:0; overflow:hidden; padding:0 8px; border:1px solid transparent; border-radius:12px; background:#eeeef0; color:#18191d!important; box-shadow:0 8px 24px #0004; opacity:0; pointer-events:none; transform:translateY(-50%); transform-origin:center; transition:max-height 220ms ease,padding 220ms ease,border-color 180ms ease,opacity 160ms ease,scale 160ms ease; }
-.world-phone__message-place.is-expanded .world-phone__place-card { max-height:160px; padding:8px; border-color:#18191d35; opacity:1; pointer-events:auto; }
-@media(hover:hover) and (pointer:fine){.world-phone__message-place.is-expanded .world-phone__place-card:hover { scale:1.025; }}
-.world-phone__place-card-content { position:relative; display:flex; align-items:center; gap:7px; min-width:0; height:132px; cursor:pointer; }
+.world-phone__place-card { position:absolute; z-index:5; top:50%; left:calc(100% + 9px); display:flex; box-sizing:border-box; flex-direction:column; width:clamp(164px,calc(100vw - 200px),196px); min-width:0; max-width:calc(100vw - 130px); max-height:0; overflow:hidden; padding:0 9px; border:1px solid transparent; border-radius:14px; background:#eeeef0; color:#18191d!important; box-shadow:0 8px 24px #0004; opacity:0; visibility:hidden; pointer-events:none; transform:translateY(-50%) rotateX(var(--place-tilt-x,0deg)) rotateY(var(--place-tilt-y,0deg)); transform-origin:center; transition:max-height 240ms ease,padding 220ms ease,border-color 180ms ease,opacity 160ms ease,scale 160ms ease,transform 160ms ease,visibility 0s linear 240ms; }
+.world-phone__message-place.is-expanded .world-phone__place-card { max-height:290px; padding:9px; border-color:#18191d35; opacity:1; visibility:visible; pointer-events:auto; transition-delay:0s; }
+@media(hover:hover) and (pointer:fine){.world-phone__message-place.is-expanded .world-phone__place-card:hover { scale:1.025; animation:world-phone-place-wobble 700ms ease-in-out 1; }}
+@keyframes world-phone-place-wobble { 0%,100% { rotate:0deg; } 25% { rotate:-0.55deg; } 75% { rotate:0.55deg; } }
+.world-phone__place-card-content { position:relative; display:flex; flex-direction:column; align-items:stretch; gap:6px; min-width:0; height:270px; cursor:pointer; }
 .world-phone__place-card-close { position:absolute; top:0; right:0; }
-.world-phone__place-map-preview { position:relative; flex:0 0 76px; width:76px; height:124px; min-width:0; overflow:hidden; border-radius:8px; background:#1c1d22; pointer-events:none; }
+.world-phone__place-card-heading { display:flex; align-items:center; min-height:24px; padding:0 24px 0 2px; color:#18191d; font-size:13px; font-weight:700; letter-spacing:.04em; }
+.world-phone__place-map-preview { position:relative; flex:0 0 142px; width:100%; height:142px; min-width:0; overflow:hidden; border-radius:8px; background:#1c1d22; pointer-events:none; }
 .world-phone__place-map-preview .world-phone__map-viewport { width:100%; height:100%; min-height:0; border:0; border-radius:8px; }
 .world-phone__place-map-preview .world-phone__map-controls { display:none; }
 .world-phone__place-map-preview .world-phone__map-marker { min-width:28px; height:30px; }
 .world-phone__place-map-preview .world-phone__map-marker span { font-size:8px; line-height:10px; }
 .world-phone__place-map-preview .world-phone__map-marker i { width:6px; height:6px; }
-.world-phone__place-card-copy { display:flex; flex:1 1 auto; flex-direction:column; align-items:flex-start; justify-content:center; gap:8px; min-width:0; }
-.world-phone__place-card-copy strong { overflow:hidden; max-width:100%; text-overflow:ellipsis; white-space:nowrap; color:#18191d; }
+.world-phone__place-card-copy { display:flex; flex:1 1 auto; flex-direction:column; align-items:flex-start; justify-content:center; gap:2px; min-width:0; overflow:hidden; }
+.world-phone__place-card-clue-label { color:#625c52; font-size:9px; font-weight:700; letter-spacing:.08em; }
+.world-phone__place-card-copy p { display:-webkit-box; margin:0; overflow:hidden; color:#48443d; font-size:10px; line-height:1.35; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
+.world-phone__place-card-orientation { align-self:flex-start; padding:2px 6px; border:1px solid #7772; border-radius:999px; background:#fff9; color:#48443d; font-size:9px; }
 .world-phone__place-card-close { flex:none; align-self:flex-start; width:24px; height:24px; padding:0; border:0; border-radius:50%; color:#383940!important; background:#18191d0b; font-size:18px; line-height:1; }
 .world-phone__handoff-layer { position:absolute; inset:0; z-index:12; pointer-events:none; overflow:visible; }
 .world-phone__handoff-layer.is-active { pointer-events:auto; }
@@ -205,7 +209,8 @@
 .world-phone__milk-tea-field button { padding:10px; border:1px solid var(--phone-border); background:#ffffff08; border-radius:8px; }
 .world-phone [aria-pressed=true] { border-color:#c8c9ce; background:#ffffff1b; }
 @media(max-width:600px){.world-phone{right:8px;width:calc(100vw - 16px);height:min(730px,calc(100dvh - 16px))}.world-phone__apps{gap:16px}.world-phone__header{font-size:11px}}
-@media(max-width:440px){.world-phone__place-card{width:clamp(148px,calc(100vw - 190px),190px);max-width:calc(100vw - 130px)}.world-phone__place-card-content{height:132px}.world-phone__place-map-preview{flex-basis:68px;width:68px;height:116px}}
+  @media(max-width:440px){.world-phone__place-card{width:min(184px,calc(100vw - 118px));max-width:calc(100vw - 118px)}.world-phone__place-card-content{height:270px}.world-phone__place-map-preview{height:142px;flex-basis:142px}}
+@media(prefers-reduced-motion:reduce){.world-phone__message-place.is-expanded .world-phone__place-card:hover{animation:none!important;scale:1!important}.world-phone__place-card{transition:none!important}.world-phone__place-card[aria-hidden="true"]{visibility:hidden}}
 @media(prefers-reduced-motion:reduce){.world-phone *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 .world-phone__detail-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .world-phone__detail-heading strong { font-size:20px; }
