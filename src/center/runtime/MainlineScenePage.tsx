@@ -13,6 +13,8 @@ import { layoutGridSize, mainlineLabelFootprint, mainlineNpcLabelFootprint, main
 import { clearSceneLayout, loadSceneLayout, persistSceneLayout } from './sceneLayoutPersistence'
 import { movementDurationMsForPath, protagonistCharacterMovementOptions, sharedCharacterMovementOptions, useFreeRoamMovement, type FreeRoamMovement } from './useFreeRoamMovement'
 import type { PhoneDevice } from './phoneState'
+import type { HeldConsumable } from './crossShopOrders'
+import { isTrueMilkTea } from './heldConsumablePresentation'
 import { sceneInteractionHandlers } from './sceneInteraction'
 import { useAutomaticPassages } from './useAutomaticPassages'
 import { defaultSceneScreenMetrics, sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
@@ -260,7 +262,7 @@ export function MainlineScenePage({
   interactionTutorialCompleted = false,
   onPlayerSceneStateChange,
   onPlayerSceneStatePatch,
-  carriedMilkTea,
+  heldConsumable,
   carriedPhoneDevice = 'surface',
   onSceneTransition,
   onSafeSpawnCorrection,
@@ -305,7 +307,7 @@ export function MainlineScenePage({
   interactionTutorialCompleted?: boolean
   onPlayerSceneStateChange?: (sceneId: MainlineSceneId, key: string, value: PlayerChoiceValue) => void
   onPlayerSceneStatePatch?: (sceneId: MainlineSceneId, patch: PlayerSceneState) => void
-  carriedMilkTea?: boolean
+  heldConsumable?: HeldConsumable | null
   carriedPhoneDevice?: PhoneDevice
   onSceneTransition: (sceneId: MainlineSceneId, entryPosition?: Point, spawnMode?: 'resume' | 'ride', transitionIntent?: MainlineWalkingPassageTransitionIntent) => void
   onSafeSpawnCorrection?: (position: Point) => void
@@ -495,7 +497,11 @@ export function MainlineScenePage({
       : commercialCafeStoryStateFromSceneState(initialSceneState)
   }, [debugCafeStoryStage, initialSceneState, scene.id])
   const laoZhouVisibleInCurrentVisit = hasContinuousCafe(scene)
-  const carryingMilkTea = carriedMilkTea ?? commercialStreetMilkTeaHeld(initialSceneState)
+  const legacyHeldDrinkFallback: HeldConsumable | null = heldConsumable === undefined && commercialStreetMilkTeaHeld(initialSceneState)
+    ? { id: 'legacy-milk-tea', shopId: commercialStreetMilkTeaStorefrontId, productId: 'legacy-milk-tea', kind: 'legacy-unknown', sourceOrderId: null }
+    : null
+  const resolvedHeldConsumable = heldConsumable === undefined ? legacyHeldDrinkFallback : heldConsumable
+  const carryingMilkTea = isTrueMilkTea(resolvedHeldConsumable)
   const commercialStreetQuestionNarrativeIsCompleted = commercialStreetQuestionNarrativeCompletedLocally || commercialStreetQuestionNarrativeCompleted(initialSceneState[commercialStreetQuestionNarrativeCompletedKey])
   commercialStreetQuestionNarrativeActiveRef.current = Boolean(commercialStreetQuestionNarrative)
   const recordSceneState = useCallback((targetSceneId: MainlineSceneId, key: string, value: PlayerChoiceValue) => {
@@ -2174,7 +2180,7 @@ export function MainlineScenePage({
       setPlantWateredAt(resolution.stateChange.value)
     }
     commitSceneActionExit(actionId)
-  }, [carriedMilkTea, carriedPhoneDevice, commercialCafeStory, commitSceneActionExit, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, recordSceneState, recordSceneStatePatch, scene, sceneAction])
+  }, [heldConsumable, carriedPhoneDevice, commercialCafeStory, commitSceneActionExit, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, recordSceneState, recordSceneStatePatch, scene, sceneAction])
 
   const finishSceneEchoReading = useCallback((current: MainlineSceneEcho) => {
     if (current.options && current.options.length > 0) {
@@ -2629,8 +2635,8 @@ export function MainlineScenePage({
               onSceneActionChoice={chooseSceneEchoOption}
               onSceneActionExitComplete={finishSceneActionExit}
               onSceneEchoExitComplete={completeSceneEchoExit}
-              onMilkTeaInteract={onConsumeHeldConsumable ?? showHeldMilkTeaAction}
-              carriedMilkTea={carryingMilkTea}
+              onHeldConsumableInteract={onConsumeHeldConsumable ?? showHeldMilkTeaAction}
+              heldConsumable={resolvedHeldConsumable}
               onFrameMotionProfileChange={handleFrameMotionProfileChange}
               exploredObjectIds={exploredObjectIds}
               interactionTutorialCompleted={interactionTutorialCompleted}

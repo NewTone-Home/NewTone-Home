@@ -43,6 +43,19 @@ function CounterSurface({ parts, onInteract, presentationActive, boundedWrapper 
         </foreignObject>}
       </g>
     })}
+    {parts.flatMap(part => (part.counterSurface!.services ?? []).map(service => (
+      <foreignObject key={service.id} x={service.position.x * 19.2 - bounds.x - 30} y={service.position.y * 10.8 - bounds.y - 14} width={60} height={28}>
+        <button
+          type="button"
+          className="scene-counter-service"
+          data-counter-service-id={service.id}
+          data-object-id={service.id}
+          aria-label={service.label}
+          onClick={event => activate(event, service.id)}
+          style={{ ...labelStyle, pointerEvents: active ? 'all' : 'none', border: '1px solid currentColor', background: 'rgba(18, 16, 13, .88)', fontSize: 13, whiteSpace: 'nowrap' }}
+        >{service.label}</button>
+      </foreignObject>
+    )))}
     <path data-counter-outline-path={group} d={geometry.path} fill="none" stroke="currentColor" strokeWidth={1} strokeLinejoin="miter" pathLength={animatedPresentation ? 1 : undefined} strokeDasharray={animatedPresentation ? 1 : undefined} strokeDashoffset={animatedPresentation && !active ? 1 : 0} style={{ pointerEvents: 'none', transition: animatedPresentation ? `stroke-dashoffset ${presentationDurationMs}ms ease-in-out` : undefined }} />
   </svg>
 }

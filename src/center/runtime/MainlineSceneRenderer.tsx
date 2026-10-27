@@ -51,6 +51,8 @@ import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey,
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
 import { mainlineReadingLocalPercent, mainlineReadingOcclusionCellIdentity, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot, type MainlineReadingOcclusionCandidate } from './mainlineReadingOcclusion'
+import type { HeldConsumable } from './crossShopOrders'
+import { heldConsumablePresentation } from './heldConsumablePresentation'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -112,8 +114,8 @@ type MainlineSceneRendererProps = {
   onSceneActionStart?: (actionId: number, index: number) => void
   onSceneActionChoice?: (actionId: number, index: number) => void
   onSceneActionExitComplete?: (actionId: number, index: number) => void
-  carriedMilkTea?: boolean
-  onMilkTeaInteract?: () => void
+  heldConsumable?: HeldConsumable | null
+  onHeldConsumableInteract?: () => void
   onFrameMotionProfileChange?: (profile: readonly SceneFocusFrameMotionProfile[]) => void
   exploredObjectIds?: ReadonlySet<string>
   interactionTutorialCompleted?: boolean
@@ -1114,8 +1116,8 @@ export function MainlineSceneRenderer({
   onSceneActionStart,
   onSceneActionChoice,
   onSceneActionExitComplete,
-  carriedMilkTea = false,
-  onMilkTeaInteract,
+  heldConsumable = null,
+  onHeldConsumableInteract,
   onFrameMotionProfileChange,
   exploredObjectIds = new Set(),
   interactionTutorialCompleted = false,
@@ -1134,6 +1136,7 @@ export function MainlineSceneRenderer({
   debugCafeSpatialQa = null,
   debugRuntimeEvidence = false,
 }: MainlineSceneRendererProps) {
+  const heldPresentation = heldConsumablePresentation(heldConsumable)
   const readingMaskId = `mainline-reading-mask-${useId().replace(/:/g, '')}`
   const [dialogueReady, setDialogueReady] = useState(false)
   const [readingOverflowPage, setReadingOverflowPage] = useState<import('./mainlineReadingProtection').MainlineReadingOverflowPageState>(null)
@@ -2611,7 +2614,15 @@ export function MainlineSceneRenderer({
               ? <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
               : <span className="scene-protagonist__seat-label" aria-label="修杰，已坐下">{protagonistPresentation.label}</span>}
             </span>
-            {carriedMilkTea && !playerSeatId && <button type="button" className="scene-protagonist__drink-icon scene-protagonist__drink-icon--milk-tea" aria-label="修杰带着奶茶，点击饮用" onClick={(event) => { event.stopPropagation(); onMilkTeaInteract?.() }} />}
+            {heldPresentation && !playerSeatId && <button
+              type="button"
+              className={`scene-protagonist__held-action${heldPresentation.action === 'eat' ? ' scene-protagonist__held-action--meal' : ''}`}
+              data-held-consumable-kind={heldConsumable?.kind}
+              data-held-consumable-id={heldConsumable?.productId}
+              aria-label={`修杰带着${heldPresentation.name}，点击${heldPresentation.actionLabel}`}
+              title={`修杰带着${heldPresentation.name}，点击${heldPresentation.actionLabel}`}
+              onClick={(event) => { event.stopPropagation(); onHeldConsumableInteract?.() }}
+            >{heldPresentation.actionLabel}</button>}
           </div>}
           {worldQuestionMark?.visible && <span
             className="scene-commercial-question-mark"

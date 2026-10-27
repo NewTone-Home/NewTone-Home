@@ -12,3 +12,4 @@
 .shop-order-app__order p,.shop-order-app__order small { margin:0; color:var(--phone-muted); }
 .shop-order-app__confirm { justify-self:stretch; padding:12px; border:0; border-radius:9px; background:#d9d2c6; color:#27231d; font-weight:700; }
 .shop-order-app__confirm:disabled { opacity:.45; }
+.shop-order-app__cancel-legacy { justify-self:start; padding:9px 12px; border:1px solid var(--phone-border); border-radius:8px; background:#ffffff08; color:inherit; font-weight:600; }

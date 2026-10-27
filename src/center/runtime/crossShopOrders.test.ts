@@ -4,7 +4,7 @@ import { commercialCafeTakeawayCatalog, commercialCafeTakeawayStoreId } from './
 import { commercialStreetDrinkCatalogWithStores } from './commercialStreetDrinkCatalog'
 import { mainlineSceneBlueprints } from './mainlineSceneModel'
 import {
-  claimCrossShopOrder, consumeHeldConsumable, crossShopIds, emptyCrossShopOrderState,
+  cancelUnmappedLegacyOrder, claimCrossShopOrder, consumeHeldConsumable, crossShopIds, emptyCrossShopOrderState,
   mapLegacyOrderToGameTime, migrateLegacyShopState, placeCrossShopOrder, sanitizeCrossShopOrderState,
 } from './crossShopOrders'
 import {
@@ -164,6 +164,20 @@ describe('cross-shop order and global hand model', () => {
     expect(unresolved.ordersByShop[crossShopIds.milkTea]).toMatchObject({ status: 'legacy-unmapped' })
     const resolved = mapLegacyOrderToGameTime(unresolved, crossShopIds.milkTea, 42_000, 12_000)
     expect(resolved).toMatchObject({ ok: true, value: { status: 'queued', placedAtGameTimeMs: 42_000, readyAtGameTimeMs: 54_000 } })
+  })
+
+  it('releases an unmapped legacy shop slot only after explicit cancellation and preserves other shops', () => {
+    const unresolved = migrateLegacyShopState({ 'commercial-street': {
+      [commercialStreetMilkTeaOrderNumberKey]: 9,
+      [commercialStreetMilkTeaReadyAtKey]: 1_800_000_000_000,
+    } }, { gameTimeMs: Number.NaN, updatedAtWallMs: 1_800_000_000_000 })
+    const withOtherOrder = place(unresolved, crossShopIds.fruitTea, 'fruit-1')
+    expect(cancelUnmappedLegacyOrder(withOtherOrder, crossShopIds.fruitTea)).toMatchObject({ ok: false, reason: 'invalid-order' })
+    const cancelled = cancelUnmappedLegacyOrder(withOtherOrder, crossShopIds.milkTea)
+    expect(cancelled).toMatchObject({ ok: true, value: { status: 'legacy-unmapped', legacySnapshot: { [commercialStreetMilkTeaOrderNumberKey]: 9 } } })
+    if (!cancelled.ok) throw new Error('expected legacy cancellation to succeed')
+    expect(cancelled.state.ordersByShop[crossShopIds.milkTea]).toBeUndefined()
+    expect(cancelled.state.ordersByShop[crossShopIds.fruitTea]).toMatchObject({ id: 'fruit-1', status: 'queued' })
   })
 
   it('drops malformed saved commerce records safely and does not invent a legacy order from a partial selection', () => {

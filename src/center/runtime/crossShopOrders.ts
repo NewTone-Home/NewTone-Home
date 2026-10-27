@@ -211,6 +211,16 @@ export function consumeHeldConsumable(state: CrossShopOrderState): CrossShopResu
   return { ok: true, state: { ...state, heldConsumable: null }, value: state.heldConsumable }
 }
 
+/** Release a shop slot only after the player explicitly cancels an unmappable legacy order. */
+export function cancelUnmappedLegacyOrder(state: CrossShopOrderState, shopId: string): CrossShopResult<CrossShopOrder> {
+  const order = state.ordersByShop[shopId]
+  if (!order) return { ok: false, state, reason: 'no-order' }
+  if (order.status !== 'legacy-unmapped') return { ok: false, state, reason: 'invalid-order' }
+  const ordersByShop = { ...state.ordersByShop }
+  delete ordersByShop[shopId]
+  return { ok: true, state: { ...state, ordersByShop }, value: order }
+}
+
 /** Resolve a timestamp-incomplete legacy order only when an adapter explicitly supplies safe game-time mapping. */
 export function mapLegacyOrderToGameTime(
   state: CrossShopOrderState,

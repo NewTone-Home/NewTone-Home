@@ -66,13 +66,14 @@ import {
   commercialStreetMilkTeaAppUnlocked,
   commercialStreetMilkTeaHeld,
   commercialStreetMilkTeaIsReady,
+  commercialStreetMilkTeaOrderNumberKey,
   commercialStreetMilkTeaOrderFromSceneState,
   commercialStreetMilkTeaOrderPatch,
   commercialStreetMilkTeaReadyAnalyticsPatch,
   commercialStreetMilkTeaReadyAnalyticsWasReported,
   createCommercialStreetMilkTeaOrder,
 } from './runtime/commercialStreetMilkTea'
-import { claimCrossShopOrder, consumeHeldConsumable, crossShopIds, placeCrossShopOrder } from './runtime/crossShopOrders'
+import { cancelUnmappedLegacyOrder, claimCrossShopOrder, consumeHeldConsumable, crossShopIds, placeCrossShopOrder } from './runtime/crossShopOrders'
 import { shopPreparationDurationGameMs } from './runtime/shopPreparationPolicy'
 
 const initialSceneId = mainlineRespawnSceneId
@@ -344,6 +345,7 @@ export default function CenterExperience({
   const confirmShopOrder = useCallback(({ shopId, productId, options }) => {
     const nowGameTimeMs = sessionGameClockRef.current.read().gameTimeMs
     const preparationDurationMs = shopPreparationDurationGameMs(shopId, productId, { overrides: fixtureStorage ? {
+      [`${crossShopIds.milkTea}:${productId}`]: 1000,
       [`${crossShopIds.fruitTea}:${productId}`]: 1000,
       [`${crossShopIds.yonghe}:${productId}`]: 1000,
     } : undefined })
@@ -359,6 +361,20 @@ export default function CenterExperience({
     })
     return outcome?.ok ? { ok: true } : { ok: false, reason: outcome?.reason ?? 'order-not-saved' }
   }, [commitPlayerSave, fixtureStorage])
+
+  const cancelLegacyShopOrder = useCallback((shopId) => {
+    let outcome = null
+    commitPlayerSave(current => {
+      const result = cancelUnmappedLegacyOrder({ ordersByShop: current.shopOrders, heldConsumable: current.heldConsumable }, shopId)
+      outcome = result
+      if (!result.ok) return current
+      const updated = { ...current, shopOrders: result.state.ordersByShop }
+      return shopId === crossShopIds.milkTea
+        ? recordPlayerSceneStatePatch(updated, 'commercial-street', { [commercialStreetMilkTeaOrderNumberKey]: null })
+        : updated
+    })
+    return outcome?.ok ? { ok: true } : { ok: false, reason: outcome?.reason ?? 'order-not-saved' }
+  }, [commitPlayerSave])
 
   const claimShopOrder = useCallback((shopId) => {
     const nowGameTimeMs = sessionGameClockRef.current.read().gameTimeMs
@@ -397,6 +413,12 @@ export default function CenterExperience({
     }
     if (entity.id === 'fruit-tea-trial-pickup') { claimShopOrder(crossShopIds.fruitTea); return true }
     if (entity.id === 'yonghe-counter') {
+      const order = playerSaveRef.current.shopOrders?.[crossShopIds.yonghe]
+      const gameTimeMs = sessionGameClockRef.current.read().gameTimeMs
+      if (order?.status === 'queued' && order.readyAtGameTimeMs !== null && gameTimeMs >= order.readyAtGameTimeMs) {
+        claimShopOrder(crossShopIds.yonghe)
+        return true
+      }
       openShopOrderApp(crossShopIds.yonghe)
       return true
     }
@@ -880,7 +902,7 @@ export default function CenterExperience({
       onMilkTeaOrderReady={snapshot ? undefined : handleMilkTeaOrderReady}
       onChapterAnalytics={snapshot ? undefined : trackChapterEvent}
       initialSceneState={sceneRoute.sceneId === 'commercial-street' ? cafeWorldSceneState : playerSave.sceneState[sceneRoute.sceneId] ?? {}}
-      carriedMilkTea={Boolean(playerSave.heldConsumable)}
+      heldConsumable={playerSave.heldConsumable}
       onConsumeHeldConsumable={snapshot ? undefined : consumeShopHeldItem}
       interactionTutorialCompleted={isInteractionTutorialCompleted(playerSave.sceneState['commercial-street'])}
       onPlayerSceneStateChange={snapshot ? undefined : recordSceneState}
@@ -979,6 +1001,7 @@ export default function CenterExperience({
           gameTimeMs={trialClockSnapshot.gameTimeMs}
           preparationConfiguredByShop={{ [crossShopIds.milkTea]: true, ...(fixtureStorage ? { [crossShopIds.fruitTea]: true, [crossShopIds.yonghe]: true } : {}) }}
           onShopOrderConfirm={confirmShopOrder}
+          onLegacyShopOrderCancel={cancelLegacyShopOrder}
           onRequestedAppHandled={() => { setRequestedPhoneApp(null); setRequestedShopId(null) }}
           onLaoZhouMessagesDisplayed={acknowledgeCafeStoryMessagesDisplayed}
           onMilkTeaOrderConfirm={confirmMilkTeaOrder}

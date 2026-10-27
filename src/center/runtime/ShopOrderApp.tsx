@@ -12,7 +12,7 @@ export type ShopOrderProduct = {
 
 export function ShopOrderApp({
   shopId, title, products, order, heldConsumable, gameTimeMs, preparationConfigured,
-  onConfirm,
+  onConfirm, onCancelLegacy,
 }: {
   shopId: string
   title: string
@@ -22,6 +22,7 @@ export function ShopOrderApp({
   gameTimeMs: number
   preparationConfigured: boolean
   onConfirm: (selection: { shopId: string; productId: string; options?: Record<string, string | number | boolean | null> }) => { ok: boolean; reason?: string }
+  onCancelLegacy?: (shopId: string) => { ok: boolean; reason?: string }
 }) {
   const [productId, setProductId] = useState<string | null>(null)
   const [sugar, setSugar] = useState<string | null>(null)
@@ -34,6 +35,12 @@ export function ShopOrderApp({
   return <section className="shop-order-app" aria-label={`${title}点单`} data-shop-id={shopId}>
     {heldConsumable && <p className="shop-order-app__hand" role="status">手上已有一件物品；仍可下单，领取时检查手持状态。</p>}
     {order ? order.status === 'legacy-unmapped' ? <div className="shop-order-app__order" data-order-status="legacy-unmapped">
+      <p>没有可靠的制作时间，不能安全估算。你可以保留旧记录，或明确取消后重新下单。</p>
+      {onCancelLegacy && <button type="button" className="shop-order-app__cancel-legacy" onClick={() => {
+        const result = onCancelLegacy(shopId)
+        if (!result.ok) setNotice(result.reason ?? '暂时无法取消旧订单')
+      }}>取消旧订单并重新下单</button>}
+      {notice && <p role="status">{notice}</p>}
       <strong>有一笔旧订单需要恢复时间</strong>
       <p>旧订单保留着，当前资料不足以安全换算制作进度，暂不能领取或新下单。</p>
       <small>原订单：{order.id}</small>

@@ -90,6 +90,7 @@ export type MainlineContinuousStructure = CollisionBox & {
     labelEntityId: string
     orientation: 'horizontal' | 'vertical'
     label?: string
+    services?: readonly { id: string; label: string; position: Point }[]
     hideLabel?: boolean
     role?: 'counter' | 'worktop'
     /** Stroke-only wall wrap; never used as a collision or hit box. */
