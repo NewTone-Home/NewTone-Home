@@ -1,7 +1,7 @@
 'use client'
 
 import { hasContinuousCafe, isCafeWorldId, isPointInContinuousCafe, isCafeStoryKey, cafeStoryNamespace } from './continuousCafe'
-import { cafeRestroomFaucetId, cafeRestroomRoomId, cafeRestroomToiletId, cafeRestroomToiletUseDurationMs, isPointInsideCafeRestroom } from './cafeRestroom'
+import { cafeRestroomFaucetId, cafeRestroomRoomId, cafeRestroomToiletId, cafeRestroomToiletUseGameDurationMs, isPointInsideCafeRestroom } from './cafeRestroom'
 
 import { isMainlineExternalExitTriggered } from './mainlineExternalExit'
 
@@ -251,6 +251,7 @@ export function MainlineScenePage({
   onPhoneDismiss,
   onReadingStateChange,
   onClockActivitySourceChange,
+  readGameTimeMs,
   onMeaningfulActivity,
   onDeskInteraction,
   onObjectInteraction,
@@ -293,6 +294,7 @@ export function MainlineScenePage({
   onPhoneDismiss?: () => void
   onReadingStateChange?: (reading: boolean) => void
   onClockActivitySourceChange?: (sourceId: string, source: SessionGameActivitySource | null) => void
+  readGameTimeMs: () => number
   onMeaningfulActivity?: () => void
   onDeskInteraction?: (device: PhoneDevice) => void
   onObjectInteraction?: (entity: MainlineSceneEntity, dwellMs: number) => void
@@ -474,7 +476,7 @@ export function MainlineScenePage({
   const [cafeRestroomToiletUsePhase, setCafeRestroomToiletUsePhase] = useState<CafeRestroomToiletUseRequest['phase'] | null>(null)
   const cafeRestroomToiletUseRef = useRef<CafeRestroomToiletUseRequest | null>(null)
   const cafeRestroomToiletUseRequestIdRef = useRef(0)
-  const cafeRestroomToiletUseTimerRef = useRef<number | null>(null)
+  const cafeRestroomToiletUseFrameRef = useRef<number | null>(null)
   const sceneActionIdRef = useRef(0)
   const sceneActionExitBarrierRef = useRef<MainlineSceneActionExitBarrier | null>(null)
   const pendingSceneActionAfterExitRef = useRef<Omit<MainlineSceneAction, 'id'> | null>(null)
@@ -766,9 +768,9 @@ export function MainlineScenePage({
   const clearCafeRestroomToiletUse = useCallback((requestId?: number) => {
     const current = cafeRestroomToiletUseRef.current
     if (requestId !== undefined && current?.requestId !== requestId) return
-    if (cafeRestroomToiletUseTimerRef.current !== null) {
-      window.clearTimeout(cafeRestroomToiletUseTimerRef.current)
-      cafeRestroomToiletUseTimerRef.current = null
+    if (cafeRestroomToiletUseFrameRef.current !== null) {
+      window.cancelAnimationFrame(cafeRestroomToiletUseFrameRef.current)
+      cafeRestroomToiletUseFrameRef.current = null
     }
     cafeRestroomToiletUseRequestIdRef.current += 1
     cafeRestroomToiletUseRef.current = null
@@ -780,9 +782,9 @@ export function MainlineScenePage({
     setCafeRestroomFaucetOpen(false)
     clearCafeRestroomToiletUse()
     return () => {
-      if (cafeRestroomToiletUseTimerRef.current !== null) {
-        window.clearTimeout(cafeRestroomToiletUseTimerRef.current)
-        cafeRestroomToiletUseTimerRef.current = null
+      if (cafeRestroomToiletUseFrameRef.current !== null) {
+        window.cancelAnimationFrame(cafeRestroomToiletUseFrameRef.current)
+        cafeRestroomToiletUseFrameRef.current = null
       }
       cafeRestroomToiletUseRequestIdRef.current += 1
       cafeRestroomToiletUseRef.current = null
@@ -1750,21 +1752,28 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', cafeRestroomToiletId, 'fixture', 'target-unreached')
         return
       }
-      if (cafeRestroomToiletUseTimerRef.current !== null) window.clearTimeout(cafeRestroomToiletUseTimerRef.current)
       stopMovement()
       cafeRestroomToiletUseRef.current = { ...pending, phase: 'using' }
       setCafeRestroomToiletUsePhase('using')
       setActiveObjectId(cafeRestroomToiletId)
       onInteractionAnalytics?.('completed', cafeRestroomToiletId, 'fixture', 'used')
-      cafeRestroomToiletUseTimerRef.current = window.setTimeout(() => {
+      // RAF only polls the injected simulation clock. A frozen/slow game clock
+      // cannot finish this action early, and no real-time fallback is scheduled.
+      const startedAtGameTimeMs = readGameTimeMs()
+      const finishWhenGameTimeElapsed = () => {
         const current = cafeRestroomToiletUseRef.current
         if (current?.requestId !== requestId || current.sceneId !== scene.id) return
-        cafeRestroomToiletUseTimerRef.current = null
+        if (readGameTimeMs() - startedAtGameTimeMs < cafeRestroomToiletUseGameDurationMs) {
+          cafeRestroomToiletUseFrameRef.current = window.requestAnimationFrame(finishWhenGameTimeElapsed)
+          return
+        }
+        cafeRestroomToiletUseFrameRef.current = null
         cafeRestroomToiletUseRequestIdRef.current += 1
         cafeRestroomToiletUseRef.current = null
         setCafeRestroomToiletUsePhase(null)
         setActiveObjectId((currentId) => currentId === cafeRestroomToiletId ? null : currentId)
-      }, cafeRestroomToiletUseDurationMs)
+      }
+      cafeRestroomToiletUseFrameRef.current = window.requestAnimationFrame(finishWhenGameTimeElapsed)
     }
 
     const interaction = resolveMainlineEntityInteraction(scene, cafeRestroomToiletId, getCurrentPosition(), layout, getLiveNavigationOptions())
@@ -1786,7 +1795,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', cafeRestroomToiletId, 'fixture', 'movement-blocked')
       },
     })
-  }, [clearCafeRestroomToiletUse, getCurrentPosition, getLiveNavigationOptions, layout, moveAlong, onInteractionAnalytics, protagonistLocomotionOptions, scene, stopMovement])
+  }, [clearCafeRestroomToiletUse, getCurrentPosition, getLiveNavigationOptions, layout, moveAlong, onInteractionAnalytics, protagonistLocomotionOptions, readGameTimeMs, scene, stopMovement])
 
   const leavePlayerSeat = useCallback(() => {
     if (!activePlayerSeatId) return false

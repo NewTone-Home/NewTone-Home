@@ -386,6 +386,7 @@ export default function CenterExperience({
     const snapshot = sessionGameClockRef.current.setActivitySource(sourceId, source)
     setTrialClockSnapshot(snapshot)
   }, [])
+  const readSessionGameTimeMs = useCallback(() => sessionGameClockRef.current.read().gameTimeMs, [])
 
   useEffect(() => {
     const sessionClock = sessionGameClockRef.current
@@ -780,6 +781,7 @@ export default function CenterExperience({
       onPhoneDismiss={snapshot ? undefined : retractPhone}
       onReadingStateChange={snapshot ? undefined : handleSceneReadingStateChange}
       onClockActivitySourceChange={snapshot ? undefined : handleClockActivitySourceChange}
+      readGameTimeMs={readSessionGameTimeMs}
       onMeaningfulActivity={snapshot ? undefined : handleMeaningfulActivity}
       onPlayerMovementStateChange={snapshot ? undefined : handlePlayerMovementStateChange}
       onRuntimePositionChange={snapshot ? undefined : handleRuntimePositionChange}

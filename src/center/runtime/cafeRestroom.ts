@@ -4,8 +4,8 @@ export const cafeRestroomRoomId = 'cafe-single-restroom-interior'
 export const cafeRestroomDoorId = 'cafe-trial-customer-toilet-door'
 export const cafeRestroomToiletId = 'cafe-restroom-toilet'
 export const cafeRestroomFaucetId = 'cafe-restroom-sink'
-/** Initial tuning value within the author's requested one-to-two-second range. */
-export const cafeRestroomToiletUseDurationMs = 1500
+/** Initial tuning value: 45 seconds on the game clock. */
+export const cafeRestroomToiletUseGameDurationMs = 45_000
 
 export function isPointInsideCafeRestroom(point: { x: number; y: number }, bounds: { x: number; y: number; width: number; height: number }) {
   return point.x >= bounds.x && point.x <= bounds.x + bounds.width
