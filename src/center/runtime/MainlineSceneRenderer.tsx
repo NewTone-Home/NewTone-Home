@@ -2830,7 +2830,10 @@ export function MainlineSceneRenderer({
               onClick={(event) => {
                 event.stopPropagation()
                 if (readingPageAdvanceLockedRef.current || (sceneEcho && readingFit?.fits === false)) return
-                if (sceneEcho?.textMotion === 'deleting' || sceneEcho?.textMotion === 'deleted' || dialogueTextMotion === 'deleting' || dialogueTextMotion === 'deleted') return
+                const readingTextIsDeleting = sceneEcho
+                  ? sceneEcho.textMotion === 'deleting' || sceneEcho.textMotion === 'deleted'
+                  : dialogueTextMotion === 'deleting' || dialogueTextMotion === 'deleted'
+                if (readingTextIsDeleting) return
                 if (readingPresentationMode === 'observation' && sceneEcho?.textMotion === 'typing') {
                   typingCompletionLockRef.current = true
                   typingCompletionLockTokenRef.current = lockReadingPageAdvance()
