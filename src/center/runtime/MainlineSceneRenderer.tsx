@@ -105,6 +105,8 @@ type MainlineSceneRendererProps = {
   dialogueStage?: { roomId: string; speakerActorId: string | null; participantActorIds: ReadonlySet<string>; hiddenEntityIds: ReadonlySet<string> } | null
   dialogueHandoffActive?: boolean
   dialogueHandoffFadeDurationMs?: number
+  dialogueHandoffOutgoing?: { id: number; text: string; position: Point; durationMs: number } | null
+  onDialogueHandoffOutgoingDeleted?: (id: number) => void
   readingMode?: 'observation' | 'dialogue' | null
   onDialogueExitComplete?: () => void
   onDialogueAdvance?: () => void
@@ -486,6 +488,42 @@ function DialogueText({ group, continuityKey, pageKey, text, sessionId, motion, 
       {textMotion.visibleText}
     </ReadingPageFlip>
   </span>
+}
+
+function DialogueHandoffOutgoingText({ id, text, position, durationMs, layout, worldScale, lockToken, projectX, onDeleted }: { id: number; text: string; position: Point; durationMs: number; layout: MainlineEchoLayout; worldScale: number; lockToken: number; projectX: (value: number) => number; onDeleted: (id: number) => void }) {
+  const sessionId = -id
+  const pageKey = `dialogue-handoff:${id}`
+  const completeMotion = useCallback((completedSessionId: number, motion: MainlineReadingTextMotion) => {
+    if (completedSessionId === sessionId && motion === 'deleting') onDeleted(id)
+  }, [id, onDeleted, sessionId])
+  return <div
+    className="scene-mainline-text scene-mainline-text--stage-dialogue scene-mainline-text--handoff-outgoing"
+    data-dialogue-handoff-outgoing={id}
+    style={{
+      left: `${projectX(position.x)}%`,
+      top: `${position.y}%`,
+      '--scene-mainline-text-width': `${layout.widthPx / worldScale}px`,
+      '--scene-mainline-text-height': `${layout.heightPx / worldScale}px`,
+      fontSize: `${layout.fontSizePx / worldScale}px`,
+      maxWidth: `${Math.max(1, layout.widthPx / worldScale)}px`,
+      overflow: 'visible',
+      animationDuration: `${durationMs}ms`,
+    } as CSSProperties}
+    aria-hidden="true"
+  >
+    <DialogueText
+      group={`dialogue-handoff:${id}`}
+      continuityKey={`dialogue-handoff:${id}`}
+      pageKey={pageKey}
+      text={text}
+      sessionId={sessionId}
+      motion="deleting"
+      layout={layout}
+      worldScale={worldScale}
+      lockToken={lockToken}
+      onMotionComplete={completeMotion}
+    />
+  </div>
 }
 
 type ReadingLayoutTransitionMode = 'active' | 'leaving' | 'inactive'
@@ -1119,6 +1157,8 @@ export function MainlineSceneRenderer({
   dialogueStage = null,
   dialogueHandoffActive = false,
   dialogueHandoffFadeDurationMs = 300,
+  dialogueHandoffOutgoing = null,
+  onDialogueHandoffOutgoingDeleted,
   readingMode = null,
   onDialogueExitComplete,
   onDialogueAdvance,
@@ -1796,7 +1836,7 @@ export function MainlineSceneRenderer({
   const displayReadingMaxWidthPx = readingPresentation?.maxWidthPx ?? activeReadingWidthPx
   const readingLayoutContinuityKey = !readingSessionKey ? null : sceneEcho
     ? `echo:${scene.id}:${sceneEcho.id}`
-    : `dialogue:${scene.id}:${dialogue?.triggerEntityId ?? dialogueLine?.id ?? ''}`
+    : `dialogue:${scene.id}:${dialogue?.triggerEntityId ?? dialogueLine?.id ?? ''}:${dialogueLine?.speaker ?? ''}`
   const readingLayoutPageKey = readingSessionKey && displayReadingLayout
     ? mainlineReadingPageKey({ sessionKey: readingSessionKey, segmentIndex: sceneEcho?.segmentIndex ?? dialogueSegmentIndex, overflowIndex: displayOverflowIndex, text: displayReadingText })
     : null
@@ -2724,8 +2764,6 @@ export function MainlineSceneRenderer({
                 maxWidth: `${Math.max(1, displayReadingMaxWidthPx / worldScale)}px`,
                 overflow: 'visible',
                 visibility: sceneEcho && readingFit?.fits === false ? 'hidden' : undefined,
-                opacity: stageDialogue && dialogueHandoffActive ? 0 : undefined,
-                transition: stageDialogue && dialogueHandoffActive ? `opacity ${dialogueHandoffFadeDurationMs}ms linear` : undefined,
               } as CSSProperties}
               aria-live="polite"
               data-scene-interaction-text={sceneEcho?.entityId ?? dialogue?.triggerEntityId ?? 'scene'}
@@ -2762,6 +2800,17 @@ export function MainlineSceneRenderer({
                 ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
                 : <ObservationText echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} paused={readingFit?.fits === false} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
             </div>
+            {dialogueHandoffOutgoing && stageDialogue && <DialogueHandoffOutgoingText
+              id={dialogueHandoffOutgoing.id}
+              text={dialogueHandoffOutgoing.text}
+              position={dialogueHandoffOutgoing.position}
+              durationMs={dialogueHandoffOutgoing.durationMs}
+              layout={readingLayoutSessionCache?.pageLayoutAtOrBelow(dialogueHandoffOutgoing.text, undefined, mainlineMaximumReadingWidthPx(scene, dialogueHandoffOutgoing.position, readingMetrics, worldScale)) ?? mainlineEchoLayout(dialogueHandoffOutgoing.text, readingMetrics, { maxWidthPx: mainlineMaximumReadingWidthPx(scene, dialogueHandoffOutgoing.position, readingMetrics, worldScale) })}
+              worldScale={worldScale}
+              lockToken={readingPageAdvanceLockTokenRef.current}
+              projectX={projectReadingX}
+              onDeleted={(id) => onDialogueHandoffOutgoingDeleted?.(id)}
+            />}
             </Fragment>
           })()}
           {sceneAction && <div

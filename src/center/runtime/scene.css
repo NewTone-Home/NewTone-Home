@@ -1121,6 +1121,8 @@
 .scene-mainline-dialogue-stage-object { opacity: 1; transition: opacity 380ms ease-in-out; }
 .scene-mainline-dialogue-stage-object.is-stage-faded { opacity: 0; }
 .scene-mainline-text.scene-mainline-text--stage-dialogue { animation: none; }
+.scene-mainline-text.scene-mainline-text--handoff-outgoing { animation-name: mainline-dialogue-handoff-fade; animation-timing-function: linear; animation-fill-mode: forwards; pointer-events: none; }
+@keyframes mainline-dialogue-handoff-fade { from { opacity: 1; } to { opacity: 0; } }
 .scene-mainline-reading-layer .shared-entry-control { pointer-events: auto; }
 .scene-mainline-text {
   position: absolute;
