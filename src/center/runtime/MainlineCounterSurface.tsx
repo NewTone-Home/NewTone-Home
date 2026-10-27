@@ -44,16 +44,17 @@ function CounterSurface({ parts, onInteract, presentationActive, boundedWrapper 
       </g>
     })}
     {parts.flatMap(part => (part.counterSurface!.services ?? []).map(service => (
-      <foreignObject key={service.id} x={service.position.x * 19.2 - bounds.x - 30} y={service.position.y * 10.8 - bounds.y - 14} width={60} height={28}>
+      <foreignObject key={service.id} data-counter-service-box={service.id} x={service.position.x * 19.2 - bounds.x - (service.visual === 'app-square' ? 9 : 30)} y={service.position.y * 10.8 - bounds.y - (service.visual === 'app-square' ? 9 : 14)} width={service.visual === 'app-square' ? 18 : 60} height={service.visual === 'app-square' ? 18 : 28}>
         <button
           type="button"
           className="scene-counter-service"
           data-counter-service-id={service.id}
+          data-counter-app-square={service.visual === 'app-square' ? 'true' : undefined}
           data-object-id={service.id}
           aria-label={service.label}
           onClick={event => activate(event, service.id)}
-          style={{ ...labelStyle, pointerEvents: active ? 'all' : 'none', border: '1px solid currentColor', background: 'rgba(18, 16, 13, .88)', fontSize: 13, whiteSpace: 'nowrap' }}
-        >{service.label}</button>
+          style={{ ...labelStyle, pointerEvents: active ? 'all' : 'none', border: '1px solid currentColor', background: 'rgba(18, 16, 13, .88)', fontSize: service.visual === 'app-square' ? 0 : 13, whiteSpace: 'nowrap' }}
+        >{service.visual === 'app-square' ? <span aria-hidden="true" className="scene-counter-app-square" style={{ display: 'block', width: 10, height: 10, border: '1px solid currentColor', background: 'repeating-linear-gradient(0deg, transparent 0 2px, currentColor 2px 3px)' }} /> : service.label}</button>
       </foreignObject>
     )))}
     <path data-counter-outline-path={group} d={geometry.path} fill="none" stroke="currentColor" strokeWidth={1} strokeLinejoin="miter" pathLength={animatedPresentation ? 1 : undefined} strokeDasharray={animatedPresentation ? 1 : undefined} strokeDashoffset={animatedPresentation && !active ? 1 : 0} style={{ pointerEvents: 'none', transition: animatedPresentation ? `stroke-dashoffset ${presentationDurationMs}ms ease-in-out` : undefined }} />

@@ -12,7 +12,7 @@ export type ShopOrderProduct = {
 
 export function ShopOrderApp({
   shopId, title, products, order, heldConsumable, gameTimeMs, preparationConfigured,
-  onConfirm, onCancelLegacy,
+  availableShops = [], onShopSelect, onConfirm, onCancelLegacy,
 }: {
   shopId: string
   title: string
@@ -21,6 +21,8 @@ export function ShopOrderApp({
   heldConsumable: HeldConsumable | null
   gameTimeMs: number
   preparationConfigured: boolean
+  availableShops?: readonly { id: string; label: string }[]
+  onShopSelect?: (shopId: string) => void
   onConfirm: (selection: { shopId: string; productId: string; options?: Record<string, string | number | boolean | null> }) => { ok: boolean; reason?: string }
   onCancelLegacy?: (shopId: string) => { ok: boolean; reason?: string }
 }) {
@@ -33,6 +35,7 @@ export function ShopOrderApp({
   useEffect(() => { setNotice('') }, [shopId, order?.id])
 
   return <section className="shop-order-app" aria-label={`${title}点单`} data-shop-id={shopId}>
+    {availableShops.length > 1 && <nav className="shop-order-app__shops" aria-label="Drink shops">{availableShops.map(shop => <button key={shop.id} type="button" data-shop-option={shop.id} aria-pressed={shop.id === shopId} onClick={() => onShopSelect?.(shop.id)}>{shop.label}</button>)}</nav>}
     {heldConsumable && <p className="shop-order-app__hand" role="status">手上已有一件物品；仍可下单，领取时检查手持状态。</p>}
     {order ? order.status === 'legacy-unmapped' ? <div className="shop-order-app__order" data-order-status="legacy-unmapped">
       <p>没有可靠的制作时间，不能安全估算。你可以保留旧记录，或明确取消后重新下单。</p>

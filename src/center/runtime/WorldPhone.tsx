@@ -25,9 +25,8 @@ import { commercialCafeCompletionPhoneMessageReadyForAck } from './cafeCompletio
 import type { SessionGameActivitySource } from './sessionGameClock'
 
 type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea' | 'fruit-tea' | 'yonghe-order' | 'cafe-takeaway' | 'notes'
-function phoneAppForShopId(shopId: string): PhoneApp | null {
-  if (shopId === crossShopIds.milkTea) return 'milk-tea'
-  if (shopId === crossShopIds.fruitTea) return 'fruit-tea'
+export function phoneAppForShopId(shopId: string): PhoneApp | null {
+  if (shopId === crossShopIds.milkTea || shopId === crossShopIds.fruitTea) return 'milk-tea'
   if (shopId === crossShopIds.yonghe) return 'yonghe-order'
   if (shopId === crossShopIds.cafeTakeaway) return 'cafe-takeaway'
   return null
@@ -403,7 +402,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
       setAppOrigin(`${i.x + i.width / 2 - p.x}px ${i.y + i.height / 2 - p.y}px`)
     }
     onAppOpen?.(app)
-    if (app === 'milk-tea') setActiveShopId(crossShopIds.milkTea)
+    if (app === 'milk-tea') setActiveShopId(availableShopIds.includes(crossShopIds.milkTea) ? crossShopIds.milkTea : availableShopIds[0] ?? crossShopIds.milkTea)
     else if (app === 'fruit-tea') setActiveShopId(crossShopIds.fruitTea)
     else if (app === 'yonghe-order') setActiveShopId(crossShopIds.yonghe)
     else if (app === 'cafe-takeaway') setActiveShopId(crossShopIds.cafeTakeaway)
@@ -760,7 +759,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
                   </button>
                   {milkTeaAppUnlocked && <button type="button" data-app="milk-tea" data-unread={notifications.some(n => n.app === 'milk-tea' && n.unread)} onClick={() => openApp('milk-tea')}>
                     <span className="world-phone__app-icon"><PhoneAppIcon app="milk-tea" /></span>
-                    <span className="world-phone__app-label">奶茶</span>
+                    <span className="world-phone__app-label">饮品点单</span>
                   </button>}
                   <button type="button" data-app="contacts" onClick={() => openApp('contacts')}>
                     <span className="world-phone__app-icon"><PhoneAppIcon app="contacts" /></span>
@@ -778,7 +777,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
               <div key={activeApp} className={`world-phone__app-view ${leavingApp ? 'is-leaving' : ''}`} data-app-view={activeApp} style={{ transformOrigin: appOrigin }} onAnimationEnd={event => { if (event.target !== event.currentTarget || !leavingApp) return; if (leavingApp === 'home' && activeApp === 'feedback') onFeedbackModeChange?.(null); setActiveApp(leavingApp === 'home' ? null : leavingApp); setLeavingApp(null); setContactView('list') }}>
               <div className="world-phone__app-bar">
                 {activeApp === 'contacts' && contactView !== 'list' && <button className="world-phone__app-back" type="button" onClick={() => { if (contactView === 'call') finishCall(); else { setContactDirection(-1); setContactView(contactView === 'messages' ? 'detail' : 'list') } }} aria-label="返回联系人"><span aria-hidden="true">‹</span><small>联系人</small></button>}
-                <div><strong>{activeAppLabel}</strong></div>
+                <div><strong>{activeApp === 'milk-tea' ? '\u996e\u54c1\u70b9\u5355' : activeAppLabel}</strong></div>
               </div>
               <div className="world-phone__app-content" tabIndex={0}>
             {activeApp === 'map' && (
@@ -792,7 +791,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
 
             {activeApp === 'ride' && <PhoneRideApp regions={mapRegions} device={displayDevice} currentLandmark={currentLandmark} currentSceneId={currentSceneId as MainlineSceneId} order={rideOrder} clock={rideClock} storyClock={storyClock} available={rideAvailability === 'available'} online={online} destinationId={selectedRideDestinationId} onDestination={setSelectedRideDestinationId} onConfirm={(sceneId,presentation) => onRideRequest?.(displayDevice, sceneId,presentation)} getPosition={getPlayerPosition} getRideMapSnapshot={getRideMapSnapshot} />}
 
-            {activeShopId && activeApp && shopProducts.length > 0 && <ShopOrderApp shopId={activeShopId} title={shopTitle} products={shopProducts} order={shopOrders[activeShopId] ?? null} heldConsumable={heldConsumable} gameTimeMs={gameTimeMs} preparationConfigured={Boolean(preparationConfiguredByShop[activeShopId])} onConfirm={selection => onShopOrderConfirm?.(selection) ?? { ok: false, reason: 'order-service-unavailable' }} onCancelLegacy={onLegacyShopOrderCancel} />}
+            {activeShopId && activeApp && shopProducts.length > 0 && <ShopOrderApp key={activeShopId} shopId={activeShopId} title={shopTitle} products={shopProducts} availableShops={availableShopIds.filter(id => id === crossShopIds.milkTea || id === crossShopIds.fruitTea).map(id => ({ id, label: shopTitleForId(id) }))} onShopSelect={setActiveShopId} order={shopOrders[activeShopId] ?? null} heldConsumable={heldConsumable} gameTimeMs={gameTimeMs} preparationConfigured={Boolean(preparationConfiguredByShop[activeShopId])} onConfirm={selection => onShopOrderConfirm?.(selection) ?? { ok: false, reason: 'order-service-unavailable' }} onCancelLegacy={onLegacyShopOrderCancel} />}
             {activeApp === 'milk-tea' && !activeShopId && <section className="world-phone__list-page world-phone__milk-tea" aria-label="奶茶">
               {milkTeaHeld ? <div className="world-phone__list-heading"><span>奶茶</span><strong>手里已有一杯饮料</strong><small>暂时不能再下单。</small></div>
                 : milkTeaOrder ? (() => {
