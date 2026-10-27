@@ -5,8 +5,8 @@ import { milkTeaDrinks } from './commercialStreetMilkTea'
 describe('commercial street drink reference catalog', () => {
   it('contains the eight approved names and prices with unique IDs', () => {
     expect(commercialStreetDrinkCatalog.map(({ name, price }) => [name, price])).toEqual([
-      ['原味奶茶', 3], ['黑糖珍珠奶茶', 4], ['芋泥奶茶', 4], ['茉莉奶绿', 3],
-      ['百香果绿茶', 4], ['葡萄茉莉', 4], ['鲜橙汁', 4], ['草莓果饮', 5],
+      ['原味奶茶', 5], ['黑糖珍珠奶茶', 7], ['芋泥奶茶', 7], ['茉莉奶绿', 5],
+      ['百香果绿茶', 5], ['葡萄茉莉', 7], ['鲜橙汁', 5], ['草莓果饮', 7],
     ])
     expect(new Set(commercialStreetDrinkCatalog.map(item => item.id)).size).toBe(8)
   })

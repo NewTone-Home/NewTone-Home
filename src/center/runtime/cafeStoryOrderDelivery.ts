@@ -1,4 +1,5 @@
 import { crossShopIds, sanitizeCrossShopOrderState, type CrossShopOrder } from './crossShopOrders'
+import type { PhoneNotification } from './phoneNotifications'
 
 export type CafeStoryDeliveryRecord = {
   eventId: string
@@ -11,6 +12,7 @@ export type CafeStoryOrderState = {
   shopOrders: Record<string, CrossShopOrder>
   heldConsumable: { shopId: string; sourceOrderId: string | null } | null
   cafeStoryDeliveries: Record<string, CafeStoryDeliveryRecord>
+  phoneNotifications?: PhoneNotification[]
 }
 
 export type CafeStoryOrderStatus = 'none' | 'queued' | 'ready' | 'legacy-unmapped' | 'claimed' | 'delivered-pending-presentation' | 'delivered'
@@ -59,9 +61,15 @@ export function beginCafeStoryOrderDelivery(
   }
   const shopOrders = { ...state.shopOrders }
   delete shopOrders[crossShopIds.cafeTakeaway]
+  const phoneNotifications = state.phoneNotifications?.filter(notification => notification.id !== `shop-order-ready:${order.id}`)
   return {
     ok: true,
-    state: { ...state, shopOrders, cafeStoryDeliveries: { ...state.cafeStoryDeliveries, [eventId]: record } },
+    state: {
+      ...state,
+      shopOrders,
+      cafeStoryDeliveries: { ...state.cafeStoryDeliveries, [eventId]: record },
+      ...(phoneNotifications ? { phoneNotifications } : {}),
+    },
     record,
     replayed: false,
   }

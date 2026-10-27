@@ -14,7 +14,7 @@ describe('shop wallet save migration', () => {
     expect(migrated.walletBalance).toBe(800)
     const placed = placePaidShopOrder({ ordersByShop: {}, heldConsumable: null }, { walletBalance: migrated.walletBalance, paymentReceipts: migrated.shopOrderPaymentReceipts }, {
       orderId: 'order-save', idempotencyKey: 'wallet-save-key', shopId: crossShopIds.cafeTakeaway,
-      productId: 'americano', price: 3, placedAtGameTimeMs: 100, preparationDurationMs: 5 * 60_000,
+      productId: 'americano', price: 5, placedAtGameTimeMs: 100, preparationDurationMs: 5 * 60_000,
     })
     if (!placed.ok) throw new Error(placed.reason)
     const restored = sanitizePlayerSave({
@@ -22,9 +22,9 @@ describe('shop wallet save migration', () => {
       walletBalance: placed.paymentState.walletBalance,
       shopOrderPaymentReceipts: placed.paymentState.paymentReceipts,
     }, fresh.currentSceneId)
-    expect(restored.walletBalance).toBe(797)
-    expect(restored.shopOrderPaymentReceipts['wallet-save-key']).toMatchObject({ orderId: 'order-save', amount: 3 })
-    expect(restored.shopOrders[crossShopIds.cafeTakeaway]).toMatchObject({ pricePaid: 3, readyAtGameTimeMs: 300_100 })
+    expect(restored.walletBalance).toBe(795)
+    expect(restored.shopOrderPaymentReceipts['wallet-save-key']).toMatchObject({ orderId: 'order-save', amount: 5 })
+    expect(restored.shopOrders[crossShopIds.cafeTakeaway]).toMatchObject({ pricePaid: 5, readyAtGameTimeMs: 300_100 })
   })
 
   it('does not turn malformed saved balance into free money', () => {
@@ -50,7 +50,7 @@ describe('shop wallet save migration', () => {
       shopOrders: {
         [crossShopIds.cafeTakeaway]: {
           id: 'cafe-pending', shopId: crossShopIds.cafeTakeaway, productId: 'latte', status: 'queued' as const,
-          placedAtGameTimeMs: 0, readyAtGameTimeMs: 300_000, pricePaid: 4, paymentReceiptId: 'cafe-pay',
+          placedAtGameTimeMs: 0, readyAtGameTimeMs: 300_000, pricePaid: 5, paymentReceiptId: 'cafe-pay',
         },
       },
     }
@@ -58,6 +58,6 @@ describe('shop wallet save migration', () => {
     if (!delivery.ok) throw new Error(delivery.reason)
     const restored = sanitizePlayerSave({ ...before, ...delivery.state }, fresh.currentSceneId)
     expect(restored.shopOrders[crossShopIds.cafeTakeaway]).toBeUndefined()
-    expect(restored.cafeStoryDeliveries['lao-zhou-meeting-v1']).toMatchObject({ presentation: 'pending', order: { id: 'cafe-pending', pricePaid: 4 } })
+    expect(restored.cafeStoryDeliveries['lao-zhou-meeting-v1']).toMatchObject({ presentation: 'pending', order: { id: 'cafe-pending', pricePaid: 5 } })
   })
 })

@@ -47,11 +47,11 @@ describe('cross-shop order and global hand model', () => {
 
   it('provides the approved cafe takeaway SKU IDs and prices without touching narrative coffee', () => {
     expect(commercialCafeTakeawayCatalog.map(({ id, name, price, storeId }) => [id, name, price, storeId])).toEqual([
-      ['americano', '美式', 3, commercialCafeTakeawayStoreId],
-      ['latte', '拿铁', 4, commercialCafeTakeawayStoreId],
-      ['flat-white', '澳白', 4, commercialCafeTakeawayStoreId],
-      ['caramel-macchiato', '焦糖玛奇朵', 5, commercialCafeTakeawayStoreId],
-      ['sea-salt-caramel-latte', '海盐焦糖拿铁', 5, commercialCafeTakeawayStoreId],
+      ['americano', '美式', 5, commercialCafeTakeawayStoreId],
+      ['latte', '拿铁', 5, commercialCafeTakeawayStoreId],
+      ['flat-white', '澳白', 5, commercialCafeTakeawayStoreId],
+      ['caramel-macchiato', '焦糖玛奇朵', 7, commercialCafeTakeawayStoreId],
+      ['sea-salt-caramel-latte', '海盐焦糖拿铁', 7, commercialCafeTakeawayStoreId],
     ])
   })
 

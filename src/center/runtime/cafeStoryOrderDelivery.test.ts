@@ -7,20 +7,26 @@ import {
 
 const cafeOrder = {
   id: 'cafe-order-1', shopId: crossShopIds.cafeTakeaway, productId: 'americano', status: 'queued' as const,
-  placedAtGameTimeMs: 100, readyAtGameTimeMs: 300_100, pricePaid: 3, paymentReceiptId: 'pay-1',
+  placedAtGameTimeMs: 100, readyAtGameTimeMs: 300_100, pricePaid: 5, paymentReceiptId: 'pay-1',
 }
 
 describe('Café story delivery bridge', () => {
-  it('uses the current ordinary Café order, completes it at the story node, and persists replayable presentation', () => {
-    const initial: CafeStoryOrderState = { shopOrders: { [crossShopIds.cafeTakeaway]: cafeOrder }, heldConsumable: null, cafeStoryDeliveries: {} }
+  it('uses the current ordinary Café order, completes it at the story node, clears its pickup notice, and persists replayable presentation', () => {
+    const pickupNotice = { id: `shop-order-ready:${cafeOrder.id}`, app: 'cafe-takeaway' as const, shopId: crossShopIds.cafeTakeaway, title: 'ready', body: 'pickup', unread: true, presented: true }
+    const unrelatedNotice = { id: 'ride-notice', app: 'ride' as const, title: 'ride', body: 'ride', unread: true, presented: true }
+    const initial: CafeStoryOrderState = {
+      shopOrders: { [crossShopIds.cafeTakeaway]: cafeOrder }, heldConsumable: null, cafeStoryDeliveries: {},
+      phoneNotifications: [pickupNotice, unrelatedNotice],
+    }
     expect(cafeStoryOrderStatus(initial, 'lao-zhou-meeting-v1', 200_000)).toBe('queued')
     expect(cafeStoryOrderStatus(initial, 'lao-zhou-meeting-v1', 300_100)).toBe('ready')
-    const delivery = beginCafeStoryOrderDelivery(initial, 'lao-zhou-meeting-v1', 200_000)
+    const delivery = beginCafeStoryOrderDelivery(initial, 'lao-zhou-meeting-v1', 300_100)
     expect(delivery).toMatchObject({ ok: true, replayed: false, record: { order: cafeOrder, presentation: 'pending' } })
     if (!delivery.ok) return
     expect(delivery.state.shopOrders[crossShopIds.cafeTakeaway]).toBeUndefined()
     expect(delivery.state.heldConsumable).toBeNull()
-    expect(cafeStoryOrderStatus(delivery.state, 'lao-zhou-meeting-v1', 200_000)).toBe('delivered-pending-presentation')
+    expect(delivery.state.phoneNotifications).toEqual([unrelatedNotice])
+    expect(cafeStoryOrderStatus(delivery.state, 'lao-zhou-meeting-v1', 300_100)).toBe('delivered-pending-presentation')
     const restored = sanitizeCafeStoryDeliveries(JSON.parse(JSON.stringify(delivery.state.cafeStoryDeliveries)))
     const replay = beginCafeStoryOrderDelivery({ ...delivery.state, cafeStoryDeliveries: restored }, 'lao-zhou-meeting-v1', 400_000)
     expect(replay).toMatchObject({ ok: true, replayed: true, record: { order: cafeOrder, presentation: 'pending' } })
