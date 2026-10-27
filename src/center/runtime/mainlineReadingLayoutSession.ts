@@ -28,6 +28,22 @@ type WidthCandidate = {
   speakerWidthPx: number
 }
 
+/** Reserve one rendered line per width-fit fragment. Whole-string canvas
+ * width can underestimate the number of browser lines around punctuation. */
+export function mainlineObservationMinimumPageHeight(chunks: readonly string[], fontSizePx: number, compact: boolean) {
+  let lines = 0
+  let previous = ''
+  for (const chunk of chunks) {
+    if (!chunk) continue
+    lines += chunk.split(/\r\n|\r|\n/u).length
+    if (previous && /[\r\n]$/u.test(previous)) lines -= 1
+    if (previous.endsWith('\r') && chunk.startsWith('\n')) lines -= 1
+    previous = chunk
+  }
+  lines = Math.max(1, lines)
+  return (compact ? 11 : fontSizePx * .8) + fontSizePx * (compact ? 1.5 : 1.62) * lines
+}
+
 export function mainlineReadingMeasurementKey(metrics: SceneScreenMetrics, worldScale: number) {
   return JSON.stringify([metrics.width, metrics.height, metrics.viewportWidth ?? null, worldScale])
 }
@@ -100,6 +116,13 @@ export function createMainlineReadingSessionLayoutCache(input: {
   }
   const layoutText = input.layoutText ?? mainlineEchoLayout
   const splitTextToFit = input.splitTextToFit ?? splitMainlineInteractionTextToFit
+  const observationLayout = (text: string, widthPx: number, speaker?: string, parts: readonly string[] = [text]) => {
+    const measured = layoutText(text, metrics, { speaker, maxWidthPx: widthPx, measureText: measure })
+    if (!input.preferWholeText) return measured
+    const compact = metrics.width <= 600 && metrics.height > metrics.width
+    const refitted = splitTextToFit(text, Math.max(fontSizePx, widthPx - 40), fontSizePx, value => measure(value, fontSizePx))
+    return { ...measured, heightPx: Math.max(measured.heightPx, mainlineObservationMinimumPageHeight(parts, measured.fontSizePx, compact), mainlineObservationMinimumPageHeight(refitted, measured.fontSizePx, compact)) }
+  }
   let maxMeasuredTextWidthPx = 0
   let observationPlan: { key: string; text: string; segments: readonly string[]; pageLayouts: readonly MainlineEchoLayout[]; position: Point; maxWidthPx: number } | null = null
 
@@ -115,18 +138,10 @@ export function createMainlineReadingSessionLayoutCache(input: {
     const segments = splitTextToFit(text, Math.max(fontSizePx, candidate.widthPx - 40), fontSizePx, value => measure(value, fontSizePx))
     const layouts = segments.map(segment => {
       counts.layoutCalls += 1
-      return layoutText(segment, metrics, {
-      speaker,
-      maxWidthPx: candidate.widthPx,
-      measureText: measure,
-      })
+      return observationLayout(segment, candidate.widthPx, speaker)
     })
     counts.layoutCalls += 1
-    const fullLayout = layoutText(text, metrics, {
-      speaker,
-      maxWidthPx: candidate.widthPx,
-      measureText: measure,
-    })
+    const fullLayout = observationLayout(text, candidate.widthPx, speaker)
     candidate.pages.set(key, { segments, layouts, fullLayout })
     if (speaker) candidate.speakerWidthPx = Math.max(candidate.speakerWidthPx, ...layouts.map(layout => layout.widthPx))
     candidate.envelopeLayout = {
@@ -215,29 +230,30 @@ export function createMainlineReadingSessionLayoutCache(input: {
           }
           const segments: string[] = []
           const pageLayouts: MainlineEchoLayout[] = []
-          let current = ''
+          let current: string[] = []
           let consumed = 0
-          const pageFits = (text: string) => {
-            const layout = layoutText(text, metrics, { speaker: fitInput.speaker, maxWidthPx: candidate.widthPx, measureText: measure })
+          const pageFits = (parts: readonly string[]) => {
+            const text = parts.join('')
+            const layout = observationLayout(text, candidate.widthPx, fitInput.speaker, parts)
             if (layout.widthPx > availableWidth || layout.heightPx > availableHeight) return null
             return mainlinePlaceReadingBox(fitInput.scene, fitInput.source, { width: layout.widthPx, height: layout.heightPx }, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset) ? layout : null
           }
           for (const chunk of chunks) {
-            if (consumed === offset && offset > 0 && current) {
-              segments.push(current)
+            if (consumed === offset && offset > 0 && current.length) {
+              segments.push(current.join(''))
               pageLayouts.push(pageFits(current)!)
-              current = ''
+              current = []
             }
-            const combined = current + chunk
+            const combined = [...current, chunk]
             if (pageFits(combined)) { current = combined; consumed += chunk.length; continue }
-            if (!current) { current = ''; break }
-            segments.push(current)
+            if (!current.length) { current = []; break }
+            segments.push(current.join(''))
             pageLayouts.push(pageFits(current)!)
-            current = pageFits(chunk) ? chunk : ''
-            if (!current) break
+            current = pageFits([chunk]) ? [chunk] : []
+            if (!current.length) break
             consumed += chunk.length
           }
-          if (current) { segments.push(current); pageLayouts.push(pageFits(current)!) }
+          if (current.length) { segments.push(current.join('')); pageLayouts.push(pageFits(current)!) }
           if (!segments.length || segments.join('') !== fitInput.text) continue
           const envelope = { width: Math.max(...pageLayouts.map(layout => layout.widthPx)), height: Math.max(...pageLayouts.map(layout => layout.heightPx)) }
           // Legacy multi-segment callers still share a stable envelope.
@@ -261,13 +277,13 @@ export function createMainlineReadingSessionLayoutCache(input: {
           start += segment.length
           return cut > 0 && cut < segment.length ? [segment.slice(0, cut), segment.slice(cut)] : [segment]
         })
-        const layouts = segments.map(segment => layoutText(segment, metrics, { speaker: fitInput.speaker, maxWidthPx: candidate.widthPx, measureText: measure }))
+        const layouts = segments.map(segment => observationLayout(segment, candidate.widthPx, fitInput.speaker))
         return { segments, layouts }
       }
       for (const candidate of widths) {
         if (candidate.widthPx > fitInput.maximumWidthPx + .001) continue
         const page = fallbackPages(candidate)
-        const layout = page.layouts[0] ?? layoutText(fitInput.text, metrics, { speaker: fitInput.speaker, maxWidthPx: candidate.widthPx, measureText: measure })
+        const layout = page.layouts[0] ?? observationLayout(fitInput.text, candidate.widthPx, fitInput.speaker)
         const envelope = input.preferWholeText
           ? { widthPx: Math.max(...page.layouts.map(item => item.widthPx)), heightPx: Math.max(...page.layouts.map(item => item.heightPx)) }
           : candidate.envelopeLayout
