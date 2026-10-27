@@ -265,5 +265,15 @@ describe('whole observation layout', () => {
     const fit = cache.fit({ scene, source: scene.initialPlayerPosition, text, maximumWidthPx: 180, protectedVisuals: [], metrics, worldScale: .65, cameraOffset: mainlineReadingCameraOffset(scene, scene.initialPlayerPosition, metrics, .65, { x: 0, y: 0 }) })
     expect(fit.segments.length).toBeGreaterThan(1)
     expect(fit.segments.join('')).toBe(text)
+    expect(fit.fits).toBe(true)
+    expect(fit.pageLayouts.some(page => page.heightPx > page.fontSizePx * 3)).toBe(true)
+    const moved = cache.fit({ scene, source: scene.initialPlayerPosition, text, maximumWidthPx: 80, protectedVisuals: [], metrics, worldScale: .65, cameraOffset: { x: -999, y: 999 } })
+    expect(moved.segments).toEqual(fit.segments)
+    expect(moved.pageLayouts).toEqual(fit.pageLayouts)
+    const offset = fit.segments[0]!.length
+    const resizedMetrics = { width: 411, height: 1000, viewportWidth: 411 }
+    const resized = cache.fit({ scene, source: scene.initialPlayerPosition, text, maximumWidthPx: 180, protectedVisuals: [], metrics: resizedMetrics, worldScale: .65, cameraOffset: mainlineReadingCameraOffset(scene, scene.initialPlayerPosition, resizedMetrics, .65, { x: 0, y: 0 }), sourceOffset: offset })
+    expect(resized.segments.join('')).toBe(text)
+    expect(resized.segments.some((_, index) => resized.segments.slice(0, index).join('').length === offset)).toBe(true)
   })
 })

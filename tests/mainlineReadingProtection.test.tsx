@@ -1,3 +1,4 @@
+import { mainlineReadingPageIndexForSourceOffset } from '../src/center/runtime/mainlineReadingProtection'
 import { describe, expect, it } from 'vitest'
 import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionLayerPosition, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from '../src/center/runtime/mainlineReadingProtection'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
@@ -462,5 +463,14 @@ describe('reading target protection', () => {
     expect(placement!.overflowY).toBe(true)
     expect(placement!.availableHeightPx).toBeGreaterThan(0)
     expect(placement!.position.y).toBeGreaterThan(position.y)
+  })
+})
+
+
+describe('observation reflow source position', () => {
+  it('keeps the page containing the prior first character after resizing', () => {
+    expect(mainlineReadingPageIndexForSourceOffset(['abcd', 'efgh', 'ij'], 4)).toBe(1)
+    expect(mainlineReadingPageIndexForSourceOffset(['abc', 'def', 'ghi', 'j'], 4)).toBe(1)
+    expect(mainlineReadingPageIndexForSourceOffset(['abcdefgh', 'ij'], 8)).toBe(1)
   })
 })

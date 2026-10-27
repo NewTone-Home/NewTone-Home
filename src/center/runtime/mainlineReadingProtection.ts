@@ -8,7 +8,7 @@ import { mainlineEchoLayout, type MainlineEchoLayout } from './mainlineEchoLayou
 import { mainlineReadingFontSizePx } from './mainlineTextReading'
 import { splitMainlineInteractionTextToFit } from './mainlineTextSegments'
 
-export type MainlineReadingOverflowPageState = { sessionKey: string; key: string; index: number } | null
+export type MainlineReadingOverflowPageState = { sessionKey: string; key: string; index: number; sourceOffset?: number } | null
 
 export function mainlineReadingOverflowPageForSession(state: MainlineReadingOverflowPageState, sessionKey: string | null): MainlineReadingOverflowPageState {
   return sessionKey && state?.sessionKey === sessionKey ? state : null
@@ -16,6 +16,17 @@ export function mainlineReadingOverflowPageForSession(state: MainlineReadingOver
 
 export function mainlineReadingOverflowPageIndex(state: MainlineReadingOverflowPageState, sessionKey: string | null, key: string) {
   return sessionKey && state?.sessionKey === sessionKey && state.key === key ? state.index : 0
+}
+
+/** Reflow keeps the page containing the first character that was visible. */
+export function mainlineReadingPageIndexForSourceOffset(segments: readonly string[], offset: number) {
+  let start = 0
+  for (let index = 0; index < segments.length; index += 1) {
+    const end = start + segments[index]!.length
+    if (offset < end) return index
+    start = end
+  }
+  return Math.max(0, segments.length - 1)
 }
 
 export function currentMainlineReadingTargetIds(input: {

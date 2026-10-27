@@ -5,7 +5,7 @@ import { mainlineEchoLayout, type MainlineEchoLayout } from './mainlineEchoLayou
 import { mainlineReadingBounds, mainlineReadingFontSizePx } from './mainlineTextReading'
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 import { mainlinePlaceReadingBox } from './mainlineReadingProtection'
-import { mainlineMeasuredTextWidth, splitMainlineInteractionTextToFit } from './mainlineTextSegments'
+import { mainlineDisplaySourceText, mainlineMeasuredTextWidth, splitMainlineInteractionTextToFit } from './mainlineTextSegments'
 
 export type MainlineReadingCachedPages = Readonly<{
   segments: readonly string[]
@@ -52,6 +52,7 @@ export type MainlineReadingSessionLayoutCache = {
     metrics: SceneScreenMetrics
     worldScale: number
     cameraOffset: Point
+    sourceOffset?: number
   }): { segments: readonly string[]; pageLayouts: readonly MainlineEchoLayout[]; position: Point; layout: MainlineEchoLayout; maxWidthPx: number; fits: boolean }
 }
 
@@ -94,6 +95,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
   const layoutText = input.layoutText ?? mainlineEchoLayout
   const splitTextToFit = input.splitTextToFit ?? splitMainlineInteractionTextToFit
   let maxMeasuredTextWidthPx = 0
+  let observationPlan: { key: string; text: string; segments: readonly string[]; pageLayouts: readonly MainlineEchoLayout[]; position: Point; maxWidthPx: number } | null = null
 
   const makeCandidate = (widthPx: number): WidthCandidate => ({ widthPx, pages: new Map(), envelopeLayout: { widthPx: 0, heightPx: 0, fontSizePx }, speakerWidthPx: 0 })
   for (let widthPx = input.maximumWidthPx; widthPx >= minimumWidthPx; widthPx -= stepPx) widths.push(makeCandidate(widthPx))
@@ -171,19 +173,75 @@ export function createMainlineReadingSessionLayoutCache(input: {
     fit(fitInput) {
       counts.fitCalls += 1
       addEntries([{ text: fitInput.text, speaker: fitInput.speaker }])
-      // For observations, first try the complete, naturally wrapped text.
-      // Placement checks the actual room, viewport and protected visuals.
+      // Freeze a complete page plan for this viewport, independent of camera
+      // and actor movement. Resize builds a new plan; the renderer maps the
+      // currently displayed source offset into that new plan.
       if (input.preferWholeText) {
+        const viewportKey = JSON.stringify([fitInput.metrics.width, fitInput.metrics.height, fitInput.metrics.viewportWidth, fitInput.worldScale])
+        if (observationPlan?.key === viewportKey && observationPlan.text === fitInput.text) {
+          const page = observationPlan
+          return { segments: page.segments, pageLayouts: page.pageLayouts, position: page.position, layout: page.pageLayouts[0]!, maxWidthPx: page.maxWidthPx, fits: true }
+        }
+        const bounds = mainlineReadingBounds(fitInput.scene, fitInput.source, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset)
+        const availableWidth = bounds.width / 100 * sceneDesignReferenceMetrics.width * fitInput.worldScale
+        const availableHeight = bounds.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale
         for (const candidate of widths) {
           if (candidate.widthPx > fitInput.maximumWidthPx + .001) continue
-          const layout = candidate.pages.get(entryKey({ text: fitInput.text, speaker: fitInput.speaker }))!.fullLayout
-          const bounds = mainlineReadingBounds(fitInput.scene, fitInput.source, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset)
-          const availableWidth = bounds.width / 100 * sceneDesignReferenceMetrics.width * fitInput.worldScale
-          const availableHeight = bounds.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale
-          const envelope = candidate.envelopeLayout
-          if (envelope.widthPx > availableWidth || envelope.heightPx > availableHeight) continue
-          const position = mainlinePlaceReadingBox(fitInput.scene, fitInput.source, { width: envelope.widthPx, height: envelope.heightPx }, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset)
-          if (position) return { segments: [fitInput.text], pageLayouts: [layout], position, layout, maxWidthPx: candidate.widthPx, fits: true }
+          const fittedChunks = candidate.pages.get(entryKey({ text: fitInput.text, speaker: fitInput.speaker }))!.segments
+          // The normal source path already removed the display-only terminal
+          // full stop. Preserve exact input for other callers of the cache.
+          const lineChunks = [...fittedChunks]
+          if (lineChunks.join('') !== fitInput.text && lineChunks.join('') === mainlineDisplaySourceText(fitInput.text)) {
+            const suffix = fitInput.text.match(/。(\s*)$/u)
+            if (suffix && lineChunks.length) lineChunks[lineChunks.length - 1] = lineChunks[lineChunks.length - 1]!.replace(/\s*$/u, '') + suffix[0]
+          }
+          // On resize, retain a page boundary at the current source offset.
+          // Earlier text stays in earlier pages even if the viewport grew.
+          const offset = Math.max(0, Math.min(fitInput.sourceOffset ?? 0, fitInput.text.length))
+          const chunks: string[] = []
+          let chunkOffset = 0
+          for (const chunk of lineChunks) {
+            const cut = offset - chunkOffset
+            if (cut > 0 && cut < chunk.length) chunks.push(chunk.slice(0, cut), chunk.slice(cut))
+            else chunks.push(chunk)
+            chunkOffset += chunk.length
+          }
+          const segments: string[] = []
+          const pageLayouts: MainlineEchoLayout[] = []
+          let current = ''
+          let consumed = 0
+          const pageFits = (text: string) => {
+            const layout = layoutText(text, metrics, { speaker: fitInput.speaker, maxWidthPx: candidate.widthPx, measureText: measure })
+            if (layout.widthPx > availableWidth || layout.heightPx > availableHeight) return null
+            return mainlinePlaceReadingBox(fitInput.scene, fitInput.source, { width: layout.widthPx, height: layout.heightPx }, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset) ? layout : null
+          }
+          for (const chunk of chunks) {
+            if (consumed === offset && offset > 0 && current) {
+              segments.push(current)
+              pageLayouts.push(pageFits(current)!)
+              current = ''
+            }
+            const combined = current + chunk
+            if (pageFits(combined)) { current = combined; consumed += chunk.length; continue }
+            if (!current) { current = ''; break }
+            segments.push(current)
+            pageLayouts.push(pageFits(current)!)
+            current = pageFits(chunk) ? chunk : ''
+            if (!current) break
+            consumed += chunk.length
+          }
+          if (current) { segments.push(current); pageLayouts.push(pageFits(current)!) }
+          if (!segments.length || segments.join('') !== fitInput.text) continue
+          const envelope = { width: Math.max(...pageLayouts.map(layout => layout.widthPx)), height: Math.max(...pageLayouts.map(layout => layout.heightPx)) }
+          // Legacy multi-segment callers still share a stable envelope.
+          if (knownEntries.size > 1) {
+            envelope.width = Math.max(envelope.width, candidate.envelopeLayout.widthPx)
+            envelope.height = Math.max(envelope.height, candidate.envelopeLayout.heightPx)
+          }
+          const position = mainlinePlaceReadingBox(fitInput.scene, fitInput.source, envelope, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset)
+          if (!position) continue
+          observationPlan = { key: viewportKey, text: fitInput.text, segments, pageLayouts, position, maxWidthPx: candidate.widthPx }
+          return { segments, pageLayouts, position, layout: pageLayouts[0]!, maxWidthPx: candidate.widthPx, fits: true }
         }
       }
       for (const candidate of widths) {

@@ -46,7 +46,7 @@ import { storefrontContactGeometry } from './storefrontContactGeometry'
 import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingOpacityForActor, mainlineObservationTypingIntervalMs, mainlineReadingFadeTransitionMs, resolveMainlineDialogueParticipants } from './mainlineTextReading'
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
 import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
-import { currentMainlineReadingTargetIds, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionLayerPosition, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from './mainlineReadingProtection'
+import { currentMainlineReadingTargetIds, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionLayerPosition, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex, mainlineReadingPageIndexForSourceOffset } from './mainlineReadingProtection'
 import { createMainlineReadingSessionLayoutCache, type MainlineReadingSessionLayoutCache, type MainlineReadingSessionTextEntry } from './mainlineReadingLayoutSession'
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
@@ -1736,10 +1736,13 @@ export function MainlineSceneRenderer({
       metrics: readingMetrics,
       worldScale,
       cameraOffset: renderCameraOffset,
+      sourceOffset: sceneEcho && readingOverflowPage?.sessionKey === readingSessionKey && readingOverflowPage.key === readingOverflowKey ? readingOverflowPage.sourceOffset : undefined,
     }) ?? null
     : null
   const fittedReadingSegments = readingFit?.segments ?? [activeReadingText]
-  const activeDisplayOverflowIndex = Math.min(readingOverflowIndex, Math.max(0, fittedReadingSegments.length - 1))
+  const activeDisplayOverflowIndex = sceneEcho && readingOverflowPage?.sessionKey === readingSessionKey && readingOverflowPage.key === readingOverflowKey && readingOverflowPage.sourceOffset !== undefined
+    ? mainlineReadingPageIndexForSourceOffset(fittedReadingSegments, readingOverflowPage.sourceOffset)
+    : Math.min(readingOverflowIndex, Math.max(0, fittedReadingSegments.length - 1))
   const activeDisplayReadingText = fittedReadingSegments[activeDisplayOverflowIndex] ?? activeReadingText
   const activeDisplayReadingLayout = readingFit
     ? readingFit.pageLayouts[activeDisplayOverflowIndex] ?? readingFit.layout
@@ -2781,7 +2784,7 @@ export function MainlineSceneRenderer({
                 }
                 if (displayOverflowIndex + 1 < fittedReadingSegments.length) {
                   lockReadingPageAdvance()
-                  if (readingSessionKey) setReadingOverflowPage({ sessionKey: readingSessionKey, key: readingOverflowKey, index: displayOverflowIndex + 1 })
+                  if (readingSessionKey) setReadingOverflowPage({ sessionKey: readingSessionKey, key: readingOverflowKey, index: displayOverflowIndex + 1, sourceOffset: sceneEcho ? fittedReadingSegments.slice(0, displayOverflowIndex + 1).join('').length : undefined })
                   return
                 }
                 if (readingMode === 'dialogue') {
