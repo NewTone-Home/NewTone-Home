@@ -213,7 +213,10 @@ describe('mining clockwise continuous street shell', () => {
     expect(findMainlinePath(front.crossingTargets[0]!, customerSideBackDoor, scene, {}, open)).not.toBeNull()
     expect(findMainlinePath(customerSideBackDoor, rear.crossingTargets[0]!, scene, {}, open)).not.toBeNull()
     expect(canTravelAlongMainlineSegment(rear.crossingTargets[0]!, rear.thresholds[0], scene, {}, open)).toBe(true)
-    expect(findMainlinePath(alleyPoint, scene.initialPlayerPosition, scene, {}, open)).not.toBeNull()
+    const alleyToEntrance = findMainlinePath(alleyPoint, scene.initialPlayerPosition, scene, {}, open)
+    expect(alleyToEntrance).not.toBeNull()
+    expect(alleyToEntrance!.some(point => point.x < alley.bounds.x)).toBe(true)
+    expect(alleyToEntrance!.some(point => point.x > alley.bounds.x + alley.bounds.width)).toBe(false)
     expect(findMainlinePath(rear.thresholds[0], rear.crossingTargets[0]!, scene, {}, open)).not.toBeNull()
   })
 

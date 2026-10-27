@@ -250,7 +250,6 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
   const airWalls = [
     { id: 'mining-industrial-limit', ...rotateRect({ x: oldIndustryStart, y: oldWorldTop, width: 3 * horizontal, height: oldWorldBottom - oldWorldTop }) },
     { id: 'mining-row-top-limit', ...rotateRect({ x: minOldLeft, y: oldWorldTop, width: oldFacadeX - minOldLeft, height: rowTop - oldWorldTop }) },
-    { id: 'mining-row-bottom-limit', ...rotateRect({ x: minOldLeft, y: oldRowBottom, width: oldFacadeX - minOldLeft, height: oldWorldBottom - oldRowBottom }) },
   ]
   return {
     id, title: '\u77ff\u533a\u5916\u56f4\u8001\u8857', subtitle: '\u5e97\u9762\u3001\u8857\u9053\u548c\u516b\u95f4\u5e97\u5185\u5171\u7528\u4e00\u5f20\u5730\u56fe\uff1b\u4ec5\u6c38\u548c\u5c0f\u9986\u5f00\u653e\u3002', statusLabel: '\u77ff\u533a\u5916\u56f4\u8001\u8857',
