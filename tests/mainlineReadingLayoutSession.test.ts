@@ -300,6 +300,10 @@ describe('observation resize and no-space fallback', () => {
     expect(fit.fits).toBe(false)
     expect(fit.segments.join('')).toBe(text)
     expect(fit.segments.some((_, i) => fit.segments.slice(0, i).join('').length === offset)).toBe(true)
+    fit.segments.forEach((page, i) => {
+      const fragments = splitMainlineInteractionTextToFit(page, Math.max(12, fit.maxWidthPx - 40), 12, value => value.length * 12)
+      expect(fit.pageLayouts[i]!.heightPx).toBeGreaterThanOrEqual(mainlineObservationMinimumPageHeight(fragments, 12, true))
+    })
   })
 })
 
@@ -325,6 +329,33 @@ describe('observation line-height budget', () => {
     fit.segments.forEach((page, index) => {
       const chunks = splitMainlineInteractionTextToFit(page, Math.max(12, fit.maxWidthPx - 40), 12, value => measureText(value, 12))
       expect(fit.pageLayouts[index]!.heightPx).toBeGreaterThanOrEqual(mainlineObservationMinimumPageHeight(chunks, 12, true))
+    })
+  })
+})
+
+
+describe('observation line budget on every path', () => {
+  it('does not count a newline twice across fragment boundaries', () => {
+    const height = (chunks: string[]) => mainlineObservationMinimumPageHeight(chunks, 12, true)
+    expect(height(['一\n', '二'])).toBe(47)
+    expect(height(['一\n', '\n二'])).toBe(65)
+    expect(height(['一\r', '\n二'])).toBe(47)
+    expect(height(['一', '二'])).toBe(47)
+  })
+  it('uses the safe height for fallback pages and preserves the source offset', () => {
+    const metrics = { width: 411, height: 914, viewportWidth: 411 }
+    const text = '第一部分，第二部分，第三部分，第四部分，第五部分，第六部分'
+    const measureText = (value: string, size: number) => value.length * size
+    const cache = createMainlineReadingSessionLayoutCache({ sessionKey: 'fallback', entries: [{ text }, { text: '额外很长的一段'.repeat(300) }], metrics, maximumWidthPx: 120, worldScale: .65, preferWholeText: true, measureText })
+    const scene = mainlineScenes['zhongshuyuan-office']
+    const source = scene.initialPlayerPosition
+    const fit = cache.fit({ scene, source, text, sourceOffset: 4, maximumWidthPx: 120, protectedVisuals: [{ x: -100, y: -100, width: 1, height: 1 }], metrics, worldScale: .65, cameraOffset: mainlineReadingCameraOffset(scene, source, metrics, .65, { x: 0, y: 0 }) })
+    expect(fit.fits).toBe(true)
+    expect(fit.segments.join('')).toBe(text)
+    expect(fit.segments.some((_, i) => fit.segments.slice(0, i).join('').length === 4)).toBe(true)
+    fit.segments.forEach((page, i) => {
+      const fragments = splitMainlineInteractionTextToFit(page, Math.max(12, fit.maxWidthPx - 40), 12, value => measureText(value, 12))
+      expect(fit.pageLayouts[i]!.heightPx).toBeGreaterThanOrEqual(mainlineObservationMinimumPageHeight(fragments, 12, true))
     })
   })
 })
