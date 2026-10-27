@@ -39,3 +39,34 @@ export function mainlineReadingTextMotionAfterAnimation(
   if (current === 'deleting') return 'deleted'
   return current
 }
+
+/** Continue from the number of characters visible when motion was paused. */
+export function mainlineReadingTextMotionResumeElapsed(motion: 'typing' | 'deleting', textLength: number, visibleCount: number, intervalMs: number) {
+  const count = Math.max(0, Math.min(textLength, visibleCount))
+  const steps = motion === 'typing' ? Math.max(0, count - 1) : Math.max(0, textLength - count - 1)
+  return steps * Math.max(1, intervalMs)
+}
+
+/** Start one resumable frame loop; cancellation or pause suppresses completion. */
+export function startMainlineReadingTextMotion(input: {
+  motion: 'typing' | 'deleting'; textLength: number; visibleCount: number; intervalMs: number
+  request: (callback: (now: number) => void) => number; cancel: (id: number) => void
+  isPaused: () => boolean; onProgress: (count: number) => void; onComplete: () => void
+}) {
+  let frame = 0
+  let cancelled = false
+  let startedAt: number | null = null
+  const baseline = mainlineReadingTextMotionResumeElapsed(input.motion, input.textLength, input.visibleCount, input.intervalMs)
+  const advance = (now: number) => {
+    if (cancelled || input.isPaused()) return
+    startedAt ??= now
+    const next = mainlineReadingTextMotionVisibleCount(input.motion, input.textLength, baseline + now - startedAt, input.intervalMs)
+    input.onProgress(next)
+    if (input.motion === 'typing' ? next >= input.textLength : next <= 0) {
+      if (!cancelled && !input.isPaused()) input.onComplete()
+    } else frame = input.request(advance)
+  }
+  if (input.textLength === 0) { if (!input.isPaused()) input.onComplete() }
+  else frame = input.request(advance)
+  return () => { cancelled = true; input.cancel(frame) }
+}

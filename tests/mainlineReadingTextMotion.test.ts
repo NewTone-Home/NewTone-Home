@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineReadingSessionTextIsFinal, mainlineReadingTextMotionAfterAdvance, mainlineReadingTextMotionAfterAnimation, mainlineReadingTextMotionCanAnimate, mainlineReadingTextMotionCompletionMatches, mainlineReadingTextMotionVisibleCount, type MainlineReadingTextMotion } from '../src/center/runtime/mainlineReadingTextMotion'
+import { mainlineReadingSessionTextIsFinal, mainlineReadingTextMotionAfterAdvance, mainlineReadingTextMotionAfterAnimation, mainlineReadingTextMotionCanAnimate, startMainlineReadingTextMotion, mainlineReadingTextMotionCompletionMatches, mainlineReadingTextMotionVisibleCount, type MainlineReadingTextMotion } from '../src/center/runtime/mainlineReadingTextMotion'
 
 function press(motion: MainlineReadingTextMotion, isSessionEnd: boolean) {
   return mainlineReadingTextMotionAfterAdvance(motion, isSessionEnd)
@@ -58,5 +58,38 @@ describe('whole-session reading text motion', () => {
     expect(mainlineReadingTextMotionVisibleCount('deleting', 3, 0, 40)).toBe(2)
     expect(mainlineReadingTextMotionVisibleCount('deleting', 3, 80, 40)).toBe(0)
     expect(mainlineReadingTextMotionCanAnimate('static', true)).toBe(false)
+  })
+})
+
+
+describe('reading motion when no space is available', () => {
+  it.each(['typing', 'deleting'] as const)('pauses %s without completing and resumes from the visible count', motion => {
+    let queued: ((now: number) => void) | null = null
+    let paused = false
+    let count = motion === 'typing' ? 0 : 5
+    let completed = 0
+    const start = () => startMainlineReadingTextMotion({
+      motion, textLength: 5, visibleCount: count, intervalMs: 40,
+      request: callback => { queued = callback; return 1 }, cancel: () => { queued = null },
+      isPaused: () => paused, onProgress: value => { count = value }, onComplete: () => { completed += 1 },
+    })
+    const tick = (now: number) => { const callback = queued; queued = null; if (callback) (callback as (now: number) => void)(now) }
+    let stop = start()
+    tick(0); tick(80)
+    const beforePause = count
+    expect(beforePause).toBe(motion === 'typing' ? 3 : 2)
+    paused = true
+    tick(1000)
+    expect(count).toBe(beforePause)
+    expect(completed).toBe(0)
+    stop()
+    paused = false
+    stop = start()
+    tick(2000)
+    expect(count).toBe(beforePause)
+    tick(2080)
+    expect(count).toBe(motion === 'typing' ? 5 : 0)
+    expect(completed).toBe(1)
+    stop()
   })
 })

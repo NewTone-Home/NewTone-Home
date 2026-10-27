@@ -30,7 +30,7 @@ import { interpolateMainlineReadingLayout, mainlineReadingPageTransitionDuration
 import { mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
 import { mainlineReadingPageKey } from './mainlineReadingPageKey'
 import { mainlineObservationPageIsSettled } from './mainlineObservationTyping'
-import { mainlineReadingTextMotionCanAnimate, mainlineReadingTextMotionVisibleCount, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
+import { mainlineReadingTextMotionCanAnimate, startMainlineReadingTextMotion, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
 import { mainlineReadingPageAdvanceResumeGraceMs, mainlineReadingPageAdvanceStartupWatchdogMs, mainlineReadingPageAdvanceTokenIsCurrent, mainlineReadingPageAdvanceWatchdogMayRelease } from './mainlineReadingPageAdvance'
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
@@ -409,12 +409,15 @@ function ReadingPageFlip({ pageKey, continuityKey, visibleText, layout, worldSca
   </span>
 }
 
-function useReadingTextMotion({ sessionKey, pageKey, text, motion, onComplete }: { sessionKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; onComplete?: (sessionKey: string, motion: MainlineReadingTextMotion) => void }) {
+function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = false, onComplete }: { sessionKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; paused?: boolean; onComplete?: (sessionKey: string, motion: MainlineReadingTextMotion) => void }) {
   const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
   const [settledPageKey, setSettledPageKey] = useState<string | null>(null)
   const [progress, setProgress] = useState<{ key: string; count: number } | null>(null)
   const pageSettled = mainlineObservationPageIsSettled(pageKey, settledPageKey)
-  const animationKey = `${sessionKey}\u0000${pageKey}\u0000${motion}`
+  const animationKey = `${sessionKey}\u0000${motion}`
+  const progressRef = useRef<{ key: string; count: number } | null>(null)
+  const pausedRef = useRef(paused)
+  pausedRef.current = paused
   const visibleCount = progress?.key === animationKey
     ? progress.count
     : motion === 'deleting' ? characters.length : 0
@@ -427,39 +430,33 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, onComplete }:
         : characters.slice(0, visibleCount).join('')
 
   useEffect(() => {
-    if ((motion !== 'typing' && motion !== 'deleting') || !mainlineReadingTextMotionCanAnimate(motion, pageSettled)) return
-    let frame = 0
-    let cancelled = false
-    let startedAt: number | null = null
-    const advance = (now: number) => {
-      if (cancelled) return
-      startedAt ??= now
-      const next = mainlineReadingTextMotionVisibleCount(motion, characters.length, now - startedAt, mainlineObservationTypingIntervalMs)
-      setProgress(current => current?.key === animationKey && current.count === next ? current : { key: animationKey, count: next })
-      const complete = motion === 'typing' ? next >= characters.length : next <= 0
-      if (complete) onComplete?.(sessionKey, motion)
-      else frame = window.requestAnimationFrame(advance)
-    }
-    if (characters.length === 0) {
-      onComplete?.(sessionKey, motion)
-      return
-    }
-    frame = window.requestAnimationFrame(advance)
-    return () => {
-      cancelled = true
-      window.cancelAnimationFrame(frame)
-    }
-  }, [animationKey, characters, motion, onComplete, pageSettled, sessionKey])
+    if (paused || (motion !== 'typing' && motion !== 'deleting') || !mainlineReadingTextMotionCanAnimate(motion, pageSettled)) return
+    const previous = progressRef.current?.key === animationKey ? progressRef.current.count : motion === 'deleting' ? characters.length : 0
+    return startMainlineReadingTextMotion({
+      motion,
+      textLength: characters.length,
+      visibleCount: previous,
+      intervalMs: mainlineObservationTypingIntervalMs,
+      request: callback => window.requestAnimationFrame(callback),
+      cancel: id => window.cancelAnimationFrame(id),
+      isPaused: () => pausedRef.current,
+      onProgress: next => {
+        progressRef.current = { key: animationKey, count: next }
+        setProgress(current => current?.key === animationKey && current.count === next ? current : { key: animationKey, count: next })
+      },
+      onComplete: () => onComplete?.(sessionKey, motion),
+    })
+  }, [animationKey, characters, motion, onComplete, pageSettled, paused, sessionKey])
 
   return { visibleText, onSettled: (settledKey: string) => {
     if (settledKey === pageKey) setSettledPageKey(settledKey)
   } }
 }
 
-function ObservationText({ echoId, continuityKey, pageKey, text, motion, layout, worldScale, lockToken, onMotionComplete, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { echoId: number; continuityKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; layout: MainlineEchoLayout; worldScale: number; lockToken: number; onMotionComplete?: (echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
+function ObservationText({ echoId, continuityKey, pageKey, text, motion, paused, layout, worldScale, lockToken, onMotionComplete, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { echoId: number; continuityKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; paused: boolean; layout: MainlineEchoLayout; worldScale: number; lockToken: number; onMotionComplete?: (echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
   const sessionKey = `echo:${echoId}`
   const completeMotion = useCallback((key: string, completedMotion: MainlineReadingTextMotion) => onMotionComplete?.(echoId, key, completedMotion), [echoId, onMotionComplete])
-  const textMotion = useReadingTextMotion({ sessionKey, pageKey, text, motion, onComplete: completeMotion })
+  const textMotion = useReadingTextMotion({ sessionKey, pageKey, text, motion, paused, onComplete: completeMotion })
   return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">
     <ReadingPageFlip pageKey={pageKey} continuityKey={continuityKey} visibleText={textMotion.visibleText} layout={layout} worldScale={worldScale} mode="observation" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel} onSettled={(settledKey) => { textMotion.onSettled(settledKey); onSettled?.(settledKey) }}>
       {textMotion.visibleText}
@@ -2703,7 +2700,7 @@ export function MainlineSceneRenderer({
               {isDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
                 ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
-                : <ObservationText echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
+                : <ObservationText echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} paused={readingFit?.fits === false} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
             </div>
             </Fragment>
           })()}
