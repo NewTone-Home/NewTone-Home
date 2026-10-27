@@ -1,4 +1,7 @@
 .shop-order-app { display:grid; gap:12px; padding:12px 0; color:var(--phone-ink); }
+.shop-order-app__shops { display:flex; gap:8px; }
+.shop-order-app__shops button { border:1px solid var(--phone-border); border-radius:999px; background:#ffffff08; color:inherit; padding:7px 12px; }
+.shop-order-app__shops button[aria-pressed=true] { border-color:#c8c9ce; background:#ffffff1b; }
 .shop-order-app__title { margin:0; font-weight:700; }
 .shop-order-app__products { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .shop-order-app__products button,.shop-order-app fieldset button { border:1px solid var(--phone-border); border-radius:9px; background:#ffffff08; color:inherit; padding:10px; }

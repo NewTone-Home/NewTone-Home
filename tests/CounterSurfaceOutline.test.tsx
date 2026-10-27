@@ -43,6 +43,27 @@ describe('one exterior L counter, two labels and complete solid interaction',()=
   expect(html.match(/data-counter-part-id=/g)).toHaveLength(2)
   expect(html.match(/data-counter-outline-path=/g)).toHaveLength(1)
  })
+ it('renders distinct small drink-app squares inside both beverage counters without replacing staff order or pickup targets',()=>{
+  for(const [roomId,groupId,serviceId] of [
+   ['commercial-south-s5-interior','milk-tea-trial-L-counter','commercial-s5-milk-tea-app-square'],
+   ['commercial-north-n1-interior','fruit-tea-trial-L-counter','fruit-tea-trial-app-square'],
+  ] as const){
+   const parts=scene.continuousStructures.filter(p=>p.counterSurface?.groupId===groupId),counter=parts[0]!,service=counter.counterSurface!.services!.find(item=>item.id===serviceId)!
+   expect(service.visual).toBe('app-square')
+   const hit=scene.objects.find(object=>object.id===serviceId)!
+   expect(hit).toMatchObject({interactive:true,counterService:true,interactionStructureId:expect.any(String)})
+   expect(hit.roomId).toBe(roomId)
+   expect(service.position.x*19.2).toBeGreaterThan(counter.x*19.2)
+   expect(service.position.x*19.2).toBeLessThan((counter.x+counter.width)*19.2)
+   expect(18).toBeLessThan(counter.width*19.2)
+   const ordinaryServices=counter.counterSurface!.services!.filter(item=>item.visual!== 'app-square')
+   expect(ordinaryServices.every(item=>Math.abs(item.position.y-service.position.y)*10.8>28)).toBe(true)
+   const markup=renderToStaticMarkup(<MainlineCounterSurface parts={parts} objects={scene.objects} onInteract={()=>{}}/>), box=markup.match(new RegExp(`<foreignObject[^>]*data-counter-service-box="${serviceId}"[^>]*>`))?.[0]!
+   expect(box).toContain('width="18"');expect(box).toContain('height="18"')
+   expect(markup).toContain(`data-counter-service-id="${serviceId}"`);expect(markup).toContain('data-counter-app-square="true"')
+   expect(scene.objects.some(object=>object.id===serviceId.replace('app-square','order-service-label')||object.id===serviceId.replace('app-square','order'))).toBe(true)
+  }
+ })
  it('moves only the Cafe menu inside the work-side wall and keeps equipment clear of that wall',()=>{
   for(const [roomId,groupId] of configs){
    const prefix=groupId.startsWith('milk')?'milk-tea-trial':groupId.startsWith('fruit')?'fruit-tea-trial':'cafe-trial'
@@ -60,6 +81,6 @@ describe('one exterior L counter, two labels and complete solid interaction',()=
   for(const [id,roomId,y] of [['commercial-cafe-menu','commercial-north-cafe-interior',392],['commercial-cafe-blackboard','commercial-north-cafe-interior',252],['commercial-s5-milk-tea-menu-service-label','commercial-south-s5-interior',56],['fruit-tea-trial-menu','commercial-north-n1-interior',588]] as const){const room=scene.rooms.find(r=>r.id===roomId)!,entity=scene.objects.find(o=>o.id===id)!;expect(entity.surface).toBe('wall');expect((entity.position.y-room.bounds.y)*10.8).toBeCloseTo(y,5)}
  })
  it('preserves one coffee-order behavior and all seven original service IDs',()=>{
-  expect(scene.objects.filter(o=>o.counterSurfaceId&&o.interactionBehavior==='cafe-order').map(o=>o.id)).toEqual(['commercial-cafe-counter']);expect(scene.objects.filter(o=>o.counterService).map(o=>o.id).sort()).toEqual(['commercial-cafe-counter','cafe-trial-order','cafe-trial-pickup','commercial-s5-milk-tea-order-service-label','commercial-s5-milk-tea-pickup-service-label','fruit-tea-trial-order','fruit-tea-trial-pickup'].sort());for(const o of scene.objects.filter(o=>o.counterSurfaceId&&!o.counterService))expect(o.interactionBehavior).toBeUndefined()
+  expect(scene.objects.filter(o=>o.counterSurfaceId&&o.interactionBehavior==='cafe-order').map(o=>o.id)).toEqual(['commercial-cafe-counter']);expect(scene.objects.filter(o=>o.counterService).map(o=>o.id).sort()).toEqual(['commercial-cafe-counter','cafe-trial-order','cafe-trial-pickup','commercial-s5-milk-tea-order-service-label','commercial-s5-milk-tea-pickup-service-label','fruit-tea-trial-order','fruit-tea-trial-pickup','commercial-s5-milk-tea-app-square','fruit-tea-trial-app-square'].sort());for(const o of scene.objects.filter(o=>o.counterSurfaceId&&!o.counterService))expect(o.interactionBehavior).toBeUndefined()
  })
 })

@@ -49,12 +49,12 @@ function employeeRearDoor(blueprint: MainlineSceneBlueprint, roomId: string, loc
 function addCounterSurface(entities: MainlineSceneEntity[], structures: MainlineContinuousStructure[], point: (x: number, y: number) => Point, roomId: string, spec: {
   id: string; groupId: string; bounds: CollisionBox; orientation: 'horizontal' | 'vertical'; publicSide: 'top' | 'bottom' | 'left' | 'right'
   label?: string; hideLabel?: boolean; role?: 'counter' | 'worktop'; entryId?: string; outlineBounds?: CollisionBox
-  services?: readonly { id: string; x: number; y: number; label?: string; order?: boolean }[]
+  services?: readonly { id: string; x: number; y: number; label?: string; order?: boolean; visual?: 'app-square' }[]
 }) {
   const { bounds } = spec, bodyId = `${spec.id}-body`, genericId = `${spec.id}-0`
   structures.push({ id: bodyId, kind: 'counter', ...point(bounds.x, bounds.y), width: bounds.width / 19.2, height: bounds.height / 10.8,
     counterSurface: { groupId: spec.groupId, roomId, interactionEntityId: genericId, labelEntityId: genericId, orientation: spec.orientation, label: spec.label, hideLabel: spec.hideLabel, role: spec.role,
-      services: spec.services?.map(service => ({ id: service.id, label: service.label ?? '', position: point(service.x, service.y) })),
+      services: spec.services?.map(service => ({ id: service.id, label: service.label ?? '', position: point(service.x, service.y), visual: service.visual })),
       outlineBounds: spec.outlineBounds ? { ...point(spec.outlineBounds.x, spec.outlineBounds.y), width: spec.outlineBounds.width / 19.2, height: spec.outlineBounds.height / 10.8 } : undefined } })
   const anchor = (id: string, x: number, y: number, service = false, order = false): MainlineSceneEntity => ({
     id, label: spec.label ?? '柜台', kind: 'fixture', weight: 'fixture', surface: 'floor', roomId, position: point(x, y),
@@ -171,7 +171,7 @@ type TakeawayTrial = {
   prefix: string
   oldStructurePrefix: string
   runs: readonly { id: string; bounds: CollisionBox; outlineBounds?: CollisionBox; orientation: 'horizontal' | 'vertical'; publicSide: 'top' | 'bottom' | 'left' | 'right' }[]
-  stations: readonly { id: string; x: number; y: number; label: string }[]
+  stations: readonly { id: string; x: number; y: number; label: string; visual?: 'app-square' }[]
   menu: { id: string; y: number; edge: 'left' | 'right'; publicX?: number }
   publicSide: 'left' | 'right'
   rearX: number
@@ -235,6 +235,7 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     stations: [
       { id: 'commercial-s5-milk-tea-order-service-label', x: 168, y: 224, label: '\u70b9\u5355' },
       { id: 'commercial-s5-milk-tea-pickup-service-label', x: 168, y: 432, label: '\u53d6\u9910' },
+      { id: 'commercial-s5-milk-tea-app-square', x: 168, y: 320, label: 'Open drink ordering', visual: 'app-square' },
     ],
     publicSide: 'left', menu: { id: 'commercial-s5-milk-tea-menu-service-label', y: 56, edge: 'left' }, rearX: 280,
     equipment: ['制茶机', '封口机', '清洗台', '煮料台'],
@@ -254,6 +255,7 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     stations: [
       { id: 'fruit-tea-trial-order', x: 168, y: 432, label: '\u70b9\u5355' },
       { id: 'fruit-tea-trial-pickup', x: 168, y: 336, label: '\u53d6\u9910' },
+      { id: 'fruit-tea-trial-app-square', x: 168, y: 240, label: 'Open drink ordering', visual: 'app-square' },
     ],
     publicSide: 'right', menu: { id: 'fruit-tea-trial-menu', y: 588, edge: 'right' }, rearX: 56,
     equipment: ['清洗台', '切果台', '打包台', '冷藏', '煮料台'],

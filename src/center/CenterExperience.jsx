@@ -210,6 +210,8 @@ export default function CenterExperience({
   const sceneEnteredAtRef = useRef(null)
   const milkTeaReadyAnalyticsMarkerRef = useRef(null)
   const commercialStreetState = playerSave.sceneState['commercial-street'] ?? {}
+  const drinkOrderingAppUnlocked = commercialStreetMilkTeaAppUnlocked(commercialStreetState)
+    || Boolean(fixtureStorage && new URLSearchParams(window.location.search).get('e2eUnlockDrinkApp') === '1')
   const cafeWorldSceneState = useMemo(() => ({ ...playerSave.sceneState['commercial-street'], ...playerSave.sceneState['commercial-cafe'] }), [playerSave.sceneState['commercial-street'], playerSave.sceneState['commercial-cafe']])
   const milkTeaOrder = commercialStreetMilkTeaOrderFromSceneState(commercialStreetState)
 
@@ -402,12 +404,12 @@ export default function CenterExperience({
   }, [commitPlayerSave])
 
   const handleCommerceEntity = useCallback((entity) => {
-    if (entity.id === 'commercial-s5-milk-tea-order-service-label') {
+    if (entity.id === 'commercial-s5-milk-tea-order-service-label' || entity.id === 'commercial-s5-milk-tea-app-square') {
       openShopOrderApp(crossShopIds.milkTea)
       return true
     }
     if (entity.id === 'commercial-s5-milk-tea-pickup-service-label') { claimShopOrder(crossShopIds.milkTea); return true }
-    if (entity.id === 'fruit-tea-trial-order') {
+    if (entity.id === 'fruit-tea-trial-order' || entity.id === 'fruit-tea-trial-app-square') {
       openShopOrderApp(crossShopIds.fruitTea)
       return true
     }
@@ -993,7 +995,8 @@ export default function CenterExperience({
           notificationScreen={phoneNotificationScreen}
           onNotificationDismiss={() => setPhoneNotificationScreen(false)}
           onAppOpen={readPhoneApp}
-          milkTeaAppUnlocked={commercialStreetMilkTeaAppUnlocked(commercialStreetState)}
+          milkTeaAppUnlocked={drinkOrderingAppUnlocked}
+          availableShopIds={drinkOrderingAppUnlocked ? [crossShopIds.milkTea, crossShopIds.fruitTea] : []}
           milkTeaOrder={milkTeaOrder}
           milkTeaHeld={commercialStreetMilkTeaHeld(commercialStreetState)}
           requestedApp={requestedPhoneApp}
