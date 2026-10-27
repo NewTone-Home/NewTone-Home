@@ -10,10 +10,11 @@ import {
   commercialStreetMilkTeaQueueAheadKey,
   commercialStreetMilkTeaSugarKey,
 } from './commercialStreetMilkTea'
+import { commercialStreetDrinkCatalog } from './commercialStreetDrinkCatalog'
 
 export const crossShopIds = {
   milkTea: 'commercial-south-slot-5',
-  fruitTea: 'commercial-south-slot-5',
+  fruitTea: 'commercial-north-slot-1',
   yonghe: 'yonghe-eatery',
   cafeTakeaway: 'commercial-cafe-slot',
 } as const
@@ -27,7 +28,7 @@ export type CrossShopOrder = {
   readyAtGameTimeMs: number | null
   /** Optional adapter-owned product choices such as sugar, ice, or takeaway packaging. */
   options?: Record<string, string | number | boolean | null>
-  /** Non-authoritative old scene-state fields retained until legacy timing is decided. */
+  /** Audit copy of old scene-state fields retained after mapping the legacy deadline. */
   legacySnapshot?: Record<string, PlayerChoiceValue>
 }
 
@@ -101,7 +102,10 @@ function cleanLegacy(value: unknown): Record<string, PlayerChoiceValue> | undefi
   return cleanOptions(value) as Record<string, PlayerChoiceValue> | undefined
 }
 
-export function migrateLegacyShopState(sceneState: Partial<Record<string, PlayerSceneState>>): CrossShopOrderState {
+export function migrateLegacyShopState(
+  sceneState: Partial<Record<string, PlayerSceneState>>,
+  checkpoint: { gameTimeMs: number; updatedAtWallMs: number },
+): CrossShopOrderState {
   const migrated: CrossShopOrderState = { ordersByShop: {}, heldConsumable: null }
   const street = sceneState['commercial-street']
   if (!street) return migrated
@@ -115,14 +119,49 @@ export function migrateLegacyShopState(sceneState: Partial<Record<string, Player
       const item = street[key]
       if (item === null || ['string', 'number', 'boolean'].includes(typeof item)) legacySnapshot[key] = item as PlayerChoiceValue
     }
-    migrated.ordersByShop[crossShopIds.milkTea] = {
-      id: `legacy-milk-tea-${oldOrderNumber}`,
-      shopId: crossShopIds.milkTea,
-      productId: 'legacy-milk-tea-order',
-      status: 'legacy-unmapped',
-      placedAtGameTimeMs: null,
-      readyAtGameTimeMs: null,
-      legacySnapshot,
+    const createdAt = street[commercialStreetMilkTeaCreatedAtKey]
+    const readyAt = street[commercialStreetMilkTeaReadyAtKey]
+    const hasComparableCheckpoint = isFiniteNonNegative(checkpoint.gameTimeMs)
+      && isFiniteNonNegative(checkpoint.updatedAtWallMs)
+      && isFiniteNonNegative(readyAt)
+    if (hasComparableCheckpoint) {
+      // Old code scheduled these orders for 15–30 seconds. This is only a
+      // conservative migration ceiling, not the new preparation duration.
+      // Re-anchor what remained at the last save; closed-app time is excluded.
+      const hasCreationAnchor = isFiniteNonNegative(createdAt) && readyAt >= createdAt
+      const duration = hasCreationAnchor ? Math.min(30_000, readyAt - createdAt) : 30_000
+      const remaining = hasCreationAnchor && checkpoint.updatedAtWallMs < createdAt
+        ? duration
+        : Math.max(0, Math.min(duration, readyAt - checkpoint.updatedAtWallMs))
+      const legacyDrink = street[commercialStreetMilkTeaDrinkKey]
+      const knownMilkTea = commercialStreetDrinkCatalog.slice(0, 4).find(product => product.name === legacyDrink)
+      migrated.ordersByShop[crossShopIds.milkTea] = {
+        id: `legacy-milk-tea-${oldOrderNumber}`,
+        shopId: crossShopIds.milkTea,
+        productId: knownMilkTea?.id ?? 'legacy-milk-tea-order',
+        status: 'queued',
+        placedAtGameTimeMs: checkpoint.gameTimeMs,
+        readyAtGameTimeMs: checkpoint.gameTimeMs + remaining,
+        ...(legacySnapshot[commercialStreetMilkTeaSugarKey] !== undefined || legacySnapshot[commercialStreetMilkTeaIceKey] !== undefined
+          ? { options: {
+            ...(legacySnapshot[commercialStreetMilkTeaSugarKey] !== undefined ? { sugar: legacySnapshot[commercialStreetMilkTeaSugarKey] as string } : {}),
+            ...(legacySnapshot[commercialStreetMilkTeaIceKey] !== undefined ? { ice: legacySnapshot[commercialStreetMilkTeaIceKey] as string } : {}),
+          } }
+          : {}),
+        legacySnapshot,
+      }
+    } else {
+      // Keep the original snapshot visible to the migration/adapter layer.
+      // It remains non-claimable until a safe clock mapping is available.
+      migrated.ordersByShop[crossShopIds.milkTea] = {
+        id: `legacy-milk-tea-${oldOrderNumber}`,
+        shopId: crossShopIds.milkTea,
+        productId: 'legacy-milk-tea-order',
+        status: 'legacy-unmapped',
+        placedAtGameTimeMs: null,
+        readyAtGameTimeMs: null,
+        legacySnapshot,
+      }
     }
   }
   if (street[commercialStreetMilkTeaHeldDrinkKey] === 'milk-tea') {
@@ -168,4 +207,25 @@ export function claimCrossShopOrder(
 export function consumeHeldConsumable(state: CrossShopOrderState): CrossShopResult<HeldConsumable> {
   if (!state.heldConsumable) return { ok: false, state, reason: 'nothing-to-consume' }
   return { ok: true, state: { ...state, heldConsumable: null }, value: state.heldConsumable }
+}
+
+/** Resolve a timestamp-incomplete legacy order only when an adapter explicitly supplies safe game-time mapping. */
+export function mapLegacyOrderToGameTime(
+  state: CrossShopOrderState,
+  shopId: string,
+  nowGameTimeMs: number,
+  remainingPreparationMs: number,
+): CrossShopResult<CrossShopOrder> {
+  const order = state.ordersByShop[shopId]
+  if (!order) return { ok: false, state, reason: 'no-order' }
+  if (order.status !== 'legacy-unmapped' || !isFiniteNonNegative(nowGameTimeMs) || !isFiniteNonNegative(remainingPreparationMs)) {
+    return { ok: false, state, reason: 'invalid-order' }
+  }
+  const mapped: CrossShopOrder = {
+    ...order,
+    status: 'queued',
+    placedAtGameTimeMs: nowGameTimeMs,
+    readyAtGameTimeMs: nowGameTimeMs + remainingPreparationMs,
+  }
+  return { ok: true, state: { ...state, ordersByShop: { ...state.ordersByShop, [shopId]: mapped } }, value: mapped }
 }

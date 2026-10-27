@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialPlayerSave, loadPlayerSave, sanitizePlayerSave, savePlayerSave } from './playerSave'
+import { commercialCafeTakeawayCatalog, commercialCafeTakeawayStoreId } from './commercialCafeTakeawayCatalog'
+import { commercialStreetDrinkCatalogWithStores } from './commercialStreetDrinkCatalog'
+import { mainlineSceneBlueprints } from './mainlineSceneModel'
 import {
   claimCrossShopOrder, consumeHeldConsumable, crossShopIds, emptyCrossShopOrderState,
-  migrateLegacyShopState, placeCrossShopOrder, sanitizeCrossShopOrderState,
+  mapLegacyOrderToGameTime, migrateLegacyShopState, placeCrossShopOrder, sanitizeCrossShopOrderState,
 } from './crossShopOrders'
 import {
   commercialStreetMilkTeaDrinkKey, commercialStreetMilkTeaHeldDrinkKey,
-  commercialStreetMilkTeaIceKey, commercialStreetMilkTeaOrderNumberKey,
+  commercialStreetMilkTeaCreatedAtKey, commercialStreetMilkTeaIceKey, commercialStreetMilkTeaOrderNumberKey,
   commercialStreetMilkTeaReadyAtKey, commercialStreetMilkTeaSugarKey,
 } from './commercialStreetMilkTea'
 
@@ -24,6 +27,32 @@ describe('cross-shop order and global hand model', () => {
     const second = placeCrossShopOrder(first, { shopId: crossShopIds.yonghe, id: 'meal-1', productId: 'wonton', placedAtGameTimeMs: 10_000, preparationDurationMs: 5_000 })
     expect(second.ok).toBe(true)
     if (second.ok) expect(Object.keys(second.state.ordersByShop)).toEqual([crossShopIds.milkTea, crossShopIds.yonghe])
+  })
+
+  it('binds the four fruit drinks to a separate fruit shop, while the four milk teas stay at their own shop', () => {
+    expect(crossShopIds.milkTea).toBe('commercial-south-slot-5')
+    expect(crossShopIds.fruitTea).toBe('commercial-north-slot-1')
+    expect(commercialStreetDrinkCatalogWithStores.slice(0, 4).every(item => item.storeId === crossShopIds.milkTea)).toBe(true)
+    expect(commercialStreetDrinkCatalogWithStores.slice(4).every(item => item.storeId === crossShopIds.fruitTea)).toBe(true)
+    const street = mainlineSceneBlueprints['commercial-street']
+    const fruitFrontage = street.scene.storefronts?.find(slot => slot.id === crossShopIds.fruitTea)
+    expect(fruitFrontage?.portalId).toBeTruthy()
+    const fruitInterior = street.portals.find(portal => portal.id === fruitFrontage?.portalId)
+    expect(fruitInterior?.toRoomId).toBe('commercial-north-n1-interior')
+    const milk = placeCrossShopOrder(emptyCrossShopOrderState, { shopId: crossShopIds.milkTea, id: 'milk', productId: 'original-milk-tea', placedAtGameTimeMs: 1_000, preparationDurationMs: 1 })
+    if (!milk.ok) throw new Error(milk.reason)
+    const fruit = placeCrossShopOrder(milk.state, { shopId: crossShopIds.fruitTea, id: 'fruit', productId: 'fresh-orange-juice', placedAtGameTimeMs: 1_000, preparationDurationMs: 1 })
+    expect(fruit.ok).toBe(true)
+  })
+
+  it('provides the approved cafe takeaway SKU IDs and prices without touching narrative coffee', () => {
+    expect(commercialCafeTakeawayCatalog.map(({ id, name, price, storeId }) => [id, name, price, storeId])).toEqual([
+      ['americano', '美式', 3, commercialCafeTakeawayStoreId],
+      ['latte', '拿铁', 4, commercialCafeTakeawayStoreId],
+      ['flat-white', '澳白', 4, commercialCafeTakeawayStoreId],
+      ['caramel-macchiato', '焦糖玛奇朵', 5, commercialCafeTakeawayStoreId],
+      ['sea-salt-caramel-latte', '海盐焦糖拿铁', 5, commercialCafeTakeawayStoreId],
+    ])
   })
 
   it('leaves an order untouched on a full hand, then allows claim after voluntary consume', () => {
@@ -98,7 +127,9 @@ describe('cross-shop order and global hand model', () => {
     expect(restored.currentPosition).toEqual({ x: 12, y: 34 })
     expect(restored.sceneState['commercial-street']?.unrelatedQuestFlag).toBe(true)
     expect(restored.sceneState['commercial-street']?.carriedStoryItem).toBe('kept')
-    expect(restored.shopOrders[crossShopIds.milkTea]?.status).toBe('legacy-unmapped')
+    expect(restored.shopOrders[crossShopIds.milkTea]).toMatchObject({
+      status: 'queued', placedAtGameTimeMs: fresh.gameTimeMs, readyAtGameTimeMs: fresh.gameTimeMs + 30_000,
+    })
     expect(restored.heldConsumable?.kind).toBe('legacy-unknown')
   })
 
@@ -116,12 +147,23 @@ describe('cross-shop order and global hand model', () => {
       [commercialStreetMilkTeaIceKey]: 'old-ice',
       [commercialStreetMilkTeaReadyAtKey]: 1_800_000_000_000,
       [commercialStreetMilkTeaHeldDrinkKey]: 'milk-tea',
-    } })
+      [commercialStreetMilkTeaCreatedAtKey]: 1_799_999_975_000,
+    } }, { gameTimeMs: 600_000, updatedAtWallMs: 1_799_999_990_000 })
     const order = migrated.ordersByShop[crossShopIds.milkTea]
-    expect(order).toMatchObject({ status: 'legacy-unmapped', placedAtGameTimeMs: null, readyAtGameTimeMs: null })
+    expect(order).toMatchObject({ status: 'queued', placedAtGameTimeMs: 600_000, readyAtGameTimeMs: 610_000 })
     expect(order.legacySnapshot?.[commercialStreetMilkTeaReadyAtKey]).toBe(1_800_000_000_000)
     expect(migrated.heldConsumable).toMatchObject({ productId: 'legacy-milk-tea', kind: 'legacy-unknown' })
-    expect(claimCrossShopOrder(migrated, crossShopIds.milkTea, Number.MAX_SAFE_INTEGER)).toMatchObject({ ok: false, reason: 'not-ready' })
+    expect(claimCrossShopOrder(migrated, crossShopIds.milkTea, Number.MAX_SAFE_INTEGER)).toMatchObject({ ok: false, reason: 'hand-full' })
+  })
+
+  it('keeps a timestamp-incomplete legacy order and offers explicit game-time resolution', () => {
+    const unresolved = migrateLegacyShopState({ 'commercial-street': {
+      [commercialStreetMilkTeaOrderNumberKey]: 8,
+      [commercialStreetMilkTeaReadyAtKey]: 1_800_000_000_000,
+    } }, { gameTimeMs: Number.NaN, updatedAtWallMs: 1_800_000_000_000 })
+    expect(unresolved.ordersByShop[crossShopIds.milkTea]).toMatchObject({ status: 'legacy-unmapped' })
+    const resolved = mapLegacyOrderToGameTime(unresolved, crossShopIds.milkTea, 42_000, 12_000)
+    expect(resolved).toMatchObject({ ok: true, value: { status: 'queued', placedAtGameTimeMs: 42_000, readyAtGameTimeMs: 54_000 } })
   })
 
   it('drops malformed saved commerce records safely and does not invent a legacy order from a partial selection', () => {
@@ -131,7 +173,7 @@ describe('cross-shop order and global hand model', () => {
       [commercialStreetMilkTeaDrinkKey]: 'only-selection',
       [commercialStreetMilkTeaOrderNumberKey]: null,
       [commercialStreetMilkTeaHeldDrinkKey]: null,
-    } })
+    } }, { gameTimeMs: 0, updatedAtWallMs: 0 })
     expect(migrated).toEqual(emptyCrossShopOrderState)
   })
 })

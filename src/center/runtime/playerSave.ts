@@ -273,7 +273,7 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
     : savedStoryClockTimeAsMilliseconds((source as { storyClock?: unknown }).storyClock, storyClock)
   const commerceState = Object.hasOwn(source, 'shopOrders') || Object.hasOwn(source, 'heldConsumable')
     ? sanitizeCrossShopOrderState({ ordersByShop: source.shopOrders, heldConsumable: source.heldConsumable })
-    : migrateLegacyShopState(cleanSceneState(source.sceneState))
+    : migrateLegacyShopState(cleanSceneState(source.sceneState), { gameTimeMs, updatedAtWallMs: Number.isFinite(updatedAt) && updatedAt >= 0 ? updatedAt : 0 })
   return {
     worldGridVersion: 1,
     commercialDepthVersion: Math.max(currentCommercialDepthVersion, Number.isFinite(savedDepthVersion) ? savedDepthVersion : currentCommercialDepthVersion),
