@@ -10,6 +10,7 @@ import '../../src/center/runtime/scene.css'
 function Fixture() {
   const scene = mainlineScenes['commercial-street']
   const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
+  const observationMode = new URLSearchParams(location.search).get('mode') === 'observation'
   const [stageSpeakerActorId, setStageSpeakerActorId] = useState<string | null>('protagonist')
   const seatId = commercialCafeLaoZhouConversationSeatId
   const groups = mainlineDialogueFurnitureGroupIds(scene.objects, new Set([seatId]))
@@ -31,6 +32,7 @@ function Fixture() {
   const position = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
   const metrics = { width: innerWidth, height: innerHeight, viewportWidth: innerWidth }
   const geometry = createMainlineSceneGeometrySnapshot(scene, position, {}, metrics)
+  const echo = { id: 1, entityId: seatId, text: '这里是一段用于检查局部渐隐的合成观察文字。', segments: ['这里是一段用于检查局部渐隐的合成观察文字。'], segmentIndex: 0, position, textMotion: 'static' as const }
   const onMotionComplete = (_id: number, nextMotion: 'typing' | 'static' | 'deleting' | 'deleted') => {
     if (nextMotion === 'typing') setMotion('static')
     if (nextMotion === 'deleting') {
@@ -41,8 +43,8 @@ function Fixture() {
       setStageSpeakerActorId('lao-zhou')
     }
   }
-  return <div className="mainline-scene--map-only">
-    <MainlineSceneRenderer scene={scene} position={position} moving={false} destination={null} layoutMode={false} layout={{}} activeObjectId={null} geometrySnapshot={geometry} viewportMetrics={metrics} cameraOffset={{ x: 50 - position.x, y: 50 - position.y }} onLayoutChange={() => {}} onInteract={() => {}} onWalk={() => {}} dialogue={{ triggerEntityId: 'fixture-dialogue', lines }} dialogueLine={line} dialogueText={line.text} dialoguePosition={{ x: 70, y: 42 }} dialogueLineIndex={lineIndex} dialogueSegmentIndex={0} dialogueSegmentCount={1} dialogueTextSessionId={sessionId} dialogueTextMotion={motion} readingMode="dialogue" dialogueStage={stage} dialogueHandoffActive={handoff} dialogueHandoffFadeDurationMs={300} onDialogueTypingSkip={() => setMotion('static')} onDialogueAdvance={() => { setHandoff(true); setMotion('deleting') }} onDialogueTextMotionComplete={onMotionComplete} />
+  return <div className="scene-shell mainline-scene--map-only">
+    <MainlineSceneRenderer scene={scene} position={position} moving={false} destination={null} layoutMode={false} layout={{}} activeObjectId={observationMode ? seatId : null} geometrySnapshot={geometry} viewportMetrics={metrics} cameraOffset={{ x: 50 - position.x, y: 50 - position.y }} onLayoutChange={() => {}} onInteract={() => {}} onWalk={() => {}} dialogue={observationMode ? undefined : { triggerEntityId: 'fixture-dialogue', lines }} dialogueLine={observationMode ? null : line} dialogueText={line.text} dialoguePosition={{ x: 70, y: 42 }} dialogueLineIndex={lineIndex} dialogueSegmentIndex={0} dialogueSegmentCount={1} dialogueTextSessionId={sessionId} dialogueTextMotion={motion} readingMode={observationMode ? 'observation' : 'dialogue'} sceneEcho={observationMode ? echo : null} dialogueStage={observationMode ? null : stage} dialogueHandoffActive={handoff} dialogueHandoffFadeDurationMs={300} onDialogueTypingSkip={() => setMotion('static')} onDialogueAdvance={() => { setHandoff(true); setMotion('deleting') }} onDialogueTextMotionComplete={onMotionComplete} />
     <button data-fixture-fast-skip onClick={() => { setHandoff(true); setMotion('deleting') }}>handoff</button>
   </div>
 }

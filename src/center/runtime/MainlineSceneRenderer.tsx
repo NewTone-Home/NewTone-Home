@@ -2116,6 +2116,7 @@ export function MainlineSceneRenderer({
       add(`portal:${slot.id}`, slot.id, bounds, portalEntity ? mainlineActiveSpatialSpaceId(scene, portalEntity.position) : undefined, slot.portalId ? [slot.portalId] : undefined)
     }
     for (const { unit, cell } of geometryCells) {
+      if (sceneEcho && (cell.kind === 'wall' || cell.kind === 'door' || cell.kind === 'opening')) continue
       const sourceEntityId = cell.entityId ?? unit.entityId
       const target = mainlineCellFocusTarget(scene, cell, sourceEntityId, unit.variant)
       const entries = target ? focusGroupCells.get(target.group) : undefined
@@ -2178,7 +2179,7 @@ export function MainlineSceneRenderer({
       add(`object:${entity.id}`, entity.id, bounds, entity.spaceId ?? entity.roomId ?? mainlineActiveSpatialSpaceId(scene, entityPosition))
     }
     return candidates
-  }, [activeSwitchableStorefronts, focusGroupCells, geometryCells, geometrySnapshot, horizontalGridScale, readingOcclusionRect, readingOcclusionSessionKey, readingOcclusionSnapshotFrozen, readingVisualActive, renderScreenMetrics, scene, storefrontLabelGeometry, switchCells, visibleCounterSurfaces, visibleObjectEntities])
+  }, [activeSwitchableStorefronts, focusGroupCells, geometryCells, geometrySnapshot, horizontalGridScale, readingOcclusionRect, readingOcclusionSessionKey, readingOcclusionSnapshotFrozen, readingVisualActive, renderScreenMetrics, scene, sceneEcho, storefrontLabelGeometry, switchCells, visibleCounterSurfaces, visibleObjectEntities])
   const currentReadingOcclusion = useMemo<RetainedReadingOcclusion | null>(() => {
     if (!readingVisualActive || !readingOcclusionSessionKey || !readingOcclusionRect) return null
     if (readingOcclusionSnapshotFrozen && retainedReadingOcclusion) return retainedReadingOcclusion
@@ -2238,6 +2239,9 @@ export function MainlineSceneRenderer({
     ? retainMainlineReadingOcclusionSnapshot(retainedReadingOcclusion, currentReadingOcclusion)
     : retainedReadingOcclusion
   const readingOcclusionActive = readingPresentationPhase === 'active' && readingVisualActive && activeReadingOcclusionSession === readingOcclusionSessionKey
+  const observationFade = sceneEcho && retainedOcclusionSnapshot?.rect
+    ? { rect: retainedOcclusionSnapshot.rect, innerMarginWorldPx: mainlineReadingOcclusionFadeWorldPx * 2, featherWorldPx: mainlineReadingOcclusionFadeWorldPx * 3 }
+    : undefined
   const readingOcclusionProtectedEntityIds = readingPresentationPhase === 'inactive'
     ? retainedReadingOcclusion?.protectedEntityIds ?? readingProtectedEntityIds
     : readingProtectedEntityIds
@@ -2303,7 +2307,7 @@ export function MainlineSceneRenderer({
               const cells = switchCells.get(slot.id)!
               const portalBoxes = cells.map(cell => cellGlyphWorldBounds({ ...cell, kind: cell.role === 'door' ? 'door' : 'storefront' } as MainlineSceneGeometryUnit['visual']['cells'][number], horizontalGridScale))
               const portalBounds = unionWorldBounds(portalBoxes, 8)
-              return <MainlineReadingIdentityPlane key={`portal:${slot.id}`} identityKey={`portal:${slot.id}`} entityId={slot.id} relatedEntityIds={slot.portalId ? [slot.portalId] : []} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={portalBounds} active={readingOcclusionActive} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">
+              return <MainlineReadingIdentityPlane key={`portal:${slot.id}`} identityKey={`portal:${slot.id}`} entityId={slot.id} relatedEntityIds={slot.portalId ? [slot.portalId] : []} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={sceneEcho ? undefined : retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={portalBounds} active={readingOcclusionActive && !sceneEcho} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">
                 <PortalStorefrontCharacters scene={scene} storefront={slot}
                   cells={cells} coordinateBounds={portalBounds} phase={storefrontPresentation.get(slot.id) ?? 'baseline'}
                   doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'} screenMetrics={renderScreenMetrics} renderFrame={focusFrames.renderFrame}
@@ -2534,7 +2538,11 @@ export function MainlineSceneRenderer({
                 return (entryRoomId ?? mainlineActiveSpatialSpaceId(scene, { x: entry.cell.x, y: entry.cell.y })) === occlusionSpaceId
               }))
               const occlusionIdentityKey = mainlineReadingOcclusionCellIdentity(cell.id, sameSpaceFocusGroup ? cellFocusTarget?.group : undefined, occlusionSpaceId)
-              return <MainlineReadingIdentityPlane key={`cell:${cell.id}`} identityKey={occlusionIdentityKey} entityId={entityId} relatedEntityIds={relatedEntityIds} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={cellWorldBounds} active={readingOcclusionActive} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">{node}</MainlineReadingIdentityPlane>
+              const cellEntity = scene.objects.find(candidate => candidate.id === entityId)
+              const preserveBoundary = cell.kind === 'wall' || cell.kind === 'door' || cell.kind === 'opening'
+                || unit.surface === 'wall' || unit.surface === 'door'
+              const canFadeFeature = Boolean(observationFade && !preserveBoundary && cellEntity && cellEntity.kind !== 'door' && cellEntity.surface !== 'wall')
+              return <MainlineReadingIdentityPlane key={`cell:${cell.id}`} identityKey={occlusionIdentityKey} entityId={entityId} relatedEntityIds={relatedEntityIds} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={sceneEcho ? undefined : retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={cellWorldBounds} observationFade={canFadeFeature ? observationFade : undefined} active={readingOcclusionActive && (!sceneEcho || canFadeFeature)} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">{node}</MainlineReadingIdentityPlane>
             })}
           </div>
           <div className="scene-mainline-counter-layer" data-reading-occlusion-layer="counter">
@@ -2558,7 +2566,7 @@ export function MainlineSceneRenderer({
               return { x: centerX - width / 2, y: centerY - height / 2, width, height }
             })
             const counterBounds = unionWorldBounds([...boxes, ...labelBoxes], 1)
-            return <MainlineReadingIdentityPlane key={meta.groupId} identityKey={`counter:${meta.groupId}`} entityId={entityId} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={counterBounds} active={readingOcclusionActive} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--counter${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}><MainlineCounterSurface boundedWrapper coordinateBounds={counterBounds} parts={parts} objects={scene.objects} onInteract={onInteract} presentationActive={interiorRoomPresentationActive(meta.roomId)}/></MainlineReadingIdentityPlane>
+            return <MainlineReadingIdentityPlane key={meta.groupId} identityKey={`counter:${meta.groupId}`} entityId={entityId} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={sceneEcho ? undefined : retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={counterBounds} observationFade={observationFade} active={readingOcclusionActive} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--counter${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}><MainlineCounterSurface boundedWrapper coordinateBounds={counterBounds} parts={parts} objects={scene.objects} onInteract={onInteract} presentationActive={interiorRoomPresentationActive(meta.roomId)}/></MainlineReadingIdentityPlane>
             }
             return visibleCounterSurfaces.map(renderCounter)
           })()}
@@ -2571,7 +2579,8 @@ export function MainlineSceneRenderer({
                 ?? mainlineLabelFootprint(entity.label, object?.position ?? entity.position, renderScreenMetrics, { vertical: entity.textLayout === 'vertical', visualScale: entity.visualScale, lineHeight: 1.2 })
               const objectBounds = mainlineReadingWorldBox(normalizedBounds, value => value, entity.focusFrame === 'interactive' ? 5 : 0)
               const stageHidden = Boolean(dialogueStage?.hiddenEntityIds.has(entity.id))
-              return <MainlineReadingIdentityPlane key={entity.id} identityKey={`object:${entity.id}`} entityId={entity.id} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={objectBounds} active={readingOcclusionActive} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--object${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}>{renderMainlineObject(entity, objectBounds)}</MainlineReadingIdentityPlane>
+              const canFadeObject = Boolean(observationFade && entity.kind !== 'door' && entity.surface !== 'wall')
+              return <MainlineReadingIdentityPlane key={entity.id} identityKey={`object:${entity.id}`} entityId={entity.id} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={sceneEcho ? undefined : retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={objectBounds} observationFade={canFadeObject ? observationFade : undefined} active={readingOcclusionActive} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--object${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}>{renderMainlineObject(entity, objectBounds)}</MainlineReadingIdentityPlane>
             })}
           </div>
 

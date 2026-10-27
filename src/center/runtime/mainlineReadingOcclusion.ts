@@ -83,6 +83,23 @@ export function mainlineReadingOcclusionAlpha(point: Point, rect: MainlineReadin
   return Math.max(0, Math.min(1, Math.hypot(outsideX, outsideY) / Math.max(.01, fadeWidthWorldPx)))
 }
 
+/**
+ * Fade an object's own pixels around an observation frame. The empty centre
+ * covers the frame plus its inner breathing room; the outside feather remains
+ * transparent at the edge and restores continuously to the normal mask.
+ */
+export function mainlineReadingLocalFadeMask(bounds: CollisionBox, rect: MainlineReadingOcclusionRect, innerMarginWorldPx: number, featherWorldPx: number) {
+  if (bounds.width <= 0 || bounds.height <= 0 || featherWorldPx <= 0) return null
+  const centerX = rect.x + rect.width / 2 - bounds.x
+  const centerY = rect.y + rect.height / 2 - bounds.y
+  const clearRadiusX = rect.width / 2 + Math.max(0, innerMarginWorldPx)
+  const clearRadiusY = rect.height / 2 + Math.max(0, innerMarginWorldPx)
+  const outerRadiusX = clearRadiusX + featherWorldPx
+  const outerRadiusY = clearRadiusY + featherWorldPx
+  const clearStop = Math.max(clearRadiusX / outerRadiusX, clearRadiusY / outerRadiusY) * 100
+  return `radial-gradient(ellipse ${outerRadiusX / bounds.width * 100}% ${outerRadiusY / bounds.height * 100}% at ${centerX / bounds.width * 100}% ${centerY / bounds.height * 100}%, transparent 0%, transparent ${clearStop}%, #000 100%)`
+}
+
 export function mainlineReadingOcclusionIntersects(bounds: CollisionBox, rect: MainlineReadingOcclusionRect, featherWorldPx = mainlineReadingOcclusionFadeWorldPx) {
   return bounds.x <= rect.x + rect.width + featherWorldPx
     && bounds.x + bounds.width >= rect.x - featherWorldPx

@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { CollisionBox } from './sceneGeometry'
-import { mainlineReadingWorldHeightPx, mainlineReadingWorldWidthPx } from './mainlineReadingOcclusion'
+import { mainlineReadingLocalFadeMask, mainlineReadingWorldHeightPx, mainlineReadingWorldWidthPx, type MainlineReadingOcclusionRect } from './mainlineReadingOcclusion'
 
 type Props = {
   entityId: string
@@ -11,15 +11,19 @@ type Props = {
   active?: boolean
   className?: string
   identityKey: string
+  observationFade?: { rect: MainlineReadingOcclusionRect; innerMarginWorldPx: number; featherWorldPx: number }
   children: ReactNode
 }
 
 const emptyIdentityKeys: ReadonlySet<string> = new Set()
 
 /** Stable, object-bounded wrapper. Its child coordinates are local to worldBounds. */
-export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], protectedEntityIds, worldBounds, hiddenIdentityKeys = emptyIdentityKeys, active = true, className, identityKey, children }: Props) {
+export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], protectedEntityIds, worldBounds, hiddenIdentityKeys = emptyIdentityKeys, active = true, className, identityKey, observationFade, children }: Props) {
   const protectedTarget = protectedEntityIds.has(entityId) || relatedEntityIds.some(id => protectedEntityIds.has(id))
-  const hidden = active && !protectedTarget && hiddenIdentityKeys.has(identityKey)
+  const localFadeMask = active && !protectedTarget && observationFade
+    ? mainlineReadingLocalFadeMask(worldBounds, observationFade.rect, observationFade.innerMarginWorldPx, observationFade.featherWorldPx)
+    : null
+  const hidden = active && !protectedTarget && !localFadeMask && hiddenIdentityKeys.has(identityKey)
   const style: CSSProperties = {
     position: 'absolute',
     left: `${worldBounds.x / mainlineReadingWorldWidthPx * 100}%`,
@@ -29,6 +33,7 @@ export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], 
     pointerEvents: 'none',
     opacity: hidden ? 0 : 1,
     transition: 'opacity 400ms ease-in-out',
+    ...(localFadeMask ? { maskImage: localFadeMask, WebkitMaskImage: localFadeMask, maskMode: 'alpha' } : {}),
   }
   return <div
     className={className ?? 'scene-mainline-reading-identity-plane'}
@@ -36,6 +41,7 @@ export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], 
     data-reading-occlusion-key={identityKey}
     data-reading-occlusion-protected={protectedTarget ? 'true' : undefined}
     data-reading-occlusion-hidden={hidden ? 'true' : undefined}
+    data-reading-observation-fade={localFadeMask ? 'true' : undefined}
     data-reading-world-bounds={`${worldBounds.x},${worldBounds.y},${worldBounds.width},${worldBounds.height}`}
     aria-hidden={hidden ? true : undefined}
     inert={hidden ? true : undefined}

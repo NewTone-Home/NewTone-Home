@@ -26,4 +26,16 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 411, height: 914 
     await page.screenshot({ path: info.outputPath(`dialogue-stage-handoff-${viewport.width}.png`) })
     await expect(page.locator('[data-dialogue-line-id="fixture-second-line"]')).toBeVisible({ timeout: 3_000 })
   })
+
+  test(`observation objects use their own fade mask at ${viewport.width}px`, async ({ page }, info) => {
+    await page.setViewportSize(viewport)
+    await page.goto('/e2e/fixtures/dialogue-stage-trial.html?mode=observation')
+    await expect(page.locator('[data-scene-echo]')).toBeVisible()
+    const fadedObjects = page.locator('[data-reading-observation-fade="true"]')
+    await expect(fadedObjects.first()).toBeVisible()
+    const mask = await fadedObjects.first().evaluate(element => getComputedStyle(element).maskImage)
+    expect(mask).toContain('radial-gradient')
+    await expect(page.locator('[data-reading-occlusion-entity-id="commercial-cafe-right-window-upper-group-chair-bottom"][data-reading-observation-fade="true"]')).toHaveCount(0)
+    await page.screenshot({ path: info.outputPath(`observation-fade-${viewport.width}.png`) })
+  })
 }
