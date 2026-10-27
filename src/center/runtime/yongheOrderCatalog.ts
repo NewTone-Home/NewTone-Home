@@ -3,10 +3,10 @@
 export const yongheShopId = 'yonghe-eatery' as const
 
 export const yongheMenu = [
-  { sku: 'yonghe-fresh-pork-wontons', name: '\u9c9c\u8089\u9984\u9968', price: 11 },
+  { sku: 'yonghe-fresh-pork-wontons', name: '\u9c9c\u8089\u9984\u9968', price: 12 },
   { sku: 'yonghe-minced-pork-noodles', name: '\u8089\u672b\u62cc\u9762', price: 11 },
-  { sku: 'yonghe-egg-fried-rice', name: '\u86cb\u7092\u996d', price: 13 },
-  { sku: 'yonghe-pork-and-greens-rice', name: '\u9752\u83dc\u8089\u7247\u76d6\u996d', price: 13 },
+  { sku: 'yonghe-egg-fried-rice', name: '\u86cb\u7092\u996d', price: 10 },
+  { sku: 'yonghe-pork-and-greens-rice', name: '\u9752\u83dc\u8089\u7247\u76d6\u996d', price: 14 },
 ] as const
 
 export type YongheSku = typeof yongheMenu[number]['sku']

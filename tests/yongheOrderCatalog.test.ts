@@ -5,10 +5,10 @@ describe('Yonghe order integration catalog', () => {
   it('publishes stable shop and SKU IDs with the authored four-item menu', () => {
     expect(yongheShopId).toBe('yonghe-eatery')
     expect(yongheMenu.map(({ sku, price }) => [sku, price])).toEqual([
-      ['yonghe-fresh-pork-wontons', 11],
+      ['yonghe-fresh-pork-wontons', 12],
       ['yonghe-minced-pork-noodles', 11],
-      ['yonghe-egg-fried-rice', 13],
-      ['yonghe-pork-and-greens-rice', 13],
+      ['yonghe-egg-fried-rice', 10],
+      ['yonghe-pork-and-greens-rice', 14],
     ])
     expect(new Set(yongheMenu.map(item => item.sku)).size).toBe(4)
   })
