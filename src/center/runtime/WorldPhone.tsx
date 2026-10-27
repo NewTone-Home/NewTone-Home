@@ -241,10 +241,13 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const [contactNoteDraft, setContactNoteDraft] = useState('')
   const [activeCallStartedAt, setActiveCallStartedAt] = useState<number | null>(null)
   const [locationCardOpen, setLocationCardOpen] = useState(false)
+  const [orientationPermission, setOrientationPermission] = useState<'idle' | 'granted' | 'denied'>('idle')
   const [yonghePreviewMapZoom, setYonghePreviewMapZoom] = useState<PhoneMapZoomLevel>(1.65)
   const [yonghePreviewMapPan, setYonghePreviewMapPan] = useState<MapPoint>([0, 0])
   const [yongheMapHandoffPhase, setYongheMapHandoffPhase] = useState<'opening' | 'settled' | null>(null)
   const placeMapCardRef = useRef<HTMLElement>(null)
+  const placeCardTiltRef = useRef<HTMLElement>(null)
+  const orientationBaselineRef = useRef<{ beta: number; gamma: number } | null>(null)
   const mapHandoffLayerRef = useRef<HTMLDivElement>(null)
   const mapHandoffSourceRectRef = useRef<DOMRect | null>(null)
   const mapHandoffAnimationsRef = useRef<Animation[]>([])
@@ -299,9 +302,53 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const batteryPercent = 72
   const isMapOpen = !notificationScreen && activeApp === 'map'
   const pinnedMemo = notes.find(note => note.status === 'current' && note.pinned)
+  const yongheLeadNote = notes.find(note => note.id === 'story-yonghe-lead')
   const widgetNotes = notes.filter(note => note.status === 'current' && note.id !== pinnedMemo?.id).slice(0, 2)
   const memo = pinnedMemo ?? widgetNotes[0] ?? null
   const selectedContact = innerContacts.find((contact) => contact.id === selectedContactId) ?? innerContacts[0]
+  const supportsOrientationPermission = typeof window !== 'undefined'
+    && typeof (window.DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: () => Promise<'granted' | 'denied'> }).requestPermission === 'function'
+  const isTouchDevice = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 0 || (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches))
+
+  const requestPlaceCardOrientation = async (event: { stopPropagation: () => void }) => {
+    event.stopPropagation()
+    const orientationEvent = window.DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: () => Promise<'granted' | 'denied'> }
+    if (!orientationEvent.requestPermission) return
+    try {
+      const result = await orientationEvent.requestPermission()
+      setOrientationPermission(result === 'granted' ? 'granted' : 'denied')
+    } catch {
+      setOrientationPermission('denied')
+    }
+  }
+
+  useEffect(() => {
+    if (!locationCardOpen || !isTouchDevice || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      orientationBaselineRef.current = null
+      placeCardTiltRef.current?.style.removeProperty('--place-tilt-x')
+      placeCardTiltRef.current?.style.removeProperty('--place-tilt-y')
+      return undefined
+    }
+    if (supportsOrientationPermission && orientationPermission !== 'granted') return undefined
+
+    const handleOrientation = (event: DeviceOrientationEvent) => {
+      if (event.beta === null || event.gamma === null) return
+      if (!orientationBaselineRef.current) orientationBaselineRef.current = { beta: event.beta, gamma: event.gamma }
+      const deltaBeta = Math.max(-8, Math.min(8, event.beta - orientationBaselineRef.current.beta))
+      const deltaGamma = Math.max(-8, Math.min(8, event.gamma - orientationBaselineRef.current.gamma))
+      const card = placeCardTiltRef.current
+      if (!card) return
+      card.style.setProperty('--place-tilt-x', `${deltaBeta * -0.22}deg`)
+      card.style.setProperty('--place-tilt-y', `${deltaGamma * 0.22}deg`)
+    }
+    window.addEventListener('deviceorientation', handleOrientation)
+    return () => {
+      window.removeEventListener('deviceorientation', handleOrientation)
+      orientationBaselineRef.current = null
+      placeCardTiltRef.current?.style.removeProperty('--place-tilt-x')
+      placeCardTiltRef.current?.style.removeProperty('--place-tilt-y')
+    }
+  }, [locationCardOpen, isTouchDevice, orientationPermission, supportsOrientationPermission])
 
   // The parent may close the Phone in the first interactable frame of its
   // opening transition. Remember that a visible session exists during render
@@ -427,6 +474,9 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
         padding: '8px',
         border: '1px solid #18191d35',
         opacity: '1',
+        visibility: 'visible',
+        animation: 'none',
+        scale: '1',
         zIndex: '1',
       })
       clone.querySelector('.world-phone__place-card-close')?.remove()
@@ -777,17 +827,19 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
                     </div>
                   ))}
                   {selectedContactId === 'lao-zhou' && displayDevice === 'inner' && yongheLeadUnlocked && (
-                    <div className={`world-phone__message-place ${locationCardOpen ? 'is-expanded' : ''}`} onMouseEnter={() => setLocationCardOpen(true)} onMouseLeave={() => setLocationCardOpen(false)} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('.world-phone__place-card')) setLocationCardOpen(true) }}>
+                    <div className={`world-phone__message-place ${locationCardOpen ? 'is-expanded' : ''}`} onMouseEnter={() => { if (!isTouchDevice) setLocationCardOpen(true) }} onMouseLeave={() => { if (!isTouchDevice) setLocationCardOpen(false) }} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('.world-phone__place-card')) setLocationCardOpen(true) }}>
                       <div className="world-phone__place-anchor">
                         <div className="world-phone__message-bubble world-phone__message-bubble--received world-phone__message-bubble--place" role="button" tabIndex={0} aria-label="打开永和小馆地点卡" aria-expanded={locationCardOpen} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setLocationCardOpen(true) }}>
                           <p>永和小馆</p>
                         </div>
-                        <section className="world-phone__place-card" ref={placeMapCardRef} data-yonghe-map-card aria-label="永和小馆地点卡" aria-hidden={!locationCardOpen} inert={!locationCardOpen} onClick={openYongheMapFromCard}>
+                        <section className="world-phone__place-card" ref={element => { placeMapCardRef.current = element; placeCardTiltRef.current = element }} data-yonghe-map-card aria-label="永和小馆地点卡" aria-hidden={!locationCardOpen} inert={!locationCardOpen} onClick={openYongheMapFromCard}>
                           <div className="world-phone__place-card-content">
+                            <div className="world-phone__place-card-heading"><strong>永和小馆</strong></div>
                             {locationCardOpen && <div className="world-phone__place-map-preview" data-yonghe-map-preview aria-hidden="true">
                               <PhoneMapCanvas mapRegions={mapRegions} displayDevice={displayDevice} currentLandmark={currentLandmark} selectedMapPlaceId="yonghe-eatery" onSelect={() => {}} mapZoom={yonghePreviewMapZoom} setMapZoom={setYonghePreviewMapZoom} mapPan={yonghePreviewMapPan} setMapPan={setYonghePreviewMapPan} focusId="yonghe-eatery" followFocus followFocusZoom={1.65} />
                             </div>}
-                            <div className="world-phone__place-card-copy"><strong>永和小馆</strong></div>
+                            <div className="world-phone__place-card-copy"><span className="world-phone__place-card-clue-label">线索</span><p>{yongheLeadNote?.body ?? ''}</p></div>
+                            {isTouchDevice && supportsOrientationPermission && orientationPermission !== 'granted' && <button type="button" className="world-phone__place-card-orientation" onClick={requestPlaceCardOrientation}>{orientationPermission === 'denied' ? '倾斜效果不可用' : '启用倾斜效果'}</button>}
                             <button type="button" className="world-phone__place-card-close" aria-label="关闭地点卡" onClick={event => { event.stopPropagation(); setLocationCardOpen(false) }}>×</button>
                           </div>
                         </section>

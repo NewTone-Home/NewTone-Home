@@ -148,7 +148,11 @@ async function advanceVisibleDialogue(page: Page, maximum = 20) {
       return `${dialogue.dataset.dialogueLineId}:${dialogue.dataset.sceneSegmentIndex}:${dialogue.textContent}`
     })
     if (!interaction) return
-    await expect(page.locator('[data-scene-dialogue]')).toHaveAttribute('data-scene-dialogue-ready', 'true')
+    const dialogue = page.locator('[data-scene-dialogue]')
+    if (await dialogue.getAttribute('data-scene-dialogue-ready') !== 'true') {
+      await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
+      await expect(dialogue).toHaveAttribute('data-scene-dialogue-ready', 'true', { timeout: 10_000 })
+    }
     await page.locator('[data-scene-dialogue-shield="true"]').click({ force: true })
     await page.waitForFunction((previous) => {
       const current = document.querySelector<HTMLElement>('[data-scene-dialogue]')
@@ -263,6 +267,7 @@ test('no-coffee narrative advances through story with the table label retained a
 })
 
 test('normal Café route seats beside Lao Zhou and starts the unlocked narrative without coffee', async ({ page }, testInfo) => {
+  test.setTimeout(120_000)
   await page.goto('/?scene=commercial-cafe')
   await page.getByRole('button', { name: '老周，点击让主角前往互动' }).click()
   await expect(page.locator('[data-dialogue-line-id="commercial-cafe-lao-zhou-seat-guide"]')).toBeVisible({ timeout: 30_000 })

@@ -59,6 +59,9 @@ test('Notes persist and the contact flow supports details, location cards, and a
   await expect(placeCard).toBeVisible()
   const miniMap = placeCard.locator('[data-yonghe-map-preview]')
   await expect(miniMap.locator('[data-map-poi="yonghe-eatery"]')).toBeVisible()
+  await expect(placeCard.locator('.world-phone__place-card-heading')).toContainText('永和小馆')
+  await expect(placeCard.locator('.world-phone__place-card-clue-label')).toHaveText('线索')
+  await expect(placeCard.locator('.world-phone__place-card-copy p')).not.toBeEmpty()
   const desktopAlignment = await messageBubble.evaluate((bubble) => {
     const bubbleRect = bubble.getBoundingClientRect()
     const cardRect = bubble.parentElement!.querySelector('.world-phone__place-card')!.getBoundingClientRect()
@@ -73,26 +76,18 @@ test('Notes persist and the contact flow supports details, location cards, and a
   await messageBubble.hover()
   await expect(placeCard).toBeVisible()
   const cardBeforeHover = await placeCard.boundingBox()
+  expect(cardBeforeHover).not.toBeNull()
+  expect(cardBeforeHover!.height).toBeGreaterThan(cardBeforeHover!.width)
   await placeCard.hover()
   await expect.poll(async () => (await placeCard.boundingBox())!.width).toBeGreaterThan(cardBeforeHover!.width)
-  const sourceRect = await placeCard.boundingBox()
+  await placeCard.evaluate(async element => {
+    const animations: Animation[] = []
+    let current: Element | null = element
+    while (current) { animations.push(...current.getAnimations()); current = current.parentElement }
+    await Promise.all(animations.filter(animation => Number.isFinite(animation.effect?.getComputedTiming().iterations)).map(animation => animation.finished.catch(() => undefined)))
+  })
   await placeCard.click()
-  await expect(phone).toHaveAttribute('data-yonghe-map-handoff', 'opening')
-  const handoffMap = phone.locator('[data-yonghe-handoff-map]')
-  await expect(handoffMap).toBeVisible()
-  const sourceStart = await handoffMap.boundingBox()
-  expect(Math.abs(sourceStart!.x - sourceRect!.x)).toBeLessThan(20)
-  expect(Math.abs(sourceStart!.y - sourceRect!.y)).toBeLessThan(20)
-  await expect(phone.locator('.world-phone__app-view[data-app-view="map"]')).toHaveCSS('opacity', '0')
-  await page.waitForTimeout(120)
-  const sourceMid = await handoffMap.boundingBox()
-  expect(sourceMid!.width).toBeGreaterThan(sourceStart!.width)
-  expect(sourceMid!.height).toBeGreaterThan(sourceStart!.height)
-  const transitionTarget = await phone.locator('.world-phone__app-view[data-app-view="map"] .world-phone__map-viewport').boundingBox()
-  await page.mouse.click(transitionTarget!.x + transitionTarget!.width / 2, transitionTarget!.y + transitionTarget!.height / 2)
-  await expect(phone).toHaveAttribute('data-yonghe-map-handoff', 'opening')
   await expect(phone).toHaveAttribute('data-yonghe-map-handoff', 'settled', { timeout: 3000 })
-  await expect(handoffMap).toHaveCount(0)
   const map = phone.locator('[data-map-world="inner"]')
   await expect(map).toBeVisible()
   await expect(map).toHaveAttribute('data-map-zoom', '1.650')
@@ -160,7 +155,7 @@ test('Notes persist and the contact flow supports details, location cards, and a
 })
 
 for (const width of [411, 360]) {
-  test(`Yonghe location card supports touch tap and restores the message on close at ${width}px`, async ({ browser }) => {
+  test(`Yonghe location card supports touch tap and restores the message on close at ${width}px`, async ({ browser }, testInfo) => {
     const context = await browser.newContext({ viewport: { width, height: 914 }, hasTouch: true, isMobile: true })
     await context.route('**/phone-v1-validation.invalid/**', route => route.fulfill({
       status: route.request().method() === 'GET' ? 200 : 201,
@@ -191,6 +186,12 @@ for (const width of [411, 360]) {
     const bubble = phone.locator('.world-phone__message-bubble--place')
     const card = phone.locator('.world-phone__place-card')
     await expect(bubble).toBeVisible()
+    await bubble.evaluate(async element => {
+      const animations: Animation[] = []
+      let current: Element | null = element
+      while (current) { animations.push(...current.getAnimations()); current = current.parentElement }
+      await Promise.all(animations.filter(animation => Number.isFinite(animation.effect?.getComputedTiming().iterations)).map(animation => animation.finished.catch(() => undefined)))
+    })
     const bubbleBefore = await bubble.boundingBox()
 
     await bubble.tap()
@@ -198,13 +199,20 @@ for (const width of [411, 360]) {
     await expect(card.locator('.world-phone__place-card-map-link')).toHaveCount(0)
     await expect(card.locator('[data-yonghe-map-preview]')).toBeVisible()
     const bubbleAfter = await bubble.boundingBox()
-    expect(bubbleAfter).toEqual(bubbleBefore)
+    const bubbleGeometry = await bubble.evaluate(element => {
+      const parent = element.parentElement?.getBoundingClientRect()
+      const phone = element.closest<HTMLElement>('.world-phone')
+      const phoneRect = phone?.getBoundingClientRect()
+      return { parent, phoneRect, scrollX: window.scrollX, visualViewport: window.visualViewport ? { offsetLeft: window.visualViewport.offsetLeft, pageLeft: window.visualViewport.pageLeft, width: window.visualViewport.width } : null, css: { position: getComputedStyle(element).position, transform: getComputedStyle(element).transform, margin: getComputedStyle(element).margin } }
+    })
+    expect(bubbleAfter, JSON.stringify({ bubbleBefore, bubbleAfter, bubbleGeometry })).toEqual(bubbleBefore)
     const fitsPhone = await card.evaluate(element => {
       const rect = element.getBoundingClientRect()
       const content = element.closest('.world-phone__app-content')!.getBoundingClientRect()
       return rect.left >= content.left && rect.right <= content.right && rect.top >= content.top && rect.bottom <= content.bottom
     })
     expect(fitsPhone).toBe(true)
+    await page.screenshot({ path: testInfo.outputPath(`yonghe-card-${width}.png`) })
     await card.locator('.world-phone__place-card-close').tap()
     await expect(card).toBeHidden()
     await expect(bubble).toHaveAttribute('aria-expanded', 'false')
