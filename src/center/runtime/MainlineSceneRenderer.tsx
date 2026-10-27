@@ -1524,7 +1524,7 @@ export function MainlineSceneRenderer({
   const [sceneActionMeasuredSize, setSceneActionMeasuredSize] = useState<{ key: string; width: number; height: number } | null>(null)
   useLayoutEffect(() => {
     const node = sceneActionRef.current
-    if (!sceneActionMeasureKey || !node) {
+    if (!sceneActionMeasureKey || !node || sceneAction?.phase !== 'active') {
       setSceneActionMeasuredSize(current => current?.key === sceneActionMeasureKey ? null : current)
       return
     }
@@ -1552,7 +1552,7 @@ export function MainlineSceneRenderer({
       observer?.disconnect()
       window.removeEventListener('resize', measure)
     }
-  }, [sceneActionMeasureKey, worldScale])
+  }, [sceneActionMeasureKey, sceneAction?.phase, worldScale])
   const matchingSceneActionSize = sceneActionMeasureKey && sceneActionMeasuredSize?.key === sceneActionMeasureKey
     ? sceneActionMeasuredSize
     : null
@@ -1566,6 +1566,27 @@ export function MainlineSceneRenderer({
       x: scene.id === 'commercial-street' ? projectCommercialStreetX(sceneActionPosition.x, renderScreenMetrics) : sceneActionPosition.x,
     }, sceneActionCameraOffset, renderCameraOffset)
     : null
+  // Capture the last painted placement in world-layer coordinates. Once exit
+  // starts, live camera transforms still apply, but measurements and clamping
+  // can no longer drag the departing action around.
+  const actionExitPlacementRef = useRef<{ id: number; position: Point; maxWidth: number; maxHeight: number; overflowY: boolean } | null>(null)
+  useLayoutEffect(() => {
+    if (!sceneAction) {
+      actionExitPlacementRef.current = null
+      return
+    }
+    if (sceneAction.phase !== 'active' || !sceneActionLayerPosition || !sceneActionPlacement || !matchingSceneActionSize) return
+    actionExitPlacementRef.current = {
+      id: sceneAction.id,
+      position: { ...sceneActionLayerPosition },
+      maxWidth: Math.max(1, Math.min(sceneActionMaxWidthPx, sceneActionPlacement.availableWidthPx) / worldScale),
+      maxHeight: Math.max(1, sceneActionPlacement.availableHeightPx / worldScale),
+      overflowY: sceneActionPlacement.overflowY,
+    }
+  }, [sceneAction, sceneActionLayerPosition?.x, sceneActionLayerPosition?.y, sceneActionPlacement, matchingSceneActionSize, sceneActionMaxWidthPx, worldScale])
+  const frozenActionPlacement = sceneAction && sceneAction.phase !== 'active' && actionExitPlacementRef.current?.id === sceneAction.id
+    ? actionExitPlacementRef.current : null
+  const actionVisible = Boolean(frozenActionPlacement || (matchingSceneActionSize && sceneActionPlacement))
   const activeReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, renderCameraOffset) : readingMetrics.width - 24
   const activeReadingLayout = activeReadingPosition
     ? readingLayoutSessionCache?.pageLayoutAtOrBelow(activeReadingText, sceneEcho ? undefined : dialogueLine?.speaker, activeReadingWidthPx)
@@ -2678,13 +2699,13 @@ export function MainlineSceneRenderer({
             ref={sceneActionRef}
             className="scene-mainline-action scene-mainline-action--reading"
             style={{
-              left: `${sceneActionLayerPosition?.x ?? sceneAction.position.x}%`,
-              top: `${sceneActionLayerPosition?.y ?? sceneAction.position.y}%`,
-              maxWidth: `${Math.max(1, Math.min(sceneActionMaxWidthPx, sceneActionPlacement?.availableWidthPx ?? sceneActionMaxWidthPx) / worldScale)}px`,
-              maxHeight: sceneActionPlacement ? `${Math.max(1, sceneActionPlacement.availableHeightPx / worldScale)}px` : undefined,
-              overflowY: sceneActionPlacement?.overflowY ? 'auto' : 'visible',
-              visibility: matchingSceneActionSize && sceneActionPlacement ? 'visible' : 'hidden',
-              pointerEvents: matchingSceneActionSize && sceneActionPlacement ? undefined : 'none',
+              left: `${frozenActionPlacement?.position.x ?? sceneActionLayerPosition?.x ?? sceneAction.position.x}%`,
+              top: `${frozenActionPlacement?.position.y ?? sceneActionLayerPosition?.y ?? sceneAction.position.y}%`,
+              maxWidth: `${frozenActionPlacement?.maxWidth ?? Math.max(1, Math.min(sceneActionMaxWidthPx, sceneActionPlacement?.availableWidthPx ?? sceneActionMaxWidthPx) / worldScale)}px`,
+              maxHeight: frozenActionPlacement ? `${frozenActionPlacement.maxHeight}px` : sceneActionPlacement ? `${Math.max(1, sceneActionPlacement.availableHeightPx / worldScale)}px` : undefined,
+              overflowY: (frozenActionPlacement?.overflowY ?? sceneActionPlacement?.overflowY) ? 'auto' : 'visible',
+              visibility: actionVisible ? 'visible' : 'hidden',
+              pointerEvents: actionVisible ? undefined : 'none',
             }}
             data-scene-action={sceneAction.entityId ?? 'scene'}
             data-scene-action-phase={sceneAction.phase ?? 'active'}
