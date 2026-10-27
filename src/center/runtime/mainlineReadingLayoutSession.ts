@@ -28,8 +28,13 @@ type WidthCandidate = {
   speakerWidthPx: number
 }
 
+export function mainlineReadingMeasurementKey(metrics: SceneScreenMetrics, worldScale: number) {
+  return JSON.stringify([metrics.width, metrics.height, metrics.viewportWidth ?? null, worldScale])
+}
+
 export type MainlineReadingSessionLayoutCache = {
   readonly sessionKey: string
+  readonly measurementKey: string
   readonly fontKey: string
   readonly fontSizePx: number
   readonly metrics: SceneScreenMetrics
@@ -68,6 +73,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
   metrics: SceneScreenMetrics
   maximumWidthPx: number
   fontKey?: string
+  worldScale?: number
   measureText?: (text: string, fontSizePx: number) => number
   layoutText?: typeof mainlineEchoLayout
   splitTextToFit?: typeof splitMainlineInteractionTextToFit
@@ -149,6 +155,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
 
   const cache: MainlineReadingSessionLayoutCache = {
     sessionKey: input.sessionKey,
+    measurementKey: mainlineReadingMeasurementKey(metrics, input.worldScale ?? 1),
     fontKey: input.fontKey ?? `${fontSizePx}:${metrics.width <= 600 && metrics.height > metrics.width ? 'compact' : 'regular'}`,
     fontSizePx,
     metrics,
@@ -244,18 +251,35 @@ export function createMainlineReadingSessionLayoutCache(input: {
           return { segments, pageLayouts, position, layout: pageLayouts[0]!, maxWidthPx: candidate.widthPx, fits: true }
         }
       }
+      const fallbackPages = (candidate: WidthCandidate) => {
+        const page = candidate.pages.get(entryKey({ text: fitInput.text, speaker: fitInput.speaker }))!
+        const offset = input.preferWholeText ? fitInput.sourceOffset ?? 0 : 0
+        if (offset <= 0) return page
+        let start = 0
+        const segments = page.segments.flatMap(segment => {
+          const cut = offset - start
+          start += segment.length
+          return cut > 0 && cut < segment.length ? [segment.slice(0, cut), segment.slice(cut)] : [segment]
+        })
+        const layouts = segments.map(segment => layoutText(segment, metrics, { speaker: fitInput.speaker, maxWidthPx: candidate.widthPx, measureText: measure }))
+        return { segments, layouts }
+      }
       for (const candidate of widths) {
         if (candidate.widthPx > fitInput.maximumWidthPx + .001) continue
-        const page = candidate.pages.get(entryKey({ text: fitInput.text, speaker: fitInput.speaker }))!
+        const page = fallbackPages(candidate)
         const layout = page.layouts[0] ?? layoutText(fitInput.text, metrics, { speaker: fitInput.speaker, maxWidthPx: candidate.widthPx, measureText: measure })
         const envelope = input.preferWholeText
           ? { widthPx: Math.max(...page.layouts.map(item => item.widthPx)), heightPx: Math.max(...page.layouts.map(item => item.heightPx)) }
           : candidate.envelopeLayout
+        if (input.preferWholeText) {
+          const bounds = mainlineReadingBounds(fitInput.scene, fitInput.source, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset)
+          if (envelope.widthPx > bounds.width / 100 * sceneDesignReferenceMetrics.width * fitInput.worldScale || envelope.heightPx > bounds.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale) continue
+        }
         const position = mainlinePlaceReadingBox(fitInput.scene, fitInput.source, { width: envelope.widthPx, height: envelope.heightPx }, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset)
         if (position) return { segments: page.segments, pageLayouts: page.layouts, position, layout, maxWidthPx: candidate.widthPx, fits: true }
       }
       const fallback = widths[widths.length - 1]!
-      const page = fallback.pages.get(entryKey({ text: fitInput.text, speaker: fitInput.speaker }))!
+      const page = fallbackPages(fallback)
       return {
         segments: page.segments,
         pageLayouts: page.layouts,

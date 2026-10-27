@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
-import { createMainlineReadingSessionLayoutCache, mainlineReadingSessionMaxMeasuredWidths } from '../src/center/runtime/mainlineReadingLayoutSession'
+import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey, mainlineReadingSessionMaxMeasuredWidths } from '../src/center/runtime/mainlineReadingLayoutSession'
 import { subscribeToMainlineReadingFontCompletion } from '../src/center/runtime/useMainlineReadingFontRevision'
 import { mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
 import { mainlineReadingCameraOffset } from '../src/center/runtime/mainlineTextReading'
@@ -275,5 +275,30 @@ describe('whole observation layout', () => {
     const resized = cache.fit({ scene, source: scene.initialPlayerPosition, text, maximumWidthPx: 180, protectedVisuals: [], metrics: resizedMetrics, worldScale: .65, cameraOffset: mainlineReadingCameraOffset(scene, scene.initialPlayerPosition, resizedMetrics, .65, { x: 0, y: 0 }), sourceOffset: offset })
     expect(resized.segments.join('')).toBe(text)
     expect(resized.segments.some((_, index) => resized.segments.slice(0, index).join('').length === offset)).toBe(true)
+  })
+})
+
+
+describe('observation resize and no-space fallback', () => {
+  it('keys measurements by viewport and scale, independent of camera or actor position', () => {
+    const desktop = { width: 1920, height: 1080, viewportWidth: 1920 }
+    const mobile = { width: 411, height: 914, viewportWidth: 411 }
+    expect(mainlineReadingMeasurementKey(desktop, .65)).not.toBe(mainlineReadingMeasurementKey(mobile, .65))
+    expect(mainlineReadingMeasurementKey(mobile, .65)).not.toBe(mainlineReadingMeasurementKey(mobile, 1))
+    const cache = createMainlineReadingSessionLayoutCache({ sessionKey: 'observation', entries: [{ text: '一段测试文字' }], metrics: mobile, maximumWidthPx: 200, worldScale: .65, preferWholeText: true })
+    expect(cache.measurementKey).toBe(mainlineReadingMeasurementKey(mobile, .65))
+    expect(cache.fontSizePx).toBe(12)
+  })
+  it('preserves the current source boundary when all protected space is blocked', () => {
+    const metrics = { width: 411, height: 914, viewportWidth: 411 }
+    const text = '第一部分内容第二部分内容第三部分内容'
+    const cache = createMainlineReadingSessionLayoutCache({ sessionKey: 'observation', entries: [{ text }], metrics, maximumWidthPx: 120, worldScale: .65, preferWholeText: true, measureText: (value, size) => value.length * size })
+    const scene = mainlineScenes['zhongshuyuan-office']
+    const source = scene.initialPlayerPosition
+    const offset = 4
+    const fit = cache.fit({ scene, source, text, sourceOffset: offset, maximumWidthPx: 120, protectedVisuals: [{ x: -1000, y: -1000, width: 2000, height: 2000 }], metrics, worldScale: .65, cameraOffset: mainlineReadingCameraOffset(scene, source, metrics, .65, { x: 0, y: 0 }) })
+    expect(fit.fits).toBe(false)
+    expect(fit.segments.join('')).toBe(text)
+    expect(fit.segments.some((_, i) => fit.segments.slice(0, i).join('').length === offset)).toBe(true)
   })
 })

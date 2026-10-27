@@ -47,7 +47,7 @@ import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlin
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
 import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
 import { currentMainlineReadingTargetIds, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionLayerPosition, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex, mainlineReadingPageIndexForSourceOffset } from './mainlineReadingProtection'
-import { createMainlineReadingSessionLayoutCache, type MainlineReadingSessionLayoutCache, type MainlineReadingSessionTextEntry } from './mainlineReadingLayoutSession'
+import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey, type MainlineReadingSessionLayoutCache, type MainlineReadingSessionTextEntry } from './mainlineReadingLayoutSession'
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
 import { mainlineReadingLocalPercent, mainlineReadingOcclusionCellIdentity, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot, type MainlineReadingOcclusionCandidate } from './mainlineReadingOcclusion'
@@ -1412,6 +1412,7 @@ export function MainlineSceneRenderer({
         : [{ text: activeReadingText }],
   [activeReadingText, dialogue?.lines, dialogueLine?.speaker, dialogueLine?.text, sceneEcho?.segments, sceneEcho?.text])
   const readingLayoutFontFaceKey = useMainlineReadingFontRevision(readingOcclusionSessionKey)
+  const readingMeasurementKey = mainlineReadingMeasurementKey(readingMetrics, worldScale)
   let readingLayoutSessionCache = readingLayoutSessionCacheRef.current
   if (!readingOcclusionSessionKey) {
     readingLayoutSessionCacheRef.current = null
@@ -1419,23 +1420,24 @@ export function MainlineSceneRenderer({
   } else if (activeReadingPosition) {
     const sessionTextEntries = [...readingEnvelopeEntries, { text: activeReadingText, speaker: sceneEcho ? undefined : dialogueLine?.speaker }]
     if (sharedReadingSessionLayoutCache?.sessionKey === readingOcclusionSessionKey
-      && sharedReadingSessionLayoutCache.fontKey === readingLayoutFontFaceKey) {
+      && sharedReadingSessionLayoutCache.fontKey === readingLayoutFontFaceKey
+      && sharedReadingSessionLayoutCache.measurementKey === readingMeasurementKey) {
       readingLayoutSessionCache = sharedReadingSessionLayoutCache
       readingLayoutSessionCache.addEntries(sessionTextEntries)
       readingLayoutSessionCacheRef.current = readingLayoutSessionCache
     } else if (!readingLayoutSessionCache
       || readingLayoutSessionCache.sessionKey !== readingOcclusionSessionKey
-      || readingLayoutSessionCache.fontKey !== readingLayoutFontFaceKey) {
-      const frozenMetrics = readingLayoutSessionCache?.sessionKey === readingOcclusionSessionKey ? readingLayoutSessionCache.metrics : readingMetrics
-      const frozenMaximumWidth = readingLayoutSessionCache?.sessionKey === readingOcclusionSessionKey
-        ? readingLayoutSessionCache.widths[0]?.widthPx ?? maximumReadingWidthPx
-        : maximumReadingWidthPx
+      || readingLayoutSessionCache.fontKey !== readingLayoutFontFaceKey
+      || readingLayoutSessionCache.measurementKey !== readingMeasurementKey) {
+      const frozenMetrics = readingMetrics
+      const frozenMaximumWidth = maximumReadingWidthPx
       readingLayoutSessionCache = createMainlineReadingSessionLayoutCache({
         sessionKey: readingOcclusionSessionKey,
         entries: sessionTextEntries,
         metrics: frozenMetrics,
         maximumWidthPx: frozenMaximumWidth,
         fontKey: readingLayoutFontFaceKey,
+        worldScale,
         preferWholeText: Boolean(sceneEcho),
       })
       readingLayoutSessionCacheRef.current = readingLayoutSessionCache
@@ -2668,6 +2670,7 @@ export function MainlineSceneRenderer({
                 fontSize: `${echoLayout.fontSizePx / worldScale}px`,
                 maxWidth: `${Math.max(1, displayReadingMaxWidthPx / worldScale)}px`,
                 overflow: 'visible',
+                visibility: sceneEcho && readingFit?.fits === false ? 'hidden' : undefined,
               } as CSSProperties}
               aria-live="polite"
               data-scene-interaction-text={sceneEcho?.entityId ?? dialogue?.triggerEntityId ?? 'scene'}
@@ -2768,7 +2771,7 @@ export function MainlineSceneRenderer({
               onPointerUp={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation()
-                if (readingPageAdvanceLockedRef.current) return
+                if (readingPageAdvanceLockedRef.current || (sceneEcho && readingFit?.fits === false)) return
                 if (sceneEcho?.textMotion === 'deleting' || sceneEcho?.textMotion === 'deleted' || dialogueTextMotion === 'deleting' || dialogueTextMotion === 'deleted') return
                 if (readingPresentationMode === 'observation' && sceneEcho?.textMotion === 'typing') {
                   typingCompletionLockRef.current = true
@@ -2802,7 +2805,7 @@ export function MainlineSceneRenderer({
                 lockReadingPageAdvance()
                 onSceneEchoAdvance?.()
               }}
-            />
+            >{sceneEcho && readingFit?.fits === false && <span role="status" style={{ position: 'absolute', top: '1rem', left: '50%', transform: 'translateX(-50%)', color: 'white', background: '#222', padding: '8px 12px' }}>空间不足，请调整窗口大小</span>}</button>
           </>}
         {(debugInput || debugNpcMovement) && <div className="scene-input-debug" aria-live="polite">
           {debugNpcMovement && <button type="button" onClick={(event) => { event.stopPropagation(); onDebugNpcMovement?.() }}>演示店员移动</button>}

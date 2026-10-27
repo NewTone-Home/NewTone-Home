@@ -36,7 +36,7 @@ import { npcRoles } from './npcRoles'
 import { useStorefrontPresentation } from './useStorefrontPresentation'
 import { mainlineDisplaySourceText, mainlineReadingSegmentDisplayText, splitMainlineInteractionText } from './mainlineTextSegments'
 import { mainlineDialogueParticipantNpcIds, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingOpacityForActor, mainlineMaximumReadingWidthPx } from './mainlineTextReading'
-import { createMainlineReadingSessionLayoutCache } from './mainlineReadingLayoutSession'
+import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey } from './mainlineReadingLayoutSession'
 import { cancelMainlineSceneActionExit, commitMainlineSceneActionExit, completeMainlineSceneActionOptionExit, createMainlineSceneActionExitBarrier, mainlineSceneActionExitMayUnmount, resolveMainlineSceneActionCancellation, type MainlineSceneActionExitBarrier } from './mainlineSceneActionExit'
 import type { MainlineReadingSessionLayoutCache } from './mainlineReadingLayoutSession'
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
@@ -2459,12 +2459,14 @@ export function MainlineScenePage({
   // recompute actor-to-envelope geometry; authored text is laid out once.
   const sharedReadingSessionLayoutCacheRef = useRef<MainlineReadingSessionLayoutCache | null>(null)
   let sharedReadingSessionLayoutCache = sharedReadingSessionLayoutCacheRef.current
+  const readingMeasurementKey = mainlineReadingMeasurementKey(readingMetrics, mainlineWorldScale(activeViewportMetrics))
   if (!ambientReadingSessionKey || !ambientReadingPosition) {
     sharedReadingSessionLayoutCacheRef.current = null
     sharedReadingSessionLayoutCache = null
   } else if (!sharedReadingSessionLayoutCache
     || sharedReadingSessionLayoutCache.sessionKey !== ambientReadingSessionKey
-    || sharedReadingSessionLayoutCache.fontKey !== ambientReadingFontKey) {
+    || sharedReadingSessionLayoutCache.fontKey !== ambientReadingFontKey
+    || sharedReadingSessionLayoutCache.measurementKey !== readingMeasurementKey) {
     const worldScale = mainlineWorldScale(activeViewportMetrics)
     sharedReadingSessionLayoutCache = createMainlineReadingSessionLayoutCache({
       sessionKey: ambientReadingSessionKey,
@@ -2472,6 +2474,7 @@ export function MainlineScenePage({
       metrics: readingMetrics,
       maximumWidthPx: mainlineMaximumReadingWidthPx(scene, ambientReadingPosition, readingMetrics, worldScale),
       fontKey: ambientReadingFontKey,
+      worldScale,
       preferWholeText: Boolean(sceneEcho),
     })
     sharedReadingSessionLayoutCacheRef.current = sharedReadingSessionLayoutCache
