@@ -42,7 +42,7 @@ import type { MainlineReadingSessionLayoutCache } from './mainlineReadingLayoutS
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
 import { mainlineInteractionRoom, mainlineInteractionSpace, mainlineIsInteriorSpace } from './mainlineTextReading'
-import { mainlineDialogueFurnitureGroupIds, mainlineDialogueHandoffDurationMs, mainlineDialogueSpeakerActorId, mainlineDialogueSpeakerOutsidePosition, mainlineDialogueStageHiddenEntityIds, mainlineDialogueStageActorOpacity } from './mainlineDialogueStage'
+import { mainlineDialogueFurnitureGroupIds, mainlineDialogueHandoffDurationMs, mainlineDialogueShouldHandoff, mainlineDialogueSpeakerActorId, mainlineDialogueSpeakerOutsidePosition, mainlineDialogueStageHiddenEntityIds, mainlineDialogueStageActorOpacity } from './mainlineDialogueStage'
 import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, plantIsWatered, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
@@ -2290,8 +2290,14 @@ export function MainlineScenePage({
       const nextLine = commercialCafeNarrative
         ? commercialCafeNarrative.phase === 'delivery-line' ? null : commercialCafeNarrativeDialogue.lines[commercialCafeStory.narrativeCursor + 1]
         : activeDialogue && dialogueLineIndex !== null ? activeDialogue.lines[dialogueLineIndex + 1] : null
-      if (activeDialogueLine && nextLine && activeDialogueLine.speaker !== nextLine.speaker
-        && !commercialStreetQuestionNarrative && mainlineIsInteriorSpace(scene, position)) {
+      const currentSegments = splitMainlineInteractionText(activeDialogueLine?.text ?? '')
+      if (mainlineDialogueShouldHandoff({
+        currentSpeaker: activeDialogueLine?.speaker,
+        nextSpeaker: nextLine?.speaker,
+        currentSegmentIndex: dialogueSegmentIndex,
+        segmentCount: currentSegments.length,
+        isInterior: !commercialStreetQuestionNarrative && mainlineIsInteriorSpace(scene, position),
+      })) {
         dialogueHandoffActiveRef.current = true
         dialogueHandoffStartedAtRef.current = performance.now()
         setDialogueHandoffActive(true)

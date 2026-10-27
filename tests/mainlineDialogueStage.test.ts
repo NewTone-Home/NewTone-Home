@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineDialogueFurnitureGroupIds, mainlineDialogueHandoffDurationMs, mainlineDialogueSpeakerActorId, mainlineDialogueSpeakerOutsidePosition, mainlineDialogueStageActorOpacity, mainlineDialogueStageHiddenEntityIds, mainlineDialogueTurnAllowsOptions } from '../src/center/runtime/mainlineDialogueStage'
+import { mainlineDialogueFurnitureGroupIds, mainlineDialogueHandoffDurationMs, mainlineDialogueShouldHandoff, mainlineDialogueSpeakerActorId, mainlineDialogueSpeakerOutsidePosition, mainlineDialogueStageActorOpacity, mainlineDialogueStageHiddenEntityIds, mainlineDialogueTurnAllowsOptions } from '../src/center/runtime/mainlineDialogueStage'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 
 describe('formal dialogue stage rules', () => {
@@ -47,6 +47,15 @@ describe('formal dialogue stage rules', () => {
     expect(mainlineDialogueHandoffDurationMs(1)).toBe(300)
     expect(mainlineDialogueHandoffDurationMs(7)).toBe(300)
     expect(mainlineDialogueHandoffDurationMs(20)).toBe(855)
+  })
+
+  it('waits until the current line’s last segment before fading to the next speaker', () => {
+    const base = { currentSpeaker: 'Lao Zhou', nextSpeaker: 'Xiujie', segmentCount: 4, isInterior: true }
+    expect(mainlineDialogueShouldHandoff({ ...base, currentSegmentIndex: 0 })).toBe(false)
+    expect(mainlineDialogueShouldHandoff({ ...base, currentSegmentIndex: 2 })).toBe(false)
+    expect(mainlineDialogueShouldHandoff({ ...base, currentSegmentIndex: 3 })).toBe(true)
+    expect(mainlineDialogueShouldHandoff({ ...base, currentSegmentIndex: 3, nextSpeaker: 'Lao Zhou' })).toBe(false)
+    expect(mainlineDialogueShouldHandoff({ ...base, currentSegmentIndex: 3, isInterior: false })).toBe(false)
   })
 
   it('keeps choices hidden until the current utterance last page is ready, settled, and any handoff has finished', () => {

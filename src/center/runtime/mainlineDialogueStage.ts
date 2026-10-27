@@ -4,6 +4,19 @@ import type { Point } from './sceneGeometry'
 export const mainlineDialogueHandoffMinimumMs = 300
 export const mainlineDialogueTypingIntervalMs = 45
 
+/** A speaker handoff belongs after the last source segment, never between pages. */
+export function mainlineDialogueShouldHandoff(input: {
+  currentSpeaker: string | null | undefined
+  nextSpeaker: string | null | undefined
+  currentSegmentIndex: number
+  segmentCount: number
+  isInterior: boolean
+}) {
+  return input.isInterior
+    && Boolean(input.currentSpeaker && input.nextSpeaker && input.currentSpeaker !== input.nextSpeaker)
+    && input.currentSegmentIndex >= input.segmentCount - 1
+}
+
 /** Choices must wait for the whole current utterance/page, including layout settling. */
 export function mainlineDialogueTurnAllowsOptions(input: {
   hasDialogue: boolean
