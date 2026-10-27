@@ -28,6 +28,13 @@ type WidthCandidate = {
   speakerWidthPx: number
 }
 
+/** Reserve one rendered line per width-fit fragment. Whole-string canvas
+ * width can underestimate the number of browser lines around punctuation. */
+export function mainlineObservationMinimumPageHeight(chunks: readonly string[], fontSizePx: number, compact: boolean) {
+  const lines = chunks.reduce((count, chunk) => count + Math.max(1, chunk.split(/\r\n|\r|\n/u).length), 0)
+  return (compact ? 11 : fontSizePx * .8) + fontSizePx * (compact ? 1.5 : 1.62) * lines
+}
+
 export function mainlineReadingMeasurementKey(metrics: SceneScreenMetrics, worldScale: number) {
   return JSON.stringify([metrics.width, metrics.height, metrics.viewportWidth ?? null, worldScale])
 }
@@ -215,29 +222,33 @@ export function createMainlineReadingSessionLayoutCache(input: {
           }
           const segments: string[] = []
           const pageLayouts: MainlineEchoLayout[] = []
-          let current = ''
+          let current: string[] = []
           let consumed = 0
-          const pageFits = (text: string) => {
-            const layout = layoutText(text, metrics, { speaker: fitInput.speaker, maxWidthPx: candidate.widthPx, measureText: measure })
+          const pageFits = (parts: readonly string[]) => {
+            const text = parts.join('')
+            const measured = layoutText(text, metrics, { speaker: fitInput.speaker, maxWidthPx: candidate.widthPx, measureText: measure })
+            const compact = metrics.width <= 600 && metrics.height > metrics.width
+            const refittedParts = splitTextToFit(text, Math.max(fontSizePx, candidate.widthPx - 40), fontSizePx, value => measure(value, fontSizePx))
+            const layout = { ...measured, heightPx: Math.max(measured.heightPx, mainlineObservationMinimumPageHeight(parts, measured.fontSizePx, compact), mainlineObservationMinimumPageHeight(refittedParts, measured.fontSizePx, compact)) }
             if (layout.widthPx > availableWidth || layout.heightPx > availableHeight) return null
             return mainlinePlaceReadingBox(fitInput.scene, fitInput.source, { width: layout.widthPx, height: layout.heightPx }, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset) ? layout : null
           }
           for (const chunk of chunks) {
-            if (consumed === offset && offset > 0 && current) {
-              segments.push(current)
+            if (consumed === offset && offset > 0 && current.length) {
+              segments.push(current.join(''))
               pageLayouts.push(pageFits(current)!)
-              current = ''
+              current = []
             }
-            const combined = current + chunk
+            const combined = [...current, chunk]
             if (pageFits(combined)) { current = combined; consumed += chunk.length; continue }
-            if (!current) { current = ''; break }
-            segments.push(current)
+            if (!current.length) { current = []; break }
+            segments.push(current.join(''))
             pageLayouts.push(pageFits(current)!)
-            current = pageFits(chunk) ? chunk : ''
-            if (!current) break
+            current = pageFits([chunk]) ? [chunk] : []
+            if (!current.length) break
             consumed += chunk.length
           }
-          if (current) { segments.push(current); pageLayouts.push(pageFits(current)!) }
+          if (current.length) { segments.push(current.join('')); pageLayouts.push(pageFits(current)!) }
           if (!segments.length || segments.join('') !== fitInput.text) continue
           const envelope = { width: Math.max(...pageLayouts.map(layout => layout.widthPx)), height: Math.max(...pageLayouts.map(layout => layout.heightPx)) }
           // Legacy multi-segment callers still share a stable envelope.

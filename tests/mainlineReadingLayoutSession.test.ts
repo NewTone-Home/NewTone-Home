@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
-import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey, mainlineReadingSessionMaxMeasuredWidths } from '../src/center/runtime/mainlineReadingLayoutSession'
+import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey, mainlineObservationMinimumPageHeight, mainlineReadingSessionMaxMeasuredWidths } from '../src/center/runtime/mainlineReadingLayoutSession'
 import { subscribeToMainlineReadingFontCompletion } from '../src/center/runtime/useMainlineReadingFontRevision'
 import { mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
 import { mainlineReadingCameraOffset } from '../src/center/runtime/mainlineTextReading'
@@ -300,5 +300,31 @@ describe('observation resize and no-space fallback', () => {
     expect(fit.fits).toBe(false)
     expect(fit.segments.join('')).toBe(text)
     expect(fit.segments.some((_, i) => fit.segments.slice(0, i).join('').length === offset)).toBe(true)
+  })
+})
+
+
+describe('observation line-height budget', () => {
+  it('reserves a line for each measured width fragment, including punctuation breaks', () => {
+    const chunks = ['第一句，', '第二句，', '第三句。']
+    const wholeWidthEstimate = mainlineEchoLayout(chunks.join(''), { width: 411, height: 914, viewportWidth: 411 }, { maxWidthPx: 267.2, measureText: (value, size) => value.length * size })
+    const safeHeight = mainlineObservationMinimumPageHeight(chunks, 12, true)
+    expect(safeHeight).toBe(65)
+    expect(safeHeight).toBeGreaterThan(wholeWidthEstimate.heightPx)
+  })
+  it('keeps the full source and reserves fragment-height on a long mobile observation', () => {
+    const metrics = { width: 411, height: 914, viewportWidth: 411 }
+    const text = '这段测试文字需要在窄屏中拆成多个阅读页，以验证打字机补全先于分页推进。'.repeat(30)
+    const measureText = (value: string, size: number) => value.length * size
+    const cache = createMainlineReadingSessionLayoutCache({ sessionKey: 'observation', entries: [{ text }], metrics, maximumWidthPx: 267.2, worldScale: .65, preferWholeText: true, measureText })
+    const scene = mainlineScenes['zhongshuyuan-office']
+    const source = scene.initialPlayerPosition
+    const fit = cache.fit({ scene, source, text, maximumWidthPx: 267.2, protectedVisuals: [], metrics, worldScale: .65, cameraOffset: mainlineReadingCameraOffset(scene, source, metrics, .65, { x: 0, y: 0 }) })
+    expect(fit.fits).toBe(true)
+    expect(fit.segments.join('')).toBe(text)
+    fit.segments.forEach((page, index) => {
+      const chunks = splitMainlineInteractionTextToFit(page, Math.max(12, fit.maxWidthPx - 40), 12, value => measureText(value, 12))
+      expect(fit.pageLayouts[index]!.heightPx).toBeGreaterThanOrEqual(mainlineObservationMinimumPageHeight(chunks, 12, true))
+    })
   })
 })
