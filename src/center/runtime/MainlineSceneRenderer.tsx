@@ -1473,8 +1473,10 @@ export function MainlineSceneRenderer({
       sceneEchoEntityId: sceneEcho?.entityId,
       sceneActionEntityId: sceneAction?.entityId,
       dialogueTriggerEntityId: dialogue?.triggerEntityId,
+      objects: scene.objects,
+      continuousStructures: scene.continuousStructures,
     })
-  }, [activeObjectId, dialogue?.triggerEntityId, readingPresentationPhase, sceneAction?.entityId, sceneEcho?.entityId])
+  }, [activeObjectId, dialogue?.triggerEntityId, readingPresentationPhase, scene.objects, scene.continuousStructures, sceneAction?.entityId, sceneEcho?.entityId])
   const currentReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset) : readingMetrics.width - 24
   const maximumReadingWidthPx = activeReadingPosition ? mainlineMaximumReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale) : currentReadingWidthPx
   const readingEnvelopeEntries = useMemo<readonly MainlineReadingSessionTextEntry[]>(() => sceneEcho
