@@ -329,7 +329,7 @@ export function MainlineScenePage({
   onMeaningfulActivity?: () => void
   onDeskInteraction?: (device: PhoneDevice) => void
   onObjectInteraction?: (entity: MainlineSceneEntity, dwellMs: number) => void
-  onCommerceEntity?: (entity: MainlineSceneEntity) => boolean
+  onCommerceEntity?: (entity: MainlineSceneEntity) => boolean | { text: string; options?: readonly string[] }
   onDrinkShopOrderOpen?: (shopId: string, productId?: string) => void
   cafeStoryOrderDelivery?: CafeStoryOrderDeliveryBridge
   onYongheOrderOpen?: (productId?: string) => void
@@ -2087,7 +2087,7 @@ export function MainlineScenePage({
     }
   }, [presentYongheEcho, scene.id, sceneEcho, yongheOrderFeedback, yongheReadyCue])
 
-  const interact = useCallback((entityId: string, requestAlreadyRecorded = false) => {
+  const interact = useCallback((entityId: string, requestAlreadyRecorded = false, counterContact?: { partId: string; point: Point }) => {
     if (readingActive || sceneAction?.phase === 'committing') return
     if (sceneAction?.entityId === entityId && sceneAction.phase === 'active') return
     const pendingToiletUse = cafeRestroomToiletUseRef.current
@@ -2265,7 +2265,14 @@ export function MainlineScenePage({
       } else if (entity.id === 'fruit-tea-trial-app-square' && !commercialStreetFruitTeaAppUnlocked(initialSceneState)) {
         recordSceneStatePatch(scene.id, commercialStreetFruitTeaAppUnlockPatch())
       }
-      if (onCommerceEntity?.(entity)) {
+      const commerceResult = onCommerceEntity?.(entity)
+      if (commerceResult) {
+        if (typeof commerceResult === 'object') {
+          sceneEchoIdRef.current += 1
+          presentSceneEcho(createMainlineSceneEcho(sceneEchoIdRef.current, entity.id, commerceResult.text,
+            sceneTextPresentationPosition(scene, getCurrentPosition(), commerceResult.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
+            clockActivityForExploration(entity, Boolean(commerceResult.options)), commerceResult.options))
+        }
         onInteractionAnalytics?.('completed', entity.id, entity.kind, 'commerce-handled')
         setActiveObjectId(null)
         return
@@ -2335,7 +2342,7 @@ export function MainlineScenePage({
         markEntityExplored(entityId)
       }
     }
-    const interaction = resolveMainlineEntityInteraction(scene, entity.id, getCurrentPosition(), layout, navigationOptions)
+    const interaction = resolveMainlineEntityInteraction(scene, counterContact?.partId ?? entity.id, getCurrentPosition(), layout, counterContact ? { ...navigationOptions, interactionContactPoint: counterContact.point } : navigationOptions)
     if (interaction.inRange) {
       interactionStartedAtRef.current = Date.now()
       setActiveObjectId(entityId)
@@ -2618,6 +2625,11 @@ export function MainlineScenePage({
     const option = sceneAction?.options[index]
     if (!option) return
     onMeaningfulActivity?.()
+    if (sceneAction.entityId === 'commercial-cafe-counter' && (option === '点一杯咖啡' || option === '是' || option === '否')) {
+      if (option !== '否') onDrinkShopOrderOpen?.('commercial-cafe-slot')
+      commitSceneActionExit(actionId)
+      return
+    }
     const drinkShopId = sceneAction.entityId ? commercialStreetDrinkShopForInteraction(sceneAction.entityId) : null
     if (drinkShopId) {
       if (option === '点单') {
@@ -3257,6 +3269,7 @@ export function MainlineScenePage({
               suppressWorldEnterAnimation={suppressWorldEnterAnimation}
               onLayoutChange={updateLayout}
               onInteract={interact}
+              onCounterInteract={(serviceId, partId, point) => interact(serviceId, false, { partId, point })}
               onStorefrontInteract={interactStorefront}
               onNpcInteract={interactNpc}
               npcPositions={resolvedNpcPositions}

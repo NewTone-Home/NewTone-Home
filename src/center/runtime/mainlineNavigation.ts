@@ -33,6 +33,8 @@ export type MainlineNavigationOptions = {
   npcRuntimePositions?: ReadonlyMap<string, Point>
   /** Hidden occupied chairs do not remain a second static obstacle. */
   occupiedSeatIds?: ReadonlySet<string>
+  /** The clicked point on a continuous interactive surface. */
+  interactionContactPoint?: Point
 }
 
 export function mainlineSafeSpawnValidationDecision(
@@ -1490,7 +1492,9 @@ export function mainlineEntityInteractionCandidates(scene: MainlineSceneDefiniti
   if (!entity) return [from]
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const offset = mainlineLayoutOffsetForEntity(scene, entityId, layout)
-  const position = snapshot.objects.get(entityId)?.position ?? { x: entity.position.x + offset.x, y: entity.position.y + offset.y }
+  const position = entity.interactionStructureId && options.interactionContactPoint
+    ? options.interactionContactPoint
+    : snapshot.objects.get(entityId)?.position ?? { x: entity.position.x + offset.x, y: entity.position.y + offset.y }
   if (entity.kind === 'door') {
     const passage = scene.passages.find((candidate) => candidate.entityId === entityId)
     if (passage) {

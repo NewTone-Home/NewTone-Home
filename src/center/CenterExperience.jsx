@@ -74,6 +74,7 @@ import {
   createCommercialStreetMilkTeaOrder,
 } from './runtime/commercialStreetMilkTea'
 import { cancelUnmappedLegacyOrder, claimCrossShopOrder, consumeHeldConsumable, crossShopIds } from './runtime/crossShopOrders'
+import { isTrueMilkTea } from './runtime/heldConsumablePresentation'
 import { shopPreparationDurationGameMs } from './runtime/shopPreparationPolicy'
 import { placePaidShopOrder } from './runtime/shopOrderPayment'
 import { shopProductFor } from './runtime/shopOrderCatalog'
@@ -479,15 +480,14 @@ export default function CenterExperience({
         claimShopOrder(shopId)
         return
       }
-      openShopOrderApp(shopId)
+      return { text: order?.status === 'legacy-unmapped' ? '订单状态需要确认。' : '您的饮品还在制作中。' }
     }
     const routeDrinkShopCounter = (shopId) => {
       // With no existing order, let the physical worker/counter start the
       // shared welcome and recommendation dialogue. Active orders stay on
       // the existing app/pickup path, including ready claims.
       if (!playerSaveRef.current.shopOrders?.[shopId]) return false
-      useShopCounter(shopId)
-      return true
+      return useShopCounter(shopId) ?? true
     }
     if (entity.id === 'commercial-s5-milk-tea-order-service-label' || entity.id === 'milk-tea-trial-long-counter-0') {
       return routeDrinkShopCounter(crossShopIds.milkTea)
@@ -526,8 +526,10 @@ export default function CenterExperience({
         claimShopOrder(crossShopIds.cafeTakeaway)
         return true
       }
-      openShopOrderApp(crossShopIds.cafeTakeaway)
-      return true
+      if (order) return { text: '咖啡已经点过了。' }
+      return isTrueMilkTea(playerSaveRef.current.heldConsumable)
+        ? { text: '手里已经有奶茶了，还要点咖啡吗？', options: ['是', '否'] }
+        : { text: '想喝点什么呢？', options: ['点一杯咖啡'] }
     }
     return false
   }, [claimShopOrder, openShopOrderApp])
