@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent, MouseEvent, TransitionEvent } from 'react'
 import type { MainlineContinuousStructure, MainlineSceneEntity } from './mainlineSceneModel'
 import { counterOutlineGeometry } from './counterOutlineGeometry'
@@ -18,6 +18,7 @@ function CounterSurface({ parts, objects, onInteract, onCounterInteract, present
   const active = presentationActive !== false
   const animatedPresentation = presentationActive !== undefined
   const enteredInactive = useRef(!active)
+  const outlinePathRef = useRef<SVGPathElement | null>(null)
   const [qrRevealReady, setQrRevealReady] = useState(!animatedPresentation)
   useEffect(() => {
     if (!animatedPresentation) { setQrRevealReady(true); return }
@@ -30,6 +31,23 @@ function CounterSurface({ parts, objects, onInteract, onCounterInteract, present
     // transition: the outline is already complete, so begin the QR fade now.
     if (!enteredInactive.current) setQrRevealReady(true)
   }, [active, animatedPresentation])
+  useLayoutEffect(() => {
+    if (!animatedPresentation || !active) return
+    const path = outlinePathRef.current
+    if (!path) return
+    const style = getComputedStyle(path)
+    const durationMs = Math.max(...style.transitionDuration.split(',').map(value => {
+      const part = value.trim()
+      return part.endsWith('ms') ? Number.parseFloat(part) : Number.parseFloat(part) * 1000
+    }))
+    const offset = Number.parseFloat(style.strokeDashoffset)
+    // Zero-duration transitions emit no transitionend. Reveal only when the
+    // computed outline has already reached its actual terminal offset.
+    if (durationMs === 0 && offset === 0) {
+      enteredInactive.current = false
+      setQrRevealReady(true)
+    }
+  }, [active, animatedPresentation, qrRevealReady])
   const rectangles = useMemo(() => parts.map(part => ({ x: part.x * 19.2, y: part.y * 10.8, width: part.width * 19.2, height: part.height * 10.8 })), [parts])
   const outlineRectangles = useMemo(() => parts.map((part, index) => {
     const box = part.counterSurface!.outlineBounds
@@ -90,11 +108,11 @@ function CounterSurface({ parts, objects, onInteract, onCounterInteract, present
           aria-hidden={!qrRevealReady || undefined}
           tabIndex={active && qrRevealReady ? 0 : -1}
           onClick={event => activate(event, service.id)}
-          style={{ ...labelStyle, opacity: active && qrRevealReady ? 1 : 0, transition: animatedPresentation ? `opacity ${presentationDurationMs}ms ease-in-out` : undefined, pointerEvents: active && qrRevealReady ? 'all' : 'none', border: '1px solid currentColor', background: 'rgba(18, 16, 13, .88)', fontSize: service.visual === 'app-square' ? 0 : 13, whiteSpace: 'nowrap' }}
+          style={{ ...labelStyle, opacity: active && qrRevealReady ? 1 : 0, transition: animatedPresentation ? 'opacity 350ms ease-in-out' : undefined, pointerEvents: active && qrRevealReady ? 'all' : 'none', border: '1px solid currentColor', background: 'rgba(18, 16, 13, .88)', fontSize: service.visual === 'app-square' ? 0 : 13, whiteSpace: 'nowrap' }}
         >{service.visual === 'app-square' ? <span aria-hidden="true" className="scene-counter-app-square" style={{ display: 'block', width: 10, height: 10, border: '1px solid currentColor', background: 'repeating-linear-gradient(0deg, transparent 0 2px, currentColor 2px 3px)' }} /> : service.label}</button>
       </foreignObject>
     )))}
-    <path data-counter-outline-path={group} d={geometry.path} fill="none" stroke="currentColor" strokeWidth={1} strokeLinejoin="miter" pathLength={animatedPresentation ? 1 : undefined} strokeDasharray={animatedPresentation ? 1 : undefined} strokeDashoffset={animatedPresentation && !active ? 1 : 0} onTransitionEnd={finishCounterDraw} onTransitionCancel={finishCanceledCounterDraw} style={{ pointerEvents: 'none', transition: animatedPresentation ? `stroke-dashoffset ${presentationDurationMs}ms ease-in-out` : undefined }} />
+    <path ref={outlinePathRef} data-counter-outline-path={group} d={geometry.path} fill="none" stroke="currentColor" strokeWidth={1} strokeLinejoin="miter" pathLength={animatedPresentation ? 1 : undefined} strokeDasharray={animatedPresentation ? 1 : undefined} strokeDashoffset={animatedPresentation && !active ? 1 : 0} onTransitionEnd={finishCounterDraw} onTransitionCancel={finishCanceledCounterDraw} style={{ pointerEvents: 'none', transition: animatedPresentation ? `stroke-dashoffset ${presentationDurationMs}ms ease-in-out` : undefined }} />
   </svg>
 }
 
