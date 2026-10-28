@@ -12,7 +12,7 @@ type Props = {
   className?: string
   identityKey: string
   stageFaded?: boolean
-  observationFade?: { rect: MainlineReadingOcclusionRect; innerMarginWorldPx: number; featherWorldPx: number }
+  observationFade?: { rect: MainlineReadingOcclusionRect; innerMarginWorldPx: number; featherWorldPx: number; progress?: number }
   children: ReactNode
 }
 
@@ -22,7 +22,7 @@ const emptyIdentityKeys: ReadonlySet<string> = new Set()
 export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], protectedEntityIds, worldBounds, hiddenIdentityKeys = emptyIdentityKeys, active = true, className, identityKey, stageFaded, observationFade, children }: Props) {
   const protectedTarget = protectedEntityIds.has(entityId) || relatedEntityIds.some(id => protectedEntityIds.has(id))
   const localFadeMask = active && !protectedTarget && observationFade
-    ? mainlineReadingLocalFadeMask(worldBounds, observationFade.rect, observationFade.innerMarginWorldPx, observationFade.featherWorldPx)
+    ? mainlineReadingLocalFadeMask(worldBounds, observationFade.rect, observationFade.innerMarginWorldPx, observationFade.featherWorldPx, observationFade.progress)
     : null
   const hidden = active && !protectedTarget && !localFadeMask && hiddenIdentityKeys.has(identityKey)
   const style: CSSProperties = {

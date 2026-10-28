@@ -429,7 +429,7 @@ function ReadingPageFlip({ pageKey, continuityKey, visibleText, layout, worldSca
   </span>
 }
 
-function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = false, onComplete }: { sessionKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; paused?: boolean; onComplete?: (sessionKey: string, motion: MainlineReadingTextMotion) => void }) {
+function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = false, onComplete, onVisualProgress }: { sessionKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; paused?: boolean; onComplete?: (sessionKey: string, motion: MainlineReadingTextMotion) => void; onVisualProgress?: (fraction: number, motion: MainlineReadingTextMotion) => void }) {
   const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
   const [settledPageKey, setSettledPageKey] = useState<string | null>(null)
   const [progress, setProgress] = useState<{ key: string; count: number } | null>(null)
@@ -450,6 +450,8 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
       : motion === 'deleting' && !pageSettled
         ? characters.join('')
         : characters.slice(0, visibleCount).join('')
+
+  useEffect(() => { onVisualProgress?.(characters.length ? Array.from(visibleText).length / characters.length : 0, motion) }, [characters.length, motion, onVisualProgress, visibleText])
 
   useEffect(() => {
     if (paused || (motion !== 'typing' && motion !== 'deleting') || !mainlineReadingTextMotionCanAnimate(motion, pageSettled)) return
@@ -477,10 +479,10 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
   } }
 }
 
-function ObservationText({ menu, sourceText, echoId, continuityKey, pageKey, text, motion, paused, layout, worldScale, lockToken, onMotionComplete, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { menu: boolean; sourceText: string; echoId: number; continuityKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; paused: boolean; layout: MainlineEchoLayout; worldScale: number; lockToken: number; onMotionComplete?: (echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
+function ObservationText({ onVisualProgress, menu, sourceText, echoId, continuityKey, pageKey, text, motion, paused, layout, worldScale, lockToken, onMotionComplete, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { onVisualProgress?: (fraction: number, motion: MainlineReadingTextMotion) => void; menu: boolean; sourceText: string; echoId: number; continuityKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; paused: boolean; layout: MainlineEchoLayout; worldScale: number; lockToken: number; onMotionComplete?: (echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
   const sessionKey = `echo:${echoId}`
   const completeMotion = useCallback((key: string, completedMotion: MainlineReadingTextMotion) => onMotionComplete?.(echoId, key, completedMotion), [echoId, onMotionComplete])
-  const textMotion = useReadingTextMotion({ sessionKey, pageKey, text, motion, paused, onComplete: completeMotion })
+  const textMotion = useReadingTextMotion({ sessionKey, pageKey, text, motion, paused, onComplete: completeMotion, onVisualProgress })
   const pageSource = text.endsWith('...') ? text.slice(0, -3) : text
   const pageOffset = Math.max(0, sourceText.indexOf(pageSource))
   const descriptions = commercialStreetDrinkCatalog.flatMap(item => item.description ? [item.description] : [])
@@ -517,10 +519,10 @@ function ObservationText({ menu, sourceText, echoId, continuityKey, pageKey, tex
   </span>
 }
 
-function DialogueText({ group, continuityKey, pageKey, text, sessionId, motion, layout, worldScale, lockToken, onMotionComplete, onReadyChange, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { group: string; continuityKey: string; pageKey: string; text: string; sessionId: number; motion: MainlineReadingTextMotion; layout: MainlineEchoLayout; worldScale: number; lockToken: number; onMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void; onReadyChange?: (group: string, ready: boolean) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
+function DialogueText({ onVisualProgress, group, continuityKey, pageKey, text, sessionId, motion, layout, worldScale, lockToken, onMotionComplete, onReadyChange, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { onVisualProgress?: (fraction: number, motion: MainlineReadingTextMotion) => void; group: string; continuityKey: string; pageKey: string; text: string; sessionId: number; motion: MainlineReadingTextMotion; layout: MainlineEchoLayout; worldScale: number; lockToken: number; onMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void; onReadyChange?: (group: string, ready: boolean) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
   const sessionKey = `dialogue:${sessionId}`
   const completeMotion = useCallback((_sessionKey: string, completedMotion: MainlineReadingTextMotion) => onMotionComplete?.(sessionId, completedMotion), [onMotionComplete, sessionId])
-  const textMotion = useReadingTextMotion({ sessionKey, pageKey, text, motion, onComplete: completeMotion })
+  const textMotion = useReadingTextMotion({ sessionKey, pageKey, text, motion, onComplete: completeMotion, onVisualProgress })
   useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, pageKey, onReadyChange])
   return <span className="scene-mainline-text__dialogue" data-scene-text-mode="dialogue">
     <ReadingPageFlip pageKey={pageKey} continuityKey={continuityKey} visibleText={textMotion.visibleText} layout={layout} worldScale={worldScale} mode="dialogue" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel} onSettled={(settledKey) => { textMotion.onSettled(settledKey); onSettled?.(settledKey); onReadyChange?.(group, true) }}>
@@ -1485,6 +1487,48 @@ export function MainlineSceneRenderer({
   const readingOcclusionSessionKey = !readingPresentationMode ? null : sceneEcho
     ? `${scene.id}:observation:echo:${sceneEcho.id}`
     : `${scene.id}:dialogue:${dialogue?.triggerEntityId ?? ''}`
+  const [occlusionVisualProgress, setOcclusionVisualProgress] = useState(0)
+  const occlusionTargetRef = useRef(0)
+  const occlusionProgressRef = useRef(0)
+  const occlusionAnimationRef = useRef<number | null>(null)
+  const occlusionProgressSessionRef = useRef<string | null>(null)
+  const animateOcclusionProgress = useCallback(() => {
+    if (occlusionAnimationRef.current !== null) return
+    let lastTime: number | null = null
+    const tick = (now: number) => {
+      const delta = lastTime === null ? 0 : Math.min(64, now - lastTime)
+      lastTime = now
+      const current = occlusionProgressRef.current
+      const target = occlusionTargetRef.current
+      const step = delta / mainlineReadingFadeTransitionMs
+      const next = current < target ? Math.min(target, current + step) : Math.max(target, current - step)
+      occlusionProgressRef.current = next
+      setOcclusionVisualProgress(next)
+      if (next !== target) occlusionAnimationRef.current = window.requestAnimationFrame(tick)
+      else occlusionAnimationRef.current = null
+    }
+    occlusionAnimationRef.current = window.requestAnimationFrame(tick)
+  }, [])
+  useEffect(() => {
+    if (readingPresentationPhase === 'active' && readingOcclusionSessionKey) {
+      if (occlusionProgressSessionRef.current !== readingOcclusionSessionKey) {
+        occlusionProgressSessionRef.current = readingOcclusionSessionKey
+        occlusionTargetRef.current = 0
+        occlusionProgressRef.current = 0
+        setOcclusionVisualProgress(0)
+      }
+    } else {
+      occlusionTargetRef.current = 0
+      animateOcclusionProgress()
+    }
+  }, [animateOcclusionProgress, readingOcclusionSessionKey, readingPresentationPhase])
+  useEffect(() => () => { if (occlusionAnimationRef.current !== null) window.cancelAnimationFrame(occlusionAnimationRef.current) }, [])
+  const updateOcclusionVisualProgress = useCallback((fraction: number, motion: MainlineReadingTextMotion) => {
+    if (readingPresentationPhase !== 'active') return
+    const value = Math.max(0, Math.min(1, fraction))
+    occlusionTargetRef.current = motion === 'deleting' && !dialogueHandoffActive ? value : Math.max(occlusionTargetRef.current, value)
+    animateOcclusionProgress()
+  }, [animateOcclusionProgress, dialogueHandoffActive, readingPresentationPhase])
   const readingAnchorSessionKey = readingOcclusionSessionKey
   const readingTextDeleting = sceneEcho
     ? sceneEcho.textMotion === 'deleting' || sceneEcho.textMotion === 'deleted'
@@ -2370,8 +2414,43 @@ export function MainlineSceneRenderer({
     ? retainMainlineReadingOcclusionSnapshot(retainedReadingOcclusion, currentReadingOcclusion)
     : retainedReadingOcclusion
   const readingOcclusionActive = readingPresentationPhase === 'active' && readingVisualActive && activeReadingOcclusionSession === readingOcclusionSessionKey
-  const observationFade = sceneEcho && retainedOcclusionSnapshot?.rect
-    ? { rect: retainedOcclusionSnapshot.rect, innerMarginWorldPx: mainlineReadingOcclusionFadeWorldPx * 2, featherWorldPx: mainlineReadingOcclusionFadeWorldPx * 3 }
+  // The dialogue envelope can be intentionally wider than a short line. Use
+  // the visible page's measured ink width for the visual fade, while the
+  // session's cached layout and collision envelope remain unchanged.
+  const occlusionInkWidth = useMemo(() => presentedReadingLayout
+    ? Math.max(0, ...displayReadingText.split(/\r\n|\r|\n/u).map(line => mainlineMeasuredTextWidth(line, presentedReadingLayout.fontSizePx))) / Math.max(.01, worldScale)
+    : 0, [displayReadingText, presentedReadingLayout?.fontSizePx, worldScale])
+  const [effectiveOcclusionInkWidth, setEffectiveOcclusionInkWidth] = useState(0)
+  const visualInkWidthRef = useRef(0)
+  const visualInkSessionRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (readingPresentationPhase !== 'active' || !readingOcclusionSessionKey || occlusionInkWidth <= 0) return
+    if (visualInkSessionRef.current !== readingOcclusionSessionKey || visualInkWidthRef.current <= 0) {
+      visualInkSessionRef.current = readingOcclusionSessionKey
+      visualInkWidthRef.current = occlusionInkWidth
+      setEffectiveOcclusionInkWidth(occlusionInkWidth)
+      return
+    }
+    const start = visualInkWidthRef.current
+    if (Math.abs(start - occlusionInkWidth) < .1) return
+    const started = performance.now()
+    let frame = 0
+    const tick = (now: number) => {
+      const fraction = Math.min(1, (now - started) / mainlineReadingFadeTransitionMs)
+      const width = start + (occlusionInkWidth - start) * fraction
+      visualInkWidthRef.current = width
+      setEffectiveOcclusionInkWidth(width)
+      if (fraction < 1) frame = window.requestAnimationFrame(tick)
+    }
+    frame = window.requestAnimationFrame(tick)
+    return () => window.cancelAnimationFrame(frame)
+  }, [occlusionInkWidth, readingOcclusionSessionKey, readingPresentationPhase])
+  const occlusionFullRect = retainedOcclusionSnapshot?.rect
+  const visualOcclusionRect = occlusionFullRect && effectiveOcclusionInkWidth > 0
+    ? { ...occlusionFullRect, x: occlusionFullRect.x + Math.max(0, occlusionFullRect.width - effectiveOcclusionInkWidth) / 2, width: Math.min(occlusionFullRect.width, effectiveOcclusionInkWidth) }
+    : occlusionFullRect
+  const observationFade = visualOcclusionRect && occlusionVisualProgress > 0
+    ? { rect: visualOcclusionRect, innerMarginWorldPx: mainlineReadingOcclusionFadeWorldPx * 2, featherWorldPx: mainlineReadingOcclusionFadeWorldPx * 3, progress: occlusionVisualProgress }
     : undefined
   const readingOcclusionProtectedEntityIds = readingPresentationPhase === 'inactive'
     ? retainedReadingOcclusion?.protectedEntityIds ?? readingProtectedEntityIds
@@ -2679,7 +2758,7 @@ export function MainlineSceneRenderer({
               const preserveBoundary = cell.kind === 'wall' || cell.kind === 'door' || cell.kind === 'opening'
                 || unit.surface === 'wall' || unit.surface === 'door'
               const canFadeFeature = Boolean(observationFade && !preserveBoundary && cellEntity && cellEntity.kind !== 'door' && cellEntity.surface !== 'wall')
-              return <MainlineReadingIdentityPlane key={`cell:${cell.id}`} identityKey={occlusionIdentityKey} entityId={entityId} relatedEntityIds={relatedEntityIds} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={sceneEcho ? undefined : retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={cellWorldBounds} observationFade={canFadeFeature ? observationFade : undefined} active={readingOcclusionActive && (!sceneEcho || canFadeFeature)} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">{node}</MainlineReadingIdentityPlane>
+              return <MainlineReadingIdentityPlane key={`cell:${cell.id}`} identityKey={occlusionIdentityKey} entityId={entityId} relatedEntityIds={relatedEntityIds} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={sceneEcho ? undefined : retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={cellWorldBounds} observationFade={canFadeFeature ? observationFade : undefined} active={Boolean(observationFade) && canFadeFeature} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">{node}</MainlineReadingIdentityPlane>
             })}
           </div>
           <div className="scene-mainline-counter-layer" data-reading-occlusion-layer="counter">
@@ -2703,7 +2782,7 @@ export function MainlineSceneRenderer({
               return { x: centerX - width / 2, y: centerY - height / 2, width, height }
             })
             const counterBounds = unionWorldBounds([...boxes, ...labelBoxes], 1)
-            return <MainlineReadingIdentityPlane key={meta.groupId} identityKey={`counter:${meta.groupId}`} entityId={entityId} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={sceneEcho ? undefined : retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={counterBounds} observationFade={observationFade} active={readingOcclusionActive} stageFaded={dialogueStage ? stageHidden : undefined} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--counter${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}><MainlineCounterSurface boundedWrapper coordinateBounds={counterBounds} parts={parts} objects={scene.objects} onInteract={onInteract} onCounterInteract={onCounterInteract} presentationActive={interiorRoomPresentationActive(meta.roomId)}/></MainlineReadingIdentityPlane>
+            return <MainlineReadingIdentityPlane key={meta.groupId} identityKey={`counter:${meta.groupId}`} entityId={entityId} protectedEntityIds={readingOcclusionProtectedEntityIds} worldBounds={counterBounds} observationFade={observationFade} active={Boolean(observationFade)} stageFaded={dialogueStage ? stageHidden : undefined} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--counter${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}><MainlineCounterSurface boundedWrapper coordinateBounds={counterBounds} parts={parts} objects={scene.objects} onInteract={onInteract} onCounterInteract={onCounterInteract} presentationActive={interiorRoomPresentationActive(meta.roomId)}/></MainlineReadingIdentityPlane>
             }
             return visibleCounterSurfaces.map(renderCounter)
           })()}
@@ -2717,7 +2796,7 @@ export function MainlineSceneRenderer({
               const objectBounds = mainlineReadingWorldBox(normalizedBounds, value => value, entity.focusFrame === 'interactive' ? 5 : 0)
               const stageHidden = Boolean(dialogueStage?.hiddenEntityIds.has(entity.id))
               const canFadeObject = Boolean(observationFade && entity.kind !== 'door' && entity.surface !== 'wall')
-              return <MainlineReadingIdentityPlane key={entity.id} identityKey={`object:${entity.id}`} entityId={entity.id} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={sceneEcho ? undefined : retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={objectBounds} observationFade={canFadeObject ? observationFade : undefined} active={readingOcclusionActive} stageFaded={dialogueStage ? stageHidden : undefined} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--object${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}>{renderMainlineObject(entity, objectBounds)}</MainlineReadingIdentityPlane>
+              return <MainlineReadingIdentityPlane key={entity.id} identityKey={`object:${entity.id}`} entityId={entity.id} protectedEntityIds={readingOcclusionProtectedEntityIds} worldBounds={objectBounds} observationFade={canFadeObject ? observationFade : undefined} active={Boolean(observationFade)} stageFaded={dialogueStage ? stageHidden : undefined} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--object${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}>{renderMainlineObject(entity, objectBounds)}</MainlineReadingIdentityPlane>
             })}
           </div>
 
@@ -2882,8 +2961,8 @@ export function MainlineSceneRenderer({
             >
               {isDialogue && !stageDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
-                ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
-                : <ObservationText menu={isMenuReading} sourceText={sceneEcho!.segments.join('')} echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} paused={readingFit?.fits === false} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
+                ? <DialogueText onVisualProgress={updateOcclusionVisualProgress} group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
+                : <ObservationText onVisualProgress={updateOcclusionVisualProgress} menu={isMenuReading} sourceText={sceneEcho!.segments.join('')} echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} paused={readingFit?.fits === false} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
             </div>
             {dialogueHandoffOutgoing && dialogueHandoffPresentation && stageDialogue && <DialogueHandoffOutgoingText
               id={dialogueHandoffOutgoing.id}

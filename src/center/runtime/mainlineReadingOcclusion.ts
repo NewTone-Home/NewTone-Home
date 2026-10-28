@@ -88,7 +88,12 @@ export function mainlineReadingOcclusionAlpha(point: Point, rect: MainlineReadin
  * covers the frame plus its inner breathing room; the outside feather remains
  * transparent at the edge and restores continuously to the normal mask.
  */
-export function mainlineReadingLocalFadeMask(bounds: CollisionBox, rect: MainlineReadingOcclusionRect, innerMarginWorldPx: number, featherWorldPx: number) {
+export function mainlineReadingLocalFadeMask(bounds: CollisionBox, rect: MainlineReadingOcclusionRect, innerMarginWorldPx: number, featherWorldPx: number, progress = 1) {
+  const amount = Math.max(0, Math.min(1, progress))
+  if (amount === 0) return null
+  rect = { ...rect, width: rect.width * amount }
+  innerMarginWorldPx *= amount
+  featherWorldPx *= amount
   if (bounds.width <= 0 || bounds.height <= 0 || featherWorldPx <= 0) return null
   const centerX = rect.x + rect.width / 2 - bounds.x
   const centerY = rect.y + rect.height / 2 - bounds.y
@@ -97,7 +102,7 @@ export function mainlineReadingLocalFadeMask(bounds: CollisionBox, rect: Mainlin
   const outerRadiusX = clearRadiusX + featherWorldPx
   const outerRadiusY = clearRadiusY + featherWorldPx
   const clearStop = Math.max(clearRadiusX / outerRadiusX, clearRadiusY / outerRadiusY) * 100
-  return `radial-gradient(ellipse ${outerRadiusX / bounds.width * 100}% ${outerRadiusY / bounds.height * 100}% at ${centerX / bounds.width * 100}% ${centerY / bounds.height * 100}%, transparent 0%, transparent ${clearStop}%, #000 100%)`
+  return `radial-gradient(ellipse ${outerRadiusX / bounds.width * 100}% ${outerRadiusY / bounds.height * 100}% at ${centerX / bounds.width * 100}% ${centerY / bounds.height * 100}%, rgba(0,0,0,${1 - amount}) 0%, rgba(0,0,0,${1 - amount}) ${clearStop}%, #000 100%)`
 }
 
 export function mainlineReadingOcclusionIntersects(bounds: CollisionBox, rect: MainlineReadingOcclusionRect, featherWorldPx = mainlineReadingOcclusionFadeWorldPx) {
