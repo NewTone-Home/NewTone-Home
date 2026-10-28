@@ -60,7 +60,7 @@ describe('one exterior L counter, two labels and complete solid interaction',()=
    ['commercial-south-s5-interior','milk-tea-trial-L-counter','commercial-s5-milk-tea-app-square'],
    ['commercial-north-n1-interior','fruit-tea-trial-L-counter','fruit-tea-trial-app-square'],
   ] as const){
-   const parts=scene.continuousStructures.filter(p=>p.counterSurface?.groupId===groupId),counter=parts[0]!,service=counter.counterSurface!.services!.find(item=>item.id===serviceId)!
+   const parts=scene.continuousStructures.filter(p=>p.counterSurface?.groupId===groupId),counter=parts.find(part=>part.counterSurface!.services!.some(item=>item.id===serviceId))!,service=counter.counterSurface!.services!.find(item=>item.id===serviceId)!
    expect(service.visual).toBe('app-square')
    const hit=scene.objects.find(object=>object.id===serviceId)!
    expect(hit).toMatchObject({interactive:true,counterService:true,interactionStructureId:expect.any(String)})
@@ -109,7 +109,7 @@ describe('one exterior L counter, two labels and complete solid interaction',()=
  it('keeps one Café order entry while retaining the other shops’ existing counter targets',()=>{
   const cafeRoomId='commercial-north-cafe-interior'
   expect(scene.objects.filter(o=>o.roomId===cafeRoomId&&o.counterSurfaceId&&o.interactionBehavior==='cafe-order').map(o=>o.id)).toEqual(['commercial-cafe-counter'])
-  expect(scene.objects.filter(o=>o.counterService).map(o=>o.id).sort()).toEqual(['commercial-cafe-counter','commercial-s5-milk-tea-order-service-label','fruit-tea-trial-order','commercial-s5-milk-tea-app-square','fruit-tea-trial-app-square'].sort())
+  expect(scene.objects.filter(o=>o.counterService).map(o=>o.id).sort()).toEqual(['commercial-cafe-counter','commercial-cafe-app-square','commercial-s5-milk-tea-order-service-label','fruit-tea-trial-order','commercial-s5-milk-tea-app-square','fruit-tea-trial-app-square'].sort())
   for(const o of scene.objects.filter(o=>o.counterSurfaceId&&!o.counterService))expect(o.interactionBehavior).toBeUndefined()
  })
 })
