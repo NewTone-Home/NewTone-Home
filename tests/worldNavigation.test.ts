@@ -484,7 +484,7 @@ describe('ordinary world navigation and passage intent', () => {
     expect(canActorReachPassageApproach(cafe, exit, from, {}, { ...options, occupiedSeatIds: releasedSeatIds })).toBeNull()
   })
 
-  it('classifies passages before ordinary target resolution, including a locked non-routeThrough back door', () => {
+  it('classifies passages before ordinary target resolution, including Yonghe’s open rear entrance', () => {
     const cafe = mainlineScenes['commercial-cafe']
     const ordinary = classifyMainlineWorldCommand(cafe, currentCafeStart, currentCafeStart)
     expect(ordinary.kind).toBe('ordinary')
@@ -495,12 +495,13 @@ describe('ordinary world navigation and passage intent', () => {
     expect(crossScene).toMatchObject({ kind: 'passage', passage: { id: street.id }, requestedTarget: streetTarget })
 
     const eatery = mainlineScenes['yonghe-eatery']
-    const locked = eatery.passages.find((passage) => passage.id === 'yonghe-back-door')!
-    const eateryRoom = eatery.rooms.find(room => room.id === 'mining-shop-2-interior')!
-    const insideYonghe = locked.crossingTargets.find(point => point.x > eateryRoom.bounds.x && point.x < eateryRoom.bounds.x + eateryRoom.bounds.width && point.y > eateryRoom.bounds.y && point.y < eateryRoom.bounds.y + eateryRoom.bounds.height)!
-    const lockedTarget = mainlinePassageExitPoint(locked, insideYonghe)
-    const lockedPlan = classifyMainlineWorldCommand(eatery, insideYonghe, lockedTarget, {}, { actorId: 'yonghe-trial-worker' })
-    expect(lockedPlan).toMatchObject({ kind: 'passage', passage: { id: locked.id }, requestedTarget: lockedTarget })
+    const rearEntrance = eatery.passages.find((passage) => passage.id === 'yonghe-back-door')!
+    const alleyRoom = eatery.rooms.find(room => room.id === 'mining-street-back-alley')!
+    const outsideYonghe = rearEntrance.crossingTargets.find(point => point.x > alleyRoom.bounds.x && point.x < alleyRoom.bounds.x + alleyRoom.bounds.width && point.y > alleyRoom.bounds.y && point.y < alleyRoom.bounds.y + alleyRoom.bounds.height)!
+    const rearEntranceTarget = mainlinePassageExitPoint(rearEntrance, outsideYonghe)
+    expect(rearEntrance).toMatchObject({ access: 'open', routeThrough: true, fromRoomId: alleyRoom.id, toRoomId: 'mining-shop-2-interior' })
+    const rearEntrancePlan = classifyMainlineWorldCommand(eatery, outsideYonghe, rearEntranceTarget, {}, { actorId: 'yonghe-trial-worker' })
+    expect(rearEntrancePlan).toMatchObject({ kind: 'passage', passage: { id: rearEntrance.id }, requestedTarget: rearEntranceTarget })
   })
 
   it('limits storefront passage intent to the clicked storefront slot, not its entire parent wall', () => {
