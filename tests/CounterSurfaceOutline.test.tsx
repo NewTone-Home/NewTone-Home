@@ -3,9 +3,21 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { MainlineCounterSurface } from '../src/center/runtime/MainlineCounterSurface'
 import { counterOutlineGeometry } from '../src/center/runtime/counterOutlineGeometry'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
-import { findMainlinePathToEntity,isWalkableMainlinePoint,findMainlinePath,canTravelAlongMainlineSegment,resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
+import { findMainlinePathToEntity,isWalkableMainlinePoint,findMainlinePath,canTravelAlongMainlineSegment,resolveMainlineNpcPosition,mainlineEntityInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
 import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 const scene=mainlineScenes['commercial-street'],options={screenMetrics:sceneDesignReferenceMetrics,actorId:'protagonist',actorFootprint:{width:11/19.2,height:11/10.8}}
+describe('counter click contact',()=>{
+ it('uses the clicked position along each physical segment for its contact',()=>{
+  for(const groupId of ['cafe-trial-L-counter','milk-tea-trial-L-counter','fruit-tea-trial-L-counter']){
+   for(const part of scene.continuousStructures.filter(p=>p.counterSurface?.groupId===groupId)){
+    const vertical=part.counterSurface!.orientation==='vertical'
+    const point=(fraction:number)=>({x:part.x+part.width*(vertical?.5:fraction),y:part.y+part.height*(vertical?fraction:.5)})
+    const candidates=(fraction:number)=>mainlineEntityInteractionCandidates(scene,part.counterSurface!.interactionEntityId,point(.5),{},options.actorFootprint,{...options,interactionContactPoint:point(fraction)})[0]!
+    expect(Math.abs((vertical?candidates(.8).y:candidates(.8).x)-(vertical?candidates(.2).y:candidates(.2).x))).toBeGreaterThan(.1)
+   }
+  }
+ })
+})
 const configs=[['commercial-north-cafe-interior','cafe-trial-L-counter','cafe-trial-counter-front-0','bottom','cafe-coffee-owner'],['commercial-south-s5-interior','milk-tea-trial-L-counter','milk-tea-trial-front-return-0','top','milk-tea-trial-worker'],['commercial-north-n1-interior','fruit-tea-trial-L-counter','fruit-tea-trial-front-return-0','bottom','fruit-tea-trial-worker']] as const
 const area=(p:{x:number;y:number}[])=>Math.abs(p.reduce((n,a,i)=>{const b=p[(i+1)%p.length];return n+a.x*b.y-b.x*a.y},0)/2)
 describe('one exterior L counter, two labels and complete solid interaction',()=>{

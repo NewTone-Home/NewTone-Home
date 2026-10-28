@@ -33,6 +33,8 @@ export type MainlineNavigationOptions = {
   npcRuntimePositions?: ReadonlyMap<string, Point>
   /** Hidden occupied chairs do not remain a second static obstacle. */
   occupiedSeatIds?: ReadonlySet<string>
+  /** The clicked point on a continuous interactive surface. */
+  interactionContactPoint?: Point
 }
 
 export function mainlineSafeSpawnValidationDecision(
@@ -1490,7 +1492,9 @@ export function mainlineEntityInteractionCandidates(scene: MainlineSceneDefiniti
   if (!entity) return [from]
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const offset = mainlineLayoutOffsetForEntity(scene, entityId, layout)
-  const position = snapshot.objects.get(entityId)?.position ?? { x: entity.position.x + offset.x, y: entity.position.y + offset.y }
+  const position = entity.interactionStructureId && options.interactionContactPoint
+    ? options.interactionContactPoint
+    : snapshot.objects.get(entityId)?.position ?? { x: entity.position.x + offset.x, y: entity.position.y + offset.y }
   if (entity.kind === 'door') {
     const passage = scene.passages.find((candidate) => candidate.entityId === entityId)
     if (passage) {
@@ -1729,6 +1733,27 @@ export function resolveMainlineEntityInteraction(scene: MainlineSceneDefinition,
   const candidates = mainlineEntityInteractionCandidates(scene, entityId, from, layout, mainlineActorFootprint(scene, options, from), options)
   const range = entity?.interactionRange ?? .35
   const resolved = resolveMainlineInteractionCandidates(scene, from, candidates, range, layout, options)
+  if (!resolved.path && options.interactionContactPoint && entity?.interactionStructureId) {
+    const part = scene.continuousStructures.find(item => item.id === entity.interactionStructureId)
+    if (part?.counterSurface) {
+      const vertical = part.counterSurface.orientation === 'vertical'
+      const extent = vertical ? part.height : part.width
+      const step = vertical ? 8 / 10.8 : 8 / 19.2
+      // At a wall or junction the exact contact may be blocked. Search along
+      // this same segment, nearest to the clicked point first, for a legal
+      // reachable stance rather than returning to a fixed service marker.
+      for (let delta = step; delta <= extent + step; delta += step) {
+        for (const direction of [-1, 1]) {
+          const point = { ...options.interactionContactPoint }
+          if (vertical) point.y += direction * delta
+          else point.x += direction * delta
+          const nearby = mainlineEntityInteractionCandidates(scene, entityId, from, layout, mainlineActorFootprint(scene, options, from), { ...options, interactionContactPoint: point })
+          const fallback = resolveMainlineInteractionCandidates(scene, from, nearby, range, layout, options)
+          if (fallback.path) return fallback
+        }
+      }
+    }
+  }
   if (resolved.path || entity?.surface !== 'floor' || entity.kind === 'door' || entity.kind === 'seat' || range <= .35) return resolved
   // A neighbouring visible body can occupy a contact without invalidating
   // the object's authored interaction range. Project through shared legality
