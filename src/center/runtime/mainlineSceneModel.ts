@@ -83,6 +83,7 @@ export type MainlineSceneCurve = {
 export type MainlineContinuousStructure = CollisionBox & {
   id: string
   kind: 'counter' | 'barrier'
+  readingProtection?: 'preserve'
   counterSurface?: {
     groupId: string
     roomId: string
@@ -139,6 +140,8 @@ export type MainlineSceneEntity = {
   /** Counter surfaces draw/hit the complete solid; these entities retain semantic IDs. */
   counterSurfaceId?: string
   counterService?: boolean
+  /** Opt out of dialogue/reading fades while the authored visual is in scope. */
+  readingProtection?: 'preserve'
   /** Share existing behavior while keeping a distinct legal physical contact. */
   interactionAliasId?: string
   /** A small set of authored interaction behaviors used by the generic page flow. */
@@ -243,6 +246,8 @@ export type MainlineSceneNpc = {
   interactive?: boolean
   /** Semantic context for future story resolution; never a physical movement target. */
   interactionTargetEntityId?: string
+  /** Keep a service/story actor visible during a reading stage; speaker brightness still wins. */
+  readingProtection?: 'preserve'
 }
 
 export type MainlineAmbientNpcRouteStep =
@@ -489,6 +494,7 @@ export type MainlineSceneTextPresentationPolicy =
 type MainlineWallBlueprint = {
   id: string
   type: 'frame' | 'room' | 'lane' | 'alley'
+  readingProtection?: 'preserve'
   bounds: CollisionBox
   variant?: string
   boundaryGeometrySource?: 'anchor' | 'cell-range'

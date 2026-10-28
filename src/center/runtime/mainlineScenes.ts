@@ -87,6 +87,7 @@ export type {
 export type MainlineStructure = {
   id: string
   type: 'frame' | 'room' | 'lane' | 'alley' | 'divider' | 'line' | 'connection'
+  readingProtection?: 'preserve'
   bounds?: CollisionBox
   start?: Point
   length?: number
@@ -147,6 +148,7 @@ export type MainlineSceneGeometryUnit = CollisionBox & {
   id: string
   ownerId: string
   sourceWallId?: string
+  readingProtection?: 'preserve'
   edge?: MainlineWallOpening['edge']
   geometryKind: 'boundary' | 'air-wall' | 'blocker'
   surface: 'wall' | 'storefront' | 'door' | 'feature' | 'opening' | 'air-wall' | 'blocker'
@@ -872,7 +874,10 @@ function compileMainlineGeometry(
     const orientation = config.edge === 'top' || config.edge === 'bottom' ? 'horizontal' : 'vertical'
     return !config.structure.boundaryCoordinateCount?.[orientation] && !config.structure.boundaryWorldGrid
   }).map(config => `${config.structure.id}:${config.edge}`))
-  return fixedMainlineWallGlyphGrid(units, fixedGlyphOwners)
+  return fixedMainlineWallGlyphGrid(units, fixedGlyphOwners).map(unit => {
+    const source = projectedStructures.find(structure => structure.id === unit.sourceWallId)
+    return source?.readingProtection === 'preserve' ? { ...unit, readingProtection: 'preserve' as const } : unit
+  })
 }
 
 function geometryCollisionForPassage(units: readonly MainlineSceneGeometryUnit[], passageId: string): CollisionBox {
@@ -1053,6 +1058,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
       id: wall.id,
       type: wall.type,
       bounds: wall.bounds,
+      readingProtection: wall.readingProtection,
       variant: wall.variant,
        boundaryGeometrySource: wall.boundaryGeometrySource,
        boundaryCoordinateCount: wall.boundaryCoordinateCount,

@@ -45,6 +45,7 @@ export function bindContinuousCafe(blueprint: MainlineSceneBlueprint): MainlineS
   const rename = (id: string) => replacements.get(id) ?? id
   const entities: MainlineSceneEntity[] = data.floorEntities.map(entity => ({
     ...entity, id: rename(entity.id), groupId: entity.groupId ? rename(entity.groupId) : undefined,
+    ...(rename(entity.id) === 'commercial-cafe-counter' ? { readingProtection: 'preserve' as const } : {}),
     seat: entity.seat ? { ...entity.seat, id: rename(entity.seat.id), tableId: rename(entity.seat.tableId) } : undefined,
     ...(entity.id === 'commercial-north-cafe-counter-1-1' ? { interactive: true, interactionBehavior: 'cafe-order' as const, interactionContactSides: ['top'] as const } : {}),
   }))
@@ -57,10 +58,13 @@ export function bindContinuousCafe(blueprint: MainlineSceneBlueprint): MainlineS
   const retained = entities.filter(entity => !entity.id.startsWith('commercial-north-cafe-menu-label-'))
   const fixture = (id: string, label: string, position: Point): MainlineSceneEntity => ({ id, label, kind: 'fixture', weight: 'fixture', surface: 'floor', position, roomId: room.id, interactive: true, visualVisibility: 'static' })
   retained.push(fixture('commercial-cafe-menu', '菜单', menuAnchor), fixture('commercial-cafe-blackboard', '黑板', { x: room.bounds.x + 5, y: room.bounds.y + 4 }))
+  retained.forEach(entity => {
+    if (entity.id === 'commercial-cafe-menu' || entity.id === 'commercial-cafe-blackboard') entity.readingProtection = 'preserve'
+  })
   const npcs: MainlineSceneNpc[] = [
     { id: 'lao-zhou', roleId: 'lao-zhou', label: npcRoles.laoZhou.label, roomId: room.id, interactionTargetEntityId: cafeStoryTableId },
-    { id: 'cafe-coffee-owner', roleId: 'cafe-coffee-owner', label: npcRoles.cafeCoffeeOwner.label, roomId: room.id, interactionTargetEntityId: 'commercial-cafe-counter' },
-    { id: 'cafe-floor-server', roleId: 'cafe-floor-server', label: npcRoles.cafeFloorServer.label, roomId: room.id },
+    { id: 'cafe-coffee-owner', roleId: 'cafe-coffee-owner', label: npcRoles.cafeCoffeeOwner.label, roomId: room.id, interactionTargetEntityId: 'commercial-cafe-counter', readingProtection: 'preserve' },
+    { id: 'cafe-floor-server', roleId: 'cafe-floor-server', label: npcRoles.cafeFloorServer.label, roomId: room.id, readingProtection: 'preserve' },
   ]
   const behaviors: MainlineSceneNpcBehavior[] = [
     { npcId: 'lao-zhou', dutyId: 'lao-zhou.seated', targetId: 'commercial-cafe-right-window-upper-group-chair-top', targetKind: 'seat' },
@@ -69,6 +73,14 @@ export function bindContinuousCafe(blueprint: MainlineSceneBlueprint): MainlineS
   ]
   return { ...blueprint, interactionText: { ...blueprint.interactionText, 'street-cafe-entry': '这扇门直接通向商业街。', 'commercial-cafe-menu': '菜单挂在柜台旁。', 'commercial-cafe-blackboard': '黑板上留着店里的字迹。' }, scene: {
     ...data, floorEntities: retained,
+    walls: data.walls.map(wall => {
+      const overlapsCafeRoom = wall.bounds.x < room.bounds.x + room.bounds.width && wall.bounds.x + wall.bounds.width > room.bounds.x
+        && wall.bounds.y < room.bounds.y + room.bounds.height && wall.bounds.y + wall.bounds.height > room.bounds.y
+      return overlapsCafeRoom ? { ...wall, readingProtection: 'preserve' as const } : wall
+    }),
+    continuousStructures: (data.continuousStructures ?? []).map(structure => structure.counterSurface?.roomId === room.id
+      ? { ...structure, readingProtection: 'preserve' as const }
+      : structure),
     furnitureGroups: data.furnitureGroups.map(group => ({ ...group, id: rename(group.id), entityIds: group.entityIds.map(rename) })),
     npcs: [...(data.npcs ?? []), ...npcs], npcBehaviors: [...(data.npcBehaviors ?? []), ...behaviors],
     accessRegions: [...(data.accessRegions ?? []), { id: 'commercial-cafe-staff-area', x: counter.x, y: counter.y + counter.height, width: counter.width, height: room.bounds.y + room.bounds.height - counter.y - counter.height, requiredAccess: 'staff', deniedText: '再往北去，可就是人家柜台里了。' }],

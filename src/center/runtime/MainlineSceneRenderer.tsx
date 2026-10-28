@@ -43,7 +43,7 @@ import { activeStorefrontInteriorOwner, storefrontCellVisualState, storefrontCha
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
 import { storefrontContactGeometry } from './storefrontContactGeometry'
-import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingOpacityForActor, mainlineObservationTypingIntervalMs, mainlineReadingFadeTransitionMs, resolveMainlineDialogueParticipants } from './mainlineTextReading'
+import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlineInteractionRoom, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingOpacityForActor, mainlineObservationTypingIntervalMs, mainlineReadingFadeTransitionMs, resolveMainlineDialogueParticipants } from './mainlineTextReading'
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
 import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
 import { currentMainlineReadingTargetIds, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionLayerPosition, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex, mainlineReadingPageIndexForSourceOffset } from './mainlineReadingProtection'
@@ -102,7 +102,7 @@ type MainlineSceneRendererProps = {
   dialoguePhase?: 'active' | 'leaving'
   dialogueTextSessionId?: number
   dialogueTextMotion?: MainlineReadingTextMotion
-  dialogueStage?: { roomId: string; speakerActorId: string | null; participantActorIds: ReadonlySet<string>; hiddenEntityIds: ReadonlySet<string> } | null
+  dialogueStage?: { roomId: string; speakerActorId: string | null; participantActorIds: ReadonlySet<string>; hiddenEntityIds: ReadonlySet<string>; protectedEntityIds?: ReadonlySet<string>; protectedActorIds?: ReadonlySet<string> } | null
   dialogueHandoffActive?: boolean
   dialogueHandoffFadeDurationMs?: number
   dialogueHandoffOutgoing?: { id: number } | null
@@ -1467,6 +1467,7 @@ export function MainlineSceneRenderer({
   const dialogueParticipantResolution = resolveMainlineDialogueParticipants(scene, dialogue, dialogueLine)
   const dialogueParticipantNpcIds = dialogueParticipantResolution.npcIds
   const readingProtectedEntityIds = useMemo(() => {
+    const readingRoomId = activeReadingPosition ? mainlineInteractionRoom(scene, activeReadingPosition)?.id : null
     return currentMainlineReadingTargetIds({
       readingMode: readingPresentationPhase !== 'inactive',
       activeObjectId,
@@ -1475,8 +1476,13 @@ export function MainlineSceneRenderer({
       dialogueTriggerEntityId: dialogue?.triggerEntityId,
       objects: scene.objects,
       continuousStructures: scene.continuousStructures,
+      geometry: scene.geometry,
+      rooms: scene.rooms,
+      extraProtectedEntityIds: dialogueStage?.protectedEntityIds,
+      roomId: readingRoomId,
+      preserveServiceEntities: readingMode === 'dialogue',
     })
-  }, [activeObjectId, dialogue?.triggerEntityId, readingPresentationPhase, scene.objects, scene.continuousStructures, sceneAction?.entityId, sceneEcho?.entityId])
+  }, [activeObjectId, activeReadingPosition, dialogue?.triggerEntityId, dialogueStage?.protectedEntityIds, readingPresentationPhase, scene.objects, scene.continuousStructures, scene.geometry, scene.rooms, sceneAction?.entityId, sceneEcho?.entityId, scene])
   const currentReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset) : readingMetrics.width - 24
   const maximumReadingWidthPx = activeReadingPosition ? mainlineMaximumReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale) : currentReadingWidthPx
   const readingEnvelopeEntries = useMemo<readonly MainlineReadingSessionTextEntry[]>(() => sceneEcho
@@ -2685,7 +2691,7 @@ export function MainlineSceneRenderer({
               interactive={npc.interactive !== false}
               presentationActive={streetNpc ? streetPresentationActive : interiorRoomIsVisuallyActive(npc.roomId)}
               readingOpacity={dialogueStage
-                ? mainlineDialogueStageActorOpacity({ active: true, actorId: npc.id, currentSpeakerActorId: dialogueStage.speakerActorId, participantActorIds: dialogueStage.participantActorIds, actorRoomId: npc.roomId, stageRoomId: dialogueStage.roomId })
+                ? mainlineDialogueStageActorOpacity({ active: true, actorId: npc.id, currentSpeakerActorId: dialogueStage.speakerActorId, participantActorIds: dialogueStage.participantActorIds, protectedActorIds: dialogueStage.protectedActorIds, actorRoomId: npc.roomId, stageRoomId: dialogueStage.roomId })
                 : mainlineReadingOpacityForActor(npc.id, dialogueParticipantNpcIds, actorReadingOpacity(npcPosition))}
               readingStageBrightness={Boolean(dialogueStage)}
               readingProtected={Boolean(readingMode && !dialogueStage && (dialogueParticipantNpcIds.has(npc.id) || readingProtectedEntityIds.has(npc.id)))}

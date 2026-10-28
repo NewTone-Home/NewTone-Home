@@ -46,6 +46,7 @@ import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
 import { mainlineInteractionRoom, mainlineInteractionSpace, mainlineIsInteriorSpace } from './mainlineTextReading'
 import { mainlineDialogueFurnitureGroupIds, mainlineDialogueHandoffDurationMs, mainlineDialogueShouldHandoff, mainlineDialogueSpeakerActorId, mainlineDialogueSpeakerOutsidePosition, mainlineDialogueStageHiddenEntityIds, mainlineDialogueStageActorOpacity } from './mainlineDialogueStage'
+import { mainlineProtectedVisualActorIds, mainlineProtectedVisualIdentityIds } from './mainlineVisualProtection'
 import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, plantIsWatered, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
@@ -2928,22 +2929,29 @@ export function MainlineScenePage({
     if (!formalDialogueStageActive) return null
     const roomId = mainlineInteractionRoom(scene, position)?.id
     if (!roomId) return null
-    const cafeServicePresentation = hasContinuousCafe(scene) && commercialCafeNarrative !== null && commercialCafeNarrative.phase !== 'leaving'
-    const cafeServiceEntityIds = cafeServicePresentation
-      ? scene.objects.filter(entity => /cafe.*(counter|prep|work|menu|blackboard)|(counter|prep|work|menu|blackboard).*cafe/i.test(entity.id)).map(entity => entity.id)
-      : []
-    const protectedEntityIds = new Set([activeObjectId, activeDialogue?.triggerEntityId, ...cafeServiceEntityIds].filter((id): id is string => Boolean(id)))
+    const protectedEntityIds = mainlineProtectedVisualIdentityIds({
+      entities: scene.objects,
+      structures: scene.continuousStructures,
+      geometry: scene.geometry,
+      rooms: scene.rooms,
+      roomId,
+      seedIds: [activeObjectId, activeDialogue?.triggerEntityId].filter((id): id is string => Boolean(id)),
+    })
+    const protectedActorIds = mainlineProtectedVisualActorIds(scene.npcs, roomId)
     const furnitureGroupIds = mainlineDialogueFurnitureGroupIds(scene.objects, new Set([activePlayerSeatId, laoZhouCafeSeatId].filter((id): id is string => Boolean(id))))
     return {
       roomId,
       speakerActorId: formalDialogueSpeakerActorId,
       participantActorIds: formalDialogueParticipantActorIds,
+      protectedEntityIds,
+      protectedActorIds,
       hiddenEntityIds: mainlineDialogueStageHiddenEntityIds({
         entities: scene.objects,
+        structures: scene.continuousStructures,
         roomId,
         protectedEntityIds,
         protectedFurnitureGroupIds: furnitureGroupIds,
-        serviceRequired: cafeServicePresentation,
+        serviceRequired: true,
       }),
     }
   }, [activeDialogue?.triggerEntityId, activeObjectId, activePlayerSeatId, commercialCafeNarrative?.phase, formalDialogueParticipantActorIds, formalDialogueSpeakerActorId, formalDialogueStageActive, laoZhouCafeSeatId, position, scene])

@@ -178,7 +178,7 @@ export function createCafeStoryOrderDeliveryController<TSave extends CafeStoryOr
       options.commitSave(current => {
         const result = beginCafeTableOrderDelivery(current, seatId, options.readGameTimeMs())
         outcome = result
-        return result.ok ? { ...current, ...result.state } : current
+        return result.ok && result.state !== current ? { ...current, ...result.state } : current
       })
       return outcome
     },

@@ -1,5 +1,6 @@
-import type { MainlineSceneEntity, MainlineSceneNpc } from './mainlineSceneModel'
+import type { MainlineContinuousStructure, MainlineSceneEntity, MainlineSceneNpc } from './mainlineSceneModel'
 import type { Point } from './sceneGeometry'
+import { mainlineProtectedVisualIdentityIds } from './mainlineVisualProtection'
 
 export const mainlineDialogueHandoffMinimumMs = 300
 export const mainlineDialogueTypingIntervalMs = 45
@@ -78,17 +79,22 @@ export function mainlineDialogueFurnitureGroupIds(entities: readonly MainlineSce
 /** Only current-room visuals can leave the formal-dialogue stage. */
 export function mainlineDialogueStageHiddenEntityIds(input: {
   entities: readonly MainlineSceneEntity[]
+  structures?: readonly MainlineContinuousStructure[]
   roomId: string | null
   protectedEntityIds: ReadonlySet<string>
   protectedFurnitureGroupIds?: ReadonlySet<string>
   serviceRequired?: boolean
 }) {
   if (!input.roomId) return new Set<string>()
+  const seedIds = new Set(input.protectedEntityIds)
+  input.protectedFurnitureGroupIds?.forEach(id => seedIds.add(id))
+  if (input.serviceRequired) for (const entity of input.entities) if (entity.counterService) seedIds.add(entity.id)
+  const protectedIds = mainlineProtectedVisualIdentityIds({ entities: input.entities, structures: input.structures, seedIds, roomId: input.roomId })
   return new Set(input.entities
     .filter(entity => entity.roomId === input.roomId
       && entity.kind !== 'door'
       && entity.surface !== 'wall'
-      && !input.protectedEntityIds.has(entity.id)
+      && !protectedIds.has(entity.id)
       && !(entity.groupId && input.protectedFurnitureGroupIds?.has(entity.groupId))
       && !(input.serviceRequired && entity.counterService))
     .map(entity => entity.id))

@@ -8,6 +8,7 @@ import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 import { mainlineEchoLayout, type MainlineEchoLayout } from './mainlineEchoLayout'
 import { mainlineReadingFontSizePx } from './mainlineTextReading'
 import { splitMainlineInteractionTextToFit } from './mainlineTextSegments'
+import { mainlineProtectedVisualIdentityIds } from './mainlineVisualProtection'
 
 export type MainlineReadingOverflowPageState = { sessionKey: string; key: string; index: number; sourceOffset?: number } | null
 
@@ -38,42 +39,28 @@ export function currentMainlineReadingTargetIds(input: {
   dialogueTriggerEntityId?: string
   objects?: readonly MainlineSceneEntity[]
   continuousStructures?: readonly MainlineContinuousStructure[]
+  geometry?: readonly { id: string; ownerId: string; x: number; y: number; width: number; height: number; sourceWallId?: string; entityId?: string; storefrontId?: string; readingProtection?: 'preserve'; visual: { cells: readonly { id: string; entityId?: string; storefrontId?: string }[] } }[]
+  rooms?: readonly { id: string; bounds: CollisionBox }[]
+  extraProtectedEntityIds?: Iterable<string>
+  roomId?: string | null
+  preserveServiceEntities?: boolean
 }) {
   if (!input.readingMode) return new Set<string>()
   const currentTarget = input.sceneActionEntityId
     ?? input.sceneEchoEntityId
     ?? input.dialogueTriggerEntityId
     ?? input.activeObjectId
-  const protectedIds = new Set(currentTarget ? [currentTarget] : [])
-  if (!protectedIds.size) return protectedIds
-
-  // Interaction IDs can be semantic service aliases while the renderer's
-  // continuous surface and wall cells use physical body IDs. Protect that
-  // authored relationship as one visual identity instead of relying on the
-  // name of a particular shop.
-  let changed = true
-  while (changed) {
-    changed = false
-    const add = (id: string | undefined) => {
-      if (!id || protectedIds.has(id)) return
-      protectedIds.add(id)
-      changed = true
-    }
-    for (const entity of input.objects ?? []) {
-      const relatedIds = [entity.id, entity.interactionAliasId, entity.interactionStructureId, entity.counterSurfaceId]
-      if (!relatedIds.some(id => id && protectedIds.has(id))) continue
-      relatedIds.forEach(add)
-    }
-    for (const structure of input.continuousStructures ?? []) {
-      const surface = structure.counterSurface
-      if (!surface) continue
-      const relatedIds = [structure.id, surface.groupId, surface.interactionEntityId, surface.labelEntityId,
-        ...(surface.services ?? []).map(service => service.id)]
-      if (!relatedIds.some(id => id && protectedIds.has(id))) continue
-      relatedIds.forEach(add)
-    }
-  }
-  return protectedIds
+  const serviceIds = input.preserveServiceEntities
+    ? (input.objects ?? []).filter(entity => entity.counterService && (!input.roomId || !entity.roomId || entity.roomId === input.roomId)).map(entity => entity.id)
+    : []
+  return mainlineProtectedVisualIdentityIds({
+    entities: input.objects ?? [],
+    structures: input.continuousStructures,
+    geometry: input.geometry,
+    rooms: input.rooms,
+    seedIds: [...(currentTarget ? [currentTarget] : []), ...(input.extraProtectedEntityIds ?? []), ...serviceIds],
+    roomId: input.roomId,
+  })
 }
 
 function overlaps(first: CollisionBox, second: CollisionBox, gapX: number, gapY: number) {

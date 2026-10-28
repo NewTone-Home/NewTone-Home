@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { MainlineContinuousStructure, MainlineSceneEntity } from './mainlineSceneModel'
 import { mainlineScenes } from './mainlineScenes'
 import { currentMainlineReadingTargetIds } from './mainlineReadingProtection'
+import { mainlineDialogueStageActorOpacity, mainlineDialogueStageHiddenEntityIds } from './mainlineDialogueStage'
 
 describe('reading protection identity relationships', () => {
   it('protects a physical counter surface when reading its semantic service alias', () => {
@@ -71,5 +72,32 @@ describe('reading protection identity relationships', () => {
     expect(counterIds.has('cafe-trial-counter-front-0')).toBe(true)
     expect(worktopIds.has('cafe-trial-worktop-0')).toBe(true)
     expect(worktopIds.has('cafe-trial-worktop-body')).toBe(true)
+  })
+
+  it('keeps the actual Cafe counter/worktop and nearby Cafe wall/menu identities protected throughout story dialogue', () => {
+    const cafe = mainlineScenes['commercial-street']
+    const readingIds = currentMainlineReadingTargetIds({
+      readingMode: true, objects: cafe.objects, continuousStructures: cafe.continuousStructures,
+      geometry: cafe.geometry, rooms: cafe.rooms, preserveServiceEntities: true,
+    })
+    for (const id of ['commercial-cafe-counter', 'commercial-cafe-menu', 'commercial-cafe-blackboard', 'cafe-trial-counter-long-0', 'cafe-trial-counter-front-0']) {
+      expect(readingIds.has(id), id).toBe(true)
+    }
+    for (const surface of cafe.continuousStructures.filter(structure => structure.readingProtection === 'preserve').map(structure => structure.counterSurface).filter(Boolean)) {
+      expect(readingIds.has(surface!.groupId)).toBe(true)
+      expect(readingIds.has(surface!.interactionEntityId)).toBe(true)
+    }
+    const hidden = mainlineDialogueStageHiddenEntityIds({
+      entities: cafe.objects, structures: cafe.continuousStructures, roomId: 'commercial-north-cafe-interior',
+      protectedEntityIds: new Set(), serviceRequired: true,
+    })
+    for (const id of ['commercial-cafe-counter', 'commercial-cafe-menu', 'commercial-cafe-blackboard', 'cafe-trial-counter-long-0', 'cafe-trial-counter-front-0']) {
+      expect(hidden.has(id)).toBe(false)
+    }
+    expect(mainlineDialogueStageActorOpacity({
+      active: true, actorId: 'cafe-floor-server', currentSpeakerActorId: 'lao-zhou',
+      participantActorIds: new Set(['protagonist', 'lao-zhou']), protectedActorIds: new Set(cafe.npcs.filter(npc => npc.readingProtection === 'preserve').map(npc => npc.id)),
+      actorRoomId: 'commercial-north-cafe-interior', stageRoomId: 'commercial-north-cafe-interior',
+    })).toBe(.5)
   })
 })
