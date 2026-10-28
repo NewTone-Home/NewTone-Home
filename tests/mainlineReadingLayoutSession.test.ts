@@ -7,6 +7,21 @@ import { mainlineReadingCameraOffset } from '../src/center/runtime/mainlineTextR
 import { splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
 
 describe('mainline reading session layout cache', () => {
+  it('keeps formal dialogue boxes at the session width for short and long lines', () => {
+    const cache = createMainlineReadingSessionLayoutCache({
+      sessionKey: 'dialogue:fixed-width',
+      entries: [{ text: 'Short.', speaker: 'Speaker' }, { text: 'A much longer line of dialogue.', speaker: 'Speaker' }],
+      metrics: { width: 411, height: 914, viewportWidth: 411 },
+      maximumWidthPx: 180,
+      measureText: (text, size) => Array.from(text).length * size,
+    })
+
+    const shortWidth = cache.pageLayoutAtOrBelow('Short.', 'Speaker', 180)!.widthPx
+    const longWidth = cache.pageLayoutAtOrBelow('A much longer line of dialogue.', 'Speaker', 72)!.widthPx
+    expect(shortWidth).toBe(180)
+    expect(longWidth).toBe(shortWidth)
+  })
+
   it('measures the session text budget once and reuses it for pages, movement, and viewport projection changes', () => {
     let measureCalls = 0
     let layoutCalls = 0

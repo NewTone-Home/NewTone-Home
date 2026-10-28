@@ -11,6 +11,7 @@ export type MainlineEchoLayout = {
 type MainlineEchoLayoutOptions = {
   speaker?: string
   maxWidthPx?: number
+  fixedWidthPx?: number
   measureText?: (text: string, fontSizePx: number) => number
 }
 
@@ -33,7 +34,7 @@ export function mainlineEchoLayout(text: string, screenMetrics: SceneScreenMetri
   const speakerWidth = options.speaker ? textWidthPx(options.speaker, Math.max(12, fontSizePx * .74), 1.1, options.measureText) : 0
   const textLinesContent = text.split(/\r\n|\r|\n/u)
   const contentWidth = Math.max(speakerWidth, ...textLinesContent.map(line => textWidthPx(line, fontSizePx, 1, options.measureText)))
-  const widthPx = Math.min(Math.max(1, options.maxWidthPx ?? screenMetrics.width - 24), contentWidth + paddingX)
+  const widthPx = Math.max(1, options.fixedWidthPx ?? Math.min(Math.max(1, options.maxWidthPx ?? screenMetrics.width - 24), contentWidth + paddingX))
   const lineWidthPx = Math.max(1, widthPx - paddingX)
   const textLines = textLinesContent.reduce((count, line) => count + Math.max(1, Math.ceil(textWidthPx(line, fontSizePx, 1, options.measureText) / lineWidthPx)), 0)
   let heightPx = paddingY + fontSizePx * lineHeight * textLines
