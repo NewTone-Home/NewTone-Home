@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { crossShopIds } from './crossShopOrders'
 import {
+  commercialStreetCafeAppUnlockPatch, commercialStreetCafeAppUnlocked,
   commercialStreetFruitTeaAppUnlockPatch, commercialStreetFruitTeaAppUnlocked,
   unlockedCommercialDrinkShopIds,
 } from './commercialStreetShopApps'
@@ -24,6 +25,14 @@ describe('scanned drink app unlocks', () => {
     const restored = sanitizePlayerSave({ ...save, sceneState: { ...save.sceneState, 'commercial-street': fruitState } }, save.currentSceneId)
     expect(unlockedCommercialDrinkShopIds(restored.sceneState['commercial-street'])).toEqual([crossShopIds.fruitTea])
     expect(restored.sceneState['commercial-street']?.commercialStreetFruitTeaAppUnlocked).toBe(true)
+  })
+
+  it('persists the cafe QR unlock while routing its shop through the shared drink app', () => {
+    const save = createInitialPlayerSave('commercial-street')
+    const cafeState = { ...save.sceneState['commercial-street'], ...commercialStreetCafeAppUnlockPatch() }
+    const restored = sanitizePlayerSave({ ...save, sceneState: { ...save.sceneState, 'commercial-street': cafeState } }, save.currentSceneId)
+    expect(commercialStreetCafeAppUnlocked(restored.sceneState['commercial-street'])).toBe(true)
+    expect(unlockedCommercialDrinkShopIds(restored.sceneState['commercial-street'])).toEqual([crossShopIds.cafeTakeaway])
   })
 
   it('keeps the synthetic all-shops unlock gated to an explicit fixture argument', () => {

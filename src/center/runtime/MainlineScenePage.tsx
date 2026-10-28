@@ -57,11 +57,11 @@ import { localSlideDirectionForCrossing, shouldUseLocalSlideForPassage, type Mai
 import { createCommercialStreetStorefrontExecutionRuntime, createCommercialStreetStorefrontInteractionRuntime, commercialStreetStorefrontInteractionFor, executeCommercialStreetStorefrontInteraction, type CommercialStreetStorefrontAction } from './commercialStreetStorefrontInteractions'
 import { commercialStreetQuestionDialoguePosition, commercialStreetQuestionNarrativeAnchor, commercialStreetQuestionNarrativeCompleted, commercialStreetQuestionNarrativeCompletedKey, commercialStreetQuestionNarrativeLines, commercialStreetQuestionNarrativeShouldTrigger, nextCommercialStreetQuestionNarrative, type CommercialStreetQuestionNarrativeState } from './commercialStreetQuestionNarrative'
 import { commercialStreetMilkTeaConsumePatch, commercialStreetMilkTeaAppUnlockPatch, commercialStreetMilkTeaAppUnlocked, commercialStreetMilkTeaHeld, commercialStreetMilkTeaIsReady, commercialStreetMilkTeaOrderFromSceneState, commercialStreetMilkTeaPickupPatch, commercialStreetMilkTeaStorefrontId, formatCommercialStreetMilkTeaOrderNumber, type CommercialStreetMilkTeaOrder } from './commercialStreetMilkTea'
+import { commercialStreetCafeAppUnlockPatch, commercialStreetCafeAppUnlocked, commercialStreetFruitTeaAppUnlockPatch, commercialStreetFruitTeaAppUnlocked } from './commercialStreetShopApps'
 import type { SessionGameActivitySource } from './sessionGameClock'
 import { mainlineReadingSessionTextIsFinal, mainlineReadingTextMotionAfterAdvance, mainlineReadingTextMotionAfterAnimation, mainlineReadingTextMotionCompletionMatches, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
 import { yongheMenuForChoice, yongheMenuText, yongheTakeawayCatalog } from './yongheTakeawayCatalog'
 import { commercialStreetDrinkShopDialogue, commercialStreetDrinkShopForInteraction, recommendedCommercialStreetDrink } from './commercialStreetDrinkCatalog'
-import { commercialStreetFruitTeaAppUnlockPatch, commercialStreetFruitTeaAppUnlocked } from './commercialStreetShopApps'
 import type { CafeStoryOrderStatus } from './cafeStoryOrderDelivery'
 
 const emptyExternalStoreSubscribe = () => () => undefined
@@ -2264,6 +2264,8 @@ export function MainlineScenePage({
         recordSceneStatePatch(scene.id, commercialStreetMilkTeaAppUnlockPatch())
       } else if (entity.id === 'fruit-tea-trial-app-square' && !commercialStreetFruitTeaAppUnlocked(initialSceneState)) {
         recordSceneStatePatch(scene.id, commercialStreetFruitTeaAppUnlockPatch())
+      } else if (entity.id === 'commercial-cafe-app-square' && !commercialStreetCafeAppUnlocked(initialSceneState)) {
+        recordSceneStatePatch(scene.id, commercialStreetCafeAppUnlockPatch())
       }
       if (onCommerceEntity?.(entity)) {
         onInteractionAnalytics?.('completed', entity.id, entity.kind, 'commerce-handled')

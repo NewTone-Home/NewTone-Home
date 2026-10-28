@@ -26,7 +26,7 @@ import type { SessionGameActivitySource } from './sessionGameClock'
 
 type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea' | 'fruit-tea' | 'yonghe-order' | 'cafe-takeaway' | 'notes'
 export function phoneAppForShopId(shopId: string): PhoneApp | null {
-  if (shopId === crossShopIds.milkTea || shopId === crossShopIds.fruitTea) return 'milk-tea'
+  if (shopId === crossShopIds.milkTea || shopId === crossShopIds.fruitTea || shopId === crossShopIds.cafeTakeaway) return 'milk-tea'
   if (shopId === crossShopIds.yonghe) return 'yonghe-order'
   if (shopId === crossShopIds.cafeTakeaway) return 'cafe-takeaway'
   return null

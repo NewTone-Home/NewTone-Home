@@ -147,7 +147,8 @@ async function openAtCounter(page: Page, serviceId: string, shopId: string, room
   await expect(page.locator(`.shop-order-app[data-shop-id="${shopId}"]`)).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath(`${serviceId}-app-open.png`) })
   await closePhone(page)
-  await expect(page.locator(`button[data-counter-service-id="${serviceId === 'fruit-tea-trial-app-square' ? 'fruit-tea-trial-order' : 'commercial-s5-milk-tea-order-service-label'}"]`)).toBeVisible()
+  const manualCounter = street.continuousStructures.find(part => part.counterSurface?.roomId === roomId && part.counterSurface.orientation === 'vertical')!
+  await expect(page.locator(`button[data-counter-label][data-object-id="${manualCounter.counterSurface!.labelEntityId}"]`)).toBeVisible()
   const afterClose = await page.locator('[data-actor-id="protagonist"]').evaluate(element => ({
     x: Number((element as HTMLElement).dataset.runtimeX), y: Number((element as HTMLElement).dataset.runtimeY),
   }))
@@ -251,7 +252,7 @@ test('cafe counter square opens the existing cafe order app and stays separate f
     qrScreenBounds: bounds, outsideHitPoint: { x: pointHitOutsideSquare.x, y: pointHitOutsideSquare.y },
     outsideHit: pointHitOutsideSquare.hitId }, null, 2))
   await square.click()
-  await expect(page.locator('.world-phone .world-phone__app-view[data-app-view="cafe-takeaway"]')).toBeVisible()
+  await expect(page.locator('.world-phone .world-phone__app-view[data-app-view="milk-tea"]')).toBeVisible()
   await expect(page.locator('.shop-order-app[data-shop-id="commercial-cafe-slot"]')).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('commercial-cafe-app-open.png') })
   await closePhone(page)
