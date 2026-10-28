@@ -1,7 +1,6 @@
 import type { Point } from './sceneGeometry'
-import type { SceneScreenMetrics } from './sceneBoundaryGrid'
+import { sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import type { MainlineSceneDefinition } from './mainlineScenes'
-import { freeRoamWaypointArrivalRadius } from './useFreeRoamMovement'
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
 
 /** Persisted only after the final internal-dialogue line has rolled away. */
@@ -45,22 +44,46 @@ export function commercialStreetQuestionNarrativeAnchor(scene: MainlineSceneDefi
   }
 }
 
-function distanceToSegment(point: Point, start: Point, end: Point) {
-  const dx = end.x - start.x
-  const dy = end.y - start.y
-  const lengthSquared = dx * dx + dy * dy
-  if (lengthSquared <= Number.EPSILON) return Math.hypot(point.x - start.x, point.y - start.y)
-  const projection = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared))
-  return Math.hypot(point.x - (start.x + projection * dx), point.y - (start.y + projection * dy))
+// Scene positions are percentages, while the glyph and actor hitboxes are CSS px.
+// At the 1920×1080 design reference, the rendered mark is ~17×36px and protagonist
+// ~11×21px. Convert their overlap extents back to percentages with a 1px margin.
+const questionMarkOverlapMarginPx = 1
+const questionMarkOverlapHalfWidthPx = (17.1 + 11) / 2 + questionMarkOverlapMarginPx
+const questionMarkOverlapHalfHeightPx = (35.75 + 21) / 2 + questionMarkOverlapMarginPx
+export const commercialStreetQuestionTriggerHalfWidth = (questionMarkOverlapHalfWidthPx / sceneDesignReferenceMetrics.width) * 100
+export const commercialStreetQuestionTriggerHalfHeight = (questionMarkOverlapHalfHeightPx / sceneDesignReferenceMetrics.height) * 100
+
+function pointInsideQuestionBounds(point: Point, anchor: Point) {
+  return Math.abs(point.x - anchor.x) <= commercialStreetQuestionTriggerHalfWidth
+    && Math.abs(point.y - anchor.y) <= commercialStreetQuestionTriggerHalfHeight
 }
 
-/** Trigger only when the actor reaches the mark's finite waypoint tolerance or crosses it while moving. */
+function segmentIntersectsQuestionBounds(start: Point, end: Point, anchor: Point) {
+  let enter = 0
+  let exit = 1
+  const clip = (origin: number, delta: number, min: number, max: number) => {
+    if (Math.abs(delta) <= Number.EPSILON) return origin >= min && origin <= max
+    const a = (min - origin) / delta
+    const b = (max - origin) / delta
+    enter = Math.max(enter, Math.min(a, b))
+    exit = Math.min(exit, Math.max(a, b))
+    return enter <= exit
+  }
+  return clip(start.x, end.x - start.x,
+    anchor.x - commercialStreetQuestionTriggerHalfWidth,
+    anchor.x + commercialStreetQuestionTriggerHalfWidth)
+    && clip(start.y, end.y - start.y,
+      anchor.y - commercialStreetQuestionTriggerHalfHeight,
+      anchor.y + commercialStreetQuestionTriggerHalfHeight)
+}
+
+/** Trigger when the protagonist reaches or crosses the visible marker footprint. */
 export function commercialStreetQuestionNarrativeShouldTrigger(scene: MainlineSceneDefinition, position: Point, previousPosition?: Point, completed = false) {
   if (completed || scene.id !== 'commercial-street') return false
-  if (!previousPosition || (previousPosition.x === position.x && previousPosition.y === position.y)) return false
   const anchor = commercialStreetQuestionNarrativeAnchor(scene)
-  if (Math.hypot(position.x - anchor.x, position.y - anchor.y) <= freeRoamWaypointArrivalRadius) return true
-  return distanceToSegment(anchor, previousPosition, position) <= freeRoamWaypointArrivalRadius
+  if (pointInsideQuestionBounds(position, anchor)) return true
+  if (!previousPosition) return false
+  return segmentIntersectsQuestionBounds(previousPosition, position, anchor)
 }
 
 export function nextCommercialStreetQuestionNarrative(state: CommercialStreetQuestionNarrativeState): CommercialStreetQuestionNarrativeState {

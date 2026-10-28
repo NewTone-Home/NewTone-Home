@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
-import { commercialStreetQuestionDialoguePosition, commercialStreetQuestionNarrativeAnchor, commercialStreetQuestionNarrativeCompleted, commercialStreetQuestionNarrativeLines, commercialStreetQuestionNarrativeShouldTrigger, nextCommercialStreetQuestionNarrative } from '../src/center/runtime/commercialStreetQuestionNarrative'
-import { createFreeRoamController, freeRoamWaypointArrivalRadius } from '../src/center/runtime/useFreeRoamMovement'
+import { commercialStreetQuestionDialoguePosition, commercialStreetQuestionNarrativeAnchor, commercialStreetQuestionNarrativeCompleted, commercialStreetQuestionNarrativeLines, commercialStreetQuestionNarrativeShouldTrigger, commercialStreetQuestionTriggerHalfHeight, commercialStreetQuestionTriggerHalfWidth, nextCommercialStreetQuestionNarrative } from '../src/center/runtime/commercialStreetQuestionNarrative'
+import { createFreeRoamController } from '../src/center/runtime/useFreeRoamMovement'
 import { mainlineEchoLayout, mainlineSpeakerAnchor } from '../src/center/runtime/mainlineEchoLayout'
 import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlineReadingBounds, mainlineReadingEnvelopeNeedsCameraPan } from '../src/center/runtime/mainlineTextReading'
 import { commercialStreetCameraPages, commercialStreetPageIndex } from '../src/center/runtime/commercialStreetCamera'
@@ -15,32 +15,36 @@ describe('Commercial Street question-mark narration', () => {
       x: street.walkBounds.x + street.walkBounds.width / 2,
       y: street.walkBounds.y + street.walkBounds.height / 2,
     })
-    expect(commercialStreetQuestionNarrativeShouldTrigger(street, anchor)).toBe(false)
-    expect(commercialStreetQuestionNarrativeShouldTrigger(street, anchor, anchor)).toBe(false)
-    expect(commercialStreetQuestionNarrativeShouldTrigger(street, { x: anchor.x + freeRoamWaypointArrivalRadius * 2, y: anchor.y })).toBe(false)
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street, anchor)).toBe(true)
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street, anchor, anchor)).toBe(true)
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street, { x: anchor.x + commercialStreetQuestionTriggerHalfWidth + 0.01, y: anchor.y })).toBe(false)
     expect(commercialStreetQuestionNarrativeShouldTrigger(street,
-      { x: anchor.x + freeRoamWaypointArrivalRadius * 2, y: anchor.y },
-      { x: anchor.x + freeRoamWaypointArrivalRadius * 3, y: anchor.y })).toBe(false)
+      { x: anchor.x, y: anchor.y + commercialStreetQuestionTriggerHalfHeight + 0.01 },
+      { x: anchor.x + 80, y: anchor.y + commercialStreetQuestionTriggerHalfHeight + 0.01 })).toBe(false)
     expect(commercialStreetQuestionNarrativeShouldTrigger(street,
-      { x: anchor.x + freeRoamWaypointArrivalRadius, y: anchor.y },
-      { x: anchor.x + freeRoamWaypointArrivalRadius * 2, y: anchor.y })).toBe(true)
-    // A position reset inside the tolerance does not consume the event; walking afterwards does.
-    expect(commercialStreetQuestionNarrativeShouldTrigger(street,
-      { x: anchor.x + freeRoamWaypointArrivalRadius / 2, y: anchor.y },
-      { x: anchor.x + freeRoamWaypointArrivalRadius, y: anchor.y })).toBe(true)
+      { x: anchor.x + 0.59, y: anchor.y + 0.74 },
+      { x: anchor.x + 0.59, y: anchor.y + 0.74 })).toBe(true)
     expect(street.passages).not.toContainEqual(expect.objectContaining({ entityId: 'commercial-street-question-mark' }))
   })
 
-  it('triggers when an actual movement segment crosses the mark, including a step that passes over it', () => {
+  it('triggers for approach segments from every side of the visible marker footprint', () => {
     const anchor = commercialStreetQuestionNarrativeAnchor(street)
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      expect(commercialStreetQuestionNarrativeShouldTrigger(street,
+        { x: anchor.x + dx * 40, y: anchor.y + dy * 40 },
+        { x: anchor.x - dx * 40, y: anchor.y - dy * 40 })).toBe(true)
+    }
+    // Passing outside the displayed footprint does not trigger merely because a route crossed its center line.
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street,
+      { x: anchor.x + 40, y: anchor.y + commercialStreetQuestionTriggerHalfHeight + 1 },
+      { x: anchor.x - 40, y: anchor.y + commercialStreetQuestionTriggerHalfHeight + 1 })).toBe(false)
+    // A loaded/stationary protagonist already overlapping the glyph triggers once the page evaluates its position.
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street,
+      { x: anchor.x + 0.59, y: anchor.y + 0.74 })).toBe(true)
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street,
+      { x: anchor.x + 0.59, y: anchor.y + 0.74 }, { x: anchor.x + 0.59, y: anchor.y + 0.74 })).toBe(true)
     expect(commercialStreetQuestionNarrativeShouldTrigger(street,
       { x: anchor.x + 1, y: anchor.y }, { x: anchor.x - 1, y: anchor.y })).toBe(true)
-    expect(commercialStreetQuestionNarrativeShouldTrigger(street,
-      { x: anchor.x, y: anchor.y + 1 }, { x: anchor.x, y: anchor.y - 1 })).toBe(true)
-    expect(commercialStreetQuestionNarrativeShouldTrigger(street,
-      { x: anchor.x + 1, y: anchor.y + 1 }, { x: anchor.x - 1, y: anchor.y - 1 })).toBe(true)
-    expect(commercialStreetQuestionNarrativeShouldTrigger(street,
-      { x: anchor.x + 1, y: anchor.y + 1 }, { x: anchor.x - 1, y: anchor.y + 1 })).toBe(false)
     expect(commercialStreetQuestionNarrativeShouldTrigger(mainlineScenes['yonghe-eatery'], anchor,
       { x: anchor.x - 1, y: anchor.y })).toBe(false)
   })
@@ -65,7 +69,8 @@ describe('Commercial Street question-mark narration', () => {
     })
     movement.tick(performance.now() + 30)
     expect(triggeredAt).not.toBeNull()
-    expect(Math.hypot(triggeredAt!.x - anchor.x, triggeredAt!.y - anchor.y)).toBeLessThanOrEqual(freeRoamWaypointArrivalRadius)
+    expect(Math.abs(triggeredAt!.x - anchor.x)).toBeLessThanOrEqual(commercialStreetQuestionTriggerHalfWidth)
+    expect(Math.abs(triggeredAt!.y - anchor.y)).toBeLessThanOrEqual(commercialStreetQuestionTriggerHalfHeight)
     expect(triggeredAt).not.toEqual(anchor)
     expect(movement.getCurrentPosition()).toEqual(triggeredAt)
     expect(movement.isMoving()).toBe(false)
@@ -139,7 +144,6 @@ describe('Commercial Street question-mark narration', () => {
     expect(commercialStreetQuestionNarrativeCompleted(false)).toBe(false)
     expect(commercialStreetQuestionNarrativeCompleted(undefined)).toBe(false)
     const anchor = commercialStreetQuestionNarrativeAnchor(street)
-    expect(commercialStreetQuestionNarrativeShouldTrigger(street, anchor,
-      { x: anchor.x + freeRoamWaypointArrivalRadius * 2, y: anchor.y }, true)).toBe(false)
+    expect(commercialStreetQuestionNarrativeShouldTrigger(street, anchor, undefined, true)).toBe(false)
   })
 })
