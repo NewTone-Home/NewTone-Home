@@ -4,7 +4,7 @@ export type NpcDutyDefinition = {
 }
 
 export type NpcRoleDefinition = {
-  id: 'lao-zhou' | 'cafe-coffee-owner' | 'cafe-floor-server' | 'pedestrian'
+  id: 'lao-zhou' | 'cafe-coffee-owner' | 'cafe-floor-server' | 'pedestrian' | 'ruoyu'
   label: string
   duties: Readonly<Record<string, NpcDutyDefinition>>
 }
@@ -40,5 +40,10 @@ export const npcRoles = {
     id: 'pedestrian',
     label: '人',
     duties: {},
+  },
+  ruoyu: {
+    id: 'ruoyu',
+    label: '若雨',
+    duties: { seated: { id: 'ruoyu.seated', kind: 'ambient' } },
   },
 } as const satisfies Record<string, NpcRoleDefinition>

@@ -109,6 +109,11 @@
 .world-phone__message-person>span { display:none; }
 .world-phone__message-date { text-align:center; color:var(--phone-muted); font-size:10px; }
 .world-phone__message-bubble { width:fit-content; max-width:87%; padding:10px 13px; background:#303138; border-radius:13px; margin:10px 0; font-size:12px; }
+.world-phone__message-thread[data-contact-id="ruoyu"] .world-phone__message-bubble { animation:world-phone-message-arrival 260ms ease both; }
+.world-phone__message-thread[data-contact-id="ruoyu"] .world-phone__message-bubble:nth-of-type(3) { animation-delay:220ms; }
+.world-phone__message-thread[data-contact-id="ruoyu"] .world-phone__message-bubble:nth-of-type(4) { animation-delay:560ms; }
+@keyframes world-phone-message-arrival { from { opacity:0; transform:translateY(5px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .world-phone__message-thread[data-contact-id="ruoyu"] .world-phone__message-bubble { animation:none; } }
 .world-phone__message-bubble--sent { margin-left:auto; background:#43444b; }
 .world-phone__message-place { position:relative; display:block; width:100%; max-width:100%; min-width:0; margin:10px 0; }
 .world-phone__place-anchor { position:relative; width:fit-content; max-width:100%; }

@@ -46,7 +46,7 @@ type FeedbackPayload = {
 type FeedbackSubmitResult = { ok: boolean; reason?: string }
 type MapPoint = readonly [number, number]
 type ContactView = 'list' | 'detail' | 'messages' | 'call'
-type ContactId = 'lao-zhou'
+type ContactId = 'lao-zhou' | 'ruoyu'
 
 type ContactDefinition = {
   id: ContactId
@@ -56,6 +56,12 @@ type ContactDefinition = {
 }
 
 const innerContacts: readonly ContactDefinition[] = [
+  {
+    id: 'ruoyu',
+    name: '孙若雨',
+    detail: '中枢院 · 联系人',
+    messages: ['老地方？', '好，见面说。'],
+  },
   {
     id: 'lao-zhou',
     name: '老周',
@@ -89,7 +95,8 @@ type WorldPhoneProps = {
   milkTeaAppUnlocked?: boolean
   milkTeaOrder?: CommercialStreetMilkTeaOrder | null
   milkTeaHeld?: boolean
-  requestedApp?: 'milk-tea' | 'fruit-tea' | 'yonghe-order' | 'cafe-takeaway' | 'lao-zhou-messages' | null
+  ruoyuMessagesUnlocked?: boolean
+  requestedApp?: 'milk-tea' | 'fruit-tea' | 'yonghe-order' | 'cafe-takeaway' | 'lao-zhou-messages' | 'ruoyu-messages' | null
   requestedShopId?: string | null
   requestedShopProductId?: string | null
   onShopOrderPlaced?: (selection: { shopId: string; productId: string }) => void
@@ -251,7 +258,7 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, gameTimeLabel, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, requestedShopId = null, requestedShopProductId = null, onShopOrderPlaced, onShopOrderReady, onShopNotificationOpen, availableShopIds = [], shopOrders = {}, heldConsumable = null, walletBalance = 800, gameTimeMs = 0, preparationConfiguredByShop = {}, onShopOrderConfirm, onLegacyShopOrderCancel, onRequestedAppHandled, onLaoZhouMessagesDisplayed, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, onClockActivitySourceChange, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
+export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, gameTimeLabel, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, ruoyuMessagesUnlocked = false, requestedApp = null, requestedShopId = null, requestedShopProductId = null, onShopOrderPlaced, onShopOrderReady, onShopNotificationOpen, availableShopIds = [], shopOrders = {}, heldConsumable = null, walletBalance = 800, gameTimeMs = 0, preparationConfiguredByShop = {}, onShopOrderConfirm, onLegacyShopOrderCancel, onRequestedAppHandled, onLaoZhouMessagesDisplayed, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, onClockActivitySourceChange, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
   const clockSourceId = useId()
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
@@ -634,11 +641,11 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   }, [availableShopIds, milkTeaAppUnlocked, onAppOpen, onRequestedAppHandled, open, requestedApp])
 
   useEffect(() => {
-    if (!open || requestedApp !== 'lao-zhou-messages') return
-    laoZhouMessageHandoffPendingRef.current = true
+    if (!open || (requestedApp !== 'lao-zhou-messages' && requestedApp !== 'ruoyu-messages')) return
+    laoZhouMessageHandoffPendingRef.current = requestedApp === 'lao-zhou-messages'
     onAppOpen?.('contacts')
     setActiveApp('contacts')
-    setSelectedContactId('lao-zhou')
+    setSelectedContactId(requestedApp === 'ruoyu-messages' ? 'ruoyu' : 'lao-zhou')
     setContactDirection(1)
     setContactView('messages')
     onRequestedAppHandled?.()
@@ -884,9 +891,9 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
 
             {activeApp === 'contacts' && <div key={contactView} className="world-phone__subpage" data-direction={contactDirection}>{(
               contactView === 'messages' ? (
-                <section className="world-phone__message-thread" aria-label={`与${selectedContact.name}的短信`}>
+                <section className="world-phone__message-thread" data-contact-id={selectedContactId} aria-live={selectedContactId === 'ruoyu' ? 'polite' : undefined} aria-label={`与${selectedContact.name}的短信`}>
                   <div className="world-phone__message-person"><span>短信</span><strong>{selectedContact.name}</strong><small>{selectedContact.detail}</small></div>
-                  <div className="world-phone__message-date">三天前</div>
+                  <div className="world-phone__message-date">{selectedContactId === 'ruoyu' ? '刚刚' : '三天前'}</div>
                   {selectedContact.messages.map((message, index) => (
                     <div className={`world-phone__message-bubble ${index % 2 === 0 ? 'world-phone__message-bubble--received' : 'world-phone__message-bubble--sent'}`} key={`${selectedContact.id}-${index}`}>
                       {message}
@@ -939,7 +946,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
               ) : (
                 <section className="world-phone__list-page" aria-label="联系人">
                   <ul className="world-phone__list">
-                    {innerContacts.map((contact) => (
+                    {innerContacts.filter(contact => ruoyuMessagesUnlocked || contact.id !== 'ruoyu').map((contact) => (
                       <li className="world-phone__list-row" key={contact.id}>
                         <button className="world-phone__contact-row" type="button" onClick={() => { setContactDirection(1); setSelectedContactId(contact.id); setContactView('detail') }}>
                           <span className="world-phone__contact-avatar" aria-hidden="true"><ContactAvatar /></span><span><strong>{contact.name}</strong><small>{contact.detail}</small></span>

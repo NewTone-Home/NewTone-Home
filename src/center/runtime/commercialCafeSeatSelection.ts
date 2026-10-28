@@ -56,3 +56,16 @@ export function withLaoZhouCafeSeat(scene: MainlineSceneDefinition, laoZhouSeatI
       : behavior),
   }
 }
+
+/** Ruoyu joins the existing Cafe only after the persisted SMS unlock. */
+export function withRuoyuCafeSeat(scene: MainlineSceneDefinition, ruoyuSeatId: string | null, unlocked: boolean): MainlineSceneDefinition {
+  const npcs = scene.npcs.filter(npc => npc.id !== 'ruoyu')
+  const behaviors = (scene.npcBehaviors ?? []).filter(behavior => behavior.npcId !== 'ruoyu')
+  const legalSeat = ruoyuSeatId && scene.objects.some(entity => entity.id === ruoyuSeatId && entity.kind === 'seat' && entity.seat)
+  if (!unlocked || !legalSeat) return { ...scene, npcs, npcBehaviors: behaviors }
+  return {
+    ...scene,
+    npcs: [...npcs, { id: 'ruoyu', roleId: 'ruoyu', label: '若雨', roomId: 'commercial-north-cafe-interior', interactive: true }],
+    npcBehaviors: [...behaviors, { npcId: 'ruoyu', dutyId: 'ruoyu.seated', targetId: ruoyuSeatId, targetKind: 'seat' }],
+  }
+}

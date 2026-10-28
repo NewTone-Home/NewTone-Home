@@ -84,6 +84,7 @@ type MainlineSceneRendererProps = {
   onInteract: (id: string) => void
   onStorefrontInteract?: (storefrontId: string) => void
   onNpcInteract?: (npcId: string) => void
+  onProtagonistInteract?: () => void
   npcPositions?: ReadonlyMap<string, Point>
   npcRuntimeSnapshots?: ReadonlyMap<string, NpcRuntimeSnapshot>
   hiddenNpcIds?: ReadonlySet<string>
@@ -1141,6 +1142,7 @@ export function MainlineSceneRenderer({
   onInteract,
   onStorefrontInteract,
   onNpcInteract,
+  onProtagonistInteract,
   npcPositions,
   npcRuntimeSnapshots,
   hiddenNpcIds,
@@ -2720,7 +2722,7 @@ export function MainlineSceneRenderer({
             </div>
           </div>}
           {destination && <div className={`scene-walk-target ${moving ? 'is-active' : ''}`} style={{ left: `${destination.x}%`, top: `${destination.y}%` }} aria-hidden="true" />}
-          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''} ${readingMode ? 'is-reading-protected' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%`, filter: dialogueStage ? `brightness(${mainlineDialogueStageActorOpacity({ active: true, actorId: 'protagonist', currentSpeakerActorId: dialogueStage.speakerActorId, participantActorIds: dialogueStage.participantActorIds, actorRoomId: dialogueStage.roomId, stageRoomId: dialogueStage.roomId })})` : undefined, transition: dialogueStage ? 'filter 380ms ease-in-out' : undefined, '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? scene.id === 'commercial-street' ? projectCommercialStreetX(protagonistVisualPosition.x, renderScreenMetrics) : protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined}>
+          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''} ${readingMode ? 'is-reading-protected' : ''} ${onProtagonistInteract ? 'is-followup-interactive' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%`, filter: dialogueStage ? `brightness(${mainlineDialogueStageActorOpacity({ active: true, actorId: 'protagonist', currentSpeakerActorId: dialogueStage.speakerActorId, participantActorIds: dialogueStage.participantActorIds, actorRoomId: dialogueStage.roomId, stageRoomId: dialogueStage.roomId })})` : undefined, transition: dialogueStage ? 'filter 380ms ease-in-out' : undefined, '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px`, cursor: onProtagonistInteract ? 'pointer' : undefined, pointerEvents: onProtagonistInteract ? 'auto' : undefined } as CSSProperties} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? scene.id === 'commercial-street' ? projectCommercialStreetX(protagonistVisualPosition.x, renderScreenMetrics) : protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined} onClick={onProtagonistInteract ? (event) => { event.stopPropagation(); onProtagonistInteract() } : undefined} onKeyDown={onProtagonistInteract ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onProtagonistInteract() } } : undefined} role={onProtagonistInteract ? 'button' : undefined} tabIndex={onProtagonistInteract ? 0 : undefined} aria-label={onProtagonistInteract ? '修杰' : undefined}>
             <span className="scene-protagonist__grid-content">
             {protagonistPresentation.kind === 'dot'
               ? <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
