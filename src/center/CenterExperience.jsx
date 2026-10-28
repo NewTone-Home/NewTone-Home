@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createSessionGameClock } from './runtime/sessionGameClock'
+import { attachSessionGameClockVisibilityLifecycle, createSessionGameClock } from './runtime/sessionGameClock'
 import { MainlineScenePage } from './runtime/MainlineScenePage'
 import { LongDistanceTravel } from './runtime/LongDistanceTravel'
 import { enqueuePhoneNotification, readPhoneNotifications } from './runtime/phoneNotifications'
@@ -605,6 +605,7 @@ export default function CenterExperience({
 
   useEffect(() => {
     const sessionClock = sessionGameClockRef.current
+    const detachVisibilityLifecycle = attachSessionGameClockVisibilityLifecycle(sessionClock, setTrialClockSnapshot)
     const recordTrustedInput = (event) => {
       if (!event.isTrusted) return
       setTrialClockSnapshot(sessionClock.markInput())
@@ -625,6 +626,7 @@ export default function CenterExperience({
       inputEvents.forEach((name) => window.removeEventListener(name, recordTrustedInput, true))
       window.clearInterval(timer)
       window.clearInterval(saveTimer)
+      detachVisibilityLifecycle()
       gameTimeSaveCheckpointRef.current()
     }
   }, [])

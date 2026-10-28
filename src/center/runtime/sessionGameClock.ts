@@ -30,6 +30,8 @@ export type SessionGameClock = {
   setActivitySource(sourceId: string, source: SessionGameActivitySource | null): SessionGameClockSnapshot
   /** A trusted user action resets idle and restores the latest semantic activity rate. */
   markInput(): SessionGameClockSnapshot
+  /** Freeze/resume one named reason without changing the semantic activity or idle deadline. */
+  setFrozen(reason: string, frozen: boolean): SessionGameClockSnapshot
   /** Freeze this in-memory session. A later session must be created separately. */
   close(): SessionGameClockSnapshot
 }
@@ -129,6 +131,13 @@ export function createSessionGameClock(options: CreateSessionGameClockOptions): 
       }
       return snapshot(clock.read(atMs))
     },
+    setFrozen(reason, frozen) {
+      assertOpen()
+      const atMs = now()
+      applyIdleDeadline(atMs)
+      clock.setFrozen(reason, frozen, atMs)
+      return snapshot(clock.read(atMs))
+    },
     close() {
       if (isClosed) return snapshot(clock.read(now()))
       const atMs = now()
@@ -138,5 +147,33 @@ export function createSessionGameClock(options: CreateSessionGameClockOptions): 
       isClosed = true
       return snapshot(clock.read(atMs))
     },
+  }
+}
+
+/**
+ * Freeze world time while the page is not visible or is in the pagehide lifecycle.
+ * Separate reasons make visibilitychange/pageshow ordering safe and duplicate events idempotent.
+ */
+export function attachSessionGameClockVisibilityLifecycle(
+  sessionClock: SessionGameClock,
+  onSnapshot: (snapshot: SessionGameClockSnapshot) => void = () => undefined,
+  windowTarget: Pick<Window, 'addEventListener' | 'removeEventListener'> = window,
+  documentTarget: Pick<Document, 'addEventListener' | 'removeEventListener' | 'visibilityState'> = document,
+) {
+  const onVisibilityChange = () => {
+    onSnapshot(sessionClock.setFrozen('document-hidden', documentTarget.visibilityState === 'hidden'))
+  }
+  const onPageHide = () => onSnapshot(sessionClock.setFrozen('page-hidden', true))
+  const onPageShow = () => onSnapshot(sessionClock.setFrozen('page-hidden', false))
+
+  documentTarget.addEventListener('visibilitychange', onVisibilityChange)
+  windowTarget.addEventListener('pagehide', onPageHide)
+  windowTarget.addEventListener('pageshow', onPageShow)
+  onVisibilityChange()
+
+  return () => {
+    documentTarget.removeEventListener('visibilitychange', onVisibilityChange)
+    windowTarget.removeEventListener('pagehide', onPageHide)
+    windowTarget.removeEventListener('pageshow', onPageShow)
   }
 }
