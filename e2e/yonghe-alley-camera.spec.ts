@@ -38,13 +38,15 @@ test('Yonghe back door keeps its wall opening and switches outdoor pages to indo
     const actor = document.querySelector('[data-actor-id="protagonist"]')
     const door = document.querySelector('button[data-focus-target-group="door:yonghe-back-door"]')
     const world = document.querySelector('.scene-mainline-world')
+    const transform = world ? getComputedStyle(world).transform : null
+    const translated = transform?.match(/matrix\([^,]+,\s*[^,]+,\s*[^,]+,\s*[^,]+,\s*([^,]+),\s*([^\)]+)\)/)
     const walls = [...document.querySelectorAll('.scene-mainline-wall:not(.scene-mainline-wall-door)')]
       .filter(element => (element.textContent ?? '').trim() === '墙')
       .map(element => ({ box: box(element), opacity: getComputedStyle(element).opacity }))
       .filter(item => item.box && item.box.right > 0 && item.box.x < innerWidth && item.box.bottom > 0 && item.box.y < innerHeight)
     return {
       scene: stage?.dataset.mainlineScene,
-      camera: { x: Number(stage?.getAttribute('data-camera-offset-x')), y: Number(stage?.getAttribute('data-camera-offset-y')) },
+      camera: { x: translated ? Number(translated[1]) : 0, y: translated ? Number(translated[2]) : 0 },
       activeInteriors: document.querySelectorAll('[data-interior-active="true"]').length,
       actor: actor ? { box: box(actor), style: actor.getAttribute('style'), moving: actor.classList.contains('is-moving') } : null,
       door: door ? { box: box(door), disabled: door.matches(':disabled') } : null,
@@ -76,6 +78,7 @@ test('Yonghe back door keeps its wall opening and switches outdoor pages to indo
   }
   const clickDoor = async (phase: string, expectedInteriors: number) => {
     await expect(backDoor).toBeVisible({ timeout: 15_000 })
+    await expect(backDoor).toBeEnabled()
     const rect = await backDoor.boundingBox()
     expect(rect).not.toBeNull()
     const point = { x: rect!.x + rect!.width / 2, y: rect!.y + rect!.height / 2 }
@@ -111,6 +114,7 @@ test('Yonghe back door keeps its wall opening and switches outdoor pages to indo
     await expect(backDoor).toBeVisible({ timeout: 15_000 })
     const alley = await clickDoor('alley-arrival', 6)
     expect(alley.scene).toBe('yonghe-eatery')
+    expect(alley.door?.disabled).toBe(false)
     expect(alley.door?.box).not.toBeNull()
     expect(alley.door?.box?.x).toBeGreaterThan(0)
     expect(alley.door?.box?.right).toBeLessThan(1280)
@@ -143,6 +147,7 @@ test('Yonghe back door keeps its wall opening and switches outdoor pages to indo
     const returned = await clickDoor('shop-return', 9)
     const returnedActor = returned.actor?.box
     expect(returned.scene).toBe('yonghe-eatery')
+    expect(returned.door?.disabled).toBe(false)
     expect(returnedActor).not.toBeNull()
     expect(returnedActor!.x).toBeGreaterThan(1280 * .3)
     expect(returnedActor!.right).toBeLessThan(1280 * .7)
