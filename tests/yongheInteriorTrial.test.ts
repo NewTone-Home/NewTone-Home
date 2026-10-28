@@ -98,6 +98,33 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       expect(warehouse.interactionBehavior).toBe('yonghe-warehouse')
     })
 
+    it('keeps the warehouse push action on the alley side of the locked portal', () => {
+      const warehouse = scene.objects.find(object => object.id === 'yonghe-warehouse-door')!
+      const passage = scene.passages.find(candidate => candidate.id === 'yonghe-warehouse-door')!
+      const alley = scene.rooms.find(candidate => candidate.id === 'mining-street-back-alley')!
+      const start = {
+        x: alley.bounds.x + alley.bounds.width * .5,
+        y: alley.bounds.y + alley.bounds.height * .5,
+      }
+      const contact = resolveMainlineEntityInteraction(scene, warehouse.id, start, {}, options)
+      const marginX = 16 / 19.2 / 2 + .1
+      const marginY = 16 / 10.8 / 2 + .1
+      const safeTarget = {
+        x: Math.max(alley.bounds.x + marginX, Math.min(alley.bounds.x + alley.bounds.width - marginX, contact.target.x)),
+        y: Math.max(alley.bounds.y + marginY, Math.min(alley.bounds.y + alley.bounds.height - marginY, contact.target.y)),
+      }
+      const safePath = findMainlinePath(start, safeTarget, scene, {}, options)
+
+      expect(warehouse.interactionBehavior).toBe('yonghe-warehouse')
+      expect(passage.access).toBe('locked')
+      expect(contact.path).not.toBeNull()
+      expect(mainlineActiveSpatialSpaceId(scene, safeTarget)).toBe('mining-street-back-alley')
+      expect(safePath?.at(-1)).toEqual(safeTarget)
+      expect(safePath?.every(point => isWalkableMainlinePoint(point, scene, {}, options))).toBe(true)
+      expect(passage.targetSceneId).toBeUndefined()
+      expect(passage.toRoomId).toBeUndefined()
+    })
+
     it('frames the four indoor tables on entry and re-entry, and hides them outside the room', () => {
       const indoorTables = scene.objects.filter(object => object.roomId === room.id && object.kind === 'table')
       expect(indoorTables.map(table => table.id)).toEqual([

@@ -2173,6 +2173,59 @@ export function MainlineScenePage({
       return
     }
     leavePlayerSeat()
+    if (passage?.id === 'yonghe-warehouse-door' && entity.interactionBehavior === 'yonghe-warehouse') {
+      // This locked portal is an interactive scene object, not a traversal.
+      // Generic door contact can land on the alley's outer boundary; keep the
+      // final position safely inside its authored space so the space check,
+      // door glyph and action card remain mounted after movement completes.
+      const alley = scene.rooms.find(room => room.id === entity.spaceId)
+      const contact = resolveMainlineEntityInteraction(scene, entity.id, getCurrentPosition(), layout, navigationOptions)
+      const marginX = protagonistFootprint.width / 2 + .1
+      const marginY = protagonistFootprint.height / 2 + .1
+      const safeTarget = alley && contact.path
+        ? {
+            x: Math.max(alley.bounds.x + marginX, Math.min(alley.bounds.x + alley.bounds.width - marginX, contact.target.x)),
+            y: Math.max(alley.bounds.y + marginY, Math.min(alley.bounds.y + alley.bounds.height - marginY, contact.target.y)),
+          }
+        : null
+      const approachPath = safeTarget && mainlineActiveSpatialSpaceId(scene, safeTarget) === entity.spaceId
+        ? findMainlinePath(getCurrentPosition(), safeTarget, scene, layout, navigationOptions)
+        : null
+      if (!approachPath) {
+        stopMovement()
+        setActiveObjectId(null)
+        onInteractionAnalytics?.('blocked', entity.id, 'door', 'unreachable')
+        return
+      }
+      const presentWarehouseAction = () => {
+        const actionPosition = getCurrentPosition()
+        setActiveObjectId(null)
+        setSceneAction(createSceneAction({
+          entityId: entity.id,
+          options: ['推一下门'],
+          position: actionPosition,
+          cameraOffset,
+        }))
+        markEntityExplored(entity.id)
+        onInteractionAnalytics?.('completed', entity.id, 'door', 'approached-locked-warehouse')
+      }
+      if (approachPath.length <= 1) {
+        stopMovement()
+        presentWarehouseAction()
+      } else {
+        setActiveObjectId(entity.id)
+        moveAlong(approachPath, presentWarehouseAction, {
+          ...protagonistLocomotionOptions,
+          canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, getLiveNavigationOptions()),
+          canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, getLiveNavigationOptions()),
+          onBlocked: () => {
+            setActiveObjectId(null)
+            onInteractionAnalytics?.('blocked', entity.id, 'door', 'movement-blocked')
+          },
+        })
+      }
+      return
+    }
     if (passage && entityId !== 'yonghe-warehouse-door') {
       if (passage.access !== 'open') {
         const approach = canActorReachPassageApproach(scene, passage, getCurrentPosition(), layout, navigationOptions)
