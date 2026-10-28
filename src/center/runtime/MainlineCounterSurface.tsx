@@ -1,5 +1,5 @@
-import { memo, useMemo } from 'react'
-import type { CSSProperties, KeyboardEvent, MouseEvent } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties, KeyboardEvent, MouseEvent, TransitionEvent } from 'react'
 import type { MainlineContinuousStructure, MainlineSceneEntity } from './mainlineSceneModel'
 import { counterOutlineGeometry } from './counterOutlineGeometry'
 import { sceneFrameMotionMsForRect } from './sceneMotion'
@@ -15,6 +15,21 @@ type Props = {
 }
 
 function CounterSurface({ parts, objects, onInteract, onCounterInteract, presentationActive, boundedWrapper = false, coordinateBounds }: Props) {
+  const active = presentationActive !== false
+  const animatedPresentation = presentationActive !== undefined
+  const enteredInactive = useRef(!active)
+  const [qrRevealReady, setQrRevealReady] = useState(!animatedPresentation)
+  useEffect(() => {
+    if (!animatedPresentation) { setQrRevealReady(true); return }
+    if (!active) {
+      enteredInactive.current = true
+      setQrRevealReady(false)
+      return
+    }
+    // A refresh or first mount inside the room has no preceding dash-offset
+    // transition: the outline is already complete, so begin the QR fade now.
+    if (!enteredInactive.current) setQrRevealReady(true)
+  }, [active, animatedPresentation])
   const rectangles = useMemo(() => parts.map(part => ({ x: part.x * 19.2, y: part.y * 10.8, width: part.width * 19.2, height: part.height * 10.8 })), [parts])
   const outlineRectangles = useMemo(() => parts.map((part, index) => {
     const box = part.counterSurface!.outlineBounds
@@ -40,8 +55,16 @@ function CounterSurface({ parts, objects, onInteract, onCounterInteract, present
   }
   const group = parts[0].counterSurface!.groupId
   const labelStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 16, fontFamily: 'inherit', fontWeight: 'inherit', letterSpacing: 0, lineHeight: 1, color: 'inherit', background: 'none', border: 0, padding: 0, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }
-  const active = presentationActive !== false
-  const animatedPresentation = presentationActive !== undefined
+  const finishCounterDraw = (event: TransitionEvent<SVGPathElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'stroke-dashoffset' || !active) return
+    enteredInactive.current = false
+    setQrRevealReady(true)
+  }
+  const finishCanceledCounterDraw = (event: TransitionEvent<SVGPathElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'stroke-dashoffset' || !active) return
+    const offset = Number.parseFloat(getComputedStyle(event.currentTarget).strokeDashoffset)
+    if (Number.isFinite(offset) && offset === 0) finishCounterDraw(event)
+  }
   return <svg data-counter-outline-group={group} data-interior-active={animatedPresentation ? active ? 'true' : 'false' : undefined} data-surface-role={parts[0].counterSurface!.role ?? 'counter'} aria-label={parts[0].counterSurface!.label ?? '柜台'} role="group" viewBox={`0 0 ${bounds.width} ${bounds.height}`} preserveAspectRatio="none" style={{ position: 'absolute', left: boundedWrapper ? `${(bounds.x - frameBounds.x) / frameBounds.width * 100}%` : `${bounds.x / 19.2}%`, top: boundedWrapper ? `${(bounds.y - frameBounds.y) / frameBounds.height * 100}%` : `${bounds.y / 10.8}%`, width: boundedWrapper ? `${bounds.width / frameBounds.width * 100}%` : `${bounds.width / 19.2}%`, height: boundedWrapper ? `${bounds.height / frameBounds.height * 100}%` : `${bounds.height / 10.8}%`, overflow: 'visible', pointerEvents: 'none', zIndex: 3, color: 'var(--interaction-normal)', opacity: .9 }}>
     {parts.map((part, index) => {
       const box = rectangles[index], hitBox = outlineRectangles[index], meta = part.counterSurface!, vertical = meta.orientation === 'vertical'
@@ -64,12 +87,14 @@ function CounterSurface({ parts, objects, onInteract, onCounterInteract, present
           data-counter-app-square={service.visual === 'app-square' ? 'true' : undefined}
           data-object-id={service.id}
           aria-label={service.label}
+          aria-hidden={!qrRevealReady || undefined}
+          tabIndex={active && qrRevealReady ? 0 : -1}
           onClick={event => activate(event, service.id)}
-          style={{ ...labelStyle, pointerEvents: active ? 'all' : 'none', border: '1px solid currentColor', background: 'rgba(18, 16, 13, .88)', fontSize: service.visual === 'app-square' ? 0 : 13, whiteSpace: 'nowrap' }}
+          style={{ ...labelStyle, opacity: active && qrRevealReady ? 1 : 0, transition: animatedPresentation ? `opacity ${presentationDurationMs}ms ease-in-out` : undefined, pointerEvents: active && qrRevealReady ? 'all' : 'none', border: '1px solid currentColor', background: 'rgba(18, 16, 13, .88)', fontSize: service.visual === 'app-square' ? 0 : 13, whiteSpace: 'nowrap' }}
         >{service.visual === 'app-square' ? <span aria-hidden="true" className="scene-counter-app-square" style={{ display: 'block', width: 10, height: 10, border: '1px solid currentColor', background: 'repeating-linear-gradient(0deg, transparent 0 2px, currentColor 2px 3px)' }} /> : service.label}</button>
       </foreignObject>
     )))}
-    <path data-counter-outline-path={group} d={geometry.path} fill="none" stroke="currentColor" strokeWidth={1} strokeLinejoin="miter" pathLength={animatedPresentation ? 1 : undefined} strokeDasharray={animatedPresentation ? 1 : undefined} strokeDashoffset={animatedPresentation && !active ? 1 : 0} style={{ pointerEvents: 'none', transition: animatedPresentation ? `stroke-dashoffset ${presentationDurationMs}ms ease-in-out` : undefined }} />
+    <path data-counter-outline-path={group} d={geometry.path} fill="none" stroke="currentColor" strokeWidth={1} strokeLinejoin="miter" pathLength={animatedPresentation ? 1 : undefined} strokeDasharray={animatedPresentation ? 1 : undefined} strokeDashoffset={animatedPresentation && !active ? 1 : 0} onTransitionEnd={finishCounterDraw} onTransitionCancel={finishCanceledCounterDraw} style={{ pointerEvents: 'none', transition: animatedPresentation ? `stroke-dashoffset ${presentationDurationMs}ms ease-in-out` : undefined }} />
   </svg>
 }
 
