@@ -478,7 +478,7 @@ export default function CenterExperience({
       const nowGameTimeMs = sessionGameClockRef.current.read().gameTimeMs
       if (order?.status === 'queued' && order.readyAtGameTimeMs !== null && nowGameTimeMs >= order.readyAtGameTimeMs) {
         const claimed = claimShopOrder(shopId)
-        return claimed && shopId === crossShopIds.milkTea ? { text: '您的奶茶好了，请慢用。' } : true
+        return claimed ? { text: shopId === crossShopIds.milkTea ? '您的奶茶好了，请慢用。' : '请慢用。' } : true
       }
       return { text: order?.status === 'legacy-unmapped' ? '现在没有可以领取的订单。' : '您的饮品还在制作中。' }
     }
