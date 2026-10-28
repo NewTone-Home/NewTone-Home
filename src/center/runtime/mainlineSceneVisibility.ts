@@ -1,5 +1,6 @@
 import type { MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { Point } from './sceneGeometry'
+import type { MainlineSceneEntity } from './mainlineSceneModel'
 import { projectCommercialStreetX } from './commercialStreetGridProjection'
 import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { mainlineVisibleWorldSpan } from './mainlineViewport'
@@ -21,6 +22,14 @@ export function mainlineGeometryUnitShouldRender(
     : undefined
   if (!shellRoomId) return true
   return true
+}
+
+/** Door glyphs with an authored space owner appear only from that space. */
+export function mainlineDoorPortalShouldRender(
+  entity: Pick<MainlineSceneEntity, 'spaceId'> | undefined,
+  activeSpaceId: string | undefined,
+) {
+  return !entity?.spaceId || entity.spaceId === activeSpaceId
 }
 
 /** Cull only shell glyphs outside the translated viewport, with small text overdraw. */

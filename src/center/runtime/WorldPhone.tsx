@@ -500,7 +500,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
     const layer = mapHandoffLayerRef.current
     const sourceRect = preview?.getBoundingClientRect() ?? null
     if (root && preview && layer && sourceRect && sourceRect.width > 0 && sourceRect.height > 0) {
-      const clone = preview.cloneNode(true) as HTMLDivElement
+      const clone = preview.cloneNode(true) as HTMLElement
       clone.setAttribute('data-yonghe-handoff-map', 'true')
       clone.setAttribute('aria-hidden', 'true')
       clone.setAttribute('inert', '')
@@ -514,15 +514,20 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
         transformOrigin: 'top left',
         transform: 'none',
         maxHeight: `${sourceRect.height}px`,
-        padding: '8px',
+        maxWidth: `${sourceRect.width}px`,
+        padding: '7px',
         border: '1px solid #18191d35',
+        borderRadius: '12px',
+        background: '#eeeef0',
         opacity: '1',
         visibility: 'visible',
+        pointerEvents: 'none',
         animation: 'none',
         scale: '1',
         zIndex: '1',
       })
       clone.querySelector('.world-phone__place-card-close')?.remove()
+      clone.querySelector('.world-phone__place-card-orientation')?.remove()
       layer.replaceChildren(clone)
       mapHandoffSourceRectRef.current = sourceRect
     }
@@ -546,7 +551,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
     const clone = layer?.querySelector<HTMLElement>('[data-yonghe-handoff-map]')
     const sourceRect = mapHandoffSourceRectRef.current
     const mapView = root?.querySelector<HTMLElement>('.world-phone__app-view[data-app-view="map"]')
-    const target = mapView?.querySelector<HTMLElement>('.world-phone__map-viewport')
+    const target = mapView
     if (!root || !layer || !clone || !sourceRect || !target || !mapView) {
       layer?.replaceChildren()
       mapHandoffSourceRectRef.current = null

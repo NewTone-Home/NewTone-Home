@@ -1,6 +1,7 @@
 import type { CollisionBox, Point } from './sceneGeometry'
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import type { MainlineSceneDefinition } from './mainlineScenes'
+import type { MainlineContinuousStructure, MainlineSceneEntity } from './mainlineSceneModel'
 import { mainlineInteractionRoom, mainlineReadingBounds } from './mainlineTextReading'
 import { projectCommercialStreetX } from './commercialStreetGridProjection'
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
@@ -35,13 +36,44 @@ export function currentMainlineReadingTargetIds(input: {
   sceneEchoEntityId?: string
   sceneActionEntityId?: string
   dialogueTriggerEntityId?: string
+  objects?: readonly MainlineSceneEntity[]
+  continuousStructures?: readonly MainlineContinuousStructure[]
 }) {
   if (!input.readingMode) return new Set<string>()
   const currentTarget = input.sceneActionEntityId
     ?? input.sceneEchoEntityId
     ?? input.dialogueTriggerEntityId
     ?? input.activeObjectId
-  return currentTarget ? new Set([currentTarget]) : new Set<string>()
+  const protectedIds = new Set(currentTarget ? [currentTarget] : [])
+  if (!protectedIds.size) return protectedIds
+
+  // Interaction IDs can be semantic service aliases while the renderer's
+  // continuous surface and wall cells use physical body IDs. Protect that
+  // authored relationship as one visual identity instead of relying on the
+  // name of a particular shop.
+  let changed = true
+  while (changed) {
+    changed = false
+    const add = (id: string | undefined) => {
+      if (!id || protectedIds.has(id)) return
+      protectedIds.add(id)
+      changed = true
+    }
+    for (const entity of input.objects ?? []) {
+      const relatedIds = [entity.id, entity.interactionAliasId, entity.interactionStructureId, entity.counterSurfaceId]
+      if (!relatedIds.some(id => id && protectedIds.has(id))) continue
+      relatedIds.forEach(add)
+    }
+    for (const structure of input.continuousStructures ?? []) {
+      const surface = structure.counterSurface
+      if (!surface) continue
+      const relatedIds = [structure.id, surface.groupId, surface.interactionEntityId, surface.labelEntityId,
+        ...(surface.services ?? []).map(service => service.id)]
+      if (!relatedIds.some(id => id && protectedIds.has(id))) continue
+      relatedIds.forEach(add)
+    }
+  }
+  return protectedIds
 }
 
 function overlaps(first: CollisionBox, second: CollisionBox, gapX: number, gapY: number) {
