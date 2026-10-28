@@ -236,6 +236,16 @@ export function mainlineActiveSpatialSpaceId(
   return inside ? room.id : undefined
 }
 
+/** Keep a passage door available from either active endpoint space. */
+export function mainlinePassageDoorPresentationActive(
+  passage: Pick<MainlineScenePassage, 'fromRoomId' | 'toRoomId'> | undefined,
+  activeSpaceId: string | undefined,
+  interiorPresentationActive: boolean | undefined,
+) {
+  if (activeSpaceId && (passage?.fromRoomId === activeSpaceId || passage?.toRoomId === activeSpaceId)) return true
+  return interiorPresentationActive
+}
+
 /** A scene resident with an NPC role; NPCs are not spatial furniture entities. */
 export type MainlineSceneNpc = {
   roomId?: string

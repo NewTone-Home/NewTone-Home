@@ -12,8 +12,8 @@ test('Yonghe back door keeps its wall opening and switches outdoor pages to indo
   await context.addInitScript(() => {
     const position = { x: 116.64583333333333, y: 34 }
     const save = JSON.stringify({
-      _version: 2, currentSceneId: 'yonghe-mining-perimeter', currentPosition: position,
-      scenePositions: { 'yonghe-mining-perimeter': position }, phoneDevice: 'inner',
+      _version: 2, currentSceneId: 'yonghe-eatery', currentPosition: position,
+      scenePositions: { 'yonghe-eatery': position }, phoneDevice: 'inner',
       storyClock: { dayId: 'story-day-001', stage: 'opening', month: 4, day: 12, weekday: 6, hour: 11, minute: 30, weatherCycle: 'sunny' },
       gameTimeMs: 41400000, shopOrders: {}, heldConsumable: null, sceneState: {},
       phoneNotifications: [], phoneNotes: [], phoneContactNotes: {}, phoneCallHistory: [], updatedAt: 0,
@@ -96,8 +96,8 @@ test('Yonghe back door keeps its wall opening and switches outdoor pages to indo
   }
 
   try {
-    await page.goto(`${baseURL}/?scene=yonghe-mining-perimeter&e2eShopOrders=1&debugRuntimeEvidence=1`, { waitUntil: 'networkidle', timeout: 60_000 })
-    await expect(stage).toHaveAttribute('data-mainline-scene', 'yonghe-mining-perimeter')
+    await page.goto(`${baseURL}/?scene=yonghe-eatery&e2eShopOrders=1&debugRuntimeEvidence=1`, { waitUntil: 'networkidle', timeout: 60_000 })
+    await expect(stage).toHaveAttribute('data-mainline-scene', 'yonghe-eatery')
     await expect(actor).toBeVisible()
     await expect.poll(async () => (await observe()).activeInteriors).toBe(9)
     const start = await record('interior-start', '00-interior-start.png')
@@ -110,7 +110,7 @@ test('Yonghe back door keeps its wall opening and switches outdoor pages to indo
     }
     await expect(backDoor).toBeVisible({ timeout: 15_000 })
     const alley = await clickDoor('alley-arrival', 6)
-    expect(alley.scene).toBe('yonghe-mining-perimeter')
+    expect(alley.scene).toBe('yonghe-eatery')
     expect(alley.door?.box).not.toBeNull()
     expect(alley.door?.box?.x).toBeGreaterThan(0)
     expect(alley.door?.box?.right).toBeLessThan(1280)
@@ -142,7 +142,7 @@ test('Yonghe back door keeps its wall opening and switches outdoor pages to indo
 
     const returned = await clickDoor('shop-return', 9)
     const returnedActor = returned.actor?.box
-    expect(returned.scene).toBe('yonghe-mining-perimeter')
+    expect(returned.scene).toBe('yonghe-eatery')
     expect(returnedActor).not.toBeNull()
     expect(returnedActor!.x).toBeGreaterThan(1280 * .3)
     expect(returnedActor!.right).toBeLessThan(1280 * .7)

@@ -3,6 +3,7 @@ import { mainlineSceneAreaLabel, mainlineScenes } from './mainlineScenes'
 import { mainlineInteractionTarget, resolveMainlineEntityInteraction } from './mainlineNavigation'
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 import { mainlineDoorPortalShouldRender } from './mainlineSceneVisibility'
+import { mainlinePassageDoorPresentationActive } from './mainlineSceneModel'
 import { commercialCafeCoffeeStatusKey } from './commercialCafeStory'
 import {
   plantIsWatered,
@@ -28,6 +29,10 @@ describe('mainline scene interaction policies', () => {
     expect(mainlineDoorPortalShouldRender(undefined, 'mining-shop-2-interior')).toBe(true)
     expect(scene.passages.find(passage => passage.id === 'yonghe-warehouse-door')).toMatchObject({ access: 'locked', toRoomId: undefined })
     expect(scene.passages.find(passage => passage.id === 'yonghe-back-door')).toMatchObject({ access: 'open', toRoomId: 'mining-shop-2-interior' })
+    const rearDoorPassage = scene.passages.find(passage => passage.id === 'yonghe-back-door')
+    expect(mainlinePassageDoorPresentationActive(rearDoorPassage, 'mining-street-back-alley', false)).toBe(true)
+    expect(mainlinePassageDoorPresentationActive(rearDoorPassage, 'mining-shop-2-interior', false)).toBe(true)
+    expect(mainlinePassageDoorPresentationActive(rearDoorPassage, 'other-shop-interior', false)).toBe(false)
     const exploration = resolveMainlineSceneExploration(scene, door, {
       incensePhase: 'unlit', plantWatered: false, officeBlindsOpen: true, carriedPhoneDevice: 'surface',
     })
