@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { longestMainlineInteractionSegment, mainlineDisplaySourceText, splitMainlineInteractionText, splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
+import { longestMainlineInteractionSegment, mainlineDisplaySourceText, mainlineReadingPageDisplayText, splitMainlineInteractionText, splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
 
 describe('mainline interaction text segments', () => {
   const asDisplayedSegments = segments => segments.map(mainlineDisplaySourceText)
+
+  it('adds display-only continuation marks before the last page without changing source segments', () => {
+    const sourcePages = ['A long first page', 'and the complete last page']
+    expect(mainlineReadingPageDisplayText(sourcePages, 0)).toBe('A long first page...')
+    expect(mainlineReadingPageDisplayText(sourcePages, 1)).toBe('and the complete last page')
+    expect(sourcePages.join('')).toBe('A long first pageand the complete last page')
+  })
 
   it('uses natural comma boundaries and preserves visible punctuation', () => {
     expect(splitMainlineInteractionText('桌上摆放着牌位，香炉里的火还没有熄灭。')).toEqual(asDisplayedSegments([

@@ -29,6 +29,7 @@ import { interpolateMainlineReadingPageLayout, mainlineReadingPageFlipDurationMs
 import { interpolateMainlineReadingLayout, mainlineReadingPageTransitionDurationMs, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize } from './mainlineReadingLayoutTransition'
 import { mainlineDialogueHandoffPresentationForId, mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
 import { mainlineReadingPageKey } from './mainlineReadingPageKey'
+import { mainlineReadingPageDisplayText } from './mainlineTextSegments'
 import { mainlineObservationPageIsSettled } from './mainlineObservationTyping'
 import { mainlineReadingTextMotionCanAnimate, startMainlineReadingTextMotion, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
 import { mainlineReadingPageAdvanceResumeGraceMs, mainlineReadingPageAdvanceStartupWatchdogMs, mainlineReadingPageAdvanceTokenIsCurrent, mainlineReadingPageAdvanceWatchdogMayRelease } from './mainlineReadingPageAdvance'
@@ -1827,7 +1828,9 @@ export function MainlineSceneRenderer({
   const activeDisplayOverflowIndex = sceneEcho && readingOverflowPage?.sessionKey === readingSessionKey && readingOverflowPage.key === readingOverflowKey && readingOverflowPage.sourceOffset !== undefined
     ? mainlineReadingPageIndexForSourceOffset(fittedReadingSegments, readingOverflowPage.sourceOffset)
     : Math.min(readingOverflowIndex, Math.max(0, fittedReadingSegments.length - 1))
-  const activeDisplayReadingText = fittedReadingSegments[activeDisplayOverflowIndex] ?? activeReadingText
+  const activeDisplayReadingText = sceneEcho
+    ? fittedReadingSegments[activeDisplayOverflowIndex] ?? activeReadingText
+    : mainlineReadingPageDisplayText(fittedReadingSegments, activeDisplayOverflowIndex)
   const activeDisplayReadingLayout = readingFit
     ? readingFit.pageLayouts[activeDisplayOverflowIndex] ?? readingFit.layout
     : activeReadingLayout

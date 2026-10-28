@@ -11,6 +11,13 @@ export function mainlineReadingSegmentDisplayText(segments: readonly string[], i
   return text
 }
 
+/** Add a display-only continuation mark to nonfinal pages. Source segments
+ * remain untouched so page offsets and reconstruction still use authored text. */
+export function mainlineReadingPageDisplayText(segments: readonly string[], index: number): string {
+  const text = mainlineReadingSegmentDisplayText(segments, index)
+  return index < segments.length - 1 ? `${text}...` : text
+}
+
 /** Text shown in the reading UI may omit a terminal Chinese full stop. Keep
  * the authored source elsewhere; normalize before either segmentation path
  * measures or stores display pages. Internal punctuation is left untouched. */
