@@ -442,6 +442,9 @@ export default function CenterExperience({
     const nowGameTimeMs = sessionGameClockRef.current.read().gameTimeMs
     let outcome = null
     commitPlayerSave(current => {
+      const tableDeliveryPending = shopId === crossShopIds.cafeTakeaway
+        && Object.values(current.cafeStoryDeliveries ?? {}).some(record => record.deliveryKind === 'table' && record.order.id === current.shopOrders?.[shopId]?.id && record.presentation === 'pending')
+      if (tableDeliveryPending) return current
       const kind = shopId === crossShopIds.yonghe ? 'meal' : 'drink'
       const result = claimCrossShopOrder({ ordersByShop: current.shopOrders, heldConsumable: current.heldConsumable }, shopId, nowGameTimeMs, kind)
       outcome = result
@@ -449,6 +452,10 @@ export default function CenterExperience({
       return { ...current, shopOrders: result.state.ordersByShop, heldConsumable: result.state.heldConsumable }
     })
     if (outcome?.ok) return true
+    if (shopId === crossShopIds.cafeTakeaway && Object.values(playerSaveRef.current.cafeStoryDeliveries ?? {}).some(record => record.deliveryKind === 'table' && record.presentation === 'pending')) {
+      setBoundaryNotice('咖啡正在送到座位，请稍等。')
+      return false
+    }
     if (outcome?.reason === 'hand-full') setBoundaryNotice('\u624b\u91cc\u8fd8\u6709\u4e1c\u897f\uff0c\u62ff\u4e0d\u4e86\u8fd9\u4e48\u591a\u3002')
     else if (outcome?.reason === 'not-ready') setBoundaryNotice('\u8fd8\u6ca1\u505a\u597d\uff0c\u7a0d\u540e\u518d\u6765\u53d6\u3002')
     else setBoundaryNotice('\u73b0\u5728\u6ca1\u6709\u53ef\u4ee5\u9886\u53d6\u7684\u8ba2\u5355\u3002')
@@ -593,7 +600,7 @@ export default function CenterExperience({
     readSave: () => playerSaveRef.current,
     commitSave: update => commitPlayerSave(update),
     readGameTimeMs: readSessionGameTimeMs,
-  }), [commitPlayerSave, readSessionGameTimeMs])
+  }), [commitPlayerSave, readSessionGameTimeMs, playerSave.shopOrders, playerSave.cafeStoryDeliveries])
 
   useEffect(() => {
     const sessionClock = sessionGameClockRef.current

@@ -61,7 +61,7 @@ export function createCommercialCafeCoffeeOwnerBehaviorCoordinator() {
       if (intent) phase = 'delivering'
       return intent
     }
-    if (coffeeStatus === 'delivered' && narrativePhase === 'dialogue' && phase === 'delivery-arrived') {
+    if (coffeeStatus === 'delivered' && narrativePhase === 'coffee-returning' && phase !== 'returning') {
       const intent = resolveCommercialCafeReturnToCounterIntent(scene)
       if (intent) phase = 'returning'
       return intent

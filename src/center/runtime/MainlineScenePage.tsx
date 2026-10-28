@@ -28,7 +28,7 @@ import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 import { defaultLaoZhouCafeSeatId, laoZhouCafeConversationSeatId, withLaoZhouCafeSeat } from './commercialCafeSeatSelection'
-import { commercialCafeAnalyticsMilestonePatch, commercialCafeAnalyticsMilestonesFromSceneState, commercialCafeAnalyticsStageForCursor, commercialCafeCoffeeDelivered, commercialCafeCoffeeOrderedState, commercialCafeDeliveryDialogueLine, commercialCafeDepartureText, commercialCafeFinishDeliveryLine, commercialCafeNarrativeDialogue, commercialCafeNarrativePhaseKey, commercialCafeNarrativeStarted, commercialCafeStoryCompleted, commercialCafeStoryNeedsMigration, commercialCafeStoryReadyToLeave, commercialCafeStoryStateFromSceneState, commercialCafeStoryStatePatch, commercialCafeStoryWithCursor, isCommercialCafeStoryStage, resolveCommercialCafeNpcInteraction, shouldCompleteCommercialCafeStoryOnTransition, commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId, commercialCafeStoryTableId, type CommercialCafeAnalyticsStage, type CommercialCafeNpcInteractionResolution, type CommercialCafeStoryStage } from './commercialCafeStory'
+import { commercialCafeAnalyticsMilestonePatch, commercialCafeAnalyticsMilestonesFromSceneState, commercialCafeAnalyticsStageForCursor, commercialCafeCoffeeDelivered, commercialCafeCoffeeOrderedState, commercialCafeDeliveryDialogueLine, commercialCafeDepartureText, commercialCafeFinishDeliveryLine, commercialCafeFinishDeliveryReturn, commercialCafeNarrativeDialogue, commercialCafeNarrativePhaseKey, commercialCafeNarrativeStarted, commercialCafeStoryCompleted, commercialCafeStoryNeedsMigration, commercialCafeStoryReadyToLeave, commercialCafeStoryStateFromSceneState, commercialCafeStoryStatePatch, commercialCafeStoryWithCursor, isCommercialCafeStoryStage, resolveCommercialCafeNpcInteraction, shouldCompleteCommercialCafeStoryOnTransition, commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId, commercialCafeStoryTableId, type CommercialCafeAnalyticsStage, type CommercialCafeNpcInteractionResolution, type CommercialCafeStoryStage } from './commercialCafeStory'
 import { commercialCafeFloorServiceTarget, commercialCafeDutySpeedMultiplier, createCommercialCafeCoffeeOwnerBehaviorCoordinator, createCommercialCafeFloorServerBehaviorCoordinator } from './commercialCafeBehavior'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { createNavigationRuntime } from './navigationCore'
@@ -84,6 +84,10 @@ type CafeStoryOrderDeliveryBridge = {
   status: (eventId: string) => CafeStoryOrderStatus
   begin: (eventId: string) => { ok: true } | { ok: false }
   completePresentation: (eventId: string) => void
+  beginTableDelivery: (seatId: string) => { ok: boolean; record?: { order: { id: string }; seatId?: string } } | null
+  retargetTableDelivery: (seatId: string | null) => void
+  tableDelivery: () => { orderId: string; seatId: string } | null
+  completeTableDelivery: (orderId: string, seatId: string) => void
 }
 const debugClockTrialNpcDialogue: NpcDialogueResolution = {
   kind: 'dialogue',
@@ -95,7 +99,7 @@ const debugClockTrialNpcDialogue: NpcDialogueResolution = {
     ],
   },
 }
-type CommercialCafeNarrativeRuntime = { phase: 'active' | 'coffee-delivery' | 'delivery-line' | 'leaving' }
+type CommercialCafeNarrativeRuntime = { phase: 'active' | 'coffee-delivery' | 'delivery-line' | 'coffee-returning' | 'leaving' }
 function commercialCafeNarrativeRuntimeFromSceneState(sceneId: MainlineSceneId, sceneState: PlayerSceneState, inside = true): CommercialCafeNarrativeRuntime | null {
   if (!isCafeWorldId(sceneId) || !inside) return null
   const saved = commercialCafeStoryStateFromSceneState(sceneState)
@@ -104,6 +108,7 @@ function commercialCafeNarrativeRuntimeFromSceneState(sceneId: MainlineSceneId, 
   if (saved.narrativePhase === 'coffee-delivery') {
     return { phase: saved.coffeeStatus === 'delivered' && saved.narrativeCursor === 1 ? 'delivery-line' : 'coffee-delivery' }
   }
+  if (saved.narrativePhase === 'coffee-returning') return { phase: 'coffee-returning' }
   return { phase: 'active' }
 }
 type CafeSpatialQaNavigation = {
@@ -746,7 +751,7 @@ export function MainlineScenePage({
         : `dialogue:${scene.id}:${npcDialogue?.dialogue.triggerEntityId ?? activeDialogue?.triggerEntityId ?? 'scene'}`
     : null
   const dialogueAnchorText = activeDialogue?.lines.map((line) => line.text).join('\n') ?? activeDialogueLine?.text ?? ''
-  const dialoguePresentationPhase = commercialCafeNarrative?.phase === 'coffee-delivery'
+  const dialoguePresentationPhase = commercialCafeNarrative?.phase === 'coffee-delivery' || commercialCafeNarrative?.phase === 'coffee-returning'
     ? undefined
     : commercialCafeNarrative?.phase === 'delivery-line'
       ? 'active'
@@ -1298,6 +1303,15 @@ export function MainlineScenePage({
       } else if (intent.dutyId === 'cafe-coffee-owner.return-to-counter') {
         cafeCoffeeOwnerCurrentDutyRef.current = null
         commercialCafeCoffeeBehavior.arrivedAtCounter()
+        const current = commercialCafeStoryStateFromSceneState(initialSceneState)
+        const resumed = commercialCafeFinishDeliveryReturn(current)
+        if (resumed.narrativeCursor !== current.narrativeCursor) {
+          recordSceneStatePatch(scene.id, commercialCafeStoryStatePatch(resumed))
+          setDialogueLineIndex(resumed.narrativeCursor)
+          setDialogueSegmentIndex(0)
+          setCommercialCafeNarrative({ phase: 'active' })
+          startDialogueTextSession()
+        }
       } else if (intent.dutyId === 'cafe-coffee-owner.counter-ambient') {
         commercialCafeCoffeeBehavior.arrivedAtAmbientCounter()
         if (cafeCounterAmbientTimerRef.current !== null) window.clearTimeout(cafeCounterAmbientTimerRef.current)
@@ -1309,13 +1323,45 @@ export function MainlineScenePage({
       }
     })
     if (!started) commercialCafeCoffeeBehavior.block()
-  }, [cafeCoffeeMoveRetryTick, cafeCounterAmbientWakeTick, cafeCoffeeOwnerMovement, cafeCoffeeOwnerLocomotionOptions, commercialCafeCoffeeBehavior, commercialCafeStory.coffeeStatus, commercialCafeStory.narrativePhase, initialSceneState, layout, navigationOptions, recordSceneStatePatch, scene])
+  }, [cafeCoffeeMoveRetryTick, cafeCounterAmbientWakeTick, cafeCoffeeOwnerMovement, cafeCoffeeOwnerLocomotionOptions, commercialCafeCoffeeBehavior, commercialCafeStory.coffeeStatus, commercialCafeStory.narrativePhase, initialSceneState, layout, navigationOptions, recordSceneStatePatch, scene, setDialogueLineIndex, startDialogueTextSession])
   useEffect(() => {
     if (!hasContinuousCafe(scene)) {
       commercialCafeFloorBehavior.reset()
       return
     }
     if (!cafeFloorServerMovement.position) return
+    // Seat occupancy is intentionally session-local. If a refresh drops that
+    // local seat, release an in-flight reservation back to normal counter
+    // pickup; the queued ready order itself remains durable and unduplicated.
+    if (!activePlayerSeatId && cafeStoryOrderDelivery?.tableDelivery()) {
+      cafeStoryOrderDelivery.retargetTableDelivery(null)
+    }
+    const tableReservation = activePlayerSeatId && cafeStoryOrderDelivery
+      ? (() => {
+        const started = cafeStoryOrderDelivery.beginTableDelivery(activePlayerSeatId)
+        const pending = cafeStoryOrderDelivery.tableDelivery()
+        return pending ?? (started?.ok && started.record?.seatId ? { orderId: started.record.order.id, seatId: started.record.seatId } : null)
+      })()
+      : cafeStoryOrderDelivery?.tableDelivery() ?? null
+    if (tableReservation) {
+      const seat = scene.objects.find(entity => entity.id === tableReservation.seatId && entity.kind === 'seat')
+      if (seat && (cafeFloorServerMovement.snapshot.phase !== 'moving'
+        || cafeFloorServerMovement.snapshot.dutyId !== 'cafe-floor-server.table-order-delivery'
+        || cafeFloorServerMovement.snapshot.targetId !== seat.id)) {
+        const started = cafeFloorServerMovement.requestMove({ dutyId: 'cafe-floor-server.table-order-delivery', targetId: seat.id, targetEntityId: seat.id }, scene, layout, navigationOptions, locomotionOptions, () => {
+          const current = cafeStoryOrderDelivery?.tableDelivery()
+          if (current?.orderId === tableReservation.orderId && current.seatId === activePlayerSeatId) {
+            cafeStoryOrderDelivery?.completeTableDelivery(current.orderId, current.seatId)
+          }
+          setCafeFloorDwellWake(wake => wake + 1)
+        })
+        if (!started) return
+      }
+      return
+    }
+    if (cafeFloorServerMovement.snapshot.phase === 'moving' && cafeFloorServerMovement.snapshot.dutyId === 'cafe-floor-server.table-order-delivery') {
+      return
+    }
     if (cafeFloorServerMovement.snapshot.phase === 'blocked' && cafeFloorMoveRetryTick !== cafeFloorMoveRetryAppliedRef.current) {
       cafeFloorMoveRetryAppliedRef.current = cafeFloorMoveRetryTick
       commercialCafeFloorBehavior.retry()
@@ -1333,7 +1379,7 @@ export function MainlineScenePage({
       }, dwellMs)
     })
     if (!started) commercialCafeFloorBehavior.block()
-  }, [cafeFloorDwellWake, cafeFloorMoveRetryTick, cafeFloorServerMovement, commercialCafeFloorBehavior, layout, locomotionOptions, navigationOptions, scene])
+  }, [activePlayerSeatId, cafeStoryOrderDelivery, cafeFloorDwellWake, cafeFloorMoveRetryTick, cafeFloorServerMovement, commercialCafeFloorBehavior, initialSceneState, layout, locomotionOptions, navigationOptions, scene])
   const runDebugFloorServerMovement = useCallback(() => {
     if (!hasContinuousCafe(scene) || !cafeFloorServerMovement.position || cafeFloorServerMovement.snapshot.phase === 'moving') return
     cafeFloorServerMovement.requestMove({
@@ -1887,13 +1933,14 @@ export function MainlineScenePage({
 
   const leavePlayerSeat = useCallback(() => {
     if (!activePlayerSeatId) return false
+    if (hasContinuousCafe(scene)) cafeStoryOrderDelivery?.retargetTableDelivery(null)
     const standingPosition = mainlineInteractionTarget(scene, activePlayerSeatId, getCurrentPosition(), layout, undefined, navigationOptions)
     setPlayerSeatId(null)
     setActiveObjectId((current) => current === activePlayerSeatId ? null : current)
     resetMovement(standingPosition)
     navigationRuntime.updateActor('protagonist', standingPosition)
     return true
-  }, [activePlayerSeatId, getCurrentPosition, layout, navigationRuntime, navigationOptions, resetMovement, scene])
+  }, [activePlayerSeatId, cafeStoryOrderDelivery, getCurrentPosition, layout, navigationRuntime, navigationOptions, resetMovement, scene])
 
   const startNpcDialogue = useCallback((resolution: NpcDialogueResolution) => {
     stopMovement()
@@ -2033,6 +2080,7 @@ export function MainlineScenePage({
         resetMovement(sitPosition)
         navigationRuntime.updateActor('protagonist', sitPosition)
         setPlayerSeatId(nextSeatId)
+        if (hasContinuousCafe(scene)) cafeStoryOrderDelivery?.beginTableDelivery(nextSeatId)
         setPromptedSeatId(null)
         markEntityExplored(entity.id)
         onInteractionAnalytics?.('completed', entity.id, 'seat', 'seated')
@@ -2428,7 +2476,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', npc.id, 'npc', 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, layout, leavePlayerSeat, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, presentCommercialDrinkEcho, presentYongheEcho, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
+  }, [activePlayerSeatId, cafeStoryOrderDelivery, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, layout, leavePlayerSeat, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, presentCommercialDrinkEcho, presentYongheEcho, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
 
   const chooseSceneEchoOption = useCallback((actionId: number, index: number) => {
     if (!sceneAction || sceneAction.id !== actionId || sceneAction.phase !== 'committing') return
@@ -2659,11 +2707,7 @@ export function MainlineScenePage({
         cafeStoryOrderDelivery?.completePresentation(commercialCafeLaoZhouDeliveryEventId)
         recordSceneStatePatch(scene.id, commercialCafeStoryStatePatch(acknowledged))
         setDialogueSegmentIndex(0)
-        setDialogueLineIndex(acknowledged.narrativeCursor)
-        setCommercialCafeNarrative({ phase: 'active' })
-        if (tailDeletionComplete && dialogueHandoffActiveRef.current) {
-          startDialogueTextSession()
-        }
+        setCommercialCafeNarrative({ phase: 'coffee-returning' })
         return
       }
       const line = commercialCafeNarrativeDialogue.lines[commercialCafeStory.narrativeCursor]
@@ -2884,7 +2928,11 @@ export function MainlineScenePage({
     if (!formalDialogueStageActive) return null
     const roomId = mainlineInteractionRoom(scene, position)?.id
     if (!roomId) return null
-    const protectedEntityIds = new Set([activeObjectId, activeDialogue?.triggerEntityId].filter((id): id is string => Boolean(id)))
+    const cafeServicePresentation = hasContinuousCafe(scene) && commercialCafeNarrative !== null && commercialCafeNarrative.phase !== 'leaving'
+    const cafeServiceEntityIds = cafeServicePresentation
+      ? scene.objects.filter(entity => /cafe.*(counter|prep|work|menu|blackboard)|(counter|prep|work|menu|blackboard).*cafe/i.test(entity.id)).map(entity => entity.id)
+      : []
+    const protectedEntityIds = new Set([activeObjectId, activeDialogue?.triggerEntityId, ...cafeServiceEntityIds].filter((id): id is string => Boolean(id)))
     const furnitureGroupIds = mainlineDialogueFurnitureGroupIds(scene.objects, new Set([activePlayerSeatId, laoZhouCafeSeatId].filter((id): id is string => Boolean(id))))
     return {
       roomId,
@@ -2895,7 +2943,7 @@ export function MainlineScenePage({
         roomId,
         protectedEntityIds,
         protectedFurnitureGroupIds: furnitureGroupIds,
-        serviceRequired: commercialCafeNarrative?.phase === 'delivery-line',
+        serviceRequired: cafeServicePresentation,
       }),
     }
   }, [activeDialogue?.triggerEntityId, activeObjectId, activePlayerSeatId, commercialCafeNarrative?.phase, formalDialogueParticipantActorIds, formalDialogueSpeakerActorId, formalDialogueStageActive, laoZhouCafeSeatId, position, scene])

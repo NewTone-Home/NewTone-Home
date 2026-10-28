@@ -29,7 +29,7 @@ const legacyCommercialCafeCoffeeDeliveredKey = 'commercialCafeCoffeeDelivered'
 
 export type CommercialCafeStoryStatus = 'available' | 'ready-to-leave' | 'complete'
 export type CommercialCafeCoffeeStatus = 'none' | 'ordered' | 'preparing' | 'ready' | 'delivered'
-export type CommercialCafeNarrativePhase = 'not-started' | 'dialogue' | 'coffee-delivery' | 'complete'
+export type CommercialCafeNarrativePhase = 'not-started' | 'dialogue' | 'coffee-delivery' | 'coffee-returning' | 'complete'
 export type CommercialCafeLaoZhouDeparture = 'seated'
 export type CommercialCafeStoryState = {
   status: CommercialCafeStoryStatus
@@ -119,7 +119,7 @@ const legacyCursorByStage: Record<CommercialCafeStoryStage, number> = {
 }
 function isStoryStatus(value: unknown): value is CommercialCafeStoryStatus { return value === 'available' || value === 'ready-to-leave' || value === 'complete' }
 function isCoffeeStatus(value: unknown): value is CommercialCafeCoffeeStatus { return value === 'none' || value === 'ordered' || value === 'preparing' || value === 'ready' || value === 'delivered' }
-function isNarrativePhase(value: unknown): value is CommercialCafeNarrativePhase { return value === 'not-started' || value === 'dialogue' || value === 'coffee-delivery' || value === 'complete' }
+function isNarrativePhase(value: unknown): value is CommercialCafeNarrativePhase { return value === 'not-started' || value === 'dialogue' || value === 'coffee-delivery' || value === 'coffee-returning' || value === 'complete' }
 function validCursor(value: unknown): value is number { return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= commercialCafeNarrativeDialogue.lines.length }
 
 function legacyCoffeeStatus(sceneState: PlayerSceneState | undefined, stage: CommercialCafeStoryStage): CommercialCafeCoffeeStatus {
@@ -226,6 +226,11 @@ export function commercialCafeFinishCursorOne(story: CommercialCafeStoryState) {
 }
 export function commercialCafeFinishDeliveryLine(story: CommercialCafeStoryState) {
   return story.coffeeStatus === 'delivered' && story.narrativeCursor === 1 && story.narrativePhase === 'coffee-delivery'
+    ? { ...story, narrativeCursor: 1, narrativePhase: 'coffee-returning' as const }
+    : story
+}
+export function commercialCafeFinishDeliveryReturn(story: CommercialCafeStoryState) {
+  return story.coffeeStatus === 'delivered' && story.narrativeCursor === 1 && story.narrativePhase === 'coffee-returning'
     ? { ...story, narrativeCursor: 2, narrativePhase: 'dialogue' as const }
     : story
 }

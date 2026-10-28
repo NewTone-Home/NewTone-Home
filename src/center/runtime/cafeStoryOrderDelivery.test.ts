@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { crossShopIds } from './crossShopOrders'
 import {
   beginCafeStoryOrderDelivery, cafeStoryOrderStatus, completeCafeStoryOrderDeliveryPresentation,
+  beginCafeTableOrderDelivery, completeCafeTableOrderDelivery, retargetCafeTableOrderDelivery,
   sanitizeCafeStoryDeliveries, type CafeStoryOrderState,
 } from './cafeStoryOrderDelivery'
 
@@ -52,5 +53,40 @@ describe('Café story delivery bridge', () => {
     expect(cafeStoryOrderStatus(state, 'meeting', 0)).toBe('legacy-unmapped')
     expect(beginCafeStoryOrderDelivery(state, 'meeting', 0)).toMatchObject({ ok: false, reason: 'legacy-unmapped' })
     expect(state.shopOrders[crossShopIds.cafeTakeaway]).toBeDefined()
+  })
+
+  it('reserves a ready ordinary Cafe order for the current seat without claiming it, and restores/retargets it safely', () => {
+    const initial: CafeStoryOrderState = { shopOrders: { [crossShopIds.cafeTakeaway]: { ...cafeOrder, readyAtGameTimeMs: 300 } }, heldConsumable: null, cafeStoryDeliveries: {}, phoneNotifications: [{ id: `shop-order-ready:${cafeOrder.id}`, app: 'cafe-takeaway', shopId: crossShopIds.cafeTakeaway, title: 'ready', body: 'pickup', unread: true, presented: true }] }
+    expect(beginCafeTableOrderDelivery({ shopOrders: {}, heldConsumable: null, cafeStoryDeliveries: {} }, 'seat-a', 300)).toMatchObject({ ok: false, reason: 'no-order' })
+    expect(beginCafeTableOrderDelivery(initial, 'seat-a', 299)).toMatchObject({ ok: false, reason: 'not-ready' })
+    const pending = beginCafeTableOrderDelivery(initial, 'seat-a', 300)
+    expect(pending).toMatchObject({ ok: true, record: { deliveryKind: 'table', seatId: 'seat-a' } })
+    if (!pending.ok) return
+    expect(pending.state.shopOrders[crossShopIds.cafeTakeaway]?.id).toBe(cafeOrder.id)
+    expect(pending.state.heldConsumable).toBeNull()
+    expect(cafeStoryOrderStatus(pending.state, 'lao-zhou-meeting-v1', 300)).toBe('claimed')
+    expect(beginCafeStoryOrderDelivery(pending.state, 'lao-zhou-meeting-v1', 300)).toMatchObject({ ok: false, reason: 'claimed' })
+    const restored = sanitizeCafeStoryDeliveries(JSON.parse(JSON.stringify(pending.state.cafeStoryDeliveries)))
+    const replay = beginCafeTableOrderDelivery({ ...pending.state, cafeStoryDeliveries: restored }, 'seat-b', 500)
+    expect(replay).toMatchObject({ ok: true, replayed: true, record: { seatId: 'seat-a' } })
+    const moved = retargetCafeTableOrderDelivery(restored, 'seat-b')
+    expect(Object.values(moved)[0]).toMatchObject({ seatId: 'seat-b' })
+    const completed = completeCafeTableOrderDelivery({ ...pending.state, cafeStoryDeliveries: moved }, cafeOrder.id, 'seat-b')
+    expect(completed.shopOrders[crossShopIds.cafeTakeaway]).toBeUndefined()
+    expect(completed.heldConsumable).toBeNull()
+    expect(completed.phoneNotifications).toEqual([])
+    expect(Object.values(completed.cafeStoryDeliveries)[0]).toMatchObject({ presentation: 'complete', deliveryKind: 'table' })
+    expect(completeCafeTableOrderDelivery(completed, cafeOrder.id, 'seat-b')).toBe(completed)
+  })
+
+  it('releases a table reservation on leaving and preserves a separately held/full-hand state', () => {
+    const pending = beginCafeTableOrderDelivery({ shopOrders: { [crossShopIds.cafeTakeaway]: { ...cafeOrder, readyAtGameTimeMs: 300 } }, heldConsumable: { shopId: crossShopIds.yonghe, sourceOrderId: 'meal-1' }, cafeStoryDeliveries: {} }, 'seat-a', 300)
+    expect(pending.ok).toBe(true)
+    if (!pending.ok) return
+    const released = retargetCafeTableOrderDelivery(pending.state.cafeStoryDeliveries, null)
+    expect(Object.keys(released)).toHaveLength(0)
+    expect(pending.state.shopOrders[crossShopIds.cafeTakeaway]?.id).toBe(cafeOrder.id)
+    expect(pending.state.heldConsumable?.shopId).toBe(crossShopIds.yonghe)
+    expect(beginCafeTableOrderDelivery({ ...pending.state, cafeStoryDeliveries: released }, 'seat-b', 400)).toMatchObject({ ok: true, replayed: false })
   })
 })
