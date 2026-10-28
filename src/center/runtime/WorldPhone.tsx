@@ -26,7 +26,7 @@ import type { SessionGameActivitySource } from './sessionGameClock'
 
 type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea' | 'fruit-tea' | 'yonghe-order' | 'cafe-takeaway' | 'notes'
 export function phoneAppForShopId(shopId: string): PhoneApp | null {
-  if (shopId === crossShopIds.milkTea || shopId === crossShopIds.fruitTea) return 'milk-tea'
+  if (shopId === crossShopIds.milkTea || shopId === crossShopIds.fruitTea || shopId === crossShopIds.cafeTakeaway) return 'milk-tea'
   if (shopId === crossShopIds.yonghe) return 'yonghe-order'
   if (shopId === crossShopIds.cafeTakeaway) return 'cafe-takeaway'
   return null
@@ -865,7 +865,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
 
             {activeApp === 'ride' && <PhoneRideApp regions={mapRegions} device={displayDevice} currentLandmark={currentLandmark} currentSceneId={currentSceneId as MainlineSceneId} order={rideOrder} clock={rideClock} storyClock={storyClock} gameTimeMs={gameTimeMs} available={rideAvailability === 'available'} online={online} destinationId={selectedRideDestinationId} onDestination={setSelectedRideDestinationId} onConfirm={(sceneId,presentation) => onRideRequest?.(displayDevice, sceneId,presentation)} getPosition={getPlayerPosition} getRideMapSnapshot={getRideMapSnapshot} />}
 
-            {activeShopId && activeApp && shopProducts.length > 0 && <ShopOrderApp key={activeShopId} shopId={activeShopId} title={shopTitle} products={shopProducts} initialProductId={preselectedShopProductId} availableShops={availableShopIds.filter(id => id === crossShopIds.milkTea || id === crossShopIds.fruitTea).map(id => ({ id, label: shopTitleForId(id) }))} onShopSelect={setActiveShopId} order={shopOrders[activeShopId] ?? null} heldConsumable={heldConsumable} walletBalance={walletBalance} gameTimeMs={gameTimeMs} preparationConfigured={Boolean(preparationConfiguredByShop[activeShopId])} onConfirm={selection => onShopOrderConfirm?.(selection) ?? { ok: false, reason: 'order-service-unavailable' }} onOrderPlaced={onShopOrderPlaced} onOrderReady={onShopOrderReady} onCancelLegacy={onLegacyShopOrderCancel} />}
+            {activeShopId && activeApp && shopProducts.length > 0 && <ShopOrderApp key={activeShopId} shopId={activeShopId} title={shopTitle} products={shopProducts} initialProductId={preselectedShopProductId} availableShops={availableShopIds.filter(id => id === crossShopIds.milkTea || id === crossShopIds.fruitTea || id === crossShopIds.cafeTakeaway).map(id => ({ id, label: shopTitleForId(id) }))} onShopSelect={setActiveShopId} order={shopOrders[activeShopId] ?? null} heldConsumable={heldConsumable} walletBalance={walletBalance} gameTimeMs={gameTimeMs} preparationConfigured={Boolean(preparationConfiguredByShop[activeShopId])} onConfirm={selection => onShopOrderConfirm?.(selection) ?? { ok: false, reason: 'order-service-unavailable' }} onOrderPlaced={onShopOrderPlaced} onOrderReady={onShopOrderReady} onCancelLegacy={onLegacyShopOrderCancel} />}
             {activeApp === 'milk-tea' && !activeShopId && <section className="world-phone__list-page world-phone__milk-tea" aria-label="奶茶">
               {milkTeaHeld ? <div className="world-phone__list-heading"><span>奶茶</span><strong>手里已有一杯饮料</strong><small>暂时不能再下单。</small></div>
                 : milkTeaOrder ? (() => {
