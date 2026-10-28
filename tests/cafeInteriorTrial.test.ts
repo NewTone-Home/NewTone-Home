@@ -11,6 +11,11 @@ const point = (x: number, y: number) => ({ x: room.bounds.x + x / 1920 * 100, y:
 const options = { screenMetrics: sceneDesignReferenceMetrics }
 
 describe('isolated Cafe layout trial', () => {
+  it('shows the approved Cafe wall menu and compact blackboard copy on observation', () => {
+    expect(scene.interactionText['commercial-cafe-menu']).toBe('美式 3\n拿铁 4\n澳白 4\n焦糖玛奇朵 5\n海盐焦糖拿铁 5')
+    expect(scene.interactionText['commercial-cafe-blackboard']).toBe('新品｜海盐焦糖拿铁 — 5')
+  })
+
   it('shows one observation without options for each cafe plant', () => {
     const context = { incensePhase: 'unlit' as const, plantWatered: false, officeBlindsOpen: false, carriedPhoneDevice: 'old' as const }
     for (const [id, text] of [
