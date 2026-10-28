@@ -2414,8 +2414,43 @@ export function MainlineSceneRenderer({
     ? retainMainlineReadingOcclusionSnapshot(retainedReadingOcclusion, currentReadingOcclusion)
     : retainedReadingOcclusion
   const readingOcclusionActive = readingPresentationPhase === 'active' && readingVisualActive && activeReadingOcclusionSession === readingOcclusionSessionKey
-  const observationFade = retainedOcclusionSnapshot?.rect && occlusionVisualProgress > 0
-    ? { rect: retainedOcclusionSnapshot.rect, innerMarginWorldPx: mainlineReadingOcclusionFadeWorldPx * 2, featherWorldPx: mainlineReadingOcclusionFadeWorldPx * 3, progress: occlusionVisualProgress }
+  // The dialogue envelope can be intentionally wider than a short line. Use
+  // the visible page's measured ink width for the visual fade, while the
+  // session's cached layout and collision envelope remain unchanged.
+  const occlusionInkWidth = useMemo(() => presentedReadingLayout
+    ? Math.max(0, ...displayReadingText.split(/\r\n|\r|\n/u).map(line => mainlineMeasuredTextWidth(line, presentedReadingLayout.fontSizePx))) / Math.max(.01, worldScale)
+    : 0, [displayReadingText, presentedReadingLayout?.fontSizePx, worldScale])
+  const [effectiveOcclusionInkWidth, setEffectiveOcclusionInkWidth] = useState(0)
+  const visualInkWidthRef = useRef(0)
+  const visualInkSessionRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (readingPresentationPhase !== 'active' || !readingOcclusionSessionKey || occlusionInkWidth <= 0) return
+    if (visualInkSessionRef.current !== readingOcclusionSessionKey || visualInkWidthRef.current <= 0) {
+      visualInkSessionRef.current = readingOcclusionSessionKey
+      visualInkWidthRef.current = occlusionInkWidth
+      setEffectiveOcclusionInkWidth(occlusionInkWidth)
+      return
+    }
+    const start = visualInkWidthRef.current
+    if (Math.abs(start - occlusionInkWidth) < .1) return
+    const started = performance.now()
+    let frame = 0
+    const tick = (now: number) => {
+      const fraction = Math.min(1, (now - started) / mainlineReadingFadeTransitionMs)
+      const width = start + (occlusionInkWidth - start) * fraction
+      visualInkWidthRef.current = width
+      setEffectiveOcclusionInkWidth(width)
+      if (fraction < 1) frame = window.requestAnimationFrame(tick)
+    }
+    frame = window.requestAnimationFrame(tick)
+    return () => window.cancelAnimationFrame(frame)
+  }, [occlusionInkWidth, readingOcclusionSessionKey, readingPresentationPhase])
+  const occlusionFullRect = retainedOcclusionSnapshot?.rect
+  const visualOcclusionRect = occlusionFullRect && effectiveOcclusionInkWidth > 0
+    ? { ...occlusionFullRect, x: occlusionFullRect.x + Math.max(0, occlusionFullRect.width - effectiveOcclusionInkWidth) / 2, width: Math.min(occlusionFullRect.width, effectiveOcclusionInkWidth) }
+    : occlusionFullRect
+  const observationFade = visualOcclusionRect && occlusionVisualProgress > 0
+    ? { rect: visualOcclusionRect, innerMarginWorldPx: mainlineReadingOcclusionFadeWorldPx * 2, featherWorldPx: mainlineReadingOcclusionFadeWorldPx * 3, progress: occlusionVisualProgress }
     : undefined
   const readingOcclusionProtectedEntityIds = readingPresentationPhase === 'inactive'
     ? retainedReadingOcclusion?.protectedEntityIds ?? readingProtectedEntityIds
