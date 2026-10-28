@@ -35,13 +35,15 @@ describe('live passage safety wiring', () => {
     expect(block).not.toMatch(/canTraverse:[^\n]*\bnavigationOptions\)/)
   })
 
-  it('leaves Lao Zhou simulation movement on its existing route options', () => {
+  it('registers Lao Zhou simulation movement on the shared scene navigation runtime', () => {
     const npcMovement = sourceBlock(
-      "const passageOptions = { ...navigationOptions, actorId: 'lao-zhou', actorFootprint: laoZhouFootprint, openPassageIds: getOpenPassageIds(), navigationRuntime }",
-      'if (!started) laoZhouExitCrossingStartedRef.current = false',
+      'const laoZhouMovement = useNpcMovement({',
+      'const ambientNpcFootprints',
     )
-    expect(npcMovement).toContain('canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, passageOptions)')
-    expect(npcMovement).toContain('canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, passageOptions)')
+    expect(npcMovement).toContain("npcId: 'lao-zhou'")
+    expect(npcMovement).toContain('initialPosition: laoZhouInitialPosition')
+    expect(npcMovement).toContain('navigationRuntime')
+    expect(npcMovement).toContain('footprint: laoZhouFootprint')
     expect(npcMovement).not.toContain('getLiveNavigationOptions()')
   })
 

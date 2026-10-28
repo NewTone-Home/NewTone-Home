@@ -7,7 +7,7 @@ const surfaceCss = read('../src/components/EntryButtonSurface.css')
 
 describe('reading visual adjustments', () => {
   it('rolls the old page down while the new page enters from above like the Cafe storefront', () => {
-    expect(sceneCss).toContain('.scene-mainline-page-stack { position: relative; display: grid; grid-template-rows: minmax(0, 1fr); width: 100%; height: 100%; overflow: hidden; }')
+    expect(sceneCss).toContain('.scene-mainline-page-stack { position: relative; left: 50%; top: 50%; display: grid; grid-template-rows: minmax(0, 1fr); overflow: hidden; transform: translate(-50%, -50%); }')
     expect(sceneCss).toContain('.scene-mainline-page--outgoing { transform: translate3d(0, var(--reading-page-out-y, 0%), 0); }')
     expect(sceneCss).toContain('.scene-mainline-page--incoming { transform: translate3d(0, var(--reading-page-in-y, -100%), 0); }')
     expect(sceneCss).not.toContain('mainline-reading-page-close')
