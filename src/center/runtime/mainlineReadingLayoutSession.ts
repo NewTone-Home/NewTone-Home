@@ -275,7 +275,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
       }
       const fallbackPages = (candidate: WidthCandidate) => {
         const page = candidate.pages.get(entryKey({ text: fitInput.text, speaker: fitInput.speaker }))!
-        const offset = input.preferWholeText ? fitInput.sourceOffset ?? 0 : 0
+        const offset = fitInput.sourceOffset ?? 0
         if (offset <= 0) return page
         let start = 0
         const segments = page.segments.flatMap(segment => {

@@ -4,6 +4,7 @@ import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey,
 import { subscribeToMainlineReadingFontCompletion } from '../src/center/runtime/useMainlineReadingFontRevision'
 import { mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
 import { mainlineReadingCameraOffset } from '../src/center/runtime/mainlineTextReading'
+import { mainlineReadingPageIndexForSourceOffset } from '../src/center/runtime/mainlineReadingProtection'
 import { splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
 
 describe('mainline reading session layout cache', () => {
@@ -20,6 +21,40 @@ describe('mainline reading session layout cache', () => {
     const longWidth = cache.pageLayoutAtOrBelow('A much longer line of dialogue.', 'Speaker', 72)!.widthPx
     expect(shortWidth).toBe(180)
     expect(longWidth).toBe(shortWidth)
+  })
+
+  it('keeps the source character offset when a resized dialogue session creates new page boundaries', () => {
+    const text = Array.from({ length: 954 }, (_, index) => String.fromCharCode(0x4e00 + index)).join('')
+    const desktop = createMainlineReadingSessionLayoutCache({
+      sessionKey: 'dialogue:resize-offset',
+      entries: [{ text, speaker: 'Speaker' }],
+      metrics: { width: 1280, height: 800, viewportWidth: 1280 },
+      maximumWidthPx: 360,
+    })
+    const desktopSegments = desktop.fit({
+      scene: mainlineScenes['commercial-street'],
+      source: { x: 50, y: 50 }, text, speaker: 'Speaker', maximumWidthPx: 360,
+      protectedVisuals: [], metrics: { width: 1280, height: 800, viewportWidth: 1280 },
+      worldScale: .65, cameraOffset: { x: 0, y: 0 },
+    }).segments
+    const sourceOffset = desktopSegments[0]!.length
+    const resized = createMainlineReadingSessionLayoutCache({
+      sessionKey: 'dialogue:resize-offset',
+      entries: [{ text, speaker: 'Speaker' }],
+      metrics: { width: 411, height: 914, viewportWidth: 411 },
+      maximumWidthPx: 180,
+    })
+    const resizedSegments = resized.fit({
+      scene: mainlineScenes['commercial-street'],
+      source: { x: 50, y: 50 }, text, speaker: 'Speaker', maximumWidthPx: 180,
+      protectedVisuals: [], metrics: { width: 411, height: 914, viewportWidth: 411 },
+      worldScale: .65, cameraOffset: { x: 0, y: 0 }, sourceOffset,
+    }).segments
+
+    expect(resizedSegments.join('')).toBe(text)
+    const currentPageIndex = mainlineReadingPageIndexForSourceOffset(resizedSegments, sourceOffset)
+    expect(resizedSegments.slice(0, currentPageIndex).join('').length).toBe(sourceOffset)
+    expect(resizedSegments.slice(currentPageIndex).join('')).toBe(text.slice(sourceOffset))
   })
 
   it('measures the session text budget once and reuses it for pages, movement, and viewport projection changes', () => {
@@ -59,7 +94,8 @@ describe('mainline reading session layout cache', () => {
       cameraOffset: { x: 0, y: 0 },
     }
 
-    cache.fit(fitInput)
+    const initialSegments = cache.fit(fitInput).segments
+    expect(cache.fit({ ...fitInput, cameraOffset: { x: 4, y: -2 } }).segments).toEqual(initialSegments)
     const sessionSetupCounts = { measureCalls, layoutCalls, splitCalls }
     cache.fit({ ...fitInput, cameraOffset: { x: 4, y: -2 }, protectedVisuals: [{ x: 48, y: 48, width: 4, height: 4 }] })
     cache.fit({ ...fitInput, maximumWidthPx: 150, metrics: { width: 360, height: 844, viewportWidth: 360 }, worldScale: .65 })

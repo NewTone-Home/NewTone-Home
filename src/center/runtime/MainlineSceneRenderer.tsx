@@ -1514,7 +1514,10 @@ export function MainlineSceneRenderer({
       || readingLayoutSessionCache.fontKey !== readingLayoutFontFaceKey
       || readingLayoutSessionCache.measurementKey !== readingMeasurementKey) {
       const frozenMetrics = readingMetrics
-      const frozenMaximumWidth = maximumReadingWidthPx
+      // A new viewport measurement means a true resize. Freeze this dialogue
+      // session to the legal room/viewport width now, so later camera motion
+      // cannot make the box resize between lines.
+      const frozenMaximumWidth = sceneEcho ? maximumReadingWidthPx : currentReadingWidthPx
       readingLayoutSessionCache = createMainlineReadingSessionLayoutCache({
         sessionKey: readingOcclusionSessionKey,
         entries: sessionTextEntries,
@@ -1821,11 +1824,11 @@ export function MainlineSceneRenderer({
       metrics: readingMetrics,
       worldScale,
       cameraOffset: renderCameraOffset,
-      sourceOffset: sceneEcho && readingOverflowPage?.sessionKey === readingSessionKey && readingOverflowPage.key === readingOverflowKey ? readingOverflowPage.sourceOffset : undefined,
+      sourceOffset: readingOverflowPage?.sessionKey === readingSessionKey && readingOverflowPage.key === readingOverflowKey ? readingOverflowPage.sourceOffset : undefined,
     }) ?? null
     : null
   const fittedReadingSegments = readingFit?.segments ?? [activeReadingText]
-  const activeDisplayOverflowIndex = sceneEcho && readingOverflowPage?.sessionKey === readingSessionKey && readingOverflowPage.key === readingOverflowKey && readingOverflowPage.sourceOffset !== undefined
+  const activeDisplayOverflowIndex = readingOverflowPage?.sessionKey === readingSessionKey && readingOverflowPage.key === readingOverflowKey && readingOverflowPage.sourceOffset !== undefined
     ? mainlineReadingPageIndexForSourceOffset(fittedReadingSegments, readingOverflowPage.sourceOffset)
     : Math.min(readingOverflowIndex, Math.max(0, fittedReadingSegments.length - 1))
   const activeDisplayReadingText = sceneEcho
@@ -2777,7 +2780,7 @@ export function MainlineSceneRenderer({
               const session = `${scene.id}:${dialogue!.triggerEntityId}`
               const metrics = `${readingMetrics.width}:${readingMetrics.height}:${readingMetrics.viewportWidth}:${worldScale}:${displayReadingMaxWidthPx}`
               if (speakerPlacementRef.current?.session !== session || speakerPlacementRef.current.metrics !== metrics) {
-                speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, readingMetrics, { x: projectReadingX(sourcePosition.x), y: sourcePosition.y }, { x: 0, y: 0 }, worldScale, displayReadingMaxWidthPx, readingLayoutSessionCache?.speakerWidthAtOrBelow(displayReadingMaxWidthPx)) }
+                speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, readingMetrics, { x: projectReadingX(position.x), y: position.y }, { x: 0, y: 0 }, worldScale, displayReadingMaxWidthPx, readingLayoutSessionCache?.speakerWidthAtOrBelow(displayReadingMaxWidthPx)) }
               }
             }
             const baseSpeakerAnchor = isDialogue && !stageDialogue ? speakerPlacementRef.current!.anchor : null
@@ -2941,7 +2944,7 @@ export function MainlineSceneRenderer({
                 }
                 if (displayOverflowIndex + 1 < fittedReadingSegments.length) {
                   lockReadingPageAdvance()
-                  if (readingSessionKey) setReadingOverflowPage({ sessionKey: readingSessionKey, key: readingOverflowKey, index: displayOverflowIndex + 1, sourceOffset: sceneEcho ? fittedReadingSegments.slice(0, displayOverflowIndex + 1).join('').length : undefined })
+                  if (readingSessionKey) setReadingOverflowPage({ sessionKey: readingSessionKey, key: readingOverflowKey, index: displayOverflowIndex + 1, sourceOffset: fittedReadingSegments.slice(0, displayOverflowIndex + 1).join('').length })
                   return
                 }
                 if (readingMode === 'dialogue') {
