@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mainlineSceneAreaLabel, mainlineScenes } from './mainlineScenes'
 import { mainlineInteractionTarget, resolveMainlineEntityInteraction } from './mainlineNavigation'
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
+import { mainlineDoorPortalShouldRender } from './mainlineSceneVisibility'
 import { commercialCafeCoffeeStatusKey } from './commercialCafeStory'
 import {
   plantIsWatered,
@@ -20,6 +21,12 @@ describe('mainline scene interaction policies', () => {
   it('gives the Yonghe warehouse one action and returns only its result after selection', () => {
     const scene = mainlineScenes['yonghe-mining-perimeter']
     const door = entity('yonghe-mining-perimeter', 'yonghe-warehouse-door')
+    expect(door.spaceId).toBe('mining-street-back-alley')
+    expect(mainlineDoorPortalShouldRender(door, 'mining-street-back-alley')).toBe(true)
+    expect(mainlineDoorPortalShouldRender(door, 'mining-shop-2-interior')).toBe(false)
+    expect(mainlineDoorPortalShouldRender(undefined, 'mining-shop-2-interior')).toBe(true)
+    expect(scene.passages.find(passage => passage.id === 'yonghe-warehouse-door')).toMatchObject({ access: 'locked', toRoomId: undefined })
+    expect(scene.passages.find(passage => passage.id === 'yonghe-back-door')).toMatchObject({ access: 'open', toRoomId: 'mining-shop-2-interior' })
     const exploration = resolveMainlineSceneExploration(scene, door, {
       incensePhase: 'unlit', plantWatered: false, officeBlindsOpen: true, carriedPhoneDevice: 'surface',
     })
