@@ -11,7 +11,7 @@ import EntryButtonFrame from '../../components/EntryButtonFrame'
 import type { CollisionBox, Point } from './sceneGeometry'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
 import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
-import { mainlineActiveSpatialSpaceId, mainlineEntityIsPublicStreetContent, mainlineEntityMatchesCurrentPresentation, mainlinePublicStreetPresentationIsActive } from './mainlineSceneModel'
+import { mainlineActiveSpatialSpaceId, mainlineEntityIsPublicStreetContent, mainlineEntityMatchesCurrentPresentation, mainlinePassageDoorPresentationActive, mainlinePublicStreetPresentationIsActive } from './mainlineSceneModel'
 import { mainlineDoorPortalShouldRender, mainlineGeometryCellWithinViewport, mainlineGeometryUnitShouldRender } from './mainlineSceneVisibility'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineEntityVisualBounds, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -2607,7 +2607,8 @@ export function MainlineSceneRenderer({
                 const yardGatePart = cell.doorLabelPart
                 const focusGroup = yardGatePart ? `gate:${entityId}:${yardGatePart}` : `door:${entityId}`
                 const focusPolicy = yardGatePart ? 'gate' : 'passage' as const
-                const doorPresentationActive = interiorRoomPresentationActive(interiorWallRoomId)
+                const passage = scene.passages.find((candidate) => candidate.portalId === entityId)
+                const doorPresentationActive = mainlinePassageDoorPresentationActive(passage, activeSpatialSpaceId, interiorRoomPresentationActive(interiorWallRoomId))
                 return extractProtectedWallNode(entityId, cell.id, <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door ${visibilityClass}`} style={{ ...localCellStyle(cell), ...portalGlyphStyle }} doorLabel={doorLabel} glyph={cell.doorLabelPart ?? doorLabel} doorPhase={doorPhase} focusGroup={focusGroup} focusPolicy={focusPolicy} gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId && !readingMode} closeHint={closeHint} ariaLabel={`${doorLabel}，点击门后目标会在接近时自动开门并穿过`} renderFocusFrame={focusFrames.renderFrame} presentationActive={doorPresentationActive} presentationDurationMs={focusFrames.motionDurationMs(focusGroup)} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} dataAttributes={portalGlyphAttributes} />)
               }
               if (cell.kind === 'opening') {

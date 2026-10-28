@@ -3,6 +3,7 @@ import { mainlineSceneAreaLabel, mainlineScenes } from './mainlineScenes'
 import { mainlineInteractionTarget, resolveMainlineEntityInteraction } from './mainlineNavigation'
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 import { mainlineDoorPortalShouldRender } from './mainlineSceneVisibility'
+import { mainlinePassageDoorPresentationActive } from './mainlineSceneModel'
 import { commercialCafeCoffeeStatusKey } from './commercialCafeStory'
 import {
   plantIsWatered,
@@ -28,6 +29,10 @@ describe('mainline scene interaction policies', () => {
     expect(mainlineDoorPortalShouldRender(undefined, 'mining-shop-2-interior')).toBe(true)
     expect(scene.passages.find(passage => passage.id === 'yonghe-warehouse-door')).toMatchObject({ access: 'locked', toRoomId: undefined })
     expect(scene.passages.find(passage => passage.id === 'yonghe-back-door')).toMatchObject({ access: 'open', toRoomId: 'mining-shop-2-interior' })
+    const rearDoorPassage = scene.passages.find(passage => passage.id === 'yonghe-back-door')
+    expect(mainlinePassageDoorPresentationActive(rearDoorPassage, 'mining-street-back-alley', false)).toBe(true)
+    expect(mainlinePassageDoorPresentationActive(rearDoorPassage, 'mining-shop-2-interior', false)).toBe(true)
+    expect(mainlinePassageDoorPresentationActive(rearDoorPassage, 'other-shop-interior', false)).toBe(false)
     const exploration = resolveMainlineSceneExploration(scene, door, {
       incensePhase: 'unlit', plantWatered: false, officeBlindsOpen: true, carriedPhoneDevice: 'surface',
     })
@@ -128,23 +133,30 @@ describe('mainline scene interaction policies', () => {
     }
   })
 
-  it('hides only the Yonghe-facing alley wall glyphs while preserving the original blocked wall and door geometry', () => {
-    const scene = mainlineScenes['yonghe-eatery']
-    const shop = scene.rooms.find(room => room.id === 'mining-shop-2-interior')!
-    const shopRight = shop.bounds.x + shop.bounds.width
+  it('uses shop-owned rear walls as the alley edge and keeps the Yonghe back door canonical', () => {
+    const scene = mainlineScenes['yonghe-mining-perimeter']
     const alleyBottom = scene.geometry.filter(unit => unit.sourceWallId === 'mining-street-back-alley-frame' && unit.edge === 'bottom')
-    const wallCells = alleyBottom.flatMap(unit => unit.visual.cells).filter(cell => cell.kind === 'wall')
-    const yongheSideCells = wallCells.filter(cell => cell.x >= shop.bounds.x - .01 && cell.x <= shopRight + .01)
-    const otherSideCells = wallCells.filter(cell => cell.x < shop.bounds.x - .01)
+    const yongheRearWall = scene.geometry.filter(unit => unit.sourceWallId === 'mining-shop-2-interior-shell' && unit.edge === 'top')
+    const yongheDoorWall = yongheRearWall.find(unit => unit.navigation.passageId === 'yonghe-back-door' && unit.surface === 'door')
+    const yongheWarehouseDoor = yongheRearWall.find(unit => unit.navigation.passageId === 'yonghe-warehouse-door' && unit.surface === 'door')
+    const otherShopRearWalls = scene.geometry.filter(unit => /^mining-shop-(?!2-).*?-interior-shell$/.test(unit.sourceWallId ?? '') && unit.edge === 'top')
+    const sharedTails = scene.geometry.filter(unit => unit.sourceWallId?.endsWith('-shared-right-tail') && unit.navigation.blocked)
 
-    expect(yongheSideCells.length).toBeGreaterThan(0)
-    expect(yongheSideCells.every(cell => cell.glyph === '')).toBe(true)
-    expect(otherSideCells.some(cell => cell.glyph !== '')).toBe(true)
-    expect(alleyBottom.every(unit => unit.navigation.blocked)).toBe(true)
+    expect(alleyBottom).toHaveLength(0)
+    expect(yongheRearWall.some(unit => unit.navigation.blocked)).toBe(true)
+    expect(yongheDoorWall).toBeDefined()
+    expect(yongheWarehouseDoor).toBeDefined()
+    expect(scene.passages.find(passage => passage.id === 'yonghe-warehouse-door')).toMatchObject({ access: 'locked' })
+    expect(otherShopRearWalls.some(unit => unit.navigation.blocked)).toBe(true)
+    expect(sharedTails.length).toBeGreaterThan(0)
     expect(scene.geometry.some(unit => unit.sourceWallId === 'mining-street-back-alley-frame' && unit.edge === 'top' && unit.navigation.blocked)).toBe(true)
     expect(scene.geometry.some(unit => unit.sourceWallId === 'mining-street-back-alley-frame' && unit.edge === 'right' && unit.navigation.blocked)).toBe(true)
-    expect(scene.geometry.some(unit => unit.sourceWallId === 'mining-street-back-alley-frame' && unit.navigation.passageId === 'yonghe-back-door' && unit.surface === 'door')).toBe(true)
-    expect(scene.passages.find(passage => passage.id === 'yonghe-back-door')).toMatchObject({ access: 'open', routeThrough: true, fromRoomId: 'mining-street-back-alley', toRoomId: 'mining-shop-2-interior' })
+    expect(scene.geometry.some(unit => unit.sourceWallId === 'mining-street-facade' && unit.edge === 'bottom' && unit.navigation.blocked)).toBe(true)
+    expect(scene.passages.find(passage => passage.id === 'yonghe-back-door')).toMatchObject({
+      access: 'open', routeThrough: true, fromRoomId: 'mining-street-back-alley', toRoomId: 'mining-shop-2-interior',
+    })
+    expect(yongheDoorWall?.navigation.blocked).toBe(true)
+    expect(yongheDoorWall?.navigation.passageId).toBe('yonghe-back-door')
   })
 
   it('persists watering as a bounded plant state instead of feedback-only UI', () => {

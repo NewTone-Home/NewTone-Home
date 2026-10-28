@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { commercialStreetCameraPages, commercialStreetPageIndex, usesCommercialStreetPages } from './commercialStreetCamera'
 import { mainlineScenes, mainlineStorefrontApproach } from './mainlineScenes'
-import { mainlineCameraOffset } from './mainlineViewport'
+import { mainlineCameraOffset, mainlineViewportPointFromWorld } from './mainlineViewport'
 
 const street = mainlineScenes['commercial-street']
 describe('commercial street camera pages', () => {
@@ -44,5 +44,38 @@ describe('commercial street camera pages', () => {
     expect([approach, inside, approach, inside].map(position => usesCommercialStreetPages(street, position)))
       .toEqual([true, false, true, false])
     expect(usesCommercialStreetPages(mainlineScenes['zhongshuyuan-office'], { x: 50, y: 50 })).toBe(false)
+  })
+
+  it('uses the same outdoor pages for the mine and anchors its vertical view to the player', () => {
+    const mine = mainlineScenes['yonghe-mining-perimeter']
+    const alley = mine.rooms.find(room => room.id === 'mining-street-back-alley')!
+    const lane = mine.rooms.find(room => room.id === 'mining-street-public-lane')!
+    const shop = mine.rooms.find(room => room.id === 'mining-shop-2-interior')!
+    const alleyPosition = { x: alley.bounds.x + alley.bounds.width / 2, y: alley.bounds.y + alley.bounds.height / 2 }
+    const shopPosition = { x: shop.bounds.x + shop.bounds.width / 2, y: shop.bounds.y + shop.bounds.height / 2 }
+    expect(usesCommercialStreetPages(mine, alleyPosition)).toBe(true)
+    expect(usesCommercialStreetPages(mine, { x: alleyPosition.x, y: lane.bounds.y + 2 })).toBe(true)
+    expect(usesCommercialStreetPages(mine, shopPosition)).toBe(false)
+
+    const frameTopY = Math.min(...mine.geometry
+      .filter(unit => unit.sourceWallId === 'mining-street-back-alley-frame' && unit.edge === 'top')
+      .flatMap(unit => unit.visual.cells.map(cell => cell.y)))
+    const yongheDoor = mine.geometry.find(unit => unit.sourceWallId === 'mining-shop-2-interior-shell'
+      && unit.edge === 'top' && unit.navigation.passageId === 'yonghe-back-door' && unit.surface === 'door')!
+    const doorY = yongheDoor.visual.cells[0]!.y
+
+    for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
+      const pages = commercialStreetCameraPages(mine, viewport, alleyPosition.y)
+      expect(pages.centers.length).toBeGreaterThan(1)
+      for (let index = 1; index < pages.centers.length; index++) {
+        expect(pages.centers[index]! - pages.centers[index - 1]!).toBeLessThanOrEqual(pages.span * .8 + .00001)
+      }
+      const camera = { x: 50 - pages.centers[0]!, y: pages.yOffset }
+      for (const y of [frameTopY, doorY]) {
+        const point = mainlineViewportPointFromWorld({ x: 50, y }, viewport, camera)
+        expect(point.y, `alley boundary or back door must fit at ${viewport.width}x${viewport.height}`).toBeGreaterThan(0)
+        expect(point.y).toBeLessThan(100)
+      }
+    }
   })
 })

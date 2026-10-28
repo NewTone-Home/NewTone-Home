@@ -104,7 +104,6 @@ export type MainlineStructure = {
     vertical?: { start?: 'omit'; end?: 'omit' }
   }
   wallGlyphs?: readonly string[]
-  edgeWallGlyphs?: Partial<Record<MainlineWallOpening['edge'], readonly (string | undefined)[]>>
   wallGlyph?: '墙'
   openings?: readonly MainlineWallOpening[]
   features?: readonly MainlineWallFeature[]
@@ -301,16 +300,12 @@ function edgeGeometryCenter(bounds: CollisionBox, edge: MainlineWallOpening['edg
 
 type MainlinePassageGeometry = Pick<MainlineScenePassage, 'id' | 'portalId' | 'entityId' | 'access' | 'lockedText' | 'lockedTextPool' | 'routeThrough' | 'frameBehavior' | 'fromRoomId' | 'toRoomId'>
 
-function mainlineBoundaryCell(cell: SharedBoundaryCell, structure: MainlineStructure, edge: MainlineWallOpening['edge']): MainlineSceneVisualCell {
+function mainlineBoundaryCell(cell: SharedBoundaryCell, structure: MainlineStructure): MainlineSceneVisualCell {
   const kind = cell.role === 'door' ? 'door' : cell.role === 'opening' ? 'opening' : cell.role === 'feature' ? 'feature' : 'wall'
-  const edgeWallGlyphs = structure.edgeWallGlyphs?.[edge]
-  const edgeWallGlyph = edgeWallGlyphs?.[cell.gridIndex % edgeWallGlyphs.length]
-  const structuralWallGlyph = edgeWallGlyph !== undefined
-    ? edgeWallGlyph
-    : structure.wallGlyphs?.length
+  const structuralWallGlyph = structure.wallGlyphs?.length
     ? structure.wallGlyphs[cell.gridIndex % structure.wallGlyphs.length]
     : structure.wallGlyph ?? 'ǽ'
-  const glyph = kind === 'wall' && (edgeWallGlyph !== undefined || structure.wallGlyphs?.length)
+  const glyph = kind === 'wall' && structure.wallGlyphs?.length
     ? structuralWallGlyph
     : cell.glyph
   return {
@@ -437,7 +432,7 @@ function compileMainlineFrameUnits(
     const edgeCompilation = frameCompilation.edges.find((candidate) => candidate.edge.id === `${structure.id}-${edge}`)
     if (!edgeCompilation) return []
     const units: MainlineSceneGeometryUnit[] = []
-    const labelToCell = (cell: SharedBoundaryCell) => mainlineBoundaryCell(cell, structure, edge)
+    const labelToCell = (cell: SharedBoundaryCell) => mainlineBoundaryCell(cell, structure)
     const labelIsInsideOpening = (label: SharedBoundaryCell, opening: SharedBoundaryOpening & { resolvedStart?: number; resolvedEnd?: number }) => (
       label.axis >= (opening.resolvedStart ?? opening.start) - .001 && label.axis <= (opening.resolvedEnd ?? opening.end) + .001
     )
@@ -1071,7 +1066,6 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
        boundaryProjection: wall.boundaryProjection,
       boundaryVisualEndpoints: wall.boundaryVisualEndpoints,
       wallGlyphs: wall.wallGlyphs,
-      edgeWallGlyphs: wall.edgeWallGlyphs,
       wallGlyph: '墙',
       wallEdges: wall.edges,
       openings,
