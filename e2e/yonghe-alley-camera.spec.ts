@@ -107,9 +107,7 @@ test('Yonghe back door keeps its wall opening and switches outdoor pages to indo
 
     const doorRect = await backDoor.boundingBox()
     if (!doorRect || doorRect.x < 0 || doorRect.y < 0 || doorRect.x + doorRect.width > 1280 || doorRect.y + doorRect.height > 720) {
-      const actorBox = await actor.boundingBox()
-      const targetY = actorBox ? Math.max(72, Math.min(650, actorBox.y - 130)) : 102
-      await floorClick('approach-rear-door', 1050, targetY)
+      await floorClick('approach-rear-door', 1050, 102)
     }
     await expect(backDoor).toBeVisible({ timeout: 15_000 })
     const alley = await clickDoor('alley-arrival', 6)
