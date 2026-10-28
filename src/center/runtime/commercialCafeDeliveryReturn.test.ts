@@ -13,11 +13,13 @@ describe('Cafe story delivery return gate', () => {
       laoZhouDeparture: 'seated', completedAt: null,
     }
     const clicked = commercialCafeFinishDeliveryLine(delivered)
+    expect(clicked).not.toBe(delivered)
     expect(clicked).toMatchObject({ narrativeCursor: 1, narrativePhase: 'coffee-returning' })
     const restored = commercialCafeStoryStateFromSceneState(commercialCafeStoryStatePatch(clicked))
     expect(restored).toMatchObject({ narrativeCursor: 1, narrativePhase: 'coffee-returning', coffeeStatus: 'delivered' })
     const arrivedBack = commercialCafeFinishDeliveryReturn(restored)
     expect(arrivedBack).toMatchObject({ narrativeCursor: 2, narrativePhase: 'dialogue' })
     expect(commercialCafeFinishDeliveryReturn(arrivedBack)).toBe(arrivedBack)
+    expect(commercialCafeFinishDeliveryLine(arrivedBack)).toBe(arrivedBack)
   })
 })

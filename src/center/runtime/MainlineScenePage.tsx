@@ -2836,7 +2836,7 @@ export function MainlineScenePage({
       if (commercialCafeNarrative.phase === 'coffee-delivery') return
       if (commercialCafeNarrative.phase === 'delivery-line') {
         const acknowledged = commercialCafeFinishDeliveryLine(commercialCafeStory)
-        if (acknowledged.narrativeCursor === commercialCafeStory.narrativeCursor) return
+        if (acknowledged === commercialCafeStory) return
         cafeStoryOrderDelivery?.completePresentation(commercialCafeLaoZhouDeliveryEventId)
         recordSceneStatePatch(scene.id, commercialCafeStoryStatePatch(acknowledged))
         setDialogueSegmentIndex(0)
