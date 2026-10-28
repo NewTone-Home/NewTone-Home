@@ -7,6 +7,7 @@ import { mainlineActiveSpatialSpaceId, mainlineEntityBelongsToActiveSpace, mainl
 import { isMainlineSeatAvailable, mainlineSceneOccupiedSeatIds, nextMainlinePlayerSeatId } from '../src/center/runtime/mainlineSeating'
 import { counterOutlineGeometry } from '../src/center/runtime/counterOutlineGeometry'
 import { frameShouldCollapse } from '../src/center/runtime/sceneFrameLifecycle'
+import { mainlineExplorationChoiceIsActionOnly, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration } from '../src/center/runtime/mainlineSceneInteractions'
 
 for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
   const scene = mainlineScenes[sceneId]
@@ -123,6 +124,12 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       expect(safePath?.every(point => isWalkableMainlinePoint(point, scene, {}, options))).toBe(true)
       expect(passage.targetSceneId).toBeUndefined()
       expect(passage.toRoomId).toBeUndefined()
+      const exploration = resolveMainlineSceneExploration(scene, warehouse, {
+        incensePhase: 'unlit', plantWatered: false, officeBlindsOpen: false, carriedPhoneDevice: 'inner',
+      })
+      expect(mainlineExplorationChoiceIsActionOnly(exploration.choice)).toBe(true)
+      expect(exploration.choice?.options).toEqual(['推一下门'])
+      expect(resolveMainlineSceneEchoChoice(scene, warehouse, '推一下门', Date.now())?.followupText).toBe('门锁着，打不开。')
     })
 
     it('frames the four indoor tables on entry and re-entry, and hides them outside the room', () => {
