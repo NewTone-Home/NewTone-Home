@@ -71,7 +71,7 @@ export function bindContinuousCafe(blueprint: MainlineSceneBlueprint): MainlineS
     { npcId: 'cafe-coffee-owner', dutyId: 'cafe-coffee-owner.counter-service', targetId: 'commercial-cafe-counter-service', targetKind: 'point', interactionContactEntityId: 'commercial-cafe-counter' },
     { npcId: 'cafe-floor-server', dutyId: 'cafe-floor-server.table-service', targetId: 'commercial-cafe-floor-service-staging', targetKind: 'point' },
   ]
-  return { ...blueprint, interactionText: { ...blueprint.interactionText, 'street-cafe-entry': '这扇门直接通向商业街。', 'commercial-cafe-menu': '菜单挂在柜台旁。', 'commercial-cafe-blackboard': '黑板上留着店里的字迹。' }, scene: {
+  return { ...blueprint, interactionText: { ...blueprint.interactionText, 'street-cafe-entry': '这扇门直接通向商业街。', 'commercial-cafe-menu': '美式 3\n拿铁 4\n澳白 4\n焦糖玛奇朵 5\n海盐焦糖拿铁 5', 'commercial-cafe-blackboard': '新品｜海盐焦糖拿铁 — 5' }, scene: {
     ...data, floorEntities: retained,
     walls: data.walls.map(wall => {
       const overlapsCafeRoom = wall.bounds.x < room.bounds.x + room.bounds.width && wall.bounds.x + wall.bounds.width > room.bounds.x
