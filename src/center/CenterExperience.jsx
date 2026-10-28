@@ -481,17 +481,23 @@ export default function CenterExperience({
       }
       openShopOrderApp(shopId)
     }
-    if (entity.id === 'commercial-s5-milk-tea-order-service-label') {
-      useShopCounter(crossShopIds.milkTea)
+    const routeDrinkShopCounter = (shopId) => {
+      // With no existing order, let the physical worker/counter start the
+      // shared welcome and recommendation dialogue. Active orders stay on
+      // the existing app/pickup path, including ready claims.
+      if (!playerSaveRef.current.shopOrders?.[shopId]) return false
+      useShopCounter(shopId)
       return true
+    }
+    if (entity.id === 'commercial-s5-milk-tea-order-service-label' || entity.id === 'milk-tea-trial-long-counter-0') {
+      return routeDrinkShopCounter(crossShopIds.milkTea)
     }
     if (entity.id === 'commercial-s5-milk-tea-app-square') {
       openShopOrderApp(crossShopIds.milkTea)
       return true
     }
-    if (entity.id === 'fruit-tea-trial-order') {
-      useShopCounter(crossShopIds.fruitTea)
-      return true
+    if (entity.id === 'fruit-tea-trial-order' || entity.id === 'fruit-tea-trial-long-counter-0') {
+      return routeDrinkShopCounter(crossShopIds.fruitTea)
     }
     if (entity.id === 'fruit-tea-trial-app-square') {
       openShopOrderApp(crossShopIds.fruitTea)
