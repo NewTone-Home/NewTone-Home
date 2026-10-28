@@ -20,6 +20,68 @@ async function phoneMinutes(page: import('@playwright/test').Page) {
   return Number(match![1]) * 60 + Number(match![2])
 }
 
+function syntheticStoryClockSave(gameTimeMs: number) {
+  return {
+    _version: 2,
+    currentSceneId: 'jijia-ancestral-home',
+    currentPosition: null,
+    scenePositions: {},
+    phoneDevice: 'inner',
+    storyClock: { dayId: 'story-day-001', stage: 'opening', year: 2025, month: 4, day: 12, weekday: 6, hour: 10, minute: 0, weatherCycle: 'sunny' },
+    gameTimeMs,
+    walletBalance: 800,
+    shopOrderPaymentReceipts: {},
+    monthlySalaryReceipts: {},
+    sceneState: {},
+    phoneNotifications: [],
+    phoneNotes: [],
+    phoneContactNotes: {},
+    phoneCallHistory: [],
+    updatedAt: 1,
+  }
+}
+
+test('renders day/night from the shared clock while the narrative date stays April 12', async ({ page, browser }) => {
+  const loopedDayTime = 24 * 60 * 60_000 + (10 * 60) * 60_000
+  await page.addInitScript(save => {
+    localStorage.setItem('newtone-player-save-v1', JSON.stringify(save))
+    localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
+  }, syntheticStoryClockSave(loopedDayTime))
+  await startIsolatedWorld(page)
+
+  const center = page.locator('.center-experience')
+  await expect(center).toHaveAttribute('data-world-period', 'day')
+  const dayRoomColor = await page.locator('.mainline-scene-stage').evaluate(element => getComputedStyle(element).backgroundColor)
+  expect(dayRoomColor).toBe('rgb(17, 20, 15)')
+
+  const phone = page.locator('.world-phone')
+  await phone.locator('.world-phone__handle').click()
+  await expect(phone.locator('.world-phone__world-status')).toContainText('4月12日')
+  await expect(phone.locator('.world-phone__world-status')).toContainText('10:00')
+  await expect(phone.locator('.world-phone__calendar-grid span[data-weather]')).toHaveCount(30)
+
+  const nightContext = await browser.newContext()
+  try {
+    const nightPage = await nightContext.newPage()
+    await nightPage.addInitScript(save => {
+      localStorage.setItem('newtone-player-save-v1', JSON.stringify(save))
+      localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
+    }, syntheticStoryClockSave(19 * 60 * 60_000))
+    await nightPage.route('**/*', route => {
+      const url = new URL(route.request().url())
+      if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') return route.continue()
+      return route.abort()
+    })
+    await nightPage.goto('/?scene=jijia-ancestral-home')
+    const nightCenter = nightPage.locator('.center-experience')
+    await expect(nightCenter).toHaveAttribute('data-world-period', 'night')
+    const nightRoomColor = await nightPage.locator('.mainline-scene-stage').evaluate(element => getComputedStyle(element).backgroundColor)
+    expect(nightRoomColor).toBe('rgb(4, 7, 11)')
+  } finally {
+    await nightContext.close()
+  }
+})
+
 function minuteDelta(before: number, after: number) {
   return (after - before + 24 * 60) % (24 * 60)
 }

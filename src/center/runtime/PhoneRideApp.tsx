@@ -9,12 +9,12 @@ import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnaps
 import type { MainlineStoryClock } from './mainlineStoryClock'
 import { phoneDriverDistanceLabel, phoneDriverEtaLabel, phoneRideTripEstimate } from './phoneRidePresentation'
 type Point={x:number;y:number}
-export function PhoneRideApp({regions,device,currentLandmark,currentSceneId,order,clock,storyClock,available,online,destinationId,onDestination,onConfirm,getPosition,getRideMapSnapshot}:{
- regions:readonly PhoneMapRegion[];device:PhoneDevice;currentLandmark:{device:PhoneDevice;id:string}|null;currentSceneId:MainlineSceneId;order:MainlineRideOrder|null;clock:number;storyClock:MainlineStoryClock;available:boolean;online:boolean;destinationId:string|null;onDestination:(id:string)=>void;onConfirm:(sceneId:MainlineSceneId,presentation:{vehicle:MainlineRideVehicle;arrivalLabel?:string})=>MainlineRideRequestResult|void;getPosition?:()=>Point|null;getRideMapSnapshot?:()=>MainlineSceneGeometrySnapshot|null
+export function PhoneRideApp({regions,device,currentLandmark,currentSceneId,order,clock,storyClock,gameTimeMs,available,online,destinationId,onDestination,onConfirm,getPosition,getRideMapSnapshot}:{
+ regions:readonly PhoneMapRegion[];device:PhoneDevice;currentLandmark:{device:PhoneDevice;id:string}|null;currentSceneId:MainlineSceneId;order:MainlineRideOrder|null;clock:number;storyClock:MainlineStoryClock;gameTimeMs?:number;available:boolean;online:boolean;destinationId:string|null;onDestination:(id:string)=>void;onConfirm:(sceneId:MainlineSceneId,presentation:{vehicle:MainlineRideVehicle;arrivalLabel?:string})=>MainlineRideRequestResult|void;getPosition?:()=>Point|null;getRideMapSnapshot?:()=>MainlineSceneGeometrySnapshot|null
 }) {
  const destinations=regions.filter(region=>region.sceneId && region.id!==currentLandmark?.id)
  const destination=destinations.find(region=>region.id===destinationId) ?? null
- const estimate = phoneRideTripEstimate(currentLandmark?.id, destination?.id ?? null, storyClock)
+ const estimate = phoneRideTripEstimate(currentLandmark?.id, destination?.id ?? null, storyClock, gameTimeMs)
  const [zoom,setZoom]=useState<PhoneMapZoomLevel>(1)
  const [pan,setPan]=useState<readonly [number,number]>([0,0])
  const [sheetExpanded,setSheetExpanded]=useState(false)

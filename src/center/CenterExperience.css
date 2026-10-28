@@ -8,6 +8,11 @@
   pointer-events: auto;
 }
 
+/* Day/night affects only the scene's ambient room color. Reading and dialogue
+   layers keep their existing per-character brightness rules. */
+.center-experience--day { --mainline-environment-room: #11140f; }
+.center-experience--night { --mainline-environment-room: #04070b; }
+
 .center-experience__background {
   position: absolute;
   inset: 0;

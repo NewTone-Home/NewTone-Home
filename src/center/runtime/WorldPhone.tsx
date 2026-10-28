@@ -15,7 +15,7 @@ import { type MainlineRideOrder, type MainlineRideVehicle, type MainlineRideRequ
 import { PhoneNotificationCapsule } from './PhoneNotificationCapsule'
 import type { PhoneNotification } from './phoneNotifications'
 import { phoneStoryHistory, type PhoneCallRecord, type PhoneNote } from './phonePersonalData'
-import { mainlineStoryDateLabel, mainlineStoryTimeLabel, mainlineWorldWeatherLabel, type MainlineStoryClock } from './mainlineStoryClock'
+import { daysInStoryMonth, mainlineStoryDateLabel, mainlineStoryTimeLabel, mainlineWorldWeatherLabel, storyCalendarLeadingBlankCount, type MainlineStoryClock } from './mainlineStoryClock'
 import './phone.css'
 import { PhoneMapCanvas } from './PhoneMapCanvas'
 import { PhoneRideApp } from './PhoneRideApp'
@@ -745,9 +745,12 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const selectedMapPoi = mapRegions.flatMap((region) => region.pois.map((poi) => ({ region, poi }))).find(({ poi }) => poi.id === selectedMapPlaceId) ?? null
   const selectedMapTitle = selectedMapPoi?.poi.label ?? selectedMapRegion?.label ?? null
 
-  const storyDate = mainlineStoryDateLabel()
+  const storyDate = mainlineStoryDateLabel(storyClock)
   const storyTime = gameTimeLabel ?? mainlineStoryTimeLabel(storyClock.stage)
   const worldWeather = mainlineWorldWeatherLabel(displayDevice, storyClock.weatherCycle)
+  const calendarYear = storyClock.year ?? 2025
+  const calendarMonth = storyClock.month ?? 4
+  const calendarDay = storyClock.day ?? 12
 
 
   return (
@@ -802,11 +805,11 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
             <section className="world-phone__home-screen" tabIndex={0} aria-label="手机主屏">
               <div className="world-phone__home-layout">
                 <section className="world-phone__home-calendar" aria-label="剧情日历">
-                  <strong>四月</strong>
+                  <strong>{calendarMonth}月</strong>
                   <div className="world-phone__calendar-grid">
                     {['一','二','三','四','五','六','日'].map(day => <small key={day}>{day}</small>)}
-                    <span />
-                    {Array.from({ length: 30 }, (_, i) => i + 1).map(day => <span key={day} aria-current={day === 12 ? 'date' : undefined} data-weather={displayDevice === 'inner' ? (Math.floor(day / 7) % 2 ? (storyClock.weatherCycle ?? 'sunny') : (storyClock.weatherCycle === 'rainy' ? 'sunny' : 'rainy')) : undefined}><b>{day}</b></span>)}
+                    {Array.from({ length: storyCalendarLeadingBlankCount(calendarYear, calendarMonth) }, (_, i) => <span key={`blank-${i}`} />)}
+                    {Array.from({ length: daysInStoryMonth(calendarYear, calendarMonth) }, (_, i) => i + 1).map(day => <span key={day} aria-current={day === calendarDay ? 'date' : undefined} data-weather={displayDevice === 'inner' ? (Math.floor(day / 7) % 2 ? (storyClock.weatherCycle ?? 'sunny') : (storyClock.weatherCycle === 'rainy' ? 'sunny' : 'rainy')) : undefined}><b>{day}</b></span>)}
                   </div>
                 </section>
                 <section className="world-phone__home-memo" aria-label="备忘录">
@@ -860,7 +863,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
               </div>
             )}
 
-            {activeApp === 'ride' && <PhoneRideApp regions={mapRegions} device={displayDevice} currentLandmark={currentLandmark} currentSceneId={currentSceneId as MainlineSceneId} order={rideOrder} clock={rideClock} storyClock={storyClock} available={rideAvailability === 'available'} online={online} destinationId={selectedRideDestinationId} onDestination={setSelectedRideDestinationId} onConfirm={(sceneId,presentation) => onRideRequest?.(displayDevice, sceneId,presentation)} getPosition={getPlayerPosition} getRideMapSnapshot={getRideMapSnapshot} />}
+            {activeApp === 'ride' && <PhoneRideApp regions={mapRegions} device={displayDevice} currentLandmark={currentLandmark} currentSceneId={currentSceneId as MainlineSceneId} order={rideOrder} clock={rideClock} storyClock={storyClock} gameTimeMs={gameTimeMs} available={rideAvailability === 'available'} online={online} destinationId={selectedRideDestinationId} onDestination={setSelectedRideDestinationId} onConfirm={(sceneId,presentation) => onRideRequest?.(displayDevice, sceneId,presentation)} getPosition={getPlayerPosition} getRideMapSnapshot={getRideMapSnapshot} />}
 
             {activeShopId && activeApp && shopProducts.length > 0 && <ShopOrderApp key={activeShopId} shopId={activeShopId} title={shopTitle} products={shopProducts} initialProductId={preselectedShopProductId} availableShops={availableShopIds.filter(id => id === crossShopIds.milkTea || id === crossShopIds.fruitTea).map(id => ({ id, label: shopTitleForId(id) }))} onShopSelect={setActiveShopId} order={shopOrders[activeShopId] ?? null} heldConsumable={heldConsumable} walletBalance={walletBalance} gameTimeMs={gameTimeMs} preparationConfigured={Boolean(preparationConfiguredByShop[activeShopId])} onConfirm={selection => onShopOrderConfirm?.(selection) ?? { ok: false, reason: 'order-service-unavailable' }} onOrderPlaced={onShopOrderPlaced} onOrderReady={onShopOrderReady} onCancelLegacy={onLegacyShopOrderCancel} />}
             {activeApp === 'milk-tea' && !activeShopId && <section className="world-phone__list-page world-phone__milk-tea" aria-label="奶茶">
