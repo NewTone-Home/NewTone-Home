@@ -32,12 +32,12 @@ describe('shop wallet save migration', () => {
     const fresh = createInitialPlayerSave()
     const first = placePaidShopOrder({ ordersByShop: {}, heldConsumable: null }, { walletBalance: 800, paymentReceipts: {} }, {
       orderId: 'milk-order', idempotencyKey: 'milk-purchase', shopId: crossShopIds.milkTea,
-      productId: 'original-milk-tea', price: 5, placedAtGameTimeMs: 10_000, preparationDurationMs: 5 * 60_000,
+      productId: 'original-milk-tea', price: 3, placedAtGameTimeMs: 10_000, preparationDurationMs: 5 * 60_000,
     })
     if (!first.ok) throw new Error(first.reason)
     const second = placePaidShopOrder(first.orderState, first.paymentState, {
       orderId: 'fruit-order', idempotencyKey: 'fruit-purchase', shopId: crossShopIds.fruitTea,
-      productId: 'passionfruit-green-tea', price: 5, placedAtGameTimeMs: 20_000, preparationDurationMs: 5 * 60_000,
+      productId: 'passionfruit-green-tea', price: 4, placedAtGameTimeMs: 20_000, preparationDurationMs: 5 * 60_000,
     })
     if (!second.ok) throw new Error(second.reason)
     const restored = sanitizePlayerSave({
@@ -45,9 +45,9 @@ describe('shop wallet save migration', () => {
       walletBalance: second.paymentState.walletBalance,
       shopOrderPaymentReceipts: second.paymentState.paymentReceipts,
     }, fresh.currentSceneId)
-    expect(restored.walletBalance).toBe(790)
-    expect(restored.shopOrders[crossShopIds.milkTea]).toMatchObject({ id: 'milk-order', pricePaid: 5, readyAtGameTimeMs: 310_000 })
-    expect(restored.shopOrders[crossShopIds.fruitTea]).toMatchObject({ id: 'fruit-order', pricePaid: 5, readyAtGameTimeMs: 320_000 })
+    expect(restored.walletBalance).toBe(793)
+    expect(restored.shopOrders[crossShopIds.milkTea]).toMatchObject({ id: 'milk-order', pricePaid: 3, readyAtGameTimeMs: 310_000 })
+    expect(restored.shopOrders[crossShopIds.fruitTea]).toMatchObject({ id: 'fruit-order', pricePaid: 4, readyAtGameTimeMs: 320_000 })
     expect(Object.keys(restored.shopOrderPaymentReceipts)).toEqual(['milk-purchase', 'fruit-purchase'])
   })
 

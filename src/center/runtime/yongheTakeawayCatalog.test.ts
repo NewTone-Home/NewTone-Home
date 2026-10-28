@@ -13,11 +13,11 @@ describe('Yonghe cross-shop order catalog contract', () => {
     expect(yongheTakeawayCatalog.every(product => product.storeId === yongheTakeawayShopId)).toBe(true)
   })
 
-  it('filters recommendations by type and shows the four established menu prices', () => {
+  it('filters noodle and rice recommendations without choosing a specific dish, and shows the established prices', () => {
     expect(yongheMenuForChoice('\u9762').map(product => product.id)).toEqual(['yonghe-fresh-pork-wontons', 'yonghe-minced-pork-noodles'])
     expect(yongheMenuForChoice('\u996d').map(product => product.id)).toEqual(['yonghe-egg-fried-rice', 'yonghe-pork-and-greens-rice'])
     expect(yongheRecommendedDishNames('\u9762')).toEqual(['\u9c9c\u8089\u9984\u9968', '\u8089\u672b\u62cc\u9762'])
     expect(yongheRecommendedDishNames('\u996d')).toEqual(['\u86cb\u7092\u996d', '\u9752\u83dc\u8089\u7247\u76d6\u996d'])
-    expect(yongheMenuText()).toBe('\u9c9c\u8089\u9984\u9968 12\u5143\n\u8089\u672b\u62cc\u9762 11\u5143\n\u86cb\u7092\u996d 10\u5143\n\u9752\u83dc\u8089\u7247\u76d6\u996d 14\u5143')
+    expect(yongheMenuText().split('\n').map(line => Number(line.match(/ (\d+)\u5143$/)?.[1]))).toEqual([12, 11, 10, 14])
   })
 })

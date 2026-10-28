@@ -7,7 +7,7 @@ import {
 
 const cafeOrder = {
   id: 'cafe-order-1', shopId: crossShopIds.cafeTakeaway, productId: 'americano', status: 'queued' as const,
-  placedAtGameTimeMs: 100, readyAtGameTimeMs: 300_100, pricePaid: 5, paymentReceiptId: 'pay-1',
+  placedAtGameTimeMs: 100, readyAtGameTimeMs: 300_100, pricePaid: 3, paymentReceiptId: 'pay-1',
 }
 
 describe('Café story delivery bridge', () => {
