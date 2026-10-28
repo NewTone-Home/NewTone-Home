@@ -11,6 +11,15 @@ describe('mainline interaction text segments', () => {
     expect(sourcePages.join('')).toBe('A long first pageand the complete last page')
   })
 
+  it('preserves authored punctuation and a final ellipsis alongside continuation marks', () => {
+    const source = '\u7532\u3002\u4e59\uff1f...'
+    const pages = ['\u7532\u3002', '\u4e59\uff1f...']
+    expect(mainlineDisplaySourceText(source)).toBe(source)
+    expect(pages.join('')).toBe(source)
+    expect(mainlineReadingPageDisplayText(pages, 0)).toBe('\u7532\u3002...')
+    expect(mainlineReadingPageDisplayText(pages, 1)).toBe('\u4e59\uff1f...')
+  })
+
   it('uses natural comma boundaries and preserves visible punctuation', () => {
     expect(splitMainlineInteractionText('桌上摆放着牌位，香炉里的火还没有熄灭。')).toEqual(asDisplayedSegments([
       '桌上摆放着牌位，',
@@ -120,27 +129,16 @@ describe('mainline interaction text segments', () => {
     expect(impossibleWidth.join('')).toBe('甲！')
   })
 
-  it('removes a terminal Chinese full stop before desktop and mobile width fitting', () => {
-    const source = '\u8fd9\u91cc\u662f\u539f\u67dc\u53f0\u7684\u70b9\u5355\u63a5\u89e6\u4f4d\u7f6e\u3002'
-    const display = '\u8fd9\u91cc\u662f\u539f\u67dc\u53f0\u7684\u70b9\u5355\u63a5\u89e6\u4f4d\u7f6e'
+  it('preserves all source punctuation through width fitting and pagination', () => {
+    const source = '这里是原柜台的点单接触位置。原文自带...“好吗？！”'
     const measure = value => Array.from(value).length * 20
-    expect(mainlineDisplaySourceText(source)).toBe(display)
-    expect(splitMainlineInteractionTextToFit(source, 270, 20, measure)).toEqual([display])
-    for (const width of [230, 240]) {
-      const mobilePages = splitMainlineInteractionTextToFit(source, width, 20, measure)
-      expect(mobilePages).toEqual([
-        '\u8fd9\u91cc\u662f\u539f\u67dc\u53f0\u7684\u70b9\u5355\u63a5',
-        '\u89e6\u4f4d\u7f6e',
-      ])
-      expect(mobilePages.at(-1)).not.toMatch(/^\u3002?$/u)
-      expect(Array.from(mobilePages.at(-1) ?? '').length).toBeGreaterThanOrEqual(3)
-      expect(mobilePages.every(page => measure(page) <= width)).toBe(true)
-      expect(mobilePages.join('')).toBe(display)
+    expect(mainlineDisplaySourceText(source)).toBe(source)
+    for (const width of [230, 240, 270]) {
+      const pages = splitMainlineInteractionTextToFit(source, width, 20, measure)
+      expect(pages.join('')).toBe(source)
+      expect(pages.every(page => measure(page) <= width)).toBe(true)
     }
-    expect(splitMainlineInteractionText(source)).toEqual([display])
-    expect(mainlineDisplaySourceText('\u539f\u6587\u3002\u5185\u90e8\u53e5\u53f7\u3002')).toBe('\u539f\u6587\u3002\u5185\u90e8\u53e5\u53f7')
-    expect(mainlineDisplaySourceText('\u539f\u6587.')).toBe('\u539f\u6587.')
-    expect(mainlineDisplaySourceText('\u539f\u6587\uff01')).toBe('\u539f\u6587\uff01')
+    expect(splitMainlineInteractionText(source).join('')).toBe(source)
   })
 
 })

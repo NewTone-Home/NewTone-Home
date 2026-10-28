@@ -18,13 +18,9 @@ export function mainlineReadingPageDisplayText(segments: readonly string[], inde
   return index < segments.length - 1 ? `${text}...` : text
 }
 
-/** Text shown in the reading UI may omit a terminal Chinese full stop. Keep
- * the authored source elsewhere; normalize before either segmentation path
- * measures or stores display pages. Internal punctuation is left untouched. */
+/** Keep authored text intact before measuring or segmenting display pages. */
 export function mainlineDisplaySourceText(source: string) {
-  const trailingWhitespace = source.match(/\s*$/u)?.[0] ?? ''
-  const content = trailingWhitespace ? source.slice(0, -trailingWhitespace.length) : source
-  return content.endsWith('。') ? `${content.slice(0, -1)}${trailingWhitespace}` : source
+  return source
 }
 function characterLength(value: string) {
   return Array.from(value.replace(/[\s。！？!?；;，,、：:“”‘’"'「」『』（）()【】〔〕［］《》〈〉]+$/gu, '').replace(/\s/g, '')).length
