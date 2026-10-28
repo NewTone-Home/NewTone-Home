@@ -329,7 +329,7 @@ describe('reading target protection', () => {
     expect(menuEntry).toBeTruthy()
     expect(neighboringWallEntry).toBeTruthy()
     const neighboringWallPlane = menuHtml.match(new RegExp(`<div[^>]*data-reading-occlusion-key="${neighboringWallEntry?.cell.id}"[^>]*>`))?.[0]
-    expect(neighboringWallPlane).not.toContain('data-reading-occlusion-protected')
+    expect(neighboringWallPlane).toContain('data-reading-occlusion-protected="true"')
     expect(neighboringWallPlane).not.toContain('mask-image')
     expect(neighboringWallPlane).toContain('data-reading-world-bounds=')
     expect(neighboringWallPlane).toContain(`data-reading-occlusion-key="${neighboringWallEntry?.cell.id}"`)

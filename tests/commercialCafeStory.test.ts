@@ -14,6 +14,7 @@ import {
   commercialCafeCoffeeOrdered,
   commercialCafeFinishCursorOne,
   commercialCafeFinishDeliveryLine,
+  commercialCafeFinishDeliveryReturn,
   commercialCafeFloorServerNpcId,
   commercialCafeLaoZhouConversationSeatId,
   commercialCafeLaoZhouIsPresent,
@@ -141,11 +142,13 @@ describe('commercial café story contract', () => {
     expect(restoredDeliveryLine).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 1, narrativePhase: 'coffee-delivery' })
     expect(restoredDeliveryLine.narrativeCursor).toBe(1)
     const acknowledged = commercialCafeFinishDeliveryLine(restoredDeliveryLine)
-    expect(acknowledged).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 2, narrativePhase: 'dialogue' })
-    expect(acknowledged.narrativeCursor).toBe(2)
-    expect(acknowledged.narrativePhase).toBe('dialogue')
-    expect(commercialCafeStoryStatePatch(acknowledged)).toMatchObject({ commercialCafeCoffeeStatus: 'delivered', commercialCafeNarrativeCursor: 2 })
-    expect(commercialCafeFinishDeliveryLine(commercialCafeStoryStateFromSceneState(commercialCafeStoryStatePatch(acknowledged)))).toEqual(acknowledged)
+    expect(acknowledged).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 1, narrativePhase: 'coffee-returning' })
+    const returnSaved = commercialCafeStoryStateFromSceneState(commercialCafeStoryStatePatch(acknowledged))
+    expect(returnSaved).toEqual(acknowledged)
+    const resumed = commercialCafeFinishDeliveryReturn(returnSaved)
+    expect(resumed).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 2, narrativePhase: 'dialogue' })
+    expect(commercialCafeStoryStatePatch(resumed)).toMatchObject({ commercialCafeCoffeeStatus: 'delivered', commercialCafeNarrativeCursor: 2 })
+    expect(commercialCafeFinishDeliveryLine(commercialCafeStoryStateFromSceneState(commercialCafeStoryStatePatch(resumed)))).toEqual(resumed)
   })
 
   it('does not ready or deliver coffee before prep arrival when cursor 1 opens the gate early', () => {

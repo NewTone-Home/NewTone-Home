@@ -27,7 +27,7 @@ describe('commercial café staff duty ownership', () => {
     coffeeOwner.arrivedAtStoryTable()
     expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'coffee-delivery', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toBeNull()
     expect(coffeeOwner.getPhase()).toBe('delivery-arrived')
-    expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'dialogue', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toMatchObject({
+    expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'coffee-returning', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toMatchObject({
       dutyId: npcRoles.cafeCoffeeOwner.duties.returnToCounter.id,
       targetId: 'commercial-cafe-counter-service',
     })
@@ -43,7 +43,7 @@ describe('commercial café staff duty ownership', () => {
     expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'coffee-delivery', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toBeNull()
     expect(coffeeOwner.getPhase()).toBe('delivery-arrived')
 
-    const returnIntent = coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'dialogue', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })
+    const returnIntent = coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'coffee-returning', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })
     expect(returnIntent).toMatchObject({ dutyId: 'cafe-coffee-owner.return-to-counter', targetId: 'commercial-cafe-counter-service' })
   })
 

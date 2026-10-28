@@ -21,13 +21,15 @@ describe('release preparation', () => {
       details: ['· We’ve opened up more places to explore. You can go wander the streets now.', '· A few new NPCs have appeared.', '· We’ve also refined some of the visuals and interactions.', 'The English version and other localizations aren’t ready just yet, but they’re still in development.'],
     })
   })
-  it('keeps only the existing Lao Zhou contact and messages, with no Ruo Yu UI data', () => {
+  it('keeps Lao Zhou messages and gates Ruo Yu contact behind the unlock', () => {
     const phone = read('../src/center/runtime/WorldPhone.tsx')
     const contacts = phone.slice(phone.indexOf('const innerContacts'), phone.indexOf('type WorldPhoneProps'))
-    expect([...contacts.matchAll(/id: '([^']+)'/g)].map(match => match[1])).toEqual(['lao-zhou'])
+    expect([...contacts.matchAll(/id: '([^']+)'/g)].map(match => match[1])).toEqual(['ruoyu', 'lao-zhou'])
     expect(contacts).toContain("messages: ['陈副部长失踪了。', '什么时候有空。', '周六。', '老地方。', '好。']")
     expect(phone).not.toContain('ruo-yu')
-    expect(phone).not.toContain('若雨')
+    expect(phone).toContain("innerContacts.filter(contact => ruoyuMessagesUnlocked || contact.id !== 'ruoyu')")
+    expect(phone).toContain("requestedApp === 'ruoyu-messages'")
+    expect(phone).toContain('ruoyuMessagesUnlocked')
     expect(phone).toContain('暂无联系人')
     expect(phone).not.toContain('当前手机没有里世界联系人。')
   })
