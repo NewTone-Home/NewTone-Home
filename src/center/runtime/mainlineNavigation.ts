@@ -1377,10 +1377,21 @@ export function resolveMainlineWorldNavigation(
   if (!isWalkableMainlinePoint(from, scene, layout, options)) return null
   const adapter = prepareMainlineWorldNavigation(scene, layout, options)
   const footprint = adapter.actorFootprint
-  const deniedBoundaries = scene.accessBoundaries.flatMap(boundary => {
-    const region = scene.accessRegions.find(candidate => candidate.id === boundary.regionId)
-    return region && !actorCanEnterRegion(scene, options.actorId, region)
-      ? [{ region, geometry: accessBoundaryGeometry(region, boundary.edge, footprint) }] : []
+  const explicitBoundariesByRegion = new Map<string, typeof scene.accessBoundaries>()
+  scene.accessBoundaries.forEach(boundary => {
+    const boundaries = explicitBoundariesByRegion.get(boundary.regionId) ?? []
+    explicitBoundariesByRegion.set(boundary.regionId, [...boundaries, boundary])
+  })
+  const deniedBoundaries = scene.accessRegions.flatMap(region => {
+    if (actorCanEnterRegion(scene, options.actorId, region)) return []
+    const explicitBoundaries = explicitBoundariesByRegion.get(region.id)
+    // Regions without authored boundary metadata still need a public contact
+    // point so a blocked click can explain the access rule. Derive all four
+    // perimeter edges only for those regions; authored openings stay exact.
+    const edges = explicitBoundaries?.length
+      ? explicitBoundaries.map(boundary => boundary.edge)
+      : ['top', 'right', 'bottom', 'left'] as const
+    return edges.map(edge => ({ region, geometry: accessBoundaryGeometry(region, edge, footprint) }))
   })
   if (deniedBoundaries.length) {
     // Most clicks in a scene with protected regions still target public,

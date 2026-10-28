@@ -358,6 +358,33 @@ describe('ordinary world navigation and passage intent', () => {
     expect(floorServerDenied.reachedRequestedTarget).toBe(false)
   })
 
+  it('returns access-denial feedback for a protected region with no authored boundary edges', () => {
+    const yonghe = mainlineScenes['yonghe-eatery']
+    const region = yonghe.accessRegions.find(candidate => candidate.id === 'yonghe-trial-kitchen')!
+    expect(yonghe.accessBoundaries.some(boundary => boundary.regionId === region.id)).toBe(false)
+    const from = yonghe.initialPlayerPosition
+    const target = { x: region.x + region.width / 2, y: region.y + region.height / 2 }
+    const screenMetrics = currentCafeOptions.screenMetrics
+    const dot = mainlineProtagonistDotFootprint(from, screenMetrics, yonghe.id)
+    const geometrySnapshot = createMainlineSceneGeometrySnapshot(yonghe, from, {}, screenMetrics)
+    const options = {
+      ...currentCafeOptions,
+      actorId: 'protagonist',
+      actorFootprint: { width: dot.width, height: dot.height },
+      screenMetrics,
+      geometrySnapshot,
+    }
+
+    const resolution = resolveMainlineWorldNavigation(yonghe, from, target, {}, options)
+
+    expect(resolution).not.toBeNull()
+    expect(resolution?.reachedRequestedTarget).toBe(false)
+    expect(resolution?.deniedAccessRegion?.id).toBe(region.id)
+    expect(resolution?.deniedAccessRegion?.deniedText).toBeTruthy()
+    expect(resolution?.resolvedNavigableTarget).not.toEqual(target)
+    expect(isWalkableMainlinePoint(resolution!.resolvedNavigableTarget, yonghe, {}, options)).toBe(true)
+  })
+
   it('derives distinct public contacts at the actual upper-right employee opening without projecting through the counter',()=>{
  const cafe=mainlineScenes['commercial-street'],staff=cafe.accessRegions.find(r=>r.id==='commercial-cafe-staff-area')!,from=cafePoint(228,56)
  const contacts=[.2,.4,.6,.8].map(fraction=>{
