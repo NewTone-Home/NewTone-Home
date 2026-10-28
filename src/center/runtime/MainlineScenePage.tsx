@@ -60,7 +60,7 @@ import { commercialStreetMilkTeaConsumePatch, commercialStreetMilkTeaAppUnlockPa
 import type { SessionGameActivitySource } from './sessionGameClock'
 import { mainlineReadingSessionTextIsFinal, mainlineReadingTextMotionAfterAdvance, mainlineReadingTextMotionAfterAnimation, mainlineReadingTextMotionCompletionMatches, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
 import { yongheMenuForChoice, yongheMenuText, yongheTakeawayCatalog } from './yongheTakeawayCatalog'
-import { commercialStreetDrinkShopDialogue, recommendedCommercialStreetDrink } from './commercialStreetDrinkCatalog'
+import { commercialStreetDrinkShopDialogue, commercialStreetDrinkShopForInteraction, recommendedCommercialStreetDrink } from './commercialStreetDrinkCatalog'
 import { commercialStreetFruitTeaAppUnlockPatch, commercialStreetFruitTeaAppUnlocked } from './commercialStreetShopApps'
 import type { CafeStoryOrderStatus } from './cafeStoryOrderDelivery'
 
@@ -73,11 +73,6 @@ const restroomPresentationSuppressionForSeatedPlayer: ReadonlySet<string> = new 
 // repeatedly recreate the NPC registration and presentation dependencies.
 const inactiveCommercialCafeStory = commercialCafeStoryStateFromSceneState(undefined)
 const commercialCafeLaoZhouDeliveryEventId = 'commercial-cafe-lao-zhou-after-line-2'
-function commercialDrinkShopForWorker(workerId: string) {
-  if (workerId === 'milk-tea-trial-worker') return 'commercial-south-slot-5'
-  if (workerId === 'fruit-tea-trial-worker') return 'commercial-north-slot-1'
-  return null
-}
 function isYongheTakeawayScene(sceneId: string) {
   return sceneId === 'yonghe-eatery' || sceneId === 'yonghe-mining-perimeter'
 }
@@ -2275,6 +2270,13 @@ export function MainlineScenePage({
         setActiveObjectId(null)
         return
       }
+      if (commercialStreetDrinkShopForInteraction(entity.id)) {
+        recommendedDrinkRef.current = null
+        presentCommercialDrinkEcho(entity.id, commercialStreetDrinkShopDialogue.welcome, ['点单', commercialStreetDrinkShopDialogue.recommendationRequest])
+        setActiveObjectId(null)
+        onInteractionAnalytics?.('completed', entity.id, entity.kind, 'drink-shop-dialogue-started')
+        return
+      }
       onObjectInteraction?.(entity, Math.max(0, Date.now() - (interactionStartedAt ?? Date.now())))
       if (entity.interactionBehavior === 'cafe-faucet-toggle') {
         cafeRestroomFaucetOpenRef.current = !cafeRestroomFaucetOpenRef.current
@@ -2367,7 +2369,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, cancelSceneAction, carriedPhoneDevice, cafeRestroomToiletUseRef, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, createSceneAction, clearCafeRestroomToiletUse, denyLockedPassageAfterApproach, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onCommerceEntity, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, presentYongheEcho, readingActive, recordSceneState, recordSceneStatePatch, resetMovement, scene, sceneAction, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startDialogueTextSession, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, cancelSceneAction, carriedPhoneDevice, cafeRestroomToiletUseRef, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, createSceneAction, clearCafeRestroomToiletUse, denyLockedPassageAfterApproach, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onCommerceEntity, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, presentCommercialDrinkEcho, presentYongheEcho, readingActive, recordSceneState, recordSceneStatePatch, resetMovement, scene, sceneAction, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startDialogueTextSession, startNpcDialogue, startPassageTraversal, stopMovement])
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
@@ -2561,7 +2563,7 @@ export function MainlineScenePage({
     const completeInteraction = () => {
       if (npcInteractionRequestRef.current !== requestId) return
       onNpcInteraction?.(npc.id)
-      if (commercialDrinkShopForWorker(npc.id)) {
+      if (commercialStreetDrinkShopForInteraction(npc.id)) {
         recommendedDrinkRef.current = null
         onInteractionAnalytics?.('completed', npc.id, 'npc', 'dialogue-started')
         presentCommercialDrinkEcho(npc.id, commercialStreetDrinkShopDialogue.welcome, ['点单', commercialStreetDrinkShopDialogue.recommendationRequest])
@@ -2616,7 +2618,7 @@ export function MainlineScenePage({
     const option = sceneAction?.options[index]
     if (!option) return
     onMeaningfulActivity?.()
-    const drinkShopId = sceneAction.entityId ? commercialDrinkShopForWorker(sceneAction.entityId) : null
+    const drinkShopId = sceneAction.entityId ? commercialStreetDrinkShopForInteraction(sceneAction.entityId) : null
     if (drinkShopId) {
       if (option === '点单') {
         onDrinkShopOrderOpen?.(drinkShopId)

@@ -40,6 +40,22 @@ export const commercialStreetDrinkCatalog = drinkCatalogEntries.map((product, in
 })) as readonly (CommercialStreetDrink & { storeId: string })[]
 export const commercialStreetDrinkCatalogWithStores = commercialStreetDrinkCatalog
 
+/** Resolve only the two commercial tea shop staff/counter entities to their shared shop flow. */
+export function commercialStreetDrinkShopForInteraction(entityId: string): string | null {
+  switch (entityId) {
+    case 'milk-tea-trial-worker':
+    case 'milk-tea-trial-long-counter-0':
+    case 'commercial-s5-milk-tea-order-service-label':
+      return 'commercial-south-slot-5'
+    case 'fruit-tea-trial-worker':
+    case 'fruit-tea-trial-long-counter-0':
+    case 'fruit-tea-trial-order':
+      return 'commercial-north-slot-1'
+    default:
+      return null
+  }
+}
+
 export const commercialStreetDrinkShopDialogue = {
   welcome: '欢迎光临，看看想喝什么？',
   recommendationRequest: '有什么推荐？',

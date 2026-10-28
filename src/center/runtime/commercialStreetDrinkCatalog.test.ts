@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { commercialStreetDrinkCatalog, commercialStreetDrinkCatalogMissingCopy, commercialStreetDrinkMenuText, commercialStreetDrinkShopDialogue, drinkCustomizationOptions, recommendedCommercialStreetDrink } from './commercialStreetDrinkCatalog'
+import { commercialStreetDrinkCatalog, commercialStreetDrinkCatalogMissingCopy, commercialStreetDrinkMenuText, commercialStreetDrinkShopDialogue, commercialStreetDrinkShopForInteraction, drinkCustomizationOptions, recommendedCommercialStreetDrink } from './commercialStreetDrinkCatalog'
 import { milkTeaDrinks } from './commercialStreetMilkTea'
 
 describe('commercial street drink reference catalog', () => {
@@ -52,6 +52,17 @@ describe('commercial street drink reference catalog', () => {
     expect(recommendations.find(item => item.id === 'strawberry-fruit-drink')?.customization.sugar).toBeNull()
     expect(recommendations.every(item => item.customization.ice.length > 0)).toBe(true)
     expect(commercialStreetDrinkCatalogMissingCopy.recommendations).toEqual(['original-milk-tea', 'brown-sugar-pearl-milk-tea', 'grape-jasmine-tea', 'fresh-orange-juice'])
+  })
+
+  it('routes only the milk tea and fruit tea shop staff and counters to their own shared ordering flow', () => {
+    expect(commercialStreetDrinkShopForInteraction('milk-tea-trial-worker')).toBe('commercial-south-slot-5')
+    expect(commercialStreetDrinkShopForInteraction('milk-tea-trial-long-counter-0')).toBe('commercial-south-slot-5')
+    expect(commercialStreetDrinkShopForInteraction('commercial-s5-milk-tea-order-service-label')).toBe('commercial-south-slot-5')
+    expect(commercialStreetDrinkShopForInteraction('fruit-tea-trial-worker')).toBe('commercial-north-slot-1')
+    expect(commercialStreetDrinkShopForInteraction('fruit-tea-trial-long-counter-0')).toBe('commercial-north-slot-1')
+    expect(commercialStreetDrinkShopForInteraction('fruit-tea-trial-order')).toBe('commercial-north-slot-1')
+    expect(commercialStreetDrinkShopForInteraction('commercial-cafe-counter')).toBeNull()
+    expect(commercialStreetDrinkShopForInteraction('yonghe-trial-worker')).toBeNull()
   })
 
   it('renders each wall menu from the approved store-bound catalog and preserves staff recommendations', () => {
