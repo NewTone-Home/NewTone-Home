@@ -88,7 +88,9 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
   addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-long', groupId: lowerGroup, bounds: { x: 185, y: 72, width: 22, height: 416 }, orientation: 'vertical', publicSide: 'right', entryId: 'commercial-cafe-counter', services: [
     { id: 'commercial-cafe-counter', x: 196, y: 336, order: true },
   ] })
-  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-front', groupId: lowerGroup, bounds: { x: 8, y: 466, width: 177, height: 22 }, outlineBounds: { x: -14, y: 466, width: 199, height: 22 }, orientation: 'horizontal', publicSide: 'bottom', entryId: 'commercial-cafe-counter' })
+  addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-front', groupId: lowerGroup, bounds: { x: 8, y: 466, width: 177, height: 22 }, outlineBounds: { x: -14, y: 466, width: 199, height: 22 }, orientation: 'horizontal', publicSide: 'bottom', entryId: 'commercial-cafe-counter', services: [
+    { id: 'commercial-cafe-app-square', x: 172, y: 477, label: 'Open cafe ordering', visual: 'app-square' },
+  ] })
   // This is physically separate above the32px employee exit: never bridge it.
   addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-counter-upper', groupId: 'cafe-trial-counter-upper', bounds: { x: 185, y: 8, width: 22, height: 32 }, outlineBounds: { x: 185, y: -14, width: 22, height: 54 }, orientation: 'vertical', publicSide: 'right', hideLabel: true, entryId: 'commercial-cafe-counter' })
   addCounterSurface(entities, structures, point, room.id, { id: 'cafe-trial-worktop', groupId: 'cafe-trial-worktop', bounds: { x: 16, y: 144, width: 24, height: 280 }, orientation: 'vertical', publicSide: 'right', label: '工作台', role: 'worktop' })
@@ -188,9 +190,10 @@ function buildTakeawayTrial(blueprint: MainlineSceneBlueprint, trial: TakeawayTr
   const point = (x: number, y: number): Point => ({ x: room.bounds.x + x / 1920 * 100, y: room.bounds.y + y / 1080 * 100 })
   const oldIds = new Set(data.floorEntities.filter(entity => entity.roomId === room.id).map(entity => entity.id))
   const entities: MainlineSceneEntity[] = [], structures: MainlineContinuousStructure[] = []
-  trial.runs.forEach((run, index) => addCounterSurface(entities, structures, point, room.id, {
+  trial.runs.forEach(run => addCounterSurface(entities, structures, point, room.id, {
     id: `${trial.prefix}-${run.id}`, groupId: `${trial.prefix}-L-counter`, bounds: run.bounds, outlineBounds: run.outlineBounds, orientation: run.orientation, publicSide: run.publicSide,
-    services: index === 0 ? trial.stations : undefined, entryId: trial.stations[0].id,
+    services: trial.stations.filter(station => station.x > run.bounds.x && station.x < run.bounds.x + run.bounds.width
+      && station.y > run.bounds.y && station.y < run.bounds.y + run.bounds.height), entryId: trial.stations[0].id,
   }))
   const worktopId = `${trial.prefix}-worktop`
   addCounterSurface(entities, structures, point, room.id, { id: worktopId, groupId: worktopId, bounds: trial.worktop, orientation: 'vertical', publicSide: trial.publicSide === 'left' ? 'left' : 'right', label: '工作台', role: 'worktop' })
@@ -234,7 +237,7 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     ],
     stations: [
       { id: 'commercial-s5-milk-tea-order-service-label', x: 168, y: 224, label: '\u67dc\u53f0', order: true },
-      { id: 'commercial-s5-milk-tea-app-square', x: 168, y: 320, label: 'Open drink ordering', visual: 'app-square' },
+      { id: 'commercial-s5-milk-tea-app-square', x: 192, y: 168, label: 'Open drink ordering', visual: 'app-square' },
     ],
     publicSide: 'left', menu: { id: 'commercial-s5-milk-tea-menu-service-label', storeId: 'commercial-south-slot-5', y: 56, edge: 'left' }, rearX: 280,
     equipment: ['制茶机', '封口机', '清洗台', '煮料台'],
@@ -253,7 +256,7 @@ export function trialTakeawayInteriors(blueprint: MainlineSceneBlueprint): Mainl
     ],
     stations: [
       { id: 'fruit-tea-trial-order', x: 168, y: 432, label: '\u67dc\u53f0', order: true },
-      { id: 'fruit-tea-trial-app-square', x: 168, y: 240, label: 'Open drink ordering', visual: 'app-square' },
+      { id: 'fruit-tea-trial-app-square', x: 144, y: 476, label: 'Open drink ordering', visual: 'app-square' },
     ],
     publicSide: 'right', menu: { id: 'fruit-tea-trial-menu', storeId: 'commercial-north-slot-1', y: 588, edge: 'right' }, rearX: 56,
     equipment: ['清洗台', '切果台', '打包台', '冷藏', '煮料台'],

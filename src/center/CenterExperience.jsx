@@ -503,6 +503,10 @@ export default function CenterExperience({
       openShopOrderApp(crossShopIds.fruitTea)
       return true
     }
+    if (entity.id === 'commercial-cafe-app-square') {
+      openShopOrderApp(crossShopIds.cafeTakeaway)
+      return true
+    }
     if (entity.id === 'yonghe-counter') {
       const order = playerSaveRef.current.shopOrders?.[crossShopIds.yonghe]
       const gameTimeMs = sessionGameClockRef.current.read().gameTimeMs
