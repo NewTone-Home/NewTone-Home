@@ -22,6 +22,7 @@ import { isPointInContinuousCafe } from './runtime/continuousCafe'
 import { advanceMainlineStoryClock } from './runtime/mainlineStoryClock'
 import { advancePhoneStoryNotes, createPlayerPhoneNote, ensurePhoneYongheLead, pinPhoneStoryNote, updatePhoneNote } from './runtime/phonePersonalData'
 import { commercialCafeStoryStatusKey } from './runtime/commercialCafeStory'
+import { ruoyuCafeMineExitPatch, ruoyuCafeUnlockedKey } from './runtime/ruoyuCafeMeeting'
 import {
   commercialCafeCompletionPhoneCanRequest,
   commercialCafeCompletionPhoneDisplayedPatch,
@@ -987,6 +988,17 @@ export default function CenterExperience({
       onExternalExit={snapshot ? undefined : () => {
         const current = latestWorldPositionRef.current
         if (current && mainlineRideSuppressExternalPhoneReveal(rideOrder, current.sceneId, current.position)) return
+        const cafeState = playerSaveRef.current.sceneState['commercial-cafe']
+        if (current?.sceneId === 'yonghe-mining-perimeter' && cafeState?.[commercialCafeStoryStatusKey] === 'complete') {
+          const patch = ruoyuCafeMineExitPatch(cafeState, playerSaveRef.current.laoZhouCafeSeatId)
+          if (patch) {
+            commitPlayerSave(save => recordPlayerSceneStatePatch(save, 'commercial-cafe', patch))
+            setPhoneNotificationScreen(false)
+            setRequestedPhoneApp('ruoyu-messages')
+            setPhoneOpen(true)
+            return
+          }
+        }
         revealPhone()
       }}
       onExternalReturn={snapshot ? undefined : retractPhone}
@@ -1104,6 +1116,7 @@ export default function CenterExperience({
           onNotificationDismiss={() => setPhoneNotificationScreen(false)}
           onAppOpen={readPhoneApp}
           milkTeaAppUnlocked={drinkOrderingAppUnlocked}
+          ruoyuMessagesUnlocked={playerSave.sceneState['commercial-cafe']?.[ruoyuCafeUnlockedKey] === true}
           availableShopIds={availableDrinkShopIds}
           milkTeaOrder={milkTeaOrder}
           milkTeaHeld={commercialStreetMilkTeaHeld(commercialStreetState)}

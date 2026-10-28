@@ -37,7 +37,7 @@ export type MainlineSceneExternalExit = {
   /** Optional tangent-axis span for an opening without an interactive entity. */
   triggerSpan?: { start: number; end: number }
 }
-export type MainlineSceneDialogueSpeaker = '修杰' | '老周' | '店员'
+export type MainlineSceneDialogueSpeaker = '修杰' | '老周' | '店员' | '若雨'
 export type MainlineSceneDialogueLine = {
   id: string
   speaker: MainlineSceneDialogueSpeaker

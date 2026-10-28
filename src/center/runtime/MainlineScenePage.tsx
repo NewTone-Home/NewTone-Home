@@ -27,7 +27,8 @@ import type { MainlineRideWalkingContext } from './mainlineRide'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
-import { defaultLaoZhouCafeSeatId, laoZhouCafeConversationSeatId, withLaoZhouCafeSeat } from './commercialCafeSeatSelection'
+import { defaultLaoZhouCafeSeatId, laoZhouCafeConversationSeatId, withLaoZhouCafeSeat, withRuoyuCafeSeat } from './commercialCafeSeatSelection'
+import { ruoyuCafeConversationSeatId, ruoyuCafeMeetingCompleted, ruoyuCafeMeetingCursorFromSceneState, ruoyuCafeMeetingDialogue, ruoyuCafeMeetingCursorKey, ruoyuCafeMeetingStatusKey, ruoyuCafeSeatFromSceneState, ruoyuCafeUnlockedKey, ruoyuCafeFollowupLine } from './ruoyuCafeMeeting'
 import { commercialCafeAnalyticsMilestonePatch, commercialCafeAnalyticsMilestonesFromSceneState, commercialCafeAnalyticsStageForCursor, commercialCafeCoffeeDelivered, commercialCafeCoffeeOrderedState, commercialCafeDeliveryDialogueLine, commercialCafeDepartureText, commercialCafeFinishDeliveryLine, commercialCafeFinishDeliveryReturn, commercialCafeNarrativeDialogue, commercialCafeNarrativePhaseKey, commercialCafeNarrativeStarted, commercialCafeStoryCompleted, commercialCafeStoryNeedsMigration, commercialCafeStoryReadyToLeave, commercialCafeStoryStateFromSceneState, commercialCafeStoryStatePatch, commercialCafeStoryWithCursor, isCommercialCafeStoryStage, resolveCommercialCafeNpcInteraction, shouldCompleteCommercialCafeStoryOnTransition, commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId, commercialCafeStoryTableId, type CommercialCafeAnalyticsStage, type CommercialCafeNpcInteractionResolution, type CommercialCafeStoryStage } from './commercialCafeStory'
 import { commercialCafeFloorServiceTarget, commercialCafeDutySpeedMultiplier, createCommercialCafeCoffeeOwnerBehaviorCoordinator, createCommercialCafeFloorServerBehaviorCoordinator } from './commercialCafeBehavior'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -363,10 +364,13 @@ export function MainlineScenePage({
 }) {
   const clockPageId = useId()
   const baseSceneDefinition: MainlineSceneDefinition = mainlineScenes[sceneId]
+  const ruoyuCafeUnlocked = initialSceneState[ruoyuCafeUnlockedKey] === true
+  const ruoyuCafeSeatId = ruoyuCafeSeatFromSceneState(initialSceneState)
   const sceneDefinition: MainlineSceneDefinition = useMemo(() => {
     if (sceneId !== 'commercial-street' && sceneId !== 'commercial-cafe') return baseSceneDefinition
-    return withLaoZhouCafeSeat(baseSceneDefinition, laoZhouCafeSeatId)
-  }, [baseSceneDefinition, laoZhouCafeSeatId, sceneId])
+    const laoZhouScene = withLaoZhouCafeSeat(baseSceneDefinition, laoZhouCafeSeatId)
+    return withRuoyuCafeSeat(laoZhouScene, ruoyuCafeSeatId, ruoyuCafeUnlocked)
+  }, [baseSceneDefinition, laoZhouCafeSeatId, ruoyuCafeSeatId, ruoyuCafeUnlocked, sceneId])
   const cafeConversationSeatId = laoZhouCafeConversationSeatId(laoZhouCafeSeatId)
   // Entry resolution returns a point value. Stabilize that value across ordinary
   // scene re-renders so actor-footprint registration is an occupancy lifecycle,
@@ -1952,6 +1956,65 @@ export function MainlineScenePage({
     startDialogueTextSession()
     if (resolution.promptSeatId) setPromptedSeatId(resolution.promptSeatId)
   }, [startDialogueTextSession, stopMovement])
+  const interactRuoyuCafe = useCallback(() => {
+    if (!hasContinuousCafe(scene) || initialSceneState[ruoyuCafeUnlockedKey] !== true) return
+    const meetingComplete = ruoyuCafeMeetingCompleted(initialSceneState)
+    if (meetingComplete) {
+      const followup = ruoyuCafeFollowupLine(initialSceneState, 'ruoyu')
+      if (!followup) return
+      recordSceneState(scene.id, followup.key, (typeof initialSceneState[followup.key] === 'number' ? initialSceneState[followup.key] as number : 0) + 1)
+      const point = getCurrentPosition()
+      sceneEchoIdRef.current += 1
+      presentSceneEcho(createMainlineSceneEcho(sceneEchoIdRef.current, 'ruoyu', followup.text,
+        sceneTextPresentationPosition(scene, point, followup.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, point, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)), 'scene-observation'))
+      return
+    }
+    const ruoyuSeatId = ruoyuCafeSeatFromSceneState(initialSceneState)
+    if (!ruoyuSeatId) return
+    const requestId = ++npcInteractionRequestRef.current
+    const conversationSeatId = ruoyuCafeConversationSeatId(ruoyuSeatId)
+    const startMeeting = () => {
+      const cursor = ruoyuCafeMeetingCursorFromSceneState(initialSceneState)
+      const dialogue: NpcDialogueResolution = { kind: 'dialogue', dialogue: ruoyuCafeMeetingDialogue }
+      startNpcDialogue(dialogue)
+      setDialogueLineIndex(cursor)
+      recordSceneState(scene.id, ruoyuCafeMeetingStatusKey, 'in-progress')
+      recordSceneState(scene.id, ruoyuCafeMeetingCursorKey, cursor)
+    }
+    if (activePlayerSeatId === conversationSeatId) { startMeeting(); return }
+    leavePlayerSeat()
+    const resolved = findMainlinePathToEntity(scene, conversationSeatId, getCurrentPosition(), layout, navigationOptions)
+    const sitPosition = resolveMainlineSeatSitPosition(scene, conversationSeatId, layout, navigationOptions)
+    if (!resolved.path || !sitPosition || nextMainlinePlayerSeatId(scene, activePlayerSeatId, conversationSeatId, occupiedSeatIds) !== conversationSeatId) {
+      stopMovement()
+      return
+    }
+    setActiveObjectId(conversationSeatId)
+    moveAlong(resolved.path, () => {
+      if (npcInteractionRequestRef.current !== requestId) return
+      resetMovement(sitPosition)
+      navigationRuntime.updateActor('protagonist', sitPosition)
+      setPlayerSeatId(conversationSeatId)
+      setActiveObjectId(null)
+      startMeeting()
+    }, {
+      ...protagonistLocomotionOptions,
+      preserveNavigationRoute: true,
+      canOccupy: point => isWalkableMainlinePoint(point, scene, layout, getLiveNavigationOptions()),
+      canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, getLiveNavigationOptions()),
+      onBlocked: () => { if (npcInteractionRequestRef.current === requestId) setActiveObjectId(null) },
+    })
+  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, getCurrentPosition, getLiveNavigationOptions, initialSceneState, layout, leavePlayerSeat, moveAlong, navigationOptions, navigationRuntime, protagonistLocomotionOptions, readingMetrics, recordSceneState, resetMovement, scene, startNpcDialogue, stopMovement])
+  const interactXiujieFollowup = useCallback(() => {
+    if (!ruoyuCafeMeetingCompleted(initialSceneState)) return
+    const followup = ruoyuCafeFollowupLine(initialSceneState, 'xiujie')
+    if (!followup) return
+    recordSceneState(scene.id, followup.key, (typeof initialSceneState[followup.key] === 'number' ? initialSceneState[followup.key] as number : 0) + 1)
+    const point = getCurrentPosition()
+    sceneEchoIdRef.current += 1
+    presentSceneEcho(createMainlineSceneEcho(sceneEchoIdRef.current, 'protagonist', followup.text,
+      sceneTextPresentationPosition(scene, point, followup.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, point, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)), 'scene-observation'))
+  }, [activeViewportMetrics, cameraOffset, getCurrentPosition, initialSceneState, readingMetrics, recordSceneState, scene])
   const startCommercialCafeNarrative = useCallback(() => {
     if (!hasContinuousCafe(scene) || commercialCafeStory.status !== 'available') return
     stopMovement()
@@ -2394,6 +2457,12 @@ export function MainlineScenePage({
     cancelSceneAction()
     const npc = scene.npcs.find((candidate) => candidate.id === npcId)
     if (!npc || npc.interactive === false) return
+    if (npcId === 'ruoyu') {
+      onNpcInteraction?.(npc.id)
+      onInteractionAnalytics?.('requested', npc.id, 'npc')
+      interactRuoyuCafe()
+      return
+    }
     onInteractionAnalytics?.('requested', npc.id, 'npc')
     setRequestedWorldTarget(null)
     if (movingNpcIds.has(npcId)) {
@@ -2477,7 +2546,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', npc.id, 'npc', 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, cafeStoryOrderDelivery, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, layout, leavePlayerSeat, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, presentCommercialDrinkEcho, presentYongheEcho, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
+  }, [activePlayerSeatId, cafeStoryOrderDelivery, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, initialSceneState, interactRuoyuCafe, layout, leavePlayerSeat, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, presentCommercialDrinkEcho, presentYongheEcho, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
 
   const chooseSceneEchoOption = useCallback((actionId: number, index: number) => {
     if (!sceneAction || sceneAction.id !== actionId || sceneAction.phase !== 'committing') return
@@ -2771,10 +2840,18 @@ export function MainlineScenePage({
     setDialogueSegmentIndex(0)
     if (dialogueLineIndex + 1 < activeDialogue.lines.length) {
       setDialogueLineIndex(dialogueLineIndex + 1)
+      if (activeDialogue.triggerEntityId === ruoyuCafeMeetingDialogue.triggerEntityId) {
+        recordSceneState(scene.id, ruoyuCafeMeetingCursorKey, dialogueLineIndex + 1)
+        recordSceneState(scene.id, ruoyuCafeMeetingStatusKey, 'in-progress')
+      }
       if (tailDeletionComplete && dialogueHandoffActiveRef.current) {
         startDialogueTextSession()
       }
       return
+    }
+    if (activeDialogue.triggerEntityId === ruoyuCafeMeetingDialogue.triggerEntityId) {
+      recordSceneState(scene.id, ruoyuCafeMeetingCursorKey, ruoyuCafeMeetingDialogue.lines.length)
+      recordSceneState(scene.id, ruoyuCafeMeetingStatusKey, 'complete')
     }
     setGenericDialoguePhase('leaving')
   }, [activeDialogue, activeDialogueLine, activeDialoguePosition, activeDialogueText, activeViewportMetrics, cameraOffset, cafeStoryOrderDelivery, commercialCafeNarrative, commercialCafeStory, commercialStreetQuestionNarrative, dialogueAtSessionEnd, dialogueLineIndex, dialogueSegmentIndex, dialogueTextMotion, npcDialogue, onChapterAnalytics, onMeaningfulActivity, position, recordCafeAnalyticsMilestone, recordSceneState, recordSceneStatePatch, scene, screenMetrics, startDialogueTextSession, updateDialogueTextMotion])
@@ -2876,8 +2953,9 @@ export function MainlineScenePage({
       setNpcDialogue(null)
       setGenericDialoguePhase('active')
       if (completedNpcDialogue) setPromptedSeatId(null)
+      if (completedNpcDialogue?.dialogue.triggerEntityId === ruoyuCafeMeetingDialogue.triggerEntityId) leavePlayerSeat()
     }
-  }, [commercialCafeNarrative?.phase, commercialStreetQuestionNarrative?.phase, completeCommercialStreetQuestionNarrativeExit, genericDialoguePhase, npcDialogue])
+  }, [commercialCafeNarrative?.phase, commercialStreetQuestionNarrative?.phase, completeCommercialStreetQuestionNarrativeExit, genericDialoguePhase, leavePlayerSeat, npcDialogue])
 
   useEffect(() => {
     if (!walkRequest || handledWalkRequestRef.current === walkRequest.id) return
@@ -3115,6 +3193,7 @@ export function MainlineScenePage({
               onInteract={interact}
               onStorefrontInteract={interactStorefront}
               onNpcInteract={interactNpc}
+              onProtagonistInteract={hasContinuousCafe(scene) && isPointInContinuousCafe(scene, position) && ruoyuCafeMeetingCompleted(initialSceneState) ? interactXiujieFollowup : undefined}
               npcPositions={resolvedNpcPositions}
               npcRuntimeSnapshots={npcRuntimeSnapshots}
               hiddenNpcIds={hiddenNpcIds}

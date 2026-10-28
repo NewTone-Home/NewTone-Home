@@ -529,6 +529,8 @@
   pointer-events: none;
   will-change: left, top;
 }
+.scene-protagonist.is-followup-interactive { pointer-events:auto; }
+.scene-protagonist.is-followup-interactive::after { content:""; position:absolute; inset:-.55em; border-radius:50%; }
 .scene-protagonist.is-reading-protected { z-index: 11; }
 
 .scene-protagonist__dot {
