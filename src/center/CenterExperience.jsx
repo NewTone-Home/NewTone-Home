@@ -600,7 +600,7 @@ export default function CenterExperience({
     readSave: () => playerSaveRef.current,
     commitSave: update => commitPlayerSave(update),
     readGameTimeMs: readSessionGameTimeMs,
-  }), [commitPlayerSave, readSessionGameTimeMs, playerSave.shopOrders, playerSave.cafeStoryDeliveries])
+  }), [commitPlayerSave, readSessionGameTimeMs, playerSave.shopOrders, playerSave.cafeStoryDeliveries, playerSave.phoneNotifications])
 
   useEffect(() => {
     const sessionClock = sessionGameClockRef.current
