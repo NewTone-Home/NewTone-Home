@@ -412,7 +412,7 @@ function ReadingPageFlip({ pageKey, continuityKey, visibleText, layout, worldSca
   }, [contentHeight, lockToken, presentedPage.flipping, presentedPage.key, pageKey])
   useEffect(() => {
     if (!presentedPage.flipping && presentedPage.key === pageKey) onSettledRef.current?.(pageKey)
-  }, [presentedPage.flipping, presentedPage.key, pageKey])
+  }, [presentedPage.flipping, presentedPage.key, pageKey, visibleText, layout.widthPx, layout.heightPx, layout.fontSizePx, worldScale])
 
   return <span ref={stackRef} className={`scene-mainline-page-stack scene-mainline-page-stack--${mode}`} data-page-flip={presentedPage.flipping ? 'running' : 'settled'} style={{ width: `${contentWidth}px`, height: `${contentHeight}px`, '--reading-page-out-y': '0px', '--reading-page-in-y': presentedPage.flipping ? `${-contentHeight}px` : '0px' } as CSSProperties}>
     {presentedPage.flipping && presentedPage.previous !== null && <span className="scene-mainline-page scene-mainline-page--outgoing" data-reading-page-role="outgoing" data-reading-page-outgoing-key={presentedPage.previous.pageKey} data-reading-page-outgoing-width={presentedPage.previous.layout.widthPx} data-reading-page-outgoing-height={presentedPage.previous.layout.heightPx} style={{ width: `${presentedPage.previous.layout.widthPx / Math.max(.001, worldScale)}px`, height: '100%', fontSize: `${presentedPage.previous.layout.fontSizePx / Math.max(.001, worldScale)}px` }} aria-hidden="true">{presentedPage.previous.visibleText}</span>}
@@ -2826,6 +2826,7 @@ export function MainlineSceneRenderer({
               data-scene-reading-occlusion-width={readingOcclusionRect?.width}
               data-scene-reading-occlusion-height={readingOcclusionRect?.height}
               data-scene-dialogue-ready={isDialogue ? String(dialogueReady) : undefined}
+              data-scene-dialogue-text-motion={isDialogue ? dialogueTextMotion : undefined}
               onAnimationEnd={(event) => {
                 if (!isLeaving || event.target !== event.currentTarget) return
                 if (sceneEcho) onSceneEchoExitComplete?.(sceneEcho.id, readingDisplayPosition ?? position, renderCameraOffset)
