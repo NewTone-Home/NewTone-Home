@@ -48,10 +48,15 @@ describe('Ruoyu Cafe meeting state', () => {
       '知道了。你继续查，先别让他们察觉。',
       '明白。',
     ])
-    const firstXiujie = ruoyuCafeFollowupLine({ [ruoyuCafeXiujieFollowupCountKey]: 0, [ruoyuCafeRuoyuFollowupCountKey]: 0 }, 'xiujie')!
-    const secondXiujie = ruoyuCafeFollowupLine({ [ruoyuCafeXiujieFollowupCountKey]: 1, [ruoyuCafeRuoyuFollowupCountKey]: 0 }, 'xiujie')!
+    const initial = { [ruoyuCafeXiujieFollowupCountKey]: 0, [ruoyuCafeRuoyuFollowupCountKey]: 0 }
+    const firstXiujie = ruoyuCafeFollowupLine(initial, 'xiujie')!
+    const secondXiujie = ruoyuCafeFollowupLine({ ...initial, [firstXiujie.key]: 1 }, 'xiujie')!
+    const firstRuoyu = ruoyuCafeFollowupLine(initial, 'ruoyu')!
+    const secondRuoyu = ruoyuCafeFollowupLine({ ...initial, [firstRuoyu.key]: 1 }, 'ruoyu')!
     expect([firstXiujie.text, secondXiujie.text]).toEqual(['还有什么事吗？', '还有事吗？'])
-    expect(ruoyuCafeFollowupLine({ [ruoyuCafeXiujieFollowupCountKey]: 1, [ruoyuCafeRuoyuFollowupCountKey]: 0 }, 'ruoyu')?.text).toBe('还有事吗？')
+    expect([firstRuoyu.text, secondRuoyu.text]).toEqual(['还有事吗？', '还有什么事吗？'])
+    expect(ruoyuCafeFollowupLine({ ...initial, [firstXiujie.key]: 1 }, 'ruoyu')?.text).toBe(firstRuoyu.text)
+    expect(ruoyuCafeFollowupLine({ ...initial, [firstRuoyu.key]: 1 }, 'xiujie')?.text).toBe(firstXiujie.text)
     expect(ruoyuCafeMeetingCompleted({ [ruoyuCafeMeetingStatusKey]: 'complete' })).toBe(true)
   })
 })

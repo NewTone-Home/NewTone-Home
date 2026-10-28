@@ -2012,7 +2012,7 @@ export function MainlineScenePage({
     recordSceneState(scene.id, followup.key, (typeof initialSceneState[followup.key] === 'number' ? initialSceneState[followup.key] as number : 0) + 1)
     const point = getCurrentPosition()
     sceneEchoIdRef.current += 1
-    presentSceneEcho(createMainlineSceneEcho(sceneEchoIdRef.current, 'protagonist', followup.text,
+    presentSceneEcho(createMainlineSceneEcho(sceneEchoIdRef.current, 'lao-zhou', followup.text,
       sceneTextPresentationPosition(scene, point, followup.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, point, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)), 'scene-observation'))
   }, [activeViewportMetrics, cameraOffset, getCurrentPosition, initialSceneState, readingMetrics, recordSceneState, scene])
   const startCommercialCafeNarrative = useCallback(() => {
@@ -2521,6 +2521,11 @@ export function MainlineScenePage({
       interactRuoyuCafe()
       return
     }
+    if (npcId === 'lao-zhou' && hasContinuousCafe(scene) && ruoyuCafeMeetingCompleted(initialSceneState)) {
+      onInteractionAnalytics?.('requested', npc.id, 'npc')
+      interactXiujieFollowup()
+      return
+    }
     onInteractionAnalytics?.('requested', npc.id, 'npc')
     setRequestedWorldTarget(null)
     if (movingNpcIds.has(npcId)) {
@@ -2604,7 +2609,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', npc.id, 'npc', 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, cafeStoryOrderDelivery, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, initialSceneState, interactRuoyuCafe, layout, leavePlayerSeat, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, presentCommercialDrinkEcho, presentYongheEcho, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
+  }, [activePlayerSeatId, cafeStoryOrderDelivery, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, initialSceneState, interactRuoyuCafe, interactXiujieFollowup, layout, leavePlayerSeat, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, presentCommercialDrinkEcho, presentYongheEcho, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
 
   const chooseSceneEchoOption = useCallback((actionId: number, index: number) => {
     if (!sceneAction || sceneAction.id !== actionId || sceneAction.phase !== 'committing') return
@@ -3252,7 +3257,6 @@ export function MainlineScenePage({
               onInteract={interact}
               onStorefrontInteract={interactStorefront}
               onNpcInteract={interactNpc}
-              onProtagonistInteract={hasContinuousCafe(scene) && isPointInContinuousCafe(scene, position) && ruoyuCafeMeetingCompleted(initialSceneState) ? interactXiujieFollowup : undefined}
               npcPositions={resolvedNpcPositions}
               npcRuntimeSnapshots={npcRuntimeSnapshots}
               hiddenNpcIds={hiddenNpcIds}
