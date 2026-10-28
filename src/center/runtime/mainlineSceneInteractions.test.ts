@@ -6,6 +6,7 @@ import { mainlineDoorPortalShouldRender } from './mainlineSceneVisibility'
 import { commercialCafeCoffeeStatusKey } from './commercialCafeStory'
 import {
   plantIsWatered,
+  mainlineExplorationChoiceIsActionOnly,
   isMainlineInPlaceInteraction,
   resolveMainlineSceneEchoChoice,
   resolveMainlineSceneExploration,
@@ -31,6 +32,9 @@ describe('mainline scene interaction policies', () => {
       incensePhase: 'unlit', plantWatered: false, officeBlindsOpen: true, carriedPhoneDevice: 'surface',
     })
     expect(exploration.choice).toEqual({ text: '', options: ['推一下门'] })
+    expect(mainlineExplorationChoiceIsActionOnly(exploration.choice)).toBe(true)
+    expect(mainlineExplorationChoiceIsActionOnly({ text: '门锁着。', options: ['推一下门'] })).toBe(false)
+    expect(mainlineExplorationChoiceIsActionOnly({ text: '', options: [] })).toBe(false)
     const alley = scene.rooms.find(room => room.id === 'mining-street-back-alley')!
     const alleyCenter = { x: alley.bounds.x + alley.bounds.width / 2, y: alley.bounds.y + alley.bounds.height / 2 }
     const approach = resolveMainlineEntityInteraction(scene, door.id, alleyCenter, {}, {

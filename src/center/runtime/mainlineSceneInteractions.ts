@@ -25,6 +25,11 @@ export type MainlineExplorationChoice = {
   options?: readonly string[]
 }
 
+/** A blank choice has no readable observation to advance through; show its actions directly. */
+export function mainlineExplorationChoiceIsActionOnly(choice: MainlineExplorationChoice | undefined): choice is MainlineExplorationChoice & { options: readonly string[] } {
+  return Boolean(choice?.options?.length && !choice.text.trim())
+}
+
 export type MainlineExplorationResolution = {
   choice?: MainlineExplorationChoice
   pool?: readonly string[]

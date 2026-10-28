@@ -48,7 +48,7 @@ import { sceneTextPresentationPosition } from './sceneTextPresentation'
 import { mainlineInteractionRoom, mainlineInteractionSpace, mainlineIsInteriorSpace } from './mainlineTextReading'
 import { mainlineDialogueFurnitureGroupIds, mainlineDialogueHandoffDurationMs, mainlineDialogueShouldHandoff, mainlineDialogueSpeakerActorId, mainlineDialogueSpeakerOutsidePosition, mainlineDialogueStageHiddenEntityIds, mainlineDialogueStageActorOpacity } from './mainlineDialogueStage'
 import { mainlineProtectedVisualIdentityIds } from './mainlineVisualProtection'
-import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, plantIsWatered, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
+import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, mainlineExplorationChoiceIsActionOnly, plantIsWatered, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import { mainlineExploredObjectIdsFromSceneState, mainlineInteractionCompletesImmediately, mainlineInteractionExploredStateKey } from './mainlineInteractionVisualState'
@@ -2251,6 +2251,11 @@ export function MainlineScenePage({
       const availableExplorationPool = explorationPool ?? []
       const hasExplorationContent = Boolean(explorationChoice || availableExplorationPool.length)
       const startsDialogue = scene.dialogue?.triggerEntityId === entity.id
+      if (mainlineExplorationChoiceIsActionOnly(explorationChoice)) {
+        setSceneAction(createSceneAction({ entityId: entity.id, options: explorationChoice.options, position: entity.position, cameraOffset }))
+        markEntityExplored(entityId)
+        return
+      }
       if (hasExplorationContent) {
         const text = explorationChoice?.text ?? availableExplorationPool[Math.floor(Math.random() * availableExplorationPool.length)]
         sceneEchoIdRef.current += 1
