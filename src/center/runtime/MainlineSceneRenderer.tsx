@@ -1526,9 +1526,9 @@ export function MainlineSceneRenderer({
   const updateOcclusionVisualProgress = useCallback((fraction: number, motion: MainlineReadingTextMotion) => {
     if (readingPresentationPhase !== 'active') return
     const value = Math.max(0, Math.min(1, fraction))
-    occlusionTargetRef.current = motion === 'deleting' && sceneEcho ? value : Math.max(occlusionTargetRef.current, value)
+    occlusionTargetRef.current = motion === 'deleting' && !dialogueHandoffActive ? value : Math.max(occlusionTargetRef.current, value)
     animateOcclusionProgress()
-  }, [animateOcclusionProgress, readingPresentationPhase, sceneEcho])
+  }, [animateOcclusionProgress, dialogueHandoffActive, readingPresentationPhase])
   const readingAnchorSessionKey = readingOcclusionSessionKey
   const readingTextDeleting = sceneEcho
     ? sceneEcho.textMotion === 'deleting' || sceneEcho.textMotion === 'deleted'
