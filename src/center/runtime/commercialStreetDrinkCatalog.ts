@@ -75,7 +75,7 @@ export function commercialStreetDrinkMenuText(storeId: string) {
   return commercialStreetDrinkCatalog
     .filter(product => product.storeId === storeId)
     .map(product => `${product.name}  ${product.price}\n${product.description ?? ''}`)
-    .join('\n\n')
+    .join('\n')
 }
 
 export const commercialStreetDrinkCatalogMissingCopy = {

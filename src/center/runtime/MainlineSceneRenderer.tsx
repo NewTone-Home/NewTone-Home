@@ -32,7 +32,7 @@ import { interpolateMainlineReadingPageLayout, mainlineReadingPageFlipDurationMs
 import { interpolateMainlineReadingLayout, mainlineReadingPageTransitionDurationMs, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize } from './mainlineReadingLayoutTransition'
 import { mainlineDialogueHandoffPresentationForId, mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
 import { mainlineReadingPageKey } from './mainlineReadingPageKey'
-import { mainlineReadingPageDisplayText } from './mainlineTextSegments'
+import { mainlineMeasuredTextWidth, mainlineReadingPageDisplayText } from './mainlineTextSegments'
 import { mainlineObservationPageIsSettled } from './mainlineObservationTyping'
 import { mainlineReadingTextMotionCanAnimate, startMainlineReadingTextMotion, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
 import { mainlineReadingPageAdvanceResumeGraceMs, mainlineReadingPageAdvanceStartupWatchdogMs, mainlineReadingPageAdvanceTokenIsCurrent, mainlineReadingPageAdvanceWatchdogMayRelease } from './mainlineReadingPageAdvance'
@@ -1550,7 +1550,10 @@ export function MainlineSceneRenderer({
         fontKey: readingLayoutFontFaceKey,
         worldScale,
         preferWholeText: Boolean(sceneEcho),
-        ...(isMenuReading ? { layoutText: (text, metrics, options) => mainlineEchoLayout(text, metrics, { ...options, lineHeight: metrics.width <= 600 && metrics.height > metrics.width ? 1.6 : 1.72 }) } : {}),
+        ...(isMenuReading ? {
+          layoutText: (text, metrics, options) => mainlineEchoLayout(text, metrics, { ...options, lineHeight: metrics.width <= 600 && metrics.height > metrics.width ? 1.6 : 1.72 }),
+          measureText: (text, size) => mainlineMeasuredTextWidth(text, commercialStreetDrinkCatalog.some(item => item.description && item.description.includes(text) && text.trim().length > 0) ? size * 2 / 3 : size),
+        } : {}),
       })
       readingLayoutSessionCacheRef.current = readingLayoutSessionCache
     } else {
@@ -2948,7 +2951,6 @@ export function MainlineSceneRenderer({
               onPointerUp={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation()
-                if (readingPageAdvanceLockedRef.current || (sceneEcho && readingFit?.fits === false)) return
                 const readingTextIsDeleting = sceneEcho
                   ? sceneEcho.textMotion === 'deleting' || sceneEcho.textMotion === 'deleted'
                   : dialogueTextMotion === 'deleting' || dialogueTextMotion === 'deleted'
@@ -2956,6 +2958,7 @@ export function MainlineSceneRenderer({
                   if (isMenuReading && sceneEcho?.textMotion === 'deleting') onSceneEchoAdvance?.()
                   return
                 }
+                if (readingPageAdvanceLockedRef.current || (sceneEcho && readingFit?.fits === false)) return
                 if (readingPresentationMode === 'dialogue') {
                   const clickAction = mainlineDialogueClickAction({ motion: dialogueTextMotion, handoffActive: dialogueHandoffActive })
                   if (clickAction === 'ignore') return
