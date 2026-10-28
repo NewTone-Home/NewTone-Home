@@ -13,7 +13,7 @@ type Props = {
   coordinateBounds?: { x: number; y: number; width: number; height: number }
 }
 
-function CounterSurface({ parts, onInteract, presentationActive, boundedWrapper = false, coordinateBounds }: Props) {
+function CounterSurface({ parts, objects, onInteract, presentationActive, boundedWrapper = false, coordinateBounds }: Props) {
   const rectangles = useMemo(() => parts.map(part => ({ x: part.x * 19.2, y: part.y * 10.8, width: part.width * 19.2, height: part.height * 10.8 })), [parts])
   const outlineRectangles = useMemo(() => parts.map((part, index) => {
     const box = part.counterSurface!.outlineBounds
@@ -34,16 +34,17 @@ function CounterSurface({ parts, onInteract, presentationActive, boundedWrapper 
   return <svg data-counter-outline-group={group} data-interior-active={animatedPresentation ? active ? 'true' : 'false' : undefined} data-surface-role={parts[0].counterSurface!.role ?? 'counter'} aria-label={parts[0].counterSurface!.label ?? '柜台'} role="group" viewBox={`0 0 ${bounds.width} ${bounds.height}`} preserveAspectRatio="none" style={{ position: 'absolute', left: boundedWrapper ? `${(bounds.x - frameBounds.x) / frameBounds.width * 100}%` : `${bounds.x / 19.2}%`, top: boundedWrapper ? `${(bounds.y - frameBounds.y) / frameBounds.height * 100}%` : `${bounds.y / 10.8}%`, width: boundedWrapper ? `${bounds.width / frameBounds.width * 100}%` : `${bounds.width / 19.2}%`, height: boundedWrapper ? `${bounds.height / frameBounds.height * 100}%` : `${bounds.height / 10.8}%`, overflow: 'visible', pointerEvents: 'none', zIndex: 3, color: 'var(--interaction-normal)', opacity: .9 }}>
     {parts.map((part, index) => {
       const box = rectangles[index], meta = part.counterSurface!, vertical = meta.orientation === 'vertical'
+      const interactionId = objects.find(object => object.id === meta.interactionEntityId)?.interactionAliasId ?? meta.interactionEntityId
       const label = meta.label ?? '柜台', length = Array.from(label).length
       const labelWidth = vertical ? 16 : length * 16, labelHeight = vertical ? length * 16 : 16
       return <g key={part.id}>
-        <rect data-counter-part-id={part.id} data-counter-interaction-id={meta.interactionEntityId} x={box.x - bounds.x} y={box.y - bounds.y} width={box.width} height={box.height} fill="transparent" style={{ pointerEvents: active ? 'all' : 'none', cursor: 'pointer' }} role="button" tabIndex={active ? 0 : -1} aria-label={label} onClick={event => activate(event, meta.interactionEntityId)} onKeyDown={event => keyboard(event, meta.interactionEntityId)} />
+        <rect data-counter-part-id={part.id} data-counter-interaction-id={interactionId} x={box.x - bounds.x} y={box.y - bounds.y} width={box.width} height={box.height} fill="transparent" style={{ pointerEvents: active ? 'all' : 'none', cursor: 'pointer' }} role="button" tabIndex={active ? 0 : -1} aria-label={label} onClick={event => activate(event, interactionId)} onKeyDown={event => keyboard(event, interactionId)} />
         {!meta.hideLabel && <foreignObject x={box.x + box.width / 2 - labelWidth / 2 - bounds.x} y={box.y + box.height / 2 - labelHeight / 2 - bounds.y} width={labelWidth} height={labelHeight} style={{ overflow: 'visible', pointerEvents: active ? 'all' : 'none', opacity: active ? 1 : 0, transition: animatedPresentation ? `opacity ${presentationDurationMs}ms ease-in-out` : undefined }}>
-          <button className="scene-counter-label" data-counter-label={meta.orientation} data-object-id={meta.labelEntityId} style={labelStyle} onClick={event => activate(event, meta.interactionEntityId)} aria-label={label}><span style={{ writingMode: vertical ? 'vertical-rl' : 'horizontal-tb', textOrientation: 'upright', lineHeight: 1 }}>{label}</span></button>
+          <button className="scene-counter-label" data-counter-label={meta.orientation} data-object-id={meta.labelEntityId} style={labelStyle} onClick={event => activate(event, interactionId)} aria-label={label}><span style={{ writingMode: vertical ? 'vertical-rl' : 'horizontal-tb', textOrientation: 'upright', lineHeight: 1 }}>{label}</span></button>
         </foreignObject>}
       </g>
     })}
-    {parts.flatMap(part => (part.counterSurface!.services ?? []).map(service => (
+    {parts.flatMap(part => (part.counterSurface!.services ?? []).filter(service => service.visual === 'app-square').map(service => (
       <foreignObject key={service.id} data-counter-service-box={service.id} x={service.position.x * 19.2 - bounds.x - (service.visual === 'app-square' ? 9 : 30)} y={service.position.y * 10.8 - bounds.y - (service.visual === 'app-square' ? 9 : 14)} width={service.visual === 'app-square' ? 18 : 60} height={service.visual === 'app-square' ? 18 : 28}>
         <button
           type="button"

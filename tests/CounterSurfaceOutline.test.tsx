@@ -64,6 +64,20 @@ describe('one exterior L counter, two labels and complete solid interaction',()=
    expect(scene.objects.some(object=>object.id===serviceId.replace('app-square','order-service-label')||object.id===serviceId.replace('app-square','order'))).toBe(true)
   }
  })
+ it('uses the counter legs as the human service target without a second boxed counter',()=>{
+  for(const [groupId, serviceId] of [
+   ['cafe-trial-L-counter','commercial-cafe-counter'],
+   ['milk-tea-trial-L-counter','commercial-s5-milk-tea-order-service-label'],
+   ['fruit-tea-trial-L-counter','fruit-tea-trial-order'],
+  ] as const){
+   const parts=scene.continuousStructures.filter(p=>p.counterSurface?.groupId===groupId)
+   const markup=renderToStaticMarkup(<MainlineCounterSurface parts={parts} objects={scene.objects} onInteract={()=>{}}/>)
+   expect(parts).toHaveLength(2)
+   expect(markup.match(new RegExp(`data-counter-interaction-id="${serviceId}"`,'g'))).toHaveLength(2)
+   expect(markup).not.toContain(`data-counter-service-box="${serviceId}"`)
+   expect(scene.objects.find(o=>o.id===serviceId)).toMatchObject({interactive:true,counterService:true})
+  }
+ })
  it('moves only the Cafe menu inside the work-side wall and keeps equipment clear of that wall',()=>{
   for(const [roomId,groupId] of configs){
    const prefix=groupId.startsWith('milk')?'milk-tea-trial':groupId.startsWith('fruit')?'fruit-tea-trial':'cafe-trial'
