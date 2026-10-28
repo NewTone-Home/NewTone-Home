@@ -2780,7 +2780,7 @@ export function MainlineSceneRenderer({
               const session = `${scene.id}:${dialogue!.triggerEntityId}`
               const metrics = `${readingMetrics.width}:${readingMetrics.height}:${readingMetrics.viewportWidth}:${worldScale}:${displayReadingMaxWidthPx}`
               if (speakerPlacementRef.current?.session !== session || speakerPlacementRef.current.metrics !== metrics) {
-                speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, readingMetrics, { x: projectReadingX(position.x), y: position.y }, { x: 0, y: 0 }, worldScale, displayReadingMaxWidthPx, readingLayoutSessionCache?.speakerWidthAtOrBelow(displayReadingMaxWidthPx)) }
+                speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, readingMetrics, { x: projectReadingX(sourcePosition.x), y: sourcePosition.y }, { x: 0, y: 0 }, worldScale, displayReadingMaxWidthPx, readingLayoutSessionCache?.speakerWidthAtOrBelow(displayReadingMaxWidthPx)) }
               }
             }
             const baseSpeakerAnchor = isDialogue && !stageDialogue ? speakerPlacementRef.current!.anchor : null

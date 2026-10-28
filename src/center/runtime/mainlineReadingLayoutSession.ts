@@ -28,6 +28,16 @@ type WidthCandidate = {
   speakerWidthPx: number
 }
 
+function pageIndexAtSourceOffset(segments: readonly string[], sourceOffset: number) {
+  let start = 0
+  for (let index = 0; index < segments.length; index += 1) {
+    const end = start + segments[index]!.length
+    if (sourceOffset < end) return index
+    start = end
+  }
+  return Math.max(0, segments.length - 1)
+}
+
 /** Reserve one rendered line per width-fit fragment. Whole-string canvas
  * width can underestimate the number of browser lines around punctuation. */
 export function mainlineObservationMinimumPageHeight(chunks: readonly string[], fontSizePx: number, compact: boolean) {
@@ -290,10 +300,11 @@ export function createMainlineReadingSessionLayoutCache(input: {
         if (!input.preferWholeText && candidate !== dialogueWidth) continue
         if (candidate.widthPx > fitInput.maximumWidthPx + .001) continue
         const page = fallbackPages(candidate)
-        const layout = page.layouts[0] ?? observationLayout(fitInput.text, candidate.widthPx, fitInput.speaker)
+        const pageIndex = pageIndexAtSourceOffset(page.segments, fitInput.sourceOffset ?? 0)
+        const layout = page.layouts[pageIndex] ?? observationLayout(fitInput.text, candidate.widthPx, fitInput.speaker)
         const envelope = input.preferWholeText
           ? { widthPx: Math.max(...page.layouts.map(item => item.widthPx)), heightPx: Math.max(...page.layouts.map(item => item.heightPx)) }
-          : candidate.envelopeLayout
+          : { widthPx: candidate.widthPx, heightPx: layout.heightPx }
         if (input.preferWholeText) {
           const bounds = mainlineReadingBounds(fitInput.scene, fitInput.source, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset)
           if (envelope.widthPx > bounds.width / 100 * sceneDesignReferenceMetrics.width * fitInput.worldScale || envelope.heightPx > bounds.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale) continue
@@ -304,11 +315,12 @@ export function createMainlineReadingSessionLayoutCache(input: {
       const fallback = widths[widths.length - 1]!
       const stableFallback = input.preferWholeText ? fallback : dialogueWidth
       const page = fallbackPages(stableFallback)
+      const pageIndex = pageIndexAtSourceOffset(page.segments, fitInput.sourceOffset ?? 0)
       return {
         segments: page.segments,
         pageLayouts: page.layouts,
         position: fitInput.source,
-        layout: page.layouts[0] ?? stableFallback.envelopeLayout,
+        layout: page.layouts[pageIndex] ?? stableFallback.envelopeLayout,
         maxWidthPx: stableFallback.widthPx,
         fits: false,
       }

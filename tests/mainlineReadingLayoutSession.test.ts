@@ -3,7 +3,7 @@ import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey, mainlineObservationMinimumPageHeight, mainlineReadingSessionMaxMeasuredWidths } from '../src/center/runtime/mainlineReadingLayoutSession'
 import { subscribeToMainlineReadingFontCompletion } from '../src/center/runtime/useMainlineReadingFontRevision'
 import { mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
-import { mainlineReadingCameraOffset } from '../src/center/runtime/mainlineTextReading'
+import { mainlineAvailableReadingWidthPx, mainlineReadingCameraOffset } from '../src/center/runtime/mainlineTextReading'
 import { mainlineReadingPageIndexForSourceOffset } from '../src/center/runtime/mainlineReadingProtection'
 import { splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
 
@@ -55,6 +55,37 @@ describe('mainline reading session layout cache', () => {
     const currentPageIndex = mainlineReadingPageIndexForSourceOffset(resizedSegments, sourceOffset)
     expect(resizedSegments.slice(0, currentPageIndex).join('').length).toBe(sourceOffset)
     expect(resizedSegments.slice(currentPageIndex).join('')).toBe(text.slice(sourceOffset))
+  })
+
+  it('places the visible dialogue page inside the room instead of using the full unpaged line height', () => {
+    const scene = mainlineScenes['commercial-street']
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
+    const source = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+    const metrics = { width: 411, height: 914, viewportWidth: 411 }
+    const cameraOffset = mainlineReadingCameraOffset(scene, source, metrics, .65, { x: 0, y: 0 })
+    const maximumWidthPx = mainlineAvailableReadingWidthPx(scene, source, metrics, .65, cameraOffset)
+    const text = Array.from({ length: 954 }, (_, index) => String.fromCharCode(0x4e00 + index)).join('')
+    const cache = createMainlineReadingSessionLayoutCache({
+      sessionKey: 'dialogue:mobile-page-placement',
+      entries: [{ text, speaker: 'Speaker' }],
+      metrics,
+      maximumWidthPx,
+    })
+    const fit = cache.fit({
+      scene,
+      source,
+      text,
+      speaker: 'Speaker',
+      maximumWidthPx,
+      protectedVisuals: [{ x: source.x - 2, y: source.y - 2, width: 4, height: 4 }],
+      metrics,
+      worldScale: .65,
+      cameraOffset,
+    })
+
+    expect(fit.fits).toBe(true)
+    expect(fit.segments.join('')).toBe(text)
+    expect(fit.layout.heightPx).toBeLessThan(200)
   })
 
   it('measures the session text budget once and reuses it for pages, movement, and viewport projection changes', () => {
