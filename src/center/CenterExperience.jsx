@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createSessionGameClock } from './runtime/sessionGameClock'
+import { attachSessionGameClockVisibilityLifecycle, createSessionGameClock } from './runtime/sessionGameClock'
 import { MainlineScenePage } from './runtime/MainlineScenePage'
 import { LongDistanceTravel } from './runtime/LongDistanceTravel'
 import { enqueuePhoneNotification, readPhoneNotifications } from './runtime/phoneNotifications'
@@ -19,7 +19,7 @@ import { createMainlineSceneGeometrySnapshot } from './runtime/mainlineSceneGeom
 import { isLocalSlidePrototypeIntent, localSlidePrototypeDurationMs } from './runtime/mainlineSceneTransition'
 import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceTravelContract'
 import { isPointInContinuousCafe } from './runtime/continuousCafe'
-import { advanceMainlineStoryClock } from './runtime/mainlineStoryClock'
+import { advanceMainlineStoryClock, isStoryNight } from './runtime/mainlineStoryClock'
 import { advancePhoneStoryNotes, createPlayerPhoneNote, ensurePhoneYongheLead, pinPhoneStoryNote, updatePhoneNote } from './runtime/phonePersonalData'
 import { commercialCafeStoryStatusKey } from './runtime/commercialCafeStory'
 import { ruoyuCafeMineExitPatch, ruoyuCafeUnlockedKey } from './runtime/ruoyuCafeMeeting'
@@ -605,6 +605,7 @@ export default function CenterExperience({
 
   useEffect(() => {
     const sessionClock = sessionGameClockRef.current
+    const detachVisibilityLifecycle = attachSessionGameClockVisibilityLifecycle(sessionClock, setTrialClockSnapshot)
     const recordTrustedInput = (event) => {
       if (!event.isTrusted) return
       setTrialClockSnapshot(sessionClock.markInput())
@@ -625,6 +626,7 @@ export default function CenterExperience({
       inputEvents.forEach((name) => window.removeEventListener(name, recordTrustedInput, true))
       window.clearInterval(timer)
       window.clearInterval(saveTimer)
+      detachVisibilityLifecycle()
       gameTimeSaveCheckpointRef.current()
     }
   }, [])
@@ -1054,9 +1056,10 @@ export default function CenterExperience({
 
   return (
     <main
-      className={`center-experience center-experience--${entryPhase}`}
+      className={`center-experience center-experience--${entryPhase} center-experience--${isStoryNight(trialClockSnapshot.gameTimeMs) ? 'night' : 'day'}`}
       data-center-boundary="inner-phone-ride-ready"
       data-entry-phase={entryPhase}
+      data-world-period={isStoryNight(trialClockSnapshot.gameTimeMs) ? 'night' : 'day'}
       data-long-distance-phase={longDistanceTravel?.phase}
       data-e2e-game-time-ms={debugClockTrial ? trialClockSnapshot.gameTimeMs : undefined}
       data-e2e-game-clock-activity={debugClockTrial ? trialClockSnapshot.activity : undefined}

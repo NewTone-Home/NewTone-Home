@@ -15,6 +15,10 @@ describe('Phone ride presentation estimates', () => {
     expect(phoneRideTripEstimate('commercial', 'zhongshuyuan', storyClockForStage('cafe'))).toEqual({ minutes: 12, arrivalLabel: '12:12' })
     expect(phoneRideTripEstimate('jijia', 'commercial', storyClockForStage('opening'))).toBeNull()
   })
+  it('estimates arrival from the shared game time after scene travel', () => {
+    expect(phoneRideTripEstimate('commercial', 'mine', storyClockForStage('yonghe'), 18 * 60 * 60_000 + 55 * 60_000))
+      .toEqual({ minutes: 18, arrivalLabel: '19:13' })
+  })
   it('shows a monotone bounded rounded estimate and zero only at arrival', () => {
     const values = [0, 1000, 2000, 4999, 5000, 6000].map(now => phoneDriverDisplayDistance(5000, now))
     expect(values).toEqual([50, 50, 50, 50, 0, 0])

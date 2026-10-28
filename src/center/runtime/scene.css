@@ -97,7 +97,7 @@
   height: clamp(560px, 74vh, 760px);
   min-height: 540px;
   overflow: hidden;
-  background: var(--room);
+  background: var(--mainline-environment-room, var(--room));
   cursor: crosshair;
   touch-action: manipulation;
   isolation: isolate;

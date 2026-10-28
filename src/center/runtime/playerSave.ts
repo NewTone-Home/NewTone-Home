@@ -8,13 +8,14 @@ import { cleanPhoneNotifications, type PhoneNotification } from './phoneNotifica
 import type { PhoneDevice } from './phoneState'
 import { mainlineSceneWorldLayers } from './phoneState'
 import { initialMainlinePhoneDevice, initialMainlineSceneId } from './mainlineInitialState'
-import { createInitialMainlineStoryClock, storyClockForStage, type MainlineStoryClock, type MainlineStoryStage } from './mainlineStoryClock'
+import { createInitialMainlineStoryClock, storyClockForStage, storyWeekday, type MainlineStoryClock, type MainlineStoryStage } from './mainlineStoryClock'
 import { applyPublicReleaseCutover } from '../../services/publicReleaseMigration'
 import { cleanPhoneCallHistory, cleanPhoneContactNotes, cleanPhoneNotes, createInitialPhoneNotes, type PhoneCallRecord, type PhoneNote } from './phonePersonalData'
 import { defaultLaoZhouCafeSeatId, isLaoZhouCafeSeatId, selectLaoZhouCafeSeat } from './commercialCafeSeatSelection'
 import { migrateLegacyShopState, sanitizeCrossShopOrderState, type CrossShopOrder, type HeldConsumable } from './crossShopOrders'
 import { sanitizeCafeStoryDeliveries, type CafeStoryDeliveryRecord } from './cafeStoryOrderDelivery'
 import { cleanShopOrderPaymentState, type ShopOrderPaymentReceipt } from './shopOrderPayment'
+import { cleanMonthlySalaryReceipts, isValidStoryDate, settleMonthlySalary, type MonthlySalaryReceipts, type StoryDate } from './monthlyPayroll'
 
 export const PLAYER_SAVE_STORAGE_KEY = 'newtone-player-save-v1'
 export const PLAYER_SAVE_VERSION = 2
@@ -50,6 +51,8 @@ export type PlayerSave = {
   walletBalance: number
   /** Durable idempotency receipts prevent a retried purchase from charging twice. */
   shopOrderPaymentReceipts: Record<string, ShopOrderPaymentReceipt>
+  /** Monthly salary credits are idempotent by narrative calendar year and month. */
+  monthlySalaryReceipts: MonthlySalaryReceipts
   /** Cafe story handoffs use normal cafe orders and persist presentation recovery. */
   cafeStoryDeliveries: Record<string, CafeStoryDeliveryRecord>
   sceneState: Partial<Record<MainlineSceneId, PlayerSceneState>>
@@ -128,6 +131,7 @@ export function createInitialPlayerSave(sceneId: MainlineSceneId = initialMainli
     heldConsumable: null,
     walletBalance: 800,
     shopOrderPaymentReceipts: {},
+    monthlySalaryReceipts: {},
     cafeStoryDeliveries: {},
     sceneState: {},
     phoneNotifications: [],
@@ -274,14 +278,25 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
   }
 
   const storyStage = source.storyClock?.stage
-  const storyClock: MainlineStoryClock = storyStage === 'commercial-street' || storyStage === 'cafe' || storyStage === 'yonghe' || storyStage === 'opening'
+  const storyClockBase: MainlineStoryClock = storyStage === 'commercial-street' || storyStage === 'cafe' || storyStage === 'yonghe' || storyStage === 'opening'
     ? storyClockForStage(storyStage as MainlineStoryStage)
     : createInitialMainlineStoryClock(validCore && source.currentSceneId === 'commercial-cafe' ? 'commercial-cafe' : currentSceneId)
   const updatedAt = Number(source.updatedAt)
   const savedGameTimeMs = source.gameTimeMs
   const gameTimeMs = typeof savedGameTimeMs === 'number' && Number.isFinite(savedGameTimeMs) && savedGameTimeMs >= 0
     ? savedGameTimeMs
-    : savedStoryClockTimeAsMilliseconds((source as { storyClock?: unknown }).storyClock, storyClock)
+    : savedStoryClockTimeAsMilliseconds((source as { storyClock?: unknown }).storyClock, storyClockBase)
+  const savedClock = source.storyClock && typeof source.storyClock === 'object' ? source.storyClock as Partial<MainlineStoryClock> : {}
+  const requestedStoryDate = { year: savedClock.year ?? 2025, month: savedClock.month ?? 4, day: savedClock.day ?? 12 }
+  const storyDate: StoryDate = isValidStoryDate(requestedStoryDate) ? requestedStoryDate : { year: 2025, month: 4, day: 12 }
+  const minuteOfDay = Math.floor(gameTimeMs / 60_000) % (24 * 60)
+  const storyClock: MainlineStoryClock = {
+    ...storyClockBase,
+    ...storyDate,
+    weekday: storyWeekday(storyDate.year, storyDate.month, storyDate.day),
+    hour: Math.floor(minuteOfDay / 60),
+    minute: minuteOfDay % 60,
+  }
   const commerceState = Object.hasOwn(source, 'shopOrders') || Object.hasOwn(source, 'heldConsumable')
     ? sanitizeCrossShopOrderState({ ordersByShop: source.shopOrders, heldConsumable: source.heldConsumable })
     : migrateLegacyShopState(cleanSceneState(source.sceneState), { gameTimeMs, updatedAtWallMs: Number.isFinite(updatedAt) && updatedAt >= 0 ? updatedAt : 0 })
@@ -306,6 +321,7 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
     heldConsumable: commerceState.heldConsumable,
     walletBalance: paymentState.walletBalance,
     shopOrderPaymentReceipts: paymentState.paymentReceipts,
+    monthlySalaryReceipts: cleanMonthlySalaryReceipts(source.monthlySalaryReceipts),
     cafeStoryDeliveries: sanitizeCafeStoryDeliveries(source.cafeStoryDeliveries),
     sceneState: cleanSceneState(source.sceneState),
     phoneNotifications: cleanPhoneNotifications(source.phoneNotifications),
@@ -319,6 +335,32 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
       ? { freshSeatOnly: true as const }
       : {}),
     updatedAt: Number.isFinite(updatedAt) && updatedAt >= 0 ? Math.round(updatedAt) : 0,
+  }
+}
+
+/** Advance only an authored narrative date. Midnight and scene changes do not call this. */
+export function advancePlayerStoryDate(save: PlayerSave, targetDate: StoryDate): PlayerSave {
+  const currentDate: StoryDate = {
+    year: save.storyClock.year ?? 2025,
+    month: save.storyClock.month ?? 4,
+    day: save.storyClock.day ?? 12,
+  }
+  if (!isValidStoryDate(currentDate) || !isValidStoryDate(targetDate)) return save
+  const dateOrder = targetDate.year - currentDate.year
+    || targetDate.month - currentDate.month
+    || targetDate.day - currentDate.day
+  if (dateOrder <= 0) return save
+
+  const settlement = settleMonthlySalary(currentDate, targetDate, save.walletBalance, save.monthlySalaryReceipts)
+  return {
+    ...save,
+    storyClock: {
+      ...save.storyClock,
+      ...targetDate,
+      weekday: storyWeekday(targetDate.year, targetDate.month, targetDate.day),
+    },
+    walletBalance: settlement.walletBalance,
+    monthlySalaryReceipts: settlement.receipts,
   }
 }
 
@@ -417,7 +459,13 @@ export function createGameTimeSaveCheckpoint({
     const current = getSave()
     const gameTimeMs = getGameTimeMs()
     if (!Number.isFinite(gameTimeMs) || gameTimeMs < 0 || current.gameTimeMs === gameTimeMs) return current
-    const persisted = persist({ ...current, gameTimeMs })
+    const minuteOfDay = Math.floor(gameTimeMs / 60_000) % (24 * 60)
+    const storyClock = {
+      ...current.storyClock,
+      hour: Math.floor(minuteOfDay / 60),
+      minute: minuteOfDay % 60,
+    }
+    const persisted = persist({ ...current, gameTimeMs, storyClock })
     setSave(persisted)
     return persisted
   }
