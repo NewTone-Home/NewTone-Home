@@ -1,5 +1,6 @@
 import { currentCafeStart, currentCafeOptions } from './helpers/currentCafe'
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineNpcStagedPoint } from '../src/center/runtime/mainlineNpcStaging'
 import { findMainlinePathToEntity, isWalkableMainlinePoint, resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
@@ -58,29 +59,19 @@ describe('Café NPC runtime movement', () => {
     expect(resolveMainlineNpcPosition(cafe, commercialCafeFloorServerNpcId)).toEqual(floor.initialPosition)
   })
 
-  it('starts preparation only after a shared-navigation route reaches the prep station', () => {
-    const { navigationRuntime, controller, adapter } = createCafeMovement(commercialCafeCoffeeOwnerNpcId)
-    const intent = resolveCommercialCafeCoffeePrepIntent(cafe)!
-    let story = commercialCafeCoffeeOrdered(initialCommercialCafeStoryState())
-    let arrivals = 0
-    const started = adapter.requestMove(intent, cafe, {}, { ...currentCafeOptions, actorId: commercialCafeCoffeeOwnerNpcId, navigationRuntime }, { maxSpeed: 1 }, () => {
-      arrivals += 1
-      story = commercialCafeCoffeePreparing(story, 42_000)
-    })
-    expect(started).toBe(true)
-    expect(story.coffeeStatus).toBe('ordered')
-    expect(story.coffeePreparationStartedAt).toBeNull()
-    runUntilIdle(controller, adapter, navigationRuntime, commercialCafeCoffeeOwnerNpcId)
-    expect(arrivals).toBe(1)
-    expect(story).toMatchObject({ coffeeStatus: 'preparing', coffeePreparationStartedAt: 42_000 })
-    expect(adapter.getPosition()).toEqual(intent.target)
+  it('uses the shared shop-order adapter instead of a separate real-time coffee-prep timer', () => {
+    const page = readFileSync(new URL('../src/center/runtime/MainlineScenePage.tsx', import.meta.url), 'utf8')
+    expect(page).toContain('cafeStoryOrderDelivery?.status')
+    expect(page).toContain('cafeStoryOrderDelivery?.begin')
+    expect(page).toContain('cafeStoryOrderDelivery?.completePresentation')
+    expect(page).not.toContain('commercialCafeCoffeePreparationDurationMs')
+    expect(page).not.toContain('commercialCafeCoffeePreparationElapsed')
   })
 
-  it('keeps the floor actor on public table service while coffee owner prepares', () => {
+  it('keeps the floor actor on public table service without starting a second coffee preparation route', () => {
     const { navigationRuntime: coffeeRuntime, controller: coffeeController, adapter: coffeeAdapter } = createCafeMovement(commercialCafeCoffeeOwnerNpcId)
-    const intent = resolveCommercialCafeCoffeePrepIntent(cafe)!
-    const started = coffeeAdapter.requestMove(intent, cafe, {}, { ...currentCafeOptions, actorId: commercialCafeCoffeeOwnerNpcId, navigationRuntime: coffeeRuntime }, { maxSpeed: 1 })
-    expect(started).toBe(true)
+    expect(coffeeController.isMoving()).toBe(false)
+    expect(coffeeAdapter.getPosition()).toEqual(mainlineNpcStagedPoint(cafe, commercialCafeCoffeeOwnerNpcId))
     const floorIntent = resolveCommercialCafeFloorServiceIntent(cafe)!
     const floorContact = findMainlinePathToEntity(cafe, floorIntent.targetEntityId!, mainlineNpcStagedPoint(cafe, commercialCafeFloorServerNpcId)!, {}, {
       ...currentCafeOptions, actorId: commercialCafeFloorServerNpcId,
@@ -89,7 +80,7 @@ describe('Café NPC runtime movement', () => {
     })
     expect(floorContact.path).not.toBeNull()
     expect(coffeeRuntime.getActor(commercialCafeFloorServerNpcId)).toBeDefined()
-    expect(coffeeController.isMoving()).toBe(true)
+    expect(coffeeController.isMoving()).toBe(false)
   })
 
   // This deterministic route simulation visits every shared-navigation waypoint

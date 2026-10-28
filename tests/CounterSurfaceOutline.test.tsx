@@ -80,7 +80,10 @@ describe('one exterior L counter, two labels and complete solid interaction',()=
   }
   for(const [id,roomId,y] of [['commercial-cafe-menu','commercial-north-cafe-interior',392],['commercial-cafe-blackboard','commercial-north-cafe-interior',252],['commercial-s5-milk-tea-menu-service-label','commercial-south-s5-interior',56],['fruit-tea-trial-menu','commercial-north-n1-interior',588]] as const){const room=scene.rooms.find(r=>r.id===roomId)!,entity=scene.objects.find(o=>o.id===id)!;expect(entity.surface).toBe('wall');expect((entity.position.y-room.bounds.y)*10.8).toBeCloseTo(y,5)}
  })
- it('preserves one coffee-order behavior and all seven original service IDs',()=>{
-  expect(scene.objects.filter(o=>o.counterSurfaceId&&o.interactionBehavior==='cafe-order').map(o=>o.id)).toEqual(['commercial-cafe-counter']);expect(scene.objects.filter(o=>o.counterService).map(o=>o.id).sort()).toEqual(['commercial-cafe-counter','cafe-trial-order','cafe-trial-pickup','commercial-s5-milk-tea-order-service-label','commercial-s5-milk-tea-pickup-service-label','fruit-tea-trial-order','fruit-tea-trial-pickup','commercial-s5-milk-tea-app-square','fruit-tea-trial-app-square'].sort());for(const o of scene.objects.filter(o=>o.counterSurfaceId&&!o.counterService))expect(o.interactionBehavior).toBeUndefined()
+ it('keeps one Café order entry while retaining the other shops’ existing counter targets',()=>{
+  const cafeRoomId='commercial-north-cafe-interior'
+  expect(scene.objects.filter(o=>o.roomId===cafeRoomId&&o.counterSurfaceId&&o.interactionBehavior==='cafe-order').map(o=>o.id)).toEqual(['commercial-cafe-counter'])
+  expect(scene.objects.filter(o=>o.counterService).map(o=>o.id).sort()).toEqual(['commercial-cafe-counter','commercial-s5-milk-tea-order-service-label','fruit-tea-trial-order','commercial-s5-milk-tea-app-square','fruit-tea-trial-app-square'].sort())
+  for(const o of scene.objects.filter(o=>o.counterSurfaceId&&!o.counterService))expect(o.interactionBehavior).toBeUndefined()
  })
 })

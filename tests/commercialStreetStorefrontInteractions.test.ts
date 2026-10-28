@@ -24,11 +24,12 @@ const referenceNavigation = { screenMetrics: sceneDesignReferenceMetrics }
 const commercialShopStorefronts = street.storefronts.filter((storefront) => /-slot(?:-\d+)?$/.test(storefront.id))
 
 describe('commercial street storefront interactions', () => {
-  it('defines exactly the 15 echo-capable storefronts plus the milk-tea order action, never Café', () => {
+  it('defines 14 ambient storefronts plus the milk-tea and fruit-tea order actions, never Café', () => {
     const interactions = Object.entries(commercialStreetStorefrontInteractions)
     expect(interactions).toHaveLength(16)
-    expect(interactions.filter(([, interaction]) => interaction.kind !== 'action')).toHaveLength(15)
+    expect(interactions.filter(([, interaction]) => interaction.kind !== 'action')).toHaveLength(14)
     expect(commercialStreetStorefrontInteractionFor('commercial-south-slot-5')).toEqual({ kind: 'action', action: 'milk-tea-order' })
+    expect(commercialStreetStorefrontInteractionFor('commercial-north-slot-1')).toEqual({ kind: 'action', action: 'fruit-tea-order' })
     expect(commercialStreetStorefrontInteractionFor('commercial-cafe-slot')).toBeUndefined()
   })
 
@@ -43,17 +44,14 @@ describe('commercial street storefront interactions', () => {
     expect(Object.keys(runtime)).toEqual(['lastShownByStorefront', 'comingSoonShown'])
   })
 
-  it('shows fruit tea Coming Soon once per scene runtime, then chooses non-repeating local text', () => {
+  it('routes fruit tea to the order action without consuming ambient text', () => {
     const runtime = createCommercialStreetStorefrontInteractionRuntime()
-    expect(resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', runtime, () => 0)).toEqual({ kind: 'echo', text: 'Coming Soon' })
-    const second = resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', runtime, () => 0)
-    const third = resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', runtime, () => 0)
-    expect(second).toEqual({ kind: 'echo', text: '门边的立牌上画着几种颜色很亮的果饮。' })
-    expect(third).toEqual({ kind: 'echo', text: '招牌上的布还没有揭开。' })
+    expect(resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', runtime, () => 0)).toEqual({ kind: 'action', action: 'fruit-tea-order' })
+    expect(resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', runtime, () => 0)).toEqual({ kind: 'action', action: 'fruit-tea-order' })
+    expect(runtime.lastShownByStorefront.size).toBe(0)
     const rebuiltRuntime = createCommercialStreetStorefrontInteractionRuntime()
-    expect(resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', rebuiltRuntime)).toEqual({ kind: 'echo', text: 'Coming Soon' })
+    expect(resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', rebuiltRuntime)).toEqual({ kind: 'action', action: 'fruit-tea-order' })
   })
-
   it('uses existing legal navigation to reach representative storefront approaches before interaction', () => {
     // New games deliberately begin at the fruit-tea approach. Keep this
     // movement test starting on the public lane, away from every sampled door.
@@ -522,25 +520,17 @@ describe('commercial street storefront interactions', () => {
     expect(afterCooldown).not.toEqual(first)
   })
 
-  it('does not let the cooldown skip fruit-tea Coming Soon or repeat the milk-tea action', () => {
+  it('debounces repeated fruit-tea app actions without consuming ambient text', () => {
     const fruitRuntime = createCommercialStreetStorefrontInteractionRuntime()
     const fruitExecutionRuntime = createCommercialStreetStorefrontExecutionRuntime()
-    let firstChoiceCalls = 0
-    const firstChoice = () => {
-      firstChoiceCalls += 1
-      return 0
-    }
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1000, firstChoice)).toEqual({ kind: 'echo', text: 'Coming Soon' })
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1140, firstChoice)).toBeNull()
-    expect(firstChoiceCalls).toBe(0)
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1300, firstChoice)).toEqual({ kind: 'echo', text: '门边的立牌上画着几种颜色很亮的果饮。' })
-    expect(firstChoiceCalls).toBe(1)
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1600, firstChoice)).toEqual({ kind: 'echo', text: '招牌上的布还没有揭开。' })
-
-    const secondChoiceRuntime = createCommercialStreetStorefrontInteractionRuntime()
-    const secondChoiceExecutionRuntime = createCommercialStreetStorefrontExecutionRuntime()
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', secondChoiceRuntime, secondChoiceExecutionRuntime, 1000, () => .999)).toEqual({ kind: 'echo', text: 'Coming Soon' })
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', secondChoiceRuntime, secondChoiceExecutionRuntime, 1300, () => .999)).toEqual({ kind: 'echo', text: '招牌上的布还没有揭开。' })
+    let randomCalls = 0
+    const random = () => { randomCalls += 1; return 0 }
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1000, random)).toEqual({ kind: 'action', action: 'fruit-tea-order' })
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1140, random)).toBeNull()
+    expect(randomCalls).toBe(0)
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1300, random)).toEqual({ kind: 'action', action: 'fruit-tea-order' })
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1600, random)).toEqual({ kind: 'action', action: 'fruit-tea-order' })
+    expect(fruitRuntime.lastShownByStorefront.size).toBe(0)
 
     const milkRuntime = createCommercialStreetStorefrontInteractionRuntime()
     const milkExecutionRuntime = createCommercialStreetStorefrontExecutionRuntime()
