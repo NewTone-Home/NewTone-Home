@@ -18,6 +18,6 @@ describe('Yonghe cross-shop order catalog contract', () => {
     expect(yongheMenuForChoice('\u996d').map(product => product.id)).toEqual(['yonghe-egg-fried-rice', 'yonghe-pork-and-greens-rice'])
     expect(yongheRecommendedDishNames('\u9762')).toEqual(['\u9c9c\u8089\u9984\u9968', '\u8089\u672b\u62cc\u9762'])
     expect(yongheRecommendedDishNames('\u996d')).toEqual(['\u86cb\u7092\u996d', '\u9752\u83dc\u8089\u7247\u76d6\u996d'])
-    expect(yongheMenuText().split('\n').map(line => Number(line.match(/ (\d+)\u5143$/)?.[1]))).toEqual([12, 11, 10, 14])
+    expect(yongheMenuText().split('\n').map(line => Number(line.match(/  (\d+)$/)?.[1]))).toEqual([12, 11, 10, 14])
   })
 })

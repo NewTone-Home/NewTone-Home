@@ -74,7 +74,7 @@ export function recommendedCommercialStreetDrink(storeId: string, preference: st
 export function commercialStreetDrinkMenuText(storeId: string) {
   return commercialStreetDrinkCatalog
     .filter(product => product.storeId === storeId)
-    .map(product => `${product.name}  ${product.price}元\n${product.description ?? ''}`)
+    .map(product => `${product.name}  ${product.price}\n${product.description ?? ''}`)
     .join('\n\n')
 }
 

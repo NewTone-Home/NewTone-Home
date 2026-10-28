@@ -12,6 +12,7 @@ type MainlineEchoLayoutOptions = {
   speaker?: string
   maxWidthPx?: number
   fixedWidthPx?: number
+  lineHeight?: number
   measureText?: (text: string, fontSizePx: number) => number
 }
 
@@ -28,7 +29,7 @@ function textWidthPx(text: string, fontSizePx: number, scale = 1, measureText = 
 export function mainlineEchoLayout(text: string, screenMetrics: SceneScreenMetrics, options: MainlineEchoLayoutOptions = {}): MainlineEchoLayout {
   const compact = screenMetrics.width <= 600 && screenMetrics.height > screenMetrics.width
   const fontSizePx = clampFontSize(screenMetrics)
-  const lineHeight = compact ? 1.5 : 1.62
+  const lineHeight = options.lineHeight ?? (compact ? 1.5 : 1.62)
   const paddingX = compact ? 16 : fontSizePx * 1.12
   const paddingY = compact ? 11 : fontSizePx * .8
   const speakerWidth = options.speaker ? textWidthPx(options.speaker, Math.max(12, fontSizePx * .74), 1.1, options.measureText) : 0

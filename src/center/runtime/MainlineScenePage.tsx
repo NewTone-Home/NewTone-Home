@@ -1,5 +1,7 @@
 'use client'
 
+import { isWallMenuReading } from './menuReading'
+
 import { hasContinuousCafe, isCafeWorldId, isPointInContinuousCafe, isCafeStoryKey, cafeStoryNamespace } from './continuousCafe'
 import { cafeRestroomFaucetId, cafeRestroomRoomId, cafeRestroomToiletId, cafeRestroomToiletUseGameDurationMs, isPointInsideCafeRestroom } from './cafeRestroom'
 
@@ -2036,14 +2038,14 @@ export function MainlineScenePage({
     beginPassageLeg(passage, requestedTarget, plannedApproachPath, continuationPath, passageQueue, passageIndex)
   }, [beginPassageLeg, cancelPassageLifecycle, cancelSceneAction, denyLockedPassageAfterApproach, dismissSceneEcho, getCurrentPosition, layout, navigationOptions, scene, sceneAction?.phase])
 
-  const presentYongheEcho = useCallback((text: string, options?: readonly string[]) => {
+  const presentYongheEcho = useCallback((text: string, options?: readonly string[], entityId = 'yonghe-trial-worker') => {
     sceneEchoIdRef.current += 1
     const currentPosition = getCurrentPosition()
     const worldScale = mainlineWorldScale(activeViewportMetrics)
     const actionCameraOffset = mainlineReadingCameraOffset(scene, currentPosition, readingMetrics, worldScale, cameraOffset)
     presentSceneEcho(createMainlineSceneEcho(
       sceneEchoIdRef.current,
-      'yonghe-trial-worker',
+      entityId,
       text,
       sceneTextPresentationPosition(scene, currentPosition, text, readingMetrics, 'observation', worldScale, actionCameraOffset),
       options ? 'menu-reading' : 'scene-observation',
@@ -2254,8 +2256,7 @@ export function MainlineScenePage({
       const interactionStartedAt = interactionStartedAtRef.current
       interactionStartedAtRef.current = null
       if (entity.id === 'yonghe-menu' && isYongheTakeawayScene(scene.id)) {
-        const choices = yongheTakeawayCatalog.map(product => `${product.name} ${product.price}元`)
-        presentYongheEcho(yongheMenuText(), choices)
+        presentYongheEcho(yongheMenuText(), undefined, 'yonghe-menu')
         setActiveObjectId(null)
         onInteractionAnalytics?.('completed', entity.id, entity.kind, 'menu-read')
         return
@@ -2751,7 +2752,14 @@ export function MainlineScenePage({
       setSceneEcho(next)
       return
     }
-    if (current.textMotion === 'deleting' || current.textMotion === 'deleted') return
+    if (current.textMotion === 'deleting' || current.textMotion === 'deleted') {
+      if (isWallMenuReading(current.entityId)) {
+        const completed = { ...current, textMotion: 'deleted' as const }
+        sceneEchoRef.current = completed
+        finishSceneEchoReading(completed)
+      }
+      return
+    }
     if (current.segmentIndex + 1 < current.segments.length) {
       const next = {
         ...current,

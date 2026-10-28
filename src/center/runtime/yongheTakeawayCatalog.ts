@@ -9,7 +9,7 @@ export const yongheTakeawayCatalog = [
 ] as const
 
 export function yongheMenuText(products: readonly typeof yongheTakeawayCatalog[number][] = yongheTakeawayCatalog) {
-  return products.map(({ name, price }) => `${name} ${price}元`).join('\n')
+  return products.map(({ name, price }) => `${name}  ${price}`).join('\n')
 }
 
 /** Recommendation choices name dishes only; prices remain on the full menu. */

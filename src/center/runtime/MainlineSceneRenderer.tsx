@@ -1,5 +1,8 @@
 'use client'
 
+import { isWallMenuReading } from './menuReading'
+import { commercialStreetDrinkCatalog } from './commercialStreetDrinkCatalog'
+
 import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { MainlineCounterSurface } from './MainlineCounterSurface'
@@ -20,7 +23,7 @@ import { readMainlineViewportMetrics, type MainlineViewportMetrics } from './mai
 import { commercialStreetHorizontalScale, projectCommercialStreetX } from './commercialStreetGridProjection'
 import { mainlineWorldPointFromClient, mainlineWorldScale, mainlineVisibleWorldSpan } from './mainlineViewport'
 import { advanceCommercialStreetQuestionCameraHandoff, commercialStreetQuestionCameraHandoffSettled } from './commercialStreetQuestionCameraHandoff'
-import { useSceneFocusFrameController } from './SceneFocusFrames'
+import { sceneFocusFrameGeometry, useSceneFocusFrameController } from './SceneFocusFrames'
 import { sceneFrameDefaultMotionMs } from './sceneMotion'
 import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
@@ -474,13 +477,30 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
   } }
 }
 
-function ObservationText({ echoId, continuityKey, pageKey, text, motion, paused, layout, worldScale, lockToken, onMotionComplete, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { echoId: number; continuityKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; paused: boolean; layout: MainlineEchoLayout; worldScale: number; lockToken: number; onMotionComplete?: (echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
+function ObservationText({ menu, sourceText, echoId, continuityKey, pageKey, text, motion, paused, layout, worldScale, lockToken, onMotionComplete, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { menu: boolean; sourceText: string; echoId: number; continuityKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; paused: boolean; layout: MainlineEchoLayout; worldScale: number; lockToken: number; onMotionComplete?: (echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
   const sessionKey = `echo:${echoId}`
   const completeMotion = useCallback((key: string, completedMotion: MainlineReadingTextMotion) => onMotionComplete?.(echoId, key, completedMotion), [echoId, onMotionComplete])
   const textMotion = useReadingTextMotion({ sessionKey, pageKey, text, motion, paused, onComplete: completeMotion })
+  const pageSource = text.endsWith('...') ? text.slice(0, -3) : text
+  const pageOffset = Math.max(0, sourceText.indexOf(pageSource))
+  const descriptions = commercialStreetDrinkCatalog.flatMap(item => item.description ? [item.description] : [])
+  const descriptionRanges = descriptions.flatMap(description => {
+    const start = sourceText.indexOf(description)
+    return start < 0 ? [] : [{ start, end: start + description.length }]
+  })
+  const visibleChunks = Array.from(textMotion.visibleText).map((character, index) => ({ character, small: menu && descriptionRanges.some(range => pageOffset + index >= range.start && pageOffset + index < range.end) }))
+  const grouped = visibleChunks.reduce<{ text: string; small: boolean }[]>((groups, part) => {
+    const last = groups[groups.length - 1]
+    if (last && last.small === part.small) last.text += part.character
+    else groups.push({ text: part.character, small: part.small })
+    return groups
+  }, [])
+  const frameGeometry = sceneFocusFrameGeometry(layout.widthPx / worldScale + 16, layout.heightPx / worldScale + 12)
+  const frameProgress = text.length ? Math.min(1, textMotion.visibleText.length / text.length) : 0
   return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">
+    {menu && <span className="scene-focus-frame scene-menu-reading-frame" style={{ '--scene-focus-stroke-offset': 1 - frameProgress } as CSSProperties} aria-hidden="true"><svg viewBox={frameGeometry.viewBox} preserveAspectRatio="none"><path pathLength="1" d={frameGeometry.paths['top-left']} /></svg></span>}
     <ReadingPageFlip pageKey={pageKey} continuityKey={continuityKey} visibleText={textMotion.visibleText} layout={layout} worldScale={worldScale} mode="observation" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel} onSettled={(settledKey) => { textMotion.onSettled(settledKey); onSettled?.(settledKey) }}>
-      {textMotion.visibleText}
+      {grouped.map((part, index) => part.small ? <span className="scene-menu-description" key={index}>{part.text}</span> : part.text)}
     </ReadingPageFlip>
   </span>
 }
@@ -1471,7 +1491,9 @@ export function MainlineSceneRenderer({
   }, [readingSessionKey])
   const dialogueParticipantResolution = resolveMainlineDialogueParticipants(scene, dialogue, dialogueLine)
   const dialogueParticipantNpcIds = dialogueParticipantResolution.npcIds
+  const isMenuReading = Boolean(sceneEcho && isWallMenuReading(sceneEcho.entityId))
   const readingProtectedEntityIds = useMemo(() => {
+    if (isMenuReading) return new Set<string>()
     const readingRoomId = activeReadingPosition ? mainlineInteractionRoom(scene, activeReadingPosition)?.id : null
     return currentMainlineReadingTargetIds({
       readingMode: readingPresentationPhase !== 'inactive',
@@ -1488,7 +1510,7 @@ export function MainlineSceneRenderer({
       roomId: readingRoomId,
       preserveServiceEntities: readingMode === 'dialogue',
     })
-  }, [activeObjectId, activeReadingPosition, dialogue?.triggerEntityId, dialogueStage?.protectedEntityIds, readingPresentationPhase, scene.objects, scene.npcs, scene.continuousStructures, scene.geometry, scene.rooms, sceneAction?.entityId, sceneEcho?.entityId, scene])
+  }, [isMenuReading, activeObjectId, activeReadingPosition, dialogue?.triggerEntityId, dialogueStage?.protectedEntityIds, readingPresentationPhase, scene.objects, scene.npcs, scene.continuousStructures, scene.geometry, scene.rooms, sceneAction?.entityId, sceneEcho?.entityId, scene])
   const currentReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset) : readingMetrics.width - 24
   const maximumReadingWidthPx = activeReadingPosition ? mainlineMaximumReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale) : currentReadingWidthPx
   const readingEnvelopeEntries = useMemo<readonly MainlineReadingSessionTextEntry[]>(() => sceneEcho
@@ -1528,6 +1550,7 @@ export function MainlineSceneRenderer({
         fontKey: readingLayoutFontFaceKey,
         worldScale,
         preferWholeText: Boolean(sceneEcho),
+        ...(isMenuReading ? { layoutText: (text, metrics, options) => mainlineEchoLayout(text, metrics, { ...options, lineHeight: metrics.width <= 600 && metrics.height > metrics.width ? 1.6 : 1.72 }) } : {}),
       })
       readingLayoutSessionCacheRef.current = readingLayoutSessionCache
     } else {
@@ -2797,7 +2820,7 @@ export function MainlineSceneRenderer({
             ><DialogueSpeaker speaker={dialogueLine!.speaker} /></div>}
             <div
               key={readingLayoutContinuityKey ?? sceneEcho?.id ?? dialogueLine!.id}
-              className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${stageDialogue ? 'scene-mainline-text--stage-dialogue' : ''} ${isLeaving ? 'is-leaving' : ''}`}
+              className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${stageDialogue ? 'scene-mainline-text--stage-dialogue' : ''} ${isMenuReading ? 'scene-mainline-text--menu' : ''} ${isLeaving ? 'is-leaving' : ''}`}
               style={{
                 left: `${speakerAnchor
                   ? speakerAnchor.left + speakerAnchor.worldWidthPx / sceneDesignReferenceMetrics.width * 50
@@ -2844,7 +2867,7 @@ export function MainlineSceneRenderer({
               {isDialogue && !stageDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
                 ? <DialogueText group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
-                : <ObservationText echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} paused={readingFit?.fits === false} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
+                : <ObservationText menu={isMenuReading} sourceText={sceneEcho!.segments.join('')} echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} paused={readingFit?.fits === false} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
             </div>
             {dialogueHandoffOutgoing && dialogueHandoffPresentation && stageDialogue && <DialogueHandoffOutgoingText
               id={dialogueHandoffOutgoing.id}
@@ -2929,7 +2952,10 @@ export function MainlineSceneRenderer({
                 const readingTextIsDeleting = sceneEcho
                   ? sceneEcho.textMotion === 'deleting' || sceneEcho.textMotion === 'deleted'
                   : dialogueTextMotion === 'deleting' || dialogueTextMotion === 'deleted'
-                if (readingTextIsDeleting) return
+                if (readingTextIsDeleting) {
+                  if (isMenuReading && sceneEcho?.textMotion === 'deleting') onSceneEchoAdvance?.()
+                  return
+                }
                 if (readingPresentationMode === 'dialogue') {
                   const clickAction = mainlineDialogueClickAction({ motion: dialogueTextMotion, handoffActive: dialogueHandoffActive })
                   if (clickAction === 'ignore') return

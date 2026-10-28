@@ -139,9 +139,9 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
   ]
   const result: MainlineSceneBlueprint = { ...blueprint,
     portals: [...blueprint.portals, toilet],
-    interactionText: { ...blueprint.interactionText, ...Object.fromEntries(entities.filter(e=>e.interactionStructureId&&!e.interactionBehavior).map(e=>[e.id,e.label+'。'])), 'commercial-cafe-menu': '美式 3\n拿铁 4\n澳白 4\n焦糖玛奇朵 5\n海盐焦糖拿铁 5', 'commercial-cafe-blackboard': '新品｜海盐焦糖拿铁 — 5' },
+    interactionText: { ...blueprint.interactionText, ...Object.fromEntries(entities.filter(e=>e.interactionStructureId&&!e.interactionBehavior).map(e=>[e.id,e.label+'。'])), 'commercial-cafe-menu': '美式  3\n拿铁  4\n澳白  4\n焦糖玛奇朵  5\n海盐焦糖拿铁  5', 'commercial-cafe-blackboard': '新品｜海盐焦糖拿铁 — 5' },
     explorationText: { ...blueprint.explorationText, ...Object.fromEntries(entities.filter(e=>e.interactionStructureId&&!e.interactionBehavior).map(e=>[e.id,[e.label+'。']])),
-      'commercial-cafe-menu': ['美式 3\n拿铁 4\n澳白 4\n焦糖玛奇朵 5\n海盐焦糖拿铁 5'], 'commercial-cafe-blackboard': ['新品｜海盐焦糖拿铁 — 5'],
+      'commercial-cafe-menu': ['美式  3\n拿铁  4\n澳白  4\n焦糖玛奇朵  5\n海盐焦糖拿铁  5'], 'commercial-cafe-blackboard': ['新品｜海盐焦糖拿铁 — 5'],
       'cafe-trial-corner-plant-rear': ['这是店内的装饰，最好不要碰。'],
       'cafe-trial-corner-plant-front': ['叶片层层叠在一起，把墙边的一小块地方遮住了。'],
       'cafe-trial-coffee-machine': ['咖啡机放在员工工作线上。'], 'cafe-trial-prep-table': ['备餐台与咖啡机共用员工侧通道。'],

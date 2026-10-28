@@ -1171,9 +1171,6 @@
 @keyframes dialogue-speaker-entering { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dialogue-speaker-exiting { from { opacity: 1; } to { opacity: 0; } }
 .scene-mainline-text__observation { position: absolute; inset: 2px 0; display: block; }
-.scene-mainline-text[data-scene-echo="commercial-s5-milk-tea-menu-service-label"]::before,
-.scene-mainline-text[data-scene-echo="fruit-tea-trial-menu"]::before,
-.scene-mainline-text[data-scene-echo="commercial-cafe-menu"]::before,
 .scene-mainline-text[data-scene-echo="commercial-cafe-blackboard"]::before {
   content: "";
   position: absolute;
@@ -1196,6 +1193,12 @@
   .scene-mainline-text[data-scene-echo="commercial-cafe-menu"]::before,
   .scene-mainline-text[data-scene-echo="commercial-cafe-blackboard"]::before { animation-duration: 1ms; }
 }
+.scene-mainline-text--menu { line-height: 1.72; }
+.scene-mainline-text--menu .scene-mainline-page { white-space: pre-wrap; }
+.scene-menu-description { font-size: 0.666667em; }
+.scene-menu-reading-frame { inset: -6px -8px; }
+.scene-menu-reading-frame path { transition: none; }
+@media (max-width: 600px) and (orientation: portrait) { .scene-mainline-text--menu { line-height: 1.6; } }
 .scene-mainline-text__dialogue { position: absolute; inset: calc(5px + max(19.44px, 1.1988em)) 0 2px; display: block; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; }
 .scene-mainline-page-stack { position: relative; left: 50%; top: 50%; display: grid; grid-template-rows: minmax(0, 1fr); overflow: hidden; transform: translate(-50%, -50%); }
 .scene-mainline-page { grid-area: 1 / 1; justify-self: center; display: block; min-width: 0; min-height: 0; white-space: pre-line; transform: translate3d(0, 0, 0); }
