@@ -128,6 +128,25 @@ describe('mainline scene interaction policies', () => {
     }
   })
 
+  it('hides only the Yonghe-facing alley wall glyphs while preserving the original blocked wall and door geometry', () => {
+    const scene = mainlineScenes['yonghe-eatery']
+    const shop = scene.rooms.find(room => room.id === 'mining-shop-2-interior')!
+    const shopRight = shop.bounds.x + shop.bounds.width
+    const alleyBottom = scene.geometry.filter(unit => unit.sourceWallId === 'mining-street-back-alley-frame' && unit.edge === 'bottom')
+    const wallCells = alleyBottom.flatMap(unit => unit.visual.cells).filter(cell => cell.kind === 'wall')
+    const yongheSideCells = wallCells.filter(cell => cell.x >= shop.bounds.x - .01 && cell.x <= shopRight + .01)
+    const otherSideCells = wallCells.filter(cell => cell.x < shop.bounds.x - .01)
+
+    expect(yongheSideCells.length).toBeGreaterThan(0)
+    expect(yongheSideCells.every(cell => cell.glyph === '')).toBe(true)
+    expect(otherSideCells.some(cell => cell.glyph !== '')).toBe(true)
+    expect(alleyBottom.every(unit => unit.navigation.blocked)).toBe(true)
+    expect(scene.geometry.some(unit => unit.sourceWallId === 'mining-street-back-alley-frame' && unit.edge === 'top' && unit.navigation.blocked)).toBe(true)
+    expect(scene.geometry.some(unit => unit.sourceWallId === 'mining-street-back-alley-frame' && unit.edge === 'right' && unit.navigation.blocked)).toBe(true)
+    expect(scene.geometry.some(unit => unit.sourceWallId === 'mining-street-back-alley-frame' && unit.navigation.passageId === 'yonghe-back-door' && unit.surface === 'door')).toBe(true)
+    expect(scene.passages.find(passage => passage.id === 'yonghe-back-door')).toMatchObject({ access: 'open', routeThrough: true, fromRoomId: 'mining-street-back-alley', toRoomId: 'mining-shop-2-interior' })
+  })
+
   it('persists watering as a bounded plant state instead of feedback-only UI', () => {
     const office = mainlineScenes['zhongshuyuan-office']
     const plant = entity('zhongshuyuan-office', 'zhongshuyuan-office-plant')

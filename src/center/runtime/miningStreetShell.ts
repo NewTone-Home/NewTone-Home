@@ -126,6 +126,13 @@ const backAlleyRoom = {
 const worldTop = Math.min(...oldShopMetrics.map(shop => shop.back), backAlleyUpperWallY)
 const worldBottom = laneBottom + 3 * vertical
 const arrival = { x: rowStartX - 2 * horizontal, y: facadeY + 3 * vertical }
+const backAlleyBottomWallGlyphs = Array.from(
+  { length: Math.round((rowRight - rowStartX) / horizontal) + 1 },
+  (_, gridIndex) => {
+    const x = rowStartX + gridIndex * horizontal
+    return x >= eatery.left - .001 && x <= eatery.right + .001 ? '' : undefined
+  },
+)
 
 /** Rotate the map clockwise; keep glyph labels upright along the new facade. */
 function rotateRect(rect: { x: number; y: number; width: number; height: number }) {
@@ -179,6 +186,7 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
       boundaryCoordinateCount: { horizontal: Math.round((rowRight - rowStartX) / horizontal) + 1, vertical: sharedNarrowPassageFrameIntervals + 1 },
       boundaryProjection: 'screen-spacing',
       boundaryVisualEndpoints: { vertical: { start: 'omit', end: 'omit' } },
+      edgeWallGlyphs: { bottom: backAlleyBottomWallGlyphs },
       edges: ['top', 'right', 'bottom'],
     },
     {
