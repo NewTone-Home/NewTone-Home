@@ -1,7 +1,7 @@
 import type { CollisionBox, Point } from './sceneGeometry'
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import type { MainlineSceneDefinition } from './mainlineScenes'
-import type { MainlineContinuousStructure, MainlineSceneEntity } from './mainlineSceneModel'
+import type { MainlineContinuousStructure, MainlineSceneEntity, MainlineSceneNpc } from './mainlineSceneModel'
 import { mainlineInteractionRoom, mainlineReadingBounds } from './mainlineTextReading'
 import { projectCommercialStreetX } from './commercialStreetGridProjection'
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
@@ -38,6 +38,7 @@ export function currentMainlineReadingTargetIds(input: {
   sceneActionEntityId?: string
   dialogueTriggerEntityId?: string
   objects?: readonly MainlineSceneEntity[]
+  npcs?: readonly MainlineSceneNpc[]
   continuousStructures?: readonly MainlineContinuousStructure[]
   geometry?: readonly { id: string; ownerId: string; x: number; y: number; width: number; height: number; sourceWallId?: string; entityId?: string; storefrontId?: string; readingProtection?: 'preserve'; visual: { cells: readonly { id: string; entityId?: string; storefrontId?: string }[] } }[]
   rooms?: readonly { id: string; bounds: CollisionBox }[]
@@ -55,6 +56,7 @@ export function currentMainlineReadingTargetIds(input: {
     : []
   return mainlineProtectedVisualIdentityIds({
     entities: input.objects ?? [],
+    npcs: input.npcs,
     structures: input.continuousStructures,
     geometry: input.geometry,
     rooms: input.rooms,

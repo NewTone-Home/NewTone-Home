@@ -17,6 +17,7 @@ type ProtectedGeometryUnit = {
 /** Resolve protected scene metadata to every semantic and physical identity a renderer may wrap. */
 export function mainlineProtectedVisualIdentityIds(input: {
   entities: readonly MainlineSceneEntity[]
+  npcs?: readonly MainlineSceneNpc[]
   structures?: readonly MainlineContinuousStructure[]
   geometry?: readonly ProtectedGeometryUnit[]
   rooms?: readonly { id: string; bounds: { x: number; y: number; width: number; height: number } }[]
@@ -26,6 +27,7 @@ export function mainlineProtectedVisualIdentityIds(input: {
 }) {
   const ids = new Set(input.seedIds ?? [])
   const entities = input.entities.filter(entity => !input.roomId || !entity.roomId || entity.roomId === input.roomId)
+  const npcs = (input.npcs ?? []).filter(npc => !input.roomId || !npc.roomId || npc.roomId === input.roomId)
   const structures = (input.structures ?? []).filter(structure => !input.roomId || !structure.counterSurface?.roomId || structure.counterSurface.roomId === input.roomId)
   const roomBounds = input.roomId ? input.rooms?.find(room => room.id === input.roomId)?.bounds : undefined
   for (const unit of input.geometry ?? []) {
@@ -36,6 +38,7 @@ export function mainlineProtectedVisualIdentityIds(input: {
   }
   if (input.includeAuthoredMetadata !== false) {
     for (const entity of entities) if (entity.readingProtection === 'preserve') ids.add(entity.id)
+    for (const npc of npcs) if (npc.readingProtection === 'preserve') ids.add(npc.id)
     for (const structure of structures) if (structure.readingProtection === 'preserve') ids.add(structure.id)
     for (const structure of structures) {
       const surface = structure.counterSurface
@@ -65,8 +68,4 @@ export function mainlineProtectedVisualIdentityIds(input: {
     }
   }
   return ids
-}
-
-export function mainlineProtectedVisualActorIds(npcs: readonly MainlineSceneNpc[], roomId?: string | null) {
-  return new Set(npcs.filter(npc => npc.readingProtection === 'preserve' && (!roomId || !npc.roomId || npc.roomId === roomId)).map(npc => npc.id))
 }

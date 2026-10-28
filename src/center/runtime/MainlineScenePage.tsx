@@ -47,7 +47,7 @@ import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
 import { mainlineInteractionRoom, mainlineInteractionSpace, mainlineIsInteriorSpace } from './mainlineTextReading'
 import { mainlineDialogueFurnitureGroupIds, mainlineDialogueHandoffDurationMs, mainlineDialogueShouldHandoff, mainlineDialogueSpeakerActorId, mainlineDialogueSpeakerOutsidePosition, mainlineDialogueStageHiddenEntityIds, mainlineDialogueStageActorOpacity } from './mainlineDialogueStage'
-import { mainlineProtectedVisualActorIds, mainlineProtectedVisualIdentityIds } from './mainlineVisualProtection'
+import { mainlineProtectedVisualIdentityIds } from './mainlineVisualProtection'
 import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, plantIsWatered, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
@@ -3009,13 +3009,14 @@ export function MainlineScenePage({
     if (!roomId) return null
     const protectedEntityIds = mainlineProtectedVisualIdentityIds({
       entities: scene.objects,
+      npcs: scene.npcs,
       structures: scene.continuousStructures,
       geometry: scene.geometry,
       rooms: scene.rooms,
       roomId,
       seedIds: [activeObjectId, activeDialogue?.triggerEntityId].filter((id): id is string => Boolean(id)),
     })
-    const protectedActorIds = mainlineProtectedVisualActorIds(scene.npcs, roomId)
+    const protectedActorIds = new Set(scene.npcs.filter(npc => protectedEntityIds.has(npc.id)).map(npc => npc.id))
     const furnitureGroupIds = mainlineDialogueFurnitureGroupIds(scene.objects, new Set([activePlayerSeatId, laoZhouCafeSeatId].filter((id): id is string => Boolean(id))))
     return {
       roomId,

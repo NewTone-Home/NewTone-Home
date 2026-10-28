@@ -1477,6 +1477,7 @@ export function MainlineSceneRenderer({
       sceneActionEntityId: sceneAction?.entityId,
       dialogueTriggerEntityId: dialogue?.triggerEntityId,
       objects: scene.objects,
+      npcs: scene.npcs,
       continuousStructures: scene.continuousStructures,
       geometry: scene.geometry,
       rooms: scene.rooms,
@@ -1484,7 +1485,7 @@ export function MainlineSceneRenderer({
       roomId: readingRoomId,
       preserveServiceEntities: readingMode === 'dialogue',
     })
-  }, [activeObjectId, activeReadingPosition, dialogue?.triggerEntityId, dialogueStage?.protectedEntityIds, readingPresentationPhase, scene.objects, scene.continuousStructures, scene.geometry, scene.rooms, sceneAction?.entityId, sceneEcho?.entityId, scene])
+  }, [activeObjectId, activeReadingPosition, dialogue?.triggerEntityId, dialogueStage?.protectedEntityIds, readingPresentationPhase, scene.objects, scene.npcs, scene.continuousStructures, scene.geometry, scene.rooms, sceneAction?.entityId, sceneEcho?.entityId, scene])
   const currentReadingWidthPx = activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset) : readingMetrics.width - 24
   const maximumReadingWidthPx = activeReadingPosition ? mainlineMaximumReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale) : currentReadingWidthPx
   const readingEnvelopeEntries = useMemo<readonly MainlineReadingSessionTextEntry[]>(() => sceneEcho

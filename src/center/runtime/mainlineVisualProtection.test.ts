@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { MainlineContinuousStructure, MainlineSceneEntity, MainlineSceneNpc } from './mainlineSceneModel'
 import { mainlineDialogueStageActorOpacity, mainlineDialogueStageHiddenEntityIds } from './mainlineDialogueStage'
 import { currentMainlineReadingTargetIds } from './mainlineReadingProtection'
-import { mainlineProtectedVisualActorIds } from './mainlineVisualProtection'
+import { mainlineProtectedVisualIdentityIds } from './mainlineVisualProtection'
 
 describe('shared authored visual protection', () => {
   it('propagates an unknown protected identity through aliases, structures, groups, and parent wall cells', () => {
@@ -30,11 +30,11 @@ describe('shared authored visual protection', () => {
 
   it('keeps authored actors visible at supporting brightness, preserves speaker brightness, and resets after dialogue', () => {
     const actors = [{ id: 'new-service-actor', roleId: 'future-role', label: 'worker', roomId: 'fictional-room', readingProtection: 'preserve' }] as unknown as MainlineSceneNpc[]
-    const protectedActors = mainlineProtectedVisualActorIds(actors, 'fictional-room')
+    const protectedActors = mainlineProtectedVisualIdentityIds({ entities: [], npcs: actors, roomId: 'fictional-room' })
     const common = { active: true, currentSpeakerActorId: 'speaker', participantActorIds: new Set<string>(), protectedActorIds: protectedActors, actorRoomId: 'fictional-room', stageRoomId: 'fictional-room' }
     expect(mainlineDialogueStageActorOpacity({ ...common, actorId: 'new-service-actor' })).toBe(.5)
     expect(mainlineDialogueStageActorOpacity({ ...common, actorId: 'speaker' })).toBe(1)
     expect(mainlineDialogueStageActorOpacity({ ...common, active: false, actorId: 'new-service-actor' })).toBe(1)
-    expect(mainlineProtectedVisualActorIds(actors, 'other-room').size).toBe(0)
+    expect(mainlineProtectedVisualIdentityIds({ entities: [], npcs: actors, roomId: 'other-room' }).size).toBe(0)
   })
 })
