@@ -488,19 +488,31 @@ function ObservationText({ menu, sourceText, echoId, continuityKey, pageKey, tex
     const start = sourceText.indexOf(description)
     return start < 0 ? [] : [{ start, end: start + description.length }]
   })
-  const visibleChunks = Array.from(textMotion.visibleText).map((character, index) => ({ character, small: menu && descriptionRanges.some(range => pageOffset + index >= range.start && pageOffset + index < range.end) }))
-  const grouped = visibleChunks.reduce<{ text: string; small: boolean }[]>((groups, part) => {
-    const last = groups[groups.length - 1]
-    if (last && last.small === part.small) last.text += part.character
-    else groups.push({ text: part.character, small: part.small })
-    return groups
-  }, [])
-  const frameGeometry = sceneFocusFrameGeometry(layout.widthPx / worldScale + 16, layout.heightPx / worldScale + 12)
+  const renderMenuText = (value: string) => {
+    const chunks = Array.from(value).map((character, index) => ({ character, small: menu && descriptionRanges.some(range => pageOffset + index >= range.start && pageOffset + index < range.end) }))
+    const grouped = chunks.reduce<{ text: string; small: boolean }[]>((groups, part) => {
+      const last = groups[groups.length - 1]
+      if (last && last.small === part.small) last.text += part.character
+      else groups.push({ text: part.character, small: part.small })
+      return groups
+    }, [])
+    return grouped.map((part, index) => part.small ? <span className="scene-menu-description" key={index}>{part.text}</span> : part.text)
+  }
+  const menuMeasureRef = useRef<HTMLSpanElement>(null)
+  const [menuSize, setMenuSize] = useState({ width: 0, height: 0 })
+  useIsomorphicLayoutEffect(() => {
+    const element = menuMeasureRef.current
+    if (!menu || !element) return
+    const width = element.offsetWidth
+    const height = element.offsetHeight
+    setMenuSize(previous => previous.width === width && previous.height === height ? previous : { width, height })
+  }, [menu, text, layout.widthPx, layout.fontSizePx, worldScale])
+  const frameGeometry = sceneFocusFrameGeometry(menuSize.width + 16, menuSize.height + 12)
   const frameProgress = text.length ? Math.min(1, textMotion.visibleText.length / text.length) : 0
   return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">
-    {menu && <span className="scene-focus-frame scene-menu-reading-frame" style={{ '--scene-focus-stroke-offset': 1 - frameProgress } as CSSProperties} aria-hidden="true"><svg viewBox={frameGeometry.viewBox} preserveAspectRatio="none"><path pathLength="1" d={frameGeometry.paths['top-left']} /></svg></span>}
+    {menu && <><span className="scene-menu-measure" ref={menuMeasureRef} aria-hidden="true">{renderMenuText(text)}</span><span className="scene-focus-frame scene-menu-reading-frame" style={{ width: menuSize.width + 16, height: menuSize.height + 12, '--scene-focus-stroke-offset': 1 - frameProgress } as CSSProperties} aria-hidden="true"><svg viewBox={frameGeometry.viewBox} preserveAspectRatio="none"><path pathLength="1" d={frameGeometry.paths['top-left']} /></svg></span></>}
     <ReadingPageFlip pageKey={pageKey} continuityKey={continuityKey} visibleText={textMotion.visibleText} layout={layout} worldScale={worldScale} mode="observation" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel} onSettled={(settledKey) => { textMotion.onSettled(settledKey); onSettled?.(settledKey) }}>
-      {grouped.map((part, index) => part.small ? <span className="scene-menu-description" key={index}>{part.text}</span> : part.text)}
+      {renderMenuText(textMotion.visibleText)}
     </ReadingPageFlip>
   </span>
 }
