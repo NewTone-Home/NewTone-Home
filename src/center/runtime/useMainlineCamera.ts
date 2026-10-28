@@ -13,7 +13,7 @@ export function useMainlineCamera(
 ) {
   const [offset, setOffset] = useState(() => {
     if (!embedded && usesCommercialStreetPages(scene, position)) {
-      const pages = commercialStreetCameraPages(scene, screenMetrics)
+      const pages = commercialStreetCameraPages(scene, screenMetrics, scene.id === 'yonghe-mining-perimeter' ? position.y : undefined)
       const index = commercialStreetPageIndex(pages.centers, position.x, pages.span)
       return { x: 50 - pages.centers[index]!, y: pages.yOffset }
     }
@@ -25,7 +25,7 @@ export function useMainlineCamera(
     let pageTarget: Point | undefined
     const useStreetPages = !embedded && usesCommercialStreetPages(scene, position)
     if (useStreetPages) {
-      const pages = commercialStreetCameraPages(scene, screenMetrics)
+      const pages = commercialStreetCameraPages(scene, screenMetrics, scene.id === 'yonghe-mining-perimeter' ? position.y : undefined)
       const key = `${scene.id}:${screenMetrics.width}:${screenMetrics.height}:${mainlineWorldScale(screenMetrics)}`
       const index = commercialStreetPageIndex(pages.centers, position.x, pages.span,
         streetPage.current?.key === key ? streetPage.current.index : undefined)

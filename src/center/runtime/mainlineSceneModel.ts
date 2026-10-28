@@ -508,8 +508,6 @@ type MainlineWallBlueprint = {
   }
   /** Glyph cycle for a wall strip that uses the same shared collision lattice. */
   wallGlyphs?: readonly string[]
-  /** Per-edge glyph overrides preserve wall geometry while changing visible cells. */
-  edgeWallGlyphs?: Partial<Record<MainlineWallOpening['edge'], readonly (string | undefined)[]>>
   edges?: readonly MainlineWallOpening['edge'][]
   openings?: readonly MainlineWallOpening[]
   features?: readonly MainlineWallFeatureBlueprint[]

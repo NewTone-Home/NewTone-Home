@@ -126,14 +126,6 @@ const backAlleyRoom = {
 const worldTop = Math.min(...oldShopMetrics.map(shop => shop.back), backAlleyUpperWallY)
 const worldBottom = laneBottom + 3 * vertical
 const arrival = { x: rowStartX - 2 * horizontal, y: facadeY + 3 * vertical }
-const backAlleyBottomWallGlyphs = Array.from(
-  { length: Math.round((rowRight - rowStartX) / horizontal) + 1 },
-  (_, gridIndex) => {
-    const x = rowStartX + gridIndex * horizontal
-    return x >= eatery.left - .001 && x <= eatery.right + .001 ? '' : undefined
-  },
-)
-
 /** Rotate the map clockwise; keep glyph labels upright along the new facade. */
 function rotateRect(rect: { x: number; y: number; width: number; height: number }) {
   return {
@@ -176,7 +168,7 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
       variant: 'mining-empty-shell', boundaryGeometrySource: 'cell-range',
       boundaryCoordinateCount: { horizontal: shop.widthCells + 1, vertical: shop.depthCoordinateCount },
       boundaryVisualEndpoints: { vertical: { start: 'omit', end: 'omit' } },
-      edges: [...(shop.label === miningShopNames[1] ? [] : ['top' as const]), 'right', ...(index === shops.length - 1 ? ['left' as const] : [])],
+      edges: ['top', 'right', ...(index === shops.length - 1 ? ['left' as const] : [])],
     })),
     ...sharedWallTails,
     {
@@ -186,8 +178,7 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
       boundaryCoordinateCount: { horizontal: Math.round((rowRight - rowStartX) / horizontal) + 1, vertical: sharedNarrowPassageFrameIntervals + 1 },
       boundaryProjection: 'screen-spacing',
       boundaryVisualEndpoints: { vertical: { start: 'omit', end: 'omit' } },
-      edgeWallGlyphs: { bottom: backAlleyBottomWallGlyphs },
-      edges: ['top', 'right', 'bottom'],
+      edges: ['top', 'right'],
     },
     {
       id: 'mining-industrial-edge', type: 'room',
@@ -246,8 +237,8 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
     fromRoomId: backAlleyRoom.id,
     toRoomId: eatery.roomId,
     wallOpenings: [{
-      wallId: 'mining-street-back-alley-frame',
-      opening: { edge: 'bottom', start: eatery.doorX - horizontal, end: eatery.doorX + horizontal, doorId: 'yonghe-back-door', labelLayout: 'center' },
+      wallId: 'mining-shop-2-interior-shell',
+      opening: { edge: 'top', start: eatery.doorX - horizontal, end: eatery.doorX + horizontal, doorId: 'yonghe-back-door', labelLayout: 'center' },
     }],
     access: 'open',
     transitionText: '',

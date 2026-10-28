@@ -52,13 +52,13 @@ export function trialYongheInterior(blueprint: MainlineSceneBlueprint): Mainline
   const rearStep=28/1080*100
   const rearXStep=28/1920*100
   const warehousePosition=point(0,224)
-  const warehousePortal:MainlineScenePortalBlueprint={id:'yonghe-warehouse-door',entity:{id:'yonghe-warehouse-door',label:'\u95e8',displayLabel:'\u95e8',kind:'door',weight:'gateway',surface:'wall',spaceId:'mining-street-back-alley',doorBehavior:{leafCount:'single',openLeaves:'both'},interactive:true,interactionBehavior:'yonghe-warehouse'},endpoint:{doorPosition:warehousePosition,threshold:{x:warehousePosition.x,y:warehousePosition.y-1.5*rearStep},crossingTarget:{x:warehousePosition.x,y:warehousePosition.y+1.5*rearStep}},wallOpenings:[{wallId:'mining-street-back-alley-frame',opening:{edge:'bottom',start:warehousePosition.x-rearXStep,end:warehousePosition.x+rearXStep,doorId:'yonghe-warehouse-door',labelLayout:'center',doorFlankCount:0}}],transitionText:'',access:'locked',lockedText:'\u95e8\u9501\u7740\uff0c\u6253\u4e0d\u5f00\u3002'}
+  const warehousePortal:MainlineScenePortalBlueprint={id:'yonghe-warehouse-door',entity:{id:'yonghe-warehouse-door',label:'\u95e8',displayLabel:'\u95e8',kind:'door',weight:'gateway',surface:'wall',spaceId:'mining-street-back-alley',doorBehavior:{leafCount:'single',openLeaves:'both'},interactive:true,interactionBehavior:'yonghe-warehouse'},endpoint:{doorPosition:warehousePosition,threshold:{x:warehousePosition.x,y:warehousePosition.y-1.5*rearStep},crossingTarget:{x:warehousePosition.x,y:warehousePosition.y+1.5*rearStep}},wallOpenings:[{wallId:'mining-shop-2-interior-shell',opening:{edge:'top',start:warehousePosition.x-rearXStep,end:warehousePosition.x+rearXStep,doorId:'yonghe-warehouse-door',labelLayout:'center',doorFlankCount:0}}],transitionText:'',access:'locked',lockedText:'\u95e8\u9501\u7740\uff0c\u6253\u4e0d\u5f00\u3002'}
   return {...blueprint,
     portals:[...blueprint.portals.map<MainlineScenePortalBlueprint>(portal=>portal.id==='yonghe-back-door'?{...portal,
       entity:{...portal.entity,displayLabel:'门'},
       endpoint:{doorPosition:rearPosition,threshold:{x:rearPosition.x,y:rearPosition.y-1.5*rearStep},crossingTarget:{x:rearPosition.x,y:rearPosition.y+1.5*rearStep}},
       // Replace the sole opening source; the previous centre is ordinary wall again.
-      wallOpenings:[{wallId:'mining-street-back-alley-frame',opening:{edge:'bottom',start:rearPosition.x-rearXStep,end:rearPosition.x+rearXStep,doorId:portal.id,labelLayout:'center',doorFlankCount:0}}],
+      wallOpenings:[{wallId:'mining-shop-2-interior-shell',opening:{edge:'top',start:rearPosition.x-rearXStep,end:rearPosition.x+rearXStep,doorId:portal.id,labelLayout:'center',doorFlankCount:0}}],
       lockedText:undefined,
       transitionText:'',
     }:portal.id==='yonghe-street-entry'?{...portal,transitionText:'进入永和小馆。'}:portal),warehousePortal],

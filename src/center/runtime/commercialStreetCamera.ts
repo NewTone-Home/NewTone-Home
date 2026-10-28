@@ -6,12 +6,13 @@ import { activeStorefrontInteriorOwner } from './storefrontPresentation'
 
 /** Only the public street uses pages; interiors retain normal camera follow. */
 export function usesCommercialStreetPages(scene: MainlineSceneDefinition, position: Point) {
-  return scene.id === 'commercial-street' && !activeStorefrontInteriorOwner(scene, position)
+  return (scene.id === 'commercial-street' || scene.id === 'yonghe-mining-perimeter')
+    && !activeStorefrontInteriorOwner(scene, position)
 }
 
-export function commercialStreetCameraPages(scene: MainlineSceneDefinition, viewport: SceneScreenMetrics) {
+export function commercialStreetCameraPages(scene: MainlineSceneDefinition, viewport: SceneScreenMetrics, verticalAnchorY?: number) {
   const bounds = scene.walkBounds
-  const y = bounds.y + bounds.height / 2
+  const y = verticalAnchorY ?? bounds.y + bounds.height / 2
   const first = 50 - mainlineCameraOffset(scene, { x: bounds.x, y }, false, viewport).x
   const last = 50 - mainlineCameraOffset(scene, { x: bounds.x + bounds.width, y }, false, viewport).x
   const span = mainlineVisibleWorldSpan(viewport).x
