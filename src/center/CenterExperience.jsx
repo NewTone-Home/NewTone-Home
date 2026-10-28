@@ -477,10 +477,10 @@ export default function CenterExperience({
       const order = playerSaveRef.current.shopOrders?.[shopId]
       const nowGameTimeMs = sessionGameClockRef.current.read().gameTimeMs
       if (order?.status === 'queued' && order.readyAtGameTimeMs !== null && nowGameTimeMs >= order.readyAtGameTimeMs) {
-        claimShopOrder(shopId)
-        return
+        const claimed = claimShopOrder(shopId)
+        return claimed && shopId === crossShopIds.milkTea ? { text: '您的奶茶好了，请慢用。' } : true
       }
-      return { text: order?.status === 'legacy-unmapped' ? '订单状态需要确认。' : '您的饮品还在制作中。' }
+      return { text: order?.status === 'legacy-unmapped' ? '现在没有可以领取的订单。' : '您的饮品还在制作中。' }
     }
     const routeDrinkShopCounter = (shopId) => {
       // With no existing order, let the physical worker/counter start the
@@ -523,8 +523,7 @@ export default function CenterExperience({
       const order = playerSaveRef.current.shopOrders?.[crossShopIds.cafeTakeaway]
       const gameTimeMs = sessionGameClockRef.current.read().gameTimeMs
       if (order?.status === 'queued' && order.readyAtGameTimeMs !== null && gameTimeMs >= order.readyAtGameTimeMs) {
-        claimShopOrder(crossShopIds.cafeTakeaway)
-        return true
+        return claimShopOrder(crossShopIds.cafeTakeaway) ? { text: '咖啡好了，请慢用。' } : true
       }
       if (order) return { text: '咖啡已经点过了。' }
       return isTrueMilkTea(playerSaveRef.current.heldConsumable)

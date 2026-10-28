@@ -1733,6 +1733,27 @@ export function resolveMainlineEntityInteraction(scene: MainlineSceneDefinition,
   const candidates = mainlineEntityInteractionCandidates(scene, entityId, from, layout, mainlineActorFootprint(scene, options, from), options)
   const range = entity?.interactionRange ?? .35
   const resolved = resolveMainlineInteractionCandidates(scene, from, candidates, range, layout, options)
+  if (!resolved.path && options.interactionContactPoint && entity?.interactionStructureId) {
+    const part = scene.continuousStructures.find(item => item.id === entity.interactionStructureId)
+    if (part?.counterSurface) {
+      const vertical = part.counterSurface.orientation === 'vertical'
+      const extent = vertical ? part.height : part.width
+      const step = vertical ? 8 / 10.8 : 8 / 19.2
+      // At a wall or junction the exact contact may be blocked. Search along
+      // this same segment, nearest to the clicked point first, for a legal
+      // reachable stance rather than returning to a fixed service marker.
+      for (let delta = step; delta <= extent + step; delta += step) {
+        for (const direction of [-1, 1]) {
+          const point = { ...options.interactionContactPoint }
+          if (vertical) point.y += direction * delta
+          else point.x += direction * delta
+          const nearby = mainlineEntityInteractionCandidates(scene, entityId, from, layout, mainlineActorFootprint(scene, options, from), { ...options, interactionContactPoint: point })
+          const fallback = resolveMainlineInteractionCandidates(scene, from, nearby, range, layout, options)
+          if (fallback.path) return fallback
+        }
+      }
+    }
+  }
   if (resolved.path || entity?.surface !== 'floor' || entity.kind === 'door' || entity.kind === 'seat' || range <= .35) return resolved
   // A neighbouring visible body can occupy a contact without invalidating
   // the object's authored interaction range. Project through shared legality
