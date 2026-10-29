@@ -21,5 +21,13 @@ describe('office room blinds and shared walls', () => {
     expect(officeRoomShadeEdges(right, scene.rooms, right.id).left).toBe(8)
     expect(officeRoomShadeEdges(right, scene.rooms, left.id).left).toBe(-8)
     expect(officeRoomShadeEdges(left, scene.rooms, left.id).left).toBe(8)
+    for (const leftOpen of [true, false]) for (const rightOpen of [true, false]) {
+      const pair = { [officeBlindsRoomKey(left.id)]: leftOpen, [officeBlindsRoomKey(right.id)]: rightOpen }
+      expect(officeRoomBlindsOpen(pair, left.id)).toBe(leftOpen)
+      expect(officeRoomBlindsOpen(pair, right.id)).toBe(rightOpen)
+      // A dark room shades a shared wall only while the player is in that room.
+      if (!leftOpen) expect(officeRoomShadeEdges(left, scene.rooms, right.id).right).toBe(-8)
+      if (!rightOpen) expect(officeRoomShadeEdges(right, scene.rooms, left.id).left).toBe(-8)
+    }
   })
 })
