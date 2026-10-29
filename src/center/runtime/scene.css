@@ -1215,6 +1215,37 @@
   .scene-mainline-text[data-scene-echo="commercial-cafe-blackboard"]::before { animation-duration: 1ms; }
 }
 .scene-mainline-text--menu { line-height: 1.72; }
+.scene-mainline-text.scene-mainline-text--subtitle {
+  z-index: 30;
+  max-width: calc(100% - 32px);
+  max-height: none;
+  padding: 6px 12px;
+  overflow: visible;
+  color: #f1f0ec;
+  line-height: 1.5;
+  text-align: center;
+  isolation: isolate;
+  animation: none;
+}
+.scene-mainline-text.scene-mainline-text--subtitle::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -6px -10px;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(10, 12, 15, .72) 0%, rgba(10, 12, 15, .46) 62%, rgba(10, 12, 15, 0) 100%);
+}
+.scene-mainline-text.scene-mainline-text--subtitle .scene-mainline-text__speaker {
+  width: auto;
+  margin: 0 0 2px;
+  color: #f1f0ec;
+  text-align: center;
+}
+.scene-mainline-text.scene-mainline-text--subtitle .scene-mainline-text__dialogue {
+  inset: calc(3px + max(14px, 1.1em)) 0 2px;
+  text-align: center;
+}
+.scene-mainline-text.scene-mainline-text--subtitle .scene-mainline-page-stack { overflow: hidden; }
 .scene-mainline-text--menu .scene-mainline-page { white-space: pre-wrap; }
 .scene-menu-description { font-size: 0.666667em; }
 .scene-menu-measure { position: absolute; top: 0; left: 0; width: max-content; max-width: 100%; white-space: pre-wrap; visibility: hidden; pointer-events: none; }

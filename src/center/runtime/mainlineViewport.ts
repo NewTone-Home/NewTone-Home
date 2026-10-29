@@ -36,6 +36,16 @@ export function mainlineViewportPointFromWorld(point: Point, viewport: SceneScre
   }
 }
 
+/** Map a live viewport position back to world coordinates so fixed UI painted
+ * inside the transformed scene layer stays pinned while the camera moves. */
+export function mainlineWorldPointAtViewportPercent(point: Point, viewport: SceneScreenMetrics, cameraOffset: Point): Point {
+  const span = mainlineVisibleWorldSpan(viewport)
+  return {
+    x: 50 - cameraOffset.x + (point.x - 50) / 100 * span.x,
+    y: 50 - cameraOffset.y + (point.y - 50) / 100 * span.y,
+  }
+}
+
 /** Map a stage pointer back through the single world projection and camera. */
 export function mainlineWorldPointFromClient(
   client: Point,

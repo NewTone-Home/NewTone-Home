@@ -6,6 +6,7 @@ import { mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
 import { mainlineAvailableReadingWidthPx, mainlineReadingCameraOffset } from '../src/center/runtime/mainlineTextReading'
 import { mainlinePlaceReadingBox, mainlineReadingPageIndexForSourceOffset } from '../src/center/runtime/mainlineReadingProtection'
 import { splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
+import { mainlineViewportPointFromWorld } from '../src/center/runtime/mainlineViewport'
 
 describe('mainline reading session layout cache', () => {
   it('keeps a protected dialogue box entirely on the speaker outside', () => {
@@ -445,6 +446,46 @@ describe('observation line-height budget', () => {
       const chunks = splitMainlineInteractionTextToFit(page, Math.max(12, fit.maxWidthPx - 40), 12, value => measureText(value, 12))
       expect(fit.pageLayouts[index]!.heightPx).toBeGreaterThanOrEqual(mainlineObservationMinimumPageHeight(chunks, 12, true))
     })
+  })
+})
+
+describe('unified subtitle layout', () => {
+  it.each([
+    { metrics: { width: 411, height: 914, viewportWidth: 411 }, maximumWidth: 379 },
+    { metrics: { width: 1280, height: 800, viewportWidth: 1280 }, maximumWidth: 760 },
+  ])('pins dialogue pages to a compact viewport region at $metrics.width px', ({ metrics, maximumWidth }) => {
+    const text = 'A long authored dialogue line keeps punctuation, repeats, and every original character. '.repeat(12)
+    const speaker = 'Speaker'
+    const scene = mainlineScenes['zhongshuyuan-office']
+    const cache = createMainlineReadingSessionLayoutCache({
+      sessionKey: `subtitle:${metrics.width}`,
+      entries: [{ text, speaker }],
+      metrics,
+      maximumWidthPx: maximumWidth,
+      worldScale: .65,
+      measureText: (value, size) => Array.from(value).length * size,
+    })
+    const fit = cache.fit({
+      scene,
+      source: scene.initialPlayerPosition,
+      text,
+      speaker,
+      maximumWidthPx: maximumWidth,
+      protectedVisuals: [{ x: 0, y: 0, width: 100, height: 100 }],
+      metrics,
+      worldScale: .65,
+      cameraOffset: { x: -120, y: 80 },
+      subtitle: true,
+    })
+    expect(fit.fits).toBe(true)
+    expect(fit.segments.length).toBeGreaterThan(1)
+    expect(fit.segments.join('')).toBe(text)
+    expect(Math.max(...fit.pageLayouts.map(page => page.heightPx))).toBeLessThanOrEqual(Math.min(metrics.height * .24, 168))
+    const projected = mainlineViewportPointFromWorld(fit.position, metrics, { x: -120, y: 80 })
+    expect(projected.x).toBeCloseTo(50, 6)
+    const projectedY = projected.y
+    expect(projectedY).toBeGreaterThan(80)
+    expect(projectedY).toBeLessThan(92)
   })
 })
 

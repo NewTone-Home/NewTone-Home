@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { advanceMainlineCamera, mainlineCameraOffset, mainlineCameraTarget, mainlineCameraVisualOutset, mainlineWorldPointFromClient, mainlineWorldScale, mainlineVisibleWorldSpan } from './mainlineViewport'
+import { advanceMainlineCamera, mainlineCameraOffset, mainlineCameraTarget, mainlineCameraVisualOutset, mainlineWorldPointAtViewportPercent, mainlineWorldPointFromClient, mainlineWorldScale, mainlineViewportPointFromWorld, mainlineVisibleWorldSpan } from './mainlineViewport'
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 
 describe('fixed mainline world projection', () => {
@@ -89,6 +89,17 @@ describe('fixed mainline world projection', () => {
     const center = mainlineWorldPointFromClient({ x: 205, y: 442 }, stage, viewport, cameraOffset)
     expect(center.x).toBeCloseTo(50 - cameraOffset.x, 8)
     expect(center.y).toBeCloseTo(50, 8)
+  })
+
+  it.each([
+    { viewport: { width: 390, height: 844 }, camera: { x: -125, y: 34 } },
+    { viewport: { width: 1280, height: 800 }, camera: { x: 45, y: -20 } },
+    { viewport: { width: 528, height: 392.5 }, camera: { x: 75, y: -18 } },
+  ])('keeps a subtitle anchor fixed in the viewport while the scene camera moves', ({ viewport, camera }) => {
+    const world = mainlineWorldPointAtViewportPercent({ x: 50, y: 90 }, viewport, camera)
+    const screen = mainlineViewportPointFromWorld(world, viewport, camera)
+    expect(screen.x).toBeCloseTo(50, 8)
+    expect(screen.y).toBeCloseTo(90, 8)
   })
 
   it('centers fixed scenes when they fit and follows the actor when an axis overflows', () => {
