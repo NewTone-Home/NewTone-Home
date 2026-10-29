@@ -6,7 +6,7 @@ const scene = mainlineScenes['commercial-street']
 const cafe = scene.rooms.find(room => room.id === 'commercial-north-cafe-interior')!
 const local = (x: number, y: number) => ({ x: cafe.bounds.x + x / 19.2, y: cafe.bounds.y + y / 10.8 })
 
-async function openRestroom(page: Page, position: { x: number; y: number }) {
+async function openRestroom(page: Page, position: { x: number; y: number }, visibleFixtures = [cafeRestroomToiletId, cafeRestroomFaucetId]) {
   await page.setViewportSize({ width: 1280, height: 800 })
   await page.addInitScript(({ position }) => {
     localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
@@ -21,8 +21,9 @@ async function openRestroom(page: Page, position: { x: number; y: number }) {
   }, { position })
   await page.goto('/?scene=commercial-street')
   await expect(page.locator('.mainline-scene-stage')).toHaveAttribute('data-mainline-scene', 'commercial-street')
-  await expect(page.locator(`[data-object-id="${cafeRestroomToiletId}"]`)).toBeVisible()
-  await expect(page.locator(`[data-object-id="${cafeRestroomFaucetId}"]`)).toBeVisible()
+  for (const fixtureId of visibleFixtures) {
+    await expect(page.locator(`[data-object-id="${fixtureId}"]`)).toBeVisible()
+  }
 }
 
 async function useFixture(page: Page, fixtureId: string) {
@@ -72,7 +73,7 @@ const sinkApproaches = [
 
 for (const approach of sinkApproaches) {
   test(`sink click ${approach.name} routes to the room-facing front`, async ({ page }, info) => {
-    await openRestroom(page, approach.position)
+    await openRestroom(page, approach.position, approach.name === 'from south' ? [cafeRestroomFaucetId] : undefined)
     const stage = page.locator('.mainline-scene-stage')
     await useFixture(page, cafeRestroomFaucetId)
     await expect(stage).toHaveAttribute('data-cafe-restroom-sink-use-phase', 'using', { timeout: 15_000 })
@@ -83,7 +84,7 @@ for (const approach of sinkApproaches) {
 }
 
 test('changing target while approaching cancels the pending use without starting either fixture', async ({ page }) => {
-  await openRestroom(page, local(560, -42))
+  await openRestroom(page, local(560, -100))
   const stage = page.locator('.mainline-scene-stage')
   const sink = page.locator(`[data-object-id="${cafeRestroomFaucetId}"]`)
   await sink.click()
