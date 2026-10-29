@@ -698,11 +698,12 @@ function ObservationText({ onProtectionRects, menu, sourceText, echoId, continui
       const menuRect = menu && frameProgress > 0 && rects[0] ? (() => {
         const rootRect = root.getBoundingClientRect()
         const frameRect = root.querySelector('.scene-menu-reading-frame')?.getBoundingClientRect()
+        const measureRect = menuMeasureRef.current?.getBoundingClientRect()
         const textRect = rects[0]!
-        const left = Math.min(textRect.x, frameRect?.left ?? textRect.x)
-        const top = Math.min(textRect.y, frameRect?.top ?? textRect.y)
-        const right = Math.max(textRect.x + textRect.width, frameRect?.right ?? textRect.x + textRect.width)
-        const bottom = Math.max(textRect.y + textRect.height, frameRect?.bottom ?? textRect.y + textRect.height)
+        const left = Math.min(textRect.x, frameRect?.left ?? textRect.x, measureRect?.left ?? textRect.x)
+        const top = Math.min(textRect.y, frameRect?.top ?? textRect.y, measureRect?.top ?? textRect.y)
+        const right = Math.max(textRect.x + textRect.width, frameRect?.right ?? textRect.x + textRect.width, measureRect?.right ?? textRect.x + textRect.width)
+        const bottom = Math.max(textRect.y + textRect.height, frameRect?.bottom ?? textRect.y + textRect.height, measureRect?.bottom ?? textRect.y + textRect.height)
         // Protect the measured full frame and its interior while any frame remains,
         // with a small local breathing room for neighboring counter labels.
         const safeMargin = 16
