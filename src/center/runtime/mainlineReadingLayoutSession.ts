@@ -84,6 +84,7 @@ export type MainlineReadingSessionLayoutCache = {
     worldScale: number
     cameraOffset: Point
     sourceOffset?: number
+    outside?: { side: 'above' | 'below'; speakerY: number }
   }): { segments: readonly string[]; pageLayouts: readonly MainlineEchoLayout[]; position: Point; layout: MainlineEchoLayout; maxWidthPx: number; fits: boolean }
 }
 
@@ -252,7 +253,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
             const text = parts.join('')
             const layout = observationLayout(text, candidate.widthPx, fitInput.speaker, parts)
             if (layout.widthPx > availableWidth || layout.heightPx > availableHeight) return null
-            return mainlinePlaceReadingBox(fitInput.scene, fitInput.source, { width: layout.widthPx, height: layout.heightPx }, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset) ? layout : null
+            return mainlinePlaceReadingBox(fitInput.scene, fitInput.source, { width: layout.widthPx, height: layout.heightPx }, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset, fitInput.outside) ? layout : null
           }
           for (const chunk of chunks) {
             if (consumed === offset && offset > 0 && current.length) {
@@ -277,7 +278,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
             envelope.width = Math.max(envelope.width, candidate.envelopeLayout.widthPx)
             envelope.height = Math.max(envelope.height, candidate.envelopeLayout.heightPx)
           }
-          const position = mainlinePlaceReadingBox(fitInput.scene, fitInput.source, envelope, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset)
+          const position = mainlinePlaceReadingBox(fitInput.scene, fitInput.source, envelope, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset, fitInput.outside)
           if (!position) continue
           observationPlan = { key: viewportKey, text: fitInput.text, segments, pageLayouts, position, maxWidthPx: candidate.widthPx }
           return { segments, pageLayouts, position, layout: pageLayouts[0]!, maxWidthPx: candidate.widthPx, fits: true }
@@ -309,7 +310,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
           const bounds = mainlineReadingBounds(fitInput.scene, fitInput.source, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset)
           if (envelope.widthPx > bounds.width / 100 * sceneDesignReferenceMetrics.width * fitInput.worldScale || envelope.heightPx > bounds.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale) continue
         }
-        const position = mainlinePlaceReadingBox(fitInput.scene, fitInput.source, { width: envelope.widthPx, height: envelope.heightPx }, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset)
+        const position = mainlinePlaceReadingBox(fitInput.scene, fitInput.source, { width: envelope.widthPx, height: envelope.heightPx }, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset, fitInput.outside)
         if (position) return { segments: page.segments, pageLayouts: page.layouts, position, layout, maxWidthPx: candidate.widthPx, fits: true }
       }
       const fallback = widths[widths.length - 1]!

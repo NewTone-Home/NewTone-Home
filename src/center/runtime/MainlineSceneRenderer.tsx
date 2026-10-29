@@ -109,6 +109,7 @@ type MainlineSceneRendererProps = {
   dialogueSegmentIndex?: number
   dialogueSegmentCount?: number
   dialoguePosition?: Point | null
+  dialogueOutside?: { side: 'above' | 'below'; speakerY: number }
   dialoguePhase?: 'active' | 'leaving'
   dialogueTextSessionId?: number
   dialogueTextMotion?: MainlineReadingTextMotion
@@ -1429,6 +1430,7 @@ export function MainlineSceneRenderer({
   dialogueSegmentIndex = 0,
   dialogueSegmentCount = 1,
   dialoguePosition = null,
+  dialogueOutside,
   dialoguePhase = 'active',
   dialogueTextSessionId = 0,
   dialogueTextMotion = 'static',
@@ -2131,6 +2133,7 @@ export function MainlineSceneRenderer({
     ? readingLayoutSessionCache?.fit({
       scene,
       source: activeReadingPosition,
+      outside: sceneEcho ? undefined : dialogueOutside,
       text: activeReadingText,
       speaker: sceneEcho ? undefined : dialogueLine?.speaker,
       maximumWidthPx: activeReadingWidthPx,
@@ -2160,7 +2163,7 @@ export function MainlineSceneRenderer({
     protectedBoxes: readingProtectedVisuals,
   }) : '', [activeReadingPosition?.x, activeReadingPosition?.y, cameraOffset.x, cameraOffset.y, readingMetrics.height, readingMetrics.viewportWidth, readingMetrics.width, readingProtectedVisuals, scene.id, worldScale])
   const candidateReadingPosition = readingMode && activeReadingPosition && activeDisplayReadingLayout
-    ? readingFit?.position ?? mainlinePlaceReadingBox(scene, activeReadingPosition, { width: activeDisplayReadingLayout.widthPx, height: activeDisplayReadingLayout.heightPx }, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset) ?? activeReadingPosition
+    ? readingFit?.position ?? mainlinePlaceReadingBox(scene, activeReadingPosition, { width: activeDisplayReadingLayout.widthPx, height: activeDisplayReadingLayout.heightPx }, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset, sceneEcho ? undefined : dialogueOutside) ?? activeReadingPosition
     : activeReadingPosition
   const activeDisplayReadingPosition = readingMode && activeReadingPosition && activeDisplayReadingLayout
     ? readingAnchorSessionKey

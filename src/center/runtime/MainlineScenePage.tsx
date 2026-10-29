@@ -746,7 +746,7 @@ export function MainlineScenePage({
     : activeDialogue && dialogueLineIndex !== null
       ? activeDialogue.lines[dialogueLineIndex] ?? null
       : null)
-  const dialogueAnchorSessionRef = useRef<{ key: string; positions: Map<string, Point> } | null>(null)
+  const dialogueAnchorSessionRef = useRef<{ key: string; positions: Map<string, Point>; outside: Map<string, { side: 'above' | 'below'; speakerY: number }> } | null>(null)
   const dialogueAnchorSessionKey = activeDialogueLine
     ? commercialStreetQuestionNarrative
       ? 'commercial-street-question'
@@ -1106,16 +1106,19 @@ export function MainlineScenePage({
     }) : null
   const activeDialogueSpeakerKey = activeDialogueSpeakerActorId ?? `speaker:${activeDialogueLine?.speaker ?? ''}`
   if (!dialogueAnchorSessionKey) dialogueAnchorSessionRef.current = null
-  else if (dialogueAnchorSessionRef.current?.key !== dialogueAnchorSessionKey) dialogueAnchorSessionRef.current = { key: dialogueAnchorSessionKey, positions: new Map() }
+  else if (dialogueAnchorSessionRef.current?.key !== dialogueAnchorSessionKey) dialogueAnchorSessionRef.current = { key: dialogueAnchorSessionKey, positions: new Map(), outside: new Map() }
   if (dialogueAnchorSessionKey && activeDialogueLine && dialogueAnchorSessionRef.current && !dialogueAnchorSessionRef.current.positions.has(activeDialogueSpeakerKey)) {
     const speakerPosition = activeDialogueSpeakerActorId === 'protagonist' ? position : resolvedNpcPositions.get(activeDialogueSpeakerActorId ?? '') ?? position
     const otherActorPosition = activeDialogueSpeakerActorId === 'protagonist'
-      ? resolvedNpcPositions.get(scene.npcs.find(npc => npc.roomId === mainlineInteractionRoom(scene, position)?.id)?.id ?? '') ?? position
+      ? resolvedNpcPositions.get([...mainlineDialogueParticipantNpcIds(scene, activeDialogue, activeDialogueLine)].find(id => id !== activeDialogueSpeakerActorId) ?? '') ?? position
       : position
     const room = mainlineInteractionRoom(scene, position)
     const stagePosition = activeDialogueSpeakerActorId && mainlineIsInteriorSpace(scene, position) && room
       ? mainlineDialogueSpeakerOutsidePosition({ speaker: speakerPosition, other: otherActorPosition, bounds: room.bounds, verticalGap: Math.max(7, Math.min(12, room.bounds.height * .18)) })
       : null
+    if (stagePosition && speakerPosition.y !== otherActorPosition.y && Math.abs(speakerPosition.y - otherActorPosition.y) >= Math.abs(speakerPosition.x - otherActorPosition.x)) {
+      dialogueAnchorSessionRef.current.outside.set(activeDialogueSpeakerKey, { side: speakerPosition.y < otherActorPosition.y ? 'above' : 'below', speakerY: speakerPosition.y })
+    }
     dialogueAnchorSessionRef.current.positions.set(activeDialogueSpeakerKey, commercialStreetQuestionNarrative
       ? commercialStreetQuestionDialoguePosition(scene, position, dialogueAnchorText, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)
       : stagePosition ?? sceneTextPresentationPosition(scene, position, dialogueAnchorText, readingMetrics, 'dialogue', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, position, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)))
@@ -3296,6 +3299,7 @@ export function MainlineScenePage({
               dialogueSegmentIndex={dialogueSegmentIndex}
               dialogueSegmentCount={activeDialogueSegments.length}
               dialoguePosition={activeDialoguePosition}
+              dialogueOutside={dialogueAnchorSessionRef.current?.outside.get(activeDialogueSpeakerKey)}
               dialoguePhase={dialoguePresentationPhase}
               dialogueTextSessionId={dialogueTextSessionId}
               dialogueTextMotion={dialogueTextMotion}

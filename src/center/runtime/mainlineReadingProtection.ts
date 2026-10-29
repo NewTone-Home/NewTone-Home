@@ -93,8 +93,9 @@ export function mainlinePlaceReadingBox(
   metrics: SceneScreenMetrics,
   worldScale: number,
   cameraOffset: Point,
+  outside?: { side: 'above' | 'below'; speakerY: number },
 ) {
-  if (protectedVisuals.length === 0 || !(worldScale > 0)) return source
+  if ((!outside && protectedVisuals.length === 0) || !(worldScale > 0)) return source
   const room = mainlineInteractionRoom(scene, source)?.bounds
   if (!room) return null
   const visible = mainlineReadingBounds(scene, source, metrics, worldScale, cameraOffset)
@@ -120,6 +121,7 @@ export function mainlinePlaceReadingBox(
   const projectedBounds = bounds
   const xCandidates = new Set<number>([projectedSourceX, projectedBounds.x + halfWidth, projectedBounds.x + projectedBounds.width - halfWidth])
   const yCandidates = new Set<number>([source.y, bounds.y + halfHeight, bounds.y + bounds.height - halfHeight])
+  if (outside) yCandidates.add(outside.speakerY + (outside.side === 'above' ? -halfHeight - gapY : halfHeight + gapY))
   for (const box of protectedBoxes) {
     xCandidates.add(box.x - halfWidth - gapX)
     xCandidates.add(box.x + box.width + halfWidth + gapX)
@@ -131,7 +133,8 @@ export function mainlinePlaceReadingBox(
     .filter(point => point.x - halfWidth >= projectedBounds.x - 1e-6
       && point.x + halfWidth <= projectedBounds.x + projectedBounds.width + 1e-6
       && point.y - halfHeight >= bounds.y - 1e-6
-      && point.y + halfHeight <= bounds.y + bounds.height + 1e-6)
+      && point.y + halfHeight <= bounds.y + bounds.height + 1e-6
+      && (!outside || (outside.side === 'above' ? point.y + halfHeight <= outside.speakerY - gapY : point.y - halfHeight >= outside.speakerY + gapY)))
     .map(point => ({
       point,
       rect: { x: point.x - halfWidth, y: point.y - halfHeight, width: halfWidth * 2, height: halfHeight * 2 },
