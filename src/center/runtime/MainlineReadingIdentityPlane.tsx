@@ -121,6 +121,20 @@ export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], 
       alphaFrameRef.current = window.requestAnimationFrame(animateAlphaCells)
     }
   }, [active, observationProtectionRects, protectedTarget, worldBounds.x, worldBounds.y, worldBounds.width, worldBounds.height])
+  useLayoutEffect(() => {
+    // Reconcile the SVG mask nodes after React commits the current keyed cell
+    // set. A keyed rect can survive a layout-state update while its DOM
+    // opacity attribute lags the latest interpolated cell state.
+    const elements = new Map<string, SVGRectElement>()
+    for (const element of planeRef.current?.querySelectorAll<SVGRectElement>('[data-reading-alpha-cell]') ?? []) {
+      const key = element.getAttribute('data-reading-alpha-cell')
+      const cell = key ? alphaCellsRef.current.get(key) : undefined
+      if (!key || !cell) continue
+      element.setAttribute('opacity', String(cell.opacity))
+      elements.set(key, element)
+    }
+    alphaCellElementsRef.current = elements
+  }, [renderedAlphaCells])
   useEffect(() => () => {
     if (alphaFrameRef.current !== null) window.cancelAnimationFrame(alphaFrameRef.current)
     alphaFrameRef.current = null
