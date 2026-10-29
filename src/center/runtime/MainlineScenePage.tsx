@@ -428,6 +428,7 @@ export function MainlineScenePage({
   const storefrontExecutionRuntimeRef = useRef(createCommercialStreetStorefrontExecutionRuntime())
   const storefrontRequestIdRef = useRef(0)
   const npcInteractionRequestRef = useRef(0)
+  const cancelPendingTakeawayWorkerResponseRef = useRef<(() => void) | null>(null)
   const navigationRuntimeRef = useRef(createNavigationRuntime())
   const navigationRuntime = navigationRuntimeRef.current
   const commercialCafeCoffeeBehaviorRef = useRef(createCommercialCafeCoffeeOwnerBehaviorCoordinator())
@@ -1875,6 +1876,8 @@ export function MainlineScenePage({
     const approachingUse = Object.entries(cafeRestroomFixtureUsesRef.current).find(([, request]) => request?.phase === 'approaching')
     if (approachingUse) clearCafeRestroomFixtureUse(approachingUse[0], approachingUse[1]?.requestId)
     npcInteractionRequestRef.current += 1
+    cancelPendingTakeawayWorkerResponseRef.current?.()
+    cancelPendingTakeawayWorkerResponseRef.current = null
     pendingTraversalRef.current = null
     setSceneFrameExit({ phase: 'idle' })
     cancelPassageLifecycle('protagonist')
@@ -2153,7 +2156,9 @@ export function MainlineScenePage({
       return
     }
     cancelSceneAction()
-    npcInteractionRequestRef.current += 1
+    const requestId = ++npcInteractionRequestRef.current
+    cancelPendingTakeawayWorkerResponseRef.current?.()
+    cancelPendingTakeawayWorkerResponseRef.current = null
     setRequestedWorldTarget(null)
     if (phoneOpen) onPhoneDismiss?.()
     setDialogueLineIndex(null)
@@ -2299,6 +2304,7 @@ export function MainlineScenePage({
     }
 
     const revealInteraction = () => {
+      if (npcInteractionRequestRef.current !== requestId) return
       if (!mainlineEntityBelongsToActiveSpace(entity, mainlineActiveSpatialSpaceId(scene, getCurrentPosition()))) {
         interactionStartedAtRef.current = null
         setActiveObjectId(null)
@@ -2411,8 +2417,22 @@ export function MainlineScenePage({
           : side === 'top'
             ? { x: Math.max(body.x + box.width / 2, Math.min(body.x + body.width - box.width / 2, counterContact.point.x)), y: body.y + body.height + box.height / 2 + margin }
             : { x: Math.max(body.x + box.width / 2, Math.min(body.x + body.width - box.width / 2, counterContact.point.x)), y: body.y - box.height / 2 - margin }
-      const started = movement.requestMove({ dutyId: `${workerId}.counter-service`, targetId: counterContact.partId, target }, scene, layout, { ...navigationOptions, actorId: workerId }, {}, revealInteraction)
+      cancelPendingTakeawayWorkerResponseRef.current = () => movement.requestMove({ dutyId: `${workerId}.return-to-station`, targetId: `${workerId}.station`, target: isMilk ? milkTeaWorkerInitial : fruitTeaWorkerInitial }, scene, layout, { ...navigationOptionsRef.current, actorId: workerId })
+      const started = movement.requestMove({ dutyId: `${workerId}.counter-service`, targetId: counterContact.partId, target }, scene, layout, { ...navigationOptions, actorId: workerId }, {
+        onBlocked: () => {
+          if (npcInteractionRequestRef.current !== requestId) return
+          cancelPendingTakeawayWorkerResponseRef.current = null
+          interactionStartedAtRef.current = null
+          setActiveObjectId(null)
+          onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'worker-movement-blocked')
+        },
+      }, () => {
+        if (npcInteractionRequestRef.current !== requestId) return
+        cancelPendingTakeawayWorkerResponseRef.current = null
+        revealInteraction()
+      })
       if (!started) {
+        cancelPendingTakeawayWorkerResponseRef.current = null
         interactionStartedAtRef.current = null
         setActiveObjectId(null)
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'worker-unreachable')
@@ -2452,7 +2472,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, cancelSceneAction, carriedPhoneDevice, cafeRestroomFixtureUsesRef, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, createSceneAction, clearCafeRestroomFixtureUse, denyLockedPassageAfterApproach, dismissSceneEcho, fruitTeaWorkerBox.height, fruitTeaWorkerBox.width, fruitTeaWorkerId, fruitTeaWorkerMovement, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, milkTeaWorkerBox.height, milkTeaWorkerBox.width, milkTeaWorkerId, milkTeaWorkerMovement, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onCommerceEntity, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, presentCommercialDrinkEcho, presentYongheEcho, readingActive, recordSceneState, recordSceneStatePatch, resetMovement, scene, sceneAction, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startDialogueTextSession, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, cancelSceneAction, carriedPhoneDevice, cafeRestroomFixtureUsesRef, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, createSceneAction, clearCafeRestroomFixtureUse, denyLockedPassageAfterApproach, dismissSceneEcho, fruitTeaWorkerBox.height, fruitTeaWorkerBox.width, fruitTeaWorkerId, fruitTeaWorkerInitial, fruitTeaWorkerMovement, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, milkTeaWorkerBox.height, milkTeaWorkerBox.width, milkTeaWorkerId, milkTeaWorkerInitial, milkTeaWorkerMovement, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onCommerceEntity, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, presentCommercialDrinkEcho, presentYongheEcho, readingActive, recordSceneState, recordSceneStatePatch, resetMovement, scene, sceneAction, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startDialogueTextSession, startNpcDialogue, startPassageTraversal, stopMovement])
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
@@ -2500,6 +2520,9 @@ export function MainlineScenePage({
   const interactStorefront = useCallback((storefrontId: string) => {
     if (readingActive || sceneAction?.phase === 'committing') return
     cancelSceneAction()
+    npcInteractionRequestRef.current += 1
+    cancelPendingTakeawayWorkerResponseRef.current?.()
+    cancelPendingTakeawayWorkerResponseRef.current = null
     const storefront = scene.storefronts.find((candidate) => candidate.id === storefrontId)
     if (!storefront || !commercialStreetStorefrontInteractionFor(storefrontId)) return
     onInteractionAnalytics?.('requested', storefrontId, 'storefront')
@@ -2641,6 +2664,8 @@ export function MainlineScenePage({
     leavePlayerSeat()
     const requestId = npcInteractionRequestRef.current + 1
     npcInteractionRequestRef.current = requestId
+    cancelPendingTakeawayWorkerResponseRef.current?.()
+    cancelPendingTakeawayWorkerResponseRef.current = null
     const currentPosition = getCurrentPosition()
     const interaction = resolveMainlineNpcInteraction(scene, npc.id, currentPosition, layout, navigationOptions)
     const alreadyNearby = interaction.inRange
@@ -3054,6 +3079,8 @@ export function MainlineScenePage({
     storefrontRequestIdRef.current += 1
     cancelSceneAction()
     npcInteractionRequestRef.current += 1
+    cancelPendingTakeawayWorkerResponseRef.current?.()
+    cancelPendingTakeawayWorkerResponseRef.current = null
     if (phoneOpen) {
       onPhoneDismiss?.()
     }
