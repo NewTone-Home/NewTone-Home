@@ -697,9 +697,9 @@ function ObservationText({ onProtectionRects, menu, sourceText, echoId, continui
       onProtectionRects(rects)
       const menuRect = menu && rects[0] ? (() => {
         const rootRect = root.getBoundingClientRect()
-        // Keep a compact 36px safe margin around the framed reading surface;
+        // Keep a compact 52px safe margin around the framed reading surface;
         // nearby counter labels/edges must not peek into the text or frame.
-        const safeMargin = 36
+        const safeMargin = 52
         return { x: rects[0]!.x - rootRect.left - safeMargin, y: rects[0]!.y - rootRect.top - safeMargin, width: rects[0]!.width + safeMargin * 2, height: rects[0]!.height + safeMargin * 2 }
       })() : null
       setMenuProtectionRect(current => current && menuRect
