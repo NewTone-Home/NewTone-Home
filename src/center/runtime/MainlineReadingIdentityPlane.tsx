@@ -115,7 +115,7 @@ export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], 
         <mask id={localMaskId} maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" style={{ maskType: 'luminance' } as CSSProperties}>
           <rect x="0" y="0" width={Math.max(1, planeRef.current?.offsetWidth ?? worldBounds.width)} height={Math.max(1, planeRef.current?.offsetHeight ?? worldBounds.height)} fill="white" />
           <g fill="black" filter={`url(#${localMaskId}-feather)`}>
-            {localFadeRegions.map(region => <rect key={region.key} className={region.active ? 'scene-reading-local-mask__region is-entering' : 'scene-reading-local-mask__region is-exiting'} x={region.x - 2} y={region.y - 2} width={region.width + 4} height={region.height + 4} rx="2" ry="2" />)}
+            {localFadeRegions.map(region => <rect key={region.key} className={region.active ? 'scene-reading-local-mask__region is-entering' : 'scene-reading-local-mask__region is-exiting'} x={region.x - 8} y={region.y - 5} width={region.width + 16} height={region.height + 10} rx="2" ry="2" />)}
           </g>
         </mask>
       </defs>
