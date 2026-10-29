@@ -24,6 +24,14 @@ describe('reading local fade motion', () => {
     expect(mainlineReadingAlphaTransitionValue(0, 1, 100, 80, 140)).toBeCloseTo(.5, 2)
     expect(mainlineReadingAlphaTransitionValue(0, 1, 100, 80, 180)).toBe(1)
   })
+  it('keeps a thin protected stroke from leaking when it crosses a fixed cell away from its center', () => {
+    const bounds = { x: 0, y: 0, width: 40, height: 40 }
+    const size = 5
+    const field = rasterizeMainlineReadingAlphaField(bounds, [{ x: 24.8, y: 21.1, width: .8, height: 1.2 }], size)
+    const crossed = field.find(cell => cell.x === 20 && cell.y === 20)
+    expect(crossed).toBeDefined()
+    expect(crossed?.target).toBe(1)
+  })
   it('keeps separate current glyph and frame regions protected without globally weakening the mask', () => {
     const mask = mainlineReadingLocalFadeMask(object, [
       { x: 10, y: 5, width: 22, height: 12 },

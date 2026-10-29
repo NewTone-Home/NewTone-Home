@@ -43,6 +43,21 @@ export function mainlineReadingAlphaAt(point: Point, region: MainlineReadingAlph
   return Math.max(0, Math.min(1, (1 + erf(z)) / 2))
 }
 
+/** Evaluate coverage against the whole fixed cell, not just its center.
+ * A thin protected stroke can cross a cell while missing its center; treating
+ * that cell as uncovered lets the background stroke leak through the reading
+ * core. Full alpha is applied only when the cell intersects the core; the
+ * existing spatial feather is measured from the nearest cell edge otherwise.
+ */
+export function mainlineReadingAlphaForCell(cell: Pick<MainlineReadingAlphaCell, 'x' | 'y' | 'width' | 'height'>, region: MainlineReadingAlphaRegion) {
+  const dx = Math.max(region.x - (cell.x + cell.width), 0, cell.x - (region.x + region.width))
+  const dy = Math.max(region.y - (cell.y + cell.height), 0, cell.y - (region.y + region.height))
+  if (dx === 0 && dy === 0) return 1
+  const distance = Math.hypot(dx, dy)
+  const z = (mainlineReadingAlphaFeatherOffset - distance) / (mainlineReadingAlphaFeatherStdDev * Math.SQRT2)
+  return Math.max(0, Math.min(1, (1 + erf(z)) / 2))
+}
+
 /** Rasterize only cells touched by this plane's current text/frame regions; grid coordinates stay fixed for the plane lifetime. */
 export function rasterizeMainlineReadingAlphaField(
   bounds: Pick<CollisionBox, 'width' | 'height'>,
@@ -66,11 +81,13 @@ export function rasterizeMainlineReadingAlphaField(
       for (let column = left; column <= right; column += 1) {
         const x = column * size
         const key = `${column}:${row}`
-        const target = mainlineReadingAlphaAt({ x: x + size / 2, y: y + size / 2 }, region)
+        const width = Math.min(size, bounds.width - x)
+        const height = Math.min(size, bounds.height - y)
+        const target = mainlineReadingAlphaForCell({ x, y, width, height }, region)
         if (target <= .005) continue
         const previous = values.get(key)
         if (previous) previous.target = Math.max(previous.target, target)
-        else values.set(key, { key, x, y, size, width: Math.min(size, bounds.width - x), height: Math.min(size, bounds.height - y), target })
+        else values.set(key, { key, x, y, size, width, height, target })
       }
     }
   }
