@@ -1181,6 +1181,17 @@
 @keyframes dialogue-speaker-entering { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dialogue-speaker-exiting { from { opacity: 1; } to { opacity: 0; } }
 .scene-mainline-text__observation { position: absolute; inset: 2px 0; display: block; }
+.scene-mainline-text__observation .scene-menu-reading-backdrop {
+  position: absolute;
+  z-index: 0;
+  display: block;
+  pointer-events: none;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, .9);
+  box-shadow: 0 0 16px 8px rgba(0, 0, 0, .9);
+  transition: left 120ms ease-out, top 120ms ease-out, width 120ms ease-out, height 120ms ease-out;
+}
+.scene-mainline-text__observation .scene-menu-reading-backdrop ~ .scene-mainline-page-stack { z-index: 1; }
 .scene-mainline-text[data-scene-echo="commercial-cafe-blackboard"]::before {
   content: "";
   position: absolute;

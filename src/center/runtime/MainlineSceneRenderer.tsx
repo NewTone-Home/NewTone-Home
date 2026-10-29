@@ -676,6 +676,7 @@ function ObservationText({ onProtectionRects, menu, sourceText, echoId, continui
   }
   const menuMeasureRef = useRef<HTMLSpanElement>(null)
   const [menuSize, setMenuSize] = useState({ width: 0, height: 0 })
+  const [menuProtectionRect, setMenuProtectionRect] = useState<MainlineReadingProtectionRect | null>(null)
   useIsomorphicLayoutEffect(() => {
     const element = menuMeasureRef.current
     if (!menu || !element) return
@@ -692,7 +693,16 @@ function ObservationText({ onProtectionRects, menu, sourceText, echoId, continui
     let cancelled = false
     const measure = () => {
       if (cancelled) return
-      onProtectionRects(measureReadingProtectionRects(root, text, textMotion.visibleText, motion, menuMeasureRef.current, frameProgress))
+      const rects = measureReadingProtectionRects(root, text, textMotion.visibleText, motion, menuMeasureRef.current, frameProgress)
+      onProtectionRects(rects)
+      const menuRect = menu && rects[0] ? (() => {
+        const rootRect = root.getBoundingClientRect()
+        return { x: rects[0]!.x - rootRect.left, y: rects[0]!.y - rootRect.top, width: rects[0]!.width, height: rects[0]!.height }
+      })() : null
+      setMenuProtectionRect(current => current && menuRect
+        && Math.abs(current.x - menuRect.x) < .2 && Math.abs(current.y - menuRect.y) < .2
+        && Math.abs(current.width - menuRect.width) < .2 && Math.abs(current.height - menuRect.height) < .2
+        ? current : menuRect)
       const flipping = root.querySelector('.scene-mainline-page-stack[data-page-flip="running"]')
       if (flipping) animationFrame = window.requestAnimationFrame(measure)
     }
@@ -702,8 +712,9 @@ function ObservationText({ onProtectionRects, menu, sourceText, echoId, continui
       if (animationFrame !== null) window.cancelAnimationFrame(animationFrame)
     }
   }, [frameProgress, layout, menu, menuSize.height, menuSize.width, motion, onProtectionRects, text, textMotion.visibleText, worldScale])
-  return <span ref={protectionRef} className="scene-mainline-text__observation" data-scene-text-mode="observation">
+  return <span ref={protectionRef} className="scene-mainline-text__observation" data-scene-text-mode="observation" style={{ isolation: 'isolate' }}>
     {menu && <><span className="scene-menu-measure" ref={menuMeasureRef} aria-hidden="true">{renderMenuText(text)}</span><span className="scene-focus-frame scene-menu-reading-frame" style={{ width: menuSize.width + 16, height: menuSize.height + 12, '--scene-focus-stroke-offset': 1 - frameProgress } as CSSProperties} aria-hidden="true"><svg viewBox={frameGeometry.viewBox} preserveAspectRatio="none"><path pathLength="1" d={frameGeometry.paths['top-left']} /></svg></span></>}
+    {menuProtectionRect && <span className="scene-menu-reading-backdrop" style={{ left: menuProtectionRect.x, top: menuProtectionRect.y, width: menuProtectionRect.width, height: menuProtectionRect.height }} aria-hidden="true" />}
     <ReadingPageFlip pageKey={pageKey} continuityKey={continuityKey} visibleText={textMotion.visibleText} layout={layout} worldScale={worldScale} mode="observation" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel} onSettled={(settledKey) => { textMotion.onSettled(settledKey); onSettled?.(settledKey) }}>
       {renderMenuText(textMotion.visibleText)}
     </ReadingPageFlip>
