@@ -2273,8 +2273,11 @@ export function MainlineSceneRenderer({
 
   const windowRoom = officeWindowRoom(scene)
   const currentOfficeRoom = scene.id === 'zhongshuyuan-office' ? mainlineInteractionRoom(scene, position) : undefined
-  const officeShadeRooms = scene.id === 'zhongshuyuan-office' ? scene.rooms.filter(room => room.kind === 'room'
-    && !(room.id === windowRoom?.id ? officeBlindsOpen : officeRoomBlindsOpen(officeRoomBlindsState, room.id, windowRoom?.id))) : []
+  const officeShadeRooms = scene.id === 'zhongshuyuan-office' ? scene.rooms.filter(room => room.kind === 'room').map(room => ({
+    room,
+    closed: !(room.id === windowRoom?.id ? officeBlindsOpen : officeRoomBlindsOpen(officeRoomBlindsState, room.id, windowRoom?.id)),
+  })) : []
+  const hasOfficeShade = officeShadeRooms.some(({ closed }) => closed)
   const worldProjectionStyle = {
     left: '50%',
     top: '50%',
@@ -2534,7 +2537,7 @@ export function MainlineSceneRenderer({
         <span ref={stableViewportRef} className="scene-mainline-stable-viewport" aria-hidden="true" />
 
         <div
-          className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''} ${officeShadeRooms.length ? 'has-office-blinds-shade' : ''}`}
+          className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''} ${hasOfficeShade ? 'has-office-blinds-shade' : ''}`}
           data-commercial-street-grid={scene.id === 'commercial-street' ? 'equal-pitch' : undefined}
           data-commercial-street-grid-scale={scene.id === 'commercial-street' ? horizontalGridScale : undefined}
           data-world-projection-scale={worldScale}
@@ -2909,11 +2912,12 @@ export function MainlineSceneRenderer({
             aria-hidden="true"
           ><span className="scene-commercial-question-mark__visual">?</span></span>}
           </>
-        {officeShadeRooms.map(room => {
+        {officeShadeRooms.map(({ room, closed }) => {
           const edges = officeRoomShadeEdges(room, scene.rooms, currentOfficeRoom?.id)
           return <div key={room.id} className="scene-office-blinds-shade" aria-hidden="true" data-office-blinds-shade="closed" data-office-shade-room={room.id} style={{
             left: `calc(${room.bounds.x}% - ${edges.left}px)`, top: `calc(${room.bounds.y}% - ${edges.top}px)`,
             width: `calc(${room.bounds.width}% + ${edges.left + edges.right}px)`, height: `calc(${room.bounds.height}% + ${edges.top + edges.bottom}px)`,
+            opacity: closed ? .3 : 0,
           }} />
         })}
         <div className="scene-mainline-reading-layer">
