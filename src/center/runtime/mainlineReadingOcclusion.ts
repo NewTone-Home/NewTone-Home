@@ -85,21 +85,6 @@ export function mainlineReadingOcclusionAlpha(point: Point, rect: MainlineReadin
 
 export type MainlineReadingProtectionRect = CollisionBox
 
-export function mainlineReadingMaskRegions(regions: readonly (MainlineReadingProtectionRect & { key: string; active: boolean })[], featherPx = 8) {
-  const feather = Math.max(0, featherPx)
-  return regions.filter(region => region.width > 0 && region.height > 0).map(region => ({
-    key: region.key,
-    active: region.active,
-    core: { x: region.x, y: region.y, width: region.width, height: region.height },
-    feather: {
-      x: region.x - feather,
-      y: region.y - feather,
-      width: region.width + feather * 2,
-      height: region.height + feather * 2,
-    },
-  }))
-}
-
 /** Add the existing two-glyph spatial breathing room to each measured glyph independently. */
 export function mainlineReadingGlyphSafetyRects(glyphRects: readonly MainlineReadingProtectionRect[], fontSizePx: number) {
   const fontSize = Math.max(1, fontSizePx)

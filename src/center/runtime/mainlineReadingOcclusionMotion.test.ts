@@ -1,14 +1,36 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineReadingLocalFadeMask, mainlineReadingMaskRegions } from './mainlineReadingOcclusion'
+import { mainlineReadingLocalFadeMask } from './mainlineReadingOcclusion'
+import { mainlineReadingAlphaAt, mainlineReadingAlphaCellLimit, mainlineReadingAlphaCellSize, mainlineReadingAlphaTransitionValue, rasterizeMainlineReadingAlphaField } from './mainlineReadingLocalAlpha'
 
 describe('reading local fade motion', () => {
   const object = { x: 0, y: 0, width: 100, height: 40 }
-  it('keeps the protected glyph region fully clear and places the soft feather outside it', () => {
-    expect(mainlineReadingMaskRegions([{ key: 'glyph', active: true, x: 20, y: 10, width: 16, height: 18 }])).toEqual([{
-      key: 'glyph', active: true,
-      core: { x: 20, y: 10, width: 16, height: 18 },
-      feather: { x: 12, y: 2, width: 32, height: 34 },
-    }])
+  it('keeps a stable local grid and caps cells for large background planes', () => {
+    const bounds = { x: 0, y: 0, width: 195, height: 503 }
+    const size = mainlineReadingAlphaCellSize(bounds)
+    const field = rasterizeMainlineReadingAlphaField(bounds, [{ x: 40, y: 60, width: 18, height: 22 }], size)
+    expect(Math.ceil(bounds.width / size) * Math.ceil(bounds.height / size)).toBeLessThanOrEqual(mainlineReadingAlphaCellLimit)
+    expect(field.length).toBeGreaterThan(0)
+    expect(field.every(cell => Math.abs(cell.x / size - Math.round(cell.x / size)) < .00001 && Math.abs(cell.y / size - Math.round(cell.y / size)) < .00001 && cell.target > 0)).toBe(true)
+    const shifted = rasterizeMainlineReadingAlphaField(bounds, [{ x: 41, y: 60, width: 18, height: 22 }], size)
+    expect(shifted.some(cell => field.some(previous => previous.key === cell.key && previous.x === cell.x && previous.y === cell.y))).toBe(true)
+  })
+
+  it('clears the core, preserves the soft spatial feather and interpolates opacity at fixed cells', () => {
+    const rect = { x: 20, y: 10, width: 16, height: 18 }
+    expect(mainlineReadingAlphaAt({ x: 22, y: 14 }, rect)).toBe(1)
+    expect(mainlineReadingAlphaAt({ x: 44, y: 14 }, rect)).toBeCloseTo(.5, 2)
+    expect(mainlineReadingAlphaAt({ x: 60, y: 14 }, rect)).toBeLessThan(.01)
+    expect(mainlineReadingAlphaTransitionValue(0, 1, 100, 80, 100)).toBe(0)
+    expect(mainlineReadingAlphaTransitionValue(0, 1, 100, 80, 140)).toBeCloseTo(.5, 2)
+    expect(mainlineReadingAlphaTransitionValue(0, 1, 100, 80, 180)).toBe(1)
+  })
+  it('keeps a thin protected stroke from leaking when it crosses a fixed cell away from its center', () => {
+    const bounds = { x: 0, y: 0, width: 40, height: 40 }
+    const size = 5
+    const field = rasterizeMainlineReadingAlphaField(bounds, [{ x: 24.8, y: 21.1, width: .8, height: 1.2 }], size)
+    const crossed = field.find(cell => cell.x === 20 && cell.y === 20)
+    expect(crossed).toBeDefined()
+    expect(crossed?.target).toBe(1)
   })
   it('keeps separate current glyph and frame regions protected without globally weakening the mask', () => {
     const mask = mainlineReadingLocalFadeMask(object, [

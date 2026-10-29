@@ -2535,7 +2535,9 @@ export function MainlineSceneRenderer({
         const centerY = (part.y + part.height / 2) * 10.8
         return { x: centerX - width / 2, y: centerY - height / 2, width, height }
       })
-      const bounds = unionWorldBounds([...boxes, ...labelBoxes], 1)
+      // Include the counter outline stroke and its antialiased edge inside the
+      // same bounded plane that carries the reading alpha mask.
+      const bounds = unionWorldBounds([...boxes, ...labelBoxes], 2)
       const first = parts[0]
       const spaceId = meta.roomId ?? mainlineActiveSpatialSpaceId(scene, { x: first.x + first.width / 2, y: first.y + first.height / 2 })
       add(`counter:${meta.groupId}`, meta.interactionEntityId, bounds, spaceId)
@@ -2939,7 +2941,7 @@ export function MainlineSceneRenderer({
               const centerY = (part.y + part.height / 2) * 10.8
               return { x: centerX - width / 2, y: centerY - height / 2, width, height }
             })
-            const counterBounds = unionWorldBounds([...boxes, ...labelBoxes], 1)
+            const counterBounds = unionWorldBounds([...boxes, ...labelBoxes], 2)
             return <MainlineReadingIdentityPlane key={meta.groupId} identityKey={`counter:${meta.groupId}`} entityId={entityId} protectedEntityIds={readingOcclusionProtectedEntityIds} worldBounds={counterBounds} observationProtectionRects={observationProtection} active={Boolean(observationProtection)} stageFaded={dialogueStage ? stageHidden : undefined} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--counter${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}><MainlineCounterSurface boundedWrapper coordinateBounds={counterBounds} parts={parts} objects={scene.objects} onInteract={onInteract} onCounterInteract={onCounterInteract} presentationActive={interiorRoomPresentationActive(meta.roomId)}/></MainlineReadingIdentityPlane>
             }
             return visibleCounterSurfaces.map(renderCounter)
