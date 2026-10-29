@@ -695,22 +695,15 @@ function ObservationText({ onProtectionRects, menu, sourceText, echoId, continui
       if (cancelled) return
       const rects = measureReadingProtectionRects(root, text, textMotion.visibleText, motion, menuMeasureRef.current, frameProgress)
       onProtectionRects(rects)
-      const menuRect = menu && frameProgress > 0 && rects[0] ? (() => {
+      const menuRect = menu && rects[0] ? (() => {
         const rootRect = root.getBoundingClientRect()
         const scaleX = root.offsetWidth ? rootRect.width / root.offsetWidth : 1
         const scaleY = root.offsetHeight ? rootRect.height / root.offsetHeight : 1
-        const frameRect = root.querySelector('.scene-menu-reading-frame')?.getBoundingClientRect()
-        const measureRect = menuMeasureRef.current?.getBoundingClientRect()
-        const textRect = rects[0]!
-        const left = Math.min(textRect.x, frameRect?.left ?? textRect.x, measureRect?.left ?? textRect.x)
-        const top = Math.min(textRect.y, frameRect?.top ?? textRect.y, measureRect?.top ?? textRect.y)
-        const right = Math.max(textRect.x + textRect.width, frameRect?.right ?? textRect.x + textRect.width, measureRect?.right ?? textRect.x + textRect.width)
-        const bottom = Math.max(textRect.y + textRect.height, frameRect?.bottom ?? textRect.y + textRect.height, measureRect?.bottom ?? textRect.y + textRect.height)
-        // DOM measurements are viewport pixels; convert back to this scaled root's CSS pixels.
-        // Protect the measured full frame and its interior while any frame remains,
-        // with a small local breathing room for neighboring counter labels.
+        const activeRect = rects[0]!
+        // Rects already describe visible glyphs and only the actually drawn frame stroke.
+        // Convert their viewport-space hull back into this scaled root's CSS pixels.
         const safeMargin = 18
-        return { x: (left - rootRect.left) / scaleX - safeMargin, y: (top - rootRect.top) / scaleY - safeMargin, width: (right - left) / scaleX + safeMargin * 2, height: (bottom - top) / scaleY + safeMargin * 2 }
+        return { x: (activeRect.x - rootRect.left) / scaleX - safeMargin, y: (activeRect.y - rootRect.top) / scaleY - safeMargin, width: activeRect.width / scaleX + safeMargin * 2, height: activeRect.height / scaleY + safeMargin * 2 }
       })() : null
       setMenuProtectionRect(current => current && menuRect
         && Math.abs(current.x - menuRect.x) < .2 && Math.abs(current.y - menuRect.y) < .2
