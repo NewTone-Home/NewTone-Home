@@ -84,7 +84,7 @@ for (const approach of sinkApproaches) {
 }
 
 test('changing target while approaching cancels the pending use without starting either fixture', async ({ page }) => {
-  await openRestroom(page, local(560, -100))
+  await openRestroom(page, local(532, -145))
   const stage = page.locator('.mainline-scene-stage')
   const sink = page.locator(`[data-object-id="${cafeRestroomFaucetId}"]`)
   await sink.click()
