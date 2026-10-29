@@ -736,6 +736,11 @@
 .scene-mainline-object-layer { position: absolute; inset: 0; pointer-events: none; }
 .scene-mainline-reading-identity-plane { position: absolute; pointer-events: none; }
 .scene-mainline-reading-identity-plane > * { pointer-events: auto; }
+.scene-reading-local-mask-defs { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.scene-reading-local-mask__region.is-entering { animation: scene-reading-local-fade-in 140ms ease-out both; }
+.scene-reading-local-mask__region.is-exiting { animation: scene-reading-local-fade-out 140ms ease-in both; }
+@keyframes scene-reading-local-fade-in { from { opacity: 0; } to { opacity: .78; } }
+@keyframes scene-reading-local-fade-out { from { opacity: .78; } to { opacity: 0; } }
 .scene-mainline-reading-identity-plane[data-reading-occlusion-hidden="true"],
 .scene-mainline-reading-identity-plane[data-reading-occlusion-hidden="true"] * { pointer-events: none !important; }
 .scene-mainline-reading-identity-plane--wall > * { pointer-events: none; }
@@ -1183,17 +1188,6 @@
 @keyframes dialogue-speaker-entering { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dialogue-speaker-exiting { from { opacity: 1; } to { opacity: 0; } }
 .scene-mainline-text__observation { position: absolute; inset: 2px 0; display: block; }
-.scene-mainline-text__observation .scene-menu-reading-backdrop {
-  position: absolute;
-  z-index: 0;
-  display: block;
-  pointer-events: none;
-  border-radius: 2px;
-  background: rgba(0, 0, 0, .97);
-  box-shadow: 0 0 16px 8px rgba(0, 0, 0, .9);
-  transition: left 120ms ease-out, top 120ms ease-out, width 120ms ease-out, height 120ms ease-out;
-}
-.scene-mainline-text__observation .scene-menu-reading-backdrop ~ .scene-mainline-page-stack { z-index: 1; }
 .scene-mainline-text[data-scene-echo="commercial-cafe-blackboard"]::before {
   content: "";
   position: absolute;

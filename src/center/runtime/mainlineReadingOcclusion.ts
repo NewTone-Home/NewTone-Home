@@ -85,6 +85,19 @@ export function mainlineReadingOcclusionAlpha(point: Point, rect: MainlineReadin
 
 export type MainlineReadingProtectionRect = CollisionBox
 
+/** Add the existing two-glyph spatial breathing room to each measured glyph independently. */
+export function mainlineReadingGlyphSafetyRects(glyphRects: readonly MainlineReadingProtectionRect[], fontSizePx: number) {
+  const fontSize = Math.max(1, fontSizePx)
+  const horizontalClearance = fontSize
+  const verticalClearance = fontSize * .22
+  return glyphRects.filter(rect => rect.width > 0 && rect.height > 0).map(rect => ({
+    x: rect.x - horizontalClearance,
+    y: rect.y - verticalClearance,
+    width: rect.width + horizontalClearance * 2,
+    height: rect.height + verticalClearance * 2,
+  }))
+}
+
 /**
  * Hide scene art only under the currently painted reading ink and frame
  * strokes. Each region is a separate transparent hole; intersecting the mask

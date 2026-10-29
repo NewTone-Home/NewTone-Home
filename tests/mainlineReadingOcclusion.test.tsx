@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MainlineReadingIdentityPlane } from '../src/center/runtime/MainlineReadingIdentityPlane'
-import { mainlineReadingLocalFadeMask, mainlineReadingOcclusionCellIdentity, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingLocalPercent, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot } from '../src/center/runtime/mainlineReadingOcclusion'
+import { mainlineReadingGlyphSafetyRects, mainlineReadingOcclusionCellIdentity, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingLocalPercent, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot } from '../src/center/runtime/mainlineReadingOcclusion'
 
 describe('mainline whole-object reading occlusion', () => {
   it('maps a reading layout to the design world without changing its screen size', () => {
@@ -113,28 +113,10 @@ describe('mainline whole-object reading occlusion', () => {
     expect(table).toContain('transition:opacity 380ms ease-in-out')
   })
 
-  it('uses an object-local transparent centre and a soft outer gradient for observations, while preserving protected targets', () => {
-    const bounds = { x: 0, y: 0, width: 220, height: 120 }
-    const rect = { x: 80, y: 40, width: 60, height: 24 }
-    const mask = mainlineReadingLocalFadeMask(bounds, rect, 32, 48)
-    expect(mask).toContain('radial-gradient(ellipse')
-    expect(mask).toContain('transparent 0%')
-    expect(mask).toContain('#000 100%)')
-
-    const html = renderToStaticMarkup(<>
-      <MainlineReadingIdentityPlane entityId="plant" identityKey="object:plant" worldBounds={bounds} observationFade={{ rect, innerMarginWorldPx: 32, featherWorldPx: 48 }} hiddenIdentityKeys={new Set(['object:plant'])} active protectedEntityIds={new Set(['door'])}>
-        <span>plant</span>
-      </MainlineReadingIdentityPlane>
-      <MainlineReadingIdentityPlane entityId="door" identityKey="door" worldBounds={bounds} observationFade={{ rect, innerMarginWorldPx: 32, featherWorldPx: 48 }} active protectedEntityIds={new Set(['door'])}>
-        <span>door</span>
-      </MainlineReadingIdentityPlane>
-    </>)
-    const plant = html.match(/<div[^>]*data-reading-occlusion-entity-id="plant"[^>]*>/)?.[0]
-    const door = html.match(/<div[^>]*data-reading-occlusion-entity-id="door"[^>]*>/)?.[0]
-    expect(plant).toContain('data-reading-observation-fade="true"')
-    expect(plant).not.toContain('data-reading-occlusion-hidden')
-    expect(plant).toContain('mask-image:radial-gradient')
-    expect(door).toContain('data-reading-occlusion-protected="true"')
-    expect(door).not.toContain('data-reading-observation-fade')
+  it('preserves independent two-character spatial breathing room for each glyph', () => {
+    const localQuarter = mainlineReadingGlyphSafetyRects([{ x: 100, y: 40, width: 4, height: 18 }], 18)
+    expect(localQuarter).toEqual([{ x: 82, y: 36.04, width: 40, height: 25.92 }])
+    expect(localQuarter).toHaveLength(1)
+    expect(mainlineReadingGlyphSafetyRects([{ x: 100, y: 40, width: 0, height: 18 }], 18)).toEqual([])
   })
 })
