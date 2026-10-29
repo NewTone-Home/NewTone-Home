@@ -709,7 +709,7 @@ function ObservationText({ onProtectionRects, menu, sourceText, echoId, continui
         // DOM measurements are viewport pixels; convert back to this scaled root's CSS pixels.
         // Protect the measured full frame and its interior while any frame remains,
         // with a small local breathing room for neighboring counter labels.
-        const safeMargin = 16
+        const safeMargin = 18
         return { x: (left - rootRect.left) / scaleX - safeMargin, y: (top - rootRect.top) / scaleY - safeMargin, width: (right - left) / scaleX + safeMargin * 2, height: (bottom - top) / scaleY + safeMargin * 2 }
       })() : null
       setMenuProtectionRect(current => current && menuRect
