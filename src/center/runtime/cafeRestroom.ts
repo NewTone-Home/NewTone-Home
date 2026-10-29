@@ -5,9 +5,18 @@ export const cafeRestroomDoorId = 'cafe-trial-customer-toilet-door'
 export const cafeRestroomToiletId = 'cafe-restroom-toilet'
 export const cafeRestroomFaucetId = 'cafe-restroom-sink'
 export const cafeRestroomFaucetLabel = '洗手台'
-/** Initial tuning value: 45 seconds on the game clock. */
-export const cafeRestroomFixtureUseGameDurationMs = 45_000
 export const cafeRestroomFixtureIds = [cafeRestroomToiletId, cafeRestroomFaucetId] as const
+/** Each duration is measured on the shared game clock. */
+export const cafeRestroomFixtureUseGameDurationMs = {
+  [cafeRestroomToiletId]: 45_000,
+  [cafeRestroomFaucetId]: 90_000,
+} as const
+
+export function cafeRestroomFixtureUseDurationMs(entityId: string): number | undefined {
+  return entityId in cafeRestroomFixtureUseGameDurationMs
+    ? cafeRestroomFixtureUseGameDurationMs[entityId as keyof typeof cafeRestroomFixtureUseGameDurationMs]
+    : undefined
+}
 
 export function isPointInsideCafeRestroom(point: { x: number; y: number }, bounds: { x: number; y: number; width: number; height: number }) {
   return point.x >= bounds.x && point.x <= bounds.x + bounds.width

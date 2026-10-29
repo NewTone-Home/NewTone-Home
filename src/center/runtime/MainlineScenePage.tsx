@@ -5,7 +5,7 @@ import { officeBlindsRoomKey, officeRoomBlindsOpen, officeWindowRoom } from './o
 import { isWallMenuReading } from './menuReading'
 
 import { hasContinuousCafe, isCafeWorldId, isPointInContinuousCafe, isCafeStoryKey, cafeStoryNamespace } from './continuousCafe'
-import { cafeRestroomFixtureIds, cafeRestroomFixtureUseGameDurationMs, cafeRestroomRoomId, isPointInsideCafeRestroom } from './cafeRestroom'
+import { cafeRestroomFixtureIds, cafeRestroomFixtureUseDurationMs, cafeRestroomRoomId, isPointInsideCafeRestroom } from './cafeRestroom'
 
 import { isMainlineExternalExitTriggered } from './mainlineExternalExit'
 
@@ -1861,7 +1861,8 @@ export function MainlineScenePage({
 
   const startCafeRestroomFixtureUse = useCallback((entityId: string) => {
     const entity = scene.objects.find((candidate) => candidate.id === entityId && candidate.interactionBehavior === 'cafe-restroom-use')
-    if (scene.id !== 'commercial-street' || !entity || !mainlineEntityBelongsToActiveSpace(entity, mainlineActiveSpatialSpaceId(scene, getCurrentPosition()))) {
+    const durationMs = cafeRestroomFixtureUseDurationMs(entityId)
+    if (scene.id !== 'commercial-street' || !entity || durationMs === undefined || !mainlineEntityBelongsToActiveSpace(entity, mainlineActiveSpatialSpaceId(scene, getCurrentPosition()))) {
       onInteractionAnalytics?.('blocked', entityId, 'fixture', 'target-invalid')
       clearCafeRestroomFixtureUse(entityId)
       return
@@ -1902,7 +1903,7 @@ export function MainlineScenePage({
       const finishWhenGameTimeElapsed = () => {
         const current = cafeRestroomFixtureUsesRef.current[entityId]
         if (current?.requestId !== requestId || current.sceneId !== scene.id) return
-        if (readGameTimeMs() - (current.startedAtGameTimeMs ?? startedAtGameTimeMs) < cafeRestroomFixtureUseGameDurationMs) {
+        if (readGameTimeMs() - (current.startedAtGameTimeMs ?? startedAtGameTimeMs) < durationMs) {
           cafeRestroomFixtureUseFramesRef.current[entityId] = window.requestAnimationFrame(finishWhenGameTimeElapsed)
           return
         }

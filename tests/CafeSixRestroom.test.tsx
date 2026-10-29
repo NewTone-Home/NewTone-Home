@@ -1,5 +1,6 @@
 import { describe,expect,it } from 'vitest'
 import { cafeStoryTableId } from '../src/center/runtime/continuousCafe'
+import { cafeRestroomFaucetId, cafeRestroomFixtureUseDurationMs, cafeRestroomToiletId } from '../src/center/runtime/cafeRestroom'
 import { mainlineScenes,validateMainlineSceneGeometry } from '../src/center/runtime/mainlineScenes'
 import { mainlineNpcLabelFootprint } from '../src/center/runtime/sceneLayout'
 import { classifyMainlineWorldCommand,findMainlinePath,findMainlinePathToEntity,isWalkableMainlinePoint,canTravelAlongMainlineSegment,resolveMainlineNpcPosition } from '../src/center/runtime/mainlineNavigation'
@@ -10,6 +11,11 @@ import { createInitialPlayerSave,sanitizePlayerSave } from '../src/center/runtim
 const scene=mainlineScenes['commercial-street'],room=scene.rooms.find(r=>r.id==='commercial-north-cafe-interior')!,point=(x:number,y:number)=>({x:room.bounds.x+x/19.2,y:room.bounds.y+y/10.8}),options={screenMetrics:sceneDesignReferenceMetrics,actorId:'protagonist',actorFootprint:{width:11/19.2,height:11/10.8}}
 
 describe('wall wrap, six Cafe tables and the real single restroom',()=>{
+ it('keeps fixture durations separate on the game clock: toilet 45s, sink 90s',()=>{
+  expect(cafeRestroomFixtureUseDurationMs(cafeRestroomToiletId)).toBe(45_000)
+  expect(cafeRestroomFixtureUseDurationMs(cafeRestroomFaucetId)).toBe(90_000)
+  expect(cafeRestroomFixtureUseDurationMs('not-a-restroom-fixture')).toBeUndefined()
+ })
  it('extends only the stroke across one wall cell and retains real body endpoints',()=>{
   for(const [id,side,physical,visual] of [['cafe-trial-counter-front-body','x',8,-14],['cafe-trial-counter-upper-body','y',8,-14],['milk-tea-trial-front-return-body','right',328,350],['milk-tea-trial-long-counter-body','bottom',636,658],['fruit-tea-trial-front-return-body','x',8,-14],['fruit-tea-trial-long-counter-body','y',8,-14]] as const){const body=scene.continuousStructures.find(b=>b.id===id)!,r=scene.rooms.find(r=>r.id===body.counterSurface!.roomId)!,outline=body.counterSurface!.outlineBounds!;const coordinate=(b:typeof outline)=>side==='right'?(b.x+b.width-r.bounds.x)*19.2:side==='bottom'?(b.y+b.height-r.bounds.y)*10.8:side==='x'?(b.x-r.bounds.x)*19.2:(b.y-r.bounds.y)*10.8;expect(coordinate(body)).toBeCloseTo(physical,5);expect(coordinate(outline)).toBeCloseTo(visual,5)}
  })
