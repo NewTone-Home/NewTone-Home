@@ -43,19 +43,22 @@ export function mainlineReadingAlphaAt(point: Point, region: MainlineReadingAlph
   return Math.max(0, Math.min(1, (1 + erf(z)) / 2))
 }
 
-/** Evaluate coverage against the whole fixed cell, not just its center.
- * A thin protected stroke can cross a cell while missing its center; treating
- * that cell as uncovered lets the background stroke leak through the reading
- * core. Full alpha is applied only when the cell intersects the core; the
- * existing spatial feather is measured from the nearest cell edge otherwise.
+/** Supersample a fixed cell so narrow protected strokes cannot fall between
+ * cell centers. Using a small regular grid bounds the conservative expansion
+ * to less than half a sample interval while preserving continuous cell motion.
  */
 export function mainlineReadingAlphaForCell(cell: Pick<MainlineReadingAlphaCell, 'x' | 'y' | 'width' | 'height'>, region: MainlineReadingAlphaRegion) {
-  const dx = Math.max(region.x - (cell.x + cell.width), 0, cell.x - (region.x + region.width))
-  const dy = Math.max(region.y - (cell.y + cell.height), 0, cell.y - (region.y + region.height))
-  if (dx === 0 && dy === 0) return 1
-  const distance = Math.hypot(dx, dy)
-  const z = (mainlineReadingAlphaFeatherOffset - distance) / (mainlineReadingAlphaFeatherStdDev * Math.SQRT2)
-  return Math.max(0, Math.min(1, (1 + erf(z)) / 2))
+  let target = 0
+  for (let row = 0; row < 4; row += 1) {
+    for (let column = 0; column < 4; column += 1) {
+      target = Math.max(target, mainlineReadingAlphaAt({
+        x: cell.x + cell.width * column / 3,
+        y: cell.y + cell.height * row / 3,
+      }, region))
+      if (target === 1) return target
+    }
+  }
+  return target
 }
 
 /** Rasterize only cells touched by this plane's current text/frame regions; grid coordinates stay fixed for the plane lifetime. */
