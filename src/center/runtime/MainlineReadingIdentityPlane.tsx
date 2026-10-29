@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { CollisionBox } from './sceneGeometry'
-import { mainlineReadingWorldHeightPx, mainlineReadingWorldWidthPx, type MainlineReadingProtectionRect } from './mainlineReadingOcclusion'
+import { mainlineReadingMaskRegions, mainlineReadingWorldHeightPx, mainlineReadingWorldWidthPx, type MainlineReadingProtectionRect } from './mainlineReadingOcclusion'
 
 type Props = {
   entityId: string
@@ -82,6 +82,7 @@ export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], 
     retirementTimersRef.current.clear()
   }, [])
   const hasLocalFadeRegions = localFadeRegions.length > 0
+  const maskRegions = mainlineReadingMaskRegions(localFadeRegions)
   const hidden = active && !protectedTarget && !hasLocalFadeRegions && hiddenIdentityKeys.has(identityKey)
   const style: CSSProperties = {
     position: 'absolute',
@@ -114,9 +115,12 @@ export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], 
         </filter>
         <mask id={localMaskId} maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" style={{ maskType: 'luminance' } as CSSProperties}>
           <rect x="0" y="0" width={Math.max(1, planeRef.current?.offsetWidth ?? worldBounds.width)} height={Math.max(1, planeRef.current?.offsetHeight ?? worldBounds.height)} fill="white" />
-          <g fill="black" filter={`url(#${localMaskId}-feather)`}>
-            {localFadeRegions.map(region => <rect key={region.key} className={region.active ? 'scene-reading-local-mask__region is-entering' : 'scene-reading-local-mask__region is-exiting'} x={region.x - 8} y={region.y - 5} width={region.width + 16} height={region.height + 10} rx="2" ry="2" />)}
-          </g>
+          {maskRegions.map(region => <g key={region.key} className={region.active ? 'scene-reading-local-mask__region is-entering' : 'scene-reading-local-mask__region is-exiting'} fill="black">
+            <g filter={`url(#${localMaskId}-feather)`}>
+              <rect x={region.feather.x} y={region.feather.y} width={region.feather.width} height={region.feather.height} rx="2" ry="2" />
+            </g>
+            <rect className="scene-reading-local-mask__core" x={region.core.x} y={region.core.y} width={region.core.width} height={region.core.height} />
+          </g>)}
         </mask>
       </defs>
     </svg>}

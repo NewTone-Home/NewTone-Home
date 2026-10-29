@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { mainlineReadingLocalFadeMask } from './mainlineReadingOcclusion'
+import { mainlineReadingLocalFadeMask, mainlineReadingMaskRegions } from './mainlineReadingOcclusion'
 
 describe('reading local fade motion', () => {
   const object = { x: 0, y: 0, width: 100, height: 40 }
+  it('keeps the protected glyph region fully clear and places the soft feather outside it', () => {
+    expect(mainlineReadingMaskRegions([{ key: 'glyph', active: true, x: 20, y: 10, width: 16, height: 18 }])).toEqual([{
+      key: 'glyph', active: true,
+      core: { x: 20, y: 10, width: 16, height: 18 },
+      feather: { x: 12, y: 2, width: 32, height: 34 },
+    }])
+  })
   it('keeps separate current glyph and frame regions protected without globally weakening the mask', () => {
     const mask = mainlineReadingLocalFadeMask(object, [
       { x: 10, y: 5, width: 22, height: 12 },
