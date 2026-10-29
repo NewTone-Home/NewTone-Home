@@ -1066,6 +1066,16 @@
   color: var(--interaction-dynamic);
   opacity: 1;
 }
+.scene-mainline-object.scene-mainline-restroom-fixture,
+.scene-mainline-object.scene-mainline-restroom-fixture:hover,
+.scene-mainline-object.scene-mainline-restroom-fixture:focus-visible {
+  color: var(--interaction-normal);
+  transition: opacity .16s ease-out;
+}
+.scene-mainline-object.scene-mainline-restroom-fixture > .scene-mainline-object__grid-content {
+  color: inherit;
+  opacity: 1;
+}
 .scene-mainline-object.scene-mainline-interaction--normal-unexplored > span,
 .scene-mainline-object.scene-mainline-interaction--explored > span,
 .scene-mainline-object.scene-mainline-interaction--active > span {

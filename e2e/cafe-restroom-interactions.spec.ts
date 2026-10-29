@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { cafeRestroomFaucetId, cafeRestroomRoomId, cafeRestroomToiletId } from '../src/center/runtime/cafeRestroom'
+import { cafeRestroomFaucetId, cafeRestroomFaucetLabel, cafeRestroomRoomId, cafeRestroomToiletId } from '../src/center/runtime/cafeRestroom'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 
 const scene = mainlineScenes['commercial-street']
@@ -43,6 +43,19 @@ async function actorPosition(page: Page) {
   }))
 }
 
+async function restroomVisual(locator: import('@playwright/test').Locator) {
+  return locator.evaluate(element => {
+    const style = getComputedStyle(element)
+    const label = element.querySelector('.scene-mainline-object__label')
+    return {
+      brightness: element.getAttribute('data-restroom-brightness'),
+      opacity: style.opacity,
+      color: getComputedStyle(label ?? element).color,
+      filter: style.filter,
+    }
+  })
+}
+
 test('toilet use prompt can be walked away from without starting use', async ({ page }, info) => {
   await openRestroom(page)
   const toilet = page.locator(`[data-object-id="${cafeRestroomToiletId}"]`)
@@ -58,6 +71,7 @@ test('toilet use prompt can be walked away from without starting use', async ({ 
   await expect(action).toHaveCount(0)
   await expect(page.locator('.mainline-scene-stage')).toHaveAttribute('data-cafe-restroom-toilet-use-phase', 'idle')
   await expect(toilet).not.toHaveClass(/scene-mainline-interaction--active/)
+  await expect(toilet).toHaveAttribute('data-restroom-brightness', 'half')
   await expect.poll(async () => actorPosition(page), { timeout: 8_000 }).not.toEqual(before)
   await page.screenshot({ path: info.outputPath('restroom-toilet-use-cancelled-by-walking.png') })
 })
@@ -74,8 +88,12 @@ test('toilet use approaches, locks for a short highlight, ignores repeated input
   await use.click()
   await expect(stage).toHaveAttribute('data-cafe-restroom-toilet-use-phase', 'approaching')
   await expect(stage).toHaveAttribute('data-cafe-restroom-toilet-use-phase', 'using', { timeout: 15_000 })
+  await expect(page.locator(`[data-scene-action="${cafeRestroomToiletId}"]`)).toHaveCount(0, { timeout: 3_000 })
   const useStartedAt = await page.evaluate(() => performance.now())
-  await expect(toilet).toHaveClass(/scene-mainline-interaction--active/)
+  const toiletColorBeforeUse = (await restroomVisual(toilet)).color
+  await expect(toilet).toHaveAttribute('data-restroom-brightness', 'normal')
+  await expect(toilet).toHaveCSS('opacity', '1')
+  expect((await restroomVisual(toilet)).color).toBe(toiletColorBeforeUse)
   expect(await dimmer.evaluate(element => getComputedStyle(element).opacity)).toBe(baselineDimmerOpacity)
 
   const lockedPosition = await actorPosition(page)
@@ -96,7 +114,9 @@ test('toilet use approaches, locks for a short highlight, ignores repeated input
   const durationMs = await page.evaluate(start => performance.now() - start, useStartedAt)
   expect(durationMs).toBeGreaterThanOrEqual(800)
   expect(durationMs).toBeLessThan(2_000)
-  await expect(toilet).not.toHaveClass(/scene-mainline-interaction--active/)
+  await expect(toilet).toHaveAttribute('data-restroom-brightness', 'half')
+  await expect(toilet).toHaveCSS('opacity', '0.5')
+  expect((await restroomVisual(toilet)).color).toBe(toiletColorBeforeUse)
 
   await clickWorld(page, local(620, -35))
   await expect.poll(async () => actorPosition(page), { timeout: 8_000 }).not.toEqual(lockedPosition)
@@ -135,21 +155,26 @@ test('walking away cancels a selected use while it is still approaching the toil
   await expect(toilet).not.toHaveClass(/scene-mainline-interaction--active/)
 })
 
-test('toilet highlight is a local object state with no full-scene dimmer', async ({ page }, info) => {
+test('toilet use restores only local brightness, then dims again without changing color', async ({ page }, info) => {
   await openRestroom(page)
   const dimmer = page.locator('.scene-dialogue-dimmer')
   const baselineDimmerOpacity = await dimmer.evaluate(element => getComputedStyle(element).opacity)
   const toilet = page.locator(`[data-object-id="${cafeRestroomToiletId}"]`)
+  await expect(toilet).toHaveAttribute('data-restroom-brightness', 'half')
+  await expect(toilet).toHaveCSS('opacity', '0.5')
+  const color = (await restroomVisual(toilet)).color
   await toilet.click()
   await page.getByRole('button', { name: '使用', exact: true }).click()
   await expect(page.locator('.mainline-scene-stage')).toHaveAttribute('data-cafe-restroom-toilet-use-phase', 'using', { timeout: 15_000 })
-  await expect(toilet).toHaveClass(/scene-mainline-interaction--active/)
+  await expect(toilet).toHaveAttribute('data-restroom-brightness', 'normal')
+  await expect(toilet).toHaveCSS('opacity', '1')
+  expect((await restroomVisual(toilet)).color).toBe(color)
   const visualEvidence = await page.evaluate(() => ({
     phase: document.querySelector<HTMLElement>('.mainline-scene-stage')?.dataset.cafeRestroomToiletUsePhase,
     dimmerOpacity: getComputedStyle(document.querySelector('.scene-dialogue-dimmer')!).opacity,
-    highlightedObjectCount: document.querySelectorAll('[data-object-id="cafe-restroom-toilet"].scene-mainline-interaction--active').length,
+    brightness: document.querySelector<HTMLElement>('[data-object-id="cafe-restroom-toilet"]')?.dataset.restroomBrightness,
   }))
-  expect(visualEvidence).toEqual({ phase: 'using', dimmerOpacity: baselineDimmerOpacity, highlightedObjectCount: 1 })
+  expect(visualEvidence).toEqual({ phase: 'using', dimmerOpacity: baselineDimmerOpacity, brightness: 'normal' })
   await page.screenshot({ path: info.outputPath('restroom-toilet-use-highlight-locked.png') })
 })
 
@@ -157,22 +182,41 @@ test('faucet toggles on and off in place, stays clickable while off, then closes
   await openRestroom(page)
   const faucet = page.locator(`[data-object-id="${cafeRestroomFaucetId}"]`)
   await expect(faucet).toHaveAttribute('data-restroom-faucet-open', 'false')
-  const closedColor = await faucet.evaluate(element => getComputedStyle(element).color)
+  await expect(faucet).toHaveAttribute('aria-label', new RegExp(cafeRestroomFaucetLabel))
+  await expect(faucet).toHaveAttribute('data-restroom-brightness', 'half')
+  await expect(faucet).toHaveCSS('opacity', '0.5')
+  const closed = await restroomVisual(faucet)
 
   await faucet.click()
   await expect(faucet).toHaveAttribute('data-restroom-faucet-open', 'true')
-  await expect(faucet).toHaveClass(/scene-mainline-interaction--dynamic/)
-  const openColor = await faucet.evaluate(element => getComputedStyle(element).color)
-  expect(openColor).not.toBe(closedColor)
+  await expect(faucet).toHaveAttribute('data-restroom-brightness', 'normal')
+  await expect(faucet).toHaveCSS('opacity', '1')
+  const open = await restroomVisual(faucet)
+  expect(open.color).toBe(closed.color)
+  expect(open.filter).toBe('none')
+  await faucet.hover()
+  await expect(faucet).toHaveCSS('opacity', '1')
+  expect((await restroomVisual(faucet)).color).toBe(closed.color)
+  await faucet.focus()
+  await expect(faucet).toHaveCSS('opacity', '1')
+  expect((await restroomVisual(faucet)).color).toBe(closed.color)
   await page.screenshot({ path: info.outputPath('restroom-faucet-open.png') })
 
   await faucet.click()
   await expect(faucet).toHaveAttribute('data-restroom-faucet-open', 'false')
   await expect(faucet).toBeVisible()
-  await expect(faucet).not.toHaveClass(/scene-mainline-interaction--dynamic/)
+  await expect(faucet).toHaveAttribute('data-restroom-brightness', 'half')
+  await expect(faucet).toHaveCSS('opacity', '0.5')
   await expect(faucet).toBeEnabled()
-  const offColor = await faucet.evaluate(element => getComputedStyle(element).color)
-  expect(offColor).toBe(closedColor)
+  const off = await restroomVisual(faucet)
+  expect(off.color).toBe(closed.color)
+  expect(off.filter).toBe('none')
+  await faucet.hover()
+  await expect(faucet).toHaveCSS('opacity', '0.5')
+  expect((await restroomVisual(faucet)).color).toBe(closed.color)
+  await faucet.focus()
+  await expect(faucet).toHaveCSS('opacity', '0.5')
+  expect((await restroomVisual(faucet)).color).toBe(closed.color)
   await page.screenshot({ path: info.outputPath('restroom-faucet-closed-clickable.png') })
 
   await faucet.click()
@@ -186,7 +230,18 @@ test('faucet toggles on and off in place, stays clickable while off, then closes
       || position.y < restroom.bounds.y || position.y > restroom.bounds.y + restroom.bounds.height
   }, { timeout: 15_000 }).toBe(true)
   await expect(faucet).toHaveAttribute('data-restroom-faucet-open', 'false')
+  await expect(faucet).toHaveAttribute('data-restroom-brightness', 'half')
   await page.screenshot({ path: info.outputPath('restroom-faucet-auto-closed-on-exit.png') })
+  await door.click()
+  await expect.poll(async () => {
+    const position = await actorPosition(page)
+    return position.x >= restroom.bounds.x && position.x <= restroom.bounds.x + restroom.bounds.width
+      && position.y >= restroom.bounds.y && position.y <= restroom.bounds.y + restroom.bounds.height
+  }, { timeout: 15_000 }).toBe(true)
+  await expect(faucet).toHaveAttribute('data-restroom-faucet-open', 'false')
+  await expect(faucet).toHaveAttribute('data-restroom-brightness', 'half')
+  await expect(faucet).toHaveCSS('opacity', '0.5')
+  await page.screenshot({ path: info.outputPath('restroom-faucet-reentry-half-brightness.png') })
 })
 
 test('leaving the page during the use highlight cannot leave a movement lock in a later scene', async ({ page }) => {
