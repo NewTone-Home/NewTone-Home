@@ -1,5 +1,7 @@
 'use client'
 
+import { officeBlindsRoomKey, officeRoomBlindsOpen, officeWindowRoom } from './officeRoomLighting'
+
 import { isWallMenuReading } from './menuReading'
 
 import { hasContinuousCafe, isCafeWorldId, isPointInContinuousCafe, isCafeStoryKey, cafeStoryNamespace } from './continuousCafe'
@@ -557,7 +559,7 @@ export function MainlineScenePage({
   const commercialStreetQuestionNarrativeActiveRef = useRef(false)
   const commercialStreetQuestionPreviousPositionRef = useRef<{ sceneId: string; position: Point } | null>(null)
   const sceneTextSlowdownActiveRef = useRef(false)
-  const [officeBlindsOpen, setOfficeBlindsOpen] = useState(initialSceneState.blindsOpen !== false)
+  const [officeBlindsOpen, setOfficeBlindsOpen] = useState(() => { const room = officeWindowRoom(sceneDefinition); return room ? officeRoomBlindsOpen(initialSceneState, room.id, room.id) : initialSceneState.blindsOpen !== false })
   const [incenseLitAt, setIncenseLitAt] = useState<number | null>(() => typeof initialSceneState.incenseLitAt === 'number' ? initialSceneState.incenseLitAt : null)
   const [plantWateredAt, setPlantWateredAt] = useState<number | null>(() => typeof initialSceneState.plantWateredAt === 'number' ? initialSceneState.plantWateredAt : null)
   const [incenseClock, setIncenseClock] = useState(() => Date.now())
@@ -1048,7 +1050,7 @@ export function MainlineScenePage({
     setSceneAction(null)
     setCommercialStreetQuestionNarrative(null)
     setCommercialStreetQuestionNarrativeCompletedLocally(commercialStreetQuestionNarrativeCompleted(initialSceneState[commercialStreetQuestionNarrativeCompletedKey]))
-    setOfficeBlindsOpen(initialSceneState.blindsOpen !== false)
+    setOfficeBlindsOpen((() => { const room = officeWindowRoom(sceneDefinition); return room ? officeRoomBlindsOpen(initialSceneState, room.id, room.id) : initialSceneState.blindsOpen !== false })())
     setIncenseLitAt(typeof initialSceneState.incenseLitAt === 'number' ? initialSceneState.incenseLitAt : null)
     setPlantWateredAt(typeof initialSceneState.plantWateredAt === 'number' ? initialSceneState.plantWateredAt : null)
     setIncenseClock(Date.now())
@@ -2720,11 +2722,12 @@ export function MainlineScenePage({
       commitSceneActionExit(actionId)
       return
     }
-    if (resolution.stateChange) recordSceneState(scene.id, resolution.stateChange.key, resolution.stateChange.value)
     if (resolution.stateChange?.key === 'blindsOpen') {
       const open = resolution.stateChange.value === true
+      const room = officeWindowRoom(scene)
+      recordSceneStatePatch(scene.id, { blindsOpen: open, ...(room ? { [officeBlindsRoomKey(room.id)]: open } : {}) })
       setOfficeBlindsOpen(open)
-    }
+    } else if (resolution.stateChange) recordSceneState(scene.id, resolution.stateChange.key, resolution.stateChange.value)
     if (resolution.stateChange?.key === 'incenseLitAt' && typeof resolution.stateChange.value === 'number') {
       setIncenseLitAt(resolution.stateChange.value)
       setIncenseClock(resolution.stateChange.value)
@@ -3253,6 +3256,8 @@ export function MainlineScenePage({
         </nav>}
 
         <MainlineSceneRenderer
+              officeBlindsOpen={officeBlindsOpen}
+              officeRoomBlindsState={initialSceneState}
               scene={scene}
               position={position}
               moving={moving}
