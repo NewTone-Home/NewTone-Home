@@ -25,6 +25,22 @@ describe('mainline reading session layout cache', () => {
     }
   })
 
+  it('keeps the selected outside width for the same speaker across lines', () => {
+    const scene = mainlineScenes['commercial-street']
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
+    const source = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+    const metrics = { width: 1280, height: 800, viewportWidth: 1280 }
+    const cameraOffset = mainlineReadingCameraOffset(scene, source, metrics, .65, { x: 0, y: 0 })
+    const entries = [{ text: 'Short.', speaker: 'Speaker' }, { text: 'A longer line of dialogue.', speaker: 'Speaker' }]
+    const cache = createMainlineReadingSessionLayoutCache({ sessionKey: 'outside-width', entries, metrics, maximumWidthPx: 180 })
+    const common = { scene, source, speaker: 'Speaker', maximumWidthPx: 180, protectedVisuals: [], metrics, worldScale: .65, cameraOffset, outside: { side: 'above' as const, speakerY: source.y + 2 } }
+    const first = cache.fit({ ...common, text: entries[0]!.text })
+    const second = cache.fit({ ...common, text: entries[1]!.text })
+    expect(first.fits).toBe(true)
+    expect(second.fits).toBe(true)
+    expect(second.layout.widthPx).toBe(first.layout.widthPx)
+  })
+
   it('keeps formal dialogue boxes at the session width for short and long lines', () => {
     const cache = createMainlineReadingSessionLayoutCache({
       sessionKey: 'dialogue:fixed-width',
