@@ -34,7 +34,7 @@ import { mainlineDialogueHandoffPresentationForId, mainlineDialogueReadingSessio
 import { mainlineReadingPageKey } from './mainlineReadingPageKey'
 import { mainlineMeasuredTextWidth, mainlineReadingPageDisplayText } from './mainlineTextSegments'
 import { mainlineObservationPageIsSettled } from './mainlineObservationTyping'
-import { mainlineReadingMaskLeadMs, mainlineReadingMaskReleaseDelayMs, mainlineReadingMaskTargetFraction, mainlineReadingTextMotionCanAnimate, startMainlineReadingTextMotion, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
+import { mainlineReadingMaskLeadMs, mainlineReadingMaskReleaseDelayMs, mainlineReadingMaskTargetFraction, mainlineReadingTypingDelayMs, mainlineReadingTextMotionCanAnimate, startMainlineReadingTextMotion, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
 import { mainlineReadingPageAdvanceResumeGraceMs, mainlineReadingPageAdvanceStartupWatchdogMs, mainlineReadingPageAdvanceTokenIsCurrent, mainlineReadingPageAdvanceWatchdogMayRelease } from './mainlineReadingPageAdvance'
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
@@ -471,7 +471,7 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
       },
       onComplete: () => onCompleteRef.current?.(sessionKey, motion),
     }) }
-    const delay = motion === 'typing' && previous === 0 ? mainlineReadingMaskLeadMs : 0
+    const delay = motion === 'typing' && previous === 0 ? mainlineReadingTypingDelayMs : 0
     const timer = window.setTimeout(start, delay)
     return () => { window.clearTimeout(timer); cancelMotion?.() }
   // Parent renders can recreate the callback while the outgoing page is being
@@ -1525,6 +1525,8 @@ export function MainlineSceneRenderer({
         setOcclusionVisualProgress(0)
       }
     } else {
+      // Freeze the current mask until the text and frame have cleared.
+      occlusionTargetRef.current = occlusionProgressRef.current
       occlusionReleaseDelayRef.current = window.setTimeout(() => {
         occlusionReleaseDelayRef.current = null
         occlusionTargetRef.current = 0

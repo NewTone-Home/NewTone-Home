@@ -73,6 +73,7 @@ export function startMainlineReadingTextMotion(input: {
 
 /** Small spatial lead corresponding to the time the mask clears before a glyph. */
 export const mainlineReadingMaskLeadMs = 100
+export const mainlineReadingTypingDelayMs = 70
 export const mainlineReadingMaskReleaseDelayMs = 120
 export function mainlineReadingMaskTargetFraction(visibleCount: number, total: number, motion: MainlineReadingTextMotion, intervalMs: number) {
   if (total <= 0 || motion === 'deleted') return 0
