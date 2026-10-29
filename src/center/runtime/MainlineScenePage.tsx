@@ -33,6 +33,7 @@ import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from '.
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 import { defaultLaoZhouCafeSeatId, laoZhouCafeConversationSeatId, withLaoZhouCafeSeat, withRuoyuCafeSeat } from './commercialCafeSeatSelection'
 import { ruoyuCafeConversationSeatId, ruoyuCafeMeetingCompleted, ruoyuCafeMeetingCursorFromSceneState, ruoyuCafeMeetingDialogue, ruoyuCafeMeetingCursorKey, ruoyuCafeMeetingStatusKey, ruoyuCafeSeatFromSceneState, ruoyuCafeUnlockedKey, ruoyuCafeFollowupLine } from './ruoyuCafeMeeting'
+import { commercialCafeLaoZhouIsPresent } from './commercialCafeStory'
 import { commercialCafeAnalyticsMilestonePatch, commercialCafeAnalyticsMilestonesFromSceneState, commercialCafeAnalyticsStageForCursor, commercialCafeCoffeeDelivered, commercialCafeCoffeeOrderedState, commercialCafeDeliveryDialogueLine, commercialCafeDepartureText, commercialCafeFinishDeliveryLine, commercialCafeFinishDeliveryReturn, commercialCafeNarrativeDialogue, commercialCafeNarrativePhaseKey, commercialCafeNarrativeStarted, commercialCafeStoryCompleted, commercialCafeStoryNeedsMigration, commercialCafeStoryReadyToLeave, commercialCafeStoryStateFromSceneState, commercialCafeStoryStatePatch, commercialCafeStoryWithCursor, isCommercialCafeStoryStage, resolveCommercialCafeNpcInteraction, shouldCompleteCommercialCafeStoryOnTransition, commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId, commercialCafeStoryTableId, type CommercialCafeAnalyticsStage, type CommercialCafeNpcInteractionResolution, type CommercialCafeStoryStage } from './commercialCafeStory'
 import { commercialCafeFloorServiceTarget, commercialCafeDutySpeedMultiplier, createCommercialCafeCoffeeOwnerBehaviorCoordinator, createCommercialCafeFloorServerBehaviorCoordinator } from './commercialCafeBehavior'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
@@ -576,7 +577,7 @@ export function MainlineScenePage({
       ? commercialCafeStoryStateFromSceneState({ commercialCafeStoryStage: debugCafeStoryStage })
       : commercialCafeStoryStateFromSceneState(initialSceneState)
   }, [debugCafeStoryStage, initialSceneState, scene.id])
-  const laoZhouVisibleInCurrentVisit = hasContinuousCafe(scene)
+  const laoZhouVisibleInCurrentVisit = hasContinuousCafe(scene) && commercialCafeLaoZhouIsPresent(commercialCafeStory, 0)
   const legacyHeldDrinkFallback: HeldConsumable | null = heldConsumable === undefined && commercialStreetMilkTeaHeld(initialSceneState)
     ? { id: 'legacy-milk-tea', shopId: commercialStreetMilkTeaStorefrontId, productId: 'legacy-milk-tea', kind: 'legacy-unknown', sourceOrderId: null }
     : null
@@ -988,7 +989,7 @@ export function MainlineScenePage({
   const movingNpcIds = useMemo(() => new Set([...npcRuntimeSnapshots]
     .filter(([, snapshot]) => snapshot.phase === 'moving')
     .map(([npcId]) => npcId)), [npcRuntimeSnapshots])
-  const releasedCafeSeatNpcIds = useMemo(() => new Set<string>(), [])
+  const releasedCafeSeatNpcIds = useMemo(() => new Set<string>(laoZhouVisibleInCurrentVisit ? [] : ['lao-zhou']), [laoZhouVisibleInCurrentVisit])
   const occupiedSeatIds = useMemo(() => mainlineSceneOccupiedSeatIds(scene, activePlayerSeatId, releasedCafeSeatNpcIds), [activePlayerSeatId, releasedCafeSeatNpcIds, scene])
   const seatedProtagonistPosition = activePlayerSeatId ? geometrySnapshot.objects.get(activePlayerSeatId)?.position : undefined
   const protagonistFootprint = useMemo(() => {
@@ -2520,6 +2521,7 @@ export function MainlineScenePage({
 
   const interactNpc = useCallback((npcId: string) => {
     if (readingActive || sceneAction?.phase === 'committing') return
+    if (npcId === 'lao-zhou' && hasContinuousCafe(scene) && !laoZhouVisibleInCurrentVisit) return
     cancelSceneAction()
     const npc = scene.npcs.find((candidate) => candidate.id === npcId)
     if (!npc || npc.interactive === false) return
@@ -2617,7 +2619,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', npc.id, 'npc', 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, cafeStoryOrderDelivery, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, initialSceneState, interactRuoyuCafe, interactXiujieFollowup, layout, leavePlayerSeat, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, presentCommercialDrinkEcho, presentYongheEcho, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
+  }, [activePlayerSeatId, cafeStoryOrderDelivery, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, initialSceneState, interactRuoyuCafe, interactXiujieFollowup, laoZhouVisibleInCurrentVisit, layout, leavePlayerSeat, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, presentCommercialDrinkEcho, presentYongheEcho, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
 
   const chooseSceneEchoOption = useCallback((actionId: number, index: number) => {
     if (!sceneAction || sceneAction.id !== actionId || sceneAction.phase !== 'committing') return

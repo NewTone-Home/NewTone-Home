@@ -15,6 +15,7 @@ describe('continuous Cafe resident and real window boundary',()=>{
   expect(mainlineSeatedActorVisualPosition(runtime,id,seat)).toEqual(seat)
   expect(mainlineSceneOccupiedSeatIds(scene).has(id)).toBe(true)
   expect(mainlineSceneOccupiedSeatIds(scene,null,new Set()).has(id)).toBe(true)
+  expect(mainlineSceneOccupiedSeatIds(scene,null,new Set(['lao-zhou'])).has(id)).toBe(false)
  })
  it('keeps the actual window wall solid in open and closed door phases',()=>{
   for(const open of [false,true])for(const x of [142.993,141.107,139.211,137.327,135.434,133.548,131.662,129.768,127.88]){

@@ -30,7 +30,7 @@ const legacyCommercialCafeCoffeeDeliveredKey = 'commercialCafeCoffeeDelivered'
 export type CommercialCafeStoryStatus = 'available' | 'ready-to-leave' | 'complete'
 export type CommercialCafeCoffeeStatus = 'none' | 'ordered' | 'preparing' | 'ready' | 'delivered'
 export type CommercialCafeNarrativePhase = 'not-started' | 'dialogue' | 'coffee-delivery' | 'coffee-returning' | 'complete'
-export type CommercialCafeLaoZhouDeparture = 'seated'
+export type CommercialCafeLaoZhouDeparture = 'seated' | 'departed'
 export type CommercialCafeStoryState = {
   status: CommercialCafeStoryStatus
   narrativeCursor: number
@@ -143,9 +143,7 @@ export function commercialCafeStoryStateFromSceneState(sceneState: PlayerSceneSt
   const narrativePhase = isNarrativePhase(sceneState?.[commercialCafeNarrativePhaseKey])
     ? sceneState[commercialCafeNarrativePhaseKey] as CommercialCafeNarrativePhase
     : status === 'complete' || status === 'ready-to-leave' ? 'complete' : validCursor(storedCursor) && narrativeCursor > 0 ? 'dialogue' : 'not-started'
-  // Lao Zhou is a resident Cafe NPC. Normalize old automatic-walkout saves
-  // without changing story progress or any phone handoff markers.
-  const laoZhouDeparture: CommercialCafeLaoZhouDeparture = 'seated'
+  const laoZhouDeparture: CommercialCafeLaoZhouDeparture = sceneState?.[commercialCafeLaoZhouDepartureKey] === 'departed' ? 'departed' : 'seated'
   const completedAt = typeof sceneState?.[commercialCafeCompletedAtKey] === 'number' ? sceneState[commercialCafeCompletedAtKey] as number : null
   const coffeePreparationStartedAt = typeof sceneState?.[commercialCafeCoffeePreparationStartedAtKey] === 'number' ? sceneState[commercialCafeCoffeePreparationStartedAtKey] as number : null
   return {
@@ -180,7 +178,7 @@ export function commercialCafeStoryNeedsMigration(sceneState: PlayerSceneState |
     || !isCoffeeStatus(sceneState?.[commercialCafeCoffeeStatusKey])
     || !(typeof sceneState?.[commercialCafeCoffeePreparationStartedAtKey] === 'number' || sceneState?.[commercialCafeCoffeePreparationStartedAtKey] === null)
     || !isNarrativePhase(sceneState?.[commercialCafeNarrativePhaseKey])
-    || sceneState?.[commercialCafeLaoZhouDepartureKey] !== 'seated'
+    || !['seated', 'departed'].includes(String(sceneState?.[commercialCafeLaoZhouDepartureKey]))
     || !(typeof sceneState?.[commercialCafeCompletedAtKey] === 'number' || sceneState?.[commercialCafeCompletedAtKey] === null)
     || sceneState?.[commercialCafeStoryStageKey] !== null
     || sceneState?.[legacyCommercialCafeCoffeeOrderedKey] !== null
@@ -242,7 +240,24 @@ export function commercialCafeStoryCompleted(story: CommercialCafeStoryState, no
   return { ...story, status: 'complete', narrativeCursor: commercialCafeNarrativeDialogue.lines.length, narrativePhase: 'complete', completedAt: now, laoZhouDeparture: 'seated' }
 }
 export function commercialCafeLaoZhouIsPresent(story: CommercialCafeStoryState, _now: number) {
-  return true
+  return story.laoZhouDeparture !== 'departed'
+}
+
+/** Record departure only after the completed meeting and an actual world exit. */
+export function commercialCafeDepartureOnTransition(sceneState: PlayerSceneState | undefined, from: string, to: string): PlayerSceneState | null {
+  const story = commercialCafeStoryStateFromSceneState(sceneState)
+  if (from !== 'commercial-street' || to === 'commercial-street' || to === 'commercial-cafe' || story.status !== 'complete' || story.laoZhouDeparture === 'departed') return null
+  return { [commercialCafeLaoZhouDepartureKey]: 'departed' }
+}
+
+/** Old saves need positive evidence that the player left after the meeting. */
+export function commercialCafeLegacyDeparture(sceneState: PlayerSceneState | undefined, currentSceneId: string): PlayerSceneState | null {
+  const story = commercialCafeStoryStateFromSceneState(sceneState)
+  if (story.laoZhouDeparture === 'departed') return null
+  const ruoyuUnlocked = sceneState?.commercialCafeRuoyuUnlocked === true
+  const inMine = currentSceneId === 'yonghe-mining-perimeter' || currentSceneId === 'yonghe-eatery'
+  if (!ruoyuUnlocked && !(story.status === 'complete' && inMine)) return null
+  return { [commercialCafeLaoZhouDepartureKey]: 'departed' }
 }
 export function shouldCompleteCommercialCafeStoryOnTransition({ sceneId, story, targetSceneId, passageId, leavingRoom }: { sceneId: string; story: CommercialCafeStoryState; targetSceneId?: string; passageId?: string; leavingRoom?: boolean }) {
   return story.status === 'ready-to-leave' && targetSceneId === 'commercial-street'

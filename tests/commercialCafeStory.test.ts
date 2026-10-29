@@ -18,6 +18,8 @@ import {
   commercialCafeFloorServerNpcId,
   commercialCafeLaoZhouConversationSeatId,
   commercialCafeLaoZhouIsPresent,
+  commercialCafeDepartureOnTransition,
+  commercialCafeLegacyDeparture,
   commercialCafeNarrativeDialogue,
   commercialCafeNarrativePhaseKey,
   commercialCafePrepTargetId,
@@ -192,7 +194,7 @@ describe('commercial café story contract', () => {
     expect(cafe.objects.find(({ id }) => id === commercialCafeStoryTableId)?.label).toBe('桌子')
   })
 
-  it('completes only on public departure and keeps Lao Zhou present indefinitely', () => {
+  it('completes on leaving the Cafe and keeps Lao Zhou until the world exit', () => {
     const base = initialCommercialCafeStoryState()
     expect(shouldCompleteCommercialCafeStoryOnTransition({ sceneId: 'commercial-cafe', story: base, targetSceneId: 'commercial-street' })).toBe(false)
     const ready = commercialCafeStoryReadyToLeave(base)
@@ -202,7 +204,7 @@ describe('commercial café story contract', () => {
     expect(commercialCafeLaoZhouIsPresent(complete, Number.MAX_SAFE_INTEGER)).toBe(true)
   })
 
-  it.each(['walking-out', 'departed'] as const)('migrates legacy %s saves to the resident state without resetting progress', (departure) => {
+  it.each(['walking-out', 'departed'] as const)('migrates legacy %s saves without resetting progress', (departure) => {
     const legacy = {
       commercialCafeStoryStatus: 'complete',
       commercialCafeNarrativeCursor: 14,
@@ -216,30 +218,30 @@ describe('commercial café story contract', () => {
     const story = commercialCafeStoryStateFromSceneState(legacy)
     expect(story).toMatchObject({
       status: 'complete', narrativeCursor: 14, coffeeStatus: 'delivered',
-      narrativePhase: 'complete', laoZhouDeparture: 'seated', completedAt: 123456,
+      narrativePhase: 'complete', laoZhouDeparture: departure === 'departed' ? 'departed' : 'seated', completedAt: 123456,
     })
     expect(commercialCafeStoryNeedsMigration(legacy)).toBe(true)
     const patch = commercialCafeStoryStatePatch(story)
     expect(patch).toMatchObject({
       commercialCafeStoryStatus: 'complete', commercialCafeNarrativeCursor: 14,
-      commercialCafeLaoZhouDeparture: 'seated', commercialCafeCompletedAt: 123456,
+      commercialCafeLaoZhouDeparture: departure === 'departed' ? 'departed' : 'seated', commercialCafeCompletedAt: 123456,
     })
     expect(patch).not.toHaveProperty('commercialCafeCompletionPhonePending')
     expect(patch).not.toHaveProperty('commercialCafeCompletionPhoneDisplayed')
   })
 
-  it('keeps a missing completion time missing while restoring a departed legacy resident', () => {
+  it('keeps a missing completion time and preserves a departed legacy state', () => {
     const story = commercialCafeStoryStateFromSceneState({
       commercialCafeStoryStatus: 'complete', commercialCafeNarrativeCursor: 14,
       commercialCafeLaoZhouDeparture: 'departed',
     })
-    expect(story).toMatchObject({ status: 'complete', narrativeCursor: 14, laoZhouDeparture: 'seated', completedAt: null })
+    expect(story).toMatchObject({ status: 'complete', narrativeCursor: 14, laoZhouDeparture: 'departed', completedAt: null })
   })
 
   it('keeps a legacy available story interactable after restoring Lao Zhou', () => {
     const story = commercialCafeStoryStateFromSceneState({
       commercialCafeStoryStatus: 'available', commercialCafeNarrativeCursor: 3,
-      commercialCafeLaoZhouDeparture: 'departed',
+      commercialCafeLaoZhouDeparture: 'seated',
     })
     expect(story).toMatchObject({ status: 'available', narrativeCursor: 3, laoZhouDeparture: 'seated' })
     expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story })).toMatchObject({
@@ -254,5 +256,29 @@ describe('commercial café story contract', () => {
       commercialCafeLaoZhouDeparture: 'departed', commercialCafeCompletedAt: 123456,
     })
     expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story })).toBeNull()
+  })
+
+  it('records departure only after the completed meeting and leaving the whole street', () => {
+    const ready = { commercialCafeStoryStatus: 'available', commercialCafeLaoZhouDeparture: 'seated' }
+    const complete = { commercialCafeStoryStatus: 'complete', commercialCafeLaoZhouDeparture: 'seated' }
+    expect(commercialCafeDepartureOnTransition(ready, 'commercial-street', 'yonghe-mining-perimeter')).toBeNull()
+    expect(commercialCafeDepartureOnTransition(complete, 'commercial-street', 'commercial-street')).toBeNull()
+    expect(commercialCafeDepartureOnTransition(complete, 'commercial-street', 'commercial-cafe')).toBeNull()
+    for (const target of ['yonghe-mining-perimeter', 'jijia-ancestral-interior']) {
+      const patch = commercialCafeDepartureOnTransition(complete, 'commercial-street', target)
+      expect(patch).toEqual({ commercialCafeLaoZhouDeparture: 'departed' })
+      const restored = commercialCafeStoryStateFromSceneState({ ...complete, ...patch })
+      expect(commercialCafeLaoZhouIsPresent(restored, 0)).toBe(false)
+      expect(commercialCafeDepartureOnTransition({ ...complete, ...patch }, 'commercial-street', target)).toBeNull()
+    }
+  })
+
+  it('migrates only reliable old progress and preserves an existing departure', () => {
+    const complete = { commercialCafeStoryStatus: 'complete', commercialCafeLaoZhouDeparture: 'seated' }
+    expect(commercialCafeLegacyDeparture(complete, 'commercial-street')).toBeNull()
+    expect(commercialCafeLegacyDeparture(complete, 'yonghe-mining-perimeter')).toEqual({ commercialCafeLaoZhouDeparture: 'departed' })
+    expect(commercialCafeLegacyDeparture({ ...complete, commercialCafeRuoyuUnlocked: true }, 'commercial-street')).toEqual({ commercialCafeLaoZhouDeparture: 'departed' })
+    expect(commercialCafeLegacyDeparture({ ...complete, commercialCafeLaoZhouDeparture: 'departed' }, 'commercial-street')).toBeNull()
+    expect(commercialCafeLegacyDeparture({ commercialCafeStoryStatus: 'available' }, 'yonghe-mining-perimeter')).toBeNull()
   })
 })
