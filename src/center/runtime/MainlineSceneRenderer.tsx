@@ -695,12 +695,18 @@ function ObservationText({ onProtectionRects, menu, sourceText, echoId, continui
       if (cancelled) return
       const rects = measureReadingProtectionRects(root, text, textMotion.visibleText, motion, menuMeasureRef.current, frameProgress)
       onProtectionRects(rects)
-      const menuRect = menu && rects[0] ? (() => {
+      const menuRect = menu && frameProgress > 0 && rects[0] ? (() => {
         const rootRect = root.getBoundingClientRect()
-        // Keep a compact 52px safe margin around the framed reading surface;
-        // nearby counter labels/edges must not peek into the text or frame.
-        const safeMargin = 52
-        return { x: rects[0]!.x - rootRect.left - safeMargin, y: rects[0]!.y - rootRect.top - safeMargin, width: rects[0]!.width + safeMargin * 2, height: rects[0]!.height + safeMargin * 2 }
+        const frameRect = root.querySelector('.scene-menu-reading-frame')?.getBoundingClientRect()
+        const textRect = rects[0]!
+        const left = Math.min(textRect.x, frameRect?.left ?? textRect.x)
+        const top = Math.min(textRect.y, frameRect?.top ?? textRect.y)
+        const right = Math.max(textRect.x + textRect.width, frameRect?.right ?? textRect.x + textRect.width)
+        const bottom = Math.max(textRect.y + textRect.height, frameRect?.bottom ?? textRect.y + textRect.height)
+        // Protect the measured full frame and its interior while any frame remains,
+        // with a small local breathing room for neighboring counter labels.
+        const safeMargin = 16
+        return { x: left - rootRect.left - safeMargin, y: top - rootRect.top - safeMargin, width: right - left + safeMargin * 2, height: bottom - top + safeMargin * 2 }
       })() : null
       setMenuProtectionRect(current => current && menuRect
         && Math.abs(current.x - menuRect.x) < .2 && Math.abs(current.y - menuRect.y) < .2

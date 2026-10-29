@@ -1187,7 +1187,7 @@
   display: block;
   pointer-events: none;
   border-radius: 2px;
-  background: rgba(0, 0, 0, .9);
+  background: rgba(0, 0, 0, .97);
   box-shadow: 0 0 16px 8px rgba(0, 0, 0, .9);
   transition: left 120ms ease-out, top 120ms ease-out, width 120ms ease-out, height 120ms ease-out;
 }
