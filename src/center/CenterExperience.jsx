@@ -21,7 +21,7 @@ import { mainlineLongDistanceTravelIntentForRide } from './runtime/longDistanceT
 import { isPointInContinuousCafe } from './runtime/continuousCafe'
 import { advanceMainlineStoryClock, isStoryNight } from './runtime/mainlineStoryClock'
 import { advancePhoneStoryNotes, createPlayerPhoneNote, ensurePhoneYongheLead, pinPhoneStoryNote, updatePhoneNote } from './runtime/phonePersonalData'
-import { commercialCafeStoryStatusKey } from './runtime/commercialCafeStory'
+import { commercialCafeStoryStatusKey, commercialCafeDepartureOnTransition, commercialCafeLegacyDeparture } from './runtime/commercialCafeStory'
 import { ruoyuCafeMineExitPatch, ruoyuCafeUnlockedKey } from './runtime/ruoyuCafeMeeting'
 import {
   commercialCafeCompletionPhoneCanRequest,
@@ -233,6 +233,14 @@ export default function CenterExperience({
     const next = positionSaveCoordinatorRef.current.commit(update)
     if (next !== previous) setPlayerSave(next)
   }, [])
+
+  useEffect(() => {
+    commitPlayerSave(current => {
+      const cafeState = { ...current.sceneState['commercial-street'], ...current.sceneState['commercial-cafe'] }
+      const patch = commercialCafeLegacyDeparture(cafeState, current.currentSceneId)
+      return patch ? recordPlayerSceneStatePatch(current, 'commercial-cafe', patch) : current
+    })
+  }, [commitPlayerSave])
 
   useEffect(() => {
     commitPlayerSave(current => {
@@ -715,13 +723,16 @@ export default function CenterExperience({
     }
     sceneEnteredAtRef.current = null
     commitPlayerSave((current) => {
-      const next = {
+      let next = {
         ...current,
         currentSceneId: nextSceneId,
         currentPosition: nextEntryPosition
           ?? (nextRoute.spawnMode === 'ride' ? mainlineScenes[nextSceneId].rideArrivalPosition : current.scenePositions[nextSceneId])
           ?? null,
       }
+      const cafeState = { ...current.sceneState['commercial-street'], ...current.sceneState['commercial-cafe'] }
+      const departure = commercialCafeDepartureOnTransition(cafeState, route.sceneId, nextSceneId)
+      if (departure) next = recordPlayerSceneStatePatch(next, 'commercial-cafe', departure)
       return isTutorialCompletionTransition(route.sceneId, nextSceneId, nextRoute.spawnMode)
         ? recordPlayerSceneState(next, 'commercial-street', interactionTutorialCompletedStateKey, true)
         : next
