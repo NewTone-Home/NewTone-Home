@@ -34,7 +34,7 @@ import { mainlineDialogueHandoffPresentationForId, mainlineDialogueReadingSessio
 import { mainlineReadingPageKey } from './mainlineReadingPageKey'
 import { mainlineMeasuredTextWidth, mainlineReadingPageDisplayText } from './mainlineTextSegments'
 import { mainlineObservationPageIsSettled } from './mainlineObservationTyping'
-import { mainlineReadingTextMotionCanAnimate, startMainlineReadingTextMotion, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
+import { mainlineReadingMaskLeadMs, mainlineReadingMaskReleaseDelayMs, mainlineReadingMaskTargetFraction, mainlineReadingTextMotionCanAnimate, startMainlineReadingTextMotion, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
 import { mainlineReadingPageAdvanceResumeGraceMs, mainlineReadingPageAdvanceStartupWatchdogMs, mainlineReadingPageAdvanceTokenIsCurrent, mainlineReadingPageAdvanceWatchdogMayRelease } from './mainlineReadingPageAdvance'
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
@@ -451,12 +451,13 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
         ? characters.join('')
         : characters.slice(0, visibleCount).join('')
 
-  useEffect(() => { onVisualProgress?.(characters.length ? Array.from(visibleText).length / characters.length : 0, motion) }, [characters.length, motion, onVisualProgress, visibleText])
+  useEffect(() => { onVisualProgress?.(mainlineReadingMaskTargetFraction(Array.from(visibleText).length, characters.length, motion, mainlineObservationTypingIntervalMs), motion) }, [characters.length, motion, onVisualProgress, visibleText])
 
   useEffect(() => {
     if (paused || (motion !== 'typing' && motion !== 'deleting') || !mainlineReadingTextMotionCanAnimate(motion, pageSettled)) return
     const previous = progressRef.current?.key === animationKey ? progressRef.current.count : motion === 'deleting' ? characters.length : 0
-    return startMainlineReadingTextMotion({
+    let cancelMotion: (() => void) | undefined
+    const start = () => { cancelMotion = startMainlineReadingTextMotion({
       motion,
       textLength: characters.length,
       visibleCount: previous,
@@ -469,7 +470,10 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
         setProgress(current => current?.key === animationKey && current.count === next ? current : { key: animationKey, count: next })
       },
       onComplete: () => onCompleteRef.current?.(sessionKey, motion),
-    })
+    }) }
+    const delay = motion === 'typing' && previous === 0 ? mainlineReadingMaskLeadMs : 0
+    const timer = window.setTimeout(start, delay)
+    return () => { window.clearTimeout(timer); cancelMotion?.() }
   // Parent renders can recreate the callback while the outgoing page is being
   // deleted. Keep the latest callback without restarting the elapsed-time loop.
   }, [animationKey, characters, motion, pageSettled, paused, sessionKey])
@@ -1492,6 +1496,7 @@ export function MainlineSceneRenderer({
   const occlusionProgressRef = useRef(0)
   const occlusionAnimationRef = useRef<number | null>(null)
   const occlusionProgressSessionRef = useRef<string | null>(null)
+  const occlusionReleaseDelayRef = useRef<number | null>(null)
   const animateOcclusionProgress = useCallback(() => {
     if (occlusionAnimationRef.current !== null) return
     let lastTime: number | null = null
@@ -1500,7 +1505,7 @@ export function MainlineSceneRenderer({
       lastTime = now
       const current = occlusionProgressRef.current
       const target = occlusionTargetRef.current
-      const step = delta / mainlineReadingFadeTransitionMs
+      const step = delta / (current < target ? mainlineReadingMaskLeadMs : mainlineReadingFadeTransitionMs)
       const next = current < target ? Math.min(target, current + step) : Math.max(target, current - step)
       occlusionProgressRef.current = next
       setOcclusionVisualProgress(next)
@@ -1509,7 +1514,9 @@ export function MainlineSceneRenderer({
     }
     occlusionAnimationRef.current = window.requestAnimationFrame(tick)
   }, [])
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
+    if (occlusionReleaseDelayRef.current !== null) window.clearTimeout(occlusionReleaseDelayRef.current)
+    occlusionReleaseDelayRef.current = null
     if (readingPresentationPhase === 'active' && readingOcclusionSessionKey) {
       if (occlusionProgressSessionRef.current !== readingOcclusionSessionKey) {
         occlusionProgressSessionRef.current = readingOcclusionSessionKey
@@ -1518,9 +1525,13 @@ export function MainlineSceneRenderer({
         setOcclusionVisualProgress(0)
       }
     } else {
-      occlusionTargetRef.current = 0
-      animateOcclusionProgress()
+      occlusionReleaseDelayRef.current = window.setTimeout(() => {
+        occlusionReleaseDelayRef.current = null
+        occlusionTargetRef.current = 0
+        animateOcclusionProgress()
+      }, mainlineReadingMaskReleaseDelayMs)
     }
+    return () => { if (occlusionReleaseDelayRef.current !== null) window.clearTimeout(occlusionReleaseDelayRef.current) }
   }, [animateOcclusionProgress, readingOcclusionSessionKey, readingPresentationPhase])
   useEffect(() => () => { if (occlusionAnimationRef.current !== null) window.cancelAnimationFrame(occlusionAnimationRef.current) }, [])
   const updateOcclusionVisualProgress = useCallback((fraction: number, motion: MainlineReadingTextMotion) => {
@@ -2394,7 +2405,7 @@ export function MainlineSceneRenderer({
     if (readingOcclusionExitStartedAtRef.current === null) readingOcclusionExitStartedAtRef.current = performance.now()
     if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
     const elapsed = performance.now() - readingOcclusionExitStartedAtRef.current
-    const remaining = Math.max(0, mainlineReadingFadeTransitionMs - elapsed)
+    const remaining = Math.max(0, mainlineReadingMaskReleaseDelayMs + mainlineReadingFadeTransitionMs - elapsed)
     readingOcclusionExitTimerRef.current = window.setTimeout(() => {
       readingOcclusionExitTimerRef.current = null
       readingOcclusionExitStartedAtRef.current = null
