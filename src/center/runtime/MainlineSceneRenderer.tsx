@@ -451,7 +451,7 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
         ? characters.join('')
         : characters.slice(0, visibleCount).join('')
 
-  useIsomorphicLayoutEffect(() => { onVisualProgress?.(mainlineReadingMaskTargetFraction(Array.from(visibleText).length, characters.length, motion, mainlineObservationTypingIntervalMs), motion) }, [characters.length, motion, onVisualProgress, visibleText])
+  useEffect(() => { onVisualProgress?.(mainlineReadingMaskTargetFraction(Array.from(visibleText).length, characters.length, motion, mainlineObservationTypingIntervalMs), motion) }, [characters.length, motion, onVisualProgress, visibleText])
 
   useEffect(() => {
     if (paused || (motion !== 'typing' && motion !== 'deleting') || !mainlineReadingTextMotionCanAnimate(motion, pageSettled)) return
@@ -1496,7 +1496,6 @@ export function MainlineSceneRenderer({
   const occlusionProgressRef = useRef(0)
   const occlusionAnimationRef = useRef<number | null>(null)
   const occlusionProgressSessionRef = useRef<string | null>(null)
-  const occlusionLastMotionRef = useRef<MainlineReadingTextMotion | null>(null)
   const occlusionReleaseDelayRef = useRef<number | null>(null)
   const animateOcclusionProgress = useCallback(() => {
     if (occlusionAnimationRef.current !== null) return
@@ -1521,7 +1520,6 @@ export function MainlineSceneRenderer({
     if (readingPresentationPhase === 'active' && readingOcclusionSessionKey) {
       if (occlusionProgressSessionRef.current !== readingOcclusionSessionKey) {
         occlusionProgressSessionRef.current = readingOcclusionSessionKey
-        occlusionLastMotionRef.current = null
         occlusionTargetRef.current = 0
         occlusionProgressRef.current = 0
         setOcclusionVisualProgress(0)
@@ -1541,15 +1539,6 @@ export function MainlineSceneRenderer({
   const updateOcclusionVisualProgress = useCallback((fraction: number, motion: MainlineReadingTextMotion) => {
     if (readingPresentationPhase !== 'active') return
     const value = Math.max(0, Math.min(1, fraction))
-    const previousMotion = occlusionLastMotionRef.current
-    occlusionLastMotionRef.current = motion
-    if (motion === 'static' && previousMotion === 'typing' && value === 1) {
-      // Complete the mask together with a user-requested typing skip.
-      occlusionTargetRef.current = 1
-      occlusionProgressRef.current = 1
-      setOcclusionVisualProgress(1)
-      return
-    }
     occlusionTargetRef.current = motion === 'deleting' && !dialogueHandoffActive ? value : Math.max(occlusionTargetRef.current, value)
     animateOcclusionProgress()
   }, [animateOcclusionProgress, dialogueHandoffActive, readingPresentationPhase])
@@ -3079,11 +3068,17 @@ export function MainlineSceneRenderer({
                   const clickAction = mainlineDialogueClickAction({ motion: dialogueTextMotion, handoffActive: dialogueHandoffActive })
                   if (clickAction === 'ignore') return
                   if (clickAction === 'complete-typing') {
+                    occlusionTargetRef.current = 1
+                    occlusionProgressRef.current = 1
+                    setOcclusionVisualProgress(1)
                     onDialogueTypingSkip?.(dialogueTextSessionId)
                     return
                   }
                 }
                 if (readingPresentationMode === 'observation' && sceneEcho?.textMotion === 'typing') {
+                  occlusionTargetRef.current = 1
+                  occlusionProgressRef.current = 1
+                  setOcclusionVisualProgress(1)
                   typingCompletionLockRef.current = true
                   typingCompletionLockTokenRef.current = lockReadingPageAdvance()
                   onSceneEchoAdvance?.()
