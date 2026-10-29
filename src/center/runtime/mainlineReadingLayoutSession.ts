@@ -182,6 +182,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
   // motion and changing nearby geometry may affect placement, but do not cause
   // the same speaker's box to grow or shrink between lines.
   const dialogueWidth = widths[0]!
+  const dialogueSpeakerWidths = new Map<string, WidthCandidate>()
 
   const cache: MainlineReadingSessionLayoutCache = {
     sessionKey: input.sessionKey,
@@ -198,7 +199,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
     pageLayoutAtOrBelow(text, speaker, maximumWidthPx, pageIndex = 0) {
       const candidate = input.preferWholeText
         ? widths.find(item => item.widthPx <= maximumWidthPx + .001) ?? widths[widths.length - 1]!
-        : dialogueWidth
+        : dialogueSpeakerWidths.get(speaker ?? '') ?? dialogueWidth
       return candidate.pages.get(entryKey({ text, speaker }))?.layouts[pageIndex] ?? null
     },
     envelopeAtOrBelow(maximumWidthPx) {
@@ -206,7 +207,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
         ?? widths[widths.length - 1]!.envelopeLayout
     },
     speakerWidthAtOrBelow(maximumWidthPx) {
-      return (input.preferWholeText ? widths.find(candidate => candidate.widthPx <= maximumWidthPx + .001) : dialogueWidth)?.speakerWidthPx
+      return widths.find(candidate => candidate.widthPx <= maximumWidthPx + .001)?.speakerWidthPx
         ?? widths[widths.length - 1]!.speakerWidthPx
     },
     fit(fitInput) {
@@ -298,7 +299,8 @@ export function createMainlineReadingSessionLayoutCache(input: {
         return { segments, layouts }
       }
       for (const candidate of widths) {
-        if (!input.preferWholeText && candidate !== dialogueWidth) continue
+        const selected = dialogueSpeakerWidths.get(fitInput.speaker ?? '')
+        if (!input.preferWholeText && selected && candidate !== selected) continue
         if (candidate.widthPx > fitInput.maximumWidthPx + .001) continue
         const page = fallbackPages(candidate)
         const pageIndex = pageIndexAtSourceOffset(page.segments, fitInput.sourceOffset ?? 0)
@@ -311,10 +313,13 @@ export function createMainlineReadingSessionLayoutCache(input: {
           if (envelope.widthPx > bounds.width / 100 * sceneDesignReferenceMetrics.width * fitInput.worldScale || envelope.heightPx > bounds.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale) continue
         }
         const position = mainlinePlaceReadingBox(fitInput.scene, fitInput.source, { width: envelope.widthPx, height: envelope.heightPx }, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset, fitInput.outside)
-        if (position) return { segments: page.segments, pageLayouts: page.layouts, position, layout, maxWidthPx: candidate.widthPx, fits: true }
+        if (position) {
+          if (!input.preferWholeText) dialogueSpeakerWidths.set(fitInput.speaker ?? '', candidate)
+          return { segments: page.segments, pageLayouts: page.layouts, position, layout, maxWidthPx: candidate.widthPx, fits: true }
+        }
       }
       const fallback = widths[widths.length - 1]!
-      const stableFallback = input.preferWholeText ? fallback : dialogueWidth
+      const stableFallback = input.preferWholeText ? fallback : dialogueSpeakerWidths.get(fitInput.speaker ?? '') ?? dialogueWidth
       const page = fallbackPages(stableFallback)
       const pageIndex = pageIndexAtSourceOffset(page.segments, fitInput.sourceOffset ?? 0)
       return {
