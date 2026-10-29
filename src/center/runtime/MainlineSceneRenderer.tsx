@@ -58,6 +58,7 @@ import { mainlineDialogueClickAction, mainlineDialogueHandoffDurationMs, mainlin
 import { mainlineReadingLocalPercent, mainlineReadingOcclusionCellIdentity, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot, type MainlineReadingOcclusionCandidate } from './mainlineReadingOcclusion'
 import type { HeldConsumable } from './crossShopOrders'
 import { heldConsumablePresentation } from './heldConsumablePresentation'
+import { cafeRestroomFaucetId, cafeRestroomToiletId } from './cafeRestroom'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -194,16 +195,19 @@ export function mainlineEntityUsesBreathing(_scene: MainlineSceneDefinition, ent
     || entity.animationGroup === 'yonghe-stove-breathing'
 }
 
-function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, tutorialCompleted: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean, cafeRestroomFaucetOpen = false, readingProtected = false) {
+function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, tutorialCompleted: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean, cafeRestroomFaucetOpen = false, cafeRestroomToiletUsePhase: 'approaching' | 'using' | null = null, readingProtected = false) {
   const isOfferingTable = entity.kind === 'table' && scene.furnitureGroups.some((group) => group.layout === 'altar-ring' && group.entityIds.includes(entity.id))
   const isIncense = entity.visualProfile === 'incense'
-  const isCafeRestroomFaucetOpen = entity.interactionBehavior === 'cafe-faucet-toggle' && cafeRestroomFaucetOpen
+  const isCafeRestroomFixture = entity.id === cafeRestroomToiletId || entity.id === cafeRestroomFaucetId
+  const isCafeRestroomFixtureBright = entity.id === cafeRestroomToiletId
+    ? cafeRestroomToiletUsePhase === 'using'
+    : entity.id === cafeRestroomFaucetId && cafeRestroomFaucetOpen
   const tutorialEligible = mainlineEntityUsesBreathing(scene, entity, incenseLit)
-  const interactionVisualState = entity.interactive === false
+  const interactionVisualState = entity.interactive === false || isCafeRestroomFixture
     ? null
     : resolveMainlineInteractionVisualState({
       active: active && !readingProtected,
-      dynamic: isIncense && incenseLit || isCafeRestroomFaucetOpen,
+      dynamic: isIncense && incenseLit,
       explored: explored && !readingProtected,
       tutorialCompleted,
       tutorialEligible,
@@ -215,6 +219,8 @@ function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity
     entity.facing ? `scene-mainline-object--facing-${entity.facing}` : '',
     `scene-object--${entity.weight}`,
     entity.visualProfile === 'tree-ring' ? 'scene-mainline-yard-tree-ring' : '',
+    isCafeRestroomFixture ? 'scene-mainline-restroom-fixture' : '',
+    isCafeRestroomFixture ? `scene-mainline-restroom-fixture--${isCafeRestroomFixtureBright ? 'bright' : 'dimmed'}` : '',
     interactionVisualState === 'tutorial-unexplored' || entity.animationGroup === 'yonghe-stove-breathing' ? 'scene-mainline-exploration--breathing' : '',
     interactionVisualState ? `scene-mainline-interaction--${interactionVisualState}` : '',
     entity.kind === 'table' ? 'scene-mainline-exploration--steady' : '',
@@ -222,9 +228,8 @@ function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity
     isIncense && incenseLit ? 'scene-mainline-incense--lit' : '',
     isIncense && incenseLit ? 'scene-mainline-incense--burning' : '',
     isIncense && !incenseLit ? 'scene-mainline-incense--unlit' : '',
-    isCafeRestroomFaucetOpen ? 'scene-mainline-restroom-faucet--open' : '',
     visibility,
-    active && !readingProtected ? 'is-active' : '',
+    active && !readingProtected && !isCafeRestroomFixture ? 'is-active' : '',
     underPlayer ? 'is-under-player' : '',
     selected ? 'is-layout-selected' : '',
     dragging ? 'is-layout-dragging' : '',
@@ -951,7 +956,7 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   return <span {...commonProps} aria-hidden="true">{presentedContent}{renderFrame(first.focusGroup, interiorPresentationActive)}</span>
 }
 
-function MainlineObject({ entity, scene, position, visualPosition, collision, focusGroup, renderFrame, visibility, active, explored, tutorialCompleted, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, cafeRestroomFaucetOpen, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false, debugRuntimeEvidence = false, interiorPresentationActive, presentationDurationMs = sceneFrameDefaultMotionMs, readingProtected = false }: {
+function MainlineObject({ entity, scene, position, visualPosition, collision, focusGroup, renderFrame, visibility, active, explored, tutorialCompleted, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, cafeRestroomFaucetOpen, cafeRestroomToiletUsePhase, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false, debugRuntimeEvidence = false, interiorPresentationActive, presentationDurationMs = sceneFrameDefaultMotionMs, readingProtected = false }: {
   entity: MainlineSceneEntity
   scene: MainlineSceneDefinition
   position: Point
@@ -971,6 +976,7 @@ function MainlineObject({ entity, scene, position, visualPosition, collision, fo
   screenMetrics: SceneScreenMetrics
   incenseLit: boolean
   cafeRestroomFaucetOpen: boolean
+  cafeRestroomToiletUsePhase: 'approaching' | 'using' | null
   incenseBurnRemainingMs: number
   onIncenseBurnComplete?: () => void
   onStartLayoutDrag: (itemId: LayoutItemId, event: React.PointerEvent<HTMLElement>) => void
@@ -986,8 +992,13 @@ function MainlineObject({ entity, scene, position, visualPosition, collision, fo
   presentationDurationMs?: number
   readingProtected?: boolean
 }) {
+  const isRestroomFixture = entity.id === cafeRestroomToiletId || entity.id === cafeRestroomFaucetId
+  const restroomFixtureBright = entity.id === cafeRestroomToiletId
+    ? cafeRestroomToiletUsePhase === 'using'
+    : entity.id === cafeRestroomFaucetId && cafeRestroomFaucetOpen
+  const restroomFixtureOpacity = isRestroomFixture && !restroomFixtureBright ? .5 : 1
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
-  const className = objectClass(scene, entity, visibility, active, explored, tutorialCompleted, underPlayer, selected, dragging, incenseLit, cafeRestroomFaucetOpen, readingProtected)
+  const className = objectClass(scene, entity, visibility, active, explored, tutorialCompleted, underPlayer, selected, dragging, incenseLit, cafeRestroomFaucetOpen, cafeRestroomToiletUsePhase, readingProtected)
   const visualScale = entity.visualScale ?? 1
   // Focus emphasis follows the visible label/glyph's typography, never the
   // object's collision or authored spatial envelope.
@@ -1007,12 +1018,13 @@ function MainlineObject({ entity, scene, position, visualPosition, collision, fo
       alignItems: 'center',
       justifyContent: 'center',
       transform: 'translate(-50%, -50%)',
-      opacity: presentedInterior ? 1 : 0,
+      opacity: presentedInterior ? restroomFixtureOpacity : 0,
       pointerEvents: presentedInterior ? undefined : 'none',
       transition: interiorPresentationActive === undefined ? undefined : `opacity ${presentationDurationMs}ms ease-in-out`,
     } as CSSProperties,
     'data-object-id': entity.id,
     'data-restroom-faucet-open': entity.interactionBehavior === 'cafe-faucet-toggle' ? String(cafeRestroomFaucetOpen) : undefined,
+    'data-restroom-brightness': isRestroomFixture ? restroomFixtureBright ? 'normal' : 'half' : undefined,
     'data-focus-target-id': focusGroup ? entity.id : undefined,
     'data-focus-target-group': focusGroup,
     'data-focus-target-policy': focusGroup ? 'interactive' : undefined,
@@ -2493,6 +2505,7 @@ export function MainlineSceneRenderer({
       screenMetrics={renderScreenMetrics}
       incenseLit={incenseLit}
       cafeRestroomFaucetOpen={cafeRestroomFaucetOpen}
+      cafeRestroomToiletUsePhase={cafeRestroomToiletUsePhase}
       incenseBurnRemainingMs={incenseBurnRemainingMs}
       onIncenseBurnComplete={onIncenseBurnComplete}
       selected={selectedLayoutItemId === mainlineLayoutItemForEntity(scene, entity.id)}
