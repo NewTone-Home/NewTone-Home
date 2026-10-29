@@ -3,18 +3,37 @@ import { mainlineReadingLocalFadeMask } from './mainlineReadingOcclusion'
 
 describe('reading local fade motion', () => {
   const object = { x: 0, y: 0, width: 100, height: 40 }
-  const reading = { x: 10, y: 5, width: 80, height: 30 }
-  it('begins clear, moves the masked area and opacity with progress, then restores', () => {
-    expect(mainlineReadingLocalFadeMask(object, reading, 8, 12, 0)).toBeNull()
-    const quarter = mainlineReadingLocalFadeMask(object, reading, 8, 12, .25)!
-    const half = mainlineReadingLocalFadeMask(object, reading, 8, 12, .5)!
-    const full = mainlineReadingLocalFadeMask(object, reading, 8, 12, 1)!
-    expect(quarter).toContain('rgba(0,0,0,0.75)')
-    expect(half).toContain('rgba(0,0,0,0.5)')
-    expect(full).toContain('rgba(0,0,0,0)')
-    expect(new Set([quarter, half, full]).size).toBe(3)
-    expect(quarter).toContain('at 20%')
-    expect(half).toContain('at 30%')
-    expect(full).toContain('at 50%')
+  it('keeps separate current glyph and frame regions protected without globally weakening the mask', () => {
+    const mask = mainlineReadingLocalFadeMask(object, [
+      { x: 10, y: 5, width: 22, height: 12 },
+      { x: 58, y: 20, width: 24, height: 2 },
+    ], 2, 6)!
+    expect(mask.match(/radial-gradient/g)).toHaveLength(2)
+    expect(mask.match(/transparent 0%, transparent/g)).toHaveLength(2)
+    expect(mask).not.toContain('rgba(')
+    expect(mask).toContain('at 21% 27.5%')
+    expect(mask).toContain('at 70% 52.5%')
+  })
+
+  it('drops only cleared regions while preserving full protection around remaining visible ink', () => {
+    const before = mainlineReadingLocalFadeMask(object, [
+      { x: 10, y: 5, width: 22, height: 12 },
+      { x: 58, y: 20, width: 24, height: 2 },
+    ], 2, 6)!
+    const after = mainlineReadingLocalFadeMask(object, [{ x: 58, y: 20, width: 24, height: 2 }], 2, 6)!
+    expect(before.match(/radial-gradient/g)).toHaveLength(2)
+    expect(after.match(/radial-gradient/g)).toHaveLength(1)
+    expect(after).toContain('at 70% 52.5%')
+  })
+
+  it('uses one contiguous soft safe area for framed menu text and its inter-line gaps', () => {
+    const mask = mainlineReadingLocalFadeMask(object, [
+      { x: 25, y: 4, width: 50, height: 10 },
+      { x: 20, y: 20, width: 60, height: 2 },
+      { x: 25, y: 32, width: 50, height: 10 },
+    ], 8, 8, true)!
+    expect(mask.match(/radial-gradient/g)).toHaveLength(1)
+    expect(mask).toContain('transparent 0%, transparent 74.838%')
+    expect(mask).not.toContain('rgba(')
   })
 })

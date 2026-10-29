@@ -1,6 +1,6 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { CollisionBox } from './sceneGeometry'
-import { mainlineReadingLocalFadeMask, mainlineReadingWorldHeightPx, mainlineReadingWorldWidthPx, type MainlineReadingOcclusionRect } from './mainlineReadingOcclusion'
+import { mainlineReadingLocalFadeMask, mainlineReadingWorldHeightPx, mainlineReadingWorldWidthPx, type MainlineReadingProtectionRect } from './mainlineReadingOcclusion'
 
 type Props = {
   entityId: string
@@ -12,18 +12,26 @@ type Props = {
   className?: string
   identityKey: string
   stageFaded?: boolean
-  observationFade?: { rect: MainlineReadingOcclusionRect; innerMarginWorldPx: number; featherWorldPx: number; progress?: number }
+  observationProtectionRects?: readonly MainlineReadingProtectionRect[]
+  continuousObservationProtection?: boolean
   children: ReactNode
 }
 
 const emptyIdentityKeys: ReadonlySet<string> = new Set()
 
 /** Stable, object-bounded wrapper. Its child coordinates are local to worldBounds. */
-export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], protectedEntityIds, worldBounds, hiddenIdentityKeys = emptyIdentityKeys, active = true, className, identityKey, stageFaded, observationFade, children }: Props) {
+export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], protectedEntityIds, worldBounds, hiddenIdentityKeys = emptyIdentityKeys, active = true, className, identityKey, stageFaded, observationProtectionRects, continuousObservationProtection = false, children }: Props) {
   const protectedTarget = protectedEntityIds.has(entityId) || relatedEntityIds.some(id => protectedEntityIds.has(id))
-  const localFadeMask = active && !protectedTarget && observationFade
-    ? mainlineReadingLocalFadeMask(worldBounds, observationFade.rect, observationFade.innerMarginWorldPx, observationFade.featherWorldPx, observationFade.progress)
-    : null
+  const planeRef = useRef<HTMLDivElement>(null)
+  const [localFadeMask, setLocalFadeMask] = useState<string | null>(null)
+  useLayoutEffect(() => {
+    const element = planeRef.current
+    const bounds = element?.getBoundingClientRect()
+    const next = active && !protectedTarget && observationProtectionRects?.length && bounds
+      ? mainlineReadingLocalFadeMask(bounds, observationProtectionRects, 8, 8, continuousObservationProtection)
+      : null
+    setLocalFadeMask(current => current === next ? current : next)
+  }, [active, continuousObservationProtection, observationProtectionRects, protectedTarget, worldBounds])
   const hidden = active && !protectedTarget && !localFadeMask && hiddenIdentityKeys.has(identityKey)
   const style: CSSProperties = {
     position: 'absolute',
@@ -34,9 +42,16 @@ export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], 
     pointerEvents: 'none',
     opacity: hidden || stageFaded ? 0 : 1,
     transition: `opacity ${stageFaded === undefined ? 400 : 380}ms ease-in-out`,
-    ...(localFadeMask ? { maskImage: localFadeMask, WebkitMaskImage: localFadeMask, maskMode: 'alpha' } : {}),
+    ...(localFadeMask ? {
+      maskImage: localFadeMask,
+      WebkitMaskImage: localFadeMask,
+      maskMode: 'alpha',
+      maskComposite: 'intersect',
+      WebkitMaskComposite: 'source-in',
+    } as CSSProperties : {}),
   }
   return <div
+    ref={planeRef}
     className={className ?? 'scene-mainline-reading-identity-plane'}
     data-reading-occlusion-entity-id={entityId}
     data-reading-occlusion-key={identityKey}
