@@ -83,26 +83,38 @@ export function mainlineReadingOcclusionAlpha(point: Point, rect: MainlineReadin
   return Math.max(0, Math.min(1, Math.hypot(outsideX, outsideY) / Math.max(.01, fadeWidthWorldPx)))
 }
 
+export type MainlineReadingProtectionRect = CollisionBox
+
 /**
- * Fade an object's own pixels around an observation frame. The empty centre
- * covers the frame plus its inner breathing room; the outside feather remains
- * transparent at the edge and restores continuously to the normal mask.
+ * Hide scene art only under the currently painted reading ink and frame
+ * strokes. Each region is a separate transparent hole; intersecting the mask
+ * layers makes their holes add spatially without weakening the remaining ink.
+ * Bounds and protection rectangles are measured in the same screen space.
  */
-export function mainlineReadingLocalFadeMask(bounds: CollisionBox, rect: MainlineReadingOcclusionRect, innerMarginWorldPx: number, featherWorldPx: number, progress = 1) {
-  const amount = Math.max(0, Math.min(1, progress))
-  if (amount === 0) return null
-  rect = { ...rect, width: rect.width * amount }
-  innerMarginWorldPx *= amount
-  featherWorldPx *= amount
-  if (bounds.width <= 0 || bounds.height <= 0 || featherWorldPx <= 0) return null
-  const centerX = rect.x + rect.width / 2 - bounds.x
-  const centerY = rect.y + rect.height / 2 - bounds.y
-  const clearRadiusX = rect.width / 2 + Math.max(0, innerMarginWorldPx)
-  const clearRadiusY = rect.height / 2 + Math.max(0, innerMarginWorldPx)
-  const outerRadiusX = clearRadiusX + featherWorldPx
-  const outerRadiusY = clearRadiusY + featherWorldPx
-  const clearStop = Math.max(clearRadiusX / outerRadiusX, clearRadiusY / outerRadiusY) * 100
-  return `radial-gradient(ellipse ${outerRadiusX / bounds.width * 100}% ${outerRadiusY / bounds.height * 100}% at ${centerX / bounds.width * 100}% ${centerY / bounds.height * 100}%, rgba(0,0,0,${1 - amount}) 0%, rgba(0,0,0,${1 - amount}) ${clearStop}%, #000 100%)`
+export function mainlineReadingLocalFadeMask(
+  bounds: CollisionBox,
+  regions: readonly MainlineReadingProtectionRect[],
+  innerMarginPx = 2,
+  featherPx = 6,
+) {
+  if (bounds.width <= 0 || bounds.height <= 0 || featherPx <= 0) return null
+  const gradients = regions.flatMap(region => {
+    if (region.width <= 0 || region.height <= 0) return []
+    const innerX = region.width / 2 + Math.max(0, innerMarginPx)
+    const innerY = region.height / 2 + Math.max(0, innerMarginPx)
+    const outerX = innerX + featherPx
+    const outerY = innerY + featherPx
+    if (region.x + region.width < bounds.x - outerX
+      || region.x > bounds.x + bounds.width + outerX
+      || region.y + region.height < bounds.y - outerY
+      || region.y > bounds.y + bounds.height + outerY) return []
+    const centerX = region.x + region.width / 2 - bounds.x
+    const centerY = region.y + region.height / 2 - bounds.y
+    const clearStop = Math.max(innerX / outerX, innerY / outerY) * 100
+    const percent = (value: number) => `${Number(value.toFixed(3))}%`
+    return [`radial-gradient(ellipse ${percent(outerX / bounds.width * 100)} ${percent(outerY / bounds.height * 100)} at ${percent(centerX / bounds.width * 100)} ${percent(centerY / bounds.height * 100)}, transparent 0%, transparent ${percent(clearStop)}, #000 100%)`]
+  })
+  return gradients.length ? gradients.join(', ') : null
 }
 
 export function mainlineReadingOcclusionIntersects(bounds: CollisionBox, rect: MainlineReadingOcclusionRect, featherWorldPx = mainlineReadingOcclusionFadeWorldPx) {
