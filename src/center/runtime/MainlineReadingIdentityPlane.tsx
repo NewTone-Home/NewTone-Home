@@ -13,13 +13,14 @@ type Props = {
   identityKey: string
   stageFaded?: boolean
   observationProtectionRects?: readonly MainlineReadingProtectionRect[]
+  continuousObservationProtection?: boolean
   children: ReactNode
 }
 
 const emptyIdentityKeys: ReadonlySet<string> = new Set()
 
 /** Stable, object-bounded wrapper. Its child coordinates are local to worldBounds. */
-export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], protectedEntityIds, worldBounds, hiddenIdentityKeys = emptyIdentityKeys, active = true, className, identityKey, stageFaded, observationProtectionRects, children }: Props) {
+export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], protectedEntityIds, worldBounds, hiddenIdentityKeys = emptyIdentityKeys, active = true, className, identityKey, stageFaded, observationProtectionRects, continuousObservationProtection = false, children }: Props) {
   const protectedTarget = protectedEntityIds.has(entityId) || relatedEntityIds.some(id => protectedEntityIds.has(id))
   const planeRef = useRef<HTMLDivElement>(null)
   const [localFadeMask, setLocalFadeMask] = useState<string | null>(null)
@@ -27,10 +28,10 @@ export function MainlineReadingIdentityPlane({ entityId, relatedEntityIds = [], 
     const element = planeRef.current
     const bounds = element?.getBoundingClientRect()
     const next = active && !protectedTarget && observationProtectionRects?.length && bounds
-      ? mainlineReadingLocalFadeMask(bounds, observationProtectionRects)
+      ? mainlineReadingLocalFadeMask(bounds, observationProtectionRects, 8, 8, continuousObservationProtection)
       : null
     setLocalFadeMask(current => current === next ? current : next)
-  }, [active, observationProtectionRects, protectedTarget, worldBounds])
+  }, [active, continuousObservationProtection, observationProtectionRects, protectedTarget, worldBounds])
   const hidden = active && !protectedTarget && !localFadeMask && hiddenIdentityKeys.has(identityKey)
   const style: CSSProperties = {
     position: 'absolute',

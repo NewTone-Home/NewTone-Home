@@ -96,21 +96,38 @@ export function mainlineReadingLocalFadeMask(
   regions: readonly MainlineReadingProtectionRect[],
   innerMarginPx = 2,
   featherPx = 6,
+  continuous = false,
 ) {
   if (bounds.width <= 0 || bounds.height <= 0 || featherPx <= 0) return null
-  const gradients = regions.flatMap(region => {
+  const continuousRegion = continuous && regions.length
+    ? (() => {
+        const left = Math.min(...regions.map(region => region.x))
+        const top = Math.min(...regions.map(region => region.y))
+        const right = Math.max(...regions.map(region => region.x + region.width))
+        const bottom = Math.max(...regions.map(region => region.y + region.height))
+        return [{ x: left, y: top, width: right - left, height: bottom - top }]
+      })()
+    : null
+  const gradients = (continuousRegion ?? regions).flatMap(region => {
     if (region.width <= 0 || region.height <= 0) return []
     const innerX = region.width / 2 + Math.max(0, innerMarginPx)
     const innerY = region.height / 2 + Math.max(0, innerMarginPx)
-    const outerX = innerX + featherPx
-    const outerY = innerY + featherPx
+    // A normal ellipse leaves its four corners uncovered. For a framed menu,
+    // expand the ellipse enough that its transparent center contains the
+    // complete rectangular reading surface; the remaining outer ring stays a
+    // small local feather rather than revealing gaps between rows and edges.
+    const outerX = continuous ? innerX * Math.SQRT2 + featherPx * 2 : innerX + featherPx
+    const outerY = continuous ? innerY * Math.SQRT2 + featherPx * 2 : innerY + featherPx
     if (region.x + region.width < bounds.x - outerX
       || region.x > bounds.x + bounds.width + outerX
       || region.y + region.height < bounds.y - outerY
       || region.y > bounds.y + bounds.height + outerY) return []
     const centerX = region.x + region.width / 2 - bounds.x
     const centerY = region.y + region.height / 2 - bounds.y
-    const clearStop = Math.max(innerX / outerX, innerY / outerY) * 100
+    const cornerRadius = Math.hypot(innerX / outerX, innerY / outerY)
+    const clearStop = continuous
+      ? Math.min(99, (cornerRadius + .01) * 100)
+      : Math.max(innerX / outerX, innerY / outerY) * 100
     const percent = (value: number) => `${Number(value.toFixed(3))}%`
     return [`radial-gradient(ellipse ${percent(outerX / bounds.width * 100)} ${percent(outerY / bounds.height * 100)} at ${percent(centerX / bounds.width * 100)} ${percent(centerY / bounds.height * 100)}, transparent 0%, transparent ${percent(clearStop)}, #000 100%)`]
   })

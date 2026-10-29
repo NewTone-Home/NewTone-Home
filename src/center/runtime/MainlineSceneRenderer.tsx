@@ -633,6 +633,22 @@ function measureReadingProtectionRects(root: HTMLElement, text: string, visibleT
     ? Math.min(1, (visibleCount + Math.ceil(mainlineReadingMaskLeadMs / Math.max(1, mainlineObservationTypingIntervalMs))) / Math.max(1, Array.from(mainlineVisiblePresentationText(text)).length))
     : frameProgress
   protectionRects.push(...frameStrokeProtectionRects(root, Math.max(frameProgress, upcomingFrameProgress)))
+  if (measureRef) {
+    // The menu is a single framed reading surface: its line gaps and interior
+    // margins must stay covered along with the glyphs. During entry, prepare
+    // the whole measured frame before the first characters are painted.
+    if (motion === 'typing') {
+      const frame = root.querySelector<HTMLElement>('.scene-menu-reading-frame')?.getBoundingClientRect()
+      if (frame && frame.width > 0 && frame.height > 0) protectionRects.push({ x: frame.left, y: frame.top, width: frame.width, height: frame.height })
+    }
+    if (protectionRects.length) {
+      const left = Math.min(...protectionRects.map(rect => rect.x))
+      const top = Math.min(...protectionRects.map(rect => rect.y))
+      const right = Math.max(...protectionRects.map(rect => rect.x + rect.width))
+      const bottom = Math.max(...protectionRects.map(rect => rect.y + rect.height))
+      return [{ x: left, y: top, width: right - left, height: bottom - top }]
+    }
+  }
   return protectionRects
 }
 
@@ -2919,7 +2935,7 @@ export function MainlineSceneRenderer({
               const preserveBoundary = cell.kind === 'wall' || cell.kind === 'door' || cell.kind === 'opening'
                 || unit.surface === 'wall' || unit.surface === 'door'
               const canFadeFeature = Boolean(observationProtection && !preserveBoundary && cellEntity && cellEntity.kind !== 'door' && cellEntity.surface !== 'wall')
-              return <MainlineReadingIdentityPlane key={`cell:${cell.id}`} identityKey={occlusionIdentityKey} entityId={entityId} relatedEntityIds={relatedEntityIds} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={sceneEcho ? undefined : retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={cellWorldBounds} observationProtectionRects={canFadeFeature ? observationProtection : undefined} active={Boolean(observationProtection) && canFadeFeature} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">{node}</MainlineReadingIdentityPlane>
+              return <MainlineReadingIdentityPlane key={`cell:${cell.id}`} identityKey={occlusionIdentityKey} entityId={entityId} relatedEntityIds={relatedEntityIds} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={sceneEcho ? undefined : retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={cellWorldBounds} observationProtectionRects={canFadeFeature ? observationProtection : undefined} continuousObservationProtection={isMenuReading} active={Boolean(observationProtection) && canFadeFeature} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">{node}</MainlineReadingIdentityPlane>
             })}
           </div>
           <div className="scene-mainline-counter-layer" data-reading-occlusion-layer="counter">
@@ -2943,7 +2959,7 @@ export function MainlineSceneRenderer({
               return { x: centerX - width / 2, y: centerY - height / 2, width, height }
             })
             const counterBounds = unionWorldBounds([...boxes, ...labelBoxes], 1)
-            return <MainlineReadingIdentityPlane key={meta.groupId} identityKey={`counter:${meta.groupId}`} entityId={entityId} protectedEntityIds={readingOcclusionProtectedEntityIds} worldBounds={counterBounds} observationProtectionRects={observationProtection} active={Boolean(observationProtection)} stageFaded={dialogueStage ? stageHidden : undefined} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--counter${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}><MainlineCounterSurface boundedWrapper coordinateBounds={counterBounds} parts={parts} objects={scene.objects} onInteract={onInteract} onCounterInteract={onCounterInteract} presentationActive={interiorRoomPresentationActive(meta.roomId)}/></MainlineReadingIdentityPlane>
+            return <MainlineReadingIdentityPlane key={meta.groupId} identityKey={`counter:${meta.groupId}`} entityId={entityId} protectedEntityIds={readingOcclusionProtectedEntityIds} worldBounds={counterBounds} observationProtectionRects={observationProtection} continuousObservationProtection={isMenuReading} active={Boolean(observationProtection)} stageFaded={dialogueStage ? stageHidden : undefined} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--counter${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}><MainlineCounterSurface boundedWrapper coordinateBounds={counterBounds} parts={parts} objects={scene.objects} onInteract={onInteract} onCounterInteract={onCounterInteract} presentationActive={interiorRoomPresentationActive(meta.roomId)}/></MainlineReadingIdentityPlane>
             }
             return visibleCounterSurfaces.map(renderCounter)
           })()}
@@ -2957,7 +2973,7 @@ export function MainlineSceneRenderer({
               const objectBounds = mainlineReadingWorldBox(normalizedBounds, value => value, entity.focusFrame === 'interactive' ? 5 : 0)
               const stageHidden = Boolean(dialogueStage?.hiddenEntityIds.has(entity.id))
               const canFadeObject = Boolean(observationProtection && entity.kind !== 'door' && entity.surface !== 'wall')
-              return <MainlineReadingIdentityPlane key={entity.id} identityKey={`object:${entity.id}`} entityId={entity.id} protectedEntityIds={readingOcclusionProtectedEntityIds} worldBounds={objectBounds} observationProtectionRects={canFadeObject ? observationProtection : undefined} active={Boolean(observationProtection)} stageFaded={dialogueStage ? stageHidden : undefined} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--object${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}>{renderMainlineObject(entity, objectBounds)}</MainlineReadingIdentityPlane>
+              return <MainlineReadingIdentityPlane key={entity.id} identityKey={`object:${entity.id}`} entityId={entity.id} protectedEntityIds={readingOcclusionProtectedEntityIds} worldBounds={objectBounds} observationProtectionRects={canFadeObject ? observationProtection : undefined} continuousObservationProtection={isMenuReading} active={Boolean(observationProtection)} stageFaded={dialogueStage ? stageHidden : undefined} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--object${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}>{renderMainlineObject(entity, objectBounds)}</MainlineReadingIdentityPlane>
             })}
           </div>
 

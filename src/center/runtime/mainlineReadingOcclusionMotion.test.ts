@@ -25,4 +25,15 @@ describe('reading local fade motion', () => {
     expect(after.match(/radial-gradient/g)).toHaveLength(1)
     expect(after).toContain('at 70% 52.5%')
   })
+
+  it('uses one contiguous soft safe area for framed menu text and its inter-line gaps', () => {
+    const mask = mainlineReadingLocalFadeMask(object, [
+      { x: 25, y: 4, width: 50, height: 10 },
+      { x: 20, y: 20, width: 60, height: 2 },
+      { x: 25, y: 32, width: 50, height: 10 },
+    ], 8, 8, true)!
+    expect(mask.match(/radial-gradient/g)).toHaveLength(1)
+    expect(mask).toContain('transparent 0%, transparent 74.838%')
+    expect(mask).not.toContain('rgba(')
+  })
 })
