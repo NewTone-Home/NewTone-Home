@@ -1033,6 +1033,8 @@ export default function CenterExperience({
       onReadingStateChange={snapshot ? undefined : handleSceneReadingStateChange}
       onClockActivitySourceChange={snapshot ? undefined : handleClockActivitySourceChange}
       readGameTimeMs={readSessionGameTimeMs}
+      shopOrders={playerSave.shopOrders}
+      gameTimeMs={trialClockSnapshot.gameTimeMs}
       onMeaningfulActivity={snapshot ? undefined : handleMeaningfulActivity}
       onPlayerMovementStateChange={snapshot ? undefined : handlePlayerMovementStateChange}
       onRuntimePositionChange={snapshot ? undefined : handleRuntimePositionChange}
