@@ -723,6 +723,13 @@
 .scene-mainline-object__grid-content,
 .scene-mainline-npc__grid-content,
 .scene-protagonist__grid-content { display: inline-block; }
+.scene-mainline-npc[data-npc-duty-id$=".preparing"] .scene-mainline-npc__grid-content {
+  animation: takeaway-worker-preparing 900ms ease-in-out infinite alternate;
+}
+@keyframes takeaway-worker-preparing {
+  from { opacity: .78; transform: translateY(0); }
+  to { opacity: 1; transform: translateY(-1px); }
+}
 .scene-mainline-world.is-local-slide-handoff { animation: none; }
 @keyframes mainline-world-enter {
   from { opacity: 0; }
@@ -730,6 +737,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .scene-mainline-world { animation: none; }
+  .scene-mainline-npc[data-npc-duty-id$=".preparing"] .scene-mainline-npc__grid-content { animation: none; }
 }
 .scene-mainline-wall-labels { inset: 0; z-index: 1; }
 .scene-mainline-counter-layer,
