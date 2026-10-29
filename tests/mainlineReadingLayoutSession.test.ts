@@ -4,10 +4,27 @@ import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey,
 import { subscribeToMainlineReadingFontCompletion } from '../src/center/runtime/useMainlineReadingFontRevision'
 import { mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
 import { mainlineAvailableReadingWidthPx, mainlineReadingCameraOffset } from '../src/center/runtime/mainlineTextReading'
-import { mainlineReadingPageIndexForSourceOffset } from '../src/center/runtime/mainlineReadingProtection'
+import { mainlinePlaceReadingBox, mainlineReadingPageIndexForSourceOffset } from '../src/center/runtime/mainlineReadingProtection'
 import { splitMainlineInteractionTextToFit } from '../src/center/runtime/mainlineTextSegments'
 
 describe('mainline reading session layout cache', () => {
+  it('keeps a protected dialogue box entirely on the speaker outside', () => {
+    const scene = mainlineScenes['commercial-street']
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-cafe-interior')!
+    const speaker = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+    const metrics = { width: 1280, height: 800, viewportWidth: 1280 }
+    const camera = mainlineReadingCameraOffset(scene, speaker, metrics, .65, { x: 0, y: 0 })
+    const obstacle = [{ x: speaker.x - 1, y: speaker.y - 1, width: 2, height: 2 }]
+    const size = { width: 120, height: 40 }
+    for (const side of ['above', 'below'] as const) {
+      const result = mainlinePlaceReadingBox(scene, speaker, size, obstacle, metrics, .65, camera, { side, speakerY: speaker.y })
+      expect(result).not.toBeNull()
+      const half = size.height / (1080 * .65) * 50
+      if (side === 'above') expect(result!.y + half).toBeLessThan(speaker.y)
+      else expect(result!.y - half).toBeGreaterThan(speaker.y)
+    }
+  })
+
   it('keeps formal dialogue boxes at the session width for short and long lines', () => {
     const cache = createMainlineReadingSessionLayoutCache({
       sessionKey: 'dialogue:fixed-width',

@@ -1109,8 +1109,9 @@ export function MainlineScenePage({
   else if (dialogueAnchorSessionRef.current?.key !== dialogueAnchorSessionKey) dialogueAnchorSessionRef.current = { key: dialogueAnchorSessionKey, positions: new Map(), outside: new Map() }
   if (dialogueAnchorSessionKey && activeDialogueLine && dialogueAnchorSessionRef.current && !dialogueAnchorSessionRef.current.positions.has(activeDialogueSpeakerKey)) {
     const speakerPosition = activeDialogueSpeakerActorId === 'protagonist' ? position : resolvedNpcPositions.get(activeDialogueSpeakerActorId ?? '') ?? position
+    const dialogueNpcIds = [...mainlineDialogueParticipantNpcIds(scene, activeDialogue, activeDialogueLine)]
     const otherActorPosition = activeDialogueSpeakerActorId === 'protagonist'
-      ? resolvedNpcPositions.get([...mainlineDialogueParticipantNpcIds(scene, activeDialogue, activeDialogueLine)].find(id => id !== activeDialogueSpeakerActorId) ?? '') ?? position
+      ? dialogueNpcIds.length === 1 ? resolvedNpcPositions.get(dialogueNpcIds[0]!) ?? position : position
       : position
     const room = mainlineInteractionRoom(scene, position)
     const stagePosition = activeDialogueSpeakerActorId && mainlineIsInteriorSpace(scene, position) && room
