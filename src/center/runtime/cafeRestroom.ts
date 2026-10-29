@@ -40,6 +40,10 @@ export function attachCafeRestroom(blueprint: MainlineSceneBlueprint): MainlineS
   const fixture = (id: string, label: string, x: number, y: number): MainlineSceneEntity => ({
     id, label, roomId: cafeRestroomRoomId, kind: 'fixture', weight: 'fixture', surface: 'floor', position: point(x,y), interactive: true, visualVisibility: 'static', focusFrame: 'interactive',
     interactionBehavior: 'cafe-restroom-use',
+    // The toilet faces the open entrance (south); the sink is mounted on the
+    // east wall and faces into the room (west). Navigation must approach only
+    // those physical front faces, regardless of the player's starting side.
+    interactionContactSides: id === cafeRestroomToiletId ? ['bottom'] : ['left'],
     ...(id === 'cafe-restroom-sink' ? { textLayout: 'vertical' as const } : {}),
     collision: id === 'cafe-restroom-sink'
       ? { ...point(x - 8, y - Array.from(label).length * 8), width: 16 / 19.2, height: Array.from(label).length * 16 / 10.8 }
