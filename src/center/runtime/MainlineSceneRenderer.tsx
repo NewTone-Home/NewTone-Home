@@ -451,7 +451,7 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
         ? characters.join('')
         : characters.slice(0, visibleCount).join('')
 
-  useEffect(() => { onVisualProgress?.(mainlineReadingMaskTargetFraction(Array.from(visibleText).length, characters.length, motion, mainlineObservationTypingIntervalMs), motion) }, [characters.length, motion, onVisualProgress, visibleText])
+  useIsomorphicLayoutEffect(() => { onVisualProgress?.(mainlineReadingMaskTargetFraction(Array.from(visibleText).length, characters.length, motion, mainlineObservationTypingIntervalMs), motion) }, [characters.length, motion, onVisualProgress, visibleText])
 
   useEffect(() => {
     if (paused || (motion !== 'typing' && motion !== 'deleting') || !mainlineReadingTextMotionCanAnimate(motion, pageSettled)) return
