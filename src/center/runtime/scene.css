@@ -1130,6 +1130,8 @@
 }
 
 .scene-mainline-reading-layer { position: absolute; inset: 0; z-index: 14; pointer-events: none; }
+.scene-office-blinds-shade { position: absolute; z-index: 20; pointer-events: none; background: rgba(0, 0, 0, .3); }
+.scene-mainline-world.has-office-blinds-shade .scene-mainline-reading-layer { z-index: 21; }
 .scene-mainline-dialogue-stage-object { opacity: 1; transition: opacity 380ms ease-in-out; }
 .scene-mainline-dialogue-stage-object.is-stage-faded { opacity: 0; }
 .scene-mainline-text.scene-mainline-text--stage-dialogue { animation: none; }
