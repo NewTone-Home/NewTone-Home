@@ -263,6 +263,11 @@ export function NarrowDialogueViewport({
       event.stopPropagation()
       return
     }
+    if (!isReady || textAnimating) {
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
     if (onAdvance) {
       event.preventDefault()
       event.stopPropagation()

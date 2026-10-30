@@ -1430,6 +1430,7 @@ export function MainlineScenePage({
         recordSceneStatePatch(scene.id, commercialCafeStoryStatePatch(delivered))
         setDialogueSegmentIndex(0)
         startDialogueTextSession()
+        updateDialogueTextMotion('static')
         setCommercialCafeNarrative({ phase: 'delivery-line' })
         commercialCafeCoffeeBehavior.arrivedAtStoryTable()
       } else if (intent.dutyId === 'cafe-coffee-owner.return-to-counter') {
@@ -1455,7 +1456,7 @@ export function MainlineScenePage({
       }
     })
     if (!started) commercialCafeCoffeeBehavior.block()
-  }, [cafeCoffeeMoveRetryTick, cafeCounterAmbientWakeTick, cafeCoffeeOwnerMovement, cafeCoffeeOwnerLocomotionOptions, commercialCafeCoffeeBehavior, commercialCafeStory.coffeeStatus, commercialCafeStory.narrativePhase, initialSceneState, layout, navigationOptions, recordSceneStatePatch, scene, setDialogueLineIndex, startDialogueTextSession])
+  }, [cafeCoffeeMoveRetryTick, cafeCounterAmbientWakeTick, cafeCoffeeOwnerMovement, cafeCoffeeOwnerLocomotionOptions, commercialCafeCoffeeBehavior, commercialCafeStory.coffeeStatus, commercialCafeStory.narrativePhase, initialSceneState, layout, navigationOptions, recordSceneStatePatch, scene, setDialogueLineIndex, startDialogueTextSession, updateDialogueTextMotion])
   useEffect(() => {
     if (!hasContinuousCafe(scene)) {
       commercialCafeFloorBehavior.reset()

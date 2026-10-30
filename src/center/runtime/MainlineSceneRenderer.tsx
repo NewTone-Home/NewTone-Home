@@ -792,7 +792,7 @@ function MainlineDialogueConversation({ scene, dialogue, dialogueLine, dialogueL
 
 type ConversationHistoryEntry = Readonly<{ key: string; speaker?: string; speakerIsNpc: boolean; text: string }>
 
-function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, pageText, speaker, speakerIsNpc, narrow, windowHeightPx, availableWidthPx, measuredPageHeightPx, pageIndex, isFinalLinePage, textSessionId, textMotion, onTextMotionComplete, onReadyChange, onAdvance, dialogueChoiceWheel, onSceneActionChoice, onSceneActionCancel, onSceneActionExitComplete }: {
+function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, pageText, speaker, speakerIsNpc, narrow, windowHeightPx, availableWidthPx, measuredPageHeightPx, pageIndex, isFinalLinePage, textSessionId, textMotion, onTextMotionComplete, onReadyChange, onAdvance, advanceReady, advanceReadyKey, requiredAdvanceReadyKey, advanceRoute, dialogueChoiceWheel, onSceneActionChoice, onSceneActionCancel, onSceneActionExitComplete }: {
   sessionId: string
   content: MainlineConversationDisplayContent
   contentKey: string
@@ -810,7 +810,11 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
   textMotion: MainlineReadingTextMotion
   onTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void
   onReadyChange: (group: string, ready: boolean) => void
-  onAdvance: () => void
+  onAdvance: (identity: NarrowDialogueIdentity) => void
+  advanceReady: boolean
+  advanceReadyKey: string | null
+  requiredAdvanceReadyKey: string
+  advanceRoute: string
   dialogueChoiceWheel?: MainlineDialogueChoiceWheelPresentation | null
   onSceneActionChoice?: (actionId: number, index: number) => void
   onSceneActionCancel?: () => void
@@ -850,6 +854,10 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
     'data-conversation-display-phase': displayPhase,
     'data-conversation-display-action': content.kind === 'choice' ? content.actionId : undefined,
     'data-conversation-display-advance-enabled': String(content.canAdvance),
+    'data-conversation-display-ready': String(advanceReady),
+    'data-conversation-display-ready-key': advanceReadyKey ?? '',
+    'data-conversation-display-required-ready-key': requiredAdvanceReadyKey,
+    'data-conversation-display-advance-route': advanceRoute,
   } as const
   const identity: NarrowDialogueIdentity = {
     sessionKey: sessionId,
@@ -1748,6 +1756,8 @@ export function MainlineSceneRenderer({
   const dialogueReadyGroupRef = useRef<string | null>(null)
   const currentDialogueGroupRef = useRef<string | null>(null)
   const dialogueAdvanceConsumedGroupRef = useRef<string | null>(null)
+  const conversationDisplayReadyKeyRef = useRef<string | null>(null)
+  const [conversationDisplayReadyKey, setConversationDisplayReadyKey] = useState<string | null>(null)
   const retainedReadingPresentationRef = useRef<MainlineReadingPresentationSnapshot | null>(null)
   const dialogueHandoffPresentationRef = useRef<ReturnType<typeof mainlineDialogueHandoffPresentationForId>>(null)
   const dialogueCameraAnchorRef = useRef<{ key: string; viewportKey: string; offset: Point } | null>(null)
@@ -2505,6 +2515,20 @@ export function MainlineSceneRenderer({
     : conversationDisplayContent?.kind === 'choice'
       ? `action:${conversationDisplayContent.actionId}`
       : `${conversationDisplayContent?.kind ?? 'none'}:${dialogueLine?.id ?? (sceneEcho ? `echo:${sceneEcho.id}` : conversationDisplayContent?.text ?? '')}`
+  const conversationDisplayPageKey = readingLayoutPageKey ?? `${conversationDisplayContentKey}:${displayOverflowIndex}`
+  const conversationDisplayRequiredReadyKey = stableConversationDisplaySessionId
+    ? `${stableConversationDisplaySessionId}:${conversationDisplayPageKey}`
+    : conversationDisplayPageKey
+  const conversationDisplayAdvanceReady = conversationDisplayReadyKey === conversationDisplayRequiredReadyKey
+  const conversationDisplayAdvanceRoute = !conversationDisplayContent?.canAdvance
+    ? 'blocked:can-advance-false'
+    : !conversationDisplayAdvanceReady
+      ? 'blocked:surface-not-ready'
+      : sceneEcho
+        ? 'onSceneEchoAdvance'
+        : dialogue && dialogueLine
+          ? `onDialogueAdvance:${isWideDialogueConversation ? 'line' : 'segment'}`
+          : 'blocked:no-active-handler'
   const conversationDisplayPageText = conversationDisplayContent?.kind === 'waiting'
     ? conversationDisplayContent.text
     : conversationDisplayContent?.kind === 'choice'
@@ -3515,7 +3539,7 @@ export function MainlineSceneRenderer({
             sessionId={stableConversationDisplaySessionId}
             content={conversationDisplayContent}
             contentKey={conversationDisplayContentKey}
-            pageKey={readingLayoutPageKey ?? `${conversationDisplayContentKey}:${displayOverflowIndex}`}
+            pageKey={conversationDisplayPageKey}
             pageText={conversationDisplayPageText}
             speaker={conversationDisplayContent.kind === 'waiting' || conversationDisplayContent.kind === 'choice' ? undefined : dialogueLine?.speaker ?? sceneEchoSpeaker}
             speakerIsNpc={Boolean(conversationDisplayContent.kind !== 'waiting' && conversationDisplayContent.kind !== 'choice' && (dialogueLine?.speakerNpcId || scene.npcs.some(npc => npc.label === (dialogueLine?.speaker ?? sceneEchoSpeaker))))}
@@ -3531,8 +3555,28 @@ export function MainlineSceneRenderer({
               if (sceneEcho) onSceneEchoTextMotionComplete?.(sceneEcho.id, stableConversationDisplaySessionId, motion)
               else onDialogueTextMotionComplete?.(sessionId, motion)
             }}
-            onReadyChange={(group, ready) => { if (dialogue && dialogueLine) updateDialogueReady(currentDialogueGroup ?? group, ready) }}
-            onAdvance={() => readingShieldRef.current?.click()}
+            onReadyChange={(group, ready) => {
+              if (ready) {
+                conversationDisplayReadyKeyRef.current = conversationDisplayRequiredReadyKey
+                setConversationDisplayReadyKey(conversationDisplayRequiredReadyKey)
+                releaseReadingPageAdvance()
+              } else if (conversationDisplayReadyKeyRef.current === conversationDisplayRequiredReadyKey) {
+                conversationDisplayReadyKeyRef.current = null
+                setConversationDisplayReadyKey(null)
+              }
+              if (dialogue && dialogueLine) updateDialogueReady(currentDialogueGroupRef.current ?? group, ready)
+            }}
+            onAdvance={(identity) => {
+              if (identity.sessionKey !== stableConversationDisplaySessionId
+                || identity.pageKey !== conversationDisplayPageKey
+                || !conversationDisplayContent.canAdvance
+                || conversationDisplayReadyKeyRef.current !== conversationDisplayRequiredReadyKey) return
+              readingShieldRef.current?.click()
+            }}
+            advanceReady={conversationDisplayAdvanceReady}
+            advanceReadyKey={conversationDisplayReadyKey}
+            requiredAdvanceReadyKey={conversationDisplayRequiredReadyKey}
+            advanceRoute={conversationDisplayAdvanceRoute}
             dialogueChoiceWheel={dialogueChoiceWheel}
             onSceneActionChoice={onSceneActionChoice}
             onSceneActionCancel={onSceneActionCancel}
@@ -3623,6 +3667,11 @@ export function MainlineSceneRenderer({
               onClick={(event) => {
                 event.stopPropagation()
                 if (conversationDisplayContent?.kind === 'waiting' || conversationDisplayContent?.kind === 'choice' || (conversationDisplayContent && 'canAdvance' in conversationDisplayContent && !conversationDisplayContent.canAdvance)) return
+                if (hasConversationDisplayContent && conversationDisplayReadyKeyRef.current !== conversationDisplayRequiredReadyKey) return
+                if (hasConversationDisplayContent && !sceneEcho && dialogue && dialogueLine && currentDialogueGroupRef.current !== null) {
+                  dialogueReadyGroupRef.current = currentDialogueGroupRef.current
+                  setDialogueReady(true)
+                }
                 const readingTextIsDeleting = sceneEcho
                   ? sceneEcho.textMotion === 'deleting' || sceneEcho.textMotion === 'deleted'
                   : dialogueTextMotion === 'deleting' || dialogueTextMotion === 'deleted'
@@ -3630,7 +3679,7 @@ export function MainlineSceneRenderer({
                   if (isMenuReading && sceneEcho?.textMotion === 'deleting') onSceneEchoAdvance?.()
                   return
                 }
-                if (readingPageAdvanceLockedRef.current || (sceneEcho && readingFit?.fits === false)) return
+                if ((readingPageAdvanceLockedRef.current && !hasConversationDisplayContent) || (sceneEcho && readingFit?.fits === false)) return
                 if (readingPresentationMode === 'dialogue') {
                   const clickAction = mainlineDialogueClickAction({ motion: dialogueTextMotion, handoffActive: dialogueHandoffActive })
                   if (clickAction === 'ignore') return
@@ -3646,7 +3695,7 @@ export function MainlineSceneRenderer({
                   return
                 }
                 if (!isWideDialogueConversation && displayOverflowIndex + 1 < fittedReadingSegments.length) {
-                  lockReadingPageAdvance()
+                  if (!hasConversationDisplayContent) lockReadingPageAdvance()
                   if (readingSessionKey) setReadingOverflowPage({ sessionKey: readingSessionKey, key: readingOverflowKey, index: displayOverflowIndex + 1, sourceOffset: fittedReadingSegments.slice(0, displayOverflowIndex + 1).join('').length })
                   return
                 }
@@ -3657,7 +3706,7 @@ export function MainlineSceneRenderer({
                     // Wide conversations advance through their own stable
                     // per-line consumed key; they do not run a world-space
                     // ReadingPageFlip that could release this page lock.
-                    if (!isWideDialogueConversation) lockReadingPageAdvance()
+                    if (!isWideDialogueConversation && !hasConversationDisplayContent) lockReadingPageAdvance()
                     dialogueAdvanceConsumedGroupRef.current = currentDialogueGroupRef.current
                     dialogueReadyGroupRef.current = null
                     setDialogueReady(false)
