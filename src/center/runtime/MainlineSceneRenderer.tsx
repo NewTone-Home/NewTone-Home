@@ -893,10 +893,17 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
       isFinalLinePage={isFinalLinePage}
       typewriterEnabled={content.kind === 'text' && (content.textMotion ?? textMotion) === 'typing'}
       choices={[]}
+      onTextSettled={(readyIdentity) => {
+        if (readyIdentity.sessionKey !== sessionId
+          || readyIdentity.lineKey !== contentKey
+          || readyIdentity.pageKey !== pageKey) return
+        if (content.kind === 'text' && (content.textMotion ?? textMotion) === 'typing') {
+          onTextMotionComplete?.(textSessionId, 'static')
+        }
+      }}
       onReady={(readyIdentity, scope) => {
         if (scope === 'text') {
           if (content.kind !== 'choice') onReadyChange(readyIdentity.lineKey, true)
-          if (content.kind === 'text' && (content.textMotion ?? textMotion) === 'typing') onTextMotionComplete?.(textSessionId, 'static')
         }
       }}
       onAdvance={onAdvance}
