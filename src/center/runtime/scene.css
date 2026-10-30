@@ -1227,15 +1227,27 @@
   max-height: min(34vh, 260px);
   overflow-y: auto;
   transform: none !important;
-  padding: 22px max(20px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  padding: 22px max(20px, env(safe-area-inset-right)) max(64px, calc(16px + env(safe-area-inset-bottom))) max(20px, env(safe-area-inset-left));
   color: #f1f0ec;
+  font-size: 18px !important;
   line-height: 1.5;
   text-align: left;
   isolation: isolate;
   animation: none;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 65%, transparent 68%, transparent 100%);
+  -webkit-mask-size: 100% 300%;
+  -webkit-mask-position: 0 100%;
+  mask-image: linear-gradient(to top, #000 0%, #000 65%, transparent 68%, transparent 100%);
+  mask-size: 100% 300%;
+  mask-position: 0 100%;
 }
 .scene-mainline-text.scene-mainline-text--subtitle.is-leaving { animation: mainline-subtitle-leave 160ms ease-in both; }
+.scene-mainline-text.scene-mainline-text--subtitle:not(.is-leaving) { animation: mainline-subtitle-reveal 260ms cubic-bezier(.2, .72, .24, 1) both; }
 @keyframes mainline-subtitle-leave { from { opacity: 1; } to { opacity: 0; } }
+@keyframes mainline-subtitle-reveal {
+  from { -webkit-mask-position: 0 0; mask-position: 0 0; }
+  to { -webkit-mask-position: 0 100%; mask-position: 0 100%; }
+}
 .scene-mainline-text.scene-mainline-text--subtitle::before {
   content: "";
   position: absolute;
@@ -1248,6 +1260,7 @@
   width: max-content;
   margin: 0 0 8px;
   color: #f1f0ec;
+  font-size: 14px;
   text-align: left;
 }
 .scene-mainline-text.scene-mainline-text--subtitle .scene-mainline-text__dialogue {
@@ -1285,6 +1298,17 @@
   line-height: 1.68;
   background: linear-gradient(to left, rgba(11, 13, 17, .91) 0%, rgba(11, 13, 17, .76) 56%, rgba(11, 13, 17, .38) 82%, rgba(11, 13, 17, 0) 100%);
   pointer-events: none;
+  -webkit-mask-image: linear-gradient(to left, #000 0%, #000 65%, transparent 68%, transparent 100%);
+  -webkit-mask-size: 300% 100%;
+  -webkit-mask-position: 100% 0;
+  mask-image: linear-gradient(to left, #000 0%, #000 65%, transparent 68%, transparent 100%);
+  mask-size: 300% 100%;
+  mask-position: 100% 0;
+}
+.scene-mainline-conversation:not(.is-leaving) { animation: mainline-conversation-reveal 260ms cubic-bezier(.2, .72, .24, 1) both; }
+@keyframes mainline-conversation-reveal {
+  from { -webkit-mask-position: 0 0; mask-position: 0 0; }
+  to { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
 }
 .scene-mainline-conversation.is-leaving { animation: mainline-subtitle-leave 160ms ease-in both; }
 .scene-mainline-conversation__history {
@@ -1309,8 +1333,13 @@
 .scene-mainline-conversation-line.is-npc { align-self: flex-start; }
 .scene-mainline-conversation-line.is-player { align-self: flex-end; background: rgba(72, 66, 53, .58); }
 .scene-mainline-conversation-line__speaker { display: block; margin-bottom: 3px; color: var(--active); font-size: .78em; letter-spacing: .04em; }
+.scene-mainline-conversation-line__speaker .scene-mainline-text__speaker { font-size: 14px; }
 .scene-mainline-conversation-line p { margin: 0; white-space: pre-wrap; }
 .scene-mainline-conversation-line--current { max-height: min(38vh, 320px); overflow-y: auto; background: rgba(18, 22, 28, .68); }
+@media (prefers-reduced-motion: reduce) {
+  .scene-mainline-text.scene-mainline-text--subtitle,
+  .scene-mainline-conversation { animation-duration: 1ms !important; }
+}
 .scene-mainline-text--menu .scene-mainline-page { white-space: pre-wrap; }
 .scene-menu-description { font-size: 0.666667em; }
 .scene-menu-measure { position: absolute; top: 0; left: 0; width: max-content; max-width: 100%; white-space: pre-wrap; visibility: hidden; pointer-events: none; }

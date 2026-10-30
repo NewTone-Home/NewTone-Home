@@ -73,4 +73,6 @@ export function startMainlineReadingTextMotion(input: {
 
 /** Allow the first measured background region to soften before the first glyph appears. */
 export const mainlineReadingTypingDelayMs = 140
+export const mainlineReadingBackdropRevealDurationMs = 260
+export const mainlineReadingBackdropTypingDelayMs = mainlineReadingBackdropRevealDurationMs + 40
 export const mainlineReadingMaskReleaseDelayMs = 120

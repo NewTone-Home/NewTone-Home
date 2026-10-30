@@ -235,7 +235,9 @@ export function createMainlineReadingSessionLayoutCache(input: {
         const availableWidth = fitInput.subtitle
           ? Math.max(1, fitInput.metrics.width - 40)
           : bounds!.width / 100 * sceneDesignReferenceMetrics.width * fitInput.worldScale
-        const availableHeight = fitInput.subtitle ? Math.max(80, Math.min(fitInput.metrics.height * .34, 260) - 38) : bounds!.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale
+        // The viewport-pinned subtitle reserves 22px above and 64px below
+        // its body. Keep that exact inset out of the measured page capacity.
+        const availableHeight = fitInput.subtitle ? Math.max(1, Math.min(fitInput.metrics.height * .34, 260) - 86) : bounds!.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale
         for (const candidate of widths) {
           if (candidate.widthPx > fitInput.maximumWidthPx + .001) continue
           const fittedChunks = candidate.pages.get(entryKey({ text: fitInput.text, speaker: fitInput.speaker }))!.segments
