@@ -1225,7 +1225,7 @@
   max-width: 100%;
   height: auto !important;
   max-height: min(34vh, 260px);
-  overflow-y: auto;
+  overflow: hidden;
   transform: none !important;
   padding: 22px max(20px, env(safe-area-inset-right)) max(64px, calc(16px + env(safe-area-inset-bottom))) max(20px, env(safe-area-inset-left));
   color: #f1f0ec;

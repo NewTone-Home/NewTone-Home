@@ -1908,6 +1908,10 @@ export function MainlineSceneRenderer({
         : [{ text: activeReadingText }],
   [activeReadingText, dialogue?.lines, dialogueLine?.speaker, dialogueLine?.text, sceneEcho?.segments, sceneEcho?.text, sceneEchoSpeaker])
   const readingLayoutFontFaceKey = useMainlineReadingFontRevision(readingOcclusionSessionKey)
+  // MainlineScenePage's shared cache is sized for world-space text (12px in
+  // compact portrait). A pinned subtitle is rendered at 18px CSS size, so it
+  // must not reuse that smaller-font pagination plan.
+  const readingLayoutFontKey = readingIsSubtitle ? `${readingLayoutFontFaceKey}:subtitle-18px` : readingLayoutFontFaceKey
   const readingMeasurementKey = mainlineReadingMeasurementKey(readingMetrics, worldScale)
   let readingLayoutSessionCache = readingLayoutSessionCacheRef.current
   if (!readingOcclusionSessionKey) {
@@ -1916,14 +1920,14 @@ export function MainlineSceneRenderer({
   } else if (activeReadingPosition) {
     const sessionTextEntries = [...readingEnvelopeEntries, { text: activeReadingText, speaker: sceneEchoSpeaker ?? dialogueLine?.speaker }]
     if (sharedReadingSessionLayoutCache?.sessionKey === readingOcclusionSessionKey
-      && sharedReadingSessionLayoutCache.fontKey === readingLayoutFontFaceKey
+      && sharedReadingSessionLayoutCache.fontKey === readingLayoutFontKey
       && sharedReadingSessionLayoutCache.measurementKey === readingMeasurementKey) {
       readingLayoutSessionCache = sharedReadingSessionLayoutCache
       readingLayoutSessionCache.addEntries(sessionTextEntries)
       readingLayoutSessionCacheRef.current = readingLayoutSessionCache
     } else if (!readingLayoutSessionCache
       || readingLayoutSessionCache.sessionKey !== readingOcclusionSessionKey
-      || readingLayoutSessionCache.fontKey !== readingLayoutFontFaceKey
+      || readingLayoutSessionCache.fontKey !== readingLayoutFontKey
       || readingLayoutSessionCache.measurementKey !== readingMeasurementKey) {
       const frozenMetrics = readingMetrics
       // A new viewport measurement means a true resize. Freeze this dialogue
@@ -1936,7 +1940,7 @@ export function MainlineSceneRenderer({
         metrics: frozenMetrics,
         maximumWidthPx: frozenMaximumWidth,
         fontSizePx: readingIsSubtitle ? 18 : undefined,
-        fontKey: readingLayoutFontFaceKey,
+        fontKey: readingLayoutFontKey,
         worldScale,
         preferWholeText: Boolean(sceneEcho),
         ...(isMenuReading ? {
@@ -3264,7 +3268,10 @@ export function MainlineSceneRenderer({
                 '--scene-mainline-text-height': `${echoLayout.heightPx / readingTextWorldScale}px`,
                 fontSize: `${echoLayout.fontSizePx / readingTextWorldScale}px`,
                 maxWidth: readingIsSubtitle ? '100%' : `${Math.max(1, displayReadingMaxWidthPx / readingTextWorldScale)}px`,
-                overflow: 'visible',
+                // Pagination fits the 18px text to the measured safe content
+                // rect. Contain the fitted page so stale geometry cannot spill
+                // into the phone handle or viewport edge.
+                overflow: readingIsSubtitle ? 'hidden' : 'visible',
                 visibility: sceneEcho && readingFit?.fits === false ? 'hidden' : undefined,
               } as CSSProperties}
               aria-live="polite"
