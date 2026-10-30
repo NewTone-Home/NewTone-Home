@@ -138,8 +138,8 @@ export function resolveMainlineSceneExploration(
   if (behavior === 'cafe-order') {
     if (context.commercialCafeCoffeeOrdered) return { choice: { text: '咖啡已经点过了。' } }
     return context.carriedMilkTea
-      ? { choice: { text: '手里已经有奶茶了，还要点咖啡吗？', options: ['是', '否'], optionFlow: 'commerce-choice' } }
-      : { choice: { text: '想喝点什么呢？', options: ['点一杯咖啡'], optionFlow: 'commerce-choice' } }
+      ? { choice: { text: '手里已经有奶茶了，还要点咖啡吗？', options: ['是', '否'], optionFlow: 'dialogue-choice' } }
+      : { choice: { text: '想喝点什么呢？', options: ['点一杯咖啡'], optionFlow: 'dialogue-choice' } }
   }
 
   if (scene.explorationText?.[entity.id]) return { pool: scene.explorationText[entity.id] }

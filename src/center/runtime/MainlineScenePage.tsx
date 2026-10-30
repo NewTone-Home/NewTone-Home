@@ -2478,6 +2478,10 @@ export function MainlineScenePage({
       }
       if (hasExplorationContent) {
         const text = explorationChoice?.text ?? availableExplorationPool[Math.floor(Math.random() * availableExplorationPool.length)]
+        const dialogueChoiceSessionId = explorationChoice?.optionFlow === 'dialogue-choice'
+          ? `conversation:${++conversationDisplaySessionIdRef.current}`
+          : undefined
+        if (dialogueChoiceSessionId) setConversationDisplaySessionId(dialogueChoiceSessionId)
         sceneEchoIdRef.current += 1
         presentSceneEcho(createMainlineSceneEcho(
           sceneEchoIdRef.current,
@@ -2486,6 +2490,8 @@ export function MainlineScenePage({
           sceneTextPresentationPosition(scene, getCurrentPosition(), text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
           clockActivityForExploration(entity, Boolean(explorationChoice?.options)),
           explorationChoice?.options,
+          explorationChoice?.optionFlow,
+          dialogueChoiceSessionId,
         ))
       }
       if (startsDialogue) {
@@ -2864,7 +2870,7 @@ export function MainlineScenePage({
     }
     if (sceneAction.entityId === 'yonghe-trial-worker' && isYongheTakeawayScene(scene.id)) {
       if (option === '点餐') onYongheOrderOpen?.()
-      else if (option === '有什么推荐吗') presentYongheEcho('你想吃面还是吃饭？', ['面', '饭'], 'yonghe-trial-worker', 'commerce-choice')
+      else if (option === '有什么推荐吗') presentYongheEcho('你想吃面还是吃饭？', ['面', '饭'], 'yonghe-trial-worker', 'dialogue-choice', sceneAction.conversationDisplaySessionId)
       else if (option === '聊聊') {
         const text = '你们平常都这么忙吗？\n后面那个门是通向哪儿？'
         pendingSceneActionAfterExitRef.current = {
