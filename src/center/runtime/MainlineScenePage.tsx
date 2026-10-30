@@ -1350,6 +1350,7 @@ export function MainlineScenePage({
         const delivered = commercialCafeCoffeeDelivered(current)
         recordSceneStatePatch(scene.id, commercialCafeStoryStatePatch(delivered))
         setDialogueSegmentIndex(0)
+        startDialogueTextSession()
         setCommercialCafeNarrative({ phase: 'delivery-line' })
         commercialCafeCoffeeBehavior.arrivedAtStoryTable()
       } else if (intent.dutyId === 'cafe-coffee-owner.return-to-counter') {
@@ -2917,6 +2918,12 @@ export function MainlineScenePage({
       if (dialogueTextMotionRef.current === 'typing') updateDialogueTextMotion('static')
       return
     }
+    const cursorOneDeliveryStatus = commercialCafeNarrative?.phase === 'active' && commercialCafeStory.narrativeCursor === 1
+      ? cafeStoryOrderDelivery?.status(commercialCafeLaoZhouDeliveryEventId) ?? 'none'
+      : 'none'
+    const deliveryInterruptsDialogue = cursorOneDeliveryStatus === 'queued'
+      || cursorOneDeliveryStatus === 'ready'
+      || cursorOneDeliveryStatus === 'delivered-pending-presentation'
     if (!tailDeletionComplete) {
       if (dialogueTextMotion === 'typing') {
         updateDialogueTextMotion('static')
@@ -2931,7 +2938,7 @@ export function MainlineScenePage({
         ? commercialCafeNarrative.phase === 'delivery-line' ? null : commercialCafeNarrativeDialogue.lines[commercialCafeStory.narrativeCursor + 1]
         : activeDialogue && dialogueLineIndex !== null ? activeDialogue.lines[dialogueLineIndex + 1] : null
       const currentSegments = splitMainlineInteractionText(activeDialogueLine?.text ?? '')
-      if (mainlineDialogueShouldHandoff({
+      if (!deliveryInterruptsDialogue && mainlineDialogueShouldHandoff({
         currentSpeaker: activeDialogueLine?.speaker,
         nextSpeaker: nextLine?.speaker,
         currentSegmentIndex: advanceIntent === 'line' ? currentSegments.length - 1 : dialogueSegmentIndex,
@@ -2982,7 +2989,7 @@ export function MainlineScenePage({
       const nextCursor = commercialCafeStory.narrativeCursor + 1
       setDialogueSegmentIndex(0)
       if (commercialCafeStory.narrativeCursor === 1) {
-        const deliveryStatus = cafeStoryOrderDelivery?.status(commercialCafeLaoZhouDeliveryEventId) ?? 'none'
+        const deliveryStatus = cursorOneDeliveryStatus
         if (deliveryStatus === 'queued' || deliveryStatus === 'ready' || deliveryStatus === 'delivered-pending-presentation') {
           const delivery = cafeStoryOrderDelivery?.begin(commercialCafeLaoZhouDeliveryEventId)
           if (delivery?.ok) {
