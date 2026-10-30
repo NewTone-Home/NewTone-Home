@@ -51,7 +51,7 @@ import type { MainlineReadingSessionLayoutCache } from './mainlineReadingLayoutS
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
 import { mainlineInteractionRoom, mainlineInteractionSpace, mainlineIsInteriorSpace } from './mainlineTextReading'
-import { mainlineDialogueHandoffDurationMs, mainlineDialogueShouldHandoff, mainlineDialogueSpeakerOutsidePosition } from './mainlineDialogueStage'
+import { mainlineDialogueHandoffDurationMs, mainlineDialogueShouldHandoff, mainlineDialogueSpeakerActorId, mainlineDialogueSpeakerOutsidePosition } from './mainlineDialogueStage'
 import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, mainlineExplorationChoiceIsActionOnly, plantIsWatered, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'

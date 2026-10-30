@@ -1793,8 +1793,7 @@ export function MainlineSceneRenderer({
   else if (dialogueCameraAnchorRef.current?.key !== wideConversationCameraSession || dialogueCameraAnchorRef.current.viewportKey !== wideConversationViewportKey) {
     const participantPoints = [...dialogueParticipantNpcIds].flatMap(id => {
       if (hiddenNpcIds?.has(id)) return []
-      const npc = scene.npcs.find(item => item.id === id)
-      const point = npcPositions?.get(id) ?? npc?.position
+      const point = npcPositions?.get(id) ?? resolveMainlineNpcPosition(scene, id, geometrySnapshot.layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
       return point ? [point] : []
     })
     const points = [protagonistVisualPosition, ...participantPoints]
