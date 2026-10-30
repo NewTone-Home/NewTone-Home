@@ -3567,7 +3567,7 @@ export function MainlineSceneRenderer({
             speaker={conversationDisplayContent.kind === 'waiting' || conversationDisplayContent.kind === 'choice' ? undefined : dialogueLine?.speaker ?? sceneEchoSpeaker}
             speakerIsNpc={Boolean(conversationDisplayContent.kind !== 'waiting' && conversationDisplayContent.kind !== 'choice' && (dialogueLine?.speakerNpcId || scene.npcs.some(npc => npc.label === (dialogueLine?.speaker ?? sceneEchoSpeaker))))}
             narrow={!isWideDialogueConversation}
-            windowHeightPx={narrow
+            windowHeightPx={!isWideDialogueConversation
               ? Math.min(224, Math.max(152, viewportMetrics.height * .27))
               : Math.min(260, Math.max(92, viewportMetrics.height * .34))}
             availableWidthPx={Math.max(1, viewportMetrics.width)}
