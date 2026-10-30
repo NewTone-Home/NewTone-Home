@@ -3511,7 +3511,7 @@ export function MainlineSceneRenderer({
             narrow={!isWideDialogueConversation}
             windowHeightPx={Math.min(260, Math.max(92, viewportMetrics.height * .34))}
             availableWidthPx={Math.max(1, viewportMetrics.width)}
-            measuredPageHeightPx={Math.max(1, Math.min(260, (displayReadingLayout ?? echoLayout).heightPx))}
+            measuredPageHeightPx={Math.max(1, Math.min(260, (displayReadingLayout ?? activeDisplayReadingLayout ?? activeReadingLayout ?? mainlineEchoLayout(conversationDisplayPageText, readingMetrics, { speaker: dialogueLine?.speaker ?? sceneEchoSpeaker, maxWidthPx: displayReadingMaxWidthPx })).heightPx))}
             pageIndex={displayOverflowIndex}
             isFinalLinePage={Boolean(dialogue && dialogueLine && dialogueLineIndex === dialogue.lines.length - 1 && displayOverflowIndex + 1 >= fittedReadingSegments.length && conversationDisplayContent.kind === 'text')}
             textSessionId={sceneEcho ? sceneEcho.id : dialogueTextSessionId}

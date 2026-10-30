@@ -768,6 +768,9 @@ export function MainlineScenePage({
     : activeDialogue && dialogueLineIndex !== null
       ? activeDialogue.lines[dialogueLineIndex] ?? null
       : null)
+  // Keep the active segment available to the conversation display model below.
+  const activeDialogueSegments = activeDialogueLine ? [mainlineDisplaySourceText(activeDialogueLine.text)] : []
+  const activeDialogueText = mainlineReadingSegmentDisplayText(activeDialogueSegments, dialogueSegmentIndex)
   const dialogueAnchorSessionRef = useRef<{ key: string; positions: Map<string, Point>; outside: Map<string, { side: 'above' | 'below'; speakerY: number }> } | null>(null)
   const dialogueAnchorSessionKey = activeDialogueLine
     ? commercialStreetQuestionNarrative
@@ -859,10 +862,6 @@ export function MainlineScenePage({
       'scene-observation',
     ))
   }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, readingMetrics, scene, sceneAction])
-  // Dialogue stays one authored utterance. Renderer fitting creates pages
-  // only when the viewport cannot show the whole source safely.
-  const activeDialogueSegments = activeDialogueLine ? [mainlineDisplaySourceText(activeDialogueLine.text)] : []
-  const activeDialogueText = mainlineReadingSegmentDisplayText(activeDialogueSegments, dialogueSegmentIndex)
   const cafeInsideRef = useRef(false)
   useEffect(() => {
     const inside = hasContinuousCafe(scene) && isPointInContinuousCafe(scene, position)

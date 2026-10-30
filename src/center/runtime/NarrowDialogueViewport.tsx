@@ -301,7 +301,6 @@ export function NarrowDialogueViewport({
       } else frame = window.requestAnimationFrame(animate)
       return
     }
-    onAdvance?.(identity)
   }
 
   const confirmFocusedChoice = () => {
