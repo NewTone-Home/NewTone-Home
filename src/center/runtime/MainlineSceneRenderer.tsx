@@ -1820,23 +1820,35 @@ export function MainlineSceneRenderer({
   }, [readingSessionKey])
   const dialogueParticipantResolution = resolveMainlineDialogueParticipants(scene, dialogue, dialogueLine)
   const dialogueParticipantNpcIds = dialogueParticipantResolution.npcIds
-  const wideConversationCameraSession = dialogue && (dialogue.dialoguePresentation === 'conversation' || dialogue.dialoguePresentation === 'aside') && viewportMetrics.width >= 960
-    ? `${scene.id}:${dialogue.triggerEntityId}` : null
+  const cameraParticipantSeatKey = JSON.stringify([...dialogueParticipantNpcIds].sort().map(id => {
+    const snapshot = npcRuntimeSnapshots?.get(id)
+    return [id, mainlineNpcVisualSeatId(scene, id, snapshot) ?? '']
+  }))
+  const wideConversationCameraSession = dialogue
+    && (dialogue.dialoguePresentation === 'conversation' || dialogue.dialoguePresentation === 'aside')
+    && dialoguePhase !== 'leaving'
+    && viewportMetrics.width >= 960
+    ? `${scene.id}:${dialogue.triggerEntityId}:${playerSeatId ?? 'standing'}:${cameraParticipantSeatKey}` : null
   const wideConversationViewportKey = `${viewportMetrics.width}:${viewportMetrics.height}:${viewportMetrics.viewportWidth ?? ''}:${embedded}`
   if (!wideConversationCameraSession) dialogueCameraAnchorRef.current = null
   else if (dialogueCameraAnchorRef.current?.key !== wideConversationCameraSession || dialogueCameraAnchorRef.current.viewportKey !== wideConversationViewportKey) {
-    const participantPoints = [...dialogueParticipantNpcIds].flatMap(id => {
+    const participantBounds = [...dialogueParticipantNpcIds].flatMap(id => {
       if (hiddenNpcIds?.has(id)) return []
+      const npc = scene.npcs.find(candidate => candidate.id === id)
+      if (!npc) return []
       const point = npcPositions?.get(id) ?? resolveMainlineNpcPosition(scene, id, geometrySnapshot.layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
-      return point ? [point] : []
+      if (!point) return []
+      const seatId = mainlineNpcVisualSeatId(scene, id, npcRuntimeSnapshots?.get(id))
+      const visualPosition = mainlineSeatedActorVisualPosition(point, seatId, seatId ? geometrySnapshot.objects.get(seatId)?.position : undefined)
+      return [mainlineLabelFootprint(npc.label, visualPosition, renderScreenMetrics, { lineHeight: 1 })]
     })
-    const points = [protagonistVisualPosition, ...participantPoints]
-    const focus = {
-      x: (Math.min(...points.map(point => point.x)) + Math.max(...points.map(point => point.x))) / 2,
-      y: (Math.min(...points.map(point => point.y)) + Math.max(...points.map(point => point.y))) / 2,
-    }
+    participantBounds.push(mainlineLabelFootprint(protagonistPresentation.kind === 'dot' ? '修杰' : protagonistPresentation.label, protagonistVisualPosition, renderScreenMetrics, { lineHeight: 1 }))
+    const actorBounds = unionWorldBounds(participantBounds)
+    const focus = { x: actorBounds.x + actorBounds.width / 2, y: actorBounds.y + actorBounds.height / 2 }
     const visibleSpan = mainlineVisibleWorldSpan(viewportMetrics)
-    const cameraFocus = { x: focus.x + visibleSpan.x * .16, y: focus.y }
+    const conversationRailWidthPx = Math.max(320, Math.min(viewportMetrics.width * .34, 460))
+    const railWorldSpan = visibleSpan.x * conversationRailWidthPx / Math.max(1, viewportMetrics.width)
+    const cameraFocus = { x: focus.x + railWorldSpan / 2, y: focus.y }
     dialogueCameraAnchorRef.current = {
       key: wideConversationCameraSession,
       viewportKey: wideConversationViewportKey,
@@ -2797,7 +2809,7 @@ export function MainlineSceneRenderer({
   }
   return (
     <section className="scene-wrap" aria-label={`${scene.title}可探索场景`}>
-      <div ref={setStageHost} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-cafe-restroom-toilet-use-phase={cafeRestroomFixtureUsePhases[cafeRestroomToiletId] ?? 'idle'} data-cafe-restroom-sink-use-phase={cafeRestroomFixtureUsePhases[cafeRestroomFaucetId] ?? 'idle'} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-reading-layout-fit-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.fitCalls : undefined} data-reading-layout-split-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.splitCalls : undefined} data-reading-layout-layout-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.layoutCalls : undefined} data-reading-layout-measure-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.textMeasureCalls : undefined} data-scene-dialogue-state={dialoguePhase} data-scene-dialogue-unresolved-speakers={dialogueParticipantResolution.unresolvedSpeakers.join('|') || undefined}>
+      <div ref={setStageHost} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-cafe-restroom-toilet-use-phase={cafeRestroomFixtureUsePhases[cafeRestroomToiletId] ?? 'idle'} data-cafe-restroom-sink-use-phase={cafeRestroomFixtureUsePhases[cafeRestroomFaucetId] ?? 'idle'} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-render-camera-offset-x={renderCameraOffset.x} data-render-camera-offset-y={renderCameraOffset.y} data-wide-conversation-camera-session={wideConversationCameraSession ?? ''} data-wide-conversation-camera-target-x={wideConversationCameraOffset?.x} data-wide-conversation-camera-target-y={wideConversationCameraOffset?.y} data-wide-conversation-camera-transition-active={String(wideConversationCameraComposed || dialogueCameraTransitionActive)} data-reading-layout-fit-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.fitCalls : undefined} data-reading-layout-split-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.splitCalls : undefined} data-reading-layout-layout-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.layoutCalls : undefined} data-reading-layout-measure-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.textMeasureCalls : undefined} data-scene-dialogue-state={dialoguePhase} data-scene-dialogue-unresolved-speakers={dialogueParticipantResolution.unresolvedSpeakers.join('|') || undefined}>
         {layoutMode && <div className="scene-layout-grid" aria-hidden="true" />}
         <span ref={stableViewportRef} className="scene-mainline-stable-viewport" aria-hidden="true" />
 

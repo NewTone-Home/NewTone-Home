@@ -43,7 +43,7 @@ import { AmbientNpcMotion } from './AmbientNpcMotion'
 import { npcRetryDelay, type NpcRuntimeSnapshot } from './npcCore'
 import { npcRoles } from './npcRoles'
 import { useStorefrontPresentation } from './useStorefrontPresentation'
-import { mainlineDisplaySourceText, mainlineReadingSegmentDisplayText, splitMainlineInteractionText } from './mainlineTextSegments'
+import { mainlineDisplaySourceText, mainlineReadingSegmentDisplayText } from './mainlineTextSegments'
 import { mainlineDialogueParticipantNpcIds, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingOpacityForActor, mainlineMaximumReadingWidthPx } from './mainlineTextReading'
 import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey } from './mainlineReadingLayoutSession'
 import { cancelMainlineSceneActionExit, commitMainlineSceneActionExit, completeMainlineSceneActionOptionExit, createMainlineSceneActionExitBarrier, mainlineSceneActionExitMayUnmount, resolveMainlineSceneActionCancellation, type MainlineSceneActionExitBarrier } from './mainlineSceneActionExit'
@@ -825,7 +825,9 @@ export function MainlineScenePage({
       'scene-observation',
     ))
   }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, readingMetrics, scene, sceneAction])
-  const activeDialogueSegments = activeDialogueLine ? splitMainlineInteractionText(activeDialogueLine.text) : []
+  // Dialogue stays one authored utterance. Renderer fitting creates pages
+  // only when the viewport cannot show the whole source safely.
+  const activeDialogueSegments = activeDialogueLine ? [mainlineDisplaySourceText(activeDialogueLine.text)] : []
   const activeDialogueText = mainlineReadingSegmentDisplayText(activeDialogueSegments, dialogueSegmentIndex)
   const cafeInsideRef = useRef(false)
   useEffect(() => {
@@ -2898,7 +2900,7 @@ export function MainlineScenePage({
   }, [finishSceneEchoReading])
 
   const dialogueAtSessionEnd = useCallback(() => {
-    const currentSegments = splitMainlineInteractionText(activeDialogueLine?.text ?? '')
+    const currentSegments = activeDialogueLine ? [mainlineDisplaySourceText(activeDialogueLine.text)] : []
     if (dialogueSegmentIndex + 1 < currentSegments.length) return false
     if (commercialStreetQuestionNarrative) {
       return mainlineReadingSessionTextIsFinal(commercialStreetQuestionNarrative.segmentIndex, commercialStreetQuestionNarrativeLines.length, dialogueSegmentIndex, currentSegments.length)
@@ -2937,7 +2939,7 @@ export function MainlineScenePage({
       const nextLine = commercialCafeNarrative
         ? commercialCafeNarrative.phase === 'delivery-line' ? null : commercialCafeNarrativeDialogue.lines[commercialCafeStory.narrativeCursor + 1]
         : activeDialogue && dialogueLineIndex !== null ? activeDialogue.lines[dialogueLineIndex + 1] : null
-      const currentSegments = splitMainlineInteractionText(activeDialogueLine?.text ?? '')
+      const currentSegments = activeDialogueLine ? [mainlineDisplaySourceText(activeDialogueLine.text)] : []
       if (!deliveryInterruptsDialogue && mainlineDialogueShouldHandoff({
         currentSpeaker: activeDialogueLine?.speaker,
         nextSpeaker: nextLine?.speaker,
@@ -2981,7 +2983,7 @@ export function MainlineScenePage({
       }
       const line = commercialCafeNarrativeDialogue.lines[commercialCafeStory.narrativeCursor]
       if (!line) return
-      const segments = splitMainlineInteractionText(line.text)
+      const segments = [mainlineDisplaySourceText(line.text)]
       if (advanceIntent !== 'line' && dialogueSegmentIndex + 1 < segments.length) {
         setDialogueSegmentIndex((current) => current + 1)
         return
@@ -3031,7 +3033,8 @@ export function MainlineScenePage({
       return
     }
     if (dialogueLineIndex === null || !activeDialogue) return
-    const segments = splitMainlineInteractionText(activeDialogue.lines[dialogueLineIndex]?.text ?? '')
+    const currentText = activeDialogue.lines[dialogueLineIndex]?.text ?? ''
+    const segments = currentText ? [mainlineDisplaySourceText(currentText)] : []
     if (advanceIntent !== 'line' && dialogueSegmentIndex + 1 < segments.length) {
       setDialogueSegmentIndex((current) => current + 1)
       return
