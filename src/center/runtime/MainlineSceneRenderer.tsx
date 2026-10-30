@@ -3089,7 +3089,7 @@ export function MainlineSceneRenderer({
               ? sceneEcho.segmentIndex + 1 < sceneEcho.segments.length
               : dialogueSegmentIndex + 1 < dialogueSegmentCount || Boolean(dialogue && dialogueLineIndex! + 1 < dialogue.lines.length)
             const echoLayout = presentedReadingLayout ?? mainlineEchoLayout(text, readingMetrics, {
-              speaker: isDialogue && !stageDialogue ? dialogueLine!.speaker : sceneEchoSpeaker,
+              speaker: isDialogue ? dialogueLine!.speaker : sceneEchoSpeaker,
               maxWidthPx: displayReadingMaxWidthPx,
             })
             if (isDialogue && !stageDialogue) {
@@ -3155,7 +3155,7 @@ export function MainlineSceneRenderer({
                 else onDialogueExitComplete?.()
               }}
             >
-              {readingIsSubtitle && (isDialogue ? !stageDialogue && dialogueLine!.speaker : sceneEchoSpeaker) && <DialogueSpeaker speaker={isDialogue ? dialogueLine!.speaker : sceneEchoSpeaker!} />}
+              {readingIsSubtitle && (isDialogue ? dialogueLine!.speaker : sceneEchoSpeaker) && <DialogueSpeaker speaker={isDialogue ? dialogueLine!.speaker : sceneEchoSpeaker!} />}
               {isDialogue && !stageDialogue && !readingIsSubtitle && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
               ? <DialogueText onProtectionRects={updateReadingProtectionRects} paused={dialogueTextMotion === 'typing' && !readingIsSubtitle && !readingProtectionRects.length} group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
