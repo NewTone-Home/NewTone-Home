@@ -1593,7 +1593,7 @@ export function MainlineSceneRenderer({
   const dialogueHandoffPresentationRef = useRef<ReturnType<typeof mainlineDialogueHandoffPresentationForId>>(null)
   const dialogueCameraAnchorRef = useRef<{ key: string; viewportKey: string; offset: Point } | null>(null)
   const [dialogueCameraTransitionActive, setDialogueCameraTransitionActive] = useState(false)
-  const wideConversationHandoffAcknowledgedRef = useRef<number | null>(null)
+  const viewportHandoffAcknowledgedRef = useRef<number | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const [viewportOverlayHost, setViewportOverlayHost] = useState<HTMLDivElement | null>(null)
   const setStageHost = useCallback((node: HTMLDivElement | null) => {
@@ -1606,18 +1606,21 @@ export function MainlineSceneRenderer({
   const keepsWorldReadingLayout = isMenuReading || sceneEcho?.entityId === 'commercial-cafe-blackboard'
   const isWideDialogueConversation = Boolean(dialogue?.dialoguePresentation === 'conversation' && viewportMetrics.width >= 960)
   const readingIsSubtitle = Boolean(readingMode && !keepsWorldReadingLayout && !isWideDialogueConversation)
+  const viewportOwnsHandoffOutgoing = isWideDialogueConversation || (readingIsSubtitle && !dialogueStage)
   useEffect(() => {
-    // The wide conversation keeps the outgoing line in its history instead
-    // of mounting the world-space handoff-deletion visual. Acknowledge that
-    // retained visual so the Page can release its normal minimum-duration lock.
+    // Wide conversation history retains the outgoing line; a narrow subtitle
+    // has no world-stage outgoing visual when dialogueStage is absent. In
+    // either case, acknowledge the viewport-owned dismissal so Page can apply
+    // its normal minimum-visible duration. When a stage visual exists, its
+    // own deletion animation remains responsible for the acknowledgement.
     if (!dialogueHandoffOutgoing) {
-      wideConversationHandoffAcknowledgedRef.current = null
+      viewportHandoffAcknowledgedRef.current = null
       return
     }
-    if (!isWideDialogueConversation || wideConversationHandoffAcknowledgedRef.current === dialogueHandoffOutgoing.id) return
-    wideConversationHandoffAcknowledgedRef.current = dialogueHandoffOutgoing.id
+    if (!viewportOwnsHandoffOutgoing || viewportHandoffAcknowledgedRef.current === dialogueHandoffOutgoing.id) return
+    viewportHandoffAcknowledgedRef.current = dialogueHandoffOutgoing.id
     onDialogueHandoffOutgoingDeleted?.(dialogueHandoffOutgoing.id)
-  }, [dialogueHandoffOutgoing?.id, isWideDialogueConversation, onDialogueHandoffOutgoingDeleted])
+  }, [dialogueHandoffOutgoing?.id, onDialogueHandoffOutgoingDeleted, viewportOwnsHandoffOutgoing])
   const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
   const registerBreathingNode = useCallback((entityId: string, node: HTMLSpanElement | null) => {
     if (node) altarBreathingNodesRef.current.set(entityId, node)
@@ -3269,6 +3272,7 @@ export function MainlineSceneRenderer({
               data-scene-dialogue-text-motion={isDialogue ? dialogueTextMotion : undefined}
               data-scene-dialogue-handoff-active={isDialogue ? String(dialogueHandoffActive) : undefined}
               data-scene-dialogue-handoff-id={isDialogue ? dialogueHandoffOutgoing?.id ?? '' : undefined}
+              data-scene-dialogue-handoff-acknowledged={isDialogue ? String(Boolean(dialogueHandoffOutgoing && viewportHandoffAcknowledgedRef.current === dialogueHandoffOutgoing.id)) : undefined}
               data-scene-reading-advance-locked={isDialogue ? String(readingPageAdvanceLockedRef.current) : undefined}
               data-scene-reading-advance-lock-token={isDialogue ? readingPageAdvanceLockTokenRef.current : undefined}
               data-scene-reading-advance-flip-started={isDialogue ? String(readingPageAdvanceFlipStartedTokenRef.current === readingPageAdvanceLockTokenRef.current) : undefined}
@@ -3313,7 +3317,7 @@ export function MainlineSceneRenderer({
             consumedGroup={dialogueAdvanceConsumedGroupRef.current}
             handoffActive={dialogueHandoffActive}
             handoffId={dialogueHandoffOutgoing?.id ?? null}
-            handoffAcknowledged={Boolean(dialogueHandoffOutgoing && wideConversationHandoffAcknowledgedRef.current === dialogueHandoffOutgoing.id)}
+            handoffAcknowledged={Boolean(dialogueHandoffOutgoing && viewportHandoffAcknowledgedRef.current === dialogueHandoffOutgoing.id)}
             onDialogueTextMotionComplete={onDialogueTextMotionComplete}
             onDialogueReadyChange={updateDialogueReady}
           />, viewportOverlayHost)}
