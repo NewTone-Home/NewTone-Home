@@ -131,10 +131,10 @@ type MainlineSceneRendererProps = {
   onDialogueExitComplete?: () => void
   onDialogueAdvance?: (intent?: 'line' | 'segment') => void
   onDialogueTypingSkip?: (sessionId: number) => void
-  onDialogueTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void
+  onDialogueTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => string | void
   sceneEcho?: { id: number; conversationDisplaySessionId?: string; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; textMotion: MainlineReadingTextMotion; phase?: 'leaving' } | null
   onSceneEchoAdvance?: () => void
-  onSceneEchoTextMotionComplete?: (echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => void
+  onSceneEchoTextMotionComplete?: (echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => string | void
   onSceneEchoExitComplete?: (echoId: number, displayPosition: Point, displayCameraOffset: Point) => void
   sceneAction?: { id: number; entityId?: string; options: readonly string[]; optionFlow?: MainlineSceneChoiceFlow; conversationDisplaySessionId?: string; position: Point; cameraOffset?: Point; phase?: 'active' | 'committing' | 'exiting' } | null
   onSceneActionStart?: (actionId: number, index: number) => void
@@ -810,7 +810,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
   textSessionId: number
   textMotion: MainlineReadingTextMotion
   pageAdvanceDiagnostic: string
-  onTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void
+  onTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => string | void
   onReadyChange: (group: string, ready: boolean) => void
   onAdvance: (identity: NarrowDialogueIdentity) => void
   advanceReady: boolean
@@ -892,14 +892,26 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
       measuredPageHeightPx={measuredPageHeightPx}
       isFinalLinePage={isFinalLinePage}
       typewriterEnabled={content.kind === 'text' && (content.textMotion ?? textMotion) === 'typing'}
+      textMotion={content.kind === 'text' ? content.textMotion ?? textMotion : 'static'}
       choices={[]}
-      onTextSettled={(readyIdentity) => {
-        if (readyIdentity.sessionKey !== sessionId
-          || readyIdentity.lineKey !== contentKey
-          || readyIdentity.pageKey !== pageKey) return
-        if (content.kind === 'text' && (content.textMotion ?? textMotion) === 'typing') {
-          onTextMotionComplete?.(textSessionId, 'static')
-        }
+      overlay={keepChoiceWheelForExit && dialogueChoiceWheel ? <DialogueChoiceWheel
+        sessionId={dialogueChoiceWheel.sessionId}
+        actionId={dialogueChoiceWheel.actionId}
+        options={dialogueChoiceWheel.options}
+        phase={dialogueChoiceWheel.phase}
+        placement="narrow-bottom"
+        onConfirm={(actionId, optionIndex) => onSceneActionChoice?.(actionId, optionIndex)}
+        onCancel={() => onSceneActionCancel?.()}
+        onExitComplete={(actionId, optionIndex) => onSceneActionExitComplete?.(actionId, optionIndex)}
+      /> : null}
+      onTextSettled={(readyIdentity, motion) => {
+        if (readyIdentity.sessionKey !== sessionId) return 'rejected:session-key'
+        if (readyIdentity.lineKey !== contentKey) return 'rejected:line-key'
+        if (readyIdentity.pageKey !== pageKey) return 'rejected:page-key'
+        if (content.kind !== 'text') return 'rejected:content-kind'
+        if ((content.textMotion ?? textMotion) !== motion) return `rejected:motion:${content.textMotion ?? textMotion}`
+        const result = onTextMotionComplete?.(textSessionId, motion)
+        return typeof result === 'string' ? result : result === undefined ? 'sent:no-result' : 'accepted'
       }}
       onReady={(readyIdentity, scope) => {
         if (scope === 'text') {
@@ -908,16 +920,6 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
       }}
       onAdvance={onAdvance}
     />
-    {keepChoiceWheelForExit && dialogueChoiceWheel && <DialogueChoiceWheel
-      sessionId={dialogueChoiceWheel.sessionId}
-      actionId={dialogueChoiceWheel.actionId}
-      options={dialogueChoiceWheel.options}
-      phase={dialogueChoiceWheel.phase}
-      placement="narrow-bottom"
-      onConfirm={(actionId, optionIndex) => onSceneActionChoice?.(actionId, optionIndex)}
-      onCancel={() => onSceneActionCancel?.()}
-      onExitComplete={(actionId, optionIndex) => onSceneActionExitComplete?.(actionId, optionIndex)}
-    />}
   </div>
 
   return <div className="scene-mainline-conversation-host" {...displayStateAttributes}>
@@ -3574,8 +3576,8 @@ export function MainlineSceneRenderer({
             textMotion={conversationDisplayContent.kind === 'text' && conversationDisplayContent.textMotion ? conversationDisplayContent.textMotion : sceneEcho?.textMotion ?? dialogueTextMotion}
             pageAdvanceDiagnostic={dialogueAdvanceDiagnostic}
             onTextMotionComplete={(sessionId, motion) => {
-              if (sceneEcho) onSceneEchoTextMotionComplete?.(sceneEcho.id, stableConversationDisplaySessionId, motion)
-              else onDialogueTextMotionComplete?.(sessionId, motion)
+              if (sceneEcho) return onSceneEchoTextMotionComplete?.(sceneEcho.id, stableConversationDisplaySessionId, motion) ?? 'rejected:no-scene-echo-handler'
+              return onDialogueTextMotionComplete?.(sessionId, motion) ?? 'rejected:no-dialogue-handler'
             }}
             onReadyChange={(group, ready) => {
               if (ready) {

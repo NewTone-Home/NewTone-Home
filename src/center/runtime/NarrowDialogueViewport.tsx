@@ -17,6 +17,7 @@ export type NarrowDialogueChoice = Readonly<{
 }>
 
 export type NarrowDialogueExitKind = 'aside' | 'conversation'
+export type NarrowDialogueTextMotion = 'typing' | 'static' | 'deleting' | 'deleted'
 
 export type NarrowDialogueViewportProps = Readonly<{
   /** Keep this component mounted for the lifetime of a session so choices and text share one host mask. */
@@ -34,12 +35,15 @@ export type NarrowDialogueViewportProps = Readonly<{
   isFinalLinePage: boolean
   /** Allows hosts with externally controlled typing or a waiting state to keep the same viewport without starting a local typewriter. */
   typewriterEnabled?: boolean
+  /** Motion owned by the parent lifecycle; deleting must report completion back to that owner. */
+  textMotion?: NarrowDialogueTextMotion
   /** A prior host may own a single opening mask; text starts after its reveal. */
   typewriterStartDelayMs?: number
   choices?: readonly NarrowDialogueChoice[]
+  overlay?: React.ReactNode
   onReady?: (identity: NarrowDialogueIdentity, scope: 'text' | 'options', focusedChoiceId?: string) => void
   /** Reports that the current text page is fully presented, regardless of whether it typed or flipped in. */
-  onTextSettled?: (identity: NarrowDialogueIdentity) => void
+  onTextSettled?: (identity: NarrowDialogueIdentity, motion: 'typing' | 'deleting') => string | void
   onAdvance?: (identity: NarrowDialogueIdentity) => void
   onExitComplete?: (identity: NarrowDialogueIdentity, kind: NarrowDialogueExitKind) => void
   onOptionFocusChange?: (identity: NarrowDialogueIdentity, choiceId: string, index: number) => void
@@ -68,8 +72,10 @@ export function NarrowDialogueViewport({
   measuredPageHeightPx,
   isFinalLinePage,
   typewriterEnabled = true,
+  textMotion = typewriterEnabled ? 'typing' : 'static',
   typewriterStartDelayMs = 300,
   choices = [],
+  overlay,
   onReady,
   onTextSettled,
   onAdvance,
@@ -99,6 +105,9 @@ export function NarrowDialogueViewport({
   const wheelRemainderRef = useRef(0)
   const lastTypewriterSessionRef = useRef<string | null>(null)
   const motionRunRef = useRef(0)
+  const motionCompletionSerialRef = useRef(0)
+  const lastMotionCompletionKeyRef = useRef<string | null>(null)
+  const [motionCompletionDiagnostic, setMotionCompletionDiagnostic] = useState('0:none')
   const readyCallbackRef = useRef(onReady)
   const latestPropsRef = useRef({ identity, onExitComplete, onAdvance, onTextSettled })
   readyCallbackRef.current = onReady
@@ -118,8 +127,16 @@ export function NarrowDialogueViewport({
 
   const notifyReady = (focusedChoiceId?: string) => {
     setReadyKey(identityKey)
-    if (!isOptions) latestPropsRef.current.onTextSettled?.(identity)
     readyCallbackRef.current?.(identity, isOptions ? 'options' : 'text', focusedChoiceId)
+  }
+
+  const reportTextMotionComplete = (motion: 'typing' | 'deleting') => {
+    const completionKey = `${identityKey}:${motion}`
+    if (lastMotionCompletionKeyRef.current === completionKey) return
+    lastMotionCompletionKeyRef.current = completionKey
+    const serial = ++motionCompletionSerialRef.current
+    const result = latestPropsRef.current.onTextSettled?.(identity, motion)
+    setMotionCompletionDiagnostic(`${serial}:${motion}:${typeof result === 'string' ? result : result === undefined ? 'sent' : 'accepted'}`)
   }
 
   useLayoutEffect(() => {
@@ -156,6 +173,7 @@ export function NarrowDialogueViewport({
         if (count >= chars.length) {
           setTextAnimating(false)
           notifyReady()
+          reportTextMotionComplete('typing')
           return
         }
         frame = window.requestAnimationFrame(animate)
@@ -165,6 +183,7 @@ export function NarrowDialogueViewport({
           setDisplayedText(pageText)
           setTextAnimating(false)
           notifyReady()
+          reportTextMotionComplete('typing')
           return
         }
         frame = window.requestAnimationFrame(animate)
@@ -176,14 +195,55 @@ export function NarrowDialogueViewport({
       }
     }
 
+    if (identity.content === 'text' && textMotion === 'deleted') {
+      setDisplayedText('')
+      setReadyKey(null)
+      setTextAnimating(false)
+      setOutgoing(null)
+      return
+    }
+
+    if (identity.content === 'text' && textMotion === 'deleting') {
+      setReadyKey(null)
+      setDisplayedText(pageText)
+      setTextAnimating(true)
+      setOutgoing(null)
+      const chars = Array.from(pageText)
+      let frame = 0
+      let startAt: number | null = null
+      const animateDelete = (now: number) => {
+        if (runId !== motionRunRef.current) return
+        startAt ??= now
+        const elapsed = Math.max(0, now - startAt)
+        const remaining = Math.max(0, chars.length - Math.floor(elapsed / typewriterIntervalMs) - 1)
+        setDisplayedText(chars.slice(0, remaining).join(''))
+        if (remaining <= 0) {
+          setTextAnimating(false)
+          reportTextMotionComplete('deleting')
+          return
+        }
+        frame = window.requestAnimationFrame(animateDelete)
+      }
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || chars.length === 0) {
+        setDisplayedText('')
+        setTextAnimating(false)
+        reportTextMotionComplete('deleting')
+      } else frame = window.requestAnimationFrame(animateDelete)
+      return () => {
+        if (frame) window.cancelAnimationFrame(frame)
+        motionRunRef.current += 1
+      }
+    }
+
     setDisplayedText(pageText)
     if (!shouldAnimate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       setOutgoing(null)
       notifyReady(focusedChoice?.id)
+      if (identity.content === 'text' && textMotion === 'typing') reportTextMotionComplete('typing')
       return
     }
     setOutgoing(prior.identity.content === 'text' ? { ...prior, outgoing: true } : null)
-  }, [identityKey, pageText, speaker, typewriterEnabled])
+  }, [identityKey, pageText, speaker, typewriterEnabled, textMotion])
 
   useLayoutEffect(() => () => {
     motionRunRef.current += 1
@@ -257,9 +317,10 @@ export function NarrowDialogueViewport({
   }
 
   const handleReadyAnimationEnd = (event: AnimationEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget || event.animationName === 'narrow-dialogue-typewriter') return
+    if (event.target !== event.currentTarget || event.animationName !== 'narrow-dialogue-roll-in' || textAnimating) return
     setOutgoing(null)
     notifyReady(focusedChoice?.id)
+    if (identity.content === 'text' && textMotion === 'typing') reportTextMotionComplete('typing')
   }
 
   const handleAdvance = (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -324,6 +385,7 @@ export function NarrowDialogueViewport({
   } as CSSProperties
 
   const outgoingSnapshot = outgoing
+  const motionDiagnosticParts = motionCompletionDiagnostic.split(':')
   const choiceNeighbors = choices
     .map((choice, index) => ({ choice, index }))
     .filter(({ index }) => Math.abs(index - focusedIndex) <= 1)
@@ -345,6 +407,10 @@ export function NarrowDialogueViewport({
     data-narrow-dialogue-page-key={identity.pageKey}
     data-narrow-dialogue-ready={String(isReady)}
     data-narrow-dialogue-content={identity.content}
+    data-narrow-dialogue-text-motion={identity.content === 'text' ? textMotion : undefined}
+    data-narrow-dialogue-motion-completion={motionCompletionDiagnostic}
+    data-narrow-dialogue-motion-event-serial={motionDiagnosticParts[0]}
+    data-narrow-dialogue-motion-reject-reason={motionDiagnosticParts.slice(2).join(':')}
     onWheel={handleWheel}
     onPointerDown={handlePointerDown}
     onPointerMove={handlePointerMove}
@@ -380,9 +446,10 @@ export function NarrowDialogueViewport({
       </div> : <>
         {speaker && <div className="narrow-dialogue-speaker">{speaker}</div>}
         <div className={`narrow-dialogue-text${textAnimating ? ' is-animating' : ''}`}>
-          {displayedText || (!isReady && !textAnimating ? '' : displayedText)}
+          {displayedText}
         </div>
       </>}
     </div>
+    {overlay}
   </div>
 }
