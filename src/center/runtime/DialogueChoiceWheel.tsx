@@ -20,6 +20,7 @@ export type DialogueChoiceWheelProps = {
   placement: 'wide-right' | 'narrow-bottom'
   onConfirm: (actionId: number, optionIndex: number) => void
   onCancel?: (actionId: number) => void
+  onExitComplete?: (actionId: number, optionIndex: number) => void
 }
 
 type PointerDrag = { pointerId: number; startY: number; startPosition: number; lastY: number; lastAt: number; velocity: number }
@@ -28,7 +29,7 @@ type PointerDrag = { pointerId: number; startY: number; startPosition: number; l
  * Focus-only wheel: movement never invokes business callbacks. A settled
  * center click is the sole confirmation path.
  */
-export function DialogueChoiceWheel({ sessionId, actionId, options, phase, placement, onConfirm, onCancel }: DialogueChoiceWheelProps) {
+export function DialogueChoiceWheel({ sessionId, actionId, options, phase, placement, onConfirm, onCancel, onExitComplete }: DialogueChoiceWheelProps) {
   const [position, setPosition] = useState(0)
   const positionRef = useRef(0)
   const [scrolling, setScrolling] = useState(false)
@@ -41,8 +42,21 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
   const dragRef = useRef<PointerDrag | null>(null)
   const onConfirmRef = useRef(onConfirm)
   const onCancelRef = useRef(onCancel)
+  const onExitCompleteRef = useRef(onExitComplete)
+  const exitedActionRef = useRef<number | null>(null)
   onConfirmRef.current = onConfirm
   onCancelRef.current = onCancel
+  onExitCompleteRef.current = onExitComplete
+
+  useEffect(() => {
+    if (phase !== 'exiting' || exitedActionRef.current === actionId) return
+    const timer = window.setTimeout(() => {
+      if (exitedActionRef.current === actionId) return
+      exitedActionRef.current = actionId
+      for (let optionIndex = 0; optionIndex < options.length; optionIndex += 1) onExitCompleteRef.current?.(actionId, optionIndex)
+    }, 180)
+    return () => window.clearTimeout(timer)
+  }, [actionId, options.length, phase])
 
   const clearTimers = useCallback(() => {
     if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current)
@@ -191,7 +205,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
 
   return (
     <div
-      className={`dialogue-choice-wheel dialogue-choice-wheel--${placement}${entering ? ' is-entering' : ''}${scrolling ? ' is-scrolling' : ''}${settled ? ' is-settled' : ''}${locked ? ' is-locked' : ''}`}
+      className={`dialogue-choice-wheel dialogue-choice-wheel--${placement}${entering ? ' is-entering' : ''}${scrolling ? ' is-scrolling' : ''}${settled ? ' is-settled' : ''}${locked ? ' is-locked' : ''}${phase === 'exiting' ? ' is-exiting' : ''}`}
       role="group"
       aria-label="对话选项"
       data-dialogue-choice-wheel="true"

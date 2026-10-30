@@ -1,7 +1,7 @@
 'use client'
 
 import { useLayoutEffect, useRef, useState } from 'react'
-import type { AnimationEvent, CSSProperties, PointerEvent as ReactPointerEvent, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
+import type { AnimationEvent, CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
 import {
   narrowDialogueIdentityKey,
   narrowDialogueStartsTypewriter,
@@ -32,6 +32,8 @@ export type NarrowDialogueViewportProps = Readonly<{
   measuredPageHeightPx: number
   /** True only for the last authored line's last fitted page. */
   isFinalLinePage: boolean
+  /** Allows hosts with externally controlled typing or a waiting state to keep the same viewport without starting a local typewriter. */
+  typewriterEnabled?: boolean
   /** A prior host may own a single opening mask; text starts after its reveal. */
   typewriterStartDelayMs?: number
   choices?: readonly NarrowDialogueChoice[]
@@ -63,6 +65,7 @@ export function NarrowDialogueViewport({
   availableWidthPx,
   measuredPageHeightPx,
   isFinalLinePage,
+  typewriterEnabled = true,
   typewriterStartDelayMs = 300,
   choices = [],
   onReady,
@@ -131,7 +134,7 @@ export function NarrowDialogueViewport({
     setReadyKey(null)
     setTextAnimating(false)
 
-    const canType = narrowDialogueStartsTypewriter(transition, identity.kind, identity.content)
+    const canType = typewriterEnabled && narrowDialogueStartsTypewriter(transition, identity.kind, identity.content)
       && lastTypewriterSessionRef.current !== identity.sessionKey
     if (canType) {
       lastTypewriterSessionRef.current = identity.sessionKey
@@ -176,7 +179,7 @@ export function NarrowDialogueViewport({
       return
     }
     setOutgoing(prior.identity.content === 'text' ? { ...prior, outgoing: true } : null)
-  }, [identityKey, pageText, speaker])
+  }, [identityKey, pageText, speaker, typewriterEnabled])
 
   useLayoutEffect(() => () => {
     motionRunRef.current += 1
@@ -255,8 +258,18 @@ export function NarrowDialogueViewport({
     notifyReady(focusedChoice?.id)
   }
 
-  const handleAdvance = () => {
-    if (isOptions || !isReady || textAnimating) return
+  const handleAdvance = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (isOptions) {
+      event.stopPropagation()
+      return
+    }
+    if (onAdvance) {
+      event.preventDefault()
+      event.stopPropagation()
+      onAdvance(identity)
+      return
+    }
+    if (!isReady || textAnimating) return
     if (identity.kind === 'aside') {
       onExitComplete?.(identity, 'aside')
       return

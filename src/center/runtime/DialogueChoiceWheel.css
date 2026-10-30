@@ -44,6 +44,13 @@
 .dialogue-choice-wheel.is-locked {
   pointer-events: none;
 }
+.dialogue-choice-wheel.is-exiting {
+  opacity: 0;
+  transform: translate3d(0, 12px, 0) scale(.985);
+  transition-duration: 180ms;
+}
+.dialogue-choice-wheel--wide-right.is-exiting { transform: translate3d(10px, -50%, 0) scale(.985); }
+.dialogue-choice-wheel--narrow-bottom.is-exiting { transform: translate3d(-50%, 12px, 0) scale(.985); }
 
 .dialogue-choice-wheel__viewport {
   position: absolute;

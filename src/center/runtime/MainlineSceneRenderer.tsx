@@ -14,7 +14,7 @@ import EntryButtonSurface from '../../components/EntryButtonSurface'
 import EntryButtonFrame from '../../components/EntryButtonFrame'
 import type { CollisionBox, Point } from './sceneGeometry'
 import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
-import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
+import type { MainlineConversationDisplayContent, MainlineDialogueChoiceWheelPresentation, MainlineSceneChoiceFlow, MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
 import { mainlineActiveSpatialSpaceId, mainlineEntityIsPublicStreetContent, mainlineEntityMatchesCurrentPresentation, mainlinePassageDoorPresentationActive, mainlinePublicStreetPresentationIsActive } from './mainlineSceneModel'
 import { mainlineDoorPortalShouldRender, mainlineGeometryCellWithinViewport, mainlineGeometryUnitShouldRender } from './mainlineSceneVisibility'
 import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineEntityVisualBounds, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
@@ -41,6 +41,9 @@ import { mainlineObservationPageIsSettled } from './mainlineObservationTyping'
 import { mainlineReadingBackdropTypingDelayMs, mainlineReadingMaskReleaseDelayMs, mainlineReadingTypingDelayMs, mainlineReadingTextMotionCanAnimate, startMainlineReadingTextMotion, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
 import { mainlineReadingPageAdvanceResumeGraceMs, mainlineReadingPageAdvanceStartupWatchdogMs, mainlineReadingPageAdvanceTokenIsCurrent, mainlineReadingPageAdvanceWatchdogMayRelease } from './mainlineReadingPageAdvance'
 import { DialogueSpeaker } from './DialogueSpeaker'
+import { NarrowDialogueViewport } from './NarrowDialogueViewport'
+import { DialogueChoiceWheel } from './DialogueChoiceWheel'
+import type { NarrowDialogueIdentity } from './NarrowDialogueIdentity'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
 import { storefrontRoomConnection } from './storefrontRoomConnection'
@@ -105,6 +108,9 @@ type MainlineSceneRendererProps = {
   onWalk: (point: Point) => void
   worldQuestionMark?: { anchor: Point; visible: boolean }
   dialogue?: MainlineSceneDialoguePresentation
+  conversationDisplaySessionId?: string | null
+  conversationDisplayContent?: MainlineConversationDisplayContent | null
+  dialogueChoiceWheel?: MainlineDialogueChoiceWheelPresentation | null
   dialogueLine?: MainlineSceneDialogueLine | null
   dialogueText?: string
   dialogueLineIndex?: number | null
@@ -125,13 +131,14 @@ type MainlineSceneRendererProps = {
   onDialogueAdvance?: (intent?: 'line' | 'segment') => void
   onDialogueTypingSkip?: (sessionId: number) => void
   onDialogueTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void
-  sceneEcho?: { id: number; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; textMotion: MainlineReadingTextMotion; phase?: 'leaving' } | null
+  sceneEcho?: { id: number; conversationDisplaySessionId?: string; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; textMotion: MainlineReadingTextMotion; phase?: 'leaving' } | null
   onSceneEchoAdvance?: () => void
   onSceneEchoTextMotionComplete?: (echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => void
   onSceneEchoExitComplete?: (echoId: number, displayPosition: Point, displayCameraOffset: Point) => void
-  sceneAction?: { id: number; entityId?: string; options: readonly string[]; position: Point; cameraOffset?: Point; phase?: 'active' | 'committing' | 'exiting' } | null
+  sceneAction?: { id: number; entityId?: string; options: readonly string[]; optionFlow?: MainlineSceneChoiceFlow; conversationDisplaySessionId?: string; position: Point; cameraOffset?: Point; phase?: 'active' | 'committing' | 'exiting' } | null
   onSceneActionStart?: (actionId: number, index: number) => void
   onSceneActionChoice?: (actionId: number, index: number) => void
+  onSceneActionCancel?: () => void
   onSceneActionExitComplete?: (actionId: number, index: number) => void
   heldConsumable?: HeldConsumable | null
   onHeldConsumableInteract?: () => void
@@ -781,6 +788,139 @@ function MainlineDialogueConversation({ scene, dialogue, dialogueLine, dialogueL
       <p><ConversationDialogueText pageKey={group} text={dialogueLine.text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} typingDelayMs={currentIndex === 0 ? mainlineReadingBackdropTypingDelayMs : undefined} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={onDialogueReadyChange} group={group} /></p>
     </article>
   </section>
+}
+
+type ConversationHistoryEntry = Readonly<{ key: string; speaker?: string; speakerIsNpc: boolean; text: string }>
+
+function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, pageText, speaker, speakerIsNpc, narrow, windowHeightPx, availableWidthPx, measuredPageHeightPx, pageIndex, isFinalLinePage, textSessionId, textMotion, onTextMotionComplete, onReadyChange, onAdvance, dialogueChoiceWheel, onSceneActionChoice, onSceneActionCancel, onSceneActionExitComplete }: {
+  sessionId: string
+  content: MainlineConversationDisplayContent
+  contentKey: string
+  pageKey: string
+  pageText: string
+  speaker?: string
+  speakerIsNpc: boolean
+  narrow: boolean
+  windowHeightPx: number
+  availableWidthPx: number
+  measuredPageHeightPx: number
+  pageIndex: number
+  isFinalLinePage: boolean
+  textSessionId: number
+  textMotion: MainlineReadingTextMotion
+  onTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void
+  onReadyChange: (group: string, ready: boolean) => void
+  onAdvance: () => void
+  dialogueChoiceWheel?: MainlineDialogueChoiceWheelPresentation | null
+  onSceneActionChoice?: (actionId: number, index: number) => void
+  onSceneActionCancel?: () => void
+  onSceneActionExitComplete?: (actionId: number, index: number) => void
+}) {
+  const historyEntriesRef = useRef<ConversationHistoryEntry[]>([])
+  const historyElementRef = useRef<HTMLDivElement>(null)
+  const previousRef = useRef<{ key: string; content: MainlineConversationDisplayContent; speaker?: string; speakerIsNpc: boolean } | null>(null)
+  const [history, setHistory] = useState<readonly ConversationHistoryEntry[]>([])
+  useLayoutEffect(() => {
+    const previous = previousRef.current
+    if (previous && previous.key !== contentKey && previous.content.kind === 'text' && previous.content.text.trim()) {
+      const entry = { key: previous.key, speaker: previous.speaker, speakerIsNpc: previous.speakerIsNpc, text: previous.content.text }
+      if (!historyEntriesRef.current.some(item => item.key === entry.key)) {
+        historyEntriesRef.current = [...historyEntriesRef.current, entry]
+        setHistory(historyEntriesRef.current)
+      }
+    }
+    previousRef.current = { key: contentKey, content, speaker, speakerIsNpc }
+  }, [content, contentKey, speaker, speakerIsNpc])
+  useLayoutEffect(() => {
+    const node = historyElementRef.current
+    if (node) node.scrollTop = node.scrollHeight
+  }, [history.length])
+
+  const currentText = content.kind === 'choice' ? '' : pageText
+  const keepChoiceWheelForExit = Boolean(dialogueChoiceWheel && (content.kind === 'choice'
+    ? dialogueChoiceWheel.actionId === content.actionId
+    : dialogueChoiceWheel.phase === 'exiting'))
+  const identity: NarrowDialogueIdentity = {
+    sessionKey: sessionId,
+    kind: content.kind === 'aside' ? 'aside' : 'conversation',
+    lineKey: contentKey,
+    pageKey,
+    pageIndex,
+    content: content.kind === 'choice' ? 'options' : 'text',
+    optionSetKey: content.kind === 'choice' ? `action:${content.actionId}` : undefined,
+    speakerKey: speaker,
+  }
+
+  if (narrow) return <div className="scene-mainline-subtitle-host" data-conversation-display-session={sessionId} data-conversation-display-kind={content.kind}>
+    {history.length > 0 && <div className="scene-mainline-subtitle-host__history" aria-live="polite">
+      {history.map(entry => <article key={entry.key} className={`scene-mainline-conversation-line ${entry.speakerIsNpc ? 'is-npc' : 'is-player'}`} data-dialogue-history-line={entry.key}>
+        {entry.speaker && <span className="scene-mainline-conversation-line__speaker">{entry.speaker}</span>}
+        <p>{entry.text}</p>
+      </article>)}
+    </div>}
+    <NarrowDialogueViewport
+      identity={identity}
+      speaker={speaker ? <DialogueSpeaker speaker={speaker} /> : undefined}
+      pageText={currentText}
+      windowHeightPx={windowHeightPx}
+      availableWidthPx={availableWidthPx}
+      measuredPageHeightPx={measuredPageHeightPx}
+      isFinalLinePage={isFinalLinePage}
+      typewriterEnabled={content.kind === 'text' && (content.textMotion ?? textMotion) === 'typing'}
+      choices={[]}
+      onReady={(readyIdentity, scope) => {
+        if (scope === 'text') {
+          if (content.kind !== 'choice') onReadyChange(readyIdentity.lineKey, true)
+          if (content.kind === 'text' && (content.textMotion ?? textMotion) === 'typing') onTextMotionComplete?.(textSessionId, 'static')
+        }
+      }}
+      onAdvance={onAdvance}
+    />
+    {keepChoiceWheelForExit && dialogueChoiceWheel && <DialogueChoiceWheel
+      sessionId={dialogueChoiceWheel.sessionId}
+      actionId={dialogueChoiceWheel.actionId}
+      options={dialogueChoiceWheel.options}
+      phase={dialogueChoiceWheel.phase}
+      placement="narrow-bottom"
+      onConfirm={(actionId, optionIndex) => onSceneActionChoice?.(actionId, optionIndex)}
+      onCancel={() => onSceneActionCancel?.()}
+      onExitComplete={(actionId, optionIndex) => onSceneActionExitComplete?.(actionId, optionIndex)}
+    />}
+  </div>
+
+  return <div className="scene-mainline-conversation-host" data-conversation-display-session={sessionId} data-conversation-display-kind={content.kind}>
+    <section className="scene-mainline-conversation" aria-live="polite" aria-label="对话记录" data-dialogue-presentation="conversation">
+      <div ref={historyElementRef} className="scene-mainline-conversation__history">
+        {history.map(entry => <article key={entry.key} className={`scene-mainline-conversation-line ${entry.speakerIsNpc ? 'is-npc' : 'is-player'}`} data-dialogue-history-line={entry.key}>
+          {entry.speaker && <span className="scene-mainline-conversation-line__speaker">{entry.speaker}</span>}
+          <p>{entry.text}</p>
+        </article>)}
+      </div>
+      {(content.kind === 'text' || content.kind === 'aside' || content.kind === 'waiting') && <article className={`scene-mainline-conversation-line scene-mainline-conversation-line--current ${speakerIsNpc ? 'is-npc' : 'is-player'} ${content.kind === 'aside' ? 'is-aside' : ''}`} data-dialogue-current-line={contentKey}>
+        {speaker && <span className="scene-mainline-conversation-line__speaker"><DialogueSpeaker speaker={speaker} /></span>}
+        {content.kind === 'text' && <p><ConversationDialogueText
+          pageKey={pageKey}
+          text={currentText}
+          sessionId={textSessionId}
+          motion={content.textMotion ?? textMotion}
+          onMotionComplete={onTextMotionComplete}
+          onReadyChange={onReadyChange}
+          group={contentKey}
+        /></p>}
+        {content.kind !== 'text' && <p>{content.text}</p>}
+      </article>}
+      {keepChoiceWheelForExit && dialogueChoiceWheel && <DialogueChoiceWheel
+        sessionId={dialogueChoiceWheel.sessionId}
+        actionId={dialogueChoiceWheel.actionId}
+        options={dialogueChoiceWheel.options}
+        phase={dialogueChoiceWheel.phase}
+        placement="wide-right"
+        onConfirm={(actionId, optionIndex) => onSceneActionChoice?.(actionId, optionIndex)}
+        onCancel={() => onSceneActionCancel?.()}
+        onExitComplete={(actionId, optionIndex) => onSceneActionExitComplete?.(actionId, optionIndex)}
+      />}
+    </section>
+  </div>
 }
 
 function DialogueHandoffOutgoingText({ id, text, position, overflowIndex, durationMs, layout, worldScale, lockToken, projectX, onDeleted }: { id: number; text: string; position: Point; overflowIndex?: number; durationMs: number; layout: MainlineEchoLayout; worldScale: number; lockToken: number; projectX: (value: number) => number; onDeleted: (id: number) => void }) {
@@ -1448,6 +1588,9 @@ export function MainlineSceneRenderer({
   onWalk,
   worldQuestionMark,
   dialogue,
+  conversationDisplaySessionId = null,
+  conversationDisplayContent = null,
+  dialogueChoiceWheel = null,
   dialogueLine = null,
   dialogueText = '',
   dialogueLineIndex = null,
@@ -1475,6 +1618,7 @@ export function MainlineSceneRenderer({
   sceneAction = null,
   onSceneActionStart,
   onSceneActionChoice,
+  onSceneActionCancel,
   onSceneActionExitComplete,
   heldConsumable = null,
   onHeldConsumableInteract,
@@ -1502,6 +1646,7 @@ export function MainlineSceneRenderer({
   const [dialogueReady, setDialogueReady] = useState(false)
   const [readingOverflowPage, setReadingOverflowPage] = useState<import('./mainlineReadingProtection').MainlineReadingOverflowPageState>(null)
   const [settledReadingPageKey, setSettledReadingPageKey] = useState<string | null>(null)
+  const readingShieldRef = useRef<HTMLButtonElement | null>(null)
   const readingLayoutSessionCacheRef = useRef<MainlineReadingSessionLayoutCache | null>(null)
   const readingPageAdvanceLockedRef = useRef(false)
   const readingPageAdvanceLockTimerRef = useRef<number | null>(null)
@@ -1607,7 +1752,8 @@ export function MainlineSceneRenderer({
   const dimmerRef = useRef<HTMLDivElement>(null)
   const isMenuReading = Boolean(sceneEcho && isWallMenuReading(sceneEcho.entityId))
   const keepsWorldReadingLayout = isMenuReading || sceneEcho?.entityId === 'commercial-cafe-blackboard'
-  const isWideDialogueConversation = Boolean(dialogue?.dialoguePresentation === 'conversation' && viewportMetrics.width >= 960)
+  const hasConversationDisplayContent = Boolean(conversationDisplayContent && (conversationDisplaySessionId || conversationDisplayContent.sessionId))
+  const isWideDialogueConversation = Boolean((hasConversationDisplayContent || dialogue?.dialoguePresentation === 'conversation') && viewportMetrics.width >= 960)
   const readingIsSubtitle = Boolean(readingMode && !keepsWorldReadingLayout && !isWideDialogueConversation)
   const viewportOwnsHandoffOutgoing = isWideDialogueConversation || (readingIsSubtitle && !dialogueStage)
   useEffect(() => {
@@ -1777,6 +1923,7 @@ export function MainlineSceneRenderer({
     releaseReadingPageAdvance(token ?? undefined)
   }, [dialogueTextMotion, releaseReadingPageAdvance, sceneEcho?.textMotion])
   const readingPresentationMode = readingMode ?? (sceneEcho ? 'observation' : readingIsLeaving ? 'dialogue' : null)
+  const stableConversationDisplaySessionId = conversationDisplaySessionId ?? conversationDisplayContent?.sessionId ?? null
   const readingSessionKey = !readingPresentationMode ? null : sceneEcho
     ? `${scene.id}:observation:echo:${sceneEcho.id}:${sceneEcho.entityId ?? ''}`
     : mainlineDialogueReadingSessionKey(scene.id, dialogue?.triggerEntityId, dialogueLine?.id, dialogueLineIndex)
@@ -2342,6 +2489,16 @@ export function MainlineSceneRenderer({
       : mainlineDialoguePageGroup(dialogue, dialogueLine, dialogueLineIndex, dialogueTextSessionId, dialogueSegmentIndex, displayOverflowIndex)
     : null
   currentDialogueGroupRef.current = currentDialogueGroup
+  const conversationDisplayContentKey = conversationDisplayContent?.kind === 'waiting'
+    ? `${stableConversationDisplaySessionId ?? 'conversation'}:waiting`
+    : conversationDisplayContent?.kind === 'choice'
+      ? `action:${conversationDisplayContent.actionId}`
+      : `${conversationDisplayContent?.kind ?? 'none'}:${dialogueLine?.id ?? (sceneEcho ? `echo:${sceneEcho.id}` : conversationDisplayContent?.text ?? '')}`
+  const conversationDisplayPageText = conversationDisplayContent?.kind === 'waiting'
+    ? conversationDisplayContent.text
+    : conversationDisplayContent?.kind === 'choice'
+      ? ''
+      : isWideDialogueConversation ? conversationDisplayContent?.text ?? '' : activeDisplayReadingText
   const readingVisualActive = Boolean(readingPresentation && activeReadingPosition && displayReadingLayout)
   const readingMaskRects = useMemo(() => keepsWorldReadingLayout ? mainlineReadingMaskRects(sceneRenderBounds, readingProtectedVisuals) : [], [keepsWorldReadingLayout, readingProtectedVisuals, sceneRenderBounds])
   const readingDisplayPosition = readingPresentation?.position ?? activeReadingPosition
@@ -3216,7 +3373,7 @@ export function MainlineSceneRenderer({
           }} />
         })}
         <div className="scene-mainline-reading-layer">
-  {!isWideDialogueConversation && (!readingIsSubtitle || viewportOverlayHost) && (sceneEcho || (dialogue && dialogueLine && dialoguePosition)) && (() => {
+  {!hasConversationDisplayContent && !isWideDialogueConversation && (!readingIsSubtitle || viewportOverlayHost) && (sceneEcho || (dialogue && dialogueLine && dialoguePosition)) && (() => {
             const isDialogue = !sceneEcho && Boolean(dialogue && dialogueLine && dialoguePosition)
             const isLeaving = sceneEcho?.phase === 'leaving' || (isDialogue && dialoguePhase === 'leaving')
             const text = displayReadingText
@@ -3342,7 +3499,35 @@ export function MainlineSceneRenderer({
             </Fragment>
             return readingIsSubtitle && viewportOverlayHost ? createPortal(readingText, viewportOverlayHost) : readingText
           })()}
-          {isWideDialogueConversation && viewportOverlayHost && dialogue && dialogueLine && createPortal(<MainlineDialogueConversation
+          {hasConversationDisplayContent && stableConversationDisplaySessionId && viewportOverlayHost && conversationDisplayContent && createPortal(<ConversationDisplaySurface
+            key={stableConversationDisplaySessionId}
+            sessionId={stableConversationDisplaySessionId}
+            content={conversationDisplayContent}
+            contentKey={conversationDisplayContentKey}
+            pageKey={readingLayoutPageKey ?? `${conversationDisplayContentKey}:${displayOverflowIndex}`}
+            pageText={conversationDisplayPageText}
+            speaker={conversationDisplayContent.kind === 'waiting' || conversationDisplayContent.kind === 'choice' ? undefined : dialogueLine?.speaker ?? sceneEchoSpeaker}
+            speakerIsNpc={Boolean(conversationDisplayContent.kind !== 'waiting' && conversationDisplayContent.kind !== 'choice' && (dialogueLine?.speakerNpcId || scene.npcs.some(npc => npc.label === (dialogueLine?.speaker ?? sceneEchoSpeaker))))}
+            narrow={!isWideDialogueConversation}
+            windowHeightPx={Math.min(260, Math.max(92, viewportMetrics.height * .34))}
+            availableWidthPx={Math.max(1, viewportMetrics.width)}
+            measuredPageHeightPx={Math.max(1, Math.min(260, (displayReadingLayout ?? echoLayout).heightPx))}
+            pageIndex={displayOverflowIndex}
+            isFinalLinePage={Boolean(dialogue && dialogueLine && dialogueLineIndex === dialogue.lines.length - 1 && displayOverflowIndex + 1 >= fittedReadingSegments.length && conversationDisplayContent.kind === 'text')}
+            textSessionId={sceneEcho ? sceneEcho.id : dialogueTextSessionId}
+            textMotion={conversationDisplayContent.kind === 'text' && conversationDisplayContent.textMotion ? conversationDisplayContent.textMotion : sceneEcho?.textMotion ?? dialogueTextMotion}
+            onTextMotionComplete={(sessionId, motion) => {
+              if (sceneEcho) onSceneEchoTextMotionComplete?.(sceneEcho.id, stableConversationDisplaySessionId, motion)
+              else onDialogueTextMotionComplete?.(sessionId, motion)
+            }}
+            onReadyChange={(group, ready) => { if (dialogue && dialogueLine) updateDialogueReady(currentDialogueGroup ?? group, ready) }}
+            onAdvance={() => readingShieldRef.current?.click()}
+            dialogueChoiceWheel={dialogueChoiceWheel}
+            onSceneActionChoice={onSceneActionChoice}
+            onSceneActionCancel={onSceneActionCancel}
+            onSceneActionExitComplete={onSceneActionExitComplete}
+          />, viewportOverlayHost)}
+          {!hasConversationDisplayContent && isWideDialogueConversation && viewportOverlayHost && dialogue && dialogueLine && createPortal(<MainlineDialogueConversation
             scene={scene}
             dialogue={dialogue}
             dialogueLine={dialogueLine}
@@ -3360,7 +3545,7 @@ export function MainlineSceneRenderer({
             onDialogueTextMotionComplete={onDialogueTextMotionComplete}
             onDialogueReadyChange={updateDialogueReady}
           />, viewportOverlayHost)}
-          {sceneAction && <div
+          {sceneAction && dialogueChoiceWheel?.actionId !== sceneAction.id && <div
             ref={sceneActionRef}
             className="scene-mainline-action scene-mainline-action--reading"
             style={{
@@ -3418,6 +3603,7 @@ export function MainlineSceneRenderer({
         </div>
           {readingMode && <>
             <button
+              ref={readingShieldRef}
               type="button"
               className="scene-dialogue-shield"
               aria-label="继续阅读"
@@ -3425,6 +3611,7 @@ export function MainlineSceneRenderer({
               onPointerUp={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation()
+                if (conversationDisplayContent?.kind === 'waiting' || conversationDisplayContent?.kind === 'choice' || (conversationDisplayContent && 'canAdvance' in conversationDisplayContent && !conversationDisplayContent.canAdvance)) return
                 const readingTextIsDeleting = sceneEcho
                   ? sceneEcho.textMotion === 'deleting' || sceneEcho.textMotion === 'deleted'
                   : dialogueTextMotion === 'deleting' || dialogueTextMotion === 'deleted'
