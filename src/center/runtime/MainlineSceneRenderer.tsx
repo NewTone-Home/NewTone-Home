@@ -3253,7 +3253,7 @@ export function MainlineSceneRenderer({
               style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.worldWidthPx}px`, minHeight: `${echoLayout.heightPx / readingTextWorldScale}px`, fontSize: `${echoLayout.fontSizePx / readingTextWorldScale}px` }}
             ><DialogueSpeaker speaker={dialogueLine!.speaker} /></div>}
             <div
-              key={readingIsSubtitle ? readingSessionKey : readingLayoutContinuityKey ?? sceneEcho?.id ?? dialogueLine!.id}
+              key={readingIsSubtitle ? readingOcclusionSessionKey ?? readingSessionKey : readingLayoutContinuityKey ?? sceneEcho?.id ?? dialogueLine!.id}
               className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${readingIsSubtitle ? 'scene-mainline-text--subtitle' : ''} ${stageDialogue ? 'scene-mainline-text--stage-dialogue' : ''} ${isMenuReading ? 'scene-mainline-text--menu' : ''} ${isLeaving ? 'is-leaving' : ''}`}
               style={{
                 left: readingIsSubtitle ? '0%' : `${speakerAnchor
