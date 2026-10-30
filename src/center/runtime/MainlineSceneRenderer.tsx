@@ -751,6 +751,10 @@ function mainlineConversationTurnGroup(dialogue: MainlineSceneDialoguePresentati
   return `conversation:${dialogue.triggerEntityId}:${dialogueLineIndex ?? 0}:${dialogueLine.id}:${dialogueTextSessionId}`
 }
 
+function mainlineDialoguePageGroup(dialogue: MainlineSceneDialoguePresentation, dialogueLine: MainlineSceneDialogueLine, dialogueLineIndex: number | null, dialogueTextSessionId: number, segmentIndex: number, overflowIndex: number) {
+  return `dialogue:${dialogue.triggerEntityId}:${dialogueLineIndex ?? 0}:${dialogueLine.id}:${dialogueTextSessionId}:${segmentIndex}:fit:${overflowIndex}`
+}
+
 function MainlineDialogueConversation({ scene, dialogue, dialogueLine, dialogueLineIndex, dialogueTextSessionId, dialogueTextMotion, isLeaving, isReady, isConsumed, readyGroup, consumedGroup, handoffActive, handoffId, handoffAcknowledged, onDialogueTextMotionComplete, onDialogueReadyChange }: { scene: MainlineSceneDefinition; dialogue: MainlineSceneDialoguePresentation; dialogueLine: MainlineSceneDialogueLine; dialogueLineIndex: number | null; dialogueTextSessionId: number; dialogueTextMotion: MainlineReadingTextMotion; isLeaving: boolean; isReady: boolean; isConsumed: boolean; readyGroup: string | null; consumedGroup: string | null; handoffActive: boolean; handoffId: number | null; handoffAcknowledged: boolean; onDialogueTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void; onDialogueReadyChange: (group: string, ready: boolean) => void }) {
   const currentIndex = Math.max(0, dialogueLineIndex ?? 0)
   const previousLines = dialogue.lines.slice(0, currentIndex)
@@ -2302,7 +2306,7 @@ export function MainlineSceneRenderer({
   const currentDialogueGroup = dialogue && dialogueLine
     ? isWideDialogueConversation
       ? mainlineConversationTurnGroup(dialogue, dialogueLine, dialogueLineIndex, dialogueTextSessionId)
-      : `dialogue:${dialogueLine.id}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`
+      : mainlineDialoguePageGroup(dialogue, dialogueLine, dialogueLineIndex, dialogueTextSessionId, dialogueSegmentIndex, displayOverflowIndex)
     : null
   currentDialogueGroupRef.current = currentDialogueGroup
   const readingVisualActive = Boolean(readingPresentation && activeReadingPosition && displayReadingLayout)
@@ -3185,7 +3189,7 @@ export function MainlineSceneRenderer({
             const text = displayReadingText
             const sourcePosition = sceneEcho?.position ?? dialoguePosition!
             const position = readingDisplayPosition ?? sourcePosition
-            const group = sceneEcho ? `echo:${sceneEcho.id}` : `dialogue:${dialogueLine!.id}`
+            const group = sceneEcho ? `echo:${sceneEcho.id}` : `dialogue:${dialogue!.triggerEntityId}:${dialogueLineIndex ?? 0}:${dialogueLine!.id}:${dialogueTextSessionId}`
             const stageDialogue = Boolean(isDialogue && dialogueStage)
             const hasNextSegment = sceneEcho
               ? sceneEcho.segmentIndex + 1 < sceneEcho.segments.length
@@ -3254,7 +3258,20 @@ export function MainlineSceneRenderer({
               data-scene-reading-occlusion-width={readingOcclusionRect?.width}
               data-scene-reading-occlusion-height={readingOcclusionRect?.height}
               data-scene-dialogue-ready={isDialogue ? String(dialogueReady) : undefined}
+              data-scene-dialogue-current-group={isDialogue ? currentDialogueGroup ?? '' : undefined}
+              data-scene-dialogue-rendered-group={isDialogue ? mainlineDialoguePageGroup(dialogue!, dialogueLine!, dialogueLineIndex, dialogueTextSessionId, dialogueSegmentIndex, displayOverflowIndex) : undefined}
+              data-scene-dialogue-ready-group={isDialogue ? dialogueReadyGroupRef.current ?? '' : undefined}
+              data-scene-dialogue-consumed-group={isDialogue ? dialogueAdvanceConsumedGroupRef.current ?? '' : undefined}
+              data-scene-dialogue-ready-match={isDialogue ? String(currentDialogueGroup !== null && dialogueReadyGroupRef.current === currentDialogueGroup) : undefined}
+              data-scene-dialogue-consumed-match={isDialogue ? String(currentDialogueGroup !== null && dialogueAdvanceConsumedGroupRef.current === currentDialogueGroup) : undefined}
+              data-scene-dialogue-segment-index={isDialogue ? dialogueSegmentIndex : undefined}
+              data-scene-dialogue-overflow-index={isDialogue ? displayOverflowIndex : undefined}
               data-scene-dialogue-text-motion={isDialogue ? dialogueTextMotion : undefined}
+              data-scene-dialogue-handoff-active={isDialogue ? String(dialogueHandoffActive) : undefined}
+              data-scene-dialogue-handoff-id={isDialogue ? dialogueHandoffOutgoing?.id ?? '' : undefined}
+              data-scene-reading-advance-locked={isDialogue ? String(readingPageAdvanceLockedRef.current) : undefined}
+              data-scene-reading-advance-lock-token={isDialogue ? readingPageAdvanceLockTokenRef.current : undefined}
+              data-scene-reading-advance-flip-started={isDialogue ? String(readingPageAdvanceFlipStartedTokenRef.current === readingPageAdvanceLockTokenRef.current) : undefined}
               onAnimationEnd={(event) => {
                 if (!isLeaving || event.target !== event.currentTarget) return
                 if (sceneEcho) onSceneEchoExitComplete?.(sceneEcho.id, readingDisplayPosition ?? position, renderCameraOffset)
@@ -3264,7 +3281,7 @@ export function MainlineSceneRenderer({
               {readingIsSubtitle && (isDialogue ? dialogueLine!.speaker : sceneEchoSpeaker) && <DialogueSpeaker speaker={isDialogue ? dialogueLine!.speaker : sceneEchoSpeaker!} />}
               {isDialogue && !stageDialogue && !readingIsSubtitle && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
-              ? <DialogueText onProtectionRects={updateReadingProtectionRects} paused={dialogueTextMotion === 'typing' && !readingIsSubtitle && !readingProtectionRects.length} group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
+              ? <DialogueText onProtectionRects={updateReadingProtectionRects} paused={dialogueTextMotion === 'typing' && !readingIsSubtitle && !readingProtectionRects.length} group={mainlineDialoguePageGroup(dialogue!, dialogueLine!, dialogueLineIndex, dialogueTextSessionId, dialogueSegmentIndex, displayOverflowIndex)} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
                 : <ObservationText onProtectionRects={updateReadingProtectionRects} menu={isMenuReading} sourceText={sceneEcho!.segments.join('')} echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} paused={readingFit?.fits === false || (sceneEcho!.textMotion === 'typing' && !readingIsSubtitle && !observationProtection)} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
             </div>
             {dialogueHandoffOutgoing && dialogueHandoffPresentation && stageDialogue && <DialogueHandoffOutgoingText
