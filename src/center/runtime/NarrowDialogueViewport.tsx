@@ -38,6 +38,8 @@ export type NarrowDialogueViewportProps = Readonly<{
   typewriterStartDelayMs?: number
   choices?: readonly NarrowDialogueChoice[]
   onReady?: (identity: NarrowDialogueIdentity, scope: 'text' | 'options', focusedChoiceId?: string) => void
+  /** Reports that the current text page is fully presented, regardless of whether it typed or flipped in. */
+  onTextSettled?: (identity: NarrowDialogueIdentity) => void
   onAdvance?: (identity: NarrowDialogueIdentity) => void
   onExitComplete?: (identity: NarrowDialogueIdentity, kind: NarrowDialogueExitKind) => void
   onOptionFocusChange?: (identity: NarrowDialogueIdentity, choiceId: string, index: number) => void
@@ -69,6 +71,7 @@ export function NarrowDialogueViewport({
   typewriterStartDelayMs = 300,
   choices = [],
   onReady,
+  onTextSettled,
   onAdvance,
   onExitComplete,
   onOptionFocusChange,
@@ -97,9 +100,9 @@ export function NarrowDialogueViewport({
   const lastTypewriterSessionRef = useRef<string | null>(null)
   const motionRunRef = useRef(0)
   const readyCallbackRef = useRef(onReady)
-  const latestPropsRef = useRef({ identity, onExitComplete, onAdvance })
+  const latestPropsRef = useRef({ identity, onExitComplete, onAdvance, onTextSettled })
   readyCallbackRef.current = onReady
-  latestPropsRef.current = { identity, onExitComplete, onAdvance }
+  latestPropsRef.current = { identity, onExitComplete, onAdvance, onTextSettled }
 
   const focusedIndex = focus.setKey === (identity.optionSetKey ?? '')
     ? Math.max(0, Math.min(choices.length - 1, focus.index))
@@ -115,6 +118,7 @@ export function NarrowDialogueViewport({
 
   const notifyReady = (focusedChoiceId?: string) => {
     setReadyKey(identityKey)
+    if (!isOptions) latestPropsRef.current.onTextSettled?.(identity)
     readyCallbackRef.current?.(identity, isOptions ? 'options' : 'text', focusedChoiceId)
   }
 
