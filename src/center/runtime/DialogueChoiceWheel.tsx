@@ -23,7 +23,7 @@ export type DialogueChoiceWheelProps = {
   onExitComplete?: (actionId: number, optionIndex: number) => void
 }
 
-type PointerDrag = { pointerId: number; startY: number; startPosition: number; lastY: number; lastAt: number; velocity: number }
+type PointerDrag = { pointerId: number; startY: number; startPosition: number; lastY: number; lastAt: number; velocity: number; dragging: boolean }
 
 /**
  * Focus-only wheel: movement never invokes business callbacks. A settled
@@ -124,9 +124,9 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (phase !== 'active') return
     event.stopPropagation()
-    if (event.target instanceof HTMLButtonElement && settled && !scrolling && !entering) return
     if (options.length < 2 || event.button !== 0) return
-    event.preventDefault()
+    const canTapCenter = event.target instanceof HTMLButtonElement && settled && !scrolling && !entering
+    if (!canTapCenter) event.preventDefault()
     if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current)
     if (inertiaFrameRef.current !== null) window.cancelAnimationFrame(inertiaFrameRef.current)
     dragRef.current = {
@@ -136,15 +136,25 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
       lastY: event.clientY,
       lastAt: event.timeStamp,
       velocity: 0,
+      dragging: !canTapCenter,
     }
-    event.currentTarget.setPointerCapture(event.pointerId)
-    setSettled(false)
-    setScrolling(true)
+    if (!canTapCenter) {
+      event.currentTarget.setPointerCapture(event.pointerId)
+      setSettled(false)
+      setScrolling(true)
+    }
   }
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current
     if (!drag || drag.pointerId !== event.pointerId) return
+    if (!drag.dragging) {
+      if (Math.abs(event.clientY - drag.startY) < 8) return
+      drag.dragging = true
+      event.currentTarget.setPointerCapture(event.pointerId)
+      setSettled(false)
+      setScrolling(true)
+    }
     event.preventDefault()
     event.stopPropagation()
     const elapsed = Math.max(1, event.timeStamp - drag.lastAt)
@@ -158,8 +168,9 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     event.stopPropagation()
     const drag = dragRef.current
     if (!drag || drag.pointerId !== event.pointerId) return
-    event.preventDefault()
     dragRef.current = null
+    if (!drag.dragging) return
+    event.preventDefault()
     const velocity = Math.max(-.012, Math.min(.012, drag.velocity))
     const startedAt = performance.now()
     let lastAt = startedAt

@@ -3038,16 +3038,21 @@ export function MainlineScenePage({
 
   const completeSceneEchoTextMotion = useCallback((echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => {
     const current = sceneEchoRef.current
+    if (!current) return 'rejected:no-scene-echo'
+    if (current.id !== echoId) return `rejected:echo-id:${current.id}`
+    if (current.phase === 'leaving') return 'rejected:echo-leaving'
     const callbackMatchesEcho = current && (
       mainlineReadingTextMotionCompletionMatches(`echo:${current.id}`, sessionKey)
       || Boolean(current.conversationDisplaySessionId && mainlineReadingTextMotionCompletionMatches(current.conversationDisplaySessionId, sessionKey))
     )
-    if (!current || current.id !== echoId || current.phase === 'leaving' || !callbackMatchesEcho || current.textMotion !== motion) return
+    if (!callbackMatchesEcho) return `rejected:echo-session:${sessionKey}`
+    if (current.textMotion !== motion) return `rejected:echo-motion:${current.textMotion}`
     const nextMotion = mainlineReadingTextMotionAfterAnimation(current.textMotion)
     const next = { ...current, textMotion: nextMotion }
     sceneEchoRef.current = next
     setSceneEcho(next)
     if (nextMotion === 'deleted') finishSceneEchoReading(next)
+    return `accepted:echo-${nextMotion}`
   }, [finishSceneEchoReading])
 
   const dialogueAtSessionEnd = useCallback(() => {
@@ -3262,7 +3267,8 @@ export function MainlineScenePage({
   advanceDialogueRef.current = advanceDialogue
 
   const completeDialogueTextMotion = useCallback((sessionId: number, motion: MainlineReadingTextMotion) => {
-    if (!mainlineReadingTextMotionCompletionMatches(`dialogue:${dialogueTextSessionIdRef.current}`, `dialogue:${sessionId}`) || dialogueTextMotionRef.current !== motion) return
+    if (!mainlineReadingTextMotionCompletionMatches(`dialogue:${dialogueTextSessionIdRef.current}`, `dialogue:${sessionId}`)) return `rejected:dialogue-session:${dialogueTextSessionIdRef.current}`
+    if (dialogueTextMotionRef.current !== motion) return `rejected:dialogue-motion:${dialogueTextMotionRef.current}`
     const nextMotion = mainlineReadingTextMotionAfterAnimation(dialogueTextMotionRef.current)
     updateDialogueTextMotion(nextMotion)
     if (nextMotion === 'deleted') {
@@ -3277,6 +3283,7 @@ export function MainlineScenePage({
         }, remaining)
       } else advanceDialogueRef.current(true)
     }
+    return `accepted:dialogue-${nextMotion}`
   }, [updateDialogueTextMotion])
 
   const walk = useCallback((point: Point) => {

@@ -29,6 +29,27 @@
   transform: translate3d(-50%, 0, 0) scale(1);
 }
 
+/* When hosted by the phone subtitle panel, share its padded safe content rect. */
+.narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom {
+  top: 22px;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(64px, calc(16px + env(safe-area-inset-bottom)));
+  left: max(20px, env(safe-area-inset-left));
+  width: auto;
+  height: auto;
+  transform: none;
+}
+.narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom.is-entering {
+  transform: translate3d(0, 18px, 0) scale(.98);
+}
+.narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom.is-exiting {
+  transform: translate3d(0, 12px, 0) scale(.985);
+}
+.narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom .dialogue-choice-wheel__viewport {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
+}
+
 .dialogue-choice-wheel.is-entering {
   opacity: 0;
 }
