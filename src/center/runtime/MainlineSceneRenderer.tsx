@@ -1596,6 +1596,13 @@ export function MainlineSceneRenderer({
   const keepsWorldReadingLayout = isMenuReading || sceneEcho?.entityId === 'commercial-cafe-blackboard'
   const isWideDialogueConversation = Boolean(dialogue?.dialoguePresentation === 'conversation' && viewportMetrics.width >= 960)
   const readingIsSubtitle = Boolean(readingMode && !keepsWorldReadingLayout && !isWideDialogueConversation)
+  useEffect(() => {
+    // The wide conversation keeps the outgoing line in its history instead
+    // of mounting the world-space handoff-deletion visual. Acknowledge that
+    // retained visual so the Page can release its normal minimum-duration lock.
+    if (!isWideDialogueConversation || !dialogueHandoffOutgoing || dialogueHandoffOutgoing.deleted) return
+    onDialogueHandoffOutgoingDeleted?.(dialogueHandoffOutgoing.id)
+  }, [dialogueHandoffOutgoing, isWideDialogueConversation, onDialogueHandoffOutgoingDeleted])
   const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
   const registerBreathingNode = useCallback((entityId: string, node: HTMLSpanElement | null) => {
     if (node) altarBreathingNodesRef.current.set(entityId, node)
