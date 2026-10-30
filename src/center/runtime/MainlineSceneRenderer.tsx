@@ -1584,6 +1584,7 @@ export function MainlineSceneRenderer({
   const dialogueHandoffPresentationRef = useRef<ReturnType<typeof mainlineDialogueHandoffPresentationForId>>(null)
   const dialogueCameraAnchorRef = useRef<{ key: string; viewportKey: string; offset: Point } | null>(null)
   const [dialogueCameraTransitionActive, setDialogueCameraTransitionActive] = useState(false)
+  const wideConversationHandoffAcknowledgedRef = useRef<number | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const [viewportOverlayHost, setViewportOverlayHost] = useState<HTMLDivElement | null>(null)
   const setStageHost = useCallback((node: HTMLDivElement | null) => {
@@ -1600,9 +1601,14 @@ export function MainlineSceneRenderer({
     // The wide conversation keeps the outgoing line in its history instead
     // of mounting the world-space handoff-deletion visual. Acknowledge that
     // retained visual so the Page can release its normal minimum-duration lock.
-    if (!isWideDialogueConversation || !dialogueHandoffOutgoing || dialogueHandoffOutgoing.deleted) return
+    if (!dialogueHandoffOutgoing) {
+      wideConversationHandoffAcknowledgedRef.current = null
+      return
+    }
+    if (!isWideDialogueConversation || wideConversationHandoffAcknowledgedRef.current === dialogueHandoffOutgoing.id) return
+    wideConversationHandoffAcknowledgedRef.current = dialogueHandoffOutgoing.id
     onDialogueHandoffOutgoingDeleted?.(dialogueHandoffOutgoing.id)
-  }, [dialogueHandoffOutgoing, isWideDialogueConversation, onDialogueHandoffOutgoingDeleted])
+  }, [dialogueHandoffOutgoing?.id, isWideDialogueConversation, onDialogueHandoffOutgoingDeleted])
   const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
   const registerBreathingNode = useCallback((entityId: string, node: HTMLSpanElement | null) => {
     if (node) altarBreathingNodesRef.current.set(entityId, node)
