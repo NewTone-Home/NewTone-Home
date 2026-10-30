@@ -121,6 +121,7 @@ type MainlineSceneRendererProps = {
   dialoguePhase?: 'active' | 'leaving'
   dialogueTextSessionId?: number
   dialogueTextMotion?: MainlineReadingTextMotion
+  dialogueAdvanceDiagnostic?: string
   dialogueStage?: { roomId: string; speakerActorId: string | null; participantActorIds: ReadonlySet<string>; hiddenEntityIds: ReadonlySet<string>; protectedEntityIds?: ReadonlySet<string>; protectedActorIds?: ReadonlySet<string> } | null
   dialogueHandoffActive?: boolean
   dialogueHandoffFadeDurationMs?: number
@@ -792,7 +793,7 @@ function MainlineDialogueConversation({ scene, dialogue, dialogueLine, dialogueL
 
 type ConversationHistoryEntry = Readonly<{ key: string; speaker?: string; speakerIsNpc: boolean; text: string }>
 
-function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, pageText, speaker, speakerIsNpc, narrow, windowHeightPx, availableWidthPx, measuredPageHeightPx, pageIndex, isFinalLinePage, textSessionId, textMotion, onTextMotionComplete, onReadyChange, onAdvance, advanceReady, advanceReadyKey, requiredAdvanceReadyKey, advanceRoute, dialogueChoiceWheel, onSceneActionChoice, onSceneActionCancel, onSceneActionExitComplete }: {
+function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, pageText, speaker, speakerIsNpc, narrow, windowHeightPx, availableWidthPx, measuredPageHeightPx, pageIndex, isFinalLinePage, textSessionId, textMotion, pageAdvanceDiagnostic, onTextMotionComplete, onReadyChange, onAdvance, advanceReady, advanceReadyKey, requiredAdvanceReadyKey, advanceRoute, dialogueChoiceWheel, onSceneActionChoice, onSceneActionCancel, onSceneActionExitComplete }: {
   sessionId: string
   content: MainlineConversationDisplayContent
   contentKey: string
@@ -808,6 +809,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
   isFinalLinePage: boolean
   textSessionId: number
   textMotion: MainlineReadingTextMotion
+  pageAdvanceDiagnostic: string
   onTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void
   onReadyChange: (group: string, ready: boolean) => void
   onAdvance: (identity: NarrowDialogueIdentity) => void
@@ -861,6 +863,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
     'data-conversation-display-ready-key': advanceReadyKey ?? '',
     'data-conversation-display-required-ready-key': requiredAdvanceReadyKey,
     'data-conversation-display-advance-route': advanceRoute,
+    'data-conversation-display-page-advance': pageAdvanceDiagnostic,
   } as const
   const identity: NarrowDialogueIdentity = {
     sessionKey: sessionId,
@@ -1623,6 +1626,7 @@ export function MainlineSceneRenderer({
   dialoguePhase = 'active',
   dialogueTextSessionId = 0,
   dialogueTextMotion = 'static',
+  dialogueAdvanceDiagnostic = 'idle',
   dialogueStage = null,
   dialogueHandoffActive = false,
   dialogueHandoffFadeDurationMs = 300,
@@ -3561,6 +3565,7 @@ export function MainlineSceneRenderer({
             isFinalLinePage={Boolean(dialogue && dialogueLine && dialogueLineIndex === dialogue.lines.length - 1 && displayOverflowIndex + 1 >= fittedReadingSegments.length && conversationDisplayContent.kind === 'text')}
             textSessionId={sceneEcho ? sceneEcho.id : dialogueTextSessionId}
             textMotion={conversationDisplayContent.kind === 'text' && conversationDisplayContent.textMotion ? conversationDisplayContent.textMotion : sceneEcho?.textMotion ?? dialogueTextMotion}
+            pageAdvanceDiagnostic={dialogueAdvanceDiagnostic}
             onTextMotionComplete={(sessionId, motion) => {
               if (sceneEcho) onSceneEchoTextMotionComplete?.(sceneEcho.id, stableConversationDisplaySessionId, motion)
               else onDialogueTextMotionComplete?.(sessionId, motion)
