@@ -1217,35 +1217,100 @@
 .scene-mainline-text--menu { line-height: 1.72; }
 .scene-mainline-text.scene-mainline-text--subtitle {
   z-index: 30;
-  max-width: calc(100% - 32px);
-  max-height: none;
-  padding: 6px 12px;
-  overflow: visible;
+  left: 0 !important;
+  right: 0;
+  bottom: 0;
+  top: auto !important;
+  width: 100% !important;
+  max-width: 100%;
+  height: auto !important;
+  max-height: min(34vh, 260px);
+  overflow-y: auto;
+  transform: none !important;
+  padding: 22px max(20px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
   color: #f1f0ec;
   line-height: 1.5;
-  text-align: center;
+  text-align: left;
   isolation: isolate;
   animation: none;
 }
+.scene-mainline-text.scene-mainline-text--subtitle.is-leaving { animation: mainline-subtitle-leave 160ms ease-in both; }
+@keyframes mainline-subtitle-leave { from { opacity: 1; } to { opacity: 0; } }
 .scene-mainline-text.scene-mainline-text--subtitle::before {
   content: "";
   position: absolute;
   z-index: -1;
-  inset: -6px -10px;
+  inset: 0;
   pointer-events: none;
-  background: radial-gradient(ellipse at center, rgba(10, 12, 15, .72) 0%, rgba(10, 12, 15, .46) 62%, rgba(10, 12, 15, 0) 100%);
+  background: linear-gradient(to top, rgba(8, 10, 13, .9) 0%, rgba(8, 10, 13, .72) 45%, rgba(8, 10, 13, .24) 82%, rgba(8, 10, 13, 0) 100%);
 }
 .scene-mainline-text.scene-mainline-text--subtitle .scene-mainline-text__speaker {
-  width: auto;
-  margin: 0 0 2px;
+  width: max-content;
+  margin: 0 0 8px;
   color: #f1f0ec;
-  text-align: center;
+  text-align: left;
 }
 .scene-mainline-text.scene-mainline-text--subtitle .scene-mainline-text__dialogue {
-  inset: calc(3px + max(14px, 1.1em)) 0 2px;
-  text-align: center;
+  position: relative;
+  inset: auto;
+  text-align: left;
 }
-.scene-mainline-text.scene-mainline-text--subtitle .scene-mainline-page-stack { overflow: hidden; }
+.scene-mainline-text.scene-mainline-text--subtitle .scene-mainline-page-stack {
+  position: static;
+  left: auto;
+  top: auto;
+  width: 100% !important;
+  height: auto;
+  overflow: visible;
+  transform: none;
+}
+.scene-mainline-text.scene-mainline-text--subtitle .scene-mainline-page { width: 100% !important; justify-self: start; text-align: left; }
+.scene-mainline-conversation {
+  position: absolute;
+  z-index: 32;
+  top: max(24px, env(safe-area-inset-top));
+  right: 0;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  display: flex;
+  width: clamp(320px, 34vw, 460px);
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+  box-sizing: border-box;
+  padding: 24px clamp(24px, 3vw, 42px) 28px 36px;
+  overflow: hidden;
+  color: #f3f0e9;
+  font-family: "Noto Serif SC", Georgia, serif;
+  font-size: clamp(17px, 1.35vw, 21px);
+  line-height: 1.68;
+  background: linear-gradient(to left, rgba(11, 13, 17, .91) 0%, rgba(11, 13, 17, .76) 56%, rgba(11, 13, 17, .38) 82%, rgba(11, 13, 17, 0) 100%);
+  pointer-events: none;
+}
+.scene-mainline-conversation.is-leaving { animation: mainline-subtitle-leave 160ms ease-in both; }
+.scene-mainline-conversation__history {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+  overflow: hidden;
+  mask-image: linear-gradient(to top, #000 0%, #000 65%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 65%, transparent 100%);
+}
+.scene-mainline-conversation-line {
+  flex: 0 0 auto;
+  max-width: 94%;
+  padding: 7px 12px 9px;
+  border-radius: 9px;
+  background: rgba(17, 20, 25, .48);
+  text-shadow: 0 1px 5px rgba(0, 0, 0, .75);
+  overflow-wrap: anywhere;
+}
+.scene-mainline-conversation-line.is-npc { align-self: flex-start; }
+.scene-mainline-conversation-line.is-player { align-self: flex-end; background: rgba(72, 66, 53, .58); }
+.scene-mainline-conversation-line__speaker { display: block; margin-bottom: 3px; color: var(--active); font-size: .78em; letter-spacing: .04em; }
+.scene-mainline-conversation-line p { margin: 0; white-space: pre-wrap; }
+.scene-mainline-conversation-line--current { max-height: min(38vh, 320px); overflow-y: auto; background: rgba(18, 22, 28, .68); }
 .scene-mainline-text--menu .scene-mainline-page { white-space: pre-wrap; }
 .scene-menu-description { font-size: 0.666667em; }
 .scene-menu-measure { position: absolute; top: 0; left: 0; width: max-content; max-width: 100%; white-space: pre-wrap; visibility: hidden; pointer-events: none; }

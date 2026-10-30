@@ -101,6 +101,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
   entries: readonly MainlineReadingSessionTextEntry[]
   metrics: SceneScreenMetrics
   maximumWidthPx: number
+  fontSizePx?: number
   fontKey?: string
   worldScale?: number
   measureText?: (text: string, fontSizePx: number) => number
@@ -109,7 +110,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
   preferWholeText?: boolean
 }): MainlineReadingSessionLayoutCache {
   const metrics = { ...input.metrics }
-  const fontSizePx = mainlineReadingFontSizePx(metrics)
+  const fontSizePx = input.fontSizePx ?? mainlineReadingFontSizePx(metrics)
   const minimumWidthPx = fontSizePx * 2 + 32
   const stepPx = Math.max(4, fontSizePx / 2)
   const widths: WidthCandidate[] = []
@@ -130,7 +131,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
   const layoutText = input.layoutText ?? mainlineEchoLayout
   const splitTextToFit = input.splitTextToFit ?? splitMainlineInteractionTextToFit
   const observationLayout = (text: string, widthPx: number, speaker?: string, parts: readonly string[] = [text], subtitle = false) => {
-    const measured = layoutText(text, metrics, { speaker, maxWidthPx: widthPx, fixedWidthPx: input.preferWholeText ? undefined : widthPx, lineHeight: subtitle ? 1.5 : undefined, measureText: measure })
+    const measured = layoutText(text, metrics, { speaker, maxWidthPx: widthPx, fixedWidthPx: input.preferWholeText ? undefined : widthPx, fontSizePx, lineHeight: subtitle ? 1.5 : undefined, measureText: measure })
     if (subtitle) {
       const compact = metrics.width <= 600 && metrics.height > metrics.width
       const bodyHeight = mainlineObservationMinimumPageHeight(parts, measured.fontSizePx, compact)
@@ -232,9 +233,9 @@ export function createMainlineReadingSessionLayoutCache(input: {
         }
         const bounds = fitInput.subtitle ? null : mainlineReadingBounds(fitInput.scene, fitInput.source, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset)
         const availableWidth = fitInput.subtitle
-          ? Math.max(1, Math.min(fitInput.metrics.width - 32, 760))
+          ? Math.max(1, fitInput.metrics.width - 40)
           : bounds!.width / 100 * sceneDesignReferenceMetrics.width * fitInput.worldScale
-        const availableHeight = fitInput.subtitle ? Number.POSITIVE_INFINITY : bounds!.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale
+        const availableHeight = fitInput.subtitle ? Math.max(80, Math.min(fitInput.metrics.height * .34, 260) - 38) : bounds!.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale
         for (const candidate of widths) {
           if (candidate.widthPx > fitInput.maximumWidthPx + .001) continue
           const fittedChunks = candidate.pages.get(entryKey({ text: fitInput.text, speaker: fitInput.speaker }))!.segments
@@ -264,13 +265,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
             const text = parts.join('')
             const layout = observationLayout(text, candidate.widthPx, fitInput.speaker, parts, fitInput.subtitle)
             if (layout.widthPx > availableWidth || layout.heightPx > availableHeight) return null
-            if (fitInput.subtitle) {
-              // A subtitle page gets exactly two body lines, plus its optional
-              // speaker row. Keep this independent from viewport height: a tall
-              // phone must not turn the caption into a paragraph block.
-              const twoBodyLineHeight = observationLayout('M\nM', candidate.widthPx, fitInput.speaker, ['M', 'M'], true).heightPx
-              return layout.heightPx <= twoBodyLineHeight + .5 ? layout : null
-            }
+            if (fitInput.subtitle) return layout
             return mainlinePlaceReadingBox(fitInput.scene, fitInput.source, { width: layout.widthPx, height: layout.heightPx }, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset, fitInput.outside) ? layout : null
           }
           for (const chunk of chunks) {
