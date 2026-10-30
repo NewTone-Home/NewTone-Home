@@ -31,10 +31,16 @@ export type MainlineDialogueChoiceWheelPresentation = {
   phase: 'active' | 'committing' | 'exiting'
   focusedOptionIndex?: number
 }
+export type MainlineConversationDisplayHistoryEntry = Readonly<{
+  key: string
+  speaker?: string
+  speakerIsNpc: boolean
+  text: string
+}>
 export type MainlineConversationDisplayContent =
-  | { sessionId: string; kind: 'text' | 'aside'; text: string; textMotion?: 'typing' | 'static' | 'deleting' | 'deleted'; canAdvance: boolean }
-  | { sessionId: string; kind: 'waiting'; text: '……'; canAdvance: false }
-  | { sessionId: string; kind: 'choice'; actionId: number; options: readonly string[]; canAdvance: false }
+  | { sessionId: string; kind: 'text' | 'aside'; text: string; textMotion?: 'typing' | 'static' | 'deleting' | 'deleted'; canAdvance: boolean; history?: readonly MainlineConversationDisplayHistoryEntry[] }
+  | { sessionId: string; kind: 'waiting'; text: '……'; canAdvance: false; history?: readonly MainlineConversationDisplayHistoryEntry[] }
+  | { sessionId: string; kind: 'choice'; actionId: number; options: readonly string[]; canAdvance: false; history?: readonly MainlineConversationDisplayHistoryEntry[] }
 export type MainlineVisualProfile = 'tree-ring' | 'incense'
 export type MainlineAnimationGroup = 'office-breathing' | 'yonghe-stove-breathing'
 export type MainlineSceneExternalExit = {
