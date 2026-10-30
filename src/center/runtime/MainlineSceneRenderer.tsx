@@ -739,7 +739,7 @@ function DialogueText({ onProtectionRects, paused = false, group, continuityKey,
 
 function ConversationDialogueText({ pageKey, text, sessionId, motion, onMotionComplete, onReadyChange, group }: { pageKey: string; text: string; sessionId: number; motion: MainlineReadingTextMotion; onMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void; onReadyChange?: (group: string, ready: boolean) => void; group: string }) {
   const completeMotion = useCallback((_sessionKey: string, completedMotion: MainlineReadingTextMotion) => onMotionComplete?.(sessionId, completedMotion), [onMotionComplete, sessionId])
-  const textMotion = useReadingTextMotion({ sessionKey: `conversation:${sessionId}`, pageKey, text, motion, settledImmediately: true, onComplete: completeMotion })
+  const textMotion = useReadingTextMotion({ sessionKey: group, pageKey, text, motion, settledImmediately: true, onComplete: completeMotion })
   useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, pageKey, onReadyChange])
   useEffect(() => {
     if (motion === 'static' || motion === 'deleted') onReadyChange?.(group, true)
@@ -747,7 +747,11 @@ function ConversationDialogueText({ pageKey, text, sessionId, motion, onMotionCo
   return <span className="scene-mainline-conversation-line__typing">{textMotion.visibleText}</span>
 }
 
-function MainlineDialogueConversation({ scene, dialogue, dialogueLine, dialogueLineIndex, dialogueTextSessionId, dialogueTextMotion, isLeaving, onDialogueTextMotionComplete, onDialogueReadyChange }: { scene: MainlineSceneDefinition; dialogue: MainlineSceneDialoguePresentation; dialogueLine: MainlineSceneDialogueLine; dialogueLineIndex: number | null; dialogueTextSessionId: number; dialogueTextMotion: MainlineReadingTextMotion; isLeaving: boolean; onDialogueTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void; onDialogueReadyChange: (group: string, ready: boolean) => void }) {
+function mainlineConversationTurnGroup(dialogue: MainlineSceneDialoguePresentation, dialogueLine: MainlineSceneDialogueLine, dialogueLineIndex: number | null, dialogueTextSessionId: number) {
+  return `conversation:${dialogue.triggerEntityId}:${dialogueLineIndex ?? 0}:${dialogueLine.id}:${dialogueTextSessionId}`
+}
+
+function MainlineDialogueConversation({ scene, dialogue, dialogueLine, dialogueLineIndex, dialogueTextSessionId, dialogueTextMotion, isLeaving, isReady, isConsumed, readyGroup, consumedGroup, handoffActive, handoffId, handoffAcknowledged, onDialogueTextMotionComplete, onDialogueReadyChange }: { scene: MainlineSceneDefinition; dialogue: MainlineSceneDialoguePresentation; dialogueLine: MainlineSceneDialogueLine; dialogueLineIndex: number | null; dialogueTextSessionId: number; dialogueTextMotion: MainlineReadingTextMotion; isLeaving: boolean; isReady: boolean; isConsumed: boolean; readyGroup: string | null; consumedGroup: string | null; handoffActive: boolean; handoffId: number | null; handoffAcknowledged: boolean; onDialogueTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void; onDialogueReadyChange: (group: string, ready: boolean) => void }) {
   const currentIndex = Math.max(0, dialogueLineIndex ?? 0)
   const previousLines = dialogue.lines.slice(0, currentIndex)
   const historyRef = useRef<HTMLDivElement>(null)
@@ -756,8 +760,9 @@ function MainlineDialogueConversation({ scene, dialogue, dialogueLine, dialogueL
     if (history) history.scrollTop = history.scrollHeight
   }, [previousLines.length])
   const speakerIsNpc = (line: MainlineSceneDialogueLine) => Boolean(line.speakerNpcId || scene.npcs.some(npc => npc.label === line.speaker))
-  const group = `conversation:${dialogueLine.id}:${dialogueTextSessionId}`
-  return <section className={`scene-mainline-conversation ${isLeaving ? 'is-leaving' : ''}`} aria-live="polite" aria-label="对话记录" data-dialogue-presentation="conversation">
+  const lineIndexKey = dialogueLineIndex ?? currentIndex
+  const group = mainlineConversationTurnGroup(dialogue, dialogueLine, dialogueLineIndex, dialogueTextSessionId)
+  return <section className={`scene-mainline-conversation ${isLeaving ? 'is-leaving' : ''}`} aria-live="polite" aria-label="对话记录" data-dialogue-presentation="conversation" data-dialogue-current-group={group} data-dialogue-line-id={dialogueLine.id} data-dialogue-line-index={lineIndexKey} data-dialogue-session-id={dialogueTextSessionId} data-dialogue-ready={String(isReady)} data-dialogue-ready-group={readyGroup ?? ''} data-dialogue-advance-consumed={String(isConsumed)} data-dialogue-consumed-group={consumedGroup ?? ''} data-dialogue-handoff-active={String(handoffActive)} data-dialogue-handoff-id={handoffId ?? ''} data-dialogue-handoff-stage={handoffId === null ? 'idle' : handoffActive ? 'active' : 'outgoing'} data-dialogue-handoff-acknowledged={String(handoffAcknowledged)} data-dialogue-text-motion={dialogueTextMotion}>
     <div ref={historyRef} className="scene-mainline-conversation__history">
       {previousLines.map(line => <article key={line.id} className={`scene-mainline-conversation-line ${speakerIsNpc(line) ? 'is-npc' : 'is-player'}`} data-dialogue-history-line={line.id}>
         <span className="scene-mainline-conversation-line__speaker">{line.speaker}</span>
@@ -766,7 +771,7 @@ function MainlineDialogueConversation({ scene, dialogue, dialogueLine, dialogueL
     </div>
     <article className={`scene-mainline-conversation-line scene-mainline-conversation-line--current ${speakerIsNpc(dialogueLine) ? 'is-npc' : 'is-player'}`} data-dialogue-current-line={dialogueLine.id}>
       <span className="scene-mainline-conversation-line__speaker"><DialogueSpeaker speaker={dialogueLine.speaker} /></span>
-      <p><ConversationDialogueText pageKey={`${dialogueLine.id}:${dialogueTextSessionId}`} text={dialogueLine.text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={onDialogueReadyChange} group={group} /></p>
+      <p><ConversationDialogueText pageKey={group} text={dialogueLine.text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={onDialogueReadyChange} group={group} /></p>
     </article>
   </section>
 }
@@ -2296,7 +2301,7 @@ export function MainlineSceneRenderer({
   const actionVisible = Boolean(frozenActionPlacement || (matchingSceneActionSize && sceneActionPlacement && (sceneAction?.phase !== 'active' || dialogueOptionsAllowed)))
   const currentDialogueGroup = dialogue && dialogueLine
     ? isWideDialogueConversation
-      ? `conversation:${dialogueLine.id}:${dialogueTextSessionId}`
+      ? mainlineConversationTurnGroup(dialogue, dialogueLine, dialogueLineIndex, dialogueTextSessionId)
       : `dialogue:${dialogueLine.id}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`
     : null
   currentDialogueGroupRef.current = currentDialogueGroup
@@ -3285,6 +3290,13 @@ export function MainlineSceneRenderer({
             dialogueTextSessionId={dialogueTextSessionId}
             dialogueTextMotion={dialogueTextMotion}
             isLeaving={readingIsLeaving}
+            isReady={dialogueReadyGroupRef.current === currentDialogueGroup}
+            isConsumed={dialogueAdvanceConsumedGroupRef.current === currentDialogueGroup}
+            readyGroup={dialogueReadyGroupRef.current}
+            consumedGroup={dialogueAdvanceConsumedGroupRef.current}
+            handoffActive={dialogueHandoffActive}
+            handoffId={dialogueHandoffOutgoing?.id ?? null}
+            handoffAcknowledged={Boolean(dialogueHandoffOutgoing && wideConversationHandoffAcknowledgedRef.current === dialogueHandoffOutgoing.id)}
             onDialogueTextMotionComplete={onDialogueTextMotionComplete}
             onDialogueReadyChange={updateDialogueReady}
           />, viewportOverlayHost)}
@@ -3384,7 +3396,10 @@ export function MainlineSceneRenderer({
                   if (currentDialogueGroupRef.current !== null
                     && dialogueAdvanceConsumedGroupRef.current !== currentDialogueGroupRef.current
                     && dialogueReadyGroupRef.current === currentDialogueGroupRef.current) {
-                    lockReadingPageAdvance()
+                    // Wide conversations advance through their own stable
+                    // per-line consumed key; they do not run a world-space
+                    // ReadingPageFlip that could release this page lock.
+                    if (!isWideDialogueConversation) lockReadingPageAdvance()
                     dialogueAdvanceConsumedGroupRef.current = currentDialogueGroupRef.current
                     dialogueReadyGroupRef.current = null
                     setDialogueReady(false)
