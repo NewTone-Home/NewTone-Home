@@ -439,7 +439,7 @@ function ReadingPageFlip({ pageKey, continuityKey, visibleText, layout, worldSca
   </span>
 }
 
-function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = false, onComplete }: { sessionKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; paused?: boolean; onComplete?: (sessionKey: string, motion: MainlineReadingTextMotion) => void }) {
+function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = false, settledImmediately = false, onComplete }: { sessionKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; paused?: boolean; settledImmediately?: boolean; onComplete?: (sessionKey: string, motion: MainlineReadingTextMotion) => void }) {
   const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
   const [settledPageKey, setSettledPageKey] = useState<string | null>(null)
   const [progress, setProgress] = useState<{ key: string; count: number } | null>(null)
@@ -450,6 +450,9 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
   const progressRef = useRef<{ key: string; count: number } | null>(null)
   const pausedRef = useRef(paused)
   pausedRef.current = paused
+  useIsomorphicLayoutEffect(() => {
+    if (settledImmediately) setSettledPageKey(pageKey)
+  }, [pageKey, settledImmediately])
   const visibleCount = progress?.key === animationKey
     ? progress.count
     : motion === 'deleting' ? characters.length : 0
@@ -736,7 +739,7 @@ function DialogueText({ onProtectionRects, paused = false, group, continuityKey,
 
 function ConversationDialogueText({ pageKey, text, sessionId, motion, onMotionComplete, onReadyChange, group }: { pageKey: string; text: string; sessionId: number; motion: MainlineReadingTextMotion; onMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void; onReadyChange?: (group: string, ready: boolean) => void; group: string }) {
   const completeMotion = useCallback((_sessionKey: string, completedMotion: MainlineReadingTextMotion) => onMotionComplete?.(sessionId, completedMotion), [onMotionComplete, sessionId])
-  const textMotion = useReadingTextMotion({ sessionKey: `conversation:${sessionId}`, pageKey, text, motion, onComplete: completeMotion })
+  const textMotion = useReadingTextMotion({ sessionKey: `conversation:${sessionId}`, pageKey, text, motion, settledImmediately: true, onComplete: completeMotion })
   useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, pageKey, onReadyChange])
   useEffect(() => {
     if (motion === 'static' || motion === 'deleted') onReadyChange?.(group, true)
