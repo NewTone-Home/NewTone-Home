@@ -129,8 +129,14 @@ export function createMainlineReadingSessionLayoutCache(input: {
   }
   const layoutText = input.layoutText ?? mainlineEchoLayout
   const splitTextToFit = input.splitTextToFit ?? splitMainlineInteractionTextToFit
-  const observationLayout = (text: string, widthPx: number, speaker?: string, parts: readonly string[] = [text]) => {
-    const measured = layoutText(text, metrics, { speaker, maxWidthPx: widthPx, fixedWidthPx: input.preferWholeText ? undefined : widthPx, measureText: measure })
+  const observationLayout = (text: string, widthPx: number, speaker?: string, parts: readonly string[] = [text], subtitle = false) => {
+    const measured = layoutText(text, metrics, { speaker, maxWidthPx: widthPx, fixedWidthPx: input.preferWholeText ? undefined : widthPx, lineHeight: subtitle ? 1.5 : undefined, measureText: measure })
+    if (subtitle) {
+      const compact = metrics.width <= 600 && metrics.height > metrics.width
+      const bodyHeight = mainlineObservationMinimumPageHeight(parts, measured.fontSizePx, compact)
+      const speakerHeight = speaker ? 3 + Math.max(12, measured.fontSizePx * .74) * 1.5 : 0
+      return { ...measured, heightPx: Math.max(measured.heightPx, bodyHeight + speakerHeight) }
+    }
     if (!input.preferWholeText) return measured
     const compact = metrics.width <= 600 && metrics.height > metrics.width
     const refitted = splitTextToFit(text, Math.max(fontSizePx, widthPx - 40), fontSizePx, value => measure(value, fontSizePx))
@@ -228,9 +234,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
         const availableWidth = fitInput.subtitle
           ? Math.max(1, Math.min(fitInput.metrics.width - 32, 760))
           : bounds!.width / 100 * sceneDesignReferenceMetrics.width * fitInput.worldScale
-        const availableHeight = fitInput.subtitle
-          ? Math.max(fontSizePx * 2.8, Math.min(fitInput.metrics.height * .24, 168))
-          : bounds!.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale
+        const availableHeight = fitInput.subtitle ? Number.POSITIVE_INFINITY : bounds!.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale
         for (const candidate of widths) {
           if (candidate.widthPx > fitInput.maximumWidthPx + .001) continue
           const fittedChunks = candidate.pages.get(entryKey({ text: fitInput.text, speaker: fitInput.speaker }))!.segments
@@ -258,9 +262,15 @@ export function createMainlineReadingSessionLayoutCache(input: {
           let consumed = 0
           const pageFits = (parts: readonly string[]) => {
             const text = parts.join('')
-            const layout = observationLayout(text, candidate.widthPx, fitInput.speaker, parts)
+            const layout = observationLayout(text, candidate.widthPx, fitInput.speaker, parts, fitInput.subtitle)
             if (layout.widthPx > availableWidth || layout.heightPx > availableHeight) return null
-            if (fitInput.subtitle) return layout
+            if (fitInput.subtitle) {
+              // A subtitle page gets exactly two body lines, plus its optional
+              // speaker row. Keep this independent from viewport height: a tall
+              // phone must not turn the caption into a paragraph block.
+              const twoBodyLineHeight = observationLayout('M\nM', candidate.widthPx, fitInput.speaker, ['M', 'M'], true).heightPx
+              return layout.heightPx <= twoBodyLineHeight + .5 ? layout : null
+            }
             return mainlinePlaceReadingBox(fitInput.scene, fitInput.source, { width: layout.widthPx, height: layout.heightPx }, fitInput.protectedVisuals, fitInput.metrics, fitInput.worldScale, fitInput.cameraOffset, fitInput.outside) ? layout : null
           }
           for (const chunk of chunks) {

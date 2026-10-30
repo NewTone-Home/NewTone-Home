@@ -53,7 +53,7 @@ import { storefrontContactGeometry } from './storefrontContactGeometry'
 import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlineInteractionRoom, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingOpacityForActor, mainlineObservationTypingIntervalMs, mainlineReadingFadeTransitionMs, resolveMainlineDialogueParticipants } from './mainlineTextReading'
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
 import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
-import { currentMainlineReadingTargetIds, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionLayerPosition, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex, mainlineReadingPageIndexForSourceOffset } from './mainlineReadingProtection'
+import { currentMainlineReadingTargetIds, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionCameraAnchor, mainlineReadingActionLayerPosition, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex, mainlineReadingPageIndexForSourceOffset, type MainlineReadingActionCameraAnchor } from './mainlineReadingProtection'
 import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey, type MainlineReadingSessionLayoutCache, type MainlineReadingSessionTextEntry } from './mainlineReadingLayoutSession'
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
@@ -1681,6 +1681,11 @@ export function MainlineSceneRenderer({
   const activeReadingText = sceneEcho?.text ?? dialogueText ?? dialogueLine?.text ?? ''
   const readingIsLeaving = sceneEcho?.phase === 'leaving' || (!sceneEcho && dialoguePhase === 'leaving' && Boolean(dialogue && dialogueLine && dialoguePosition))
   const readingPresentationPhase = readingMode ? 'active' : readingIsLeaving ? 'leaving' : 'inactive'
+  // Echoes are sometimes NPC replies and sometimes descriptions of objects.
+  // Only an echo whose stable entity id belongs to an NPC gets a name label.
+  const sceneEchoSpeaker = sceneEcho?.entityId
+    ? scene.npcs.find(npc => npc.id === sceneEcho.entityId)?.label
+    : undefined
   useIsomorphicLayoutEffect(() => {
     if (readingPresentationPhase !== 'active') {
       typingCompletionLockRef.current = false
@@ -1766,11 +1771,11 @@ export function MainlineSceneRenderer({
   const currentReadingWidthPx = readingIsSubtitle ? subtitleMaximumWidthPx : activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset) : readingMetrics.width - 24
   const maximumReadingWidthPx = readingIsSubtitle ? subtitleMaximumWidthPx : activeReadingPosition ? mainlineMaximumReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale) : currentReadingWidthPx
   const readingEnvelopeEntries = useMemo<readonly MainlineReadingSessionTextEntry[]>(() => sceneEcho
-    ? (sceneEcho.segments.length ? sceneEcho.segments : [sceneEcho.text]).map(text => ({ text }))
+    ? (sceneEcho.segments.length ? sceneEcho.segments : [sceneEcho.text]).map(text => ({ text, speaker: sceneEchoSpeaker }))
     : dialogue ? dialogue.lines.map(line => ({ text: line.text, speaker: line.speaker }))
       : dialogueLine ? [{ text: dialogueLine.text, speaker: dialogueLine.speaker }]
         : [{ text: activeReadingText }],
-  [activeReadingText, dialogue?.lines, dialogueLine?.speaker, dialogueLine?.text, sceneEcho?.segments, sceneEcho?.text])
+  [activeReadingText, dialogue?.lines, dialogueLine?.speaker, dialogueLine?.text, sceneEcho?.segments, sceneEcho?.text, sceneEchoSpeaker])
   const readingLayoutFontFaceKey = useMainlineReadingFontRevision(readingOcclusionSessionKey)
   const readingMeasurementKey = mainlineReadingMeasurementKey(readingMetrics, worldScale)
   let readingLayoutSessionCache = readingLayoutSessionCacheRef.current
@@ -1778,7 +1783,7 @@ export function MainlineSceneRenderer({
     readingLayoutSessionCacheRef.current = null
     readingLayoutSessionCache = null
   } else if (activeReadingPosition) {
-    const sessionTextEntries = [...readingEnvelopeEntries, { text: activeReadingText, speaker: sceneEcho ? undefined : dialogueLine?.speaker }]
+    const sessionTextEntries = [...readingEnvelopeEntries, { text: activeReadingText, speaker: sceneEchoSpeaker ?? dialogueLine?.speaker }]
     if (sharedReadingSessionLayoutCache?.sessionKey === readingOcclusionSessionKey
       && sharedReadingSessionLayoutCache.fontKey === readingLayoutFontFaceKey
       && sharedReadingSessionLayoutCache.measurementKey === readingMeasurementKey) {
@@ -1876,7 +1881,17 @@ export function MainlineSceneRenderer({
     return () => window.cancelAnimationFrame(frame)
   }, [questionReadingActive, readingPresentationPhase, scene.id])
   const renderCameraOffset = questionExitCameraOffset ?? readingCameraOffset
-  const sceneActionCameraOffset = sceneAction?.cameraOffset ?? cameraOffset
+  const sceneActionViewportKey = JSON.stringify([renderScreenMetrics.width, renderScreenMetrics.height, viewportMetrics.width, viewportMetrics.height])
+  const sceneActionCameraAnchorRef = useRef<MainlineReadingActionCameraAnchor | null>(null)
+  if (!sceneAction) sceneActionCameraAnchorRef.current = null
+  else sceneActionCameraAnchorRef.current = mainlineReadingActionCameraAnchor({
+    previous: sceneActionCameraAnchorRef.current,
+    actionId: sceneAction.id,
+    viewportKey: sceneActionViewportKey,
+    authoredOffset: sceneAction.cameraOffset,
+    currentOffset: cameraOffset,
+  })
+  const sceneActionCameraOffset = sceneActionCameraAnchorRef.current?.offset ?? cameraOffset
   const sceneActionMaxWidthPx = sceneAction
     ? mainlineAvailableReadingWidthPx(scene, sceneAction.position, viewportMetrics, worldScale, sceneActionCameraOffset)
     : 0
@@ -1963,8 +1978,8 @@ export function MainlineSceneRenderer({
     ? actionExitPlacementRef.current : null
   const activeReadingWidthPx = readingIsSubtitle ? subtitleMaximumWidthPx : activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, renderCameraOffset) : readingMetrics.width - 24
   const activeReadingLayout = activeReadingPosition
-    ? readingLayoutSessionCache?.pageLayoutAtOrBelow(activeReadingText, sceneEcho ? undefined : dialogueLine?.speaker, activeReadingWidthPx)
-      ?? mainlineEchoLayout(activeReadingText, readingMetrics, { speaker: !sceneEcho ? dialogueLine?.speaker : undefined, maxWidthPx: activeReadingWidthPx })
+    ? readingLayoutSessionCache?.pageLayoutAtOrBelow(activeReadingText, sceneEchoSpeaker ?? dialogueLine?.speaker, activeReadingWidthPx)
+      ?? mainlineEchoLayout(activeReadingText, readingMetrics, { speaker: sceneEchoSpeaker ?? dialogueLine?.speaker, maxWidthPx: activeReadingWidthPx })
     : null
   const projectReadingX = useCallback((x: number) => scene.id === 'commercial-street' ? projectCommercialStreetX(x, renderScreenMetrics) : x, [renderScreenMetrics, scene.id])
   const geometryUnits = geometrySnapshot.units
@@ -2099,7 +2114,7 @@ export function MainlineSceneRenderer({
       source: activeReadingPosition,
       outside: sceneEcho ? undefined : dialogueOutside,
       text: activeReadingText,
-      speaker: sceneEcho ? undefined : dialogueLine?.speaker,
+      speaker: sceneEchoSpeaker ?? dialogueLine?.speaker,
       maximumWidthPx: activeReadingWidthPx,
       protectedVisuals: readingProtectedVisuals,
       metrics: readingMetrics,
@@ -3071,7 +3086,7 @@ export function MainlineSceneRenderer({
               ? sceneEcho.segmentIndex + 1 < sceneEcho.segments.length
               : dialogueSegmentIndex + 1 < dialogueSegmentCount || Boolean(dialogue && dialogueLineIndex! + 1 < dialogue.lines.length)
             const echoLayout = presentedReadingLayout ?? mainlineEchoLayout(text, readingMetrics, {
-              speaker: isDialogue && !stageDialogue ? dialogueLine!.speaker : undefined,
+              speaker: isDialogue && !stageDialogue ? dialogueLine!.speaker : sceneEchoSpeaker,
               maxWidthPx: displayReadingMaxWidthPx,
             })
             if (isDialogue && !stageDialogue) {
@@ -3137,7 +3152,7 @@ export function MainlineSceneRenderer({
                 else onDialogueExitComplete?.()
               }}
             >
-              {isDialogue && readingIsSubtitle && <DialogueSpeaker speaker={dialogueLine!.speaker} />}
+              {readingIsSubtitle && (isDialogue ? !stageDialogue && dialogueLine!.speaker : sceneEchoSpeaker) && <DialogueSpeaker speaker={isDialogue ? dialogueLine!.speaker : sceneEchoSpeaker!} />}
               {isDialogue && !stageDialogue && !readingIsSubtitle && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
               ? <DialogueText onProtectionRects={updateReadingProtectionRects} paused={dialogueTextMotion === 'typing' && !readingIsSubtitle && !readingProtectionRects.length} group={`${group}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />

@@ -218,6 +218,23 @@ export function mainlineReadingActionLayerPosition(position: Point, savedCameraO
   }
 }
 
+export type MainlineReadingActionCameraAnchor = Readonly<{ actionId: number; viewportKey: string; offset: Point }>
+
+/** Keep an action's camera anchor while the viewport is stable, but rebase it
+ * to the live camera after rotation/resizing. A portrait-era offset cannot be
+ * used to clamp an action into the new landscape viewport. */
+export function mainlineReadingActionCameraAnchor(input: {
+  previous: MainlineReadingActionCameraAnchor | null
+  actionId: number
+  viewportKey: string
+  authoredOffset?: Point
+  currentOffset: Point
+}): MainlineReadingActionCameraAnchor {
+  if (input.previous?.actionId === input.actionId && input.previous.viewportKey === input.viewportKey) return input.previous
+  const offset = input.previous?.actionId === input.actionId ? input.currentOffset : input.authoredOffset ?? input.currentOffset
+  return { actionId: input.actionId, viewportKey: input.viewportKey, offset: { ...offset } }
+}
+
 /** Find the longest first page that fits beside protected visuals and inside
  * the current room. The caller keeps the remaining pages and advances them
  * before advancing the authored dialogue/observation cursor. */

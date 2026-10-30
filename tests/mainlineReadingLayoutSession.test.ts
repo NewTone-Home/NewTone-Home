@@ -451,10 +451,11 @@ describe('observation line-height budget', () => {
 
 describe('unified subtitle layout', () => {
   it.each([
+    { metrics: { width: 390, height: 844, viewportWidth: 390 }, maximumWidth: 358 },
     { metrics: { width: 411, height: 914, viewportWidth: 411 }, maximumWidth: 379 },
     { metrics: { width: 1280, height: 800, viewportWidth: 1280 }, maximumWidth: 760 },
   ])('pins dialogue pages to a compact viewport region at $metrics.width px', ({ metrics, maximumWidth }) => {
-    const text = 'A long authored dialogue line keeps punctuation, repeats, and every original character. '.repeat(12)
+    const text = '这是一段用于检查字幕分页容量的超长对白其中没有标点也必须保留全部文字'.repeat(14)
     const speaker = 'Speaker'
     const scene = mainlineScenes['zhongshuyuan-office']
     const cache = createMainlineReadingSessionLayoutCache({
@@ -480,7 +481,15 @@ describe('unified subtitle layout', () => {
     expect(fit.fits).toBe(true)
     expect(fit.segments.length).toBeGreaterThan(1)
     expect(fit.segments.join('')).toBe(text)
-    expect(Math.max(...fit.pageLayouts.map(page => page.heightPx))).toBeLessThanOrEqual(Math.min(metrics.height * .24, 168))
+    const compact = metrics.width <= 600 && metrics.height > metrics.width
+    const maxTwoLineHeight = mainlineObservationMinimumPageHeight(['一', '一'], fit.layout.fontSizePx, compact)
+      + 3 + Math.max(12, fit.layout.fontSizePx * .74) * 1.5
+    fit.segments.forEach(page => {
+      const chunks = splitMainlineInteractionTextToFit(page, Math.max(fit.layout.fontSizePx, fit.maxWidthPx - 40), fit.layout.fontSizePx,
+        value => Array.from(value).length * fit.layout.fontSizePx)
+      expect(chunks.length).toBeLessThanOrEqual(2)
+    })
+    expect(Math.max(...fit.pageLayouts.map(page => page.heightPx))).toBeLessThanOrEqual(maxTwoLineHeight + .5)
     const projected = mainlineViewportPointFromWorld(fit.position, metrics, { x: -120, y: 80 })
     expect(projected.x).toBeCloseTo(50, 6)
     const projectedY = projected.y

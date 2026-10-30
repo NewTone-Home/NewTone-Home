@@ -39,7 +39,7 @@ export function mainlineEchoLayout(text: string, screenMetrics: SceneScreenMetri
   const lineWidthPx = Math.max(1, widthPx - paddingX)
   const textLines = textLinesContent.reduce((count, line) => count + Math.max(1, Math.ceil(textWidthPx(line, fontSizePx, 1, options.measureText) / lineWidthPx)), 0)
   let heightPx = paddingY + fontSizePx * lineHeight * textLines
-  if (options.speaker) heightPx += 3 + Math.max(12, fontSizePx * .74) * 1.62
+  if (options.speaker) heightPx += 3 + Math.max(12, fontSizePx * .74) * lineHeight
   return { widthPx, heightPx: Math.max(fontSizePx * 2, heightPx), fontSizePx }
 }
 

@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import type { MainlineContinuousStructure, MainlineSceneEntity } from './mainlineSceneModel'
 import { mainlineScenes } from './mainlineScenes'
-import { currentMainlineReadingTargetIds } from './mainlineReadingProtection'
+import { currentMainlineReadingTargetIds, mainlineReadingActionCameraAnchor } from './mainlineReadingProtection'
 import { mainlineDialogueStageActorOpacity, mainlineDialogueStageHiddenEntityIds } from './mainlineDialogueStage'
 
 describe('reading protection identity relationships', () => {
+  it('keeps an action camera anchor until the viewport changes, then rebases it to the live camera', () => {
+    const first = mainlineReadingActionCameraAnchor({ previous: null, actionId: 4, viewportKey: '390x844', authoredOffset: { x: 12, y: 18 }, currentOffset: { x: 12, y: 18 } })
+    const whileStable = mainlineReadingActionCameraAnchor({ previous: first, actionId: 4, viewportKey: '390x844', authoredOffset: first.offset, currentOffset: { x: 12, y: 18 } })
+    expect(whileStable.offset).toEqual({ x: 12, y: 18 })
+    const rotated = mainlineReadingActionCameraAnchor({ previous: whileStable, actionId: 4, viewportKey: '844x390', authoredOffset: first.offset, currentOffset: { x: -24, y: 7 } })
+    expect(rotated.offset).toEqual({ x: -24, y: 7 })
+    const nextAction = mainlineReadingActionCameraAnchor({ previous: rotated, actionId: 5, viewportKey: '844x390', authoredOffset: { x: 31, y: 9 }, currentOffset: { x: 0, y: 0 } })
+    expect(nextAction.offset).toEqual({ x: 31, y: 9 })
+  })
+
   it('protects a physical counter surface when reading its semantic service alias', () => {
     const objects = [
       { id: 'commercial-cafe-counter', interactionStructureId: 'cafe-trial-counter-long-body', counterSurfaceId: 'cafe-trial-L-counter' },
