@@ -879,7 +879,10 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
   if (narrow) return <div className="scene-mainline-subtitle-host" {...displayStateAttributes}>
     <NarrowDialogueViewport
       identity={identity}
-      speaker={speaker ? <DialogueSpeaker speaker={speaker} /> : undefined}
+      // Narrow page-flips animate the name and body as one snapshot. Do not
+      // mount DialogueSpeaker here: its independent exit timer can leave the
+      // outgoing name beside the incoming page for part of the flip.
+      speaker={speaker ? speaker : undefined}
       pageText={currentText}
       windowHeightPx={windowHeightPx}
       availableWidthPx={availableWidthPx}
