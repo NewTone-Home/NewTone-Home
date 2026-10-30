@@ -42,6 +42,17 @@
   font-weight: 650;
 }
 
+.narrow-dialogue-copy {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-direction: column;
+}
+
+.narrow-dialogue-copy--speaker {
+  transform: translateY(var(--narrow-dialogue-copy-speaker-offset));
+}
+
 .narrow-dialogue-text {
   min-width: 0;
   max-width: 100%;

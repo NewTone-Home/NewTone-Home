@@ -59,9 +59,8 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     const updateGap = () => {
       const height = element.getBoundingClientRect().height
       if (height <= 0) return
-      // The mask exposes 85% of the track. Keep each 48px row's neighbor
-      // preview near one third at the actual safe-area height.
-      const next = Math.max(36, Math.min(72, Math.round(height * .425 + 8)))
+      // The container edge clips each 48px row to a 16px neighbor preview.
+      const next = Math.max(36, Math.min(80, Math.round(height / 2 + 8)))
       setNarrowItemGapPx(current => current === next ? current : next)
     }
     updateGap()

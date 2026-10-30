@@ -394,6 +394,7 @@ export function NarrowDialogueViewport({
     '--narrow-dialogue-window-height': `${Math.max(1, windowHeightPx)}px`,
     '--narrow-dialogue-available-width': `${Math.max(1, availableWidthPx)}px`,
     '--narrow-dialogue-page-height': `${Math.max(1, Math.min(windowHeightPx, measuredPageHeightPx))}px`,
+    '--narrow-dialogue-copy-speaker-offset': `${-Math.min(16, Math.max(0, (windowHeightPx - 86 - measuredPageHeightPx) / 2))}px`,
   } as CSSProperties
 
   const outgoingSnapshot = outgoing
@@ -435,8 +436,10 @@ export function NarrowDialogueViewport({
       aria-hidden="true"
       onAnimationEnd={(event) => { if (event.target === event.currentTarget) setOutgoing(null) }}
     >
-      {outgoingSnapshot.speaker && <div className="narrow-dialogue-speaker">{outgoingSnapshot.speaker}</div>}
-      <div className="narrow-dialogue-text">{outgoingSnapshot.pageText}</div>
+      <div className={`narrow-dialogue-copy${outgoingSnapshot.speaker ? ' narrow-dialogue-copy--speaker' : ''}`}>
+        {outgoingSnapshot.speaker && <div className="narrow-dialogue-speaker">{outgoingSnapshot.speaker}</div>}
+        <div className="narrow-dialogue-text">{outgoingSnapshot.pageText}</div>
+      </div>
     </div>}
     <div
       className={`narrow-dialogue-slot narrow-dialogue-slot--current${presentedSnapshot.outgoing ? ' narrow-dialogue-slot--incoming' : ''}${isOptions ? ' narrow-dialogue-slot--options' : ''}`}
@@ -454,7 +457,7 @@ export function NarrowDialogueViewport({
           style={{ transform: `translate(-50%, calc(-50% + ${choiceOffset(index)}px))`, maxHeight: `${Math.max(1, choice.measuredHeightPx)}px` }}
           onClick={(event) => { event.preventDefault(); event.stopPropagation(); if (index === focusedIndex) confirmFocusedChoice() }}
         >{choice.label}</button>)}
-      </div> : <>
+      </div> : <div className={`narrow-dialogue-copy${presentedSnapshot.speaker ? ' narrow-dialogue-copy--speaker' : ''}`}>
         {presentedSnapshot.speaker && <div className="narrow-dialogue-speaker">{presentedSnapshot.speaker}</div>}
         <div className="narrow-dialogue-text-stack">
           <div className="narrow-dialogue-text narrow-dialogue-text--measure" aria-hidden="true">
@@ -464,7 +467,7 @@ export function NarrowDialogueViewport({
             {currentPageText}
           </div>
         </div>
-      </>}
+      </div>}
     </div>
     {overlay}
   </div>
