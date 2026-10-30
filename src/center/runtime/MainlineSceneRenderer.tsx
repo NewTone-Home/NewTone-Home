@@ -825,6 +825,9 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
   const historyElementRef = useRef<HTMLDivElement>(null)
   const previousRef = useRef<{ key: string; content: MainlineConversationDisplayContent; speaker?: string; speakerIsNpc: boolean } | null>(null)
   useLayoutEffect(() => {
+    if (content.kind === 'aside') onReadyChange(contentKey, true)
+  }, [content.kind, contentKey, onReadyChange])
+  useLayoutEffect(() => {
     const previous = previousRef.current
     if (previous && previous.key !== contentKey && previous.content.kind === 'text' && previous.content.text.trim()) {
       const entry = { key: previous.key, speaker: previous.speaker, speakerIsNpc: previous.speakerIsNpc, text: previous.content.text }
@@ -1758,6 +1761,7 @@ export function MainlineSceneRenderer({
   const dialogueAdvanceConsumedGroupRef = useRef<string | null>(null)
   const conversationDisplayReadyKeyRef = useRef<string | null>(null)
   const [conversationDisplayReadyKey, setConversationDisplayReadyKey] = useState<string | null>(null)
+  const conversationDisplayAdvanceConsumedKeyRef = useRef<string | null>(null)
   const retainedReadingPresentationRef = useRef<MainlineReadingPresentationSnapshot | null>(null)
   const dialogueHandoffPresentationRef = useRef<ReturnType<typeof mainlineDialogueHandoffPresentationForId>>(null)
   const dialogueCameraAnchorRef = useRef<{ key: string; viewportKey: string; offset: Point } | null>(null)
@@ -3499,6 +3503,12 @@ export function MainlineSceneRenderer({
               data-scene-dialogue-ready-match={isDialogue ? String(currentDialogueGroup !== null && dialogueReadyGroupRef.current === currentDialogueGroup) : undefined}
               data-scene-dialogue-consumed-match={isDialogue ? String(currentDialogueGroup !== null && dialogueAdvanceConsumedGroupRef.current === currentDialogueGroup) : undefined}
               data-scene-dialogue-segment-index={isDialogue ? dialogueSegmentIndex : undefined}
+              data-scene-dialogue-line-index={isDialogue ? dialogueLineIndex ?? '' : undefined}
+              data-scene-dialogue-display-session={hasConversationDisplayContent ? stableConversationDisplaySessionId ?? '' : undefined}
+              data-scene-dialogue-display-phase={hasConversationDisplayContent ? conversationDisplayContent?.kind === 'text' ? conversationDisplayContent.textMotion ?? dialogueTextMotion : conversationDisplayContent?.kind ?? '' : undefined}
+              data-scene-dialogue-display-advance-ready={hasConversationDisplayContent ? String(conversationDisplayAdvanceReady) : undefined}
+              data-scene-dialogue-display-advance-route={hasConversationDisplayContent ? conversationDisplayAdvanceRoute : undefined}
+              data-scene-dialogue-display-consumed-key={hasConversationDisplayContent ? conversationDisplayAdvanceConsumedKeyRef.current ?? '' : undefined}
               data-scene-dialogue-overflow-index={isDialogue ? displayOverflowIndex : undefined}
               data-scene-dialogue-text-motion={isDialogue ? dialogueTextMotion : undefined}
               data-scene-dialogue-handoff-active={isDialogue ? String(dialogueHandoffActive) : undefined}
@@ -3700,6 +3710,16 @@ export function MainlineSceneRenderer({
                   return
                 }
                 if (readingMode === 'dialogue') {
+                  if (hasConversationDisplayContent && !sceneEcho && dialogue && dialogueLine) {
+                    if (conversationDisplayAdvanceConsumedKeyRef.current !== conversationDisplayRequiredReadyKey) {
+                      conversationDisplayAdvanceConsumedKeyRef.current = conversationDisplayRequiredReadyKey
+                      if (currentDialogueGroupRef.current !== null) dialogueAdvanceConsumedGroupRef.current = currentDialogueGroupRef.current
+                      dialogueReadyGroupRef.current = null
+                      setDialogueReady(false)
+                      onDialogueAdvance?.(isWideDialogueConversation ? 'line' : 'segment')
+                    }
+                    return
+                  }
                   if (currentDialogueGroupRef.current !== null
                     && dialogueAdvanceConsumedGroupRef.current !== currentDialogueGroupRef.current
                     && dialogueReadyGroupRef.current === currentDialogueGroupRef.current) {
