@@ -2192,6 +2192,7 @@ export function MainlineScenePage({
       ? existingDisplaySessionId ?? `conversation:${++conversationDisplaySessionIdRef.current}`
       : existingDisplaySessionId
     if (displaySessionId) setConversationDisplaySessionId(displaySessionId)
+    else if (options?.length) setConversationDisplaySessionId(null)
     const currentPosition = getCurrentPosition()
     const worldScale = mainlineWorldScale(activeViewportMetrics)
     const actionCameraOffset = mainlineReadingCameraOffset(scene, currentPosition, readingMetrics, worldScale, cameraOffset)
@@ -2432,11 +2433,17 @@ export function MainlineScenePage({
       const commerceResult = onCommerceEntity?.(entity)
       if (commerceResult) {
         if (typeof commerceResult === 'object') {
+          const cafeCounterDialogueChoice = entity.id === 'commercial-cafe-counter' && Boolean(commerceResult.options?.length)
+          const commerceChoiceSessionId = cafeCounterDialogueChoice
+            ? `conversation:${++conversationDisplaySessionIdRef.current}`
+            : undefined
+          if (commerceChoiceSessionId) setConversationDisplaySessionId(commerceChoiceSessionId)
           sceneEchoIdRef.current += 1
           presentSceneEcho(createMainlineSceneEcho(sceneEchoIdRef.current, entity.id, commerceResult.text,
             sceneTextPresentationPosition(scene, getCurrentPosition(), commerceResult.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
             clockActivityForExploration(entity, Boolean(commerceResult.options)), commerceResult.options,
-            commerceResult.options ? 'commerce-choice' : undefined))
+            cafeCounterDialogueChoice ? 'dialogue-choice' : commerceResult.options ? 'commerce-choice' : undefined,
+            commerceChoiceSessionId))
         }
         onInteractionAnalytics?.('completed', entity.id, entity.kind, 'commerce-handled')
         setActiveObjectId(null)
@@ -2884,10 +2891,14 @@ export function MainlineScenePage({
         return
       }
       else if (option === '面' || option === '饭') {
+        setSceneAction(current => current?.id === actionId ? { ...current, optionFlow: 'commerce-choice', conversationDisplaySessionId: undefined } : current)
+        setConversationDisplaySessionId(null)
         const products = yongheMenuForChoice(option)
         presentYongheEcho(products.map(product => product.name).join('\n'), [...products.map(product => product.name)], 'yonghe-trial-worker', 'commerce-choice')
       } else if (option === '全部菜品') {
         const choices = yongheTakeawayCatalog.map(product => `${product.name} ${product.price}元`)
+        setSceneAction(current => current?.id === actionId ? { ...current, optionFlow: 'commerce-choice', conversationDisplaySessionId: undefined } : current)
+        setConversationDisplaySessionId(null)
         presentYongheEcho(yongheMenuText(), choices, 'yonghe-trial-worker', 'commerce-choice')
       } else {
         const product = yongheTakeawayCatalog.find(candidate => `${candidate.name} ${candidate.price}元` === option || candidate.name === option)
