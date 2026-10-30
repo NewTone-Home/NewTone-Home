@@ -1,6 +1,6 @@
 'use client'
 
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { AnimationEvent, CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
 import {
   narrowDialogueIdentityKey,
@@ -109,8 +109,12 @@ export function NarrowDialogueViewport({
   const motionCompletionSerialRef = useRef(0)
   const lastMotionCompletionKeyRef = useRef<string | null>(null)
   const [motionCompletionDiagnostic, setMotionCompletionDiagnostic] = useState('0:none')
+  const [transitionDiagnostic, setTransitionDiagnostic] = useState({ id: 0, phase: 'initial', completion: 'none' })
   const readyCallbackRef = useRef(onReady)
   const latestPropsRef = useRef({ identity, onExitComplete, onAdvance, onTextSettled })
+  const currentSlotRef = useRef<HTMLDivElement | null>(null)
+  const transitionRunRef = useRef(0)
+  const completedTransitionRef = useRef<number | null>(null)
   readyCallbackRef.current = onReady
   latestPropsRef.current = { identity, onExitComplete, onAdvance, onTextSettled }
 
@@ -138,6 +142,15 @@ export function NarrowDialogueViewport({
     readyCallbackRef.current?.(identity, isOptions ? 'options' : 'text', focusedChoiceId)
   }
 
+  const completeRollIn = (targetIdentityKey: string, transitionRun: number, completion: string) => {
+    if (identityKey !== targetIdentityKey || transitionRunRef.current !== transitionRun || completedTransitionRef.current === transitionRun || textAnimating) return
+    completedTransitionRef.current = transitionRun
+    setOutgoing(null)
+    setTransitionDiagnostic({ id: transitionRun, phase: 'ready', completion })
+    notifyReady(focusedChoice?.id)
+    if (identity.content === 'text' && textMotion === 'typing') reportTextMotionComplete('typing')
+  }
+
   const reportTextMotionComplete = (motion: 'typing' | 'deleting') => {
     const completionKey = `${identityKey}:${motion}`
     if (lastMotionCompletionKeyRef.current === completionKey) return
@@ -157,6 +170,9 @@ export function NarrowDialogueViewport({
     const shouldAnimate = prior !== null
       && priorKey !== identityKey
       && (transition === 'line-change' || transition === 'capacity-page' || transition === 'aside-enter' || transition === 'aside-return' || transition === 'options-enter' || transition === 'options-return')
+    const transitionRun = priorKey === identityKey ? transitionRunRef.current : ++transitionRunRef.current
+    completedTransitionRef.current = null
+    setTransitionDiagnostic({ id: transitionRun, phase: shouldAnimate ? 'animating' : 'settling', completion: shouldAnimate ? 'awaiting-roll-in' : 'identity-settled' })
     const next: DisplaySnapshot = { identity, identityKey, pageText, speaker, transition, outgoing: shouldAnimate }
     previousRef.current = next
     setSnapshot(next)
@@ -250,12 +266,30 @@ export function NarrowDialogueViewport({
     setDisplayedText(pageText)
     if (!shouldAnimate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       setOutgoing(null)
+      setTransitionDiagnostic({ id: transitionRun, phase: 'ready', completion: shouldAnimate ? 'reduced-motion' : 'no-transition' })
       notifyReady(focusedChoice?.id)
       if (identity.content === 'text' && textMotion === 'typing') reportTextMotionComplete('typing')
       return
     }
     setOutgoing(prior.identity.content === 'text' ? { ...prior, outgoing: true } : null)
   }, [identityKey, pageText, speaker, typewriterEnabled, textMotion])
+
+  useEffect(() => {
+    if (snapshot.identityKey !== identityKey || !snapshot.outgoing) return
+    const transitionRun = transitionRunRef.current
+    const element = currentSlotRef.current
+    if (!element) return
+    const rollIn = element.getAnimations().find((animation) => (animation as CSSAnimation).animationName === 'narrow-dialogue-roll-in')
+    if (!rollIn) return
+    rollIn.finished.then(
+      () => completeRollIn(identityKey, transitionRun, 'waapi-animation-finished'),
+      () => {
+        if (transitionRunRef.current === transitionRun && completedTransitionRef.current !== transitionRun) {
+          setTransitionDiagnostic({ id: transitionRun, phase: 'animation-cancelled', completion: 'waapi-animation-cancelled' })
+        }
+      },
+    )
+  }, [identityKey, snapshot.identityKey, snapshot.outgoing])
 
   useLayoutEffect(() => () => {
     motionRunRef.current += 1
@@ -330,9 +364,7 @@ export function NarrowDialogueViewport({
 
   const handleReadyAnimationEnd = (event: AnimationEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget || event.animationName !== 'narrow-dialogue-roll-in' || textAnimating) return
-    setOutgoing(null)
-    notifyReady(focusedChoice?.id)
-    if (identity.content === 'text' && textMotion === 'typing') reportTextMotionComplete('typing')
+    completeRollIn(identityKey, transitionRunRef.current, 'animationend-event')
   }
 
   const handleAdvance = (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -419,6 +451,9 @@ export function NarrowDialogueViewport({
     data-narrow-dialogue-page={identity.pageIndex}
     data-narrow-dialogue-page-key={identity.pageKey}
     data-narrow-dialogue-ready={String(isReady)}
+    data-narrow-dialogue-transition-id={transitionDiagnostic.id}
+    data-narrow-dialogue-transition-phase={transitionDiagnostic.phase}
+    data-narrow-dialogue-transition-completion={transitionDiagnostic.completion}
     data-narrow-dialogue-content={identity.content}
     data-narrow-dialogue-text-motion={identity.content === 'text' ? textMotion : undefined}
     data-narrow-dialogue-motion-completion={motionCompletionDiagnostic}
@@ -442,6 +477,7 @@ export function NarrowDialogueViewport({
       </div>
     </div>}
     <div
+      ref={currentSlotRef}
       className={`narrow-dialogue-slot narrow-dialogue-slot--current${presentedSnapshot.outgoing ? ' narrow-dialogue-slot--incoming' : ''}${isOptions ? ' narrow-dialogue-slot--options' : ''}`}
       onAnimationEnd={handleReadyAnimationEnd}
     >
