@@ -511,6 +511,7 @@ export function MainlineScenePage({
   const dialogueTextSessionSceneRef = useRef<string | null>(null)
   const [dialogueTextMotion, setDialogueTextMotion] = useState<MainlineReadingTextMotion>('static')
   const dialogueTextMotionRef = useRef<MainlineReadingTextMotion>('static')
+  const [dialogueAdvanceDiagnostic, setDialogueAdvanceDiagnostic] = useState('idle')
   const [dialogueHandoffActive, setDialogueHandoffActive] = useState(false)
   const dialogueHandoffActiveRef = useRef(false)
   const dialogueHandoffStartedAtRef = useRef<number | null>(null)
@@ -3064,10 +3065,26 @@ export function MainlineScenePage({
       && mainlineReadingSessionTextIsFinal(dialogueLineIndex, activeDialogue.lines.length, dialogueSegmentIndex, currentSegments.length))
   }, [activeDialogue, activeDialogueLine?.text, commercialCafeNarrative, commercialCafeStory.narrativeCursor, commercialStreetQuestionNarrative, dialogueLineIndex, dialogueSegmentIndex])
 
+  const noteDialogueAdvance = useCallback((event: string, intent: 'line' | 'segment') => {
+    setDialogueAdvanceDiagnostic(JSON.stringify({
+      event,
+      intent,
+      scene: scene.id,
+      sessionId: dialogueTextSessionIdRef.current,
+      lineIndex: commercialCafeNarrative ? commercialCafeStory.narrativeCursor : dialogueLineIndex,
+      segmentIndex: dialogueSegmentIndex,
+      motion: dialogueTextMotionRef.current,
+      handoff: dialogueHandoffActiveRef.current,
+      cafePhase: commercialCafeNarrative?.phase ?? null,
+    }))
+  }, [commercialCafeNarrative, commercialCafeStory.narrativeCursor, dialogueLineIndex, dialogueSegmentIndex, scene.id])
+
   const advanceDialogue = useCallback((tailDeletionComplete = false, advanceIntent: 'line' | 'segment' = 'segment') => {
+    noteDialogueAdvance('received', advanceIntent)
     onMeaningfulActivity?.()
     if (!tailDeletionComplete && dialogueHandoffActiveRef.current) {
       if (dialogueTextMotionRef.current === 'typing') updateDialogueTextMotion('static')
+      noteDialogueAdvance('blocked:handoff-active', advanceIntent)
       return
     }
     const cursorOneDeliveryStatus = commercialCafeNarrative?.phase === 'active' && commercialCafeStory.narrativeCursor === 1
@@ -3079,11 +3096,16 @@ export function MainlineScenePage({
     if (!tailDeletionComplete) {
       if (dialogueTextMotion === 'typing') {
         updateDialogueTextMotion('static')
+        noteDialogueAdvance('skip-typing', advanceIntent)
         return
       }
-      if (dialogueTextMotion === 'deleting' || dialogueTextMotion === 'deleted') return
+      if (dialogueTextMotion === 'deleting' || dialogueTextMotion === 'deleted') {
+        noteDialogueAdvance('blocked:text-deleting', advanceIntent)
+        return
+      }
       if (advanceIntent !== 'line' && dialogueAtSessionEnd()) {
         updateDialogueTextMotion('deleting')
+        noteDialogueAdvance('starting-dialogue-exit', advanceIntent)
         return
       }
       const nextLine = commercialCafeNarrative
@@ -3108,6 +3130,7 @@ export function MainlineScenePage({
           deleted: false,
         })
         setDialogueHandoffActive(true)
+        noteDialogueAdvance('handoff-started', advanceIntent)
         // Advance the story exactly once. The outgoing visual now owns its
         // own delete motion while the next speaker starts typing in parallel.
         advanceDialogueRef.current(true, advanceIntent)
@@ -3118,24 +3141,36 @@ export function MainlineScenePage({
     if (commercialStreetQuestionNarrative) {
       setDialogueSegmentIndex(0)
       setCommercialStreetQuestionNarrative((current) => current ? nextCommercialStreetQuestionNarrative(current) : current)
+      noteDialogueAdvance('advanced:street-question', advanceIntent)
       return
     }
     if (commercialCafeNarrative) {
-      if (commercialCafeNarrative.phase === 'coffee-delivery' || commercialCafeNarrative.phase === 'coffee-returning') return
+      if (commercialCafeNarrative.phase === 'coffee-delivery' || commercialCafeNarrative.phase === 'coffee-returning') {
+        noteDialogueAdvance(`blocked:cafe-${commercialCafeNarrative.phase}`, advanceIntent)
+        return
+      }
       if (commercialCafeNarrative.phase === 'delivery-line') {
         const acknowledged = commercialCafeFinishDeliveryLine(commercialCafeStory)
-        if (acknowledged === commercialCafeStory) return
+        if (acknowledged === commercialCafeStory) {
+          noteDialogueAdvance('blocked:delivery-ack-unchanged', advanceIntent)
+          return
+        }
         cafeStoryOrderDelivery?.completePresentation(commercialCafeLaoZhouDeliveryEventId)
         recordSceneStatePatch(scene.id, commercialCafeStoryStatePatch(acknowledged))
         setDialogueSegmentIndex(0)
         setCommercialCafeNarrative({ phase: 'coffee-returning' })
+        noteDialogueAdvance('advanced:coffee-returning', advanceIntent)
         return
       }
       const line = commercialCafeNarrativeDialogue.lines[commercialCafeStory.narrativeCursor]
-      if (!line) return
+      if (!line) {
+        noteDialogueAdvance('blocked:cafe-empty-line', advanceIntent)
+        return
+      }
       const segments = [mainlineDisplaySourceText(line.text)]
       if (advanceIntent !== 'line' && dialogueSegmentIndex + 1 < segments.length) {
         setDialogueSegmentIndex((current) => current + 1)
+        noteDialogueAdvance('advanced:cafe-segment', advanceIntent)
         return
       }
       const nextCursor = commercialCafeStory.narrativeCursor + 1
@@ -3150,6 +3185,7 @@ export function MainlineScenePage({
             setDialogueLineIndex(1)
             if (tailDeletionComplete && dialogueHandoffActiveRef.current) startDialogueTextSession()
             setCommercialCafeNarrative({ phase: 'coffee-delivery' })
+            noteDialogueAdvance('advanced:coffee-delivery', advanceIntent)
             return
           }
         }
@@ -3162,6 +3198,7 @@ export function MainlineScenePage({
           startDialogueTextSession()
         }
         setCommercialCafeNarrative({ phase: 'active' })
+        noteDialogueAdvance('advanced:cafe-cursor-2', advanceIntent)
         return
       }
       if (nextCursor < commercialCafeNarrativeDialogue.lines.length) {
@@ -3174,19 +3211,25 @@ export function MainlineScenePage({
         }
         const stage = commercialCafeAnalyticsStageForCursor(nextCursor)
         if (stage) recordCafeAnalyticsMilestone(stage)
+        noteDialogueAdvance('advanced:cafe-cursor', advanceIntent)
         return
       }
       recordSceneStatePatch(scene.id, commercialCafeStoryStatePatch(commercialCafeStoryReadyToLeave(commercialCafeStory)))
       recordCafeAnalyticsMilestone('ready-to-leave')
       onChapterAnalytics?.('cafe_ready_to_leave')
       setCommercialCafeNarrative({ phase: 'leaving' })
+      noteDialogueAdvance('advanced:cafe-leaving', advanceIntent)
       return
     }
-    if (dialogueLineIndex === null || !activeDialogue) return
+    if (dialogueLineIndex === null || !activeDialogue) {
+      noteDialogueAdvance('blocked:missing-active-dialogue', advanceIntent)
+      return
+    }
     const currentText = activeDialogue.lines[dialogueLineIndex]?.text ?? ''
     const segments = currentText ? [mainlineDisplaySourceText(currentText)] : []
     if (advanceIntent !== 'line' && dialogueSegmentIndex + 1 < segments.length) {
       setDialogueSegmentIndex((current) => current + 1)
+      noteDialogueAdvance('advanced:dialogue-segment', advanceIntent)
       return
     }
     setDialogueSegmentIndex(0)
@@ -3199,6 +3242,7 @@ export function MainlineScenePage({
       if (tailDeletionComplete && dialogueHandoffActiveRef.current) {
         startDialogueTextSession()
       }
+      noteDialogueAdvance('advanced:dialogue-line', advanceIntent)
       return
     }
     if (activeDialogue.triggerEntityId === ruoyuCafeMeetingDialogue.triggerEntityId) {
@@ -3206,7 +3250,8 @@ export function MainlineScenePage({
       recordSceneState(scene.id, ruoyuCafeMeetingStatusKey, 'complete')
     }
     setGenericDialoguePhase('leaving')
-  }, [activeDialogue, activeDialogueLine, activeDialoguePosition, activeDialogueText, activeViewportMetrics, cameraOffset, cafeStoryOrderDelivery, commercialCafeNarrative, commercialCafeStory, commercialStreetQuestionNarrative, dialogueAtSessionEnd, dialogueLineIndex, dialogueSegmentIndex, dialogueTextMotion, npcDialogue, onChapterAnalytics, onMeaningfulActivity, position, recordCafeAnalyticsMilestone, recordSceneState, recordSceneStatePatch, scene, screenMetrics, startDialogueTextSession, updateDialogueTextMotion])
+    noteDialogueAdvance('advanced:dialogue-leaving', advanceIntent)
+  }, [activeDialogue, activeDialogueLine, activeDialoguePosition, activeDialogueText, activeViewportMetrics, cameraOffset, cafeStoryOrderDelivery, commercialCafeNarrative, commercialCafeStory, commercialStreetQuestionNarrative, dialogueAtSessionEnd, dialogueLineIndex, dialogueSegmentIndex, dialogueTextMotion, npcDialogue, noteDialogueAdvance, onChapterAnalytics, onMeaningfulActivity, position, recordCafeAnalyticsMilestone, recordSceneState, recordSceneStatePatch, scene, screenMetrics, startDialogueTextSession, updateDialogueTextMotion])
 
   const skipDialogueTyping = useCallback((sessionId: number) => {
     if (sessionId !== dialogueTextSessionIdRef.current || dialogueTextMotionRef.current !== 'typing') return
@@ -3526,6 +3571,7 @@ export function MainlineScenePage({
               dialoguePhase={dialoguePresentationPhase}
               dialogueTextSessionId={dialogueTextSessionId}
               dialogueTextMotion={dialogueTextMotion}
+              dialogueAdvanceDiagnostic={dialogueAdvanceDiagnostic}
               dialogueStage={null}
               dialogueHandoffActive={dialogueHandoffActive}
               dialogueHandoffFadeDurationMs={mainlineDialogueHandoffDurationMs(activeDialogueText.length)}
