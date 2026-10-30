@@ -25,7 +25,7 @@ import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoor
 import { mainlineWorldFontSizePx, sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { readMainlineViewportMetrics, type MainlineViewportMetrics } from './mainlineViewportProjection'
 import { commercialStreetHorizontalScale, projectCommercialStreetX } from './commercialStreetGridProjection'
-import { mainlineCameraOffset, mainlineWorldPointFromClient, mainlineWorldScale, mainlineVisibleWorldSpan } from './mainlineViewport'
+import { mainlineViewportPointFromWorld, mainlineWorldPointFromClient, mainlineWorldScale, mainlineVisibleWorldSpan } from './mainlineViewport'
 import { advanceCommercialStreetQuestionCameraHandoff, commercialStreetQuestionCameraHandoffSettled } from './commercialStreetQuestionCameraHandoff'
 import { sceneFocusFrameGeometry, useSceneFocusFrameController } from './SceneFocusFrames'
 import { sceneFrameDefaultMotionMs } from './sceneMotion'
@@ -1847,24 +1847,26 @@ export function MainlineSceneRenderer({
     })
     participantBounds.push(mainlineLabelFootprint(protagonistPresentation.kind === 'dot' ? '修杰' : protagonistPresentation.label, protagonistVisualPosition, renderScreenMetrics, { lineHeight: 1 }))
     const actorBounds = unionWorldBounds(participantBounds)
-    const focus = { x: actorBounds.x + actorBounds.width / 2, y: actorBounds.y + actorBounds.height / 2 }
     const conversationRailWidthPx = Math.max(320, Math.min(viewportMetrics.width * .34, 460))
-    // The authored-scene camera clamps to walkBounds. That is correct for
-    // ordinary play, but can leave a conversation group's labels underneath
-    // the fixed right rail. Compose the conversation directly in the space
-    // left of that rail; only this presentation camera may overscan the room.
     const visibleSpan = mainlineVisibleWorldSpan(viewportMetrics)
-    const safeContentCenterPx = Math.max(0, viewportMetrics.width - conversationRailWidthPx - 16) / 2
-    const safeContentCenterPercent = safeContentCenterPx / Math.max(1, viewportMetrics.width) * 100
-    const conversationOffset = mainlineCameraOffset(scene, focus, embedded, viewportMetrics)
-    const cameraOffset = {
-      x: embedded ? conversationOffset.x : 50 - focus.x + (safeContentCenterPercent - 50) / 100 * visibleSpan.x,
-      y: conversationOffset.y,
+    const railLeftPx = viewportMetrics.width - conversationRailWidthPx
+    const actorBoundsCenterY = actorBounds.y + actorBounds.height / 2
+    const actorLeftPx = mainlineViewportPointFromWorld({ x: actorBounds.x, y: actorBoundsCenterY }, viewportMetrics, cameraOffset).x / 100 * viewportMetrics.width
+    const actorRightPx = mainlineViewportPointFromWorld({ x: actorBounds.x + actorBounds.width, y: actorBoundsCenterY }, viewportMetrics, cameraOffset).x / 100 * viewportMetrics.width
+    const sidebarGapPx = 14
+    // Preserve the live gameplay camera unless the participants' actual label
+    // bounds enter the rail. If blocked, translate only enough to clear its
+    // left edge; do not center the participants in the remaining viewport.
+    const overlapsSidebar = actorRightPx > railLeftPx - sidebarGapPx && actorLeftPx < viewportMetrics.width
+    const panLeftPx = overlapsSidebar ? Math.max(0, actorRightPx - (railLeftPx - sidebarGapPx)) : 0
+    const conversationOffset = {
+      x: embedded ? cameraOffset.x : cameraOffset.x - panLeftPx / Math.max(1, viewportMetrics.width) * visibleSpan.x * 100,
+      y: cameraOffset.y,
     }
     dialogueCameraAnchorRef.current = {
       key: wideConversationCameraSession,
       viewportKey: wideConversationViewportKey,
-      offset: cameraOffset,
+      offset: conversationOffset,
     }
   }
   const wideConversationCameraOffset = dialogueCameraAnchorRef.current?.offset ?? null

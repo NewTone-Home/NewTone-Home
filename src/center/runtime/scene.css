@@ -1324,18 +1324,15 @@
 .scene-mainline-conversation-line {
   flex: 0 0 auto;
   max-width: 94%;
-  padding: 7px 12px 9px;
-  border-radius: 9px;
-  background: rgba(17, 20, 25, .48);
   text-shadow: 0 1px 5px rgba(0, 0, 0, .75);
   overflow-wrap: anywhere;
 }
 .scene-mainline-conversation-line.is-npc { align-self: flex-start; }
-.scene-mainline-conversation-line.is-player { align-self: flex-end; background: rgba(72, 66, 53, .58); }
+.scene-mainline-conversation-line.is-player { align-self: flex-end; }
 .scene-mainline-conversation-line__speaker { display: block; margin-bottom: 3px; color: var(--active); font-size: .78em; letter-spacing: .04em; }
 .scene-mainline-conversation-line__speaker .scene-mainline-text__speaker { font-size: 14px; }
 .scene-mainline-conversation-line p { margin: 0; white-space: pre-wrap; }
-.scene-mainline-conversation-line--current { max-height: min(38vh, 320px); overflow-y: auto; background: rgba(18, 22, 28, .68); }
+.scene-mainline-conversation-line--current { max-height: min(38vh, 320px); overflow-y: auto; }
 @media (prefers-reduced-motion: reduce) {
   .scene-mainline-text.scene-mainline-text--subtitle,
   .scene-mainline-conversation { animation-duration: 1ms !important; }
