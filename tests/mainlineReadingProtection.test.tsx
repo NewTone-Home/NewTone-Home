@@ -35,12 +35,18 @@ describe('reading target protection', () => {
   it('keeps an open shop action placeable when rotating from portrait to landscape', () => {
     const scene = mainlineScenes['commercial-street']
     const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-n1-interior')!
-    const source = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+    const source = { x: 39.33333333333333, y: 35.455891031001045 }
+    const player = { x: 23.1277, y: -3.3534 }
     const portrait = { width: 390, height: 844, viewportWidth: 390 }
     const landscape = { width: 844, height: 390, viewportWidth: 844 }
-    const oldOffset = mainlineCameraOffset(scene, source, false, portrait)
+    const oldOffset = mainlineCameraOffset(scene, player, false, portrait)
+    const playerTarget = mainlineReadingActionViewportCameraOffset(scene, player, oldOffset, landscape)
     const rotatedOffset = mainlineReadingActionViewportCameraOffset(scene, source, oldOffset, landscape)
+    const playerPlacement = mainlinePlaceReadingAction(scene, source, { width: 115, height: 29 }, landscape, mainlineWorldScale(landscape), playerTarget)
     const placement = mainlinePlaceReadingAction(scene, source, { width: 115, height: 29 }, landscape, mainlineWorldScale(landscape), rotatedOffset)
+    expect(room.id).toBe('commercial-north-n1-interior')
+    expect(mainlineInteractionRoom(scene, source)).not.toBeNull()
+    expect(playerPlacement).toBeNull()
     expect(placement).not.toBeNull()
     expect(placement!.availableHeightPx).toBeGreaterThan(29)
   })

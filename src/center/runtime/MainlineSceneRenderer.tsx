@@ -1884,7 +1884,7 @@ export function MainlineSceneRenderer({
   }, [questionReadingActive, readingPresentationPhase, scene.id])
   const renderCameraOffset = questionExitCameraOffset ?? readingCameraOffset
   const sceneActionViewportKey = JSON.stringify([renderScreenMetrics.width, renderScreenMetrics.height, viewportMetrics.width, viewportMetrics.height])
-  const sceneActionViewportCameraOffset = mainlineReadingActionViewportCameraOffset(scene, position, cameraOffset, viewportMetrics, embedded)
+  const sceneActionViewportCameraOffset = mainlineReadingActionViewportCameraOffset(scene, sceneAction?.position ?? position, cameraOffset, viewportMetrics, embedded)
   const sceneActionCameraAnchorRef = useRef<MainlineReadingActionCameraAnchor | null>(null)
   if (!sceneAction) sceneActionCameraAnchorRef.current = null
   else sceneActionCameraAnchorRef.current = mainlineReadingActionCameraAnchor({
