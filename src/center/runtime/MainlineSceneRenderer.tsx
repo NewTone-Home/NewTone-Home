@@ -7,6 +7,7 @@ import { isWallMenuReading } from './menuReading'
 import { commercialStreetDrinkCatalog } from './commercialStreetDrinkCatalog'
 
 import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { CSSProperties, ReactNode } from 'react'
 import { MainlineCounterSurface } from './MainlineCounterSurface'
 import EntryButtonSurface from '../../components/EntryButtonSurface'
@@ -1581,6 +1582,11 @@ export function MainlineSceneRenderer({
   const dialogueCameraAnchorRef = useRef<{ key: string; viewportKey: string; offset: Point } | null>(null)
   const [dialogueCameraTransitionActive, setDialogueCameraTransitionActive] = useState(false)
   const stageRef = useRef<HTMLDivElement>(null)
+  const [viewportOverlayHost, setViewportOverlayHost] = useState<HTMLDivElement | null>(null)
+  const setStageHost = useCallback((node: HTMLDivElement | null) => {
+    stageRef.current = node
+    setViewportOverlayHost(node)
+  }, [])
   const stableViewportRef = useRef<HTMLSpanElement>(null)
   const dimmerRef = useRef<HTMLDivElement>(null)
   const isMenuReading = Boolean(sceneEcho && isWallMenuReading(sceneEcho.entityId))
@@ -2763,7 +2769,7 @@ export function MainlineSceneRenderer({
   }
   return (
     <section className="scene-wrap" aria-label={`${scene.title}可探索场景`}>
-      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-cafe-restroom-toilet-use-phase={cafeRestroomFixtureUsePhases[cafeRestroomToiletId] ?? 'idle'} data-cafe-restroom-sink-use-phase={cafeRestroomFixtureUsePhases[cafeRestroomFaucetId] ?? 'idle'} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-reading-layout-fit-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.fitCalls : undefined} data-reading-layout-split-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.splitCalls : undefined} data-reading-layout-layout-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.layoutCalls : undefined} data-reading-layout-measure-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.textMeasureCalls : undefined} data-scene-dialogue-state={dialoguePhase} data-scene-dialogue-unresolved-speakers={dialogueParticipantResolution.unresolvedSpeakers.join('|') || undefined}>
+      <div ref={setStageHost} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-cafe-restroom-toilet-use-phase={cafeRestroomFixtureUsePhases[cafeRestroomToiletId] ?? 'idle'} data-cafe-restroom-sink-use-phase={cafeRestroomFixtureUsePhases[cafeRestroomFaucetId] ?? 'idle'} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-reading-layout-fit-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.fitCalls : undefined} data-reading-layout-split-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.splitCalls : undefined} data-reading-layout-layout-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.layoutCalls : undefined} data-reading-layout-measure-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.textMeasureCalls : undefined} data-scene-dialogue-state={dialoguePhase} data-scene-dialogue-unresolved-speakers={dialogueParticipantResolution.unresolvedSpeakers.join('|') || undefined}>
         {layoutMode && <div className="scene-layout-grid" aria-hidden="true" />}
         <span ref={stableViewportRef} className="scene-mainline-stable-viewport" aria-hidden="true" />
 
@@ -3152,7 +3158,7 @@ export function MainlineSceneRenderer({
           }} />
         })}
         <div className="scene-mainline-reading-layer">
-  {!isWideDialogueConversation && (sceneEcho || (dialogue && dialogueLine && dialoguePosition)) && (() => {
+  {!isWideDialogueConversation && (!readingIsSubtitle || viewportOverlayHost) && (sceneEcho || (dialogue && dialogueLine && dialoguePosition)) && (() => {
             const isDialogue = !sceneEcho && Boolean(dialogue && dialogueLine && dialoguePosition)
             const isLeaving = sceneEcho?.phase === 'leaving' || (isDialogue && dialoguePhase === 'leaving')
             const text = displayReadingText
@@ -3177,7 +3183,7 @@ export function MainlineSceneRenderer({
             const baseSpeakerAnchor = isDialogue && !stageDialogue && !readingIsSubtitle ? speakerPlacementRef.current!.anchor : null
             const speakerPageAnchor = baseSpeakerAnchor ? mainlineSpeakerPageAnchor(baseSpeakerAnchor, echoLayout, worldScale) : null
             const speakerAnchor = speakerPageAnchor ? { ...speakerPageAnchor, left: speakerPageAnchor.left + readingDisplayShift.x, top: speakerPageAnchor.top + readingDisplayShift.y } : null
-            return <Fragment>
+            const readingText = <Fragment>
             {isDialogue && speakerAnchor && <div
               key={`speaker:${scene.id}:${dialogue!.triggerEntityId}`}
               className={`scene-mainline-speaker-anchor ${isLeaving ? 'is-leaving' : ''}`}
@@ -3253,8 +3259,9 @@ export function MainlineSceneRenderer({
               onDeleted={(id) => onDialogueHandoffOutgoingDeleted?.(id)}
             />}
             </Fragment>
+            return readingIsSubtitle && viewportOverlayHost ? createPortal(readingText, viewportOverlayHost) : readingText
           })()}
-          {isWideDialogueConversation && dialogue && dialogueLine && <MainlineDialogueConversation
+          {isWideDialogueConversation && viewportOverlayHost && dialogue && dialogueLine && createPortal(<MainlineDialogueConversation
             scene={scene}
             dialogue={dialogue}
             dialogueLine={dialogueLine}
@@ -3264,7 +3271,7 @@ export function MainlineSceneRenderer({
             isLeaving={readingIsLeaving}
             onDialogueTextMotionComplete={onDialogueTextMotionComplete}
             onDialogueReadyChange={updateDialogueReady}
-          />}
+          />, viewportOverlayHost)}
           {sceneAction && <div
             ref={sceneActionRef}
             className="scene-mainline-action scene-mainline-action--reading"
