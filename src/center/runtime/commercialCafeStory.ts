@@ -49,6 +49,20 @@ export const commercialCafeStoryTableId = 'commercial-cafe-right-window-upper-gr
 export const commercialCafeCounterTargetId = 'commercial-cafe-counter-service'
 export const commercialCafePrepTargetId = 'commercial-cafe-prep-station'
 
+/** Resolve the active story table from Lao Zhou's live seat assignment. */
+export function commercialCafeStoryTableIdForScene(scene: MainlineSceneDefinition): string {
+  const laoZhouSeatId = scene.npcBehaviors?.find((behavior) =>
+    behavior.npcId === npcRoles.laoZhou.id
+      && behavior.dutyId === npcRoles.laoZhou.duties.seated.id
+      && behavior.targetKind === 'seat')?.targetId
+  const laoZhouSeat = scene.objects.find((entity) =>
+    entity.id === laoZhouSeatId && entity.kind === 'seat' && entity.seat)
+  const tableId = laoZhouSeat?.seat?.tableId
+  const table = tableId ? scene.objects.find((entity) =>
+    entity.id === tableId && entity.kind === 'table' && entity.roomId === laoZhouSeat.roomId) : undefined
+  return table?.id ?? commercialCafeStoryTableId
+}
+
 export function isCommercialCafeStoryStage(value: unknown): value is CommercialCafeStoryStage {
   return typeof value === 'string' && commercialCafeStoryStages.includes(value as CommercialCafeStoryStage)
 }
@@ -271,7 +285,8 @@ export function resolveCommercialCafeCoffeePrepIntent(scene: MainlineSceneDefini
 }
 export function resolveCommercialCafeCoffeeDeliveryIntent({ scene, coffeeStatus, narrativePhase }: { scene: MainlineSceneDefinition; coffeeStatus: CommercialCafeCoffeeStatus; narrativePhase: CommercialCafeNarrativePhase }): NpcIntent | null {
   if (!hasContinuousCafe(scene) || coffeeStatus !== 'ready' || narrativePhase !== 'coffee-delivery') return null
-  const table = scene.objects.find((entity) => entity.id === commercialCafeStoryTableId)
+  const storyTableId = commercialCafeStoryTableIdForScene(scene)
+  const table = scene.objects.find((entity) => entity.id === storyTableId && entity.kind === 'table')
   return table ? { dutyId: npcRoles.cafeCoffeeOwner.duties.deliverCoffee.id, targetId: table.id, targetEntityId: table.id } : null
 }
 export function resolveCommercialCafeReturnToCounterIntent(scene: MainlineSceneDefinition): NpcIntent | null {
@@ -281,7 +296,8 @@ export function resolveCommercialCafeReturnToCounterIntent(scene: MainlineSceneD
 }
 export function resolveCommercialCafeFloorServiceIntent(scene: MainlineSceneDefinition, rotation = 0): NpcIntent | null {
   if (!hasContinuousCafe(scene)) return null
-  const publicTables = scene.objects.filter((entity) => entity.kind === 'table' && entity.roomId === 'commercial-north-cafe-interior' && entity.id !== commercialCafeStoryTableId)
+  const storyTableId = commercialCafeStoryTableIdForScene(scene)
+  const publicTables = scene.objects.filter((entity) => entity.kind === 'table' && entity.roomId === 'commercial-north-cafe-interior' && entity.id !== storyTableId)
   const table = publicTables.length ? publicTables[rotation % publicTables.length] : undefined
   return table?.approach ? { dutyId: npcRoles.cafeFloorServer.duties.tableService.id, targetId: table.id, target: { ...table.approach } } : null
 }
