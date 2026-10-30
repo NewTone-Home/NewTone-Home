@@ -1,0 +1,132 @@
+.dialogue-choice-wheel {
+  --dialogue-wheel-gap: 62px;
+  position: absolute;
+  z-index: 8;
+  width: min(360px, 38vw);
+  height: calc(var(--dialogue-wheel-gap) * 2.3);
+  overflow: hidden;
+  color: #f8f5ec;
+  touch-action: none;
+  overscroll-behavior: contain;
+  user-select: none;
+  -webkit-user-select: none;
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  transition: opacity 620ms ease, transform 620ms cubic-bezier(.2,.75,.25,1);
+  pointer-events: auto;
+}
+
+.dialogue-choice-wheel--wide-right {
+  right: clamp(16px, 4vw, 58px);
+  top: 50%;
+  transform: translate3d(0, -50%, 0) scale(1);
+}
+
+.dialogue-choice-wheel--narrow-bottom {
+  left: 50%;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  width: min(90vw, 420px);
+  transform: translate3d(-50%, 0, 0) scale(1);
+}
+
+.dialogue-choice-wheel.is-entering {
+  opacity: 0;
+}
+
+.dialogue-choice-wheel--wide-right.is-entering {
+  transform: translate3d(20px, -50%, 0) scale(.98);
+}
+
+.dialogue-choice-wheel--narrow-bottom.is-entering {
+  transform: translate3d(-50%, 18px, 0) scale(.98);
+}
+
+.dialogue-choice-wheel.is-locked {
+  pointer-events: none;
+}
+
+.dialogue-choice-wheel__viewport {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+  perspective: 820px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 23%, #000 77%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 23%, #000 77%, transparent 100%);
+}
+
+.dialogue-choice-wheel.is-entering .dialogue-choice-wheel__viewport {
+  animation: dialogue-choice-wheel-roll-in 620ms cubic-bezier(.16,.74,.22,1) both;
+}
+
+@keyframes dialogue-choice-wheel-roll-in {
+  from { opacity: .15; transform: translate3d(0, -48px, 0) rotateX(58deg) scale(.96); filter: blur(3px); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) rotateX(0) scale(1); filter: blur(0); }
+}
+
+.dialogue-choice-wheel__option {
+  position: absolute;
+  left: 5%;
+  width: 90%;
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 14px;
+  color: inherit;
+  background: transparent;
+  text-align: center;
+  font: inherit;
+  font-size: clamp(16px, 2.5vw, 22px);
+  line-height: 1.35;
+  white-space: normal;
+  transition: transform 150ms cubic-bezier(.2,.75,.25,1), opacity 130ms ease, filter 130ms ease;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.dialogue-choice-wheel.is-scrolling .dialogue-choice-wheel__option {
+  transition: none;
+}
+
+.dialogue-choice-wheel__option--center {
+  pointer-events: auto;
+  cursor: pointer;
+  color: #fffdf5;
+  background: linear-gradient(105deg, rgba(243, 215, 148, .16), rgba(255, 244, 211, .3), rgba(243, 215, 148, .16));
+  box-shadow: inset 0 1px rgba(255,255,255,.26), 0 6px 20px rgba(0,0,0,.16);
+  font-weight: 650;
+}
+
+.dialogue-choice-wheel__option--center:disabled {
+  cursor: default;
+}
+
+.dialogue-choice-wheel__option--neighbor {
+  opacity: .58;
+  filter: blur(.15px);
+}
+
+.dialogue-choice-wheel__hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2px;
+  color: rgba(255,255,255,.7);
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: .04em;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialogue-choice-wheel,
+  .dialogue-choice-wheel__option {
+    transition-duration: 1ms;
+  }
+  .dialogue-choice-wheel.is-entering .dialogue-choice-wheel__viewport {
+    animation-duration: 1ms;
+  }
+}

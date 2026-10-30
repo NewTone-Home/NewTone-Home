@@ -28,6 +28,7 @@ import { mainlineWorldScale } from './mainlineViewport'
 import { projectCommercialStreetX } from './commercialStreetGridProjection'
 import { currentMainlineViewportMetrics, mainlineDeviceProjectionScale, mainlineLegacyAreaProjectionScale, type MainlineViewportMetrics } from './mainlineViewportProjection'
 import type { MainlineRideWalkingContext } from './mainlineRide'
+import type { MainlineConversationDisplayContent, MainlineDialogueChoiceWheelPresentation, MainlineSceneChoiceFlow } from './mainlineSceneModel'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
@@ -161,6 +162,7 @@ function debugCafePoint(value: string | null): Point | null {
 
 type MainlineSceneEcho = {
   id: number
+  conversationDisplaySessionId?: string
   clockActivitySource: 'scene-observation' | 'menu-reading' | 'counter-observation' | 'plant-observation'
   entityId?: string
   sourceText: string
@@ -169,6 +171,7 @@ type MainlineSceneEcho = {
   segmentIndex: number
   position: Point
   options?: readonly string[]
+  optionFlow?: MainlineSceneChoiceFlow
   textMotion: MainlineReadingTextMotion
   phase?: 'leaving'
   exit?: {
@@ -188,6 +191,10 @@ type MainlineSceneAction = {
   id: number
   entityId?: string
   options: readonly string[]
+  optionFlow?: MainlineSceneChoiceFlow
+  /** Keeps the same reading overlay identity through text -> choices -> reply. */
+  conversationDisplaySessionId?: string
+  confirmedOptionIndex?: number
   position: Point
   cameraOffset?: Point
   phase?: 'active' | 'committing' | 'exiting'
@@ -200,12 +207,13 @@ type CafeRestroomFixtureUseRequest = {
   startedAtGameTimeMs?: number
 }
 
-function createMainlineSceneEcho(id: number, entityId: string | undefined, text: string, position: Point, clockActivitySource: MainlineSceneEcho['clockActivitySource'], options?: readonly string[]): MainlineSceneEcho {
+function createMainlineSceneEcho(id: number, entityId: string | undefined, text: string, position: Point, clockActivitySource: MainlineSceneEcho['clockActivitySource'], options?: readonly string[], optionFlow?: MainlineSceneChoiceFlow, conversationDisplaySessionId?: string): MainlineSceneEcho {
   // Keep this observation together; the reading layout decides its pages
   // from the available space rather than sentence punctuation.
   const segments = [mainlineDisplaySourceText(text)]
   return {
     id,
+    conversationDisplaySessionId,
     clockActivitySource,
     entityId,
     sourceText: text,
@@ -214,6 +222,7 @@ function createMainlineSceneEcho(id: number, entityId: string | undefined, text:
     segmentIndex: 0,
     position,
     options,
+    optionFlow,
     textMotion: 'typing',
   }
 }
@@ -548,6 +557,9 @@ export function MainlineScenePage({
   const [sceneEcho, setSceneEcho] = useState<MainlineSceneEcho | null>(null)
   const sceneEchoRef = useRef<MainlineSceneEcho | null>(null)
   const [sceneAction, setSceneAction] = useState<MainlineSceneAction | null>(null)
+  const conversationDisplaySessionIdRef = useRef(0)
+  const [conversationDisplaySessionId, setConversationDisplaySessionId] = useState<string | null>(null)
+  const confirmedWheelChoiceRef = useRef<string | null>(null)
   const [cafeRestroomFixtureUsePhases, setCafeRestroomFixtureUsePhases] = useState<Partial<Record<string, CafeRestroomFixtureUseRequest['phase']>>>({})
   const cafeRestroomFixtureUsesRef = useRef<Partial<Record<string, CafeRestroomFixtureUseRequest>>>({})
   const cafeRestroomFixtureUseRequestIdsRef = useRef<Partial<Record<string, number>>>({})
@@ -771,11 +783,33 @@ export function MainlineScenePage({
       ? 'active'
       : commercialCafeNarrative?.phase ?? commercialStreetQuestionNarrative?.phase ?? (activeDialogueLine ? genericDialoguePhase : undefined)
   const commercialCafeDeliveryBeatActive = commercialCafeNarrative?.phase === 'coffee-delivery'
+  const commercialCafeReturnBeatActive = commercialCafeNarrative?.phase === 'coffee-returning'
+  const dialogueChoiceSurfaceActive = sceneAction?.optionFlow === 'dialogue-choice'
+    && (sceneAction.phase === 'active'
+      || sceneAction.phase === 'committing'
+      || (sceneAction.phase === 'exiting' && pendingSceneActionAfterExitRef.current?.optionFlow === 'dialogue-choice'))
   const readingActive = Boolean(
-    (sceneEcho && sceneEcho.phase !== 'leaving')
+    (sceneEcho && (sceneEcho.phase !== 'leaving' || Boolean(sceneEcho.conversationDisplaySessionId)))
     || (activeDialogueLine && dialoguePresentationPhase !== 'leaving')
     || commercialCafeDeliveryBeatActive
+    || commercialCafeReturnBeatActive
+    || dialogueChoiceSurfaceActive
   )
+  const currentConversationDisplaySessionId = sceneEcho?.conversationDisplaySessionId
+    ?? sceneAction?.conversationDisplaySessionId
+    ?? conversationDisplaySessionId
+  const conversationDisplayContent: MainlineConversationDisplayContent | null =
+    (commercialCafeDeliveryBeatActive || commercialCafeReturnBeatActive) && currentConversationDisplaySessionId
+      ? commercialCafeDeliveryBeatActive
+        ? { sessionId: currentConversationDisplaySessionId, kind: 'waiting', text: '……', canAdvance: false }
+        : { sessionId: currentConversationDisplaySessionId, kind: 'aside', text: commercialCafeDeliveryDialogueLine.text, canAdvance: false }
+      : sceneEcho?.conversationDisplaySessionId
+        ? { sessionId: sceneEcho.conversationDisplaySessionId, kind: 'text', text: sceneEcho.text, textMotion: sceneEcho.textMotion, canAdvance: sceneEcho.phase !== 'leaving' }
+        : sceneAction?.optionFlow === 'dialogue-choice' && sceneAction.conversationDisplaySessionId
+          ? { sessionId: sceneAction.conversationDisplaySessionId, kind: 'choice', actionId: sceneAction.id, options: sceneAction.options, canAdvance: false }
+          : activeDialogueLine && currentConversationDisplaySessionId
+            ? { sessionId: currentConversationDisplaySessionId, kind: dialoguePresentation === 'aside' ? 'aside' : 'text', text: activeDialogueText, textMotion: dialogueTextMotion, canAdvance: true }
+            : null
   sceneTextSlowdownActiveRef.current = readingActive
   useEffect(() => {
     onReadingStateChange?.(readingActive)
@@ -2008,8 +2042,10 @@ export function MainlineScenePage({
     return true
   }, [activePlayerSeatId, cafeStoryOrderDelivery, getCurrentPosition, layout, navigationRuntime, navigationOptions, resetMovement, scene])
 
-  const startNpcDialogue = useCallback((resolution: NpcDialogueResolution) => {
+  const startNpcDialogue = useCallback((resolution: NpcDialogueResolution, existingDisplaySessionId?: string) => {
     stopMovement()
+    const displaySessionId = existingDisplaySessionId ?? `conversation:${++conversationDisplaySessionIdRef.current}`
+    setConversationDisplaySessionId(displaySessionId)
     setDialogueSegmentIndex(0)
     setGenericDialoguePhase('active')
     setNpcDialogue(resolution)
@@ -2079,6 +2115,7 @@ export function MainlineScenePage({
   const startCommercialCafeNarrative = useCallback(() => {
     if (!hasContinuousCafe(scene) || commercialCafeStory.status !== 'available') return
     stopMovement()
+    setConversationDisplaySessionId(`conversation:${++conversationDisplaySessionIdRef.current}`)
     setNpcDialogue(null)
     setDialogueSegmentIndex(0)
     setDialogueLineIndex(commercialCafeStory.narrativeCursor)
@@ -2102,8 +2139,12 @@ export function MainlineScenePage({
     beginPassageLeg(passage, requestedTarget, plannedApproachPath, continuationPath, passageQueue, passageIndex)
   }, [beginPassageLeg, cancelPassageLifecycle, cancelSceneAction, denyLockedPassageAfterApproach, dismissSceneEcho, getCurrentPosition, layout, navigationOptions, scene, sceneAction?.phase])
 
-  const presentYongheEcho = useCallback((text: string, options?: readonly string[], entityId = 'yonghe-trial-worker') => {
+  const presentYongheEcho = useCallback((text: string, options?: readonly string[], entityId = 'yonghe-trial-worker', optionFlow?: MainlineSceneChoiceFlow, existingDisplaySessionId?: string) => {
     sceneEchoIdRef.current += 1
+    const displaySessionId = optionFlow === 'dialogue-choice'
+      ? existingDisplaySessionId ?? `conversation:${++conversationDisplaySessionIdRef.current}`
+      : existingDisplaySessionId
+    if (displaySessionId) setConversationDisplaySessionId(displaySessionId)
     const currentPosition = getCurrentPosition()
     const worldScale = mainlineWorldScale(activeViewportMetrics)
     const actionCameraOffset = mainlineReadingCameraOffset(scene, currentPosition, readingMetrics, worldScale, cameraOffset)
@@ -2114,10 +2155,14 @@ export function MainlineScenePage({
       sceneTextPresentationPosition(scene, currentPosition, text, readingMetrics, 'observation', worldScale, actionCameraOffset),
       options ? 'menu-reading' : 'scene-observation',
       options,
+      optionFlow,
+      displaySessionId,
     ))
   }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, readingMetrics, scene])
-  const presentCommercialDrinkEcho = useCallback((workerId: string, text: string, options?: readonly string[]) => {
+  const presentCommercialDrinkEcho = useCallback((workerId: string, text: string, options?: readonly string[], existingDisplaySessionId?: string) => {
     sceneEchoIdRef.current += 1
+    const displaySessionId = existingDisplaySessionId ?? `conversation:${++conversationDisplaySessionIdRef.current}`
+    setConversationDisplaySessionId(displaySessionId)
     const currentPosition = getCurrentPosition()
     const worldScale = mainlineWorldScale(activeViewportMetrics)
     const actionCameraOffset = mainlineReadingCameraOffset(scene, currentPosition, readingMetrics, worldScale, cameraOffset)
@@ -2128,6 +2173,8 @@ export function MainlineScenePage({
       sceneTextPresentationPosition(scene, currentPosition, text, readingMetrics, 'observation', worldScale, actionCameraOffset),
       options ? 'menu-reading' : 'scene-observation',
       options,
+      options ? 'dialogue-choice' : undefined,
+      displaySessionId,
     ))
   }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, readingMetrics, scene])
   const lastYongheOrderFeedbackRef = useRef(0)
@@ -2178,7 +2225,7 @@ export function MainlineScenePage({
     if (!requestAlreadyRecorded) onInteractionAnalytics?.('requested', entityId, passage ? 'door' : entity.kind)
     if (entity.interactionBehavior === 'cafe-restroom-use') {
       setActiveObjectId(null)
-      setSceneAction(createSceneAction({ entityId: entity.id, options: ['使用'], position: entity.position, cameraOffset }))
+      setSceneAction(createSceneAction({ entityId: entity.id, options: ['使用'], optionFlow: 'world-action', position: entity.position, cameraOffset }))
       return
     }
     if (entity.kind === 'seat' && entity.seat) {
@@ -2265,6 +2312,7 @@ export function MainlineScenePage({
         setSceneAction(createSceneAction({
           entityId: entity.id,
           options: ['推一下门'],
+          optionFlow: 'world-action',
           position: actionPosition,
           cameraOffset,
         }))
@@ -2340,7 +2388,8 @@ export function MainlineScenePage({
           sceneEchoIdRef.current += 1
           presentSceneEcho(createMainlineSceneEcho(sceneEchoIdRef.current, entity.id, commerceResult.text,
             sceneTextPresentationPosition(scene, getCurrentPosition(), commerceResult.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
-            clockActivityForExploration(entity, Boolean(commerceResult.options)), commerceResult.options))
+            clockActivityForExploration(entity, Boolean(commerceResult.options)), commerceResult.options,
+            commerceResult.options ? 'commerce-choice' : undefined))
         }
         onInteractionAnalytics?.('completed', entity.id, entity.kind, 'commerce-handled')
         setActiveObjectId(null)
@@ -2376,7 +2425,7 @@ export function MainlineScenePage({
       const hasExplorationContent = Boolean(explorationChoice || availableExplorationPool.length)
       const startsDialogue = scene.dialogue?.triggerEntityId === entity.id
       if (mainlineExplorationChoiceIsActionOnly(explorationChoice)) {
-        setSceneAction(createSceneAction({ entityId: entity.id, options: explorationChoice.options, position: entity.position, cameraOffset }))
+        setSceneAction(createSceneAction({ entityId: entity.id, options: explorationChoice.options, optionFlow: explorationChoice.optionFlow ?? 'world-action', position: entity.position, cameraOffset }))
         markEntityExplored(entityId)
         return
       }
@@ -2493,6 +2542,7 @@ export function MainlineScenePage({
       sceneTextPresentationPosition(scene, getCurrentPosition(), text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
       options ? 'menu-reading' : 'scene-observation',
       options,
+      options ? 'commerce-choice' : undefined,
     ))
   }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, scene, screenMetrics])
 
@@ -2505,6 +2555,7 @@ export function MainlineScenePage({
     const nextAction = {
       entityId: commercialStreetMilkTeaStorefrontId,
       options: ['喝掉奶茶'],
+      optionFlow: 'world-action' as const,
       position: sceneTextPresentationPosition(scene, currentPosition, '喝掉奶茶', readingMetrics, 'observation', worldScale, actionCameraOffset),
       cameraOffset: actionCameraOffset,
     }
@@ -2688,7 +2739,7 @@ export function MainlineScenePage({
       }
       if (isYongheTakeawayScene(scene.id) && npc.id === 'yonghe-trial-worker') {
         onInteractionAnalytics?.('completed', npc.id, 'npc', 'dialogue-started')
-        presentYongheEcho('吃点什么？', ['点餐', '有什么推荐吗', '聊聊'])
+        presentYongheEcho('吃点什么？', ['点餐', '有什么推荐吗', '聊聊'], 'yonghe-trial-worker', 'dialogue-choice')
         return
       }
       const resolution = resolveCommercialCafeNpcInteraction({
@@ -2745,12 +2796,12 @@ export function MainlineScenePage({
       if (option === '点单') {
         onDrinkShopOrderOpen?.(drinkShopId)
       } else if (option === commercialStreetDrinkShopDialogue.recommendationRequest) {
-        presentCommercialDrinkEcho(sceneAction.entityId!, commercialStreetDrinkShopDialogue.preferenceQuestion, commercialStreetDrinkShopDialogue.preferenceOptions)
+        presentCommercialDrinkEcho(sceneAction.entityId!, commercialStreetDrinkShopDialogue.preferenceQuestion, commercialStreetDrinkShopDialogue.preferenceOptions, sceneAction.conversationDisplaySessionId)
       } else if (commercialStreetDrinkShopDialogue.preferenceOptions.includes(option as typeof commercialStreetDrinkShopDialogue.preferenceOptions[number])) {
         const product = recommendedCommercialStreetDrink(drinkShopId, option)
         if (product?.recommendation) {
           recommendedDrinkRef.current = { shopId: drinkShopId, productId: product.id }
-          presentCommercialDrinkEcho(sceneAction.entityId!, product.recommendation.line, commercialStreetDrinkShopDialogue.recommendationOptions)
+          presentCommercialDrinkEcho(sceneAction.entityId!, product.recommendation.line, commercialStreetDrinkShopDialogue.recommendationOptions, sceneAction.conversationDisplaySessionId)
         }
       } else if (option === commercialStreetDrinkShopDialogue.recommendationOptions[0]) {
         const recommended = recommendedDrinkRef.current
@@ -2765,12 +2816,14 @@ export function MainlineScenePage({
     }
     if (sceneAction.entityId === 'yonghe-trial-worker' && isYongheTakeawayScene(scene.id)) {
       if (option === '点餐') onYongheOrderOpen?.()
-      else if (option === '有什么推荐吗') presentYongheEcho('你想吃面还是吃饭？', ['面', '饭'])
+      else if (option === '有什么推荐吗') presentYongheEcho('你想吃面还是吃饭？', ['面', '饭'], 'yonghe-trial-worker', 'commerce-choice')
       else if (option === '聊聊') {
         const text = '你们平常都这么忙吗？\n后面那个门是通向哪儿？'
         pendingSceneActionAfterExitRef.current = {
           entityId: 'yonghe-trial-worker',
           options: ['你们平常都这么忙吗？', '后面那个门是通向哪儿？'],
+          optionFlow: 'dialogue-choice',
+          conversationDisplaySessionId: sceneAction.conversationDisplaySessionId,
           position: sceneTextPresentationPosition(scene, getCurrentPosition(), text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
         }
         commitSceneActionExit(actionId)
@@ -2778,10 +2831,10 @@ export function MainlineScenePage({
       }
       else if (option === '面' || option === '饭') {
         const products = yongheMenuForChoice(option)
-        presentYongheEcho(products.map(product => product.name).join('\n'), [...products.map(product => product.name)])
+        presentYongheEcho(products.map(product => product.name).join('\n'), [...products.map(product => product.name)], 'yonghe-trial-worker', 'commerce-choice')
       } else if (option === '全部菜品') {
         const choices = yongheTakeawayCatalog.map(product => `${product.name} ${product.price}元`)
-        presentYongheEcho(yongheMenuText(), choices)
+        presentYongheEcho(yongheMenuText(), choices, 'yonghe-trial-worker', 'commerce-choice')
       } else {
         const product = yongheTakeawayCatalog.find(candidate => `${candidate.name} ${candidate.price}元` === option || candidate.name === option)
         if (product) onYongheOrderOpen?.(product.id)
@@ -2789,12 +2842,12 @@ export function MainlineScenePage({
           startNpcDialogue({ kind: 'dialogue', dialogue: { triggerEntityId: 'yonghe-trial-worker', lines: [
             { id: 'yonghe-business-question', speaker: '修杰', text: '你们平常都这么忙吗？' },
             { id: 'yonghe-business-answer', speaker: '店员', speakerNpcId: 'yonghe-trial-worker', text: '对啊，平常都这么忙。' },
-          ] } })
+          ] } }, sceneAction.conversationDisplaySessionId)
         } else if (option === '后面那个门是通向哪儿？') {
           startNpcDialogue({ kind: 'dialogue', dialogue: { triggerEntityId: 'yonghe-trial-worker', lines: [
             { id: 'yonghe-backdoor-question', speaker: '修杰', text: '后面那个门是通向哪儿？' },
             { id: 'yonghe-backdoor-answer', speaker: '店员', speakerNpcId: 'yonghe-trial-worker', text: '后面是后巷，顺着走也能出去。' },
-          ] } })
+          ] } }, sceneAction.conversationDisplaySessionId)
         }
       }
       commitSceneActionExit(actionId)
@@ -2843,9 +2896,36 @@ export function MainlineScenePage({
     commitSceneActionExit(actionId)
   }, [carryingMilkTea, heldConsumable, carriedPhoneDevice, commercialCafeStory, commitSceneActionExit, initialSceneState, onChapterAnalytics, onDeskInteraction, onDrinkShopOrderOpen, onMeaningfulActivity, presentCommercialDrinkEcho, recordSceneState, recordSceneStatePatch, scene, sceneAction, startCafeRestroomFixtureUse])
 
+  const requestSceneActionChoice = useCallback((actionId: number, index: number) => {
+    if (sceneAction?.id === actionId && sceneAction.optionFlow === 'dialogue-choice' && sceneAction.phase === 'active') {
+      if (!sceneAction.options[index]) return
+      setSceneAction(current => current?.id === actionId && current.phase === 'active'
+        ? { ...current, phase: 'committing', confirmedOptionIndex: index }
+        : current)
+      return
+    }
+    chooseSceneEchoOption(actionId, index)
+  }, [chooseSceneEchoOption, sceneAction])
+
+  useEffect(() => {
+    if (sceneAction?.optionFlow !== 'dialogue-choice'
+      || sceneAction.phase !== 'committing'
+      || sceneAction.confirmedOptionIndex === undefined) return
+    const commitKey = `${sceneAction.id}:${sceneAction.confirmedOptionIndex}`
+    if (confirmedWheelChoiceRef.current === commitKey) return
+    confirmedWheelChoiceRef.current = commitKey
+    chooseSceneEchoOption(sceneAction.id, sceneAction.confirmedOptionIndex)
+  }, [chooseSceneEchoOption, sceneAction])
+
   const finishSceneEchoReading = useCallback((current: MainlineSceneEcho) => {
     if (current.options && current.options.length > 0) {
-      pendingSceneActionRef.current = { entityId: current.entityId, options: current.options, position: current.position }
+      pendingSceneActionRef.current = {
+        entityId: current.entityId,
+        options: current.options,
+        optionFlow: current.optionFlow,
+        conversationDisplaySessionId: current.conversationDisplaySessionId,
+        position: current.position,
+      }
     }
     dismissSceneEcho()
   }, [dismissSceneEcho])
@@ -2971,7 +3051,7 @@ export function MainlineScenePage({
       return
     }
     if (commercialCafeNarrative) {
-      if (commercialCafeNarrative.phase === 'coffee-delivery') return
+      if (commercialCafeNarrative.phase === 'coffee-delivery' || commercialCafeNarrative.phase === 'coffee-returning') return
       if (commercialCafeNarrative.phase === 'delivery-line') {
         const acknowledged = commercialCafeFinishDeliveryLine(commercialCafeStory)
         if (acknowledged === commercialCafeStory) return
@@ -3365,7 +3445,7 @@ export function MainlineScenePage({
               readingSessionLayoutCache={sharedReadingSessionLayoutCache}
               onWalk={walk}
               worldQuestionMark={scene.id === 'commercial-street' && !commercialStreetQuestionNarrativeIsCompleted ? { anchor: commercialStreetQuestionNarrativeAnchor(scene), visible: !commercialStreetQuestionNarrative } : undefined}
-              dialogue={activeDialogue}
+              dialogue={activeDialogue ? { ...activeDialogue, conversationDisplaySessionId: conversationDisplaySessionId ?? undefined } : activeDialogue}
               dialogueLine={activeDialogueLine}
               dialogueText={activeDialogueText}
               dialogueLineIndex={commercialCafeNarrative ? commercialCafeStory.narrativeCursor : dialogueLineIndex}
@@ -3387,11 +3467,23 @@ export function MainlineScenePage({
               onDialogueTypingSkip={skipDialogueTyping}
               onDialogueTextMotionComplete={completeDialogueTextMotion}
               sceneEcho={sceneEcho}
+              conversationDisplaySessionId={currentConversationDisplaySessionId}
+              conversationDisplayContent={conversationDisplayContent}
               sceneAction={sceneAction}
               onSceneEchoAdvance={advanceSceneEcho}
               onSceneEchoTextMotionComplete={completeSceneEchoTextMotion}
               onSceneActionStart={beginSceneActionChoice}
-              onSceneActionChoice={chooseSceneEchoOption}
+              onSceneActionChoice={requestSceneActionChoice}
+              onSceneActionCancel={() => cancelSceneAction()}
+              dialogueChoiceWheel={sceneAction?.optionFlow === 'dialogue-choice' && sceneAction.conversationDisplaySessionId
+                ? {
+                    sessionId: sceneAction.conversationDisplaySessionId,
+                    actionId: sceneAction.id,
+                    flow: 'dialogue-choice',
+                    options: sceneAction.options,
+                    phase: sceneAction.phase === 'committing' || sceneAction.phase === 'exiting' ? sceneAction.phase : 'active',
+                  } satisfies MainlineDialogueChoiceWheelPresentation
+                : null}
               onSceneActionExitComplete={finishSceneActionExit}
               onSceneEchoExitComplete={completeSceneEchoExit}
               onHeldConsumableInteract={onConsumeHeldConsumable ?? showHeldMilkTeaAction}

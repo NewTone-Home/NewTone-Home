@@ -2,6 +2,7 @@ import type { PhoneDevice } from './phoneState'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 import type { MainlineInteractionBehavior } from './mainlineSceneModel'
 import type { MainlineSceneDefinition, MainlineSceneEntity } from './mainlineScenes'
+import type { MainlineSceneChoiceFlow } from './mainlineSceneModel'
 import { commercialCafeCoffeeStatusKey } from './commercialCafeStory'
 
 export const incenseBurnDurationMs = 10 * 60 * 1000
@@ -23,6 +24,7 @@ export type MainlineSceneInteractionContext = {
 export type MainlineExplorationChoice = {
   text: string
   options?: readonly string[]
+  optionFlow?: MainlineSceneChoiceFlow
 }
 
 /** A blank choice has no readable observation to advance through; show its actions directly. */
@@ -80,7 +82,7 @@ export function incenseBurnRemainingMs(litAt: number | null, now: number) {
 function incenseExplorationChoice(phase: IncenseBurnPhase): MainlineExplorationChoice {
   if (phase === 'fresh') return { text: '重新点上了香。' }
   if (phase === 'half') return { text: '重新点上的香已经烧到了一半。' }
-  return { text: '香早就烧完了，只剩根部伫立在里面。', options: ['重新点香'] }
+  return { text: '香早就烧完了，只剩根部伫立在里面。', options: ['重新点香'], optionFlow: 'world-action' }
 }
 
 function interactionBehavior(entity: MainlineSceneEntity): MainlineInteractionBehavior | undefined {
@@ -103,6 +105,7 @@ export function resolveMainlineSceneExploration(
       choice: {
         text: scene.explorationText?.[entity.id]?.[0] ?? scene.interactionText[entity.id] ?? '',
         options: ['换手机'],
+        optionFlow: 'world-action',
       },
     }
   }
@@ -113,6 +116,7 @@ export function resolveMainlineSceneExploration(
           ? (scene.explorationText?.[entity.id] ?? []).join('\n')
           : '百叶窗已经拉上，室内安静了许多。',
         options: [context.officeBlindsOpen ? '拉上窗帘' : '打开窗帘'],
+        optionFlow: 'world-action',
       },
     }
   }
@@ -124,17 +128,18 @@ export function resolveMainlineSceneExploration(
           ? '花盆里的土还带着一点湿润的颜色，叶片看起来精神了一些。'
           : '有段时间没浇水了，不那么精神了。',
         options: context.plantWatered ? undefined : ['浇水'],
+        optionFlow: 'world-action',
       },
     }
   }
   if (behavior === 'yonghe-warehouse') {
-    return { choice: { text: '', options: ['\u63a8\u4e00\u4e0b\u95e8'] } }
+    return { choice: { text: '', options: ['\u63a8\u4e00\u4e0b\u95e8'], optionFlow: 'world-action' } }
   }
   if (behavior === 'cafe-order') {
     if (context.commercialCafeCoffeeOrdered) return { choice: { text: '咖啡已经点过了。' } }
     return context.carriedMilkTea
-      ? { choice: { text: '手里已经有奶茶了，还要点咖啡吗？', options: ['是', '否'] } }
-      : { choice: { text: '想喝点什么呢？', options: ['点一杯咖啡'] } }
+      ? { choice: { text: '手里已经有奶茶了，还要点咖啡吗？', options: ['是', '否'], optionFlow: 'commerce-choice' } }
+      : { choice: { text: '想喝点什么呢？', options: ['点一杯咖啡'], optionFlow: 'commerce-choice' } }
   }
 
   if (scene.explorationText?.[entity.id]) return { pool: scene.explorationText[entity.id] }

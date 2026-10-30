@@ -21,6 +21,20 @@ export type MainlineEntityKind = 'door' | 'landmark' | 'table' | 'seat' | 'direc
 export type MainlineEntityWeight = 'gateway' | 'fixture' | 'anchor' | 'minor'
 export type MainlineEntitySurface = 'wall' | 'floor'
 export type MainlineInteractionBehavior = 'echo-pool' | 'incense' | 'desk-device' | 'blinds-toggle' | 'plant-choice' | 'cafe-order' | 'cafe-restroom-use' | 'direct-wall' | 'yonghe-warehouse'
+/** Describes what an option belongs to; callers must author this explicitly. */
+export type MainlineSceneChoiceFlow = 'dialogue-choice' | 'commerce-choice' | 'world-action'
+export type MainlineDialogueChoiceWheelPresentation = {
+  sessionId: string
+  actionId: number
+  flow: 'dialogue-choice'
+  options: readonly string[]
+  phase: 'active' | 'committing' | 'exiting'
+  focusedOptionIndex?: number
+}
+export type MainlineConversationDisplayContent =
+  | { sessionId: string; kind: 'text' | 'aside'; text: string; textMotion?: 'typing' | 'static' | 'deleting' | 'deleted'; canAdvance: boolean }
+  | { sessionId: string; kind: 'waiting'; text: '……'; canAdvance: false }
+  | { sessionId: string; kind: 'choice'; actionId: number; options: readonly string[]; canAdvance: false }
 export type MainlineVisualProfile = 'tree-ring' | 'incense'
 export type MainlineAnimationGroup = 'office-breathing' | 'yonghe-stove-breathing'
 export type MainlineSceneExternalExit = {
@@ -58,6 +72,8 @@ export type MainlineSceneDialogue = {
 export type MainlineSceneDialoguePresentation = Pick<MainlineSceneDialogue, 'triggerEntityId' | 'lines'> & {
   /** Renderer hint for formal conversation lines and compact asides. */
   dialoguePresentation?: 'conversation' | 'aside'
+  /** Stable reading-surface identity, shared by consecutive text and choices. */
+  conversationDisplaySessionId?: string
 }
 export type MainlineFacing = 'north' | 'east' | 'south' | 'west'
 export type MainlineStorefrontStyle = 'modern' | 'worn'
