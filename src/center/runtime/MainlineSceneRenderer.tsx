@@ -816,10 +816,10 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
   onSceneActionCancel?: () => void
   onSceneActionExitComplete?: (actionId: number, index: number) => void
 }) {
-  const historyEntriesRef = useRef<ConversationHistoryEntry[]>([])
+  const [history, setHistory] = useState<readonly ConversationHistoryEntry[]>(() => content.history ?? [])
+  const historyEntriesRef = useRef<ConversationHistoryEntry[]>([...(content.history ?? [])])
   const historyElementRef = useRef<HTMLDivElement>(null)
   const previousRef = useRef<{ key: string; content: MainlineConversationDisplayContent; speaker?: string; speakerIsNpc: boolean } | null>(null)
-  const [history, setHistory] = useState<readonly ConversationHistoryEntry[]>([])
   useLayoutEffect(() => {
     const previous = previousRef.current
     if (previous && previous.key !== contentKey && previous.content.kind === 'text' && previous.content.text.trim()) {
@@ -840,6 +840,17 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
   const keepChoiceWheelForExit = Boolean(dialogueChoiceWheel && (content.kind === 'choice'
     ? dialogueChoiceWheel.actionId === content.actionId
     : dialogueChoiceWheel.phase === 'exiting'))
+  const displayPhase = content.kind === 'choice'
+    ? dialogueChoiceWheel?.phase ?? 'active'
+    : content.kind === 'text' ? content.textMotion ?? textMotion : content.kind
+  const displayStateAttributes = {
+    'data-conversation-display-session': sessionId,
+    'data-conversation-display-kind': content.kind,
+    'data-conversation-display-state': content.kind,
+    'data-conversation-display-phase': displayPhase,
+    'data-conversation-display-action': content.kind === 'choice' ? content.actionId : undefined,
+    'data-conversation-display-advance-enabled': String(content.canAdvance),
+  } as const
   const identity: NarrowDialogueIdentity = {
     sessionKey: sessionId,
     kind: content.kind === 'aside' ? 'aside' : 'conversation',
@@ -851,7 +862,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
     speakerKey: speaker,
   }
 
-  if (narrow) return <div className="scene-mainline-subtitle-host" data-conversation-display-session={sessionId} data-conversation-display-kind={content.kind}>
+  if (narrow) return <div className="scene-mainline-subtitle-host" {...displayStateAttributes}>
     {history.length > 0 && <div className="scene-mainline-subtitle-host__history" aria-live="polite">
       {history.map(entry => <article key={entry.key} className={`scene-mainline-conversation-line ${entry.speakerIsNpc ? 'is-npc' : 'is-player'}`} data-dialogue-history-line={entry.key}>
         {entry.speaker && <span className="scene-mainline-conversation-line__speaker">{entry.speaker}</span>}
@@ -888,7 +899,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
     />}
   </div>
 
-  return <div className="scene-mainline-conversation-host" data-conversation-display-session={sessionId} data-conversation-display-kind={content.kind}>
+  return <div className="scene-mainline-conversation-host" {...displayStateAttributes}>
     <section className="scene-mainline-conversation" aria-live="polite" aria-label="对话记录" data-dialogue-presentation="conversation">
       <div ref={historyElementRef} className="scene-mainline-conversation__history">
         {history.map(entry => <article key={entry.key} className={`scene-mainline-conversation-line ${entry.speakerIsNpc ? 'is-npc' : 'is-player'}`} data-dialogue-history-line={entry.key}>

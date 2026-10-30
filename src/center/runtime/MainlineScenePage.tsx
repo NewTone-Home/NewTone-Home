@@ -28,7 +28,7 @@ import { mainlineWorldScale } from './mainlineViewport'
 import { projectCommercialStreetX } from './commercialStreetGridProjection'
 import { currentMainlineViewportMetrics, mainlineDeviceProjectionScale, mainlineLegacyAreaProjectionScale, type MainlineViewportMetrics } from './mainlineViewportProjection'
 import type { MainlineRideWalkingContext } from './mainlineRide'
-import type { MainlineConversationDisplayContent, MainlineDialogueChoiceWheelPresentation, MainlineSceneChoiceFlow } from './mainlineSceneModel'
+import type { MainlineConversationDisplayContent, MainlineConversationDisplayHistoryEntry, MainlineDialogueChoiceWheelPresentation, MainlineSceneChoiceFlow } from './mainlineSceneModel'
 import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
@@ -558,7 +558,9 @@ export function MainlineScenePage({
   const sceneEchoRef = useRef<MainlineSceneEcho | null>(null)
   const [sceneAction, setSceneAction] = useState<MainlineSceneAction | null>(null)
   const conversationDisplaySessionIdRef = useRef(0)
-  const [conversationDisplaySessionId, setConversationDisplaySessionId] = useState<string | null>(null)
+  const [conversationDisplaySessionId, setConversationDisplaySessionId] = useState<string | null>(() => commercialCafeNarrative
+    ? `conversation:resume:${sceneId}:commercial-cafe-story`
+    : null)
   const confirmedWheelChoiceRef = useRef<string | null>(null)
   const [cafeRestroomFixtureUsePhases, setCafeRestroomFixtureUsePhases] = useState<Partial<Record<string, CafeRestroomFixtureUseRequest['phase']>>>({})
   const cafeRestroomFixtureUsesRef = useRef<Partial<Record<string, CafeRestroomFixtureUseRequest>>>({})
@@ -798,20 +800,45 @@ export function MainlineScenePage({
     || commercialCafeReturnBeatActive
     || dialogueChoiceSurfaceActive
   )
+  const resumedConversationDisplaySessionId = commercialCafeNarrative
+    ? `conversation:resume:${sceneId}:commercial-cafe-story`
+    : commercialStreetQuestionNarrative
+      ? `conversation:resume:${sceneId}:commercial-street-question`
+      : activeDialogueLine
+        ? `conversation:resume:${sceneId}:${activeDialogueSource?.triggerEntityId ?? 'scene'}`
+        : sceneEcho?.optionFlow === 'dialogue-choice'
+          ? `conversation:echo:${sceneId}:${sceneEcho.id}`
+          : sceneAction?.optionFlow === 'dialogue-choice'
+            ? `conversation:action:${sceneId}:${sceneAction.id}`
+            : null
   const currentConversationDisplaySessionId = sceneEcho?.conversationDisplaySessionId
     ?? sceneAction?.conversationDisplaySessionId
     ?? conversationDisplaySessionId
+    ?? resumedConversationDisplaySessionId
+  const cafeNarrativeHistoryCount = commercialCafeNarrative
+    ? commercialCafeStory.narrativeCursor + (commercialCafeNarrative.phase === 'coffee-delivery'
+      || commercialCafeNarrative.phase === 'delivery-line'
+      || commercialCafeNarrative.phase === 'coffee-returning' ? 1 : 0)
+    : 0
+  const cafeNarrativeDisplayHistory: readonly MainlineConversationDisplayHistoryEntry[] = commercialCafeNarrative
+    ? commercialCafeNarrativeDialogue.lines.slice(0, cafeNarrativeHistoryCount).map(line => ({
+        key: line.id,
+        speaker: line.speaker,
+        speakerIsNpc: Boolean(('speakerNpcId' in line && line.speakerNpcId) || scene.npcs.some(npc => npc.label === line.speaker)),
+        text: line.text,
+      }))
+    : []
   const conversationDisplayContent: MainlineConversationDisplayContent | null =
     (commercialCafeDeliveryBeatActive || commercialCafeReturnBeatActive) && currentConversationDisplaySessionId
       ? commercialCafeDeliveryBeatActive
-        ? { sessionId: currentConversationDisplaySessionId, kind: 'waiting', text: '……', canAdvance: false }
-        : { sessionId: currentConversationDisplaySessionId, kind: 'aside', text: commercialCafeDeliveryDialogueLine.text, canAdvance: false }
-      : sceneEcho?.conversationDisplaySessionId
-        ? { sessionId: sceneEcho.conversationDisplaySessionId, kind: 'text', text: sceneEcho.text, textMotion: sceneEcho.textMotion, canAdvance: sceneEcho.phase !== 'leaving' }
-        : sceneAction?.optionFlow === 'dialogue-choice' && sceneAction.conversationDisplaySessionId
-          ? { sessionId: sceneAction.conversationDisplaySessionId, kind: 'choice', actionId: sceneAction.id, options: sceneAction.options, canAdvance: false }
+        ? { sessionId: currentConversationDisplaySessionId, kind: 'waiting', text: '……', canAdvance: false, history: cafeNarrativeDisplayHistory }
+        : { sessionId: currentConversationDisplaySessionId, kind: 'aside', text: commercialCafeDeliveryDialogueLine.text, canAdvance: false, history: cafeNarrativeDisplayHistory }
+      : (sceneEcho?.optionFlow === 'dialogue-choice' || sceneEcho?.conversationDisplaySessionId) && currentConversationDisplaySessionId
+        ? { sessionId: currentConversationDisplaySessionId, kind: 'text', text: sceneEcho.text, textMotion: sceneEcho.textMotion, canAdvance: sceneEcho.phase !== 'leaving' }
+        : sceneAction?.optionFlow === 'dialogue-choice' && currentConversationDisplaySessionId
+          ? { sessionId: currentConversationDisplaySessionId, kind: 'choice', actionId: sceneAction.id, options: sceneAction.options, canAdvance: false }
           : activeDialogueLine && currentConversationDisplaySessionId
-            ? { sessionId: currentConversationDisplaySessionId, kind: dialoguePresentation === 'aside' ? 'aside' : 'text', text: activeDialogueText, textMotion: dialogueTextMotion, canAdvance: true }
+            ? { sessionId: currentConversationDisplaySessionId, kind: dialoguePresentation === 'aside' ? 'aside' : 'text', text: activeDialogueText, textMotion: dialogueTextMotion, canAdvance: true, history: commercialCafeNarrative ? cafeNarrativeDisplayHistory : undefined }
             : null
   sceneTextSlowdownActiveRef.current = readingActive
   useEffect(() => {
@@ -863,11 +890,25 @@ export function MainlineScenePage({
     ))
   }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, readingMetrics, scene, sceneAction])
   const cafeInsideRef = useRef(false)
+  const cafeInsideSceneIdRef = useRef(sceneId)
   useEffect(() => {
     const inside = hasContinuousCafe(scene) && isPointInContinuousCafe(scene, position)
+    if (cafeInsideSceneIdRef.current !== sceneId) {
+      cafeInsideSceneIdRef.current = sceneId
+      cafeInsideRef.current = inside
+      const resumedNarrative = commercialCafeNarrativeRuntimeFromSceneState(sceneId, initialSceneState, inside)
+      setCommercialCafeNarrative(resumedNarrative)
+      setConversationDisplaySessionId(resumedNarrative ? `conversation:resume:${sceneId}:commercial-cafe-story` : null)
+      return
+    }
     if (inside && !cafeInsideRef.current) {
-      setCommercialCafeNarrative(commercialCafeNarrativeRuntimeFromSceneState(sceneId, initialSceneState, true))
-    } else if (!inside && cafeInsideRef.current) setCommercialCafeNarrative(null)
+      const resumedNarrative = commercialCafeNarrativeRuntimeFromSceneState(sceneId, initialSceneState, true)
+      setCommercialCafeNarrative(resumedNarrative)
+      setConversationDisplaySessionId(resumedNarrative ? `conversation:resume:${sceneId}:commercial-cafe-story` : null)
+    } else if (!inside && cafeInsideRef.current) {
+      setCommercialCafeNarrative(null)
+      setConversationDisplaySessionId(null)
+    }
     cafeInsideRef.current = inside
   }, [position.x, position.y, scene, sceneId, initialSceneState])
   const storefrontPresentation = useStorefrontPresentation(
@@ -1119,10 +1160,12 @@ export function MainlineScenePage({
     if (debugClockTrialMode === 'formal-dialogue') {
       setNpcDialogue(debugClockTrialNpcDialogue)
       setDialogueLineIndex(0)
+      setConversationDisplaySessionId(`conversation:${++conversationDisplaySessionIdRef.current}`)
       startDialogueTextSession()
       return
     }
     if (debugClockTrialMode === 'inner-monologue') {
+      setConversationDisplaySessionId(`conversation:${++conversationDisplaySessionIdRef.current}`)
       setCommercialStreetQuestionNarrative({ phase: 'active', segmentIndex: 0 })
     }
   }, [debugClockTrialActive, debugClockTrialMode, startDialogueTextSession])
@@ -1148,6 +1191,7 @@ export function MainlineScenePage({
     if (!commercialStreetQuestionNarrativeShouldTrigger(scene, position, previousPosition, commercialStreetQuestionNarrativeIsCompleted)) return
     stopMovement()
     setRequestedWorldTarget(null)
+    setConversationDisplaySessionId(`conversation:${++conversationDisplaySessionIdRef.current}`)
     setCommercialStreetQuestionNarrative({ phase: 'active', segmentIndex: 0 })
     startDialogueTextSession()
     onChapterAnalytics?.('commercial_question_triggered')
@@ -2061,8 +2105,10 @@ export function MainlineScenePage({
       recordSceneState(scene.id, followup.key, (typeof initialSceneState[followup.key] === 'number' ? initialSceneState[followup.key] as number : 0) + 1)
       const point = getCurrentPosition()
       sceneEchoIdRef.current += 1
+      const displaySessionId = `conversation:${++conversationDisplaySessionIdRef.current}`
+      setConversationDisplaySessionId(displaySessionId)
       presentSceneEcho(createMainlineSceneEcho(sceneEchoIdRef.current, 'ruoyu', followup.text,
-        sceneTextPresentationPosition(scene, point, followup.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, point, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)), 'scene-observation'))
+        sceneTextPresentationPosition(scene, point, followup.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, point, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)), 'scene-observation', undefined, undefined, displaySessionId))
       return
     }
     const ruoyuSeatId = ruoyuCafeSeatFromSceneState(initialSceneState)
@@ -2444,6 +2490,7 @@ export function MainlineScenePage({
         setDialogueSegmentIndex(0)
         setGenericDialoguePhase('active')
         setDialogueLineIndex(0)
+        setConversationDisplaySessionId(`conversation:${++conversationDisplaySessionIdRef.current}`)
         startDialogueTextSession()
       }
       if (mainlineInteractionCompletesImmediately({ hasExplorationContent, startsDialogue })) {
@@ -2918,16 +2965,35 @@ export function MainlineScenePage({
 
   const finishSceneEchoReading = useCallback((current: MainlineSceneEcho) => {
     if (current.options && current.options.length > 0) {
-      pendingSceneActionRef.current = {
+      const nextAction = {
         entityId: current.entityId,
         options: current.options,
         optionFlow: current.optionFlow,
-        conversationDisplaySessionId: current.conversationDisplaySessionId,
+        conversationDisplaySessionId: current.conversationDisplaySessionId
+          ?? (current.optionFlow === 'dialogue-choice'
+            ? conversationDisplaySessionId ?? `conversation:echo:${scene.id}:${current.id}`
+            : undefined),
         position: current.position,
       }
+      if (current.optionFlow === 'dialogue-choice' && nextAction.conversationDisplaySessionId) {
+        setConversationDisplaySessionId(nextAction.conversationDisplaySessionId)
+        pendingSceneActionRef.current = null
+        sceneEchoRef.current = null
+        setSceneEcho(null)
+        setActiveObjectId(null)
+        setSceneAction(createSceneAction({ ...nextAction, cameraOffset }))
+        return
+      }
+      pendingSceneActionRef.current = nextAction
+    }
+    if ((!current.options || current.options.length === 0) && current.conversationDisplaySessionId) {
+      sceneEchoRef.current = null
+      setSceneEcho(null)
+      setActiveObjectId(null)
+      return
     }
     dismissSceneEcho()
-  }, [dismissSceneEcho])
+  }, [cameraOffset, conversationDisplaySessionId, createSceneAction, dismissSceneEcho, scene.id])
 
   const advanceSceneEcho = useCallback(() => {
     const current = sceneEchoRef.current
@@ -2970,7 +3036,11 @@ export function MainlineScenePage({
 
   const completeSceneEchoTextMotion = useCallback((echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => {
     const current = sceneEchoRef.current
-    if (!current || current.id !== echoId || current.phase === 'leaving' || !mainlineReadingTextMotionCompletionMatches(`echo:${current.id}`, sessionKey) || current.textMotion !== motion) return
+    const callbackMatchesEcho = current && (
+      mainlineReadingTextMotionCompletionMatches(`echo:${current.id}`, sessionKey)
+      || Boolean(current.conversationDisplaySessionId && mainlineReadingTextMotionCompletionMatches(current.conversationDisplaySessionId, sessionKey))
+    )
+    if (!current || current.id !== echoId || current.phase === 'leaving' || !callbackMatchesEcho || current.textMotion !== motion) return
     const nextMotion = mainlineReadingTextMotionAfterAnimation(current.textMotion)
     const next = { ...current, textMotion: nextMotion }
     sceneEchoRef.current = next
@@ -3444,7 +3514,7 @@ export function MainlineScenePage({
               readingSessionLayoutCache={sharedReadingSessionLayoutCache}
               onWalk={walk}
               worldQuestionMark={scene.id === 'commercial-street' && !commercialStreetQuestionNarrativeIsCompleted ? { anchor: commercialStreetQuestionNarrativeAnchor(scene), visible: !commercialStreetQuestionNarrative } : undefined}
-              dialogue={activeDialogue ? { ...activeDialogue, conversationDisplaySessionId: conversationDisplaySessionId ?? undefined } : activeDialogue}
+              dialogue={activeDialogue ? { ...activeDialogue, conversationDisplaySessionId: currentConversationDisplaySessionId ?? undefined } : activeDialogue}
               dialogueLine={activeDialogueLine}
               dialogueText={activeDialogueText}
               dialogueLineIndex={commercialCafeNarrative ? commercialCafeStory.narrativeCursor : dialogueLineIndex}
@@ -3474,9 +3544,9 @@ export function MainlineScenePage({
               onSceneActionStart={beginSceneActionChoice}
               onSceneActionChoice={requestSceneActionChoice}
               onSceneActionCancel={() => cancelSceneAction()}
-              dialogueChoiceWheel={sceneAction?.optionFlow === 'dialogue-choice' && sceneAction.conversationDisplaySessionId
+              dialogueChoiceWheel={sceneAction?.optionFlow === 'dialogue-choice' && currentConversationDisplaySessionId
                 ? {
-                    sessionId: sceneAction.conversationDisplaySessionId,
+                    sessionId: currentConversationDisplaySessionId,
                     actionId: sceneAction.id,
                     flow: 'dialogue-choice',
                     options: sceneAction.options,
