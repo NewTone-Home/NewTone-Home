@@ -1845,14 +1845,23 @@ export function MainlineSceneRenderer({
     participantBounds.push(mainlineLabelFootprint(protagonistPresentation.kind === 'dot' ? '修杰' : protagonistPresentation.label, protagonistVisualPosition, renderScreenMetrics, { lineHeight: 1 }))
     const actorBounds = unionWorldBounds(participantBounds)
     const focus = { x: actorBounds.x + actorBounds.width / 2, y: actorBounds.y + actorBounds.height / 2 }
-    const visibleSpan = mainlineVisibleWorldSpan(viewportMetrics)
     const conversationRailWidthPx = Math.max(320, Math.min(viewportMetrics.width * .34, 460))
-    const railWorldSpan = visibleSpan.x * conversationRailWidthPx / Math.max(1, viewportMetrics.width)
-    const cameraFocus = { x: focus.x + railWorldSpan / 2, y: focus.y }
+    // The authored-scene camera clamps to walkBounds. That is correct for
+    // ordinary play, but can leave a conversation group's labels underneath
+    // the fixed right rail. Compose the conversation directly in the space
+    // left of that rail; only this presentation camera may overscan the room.
+    const visibleSpan = mainlineVisibleWorldSpan(viewportMetrics)
+    const safeContentCenterPx = Math.max(0, viewportMetrics.width - conversationRailWidthPx - 16) / 2
+    const safeContentCenterPercent = safeContentCenterPx / Math.max(1, viewportMetrics.width) * 100
+    const conversationOffset = mainlineCameraOffset(scene, focus, embedded, viewportMetrics)
+    const cameraOffset = {
+      x: embedded ? conversationOffset.x : 50 - focus.x + (safeContentCenterPercent - 50) / 100 * visibleSpan.x,
+      y: conversationOffset.y,
+    }
     dialogueCameraAnchorRef.current = {
       key: wideConversationCameraSession,
       viewportKey: wideConversationViewportKey,
-      offset: mainlineCameraOffset(scene, cameraFocus, embedded, viewportMetrics),
+      offset: cameraOffset,
     }
   }
   const wideConversationCameraOffset = dialogueCameraAnchorRef.current?.offset ?? null
@@ -3213,6 +3222,9 @@ export function MainlineSceneRenderer({
               speaker: isDialogue ? dialogueLine!.speaker : sceneEchoSpeaker,
               maxWidthPx: displayReadingMaxWidthPx,
             })
+            // Subtitle text is portaled to the viewport overlay, outside the
+            // scaled world layer. Its layout metrics are already CSS pixels.
+            const readingTextWorldScale = readingIsSubtitle ? 1 : worldScale
             if (isDialogue && !stageDialogue) {
               const session = `${scene.id}:${dialogue!.triggerEntityId}`
               const metrics = `${readingMetrics.width}:${readingMetrics.height}:${readingMetrics.viewportWidth}:${worldScale}:${displayReadingMaxWidthPx}`
@@ -3228,7 +3240,7 @@ export function MainlineSceneRenderer({
               key={`speaker:${scene.id}:${dialogue!.triggerEntityId}`}
               className={`scene-mainline-speaker-anchor ${isLeaving ? 'is-leaving' : ''}`}
               aria-live="polite"
-              style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.worldWidthPx}px`, minHeight: `${echoLayout.heightPx / worldScale}px`, fontSize: `${echoLayout.fontSizePx / worldScale}px` }}
+              style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.worldWidthPx}px`, minHeight: `${echoLayout.heightPx / readingTextWorldScale}px`, fontSize: `${echoLayout.fontSizePx / readingTextWorldScale}px` }}
             ><DialogueSpeaker speaker={dialogueLine!.speaker} /></div>}
             <div
               key={readingLayoutContinuityKey ?? sceneEcho?.id ?? dialogueLine!.id}
@@ -3242,10 +3254,10 @@ export function MainlineSceneRenderer({
                 transform: readingIsSubtitle ? 'none' : undefined,
                 width: readingIsSubtitle ? '100%' : undefined,
                 height: readingIsSubtitle ? 'auto' : undefined,
-                '--scene-mainline-text-width': `${echoLayout.widthPx / worldScale}px`,
-                '--scene-mainline-text-height': `${echoLayout.heightPx / worldScale}px`,
-                fontSize: `${echoLayout.fontSizePx / worldScale}px`,
-                maxWidth: readingIsSubtitle ? '100%' : `${Math.max(1, displayReadingMaxWidthPx / worldScale)}px`,
+                '--scene-mainline-text-width': `${echoLayout.widthPx / readingTextWorldScale}px`,
+                '--scene-mainline-text-height': `${echoLayout.heightPx / readingTextWorldScale}px`,
+                fontSize: `${echoLayout.fontSizePx / readingTextWorldScale}px`,
+                maxWidth: readingIsSubtitle ? '100%' : `${Math.max(1, displayReadingMaxWidthPx / readingTextWorldScale)}px`,
                 overflow: 'visible',
                 visibility: sceneEcho && readingFit?.fits === false ? 'hidden' : undefined,
               } as CSSProperties}
@@ -3297,8 +3309,8 @@ export function MainlineSceneRenderer({
               {readingIsSubtitle && (isDialogue ? dialogueLine!.speaker : sceneEchoSpeaker) && <DialogueSpeaker speaker={isDialogue ? dialogueLine!.speaker : sceneEchoSpeaker!} />}
               {isDialogue && !stageDialogue && !readingIsSubtitle && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
-              ? <DialogueText onProtectionRects={updateReadingProtectionRects} paused={dialogueTextMotion === 'typing' && !readingIsSubtitle && !readingProtectionRects.length} group={mainlineDialoguePageGroup(dialogue!, dialogueLine!, dialogueLineIndex, dialogueTextSessionId, dialogueSegmentIndex, displayOverflowIndex)} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
-                : <ObservationText onProtectionRects={updateReadingProtectionRects} menu={isMenuReading} sourceText={sceneEcho!.segments.join('')} echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} paused={readingFit?.fits === false || (sceneEcho!.textMotion === 'typing' && !readingIsSubtitle && !observationProtection)} layout={displayReadingLayout ?? echoLayout} worldScale={worldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
+              ? <DialogueText onProtectionRects={updateReadingProtectionRects} paused={dialogueTextMotion === 'typing' && !readingIsSubtitle && !readingProtectionRects.length} group={mainlineDialoguePageGroup(dialogue!, dialogueLine!, dialogueLineIndex, dialogueTextSessionId, dialogueSegmentIndex, displayOverflowIndex)} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} layout={displayReadingLayout ?? echoLayout} worldScale={readingTextWorldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
+                : <ObservationText onProtectionRects={updateReadingProtectionRects} menu={isMenuReading} sourceText={sceneEcho!.segments.join('')} echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} paused={readingFit?.fits === false || (sceneEcho!.textMotion === 'typing' && !readingIsSubtitle && !observationProtection)} layout={displayReadingLayout ?? echoLayout} worldScale={readingTextWorldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
             </div>
             {dialogueHandoffOutgoing && dialogueHandoffPresentation && stageDialogue && <DialogueHandoffOutgoingText
               id={dialogueHandoffOutgoing.id}
