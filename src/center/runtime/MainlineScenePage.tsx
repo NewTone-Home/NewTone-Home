@@ -51,8 +51,7 @@ import type { MainlineReadingSessionLayoutCache } from './mainlineReadingLayoutS
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { sceneTextPresentationPosition } from './sceneTextPresentation'
 import { mainlineInteractionRoom, mainlineInteractionSpace, mainlineIsInteriorSpace } from './mainlineTextReading'
-import { mainlineDialogueFurnitureGroupIds, mainlineDialogueHandoffDurationMs, mainlineDialogueShouldHandoff, mainlineDialogueSpeakerActorId, mainlineDialogueSpeakerOutsidePosition, mainlineDialogueStageHiddenEntityIds, mainlineDialogueStageActorOpacity } from './mainlineDialogueStage'
-import { mainlineProtectedVisualIdentityIds } from './mainlineVisualProtection'
+import { mainlineDialogueHandoffDurationMs, mainlineDialogueShouldHandoff, mainlineDialogueSpeakerOutsidePosition } from './mainlineDialogueStage'
 import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, mainlineExplorationChoiceIsActionOnly, plantIsWatered, resolveMainlineSceneEchoChoice, resolveMainlineSceneExploration, type IncenseBurnPhase } from './mainlineSceneInteractions'
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
@@ -742,10 +741,16 @@ export function MainlineScenePage({
     : commercialCafeNarrative?.phase === 'active'
       ? commercialCafeNarrativeDialogue.lines[commercialCafeStory.narrativeCursor] ?? null
       : null
-  const activeDialogue = questionDialogueLine
+  const activeDialogueSource = questionDialogueLine
     ? { triggerEntityId: 'commercial-street-question', lines: commercialStreetQuestionNarrativeLines.map((text, index) => ({ id: `commercial-street-question-${index}`, speaker: '修杰' as const, text })) }
     : commercialCafeNarrative ? commercialCafeNarrativeDialogue
       : npcDialogue?.dialogue ?? scene.dialogue
+  const dialoguePresentation = commercialCafeNarrative?.phase === 'delivery-line'
+    ? 'aside' as const
+    : activeDialogueSource && !commercialStreetQuestionNarrative ? 'conversation' as const : undefined
+  const activeDialogue = activeDialogueSource && dialoguePresentation
+    ? { ...activeDialogueSource, dialoguePresentation }
+    : activeDialogueSource
   const activeDialogueLine = questionDialogueLine ?? (commercialCafeNarrative
     ? cafeNarrativeLine
     : activeDialogue && dialogueLineIndex !== null
@@ -3179,49 +3184,6 @@ export function MainlineScenePage({
   const currentAreaLabel = mainlineSceneAreaLabel(scene, position)
   const ambientReadingPosition = sceneEcho?.position ?? activeDialoguePosition
   const dialogueParticipantNpcIds = mainlineDialogueParticipantNpcIds(scene, activeDialogue, activeDialogueLine)
-  const formalDialogueStageActive = Boolean(activeDialogueLine
-    && dialoguePresentationPhase !== 'leaving'
-    && !commercialStreetQuestionNarrative
-    && !sceneEcho
-    && mainlineIsInteriorSpace(scene, position))
-  const formalDialogueSpeakerActorId = activeDialogueLine ? mainlineDialogueSpeakerActorId({
-    speaker: activeDialogueLine.speaker,
-    speakerNpcId: 'speakerNpcId' in activeDialogueLine ? activeDialogueLine.speakerNpcId : undefined,
-    npcs: scene.npcs,
-    protagonistLabel: '修杰',
-  }) : null
-  const formalDialogueParticipantActorIds = useMemo(() => new Set(['protagonist', ...dialogueParticipantNpcIds]), [dialogueParticipantNpcIds])
-  const formalDialogueStage = useMemo(() => {
-    if (!formalDialogueStageActive) return null
-    const roomId = mainlineInteractionRoom(scene, position)?.id
-    if (!roomId) return null
-    const protectedEntityIds = mainlineProtectedVisualIdentityIds({
-      entities: scene.objects,
-      npcs: scene.npcs,
-      structures: scene.continuousStructures,
-      geometry: scene.geometry,
-      rooms: scene.rooms,
-      roomId,
-      seedIds: [activeObjectId, activeDialogue?.triggerEntityId].filter((id): id is string => Boolean(id)),
-    })
-    const protectedActorIds = new Set(scene.npcs.filter(npc => protectedEntityIds.has(npc.id)).map(npc => npc.id))
-    const furnitureGroupIds = mainlineDialogueFurnitureGroupIds(scene.objects, new Set([activePlayerSeatId, laoZhouCafeSeatId].filter((id): id is string => Boolean(id))))
-    return {
-      roomId,
-      speakerActorId: formalDialogueSpeakerActorId,
-      participantActorIds: formalDialogueParticipantActorIds,
-      protectedEntityIds,
-      protectedActorIds,
-      hiddenEntityIds: mainlineDialogueStageHiddenEntityIds({
-        entities: scene.objects,
-        structures: scene.continuousStructures,
-        roomId,
-        protectedEntityIds,
-        protectedFurnitureGroupIds: furnitureGroupIds,
-        serviceRequired: true,
-      }),
-    }
-  }, [activeDialogue?.triggerEntityId, activeObjectId, activePlayerSeatId, commercialCafeNarrative?.phase, formalDialogueParticipantActorIds, formalDialogueSpeakerActorId, formalDialogueStageActive, laoZhouCafeSeatId, position, scene])
   const ambientReadingSessionKey = !readingActive ? null : sceneEcho
     ? `${scene.id}:observation:echo:${sceneEcho.id}`
     : `${scene.id}:dialogue:${activeDialogue?.triggerEntityId ?? ''}`
@@ -3404,7 +3366,7 @@ export function MainlineScenePage({
               dialoguePhase={dialoguePresentationPhase}
               dialogueTextSessionId={dialogueTextSessionId}
               dialogueTextMotion={dialogueTextMotion}
-              dialogueStage={formalDialogueStage}
+              dialogueStage={null}
               dialogueHandoffActive={dialogueHandoffActive}
               dialogueHandoffFadeDurationMs={mainlineDialogueHandoffDurationMs(activeDialogueText.length)}
               dialogueHandoffOutgoing={dialogueHandoffOutgoing}

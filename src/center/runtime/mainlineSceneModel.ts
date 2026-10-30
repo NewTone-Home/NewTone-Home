@@ -55,7 +55,10 @@ export type MainlineSceneDialogue = {
 }
 
 /** The existing dialogue surface only needs an interaction owner and ordered lines. */
-export type MainlineSceneDialoguePresentation = Pick<MainlineSceneDialogue, 'triggerEntityId' | 'lines'>
+export type MainlineSceneDialoguePresentation = Pick<MainlineSceneDialogue, 'triggerEntityId' | 'lines'> & {
+  /** Renderer hint for formal conversation lines and compact asides. */
+  dialoguePresentation?: 'conversation' | 'aside'
+}
 export type MainlineFacing = 'north' | 'east' | 'south' | 'west'
 export type MainlineStorefrontStyle = 'modern' | 'worn'
 export type MainlineStorefrontMode = 'commercial' | 'content' | 'door'
