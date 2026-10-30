@@ -46,6 +46,22 @@
   word-break: normal;
 }
 
+.narrow-dialogue-text-stack {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+}
+
+.narrow-dialogue-text-stack > .narrow-dialogue-text {
+  grid-area: 1 / 1;
+}
+
+.narrow-dialogue-text--measure {
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
 .narrow-dialogue-choice-window {
   position: absolute;
   inset: 0;

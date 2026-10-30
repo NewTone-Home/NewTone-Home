@@ -457,8 +457,13 @@ export function NarrowDialogueViewport({
         >{choice.label}</button>)}
       </div> : <>
         {presentedSnapshot.speaker && <div className="narrow-dialogue-speaker">{presentedSnapshot.speaker}</div>}
-        <div className={`narrow-dialogue-text${textAnimating ? ' is-animating' : ''}`}>
-          {currentPageText}
+        <div className="narrow-dialogue-text-stack">
+          <div className="narrow-dialogue-text narrow-dialogue-text--measure" aria-hidden="true">
+            {pageText}
+          </div>
+          <div className={`narrow-dialogue-text${textAnimating ? ' is-animating' : ''}`}>
+            {currentPageText}
+          </div>
         </div>
       </>}
     </div>
