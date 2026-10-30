@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type * as React from 'react'
 import {
   dialogueChoiceWheelCanConfirm,
@@ -35,6 +35,9 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
   const [scrolling, setScrolling] = useState(false)
   const [settled, setSettled] = useState(false)
   const [entering, setEntering] = useState(true)
+  const [confirmed, setConfirmed] = useState(false)
+  const [narrowItemGapPx, setNarrowItemGapPx] = useState(dialogueChoiceWheelItemGapPx)
+  const wheelRef = useRef<HTMLDivElement>(null)
   const idleTimerRef = useRef<number | null>(null)
   const enterTimerRef = useRef<number | null>(null)
   const settleTimerRef = useRef<number | null>(null)
@@ -47,6 +50,25 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
   onConfirmRef.current = onConfirm
   onCancelRef.current = onCancel
   onExitCompleteRef.current = onExitComplete
+  const itemGapPx = placement === 'narrow-bottom' ? narrowItemGapPx : dialogueChoiceWheelItemGapPx
+
+  useLayoutEffect(() => {
+    if (placement !== 'narrow-bottom') return
+    const element = wheelRef.current
+    if (!element) return
+    const updateGap = () => {
+      const height = element.getBoundingClientRect().height
+      if (height <= 0) return
+      // The mask exposes 85% of the track. Keep each 48px row's neighbor
+      // preview near one third at the actual safe-area height.
+      const next = Math.max(36, Math.min(72, Math.round(height * .425 + 8)))
+      setNarrowItemGapPx(current => current === next ? current : next)
+    }
+    updateGap()
+    const observer = new ResizeObserver(updateGap)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [placement])
 
   useEffect(() => {
     if (phase !== 'exiting' || exitedActionRef.current === actionId) return
@@ -102,6 +124,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     setScrolling(false)
     setSettled(false)
     setEntering(true)
+    setConfirmed(false)
     dragRef.current = null
     enterTimerRef.current = window.setTimeout(() => {
       enterTimerRef.current = null
@@ -117,7 +140,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     event.stopPropagation()
     setSettled(false)
     setScrolling(true)
-    setWheelPosition(positionRef.current + event.deltaY / dialogueChoiceWheelItemGapPx)
+    setWheelPosition(positionRef.current + event.deltaY / itemGapPx)
     queueIdleSettle()
   }
 
@@ -158,10 +181,10 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     event.preventDefault()
     event.stopPropagation()
     const elapsed = Math.max(1, event.timeStamp - drag.lastAt)
-    drag.velocity = ((drag.lastY - event.clientY) / dialogueChoiceWheelItemGapPx) / elapsed
+    drag.velocity = ((drag.lastY - event.clientY) / itemGapPx) / elapsed
     drag.lastY = event.clientY
     drag.lastAt = event.timeStamp
-    setWheelPosition(drag.startPosition + (drag.startY - event.clientY) / dialogueChoiceWheelItemGapPx)
+    setWheelPosition(drag.startPosition + (drag.startY - event.clientY) / itemGapPx)
   }
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -195,6 +218,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     event.preventDefault()
     event.stopPropagation()
     if (!dialogueChoiceWheelCanConfirm({ entering, scrolling, settled, position, optionCount: options.length }) || phase !== 'active') return
+    setConfirmed(true)
     onConfirmRef.current(actionId, dialogueChoiceWheelNearestIndex(position, options.length))
   }
 
@@ -216,7 +240,8 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
 
   return (
     <div
-      className={`dialogue-choice-wheel dialogue-choice-wheel--${placement}${entering ? ' is-entering' : ''}${scrolling ? ' is-scrolling' : ''}${settled ? ' is-settled' : ''}${locked ? ' is-locked' : ''}${phase === 'exiting' ? ' is-exiting' : ''}`}
+      ref={wheelRef}
+      className={`dialogue-choice-wheel dialogue-choice-wheel--${placement}${entering ? ' is-entering' : ''}${scrolling ? ' is-scrolling' : ''}${settled ? ' is-settled' : ''}${locked ? ' is-locked' : ''}${confirmed ? ' is-confirmed' : ''}${phase === 'exiting' ? ' is-exiting' : ''}`}
       role="group"
       aria-label="对话选项"
       data-dialogue-choice-wheel="true"
@@ -242,20 +267,19 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
                 className="dialogue-choice-wheel__option dialogue-choice-wheel__option--center"
                 type="button"
                 aria-label={`确认：${label}`}
-                aria-pressed={settled && !entering}
+                aria-current={settled && !entering ? 'true' : undefined}
                 disabled={locked || !settled || entering || scrolling}
-                style={{ transform: `translate3d(0, ${distance * dialogueChoiceWheelItemGapPx}px, 0)` }}
+                style={{ transform: `translate3d(0, ${distance * itemGapPx}px, 0)` }}
                 onClick={confirm}
               >{label}</button>
             : <span
                 key={`${sessionId}:${index}`}
                 className="dialogue-choice-wheel__option dialogue-choice-wheel__option--neighbor"
                 aria-hidden="true"
-                style={{ transform: `translate3d(0, ${distance * dialogueChoiceWheelItemGapPx}px, 0)` }}
+                style={{ transform: `translate3d(0, ${distance * itemGapPx}px, 0)` }}
               >{label}</span>
         })}
       </div>
-      <span className="dialogue-choice-wheel__hint" aria-hidden="true">停稳后点击中间项</span>
     </div>
   )
 }

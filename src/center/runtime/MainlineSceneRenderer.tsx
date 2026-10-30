@@ -3567,7 +3567,9 @@ export function MainlineSceneRenderer({
             speaker={conversationDisplayContent.kind === 'waiting' || conversationDisplayContent.kind === 'choice' ? undefined : dialogueLine?.speaker ?? sceneEchoSpeaker}
             speakerIsNpc={Boolean(conversationDisplayContent.kind !== 'waiting' && conversationDisplayContent.kind !== 'choice' && (dialogueLine?.speakerNpcId || scene.npcs.some(npc => npc.label === (dialogueLine?.speaker ?? sceneEchoSpeaker))))}
             narrow={!isWideDialogueConversation}
-            windowHeightPx={Math.min(260, Math.max(92, viewportMetrics.height * .34))}
+            windowHeightPx={narrow
+              ? Math.min(224, Math.max(152, viewportMetrics.height * .27))
+              : Math.min(260, Math.max(92, viewportMetrics.height * .34))}
             availableWidthPx={Math.max(1, viewportMetrics.width)}
             measuredPageHeightPx={Math.max(1, Math.min(260, (displayReadingLayout ?? activeDisplayReadingLayout ?? activeReadingLayout ?? mainlineEchoLayout(conversationDisplayPageText, readingMetrics, { speaker: dialogueLine?.speaker ?? sceneEchoSpeaker, maxWidthPx: displayReadingMaxWidthPx })).heightPx))}
             pageIndex={displayOverflowIndex}

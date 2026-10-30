@@ -440,7 +440,6 @@ export function NarrowDialogueViewport({
     </div>}
     <div
       className={`narrow-dialogue-slot narrow-dialogue-slot--current${presentedSnapshot.outgoing ? ' narrow-dialogue-slot--incoming' : ''}${isOptions ? ' narrow-dialogue-slot--options' : ''}`}
-      style={{ height: 'var(--narrow-dialogue-page-height)' }}
       onAnimationEnd={handleReadyAnimationEnd}
     >
       {isOptions ? <div className="narrow-dialogue-choice-window" role="listbox" aria-label="对话选项" aria-activedescendant={focusedChoice?.id}>

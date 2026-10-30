@@ -1307,7 +1307,11 @@
   background: linear-gradient(to top, rgba(8, 10, 13, .9) 0%, rgba(8, 10, 13, .72) 45%, rgba(8, 10, 13, .24) 82%, rgba(8, 10, 13, 0) 100%);
   pointer-events: auto;
 }
-.scene-mainline-subtitle-host .narrow-dialogue-slot { padding: 0; text-align: left; }
+.scene-mainline-subtitle-host .narrow-dialogue-slot {
+  inset: var(--narrow-dialogue-safe-top) var(--narrow-dialogue-safe-right) var(--narrow-dialogue-safe-bottom) var(--narrow-dialogue-safe-left);
+  padding: 0;
+  text-align: left;
+}
 .scene-mainline-subtitle-host__history {
   position: absolute;
   right: max(20px, env(safe-area-inset-right));
