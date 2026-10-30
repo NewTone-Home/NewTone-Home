@@ -53,7 +53,7 @@ import { storefrontContactGeometry } from './storefrontContactGeometry'
 import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlineInteractionRoom, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingOpacityForActor, mainlineObservationTypingIntervalMs, mainlineReadingFadeTransitionMs, resolveMainlineDialogueParticipants } from './mainlineTextReading'
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
 import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
-import { currentMainlineReadingTargetIds, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionCameraAnchor, mainlineReadingActionLayerPosition, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex, mainlineReadingPageIndexForSourceOffset, type MainlineReadingActionCameraAnchor } from './mainlineReadingProtection'
+import { currentMainlineReadingTargetIds, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionCameraAnchor, mainlineReadingActionLayerPosition, mainlineReadingActionViewportCameraOffset, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex, mainlineReadingPageIndexForSourceOffset, type MainlineReadingActionCameraAnchor } from './mainlineReadingProtection'
 import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey, type MainlineReadingSessionLayoutCache, type MainlineReadingSessionTextEntry } from './mainlineReadingLayoutSession'
 import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
 import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
@@ -86,6 +86,7 @@ type MainlineSceneRendererProps = {
   onScreenMetricsChange?: (metrics: MainlineViewportMetrics) => void
   viewportMetrics: SceneScreenMetrics
   cameraOffset: Point
+  embedded?: boolean
   showProtagonist?: boolean
   suppressWorldEnterAnimation?: boolean
   onLayoutChange: (itemId: LayoutItemId, point: Point) => void
@@ -1374,6 +1375,7 @@ export function MainlineSceneRenderer({
   onScreenMetricsChange,
   viewportMetrics,
   cameraOffset,
+  embedded = false,
   gateTriggered = false,
   showProtagonist = true,
   suppressWorldEnterAnimation = false,
@@ -1882,6 +1884,7 @@ export function MainlineSceneRenderer({
   }, [questionReadingActive, readingPresentationPhase, scene.id])
   const renderCameraOffset = questionExitCameraOffset ?? readingCameraOffset
   const sceneActionViewportKey = JSON.stringify([renderScreenMetrics.width, renderScreenMetrics.height, viewportMetrics.width, viewportMetrics.height])
+  const sceneActionViewportCameraOffset = mainlineReadingActionViewportCameraOffset(scene, position, cameraOffset, viewportMetrics, embedded)
   const sceneActionCameraAnchorRef = useRef<MainlineReadingActionCameraAnchor | null>(null)
   if (!sceneAction) sceneActionCameraAnchorRef.current = null
   else sceneActionCameraAnchorRef.current = mainlineReadingActionCameraAnchor({
@@ -1889,7 +1892,7 @@ export function MainlineSceneRenderer({
     actionId: sceneAction.id,
     viewportKey: sceneActionViewportKey,
     authoredOffset: sceneAction.cameraOffset,
-    currentOffset: cameraOffset,
+    currentOffset: sceneActionViewportCameraOffset,
   })
   const sceneActionCameraOffset = sceneActionCameraAnchorRef.current?.offset ?? cameraOffset
   const sceneActionMaxWidthPx = sceneAction

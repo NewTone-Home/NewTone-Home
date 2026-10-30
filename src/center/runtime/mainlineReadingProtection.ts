@@ -3,6 +3,8 @@ import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import type { MainlineSceneDefinition } from './mainlineScenes'
 import type { MainlineContinuousStructure, MainlineSceneEntity, MainlineSceneNpc } from './mainlineSceneModel'
 import { mainlineInteractionRoom, mainlineReadingBounds } from './mainlineTextReading'
+import { mainlineCameraOffset, mainlineCameraTarget } from './mainlineViewport'
+import { commercialStreetCameraPages, commercialStreetPageIndex, usesCommercialStreetPages } from './commercialStreetCamera'
 import { projectCommercialStreetX } from './commercialStreetGridProjection'
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 import { mainlineEchoLayout, type MainlineEchoLayout } from './mainlineEchoLayout'
@@ -220,6 +222,27 @@ export function mainlineReadingActionLayerPosition(position: Point, savedCameraO
 
 export type MainlineReadingActionCameraAnchor = Readonly<{ actionId: number; viewportKey: string; offset: Point }>
 
+/** Camera-space anchor to use when an already-open scene action is reflowed
+ * into a new viewport. During a viewport change, the live camera may still be
+ * animating from its old aspect ratio, so anchor against the new viewport's
+ * settled camera target instead. */
+export function mainlineReadingActionViewportCameraOffset(
+  scene: MainlineSceneDefinition,
+  position: Point,
+  currentOffset: Point,
+  metrics: SceneScreenMetrics,
+  embedded = false,
+): Point {
+  if (embedded) return { x: 0, y: 0 }
+  if (scene.viewport === 'fixed-frame') return mainlineCameraOffset(scene, position, false, metrics)
+  if (usesCommercialStreetPages(scene, position)) {
+    const pages = commercialStreetCameraPages(scene, metrics, scene.id === 'yonghe-mining-perimeter' ? position.y : undefined)
+    const index = commercialStreetPageIndex(pages.centers, position.x, pages.span)
+    return { x: 50 - pages.centers[index]!, y: pages.yOffset }
+  }
+  return mainlineCameraTarget(scene, position, currentOffset, false, metrics)
+}
+
 /** Keep an action's camera anchor while the viewport is stable, but rebase it
  * to the live camera after rotation/resizing. A portrait-era offset cannot be
  * used to clamp an action into the new landscape viewport. */
@@ -230,7 +253,9 @@ export function mainlineReadingActionCameraAnchor(input: {
   authoredOffset?: Point
   currentOffset: Point
 }): MainlineReadingActionCameraAnchor {
-  if (input.previous?.actionId === input.actionId && input.previous.viewportKey === input.viewportKey) return input.previous
+  if (input.previous && input.previous.actionId === input.actionId && input.previous.viewportKey === input.viewportKey) return input.previous
+  // When the viewport changes, currentOffset must be the camera target for
+  // the new viewport, not the still-animating offset from the old one.
   const offset = input.previous?.actionId === input.actionId ? input.currentOffset : input.authoredOffset ?? input.currentOffset
   return { actionId: input.actionId, viewportKey: input.viewportKey, offset: { ...offset } }
 }

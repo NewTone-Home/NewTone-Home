@@ -3375,6 +3375,7 @@ export function MainlineScenePage({
               gateTriggered={gateTriggered}
               geometrySnapshot={geometrySnapshot}
               viewportMetrics={activeViewportMetrics}
+              embedded={embedded}
               freezeFrameMeasurements={presentationSnapshot}
               onScreenMetricsChange={handleScreenMetricsChange}
               cameraOffset={cameraOffset}

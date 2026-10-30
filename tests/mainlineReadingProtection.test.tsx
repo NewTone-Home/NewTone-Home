@@ -1,6 +1,6 @@
 import { mainlineReadingPageIndexForSourceOffset } from '../src/center/runtime/mainlineReadingProtection'
 import { describe, expect, it } from 'vitest'
-import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionLayerPosition, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from '../src/center/runtime/mainlineReadingProtection'
+import { currentMainlineReadingTargetIds, mainlineFitReadingText, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionCameraAnchor, mainlineReadingActionLayerPosition, mainlineReadingActionViewportCameraOffset, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex } from '../src/center/runtime/mainlineReadingProtection'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { mainlineReadingBounds, mainlineInteractionRoom } from '../src/center/runtime/mainlineTextReading'
 import { projectCommercialStreetX } from '../src/center/runtime/commercialStreetGridProjection'
@@ -14,8 +14,37 @@ import { mainlineDisplaySourceText } from '../src/center/runtime/mainlineTextSeg
 import { mainlineReadingAnchorContextKey, mainlineReadingAnchorForSession } from '../src/center/runtime/mainlineReadingPresentation'
 import { mainlineAvailableReadingWidthPx } from '../src/center/runtime/mainlineTextReading'
 import { mainlineEchoLayout } from '../src/center/runtime/mainlineEchoLayout'
+import { mainlineCameraOffset, mainlineWorldScale } from '../src/center/runtime/mainlineViewport'
 
 describe('reading target protection', () => {
+  it('rebases an open scene action onto the new viewport camera target after rotation', () => {
+    const portrait = mainlineReadingActionCameraAnchor({
+      previous: null, actionId: 7, viewportKey: '390x844', authoredOffset: { x: 11, y: -8 }, currentOffset: { x: 11, y: -8 },
+    })
+    const landscapeTarget = { x: 2.25, y: 17.5 }
+    const landscape = mainlineReadingActionCameraAnchor({
+      previous: portrait, actionId: 7, viewportKey: '844x390', authoredOffset: { x: 11, y: -8 }, currentOffset: landscapeTarget,
+    })
+    expect(landscape.offset).toEqual(landscapeTarget)
+    expect(landscape.viewportKey).toBe('844x390')
+    expect(mainlineReadingActionCameraAnchor({
+      previous: landscape, actionId: 7, viewportKey: '844x390', currentOffset: { x: 99, y: 99 },
+    })).toEqual(landscape)
+  })
+
+  it('keeps an open shop action placeable when rotating from portrait to landscape', () => {
+    const scene = mainlineScenes['commercial-street']
+    const room = scene.rooms.find(candidate => candidate.id === 'commercial-north-n1-interior')!
+    const source = { x: room.bounds.x + room.bounds.width / 2, y: room.bounds.y + room.bounds.height / 2 }
+    const portrait = { width: 390, height: 844, viewportWidth: 390 }
+    const landscape = { width: 844, height: 390, viewportWidth: 844 }
+    const oldOffset = mainlineCameraOffset(scene, source, false, portrait)
+    const rotatedOffset = mainlineReadingActionViewportCameraOffset(scene, source, oldOffset, landscape)
+    const placement = mainlinePlaceReadingAction(scene, source, { width: 115, height: 29 }, landscape, mainlineWorldScale(landscape), rotatedOffset)
+    expect(placement).not.toBeNull()
+    expect(placement!.availableHeightPx).toBeGreaterThan(29)
+  })
+
   it('converts a saved action anchor into the current world-layer camera without applying pan twice', () => {
     const anchor = { x: 34.5, y: 22.25 }
     const saved = { x: 15.5, y: 27.75 }
