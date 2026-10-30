@@ -877,15 +877,12 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
   }
 
   if (narrow) return <div className="scene-mainline-subtitle-host" {...displayStateAttributes}>
-    {history.length > 0 && <div className="scene-mainline-subtitle-host__history" aria-live="polite">
-      {history.map(entry => <article key={entry.key} className={`scene-mainline-conversation-line ${entry.speakerIsNpc ? 'is-npc' : 'is-player'}`} data-dialogue-history-line={entry.key}>
-        {entry.speaker && <span className="scene-mainline-conversation-line__speaker">{entry.speaker}</span>}
-        <p>{entry.text}</p>
-      </article>)}
-    </div>}
     <NarrowDialogueViewport
       identity={identity}
-      speaker={speaker ? <DialogueSpeaker speaker={speaker} /> : undefined}
+      // Narrow page-flips animate the name and body as one snapshot. Do not
+      // mount DialogueSpeaker here: its independent exit timer can leave the
+      // outgoing name beside the incoming page for part of the flip.
+      speaker={speaker ? speaker : undefined}
       pageText={currentText}
       windowHeightPx={windowHeightPx}
       availableWidthPx={availableWidthPx}
@@ -2045,7 +2042,10 @@ export function MainlineSceneRenderer({
     const overlapsSidebar = actorRightPx > railLeftPx - sidebarGapPx && actorLeftPx < viewportMetrics.width
     const panLeftPx = overlapsSidebar ? Math.max(0, actorRightPx - (railLeftPx - sidebarGapPx)) : 0
     const conversationOffset = {
-      x: embedded ? cameraOffset.x : cameraOffset.x - panLeftPx / Math.max(1, viewportMetrics.width) * visibleSpan.x * 100,
+      // `visibleSpan` is already expressed in world-percent units. Converting
+      // a viewport pixel delta back into that basis must not multiply by 100
+      // again (which would pan roughly one hundred times too far).
+      x: embedded ? cameraOffset.x : cameraOffset.x - panLeftPx / Math.max(1, viewportMetrics.width) * visibleSpan.x,
       y: cameraOffset.y,
     }
     dialogueCameraAnchorRef.current = {

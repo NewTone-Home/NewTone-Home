@@ -94,6 +94,7 @@ export function NarrowDialogueViewport({
   }))
   const [outgoing, setOutgoing] = useState<DisplaySnapshot | null>(null)
   const [displayedText, setDisplayedText] = useState('')
+  const [displayedTextIdentityKey, setDisplayedTextIdentityKey] = useState(identityKey)
   const [textAnimating, setTextAnimating] = useState(false)
   const [readyKey, setReadyKey] = useState<string | null>(null)
   const [focus, setFocus] = useState<{ setKey: string; index: number }>({ setKey: identity.optionSetKey ?? '', index: 0 })
@@ -124,6 +125,13 @@ export function NarrowDialogueViewport({
     transition: narrowDialogueTransition(previousRef.current?.identity ?? null, identity),
     outgoing: false,
   }
+  const currentPageText = displayedTextIdentityKey === identityKey
+    ? displayedText
+    : typewriterEnabled
+      && narrowDialogueStartsTypewriter(presentedSnapshot.transition, identity.kind, identity.content)
+      && lastTypewriterSessionRef.current !== identity.sessionKey
+      ? ''
+      : pageText
 
   const notifyReady = (focusedChoiceId?: string) => {
     setReadyKey(identityKey)
@@ -159,6 +167,7 @@ export function NarrowDialogueViewport({
       && lastTypewriterSessionRef.current !== identity.sessionKey
     if (canType) {
       lastTypewriterSessionRef.current = identity.sessionKey
+      setDisplayedTextIdentityKey(identityKey)
       setDisplayedText('')
       setTextAnimating(true)
       const chars = Array.from(pageText)
@@ -196,6 +205,7 @@ export function NarrowDialogueViewport({
     }
 
     if (identity.content === 'text' && textMotion === 'deleted') {
+      setDisplayedTextIdentityKey(identityKey)
       setDisplayedText('')
       setReadyKey(null)
       setTextAnimating(false)
@@ -204,6 +214,7 @@ export function NarrowDialogueViewport({
     }
 
     if (identity.content === 'text' && textMotion === 'deleting') {
+      setDisplayedTextIdentityKey(identityKey)
       setReadyKey(null)
       setDisplayedText(pageText)
       setTextAnimating(true)
@@ -235,6 +246,7 @@ export function NarrowDialogueViewport({
       }
     }
 
+    setDisplayedTextIdentityKey(identityKey)
     setDisplayedText(pageText)
     if (!shouldAnimate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       setOutgoing(null)
@@ -444,9 +456,14 @@ export function NarrowDialogueViewport({
           onClick={(event) => { event.preventDefault(); event.stopPropagation(); if (index === focusedIndex) confirmFocusedChoice() }}
         >{choice.label}</button>)}
       </div> : <>
-        {speaker && <div className="narrow-dialogue-speaker">{speaker}</div>}
-        <div className={`narrow-dialogue-text${textAnimating ? ' is-animating' : ''}`}>
-          {displayedText}
+        {presentedSnapshot.speaker && <div className="narrow-dialogue-speaker">{presentedSnapshot.speaker}</div>}
+        <div className="narrow-dialogue-text-stack">
+          <div className="narrow-dialogue-text narrow-dialogue-text--measure" aria-hidden="true">
+            {pageText}
+          </div>
+          <div className={`narrow-dialogue-text${textAnimating ? ' is-animating' : ''}`}>
+            {currentPageText}
+          </div>
         </div>
       </>}
     </div>
