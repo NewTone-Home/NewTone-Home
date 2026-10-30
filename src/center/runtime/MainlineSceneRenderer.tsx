@@ -121,7 +121,7 @@ type MainlineSceneRendererProps = {
   onDialogueHandoffOutgoingDeleted?: (id: number) => void
   readingMode?: 'observation' | 'dialogue' | null
   onDialogueExitComplete?: () => void
-  onDialogueAdvance?: () => void
+  onDialogueAdvance?: (intent?: 'line' | 'segment') => void
   onDialogueTypingSkip?: (sessionId: number) => void
   onDialogueTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void
   sceneEcho?: { id: number; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; textMotion: MainlineReadingTextMotion; phase?: 'leaving' } | null
@@ -2274,7 +2274,9 @@ export function MainlineSceneRenderer({
   })
   const actionVisible = Boolean(frozenActionPlacement || (matchingSceneActionSize && sceneActionPlacement && (sceneAction?.phase !== 'active' || dialogueOptionsAllowed)))
   const currentDialogueGroup = dialogue && dialogueLine
-    ? `dialogue:${dialogueLine.id}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`
+    ? isWideDialogueConversation
+      ? `conversation:${dialogueLine.id}:${dialogueTextSessionId}`
+      : `dialogue:${dialogueLine.id}:${dialogueSegmentIndex}:fit:${displayOverflowIndex}`
     : null
   currentDialogueGroupRef.current = currentDialogueGroup
   const readingVisualActive = Boolean(readingPresentation && activeReadingPosition && displayReadingLayout)
@@ -3351,7 +3353,7 @@ export function MainlineSceneRenderer({
                   onSceneEchoAdvance?.()
                   return
                 }
-                if (displayOverflowIndex + 1 < fittedReadingSegments.length) {
+                if (!isWideDialogueConversation && displayOverflowIndex + 1 < fittedReadingSegments.length) {
                   lockReadingPageAdvance()
                   if (readingSessionKey) setReadingOverflowPage({ sessionKey: readingSessionKey, key: readingOverflowKey, index: displayOverflowIndex + 1, sourceOffset: fittedReadingSegments.slice(0, displayOverflowIndex + 1).join('').length })
                   return
@@ -3364,7 +3366,7 @@ export function MainlineSceneRenderer({
                     dialogueAdvanceConsumedGroupRef.current = currentDialogueGroupRef.current
                     dialogueReadyGroupRef.current = null
                     setDialogueReady(false)
-                    onDialogueAdvance?.()
+                    onDialogueAdvance?.(isWideDialogueConversation ? 'line' : 'segment')
                   }
                   return
                 }
