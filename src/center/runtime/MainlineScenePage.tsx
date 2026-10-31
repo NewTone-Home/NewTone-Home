@@ -611,13 +611,6 @@ export function MainlineScenePage({
       ? commercialCafeStoryStateFromSceneState({ commercialCafeStoryStage: debugCafeStoryStage })
       : commercialCafeStoryStateFromSceneState(initialSceneState)
   }, [debugCafeStoryStage, initialSceneState, scene.id])
-  const commercialCafeReplayPreviewAllowed = typeof window !== 'undefined' && shouldShowCommercialCafeDialogueReplay({
-    scene,
-    playerPosition: position,
-    storyStatus: commercialCafeStory.status,
-    hostname: window.location.hostname,
-    search: window.location.search,
-  })
   const commercialCafeReplayView = commercialCafeDialogueReplayView(commercialCafeReplayState)
   const laoZhouVisibleInCurrentVisit = hasContinuousCafe(scene) && commercialCafeLaoZhouIsPresent(commercialCafeStory, 0)
   const legacyHeldDrinkFallback: HeldConsumable | null = heldConsumable === undefined && commercialStreetMilkTeaHeld(initialSceneState)
@@ -909,6 +902,13 @@ export function MainlineScenePage({
   }, [cancelSceneAction, dismissSceneEcho, onPhoneDismiss, phoneOpen, readingActive])
   const internalMovement = useFreeRoamMovement(initialPosition)
   const { position, moving, moveAlong: rawMoveAlong, stopMovement, resetMovement: resetMovementController, getCurrentPosition, getRemainingDurationMs } = movementController ?? internalMovement
+  const commercialCafeReplayPreviewAllowed = typeof window !== 'undefined' && shouldShowCommercialCafeDialogueReplay({
+    scene,
+    playerPosition: position,
+    storyStatus: commercialCafeStory.status,
+    hostname: window.location.hostname,
+    search: window.location.search,
+  })
   const resetMovement = useCallback((nextPosition?: Point) => {
     resetMovementController(nextPosition)
     commercialStreetQuestionPreviousPositionRef.current = { sceneId: scene.id, position: nextPosition ?? getCurrentPosition() }
