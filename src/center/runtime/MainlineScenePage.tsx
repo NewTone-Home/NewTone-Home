@@ -592,6 +592,12 @@ export function MainlineScenePage({
         : shopOrders?.[crossShopIds.cafeTakeaway] ? savedSeat : null
     return savedTarget && scene.objects.some(entity => entity.id === savedTarget && entity.kind === 'seat') ? savedTarget : null
   })
+  // `playerSeatId` is initialized from the durable table-delivery target on
+  // refresh. The scene-reset effect below also runs on the first mount, so
+  // distinguish that hydration pass from a real scene transition; otherwise
+  // the first delivery effect mistakes the restored seated player for someone
+  // who just stood up and sends the order back to the counter.
+  const playerSeatResetSceneIdRef = useRef(sceneId)
   // The isolated browser fixture mirrors the real conversation-seat state in
   // memory only. It never writes the user's save and is unavailable in production.
   const activePlayerSeatId = debugCafeFixture ? cafeConversationSeatId : playerSeatId
@@ -1267,6 +1273,8 @@ export function MainlineScenePage({
     return () => staticNpcPositions.forEach((_npcPosition, npcId) => navigationRuntime.removeActor(npcId))
   }, [navigationRuntime, scene.npcs, screenMetrics, staticNpcPositions])
   useEffect(() => {
+    const resetPlayerSeatForSceneTransition = playerSeatResetSceneIdRef.current !== sceneId
+    playerSeatResetSceneIdRef.current = sceneId
     pendingTraversalRef.current = null
     setPassageDestination(null)
     setRequestedWorldTarget(null)
@@ -1287,7 +1295,7 @@ export function MainlineScenePage({
     setNpcDialogue(null)
     setGenericDialoguePhase('active')
     setCommercialCafeNarrative(commercialCafeNarrativeRuntimeFromSceneState(sceneId, initialSceneState, isPointInContinuousCafe(scene, getCurrentPosition())))
-    setPlayerSeatId(null)
+    if (resetPlayerSeatForSceneTransition) setPlayerSeatId(null)
     setPromptedSeatId(null)
     setSceneEcho(null)
     sceneEchoRef.current = null
