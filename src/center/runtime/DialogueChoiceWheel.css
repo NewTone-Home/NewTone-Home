@@ -57,7 +57,7 @@
   mask-image: linear-gradient(to bottom, transparent 0%, #000 3%, #000 97%, transparent 100%);
 }
 .narrow-dialogue-content--choice-prompt > .dialogue-choice-wheel--narrow-bottom .dialogue-choice-wheel__viewport {
-  top: calc(50% + 24px);
+  top: calc(50% + 17px);
 }
 .narrow-dialogue-content--choice-prompt > .dialogue-choice-wheel--narrow-bottom .dialogue-choice-wheel__option {
   box-sizing: border-box;
