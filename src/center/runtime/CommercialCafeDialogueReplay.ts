@@ -24,6 +24,7 @@ export type CommercialCafeDialogueReplayView = Readonly<{
   runId: number
   dialogue: MainlineSceneDialoguePresentation
   lineIndex: number
+  sentenceIndex: number
   line: MainlineSceneDialogueLine
   conversationDisplayContent: Extract<MainlineConversationDisplayContent, { kind: 'text' | 'aside' }>
   textMotion: CommercialCafeReplayMotion
@@ -94,7 +95,7 @@ export function commercialCafeDialogueReplayView(state: CommercialCafeDialogueRe
       text,
     })))
   return {
-    sessionId, runId: state.runId, dialogue: commercialCafeDialogueReplaySource, lineIndex: state.lineIndex, line,
+    sessionId, runId: state.runId, dialogue: commercialCafeDialogueReplaySource, lineIndex: state.lineIndex, sentenceIndex: state.sentenceIndex, line,
     conversationDisplayContent: { sessionId, kind: 'text', text, displayUnitKey: `cafe-replay:${state.runId}:${line.id}:sentence:${state.sentenceIndex}`, textMotion: state.textMotion, canAdvance: state.textMotion !== 'deleting', history },
     textMotion: state.textMotion, canAdvance: state.textMotion !== 'deleting',
   }
