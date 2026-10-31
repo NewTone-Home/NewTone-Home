@@ -207,7 +207,7 @@ type CafeRestroomFixtureUseRequest = {
   startedAtGameTimeMs?: number
 }
 
-function createMainlineSceneEcho(id: number, entityId: string | undefined, text: string, position: Point, clockActivitySource: MainlineSceneEcho['clockActivitySource'], options?: readonly string[], optionFlow?: MainlineSceneChoiceFlow, conversationDisplaySessionId?: string): MainlineSceneEcho {
+function createMainlineSceneEcho(id: number, entityId: string | undefined, text: string, position: Point, clockActivitySource: MainlineSceneEcho['clockActivitySource'], options?: readonly string[], optionFlow?: MainlineSceneChoiceFlow, conversationDisplaySessionId?: string, textMotion: MainlineSceneEcho['textMotion'] = 'typing'): MainlineSceneEcho {
   // Keep this observation together; the reading layout decides its pages
   // from the available space rather than sentence punctuation.
   const segments = [mainlineDisplaySourceText(text)]
@@ -223,7 +223,7 @@ function createMainlineSceneEcho(id: number, entityId: string | undefined, text:
     position,
     options,
     optionFlow,
-    textMotion: 'typing',
+    textMotion,
   }
 }
 
@@ -2205,6 +2205,7 @@ export function MainlineScenePage({
       options,
       optionFlow,
       displaySessionId,
+      existingDisplaySessionId ? 'static' : 'typing',
     ))
   }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, readingMetrics, scene])
   const presentCommercialDrinkEcho = useCallback((workerId: string, text: string, options?: readonly string[], existingDisplaySessionId?: string) => {
@@ -2223,6 +2224,7 @@ export function MainlineScenePage({
       options,
       options ? 'dialogue-choice' : undefined,
       displaySessionId,
+      existingDisplaySessionId ? 'static' : 'typing',
     ))
   }, [activeViewportMetrics, cameraOffset, getCurrentPosition, presentSceneEcho, readingMetrics, scene])
   const lastYongheOrderFeedbackRef = useRef(0)
@@ -3046,6 +3048,12 @@ export function MainlineScenePage({
       return
     }
     const atSessionEnd = mainlineReadingSessionTextIsFinal(current.segmentIndex, current.segments.length, 0, 1)
+    if (atSessionEnd && current.options?.length && current.optionFlow === 'dialogue-choice') {
+      // A dialogue choice is another beat in this conversation, not the end
+      // of the authored text session. Keep the same display surface alive.
+      finishSceneEchoReading(current)
+      return
+    }
     const next = { ...current, textMotion: mainlineReadingTextMotionAfterAdvance(current.textMotion, atSessionEnd) }
     if (next.textMotion === 'deleting') {
       sceneEchoRef.current = next

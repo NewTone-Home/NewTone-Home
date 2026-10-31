@@ -100,6 +100,7 @@ export function NarrowDialogueViewport({
   const [focus, setFocus] = useState<{ setKey: string; index: number }>({ setKey: identity.optionSetKey ?? '', index: 0 })
   const [choiceSettled, setChoiceSettled] = useState(true)
   const previousRef = useRef<DisplaySnapshot | null>(null)
+  const visiblePageRef = useRef<{ identityKey: string; text: string } | null>(null)
   const choiceTimerRef = useRef<number | null>(null)
   const recentScrollRef = useRef(false)
   const pointerRef = useRef<{ id: number; y: number; moved: boolean } | null>(null)
@@ -136,6 +137,12 @@ export function NarrowDialogueViewport({
       && lastTypewriterSessionRef.current !== identity.sessionKey
       ? ''
       : pageText
+
+  // Capture the actual rendered glyphs as they type or delete. A later
+  // identity transition must not resurrect the authored full-text snapshot.
+  if (displayedTextIdentityKey === identityKey) {
+    visiblePageRef.current = { identityKey, text: currentPageText }
+  }
 
   const notifyReady = (focusedChoiceId?: string) => {
     setReadyKey(identityKey)
@@ -271,7 +278,10 @@ export function NarrowDialogueViewport({
       if (identity.content === 'text' && textMotion === 'typing') reportTextMotionComplete('typing')
       return
     }
-    setOutgoing(prior.identity.content === 'text' ? { ...prior, outgoing: true } : null)
+    const visiblePriorText = visiblePageRef.current?.identityKey === prior.identityKey
+      ? visiblePageRef.current.text
+      : prior.pageText
+    setOutgoing(prior.identity.content === 'text' ? { ...prior, pageText: visiblePriorText, outgoing: true } : null)
   }, [identityKey, pageText, speaker, typewriterEnabled, textMotion])
 
   useEffect(() => {
@@ -424,9 +434,10 @@ export function NarrowDialogueViewport({
 
   const style = {
     '--narrow-dialogue-window-height': `${Math.max(1, windowHeightPx)}px`,
+    '--narrow-dialogue-shade-height': `${Math.min(200, Math.max(160, windowHeightPx * .9))}px`,
     '--narrow-dialogue-available-width': `${Math.max(1, availableWidthPx)}px`,
     '--narrow-dialogue-page-height': `${Math.max(1, Math.min(windowHeightPx, measuredPageHeightPx))}px`,
-    '--narrow-dialogue-copy-speaker-offset': `${-Math.min(16, Math.max(0, (windowHeightPx - 86 - measuredPageHeightPx) / 2))}px`,
+    '--narrow-dialogue-copy-speaker-offset': '-16.2px',
   } as CSSProperties
 
   const outgoingSnapshot = outgoing

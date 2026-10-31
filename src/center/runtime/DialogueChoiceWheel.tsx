@@ -59,15 +59,26 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     const updateGap = () => {
       const height = element.getBoundingClientRect().height
       if (height <= 0) return
-      // The container edge clips each 48px row to a 16px neighbor preview.
-      const next = Math.max(36, Math.min(80, Math.round(height / 2 + 8)))
+      const neighbor = element.querySelector<HTMLElement>('.dialogue-choice-wheel__option--neighbor')
+      let previewTextHeight = 20
+      if (neighbor) {
+        const computed = window.getComputedStyle(neighbor)
+        const lineHeight = Number.parseFloat(computed.lineHeight) || Number.parseFloat(computed.fontSize) * 1.35 || 20
+        const range = document.createRange()
+        range.selectNodeContents(neighbor)
+        const lineCount = Math.max(1, range.getClientRects().length)
+        previewTextHeight = lineHeight * lineCount
+      }
+      // Place the viewport edge one third of a rendered text block into the
+      // neighbor; this measures visible lettering, not its padded row box.
+      const next = Math.max(36, Math.min(80, Math.round(height / 2 + previewTextHeight / 6)))
       setNarrowItemGapPx(current => current === next ? current : next)
     }
     updateGap()
     const observer = new ResizeObserver(updateGap)
     observer.observe(element)
     return () => observer.disconnect()
-  }, [placement])
+  }, [options, placement])
 
   useEffect(() => {
     if (phase !== 'exiting' || exitedActionRef.current === actionId) return
@@ -247,6 +258,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
       data-dialogue-choice-session={sessionId}
       data-dialogue-choice-action={actionId}
       data-dialogue-choice-phase={phase}
+      data-dialogue-choice-item-gap={placement === 'narrow-bottom' ? narrowItemGapPx : undefined}
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}

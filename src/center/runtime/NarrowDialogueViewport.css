@@ -1,5 +1,5 @@
 .narrow-dialogue-content {
-  --narrow-dialogue-safe-top: 22px;
+  --narrow-dialogue-safe-top: 34px;
   --narrow-dialogue-safe-right: max(20px, env(safe-area-inset-right));
   --narrow-dialogue-safe-bottom: max(64px, calc(16px + env(safe-area-inset-bottom)));
   --narrow-dialogue-safe-left: max(20px, env(safe-area-inset-left));
@@ -47,6 +47,7 @@
   min-width: 0;
   max-width: 100%;
   flex-direction: column;
+  text-align: center;
 }
 
 .narrow-dialogue-copy--speaker {
@@ -59,6 +60,7 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: normal;
+  text-align: center;
 }
 
 .narrow-dialogue-text-stack {
