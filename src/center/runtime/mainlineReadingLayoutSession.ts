@@ -87,6 +87,7 @@ export type MainlineReadingSessionLayoutCache = {
     sourceOffset?: number
     outside?: { side: 'above' | 'below'; speakerY: number }
     subtitle?: boolean
+    subtitleSafeAreaBottomPx?: number
   }): { segments: readonly string[]; pageLayouts: readonly MainlineEchoLayout[]; position: Point; layout: MainlineEchoLayout; maxWidthPx: number; fits: boolean }
 }
 
@@ -226,7 +227,7 @@ export function createMainlineReadingSessionLayoutCache(input: {
       // and actor movement. Resize builds a new plan; the renderer maps the
       // currently displayed source offset into that new plan.
       if (input.preferWholeText || fitInput.subtitle) {
-        const viewportKey = JSON.stringify([fitInput.metrics.width, fitInput.metrics.height, fitInput.metrics.viewportWidth, fitInput.worldScale, fitInput.subtitle ? fitInput.cameraOffset : null])
+        const viewportKey = JSON.stringify([fitInput.metrics.width, fitInput.metrics.height, fitInput.metrics.viewportWidth, fitInput.worldScale, fitInput.subtitle ? fitInput.cameraOffset : null, fitInput.subtitleSafeAreaBottomPx ?? 0])
         if (observationPlan?.key === viewportKey && observationPlan.text === fitInput.text) {
           const page = observationPlan
           return { segments: page.segments, pageLayouts: page.pageLayouts, position: page.position, layout: page.pageLayouts[0]!, maxWidthPx: page.maxWidthPx, fits: true }
@@ -235,10 +236,11 @@ export function createMainlineReadingSessionLayoutCache(input: {
         const availableWidth = fitInput.subtitle
           ? Math.max(1, fitInput.metrics.width - 40)
           : bounds!.width / 100 * sceneDesignReferenceMetrics.width * fitInput.worldScale
-        // The compact mobile subtitle reserves 22px above and at least 64px
-        // below its shared text/choice area. Keep the same 27vh/224px window
-        // budget as the renderer when fitting text pages.
-        const availableHeight = fitInput.subtitle ? Math.max(1, Math.min(fitInput.metrics.height * .27, 224) - 86) : bounds!.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale
+        // Mobile subtitle content fits within its fixed 15vh panel after the
+        // device bottom inset and two 2px internal margins are reserved.
+        const availableHeight = fitInput.subtitle
+          ? Math.max(1, fitInput.metrics.height * .15 - (fitInput.subtitleSafeAreaBottomPx ?? 0) - 4)
+          : bounds!.height / 100 * sceneDesignReferenceMetrics.height * fitInput.worldScale
         for (const candidate of widths) {
           if (candidate.widthPx > fitInput.maximumWidthPx + .001) continue
           const fittedChunks = candidate.pages.get(entryKey({ text: fitInput.text, speaker: fitInput.speaker }))!.segments

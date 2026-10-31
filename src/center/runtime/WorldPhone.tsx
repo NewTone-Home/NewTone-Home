@@ -771,7 +771,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
       onWheel={event => event.stopPropagation()} onTouchStart={event => event.stopPropagation()} onTouchMove={event => event.stopPropagation()}
       onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}
     >
-      {!dialogueActive && <button
+      <button
         className="world-phone__handle"
         type="button"
         aria-hidden={!handleIsInteractive}
@@ -781,7 +781,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
         onAnimationEnd={handleSwapRetractEnd}
         onClick={handleIsInteractive ? onOpen : undefined}
       >
-      </button>}
+      </button>
 
       <div inert={!isInteractive || yongheMapHandoffPhase === 'opening'} className="world-phone__body" onTransitionEnd={handleBodyTransitionEnd} onTransitionRun={handleBodyTransitionRun} onTransitionCancel={handleBodyTransitionCancel}>
         <section className={`world-phone__panel ${isMapOpen ? 'world-phone__panel--map' : ''}`} role="dialog" aria-label="手机" aria-hidden={!isInteractive}>

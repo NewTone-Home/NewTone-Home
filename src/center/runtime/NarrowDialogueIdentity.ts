@@ -50,8 +50,9 @@ export function narrowDialogueTransition(
   }
   if (previous.kind !== next.kind) return next.kind === 'aside' ? 'aside-enter' : 'aside-return'
   if (previous.content !== next.content) return next.content === 'options' ? 'options-enter' : 'options-return'
+  if (previous.lineKey === next.lineKey && previous.pageIndex !== next.pageIndex) return 'capacity-page'
+  if (previous.pageKey !== next.pageKey) return 'line-change'
   if (previous.lineKey !== next.lineKey) return 'line-change'
-  if (previous.pageKey !== next.pageKey || previous.pageIndex !== next.pageIndex) return 'capacity-page'
   return 'same'
 }
 

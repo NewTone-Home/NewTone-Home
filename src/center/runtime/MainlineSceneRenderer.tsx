@@ -1779,16 +1779,34 @@ export function MainlineSceneRenderer({
   const viewportHandoffAcknowledgedRef = useRef<number | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const [viewportOverlayHost, setViewportOverlayHost] = useState<HTMLDivElement | null>(null)
+  const [experienceOverlayHost, setExperienceOverlayHost] = useState<HTMLElement | null>(null)
+  const [deviceSafeAreaBottomPx, setDeviceSafeAreaBottomPx] = useState(0)
   const setStageHost = useCallback((node: HTMLDivElement | null) => {
     stageRef.current = node
     setViewportOverlayHost(node)
+    setExperienceOverlayHost(node?.closest<HTMLElement>('.center-experience') ?? null)
   }, [])
+  useEffect(() => {
+    if (!experienceOverlayHost) return
+    const measureSafeArea = () => {
+      const value = Number.parseFloat(window.getComputedStyle(experienceOverlayHost).getPropertyValue('--mainline-safe-area-bottom'))
+      setDeviceSafeAreaBottomPx(Number.isFinite(value) ? Math.max(0, value) : 0)
+    }
+    measureSafeArea()
+    window.addEventListener('resize', measureSafeArea)
+    window.visualViewport?.addEventListener('resize', measureSafeArea)
+    return () => {
+      window.removeEventListener('resize', measureSafeArea)
+      window.visualViewport?.removeEventListener('resize', measureSafeArea)
+    }
+  }, [experienceOverlayHost])
   const stableViewportRef = useRef<HTMLSpanElement>(null)
   const dimmerRef = useRef<HTMLDivElement>(null)
   const isMenuReading = Boolean(sceneEcho && isWallMenuReading(sceneEcho.entityId))
   const keepsWorldReadingLayout = isMenuReading || sceneEcho?.entityId === 'commercial-cafe-blackboard'
   const hasConversationDisplayContent = Boolean(conversationDisplayContent && (conversationDisplaySessionId || conversationDisplayContent.sessionId))
   const isWideDialogueConversation = Boolean((hasConversationDisplayContent || dialogue?.dialoguePresentation === 'conversation') && viewportMetrics.width >= 960)
+  const narrowConversationOverlayHost = experienceOverlayHost ?? viewportOverlayHost
   const readingIsSubtitle = Boolean(readingMode && !keepsWorldReadingLayout && !isWideDialogueConversation)
   const viewportOwnsHandoffOutgoing = isWideDialogueConversation || (readingIsSubtitle && !dialogueStage)
   useEffect(() => {
@@ -2446,6 +2464,7 @@ export function MainlineSceneRenderer({
       cameraOffset: renderCameraOffset,
       sourceOffset: readingOverflowPage?.sessionKey === readingSessionKey && readingOverflowPage.key === readingOverflowKey ? readingOverflowPage.sourceOffset : undefined,
       subtitle: readingIsSubtitle,
+      subtitleSafeAreaBottomPx: deviceSafeAreaBottomPx,
     }) ?? null
     : null
   const fittedReadingSegments = readingFit?.segments ?? [activeReadingText]
@@ -3555,9 +3574,9 @@ export function MainlineSceneRenderer({
               onDeleted={(id) => onDialogueHandoffOutgoingDeleted?.(id)}
             />}
             </Fragment>
-            return readingIsSubtitle && viewportOverlayHost ? createPortal(readingText, viewportOverlayHost) : readingText
+            return readingIsSubtitle && narrowConversationOverlayHost ? createPortal(readingText, narrowConversationOverlayHost) : readingText
           })()}
-          {hasConversationDisplayContent && stableConversationDisplaySessionId && viewportOverlayHost && conversationDisplayContent && createPortal(<ConversationDisplaySurface
+          {hasConversationDisplayContent && stableConversationDisplaySessionId && (isWideDialogueConversation ? viewportOverlayHost : narrowConversationOverlayHost) && conversationDisplayContent && createPortal(<ConversationDisplaySurface
             key={stableConversationDisplaySessionId}
             sessionId={stableConversationDisplaySessionId}
             content={conversationDisplayContent}
@@ -3568,7 +3587,7 @@ export function MainlineSceneRenderer({
             speakerIsNpc={Boolean(conversationDisplayContent.kind !== 'waiting' && conversationDisplayContent.kind !== 'choice' && (dialogueLine?.speakerNpcId || scene.npcs.some(npc => npc.label === (dialogueLine?.speaker ?? sceneEchoSpeaker))))}
             narrow={!isWideDialogueConversation}
             windowHeightPx={!isWideDialogueConversation
-              ? Math.min(224, Math.max(152, viewportMetrics.height * .27))
+              ? Math.max(1, viewportMetrics.height * .15)
               : Math.min(260, Math.max(92, viewportMetrics.height * .34))}
             availableWidthPx={Math.max(1, viewportMetrics.width)}
             measuredPageHeightPx={Math.max(1, Math.min(260, (displayReadingLayout ?? activeDisplayReadingLayout ?? activeReadingLayout ?? mainlineEchoLayout(conversationDisplayPageText, readingMetrics, { speaker: dialogueLine?.speaker ?? sceneEchoSpeaker, maxWidthPx: displayReadingMaxWidthPx })).heightPx))}
@@ -3607,7 +3626,7 @@ export function MainlineSceneRenderer({
             onSceneActionChoice={onSceneActionChoice}
             onSceneActionCancel={onSceneActionCancel}
             onSceneActionExitComplete={onSceneActionExitComplete}
-          />, viewportOverlayHost)}
+          />, isWideDialogueConversation ? viewportOverlayHost! : narrowConversationOverlayHost!)}
           {!hasConversationDisplayContent && isWideDialogueConversation && viewportOverlayHost && dialogue && dialogueLine && createPortal(<MainlineDialogueConversation
             scene={scene}
             dialogue={dialogue}

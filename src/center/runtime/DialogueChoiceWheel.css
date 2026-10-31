@@ -46,8 +46,22 @@
   transform: translate3d(0, 12px, 0) scale(.985);
 }
 .narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom .dialogue-choice-wheel__viewport {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 .25%, #000 99.75%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 .25%, #000 99.75%, transparent 100%);
+  top: 50%;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: min(var(--narrow-wheel-clip-height, 64px), 100%);
+  overflow: hidden;
+  transform: translateY(-50%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 3%, #000 97%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 3%, #000 97%, transparent 100%);
+}
+.narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom.is-entering .dialogue-choice-wheel__viewport {
+  animation-name: dialogue-choice-wheel-mobile-fade-in;
+}
+@keyframes dialogue-choice-wheel-mobile-fade-in {
+  from { opacity: .15; filter: blur(3px); }
+  to { opacity: 1; filter: blur(0); }
 }
 .narrow-dialogue-content > .dialogue-choice-wheel .dialogue-choice-wheel__option--center {
   color: inherit;

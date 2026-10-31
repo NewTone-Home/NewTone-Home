@@ -1,0 +1,20 @@
+.commercial-cafe-dialogue-replay-dock {
+  position: absolute;
+  z-index: 120;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  pointer-events: auto;
+}
+
+.commercial-cafe-dialogue-replay-button {
+  min-height: 40px;
+  padding: .55rem .9rem;
+  border: 1px solid currentColor;
+  border-radius: .55rem;
+  color: inherit;
+  background: rgba(16, 19, 24, .88);
+  font: inherit;
+  cursor: pointer;
+}
+
+.commercial-cafe-dialogue-replay-button:disabled { cursor: not-allowed; opacity: .55; }

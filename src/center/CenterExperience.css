@@ -4,6 +4,7 @@
   z-index: 10000;
   overflow: hidden;
   isolation: isolate;
+  --mainline-safe-area-bottom: env(safe-area-inset-bottom, 0px);
   background: transparent;
   pointer-events: auto;
 }

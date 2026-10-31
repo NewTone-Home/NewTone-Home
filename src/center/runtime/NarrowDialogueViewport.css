@@ -1,9 +1,10 @@
 .narrow-dialogue-content {
-  --narrow-dialogue-safe-top: 34px;
+  --narrow-dialogue-safe-top: 2px;
   --narrow-dialogue-safe-right: max(20px, env(safe-area-inset-right));
-  --narrow-dialogue-safe-bottom: max(8px, calc(8px + env(safe-area-inset-bottom)));
+  --narrow-dialogue-safe-bottom: max(2px, calc(2px + env(safe-area-inset-bottom)));
   --narrow-dialogue-safe-left: max(20px, env(safe-area-inset-left));
   position: relative;
+  box-sizing: border-box;
   width: min(100%, var(--narrow-dialogue-available-width));
   height: var(--narrow-dialogue-window-height);
   overflow: hidden;

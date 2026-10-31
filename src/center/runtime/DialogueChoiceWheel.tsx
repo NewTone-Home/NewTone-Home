@@ -57,24 +57,21 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     const element = wheelRef.current
     if (!element) return
     const updateGap = () => {
-      const height = element.getBoundingClientRect().height
-      if (height <= 0) return
       const center = element.querySelector<HTMLElement>('.dialogue-choice-wheel__option--center')
       const centerIndex = center ? Number(center.dataset.dialogueChoiceIndex) : 0
+      const safeViewportHeight = element.getBoundingClientRect().height
+      const centerRowHeight = center?.getBoundingClientRect().height ?? 48
+      const clipHeight = Math.min(safeViewportHeight, Math.max(64, centerRowHeight))
+      if (clipHeight > 0) element.style.setProperty('--narrow-wheel-clip-height', `${Math.round(clipHeight)}px`)
       const measureNeighborGap = (index: number) => {
         const neighbor = element.querySelector<HTMLElement>(`.dialogue-choice-wheel__option[data-dialogue-choice-index="${index}"]`)
-        if (!neighbor) return height / 2 + 4
+        if (!neighbor) return 34
         const computed = window.getComputedStyle(neighbor)
         const fontSize = Number.parseFloat(computed.fontSize) || 16
         const lineHeight = Number.parseFloat(computed.lineHeight) || fontSize * 1.35
-        const range = document.createRange()
-        range.selectNodeContents(neighbor)
-        const textHeight = Math.max(lineHeight, range.getBoundingClientRect().height)
-        // Range boxes include vertical font whitespace. Move the label inward
-        // by a line-height-scaled allowance so the visible slice contains
-        // actual glyph strokes rather than only the line box edge.
-        const fontWhitespaceAllowance = lineHeight * .21
-        return Math.round(height / 2 + Math.max(0, textHeight / 2 - lineHeight / 3 - fontWhitespaceAllowance))
+        // Keep neighbors close to the focused row. The clip reveals a small,
+        // readable slice; gap must not grow with the viewport height.
+        return Math.round(Math.max(34, Math.min(38, lineHeight * 1.58)))
       }
       const above = measureNeighborGap(centerIndex - 1)
       const below = measureNeighborGap(centerIndex + 1)

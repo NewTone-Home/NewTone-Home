@@ -6,9 +6,9 @@
 .world-phone button:disabled { opacity:.4; cursor:default; }
 .world-phone button:focus-visible,.world-phone [role=button]:focus-visible { outline:2px solid #eee; outline-offset:3px; }
 .world-phone__body { height:100%; padding:3px; border:1px solid #ffffff38; border-bottom:0; border-radius:23px 23px 0 0; background:#0d0e11; transform:translateY(calc(100% - 28px)); transition:transform 240ms cubic-bezier(.2,.75,.2,1); overflow:hidden; }
-.world-phone.is-dialogue-active:not(.is-open) .world-phone__body { visibility:hidden; }
 .world-phone.is-open .world-phone__body { transform:translateY(0); pointer-events:auto; }
 .world-phone__handle { position:absolute; bottom:0; left:0; width:100%; height:48px; z-index:3; border:0; background:transparent; pointer-events:auto; }
+.world-phone.is-dialogue-active .world-phone__handle:disabled { opacity:1; }
 .world-phone.is-open .world-phone__handle { display:none; }
 .world-phone__handle-mark { position:absolute; display:block; top:0; left:50%; transform:translateX(-50%); width:96px; height:12px; border-radius:0 0 7px 7px; background:#050507; pointer-events:none; }
 .world-phone__notification-dot { position:absolute; right:8px; top:50%; width:4px; height:4px; border-radius:50%; background:#cdd4dc; opacity:0; transform:translateY(-50%); animation:phone-notification-dot-enter 240ms ease-out forwards,phone-notification-dot 3.2s 240ms ease-in-out infinite; }

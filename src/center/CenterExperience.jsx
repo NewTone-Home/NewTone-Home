@@ -4,6 +4,7 @@ import { MainlineScenePage } from './runtime/MainlineScenePage'
 import { LongDistanceTravel } from './runtime/LongDistanceTravel'
 import { enqueuePhoneNotification, readPhoneNotifications } from './runtime/phoneNotifications'
 import { WorldPhone } from './runtime/WorldPhone'
+import { storeOrderEntryRoute } from './runtime/storeOrderEntryPolicy'
 import {
   mainlineRespawnSceneId,
   mainlineSceneRoute,
@@ -502,18 +503,18 @@ export default function CenterExperience({
       return routeDrinkShopCounter(crossShopIds.milkTea)
     }
     if (entity.id === 'commercial-s5-milk-tea-app-square') {
-      openShopOrderApp(crossShopIds.milkTea)
+      if (storeOrderEntryRoute('explicit-app-entry') === 'open-phone-app') openShopOrderApp(crossShopIds.milkTea)
       return true
     }
     if (entity.id === 'fruit-tea-trial-order' || entity.id === 'fruit-tea-trial-long-counter-0') {
       return routeDrinkShopCounter(crossShopIds.fruitTea)
     }
     if (entity.id === 'fruit-tea-trial-app-square') {
-      openShopOrderApp(crossShopIds.fruitTea)
+      if (storeOrderEntryRoute('explicit-app-entry') === 'open-phone-app') openShopOrderApp(crossShopIds.fruitTea)
       return true
     }
     if (entity.id === 'commercial-cafe-app-square') {
-      openShopOrderApp(crossShopIds.cafeTakeaway)
+      if (storeOrderEntryRoute('explicit-app-entry') === 'open-phone-app') openShopOrderApp(crossShopIds.cafeTakeaway)
       return true
     }
     if (entity.id === 'yonghe-counter') {
