@@ -848,7 +848,9 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
   const currentText = content.kind === 'choice' ? '' : pageText
   const keepChoiceWheelForExit = Boolean(dialogueChoiceWheel && (content.kind === 'choice'
     ? dialogueChoiceWheel.actionId === content.actionId
-    : dialogueChoiceWheel.phase === 'exiting'))
+    : content.kind === 'text' && content.choicePrompt
+      ? dialogueChoiceWheel.sessionId === sessionId
+      : dialogueChoiceWheel.phase === 'exiting'))
   const displayPhase = content.kind === 'choice'
     ? dialogueChoiceWheel?.phase ?? 'active'
     : content.kind === 'text' ? content.textMotion ?? textMotion : content.kind
