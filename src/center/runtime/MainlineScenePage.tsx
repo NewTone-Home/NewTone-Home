@@ -3944,7 +3944,7 @@ export function MainlineScenePage({
               readingSessionLayoutCache={sharedReadingSessionLayoutCache}
               onWalk={walk}
               worldQuestionMark={scene.id === 'commercial-street' && !commercialStreetQuestionNarrativeIsCompleted ? { anchor: commercialStreetQuestionNarrativeAnchor(scene), visible: !commercialStreetQuestionNarrative } : undefined}
-              dialogue={renderedDialogue ? { ...renderedDialogue, conversationDisplaySessionId: currentConversationDisplaySessionId ?? undefined } : renderedDialogue}
+              dialogue={renderedDialogue ? { ...renderedDialogue, conversationDisplaySessionId: currentConversationDisplaySessionId ?? undefined } : undefined}
               dialogueLine={renderedDialogueLine}
               dialogueText={renderedDialogueText}
               dialogueLineIndex={renderedDialogueLineIndex}
