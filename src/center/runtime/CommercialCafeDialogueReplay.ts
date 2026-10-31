@@ -1,5 +1,5 @@
 import { commercialCafeNarrativeDialogue } from './commercialCafeStory'
-import type { MainlineConversationDisplayContent, MainlineConversationDisplayHistoryEntry, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
+import type { MainlineConversationDisplayContent, MainlineConversationDisplayHistoryEntry, MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
 
 export type CommercialCafeReplayStoryStatus = 'available' | 'ready-to-leave' | 'complete'
 export type CommercialCafeReplayMotion = 'typing' | 'static' | 'deleting'
@@ -19,7 +19,7 @@ export type CommercialCafeDialogueReplayView = Readonly<{
   runId: number
   dialogue: MainlineSceneDialoguePresentation
   lineIndex: number
-  line: typeof commercialCafeNarrativeDialogue.lines[number]
+  line: MainlineSceneDialogueLine
   conversationDisplayContent: Extract<MainlineConversationDisplayContent, { kind: 'text' | 'aside' }>
   textMotion: CommercialCafeReplayMotion
   canAdvance: boolean
