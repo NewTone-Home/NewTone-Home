@@ -57,13 +57,14 @@
   mask-image: linear-gradient(to bottom, transparent 0%, #000 3%, #000 97%, transparent 100%);
 }
 .narrow-dialogue-content--choice-prompt > .dialogue-choice-wheel--narrow-bottom .dialogue-choice-wheel__viewport {
-  top: calc(50% + 13px);
+  top: calc(50% + 24px);
 }
 .narrow-dialogue-content--choice-prompt > .dialogue-choice-wheel--narrow-bottom .dialogue-choice-wheel__option {
+  box-sizing: border-box;
   min-height: 44px;
   padding: 4px 12px;
-  font-size: 15px;
-  line-height: 1.2;
+  font-size: 14px;
+  line-height: 1.1;
 }
 .narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom.is-entering .dialogue-choice-wheel__viewport {
   animation-name: dialogue-choice-wheel-mobile-fade-in;

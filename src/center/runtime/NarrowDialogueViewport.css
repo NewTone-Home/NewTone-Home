@@ -35,8 +35,14 @@
 
 /* Manual order prompts share the compact 15vh phone panel with the wheel. */
 .narrow-dialogue-content--choice-prompt .narrow-dialogue-text {
-  font-size: 15px;
-  line-height: 1.2;
+  font-size: 14px;
+  line-height: 1.1;
+}
+
+.narrow-dialogue-content--choice-prompt .narrow-dialogue-speaker {
+  margin-bottom: 2px;
+  font-size: 14px;
+  line-height: 1.1;
 }
 
 .narrow-dialogue-slot--current.narrow-dialogue-slot--incoming {
