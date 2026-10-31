@@ -77,6 +77,7 @@ type WorldPhoneProps = {
   worldLayer: WorldLayer
   device: PhoneDevice
   open: boolean
+  dialogueActive?: boolean
   onOpen: () => void
   onClose: () => void
   onCloseComplete?: () => void
@@ -258,7 +259,7 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, gameTimeLabel, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, ruoyuMessagesUnlocked = false, requestedApp = null, requestedShopId = null, requestedShopProductId = null, onShopOrderPlaced, onShopOrderReady, onShopNotificationOpen, availableShopIds = [], shopOrders = {}, heldConsumable = null, walletBalance = 800, gameTimeMs = 0, preparationConfiguredByShop = {}, onShopOrderConfirm, onLegacyShopOrderCancel, onRequestedAppHandled, onLaoZhouMessagesDisplayed, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, onClockActivitySourceChange, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
+export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, dialogueActive = false, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, gameTimeLabel, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, ruoyuMessagesUnlocked = false, requestedApp = null, requestedShopId = null, requestedShopProductId = null, onShopOrderPlaced, onShopOrderReady, onShopNotificationOpen, availableShopIds = [], shopOrders = {}, heldConsumable = null, walletBalance = 800, gameTimeMs = 0, preparationConfiguredByShop = {}, onShopOrderConfirm, onLegacyShopOrderCancel, onRequestedAppHandled, onLaoZhouMessagesDisplayed, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, onClockActivitySourceChange, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
   const clockSourceId = useId()
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
@@ -335,7 +336,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
         : phase
   const isInteractive = renderedPhase === 'opening' || renderedPhase === 'open'
   const inputOwner = phoneInputOwner(renderedPhase)
-  const handleIsInteractive = inputOwner === 'handle'
+  const handleIsInteractive = inputOwner === 'handle' && !dialogueActive
   const online = phoneIsOnline(displayDevice, worldLayer)
   const mapRegions = getPhoneMapRegions(displayDevice)
   const rideAvailability = phoneRideAvailability(displayDevice, worldLayer)
@@ -757,11 +758,12 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
     <>
     {isInteractive && <div className="world-phone__dismiss-region" onPointerDown={event => { event.stopPropagation() }} onPointerUp={event => event.stopPropagation()} onClick={event => { event.preventDefault(); event.stopPropagation(); closePhone() }} />}
     <aside ref={phoneRef}
-      className={`world-phone world-phone--${displayDevice} world-phone--phase-${renderedPhase} ${isInteractive ? 'is-open' : ''} ${isMapOpen ? 'world-phone--map-app' : ''}`}
+      className={`world-phone world-phone--${displayDevice} world-phone--phase-${renderedPhase} ${isInteractive ? 'is-open' : ''} ${dialogueActive ? 'is-dialogue-active' : ''} ${isMapOpen ? 'world-phone--map-app' : ''}`}
       data-has-notifications={notifications.some(n => n.unread)}
       data-yonghe-map-handoff={yongheMapHandoffPhase ?? 'idle'}
       data-phone-open={open}
       data-phone-phase={renderedPhase}
+      data-dialogue-active={dialogueActive}
       data-phone-device={displayDevice}
       data-world-layer={worldLayer}
       onClickCapture={onMeaningfulActivity} onClick={event => { event.stopPropagation(); if (!(event.target instanceof Element) || !event.target.closest(".world-phone__message-place")) setLocationCardOpen(false) }}
@@ -769,7 +771,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
       onWheel={event => event.stopPropagation()} onTouchStart={event => event.stopPropagation()} onTouchMove={event => event.stopPropagation()}
       onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}
     >
-      <button
+      {!dialogueActive && <button
         className="world-phone__handle"
         type="button"
         aria-hidden={!handleIsInteractive}
@@ -779,11 +781,11 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
         onAnimationEnd={handleSwapRetractEnd}
         onClick={handleIsInteractive ? onOpen : undefined}
       >
-      </button>
+      </button>}
 
       <div inert={!isInteractive || yongheMapHandoffPhase === 'opening'} className="world-phone__body" onTransitionEnd={handleBodyTransitionEnd} onTransitionRun={handleBodyTransitionRun} onTransitionCancel={handleBodyTransitionCancel}>
         <section className={`world-phone__panel ${isMapOpen ? 'world-phone__panel--map' : ''}`} role="dialog" aria-label="手机" aria-hidden={!isInteractive}>
-          <PhoneNotificationCapsule notifications={notifications} visible={handleIsInteractive && !open && !swapPending} />
+          {(!dialogueActive || isInteractive) && <PhoneNotificationCapsule notifications={notifications} visible={handleIsInteractive && !open && !swapPending} />}
           <header className="world-phone__header">
             <span className="world-phone__world-status">{storyTime}　{storyDate}</span>
             <div className="world-phone__status" aria-label={`${online ? '有信号' : '无信号'}，电量${batteryPercent}%`}>

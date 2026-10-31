@@ -152,6 +152,7 @@ export default function CenterExperience({
   const [phonePanelRetracted, setPhonePanelRetracted] = useState(true)
   const sceneReadingActiveRef = useRef(false)
   const [sceneReadingActive, setSceneReadingActive] = useState(false)
+  const [sceneDialogueActive, setSceneDialogueActive] = useState(false)
   const [phoneNotificationScreen, setPhoneNotificationScreen] = useState(false)
   const positionSamplerRef = useRef(null)
   const currentSceneIdRef = useRef(route.sceneId)
@@ -610,6 +611,9 @@ export default function CenterExperience({
       if (current) rideBoardingRef.current(current.sceneId, current.position, current.context)
     }
   }, [])
+  const handleSceneConversationActiveChange = useCallback((active) => {
+    setSceneDialogueActive(active)
+  }, [])
 
   const handleClockActivitySourceChange = useCallback((sourceId, source) => {
     const snapshot = sessionGameClockRef.current.setActivitySource(sourceId, source)
@@ -1031,6 +1035,7 @@ export default function CenterExperience({
       phoneOpen={phoneOpen}
       onPhoneDismiss={snapshot ? undefined : retractPhone}
       onReadingStateChange={snapshot ? undefined : handleSceneReadingStateChange}
+      onConversationDisplayActiveChange={snapshot ? undefined : handleSceneConversationActiveChange}
       onClockActivitySourceChange={snapshot ? undefined : handleClockActivitySourceChange}
       readGameTimeMs={readSessionGameTimeMs}
       shopOrders={playerSave.shopOrders}
@@ -1131,6 +1136,7 @@ export default function CenterExperience({
           worldLayer={worldLayerForScene(route.sceneId)}
           device={phoneDevice}
           open={phoneOpen}
+          dialogueActive={sceneDialogueActive}
           onOpen={revealPhone}
           onClose={retractPhone}
           onCloseComplete={handlePhoneCloseComplete}

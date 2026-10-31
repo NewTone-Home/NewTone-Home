@@ -6,6 +6,7 @@
 .world-phone button:disabled { opacity:.4; cursor:default; }
 .world-phone button:focus-visible,.world-phone [role=button]:focus-visible { outline:2px solid #eee; outline-offset:3px; }
 .world-phone__body { height:100%; padding:3px; border:1px solid #ffffff38; border-bottom:0; border-radius:23px 23px 0 0; background:#0d0e11; transform:translateY(calc(100% - 28px)); transition:transform 240ms cubic-bezier(.2,.75,.2,1); overflow:hidden; }
+.world-phone.is-dialogue-active:not(.is-open) .world-phone__body { visibility:hidden; }
 .world-phone.is-open .world-phone__body { transform:translateY(0); pointer-events:auto; }
 .world-phone__handle { position:absolute; bottom:0; left:0; width:100%; height:48px; z-index:3; border:0; background:transparent; pointer-events:auto; }
 .world-phone.is-open .world-phone__handle { display:none; }

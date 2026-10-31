@@ -288,6 +288,7 @@ export function MainlineScenePage({
   phoneOpen = false,
   onPhoneDismiss,
   onReadingStateChange,
+  onConversationDisplayActiveChange,
   onClockActivitySourceChange,
   readGameTimeMs,
   shopOrders,
@@ -340,6 +341,7 @@ export function MainlineScenePage({
   phoneOpen?: boolean
   onPhoneDismiss?: () => void
   onReadingStateChange?: (reading: boolean) => void
+  onConversationDisplayActiveChange?: (active: boolean) => void
   onClockActivitySourceChange?: (sourceId: string, source: SessionGameActivitySource | null) => void
   readGameTimeMs: () => number
   shopOrders?: Record<string, { readyAtGameTimeMs: number; status: string } | undefined>
@@ -841,6 +843,12 @@ export function MainlineScenePage({
           : activeDialogueLine && currentConversationDisplaySessionId
             ? { sessionId: currentConversationDisplaySessionId, kind: dialoguePresentation === 'aside' ? 'aside' : 'text', text: activeDialogueText, textMotion: dialogueTextMotion, canAdvance: true, history: commercialCafeNarrative ? cafeNarrativeDisplayHistory : undefined }
             : null
+  const conversationDisplayActive = Boolean(conversationDisplayContent)
+  useIsomorphicLayoutEffect(() => {
+    if (presentationSnapshot) return
+    onConversationDisplayActiveChange?.(conversationDisplayActive)
+    return () => onConversationDisplayActiveChange?.(false)
+  }, [conversationDisplayActive, onConversationDisplayActiveChange, presentationSnapshot])
   sceneTextSlowdownActiveRef.current = readingActive
   useEffect(() => {
     onReadingStateChange?.(readingActive)
