@@ -828,6 +828,8 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
 }) {
   const [choiceTransfer, setChoiceTransfer] = useState<null | {
     id: string
+    actionId: number
+    optionIndex: number
     text: string
     sourceRect: { left: number; top: number; width: number; height: number }
     targetRect?: { left: number; top: number; width: number; height: number }
@@ -837,6 +839,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
   const historyEntriesRef = useRef<ConversationHistoryEntry[]>([...(content.history ?? [])])
   const historyElementRef = useRef<HTMLDivElement>(null)
   const exitCompletionSessionRef = useRef<string | null>(null)
+  const transferSessionRef = useRef(sessionId)
   const previousRef = useRef<{ key: string; content: MainlineConversationDisplayContent; speaker?: string; speakerIsNpc: boolean } | null>(null)
   useLayoutEffect(() => {
     if (content.kind === 'aside') onReadyChange(contentKey, true)
@@ -856,6 +859,24 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
     const node = historyElementRef.current
     if (node) node.scrollTop = node.scrollHeight
   }, [history.length])
+  useLayoutEffect(() => {
+    if (transferSessionRef.current !== sessionId) setChoiceTransfer(null)
+    transferSessionRef.current = sessionId
+  }, [sessionId])
+  useLayoutEffect(() => {
+    if (!choiceTransfer?.targetRect) return
+    const wheel = document.querySelector<HTMLElement>(`[data-dialogue-choice-action="${choiceTransfer.actionId}"]`)
+    const source = wheel?.querySelector<HTMLElement>(`[data-dialogue-choice-index="${choiceTransfer.optionIndex}"]`)
+    if (!source) return
+    const previousColor = source.style.color
+    const previousTextShadow = source.style.textShadow
+    source.style.color = 'transparent'
+    source.style.textShadow = 'none'
+    return () => {
+      source.style.color = previousColor
+      source.style.textShadow = previousTextShadow
+    }
+  }, [choiceTransfer])
   useLayoutEffect(() => {
     if (!choiceTransfer || choiceTransfer.targetRect) return
     const escapedId = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(choiceTransfer.id) : choiceTransfer.id
@@ -890,6 +911,8 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
     const computed = window.getComputedStyle(source)
     setChoiceTransfer({
       id,
+      actionId,
+      optionIndex,
       text: label,
       sourceRect: { left: sourceRect.left, top: sourceRect.top, width: sourceRect.width, height: sourceRect.height },
       textStyle: { fontFamily: computed.fontFamily, fontSize: computed.fontSize, fontWeight: computed.fontWeight, lineHeight: computed.lineHeight, color: computed.color },
@@ -953,7 +976,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
         placement="narrow-bottom"
         promptAbove={content.kind === 'text' && Boolean(content.choicePrompt)}
         onConfirm={(actionId, optionIndex) => onSceneActionChoice?.(actionId, optionIndex)}
-        onCancel={() => onSceneActionCancel?.()}
+        onCancel={() => { setChoiceTransfer(null); onSceneActionCancel?.() }}
         onExitComplete={(actionId, optionIndex) => onSceneActionExitComplete?.(actionId, optionIndex)}
       /> : null}
       onTextSettled={(readyIdentity, motion) => {
@@ -1018,7 +1041,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
         wideLayout="inline"
         onSelectionLocked={lockWideChoice}
         onConfirm={(actionId, optionIndex) => onSceneActionChoice?.(actionId, optionIndex)}
-        onCancel={() => onSceneActionCancel?.()}
+        onCancel={() => { setChoiceTransfer(null); onSceneActionCancel?.() }}
         onExitComplete={(actionId, optionIndex) => onSceneActionExitComplete?.(actionId, optionIndex)}
       />}
       {choiceTransfer?.targetRect && <DialogueChoiceSelectionTransfer
