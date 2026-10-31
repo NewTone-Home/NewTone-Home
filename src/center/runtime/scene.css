@@ -1312,7 +1312,7 @@
   right: 0;
   bottom: 0;
   left: 0;
-  height: var(--narrow-dialogue-shade-height);
+  height: 15vh;
   background: linear-gradient(to top, rgba(8, 10, 13, .84) 0%, rgba(8, 10, 13, .60) 42%, rgba(8, 10, 13, .16) 78%, rgba(8, 10, 13, 0) 100%);
   content: '';
   pointer-events: none;

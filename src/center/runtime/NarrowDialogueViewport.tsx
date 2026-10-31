@@ -436,7 +436,6 @@ export function NarrowDialogueViewport({
 
   const style = {
     '--narrow-dialogue-window-height': `${Math.max(1, windowHeightPx)}px`,
-    '--narrow-dialogue-shade-height': `${Math.min(200, Math.max(160, windowHeightPx * .9))}px`,
     '--narrow-dialogue-available-width': `${Math.max(1, availableWidthPx)}px`,
     '--narrow-dialogue-page-height': `${Math.max(1, Math.min(windowHeightPx, measuredPageHeightPx))}px`,
     '--narrow-dialogue-copy-speaker-offset': '-16.2px',
