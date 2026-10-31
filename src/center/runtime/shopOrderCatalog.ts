@@ -13,6 +13,11 @@ export function shopProductFor(shopId: string, productId: string) {
   return allShopProducts.find(product => product.storeId === shopId && product.id === productId) ?? null
 }
 
+/** Returns the existing authored catalogue for one shop without copying SKU data. */
+export function shopProductsFor(shopId: string) {
+  return allShopProducts.filter(product => product.storeId === shopId)
+}
+
 export function shopOrderNotificationFor(shopId: string, productId: string) {
   const productName = shopProductFor(shopId, productId)?.name ?? productId
   const shopName = shopId === crossShopIds.milkTea ? '奶茶店'
