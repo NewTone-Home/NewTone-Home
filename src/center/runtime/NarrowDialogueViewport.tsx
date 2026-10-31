@@ -183,11 +183,12 @@ export function NarrowDialogueViewport({
       && priorKey !== identityKey
       && (transition === 'line-change' || transition === 'capacity-page' || transition === 'options-enter' || transition === 'options-return')
     const transitionRun = priorKey === identityKey ? transitionRunRef.current : ++transitionRunRef.current
-    // A content prop can settle in a follow-up render while the same identity
-    // is rolling in. Preserve both slots until that animation actually ends.
-    if (priorKey === identityKey && prior?.outgoing && completedTransitionRef.current !== transitionRun) return
     completedTransitionRef.current = null
-    setTransitionDiagnostic({ id: transitionRun, phase: shouldAnimate ? 'animating' : 'settling', completion: shouldAnimate ? 'awaiting-roll-in' : 'identity-settled' })
+    setTransitionDiagnostic({
+      id: transitionRun,
+      phase: shouldAnimate ? 'animating' : 'settling',
+      completion: `${shouldAnimate ? 'start' : 'settled'}:${transition}:${shouldAnimate ? 'awaiting-roll-in' : 'no-animation'}@${performance.now().toFixed(1)}`,
+    })
     const next: DisplaySnapshot = { identity, identityKey, pageText, speaker, transition, outgoing: shouldAnimate }
     previousRef.current = next
     setSnapshot(next)
@@ -297,7 +298,12 @@ export function NarrowDialogueViewport({
     const transitionRun = transitionRunRef.current
     const element = currentSlotRef.current
     if (!element) return
-    const rollIn = element.getAnimations().find((animation) => (animation as CSSAnimation).animationName === 'narrow-dialogue-roll-in')
+    const animations = element.getAnimations()
+    const animationNames = animations.map(animation => (animation as CSSAnimation).animationName).join(',') || 'none'
+    setTransitionDiagnostic(current => current.id === transitionRun
+      ? { ...current, phase: 'animating', completion: `waapi-query:${animationNames}@${performance.now().toFixed(1)}` }
+      : current)
+    const rollIn = animations.find((animation) => (animation as CSSAnimation).animationName === 'narrow-dialogue-roll-in')
     if (!rollIn) return
     rollIn.finished.then(
       () => completeRollIn(identityKey, transitionRun, 'waapi-animation-finished'),
@@ -381,7 +387,9 @@ export function NarrowDialogueViewport({
   }
 
   const handleReadyAnimationEnd = (event: AnimationEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget || event.animationName !== 'narrow-dialogue-roll-in' || textAnimating) return
+    if (event.target !== event.currentTarget) return
+    setTransitionDiagnostic(current => ({ ...current, completion: `current-end:${event.animationName}@${performance.now().toFixed(1)}` }))
+    if (event.animationName !== 'narrow-dialogue-roll-in' || textAnimating) return
     completeRollIn(identityKey, transitionRunRef.current, 'animationend-event')
   }
 
@@ -472,6 +480,8 @@ export function NarrowDialogueViewport({
     data-narrow-dialogue-transition-id={transitionDiagnostic.id}
     data-narrow-dialogue-transition-phase={transitionDiagnostic.phase}
     data-narrow-dialogue-transition-completion={transitionDiagnostic.completion}
+    data-narrow-dialogue-incoming-class={String(presentedSnapshot.outgoing)}
+    data-narrow-dialogue-outgoing-present={String(Boolean(outgoingSnapshot))}
     data-narrow-dialogue-content={identity.content}
     data-narrow-dialogue-text-motion={identity.content === 'text' ? textMotion : undefined}
     data-narrow-dialogue-motion-completion={motionCompletionDiagnostic}
@@ -487,7 +497,15 @@ export function NarrowDialogueViewport({
     {outgoingSnapshot && <div
       className="narrow-dialogue-slot narrow-dialogue-slot--outgoing"
       aria-hidden="true"
-      onAnimationEnd={(event) => { if (event.target === event.currentTarget) setOutgoing(null) }}
+      onAnimationStart={(event) => {
+        if (event.target !== event.currentTarget) return
+        setTransitionDiagnostic(current => ({ ...current, completion: `outgoing-start:${event.animationName}@${performance.now().toFixed(1)}` }))
+      }}
+      onAnimationEnd={(event) => {
+        if (event.target !== event.currentTarget) return
+        setTransitionDiagnostic(current => ({ ...current, completion: `outgoing-end:${event.animationName}@${performance.now().toFixed(1)}` }))
+        setOutgoing(null)
+      }}
     >
       <div className={`narrow-dialogue-copy${outgoingSnapshot.speaker ? ' narrow-dialogue-copy--speaker' : ''}`}>
         {outgoingSnapshot.speaker && <div className="narrow-dialogue-speaker">{outgoingSnapshot.speaker}</div>}
@@ -497,6 +515,10 @@ export function NarrowDialogueViewport({
     <div
       ref={currentSlotRef}
       className={`narrow-dialogue-slot narrow-dialogue-slot--current${presentedSnapshot.outgoing ? ' narrow-dialogue-slot--incoming' : ''}${isOptions ? ' narrow-dialogue-slot--options' : ''}${choicePrompt ? ' narrow-dialogue-slot--choice-prompt' : ''}`}
+      onAnimationStart={(event) => {
+        if (event.target !== event.currentTarget) return
+        setTransitionDiagnostic(current => ({ ...current, completion: `current-start:${event.animationName}@${performance.now().toFixed(1)}` }))
+      }}
       onAnimationEnd={handleReadyAnimationEnd}
     >
       {isOptions ? <div className="narrow-dialogue-choice-window" role="listbox" aria-label="对话选项" aria-activedescendant={focusedChoice?.id}>
