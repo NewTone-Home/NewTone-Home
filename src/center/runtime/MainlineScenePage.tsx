@@ -2895,15 +2895,21 @@ export function MainlineScenePage({
     const view = manualShopOrderView(session)
     manualShopOrderPromptOverrideRef.current = promptOverride ?? null
     setConversationDisplaySessionId(displaySessionId)
-    pendingSceneActionAfterExitRef.current = {
+    sceneEchoRef.current = null
+    setSceneEcho(null)
+    pendingSceneActionAfterExitRef.current = null
+    pendingSceneActionRef.current = null
+    const previousActionId = sceneAction?.id ?? null
+    const nextAction = createSceneAction({
       entityId,
       options: view.choices.map(choice => choice.label),
       optionFlow: 'dialogue-choice',
       conversationDisplaySessionId: displaySessionId,
       position: sceneAction?.position ?? sceneTextPresentationPosition(scene, getCurrentPosition(), view.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
       cameraOffset: sceneAction?.cameraOffset ?? cameraOffset,
-    }
-  }, [activeViewportMetrics, cameraOffset, getCurrentPosition, readingMetrics, scene, sceneAction])
+    })
+    setSceneAction(current => previousActionId === null || current?.id === previousActionId ? nextAction : current)
+  }, [activeViewportMetrics, cameraOffset, createSceneAction, getCurrentPosition, readingMetrics, scene, sceneAction])
 
   const beginManualShopOrder = useCallback((shopId: string, entityId: string, preselectedProductId?: string | null, existingDisplaySessionId?: string) => {
     const idempotencyKey = typeof crypto !== 'undefined' && 'randomUUID' in crypto
