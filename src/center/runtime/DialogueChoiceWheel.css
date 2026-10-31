@@ -172,6 +172,23 @@
 .narrow-dialogue-content > .dialogue-choice-wheel .dialogue-choice-wheel__option--neighbor {
   opacity: .76;
   filter: none;
+  box-sizing: border-box;
+  height: 1.1em;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 14px;
+  line-height: 1.35;
+}
+
+/* A long wrapped neighbor must not overlap the focused choice. Show only the
+   line nearest the center: the last line above, the first line below. */
+.narrow-dialogue-content > .dialogue-choice-wheel .dialogue-choice-wheel__option--neighbor > .dialogue-choice-wheel__neighbor-copy {
+  display: block;
+  width: 100%;
+}
+
+.narrow-dialogue-content > .dialogue-choice-wheel .dialogue-choice-wheel__option--neighbor[data-dialogue-choice-neighbor-side="above"] > .dialogue-choice-wheel__neighbor-copy {
+  transform: translateY(calc(1.1em - 100%));
 }
 
 @media (prefers-reduced-motion: reduce) {

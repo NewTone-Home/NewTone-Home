@@ -1047,6 +1047,7 @@ export default function CenterExperience({
       onDeskInteraction={snapshot ? undefined : switchCarriedPhone}
       onObjectInteraction={snapshot ? undefined : handleObjectInteraction}
       onCommerceEntity={snapshot ? undefined : handleCommerceEntity}
+      onShopOrderConfirm={snapshot ? undefined : confirmShopOrder}
       onDrinkShopOrderOpen={snapshot ? undefined : (shopId, productId) => openShopOrderApp(shopId, productId)}
       onYongheOrderOpen={snapshot ? undefined : (productId) => openShopOrderApp(crossShopIds.yonghe, productId)}
       yongheOrderFeedback={yongheOrderFeedback}

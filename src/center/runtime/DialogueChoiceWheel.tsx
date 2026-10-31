@@ -69,9 +69,10 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
         const computed = window.getComputedStyle(neighbor)
         const fontSize = Number.parseFloat(computed.fontSize) || 16
         const lineHeight = Number.parseFloat(computed.lineHeight) || fontSize * 1.35
-        // Keep neighbors close to the focused row. The clip reveals a small,
-        // readable slice; gap must not grow with the viewport height.
-        return Math.round(Math.max(34, Math.min(38, lineHeight * 1.58)))
+        // Keep the preview beside (not over) the focused row. A multi-line
+        // focused choice needs a little more clearance, independent of viewport.
+        const previewHeight = fontSize * 1.1
+        return Math.round(Math.max(34, centerRowHeight / 2 + previewHeight / 2 + 1, lineHeight * 1.58))
       }
       const above = measureNeighborGap(centerIndex - 1)
       const below = measureNeighborGap(centerIndex + 1)
@@ -298,8 +299,9 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
                 className="dialogue-choice-wheel__option dialogue-choice-wheel__option--neighbor"
                 aria-hidden="true"
                 data-dialogue-choice-index={index}
+                data-dialogue-choice-neighbor-side={distance < 0 ? 'above' : 'below'}
                 style={{ transform: `translate3d(0, ${distance * (distance < 0 ? itemGapPx.above : itemGapPx.below)}px, 0)` }}
-              >{label}</span>
+              ><span className="dialogue-choice-wheel__neighbor-copy">{label}</span></span>
         })}
       </div>
     </div>

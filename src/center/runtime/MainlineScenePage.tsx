@@ -40,7 +40,8 @@ import { commercialCafeAnalyticsMilestonePatch, commercialCafeAnalyticsMilestone
 import { commercialCafeFloorServiceTarget, commercialCafeDutySpeedMultiplier, createCommercialCafeCoffeeOwnerBehaviorCoordinator, createCommercialCafeFloorServerBehaviorCoordinator } from './commercialCafeBehavior'
 import { commercialCafeDialogueReplayReducer, commercialCafeDialogueReplayView, initialCommercialCafeDialogueReplayState, shouldShowCommercialCafeDialogueReplay } from './CommercialCafeDialogueReplay'
 import { CommercialCafeDialogueReplayButton } from './CommercialCafeDialogueReplayButton'
-import { manualOrderDialogueRoute, storeOrderEntryRoute } from './storeOrderEntryPolicy'
+import { storeOrderEntryRoute } from './storeOrderEntryPolicy'
+import { chooseManualShopOrderOption, manualShopOrderView, startManualShopOrderSession, type ManualShopOrderSession, type ManualShopOrderSubmit } from './manualShopOrderSession'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { createNavigationRuntime } from './navigationCore'
 import { useNpcMovement } from './useNpcMovement'
@@ -70,7 +71,7 @@ import { commercialStreetCafeAppUnlockPatch, commercialStreetCafeAppUnlocked, co
 import type { SessionGameActivitySource } from './sessionGameClock'
 import { mainlineReadingSessionTextIsFinal, mainlineReadingTextMotionAfterAdvance, mainlineReadingTextMotionAfterAnimation, mainlineReadingTextMotionCompletionMatches, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
 import { yongheMenuForChoice, yongheMenuText, yongheTakeawayCatalog } from './yongheTakeawayCatalog'
-import { commercialStreetDrinkCatalog, commercialStreetDrinkMenuText, commercialStreetDrinkShopDialogue, commercialStreetDrinkShopForInteraction, recommendedCommercialStreetDrink } from './commercialStreetDrinkCatalog'
+import { commercialStreetDrinkShopDialogue, commercialStreetDrinkShopForInteraction, recommendedCommercialStreetDrink } from './commercialStreetDrinkCatalog'
 import type { CafeStoryOrderStatus } from './cafeStoryOrderDelivery'
 
 const emptyExternalStoreSubscribe = () => () => undefined
@@ -302,6 +303,7 @@ export function MainlineScenePage({
   onObjectInteraction,
   onCommerceEntity,
   cafeStoryOrderDelivery,
+  onShopOrderConfirm,
   yongheOrderFeedback = 0,
   yongheReadyCue = null,
   onConsumeHeldConsumable,
@@ -351,6 +353,7 @@ export function MainlineScenePage({
   onDeskInteraction?: (device: PhoneDevice) => void
   onObjectInteraction?: (entity: MainlineSceneEntity, dwellMs: number) => void
   onCommerceEntity?: (entity: MainlineSceneEntity) => boolean | { text: string; options?: readonly string[] }
+  onShopOrderConfirm?: ManualShopOrderSubmit
   onDrinkShopOrderOpen?: (shopId: string, productId?: string) => void
   cafeStoryOrderDelivery?: CafeStoryOrderDeliveryBridge
   onYongheOrderOpen?: (productId?: string) => void
@@ -566,6 +569,10 @@ export function MainlineScenePage({
   const [sceneEcho, setSceneEcho] = useState<MainlineSceneEcho | null>(null)
   const sceneEchoRef = useRef<MainlineSceneEcho | null>(null)
   const [sceneAction, setSceneAction] = useState<MainlineSceneAction | null>(null)
+  const manualShopOrderSessionRef = useRef<ManualShopOrderSession | null>(null)
+  const manualShopOrderConversationSessionRef = useRef<string | null>(null)
+  const manualShopOrderSubmittingKeyRef = useRef<string | null>(null)
+  const manualShopOrderSubmittedKeyRef = useRef<string | null>(null)
   const conversationDisplaySessionIdRef = useRef(0)
   const [conversationDisplaySessionId, setConversationDisplaySessionId] = useState<string | null>(() => commercialCafeNarrative
     ? `conversation:resume:${sceneId}:commercial-cafe-story`
@@ -605,7 +612,8 @@ export function MainlineScenePage({
       : commercialCafeStoryStateFromSceneState(initialSceneState)
   }, [debugCafeStoryStage, initialSceneState, scene.id])
   const commercialCafeReplayPreviewAllowed = typeof window !== 'undefined' && shouldShowCommercialCafeDialogueReplay({
-    sceneId: scene.id,
+    scene,
+    playerPosition: position,
     storyStatus: commercialCafeStory.status,
     hostname: window.location.hostname,
     search: window.location.search,
@@ -2875,24 +2883,95 @@ export function MainlineScenePage({
     })
   }, [activePlayerSeatId, cafeStoryOrderDelivery, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, initialSceneState, interactRuoyuCafe, interactXiujieFollowup, laoZhouVisibleInCurrentVisit, layout, leavePlayerSeat, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, presentCommercialDrinkEcho, presentYongheEcho, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
 
+  const beginManualShopOrder = useCallback((shopId: string, entityId: string, preselectedProductId?: string | null, existingDisplaySessionId?: string) => {
+    const idempotencyKey = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `manual-shop-order-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const displaySessionId = existingDisplaySessionId ?? `conversation:${++conversationDisplaySessionIdRef.current}`
+    const started = startManualShopOrderSession({
+      shopId,
+      idempotencyKey,
+      shopAlreadyHasOrder: Boolean(shopOrders?.[shopId]),
+      preselectedProductId,
+    })
+    if (!started.ok) {
+      manualShopOrderSessionRef.current = null
+      manualShopOrderConversationSessionRef.current = null
+      const message = started.reason === 'shop-already-has-order'
+        ? '这家店已有一笔未领取订单，做好后可以到柜台领取。'
+        : started.reason === 'unknown-shop'
+          ? '这家店的商品目录暂时不可用。'
+          : '暂时无法开始下单，请稍后再试。'
+      presentCommercialDrinkEcho(entityId, message, undefined, displaySessionId)
+      return
+    }
+    manualShopOrderSessionRef.current = started.session
+    manualShopOrderConversationSessionRef.current = displaySessionId
+    manualShopOrderSubmittingKeyRef.current = null
+    manualShopOrderSubmittedKeyRef.current = null
+    const view = manualShopOrderView(started.session)
+    presentCommercialDrinkEcho(entityId, view.text, view.choices.map(choice => choice.label), displaySessionId)
+  }, [presentCommercialDrinkEcho, shopOrders])
+
   const chooseSceneEchoOption = useCallback((actionId: number, index: number) => {
     if (!sceneAction || sceneAction.id !== actionId || sceneAction.phase !== 'committing') return
     const option = sceneAction?.options[index]
     if (!option) return
     onMeaningfulActivity?.()
-    const presentManualOrderMessage = (entityId: string, text: string, sessionId = sceneAction.conversationDisplaySessionId, action: 'order' | 'accept-recommendation' | 'look-again' = 'order') => {
-      if (manualOrderDialogueRoute(action) !== 'stay-in-dialogue') return
-      presentCommercialDrinkEcho(entityId, text, undefined, sessionId)
+    const manualSession = manualShopOrderSessionRef.current
+    const manualConversationSessionId = manualShopOrderConversationSessionRef.current
+    if (manualSession && manualConversationSessionId && sceneAction.conversationDisplaySessionId === manualConversationSessionId) {
+      const manualView = manualShopOrderView(manualSession)
+      const manualChoice = manualView.choices[index]
+      if (manualChoice) {
+        const isOrderConfirmation = manualChoice.id === 'confirm' && manualSession.phase === 'confirm'
+        if (isOrderConfirmation && (manualShopOrderSubmittingKeyRef.current === manualSession.idempotencyKey
+          || manualShopOrderSubmittedKeyRef.current === manualSession.idempotencyKey)) {
+          commitSceneActionExit(actionId)
+          return
+        }
+        if (isOrderConfirmation) manualShopOrderSubmittingKeyRef.current = manualSession.idempotencyKey
+        const step = chooseManualShopOrderOption(manualSession, manualChoice.id, input => onShopOrderConfirm?.(input) ?? { ok: false, reason: 'order-service-unavailable' })
+        if (step.submitted) {
+          if (step.submitted.ok) manualShopOrderSubmittedKeyRef.current = manualSession.idempotencyKey
+          else manualShopOrderSubmittingKeyRef.current = null
+        }
+        if (step.session) {
+          manualShopOrderSessionRef.current = step.session
+          let reply = step.view?.text ?? '订单流程暂时不可用。'
+          if (step.submitted?.ok) reply = '订单已提交，做好后会通知你，到柜台领取。'
+          else if (step.submitted && !step.submitted.ok) {
+            const reason = step.submitted.reason
+            const explanation = reason === 'insufficient-funds' ? '余额不足，暂时不能下单。'
+              : reason === 'shop-already-has-order' ? '这家店已有一笔未领取订单，请先到柜台领取。'
+                : reason === 'invalid-payment' ? '订单信息无效，请返回重新选择。'
+                    : reason === 'preparation-not-configured' ? '这款商品的制作时间暂未配置，暂时不能下单。'
+                      : reason === 'invalid-order' ? '订单信息无效，请返回重新选择。'
+                  : reason === 'order-service-unavailable' ? '下单服务暂时不可用，请稍后重试。'
+                    : '暂时无法提交订单，请检查选择后重试。'
+            reply = `${reply} ${explanation}`
+          }
+          presentCommercialDrinkEcho(sceneAction.entityId ?? 'yonghe-trial-worker', reply, step.view?.choices.map(choice => choice.label) ?? [], manualConversationSessionId)
+        } else {
+          manualShopOrderSessionRef.current = null
+          manualShopOrderConversationSessionRef.current = null
+          manualShopOrderSubmittingKeyRef.current = null
+          manualShopOrderSubmittedKeyRef.current = null
+          presentCommercialDrinkEcho(sceneAction.entityId ?? 'yonghe-trial-worker', '好，需要时再来点单。', undefined, manualConversationSessionId)
+        }
+        commitSceneActionExit(actionId)
+        return
+      }
     }
     if (sceneAction.entityId === 'commercial-cafe-counter' && (option === '点一杯咖啡' || option === '是' || option === '否')) {
-      if (index === 0) presentManualOrderMessage('commercial-cafe-counter', '需要点咖啡时，请结束这段对话后主动打开咖啡 App 下单。')
+      if (option !== '否') beginManualShopOrder(crossShopIds.cafeTakeaway, 'commercial-cafe-counter', null, sceneAction.conversationDisplaySessionId)
       commitSceneActionExit(actionId)
       return
     }
     const drinkShopId = sceneAction.entityId ? commercialStreetDrinkShopForInteraction(sceneAction.entityId) : null
     if (drinkShopId) {
       if (option === '点单') {
-        presentManualOrderMessage(sceneAction.entityId!, '需要下单时，请结束这段对话后主动打开这家店的手机 App。')
+        beginManualShopOrder(drinkShopId, sceneAction.entityId!, null, sceneAction.conversationDisplaySessionId)
       } else if (option === commercialStreetDrinkShopDialogue.recommendationRequest) {
         presentCommercialDrinkEcho(sceneAction.entityId!, commercialStreetDrinkShopDialogue.preferenceQuestion, commercialStreetDrinkShopDialogue.preferenceOptions, sceneAction.conversationDisplaySessionId)
       } else if (commercialStreetDrinkShopDialogue.preferenceOptions.includes(option as typeof commercialStreetDrinkShopDialogue.preferenceOptions[number])) {
@@ -2903,20 +2982,17 @@ export function MainlineScenePage({
         }
       } else if (option === commercialStreetDrinkShopDialogue.recommendationOptions[0]) {
         const recommended = recommendedDrinkRef.current
-        const recommendedProduct = recommended?.shopId === drinkShopId
-          ? commercialStreetDrinkCatalog.find(product => product.id === recommended.productId)
-          : null
-        presentManualOrderMessage(sceneAction.entityId!, `好，就选${recommendedProduct?.name ?? '这款推荐'}。需要下单时，请结束这段对话后主动打开这家店的手机 App。`, sceneAction.conversationDisplaySessionId, 'accept-recommendation')
+        beginManualShopOrder(drinkShopId, sceneAction.entityId!, recommended?.shopId === drinkShopId ? recommended.productId : null, sceneAction.conversationDisplaySessionId)
         recommendedDrinkRef.current = null
       } else if (option === commercialStreetDrinkShopDialogue.recommendationOptions[1]) {
         recommendedDrinkRef.current = null
-        presentCommercialDrinkEcho(sceneAction.entityId!, commercialStreetDrinkMenuText(drinkShopId), undefined, sceneAction.conversationDisplaySessionId)
+        beginManualShopOrder(drinkShopId, sceneAction.entityId!, null, sceneAction.conversationDisplaySessionId)
       }
       commitSceneActionExit(actionId)
       return
     }
     if (sceneAction.entityId === 'yonghe-trial-worker' && isYongheTakeawayScene(scene.id)) {
-      if (option === '点餐') presentManualOrderMessage('yonghe-trial-worker', '需要点餐时，请结束这段对话后主动打开手机里的永和点餐 App。')
+      if (option === '点餐') beginManualShopOrder(crossShopIds.yonghe, 'yonghe-trial-worker', null, sceneAction.conversationDisplaySessionId)
       else if (option === '有什么推荐吗') presentYongheEcho('你想吃面还是吃饭？', ['面', '饭'], 'yonghe-trial-worker', 'dialogue-choice', sceneAction.conversationDisplaySessionId)
       else if (option === '聊聊') {
         const text = '你们平常都这么忙吗？\n后面那个门是通向哪儿？'
@@ -2932,19 +3008,17 @@ export function MainlineScenePage({
       }
       else if (option === '面' || option === '饭') {
         const products = yongheMenuForChoice(option)
-        pendingSceneEchoAfterActionRef.current = { entityId: 'yonghe-trial-worker', text: products.map(product => product.name).join('\n'), options: products.map(product => product.name), optionFlow: 'commerce-choice' }
-        setConversationDisplaySessionId(null)
+        presentYongheEcho(products.map(product => product.name).join('\n'), products.map(product => product.name), 'yonghe-trial-worker', 'dialogue-choice', sceneAction.conversationDisplaySessionId)
         commitSceneActionExit(actionId)
         return
       } else if (option === '全部菜品') {
         const choices = yongheTakeawayCatalog.map(product => `${product.name} ${product.price}元`)
-        pendingSceneEchoAfterActionRef.current = { entityId: 'yonghe-trial-worker', text: yongheMenuText(), options: choices, optionFlow: 'commerce-choice' }
-        setConversationDisplaySessionId(null)
+        presentYongheEcho(yongheMenuText(), choices, 'yonghe-trial-worker', 'dialogue-choice', sceneAction.conversationDisplaySessionId)
         commitSceneActionExit(actionId)
         return
       } else {
         const product = yongheTakeawayCatalog.find(candidate => `${candidate.name} ${candidate.price}元` === option || candidate.name === option)
-        if (product) presentManualOrderMessage('yonghe-trial-worker', `${product.name} ${product.price}元。需要下单时，请结束对话后主动打开永和点餐 App。`)
+        if (product) beginManualShopOrder(crossShopIds.yonghe, 'yonghe-trial-worker', product.id, sceneAction.conversationDisplaySessionId)
         else if (option === '你们平常都这么忙吗？') {
           startNpcDialogue({ kind: 'dialogue', dialogue: { triggerEntityId: 'yonghe-trial-worker', lines: [
             { id: 'yonghe-business-question', speaker: '修杰', text: '你们平常都这么忙吗？' },
@@ -3001,7 +3075,7 @@ export function MainlineScenePage({
       setPlantWateredAt(resolution.stateChange.value)
     }
     commitSceneActionExit(actionId)
-  }, [carryingMilkTea, heldConsumable, carriedPhoneDevice, commercialCafeStory, commitSceneActionExit, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, presentCommercialDrinkEcho, recordSceneState, recordSceneStatePatch, scene, sceneAction, startCafeRestroomFixtureUse])
+  }, [beginManualShopOrder, carryingMilkTea, heldConsumable, carriedPhoneDevice, commercialCafeStory, commitSceneActionExit, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, onShopOrderConfirm, presentCommercialDrinkEcho, presentYongheEcho, recordSceneState, recordSceneStatePatch, scene, sceneAction, startCafeRestroomFixtureUse, startNpcDialogue])
 
   const requestSceneActionChoice = useCallback((actionId: number, index: number) => {
     if (sceneAction?.id === actionId && sceneAction.optionFlow === 'dialogue-choice' && sceneAction.phase === 'active') {
@@ -3682,7 +3756,15 @@ export function MainlineScenePage({
               onSceneEchoTextMotionComplete={completeSceneEchoTextMotion}
               onSceneActionStart={beginSceneActionChoice}
               onSceneActionChoice={requestSceneActionChoice}
-              onSceneActionCancel={() => cancelSceneAction()}
+              onSceneActionCancel={() => {
+                if (sceneAction?.conversationDisplaySessionId === manualShopOrderConversationSessionRef.current) {
+                  manualShopOrderSessionRef.current = null
+                  manualShopOrderConversationSessionRef.current = null
+                  manualShopOrderSubmittingKeyRef.current = null
+                  manualShopOrderSubmittedKeyRef.current = null
+                }
+                cancelSceneAction()
+              }}
               dialogueChoiceWheel={sceneAction?.optionFlow === 'dialogue-choice' && currentConversationDisplaySessionId
                 ? {
                     sessionId: currentConversationDisplaySessionId,
