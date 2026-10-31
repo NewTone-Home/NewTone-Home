@@ -106,6 +106,11 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     inertiaFrameRef.current = null
   }, [])
 
+  const positionDeltaForPixels = (deltaPixels: number) => {
+    const gap = deltaPixels < 0 ? itemGapPx.above : itemGapPx.below
+    return deltaPixels / Math.max(1, gap)
+  }
+
   const setWheelPosition = useCallback((next: number) => {
     const bounded = dialogueChoiceWheelClampPosition(next, options.length)
     positionRef.current = bounded
@@ -155,7 +160,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     event.stopPropagation()
     setSettled(false)
     setScrolling(true)
-    setWheelPosition(positionRef.current + event.deltaY / itemGapPx)
+    setWheelPosition(positionRef.current + positionDeltaForPixels(event.deltaY))
     queueIdleSettle()
   }
 
@@ -196,10 +201,10 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     event.preventDefault()
     event.stopPropagation()
     const elapsed = Math.max(1, event.timeStamp - drag.lastAt)
-    drag.velocity = ((drag.lastY - event.clientY) / itemGapPx) / elapsed
+    drag.velocity = positionDeltaForPixels(drag.lastY - event.clientY) / elapsed
     drag.lastY = event.clientY
     drag.lastAt = event.timeStamp
-    setWheelPosition(drag.startPosition + (drag.startY - event.clientY) / itemGapPx)
+    setWheelPosition(drag.startPosition + positionDeltaForPixels(drag.startY - event.clientY))
   }
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
