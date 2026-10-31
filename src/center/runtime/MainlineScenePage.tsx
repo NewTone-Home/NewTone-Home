@@ -3344,8 +3344,9 @@ export function MainlineScenePage({
       pendingSceneActionRef.current = nextAction
     }
     if ((!current.options || current.options.length === 0) && current.conversationDisplaySessionId) {
-      sceneEchoRef.current = null
-      setSceneEcho(null)
+      const leaving = { ...current, phase: 'leaving' as const }
+      sceneEchoRef.current = leaving
+      setSceneEcho(leaving)
       setActiveObjectId(null)
       return
     }

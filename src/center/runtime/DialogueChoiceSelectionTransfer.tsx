@@ -53,7 +53,7 @@ export function DialogueChoiceSelectionTransfer({ transferId, text, sourceRect, 
       const deltaX = destination.left - sourceRect.left
       const deltaY = destination.top - sourceRect.top
       element.style.transform = `translate3d(${deltaX * eased}px, ${deltaY * eased}px, 0) scale(${1 + (scaleX - 1) * eased}, ${1 + (scaleY - 1) * eased})`
-      element.style.opacity = String(1 - .92 * eased)
+      element.style.setProperty('--dialogue-choice-transfer-backdrop-opacity', String(1 - eased))
       if (progress >= 1) {
         finish()
         return
@@ -75,7 +75,7 @@ export function DialogueChoiceSelectionTransfer({ transferId, text, sourceRect, 
       aria-hidden="true"
       data-dialogue-choice-transfer={transferId}
       style={{ ...textStyle, left: sourceRect.left, top: sourceRect.top, width: sourceRect.width, height: sourceRect.height }}
-    >{text}</div>,
+    ><span>{text}</span></div>,
     document.body,
   )
 }
