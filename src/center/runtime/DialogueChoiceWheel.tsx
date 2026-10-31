@@ -36,7 +36,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
   const [settled, setSettled] = useState(false)
   const [entering, setEntering] = useState(true)
   const [confirmed, setConfirmed] = useState(false)
-  const [narrowItemGapPx, setNarrowItemGapPx] = useState(dialogueChoiceWheelItemGapPx)
+  const [narrowItemGapsPx, setNarrowItemGapsPx] = useState({ above: dialogueChoiceWheelItemGapPx, below: dialogueChoiceWheelItemGapPx })
   const wheelRef = useRef<HTMLDivElement>(null)
   const idleTimerRef = useRef<number | null>(null)
   const enterTimerRef = useRef<number | null>(null)
@@ -50,7 +50,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
   onConfirmRef.current = onConfirm
   onCancelRef.current = onCancel
   onExitCompleteRef.current = onExitComplete
-  const itemGapPx = placement === 'narrow-bottom' ? narrowItemGapPx : dialogueChoiceWheelItemGapPx
+  const itemGapPx = placement === 'narrow-bottom' ? narrowItemGapsPx : { above: dialogueChoiceWheelItemGapPx, below: dialogueChoiceWheelItemGapPx }
 
   useLayoutEffect(() => {
     if (placement !== 'narrow-bottom') return
@@ -59,26 +59,31 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     const updateGap = () => {
       const height = element.getBoundingClientRect().height
       if (height <= 0) return
-      const neighbor = element.querySelector<HTMLElement>('.dialogue-choice-wheel__option--neighbor')
-      let previewTextHeight = 20
-      if (neighbor) {
+      const center = element.querySelector<HTMLElement>('.dialogue-choice-wheel__option--center')
+      const centerIndex = center ? Number(center.dataset.dialogueChoiceIndex) : 0
+      const measureNeighborGap = (index: number) => {
+        const neighbor = element.querySelector<HTMLElement>(`.dialogue-choice-wheel__option[data-dialogue-choice-index="${index}"]`)
+        if (!neighbor) return height / 2 + 4
         const computed = window.getComputedStyle(neighbor)
-        const lineHeight = Number.parseFloat(computed.lineHeight) || Number.parseFloat(computed.fontSize) * 1.35 || 20
+        const fontSize = Number.parseFloat(computed.fontSize) || 16
+        const lineHeight = Number.parseFloat(computed.lineHeight) || fontSize * 1.35
         const range = document.createRange()
         range.selectNodeContents(neighbor)
-        const lineCount = Math.max(1, range.getClientRects().length)
-        previewTextHeight = lineHeight * lineCount
+        const textHeight = Math.max(lineHeight, range.getBoundingClientRect().height)
+        // Place the neighboring label so only one third of its nearest
+        // rendered line reaches the safe-rect edge. Long labels therefore
+        // show the line nearest the center rather than several full rows.
+        return Math.round(height / 2 + Math.max(0, textHeight / 2 - lineHeight / 3))
       }
-      // Place the viewport edge one third of a rendered text block into the
-      // neighbor; this measures visible lettering, not its padded row box.
-      const next = Math.max(36, Math.min(80, Math.round(height / 2 + previewTextHeight / 6)))
-      setNarrowItemGapPx(current => current === next ? current : next)
+      const above = measureNeighborGap(centerIndex - 1)
+      const below = measureNeighborGap(centerIndex + 1)
+      setNarrowItemGapsPx(current => current.above === above && current.below === below ? current : { above, below })
     }
     updateGap()
     const observer = new ResizeObserver(updateGap)
     observer.observe(element)
     return () => observer.disconnect()
-  }, [options, placement])
+  }, [options, placement, position])
 
   useEffect(() => {
     if (phase !== 'exiting' || exitedActionRef.current === actionId) return
@@ -258,7 +263,8 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
       data-dialogue-choice-session={sessionId}
       data-dialogue-choice-action={actionId}
       data-dialogue-choice-phase={phase}
-      data-dialogue-choice-item-gap={placement === 'narrow-bottom' ? narrowItemGapPx : undefined}
+      data-dialogue-choice-item-gap-above={placement === 'narrow-bottom' ? narrowItemGapsPx.above : undefined}
+      data-dialogue-choice-item-gap-below={placement === 'narrow-bottom' ? narrowItemGapsPx.below : undefined}
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -280,14 +286,16 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
                 aria-label={`确认：${label}`}
                 aria-current={settled && !entering ? 'true' : undefined}
                 disabled={locked || !settled || entering || scrolling}
-                style={{ transform: `translate3d(0, ${distance * itemGapPx}px, 0)` }}
+                data-dialogue-choice-index={index}
+                style={{ transform: `translate3d(0, ${distance * (distance < 0 ? itemGapPx.above : itemGapPx.below)}px, 0)` }}
                 onClick={confirm}
               >{label}</button>
             : <span
                 key={`${sessionId}:${index}`}
                 className="dialogue-choice-wheel__option dialogue-choice-wheel__option--neighbor"
                 aria-hidden="true"
-                style={{ transform: `translate3d(0, ${distance * itemGapPx}px, 0)` }}
+                data-dialogue-choice-index={index}
+                style={{ transform: `translate3d(0, ${distance * (distance < 0 ? itemGapPx.above : itemGapPx.below)}px, 0)` }}
               >{label}</span>
         })}
       </div>

@@ -137,6 +137,8 @@ export function NarrowDialogueViewport({
       && lastTypewriterSessionRef.current !== identity.sessionKey
       ? ''
       : pageText
+  const visibleCharacterCount = Array.from(currentPageText).length
+  const prelaidCharacters = Array.from(pageText)
 
   // Capture the actual rendered glyphs as they type or delete. A later
   // identity transition must not resurrect the authored full-text snapshot.
@@ -511,7 +513,10 @@ export function NarrowDialogueViewport({
             {pageText}
           </div>
           <div className={`narrow-dialogue-text${textAnimating ? ' is-animating' : ''}`}>
-            {currentPageText}
+            {prelaidCharacters.map((character, index) => <span
+              key={`${identityKey}:${index}`}
+              style={{ visibility: index < visibleCharacterCount ? 'visible' : 'hidden' }}
+            >{character}</span>)}
           </div>
         </div>
       </div>}
