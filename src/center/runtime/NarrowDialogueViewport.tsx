@@ -183,6 +183,9 @@ export function NarrowDialogueViewport({
       && priorKey !== identityKey
       && (transition === 'line-change' || transition === 'capacity-page' || transition === 'options-enter' || transition === 'options-return')
     const transitionRun = priorKey === identityKey ? transitionRunRef.current : ++transitionRunRef.current
+    // A content prop can settle in a follow-up render while the same identity
+    // is rolling in. Preserve both slots until that animation actually ends.
+    if (priorKey === identityKey && prior?.outgoing && completedTransitionRef.current !== transitionRun) return
     completedTransitionRef.current = null
     setTransitionDiagnostic({ id: transitionRun, phase: shouldAnimate ? 'animating' : 'settling', completion: shouldAnimate ? 'awaiting-roll-in' : 'identity-settled' })
     const next: DisplaySnapshot = { identity, identityKey, pageText, speaker, transition, outgoing: shouldAnimate }
