@@ -88,7 +88,7 @@ export function manualShopOrderView(session: ManualShopOrderSession): ManualShop
   const products = shopProductsFor(session.shopId) as readonly ManualShopOrderProduct[]
   if (session.phase === 'catalog') {
     return {
-      text: '请选择商品',
+      text: '想点哪一款？',
       choices: [...products.map(product => ({ id: `product:${product.id}`, label: `${product.name} ${product.price}元` })), returnToDialogueChoice, cancelChoice],
     }
   }
@@ -98,14 +98,16 @@ export function manualShopOrderView(session: ManualShopOrderSession): ManualShop
 
   if (session.phase === 'sugar') {
     return {
-      text: `${product.name}，请选择糖度`,
+      text: `${product.name}想要几分甜？`,
       choices: [...(product.customization?.sugar ?? []).map(value => ({ id: `sugar:${value}`, label: value })), returnToCatalogChoice, cancelChoice],
     }
   }
 
   if (session.phase === 'ice') {
     return {
-      text: `${product.name}，请选择冰量`,
+      text: product.customization?.sugar === null
+        ? '糖是固定的噢，请问要多少冰呢？'
+        : `${product.name}的糖度选好了，请问要多少冰呢？`,
       choices: [...(product.customization?.ice ?? []).map(value => ({ id: `ice:${value}`, label: value })),
         ...(product.customization?.sugar ? [{ id: 'back:sugar', label: '返回糖度' }] : [returnToCatalogChoice]), cancelChoice],
     }
@@ -114,7 +116,7 @@ export function manualShopOrderView(session: ManualShopOrderSession): ManualShop
   if (session.phase === 'confirm') {
     const details = [session.sugar, session.ice].filter(Boolean).join('、')
     return {
-      text: `${product.name} ${product.price}元${details ? `（${details}）` : ''}，确认下单吗？`,
+      text: `${product.name}${details ? `，${details}` : ''}，合计${product.price}元，确认下单吗？`,
       choices: [{ id: 'confirm', label: '确认下单' }, { id: 'back:edit', label: '返回修改' }, cancelChoice],
     }
   }
