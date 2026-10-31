@@ -2573,7 +2573,9 @@ export function MainlineSceneRenderer({
     ? conversationDisplayContent.text
     : conversationDisplayContent?.kind === 'choice'
       ? ''
-      : isWideDialogueConversation ? conversationDisplayContent?.text ?? '' : activeDisplayReadingText
+      : conversationDisplayContent?.kind === 'text' && conversationDisplayContent.choicePrompt
+        ? conversationDisplayContent.text
+        : isWideDialogueConversation ? conversationDisplayContent?.text ?? '' : activeDisplayReadingText
   const readingVisualActive = Boolean(readingPresentation && activeReadingPosition && displayReadingLayout)
   const readingMaskRects = useMemo(() => keepsWorldReadingLayout ? mainlineReadingMaskRects(sceneRenderBounds, readingProtectedVisuals) : [], [keepsWorldReadingLayout, readingProtectedVisuals, sceneRenderBounds])
   const readingDisplayPosition = readingPresentation?.position ?? activeReadingPosition
