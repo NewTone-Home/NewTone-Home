@@ -16,6 +16,7 @@ export type CommercialCafeDialogueReplayState = Readonly<{
 }>
 export type CommercialCafeDialogueReplayAction =
   | { type: 'start'; previewAllowed: boolean; storyStatus: CommercialCafeReplayStoryStatus }
+  | { type: 'wide-unit-start'; runId: number }
   | { type: 'advance' }
   | { type: 'motion-complete'; motion: 'typing' | 'deleting' }
   | { type: 'cancel' }
@@ -66,6 +67,9 @@ export function commercialCafeDialogueReplayReducer(state: CommercialCafeDialogu
   }
   if (action.type === 'cancel') return state.phase === 'replaying' ? { ...state, phase: 'idle', textMotion: 'static' } : state
   if (state.phase !== 'replaying') return state
+  if (action.type === 'wide-unit-start') {
+    return action.runId === state.runId && state.textMotion === 'static' ? { ...state, textMotion: 'typing' } : state
+  }
   if (action.type === 'motion-complete') {
     if (action.motion === 'typing' && state.textMotion === 'typing') return { ...state, textMotion: 'static' }
     if (action.motion === 'deleting' && state.textMotion === 'deleting') return { ...state, phase: 'idle', textMotion: 'static' }

@@ -70,7 +70,10 @@ export function beginCafeTableOrderDelivery(state: CafeStoryOrderState, seatId: 
   return { ok: true as const, state: { ...state, cafeStoryDeliveries: { ...state.cafeStoryDeliveries, [eventId]: record } }, record, replayed: false }
 }
 
-export function retargetCafeTableOrderDelivery(deliveries: Readonly<Record<string, CafeStoryDeliveryRecord>>, seatId: string | null) {
+export function retargetCafeTableOrderDelivery(
+  deliveries: Readonly<Record<string, CafeStoryDeliveryRecord>>,
+  seatId: string | null,
+): Readonly<Record<string, CafeStoryDeliveryRecord>> {
   const entry = Object.entries(deliveries).find(([, record]) => record.deliveryKind === 'table')
   if (!entry) return deliveries
   const [eventId, record] = entry
@@ -252,7 +255,10 @@ export function createCafeStoryOrderDeliveryController<TSave extends CafeStoryOr
       return outcome
     },
     completeTableDeliveryReturn(orderId: string) {
-      options.commitSave(current => completeCafeTableOrderDeliveryReturn(current, orderId))
+      options.commitSave(current => {
+        const deliveries = completeCafeTableOrderDeliveryReturn(current, orderId).cafeStoryDeliveries
+        return deliveries === current.cafeStoryDeliveries ? current : { ...current, cafeStoryDeliveries: deliveries }
+      })
     },
   }
 }

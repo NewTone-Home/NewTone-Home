@@ -1380,7 +1380,16 @@
   from { -webkit-mask-position: 0 0; mask-position: 0 0; }
   to { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
 }
-.scene-mainline-conversation.is-leaving { animation: mainline-subtitle-leave 160ms ease-in both; }
+.scene-mainline-conversation.is-leaving { animation: mainline-conversation-exit 220ms ease-in both; }
+@keyframes mainline-conversation-exit {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(110%, 0, 0); }
+}
+.scene-mainline-conversation--short-prompt {
+  top: auto;
+  min-height: 92px;
+  max-height: min(34vh, 260px);
+}
 .scene-mainline-conversation__history {
   display: flex;
   min-height: 0;

@@ -3,7 +3,7 @@ import { crossShopIds } from './crossShopOrders'
 import {
   beginCafeStoryOrderDelivery, cafeStoryOrderStatus, completeCafeStoryOrderDeliveryPresentation,
   beginCafeTableOrderDelivery, completeCafeTableOrderDelivery, retargetCafeTableOrderDelivery,
-  sanitizeCafeStoryDeliveries, type CafeStoryOrderState,
+  sanitizeCafeStoryDeliveries, type CafeStoryDeliveryRecord, type CafeStoryOrderState,
 } from './cafeStoryOrderDelivery'
 
 const cafeOrder = {
@@ -69,7 +69,7 @@ describe('Café story delivery bridge', () => {
     const restored = sanitizeCafeStoryDeliveries(JSON.parse(JSON.stringify(pending.state.cafeStoryDeliveries)))
     const replay = beginCafeTableOrderDelivery({ ...pending.state, cafeStoryDeliveries: restored }, 'seat-b', 500)
     expect(replay).toMatchObject({ ok: true, replayed: true, record: { seatId: 'seat-a' } })
-    const moved = retargetCafeTableOrderDelivery(restored, 'seat-b')
+    const moved: Readonly<Record<string, CafeStoryDeliveryRecord>> = retargetCafeTableOrderDelivery(restored, 'seat-b')
     expect(Object.values(moved)[0]).toMatchObject({ seatId: 'seat-b' })
     const completed = completeCafeTableOrderDelivery({ ...pending.state, cafeStoryDeliveries: moved }, cafeOrder.id, 'seat-b')
     expect(completed.shopOrders[crossShopIds.cafeTakeaway]).toBeUndefined()

@@ -134,7 +134,7 @@ type MainlineSceneRendererProps = {
   onDialogueAdvance?: (intent?: 'line' | 'segment') => void
   onDialogueTypingSkip?: (sessionId: number) => void
   onDialogueTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => string | void
-  sceneEcho?: { id: number; conversationDisplaySessionId?: string; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; textMotion: MainlineReadingTextMotion; phase?: 'leaving' } | null
+  sceneEcho?: { id: number; conversationDisplaySessionId?: string; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; textMotion: MainlineReadingTextMotion; phase?: 'leaving'; presentationKind?: 'short-prompt' | 'commercial-street-question'; exitReason?: 'natural' | 'cancel' } | null
   onSceneEchoAdvance?: () => void
   onSceneEchoTextMotionComplete?: (echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => string | void
   onSceneEchoExitComplete?: (echoId: number, displayPosition: Point, displayCameraOffset: Point) => void
@@ -795,7 +795,7 @@ function MainlineDialogueConversation({ scene, dialogue, dialogueLine, dialogueL
 
 type ConversationHistoryEntry = Readonly<{ key: string; speaker?: string; speakerIsNpc: boolean; text: string }>
 
-function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, pageText, speaker, speakerIsNpc, narrow, windowHeightPx, availableWidthPx, measuredPageHeightPx, pageIndex, isFinalLinePage, textSessionId, textMotion, pageAdvanceDiagnostic, onTextMotionComplete, onReadyChange, onAdvance, advanceReady, advanceReadyKey, requiredAdvanceReadyKey, advanceRoute, dialogueChoiceWheel, onSceneActionChoice, onSceneActionCancel, onSceneActionExitComplete }: {
+function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, pageText, speaker, speakerIsNpc, narrow, windowHeightPx, availableWidthPx, measuredPageHeightPx, pageIndex, isFinalLinePage, textSessionId, textMotion, pageAdvanceDiagnostic, onTextMotionComplete, onReadyChange, onAdvance, advanceReady, advanceReadyKey, requiredAdvanceReadyKey, advanceRoute, dialogueChoiceWheel, onSceneActionChoice, onSceneActionCancel, onSceneActionExitComplete, isLeaving, onExitComplete }: {
   sessionId: string
   content: MainlineConversationDisplayContent
   contentKey: string
@@ -823,6 +823,8 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
   onSceneActionChoice?: (actionId: number, index: number) => void
   onSceneActionCancel?: () => void
   onSceneActionExitComplete?: (actionId: number, index: number) => void
+  isLeaving: boolean
+  onExitComplete?: () => void
 }) {
   const [choiceTransfer, setChoiceTransfer] = useState<null | {
     id: string
@@ -834,6 +836,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
   const [history, setHistory] = useState<readonly ConversationHistoryEntry[]>(() => content.history ?? [])
   const historyEntriesRef = useRef<ConversationHistoryEntry[]>([...(content.history ?? [])])
   const historyElementRef = useRef<HTMLDivElement>(null)
+  const exitCompletionSessionRef = useRef<string | null>(null)
   const previousRef = useRef<{ key: string; content: MainlineConversationDisplayContent; speaker?: string; speakerIsNpc: boolean } | null>(null)
   useLayoutEffect(() => {
     if (content.kind === 'aside') onReadyChange(contentKey, true)
@@ -872,7 +875,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
     const wheel = document.querySelector<HTMLElement>(`[data-dialogue-choice-action="${actionId}"]`)
     const source = wheel?.querySelector<HTMLElement>(`[data-dialogue-choice-index="${optionIndex}"]`)
     const sourceRect = source?.getBoundingClientRect()
-    if (!sourceRect) return
+    if (!source || !sourceRect) return
     const id = `choice-history:${sessionId}:${actionId}:${optionIndex}`
     const entry: ConversationHistoryEntry = { key: id, speaker: '修杰', speakerIsNpc: false, text: label }
     let nextHistory = historyEntriesRef.current
@@ -971,8 +974,22 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
     />
   </div>
 
+  const compactShortPrompt = !narrow && content.kind === 'text' && Boolean(content.shortPrompt)
+  const shortPromptHeightPx = Math.min(windowHeightPx, Math.max(92, measuredPageHeightPx + (speaker ? 56 : 44)))
   return <div className="scene-mainline-conversation-host" {...displayStateAttributes}>
-    <section className="scene-mainline-conversation" aria-live="polite" aria-label="对话记录" data-dialogue-presentation="conversation">
+    <section
+      className={`scene-mainline-conversation${compactShortPrompt ? ' scene-mainline-conversation--short-prompt' : ''}${isLeaving ? ' is-leaving' : ''}`}
+      style={compactShortPrompt ? { top: 'auto', bottom: 'max(24px, env(safe-area-inset-bottom))', height: `${shortPromptHeightPx}px` } : undefined}
+      aria-live="polite"
+      aria-label={compactShortPrompt ? '场景提示' : '对话记录'}
+      data-dialogue-presentation={compactShortPrompt ? 'short-prompt' : 'conversation'}
+      onAnimationEnd={(event) => {
+        if (!isLeaving || event.target !== event.currentTarget || event.animationName !== 'mainline-conversation-exit') return
+        if (exitCompletionSessionRef.current === sessionId) return
+        exitCompletionSessionRef.current = sessionId
+        onExitComplete?.()
+      }}
+    >
       <div ref={historyElementRef} className="scene-mainline-conversation__history">
         {history.map(entry => <article key={entry.key} className={`scene-mainline-conversation-line ${entry.speakerIsNpc ? 'is-npc' : 'is-player'}`} data-dialogue-history-line={entry.key}>
           {entry.speaker && <span className="scene-mainline-conversation-line__speaker">{entry.speaker}</span>}
@@ -981,7 +998,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
       </div>
       {(content.kind === 'text' || content.kind === 'aside' || content.kind === 'waiting') && <article className={`scene-mainline-conversation-line scene-mainline-conversation-line--current ${speakerIsNpc ? 'is-npc' : 'is-player'} ${content.kind === 'aside' ? 'is-aside' : ''}`} data-dialogue-current-line={contentKey}>
         {speaker && <span className="scene-mainline-conversation-line__speaker"><DialogueSpeaker speaker={speaker} /></span>}
-        {content.kind === 'text' && <p><ConversationDialogueText
+        {(content.kind === 'text' || content.kind === 'aside') && <p><ConversationDialogueText
           pageKey={pageKey}
           text={currentText}
           sessionId={textSessionId}
@@ -990,7 +1007,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
           onReadyChange={onReadyChange}
           group={contentKey}
         /></p>}
-        {content.kind !== 'text' && <p>{content.text}</p>}
+        {content.kind === 'waiting' && <p>{content.text}</p>}
       </article>}
       {keepChoiceWheelForExit && dialogueChoiceWheel && <DialogueChoiceWheel
         sessionId={dialogueChoiceWheel.sessionId}
@@ -2238,7 +2255,8 @@ export function MainlineSceneRenderer({
   const readingCameraOffset = wideConversationCameraOffset ?? (readingIsSubtitle ? cameraOffset : retainedReadingPresentation?.cameraOffset ?? (shouldPanForReading && activeReadingPosition
     ? mainlineReadingCameraOffset(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset)
     : cameraOffset))
-  const questionDialogueActive = scene.id === 'commercial-street' && dialogue?.triggerEntityId === 'commercial-street-question'
+  const questionDialogueActive = scene.id === 'commercial-street'
+    && (sceneEcho?.presentationKind === 'commercial-street-question' || dialogue?.triggerEntityId === 'commercial-street-question')
   const questionReadingActive = questionDialogueActive && readingPresentationPhase !== 'inactive'
   const [questionExitCameraOffset, setQuestionExitCameraOffset] = useState<Point | null>(null)
   const questionNormalCameraOffsetRef = useRef(cameraOffset)
@@ -3695,6 +3713,11 @@ export function MainlineSceneRenderer({
             onSceneActionChoice={onSceneActionChoice}
             onSceneActionCancel={onSceneActionCancel}
             onSceneActionExitComplete={onSceneActionExitComplete}
+            isLeaving={readingIsLeaving}
+            onExitComplete={() => {
+              if (sceneEcho) onSceneEchoExitComplete?.(sceneEcho.id, readingDisplayPosition ?? sceneEcho.position, renderCameraOffset)
+              else onDialogueExitComplete?.()
+            }}
           />, isWideDialogueConversation ? viewportOverlayHost! : narrowConversationOverlayHost!)}
           {!hasConversationDisplayContent && isWideDialogueConversation && viewportOverlayHost && dialogue && dialogueLine && createPortal(<MainlineDialogueConversation
             scene={scene}

@@ -183,7 +183,9 @@ function debugCafePoint(value: string | null): Point | null {
 type MainlineSceneEcho = {
   id: number
   conversationDisplaySessionId?: string
-  clockActivitySource: 'scene-observation' | 'menu-reading' | 'counter-observation' | 'plant-observation'
+  clockActivitySource: 'scene-observation' | 'menu-reading' | 'counter-observation' | 'plant-observation' | 'inner-monologue'
+  presentationKind?: 'short-prompt' | 'commercial-street-question'
+  exitReason?: 'natural' | 'cancel'
   entityId?: string
   sourceText: string
   text: string
@@ -244,6 +246,7 @@ function createMainlineSceneEcho(id: number, entityId: string | undefined, text:
     options,
     optionFlow,
     textMotion,
+    presentationKind: !options?.length && !conversationDisplaySessionId ? 'short-prompt' : undefined,
   }
 }
 
@@ -713,7 +716,11 @@ export function MainlineScenePage({
   const dismissSceneEcho = useCallback(() => {
     const current = sceneEchoRef.current
     if (!current) return
-    const next = current.phase === 'leaving' ? current : { ...current, phase: 'leaving' as const }
+    const next = current.phase === 'leaving' ? current : {
+      ...current,
+      phase: 'leaving' as const,
+      ...(current.presentationKind === 'commercial-street-question' ? { exitReason: 'cancel' as const } : {}),
+    }
     sceneEchoRef.current = next
     setSceneEcho(next)
   }, [])
@@ -771,19 +778,34 @@ export function MainlineScenePage({
     setSceneAction((current) => current?.id === actionId ? null : current)
   }, [])
   const presentSceneEcho = useCallback((next: MainlineSceneEcho) => {
-    sceneEchoRef.current = next
-    setSceneEcho(next)
+    const sessioned = next.presentationKind === 'short-prompt' && !next.conversationDisplaySessionId
+      ? { ...next, conversationDisplaySessionId: `short-prompt:${next.id}` }
+      : next
+    sceneEchoRef.current = sessioned
+    setSceneEcho(sessioned)
+    if (sessioned.conversationDisplaySessionId) setConversationDisplaySessionId(sessioned.conversationDisplaySessionId)
   }, [])
   const completeSceneEchoExit = useCallback((echoId: number, displayPosition: Point, displayCameraOffset: Point) => {
     const current = sceneEchoRef.current
     if (!current || current.id !== echoId || current.phase !== 'leaving') return
     sceneEchoRef.current = null
     setSceneEcho(null)
+    if (current.conversationDisplaySessionId) {
+      setConversationDisplaySessionId((active) => active === current.conversationDisplaySessionId ? null : active)
+    }
     setActiveObjectId(null)
+    if (current.presentationKind === 'commercial-street-question') {
+      setCommercialStreetQuestionNarrative(null)
+      if (current.exitReason === 'natural') {
+        setCommercialStreetQuestionNarrativeCompletedLocally(true)
+        recordSceneState('commercial-street', commercialStreetQuestionNarrativeCompletedKey, true)
+        onChapterAnalytics?.('commercial_question_completed')
+      }
+    }
     const nextAction = pendingSceneActionRef.current
     pendingSceneActionRef.current = null
     if (nextAction) setSceneAction(createSceneAction({ ...nextAction, position: displayPosition, cameraOffset: displayCameraOffset }))
-  }, [createSceneAction])
+  }, [createSceneAction, onChapterAnalytics, recordSceneState])
   useIsomorphicLayoutEffect(() => {
     sceneEchoRef.current = sceneEcho
   }, [sceneEcho])
@@ -791,21 +813,13 @@ export function MainlineScenePage({
     setIncenseClock(Date.now())
     onSceneTransition(targetSceneId, targetEntryPosition, targetSpawnMode, transitionIntent)
   }, [onSceneTransition])
-  const questionDialogueLine = commercialStreetQuestionNarrative
-    ? {
-        id: `commercial-street-question-${commercialStreetQuestionNarrative.segmentIndex}`,
-        speaker: '修杰' as const,
-        text: commercialStreetQuestionNarrativeLines[commercialStreetQuestionNarrative.segmentIndex],
-      }
-    : null
   const cafeNarrativeLine = commercialCafeNarrative?.phase === 'delivery-line'
     ? commercialCafeDeliveryDialogueLine
     : commercialCafeNarrative?.phase === 'active'
       ? commercialCafeNarrativeDialogue.lines[commercialCafeStory.narrativeCursor] ?? null
       : null
-  const activeDialogueSource = questionDialogueLine
-    ? { triggerEntityId: 'commercial-street-question', lines: commercialStreetQuestionNarrativeLines.map((text, index) => ({ id: `commercial-street-question-${index}`, speaker: '修杰' as const, text })) }
-    : commercialCafeNarrative ? commercialCafeNarrativeDialogue
+  const activeDialogueSource = commercialCafeNarrative ? commercialCafeNarrativeDialogue
+    : commercialStreetQuestionNarrative ? null
       : npcDialogue?.dialogue ?? scene.dialogue
   const dialoguePresentation = commercialCafeNarrative?.phase === 'delivery-line'
     ? 'aside' as const
@@ -813,11 +827,11 @@ export function MainlineScenePage({
   const activeDialogue = activeDialogueSource && dialoguePresentation
     ? { ...activeDialogueSource, dialoguePresentation }
     : activeDialogueSource
-  const activeDialogueLine = questionDialogueLine ?? (commercialCafeNarrative
+  const activeDialogueLine = commercialCafeNarrative
     ? cafeNarrativeLine
-    : activeDialogue && dialogueLineIndex !== null
+    : !commercialStreetQuestionNarrative && activeDialogue && dialogueLineIndex !== null
       ? activeDialogue.lines[dialogueLineIndex] ?? null
-      : null)
+      : null
   // Keep the active segment available to the conversation display model below.
   const activeDialogueSegments = activeDialogueLine
     ? commercialCafeNarrative?.phase === 'active'
@@ -838,7 +852,7 @@ export function MainlineScenePage({
     ? undefined
     : commercialCafeNarrative?.phase === 'delivery-line'
       ? 'active'
-      : commercialCafeNarrative?.phase ?? commercialStreetQuestionNarrative?.phase ?? (activeDialogueLine ? genericDialoguePhase : undefined)
+      : commercialCafeNarrative?.phase ?? (activeDialogueLine ? genericDialoguePhase : undefined)
   const commercialCafeDeliveryBeatActive = commercialCafeNarrative?.phase === 'coffee-delivery'
   const commercialCafeReturnBeatActive = commercialCafeNarrative?.phase === 'coffee-returning'
   const dialogueChoiceSurfaceActive = sceneAction?.optionFlow === 'dialogue-choice'
@@ -847,7 +861,7 @@ export function MainlineScenePage({
       || (sceneAction.phase === 'exiting' && pendingSceneActionAfterExitRef.current?.optionFlow === 'dialogue-choice'))
   const readingActive = Boolean(
     commercialCafeReplayView
-    || (sceneEcho && (sceneEcho.phase !== 'leaving' || Boolean(sceneEcho.conversationDisplaySessionId)))
+    || (sceneEcho && sceneEcho.presentationKind !== 'short-prompt' && (sceneEcho.presentationKind === 'commercial-street-question' || sceneEcho.phase !== 'leaving' || Boolean(sceneEcho.conversationDisplaySessionId)))
     || (activeDialogueLine && dialoguePresentationPhase !== 'leaving')
     || commercialCafeDeliveryBeatActive
     || commercialCafeReturnBeatActive
@@ -888,20 +902,75 @@ export function MainlineScenePage({
     (commercialCafeDeliveryBeatActive || commercialCafeReturnBeatActive) && currentConversationDisplaySessionId
       ? commercialCafeDeliveryBeatActive
         ? { sessionId: currentConversationDisplaySessionId, kind: 'waiting', text: '……', canAdvance: false, history: cafeNarrativeDisplayHistory }
-        : { sessionId: currentConversationDisplaySessionId, kind: 'aside', text: commercialCafeDeliveryDialogueLine.text, canAdvance: false, history: cafeNarrativeDisplayHistory }
+        : { sessionId: currentConversationDisplaySessionId, kind: 'aside', text: commercialCafeDeliveryDialogueLine.text, displayUnitKey: `cafe-delivery-aside:${commercialCafeNarrative?.phase ?? 'none'}`, textMotion: dialogueTextMotion, canAdvance: false, history: cafeNarrativeDisplayHistory }
       : (sceneEcho?.optionFlow === 'dialogue-choice' || sceneEcho?.conversationDisplaySessionId) && currentConversationDisplaySessionId
-        ? { sessionId: currentConversationDisplaySessionId, kind: 'text', text: sceneEcho.text, displayUnitKey: `echo:${sceneEcho.id}:fragment:${sceneEcho.segmentIndex}`, textMotion: sceneEcho.textMotion, canAdvance: sceneEcho.phase !== 'leaving' }
+        ? { sessionId: currentConversationDisplaySessionId, kind: 'text', text: sceneEcho.text, displayUnitKey: `echo:${sceneEcho.id}:fragment:${sceneEcho.segmentIndex}`, textMotion: sceneEcho.textMotion, canAdvance: sceneEcho.phase !== 'leaving', shortPrompt: sceneEcho.presentationKind === 'short-prompt' }
         : sceneAction?.optionFlow === 'dialogue-choice'
           && currentConversationDisplaySessionId
           && activeManualShopOrderSession
           && activeManualShopOrderDisplaySessionId === currentConversationDisplaySessionId
-          ? { sessionId: currentConversationDisplaySessionId, kind: 'text', text: manualShopOrderPromptOverrideRef.current ?? manualShopOrderView(activeManualShopOrderSession).text, displayUnitKey: `manual-order:${JSON.stringify([activeManualShopOrderSession.phase, activeManualShopOrderSession.productId, activeManualShopOrderSession.sugar, activeManualShopOrderSession.ice, manualShopOrderPromptOverrideRef.current])}`, textMotion: activeViewportMetrics.width >= 960 ? 'typing' : 'static', canAdvance: false, choicePrompt: true }
+          ? { sessionId: currentConversationDisplaySessionId, kind: 'text', text: manualShopOrderPromptOverrideRef.current ?? manualShopOrderView(activeManualShopOrderSession).text, displayUnitKey: `manual-order:${JSON.stringify([activeManualShopOrderSession.phase, activeManualShopOrderSession.productId, activeManualShopOrderSession.sugar, activeManualShopOrderSession.ice, manualShopOrderPromptOverrideRef.current])}`, textMotion: activeViewportMetrics.width >= 960 ? dialogueTextMotion : 'static', canAdvance: false, choicePrompt: true }
         : sceneAction?.optionFlow === 'dialogue-choice' && currentConversationDisplaySessionId
           ? { sessionId: currentConversationDisplaySessionId, kind: 'choice', actionId: sceneAction.id, options: sceneAction.options, canAdvance: false }
           : activeDialogueLine && currentConversationDisplaySessionId
             ? { sessionId: currentConversationDisplaySessionId, kind: dialoguePresentation === 'aside' ? 'aside' : 'text', text: activeDialogueText, displayUnitKey: `${activeDialogueLine.id}:fragment:${dialogueSegmentIndex}`, textMotion: dialogueTextMotion, canAdvance: true, history: commercialCafeNarrative ? cafeNarrativeDisplayHistory : undefined }
             : null)
-  const conversationDisplayActive = Boolean(conversationDisplayContent)
+  const wideConversationTextUnitKey = activeViewportMetrics.width >= 960
+    && !sceneEcho
+    && !commercialCafeReplayView
+    && (conversationDisplayContent?.kind === 'text' || conversationDisplayContent?.kind === 'aside')
+    && 'displayUnitKey' in conversationDisplayContent
+    && conversationDisplayContent.displayUnitKey
+    && (activeDialogueLine || activeManualShopOrderSession)
+    ? `${conversationDisplayContent.sessionId}:${conversationDisplayContent.displayUnitKey}`
+    : null
+  const wideConversationTextUnitRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!wideConversationTextUnitKey) {
+      wideConversationTextUnitRef.current = null
+      return
+    }
+    if (wideConversationTextUnitRef.current === wideConversationTextUnitKey) return
+    wideConversationTextUnitRef.current = wideConversationTextUnitKey
+    if (dialogueTextMotionRef.current !== 'typing') startDialogueTextSession()
+  }, [startDialogueTextSession, wideConversationTextUnitKey])
+  const wideReplayTextUnitKey = activeViewportMetrics.width >= 960 && commercialCafeReplayView
+    ? `${commercialCafeReplayView.runId}:${commercialCafeReplayView.conversationDisplayContent.displayUnitKey ?? commercialCafeReplayView.conversationDisplayContent.text}`
+    : null
+  const wideReplayTextUnitRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!wideReplayTextUnitKey || !commercialCafeReplayView) {
+      wideReplayTextUnitRef.current = null
+      return
+    }
+    if (wideReplayTextUnitRef.current === wideReplayTextUnitKey) return
+    wideReplayTextUnitRef.current = wideReplayTextUnitKey
+    if (commercialCafeReplayView.textMotion === 'static') {
+      dispatchCommercialCafeReplay({ type: 'wide-unit-start', runId: commercialCafeReplayView.runId })
+    }
+  }, [commercialCafeReplayView, wideReplayTextUnitKey])
+  const wideEchoTextUnitKey = activeViewportMetrics.width >= 960
+    && sceneEcho
+    && sceneEcho.presentationKind !== 'short-prompt'
+    && sceneEcho.conversationDisplaySessionId
+    && sceneEcho.phase !== 'leaving'
+    ? `${sceneEcho.conversationDisplaySessionId}:echo:${sceneEcho.id}:${sceneEcho.segmentIndex}`
+    : null
+  const wideEchoTextUnitRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!wideEchoTextUnitKey) {
+      wideEchoTextUnitRef.current = null
+      return
+    }
+    if (wideEchoTextUnitRef.current === wideEchoTextUnitKey) return
+    wideEchoTextUnitRef.current = wideEchoTextUnitKey
+    const current = sceneEchoRef.current
+    if (!current || current.presentationKind === 'short-prompt' || current.phase === 'leaving' || current.textMotion === 'typing') return
+    const next = { ...current, textMotion: 'typing' as const }
+    sceneEchoRef.current = next
+    setSceneEcho(next)
+  }, [wideEchoTextUnitKey])
+  const conversationDisplayActive = Boolean(conversationDisplayContent && !(conversationDisplayContent.kind === 'text' && conversationDisplayContent.shortPrompt))
   const renderedDialogue = commercialCafeReplayView?.dialogue ?? activeDialogue
   const renderedDialogueLine = commercialCafeReplayView?.line ?? activeDialogueLine
   const renderedDialogueLineIndex = commercialCafeReplayView?.lineIndex ?? (commercialCafeNarrative ? commercialCafeStory.narrativeCursor : dialogueLineIndex)
@@ -1270,11 +1339,18 @@ export function MainlineScenePage({
     if (!commercialStreetQuestionNarrativeShouldTrigger(scene, position, previousPosition, commercialStreetQuestionNarrativeIsCompleted)) return
     stopMovement()
     setRequestedWorldTarget(null)
-    setConversationDisplaySessionId(`conversation:${++conversationDisplaySessionIdRef.current}`)
     setCommercialStreetQuestionNarrative({ phase: 'active', segmentIndex: 0 })
-    startDialogueTextSession()
+    setConversationDisplaySessionId(null)
+    const text = commercialStreetQuestionNarrativeLines[0]
+    sceneEchoIdRef.current += 1
+    const worldScale = mainlineWorldScale(activeViewportMetrics)
+    const questionPosition = commercialStreetQuestionDialoguePosition(scene, position, text, readingMetrics, worldScale, cameraOffset)
+    presentSceneEcho({
+      ...createMainlineSceneEcho(sceneEchoIdRef.current, 'commercial-street-question', text, questionPosition, 'inner-monologue'),
+      presentationKind: 'commercial-street-question',
+    })
     onChapterAnalytics?.('commercial_question_triggered')
-  }, [commercialStreetQuestionNarrative, commercialStreetQuestionNarrativeIsCompleted, onChapterAnalytics, position, scene, startDialogueTextSession, stopMovement])
+  }, [activeViewportMetrics, cameraOffset, commercialStreetQuestionNarrative, commercialStreetQuestionNarrativeIsCompleted, onChapterAnalytics, position, presentSceneEcho, readingMetrics, scene, stopMovement])
   useEffect(() => {
     if (!activeDialogueLine || dialoguePresentationPhase !== 'active'
       || (dialogueTextSessionId !== 0 && dialogueTextSessionSceneRef.current === sceneId)) return
@@ -3286,6 +3362,33 @@ export function MainlineScenePage({
       setSceneEcho(next)
       return
     }
+    if (current.presentationKind === 'commercial-street-question') {
+      const narrative = commercialStreetQuestionNarrative
+      if (!narrative || narrative.phase === 'leaving') return
+      const nextNarrative = nextCommercialStreetQuestionNarrative(narrative)
+      setCommercialStreetQuestionNarrative(nextNarrative)
+      if (nextNarrative.phase === 'leaving') {
+        const leaving = { ...current, phase: 'leaving' as const, exitReason: 'natural' as const }
+        sceneEchoRef.current = leaving
+        setSceneEcho(leaving)
+        return
+      }
+      const nextText = commercialStreetQuestionNarrativeLines[nextNarrative.segmentIndex]
+      const nextSegments = [mainlineDisplaySourceText(nextText)]
+      const next = {
+        ...current,
+        sourceText: nextText,
+        text: nextSegments[0] ?? nextText,
+        segments: nextSegments,
+        segmentIndex: 0,
+        textMotion: 'typing' as const,
+        phase: undefined,
+        exitReason: undefined,
+      }
+      sceneEchoRef.current = next
+      setSceneEcho(next)
+      return
+    }
     if (current.textMotion === 'deleting' || current.textMotion === 'deleted') {
       if (isWallMenuReading(current.entityId)) {
         const completed = { ...current, textMotion: 'deleted' as const }
@@ -3319,7 +3422,7 @@ export function MainlineScenePage({
       return
     }
     finishSceneEchoReading(next)
-  }, [finishSceneEchoReading, onMeaningfulActivity])
+  }, [commercialStreetQuestionNarrative, finishSceneEchoReading, onMeaningfulActivity])
 
   const completeSceneEchoTextMotion = useCallback((echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => {
     const current = sceneEchoRef.current
@@ -3347,9 +3450,6 @@ export function MainlineScenePage({
         : [mainlineDisplaySourceText(activeDialogueLine.text)]
       : []
     if (dialogueSegmentIndex + 1 < currentSegments.length) return false
-    if (commercialStreetQuestionNarrative) {
-      return mainlineReadingSessionTextIsFinal(commercialStreetQuestionNarrative.segmentIndex, commercialStreetQuestionNarrativeLines.length, dialogueSegmentIndex, currentSegments.length)
-    }
     if (commercialCafeNarrative) {
       if (commercialCafeNarrative.phase !== 'active') return false
       if (commercialCafeStory.narrativeCursor === 1) return false
@@ -3436,12 +3536,6 @@ export function MainlineScenePage({
       }
     }
     if (!tailDeletionComplete) updateDialogueTextMotion('static')
-    if (commercialStreetQuestionNarrative) {
-      setDialogueSegmentIndex(0)
-      setCommercialStreetQuestionNarrative((current) => current ? nextCommercialStreetQuestionNarrative(current) : current)
-      noteDialogueAdvance('advanced:street-question', advanceIntent)
-      return
-    }
     if (commercialCafeNarrative) {
       if (commercialCafeNarrative.phase === 'coffee-delivery' || commercialCafeNarrative.phase === 'coffee-returning') {
         noteDialogueAdvance(`blocked:cafe-${commercialCafeNarrative.phase}`, advanceIntent)
@@ -3581,6 +3675,7 @@ export function MainlineScenePage({
 
   const walk = useCallback((point: Point) => {
     if (readingActive) return
+    if (sceneEchoRef.current?.presentationKind === 'short-prompt') dismissSceneEcho()
     if (sceneAction?.phase === 'committing') return
     const approachingUse = Object.entries(cafeRestroomFixtureUsesRef.current).find(([, request]) => request?.phase === 'approaching')
     if (approachingUse) clearCafeRestroomFixtureUse(approachingUse[0], approachingUse[1]?.requestId)
@@ -3628,18 +3723,7 @@ export function MainlineScenePage({
     if (!started) showDeniedFeedback?.()
   }, [cancelSceneAction, cafeRestroomFixtureUsesRef, clearCafeRestroomFixtureUse, debugCafeSpatialQa, dismissSceneEcho, getCurrentPosition, layout, leavePlayerSeat, moveTo, navigationOptions, onMeaningfulActivity, onPhoneDismiss, phoneOpen, readingActive, scene.id, sceneAction?.phase, sceneDefinition, setDialogueLineIndex, showAccessRegionDeniedText, startPassageTraversal, stopMovement])
 
-  const completeCommercialStreetQuestionNarrativeExit = useCallback(() => {
-    if (commercialStreetQuestionNarrative?.phase !== 'leaving') return
-    setCommercialStreetQuestionNarrative(null)
-    setCommercialStreetQuestionNarrativeCompletedLocally(true)
-    recordSceneState('commercial-street', commercialStreetQuestionNarrativeCompletedKey, true)
-    onChapterAnalytics?.('commercial_question_completed')
-  }, [commercialStreetQuestionNarrative?.phase, onChapterAnalytics, recordSceneState])
   const completeDialogueExit = useCallback(() => {
-    if (commercialStreetQuestionNarrative?.phase === 'leaving') {
-      completeCommercialStreetQuestionNarrativeExit()
-      return
-    }
     if (commercialCafeNarrative?.phase === 'leaving') {
       setCommercialCafeNarrative(null)
       setDialogueLineIndex(null)
@@ -3653,7 +3737,7 @@ export function MainlineScenePage({
       if (completedNpcDialogue) setPromptedSeatId(null)
       if (completedNpcDialogue?.dialogue.triggerEntityId === ruoyuCafeMeetingDialogue.triggerEntityId) leavePlayerSeat()
     }
-  }, [commercialCafeNarrative?.phase, commercialStreetQuestionNarrative?.phase, completeCommercialStreetQuestionNarrativeExit, genericDialoguePhase, leavePlayerSeat, npcDialogue])
+  }, [commercialCafeNarrative?.phase, genericDialoguePhase, leavePlayerSeat, npcDialogue])
 
   useEffect(() => {
     if (!walkRequest || handledWalkRequestRef.current === walkRequest.id) return
