@@ -2550,12 +2550,17 @@ export function MainlineSceneRenderer({
       : mainlineDialoguePageGroup(dialogue, dialogueLine, dialogueLineIndex, dialogueTextSessionId, dialogueSegmentIndex, displayOverflowIndex)
     : null
   currentDialogueGroupRef.current = currentDialogueGroup
+  const conversationDisplayUnitKey = conversationDisplayContent && 'displayUnitKey' in conversationDisplayContent
+    ? conversationDisplayContent.displayUnitKey
+    : undefined
   const conversationDisplayContentKey = conversationDisplayContent?.kind === 'waiting'
     ? `${stableConversationDisplaySessionId ?? 'conversation'}:waiting`
     : conversationDisplayContent?.kind === 'choice'
       ? `action:${conversationDisplayContent.actionId}`
-      : `${conversationDisplayContent?.kind ?? 'none'}:${dialogueLine?.id ?? (sceneEcho ? `echo:${sceneEcho.id}` : conversationDisplayContent?.text ?? '')}`
-  const conversationDisplayPageKey = readingLayoutPageKey ?? `${conversationDisplayContentKey}:${displayOverflowIndex}`
+      : conversationDisplayUnitKey ?? `${conversationDisplayContent?.kind ?? 'none'}:${dialogueLine?.id ?? (sceneEcho ? `echo:${sceneEcho.id}` : conversationDisplayContent?.text ?? '')}`
+  const conversationDisplayPageKey = conversationDisplayUnitKey
+    ? `${conversationDisplayContentKey}:${displayOverflowIndex}`
+    : readingLayoutPageKey ?? `${conversationDisplayContentKey}:${displayOverflowIndex}`
   const conversationDisplayRequiredReadyKey = stableConversationDisplaySessionId
     ? `${stableConversationDisplaySessionId}:${conversationDisplayPageKey}`
     : conversationDisplayPageKey
@@ -3598,7 +3603,7 @@ export function MainlineSceneRenderer({
             availableWidthPx={Math.max(1, viewportMetrics.width)}
             measuredPageHeightPx={Math.max(1, Math.min(260, (displayReadingLayout ?? activeDisplayReadingLayout ?? activeReadingLayout ?? mainlineEchoLayout(conversationDisplayPageText, readingMetrics, { speaker: dialogueLine?.speaker ?? sceneEchoSpeaker, maxWidthPx: displayReadingMaxWidthPx })).heightPx))}
             pageIndex={displayOverflowIndex}
-            isFinalLinePage={Boolean(dialogue && dialogueLine && dialogueLineIndex === dialogue.lines.length - 1 && displayOverflowIndex + 1 >= fittedReadingSegments.length && conversationDisplayContent.kind === 'text')}
+            isFinalLinePage={Boolean(dialogue && dialogueLine && dialogueLineIndex === dialogue.lines.length - 1 && dialogueSegmentIndex + 1 >= dialogueSegmentCount && displayOverflowIndex + 1 >= fittedReadingSegments.length && conversationDisplayContent.kind === 'text')}
             textSessionId={sceneEcho ? sceneEcho.id : dialogueTextSessionId}
             textMotion={conversationDisplayContent.kind === 'text' && conversationDisplayContent.textMotion ? conversationDisplayContent.textMotion : sceneEcho?.textMotion ?? dialogueTextMotion}
             pageAdvanceDiagnostic={dialogueAdvanceDiagnostic}

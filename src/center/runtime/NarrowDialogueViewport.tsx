@@ -181,7 +181,7 @@ export function NarrowDialogueViewport({
     const priorKey = prior?.identityKey
     const shouldAnimate = prior !== null
       && priorKey !== identityKey
-      && (transition === 'line-change' || transition === 'capacity-page')
+      && (transition === 'line-change' || transition === 'capacity-page' || transition === 'options-enter' || transition === 'options-return')
     const transitionRun = priorKey === identityKey ? transitionRunRef.current : ++transitionRunRef.current
     completedTransitionRef.current = null
     setTransitionDiagnostic({ id: transitionRun, phase: shouldAnimate ? 'animating' : 'settling', completion: shouldAnimate ? 'awaiting-roll-in' : 'identity-settled' })

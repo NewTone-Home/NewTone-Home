@@ -1,4 +1,5 @@
 import { commercialCafeNarrativeDialogue } from './commercialCafeStory'
+import { mainlineDialogueSentenceFragments } from './mainlineDialogueSentenceFragments'
 import type { MainlineConversationDisplayContent, MainlineConversationDisplayHistoryEntry, MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
 import { hasContinuousCafe, isPointInContinuousCafe } from './continuousCafe'
 import type { MainlineSceneDefinition } from './mainlineScenes'
@@ -10,6 +11,7 @@ export type CommercialCafeDialogueReplayState = Readonly<{
   runId: number
   phase: 'idle' | 'replaying'
   lineIndex: number
+  sentenceIndex: number
   textMotion: CommercialCafeReplayMotion
 }>
 export type CommercialCafeDialogueReplayAction =
@@ -34,7 +36,7 @@ export const commercialCafeDialogueReplaySource: MainlineSceneDialoguePresentati
   lines: commercialCafeNarrativeDialogue.lines,
 }
 export const initialCommercialCafeDialogueReplayState: CommercialCafeDialogueReplayState = {
-  runId: 0, phase: 'idle', lineIndex: 0, textMotion: 'static',
+  runId: 0, phase: 'idle', lineIndex: 0, sentenceIndex: 0, textMotion: 'static',
 }
 const replayableStoryStatuses = new Set<CommercialCafeReplayStoryStatus>(['ready-to-leave', 'complete'])
 
@@ -59,7 +61,7 @@ export function shouldShowCommercialCafeDialogueReplay(input: {
 export function commercialCafeDialogueReplayReducer(state: CommercialCafeDialogueReplayState, action: CommercialCafeDialogueReplayAction): CommercialCafeDialogueReplayState {
   if (action.type === 'start') {
     if (!action.previewAllowed || !replayableStoryStatuses.has(action.storyStatus)) return state
-    return { runId: state.runId + 1, phase: 'replaying', lineIndex: 0, textMotion: 'typing' }
+    return { runId: state.runId + 1, phase: 'replaying', lineIndex: 0, sentenceIndex: 0, textMotion: 'typing' }
   }
   if (action.type === 'cancel') return state.phase === 'replaying' ? { ...state, phase: 'idle', textMotion: 'static' } : state
   if (state.phase !== 'replaying') return state
@@ -70,7 +72,10 @@ export function commercialCafeDialogueReplayReducer(state: CommercialCafeDialogu
   }
   if (state.textMotion === 'typing') return { ...state, textMotion: 'static' }
   if (state.textMotion !== 'static') return state
-  if (state.lineIndex + 1 < commercialCafeDialogueReplaySource.lines.length) return { ...state, lineIndex: state.lineIndex + 1 }
+  const currentLine = commercialCafeDialogueReplaySource.lines[state.lineIndex]
+  const sentenceFragments = currentLine ? mainlineDialogueSentenceFragments(currentLine.text) : []
+  if (state.sentenceIndex + 1 < sentenceFragments.length) return { ...state, sentenceIndex: state.sentenceIndex + 1 }
+  if (state.lineIndex + 1 < commercialCafeDialogueReplaySource.lines.length) return { ...state, lineIndex: state.lineIndex + 1, sentenceIndex: 0 }
   return { ...state, textMotion: 'deleting' }
 }
 
@@ -78,12 +83,19 @@ export function commercialCafeDialogueReplayView(state: CommercialCafeDialogueRe
   if (state.phase !== 'replaying') return null
   const line = commercialCafeDialogueReplaySource.lines[state.lineIndex]
   if (!line) return null
+  const sentenceFragments = mainlineDialogueSentenceFragments(line.text)
+  const text = sentenceFragments[state.sentenceIndex] ?? line.text
   const sessionId = `test-replay:commercial-cafe-lao-zhou:${state.runId}`
   const history: readonly MainlineConversationDisplayHistoryEntry[] = commercialCafeDialogueReplaySource.lines.slice(0, state.lineIndex)
-    .map(previous => ({ key: previous.id, speaker: previous.speaker, speakerIsNpc: Boolean(previous.speakerNpcId), text: previous.text }))
+    .flatMap(previous => mainlineDialogueSentenceFragments(previous.text).map((text, sentenceIndex) => ({
+      key: `${previous.id}:sentence:${sentenceIndex}`,
+      speaker: previous.speaker,
+      speakerIsNpc: Boolean(previous.speakerNpcId),
+      text,
+    })))
   return {
     sessionId, runId: state.runId, dialogue: commercialCafeDialogueReplaySource, lineIndex: state.lineIndex, line,
-    conversationDisplayContent: { sessionId, kind: 'text', text: line.text, textMotion: state.textMotion, canAdvance: state.textMotion !== 'deleting', history },
+    conversationDisplayContent: { sessionId, kind: 'text', text, displayUnitKey: `cafe-replay:${state.runId}:${line.id}:sentence:${state.sentenceIndex}`, textMotion: state.textMotion, canAdvance: state.textMotion !== 'deleting', history },
     textMotion: state.textMotion, canAdvance: state.textMotion !== 'deleting',
   }
 }

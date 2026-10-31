@@ -38,7 +38,7 @@ export type MainlineConversationDisplayHistoryEntry = Readonly<{
   text: string
 }>
 export type MainlineConversationDisplayContent =
-  | { sessionId: string; kind: 'text' | 'aside'; text: string; textMotion?: 'typing' | 'static' | 'deleting' | 'deleted'; canAdvance: boolean; history?: readonly MainlineConversationDisplayHistoryEntry[]; choicePrompt?: boolean }
+  | { sessionId: string; kind: 'text' | 'aside'; text: string; displayUnitKey?: string; textMotion?: 'typing' | 'static' | 'deleting' | 'deleted'; canAdvance: boolean; history?: readonly MainlineConversationDisplayHistoryEntry[]; choicePrompt?: boolean }
   | { sessionId: string; kind: 'waiting'; text: '……'; canAdvance: false; history?: readonly MainlineConversationDisplayHistoryEntry[] }
   | { sessionId: string; kind: 'choice'; actionId: number; options: readonly string[]; canAdvance: false; history?: readonly MainlineConversationDisplayHistoryEntry[] }
 export type MainlineVisualProfile = 'tree-ring' | 'incense'
