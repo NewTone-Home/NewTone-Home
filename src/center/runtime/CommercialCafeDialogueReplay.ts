@@ -1,5 +1,8 @@
 import { commercialCafeNarrativeDialogue } from './commercialCafeStory'
 import type { MainlineConversationDisplayContent, MainlineConversationDisplayHistoryEntry, MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
+import { hasContinuousCafe, isPointInContinuousCafe } from './continuousCafe'
+import type { MainlineSceneDefinition } from './mainlineScenes'
+import type { Point } from './sceneGeometry'
 
 export type CommercialCafeReplayStoryStatus = 'available' | 'ready-to-leave' | 'complete'
 export type CommercialCafeReplayMotion = 'typing' | 'static' | 'deleting'
@@ -35,12 +38,19 @@ export const initialCommercialCafeDialogueReplayState: CommercialCafeDialogueRep
 }
 const replayableStoryStatuses = new Set<CommercialCafeReplayStoryStatus>(['ready-to-leave', 'complete'])
 
-export function shouldShowCommercialCafeDialogueReplay(input: { sceneId: string; storyStatus: CommercialCafeReplayStoryStatus; hostname: string; search: string }) {
+export function shouldShowCommercialCafeDialogueReplay(input: {
+  scene: MainlineSceneDefinition
+  playerPosition: Point
+  storyStatus: CommercialCafeReplayStoryStatus
+  hostname: string
+  search: string
+}) {
   const hostname = input.hostname.toLowerCase()
   const allowedHost = hostname.endsWith('-newtone-homes-projects.vercel.app')
     || hostname === 'mon-submissions-cleaner-nav.trycloudflare.com'
     || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1'
-  return input.sceneId === 'commercial-cafe'
+  const isPlayerInsideCafe = hasContinuousCafe(input.scene) && isPointInContinuousCafe(input.scene, input.playerPosition)
+  return isPlayerInsideCafe
     && replayableStoryStatuses.has(input.storyStatus)
     && allowedHost
     && new URLSearchParams(input.search).get('qaCafeDialogueReplay') === '1'
