@@ -70,10 +70,11 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
         const range = document.createRange()
         range.selectNodeContents(neighbor)
         const textHeight = Math.max(lineHeight, range.getBoundingClientRect().height)
-        // Place the neighboring label so only one third of its nearest
-        // rendered line reaches the safe-rect edge. Long labels therefore
-        // show the line nearest the center rather than several full rows.
-        return Math.round(height / 2 + Math.max(0, textHeight / 2 - lineHeight / 3))
+        // Range boxes include vertical font whitespace. Move the label inward
+        // by a line-height-scaled allowance so the visible slice contains
+        // actual glyph strokes rather than only the line box edge.
+        const fontWhitespaceAllowance = lineHeight * .21
+        return Math.round(height / 2 + Math.max(0, textHeight / 2 - lineHeight / 3 - fontWhitespaceAllowance))
       }
       const above = measureNeighborGap(centerIndex - 1)
       const below = measureNeighborGap(centerIndex + 1)
